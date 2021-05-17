@@ -6,7 +6,7 @@ KaMinPar is a shared-memory parallel heuristic to solve the graph partitioning p
 minimizing the number of edges between blocks.
 Competing algorithms are mostly evaluated for small values of k. If k is large, they often compute highly imbalance solutions, solutions of low quality or suffer excessive running time.
 KaMinPar substantially mitigates these problems.
-It computes partitions of quality comparable to other high-quality graph partitioning tools while guaranteeing the balance constraint for unweighted input graphs.
+It computes partitions of comparable quality to other high-quality graph partitioning tools while guaranteeing the balance constraint for unweighted input graphs.
 Moreover, for large values of k, it is an order of magnitude faster than competing algorithms.
 
 ## Installation Notes
