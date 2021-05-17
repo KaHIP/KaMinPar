@@ -21,6 +21,5 @@ add_tool(VerifyPartition verify_partition.cc)
 add_tool(GraphStatistics graph_statistics.cc)
 add_tool(GraphConverter graph_converter.cc converter/mmio.cc)
 add_tool(GraphChecker graph_checker.cc)
-add_tool(CliqueGraphGenerator clique_graph_generator.cc)
 
 add_tool(CsvViewer csv_viewer.cc)
