@@ -2,7 +2,7 @@
 
 The graph partitioning software KaMinPar -- Karlsruhe Minimal Graph Partitioning. 
 
-KaMinPar is a shared-memory parallel heuristic to solve the graph partitioning problem: divide a graph into k disjoint blocks of roughly equal weight while
+KaMinPar is a shared-memory parallel tool to heuristically solve the graph partitioning problem: divide a graph into k disjoint blocks of roughly equal weight while
 minimizing the number of edges between blocks.
 Competing algorithms are mostly evaluated for small values of k. If k is large, they often compute highly imbalance solutions, solutions of low quality or suffer excessive running time.
 KaMinPar substantially mitigates these problems.
