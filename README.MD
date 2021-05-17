@@ -24,17 +24,14 @@ The resulting binary is located in `build/apps/KaMinPar`.
 
 ## Running KaMinPar
 
-To partition a graph using `KaMinPar`, run
+To partition a graph in METIS format using `KaMinPar`, run
 
 ```shell
 ./KaMinPar -G <graph filename> -k <number of blocks> -t <number of threads> -e <max. imbalance, e.g. 0.03 for 3%> 
 ```
 
+For a description of the graph format, please have a look at the [KaHiP manual](https://github.com/KaHIP/KaHIP/raw/master/manual/kahip.pdf).
 A list of all options is available using the `--help` option.
-The input graph must be in METIS format.
-For a description of this format, please have a look at the KaHiP manual.
-
-## Linking the KaMinPar Library
 
 ## Licensing
 
