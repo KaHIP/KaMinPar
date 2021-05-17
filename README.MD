@@ -1,12 +1,22 @@
-# Installation Notes
+# KaMinPar
 
-## Requirements
+The graph partitioning software KaMinPar -- Karlsruhe Minimal Graph Partitioning. 
+
+KaMinPar is a shared-memory parallel heuristic to solve the graph partitioning problem: divide a graph into k disjoint blocks of roughly equal weight while
+minimizing the number of edges between blocks.
+Competing algorithms are mostly evaluated for small values of k. If k is large, they mostly compute highly imbalanced solutions, low quality or suffer excessive running time.
+KaMinPar substantially mitigates these problems: it computes partitions of comparable quality to other high-quality graph partitioning tools while guaranteeing the balance constraint for unweighted input graphs.
+Moreover, it is an order of magnitude faster than other high-quality partitioning tools based on direct k-way partitioning. 
+
+## Installation Notes
+
+### Requirements
 
 * Modern C++-20 ready compiler such as `g++` version 10 or higher
 * CMake 
 * Intel Thread Building Blocks library (TBB)
 
-## Building KaMinPar
+### Building KaMinPar
 
 To build the software, clone this repository and type
 ```shell
@@ -24,14 +34,14 @@ The resulting binary is located in `build/apps/KaMinPar`.
 
 ## Running KaMinPar
 
-To partition a graph in METIS format using `KaMinPar`, run
+To partition a graph in METIS format using KaMinPar, run
 
 ```shell
-./KaMinPar -G <graph filename> -k <number of blocks> -t <number of threads> -e <max. imbalance, e.g. 0.03 for 3%> 
+./KaMinPar -G <graph filename> -k <number of blocks> -t <number of threads> -e <max. imbalance, e.g., 0.03 for 3%> 
 ```
 
+A list of all options is available using the `--help` argument.
 For a description of the graph format, please have a look at the [KaHiP manual](https://github.com/KaHIP/KaHIP/raw/master/manual/kahip.pdf).
-A list of all options is available using the `--help` option.
 
 ## Licensing
 
