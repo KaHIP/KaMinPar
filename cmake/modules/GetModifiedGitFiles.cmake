@@ -1,0 +1,15 @@
+function(GetModifiedGitFiles __modifiedfilesvar)
+  find_program(GIT_BIN git)
+  if (GIT_BIN AND EXISTS "${CMAKE_SOURCE_DIR}/.git")
+    execute_process(COMMAND ${GIT_BIN} -C "${CMAKE_SOURCE_DIR}" ls-files -m
+      OUTPUT_VARIABLE MODIFIED_FILES
+      OUTPUT_STRIP_TRAILING_WHITESPACE)
+    if (MODIFIED_FILES STREQUAL "")
+      set(MODIFIED_FILES "<none>")
+    endif ()
+    string(REPLACE "\n" ", " MODIFIED_FILES ${MODIFIED_FILES})
+  else ()
+    set(MODIFIED_FILES "<unavailable>")
+  endif ()
+  set(${__modifiedfilesvar} ${MODIFIED_FILES} PARENT_SCOPE)
+endfunction()
