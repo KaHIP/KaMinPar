@@ -43,8 +43,8 @@ public:
   Partitioner();
   ~Partitioner();
 
-  void set_option(const std::string &name, const std::string &value);
-  std::unique_ptr<BlockID[]> partition(BlockID k);
+  Partitioner &set_option(const std::string &name, const std::string &value);
+  std::unique_ptr<BlockID[]> partition(BlockID k) const;
   std::size_t partition_size() const;
 
 private:

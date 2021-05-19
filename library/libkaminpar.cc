@@ -170,9 +170,9 @@ std::unique_ptr<BlockID[]> finalize_partition(Graph &graph, PartitionedGraph &p_
 
 } // namespace
 
-void Partitioner::set_option(const std::string &name, const std::string &value) {
-  // special treatment for epsilon to catch the case where we modified epsilon during preprocessing
-  if (name == "epsilon") {
+Partitioner &Partitioner::set_option(const std::string &name, const std::string &value) {
+  // special treatment for epsilon since we might have removed isolated nodes during preprocessing
+  if (name == "--epsilon" || name == "-e") {
     _pimpl->epsilon = std::strtod(value.c_str(), nullptr);
     _pimpl->context.partition.epsilon = _pimpl->epsilon * _pimpl->epsilon_adaptation;
   } else {
@@ -191,9 +191,11 @@ void Partitioner::set_option(const std::string &name, const std::string &value) 
 
     args.parse(2, argv.data(), false);
   }
+
+  return *this;
 }
 
-std::unique_ptr<BlockID[]> Partitioner::partition(BlockID k) {
+std::unique_ptr<BlockID[]> Partitioner::partition(BlockID k) const {
   _pimpl->context.partition.k = k;
   PartitionedGraph p_graph = partitioning::partition(_pimpl->graph, _pimpl->context);
   return finalize_partition(_pimpl->graph, p_graph, _pimpl);

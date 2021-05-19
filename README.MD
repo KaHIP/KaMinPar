@@ -44,6 +44,26 @@ To partition a graph in METIS format using KaMinPar, run
 A list of all options is available using the `--help` argument.
 For a description of the graph format, please have a look at the [KaHiP manual](https://github.com/KaHIP/KaHIP/raw/master/manual/kahip.pdf).
 
+### Using KaMinPar as a Library
+
+To use KaMinPar as a library, build the `kaminpar` target and follow the example given below.
+
+```c++
+// graph from the manual 
+std::vector<libkaminpar::EdgeID> nodes{0, 2, 5, 7, 9, 12};
+std::vector<libkaminpar::NodeID> edges{1, 4, 0, 2, 4, 1, 3, 2, 4, 0, 1, 3};
+
+libkaminpar::Partitioner partitioner = 
+        libkaminpar::PartitionerBuilder
+        ::from_adjacency_array(nodes.data(), edges.data())
+        .create();
+
+partitioner.set_option("--threads", "6"); // use 6 cores
+partitioner.set_option("--epsilon", "0.04"); // allow 4% imbalance
+
+auto partition = partitioner.partition(16); // compute 16-way partition
+```
+
 ## Licensing
 
 KaMinPar is free software provided under the GNU General Public License (GPLv3).
