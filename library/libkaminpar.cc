@@ -19,11 +19,11 @@
 ******************************************************************************/
 #include "libkaminpar.h"
 
+#include "kaminpar/application/arguments.h"
 #include "kaminpar/context.h"
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/io.h"
 #include "kaminpar/partitioning_scheme/partitioning.h"
-#include "kaminpar/application/arguments.h"
 
 #include <tbb/parallel_for.h>
 
@@ -45,8 +45,8 @@ struct PartitionerPrivate {
   NodePermutations permutations;
 
   NodeID n;
+  NodeWeight original_total_node_weight;
   double epsilon;
-  double epsilon_adaptation;
 };
 
 //
@@ -91,19 +91,25 @@ Partitioner PartitionerBuilder::create() {
   partitioner._pimpl->context = _pimpl->context;
   partitioner._pimpl->context.setup(partitioner._pimpl->graph);
   partitioner._pimpl->epsilon = partitioner._pimpl->context.partition.epsilon;
-  partitioner._pimpl->epsilon_adaptation = 1.0;
   return partitioner;
 }
 
 Partitioner PartitionerBuilder::rearrange_and_create() {
   Partitioner partitioner;
   partitioner._pimpl->n = _pimpl->n;
+
+  // keep track of original total node weight to assign nodes before returning the final partition
+  if (_pimpl->node_weights.size() == 0) {
+    partitioner._pimpl->original_total_node_weight = _pimpl->n;
+  } else {
+    partitioner._pimpl->original_total_node_weight = parallel::accumulate(_pimpl->node_weights);
+  }
+
   partitioner._pimpl->context = _pimpl->context;
   partitioner._pimpl->epsilon = _pimpl->context.partition.epsilon;
   partitioner._pimpl->permutations = rearrange_and_remove_isolated_nodes(true, partitioner._pimpl->context.partition,
                                                                          _pimpl->nodes, _pimpl->edges,
                                                                          _pimpl->node_weights, _pimpl->edge_weights);
-  partitioner._pimpl->epsilon_adaptation = _pimpl->context.partition.epsilon / partitioner._pimpl->epsilon;
   partitioner._pimpl->graph = Graph{std::move(_pimpl->nodes), std::move(_pimpl->edges), std::move(_pimpl->node_weights),
                                     std::move(_pimpl->edge_weights), true};
   partitioner._pimpl->context.setup(partitioner._pimpl->graph);
@@ -120,8 +126,7 @@ Partitioner::~Partitioner() { delete _pimpl; }
 namespace {
 bool was_rearranged(PartitionerPrivate *pimpl) { return !pimpl->permutations.new_to_old.empty(); }
 
-std::unique_ptr<BlockID[]> finalize_partition(Graph &graph, PartitionedGraph &p_graph,
-                                                        PartitionerPrivate *pimpl) {
+std::unique_ptr<BlockID[]> finalize_partition(Graph &graph, PartitionedGraph &p_graph, PartitionerPrivate *pimpl) {
   if (!was_rearranged(pimpl)) {
     std::unique_ptr<BlockID[]> new_partition = std::make_unique<BlockID[]>(graph.n());
     std::copy(p_graph.partition().begin(), p_graph.partition().end(), new_partition.get());
@@ -168,35 +173,39 @@ std::unique_ptr<BlockID[]> finalize_partition(Graph &graph, PartitionedGraph &p_
   return new_partition;
 }
 
+void adapt_epsilon_after_isolated_nodes_removal(const Graph &graph, PartitionContext &p_ctx,
+                                                const NodeWeight original_total_node_weight) {
+  const BlockID k = p_ctx.k;
+  const double old_max_block_weight = (1 + p_ctx.epsilon) * std::ceil(1.0 * original_total_node_weight / k);
+  const double new_epsilon = old_max_block_weight / std::ceil(1.0 * graph.total_node_weight() / k) - 1;
+  p_ctx.epsilon = new_epsilon;
+}
 } // namespace
 
 Partitioner &Partitioner::set_option(const std::string &name, const std::string &value) {
-  // special treatment for epsilon since we might have removed isolated nodes during preprocessing
-  if (name == "--epsilon" || name == "-e") {
-    _pimpl->epsilon = std::strtod(value.c_str(), nullptr);
-    _pimpl->context.partition.epsilon = _pimpl->epsilon * _pimpl->epsilon_adaptation;
-  } else {
-    Arguments args;
-    app::create_context_options(_pimpl->context, args);
+  Arguments args;
+  app::create_context_options(_pimpl->context, args);
 
-    // simulate argc / argv arguments
-    std::string empty = "";
-    std::string name_cpy = name;
-    std::string value_cpy = value;
+  // simulate argc / argv arguments
+  std::string empty = "";
+  std::string name_cpy = name;
+  std::string value_cpy = value;
 
-    std::vector<char *> argv(3);
-    argv[0] = &empty[0];
-    argv[1] = &name_cpy[0];
-    argv[2] = &value_cpy[0];
+  std::vector<char *> argv(3);
+  argv[0] = &empty[0];
+  argv[1] = &name_cpy[0];
+  argv[2] = &value_cpy[0];
 
-    args.parse(2, argv.data(), false);
-  }
+  args.parse(2, argv.data(), false);
 
   return *this;
 }
 
 std::unique_ptr<BlockID[]> Partitioner::partition(BlockID k) const {
   _pimpl->context.partition.k = k;
+  _pimpl->context.partition.epsilon = _pimpl->epsilon;
+  adapt_epsilon_after_isolated_nodes_removal(_pimpl->graph, _pimpl->context.partition,
+                                             _pimpl->original_total_node_weight);
   PartitionedGraph p_graph = partitioning::partition(_pimpl->graph, _pimpl->context);
   return finalize_partition(_pimpl->graph, p_graph, _pimpl);
 }

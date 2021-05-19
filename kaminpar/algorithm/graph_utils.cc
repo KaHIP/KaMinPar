@@ -722,13 +722,9 @@ NodePermutations rearrange_and_remove_isolated_nodes(const bool remove_isolated_
     const NodeWeight new_weight = total_node_weight - isolated_nodes_weight;
 
     const BlockID k = p_ctx.k;
-    const double old_epsilon = p_ctx.epsilon;
     const double old_max_block_weight = (1 + p_ctx.epsilon) * std::ceil(1.0 * total_node_weight / k);
     const double new_epsilon = old_max_block_weight / std::ceil(1.0 * new_weight / k) - 1;
     p_ctx.epsilon = new_epsilon;
-
-    LOG << "Removed " << old_n - new_n << " isolated nodes with total weight " << isolated_nodes_weight;
-    LOG << " -> adapted epsilon=" << old_epsilon << " to epsilon'=" << new_epsilon;
 
     nodes.restrict(new_n + 1);
     if (!node_weights.empty()) { node_weights.restrict(new_n); }

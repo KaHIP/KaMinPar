@@ -34,7 +34,7 @@ int main(int argc, char *argv[]) {
 
   std::cout << "Partitioning " << filename << " into " << k << " blocks ..." << std::endl;
 
-  auto partitioner = libkaminpar::PartitionerBuilder::from_graph_file(filename).create();
+  auto partitioner = libkaminpar::PartitionerBuilder::from_graph_file(filename).rearrange_and_create();
 
   partitioner.set_option("--threads", "6").set_option("--seed", "123");
 
