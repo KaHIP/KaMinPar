@@ -61,7 +61,8 @@ libkaminpar::Partitioner partitioner =
 partitioner.set_option("--threads", "6"); // use 6 cores
 partitioner.set_option("--epsilon", "0.04"); // allow 4% imbalance
 
-auto partition = partitioner.partition(16); // compute 16-way partition
+// compute 16-way partition
+std::unique_ptr<libkaminpar::BlockID[]> partition = partitioner.partition(16); 
 ```
 
 ## Licensing
