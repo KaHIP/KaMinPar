@@ -204,8 +204,10 @@ Partitioner &Partitioner::set_option(const std::string &name, const std::string 
 std::unique_ptr<BlockID[]> Partitioner::partition(BlockID k) const {
   _pimpl->context.partition.k = k;
   _pimpl->context.partition.epsilon = _pimpl->epsilon;
-  adapt_epsilon_after_isolated_nodes_removal(_pimpl->graph, _pimpl->context.partition,
-                                             _pimpl->original_total_node_weight);
+  if (was_rearranged(_pimpl)) {
+    adapt_epsilon_after_isolated_nodes_removal(_pimpl->graph, _pimpl->context.partition,
+                                               _pimpl->original_total_node_weight);
+  }
   PartitionedGraph p_graph = partitioning::partition(_pimpl->graph, _pimpl->context);
   return finalize_partition(_pimpl->graph, p_graph, _pimpl);
 }
