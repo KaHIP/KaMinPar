@@ -686,7 +686,7 @@ NodePermutations rearrange_and_remove_isolated_nodes(const bool remove_isolated_
                                                      StaticArray<EdgeID> &nodes, StaticArray<NodeID> &edges,
                                                      StaticArray<NodeWeight> &node_weights,
                                                      StaticArray<EdgeWeight> &edge_weights,
-                                                     const NodeWeight total_node_weight) {
+                                                     NodeWeight total_node_weight) {
   START_TIMER(TIMER_ALLOCATION);
   StaticArray<EdgeID> tmp_nodes(nodes.size());
   StaticArray<NodeID> tmp_edges(edges.size());
@@ -707,6 +707,14 @@ NodePermutations rearrange_and_remove_isolated_nodes(const bool remove_isolated_
   STOP_TIMER();
 
   if (remove_isolated_nodes) {
+    if (total_node_weight == -1) {
+      if (node_weights.size() == 0) {
+        total_node_weight = nodes.size() - 1;
+      } else {
+        total_node_weight = parallel::accumulate(node_weights);
+      }
+    }
+
     const auto [isolated_nodes, isolated_nodes_weight] = find_isolated_nodes_info(nodes, node_weights);
 
     const NodeID old_n = nodes.size() - 1;

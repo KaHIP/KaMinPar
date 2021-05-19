@@ -63,5 +63,15 @@ set(KAMINPAR_SOURCE_FILES
   factories.h
   parallel.h)
 
-add_library(kaminpar STATIC ${KAMINPAR_SOURCE_FILES})
-target_include_directories(kaminpar PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+add_library(kaminpar_impl OBJECT ${KAMINPAR_SOURCE_FILES})
+target_include_directories(kaminpar_impl PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+
+# Link TBB
+find_package(Threads REQUIRED)
+find_package(TBB REQUIRED)
+target_link_libraries(kaminpar_impl PUBLIC ${TBB_LIBRARIES})
+
+# Link libnuma on Linux
+if (UNIX AND NOT APPLE)
+    target_link_libraries(kaminpar_impl PUBLIC numa)
+endif ()

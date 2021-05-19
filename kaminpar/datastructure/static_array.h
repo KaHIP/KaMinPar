@@ -190,11 +190,11 @@ public:
     }
   }
 
-  void free() {
+  parallel::tbb_unique_ptr<value_type> free() {
     _size = 0;
     _unrestricted_size = 0;
-    _owned_data = nullptr;
     _data = nullptr;
+    return std::move(_owned_data);
   }
 
   void dump_frame() {

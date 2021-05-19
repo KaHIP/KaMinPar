@@ -143,13 +143,13 @@ ContractionResult contract(const Graph &graph, const scalable_vector<NodeID> &cl
 
 using NodePermutation = StaticArray<NodeID>;
 
-  struct NodePermutations {
-    NodePermutation old_to_new;
-    NodePermutation new_to_old;
-  };
-  
+struct NodePermutations {
+  NodePermutation old_to_new;
+  NodePermutation new_to_old;
+};
+
 NodePermutations sort_by_degree_buckets(const StaticArray<EdgeID> &nodes, const bool deg0_position = false);
-  
+
 void build_permuted_graph(const StaticArray<EdgeID> &old_nodes, const StaticArray<NodeID> &old_edges,
                           const StaticArray<NodeWeight> &old_node_weights,
                           const StaticArray<EdgeWeight> &old_edge_weights, const NodePermutations &permutation,
@@ -163,10 +163,10 @@ std::pair<NodeID, NodeID> find_furthest_away_node(const Graph &graph, NodeID sta
                                                   Marker<> &marker);
 
 NodePermutations rearrange_and_remove_isolated_nodes(const bool remove_isolated_nodes, PartitionContext &p_ctx,
-                                                    StaticArray<EdgeID> &nodes, StaticArray<NodeID> &edges,
-                                                    StaticArray<NodeWeight> &node_weights,
-                                                    StaticArray<EdgeWeight> &edge_weights,
-                                                    const NodeWeight total_node_weight);
+                                                     StaticArray<EdgeID> &nodes, StaticArray<NodeID> &edges,
+                                                     StaticArray<NodeWeight> &node_weights,
+                                                     StaticArray<EdgeWeight> &edge_weights,
+                                                     NodeWeight total_node_weight = -1);
 
 PartitionedGraph revert_isolated_nodes_removal(PartitionedGraph p_graph, const NodeID num_isolated_nodes,
                                                const PartitionContext &p_ctx);
