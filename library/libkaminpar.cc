@@ -35,7 +35,7 @@ struct PartitionerBuilderPrivate {
   StaticArray<NodeID> edges;
   StaticArray<NodeWeight> node_weights;
   StaticArray<EdgeWeight> edge_weights;
-  Context context;
+  Context context{Context::create_default()};
 };
 
 struct PartitionerPrivate {
@@ -117,8 +117,16 @@ Partitioner::Partitioner() { _pimpl = new PartitionerPrivate{}; }
 Partitioner::~Partitioner() { delete _pimpl; }
 
 namespace {
-StaticArray<BlockID> build_partition_for_original_graph(Graph &graph, PartitionedGraph &p_graph,
+bool was_rearranged(PartitionerPrivate *pimpl) { return !pimpl->permutations.new_to_old.empty(); }
+
+std::unique_ptr<BlockID[]> finalize_partition(Graph &graph, PartitionedGraph &p_graph,
                                                         PartitionerPrivate *pimpl) {
+  if (!was_rearranged(pimpl)) {
+    std::unique_ptr<BlockID[]> new_partition = std::make_unique<BlockID[]>(graph.n());
+    std::copy(p_graph.partition().begin(), p_graph.partition().end(), new_partition.get());
+    return new_partition;
+  }
+
   const NodeID restricted_n = graph.n();
 
   const std::size_t restricted_nodes_size = graph.raw_nodes().size();
@@ -132,7 +140,7 @@ StaticArray<BlockID> build_partition_for_original_graph(Graph &graph, Partitione
   p_ctx.setup(graph);
 
   // copy partition to tmp buffer
-  StaticArray<BlockID> new_partition(graph.n());
+  std::unique_ptr<BlockID[]> new_partition = std::make_unique<BlockID[]>(graph.n());
 
   // rearrange partition for original graph
   tbb::parallel_for(static_cast<NodeID>(0), restricted_n, [&](const NodeID u) {
@@ -159,7 +167,6 @@ StaticArray<BlockID> build_partition_for_original_graph(Graph &graph, Partitione
   return new_partition;
 }
 
-bool was_rearranged(PartitionerPrivate *pimpl) { return !pimpl->permutations.new_to_old.empty(); }
 } // namespace
 
 void Partitioner::set_option(const std::string &name, const std::string &value) {
@@ -175,11 +182,7 @@ void Partitioner::set_option(const std::string &name, const std::string &value) 
 std::unique_ptr<BlockID[]> Partitioner::partition(BlockID k) {
   _pimpl->context.partition.k = k;
   PartitionedGraph p_graph = partitioning::partition(_pimpl->graph, _pimpl->context);
-
-  auto partition = (was_rearranged(_pimpl)) ? build_partition_for_original_graph(_pimpl->graph, p_graph, _pimpl)
-                                            : p_graph.take_partition();
-
-  return std::unique_ptr<BlockID[]>(partition.free().release());
+  return finalize_partition(_pimpl->graph, p_graph, _pimpl);
 }
 
 std::size_t Partitioner::partition_size() const { return static_cast<std::size_t>(_pimpl->n); }
