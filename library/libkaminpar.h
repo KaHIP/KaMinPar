@@ -41,33 +41,39 @@ class Partitioner {
   friend class PartitionerBuilder;
 
 public:
-  void set_option(const std::string &name, const std::string &value);
+  Partitioner();
+  ~Partitioner();
 
-  std::unique_ptr<BlockID> partition(BlockID k);
+  void set_option(const std::string &name, const std::string &value);
+  std::unique_ptr<BlockID[]> partition(BlockID k);
+  std::size_t partition_size() const;
 
 private:
-  std::unique_ptr<PartitionerPrivate> _pimpl;
+  PartitionerPrivate *_pimpl;
 };
 
 struct PartitionerBuilderPrivate;
 
 class PartitionerBuilder {
 public:
+  PartitionerBuilder(const PartitionerBuilder &) = delete;
+  PartitionerBuilder &operator=(const PartitionerBuilder &) = delete;
+  PartitionerBuilder(PartitionerBuilder &&) noexcept = default;
+  PartitionerBuilder &operator=(PartitionerBuilder &&) noexcept = default;
+  ~PartitionerBuilder();
+
   static PartitionerBuilder from_graph_file(const std::string &filename);
   static PartitionerBuilder from_adjacency_array(NodeID n, EdgeID *nodes, NodeID *edges);
+
   void with_node_weights(NodeWeight *node_weights);
   void with_edge_weights(EdgeWeight *edge_weights);
   Partitioner create();
   Partitioner rearrange_and_create();
 
 private:
-  PartitionerBuilder() = default;
-  PartitionerBuilder(const PartitionerBuilder &) = delete;
-  PartitionerBuilder &operator=(const PartitionerBuilder &) = delete;
-  PartitionerBuilder(PartitionerBuilder &&) noexcept = default;
-  PartitionerBuilder &operator=(PartitionerBuilder &&) noexcept = default;
+  PartitionerBuilder();
 
 private:
-  std::unique_ptr<PartitionerBuilderPrivate> _pimpl;
+  PartitionerBuilderPrivate *_pimpl;
 };
 } // namespace libkaminpar

@@ -43,6 +43,7 @@ struct PartitionerPrivate {
   Context context;
   NodePermutations permutations;
 
+  NodeID n;
   double epsilon;
   double epsilon_adaptation;
 };
@@ -50,6 +51,9 @@ struct PartitionerPrivate {
 //
 // Builder to create Partitioner instance
 //
+
+PartitionerBuilder::PartitionerBuilder() { _pimpl = new PartitionerBuilderPrivate{}; }
+PartitionerBuilder::~PartitionerBuilder() { delete _pimpl; }
 
 PartitionerBuilder PartitionerBuilder::from_graph_file(const std::string &filename) {
   PartitionerBuilder builder;
@@ -80,6 +84,7 @@ void PartitionerBuilder::with_edge_weights(EdgeWeight *edge_weights) {
 
 Partitioner PartitionerBuilder::create() {
   Partitioner partitioner;
+  partitioner._pimpl->n = _pimpl->n;
   partitioner._pimpl->graph = Graph{std::move(_pimpl->nodes), std::move(_pimpl->edges), std::move(_pimpl->node_weights),
                                     std::move(_pimpl->edge_weights), false};
   partitioner._pimpl->context = _pimpl->context;
@@ -91,6 +96,7 @@ Partitioner PartitionerBuilder::create() {
 
 Partitioner PartitionerBuilder::rearrange_and_create() {
   Partitioner partitioner;
+  partitioner._pimpl->n = _pimpl->n;
   partitioner._pimpl->context = _pimpl->context;
   partitioner._pimpl->epsilon = _pimpl->context.partition.epsilon;
   partitioner._pimpl->permutations = rearrange_and_remove_isolated_nodes(true, partitioner._pimpl->context.partition,
@@ -106,6 +112,9 @@ Partitioner PartitionerBuilder::rearrange_and_create() {
 //
 // Partitioner interface
 //
+
+Partitioner::Partitioner() { _pimpl = new PartitionerPrivate{}; }
+Partitioner::~Partitioner() { delete _pimpl; }
 
 namespace {
 StaticArray<BlockID> build_partition_for_original_graph(Graph &graph, PartitionedGraph &p_graph,
@@ -163,14 +172,15 @@ void Partitioner::set_option(const std::string &name, const std::string &value) 
   }
 }
 
-std::unique_ptr<BlockID> Partitioner::partition(BlockID k) {
+std::unique_ptr<BlockID[]> Partitioner::partition(BlockID k) {
   _pimpl->context.partition.k = k;
   PartitionedGraph p_graph = partitioning::partition(_pimpl->graph, _pimpl->context);
 
-  auto partition = (was_rearranged(_pimpl.get()))
-                       ? build_partition_for_original_graph(_pimpl->graph, p_graph, _pimpl.get())
-                       : p_graph.take_partition();
+  auto partition = (was_rearranged(_pimpl)) ? build_partition_for_original_graph(_pimpl->graph, p_graph, _pimpl)
+                                            : p_graph.take_partition();
 
-  return std::unique_ptr<BlockID>(partition.free().release());
+  return std::unique_ptr<BlockID[]>(partition.free().release());
 }
+
+std::size_t Partitioner::partition_size() const { return static_cast<std::size_t>(_pimpl->n); }
 } // namespace libkaminpar

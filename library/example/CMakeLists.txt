@@ -1,0 +1,2 @@
+add_executable(library_example library_example.cc)
+target_link_libraries(library_example kaminpar)
