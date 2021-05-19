@@ -23,6 +23,7 @@
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/io.h"
 #include "kaminpar/partitioning_scheme/partitioning.h"
+#include "kaminpar/application/arguments.h"
 
 #include <tbb/parallel_for.h>
 
@@ -175,7 +176,20 @@ void Partitioner::set_option(const std::string &name, const std::string &value) 
     _pimpl->epsilon = std::strtod(value.c_str(), nullptr);
     _pimpl->context.partition.epsilon = _pimpl->epsilon * _pimpl->epsilon_adaptation;
   } else {
-    // TODO
+    Arguments args;
+    app::create_context_options(_pimpl->context, args);
+
+    // simulate argc / argv arguments
+    std::string empty = "";
+    std::string name_cpy = name;
+    std::string value_cpy = value;
+
+    std::vector<char *> argv(3);
+    argv[0] = &empty[0];
+    argv[1] = &name_cpy[0];
+    argv[2] = &value_cpy[0];
+
+    args.parse(2, argv.data(), false);
   }
 }
 

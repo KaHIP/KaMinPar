@@ -25,7 +25,6 @@
 namespace libkaminpar {
 struct PartitionerPrivate;
 
-
 using NodeID = uint32_t;
 #ifdef KAMINPAR_64BIT_EDGE_IDS
 using EdgeID = uint64_t;
