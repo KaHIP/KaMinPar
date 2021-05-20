@@ -17,7 +17,6 @@
  * along with KaMinPar.  If not, see <http://www.gnu.org/licenses/>.
  *
 ******************************************************************************/
-
 #include <iostream>
 #include <libkaminpar.h>
 #include <string>
@@ -35,11 +34,12 @@ int main(int argc, char *argv[]) {
   std::cout << "Partitioning " << filename << " into " << k << " blocks ..." << std::endl;
 
   auto partitioner = libkaminpar::PartitionerBuilder::from_graph_file(filename).rearrange_and_create();
-
   partitioner.set_option("--threads", "6").set_option("--seed", "123");
 
   const auto partition_size = partitioner.partition_size();
   auto partition = partitioner.partition(k);
+
+  std::cout << "Finished!" << std::endl;
 
   std::vector<int> block_sizes(k);
   for (std::size_t i = 0; i < partition_size; ++i) { ++block_sizes[partition[i]]; }

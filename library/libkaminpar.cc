@@ -23,6 +23,7 @@
 #include "kaminpar/context.h"
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/io.h"
+#include "kaminpar/utility/metrics.h"
 #include "kaminpar/partitioning_scheme/partitioning.h"
 
 #include <tbb/parallel_for.h>
@@ -196,12 +197,12 @@ Partitioner &Partitioner::set_option(const std::string &name, const std::string 
   argv[1] = &name_cpy[0];
   argv[2] = &value_cpy[0];
 
-  args.parse(2, argv.data(), false);
+  args.parse(argv.size(), argv.data(), false);
 
   return *this;
 }
 
-std::unique_ptr<BlockID[]> Partitioner::partition(BlockID k) const {
+std::unique_ptr<BlockID[]> Partitioner::partition(BlockID k, EdgeWeight &edge_cut) const {
   _pimpl->context.partition.k = k;
   _pimpl->context.partition.epsilon = _pimpl->epsilon;
   if (was_rearranged(_pimpl)) {
@@ -209,7 +210,13 @@ std::unique_ptr<BlockID[]> Partitioner::partition(BlockID k) const {
                                                _pimpl->original_total_node_weight);
   }
   PartitionedGraph p_graph = partitioning::partition(_pimpl->graph, _pimpl->context);
+  edge_cut = metrics::edge_cut(p_graph);
   return finalize_partition(_pimpl->graph, p_graph, _pimpl);
+}
+
+std::unique_ptr<BlockID[]> Partitioner::partition(BlockID k) const {
+  EdgeWeight edge_cut;
+  return partition(k, edge_cut);
 }
 
 std::size_t Partitioner::partition_size() const { return static_cast<std::size_t>(_pimpl->n); }

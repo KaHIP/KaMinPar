@@ -45,6 +45,7 @@ public:
 
   Partitioner &set_option(const std::string &name, const std::string &value);
   std::unique_ptr<BlockID[]> partition(BlockID k) const;
+  std::unique_ptr<BlockID[]> partition(BlockID k, EdgeWeight &edge_cut) const;
   std::size_t partition_size() const;
 
 private:
