@@ -153,8 +153,6 @@ METIS_API(int) METIS_SetDefaultOptions(idx_t *options) {
   return METIS_OK;
 }
 
-/* These functions are used by ParMETIS */
-
 METIS_API(int)
 METIS_NodeNDP(idx_t, idx_t *, idx_t *, idx_t *, idx_t, idx_t *, idx_t *, idx_t *, idx_t *) { return METIS_ERROR; }
 

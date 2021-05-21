@@ -38,10 +38,18 @@ The resulting binary is located in `build/apps/KaMinPar`.
 To partition a graph in METIS format using KaMinPar, run
 
 ```shell
-./KaMinPar -G <graph filename> -k <number of blocks> -t <number of threads> -e <max. imbalance, e.g., 0.03 for 3%> 
+./KaMinPar -G <graph filename> -k <number of blocks> 
 ```
 
-A list of all options is available using the `--help` argument.
+Common command line options include:
+
+* `--help` - print a complete list of command line options
+* `--threads=<int>` - maximum number of threads to be used
+* `--epsilon=<double>` - maximum allowed imbalance,e.g., `0.03` for 3%
+* `--seed=<int>` - seed for random number generation
+* `--save-partition` - write the partition to a file 
+  (you also might want to specify the partition filename using `--partition-name=<str>`) 
+
 For a description of the graph format, please have a look at the [KaHiP manual](https://github.com/KaHIP/KaHIP/raw/master/manual/kahip.pdf).
 
 ### Using KaMinPar as a Library
@@ -64,6 +72,10 @@ partitioner.set_option("--epsilon", "0.04"); // allow 4% imbalance
 // compute 16-way partition
 std::unique_ptr<libkaminpar::BlockID[]> partition = partitioner.partition(16); 
 ```
+
+If you are already using Metis and want to give KaMinPar a try, you can build an interface compatible to that of Metis 
+by passing `-DKAMINPAR_BUILD_METIS_INTERFACE=On` to CMake. 
+Then, simply link against our library (together with `libtbb` and `libtbbmalloc`) instead of Metis.
 
 ## Licensing
 
