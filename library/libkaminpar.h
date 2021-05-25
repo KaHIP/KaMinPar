@@ -23,8 +23,6 @@
 #include <string_view>
 
 namespace libkaminpar {
-struct PartitionerPrivate;
-
 using NodeID = uint32_t;
 #ifdef KAMINPAR_64BIT_EDGE_IDS
 using EdgeID = uint64_t;
@@ -49,10 +47,8 @@ public:
   std::size_t partition_size() const;
 
 private:
-  PartitionerPrivate *_pimpl;
+  struct PartitionerPrivate *_pimpl;
 };
-
-struct PartitionerBuilderPrivate;
 
 class PartitionerBuilder {
 public:
@@ -74,6 +70,6 @@ private:
   PartitionerBuilder();
 
 private:
-  PartitionerBuilderPrivate *_pimpl;
+  struct PartitionerBuilderPrivate *_pimpl;
 };
 } // namespace libkaminpar
