@@ -29,7 +29,7 @@ bool ParallelBalancer::balance(PartitionedGraph &p_graph, const PartitionContext
   ALWAYS_ASSERT(_marker.capacity() >= _p_graph->n());
   _marker.reset();
 
-  const NodeWeight initial_overload = metrics::overload1(*_p_graph, *_p_ctx);
+  const NodeWeight initial_overload = metrics::total_overload(*_p_graph, *_p_ctx);
   if (initial_overload == 0) { return true; }
 
   const EdgeWeight initial_cut = IFDBG(metrics::edge_cut(*_p_graph));
@@ -48,7 +48,7 @@ bool ParallelBalancer::balance(PartitionedGraph &p_graph, const PartitionContext
 BlockWeight ParallelBalancer::perform_round() {
   if (kStatistics) {
     _stats.initial_cut = metrics::edge_cut(*_p_graph);
-    _stats.initial_overload = metrics::overload1(*_p_graph, *_p_ctx);
+    _stats.initial_overload = metrics::total_overload(*_p_graph, *_p_ctx);
   }
 
   // reset feasible target blocks
@@ -126,7 +126,7 @@ BlockWeight ParallelBalancer::perform_round() {
 
   if (kStatistics) {
     _stats.final_cut = metrics::edge_cut(*_p_graph);
-    _stats.final_overload = metrics::overload1(*_p_graph, *_p_ctx);
+    _stats.final_overload = metrics::total_overload(*_p_graph, *_p_ctx);
   }
 
   const BlockWeight global_overload_delta = overload_delta.combine(std::plus{});

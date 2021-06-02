@@ -259,7 +259,7 @@ private:
     std::vector<NodeID> moves; // moves since last accepted cut
     std::size_t active = 0;    // block from which we select a node for movement
 
-    EdgeWeight current_overload = metrics::overload1(p_graph, _p_ctx);
+    EdgeWeight current_overload = metrics::total_overload(p_graph, _p_ctx);
     EdgeWeight accepted_overload = current_overload;
 
     Gain current_delta = 0;
@@ -294,7 +294,7 @@ private:
       moves.push_back(u);
       ASSERT(initial_edge_cut + current_delta == metrics::edge_cut(p_graph, tag::seq));
       _stopping_policy.update(-delta); // assumes gain, not loss
-      current_overload = metrics::overload1(p_graph, _p_ctx);
+      current_overload = metrics::total_overload(p_graph, _p_ctx);
 
       // update gain of neighboring nodes
       for (const auto [e, v] : _graph->neighbors(u)) {

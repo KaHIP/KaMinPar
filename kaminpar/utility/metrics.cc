@@ -47,21 +47,12 @@ double imbalance(const PartitionedGraph &p_graph) {
   return max_imbalance;
 }
 
-NodeWeight overload1(const PartitionedGraph &p_graph, const PartitionContext &context) {
+NodeWeight total_overload(const PartitionedGraph &p_graph, const PartitionContext &context) {
   NodeWeight total_overload = 0;
   for (const BlockID b : p_graph.blocks()) {
     total_overload += std::max(0, p_graph.block_weight(b) - context.max_block_weight(b));
   }
   return total_overload;
-}
-
-double overload2(const PartitionedGraph &p_graph, const PartitionContext &context) {
-  double distance = 0.0;
-  for (const BlockID b : p_graph.blocks()) {
-    const NodeWeight overload = std::max(0, p_graph.block_weight(b) - context.max_block_weight(b));
-    distance += overload * overload;
-  }
-  return std::sqrt(distance);
 }
 
 bool is_balanced(const PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
@@ -78,15 +69,4 @@ bool is_feasible(const PartitionedGraph &p_graph, const BlockID input_k, const d
 }
 
 bool is_feasible(const PartitionedGraph &p_graph, const PartitionContext &p_ctx) { return is_balanced(p_graph, p_ctx); }
-
-std::vector<BlockID> find_infeasible_blocks(const PartitionedGraph &p_graph, const BlockID input_k, const double eps) {
-  const double max_block_weight = std::ceil((1.0 + eps) * p_graph.total_node_weight() / input_k);
-  std::vector<BlockID> infeasible_blocks{};
-  for (const BlockID b : p_graph.blocks()) {
-    if (p_graph.block_weight(b) > max_block_weight * p_graph.final_k(b) + p_graph.max_node_weight()) {
-      infeasible_blocks.push_back(b);
-    }
-  }
-  return infeasible_blocks;
-}
 } // namespace kaminpar::metrics
