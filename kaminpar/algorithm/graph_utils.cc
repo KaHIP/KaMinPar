@@ -14,6 +14,20 @@
 #include <tbb/parallel_invoke.h>
 
 namespace kaminpar {
+namespace {
+void fill_final_k(scalable_vector<BlockID> &data, const BlockID b0, const BlockID final_k, const BlockID k) {
+  const auto [final_k1, final_k2] = math::split_integral(final_k);
+  std::array<BlockID, 2> ks{std::clamp<BlockID>(std::ceil(k * 1.0 * final_k1 / final_k), 1, k - 1),
+                            std::clamp<BlockID>(std::floor(k * 1.0 * final_k2 / final_k), 1, k - 1)};
+  std::array<BlockID, 2> b{b0, b0 + ks[0]};
+  data[b[0]] = final_k1;
+  data[b[1]] = final_k2;
+
+  if (ks[0] > 1) { fill_final_k(data, b[0], final_k1, ks[0]); }
+  if (ks[1] > 1) { fill_final_k(data, b[1], final_k2, ks[1]); }
+}
+}
+
 void copy_subgraph_partitions(PartitionedGraph &p_graph,
                               const scalable_vector<StaticArray<BlockID>> &p_subgraph_partitions, const BlockID k_prime,
                               const BlockID input_k, const scalable_vector<NodeID> &mapping) {
@@ -32,14 +46,7 @@ void copy_subgraph_partitions(PartitionedGraph &p_graph,
     ALWAYS_ASSERT(math::is_power_of_2(k_prime));
     const BlockID k_per_block = k_prime / p_graph.k();
     tbb::parallel_for(static_cast<BlockID>(0), p_graph.k(), [&](const BlockID b) {
-      const BlockID base = k0[b];
-      final_ks[base] = p_graph.final_k(b);
-
-      for (BlockID k = k_per_block; k > 1; k /= 2) {
-        for (BlockID kp = 0; kp < k_per_block; kp += k) {
-          std::tie(final_ks[base + kp], final_ks[base + kp + k / 2]) = math::split_integral(final_ks[base + kp]);
-        }
-      }
+      fill_final_k(final_ks, k0[b], p_graph.final_k(b), k_per_block);
     });
   }
 

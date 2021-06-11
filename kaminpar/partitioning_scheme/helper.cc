@@ -165,7 +165,7 @@ void extend_partition(PartitionedGraph &p_graph, const BlockID k_prime, const Co
 
   ASSERT(p_graph.k() == k_prime);
 
-  DBG << V(p_graph.k()) << V(p_graph.final_ks());
+  DBG << V(p_graph.k()) << V(p_graph.final_ks()) << V(p_graph.block_weights()) << V(current_p_ctx.max_block_weights());
 }
 
 // extend_partition with local memory allocation for subgraphs
