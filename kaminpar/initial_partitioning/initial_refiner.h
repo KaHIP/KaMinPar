@@ -188,8 +188,11 @@ class InitialTwoWayFMRefiner : public InitialRefiner {
 public:
   InitialTwoWayFMRefiner(const NodeID n, const PartitionContext &p_ctx, const RefinementContext &r_ctx,
                          MemoryContext m_ctx = {})
-      : _p_ctx{p_ctx}, _r_ctx{r_ctx}, _queues{std::move(m_ctx.queues)}, //
-        _marker{std::move(m_ctx.marker)}, _weighted_degrees{std::move(m_ctx.weighted_degrees)} {
+      : _p_ctx{p_ctx},
+        _r_ctx{r_ctx},
+        _queues{std::move(m_ctx.queues)}, //
+        _marker{std::move(m_ctx.marker)},
+        _weighted_degrees{std::move(m_ctx.weighted_degrees)} {
     ALWAYS_ASSERT(p_ctx.k == 2) << "2-way refiner cannot be used on a " << p_ctx.k << "-way partition.";
 
     if (_queues[0].capacity() < n) { _queues[0].resize(n); }
@@ -219,7 +222,8 @@ public:
     EdgeWeight cur_edge_cut = prev_edge_cut;
 
     cur_edge_cut += round(p_graph); // always do at least one round
-    for (std::size_t it = 1; 0 < cur_edge_cut && it < _r_ctx.fm.num_iterations && !abort(prev_edge_cut, cur_edge_cut); ++it) {
+    for (std::size_t it = 1; 0 < cur_edge_cut && it < _r_ctx.fm.num_iterations && !abort(prev_edge_cut, cur_edge_cut);
+         ++it) {
       prev_edge_cut = cur_edge_cut;
       cur_edge_cut += round(p_graph);
     }

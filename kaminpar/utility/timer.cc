@@ -48,9 +48,7 @@ namespace {
 }
 } // namespace
 
-Timer::Timer(const std::string &name) : _name{name} {
-  _global_root.root.start = timer::now();
-}
+Timer::Timer(const std::string &name) : _name{name} { _global_root.root.start = timer::now(); }
 
 Timer &Timer::global() {
   static Timer timer("Global Timer");

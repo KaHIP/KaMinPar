@@ -27,7 +27,5 @@ std::string &ltrim(std::string &s, const char *t) {
   s.erase(0, s.find_first_not_of(t));
   return s;
 }
-std::string &trim(std::string &s, const char *t) {
-  return ltrim(rtrim(s, t), t);
-}
-} // namespace kaminpar
+std::string &trim(std::string &s, const char *t) { return ltrim(rtrim(s, t), t); }
+} // namespace kaminpar::utility::str

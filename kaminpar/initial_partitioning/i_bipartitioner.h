@@ -42,7 +42,9 @@ protected:
   static constexpr BlockID V2 = 1;
 
   Bipartitioner(const Graph &graph, const PartitionContext &p_ctx, const InitialPartitioningContext &i_ctx)
-      : _graph{graph}, _p_ctx{p_ctx}, _i_ctx{i_ctx} {
+      : _graph{graph},
+        _p_ctx{p_ctx},
+        _i_ctx{i_ctx} {
     ALWAYS_ASSERT(_p_ctx.k == 2) << "not a bipartition context";
   }
 

@@ -47,9 +47,9 @@ PartitionedGraph uncoarsen_once(Coarsener *coarsener, PartitionedGraph p_graph, 
     p_graph = coarsener->uncoarsen(std::move(p_graph));
 
     CLOG << "-> Uncoarsen graph: "           //
-        << "n=" << C(n_before, p_graph.n()) //
-        << "m=" << C(m_before, p_graph.m()) //
-        << "k=" << p_graph.k();             //
+         << "n=" << C(n_before, p_graph.n()) //
+         << "m=" << C(m_before, p_graph.m()) //
+         << "k=" << p_graph.k();             //
 
     update_partition_context(current_p_ctx, p_graph);
   }
@@ -133,9 +133,9 @@ void extend_partition(PartitionedGraph &p_graph, const BlockID k_prime, const Co
   DBG << V(p_graph.final_ks());
 
   CLOG << "-> Extend from=" << p_graph.k() << " "    //
-      << "to=" << k_prime << " "                    //
-      << "on a graph with n=" << p_graph.n() << " " //
-      << "m=" << p_graph.m();                       //
+       << "to=" << k_prime << " "                    //
+       << "on a graph with n=" << p_graph.n() << " " //
+       << "m=" << p_graph.m();                       //
 
   auto extraction = TIMED_SCOPE(TIMER_EXTRACT_SUBGRAPHS) { return extract_subgraphs(p_graph, subgraph_memory); };
   const auto &subgraphs = extraction.subgraphs;
@@ -187,10 +187,10 @@ bool coarsen_once(Coarsener *coarsener, const Graph *graph, const Context &input
   const auto [c_graph, shrunk] = coarsener->coarsen(max_cluster_weight);
 
   CLOG << "-> "                                              //
-      << "n=" << c_graph->n() << " "                        //
-      << "m=" << c_graph->m() << " "                        //
-      << "max_cluster_weight=" << max_cluster_weight << " " //
-      << ((shrunk) ? "" : "==> converged");                 //
+       << "n=" << c_graph->n() << " "                        //
+       << "m=" << c_graph->m() << " "                        //
+       << "max_cluster_weight=" << max_cluster_weight << " " //
+       << ((shrunk) ? "" : "==> converged");                 //
 
   if (shrunk) { current_p_ctx.setup(*c_graph); } // update graph stats (max node weight)
   return shrunk;

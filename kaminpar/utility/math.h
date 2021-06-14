@@ -52,11 +52,7 @@ auto split_integral(const T value, const double ratio = 0.5) {
   return std::pair{static_cast<T>(std::ceil(value * ratio)), static_cast<T>(std::floor(value * (1.0 - ratio)))};
 }
 
-auto round_down_to_power_of_2(const std::unsigned_integral auto value) {
-  return 1 << floor_log2(value);
-}
+auto round_down_to_power_of_2(const std::unsigned_integral auto value) { return 1 << floor_log2(value); }
 
-auto round_up_to_power_of_2(const std::unsigned_integral auto value) {
-  return 1 << ceil_log2(value);
-}
+auto round_up_to_power_of_2(const std::unsigned_integral auto value) { return 1 << ceil_log2(value); }
 } // namespace kaminpar::math

@@ -30,7 +30,8 @@ namespace kaminpar::partitioning {
 class ParallelSimpleRecursiveBisection {
 public:
   ParallelSimpleRecursiveBisection(const Graph &input_graph, const Context &input_ctx)
-      : _input_graph{input_graph}, _input_ctx{input_ctx} {}
+      : _input_graph{input_graph},
+        _input_ctx{input_ctx} {}
 
   PartitionedGraph partition() {
     DISABLE_TIMERS();

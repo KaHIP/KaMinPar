@@ -21,10 +21,10 @@
 
 #include "coarsening/i_coarsener.h"
 #include "datastructure/graph.h"
+#include "definitions.h"
 #include "initial_partitioning/initial_partitioning_facade.h"
 #include "refinement/i_balancer.h"
 #include "refinement/i_refiner.h"
-#include "definitions.h"
 
 #include <tbb/concurrent_vector.h>
 

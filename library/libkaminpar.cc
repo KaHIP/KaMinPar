@@ -23,8 +23,8 @@
 #include "kaminpar/context.h"
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/io.h"
-#include "kaminpar/utility/metrics.h"
 #include "kaminpar/partitioning_scheme/partitioning.h"
+#include "kaminpar/utility/metrics.h"
 
 #include <tbb/parallel_for.h>
 

@@ -58,8 +58,7 @@ public:
 
   void resize(const std::size_t capacity) { _data.resize(capacity); }
 
-  std::size_t memory_in_kb() const { return _data.size() * sizeof(element_type) / 1000;
-  }
+  std::size_t memory_in_kb() const { return _data.size() * sizeof(element_type) / 1000; }
 
 private:
   std::vector<element_type> _data;

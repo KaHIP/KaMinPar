@@ -44,8 +44,10 @@ class LabelPropagationClustering final : public LabelPropagation<LabelPropagatio
 public:
   LabelPropagationClustering(const NodeID max_n, const double nonadjacent_clustering_fraction_threshold,
                              const bool randomize_chunk_order, const bool merge_singleton_clusters)
-      : Base{max_n, max_n}, _nonadjacent_clustering_fraction_threshold{nonadjacent_clustering_fraction_threshold},
-        _randomize_chunk_order{randomize_chunk_order}, _merge_singleton_clusters{merge_singleton_clusters} {
+      : Base{max_n, max_n},
+        _nonadjacent_clustering_fraction_threshold{nonadjacent_clustering_fraction_threshold},
+        _randomize_chunk_order{randomize_chunk_order},
+        _merge_singleton_clusters{merge_singleton_clusters} {
     _clustering.resize(max_n);
     _favored_clustering.resize(max_n);
   }
@@ -145,7 +147,8 @@ private:
 class ParallelLabelPropagationCoarsener : public Coarsener {
 public:
   ParallelLabelPropagationCoarsener(const Graph &input_graph, const CoarseningContext &c_ctx)
-      : _input_graph{input_graph}, _current_graph{&input_graph},
+      : _input_graph{input_graph},
+        _current_graph{&input_graph},
         _label_propagation_core{input_graph.n(), c_ctx.nonadjacent_clustering_fraction_threshold,
                                 c_ctx.randomize_chunk_order, c_ctx.merge_singleton_clusters},
         _c_ctx{c_ctx} {

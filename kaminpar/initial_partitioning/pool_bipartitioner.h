@@ -81,9 +81,13 @@ public:
 
   PoolBipartitioner(const Graph &graph, const PartitionContext &p_ctx, const InitialPartitioningContext &i_ctx,
                     MemoryContext m_ctx = {})
-      : _graph{graph}, _p_ctx{p_ctx}, _i_ctx{i_ctx}, _min_num_repetitions{i_ctx.min_num_repetitions},
+      : _graph{graph},
+        _p_ctx{p_ctx},
+        _i_ctx{i_ctx},
+        _min_num_repetitions{i_ctx.min_num_repetitions},
         _min_num_non_adaptive_repetitions{i_ctx.min_num_non_adaptive_repetitions},
-        _max_num_repetitions{i_ctx.max_num_repetitions}, _m_ctx{std::move(m_ctx)},
+        _max_num_repetitions{i_ctx.max_num_repetitions},
+        _m_ctx{std::move(m_ctx)},
         _refiner{factory::create_initial_refiner(_graph, _p_ctx, _i_ctx.refinement, std::move(_m_ctx.ref_m_ctx))} {
     _refiner->initialize(_graph);
   }

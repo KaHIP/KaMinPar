@@ -229,7 +229,8 @@ struct Context {
 
 std::ostream &operator<<(std::ostream &out, const Context &context);
 
-double compute_2way_adaptive_epsilon(const PartitionContext &p_ctx, const NodeWeight subgraph_total_node_weight, const BlockID subgraph_final_k);
+double compute_2way_adaptive_epsilon(const PartitionContext &p_ctx, const NodeWeight subgraph_total_node_weight,
+                                     const BlockID subgraph_final_k);
 
 NodeWeight compute_max_cluster_weight(const Graph &c_graph, const PartitionContext &input_p_ctx,
                                       const CoarseningContext &c_ctx, const CoarseningContext &input_c_ctx);

@@ -7,4 +7,4 @@ Randomize &Randomize::instance() {
 }
 
 int Randomize::seed = 0;
-}
+} // namespace kaminpar

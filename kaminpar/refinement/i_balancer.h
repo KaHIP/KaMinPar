@@ -1,7 +1,7 @@
 #pragma once
 
-#include "datastructure/graph.h"
 #include "context.h"
+#include "datastructure/graph.h"
 
 namespace kaminpar {
 class Balancer {

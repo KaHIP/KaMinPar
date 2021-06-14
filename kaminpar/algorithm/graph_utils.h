@@ -56,7 +56,10 @@ struct SubgraphMemoryStartPosition {
 struct SubgraphMemory {
   SubgraphMemory(const NodeID n, const BlockID k, const EdgeID m, const bool is_node_weighted = true,
                  const bool is_edge_weighted = true)
-      : nodes(n + k), edges(m), node_weights(is_node_weighted * (n + k)), edge_weights(is_edge_weighted * m) {}
+      : nodes(n + k),
+        edges(m),
+        node_weights(is_node_weighted * (n + k)),
+        edge_weights(is_edge_weighted * m) {}
 
   SubgraphMemory(const PartitionedGraph &p_graph)
       : SubgraphMemory(p_graph.n(), p_graph.k(), p_graph.m(), p_graph.graph().is_node_weighted(),

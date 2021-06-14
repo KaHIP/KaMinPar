@@ -10,7 +10,9 @@ void print_banner(const std::string &title) {
 }
 
 ProgressBar::ProgressBar(const std::size_t n, const std::string &title, const bool silent)
-    : _title{make_title(title)}, _n{n}, _silent{silent} {}
+    : _title{make_title(title)},
+      _n{n},
+      _silent{silent} {}
 
 void ProgressBar::set_step(const std::size_t step) { _step = step; }
 
@@ -19,7 +21,7 @@ void ProgressBar::step(const std::string &description) {
 
 #ifndef KAMINPAR_EXPERIMENTS_MODE
   update(_current + 1, description);
-#else // KAMINPAR_EXPERIMENTS_MODE
+#else  // KAMINPAR_EXPERIMENTS_MODE
   (void) description;
 #endif // KAMINPAR_EXPERIMENTS_MODE
 }
@@ -42,7 +44,7 @@ void ProgressBar::update(const std::size_t i, const std::string &description) {
     if (!description.empty()) { std::cout << " -- " << description; }
     std::cout << std::flush;
   }
-#else // KAMINPAR_EXPERIMENTS_MODE
+#else  // KAMINPAR_EXPERIMENTS_MODE
   (void) i;
   (void) description;
 #endif // KAMINPAR_EXPERIMENTS_MODE
@@ -61,8 +63,8 @@ void ProgressBar::stop() {
 [[nodiscard]] std::string ProgressBar::make_title(const std::string &title) {
   if (title.empty()) { return ""; }
   const std::string shrunk_title = (title.size() + 2 * TITLE_PADDING > TITLE_COLS)
-                                   ? title.substr(0, TITLE_COLS - 2 * TITLE_PADDING - 3) + "..."
-                                   : title + ' ';
+                                       ? title.substr(0, TITLE_COLS - 2 * TITLE_PADDING - 3) + "..."
+                                       : title + ' ';
   return shrunk_title + std::string(1 + TITLE_COLS - shrunk_title.size() - 2 * TITLE_PADDING, '.') + ' ';
 }
 } // namespace kaminpar::cio

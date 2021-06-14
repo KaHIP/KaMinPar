@@ -12,8 +12,11 @@ Degree degree_bucket(const Degree degree) { return (degree == 0) ? 0 : math::flo
 
 Graph::Graph(StaticArray<EdgeID> nodes, StaticArray<NodeID> edges, StaticArray<NodeWeight> node_weights,
              StaticArray<EdgeWeight> edge_weights, const bool sorted)
-    : _nodes{std::move(nodes)}, _edges{std::move(edges)}, _node_weights{std::move(node_weights)},
-      _edge_weights{std::move(edge_weights)}, _sorted{sorted} {
+    : _nodes{std::move(nodes)},
+      _edges{std::move(edges)},
+      _node_weights{std::move(node_weights)},
+      _edge_weights{std::move(edge_weights)},
+      _sorted{sorted} {
   if (_node_weights.empty()) {
     _total_node_weight = n();
     _max_node_weight = 1;
@@ -31,10 +34,13 @@ Graph::Graph(StaticArray<EdgeID> nodes, StaticArray<NodeID> edges, StaticArray<N
   init_degree_buckets();
 }
 
-Graph::Graph(tag::Sequential, StaticArray<EdgeID> nodes, StaticArray<NodeID> edges, StaticArray<NodeWeight> node_weights,
-             StaticArray<EdgeWeight> edge_weights, const bool sorted)
-    : _nodes{std::move(nodes)}, _edges{std::move(edges)}, _node_weights{std::move(node_weights)},
-      _edge_weights{std::move(edge_weights)}, _sorted{sorted} {
+Graph::Graph(tag::Sequential, StaticArray<EdgeID> nodes, StaticArray<NodeID> edges,
+             StaticArray<NodeWeight> node_weights, StaticArray<EdgeWeight> edge_weights, const bool sorted)
+    : _nodes{std::move(nodes)},
+      _edges{std::move(edges)},
+      _node_weights{std::move(node_weights)},
+      _edge_weights{std::move(edge_weights)},
+      _sorted{sorted} {
   if (_node_weights.empty()) {
     _total_node_weight = n();
     _max_node_weight = 1;
@@ -101,7 +107,11 @@ void Graph::update_total_node_weight() {
 
 PartitionedGraph::PartitionedGraph(const Graph &graph, BlockID k, StaticArray<BlockID> partition,
                                    scalable_vector<BlockID> final_k)
-    : _graph{&graph}, _k{k}, _partition{std::move(partition)}, _block_weights{k}, _final_k{std::move(final_k)} {
+    : _graph{&graph},
+      _k{k},
+      _partition{std::move(partition)},
+      _block_weights{k},
+      _final_k{std::move(final_k)} {
   if (graph.n() > 0 && _partition.empty()) { _partition.resize(_graph->n(), kInvalidBlockID); }
   if (_final_k.empty()) { _final_k.resize(k, 1); }
   ASSERT(_partition.size() == graph.n());
@@ -112,7 +122,11 @@ PartitionedGraph::PartitionedGraph(const Graph &graph, BlockID k, StaticArray<Bl
 
 PartitionedGraph::PartitionedGraph(tag::Sequential, const Graph &graph, BlockID k, StaticArray<BlockID> partition,
                                    scalable_vector<BlockID> final_k)
-    : _graph{&graph}, _k{k}, _partition{std::move(partition)}, _block_weights{k}, _final_k{std::move(final_k)} {
+    : _graph{&graph},
+      _k{k},
+      _partition{std::move(partition)},
+      _block_weights{k},
+      _final_k{std::move(final_k)} {
   if (graph.n() > 0 && _partition.empty()) { _partition.resize(_graph->n(), kInvalidBlockID); }
   if (_final_k.empty()) { _final_k.resize(k, 1); }
   ASSERT(_partition.size() == graph.n());

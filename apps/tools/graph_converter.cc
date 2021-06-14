@@ -136,9 +136,7 @@ Options parse_options(int argc, char *argv[]) {
 int main(int argc, char *argv[]) {
   std::stringstream comment_ss{};
   comment_ss << "Command='";
-  for (int i = 0; i < argc; ++i) {
-    comment_ss << argv[i] << " ";
-  }
+  for (int i = 0; i < argc; ++i) { comment_ss << argv[i] << " "; }
   comment_ss << "' Version=" << GIT_COMMIT_HASH;
 
   const Options opts = parse_options(argc, argv);

@@ -20,6 +20,7 @@ BreakBeforeBraces: Attach
 BreakBeforeBinaryOperators: None
 BreakBeforeTernaryOperators: true
 BreakConstructorInitializers: BeforeColon
+ConstructorInitializerAllOnOneLineOrOnePerLine: true
 BreakInheritanceList: BeforeColon
 ColumnLimit: 120
 CompactNamespaces: false

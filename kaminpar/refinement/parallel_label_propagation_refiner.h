@@ -34,7 +34,8 @@ class ParallelLabelPropagationRefiner final
 
 public:
   ParallelLabelPropagationRefiner(const Graph &graph, const PartitionContext &p_ctx, const RefinementContext &r_ctx)
-      : Base{graph.n(), p_ctx.k}, _r_ctx{r_ctx} {
+      : Base{graph.n(), p_ctx.k},
+        _r_ctx{r_ctx} {
     set_large_degree_threshold(r_ctx.lp.large_degree_threshold);
   }
 

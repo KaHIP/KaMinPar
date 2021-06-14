@@ -95,7 +95,10 @@ public:
   };
 
   ParallelBalancer(const Graph &graph, const BlockID max_k, const RefinementContext &)
-      : _max_k{max_k}, _pq{graph.n(), max_k}, _marker{graph.n()}, _pq_weight(max_k) {}
+      : _max_k{max_k},
+        _pq{graph.n(), max_k},
+        _marker{graph.n()},
+        _pq_weight(max_k) {}
 
   ParallelBalancer(const PartitionedGraph &) = delete;
   ParallelBalancer(ParallelBalancer &&) noexcept = default;

@@ -200,9 +200,10 @@ private:
 #define SET_STATISTICS(value) constexpr static bool kStatistics = value
 #define SET_STATISTICS_FROM_GLOBAL() SET_STATISTICS(true) //SET_STATISTICS(DETECT_EXIST(KAMINPAR_ENABLE_STATISTICS))
 #define IFSTATS(x) (kStatistics ? (x) : std::decay_t<decltype(x)>())
-#define STATS kStatistics && kaminpar::debug::DisposableLogger<false>(std::cout) << kaminpar::logger::CYAN
+#define STATS kStatistics &&kaminpar::debug::DisposableLogger<false>(std::cout) << kaminpar::logger::CYAN
 
 #define UNUSED(x) ((void) x)
 
 #define SET_OUTPUT(x) static constexpr bool kOutput = (x)
-#define CLOG if constexpr(kOutput) LOG
+#define CLOG                                                                                                           \
+  if constexpr (kOutput) LOG

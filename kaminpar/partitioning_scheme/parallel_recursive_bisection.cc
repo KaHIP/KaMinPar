@@ -24,7 +24,9 @@
 
 namespace kaminpar::partitioning {
 ParallelRecursiveBisection::ParallelRecursiveBisection(const Graph &input_graph, const Context &input_ctx)
-    : _input_graph{input_graph}, _input_ctx{input_ctx}, _current_p_ctx{input_ctx.partition}, //
+    : _input_graph{input_graph},
+      _input_ctx{input_ctx},
+      _current_p_ctx{input_ctx.partition}, //
       _coarsener{factory::create_coarsener(input_graph, input_ctx.coarsening)},
       _refiner{factory::create_refiner(input_graph, input_ctx.partition, input_ctx.refinement)},
       _balancer{factory::create_balancer(input_graph, input_ctx.partition, input_ctx.refinement)},

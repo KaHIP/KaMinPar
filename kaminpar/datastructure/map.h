@@ -59,13 +59,23 @@ public:
   static_assert(math::is_power_of_2(MAP_SIZE), "Size of map is not a power of two!");
 
   explicit FixedSizeSparseMap(const Value initial_value = Value())
-      : _map_size(0), _initial_value(initial_value), _data(nullptr), _size(0), _timestamp(1), _sparse(nullptr),
+      : _map_size(0),
+        _initial_value(initial_value),
+        _data(nullptr),
+        _size(0),
+        _timestamp(1),
+        _sparse(nullptr),
         _dense(nullptr) {
     allocate(MAP_SIZE);
   }
 
   explicit FixedSizeSparseMap(const std::size_t max_size, const Value initial_value = Value())
-      : _map_size(0), _initial_value(initial_value), _data(nullptr), _size(0), _timestamp(1), _sparse(nullptr),
+      : _map_size(0),
+        _initial_value(initial_value),
+        _data(nullptr),
+        _size(0),
+        _timestamp(1),
+        _sparse(nullptr),
         _dense(nullptr) {
     allocate(max_size);
   }
@@ -74,8 +84,12 @@ public:
   FixedSizeSparseMap &operator=(const FixedSizeSparseMap &other) = delete;
 
   FixedSizeSparseMap(FixedSizeSparseMap &&other) noexcept
-      : _map_size(other._map_size), _initial_value(other._initial_value), _data(std::move(other._data)),
-        _size(other._size), _timestamp(other._timestamp), _sparse(std::move(other._sparse)),
+      : _map_size(other._map_size),
+        _initial_value(other._initial_value),
+        _data(std::move(other._data)),
+        _size(other._size),
+        _timestamp(other._timestamp),
+        _sparse(std::move(other._sparse)),
         _dense(std::move(other._dense)) {
     other._data = nullptr;
     other._sparse = nullptr;
@@ -370,7 +384,13 @@ public:
   static_assert(MAP_SIZE && ((MAP_SIZE & (MAP_SIZE - 1)) == 0UL), "Size of map is not a power of two!");
 
   explicit DynamicSparseMap()
-      : _capacity(0), _initial_value(), _data(nullptr), _size(0), _timestamp(1), _sparse(nullptr), _dense(nullptr) {
+      : _capacity(0),
+        _initial_value(),
+        _data(nullptr),
+        _size(0),
+        _timestamp(1),
+        _sparse(nullptr),
+        _dense(nullptr) {
     allocate(MAP_SIZE);
   }
 
@@ -378,8 +398,12 @@ public:
   DynamicSparseMap &operator=(const DynamicSparseMap &other) = delete;
 
   DynamicSparseMap(DynamicSparseMap &&other)
-      : _capacity(other._capacity), _initial_value(other._initial_value), _data(std::move(other._data)),
-        _size(other._size), _timestamp(other._timestamp), _sparse(std::move(other._sparse)),
+      : _capacity(other._capacity),
+        _initial_value(other._initial_value),
+        _data(std::move(other._data)),
+        _size(other._size),
+        _timestamp(other._timestamp),
+        _sparse(std::move(other._sparse)),
         _dense(std::move(other._dense)) {
     other._data = nullptr;
     other._sparse = nullptr;
@@ -485,8 +509,8 @@ private:
 
   void grow() {
     const size_t capacity = 2UL * _capacity;
-    std::unique_ptr<uint8_t[]> data =
-        std::make_unique<uint8_t[]>(capacity * sizeof(MapElement) + capacity * sizeof(SparseElement));
+    std::unique_ptr<uint8_t[]> data = std::make_unique<uint8_t[]>(capacity * sizeof(MapElement) +
+                                                                  capacity * sizeof(SparseElement));
     SparseElement *sparse = reinterpret_cast<SparseElement *>(data.get());
     MapElement *dense = reinterpret_cast<MapElement *>(data.get() + sizeof(SparseElement) * capacity);
     memset(data.get(), 0, capacity * (sizeof(MapElement) + sizeof(SparseElement)));

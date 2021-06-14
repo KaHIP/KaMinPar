@@ -26,7 +26,7 @@ void fill_final_k(scalable_vector<BlockID> &data, const BlockID b0, const BlockI
   if (ks[0] > 1) { fill_final_k(data, b[0], final_k1, ks[0]); }
   if (ks[1] > 1) { fill_final_k(data, b[1], final_k2, ks[1]); }
 }
-}
+} // namespace
 
 void copy_subgraph_partitions(PartitionedGraph &p_graph,
                               const scalable_vector<StaticArray<BlockID>> &p_subgraph_partitions, const BlockID k_prime,
@@ -45,9 +45,8 @@ void copy_subgraph_partitions(PartitionedGraph &p_graph,
   if (k_prime != input_k) {
     ALWAYS_ASSERT(math::is_power_of_2(k_prime));
     const BlockID k_per_block = k_prime / p_graph.k();
-    tbb::parallel_for(static_cast<BlockID>(0), p_graph.k(), [&](const BlockID b) {
-      fill_final_k(final_ks, k0[b], p_graph.final_k(b), k_per_block);
-    });
+    tbb::parallel_for(static_cast<BlockID>(0), p_graph.k(),
+                      [&](const BlockID b) { fill_final_k(final_ks, k0[b], p_graph.final_k(b), k_per_block); });
   }
 
   p_graph.change_k(k_prime);

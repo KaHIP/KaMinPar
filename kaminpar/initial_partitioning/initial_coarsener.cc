@@ -23,11 +23,17 @@
 #include "utility/timer.h"
 
 namespace kaminpar::ip {
-InitialCoarsener::InitialCoarsener(const Graph *graph, const CoarseningContext &c_ctx, MemoryContext &&m_ctx)     //
-    : _input_graph{graph}, _current_graph{graph}, _hierarchy{graph}, _c_ctx{c_ctx},                               //
-      _clustering{std::move(m_ctx.clustering)}, _rating_map{std::move(m_ctx.rating_map)},                         //
-      _cluster_sizes{std::move(m_ctx.cluster_sizes)}, _leader_node_mapping{std::move(m_ctx.leader_node_mapping)}, //
-      _edge_weight_collector{std::move(m_ctx.edge_weight_collector)}, _cluster_nodes{std::move(m_ctx.cluster_nodes)} {
+InitialCoarsener::InitialCoarsener(const Graph *graph, const CoarseningContext &c_ctx, MemoryContext &&m_ctx) //
+    : _input_graph{graph},
+      _current_graph{graph},
+      _hierarchy{graph},
+      _c_ctx{c_ctx}, //
+      _clustering{std::move(m_ctx.clustering)},
+      _rating_map{std::move(m_ctx.rating_map)}, //
+      _cluster_sizes{std::move(m_ctx.cluster_sizes)},
+      _leader_node_mapping{std::move(m_ctx.leader_node_mapping)}, //
+      _edge_weight_collector{std::move(m_ctx.edge_weight_collector)},
+      _cluster_nodes{std::move(m_ctx.cluster_nodes)} {
   if (_clustering.size() < _input_graph->n() + 1) { _clustering.resize(_input_graph->n() + 1); }
   if (_rating_map.capacity() < _input_graph->n()) { _rating_map.resize(_input_graph->n()); }
   if (_cluster_sizes.size() < _input_graph->n()) { _cluster_sizes.resize(_input_graph->n()); }
@@ -272,7 +278,8 @@ InitialCoarsener::ContractionResult InitialCoarsener::contract_current_clusterin
     c_edge_weights.restrict(c_m);
   }
 
-  Graph coarse_graph(tag::seq, std::move(c_nodes), std::move(c_edges), std::move(c_node_weights), std::move(c_edge_weights));
+  Graph coarse_graph(tag::seq, std::move(c_nodes), std::move(c_edges), std::move(c_node_weights),
+                     std::move(c_edge_weights));
 #ifdef KAMIPAR_GRAPH_NAMES
   coarse_graph.set_name(_c_graph->name());
 #endif // KAMIPAR_GRAPH_NAMES

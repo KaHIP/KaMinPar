@@ -89,7 +89,9 @@ class BfsBipartitioner : public BfsBipartitionerBase {
 public:
   BfsBipartitioner(const Graph &graph, const PartitionContext &p_ctx, const InitialPartitioningContext &i_ctx,
                    MemoryContext &m_ctx)
-      : BfsBipartitionerBase(graph, p_ctx, i_ctx), _queues{m_ctx.queues}, _marker{m_ctx.marker},
+      : BfsBipartitionerBase(graph, p_ctx, i_ctx),
+        _queues{m_ctx.queues},
+        _marker{m_ctx.marker},
         _num_seed_iterations(i_ctx.num_seed_iterations) {
     if (_marker.capacity() < _graph.n()) { _marker.resize(_graph.n()); }
     if (_queues[0].capacity() < _graph.n()) { _queues[0].resize(_graph.n()); }

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "tools/simple_graph.h"
+#include "simple_graph.h"
 
 #include <concepts>
 #include <memory>

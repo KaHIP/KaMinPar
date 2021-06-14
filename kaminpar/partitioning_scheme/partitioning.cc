@@ -27,8 +27,7 @@ PartitionedGraph partition(const Graph &graph, const Context &ctx) {
       return p_graph;
     }
 
-    default:
-      FATAL_ERROR << "Unsupported mode";
+    default: FATAL_ERROR << "Unsupported mode";
   }
   __builtin_unreachable();
 }

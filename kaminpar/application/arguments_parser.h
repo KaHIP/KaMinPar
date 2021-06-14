@@ -61,7 +61,10 @@ public:
    */
   struct Group {
     Group(std::string name, Arguments *parent, const bool mandatory, std::string code)
-        : name(std::move(name)), parent(parent), mandatory(mandatory), code(std::move(code)) {}
+        : name(std::move(name)),
+          parent(parent),
+          mandatory(mandatory),
+          code(std::move(code)) {}
 
     //! Argument whose value can be parsed using `std::strtol()`.
     template<std::integral Type>
