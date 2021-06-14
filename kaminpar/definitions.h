@@ -205,5 +205,7 @@ private:
 #define UNUSED(x) ((void) x)
 
 #define SET_OUTPUT(x) static constexpr bool kOutput = (x)
-#define CLOG                                                                                                           \
-  if constexpr (kOutput) LOG
+
+// clang-format off
+#define CLOG if constexpr (kOutput) LOG
+// clang-format on
