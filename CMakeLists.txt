@@ -105,6 +105,7 @@ add_definitions(-DMODIFIED_FILES="${MODIFIED_FILES}")
 
 include(gmock)
 add_subdirectory(kaminpar)
+add_subdirectory(dkaminpar)
 add_subdirectory(apps)
 add_subdirectory(tests)
 add_subdirectory(library)
