@@ -19,6 +19,11 @@
 ******************************************************************************/
 #pragma once
 
-namespace dkaminpar {
+#include <ranges>
 
+namespace dkaminpar {
+class DistributedGraph {
+public:
+
+};
 }

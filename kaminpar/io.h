@@ -30,13 +30,13 @@ struct MappedFile {
   inline void advance() { ++position; }
 };
 
-int open_file(const std::string &filename) {
+inline int open_file(const std::string &filename) {
   int fd = open(filename.c_str(), O_RDONLY);
   if (fd < 0) FATAL_PERROR << "Error while opening " << filename;
   return fd;
 }
 
-std::size_t file_size(const int fd) {
+inline std::size_t file_size(const int fd) {
   struct stat file_info {};
   if (fstat(fd, &file_info) == -1) {
     close(fd);
@@ -45,7 +45,7 @@ std::size_t file_size(const int fd) {
   return static_cast<std::size_t>(file_info.st_size);
 }
 
-MappedFile mmap_file_from_disk(const std::string &filename) {
+inline MappedFile mmap_file_from_disk(const std::string &filename) {
   const int fd = open_file(filename);
   const std::size_t length = file_size(fd);
 
@@ -63,7 +63,7 @@ MappedFile mmap_file_from_disk(const std::string &filename) {
   };
 }
 
-void munmap_file_from_disk(const MappedFile &mapped_file) {
+inline void munmap_file_from_disk(const MappedFile &mapped_file) {
   if (munmap(mapped_file.contents, mapped_file.length) == -1) {
     close(mapped_file.fd);
     FATAL_PERROR << "Error while unmapping file from memory";
@@ -114,7 +114,7 @@ struct GraphFormat {
   bool has_edge_weights;
 };
 
-GraphFormat read_graph_header(internal::MappedFile &mapped_file) {
+inline GraphFormat read_graph_header(internal::MappedFile &mapped_file) {
   skip_spaces(mapped_file);
   while (mapped_file.current() == '%') {
     skip_comment(mapped_file);

@@ -1,6 +1,9 @@
 set(DKAMINPAR_SOURCE_FILES
         datastructure/distributed_graph.cc
-        datastructure/distributed_graph.h)
+        datastructure/distributed_graph.h
+        distributed_io.cc
+        distributed_io.h
+        utility/math.h)
 
 # Only create target if MPI is available
 find_package(MPI)

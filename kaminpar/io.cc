@@ -6,13 +6,6 @@ namespace kaminpar::io {
 static constexpr auto kDebug = false;
 
 namespace metis {
-GraphHeader parse_header(const std::string &filename) {
-  const auto mapped_file = mmap_file_from_disk(filename);
-  const metis::GraphHeader header = metis::read_graph_header(mapped_file);
-  munmap_file_from_disk(mapped_file);
-  return header;
-}
-
 void write_file(std::ofstream &out, const StaticArray<EdgeID> &nodes, const StaticArray<NodeID> &edges,
                 const StaticArray<NodeWeight> &node_weights, const StaticArray<EdgeWeight> &edge_weights,
                 const std::string &comment) {
@@ -98,8 +91,8 @@ GraphInfo read(const std::string &filename, StaticArray<EdgeID> &nodes, StaticAr
   nodes[u] = e;
 
   // only keep weights if the graph is really weighted
-  const bool unit_node_weights = info.total_node_weight + 1 == nodes.size();
-  const bool unit_edge_weights = info.total_edge_weight == edges.size();
+  const bool unit_node_weights = info.total_node_weight + 1 == static_cast<NodeWeight>(nodes.size());
+  const bool unit_edge_weights = info.total_edge_weight == static_cast<EdgeWeight>(edges.size());
   if (unit_node_weights) { node_weights.free(); }
   if (unit_edge_weights) { edge_weights.free(); }
 
