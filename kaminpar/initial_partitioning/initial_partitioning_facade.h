@@ -51,7 +51,7 @@ public:
         _i_ctx{ctx.initial_partitioning},
         _coarsener{&_graph, _i_ctx.coarsening, std::move(_m_ctx.coarsener_m_ctx)} {
     std::tie(_final_k1, _final_k2) = math::split_integral(final_k);
-    _p_ctx = ctx.create_bipartition_partition_context(_graph, _final_k1, _final_k2);
+    _p_ctx = create_bipartition_context(ctx.partition, _graph, _final_k1, _final_k2);
     _refiner = factory::create_initial_refiner(_graph, _p_ctx, _i_ctx.refinement, std::move(_m_ctx.refiner_m_ctx));
     // O(R * k) initial bisections -> O(n + R * C * k) for the whole algorithm
     _num_bipartition_repetitions = std::ceil(_i_ctx.repetition_multiplier * final_k / math::ceil_log2(ctx.partition.k));
@@ -64,10 +64,7 @@ public:
   }
 
   PartitionedGraph partition() {
-    const bool ml = _i_ctx.coarsening.enable;
-
-    const Graph *c_graph = &_graph;
-    if (ml) { c_graph = coarsen(); }
+    const Graph *c_graph = coarsen();
 
     DBG << "Calling bipartitioner on coarsest graph with n=" << c_graph->n() << " m=" << c_graph->m();
     PoolBipartitionerFactory factory;
@@ -84,18 +81,13 @@ public:
         << "imbalance=" << metrics::imbalance(p_graph) << " "    //
         << "feasible=" << metrics::is_feasible(p_graph, _p_ctx); //
 
-    if (ml) {
-      return uncoarsen(std::move(p_graph));
-    } else {
-      return p_graph;
-    }
+    return uncoarsen(std::move(p_graph));
   }
 
 private:
   const Graph *coarsen() {
     const CoarseningContext &c_ctx = _i_ctx.coarsening;
-    const NodeWeight max_cluster_weight = compute_max_cluster_weight(_graph, _p_ctx, _i_ctx.coarsening,
-                                                                     _input_ctx.coarsening);
+    const NodeWeight max_cluster_weight = compute_max_cluster_weight(_graph, _p_ctx, _i_ctx.coarsening);
     //    const NodeWeight max_cluster_weight = 10 * (_graph.total_node_weight() / _graph.n());
     const Graph *c_graph = &_graph;
     bool shrunk = true;

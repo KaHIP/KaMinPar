@@ -32,6 +32,7 @@ constexpr BlockID kInvalidBlockID = std::numeric_limits<BlockID>::max();
 constexpr NodeID kInvalidNodeID = std::numeric_limits<NodeID>::max();
 constexpr EdgeID kInvalidEdgeID = std::numeric_limits<EdgeID>::max();
 constexpr NodeWeight kInvalidNodeWeight = std::numeric_limits<NodeWeight>::max();
+constexpr BlockWeight kInvalidBlockWeight = std::numeric_limits<BlockWeight>::max();
 constexpr Degree kMaxDegree = std::numeric_limits<Degree>::max();
 
 template<typename T>

@@ -1,5 +1,7 @@
 set(KAMINPAR_SOURCE_FILES
   algorithm/parallel_label_propagation.h
+  algorithm/graph_contraction.cc
+  algorithm/graph_contraction.h
   algorithm/graph_utils.cc
   algorithm/graph_utils.h
   coarsening/i_coarsener.h
@@ -8,7 +10,9 @@ set(KAMINPAR_SOURCE_FILES
   datastructure/graph.h
   datastructure/binary_heap.h
   datastructure/fast_reset_array.h
-  datastructure/map.h
+  datastructure/rating_map.h
+  datastructure/sparse_map.h
+  datastructure/fixed_size_sparse_map.h
   datastructure/marker.h
   datastructure/queue.h
   datastructure/static_array.h

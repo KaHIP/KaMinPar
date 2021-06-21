@@ -7,6 +7,10 @@ set(PROJECT_CONTACT "daniel.seemaier@kit.edu")
 
 set(CMAKE_CXX_STANDARD 20)
 
+if (NOT CMAKE_BUILD_TYPE OR CMAKE_BUILD_TYPE STREQUAL "")
+  set(CMAKE_BUILD_TYPE "Release" CACHE STRING "" FORCE)
+endif()
+
 option(KAMINPAR_LINK_TCMALLOC "Enable allocations using Google's tcmalloc." OFF)
 option(KAMINPAR_ENABLE_HEAVY_ASSERTIONS "Enable assertions that have high impact on performance." OFF)
 option(KAMINPAR_ENABLE_TIMERS "Enable fine-grained timers. With this option disabled, we will still report the total partitioning time." ON)

@@ -226,32 +226,36 @@ void ParallelBalancer::init_pq() {
 }
 
 [[nodiscard]] std::pair<BlockID, double> ParallelBalancer::compute_gain(const NodeID u, const BlockID u_block) const {
-  auto &rating_map = _rating_map.local();
-  rating_map.update_upper_bound_size(_p_graph->degree(u));
-
-  // compute external degree to each adjacent block that can take u without becoming overloaded
   const NodeWeight u_weight = _p_graph->node_weight(u);
-  EdgeWeight internal_degree = 0;
-  for (const auto [e, v] : _p_graph->neighbors(u)) {
-    const BlockID v_block = _p_graph->block(v);
-    if (u_block != v_block && _p_graph->block_weight(v_block) + u_weight <= _p_ctx->max_block_weight(v_block)) {
-      rating_map[v_block] += _p_graph->edge_weight(e);
-    } else if (u_block == v_block) {
-      internal_degree += _p_graph->edge_weight(e);
-    }
-  }
-
-  // select neighbor that maximizes gain
   BlockID max_gainer = u_block;
   EdgeWeight max_external_gain = 0;
-  Randomize &rand = Randomize::instance();
-  for (const auto [block, gain] : rating_map) {
-    if (gain > max_external_gain || (gain == max_external_gain && rand.random_bool())) {
-      max_gainer = block;
-      max_external_gain = gain;
+  EdgeWeight internal_degree = 0;
+
+  auto action = [&](auto &map) {
+    // compute external degree to each adjacent block that can take u without becoming overloaded
+    for (const auto [e, v] : _p_graph->neighbors(u)) {
+      const BlockID v_block = _p_graph->block(v);
+      if (u_block != v_block && _p_graph->block_weight(v_block) + u_weight <= _p_ctx->max_block_weight(v_block)) {
+        map[v_block] += _p_graph->edge_weight(e);
+      } else if (u_block == v_block) {
+        internal_degree += _p_graph->edge_weight(e);
+      }
     }
-  }
-  rating_map.clear();
+
+    // select neighbor that maximizes gain
+    Randomize &rand = Randomize::instance();
+    for (const auto [block, gain] : map.entries()) {
+      if (gain > max_external_gain || (gain == max_external_gain && rand.random_bool())) {
+        max_gainer = block;
+        max_external_gain = gain;
+      }
+    }
+    map.clear();
+  };
+
+  auto &rating_map = _rating_map.local();
+  rating_map.update_upper_bound_size(_p_graph->degree(u));
+  rating_map.run_with_map(action, action);
 
   // compute absolute and relative gain based on internal degree / external gain
   const Gain gain = max_external_gain - internal_degree;

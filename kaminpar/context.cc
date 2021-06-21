@@ -36,26 +36,26 @@ using namespace std::string_literals;
 // Define std::string <-> enum conversion functions
 //
 
-DEFINE_ENUM_STRING_CONVERSION(CoarseningAlgorithm, coarsening_algorithm) = {
-    {CoarseningAlgorithm::NOOP, "noop"},
-    {CoarseningAlgorithm::PARALLEL_LABEL_PROPAGATION, "mt-lp"},
+DEFINE_ENUM_STRING_CONVERSION(ClusteringAlgorithm, clustering_algorithm) = {
+    {ClusteringAlgorithm::NOOP, "noop"},
+    {ClusteringAlgorithm::LABEL_PROPAGATION, "lp"},
 };
 
 DEFINE_ENUM_STRING_CONVERSION(RefinementAlgorithm, refinement_algorithm) = {
     {RefinementAlgorithm::TWO_WAY_FM, "2way-fm"}, //
-    {RefinementAlgorithm::PARALLEL_LABEL_PROPAGATION, "lp"},
+    {RefinementAlgorithm::LABEL_PROPAGATION, "lp"},
     {RefinementAlgorithm::NOOP, "noop"}, //
 };
 
 DEFINE_ENUM_STRING_CONVERSION(BalancingTimepoint, balancing_timepoint) = {
     {BalancingTimepoint::BEFORE_KWAY_REFINEMENT, "before-kway-ref"},
     {BalancingTimepoint::AFTER_KWAY_REFINEMENT, "after-kway-ref"},
-    {BalancingTimepoint::BEFORE_AND_AFTER_KWAY_REFINEMENT, "before-and-after-kway-ref"},
+    {BalancingTimepoint::ALWAYS, "always"},
     {BalancingTimepoint::NEVER, "never"},
 };
 
 DEFINE_ENUM_STRING_CONVERSION(BalancingAlgorithm, balancing_algorithm) = {
-    {BalancingAlgorithm::BLOCK_LEVEL_PARALLEL_BALANCER, "block-level-parallel-balancer"},
+    {BalancingAlgorithm::BLOCK_LEVEL_PARALLEL_BALANCER, "block-parallel-balancer"},
 };
 
 DEFINE_ENUM_STRING_CONVERSION(FMStoppingRule, fm_stopping_rule) = {
@@ -66,6 +66,19 @@ DEFINE_ENUM_STRING_CONVERSION(FMStoppingRule, fm_stopping_rule) = {
 DEFINE_ENUM_STRING_CONVERSION(PartitioningMode, partitioning_mode) = {
     {PartitioningMode::DEEP, "deep"},
     {PartitioningMode::RB, "rb"},
+};
+
+DEFINE_ENUM_STRING_CONVERSION(ClusterWeightLimit, cluster_weight_limit) = {
+    {ClusterWeightLimit::EPSILON_BLOCK_WEIGHT, "epsilon-block-weight"},
+    {ClusterWeightLimit::BLOCK_WEIGHT, "static-block-weight"},
+    {ClusterWeightLimit::ONE, "one"},
+    {ClusterWeightLimit::ZERO, "zero"},
+};
+
+DEFINE_ENUM_STRING_CONVERSION(InitialPartitioningMode, initial_partitioning_mode) = {
+    {InitialPartitioningMode::SEQUENTIAL, "sequential"},
+    {InitialPartitioningMode::ASYNCHRONOUS_PARALLEL, "async-parallel"},
+    {InitialPartitioningMode::SYNCHRONOUS_PARALLEL, "sync-parallel"},
 };
 
 //
@@ -154,26 +167,27 @@ void PartitionContext::print(std::ostream &out, const std::string &prefix) const
 }
 
 void CoarseningContext::print(std::ostream &out, const std::string &prefix) const {
-  out << prefix << "enable=" << enable << " "                                                                       //
-      << prefix << "algorithm=" << algorithm << " "                                                                 //
-      << prefix << "contraction_limit=" << contraction_limit << " "                                                 //
-      << prefix << "use_adaptive_contraction_limit=" << use_adaptive_contraction_limit << " "                       //
-      << prefix << "min_shrink_factor=" << min_shrink_factor << " "                                                 //
-      << prefix << "adaptive_cluster_weight_multiplier=" << adaptive_cluster_weight_multiplier << " "               //
-      << prefix << "use_adaptive_epsilon=" << use_adaptive_epsilon << " "                                           //
-      << prefix << "block_based_cluster_weight_factor=" << block_based_cluster_weight_factor << " "                 //
-      << prefix << "num_iterations=" << num_iterations << " "                                                       //
-      << prefix << "large_degree_threshold=" << large_degree_threshold << " "                                       //
-      << prefix << "shrink_factor_abortion_threshold=" << shrink_factor_abortion_threshold << " "                   //
-      << prefix << "nonadjacent_clustering_fraction_threshold=" << nonadjacent_clustering_fraction_threshold << " " //
-      << prefix << "randomize_chunk_order=" << randomize_chunk_order << " "                                         //
-      << prefix << "merge_singleton_clusters=" << merge_singleton_clusters << " ";                                  //
+  out << prefix << "algorithm=" << algorithm << " "                                  //
+      << prefix << "contraction_limit=" << contraction_limit << " "                  //
+      << prefix << "enforce_contraction_limit=" << enforce_contraction_limit << " "  //
+      << prefix << "convergence_threshold=" << convergence_threshold << " "          //
+      << prefix << "cluster_weight_limit=" << cluster_weight_limit << " "            //
+      << prefix << "cluster_weight_multiplier=" << cluster_weight_multiplier << " "; //
+  lp.print(out, prefix + "lp.");
+}
+
+void LabelPropagationCoarseningContext::print(std::ostream &out, const std::string &prefix) const {
+  out << prefix << "num_iterations=" << num_iterations << " "                                             //
+      << prefix << "large_degree_threshold=" << large_degree_threshold << " "                             //
+      << prefix << "merge_nonadjacent_clusters_threshold=" << merge_nonadjacent_clusters_threshold << " " //
+      << prefix << "merge_singleton_clusters=" << merge_singleton_clusters << " "                         //
+      << prefix << "max_num_neighbors=" << max_num_neighbors << " ";                                      //
 }
 
 void LabelPropagationRefinementContext::print(std::ostream &out, const std::string &prefix) const {
   out << prefix << "num_iterations=" << num_iterations << " "                 //
       << prefix << "large_degree_threshold=" << large_degree_threshold << " " //
-      << prefix << "randomize_chunk_order=" << randomize_chunk_order << " ";  //
+      << prefix << "max_num_neighbors=" << max_num_neighbors << " ";          //
 }
 
 void FMRefinementContext::print(std::ostream &out, const std::string &prefix) const {
@@ -198,15 +212,15 @@ void RefinementContext::print(std::ostream &out, const std::string &prefix) cons
 void InitialPartitioningContext::print(std::ostream &out, const std::string &prefix) const {
   coarsening.print(out, prefix + "coarsening.");
   refinement.print(out, prefix + "refinement.");
-  out << prefix << "repetition_multiplier=" << repetition_multiplier << " "                               //
+  out << prefix << "mode=" << mode << " "                                                                 //
+      << prefix << "repetition_multiplier=" << repetition_multiplier << " "                               //
       << prefix << "min_num_repetitions=" << min_num_repetitions << " "                                   //
       << prefix << "max_num_repetitions=" << max_num_repetitions << " "                                   //
       << prefix << "num_seed_iterations=" << num_seed_iterations << " "                                   //
       << prefix << "use_adaptive_epsilon=" << use_adaptive_epsilon << " "                                 //
       << prefix << "use_adaptive_bipartitioner_selection=" << use_adaptive_bipartitioner_selection << " " //
-      << prefix << "parallelize=" << parallelize << " "                                                   //
-      << prefix << "parallelize_synchronized=" << parallelize_synchronized << " "                         //
-      << prefix << "multiplier_exponent=" << multiplier_exponent << " ";                                  //
+      << prefix << "multiplier_exponent=" << multiplier_exponent << " "                                   //
+      << prefix << "parallelize_bisections=" << parallelize_bisections << " ";                            //
 }
 
 void DebugContext::print(std::ostream &out, const std::string &prefix) const {
@@ -239,46 +253,109 @@ void Context::print(std::ostream &out, const std::string &prefix) const {
 void Context::setup(const Graph &graph) {
   partition.setup(graph);
   partition.setup_max_block_weight();
-  if (coarsening.use_adaptive_contraction_limit) {
-    coarsening.contraction_limit = std::min(coarsening.contraction_limit, graph.n() / partition.k);
-  }
 }
 
-Context Context::create_default() {
-  Context context;
-  context.seed = 0;
-
-  // partition
-  context.partition.epsilon = 0.03;
-
-  // coarsening
-  context.coarsening.algorithm = CoarseningAlgorithm::PARALLEL_LABEL_PROPAGATION;
-  context.coarsening.contraction_limit = 2000;
-  context.coarsening.num_iterations = 5;
-  context.coarsening.shrink_factor_abortion_threshold = 0.05;
-
-  // initial partitioning -> coarsening
-  context.initial_partitioning.coarsening.algorithm = CoarseningAlgorithm::PARALLEL_LABEL_PROPAGATION;
-  context.initial_partitioning.coarsening.block_based_cluster_weight_factor = 12.0;
-  context.initial_partitioning.coarsening.contraction_limit = 20;
-  context.initial_partitioning.coarsening.num_iterations = 10; // unused? initial coarsener performs only one round
-  context.initial_partitioning.coarsening.shrink_factor_abortion_threshold = 0.05;
-
-  // initial partitioning -> refinement
-  context.initial_partitioning.refinement.algorithm = RefinementAlgorithm::TWO_WAY_FM;
-  context.initial_partitioning.refinement.fm.stopping_rule = FMStoppingRule::SIMPLE;
-  context.initial_partitioning.refinement.fm.num_iterations = 5;
-
-  // refinement
-  context.refinement.algorithm = RefinementAlgorithm::PARALLEL_LABEL_PROPAGATION;
-  context.refinement.lp.num_iterations = 5;
-  context.refinement.lp.large_degree_threshold = 1000000;
-
-  return context;
+Context create_default_context() {
+  // clang-format off
+  return { // Context
+    .graph_filename = "",
+    .seed = 0,
+    .save_partition = false,
+    .partition_directory = "./",
+    .partition_filename = "", // generate filename
+    .ignore_weights = false,
+    .show_local_timers = false,
+    .partition = { // Context -> Partition
+      .mode = PartitioningMode::DEEP,
+      .epsilon = 0.03,
+      .k = 2,
+      .remove_isolated_nodes = true,
+      .fast_initial_partitioning = false,
+    },
+    .coarsening = { // Context -> Coarsening
+      .algorithm = ClusteringAlgorithm::LABEL_PROPAGATION,
+      .lp = { // Context -> Coarsening -> Label Propagation
+        .num_iterations = 5,
+        .large_degree_threshold = 1000000,
+        .merge_nonadjacent_clusters_threshold = 0.5,
+        .merge_singleton_clusters = true,
+        .max_num_neighbors = 200000,
+      },
+      .contraction_limit = 2000,
+      .enforce_contraction_limit = false,
+      .convergence_threshold = 0.05,
+      .cluster_weight_limit = ClusterWeightLimit::EPSILON_BLOCK_WEIGHT,
+      .cluster_weight_multiplier = 1.0,
+    },
+    .initial_partitioning = { // Context -> Initial Partitioning
+      .coarsening = { // Context -> Initial Partitioning -> Coarsening
+        .algorithm = ClusteringAlgorithm::LABEL_PROPAGATION,
+        .lp = { // Context -> Initial Partitioning -> Coarsening -> Label Propagation
+          .num_iterations = 1,
+          .large_degree_threshold = 1000000,
+          .merge_nonadjacent_clusters_threshold = 0.5,
+          .merge_singleton_clusters = true,
+          .max_num_neighbors = 200000,
+        },
+        .contraction_limit = 20,
+        .enforce_contraction_limit = false,
+        .convergence_threshold = 0.05,
+        .cluster_weight_limit = ClusterWeightLimit::BLOCK_WEIGHT,
+        .cluster_weight_multiplier = 1.0 / 12.0,
+      },
+      .refinement = { // Context -> Initial Partitioning -> Refinement
+        .algorithm = RefinementAlgorithm::TWO_WAY_FM,
+        .lp = {},
+        .fm = { // Context -> Initial Partitioning -> Refinement -> FM
+          .stopping_rule = FMStoppingRule::SIMPLE,
+          .num_fruitless_moves = 100,
+          .alpha = 1.0,
+          .num_iterations = 5,
+          .improvement_abortion_threshold = 0.0001,
+        },
+        .balancer = { // Context -> Initial Partitioning -> Refinement -> Balancer
+          .algorithm = BalancingAlgorithm::BLOCK_LEVEL_PARALLEL_BALANCER,
+          .timepoint = BalancingTimepoint::BEFORE_KWAY_REFINEMENT,
+        },
+      },
+      .mode = InitialPartitioningMode::SYNCHRONOUS_PARALLEL,
+      .repetition_multiplier = 1.0,
+      .min_num_repetitions = 10,
+      .min_num_non_adaptive_repetitions = 5,
+      .max_num_repetitions = 50,
+      .num_seed_iterations = 1,
+      .use_adaptive_epsilon = true,
+      .use_adaptive_bipartitioner_selection = true,
+      .multiplier_exponent = 0,
+      .parallelize_bisections = false,
+    },
+    .refinement = { // Context -> Refinement
+      .algorithm = RefinementAlgorithm::LABEL_PROPAGATION,
+      .lp = { // Context -> Refinement -> Label Propagation
+        .num_iterations = 5,
+        .large_degree_threshold = 1000000,
+        .max_num_neighbors = std::numeric_limits<NodeID>::max(),
+      },
+      .fm = {},
+      .balancer = { // Context -> Refinement -> Balancer
+        .algorithm = BalancingAlgorithm::BLOCK_LEVEL_PARALLEL_BALANCER,
+        .timepoint = BalancingTimepoint::BEFORE_KWAY_REFINEMENT,
+      },
+    },
+    .debug = { // Context -> Debug
+      .just_sanitize_args = false,
+      .force_clean_build = false,
+    },
+    .parallel = { // Context -> Parallel
+      .use_interleaved_numa_allocation = true,
+      .num_threads = 1,
+    },
+  };
+  // clang-format on
 }
 
-Context Context::create_default_for(const Graph &graph, const BlockID k, const double epsilon) {
-  Context context = create_default();
+Context create_default_context(const Graph &graph, const BlockID k, const double epsilon) {
+  Context context = create_default_context();
   context.setup(graph);
   context.partition.k = k;
   context.partition.epsilon = epsilon;
@@ -286,14 +363,14 @@ Context Context::create_default_for(const Graph &graph, const BlockID k, const d
   return context;
 }
 
-PartitionContext Context::create_bipartition_partition_context(const Graph &subgraph, const BlockID final_k1,
-                                                               const BlockID final_k2) const {
-  PartitionContext p_ctx{};
-  p_ctx.setup(subgraph);
-  p_ctx.k = 2;
-  p_ctx.epsilon = compute_2way_adaptive_epsilon(partition, subgraph.total_node_weight(), final_k1 + final_k2);
-  p_ctx.setup_max_block_weight(scalable_vector<BlockID>{final_k1, final_k2});
-  return p_ctx;
+PartitionContext create_bipartition_context(const PartitionContext &k_p_ctx, const Graph &subgraph,
+                                            const BlockID final_k1, const BlockID final_k2) {
+  PartitionContext two_p_ctx{};
+  two_p_ctx.setup(subgraph);
+  two_p_ctx.k = 2;
+  two_p_ctx.epsilon = compute_2way_adaptive_epsilon(k_p_ctx, subgraph.total_node_weight(), final_k1 + final_k2);
+  two_p_ctx.setup_max_block_weight(scalable_vector<BlockID>{final_k1, final_k2});
+  return two_p_ctx;
 }
 
 std::ostream &operator<<(std::ostream &out, const Context &context) {
@@ -313,28 +390,26 @@ double compute_2way_adaptive_epsilon(const PartitionContext &p_ctx, const NodeWe
 }
 
 NodeWeight compute_max_cluster_weight(const Graph &c_graph, const PartitionContext &input_p_ctx,
-                                      const CoarseningContext &c_ctx, const CoarseningContext &input_c_ctx) {
-  // Adaptive cluster weight as described in the paper
-  const BlockID k_prime = std::clamp<BlockID>(c_graph.n() / c_ctx.contraction_limit, 2, input_p_ctx.k);
-  const double eps = c_ctx.use_adaptive_epsilon
-                         ? compute_2way_adaptive_epsilon(input_p_ctx, c_graph.total_node_weight(), k_prime)
-                         : input_p_ctx.epsilon;
-  const NodeWeight adaptive_limit = c_ctx.adaptive_cluster_weight_multiplier * (eps * c_graph.total_node_weight()) /
-                                    k_prime;
+                                      const CoarseningContext &c_ctx) {
+  NodeWeight max_cluster_weight = 0;
 
-  // Cluster weight based on the maximum block weight in the partitioned graph
-  // block_based_cluster_weight_factor
-  const double max_block_weight = (1.0 + eps) * c_graph.total_node_weight() / input_p_ctx.k; // during rb, this is 2
-  const NodeWeight block_based_limit = max_block_weight / c_ctx.block_based_cluster_weight_factor;
+  switch (c_ctx.cluster_weight_limit) {
+    case ClusterWeightLimit::EPSILON_BLOCK_WEIGHT: {
+      const BlockID k_prime = std::clamp<BlockID>(c_graph.n() / c_ctx.contraction_limit, 2, input_p_ctx.k);
+      max_cluster_weight = static_cast<NodeWeight>((input_p_ctx.epsilon * c_graph.total_node_weight()) / k_prime);
+      break;
+    }
 
-  // Cluster weight based on average node weight: if all nodes have the same weight, this allows the graph to shrink
-  // by up to factor coarsening.min_shrink_factor
-  // Default: ignored (min_shrink_factor set to 0)
-  const NodeWeight shrink_based_limit = std::min<NodeWeight>(c_ctx.min_shrink_factor * c_graph.total_node_weight() /
-                                                                 std::min<NodeID>(c_graph.n(),
-                                                                                  2 * input_c_ctx.contraction_limit),
-                                                             c_graph.total_node_weight() - 1);
+    case ClusterWeightLimit::BLOCK_WEIGHT:
+      max_cluster_weight = static_cast<NodeWeight>((1.0 + input_p_ctx.epsilon) * c_graph.total_node_weight() /
+                                                   input_p_ctx.k);
+      break;
 
-  return std::max<NodeWeight>({adaptive_limit, block_based_limit, shrink_based_limit});
+    case ClusterWeightLimit::ONE: max_cluster_weight = 1; break;
+
+    case ClusterWeightLimit::ZERO: max_cluster_weight = 0; break;
+  }
+
+  return static_cast<NodeWeight>(max_cluster_weight * c_ctx.cluster_weight_multiplier);
 }
 } // namespace kaminpar

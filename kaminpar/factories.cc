@@ -15,11 +15,11 @@ std::unique_ptr<Coarsener> create_coarsener(const Graph &graph, const Coarsening
   SCOPED_TIMER(TIMER_ALLOCATION);
 
   switch (c_ctx.algorithm) {
-    case CoarseningAlgorithm::NOOP: {
+    case ClusteringAlgorithm::NOOP: {
       return std::make_unique<NoopCoarsener>();
     }
 
-    case CoarseningAlgorithm::PARALLEL_LABEL_PROPAGATION: {
+    case ClusteringAlgorithm::LABEL_PROPAGATION: {
       return std::make_unique<ParallelLabelPropagationCoarsener>(graph, c_ctx);
     }
   }
@@ -46,7 +46,7 @@ std::unique_ptr<ip::InitialRefiner> create_initial_refiner(const Graph &graph, c
       __builtin_unreachable();
     }
 
-    case RefinementAlgorithm::PARALLEL_LABEL_PROPAGATION: {
+    case RefinementAlgorithm::LABEL_PROPAGATION: {
       FATAL_ERROR << "Not implemented";
       return nullptr;
     }
@@ -69,7 +69,7 @@ std::unique_ptr<Refiner> create_refiner(const Graph &graph, const PartitionConte
       return nullptr;
     }
 
-    case RefinementAlgorithm::PARALLEL_LABEL_PROPAGATION: {
+    case RefinementAlgorithm::LABEL_PROPAGATION: {
       return std::make_unique<ParallelLabelPropagationRefiner>(graph, p_ctx, r_ctx);
     }
   }

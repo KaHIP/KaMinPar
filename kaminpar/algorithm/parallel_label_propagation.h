@@ -19,7 +19,7 @@
 ******************************************************************************/
 #pragma once
 
-#include "datastructure/map.h"
+#include "datastructure/rating_map.h"
 #include "parallel.h"
 #include "utility/random.h"
 #include "utility/timer.h"
@@ -41,16 +41,25 @@ class LabelPropagation {
   SET_DEBUG(false);
   SET_STATISTICS(false);
 
+  // Approx. number of edges per work unit
   static constexpr NodeID kMinChunkSize = 1024;
+
+  // Nodes per permutation unit: when iterating over nodes in a chunk, we divide them into permutation units, iterate
+  // over permutation orders in random order, and iterate over nodes inside a permutation unit in random order.
   static constexpr NodeID kPermutationSize = 64;
 
-  // Size of the pool of precomputed node permutations for random shuffling
+  // We randomizing the node order inside a permutation unit, we pick a random permutation from a pool of permutations.
+  // This constant determines the pool size.
   static constexpr std::size_t kNumberOfNodePermutations = 64;
 
 public:
   void set_large_degree_threshold(const Degree large_degree_threshold) {
     _large_degree_threshold = large_degree_threshold;
   }
+
+  void set_max_num_neighbors(const Degree max_num_neighbors) { _max_num_neighbors = max_num_neighbors; }
+
+  [[nodiscard]] Degree large_degree_threshold() const { return _large_degree_threshold; }
 
   [[nodiscard]] EdgeWeight expected_total_gain() const { return _expected_total_gain; }
 
@@ -120,9 +129,7 @@ protected:
   void init_chunks() {
     const auto max_bucket = std::min<std::size_t>(math::floor_log2(_large_degree_threshold),
                                                   _graph->number_of_buckets());
-    const EdgeID max_chunk_size = std::max<EdgeID>(kMinChunkSize, (Derived::kUseHardWeightConstraint)
-                                                                      ? (1 * std::sqrt(_graph->m()))
-                                                                      : std::sqrt(_graph->m()));
+    const EdgeID max_chunk_size = std::max<EdgeID>(kMinChunkSize, std::sqrt(_graph->m()));
     const NodeID max_node_chunk_size = std::max<NodeID>(kMinChunkSize, std::sqrt(_graph->n()));
 
     for (std::size_t bucket = 0; bucket < max_bucket; ++bucket) {
@@ -182,22 +189,20 @@ protected:
     ASSERT(_active.size() >= _graph->n());
     ASSERT(_cluster_weights.size() >= derived_num_clusters());
 
-    START_TIMER("Init chunks");
     if (_chunks.empty()) { init_chunks(); }
-    STOP_TIMER();
-    START_TIMER("Shuffle chunks");
     shuffle_chunks();
-    STOP_TIMER();
 
-    tbb::enumerable_thread_specific<NodeID> num_emptied_clusters;
     tbb::enumerable_thread_specific<NodeID> num_moved_nodes;
     parallel::IntegralAtomicWrapper<std::size_t> next_chunk;
+    parallel::IntegralAtomicWrapper<NodeID> global_emptied_clusters = 0;
 
     tbb::parallel_for(static_cast<std::size_t>(0), _chunks.size(), [&](const std::size_t) {
+      if (derived_should_stop(global_emptied_clusters)) { return; }
+
       auto &local_num_moved_nodes = num_moved_nodes.local();
-      auto &local_num_emptied_clusters = num_emptied_clusters.local();
       auto &local_rand = Randomize::instance();
       auto &local_rating_map = _rating_map.local();
+      NodeID num_emptied_clusters = 0;
 
       const auto &chunk = _chunks[next_chunk.fetch_add(1, std::memory_order_relaxed)];
       const auto &permutation = _random_permutations.get(local_rand);
@@ -209,21 +214,22 @@ protected:
 
       for (std::size_t sub_chunk = 0; sub_chunk < num_sub_chunks; ++sub_chunk) {
         for (std::size_t i = 0; i < kPermutationSize; ++i) {
-          //          const NodeID u = chunk.start + kPermutationSize * sub_chunk + permutation[i % kPermutationSize];
           const NodeID u = chunk.start + kPermutationSize * sub_chunk_permutation[sub_chunk] +
                            permutation[i % kPermutationSize];
           if (u < chunk.end && _graph->degree(u) < _large_degree_threshold &&
               _active[u].load(std::memory_order_relaxed)) {
             _active[u].store(0, std::memory_order_relaxed);
+
             const auto [moved_node, emptied_cluster] = handle_node(u, local_rand, local_rating_map);
             if (moved_node) { ++local_num_moved_nodes; }
-            if (emptied_cluster) { ++local_num_emptied_clusters; }
+            if (emptied_cluster) { ++num_emptied_clusters; }
           }
         }
       }
+
+      global_emptied_clusters += num_emptied_clusters;
     });
 
-    const NodeID global_emptied_clusters = num_emptied_clusters.combine(std::plus{});
     const NodeID global_moved_nodes = num_moved_nodes.combine(std::plus{});
     return {global_moved_nodes, global_emptied_clusters};
   }
@@ -272,55 +278,65 @@ private:
   std::pair<ClusterID, EdgeWeight> find_best_cluster(const NodeID u, const NodeWeight u_weight,
                                                      const ClusterID u_cluster, Randomize &local_rand,
                                                      RatingMap<EdgeWeight> &local_rating_map) {
-    local_rating_map.update_upper_bound_size(_graph->degree(u));
-    for (const auto [e, v] : _graph->neighbors(u)) {
-      const ClusterID v_cluster = derived_cluster(v);
-      const EdgeWeight rating = _graph->edge_weight(e);
-      local_rating_map[v_cluster] += rating;
-    }
+    auto action = [&](auto &map) {
+      const ClusterWeight initial_cluster_weight = _cluster_weights[u_cluster];
+      ClusterSelectionState state{
+          .local_rand = local_rand,
+          .u = u,
+          .u_weight = u_weight,
+          .initial_cluster = u_cluster,
+          .initial_cluster_weight = initial_cluster_weight,
+          .best_cluster = u_cluster,
+          .best_gain = 0,
+          .best_cluster_weight = initial_cluster_weight,
+          .current_cluster = 0,
+          .current_gain = 0,
+          .current_cluster_weight = 0,
+      };
 
-    const ClusterWeight initial_cluster_weight = _cluster_weights[u_cluster];
-    ClusterSelectionState state{
-        .local_rand = local_rand,
-        .u = u,
-        .u_weight = u_weight,
-        .initial_cluster = u_cluster,
-        .initial_cluster_weight = initial_cluster_weight,
-        .best_cluster = u_cluster,
-        .best_gain = 0,
-        .best_cluster_weight = initial_cluster_weight,
-        .current_cluster = 0,
-        .current_gain = 0,
-        .current_cluster_weight = 0,
+      auto add_to_rating_map = [&](const EdgeID e, const NodeID v) {
+        const ClusterID v_cluster = derived_cluster(v);
+        const EdgeWeight rating = _graph->edge_weight(e);
+        map[v_cluster] += rating;
+      };
+
+      const EdgeID from = _graph->first_edge(u);
+      const EdgeID to = from + std::min(_graph->degree(u), _max_num_neighbors);
+      for (EdgeID e = from; e < to; ++e) { add_to_rating_map(e, _graph->edge_target(e)); }
+
+      // the favored cluster is the one with the highest gain, independent of whether we can actually join that cluster
+      ClusterID favored_cluster = u_cluster;
+
+      for (const auto [cluster, rating] : map.entries()) {
+        state.current_cluster = cluster;
+        state.current_gain = rating;
+        state.current_cluster_weight = _cluster_weights[cluster].load(std::memory_order_relaxed);
+
+        if constexpr (Derived::kUseFavoredCluster) {
+          if (state.current_gain > state.best_gain) { favored_cluster = state.current_cluster; }
+        }
+
+        if (derived_accept_cluster(state)) {
+          state.best_cluster = state.current_cluster;
+          state.best_cluster_weight = state.current_cluster_weight;
+          state.best_gain = state.current_gain;
+        }
+      }
+
+      // if we couldn't join any cluster, we keep the favored cluster in mind
+      if constexpr (Derived::kUseFavoredCluster) {
+        if (state.best_cluster == state.initial_cluster) { derived_set_favored_cluster(u, favored_cluster); }
+      }
+
+      const EdgeWeight actual_gain = IFSTATS(state.best_gain - map[state.initial_cluster]);
+      map.clear();
+      return std::make_pair(state.best_cluster, actual_gain);
     };
 
-    // the favored cluster is the one with the highest gain, independent of whether we can actually join that cluster
-    ClusterID favored_cluster = u_cluster;
+    local_rating_map.update_upper_bound_size(_graph->degree(u));
+    const auto [best_cluster, gain] = local_rating_map.run_with_map(action, action);
 
-    for (const auto [cluster, rating] : local_rating_map) {
-      state.current_cluster = cluster;
-      state.current_gain = rating;
-      state.current_cluster_weight = _cluster_weights[cluster].load(std::memory_order_relaxed);
-
-      if constexpr (Derived::kUseFavoredCluster) {
-        if (state.current_gain > state.best_gain) { favored_cluster = state.current_cluster; }
-      }
-
-      if (derived_accept_cluster(state)) {
-        state.best_cluster = state.current_cluster;
-        state.best_cluster_weight = state.current_cluster_weight;
-        state.best_gain = state.current_gain;
-      }
-    }
-
-    // if we couldn't join any cluster, we keep the favored cluster in mind
-    if constexpr (Derived::kUseFavoredCluster) {
-      if (state.best_cluster == state.initial_cluster) { derived_set_favored_cluster(u, favored_cluster); }
-    }
-
-    const EdgeWeight actual_gain = IFSTATS(state.best_gain - local_rating_map[state.initial_cluster]);
-    local_rating_map.clear();
-    return {state.best_cluster, actual_gain};
+    return {best_cluster, gain};
   }
 
   void activate_neighbors(const NodeID u) {
@@ -331,17 +347,31 @@ private:
   void derived_reset_node_state(const NodeID u) { static_cast<Derived *>(this)->reset_node_state(u); }
   NodeID derived_cluster(const NodeID u) { return static_cast<Derived *>(this)->cluster(u); }
   void derived_set_cluster(const NodeID u, const ClusterID cluster) { static_cast<Derived *>(this)->set_cluster(u, cluster); }
-  void derived_set_favored_cluster(const NodeID u, const ClusterID favored_cluster) { if constexpr (Derived::kUseFavoredCluster) { static_cast<Derived *>(this)->set_favored_cluster(u, favored_cluster); } }
   ClusterID derived_num_clusters() { return static_cast<Derived *>(this)->num_clusters(); }
   ClusterWeight derived_initial_cluster_weight(const ClusterID cluster) { return static_cast<Derived *>(this)->initial_cluster_weight(cluster); }
   ClusterWeight derived_max_cluster_weight(const ClusterID cluster) { return static_cast<Derived *>(this)->max_cluster_weight(cluster); }
   bool derived_accept_cluster(const ClusterSelectionState &state) { return static_cast<Derived *>(this)->accept_cluster(state); }
   // clang-format on
 
+  void derived_set_favored_cluster(const NodeID u, const ClusterID favored_cluster) {
+    if constexpr (Derived::kUseFavoredCluster) {
+      static_cast<Derived *>(this)->set_favored_cluster(u, favored_cluster);
+    }
+  }
+
+  [[nodiscard]] inline bool derived_should_stop(const NodeID num_emptied_clusters) {
+    if constexpr (Derived::kControlProgress) {
+      return static_cast<Derived *>(this)->should_stop(num_emptied_clusters);
+    } else {
+      return false;
+    }
+  }
+
 protected:
   const NodeID _max_n;
   scalable_vector<parallel::IntegralAtomicWrapper<ClusterWeight>> _cluster_weights;
   Degree _large_degree_threshold{std::numeric_limits<Degree>::max()};
+  Degree _max_num_neighbors{std::numeric_limits<Degree>::max()};
 
   const Graph *_graph{nullptr};
 

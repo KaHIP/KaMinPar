@@ -54,6 +54,12 @@ void print_identifier(int argc, char *argv[]) {
   LLOG << "ARGS ";
   for (int i = 0; i < argc; ++i) { LLOG << "argv[" << i << "]='" << argv[i] << "' "; }
   LOG;
+
+  if (DETECT_EXIST(KAMINPAR_ENABLE_ASSERTIONS)) {
+    LOG << std::string(80, '*');
+    LOG << "!!! RUNNING IN DEBUG MODE !!!";
+    LOG << std::string(80, '*');
+  }
 }
 
 void force_clean_build() {

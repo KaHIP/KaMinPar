@@ -14,6 +14,7 @@
 #include <tbb/blocked_range.h>
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_reduce.h>
+#include <tbb/parallel_for.h>
 #include <utility>
 #include <vector>
 
@@ -120,6 +121,17 @@ public:
   [[nodiscard]] inline NodeID degree(const NodeID u) const { return static_cast<NodeID>(_nodes[u + 1] - _nodes[u]); }
   [[nodiscard]] inline EdgeID first_edge(const NodeID u) const { return _nodes[u]; }
   [[nodiscard]] inline EdgeID first_invalid_edge(const NodeID u) const { return _nodes[u + 1]; }
+
+  // Parallel iteration
+  template<typename Lambda>
+  inline void pfor_nodes(Lambda &&l) const {
+    tbb::parallel_for(static_cast<NodeID>(0), n(), std::forward<Lambda &&>(l));
+  }
+
+  template<typename Lambda>
+  inline void pfor_edges(Lambda &&l) const {
+    tbb::parallel_for(static_cast<EdgeID>(0), m(), std::forward<Lambda &&>(l));
+  }
 
   // Iterators for nodes / edges
   [[nodiscard]] inline auto nodes() const { return std::views::iota(static_cast<NodeID>(0), n()); }
