@@ -23,7 +23,7 @@
 #include "datastructure/binary_heap.h"
 #include "datastructure/fast_reset_array.h"
 #include "datastructure/graph.h"
-#include "datastructure/map.h"
+#include "datastructure/rating_map.h"
 #include "datastructure/marker.h"
 #include "refinement/i_balancer.h"
 #include "utility/metrics.h"

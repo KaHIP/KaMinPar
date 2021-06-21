@@ -26,22 +26,32 @@ namespace kaminpar::app {
 // clang-format off
 void create_coarsening_context_options(CoarseningContext &c_ctx, Arguments &args, const std::string &name, const std::string &prefix) {
   using namespace std::string_literals;
-  args.group(name, prefix).argument("c-algorithm", "Coarsening algorithm, possible values: {" + coarsening_algorithm_names() + "}. Note: only interleaved coarsening algorithms are well tested.", &c_ctx.algorithm, coarsening_algorithm_from_string)
+  args.group(name, prefix)
+      .argument(prefix + "-algorithm", "Coarsening algorithm, possible values: {" + clustering_algorithm_names() + "}.", &c_ctx.algorithm, clustering_algorithm_from_string)
+        .line("- noop: assign each node to its own cluster, effectively disabling clustering")
+        .line("- lp: compute clustering using parallel label propagation")
       .argument(prefix + "-contraction-limit", "Ideally, we always perform a bisection on a graph of size 2 * C.", &c_ctx.contraction_limit, 'C')
-      .argument(prefix + "-use-adaptive-contraction-limit", "Use C' = min{C, n/k} as contraction limit to ensure linear running time.", &c_ctx.use_adaptive_contraction_limit)
-      .argument(prefix + "-adaptive-cluster-weight-multiplier", "Multiplier for adaptive component of the maximum cluster weight. Set to 0 to disable adaptive cluster weight.", &c_ctx.adaptive_cluster_weight_multiplier)
-      .argument(prefix + "-cluster-weight-factor", "Ensure that maximum cluster weight is at least <maximum block weight>/<arg>. Set to max to disable block weight based cluster weight.", &c_ctx.block_based_cluster_weight_factor)
-      .argument(prefix + "-shrink-threshold", "Abort coarsening once a level shrunk by factor less than this.", &c_ctx.shrink_factor_abortion_threshold)
-      .argument(prefix + "-merge-singleton-clusters", "Cluster singleton nodes together.", &c_ctx.merge_singleton_clusters)
+      .argument(prefix + "-enforce-contraction-limit", "If set, enforce the ideal coarsening situation.", &c_ctx.enforce_contraction_limit)
+      .argument(prefix + "-convergence-threshold", "Coarsening converged once the size of the graph shrunk by less than this factor.", &c_ctx.convergence_threshold)
+      .argument(prefix + "-cluster-weight-limit", "Rule used to compute the maximum cluster weight, possible values: {" + cluster_weight_limit_names() + "}.", &c_ctx.cluster_weight_limit, cluster_weight_limit_from_string)
+        .line("The limit can be multiplied by any constant using the --cluster_weight_multiplier argument.")
+        .line("- epsilon-block-weight: c_max = eps * min{n' / C, k} when coarsening a graph with n' nodes.")
+        .line("- static_block_weight: c_max = n / k")
+        .line("- one: c_max = 1")
+        .line("- zero: c_max = 0")
+      .argument(prefix + "-cluster_weight_multiplier", "Multiplier for the maximum cluster weight limit.", &c_ctx.cluster_weight_multiplier)
       ;
 }
 // clang-format on
 
 // clang-format off
-void create_coarsening_lp_context_options(CoarseningContext &c_ctx, Arguments &args, const std::string &name, const std::string &prefix) {
+void create_coarsening_lp_context_options(LabelPropagationCoarseningContext &c_lp_ctx, Arguments &args, const std::string &name, const std::string &prefix) {
   args.group(name, prefix)
-      .argument(prefix + "-num-iters", "Number of label propagation iterations.", &c_ctx.num_iterations)
-      .argument(prefix + "-large-degree-threshold", "Ignore all nodes with degree higher than this during coarsening.", &c_ctx.large_degree_threshold)
+      .argument(prefix + "-num-iterations", "Number of label propagation iterations.", &c_lp_ctx.num_iterations)
+      .argument(prefix + "-large-degree-threshold", "Ignore all nodes with degree higher than this during coarsening.", &c_lp_ctx.large_degree_threshold)
+      .argument(prefix + "-merge-nonadjacent-clusters-threshold", "If the graph shrunk by less than this factor, consider merging nonadjacent singleton clusters.", &c_lp_ctx.merge_nonadjacent_clusters_threshold)
+      .argument(prefix + "-merge-singleton-clusters", "If set, cluster isolated nodes.", &c_lp_ctx.merge_singleton_clusters)
+      .argument(prefix + "-max-num-neighbors", "Maximum numbers of neighbors that are scanned before deciding a nodes best cluster.", &c_lp_ctx.max_num_neighbors)
       ;
 }
 // clang-format on
@@ -83,6 +93,10 @@ void create_debug_context_options(DebugContext &d_ctx, Arguments &args, const st
 // clang-format off
 void create_initial_partitioning_context_options(InitialPartitioningContext &i_ctx, Arguments &args, const std::string &name, const std::string &prefix) {
   args.group(name, prefix)
+      .argument(prefix + "-mode", "Initial partitioning mode, possible values are: {" + initial_partitioning_mode_names() + "}.", &i_ctx.mode, initial_partitioning_mode_from_string)
+        .line("- sequential: do not diversify initial partitioning by creating multiple copies of the original graph")
+        .line("- async-parallel: create diversified copies of coarser graphs and process them asynchronously")
+        .line("- sync-parallel: create diversified copies of coarser graphs and process them in lock step")
       .argument(prefix + "-multiplier-exp", "", &i_ctx.multiplier_exponent)
       .argument(prefix + "-rep-multiplier", "Multiplier for the number of attempts at computing an initial bisection.", &i_ctx.repetition_multiplier)
       .argument(prefix + "-min-repetitions", "Minimum number of attempts at computing an initial bisection (per bipartition algorithm). A bipartitioning algorithm might be invoked less than specified if it is unlikely to find the best cut.", &i_ctx.min_num_repetitions)
@@ -91,8 +105,7 @@ void create_initial_partitioning_context_options(InitialPartitioningContext &i_c
       .argument(prefix + "-num-seed-iterations", "Number of attempts at finding good seed nodes (BFS-based bipartition algorithms).", &i_ctx.num_seed_iterations)
       .argument(prefix + "-use-adaptive-epsilon", "If set, use adaptive epsilon for max block weights during IP.", &i_ctx.use_adaptive_epsilon)
       .argument(prefix + "-use-adaptive-bipartitioner-selection", "If set, determine which bipartitioning algorithms are unlikely to produce good results and run them less often than other algorithms.", &i_ctx.use_adaptive_bipartitioner_selection)
-      .argument(prefix + "-parallelize", "Parallelize initial partitioning. This option does not increase speedup, but might improve partition quality.", &i_ctx.parallelize)
-      .argument(prefix + "-parallelize-synchronized", "Parallelize initial partitioning and synchronize steps. This option is generally faster than --i-parallelize when using many threads.", &i_ctx.parallelize_synchronized, 'S')
+      .argument(prefix + "-parallelize-bisections", "Compute bisections in parallel.", &i_ctx.parallelize_bisections)
       ;
 }
 // clang-format on
@@ -123,8 +136,9 @@ void create_fm_refinement_context_options(FMRefinementContext &fm_ctx, Arguments
 // clang-format off
 void create_lp_refinement_context_options(LabelPropagationRefinementContext &lp_ctx, Arguments &args, const std::string &name, const std::string &prefix) {
   args.group(name, prefix)
-      .argument(prefix + "-num-iters", "Number label propagation iterations.", &lp_ctx.num_iterations)
+      .argument(prefix + "-num-iterations", "Number label propagation iterations.", &lp_ctx.num_iterations)
       .argument(prefix + "-large-degree-threshold", "Ignore all nodes with degree higher than this.", &lp_ctx.large_degree_threshold)
+      .argument(prefix + "-max-num-neighbors", "Maximum number of neighbors to scan before deciding to which block a node is moved.", &lp_ctx.max_num_neighbors)
       ;
 }
 // clang-format on
@@ -145,9 +159,9 @@ void create_context_options(Context &ctx, Arguments &args) {
   create_miscellaneous_context_options(ctx, args, "Miscellaneous", "m");
   create_debug_context_options(ctx.debug, args, "Debug", "d");
   create_coarsening_context_options(ctx.coarsening, args, "Coarsening", "c");
-  create_coarsening_lp_context_options(ctx.coarsening, args, "Coarsening -> Label Propagation", "c-lp");
+  create_coarsening_lp_context_options(ctx.coarsening.lp, args, "Coarsening -> Label Propagation", "c-lp");
   create_coarsening_context_options(ctx.initial_partitioning.coarsening, args, "Initial Partitioning -> Coarsening", "i-c");
-  create_coarsening_lp_context_options(ctx.initial_partitioning.coarsening, args, "Coarsening -> Initial Partitioning -> Label Propagation", "i-c-lp");
+  create_coarsening_lp_context_options(ctx.initial_partitioning.coarsening.lp, args, "Coarsening -> Initial Partitioning -> Label Propagation", "i-c-lp");
   create_initial_partitioning_context_options(ctx.initial_partitioning, args, "Initial Partitioning", "i");
   create_refinement_context_options(ctx.initial_partitioning.refinement, args, "Initial Partitioning -> Refinement", "i-r");
   create_fm_refinement_context_options(ctx.initial_partitioning.refinement.fm, args, "Initial Partitioning -> Refinement -> FM", "i-r-fm");
@@ -161,7 +175,7 @@ Context parse_options(int argc, char *argv[]) {
   using namespace std::string_literals;
   using namespace std::chrono;
 
-  Context context = Context::create_default();
+  Context context = create_default_context();
 
   Arguments arguments;
   create_context_options(context, arguments);

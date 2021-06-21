@@ -52,6 +52,7 @@ public:
     std::string description{};
     std::string default_description{};
     bool vararg{false};
+    std::vector<std::string> extended_description{};
   };
 
   /**
@@ -151,11 +152,20 @@ public:
       return *this;
     }
 
+    Group &line(std::string text) {
+      if (arguments.empty()) {
+        extended_description.push_back(std::move(text));
+      }
+      arguments.back().extended_description.push_back(std::move(text));
+      return *this;
+    }
+
     std::vector<Argument> arguments{};
     std::string name{};
     Arguments *parent{};
     bool mandatory{};
     std::string code{};
+    std::vector<std::string> extended_description;
   };
 
   Group &group(const std::string &name, const std::string &code = "", bool mandatory = false) {
@@ -224,6 +234,9 @@ public:
         const std::string prefix = "<"s + positional_argument.long_name + ">"s;
         const std::string padding(padding_length - prefix.size(), '.');
         LOG << " " << prefix << " ." << padding << ". " << positional_argument.description;
+        for (const auto &line : positional_argument.extended_description) {
+          LOG << std::string(padding_length + 5, ' ') << line;
+        }
       }
       LOG;
     }
@@ -241,6 +254,9 @@ public:
         const std::string prefix = create_description_prefix(argument);
         const std::string padding(padding_length - prefix.size(), '.');
         LOG << " " << prefix << " ." << padding << ". " << argument.description;
+        for (const auto &line : argument.extended_description) {
+          LOG << "   " << std::string(padding_length, ' ') << "  " << line;
+        }
         if (!argument.default_description.empty()) {
           LOG << "   " << std::string(padding_length, ' ') << "  Default: <arg>=" << argument.default_description;
         }

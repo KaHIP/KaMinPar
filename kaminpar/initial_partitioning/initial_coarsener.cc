@@ -52,10 +52,9 @@ const Graph *InitialCoarsener::coarsen(const std::function<NodeWeight(NodeID)> &
   if (!_precomputed_clustering) { perform_label_propagation(max_cluster_weight); }
 
   const NodeID c_n{_current_graph->n() - _current_num_moves};
-  const double shrunk_by{1.0 - 1.0 * c_n / _current_graph->n()};
-  const bool shrunk_enough{shrunk_by >= _c_ctx.shrink_factor_abortion_threshold};
+  const bool converged = _c_ctx.should_converge(_current_graph->n(), c_n);
 
-  if (shrunk_enough) {
+  if (!converged) {
     _interleaved_max_cluster_weight = cb_max_cluster_weight(c_n);
     auto [c_graph, c_mapping] = contract_current_clustering();
     _hierarchy.take_coarse_graph(std::move(c_graph), std::move(c_mapping));
@@ -113,7 +112,7 @@ NodeID InitialCoarsener::pick_cluster_from_rating_map(NodeID u, NodeWeight u_wei
 void InitialCoarsener::perform_label_propagation(const NodeWeight max_cluster_weight) {
   reset_current_clustering();
 
-  const auto max_bucket = math::floor_log2(_c_ctx.large_degree_threshold);
+  const auto max_bucket = math::floor_log2(_c_ctx.lp.large_degree_threshold);
   for (std::size_t bucket = 0; bucket < std::min<std::size_t>(max_bucket, _current_graph->number_of_buckets());
        ++bucket) {
     const NodeID bucket_size{static_cast<NodeID>(_current_graph->bucket_size(bucket))};
@@ -248,7 +247,7 @@ InitialCoarsener::ContractionResult InitialCoarsener::contract_current_clusterin
           c_edge_weights[c_m] = weight;
           ++c_m;
         }
-        _edge_weight_collector.reset();
+        _edge_weight_collector.clear();
         c_nodes[++c_u] = c_m;
       }
 
@@ -271,7 +270,7 @@ InitialCoarsener::ContractionResult InitialCoarsener::contract_current_clusterin
       ++c_m;
     }
     c_nodes[++c_u] = c_m;
-    _edge_weight_collector.reset();
+    _edge_weight_collector.clear();
 
     ASSERT(c_u == c_n);
     c_edges.restrict(c_m);

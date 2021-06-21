@@ -19,26 +19,19 @@
 using namespace kaminpar;
 using namespace std::string_literals;
 
+// clang-format off
 void sanitize_context(const Context &context) {
   ALWAYS_ASSERT(!std::ifstream(context.graph_filename) == false)
       << "Graph file cannot be read. Ensure that the file exists and is readable.";
   ALWAYS_ASSERT(!context.save_partition || !std::ofstream(context.partition_file()) == false)
-      << "Partition file cannot be written to " << context.partition_file()
-      << ". Ensure that the directory exists and is writable.";
+      << "Partition file cannot be written to " << context.partition_file() << "."
+      << "Ensure that the directory exists and is writable.";
   ALWAYS_ASSERT(context.partition.k >= 2) << "k must be at least 2.";
-  if (!math::is_power_of_2(context.partition.k)) { WARNING << "k is not a power of 2."; }
   ALWAYS_ASSERT(context.partition.epsilon >= 0) << "Balance constraint cannot be negative.";
-  if (context.partition.epsilon == 0) {
-    WARNING << "Balance constraint is set to zero. Note that this software is not designed to compute perfectly "
-               "balanced partitions. The computed partition will most likely be infeasible.";
-  }
+  ALWAYS_ASSERT(context.partition.epsilon > 0) << "Epsilon cannot be zero.";
 
   // Coarsening
-  ALWAYS_ASSERT(context.coarsening.min_shrink_factor >= 0);
   ALWAYS_ASSERT(context.coarsening.contraction_limit >= 2) << "Contraction limit must be at least 2.";
-  ALWAYS_ASSERT(context.coarsening.shrink_factor_abortion_threshold > 0)
-      << "Abortion threshold of 0 could cause an endless loop during coarsening.";
-  ALWAYS_ASSERT(context.coarsening.adaptive_cluster_weight_multiplier >= 0);
 
   // Initial Partitioning
   ALWAYS_ASSERT(context.initial_partitioning.max_num_repetitions >= context.initial_partitioning.min_num_repetitions)
@@ -46,20 +39,6 @@ void sanitize_context(const Context &context) {
 
   // Initial Partitioning -> Coarsening
   ALWAYS_ASSERT(context.initial_partitioning.coarsening.contraction_limit >= 2);
-
-  // Initial Partitioning -> Refinement -> FM
-  if (context.initial_partitioning.refinement.algorithm == RefinementAlgorithm::TWO_WAY_FM) {
-    ALWAYS_ASSERT(context.initial_partitioning.refinement.fm.num_iterations > 0)
-        << "If " << RefinementAlgorithm::TWO_WAY_FM
-        << " is set as initial refinement algorithm, we will always perform at least one iteration. To disable initial "
-           "refinement, use --i-r-algorithm="
-        << RefinementAlgorithm::NOOP;
-  }
-
-  ALWAYS_ASSERT(context.initial_partitioning.parallelize || !context.initial_partitioning.parallelize_synchronized)
-      << "Synchronized parallelized IP requires parallelized IP.";
-  ALWAYS_ASSERT(context.initial_partitioning.parallelize || context.initial_partitioning.multiplier_exponent == 0)
-      << "Sequential IP does not support multiplier exponents.";
 }
 // clang-format on
 

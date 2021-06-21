@@ -3,6 +3,7 @@
 #include "definitions.h"
 
 #include <ranges>
+#include <utility>
 #include <vector>
 
 namespace kaminpar {
@@ -18,7 +19,6 @@ public:
 
   FastResetArray(const FastResetArray &) = delete;
   FastResetArray &operator=(const FastResetArray &) = delete;
-
   FastResetArray(FastResetArray &&) noexcept = default;
   FastResetArray &operator=(FastResetArray &&) noexcept = default;
 
@@ -34,23 +34,27 @@ public:
 
   [[nodiscard]] std::vector<size_type> &used_entry_ids() { return _used_entries; }
 
-  [[nodiscard]] auto used_entries() {
+  [[nodiscard]] auto used_entry_values() {
     return used_entry_ids() | std::views::transform([this](const std::size_t &entry) { return _data[entry]; });
   }
 
-  void reset() {
-    for (const std::size_t pos : _used_entries) { _data[pos] = value_type(); }
-    reset_ids();
+  [[nodiscard]] auto entries() {
+    return _used_entries | std::views::transform([this](const size_type &entry) {
+             return std::pair<value_type, T>{entry, _data[entry]};
+           });
   }
 
-  void reset_ids() { _used_entries.clear(); }
+  void clear() {
+    for (const std::size_t pos : _used_entries) { _data[pos] = value_type(); }
+    _used_entries.clear();
+  }
 
   [[nodiscard]] bool empty() const { return _used_entries.empty(); }
-  [[nodiscard]] std::size_t size() const { return _data.size(); }
-  [[nodiscard]] std::size_t capacity() const { return size(); }
+  [[nodiscard]] std::size_t size() const { return _used_entries.size(); }
+  [[nodiscard]] std::size_t capacity() const { return _data.size(); }
   void resize(const std::size_t capacity) { _data.resize(capacity); }
 
-  std::size_t memory_in_kb() const { return _data.size() * sizeof(T) / 1000; }
+  [[nodiscard]] std::size_t memory_in_kb() const { return _data.size() * sizeof(T) / 1000; }
 
 private:
   std::vector<T> _data;

@@ -81,7 +81,7 @@ public:
 
     // coarsening
     const auto t_coarsen = SIMPLE_TIMER_START();
-    PartitionContext p_ctx = _input_ctx.create_bipartition_partition_context(graph, final_k / 2, final_k / 2);
+    PartitionContext p_ctx = create_bipartition_context(_input_ctx.partition, graph, final_k / 2, final_k / 2);
     bool shrunk = true;
     while (shrunk && c_graph->n() > 2 * _input_ctx.coarsening.contraction_limit) {
       shrunk = helper::coarsen_once(coarsener.get(), c_graph, pseudo_input_ctx, p_ctx);

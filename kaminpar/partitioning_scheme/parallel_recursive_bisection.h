@@ -33,8 +33,8 @@
 
 namespace kaminpar::partitioning {
 class ParallelRecursiveBisection {
-  static constexpr bool kDebug = false;
-  static constexpr bool kStatistics = false;
+  SET_DEBUG(false);
+  SET_STATISTICS(false);
 
 public:
   ParallelRecursiveBisection(const Graph &input_graph, const Context &input_ctx);

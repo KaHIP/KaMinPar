@@ -129,21 +129,6 @@ SequentialSubgraphExtractionResult extract_subgraphs_sequential(const Partitione
                                                                 SubgraphMemory &subgraph_memory,
                                                                 TemporarySubgraphMemory &tmp_subgraph_memory);
 
-struct ContractionMemoryContext {
-  scalable_vector<NodeID> buckets;
-  scalable_vector<parallel::IntegralAtomicWrapper<NodeID>> buckets_index;
-  scalable_vector<NodeID> leader_mapping;
-};
-
-struct ContractionResult {
-  Graph graph;
-  scalable_vector<NodeID> mapping;
-  ContractionMemoryContext m_ctx;
-};
-
-ContractionResult contract(const Graph &graph, const scalable_vector<NodeID> &clustering,
-                           const bool leader_is_idempotent = false, ContractionMemoryContext m_ctx = {});
-
 using NodePermutation = StaticArray<NodeID>;
 
 struct NodePermutations {

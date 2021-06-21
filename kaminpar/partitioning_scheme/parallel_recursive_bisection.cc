@@ -82,7 +82,7 @@ const Graph *ParallelRecursiveBisection::coarsen() {
 }
 
 NodeID ParallelRecursiveBisection::initial_partition_threshold() {
-  if (_input_ctx.initial_partitioning.parallelize) {
+  if (helper::parallel_ip_mode(_input_ctx.initial_partitioning.mode)) {
     return _input_ctx.parallel.num_threads * _input_ctx.coarsening.contraction_limit; // p * C
   } else {
     return 2 * _input_ctx.coarsening.contraction_limit; // 2 * C
@@ -91,9 +91,9 @@ NodeID ParallelRecursiveBisection::initial_partition_threshold() {
 
 PartitionedGraph ParallelRecursiveBisection::initial_partition(const Graph *graph) {
   SCOPED_TIMER(TIMER_INITIAL_PARTITIONING_SCHEME);
-  PartitionedGraph p_graph = _input_ctx.initial_partitioning.parallelize //
-                                 ? parallel_initial_partition(graph)     //
-                                 : sequential_initial_partition(graph);  //
+  PartitionedGraph p_graph = helper::parallel_ip_mode(_input_ctx.initial_partitioning.mode) //
+                                 ? parallel_initial_partition(graph)                        //
+                                 : sequential_initial_partition(graph);                     //
 
   helper::update_partition_context(_current_p_ctx, p_graph);
 
@@ -115,10 +115,11 @@ PartitionedGraph ParallelRecursiveBisection::parallel_initial_partition(const Gr
   // Hence, we only record its total time
   DISABLE_TIMERS();
   PartitionedGraph p_graph = [&] {
-    if (_input_ctx.initial_partitioning.parallelize_synchronized) {
+    if (_input_ctx.initial_partitioning.mode == InitialPartitioningMode::SYNCHRONOUS_PARALLEL) {
       ParallelSynchronizedInitialPartitioner initial_partitioner{_input_ctx, _ip_m_ctx_pool, _ip_extraction_pool};
       return initial_partitioner.partition(_coarsener.get(), _current_p_ctx);
     } else {
+      ALWAYS_ASSERT(_input_ctx.initial_partitioning.mode == InitialPartitioningMode::ASYNCHRONOUS_PARALLEL);
       ParallelInitialPartitioner initial_partitioner{_input_ctx, _ip_m_ctx_pool, _ip_extraction_pool};
       return initial_partitioner.partition(_coarsener.get(), _current_p_ctx);
     }

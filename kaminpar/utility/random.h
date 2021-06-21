@@ -46,6 +46,8 @@ public:
   void shuffle(Container &&vec) { std::shuffle(vec.begin(), vec.end(), _generator); }
   void shuffle(auto begin, auto end) { std::shuffle(begin, end, _generator); }
 
+  [[nodiscard]] auto &generator() { return _generator; }
+
 #ifdef TEST
   void mock_precomputed_bools(const bool value) { std::fill(_random_bools.begin(), _random_bools.end(), value); }
 
@@ -53,8 +55,6 @@ public:
     _random_bools = mocked_random_bools;
   }
 #endif // TEST
-
-  auto &generator() { return _generator; }
 
   static int seed;
 

@@ -4,12 +4,12 @@ namespace kaminpar::partitioning::helper {
 namespace {
 SET_DEBUG(false);
 SET_STATISTICS(false);
-SET_OUTPUT(false);
+SET_OUTPUT(true);
 
 bool should_balance(const BalancingTimepoint configured, const BalancingTimepoint current) {
-  return configured == current || (configured == BalancingTimepoint::BEFORE_AND_AFTER_KWAY_REFINEMENT &&
-                                   (current == BalancingTimepoint::BEFORE_KWAY_REFINEMENT ||
-                                    current == BalancingTimepoint::AFTER_KWAY_REFINEMENT));
+  return configured == current ||
+         (configured == BalancingTimepoint::ALWAYS && (current == BalancingTimepoint::BEFORE_KWAY_REFINEMENT ||
+                                                       current == BalancingTimepoint::AFTER_KWAY_REFINEMENT));
 }
 
 void balance(Balancer *balancer, PartitionedGraph &p_graph, const BalancingTimepoint tp, const PartitionContext &p_ctx,
@@ -182,8 +182,7 @@ void extend_partition(PartitionedGraph &p_graph, const BlockID k_prime, const Co
 bool coarsen_once(Coarsener *coarsener, const Graph *graph, const Context &input_ctx, PartitionContext &current_p_ctx) {
   SCOPED_TIMER(TIMER_COARSENING);
 
-  const NodeWeight max_cluster_weight = compute_max_cluster_weight(*graph, input_ctx.partition, input_ctx.coarsening,
-                                                                   input_ctx.coarsening);
+  const NodeWeight max_cluster_weight = compute_max_cluster_weight(*graph, input_ctx.partition, input_ctx.coarsening);
   const auto [c_graph, shrunk] = coarsener->coarsen(max_cluster_weight);
 
   CLOG << "-> "                                              //

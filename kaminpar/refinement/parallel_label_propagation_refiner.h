@@ -37,9 +37,10 @@ public:
       : Base{graph.n(), p_ctx.k},
         _r_ctx{r_ctx} {
     set_large_degree_threshold(r_ctx.lp.large_degree_threshold);
+    set_max_num_neighbors(r_ctx.lp.max_num_neighbors);
   }
 
-  EdgeWeight expected_total_gain() const final { return Base::expected_total_gain(); }
+  [[nodiscard]] EdgeWeight expected_total_gain() const final { return Base::expected_total_gain(); }
 
   void initialize(const Graph &graph) final { _graph = &graph; }
 
@@ -62,11 +63,12 @@ public:
 
 private:
   static constexpr bool kUseHardWeightConstraint = true;
-  static constexpr bool kUseFavoredCluster = false;
   static constexpr bool kReportEmptyClusters = false;
+  static constexpr bool kUseFavoredCluster = false;
+  static constexpr bool kControlProgress = false;
 
   void reset_node_state(const NodeID) const {}
-  BlockID cluster(const NodeID u) const { return _p_graph->block(u); }
+  [[nodiscard]] BlockID cluster(const NodeID u) const { return _p_graph->block(u); }
   void set_cluster(const NodeID u, const BlockID block) { _p_graph->set_block(u, block); }
   BlockID num_clusters() { return _p_graph->k(); }
   BlockWeight initial_cluster_weight(const BlockID block) { return _p_graph->block_weight(block); }
