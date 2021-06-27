@@ -291,14 +291,14 @@ Context create_default_context() {
       .coarsening = { // Context -> Initial Partitioning -> Coarsening
         .algorithm = ClusteringAlgorithm::LABEL_PROPAGATION,
         .lp = { // Context -> Initial Partitioning -> Coarsening -> Label Propagation
-          .num_iterations = 1,
-          .large_degree_threshold = 1000000,
-          .merge_nonadjacent_clusters_threshold = 0.5,
-          .merge_singleton_clusters = true,
-          .max_num_neighbors = 200000,
+          .num_iterations = 1, // no effect
+          .large_degree_threshold = 1000000, // no effect
+          .merge_nonadjacent_clusters_threshold = 0.5, // no effect
+          .merge_singleton_clusters = true, // no effect
+          .max_num_neighbors = 200000, // no effect
         },
         .contraction_limit = 20,
-        .enforce_contraction_limit = false,
+        .enforce_contraction_limit = false, // no effect
         .convergence_threshold = 0.05,
         .cluster_weight_limit = ClusterWeightLimit::BLOCK_WEIGHT,
         .cluster_weight_multiplier = 1.0 / 12.0,
@@ -391,23 +391,22 @@ double compute_2way_adaptive_epsilon(const PartitionContext &p_ctx, const NodeWe
 
 NodeWeight compute_max_cluster_weight(const Graph &c_graph, const PartitionContext &input_p_ctx,
                                       const CoarseningContext &c_ctx) {
-  NodeWeight max_cluster_weight = 0;
+  double max_cluster_weight = 0.0;
 
   switch (c_ctx.cluster_weight_limit) {
     case ClusterWeightLimit::EPSILON_BLOCK_WEIGHT: {
       const BlockID k_prime = std::clamp<BlockID>(c_graph.n() / c_ctx.contraction_limit, 2, input_p_ctx.k);
-      max_cluster_weight = static_cast<NodeWeight>((input_p_ctx.epsilon * c_graph.total_node_weight()) / k_prime);
+      max_cluster_weight = (input_p_ctx.epsilon * c_graph.total_node_weight()) / k_prime;
       break;
     }
 
     case ClusterWeightLimit::BLOCK_WEIGHT:
-      max_cluster_weight = static_cast<NodeWeight>((1.0 + input_p_ctx.epsilon) * c_graph.total_node_weight() /
-                                                   input_p_ctx.k);
+      max_cluster_weight = (1.0 + input_p_ctx.epsilon) * c_graph.total_node_weight() / input_p_ctx.k;
       break;
 
-    case ClusterWeightLimit::ONE: max_cluster_weight = 1; break;
+    case ClusterWeightLimit::ONE: max_cluster_weight = 1.0; break;
 
-    case ClusterWeightLimit::ZERO: max_cluster_weight = 0; break;
+    case ClusterWeightLimit::ZERO: max_cluster_weight = 0.0; break;
   }
 
   return static_cast<NodeWeight>(max_cluster_weight * c_ctx.cluster_weight_multiplier);

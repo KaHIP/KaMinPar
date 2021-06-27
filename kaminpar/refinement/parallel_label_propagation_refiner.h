@@ -25,9 +25,9 @@
 
 namespace kaminpar {
 class ParallelLabelPropagationRefiner final
-    : public LabelPropagation<ParallelLabelPropagationRefiner, BlockID, BlockWeight>,
+    : public LabelPropagation<ParallelLabelPropagationRefiner, BlockID, BlockWeight, SparseMap<NodeID, EdgeWeight>>,
       public Refiner {
-  using Base = LabelPropagation<ParallelLabelPropagationRefiner, BlockID, BlockWeight>;
+  using Base = LabelPropagation<ParallelLabelPropagationRefiner, BlockID, BlockWeight, SparseMap<NodeID, EdgeWeight>>;
   friend Base;
 
   static constexpr std::size_t kInfiniteIterations = std::numeric_limits<std::size_t>::max();

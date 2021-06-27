@@ -36,7 +36,7 @@ namespace kaminpar {
 /**
  * Generic implementation of parallelized label propagation.
  */
-template<typename Derived, typename ClusterID, typename ClusterWeight>
+template<typename Derived, typename ClusterID, typename ClusterWeight, typename LargeMap = FastResetArray<EdgeWeight>>
 class LabelPropagation {
   SET_DEBUG(false);
   SET_STATISTICS(false);
@@ -235,7 +235,7 @@ protected:
   }
 
 private:
-  std::pair<bool, bool> handle_node(const NodeID u, Randomize &local_rand, RatingMap<EdgeWeight> &local_rating_map) {
+  std::pair<bool, bool> handle_node(const NodeID u, Randomize &local_rand, auto &local_rating_map) {
     const NodeWeight u_weight = _graph->node_weight(u);
     const ClusterID u_cluster = derived_cluster(u);
     const auto [new_cluster, new_gain] = find_best_cluster(u, u_weight, u_cluster, local_rand, local_rating_map);
@@ -277,7 +277,7 @@ private:
 
   std::pair<ClusterID, EdgeWeight> find_best_cluster(const NodeID u, const NodeWeight u_weight,
                                                      const ClusterID u_cluster, Randomize &local_rand,
-                                                     RatingMap<EdgeWeight> &local_rating_map) {
+                                                     auto &local_rating_map) {
     auto action = [&](auto &map) {
       const ClusterWeight initial_cluster_weight = _cluster_weights[u_cluster];
       ClusterSelectionState state{
@@ -378,7 +378,8 @@ protected:
 private:
   scalable_vector<parallel::IntegralAtomicWrapper<uint8_t>> _active;
 
-  tbb::enumerable_thread_specific<RatingMap<EdgeWeight>> _rating_map{[&] { return RatingMap<EdgeWeight>{_max_n}; }};
+  tbb::enumerable_thread_specific<RatingMap<EdgeWeight, LargeMap>> _rating_map{
+      [&] { return RatingMap<EdgeWeight, LargeMap>{_max_n}; }};
   RandomPermutations<NodeID, kPermutationSize, kNumberOfNodePermutations> _random_permutations{};
 
   parallel::IntegralAtomicWrapper<EdgeWeight> _expected_total_gain;
