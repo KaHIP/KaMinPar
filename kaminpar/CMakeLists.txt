@@ -4,6 +4,8 @@ set(KAMINPAR_SOURCE_FILES
   algorithm/graph_contraction.h
   algorithm/graph_utils.cc
   algorithm/graph_utils.h
+  algorithm/extract_subgraphs.cc
+  algorithm/extract_subgraphs.h
   coarsening/i_coarsener.h
   coarsening/parallel_label_propagation_coarsener.h
   datastructure/graph.cc

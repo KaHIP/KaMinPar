@@ -19,6 +19,7 @@
 ******************************************************************************/
 #pragma once
 
+#include "algorithm/extract_subgraphs.h"
 #include "algorithm/graph_utils.h"
 #include "coarsening/parallel_label_propagation_coarsener.h"
 #include "context.h"
@@ -81,7 +82,7 @@ private:
   std::unique_ptr<Balancer> _balancer;
 
   // Initial partitioning -> subgraph extraction
-  SubgraphMemory _subgraph_memory;
+  graph::SubgraphMemory _subgraph_memory;
   TemporaryGraphExtractionBufferPool _ip_extraction_pool;
 
   // Initial partitioning

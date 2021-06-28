@@ -19,6 +19,7 @@
 ******************************************************************************/
 #pragma once
 
+#include "kaminpar/algorithm/extract_subgraphs.h"
 #include "kaminpar/context.h"
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/initial_partitioning/initial_partitioning_facade.h"
@@ -44,8 +45,8 @@ public:
     auto p_graph = bipartition(graph, k);
 
     if (k > 2) {
-      SubgraphMemory memory{p_graph.n(), k, p_graph.m(), p_graph.graph().is_node_weighted(),
-                            p_graph.graph().is_edge_weighted()};
+      graph::SubgraphMemory memory{p_graph.n(), k, p_graph.m(), p_graph.graph().is_node_weighted(),
+                                   p_graph.graph().is_edge_weighted()};
       const auto t_extract_subgraphs = SIMPLE_TIMER_START();
       const auto extraction = extract_subgraphs(p_graph, memory);
       SIMPLE_TIMER_STOP("Extract subgraphs", t_extract_subgraphs);

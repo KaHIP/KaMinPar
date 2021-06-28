@@ -39,18 +39,21 @@ struct LocalEdgeMemory {
   scalable_vector<LocalEdgeMemoryChunk> chunks;
   LocalEdgeMemoryChunk current_chunk;
 
-  std::size_t get_current_position() const { return chunks.size() * kChunkSize + current_chunk.size(); }
+  [[nodiscard]] std::size_t get_current_position() const { return chunks.size() * kChunkSize + current_chunk.size(); }
 
   void push(const NodeID c_v, const EdgeWeight weight) {
     if (current_chunk.size() == kChunkSize) { flush(); }
     current_chunk.emplace_back(c_v, weight);
   }
 
-  const auto &get(const std::size_t position) const { return chunks[position / kChunkSize][position % kChunkSize]; }
+  [[nodiscard]] const auto &get(const std::size_t position) const {
+    return chunks[position / kChunkSize][position % kChunkSize];
+  }
+
   auto &get(const std::size_t position) {
     ASSERT(position / kChunkSize < chunks.size()) << V(position) << V(kChunkSize) << V(chunks.size());
     ASSERT(position % kChunkSize < chunks[position / kChunkSize].size())
-    << V(position) << V(kChunkSize) << V(chunks[position / kChunkSize].size());
+        << V(position) << V(kChunkSize) << V(chunks[position / kChunkSize].size());
     return chunks[position / kChunkSize][position % kChunkSize];
   }
 

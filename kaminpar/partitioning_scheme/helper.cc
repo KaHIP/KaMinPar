@@ -85,8 +85,8 @@ PartitionedGraph bipartition(const Graph *graph, const BlockID final_k, const Co
 }
 
 void extend_partition_recursive(const Graph &graph, StaticArray<BlockID> &partition, const BlockID b0, const BlockID k,
-                                const BlockID final_k, const Context &input_ctx, SubgraphMemory &subgraph_memory,
-                                const SubgraphMemoryStartPosition position,
+                                const BlockID final_k, const Context &input_ctx, graph::SubgraphMemory &subgraph_memory,
+                                const graph::SubgraphMemoryStartPosition position,
                                 TemporaryGraphExtractionBufferPool &extraction_pool,
                                 GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool) {
   ASSERT(k > 1) << V(k);
@@ -125,7 +125,7 @@ void extend_partition_recursive(const Graph &graph, StaticArray<BlockID> &partit
 }
 
 void extend_partition(PartitionedGraph &p_graph, const BlockID k_prime, const Context &input_ctx,
-                      PartitionContext &current_p_ctx, SubgraphMemory &subgraph_memory,
+                      PartitionContext &current_p_ctx, graph::SubgraphMemory &subgraph_memory,
                       TemporaryGraphExtractionBufferPool &extraction_pool,
                       GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool) {
   SCOPED_TIMER(TIMER_INITIAL_PARTITIONING);
@@ -173,8 +173,8 @@ void extend_partition(PartitionedGraph &p_graph, const BlockID k_prime, const Co
                       PartitionContext &current_p_ctx, TemporaryGraphExtractionBufferPool &extraction_pool,
                       GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool) {
   START_TIMER(TIMER_ALLOCATION);
-  SubgraphMemory memory{p_graph.n(), input_ctx.partition.k, p_graph.m(), p_graph.graph().is_node_weighted(),
-                        p_graph.graph().is_edge_weighted()};
+  graph::SubgraphMemory memory{p_graph.n(), input_ctx.partition.k, p_graph.m(), p_graph.graph().is_node_weighted(),
+                               p_graph.graph().is_edge_weighted()};
   STOP_TIMER();
   extend_partition(p_graph, k_prime, input_ctx, current_p_ctx, memory, extraction_pool, ip_m_ctx_pool);
 }
