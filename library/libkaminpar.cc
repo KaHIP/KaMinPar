@@ -37,7 +37,7 @@ struct PartitionerBuilderPrivate {
   StaticArray<NodeID> edges;
   StaticArray<NodeWeight> node_weights;
   StaticArray<EdgeWeight> edge_weights;
-  Context context{Context::create_default()};
+  Context context{create_default_context()};
 };
 
 struct PartitionerPrivate {
