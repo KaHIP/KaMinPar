@@ -19,6 +19,7 @@
 ******************************************************************************/
 #pragma once
 
+#include "algorithm/extract_subgraphs.h"
 #include "coarsening/i_coarsener.h"
 #include "datastructure/graph.h"
 #include "definitions.h"
@@ -42,7 +43,7 @@ struct InitialPartitionerMemoryPool {
     return {};
   }
 
-  std::size_t memory_in_kb() const {
+  [[nodiscard]] std::size_t memory_in_kb() const {
     std::size_t memory = 0;
     for (const auto &obj : pool) { memory += obj.memory_in_kb(); }
     return memory;
@@ -52,7 +53,7 @@ struct InitialPartitionerMemoryPool {
 };
 
 using GlobalInitialPartitionerMemoryPool = tbb::enumerable_thread_specific<InitialPartitionerMemoryPool>;
-using TemporaryGraphExtractionBufferPool = tbb::enumerable_thread_specific<TemporarySubgraphMemory>;
+using TemporaryGraphExtractionBufferPool = tbb::enumerable_thread_specific<graph::TemporarySubgraphMemory>;
 
 namespace helper {
 void update_partition_context(PartitionContext &p_ctx, const PartitionedGraph &p_graph);
@@ -62,34 +63,33 @@ PartitionedGraph uncoarsen_once(Coarsener *coarsener, PartitionedGraph p_graph, 
 void refine(Refiner *refiner, Balancer *balancer, PartitionedGraph &p_graph, const PartitionContext &current_p_ctx,
             const RefinementContext &r_ctx);
 
-PartitionedGraph bipartition(const Graph *graph, const BlockID final_k, const Context &input_ctx,
+PartitionedGraph bipartition(const Graph *graph, BlockID final_k, const Context &input_ctx,
                              GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool);
 
-void extend_partition_recursive(const Graph &graph, StaticArray<BlockID> &partition, const BlockID b0, const BlockID k,
-                                const BlockID final_k, const Context &input_ctx, SubgraphMemory &subgraph_memory,
-                                const SubgraphMemoryStartPosition position,
+void extend_partition_recursive(const Graph &graph, StaticArray<BlockID> &partition, BlockID b0, BlockID k,
+                                BlockID final_k, const Context &input_ctx, graph::SubgraphMemory &subgraph_memory,
+                                graph::SubgraphMemoryStartPosition position,
                                 TemporaryGraphExtractionBufferPool &extraction_pool,
                                 GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool);
 
-void extend_partition(PartitionedGraph &p_graph, const BlockID k_prime, const Context &input_ctx,
+void extend_partition(PartitionedGraph &p_graph, BlockID k_prime, const Context &input_ctx,
                       PartitionContext &current_p_ctx, GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool);
 
-void extend_partition(PartitionedGraph &p_graph, const BlockID k_prime, const Context &input_ctx,
-                      PartitionContext &current_p_ctx, SubgraphMemory &subgraph_memory,
+void extend_partition(PartitionedGraph &p_graph, BlockID k_prime, const Context &input_ctx,
+                      PartitionContext &current_p_ctx, graph::SubgraphMemory &subgraph_memory,
                       TemporaryGraphExtractionBufferPool &extraction_pool,
                       GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool);
 
-void extend_partition(PartitionedGraph &p_graph, const BlockID k_prime, const Context &input_ctx,
+void extend_partition(PartitionedGraph &p_graph, BlockID k_prime, const Context &input_ctx,
                       PartitionContext &current_p_ctx, TemporaryGraphExtractionBufferPool &extraction_pool,
                       GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool);
 
 bool coarsen_once(Coarsener *coarsener, const Graph *graph, const Context &input_ctx, PartitionContext &current_p_ctx);
 
 // compute smallest k_prime such that it is a power of 2 and n / k_prime <= C
-BlockID compute_k_for_n(const NodeID n, const Context &input_ctx);
+BlockID compute_k_for_n(NodeID n, const Context &input_ctx);
 
-std::size_t compute_num_copies(const Context &input_ctx, const NodeID n, const bool converged,
-                               const std::size_t num_threads);
+std::size_t compute_num_copies(const Context &input_ctx, NodeID n, bool converged, std::size_t num_threads);
 
 std::size_t select_best(const scalable_vector<PartitionedGraph> &p_graphs, const PartitionContext &p_ctx);
 
