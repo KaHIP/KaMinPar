@@ -19,13 +19,58 @@
 ******************************************************************************/
 #pragma once
 
+#include "kaminpar/definitions.h"
+
 #include <cstdint>
+#include <mpi.h>
 
 namespace dkaminpar {
+namespace shm = kaminpar;
+
 using DNodeID = uint64_t;
 using DEdgeID = uint64_t;
 using DNodeWeight = int64_t;
 using DEdgeWeight = int64_t;
+using DBlockID = uint32_t;
+using DBlockWeight = int64_t;
 
 using PEID = int;
+
+namespace internal {
+inline int get_rank(MPI_Comm comm = MPI_COMM_WORLD) {
+  int rank;
+  MPI_Comm_rank(comm, &rank);
+  return rank;
 }
+} // namespace internal
+
+template<typename T>
+using scalable_vector = shm::scalable_vector<T>;
+
+// clang-format off
+#define LOG_RANK "[PE" << dkaminpar::internal::get_rank() << "]"
+
+#undef ALWAYS_ASSERT
+#define ALWAYS_ASSERT(x) kaminpar::debug::evaluate_assertion((x)) || kaminpar::debug::DisposableLogger<true>(std::cout) \
+  << kaminpar::logger::MAGENTA << POSITION << LOG_RANK << " "                                                           \
+  << kaminpar::logger::RED << "Assertion failed: `" << #x << "`\n"
+
+#undef DBGC
+#define DBGC(cond) (kDebug && (cond)) && kaminpar::debug::DisposableLogger<false>(std::cout) << kaminpar::logger::MAGENTA << POSITION << LOG_RANK << " " << kaminpar::logger::DEFAULT_TEXT
+
+#undef LOG
+#undef LLOG
+#define LOG (dkaminpar::internal::get_rank() == 0) && kaminpar::debug::DisposableLogger<false>(std::cout)
+#define LLOG (dkaminpar::internal::get_rank() == 0) && kaminpar::debug::DisposableLogger<false>(std::cout, "")
+
+#undef LOG_ERROR
+#define LOG_ERROR (kaminpar::Logger(std::cout) << LOG_RANK << kaminpar::logger::RED << "[Error] ")
+
+#undef FATAL_ERROR
+#undef FATAL_PERROR
+#define FATAL_ERROR (kaminpar::debug::DisposableLogger<true>(std::cout) << LOG_RANK << " " << kaminpar::logger::RED << "[Fatal] ")
+#define FATAL_PERROR (kaminpar::debug::DisposableLogger<true>(std::cout, std::string(": ") + std::strerror(errno) + "\n") << LOG_RANK << " " << kaminpar::logger::RED << "[Fatal] ")
+
+#define DLOG (kaminpar::Logger() << LOG_RANK << " ")
+// clang-format on
+} // namespace dkaminpar

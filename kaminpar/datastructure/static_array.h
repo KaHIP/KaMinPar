@@ -197,11 +197,6 @@ public:
     return std::move(_owned_data);
   }
 
-  void dump_frame() {
-    LOG << "this=" << this << " _size=" << _size << " _unrestricted_size=" << _unrestricted_size << " _data=" << _data
-        << " _owned_data=" << _owned_data.get();
-  }
-
 private:
   void allocate_data(const std::size_t size) {
     _owned_data = parallel::make_unique<value_type>(size);

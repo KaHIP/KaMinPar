@@ -264,7 +264,7 @@ public:
       LOG;
     }
 
-    if (!full && !printed_group) { ERROR << "No group with code " << optarg << "; run with --help to see all options"; }
+    if (!full && !printed_group) { LOG_ERROR << "No group with code " << optarg << "; run with --help to see all options"; }
   }
 
 private:

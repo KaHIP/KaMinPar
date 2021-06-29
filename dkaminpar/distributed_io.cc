@@ -17,17 +17,98 @@
  * along with KaMinPar.  If not, see <http://www.gnu.org/licenses/>.
  *
 ******************************************************************************/
-#include "distributed_io.h"
+#include "dkaminpar/distributed_io.h"
+
+#include "dkaminpar/datastructure/distributed_graph_builder.h"
+#include "dkaminpar/utility/distributed_math.h"
+#include "dkaminpar/utility/mpi_helper.h"
+#include "kaminpar/io.h"
 
 #include <io.h>
 
 namespace dkaminpar::io {
+SET_DEBUG(false);
+
 namespace metis {
 namespace shm = kaminpar::io::metis;
 
+DistributedGraph read_node_balanced(const std::string &filename) {
+  const auto comm_info = mpi::get_comm_info();
+  const PEID size = comm_info.first;
+  const PEID rank = comm_info.second;
+
+  graph::Builder builder{};
+
+  DNodeID current = 0;
+  DNodeID from = 0;
+  DNodeID to = 0;
+
+  shm::read_observable(
+      filename,
+      [&](const auto &format) {
+        const auto global_n = static_cast<DNodeID>(format.number_of_nodes);
+        const auto global_m = static_cast<DEdgeID>(format.number_of_edges) * 2;
+        DBG << "Loading graph with global_n=" << global_n << " and global_m=" << global_m;
+
+        scalable_vector<DNodeID> node_distribution(size + 1);
+        for (PEID p = 0; p < size; ++p) {
+          const auto [from, to] = math::compute_local_range<DNodeID>(global_n, size, p);
+          node_distribution[p + 1] = to;
+        }
+        ASSERT(node_distribution.front() == 0);
+        ASSERT(node_distribution.back() == global_n);
+
+        from = node_distribution[rank];
+        to = node_distribution[rank + 1];
+        DBG << "PE " << rank << ": from=" << from << " to=" << to << " n=" << format.number_of_nodes;
+
+        builder.initialize(global_n, global_m, rank, std::move(node_distribution));
+      },
+      [&](const std::uint64_t &u_weight) {
+        ++current;
+        if (current > to) { return false; }
+        if (current > from) { builder.create_node(static_cast<DNodeWeight>(u_weight)); }
+        return true;
+      },
+      [&](const std::uint64_t &e_weight, const std::uint64_t &v) {
+        if (current > from) { builder.create_edge(static_cast<DEdgeWeight>(e_weight), static_cast<DNodeID>(v)); }
+      });
+
+  return builder.finalize();
+}
+
 DistributedGraph read_edge_balanced(const std::string &filename) {
-  const auto format = shm::read_format(filename);
+  UNUSED(filename);
   return {};
 }
+
+void write(const std::string &filename, const DistributedGraph &graph, const bool write_node_weights,
+           const bool write_edge_weights) {
+  { std::ofstream tmp(filename); } // clear file
+
+  mpi::sequentially([&](const PEID pe) {
+    DLOG << "start " << pe;
+    std::ofstream out(filename, std::ios_base::out | std::ios_base::app);
+    if (pe == 0) {
+      out << graph.global_n() << " " << graph.global_m() / 2;
+      if (write_node_weights || write_edge_weights) {
+        out << " ";
+        out << static_cast<int>(write_node_weights);
+        out << static_cast<int>(write_edge_weights);
+      }
+      out << "\n";
+    }
+
+    for (const DNodeID u : graph.nodes()) {
+      if (write_node_weights) { out << graph.node_weight(u) << " "; }
+      for (const auto [e, global_v] : graph.neighbors_global(u)) {
+        out << global_v + 1 << " ";
+        if (write_edge_weights) { out << graph.edge_weight(e) << " "; }
+      }
+      out << "\n";
+    }
+    DLOG << "end " << pe;
+  });
 }
-}
+} // namespace metis
+} // namespace dkaminpar::io

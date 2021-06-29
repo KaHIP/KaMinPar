@@ -1,10 +1,17 @@
 set(DKAMINPAR_SOURCE_FILES
+        application/arguments.h
+        algorithm/distributed_label_propagation.h
+        algorithm/allgather_graph.h
         datastructure/distributed_graph.cc
         datastructure/distributed_graph.h
+        datastructure/distributed_graph_builder.h
         distributed_io.cc
         distributed_io.h
         utility/distributed_math.h
-        distributed_definitions.h)
+        utility/mpi_helper.h
+        utility/distributed_metrics.h
+        distributed_definitions.h
+        distributed_context.h)
 
 # Only create target if MPI is available
 find_package(MPI)

@@ -102,14 +102,14 @@ inline std::uint64_t scan_uint(MappedFile &mapped_file) {
 
 namespace metis {
 struct GraphInfo {
-  NodeWeight total_node_weight;
-  EdgeWeight total_edge_weight;
+  std::uint64_t total_node_weight;
+  std::uint64_t total_edge_weight;
   bool has_isolated_nodes;
 };
 
 struct GraphFormat {
-  NodeID number_of_nodes;
-  EdgeID number_of_edges;
+  std::uint64_t number_of_nodes;
+  std::uint64_t number_of_edges;
   bool has_node_weights;
   bool has_edge_weights;
 };
@@ -132,8 +132,8 @@ inline GraphFormat read_graph_header(internal::MappedFile &mapped_file) {
 
   ASSERT(!has_node_sizes); // unsupported
   return {
-      .number_of_nodes = static_cast<NodeID>(number_of_nodes),
-      .number_of_edges = static_cast<EdgeID>(number_of_edges),
+      .number_of_nodes = number_of_nodes,
+      .number_of_edges = number_of_edges,
       .has_node_weights = has_node_weights,
       .has_edge_weights = has_edge_weights,
   };
@@ -146,11 +146,14 @@ void read_format(const std::string &filename, NodeID &n, EdgeID &m, bool &has_no
 GraphFormat read_format(const std::string &filename);
 void write(const std::string &filename, const Graph &graph, const std::string &comment = "");
 
-template<std::invocable<GraphFormat> GraphFormatCB, std::invocable<NodeWeight> NextNodeCB,
-         std::invocable<EdgeWeight, NodeID> NextEdgeCB>
+template<std::invocable<GraphFormat> GraphFormatCB, std::invocable<std::uint64_t> NextNodeCB,
+         std::invocable<std::uint64_t, std::uint64_t> NextEdgeCB>
 GraphInfo read_observable(const std::string &filename, GraphFormatCB &&format_cb, NextNodeCB &&next_node_cb,
                           NextEdgeCB &&next_edge_cb) {
   using namespace internal;
+  constexpr bool stoppable = requires {
+    { next_node_cb(std::uint64_t()) } -> std::same_as<bool>;
+  };
 
   MappedFile mapped_file = mmap_file_from_disk(filename);
   const GraphFormat format = metis::read_graph_header(mapped_file);
@@ -169,7 +172,7 @@ GraphInfo read_observable(const std::string &filename, GraphFormatCB &&format_cb
       skip_spaces(mapped_file);
     }
 
-    NodeWeight node_weight = 1;
+    std::uint64_t node_weight = 1;
     if (format.has_node_weights) {
       if (read_node_weights) {
         node_weight = scan_uint(mapped_file);
@@ -179,12 +182,16 @@ GraphInfo read_observable(const std::string &filename, GraphFormatCB &&format_cb
         scan_uint(mapped_file);
       }
     }
-    next_node_cb(node_weight);
+    if constexpr (stoppable) {
+      if (!next_node_cb(node_weight)) { break; }
+    } else {
+      next_node_cb(node_weight);
+    }
 
     const bool isolated_node = !std::isdigit(mapped_file.current());
     while (std::isdigit(mapped_file.current())) {
-      const NodeID v = scan_uint(mapped_file) - 1;
-      EdgeWeight edge_weight = 1;
+      const std::uint64_t v = scan_uint(mapped_file) - 1;
+      std::uint64_t edge_weight = 1;
       if (format.has_edge_weights) {
         if (read_edge_weights) {
           edge_weight = scan_uint(mapped_file);

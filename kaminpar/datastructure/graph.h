@@ -246,6 +246,21 @@ public:
   [[nodiscard]] inline bool sorted() const { return _graph->sorted(); }
   // clang-format on
 
+  template<typename Lambda>
+  inline void pfor_nodes(Lambda &&l) const {
+    _graph->pfor_nodes(std::forward<Lambda &&>(l));
+  }
+
+  template<typename Lambda>
+  inline void pfor_edges(Lambda &&l) const {
+    _graph->pfor_edges(std::forward<Lambda &&>(l));
+  }
+
+  template<typename Lambda>
+  inline void pfor_blocks(Lambda &&l) const {
+    tbb::parallel_for(static_cast<BlockID>(0), k(), std::forward<Lambda &&>(l));
+  }
+
   //
   // Partition related members
   //

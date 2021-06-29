@@ -127,7 +127,7 @@ public:
   }
 
   template<typename K, typename V>
-  Logger &operator<<(const std::pair<K, V> &pair) {
+  Logger &operator<<(const std::pair<K, V> &&pair) {
     (*this) << "<" << pair.first << ", " << pair.second << ">";
     return *this;
   }

@@ -90,7 +90,7 @@ private:
 
 // clang-format off
 #define FILENAME (std::strrchr(__FILE__, '/') ? std::strrchr(__FILE__, '/') + 1 : __FILE__)
-#define POSITION "[" << FILENAME << ":" << __LINE__ << "][" << __func__ << "] "
+#define POSITION "[" << FILENAME << ":" << __LINE__ << "][" << __func__ << "]"
 
 // Macros for assertions
 //
@@ -114,7 +114,7 @@ private:
 #endif // KAMINPAR_ENABLE_ASSERTIONS
 
 #define ALWAYS_ASSERT(x) kaminpar::debug::evaluate_assertion((x)) || kaminpar::debug::DisposableLogger<true>(std::cout) \
-  << kaminpar::logger::MAGENTA << POSITION                                                                              \
+  << kaminpar::logger::MAGENTA << POSITION << " "                                                                       \
   << kaminpar::logger::RED << "Assertion failed: `" << #x << "`\n"
 
 // only for macro implementation, acts like an ASSERT but produces no code (with constant folding enabled)
@@ -141,7 +141,7 @@ private:
 // DBGC(cond) only produces output if the given condition evaluates to true
 // IFDBG(expr) evaluates the expression and returns its result iff kDebug is set to true, otherwise returns the default value for its result data type
 #define SET_DEBUG(value) static constexpr bool kDebug = value
-#define DBGC(cond) (kDebug && (cond)) && kaminpar::debug::DisposableLogger<false>(std::cout) << kaminpar::logger::MAGENTA << POSITION << kaminpar::logger::DEFAULT_TEXT
+#define DBGC(cond) (kDebug && (cond)) && kaminpar::debug::DisposableLogger<false>(std::cout) << kaminpar::logger::MAGENTA << POSITION << " " << kaminpar::logger::DEFAULT_TEXT
 #define DBG DBGC(true)
 #define IFDBG(expr) (kDebug ? (expr) : decltype(expr)())
 
@@ -164,12 +164,12 @@ private:
 //
 // FATAL_ERROR and FATAL_PERROR act like ERROR but also aborting the program after printing the message
 // FATAL_PERROR appends the output of std::perror()
-#define ERROR (kaminpar::Logger(std::cout) << kaminpar::logger::RED << "[Error] ")
-#define LERROR (kaminpar::Logger(std::cout, "") << kaminpar::logger::RED)
-#define SUCCESS (kaminpar::Logger(std::cout) << kaminpar::logger::GREEN << "[Success] ")
-#define LSUCCESS (kaminpar::Logger(std::cout, "") << kaminpar::logger::GREEN)
-#define WARNING (kaminpar::Logger(std::cout) << kaminpar::logger::ORANGE << "[Warning] ")
-#define LWARNING (kaminpar::Logger(std::cout, "") << kaminpar::logger::ORANGE)
+#define LOG_ERROR (kaminpar::Logger(std::cout) << kaminpar::logger::RED << "[Error] ")
+#define LOG_LERROR (kaminpar::Logger(std::cout, "") << kaminpar::logger::RED)
+#define LOG_SUCCESS (kaminpar::Logger(std::cout) << kaminpar::logger::GREEN << "[Success] ")
+#define LOG_LSUCCESS (kaminpar::Logger(std::cout, "") << kaminpar::logger::GREEN)
+#define LOG_WARNING (kaminpar::Logger(std::cout) << kaminpar::logger::ORANGE << "[Warning] ")
+#define LOG_LWARNING (kaminpar::Logger(std::cout, "") << kaminpar::logger::ORANGE)
 #define FATAL_ERROR (kaminpar::debug::DisposableLogger<true>(std::cout) << kaminpar::logger::RED << "[Fatal] ")
 #define FATAL_PERROR (kaminpar::debug::DisposableLogger<true>(std::cout, std::string(": ") + std::strerror(errno) + "\n") << kaminpar::logger::RED << "[Fatal] ")
 

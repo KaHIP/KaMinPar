@@ -19,24 +19,46 @@
 ******************************************************************************/
 #pragma once
 
-#include <concepts>
-#include <utility>
+#include "dkaminpar/datastructure/distributed_graph.h"
+#include "dkaminpar/distributed_definitions.h"
 
-namespace dkaminpar::math {
-/**
- * Computes the first (inclusive) and last (exclusive) element that should be processed on a PE.
- *
- * @param n Number of elements.
- * @param rank Rank of this PE.
- * @param size Number of PEs that process the elements.
- * @return First (inclusive) and last (exclusive) element that should be processed by PE `rank`.
- */
-template<std::integral Int>
-std::pair<Int, Int> compute_local_range(const Int n, const Int size, const Int rank) {
-  const Int chunk = n / size;
-  const Int remainder = n % size;
-  const Int from = rank * chunk + std::min<Int>(rank, remainder);
-  const Int to = std::min<Int>(from + ((rank < remainder) ? chunk + 1 : chunk), n);
-  return {from, to};
+namespace dkaminpar {
+struct DParallelContext {
+  std::size_t num_threads;
+  bool use_interleaved_numa_allocation;
+};
+
+struct DPartitionContext {
+  DBlockID k{};
+  double epsilon{};
+};
+
+struct DContext {
+  std::string graph_filename{};
+  int seed{0};
+
+  DPartitionContext partition;
+  DParallelContext parallel;
+
+  void setup(const DistributedGraph &graph) {
+    UNUSED(graph);
+  }
+};
+
+DContext create_default_context() {
+  // clang-format off
+  return {
+    .graph_filename = "",
+    .seed = 0,
+    .partition = {
+      .k = 0,
+      .epsilon = 0.03,
+    },
+    .parallel = {
+      .num_threads = 1,
+      .use_interleaved_numa_allocation = true,
+    },
+  };
+  // clang-format on
 }
-} // namespace dkaminpar::math
+} // namespace dkaminpar

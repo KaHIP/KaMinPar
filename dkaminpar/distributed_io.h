@@ -20,11 +20,26 @@
 #pragma once
 
 #include "datastructure/distributed_graph.h"
+#include "utility/mpi_helper.h"
 
+#include <fstream>
 #include <string>
 
 namespace dkaminpar::io {
 namespace metis {
+DistributedGraph read_node_balanced(const std::string &filename);
 DistributedGraph read_edge_balanced(const std::string &filename);
+void write(const std::string &filename, const DistributedGraph &graph, bool write_node_weights = true,
+           bool write_edge_weights = true);
+} // namespace metis
+
+namespace partition {
+template<typename Container>
+void write(const std::string &filename, const Container &partition) {
+  mpi::sequentially([&] {
+    std::ofstream out(filename, std::ios_base::out | std::ios_base::app);
+    for (const DBlockID &b : partition) { out << b << "\n"; }
+  });
 }
-} // namespace dkaminpar
+} // namespace partition
+} // namespace dkaminpar::io

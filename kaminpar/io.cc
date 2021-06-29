@@ -55,8 +55,8 @@ GraphFormat read_format(const std::string &filename) {
 
 void read_format(const std::string &filename, NodeID &n, EdgeID &m, bool &has_node_weights, bool &has_edge_weights) {
   const auto format = read_format(filename);
-  n = format.number_of_nodes;
-  m = format.number_of_edges;
+  n = static_cast<NodeID>(format.number_of_nodes);
+  m = static_cast<EdgeID>(format.number_of_edges);
   has_node_weights = format.has_node_weights;
   has_edge_weights = format.has_edge_weights;
 }
@@ -78,21 +78,21 @@ GraphInfo read(const std::string &filename, StaticArray<EdgeID> &nodes, StaticAr
         if (store_node_weights) { node_weights.resize(format.number_of_nodes); }
         if (store_edge_weights) { edge_weights.resize(format.number_of_edges * 2); }
       },
-      [&](const NodeWeight &weight) {
-        if (store_node_weights) { node_weights[u] = weight; }
+      [&](const std::uint64_t &weight) {
+        if (store_node_weights) { node_weights[u] = static_cast<NodeWeight>(weight); }
         nodes[u] = e;
         ++u;
       },
-      [&](const EdgeWeight &weight, const NodeID &v) {
-        if (store_edge_weights) { edge_weights[e] = weight; }
-        edges[e] = v;
+      [&](const std::uint64_t &weight, const std::uint64_t &v) {
+        if (store_edge_weights) { edge_weights[e] = static_cast<EdgeWeight>(weight); }
+        edges[e] = static_cast<NodeID>(v);
         ++e;
       });
   nodes[u] = e;
 
   // only keep weights if the graph is really weighted
-  const bool unit_node_weights = info.total_node_weight + 1 == static_cast<NodeWeight>(nodes.size());
-  const bool unit_edge_weights = info.total_edge_weight == static_cast<EdgeWeight>(edges.size());
+  const bool unit_node_weights = info.total_node_weight + 1 == nodes.size();
+  const bool unit_edge_weights = info.total_edge_weight == edges.size();
   if (unit_node_weights) { node_weights.free(); }
   if (unit_edge_weights) { edge_weights.free(); }
 
