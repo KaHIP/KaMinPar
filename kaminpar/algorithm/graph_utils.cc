@@ -171,9 +171,8 @@ void build_permuted_graph(const StaticArray<EdgeID> &old_nodes, const StaticArra
                           const StaticArray<EdgeWeight> &old_edge_weights, const NodePermutations &permutations,
                           StaticArray<EdgeID> &new_nodes, StaticArray<NodeID> &new_edges,
                           StaticArray<NodeWeight> &new_node_weights, StaticArray<EdgeWeight> &new_edge_weights) {
-  ASSERT((old_node_weights.empty() && old_edge_weights.empty()) ||
-         (old_node_weights.size() + 1 == old_nodes.size() && old_edge_weights.size() == old_edges.size()));
-  const bool is_weighted = old_node_weights.size() + 1 == old_nodes.size();
+  const bool is_node_weighted = old_node_weights.size() + 1 == old_nodes.size();
+  const bool is_edge_weighted = old_edge_weights.size() == old_edges.size();
 
   const NodeID n = old_nodes.size() - 1;
   ASSERT(n + 1 == new_nodes.size());
@@ -183,7 +182,7 @@ void build_permuted_graph(const StaticArray<EdgeID> &old_nodes, const StaticArra
     const NodeID old_u = permutations.new_to_old[u];
 
     new_nodes[u] = old_nodes[old_u + 1] - old_nodes[old_u];
-    if (is_weighted) { new_node_weights[u] = old_node_weights[old_u]; }
+    if (is_node_weighted) { new_node_weights[u] = old_node_weights[old_u]; }
   });
   parallel::prefix_sum(new_nodes.begin(), new_nodes.end(), new_nodes.begin());
 
@@ -195,7 +194,7 @@ void build_permuted_graph(const StaticArray<EdgeID> &old_nodes, const StaticArra
       const NodeID v = old_edges[e];
       const EdgeID p_e = --new_nodes[u];
       new_edges[p_e] = permutations.old_to_new[v];
-      if (is_weighted) { new_edge_weights[p_e] = old_edge_weights[e]; }
+      if (is_edge_weighted) { new_edge_weights[p_e] = old_edge_weights[e]; }
     }
   });
 }
