@@ -72,6 +72,11 @@ public:
     });
     DBG << "Iteration completed; " << std::accumulate(_active.begin(), _active.end(), 0) << " actives nodes left";
 
+    const DEdgeWeight local_total_gain = shm::parallel::accumulate(_gains);
+    DEdgeWeight global_total_gain = 0;
+    MPI_Allreduce(&local_total_gain, &global_total_gain, 1, MPI_INT64_T, MPI_SUM, MPI_COMM_WORLD);
+    DLOG << V(global_total_gain) << V(local_total_gain);
+
     scalable_vector<shm::parallel::IntegralAtomicWrapper<DNodeWeight>> weight_to_block(_num_clusters);
     scalable_vector<shm::parallel::IntegralAtomicWrapper<DEdgeWeight>> gain_to_block(_num_clusters);
 
@@ -89,6 +94,7 @@ public:
 
     // gather statistics
     for (const DBlockID b : _p_graph->blocks()) {
+      // remove
       const DNodeWeight local_weight_to = weight_to_block[b];
       DBG << V(local_weight_to) << V(b);
       DNodeWeight global_weight_to = 0;
@@ -103,19 +109,13 @@ public:
       global_total_gains_to_block.push_back(global_gain_to);
     }
 
+    DLOG << V(residual_cluster_weights);
+
     // perform probabilistic moves
     perform_moves(residual_cluster_weights, global_total_gains_to_block);
 
     // and synchronize ghost node state
     synchronize_state();
-
-    // check block weights after migration
-    MPI_Barrier(MPI_COMM_WORLD);
-    mpi::sequentially([&] {
-      std::vector<DBlockWeight> tmp(_p_graph->k());
-      for (const DNodeID u : _p_graph->nodes()) { tmp[_current_clustering[u]] += _p_graph->node_weight(u); }
-      DLOG << V(tmp) << V(_max_cluster_weight);
-    });
 
     /*
     // send join requests to adjacent PEs
@@ -307,6 +307,18 @@ private:
     }
 
     MPI_Waitall(send_requests.size(), send_requests.data(), MPI_STATUS_IGNORE);
+
+    // update block weights
+    // TODO do something smarter?
+    std::vector<DBlockWeight> local_block_weights(_p_graph->k());
+    for (const DNodeID u : _p_graph->nodes()) { local_block_weights[_current_clustering[u]] += _p_graph->node_weight(u); }
+
+    for (const DBlockID b : _p_graph->blocks()) {
+      DBlockWeight global_block_weight = 0;
+      MPI_Allreduce(&local_block_weights[b], &global_block_weight, 1, MPI_INT64_T, MPI_SUM, MPI_COMM_WORLD);
+      _p_graph->set_block_weight(b, global_block_weight);
+      _cluster_weights[b] = global_block_weight;
+    }
   }
 
   void init_clusters() {
@@ -355,6 +367,7 @@ private:
       }
     } else {
       _next_clustering[u] = u_cluster;
+      _gains[u] = 0;
     }
 
     _active[u] = 0;

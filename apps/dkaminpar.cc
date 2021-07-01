@@ -30,6 +30,7 @@
 #include "dkaminpar/distributed_io.h"
 #include "dkaminpar/utility/distributed_metrics.h"
 #include "kaminpar/definitions.h"
+#include "kaminpar/factories.h"
 #include "kaminpar/partitioning_scheme/partitioning.h"
 #include "kaminpar/utility/logger.h"
 #include "kaminpar/utility/metrics.h"
@@ -81,8 +82,9 @@ int main(int argc, char *argv[]) {
     shm::Context shm_ctx = shm::create_default_context();
 
     // disable refinement
-    shm_ctx.initial_partitioning.refinement.algorithm = shm::RefinementAlgorithm::NOOP;
-    shm_ctx.refinement.algorithm = shm::RefinementAlgorithm::NOOP;
+//    shm_ctx.initial_partitioning.refinement.algorithm = shm::RefinementAlgorithm::NOOP;
+//    shm_ctx.refinement.algorithm = shm::RefinementAlgorithm::NOOP;
+    shm_ctx.refinement.lp.num_iterations = 1;
 
     shm_ctx.partition.k = ctx.partition.k;
     shm_ctx.partition.epsilon = ctx.partition.epsilon;
@@ -91,8 +93,16 @@ int main(int argc, char *argv[]) {
     shm::StaticArray<shm::BlockID> part(shm_graph.n());
     shm_graph.pfor_nodes([&](const shm::NodeID u) { part[u] = u % shm_ctx.partition.k; });
 
-//    auto shm_p_graph = shm::partitioning::partition(shm_graph, shm_ctx);
+    //    auto shm_p_graph = shm::partitioning::partition(shm_graph, shm_ctx);
     shm::PartitionedGraph shm_p_graph{shm_graph, shm_ctx.partition.k, std::move(part)};
+    DLOG << "Obtained " << shm_ctx.partition.k << "-way partition with cut=" << shm::metrics::edge_cut(shm_p_graph)
+         << " and imbalance=" << shm::metrics::imbalance(shm_p_graph);
+    DLOG << V(shm_p_graph.block_weights()) << V(shm_ctx.partition.max_block_weights());
+
+//    auto shm_refiner = shm::factory::create_refiner(shm_graph, shm_ctx.partition, shm_ctx.refinement);
+//    shm_refiner->initialize(shm_graph);
+//    shm_refiner->refine(shm_p_graph, shm_ctx.partition);
+
     DLOG << "Obtained " << shm_ctx.partition.k << "-way partition with cut=" << shm::metrics::edge_cut(shm_p_graph)
          << " and imbalance=" << shm::metrics::imbalance(shm_p_graph);
 
@@ -106,6 +116,20 @@ int main(int argc, char *argv[]) {
     dist::DistributedLabelPropagation<dist::DBlockID, dist::DBlockWeight>
         lp(&dist_p_graph, static_cast<dist::DBlockID>(ctx.partition.k),
            static_cast<dist::DBlockWeight>(shm_ctx.partition.max_block_weight(0)));
+    lp.perform_iteration();
+    lp.perform_iteration();
+    lp.perform_iteration();
+    lp.perform_iteration();
+    lp.perform_iteration();
+    lp.perform_iteration();
+    lp.perform_iteration();
+    lp.perform_iteration();
+    lp.perform_iteration();
+    lp.perform_iteration();
+    lp.perform_iteration();
+    lp.perform_iteration();
+    lp.perform_iteration();
+    lp.perform_iteration();
     lp.perform_iteration();
 
     DLOG << "Cut after LP: cut=" << dist::metrics::edge_cut(dist_p_graph)

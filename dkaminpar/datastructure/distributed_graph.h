@@ -333,6 +333,12 @@ public:
     return _block_weights[b];
   }
 
+  void set_block_weight(const DBlockID b, const DBlockWeight weight) {
+    ASSERT(b < k());
+    ASSERT(b < _block_weights.size());
+    _block_weights[b] = weight;
+  }
+
   [[nodiscard]] inline auto nodes() const { return _graph->nodes(); }
   [[nodiscard]] inline auto ghost_nodes() const { return _graph->ghost_nodes(); }
   [[nodiscard]] inline auto all_nodes() const { return _graph->all_nodes(); }
