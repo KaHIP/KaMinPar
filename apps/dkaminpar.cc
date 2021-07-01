@@ -117,20 +117,35 @@ int main(int argc, char *argv[]) {
         lp(&dist_p_graph, static_cast<dist::DBlockID>(ctx.partition.k),
            static_cast<dist::DBlockWeight>(shm_ctx.partition.max_block_weight(0)));
     lp.perform_iteration();
+    dist::debug::validate_partition_state(dist_p_graph);
     lp.perform_iteration();
+    dist::debug::validate_partition_state(dist_p_graph);
     lp.perform_iteration();
+    dist::debug::validate_partition_state(dist_p_graph);
     lp.perform_iteration();
+    dist::debug::validate_partition_state(dist_p_graph);
     lp.perform_iteration();
+    dist::debug::validate_partition_state(dist_p_graph);
     lp.perform_iteration();
+    dist::debug::validate_partition_state(dist_p_graph);
     lp.perform_iteration();
+    dist::debug::validate_partition_state(dist_p_graph);
     lp.perform_iteration();
+    dist::debug::validate_partition_state(dist_p_graph);
     lp.perform_iteration();
+    dist::debug::validate_partition_state(dist_p_graph);
     lp.perform_iteration();
+    dist::debug::validate_partition_state(dist_p_graph);
     lp.perform_iteration();
+    dist::debug::validate_partition_state(dist_p_graph);
     lp.perform_iteration();
+    dist::debug::validate_partition_state(dist_p_graph);
     lp.perform_iteration();
+    dist::debug::validate_partition_state(dist_p_graph);
     lp.perform_iteration();
+    dist::debug::validate_partition_state(dist_p_graph);
     lp.perform_iteration();
+    dist::debug::validate_partition_state(dist_p_graph);
 
     DLOG << "Cut after LP: cut=" << dist::metrics::edge_cut(dist_p_graph)
          << " imbalance=" << dist::metrics::imbalance(dist_p_graph);

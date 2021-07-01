@@ -19,6 +19,8 @@
 ******************************************************************************/
 #include "datastructure/distributed_graph.h"
 
-namespace dkaminpar {
+namespace dkaminpar::debug {
+void validate_partition_state(const DistributedPartitionedGraph &p_graph) {
 
+}
 }

@@ -58,6 +58,7 @@ public:
         _next_clustering(_p_graph->total_n()),
         _gains(_p_graph->n()),
         _cluster_weights(_p_graph->total_n()),
+        _cluster_weights_tmp(_p_graph->total_n()),
         _max_cluster_weight{max_cluster_weight} {
     init_clusters();
   }
@@ -318,6 +319,7 @@ private:
       MPI_Allreduce(&local_block_weights[b], &global_block_weight, 1, MPI_INT64_T, MPI_SUM, MPI_COMM_WORLD);
       _p_graph->set_block_weight(b, global_block_weight);
       _cluster_weights[b] = global_block_weight;
+      _cluster_weights_tmp[b] = global_block_weight;
     }
   }
 
@@ -337,6 +339,7 @@ private:
     _p_graph->pfor_blocks([&](const DBlockID b) {
       ASSERT(b < _cluster_weights.size());
       _cluster_weights[b] = _p_graph->block_weight(b);
+      _cluster_weights_tmp[b] = _p_graph->block_weight(b);
     });
   }
 
@@ -362,6 +365,7 @@ private:
       if (success) {
         //        _cluster_weights[u_cluster].fetch_sub(u_weight, std::memory_order_relaxed);
         _next_clustering[u] = new_cluster;
+//        _cluster_weights_tmp[new_cluster] += u_weight;
         _gains[u] = new_gain;
         activate_neighbors(u);
       }
@@ -378,7 +382,7 @@ private:
                                                        const DClusterID u_cluster, shm::Randomize &local_rand,
                                                        auto &local_rating_map) {
     auto action = [&](auto &map) {
-      const DClusterWeight initial_cluster_weight = _cluster_weights[u_cluster];
+      const DClusterWeight initial_cluster_weight = _cluster_weights_tmp[u_cluster];
       ClusterSelectionState state{
           .local_rand = local_rand,
           .u = u,
@@ -402,7 +406,7 @@ private:
       for (const auto [cluster, rating] : map.entries()) {
         state.current_cluster = cluster;
         state.current_gain = rating;
-        state.current_cluster_weight = _cluster_weights[cluster];
+        state.current_cluster_weight = _cluster_weights_tmp[cluster];
 
         if (accept_cluster(state)) {
           state.best_cluster = state.current_cluster;
@@ -439,6 +443,7 @@ private:
   scalable_vector<DClusterID> _next_clustering;
   scalable_vector<DEdgeWeight> _gains;
   scalable_vector<shm::parallel::IntegralAtomicWrapper<DClusterWeight>> _cluster_weights;
+  scalable_vector<shm::parallel::IntegralAtomicWrapper<DClusterWeight>> _cluster_weights_tmp;
   tbb::enumerable_thread_specific<shm::RatingMap<DEdgeWeight>> _rating_map{
       [&] { return shm::RatingMap<DEdgeWeight>{_p_graph->total_n()}; }};
   DClusterWeight _max_cluster_weight;

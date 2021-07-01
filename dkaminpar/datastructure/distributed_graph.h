@@ -356,4 +356,8 @@ private:
 
   scalable_vector<kaminpar::parallel::IntegralAtomicWrapper<DBlockWeight>> _block_weights;
 };
+
+namespace debug {
+void validate_partition_state(const DistributedPartitionedGraph &p_graph);
+}
 } // namespace dkaminpar
