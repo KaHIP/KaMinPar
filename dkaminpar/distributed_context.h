@@ -23,6 +23,32 @@
 #include "dkaminpar/distributed_definitions.h"
 
 namespace dkaminpar {
+struct DLabelPropagationCoarseningContext {
+  std::size_t num_iterations;
+  DNodeID large_degree_threshold;
+  DNodeID max_num_neighbors;
+  bool merge_singleton_clusters;
+  double merge_nonadjacent_clusters_threshold;
+
+  [[nodiscard]] bool should_merge_nonadjacent_clusters(const DNodeID old_n, const DNodeID new_n) const {
+    return (1.0 - 1.0 * new_n / old_n) <= merge_nonadjacent_clusters_threshold;
+  }
+};
+
+struct DLabelPropagationRefinementContext {
+  std::size_t num_iterations;
+  std::size_t num_chunks;
+  std::size_t num_move_attempts;
+};
+
+struct DCoarseningContext {
+  DLabelPropagationCoarseningContext lp;
+};
+
+struct DRefinementContext {
+  DLabelPropagationRefinementContext lp;
+};
+
 struct DParallelContext {
   std::size_t num_threads;
   bool use_interleaved_numa_allocation;
@@ -39,6 +65,8 @@ struct DContext {
 
   DPartitionContext partition;
   DParallelContext parallel;
+  DCoarseningContext coarsening;
+  DRefinementContext refinement;
 
   void setup(const DistributedGraph &graph) {
     UNUSED(graph);
@@ -58,6 +86,22 @@ DContext create_default_context() {
       .num_threads = 1,
       .use_interleaved_numa_allocation = true,
     },
+    .coarsening = {
+      .lp = {
+        .num_iterations = 5,
+        .large_degree_threshold = 1000000,
+        .max_num_neighbors = std::numeric_limits<DNodeID>::max(),
+        .merge_singleton_clusters = true,
+        .merge_nonadjacent_clusters_threshold = 0.5,
+      }
+    },
+    .refinement = {
+      .lp = {
+        .num_iterations = 5,
+        .num_chunks = 8,
+        .num_move_attempts = 2,
+      }
+    }
   };
   // clang-format on
 }

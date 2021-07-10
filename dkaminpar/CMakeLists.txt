@@ -1,7 +1,9 @@
 set(DKAMINPAR_SOURCE_FILES
         application/arguments.h
-        algorithm/distributed_label_propagation.h
+        algorithm/distributed_local_graph_contraction.cc
+        algorithm/distributed_local_graph_contraction.h
         algorithm/allgather_graph.h
+        coarsening/distributed_local_label_propagation_coarsener.h
         datastructure/distributed_graph.cc
         datastructure/distributed_graph.h
         datastructure/distributed_graph_builder.h
@@ -10,6 +12,8 @@ set(DKAMINPAR_SOURCE_FILES
         utility/distributed_math.h
         utility/mpi_helper.h
         utility/distributed_metrics.h
+        utility/vector_ets.h
+        refinement/distributed_label_propagation_refiner.h
         distributed_definitions.h
         distributed_context.h)
 

@@ -161,8 +161,23 @@ public:
 
   // Parallel iteration
   template<typename Lambda>
+  inline void pfor_nodes(const DNodeID from, const DNodeID to, Lambda &&l) const {
+    tbb::parallel_for(from, to, std::forward<Lambda &&>(l));
+  }
+
+  template<typename Lambda>
+  inline void pfor_nodes_range(const DNodeID from, const DNodeID to, Lambda &&l) const {
+    tbb::parallel_for(tbb::blocked_range<DNodeID>(from, to), std::forward<Lambda &&>(l));
+  }
+
+  template<typename Lambda>
   inline void pfor_nodes(Lambda &&l) const {
-    tbb::parallel_for(static_cast<DNodeID>(0), n(), std::forward<Lambda &&>(l));
+    pfor_nodes(0, n(), std::forward<Lambda &&>(l));
+  }
+
+  template<typename Lambda>
+  inline void pfor_nodes_range(Lambda &&l) const {
+    pfor_nodes_range(0, n(), std::forward<Lambda &&>(l));
   }
 
   template<typename Lambda>
@@ -182,7 +197,7 @@ public:
 
   // Iterators for nodes / edges
   [[nodiscard]] inline auto nodes() const { return std::views::iota(static_cast<DNodeID>(0), n()); }
-  [[nodiscard]] inline auto ghost_nodes() const { return std::views::iota(static_cast<DNodeID>(0), ghost_n()); }
+  [[nodiscard]] inline auto ghost_nodes() const { return std::views::iota(n(), total_n()); }
   [[nodiscard]] inline auto all_nodes() const { return std::views::iota(static_cast<DNodeID>(0), total_n()); }
   [[nodiscard]] inline auto edges() const { return std::views::iota(static_cast<DEdgeID>(0), m()); }
   [[nodiscard]] inline auto incident_edges(const DNodeID u) const { return std::views::iota(_nodes[u], _nodes[u + 1]); }
@@ -203,6 +218,13 @@ public:
              return std::make_pair(e, this->global_node(this->edge_target(e)));
            });
   }
+
+  // Degree buckets -- right now only for compatibility to shared memory graph data structure
+  [[nodiscard]] inline std::size_t bucket_size(const std::size_t) const { return n(); }
+  [[nodiscard]] inline DNodeID first_node_in_bucket(const std::size_t) const { return 0; }
+  [[nodiscard]] inline DNodeID first_invalid_node_in_bucket(const std::size_t) const { return n(); }
+  [[nodiscard]] inline std::size_t number_of_buckets() const { return 1; }
+  [[nodiscard]] inline bool sorted() const { return false; }
 
 private:
   void init_total_node_weight() {
@@ -292,8 +314,23 @@ public:
   [[nodiscard]] DBlockID k() const { return _k; }
 
   template<typename Lambda>
+  inline void pfor_nodes(const DNodeID from, const DNodeID to, Lambda &&l) const {
+    _graph->pfor_nodes(from, to, std::forward<Lambda &&>(l));
+  }
+
+  template<typename Lambda>
   inline void pfor_nodes(Lambda &&l) const {
     _graph->pfor_nodes(std::forward<Lambda &&>(l));
+  }
+
+  template<typename Lambda>
+  inline void pfor_nodes_range(const DNodeID from, const DNodeID to, Lambda &&l) const {
+    _graph->pfor_nodes_range(from, to, std::forward<Lambda &&>(l));
+  }
+
+  template<typename Lambda>
+  inline void pfor_nodes_range(Lambda &&l) const {
+    _graph->pfor_nodes_range(std::forward<Lambda &&>(l));
   }
 
   template<typename Lambda>
@@ -339,6 +376,22 @@ public:
     _block_weights[b] = weight;
   }
 
+  [[nodiscard]] scalable_vector<DBlockWeight> block_weights_copy() const {
+    scalable_vector<DBlockWeight> copy(k());
+    pfor_blocks([&](const DBlockID b) { copy[b] = block_weight(b); });
+    return copy;
+  }
+
+  [[nodiscard]] auto &&take_block_weights() {
+    return std::move(_block_weights);
+  }
+
+  [[nodiscard]] scalable_vector<DBlockID> partition_copy() const {
+    scalable_vector<DBlockID> copy(n());
+    pfor_nodes([&](const DNodeID u) { copy[u] = block(u); });
+    return copy;
+  }
+
   [[nodiscard]] inline auto nodes() const { return _graph->nodes(); }
   [[nodiscard]] inline auto ghost_nodes() const { return _graph->ghost_nodes(); }
   [[nodiscard]] inline auto all_nodes() const { return _graph->all_nodes(); }
@@ -358,6 +411,6 @@ private:
 };
 
 namespace debug {
-void validate_partition_state(const DistributedPartitionedGraph &p_graph);
+bool validate_partition_state(const DistributedPartitionedGraph &p_graph, MPI_Comm comm = MPI_COMM_WORLD);
 }
 } // namespace dkaminpar

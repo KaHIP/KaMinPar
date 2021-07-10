@@ -34,6 +34,8 @@ using DEdgeWeight = int64_t;
 using DBlockID = uint32_t;
 using DBlockWeight = int64_t;
 
+constexpr DBlockWeight kInvalidBlockWeight = std::numeric_limits<DBlockWeight>::max();
+
 using PEID = int;
 
 namespace internal {
@@ -46,6 +48,8 @@ inline int get_rank(MPI_Comm comm = MPI_COMM_WORLD) {
 
 template<typename T>
 using scalable_vector = shm::scalable_vector<T>;
+
+#define ROOT(x) ((x) == 0)
 
 // clang-format off
 #define LOG_RANK "[PE" << dkaminpar::internal::get_rank() << "]"

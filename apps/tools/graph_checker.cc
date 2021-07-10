@@ -58,11 +58,11 @@ int main(int argc, char *argv[]) {
   }
   if (n > std::numeric_limits<NodeID>::max()) {
     FATAL_ERROR << "Number of nodes is too large (compiled with " << std::numeric_limits<NodeID>::digits
-                << " bit datatype for node ids)";
+                << " bit get_datatype for node ids)";
   }
   if (m * 2 > std::numeric_limits<EdgeID>::max()) {
     FATAL_ERROR << "Number of edges is too large (compiled with " << std::numeric_limits<EdgeID>::digits
-                << " bit datatype for edge ids); note that the graph has " << 2 * m << " directed edges";
+                << " bit get_datatype for edge ids); note that the graph has " << 2 * m << " directed edges";
   }
   if (format != 0 && format != 1 && format != 10 && format != 11) {
     FATAL_ERROR << "Unsupported format: supported formats are 0, 1, 10, 11, but given format is " << format;

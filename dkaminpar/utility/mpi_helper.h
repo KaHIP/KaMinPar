@@ -78,4 +78,60 @@ inline std::vector<int> build_distribution_displs(Distribution &&dist) {
   for (std::size_t i = 0; i + 1 < dist.size(); ++i) { displs[i] = static_cast<int>(dist[i]); }
   return displs;
 }
+
+template<typename T>
+constexpr MPI_Datatype get_datatype() {
+  switch (std::numeric_limits<T>::digits) {
+    case 7: return MPI_INT8_T;
+    case 8: return MPI_UINT8_T;
+    case 15: return MPI_INT16_T;
+    case 16: return MPI_UINT64_T;
+    case 31: return MPI_INT32_T;
+    case 32: return MPI_UINT32_T;
+    case 63: return MPI_INT64_T;
+    case 64: return MPI_UINT64_T;
+  }
+}
+
+template<typename T>
+inline int reduce(const T *sendbuf, T *recvbuf, const int count, MPI_Op op, int root, MPI_Comm comm = MPI_COMM_WORLD) {
+  return MPI_Reduce(sendbuf, recvbuf, count, get_datatype<T>(), op, root, comm);
+}
+
+template<typename T>
+inline int gather(const T *sendbuf, const int sendcount, T *recvbuf, int recvcount, int root, MPI_Comm comm = MPI_COMM_WORLD) {
+  return MPI_Gather(sendbuf, sendcount, get_datatype<T>(), recvbuf, recvcount, get_datatype<T>(), root, comm);
+}
+
+template<typename T>
+inline int send(const T *buf, int count, int dest, int tag, MPI_Comm comm = MPI_COMM_WORLD) {
+  return MPI_Send(buf, count, get_datatype<T>(), dest, tag, comm);
+}
+
+template<typename T>
+inline int isend(const T *buf, int count, int dest, int tag, MPI_Request *request, MPI_Comm comm = MPI_COMM_WORLD) {
+  return MPI_Isend(buf, count, get_datatype<T>(), dest, tag, comm, request);
+}
+
+inline MPI_Status probe(int source, int tag, MPI_Comm comm = MPI_COMM_WORLD) {
+  MPI_Status status;
+  MPI_Probe(source, tag, comm, &status);
+  return status;
+}
+
+template<typename T>
+inline int get_count(MPI_Status *status) {
+  int count;
+  MPI_Get_count(status, get_datatype<T>(), &count);
+  return count;
+}
+
+inline int waitall(int count, MPI_Request *array_of_requests, MPI_Status *array_of_statuses = MPI_STATUS_IGNORE) {
+  return MPI_Waitall(count, array_of_requests, array_of_statuses);
+}
+
+template<typename T>
+inline int recv(T *buf, int count, int source, int tag, MPI_Status *status = MPI_STATUS_IGNORE, MPI_Comm comm = MPI_COMM_WORLD) {
+  return MPI_Recv(buf, count, get_datatype<T>(), source, tag, comm, status);
+}
 } // namespace dkaminpar::mpi

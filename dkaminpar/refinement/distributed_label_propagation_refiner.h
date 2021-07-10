@@ -20,7 +20,9 @@
 #pragma once
 
 #include "dkaminpar/datastructure/distributed_graph.h"
+#include "dkaminpar/utility/distributed_math.h"
 #include "dkaminpar/utility/mpi_helper.h"
+#include "dkaminpar/utility/vector_ets.h"
 #include "kaminpar/datastructure/marker.h"
 #include "kaminpar/datastructure/rating_map.h"
 #include "kaminpar/utility/random.h"
@@ -29,10 +31,8 @@
 
 namespace dkaminpar {
 template<typename DClusterID = DNodeID, typename DClusterWeight = DNodeWeight>
-class DistributedLabelPropagation {
+class DistributedLabelPropagationRefiner {
   SET_DEBUG(true);
-
-  constexpr static int TAG_JOIN_MESSAGE = 1;
 
   struct ClusterSelectionState {
     shm::Randomize &local_rand;
@@ -49,9 +49,10 @@ class DistributedLabelPropagation {
   };
 
 public:
-  explicit DistributedLabelPropagation(DistributedPartitionedGraph *graph, const DClusterID num_clusters,
-                                       const DClusterWeight max_cluster_weight)
-      : _p_graph{graph},
+  explicit DistributedLabelPropagationRefiner(const DLabelPropagationRefinementContext &lp_ctx,
+                                              DistributedPartitionedGraph *p_graph, const DClusterID num_clusters,
+                                              const DClusterWeight max_cluster_weight)
+      : _p_graph{p_graph},
         _num_clusters{num_clusters},
         _active(_p_graph->n()),
         _current_clustering(_p_graph->total_n()),
@@ -59,36 +60,56 @@ public:
         _gains(_p_graph->n()),
         _cluster_weights(_p_graph->total_n()),
         _cluster_weights_tmp(_p_graph->total_n()),
-        _max_cluster_weight{max_cluster_weight} {
+        _max_cluster_weight{max_cluster_weight},
+        _lp_ctx{lp_ctx} {
     init_clusters();
   }
 
   void perform_iteration() {
+    for (std::size_t i = 0; i < _lp_ctx.num_chunks; ++i) {
+      const auto [from, to] = math::compute_local_range<DNodeID>(_p_graph->n(), _lp_ctx.num_chunks, i);
+      perform_iteration(from, to);
+    }
+  }
+
+  scalable_vector<DClusterID> &&take_clustering() { return std::move(_current_clustering); }
+
+private:
+  void perform_iteration(const DNodeID from, const DNodeID to) {
     DBG << "Performing local label propagation iteration with " << std::accumulate(_active.begin(), _active.end(), 0)
-        << " active nodes";
-    _p_graph->pfor_nodes([&](const DNodeID u) {
+        << " active nodes, from=" << from << " to=" << to << " count=" << to - from;
+    _p_graph->pfor_nodes(from, to, [&](const DNodeID u) {
       auto &local_rand = shm::Randomize::instance();
       auto &local_map = _rating_map.local();
       handle_node(u, local_rand, local_map);
     });
     DBG << "Iteration completed; " << std::accumulate(_active.begin(), _active.end(), 0) << " actives nodes left";
 
-    const DEdgeWeight local_total_gain = shm::parallel::accumulate(_gains);
-    DEdgeWeight global_total_gain = 0;
-    MPI_Allreduce(&local_total_gain, &global_total_gain, 1, MPI_INT64_T, MPI_SUM, MPI_COMM_WORLD);
-    DLOG << V(global_total_gain) << V(local_total_gain);
+    //    const DEdgeWeight local_total_gain = shm::parallel::accumulate(_gains);
+    //    DEdgeWeight global_total_gain = 0;
+    //    MPI_Allreduce(&local_total_gain, &global_total_gain, 1, MPI_INT64_T, MPI_SUM, MPI_COMM_WORLD);
+    //    DLOG << V(global_total_gain) << V(local_total_gain);
 
-    scalable_vector<shm::parallel::IntegralAtomicWrapper<DNodeWeight>> weight_to_block(_num_clusters);
-    scalable_vector<shm::parallel::IntegralAtomicWrapper<DEdgeWeight>> gain_to_block(_num_clusters);
+    // accumulate total weight of nodes moved to each block
+    parallel::vector_ets<DNodeWeight> weight_to_block_ets(_num_clusters);
+    parallel::vector_ets<DEdgeWeight> gain_to_block_ets(_num_clusters);
 
-    _p_graph->pfor_nodes([&](const DNodeID u) {
-      if (_current_clustering[u] == _next_clustering[u]) { return; }
+    _p_graph->pfor_nodes_range(from, to, [&](const auto r) {
+      auto &weight_to_block = weight_to_block_ets.local();
+      auto &gain_to_block = gain_to_block_ets.local();
 
-      weight_to_block[_next_clustering[u]] += _p_graph->node_weight(u);
-      gain_to_block[_next_clustering[u]] += _gains[u];
+      for (DNodeID u = r.begin(); u < r.end(); ++u) {
+        if (_current_clustering[u] != _next_clustering[u]) {
+          weight_to_block[_next_clustering[u]] += _p_graph->node_weight(u);
+          gain_to_block[_next_clustering[u]] += _gains[u];
+        }
+      }
     });
 
-    DLOG << V(weight_to_block) << V(gain_to_block);
+    const auto weight_to_block = weight_to_block_ets.combine(std::plus{});
+    const auto gain_to_block = gain_to_block_ets.combine(std::plus{});
+
+    // allreduce gain to block
 
     std::vector<DBlockWeight> residual_cluster_weights;
     std::vector<DEdgeWeight> global_total_gains_to_block;
@@ -96,10 +117,10 @@ public:
     // gather statistics
     for (const DBlockID b : _p_graph->blocks()) {
       // remove
-      const DNodeWeight local_weight_to = weight_to_block[b];
-      DBG << V(local_weight_to) << V(b);
-      DNodeWeight global_weight_to = 0;
-      MPI_Allreduce(&local_weight_to, &global_weight_to, 1, MPI_INT64_T, MPI_SUM, MPI_COMM_WORLD);
+      //      const DNodeWeight local_weight_to = weight_to_block[b];
+      //      DBG << V(local_weight_to) << V(b);
+      //      DNodeWeight global_weight_to = 0;
+      //      MPI_Allreduce(&local_weight_to, &global_weight_to, 1, MPI_INT64_T, MPI_SUM, MPI_COMM_WORLD);
 
       const DEdgeWeight local_gain_to = gain_to_block[b];
       DEdgeWeight global_gain_to = 0;
@@ -113,96 +134,25 @@ public:
     DLOG << V(residual_cluster_weights);
 
     // perform probabilistic moves
-    perform_moves(residual_cluster_weights, global_total_gains_to_block);
-
-    // and synchronize ghost node state
-    synchronize_state();
-
-    /*
-    // send join requests to adjacent PEs
-    const auto [size, rank] = mpi::get_comm_info();
-
-    std::vector<shm::parallel::IntegralAtomicWrapper<int>> num_messages(size);
-    scalable_vector<shm::parallel::IntegralAtomicWrapper<DClusterWeight>> total_weight(_p_graph->ghost_n());
-    scalable_vector<shm::parallel::IntegralAtomicWrapper<DEdgeWeight>> total_gain(_p_graph->ghost_n());
-
-    // collect total weight and gain of nodes that want to join clusters owned by other PEs
-    _p_graph->pfor_nodes([&](const DNodeID u) {
-      const DClusterID c_u = _next_clustering[u];
-
-      // join cluster owned by adjacent PE
-      if (!_p_graph->is_owned_node(c_u)) {
-        const DNodeID ghost_id = c_u - _p_graph->n(); // ghost ids start at zero
-
-        if (total_weight[ghost_id] == 0) { ++num_messages[_p_graph->find_owner(c_u)]; }
-        total_weight[ghost_id] += _p_graph->node_weight(u);
-        total_gain[ghost_id] += _gains[u];
-      }
-    });
-
-    DBG << "Number of messages for adjacent PEs: " << num_messages;
-
-    // build messages
-    std::vector<scalable_vector<int64_t>> messages(size);
-    std::vector<shm::parallel::IntegralAtomicWrapper<std::size_t>> next_slot(size);
-    for (PEID p = 0; p < size; ++p) {
-      DBG << V(num_messages[p]);
-      messages[p].resize(3 * num_messages[p]);
-    }
-
-    _p_graph->pfor_ghost_nodes([&](const DNodeID ghost_id) {
-      if (total_weight[ghost_id] > 0) {
-        const DNodeID ghost_u = ghost_id + _p_graph->n();
-        const PEID owner = _p_graph->find_owner(ghost_u);
-
-        const std::size_t slot = next_slot[owner] += 3;
-        messages[owner][slot - 3] = _p_graph->global_node(ghost_u);
-        messages[owner][slot - 2] = total_weight[ghost_id];
-        messages[owner][slot - 1] = total_gain[ghost_id];
-      }
-    });
-
-    std::vector<MPI_Request> messages_req(size);
-    for (PEID p = 0; p < size; ++p) {
-      if (p != rank) {
-        MPI_Isend(messages[p].data(), 3 * num_messages[p], MPI_INT64_T, p, TAG_JOIN_MESSAGE, MPI_COMM_WORLD,
-                  &messages_req[p]);
+    for (std::size_t i = 0; i < _lp_ctx.num_move_attempts; ++i) {
+      if (perform_moves(from, to, residual_cluster_weights, global_total_gains_to_block)) {
+        synchronize_state(from, to);
+        break;
       }
     }
-
-    for (PEID p = 0; p < size; ++p) {
-      if (p != rank) {
-        MPI_Status status;
-        MPI_Probe(p, TAG_JOIN_MESSAGE, MPI_COMM_WORLD, &status);
-        int count;
-        MPI_Get_count(&status, MPI_INT64_T, &count);
-        ASSERT(count % 3 == 0) << "count should be a multiple of 3, is actually " << V(count);
-
-        // receive messages from p
-        std::vector<int64_t> recv_messages(count);
-        MPI_Recv(recv_messages.data(), count, MPI_INT64_T, p, TAG_JOIN_MESSAGE, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-
-        // aggregate per cluster
-        for (std::size_t i = 0; i < count; i += 3) {
-          const DNodeID global_u = recv_messages[i];
-          const DNodeWeight total_weight = recv_messages[i + 1];
-          const DEdgeWeight total_gain = recv_messages[i + 2];
-        }
-      }
-    }
-
-    MPI_Waitall(static_cast<int>(messages_req.size()), messages_req.data(), MPI_STATUS_IGNORE);
-
-    DBG << "Done";
-     */
   }
 
-  scalable_vector<DClusterID> &&take_clustering() { return std::move(_current_clustering); }
-
-private:
-  void perform_moves(const std::vector<DBlockWeight> &residual_block_weights,
+  bool perform_moves(const DNodeID from, const DNodeID to, const std::vector<DBlockWeight> &residual_block_weights,
                      const std::vector<DEdgeWeight> &total_gains_to_block) {
-    _p_graph->pfor_nodes([&](const DNodeID u) {
+    struct Move {
+      DNodeID u;
+      DBlockID from;
+      DBlockID to;
+    };
+
+    std::vector<Move> moves;
+
+    _p_graph->pfor_nodes(from, to, [&](const DNodeID u) {
       if (_next_clustering[u] == _current_clustering[u]) { return; }
 
       const DBlockID b = _next_clustering[u];
@@ -211,15 +161,48 @@ private:
 
       auto &rand = shm::Randomize::instance();
       if (rand.random_bool(probability)) {
-        //        DBG << "Move " << u << ": " << _current_clustering[u] << " --> " << _next_clustering[u]
-        //            << " (with probability: " << probability << ", gain: " << _gains[u] << ")";
+        moves.emplace_back(u, _current_clustering[u], _next_clustering[u]);
         _current_clustering[u] = _next_clustering[u];
         _p_graph->set_block(u, _current_clustering[u]);
       }
     });
+
+    // update block weights
+    std::vector<DBlockWeight> local_block_weights(_p_graph->k());
+    for (const DNodeID u : _p_graph->nodes()) { // TODO parallel::accumulate
+      local_block_weights[_current_clustering[u]] += _p_graph->node_weight(u);
+    }
+
+    std::vector<DBlockWeight> global_block_weights(_p_graph->k());
+    MPI_Allreduce(local_block_weights.data(), global_block_weights.data(), _p_graph->k(), MPI_INT64_T, MPI_SUM,
+                  MPI_COMM_WORLD);
+
+    // check for balance violations
+    shm::parallel::IntegralAtomicWrapper<std::uint8_t> feasible = 1;
+    _p_graph->pfor_blocks([&](const DBlockID b) {
+      if (global_block_weights[b] > _max_cluster_weight) { feasible = 0; }
+    });
+
+    if (feasible) { // apply new weights
+      _p_graph->pfor_blocks([&](const DBlockID b) {
+        _p_graph->set_block_weight(b, global_block_weights[b]);
+        _cluster_weights[b] = global_block_weights[b];
+        _cluster_weights_tmp[b] = global_block_weights[b];
+      });
+    } else { // discard moves
+      for (const auto &move : moves) {
+        _current_clustering[move.u] = move.from;
+        _p_graph->set_block(move.u, move.from);
+      }
+    }
+
+    return feasible;
   }
 
-  void synchronize_state() {
+  void synchronize_state(const DNodeID from, const DNodeID to) {
+    UNUSED(from);
+    UNUSED(to);
+
     const auto [size, rank] = mpi::get_comm_info();
     tbb::enumerable_thread_specific<shm::Marker<>> created_message_for_adjacent_pe_ets{
         [&] { return shm::Marker<>(mpi::get_comm_size()); }};
@@ -251,6 +234,7 @@ private:
     // now actually create the messages
     _p_graph->pfor_nodes([&](const DNodeID u) {
       auto &created_message_for_adjacent_pe = created_message_for_adjacent_pe_ets.local();
+
       for (const auto [e, v] : _p_graph->neighbors(u)) {
         if (!_p_graph->is_owned_node(v)) {
           const int owner = _p_graph->ghost_owner(v);
@@ -301,26 +285,12 @@ private:
           if (c_global_u != _current_clustering[local_u]) {
             _current_clustering[local_u] = c_global_u;
             _p_graph->set_block(local_u, c_global_u);
-            //            DBG << "Moved " << local_u << " to " << _current_clustering[local_u];
           }
         });
       }
     }
 
     MPI_Waitall(send_requests.size(), send_requests.data(), MPI_STATUS_IGNORE);
-
-    // update block weights
-    // TODO do something smarter?
-    std::vector<DBlockWeight> local_block_weights(_p_graph->k());
-    for (const DNodeID u : _p_graph->nodes()) { local_block_weights[_current_clustering[u]] += _p_graph->node_weight(u); }
-
-    for (const DBlockID b : _p_graph->blocks()) {
-      DBlockWeight global_block_weight = 0;
-      MPI_Allreduce(&local_block_weights[b], &global_block_weight, 1, MPI_INT64_T, MPI_SUM, MPI_COMM_WORLD);
-      _p_graph->set_block_weight(b, global_block_weight);
-      _cluster_weights[b] = global_block_weight;
-      _cluster_weights_tmp[b] = global_block_weight;
-    }
   }
 
   void init_clusters() {
@@ -352,23 +322,9 @@ private:
     bool emptied_cluster = false;
 
     if (u_cluster != new_cluster) {
-      //      DClusterWeight new_weight = _cluster_weights[new_cluster];
-      //      while (new_weight + u_weight <= _max_cluster_weight) {
-      //        if (_cluster_weights[new_cluster].compare_exchange_weak(new_weight, new_weight + u_weight,
-      //                                                                std::memory_order_relaxed)) {
-      //          success = true;
-      //          break;
-      //        }
-      //      }
-
-      success = true;
-      if (success) {
-        //        _cluster_weights[u_cluster].fetch_sub(u_weight, std::memory_order_relaxed);
-        _next_clustering[u] = new_cluster;
-//        _cluster_weights_tmp[new_cluster] += u_weight;
-        _gains[u] = new_gain;
-        activate_neighbors(u);
-      }
+      _next_clustering[u] = new_cluster;
+      _gains[u] = new_gain;
+      activate_neighbors(u);
     } else {
       _next_clustering[u] = u_cluster;
       _gains[u] = 0;
@@ -447,5 +403,6 @@ private:
   tbb::enumerable_thread_specific<shm::RatingMap<DEdgeWeight>> _rating_map{
       [&] { return shm::RatingMap<DEdgeWeight>{_p_graph->total_n()}; }};
   DClusterWeight _max_cluster_weight;
+  const DLabelPropagationRefinementContext &_lp_ctx;
 };
 } // namespace dkaminpar
