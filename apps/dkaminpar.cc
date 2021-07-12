@@ -111,7 +111,9 @@ int main(int argc, char *argv[]) {
     shm_ctx.partition.epsilon = ctx.partition.epsilon;
     shm_ctx.setup(shm_graph);
 
+    shm::Logger::set_quiet_mode(true);
     auto shm_p_graph = shm::partitioning::partition(shm_graph, shm_ctx);
+    shm::Logger::set_quiet_mode(false);
     DLOG << "Obtained " << shm_ctx.partition.k << "-way partition with cut=" << shm::metrics::edge_cut(shm_p_graph)
          << " and imbalance=" << shm::metrics::imbalance(shm_p_graph);
 
