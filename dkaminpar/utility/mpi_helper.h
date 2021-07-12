@@ -99,7 +99,8 @@ inline int reduce(const T *sendbuf, T *recvbuf, const int count, MPI_Op op, int 
 }
 
 template<typename T>
-inline int gather(const T *sendbuf, const int sendcount, T *recvbuf, int recvcount, int root, MPI_Comm comm = MPI_COMM_WORLD) {
+inline int gather(const T *sendbuf, const int sendcount, T *recvbuf, int recvcount, int root,
+                  MPI_Comm comm = MPI_COMM_WORLD) {
   return MPI_Gather(sendbuf, sendcount, get_datatype<T>(), recvbuf, recvcount, get_datatype<T>(), root, comm);
 }
 
@@ -131,7 +132,13 @@ inline int waitall(int count, MPI_Request *array_of_requests, MPI_Status *array_
 }
 
 template<typename T>
-inline int recv(T *buf, int count, int source, int tag, MPI_Status *status = MPI_STATUS_IGNORE, MPI_Comm comm = MPI_COMM_WORLD) {
+inline int recv(T *buf, int count, int source, int tag, MPI_Status *status = MPI_STATUS_IGNORE,
+                MPI_Comm comm = MPI_COMM_WORLD) {
   return MPI_Recv(buf, count, get_datatype<T>(), source, tag, comm, status);
+}
+
+template<typename T>
+inline int allreduce(const T *sendbuf, T *recvbuf, int count, MPI_Op op, MPI_Comm comm = MPI_COMM_WORLD) {
+  return MPI_Allreduce(sendbuf, recvbuf, count, get_datatype<T>(), op, comm);
 }
 } // namespace dkaminpar::mpi

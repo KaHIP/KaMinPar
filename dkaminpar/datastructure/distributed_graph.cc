@@ -121,6 +121,7 @@ bool validate_partition_state(const DistributedPartitionedGraph &p_graph, MPI_Co
     }
   }
 
+  MPI_Barrier(comm);
   return true;
 }
 } // namespace dkaminpar::debug

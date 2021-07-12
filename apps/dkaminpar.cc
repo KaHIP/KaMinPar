@@ -115,11 +115,11 @@ int main(int argc, char *argv[]) {
     DLOG << "Obtained " << shm_ctx.partition.k << "-way partition with cut=" << shm::metrics::edge_cut(shm_p_graph)
          << " and imbalance=" << shm::metrics::imbalance(shm_p_graph);
 
-    dist::DistributedPartitionedGraph dist_p_graph = dist::graph::create_from_best_partition(graph,
+    dist::DistributedPartitionedGraph dist_p_graph = dist::graph::create_from_best_partition(*c_graph,
                                                                                              std::move(shm_p_graph));
     dist::debug::validate_partition_state(dist_p_graph);
 
-    LOG << "Initial partition: cut=" << dist::metrics::edge_cut(dist_p_graph)
+    DLOG << "Initial partition: cut=" << dist::metrics::edge_cut(dist_p_graph)
         << " imbalance=" << dist::metrics::imbalance(dist_p_graph);
 
     auto refine = [&](dist::DistributedPartitionedGraph &p_graph) {
@@ -140,9 +140,7 @@ int main(int argc, char *argv[]) {
       // create partition for new coarsest graph
       const auto *current_graph = graph_hierarchy.empty() ? &graph : &graph_hierarchy.back();
       dist::scalable_vector<dist::DBlockID> partition(current_graph->total_n());
-      current_graph->pfor_all_nodes([&](const dist::DNodeID u) {
-        partition[u] = dist_p_graph.block(mapping[u]);
-      });
+      current_graph->pfor_all_nodes([&](const dist::DNodeID u) { partition[u] = dist_p_graph.block(mapping[u]); });
       dist_p_graph = dist::DistributedPartitionedGraph{current_graph, ctx.partition.k, std::move(partition),
                                                        std::move(dist_p_graph.take_block_weights())};
 

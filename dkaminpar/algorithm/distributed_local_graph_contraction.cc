@@ -19,6 +19,7 @@
 ******************************************************************************/
 #include "dkaminpar/algorithm/distributed_local_graph_contraction.h"
 
+#include "dkaminpar/utility/mpi_helper.h"
 #include "kaminpar/datastructure/rating_map.h"
 
 #include <tbb/parallel_for.h>
@@ -27,6 +28,8 @@
 namespace dkaminpar::graph {
 ContractionResult contract_locally(const DistributedGraph &graph, const scalable_vector<DNodeID> &clustering,
                                    ContractionMemoryContext m_ctx) {
+  const auto [size, rank] = mpi::get_comm_info();
+
   auto &buckets_index = m_ctx.buckets_index;
   auto &buckets = m_ctx.buckets;
   auto &leader_mapping = m_ctx.leader_mapping;
@@ -40,8 +43,6 @@ ContractionResult contract_locally(const DistributedGraph &graph, const scalable
   // Compute a mapping from the nodes of the current graph to the nodes of the coarse graph
   // I.e., node_mapping[node u] = coarse node c_u
   //
-  // Note that clustering satisfies this invariant (I): if clustering[x] = y for some node x, then clustering[y] = y
-  //
 
   // Set node_mapping[x] = 1 iff. there is a cluster with leader x
   graph.pfor_nodes([&](const DNodeID u) { leader_mapping[u] = 0; });
@@ -51,7 +52,18 @@ ContractionResult contract_locally(const DistributedGraph &graph, const scalable
   shm::parallel::prefix_sum(leader_mapping.begin(), leader_mapping.begin() + graph.n(), leader_mapping.begin());
   const DNodeID c_n = leader_mapping[graph.n() - 1]; // number of nodes in the coarse graph
 
-  // Assign coarse node ID to all nodes; this works due to (I)
+  // Compute new node distribution, total number of coarse nodes
+  DNodeID last_node;
+  MPI_Scan(&c_n, &last_node, 1, MPI_UINT64_T, MPI_SUM, MPI_COMM_WORLD);
+  const DNodeID first_node = last_node - c_n;
+
+  scalable_vector<DNodeID> c_node_distribution(size + 1);
+  c_node_distribution[rank + 1] = last_node;
+  MPI_Allgather(c_node_distribution.data(), 1, MPI_UINT64_T, c_node_distribution.data(), 1, MPI_UINT64_T,
+                MPI_COMM_WORLD);
+  const DNodeID c_global_n = c_node_distribution.back();
+
+  // Assign coarse node ID to all nodes
   graph.pfor_nodes([&](const DNodeID u) { mapping[u] = leader_mapping[clustering[u]]; });
   graph.pfor_nodes([&](const DNodeID u) { --mapping[u]; });
 
@@ -79,10 +91,104 @@ ContractionResult contract_locally(const DistributedGraph &graph, const scalable
   // - firstly, we count the degree of each coarse node
   // - secondly, we obtain the nodes array using a prefix sum
   //
-  shm::StaticArray<DEdgeID> c_nodes{c_n + 1};
-  shm::StaticArray<DNodeWeight> c_node_weights{c_n};
+  scalable_vector<DEdgeID> c_nodes(c_n + 1);
+  scalable_vector<DNodeWeight> c_node_weights(c_n + graph.ghost_n()); // overallocate
 
-  tbb::enumerable_thread_specific<shm::RatingMap<DEdgeWeight>> collector{[&] { return shm::RatingMap<DEdgeWeight>(c_n); }};
+  tbb::enumerable_thread_specific<shm::RatingMap<DEdgeWeight>> collector{
+      [&] { return shm::RatingMap<DEdgeWeight>(c_n); }};
+
+  // Build coarse node weights
+  tbb::parallel_for(tbb::blocked_range<DNodeID>(0, c_n), [&](const auto &r) {
+    for (DNodeID c_u = r.begin(); c_u < r.end(); ++c_u) {
+      const auto first = buckets_index[c_u];
+      const auto last = buckets_index[c_u + 1];
+
+      for (std::size_t i = first; i < last; ++i) {
+        const DNodeID u = buckets[i];
+        c_node_weights[c_u] += graph.node_weight(u);
+      }
+    }
+  });
+
+  //
+  // Send coarse node IDs to adjacent PEs
+  //
+
+  // Count messages
+  scalable_vector<shm::parallel::IntegralAtomicWrapper<std::size_t>> num_messages_to_pe(size);
+  graph.pfor_nodes([&](const DNodeID u) {
+    for (const auto [e, v] : graph.neighbors(u)) {
+      if (!graph.is_owned_node(v)) { num_messages_to_pe[graph.ghost_owner(v)] += 3; }
+    }
+  });
+
+  scalable_vector<scalable_vector<std::int64_t>> send_buffer;
+  for (const auto &num : num_messages_to_pe) { send_buffer.emplace_back(num); }
+
+  // Prepare messages to ghost nodes
+  graph.pfor_nodes([&](const DNodeID u) {
+    for (const auto [e, v] : graph.neighbors(u)) {
+      if (!graph.is_owned_node(v)) { // interface node
+        const auto owner = graph.ghost_owner(v);
+        const std::size_t pos = num_messages_to_pe[owner].fetch_sub(3);
+        send_buffer[owner][pos - 3] = graph.global_node(u);
+        send_buffer[owner][pos - 2] = first_node + mapping[u];
+        send_buffer[owner][pos - 1] = c_node_weights[mapping[u]];
+      }
+    }
+  });
+
+  // Exchange messages
+  scalable_vector<MPI_Request> requests;
+  requests.reserve(size - 1);
+  for (PEID pe = 0; pe < size; ++pe) {
+    if (pe != rank) {
+      requests.emplace_back();
+      MPI_Isend(send_buffer[pe].data(), send_buffer[pe].size(), MPI_INT64_T, pe, 0, MPI_COMM_WORLD, &requests.back());
+    }
+  }
+
+  scalable_vector<PEID> c_ghost_owner;
+  scalable_vector<DNodeID> c_ghost_to_global;
+  std::unordered_map<DNodeID, DNodeID> c_global_to_ghost;
+
+  DNodeID c_next_ghost_node = c_n;
+
+  for (PEID pe = 0; pe < size; ++pe) {
+    if (pe != rank) {
+      MPI_Status status{};
+      MPI_Probe(pe, 0, MPI_COMM_WORLD, &status);
+      int count = 0;
+      MPI_Get_count(&status, MPI_INT64_T, &count);
+
+      scalable_vector<int64_t> recv_messages(count);
+      MPI_Recv(recv_messages.data(), count, MPI_INT64_T, pe, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      ASSERT(recv_messages.size() % 3 == 0); // we send triples of int64_t's
+
+      // TODO parallelize? -> concurrent hash map
+      for (std::size_t i = 0; i < recv_messages.size(); ++i) {
+        const DNodeID old_global_u = recv_messages[i];
+        const DNodeID new_global_u = recv_messages[i + 1];
+        const DNodeWeight new_weight = recv_messages[i + 2];
+
+        const DNodeID old_local_u = graph.local_node(old_global_u);
+        if (!c_global_to_ghost.contains(new_global_u)) { c_global_to_ghost[new_global_u] = c_next_ghost_node++; }
+        const DNodeID new_local_u = c_global_to_ghost[new_global_u];
+
+        mapping[old_local_u] = new_local_u;
+        c_node_weights[new_local_u] = new_weight;
+        c_ghost_owner[new_local_u] = pe;
+        c_ghost_to_global[new_local_u] = new_global_u;
+      }
+    }
+  }
+  MPI_Waitall(requests.size(), requests.data(), MPI_STATUS_IGNORE);
+
+  c_node_weights.resize(c_next_ghost_node);
+
+  //
+  // Remap coarse node IDs for ghost nodes to local coarse node IDs
+  //
 
   //
   // We build the coarse graph in multiple steps:
@@ -113,12 +219,9 @@ ContractionResult contract_locally(const DistributedGraph &graph, const scalable
 
       // build coarse graph
       auto collect_edges = [&](auto &map) {
-        DNodeWeight c_u_weight = 0;
         for (std::size_t i = first; i < last; ++i) {
           const DNodeID u = buckets[i];
           ASSERT(mapping[u] == c_u);
-
-          c_u_weight += graph.node_weight(u); // coarse node weight
 
           // collect coarse edges
           for (const auto [e, v] : graph.neighbors(u)) {
@@ -127,8 +230,7 @@ ContractionResult contract_locally(const DistributedGraph &graph, const scalable
           }
         }
 
-        c_node_weights[c_u] = c_u_weight; // coarse node weights are done now
-        c_nodes[c_u + 1] = map.size();    // node degree (used to build c_nodes)
+        c_nodes[c_u + 1] = map.size(); // node degree (used to build c_nodes)
 
         // since we don't know the value of c_nodes[c_u] yet (so far, it only holds the nodes degree), we can't place the
         // edges of c_u in the c_edges and c_edge_weights arrays; hence, we store them in auxiliary arrays and note their
@@ -178,8 +280,8 @@ ContractionResult contract_locally(const DistributedGraph &graph, const scalable
         });
       });
 
-  shm::StaticArray<DNodeID> c_edges{c_m};
-  shm::StaticArray<DEdgeWeight> c_edge_weights{c_m};
+  scalable_vector<DNodeID> c_edges(c_m);
+  scalable_vector<DEdgeWeight> c_edge_weights(c_m);
 
   // build coarse graph
   tbb::parallel_for(static_cast<DNodeID>(0), c_n, [&](const DNodeID i) {
@@ -199,9 +301,31 @@ ContractionResult contract_locally(const DistributedGraph &graph, const scalable
     }
   });
 
-  throw "";
-//  return {DistributedGraph{std::move(c_nodes), std::move(c_edges), std::move(c_node_weights), std::move(c_edge_weights)},
-//          std::move(mapping), std::move(m_ctx)};
+  // compute edge distribution
+  DEdgeID last_edge;
+  MPI_Scan(&c_m, &last_edge, 1, MPI_UINT64_T, MPI_SUM, MPI_COMM_WORLD);
+  const DEdgeID first_edge = last_edge - c_m;
+
+  scalable_vector<DEdgeID> c_edge_distribution(size + 1);
+  c_edge_distribution[rank + 1] = last_edge;
+  MPI_Allgather(c_edge_distribution.data(), 1, MPI_UINT64_T, c_edge_distribution.data(), 1, MPI_UINT64_T, MPI_COMM_WORLD);
+  const DEdgeID c_global_m = c_edge_distribution.back();
+
+  DistributedGraph c_graph{c_global_n,
+                           c_global_m,
+                           c_next_ghost_node - c_n,
+                           first_node,
+                           first_edge,
+                           std::move(c_node_distribution),
+                           std::move(c_edge_distribution),
+                           std::move(c_nodes),
+                           std::move(c_edges),
+                           std::move(c_node_weights),
+                           std::move(c_edge_weights),
+                           std::move(c_ghost_owner),
+                           std::move(c_ghost_to_global),
+                           std::move(c_global_to_ghost)};
+  return {std::move(c_graph), std::move(mapping), std::move(m_ctx)};
 }
 
 } // namespace dkaminpar::graph

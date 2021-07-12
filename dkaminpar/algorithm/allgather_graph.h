@@ -29,7 +29,7 @@
 #include <mpi.h>
 
 namespace dkaminpar::graph {
-SET_DEBUG(true);
+SET_DEBUG(false);
 
 DistributedPartitionedGraph create_from_best_partition(const DistributedGraph &dist_graph,
                                                        shm::PartitionedGraph shm_p_graph,

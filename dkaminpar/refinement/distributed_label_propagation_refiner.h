@@ -76,6 +76,8 @@ public:
 
 private:
   void perform_iteration(const DNodeID from, const DNodeID to) {
+    MPI_Barrier(MPI_COMM_WORLD);
+
     DBG << "Performing local label propagation iteration with " << std::accumulate(_active.begin(), _active.end(), 0)
         << " active nodes, from=" << from << " to=" << to << " count=" << to - from;
     _p_graph->pfor_nodes(from, to, [&](const DNodeID u) {
@@ -116,12 +118,6 @@ private:
 
     // gather statistics
     for (const DBlockID b : _p_graph->blocks()) {
-      // remove
-      //      const DNodeWeight local_weight_to = weight_to_block[b];
-      //      DBG << V(local_weight_to) << V(b);
-      //      DNodeWeight global_weight_to = 0;
-      //      MPI_Allreduce(&local_weight_to, &global_weight_to, 1, MPI_INT64_T, MPI_SUM, MPI_COMM_WORLD);
-
       const DEdgeWeight local_gain_to = gain_to_block[b];
       DEdgeWeight global_gain_to = 0;
       MPI_Allreduce(&local_gain_to, &global_gain_to, 1, MPI_INT64_T, MPI_SUM, MPI_COMM_WORLD);
@@ -130,8 +126,6 @@ private:
       residual_cluster_weights.push_back(_max_cluster_weight - _cluster_weights[b]);
       global_total_gains_to_block.push_back(global_gain_to);
     }
-
-    DLOG << V(residual_cluster_weights);
 
     // perform probabilistic moves
     for (std::size_t i = 0; i < _lp_ctx.num_move_attempts; ++i) {
@@ -144,6 +138,8 @@ private:
 
   bool perform_moves(const DNodeID from, const DNodeID to, const std::vector<DBlockWeight> &residual_block_weights,
                      const std::vector<DEdgeWeight> &total_gains_to_block) {
+    MPI_Barrier(MPI_COMM_WORLD);
+
     struct Move {
       DNodeID u;
       DBlockID from;
@@ -167,15 +163,15 @@ private:
       }
     });
 
-    // update block weights
+    // get global block weights
     std::vector<DBlockWeight> local_block_weights(_p_graph->k());
     for (const DNodeID u : _p_graph->nodes()) { // TODO parallel::accumulate
       local_block_weights[_current_clustering[u]] += _p_graph->node_weight(u);
     }
-
     std::vector<DBlockWeight> global_block_weights(_p_graph->k());
-    MPI_Allreduce(local_block_weights.data(), global_block_weights.data(), _p_graph->k(), MPI_INT64_T, MPI_SUM,
-                  MPI_COMM_WORLD);
+    for (const DBlockID b : _p_graph->blocks()) {
+      MPI_Allreduce(&local_block_weights[b], &global_block_weights[b], 1, MPI_INT64_T, MPI_SUM, MPI_COMM_WORLD);
+    }
 
     // check for balance violations
     shm::parallel::IntegralAtomicWrapper<std::uint8_t> feasible = 1;
