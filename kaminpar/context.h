@@ -228,6 +228,7 @@ struct Context {
   std::string partition_filename{};
   bool ignore_weights{false};
   bool show_local_timers{false};
+  bool quiet{false};
 
   PartitionContext partition{};
   CoarseningContext coarsening{};

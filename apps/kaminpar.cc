@@ -48,14 +48,14 @@ void print_statistics(const PartitionedGraph &p_graph, const Context &ctx) {
   const bool feasible = metrics::is_feasible(p_graph, ctx.partition);
 
   // statistics output that is easy to parse
-  Timer::global().print_machine_readable(std::cout);
+  if (!ctx.quiet) { Timer::global().print_machine_readable(std::cout); }
   LOG << "RESULT cut=" << cut << " imbalance=" << imbalance << " feasible=" << feasible << " k=" << p_graph.k();
   LOG;
 
   // statistics output that is easy to read
-  Timer::global().print_human_readable(std::cout);
+  if (!ctx.quiet) { Timer::global().print_human_readable(std::cout); }
   LOG;
-  timer::FlatTimer::global().print(std::cout);
+  if (!ctx.quiet) { timer::FlatTimer::global().print(std::cout); }
   LOG;
   LOG << "-> k=" << p_graph.k();
   LOG << "-> cut=" << cut;
@@ -80,8 +80,6 @@ std::string generate_partition_filename(const Context &ctx) {
 }
 
 int main(int argc, char *argv[]) {
-  print_identifier(argc, argv);
-
   //
   // Parse command line arguments, sanitize, generate output filenames
   //
@@ -100,6 +98,10 @@ int main(int argc, char *argv[]) {
     ctx.initial_partitioning.min_num_non_adaptive_repetitions = 2;
     ctx.initial_partitioning.max_num_repetitions = 4;
   }
+
+  Logger::set_quiet_mode(ctx.quiet);
+
+  print_identifier(argc, argv);
 
   //
   // Initialize

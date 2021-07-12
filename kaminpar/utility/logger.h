@@ -134,7 +134,11 @@ public:
 
   void flush();
 
+  static void set_quiet_mode(bool quiet);
+
 private:
+  static bool _quiet;
+
   static tbb::spin_mutex &flush_mutex();
 
   std::unique_ptr<logger::TextFormatter> _text_formatter{
