@@ -69,10 +69,14 @@ CompactContainerFormatter COMPACT{","sv};
 Table TABLE{0};
 } // namespace logger
 
+bool Logger::_quiet = false;
+
 Logger::Logger() : Logger(std::cout) {}
 Logger::Logger(std::ostream &out, std::string append) : _buffer(), _out(out), _append(std::move(append)) {}
 
 void Logger::flush() {
+  if (_quiet) { return; }
+
   if (!_flushed) {
     tbb::spin_mutex::scoped_lock lock(flush_mutex());
     _out << _buffer.str() << _append << std::flush;
@@ -80,8 +84,13 @@ void Logger::flush() {
 
   _flushed = true;
 }
+
 tbb::spin_mutex &Logger::flush_mutex() {
   static tbb::spin_mutex mutex;
   return mutex;
+}
+
+void Logger::set_quiet_mode(const bool quiet) {
+  _quiet = quiet;
 }
 } // namespace kaminpar
