@@ -107,7 +107,7 @@ public:
     if (offset_n() <= global_u && global_u < offset_n() + n()) {
       return global_u - offset_n();
     } else {
-      ASSERT(_global_to_ghost.contains(global_u));
+      ASSERT(_global_to_ghost.contains(global_u)) << V(global_u) << " is not a ghost node on this PE";
       return _global_to_ghost[global_u];
     }
   }

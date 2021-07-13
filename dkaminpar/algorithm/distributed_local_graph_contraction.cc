@@ -26,6 +26,8 @@
 #include <tbb/parallel_invoke.h>
 
 namespace dkaminpar::graph {
+SET_DEBUG(true);
+
 ContractionResult contract_locally(const DistributedGraph &graph, const scalable_vector<DNodeID> &clustering,
                                    ContractionMemoryContext m_ctx) {
   const auto [size, rank] = mpi::get_comm_info();
@@ -59,7 +61,7 @@ ContractionResult contract_locally(const DistributedGraph &graph, const scalable
 
   scalable_vector<DNodeID> c_node_distribution(size + 1);
   c_node_distribution[rank + 1] = last_node;
-  MPI_Allgather(c_node_distribution.data(), 1, MPI_UINT64_T, c_node_distribution.data(), 1, MPI_UINT64_T,
+  MPI_Allgather(&c_node_distribution[rank + 1], 1, MPI_UINT64_T, c_node_distribution.data() + 1, 1, MPI_UINT64_T,
                 MPI_COMM_WORLD);
   const DNodeID c_global_n = c_node_distribution.back();
 
@@ -92,10 +94,7 @@ ContractionResult contract_locally(const DistributedGraph &graph, const scalable
   // - secondly, we obtain the nodes array using a prefix sum
   //
   scalable_vector<DEdgeID> c_nodes(c_n + 1);
-  scalable_vector<DNodeWeight> c_node_weights(c_n + graph.ghost_n()); // overallocate
-
-  tbb::enumerable_thread_specific<shm::RatingMap<DEdgeWeight>> collector{
-      [&] { return shm::RatingMap<DEdgeWeight>(c_n); }};
+  scalable_vector<DNodeWeight> c_node_weights(c_n); // overallocate
 
   // Build coarse node weights
   tbb::parallel_for(tbb::blocked_range<DNodeID>(0, c_n), [&](const auto &r) {
@@ -166,29 +165,32 @@ ContractionResult contract_locally(const DistributedGraph &graph, const scalable
       ASSERT(recv_messages.size() % 3 == 0); // we send triples of int64_t's
 
       // TODO parallelize? -> concurrent hash map
-      for (std::size_t i = 0; i < recv_messages.size(); ++i) {
+      for (std::size_t i = 0; i < recv_messages.size(); i += 3) {
         const DNodeID old_global_u = recv_messages[i];
         const DNodeID new_global_u = recv_messages[i + 1];
         const DNodeWeight new_weight = recv_messages[i + 2];
 
         const DNodeID old_local_u = graph.local_node(old_global_u);
-        if (!c_global_to_ghost.contains(new_global_u)) { c_global_to_ghost[new_global_u] = c_next_ghost_node++; }
-        const DNodeID new_local_u = c_global_to_ghost[new_global_u];
-
-        mapping[old_local_u] = new_local_u;
-        c_node_weights[new_local_u] = new_weight;
-        c_ghost_owner[new_local_u] = pe;
-        c_ghost_to_global[new_local_u] = new_global_u;
+        if (!c_global_to_ghost.contains(new_global_u)) {
+          c_global_to_ghost[new_global_u] = c_next_ghost_node++;
+          c_node_weights.push_back(new_weight);
+          c_ghost_owner.push_back(pe);
+          c_ghost_to_global.push_back(new_global_u);
+        }
+        mapping[old_local_u] = c_global_to_ghost[new_global_u];
       }
     }
   }
   MPI_Waitall(requests.size(), requests.data(), MPI_STATUS_IGNORE);
 
-  c_node_weights.resize(c_next_ghost_node);
+  DBG << V(c_n) << V(c_next_ghost_node);
 
   //
   // Remap coarse node IDs for ghost nodes to local coarse node IDs
   //
+
+  tbb::enumerable_thread_specific<shm::RatingMap<DEdgeWeight>> collector{
+      [&] { return shm::RatingMap<DEdgeWeight>(c_next_ghost_node); }};
 
   //
   // We build the coarse graph in multiple steps:
@@ -308,7 +310,8 @@ ContractionResult contract_locally(const DistributedGraph &graph, const scalable
 
   scalable_vector<DEdgeID> c_edge_distribution(size + 1);
   c_edge_distribution[rank + 1] = last_edge;
-  MPI_Allgather(c_edge_distribution.data(), 1, MPI_UINT64_T, c_edge_distribution.data(), 1, MPI_UINT64_T, MPI_COMM_WORLD);
+  MPI_Allgather(&c_edge_distribution[rank + 1], 1, MPI_UINT64_T, c_edge_distribution.data() + 1, 1, MPI_UINT64_T,
+                MPI_COMM_WORLD);
   const DEdgeID c_global_m = c_edge_distribution.back();
 
   DistributedGraph c_graph{c_global_n,
@@ -325,6 +328,10 @@ ContractionResult contract_locally(const DistributedGraph &graph, const scalable
                            std::move(c_ghost_owner),
                            std::move(c_ghost_to_global),
                            std::move(c_global_to_ghost)};
+
+  DBG << V(c_graph.n()) << V(c_graph.m()) << V(c_graph.ghost_n()) << V(c_graph.total_n()) << V(c_graph.global_n())
+      << V(c_graph.global_m());
+
   return {std::move(c_graph), std::move(mapping), std::move(m_ctx)};
 }
 

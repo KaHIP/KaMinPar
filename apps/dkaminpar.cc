@@ -53,6 +53,8 @@ void sanitize_context(const dist::DContext &ctx) {
 // clang-format on
 
 int main(int argc, char *argv[]) {
+  SET_DEBUG(true);
+
   MPI_Init(&argc, &argv);
   shm::print_identifier(argc, argv);
 
@@ -70,28 +72,29 @@ int main(int argc, char *argv[]) {
     auto gc = shm::init_parallelism(ctx.parallel.num_threads);
     if (ctx.parallel.use_interleaved_numa_allocation) { shm::init_numa(); }
 
-    MPI_Barrier(MPI_COMM_WORLD);
-
     // Load graph
     auto graph = dist::io::metis::read_node_balanced(ctx.graph_filename);
     MPI_Barrier(MPI_COMM_WORLD);
-    graph.print_info();
-    MPI_Barrier(MPI_COMM_WORLD);
+    LOG << "Loaded graph with n=" << graph.n() << " m=" << graph.m();
 
     // Coarsen graph
     std::vector<dist::DistributedGraph> graph_hierarchy;
     std::vector<dist::scalable_vector<dist::DNodeID>> mapping_hierarchy;
 
     const dist::DistributedGraph *c_graph = &graph;
-    while (c_graph->n() > 2 * shm_ctx.coarsening.contraction_limit) {
+    while (c_graph->n() > 2 * 160) {
+      DBG << "... lp";
       const dist::DNodeWeight max_cluster_weight = shm::compute_max_cluster_weight(c_graph->global_n(),
                                                                                    c_graph->total_node_weight(),
                                                                                    shm_ctx.partition,
                                                                                    shm_ctx.coarsening);
-      dist::DistributedLocalLabelPropagationClustering coarsener(c_graph->n(), 0.5, ctx.coarsening.lp);
+      // TODO total_n() only required for rating map
+      dist::DistributedLocalLabelPropagationClustering coarsener(c_graph->total_n(), 0.5, ctx.coarsening.lp);
       auto &clustering = coarsener.cluster(*c_graph, max_cluster_weight, ctx.coarsening.lp.num_iterations);
-
+      MPI_Barrier(MPI_COMM_WORLD);
+      DBG << "... contract";
       auto [contracted_graph, mapping, mem] = dist::graph::contract_locally(*c_graph, clustering);
+      MPI_Barrier(MPI_COMM_WORLD);
       const bool converged = contracted_graph.global_n() == c_graph->global_n();
       graph_hierarchy.push_back(std::move(contracted_graph));
       mapping_hierarchy.push_back(std::move(mapping));
@@ -122,7 +125,7 @@ int main(int argc, char *argv[]) {
     dist::debug::validate_partition_state(dist_p_graph);
 
     DLOG << "Initial partition: cut=" << dist::metrics::edge_cut(dist_p_graph)
-        << " imbalance=" << dist::metrics::imbalance(dist_p_graph);
+         << " imbalance=" << dist::metrics::imbalance(dist_p_graph);
 
     auto refine = [&](dist::DistributedPartitionedGraph &p_graph) {
       dist::DistributedLabelPropagationRefiner<dist::DBlockID, dist::DBlockWeight>
