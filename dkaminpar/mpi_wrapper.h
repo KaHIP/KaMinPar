@@ -173,4 +173,6 @@ template<typename T>
 inline int allreduce(const T *sendbuf, T *recvbuf, int count, MPI_Op op, MPI_Comm comm = MPI_COMM_WORLD) {
   return MPI_Allreduce(sendbuf, recvbuf, count, datatype<T>(), op, comm);
 }
+
+inline int barrier(MPI_Comm comm = MPI_COMM_WORLD) { return MPI_Barrier(comm); }
 } // namespace dkaminpar::mpi

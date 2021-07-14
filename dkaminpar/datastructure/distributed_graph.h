@@ -288,6 +288,8 @@ public:
   DistributedPartitionedGraph(DistributedPartitionedGraph &&) noexcept = default;
   DistributedPartitionedGraph &operator=(DistributedPartitionedGraph &&) noexcept = default;
 
+  [[nodiscard]] const DistributedGraph &graph() const { return *_graph; }
+
   [[nodiscard]] inline DNodeID global_n() const { return _graph->global_n(); }
   [[nodiscard]] inline DNodeID ghost_n() const { return _graph->ghost_n(); }
   [[nodiscard]] inline DNodeID total_n() const { return _graph->total_n(); }
@@ -296,6 +298,8 @@ public:
   [[nodiscard]] inline DEdgeID m() const { return _graph->m(); }
   [[nodiscard]] inline DNodeID offset_n() const { return _graph->offset_n(); }
   [[nodiscard]] inline DEdgeID offset_m() const { return _graph->offset_m(); }
+  [[nodiscard]] inline const auto &node_distribution() const { return _graph->node_distribution(); }
+  [[nodiscard]] inline const auto &edge_distribution() const { return _graph->edge_distribution(); }
   [[nodiscard]] inline bool is_ghost_node(const DNodeID u) const { return _graph->is_ghost_node(u); }
   [[nodiscard]] inline bool is_owned_node(const DNodeID u) const { return _graph->is_owned_node(u); }
   [[nodiscard]] inline PEID ghost_owner(const DNodeID u) const { return _graph->ghost_owner(u); }
@@ -382,11 +386,12 @@ public:
     return copy;
   }
 
-  [[nodiscard]] auto &&take_block_weights() {
-    return std::move(_block_weights);
-  }
+  [[nodiscard]] auto &&take_block_weights() { return std::move(_block_weights); }
 
-  [[nodiscard]] scalable_vector<DBlockID> partition_copy() const {
+  [[nodiscard]] const auto &partition() const { return _partition; }
+  [[nodiscard]] auto &&take_partition() { return std::move(_partition); }
+
+  [[nodiscard]] scalable_vector<DBlockID> copy_partition() const {
     scalable_vector<DBlockID> copy(n());
     pfor_nodes([&](const DNodeID u) { copy[u] = block(u); });
     return copy;
@@ -416,5 +421,5 @@ bool validate(const DistributedGraph &global_n, MPI_Comm comm = MPI_COMM_WORLD);
 
 // validate structure of a distributed graph partition
 bool validate_partition(const DistributedPartitionedGraph &p_graph, MPI_Comm comm = MPI_COMM_WORLD);
-}
+} // namespace graph::debug
 } // namespace dkaminpar

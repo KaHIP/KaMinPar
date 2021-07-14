@@ -20,6 +20,7 @@
 #include "dkaminpar/datastructure/distributed_graph.h"
 
 #include "dkaminpar/mpi_wrapper.h"
+#include "dkaminpar/utility/mpi_helper.h"
 
 #include <ranges>
 
@@ -57,6 +58,9 @@ bool validate_partition(const DistributedPartitionedGraph &p_graph, MPI_Comm com
     ALWAYS_ASSERT_ROOT(all_equal(recv_k));
   }
 
+  mpi::barrier(comm);
+  LOG << "Every PE knows the same number of blocks";
+
   // check whether each PE has the same block weights
   {
     scalable_vector<DBlockWeight> recv_block_weights;
@@ -77,6 +81,9 @@ bool validate_partition(const DistributedPartitionedGraph &p_graph, MPI_Comm com
     }
   }
 
+  mpi::barrier(comm);
+  LOG << "Every PE knows the same block weights";
+
   // check whether block weights are actually correct
   {
     scalable_vector<DBlockWeight> send_block_weights(p_graph.k());
@@ -93,13 +100,19 @@ bool validate_partition(const DistributedPartitionedGraph &p_graph, MPI_Comm com
     }
   }
 
+  mpi::barrier(comm);
+  LOG << "Every PE knows the right block weights";
+
   // check whether assignment of ghost nodes is consistent
   {
     // collect partition on root
     scalable_vector<DBlockID> recv_partition;
     if (ROOT(rank)) { recv_partition.resize(p_graph.global_n()); }
-    const scalable_vector<DBlockID> send_partition = p_graph.partition_copy();
-    mpi::gather(send_partition.data(), p_graph.n(), recv_partition.data(), p_graph.n(), 0, comm);
+
+    const auto recvcounts = mpi::build_distribution_recvcounts(p_graph.node_distribution());
+    const auto displs = mpi::build_distribution_displs(p_graph.node_distribution());
+    MPI_Gatherv(p_graph.partition().data(), p_graph.n(), MPI_UINT32_T, recv_partition.data(), recvcounts.data(),
+                displs.data(), MPI_UINT32_T, 0, comm);
 
     // next, each PE validates the block of its ghost nodes by sending them to root
     scalable_vector<std::uint64_t> send_buffer;
@@ -123,8 +136,8 @@ bool validate_partition(const DistributedPartitionedGraph &p_graph, MPI_Comm com
 
         // now validate received data
         for (int i = 0; i < count; i += 2) {
-          const DNodeID global_u = static_cast<DNodeID>(recv_buffer[i]);
-          const DBlockID b = static_cast<DBlockID>(recv_buffer[i + 1]);
+          const auto global_u = static_cast<DNodeID>(recv_buffer[i]);
+          const auto b = static_cast<DBlockID>(recv_buffer[i + 1]);
           ALWAYS_ASSERT(recv_partition[global_u] == b)
               << "on PE " << pe << ": ghost node " << global_u << " is placed in block " << b
               << ", but on its owner PE, it is placed in block " << recv_partition[global_u];
@@ -136,7 +149,9 @@ bool validate_partition(const DistributedPartitionedGraph &p_graph, MPI_Comm com
     }
   }
 
-  MPI_Barrier(comm);
+  mpi::barrier(comm);
+  LOG << "Every PE has its ghost nodes in the right block";
+
   return true;
 }
 } // namespace dkaminpar::graph::debug

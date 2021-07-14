@@ -82,7 +82,7 @@ int main(int argc, char *argv[]) {
     std::vector<dist::scalable_vector<dist::DNodeID>> mapping_hierarchy;
 
     const dist::DistributedGraph *c_graph = &graph;
-    while (c_graph->n() > 2 * 160) {
+    while (false && c_graph->n() > 2 * 160) {
       DBG << "... lp";
       const dist::DNodeWeight max_cluster_weight = shm::compute_max_cluster_weight(c_graph->global_n(),
                                                                                    c_graph->total_node_weight(),
