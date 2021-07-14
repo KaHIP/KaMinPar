@@ -81,22 +81,13 @@ constexpr MPI_Datatype datatype() {
 template<typename T>
 inline int reduce(const T *sendbuf, T *recvbuf, const int count, MPI_Op op, const int root = 0,
                   MPI_Comm comm = MPI_COMM_WORLD) {
-  if (datatype<T>() != nullptr) {
-    return MPI_Reduce(sendbuf, recvbuf, count, datatype<T>(), op, root, comm);
-  } else {
-    return MPI_Reduce(sendbuf, recvbuf, count * sizeof(T), MPI_UINT8_T, op, root, comm);
-  }
+  return MPI_Reduce(sendbuf, recvbuf, count, datatype<T>(), op, root, comm);
 }
 
 template<typename Ts, typename Tr>
 inline int gather(const Ts *sendbuf, const int sendcount, Tr *recvbuf, const int recvcount, const int root = 0,
                   MPI_Comm comm = MPI_COMM_WORLD) {
-  if (datatype<Ts>() != nullptr && datatype<Tr>() != nullptr) {
-    return MPI_Gather(sendbuf, sendcount, datatype<Ts>(), recvbuf, recvcount, datatype<Tr>(), root, comm);
-  } else {
-    return MPI_Gather(sendbuf, sendcount * sizeof(Ts), MPI_UINT8_T, recvbuf, recvcount * sizeof(Tr), MPI_UINT8_T, root,
-                      comm);
-  }
+  return MPI_Gather(sendbuf, sendcount, datatype<Ts>(), recvbuf, recvcount, datatype<Tr>(), root, comm);
 }
 
 //
