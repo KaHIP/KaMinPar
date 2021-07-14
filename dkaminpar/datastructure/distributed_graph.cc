@@ -19,27 +19,42 @@
 ******************************************************************************/
 #include "dkaminpar/datastructure/distributed_graph.h"
 
-#include "dkaminpar/utility/mpi_helper.h"
+#include "dkaminpar/mpi_wrapper.h"
 
 #include <ranges>
 
-namespace dkaminpar::debug {
+namespace dkaminpar::graph::debug {
 SET_DEBUG(true);
 
-bool validate_partition_state(const DistributedPartitionedGraph &p_graph, MPI_Comm comm) {
-  const auto [size, rank] = mpi::get_comm_info();
+namespace {
+template<std::ranges::range R>
+bool all_equal(const R &r) {
+  return std::ranges::adjacent_find(r, std::not_equal_to{}) == std::ranges::end(r);
+}
+} // namespace
+
+bool validate(const DistributedGraph &graph, MPI_Comm comm) {
+  const auto [size, rank] = mpi::get_comm_info(comm);
+
+  // check global n, global m
+  {
+    const auto recv_global_n = mpi::gather(graph.global_n());
+    ALWAYS_ASSERT_ROOT(all_equal(recv_global_n));
+
+    const auto recv_global_m = mpi::gather(graph.global_m());
+    ALWAYS_ASSERT_ROOT(all_equal(recv_global_m));
+  }
+
+  return true;
+}
+
+bool validate_partition(const DistributedPartitionedGraph &p_graph, MPI_Comm comm) {
+  const auto [size, rank] = mpi::get_comm_info(comm);
 
   // check whether each PE knows the same block count
   {
-    const DBlockID send_k = p_graph.k();
-    scalable_vector<DBlockID> recv_ks;
-    if (ROOT(rank)) { recv_ks.resize(size); }
-    mpi::gather(&send_k, 1, recv_ks.data(), 1, 0, comm);
-
-    if (ROOT(rank)) {
-      DBG << "k=" << recv_ks;
-      ALWAYS_ASSERT(std::ranges::all_of(recv_ks, [&](const DBlockID k) { return k == recv_ks.front(); }));
-    }
+    const auto recv_k = mpi::gather(p_graph.k());
+    ALWAYS_ASSERT_ROOT(all_equal(recv_k));
   }
 
   // check whether each PE has the same block weights
@@ -124,4 +139,4 @@ bool validate_partition_state(const DistributedPartitionedGraph &p_graph, MPI_Co
   MPI_Barrier(comm);
   return true;
 }
-} // namespace dkaminpar::debug
+} // namespace dkaminpar::graph::debug

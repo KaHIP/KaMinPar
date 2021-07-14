@@ -59,6 +59,10 @@ using scalable_vector = shm::scalable_vector<T>;
   << kaminpar::logger::MAGENTA << POSITION << LOG_RANK << " "                                                           \
   << kaminpar::logger::RED << "Assertion failed: `" << #x << "`\n"
 
+// Assertions that are only evaluated on root (rank 0)
+#define ALWAYS_ASSERT_ROOT(x) ALWAYS_ASSERT(dkaminpar::mpi::get_comm_rank() != 0 || (x))
+#define ASSERT_ROOT(x) ASSERT(dkaminpar::mpi::get_comm_rank() != 0 || (x))
+
 #undef DBGC
 #define DBGC(cond) (kDebug && (cond)) && kaminpar::debug::DisposableLogger<false>(std::cout) << kaminpar::logger::MAGENTA << POSITION << LOG_RANK << " " << kaminpar::logger::DEFAULT_TEXT
 

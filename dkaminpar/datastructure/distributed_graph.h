@@ -410,7 +410,11 @@ private:
   scalable_vector<kaminpar::parallel::IntegralAtomicWrapper<DBlockWeight>> _block_weights;
 };
 
-namespace debug {
-bool validate_partition_state(const DistributedPartitionedGraph &p_graph, MPI_Comm comm = MPI_COMM_WORLD);
+namespace graph::debug {
+// validate structure of a distributed graph
+bool validate(const DistributedGraph &global_n, MPI_Comm comm = MPI_COMM_WORLD);
+
+// validate structure of a distributed graph partition
+bool validate_partition(const DistributedPartitionedGraph &p_graph, MPI_Comm comm = MPI_COMM_WORLD);
 }
 } // namespace dkaminpar

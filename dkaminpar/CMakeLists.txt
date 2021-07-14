@@ -15,7 +15,8 @@ set(DKAMINPAR_SOURCE_FILES
         utility/vector_ets.h
         refinement/distributed_label_propagation_refiner.h
         distributed_definitions.h
-        distributed_context.h)
+        distributed_context.h
+        mpi_wrapper.h)
 
 # Only create target if MPI is available
 find_package(MPI)

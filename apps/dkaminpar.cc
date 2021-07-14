@@ -95,6 +95,7 @@ int main(int argc, char *argv[]) {
       DBG << "... contract";
       auto [contracted_graph, mapping, mem] = dist::graph::contract_locally(*c_graph, clustering);
       MPI_Barrier(MPI_COMM_WORLD);
+      dist::graph::debug::validate(contracted_graph);
       const bool converged = contracted_graph.global_n() == c_graph->global_n();
       graph_hierarchy.push_back(std::move(contracted_graph));
       mapping_hierarchy.push_back(std::move(mapping));
@@ -122,7 +123,7 @@ int main(int argc, char *argv[]) {
 
     dist::DistributedPartitionedGraph dist_p_graph = dist::graph::create_from_best_partition(*c_graph,
                                                                                              std::move(shm_p_graph));
-    dist::debug::validate_partition_state(dist_p_graph);
+    dist::graph::debug::validate_partition(dist_p_graph);
 
     DLOG << "Initial partition: cut=" << dist::metrics::edge_cut(dist_p_graph)
          << " imbalance=" << dist::metrics::imbalance(dist_p_graph);
