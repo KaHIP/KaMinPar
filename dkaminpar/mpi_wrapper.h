@@ -44,8 +44,22 @@ inline int get_comm_rank(MPI_Comm comm = MPI_COMM_WORLD) {
   return rank;
 }
 
+//
+// Map MPI datatypes
+//
+
+template<std::size_t N>
+MPI_Datatype custom_datatype() {
+  static MPI_Datatype type = nullptr;
+  if (type == nullptr) {
+    MPI_Type_contiguous(N, MPI_CHAR, &type);
+    MPI_Type_commit(&type);
+  }
+  return type;
+}
+
 template<typename Raw>
-constexpr MPI_Datatype datatype() {
+MPI_Datatype datatype() {
   using T = std::decay_t<Raw>;
   if (std::is_same_v<T, std::uint8_t>) {
     return MPI_UINT8_T;
@@ -71,12 +85,19 @@ constexpr MPI_Datatype datatype() {
     return MPI_LONG_DOUBLE;
   }
 
-  return nullptr;
+  return custom_datatype<sizeof(T)>();
 }
 
 //
 // Pointer interface
 //
+
+inline int barrier(MPI_Comm comm = MPI_COMM_WORLD) { return MPI_Barrier(comm); }
+
+template<typename T>
+inline int bcast(T *buffer, const int count, const int root = 0, MPI_Comm comm = MPI_COMM_WORLD) {
+  return MPI_Bcast(buffer, count, datatype<T>(), root, comm);
+}
 
 template<typename T>
 inline int reduce(const T *sendbuf, T *recvbuf, const int count, MPI_Op op, const int root = 0,
@@ -84,10 +105,48 @@ inline int reduce(const T *sendbuf, T *recvbuf, const int count, MPI_Op op, cons
   return MPI_Reduce(sendbuf, recvbuf, count, datatype<T>(), op, root, comm);
 }
 
+template<typename T>
+inline int allreduce(const T *sendbuf, T *recvbuf, const int count, MPI_Op op, MPI_Comm comm = MPI_COMM_WORLD) {
+  return MPI_Allreduce(sendbuf, recvbuf, count, datatype<T>(), op, comm);
+}
+
+template<typename Ts, typename Tr>
+inline int scatter(const Ts *sendbuf, const int sendcount, Tr *recvbuf, const int recvcount, const int root,
+                   MPI_Comm comm = MPI_COMM_WORLD) {
+  return MPI_Scatter(sendbuf, sendcount, datatype<Ts>(), recvbuf, recvcount, datatype<Tr>(), root, comm);
+}
+
 template<typename Ts, typename Tr>
 inline int gather(const Ts *sendbuf, const int sendcount, Tr *recvbuf, const int recvcount, const int root = 0,
                   MPI_Comm comm = MPI_COMM_WORLD) {
   return MPI_Gather(sendbuf, sendcount, datatype<Ts>(), recvbuf, recvcount, datatype<Tr>(), root, comm);
+}
+
+template<typename Ts, typename Tr>
+inline int allgather(const Ts *sendbuf, const int sendcount, Tr *recvbuf, const int recvcount,
+                     MPI_Comm comm = MPI_COMM_WORLD) {
+  return MPI_Allgather(sendbuf, sendcount, datatype<Ts>(), recvbuf, recvcount, datatype<Tr>(), comm);
+}
+
+template<typename Ts, typename Tr>
+inline int alltoall(const Ts *sendbuf, const int sendcount, Tr *recvbuf, const int recvcount,
+                    MPI_Comm comm = MPI_COMM_WORLD) {
+  return MPI_Alltoall(sendbuf, sendcount, datatype<Ts>(), recvbuf, recvcount, datatype<Tr>(), comm);
+}
+
+template<typename T>
+inline int scan(const T *sendbuf, T *recvbuf, const int count, MPI_Op op, MPI_Comm comm = MPI_COMM_WORLD) {
+  return MPI_Scan(sendbuf, recvbuf, count, datatype<T>(), op, comm);
+}
+
+template<typename T>
+inline int exscan(const T *sendbuf, T *recvbuf, const int count, MPI_Op op, MPI_Comm comm = MPI_COMM_WORLD) {
+  return MPI_Exscan(sendbuf, recvbuf, count, datatype<T>(), op, comm);
+}
+
+template<typename T>
+inline int reduce_scatter(const T *sendbuf, T *recvbuf, int *recvcounts, MPI_Op op, MPI_Comm comm = MPI_COMM_WORLD) {
+  return MPI_Reduce_scatter(sendbuf, recvbuf, recvcounts, datatype<T>(), op, comm);
 }
 
 //
@@ -160,10 +219,4 @@ inline int recv(T *buf, int count, int source, int tag, MPI_Status *status = MPI
   return MPI_Recv(buf, count, datatype<T>(), source, tag, comm, status);
 }
 
-template<typename T>
-inline int allreduce(const T *sendbuf, T *recvbuf, int count, MPI_Op op, MPI_Comm comm = MPI_COMM_WORLD) {
-  return MPI_Allreduce(sendbuf, recvbuf, count, datatype<T>(), op, comm);
-}
-
-inline int barrier(MPI_Comm comm = MPI_COMM_WORLD) { return MPI_Barrier(comm); }
 } // namespace dkaminpar::mpi
