@@ -47,9 +47,9 @@ inline int get_comm_rank(MPI_Comm comm = MPI_COMM_WORLD) {
 //
 // Map MPI datatypes
 //
-
+namespace type {
 template<std::size_t N>
-MPI_Datatype custom_datatype() {
+inline MPI_Datatype custom() {
   static MPI_Datatype type = nullptr;
   if (type == nullptr) {
     MPI_Type_contiguous(N, MPI_CHAR, &type);
@@ -58,99 +58,102 @@ MPI_Datatype custom_datatype() {
   return type;
 }
 
-template<typename Raw>
-MPI_Datatype datatype() {
-  using T = std::decay_t<Raw>;
-  if (std::is_same_v<T, std::uint8_t>) {
-    return MPI_UINT8_T;
-  } else if (std::is_same_v<T, std::int8_t>) {
-    return MPI_INT8_T;
-  } else if (std::is_same_v<T, std::uint16_t>) {
-    return MPI_UINT16_T;
-  } else if (std::is_same_v<T, std::int16_t>) {
-    return MPI_INT16_T;
-  } else if (std::is_same_v<T, std::uint32_t>) {
-    return MPI_UINT32_T;
-  } else if (std::is_same_v<T, std::int32_t>) {
-    return MPI_INT32_T;
-  } else if (std::is_same_v<T, std::uint64_t>) {
-    return MPI_UINT64_T;
-  } else if (std::is_same_v<T, std::int64_t>) {
-    return MPI_INT64_T;
-  } else if (std::is_same_v<T, float>) {
-    return MPI_FLOAT;
-  } else if (std::is_same_v<T, double>) {
-    return MPI_DOUBLE;
-  } else if (std::is_same_v<T, long double>) {
-    return MPI_LONG_DOUBLE;
+// Map to default MPI type
+#define MAP_DATATYPE(CPP_DATATYPE, MPI_DATATYPE)                                                                       \
+  template<std::same_as<CPP_DATATYPE>>                                                                                 \
+  inline MPI_Datatype get() {                                                                                          \
+    return MPI_DATATYPE;                                                                                               \
   }
 
-  return custom_datatype<sizeof(T)>();
+MAP_DATATYPE(std::uint8_t, MPI_UINT8_T)
+MAP_DATATYPE(std::int8_t, MPI_INT8_T)
+MAP_DATATYPE(std::uint16_t, MPI_UINT16_T)
+MAP_DATATYPE(std::int16_t, MPI_INT16_T)
+MAP_DATATYPE(std::uint32_t, MPI_UINT32_T)
+MAP_DATATYPE(std::int32_t, MPI_INT32_T)
+MAP_DATATYPE(std::uint64_t, MPI_UINT64_T)
+MAP_DATATYPE(std::int64_t, MPI_INT64_T)
+MAP_DATATYPE(float, MPI_FLOAT)
+MAP_DATATYPE(double, MPI_DOUBLE)
+MAP_DATATYPE(long double, MPI_LONG_DOUBLE)
+
+#define COMMA ,
+MAP_DATATYPE(std::pair<float COMMA int>, MPI_FLOAT_INT)
+MAP_DATATYPE(std::pair<double COMMA int>, MPI_DOUBLE_INT)
+MAP_DATATYPE(std::pair<long double COMMA int>, MPI_LONG_DOUBLE_INT)
+
+#undef MAP_DATATYPE
+
+// Fallback to custom MPI type
+template<typename T>
+inline MPI_Datatype get() {
+  return custom<sizeof(T)>();
 }
+} // namespace type
 
 //
-// Pointer interface
+// Pointer interface for collective operations
 //
 
 inline int barrier(MPI_Comm comm = MPI_COMM_WORLD) { return MPI_Barrier(comm); }
 
 template<typename T>
 inline int bcast(T *buffer, const int count, const int root = 0, MPI_Comm comm = MPI_COMM_WORLD) {
-  return MPI_Bcast(buffer, count, datatype<T>(), root, comm);
+  return MPI_Bcast(buffer, count, type::get<T>(), root, comm);
 }
 
 template<typename T>
 inline int reduce(const T *sendbuf, T *recvbuf, const int count, MPI_Op op, const int root = 0,
                   MPI_Comm comm = MPI_COMM_WORLD) {
-  return MPI_Reduce(sendbuf, recvbuf, count, datatype<T>(), op, root, comm);
+  return MPI_Reduce(sendbuf, recvbuf, count, type::get<T>(), op, root, comm);
 }
 
 template<typename T>
 inline int allreduce(const T *sendbuf, T *recvbuf, const int count, MPI_Op op, MPI_Comm comm = MPI_COMM_WORLD) {
-  return MPI_Allreduce(sendbuf, recvbuf, count, datatype<T>(), op, comm);
+  return MPI_Allreduce(sendbuf, recvbuf, count, type::get<T>(), op, comm);
 }
 
 template<typename Ts, typename Tr>
 inline int scatter(const Ts *sendbuf, const int sendcount, Tr *recvbuf, const int recvcount, const int root,
                    MPI_Comm comm = MPI_COMM_WORLD) {
-  return MPI_Scatter(sendbuf, sendcount, datatype<Ts>(), recvbuf, recvcount, datatype<Tr>(), root, comm);
+  return MPI_Scatter(sendbuf, sendcount, type::get<Ts>(), recvbuf, recvcount, type::get<Tr>(), root, comm);
 }
 
 template<typename Ts, typename Tr>
 inline int gather(const Ts *sendbuf, const int sendcount, Tr *recvbuf, const int recvcount, const int root = 0,
                   MPI_Comm comm = MPI_COMM_WORLD) {
-  return MPI_Gather(sendbuf, sendcount, datatype<Ts>(), recvbuf, recvcount, datatype<Tr>(), root, comm);
+  return MPI_Gather(sendbuf, sendcount, type::get<Ts>(), recvbuf, recvcount, type::get<Tr>(), root, comm);
 }
 
 template<typename Ts, typename Tr>
 inline int allgather(const Ts *sendbuf, const int sendcount, Tr *recvbuf, const int recvcount,
                      MPI_Comm comm = MPI_COMM_WORLD) {
-  return MPI_Allgather(sendbuf, sendcount, datatype<Ts>(), recvbuf, recvcount, datatype<Tr>(), comm);
+  return MPI_Allgather(sendbuf, sendcount, type::get<Ts>(), recvbuf, recvcount, type::get<Tr>(), comm);
 }
 
 template<typename Ts, typename Tr>
 inline int alltoall(const Ts *sendbuf, const int sendcount, Tr *recvbuf, const int recvcount,
                     MPI_Comm comm = MPI_COMM_WORLD) {
-  return MPI_Alltoall(sendbuf, sendcount, datatype<Ts>(), recvbuf, recvcount, datatype<Tr>(), comm);
+  return MPI_Alltoall(sendbuf, sendcount, type::get<Ts>(), recvbuf, recvcount, type::get<Tr>(), comm);
 }
 
 template<typename T>
 inline int scan(const T *sendbuf, T *recvbuf, const int count, MPI_Op op, MPI_Comm comm = MPI_COMM_WORLD) {
-  return MPI_Scan(sendbuf, recvbuf, count, datatype<T>(), op, comm);
+  return MPI_Scan(sendbuf, recvbuf, count, type::get<T>(), op, comm);
 }
 
 template<typename T>
 inline int exscan(const T *sendbuf, T *recvbuf, const int count, MPI_Op op, MPI_Comm comm = MPI_COMM_WORLD) {
-  return MPI_Exscan(sendbuf, recvbuf, count, datatype<T>(), op, comm);
+  return MPI_Exscan(sendbuf, recvbuf, count, type::get<T>(), op, comm);
 }
 
 template<typename T>
 inline int reduce_scatter(const T *sendbuf, T *recvbuf, int *recvcounts, MPI_Op op, MPI_Comm comm = MPI_COMM_WORLD) {
-  return MPI_Reduce_scatter(sendbuf, recvbuf, recvcounts, datatype<T>(), op, comm);
+  return MPI_Reduce_scatter(sendbuf, recvbuf, recvcounts, type::get<T>(), op, comm);
 }
 
 //
-// Ranges interface
+// Ranges interface for collective operations
 //
 
 template<std::ranges::contiguous_range R>
@@ -188,12 +191,12 @@ Container<T> gather(const T element, const int root = 0, MPI_Comm comm = MPI_COM
 
 template<typename T>
 inline int send(const T *buf, int count, int dest, int tag, MPI_Comm comm = MPI_COMM_WORLD) {
-  return MPI_Send(buf, count, datatype<T>(), dest, tag, comm);
+  return MPI_Send(buf, count, type::get<T>(), dest, tag, comm);
 }
 
 template<typename T>
 inline int isend(const T *buf, int count, int dest, int tag, MPI_Request *request, MPI_Comm comm = MPI_COMM_WORLD) {
-  return MPI_Isend(buf, count, datatype<T>(), dest, tag, comm, request);
+  return MPI_Isend(buf, count, type::get<T>(), dest, tag, comm, request);
 }
 
 inline MPI_Status probe(int source, int tag, MPI_Comm comm = MPI_COMM_WORLD) {
@@ -205,7 +208,7 @@ inline MPI_Status probe(int source, int tag, MPI_Comm comm = MPI_COMM_WORLD) {
 template<typename T>
 inline int get_count(MPI_Status *status) {
   int count;
-  MPI_Get_count(status, datatype<T>(), &count);
+  MPI_Get_count(status, type::get<T>(), &count);
   return count;
 }
 
@@ -216,7 +219,6 @@ inline int waitall(int count, MPI_Request *array_of_requests, MPI_Status *array_
 template<typename T>
 inline int recv(T *buf, int count, int source, int tag, MPI_Status *status = MPI_STATUS_IGNORE,
                 MPI_Comm comm = MPI_COMM_WORLD) {
-  return MPI_Recv(buf, count, datatype<T>(), source, tag, comm, status);
+  return MPI_Recv(buf, count, type::get<T>(), source, tag, comm, status);
 }
-
 } // namespace dkaminpar::mpi
