@@ -34,17 +34,12 @@ bool all_equal(const R &r) {
 }
 } // namespace
 
-bool validate(const DistributedGraph &graph, MPI_Comm comm) {
+bool validate(const DistributedGraph &graph, const int root, MPI_Comm comm) {
   const auto [size, rank] = mpi::get_comm_info(comm);
 
   // check global n, global m
-  {
-    const auto recv_global_n = mpi::gather(graph.global_n());
-    ALWAYS_ASSERT_ROOT(all_equal(recv_global_n));
-
-    const auto recv_global_m = mpi::gather(graph.global_m());
-    ALWAYS_ASSERT_ROOT(all_equal(recv_global_m));
-  }
+  ALWAYS_ASSERT(mpi::bcast(graph.global_n(), root, comm) == graph.global_n());
+  ALWAYS_ASSERT(mpi::bcast(graph.global_m(), root, comm) == graph.global_m());
 
   return true;
 }

@@ -81,6 +81,7 @@ MAP_DATATYPE(long double, MPI_LONG_DOUBLE)
 MAP_DATATYPE(std::pair<float COMMA int>, MPI_FLOAT_INT)
 MAP_DATATYPE(std::pair<double COMMA int>, MPI_DOUBLE_INT)
 MAP_DATATYPE(std::pair<long double COMMA int>, MPI_LONG_DOUBLE_INT)
+#undef COMMA
 
 #undef MAP_DATATYPE
 
@@ -153,72 +154,142 @@ inline int reduce_scatter(const T *sendbuf, T *recvbuf, int *recvcounts, MPI_Op 
 }
 
 //
-// Ranges interface for collective operations
-//
-
-template<std::ranges::contiguous_range R>
-inline int reduce(const R &sendbuf, R &recvbuf, MPI_Op op, int root = 0, MPI_Comm comm = MPI_COMM_WORLD) {
-  ASSERT(mpi::get_comm_rank(comm) != root || std::ranges::size(sendbuf) == std::ranges::size(recvbuf))
-      << "recvbuf(" << std::ranges::size(recvbuf) << ") has not the same size as sendbuf(" << std::ranges::size(sendbuf)
-      << ") on root " << root;
-  return reduce<std::ranges::range_value_t<R>>(std::ranges::cdata(sendbuf), std::ranges::data(recvbuf),
-                                               std::ranges::ssize(sendbuf), op, root, comm);
-}
-
-template<std::ranges::contiguous_range Rs, std::ranges::contiguous_range Rr>
-inline int gather(const Rs &sendbuf, Rr &recvbuf, const int root = 0, MPI_Comm comm = MPI_COMM_WORLD) {
-  using rs_value_t = std::ranges::range_value_t<Rs>;
-  using rr_value_t = std::ranges::range_value_t<Rr>;
-  ASSERT(mpi::get_comm_rank(comm) != root ||
-         sizeof(rs_value_t) * std::ranges::size(sendbuf) ==
-             mpi::get_comm_size(comm) * sizeof(rr_value_t) * std::ranges::size(recvbuf))
-      << "recvbuf is not large enough to receive all sendbufs";
-  return gather<rs_value_t, rr_value_t>(std::ranges::cdata(sendbuf), std::ranges::ssize(sendbuf),
-                                        std::ranges::data(recvbuf), std::ranges::ssize(recvbuf), root, comm);
-}
-
-template<typename T, template<typename> typename Container = scalable_vector>
-Container<T> gather(const T element, const int root = 0, MPI_Comm comm = MPI_COMM_WORLD) {
-  Container<T> result;
-  if (mpi::get_comm_rank(comm) == root) { result.resize(mpi::get_comm_size(comm)); }
-  gather(&element, 1, std::ranges::data(result), 1, root, comm);
-  return result;
-}
-
-//
-// Misc
+// Pointer interface for point-to-point operations
 //
 
 template<typename T>
-inline int send(const T *buf, int count, int dest, int tag, MPI_Comm comm = MPI_COMM_WORLD) {
+inline int send(const T *buf, const int count, const int dest, const int tag, MPI_Comm comm = MPI_COMM_WORLD) {
   return MPI_Send(buf, count, type::get<T>(), dest, tag, comm);
 }
 
 template<typename T>
-inline int isend(const T *buf, int count, int dest, int tag, MPI_Request *request, MPI_Comm comm = MPI_COMM_WORLD) {
+inline int isend(const T *buf, const int count, const int dest, const int tag, MPI_Request *request,
+                 MPI_Comm comm = MPI_COMM_WORLD) {
   return MPI_Isend(buf, count, type::get<T>(), dest, tag, comm, request);
-}
-
-inline MPI_Status probe(int source, int tag, MPI_Comm comm = MPI_COMM_WORLD) {
-  MPI_Status status;
-  MPI_Probe(source, tag, comm, &status);
-  return status;
-}
-
-template<typename T>
-inline int get_count(MPI_Status *status) {
-  int count;
-  MPI_Get_count(status, type::get<T>(), &count);
-  return count;
-}
-
-inline int waitall(int count, MPI_Request *array_of_requests, MPI_Status *array_of_statuses = MPI_STATUS_IGNORE) {
-  return MPI_Waitall(count, array_of_requests, array_of_statuses);
 }
 
 template<typename T>
 inline int recv(T *buf, int count, int source, int tag, MPI_Status *status = MPI_STATUS_IGNORE,
                 MPI_Comm comm = MPI_COMM_WORLD) {
   return MPI_Recv(buf, count, type::get<T>(), source, tag, comm, status);
+}
+
+inline MPI_Status probe(const int source, const int tag, MPI_Comm comm = MPI_COMM_WORLD) {
+  MPI_Status status;
+  MPI_Probe(source, tag, comm, &status);
+  return status;
+}
+
+template<typename T>
+inline int get_count(const MPI_Status *status) {
+  int count;
+  MPI_Get_count(status, type::get<T>(), &count);
+  return count;
+}
+
+//
+// Other MPI functions
+//
+
+inline int waitall(int count, MPI_Request *array_of_requests, MPI_Status *array_of_statuses = MPI_STATUS_IGNORE) {
+  return MPI_Waitall(count, array_of_requests, array_of_statuses);
+}
+
+//
+// Single element interface for collective operations
+//
+
+template<typename T>
+inline T bcast(T ans, const int root = 0, MPI_Comm comm = MPI_COMM_WORLD) {
+  bcast(&ans, 1, root, comm);
+  return ans;
+}
+
+template<typename T>
+inline T reduce(const T &element, MPI_Op op, const int root = 0, MPI_Comm comm = MPI_COMM_WORLD) {
+  T ans;
+  reduce(&element, &ans, 1, op, root, comm);
+  return ans;
+}
+
+template<typename T>
+inline T reduce(const T &element, T &ans, MPI_Op op, const int root = 0, MPI_Comm comm = MPI_COMM_WORLD) {
+  return reduce(&element, &ans, 1, op, root, comm);
+}
+
+template<typename T>
+inline T allreduce(const T &element, MPI_Op op, const int root = 0, MPI_Comm comm = MPI_COMM_WORLD) {
+  T ans;
+  allreduce(&element, &ans, 1, op, comm);
+  return ans;
+}
+
+template<typename T>
+int allreduce(const T &element, T &ans, MPI_Op op, const int root = 0, MPI_Comm comm = MPI_COMM_WORLD) {
+  return allreduce(&element, &ans, 1, op, comm);
+}
+
+template<typename T, template<typename> typename Container = scalable_vector>
+Container<T> gather(const T &element, const int root = 0, MPI_Comm comm = MPI_COMM_WORLD) {
+  Container<T> result;
+  if (mpi::get_comm_rank(comm) == root) { result.resize(mpi::get_comm_size(comm)); }
+  gather(&element, 1, std::ranges::data(result), 1, root, comm);
+  return result;
+}
+
+template<std::ranges::contiguous_range R>
+int gather(const std::ranges::range_value_t<R> &element, R &ans, const int root = 0, MPI_Comm comm = MPI_COMM_WORLD) {
+  LIGHT_ASSERT(mpi::get_comm_rank(comm) != root || std::ranges::size(ans) == mpi::get_comm_size(comm));
+
+  return gather(&element, 1, std::ranges::data(ans), 1, comm);
+}
+
+template<typename T, template<typename> typename Container = scalable_vector>
+Container<T> allgather(const T &element, const int root = 0, MPI_Comm comm = MPI_COMM_WORLD) {
+  Container<T> result(mpi::get_comm_size(comm));
+  gather(&element, 1, std::ranges::data(result), 1, root, comm);
+  return result;
+}
+
+template<std::ranges::contiguous_range R>
+inline int allgather(const std::ranges::range_value_t<R> &element, R &ans, MPI_Comm comm = MPI_COMM_WORLD) {
+  LIGHT_ASSERT(std::ranges::size(ans) == mpi::get_comm_size(comm));
+
+  return allgather(&element, 1, std::ranges::data(ans), 1, comm);
+}
+
+//
+// Ranges interface for collective operations
+//
+
+template<std::ranges::contiguous_range R>
+inline int reduce(const R &sendbuf, R &recvbuf, MPI_Op op, const int root = 0, MPI_Comm comm = MPI_COMM_WORLD) {
+  LIGHT_ASSERT(mpi::get_comm_rank(comm) != root || std::ranges::size(sendbuf) == std::ranges::size(recvbuf));
+
+  return reduce<std::ranges::range_value_t<R>>(std::ranges::cdata(sendbuf), std::ranges::data(recvbuf),
+                                               std::ranges::ssize(sendbuf), op, root, comm);
+}
+
+template<std::ranges::contiguous_range R, template<typename> typename Container = scalable_vector>
+inline auto reduce(const R &sendbuf, MPI_Op op, const int root = 0, MPI_Comm comm = MPI_COMM_WORLD) {
+  Container<std::ranges::range_value_t<R>> recvbuf;
+  if (mpi::get_comm_rank(comm) == root) { recvbuf.resize(std::ranges::size(sendbuf)); }
+  reduce(std::ranges::cdata(sendbuf), recvbuf.data(), std::ranges::ssize(sendbuf), op, root, comm);
+  return recvbuf;
+}
+
+template<std::ranges::contiguous_range Rs, std::ranges::contiguous_range Rr>
+inline int gather(const Rs &sendbuf, Rr &recvbuf, const int root = 0, MPI_Comm comm = MPI_COMM_WORLD) {
+  using rs_value_t = std::ranges::range_value_t<Rs>;
+  using rr_value_t = std::ranges::range_value_t<Rr>;
+
+  LIGHT_ASSERT([&] {
+    const std::size_t expected = sizeof(rs_value_t) * std::ranges::size(sendbuf) * mpi::get_comm_size(comm);
+    const std::size_t actual = sizeof(rr_value_t) * std::ranges::size(recvbuf);
+    return mpi::get_comm_rank(comm) != root || expected >= actual;
+  });
+
+  return gather<rs_value_t, rr_value_t>(std::ranges::cdata(sendbuf), std::ranges::ssize(sendbuf),
+                                        std::ranges::data(recvbuf), std::ranges::ssize(recvbuf), root, comm);
 }
 } // namespace dkaminpar::mpi

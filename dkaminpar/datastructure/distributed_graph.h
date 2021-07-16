@@ -417,7 +417,7 @@ private:
 
 namespace graph::debug {
 // validate structure of a distributed graph
-bool validate(const DistributedGraph &global_n, MPI_Comm comm = MPI_COMM_WORLD);
+bool validate(const DistributedGraph &global_n, int root = 0, MPI_Comm comm = MPI_COMM_WORLD);
 
 // validate structure of a distributed graph partition
 bool validate_partition(const DistributedPartitionedGraph &p_graph, MPI_Comm comm = MPI_COMM_WORLD);

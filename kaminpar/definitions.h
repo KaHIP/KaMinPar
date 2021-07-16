@@ -132,6 +132,12 @@ private:
 #define HEAVY_ASSERT(x) NEVER_ASSERT(x)
 #endif // KAMINPAR_ENABLE_HEAVY_ASSERTIONS
 
+#ifdef KAMINPAR_ENABLE_LIGHT_ASSERTIONS
+#define LIGHT_ASSERT(x) ALWAYS_ASSERT(x)
+#else // KAMINPAR_ENABLE_LIGHT_ASSERTIONS
+#define LIGHT_ASSERT(x) NEVER_ASSERT(x)
+#endif // KAMINPAR_ENABLE_LIGHT_ASSERTIONS
+
 // Macros for debug output
 //
 // To use these macros, you must define a boolean variable kDebug somewhere
