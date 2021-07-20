@@ -18,6 +18,7 @@ set(KAMINPAR_SOURCE_FILES
   datastructure/marker.h
   datastructure/queue.h
   datastructure/static_array.h
+  datastructure/ts_navigable_linked_list.h
   initial_partitioning/bfs_bipartitioner.h
   initial_partitioning/bfs_bipartitioner.cc
   initial_partitioning/greedy_graph_growing_bipartitioner.cc
