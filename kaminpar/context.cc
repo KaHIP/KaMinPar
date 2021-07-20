@@ -180,7 +180,7 @@ void LabelPropagationCoarseningContext::print(std::ostream &out, const std::stri
   out << prefix << "num_iterations=" << num_iterations << " "                                             //
       << prefix << "large_degree_threshold=" << large_degree_threshold << " "                             //
       << prefix << "merge_nonadjacent_clusters_threshold=" << merge_nonadjacent_clusters_threshold << " " //
-      << prefix << "merge_singleton_clusters=" << merge_singleton_clusters << " "                         //
+      << prefix << "merge_isolated_clusters=" << merge_isolated_clusters << " "                         //
       << prefix << "max_num_neighbors=" << max_num_neighbors << " ";                                      //
 }
 
@@ -280,7 +280,7 @@ Context create_default_context() {
         .num_iterations = 5,
         .large_degree_threshold = 1000000,
         .merge_nonadjacent_clusters_threshold = 0.5,
-        .merge_singleton_clusters = true,
+        .merge_isolated_clusters = true,
         .max_num_neighbors = 200000,
       },
       .contraction_limit = 2000,
@@ -296,7 +296,7 @@ Context create_default_context() {
           .num_iterations = 1, // no effect
           .large_degree_threshold = 1000000, // no effect
           .merge_nonadjacent_clusters_threshold = 0.5, // no effect
-          .merge_singleton_clusters = true, // no effect
+          .merge_isolated_clusters = true, // no effect
           .max_num_neighbors = 200000, // no effect
         },
         .contraction_limit = 20,

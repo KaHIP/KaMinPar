@@ -111,7 +111,7 @@ struct LabelPropagationCoarseningContext {
   double merge_nonadjacent_clusters_threshold{0.5};
 
   //! In case of `merge_nonadjacent_clusters_threshold`, also merge isolated singleton clusters.
-  bool merge_singleton_clusters{true};
+  bool merge_isolated_clusters{true};
 
   //! Maximum number of neighbors to scan before assigning a node to a cluster. 0 = always scan all neighbors.
   NodeID max_num_neighbors{std::numeric_limits<NodeID>::max()};

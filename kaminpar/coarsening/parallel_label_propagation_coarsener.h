@@ -92,7 +92,7 @@ private:
 
       if (singleton) {
         NodeID favored_leader = _favored_clustering[u];
-        if (_lp_ctx.merge_singleton_clusters && u == favored_leader) { favored_leader = 0; }
+        if (_lp_ctx.merge_isolated_clusters && u == favored_leader) { favored_leader = 0; }
 
         do {
           NodeID expected_value = favored_leader;
@@ -104,8 +104,11 @@ private:
           // cluster
           const NodeID partner = expected_value;
           if (_favored_clustering[favored_leader].compare_exchange_strong(expected_value, favored_leader)) {
-            _clustering[u] = partner;
-            --current_no_of_coarse_nodes;
+            if (_cluster_weights[partner] + _graph->node_weight(u) < _max_cluster_weight) {
+              _clustering[u] = partner;
+              _cluster_weights[partner] += _graph->node_weight(u);
+              --current_no_of_coarse_nodes;
+            }
             break;
           }
         } while (true);
