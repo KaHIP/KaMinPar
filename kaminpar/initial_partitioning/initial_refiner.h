@@ -296,7 +296,7 @@ private:
       p_graph.set_block(u, to);
       current_delta += delta;
       moves.push_back(u);
-      ASSERT(initial_edge_cut + current_delta == metrics::edge_cut(p_graph, tag::seq));
+      HEAVY_ASSERT(initial_edge_cut + current_delta == metrics::edge_cut(p_graph, tag::seq));
       _stopping_policy.update(-delta); // assumes gain, not loss
       current_overload = metrics::total_overload(p_graph, _p_ctx);
 

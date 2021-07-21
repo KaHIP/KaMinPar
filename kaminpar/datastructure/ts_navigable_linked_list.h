@@ -44,7 +44,12 @@ public:
 
   void push_back(Element &&e) {
     flush_if_full();
-    _current_chunk.push_back(std::forward<Element &&>(e));
+    _current_chunk.push_back(std::move(e));
+  }
+
+  void push_back(const Element &e) {
+    flush_if_full();
+    _current_chunk.push_back(e);
   }
 
   template<typename... Args>
