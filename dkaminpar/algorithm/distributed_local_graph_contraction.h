@@ -18,67 +18,29 @@
  *
 ******************************************************************************/
 #include "dkaminpar/datastructure/distributed_graph.h"
+#include "kaminpar/datastructure/ts_navigable_linked_list.h"
 
 namespace dkaminpar::graph {
+namespace contraction {
 struct Edge {
   DNodeID target;
   DEdgeWeight weight;
 };
 
-static constexpr std::size_t kChunkSize = (1 << 15);
-
-using LocalEdgeMemoryChunk = scalable_vector<Edge>;
-
-struct LocalEdgeMemory {
-  LocalEdgeMemory() { current_chunk.reserve(kChunkSize); }
-
-  scalable_vector<LocalEdgeMemoryChunk> chunks;
-  LocalEdgeMemoryChunk current_chunk;
-
-  [[nodiscard]] std::size_t get_current_position() const { return chunks.size() * kChunkSize + current_chunk.size(); }
-
-  void push(const DNodeID c_v, const DEdgeWeight weight) {
-    if (current_chunk.size() == kChunkSize) { flush(); }
-    current_chunk.emplace_back(c_v, weight);
-  }
-
-  [[nodiscard]] const auto &get(const std::size_t position) const {
-    return chunks[position / kChunkSize][position % kChunkSize];
-  }
-
-  auto &get(const std::size_t position) {
-    ASSERT(position / kChunkSize < chunks.size()) << V(position) << V(kChunkSize) << V(chunks.size());
-    ASSERT(position % kChunkSize < chunks[position / kChunkSize].size())
-        << V(position) << V(kChunkSize) << V(chunks[position / kChunkSize].size());
-    return chunks[position / kChunkSize][position % kChunkSize];
-  }
-
-  void flush() {
-    chunks.push_back(std::move(current_chunk));
-    current_chunk.clear();
-    current_chunk.reserve(kChunkSize);
-  }
-};
-
-struct BufferNode {
-  DNodeID c_u;
-  std::size_t position;
-  LocalEdgeMemory *chunks;
-};
-
-struct ContractionMemoryContext {
+struct MemoryContext {
   scalable_vector<DNodeID> buckets;
   scalable_vector<shm::parallel::IntegralAtomicWrapper<DNodeID>> buckets_index;
   scalable_vector<shm::parallel::IntegralAtomicWrapper<DNodeID>> leader_mapping;
-  scalable_vector<BufferNode> all_buffered_nodes;
+  scalable_vector<shm::NavigationMarker<DNodeID, Edge>> all_buffered_nodes;
 };
 
-struct ContractionResult {
+struct Result {
   DistributedGraph graph;
   scalable_vector<DNodeID> mapping;
-  ContractionMemoryContext m_ctx;
+  MemoryContext m_ctx;
 };
+} // namespace contraction
 
-ContractionResult contract_locally(const DistributedGraph &graph, const scalable_vector<DNodeID> &clustering,
-                           ContractionMemoryContext m_ctx = {});
+contraction::Result contract_locally(const DistributedGraph &graph, const scalable_vector<DNodeID> &clustering,
+                                     contraction::MemoryContext m_ctx = {});
 } // namespace dkaminpar::graph
