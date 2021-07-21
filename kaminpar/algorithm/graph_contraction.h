@@ -24,24 +24,26 @@
 #include "kaminpar/parallel.h"
 
 namespace kaminpar::graph {
-struct ContractionEdge {
+namespace contraction {
+struct Edge {
   NodeID target;
   EdgeWeight weight;
 };
 
-struct ContractionMemoryContext {
+struct MemoryContext {
   scalable_vector<NodeID> buckets;
   scalable_vector<parallel::IntegralAtomicWrapper<NodeID>> buckets_index;
   scalable_vector<parallel::IntegralAtomicWrapper<NodeID>> leader_mapping;
-  scalable_vector<NavigationMarker<NodeID, ContractionEdge>> all_buffered_nodes;
+  scalable_vector<NavigationMarker<NodeID, Edge>> all_buffered_nodes;
 };
 
-struct ContractionResult {
+struct Result {
   Graph graph;
   scalable_vector<NodeID> mapping;
-  ContractionMemoryContext m_ctx;
+  MemoryContext m_ctx;
 };
+} // namespace contraction
 
-ContractionResult contract(const Graph &r, const scalable_vector<NodeID> &clustering,
-                           ContractionMemoryContext m_ctx = {});
+contraction::Result contract(const Graph &r, const scalable_vector<NodeID> &clustering,
+                             contraction::MemoryContext m_ctx = {});
 } // namespace kaminpar::graph

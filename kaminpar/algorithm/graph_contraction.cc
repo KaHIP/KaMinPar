@@ -27,8 +27,9 @@
 #include <tbb/parallel_invoke.h>
 
 namespace kaminpar::graph {
-ContractionResult contract(const Graph &graph, const scalable_vector<NodeID> &clustering,
-                           ContractionMemoryContext m_ctx) {
+using namespace contraction;
+
+Result contract(const Graph &graph, const scalable_vector<NodeID> &clustering, MemoryContext m_ctx) {
   auto &buckets_index = m_ctx.buckets_index;
   auto &buckets = m_ctx.buckets;
   auto &leader_mapping = m_ctx.leader_mapping;
@@ -107,7 +108,7 @@ ContractionResult contract(const Graph &graph, const scalable_vector<NodeID> &cl
   // (2) We finalize c_nodes arrays by computing a prefix sum over all coarse node degrees
   // (3) We copy coarse edges and coarse edge weights from the auxiliary arrays to c_edges and c_edge_weights
   //
-  NavigableLinkedList<NodeID, ContractionEdge> edge_buffer_ets;
+  NavigableLinkedList<NodeID, Edge> edge_buffer_ets;
 
   START_TIMER("Graph construction");
   tbb::parallel_for(tbb::blocked_range<NodeID>(0, c_n), [&](const auto &r) {
@@ -168,8 +169,7 @@ ContractionResult contract(const Graph &graph, const scalable_vector<NodeID> &cl
   // Construct rest of the coarse graph: edges, edge weights
   //
 
-  all_buffered_nodes = ts_navigable_list::combine<NodeID, ContractionEdge>(edge_buffer_ets,
-                                                                           std::move(all_buffered_nodes));
+  all_buffered_nodes = ts_navigable_list::combine<NodeID, Edge>(edge_buffer_ets, std::move(all_buffered_nodes));
 
   START_TIMER("Allocation");
   StaticArray<NodeID> c_edges{c_m};

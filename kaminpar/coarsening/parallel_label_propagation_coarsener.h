@@ -231,6 +231,6 @@ private:
   std::vector<scalable_vector<NodeID>> _mapping;
   LabelPropagationClustering _label_propagation_core;
   const CoarseningContext &_c_ctx;
-  graph::ContractionMemoryContext _contraction_m_ctx{};
+  graph::contraction::MemoryContext _contraction_m_ctx{};
 };
 } // namespace kaminpar
