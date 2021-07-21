@@ -254,7 +254,9 @@ PartitionContext create_bipartition_context(const PartitionContext &k_p_ctx, con
 double compute_2way_adaptive_epsilon(const PartitionContext &p_ctx, NodeWeight subgraph_total_node_weight,
                                      BlockID subgraph_final_k);
 
-NodeWeight compute_max_cluster_weight(const Graph &c_graph, const PartitionContext &input_p_ctx,
+NodeWeight compute_max_cluster_weight(NodeID n, NodeWeight total_node_weight, const PartitionContext &input_p_ctx,
                                       const CoarseningContext &c_ctx);
 
+NodeWeight compute_max_cluster_weight(const Graph &c_graph, const PartitionContext &input_p_ctx,
+                                      const CoarseningContext &c_ctx);
 } // namespace kaminpar

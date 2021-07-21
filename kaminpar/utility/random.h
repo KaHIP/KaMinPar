@@ -38,6 +38,10 @@ public:
     return static_cast<NodeID>(random_index(0, static_cast<std::size_t>(graph.n())));
   }
 
+  bool random_bool(const double prob) {
+    return std::uniform_real_distribution<>(0, 1)(_generator) <= prob;
+  }
+
   template<typename Container>
   requires requires(Container c) {
     c.begin();

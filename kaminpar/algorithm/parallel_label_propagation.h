@@ -36,7 +36,7 @@ namespace kaminpar {
 /**
  * Generic implementation of parallelized label propagation.
  */
-template<typename Derived, typename ClusterID, typename ClusterWeight, typename LargeMap = FastResetArray<EdgeWeight>>
+template<typename Derived, typename ClusterID, typename ClusterWeight, typename LargeMap = FastResetArray<EdgeWeight>, typename GraphType = Graph>
 class LabelPropagation {
   SET_DEBUG(false);
   SET_STATISTICS(false);
@@ -53,11 +53,11 @@ class LabelPropagation {
   static constexpr std::size_t kNumberOfNodePermutations = 64;
 
 public:
-  void set_large_degree_threshold(const Degree large_degree_threshold) {
+  void set_large_degree_threshold(const ClusterID large_degree_threshold) {
     _large_degree_threshold = large_degree_threshold;
   }
 
-  void set_max_num_neighbors(const Degree max_num_neighbors) { _max_num_neighbors = max_num_neighbors; }
+  void set_max_num_neighbors(const ClusterID max_num_neighbors) { _max_num_neighbors = max_num_neighbors; }
 
   [[nodiscard]] Degree large_degree_threshold() const { return _large_degree_threshold; }
 
@@ -78,11 +78,11 @@ protected:
     ClusterWeight current_cluster_weight;
   };
 
-  LabelPropagation(const NodeID max_n, const ClusterID max_num_clusters) : _max_n{max_n} {
+  LabelPropagation(const ClusterID max_n, const ClusterID max_num_clusters) : _max_n{max_n} {
     tbb::parallel_invoke([&] { _active.resize(_max_n); }, [&] { _cluster_weights.resize(max_num_clusters); });
   }
 
-  void initialize(const Graph *graph) {
+  void initialize(const GraphType *graph) {
     _graph = graph;
     reset_state();
   }
@@ -90,13 +90,13 @@ protected:
   void reset_state() {
     tbb::parallel_invoke(
         [&] {
-          tbb::parallel_for(static_cast<NodeID>(0), _graph->n(), [&](const NodeID u) {
+          tbb::parallel_for(static_cast<ClusterID>(0), _graph->n(), [&](const auto u) {
             _active[u] = 1;
             derived_reset_node_state(u);
           });
         },
         [&] {
-          tbb::parallel_for(static_cast<ClusterID>(0), derived_num_clusters(), [&](const ClusterID cluster) { //
+          tbb::parallel_for(static_cast<ClusterID>(0), derived_num_clusters(), [&](const auto cluster) { //
             _cluster_weights[cluster] = derived_initial_cluster_weight(cluster);
           });
         });
@@ -368,12 +368,12 @@ private:
   }
 
 protected:
-  const NodeID _max_n;
+  const ClusterID _max_n;
   scalable_vector<parallel::IntegralAtomicWrapper<ClusterWeight>> _cluster_weights;
-  Degree _large_degree_threshold{std::numeric_limits<Degree>::max()};
-  Degree _max_num_neighbors{std::numeric_limits<Degree>::max()};
+  ClusterID _large_degree_threshold{std::numeric_limits<ClusterID>::max()};
+  ClusterID _max_num_neighbors{std::numeric_limits<ClusterID>::max()};
 
-  const Graph *_graph{nullptr};
+  const GraphType *_graph{nullptr};
 
 private:
   scalable_vector<parallel::IntegralAtomicWrapper<uint8_t>> _active;

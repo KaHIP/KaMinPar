@@ -65,7 +65,7 @@ void print_statistics(const PartitionedGraph &p_graph, const Context &ctx) {
     LOG << "-> block weights:";
     LOG << logger::TABLE << p_graph.block_weights();
   }
-  if (p_graph.k() != ctx.partition.k || !feasible) { ERROR << "*** Partition is infeasible!"; }
+  if (p_graph.k() != ctx.partition.k || !feasible) { LOG_ERROR << "*** Partition is infeasible!"; }
 }
 
 std::string generate_partition_filename(const Context &ctx) {
@@ -133,7 +133,7 @@ int main(int argc, char *argv[]) {
     remove_isolated_nodes = info.has_isolated_nodes && ctx.partition.remove_isolated_nodes;
     NodePermutations permutations = rearrange_and_remove_isolated_nodes(remove_isolated_nodes, ctx.partition, nodes,
                                                                         edges, node_weights, edge_weights,
-                                                                        info.total_node_weight);
+                                                                        static_cast<NodeWeight>(info.total_node_weight));
     STOP_TIMER();
     STOP_TIMER();
 

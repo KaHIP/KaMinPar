@@ -17,11 +17,15 @@ Moreover, for large values of k, it is an order of magnitude faster than competi
 * CMake 
 * Intel Thread Building Blocks library (TBB)
 
+To build the distributed graph partitioner, you also need:
+
+* MPI 
+
 ### Building KaMinPar
 
 To build the software, clone this repository and type
 ```shell
-./build.sh
+./build.sh [DISTRIBUTED]
 ```
 
 Alternatively, you can use the standard CMake build process:
@@ -29,9 +33,10 @@ Alternatively, you can use the standard CMake build process:
 1. Clone the repository including submodules: `git clone --depth=1 --recursive git@github.com:KaHIP/KaMinPar.git`
 2. Create a build: `mkdir build && cd build`
 3. Run CMake: `cmake .. -DCMAKE_BUILD_TYPE=Release`
-4. Build the software: `make -j`
+4. Build the software: `make KaMinPar -j`
+5. (optional) Build the distributed software: `make dKaMinPar -j`
 
-The resulting binary is located in `build/apps/KaMinPar`.
+The resulting binary is located in `build/apps/`.
 
 ## Running KaMinPar
 

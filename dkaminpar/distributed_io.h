@@ -19,29 +19,27 @@
 ******************************************************************************/
 #pragma once
 
-#include "kaminpar/datastructure/graph.h"
-#include "kaminpar/datastructure/ts_navigable_linked_list.h"
-#include "kaminpar/parallel.h"
+#include "datastructure/distributed_graph.h"
+#include "utility/mpi_helper.h"
 
-namespace kaminpar::graph {
-struct ContractionEdge {
-  NodeID target;
-  EdgeWeight weight;
-};
+#include <fstream>
+#include <string>
 
-struct ContractionMemoryContext {
-  scalable_vector<NodeID> buckets;
-  scalable_vector<parallel::IntegralAtomicWrapper<NodeID>> buckets_index;
-  scalable_vector<parallel::IntegralAtomicWrapper<NodeID>> leader_mapping;
-  scalable_vector<NavigationMarker<NodeID, ContractionEdge>> all_buffered_nodes;
-};
+namespace dkaminpar::io {
+namespace metis {
+DistributedGraph read_node_balanced(const std::string &filename);
+DistributedGraph read_edge_balanced(const std::string &filename);
+void write(const std::string &filename, const DistributedGraph &graph, bool write_node_weights = true,
+           bool write_edge_weights = true);
+} // namespace metis
 
-struct ContractionResult {
-  Graph graph;
-  scalable_vector<NodeID> mapping;
-  ContractionMemoryContext m_ctx;
-};
-
-ContractionResult contract(const Graph &r, const scalable_vector<NodeID> &clustering,
-                           ContractionMemoryContext m_ctx = {});
-} // namespace kaminpar::graph
+namespace partition {
+template<typename Container>
+void write(const std::string &filename, const Container &partition) {
+  mpi::sequentially([&] {
+    std::ofstream out(filename, std::ios_base::out | std::ios_base::app);
+    for (const DBlockID &b : partition) { out << b << "\n"; }
+  });
+}
+} // namespace partition
+} // namespace dkaminpar::io

@@ -391,19 +391,19 @@ double compute_2way_adaptive_epsilon(const PartitionContext &p_ctx, const NodeWe
   return adaptive_epsilon;
 }
 
-NodeWeight compute_max_cluster_weight(const Graph &c_graph, const PartitionContext &input_p_ctx,
+NodeWeight compute_max_cluster_weight(const NodeID n, const NodeWeight total_node_weight, const PartitionContext &input_p_ctx,
                                       const CoarseningContext &c_ctx) {
   double max_cluster_weight = 0.0;
 
   switch (c_ctx.cluster_weight_limit) {
     case ClusterWeightLimit::EPSILON_BLOCK_WEIGHT: {
-      const BlockID k_prime = std::clamp<BlockID>(c_graph.n() / c_ctx.contraction_limit, 2, input_p_ctx.k);
-      max_cluster_weight = (input_p_ctx.epsilon * c_graph.total_node_weight()) / k_prime;
+      const BlockID k_prime = std::clamp<BlockID>(n / c_ctx.contraction_limit, 2, input_p_ctx.k);
+      max_cluster_weight = (input_p_ctx.epsilon * total_node_weight) / k_prime;
       break;
     }
 
     case ClusterWeightLimit::BLOCK_WEIGHT:
-      max_cluster_weight = (1.0 + input_p_ctx.epsilon) * c_graph.total_node_weight() / input_p_ctx.k;
+      max_cluster_weight = (1.0 + input_p_ctx.epsilon) * total_node_weight / input_p_ctx.k;
       break;
 
     case ClusterWeightLimit::ONE: max_cluster_weight = 1.0; break;
@@ -412,5 +412,10 @@ NodeWeight compute_max_cluster_weight(const Graph &c_graph, const PartitionConte
   }
 
   return static_cast<NodeWeight>(max_cluster_weight * c_ctx.cluster_weight_multiplier);
+}
+
+NodeWeight compute_max_cluster_weight(const Graph &c_graph, const PartitionContext &input_p_ctx,
+                                      const CoarseningContext &c_ctx) {
+  return compute_max_cluster_weight(c_graph.n(), c_graph.total_node_weight(), input_p_ctx, c_ctx);
 }
 } // namespace kaminpar

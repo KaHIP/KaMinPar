@@ -19,29 +19,24 @@
 ******************************************************************************/
 #pragma once
 
-#include "kaminpar/datastructure/graph.h"
-#include "kaminpar/datastructure/ts_navigable_linked_list.h"
-#include "kaminpar/parallel.h"
+#include <concepts>
+#include <utility>
 
-namespace kaminpar::graph {
-struct ContractionEdge {
-  NodeID target;
-  EdgeWeight weight;
-};
-
-struct ContractionMemoryContext {
-  scalable_vector<NodeID> buckets;
-  scalable_vector<parallel::IntegralAtomicWrapper<NodeID>> buckets_index;
-  scalable_vector<parallel::IntegralAtomicWrapper<NodeID>> leader_mapping;
-  scalable_vector<NavigationMarker<NodeID, ContractionEdge>> all_buffered_nodes;
-};
-
-struct ContractionResult {
-  Graph graph;
-  scalable_vector<NodeID> mapping;
-  ContractionMemoryContext m_ctx;
-};
-
-ContractionResult contract(const Graph &r, const scalable_vector<NodeID> &clustering,
-                           ContractionMemoryContext m_ctx = {});
-} // namespace kaminpar::graph
+namespace dkaminpar::math {
+/**
+ * Computes the first (inclusive) and last (exclusive) element that should be processed on a PE.
+ *
+ * @param n Number of elements.
+ * @param rank Rank of this PE.
+ * @param size Number of PEs that process the elements.
+ * @return First (inclusive) and last (exclusive) element that should be processed by PE `rank`.
+ */
+template<std::integral Int>
+std::pair<Int, Int> compute_local_range(const Int n, const Int size, const Int rank) {
+  const Int chunk = n / size;
+  const Int remainder = n % size;
+  const Int from = rank * chunk + std::min<Int>(rank, remainder);
+  const Int to = std::min<Int>(from + ((rank < remainder) ? chunk + 1 : chunk), n);
+  return {from, to};
+}
+} // namespace dkaminpar::math

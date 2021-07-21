@@ -85,8 +85,6 @@ void copy_subgraph_partitions(PartitionedGraph &p_graph,
   p_graph.reinit_block_weights();
 }
 
-
-
 /*
  * Builds a node permutation perm[x] such that the following condition is satisfied:
  * let
