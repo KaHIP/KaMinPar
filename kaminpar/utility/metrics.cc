@@ -6,18 +6,17 @@
 
 namespace kaminpar::metrics {
 EdgeWeight edge_cut(const PartitionedGraph &p_graph, tag::Parallel) {
-  tbb::enumerable_thread_specific<int64_t> cut{0};
+  tbb::enumerable_thread_specific<int64_t> cut_ets{0};
   tbb::parallel_for(tbb::blocked_range(static_cast<NodeID>(0), p_graph.n()), [&](const auto &r) {
-    int64_t &local_cut = cut.local();
-
+    auto &cut = cut_ets.local();
     for (NodeID u = r.begin(); u < r.end(); ++u) {
       for (const auto &[e, v] : p_graph.neighbors(u)) {
-        local_cut += (p_graph.block(u) != p_graph.block(v)) ? p_graph.edge_weight(e) : 0;
+        cut += (p_graph.block(u) != p_graph.block(v)) ? p_graph.edge_weight(e) : 0;
       }
     }
   });
 
-  int64_t global_cut = cut.combine(std::plus<>{});
+  int64_t global_cut = cut_ets.combine(std::plus<>{});
   ASSERT(global_cut % 2 == 0);
   global_cut /= 2;
   ALWAYS_ASSERT(0 <= global_cut && global_cut <= std::numeric_limits<EdgeWeight>::max()) << V(global_cut);

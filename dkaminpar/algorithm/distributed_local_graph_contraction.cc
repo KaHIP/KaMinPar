@@ -26,10 +26,12 @@
 #include <tbb/parallel_invoke.h>
 
 namespace dkaminpar::graph {
+using namespace contraction;
+
 SET_DEBUG(true);
 
-ContractionResult contract_locally(const DistributedGraph &graph, const scalable_vector<DNodeID> &clustering,
-                                   ContractionMemoryContext m_ctx) {
+Result contract_locally(const DistributedGraph &graph, const scalable_vector<DNodeID> &clustering,
+                        MemoryContext m_ctx) {
   const auto [size, rank] = mpi::get_comm_info();
 
   auto &buckets_index = m_ctx.buckets_index;
@@ -185,12 +187,8 @@ ContractionResult contract_locally(const DistributedGraph &graph, const scalable
 
   DBG << V(c_n) << V(c_next_ghost_node);
 
-  //
-  // Remap coarse node IDs for ghost nodes to local coarse node IDs
-  //
-
-  tbb::enumerable_thread_specific<shm::RatingMap<DEdgeWeight>> collector{
-      [&] { return shm::RatingMap<DEdgeWeight>(c_next_ghost_node); }};
+  using Map = shm::RatingMap<DEdgeWeight, shm::FastResetArray<DEdgeWeight, DNodeID>>;
+  tbb::enumerable_thread_specific<Map> collector_ets{[&] { return Map(c_next_ghost_node); }};
 
   //
   // We build the coarse graph in multiple steps:
@@ -203,18 +201,14 @@ ContractionResult contract_locally(const DistributedGraph &graph, const scalable
   // (2) We finalize c_nodes arrays by computing a prefix sum over all coarse node degrees
   // (3) We copy coarse edges and coarse edge weights from the auxiliary arrays to c_edges and c_edge_weights
   //
-
-  tbb::enumerable_thread_specific<LocalEdgeMemory> shared_edge_buffer;
-  tbb::enumerable_thread_specific<std::vector<BufferNode>> shared_node_buffer;
+  shm::NavigableLinkedList<DNodeID, Edge> edge_buffer_ets;
 
   tbb::parallel_for(tbb::blocked_range<DNodeID>(0, c_n), [&](const auto &r) {
-    auto &local_collector = collector.local();
-    auto &local_edge_buffer = shared_edge_buffer.local();
-    auto &local_node_buffer = shared_node_buffer.local();
+    auto &local_collector = collector_ets.local();
+    auto &local_edge_buffer = edge_buffer_ets.local();
 
     for (DNodeID c_u = r.begin(); c_u != r.end(); ++c_u) {
-      std::size_t edge_buffer_position = local_edge_buffer.get_current_position();
-      local_node_buffer.emplace_back(c_u, edge_buffer_position, &local_edge_buffer);
+      local_edge_buffer.mark(c_u);
 
       const std::size_t first = buckets_index[c_u];
       const std::size_t last = buckets_index[c_u + 1];
@@ -237,7 +231,7 @@ ContractionResult contract_locally(const DistributedGraph &graph, const scalable
         // since we don't know the value of c_nodes[c_u] yet (so far, it only holds the nodes degree), we can't place the
         // edges of c_u in the c_edges and c_edge_weights arrays; hence, we store them in auxiliary arrays and note their
         // position in the auxiliary arrays
-        for (const auto [c_v, weight] : map.entries()) { local_edge_buffer.push(c_v, weight); }
+        for (const auto [c_v, weight] : map.entries()) { local_edge_buffer.push_back({c_v, weight}); }
         map.clear();
       };
 
@@ -261,43 +255,24 @@ ContractionResult contract_locally(const DistributedGraph &graph, const scalable
   //
   // Construct rest of the coarse graph: edges, edge weights
   //
-  if (all_buffered_nodes.size() < c_n) { all_buffered_nodes.resize(c_n); }
-
-  shm::parallel::IntegralAtomicWrapper<std::size_t> global_pos = 0;
-
-  tbb::parallel_invoke(
-      [&] {
-        tbb::parallel_for(shared_edge_buffer.range(), [&](auto &r) {
-          for (auto &buffer : r) {
-            if (!buffer.current_chunk.empty()) { buffer.flush(); }
-          }
-        });
-      },
-      [&] {
-        tbb::parallel_for(shared_node_buffer.range(), [&](const auto &r) {
-          for (const auto &buffer : r) {
-            const std::size_t local_pos = global_pos.fetch_add(buffer.size());
-            std::copy(buffer.begin(), buffer.end(), all_buffered_nodes.begin() + local_pos);
-          }
-        });
-      });
+  all_buffered_nodes = shm::ts_navigable_list::combine<DNodeID, Edge>(edge_buffer_ets, std::move(all_buffered_nodes));
 
   scalable_vector<DNodeID> c_edges(c_m);
   scalable_vector<DEdgeWeight> c_edge_weights(c_m);
 
   // build coarse graph
   tbb::parallel_for(static_cast<DNodeID>(0), c_n, [&](const DNodeID i) {
-    const auto &buffered_node = all_buffered_nodes[i];
-    const auto *chunks = buffered_node.chunks;
-    const DNodeID c_u = buffered_node.c_u;
+    const auto &marker = all_buffered_nodes[i];
+    const auto *list = marker.local_list;
+    const DNodeID c_u = marker.key;
 
     const DEdgeID c_u_degree = c_nodes[c_u + 1] - c_nodes[c_u];
     const DEdgeID first_target_index = c_nodes[c_u];
-    const DEdgeID first_source_index = buffered_node.position;
+    const DEdgeID first_source_index = marker.position;
 
     for (std::size_t j = 0; j < c_u_degree; ++j) {
       const auto to = first_target_index + j;
-      const auto [c_v, weight] = chunks->get(first_source_index + j);
+      const auto [c_v, weight] = list->get(first_source_index + j);
       c_edges[to] = c_v;
       c_edge_weights[to] = weight;
     }

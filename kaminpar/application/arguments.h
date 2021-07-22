@@ -50,7 +50,7 @@ void create_coarsening_lp_context_options(LabelPropagationCoarseningContext &c_l
       .argument(prefix + "-num-iterations", "Number of label propagation iterations.", &c_lp_ctx.num_iterations)
       .argument(prefix + "-large-degree-threshold", "Ignore all nodes with degree higher than this during coarsening.", &c_lp_ctx.large_degree_threshold)
       .argument(prefix + "-merge-nonadjacent-clusters-threshold", "If the graph shrunk by less than this factor, consider merging nonadjacent singleton clusters.", &c_lp_ctx.merge_nonadjacent_clusters_threshold)
-      .argument(prefix + "-merge-singleton-clusters", "If set, cluster isolated nodes.", &c_lp_ctx.merge_singleton_clusters)
+      .argument(prefix + "-merge-singleton-clusters", "If set, cluster isolated nodes.", &c_lp_ctx.merge_isolated_clusters)
       .argument(prefix + "-max-num-neighbors", "Maximum numbers of neighbors that are scanned before deciding a nodes best cluster.", &c_lp_ctx.max_num_neighbors)
       ;
 }

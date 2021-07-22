@@ -24,7 +24,7 @@
 #include "datastructure/sparse_map.h"
 
 namespace kaminpar {
-template<typename Value, typename LargeMap = FastResetArray<Value>>
+template<typename Value, typename LargeMap = FastResetArray<Value, NodeID>>
 class RatingMap {
   using SuperSmallMap = FixedSizeSparseMap<NodeID, Value, 128>;
   using SmallMap = FixedSizeSparseMap<NodeID, Value>;

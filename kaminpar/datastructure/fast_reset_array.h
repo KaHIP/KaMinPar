@@ -7,13 +7,13 @@
 #include <vector>
 
 namespace kaminpar {
-template<typename T>
+template<typename Value, typename Size = std::size_t>
 class FastResetArray {
 public:
-  using value_type = T;
-  using size_type = std::size_t;
-  using reference = T &;
-  using const_reference = const T &;
+  using value_type = Value;
+  using reference = Value &;
+  using const_reference = const Value &;
+  using size_type = Size;
 
   explicit FastResetArray(const std::size_t capacity = 0) : _data(capacity) {}
 
@@ -39,8 +39,8 @@ public:
   }
 
   [[nodiscard]] auto entries() {
-    return _used_entries | std::views::transform([this](const size_type &entry) {
-             return std::pair<value_type, T>{entry, _data[entry]};
+    return _used_entries | std::views::transform([this](const size_type &entry) -> std::pair<size_type, value_type> {
+             return std::pair<size_type, value_type>{entry, _data[entry]};
            });
   }
 
@@ -54,10 +54,10 @@ public:
   [[nodiscard]] std::size_t capacity() const { return _data.size(); }
   void resize(const std::size_t capacity) { _data.resize(capacity); }
 
-  [[nodiscard]] std::size_t memory_in_kb() const { return _data.size() * sizeof(T) / 1000; }
+  [[nodiscard]] std::size_t memory_in_kb() const { return _data.size() * sizeof(value_type) / 1000; }
 
 private:
-  std::vector<T> _data;
+  std::vector<value_type> _data;
   std::vector<size_type> _used_entries;
 };
 } // namespace kaminpar

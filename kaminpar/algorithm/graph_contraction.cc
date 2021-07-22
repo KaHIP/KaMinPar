@@ -17,17 +17,19 @@
  * along with KaMinPar.  If not, see <http://www.gnu.org/licenses/>.
  *
 ******************************************************************************/
-#include "algorithm/graph_contraction.h"
+#include "kaminpar/algorithm/graph_contraction.h"
 
-#include "datastructure/rating_map.h"
-#include "utility/timer.h"
+#include "kaminpar/datastructure/rating_map.h"
+#include "kaminpar/datastructure/ts_navigable_linked_list.h"
+#include "kaminpar/utility/timer.h"
 
 #include <tbb/parallel_for.h>
 #include <tbb/parallel_invoke.h>
 
 namespace kaminpar::graph {
-ContractionResult contract(const Graph &graph, const scalable_vector<NodeID> &clustering,
-                           ContractionMemoryContext m_ctx) {
+using namespace contraction;
+
+Result contract(const Graph &graph, const scalable_vector<NodeID> &clustering, MemoryContext m_ctx) {
   auto &buckets_index = m_ctx.buckets_index;
   auto &buckets = m_ctx.buckets;
   auto &leader_mapping = m_ctx.leader_mapping;
@@ -106,19 +108,15 @@ ContractionResult contract(const Graph &graph, const scalable_vector<NodeID> &cl
   // (2) We finalize c_nodes arrays by computing a prefix sum over all coarse node degrees
   // (3) We copy coarse edges and coarse edge weights from the auxiliary arrays to c_edges and c_edge_weights
   //
-
-  tbb::enumerable_thread_specific<LocalEdgeMemory> shared_edge_buffer;
-  tbb::enumerable_thread_specific<std::vector<BufferNode>> shared_node_buffer;
+  NavigableLinkedList<NodeID, Edge> edge_buffer_ets;
 
   START_TIMER("Graph construction");
   tbb::parallel_for(tbb::blocked_range<NodeID>(0, c_n), [&](const auto &r) {
     auto &local_collector = collector.local();
-    auto &local_edge_buffer = shared_edge_buffer.local();
-    auto &local_node_buffer = shared_node_buffer.local();
+    auto &local_edge_buffer = edge_buffer_ets.local();
 
     for (NodeID c_u = r.begin(); c_u != r.end(); ++c_u) {
-      std::size_t edge_buffer_position = local_edge_buffer.get_current_position();
-      local_node_buffer.emplace_back(c_u, edge_buffer_position, &local_edge_buffer);
+      local_edge_buffer.mark(c_u);
 
       const std::size_t first = buckets_index[c_u];
       const std::size_t last = buckets_index[c_u + 1];
@@ -145,7 +143,7 @@ ContractionResult contract(const Graph &graph, const scalable_vector<NodeID> &cl
         // since we don't know the value of c_nodes[c_u] yet (so far, it only holds the nodes degree), we can't place the
         // edges of c_u in the c_edges and c_edge_weights arrays; hence, we store them in auxiliary arrays and note their
         // position in the auxiliary arrays
-        for (const auto [c_v, weight] : map.entries()) { local_edge_buffer.push(c_v, weight); }
+        for (const auto [c_v, weight] : map.entries()) { local_edge_buffer.push_back({c_v, weight}); }
         map.clear();
       };
 
@@ -171,28 +169,7 @@ ContractionResult contract(const Graph &graph, const scalable_vector<NodeID> &cl
   // Construct rest of the coarse graph: edges, edge weights
   //
 
-  START_TIMER("Allocation");
-  if (all_buffered_nodes.size() < c_n) { all_buffered_nodes.resize(c_n); }
-  STOP_TIMER();
-
-  parallel::IntegralAtomicWrapper<std::size_t> global_pos = 0;
-
-  tbb::parallel_invoke(
-      [&] {
-        tbb::parallel_for(shared_edge_buffer.range(), [&](auto &r) {
-          for (auto &buffer : r) {
-            if (!buffer.current_chunk.empty()) { buffer.flush(); }
-          }
-        });
-      },
-      [&] {
-        tbb::parallel_for(shared_node_buffer.range(), [&](const auto &r) {
-          for (const auto &buffer : r) {
-            const std::size_t local_pos = global_pos.fetch_add(buffer.size());
-            std::copy(buffer.begin(), buffer.end(), all_buffered_nodes.begin() + local_pos);
-          }
-        });
-      });
+  all_buffered_nodes = ts_navigable_list::combine<NodeID, Edge>(edge_buffer_ets, std::move(all_buffered_nodes));
 
   START_TIMER("Allocation");
   StaticArray<NodeID> c_edges{c_m};
@@ -202,17 +179,17 @@ ContractionResult contract(const Graph &graph, const scalable_vector<NodeID> &cl
   // build coarse graph
   START_TIMER("Graph construction");
   tbb::parallel_for(static_cast<NodeID>(0), c_n, [&](const NodeID i) {
-    const auto &buffered_node = all_buffered_nodes[i];
-    const auto *chunks = buffered_node.chunks;
-    const NodeID c_u = buffered_node.c_u;
+    const auto &marker = all_buffered_nodes[i];
+    const auto *list = marker.local_list;
+    const NodeID c_u = marker.key;
 
     const Degree c_u_degree = c_nodes[c_u + 1] - c_nodes[c_u];
     const EdgeID first_target_index = c_nodes[c_u];
-    const EdgeID first_source_index = buffered_node.position;
+    const EdgeID first_source_index = marker.position;
 
     for (std::size_t j = 0; j < c_u_degree; ++j) {
       const auto to = first_target_index + j;
-      const auto [c_v, weight] = chunks->get(first_source_index + j);
+      const auto [c_v, weight] = list->get(first_source_index + j);
       c_edges[to] = c_v;
       c_edge_weights[to] = weight;
     }
