@@ -102,7 +102,7 @@ Csv aggregate(const Csv &csv, const std::vector<std::string> &group_by,
     if (!aggregate_indices.empty()) {
       const auto &values = entries[0];
       if (expected_rows_per_aggregate != 0 && values.size() != expected_rows_per_aggregate) {
-        WARNING << "Expected " << expected_rows_per_aggregate << " rows to aggregate for key " << key
+        LOG_WARNING << "Expected " << expected_rows_per_aggregate << " rows to aggregate for key " << key
                 << ", but only got " << values.size();
       }
     }
@@ -155,7 +155,7 @@ Csv load_csv(const std::string &filename, const bool filter_failed, const char d
   }
 
   if (!quiet && filtered_rows > 0) {
-    WARNING << "While loading " << filename << ": removed " << filtered_rows << " failed runs";
+    LOG_WARNING << "While loading " << filename << ": removed " << filtered_rows << " failed runs";
   }
   return csv;
 }

@@ -17,13 +17,13 @@
  * along with KaMinPar.  If not, see <http://www.gnu.org/licenses/>.
  *
 ******************************************************************************/
-#include "arguments_parser.h"
-#include "datastructure/graph.h"
-#include "definitions.h"
-#include "io.h"
-#include "tools/graph_tools.h"
-#include "utility/console_io.h"
-#include "utility/utility.h"
+#include "graph_tools.h"
+#include "kaminpar/application/arguments_parser.h"
+#include "kaminpar/datastructure/graph.h"
+#include "kaminpar/definitions.h"
+#include "kaminpar/io.h"
+#include "kaminpar/utility/console_io.h"
+#include "kaminpar/utility/utility.h"
 
 #include <algorithm>
 #include <fstream>
@@ -240,6 +240,8 @@ void print_verbose(const Graph &graph, Statistics &stats, const Options &opts) {
       LOG << " - k=" << core.k << ": "
           << "n=" << core.n << " "
           << "m=" << core.m << " "
+          << "avg_node_weight=" << 1.0 * core.total_node_weight / core.n << " "
+          << "avg_edge_weight=" << 1.0 * core.total_edge_weight / core.m << " "
           << "density=" << (1.0 * core.m / core.n / (core.n - 1)) << " ";
     }
     LOG;
