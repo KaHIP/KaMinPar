@@ -20,7 +20,7 @@
 #pragma once
 
 #include "datastructure/distributed_graph.h"
-#include "utility/mpi_helper.h"
+#include "mpi_utils.h"
 
 #include <fstream>
 #include <string>

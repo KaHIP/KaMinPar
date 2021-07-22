@@ -21,8 +21,8 @@
 
 #include "dkaminpar/datastructure/distributed_graph_builder.h"
 #include "dkaminpar/utility/distributed_math.h"
-#include "dkaminpar/utility/mpi_helper.h"
 #include "kaminpar/io.h"
+#include "mpi_utils.h"
 
 #include <io.h>
 

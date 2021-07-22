@@ -181,10 +181,33 @@ inline MPI_Status probe(const int source, const int tag, MPI_Comm comm = MPI_COM
 }
 
 template<typename T>
-inline int get_count(const MPI_Status *status) {
+inline int get_count(const MPI_Status &status) {
   int count;
-  MPI_Get_count(status, type::get<T>(), &count);
+  MPI_Get_count(&status, type::get<T>(), &count);
   return count;
+}
+
+//
+// Ranges interface for point-to-point operations
+//
+
+template<std::ranges::contiguous_range R>
+int send(const R &buf, const int dest, const int tag, MPI_Comm comm = MPI_COMM_WORLD) {
+  return send(std::ranges::data(buf), std::ranges::ssize(buf), dest, tag, comm);
+}
+
+template<std::ranges::contiguous_range R>
+int isend(const R &buf, const int dest, const int tag, MPI_Request &request, MPI_Comm comm = MPI_COMM_WORLD) {
+  return isend(std::ranges::data(buf), std::ranges::ssize(buf), dest, tag, &request, comm);
+}
+
+template<typename T, template<typename> typename Container = scalable_vector>
+Container<T> probe_recv(const int source, const int tag, MPI_Status *status = MPI_STATUS_IGNORE,
+                        MPI_Comm comm = MPI_COMM_WORLD) {
+  const auto count = mpi::get_count<T>(mpi::probe(source, tag, comm));
+  Container<T> buf(count);
+  mpi::recv(buf.data(), count, source, tag, status, comm);
+  return buf;
 }
 
 //
@@ -193,6 +216,11 @@ inline int get_count(const MPI_Status *status) {
 
 inline int waitall(int count, MPI_Request *array_of_requests, MPI_Status *array_of_statuses = MPI_STATUS_IGNORE) {
   return MPI_Waitall(count, array_of_requests, array_of_statuses);
+}
+
+template<std::ranges::contiguous_range R>
+int waitall(R &requests, MPI_Status *array_of_statuses = MPI_STATUS_IGNORE) {
+  return MPI_Waitall(std::ranges::size(requests), std::ranges::data(requests), array_of_statuses);
 }
 
 //

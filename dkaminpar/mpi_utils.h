@@ -24,10 +24,37 @@
 
 #include <concepts>
 #include <mpi.h>
+#include <ranges>
 #include <utility>
 #include <vector>
 
 namespace dkaminpar::mpi {
+template<template<typename> typename RecvContainer, std::ranges::contiguous_range SendBuffer,
+         template<typename> typename SendBufferContainer, typename RecvLambda>
+void exchange(const SendBufferContainer<SendBuffer> &send_buffers, RecvLambda &&recv_lambda, const int tag,
+              MPI_Comm comm = MPI_COMM_WORLD, const bool self = false) {
+  const auto [size, rank] = mpi::get_comm_info(comm);
+  std::vector<MPI_Request> requests;
+  requests.reserve(size);
+
+  for (PEID pe = 0; pe < size; ++pe) {
+    if (self || pe != rank) {
+      requests.emplace_back();
+      mpi::isend(send_buffers[pe], pe, tag, requests.back(), comm);
+    }
+  }
+
+  for (PEID pe = 0; pe < size; ++pe) {
+    if (self || pe != rank) {
+      using T = std::ranges::range_value_t<SendBuffer>;
+      auto recvbuf = mpi::probe_recv<T, RecvContainer>(pe, tag, MPI_STATUS_IGNORE, comm);
+      recv_lambda(pe, recvbuf);
+    }
+  }
+
+  mpi::waitall(requests);
+}
+
 template<typename Lambda>
 inline void sequentially(Lambda &&lambda, MPI_Comm comm = MPI_COMM_WORLD) {
   constexpr bool use_rank_argument = requires { lambda(int()); };

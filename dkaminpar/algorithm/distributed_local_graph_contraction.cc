@@ -19,7 +19,7 @@
 ******************************************************************************/
 #include "dkaminpar/algorithm/distributed_local_graph_contraction.h"
 
-#include "dkaminpar/utility/mpi_helper.h"
+#include "dkaminpar/mpi_utils.h"
 #include "kaminpar/datastructure/rating_map.h"
 
 #include <tbb/parallel_for.h>

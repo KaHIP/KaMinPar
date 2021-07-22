@@ -10,7 +10,7 @@ set(DKAMINPAR_SOURCE_FILES
         distributed_io.cc
         distributed_io.h
         utility/distributed_math.h
-        utility/mpi_helper.h
+        mpi_utils.h
         utility/distributed_metrics.h
         utility/vector_ets.h
         refinement/distributed_label_propagation_refiner.h

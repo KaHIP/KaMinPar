@@ -19,8 +19,8 @@
 ******************************************************************************/
 #include "dkaminpar/datastructure/distributed_graph.h"
 
+#include "dkaminpar/mpi_utils.h"
 #include "dkaminpar/mpi_wrapper.h"
-#include "dkaminpar/utility/mpi_helper.h"
 
 #include <ranges>
 
@@ -40,6 +40,65 @@ bool validate(const DistributedGraph &graph, const int root, MPI_Comm comm) {
   // check global n, global m
   ALWAYS_ASSERT(mpi::bcast(graph.global_n(), root, comm) == graph.global_n());
   ALWAYS_ASSERT(mpi::bcast(graph.global_m(), root, comm) == graph.global_m());
+
+  // check global node distribution
+  ALWAYS_ASSERT(static_cast<int>(graph.node_distribution().size()) == size + 1);
+  ALWAYS_ASSERT(graph.node_distribution().front() == 0);
+  ALWAYS_ASSERT(graph.node_distribution().back() == graph.global_n());
+  for (PEID pe = 1; pe < size + 1; ++pe) {
+    ALWAYS_ASSERT(mpi::bcast(graph.node_distribution(pe), root, comm) == graph.node_distribution(pe));
+    ALWAYS_ASSERT(rank + 1 != pe || graph.node_distribution(pe) - graph.node_distribution(pe - 1) == graph.n());
+  }
+
+  // check global edge distribution
+  ALWAYS_ASSERT(static_cast<int>(graph.edge_distribution().size()) == size + 1);
+  ALWAYS_ASSERT(graph.edge_distribution().front() == 0);
+  ALWAYS_ASSERT(graph.edge_distribution().back() == graph.global_m());
+  for (PEID pe = 1; pe < size + 1; ++pe) {
+    ALWAYS_ASSERT(mpi::bcast(graph.edge_distribution(pe), root, comm) == graph.edge_distribution(pe));
+    ALWAYS_ASSERT(rank + 1 != pe || graph.edge_distribution(pe) - graph.edge_distribution(pe - 1) == graph.m());
+  }
+
+  // check that ghost nodes are actually ghost nodes
+  for (DNodeID ghost_u : graph.ghost_nodes()) { ALWAYS_ASSERT(graph.ghost_owner(ghost_u) != rank); }
+
+  // check node weight of ghost nodes
+  {
+    struct GhostNodeWeightMessage {
+      DNodeID u;
+      DNodeWeight weight;
+    };
+
+    std::vector<std::vector<GhostNodeWeightMessage>> send_buffers(size);
+    std::vector<MPI_Request> send_requests;
+    send_requests.reserve(size);
+
+    for (DNodeID ghost_u : graph.ghost_nodes()) {
+      const PEID owner = graph.ghost_owner(ghost_u);
+      send_buffers[owner].push_back({graph.global_node(ghost_u), graph.node_weight(ghost_u)});
+    }
+    ALWAYS_ASSERT(send_buffers[rank].empty());
+
+    for (PEID pe = 0; pe < size; ++pe) {
+      if (pe != rank) {
+        send_requests.emplace_back();
+        mpi::isend(send_buffers[rank], pe, 0, send_requests.back(), comm);
+      }
+    }
+
+    for (PEID pe = 0; pe < size; ++pe) {
+      if (pe != rank) {
+        const auto data = mpi::probe_recv<GhostNodeWeightMessage>(pe, 0, MPI_STATUS_IGNORE, comm);
+        for (const auto [global_u, weight] : data) {
+          const DNodeID local_u = graph.local_node(global_u);
+          ALWAYS_ASSERT(graph.offset_n() <= global_u && global_u < graph.offset_n() + graph.n());
+          ALWAYS_ASSERT(graph.node_weight(local_u) == weight);
+        }
+      }
+    }
+
+    mpi::waitall(send_requests);
+  }
 
   return true;
 }
@@ -125,7 +184,7 @@ bool validate_partition(const DistributedPartitionedGraph &p_graph, MPI_Comm com
     if (ROOT(rank)) {
       for (int pe = 1; pe < size; ++pe) { // recv from all but root
         MPI_Status status = mpi::probe(pe, 0);
-        int count = mpi::get_count<std::uint64_t>(&status);
+        int count = mpi::get_count<std::uint64_t>(status);
         scalable_vector<std::uint64_t> recv_buffer(count);
         mpi::recv(recv_buffer.data(), count, pe, 0);
 

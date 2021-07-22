@@ -15,6 +15,8 @@
 #include <chrono>
 #include <fstream>
 #include <iostream>
+#include <tbb/enumerable_thread_specific.h>
+#include <tbb/parallel_for.h>
 
 using namespace kaminpar;
 using namespace std::string_literals;
@@ -133,7 +135,8 @@ int main(int argc, char *argv[]) {
     remove_isolated_nodes = info.has_isolated_nodes && ctx.partition.remove_isolated_nodes;
     NodePermutations permutations = rearrange_and_remove_isolated_nodes(remove_isolated_nodes, ctx.partition, nodes,
                                                                         edges, node_weights, edge_weights,
-                                                                        static_cast<NodeWeight>(info.total_node_weight));
+                                                                        static_cast<NodeWeight>(
+                                                                            info.total_node_weight));
     STOP_TIMER();
     STOP_TIMER();
 
@@ -154,6 +157,29 @@ int main(int argc, char *argv[]) {
       << "k=" << ctx.partition.k << " "
       << "epsilon=" << ctx.partition.epsilon << " ";
   LOG << "==> max_block_weight=" << ctx.partition.max_block_weight(0);
+
+  tbb::enumerable_thread_specific<int> ets{[&] { return 10; }};
+
+  tbb::parallel_for(static_cast<NodeID>(0), graph.n(), [&](const NodeID i) {
+    int &obj = ets.local();
+    LOG << i;
+  });
+
+  parallel::IntegralAtomicWrapper<int> atomic = 0;
+
+  scalable_vector<parallel::IntegralAtomicWrapper<int>> matched(graph.n(), 0);
+  // node u ---> node v <-- match this edge
+  {
+    NodeID v;
+    int expected = 0;
+    if (matched[v].compare_exchange_strong(expected, 1)) {
+      // ok
+    }
+
+  }
+
+
+  return 0;
 
   //
   // Perform actual partitioning

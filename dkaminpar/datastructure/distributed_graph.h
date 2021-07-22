@@ -147,7 +147,18 @@ public:
   }
 
   [[nodiscard]] const auto &node_distribution() const { return _node_distribution; }
+
+  [[nodiscard]] DNodeID node_distribution(const PEID pe) const {
+    ASSERT(static_cast<std::size_t>(pe) < _node_distribution.size());
+    return _node_distribution[pe];
+  }
+
   [[nodiscard]] const auto &edge_distribution() const { return _edge_distribution; }
+
+  [[nodiscard]] DEdgeID edge_distribution(const PEID pe) const {
+    ASSERT(static_cast<std::size_t>(pe) < _edge_distribution.size());
+    return _edge_distribution[pe];
+  }
 
   void print_info() const { DLOG << "global_n=" << global_n() << " local_n=" << n() << " ghost_n=" << ghost_n(); }
 

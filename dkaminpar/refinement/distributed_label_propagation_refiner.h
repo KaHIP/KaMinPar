@@ -20,8 +20,8 @@
 #pragma once
 
 #include "dkaminpar/datastructure/distributed_graph.h"
+#include "dkaminpar/mpi_utils.h"
 #include "dkaminpar/utility/distributed_math.h"
-#include "dkaminpar/utility/mpi_helper.h"
 #include "dkaminpar/utility/vector_ets.h"
 #include "kaminpar/datastructure/marker.h"
 #include "kaminpar/datastructure/rating_map.h"
