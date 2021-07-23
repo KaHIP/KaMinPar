@@ -20,41 +20,43 @@
 #pragma once
 
 #include "dkaminpar/datastructure/distributed_graph.h"
+#include "dkaminpar/distributed_context.h"
 #include "dkaminpar/distributed_definitions.h"
 
 #include <tbb/enumerable_thread_specific.h>
 
 namespace dkaminpar::metrics {
-DEdgeWeight edge_cut(const DistributedPartitionedGraph &p_graph) {
-  tbb::enumerable_thread_specific<DEdgeWeight> cut_ets;
+/*!
+ * Computes the number of edges cut in the part of the graph owned by this PE. Includes edges to ghost nodes. Since the
+ * graph is directed (there are no reverse edges from ghost nodes to interface nodes), undirected edges are counted
+ * twice.
+ * @param p_graph Partitioned graph.
+ * @return Weighted edge cut of @p p_graph with undirected edges counted twice.
+ */
+DEdgeWeight local_edge_cut(const DistributedPartitionedGraph &p_graph);
 
-  p_graph.pfor_nodes([&](const DNodeID u) {
-    const DBlockID u_block = p_graph.block(u);
-    for (const auto [e, v] : p_graph.neighbors(u)) {
-      if (u_block != p_graph.block(v)) {
-        cut_ets.local() += p_graph.edge_weight(e);
-      }
-    }
-  });
+/*!
+ * Computes the number of edges cut in the whole graph, i.e., across all PEs. Undirected edges are only counted once.
+ * @param p_graph Partitioned graph.
+ * @return Weighted edge cut across all PEs with undirected edges only counted once.
+ */
+DEdgeWeight edge_cut(const DistributedPartitionedGraph &p_graph);
 
-  const DEdgeWeight local_edge_cut = cut_ets.combine(std::plus{});
-  DEdgeWeight global_edge_cut;
-  MPI_Allreduce(&local_edge_cut, &global_edge_cut, 1, MPI_INT64_T, MPI_SUM, MPI_COMM_WORLD);
-  ASSERT(global_edge_cut % 2 == 0) << V(global_edge_cut) << V(local_edge_cut);
-  return global_edge_cut / 2;
-}
+/*!
+ * Computes the partition imbalance of the whole graph partition, i.e., across all PEs.
+ * The imbalance of a graph partition is defined as `max_block_weight / avg_block_weight`. Thus, a value of 1.0
+ * indicates that all blocks have the same weight, and a value of 2.0 means that the heaviest block has twice the
+ * weight of the average block.
+ * @param p_graph Partitioned graph.
+ * @return Imbalance of the partition across all PEs.
+ */
+double imbalance(const DistributedPartitionedGraph &p_graph);
 
-double imbalance(const DistributedPartitionedGraph &p_graph) {
-    const DNodeWeight local_total_node_weight = p_graph.total_node_weight();
-    DNodeWeight global_total_node_weight = 0;
-    MPI_Allreduce(&local_total_node_weight, &global_total_node_weight, 1, MPI_INT64_T, MPI_SUM, MPI_COMM_WORLD);
-
-    const double perfect_block_weight = std::ceil(1.0 * global_total_node_weight / p_graph.k());
-    double max_imbalance = 0.0;
-    for (const DBlockID b : p_graph.blocks()) {
-      max_imbalance = std::max(max_imbalance, p_graph.block_weight(b) / perfect_block_weight - 1.0);
-    }
-
-    return max_imbalance;
-}
-}
+/*!
+ * Computes whether the blocks of the given partition satisfy the balance constraint given by @p p_ctx.
+ * @param p_graph Partitioned graph.
+ * @param ctx Partition context describing the balance constraint.
+ * @return Whether @p p_graph satisfies the balance constraint given by @p p_ctx.
+ */
+bool is_feasible(const DistributedPartitionedGraph &p_graph, const DPartitionContext &p_ctx);
+} // namespace dkaminpar::metrics

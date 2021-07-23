@@ -17,9 +17,10 @@
  * along with KaMinPar.  If not, see <http://www.gnu.org/licenses/>.
  *
 ******************************************************************************/
-#include "dkaminpar/algorithm/distributed_local_graph_contraction.h"
+#include "dkaminpar/algorithm/distributed_graph_contraction.h"
 
 #include "dkaminpar/mpi_utils.h"
+#include "dkaminpar/mpi_graph_utils.h"
 #include "kaminpar/datastructure/rating_map.h"
 
 #include <tbb/parallel_for.h>
@@ -30,8 +31,8 @@ using namespace contraction;
 
 SET_DEBUG(true);
 
-Result contract_locally(const DistributedGraph &graph, const scalable_vector<DNodeID> &clustering,
-                        MemoryContext m_ctx) {
+Result contract_local_clustering(const DistributedGraph &graph, const scalable_vector<DNodeID> &clustering,
+                                 MemoryContext m_ctx) {
   const auto [size, rank] = mpi::get_comm_info();
 
   auto &buckets_index = m_ctx.buckets_index;
@@ -112,83 +113,40 @@ Result contract_locally(const DistributedGraph &graph, const scalable_vector<DNo
   });
 
   //
-  // Send coarse node IDs to adjacent PEs
+  // Sparse all-to-all for building node mapping for ghost nodes
   //
 
-  // Count messages
-  scalable_vector<shm::parallel::IntegralAtomicWrapper<std::size_t>> num_messages_to_pe(size);
-  graph.pfor_nodes([&](const DNodeID u) {
-    for (const auto [e, v] : graph.neighbors(u)) {
-      if (!graph.is_owned_node(v)) { num_messages_to_pe[graph.ghost_owner(v)] += 3; }
-    }
+  struct CoarseGhostNode {
+    DNodeID old_global_node;
+    DNodeID new_global_node;
+    DNodeWeight coarse_weight;
+  };
+
+  auto send_buffer = mpi::build_send_buffer_comm_vol<CoarseGhostNode>(graph, [&](const DNodeID u, const PEID) -> CoarseGhostNode {
+    return {
+      .old_global_node = graph.local_to_global_node(u),
+      .new_global_node = first_node + mapping[u],
+      .coarse_weight = c_node_weights[mapping[u]],
+    };
   });
-
-  scalable_vector<scalable_vector<std::int64_t>> send_buffer;
-  for (const auto &num : num_messages_to_pe) { send_buffer.emplace_back(num); }
-
-  // Prepare messages to ghost nodes
-  graph.pfor_nodes([&](const DNodeID u) {
-    for (const auto [e, v] : graph.neighbors(u)) {
-      if (!graph.is_owned_node(v)) { // interface node
-        const auto owner = graph.ghost_owner(v);
-        const std::size_t pos = num_messages_to_pe[owner].fetch_sub(3);
-        send_buffer[owner][pos - 3] = graph.global_node(u);
-        send_buffer[owner][pos - 2] = first_node + mapping[u];
-        send_buffer[owner][pos - 1] = c_node_weights[mapping[u]];
-      }
-    }
-  });
-
-  // Exchange messages
-  scalable_vector<MPI_Request> requests;
-  requests.reserve(size - 1);
-  for (PEID pe = 0; pe < size; ++pe) {
-    if (pe != rank) {
-      requests.emplace_back();
-      MPI_Isend(send_buffer[pe].data(), send_buffer[pe].size(), MPI_INT64_T, pe, 0, MPI_COMM_WORLD, &requests.back());
-    }
-  }
 
   scalable_vector<PEID> c_ghost_owner;
   scalable_vector<DNodeID> c_ghost_to_global;
   std::unordered_map<DNodeID, DNodeID> c_global_to_ghost;
-
   DNodeID c_next_ghost_node = c_n;
 
-  for (PEID pe = 0; pe < size; ++pe) {
-    if (pe != rank) {
-      MPI_Status status{};
-      MPI_Probe(pe, 0, MPI_COMM_WORLD, &status);
-      int count = 0;
-      MPI_Get_count(&status, MPI_INT64_T, &count);
-
-      scalable_vector<int64_t> recv_messages(count);
-      MPI_Recv(recv_messages.data(), count, MPI_INT64_T, pe, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-      ASSERT(recv_messages.size() % 3 == 0); // we send triples of int64_t's
-
-      // TODO parallelize? -> concurrent hash map
-      for (std::size_t i = 0; i < recv_messages.size(); i += 3) {
-        const DNodeID old_global_u = recv_messages[i];
-        const DNodeID new_global_u = recv_messages[i + 1];
-        const DNodeWeight new_weight = recv_messages[i + 2];
-
-        const DNodeID old_local_u = graph.local_node(old_global_u);
-        if (!c_global_to_ghost.contains(new_global_u)) {
-          c_global_to_ghost[new_global_u] = c_next_ghost_node++;
-          c_node_weights.push_back(new_weight);
-          c_ghost_owner.push_back(pe);
-          c_ghost_to_global.push_back(new_global_u);
-        }
-        mapping[old_local_u] = c_global_to_ghost[new_global_u];
+  mpi::sparse_all_to_all<scalable_vector>(send_buffer, 0, [&](const PEID from, const auto &recv_buffer) {
+    for (const auto [old_global_u, new_global_u, new_weight] : recv_buffer) {
+      const DNodeID old_local_u = graph.global_to_local_node(old_global_u);
+      if (!c_global_to_ghost.contains(new_global_u)) {
+        c_global_to_ghost[new_global_u] = c_next_ghost_node++;
+        c_node_weights.push_back(new_weight);
+        c_ghost_owner.push_back(from);
+        c_ghost_to_global.push_back(new_global_u);
       }
+      mapping[old_local_u] = c_global_to_ghost[new_global_u];
     }
-  }
-  MPI_Waitall(requests.size(), requests.data(), MPI_STATUS_IGNORE);
-
-  DBG << V(c_n) << V(c_next_ghost_node);
-
-  using Map = shm::RatingMap<DEdgeWeight, shm::FastResetArray<DEdgeWeight, DNodeID>>;
-  tbb::enumerable_thread_specific<Map> collector_ets{[&] { return Map(c_next_ghost_node); }};
+  });
 
   //
   // We build the coarse graph in multiple steps:
@@ -201,6 +159,8 @@ Result contract_locally(const DistributedGraph &graph, const scalable_vector<DNo
   // (2) We finalize c_nodes arrays by computing a prefix sum over all coarse node degrees
   // (3) We copy coarse edges and coarse edge weights from the auxiliary arrays to c_edges and c_edge_weights
   //
+  using Map = shm::RatingMap<DEdgeWeight, shm::FastResetArray<DEdgeWeight, DNodeID>>;
+  tbb::enumerable_thread_specific<Map> collector_ets{[&] { return Map(c_next_ghost_node); }};
   shm::NavigableLinkedList<DNodeID, Edge> edge_buffer_ets;
 
   tbb::parallel_for(tbb::blocked_range<DNodeID>(0, c_n), [&](const auto &r) {
@@ -310,4 +270,15 @@ Result contract_locally(const DistributedGraph &graph, const scalable_vector<DNo
   return {std::move(c_graph), std::move(mapping), std::move(m_ctx)};
 }
 
+contraction::Result contract_global_clustering(const DistributedGraph &graph,
+                                               const scalable_vector<DNodeID> &clustering,
+                                               contraction::MemoryContext m_ctx) {
+  UNUSED(graph);
+  UNUSED(clustering);
+  UNUSED(m_ctx);
+  //
+  //
+  //
+  return {};
+}
 } // namespace dkaminpar::graph

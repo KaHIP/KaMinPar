@@ -158,29 +158,6 @@ int main(int argc, char *argv[]) {
       << "epsilon=" << ctx.partition.epsilon << " ";
   LOG << "==> max_block_weight=" << ctx.partition.max_block_weight(0);
 
-  tbb::enumerable_thread_specific<int> ets{[&] { return 10; }};
-
-  tbb::parallel_for(static_cast<NodeID>(0), graph.n(), [&](const NodeID i) {
-    int &obj = ets.local();
-    LOG << i;
-  });
-
-  parallel::IntegralAtomicWrapper<int> atomic = 0;
-
-  scalable_vector<parallel::IntegralAtomicWrapper<int>> matched(graph.n(), 0);
-  // node u ---> node v <-- match this edge
-  {
-    NodeID v;
-    int expected = 0;
-    if (matched[v].compare_exchange_strong(expected, 1)) {
-      // ok
-    }
-
-  }
-
-
-  return 0;
-
   //
   // Perform actual partitioning
   //

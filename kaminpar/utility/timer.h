@@ -72,8 +72,8 @@
 #endif // KAMINPAR_ENABLE_TIMERS
 
 // must be followed by a lambda body that may or may not return some value
-#define TIMED_SCOPE(x) kaminpar::timer::TimedScope<timer::TimerType::GLOBAL>{(x)} + [&]
-#define LOCAL_TIMED_SCOPE(x) kaminpar::timer::TimedScope<timer::TimerType::LOCAL>{(x)} + [&]
+#define TIMED_SCOPE(x) kaminpar::timer::TimedScope<kaminpar::timer::TimerType::GLOBAL>{(x)} + [&]
+#define LOCAL_TIMED_SCOPE(x) kaminpar::timer::TimedScope<kaminpar::timer::TimerType::LOCAL>{(x)} + [&]
 
 // macros for simple, non-hierarchical timers
 // these lower performance during IP due to excessive synchronization -- redo with thread locals or remove

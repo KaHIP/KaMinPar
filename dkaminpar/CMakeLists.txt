@@ -1,7 +1,8 @@
 set(DKAMINPAR_SOURCE_FILES
         application/arguments.h
-        algorithm/distributed_local_graph_contraction.cc
-        algorithm/distributed_local_graph_contraction.h
+        algorithm/distributed_graph_contraction.cc
+        algorithm/distributed_graph_contraction.h
+        algorithm/allgather_graph.cc
         algorithm/allgather_graph.h
         coarsening/distributed_local_label_propagation_coarsener.h
         datastructure/distributed_graph.cc
@@ -11,6 +12,8 @@ set(DKAMINPAR_SOURCE_FILES
         distributed_io.h
         utility/distributed_math.h
         mpi_utils.h
+        mpi_graph_utils.h
+        utility/distributed_metrics.cc
         utility/distributed_metrics.h
         utility/vector_ets.h
         refinement/distributed_label_propagation_refiner.h

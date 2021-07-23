@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <random>
+#include <tbb/task_arena.h>
 
 namespace kaminpar {
 class Randomize {
@@ -13,7 +14,11 @@ class Randomize {
   static_assert(math::is_power_of_2(kPrecomputedBools), "not a power of 2");
 
 public:
-  Randomize() : _generator(Randomize::seed), _bool_dist(0, 1), _next_random_bool(0), _random_bools{} {
+  Randomize()
+      : _generator(Randomize::seed + tbb::this_task_arena::current_thread_index()),
+        _bool_dist(0, 1),
+        _next_random_bool(0),
+        _random_bools{} {
     precompute_bools();
   }
 
@@ -32,33 +37,20 @@ public:
     return std::uniform_int_distribution<std::size_t>(inclusive_lower_bound, exclusive_upper_bound - 1)(_generator);
   }
 
-  bool random_bool() { return _random_bools[_next_random_bool++ % kPrecomputedBools]; }
-
   NodeID random_node(const Graph &graph) {
     return static_cast<NodeID>(random_index(0, static_cast<std::size_t>(graph.n())));
   }
 
-  bool random_bool(const double prob) {
-    return std::uniform_real_distribution<>(0, 1)(_generator) <= prob;
-  }
+  bool random_bool() { return _random_bools[_next_random_bool++ % kPrecomputedBools]; }
+  bool random_bool(const double prob) { return std::uniform_real_distribution<>(0, 1)(_generator) <= prob; }
 
-  template<typename Container>
-  requires requires(Container c) {
-    c.begin();
-    c.end();
+  template<std::ranges::random_access_range R>
+  void shuffle(R &&r) {
+    std::ranges::shuffle(std::forward<R>(r), _generator);
   }
-  void shuffle(Container &&vec) { std::shuffle(vec.begin(), vec.end(), _generator); }
   void shuffle(auto begin, auto end) { std::shuffle(begin, end, _generator); }
 
   [[nodiscard]] auto &generator() { return _generator; }
-
-#ifdef TEST
-  void mock_precomputed_bools(const bool value) { std::fill(_random_bools.begin(), _random_bools.end(), value); }
-
-  void mock_precomputed_bools(std::array<bool, kPrecomputedBools> mocked_random_bools) {
-    _random_bools = mocked_random_bools;
-  }
-#endif // TEST
 
   static int seed;
 

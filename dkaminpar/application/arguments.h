@@ -29,6 +29,7 @@ void create_miscellaneous_context_options(DContext &ctx, kaminpar::Arguments &ar
       .argument("epsilon", "Maximum allowed imbalance.", &ctx.partition.epsilon, 'e')
       .argument("threads", "Maximum number of threads to be used.", &ctx.parallel.num_threads, 't')
       .argument("seed", "Seed for random number generator.", &ctx.seed, 's')
+      .argument("quiet", "Do not produce any output to stdout.", &ctx.quiet, 'q')
       ;
   // clang-format on
 }

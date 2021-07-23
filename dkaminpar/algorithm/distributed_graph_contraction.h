@@ -41,6 +41,10 @@ struct Result {
 };
 } // namespace contraction
 
-contraction::Result contract_locally(const DistributedGraph &graph, const scalable_vector<DNodeID> &clustering,
-                                     contraction::MemoryContext m_ctx = {});
+contraction::Result contract_local_clustering(const DistributedGraph &graph, const scalable_vector<DNodeID> &clustering,
+                                              contraction::MemoryContext m_ctx = {});
+
+contraction::Result contract_global_clustering(const DistributedGraph &graph,
+                                               const scalable_vector<DNodeID> &clustering,
+                                               contraction::MemoryContext m_ctx = {});
 } // namespace dkaminpar::graph

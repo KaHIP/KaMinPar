@@ -28,5 +28,9 @@ public:
   KWayPartitioningScheme(const DistributedGraph &graph, const DContext &ctx);
 
   DistributedPartitionedGraph partition();
+
+private:
+  const DistributedGraph &_graph;
+  const DContext &_ctx;
 };
 } // namespace dkaminpar

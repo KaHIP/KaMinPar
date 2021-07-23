@@ -61,7 +61,8 @@ void DPartitionContext::print(std::ostream &out, const std::string &prefix) cons
 
 void DContext::print(std::ostream &out, const std::string &prefix) const {
   out << prefix << "graph_filename=" << graph_filename << " " //
-      << prefix << "seed=" << seed << " ";                    //
+      << prefix << "seed=" << seed << " "                     //
+      << prefix << "quiet=" << quiet << " ";                  //
   partition.print(out, prefix + "partition.");
   parallel.print(out, prefix + "parallel.");
   coarsening.print(out, prefix + "coarsening.");
@@ -69,11 +70,17 @@ void DContext::print(std::ostream &out, const std::string &prefix) const {
   refinement.print(out, prefix + "refinement.");
 }
 
+std::ostream &operator<<(std::ostream &out, const DContext &context) {
+  context.print(out);
+  return out;
+}
+
 DContext create_default_context() {
   // clang-format off
   return {
     .graph_filename = "",
     .seed = 0,
+    .quiet = false,
     .partition = {
       .k = 0,
       .epsilon = 0.03,

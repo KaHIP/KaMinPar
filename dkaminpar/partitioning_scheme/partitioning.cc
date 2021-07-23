@@ -25,8 +25,10 @@ namespace dkaminpar {
 DistributedPartitionedGraph partition(const DistributedGraph &graph, const DContext &ctx) {
   switch (ctx.partition.mode) {
     case PartitioningMode::KWAY: return KWayPartitioningScheme{graph, ctx}.partition();
-    case PartitioningMode::DEEP: FATAL_ERROR << "not implemented";
-    case PartitioningMode::RB: FATAL_ERROR << "not implemented";
+    case PartitioningMode::DEEP: FATAL_ERROR << "not implemented"; break;
+    case PartitioningMode::RB: FATAL_ERROR << "not implemented"; break;
   }
+
+  __builtin_unreachable();
 }
 } // namespace dkaminpar

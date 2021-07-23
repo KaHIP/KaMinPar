@@ -40,10 +40,12 @@ bool validate(const DistributedGraph &graph, const int root, MPI_Comm comm) {
   const auto [size, rank] = mpi::get_comm_info(comm);
 
   // check global n, global m
+  DBG << "Checking global n, m";
   ALWAYS_ASSERT(mpi::bcast(graph.global_n(), root, comm) == graph.global_n());
   ALWAYS_ASSERT(mpi::bcast(graph.global_m(), root, comm) == graph.global_m());
 
   // check global node distribution
+  DBG << "Checking node distribution";
   ALWAYS_ASSERT(static_cast<int>(graph.node_distribution().size()) == size + 1);
   ALWAYS_ASSERT(graph.node_distribution().front() == 0);
   ALWAYS_ASSERT(graph.node_distribution().back() == graph.global_n());
@@ -53,6 +55,7 @@ bool validate(const DistributedGraph &graph, const int root, MPI_Comm comm) {
   }
 
   // check global edge distribution
+  DBG << "Checking edge distribution";
   ALWAYS_ASSERT(static_cast<int>(graph.edge_distribution().size()) == size + 1);
   ALWAYS_ASSERT(graph.edge_distribution().front() == 0);
   ALWAYS_ASSERT(graph.edge_distribution().back() == graph.global_m());
@@ -62,9 +65,11 @@ bool validate(const DistributedGraph &graph, const int root, MPI_Comm comm) {
   }
 
   // check that ghost nodes are actually ghost nodes
+  DBG << "Checking ghost nodes";
   for (DNodeID ghost_u : graph.ghost_nodes()) { ALWAYS_ASSERT(graph.ghost_owner(ghost_u) != rank); }
 
   // check node weight of ghost nodes
+  DBG << "Checking node weights of ghost nodes";
   {
     struct GhostNodeWeightMessage {
       DNodeID u;
@@ -74,21 +79,21 @@ bool validate(const DistributedGraph &graph, const int root, MPI_Comm comm) {
     std::vector<std::vector<GhostNodeWeightMessage>> send_buffers(size);
     for (DNodeID ghost_u : graph.ghost_nodes()) {
       const PEID owner = graph.ghost_owner(ghost_u);
-      send_buffers[owner].emplace_back(graph.global_node(ghost_u), graph.node_weight(ghost_u));
+      send_buffers[owner].emplace_back(graph.local_to_global_node(ghost_u), graph.node_weight(ghost_u));
     }
     ALWAYS_ASSERT(send_buffers[rank].empty());
 
-    mpi::exchange<std::vector>(send_buffers, 0, [&](const PEID, const auto &data) {
+    mpi::sparse_all_to_all<std::vector>(send_buffers, 0, [&](const PEID, const auto &data) {
       for (const auto [global_u, weight] : data) {
-        const DNodeID local_u = graph.local_node(global_u);
+        const DNodeID local_u = graph.global_to_local_node(global_u);
         ALWAYS_ASSERT(graph.offset_n() <= global_u && global_u < graph.offset_n() + graph.n());
         ALWAYS_ASSERT(graph.node_weight(local_u) == weight);
       }
     });
   }
 
-  // check that ghost nodes are symmetric, i.e., if nodes u, v on PE A neighbor a ghost node w on PE B, w has ghost node
-  // neighbors u, v on PE B
+  // check that edges to ghost nodes exist in both directions
+  DBG << "Checking edges to ghost nodes";
   {
     struct GhostNodeEdge {
       DNodeID owned_node;
@@ -98,19 +103,21 @@ bool validate(const DistributedGraph &graph, const int root, MPI_Comm comm) {
     std::vector<std::vector<GhostNodeEdge>> send_buffers(size);
     for (DNodeID u : graph.nodes()) {
       for (const auto v : graph.adjacent_nodes(u)) {
-        const PEID owner = graph.ghost_owner(v);
-        send_buffers[owner].emplace_back(graph.global_node(u), graph.global_node(v));
+        if (graph.is_ghost_node(v)) {
+          const PEID owner = graph.ghost_owner(v);
+          send_buffers[owner].emplace_back(graph.local_to_global_node(u), graph.local_to_global_node(v));
+        }
       }
     }
     ALWAYS_ASSERT(send_buffers[rank].empty());
 
-    mpi::exchange<std::vector>(send_buffers, 0, [&](const PEID pe, const auto &data) {
+    mpi::sparse_all_to_all<std::vector>(send_buffers, 0, [&](const PEID pe, const auto &data) {
       for (const auto [ghost_node, owned_node] : data) { // NOLINT: roles are swapped on receiving PE
         ALWAYS_ASSERT(graph.contains_global_node(ghost_node));
         ALWAYS_ASSERT(graph.contains_global_node(owned_node));
 
-        const DNodeID local_owned_node = graph.local_node(owned_node);
-        const DNodeID local_ghost_node = graph.local_node(ghost_node);
+        const DNodeID local_owned_node = graph.global_to_local_node(owned_node);
+        const DNodeID local_ghost_node = graph.global_to_local_node(ghost_node);
 
         bool found = false;
         for (const auto v : graph.adjacent_nodes(local_owned_node)) {

@@ -246,14 +246,14 @@ inline T reduce(const T &element, T &ans, MPI_Op op, const int root = 0, MPI_Com
 }
 
 template<typename T>
-inline T allreduce(const T &element, MPI_Op op, const int root = 0, MPI_Comm comm = MPI_COMM_WORLD) {
+inline T allreduce(const T &element, MPI_Op op, MPI_Comm comm = MPI_COMM_WORLD) {
   T ans;
   allreduce(&element, &ans, 1, op, comm);
   return ans;
 }
 
 template<typename T>
-int allreduce(const T &element, T &ans, MPI_Op op, const int root = 0, MPI_Comm comm = MPI_COMM_WORLD) {
+int allreduce(const T &element, T &ans, MPI_Op op, MPI_Comm comm = MPI_COMM_WORLD) {
   return allreduce(&element, &ans, 1, op, comm);
 }
 
@@ -273,9 +273,9 @@ int gather(const std::ranges::range_value_t<R> &element, R &ans, const int root 
 }
 
 template<typename T, template<typename> typename Container = scalable_vector>
-Container<T> allgather(const T &element, const int root = 0, MPI_Comm comm = MPI_COMM_WORLD) {
+Container<T> allgather(const T &element, MPI_Comm comm = MPI_COMM_WORLD) {
   Container<T> result(mpi::get_comm_size(comm));
-  gather(&element, 1, std::ranges::data(result), 1, root, comm);
+  allgather(&element, 1, std::ranges::data(result), 1, comm);
   return result;
 }
 

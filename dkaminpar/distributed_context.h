@@ -40,7 +40,8 @@ struct DLabelPropagationCoarseningContext {
   double merge_nonadjacent_clusters_threshold;
 
   [[nodiscard]] bool should_merge_nonadjacent_clusters(const DNodeID old_n, const DNodeID new_n) const {
-    return (1.0 - 1.0 * new_n / old_n) <= merge_nonadjacent_clusters_threshold;
+    return (1.0 - 1.0 * static_cast<double>(new_n) / static_cast<double>(old_n)) <=
+           merge_nonadjacent_clusters_threshold;
   }
 
   void print(std::ostream &out, const std::string &prefix = "") const;
@@ -90,6 +91,7 @@ struct DPartitionContext {
 struct DContext {
   std::string graph_filename{};
   int seed{0};
+  bool quiet{};
 
   DPartitionContext partition;
   DParallelContext parallel;
@@ -97,12 +99,12 @@ struct DContext {
   DInitialPartitioning initial_partitioning;
   DRefinementContext refinement;
 
-  void setup(const DistributedGraph &graph) {
-    UNUSED(graph);
-  }
+  void setup(const DistributedGraph &graph) { UNUSED(graph); }
 
   void print(std::ostream &out, const std::string &prefix = "") const;
 };
+
+std::ostream &operator<<(std::ostream &out, const DContext &context);
 
 DContext create_default_context();
 } // namespace dkaminpar
