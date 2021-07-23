@@ -76,6 +76,9 @@ int main(int argc, char *argv[]) {
     auto graph = dist::io::metis::read_node_balanced(ctx.graph_filename);
     MPI_Barrier(MPI_COMM_WORLD);
     LOG << "Loaded graph with n=" << graph.n() << " m=" << graph.m();
+    dist::graph::debug::validate(graph);
+    LOG << "Graph OK";
+
 
     // Coarsen graph
     std::vector<dist::DistributedGraph> graph_hierarchy;

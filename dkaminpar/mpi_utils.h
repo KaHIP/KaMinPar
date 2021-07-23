@@ -30,8 +30,9 @@
 
 namespace dkaminpar::mpi {
 template<template<typename> typename RecvContainer, std::ranges::contiguous_range SendBuffer,
-         template<typename> typename SendBufferContainer, typename RecvLambda>
-void exchange(const SendBufferContainer<SendBuffer> &send_buffers, RecvLambda &&recv_lambda, const int tag,
+         template<typename> typename SendBufferContainer,
+         std::invocable<PEID, const RecvContainer<std::ranges::range_value_t<SendBuffer>> &> RecvLambda>
+void exchange(const SendBufferContainer<SendBuffer> &send_buffers, const int tag, RecvLambda &&recv_lambda,
               MPI_Comm comm = MPI_COMM_WORLD, const bool self = false) {
   const auto [size, rank] = mpi::get_comm_info(comm);
   std::vector<MPI_Request> requests;

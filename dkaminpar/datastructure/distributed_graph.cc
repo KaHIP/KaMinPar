@@ -35,6 +35,8 @@ bool all_equal(const R &r) {
 } // namespace
 
 bool validate(const DistributedGraph &graph, const int root, MPI_Comm comm) {
+  mpi::barrier(comm);
+
   const auto [size, rank] = mpi::get_comm_info(comm);
 
   // check global n, global m
@@ -69,37 +71,24 @@ bool validate(const DistributedGraph &graph, const int root, MPI_Comm comm) {
       DNodeWeight weight;
     };
 
-    std::vector<std::vector<GhostNodeWeightMessage>> send_buffers(size);
-    std::vector<MPI_Request> send_requests;
-    send_requests.reserve(size);
 
+    std::vector<std::vector<GhostNodeWeightMessage>> send_buffers(size);
     for (DNodeID ghost_u : graph.ghost_nodes()) {
       const PEID owner = graph.ghost_owner(ghost_u);
-      send_buffers[owner].push_back({graph.global_node(ghost_u), graph.node_weight(ghost_u)});
+      send_buffers[owner].emplace_back(graph.global_node(ghost_u), graph.node_weight(ghost_u));
     }
     ALWAYS_ASSERT(send_buffers[rank].empty());
 
-    for (PEID pe = 0; pe < size; ++pe) {
-      if (pe != rank) {
-        send_requests.emplace_back();
-        mpi::isend(send_buffers[rank], pe, 0, send_requests.back(), comm);
+    mpi::exchange<scalable_vector>(send_buffers, 0, [&](const PEID, const auto &data) {
+      for (const auto [global_u, weight] : data) {
+        const DNodeID local_u = graph.local_node(global_u);
+        ALWAYS_ASSERT(graph.offset_n() <= global_u && global_u < graph.offset_n() + graph.n());
+        ALWAYS_ASSERT(graph.node_weight(local_u) == weight);
       }
-    }
-
-    for (PEID pe = 0; pe < size; ++pe) {
-      if (pe != rank) {
-        const auto data = mpi::probe_recv<GhostNodeWeightMessage>(pe, 0, MPI_STATUS_IGNORE, comm);
-        for (const auto [global_u, weight] : data) {
-          const DNodeID local_u = graph.local_node(global_u);
-          ALWAYS_ASSERT(graph.offset_n() <= global_u && global_u < graph.offset_n() + graph.n());
-          ALWAYS_ASSERT(graph.node_weight(local_u) == weight);
-        }
-      }
-    }
-
-    mpi::waitall(send_requests);
+    });
   }
 
+  mpi::barrier(comm);
   return true;
 }
 
