@@ -71,7 +71,6 @@ bool validate(const DistributedGraph &graph, const int root, MPI_Comm comm) {
       DNodeWeight weight;
     };
 
-
     std::vector<std::vector<GhostNodeWeightMessage>> send_buffers(size);
     for (DNodeID ghost_u : graph.ghost_nodes()) {
       const PEID owner = graph.ghost_owner(ghost_u);
@@ -79,11 +78,50 @@ bool validate(const DistributedGraph &graph, const int root, MPI_Comm comm) {
     }
     ALWAYS_ASSERT(send_buffers[rank].empty());
 
-    mpi::exchange<scalable_vector>(send_buffers, 0, [&](const PEID, const auto &data) {
+    mpi::exchange<std::vector>(send_buffers, 0, [&](const PEID, const auto &data) {
       for (const auto [global_u, weight] : data) {
         const DNodeID local_u = graph.local_node(global_u);
         ALWAYS_ASSERT(graph.offset_n() <= global_u && global_u < graph.offset_n() + graph.n());
         ALWAYS_ASSERT(graph.node_weight(local_u) == weight);
+      }
+    });
+  }
+
+  // check that ghost nodes are symmetric, i.e., if nodes u, v on PE A neighbor a ghost node w on PE B, w has ghost node
+  // neighbors u, v on PE B
+  {
+    struct GhostNodeEdge {
+      DNodeID owned_node;
+      DNodeID ghost_node;
+    };
+
+    std::vector<std::vector<GhostNodeEdge>> send_buffers(size);
+    for (DNodeID u : graph.nodes()) {
+      for (const auto v : graph.adjacent_nodes(u)) {
+        const PEID owner = graph.ghost_owner(v);
+        send_buffers[owner].emplace_back(graph.global_node(u), graph.global_node(v));
+      }
+    }
+    ALWAYS_ASSERT(send_buffers[rank].empty());
+
+    mpi::exchange<std::vector>(send_buffers, 0, [&](const PEID pe, const auto &data) {
+      for (const auto [ghost_node, owned_node] : data) { // NOLINT: roles are swapped on receiving PE
+        ALWAYS_ASSERT(graph.contains_global_node(ghost_node));
+        ALWAYS_ASSERT(graph.contains_global_node(owned_node));
+
+        const DNodeID local_owned_node = graph.local_node(owned_node);
+        const DNodeID local_ghost_node = graph.local_node(ghost_node);
+
+        bool found = false;
+        for (const auto v : graph.adjacent_nodes(local_owned_node)) {
+          if (v == local_ghost_node) {
+            found = true;
+            break;
+          }
+        }
+        ALWAYS_ASSERT(found) << "Node " << local_owned_node << " (g " << owned_node << ") "
+                             << "is expected to be adjacent to " << local_ghost_node << " (g " << ghost_node << ") "
+                             << "due to an edge on PE " << pe << ", but is not";
       }
     });
   }

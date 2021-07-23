@@ -14,7 +14,12 @@ set(DKAMINPAR_SOURCE_FILES
         utility/distributed_metrics.h
         utility/vector_ets.h
         refinement/distributed_label_propagation_refiner.h
+        partitioning_scheme/kway.cc
+        partitioning_scheme/kway.h
+        partitioning_scheme/partitioning.cc
+        partitioning_scheme/partitioning.h
         distributed_definitions.h
+        distributed_context.cc
         distributed_context.h
         mpi_wrapper.h)
 

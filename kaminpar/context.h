@@ -1,17 +1,32 @@
+/*******************************************************************************
+ * This file is part of KaMinPar.
+ *
+ * Copyright (C) 2021 Daniel Seemaier <daniel.seemaier@kit.edu>
+ *
+ * KaMinPar is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * KaMinPar is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with KaMinPar.  If not, see <http://www.gnu.org/licenses/>.
+ *
+******************************************************************************/
 #pragma once
 
-#include "datastructure/graph.h"
-#include "definitions.h"
+#include "kaminpar/datastructure/graph.h"
+#include "kaminpar/definitions.h"
+#include "kaminpar/utility/enum_string_conversion.h"
 
 #include <cmath>
 #include <map>
 #include <ranges>
 #include <string_view>
-
-#define DECLARE_ENUM_STRING_CONVERSION(type_name, prefix_name)                                                         \
-  type_name prefix_name##_from_string(const std::string &searched);                                                    \
-  std::ostream &operator<<(std::ostream &os, const type_name &value);                                                  \
-  std::string prefix_name##_names(const std::string &sep = ", ")
 
 namespace kaminpar {
 enum class ClusteringAlgorithm {

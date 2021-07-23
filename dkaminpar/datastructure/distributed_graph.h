@@ -77,6 +77,15 @@ public:
   [[nodiscard]] inline DNodeWeight total_node_weight() const { return _total_node_weight; }
   [[nodiscard]] inline DNodeWeight max_node_weight() const { return _max_node_weight; }
 
+  [[nodiscard]] inline bool contains_global_node(const DNodeID global_u) const {
+    return (offset_n() <= global_u && global_u < offset_n() + n()) // owned node
+           || _global_to_ghost.contains(global_u);                 // ghost node
+  }
+
+  [[nodiscard]] inline bool contains_local_node(const DNodeID local_u) const {
+    return local_u < total_n();
+  }
+
   // Node type
   [[nodiscard]] inline bool is_ghost_node(const DNodeID u) const {
     ASSERT(u < total_n());
@@ -94,7 +103,7 @@ public:
   }
 
   [[nodiscard]] inline DNodeID global_node(const DNodeID local_u) const {
-    ASSERT(local_u < total_n()) << V(local_u) << V(total_n()) << V(n()) << V(ghost_n());
+    ASSERT(contains_local_node(local_u)) << V(local_u) << V(total_n()) << V(n()) << V(ghost_n());
 
     if (is_owned_node(local_u)) {
       return _offset_n + local_u;
@@ -104,6 +113,8 @@ public:
   }
 
   [[nodiscard]] inline DNodeID local_node(const DNodeID global_u) const {
+    ASSERT(contains_global_node(global_u)) << V(global_u) << V(offset_n()) << V(n());
+
     if (offset_n() <= global_u && global_u < offset_n() + n()) {
       return global_u - offset_n();
     } else {

@@ -21,8 +21,17 @@
 
 #include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/distributed_definitions.h"
+#include "kaminpar/context.h"
 
 namespace dkaminpar {
+enum PartitioningMode {
+  KWAY,
+  RB,
+  DEEP,
+};
+
+DECLARE_ENUM_STRING_CONVERSION(PartitioningMode, partitioning_mode);
+
 struct DLabelPropagationCoarseningContext {
   std::size_t num_iterations;
   DNodeID large_degree_threshold;
@@ -33,30 +42,49 @@ struct DLabelPropagationCoarseningContext {
   [[nodiscard]] bool should_merge_nonadjacent_clusters(const DNodeID old_n, const DNodeID new_n) const {
     return (1.0 - 1.0 * new_n / old_n) <= merge_nonadjacent_clusters_threshold;
   }
+
+  void print(std::ostream &out, const std::string &prefix = "") const;
 };
 
 struct DLabelPropagationRefinementContext {
   std::size_t num_iterations;
   std::size_t num_chunks;
   std::size_t num_move_attempts;
+
+  void print(std::ostream &out, const std::string &prefix = "") const;
 };
 
 struct DCoarseningContext {
   DLabelPropagationCoarseningContext lp;
+
+  void print(std::ostream &out, const std::string &prefix = "") const;
+};
+
+struct DInitialPartitioning {
+  shm::Context sequential;
+
+  void print(std::ostream &out, const std::string &prefix = "") const;
 };
 
 struct DRefinementContext {
   DLabelPropagationRefinementContext lp;
+
+  void print(std::ostream &out, const std::string &prefix = "") const;
 };
 
 struct DParallelContext {
   std::size_t num_threads;
   bool use_interleaved_numa_allocation;
+
+  void print(std::ostream &out, const std::string &prefix = "") const;
 };
 
 struct DPartitionContext {
   DBlockID k{};
   double epsilon{};
+  PartitioningMode mode{};
+
+  void print(std::ostream &out, const std::string &prefix = "") const;
 };
 
 struct DContext {
@@ -66,43 +94,15 @@ struct DContext {
   DPartitionContext partition;
   DParallelContext parallel;
   DCoarseningContext coarsening;
+  DInitialPartitioning initial_partitioning;
   DRefinementContext refinement;
 
   void setup(const DistributedGraph &graph) {
     UNUSED(graph);
   }
+
+  void print(std::ostream &out, const std::string &prefix = "") const;
 };
 
-DContext create_default_context() {
-  // clang-format off
-  return {
-    .graph_filename = "",
-    .seed = 0,
-    .partition = {
-      .k = 0,
-      .epsilon = 0.03,
-    },
-    .parallel = {
-      .num_threads = 1,
-      .use_interleaved_numa_allocation = true,
-    },
-    .coarsening = {
-      .lp = {
-        .num_iterations = 5,
-        .large_degree_threshold = 1000000,
-        .max_num_neighbors = std::numeric_limits<DNodeID>::max(),
-        .merge_singleton_clusters = true,
-        .merge_nonadjacent_clusters_threshold = 0.5,
-      }
-    },
-    .refinement = {
-      .lp = {
-        .num_iterations = 5,
-        .num_chunks = 8,
-        .num_move_attempts = 2,
-      }
-    }
-  };
-  // clang-format on
-}
+DContext create_default_context();
 } // namespace dkaminpar
