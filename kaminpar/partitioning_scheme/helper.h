@@ -19,7 +19,7 @@
 ******************************************************************************/
 #pragma once
 
-#include "algorithm/extract_subgraphs.h"
+#include "algorithm/graph_extraction.h"
 #include "coarsening/i_coarsener.h"
 #include "datastructure/graph.h"
 #include "definitions.h"

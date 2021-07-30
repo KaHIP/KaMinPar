@@ -1,6 +1,25 @@
-#include "datastructure/graph.h"
+/*******************************************************************************
+ * This file is part of KaMinPar.
+ *
+ * Copyright (C) 2021 Daniel Seemaier <daniel.seemaier@kit.edu>
+ *
+ * KaMinPar is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * KaMinPar is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with KaMinPar.  If not, see <http://www.gnu.org/licenses/>.
+ *
+******************************************************************************/
+#include "kaminpar/datastructure/graph.h"
+#include "kaminpar/utility/metrics.h"
 #include "tests.h"
-#include "utility/metrics.h"
 
 #include "gmock/gmock.h"
 
@@ -72,7 +91,7 @@ TEST_F(AWeightedStar, ImbalancedBipartitionHasCorrectImbalance) {
 TEST(MetricsTest, IsFeasibleMetricWorksForGraphWithSingleNode) {
   Graph graph{test::create_graph({0, 0}, {}, {1000}, {})};
   const PartitionedGraph p_graph{test::create_p_graph(graph, 1, {0})};
-  Context ctx = Context::create_default_for(graph, 1);
+  Context ctx = create_default_context(graph, 1, 0.03);
 
   ASSERT_TRUE(metrics::is_feasible(p_graph, ctx.partition));
 }
@@ -80,7 +99,7 @@ TEST(MetricsTest, IsFeasibleMetricWorksForGraphWithSingleNode) {
 TEST(MetricsTest, IsFeasibleMetricWorks) {
   Graph graph{test::create_graph({0, 0, 0, 0, 0}, {}, {200, 100, 100, 100}, {})};
   PartitionedGraph p_graph{test::create_p_graph(graph, 4, {0, 1, 2, 3})};
-  Context ctx = Context::create_default_for(graph, 4, 0);
+  Context ctx = create_default_context(graph, 4, 0);
 
   ASSERT_TRUE(metrics::is_feasible(p_graph, ctx.partition));
   p_graph.set_block(1, 0);

@@ -23,7 +23,7 @@
 #include "kaminpar/definitions.h"
 #include "kaminpar/io.h"
 #include "kaminpar/utility/console_io.h"
-#include "kaminpar/utility/utility.h"
+#include "kaminpar/utility/strings.h"
 
 #include <algorithm>
 #include <fstream>

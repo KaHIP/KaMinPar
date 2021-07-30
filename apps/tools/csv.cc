@@ -1,6 +1,6 @@
 #include "csv.h"
 
-#include "utility/utility.h"
+#include "utility/strings.h"
 
 namespace kaminpar::tool {
 constexpr std::array colors = {

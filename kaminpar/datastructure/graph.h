@@ -6,15 +6,15 @@
 #include "datastructure/static_array.h"
 #include "definitions.h"
 #include "parallel.h"
-#include "utility/utility.h"
+#include "utility/strings.h"
 
 #include "gtest/gtest.h"
 #include <numeric>
 #include <ranges>
 #include <tbb/blocked_range.h>
 #include <tbb/enumerable_thread_specific.h>
-#include <tbb/parallel_reduce.h>
 #include <tbb/parallel_for.h>
+#include <tbb/parallel_reduce.h>
 #include <utility>
 #include <vector>
 

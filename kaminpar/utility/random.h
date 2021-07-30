@@ -2,7 +2,7 @@
 
 #include "datastructure/graph.h"
 #include "definitions.h"
-#include "utility/utility.h"
+#include "utility/strings.h"
 
 #include <algorithm>
 #include <random>

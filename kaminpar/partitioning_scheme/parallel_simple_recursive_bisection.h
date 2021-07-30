@@ -19,7 +19,7 @@
 ******************************************************************************/
 #pragma once
 
-#include "kaminpar/algorithm/extract_subgraphs.h"
+#include "kaminpar/algorithm/graph_extraction.h"
 #include "kaminpar/context.h"
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/initial_partitioning/initial_partitioning_facade.h"

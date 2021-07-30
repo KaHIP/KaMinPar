@@ -1,8 +1,27 @@
+/*******************************************************************************
+ * This file is part of KaMinPar.
+ *
+ * Copyright (C) 2021 Daniel Seemaier <daniel.seemaier@kit.edu>
+ *
+ * KaMinPar is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * KaMinPar is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with KaMinPar.  If not, see <http://www.gnu.org/licenses/>.
+ *
+******************************************************************************/
 #pragma once
 
-#include "context.h"
-#include "datastructure/graph.h"
 #include "graph_builder.h"
+#include "kaminpar/context.h"
+#include "kaminpar/datastructure/graph.h"
 
 #include "gmock/gmock.h"
 
@@ -18,16 +37,17 @@ Graph create_graph(const std::vector<EdgeID> &nodes, const std::vector<NodeID> &
 }
 
 Graph create_graph(const std::vector<EdgeID> &nodes, const std::vector<NodeID> &edges,
-                   const std::vector<NodeWeight> &node_weights, const std::vector<EdgeWeight> &edge_weights, const bool sorted = false) {
+                   const std::vector<NodeWeight> &node_weights, const std::vector<EdgeWeight> &edge_weights,
+                   const bool sorted = false) {
   return Graph{from_vec(nodes), from_vec(edges), from_vec(node_weights), from_vec(edge_weights), sorted};
 }
-
 
 PartitionedGraph create_p_graph(const Graph &graph, const BlockID k, const std::vector<BlockID> &partition) {
   return PartitionedGraph{graph, k, from_vec(partition)};
 }
 
-PartitionedGraph create_p_graph(const Graph &graph, const BlockID k, const std::vector<BlockID> &partition, scalable_vector<BlockID> final_ks) {
+PartitionedGraph create_p_graph(const Graph &graph, const BlockID k, const std::vector<BlockID> &partition,
+                                scalable_vector<BlockID> final_ks) {
   return PartitionedGraph{graph, k, from_vec(partition), std::move(final_ks)};
 }
 

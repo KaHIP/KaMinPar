@@ -19,7 +19,7 @@
 ******************************************************************************/
 #pragma once
 
-#include "algorithm/extract_subgraphs.h"
+#include "algorithm/graph_extraction.h"
 #include "algorithm/graph_utils.h"
 #include "coarsening/parallel_label_propagation_coarsener.h"
 #include "context.h"

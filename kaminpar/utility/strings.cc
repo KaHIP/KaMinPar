@@ -1,4 +1,4 @@
-#include "utility/utility.h"
+#include "utility/strings.h"
 
 namespace kaminpar::utility::str {
 std::string extract_basename(const std::string &path) {

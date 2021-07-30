@@ -17,15 +17,14 @@
  * along with KaMinPar.  If not, see <http://www.gnu.org/licenses/>.
  *
 ******************************************************************************/
-
-#include "tests.h"
+#include "kaminpar/algorithm/graph_extraction.h"
+#include "kaminpar/algorithm/graph_utils.h"
 #include "matcher.h"
-
-#include "algorithm/graph_utils.h"
+#include "tests.h"
 
 using ::testing::Eq;
-using ::testing::UnorderedElementsAre;
 using ::testing::IsEmpty;
+using ::testing::UnorderedElementsAre;
 using namespace ::kaminpar::test;
 
 namespace kaminpar {
@@ -36,9 +35,9 @@ public:
   // 4|16---5|32---6|64---7|128
   AWeightedGridGraph()
       : graph{create_graph({0, 2, 6, 10, 13, 16, 20, 24, 26},
-              {1, 4, 0, 4, 5, 2, 1, 5, 6, 3, 2, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3},
-              {1, 2, 4, 8, 16, 32, 64, 128},
-              {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1})} {}
+                           {1, 4, 0, 4, 5, 2, 1, 5, 6, 3, 2, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3},
+                           {1, 2, 4, 8, 16, 32, 64, 128},
+                           {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1})} {}
 
   Graph graph;
 };
@@ -49,7 +48,7 @@ public:
 
 TEST_F(AWeightedGridGraph, ExtractingBlockInducedSubgraphsWorkHorizontally) {
   PartitionedGraph p_graph{create_p_graph(graph, 2, {0, 0, 0, 0, 1, 1, 1, 1})};
-  SubgraphMemory memory{p_graph};
+  graph::SubgraphMemory memory{p_graph};
   const auto [subgraphs, node_mapping, positions] = extract_subgraphs(p_graph, memory);
   const auto &s_graph0 = subgraphs[0];
   const auto &s_graph1 = subgraphs[1];
@@ -69,7 +68,7 @@ TEST_F(AWeightedGridGraph, ExtractingBlockInducedSubgraphsWorkHorizontally) {
 
 TEST_F(AWeightedGridGraph, ExtractingEmptyBlockInducedSubgraphWorks) {
   PartitionedGraph p_graph{create_p_graph(graph, 2, {0, 0, 0, 0, 0, 0, 0, 0})};
-  SubgraphMemory memory{p_graph};
+  graph::SubgraphMemory memory{p_graph};
   const auto [subgraphs, node_mapping, positions] = extract_subgraphs(p_graph, memory);
   const auto &s_graph0 = subgraphs[0];
   const auto &s_graph1 = subgraphs[1];

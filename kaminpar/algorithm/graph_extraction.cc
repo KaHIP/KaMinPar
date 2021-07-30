@@ -17,7 +17,7 @@
  * along with KaMinPar.  If not, see <http://www.gnu.org/licenses/>.
  *
 ******************************************************************************/
-#include "algorithm/extract_subgraphs.h"
+#include "algorithm/graph_extraction.h"
 
 #include "datastructure/graph.h"
 #include "datastructure/static_array.h"

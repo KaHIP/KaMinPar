@@ -1,5 +1,24 @@
+/*******************************************************************************
+ * This file is part of KaMinPar.
+ *
+ * Copyright (C) 2021 Daniel Seemaier <daniel.seemaier@kit.edu>
+ *
+ * KaMinPar is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * KaMinPar is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with KaMinPar.  If not, see <http://www.gnu.org/licenses/>.
+ *
+******************************************************************************/
+#include "apps/tools/graph_tools.h"
 #include "tests/tests.h"
-#include "tools/graph_tools.h"
 
 #include <ranges>
 
@@ -62,7 +81,6 @@ TEST(KCoreTest, WorksWithIsolatedNodes) {
   std::vector<EdgeWeight> core1{compute_k_core(graph, 1)};
   EXPECT_THAT(core1, ElementsAre(Ne(0), Ne(0), Eq(0)));
 }
-
 
 TEST(KCoreTest, WorksWithCliqueAndLooselyConnectedNodes) {
   // clang-format off
@@ -154,4 +172,4 @@ TEST(KCoreTest, WorksWithCliqueAndLooselyConnectedNodesWeighted) {
   std::vector<EdgeWeight> core9{compute_k_core(graph, 9, core8)};
   EXPECT_THAT(core9, ElementsAre(Eq(0), Eq(0), Eq(0), Eq(0), Eq(0), Eq(0), Eq(0), Eq(0), Eq(0), Eq(0)));
 }
-} // namespace kaminpar
+} // namespace kamipar

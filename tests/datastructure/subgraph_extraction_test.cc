@@ -1,4 +1,24 @@
-#include "algorithm/graph_utils.h"
+/*******************************************************************************
+ * This file is part of KaMinPar.
+ *
+ * Copyright (C) 2021 Daniel Seemaier <daniel.seemaier@kit.edu>
+ *
+ * KaMinPar is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * KaMinPar is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with KaMinPar.  If not, see <http://www.gnu.org/licenses/>.
+ *
+******************************************************************************/
+#include "kaminpar/algorithm/graph_extraction.h"
+#include "kaminpar/algorithm/graph_utils.h"
 #include "matcher.h"
 #include "tests.h"
 
@@ -18,7 +38,7 @@ TEST(SubgraphExtractionTest, ExtractsIsolatedNodes) {
   Graph graph{create_graph({0, 0, 0, 0, 0}, {})};
   PartitionedGraph p_graph{create_p_graph(graph, 4, {0, 1, 2, 3})};
 
-  SubgraphMemory memory{p_graph};
+  graph::SubgraphMemory memory{p_graph};
   auto result = extract_subgraphs(p_graph, memory);
 
   EXPECT_THAT(result.subgraphs[0].n(), 1);
@@ -35,7 +55,7 @@ TEST(SubgraphExtractionTest, ExtractsEdges) {
   Graph graph{create_graph({0, 1, 2, 3, 4}, {1, 0, 3, 2})};
   PartitionedGraph p_graph{create_p_graph(graph, 2, {0, 0, 1, 1})};
 
-  SubgraphMemory memory{p_graph};
+  graph::SubgraphMemory memory{p_graph};
   auto result = extract_subgraphs(p_graph, memory);
 
   EXPECT_THAT(result.subgraphs[0].n(), 2);
@@ -50,12 +70,11 @@ TEST(SubgraphExtractionTest, ExtractsEdges) {
   EXPECT_THAT(result.subgraphs[1].edge_target(0), Ne(result.subgraphs[0].edge_target(1)));
 }
 
-
 TEST(SubgraphExtractionTest, ExtractsPathCutInTwo) {
   Graph graph{create_graph({0, 1, 3, 5, 6}, {1, 0, 2, 1, 3, 2})};
   PartitionedGraph p_graph{create_p_graph(graph, 2, {0, 0, 1, 1})};
 
-  SubgraphMemory memory{p_graph};
+  graph::SubgraphMemory memory{p_graph};
   auto result = extract_subgraphs(p_graph, memory);
 
   EXPECT_THAT(result.subgraphs[0].n(), 2);
@@ -82,29 +101,13 @@ TEST(SubgraphExtractionTest, ComplexTrianglesWeightedExampleWorks) {
   // edges weight = sum of incident node weights
   // each triangle in one block
   Graph graph{create_graph({0, 2, 5, 8, 10, 14, 18, 21, 24, 26},
-                           {1, 4,
-                            0, 2, 4,
-                            1, 3, 5,
-                            2, 5,
-                            0, 1, 5, 6,
-                            2, 3, 4, 7,
-                            4, 7, 8,
-                            5, 6, 8,
-                            6, 7},
-                           {1, 2, 3, 4, 5, 6, 7, 8, 9},
-                           {3, 6,
-                            3, 5, 7,
-                            5, 7, 9,
-                            7, 10,
-                            6, 7, 11, 12,
-                            9, 10, 11, 14,
-                            12, 15, 16,
-                            14, 15, 17,
-                            16, 17})};
+                           {1, 4, 0, 2, 4, 1, 3, 5, 2, 5, 0, 1, 5, 6, 2, 3, 4, 7, 4, 7, 8, 5, 6, 8, 6, 7},
+                           {1, 2, 3, 4, 5, 6, 7, 8, 9}, {3,  6, 3,  5,  7,  5,  7,  9,  7,  10, 6,  7,  11,
+                                                         12, 9, 10, 11, 14, 12, 15, 16, 14, 15, 17, 16, 17})};
   PartitionedGraph p_graph{create_p_graph(graph, 3, {0, 0, 1, 1, 0, 1, 2, 2, 2}, {4, 5, 6})};
 
-  SubgraphMemory memory{p_graph.n(), 15, p_graph.m(), p_graph.graph().is_node_weighted(),
-                        p_graph.graph().is_edge_weighted()};
+  graph::SubgraphMemory memory{p_graph.n(), 15, p_graph.m(), p_graph.graph().is_node_weighted(),
+                               p_graph.graph().is_edge_weighted()};
   auto result = extract_subgraphs(p_graph, memory);
 
   EXPECT_THAT(result.subgraphs[0].n(), 3);
@@ -127,4 +130,4 @@ TEST(SubgraphExtractionTest, ComplexTrianglesWeightedExampleWorks) {
   EXPECT_THAT(result.subgraphs[2], HasEdgeWithWeightedEndpoints(7, 9));
   EXPECT_THAT(result.subgraphs[2], HasEdgeWithWeightedEndpoints(8, 9));
 }
-}
+} // namespace kaminpar

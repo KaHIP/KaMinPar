@@ -1,7 +1,7 @@
 #pragma once
 
 #include "definitions.h"
-#include "utility/utility.h"
+#include "utility/strings.h"
 
 #include <cctype>
 #include <concepts>

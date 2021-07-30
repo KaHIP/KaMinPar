@@ -1,4 +1,27 @@
+/*******************************************************************************
+ * This file is part of KaMinPar.
+ *
+ * Copyright (C) 2021 Daniel Seemaier <daniel.seemaier@kit.edu>
+ *
+ * KaMinPar is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * KaMinPar is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with KaMinPar.  If not, see <http://www.gnu.org/licenses/>.
+ *
+******************************************************************************/
 #pragma once
+
+#include "kaminpar/datastructure/graph.h"
+
+#include "gmock/gmock.h"
 
 using ::testing::Matcher;
 using ::testing::MatcherInterface;
@@ -30,9 +53,7 @@ public:
     return found_u_v && found_v_u;
   }
 
-  void DescribeTo(std::ostream *os) const override {
-    *os << "graph has edge {" << _u << ", " << _v << "}";
-  }
+  void DescribeTo(std::ostream *os) const override { *os << "graph has edge {" << _u << ", " << _v << "}"; }
 
   void DescribeNegationTo(std::ostream *os) const override {
     *os << "graph does not have edge {" << _u << ", " << _v << "}";
@@ -43,15 +64,15 @@ private:
   NodeID _v;
 };
 
-Matcher<const Graph &> HasEdge(const NodeID u, const NodeID v) {
-  return MakeMatcher(new HasEdgeMatcher(u, v));
-}
+Matcher<const Graph &> HasEdge(const NodeID u, const NodeID v) { return MakeMatcher(new HasEdgeMatcher(u, v)); }
 
 class HasWeightedEdgeWithWeightedEndpointsMatcher : public MatcherInterface<const Graph &> {
 public:
   HasWeightedEdgeWithWeightedEndpointsMatcher(const NodeWeight u_weight, const EdgeWeight e_weight,
                                               const NodeWeight v_weight)
-      : _u_weight(u_weight), _e_weight(e_weight), _v_weight(v_weight) {}
+      : _u_weight(u_weight),
+        _e_weight(e_weight),
+        _v_weight(v_weight) {}
 
   bool MatchAndExplain(const Graph &graph, MatchResultListener *) const override {
     for (const NodeID u : graph.nodes()) {
@@ -92,4 +113,4 @@ Matcher<const Graph &> HasWeightedEdgeWithWeightedEndpoints(const NodeWeight u_w
                                                             const NodeWeight v_weight) {
   return MakeMatcher(new HasWeightedEdgeWithWeightedEndpointsMatcher(u_weight, e_weight, v_weight));
 }
-}
+} // namespace kaminpar::test

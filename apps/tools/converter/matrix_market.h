@@ -25,7 +25,10 @@ public:
     MM_typecode matcode;
     if (mm_read_banner(f, &matcode) != 0) { FATAL_ERROR << "Could not process Matrix Market banner."; }
     if (!mm_is_valid(matcode)) { FATAL_ERROR << "Bad file format."; }
-    if (mm_is_complex(matcode)) { read_edge_weights = false; WARNING << "Complex edge weights are not supported; won't read edge weights"; }
+    if (mm_is_complex(matcode)) {
+      read_edge_weights = false;
+      LOG_WARNING << "Complex edge weights are not supported; won't read edge weights";
+    }
 
     int M, N, nz;
     if (mm_read_mtx_crd_size(f, &M, &N, &nz) != 0) { FATAL_ERROR << "Bad file format."; }

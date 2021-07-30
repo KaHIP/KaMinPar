@@ -1,12 +1,13 @@
-#include "arguments_parser.h"
-#include "datastructure/graph.h"
-#include "definitions.h"
-#include "io.h"
-#include "utility/metrics.h"
+#include "kaminpar/application/arguments_parser.h"
+#include "kaminpar/datastructure/graph.h"
+#include "kaminpar/definitions.h"
+#include "kaminpar/io.h"
+#include "kaminpar/utility/metrics.h"
 
 #include <cstdlib>
 #include <iostream>
 #include <string>
+#include <ranges>
 
 using namespace kaminpar;
 
@@ -28,8 +29,12 @@ int main(int argc, char *argv[]) {
     FATAL_ERROR << "Graph has " << graph.n() << " nodes, but partition has " << partition.size() << " elements";
   }
 
+  // copy to StaticArray data structure
+  StaticArray<BlockID> static_partition(partition.size());
+  std::ranges::copy(partition, static_partition.begin());
+
   const BlockID k = *std::max_element(partition.begin(), partition.end()) + 1;
-  const PartitionedGraph p_graph(graph, k, from_vec(partition));
+  const PartitionedGraph p_graph(graph, k, std::move(static_partition));
 
   if (print_block_weights) { LOG << logger::TABLE << p_graph.block_weights(); }
 

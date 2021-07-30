@@ -1,6 +1,25 @@
-#include "gmock/gmock.h"
+/*******************************************************************************
+ * This file is part of KaMinPar.
+ *
+ * Copyright (C) 2021 Daniel Seemaier <daniel.seemaier@kit.edu>
+ *
+ * KaMinPar is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * KaMinPar is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with KaMinPar.  If not, see <http://www.gnu.org/licenses/>.
+ *
+******************************************************************************/
+#include "kaminpar/datastructure/fast_reset_array.h"
 
-#include "datastructure/fast_reset_array.h"
+#include "gmock/gmock.h"
 
 namespace kaminpar {
 TEST(FastResetArrayTest, SizeWorks) {
@@ -21,11 +40,11 @@ TEST(FastResetArrayTest, EmptyWorks) {
   EXPECT_FALSE(array.empty());
   array.set(1, 0);
   EXPECT_FALSE(array.empty());
-  array.reset();
+  array.clear();
   EXPECT_TRUE(array.empty());
   array.set(1, 0);
   EXPECT_FALSE(array.empty());
-  array.reset();
+  array.clear();
   EXPECT_TRUE(array.empty());
 }
 
@@ -43,7 +62,7 @@ TEST(FastResetArrayTest, SettingElementsWorks) {
 TEST(FastResetArrayTest, ResettingElementsWorks) {
   FastResetArray<int> array(1);
   array.set(0, 42);
-  array.reset();
+  array.clear();
   EXPECT_THAT(array.get(0), 0);
 }
 
@@ -51,7 +70,7 @@ TEST(FastResetArrayTest, ResettingMultipleElementsWorks) {
   constexpr std::size_t kCapacity = 128;
   FastResetArray<int> array(kCapacity);
   for (std::size_t i = 0; i < kCapacity; ++i) { array.set(i, 128 * i); }
-  array.reset();
+  array.clear();
   for (std::size_t i = 0; i < kCapacity; ++i) { EXPECT_THAT(array.get(i), 0); }
 }
 
@@ -66,7 +85,7 @@ TEST(FastResetArrayTest, SettingElementsWithGapsWorks) {
   for (std::size_t i = 1; i < kCapacity / 2; ++i) { EXPECT_THAT(array.get(i), 0); }
   for (std::size_t i = kCapacity + 1; i < kCapacity; ++i) { EXPECT_THAT(array.get(i), 0); }
 
-  array.reset();
+  array.clear();
   for (std::size_t i = 0; i < kCapacity; ++i) { EXPECT_THAT(array.get(i), 0); }
 }
 
@@ -75,7 +94,7 @@ TEST(FastResetArrayTest, HoldingAndResettingMultipleElementsWorks) {
   FastResetArray<int> array(kCapacity);
   for (int e = 0; e < static_cast<int>(kCapacity); e++) { array.set(e, 2 * e); }
   for (int e = 0; e < static_cast<int>(kCapacity); e++) { EXPECT_THAT(array.get(e), 2 * e); }
-  array.reset();
+  array.clear();
   for (int e = 0; e < static_cast<int>(kCapacity); e++) { EXPECT_THAT(array.get(e), 0); }
 }
 
@@ -83,7 +102,7 @@ TEST(FastResetArrayTest, ComplexDatatypeWorks) {
   FastResetArray<std::string> array(16);
   for (std::size_t i = 0; i < array.size(); ++i) { array.set(i, std::to_string(1000 + i)); }
   for (std::size_t i = 0; i < array.size(); ++i) { EXPECT_THAT(array.get(i), std::to_string(1000 + i)); }
-  array.reset();
+  array.clear();
   for (std::size_t i = 0; i < array.size(); ++i) { EXPECT_THAT(array.get(i), ""); }
 }
 } // namespace kaminpar
