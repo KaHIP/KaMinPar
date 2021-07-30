@@ -45,9 +45,11 @@ public:
       int u, v;
       double val;
       if (is_weighted) {
-        std::fscanf(f, "%d %d %lg\n", &u, &v, &val);
+        const auto ignore = std::fscanf(f, "%d %d %lg\n", &u, &v, &val);
+        UNUSED(ignore);
       } else {
-        std::fscanf(f, "%d %d\n", &u, &v);
+        const auto ignore = std::fscanf(f, "%d %d\n", &u, &v);
+        UNUSED(ignore);
         val = 1.0;
       }
       builder.add_edge(u - 1, v - 1, (read_edge_weights) ? static_cast<EdgeWeight>(val) : 1);

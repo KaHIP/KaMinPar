@@ -153,7 +153,7 @@ NodePermutations sort_by_degree_buckets(const StaticArray<EdgeID> &nodes, const 
   });
   STOP_TIMER();
 
-  START_TIMER("Part 2");
+  START_TIMER("Invert permutation");
   tbb::parallel_for(static_cast<std::size_t>(1), nodes.size(), [&](const NodeID u_plus_one) {
     const NodeID u = u_plus_one - 1;
     inverse_permutation[permutation[u]] = u;
