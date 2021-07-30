@@ -59,7 +59,8 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
     mapping_hierarchy.push_back(std::move(mapping));
     c_graph = &graph_hierarchy.back();
 
-    LOG << "=> n=" << c_graph->global_n() << " m=" << c_graph->global_m();
+    LOG << "=> n=" << c_graph->global_n() << " m=" << c_graph->global_m()
+        << " max_node_weight=" << c_graph->max_node_weight() << " max_cluster_weight=" << max_cluster_weight;
     if (converged) {
       LOG << "==> Coarsening converged";
       break;
@@ -87,6 +88,7 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
        << " imbalance=" << metrics::imbalance(dist_p_graph);
 
   auto refine = [&](DistributedPartitionedGraph &p_graph) {
+    if (_ctx.refinement.algorithm == KWayRefinementAlgorithm::NOOP) { return; }
     DistributedLabelPropagationRefiner<DBlockID, DBlockWeight> lp(_ctx.refinement.lp, &p_graph,
                                                                   static_cast<DBlockID>(_ctx.partition.k),
                                                                   static_cast<DBlockWeight>(
@@ -116,6 +118,7 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
          << " imbalance=" << metrics::imbalance(dist_p_graph);
   }
 
+  DLOG << "Done";
   return dist_p_graph;
 }
 } // namespace dkaminpar
