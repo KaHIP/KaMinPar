@@ -25,61 +25,85 @@
 
 #include <concepts>
 
-namespace dkaminpar::mpi {
-template<typename Message>
-using SendBuffer = std::vector<scalable_vector<Message>>;
+namespace dkaminpar::mpi::graph {
+namespace internal {
+template<typename Message, template<typename> typename Buffer, std::invocable<PEID, const Buffer<Message> &> Receiver>
+void perform_sparse_alltoall(const std::vector<Buffer<Message>> &send_buffers, Receiver &&recv_lambda, const PEID size,
+                             const PEID rank, const int tag, MPI_Comm comm) {
+  std::vector<MPI_Request> requests;
+  requests.reserve(size);
 
-template<typename Message, std::invocable<DNodeID, DEdgeID, DNodeID, PEID> Builder>
-SendBuffer<Message> build_send_buffer_edge_cut(const DistributedGraph &graph, Builder &&builder) {
-  // Allocate send buffers
-  const PEID size = mpi::get_comm_size(graph.communicator());
-  SendBuffer<Message> send_buffer(size);
-  for (PEID pe = 0; pe < size; ++pe) { send_buffer.emplace_back(graph.edge_cut_to_pe(pe)); }
+  for (PEID pe = 0; pe < size; ++pe) {
+    if (pe != rank) {
+      requests.emplace_back();
+      mpi::isend(send_buffers[pe], pe, tag, requests.back(), comm);
+    }
+  }
 
+  for (PEID pe = 0; pe < size; ++pe) {
+    if (pe != rank) {
+      const auto recv_buffer = mpi::probe_recv<Message, Buffer>(pe, tag, MPI_STATUS_IGNORE, comm);
+      recv_lambda(pe, recv_buffer);
+    }
+  }
+
+  mpi::waitall(requests);
+}
+} // namespace internal
+
+template<typename Message, template<typename> typename Buffer = scalable_vector,
+         std::invocable<DNodeID, DEdgeID, DNodeID, PEID> Builder,
+         std::invocable<PEID, const Buffer<Message> &> Receiver>
+void sparse_alltoall_ghost_edge(const DistributedGraph &graph, Builder &&builder_lambda, Receiver &&recv_lambda,
+                                const int tag = 0) {
+  const auto [size, rank] = mpi::get_comm_info(graph.communicator());
+
+  // allocate send buffers
+  std::vector<Buffer<Message>> send_buffers(size);
+  for (PEID pe = 0; pe < size; ++pe) { send_buffers.emplace_back(graph.edge_cut_to_pe(pe)); }
+
+  // create messages for send buffer
   std::vector<shm::parallel::IntegralAtomicWrapper<std::size_t>> next_message(size);
-
-  // Create messages
   graph.pfor_nodes([&](const DNodeID u) {
     for (const auto [e, v] : graph.neighbors(u)) {
       if (graph.is_ghost_node(v)) {
-        const PEID owner = graph.ghost_owner(v);
-        ASSERT(owner < send_buffer.size());
-
-        const std::size_t pos = next_message[owner]++;
-        ASSERT(pos < send_buffer[owner].size());
-
-        send_buffer[owner][pos] = builder(u, e, v, owner);
+        const PEID pe = graph.ghost_owner(v);
+        send_buffers[pe][next_message[pe]++] = builder_lambda(u, e, v, pe);
       }
     }
   });
 
-  return send_buffer;
+  internal::perform_sparse_alltoall<Message, Buffer, Receiver>(send_buffers, std::forward<Receiver>(recv_lambda), size,
+                                                               rank, tag, graph.communicator());
 }
 
-template<typename Message, std::invocable<DNodeID, PEID> Builder>
-SendBuffer<Message> build_send_buffer_comm_vol(const DistributedGraph &graph, Builder &&builder) {
-  // Allocate send buffers
-  const PEID size = mpi::get_comm_size(graph.communicator());
-  SendBuffer<Message> send_buffer(size);
-  for (PEID pe = 0; pe < size; ++pe) { send_buffer.emplace_back(graph.comm_vol_to_pe(pe)); }
+template<typename Message, template<typename> typename Buffer = scalable_vector, std::invocable<DNodeID, PEID> Builder,
+         std::invocable<PEID, const Buffer<Message> &> Receiver>
+void sparse_alltoall_interface_node(const DistributedGraph &graph, Builder &&builder_lambda, Receiver &&recv_lambda,
+                                    const int tag = 0) {
+  PEID size, rank;
+  std::tie(size, rank) = mpi::get_comm_info(graph.communicator());
 
-  std::vector<shm::parallel::IntegralAtomicWrapper<std::size_t>> next_message(size);
+  // allocate send buffers
+  std::vector<Buffer<Message>> send_buffers(size);
+  for (PEID pe = 0; pe < size; ++pe) { send_buffers.emplace_back(graph.comm_vol_to_pe(pe)); }
 
   // Create messages
+  std::vector<shm::parallel::IntegralAtomicWrapper<std::size_t>> next_message(size);
   graph.pfor_nodes_range([&](const auto r) {
     shm::Marker<> created_message_for_pe(static_cast<std::size_t>(size));
 
     for (DNodeID u = r.begin(); u < r.end(); ++u) {
       for (const DNodeID v : graph.adjacent_nodes(u)) {
         if (graph.is_ghost_node(v)) {
-          const PEID owner = graph.ghost_owner(v);
-          ASSERT(owner < send_buffer.size());
+          const PEID pe = graph.ghost_owner(v);
+          ASSERT(pe < send_buffers.size());
 
-          if (!created_message_for_pe.get(owner)) {
-            created_message_for_pe.set(owner);
-            const std::size_t pos = next_message[owner]++;
-            ASSERT(pos < send_buffer[owner].size());
-            send_buffer[owner][pos] = builder(u, owner);
+          if (!created_message_for_pe.get(pe)) {
+            created_message_for_pe.set(pe);
+            const auto pos = next_message[pe]++;
+            ASSERT(pos < send_buffers[pe].size());
+            send_buffers[pe][pos] = builder_lambda(u, pe);
           }
         }
       }
@@ -87,6 +111,7 @@ SendBuffer<Message> build_send_buffer_comm_vol(const DistributedGraph &graph, Bu
     }
   });
 
-  return send_buffer;
+  internal::perform_sparse_alltoall<Message, Buffer, Receiver>(send_buffers, std::forward<Receiver>(recv_lambda), size,
+                                                               rank, tag, graph.communicator());
 }
-} // namespace dkaminpar::mpi
+} // namespace dkaminpar::mpi::graph

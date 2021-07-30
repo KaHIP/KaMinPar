@@ -19,8 +19,8 @@
 ******************************************************************************/
 #include "dkaminpar/algorithm/distributed_graph_contraction.h"
 
-#include "dkaminpar/mpi_utils.h"
 #include "dkaminpar/mpi_graph_utils.h"
+#include "dkaminpar/mpi_utils.h"
 #include "kaminpar/datastructure/rating_map.h"
 
 #include <tbb/parallel_for.h>
@@ -122,31 +122,32 @@ Result contract_local_clustering(const DistributedGraph &graph, const scalable_v
     DNodeWeight coarse_weight;
   };
 
-  auto send_buffer = mpi::build_send_buffer_comm_vol<CoarseGhostNode>(graph, [&](const DNodeID u, const PEID) -> CoarseGhostNode {
-    return {
-      .old_global_node = graph.local_to_global_node(u),
-      .new_global_node = first_node + mapping[u],
-      .coarse_weight = c_node_weights[mapping[u]],
-    };
-  });
-
   scalable_vector<PEID> c_ghost_owner;
   scalable_vector<DNodeID> c_ghost_to_global;
   std::unordered_map<DNodeID, DNodeID> c_global_to_ghost;
   DNodeID c_next_ghost_node = c_n;
 
-  mpi::sparse_all_to_all<scalable_vector>(send_buffer, 0, [&](const PEID from, const auto &recv_buffer) {
-    for (const auto [old_global_u, new_global_u, new_weight] : recv_buffer) {
-      const DNodeID old_local_u = graph.global_to_local_node(old_global_u);
-      if (!c_global_to_ghost.contains(new_global_u)) {
-        c_global_to_ghost[new_global_u] = c_next_ghost_node++;
-        c_node_weights.push_back(new_weight);
-        c_ghost_owner.push_back(from);
-        c_ghost_to_global.push_back(new_global_u);
-      }
-      mapping[old_local_u] = c_global_to_ghost[new_global_u];
-    }
-  });
+  mpi::graph::sparse_alltoall_interface_node<CoarseGhostNode>(
+      graph,
+      [&](const DNodeID u, const PEID) -> CoarseGhostNode {
+        return {
+          .old_global_node = graph.local_to_global_node(u),
+          .new_global_node = first_node + mapping[u],
+          .coarse_weight = c_node_weights[mapping[u]],
+        };
+      },
+      [&](const PEID pe, const auto &recv_buffer) {
+        for (const auto [old_global_u, new_global_u, new_weight] : recv_buffer) {
+          const DNodeID old_local_u = graph.global_to_local_node(old_global_u);
+          if (!c_global_to_ghost.contains(new_global_u)) {
+            c_global_to_ghost[new_global_u] = c_next_ghost_node++;
+            c_node_weights.push_back(new_weight);
+            c_ghost_owner.push_back(pe);
+            c_ghost_to_global.push_back(new_global_u);
+          }
+          mapping[old_local_u] = c_global_to_ghost[new_global_u];
+        }
+      });
 
   //
   // We build the coarse graph in multiple steps:
