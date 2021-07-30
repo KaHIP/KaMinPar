@@ -23,36 +23,21 @@
 #include "kaminpar/application/arguments_parser.h"
 
 namespace dkaminpar::app {
-void create_miscellaneous_context_options(DContext &ctx, kaminpar::Arguments &args, const std::string &name, const std::string &prefix) {
-  // clang-format off
-  args.group(name, prefix)
-      .argument("epsilon", "Maximum allowed imbalance.", &ctx.partition.epsilon, 'e')
-      .argument("threads", "Maximum number of threads to be used.", &ctx.parallel.num_threads, 't')
-      .argument("seed", "Seed for random number generator.", &ctx.seed, 's')
-      .argument("quiet", "Do not produce any output to stdout.", &ctx.quiet, 'q')
-      ;
-  // clang-format on
-}
+void create_coarsening_options(CoarseningContext &c_ctx, kaminpar::Arguments &args, const std::string &name,
+                               const std::string &prefix);
 
-void create_mandatory_options(DContext &ctx, kaminpar::Arguments &args, const std::string &name) {
-  // clang-format off
-  args.group(name, "", true)
-    .argument("k", "Number of blocks", &ctx.partition.k, 'k')
-    .argument("graph", "Graph to partition", &ctx.graph_filename, 'G')
-    ;
-  // clang-format on
-}
+void create_refinement_options(RefinementContext &r_ctx, kaminpar::Arguments &args, const std::string &name,
+                               const std::string &prefix);
 
-void create_context_options(DContext &ctx, kaminpar::Arguments &args) {
-  create_mandatory_options(ctx, args, "Mandatory");
-  create_miscellaneous_context_options(ctx, args, "Miscellaneous", "m");
-}
+void create_initial_partitioning_options(InitialPartitioningContext &i_ctx, kaminpar::Arguments &args,
+                                         const std::string &name, const std::string &prefix);
 
-DContext parse_options(int argc, char *argv[]) {
-  DContext context = create_default_context();
-  kaminpar::Arguments arguments;
-  create_context_options(context, arguments);
-  arguments.parse(argc, argv);
-  return context;
-}
-}
+void create_miscellaneous_context_options(Context &ctx, kaminpar::Arguments &args, const std::string &name,
+                                          const std::string &prefix);
+
+void create_mandatory_options(Context &ctx, kaminpar::Arguments &args, const std::string &name);
+
+void create_context_options(Context &ctx, kaminpar::Arguments &args);
+
+Context parse_options(int argc, char *argv[]);
+} // namespace dkaminpar::app

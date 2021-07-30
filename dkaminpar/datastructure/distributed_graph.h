@@ -301,6 +301,9 @@ private:
     for (const auto &comm_vol_to_pe : comm_vol_to_pe_ets) {
       for (std::size_t i = 0; i < comm_vol_to_pe.size(); ++i) { _comm_vol_to_pe[i] += comm_vol_to_pe[i]; }
     }
+
+//    DLOG << V(_edge_cut_to_pe);
+//    DLOG << V(_comm_vol_to_pe);
   }
 
   DNodeID _global_n{0};

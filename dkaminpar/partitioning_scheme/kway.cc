@@ -29,7 +29,7 @@
 namespace dkaminpar {
 SET_DEBUG(true);
 
-KWayPartitioningScheme::KWayPartitioningScheme(const DistributedGraph &graph, const DContext &ctx)
+KWayPartitioningScheme::KWayPartitioningScheme(const DistributedGraph &graph, const Context &ctx)
     : _graph{graph},
       _ctx{ctx} {}
 

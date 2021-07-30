@@ -49,7 +49,7 @@ class DistributedLabelPropagationRefiner {
   };
 
 public:
-  explicit DistributedLabelPropagationRefiner(const DLabelPropagationRefinementContext &lp_ctx,
+  explicit DistributedLabelPropagationRefiner(const LabelPropagationRefinementContext &lp_ctx,
                                               DistributedPartitionedGraph *p_graph, const DClusterID num_clusters,
                                               const DClusterWeight max_cluster_weight)
       : _p_graph{p_graph},
@@ -399,6 +399,6 @@ private:
   tbb::enumerable_thread_specific<shm::RatingMap<DEdgeWeight>> _rating_map{
       [&] { return shm::RatingMap<DEdgeWeight>{_p_graph->total_n()}; }};
   DClusterWeight _max_cluster_weight;
-  const DLabelPropagationRefinementContext &_lp_ctx;
+  const LabelPropagationRefinementContext &_lp_ctx;
 };
 } // namespace dkaminpar

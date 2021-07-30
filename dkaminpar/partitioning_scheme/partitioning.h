@@ -23,5 +23,5 @@
 #include "dkaminpar/distributed_context.h"
 
 namespace dkaminpar {
-DistributedPartitionedGraph partition(const DistributedGraph &graph, const DContext &ctx);
+DistributedPartitionedGraph partition(const DistributedGraph &graph, const Context &ctx);
 } // namespace dkaminpar

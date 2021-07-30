@@ -59,7 +59,7 @@ void sparse_alltoall_ghost_edge(const DistributedGraph &graph, Builder &&builder
   const auto [size, rank] = mpi::get_comm_info(graph.communicator());
 
   // allocate send buffers
-  std::vector<Buffer<Message>> send_buffers(size);
+  std::vector<Buffer<Message>> send_buffers;
   for (PEID pe = 0; pe < size; ++pe) { send_buffers.emplace_back(graph.edge_cut_to_pe(pe)); }
 
   // create messages for send buffer
@@ -85,7 +85,7 @@ void sparse_alltoall_interface_node(const DistributedGraph &graph, Builder &&bui
   std::tie(size, rank) = mpi::get_comm_info(graph.communicator());
 
   // allocate send buffers
-  std::vector<Buffer<Message>> send_buffers(size);
+  std::vector<Buffer<Message>> send_buffers;
   for (PEID pe = 0; pe < size; ++pe) { send_buffers.emplace_back(graph.comm_vol_to_pe(pe)); }
 
   // Create messages
@@ -97,12 +97,13 @@ void sparse_alltoall_interface_node(const DistributedGraph &graph, Builder &&bui
       for (const DNodeID v : graph.adjacent_nodes(u)) {
         if (graph.is_ghost_node(v)) {
           const PEID pe = graph.ghost_owner(v);
-          ASSERT(pe < send_buffers.size());
+          ASSERT(static_cast<std::size_t>(pe) < send_buffers.size());
 
           if (!created_message_for_pe.get(pe)) {
             created_message_for_pe.set(pe);
             const auto pos = next_message[pe]++;
-            ASSERT(pos < send_buffers[pe].size());
+            ASSERT(static_cast<std::size_t>(pos) < send_buffers[pe].size())
+                << V(pe) << V(pos) << V(send_buffers[pe].size());
             send_buffers[pe][pos] = builder_lambda(u, pe);
           }
         }

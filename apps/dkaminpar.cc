@@ -41,14 +41,15 @@ namespace dist = dkaminpar;
 namespace shm = kaminpar;
 
 // clang-format off
-void sanitize_context(const dist::DContext &ctx) {
+void sanitize_context(const dist::Context &ctx) {
   ALWAYS_ASSERT(!std::ifstream(ctx.graph_filename) == false) << "Graph file cannot be read. Ensure that the file exists and is readable.";
   ALWAYS_ASSERT(ctx.partition.k >= 2) << "k must be at least 2.";
   ALWAYS_ASSERT(ctx.partition.epsilon > 0) << "Epsilon cannot be zero.";
 }
 // clang-format on
 
-void print_statistics(const dist::DistributedPartitionedGraph &p_graph, const dist::DContext &ctx) {
+void print_statistics(const dist::DistributedPartitionedGraph &p_graph, const dist::Context &ctx) {
+
   const auto edge_cut = dist::metrics::edge_cut(p_graph);
   const auto imbalance = dist::metrics::imbalance(p_graph);
   const auto feasible = dist::metrics::is_feasible(p_graph, ctx.partition);
@@ -74,7 +75,7 @@ int main(int argc, char *argv[]) {
   MPI_Init(&argc, &argv);
 
   // Parse command line arguments
-  dist::DContext ctx;
+  dist::Context ctx;
   try {
     ctx = dist::app::parse_options(argc, argv);
     sanitize_context(ctx);
@@ -82,6 +83,7 @@ int main(int argc, char *argv[]) {
   shm::Logger::set_quiet_mode(ctx.quiet);
 
   shm::print_identifier(argc, argv);
+  LOG << "MPI size=" << dist::mpi::get_comm_size(MPI_COMM_WORLD);
   LOG << "CONTEXT " << ctx;
 
   // Initialize random number generator
@@ -105,7 +107,9 @@ int main(int argc, char *argv[]) {
   ASSERT([&] { dist::graph::debug::validate_partition(p_graph); });
 
   // Output statistics
-  print_statistics(p_graph, ctx);
+  if (dist::mpi::get_comm_rank(MPI_COMM_WORLD) == 0) { // only summarize on root
+    print_statistics(p_graph, ctx);
+  }
 
   MPI_Finalize();
   return 0;

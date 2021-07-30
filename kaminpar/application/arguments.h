@@ -155,21 +155,28 @@ void create_balancer_refinement_context_options(BalancerRefinementContext &b_ctx
 // clang-format on
 
 // clang-format off
+
+// options that control algorithmic choices rather than general application options
+void create_algorithm_options(Context &ctx, Arguments &args, const std::string &global_name_prefix = "", const std::string &global_prefix = "") {
+  create_coarsening_context_options(ctx.coarsening, args, global_name_prefix + "Coarsening", global_prefix + "c");
+  create_coarsening_lp_context_options(ctx.coarsening.lp, args, global_name_prefix + "Coarsening -> Label Propagation", global_prefix + "c-lp");
+  create_coarsening_context_options(ctx.initial_partitioning.coarsening, args, global_name_prefix + "Initial Partitioning -> Coarsening", global_prefix + "i-c");
+  create_coarsening_lp_context_options(ctx.initial_partitioning.coarsening.lp, args, global_name_prefix + "Coarsening -> Initial Partitioning -> Label Propagation", global_prefix + "i-c-lp");
+  create_initial_partitioning_context_options(ctx.initial_partitioning, args, global_name_prefix + "Initial Partitioning", global_prefix + "i");
+  create_refinement_context_options(ctx.initial_partitioning.refinement, args, global_name_prefix + "Initial Partitioning -> Refinement", global_prefix + "i-r");
+  create_fm_refinement_context_options(ctx.initial_partitioning.refinement.fm, args, global_name_prefix + "Initial Partitioning -> Refinement -> FM", global_prefix + "i-r-fm");
+  create_refinement_context_options(ctx.refinement, args, global_name_prefix + "Refinement", global_prefix + "r");
+  create_lp_refinement_context_options(ctx.refinement.lp, args, global_name_prefix + "Refinement -> Label Propagation", global_prefix + "r-lp");
+  create_balancer_refinement_context_options(ctx.refinement.balancer, args, global_name_prefix + "Refinement -> Balancer", global_prefix + "r-b");
+}
+
 void create_context_options(Context &ctx, Arguments &args) {
   create_mandatory_context_options(ctx, args, "Mandatory");
   create_miscellaneous_context_options(ctx, args, "Miscellaneous", "m");
   create_debug_context_options(ctx.debug, args, "Debug", "d");
-  create_coarsening_context_options(ctx.coarsening, args, "Coarsening", "c");
-  create_coarsening_lp_context_options(ctx.coarsening.lp, args, "Coarsening -> Label Propagation", "c-lp");
-  create_coarsening_context_options(ctx.initial_partitioning.coarsening, args, "Initial Partitioning -> Coarsening", "i-c");
-  create_coarsening_lp_context_options(ctx.initial_partitioning.coarsening.lp, args, "Coarsening -> Initial Partitioning -> Label Propagation", "i-c-lp");
-  create_initial_partitioning_context_options(ctx.initial_partitioning, args, "Initial Partitioning", "i");
-  create_refinement_context_options(ctx.initial_partitioning.refinement, args, "Initial Partitioning -> Refinement", "i-r");
-  create_fm_refinement_context_options(ctx.initial_partitioning.refinement.fm, args, "Initial Partitioning -> Refinement -> FM", "i-r-fm");
-  create_refinement_context_options(ctx.refinement, args, "Refinement", "r");
-  create_lp_refinement_context_options(ctx.refinement.lp, args, "Refinement -> Label Propagation", "r-lp");
-  create_balancer_refinement_context_options(ctx.refinement.balancer, args, "Refinement -> Balancer", "r-b");
+  create_algorithm_options(ctx, args);
 }
+
 // clang-format on
 
 Context parse_options(int argc, char *argv[]) {

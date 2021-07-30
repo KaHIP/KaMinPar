@@ -25,12 +25,12 @@
 namespace dkaminpar {
 class KWayPartitioningScheme {
 public:
-  KWayPartitioningScheme(const DistributedGraph &graph, const DContext &ctx);
+  KWayPartitioningScheme(const DistributedGraph &graph, const Context &ctx);
 
   DistributedPartitionedGraph partition();
 
 private:
   const DistributedGraph &_graph;
-  const DContext &_ctx;
+  const Context &_ctx;
 };
 } // namespace dkaminpar

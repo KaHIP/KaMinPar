@@ -39,7 +39,7 @@ class DistributedLocalLabelPropagationClustering final
 
 public:
   DistributedLocalLabelPropagationClustering(const DNodeID max_n, const double shrink_factor,
-                                             const DLabelPropagationCoarseningContext &lp_ctx)
+                                             const LabelPropagationCoarseningContext &lp_ctx)
       : Base{max_n, max_n},
         _shrink_factor{shrink_factor},
         _lp_ctx{lp_ctx},
@@ -141,7 +141,7 @@ private:
   }
 
   double _shrink_factor;
-  const DLabelPropagationCoarseningContext &_lp_ctx;
+  const LabelPropagationCoarseningContext &_lp_ctx;
   scalable_vector<DNodeID> _clustering;
   scalable_vector<shm::parallel::IntegralAtomicWrapper<DNodeID>> _favored_clustering;
   DNodeWeight _max_cluster_weight;

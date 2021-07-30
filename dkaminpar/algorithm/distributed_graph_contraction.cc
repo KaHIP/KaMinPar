@@ -136,7 +136,7 @@ Result contract_local_clustering(const DistributedGraph &graph, const scalable_v
           .coarse_weight = c_node_weights[mapping[u]],
         };
       },
-      [&](const PEID pe, const auto &recv_buffer) {
+      [&](const PEID pe, const auto &recv_buffer) { // TODO parallelize
         for (const auto [old_global_u, new_global_u, new_weight] : recv_buffer) {
           const DNodeID old_local_u = graph.global_to_local_node(old_global_u);
           if (!c_global_to_ghost.contains(new_global_u)) {

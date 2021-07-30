@@ -22,7 +22,7 @@
 #include "dkaminpar/partitioning_scheme/kway.h"
 
 namespace dkaminpar {
-DistributedPartitionedGraph partition(const DistributedGraph &graph, const DContext &ctx) {
+DistributedPartitionedGraph partition(const DistributedGraph &graph, const Context &ctx) {
   switch (ctx.partition.mode) {
     case PartitioningMode::KWAY: return KWayPartitioningScheme{graph, ctx}.partition();
     case PartitioningMode::DEEP: FATAL_ERROR << "not implemented"; break;

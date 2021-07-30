@@ -24,15 +24,32 @@
 #include "kaminpar/context.h"
 
 namespace dkaminpar {
-enum PartitioningMode {
+enum class PartitioningMode {
   KWAY,
   RB,
   DEEP,
 };
 
-DECLARE_ENUM_STRING_CONVERSION(PartitioningMode, partitioning_mode);
+enum class CoarseningAlgorithm {
+  NOOP,
+  LOCAL_LP,
+};
 
-struct DLabelPropagationCoarseningContext {
+enum class InitialPartitioningAlgorithm {
+  KAMINPAR,
+};
+
+enum class KWayRefinementAlgorithm {
+  NOOP,
+  LP,
+};
+
+DECLARE_ENUM_STRING_CONVERSION(PartitioningMode, partitioning_mode);
+DECLARE_ENUM_STRING_CONVERSION(CoarseningAlgorithm, coarsening_algorithm);
+DECLARE_ENUM_STRING_CONVERSION(InitialPartitioningAlgorithm, initial_partitioning_algorithm);
+DECLARE_ENUM_STRING_CONVERSION(KWayRefinementAlgorithm, kway_refinement_algorithm);
+
+struct LabelPropagationCoarseningContext {
   std::size_t num_iterations;
   DNodeID large_degree_threshold;
   DNodeID max_num_neighbors;
@@ -47,7 +64,7 @@ struct DLabelPropagationCoarseningContext {
   void print(std::ostream &out, const std::string &prefix = "") const;
 };
 
-struct DLabelPropagationRefinementContext {
+struct LabelPropagationRefinementContext {
   std::size_t num_iterations;
   std::size_t num_chunks;
   std::size_t num_move_attempts;
@@ -55,32 +72,35 @@ struct DLabelPropagationRefinementContext {
   void print(std::ostream &out, const std::string &prefix = "") const;
 };
 
-struct DCoarseningContext {
-  DLabelPropagationCoarseningContext lp;
+struct CoarseningContext {
+  CoarseningAlgorithm algorithm;
+  LabelPropagationCoarseningContext lp;
 
   void print(std::ostream &out, const std::string &prefix = "") const;
 };
 
-struct DInitialPartitioning {
+struct InitialPartitioningContext {
+  InitialPartitioningAlgorithm algorithm;
   shm::Context sequential;
 
   void print(std::ostream &out, const std::string &prefix = "") const;
 };
 
-struct DRefinementContext {
-  DLabelPropagationRefinementContext lp;
+struct RefinementContext {
+  KWayRefinementAlgorithm algorithm;
+  LabelPropagationRefinementContext lp;
 
   void print(std::ostream &out, const std::string &prefix = "") const;
 };
 
-struct DParallelContext {
+struct ParallelContext {
   std::size_t num_threads;
   bool use_interleaved_numa_allocation;
 
   void print(std::ostream &out, const std::string &prefix = "") const;
 };
 
-struct DPartitionContext {
+struct PartitionContext {
   DBlockID k{};
   double epsilon{};
   PartitioningMode mode{};
@@ -88,23 +108,23 @@ struct DPartitionContext {
   void print(std::ostream &out, const std::string &prefix = "") const;
 };
 
-struct DContext {
+struct Context {
   std::string graph_filename{};
   int seed{0};
   bool quiet{};
 
-  DPartitionContext partition;
-  DParallelContext parallel;
-  DCoarseningContext coarsening;
-  DInitialPartitioning initial_partitioning;
-  DRefinementContext refinement;
+  PartitionContext partition;
+  ParallelContext parallel;
+  CoarseningContext coarsening;
+  InitialPartitioningContext initial_partitioning;
+  RefinementContext refinement;
 
   void setup(const DistributedGraph &graph) { UNUSED(graph); }
 
   void print(std::ostream &out, const std::string &prefix = "") const;
 };
 
-std::ostream &operator<<(std::ostream &out, const DContext &context);
+std::ostream &operator<<(std::ostream &out, const Context &context);
 
-DContext create_default_context();
+Context create_default_context();
 } // namespace dkaminpar

@@ -58,7 +58,7 @@ double imbalance(const DistributedPartitionedGraph &p_graph) {
   return max_imbalance;
 }
 
-bool is_feasible(const DistributedPartitionedGraph &p_graph, const DPartitionContext &p_ctx) {
+bool is_feasible(const DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) {
   return imbalance(p_graph) < p_ctx.epsilon;
 }
 } // namespace dkaminpar

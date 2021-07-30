@@ -22,11 +22,27 @@
 namespace dkaminpar {
 using namespace std::string_literals;
 
-DEFINE_ENUM_STRING_CONVERSION(PartitioningMode, partitioning_mode) = {{PartitioningMode::KWAY, "kway"},
-                                                                      {PartitioningMode::DEEP, "deep"},
-                                                                      {PartitioningMode::RB, "rb"}};
+DEFINE_ENUM_STRING_CONVERSION(PartitioningMode, partitioning_mode) = {
+    {PartitioningMode::KWAY, "kway"}, //
+    {PartitioningMode::DEEP, "deep"}, //
+    {PartitioningMode::RB, "rb"}      //
+};
 
-void DLabelPropagationCoarseningContext::print(std::ostream &out, const std::string &prefix) const {
+DEFINE_ENUM_STRING_CONVERSION(CoarseningAlgorithm, coarsening_algorithm) = {
+    {CoarseningAlgorithm::NOOP, "noop"},        //
+    {CoarseningAlgorithm::LOCAL_LP, "local-lp"} //
+};
+
+DEFINE_ENUM_STRING_CONVERSION(InitialPartitioningAlgorithm, initial_partitioning_algorithm) = {
+    {InitialPartitioningAlgorithm::KAMINPAR, "kaminpar"} //
+};
+
+DEFINE_ENUM_STRING_CONVERSION(KWayRefinementAlgorithm, kway_refinement_algorithm) = {
+    {KWayRefinementAlgorithm::NOOP, "noop"}, //
+    {KWayRefinementAlgorithm::LP, "lp"}      //
+};
+
+void LabelPropagationCoarseningContext::print(std::ostream &out, const std::string &prefix) const {
   out << prefix << "num_iterations=" << num_iterations << " "                                              //
       << prefix << "large_degree_threshold=" << large_degree_threshold << " "                              //
       << prefix << "max_num_neighbors=" << max_num_neighbors << " "                                        //
@@ -34,32 +50,39 @@ void DLabelPropagationCoarseningContext::print(std::ostream &out, const std::str
       << prefix << "merge_nonadjacent_clusters_threshold=" << merge_nonadjacent_clusters_threshold << " "; //
 }
 
-void DLabelPropagationRefinementContext::print(std::ostream &out, const std::string &prefix) const {
+void LabelPropagationRefinementContext::print(std::ostream &out, const std::string &prefix) const {
   out << prefix << "num_iterations=" << num_iterations << " "        //
       << prefix << "num_chunks=" << num_chunks << " "                //
       << prefix << "num_move_attempts=" << num_move_attempts << " "; //
 }
 
-void DCoarseningContext::print(std::ostream &out, const std::string &prefix) const { lp.print(out, prefix + "lp."); }
+void CoarseningContext::print(std::ostream &out, const std::string &prefix) const {
+  out << prefix << "algorithm=" << algorithm << " ";
+  lp.print(out, prefix + "lp.");
+}
 
-void DInitialPartitioning::print(std::ostream &out, const std::string &prefix) const {
+void InitialPartitioningContext::print(std::ostream &out, const std::string &prefix) const {
+  out << prefix << "algorithm=" << algorithm << " ";
   sequential.print(out, prefix + "sequential.");
 }
 
-void DRefinementContext::print(std::ostream &out, const std::string &prefix) const { lp.print(out, prefix + "lp."); }
+void RefinementContext::print(std::ostream &out, const std::string &prefix) const {
+  out << prefix << "algorithm=" << algorithm << " ";
+  lp.print(out, prefix + "lp.");
+}
 
-void DParallelContext::print(std::ostream &out, const std::string &prefix) const {
+void ParallelContext::print(std::ostream &out, const std::string &prefix) const {
   out << prefix << "num_threads=" << num_threads << " "                                          //
       << prefix << "use_interleaved_numa_allocation=" << use_interleaved_numa_allocation << " "; //
 }
 
-void DPartitionContext::print(std::ostream &out, const std::string &prefix) const {
+void PartitionContext::print(std::ostream &out, const std::string &prefix) const {
   out << prefix << "k=" << k << " "             //
       << prefix << "epsilon=" << epsilon << " " //
       << prefix << "mode=" << mode << " ";      //
 }
 
-void DContext::print(std::ostream &out, const std::string &prefix) const {
+void Context::print(std::ostream &out, const std::string &prefix) const {
   out << prefix << "graph_filename=" << graph_filename << " " //
       << prefix << "seed=" << seed << " "                     //
       << prefix << "quiet=" << quiet << " ";                  //
@@ -70,12 +93,12 @@ void DContext::print(std::ostream &out, const std::string &prefix) const {
   refinement.print(out, prefix + "refinement.");
 }
 
-std::ostream &operator<<(std::ostream &out, const DContext &context) {
+std::ostream &operator<<(std::ostream &out, const Context &context) {
   context.print(out);
   return out;
 }
 
-DContext create_default_context() {
+Context create_default_context() {
   // clang-format off
   return {
     .graph_filename = "",
@@ -91,6 +114,7 @@ DContext create_default_context() {
       .use_interleaved_numa_allocation = true,
     },
     .coarsening = {
+      .algorithm = CoarseningAlgorithm::LOCAL_LP,
       .lp = {
         .num_iterations = 5,
         .large_degree_threshold = 1000000,
@@ -100,9 +124,11 @@ DContext create_default_context() {
       }
     },
     .initial_partitioning = {
+      .algorithm = InitialPartitioningAlgorithm::KAMINPAR,
       .sequential = shm::create_default_context(),
     },
     .refinement = {
+      .algorithm = KWayRefinementAlgorithm::LP,
       .lp = {
         .num_iterations = 5,
         .num_chunks = 8,

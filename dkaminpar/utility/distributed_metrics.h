@@ -58,5 +58,5 @@ double imbalance(const DistributedPartitionedGraph &p_graph);
  * @param ctx Partition context describing the balance constraint.
  * @return Whether @p p_graph satisfies the balance constraint given by @p p_ctx.
  */
-bool is_feasible(const DistributedPartitionedGraph &p_graph, const DPartitionContext &p_ctx);
+bool is_feasible(const DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx);
 } // namespace dkaminpar::metrics

@@ -1,4 +1,5 @@
 set(DKAMINPAR_SOURCE_FILES
+        application/arguments.cc
         application/arguments.h
         algorithm/distributed_graph_contraction.cc
         algorithm/distributed_graph_contraction.h
