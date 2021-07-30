@@ -67,10 +67,10 @@ public:
       if (num_moved_nodes == 0) { break; }
     }
 
-    if (_lp_ctx.should_merge_nonadjacent_clusters(_graph->n(), _graph->n() - total_num_emptied_clusters)) {
-      DBG << "Empty clusters after LP: " << total_num_emptied_clusters << " of " << _graph->n();
-      join_singleton_clusters_by_favored_cluster(total_num_emptied_clusters);
-    }
+//    if (_lp_ctx.should_merge_nonadjacent_clusters(_graph->n(), _graph->n() - total_num_emptied_clusters)) {
+//      DBG << "Empty clusters after LP: " << total_num_emptied_clusters << " of " << _graph->n();
+//      join_singleton_clusters_by_favored_cluster(total_num_emptied_clusters);
+//    }
 
     return _clustering;
   }

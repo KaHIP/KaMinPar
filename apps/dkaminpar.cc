@@ -49,15 +49,14 @@ void sanitize_context(const dist::Context &ctx) {
 // clang-format on
 
 void print_statistics(const dist::DistributedPartitionedGraph &p_graph, const dist::Context &ctx) {
-
   const auto edge_cut = dist::metrics::edge_cut(p_graph);
   const auto imbalance = dist::metrics::imbalance(p_graph);
   const auto feasible = dist::metrics::is_feasible(p_graph, ctx.partition);
 
   LOG << "RESULT cut=" << edge_cut << " imbalance=" << imbalance << " feasible=" << feasible << " k=" << p_graph.k();
-  if (!ctx.quiet) { shm::Timer::global().print_machine_readable(std::cout); }
+  if (dist::mpi::get_comm_rank(MPI_COMM_WORLD) == 0 && !ctx.quiet) { shm::Timer::global().print_machine_readable(std::cout); }
   LOG;
-  if (!ctx.quiet) { shm::Timer::global().print_human_readable(std::cout); }
+  if (dist::mpi::get_comm_rank(MPI_COMM_WORLD) == 0 && !ctx.quiet) { shm::Timer::global().print_human_readable(std::cout); }
   LOG;
   LOG << "-> k=" << p_graph.k();
   LOG << "-> cut=" << edge_cut;
@@ -107,9 +106,7 @@ int main(int argc, char *argv[]) {
   ASSERT([&] { dist::graph::debug::validate_partition(p_graph); });
 
   // Output statistics
-  if (dist::mpi::get_comm_rank(MPI_COMM_WORLD) == 0) { // only summarize on root
-    print_statistics(p_graph, ctx);
-  }
+  print_statistics(p_graph, ctx);
 
   MPI_Finalize();
   return 0;
