@@ -17,8 +17,7 @@
  * along with KaMinPar.  If not, see <http://www.gnu.org/licenses/>.
  *
 ******************************************************************************/
-#include "libkaminpar.h"
-
+#include "kaminpar.h"
 #include "kaminpar/application/arguments.h"
 #include "kaminpar/context.h"
 #include "kaminpar/datastructure/graph.h"

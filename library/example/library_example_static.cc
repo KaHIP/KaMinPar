@@ -19,7 +19,7 @@
 ******************************************************************************/
 
 #include <iostream>
-#include <libkaminpar.h>
+#include <kaminpar.h>
 #include <vector>
 
 int main(int, char *[]) {

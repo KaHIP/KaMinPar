@@ -18,7 +18,7 @@
  *
 ******************************************************************************/
 #include <iostream>
-#include <libkaminpar.h>
+#include <kaminpar.h>
 #include <string>
 #include <vector>
 
