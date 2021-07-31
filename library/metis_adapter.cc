@@ -17,7 +17,7 @@
  * along with KaMinPar.  If not, see <http://www.gnu.org/licenses/>.
  *
 ******************************************************************************/
-#include "libkaminpar.h"
+#include "kaminpar.h"
 
 #include <iostream>
 #include <limits>

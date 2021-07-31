@@ -7,11 +7,14 @@ set(PROJECT_CONTACT "daniel.seemaier@kit.edu")
 
 set(CMAKE_CXX_STANDARD 20)
 
+set(CMAKE_CXX_VISIBILITY_PRESET hidden)
+set(CMAKE_VISIBILITY_INLINES_HIDDEN 1)
+
+# Default to Release mode
 if (NOT CMAKE_BUILD_TYPE OR CMAKE_BUILD_TYPE STREQUAL "")
   set(CMAKE_BUILD_TYPE "Release" CACHE STRING "" FORCE)
-endif()
+endif ()
 
-option(KAMINPAR_LINK_TCMALLOC "Enable allocations using Google's tcmalloc." OFF)
 option(KAMINPAR_ENABLE_HEAVY_ASSERTIONS "Enable assertions that have high impact on performance." OFF)
 option(KAMINPAR_ENABLE_LIGHT_ASSERTIONS "Enable very lightweight assertions." ON)
 option(KAMINPAR_ENABLE_TIMERS "Enable fine-grained timers. With this option disabled, we will still report the total partitioning time." ON)
@@ -72,20 +75,6 @@ endif ()
 if (KAMINPAR_ENABLE_TIMERS)
   add_definitions(-DKAMINPAR_ENABLE_TIMERS)
   message(STATUS "Building with fine-grained timers enabled.")
-endif ()
-
-if (KAMINPAR_LINK_TCMALLOC)
-  find_library(TCMALLOC_LIB tcmalloc)
-  if (NOT TCMALLOC_LIB)
-    message(STATUS "tcmalloc enabled, but unabled to find the library on this system.")
-    set(TCMALLOC_LIB "")
-  else ()
-    message(STATUS "tcmalloc enabled and found at ${TCMALLOC_LIB}")
-    add_definitions(-DKAMINPAR_LINK_TCMALLOC)
-  endif ()
-else ()
-  set(TCMALLOC_LIB "")
-  message(STATUS "tcmalloc disabled.")
 endif ()
 
 if (KAMINPAR_ENABLE_STATISTICS)

@@ -258,7 +258,7 @@ public:
 
 private:
   inline void init_total_node_weight() {
-    const auto owned_node_weights = _node_weights | std::ranges::views::take(n());
+    const auto owned_node_weights =  std::ranges::take_view{_node_weights, static_cast<long int>(n())};
     _total_node_weight = shm::parallel::accumulate(owned_node_weights);
     _max_node_weight = shm::parallel::max_element(owned_node_weights);
   }

@@ -22,6 +22,8 @@
 #include <memory>
 #include <string_view>
 
+#include "kaminpar_export.h"
+
 namespace libkaminpar {
 using NodeID = uint32_t;
 #ifdef KAMINPAR_64BIT_EDGE_IDS
@@ -34,7 +36,7 @@ using NodeWeight = int32_t;
 using EdgeWeight = int32_t;
 using BlockWeight = NodeWeight;
 
-class Partitioner {
+class KAMINPAR_EXPORT Partitioner {
   friend class PartitionerBuilder;
 
 public:
@@ -50,7 +52,7 @@ private:
   struct PartitionerPrivate *_pimpl;
 };
 
-class PartitionerBuilder {
+class KAMINPAR_EXPORT PartitionerBuilder {
 public:
   PartitionerBuilder(const PartitionerBuilder &) = delete;
   PartitionerBuilder &operator=(const PartitionerBuilder &) = delete;
