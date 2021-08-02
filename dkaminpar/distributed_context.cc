@@ -44,7 +44,7 @@ DEFINE_ENUM_STRING_CONVERSION(KWayRefinementAlgorithm, kway_refinement_algorithm
 
 void LabelPropagationCoarseningContext::print(std::ostream &out, const std::string &prefix) const {
   out << prefix << "num_iterations=" << num_iterations << " "                                              //
-      << prefix << "large_degree_threshold=" << large_degree_threshold << " "                              //
+      << prefix << "max_degree=" << large_degree_threshold << " "                              //
       << prefix << "max_num_neighbors=" << max_num_neighbors << " "                                        //
       << prefix << "merge_singleton_clusters=" << merge_singleton_clusters << " "                          //
       << prefix << "merge_nonadjacent_clusters_threshold=" << merge_nonadjacent_clusters_threshold << " "; //
@@ -72,8 +72,16 @@ void RefinementContext::print(std::ostream &out, const std::string &prefix) cons
 }
 
 void ParallelContext::print(std::ostream &out, const std::string &prefix) const {
-  out << prefix << "num_threads=" << num_threads << " "                                          //
-      << prefix << "use_interleaved_numa_allocation=" << use_interleaved_numa_allocation << " "; //
+  out << prefix << "num_threads=" << num_threads << " "                                         //
+      << prefix << "use_interleaved_numa_allocation=" << use_interleaved_numa_allocation << " " //
+      << prefix << "mpi_thread_support=" << mpi_thread_support << " ";                          //
+}
+
+void PartitionContext::setup(const DistributedGraph &graph) {
+  global_n = graph.global_n();
+  global_m = graph.global_m();
+  local_n = graph.n();
+  local_m = graph.m();
 }
 
 void PartitionContext::print(std::ostream &out, const std::string &prefix) const {
@@ -112,13 +120,14 @@ Context create_default_context() {
     .parallel = {
       .num_threads = 1,
       .use_interleaved_numa_allocation = true,
+      .mpi_thread_support = MPI_THREAD_FUNNELED,
     },
     .coarsening = {
       .algorithm = CoarseningAlgorithm::LOCAL_LP,
       .lp = {
         .num_iterations = 5,
         .large_degree_threshold = 1000000,
-        .max_num_neighbors = std::numeric_limits<DNodeID>::max(),
+        .max_num_neighbors = kInvalidNodeID,
         .merge_singleton_clusters = true,
         .merge_nonadjacent_clusters_threshold = 0.5,
       }

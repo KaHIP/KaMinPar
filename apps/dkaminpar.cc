@@ -42,9 +42,9 @@ namespace shm = kaminpar;
 
 // clang-format off
 void sanitize_context(const dist::Context &ctx) {
-  ALWAYS_ASSERT(!std::ifstream(ctx.graph_filename) == false) << "Graph file cannot be read. Ensure that the file exists and is readable.";
+  ALWAYS_ASSERT(!std::ifstream(ctx.graph_filename) == false) << "Graph file cannot be read. Ensure that the file exists and is readable: " << ctx.graph_filename;
   ALWAYS_ASSERT(ctx.partition.k >= 2) << "k must be at least 2.";
-  ALWAYS_ASSERT(ctx.partition.epsilon > 0) << "Epsilon cannot be zero.";
+  ALWAYS_ASSERT(ctx.partition.epsilon > 0) << "Epsilon must be greater than zero.";
 }
 // clang-format on
 
@@ -54,9 +54,13 @@ void print_statistics(const dist::DistributedPartitionedGraph &p_graph, const di
   const auto feasible = dist::metrics::is_feasible(p_graph, ctx.partition);
 
   LOG << "RESULT cut=" << edge_cut << " imbalance=" << imbalance << " feasible=" << feasible << " k=" << p_graph.k();
-  if (dist::mpi::get_comm_rank(MPI_COMM_WORLD) == 0 && !ctx.quiet) { shm::Timer::global().print_machine_readable(std::cout); }
+  if (dist::mpi::get_comm_rank(MPI_COMM_WORLD) == 0 && !ctx.quiet) {
+    shm::Timer::global().print_machine_readable(std::cout);
+  }
   LOG;
-  if (dist::mpi::get_comm_rank(MPI_COMM_WORLD) == 0 && !ctx.quiet) { shm::Timer::global().print_human_readable(std::cout); }
+  if (dist::mpi::get_comm_rank(MPI_COMM_WORLD) == 0 && !ctx.quiet) {
+    shm::Timer::global().print_human_readable(std::cout);
+  }
   LOG;
   LOG << "-> k=" << p_graph.k();
   LOG << "-> cut=" << edge_cut;
@@ -71,14 +75,28 @@ void print_statistics(const dist::DistributedPartitionedGraph &p_graph, const di
 }
 
 int main(int argc, char *argv[]) {
-  MPI_Init(&argc, &argv);
+  dist::Context ctx;
+
+  { // init MPI
+    int provided_thread_support;
+    MPI_Init_thread(&argc, &argv, ctx.parallel.mpi_thread_support, &provided_thread_support);
+    if (provided_thread_support != ctx.parallel.mpi_thread_support) {
+      LOG_WARNING << "Desired MPI thread support unavailable: set to " << provided_thread_support;
+      if (provided_thread_support == MPI_THREAD_SINGLE) {
+        if (dist::mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
+          LOG_ERROR << "Your MPI library does not support multithreading. This might cause malfunction.";
+        }
+        provided_thread_support = MPI_THREAD_FUNNELED; // fake multithreading level for application
+      }
+      ctx.parallel.mpi_thread_support = provided_thread_support;
+    }
+  }
 
   // Parse command line arguments
-  dist::Context ctx;
   try {
     ctx = dist::app::parse_options(argc, argv);
     sanitize_context(ctx);
-  } catch (const std::runtime_error &e) { FATAL_ERROR << e.what(); }
+  } catch (const std::runtime_error &e) { std::cout << e.what() << std::endl; }
   shm::Logger::set_quiet_mode(ctx.quiet);
 
   shm::print_identifier(argc, argv);

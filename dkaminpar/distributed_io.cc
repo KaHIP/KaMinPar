@@ -39,20 +39,20 @@ DistributedGraph read_node_balanced(const std::string &filename) {
 
   graph::Builder builder{};
 
-  DNodeID current = 0;
-  DNodeID from = 0;
-  DNodeID to = 0;
+  GlobalNodeID current = 0;
+  GlobalNodeID from = 0;
+  GlobalNodeID to = 0;
 
   shm::read_observable(
       filename,
       [&](const auto &format) {
-        const auto global_n = static_cast<DNodeID>(format.number_of_nodes);
-        const auto global_m = static_cast<DEdgeID>(format.number_of_edges) * 2;
+        const auto global_n = static_cast<GlobalNodeID>(format.number_of_nodes);
+        const auto global_m = static_cast<GlobalNodeID>(format.number_of_edges) * 2;
         DBG << "Loading graph with global_n=" << global_n << " and global_m=" << global_m;
 
-        scalable_vector<DNodeID> node_distribution(size + 1);
+        scalable_vector<GlobalNodeID> node_distribution(size + 1);
         for (PEID p = 0; p < size; ++p) {
-          const auto [from, to] = math::compute_local_range<DNodeID>(global_n, size, p);
+          const auto [from, to] = math::compute_local_range<GlobalNodeID>(global_n, size, p);
           node_distribution[p + 1] = to;
         }
         ASSERT(node_distribution.front() == 0);
@@ -67,11 +67,11 @@ DistributedGraph read_node_balanced(const std::string &filename) {
       [&](const std::uint64_t &u_weight) {
         ++current;
         if (current > to) { return false; }
-        if (current > from) { builder.create_node(static_cast<DNodeWeight>(u_weight)); }
+        if (current > from) { builder.create_node(static_cast<NodeWeight>(u_weight)); }
         return true;
       },
       [&](const std::uint64_t &e_weight, const std::uint64_t &v) {
-        if (current > from) { builder.create_edge(static_cast<DEdgeWeight>(e_weight), static_cast<DNodeID>(v)); }
+        if (current > from) { builder.create_edge(static_cast<EdgeWeight>(e_weight), static_cast<GlobalNodeID>(v)); }
       });
 
   return builder.finalize();
@@ -99,10 +99,10 @@ void write(const std::string &filename, const DistributedGraph &graph, const boo
       out << "\n";
     }
 
-    for (const DNodeID u : graph.nodes()) {
+    for (const NodeID u : graph.nodes()) {
       if (write_node_weights) { out << graph.node_weight(u) << " "; }
-      for (const auto [e, global_v] : graph.neighbors_global(u)) {
-        out << global_v + 1 << " ";
+      for (const auto [e, v] : graph.neighbors(u)) {
+        out << graph.local_to_global_node(v) + 1 << " ";
         if (write_edge_weights) { out << graph.edge_weight(e) << " "; }
       }
       out << "\n";

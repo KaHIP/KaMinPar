@@ -168,7 +168,7 @@ void CoarseningContext::print(std::ostream &out, const std::string &prefix) cons
 
 void LabelPropagationCoarseningContext::print(std::ostream &out, const std::string &prefix) const {
   out << prefix << "num_iterations=" << num_iterations << " "                                             //
-      << prefix << "large_degree_threshold=" << large_degree_threshold << " "                             //
+      << prefix << "max_degree=" << large_degree_threshold << " "                             //
       << prefix << "merge_nonadjacent_clusters_threshold=" << merge_nonadjacent_clusters_threshold << " " //
       << prefix << "merge_isolated_clusters=" << merge_isolated_clusters << " "                         //
       << prefix << "max_num_neighbors=" << max_num_neighbors << " ";                                      //
@@ -176,7 +176,7 @@ void LabelPropagationCoarseningContext::print(std::ostream &out, const std::stri
 
 void LabelPropagationRefinementContext::print(std::ostream &out, const std::string &prefix) const {
   out << prefix << "num_iterations=" << num_iterations << " "                 //
-      << prefix << "large_degree_threshold=" << large_degree_threshold << " " //
+      << prefix << "max_degree=" << large_degree_threshold << " " //
       << prefix << "max_num_neighbors=" << max_num_neighbors << " ";          //
 }
 

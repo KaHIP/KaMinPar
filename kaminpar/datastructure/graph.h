@@ -78,7 +78,13 @@ Degree degree_bucket(Degree degree);
  */
 class Graph {
 public:
-  Graph() {}
+  // data types used by this graph
+  using NodeID = ::kaminpar::NodeID;
+  using NodeWeight = ::kaminpar::NodeWeight;
+  using EdgeID = ::kaminpar::EdgeID;
+  using EdgeWeight = ::kaminpar::EdgeWeight;
+
+  Graph() = default;
 
   Graph(StaticArray<EdgeID> nodes, StaticArray<NodeID> edges, StaticArray<NodeWeight> node_weights = {},
         StaticArray<EdgeWeight> edge_weights = {}, bool sorted = false);
@@ -204,6 +210,9 @@ class PartitionedGraph {
                                        const scalable_vector<NodeID> &mapping);
 
 public:
+  using BlockID = ::kaminpar::BlockID;
+  using BlockWeight = ::kaminpar::BlockWeight;
+
   PartitionedGraph(const Graph &graph, BlockID k, StaticArray<BlockID> partition = {},
                    scalable_vector<BlockID> final_k = {});
   PartitionedGraph(tag::Sequential, const Graph &graph, BlockID k, StaticArray<BlockID> partition = {},

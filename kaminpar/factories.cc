@@ -70,7 +70,7 @@ std::unique_ptr<Refiner> create_refiner(const Graph &graph, const PartitionConte
     }
 
     case RefinementAlgorithm::LABEL_PROPAGATION: {
-      return std::make_unique<ParallelLabelPropagationRefiner>(graph, p_ctx, r_ctx);
+      return std::make_unique<LabelPropagationRefiner>(graph, p_ctx, r_ctx);
     }
   }
 

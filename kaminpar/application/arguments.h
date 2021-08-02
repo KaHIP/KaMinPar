@@ -45,7 +45,7 @@ void create_coarsening_context_options(CoarseningContext &c_ctx, Arguments &args
 // clang-format on
 
 // clang-format off
-void create_coarsening_lp_context_options(LabelPropagationCoarseningContext &c_lp_ctx, Arguments &args, const std::string &name, const std::string &prefix) {
+void create_lp_coarsening_context_options(LabelPropagationCoarseningContext &c_lp_ctx, Arguments &args, const std::string &name, const std::string &prefix) {
   args.group(name, prefix)
       .argument(prefix + "-num-iterations", "Number of label propagation iterations.", &c_lp_ctx.num_iterations)
       .argument(prefix + "-large-degree-threshold", "Ignore all nodes with degree higher than this during coarsening.", &c_lp_ctx.large_degree_threshold)
@@ -66,15 +66,22 @@ void create_mandatory_context_options(Context &ctx, Arguments &args, const std::
 // clang-format on
 
 // clang-format off
+void create_parallel_context_options(Context &ctx, Arguments &args, const std::string &name, const std::string &prefix) {
+  args.group(name, prefix)
+      .argument("threads", "Maximum number of threads to be used.", &ctx.parallel.num_threads, 't')
+      .argument("use-interleaved-numa-allocation", "Interleave allocations across NUMA nodes round-robin style.", &ctx.parallel.use_interleaved_numa_allocation)
+      ;
+}
+// clang-format on
+
+// clang-format off
 void create_miscellaneous_context_options(Context &ctx, Arguments &args, const std::string &name, const std::string &prefix) {
   args.group(name, prefix)
       .argument("epsilon", "Maximum allowed imbalance.", &ctx.partition.epsilon, 'e')
-      .argument("threads", "Maximum number of threads to be used.", &ctx.parallel.num_threads, 't')
       .argument("seed", "Seed for random number generator.", &ctx.seed, 's')
       .argument("save-partition", "Save the partition to a file.", &ctx.save_partition)
       .argument("partition-directory", "[--save-partition] Directory for the partition file.", &ctx.partition_directory)
       .argument("partition-name", "[--save-partition] Filename for the partition file. If empty, one is generated.", &ctx.partition_filename)
-      .argument("use-interleaved-numa-allocation", "Interleave allocations across NUMA nodes round-robin style.", &ctx.parallel.use_interleaved_numa_allocation)
       .argument("fast-ip", "Use cheaper initial partitioning if k is larger than this.", &ctx.partition.fast_initial_partitioning)
       .argument("mode", "Partitioning mode, possible values: {" + partitioning_mode_names() + "}.", &ctx.partition.mode, partitioning_mode_from_string)
       .argument("quiet", "Do not produce any output.", &ctx.quiet, 'q')
@@ -159,9 +166,9 @@ void create_balancer_refinement_context_options(BalancerRefinementContext &b_ctx
 // options that control algorithmic choices rather than general application options
 void create_algorithm_options(Context &ctx, Arguments &args, const std::string &global_name_prefix = "", const std::string &global_prefix = "") {
   create_coarsening_context_options(ctx.coarsening, args, global_name_prefix + "Coarsening", global_prefix + "c");
-  create_coarsening_lp_context_options(ctx.coarsening.lp, args, global_name_prefix + "Coarsening -> Label Propagation", global_prefix + "c-lp");
+  create_lp_coarsening_context_options(ctx.coarsening.lp, args, global_name_prefix + "Coarsening -> Label Propagation", global_prefix + "c-lp");
   create_coarsening_context_options(ctx.initial_partitioning.coarsening, args, global_name_prefix + "Initial Partitioning -> Coarsening", global_prefix + "i-c");
-  create_coarsening_lp_context_options(ctx.initial_partitioning.coarsening.lp, args, global_name_prefix + "Coarsening -> Initial Partitioning -> Label Propagation", global_prefix + "i-c-lp");
+  create_lp_coarsening_context_options(ctx.initial_partitioning.coarsening.lp, args, global_name_prefix + "Coarsening -> Initial Partitioning -> Label Propagation", global_prefix + "i-c-lp");
   create_initial_partitioning_context_options(ctx.initial_partitioning, args, global_name_prefix + "Initial Partitioning", global_prefix + "i");
   create_refinement_context_options(ctx.initial_partitioning.refinement, args, global_name_prefix + "Initial Partitioning -> Refinement", global_prefix + "i-r");
   create_fm_refinement_context_options(ctx.initial_partitioning.refinement.fm, args, global_name_prefix + "Initial Partitioning -> Refinement -> FM", global_prefix + "i-r-fm");
@@ -173,6 +180,7 @@ void create_algorithm_options(Context &ctx, Arguments &args, const std::string &
 void create_context_options(Context &ctx, Arguments &args) {
   create_mandatory_context_options(ctx, args, "Mandatory");
   create_miscellaneous_context_options(ctx, args, "Miscellaneous", "m");
+  create_parallel_context_options(ctx, args, "Parallel", "p");
   create_debug_context_options(ctx.debug, args, "Debug", "d");
   create_algorithm_options(ctx, args);
 }

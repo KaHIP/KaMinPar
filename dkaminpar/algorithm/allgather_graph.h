@@ -29,8 +29,6 @@
 #include <mpi.h>
 
 namespace dkaminpar::graph {
-shm::Graph allgather(const DistributedGraph &graph, MPI_Comm comm = MPI_COMM_WORLD);
-
-DistributedPartitionedGraph reduce_scatter(const DistributedGraph &dist_graph, shm::PartitionedGraph shm_p_graph,
-                                           MPI_Comm comm = MPI_COMM_WORLD);
+shm::Graph allgather(const DistributedGraph &graph);
+DistributedPartitionedGraph reduce_scatter(const DistributedGraph &dist_graph, shm::PartitionedGraph shm_p_graph);
 } // namespace dkaminpar::graph

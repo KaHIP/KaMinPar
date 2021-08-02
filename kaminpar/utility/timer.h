@@ -52,10 +52,14 @@
   auto __SCOPED_TIMER__##line = (kaminpar::Timer::global().start_scoped_timer<func>(x))
 #define SCOPED_TIMER_IMPL1(x, line, func) SCOPED_TIMER_IMPL2(x, line, func)
 #define SCOPED_TIMER(x) SCOPED_TIMER_IMPL1(x, __LINE__, timer::TimerType::GLOBAL)
+#define SCOPED_FINE_TIMER(x) SCOPED_TIMER_IMPL1(x, __LINE__, timer::TimerType::FINE_GLOBAL)
 #define SCOPED_LOCAL_TIMER(x) SCOPED_TIMER_IMPL1(x, __LINE__, timer::TimerType::LOCAL)
 
 #define START_TIMER(x) (kaminpar::Timer::global().start_global_timer(x))
 #define STOP_TIMER() (kaminpar::Timer::global().stop_global_timer())
+
+#define START_FINE_TIMER(x) (kaminpar::Timer::global().start_global_timer(x, true))
+#define STOP_FINE_TIMER(x) (kaminpar::Timer::global().stop_global_timer(true))
 
 #define START_LOCAL_TIMER(x) (kaminpar::Timer::global().start_local_timer(x))
 #define STOP_LOCAL_TIMER() (kaminpar::Timer::global().stop_local_timer())
@@ -66,13 +70,15 @@
 #define SCOPED_TIMER(x)
 #define START_TIMER(x)
 #define STOP_TIMER()
-
+#define START_FINE_TIMER(x)
+#define STOP_FINE_TIMER(x)
 #define ENABLE_TIMERS()
 #define DISABLE_TIMERS()
 #endif // KAMINPAR_ENABLE_TIMERS
 
 // must be followed by a lambda body that may or may not return some value
 #define TIMED_SCOPE(x) kaminpar::timer::TimedScope<kaminpar::timer::TimerType::GLOBAL>{(x)} + [&]
+#define FINE_TIMED_SCOPE(x) kaminpar::timer::TimedScope<kaminpar::timer::TimerType::FINE_GLOBAL>{(x)} + [&]
 #define LOCAL_TIMED_SCOPE(x) kaminpar::timer::TimedScope<kaminpar::timer::TimerType::LOCAL>{(x)} + [&]
 
 // macros for simple, non-hierarchical timers
@@ -88,7 +94,7 @@ inline std::chrono::time_point<std::chrono::high_resolution_clock> now() {
   return std::chrono::high_resolution_clock::now();
 }
 
-enum class TimerType { LOCAL, GLOBAL };
+enum class TimerType { LOCAL, FINE_GLOBAL, GLOBAL,  };
 
 class FlatTimer {
 public:
@@ -163,16 +169,16 @@ public:
 
   Timer(const std::string &name);
 
-  void start_global_timer(const std::string &name) {
-    if (_disabled) { return; }
+  void start_global_timer(const std::string &name, const bool fine = false) {
+    if (_timers_disabled || (fine && _fine_timers_disabled)) { return; }
 
     std::lock_guard<std::mutex> lg{_global_lock};
     start_timer(_global_root, name,
                 [](auto *node) -> std::map<std::string, std::unique_ptr<TimerTreeNode>> & { return node->children; });
   }
 
-  void stop_global_timer() {
-    if (_disabled) { return; }
+  void stop_global_timer(const bool fine = false) {
+    if (_timers_disabled || (fine && _fine_timers_disabled)) { return; }
 
     std::lock_guard<std::mutex> lg{_global_lock};
     stop_timer(_global_root);
@@ -190,7 +196,7 @@ public:
   }
 
   void start_local_timer(const std::string &name) {
-    if (_disabled || _local_timers_disabled) { return; }
+    if (_timers_disabled || _local_timers_disabled) { return; }
 
     DBG << "Thread " << sched_getcpu() << " started: " << DBG_build_stack(name);
     start_timer(_local_root.local(), name, [](auto *node) -> std::map<std::string, std::unique_ptr<TimerTreeNode>> & {
@@ -199,7 +205,7 @@ public:
   }
 
   void stop_local_timer() {
-    if (_disabled || _local_timers_disabled) { return; }
+    if (_timers_disabled || _local_timers_disabled) { return; }
 
     TimerTree &tree = _local_root.local();
     DBG << "Thread " << sched_getcpu() << " stopped " << DBG_build_stack();
@@ -226,6 +232,7 @@ public:
   timer::ScopedTimer<type> start_scoped_timer(const std::string &name) {
     switch (type) {
       case timer::TimerType::GLOBAL: start_global_timer(name); break;
+      case timer::TimerType::FINE_GLOBAL: start_global_timer(name, true); break;
       case timer::TimerType::LOCAL: start_local_timer(name); break;
     }
     return timer::ScopedTimer<type>{this};
@@ -235,8 +242,10 @@ public:
 
   void print_human_readable(std::ostream &out);
 
-  void disable() { _disabled = true; }
-  void enable() { _disabled = false; }
+  void disable() { _timers_disabled = true; }
+  void enable() { _timers_disabled = false; }
+  void disable_fine() { _fine_timers_disabled = true; }
+  void enable_fine() { _fine_timers_disabled = false; }
   void disable_local() { _local_timers_disabled = true; }
   void enable_local() { _local_timers_disabled = false; }
 
@@ -274,14 +283,15 @@ private:
   [[nodiscard]] std::size_t compute_max_time_space(const TimerTreeNode *process) const;
 
   void print_subprocess_mr(std::ostream &out, const std::string &prefix, const std::string &name,
-                           const TimerTreeNode *subtree, const bool is_local);
+                           const TimerTreeNode *subtree, bool is_local);
 
   std::string _name;
   tbb::enumerable_thread_specific<TimerTree> _local_root{};
   TimerTree _global_root{};
   std::mutex _global_lock;
-  bool _disabled;
-  bool _local_timers_disabled;
+  bool _timers_disabled{false};
+  bool _fine_timers_disabled{true};
+  bool _local_timers_disabled{true};
 };
 
 namespace timer {
@@ -298,6 +308,7 @@ public:
     if (_timer != nullptr) {
       switch (type) {
         case TimerType::GLOBAL: _timer->stop_global_timer(); break;
+        case TimerType::FINE_GLOBAL: _timer->stop_global_timer(true); break;
         case TimerType::LOCAL: _timer->stop_local_timer(); break;
       }
     }

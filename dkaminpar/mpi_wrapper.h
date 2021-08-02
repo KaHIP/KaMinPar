@@ -76,6 +76,7 @@ MAP_DATATYPE(std::int64_t, MPI_INT64_T)
 MAP_DATATYPE(float, MPI_FLOAT)
 MAP_DATATYPE(double, MPI_DOUBLE)
 MAP_DATATYPE(long double, MPI_LONG_DOUBLE)
+MAP_DATATYPE(std::size_t, MPI_UNSIGNED_LONG)
 
 #define COMMA ,
 MAP_DATATYPE(std::pair<float COMMA int>, MPI_FLOAT_INT)
@@ -151,6 +152,18 @@ inline int exscan(const T *sendbuf, T *recvbuf, const int count, MPI_Op op, MPI_
 template<typename T>
 inline int reduce_scatter(const T *sendbuf, T *recvbuf, int *recvcounts, MPI_Op op, MPI_Comm comm = MPI_COMM_WORLD) {
   return MPI_Reduce_scatter(sendbuf, recvbuf, recvcounts, type::get<T>(), op, comm);
+}
+
+template<typename Ts, typename Tr>
+int gatherv(const Ts *sendbuf, const int sendcount, Tr *recvbuf, const int *recvcounts, const int *displs,
+            const int root = 0, MPI_Comm comm = MPI_COMM_WORLD) {
+  return MPI_Gatherv(sendbuf, sendcount, type::get<Ts>(), recvbuf, recvcounts, displs, type::get<Tr>(), root, comm);
+}
+
+template<typename Ts, typename Tr>
+int allgatherv(const Ts *sendbuf, const int sendcount, Tr *recvbuf, const int *recvcounts, const int *displs,
+               MPI_Comm comm = MPI_COMM_WORLD) {
+  return MPI_Allgatherv(sendbuf, sendcount, type::get<Ts>(), recvbuf, recvcounts, displs, type::get<Tr>(), comm);
 }
 
 //
@@ -284,6 +297,30 @@ inline int allgather(const std::ranges::range_value_t<R> &element, R &ans, MPI_C
   LIGHT_ASSERT(std::ranges::size(ans) == mpi::get_comm_size(comm));
 
   return allgather(&element, 1, std::ranges::data(ans), 1, comm);
+}
+
+template<std::ranges::contiguous_range Rs, std::ranges::contiguous_range Rr, std::ranges::contiguous_range Rcounts,
+         std::ranges::contiguous_range Displs>
+int allgatherv(const Rs &sendbuf, Rr &recvbuf, const Rcounts &recvcounts, const Displs &displs,
+               MPI_Comm comm = MPI_COMM_WORLD) {
+  static_assert(std::is_same_v<std::ranges::range_value_t<Rcounts>, int>);
+  static_assert(std::is_same_v<std::ranges::range_value_t<Displs>, int>);
+  return allgatherv(std::ranges::data(sendbuf), std::ranges::ssize(sendbuf), std::ranges::data(recvbuf),
+                    std::ranges::data(recvcounts), std::ranges::data(displs), comm);
+}
+
+template<typename T>
+T scan(const T &sendbuf, MPI_Op op, MPI_Comm comm = MPI_COMM_WORLD) {
+  T recvbuf;
+  scan(&sendbuf, &recvbuf, 1, op, comm);
+  return recvbuf;
+}
+
+template<typename T>
+T exscan(const T &sendbuf, MPI_Op op, MPI_Comm comm = MPI_COMM_WORLD) {
+  T recvbuf;
+  exscan(&sendbuf, &recvbuf, 1, op, comm);
+  return recvbuf;
 }
 
 //

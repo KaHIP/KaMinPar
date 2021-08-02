@@ -36,12 +36,12 @@ KWayPartitioningScheme::KWayPartitioningScheme(const DistributedGraph &graph, co
 DistributedPartitionedGraph KWayPartitioningScheme::partition() {
   // Coarsen graph
   std::vector<DistributedGraph> graph_hierarchy;
-  std::vector<scalable_vector<DNodeID>> mapping_hierarchy;
+  std::vector<scalable_vector<NodeID>> mapping_hierarchy;
 
   const DistributedGraph *c_graph = &_graph;
   while (c_graph->n() > 2 * 160) {
     DBG << "... lp";
-    const DNodeWeight
+    const NodeWeight
         max_cluster_weight = shm::compute_max_cluster_weight(c_graph->global_n(), c_graph->total_node_weight(),
                                                              _ctx.initial_partitioning.sequential.partition,
                                                              _ctx.initial_partitioning.sequential.coarsening);
@@ -89,11 +89,12 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
 
   auto refine = [&](DistributedPartitionedGraph &p_graph) {
     if (_ctx.refinement.algorithm == KWayRefinementAlgorithm::NOOP) { return; }
-    DistributedLabelPropagationRefiner<DBlockID, DBlockWeight> lp(_ctx.refinement.lp, &p_graph,
-                                                                  static_cast<DBlockID>(_ctx.partition.k),
-                                                                  static_cast<DBlockWeight>(
-                                                                      shm_ctx.partition.max_block_weight(0)));
-    for (std::size_t i = 0; i < _ctx.refinement.lp.num_iterations; ++i) { lp.perform_iteration(); }
+    DistributedLabelPropagationRefiner refiner(_ctx);
+    refiner.initialize(p_graph, _ctx.partition);
+    for (std::size_t i = 0; i < _ctx.refinement.lp.num_iterations; ++i) {
+      refiner.perform_iteration();
+      graph::debug::validate_partition(p_graph);
+    }
   };
 
   // Uncoarsen and refine
@@ -106,8 +107,9 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
 
     // create partition for new coarsest graph
     const auto *current_graph = graph_hierarchy.empty() ? &_graph : &graph_hierarchy.back();
-    scalable_vector<DBlockID> partition(current_graph->total_n());
-    current_graph->pfor_all_nodes([&](const DNodeID u) { partition[u] = dist_p_graph.block(mapping[u]); });
+    scalable_vector<BlockID> partition(current_graph->total_n());
+    tbb::parallel_for(static_cast<NodeID>(0), current_graph->total_n(),
+                      [&](const NodeID u) { partition[u] = dist_p_graph.block(mapping[u]); });
     dist_p_graph = DistributedPartitionedGraph{current_graph, _ctx.partition.k, std::move(partition),
                                                std::move(dist_p_graph.take_block_weights())};
 

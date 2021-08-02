@@ -22,28 +22,15 @@
 namespace dkaminpar::graph {
 SET_DEBUG(true);
 
-shm::Graph allgather(const DistributedGraph &graph, MPI_Comm comm) {
-  ALWAYS_ASSERT(graph.n() < std::numeric_limits<int>::max()) << "number of nodes exceeds int size";
-  ALWAYS_ASSERT(graph.m() < std::numeric_limits<int>::max()) << "number of edges exceeds int size";
+shm::Graph allgather(const DistributedGraph &graph) {
+  ALWAYS_ASSERT(graph.global_n() < std::numeric_limits<NodeID>::max()) << "number of nodes exceeds int size";
+  ALWAYS_ASSERT(graph.global_m() < std::numeric_limits<EdgeID>::max()) << "number of edges exceeds int size";
+  MPI_Comm comm = graph.communicator();
 
-  const DEdgeID m0 = graph.offset_m();
-
-  // TODO can we avoid using two sets of buffers?
-  // I.e., create local_x in x?
-
-  // copy own part of the graph to shm datastructures
-  shm::StaticArray<shm::EdgeID> local_nodes(graph.n());
-  shm::StaticArray<shm::NodeID> local_edges(graph.m());
-  shm::StaticArray<shm::NodeWeight> local_node_weights(graph.n());
-  shm::StaticArray<shm::EdgeWeight> local_edge_weights(graph.m());
-
-  graph.pfor_nodes([&](const DNodeID u) {
-    local_nodes[u] = m0 + static_cast<shm::NodeID>(graph.first_edge(u));
-    local_node_weights[u] = static_cast<shm::NodeWeight>(graph.node_weight(u));
-    for (const auto [e, v] : graph.neighbors(u)) {
-      local_edges[e] = graph.local_to_global_node(v);
-      local_edge_weights[e] = graph.edge_weight(e);
-    }
+  // copy edges array with global node IDs
+  shm::StaticArray<shm::NodeID> remapped_edges(graph.m());
+  graph.pfor_nodes([&](const NodeID u) {
+    for (const auto [e, v] : graph.neighbors(u)) { remapped_edges[e] = graph.local_to_global_node(v); }
   });
 
   // gather graph
@@ -57,22 +44,34 @@ shm::Graph allgather(const DistributedGraph &graph, MPI_Comm comm) {
   auto edges_recvcounts = mpi::build_distribution_recvcounts(graph.edge_distribution());
   auto edges_displs = mpi::build_distribution_displs(graph.edge_distribution());
 
-  MPI_Allgatherv(local_nodes.data(), static_cast<int>(graph.n()), MPI_UINT32_T, nodes.data(), nodes_recvcounts.data(),
-                 nodes_displs.data(), MPI_UINT32_T, comm);
-  MPI_Allgatherv(local_node_weights.data(), static_cast<int>(graph.n()), MPI_INT32_T, node_weights.data(),
-                 nodes_recvcounts.data(), nodes_displs.data(), MPI_INT32_T, comm);
-  MPI_Allgatherv(local_edges.data(), static_cast<int>(graph.m()), MPI_UINT32_T, edges.data(), edges_recvcounts.data(),
-                 edges_displs.data(), MPI_UINT32_T, comm);
-  MPI_Allgatherv(local_edge_weights.data(), static_cast<int>(graph.m()), MPI_INT32_T, edge_weights.data(),
-                 edges_recvcounts.data(), edges_displs.data(), MPI_INT32_T, comm);
+  mpi::allgatherv(graph.raw_nodes().data(), graph.n(), nodes.data(), nodes_recvcounts.data(), nodes_displs.data(),
+                  comm);
+  mpi::allgatherv(graph.raw_node_weights().data(), graph.n(), node_weights.data(), nodes_recvcounts.data(),
+                  nodes_displs.data(), comm);
+  mpi::allgatherv(remapped_edges.data(), remapped_edges.size(), edges.data(), edges_recvcounts.data(),
+                  edges_displs.data(), comm);
+  mpi::allgatherv(graph.raw_edge_weights().data(), graph.m(), edge_weights.data(), edges_recvcounts.data(),
+                  edges_displs.data(), comm);
   nodes.back() = graph.global_m();
+
+  // remap nodes array
+  tbb::parallel_for(tbb::blocked_range<NodeID>(0, graph.global_n()), [&](const auto &r) {
+    PEID pe = 0;
+    for (NodeID u = r.begin(); u < r.end(); ++u) {
+      while (u >= graph.node_distribution(pe + 1)) {
+        ASSERT(pe < mpi::get_comm_size(comm));
+        ++pe;
+      }
+      nodes[u] += graph.edge_distribution(pe);
+    }
+  });
 
   return {std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights)};
 }
 
-DistributedPartitionedGraph reduce_scatter(const DistributedGraph &dist_graph, shm::PartitionedGraph shm_p_graph,
-                                           MPI_Comm comm) {
+DistributedPartitionedGraph reduce_scatter(const DistributedGraph &dist_graph, shm::PartitionedGraph shm_p_graph) {
   ALWAYS_ASSERT(dist_graph.global_n() < std::numeric_limits<int>::max()) << "partition size exceeds int size";
+  MPI_Comm comm = dist_graph.communicator();
 
   const int rank = mpi::get_comm_rank(comm);
   const shm::EdgeWeight shm_cut = shm::metrics::edge_cut(shm_p_graph);
@@ -91,13 +90,13 @@ DistributedPartitionedGraph reduce_scatter(const DistributedGraph &dist_graph, s
   MPI_Bcast(partition.data(), static_cast<int>(dist_graph.global_n()), MPI_INT32_T, global.rank, comm);
 
   // compute block weights
-  scalable_vector<shm::parallel::IntegralAtomicWrapper<DBlockWeight>> block_weights(shm_p_graph.k());
+  scalable_vector<shm::parallel::IntegralAtomicWrapper<BlockWeight>> block_weights(shm_p_graph.k());
   shm_p_graph.pfor_nodes([&](const shm::NodeID u) { block_weights[partition[u]] += shm_p_graph.node_weight(u); });
 
   // create distributed partition
-  scalable_vector<DBlockID> dist_partition(dist_graph.total_n());
-  dist_graph.pfor_all_nodes(
-      [&](const DNodeID u) { dist_partition[u] = partition[dist_graph.local_to_global_node(u)]; });
+  scalable_vector<BlockID> dist_partition(dist_graph.total_n());
+  dist_graph.pfor_nodes(0, dist_graph.total_n(),
+                        [&](const NodeID u) { dist_partition[u] = partition[dist_graph.local_to_global_node(u)]; });
 
   // create distributed partitioned graph
   return {&dist_graph, shm_p_graph.k(), std::move(dist_partition), std::move(block_weights)};

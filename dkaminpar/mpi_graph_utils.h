@@ -52,8 +52,7 @@ void perform_sparse_alltoall(const std::vector<Buffer<Message>> &send_buffers, R
 } // namespace internal
 
 template<typename Message, template<typename> typename Buffer = scalable_vector,
-         std::invocable<DNodeID, DEdgeID, DNodeID, PEID> Builder,
-         std::invocable<PEID, const Buffer<Message> &> Receiver>
+         std::invocable<NodeID, EdgeID, NodeID, PEID> Builder, std::invocable<PEID, const Buffer<Message> &> Receiver>
 void sparse_alltoall_ghost_edge(const DistributedGraph &graph, Builder &&builder_lambda, Receiver &&recv_lambda,
                                 const int tag = 0) {
   const auto [size, rank] = mpi::get_comm_info(graph.communicator());
@@ -64,7 +63,7 @@ void sparse_alltoall_ghost_edge(const DistributedGraph &graph, Builder &&builder
 
   // create messages for send buffer
   std::vector<shm::parallel::IntegralAtomicWrapper<std::size_t>> next_message(size);
-  graph.pfor_nodes([&](const DNodeID u) {
+  graph.pfor_nodes([&](const NodeID u) {
     for (const auto [e, v] : graph.neighbors(u)) {
       if (graph.is_ghost_node(v)) {
         const PEID pe = graph.ghost_owner(v);
@@ -77,7 +76,7 @@ void sparse_alltoall_ghost_edge(const DistributedGraph &graph, Builder &&builder
                                                                rank, tag, graph.communicator());
 }
 
-template<typename Message, template<typename> typename Buffer = scalable_vector, std::invocable<DNodeID, PEID> Builder,
+template<typename Message, template<typename> typename Buffer = scalable_vector, std::invocable<NodeID, PEID> Builder,
          std::invocable<PEID, const Buffer<Message> &> Receiver>
 void sparse_alltoall_interface_node(const DistributedGraph &graph, Builder &&builder_lambda, Receiver &&recv_lambda,
                                     const int tag = 0) {
@@ -93,8 +92,8 @@ void sparse_alltoall_interface_node(const DistributedGraph &graph, Builder &&bui
   graph.pfor_nodes_range([&](const auto r) {
     shm::Marker<> created_message_for_pe(static_cast<std::size_t>(size));
 
-    for (DNodeID u = r.begin(); u < r.end(); ++u) {
-      for (const DNodeID v : graph.adjacent_nodes(u)) {
+    for (NodeID u = r.begin(); u < r.end(); ++u) {
+      for (const NodeID v : graph.adjacent_nodes(u)) {
         if (graph.is_ghost_node(v)) {
           const PEID pe = graph.ghost_owner(v);
           ASSERT(static_cast<std::size_t>(pe) < send_buffers.size());

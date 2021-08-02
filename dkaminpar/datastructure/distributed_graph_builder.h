@@ -28,8 +28,8 @@ class Builder {
   SET_DEBUG(false);
 
 public:
-  void initialize(const DNodeID global_n, const DEdgeID global_m, const PEID rank,
-                  scalable_vector<DNodeID> node_distribution) {
+  void initialize(const GlobalNodeID global_n, const GlobalEdgeID global_m, const PEID rank,
+                  scalable_vector<GlobalNodeID> node_distribution) {
     ASSERT(static_cast<std::size_t>(rank + 1) < node_distribution.size());
     ASSERT(global_n == node_distribution.back());
     ASSERT(0 == node_distribution.front());
@@ -41,38 +41,36 @@ public:
     _local_n = _node_distribution[rank + 1] - _node_distribution[rank];
   }
 
-  void create_node(const DNodeWeight weight) {
+  void create_node(const NodeWeight weight) {
     _nodes.push_back(_edges.size());
     _node_weights.push_back(weight);
   }
 
-  void create_edge(const DEdgeWeight weight, const DNodeID global_v) {
-    DNodeID local_v = is_local_node(global_v) ? global_v - _offset_n : create_ghost_node(global_v);
+  void create_edge(const EdgeWeight weight, const GlobalNodeID global_v) {
+    NodeID local_v = is_local_node(global_v) ? global_v - _offset_n : create_ghost_node(global_v);
     _edges.push_back(local_v);
     _edge_weights.push_back(weight);
   }
 
   DistributedGraph finalize() {
     _nodes.push_back(_edges.size());
-    for (DNodeID ghost_u = 0; ghost_u < _ghost_to_global.size(); ++ghost_u) {
+    for (NodeID ghost_u = 0; ghost_u < _ghost_to_global.size(); ++ghost_u) {
       _node_weights.push_back(1); // TODO support weighted instances
     }
 
     // build edge distribution array
-    const DEdgeID m = _edges.size();
-    DEdgeID offset_m = 0;
-    MPI_Exscan(&m, &offset_m, 1, MPI_UINT64_T, MPI_SUM, MPI_COMM_WORLD);
+    GlobalEdgeID offset_m = mpi::exscan(_edges.size(), MPI_SUM, MPI_COMM_WORLD);
 
     const auto [size, rank] = mpi::get_comm_info();
-    scalable_vector<DEdgeID> edge_distribution(size + 1);
-    MPI_Allgather(&offset_m, 1, MPI_UINT64_T, edge_distribution.data(), 1, MPI_UINT64_T, MPI_COMM_WORLD);
+    scalable_vector<GlobalEdgeID> edge_distribution(size + 1);
+    mpi::allgather(&offset_m, 1, edge_distribution.data(), 1, MPI_COMM_WORLD);
     edge_distribution.back() = _global_m;
 
     DBG << "Finalized graph: " << V(offset_m) << V(edge_distribution);
 
     return {_global_n,
             _global_m,
-            _ghost_to_global.size(),
+            static_cast<NodeID>(_ghost_to_global.size()),
             _offset_n,
             offset_m,
             std::move(_node_distribution),
@@ -87,13 +85,13 @@ public:
   }
 
 private:
-  [[nodiscard]] bool is_local_node(const DNodeID global_u) const {
+  [[nodiscard]] bool is_local_node(const GlobalNodeID global_u) const {
     return _offset_n <= global_u && global_u < _offset_n + _local_n;
   }
 
-  DNodeID create_ghost_node(const DNodeID global_u) {
+  NodeID create_ghost_node(const GlobalNodeID global_u) {
     if (!_global_to_ghost.contains(global_u)) {
-      const DNodeID local_id = _local_n + _ghost_to_global.size();
+      const NodeID local_id = _local_n + _ghost_to_global.size();
       _ghost_to_global.push_back(global_u);
       _global_to_ghost[global_u] = local_id;
       _ghost_owner.push_back(find_ghost_owner(global_u));
@@ -102,25 +100,25 @@ private:
     return _global_to_ghost[global_u];
   }
 
-  PEID find_ghost_owner(const DNodeID global_u) const {
+  PEID find_ghost_owner(const GlobalNodeID global_u) const {
     auto it = std::upper_bound(_node_distribution.begin() + 1, _node_distribution.end(), global_u);
     ASSERT(it != _node_distribution.end());
     return static_cast<PEID>(std::distance(_node_distribution.begin(), it) - 1);
   }
 
-  DNodeID _global_n;
-  DEdgeID _global_m;
+  GlobalNodeID _global_n;
+  GlobalEdgeID _global_m;
 
-  scalable_vector<DNodeID> _node_distribution;
-  DNodeID _offset_n{0};
-  DNodeID _local_n{0};
+  scalable_vector<GlobalNodeID> _node_distribution;
+  GlobalNodeID _offset_n{0};
+  NodeID _local_n{0};
 
-  scalable_vector<DEdgeID> _nodes{};
-  scalable_vector<DNodeID> _edges{};
-  scalable_vector<DNodeWeight> _node_weights{};
-  scalable_vector<DEdgeWeight> _edge_weights{};
+  scalable_vector<EdgeID> _nodes{};
+  scalable_vector<NodeID> _edges{};
+  scalable_vector<NodeWeight> _node_weights{};
+  scalable_vector<EdgeWeight> _edge_weights{};
   scalable_vector<PEID> _ghost_owner{};
-  scalable_vector<DNodeID> _ghost_to_global{};
-  std::unordered_map<DNodeID, DNodeID> _global_to_ghost{};
+  scalable_vector<GlobalNodeID> _ghost_to_global{};
+  std::unordered_map<GlobalNodeID, NodeID> _global_to_ghost{};
 };
 } // namespace dkaminpar::graph

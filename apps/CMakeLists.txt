@@ -23,3 +23,4 @@ add_app(KaMinPar kaminpar.cc)
 add_distributed_app(dKaMinPar dkaminpar.cc)
 
 add_subdirectory(tools)
+add_subdirectory(benchmarks)
