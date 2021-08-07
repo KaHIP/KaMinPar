@@ -2,3 +2,6 @@
 	path = external_tools/googletest
 	url = https://github.com/google/googletest.git
 	ignore = dirty
+[submodule "external_tools/backward-cpp"]
+	path = external_tools/backward-cpp
+	url = https://github.com/bombela/backward-cpp.git

@@ -21,6 +21,7 @@ option(KAMINPAR_ENABLE_TIMERS "Enable fine-grained timers. With this option disa
 option(KAMINPAR_ENABLE_DEBUG_FEATURES "Enable features that might slow down execution but are helpful for debug purposes (e.g., naming graphs)." OFF)
 option(KAMINPAR_ENABLE_STATISTICS "Generate and output much more detailed statistics." OFF)
 option(KAMINPAR_64BIT_EDGE_IDS "Use 64 bits for edge ids." OFF)
+option(KAMINPAR_USE_BACKWARD_CPP "Use backward-cpp for better stacktraces." OFF)
 
 include_directories(${PROJECT_SOURCE_DIR})
 
@@ -40,7 +41,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Winit-self")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pedantic")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-function")
 
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O1 -g3")
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O1 -g")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=address -fno-omit-frame-pointer -fno-optimize-sibling-calls")
 
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -g -mtune=native -march=native")
@@ -101,6 +102,9 @@ GetModifiedGitFiles(MODIFIED_FILES)
 add_definitions(-DMODIFIED_FILES="${MODIFIED_FILES}")
 
 include(gmock)
+set(CMAKE_POLICY_DEFAULT_CMP0063 NEW)
+add_subdirectory(external_tools/backward-cpp)
+
 add_subdirectory(kaminpar)
 add_subdirectory(dkaminpar)
 add_subdirectory(apps)
