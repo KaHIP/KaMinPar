@@ -51,7 +51,9 @@ class DistributedLabelPropagationRefiner final
 public:
   explicit DistributedLabelPropagationRefiner(const Context &ctx)
       : Base{ctx.partition.local_n, ctx.partition.k},
-        _lp_ctx{ctx.refinement.lp} {}
+        _lp_ctx{ctx.refinement.lp},
+        _next_partition(ctx.partition.local_n),
+        _gains(ctx.partition.local_n) {}
 
   void initialize(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) {
     _p_graph = &p_graph;
@@ -62,6 +64,7 @@ public:
   void perform_iteration() {
     for (std::size_t i = 0; i < _lp_ctx.num_chunks; ++i) {
       const auto [from, to] = math::compute_local_range<NodeID>(_p_graph->n(), _lp_ctx.num_chunks, i);
+      DBG << "Iteration " << from << ".." << to;
       perform_iteration(from, to);
     }
   }
@@ -186,43 +189,31 @@ private:
         });
   }
 
-  void init_clusters() {
-    tbb::parallel_for(static_cast<NodeID>(0), _p_graph->total_n(), [&](const NodeID u) {
-      ASSERT(u < _next_partition.size());
-      _next_partition[u] = _p_graph->block(u);
-    });
-
-    _p_graph->pfor_nodes([&](const NodeID u) {
-      ASSERT(u < _active.size());
-      _active[u] = 1;
-    });
-  }
-
 public:
-  void reset_node_state(const NodeID) const {}
+  void reset_node_state(const NodeID u)  { _next_partition[u] = _p_graph->block(u); }
   [[nodiscard]] BlockID cluster(const NodeID u) const { return _p_graph->block(u); }
   void set_cluster(const NodeID u, const BlockID b) { _next_partition[u] = b; }
   [[nodiscard]] BlockID num_clusters() const { return _p_graph->k(); }
   [[nodiscard]] BlockWeight initial_cluster_weight(const BlockID b) const { return _p_graph->block_weight(b); }
   [[nodiscard]] BlockWeight max_cluster_weight(const BlockID /* b */) const { return _max_block_weight; }
-  [[nodiscard]] bool accept_cluster(const ClusterSelectionState &state) const {
-    return (state.current_gain > state.best_gain ||
-            (state.current_gain == state.best_gain && state.local_rand.random_bool())) &&
-           (state.current_cluster_weight + state.u_weight < _max_block_weight ||
-            state.current_cluster == state.initial_cluster);
+  [[nodiscard]] bool accept_cluster(const ClusterSelectionState &state) {
+    const bool accept = (state.current_gain > state.best_gain ||
+                         (state.current_gain == state.best_gain && state.local_rand.random_bool())) &&
+                        (state.current_cluster_weight + state.u_weight < _max_block_weight ||
+                         state.current_cluster == state.initial_cluster);
+    if (accept) { _gains[state.u] = state.current_gain; }
+    return accept;
   }
   [[nodiscard]] bool activate_neighbor(const NodeID u) const { return u < _p_graph->n(); }
 
 private:
-  DistributedPartitionedGraph *_p_graph;
-
-  const PartitionContext *_p_ctx;
   const LabelPropagationRefinementContext &_lp_ctx;
 
-  scalable_vector<shm::parallel::IntegralAtomicWrapper<uint8_t>> _active;
+  DistributedPartitionedGraph *_p_graph{nullptr};
+  const PartitionContext *_p_ctx{nullptr};
+
   scalable_vector<BlockID> _next_partition;
-  scalable_vector<EdgeWeight> _gains; // TODO
-  tbb::enumerable_thread_specific<RatingMap> _rating_map_ets{[&] { return RatingMap{_max_n}; }};
+  scalable_vector<EdgeWeight> _gains;
   BlockWeight _max_block_weight;
 };
 } // namespace dkaminpar

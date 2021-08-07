@@ -127,7 +127,12 @@ struct Context {
   InitialPartitioningContext initial_partitioning;
   RefinementContext refinement;
 
-  void setup(const DistributedGraph &graph) { UNUSED(graph); }
+  void setup(const DistributedGraph &graph) {
+    partition.local_n = graph.n();
+    partition.local_m = graph.m();
+    partition.global_m = graph.global_n();
+    partition.global_n = graph.global_m();
+  }
 
   void print(std::ostream &out, const std::string &prefix = "") const;
 };

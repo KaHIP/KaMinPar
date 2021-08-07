@@ -89,15 +89,22 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
 
   auto refine = [&](DistributedPartitionedGraph &p_graph) {
     if (_ctx.refinement.algorithm == KWayRefinementAlgorithm::NOOP) { return; }
+
+    DBG << "create local_n=" << _ctx.partition.local_n << " k=" << _ctx.partition.k;
     DistributedLabelPropagationRefiner refiner(_ctx);
+    DBG << "init";
     refiner.initialize(p_graph, _ctx.partition);
+
     for (std::size_t i = 0; i < _ctx.refinement.lp.num_iterations; ++i) {
+      DBG << "iter " << i;
       refiner.perform_iteration();
+      DBG << "validate";
       graph::debug::validate_partition(p_graph);
     }
   };
 
   // Uncoarsen and refine
+  DBG << "Calling refiner";
   refine(dist_p_graph);
   while (!graph_hierarchy.empty()) {
     // (1) Uncoarsen graph

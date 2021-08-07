@@ -118,6 +118,7 @@ int main(int argc, char *argv[]) {
   };
   ASSERT([&] { dist::graph::debug::validate(graph); });
   LOG << "Loaded graph with n=" << graph.global_n() << " m=" << graph.global_m();
+  ctx.setup(graph);
 
   // Perform partitioning
   const auto p_graph = TIMED_SCOPE("Partitioning") { return dist::partition(graph, ctx); };
