@@ -14,6 +14,8 @@
 #include <vector>
 
 namespace kaminpar {
+struct Mandatory {};
+
 using NodeID = uint32_t;
 #ifdef KAMINPAR_64BIT_EDGE_IDS
 using EdgeID = uint64_t;
@@ -32,6 +34,7 @@ constexpr BlockID kInvalidBlockID = std::numeric_limits<BlockID>::max();
 constexpr NodeID kInvalidNodeID = std::numeric_limits<NodeID>::max();
 constexpr EdgeID kInvalidEdgeID = std::numeric_limits<EdgeID>::max();
 constexpr NodeWeight kInvalidNodeWeight = std::numeric_limits<NodeWeight>::max();
+constexpr EdgeWeight kInvalidEdgeWeight = std::numeric_limits<EdgeWeight>::max();
 constexpr BlockWeight kInvalidBlockWeight = std::numeric_limits<BlockWeight>::max();
 constexpr Degree kMaxDegree = std::numeric_limits<Degree>::max();
 

@@ -140,8 +140,7 @@ SequentialSubgraphExtractionResult extract_subgraphs_sequential(const Partitione
 SubgraphExtractionResult extract_subgraphs(const PartitionedGraph &p_graph, SubgraphMemory &subgraph_memory) {
   const Graph &graph = p_graph.graph();
 
-  const auto t_allocation = SIMPLE_TIMER_START();
-  START_TIMER(TIMER_ALLOCATION);
+  START_TIMER("Allocation");
   scalable_vector<NodeID> mapping(p_graph.n());
   scalable_vector<SubgraphMemoryStartPosition> start_positions(p_graph.k() + 1);
 
@@ -150,7 +149,6 @@ SubgraphExtractionResult extract_subgraphs(const PartitionedGraph &p_graph, Subg
 
   scalable_vector<Graph> subgraphs(p_graph.k());
   STOP_TIMER();
-  SIMPLE_TIMER_STOP("Subgraph extraction allocation", t_allocation);
 
   // count number of nodes and edges in each block
   START_TIMER("Count block size");

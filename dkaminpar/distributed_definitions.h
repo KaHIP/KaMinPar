@@ -27,14 +27,27 @@
 namespace dkaminpar {
 namespace shm = kaminpar;
 
-using DNodeID = uint64_t;
-using DEdgeID = uint64_t;
-using DNodeWeight = int64_t;
-using DEdgeWeight = int64_t;
-using DBlockID = uint32_t;
-using DBlockWeight = int64_t;
+using shm::NodeID;
+using GlobalNodeID = uint64_t;
+using shm::NodeWeight;
+using GlobalNodeWeight = int64_t;
+using shm::EdgeID;
+using GlobalEdgeID = uint64_t;
+using shm::EdgeWeight;
+using GlobalEdgeWeight = int64_t;
+using shm::BlockID;
+using BlockWeight = int64_t;
 
-constexpr DBlockWeight kInvalidBlockWeight = std::numeric_limits<DBlockWeight>::max();
+using shm::kInvalidNodeID;
+constexpr GlobalNodeID kInvalidGlobalNodeID = std::numeric_limits<GlobalNodeID>::max();
+using shm::kInvalidNodeWeight;
+constexpr GlobalNodeWeight kInvalidGlobalNodeWeight = std::numeric_limits<GlobalNodeWeight>::max();
+using shm::kInvalidEdgeID;
+constexpr GlobalEdgeID kInvalidGlobalEdgeID = std::numeric_limits<GlobalEdgeID>::max();
+using shm::kInvalidEdgeWeight;
+constexpr GlobalEdgeWeight kInvalidGlobalEdgeWeight = std::numeric_limits<GlobalEdgeWeight>::max();
+using shm::kInvalidBlockID;
+using shm::kInvalidBlockWeight;
 
 using PEID = int;
 

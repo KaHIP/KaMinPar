@@ -33,14 +33,14 @@ namespace dkaminpar::metrics {
  * @param p_graph Partitioned graph.
  * @return Weighted edge cut of @p p_graph with undirected edges counted twice.
  */
-DEdgeWeight local_edge_cut(const DistributedPartitionedGraph &p_graph);
+EdgeWeight local_edge_cut(const DistributedPartitionedGraph &p_graph);
 
 /*!
  * Computes the number of edges cut in the whole graph, i.e., across all PEs. Undirected edges are only counted once.
  * @param p_graph Partitioned graph.
  * @return Weighted edge cut across all PEs with undirected edges only counted once.
  */
-DEdgeWeight edge_cut(const DistributedPartitionedGraph &p_graph);
+GlobalEdgeWeight edge_cut(const DistributedPartitionedGraph &p_graph);
 
 /*!
  * Computes the partition imbalance of the whole graph partition, i.e., across all PEs.

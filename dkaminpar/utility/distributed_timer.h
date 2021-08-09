@@ -1,7 +1,7 @@
 /*******************************************************************************
  * This file is part of KaMinPar.
  *
- * Copyright (C) 2021 Daniel Seemaier <daniel.seemaier@kit.edu>
+ * Copyright (C) 2020 Daniel Seemaier <daniel.seemaier@kit.edu>
  *
  * KaMinPar is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,16 +19,9 @@
 ******************************************************************************/
 #pragma once
 
-#include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/distributed_definitions.h"
-#include "dkaminpar/mpi_utils.h"
-#include "kaminpar/datastructure/graph.h"
-#include "kaminpar/definitions.h"
-#include "kaminpar/utility/metrics.h"
+#include "kaminpar/utility/timer.h"
 
-#include <mpi.h>
-
-namespace dkaminpar::graph {
-shm::Graph allgather(const DistributedGraph &graph);
-DistributedPartitionedGraph reduce_scatter(const DistributedGraph &dist_graph, shm::PartitionedGraph shm_p_graph);
-} // namespace dkaminpar::graph
+namespace dkaminpar::timer {
+void finalize_distributed_timer(shm::Timer &timer, MPI_Comm comm = MPI_COMM_WORLD);
+}

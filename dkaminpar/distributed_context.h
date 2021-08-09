@@ -51,12 +51,12 @@ DECLARE_ENUM_STRING_CONVERSION(KWayRefinementAlgorithm, kway_refinement_algorith
 
 struct LabelPropagationCoarseningContext {
   std::size_t num_iterations;
-  DNodeID large_degree_threshold;
-  DNodeID max_num_neighbors;
+  NodeID large_degree_threshold;
+  NodeID max_num_neighbors;
   bool merge_singleton_clusters;
   double merge_nonadjacent_clusters_threshold;
 
-  [[nodiscard]] bool should_merge_nonadjacent_clusters(const DNodeID old_n, const DNodeID new_n) const {
+  [[nodiscard]] bool should_merge_nonadjacent_clusters(const NodeID old_n, const NodeID new_n) const {
     return (1.0 - 1.0 * static_cast<double>(new_n) / static_cast<double>(old_n)) <=
            merge_nonadjacent_clusters_threshold;
   }
@@ -96,14 +96,22 @@ struct RefinementContext {
 struct ParallelContext {
   std::size_t num_threads;
   bool use_interleaved_numa_allocation;
+  int mpi_thread_support;
 
   void print(std::ostream &out, const std::string &prefix = "") const;
 };
 
 struct PartitionContext {
-  DBlockID k{};
+  BlockID k{};
   double epsilon{};
   PartitioningMode mode{};
+
+  GlobalNodeID global_n{kInvalidGlobalNodeID};
+  GlobalEdgeID global_m{kInvalidGlobalEdgeID};
+  NodeID local_n{kInvalidNodeID};
+  EdgeID local_m{kInvalidEdgeID};
+
+  void setup(const DistributedGraph &graph);
 
   void print(std::ostream &out, const std::string &prefix = "") const;
 };
@@ -119,7 +127,12 @@ struct Context {
   InitialPartitioningContext initial_partitioning;
   RefinementContext refinement;
 
-  void setup(const DistributedGraph &graph) { UNUSED(graph); }
+  void setup(const DistributedGraph &graph) {
+    partition.local_n = graph.n();
+    partition.local_m = graph.m();
+    partition.global_m = graph.global_n();
+    partition.global_n = graph.global_m();
+  }
 
   void print(std::ostream &out, const std::string &prefix = "") const;
 };

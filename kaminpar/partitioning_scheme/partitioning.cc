@@ -8,8 +8,8 @@ namespace kaminpar::partitioning {
 PartitionedGraph partition(const Graph &graph, const Context &ctx) {
   switch (ctx.partition.mode) {
     case PartitioningMode::DEEP: {
-      START_TIMER(TIMER_PARTITIONING);
-      START_TIMER(TIMER_ALLOCATION);
+      START_TIMER("Partitioning");
+      START_TIMER("Allocation");
       ParallelRecursiveBisection rb{graph, ctx};
       STOP_TIMER();
       auto p_graph = rb.partition();
@@ -18,8 +18,8 @@ PartitionedGraph partition(const Graph &graph, const Context &ctx) {
     }
 
     case PartitioningMode::RB: {
-      START_TIMER(TIMER_PARTITIONING);
-      START_TIMER(TIMER_ALLOCATION);
+      START_TIMER("Partitioning");
+      START_TIMER("Allocation");
       ParallelSimpleRecursiveBisection rb{graph, ctx};
       STOP_TIMER();
       auto p_graph = rb.partition();

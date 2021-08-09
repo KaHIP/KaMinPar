@@ -19,6 +19,7 @@
 ******************************************************************************/
 #include "dkaminpar/datastructure/distributed_graph.h"
 
+#include "dkaminpar/mpi_graph_utils.h"
 #include "dkaminpar/mpi_utils.h"
 #include "dkaminpar/mpi_wrapper.h"
 
@@ -34,7 +35,8 @@ bool all_equal(const R &r) {
 }
 } // namespace
 
-bool validate(const DistributedGraph &graph, const int root, MPI_Comm comm) {
+bool validate(const DistributedGraph &graph, const int root) {
+  MPI_Comm comm = graph.communicator();
   mpi::barrier(comm);
 
   const auto [size, rank] = mpi::get_comm_info(comm);
@@ -66,150 +68,142 @@ bool validate(const DistributedGraph &graph, const int root, MPI_Comm comm) {
 
   // check that ghost nodes are actually ghost nodes
   DBG << "Checking ghost nodes";
-  for (DNodeID ghost_u : graph.ghost_nodes()) { ALWAYS_ASSERT(graph.ghost_owner(ghost_u) != rank); }
+  for (NodeID ghost_u : graph.ghost_nodes()) { ALWAYS_ASSERT(graph.ghost_owner(ghost_u) != rank); }
 
   // check node weight of ghost nodes
   DBG << "Checking node weights of ghost nodes";
   {
     struct GhostNodeWeightMessage {
-      DNodeID u;
-      DNodeWeight weight;
+      GlobalNodeID global_u;
+      NodeWeight weight;
     };
 
-    std::vector<std::vector<GhostNodeWeightMessage>> send_buffers(size);
-    for (DNodeID ghost_u : graph.ghost_nodes()) {
-      const PEID owner = graph.ghost_owner(ghost_u);
-      send_buffers[owner].emplace_back(graph.local_to_global_node(ghost_u), graph.node_weight(ghost_u));
-    }
-    ALWAYS_ASSERT(send_buffers[rank].empty());
-
-    mpi::sparse_all_to_all<std::vector>(send_buffers, 0, [&](const PEID, const auto &data) {
-      for (const auto [global_u, weight] : data) {
-        const DNodeID local_u = graph.global_to_local_node(global_u);
-        ALWAYS_ASSERT(graph.offset_n() <= global_u && global_u < graph.offset_n() + graph.n());
-        ALWAYS_ASSERT(graph.node_weight(local_u) == weight);
-      }
-    });
+    mpi::graph::sparse_alltoall_interface_node<GhostNodeWeightMessage>(
+        graph,
+        [&](const NodeID u, const PEID) -> GhostNodeWeightMessage {
+          return {.global_u = graph.local_to_global_node(u), .weight = graph.node_weight(u)};
+        },
+        [&](const PEID /* pe */, const auto &recv_buffer) {
+          for (const auto [global_u, weight] : recv_buffer) {
+            ALWAYS_ASSERT(graph.contains_global_node(global_u));
+            const NodeID local_u = graph.global_to_local_node(global_u);
+            ALWAYS_ASSERT(graph.node_weight(local_u) == weight);
+          }
+        });
   }
 
   // check that edges to ghost nodes exist in both directions
   DBG << "Checking edges to ghost nodes";
   {
     struct GhostNodeEdge {
-      DNodeID owned_node;
-      DNodeID ghost_node;
+      GlobalNodeID owned_node;
+      GlobalNodeID ghost_node;
     };
 
-    std::vector<std::vector<GhostNodeEdge>> send_buffers(size);
-    for (DNodeID u : graph.nodes()) {
-      for (const auto v : graph.adjacent_nodes(u)) {
-        if (graph.is_ghost_node(v)) {
-          const PEID owner = graph.ghost_owner(v);
-          send_buffers[owner].emplace_back(graph.local_to_global_node(u), graph.local_to_global_node(v));
-        }
-      }
-    }
-    ALWAYS_ASSERT(send_buffers[rank].empty());
+    mpi::graph::sparse_alltoall_ghost_edge<GhostNodeEdge>(
+        graph,
+        [&](const NodeID u, const EdgeID, const NodeID v, const PEID) -> GhostNodeEdge {
+          return {.owned_node = graph.local_to_global_node(u), .ghost_node = graph.local_to_global_node(v)};
+        },
+        [&](const PEID pe, const auto &recv_buffer) {
+          for (const auto [ghost_node, owned_node] : recv_buffer) { // NOLINT: roles are swapped on receiving PE
+            ALWAYS_ASSERT(graph.contains_global_node(ghost_node));
+            ALWAYS_ASSERT(graph.contains_global_node(owned_node));
 
-    mpi::sparse_all_to_all<std::vector>(send_buffers, 0, [&](const PEID pe, const auto &data) {
-      for (const auto [ghost_node, owned_node] : data) { // NOLINT: roles are swapped on receiving PE
-        ALWAYS_ASSERT(graph.contains_global_node(ghost_node));
-        ALWAYS_ASSERT(graph.contains_global_node(owned_node));
+            const NodeID local_owned_node = graph.global_to_local_node(owned_node);
+            const NodeID local_ghost_node = graph.global_to_local_node(ghost_node);
 
-        const DNodeID local_owned_node = graph.global_to_local_node(owned_node);
-        const DNodeID local_ghost_node = graph.global_to_local_node(ghost_node);
-
-        bool found = false;
-        for (const auto v : graph.adjacent_nodes(local_owned_node)) {
-          if (v == local_ghost_node) {
-            found = true;
-            break;
+            bool found = false;
+            for (const auto v : graph.adjacent_nodes(local_owned_node)) {
+              if (v == local_ghost_node) {
+                found = true;
+                break;
+              }
+            }
+            ALWAYS_ASSERT(found) << "Node " << local_owned_node << " (g " << owned_node << ") "
+                                 << "is expected to be adjacent to " << local_ghost_node << " (g " << ghost_node << ") "
+                                 << "due to an edge on PE " << pe << ", but is not";
           }
-        }
-        ALWAYS_ASSERT(found) << "Node " << local_owned_node << " (g " << owned_node << ") "
-                             << "is expected to be adjacent to " << local_ghost_node << " (g " << ghost_node << ") "
-                             << "due to an edge on PE " << pe << ", but is not";
-      }
-    });
+        });
   }
 
   mpi::barrier(comm);
   return true;
 }
 
-bool validate_partition(const DistributedPartitionedGraph &p_graph, MPI_Comm comm) {
+bool validate_partition(const DistributedPartitionedGraph &p_graph) {
+  MPI_Comm comm = p_graph.communicator();
   const auto [size, rank] = mpi::get_comm_info(comm);
 
-  // check whether each PE knows the same block count
   {
+    DBG << "Check that each PE knows the same block count";
     const auto recv_k = mpi::gather(p_graph.k());
     ALWAYS_ASSERT_ROOT(all_equal(recv_k));
+    mpi::barrier(comm);
   }
 
-  mpi::barrier(comm);
-  LOG << "Every PE knows the same number of blocks";
-
-  // check whether each PE has the same block weights
   {
-    scalable_vector<DBlockWeight> recv_block_weights;
+    DBG << "Check that each PE has the same block weights";
+
+    scalable_vector<BlockWeight> recv_block_weights;
     if (ROOT(rank)) { recv_block_weights.resize(size * p_graph.k()); }
-    const scalable_vector<DBlockWeight> send_block_weights = p_graph.block_weights_copy();
-    mpi::gather(send_block_weights.data(), p_graph.k(), recv_block_weights.data(), p_graph.k(), 0, comm);
+    const scalable_vector<BlockWeight> send_block_weights = p_graph.block_weights_copy();
+    mpi::gather(send_block_weights.data(), static_cast<int>(p_graph.k()), recv_block_weights.data(),
+                static_cast<int>(p_graph.k()), 0, comm);
 
     if (ROOT(rank)) {
       DBG << "block_weights=" << recv_block_weights;
-      for (const DBlockID b : p_graph.blocks()) {
+      for (const BlockID b : p_graph.blocks()) {
         for (int pe = 0; pe < size; ++pe) {
-          const DBlockWeight expected = recv_block_weights[b];
-          const DBlockWeight actual = recv_block_weights[p_graph.k() * pe + b];
+          const BlockWeight expected = recv_block_weights[b];
+          const BlockWeight actual = recv_block_weights[p_graph.k() * pe + b];
           ALWAYS_ASSERT(expected == actual) << "for PE " << pe << ", block " << b << ": expected weight " << expected
                                             << " (weight on root), got weight " << actual;
         }
       }
     }
+
+    mpi::barrier(comm);
   }
 
-  mpi::barrier(comm);
-  LOG << "Every PE knows the same block weights";
-
-  // check whether block weights are actually correct
   {
-    scalable_vector<DBlockWeight> send_block_weights(p_graph.k());
-    for (const DNodeID u : p_graph.nodes()) { send_block_weights[p_graph.block(u)] += p_graph.node_weight(u); }
-    DBG << V(send_block_weights) << V(p_graph.block_weights_copy());
-    scalable_vector<DBlockWeight> recv_block_weights;
+    DBG << "Check that block weights are actually correct";
+
+    scalable_vector<BlockWeight> send_block_weights(p_graph.k());
+    for (const NodeID u : p_graph.nodes()) { send_block_weights[p_graph.block(u)] += p_graph.node_weight(u); }
+    scalable_vector<BlockWeight> recv_block_weights;
     if (ROOT(rank)) { recv_block_weights.resize(p_graph.k()); }
-    mpi::reduce(send_block_weights.data(), recv_block_weights.data(), p_graph.k(), MPI_SUM, 0, comm);
+    mpi::reduce(send_block_weights.data(), recv_block_weights.data(), static_cast<int>(p_graph.k()), MPI_SUM, 0, comm);
     if (ROOT(rank)) {
-      for (const DBlockID b : p_graph.blocks()) {
+      for (const BlockID b : p_graph.blocks()) {
         ALWAYS_ASSERT(p_graph.block_weight(b) == recv_block_weights[b])
             << V(b) << V(p_graph.block_weight(b)) << V(recv_block_weights[b]);
       }
     }
+
+    mpi::barrier(comm);
   }
 
-  mpi::barrier(comm);
-  LOG << "Every PE knows the right block weights";
-
-  // check whether assignment of ghost nodes is consistent
   {
+    DBG << "Check whether the assignment of ghost nodes is consistent";
+
     // collect partition on root
-    scalable_vector<DBlockID> recv_partition;
+    scalable_vector<BlockID> recv_partition;
     if (ROOT(rank)) { recv_partition.resize(p_graph.global_n()); }
 
     const auto recvcounts = mpi::build_distribution_recvcounts(p_graph.node_distribution());
     const auto displs = mpi::build_distribution_displs(p_graph.node_distribution());
-    MPI_Gatherv(p_graph.partition().data(), p_graph.n(), MPI_UINT32_T, recv_partition.data(), recvcounts.data(),
-                displs.data(), MPI_UINT32_T, 0, comm);
+    mpi::gatherv(p_graph.partition().data(), static_cast<int>(p_graph.n()), recv_partition.data(), recvcounts.data(),
+                 displs.data(), 0, comm);
 
     // next, each PE validates the block of its ghost nodes by sending them to root
     scalable_vector<std::uint64_t> send_buffer;
     send_buffer.reserve(p_graph.ghost_n() * 2);
-    for (const DNodeID ghost_u : p_graph.ghost_nodes()) {
+    for (const NodeID ghost_u : p_graph.ghost_nodes()) {
       if (ROOT(rank)) { // root can validate locally
-        ALWAYS_ASSERT(p_graph.block(ghost_u) == recv_partition[p_graph.global_node(ghost_u)]);
+        ALWAYS_ASSERT(p_graph.block(ghost_u) == recv_partition[p_graph.local_to_global_node(ghost_u)]);
       } else {
-        send_buffer.push_back(p_graph.global_node(ghost_u));
+        send_buffer.push_back(p_graph.local_to_global_node(ghost_u));
         send_buffer.push_back(p_graph.block(ghost_u));
       }
     }
@@ -217,28 +211,23 @@ bool validate_partition(const DistributedPartitionedGraph &p_graph, MPI_Comm com
     // exchange messages and validate
     if (ROOT(rank)) {
       for (int pe = 1; pe < size; ++pe) { // recv from all but root
-        MPI_Status status = mpi::probe(pe, 0);
-        int count = mpi::get_count<std::uint64_t>(status);
-        scalable_vector<std::uint64_t> recv_buffer(count);
-        mpi::recv(recv_buffer.data(), count, pe, 0);
+        const auto recv_buffer = mpi::probe_recv<std::uint64_t>(pe, 0, MPI_STATUS_IGNORE, comm);
 
         // now validate received data
-        for (int i = 0; i < count; i += 2) {
-          const auto global_u = static_cast<DNodeID>(recv_buffer[i]);
-          const auto b = static_cast<DBlockID>(recv_buffer[i + 1]);
+        for (std::size_t i = 0; i < recv_buffer.size(); i += 2) {
+          const auto global_u = static_cast<GlobalNodeID>(recv_buffer[i]);
+          const auto b = static_cast<BlockID>(recv_buffer[i + 1]);
           ALWAYS_ASSERT(recv_partition[global_u] == b)
               << "on PE " << pe << ": ghost node " << global_u << " is placed in block " << b
               << ", but on its owner PE, it is placed in block " << recv_partition[global_u];
         }
-        DBG << "Validated " << count / 2 << " ghost nodes from PE " << pe;
       }
     } else {
       mpi::send(send_buffer.data(), send_buffer.size(), 0, 0);
     }
-  }
 
-  mpi::barrier(comm);
-  LOG << "Every PE has its ghost nodes in the right block";
+    mpi::barrier(comm);
+  }
 
   return true;
 }

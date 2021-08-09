@@ -24,19 +24,26 @@
 #include "utility/timer.h"
 
 namespace kaminpar {
-class ParallelLabelPropagationRefiner final
-    : public LabelPropagation<ParallelLabelPropagationRefiner, BlockID, BlockWeight, SparseMap<NodeID, EdgeWeight>>,
-      public Refiner {
-  using Base = LabelPropagation<ParallelLabelPropagationRefiner, BlockID, BlockWeight, SparseMap<NodeID, EdgeWeight>>;
+struct LabelPropagationRefinerConfig : public LabelPropagationConfig {
+  using ClusterID = BlockID;
+  using ClusterWeight = BlockWeight;
+  using RatingMap = ::kaminpar::RatingMap<EdgeWeight, SparseMap<NodeID, EdgeWeight>>;
+  static constexpr bool kUseHardWeightConstraint = true;
+  static constexpr bool kReportEmptyClusters = false;
+};
+
+class LabelPropagationRefiner final : public LabelPropagation<LabelPropagationRefiner, LabelPropagationRefinerConfig>,
+                                      public Refiner {
+  using Base = LabelPropagation<LabelPropagationRefiner, LabelPropagationRefinerConfig>;
   friend Base;
 
   static constexpr std::size_t kInfiniteIterations = std::numeric_limits<std::size_t>::max();
 
 public:
-  ParallelLabelPropagationRefiner(const Graph &graph, const PartitionContext &p_ctx, const RefinementContext &r_ctx)
+  LabelPropagationRefiner(const Graph &graph, const PartitionContext &p_ctx, const RefinementContext &r_ctx)
       : Base{graph.n(), p_ctx.k},
         _r_ctx{r_ctx} {
-    set_large_degree_threshold(r_ctx.lp.large_degree_threshold);
+    set_max_degree(r_ctx.lp.large_degree_threshold);
     set_max_num_neighbors(r_ctx.lp.max_num_neighbors);
   }
 
@@ -53,8 +60,8 @@ public:
 
     const std::size_t max_iterations = _r_ctx.lp.num_iterations == 0 ? kInfiniteIterations : _r_ctx.lp.num_iterations;
     for (std::size_t iteration = 0; iteration < max_iterations; ++iteration) {
-      SCOPED_TIMER(TIMER_LABEL_PROPAGATION);
-      const auto [num_moved_nodes, num_emptied_clusters] = label_propagation_iteration();
+      SCOPED_TIMER("Label Propagation");
+      const auto [num_moved_nodes, num_emptied_clusters] = randomized_iteration();
       if (num_moved_nodes == 0) { return false; }
     }
 
@@ -62,11 +69,6 @@ public:
   }
 
 private:
-  static constexpr bool kUseHardWeightConstraint = true;
-  static constexpr bool kReportEmptyClusters = false;
-  static constexpr bool kUseFavoredCluster = false;
-  static constexpr bool kControlProgress = false;
-
   void reset_node_state(const NodeID) const {}
   [[nodiscard]] BlockID cluster(const NodeID u) const { return _p_graph->block(u); }
   void set_cluster(const NodeID u, const BlockID block) { _p_graph->set_block(u, block); }
@@ -89,8 +91,6 @@ private:
            (state.current_cluster_weight + state.u_weight < current_max_weight || current_overload < initial_overload ||
             state.current_cluster == state.initial_cluster);
   }
-
-  void report_empty_cluster(const BlockID) {}
 
   const Graph *_graph{nullptr};
   PartitionedGraph *_p_graph{nullptr};

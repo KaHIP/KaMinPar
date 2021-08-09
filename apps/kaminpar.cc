@@ -57,8 +57,6 @@ void print_statistics(const PartitionedGraph &p_graph, const Context &ctx) {
   // statistics output that is easy to read
   if (!ctx.quiet) { Timer::global().print_human_readable(std::cout); }
   LOG;
-  if (!ctx.quiet) { timer::FlatTimer::global().print(std::cout); }
-  LOG;
   LOG << "-> k=" << p_graph.k();
   LOG << "-> cut=" << cut;
   LOG << "-> imbalance=" << imbalance;
@@ -93,7 +91,6 @@ int main(int argc, char *argv[]) {
   } catch (const std::runtime_error &e) { FATAL_ERROR << e.what(); }
   if (ctx.debug.just_sanitize_args) { std::exit(0); }
   if (ctx.debug.force_clean_build) { force_clean_build(); }
-  if (!ctx.show_local_timers) { Timer::global().disable_local(); }
 
   if (ctx.partition.fast_initial_partitioning) {
     ctx.initial_partitioning.min_num_repetitions = 4;
@@ -124,11 +121,11 @@ int main(int argc, char *argv[]) {
     StaticArray<NodeWeight> node_weights;
     StaticArray<EdgeWeight> edge_weights;
 
-    const io::metis::GraphInfo info = TIMED_SCOPE(TIMER_IO) {
+    const io::metis::GraphInfo info = TIMED_SCOPE("IO") {
       return io::metis::read(ctx.graph_filename, nodes, edges, node_weights, edge_weights);
     };
 
-    START_TIMER(TIMER_PARTITIONING);
+    START_TIMER("Partitioning");
     START_TIMER("Preprocessing");
 
     // sort nodes by degree bucket and rearrange graph, remove isolated nodes
@@ -169,7 +166,7 @@ int main(int argc, char *argv[]) {
   if (remove_isolated_nodes) {
     cio::print_banner("Postprocessing");
 
-    START_TIMER(TIMER_PARTITIONING);
+    START_TIMER("Partitioning");
     START_TIMER("Postprocessing");
 
     const NodeID num_nonisolated_nodes = graph.n(); // this becomes the first isolated node
@@ -194,7 +191,7 @@ int main(int argc, char *argv[]) {
   // Store output partition (if requested)
   //
   if (ctx.save_partition) {
-    SCOPED_TIMER(TIMER_IO);
+    SCOPED_TIMER("IO");
     io::partition::write(ctx.partition_file(), p_graph, permutations.old_to_new);
     LOG << "Wrote partition to: " << ctx.partition_file();
   }

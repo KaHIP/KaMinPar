@@ -168,7 +168,7 @@ void CoarseningContext::print(std::ostream &out, const std::string &prefix) cons
 
 void LabelPropagationCoarseningContext::print(std::ostream &out, const std::string &prefix) const {
   out << prefix << "num_iterations=" << num_iterations << " "                                             //
-      << prefix << "large_degree_threshold=" << large_degree_threshold << " "                             //
+      << prefix << "max_degree=" << large_degree_threshold << " "                             //
       << prefix << "merge_nonadjacent_clusters_threshold=" << merge_nonadjacent_clusters_threshold << " " //
       << prefix << "merge_isolated_clusters=" << merge_isolated_clusters << " "                         //
       << prefix << "max_num_neighbors=" << max_num_neighbors << " ";                                      //
@@ -176,7 +176,7 @@ void LabelPropagationCoarseningContext::print(std::ostream &out, const std::stri
 
 void LabelPropagationRefinementContext::print(std::ostream &out, const std::string &prefix) const {
   out << prefix << "num_iterations=" << num_iterations << " "                 //
-      << prefix << "large_degree_threshold=" << large_degree_threshold << " " //
+      << prefix << "max_degree=" << large_degree_threshold << " " //
       << prefix << "max_num_neighbors=" << max_num_neighbors << " ";          //
 }
 
@@ -230,7 +230,6 @@ void Context::print(std::ostream &out, const std::string &prefix) const {
       << prefix << "partition_filename=" << partition_filename << " "   //
       << prefix << "partition_directory=" << partition_directory << " " //
       << prefix << "ignore_weights=" << ignore_weights << " "           //
-      << prefix << "show_local_timers=" << show_local_timers << " "     //
       << prefix << "quiet=" << quiet << " ";                            //
 
   partition.print(out, prefix + "partition.");
@@ -255,7 +254,6 @@ Context create_default_context() {
     .partition_directory = "./",
     .partition_filename = "", // generate filename
     .ignore_weights = false,
-    .show_local_timers = false,
     .quiet = false,
     .partition = { // Context -> Partition
       .mode = PartitioningMode::DEEP,

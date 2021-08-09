@@ -12,7 +12,7 @@
 
 namespace kaminpar::factory {
 std::unique_ptr<Coarsener> create_coarsener(const Graph &graph, const CoarseningContext &c_ctx) {
-  SCOPED_TIMER(TIMER_ALLOCATION);
+  SCOPED_TIMER("Allocation");
 
   switch (c_ctx.algorithm) {
     case ClusteringAlgorithm::NOOP: {
@@ -57,7 +57,7 @@ std::unique_ptr<ip::InitialRefiner> create_initial_refiner(const Graph &graph, c
 
 std::unique_ptr<Refiner> create_refiner(const Graph &graph, const PartitionContext &p_ctx,
                                         const RefinementContext &r_ctx) {
-  SCOPED_TIMER(TIMER_ALLOCATION);
+  SCOPED_TIMER("Allocation");
 
   switch (r_ctx.algorithm) {
     case RefinementAlgorithm::NOOP: {
@@ -70,7 +70,7 @@ std::unique_ptr<Refiner> create_refiner(const Graph &graph, const PartitionConte
     }
 
     case RefinementAlgorithm::LABEL_PROPAGATION: {
-      return std::make_unique<ParallelLabelPropagationRefiner>(graph, p_ctx, r_ctx);
+      return std::make_unique<LabelPropagationRefiner>(graph, p_ctx, r_ctx);
     }
   }
 
@@ -79,7 +79,7 @@ std::unique_ptr<Refiner> create_refiner(const Graph &graph, const PartitionConte
 
 std::unique_ptr<Balancer> create_balancer(const Graph &graph, const PartitionContext &p_ctx,
                                           const RefinementContext &r_ctx) {
-  SCOPED_TIMER(TIMER_ALLOCATION);
+  SCOPED_TIMER("Allocation");
 
   switch (r_ctx.balancer.algorithm) {
     case BalancingAlgorithm::NOOP: {

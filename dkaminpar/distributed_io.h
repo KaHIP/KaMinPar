@@ -38,7 +38,7 @@ template<typename Container>
 void write(const std::string &filename, const Container &partition) {
   mpi::sequentially([&] {
     std::ofstream out(filename, std::ios_base::out | std::ios_base::app);
-    for (const DBlockID &b : partition) { out << b << "\n"; }
+    for (const BlockID &b : partition) { out << b << "\n"; }
   });
 }
 } // namespace partition

@@ -1,7 +1,7 @@
 /*******************************************************************************
  * This file is part of KaMinPar.
  *
- * Copyright (C) 2020 Daniel Seemaier <daniel.seemaier@kit.edu>
+ * Copyright (C) 2021 Daniel Seemaier <daniel.seemaier@kit.edu>
  *
  * KaMinPar is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -31,129 +31,136 @@ namespace {
   return str;
 }
 
-[[nodiscard]] double to_seconds(const Timer::Duration &duration) {
-  return std::chrono::duration_cast<std::chrono::milliseconds>(duration).count() / 1000.0;
-}
-
-[[nodiscard]] std::size_t get_printed_double_length(const double value) {
+[[nodiscard]] std::size_t get_printed_length(const auto value) {
   std::stringstream ss;
   ss << value;
   return ss.str().size();
 }
-
-[[nodiscard]] std::string create_padding(const std::size_t length, const std::size_t margin, const char filler) {
-  return (length > 2 * margin)
-             ? std::string(margin, ' ') + std::string(length - 2 * margin, filler) + std::string(margin, ' ')
-             : std::string(length, ' ');
-}
 } // namespace
 
-Timer::Timer(const std::string &name) : _name{name} { _global_root.root.start = timer::now(); }
+std::string Timer::TimerTreeNode::build_display_name_mr() const {
+  std::stringstream ss;
+  ss << string_make_machine_readable(name.data());
+  if (!description.empty()) { ss << "_" << string_make_machine_readable(description); }
+  return ss.str();
+}
+
+std::string Timer::TimerTreeNode::build_display_name_hr() const {
+  std::stringstream ss;
+  ss << name.data();
+  if (!description.empty()) { ss << " " << description; }
+  return ss.str();
+}
+
+Timer::Timer(std::string_view name) : _name{name} {
+  _enabled[Type::DEFAULT] = true;
+  _tree.root.start = timer::now();
+}
 
 Timer &Timer::global() {
-  static Timer timer("Global Timer");
+  static Timer timer{"Global Timer"};
   return timer;
 }
 
+//
+// Machine-readable output
+//
+
 void Timer::print_machine_readable(std::ostream &out) {
-  for (const auto &[name, subtree] : _global_root.root.children) {
-    print_subprocess_mr(out, "", name, subtree.get(), false);
-  }
-  for (const auto &[name, subtree] : _global_root.root.local_children) {
-    print_subprocess_mr(out, "", name, subtree.get(), true);
-  }
+  for (const auto &node : _tree.root.children) { print_node_mr(out, "", node.get()); }
   out << "\n";
 }
 
-void Timer::print_subprocess_mr(std::ostream &out, const std::string &prefix, const std::string &name,
-                                const TimerTreeNode *subtree, const bool is_local) {
-  const std::string full_name = prefix + string_make_machine_readable(name);
-  const double time = to_seconds(subtree->elapsed);
-  out << (is_local ? "L." : "G.") << full_name << "=" << time << " ";
-  for (const auto &[sub_name, sub_subtree] : subtree->children) {
-    print_subprocess_mr(out, full_name + ".", sub_name, sub_subtree.get(), false);
-  }
-  for (const auto &[sub_name, sub_subtree] : subtree->local_children) {
-    print_subprocess_mr(out, full_name + ".", sub_name, sub_subtree.get(), true);
-  }
+void Timer::print_node_mr(std::ostream &out, const std::string &prefix, const TimerTreeNode *node) {
+  const std::string display_name = prefix + node->build_display_name_mr();
+
+  // print this node
+  out << display_name << "=" << node->seconds() << " ";
+
+  // print children
+  const std::string child_prefix = display_name + ".";
+  for (const auto &child : node->children) { print_node_mr(out, child_prefix, child.get()); }
 }
+
+//
+// Human-readable output
+//
 
 void Timer::print_human_readable(std::ostream &out) {
-  const std::size_t time_column = compute_time_output_column(0, _name, &_global_root.root);
-  const std::size_t time_space = compute_max_time_space(&_global_root.root);
-  out << "G " << _name;
-  print_padded_timing(out, _name.size(), time_column, time_space, &_global_root.root);
+  _hr_time_col = std::max(_name.size() + kNameDel.size(), compute_time_col(0, &_tree.root));
+  _hr_max_time_len = compute_time_len(&_tree.root);
+  _hr_max_restarts_len = compute_restarts_len(&_tree.root);
+  out << _name;
+  print_padded_timing(out, _name.size(), &_tree.root);
   out << std::endl;
-  print_subprocess_children_hr(out, "", &_global_root.root, time_column, time_space);
+  print_children_hr(out, "", &_tree.root);
 }
 
-void Timer::print_padded_timing(std::ostream &out, const std::size_t start_column, const std::size_t time_column,
-                                const std::size_t time_space, const TimerTreeNode *of_process) {
-  using namespace std::literals;
-  const std::size_t time_padding_length = time_column - start_column - ":"s.size();
-  const std::string time_padding = create_padding(time_padding_length, 1, '.');
-  const double time = to_seconds(of_process->elapsed);
-  out << ":" << time_padding << time << " s";
-  if (of_process->restarts > 1) {
-    const std::size_t time_length = get_printed_double_length(time);
-    const std::size_t restarts_padding_length = time_space - time_length + kSpaceBetweenTimeAndRestarts;
-    out << create_padding(restarts_padding_length, 0, ' ') << "(" << of_process->restarts << ")";
+void Timer::print_children_hr(std::ostream &out, const std::string &base_prefix, const TimerTreeNode *node) const {
+  const std::string prefix_mid = base_prefix + std::string(kBranch);
+  const std::string child_prefix_mid = base_prefix + std::string(kEdge);
+  const std::string prefix_end = base_prefix + std::string(kTailBranch);
+  const std::string child_prefix_end = base_prefix + std::string(kTailEdge);
+
+  for (const auto &child : node->children) {
+    const bool is_last = (child == node->children.back());
+    const auto &prefix = is_last ? prefix_end : prefix_mid;
+    const auto &child_prefix = is_last ? child_prefix_end : child_prefix_mid;
+
+    const std::string display_name = child->build_display_name_hr();
+    out << prefix << display_name;
+    print_padded_timing(out, prefix.size() + display_name.size(), child.get());
+    if (!child->annotation.empty()) {
+      out << std::string(kSpaceBetweenRestartsAndAnnotation, ' ') << child->annotation;
+    }
+    out << std::endl;
+    print_children_hr(out, child_prefix, child.get());
   }
 }
 
-void Timer::print_subprocess_children_hr(std::ostream &out, const std::string &base_prefix,
-                                         const TimerTreeNode *process, const std::size_t time_column,
-                                         const std::size_t time_space) const {
-  const std::string prefix_mid = base_prefix + "|-- ";
-  const std::string child_prefix_mid = base_prefix + "|   ";
-  const std::string prefix_end = base_prefix + "`-- ";
-  const std::string child_prefix_end = base_prefix + "    ";
-
-  auto print_children = [&](const auto &children, const bool is_local) {
-    for (const auto &[sub_name, sub_subtree] : children) {
-      const bool is_last = (sub_name == children.rbegin()->first);
-      const auto &prefix = is_last ? prefix_end : prefix_mid;
-      const auto &child_prefix = is_last ? child_prefix_end : child_prefix_mid;
-
-      out << (is_local ? "L " : "G ");
-      out << prefix << sub_name;
-      print_padded_timing(out, prefix.size() + sub_name.size(), time_column, time_space, sub_subtree.get());
-      out << std::endl;
-      print_subprocess_children_hr(out, child_prefix, sub_subtree.get(), time_column, time_space);
-    }
-  };
-
-  print_children(process->children, false);
-  print_children(process->local_children, true);
-}
-[[nodiscard]] std::size_t Timer::compute_time_output_column(std::size_t prefix_length, const std::string &name,
-                                                            const TimerTreeNode *process) const {
+void Timer::print_padded_timing(std::ostream &out, const std::size_t start_col, const TimerTreeNode *node) const {
   using namespace std::literals;
-  const std::size_t new_prefix_length = (process->parent == nullptr) ? ""s.size() : prefix_length + "`-- "s.size();
-  std::size_t column = new_prefix_length + name.size() + ": "s.size();
 
-  auto update_with_max_length = [&](const auto &children) {
-    for (const auto &[sub_name, sub_subtree] : children) {
-      column = std::max(column, compute_time_output_column(new_prefix_length, sub_name, sub_subtree.get()));
-    }
-  };
+  // print this node
+  const std::size_t time_padding_len = _hr_time_col - start_col - kNameDel.size();
+  std::string time_padding = time_padding_len > 0 ? std::string(time_padding_len - 1, kPadding) + ' ' : "";
+  const double time = node->seconds();
+  out << kNameDel << time_padding << time << kSecondsUnit;
 
-  update_with_max_length(process->children);
-  update_with_max_length(process->local_children);
+  const std::size_t time_len = get_printed_length(time);
+  const std::size_t restarts_padding_length = _hr_max_time_len - time_len + kSpaceBetweenTimeAndRestarts;
+  const std::size_t tail_padding_length = _hr_max_restarts_len - get_printed_length(node->restarts);
+  out << std::string(restarts_padding_length, ' ');
 
-  return column;
+  if (node->restarts > 1) {
+    out << "(" << node->restarts << ")" << std::string(tail_padding_length, ' ');
+  } else if (_hr_max_restarts_len > 0) {               // otherwise, there are no restarts and we are already aligned
+    out << std::string(2 + _hr_max_restarts_len, ' '); // +2 for (, )
+  }
 }
 
-[[nodiscard]] std::size_t Timer::compute_max_time_space(const TimerTreeNode *process) const {
-  std::size_t space = get_printed_double_length(to_seconds(process->elapsed));
-  for (const auto &[sub_name, sub_subtree] : process->children) {
-    space = std::max(space, compute_max_time_space(sub_subtree.get()));
-  }
+[[nodiscard]] std::size_t Timer::compute_time_col(const std::size_t parent_prefix_len,
+                                                  const TimerTreeNode *node) const {
+  using namespace std::literals;
+  const std::size_t prefix_len = (node->parent == nullptr)
+                                     ? 0                                       // root
+                                     : parent_prefix_len + kTailBranch.size(); // inner node or leaf
+
+  std::size_t col = prefix_len + node->build_display_name_hr().size() + kNameDel.size();
+  for (const auto &child : node->children) { col = std::max(col, compute_time_col(prefix_len, child.get())); }
+
+  return col;
+}
+
+[[nodiscard]] std::size_t Timer::compute_time_len(const TimerTreeNode *node) const {
+  std::size_t space = get_printed_length(node->seconds());
+  for (const auto &child : node->children) { space = std::max(space, compute_time_len(child.get())); }
   return space;
 }
 
-timer::FlatTimer &timer::FlatTimer::global() {
-  static FlatTimer instance{};
-  return instance;
+[[nodiscard]] std::size_t Timer::compute_restarts_len(const TimerTreeNode *node) const {
+  std::size_t space = node->restarts > 1 ? get_printed_length(node->restarts) : 0;
+  for (const auto &child : node->children) { space = std::max(space, compute_restarts_len(child.get())); }
+  return space;
 }
 } // namespace kaminpar

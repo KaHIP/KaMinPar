@@ -23,28 +23,28 @@
 namespace dkaminpar::graph {
 namespace contraction {
 struct Edge {
-  DNodeID target;
-  DEdgeWeight weight;
+  NodeID target;
+  EdgeWeight weight;
 };
 
 struct MemoryContext {
-  scalable_vector<DNodeID> buckets;
-  scalable_vector<shm::parallel::IntegralAtomicWrapper<DNodeID>> buckets_index;
-  scalable_vector<shm::parallel::IntegralAtomicWrapper<DNodeID>> leader_mapping;
-  scalable_vector<shm::NavigationMarker<DNodeID, Edge>> all_buffered_nodes;
+  scalable_vector<NodeID> buckets;
+  scalable_vector<shm::parallel::IntegralAtomicWrapper<NodeID>> buckets_index;
+  scalable_vector<shm::parallel::IntegralAtomicWrapper<NodeID>> leader_mapping;
+  scalable_vector<shm::NavigationMarker<NodeID, Edge>> all_buffered_nodes;
 };
 
 struct Result {
   DistributedGraph graph;
-  scalable_vector<DNodeID> mapping;
+  scalable_vector<NodeID> mapping;
   MemoryContext m_ctx;
 };
 } // namespace contraction
 
-contraction::Result contract_local_clustering(const DistributedGraph &graph, const scalable_vector<DNodeID> &clustering,
+contraction::Result contract_local_clustering(const DistributedGraph &graph, const scalable_vector<NodeID> &clustering,
                                               contraction::MemoryContext m_ctx = {});
 
 contraction::Result contract_global_clustering(const DistributedGraph &graph,
-                                               const scalable_vector<DNodeID> &clustering,
+                                               const scalable_vector<NodeID> &clustering,
                                                contraction::MemoryContext m_ctx = {});
 } // namespace dkaminpar::graph
