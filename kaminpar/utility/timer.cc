@@ -31,10 +31,6 @@ namespace {
   return str;
 }
 
-[[nodiscard]] double to_seconds(const Timer::Duration &duration) {
-  return static_cast<double>(std::chrono::duration_cast<std::chrono::milliseconds>(duration).count()) / 1000.0;
-}
-
 [[nodiscard]] std::size_t get_printed_length(const auto value) {
   std::stringstream ss;
   ss << value;
@@ -79,7 +75,7 @@ void Timer::print_node_mr(std::ostream &out, const std::string &prefix, const Ti
   const std::string display_name = prefix + node->build_display_name_mr();
 
   // print this node
-  out << display_name << "=" << to_seconds(node->elapsed) << " ";
+  out << display_name << "=" << node->seconds() << " ";
 
   // print children
   const std::string child_prefix = display_name + ".";
@@ -128,7 +124,7 @@ void Timer::print_padded_timing(std::ostream &out, const std::size_t start_col, 
   // print this node
   const std::size_t time_padding_len = _hr_time_col - start_col - kNameDel.size();
   std::string time_padding = time_padding_len > 0 ? std::string(time_padding_len - 1, kPadding) + ' ' : "";
-  const double time = to_seconds(node->elapsed);
+  const double time = node->seconds();
   out << kNameDel << time_padding << time << kSecondsUnit;
 
   const std::size_t time_len = get_printed_length(time);
@@ -157,7 +153,7 @@ void Timer::print_padded_timing(std::ostream &out, const std::size_t start_col, 
 }
 
 [[nodiscard]] std::size_t Timer::compute_time_len(const TimerTreeNode *node) const {
-  std::size_t space = get_printed_length(to_seconds(node->elapsed));
+  std::size_t space = get_printed_length(node->seconds());
   for (const auto &child : node->children) { space = std::max(space, compute_time_len(child.get())); }
   return space;
 }

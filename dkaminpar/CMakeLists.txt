@@ -12,6 +12,8 @@ set(DKAMINPAR_SOURCE_FILES
         distributed_io.cc
         distributed_io.h
         utility/distributed_math.h
+        utility/distributed_timer.cc
+        utility/distributed_timer.h
         mpi_utils.h
         mpi_graph_utils.h
         utility/distributed_metrics.cc

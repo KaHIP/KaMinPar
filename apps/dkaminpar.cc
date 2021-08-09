@@ -29,6 +29,7 @@
 #include "dkaminpar/distributed_io.h"
 #include "dkaminpar/partitioning_scheme/partitioning.h"
 #include "dkaminpar/utility/distributed_metrics.h"
+#include "dkaminpar/utility/distributed_timer.h"
 #include "kaminpar/definitions.h"
 #include "kaminpar/utility/logger.h"
 #include "kaminpar/utility/random.h"
@@ -54,6 +55,7 @@ void print_statistics(const dist::DistributedPartitionedGraph &p_graph, const di
   const auto feasible = dist::metrics::is_feasible(p_graph, ctx.partition);
 
   LOG << "RESULT cut=" << edge_cut << " imbalance=" << imbalance << " feasible=" << feasible << " k=" << p_graph.k();
+  if (!ctx.quiet) { dist::timer::finalize_distributed_timer(GLOBAL_TIMER); }
   if (dist::mpi::get_comm_rank(MPI_COMM_WORLD) == 0 && !ctx.quiet) {
     shm::Timer::global().print_machine_readable(std::cout);
   }

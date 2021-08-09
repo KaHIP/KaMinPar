@@ -157,6 +157,10 @@ public:
 
     [[nodiscard]] std::string build_display_name_mr() const;
     [[nodiscard]] std::string build_display_name_hr() const;
+
+    [[nodiscard]] inline double seconds() const {
+      return static_cast<double>(std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count()) / 1000.0;
+    }
   };
 
   struct TimerTree {
@@ -247,6 +251,9 @@ public:
 
   void enable_all() { std::fill(std::begin(_enabled), std::end(_enabled), true); }
   void disable_all() { std::fill(std::begin(_enabled), std::end(_enabled), false); }
+
+  [[nodiscard]] inline TimerTreeNode &tree() { return _tree.root; }
+  [[nodiscard]] inline const TimerTreeNode &tree() const { return _tree.root; }
 
 private:
   void print_padded_timing(std::ostream &out, std::size_t start_col, const TimerTreeNode *node) const;
