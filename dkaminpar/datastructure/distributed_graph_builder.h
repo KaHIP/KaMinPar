@@ -59,7 +59,7 @@ public:
     }
 
     // build edge distribution array
-    GlobalEdgeID offset_m = mpi::exscan(_edges.size(), MPI_SUM, MPI_COMM_WORLD);
+    GlobalEdgeID offset_m = mpi::exscan(static_cast<GlobalEdgeID>(_edges.size()), MPI_SUM, MPI_COMM_WORLD);
 
     const auto [size, rank] = mpi::get_comm_info();
     scalable_vector<GlobalEdgeID> edge_distribution(size + 1);

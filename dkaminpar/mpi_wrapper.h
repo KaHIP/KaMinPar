@@ -311,14 +311,14 @@ int allgatherv(const Rs &sendbuf, Rr &recvbuf, const Rcounts &recvcounts, const 
 
 template<typename T>
 T scan(const T &sendbuf, MPI_Op op, MPI_Comm comm = MPI_COMM_WORLD) {
-  T recvbuf;
+  T recvbuf = T{};
   scan(&sendbuf, &recvbuf, 1, op, comm);
   return recvbuf;
 }
 
 template<typename T>
 T exscan(const T &sendbuf, MPI_Op op, MPI_Comm comm = MPI_COMM_WORLD) {
-  T recvbuf;
+  T recvbuf = T{};
   exscan(&sendbuf, &recvbuf, 1, op, comm);
   return recvbuf;
 }
