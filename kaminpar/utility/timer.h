@@ -128,6 +128,7 @@ class Timer {
   static constexpr bool kDebug = false;
 
   static constexpr std::size_t kSpaceBetweenTimeAndRestarts = 1;
+  static constexpr std::size_t kSpaceBetweenRestartsAndAnnotation = 1;
   static constexpr std::string_view kBranch = "|-- ";
   static constexpr std::string_view kEdge = "|   ";
   static constexpr std::string_view kTailBranch = "`-- ";
@@ -140,7 +141,6 @@ public:
   using TimePoint = std::chrono::time_point<std::chrono::high_resolution_clock>;
   using Duration = std::chrono::high_resolution_clock::duration;
 
-private:
   struct TimerTreeNode {
     std::string_view name;
     std::string description;
@@ -152,6 +152,8 @@ private:
     TimerTreeNode *parent{nullptr};
     std::map<std::string_view, TimerTreeNode *> children_tbl{};
     std::vector<std::unique_ptr<TimerTreeNode>> children;
+
+    std::string annotation{};
 
     [[nodiscard]] std::string build_display_name_mr() const;
     [[nodiscard]] std::string build_display_name_hr() const;
@@ -247,15 +249,15 @@ public:
   void disable_all() { std::fill(std::begin(_enabled), std::end(_enabled), false); }
 
 private:
-  static void print_padded_timing(std::ostream &out, std::size_t start_col, std::size_t time_col,
-                                  std::size_t max_time_len, const TimerTreeNode *node);
+  void print_padded_timing(std::ostream &out, std::size_t start_col, const TimerTreeNode *node) const;
 
-  void print_children_hr(std::ostream &out, const std::string &base_prefix, const TimerTreeNode *node, size_t time_col,
-                         size_t max_time_len) const;
+  void print_children_hr(std::ostream &out, const std::string &base_prefix, const TimerTreeNode *node) const;
 
   [[nodiscard]] std::size_t compute_time_col(std::size_t parent_prefix_len, const TimerTreeNode *node) const;
 
   [[nodiscard]] std::size_t compute_time_len(const TimerTreeNode *node) const;
+
+  [[nodiscard]] std::size_t compute_restarts_len(const TimerTreeNode *node) const;
 
   void print_node_mr(std::ostream &out, const std::string &prefix, const TimerTreeNode *node);
 
@@ -263,6 +265,10 @@ private:
   TimerTree _tree{};
   std::mutex _mutex{};
   bool _enabled[Type::NUM_TIMER_TYPES];
+
+  std::size_t _hr_time_col;
+  std::size_t _hr_max_time_len;
+  std::size_t _hr_max_restarts_len;
 };
 
 namespace timer {
