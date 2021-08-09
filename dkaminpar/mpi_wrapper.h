@@ -248,7 +248,7 @@ inline T bcast(T ans, const int root = 0, MPI_Comm comm = MPI_COMM_WORLD) {
 
 template<typename T>
 inline T reduce(const T &element, MPI_Op op, const int root = 0, MPI_Comm comm = MPI_COMM_WORLD) {
-  T ans;
+  T ans = T{};
   reduce(&element, &ans, 1, op, root, comm);
   return ans;
 }
@@ -260,7 +260,7 @@ inline T reduce(const T &element, T &ans, MPI_Op op, const int root = 0, MPI_Com
 
 template<typename T>
 inline T allreduce(const T &element, MPI_Op op, MPI_Comm comm = MPI_COMM_WORLD) {
-  T ans;
+  T ans = T{};
   allreduce(&element, &ans, 1, op, comm);
   return ans;
 }

@@ -85,8 +85,8 @@ bool validate(const DistributedGraph &graph, const int root) {
         },
         [&](const PEID /* pe */, const auto &recv_buffer) {
           for (const auto [global_u, weight] : recv_buffer) {
+            ALWAYS_ASSERT(graph.contains_global_node(global_u));
             const NodeID local_u = graph.global_to_local_node(global_u);
-            ALWAYS_ASSERT(graph.offset_n() <= global_u && global_u < graph.offset_n() + graph.n());
             ALWAYS_ASSERT(graph.node_weight(local_u) == weight);
           }
         });
