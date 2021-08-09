@@ -57,8 +57,6 @@ void print_statistics(const PartitionedGraph &p_graph, const Context &ctx) {
   // statistics output that is easy to read
   if (!ctx.quiet) { Timer::global().print_human_readable(std::cout); }
   LOG;
-  if (!ctx.quiet) { timer::FlatTimer::global().print(std::cout); }
-  LOG;
   LOG << "-> k=" << p_graph.k();
   LOG << "-> cut=" << cut;
   LOG << "-> imbalance=" << imbalance;
@@ -93,7 +91,6 @@ int main(int argc, char *argv[]) {
   } catch (const std::runtime_error &e) { FATAL_ERROR << e.what(); }
   if (ctx.debug.just_sanitize_args) { std::exit(0); }
   if (ctx.debug.force_clean_build) { force_clean_build(); }
-  if (!ctx.show_local_timers) { Timer::global().disable_local(); }
 
   if (ctx.partition.fast_initial_partitioning) {
     ctx.initial_partitioning.min_num_repetitions = 4;

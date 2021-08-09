@@ -51,7 +51,7 @@ int main(int argc, char *argv[]) {
   // init components
   init_numa();
   auto gc = init_parallelism(ctx.parallel.num_threads);
-  Timer::global().enable_fine();
+  Timer::global().enable(BENCHMARK_TIMER);
   Randomize::seed = ctx.seed;
 
   // load graph

@@ -26,89 +26,77 @@
 #include <iostream>
 #include <map>
 #include <mutex>
-#include <tbb/enumerable_thread_specific.h>
-#include <tbb/task_arena.h>
 
-#ifdef KAMINPAR_ENABLE_TIMERS
+#define GLOBAL_TIMER (kaminpar::Timer::global())
+#define GLOBAL_TIMER_PTR &(GLOBAL_TIMER)
+
+#define ENABLE_TIMERS() (GLOBAL_TIMER.enable_all())
+#define DISABLE_TIMERS() (GLOBAL_TIMER.disable_all())
+
+#define TIMER_DEFAULT timer::Type::DEFAULT
+#define TIMER_BENCHMARK timer::Type::BENCHMARK
+
+// Helper macros
 #define SCOPED_TIMER_IMPL2(x, line, func)                                                                              \
-  auto __SCOPED_TIMER__##line = (kaminpar::Timer::global().start_scoped_timer<func>(x))
+auto __SCOPED_TIMER__##line = (kaminpar::Timer::global().start_scoped_timer(x, "", func))
 #define SCOPED_TIMER_IMPL1(x, line, func) SCOPED_TIMER_IMPL2(x, line, func)
-#define SCOPED_TIMER(x) SCOPED_TIMER_IMPL1(x, __LINE__, timer::TimerType::GLOBAL)
-#define SCOPED_FINE_TIMER(x) SCOPED_TIMER_IMPL1(x, __LINE__, timer::TimerType::FINE_GLOBAL)
-#define SCOPED_LOCAL_TIMER(x) SCOPED_TIMER_IMPL1(x, __LINE__, timer::TimerType::LOCAL)
 
-#define START_TIMER(x) (kaminpar::Timer::global().start_global_timer(x))
-#define STOP_TIMER() (kaminpar::Timer::global().stop_global_timer())
-
-#define START_FINE_TIMER(x) (kaminpar::Timer::global().start_global_timer(x, true))
-#define STOP_FINE_TIMER(x) (kaminpar::Timer::global().stop_global_timer(true))
-
-#define START_LOCAL_TIMER(x) (kaminpar::Timer::global().start_local_timer(x))
-#define STOP_LOCAL_TIMER() (kaminpar::Timer::global().stop_local_timer())
-
-#define ENABLE_TIMERS() (kaminpar::Timer::global().enable())
-#define DISABLE_TIMERS() (kaminpar::Timer::global().disable())
+// Macro interface
+#ifdef KAMINPAR_ENABLE_TIMERS
+#define SCOPED_TIMER(x) SCOPED_TIMER_IMPL1(x, __LINE__, TIMER_DEFAULT)
+#define START_TIMER(x) (kaminpar::Timer::global().start_timer(x))
+#define STOP_TIMER() (kaminpar::Timer::global().stop_timer())
 #else // KAMINPAR_ENABLE_TIMERS
 #define SCOPED_TIMER(x)
 #define START_TIMER(x)
 #define STOP_TIMER()
-#define START_FINE_TIMER(x)
-#define STOP_FINE_TIMER(x)
-#define ENABLE_TIMERS()
-#define DISABLE_TIMERS()
 #endif // KAMINPAR_ENABLE_TIMERS
 
 // must be followed by a lambda body that may or may not return some value
-#define TIMED_SCOPE(x) kaminpar::timer::TimedScope<kaminpar::timer::TimerType::GLOBAL>{(x)} + [&]
-#define FINE_TIMED_SCOPE(x) kaminpar::timer::TimedScope<kaminpar::timer::TimerType::FINE_GLOBAL>{(x)} + [&]
-#define LOCAL_TIMED_SCOPE(x) kaminpar::timer::TimedScope<kaminpar::timer::TimerType::LOCAL>{(x)} + [&]
-
-// macros for simple, non-hierarchical timers
-// these lower performance during IP due to excessive synchronization -- redo with thread locals or remove
-//#define SIMPLE_TIMER_START() (timer::now())
-#define SIMPLE_TIMER_START() (0)
-//#define SIMPLE_TIMER_STOP(name, start_tp) (timer::FlatTimer::global().add_timing((name), timer::now() - (start_tp)))
-#define SIMPLE_TIMER_STOP(name, start_tp) ((void) start_tp)
+#define TIMED_SCOPE(x) kaminpar::timer::TimedScope{GLOBAL_TIMER_PTR, x} + [&]
 
 namespace kaminpar {
+class Timer;
+
 namespace timer {
 inline std::chrono::time_point<std::chrono::high_resolution_clock> now() {
   return std::chrono::high_resolution_clock::now();
 }
 
-enum class TimerType { LOCAL, FINE_GLOBAL, GLOBAL,  };
-
-class FlatTimer {
-public:
-  using TimePoint = std::chrono::time_point<std::chrono::high_resolution_clock>;
-  using Duration = std::chrono::high_resolution_clock::duration;
-
-  static FlatTimer &global();
-
-  void add_timing(const std::string &name, const Duration duration) {
-    std::lock_guard<std::mutex> lg{_mutex};
-    _timings[name] += duration;
-  }
-
-  void print(std::ostream &out) {
-    for (const auto &[name, duration] : _timings) {
-      out << "+-- " << name << ": " << std::chrono::duration_cast<std::chrono::milliseconds>(duration).count() / 1000.0
-          << "\n";
-    }
-  }
-
-private:
-  std::unordered_map<std::string, Duration> _timings{};
-  std::mutex _mutex{};
+enum Type {
+  DEFAULT,
+  BENCHMARK,
+  NUM_TIMER_TYPES,
 };
 
-template<TimerType type>
-class ScopedTimer;
+class ScopedTimer {
+public:
+  explicit ScopedTimer(Timer *timer, const Type type) : _timer{timer}, _type{type} {}
+  ScopedTimer(const ScopedTimer &) = delete;
+  ScopedTimer &operator=(const ScopedTimer &) = delete;
+  ScopedTimer(ScopedTimer &&other) noexcept : _timer{other._timer} { other._timer = nullptr; };
+  ScopedTimer &operator=(ScopedTimer &&other) noexcept { return (std::swap(_timer, other._timer), *this); };
+  inline ~ScopedTimer();
+
+private:
+  Timer *_timer;
+  Type _type;
+};
 } // namespace timer
 
 class Timer {
+  using Type = timer::Type;
+
   static constexpr bool kDebug = false;
+
   static constexpr std::size_t kSpaceBetweenTimeAndRestarts = 1;
+  static constexpr std::string_view kBranch = "|-- ";
+  static constexpr std::string_view kEdge = "|   ";
+  static constexpr std::string_view kTailBranch = "`-- ";
+  static constexpr std::string_view kTailEdge = "    ";
+  static constexpr std::string_view kNameDel = ": ";
+  static constexpr char kPadding = '.';
+  static constexpr std::string_view kSecondsUnit = " s";
 
 public:
   using TimePoint = std::chrono::time_point<std::chrono::high_resolution_clock>;
@@ -116,29 +104,18 @@ public:
 
 private:
   struct TimerTreeNode {
+    std::string_view name;
+    std::string description;
+
     std::size_t restarts{0};
     Duration elapsed{};
     TimePoint start{};
-    TimerTreeNode *parent{nullptr};
-    std::map<std::string, std::unique_ptr<TimerTreeNode>> children{};
-    std::map<std::string, std::unique_ptr<TimerTreeNode>> local_children{};
-    std::string name;
 
-    // if we already have a subtree named `name`, merge it with the given subtree
-    // otherwise, append the given subtree to this node
-    void merge_append_local_subtree(const std::string &local_name, std::unique_ptr<TimerTreeNode> &&subtree) {
-      if (local_children.contains(local_name)) {
-        auto &owned_subtree = local_children[local_name];
-        owned_subtree->restarts += subtree->restarts;
-        owned_subtree->elapsed += subtree->elapsed;
-        for (const auto &[child_name, child_subtree] : subtree->local_children) {
-          owned_subtree->merge_append_local_subtree(child_name, std::move(subtree->local_children[child_name]));
-        }
-      } else {
-        subtree->parent = this;
-        local_children[local_name] = std::move(subtree);
-      }
-    }
+    TimerTreeNode *parent{nullptr};
+    std::map<std::string_view, std::unique_ptr<TimerTreeNode>> children{};
+
+    [[nodiscard]] std::string build_display_name_mr() const;
+    [[nodiscard]] std::string build_display_name_hr() const;
   };
 
   struct TimerTree {
@@ -149,170 +126,94 @@ private:
 public:
   static Timer &global();
 
-  Timer(const std::string &name);
+  explicit Timer(std::string_view name);
 
-  void start_global_timer(const std::string &name, const bool fine = false) {
-    if (_timers_disabled || (fine && _fine_timers_disabled)) { return; }
+  void start_timer(std::string_view name, const std::string &description = "", const Type type = Type::DEFAULT) {
+    if (!_enabled[type]) { return; }
+    std::lock_guard<std::mutex> lg{_mutex};
 
-    std::lock_guard<std::mutex> lg{_global_lock};
-    start_timer(_global_root, name,
-                [](auto *node) -> std::map<std::string, std::unique_ptr<TimerTreeNode>> & { return node->children; });
-  }
-
-  void stop_global_timer(const bool fine = false) {
-    if (_timers_disabled || (fine && _fine_timers_disabled)) { return; }
-
-    std::lock_guard<std::mutex> lg{_global_lock};
-    stop_timer(_global_root);
-  }
-
-  std::string DBG_build_stack(const std::string &current = "") {
-    TimerTreeNode *c = _local_root.local().current;
-    std::stringstream ss;
-    ss << current;
-    while (c != nullptr) {
-      ss << " -> " << c->name;
-      c = c->parent;
+    // create new tree node if timer does not already exist
+    auto *current = _tree.current;
+    if (!current->children.contains(name)) {
+      auto node = std::make_unique<TimerTreeNode>();
+      node->parent = current;
+      node->name = name;
+      node->description = description;
+      current->children[name] = std::move(node);
     }
-    return ss.str();
+
+    // update current timer
+    _tree.current = current->children[name].get();
+    ++_tree.current->restarts;
+    _tree.current->start = timer::now();
   }
 
-  void start_local_timer(const std::string &name) {
-    if (_timers_disabled || _local_timers_disabled) { return; }
+  void stop_timer(const Type type = Type::DEFAULT) {
+    if (!_enabled[type]) { return; }
+    std::lock_guard<std::mutex> lg{_mutex};
 
-    DBG << "Thread " << sched_getcpu() << " started: " << DBG_build_stack(name);
-    start_timer(_local_root.local(), name, [](auto *node) -> std::map<std::string, std::unique_ptr<TimerTreeNode>> & {
-      return node->local_children;
-    });
+    const TimePoint end = timer::now();
+    _tree.current->elapsed += end - _tree.current->start;
+    _tree.current = _tree.current->parent;
   }
 
-  void stop_local_timer() {
-    if (_timers_disabled || _local_timers_disabled) { return; }
-
-    TimerTree &tree = _local_root.local();
-    DBG << "Thread " << sched_getcpu() << " stopped " << DBG_build_stack();
-    stop_timer(tree);
-
-    // stopped all local timers -> merge/append to global timer
-    if (tree.current == &tree.root) {
-      DBG << "Thread " << sched_getcpu() << " stopped _ALL_ timers -> merge with root";
-
-      ASSERT(tree.root.local_children.size() == 1); // should have exactly one child -- the one we just stopped
-      const std::string &name = tree.root.local_children.begin()->first;
-      std::unique_ptr<TimerTreeNode> &subtree = tree.root.local_children.begin()->second;
-
-      {
-        std::lock_guard<std::mutex> lg{_global_lock};
-        _global_root.current->merge_append_local_subtree(name, std::move(subtree));
-      }
-
-      tree.root.local_children.clear();
-    }
-  }
-
-  template<timer::TimerType type>
-  timer::ScopedTimer<type> start_scoped_timer(const std::string &name) {
-    switch (type) {
-      case timer::TimerType::GLOBAL: start_global_timer(name); break;
-      case timer::TimerType::FINE_GLOBAL: start_global_timer(name, true); break;
-      case timer::TimerType::LOCAL: start_local_timer(name); break;
-    }
-    return timer::ScopedTimer<type>{this};
+  timer::ScopedTimer start_scoped_timer(const std::string_view name, const std::string &description = "",
+                                        const Type type = Type::DEFAULT) {
+    start_timer(name, description, type);
+    return timer::ScopedTimer{this, type};
   }
 
   void print_machine_readable(std::ostream &out);
-
   void print_human_readable(std::ostream &out);
 
-  void disable() { _timers_disabled = true; }
-  void enable() { _timers_disabled = false; }
-  void disable_fine() { _fine_timers_disabled = true; }
-  void enable_fine() { _fine_timers_disabled = false; }
-  void disable_local() { _local_timers_disabled = true; }
-  void enable_local() { _local_timers_disabled = false; }
+  void enable(Type type = Type::DEFAULT) { _enabled[type] = true; }
+  void disable(Type type = Type::DEFAULT) { _enabled[type] = false; }
+
+  void enable_all() { std::fill(std::begin(_enabled), std::end(_enabled), true); }
+  void disable_all() { std::fill(std::begin(_enabled), std::end(_enabled), false); }
 
 private:
-  template<typename MapSelector>
-  void start_timer(TimerTree &tree, const std::string &name, MapSelector &&selector) {
-    if (!selector(tree.current).contains(name)) {
-      std::unique_ptr<TimerTreeNode> node{std::make_unique<TimerTreeNode>()};
-      node->parent = tree.current;
-      node->name = name;
-      selector(tree.current)[name] = std::move(node);
-    }
-    auto *node = selector(tree.current)[name].get();
-    tree.current = node;
-    ++node->restarts;
-    node->start = timer::now();
-  }
+  static void print_padded_timing(std::ostream &out, std::size_t start_col, std::size_t time_col,
+                                  std::size_t max_time_len, const TimerTreeNode *node);
 
-  void stop_timer(TimerTree &tree) {
-    const TimePoint end = timer::now();
-    auto *node = tree.current;
-    node->elapsed += end - node->start;
-    tree.current = node->parent;
-  }
+  void print_children_hr(std::ostream &out, const std::string &base_prefix, const TimerTreeNode *node, size_t time_col,
+                         size_t max_time_len) const;
 
-  static void print_padded_timing(std::ostream &out, std::size_t start_column, std::size_t time_column,
-                                  std::size_t time_space, const TimerTreeNode *of_process);
+  [[nodiscard]] std::size_t compute_time_col(std::size_t parent_prefix_len, const TimerTreeNode *node) const;
 
-  void print_subprocess_children_hr(std::ostream &out, const std::string &base_prefix, const TimerTreeNode *process,
-                                    std::size_t time_column, std::size_t time_space) const;
+  [[nodiscard]] std::size_t compute_time_len(const TimerTreeNode *node) const;
 
-  [[nodiscard]] std::size_t compute_time_output_column(std::size_t prefix_length, const std::string &name,
-                                                       const TimerTreeNode *process) const;
+  void print_node_mr(std::ostream &out, const std::string &prefix, const TimerTreeNode *node);
 
-  [[nodiscard]] std::size_t compute_max_time_space(const TimerTreeNode *process) const;
-
-  void print_subprocess_mr(std::ostream &out, const std::string &prefix, const std::string &name,
-                           const TimerTreeNode *subtree, bool is_local);
-
-  std::string _name;
-  tbb::enumerable_thread_specific<TimerTree> _local_root{};
-  TimerTree _global_root{};
-  std::mutex _global_lock;
-  bool _timers_disabled{false};
-  bool _fine_timers_disabled{true};
-  bool _local_timers_disabled{true};
+  std::string_view _name;
+  TimerTree _tree{};
+  std::mutex _mutex{};
+  bool _enabled[Type::NUM_TIMER_TYPES];
 };
 
 namespace timer {
+ScopedTimer::~ScopedTimer() { _timer->stop_timer(_type); }
 
-template<TimerType type>
-class ScopedTimer {
-public:
-  explicit ScopedTimer(Timer *timer) : _timer{timer} {}
-  ScopedTimer(const ScopedTimer &) = delete;
-  ScopedTimer &operator=(const ScopedTimer &) = delete;
-  ScopedTimer(ScopedTimer &&other) noexcept : _timer{other._timer} { other._timer = nullptr; };
-  ScopedTimer &operator=(ScopedTimer &&other) noexcept { return (std::swap(_timer, other._timer), *this); };
-  ~ScopedTimer() {
-    if (_timer != nullptr) {
-      switch (type) {
-        case TimerType::GLOBAL: _timer->stop_global_timer(); break;
-        case TimerType::FINE_GLOBAL: _timer->stop_global_timer(true); break;
-        case TimerType::LOCAL: _timer->stop_local_timer(); break;
-      }
-    }
-  }
-
-private:
-  Timer *_timer{nullptr};
-};
-
-template<timer::TimerType type>
 class TimedScope {
 public:
-  explicit TimedScope(const std::string &timer_name) : _timer_name{timer_name} {}
+  explicit TimedScope(Timer *timer, std::string_view name, const std::string &description = "",
+                      Type type = Type::DEFAULT)
+      : _timer{timer},
+        _name{name},
+        _description{description},
+        _type{type} {}
 
   template<typename F>
   decltype(auto) operator+(F &&f) {
-    const auto scope = Timer::global().start_scoped_timer<type>(_timer_name);
+    const auto scope = _timer->start_scoped_timer(_name, _description, _type);
     return f();
   }
 
 private:
-  std::string _timer_name;
+  Timer *_timer;
+  std::string_view _name;
+  const std::string &_description;
+  Type _type;
 };
 } // namespace timer
 } // namespace kaminpar

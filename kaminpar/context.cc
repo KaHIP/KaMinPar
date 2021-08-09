@@ -230,7 +230,6 @@ void Context::print(std::ostream &out, const std::string &prefix) const {
       << prefix << "partition_filename=" << partition_filename << " "   //
       << prefix << "partition_directory=" << partition_directory << " " //
       << prefix << "ignore_weights=" << ignore_weights << " "           //
-      << prefix << "show_local_timers=" << show_local_timers << " "     //
       << prefix << "quiet=" << quiet << " ";                            //
 
   partition.print(out, prefix + "partition.");
@@ -255,7 +254,6 @@ Context create_default_context() {
     .partition_directory = "./",
     .partition_filename = "", // generate filename
     .ignore_weights = false,
-    .show_local_timers = false,
     .quiet = false,
     .partition = { // Context -> Partition
       .mode = PartitioningMode::DEEP,

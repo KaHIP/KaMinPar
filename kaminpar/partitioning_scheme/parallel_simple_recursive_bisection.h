@@ -47,9 +47,7 @@ public:
     if (k > 2) {
       graph::SubgraphMemory memory{p_graph.n(), k, p_graph.m(), p_graph.graph().is_node_weighted(),
                                    p_graph.graph().is_edge_weighted()};
-      const auto t_extract_subgraphs = SIMPLE_TIMER_START();
       const auto extraction = extract_subgraphs(p_graph, memory);
-      SIMPLE_TIMER_STOP("Extract subgraphs", t_extract_subgraphs);
 
       const auto &subgraphs = extraction.subgraphs;
       const auto &mapping = extraction.node_mapping;
@@ -61,18 +59,14 @@ public:
       subgraph_partitions[0] = p_graph1.take_partition();
       subgraph_partitions[1] = p_graph2.take_partition();
 
-      const auto t_copy_subgraph_partition = SIMPLE_TIMER_START();
       copy_subgraph_partitions(p_graph, subgraph_partitions, k, _input_ctx.partition.k, mapping);
-      SIMPLE_TIMER_STOP("Copy subgraph partition", t_copy_subgraph_partition);
     }
 
     return p_graph;
   }
 
   PartitionedGraph bipartition(const Graph &graph, const BlockID final_k) {
-    const auto t_coarsener_allocation = SIMPLE_TIMER_START();
     auto coarsener = factory::create_coarsener(graph, _input_ctx.coarsening);
-    SIMPLE_TIMER_STOP("Coarsener allocation", t_coarsener_allocation);
 
     // set k to 2 for max cluster weight computation
     Context pseudo_input_ctx = _input_ctx;
@@ -81,36 +75,26 @@ public:
     const Graph *c_graph = &graph;
 
     // coarsening
-    const auto t_coarsen = SIMPLE_TIMER_START();
     PartitionContext p_ctx = create_bipartition_context(_input_ctx.partition, graph, final_k / 2, final_k / 2);
     bool shrunk = true;
     while (shrunk && c_graph->n() > 2 * _input_ctx.coarsening.contraction_limit) {
       shrunk = helper::coarsen_once(coarsener.get(), c_graph, pseudo_input_ctx, p_ctx);
       c_graph = coarsener->coarsest_graph();
     }
-    SIMPLE_TIMER_STOP("Coarsen", t_coarsen);
 
     // initial bipartitioning
-    const auto t_initial_bipartition = SIMPLE_TIMER_START();
     PartitionedGraph p_graph = helper::bipartition(c_graph, final_k, _input_ctx, ip_m_ctx_pool);
     helper::update_partition_context(p_ctx, p_graph);
-    SIMPLE_TIMER_STOP("Initial bipartition", t_initial_bipartition);
 
     // refine
-    const auto t_uncoarsening = SIMPLE_TIMER_START();
-    const auto t_refiner_allocation = SIMPLE_TIMER_START();
     auto refiner = factory::create_refiner(graph, p_ctx, _input_ctx.refinement);
-    SIMPLE_TIMER_STOP("Refiner allocation", t_refiner_allocation);
-    const auto t_balancer_allocation = SIMPLE_TIMER_START();
     auto balancer = factory::create_balancer(graph, p_ctx, _input_ctx.refinement);
-    SIMPLE_TIMER_STOP("Balancer allocation", t_balancer_allocation);
 
     while (!coarsener->empty()) {
       helper::refine(refiner.get(), balancer.get(), p_graph, p_ctx, _input_ctx.refinement);
       p_graph = helper::uncoarsen_once(coarsener.get(), std::move(p_graph), p_ctx);
     }
     helper::refine(refiner.get(), balancer.get(), p_graph, p_ctx, _input_ctx.refinement);
-    SIMPLE_TIMER_STOP("Uncoarsening", t_uncoarsening);
 
     return p_graph;
   }
