@@ -141,7 +141,7 @@ SubgraphExtractionResult extract_subgraphs(const PartitionedGraph &p_graph, Subg
   const Graph &graph = p_graph.graph();
 
   const auto t_allocation = SIMPLE_TIMER_START();
-  START_TIMER(TIMER_ALLOCATION);
+  START_TIMER("Allocation");
   scalable_vector<NodeID> mapping(p_graph.n());
   scalable_vector<SubgraphMemoryStartPosition> start_positions(p_graph.k() + 1);
 

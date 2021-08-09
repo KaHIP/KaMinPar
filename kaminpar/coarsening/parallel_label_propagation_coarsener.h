@@ -42,7 +42,7 @@ struct LabelPropagationClusteringConfig : public LabelPropagationConfig {
 
 class LabelPropagationClustering final
     : public LabelPropagation<LabelPropagationClustering, LabelPropagationClusteringConfig> {
-  SET_DEBUG(true);
+  SET_DEBUG(false);
 
   using Base = LabelPropagation<LabelPropagationClustering, LabelPropagationClusteringConfig>;
   friend Base;
@@ -181,11 +181,11 @@ public:
 
     const NodeWeight max_cluster_weight = cb_max_cluster_weight(_current_graph->n());
 
-    const auto &clustering = TIMED_SCOPE(TIMER_LABEL_PROPAGATION) {
+    const auto &clustering = TIMED_SCOPE("Label Propagation") {
       return _label_propagation_core.cluster(*_current_graph, max_cluster_weight, _c_ctx.lp.num_iterations);
     };
 
-    auto [c_graph, c_mapping, m_ctx] = TIMED_SCOPE(TIMER_CONTRACT_GRAPH) {
+    auto [c_graph, c_mapping, m_ctx] = TIMED_SCOPE("Contract graph") {
       return graph::contract(*_current_graph, clustering, std::move(_contraction_m_ctx));
     };
     _contraction_m_ctx = std::move(m_ctx);
@@ -204,7 +204,7 @@ public:
     ASSERT(!empty()) << size();
     SCOPED_FINE_TIMER(std::string("Level ") + std::to_string(_hierarchy.size()));
 
-    START_TIMER(TIMER_ALLOCATION);
+    START_TIMER("Allocation");
     auto mapping{std::move(_mapping.back())};
     _mapping.pop_back();
     _hierarchy.pop_back(); // destroys the graph wrapped in p_graph, but partition access is still ok

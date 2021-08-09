@@ -102,7 +102,7 @@ NodePermutations sort_by_degree_buckets(const StaticArray<EdgeID> &nodes, const 
   const NodeID n = nodes.size() - 1;
   const int p = std::min<int>(tbb::this_task_arena::max_concurrency(), n);
 
-  START_TIMER(TIMER_ALLOCATION);
+  START_TIMER("Allocation");
   StaticArray<NodeID> permutation{n};
   StaticArray<NodeID> inverse_permutation{n};
   STOP_TIMER();
@@ -228,7 +228,7 @@ NodePermutations rearrange_and_remove_isolated_nodes(const bool remove_isolated_
                                                      StaticArray<NodeWeight> &node_weights,
                                                      StaticArray<EdgeWeight> &edge_weights,
                                                      NodeWeight total_node_weight) {
-  START_TIMER(TIMER_ALLOCATION);
+  START_TIMER("Allocation");
   StaticArray<EdgeID> tmp_nodes(nodes.size());
   StaticArray<NodeID> tmp_edges(edges.size());
   StaticArray<NodeWeight> tmp_node_weights(node_weights.size());

@@ -60,7 +60,7 @@ public:
 
     const std::size_t max_iterations = _r_ctx.lp.num_iterations == 0 ? kInfiniteIterations : _r_ctx.lp.num_iterations;
     for (std::size_t iteration = 0; iteration < max_iterations; ++iteration) {
-      SCOPED_TIMER(TIMER_LABEL_PROPAGATION);
+      SCOPED_TIMER("Label Propagation");
       const auto [num_moved_nodes, num_emptied_clusters] = randomized_iteration();
       if (num_moved_nodes == 0) { return false; }
     }

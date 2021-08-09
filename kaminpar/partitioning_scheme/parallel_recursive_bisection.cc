@@ -90,7 +90,7 @@ NodeID ParallelRecursiveBisection::initial_partition_threshold() {
 }
 
 PartitionedGraph ParallelRecursiveBisection::initial_partition(const Graph *graph) {
-  SCOPED_TIMER(TIMER_INITIAL_PARTITIONING_SCHEME);
+  SCOPED_TIMER("Initial partitioning scheme");
   PartitionedGraph p_graph = helper::parallel_ip_mode(_input_ctx.initial_partitioning.mode) //
                                  ? parallel_initial_partition(graph)                        //
                                  : sequential_initial_partition(graph);                     //

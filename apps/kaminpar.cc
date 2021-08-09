@@ -124,11 +124,11 @@ int main(int argc, char *argv[]) {
     StaticArray<NodeWeight> node_weights;
     StaticArray<EdgeWeight> edge_weights;
 
-    const io::metis::GraphInfo info = TIMED_SCOPE(TIMER_IO) {
+    const io::metis::GraphInfo info = TIMED_SCOPE("IO") {
       return io::metis::read(ctx.graph_filename, nodes, edges, node_weights, edge_weights);
     };
 
-    START_TIMER(TIMER_PARTITIONING);
+    START_TIMER("Partitioning");
     START_TIMER("Preprocessing");
 
     // sort nodes by degree bucket and rearrange graph, remove isolated nodes
@@ -169,7 +169,7 @@ int main(int argc, char *argv[]) {
   if (remove_isolated_nodes) {
     cio::print_banner("Postprocessing");
 
-    START_TIMER(TIMER_PARTITIONING);
+    START_TIMER("Partitioning");
     START_TIMER("Postprocessing");
 
     const NodeID num_nonisolated_nodes = graph.n(); // this becomes the first isolated node
@@ -194,7 +194,7 @@ int main(int argc, char *argv[]) {
   // Store output partition (if requested)
   //
   if (ctx.save_partition) {
-    SCOPED_TIMER(TIMER_IO);
+    SCOPED_TIMER("IO");
     io::partition::write(ctx.partition_file(), p_graph, permutations.old_to_new);
     LOG << "Wrote partition to: " << ctx.partition_file();
   }

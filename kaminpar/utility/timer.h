@@ -29,24 +29,6 @@
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/task_arena.h>
 
-#define TIMER_EXTRACT_SUBGRAPHS "Subgraph extraction"
-#define TIMER_COARSENING "Coarsening"
-#define TIMER_UNCOARSENING "Uncoarsening"
-#define TIMER_PARTITIONING "Partitioning"
-#define TIMER_INITIAL_PARTITIONING "Initial partitioning"
-#define TIMER_INITIAL_PARTITIONING_SCHEME "Initial partitioning scheme"
-#define TIMER_CONTRACT_GRAPH "Contraction"
-#define TIMER_UNCONTRACT "Uncontraction"
-#define TIMER_IO "IO"
-#define TIMER_ALLOCATION "Allocation"
-#define TIMER_LABEL_PROPAGATION "Label propagation"
-#define TIMER_REFINEMENT "Refinement"
-#define TIMER_STATISTICS "Statistics"
-#define TIMER_FLAT_RECURSIVE_BISECTION "Flat recursive bisection"
-#define TIMER_BIPARTITIONER "Bipartitioner"
-#define TIMER_COPY_SUBGRAPH_PARTITIONS "Copy subgraph partitions"
-#define TIMER_BALANCER "Balancer"
-
 #ifdef KAMINPAR_ENABLE_TIMERS
 #define SCOPED_TIMER_IMPL2(x, line, func)                                                                              \
   auto __SCOPED_TIMER__##line = (kaminpar::Timer::global().start_scoped_timer<func>(x))
