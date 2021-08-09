@@ -71,7 +71,7 @@ Timer &Timer::global() {
 //
 
 void Timer::print_machine_readable(std::ostream &out) {
-  for (const auto &[name, node] : _tree.root.children) { print_node_mr(out, "", node.get()); }
+  for (const auto &node : _tree.root.children) { print_node_mr(out, "", node.get()); }
   out << "\n";
 }
 
@@ -83,7 +83,7 @@ void Timer::print_node_mr(std::ostream &out, const std::string &prefix, const Ti
 
   // print children
   const std::string child_prefix = display_name + ".";
-  for (const auto &[name, child] : node->children) { print_node_mr(out, child_prefix, child.get()); }
+  for (const auto &child : node->children) { print_node_mr(out, child_prefix, child.get()); }
 }
 
 //
@@ -106,8 +106,8 @@ void Timer::print_children_hr(std::ostream &out, const std::string &base_prefix,
   const std::string prefix_end = base_prefix + std::string(kTailBranch);
   const std::string child_prefix_end = base_prefix + std::string(kTailEdge);
 
-  for (const auto &[name, child] : node->children) {
-    const bool is_last = (name == node->children.rbegin()->first);
+  for (const auto &child : node->children) {
+    const bool is_last = (child == node->children.back());
     const auto &prefix = is_last ? prefix_end : prefix_mid;
     const auto &child_prefix = is_last ? child_prefix_end : child_prefix_mid;
 
@@ -144,14 +144,14 @@ void Timer::print_padded_timing(std::ostream &out, const std::size_t start_col, 
                                      : parent_prefix_len + kTailBranch.size(); // inner node or leaf
 
   std::size_t col = prefix_len + node->build_display_name_hr().size() + kNameDel.size();
-  for (const auto &[name, child] : node->children) { col = std::max(col, compute_time_col(prefix_len, child.get())); }
+  for (const auto &child : node->children) { col = std::max(col, compute_time_col(prefix_len, child.get())); }
 
   return col;
 }
 
 [[nodiscard]] std::size_t Timer::compute_time_len(const TimerTreeNode *process) const {
   std::size_t space = get_printed_length(to_seconds(process->elapsed));
-  for (const auto &[sub_name, sub_subtree] : process->children) {
+  for (const auto &sub_subtree : process->children) {
     space = std::max(space, compute_time_len(sub_subtree.get()));
   }
   return space;

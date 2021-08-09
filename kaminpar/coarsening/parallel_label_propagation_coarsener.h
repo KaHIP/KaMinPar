@@ -73,7 +73,7 @@ public:
     NodeID total_num_emptied_clusters = 0;
 
     for (std::size_t iteration = 0; iteration < max_iterations; ++iteration) {
-      //SCOPED_FINE_TIMER(std::string("Iteration ") + std::to_string(iteration)); // TODO
+      SCOPED_TIMER("Iteration", std::to_string(iteration), TIMER_BENCHMARK);
 
       const auto [num_moved_nodes, num_emptied_clusters] = randomized_iteration();
       _current_size -= num_emptied_clusters;
@@ -177,7 +177,7 @@ public:
   using Coarsener::coarsen;
 
   std::pair<const Graph *, bool> coarsen(const std::function<NodeWeight(NodeID)> &cb_max_cluster_weight) final {
-    //SCOPED_FINE_TIMER(std::string("Level ") + std::to_string(_hierarchy.size())); // TODO
+    SCOPED_TIMER("Level", std::to_string(_hierarchy.size()), TIMER_BENCHMARK);
 
     const NodeWeight max_cluster_weight = cb_max_cluster_weight(_current_graph->n());
 
@@ -202,7 +202,7 @@ public:
   PartitionedGraph uncoarsen(PartitionedGraph &&p_graph) final {
     ASSERT(&p_graph.graph() == _current_graph);
     ASSERT(!empty()) << size();
-    //SCOPED_FINE_TIMER(std::string("Level ") + std::to_string(_hierarchy.size())); // TODO
+    SCOPED_TIMER("Level", std::to_string(_hierarchy.size()), TIMER_BENCHMARK);
 
     START_TIMER("Allocation");
     auto mapping{std::move(_mapping.back())};
