@@ -75,7 +75,7 @@ void print_statistics(const dist::DistributedPartitionedGraph &p_graph, const di
 }
 
 int main(int argc, char *argv[]) {
-  dist::Context ctx;
+  dist::Context ctx = dist::create_default_context();
 
   { // init MPI
     int provided_thread_support;
@@ -116,8 +116,8 @@ int main(int argc, char *argv[]) {
     dist::mpi::barrier(MPI_COMM_WORLD);
     return graph;
   };
-  ASSERT([&] { dist::graph::debug::validate(graph); });
   LOG << "Loaded graph with n=" << graph.global_n() << " m=" << graph.global_m();
+  ASSERT([&] { dist::graph::debug::validate(graph); });
   ctx.setup(graph);
 
   // Perform partitioning

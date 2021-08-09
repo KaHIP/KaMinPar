@@ -20,9 +20,6 @@ function(add_distributed_app target)
 endfunction()
 
 add_app(KaMinPar kaminpar.cc)
-
-add_app(timer_test timer_test.cc)
-
 add_distributed_app(dKaMinPar dkaminpar.cc)
 
 add_subdirectory(tools)
