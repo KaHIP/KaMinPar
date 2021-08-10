@@ -56,6 +56,7 @@ void print_statistics(const dist::DistributedPartitionedGraph &p_graph, const di
 
   LOG << "RESULT cut=" << edge_cut << " imbalance=" << imbalance << " feasible=" << feasible << " k=" << p_graph.k();
   if (!ctx.quiet) { dist::timer::finalize_distributed_timer(GLOBAL_TIMER); }
+  DLOG << "after";
   if (dist::mpi::get_comm_rank(MPI_COMM_WORLD) == 0 && !ctx.quiet) {
     shm::Timer::global().print_machine_readable(std::cout);
   }
