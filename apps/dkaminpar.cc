@@ -128,6 +128,7 @@ int main(int argc, char *argv[]) {
   ASSERT([&] { dist::graph::debug::validate_partition(p_graph); });
 
   // Output statistics
+  dist::mpi::barrier();
   print_statistics(p_graph, ctx);
 
   MPI_Finalize();

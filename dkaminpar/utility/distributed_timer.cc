@@ -90,10 +90,12 @@ struct NodeStatistics {
   double mean;
   double max;
   double sd;
+
+  std::vector<double> times;
 };
 
 void generate_statistics(const Timer::TimerTreeNode &node, MPI_Comm comm, std::vector<NodeStatistics> &result) {
-  const auto times = mpi::gather(node.seconds(), 0, comm);
+  const auto times = mpi::gather<double, std::vector>(node.seconds(), 0, comm);
 
   if (mpi::get_comm_rank(comm) == 0) {
     const auto [min, max] = std::ranges::minmax(times);
@@ -102,6 +104,7 @@ void generate_statistics(const Timer::TimerTreeNode &node, MPI_Comm comm, std::v
         .mean = compute_mean(times),
         .max = max,
         .sd = compute_sd(times),
+        .times = std::move(times),
     });
   }
 
@@ -125,8 +128,14 @@ void annotate_timer_tree(Timer::TimerTreeNode &node, std::size_t pos, const std:
   const auto &entry = statistics[pos];
 
   std::stringstream ss;
-  ss << "[" << table.to_str_padded(entry.min) << " s <= " << table.to_str_padded(entry.mean)
-     << " s <= " << table.to_str_padded(entry.max) << " s :: sd=" << table.to_str_padded(entry.sd) << " s]";
+  ss << "|" << table.to_str_padded(entry.min) << " s <= " << table.to_str_padded(entry.mean)
+     << " s <= " << table.to_str_padded(entry.max) << " s :: sd=" << table.to_str_padded(entry.sd) << " s| ";
+
+  // also print list of outliners
+  for (std::size_t pe = 0; pe < entry.times.size(); ++pe) {
+    const double t = entry.times[pe];
+    if (t < entry.mean - 2 * entry.sd || entry.mean + 2 * entry.sd < t) { ss << pe << "/" << t << " s "; }
+  }
   node.annotation = ss.str();
 
   for (const auto &child : node.children) { annotate_timer_tree(*child, ++pos, statistics, table); }
