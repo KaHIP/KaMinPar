@@ -102,8 +102,11 @@ GetModifiedGitFiles(MODIFIED_FILES)
 add_definitions(-DMODIFIED_FILES="${MODIFIED_FILES}")
 
 include(gmock)
-set(CMAKE_POLICY_DEFAULT_CMP0063 NEW)
-add_subdirectory(external_tools/backward-cpp)
+
+if (KAMINPAR_USE_BACKWARD_CPP)
+  set(CMAKE_POLICY_DEFAULT_CMP0063 NEW)
+  add_subdirectory(external_tools/backward-cpp)
+endif (KAMINPAR_USE_BACKWARD_CPP)
 
 add_subdirectory(kaminpar)
 add_subdirectory(dkaminpar)

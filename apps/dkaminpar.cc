@@ -96,7 +96,7 @@ int main(int argc, char *argv[]) {
   }
 
   // keep alive
-  auto sh = shm::init_backward();
+  const auto sh = shm::init_backward();
 
   // Parse command line arguments
   try {
