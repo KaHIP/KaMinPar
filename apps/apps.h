@@ -29,6 +29,10 @@
 
 #include <tbb/global_control.h>
 
+#ifdef USE_BACKWARD
+#include "backward.hpp"
+#endif // USE_BACKWARD
+
 namespace kaminpar {
 void print_identifier(int argc, char *argv[]) {
   LLOG << "BUILD ";
@@ -79,5 +83,13 @@ void init_numa() {
   }
 #endif
   LOG << "NUMA not available";
+}
+
+auto init_backward() {
+#ifdef USE_BACKWARD
+  return backward::SignalHandling{};
+#else  // USE_BACKWARD
+  return 0;
+#endif // USE_BACKWARD
 }
 } // namespace kaminpar

@@ -80,6 +80,9 @@ std::string generate_partition_filename(const Context &ctx) {
 }
 
 int main(int argc, char *argv[]) {
+  // keep alive
+  const auto sh = init_backward();
+
   //
   // Parse command line arguments, sanitize, generate output filenames
   //

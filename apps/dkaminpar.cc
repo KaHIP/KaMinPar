@@ -95,6 +95,9 @@ int main(int argc, char *argv[]) {
     }
   }
 
+  // keep alive
+  auto sh = shm::init_backward();
+
   // Parse command line arguments
   try {
     ctx = dist::app::parse_options(argc, argv);
@@ -112,6 +115,9 @@ int main(int argc, char *argv[]) {
   // Initialize TBB
   auto gc = shm::init_parallelism(ctx.parallel.num_threads);
   if (ctx.parallel.use_interleaved_numa_allocation) { shm::init_numa(); }
+
+  int *arr = nullptr;
+  for (int i = 0; i < 100; ++i) std::cout << arr[i];
 
   // Load graph
   const auto graph = TIMED_SCOPE("IO") {
