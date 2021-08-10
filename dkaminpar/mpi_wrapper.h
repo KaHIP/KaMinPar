@@ -50,8 +50,8 @@ inline int get_comm_rank(MPI_Comm comm = MPI_COMM_WORLD) {
 namespace type {
 template<std::size_t N>
 inline MPI_Datatype custom() {
-  static MPI_Datatype type = nullptr;
-  if (type == nullptr) {
+  static MPI_Datatype type = MPI_DATATYPE_NULL;
+  if (type == MPI_DATATYPE_NULL) {
     MPI_Type_contiguous(N, MPI_CHAR, &type);
     MPI_Type_commit(&type);
   }

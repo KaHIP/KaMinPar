@@ -201,12 +201,10 @@ class PartitionedGraph {
   friend ParallelBalancer;
 
   static constexpr auto kDebug = false;
-  static constexpr NodeID kNodeToDebug = 1;
-  friend void copy_subgraph_partitions(PartitionedGraph &p_graph, const scalable_vector<PartitionedGraph> &p_subgraphs,
-                                       const scalable_vector<NodeID> &mapping);
+
   friend void copy_subgraph_partitions(PartitionedGraph &p_graph,
                                        const scalable_vector<StaticArray<BlockID>> &p_subgraph_partitions,
-                                       const BlockID k_per_subgraph, const BlockID final_k_per_subgraph,
+                                       BlockID k_per_subgraph, BlockID final_k_per_subgraph,
                                        const scalable_vector<NodeID> &mapping);
 
 public:
