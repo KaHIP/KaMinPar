@@ -105,16 +105,6 @@ private:
 // HEAVY_ASSERT acts like ALWAYS_ASSERT but does nothing if KAMIPAR_ENABLE_HEAVY_ASSERTIONS is undefined
 //
 // Use ASSERT for cheap checks and HEAVY_ASSERT for checks that could cause a significant slowdown.
-#ifndef NDEBUG
-#define KAMINPAR_ENABLE_ASSERTIONS
-#endif
-
-// IFASSERT evaluates to its argument iff. ASSERT is enabled, otherwise it produces a noop statement
-#ifdef KAMINPAR_ENABLE_ASSERTIONS
-#define IFASSERT(x) x
-#else // KAMINPAR_ENABLE_ASSERTIONS
-#define IFASSERT(x) (void(0));
-#endif // KAMINPAR_ENABLE_ASSERTIONS
 
 #define ALWAYS_ASSERT(x) kaminpar::debug::evaluate_assertion((x)) || kaminpar::debug::DisposableLogger<true>(std::cout) \
   << kaminpar::logger::MAGENTA << POSITION << " "                                                                       \
@@ -123,23 +113,44 @@ private:
 // only for macro implementation, acts like an ASSERT but produces no code (with constant folding enabled)
 #define NEVER_ASSERT(x) true || kaminpar::debug::DisposableLogger<false>(std::cout)
 
+//
+// We have three levels of assertions: HEAVY_ASSERT, ASSERT and LIGHT_ASSERT
+// Heavier assertions imply lighter assertions, i.e., compiling with HEAVY_ASSERT enabled also enabled ASSERT and
+// LIGHT_ASSERT, and compiling ASSERT also enabled LIGHT_ASSERT.
+//
+#ifdef KAMINPAR_ENABLE_HEAVY_ASSERTIONS
+#define HEAVY_ASSERT(x) ALWAYS_ASSERT(x)
+#ifdef NDEBUG
+#undef NDEBUG
+#endif // NDEBUG
+#else // KAMINPAR_ENABLE_HEAVY_ASSERTIONS
+#define HEAVY_ASSERT(x) NEVER_ASSERT(x)
+#endif // KAMINPAR_ENABLE_HEAVY_ASSERTIONS
+
 #ifdef NDEBUG
 #define ASSERT(x) NEVER_ASSERT(x)
 #else // NDEBUG
 #define ASSERT(x) ALWAYS_ASSERT(x)
+#ifndef KAMINPAR_ENABLE_LIGHT_ASSERTIONS
+#define KAMINPAR_ENABLE_LIGHT_ASSERTIONS
+#endif // KAMINPAR_ENABLE_LIGHT_ASSERTIONS
+#ifndef KAMINPAR_ENABLE_ASSERTIONS
+#define KAMINPAR_ENABLE_ASSERTIONS
+#endif // KAMINPAR_ENABLE_ASSERTIONS
 #endif // NDEBUG
-
-#ifdef KAMINPAR_ENABLE_HEAVY_ASSERTIONS
-#define HEAVY_ASSERT(x) ALWAYS_ASSERT(x)
-#else // KAMINPAR_ENABLE_HEAVY_ASSERTIONS
-#define HEAVY_ASSERT(x) NEVER_ASSERT(x)
-#endif // KAMINPAR_ENABLE_HEAVY_ASSERTIONS
 
 #ifdef KAMINPAR_ENABLE_LIGHT_ASSERTIONS
 #define LIGHT_ASSERT(x) ALWAYS_ASSERT(x)
 #else // KAMINPAR_ENABLE_LIGHT_ASSERTIONS
 #define LIGHT_ASSERT(x) NEVER_ASSERT(x)
 #endif // KAMINPAR_ENABLE_LIGHT_ASSERTIONS
+
+// IFASSERT evaluates to its argument iff. ASSERT is enabled, otherwise it produces a noop statement
+#ifdef KAMINPAR_ENABLE_ASSERTIONS
+#define IFASSERT(x) x
+#else // KAMINPAR_ENABLE_ASSERTIONS
+#define IFASSERT(x) (void(0));
+#endif // KAMINPAR_ENABLE_ASSERTIONS
 
 // Macros for debug output
 //

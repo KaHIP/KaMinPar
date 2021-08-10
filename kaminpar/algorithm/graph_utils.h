@@ -32,11 +32,6 @@
 namespace kaminpar {
 bool validate_graph(const Graph &graph);
 
-void copy_subgraph_partitions(PartitionedGraph &p_graph,
-                              const scalable_vector<StaticArray<BlockID>> &p_subgraph_partitions,
-                              const BlockID k_per_subgraph, const BlockID final_k_per_subgraph,
-                              const scalable_vector<NodeID> &mapping);
-
 using NodePermutation = StaticArray<NodeID>;
 
 struct NodePermutations {
@@ -44,7 +39,7 @@ struct NodePermutations {
   NodePermutation new_to_old;
 };
 
-NodePermutations sort_by_degree_buckets(const StaticArray<EdgeID> &nodes, const bool deg0_position = false);
+NodePermutations sort_by_degree_buckets(const StaticArray<EdgeID> &nodes, bool deg0_position = false);
 
 void build_permuted_graph(const StaticArray<EdgeID> &old_nodes, const StaticArray<NodeID> &old_edges,
                           const StaticArray<NodeWeight> &old_node_weights,
@@ -58,13 +53,13 @@ std::pair<NodeID, NodeWeight> find_isolated_nodes_info(const StaticArray<EdgeID>
 std::pair<NodeID, NodeID> find_furthest_away_node(const Graph &graph, NodeID start_node, Queue<NodeID> &queue,
                                                   Marker<> &marker);
 
-NodePermutations rearrange_and_remove_isolated_nodes(const bool remove_isolated_nodes, PartitionContext &p_ctx,
+NodePermutations rearrange_and_remove_isolated_nodes(bool remove_isolated_nodes, PartitionContext &p_ctx,
                                                      StaticArray<EdgeID> &nodes, StaticArray<NodeID> &edges,
                                                      StaticArray<NodeWeight> &node_weights,
                                                      StaticArray<EdgeWeight> &edge_weights,
                                                      NodeWeight total_node_weight = -1);
 
-PartitionedGraph revert_isolated_nodes_removal(PartitionedGraph p_graph, const NodeID num_isolated_nodes,
+PartitionedGraph revert_isolated_nodes_removal(PartitionedGraph p_graph, NodeID num_isolated_nodes,
                                                const PartitionContext &p_ctx);
 
 /*!

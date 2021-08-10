@@ -17,13 +17,14 @@
  * along with KaMinPar.  If not, see <http://www.gnu.org/licenses/>.
  *
 ******************************************************************************/
-#include "algorithm/graph_extraction.h"
+#include "kaminpar/algorithm/graph_extraction.h"
 
-#include "datastructure/graph.h"
-#include "datastructure/static_array.h"
-#include "definitions.h"
-#include "parallel.h"
-#include "utility/timer.h"
+#include "kaminpar/algorithm/graph_utils.h"
+#include "kaminpar/datastructure/graph.h"
+#include "kaminpar/datastructure/static_array.h"
+#include "kaminpar/definitions.h"
+#include "kaminpar/parallel.h"
+#include "kaminpar/utility/timer.h"
 
 #include <mutex>
 #include <tbb/enumerable_thread_specific.h>
