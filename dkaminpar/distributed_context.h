@@ -102,18 +102,73 @@ struct ParallelContext {
 };
 
 struct PartitionContext {
+  // required for braces-initializer with private members
+  PartitionContext(const BlockID k, const double epsilon, const PartitioningMode mode)
+      : k{k},
+        epsilon{epsilon},
+        mode{mode} {}
+
   BlockID k{};
   double epsilon{};
   PartitioningMode mode{};
 
-  GlobalNodeID global_n{kInvalidGlobalNodeID};
-  GlobalEdgeID global_m{kInvalidGlobalEdgeID};
-  NodeID local_n{kInvalidNodeID};
-  EdgeID local_m{kInvalidEdgeID};
-
   void setup(const DistributedGraph &graph);
 
+  [[nodiscard]] GlobalNodeID global_n() const {
+    ASSERT(_global_n != kInvalidGlobalNodeID);
+    return _global_n;
+  }
+
+  [[nodiscard]] GlobalEdgeID global_m() const {
+    ASSERT(_global_m != kInvalidGlobalEdgeID);
+    return _global_m;
+  }
+
+  [[nodiscard]] GlobalNodeWeight global_total_node_weight() const {
+    ASSERT(_global_total_node_weight != kInvalidGlobalNodeWeight);
+    return _global_total_node_weight;
+  }
+
+  [[nodiscard]] NodeID local_n() const {
+    ASSERT(_local_n != kInvalidNodeID);
+    return _local_n;
+  }
+
+  [[nodiscard]] EdgeID local_m() const {
+    ASSERT(_local_m != kInvalidEdgeID);
+    return _local_m;
+  }
+
+  [[nodiscard]] NodeWeight total_node_weight() const {
+    ASSERT(_total_node_weight != kInvalidNodeWeight);
+    return _total_node_weight;
+  }
+
+  [[nodiscard]] inline BlockWeight perfectly_balanced_block_weight(const BlockID b) const {
+    ASSERT(b < _perfectly_balanced_block_weights.size());
+    return _perfectly_balanced_block_weights[b];
+  }
+
+  [[nodiscard]] inline BlockWeight max_block_weight(const BlockID b) const {
+    ASSERT(b < _max_block_weights.size());
+    return _max_block_weights[b];
+  }
+
   void print(std::ostream &out, const std::string &prefix = "") const;
+
+private:
+  void setup_perfectly_balanced_block_weights();
+  void setup_max_block_weights();
+
+  GlobalNodeID _global_n{kInvalidGlobalNodeID};
+  GlobalEdgeID _global_m{kInvalidGlobalEdgeID};
+  GlobalNodeWeight _global_total_node_weight{kInvalidGlobalNodeWeight};
+  NodeID _local_n{kInvalidNodeID};
+  EdgeID _local_m{kInvalidEdgeID};
+  NodeWeight _total_node_weight{kInvalidNodeWeight};
+
+  scalable_vector<BlockWeight> _perfectly_balanced_block_weights{};
+  scalable_vector<BlockWeight> _max_block_weights{};
 };
 
 struct Context {
@@ -127,12 +182,7 @@ struct Context {
   InitialPartitioningContext initial_partitioning;
   RefinementContext refinement;
 
-  void setup(const DistributedGraph &graph) {
-    partition.local_n = graph.n();
-    partition.local_m = graph.m();
-    partition.global_m = graph.global_n();
-    partition.global_n = graph.global_m();
-  }
+  void setup(const DistributedGraph &graph) { partition.setup(graph); }
 
   void print(std::ostream &out, const std::string &prefix = "") const;
 };

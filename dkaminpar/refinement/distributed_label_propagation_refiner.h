@@ -52,19 +52,17 @@ class DistributedLabelPropagationRefiner final
 
 public:
   explicit DistributedLabelPropagationRefiner(const Context &ctx)
-      : Base{ctx.partition.local_n, ctx.partition.k},
+      : Base{ctx.partition.local_n(), ctx.partition.k},
         _lp_ctx{ctx.refinement.lp},
-        _next_partition(ctx.partition.local_n),
-        _gains(ctx.partition.local_n) {}
+        _next_partition(ctx.partition.local_n()),
+        _gains(ctx.partition.local_n()) {}
 
-  void initialize(const DistributedGraph &graph, const PartitionContext &p_ctx) final {
-    _p_ctx = &p_ctx;
-    Base::initialize(&graph);
-  }
+  void initialize(const DistributedGraph & /* graph */, const PartitionContext &p_ctx) final { _p_ctx = &p_ctx; }
 
   void refine(DistributedPartitionedGraph &p_graph) final {
     _p_graph = &p_graph;
-    
+    Base::initialize(&p_graph.graph()); // needs access to _p_graph
+
     for (std::size_t i = 0; i < _lp_ctx.num_chunks; ++i) {
       const auto [from, to] = math::compute_local_range<NodeID>(_p_graph->n(), _lp_ctx.num_chunks, i);
       DBG << "Iteration " << from << ".." << to;
@@ -108,7 +106,7 @@ private:
     // gather statistics
     for (const BlockID b : _p_graph->blocks()) {
       const EdgeWeight global_gain_to = mpi::allreduce(gain_to_block[b], MPI_SUM, _graph->communicator());
-      residual_cluster_weights.push_back(_max_block_weight - _p_graph->block_weight(b));
+      residual_cluster_weights.push_back(max_cluster_weight(b) - _p_graph->block_weight(b));
       global_total_gains_to_block.push_back(global_gain_to);
     }
 
@@ -156,20 +154,23 @@ private:
 
     // compute global block weights after moves
     std::vector<BlockWeight> global_block_weights(_p_graph->k());
-    mpi::allreduce(_p_graph->block_weights_copy().data(), global_block_weights.data(), _p_graph->k(), MPI_SUM,
-                   _graph->communicator());
+    mpi::allreduce(_p_graph->block_weights_copy().data(), global_block_weights.data(), static_cast<int>(_p_graph->k()),
+                   MPI_SUM, _graph->communicator());
 
     // check for balance violations
+    DBG << V(global_block_weights) << V(max_cluster_weight(0));
     shm::parallel::IntegralAtomicWrapper<std::uint8_t> feasible = 1;
     _p_graph->pfor_blocks([&](const BlockID b) {
-      if (global_block_weights[b] > _max_block_weight) { feasible = 0; }
+      if (global_block_weights[b] > max_cluster_weight(b)) { feasible = 0; }
     });
 
     // revert moves if resulting partition is infeasible
     if (!feasible) {
+      DBG << "not feasible";
       for (const auto &move : moves) { _p_graph->set_block(move.u, move.from); }
     }
 
+    DBG << "feasible=" << feasible;
     return feasible;
   }
 
@@ -202,11 +203,11 @@ public:
   void set_cluster(const NodeID u, const BlockID b) { _next_partition[u] = b; }
   [[nodiscard]] BlockID num_clusters() const { return _p_graph->k(); }
   [[nodiscard]] BlockWeight initial_cluster_weight(const BlockID b) const { return _p_graph->block_weight(b); }
-  [[nodiscard]] BlockWeight max_cluster_weight(const BlockID /* b */) const { return _max_block_weight; }
+  [[nodiscard]] BlockWeight max_cluster_weight(const BlockID b) const { return _p_ctx->max_block_weight(b); }
   [[nodiscard]] bool accept_cluster(const ClusterSelectionState &state) {
     const bool accept = (state.current_gain > state.best_gain ||
                          (state.current_gain == state.best_gain && state.local_rand.random_bool())) &&
-                        (state.current_cluster_weight + state.u_weight < _max_block_weight ||
+                        (state.current_cluster_weight + state.u_weight < max_cluster_weight(state.current_cluster) ||
                          state.current_cluster == state.initial_cluster);
     if (accept) { _gains[state.u] = state.current_gain; }
     return accept;
@@ -221,6 +222,5 @@ private:
 
   scalable_vector<BlockID> _next_partition;
   scalable_vector<EdgeWeight> _gains;
-  BlockWeight _max_block_weight;
 };
 } // namespace dkaminpar

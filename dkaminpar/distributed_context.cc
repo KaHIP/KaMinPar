@@ -19,6 +19,10 @@
 ******************************************************************************/
 #include "dkaminpar/distributed_context.h"
 
+#include "mpi_wrapper.h"
+
+#include <tbb/parallel_for.h>
+
 namespace dkaminpar {
 using namespace std::string_literals;
 
@@ -44,7 +48,7 @@ DEFINE_ENUM_STRING_CONVERSION(KWayRefinementAlgorithm, kway_refinement_algorithm
 
 void LabelPropagationCoarseningContext::print(std::ostream &out, const std::string &prefix) const {
   out << prefix << "num_iterations=" << num_iterations << " "                                              //
-      << prefix << "max_degree=" << large_degree_threshold << " "                              //
+      << prefix << "max_degree=" << large_degree_threshold << " "                                          //
       << prefix << "max_num_neighbors=" << max_num_neighbors << " "                                        //
       << prefix << "merge_singleton_clusters=" << merge_singleton_clusters << " "                          //
       << prefix << "merge_nonadjacent_clusters_threshold=" << merge_nonadjacent_clusters_threshold << " "; //
@@ -78,10 +82,33 @@ void ParallelContext::print(std::ostream &out, const std::string &prefix) const 
 }
 
 void PartitionContext::setup(const DistributedGraph &graph) {
-  global_n = graph.global_n();
-  global_m = graph.global_m();
-  local_n = graph.n();
-  local_m = graph.m();
+  _global_n = graph.global_n();
+  _global_m = graph.global_m();
+  _global_total_node_weight = mpi::allreduce(graph.total_node_weight(), MPI_SUM, graph.communicator());
+  _local_n = graph.n();
+  _local_m = graph.m();
+  _total_node_weight = graph.total_node_weight();
+
+  setup_perfectly_balanced_block_weights();
+  setup_max_block_weights();
+}
+
+void PartitionContext::setup_perfectly_balanced_block_weights() {
+  _perfectly_balanced_block_weights.resize(k);
+
+  const BlockWeight perfectly_balanced_block_weight = std::ceil(static_cast<double>(global_total_node_weight()) / k);
+  tbb::parallel_for<BlockID>(0, k, [&](const BlockID b) {
+    _perfectly_balanced_block_weights[b] = perfectly_balanced_block_weight;
+  });
+}
+
+void PartitionContext::setup_max_block_weights() {
+  _max_block_weights.resize(k);
+
+  tbb::parallel_for<BlockID>(0, k, [&](const BlockID b) {
+    _max_block_weights[b] = static_cast<BlockWeight>((1.0 + epsilon) *
+                                                     static_cast<double>(perfectly_balanced_block_weight(b)));
+  });
 }
 
 void PartitionContext::print(std::ostream &out, const std::string &prefix) const {

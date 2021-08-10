@@ -89,7 +89,7 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
 
   auto refine = [&](DistributedPartitionedGraph &p_graph) {
     if (_ctx.refinement.algorithm == KWayRefinementAlgorithm::NOOP) { return; }
-    DBG << "create local_n=" << _ctx.partition.local_n << " k=" << _ctx.partition.k;
+    DBG << "create local_n=" << _ctx.partition.local_n() << " k=" << _ctx.partition.k;
     DistributedLabelPropagationRefiner refiner(_ctx);
     DBG << "init";
     refiner.initialize(p_graph.graph(), _ctx.partition);
