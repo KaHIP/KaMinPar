@@ -8,7 +8,6 @@
 #include "parallel.h"
 #include "utility/strings.h"
 
-#include "gtest/gtest.h"
 #include <numeric>
 #include <ranges>
 #include <tbb/blocked_range.h>
@@ -17,6 +16,10 @@
 #include <tbb/parallel_reduce.h>
 #include <utility>
 #include <vector>
+
+#ifdef KAMINPAR_BUILD_TESTS
+#include "gtest/gtest.h"
+#endif // KAMINPAR_BUILD_TESTS
 
 namespace kaminpar {
 class Graph;
@@ -165,9 +168,11 @@ public:
   void update_total_node_weight();
 
 private:
+#ifdef KAMINPAR_BUILD_TESTS
   FRIEND_TEST(AWeightedGridGraph, ContractingToSingletonClustersWorks);
   FRIEND_TEST(AWeightedGridGraph, ContractingGridHorizontallyWorks);
   FRIEND_TEST(AWeightedGridGraph, ContractingGridVerticallyWorks);
+#endif // KAMINPAR_BUILD_TESTS
 
   void init_degree_buckets();
 

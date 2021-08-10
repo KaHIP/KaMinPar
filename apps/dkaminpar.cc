@@ -97,6 +97,7 @@ int main(int argc, char *argv[]) {
 
   // keep alive
   const auto sh = shm::init_backward();
+  UNUSED(sh); // hide compile warning if backward is non use
 
   // Parse command line arguments
   try {

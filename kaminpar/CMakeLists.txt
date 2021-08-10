@@ -80,7 +80,8 @@ find_package(TBB REQUIRED)
 target_link_libraries(kaminpar_impl PUBLIC ${TBB_LIBRARIES})
 target_include_directories(kaminpar_impl PUBLIC ${TBB_INCLUDE_DIRS})
 
-# Link libnuma on Linux
-if (UNIX AND NOT APPLE)
-    target_link_libraries(kaminpar_impl PUBLIC numa)
+# Link libnuma if available
+find_library(NUMA_LIB numa)
+if (NUMA_LIB)
+    target_link_libraries(kaminpar_impl PUBLIC ${NUMA_LIB})
 endif ()

@@ -22,6 +22,7 @@ option(KAMINPAR_ENABLE_DEBUG_FEATURES "Enable features that might slow down exec
 option(KAMINPAR_ENABLE_STATISTICS "Generate and output much more detailed statistics." OFF)
 option(KAMINPAR_64BIT_EDGE_IDS "Use 64 bits for edge ids." OFF)
 option(KAMINPAR_USE_BACKWARD_CPP "Use backward-cpp for better stacktraces." OFF)
+option(KAMINPAR_BUILD_TESTS "If enabled, build unit tests." OFF)
 
 include_directories(${PROJECT_SOURCE_DIR})
 
@@ -86,6 +87,10 @@ if (KAMINPAR_64BIT_EDGE_IDS)
   add_definitions(-DKAMINPAR_64BIT_EDGE_IDS)
 endif ()
 
+if (KAMINPAR_BUILD_TESTS)
+  add_definitions(-DKAMINPAR_BUILD_TESTS)
+endif ()
+
 # Make commit hash available
 include(GetGitRevisionDescription)
 get_git_head_revision(GIT_REFSPEC GIT_SHA1)
@@ -111,5 +116,8 @@ endif (KAMINPAR_USE_BACKWARD_CPP)
 add_subdirectory(kaminpar)
 add_subdirectory(dkaminpar)
 add_subdirectory(apps)
-add_subdirectory(tests)
 add_subdirectory(library)
+
+if (KAMINPAR_BUILD_TESTS)
+  add_subdirectory(tests)
+endif ()

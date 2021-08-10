@@ -23,9 +23,9 @@
 #include "definitions.h"
 #include "utility/logger.h"
 
-#ifdef __gnu_linux__
+#if __has_include(<numa.h>)
 #include <numa.h>
-#endif // __gnu_linux__
+#endif // __has_include(<numa.h>)
 
 #include <tbb/global_control.h>
 
@@ -75,13 +75,13 @@ tbb::global_control init_parallelism(const std::size_t num_threads) {
 }
 
 void init_numa() {
-#ifdef __gnu_linux__
+#if __has_include(<numa.h>)
   if (numa_available() >= 0) {
     numa_set_interleave_mask(numa_all_nodes_ptr);
     LOG << "NUMA using round-robin allocations";
     return;
   }
-#endif
+#endif // __has_include(<numa.h>)
   LOG << "NUMA not available";
 }
 

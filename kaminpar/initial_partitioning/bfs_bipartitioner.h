@@ -7,7 +7,6 @@
 #include "initial_partitioning/i_bipartitioner.h"
 #include "utility/random.h"
 
-#include "gtest/gtest.h"
 #include <array>
 
 namespace kaminpar {
