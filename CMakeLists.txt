@@ -27,9 +27,11 @@ option(KAMINPAR_BUILD_TESTS "If enabled, build unit tests." OFF)
 include_directories(${PROJECT_SOURCE_DIR})
 
 # ensure that gmock is built before tests are executed
-add_subdirectory(external_tools/googletest EXCLUDE_FROM_ALL)
-include_directories(SYSTEM ${gtest_SOURCE_DIR}/include ${gtest_SOURCE_DIR})
-include_directories(SYSTEM ${gtest_SOURCE_DIR}/../googletest/include ${gtest_SOURCE_DIR}/../googletest)
+if (KAMINPAR_BUILD_TESTS)
+  add_subdirectory(external_tools/googletest EXCLUDE_FROM_ALL)
+  include_directories(SYSTEM ${gtest_SOURCE_DIR}/include ${gtest_SOURCE_DIR})
+  include_directories(SYSTEM ${gtest_SOURCE_DIR}/../googletest/include ${gtest_SOURCE_DIR}/../googletest)
+endif ()
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -W -Wall -Wextra ")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wunused ")
