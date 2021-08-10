@@ -22,6 +22,7 @@
 #include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/mpi_graph_utils.h"
 #include "dkaminpar/mpi_utils.h"
+#include "dkaminpar/refinement/distributed_refiner.h"
 #include "dkaminpar/utility/distributed_math.h"
 #include "dkaminpar/utility/vector_ets.h"
 #include "kaminpar/algorithm/parallel_label_propagation.h"
@@ -43,7 +44,8 @@ struct DistributedLabelPropagationRefinerConfig : public shm::LabelPropagationCo
 };
 
 class DistributedLabelPropagationRefiner final
-    : public shm::LabelPropagation<DistributedLabelPropagationRefiner, DistributedLabelPropagationRefinerConfig> {
+    : public shm::LabelPropagation<DistributedLabelPropagationRefiner, DistributedLabelPropagationRefinerConfig>,
+      DistributedRefiner {
   using Base = shm::LabelPropagation<DistributedLabelPropagationRefiner, DistributedLabelPropagationRefinerConfig>;
 
   SET_DEBUG(true);
@@ -55,13 +57,14 @@ public:
         _next_partition(ctx.partition.local_n),
         _gains(ctx.partition.local_n) {}
 
-  void initialize(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) {
-    _p_graph = &p_graph;
+  void initialize(const DistributedGraph &graph, const PartitionContext &p_ctx) final {
     _p_ctx = &p_ctx;
-    Base::initialize(&_p_graph->graph());
+    Base::initialize(&graph);
   }
 
-  void perform_iteration() {
+  void refine(DistributedPartitionedGraph &p_graph) final {
+    _p_graph = &p_graph;
+    
     for (std::size_t i = 0; i < _lp_ctx.num_chunks; ++i) {
       const auto [from, to] = math::compute_local_range<NodeID>(_p_graph->n(), _lp_ctx.num_chunks, i);
       DBG << "Iteration " << from << ".." << to;
@@ -74,9 +77,11 @@ private:
     mpi::barrier(_graph->communicator());
 
     // run label propagation
+    DBG << "in_order label propagation " << from << ".." << to;
     this->in_order_iteration(from, to);
 
     // accumulate total weight of nodes moved to each block
+    DBG << "compute weight and gain to each block";
     parallel::vector_ets<BlockWeight> weight_to_block_ets(_p_ctx->k);
     parallel::vector_ets<EdgeWeight> gain_to_block_ets(_p_ctx->k);
 
@@ -108,7 +113,9 @@ private:
     }
 
     // perform probabilistic moves
+    DBG << "perform moves, max time " << _lp_ctx.num_move_attempts;
     for (std::size_t i = 0; i < _lp_ctx.num_move_attempts; ++i) {
+      DBG << "i=" << i;
       if (perform_moves(from, to, residual_cluster_weights, global_total_gains_to_block)) {
         synchronize_state(from, to);
         break;
@@ -190,7 +197,7 @@ private:
   }
 
 public:
-  void reset_node_state(const NodeID u)  { _next_partition[u] = _p_graph->block(u); }
+  void reset_node_state(const NodeID u) { _next_partition[u] = _p_graph->block(u); }
   [[nodiscard]] BlockID cluster(const NodeID u) const { return _p_graph->block(u); }
   void set_cluster(const NodeID u, const BlockID b) { _next_partition[u] = b; }
   [[nodiscard]] BlockID num_clusters() const { return _p_graph->k(); }

@@ -92,11 +92,11 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
     DBG << "create local_n=" << _ctx.partition.local_n << " k=" << _ctx.partition.k;
     DistributedLabelPropagationRefiner refiner(_ctx);
     DBG << "init";
-    refiner.initialize(p_graph, _ctx.partition);
+    refiner.initialize(p_graph.graph(), _ctx.partition);
 
     for (std::size_t i = 0; i < _ctx.refinement.lp.num_iterations; ++i) {
       DBG << "iter " << i;
-      refiner.perform_iteration();
+      refiner.refine(p_graph);
       DBG << "validate";
       graph::debug::validate_partition(p_graph);
     }
