@@ -213,6 +213,10 @@ class PartitionedGraph {
                                        const scalable_vector<NodeID> &mapping);
 
 public:
+  using NodeID = Graph::NodeID;
+  using NodeWeight = Graph::NodeWeight;
+  using EdgeID = Graph::EdgeID;
+  using EdgeWeight = Graph::EdgeWeight;
   using BlockID = ::kaminpar::BlockID;
   using BlockWeight = ::kaminpar::BlockWeight;
 
