@@ -52,6 +52,7 @@ public:
     std::string description{};
     std::string default_description{};
     bool vararg{false};
+    bool optional{false};
     std::vector<std::string> extended_description{};
   };
 
@@ -81,10 +82,18 @@ public:
 
     Group &argument(const std::string &lname, const std::string &description, std::vector<std::string> *storage,
                     const char sname = 0) {
-      argument(
-          lname, true, [storage](const char *arg) { storage->push_back(arg); }, description, "", sname);
+      auto lambda = [storage](const char *arg) { storage->push_back(arg); };
+      argument(lname, true, lambda, description, "", sname);
       parent->arguments.back().vararg = true;
       arguments.back().vararg = true;
+      return *this;
+    }
+
+    template<typename Type>
+    Group &opt_argument(const std::string &lname, const std::string &description, Type *storage, const char sname = 0) {
+      argument(lname, description, storage, sname);
+      parent->arguments.back().optional = true;
+      arguments.back().optional = true;
       return *this;
     }
 
@@ -153,9 +162,7 @@ public:
     }
 
     Group &line(std::string text) {
-      if (arguments.empty()) {
-        extended_description.push_back(std::move(text));
-      }
+      if (arguments.empty()) { extended_description.push_back(std::move(text)); }
       arguments.back().extended_description.push_back(std::move(text));
       return *this;
     }
@@ -198,7 +205,10 @@ public:
       const std::size_t expected_pos_args = positional_group.arguments.size();
       const bool has_vararg = std::any_of(positional_group.arguments.begin(), positional_group.arguments.end(),
                                           [](const auto &arg) { return arg.vararg; });
-      if (enforce_positional_arguments && !has_vararg && actual_num_pos_args != expected_pos_args) {
+      const bool num_optional = std::count_if(positional_group.arguments.begin(), positional_group.arguments.end(),
+                                              [](const auto &arg) { return arg.optional; });
+      if (enforce_positional_arguments && !has_vararg &&
+          (actual_num_pos_args < expected_pos_args - num_optional || actual_num_pos_args > expected_pos_args)) {
         FATAL_ERROR << "unexpected number of positional arguments: got " << actual_num_pos_args << ", expected "
                     << expected_pos_args;
       }
@@ -219,9 +229,10 @@ public:
       LLOG << "Usage: " << argv[0] << " ";
       if (!groups.empty()) { LLOG << "options... "; }
       for (const auto &positional_argument : positional_group.arguments) {
-        LLOG << "<" << positional_argument.long_name;
+        LLOG << (positional_argument.optional ? "[" : "<");
+        LLOG << positional_argument.long_name;
         if (positional_argument.vararg) { LLOG << "..."; }
-        LLOG << "> ";
+        LLOG << (positional_argument.optional ? "]" : "> ");
       }
       LOG << "\n";
     }
@@ -264,7 +275,9 @@ public:
       LOG;
     }
 
-    if (!full && !printed_group) { LOG_ERROR << "No group with code " << optarg << "; run with --help to see all options"; }
+    if (!full && !printed_group) {
+      LOG_ERROR << "No group with code " << optarg << "; run with --help to see all options";
+    }
   }
 
 private:

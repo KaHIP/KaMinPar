@@ -10,13 +10,13 @@ namespace kaminpar::tool::converter {
 class StripNodeWeightsProcessor : public GraphProcessor {
 public:
   void process(SimpleGraph &graph) override { graph.node_weights.clear(); }
-  std::string description() const override { return "Removes all node weights from the graph"; }
+  [[nodiscard]] std::string description() const override { return "Removes all node weights from the graph"; }
 };
 
 class StripEdgeWeightsProcessor : public GraphProcessor {
 public:
   void process(SimpleGraph &graph) override { graph.edge_weights.clear(); }
-  std::string description() const override { return "Removes all edge weights from the graph"; }
+  [[nodiscard]] std::string description() const override { return "Removes all edge weights from the graph"; }
 };
 
 class StripIsolatedNodesProcessor : public GraphProcessor {
@@ -43,11 +43,13 @@ public:
     for (const EdgeID e : graph.edges_iter()) { graph.edges[e] = remap[graph.edges[e]]; }
   }
 
-  std::string description() const override { return "Removes all nodes with degree 0 from the graph"; }
+  [[nodiscard]] std::string description() const override { return "Removes all nodes with degree 0 from the graph"; }
 };
 
-template<bool by_n = true>
-class ExtractLargestCC : public GraphProcessor {
+enum class ExtractMetric { N, M };
+
+template<ExtractMetric metric>
+class ExtractLargestComponent : public GraphProcessor {
 public:
   void process(SimpleGraph &graph) override {
     // find all connected components
@@ -90,10 +92,16 @@ public:
 
     // find the one that we want to keep
     NodeID selected_component{0};
-    if constexpr (by_n) {
-      selected_component = std::max_element(component_n.begin(), component_n.end()) - component_n.begin();
-    } else {
-      selected_component = std::max_element(component_m.begin(), component_m.end()) - component_m.begin();
+
+    static_assert(metric == ExtractMetric::N || metric == ExtractMetric::M);
+    switch (metric) {
+      case ExtractMetric::N:
+        selected_component = std::max_element(component_n.begin(), component_n.end()) - component_n.begin();
+        break;
+
+      case ExtractMetric::M:
+        selected_component = std::max_element(component_m.begin(), component_m.end()) - component_m.begin();
+        break;
     }
 
     LOG << "Extracting component with n'=" << component_n[selected_component]
@@ -128,12 +136,16 @@ public:
     graph.edge_weights = std::move(extracted_edge_weights);
   }
 
-  std::string description() const override {
-    if constexpr (by_n) {
-      return "Extracts the connected component with the most nodes and discards the rest of the graph";
-    } else {
-      return "Extracts the connected component with the most edges and discards the rest of the graph";
+  [[nodiscard]] std::string description() const override {
+    switch (metric) {
+      case ExtractMetric::N:
+        return "Extracts the connected component with the largest number of nodes and discards the rest of the graph";
+
+      case ExtractMetric::M:
+        return "Extracts the connected component with the largest number of edges and discards the rest of the graph";
     }
+
+    __builtin_unreachable();
   }
 };
 } // namespace kaminpar::tool::converter

@@ -33,8 +33,8 @@ SimpleGraph graph_to_simple_graph(Graph graph) {
 
   std::ranges::copy(graph.raw_nodes(), nodes.begin());
   std::ranges::copy(graph.raw_edges(), edges.begin());
-  std::ranges::copy(graph.raw_node_weights(), node_weights.begin());
-  std::ranges::copy(graph.raw_edge_weights(), edge_weights.begin());
+  if (graph.is_node_weighted()) { std::ranges::copy(graph.raw_node_weights(), node_weights.begin()); }
+  if (graph.is_edge_weighted()) { std::ranges::copy(graph.raw_edge_weights(), edge_weights.begin()); }
 
   return {std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights)};
 }

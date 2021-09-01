@@ -70,11 +70,11 @@ public:
       }
     }
 
-    LOG << "Importing graph ...";
+    LOG << "Reading graph from " << in_filename << " ...";
     SimpleGraph graph = _readers[importer]->read(in_filename);
     if (!processor_ptrs.empty()) { LOG << "Processing ..."; }
     for (GraphProcessor *processor : processor_ptrs) { processor->process(graph); }
-    LOG << "Exporting graph ...";
+    LOG << "Writing graph to " << out_filename << " ...";
     if (!_comment.empty()) {
       _writers[exporter]->write(out_filename, graph, _comment);
     } else {
