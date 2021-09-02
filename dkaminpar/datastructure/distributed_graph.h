@@ -46,6 +46,18 @@ public:
 
   DistributedGraph() = default;
 
+  // do not move node_distribution and edge_distribution
+  DistributedGraph(scalable_vector<GlobalNodeID> node_distribution, scalable_vector<GlobalEdgeID> edge_distribution,
+                   scalable_vector<EdgeID> nodes, scalable_vector<NodeID> edges,
+                   scalable_vector<NodeWeight> node_weights, scalable_vector<EdgeWeight> edge_weights,
+                   scalable_vector<PEID> ghost_owner, scalable_vector<GlobalNodeID> ghost_to_global,
+                   std::unordered_map<GlobalNodeID, NodeID> global_to_ghost, MPI_Comm comm = MPI_COMM_WORLD)
+      : DistributedGraph(node_distribution.back(), edge_distribution.back(), ghost_to_global.size(),
+                         node_distribution[mpi::get_comm_rank(comm)], edge_distribution[mpi::get_comm_rank(comm)],
+                         node_distribution, edge_distribution, std::move(nodes), std::move(edges),
+                         std::move(node_weights), std::move(edge_weights), std::move(ghost_owner),
+                         std::move(ghost_to_global), std::move(global_to_ghost), comm) {}
+
   DistributedGraph(const GlobalNodeID global_n, const GlobalEdgeID global_m, const NodeID ghost_n,
                    const GlobalNodeID offset_n, const GlobalEdgeID offset_m,
                    scalable_vector<GlobalNodeID> node_distribution, scalable_vector<GlobalEdgeID> edge_distribution,

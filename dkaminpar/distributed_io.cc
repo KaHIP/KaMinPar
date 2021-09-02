@@ -52,8 +52,8 @@ DistributedGraph read_node_balanced(const std::string &filename) {
 
         scalable_vector<GlobalNodeID> node_distribution(size + 1);
         for (PEID p = 0; p < size; ++p) {
-          const auto [from, to] = math::compute_local_range<GlobalNodeID>(global_n, size, p);
-          node_distribution[p + 1] = to;
+          const auto [p_from, p_to] = math::compute_local_range<GlobalNodeID>(global_n, size, p);
+          node_distribution[p + 1] = p_to;
         }
         ASSERT(node_distribution.front() == 0);
         ASSERT(node_distribution.back() == global_n);
@@ -78,8 +78,100 @@ DistributedGraph read_node_balanced(const std::string &filename) {
 }
 
 DistributedGraph read_edge_balanced(const std::string &filename) {
-  UNUSED(filename);
-  return {};
+  const auto comm_info = mpi::get_comm_info();
+  const PEID size = comm_info.first;
+  const PEID rank = comm_info.second;
+
+  PEID current_pe = 0;
+  GlobalNodeID current_node = 0;
+  GlobalEdgeID current_edge = 0;
+  GlobalEdgeID to = 0;
+
+  scalable_vector<EdgeID> nodes;
+  scalable_vector<GlobalNodeID> global_edges;
+  scalable_vector<NodeWeight> node_weights;
+  scalable_vector<EdgeWeight> edge_weights;
+  scalable_vector<PEID> ghost_owner;
+  scalable_vector<GlobalNodeID> ghost_to_global;
+  std::unordered_map<GlobalNodeID, NodeID> global_to_ghost;
+
+  scalable_vector<GlobalNodeID> node_distribution(size + 1);
+  scalable_vector<GlobalEdgeID> edge_distribution(size + 1);
+
+  // read graph file
+  shm::read_observable(
+      filename,
+      [&](const auto &format) {
+        const auto global_n = static_cast<GlobalNodeID>(format.number_of_nodes);
+        const auto global_m = static_cast<GlobalEdgeID>(format.number_of_edges) * 2;
+        node_distribution.back() = global_n;
+        edge_distribution.back() = global_m;
+        const auto [pe_from, pe_to] = math::compute_local_range<GlobalEdgeID>(global_m, size, current_pe);
+        to = pe_to;
+      },
+      [&](const std::uint64_t &u_weight) {
+        if (current_edge >= to) {
+          node_distribution[current_pe] = current_node;
+          edge_distribution[current_pe] = current_edge;
+          ++current_pe;
+
+          const GlobalEdgeID global_m = edge_distribution.back();
+          const auto [pe_from, pe_to] = math::compute_local_range<GlobalEdgeID>(global_m, size, current_pe);
+          to = pe_to;
+        }
+
+        if (current_pe == rank) {
+          nodes.push_back(global_edges.size());
+          node_weights.push_back(static_cast<NodeWeight>(u_weight));
+        }
+
+        ++current_node;
+        return true;
+      },
+      [&](const std::uint64_t &e_weight, const std::uint64_t &v) {
+        if (current_pe == rank) {
+          global_edges.push_back(static_cast<GlobalNodeID>(v));
+          edge_weights.push_back(static_cast<EdgeWeight>(e_weight));
+        }
+        ++current_edge;
+      });
+
+  // at this point we should have a valid node and edge distribution
+  const GlobalNodeID offset_n = node_distribution[rank];
+  const auto local_n = static_cast<NodeID>(node_distribution[rank + 1] - node_distribution[rank]);
+
+  // remap global edges to local edges and create ghost PEs
+  scalable_vector<NodeID> edges(global_edges.size());
+  for (std::size_t i = 0; i < global_edges.size(); ++i) {
+    const GlobalNodeID global_v = global_edges[i];
+    if (offset_n <= global_v && global_v < offset_n + local_n) { // owned node
+      edges[i] = static_cast<NodeID>(global_v - offset_n);
+    } else { // ghost node
+      if (!global_to_ghost.contains(global_v)) {
+        const NodeID local_id = local_n + ghost_to_global.size();
+        ghost_to_global.push_back(global_v);
+        global_to_ghost[global_v] = local_id;
+
+        auto it = std::upper_bound(node_distribution.begin() + 1, node_distribution.end(), global_v);
+        const auto owner = static_cast<PEID>(std::distance(node_distribution.begin(), it) - 1);
+        ghost_owner.push_back(owner);
+      }
+
+      edges[i] = global_to_ghost[global_v];
+    }
+  }
+
+  // init graph
+  return {std::move(node_distribution),
+          std::move(edge_distribution),
+          std::move(nodes),
+          std::move(edges),
+          std::move(node_weights),
+          std::move(edge_weights),
+          std::move(ghost_owner),
+          std::move(ghost_to_global),
+          std::move(global_to_ghost),
+          MPI_COMM_WORLD};
 }
 
 void write(const std::string &filename, const DistributedGraph &graph, const bool write_node_weights,

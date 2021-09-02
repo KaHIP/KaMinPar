@@ -109,7 +109,7 @@ Graph read(const std::string &filename, bool ignore_node_weights, bool ignore_ed
   if (ignore_node_weights) { node_weights.free(); }
   if (ignore_edge_weights) { edge_weights.free(); }
 
-  return Graph(std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights));
+  return {std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights)};
 }
 
 void write(const std::string &filename, const Graph &graph, const std::string &comment) {

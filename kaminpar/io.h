@@ -130,7 +130,8 @@ inline GraphFormat read_graph_header(internal::MappedFile &mapped_file) {
   const bool has_node_weights = (format % 100) / 10;         // == x1x
   const bool has_edge_weights = format % 10;                 // == xx1
 
-  ASSERT(!has_node_sizes); // unsupported
+  if (has_node_sizes) { LOG_WARNING << "ignoring node sizes"; }
+
   return {
       .number_of_nodes = number_of_nodes,
       .number_of_edges = number_of_edges,

@@ -140,9 +140,9 @@ Context create_default_context() {
     .seed = 0,
     .quiet = false,
     .partition = {
-      .k = 0,
-      .epsilon = 0.03,
-      .mode = PartitioningMode::KWAY,
+      /* .k = */ 0,
+      /* .epsilon = */ 0.03,
+      /* .mode = */ PartitioningMode::KWAY,
     },
     .parallel = {
       .num_threads = 1,
