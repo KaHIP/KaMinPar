@@ -1,21 +1,21 @@
 /*******************************************************************************
- * This file is part of KaMinPar.
- *
- * Copyright (C) 2021 Daniel Seemaier <daniel.seemaier@kit.edu>
- *
- * KaMinPar is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * KaMinPar is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with KaMinPar.  If not, see <http://www.gnu.org/licenses/>.
- *
+* This file is part of KaMinPar.
+*
+* Copyright (C) 2021 Daniel Seemaier <daniel.seemaier@kit.edu>
+*
+* KaMinPar is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+*
+* KaMinPar is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with KaMinPar.  If not, see <http://www.gnu.org/licenses/>.
+*
 ******************************************************************************/
 #pragma once
 
@@ -26,7 +26,7 @@
 #include "kaminpar/datastructure/rating_map.h"
 
 namespace dkaminpar {
-struct DistributedLocalLabelPropagationClusteringConfig : public shm::LabelPropagationConfig {
+struct DistributedGlobalLabelPropagationClusteringConfig : public shm::LabelPropagationConfig {
   using Graph = DistributedGraph;
   using ClusterID = NodeID;
   using ClusterWeight = NodeWeight;
@@ -34,20 +34,20 @@ struct DistributedLocalLabelPropagationClusteringConfig : public shm::LabelPropa
   static constexpr bool kReportEmptyClusters = true;
 };
 
-class DistributedLocalLabelPropagationClustering final
-    : public shm::LabelPropagation<DistributedLocalLabelPropagationClustering,
-                                   DistributedLocalLabelPropagationClusteringConfig> {
+class DistributedGlobalLabelPropagationClustering final
+    : public shm::LabelPropagation<DistributedGlobalLabelPropagationClustering,
+                                   DistributedGlobalLabelPropagationClusteringConfig> {
   SET_DEBUG(true);
 
-  using Base = shm::LabelPropagation<DistributedLocalLabelPropagationClustering,
-                                     DistributedLocalLabelPropagationClusteringConfig>;
+  using Base = shm::LabelPropagation<DistributedGlobalLabelPropagationClustering,
+                                     DistributedGlobalLabelPropagationClusteringConfig>;
   friend Base;
 
   static constexpr std::size_t kInfiniteIterations{std::numeric_limits<std::size_t>::max()};
 
 public:
-  DistributedLocalLabelPropagationClustering(const NodeID max_n, const double shrink_factor,
-                                             const LabelPropagationCoarseningContext &lp_ctx)
+  DistributedGlobalLabelPropagationClustering(const NodeID max_n, const double shrink_factor,
+                                              const LabelPropagationCoarseningContext &lp_ctx)
       : Base{max_n, max_n},
         _shrink_factor{shrink_factor},
         _max_cluster_weight{kInvalidBlockWeight} {
@@ -106,7 +106,7 @@ private:
   [[nodiscard]] bool consider_neighbor(const NodeID u) const { return _graph->is_owned_node(u); }
 
   double _shrink_factor;
-  scalable_vector<NodeID> _clustering;
+  scalable_vector<shm::parallel::IntegralAtomicWrapper<NodeID>> _clustering;
   scalable_vector<shm::parallel::IntegralAtomicWrapper<NodeID>> _favored_clustering;
   NodeWeight _max_cluster_weight;
 

@@ -358,9 +358,11 @@ private:
       };
 
       auto add_to_rating_map = [&](const EdgeID e, const NodeID v) {
-        const ClusterID v_cluster = derived_cluster(v);
-        const EdgeWeight rating = _graph->edge_weight(e);
-        map[v_cluster] += rating;
+        if (derived_consider_neighbor(v)) {
+          const ClusterID v_cluster = derived_cluster(v);
+          const EdgeWeight rating = _graph->edge_weight(e);
+          map[v_cluster] += rating;
+        }
       };
 
       const EdgeID from = _graph->first_edge(u);
@@ -430,6 +432,11 @@ private:
     return static_cast<Derived *>(this)->activate_neighbor(u);
   }
   [[nodiscard]] inline bool activate_neighbor(const NodeID) const { return true; }
+
+  [[nodiscard]] inline bool derived_consider_neighbor(const NodeID u) {
+    return static_cast<Derived *>(this)->consider_neighbor(u);
+  }
+  [[nodiscard]] inline bool consider_neighbor(const NodeID) const { return true; }
 
 protected:
   const ClusterID _max_n;
