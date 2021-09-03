@@ -7,6 +7,7 @@
 #include "converter/kagen.h"
 #include "converter/matrix_market.h"
 #include "converter/metis.h"
+#include "converter/parhip_binary.h"
 #include "converter/snap.h"
 #include "definitions.h"
 #include "kaminpar/application/arguments_parser.h"
@@ -28,6 +29,7 @@ GraphConverter create_graph_converter() {
   converter.register_writer<HMetisWriter>("hmetis");
   converter.register_writer<MetisWriter>("metis");
   converter.register_writer<BinaryWriter>("binary");
+  converter.register_writer<ParhipBinaryWriter>("parhip-binary");
 
   converter.register_processor<StripNodeWeightsProcessor>("strip-node-weights");
   converter.register_processor<StripEdgeWeightsProcessor>("strip-edge-weights");

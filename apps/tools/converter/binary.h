@@ -21,8 +21,8 @@
 
 #include <fstream>
 
-#define HAS_NODE_WEIGHTS(version) (((version) & 0b10) == 0)
-#define HAS_EDGE_WEIGHTS(version) (((version) & 0b01) == 0)
+#define HAS_NODE_WEIGHTS(version) (((version) & 0b10) == 1)
+#define HAS_EDGE_WEIGHTS(version) (((version) & 0b01) == 1)
 
 namespace kaminpar::tool::converter {
 using parhip_ulong_t = unsigned long long;
@@ -85,13 +85,13 @@ public:
 
     parhip_ulong_t version;
     if (graph.has_node_weights() && graph.has_edge_weights()) {
-      version = 0;
-    } else if (graph.has_node_weights()) {
-      version = 1;
-    } else if (graph.has_edge_weights()) {
-      version = 2;
-    } else {
       version = 3;
+    } else if (graph.has_node_weights()) {
+      version = 2;
+    } else if (graph.has_edge_weights()) {
+      version = 1;
+    } else {
+      version = 0;
     }
 
     const parhip_ulong_t n = graph.n();
