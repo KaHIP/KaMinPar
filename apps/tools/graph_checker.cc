@@ -30,7 +30,7 @@ struct Edge {
 };
 
 bool is_comment_line(const std::string &line) {
-  const auto first_letter = line.find_first_not_of(" ");
+  const auto first_letter = line.find_first_not_of(' ');
   return first_letter != std::string::npos && line[first_letter] == '%';
 }
 

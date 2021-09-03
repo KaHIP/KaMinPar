@@ -1,6 +1,7 @@
 #include "converter/graph_converter.h"
 
 #include "converter/basic_processors.h"
+#include "converter/binary.h"
 #include "converter/dac2012.h"
 #include "converter/hmetis.h"
 #include "converter/kagen.h"
@@ -9,9 +10,6 @@
 #include "converter/snap.h"
 #include "definitions.h"
 #include "kaminpar/application/arguments_parser.h"
-
-#include <cstdlib>
-#include <getopt.h>
 
 using namespace kaminpar;
 using namespace kaminpar::tool::converter;
@@ -25,9 +23,11 @@ GraphConverter create_graph_converter() {
   converter.register_reader<SNAPReader>("snap");
   converter.register_reader<SNAPReader>("parmat");
   converter.register_reader<Dac2012Reader>("dac2012");
+  converter.register_reader<BinaryReader>("binary");
 
   converter.register_writer<HMetisWriter>("hmetis");
   converter.register_writer<MetisWriter>("metis");
+  converter.register_writer<BinaryWriter>("binary");
 
   converter.register_processor<StripNodeWeightsProcessor>("strip-node-weights");
   converter.register_processor<StripEdgeWeightsProcessor>("strip-edge-weights");
