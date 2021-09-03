@@ -104,7 +104,11 @@ int main(int argc, char *argv[]) {
   if (!converter.reader_exists(input_format)) { FATAL_ERROR << "Invalid input format: " << input_format; }
   if (output_format.empty()) { output_format = input_format; }
   if (!converter.writer_exists(output_format)) { FATAL_ERROR << "Invalid output format: " << output_format; }
-  if (output_filename.empty()) { output_filename = generate_output_filename(input_filename, output_format); }
+  if (output_filename.empty()) {
+    const std::string default_extension = converter.get_writer(output_format)->default_extension();
+    const std::string extension = default_extension.empty() ? output_format : default_extension;
+    output_filename = generate_output_filename(input_filename, extension);
+  }
 
   converter.convert(input_format, input_filename, output_format, output_filename, processors);
   return 0;

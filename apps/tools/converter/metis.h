@@ -15,6 +15,8 @@ public:
   }
 
   [[nodiscard]] std::string description() const override { return "METIS graph format"; }
+
+  [[nodiscard]] std::string default_extension() const override { return "graph"; }
 };
 
 class MetisWriter : public GraphWriter {
@@ -25,5 +27,7 @@ public:
   }
 
   [[nodiscard]] std::string description() const override { return "METIS graph format"; }
+
+  [[nodiscard]] std::string default_extension() const override { return "graph"; }
 };
 } // namespace kaminpar::tool::converter

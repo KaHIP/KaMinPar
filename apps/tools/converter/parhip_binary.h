@@ -42,9 +42,6 @@
 
 #include <fstream>
 
-#define HAS_NODE_WEIGHTS(version) (((version) &0b10) == 1)
-#define HAS_EDGE_WEIGHTS(version) (((version) &0b01) == 1)
-
 namespace kaminpar::tool::converter {
 using parhip_ulong_t = unsigned long long;
 
@@ -83,6 +80,8 @@ public:
     std::fclose(fd);
   }
 
-  [[nodiscard]] std::string description() const override { return "METIS graph format"; }
+  [[nodiscard]] std::string description() const override { return "Binary ParHiP graph format"; }
+
+  [[nodiscard]] std::string default_extension() const override { return "bfg"; }
 };
 } // namespace kaminpar::tool::converter

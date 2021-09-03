@@ -25,8 +25,6 @@
 #define HAS_EDGE_WEIGHTS(version) (((version) & 0b01) == 1)
 
 namespace kaminpar::tool::converter {
-using parhip_ulong_t = unsigned long long;
-using parhip_long_t = signed long long;
 
 class BinaryReader : public GraphReader {
 public:
@@ -34,38 +32,38 @@ public:
     std::FILE *fd = fopen(filename.c_str(), "r");
     if (!fd) { FATAL_PERROR << "cannot read from " << filename; }
 
-    parhip_ulong_t version;
-    parhip_ulong_t n;
-    parhip_ulong_t m;
-    ALWAYS_ASSERT(std::fread(&version, sizeof(parhip_ulong_t), 1, fd) == 1);
-    ALWAYS_ASSERT(std::fread(&n, sizeof(parhip_ulong_t), 1, fd) == 1);
-    ALWAYS_ASSERT(std::fread(&m, sizeof(parhip_ulong_t), 1, fd) == 1);
+    std::uint64_t version;
+    std::uint64_t n;
+    std::uint64_t m;
+    ALWAYS_ASSERT(std::fread(&version, sizeof(std::uint64_t), 1, fd) == 1);
+    ALWAYS_ASSERT(std::fread(&n, sizeof(std::uint64_t), 1, fd) == 1);
+    ALWAYS_ASSERT(std::fread(&m, sizeof(std::uint64_t), 1, fd) == 1);
 
     const bool has_node_weights = HAS_NODE_WEIGHTS(version);
     const bool has_edge_weights = HAS_EDGE_WEIGHTS(version);
 
     SimpleGraph graph;
     {
-      std::vector<parhip_ulong_t> nodes(n + 1);
-      ALWAYS_ASSERT(std::fread(nodes.data(), sizeof(parhip_ulong_t), n + 1, fd) == n + 1);
+      std::vector<std::uint64_t> nodes(n + 1);
+      ALWAYS_ASSERT(std::fread(nodes.data(), sizeof(std::uint64_t), n + 1, fd) == n + 1);
       graph.nodes.resize(n + 1);
       std::ranges::copy(nodes, graph.nodes.begin());
     }
     if (has_node_weights) {
-      std::vector<parhip_long_t> node_weights(n);
-      ALWAYS_ASSERT(std::fread(node_weights.data(), sizeof(parhip_long_t), n, fd) == n);
+      std::vector<std::int64_t> node_weights(n);
+      ALWAYS_ASSERT(std::fread(node_weights.data(), sizeof(std::int64_t), n, fd) == n);
       graph.node_weights.resize(n);
       std::ranges::copy(node_weights, graph.node_weights.begin());
     }
     {
-      std::vector<parhip_ulong_t> edges(m);
-      ALWAYS_ASSERT(std::fread(edges.data(), sizeof(parhip_ulong_t), m, fd) == m);
+      std::vector<std::uint64_t> edges(m);
+      ALWAYS_ASSERT(std::fread(edges.data(), sizeof(std::uint64_t), m, fd) == m);
       graph.edges.resize(m);
       std::ranges::copy(edges, graph.edges.begin());
     }
     if (has_edge_weights) {
-      std::vector<parhip_long_t> edge_weights(m);
-      ALWAYS_ASSERT(std::fread(edge_weights.data(), sizeof(parhip_long_t), m, fd) == m);
+      std::vector<std::int64_t> edge_weights(m);
+      ALWAYS_ASSERT(std::fread(edge_weights.data(), sizeof(std::int64_t), m, fd) == m);
       graph.edge_weights.resize(m);
       std::ranges::copy(edge_weights, graph.edge_weights.begin());
     }
@@ -74,7 +72,9 @@ public:
     return {};
   }
 
-  [[nodiscard]] std::string description() const override { return "METIS graph format"; }
+  [[nodiscard]] std::string description() const override { return "Binary KaMinPar graph format"; }
+
+  [[nodiscard]] std::string default_extension() const override { return "bin"; }
 };
 
 class BinaryWriter : public GraphWriter {
@@ -83,7 +83,7 @@ public:
     std::FILE *fd = std::fopen(filename.c_str(), "w");
     if (!fd) { FATAL_PERROR << "cannot write to " << filename; }
 
-    parhip_ulong_t version;
+    std::uint64_t version;
     if (graph.has_node_weights() && graph.has_edge_weights()) {
       version = 3;
     } else if (graph.has_node_weights()) {
@@ -94,37 +94,39 @@ public:
       version = 0;
     }
 
-    const parhip_ulong_t n = graph.n();
-    const parhip_ulong_t m = graph.m();
+    const std::uint64_t n = graph.n();
+    const std::uint64_t m = graph.m();
 
-    ALWAYS_ASSERT(std::fwrite(&version, sizeof(parhip_ulong_t), 1, fd) == 1);
-    ALWAYS_ASSERT(std::fwrite(&n, sizeof(parhip_ulong_t), 1, fd) == 1);
-    ALWAYS_ASSERT(std::fwrite(&m, sizeof(parhip_ulong_t), 1, fd) == 1);
+    ALWAYS_ASSERT(std::fwrite(&version, sizeof(std::uint64_t), 1, fd) == 1);
+    ALWAYS_ASSERT(std::fwrite(&n, sizeof(std::uint64_t), 1, fd) == 1);
+    ALWAYS_ASSERT(std::fwrite(&m, sizeof(std::uint64_t), 1, fd) == 1);
 
     {
-      std::vector<parhip_ulong_t> nodes(graph.n() + 1);
+      std::vector<std::uint64_t> nodes(graph.n() + 1);
       std::ranges::copy(graph.nodes, nodes.begin());
-      ALWAYS_ASSERT(std::fwrite(nodes.data(), sizeof(parhip_ulong_t), graph.n() + 1, fd) == graph.n() + 1);
+      ALWAYS_ASSERT(std::fwrite(nodes.data(), sizeof(std::uint64_t), graph.n() + 1, fd) == graph.n() + 1);
     }
     if (graph.has_node_weights()) {
-      std::vector<parhip_long_t> node_weights(graph.n());
+      std::vector<std::int64_t> node_weights(graph.n());
       std::ranges::copy(graph.node_weights, node_weights.begin());
-      ALWAYS_ASSERT(std::fwrite(node_weights.data(), sizeof(parhip_long_t), graph.n(), fd) == graph.n());
+      ALWAYS_ASSERT(std::fwrite(node_weights.data(), sizeof(std::int64_t), graph.n(), fd) == graph.n());
     }
     {
-      std::vector<parhip_ulong_t> edges(graph.m());
+      std::vector<std::uint64_t> edges(graph.m());
       std::ranges::copy(graph.edges, edges.begin());
-      ALWAYS_ASSERT(std::fwrite(edges.data(), sizeof(parhip_ulong_t), graph.m(), fd) == graph.m());
+      ALWAYS_ASSERT(std::fwrite(edges.data(), sizeof(std::uint64_t), graph.m(), fd) == graph.m());
     }
     if (graph.has_edge_weights()) {
-      std::vector<parhip_long_t> edge_weights(graph.m());
+      std::vector<std::int64_t> edge_weights(graph.m());
       std::ranges::copy(graph.edge_weights, edge_weights.begin());
-      ALWAYS_ASSERT(std::fwrite(edge_weights.data(), sizeof(parhip_long_t), graph.m(), fd) == graph.m());
+      ALWAYS_ASSERT(std::fwrite(edge_weights.data(), sizeof(std::int64_t), graph.m(), fd) == graph.m());
     }
 
     std::fclose(fd);
   }
 
-  [[nodiscard]] std::string description() const override { return "METIS graph format"; }
+  [[nodiscard]] std::string description() const override { return "Binary KaMinPar graph format"; }
+
+  [[nodiscard]] std::string default_extension() const override { return "bin"; }
 };
 } // namespace kaminpar::tool::converter
