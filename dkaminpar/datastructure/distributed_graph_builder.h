@@ -28,7 +28,7 @@ class Builder {
   SET_DEBUG(false);
 
 public:
-  void initialize(const GlobalNodeID global_n, const GlobalEdgeID global_m, const PEID rank,
+  Builder &initialize(const GlobalNodeID global_n, const GlobalEdgeID global_m, const PEID rank,
                   scalable_vector<GlobalNodeID> node_distribution) {
     ASSERT(static_cast<std::size_t>(rank + 1) < node_distribution.size());
     ASSERT(global_n == node_distribution.back());
@@ -39,17 +39,23 @@ public:
     _node_distribution = std::move(node_distribution);
     _offset_n = _node_distribution[rank];
     _local_n = _node_distribution[rank + 1] - _node_distribution[rank];
+
+    return *this;
   }
 
-  void create_node(const NodeWeight weight) {
+  Builder &create_node(const NodeWeight weight) {
     _nodes.push_back(_edges.size());
     _node_weights.push_back(weight);
+
+    return *this;
   }
 
-  void create_edge(const EdgeWeight weight, const GlobalNodeID global_v) {
+  Builder &create_edge(const EdgeWeight weight, const GlobalNodeID global_v) {
     NodeID local_v = is_local_node(global_v) ? global_v - _offset_n : create_ghost_node(global_v);
     _edges.push_back(local_v);
     _edge_weights.push_back(weight);
+
+    return *this;
   }
 
   DistributedGraph finalize() {
