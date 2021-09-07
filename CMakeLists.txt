@@ -122,4 +122,5 @@ add_subdirectory(library)
 
 if (KAMINPAR_BUILD_TESTS)
   add_subdirectory(tests)
+  add_subdirectory(dtests)
 endif ()

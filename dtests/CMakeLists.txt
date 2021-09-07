@@ -1,0 +1,14 @@
+file(COPY test_instances DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+
+function(add_kaminpar_dtest target)
+    add_gmock_test(${target} ${ARGN})
+    target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    if (TARGET dkaminpar_impl)
+        target_link_libraries(${target} PRIVATE kaminpar_impl dkaminpar_impl)
+    else ()
+        message(STATUS "Cannot add distributed test: distributed library is not available, presumably because MPI"
+                " could not be found.")
+    endif ()
+endfunction()
+
+add_kaminpar_dtest(local_contraction_test algorithm/local_contraction_test.cc)
