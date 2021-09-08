@@ -17,9 +17,11 @@
  * along with KaMinPar.  If not, see <http://www.gnu.org/licenses/>.
  *
 ******************************************************************************/
+#include "dkaminpar/algorithm/distributed_graph_contraction.h"
 #include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/datastructure/distributed_graph_builder.h"
 #include "dkaminpar/mpi_wrapper.h"
+#include "mpi_test.h"
 
 #include <gmock/gmock.h>
 
@@ -27,17 +29,19 @@ namespace dkaminpar::test {
 //  0-1 # 2-3
 // ###########
 //     4-5
-class DistributedEdgesFixture : public ::testing::Test {
+class DistributedEdgesFixture : public MpiTestFixture {
 protected:
   void SetUp() override {
-    const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
+    MpiTestFixture::SetUp();
+
+    std::tie(size, rank) = mpi::get_comm_info(MPI_COMM_WORLD);
     ALWAYS_ASSERT(size == 3) << "must be tested on three PEs";
 
-    scalable_vector<GlobalNodeID> node_distribution{0, 2, 4};
-    const GlobalNodeID global_n = 9;
-    const GlobalEdgeID global_m = 10;
-    const GlobalNodeID n0 = 2 * rank;
+    scalable_vector<GlobalNodeID> node_distribution{0, 2, 4, 6};
+    const GlobalNodeID global_n = 6;
+    const GlobalEdgeID global_m = 6;
 
+    n0 = 2 * rank;
     graph = graph::Builder()
                 .initialize(global_n, global_m, rank, std::move(node_distribution))
                 .create_node(1)
@@ -48,6 +52,7 @@ protected:
   }
 
   DistributedGraph graph;
+  GlobalNodeID n0;
 };
 
 //  0---1-#-3---4
@@ -59,17 +64,19 @@ protected:
 //  |     8     |
 //  |    / \    |
 //  +---7---6---+
-class DistributedTrianglesFixture : public ::testing::Test {
+class DistributedTrianglesFixture : public MpiTestFixture {
 protected:
   void SetUp() override {
+    MpiTestFixture::SetUp();
+
     const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
     ALWAYS_ASSERT(size == 3) << "must be tested on three PEs";
 
     scalable_vector<GlobalNodeID> node_distribution{0, 3, 6};
     const GlobalNodeID global_n = 9;
     const GlobalEdgeID global_m = 30;
-    const GlobalNodeID n0 = 3 * rank;
 
+    n0 = 3 * rank;
     graph = graph::Builder{}
                 .initialize(global_n, global_m, rank, std::move(node_distribution))
                 .create_node(1)
@@ -88,7 +95,8 @@ protected:
                 .finalize();
   }
 
-  DistributedGraph graph{};
+  DistributedGraph graph;
+  GlobalNodeID n0;
 
 private:
   GlobalNodeID next(const GlobalNodeID u, const GlobalNodeID step = 2, const GlobalNodeID n = 9) {
@@ -100,5 +108,18 @@ private:
   }
 };
 
-TEST(LocalContractionTest, ContractingEdgeWorks) {}
+TEST_F(DistributedEdgesFixture, ContractingEdgesSimultaneouslyWorks) {
+  EXPECT_EQ(graph.n(), 2);
+  EXPECT_EQ(graph.m(), 2);
+  EXPECT_EQ(graph.global_n(), 6);
+  EXPECT_EQ(graph.global_m(), 6);
+
+  // contract each edge
+  auto [c_graph, mapping, m_ctx] = graph::contract_local_clustering(graph, {0, 0});
+
+  EXPECT_EQ(c_graph.n(), 1);
+  EXPECT_EQ(c_graph.m(), 0);
+  EXPECT_EQ(c_graph.global_n(), 3);
+  EXPECT_EQ(c_graph.global_m(), 0);
+}
 } // namespace dkaminpar::test

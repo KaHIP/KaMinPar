@@ -31,7 +31,7 @@ public:
   Builder &initialize(const GlobalNodeID global_n, const GlobalEdgeID global_m, const PEID rank,
                   scalable_vector<GlobalNodeID> node_distribution) {
     ASSERT(static_cast<std::size_t>(rank + 1) < node_distribution.size());
-    ASSERT(global_n == node_distribution.back());
+    ASSERT(global_n == node_distribution.back()) << V(global_n) << V(node_distribution.back());
     ASSERT(0 == node_distribution.front());
 
     _global_n = global_n;

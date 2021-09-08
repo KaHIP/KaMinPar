@@ -121,6 +121,7 @@ add_subdirectory(apps)
 add_subdirectory(library)
 
 if (KAMINPAR_BUILD_TESTS)
+  enable_testing()
   add_subdirectory(tests)
   add_subdirectory(dtests)
 endif ()
