@@ -193,5 +193,53 @@ TEST_F(DistributedTrianglesFixture, ContractingTriangleOnOnePEWorks) {
   }
 
   EXPECT_EQ(c_graph.global_n(), 7);
+  EXPECT_EQ(c_graph.global_m(), 24);
+}
+
+TEST_F(DistributedTrianglesFixture, ContractigTrianglesOnTwoPEsWorks) {
+  mpi::barrier(MPI_COMM_WORLD);
+
+  // contract all nodes on PE 0 and 1, keep nodes on PEs 2
+  scalable_vector<NodeID> clustering;
+  clustering.push_back(0);
+  clustering.push_back((rank < 2) ? 0 : 1);
+  clustering.push_back((rank < 2) ? 0 : 2);
+
+  auto [c_graph, mapping, m_ctx] = graph::contract_local_clustering(graph, clustering);
+
+  if (rank < 2) {
+    EXPECT_EQ(c_graph.n(), 1);
+    EXPECT_EQ(c_graph.m(), 3);
+    EXPECT_THAT(c_graph.edge_weights(), UnorderedElementsAre(2, 1, 1));
+    EXPECT_THAT(c_graph.node_weights(), UnorderedElementsAre(3, 3, 1, 1)); // includes ghost nodes
+    EXPECT_EQ(c_graph.total_node_weight(), 3);
+    EXPECT_EQ(c_graph.ghost_n(), 3);
+  } else { // rank == 2
+    EXPECT_EQ(c_graph.n(), 3);
+    EXPECT_EQ(c_graph.m(), 10);
+    EXPECT_THAT(c_graph.edge_weights(), Each(Eq(1)));
+    EXPECT_THAT(c_graph.node_weights(), UnorderedElementsAre(1, 1, 1, 3, 3)); // includes ghost nodes
+    EXPECT_EQ(c_graph.total_node_weight(), 3);
+    EXPECT_EQ(c_graph.ghost_n(), 2);
+  }
+
+  EXPECT_EQ(c_graph.global_n(), 5);
+  EXPECT_EQ(c_graph.global_m(), 16);
+
+}
+
+TEST_F(DistributedTrianglesFixture, ContractingAllTrianglesWorks) {
+  mpi::barrier(MPI_COMM_WORLD);
+
+  auto [c_graph, mapping, m_ctx] = graph::contract_local_clustering(graph, {0, 0, 0});
+
+  EXPECT_EQ(c_graph.n(), 1);
+  EXPECT_EQ(c_graph.m(), 2);
+  EXPECT_THAT(c_graph.edge_weights(), Each(Eq(2)));
+  EXPECT_THAT(c_graph.node_weights(), Each(Eq(3)));
+  EXPECT_EQ(c_graph.ghost_n(), 2);
+  EXPECT_EQ(c_graph.global_n(), 3);
+  EXPECT_EQ(c_graph.global_m(), 6);
+  EXPECT_EQ(c_graph.total_node_weight(), 3);
 }
 } // namespace dkaminpar::test
