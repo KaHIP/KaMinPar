@@ -151,10 +151,18 @@ public:
     return _node_weights[u];
   }
 
+  [[nodiscard]] inline const auto &node_weights() const {
+    return _node_weights;
+  }
+
   [[nodiscard]] inline EdgeWeight edge_weight(const EdgeID e) const {
     ASSERT(e < m());
     ASSERT(e < _edge_weights.size());
     return _edge_weights[e];
+  }
+
+  [[nodiscard]] inline const auto &edge_weights() const {
+    return _edge_weights;
   }
 
   // Graph structure

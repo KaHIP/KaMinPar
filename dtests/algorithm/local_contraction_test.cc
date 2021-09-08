@@ -25,6 +25,10 @@
 
 #include <gmock/gmock.h>
 
+using ::testing::Each;
+using ::testing::Eq;
+using ::testing::UnorderedElementsAre;
+
 namespace dkaminpar::test {
 //  0-1 # 2-3
 // ###########
@@ -55,6 +59,48 @@ protected:
   GlobalNodeID n0;
 };
 
+TEST_F(DistributedEdgesFixture, DistributedEdgesAreAsExpected) {
+  mpi::barrier(MPI_COMM_WORLD);
+
+  EXPECT_EQ(graph.n(), 2);
+  EXPECT_EQ(graph.m(), 2);
+  EXPECT_EQ(graph.global_n(), 6);
+  EXPECT_EQ(graph.global_m(), 6);
+  EXPECT_EQ(graph.ghost_n(), 0);
+}
+
+TEST_F(DistributedEdgesFixture, ContractingEdgesSimultaneouslyWorks) {
+  mpi::barrier(MPI_COMM_WORLD);
+
+  auto [c_graph, mapping, m_ctx] = graph::contract_local_clustering(graph, {0, 0});
+
+  EXPECT_EQ(c_graph.n(), 1);
+  EXPECT_EQ(c_graph.m(), 0);
+  EXPECT_EQ(c_graph.global_n(), 3);
+  EXPECT_EQ(c_graph.global_m(), 0);
+}
+
+TEST_F(DistributedEdgesFixture, ContractingEdgeOnOnePEWorks) {
+  mpi::barrier(MPI_COMM_WORLD);
+
+  scalable_vector<NodeID> clustering;
+  clustering.push_back(0);
+  clustering.push_back((rank == 0) ? 0 : 1);
+  // {0, 0} on PE 0, {0, 1} on PEs 1, 2
+
+  auto [c_graph, mapping, m_ctx] = graph::contract_local_clustering(graph, clustering);
+  if (rank == 0) {
+    EXPECT_EQ(c_graph.n(), 1);
+    EXPECT_EQ(c_graph.m(), 0);
+  } else {
+    EXPECT_EQ(c_graph.n(), 2);
+    EXPECT_EQ(c_graph.m(), 2);
+  }
+
+  EXPECT_EQ(c_graph.global_n(), 5);
+  EXPECT_EQ(c_graph.global_m(), 4);
+}
+
 //  0---1-#-3---4
 //  |\ /  #  \ /|
 //  | 2---#---5 |
@@ -72,7 +118,7 @@ protected:
     const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
     ALWAYS_ASSERT(size == 3) << "must be tested on three PEs";
 
-    scalable_vector<GlobalNodeID> node_distribution{0, 3, 6};
+    scalable_vector<GlobalNodeID> node_distribution{0, 3, 6, 9};
     const GlobalNodeID global_n = 9;
     const GlobalEdgeID global_m = 30;
 
@@ -86,7 +132,7 @@ protected:
                 .create_node(1)
                 .create_edge(1, n0)
                 .create_edge(1, n0 + 2)
-                .create_edge(1, next(n0))
+                .create_edge(1, next(n0 + 1))
                 .create_node(1)
                 .create_edge(1, n0)
                 .create_edge(1, n0 + 1)
@@ -108,18 +154,44 @@ private:
   }
 };
 
-TEST_F(DistributedEdgesFixture, ContractingEdgesSimultaneouslyWorks) {
-  EXPECT_EQ(graph.n(), 2);
-  EXPECT_EQ(graph.m(), 2);
-  EXPECT_EQ(graph.global_n(), 6);
-  EXPECT_EQ(graph.global_m(), 6);
+TEST_F(DistributedTrianglesFixture, DistributedTrianglesAreAsExpected) {
+  mpi::barrier(MPI_COMM_WORLD);
 
-  // contract each edge
-  auto [c_graph, mapping, m_ctx] = graph::contract_local_clustering(graph, {0, 0});
+  EXPECT_EQ(graph.n(), 3);
+  EXPECT_EQ(graph.m(), 10); // 2x3 internal edges, 4 edges to ghost nodes
+  EXPECT_EQ(graph.ghost_n(), 4);
+  EXPECT_EQ(graph.global_n(), 9);
+  EXPECT_EQ(graph.global_m(), 30);
+  EXPECT_EQ(graph.total_node_weight(), 3);
+}
 
-  EXPECT_EQ(c_graph.n(), 1);
-  EXPECT_EQ(c_graph.m(), 0);
-  EXPECT_EQ(c_graph.global_n(), 3);
-  EXPECT_EQ(c_graph.global_m(), 0);
+TEST_F(DistributedTrianglesFixture, ContractingTriangleOnOnePEWorks) {
+  mpi::barrier(MPI_COMM_WORLD);
+
+  // contract all nodes on PE 0, keep nodes on PEs 1, 2
+  scalable_vector<NodeID> clustering;
+  clustering.push_back(0);
+  clustering.push_back((rank == 0) ? 0 : 1);
+  clustering.push_back((rank == 0) ? 0 : 2);
+
+  auto [c_graph, mapping, m_ctx] = graph::contract_local_clustering(graph, clustering);
+
+  if (rank == 0) {
+    EXPECT_EQ(c_graph.n(), 1);
+    EXPECT_EQ(c_graph.m(), 4);
+    EXPECT_THAT(c_graph.edge_weights(), Each(Eq(1)));
+    EXPECT_THAT(c_graph.node_weights(), UnorderedElementsAre(3, 1, 1, 1, 1)); // includes ghost nodes
+    EXPECT_EQ(c_graph.total_node_weight(), 3);
+    EXPECT_EQ(c_graph.ghost_n(), 4);
+  } else {
+    EXPECT_EQ(c_graph.n(), 3);
+    EXPECT_EQ(c_graph.m(), 10);
+    EXPECT_THAT(c_graph.edge_weights(), Each(Eq(1)));
+    EXPECT_THAT(c_graph.node_weights(), UnorderedElementsAre(1, 1, 1, 1, 1, 3)); // includes ghost nodes
+    EXPECT_EQ(c_graph.total_node_weight(), 3);
+    EXPECT_EQ(c_graph.ghost_n(), 3);
+  }
+
+  EXPECT_EQ(c_graph.global_n(), 7);
 }
 } // namespace dkaminpar::test
