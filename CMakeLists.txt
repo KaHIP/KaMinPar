@@ -93,21 +93,6 @@ if (KAMINPAR_BUILD_TESTS)
   add_definitions(-DKAMINPAR_BUILD_TESTS)
 endif ()
 
-# Make commit hash available
-include(GetGitRevisionDescription)
-get_git_head_revision(GIT_REFSPEC GIT_SHA1)
-add_definitions(-DGIT_COMMIT_HASH="${GIT_SHA1}")
-
-# Make hostname available
-include(GetHostname)
-GetHostname(HOSTNAME)
-add_definitions(-DHOSTNAME="${HOSTNAME}")
-
-# Make list of modified files available
-include(GetModifiedGitFiles)
-GetModifiedGitFiles(MODIFIED_FILES)
-add_definitions(-DMODIFIED_FILES="${MODIFIED_FILES}")
-
 include(gmock)
 
 if (KAMINPAR_USE_BACKWARD_CPP)

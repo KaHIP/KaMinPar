@@ -19,9 +19,10 @@
 ******************************************************************************/
 #pragma once
 
-#include "context.h"
-#include "definitions.h"
-#include "utility/logger.h"
+#include "apps/environment.h"
+#include "kaminpar/context.h"
+#include "kaminpar/definitions.h"
+#include "kaminpar/utility/logger.h"
 
 #if __has_include(<numa.h>)
 #include <numa.h>
@@ -36,10 +37,10 @@
 namespace kaminpar {
 void print_identifier(int argc, char *argv[]) {
   LLOG << "BUILD ";
-  LLOG << "commit=" << GIT_COMMIT_HASH << " ";
+  LLOG << "commit=" << Environment::GIT_SHA1 << " ";
   LLOG << "date='" << __DATE__ << "' ";
   LLOG << "time=" << __TIME__ << " ";
-  LLOG << "hostname='" << HOSTNAME << "' ";
+  LLOG << "hostname='" << Environment::HOSTNAME << "' ";
   LOG;
 
   LLOG << "MACROS ";
@@ -52,7 +53,7 @@ void print_identifier(int argc, char *argv[]) {
   LLOG << "KAMINPAR_ENABLE_ASSERTIONS=" << DETECT_EXIST(KAMINPAR_ENABLE_ASSERTIONS) << " ";
   LOG;
 
-  LOG << "MODIFIED files={" << MODIFIED_FILES << "}";
+  LOG << "MODIFIED files={" << Environment::GIT_MODIFIED_FILES << "}";
 
   LLOG << "ARGS ";
   for (int i = 0; i < argc; ++i) { LLOG << "argv[" << i << "]='" << argv[i] << "' "; }
@@ -66,7 +67,7 @@ void print_identifier(int argc, char *argv[]) {
 }
 
 void force_clean_build() {
-  ALWAYS_ASSERT(!strcmp(MODIFIED_FILES, "<none>") || !strcmp(MODIFIED_FILES, "<unavailable>"))
+  ALWAYS_ASSERT(Environment::GIT_MODIFIED_FILES != "<none>" && Environment::GIT_MODIFIED_FILES != "<unavailable>")
       << "Please commit your changes before running experiments.";
 }
 
