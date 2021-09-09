@@ -30,6 +30,35 @@
 
 namespace dkaminpar::mpi {
 template<template<typename> typename RecvContainer, std::ranges::contiguous_range SendBuffer,
+         template<typename> typename SendBufferContainer>
+std::vector<RecvContainer<std::ranges::range_value_t<SendBuffer>>>
+sparse_all_to_all_get(const SendBufferContainer<SendBuffer> &send_buffers, const int tag,
+                      MPI_Comm comm = MPI_COMM_WORLD, const bool self = false) {
+  const auto [size, rank] = mpi::get_comm_info(comm);
+  std::vector<MPI_Request> requests;
+  requests.reserve(size);
+
+  for (PEID pe = 0; pe < size; ++pe) {
+    if (self || pe != rank) {
+      requests.emplace_back();
+      mpi::isend(send_buffers[pe], pe, tag, requests.back(), comm);
+    }
+  }
+
+  std::vector<RecvContainer<std::ranges::range_value_t<SendBuffer>>> recv_messages(size);
+  for (PEID pe = 0; pe < size; ++pe) {
+    if (self || pe != rank) {
+      using T = std::ranges::range_value_t<SendBuffer>;
+      recv_messages[pe] = mpi::probe_recv<T, RecvContainer>(pe, tag, MPI_STATUS_IGNORE, comm);
+    }
+  }
+
+  mpi::waitall(requests);
+
+  return recv_messages;
+}
+
+template<template<typename> typename RecvContainer, std::ranges::contiguous_range SendBuffer,
          template<typename> typename SendBufferContainer,
          std::invocable<PEID, const RecvContainer<std::ranges::range_value_t<SendBuffer>> &> RecvLambda>
 void sparse_all_to_all(const SendBufferContainer<SendBuffer> &send_buffers, const int tag, RecvLambda &&recv_lambda,
