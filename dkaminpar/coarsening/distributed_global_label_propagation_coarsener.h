@@ -65,12 +65,10 @@ public:
     _max_cluster_weight = max_cluster_weight;
     _current_size = graph.n();
     _target_size = static_cast<NodeID>(_shrink_factor * _current_size);
-    NodeID total_num_emptied_clusters = 0;
 
     for (std::size_t iteration = 0; iteration < max_iterations; ++iteration) {
       const auto [num_moved_nodes, num_emptied_clusters] = randomized_iteration();
       _current_size -= num_emptied_clusters;
-      total_num_emptied_clusters += num_emptied_clusters;
       if (num_moved_nodes == 0) { break; }
     }
 

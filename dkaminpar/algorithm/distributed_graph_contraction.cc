@@ -31,8 +31,14 @@ using namespace contraction;
 
 SET_DEBUG(true);
 
+/*
+ * Local cluster contraction
+ */
+
 Result contract_local_clustering(const DistributedGraph &graph, const scalable_vector<NodeID> &clustering,
                                  MemoryContext m_ctx) {
+  ASSERT(clustering.size() == graph.n());
+
   MPI_Comm comm = graph.communicator();
   const auto [size, rank] = mpi::get_comm_info(comm);
 
@@ -124,7 +130,7 @@ Result contract_local_clustering(const DistributedGraph &graph, const scalable_v
   std::unordered_map<GlobalNodeID, NodeID> c_global_to_ghost;
   NodeID c_next_ghost_node = c_n;
 
-  mpi::graph::sparse_alltoall_interface_node<CoarseGhostNode>(
+  mpi::graph::sparse_alltoall_interface_node<CoarseGhostNode, scalable_vector>(
       graph,
       [&](const NodeID u, const PEID) -> CoarseGhostNode {
         return {
@@ -266,15 +272,32 @@ Result contract_local_clustering(const DistributedGraph &graph, const scalable_v
   return {std::move(c_graph), std::move(mapping), std::move(m_ctx)};
 }
 
-contraction::Result contract_global_clustering(const DistributedGraph &graph,
-                                               const scalable_vector<NodeID> &clustering,
+/*
+ * Global cluster contraction
+ */
+
+namespace {
+} // namespace
+
+contraction::Result contract_global_clustering(const DistributedGraph &graph, const scalable_vector<NodeID> &clustering,
                                                contraction::MemoryContext m_ctx) {
-  UNUSED(graph);
-  UNUSED(clustering);
-  UNUSED(m_ctx);
-  //
-  //
-  //
+  ASSERT(clustering.size() == graph.total_n());
+
+  // first contract clusters locally on each PE
+  auto [c_local_graph, c_local_mapping, m_ctx_tmp] = contract_local_clustering(graph, clustering, std::move(m_ctx));
+  m_ctx = std::move(m_ctx_tmp);
+
+  // find clusters that should be contracted across PE borders
+  graph.pfor_nodes([&](const NodeID u) {
+    NodeID u_cluster = clustering[u];
+
+    for (const auto [e, v] : graph.neighbors(u)) {
+      if (graph.is_ghost_node(v) && u_cluster == clustering[v]) {
+
+      }
+    }
+  });
+
   return {};
 }
 } // namespace dkaminpar::graph

@@ -78,7 +78,7 @@ bool validate(const DistributedGraph &graph, const int root) {
       NodeWeight weight;
     };
 
-    mpi::graph::sparse_alltoall_interface_node<GhostNodeWeightMessage>(
+    mpi::graph::sparse_alltoall_interface_node<GhostNodeWeightMessage, scalable_vector>(
         graph,
         [&](const NodeID u, const PEID) -> GhostNodeWeightMessage {
           return {.global_u = graph.local_to_global_node(u), .weight = graph.node_weight(u)};

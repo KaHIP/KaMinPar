@@ -76,10 +76,11 @@ void sparse_alltoall_ghost_edge(const DistributedGraph &graph, Builder &&builder
                                                                rank, tag, graph.communicator());
 }
 
-template<typename Message, template<typename> typename Buffer = scalable_vector, std::invocable<NodeID, PEID> Builder,
-         std::invocable<PEID, const Buffer<Message> &> Receiver>
-void sparse_alltoall_interface_node(const DistributedGraph &graph, Builder &&builder_lambda, Receiver &&recv_lambda,
-                                    const int tag = 0) {
+template<typename Message, template<typename> typename Buffer, std::invocable<NodeID> Filter,
+         std::invocable<NodeID, PEID> Builder, std::invocable<PEID, const Buffer<Message> &> Receiver>
+void sparse_alltoall_interface_node_range_filtered(const DistributedGraph &graph, const NodeID from, const NodeID to,
+                                          Filter &&filter_lambda, Builder &&builder_lambda, Receiver &&recv_lambda,
+                                          const int tag = 0) {
   PEID size, rank;
   std::tie(size, rank) = mpi::get_comm_info(graph.communicator());
 
@@ -89,10 +90,12 @@ void sparse_alltoall_interface_node(const DistributedGraph &graph, Builder &&bui
 
   // Create messages
   std::vector<shm::parallel::IntegralAtomicWrapper<std::size_t>> next_message(size);
-  graph.pfor_nodes_range([&](const auto r) {
+  graph.pfor_nodes_range(from, to, [&](const auto r) {
     shm::Marker<> created_message_for_pe(static_cast<std::size_t>(size));
 
     for (NodeID u = r.begin(); u < r.end(); ++u) {
+      if (!filter_lambda(u)) { continue; }
+
       for (const NodeID v : graph.adjacent_nodes(u)) {
         if (graph.is_ghost_node(v)) {
           const PEID pe = graph.ghost_owner(v);
@@ -113,5 +116,23 @@ void sparse_alltoall_interface_node(const DistributedGraph &graph, Builder &&bui
 
   internal::perform_sparse_alltoall<Message, Buffer, Receiver>(send_buffers, std::forward<Receiver>(recv_lambda), size,
                                                                rank, tag, graph.communicator());
+}
+
+template<typename Message, template<typename> typename Buffer, std::invocable<NodeID> Filter,
+         std::invocable<NodeID, PEID> Builder, std::invocable<PEID, const Buffer<Message> &> Receiver>
+void sparse_alltoall_interface_node_filtered(const DistributedGraph &graph, Filter &&filter_lambda, Builder &&builder_lambda,
+                                    Receiver &&recv_lambda, const int tag = 0) {
+  sparse_alltoall_interface_node_range_filtered<Message, Buffer>(graph, 0, graph.n(), std::forward<Filter>(filter_lambda),
+                                       std::forward<Builder>(builder_lambda), std::forward<Receiver>(recv_lambda), tag);
+}
+
+// overload without filter lambda
+template<typename Message, template<typename> typename Buffer, std::invocable<NodeID, PEID> Builder,
+         std::invocable<PEID, const Buffer<Message> &> Receiver>
+void sparse_alltoall_interface_node(const DistributedGraph &graph, Builder &&builder_lambda, Receiver &&recv_lambda,
+                                    const int tag = 0) {
+  sparse_alltoall_interface_node_filtered<Message, Buffer>(
+      graph, [](const NodeID) { return true; }, std::forward<Builder>(builder_lambda),
+      std::forward<Receiver>(recv_lambda), tag);
 }
 } // namespace dkaminpar::mpi::graph

@@ -63,16 +63,18 @@ public:
     _p_graph = &p_graph;
     Base::initialize(&p_graph.graph()); // needs access to _p_graph
 
-    for (std::size_t i = 0; i < _lp_ctx.num_chunks; ++i) {
-      const auto [from, to] = math::compute_local_range<NodeID>(_p_graph->n(), _lp_ctx.num_chunks, i);
-      DBG << "Iteration " << from << ".." << to;
-      perform_iteration(from, to);
+    for (std::size_t iteration = 0; iteration < _lp_ctx.num_iterations; ++iteration) {
+      for (std::size_t chunk = 0; chunk < _lp_ctx.num_chunks; ++chunk) {
+        const auto [from, to] = math::compute_local_range<NodeID>(_p_graph->n(), _lp_ctx.num_chunks, chunk);
+        process_chunk(from, to);
+      }
     }
   }
 
 private:
-  void perform_iteration(const NodeID from, const NodeID to) {
+  void process_chunk(const NodeID from, const NodeID to) {
     mpi::barrier(_graph->communicator());
+    HEAVY_ASSERT(ASSERT_NEXT_PARTITION_STATE());
 
     // run label propagation
     DBG << "in_order label propagation " << from << ".." << to;
@@ -99,7 +101,6 @@ private:
     const auto gain_to_block = gain_to_block_ets.combine(std::plus{});
 
     // allreduce gain to block
-
     std::vector<BlockWeight> residual_cluster_weights;
     std::vector<EdgeWeight> global_total_gains_to_block;
 
@@ -111,14 +112,15 @@ private:
     }
 
     // perform probabilistic moves
-    DBG << "perform moves, max time " << _lp_ctx.num_move_attempts;
     for (std::size_t i = 0; i < _lp_ctx.num_move_attempts; ++i) {
-      DBG << "i=" << i;
       if (perform_moves(from, to, residual_cluster_weights, global_total_gains_to_block)) {
         synchronize_state(from, to);
         break;
       }
     }
+
+    // _next_partition should be in a consistent state at this point
+    HEAVY_ASSERT(ASSERT_NEXT_PARTITION_STATE());
   }
 
   bool perform_moves(const NodeID from, const NodeID to, const std::vector<BlockWeight> &residual_block_weights,
@@ -148,6 +150,10 @@ private:
         if (rand.random_bool(probability)) {
           moves.emplace_back(u, _p_graph->block(u));
           _p_graph->set_block(u, _next_partition[u]);
+
+          // temporary mark that this node was actually moved
+          // we will revert this during synchronization or on rollback
+          _next_partition[u] = kInvalidBlockID;
         }
       }
     });
@@ -158,7 +164,6 @@ private:
                    MPI_SUM, _graph->communicator());
 
     // check for balance violations
-    DBG << V(global_block_weights) << V(max_cluster_weight(0));
     shm::parallel::IntegralAtomicWrapper<std::uint8_t> feasible = 1;
     _p_graph->pfor_blocks([&](const BlockID b) {
       if (global_block_weights[b] > max_cluster_weight(b)) { feasible = 0; }
@@ -166,40 +171,49 @@ private:
 
     // revert moves if resulting partition is infeasible
     if (!feasible) {
-      DBG << "not feasible";
-      for (const auto &move : moves) { _p_graph->set_block(move.u, move.from); }
+      for (const auto &move : moves) {
+        _next_partition[move.u] = _p_graph->block(move.u);
+        _p_graph->set_block(move.u, move.from);
+      }
     }
 
-    DBG << "feasible=" << feasible;
     return feasible;
   }
 
   void synchronize_state(const NodeID from, const NodeID to) {
-    UNUSED(from);
-    UNUSED(to);
-
     struct MoveMessage {
       GlobalNodeID global_node;
       BlockID new_block;
     };
 
-    mpi::graph::sparse_alltoall_interface_node<MoveMessage>(
-        *_graph,
-        [&](const NodeID u, const PEID /* pe */) -> MoveMessage { // TODO only send message if node changed block
+    mpi::graph::sparse_alltoall_interface_node_range_filtered<MoveMessage, scalable_vector>(
+        *_graph, from, to,
+
+        // only for nodes that were moved -- we set _next_partition[] to kInvalidBlockID for nodes that were actually
+        // moved during perform_moves
+        [&](const NodeID u) -> bool { return _next_partition[u] == kInvalidBlockID; },
+
+        // send move to each ghost node adjacent to u
+        [&](const NodeID u, const PEID /* pe */) -> MoveMessage {
+          _next_partition[u] = _p_graph->block(u); // revert temporary mark that u was moved
           return {.global_node = _p_graph->local_to_global_node(u), .new_block = _p_graph->block(u)};
         },
+
+        // move ghost nodes
         [&](const PEID /* p */, const auto &recv_buffer) {
           tbb::parallel_for(static_cast<std::size_t>(0), recv_buffer.size(), [&](const std::size_t i) {
             const auto [global_node, new_block] = recv_buffer[i];
             const NodeID local_node = _p_graph->global_to_local_node(global_node);
-            if (new_block != _p_graph->block(local_node)) { _p_graph->set_block(local_node, new_block); }
+            ASSERT(new_block != _p_graph->block(local_node)); // otherwise, we should not have gotten this message
+
+            _p_graph->set_block(local_node, new_block);
           });
         });
   }
 
 public:
   void reset_node_state(const NodeID u) { _next_partition[u] = _p_graph->block(u); }
-  [[nodiscard]] BlockID cluster(const NodeID u) const { return _p_graph->block(u); }
+  [[nodiscard]] BlockID cluster(const NodeID u) const { return _next_partition[u]; }
   void set_cluster(const NodeID u, const BlockID b) { _next_partition[u] = b; }
   [[nodiscard]] BlockID num_clusters() const { return _p_graph->k(); }
   [[nodiscard]] BlockWeight initial_cluster_weight(const BlockID b) const { return _p_graph->block_weight(b); }
@@ -215,6 +229,21 @@ public:
   [[nodiscard]] bool activate_neighbor(const NodeID u) const { return u < _p_graph->n(); }
 
 private:
+#ifdef KAMINPAR_ENABLE_HEAVY_ASSERTIONS
+  bool ASSERT_NEXT_PARTITION_STATE() {
+    mpi::barrier(_p_graph->communicator());
+    for (const NodeID u : _p_graph->nodes()) {
+      if (_p_graph->block(u) != _next_partition[u]) {
+        LOG_ERROR << "Invalid _next_partition[] state for node " << u << ": " << V(_p_graph->block(u))
+                  << V(_next_partition[u]);
+        return false;
+      }
+    }
+    mpi::barrier(_p_graph->communicator());
+    return true;
+  }
+#endif
+
   const LabelPropagationRefinementContext &_lp_ctx;
 
   DistributedPartitionedGraph *_p_graph{nullptr};
