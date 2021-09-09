@@ -21,6 +21,7 @@ set(DKAMINPAR_SOURCE_FILES
     utility/distributed_metrics.h
     utility/vector_ets.h
     refinement/distributed_refiner.h
+    refinement/distributed_label_propagation_refiner.cc
     refinement/distributed_label_propagation_refiner.h
     partitioning_scheme/kway.cc
     partitioning_scheme/kway.h
