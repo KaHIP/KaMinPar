@@ -117,9 +117,6 @@ int main(int argc, char *argv[]) {
   auto gc = shm::init_parallelism(ctx.parallel.num_threads);
   if (ctx.parallel.use_interleaved_numa_allocation) { shm::init_numa(); }
 
-  int *arr = nullptr;
-  for (int i = 0; i < 100; ++i) std::cout << arr[i];
-
   // Load graph
   const auto graph = TIMED_SCOPE("IO") {
     auto graph = dist::io::metis::read_node_balanced(ctx.graph_filename);
