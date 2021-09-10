@@ -1,7 +1,5 @@
 # KaMinPar
 
-The graph partitioning software KaMinPar -- Karlsruhe Minimal Graph Partitioning. 
-
 KaMinPar is a shared-memory parallel tool to heuristically solve the graph partitioning problem: divide a graph into k disjoint blocks of roughly equal weight while
 minimizing the number of edges between blocks.
 Competing algorithms are mostly evaluated for small values of k. If k is large, they often compute highly imbalance solutions, solutions of low quality or suffer excessive running time.
@@ -31,7 +29,7 @@ To build the software, clone this repository and type
 Alternatively, you can use the standard CMake build process:
 
 1. Clone the repository including submodules: `git clone --depth=1 --recursive git@github.com:KaHIP/KaMinPar.git`
-2. Create a build: `mkdir build && cd build`
+2. Create a build directory: `mkdir build && cd build`
 3. Run CMake: `cmake .. -DCMAKE_BUILD_TYPE=Release`
 4. Build the software: `make KaMinPar -j`
 5. (optional) Build the distributed software: `make dKaMinPar -j`
@@ -85,15 +83,26 @@ Then, simply link against our library (together with `libtbb` and `libtbbmalloc`
 ## Licensing
 
 KaMinPar is free software provided under the GNU General Public License (GPLv3).
-If you publish results using our algorithms, please acknowledge our work by citing the following paper:
+If you publish results using our algorithms, please acknowledge our work by citing the following paper ([pdf](http://algo2.iti.kit.edu/seemaier/deep_mgp/)):
 
 ```
-@article{KAMINPAR,
-  title = {Deep Multilevel Graph Partitioning},
-  author = {Lars Gottesbüren, Tobias Heuer, Peter Sanders, Christian Schulz, Daniel Seemaier},
-  journal = {arXiv preprint arXiv:2105.02022},
-  year = {2021}
-}  
+@inproceedings{DBLP:conf/esa/GottesburenH00S21,
+  author    = {Lars Gottesb{\"{u}}ren and
+               Tobias Heuer and
+               Peter Sanders and
+               Christian Schulz and
+               Daniel Seemaier},
+  title     = {Deep Multilevel Graph Partitioning},
+  booktitle = {29th Annual European Symposium on Algorithms, {ESA} 2021, September
+               6-8, 2021, Lisbon, Portugal (Virtual Conference)},
+  series    = {LIPIcs},
+  volume    = {204},
+  pages     = {48:1--48:17},
+  publisher = {Schloss Dagstuhl - Leibniz-Zentrum f{\"{u}}r Informatik},
+  year      = {2021},
+  url       = {https://doi.org/10.4230/LIPIcs.ESA.2021.48},
+  doi       = {10.4230/LIPIcs.ESA.2021.48}
+}
 ```
 
-
+Detailed experimental results published in our paper are available [here](http://algo2.iti.kit.edu/seemaier/deep_mgp/).
