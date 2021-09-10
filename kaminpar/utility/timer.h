@@ -217,15 +217,14 @@ public:
 
     // update current timer
     ++_tree.current->restarts;
-    _tree.current->start = timer::now();
+    start_timer_impl();
   }
 
   void stop_timer(const Type type = Type::DEFAULT) {
     if (!_enabled[type]) { return; }
     std::lock_guard<std::mutex> lg{_mutex};
 
-    const TimePoint end = timer::now();
-    _tree.current->elapsed += end - _tree.current->start;
+    stop_timer_impl();
     _tree.current = _tree.current->parent;
   }
 
@@ -256,6 +255,9 @@ public:
   [[nodiscard]] inline const TimerTreeNode &tree() const { return _tree.root; }
 
 private:
+  void start_timer_impl();
+  void stop_timer_impl();
+
   void print_padded_timing(std::ostream &out, std::size_t start_col, const TimerTreeNode *node) const;
 
   void print_children_hr(std::ostream &out, const std::string &base_prefix, const TimerTreeNode *node) const;
