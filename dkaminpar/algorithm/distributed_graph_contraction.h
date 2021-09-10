@@ -44,10 +44,6 @@ struct Result {
 contraction::Result contract_local_clustering(const DistributedGraph &graph, const scalable_vector<NodeID> &clustering,
                                               contraction::MemoryContext m_ctx = {});
 
-contraction::Result contract_global_clustering_redistribute(const DistributedGraph &graph,
-                                                            const scalable_vector<GlobalNodeID> &clustering,
-                                                            contraction::MemoryContext m_ctx = {});
-
 contraction::Result contract_global_clustering(const DistributedGraph &graph, const scalable_vector<NodeID> &clustering,
                                                contraction::MemoryContext m_ctx = {});
 } // namespace dkaminpar::graph

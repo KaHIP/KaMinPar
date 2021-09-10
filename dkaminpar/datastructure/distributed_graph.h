@@ -155,6 +155,12 @@ public:
     return _node_weights;
   }
 
+  // convenient to have this for ghost nodes
+  void set_ghost_node_weight(const NodeID ghost_node, const NodeWeight weight) {
+    ASSERT(is_ghost_node(ghost_node));
+    _node_weights[ghost_node] = weight;
+  }
+
   [[nodiscard]] inline EdgeWeight edge_weight(const EdgeID e) const {
     ASSERT(e < m());
     ASSERT(e < _edge_weights.size());
