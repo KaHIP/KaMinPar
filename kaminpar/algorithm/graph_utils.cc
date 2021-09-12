@@ -41,12 +41,24 @@ bool validate_graph(const Graph &graph) {
 
 namespace {
 void fill_final_k(scalable_vector<BlockID> &data, const BlockID b0, const BlockID final_k, const BlockID k) {
+  ALWAYS_ASSERT(final_k >= k) << V(final_k) << V(k);
+  
   const auto [final_k1, final_k2] = math::split_integral(final_k);
-  std::array<BlockID, 2> ks{std::clamp<BlockID>(std::ceil(k * 1.0 * final_k1 / final_k), 1, k - 1),
-                            std::clamp<BlockID>(std::floor(k * 1.0 * final_k2 / final_k), 1, k - 1)};
+  ALWAYS_ASSERT(final_k1 > 0) << V(final_k1) << V(final_k2) << V(final_k);
+  ALWAYS_ASSERT(final_k2 > 0) << V(final_k1) << V(final_k2) << V(final_k);
+  std::array<BlockID, 2> ks{0, 0};
+  std::tie(ks[0], ks[1]) = math::split_integral(k);
+  //  std::array<BlockID, 2> ks{std::clamp<BlockID>(std::ceil(k * 1.0 * final_k1 / final_k), 1, k - 1),
+  //                            std::clamp<BlockID>(std::floor(k * 1.0 * final_k2 / final_k), 1, k - 1)};
+  ALWAYS_ASSERT(ks[0] + ks[1] == k) << V(final_k1) << V(final_k2) << V(k) << V(final_k);
   std::array<BlockID, 2> b{b0, b0 + ks[0]};
+  //  ALWAYS_ASSERT(data[b[0]] == final_k || data[b[0]] == 0) << V(data[b[0]]) << V(final_k1);
+  //  ALWAYS_ASSERT(data[b[1]] == 0) << V(data[b[1]]) << V(final_k2);
+  //  ALWAYS_ASSERT(final_k1 > 3 && final_k2 > 3) << V(final_k) << V(k) << V(final_k1) << V(final_k2);
   data[b[0]] = final_k1;
   data[b[1]] = final_k2;
+  //  LOG << "data[" << b[0] << "]=" << final_k1 << " (" << k << "/" <<final_k << "/" << ks[0] << ")";
+  //  LOG << "data[" << b[1] << "]=" << final_k2 << " (" << k << "/" << final_k << "/" << ks[1] << ")";;
 
   if (ks[0] > 1) { fill_final_k(data, b[0], final_k1, ks[0]); }
   if (ks[1] > 1) { fill_final_k(data, b[1], final_k2, ks[1]); }
@@ -56,33 +68,55 @@ void fill_final_k(scalable_vector<BlockID> &data, const BlockID b0, const BlockI
 void copy_subgraph_partitions(PartitionedGraph &p_graph,
                               const scalable_vector<StaticArray<BlockID>> &p_subgraph_partitions, const BlockID k_prime,
                               const BlockID input_k, const scalable_vector<NodeID> &mapping) {
+
   scalable_vector<BlockID> k0(p_graph.k() + 1, k_prime / p_graph.k());
   k0[0] = 0;
 
   scalable_vector<BlockID> final_ks(k_prime, 1);
 
   // we are done partitioning? --> use final_ks
-  if (k_prime == input_k) { std::copy(p_graph.final_ks().begin(), p_graph.final_ks().end(), k0.begin() + 1); }
+  if (k_prime == input_k) {
+    auto  sum2 = std::accumulate(p_graph.final_ks().begin(), p_graph.final_ks().end(), 0);
+    ALWAYS_ASSERT(sum2 == input_k) << V(sum2) << V(input_k);
+    std::copy(p_graph.final_ks().begin(), p_graph.final_ks().end(), k0.begin() + 1);
+
+    auto sum = std::accumulate(k0.begin(), k0.end(), 0);
+    ALWAYS_ASSERT(sum == input_k) << V(input_k) << V(sum);
+    
+  }
 
   parallel::prefix_sum(k0.begin(), k0.end(), k0.begin()); // blocks of old block i start at k0[i]
-
+  //  LOG << V(p_graph.final_ks());
   // we are not done partitioning?
+  for (const BlockID b : p_graph.blocks()) {
+    ALWAYS_ASSERT(p_graph.final_k(b) >= k_prime / p_graph.k()) << V(b) << V(p_graph.final_k(b)) << V(k_prime) << V(p_graph.k());
+  }
   if (k_prime != input_k) {
     ALWAYS_ASSERT(math::is_power_of_2(k_prime));
     const BlockID k_per_block = k_prime / p_graph.k();
-    tbb::parallel_for(static_cast<BlockID>(0), p_graph.k(),
-                      [&](const BlockID b) { fill_final_k(final_ks, k0[b], p_graph.final_k(b), k_per_block); });
+    LOG << V(final_ks.size()) << V(k_per_block) << V(p_graph.k());
+    for (const BlockID b : p_graph.blocks()) {
+      ALWAYS_ASSERT(p_graph.final_k(b) >= k_per_block);
+fill_final_k(final_ks, k0[b], p_graph.final_k(b), k_per_block);
+    }
+    //    tbb::parallel_for(static_cast<BlockID>(0), p_graph.k(),
+    //    [&](const BlockID b) { fill_final_k(final_ks, k0[b], p_graph.final_k(b), k_per_block); });
   }
+  ALWAYS_ASSERT(std::accumulate(p_graph.final_ks().begin(), p_graph.final_ks().end(), 0) == std::accumulate(final_ks.begin(), final_ks.end(), 0))
+    << V(std::accumulate(p_graph.final_ks().begin(), p_graph.final_ks().end(), 0)) << V(std::accumulate(final_ks.begin(), final_ks.end(), 0));
 
   p_graph.change_k(k_prime);
   tbb::parallel_for(static_cast<NodeID>(0), p_graph.n(), [&](const NodeID &u) {
     const BlockID b = p_graph._partition[u];
     const NodeID s_u = mapping[u];
+    ALWAYS_ASSERT(k0[b] + p_subgraph_partitions[b][s_u] < k_prime) << V(k_prime) << V(k0[b]) << V(p_subgraph_partitions[b][s_u]) << V(b) << V(s_u);
     p_graph._partition[u] = k0[b] + p_subgraph_partitions[b][s_u];
   });
 
   p_graph.set_final_ks(std::move(final_ks));
   p_graph.reinit_block_weights();
+
+  //  LOG << V(p_graph.final_ks());
 }
 
 

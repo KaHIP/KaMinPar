@@ -308,13 +308,15 @@ private:
     tbb::parallel_for(tbb::blocked_range(static_cast<NodeID>(0), n()), [&](auto &r) {
       auto &local_block_weights = tl_block_weights.local();
       for (NodeID u = r.begin(); u != r.end(); ++u) {
-        if (block(u) != kInvalidBlockID) { local_block_weights[block(u)] += node_weight(u); }
+        if (block(u) != kInvalidBlockID) { ALWAYS_ASSERT(block(u) < local_block_weights.size()) << V(k()) << V(block(u)) << V(local_block_weights.size()); local_block_weights[block(u)] += node_weight(u); }
       }
     });
 
     tbb::parallel_for(static_cast<BlockID>(0), k(), [&](const BlockID b) {
       BlockWeight sum = 0;
-      for (auto &local_block_weights : tl_block_weights) { sum += local_block_weights[b]; }
+
+      for (auto &local_block_weights : tl_block_weights) {      ALWAYS_ASSERT(b < local_block_weights.size()); sum += local_block_weights[b]; }
+      ALWAYS_ASSERT(b < _block_weights.size());
       _block_weights[b] = sum;
     });
   }
