@@ -200,7 +200,6 @@ protected:
   }
 
 private:
-
   struct Chunk {
     NodeID start;
     NodeID end;
@@ -218,8 +217,8 @@ private:
             _active[u] = 1;
             derived_reset_node_state(u);
           });
-          },
-          [&] {
+        },
+        [&] {
           tbb::parallel_for(static_cast<ClusterID>(0), derived_num_clusters(), [&](const auto cluster) { //
             _cluster_weights[cluster] = derived_initial_cluster_weight(cluster);
           });

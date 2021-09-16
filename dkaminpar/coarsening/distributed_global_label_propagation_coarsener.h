@@ -28,8 +28,8 @@
 namespace dkaminpar {
 struct DistributedGlobalLabelPropagationClusteringConfig : public shm::LabelPropagationConfig {
   using Graph = DistributedGraph;
-  using ClusterID = NodeID;
-  using ClusterWeight = NodeWeight;
+  using ClusterID = GlobalNodeID;
+  using ClusterWeight = GlobalNodeWeight;
   static constexpr bool kUseHardWeightConstraint = false;
   static constexpr bool kReportEmptyClusters = true;
 };
@@ -62,6 +62,8 @@ public:
     ASSERT(_clustering.size() >= graph.n());
 
     initialize(&graph);
+    reset_ghost_node_state();
+
     _max_cluster_weight = max_cluster_weight;
     _current_size = graph.n();
     _target_size = static_cast<NodeID>(_shrink_factor * _current_size);
@@ -76,16 +78,20 @@ public:
   }
 
 private:
-  // used in Base class
-  void reset_node_state(const NodeID u) {
-    _clustering[u] = u;
-    _favored_clustering[u] = u;
+  void reset_ghost_node_state() {
+    tbb::parallel_for(_graph->n(), _graph->total_n(), [&](const NodeID u) { reset_node_state(u); });
   }
 
-  [[nodiscard]] NodeID cluster(const NodeID u) const { return _clustering[u]; }
-  void set_cluster(const NodeID u, const NodeID cluster) { _clustering[u] = cluster; }
-  void set_favored_cluster(const NodeID u, const NodeID cluster) { _favored_clustering[u] = cluster; }
-  [[nodiscard]] NodeID num_clusters() const { return _graph->n(); }
+  // used in Base class
+  void reset_node_state(const NodeID u) {
+    _clustering[u] = _graph->local_to_global_node(u);
+    _favored_clustering[u] = _graph->local_to_global_node(u);
+  }
+
+  [[nodiscard]] GlobalNodeID cluster(const NodeID u) const { return _clustering[u]; }
+  void set_cluster(const NodeID u, const GlobalNodeID cluster) { _clustering[u] = cluster; }
+  void set_favored_cluster(const NodeID u, const GlobalNodeID cluster) { _favored_clustering[u] = cluster; }
+  [[nodiscard]] GlobalNodeID num_clusters() const { return _graph->n(); }
   [[nodiscard]] NodeWeight initial_cluster_weight(const NodeID cluster) const { return _graph->node_weight(cluster); }
   [[nodiscard]] NodeWeight max_cluster_weight(const NodeID) const { return _max_cluster_weight; }
 
@@ -101,14 +107,12 @@ private:
     return _current_size - num_emptied_clusters < _target_size;
   }
 
-  [[nodiscard]] bool consider_neighbor(const NodeID u) const { return _graph->is_owned_node(u); }
-
   double _shrink_factor;
-  scalable_vector<shm::parallel::IntegralAtomicWrapper<NodeID>> _clustering;
-  scalable_vector<shm::parallel::IntegralAtomicWrapper<NodeID>> _favored_clustering;
+  scalable_vector<shm::parallel::IntegralAtomicWrapper<GlobalNodeID>> _clustering;
+  scalable_vector<shm::parallel::IntegralAtomicWrapper<GlobalNodeID>> _favored_clustering;
   NodeWeight _max_cluster_weight;
 
-  NodeID _current_size{};
-  NodeID _target_size{};
+  GlobalNodeID _current_size{};
+  GlobalNodeID _target_size{};
 };
 } // namespace dkaminpar
