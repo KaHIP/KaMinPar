@@ -54,7 +54,7 @@ void fill_final_k(scalable_vector<BlockID> &data, const BlockID b0, const BlockI
 } // namespace
 
 void copy_subgraph_partitions(PartitionedGraph &p_graph,
-                              const scalable_vector<StaticArray<BlockID>> &p_subgraph_partitions, const BlockID k_prime,
+                              const scalable_vector<BlockArray> &p_subgraph_partitions, const BlockID k_prime,
                               const BlockID input_k, const scalable_vector<NodeID> &mapping) {
   scalable_vector<BlockID> k0(p_graph.k() + 1, k_prime / p_graph.k());
   k0[0] = 0;
@@ -279,7 +279,7 @@ PartitionedGraph revert_isolated_nodes_removal(PartitionedGraph p_graph, const N
   const Graph &graph = p_graph.graph();
   const NodeID num_nonisolated_nodes = graph.n() - num_isolated_nodes;
 
-  StaticArray<BlockID> partition(graph.n()); // n() should include isolated nodes now
+  StaticArray<parallel::IntegralAtomicWrapper<BlockID>> partition(graph.n()); // n() should include isolated nodes now
   // copy partition of non-isolated nodes
   tbb::parallel_for(static_cast<NodeID>(0), static_cast<NodeID>(num_nonisolated_nodes),
                     [&](const NodeID u) { partition[u] = p_graph.block(u); });

@@ -210,7 +210,7 @@ public:
     _current_graph = empty() ? &_input_graph : &_hierarchy.back();
     ASSERT(mapping.size() == _current_graph->n()) << V(mapping.size()) << V(_current_graph->n());
 
-    StaticArray<BlockID> partition(_current_graph->n());
+    StaticArray<parallel::IntegralAtomicWrapper<BlockID>> partition(_current_graph->n());
     STOP_TIMER();
 
     START_TIMER("Copy partition");

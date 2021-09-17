@@ -123,14 +123,15 @@ void write(const std::string &filename, const Graph &graph, const std::string &c
 //
 
 namespace partition {
-void write(const std::string &filename, const StaticArray<BlockID> &partition) {
+void write(const std::string &filename, const StaticArray<parallel::IntegralAtomicWrapper<BlockID>> &partition) {
   std::ofstream out(filename);
   for (const BlockID block : partition) { out << block << "\n"; }
 }
 
 void write(const std::string &filename, const PartitionedGraph &p_graph) { write(filename, p_graph.partition()); }
 
-void write(const std::string &filename, const StaticArray<BlockID> &partition, const NodePermutation &permutation) {
+void write(const std::string &filename, const StaticArray<parallel::IntegralAtomicWrapper<BlockID>> &partition,
+           const NodePermutation &permutation) {
   std::ofstream out(filename);
   for (const NodeID u : permutation) { out << partition[u] << "\n"; }
 }

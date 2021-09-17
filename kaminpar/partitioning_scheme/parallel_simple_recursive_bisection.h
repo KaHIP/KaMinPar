@@ -55,7 +55,7 @@ public:
       PartitionedGraph p_graph1, p_graph2;
       tbb::parallel_invoke([&] { p_graph1 = partition_recursive(subgraphs[0], k / 2); },
                            [&] { p_graph2 = partition_recursive(subgraphs[1], k / 2); });
-      scalable_vector<StaticArray<BlockID>> subgraph_partitions(2);
+      scalable_vector<StaticArray<parallel::IntegralAtomicWrapper<BlockID>>> subgraph_partitions(2);
       subgraph_partitions[0] = p_graph1.take_partition();
       subgraph_partitions[1] = p_graph2.take_partition();
 

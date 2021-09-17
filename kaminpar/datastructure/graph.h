@@ -22,6 +22,13 @@
 #endif // KAMINPAR_BUILD_TESTS
 
 namespace kaminpar {
+using BlockArray = StaticArray<parallel::IntegralAtomicWrapper<BlockID>>;
+using BlockWeightArray = StaticArray<parallel::IntegralAtomicWrapper<BlockWeight>>;
+using NodeArray = StaticArray<NodeID>;
+using EdgeArray = StaticArray<EdgeID>;
+using NodeWeightArray = StaticArray<NodeWeight>;
+using EdgeWeightArray = StaticArray<EdgeWeight>;
+
 class Graph;
 class PartitionedGraph;
 
@@ -208,7 +215,7 @@ class PartitionedGraph {
   static constexpr auto kDebug = false;
 
   friend void copy_subgraph_partitions(PartitionedGraph &p_graph,
-                                       const scalable_vector<StaticArray<BlockID>> &p_subgraph_partitions,
+                                       const scalable_vector<BlockArray> &p_subgraph_partitions,
                                        BlockID k_per_subgraph, BlockID final_k_per_subgraph,
                                        const scalable_vector<NodeID> &mapping);
 
@@ -220,9 +227,10 @@ public:
   using BlockID = ::kaminpar::BlockID;
   using BlockWeight = ::kaminpar::BlockWeight;
 
-  PartitionedGraph(const Graph &graph, BlockID k, StaticArray<BlockID> partition = {},
+  PartitionedGraph(const Graph &graph, BlockID k, StaticArray<parallel::IntegralAtomicWrapper<BlockID>> partition = {},
                    scalable_vector<BlockID> final_k = {});
-  PartitionedGraph(tag::Sequential, const Graph &graph, BlockID k, StaticArray<BlockID> partition = {},
+  PartitionedGraph(tag::Sequential, const Graph &graph, BlockID k,
+                   StaticArray<parallel::IntegralAtomicWrapper<BlockID>> partition = {},
                    scalable_vector<BlockID> final_k = {});
   PartitionedGraph() : _graph{nullptr} {}
 
@@ -282,7 +290,7 @@ public:
   //
 
   [[nodiscard]] inline auto blocks() const { return std::views::iota(static_cast<BlockID>(0), k()); }
-  [[nodiscard]] inline BlockID block(const NodeID u) const { return _partition[u]; }
+  [[nodiscard]] inline BlockID block(const NodeID u) const { return _partition[u].load(std::memory_order_relaxed); }
 
   template<bool update_block_weight = true>
   void set_block(const NodeID u, const BlockID new_b) {
@@ -297,7 +305,7 @@ public:
     }
 
     // change block
-    _partition[u] = new_b;
+    _partition[u].store(new_b, std::memory_order_relaxed);
   }
 
   // clang-format off
@@ -307,8 +315,8 @@ public:
   [[nodiscard]] inline BlockID heaviest_block() const { return std::max_element(_block_weights.begin(), _block_weights.end()) - _block_weights.begin(); }
   [[nodiscard]] inline BlockID lightest_block() const { return std::min_element(_block_weights.begin(), _block_weights.end()) - _block_weights.begin(); }
   [[nodiscard]] inline BlockID k() const { return _k; }
-  [[nodiscard]] inline const StaticArray<BlockID> &partition() const { return _partition; }
-  [[nodiscard]] inline StaticArray<BlockID> &&take_partition() { return std::move(_partition); }
+  [[nodiscard]] inline const auto &partition() const { return _partition; }
+  [[nodiscard]] inline auto &&take_partition() { return std::move(_partition); }
   // clang-format on
 
   void change_k(BlockID new_k);
@@ -366,7 +374,7 @@ private:
   //! Number of blocks in this partition.
   BlockID _k;
   //! The partition, holds the block id [0, k) for each node.
-  StaticArray<BlockID> _partition; // O(n)
+  StaticArray<parallel::IntegralAtomicWrapper<BlockID>> _partition; // O(n)
   //! Current weight of each block.
   StaticArray<parallel::IntegralAtomicWrapper<NodeWeight>> _block_weights; // O(n)
   //! For each block in the current partition, this is the number of blocks that we want to split the block in the

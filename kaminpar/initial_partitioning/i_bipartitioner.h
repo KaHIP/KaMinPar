@@ -17,12 +17,13 @@ public:
   virtual ~Bipartitioner() = default;
 
   //! Compute bipartition and return as partitioned graph.
-  virtual PartitionedGraph bipartition(StaticArray<BlockID> &&partition = {}) {
+  virtual PartitionedGraph bipartition(StaticArray<parallel::IntegralAtomicWrapper<BlockID>> &&partition = {}) {
     return PartitionedGraph(tag::seq, _graph, 2, bipartition_raw(std::move(partition)));
   }
 
   //! Compute bipartition and return as array.
-  StaticArray<BlockID> bipartition_raw(StaticArray<BlockID> &&partition = {}) {
+  StaticArray<parallel::IntegralAtomicWrapper<BlockID>>
+  bipartition_raw(StaticArray<parallel::IntegralAtomicWrapper<BlockID>> &&partition = {}) {
     if (_graph.n() == 0) { return {}; }
 
     _partition = std::move(partition);
@@ -83,7 +84,7 @@ protected:
   const PartitionContext &_p_ctx;
   const InitialPartitioningContext &_i_ctx;
 
-  StaticArray<BlockID> _partition;
+  StaticArray<parallel::IntegralAtomicWrapper<BlockID>> _partition;
   BlockWeights _block_weights;
 };
 } // namespace kaminpar

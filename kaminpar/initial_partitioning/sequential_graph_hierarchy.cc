@@ -44,8 +44,10 @@ PartitionedGraph SequentialGraphHierarchy::pop_and_project(PartitionedGraph &&co
   const Graph &graph{get_second_coarsest_graph()};
   ASSERT(graph.n() == c_mapping.size());
 
-  StaticArray<BlockID> partition{graph.n()};
-  for (const NodeID u : graph.nodes()) { partition[u] = coarse_p_graph.block(c_mapping[u]); }
+  StaticArray<parallel::IntegralAtomicWrapper<BlockID>> partition{graph.n()};
+  for (const NodeID u : graph.nodes()) {
+    partition[u].store(coarse_p_graph.block(c_mapping[u]), std::memory_order_relaxed);
+  }
 
   // this destroys underlying Graph wrapped in p_graph
   _coarse_graphs.pop_back();

@@ -84,7 +84,7 @@ PartitionedGraph bipartition(const Graph *graph, const BlockID final_k, const Co
   return p_graph;
 }
 
-void extend_partition_recursive(const Graph &graph, StaticArray<BlockID> &partition, const BlockID b0, const BlockID k,
+void extend_partition_recursive(const Graph &graph, BlockArray &partition, const BlockID b0, const BlockID k,
                                 const BlockID final_k, const Context &input_ctx, graph::SubgraphMemory &subgraph_memory,
                                 const graph::SubgraphMemoryStartPosition position,
                                 TemporaryGraphExtractionBufferPool &extraction_pool,
@@ -143,7 +143,7 @@ void extend_partition(PartitionedGraph &p_graph, const BlockID k_prime, const Co
   const auto &positions = extraction.positions;
 
   START_TIMER("Allocation");
-  scalable_vector<StaticArray<BlockID>> subgraph_partitions;
+  scalable_vector<BlockArray> subgraph_partitions;
   for (const auto &subgraph : subgraphs) { subgraph_partitions.emplace_back(subgraph.n()); }
   STOP_TIMER();
 

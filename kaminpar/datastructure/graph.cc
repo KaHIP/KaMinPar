@@ -105,7 +105,8 @@ void Graph::update_total_node_weight() {
 // PartitionedGraph
 //
 
-PartitionedGraph::PartitionedGraph(const Graph &graph, BlockID k, StaticArray<BlockID> partition,
+PartitionedGraph::PartitionedGraph(const Graph &graph, BlockID k,
+                                   StaticArray<parallel::IntegralAtomicWrapper<BlockID>> partition,
                                    scalable_vector<BlockID> final_k)
     : _graph{&graph},
       _k{k},
@@ -120,7 +121,8 @@ PartitionedGraph::PartitionedGraph(const Graph &graph, BlockID k, StaticArray<Bl
   GDBG(_block_names.resize(k));
 }
 
-PartitionedGraph::PartitionedGraph(tag::Sequential, const Graph &graph, BlockID k, StaticArray<BlockID> partition,
+PartitionedGraph::PartitionedGraph(tag::Sequential, const Graph &graph, BlockID k,
+                                   StaticArray<parallel::IntegralAtomicWrapper<BlockID>> partition,
                                    scalable_vector<BlockID> final_k)
     : _graph{&graph},
       _k{k},
