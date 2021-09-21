@@ -5,3 +5,6 @@
 [submodule "external_tools/backward-cpp"]
 	path = external_tools/backward-cpp
 	url = https://github.com/bombela/backward-cpp.git
+[submodule "external_tools/growt"]
+	path = external_tools/growt
+	url = https://github.com/TooBiased/growt.git
