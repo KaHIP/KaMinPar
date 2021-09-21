@@ -23,6 +23,7 @@
 #include "kaminpar/datastructure/static_array.h"
 #include "kaminpar/definitions.h"
 #include "kaminpar/parallel.h"
+#include "kaminpar/utility/math.h"
 #include "kaminpar/utility/timer.h"
 
 #include <mutex>

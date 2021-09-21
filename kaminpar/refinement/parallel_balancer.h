@@ -1,34 +1,23 @@
 /*******************************************************************************
- * This file is part of KaMinPar.
+ * @file:   parallel_balancer.h
  *
- * Copyright (C) 2021 Daniel Seemaier <daniel.seemaier@kit.edu>
- *
- * KaMinPar is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * KaMinPar is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with KaMinPar.  If not, see <http://www.gnu.org/licenses/>.
- *
-******************************************************************************/
+ * @author: Daniel Seemaier
+ * @date:   21.09.21
+ * @brief:  Greedy refinement algorithm that moves nodes until an infeasible
+ * partition is feasible.
+ ******************************************************************************/
 #pragma once
 
-#include "context.h"
-#include "datastructure/binary_heap.h"
-#include "datastructure/fast_reset_array.h"
-#include "datastructure/graph.h"
-#include "datastructure/rating_map.h"
-#include "datastructure/marker.h"
-#include "refinement/i_balancer.h"
-#include "utility/metrics.h"
-#include "utility/random.h"
-#include "utility/timer.h"
+#include "kaminpar/context.h"
+#include "kaminpar/datastructure/binary_heap.h"
+#include "kaminpar/datastructure/fast_reset_array.h"
+#include "kaminpar/datastructure/graph.h"
+#include "kaminpar/datastructure/marker.h"
+#include "kaminpar/datastructure/rating_map.h"
+#include "kaminpar/metrics.h"
+#include "kaminpar/refinement/i_balancer.h"
+#include "kaminpar/utility/random.h"
+#include "kaminpar/utility/timer.h"
 
 #include <tbb/concurrent_vector.h>
 #include <tbb/enumerable_thread_specific.h>
@@ -111,17 +100,17 @@ public:
 private:
   BlockWeight perform_round();
 
-  bool move_node_if_possible(const NodeID u, const BlockID from, const BlockID to);
+  bool move_node_if_possible(NodeID u, BlockID from, BlockID to);
 
-  bool move_to_random_block(const NodeID u);
+  bool move_to_random_block(NodeID u);
 
   void init_pq();
 
-  bool add_to_pq(const BlockID b, const NodeID u);
+  bool add_to_pq(BlockID b, NodeID u);
 
-  bool add_to_pq(const BlockID b, const NodeID u, const NodeWeight u_weight, const double rel_gain);
+  bool add_to_pq(BlockID b, NodeID u, NodeWeight u_weight, double rel_gain);
 
-  [[nodiscard]] std::pair<BlockID, double> compute_gain(const NodeID u, const BlockID u_block) const;
+  [[nodiscard]] std::pair<BlockID, double> compute_gain(NodeID u, BlockID u_block) const;
 
   void init_feasible_target_blocks();
 
@@ -133,7 +122,7 @@ private:
     }
   }
 
-  inline BlockWeight block_overload(const BlockID b) const {
+  [[nodiscard]] inline BlockWeight block_overload(const BlockID b) const {
     static_assert(std::numeric_limits<BlockWeight>::is_signed,
                   "This must be changed when using an unsigned data type for block weights!");
     return std::max(0, _p_graph->block_weight(b) - _p_ctx->max_block_weight(b));

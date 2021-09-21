@@ -1,4 +1,11 @@
-#include "console_io.h"
+/*******************************************************************************
+ * @file:   console_io.cc
+ *
+ * @author: Daniel Seemaier
+ * @date:   21.09.21
+ * @brief:  Helper functions for console IO.
+ ******************************************************************************/
+#include "kaminpar/utility/console_io.h"
 
 namespace kaminpar::cio {
 void print_banner(const std::string &title) {

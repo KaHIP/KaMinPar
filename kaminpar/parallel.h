@@ -1,3 +1,10 @@
+/*******************************************************************************
+ * @file:   parallel.h
+ *
+ * @author: Daniel Seemaier
+ * @date:   21.09.21
+ * @brief:  Helper classes and functions for parallel programming.
+ ******************************************************************************/
 #pragma once
 
 #include "kaminpar/definitions.h"

@@ -1,12 +1,19 @@
+/*******************************************************************************
+ * @file:   factories.h
+ *
+ * @author: Daniel Seemaier
+ * @date:   21.09.21
+ * @brief:  Factory functions to instantiate coarsening and local improvement
+* algorithms.
+ ******************************************************************************/
 #pragma once
 
-#include "coarsening/i_coarsener.h"
-#include "context.h"
-#include "datastructure/graph.h"
-#include "initial_partitioning/i_bipartitioner.h"
-#include "initial_partitioning/initial_refiner.h"
-#include "refinement/i_balancer.h"
-#include "refinement/i_refiner.h"
+#include "kaminpar/coarsening/i_coarsener.h"
+#include "kaminpar/context.h"
+#include "kaminpar/datastructure/graph.h"
+#include "kaminpar/initial_partitioning/initial_refiner.h"
+#include "kaminpar/refinement/i_balancer.h"
+#include "kaminpar/refinement/i_refiner.h"
 
 namespace kaminpar::factory {
 std::unique_ptr<Coarsener> create_coarsener(const Graph &graph, const CoarseningContext &c_ctx);

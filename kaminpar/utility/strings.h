@@ -1,11 +1,16 @@
+/*******************************************************************************
+ * @file:   strings.h
+ *
+ * @author: Daniel Seemaier
+ * @date:   21.09.21
+ * @brief:  Helper functions for string operations.
+ ******************************************************************************/
 #pragma once
-
-#include "definitions.h"
-#include "utility/math.h"
 
 #include <algorithm>
 #include <cctype>
 #include <concepts>
+#include <string>
 
 namespace kaminpar::utility {
 namespace str {

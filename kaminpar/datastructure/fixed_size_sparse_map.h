@@ -25,6 +25,8 @@
  */
 #pragma once
 
+#include "kaminpar/utility/math.h"
+
 namespace kaminpar {
 /*!
  * Sparse map implementation that uses a fixed size.

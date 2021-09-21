@@ -1,12 +1,16 @@
-/*! @file
- * Data structures for static graphs, partitions and graph hierarchies, as well as utility functions.
- */
+/*******************************************************************************
+* @file:   graph.h
+*
+* @author: Daniel Seemaier
+* @date:   21.09.21
+* @brief:  Static graph data structure with dynamic partition wrapper.
+******************************************************************************/
 #pragma once
 
-#include "datastructure/static_array.h"
-#include "definitions.h"
-#include "parallel.h"
-#include "utility/strings.h"
+#include "kaminpar/datastructure/static_array.h"
+#include "kaminpar/definitions.h"
+#include "kaminpar/parallel.h"
+#include "kaminpar/utility/strings.h"
 
 #include <numeric>
 #include <ranges>

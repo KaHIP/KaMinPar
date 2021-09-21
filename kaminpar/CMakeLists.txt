@@ -57,8 +57,6 @@ set(KAMINPAR_SOURCE_FILES
   utility/timer.h
   utility/random.cc
   utility/random.h
-  utility/metrics.cc
-  utility/metrics.h
   utility/logger.cc
   utility/logger.h
   utility/console_io.cc
@@ -69,6 +67,8 @@ set(KAMINPAR_SOURCE_FILES
   context.h
   io.cc
   io.h
+  metrics.cc
+  metrics.h
   factories.cc
   factories.h
   parallel.h)

@@ -1,6 +1,13 @@
+/*******************************************************************************
+ * @file:   definitions.h
+ *
+ * @author: Daniel Seemaier
+ * @date:   21.09.21
+ * @brief:  General type and macro definitions.
+ ******************************************************************************/
 #pragma once
 
-#include "utility/logger.h"
+#include "kaminpar/utility/logger.h"
 
 #include <cstdlib>
 #include <cstring>

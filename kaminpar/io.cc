@@ -1,3 +1,10 @@
+/*******************************************************************************
+ * @file:   io.cc
+ *
+ * @author: Daniel Seemaier
+ * @date:   21.09.21
+ * @brief:  Graph and partition IO functions.
+ ******************************************************************************/
 #include "io.h"
 
 #include "utility/timer.h"

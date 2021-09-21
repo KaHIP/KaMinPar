@@ -1,8 +1,15 @@
+/*******************************************************************************
+ * @file:   metrics.h
+ *
+ * @author: Daniel Seemaier
+ * @date:   21.09.21
+ * @brief:  Functions to compute partition quality metric.s
+ ******************************************************************************/
 #pragma once
 
-#include "context.h"
-#include "datastructure/graph.h"
-#include "definitions.h"
+#include "kaminpar/context.h"
+#include "kaminpar/datastructure/graph.h"
+#include "kaminpar/definitions.h"
 
 #include <numeric>
 

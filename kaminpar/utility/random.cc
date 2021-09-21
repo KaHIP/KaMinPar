@@ -1,4 +1,11 @@
-#include "utility/random.h"
+/*******************************************************************************
+ * @file:   random.cc
+ *
+ * @author: Daniel Seemaier
+ * @date:   21.09.21
+ * @brief:  Helper class for randomization.
+ ******************************************************************************/
+#include "kaminpar/utility/random.h"
 
 namespace kaminpar {
 Randomize &Randomize::instance() {

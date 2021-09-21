@@ -1,23 +1,13 @@
 /*******************************************************************************
- * This file is part of KaMinPar.
+ * @file:   context.cc
  *
- * Copyright (C) 2021 Daniel Seemaier <daniel.seemaier@kit.edu>
- *
- * KaMinPar is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * KaMinPar is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with KaMinPar.  If not, see <http://www.gnu.org/licenses/>.
- *
-******************************************************************************/
+ * @author: Daniel Seemaier
+ * @date:   21.09.21
+ * @brief:  Configuration struct for KaMinPar.
+ ******************************************************************************/
 #include "kaminpar/context.h"
+
+#include "kaminpar/utility/math.h"
 
 namespace kaminpar {
 using namespace std::string_literals;
@@ -168,16 +158,16 @@ void CoarseningContext::print(std::ostream &out, const std::string &prefix) cons
 
 void LabelPropagationCoarseningContext::print(std::ostream &out, const std::string &prefix) const {
   out << prefix << "num_iterations=" << num_iterations << " "                                             //
-      << prefix << "max_degree=" << large_degree_threshold << " "                             //
+      << prefix << "max_degree=" << large_degree_threshold << " "                                         //
       << prefix << "merge_nonadjacent_clusters_threshold=" << merge_nonadjacent_clusters_threshold << " " //
-      << prefix << "merge_isolated_clusters=" << merge_isolated_clusters << " "                         //
+      << prefix << "merge_isolated_clusters=" << merge_isolated_clusters << " "                           //
       << prefix << "max_num_neighbors=" << max_num_neighbors << " ";                                      //
 }
 
 void LabelPropagationRefinementContext::print(std::ostream &out, const std::string &prefix) const {
-  out << prefix << "num_iterations=" << num_iterations << " "                 //
-      << prefix << "max_degree=" << large_degree_threshold << " " //
-      << prefix << "max_num_neighbors=" << max_num_neighbors << " ";          //
+  out << prefix << "num_iterations=" << num_iterations << " "        //
+      << prefix << "max_degree=" << large_degree_threshold << " "    //
+      << prefix << "max_num_neighbors=" << max_num_neighbors << " "; //
 }
 
 void FMRefinementContext::print(std::ostream &out, const std::string &prefix) const {
@@ -379,8 +369,8 @@ double compute_2way_adaptive_epsilon(const PartitionContext &p_ctx, const NodeWe
   return adaptive_epsilon;
 }
 
-NodeWeight compute_max_cluster_weight(const NodeID n, const NodeWeight total_node_weight, const PartitionContext &input_p_ctx,
-                                      const CoarseningContext &c_ctx) {
+NodeWeight compute_max_cluster_weight(const NodeID n, const NodeWeight total_node_weight,
+                                      const PartitionContext &input_p_ctx, const CoarseningContext &c_ctx) {
   double max_cluster_weight = 0.0;
 
   switch (c_ctx.cluster_weight_limit) {

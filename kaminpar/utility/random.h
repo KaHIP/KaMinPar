@@ -1,8 +1,16 @@
+/*******************************************************************************
+ * @file:   random.h
+ *
+ * @author: Daniel Seemaier
+ * @date:   21.09.21
+ * @brief:  Helper class for randomization.
+ ******************************************************************************/
 #pragma once
 
-#include "datastructure/graph.h"
-#include "definitions.h"
-#include "utility/strings.h"
+#include "kaminpar/datastructure/graph.h"
+#include "kaminpar/definitions.h"
+#include "kaminpar/utility/math.h"
+#include "kaminpar/utility/strings.h"
 
 #include <algorithm>
 #include <random>

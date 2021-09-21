@@ -1,4 +1,13 @@
-#include "utility/strings.h"
+/*******************************************************************************
+ * @file:   strings.cc
+ *
+ * @author: Daniel Seemaier
+ * @date:   21.09.21
+ * @brief:  Helper functions for string operations.
+ ******************************************************************************/
+#include "kaminpar/utility/strings.h"
+
+#include <sstream>
 
 namespace kaminpar::utility::str {
 std::string extract_basename(const std::string &path) {

@@ -1,6 +1,14 @@
-#include "datastructure/graph.h"
+/*******************************************************************************
+ * @file:   graph.cc
+ *
+ * @author: Daniel Seemaier
+ * @date:   21.09.21
+ * @brief:  Static graph data structure with dynamic partition wrapper.
+ ******************************************************************************/
+#include "kaminpar/datastructure/graph.h"
 
-#include "utility/timer.h"
+#include "kaminpar/utility/timer.h"
+#include "kaminpar/utility/math.h"
 
 namespace kaminpar {
 Degree lowest_degree_in_bucket(const std::size_t bucket) { return (1u << bucket) >> 1u; }

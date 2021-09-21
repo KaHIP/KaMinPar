@@ -1,12 +1,14 @@
-#include "factories.h"
+/*******************************************************************************
+ * @file:   factories.cc
+ *
+ * @author: Daniel Seemaier
+ * @date:   21.09.21
+ * @brief:  Factory functions to instantiate coarsening and local improvement
+ * algorithms.
+ ******************************************************************************/
+#include "kaminpar/factories.h"
 
-#include "coarsening/parallel_label_propagation_coarsener.h"
-#include "initial_partitioning/bfs_bipartitioner.h"
-#include "initial_partitioning/greedy_graph_growing_bipartitioner.h"
-#include "initial_partitioning/i_bipartitioner.h"
-#include "initial_partitioning/initial_refiner.h"
-#include "initial_partitioning/pool_bipartitioner.h"
-#include "initial_partitioning/random_bipartitioner.h"
+#include "kaminpar/coarsening/parallel_label_propagation_coarsener.h"
 #include "refinement/parallel_balancer.h"
 #include "refinement/parallel_label_propagation_refiner.h"
 

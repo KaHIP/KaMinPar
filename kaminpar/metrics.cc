@@ -1,4 +1,11 @@
-#include "utility/metrics.h"
+/*******************************************************************************
+ * @file:   metrics.cc
+ *
+ * @author: Daniel Seemaier
+ * @date:   21.09.21
+ * @brief:  Functions to compute partition quality metrics.
+ ******************************************************************************/
+#include "kaminpar/metrics.h"
 
 #include <functional>
 #include <tbb/enumerable_thread_specific.h>

@@ -1,9 +1,15 @@
+/*******************************************************************************
+ * @file:   math.h
+ *
+ * @author: Daniel Seemaier
+ * @date:   21.09.21
+ * @brief:  Math helper functions.
+ ******************************************************************************/
 #pragma once
-
-#include "definitions.h"
 
 #include <concepts>
 #include <utility>
+#include <vector>
 
 namespace kaminpar::math {
 //! With `UInt = uint32_t`, same as `static_cast<uint32_t>(std::log2(arg))`

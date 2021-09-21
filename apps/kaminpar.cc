@@ -1,3 +1,11 @@
+/*******************************************************************************
+ * @file:   kaminpar.cc
+ *
+ * @author: Daniel Seemaier
+ * @date:   21.09.21
+ * @brief:  KaMinPar binary. Use --help for information on how to use this
+ * program.
+ ******************************************************************************/
 #include "apps/apps.h"
 #include "kaminpar/algorithm/graph_permutation.h"
 #include "kaminpar/application/arguments.h"
@@ -5,18 +13,15 @@
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/definitions.h"
 #include "kaminpar/io.h"
-#include "kaminpar/parallel.h"
+#include "kaminpar/metrics.h"
 #include "kaminpar/partitioning_scheme/partitioning.h"
 #include "kaminpar/utility/console_io.h"
 #include "kaminpar/utility/logger.h"
-#include "kaminpar/utility/metrics.h"
 #include "kaminpar/utility/random.h"
 #include "kaminpar/utility/timer.h"
 
 #include <chrono>
-#include <fstream>
 #include <iostream>
-#include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_for.h>
 
 using namespace kaminpar;

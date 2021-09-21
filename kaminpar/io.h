@@ -1,6 +1,10 @@
-/*! @file
- * Functions for loading and saving graphs and partitions.
- */
+/*******************************************************************************
+ * @file:   io.h
+ *
+ * @author: Daniel Seemaier
+ * @date:   21.09.21
+ * @brief:  Graph and partition IO functions.
+ ******************************************************************************/
 #pragma once
 
 #include "kaminpar/algorithm/graph_permutation.h"
