@@ -9,7 +9,6 @@
 
 #include "kaminpar/coarsening/parallel_label_propagation_coarsener.h"
 #include "kaminpar/datastructure/graph.h"
-#include "kaminpar/helper.h"
 #include "kaminpar/partitioning_scheme/helper.h"
 #include "kaminpar/refinement/parallel_balancer.h"
 #include "kaminpar/refinement/parallel_label_propagation_refiner.h"

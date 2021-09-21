@@ -20,13 +20,7 @@
 #pragma once
 
 #include "dkaminpar/datastructure/distributed_graph.h"
-#include "dkaminpar/distributed_definitions.h"
-#include "dkaminpar/mpi_utils.h"
 #include "kaminpar/datastructure/graph.h"
-#include "kaminpar/definitions.h"
-#include "kaminpar/utility/metrics.h"
-
-#include <mpi.h>
 
 namespace dkaminpar::graph {
 shm::Graph allgather(const DistributedGraph &graph);

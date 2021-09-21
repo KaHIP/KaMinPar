@@ -19,6 +19,9 @@
 ******************************************************************************/
 #include "dkaminpar/algorithm/allgather_graph.h"
 
+#include "dkaminpar/mpi_utils.h"
+#include "kaminpar/metrics.h"
+
 namespace dkaminpar::graph {
 SET_DEBUG(true);
 

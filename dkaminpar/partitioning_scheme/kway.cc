@@ -24,6 +24,7 @@
 #include "dkaminpar/coarsening/distributed_local_label_propagation_coarsener.h"
 #include "dkaminpar/refinement/distributed_label_propagation_refiner.h"
 #include "dkaminpar/utility/distributed_metrics.h"
+#include "kaminpar/metrics.h"
 #include "kaminpar/partitioning_scheme/partitioning.h"
 
 namespace dkaminpar {
