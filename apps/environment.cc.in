@@ -1,4 +1,4 @@
-#include "environment.h"
+#include "apps/environment.h"
 
 namespace kaminpar {
 const std::string Environment::GIT_SHA1 = "@GIT_SHA1@";
