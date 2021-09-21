@@ -1,3 +1,10 @@
+/*******************************************************************************
+ * @file:   graph_permutation.h
+ *
+ * @author: Daniel Seemaier
+ * @date:   21.09.21
+ * @brief:  Computes graph permutations and builds the permuted graph.
+ ******************************************************************************/
 #pragma once
 
 #include "kaminpar/context.h"

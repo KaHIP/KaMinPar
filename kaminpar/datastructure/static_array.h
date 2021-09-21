@@ -1,7 +1,14 @@
+/*******************************************************************************
+ * @file:   static_array.h
+ *
+ * @author: Daniel Seemaier
+ * @date:   21.09.21
+ * @brief:  TODO remove this
+ ******************************************************************************/
 #pragma once
 
-#include "definitions.h"
-#include "parallel.h"
+#include "kaminpar/definitions.h"
+#include "kaminpar/parallel.h"
 
 #include <iterator>
 #include <tbb/parallel_for.h>

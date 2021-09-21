@@ -1,14 +1,15 @@
+/*******************************************************************************
+ * @file:   seed_node_utils.cc
+ *
+ * @author: Daniel Seemaier
+ * @date:   21.09.21
+ * @brief:  Algorithms to find seed nodes for initial partitioner based on
+ * graph growing.
+ ******************************************************************************/
 #include "kaminpar/initial_partitioning/seed_node_utils.h"
 
-#include "kaminpar/datastructure/static_array.h"
 #include "kaminpar/definitions.h"
-#include "kaminpar/parallel.h"
 #include "kaminpar/utility/random.h"
-#include "kaminpar/utility/timer.h"
-
-#include <mutex>
-#include <tbb/enumerable_thread_specific.h>
-#include <tbb/parallel_for.h>
 
 namespace kaminpar::ip {
 /*!

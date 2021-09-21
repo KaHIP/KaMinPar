@@ -1,6 +1,14 @@
+/*******************************************************************************
+ * @file:   marker.h
+ *
+ * @author: Daniel Seemaier
+ * @date:   21.09.21
+ * @brief:  Marker array with static size. Markets can be reset in amortized
+ * constant time.
+ ******************************************************************************/
 #pragma once
 
-#include "definitions.h"
+#include "kaminpar/definitions.h"
 
 #include <bitset>
 #include <type_traits>

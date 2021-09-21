@@ -1,27 +1,16 @@
 /*******************************************************************************
- * This file is part of KaMinPar.
+ * @file:   rating_map.h
  *
- * Copyright (C) 2021 Daniel Seemaier <daniel.seemaier@kit.edu>
- *
- * KaMinPar is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * KaMinPar is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with KaMinPar.  If not, see <http://www.gnu.org/licenses/>.
- *
-******************************************************************************/
+ * @author: Daniel Seemaier
+ * @date:   21.09.21
+ * @brief:  Map to compute gain values. The specific implementation depends on
+ * the number of target blocks.
+ ******************************************************************************/
 #pragma once
 
-#include "datastructure/fast_reset_array.h"
-#include "datastructure/fixed_size_sparse_map.h"
-#include "datastructure/sparse_map.h"
+#include "kaminpar/datastructure/fast_reset_array.h"
+#include "kaminpar/datastructure/fixed_size_sparse_map.h"
+#include "kaminpar/datastructure/sparse_map.h"
 
 namespace kaminpar {
 template<typename Value, typename LargeMap = FastResetArray<Value, NodeID>>

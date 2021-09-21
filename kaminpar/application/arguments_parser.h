@@ -1,3 +1,10 @@
+/*******************************************************************************
+ * @file:   arguments_parser.h
+ *
+ * @author: Daniel Seemaier
+ * @date:   21.09.21
+ * @brief:  Command line argument parser based on GNU getopt.
+ ******************************************************************************/
 #pragma once
 
 #include "definitions.h"

@@ -1,8 +1,15 @@
-#include "partitioning_scheme/partitioning.h"
+/*******************************************************************************
+ * @file:   partitioning.cc
+ *
+ * @author: Daniel Seemaier
+ * @date:   21.09.21
+ * @brief:
+ ******************************************************************************/
+#include "kaminpar/partitioning_scheme/partitioning.h"
 
-#include "partitioning_scheme/parallel_recursive_bisection.h"
-#include "partitioning_scheme/parallel_simple_recursive_bisection.h"
-#include "utility/timer.h"
+#include "kaminpar/partitioning_scheme/parallel_recursive_bisection.h"
+#include "kaminpar/partitioning_scheme/parallel_simple_recursive_bisection.h"
+#include "kaminpar/utility/timer.h"
 
 namespace kaminpar::partitioning {
 PartitionedGraph partition(const Graph &graph, const Context &ctx) {

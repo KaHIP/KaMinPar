@@ -1,23 +1,11 @@
 /*******************************************************************************
- * This file is part of KaMinPar.
+ * @file:   parallel_synchronized_initial_partitioner.cc
  *
- * Copyright (C) 2021 Daniel Seemaier <daniel.seemaier@kit.edu>
- *
- * KaMinPar is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * KaMinPar is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with KaMinPar.  If not, see <http://www.gnu.org/licenses/>.
- *
-******************************************************************************/
-#include "partitioning_scheme/parallel_synchronized_initial_partitioner.h"
+ * @author: Daniel Seemaier
+ * @date:   21.09.21
+ * @brief:
+ ******************************************************************************/
+#include "kaminpar/partitioning_scheme/parallel_synchronized_initial_partitioner.h"
 
 namespace kaminpar::partitioning {
 ParallelSynchronizedInitialPartitioner::ParallelSynchronizedInitialPartitioner(

@@ -1,6 +1,13 @@
+/*******************************************************************************
+ * @file:   i_bipartitioner.h
+ *
+ * @author: Daniel Seemaier
+ * @date:   21.09.21
+ * @brief:  Interface for initial partitioning algorithms.
+ ******************************************************************************/
 #pragma once
 
-#include "context.h"
+#include "kaminpar/context.h"
 
 #include <array>
 #include <tuple>

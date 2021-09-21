@@ -1,26 +1,14 @@
 /*******************************************************************************
- * This file is part of KaMinPar.
+ * @file:   initial_coarsener.cc
  *
- * Copyright (C) 2020 Daniel Seemaier <daniel.seemaier@kit.edu>
- *
- * KaMinPar is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * KaMinPar is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with KaMinPar.  If not, see <http://www.gnu.org/licenses/>.
- *
-******************************************************************************/
+ * @author: Daniel Seemaier
+ * @date:   21.09.21
+ * @brief:  Sequential coarsener based on label propagation with leader
+ * locking.
+ ******************************************************************************/
+#include "kaminpar/initial_partitioning/initial_coarsener.h"
 
-#include "initial_partitioning/initial_coarsener.h"
-
-#include "utility/timer.h"
+#include "kaminpar/utility/timer.h"
 
 namespace kaminpar::ip {
 InitialCoarsener::InitialCoarsener(const Graph *graph, const CoarseningContext &c_ctx, MemoryContext &&m_ctx) //

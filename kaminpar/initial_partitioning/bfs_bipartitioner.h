@@ -1,3 +1,10 @@
+/*******************************************************************************
+ * @file:   bfs_bipartitioner.h
+ *
+ * @author: Daniel Seemaier
+ * @date:   21.09.21
+ * @brief:  Initial partitioner based on breath-first searches.
+ ******************************************************************************/
 #pragma once
 
 #include "kaminpar/datastructure/marker.h"

@@ -1,4 +1,11 @@
-#include "partitioning_scheme/helper.h"
+/*******************************************************************************
+ * @file:   helper.cc
+ *
+ * @author: Daniel Seemaier
+ * @date:   21.09.21
+ * @brief:
+ ******************************************************************************/
+#include "kaminpar/partitioning_scheme/helper.h"
 
 namespace kaminpar::partitioning::helper {
 namespace {

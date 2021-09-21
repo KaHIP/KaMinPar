@@ -1,7 +1,14 @@
+/*******************************************************************************
+ * @file:   random_bipartitioner.h
+ *
+ * @author: Daniel Seemaier
+ * @date:   21.09.21
+ * @brief:  Initial partitioner that assigns nodes to random blocks.
+ ******************************************************************************/
 #pragma once
 
-#include "initial_partitioning/i_bipartitioner.h"
-#include "utility/random.h"
+#include "kaminpar/initial_partitioning/i_bipartitioner.h"
+#include "kaminpar/utility/random.h"
 
 #include <array>
 

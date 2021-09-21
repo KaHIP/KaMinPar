@@ -1,7 +1,14 @@
+/*******************************************************************************
+ * @file:   i_coarsener.h
+ *
+ * @author: Daniel Seemaier
+ * @date:   21.09.21
+ * @brief:  Interface for coarsening algorithms.
+ ******************************************************************************/
 #pragma once
 
-#include "datastructure/graph.h"
-#include "definitions.h"
+#include "kaminpar/datastructure/graph.h"
+#include "kaminpar/definitions.h"
 
 #include <functional>
 

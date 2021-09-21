@@ -1,27 +1,15 @@
 /*******************************************************************************
- * This file is part of KaMinPar.
+ * @file:   initial_partitioning_facade.h
  *
- * Copyright (C) 2021 Daniel Seemaier <daniel.seemaier@kit.edu>
- *
- * KaMinPar is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * KaMinPar is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with KaMinPar.  If not, see <http://www.gnu.org/licenses/>.
- *
-******************************************************************************/
+ * @author: Daniel Seemaier
+ * @date:   21.09.21
+ * @brief:  Facade for sequential initial partitioning.
+ ******************************************************************************/
 #pragma once
 
-#include "initial_partitioning/initial_coarsener.h"
-#include "initial_partitioning/initial_refiner.h"
-#include "initial_partitioning/pool_bipartitioner.h"
+#include "kaminpar/initial_partitioning/initial_coarsener.h"
+#include "kaminpar/initial_partitioning/initial_refiner.h"
+#include "kaminpar/initial_partitioning/pool_bipartitioner.h"
 
 namespace kaminpar::ip {
 class InitialPartitioner {
@@ -39,14 +27,13 @@ public:
     InitialRefiner::MemoryContext refiner_m_ctx;
     PoolBipartitioner::MemoryContext pool_m_ctx;
 
-    std::size_t memory_in_kb() const {
+    [[nodiscard]] std::size_t memory_in_kb() const {
       return coarsener_m_ctx.memory_in_kb() + refiner_m_ctx.memory_in_kb() + pool_m_ctx.memory_in_kb();
     }
   };
 
   InitialPartitioner(const Graph &graph, const Context &ctx, const BlockID final_k, MemoryContext m_ctx = {})
       : _m_ctx{std::move(m_ctx)},
-        _input_ctx{ctx},
         _graph{graph},
         _i_ctx{ctx.initial_partitioning},
         _coarsener{&_graph, _i_ctx.coarsening, std::move(_m_ctx.coarsener_m_ctx)} {
@@ -129,7 +116,6 @@ private:
   }
 
   MemoryContext _m_ctx;
-  const Context &_input_ctx;
   const Graph &_graph;
   const InitialPartitioningContext &_i_ctx;
   PartitionContext _p_ctx;

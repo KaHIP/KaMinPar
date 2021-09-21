@@ -1,4 +1,11 @@
-#include "initial_partitioning/greedy_graph_growing_bipartitioner.h"
+/*******************************************************************************
+ * @file:   greedy_graph_growing_bipartitioner.cc
+ *
+ * @author: Daniel Seemaier
+ * @date:   21.09.21
+ * @brief:  Initial partitioner using greedy graph growing.
+ ******************************************************************************/
+#include "kaminpar/initial_partitioning/greedy_graph_growing_bipartitioner.h"
 
 namespace kaminpar {
 void GreedyGraphGrowingBipartitioner::bipartition_impl() {

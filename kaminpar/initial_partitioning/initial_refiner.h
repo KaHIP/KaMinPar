@@ -37,14 +37,14 @@ public:
       if (weighted_degrees.size() < n) { weighted_degrees.resize(n); }
     }
 
-    std::size_t memory_in_kb() const {
+    [[nodiscard]] std::size_t memory_in_kb() const {
       return marker.memory_in_kb() +                               //
              weighted_degrees.size() * sizeof(EdgeWeight) / 1000 + //
              queues[0].memory_in_kb() + queues[1].memory_in_kb();  //
     }
   };
 
-  NodeWeight expected_total_gain() const final {
+  [[nodiscard]] NodeWeight expected_total_gain() const final {
     ASSERT(false) << "not implemented";
     return 0;
   }
@@ -54,11 +54,11 @@ public:
 
 class InitialNoopRefiner : public InitialRefiner {
 public:
-  InitialNoopRefiner(MemoryContext m_ctx) : _m_ctx{std::move(m_ctx)} {}
+  explicit InitialNoopRefiner(MemoryContext m_ctx) : _m_ctx{std::move(m_ctx)} {}
 
   void initialize(const Graph &) final {}
   bool refine(PartitionedGraph &, const PartitionContext &) final { return false; }
-  MemoryContext free() { return std::move(_m_ctx); }
+  MemoryContext free() override { return std::move(_m_ctx); }
 
 private:
   MemoryContext _m_ctx;
@@ -67,7 +67,9 @@ private:
 namespace fm {
 struct SimpleStoppingPolicy {
   void init(const Graph *) const {}
-  bool should_stop(const FMRefinementContext &fm_ctx) const { return _num_steps > fm_ctx.num_fruitless_moves; }
+  [[nodiscard]] bool should_stop(const FMRefinementContext &fm_ctx) const {
+    return _num_steps > fm_ctx.num_fruitless_moves;
+  }
   void reset() { _num_steps = 0; }
   void update(const Gain) { ++_num_steps; }
 
@@ -80,7 +82,7 @@ private:
 struct AdaptiveStoppingPolicy {
   void init(const Graph *graph) { _beta = std::sqrt(graph->n()); }
 
-  bool should_stop(const FMRefinementContext &fm_ctx) const {
+  [[nodiscard]] bool should_stop(const FMRefinementContext &fm_ctx) const {
     const double factor = (fm_ctx.alpha / 2.0) - 0.25;
     return (_num_steps > _beta) && ((_Mk == 0) || (_num_steps >= (_variance / (_Mk * _Mk)) * factor));
   }
@@ -227,7 +229,7 @@ public:
   }
 
 private:
-  bool abort(const EdgeWeight prev_edge_weight, const EdgeWeight cur_edge_weight) const {
+  [[nodiscard]] bool abort(const EdgeWeight prev_edge_weight, const EdgeWeight cur_edge_weight) const {
     return (1.0 - 1.0 * cur_edge_weight / prev_edge_weight) < _r_ctx.fm.improvement_abortion_threshold;
   }
 

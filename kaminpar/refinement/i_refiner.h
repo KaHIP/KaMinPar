@@ -1,7 +1,14 @@
+/*******************************************************************************
+ * @file:   i_refiner.h
+ *
+ * @author: Daniel Seemaier
+ * @date:   21.09.21
+ * @brief:
+ ******************************************************************************/
 #pragma once
 
-#include "context.h"
-#include "datastructure/graph.h"
+#include "kaminpar/context.h"
+#include "kaminpar/datastructure/graph.h"
 
 namespace kaminpar {
 class Refiner {

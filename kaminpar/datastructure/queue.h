@@ -1,6 +1,13 @@
+/*******************************************************************************
+ * @file:   queue.h
+ *
+ * @author: Daniel Seemaier
+ * @date:   21.09.21
+ * @brief:  Queue with fixed capacity.
+ ******************************************************************************/
 #pragma once
 
-#include "definitions.h"
+#include "kaminpar/definitions.h"
 
 #include <vector>
 

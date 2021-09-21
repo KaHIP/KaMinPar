@@ -6,6 +6,9 @@ set(KAMINPAR_SOURCE_FILES
   algorithm/graph_extraction.h
   algorithm/graph_permutation.cc
   algorithm/graph_permutation.h
+  application/arguments.cc
+  application/arguments.h
+  application/arguments_parser.h
   coarsening/i_coarsener.h
   coarsening/parallel_label_propagation_coarsener.h
   datastructure/graph.cc

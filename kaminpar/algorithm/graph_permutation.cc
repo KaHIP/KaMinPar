@@ -1,9 +1,15 @@
+/*******************************************************************************
+ * @file:   graph_permutation.cc
+ *
+ * @author: Daniel Seemaier
+ * @date:   21.09.21
+ * @brief:  Computes graph permutations and builds the permuted graph.
+ ******************************************************************************/
 #include "kaminpar/algorithm/graph_permutation.h"
 
 #include "kaminpar/utility/timer.h"
 
 namespace kaminpar::graph {
-
 /*
  * Builds a node permutation perm[x] such that the following condition is satisfied:
  * let
@@ -32,6 +38,7 @@ NodePermutations sort_by_degree_buckets(const StaticArray<EdgeID> &nodes, const 
   tbb::parallel_for(static_cast<int>(0), p, [&](const int id) {
     if (id >= p) { return; }
 
+    // TODO is there a nicer way to do this?
     auto &my_buckets = local_buckets[id + 1];
     const NodeID chunk = n / p;
     const NodeID rem = n % p;
