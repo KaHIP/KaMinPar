@@ -1,3 +1,10 @@
+/*******************************************************************************
+ * @file:   initial_coarsener_test.cc
+ *
+ * @author: Daniel Seemaier
+ * @date:   21.09.21
+ * @brief:  Unit tests for sequential graph contraction.
+ ******************************************************************************/
 #include "kaminpar/context.h"
 #include "kaminpar/initial_partitioning/initial_coarsener.h"
 #include "matcher.h"
@@ -16,8 +23,8 @@ TEST(InitialCoarsenerTest, ContractingToSingleNodeWorks) {
 
   InitialCoarsener coarsener(&graph, create_default_context().coarsening);
   for (const NodeID cluster : {0, 1, 2, 3}) {
-    coarsener._TEST_mock_clustering({cluster, cluster, cluster, cluster});
-    auto [c_graph, c_mapping] = coarsener._TEST_contract_clustering();
+    coarsener.TEST_mock_clustering({cluster, cluster, cluster, cluster});
+    auto [c_graph, c_mapping] = coarsener.TEST_contract_clustering();
     EXPECT_THAT(c_graph.n(), 1);
     EXPECT_THAT(c_graph.m(), 0);
     EXPECT_THAT(c_graph.node_weight(0), graph.total_node_weight());
@@ -33,9 +40,9 @@ TEST(InitialCoarsenerTest, ContractingToSingletonsWorks) {
   graph = change_node_weight(std::move(graph), 3, 4);
 
   InitialCoarsener coarsener{&graph, create_default_context().coarsening};
-  coarsener._TEST_mock_clustering({0, 1, 2, 3});
+  coarsener.TEST_mock_clustering({0, 1, 2, 3});
 
-  auto [c_graph, c_mapping] = coarsener._TEST_contract_clustering();
+  auto [c_graph, c_mapping] = coarsener.TEST_contract_clustering();
   EXPECT_THAT(c_graph.n(), graph.n());
   EXPECT_THAT(c_graph.m(), graph.m());
   EXPECT_THAT(c_graph.total_node_weight(), graph.total_node_weight());
@@ -56,8 +63,8 @@ TEST(InitialCoarsenerTest, ContractingAllNodesButOneWorks) {
   // 2--3
 
   InitialCoarsener coarsener{&graph, create_default_context().coarsening};
-  coarsener._TEST_mock_clustering({0, 1, 1, 1});
-  auto [c_graph, c_mapping] = coarsener._TEST_contract_clustering();
+  coarsener.TEST_mock_clustering({0, 1, 1, 1});
+  auto [c_graph, c_mapping] = coarsener.TEST_contract_clustering();
 
   EXPECT_THAT(c_graph.n(), 2);
   EXPECT_THAT(c_graph.m(), 2); // one undirected edge
@@ -78,8 +85,8 @@ TEST(InitialCoarsenerTest, ContractingGridHorizontallyWorks) {
   graph = change_node_weight(std::move(graph), 7, 40);
 
   InitialCoarsener coarsener{&graph, create_default_context().coarsening};
-  coarsener._TEST_mock_clustering({0, 1, 2, 3, 0, 1, 2, 3});
-  auto [c_graph, c_mapping] = coarsener._TEST_contract_clustering();
+  coarsener.TEST_mock_clustering({0, 1, 2, 3, 0, 1, 2, 3});
+  auto [c_graph, c_mapping] = coarsener.TEST_contract_clustering();
 
   EXPECT_THAT(c_graph.n(), 4);
   EXPECT_THAT(c_graph.m(), 2 * 3);
@@ -103,8 +110,8 @@ TEST(InitialCoarsenerTest, ContractingGridVerticallyWorks) {
   graph = change_node_weight(std::move(graph), 7, 40);
 
   InitialCoarsener coarsener{&graph, create_default_context().coarsening};
-  coarsener._TEST_mock_clustering({0, 0, 2, 2, 4, 4, 6, 6});
-  auto [c_graph, c_mapping] = coarsener._TEST_contract_clustering();
+  coarsener.TEST_mock_clustering({0, 0, 2, 2, 4, 4, 6, 6});
+  auto [c_graph, c_mapping] = coarsener.TEST_contract_clustering();
 
   EXPECT_THAT(c_graph.n(), 4);
   EXPECT_THAT(c_graph.m(), 2 * 3);

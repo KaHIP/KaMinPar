@@ -1,5 +1,5 @@
 #include "kaminpar/datastructure/graph.h"
-#include "kaminpar/utility/metrics.h"
+#include "kaminpar/metrics.h"
 #include "tests.h"
 
 #include "gmock/gmock.h"

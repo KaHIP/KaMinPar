@@ -27,7 +27,10 @@ namespace kaminpar::parallel {
 template<std::integral T>
 class IntegralAtomicWrapper {
 public:
-  IntegralAtomicWrapper(const T value = T()) : _value(value) {}
+  IntegralAtomicWrapper() = default;
+
+  // NOLINTNEXTLINE(google-explicit-constructor)
+  IntegralAtomicWrapper(const T value) : _value(value) {}
 
   IntegralAtomicWrapper(const IntegralAtomicWrapper &other) : _value(other._value.load()) {}
 
@@ -43,15 +46,16 @@ public:
     return *this;
   }
 
-  T operator=(T desired) noexcept {
+  IntegralAtomicWrapper &operator=(T desired) noexcept {
     _value.store(desired, std::memory_order_relaxed);
-    return _value;
+    return *this;
   }
 
   void store(T desired, std::memory_order order = std::memory_order_seq_cst) noexcept { _value.store(desired, order); }
 
   T load(std::memory_order order = std::memory_order_seq_cst) const noexcept { return _value.load(order); }
 
+  // NOLINTNEXTLINE
   operator T() const noexcept { return _value.load(std::memory_order_relaxed); }
 
   T exchange(T desired, std::memory_order order = std::memory_order_seq_cst) noexcept {
@@ -88,11 +92,11 @@ public:
 
   T operator++() noexcept { return ++_value; }
 
-  T operator++(int) noexcept { return _value++; }
+  T operator++(int) &noexcept { return _value++; } // NOLINT
 
   T operator--() noexcept { return --_value; }
 
-  T operator--(int) noexcept { return _value++; }
+  T operator--(int) &noexcept { return _value++; } // NOLINT
 
   T operator+=(T arg) noexcept { return _value.operator+=(arg); }
 

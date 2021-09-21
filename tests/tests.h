@@ -14,22 +14,23 @@ namespace kaminpar::test {
 //
 
 Graph create_graph(const std::vector<EdgeID> &nodes, const std::vector<NodeID> &edges, const bool sorted = false) {
-  return Graph{from_vec(nodes), from_vec(edges), {}, {}, sorted};
+  return Graph{static_array::create_from(nodes), static_array::create_from(edges), {}, {}, sorted};
 }
 
 Graph create_graph(const std::vector<EdgeID> &nodes, const std::vector<NodeID> &edges,
                    const std::vector<NodeWeight> &node_weights, const std::vector<EdgeWeight> &edge_weights,
                    const bool sorted = false) {
-  return Graph{from_vec(nodes), from_vec(edges), from_vec(node_weights), from_vec(edge_weights), sorted};
+  return Graph{static_array::create_from(nodes), static_array::create_from(edges),
+               static_array::create_from(node_weights), static_array::create_from(edge_weights), sorted};
 }
 
 PartitionedGraph create_p_graph(const Graph &graph, const BlockID k, const std::vector<BlockID> &partition) {
-  return PartitionedGraph{graph, k, from_vec(partition)};
+  return PartitionedGraph{graph, k, static_array::create_atomic_from(partition)};
 }
 
 PartitionedGraph create_p_graph(const Graph &graph, const BlockID k, const std::vector<BlockID> &partition,
                                 scalable_vector<BlockID> final_ks) {
-  return PartitionedGraph{graph, k, from_vec(partition), std::move(final_ks)};
+  return PartitionedGraph{graph, k, static_array::create_atomic_from(partition), std::move(final_ks)};
 }
 
 PartitionedGraph create_p_graph(const Graph *graph, const BlockID k, const std::vector<BlockID> &partition) {

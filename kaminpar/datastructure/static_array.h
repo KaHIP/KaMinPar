@@ -219,18 +219,36 @@ private:
 };
 
 #if defined(TOOL) || defined(TEST)
+namespace static_array {
 template<typename T>
-StaticArray<T> from_vec(const std::vector<T> &vec) {
+StaticArray<T> create_from(const std::vector<T> &vec) {
   StaticArray<T> arr(vec.size());
   std::copy(vec.begin(), vec.end(), arr.begin());
   return arr;
 }
 
 template<typename T>
-std::vector<T> to_vec(const StaticArray<T> &arr) {
+StaticArray<parallel::IntegralAtomicWrapper<T>> create_atomic_from(const std::vector<T> &vec) {
+  StaticArray<parallel::IntegralAtomicWrapper<T>> arr(vec.size());
+  for (std::size_t i = 0; i < vec.size(); ++i) { arr[i].store(vec[i]); }
+  return arr;
+}
+
+template<typename T>
+std::vector<T> release(const StaticArray<T> &arr) {
   std::vector<T> vec(arr.size());
   std::copy(arr.begin(), arr.end(), vec.begin());
   return vec;
+}
+
+template<typename T>
+std::vector<T> release_nonatomic(const StaticArray<parallel::IntegralAtomicWrapper<T>> &arr) {
+  std::vector<T> vec(arr.size());
+  for (std::size_t i = 0; i < arr.size(); ++i) {
+    vec[i] = arr[i].load();
+  }
+  return vec;
+}
 }
 #endif // TOOL
 } // namespace kaminpar

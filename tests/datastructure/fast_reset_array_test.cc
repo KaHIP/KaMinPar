@@ -3,9 +3,9 @@
 #include "gmock/gmock.h"
 
 namespace kaminpar {
-TEST(FastResetArrayTest, SizeWorks) {
+TEST(FastResetArrayTest, CapacityWorks) {
   FastResetArray<int> array(128);
-  EXPECT_THAT(array.size(), 128);
+  EXPECT_EQ(array.capacity(), 128);
 }
 
 TEST(FastResetArrayTest, EmptyArrayWorks) {

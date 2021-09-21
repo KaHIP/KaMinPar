@@ -1,5 +1,4 @@
 #include "kaminpar/algorithm/graph_extraction.h"
-#include "kaminpar/algorithm/graph_utils.h"
 #include "matcher.h"
 #include "tests.h"
 

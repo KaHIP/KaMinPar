@@ -10,7 +10,7 @@ add_library(tools OBJECT ${LIB_TOOLS_SOURCE_FILES})
 target_link_libraries(tools PUBLIC kaminpar_impl)
 
 function(add_tool target)
-    add_executable(${target} ${ARGN})
+    add_executable(${target} ${ARGN} "${CMAKE_CURRENT_BINARY_DIR}/../environment.cc")
     target_link_libraries(${target} PRIVATE kaminpar_impl tools)
     target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 endfunction()

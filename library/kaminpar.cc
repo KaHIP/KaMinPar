@@ -12,7 +12,7 @@
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/io.h"
 #include "kaminpar/partitioning_scheme/partitioning.h"
-#include "kaminpar/utility/metrics.h"
+#include "kaminpar/metrics.h"
 
 #include <tbb/parallel_for.h>
 

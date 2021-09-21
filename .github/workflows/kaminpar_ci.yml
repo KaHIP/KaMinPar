@@ -1,0 +1,26 @@
+name: KaMinPar CI
+
+on: [ push, pull_request ]
+
+jobs:
+  kaminpar_tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout HEAD
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 1
+
+      - name: Install dependencies
+        run: |
+          apt-get install libtbb-dev libhwloc-dev
+
+      - name: Configure CMake
+        run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=Debug -KAMINPAR_ENABLE_HEAVY_ASSERTIONS=On -KAMINPAR_ENABLE_LIGHT_ASSERTIONS=On
+
+      - name: Build
+        run: cmake --build ${{github.workspace}}/build --config Debug
+
+      - name: Test
+        working-directory: ${{github.workspace}}/build
+        run: ctest -C Debug

@@ -99,6 +99,7 @@ include(gmock)
 add_library(growt INTERFACE)
 target_include_directories(growt INTERFACE external_tools/growt/)
 
+# Backward-cpp for stack traces in MPI code
 if (KAMINPAR_USE_BACKWARD_CPP)
     set(CMAKE_POLICY_DEFAULT_CMP0063 NEW)
     add_subdirectory(external_tools/backward-cpp)

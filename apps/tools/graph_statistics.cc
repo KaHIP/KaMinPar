@@ -1,28 +1,18 @@
 /*******************************************************************************
- * This file is part of KaMinPar.
+ * @file:   graph_statistics.cc
  *
- * Copyright (C) 2021 Daniel Seemaier <daniel.seemaier@kit.edu>
- *
- * KaMinPar is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * KaMinPar is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with KaMinPar.  If not, see <http://www.gnu.org/licenses/>.
- *
-******************************************************************************/
-#include "graph_tools.h"
+ * @author: Daniel Seemaier
+ * @date:   21.09.21
+ * @brief:  Computes statistics of a graph.
+ ******************************************************************************/
+#include "apps/environment.h"
+#include "apps/tools/graph_tools.h"
 #include "kaminpar/application/arguments_parser.h"
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/definitions.h"
 #include "kaminpar/io.h"
 #include "kaminpar/utility/console_io.h"
+#include "kaminpar/utility/math.h"
 #include "kaminpar/utility/strings.h"
 
 #include <algorithm>
@@ -127,7 +117,7 @@ void print_fast_statistics(const Statistics &stats, const Options &opts) {
 
   double density = 2.0 * m / n / (n - 1);
 
-  LOG << stats.name << "," << n << "," << m << "," << density << "," << GIT_COMMIT_HASH;
+  LOG << stats.name << "," << n << "," << m << "," << density << "," << Environment::GIT_SHA1;
 }
 
 void compute_node_statistics(const Graph &graph, Statistics &stats, const Options &) {
@@ -262,7 +252,7 @@ void print_csv_content(const Graph &graph, const Statistics &stats, const Option
        << graph.n() << ","                       //
        << graph.m() / 2 << ","                   //
        << stats.density << ","                   //
-       << GIT_COMMIT_HASH << ","                 //
+       << Environment::GIT_SHA1 << ","           //
        << stats.min_degree << ","                //
        << stats.max_degree << ","                //
        << stats.avg_degree << ","                //

@@ -42,7 +42,7 @@ public:
     FastResetArray<EdgeWeight> edge_weight_collector{};
     std::vector<NodeID> cluster_nodes{};
 
-    std::size_t memory_in_kb() const {
+    [[nodiscard]] std::size_t memory_in_kb() const {
       return clustering.size() * sizeof(Cluster) / 1000 +         //
              cluster_sizes.size() * sizeof(NodeID) / 1000 +       //
              leader_node_mapping.size() * sizeof(NodeID) / 1000 + //
@@ -105,22 +105,14 @@ public:
   NodeID pick_cluster_from_rating_map(NodeID u, NodeWeight u_weight, NodeWeight max_cluster_weight);
 
 #ifdef TEST
-  void _TEST_mock_clustering(const std::vector<NodeID> &clustering) {
-    _current_num_moves = 0;
-    for (const NodeID u : _current_graph->nodes()) {
-      _clustering[u].leader = clustering[u];
-      _clustering[_clustering[u].leader].weight += _current_graph->node_weight(u);
-      if (u != clustering[u]) { _clustering[_clustering[u].leader].locked = 1; }
-    }
-  }
-
-  ContractionResult _TEST_contract_clustering() { return contract_current_clustering(); }
+  void TEST_mock_clustering(const std::vector<NodeID> &clustering);
+  ContractionResult TEST_contract_clustering();
 #endif
 
 private:
   ContractionResult contract_current_clustering();
 
-  void perform_label_propagation(const NodeWeight max_cluster_weight);
+  void perform_label_propagation(NodeWeight max_cluster_weight);
 
   //
   // Interleaved label propagation: compute for the next coarse graph while constructing it

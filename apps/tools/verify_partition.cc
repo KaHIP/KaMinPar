@@ -2,7 +2,7 @@
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/definitions.h"
 #include "kaminpar/io.h"
-#include "kaminpar/utility/metrics.h"
+#include "kaminpar/metrics.h"
 
 #include <cstdlib>
 #include <iostream>
@@ -30,7 +30,7 @@ int main(int argc, char *argv[]) {
   }
 
   // copy to StaticArray data structure
-  StaticArray<BlockID> static_partition(partition.size());
+  BlockArray static_partition(partition.size());
   std::ranges::copy(partition, static_partition.begin());
 
   const BlockID k = *std::max_element(partition.begin(), partition.end()) + 1;

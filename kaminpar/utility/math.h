@@ -7,6 +7,8 @@
  ******************************************************************************/
 #pragma once
 
+#include "kaminpar/definitions.h"
+
 #include <concepts>
 #include <utility>
 #include <vector>

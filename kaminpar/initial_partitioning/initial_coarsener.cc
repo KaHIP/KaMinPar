@@ -273,6 +273,23 @@ InitialCoarsener::ContractionResult InitialCoarsener::contract_current_clusterin
 
   return {std::move(coarse_graph), std::move(node_mapping)};
 }
+
+#ifdef TEST
+void InitialCoarsener::TEST_mock_clustering(const std::vector<NodeID> &clustering) {
+  _current_num_moves = 0;
+  for (const NodeID u : _current_graph->nodes()) {
+    _clustering[u].leader = clustering[u];
+    _clustering[_clustering[u].leader].weight += _current_graph->node_weight(u);
+    if (u != clustering[u]) {
+      _clustering[_clustering[u].leader].locked = 1;
+      ++_current_num_moves;
+    }
+  }
+}
+
+InitialCoarsener::ContractionResult InitialCoarsener::TEST_contract_clustering() { return contract_current_clustering(); }
+#endif // TEST
+
 RandomPermutations<NodeID, InitialCoarsener::kChunkSize, InitialCoarsener::kNumberOfNodePermutations>
     InitialCoarsener::_random_permutations{};
 } // namespace kaminpar::ip

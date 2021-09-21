@@ -39,7 +39,8 @@ public:
   template<typename... Args>
   Graph build(Args &&...args) {
     _nodes.push_back(_edges.size());
-    return Graph(from_vec(_nodes), from_vec(_edges), from_vec(_node_weights), from_vec(_edge_weights),
+    return Graph(static_array::create_from(_nodes), static_array::create_from(_edges),
+                 static_array::create_from(_node_weights), static_array::create_from(_edge_weights),
                  std::forward<Args>(args)...);
   }
 
