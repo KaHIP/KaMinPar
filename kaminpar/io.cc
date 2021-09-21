@@ -131,12 +131,12 @@ void write(const std::string &filename, const StaticArray<parallel::IntegralAtom
 void write(const std::string &filename, const PartitionedGraph &p_graph) { write(filename, p_graph.partition()); }
 
 void write(const std::string &filename, const StaticArray<parallel::IntegralAtomicWrapper<BlockID>> &partition,
-           const NodePermutation &permutation) {
+           const graph::NodePermutation &permutation) {
   std::ofstream out(filename);
   for (const NodeID u : permutation) { out << partition[u] << "\n"; }
 }
 
-void write(const std::string &filename, const PartitionedGraph &p_graph, const NodePermutation &permutation) {
+void write(const std::string &filename, const PartitionedGraph &p_graph, const graph::NodePermutation &permutation) {
   write(filename, p_graph.partition(), permutation);
 }
 

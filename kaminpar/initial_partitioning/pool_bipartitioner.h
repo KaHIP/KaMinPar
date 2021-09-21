@@ -1,18 +1,15 @@
 #pragma once
 
-#include "factories.h"
-#include "initial_partitioning/bfs_bipartitioner.h"
-#include "initial_partitioning/greedy_graph_growing_bipartitioner.h"
-#include "initial_partitioning/i_bipartitioner.h"
-#include "initial_partitioning/initial_refiner.h"
-#include "initial_partitioning/random_bipartitioner.h"
-#include "io.h"
+#include "kaminpar/factories.h"
+#include "kaminpar/initial_partitioning/bfs_bipartitioner.h"
+#include "kaminpar/initial_partitioning/greedy_graph_growing_bipartitioner.h"
+#include "kaminpar/initial_partitioning/i_bipartitioner.h"
+#include "kaminpar/initial_partitioning/initial_refiner.h"
+#include "kaminpar/initial_partitioning/random_bipartitioner.h"
 
 #include <memory>
 
 namespace kaminpar {
-class PoolBipartitionerFactory;
-
 class PoolBipartitioner {
   friend class PoolBipartitionerFactory;
 
@@ -20,7 +17,7 @@ class PoolBipartitioner {
 
   // see https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Welford's_online_algorithm
   struct RunningVariance {
-    std::pair<double, double> get() const {
+    [[nodiscard]] std::pair<double, double> get() const {
       if (_count == 0) {
         return {std::numeric_limits<double>::max(), 0.0};
       } else if (_count < 2) {

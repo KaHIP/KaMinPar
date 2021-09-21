@@ -119,4 +119,7 @@ SequentialSubgraphExtractionResult extract_subgraphs_sequential(const Partitione
                                                                 SubgraphMemoryStartPosition memory_position,
                                                                 SubgraphMemory &subgraph_memory,
                                                                 TemporarySubgraphMemory &tmp_subgraph_memory);
+
+void copy_subgraph_partitions(PartitionedGraph &p_graph, const scalable_vector<BlockArray> &p_subgraph_partitions,
+                              BlockID k_prime, BlockID input_k, const scalable_vector<NodeID> &mapping);
 } // namespace kaminpar::graph

@@ -2,10 +2,10 @@ set(KAMINPAR_SOURCE_FILES
   algorithm/parallel_label_propagation.h
   algorithm/graph_contraction.cc
   algorithm/graph_contraction.h
-  algorithm/graph_utils.cc
-  algorithm/graph_utils.h
   algorithm/graph_extraction.cc
   algorithm/graph_extraction.h
+  algorithm/graph_permutation.cc
+  algorithm/graph_permutation.h
   coarsening/i_coarsener.h
   coarsening/parallel_label_propagation_coarsener.h
   datastructure/graph.cc
@@ -33,6 +33,8 @@ set(KAMINPAR_SOURCE_FILES
   initial_partitioning/initial_refiner.cc
   initial_partitioning/initial_refiner.h
   initial_partitioning/initial_partitioning_facade.h
+  initial_partitioning/seed_node_utils.cc
+  initial_partitioning/seed_node_utils.h
   partitioning_scheme/parallel_recursive_bisection.cc
   partitioning_scheme/parallel_recursive_bisection.h
   partitioning_scheme/helper.cc

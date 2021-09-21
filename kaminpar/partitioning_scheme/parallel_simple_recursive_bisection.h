@@ -59,7 +59,7 @@ public:
       subgraph_partitions[0] = p_graph1.take_partition();
       subgraph_partitions[1] = p_graph2.take_partition();
 
-      copy_subgraph_partitions(p_graph, subgraph_partitions, k, _input_ctx.partition.k, mapping);
+      graph::copy_subgraph_partitions(p_graph, subgraph_partitions, k, _input_ctx.partition.k, mapping);
     }
 
     return p_graph;

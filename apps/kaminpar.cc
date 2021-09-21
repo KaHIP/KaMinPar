@@ -1,16 +1,17 @@
-#include "algorithm/graph_utils.h"
-#include "application/arguments.h"
-#include "application/arguments_parser.h"
-#include "apps.h"
-#include "datastructure/graph.h"
-#include "definitions.h"
-#include "io.h"
-#include "parallel.h"
-#include "partitioning_scheme/partitioning.h"
-#include "utility/console_io.h"
-#include "utility/logger.h"
-#include "utility/metrics.h"
-#include "utility/timer.h"
+#include "apps/apps.h"
+#include "kaminpar/algorithm/graph_permutation.h"
+#include "kaminpar/application/arguments.h"
+#include "kaminpar/application/arguments_parser.h"
+#include "kaminpar/datastructure/graph.h"
+#include "kaminpar/definitions.h"
+#include "kaminpar/io.h"
+#include "kaminpar/parallel.h"
+#include "kaminpar/partitioning_scheme/partitioning.h"
+#include "kaminpar/utility/console_io.h"
+#include "kaminpar/utility/logger.h"
+#include "kaminpar/utility/metrics.h"
+#include "kaminpar/utility/random.h"
+#include "kaminpar/utility/timer.h"
 
 #include <chrono>
 #include <fstream>
@@ -134,10 +135,9 @@ int main(int argc, char *argv[]) {
 
     // sort nodes by degree bucket and rearrange graph, remove isolated nodes
     remove_isolated_nodes = info.has_isolated_nodes && ctx.partition.remove_isolated_nodes;
-    NodePermutations permutations = rearrange_and_remove_isolated_nodes(remove_isolated_nodes, ctx.partition, nodes,
-                                                                        edges, node_weights, edge_weights,
-                                                                        static_cast<NodeWeight>(
-                                                                            info.total_node_weight));
+    auto permutations = graph::rearrange_and_remove_isolated_nodes(remove_isolated_nodes, ctx.partition, nodes, edges,
+                                                                   node_weights, edge_weights,
+                                                                   static_cast<NodeWeight>(info.total_node_weight));
     STOP_TIMER();
     STOP_TIMER();
 
@@ -186,7 +186,7 @@ int main(int argc, char *argv[]) {
 
     LOG << "Add " << num_isolated_nodes << " isolated nodes and revert to epsilon=" << original_epsilon;
     LOG << "==> max_block_weight=" << ctx.partition.max_block_weight(0);
-    p_graph = revert_isolated_nodes_removal(std::move(p_graph), num_isolated_nodes, ctx.partition);
+    p_graph = graph::revert_isolated_nodes_removal(std::move(p_graph), num_isolated_nodes, ctx.partition);
     STOP_TIMER();
     STOP_TIMER();
   }

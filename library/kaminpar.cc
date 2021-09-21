@@ -18,6 +18,7 @@
  *
 ******************************************************************************/
 #include "kaminpar.h"
+
 #include "kaminpar/application/arguments.h"
 #include "kaminpar/context.h"
 #include "kaminpar/datastructure/graph.h"
@@ -42,7 +43,7 @@ struct PartitionerBuilderPrivate {
 struct PartitionerPrivate {
   Graph graph;
   Context context;
-  NodePermutations permutations;
+  graph::NodePermutations permutations;
 
   NodeID n;
   NodeWeight original_total_node_weight;
@@ -107,9 +108,11 @@ Partitioner PartitionerBuilder::rearrange_and_create() {
 
   partitioner._pimpl->context = _pimpl->context;
   partitioner._pimpl->epsilon = _pimpl->context.partition.epsilon;
-  partitioner._pimpl->permutations = rearrange_and_remove_isolated_nodes(true, partitioner._pimpl->context.partition,
-                                                                         _pimpl->nodes, _pimpl->edges,
-                                                                         _pimpl->node_weights, _pimpl->edge_weights);
+  partitioner._pimpl->permutations = graph::rearrange_and_remove_isolated_nodes(true,
+                                                                                partitioner._pimpl->context.partition,
+                                                                                _pimpl->nodes, _pimpl->edges,
+                                                                                _pimpl->node_weights,
+                                                                                _pimpl->edge_weights);
   partitioner._pimpl->graph = Graph{std::move(_pimpl->nodes), std::move(_pimpl->edges), std::move(_pimpl->node_weights),
                                     std::move(_pimpl->edge_weights), true};
   partitioner._pimpl->context.setup(partitioner._pimpl->graph);

@@ -1,16 +1,15 @@
 #pragma once
 
-#include "algorithm/graph_utils.h"
-#include "datastructure/marker.h"
-#include "datastructure/queue.h"
-#include "definitions.h"
-#include "initial_partitioning/i_bipartitioner.h"
-#include "utility/random.h"
+#include "kaminpar/datastructure/marker.h"
+#include "kaminpar/datastructure/queue.h"
+#include "kaminpar/definitions.h"
+#include "kaminpar/initial_partitioning/i_bipartitioner.h"
+#include "kaminpar/initial_partitioning/seed_node_utils.h"
+#include "kaminpar/utility/random.h"
 
 #include <array>
 
-namespace kaminpar {
-namespace bfs {
+namespace kaminpar::bfs {
 namespace {
 using Queues = std::array<Queue<NodeID>, 2>;
 }
@@ -61,7 +60,7 @@ public:
     std::array<Queue<NodeID>, 2> queues{Queue<NodeID>(0), Queue<NodeID>(0)};
     Marker<3> marker{0};
 
-    std::size_t memory_in_kb() const {
+    [[nodiscard]] std::size_t memory_in_kb() const {
       return queues[0].memory_in_kb() + queues[1].memory_in_kb() + marker.memory_in_kb();
     }
   };
@@ -99,7 +98,7 @@ public:
 
 protected:
   void bipartition_impl() override {
-    const auto [start_a, start_b] = find_far_away_nodes(_graph, _num_seed_iterations);
+    const auto [start_a, start_b] = ip::find_far_away_nodes(_graph, _num_seed_iterations);
 
     _queues[0].push_tail(start_a);
     _queues[1].push_tail(start_b);
@@ -161,8 +160,9 @@ private:
   const std::size_t _num_seed_iterations;
   block_selection_strategy _block_selection_strategy{};
 };
-} // namespace bfs
+} // namespace kaminpar::bfs
 
+namespace kaminpar {
 extern template class bfs::BfsBipartitioner<bfs::alternating>;
 extern template class bfs::BfsBipartitioner<bfs::lighter>;
 extern template class bfs::BfsBipartitioner<bfs::sequential>;

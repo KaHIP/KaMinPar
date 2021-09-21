@@ -19,7 +19,6 @@
 ******************************************************************************/
 #include "kaminpar/algorithm/graph_extraction.h"
 
-#include "kaminpar/algorithm/graph_utils.h"
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/datastructure/static_array.h"
 #include "kaminpar/definitions.h"
@@ -248,5 +247,50 @@ SubgraphExtractionResult extract_subgraphs(const PartitionedGraph &p_graph, Subg
   });
 
   return {std::move(subgraphs), std::move(mapping), std::move(start_positions)};
+}
+
+namespace {
+void fill_final_k(scalable_vector<BlockID> &data, const BlockID b0, const BlockID final_k, const BlockID k) {
+  const auto [final_k1, final_k2] = math::split_integral(final_k);
+  std::array<BlockID, 2> ks{std::clamp<BlockID>(std::ceil(k * 1.0 * final_k1 / final_k), 1, k - 1),
+                            std::clamp<BlockID>(std::floor(k * 1.0 * final_k2 / final_k), 1, k - 1)};
+  std::array<BlockID, 2> b{b0, b0 + ks[0]};
+  data[b[0]] = final_k1;
+  data[b[1]] = final_k2;
+
+  if (ks[0] > 1) { fill_final_k(data, b[0], final_k1, ks[0]); }
+  if (ks[1] > 1) { fill_final_k(data, b[1], final_k2, ks[1]); }
+}
+} // namespace
+
+void copy_subgraph_partitions(PartitionedGraph &p_graph, const scalable_vector<BlockArray> &p_subgraph_partitions,
+                              const BlockID k_prime, const BlockID input_k, const scalable_vector<NodeID> &mapping) {
+  scalable_vector<BlockID> k0(p_graph.k() + 1, k_prime / p_graph.k());
+  k0[0] = 0;
+
+  scalable_vector<BlockID> final_ks(k_prime, 1);
+
+  // we are done partitioning? --> use final_ks
+  if (k_prime == input_k) { std::copy(p_graph.final_ks().begin(), p_graph.final_ks().end(), k0.begin() + 1); }
+
+  parallel::prefix_sum(k0.begin(), k0.end(), k0.begin()); // blocks of old block i start at k0[i]
+
+  // we are not done partitioning?
+  if (k_prime != input_k) {
+    ALWAYS_ASSERT(math::is_power_of_2(k_prime));
+    const BlockID k_per_block = k_prime / p_graph.k();
+    tbb::parallel_for(static_cast<BlockID>(0), p_graph.k(),
+                      [&](const BlockID b) { fill_final_k(final_ks, k0[b], p_graph.final_k(b), k_per_block); });
+  }
+
+  p_graph.change_k(k_prime);
+  tbb::parallel_for(static_cast<NodeID>(0), p_graph.n(), [&](const NodeID &u) {
+    const BlockID b = p_graph._partition[u];
+    const NodeID s_u = mapping[u];
+    p_graph._partition[u] = k0[b] + p_subgraph_partitions[b][s_u];
+  });
+
+  p_graph.set_final_ks(std::move(final_ks));
+  p_graph.reinit_block_weights();
 }
 } // namespace kaminpar::graph

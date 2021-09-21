@@ -20,7 +20,6 @@
 #pragma once
 
 #include "algorithm/graph_extraction.h"
-#include "algorithm/graph_utils.h"
 #include "coarsening/parallel_label_propagation_coarsener.h"
 #include "context.h"
 #include "datastructure/graph.h"

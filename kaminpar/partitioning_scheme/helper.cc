@@ -159,7 +159,7 @@ void extend_partition(PartitionedGraph &p_graph, const BlockID k_prime, const Co
   STOP_TIMER();
 
   TIMED_SCOPE("Copy subgraph partitions") {
-    copy_subgraph_partitions(p_graph, subgraph_partitions, k_prime, input_ctx.partition.k, mapping);
+    graph::copy_subgraph_partitions(p_graph, subgraph_partitions, k_prime, input_ctx.partition.k, mapping);
   };
   update_partition_context(current_p_ctx, p_graph);
 

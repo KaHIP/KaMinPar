@@ -198,7 +198,14 @@ private:
 #endif // KAMINPAR_ENABLE_DEBUG_FEATURES
 };
 
+bool validate_graph(const Graph &graph);
+
 class ParallelBalancer;
+
+namespace graph {
+void copy_subgraph_partitions(PartitionedGraph &p_graph, const scalable_vector<BlockArray> &p_subgraph_partitions,
+                              BlockID k_prime, BlockID input_k, const scalable_vector<NodeID> &mapping);
+}
 
 /*!
  * Extends a kaminpar::Graph with a graph partition.
@@ -214,10 +221,9 @@ class PartitionedGraph {
 
   static constexpr auto kDebug = false;
 
-  friend void copy_subgraph_partitions(PartitionedGraph &p_graph,
-                                       const scalable_vector<BlockArray> &p_subgraph_partitions,
-                                       BlockID k_per_subgraph, BlockID final_k_per_subgraph,
-                                       const scalable_vector<NodeID> &mapping);
+  friend void graph::copy_subgraph_partitions(PartitionedGraph &p_graph,
+                                              const scalable_vector<BlockArray> &p_subgraph_partitions, BlockID k_prime,
+                                              BlockID input_k, const scalable_vector<NodeID> &mapping);
 
 public:
   using NodeID = Graph::NodeID;

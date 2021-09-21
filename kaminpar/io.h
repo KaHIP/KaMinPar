@@ -3,9 +3,9 @@
  */
 #pragma once
 
-#include "algorithm/graph_utils.h"
-#include "datastructure/graph.h"
-#include "definitions.h"
+#include "kaminpar/algorithm/graph_permutation.h"
+#include "kaminpar/datastructure/graph.h"
+#include "kaminpar/definitions.h"
 
 #include <cctype>
 #include <cerrno>
@@ -218,8 +218,8 @@ namespace partition {
 void write(const std::string &filename, const std::vector<parallel::IntegralAtomicWrapper<BlockID>> &partition);
 void write(const std::string &filename, const PartitionedGraph &p_graph);
 void write(const std::string &filename, const StaticArray<parallel::IntegralAtomicWrapper<BlockID>> &partition,
-           const NodePermutation &permutation);
-void write(const std::string &filename, const PartitionedGraph &p_graph, const NodePermutation &permutation);
+           const graph::NodePermutation &permutation);
+void write(const std::string &filename, const PartitionedGraph &p_graph, const graph::NodePermutation &permutation);
 std::vector<BlockID> read(const std::string &filename);
 } // namespace partition
 } // namespace kaminpar::io

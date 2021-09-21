@@ -102,6 +102,37 @@ void Graph::update_total_node_weight() {
 }
 
 //
+// Utility debug functions
+//
+
+bool validate_graph(const Graph &graph) {
+  LOG << "Validate n=" << graph.n() << " m=" << graph.m();
+
+  for (NodeID u = 0; u < graph.n(); ++u) {
+    ALWAYS_ASSERT(graph.raw_nodes()[u] <= graph.raw_nodes()[u + 1])
+        << V(u) << V(graph.raw_nodes()[u]) << V(graph.raw_nodes()[u + 1]);
+  }
+
+  for (const NodeID u : graph.nodes()) {
+    for (const auto [e, v] : graph.neighbors(u)) {
+      ALWAYS_ASSERT(v < graph.n());
+      bool found_reverse = false;
+      for (const auto [e_prime, u_prime] : graph.neighbors(v)) {
+        ALWAYS_ASSERT(u_prime < graph.n());
+        if (u != u_prime) { continue; }
+        ALWAYS_ASSERT(graph.edge_weight(e) == graph.edge_weight(e_prime))
+            << V(e) << V(graph.edge_weight(e)) << V(e_prime) << V(graph.edge_weight(e_prime)) << " Edge from " << u
+            << " --> " << v << " --> " << u_prime;
+        found_reverse = true;
+        break;
+      }
+      ALWAYS_ASSERT(found_reverse) << u << " --> " << v << " exists with edge " << e << " but no reverse edge found!";
+    }
+  }
+  return true;
+}
+
+//
 // PartitionedGraph
 //
 
