@@ -1,2 +1,0 @@
-# Suppress leaks in TBB
-leak:tbb::internal::get_initial_auto_partitioner_divisor

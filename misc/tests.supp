@@ -1,0 +1,8 @@
+# Suppress leaks in TBB
+leak:tbb::internal::get_initial_auto_partitioner_divisor
+# Suppress leaks in MPI (1)
+leak:PMPI_Init
+# Suppress leaks in MPI (2)
+leak:ompi_mpi_finalize
+# Suppress leaks in MPI (3)
+leak:start_thread
