@@ -16,6 +16,6 @@ function(add_gmock_mpi_test target nproc)
     set_property(TARGET ${target} PROPERTY CXX_STANDARD 20)
     set_property(TARGET ${target} PROPERTY CXX_STANDARD_REQUIRED 20)
 
-    set(test_parameters -np ${nproc} "./${target}")
+    set(test_parameters -np ${nproc} --oversubscribe "./${target}")
     add_test(NAME ${target} COMMAND "mpirun" ${test_parameters})
 endfunction()
