@@ -27,6 +27,7 @@ jobs:
 
       - name: Test
         working-directory: ${{github.workspace}}/build
-        run: |
-          ctest -C Debug
-          cat ${{github.workspace}}/build/Testing/Temporary/LastTest.log
+        run: ctest -C Debug
+
+      - name: Print test log
+        run: cat ${{github.workspace}}/build/Testing/Temporary/LastTest.log
