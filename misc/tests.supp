@@ -6,3 +6,5 @@ leak:PMPI_Init
 leak:ompi_mpi_finalize
 # Suppress leaks in MPI (3)
 leak:start_thread
+# Suppress leaks in MPI (4)
+leak:MPI_Init

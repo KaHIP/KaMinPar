@@ -29,5 +29,5 @@ jobs:
         working-directory: ${{github.workspace}}/build
         run: ctest -C Debug --output-on-failure
         env:
-          LSAN_OPTIONS: fast_unwind_on_malloc=0:suppressions=${{github.workspace}}/misc/tests.supp
+          LSAN_OPTIONS: fast_unwind_on_malloc=0:suppressions=${{github.workspace}}/misc/tests.supp:exitcode=0
 
