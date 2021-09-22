@@ -23,7 +23,7 @@ jobs:
          CXX: g++-10
 
       - name: Build
-        run: cmake --build ${{github.workspace}}/build --config Debug
+        run: cmake --build ${{github.workspace}}/build --config Debug --parallel
 
       - name: Test
         working-directory: ${{github.workspace}}/build
