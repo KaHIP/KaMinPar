@@ -31,10 +31,11 @@ public:
    * Coarsen the currently coarsest graph with a static maximum node weight.
    *
    * @param max_cluster_weight Maximum node weight of the coarse graph.
+   * @param to_size Desired size of the coarse graph.
    * @return New coarsest graph and whether coarsening has not converged.
    */
-  virtual std::pair<const Graph *, bool> coarsen(const NodeWeight max_cluster_weight) {
-    return coarsen([max_cluster_weight](NodeID) { return max_cluster_weight; });
+  virtual std::pair<const Graph *, bool> coarsen(const NodeWeight max_cluster_weight, const NodeID to_size = 0) {
+    return coarsen([max_cluster_weight](NodeID) { return max_cluster_weight; }, to_size);
   };
 
   /**
@@ -44,15 +45,17 @@ public:
    *
    * @param cb_max_cluster_weight Maximum node weight callback: takes the number of nodes and returns the maximum node
    * weight to be used.
+   * @param to_size Desired size of the coarse graph.
    * @return New coarsest graph and whether coarsening has not converged.
    */
-  virtual std::pair<const Graph *, bool> coarsen(const std::function<NodeWeight(NodeID)> &cb_max_cluster_weight) = 0;
+  virtual std::pair<const Graph *, bool> coarsen(const std::function<NodeWeight(NodeID)> &cb_max_cluster_weight,
+                                                 const NodeID to_size = 0) = 0;
 
   /** @return The currently coarsest graph, or the input graph, if no coarse graphs have been computed so far. */
-  virtual const Graph *coarsest_graph() const = 0;
+  [[nodiscard]] virtual const Graph *coarsest_graph() const = 0;
 
   /** @return Number of coarsest graphs that have already been computed. */
-  virtual std::size_t size() const = 0;
+  [[nodiscard]] virtual std::size_t size() const = 0;
 
   /** @return Whether we have not computed any coarse graphs so far. */
   [[nodiscard]] bool empty() const { return size() == 0; }
@@ -93,13 +96,13 @@ public:
 
   void initialize(const Graph *graph) final { _graph = graph; }
 
-  std::pair<const Graph *, bool> coarsen(const std::function<NodeWeight(NodeID)> &) final {
+  std::pair<const Graph *, bool> coarsen(const std::function<NodeWeight(NodeID)> &, const NodeID /* to_size */) final {
     return {coarsest_graph(), false};
   }
 
-  std::size_t size() const final { return 0; }
+  [[nodiscard]] std::size_t size() const final { return 0; }
 
-  const Graph *coarsest_graph() const final { return _graph; }
+  [[nodiscard]] const Graph *coarsest_graph() const final { return _graph; }
 
   PartitionedGraph uncoarsen(PartitionedGraph &&p_graph) final { return std::move(p_graph); }
 

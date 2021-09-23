@@ -318,6 +318,24 @@ public:
     _partition[u].store(new_b, std::memory_order_relaxed);
   }
 
+  //! Attempt to move weight from block \c from to block \c to subject to the maximum block weight \c max_weight.
+  //! Thread-safe.
+  bool try_move_block_weight(const BlockID from, const BlockID to, const BlockWeight delta,
+                             const BlockWeight max_weight) {
+    BlockWeight new_weight = block_weight(to);
+    bool success = false;
+
+    while (new_weight + delta <= max_weight) {
+      if (_block_weights[to].compare_exchange_weak(new_weight, new_weight + delta, std::memory_order_relaxed)) {
+        success = true;
+        break;
+      }
+    }
+
+    if (success) { _block_weights[from].fetch_sub(delta, std::memory_order_relaxed); }
+    return success;
+  }
+
   // clang-format off
   [[nodiscard]] inline NodeWeight block_weight(const BlockID b) const { return _block_weights[b]; }
   [[nodiscard]] inline const auto &block_weights() const { return _block_weights; }

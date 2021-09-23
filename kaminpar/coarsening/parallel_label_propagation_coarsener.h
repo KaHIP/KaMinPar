@@ -22,107 +22,64 @@ namespace kaminpar {
 struct LabelPropagationClusteringConfig : public LabelPropagationConfig {
   using ClusterID = BlockID;
   using ClusterWeight = BlockWeight;
-  static constexpr bool kUseHardWeightConstraint = false;
-  static constexpr bool kReportEmptyClusters = true;
+  static constexpr bool kTrackClusterCount = true;
+  static constexpr bool kUseTwoHopClustering = true;
 };
 
 class LabelPropagationClustering final
-    : public LabelPropagation<LabelPropagationClustering, LabelPropagationClusteringConfig> {
+    : public ChunkRandomizedLabelPropagation<LabelPropagationClustering, LabelPropagationClusteringConfig>,
+      public OwnedRelaxedClusterWeightVector<NodeID, NodeWeight>,
+      public OwnedClusterVector<NodeID, NodeID> {
   SET_DEBUG(false);
 
-  using Base = LabelPropagation<LabelPropagationClustering, LabelPropagationClusteringConfig>;
-  friend Base;
+  using Base = ChunkRandomizedLabelPropagation<LabelPropagationClustering, LabelPropagationClusteringConfig>;
+  using ClusterWeightBase = OwnedRelaxedClusterWeightVector<NodeID, NodeWeight>;
+  using ClusterBase = OwnedClusterVector<NodeID, NodeID>;
 
   static constexpr std::size_t kInfiniteIterations{std::numeric_limits<std::size_t>::max()};
 
 public:
-  LabelPropagationClustering(const NodeID max_n, const double shrink_factor,
-                             const LabelPropagationCoarseningContext &lp_ctx)
-      : Base{max_n, max_n},
-        _shrink_factor{shrink_factor},
-        _lp_ctx{lp_ctx},
-        _max_cluster_weight{kInvalidBlockWeight} {
-    _clustering.resize(max_n);
-    _favored_clustering.resize(max_n);
+  using Base::set_desired_num_clusters;
+
+  using ClusterBase::cluster;
+  using ClusterBase::init_cluster;
+  using ClusterBase::move_node;
+  using ClusterWeightBase::cluster_weight;
+  using ClusterWeightBase::init_cluster_weight;
+  using ClusterWeightBase::move_cluster_weight;
+
+  LabelPropagationClustering(const NodeID max_n, const LabelPropagationCoarseningContext &lp_ctx)
+      : Base{max_n},
+        ClusterWeightBase{max_n},
+        ClusterBase{max_n},
+        _lp_ctx{lp_ctx} {
     set_max_degree(lp_ctx.large_degree_threshold);
     set_max_num_neighbors(lp_ctx.max_num_neighbors);
   }
 
-  const scalable_vector<NodeID> &cluster(const Graph &graph, const NodeWeight max_cluster_weight,
-                                         const std::size_t max_iterations = kInfiniteIterations) {
-    ASSERT(_clustering.size() >= graph.n());
-
-    initialize(&graph);
+  const auto &cluster(const Graph &graph, const NodeWeight max_cluster_weight,
+                      const std::size_t max_iterations = kInfiniteIterations) {
+    initialize(&graph, graph.n());
     _max_cluster_weight = max_cluster_weight;
-    _current_size = graph.n();
-    _target_size = static_cast<NodeID>(_shrink_factor * _current_size);
-    NodeID total_num_emptied_clusters = 0;
 
     for (std::size_t iteration = 0; iteration < max_iterations; ++iteration) {
       SCOPED_TIMER("Iteration", std::to_string(iteration), TIMER_BENCHMARK);
-
-      const auto [num_moved_nodes, num_emptied_clusters] = randomized_iteration();
-      _current_size -= num_emptied_clusters;
-      total_num_emptied_clusters += num_emptied_clusters;
-      if (num_moved_nodes == 0) { break; }
+      if (perform_iteration() == 0) { break; }
     }
 
-    if (_lp_ctx.should_merge_nonadjacent_clusters(_graph->n(), _graph->n() - total_num_emptied_clusters)) {
-      DBG << "Empty clusters after LP: " << total_num_emptied_clusters << " of " << _graph->n();
-      TIMED_SCOPE("2-hop Clustering") { join_singleton_clusters_by_favored_cluster(total_num_emptied_clusters); };
+    if (_lp_ctx.should_merge_nonadjacent_clusters(_graph->n(), _current_num_clusters)) {
+      TIMED_SCOPE("2-hop Clustering") { perform_two_hop_clustering(); };
     }
 
-    return _clustering;
+    return clusters();
   }
 
-private:
-  void join_singleton_clusters_by_favored_cluster(const NodeID emptied_clusters) {
-    const auto desired_no_of_coarse_nodes = _graph->n() * (1.0 - _lp_ctx.merge_nonadjacent_clusters_threshold);
-    parallel::IntegralAtomicWrapper<NodeID> current_no_of_coarse_nodes = _graph->n() - emptied_clusters;
+public:
+  [[nodiscard]] NodeID initial_cluster(const NodeID u) const { return u; }
 
-    tbb::parallel_for(static_cast<NodeID>(0), _graph->n(), [&](const NodeID u) {
-      if (current_no_of_coarse_nodes <= desired_no_of_coarse_nodes) { return; }
-
-      const NodeID leader = _clustering[u]; // first && part avoids _cluster_weights cache miss
-      const bool singleton = leader == u && _cluster_weights[u] == _graph->node_weight(u);
-
-      if (singleton) {
-        NodeID favored_leader = _favored_clustering[u];
-        if (_lp_ctx.merge_isolated_clusters && u == favored_leader) { favored_leader = 0; }
-
-        do {
-          NodeID expected_value = favored_leader;
-          if (_favored_clustering[favored_leader].compare_exchange_strong(expected_value, u)) {
-            break; // if this worked, we replaced favored_leader with u
-          }
-
-          // if this didn't work, there is another node that has the same favored leader -> try to join that nodes
-          // cluster
-          const NodeID partner = expected_value;
-          if (_favored_clustering[favored_leader].compare_exchange_strong(expected_value, favored_leader)) {
-            if (_cluster_weights[partner] + _graph->node_weight(u) < _max_cluster_weight) {
-              _clustering[u] = partner;
-              _cluster_weights[partner] += _graph->node_weight(u);
-              --current_no_of_coarse_nodes;
-            }
-            break;
-          }
-        } while (true);
-      }
-    });
-  }
-
-  // called from Base class
-  void reset_node_state(const NodeID u) {
-    _clustering[u] = u;
-    _favored_clustering[u] = u;
-  }
-
-  [[nodiscard]] NodeID cluster(const NodeID u) const { return _clustering[u]; }
-  void set_cluster(const NodeID u, const NodeID cluster) { _clustering[u] = cluster; }
-  [[nodiscard]] NodeID num_clusters() const { return _graph->n(); }
   [[nodiscard]] NodeWeight initial_cluster_weight(const NodeID cluster) const { return _graph->node_weight(cluster); }
-  [[nodiscard]] NodeWeight max_cluster_weight(const NodeID) const { return _max_cluster_weight; }
+
+  [[nodiscard]] NodeWeight max_cluster_weight(const NodeID /* cluster */) const { return _max_cluster_weight; }
 
   [[nodiscard]] bool accept_cluster(const Base::ClusterSelectionState &state) const {
     return (state.current_gain > state.best_gain ||
@@ -131,20 +88,11 @@ private:
             state.current_cluster == state.initial_cluster);
   }
 
-  void set_favored_cluster(const NodeID u, const NodeID cluster) { _favored_clustering[u] = cluster; }
+  using Base::_current_num_clusters;
+  using Base::_graph;
 
-  [[nodiscard]] bool should_stop(const NodeID num_emptied_clusters) const {
-    return _current_size - num_emptied_clusters < _target_size;
-  }
-
-  double _shrink_factor;
   const LabelPropagationCoarseningContext &_lp_ctx;
-  scalable_vector<NodeID> _clustering;
-  scalable_vector<parallel::IntegralAtomicWrapper<NodeID>> _favored_clustering;
-  NodeWeight _max_cluster_weight;
-
-  NodeID _current_size;
-  NodeID _target_size;
+  NodeWeight _max_cluster_weight{kInvalidBlockWeight};
 };
 
 class ParallelLabelPropagationCoarsener : public Coarsener {
@@ -152,7 +100,7 @@ public:
   ParallelLabelPropagationCoarsener(const Graph &input_graph, const CoarseningContext &c_ctx)
       : _input_graph{input_graph},
         _current_graph{&input_graph},
-        _label_propagation_core{input_graph.n(), c_ctx.enforce_contraction_limit ? 0.5 : 0.0, c_ctx.lp},
+        _label_propagation_core{input_graph.n(), c_ctx.lp},
         _c_ctx{c_ctx} {}
 
   ParallelLabelPropagationCoarsener(const ParallelLabelPropagationCoarsener &) = delete;
@@ -162,8 +110,11 @@ public:
 
   using Coarsener::coarsen;
 
-  std::pair<const Graph *, bool> coarsen(const std::function<NodeWeight(NodeID)> &cb_max_cluster_weight) final {
+  std::pair<const Graph *, bool> coarsen(const std::function<NodeWeight(NodeID)> &cb_max_cluster_weight,
+                                         const NodeID to_size) final {
     SCOPED_TIMER("Level", std::to_string(_hierarchy.size()), TIMER_BENCHMARK);
+
+    _label_propagation_core.set_desired_num_clusters(to_size);
 
     const NodeWeight max_cluster_weight = cb_max_cluster_weight(_current_graph->n());
 

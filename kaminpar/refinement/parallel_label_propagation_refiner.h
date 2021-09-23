@@ -20,22 +20,21 @@ struct LabelPropagationRefinerConfig : public LabelPropagationConfig {
   static constexpr bool kReportEmptyClusters = false;
 };
 
-class LabelPropagationRefiner final : public LabelPropagation<LabelPropagationRefiner, LabelPropagationRefinerConfig>,
-                                      public Refiner {
-  using Base = LabelPropagation<LabelPropagationRefiner, LabelPropagationRefinerConfig>;
+class LabelPropagationRefiner final
+    : public ChunkRandomizedLabelPropagation<LabelPropagationRefiner, LabelPropagationRefinerConfig>,
+      public Refiner {
+  using Base = ChunkRandomizedLabelPropagation<LabelPropagationRefiner, LabelPropagationRefinerConfig>;
   friend Base;
 
   static constexpr std::size_t kInfiniteIterations = std::numeric_limits<std::size_t>::max();
 
 public:
-  LabelPropagationRefiner(const Graph &graph, const PartitionContext &p_ctx, const RefinementContext &r_ctx)
-      : Base{graph.n(), p_ctx.k},
+  LabelPropagationRefiner(const Graph &graph, const PartitionContext & /* p_ctx */, const RefinementContext &r_ctx)
+      : Base{graph.n()},
         _r_ctx{r_ctx} {
     set_max_degree(r_ctx.lp.large_degree_threshold);
     set_max_num_neighbors(r_ctx.lp.max_num_neighbors);
   }
-
-  [[nodiscard]] EdgeWeight expected_total_gain() const final { return Base::expected_total_gain(); }
 
   void initialize(const Graph &graph) final { _graph = &graph; }
 
@@ -44,25 +43,39 @@ public:
     ASSERT(p_graph.k() <= p_ctx.k);
     _p_graph = &p_graph;
     _p_ctx = &p_ctx;
-    Base::initialize(_graph); // we actually need _p_graph to initialize the algorithm
+    Base::initialize(_graph, _p_ctx->k);
 
     const std::size_t max_iterations = _r_ctx.lp.num_iterations == 0 ? kInfiniteIterations : _r_ctx.lp.num_iterations;
     for (std::size_t iteration = 0; iteration < max_iterations; ++iteration) {
       SCOPED_TIMER("Label Propagation");
-      const auto [num_moved_nodes, num_emptied_clusters] = randomized_iteration();
-      if (num_moved_nodes == 0) { return false; }
+      if (perform_iteration() == 0) { return false; }
     }
 
     return true;
   }
 
-private:
-  void reset_node_state(const NodeID) const {}
+  [[nodiscard]] EdgeWeight expected_total_gain() const final { return Base::expected_total_gain(); }
+
+public:
+  [[nodiscard]] BlockID initial_cluster(const NodeID u) const { return _p_graph->block(u); }
+
+  [[nodiscard]] BlockWeight initial_cluster_weight(const BlockID b) const { return _p_graph->block_weight(b); }
+
+  [[nodiscard]] BlockWeight cluster_weight(const BlockID b) const { return _p_graph->block_weight(b); }
+
+  bool move_cluster_weight(const BlockID old_block, const BlockID new_block, const BlockWeight delta,
+                           const BlockWeight max_weight) {
+    return _p_graph->try_move_block_weight(old_block, new_block, delta, max_weight);
+  }
+
+  void init_cluster(const NodeID /* u */, const BlockID /* b */) const {}
+
+  void init_cluster_weight(const BlockID /* b */, const BlockWeight /* weight */) const {}
+
   [[nodiscard]] BlockID cluster(const NodeID u) const { return _p_graph->block(u); }
-  void set_cluster(const NodeID u, const BlockID block) { _p_graph->set_block(u, block); }
-  BlockID num_clusters() { return _p_graph->k(); }
-  BlockWeight initial_cluster_weight(const BlockID block) { return _p_graph->block_weight(block); }
-  BlockWeight max_cluster_weight(const BlockID block) { return _p_ctx->max_block_weight(block); }
+  void move_node(const NodeID u, const BlockID block) { _p_graph->set_block<false>(u, block); }
+  [[nodiscard]] BlockID num_clusters() const { return _p_graph->k(); }
+  [[nodiscard]] BlockWeight max_cluster_weight(const BlockID block) const { return _p_ctx->max_block_weight(block); }
 
   bool accept_cluster(const Base::ClusterSelectionState &state) {
     static_assert(std::is_signed_v<NodeWeight>);

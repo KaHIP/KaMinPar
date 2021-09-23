@@ -53,8 +53,7 @@ int main(int argc, char *argv[]) {
     LOG << "Iteration " << i;
 
     if (flat) {
-      LabelPropagationClustering lp_core{graph.n(), ctx.coarsening.enforce_contraction_limit ? 0.5 : 0.0,
-                                         ctx.coarsening.lp};
+      LabelPropagationClustering lp_core{graph.n(), ctx.coarsening.lp};
       const auto max_cluster_weight = compute_max_cluster_weight(graph, ctx.partition, ctx.coarsening);
       LOG << "max_cluster_weight=" << max_cluster_weight << " num_iterations=" << ctx.coarsening.lp.num_iterations;
       START_TIMER("Label Propagation");
@@ -68,8 +67,9 @@ int main(int argc, char *argv[]) {
 
       while (shrunk) {
         const auto max_cluster_weight = compute_max_cluster_weight(*c_graph, ctx.partition, ctx.coarsening);
-        const auto result = coarsener.coarsen(max_cluster_weight);
-        if (ctx.coarsening.should_converge(c_graph->n(), result.first->n())) { break; }
+        const NodeID old_n = c_graph->n();
+        const auto result = coarsener.coarsen(max_cluster_weight); // might invalidate c_graph ptr
+        if (ctx.coarsening.should_converge(old_n, result.first->n())) { break; }
         std::tie(c_graph, shrunk) = result;
       }
     }

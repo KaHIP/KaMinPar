@@ -17,7 +17,8 @@
 namespace kaminpar::graph {
 using namespace contraction;
 
-Result contract(const Graph &graph, const scalable_vector<NodeID> &clustering, MemoryContext m_ctx) {
+namespace {
+Result contract_generic_clustering(const Graph &graph, const auto &clustering, MemoryContext m_ctx) {
   auto &buckets_index = m_ctx.buckets_index;
   auto &buckets = m_ctx.buckets;
   auto &leader_mapping = m_ctx.leader_mapping;
@@ -186,6 +187,16 @@ Result contract(const Graph &graph, const scalable_vector<NodeID> &clustering, M
 
   return {Graph{std::move(c_nodes), std::move(c_edges), std::move(c_node_weights), std::move(c_edge_weights)},
           std::move(mapping), std::move(m_ctx)};
+}
+} // namespace
+
+Result contract(const Graph &graph, const scalable_vector<NodeID> &clustering, MemoryContext m_ctx) {
+  return contract_generic_clustering(graph, clustering, std::move(m_ctx));
+}
+
+Result contract(const Graph &graph, const scalable_vector<parallel::IntegralAtomicWrapper<NodeID>> &clustering,
+                MemoryContext m_ctx) {
+  return contract_generic_clustering(graph, clustering, std::move(m_ctx));
 }
 
 } // namespace kaminpar::graph
