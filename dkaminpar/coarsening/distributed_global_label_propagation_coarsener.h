@@ -25,34 +25,70 @@
 #include "kaminpar/datastructure/fast_reset_array.h"
 #include "kaminpar/datastructure/rating_map.h"
 
+#include <allocator/alignedallocator.hpp>
+#include <data-structures/table_config.hpp>
+#include <utils/hash/murmur2_hash.hpp>
+
 namespace dkaminpar {
+template<typename ClusterID, typename ClusterWeight>
+class OwnedRelaxedClusterWeightMap {
+  using hasher_type = utils_tm::hash_tm::murmur2_hash;
+  using allocator_type = growt::AlignedAllocator<>;
+  using table_type = typename growt::table_config<ClusterID, ClusterWeight, hasher_type, allocator_type, hmod::growable,
+                                                  hmod::deletion>::table_type;
+
+protected:
+  explicit OwnedRelaxedClusterWeightMap(const ClusterID max_num_clusters) : _cluster_weights(max_num_clusters) {}
+
+  auto &&take_cluster_weights() { return std::move(_cluster_weights); }
+
+  void init_cluster_weight(const ClusterID cluster, const ClusterWeight weight) { _cluster_weights[cluster] = weight; }
+
+  ClusterWeight cluster_weight(const ClusterID cluster) const { return _cluster_weights[cluster]; }
+
+  bool move_cluster_weight(const ClusterID old_cluster, const ClusterID new_cluster, const ClusterWeight delta,
+                           const ClusterWeight max_weight) {
+    if (_cluster_weights[new_cluster] + delta <= max_weight) {
+      _cluster_weights[new_cluster] += delta;
+      _cluster_weights[old_cluster] -= delta;
+      return true;
+    }
+    return false;
+  }
+
+private:
+  table_type _cluster_weights;
+};
+
 struct DistributedGlobalLabelPropagationClusteringConfig : public shm::LabelPropagationConfig {
   using Graph = DistributedGraph;
   using ClusterID = GlobalNodeID;
   using ClusterWeight = GlobalNodeWeight;
-  static constexpr bool kUseHardWeightConstraint = false;
-  static constexpr bool kReportEmptyClusters = true;
+  static constexpr bool kTrackClusterCount = false;
+  static constexpr bool kUseTwoHopClustering = true;
 };
 
 class DistributedGlobalLabelPropagationClustering final
     : public shm::LabelPropagation<DistributedGlobalLabelPropagationClustering,
-                                   DistributedGlobalLabelPropagationClusteringConfig> {
+                                   DistributedGlobalLabelPropagationClusteringConfig>,
+      public OwnedRelaxedClusterWeightMap<GlobalNodeID, NodeWeight>,
+      public shm::OwnedClusterVector<NodeID, GlobalNodeID> {
   SET_DEBUG(true);
 
   using Base = shm::LabelPropagation<DistributedGlobalLabelPropagationClustering,
                                      DistributedGlobalLabelPropagationClusteringConfig>;
-  friend Base;
+  using ClusterWeightBase = OwnedRelaxedClusterWeightMap<GlobalNodeID, NodeWeight>;
+  using ClusterBase = shm::OwnedClusterVector<NodeID, GlobalNodeID>;
 
   static constexpr std::size_t kInfiniteIterations{std::numeric_limits<std::size_t>::max()};
 
 public:
   DistributedGlobalLabelPropagationClustering(const NodeID max_n, const double shrink_factor,
                                               const LabelPropagationCoarseningContext &lp_ctx)
-      : Base{max_n, max_n},
-        _shrink_factor{shrink_factor},
+      : Base{max_n},
+        ClusterWeightBase{max_n},
+        ClusterBase{max_n},
         _max_cluster_weight{kInvalidBlockWeight} {
-    _clustering.resize(max_n);
-    _favored_clustering.resize(max_n);
     set_max_degree(lp_ctx.large_degree_threshold);
     set_max_num_neighbors(lp_ctx.max_num_neighbors);
   }
@@ -107,12 +143,6 @@ private:
     return _current_size - num_emptied_clusters < _target_size;
   }
 
-  double _shrink_factor;
-  scalable_vector<shm::parallel::IntegralAtomicWrapper<GlobalNodeID>> _clustering;
-  scalable_vector<shm::parallel::IntegralAtomicWrapper<GlobalNodeID>> _favored_clustering;
   NodeWeight _max_cluster_weight;
-
-  GlobalNodeID _current_size{};
-  GlobalNodeID _target_size{};
 };
 } // namespace dkaminpar

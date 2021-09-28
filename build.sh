@@ -8,7 +8,7 @@ function build_target {
   cmake --build build --parallel "$(get_num_cores)" --target $1
 }
 
-git submodule update --init
+git submodule update --init --recursive
 
 PROJECT_ROOT=$(pwd)
 if [ ! -f build/Makefile ]; then
