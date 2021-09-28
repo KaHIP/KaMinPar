@@ -447,7 +447,7 @@ protected:
   }
 
   NodeID perform_iteration(const NodeID from = 0, const NodeID to = std::numeric_limits<NodeID>::max()) {
-    ASSERT(from == 0 && to == std::numeric_limits<NodeID>::max())
+    ALWAYS_ASSERT(from == 0 && to == std::numeric_limits<NodeID>::max())
         << "randomized iteration does not support node ranges";
 
     if (_chunks.empty()) { init_chunks(); }
