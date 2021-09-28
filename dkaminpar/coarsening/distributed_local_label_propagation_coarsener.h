@@ -30,68 +30,63 @@ struct DistributedLocalLabelPropagationClusteringConfig : public shm::LabelPropa
   using Graph = DistributedGraph;
   using ClusterID = NodeID;
   using ClusterWeight = NodeWeight;
-  static constexpr bool kUseHardWeightConstraint = false;
-  static constexpr bool kReportEmptyClusters = true;
+  static constexpr bool kTrackClusterCount = false;
+  static constexpr bool kUseTwoHopClustering = true;
 };
 
 class DistributedLocalLabelPropagationClustering final
-    : public shm::LabelPropagation<DistributedLocalLabelPropagationClustering,
-                                   DistributedLocalLabelPropagationClusteringConfig> {
+    : public shm::ChunkRandomizedLabelPropagation<DistributedLocalLabelPropagationClustering,
+                                                  DistributedLocalLabelPropagationClusteringConfig>,
+      public shm::OwnedClusterVector<NodeID, NodeID>,
+      public shm::OwnedRelaxedClusterWeightVector<NodeID, NodeWeight> {
   SET_DEBUG(true);
 
-  using Base = shm::LabelPropagation<DistributedLocalLabelPropagationClustering,
-                                     DistributedLocalLabelPropagationClusteringConfig>;
-  friend Base;
+  using Base = shm::ChunkRandomizedLabelPropagation<DistributedLocalLabelPropagationClustering,
+                                                    DistributedLocalLabelPropagationClusteringConfig>;
+  using ClusterBase = shm::OwnedClusterVector<NodeID, NodeID>;
+  using ClusterWeightBase = shm::OwnedRelaxedClusterWeightVector<NodeID, NodeWeight>;
 
   static constexpr std::size_t kInfiniteIterations{std::numeric_limits<std::size_t>::max()};
 
 public:
-  DistributedLocalLabelPropagationClustering(const NodeID max_n, const double shrink_factor,
-                                             const LabelPropagationCoarseningContext &lp_ctx)
-      : Base{max_n, max_n},
-        _shrink_factor{shrink_factor},
+  using ClusterBase::cluster;
+  using ClusterBase::init_cluster;
+  using ClusterBase::move_node;
+  using ClusterWeightBase::cluster_weight;
+  using ClusterWeightBase::init_cluster_weight;
+  using ClusterWeightBase::move_cluster_weight;
+
+  DistributedLocalLabelPropagationClustering(const NodeID max_n, const LabelPropagationCoarseningContext &lp_ctx)
+      : Base{max_n},
+        ClusterBase{max_n},
+        ClusterWeightBase{max_n},
         _max_cluster_weight{kInvalidBlockWeight} {
-    _clustering.resize(max_n);
-    _favored_clustering.resize(max_n);
     set_max_degree(lp_ctx.large_degree_threshold);
     set_max_num_neighbors(lp_ctx.max_num_neighbors);
   }
 
   const auto &cluster(const DistributedGraph &graph, const NodeWeight max_cluster_weight,
                       const std::size_t max_iterations = kInfiniteIterations) {
-    ASSERT(_clustering.size() >= graph.n());
-
-    initialize(&graph);
+    initialize(&graph, graph.n());
     _max_cluster_weight = max_cluster_weight;
-    _current_size = graph.n();
-    _target_size = static_cast<NodeID>(_shrink_factor * _current_size);
-    NodeID total_num_emptied_clusters = 0;
 
     for (std::size_t iteration = 0; iteration < max_iterations; ++iteration) {
-      const auto [num_moved_nodes, num_emptied_clusters] = randomized_iteration();
-      _current_size -= num_emptied_clusters;
-      total_num_emptied_clusters += num_emptied_clusters;
-      if (num_moved_nodes == 0) { break; }
+      if (perform_iteration() == 0) { break; }
     }
 
-    return _clustering;
+    return clusters();
   }
 
-private:
-  // used in Base class
-  void reset_node_state(const NodeID u) {
-    _clustering[u] = u;
-    _favored_clustering[u] = u;
-  }
+  //
+  // Called from base class
+  //
 
-  [[nodiscard]] NodeID cluster(const NodeID u) const { return _clustering[u]; }
-  void set_cluster(const NodeID u, const NodeID cluster) { _clustering[u] = cluster; }
-  void set_favored_cluster(const NodeID u, const NodeID cluster) { _favored_clustering[u] = cluster; }
-  [[nodiscard]] NodeID num_clusters() const { return _graph->n(); }
+  [[nodiscard]] NodeID initial_cluster(const NodeID u) const { return u; }
+
   [[nodiscard]] NodeWeight initial_cluster_weight(const NodeID cluster) const { return _graph->node_weight(cluster); }
+
   [[nodiscard]] NodeWeight max_cluster_weight(const NodeID) const { return _max_cluster_weight; }
 
-  // do not join clusters of ghost nodes
   [[nodiscard]] bool accept_cluster(const Base::ClusterSelectionState &state) const {
     return (state.current_gain > state.best_gain ||
             (state.current_gain == state.best_gain && state.local_rand.random_bool())) &&
@@ -99,18 +94,11 @@ private:
             state.current_cluster == state.initial_cluster);
   }
 
-  [[nodiscard]] bool should_stop(const NodeID num_emptied_clusters) const {
-    return _current_size - num_emptied_clusters < _target_size;
-  }
+  [[nodiscard]] bool accept_neighbor(const NodeID u) const { return _graph->is_owned_node(u); }
 
-  [[nodiscard]] bool consider_neighbor(const NodeID u) const { return _graph->is_owned_node(u); }
+  [[nodiscard]] bool activate_neighbor(const NodeID u) const { return _graph->is_owned_node(u); }
 
-  double _shrink_factor;
-  scalable_vector<NodeID> _clustering;
-  scalable_vector<shm::parallel::IntegralAtomicWrapper<NodeID>> _favored_clustering;
+  using Base::_graph;
   NodeWeight _max_cluster_weight;
-
-  NodeID _current_size{};
-  NodeID _target_size{};
 };
 } // namespace dkaminpar

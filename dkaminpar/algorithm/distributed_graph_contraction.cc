@@ -35,7 +35,7 @@ SET_DEBUG(true);
  * Local cluster contraction
  */
 
-Result contract_local_clustering(const DistributedGraph &graph, const scalable_vector<NodeID> &clustering,
+Result contract_local_clustering(const DistributedGraph &graph, const scalable_vector<shm::parallel::IntegralAtomicWrapper<NodeID>> &clustering,
                                  MemoryContext m_ctx) {
   ASSERT(clustering.size() == graph.n());
 
@@ -278,7 +278,7 @@ Result contract_local_clustering(const DistributedGraph &graph, const scalable_v
 
 namespace {} // namespace
 
-contraction::Result contract_global_clustering(const DistributedGraph &graph, const scalable_vector<NodeID> &clustering,
+contraction::Result contract_global_clustering(const DistributedGraph &graph, const scalable_vector<shm::parallel::IntegralAtomicWrapper<NodeID>> &clustering,
                                                contraction::MemoryContext m_ctx) {
   ASSERT(clustering.size() == graph.total_n());
 

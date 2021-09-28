@@ -228,7 +228,7 @@ protected:
 
   void activate_neighbors(const NodeID u) {
     for (const NodeID v : _graph->adjacent_nodes(u)) {
-      if (derived_accept_neighbor(v)) { _active[v].store(1, std::memory_order_relaxed); }
+      if (derived_activate_neighbor(v)) { _active[v].store(1, std::memory_order_relaxed); }
     }
   }
 
@@ -342,6 +342,10 @@ protected:
     return static_cast<Derived *>(this)->accept_neighbor(u);
   }
 
+  [[nodiscard]] inline bool derived_activate_neighbor(const NodeID u) {
+    return static_cast<Derived *>(this)->activate_neighbor(u);
+  }
+
   //
   // Default implementation for optional template methods
   //
@@ -349,6 +353,14 @@ protected:
   void reset_node_state(const NodeID /* node */) {}
 
   [[nodiscard]] inline bool accept_neighbor(const NodeID /* node */) const { return true; }
+
+  [[nodiscard]] inline bool activate_neighbor(const NodeID /* node */) const { return true; }
+
+  [[nodiscard]] inline ClusterID initial_cluster(const NodeID u) { return derived_cluster(u); }
+
+  [[nodiscard]] inline ClusterWeight initial_cluster_weight(const ClusterID cluster) {
+    return derived_cluster_weight(cluster);
+  }
 
 protected:
   const ClusterID _max_num_nodes;
@@ -373,12 +385,20 @@ class InOrderLabelPropagation : public LabelPropagation<Derived, Config> {
   using Base = LabelPropagation<Derived, Config>;
 
 protected:
+  using Graph = typename Base::Graph;
   using ClusterID = typename Base::ClusterID;
   using ClusterWeight = typename Base::ClusterWeight;
   using EdgeID = typename Base::EdgeID;
   using EdgeWeight = typename Base::EdgeWeight;
   using NodeID = typename Base::NodeID;
   using NodeWeight = typename Base::NodeWeight;
+
+  using Base::ClusterSelectionState;
+
+  using Base::handle_node;
+  using Base::set_max_degree;
+  using Base::set_max_num_neighbors;
+  using Base::should_stop;
 
   template<typename... Args>
   InOrderLabelPropagation(Args &&...args) : Base{std::forward<Args>(args)...} {}
@@ -423,6 +443,7 @@ class ChunkRandomizedLabelPropagation : public LabelPropagation<Derived, Config>
   using Base = LabelPropagation<Derived, Config>;
 
 protected:
+  using Graph = typename Base::Graph;
   using ClusterID = typename Base::ClusterID;
   using ClusterWeight = typename Base::ClusterWeight;
   using EdgeID = typename Base::EdgeID;

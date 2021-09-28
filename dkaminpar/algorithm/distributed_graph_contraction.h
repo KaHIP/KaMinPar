@@ -41,9 +41,9 @@ struct Result {
 };
 } // namespace contraction
 
-contraction::Result contract_local_clustering(const DistributedGraph &graph, const scalable_vector<NodeID> &clustering,
+contraction::Result contract_local_clustering(const DistributedGraph &graph, const scalable_vector<shm::parallel::IntegralAtomicWrapper<NodeID>> &clustering,
                                               contraction::MemoryContext m_ctx = {});
 
-contraction::Result contract_global_clustering(const DistributedGraph &graph, const scalable_vector<NodeID> &clustering,
+contraction::Result contract_global_clustering(const DistributedGraph &graph, const scalable_vector<shm::parallel::IntegralAtomicWrapper<NodeID>> &clustering,
                                                contraction::MemoryContext m_ctx = {});
 } // namespace dkaminpar::graph

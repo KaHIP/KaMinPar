@@ -18,7 +18,7 @@ void DistributedLabelPropagationRefiner::initialize(const DistributedGraph & /* 
 
 void DistributedLabelPropagationRefiner::refine(DistributedPartitionedGraph &p_graph) {
   _p_graph = &p_graph;
-  Base::initialize(&p_graph.graph()); // needs access to _p_graph
+  Base::initialize(&p_graph.graph(), _p_ctx->k); // needs access to _p_graph
 
   for (std::size_t iteration = 0; iteration < _lp_ctx.num_iterations; ++iteration) {
     for (std::size_t chunk = 0; chunk < _lp_ctx.num_chunks; ++chunk) {
@@ -34,7 +34,7 @@ void DistributedLabelPropagationRefiner::process_chunk(const NodeID from, const 
 
   // run label propagation
   DBG << "in_order label propagation " << from << ".." << to;
-  this->in_order_iteration(from, to);
+  this->perform_iteration(from, to);
 
   // accumulate total weight of nodes moved to each block
   DBG << "compute weight and gain to each block";

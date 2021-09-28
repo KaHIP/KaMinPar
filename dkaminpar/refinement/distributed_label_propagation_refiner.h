@@ -30,22 +30,24 @@ struct DistributedLabelPropagationRefinerConfig : public shm::LabelPropagationCo
   using Graph = DistributedGraph;
   using ClusterID = BlockID;
   using ClusterWeight = BlockWeight;
-  static constexpr bool kUseStrictWeightConstraint = false;
-  static constexpr bool kReportEmptyClusters = false;
+  static constexpr bool kTrackClusterCount = false;
+  static constexpr bool kUseTwoHopClustering = false;
 };
 
 class DistributedLabelPropagationRefiner final
-    : public shm::LabelPropagation<DistributedLabelPropagationRefiner, DistributedLabelPropagationRefinerConfig>,
-      DistributedRefiner {
-  using Base = shm::LabelPropagation<DistributedLabelPropagationRefiner, DistributedLabelPropagationRefinerConfig>;
+    : public shm::InOrderLabelPropagation<DistributedLabelPropagationRefiner, DistributedLabelPropagationRefinerConfig>,
+      public DistributedRefiner {
+  using Base = shm::InOrderLabelPropagation<DistributedLabelPropagationRefiner,
+                                            DistributedLabelPropagationRefinerConfig>;
   SET_DEBUG(true);
 
 public:
   explicit DistributedLabelPropagationRefiner(const Context &ctx)
-      : Base{ctx.partition.local_n(), ctx.partition.k},
+      : Base{ctx.partition.local_n()},
         _lp_ctx{ctx.refinement.lp},
         _next_partition(ctx.partition.local_n()),
-        _gains(ctx.partition.local_n()) {}
+        _gains(ctx.partition.local_n()),
+        _block_weights(ctx.partition.k) {}
 
   void initialize(const DistributedGraph & /* graph */, const PartitionContext &p_ctx) final;
 
@@ -60,12 +62,30 @@ private:
   void synchronize_state(NodeID from, NodeID to);
 
 public:
-  void reset_node_state(const NodeID u) { _next_partition[u] = _p_graph->block(u); }
+  void init_cluster(const NodeID u, const BlockID b) { _next_partition[u] = b; }
+
   [[nodiscard]] BlockID cluster(const NodeID u) const { return _next_partition[u]; }
-  void set_cluster(const NodeID u, const BlockID b) { _next_partition[u] = b; }
-  [[nodiscard]] BlockID num_clusters() const { return _p_graph->k(); }
+
+  void move_node(const NodeID u, const BlockID b) { _next_partition[u] = b; }
+
   [[nodiscard]] BlockWeight initial_cluster_weight(const BlockID b) const { return _p_graph->block_weight(b); }
+
+  [[nodiscard]] BlockWeight cluster_weight(const BlockID b) const { return _block_weights[b]; }
+
+  void init_cluster_weight(const BlockID b, const BlockWeight weight) { _block_weights[b] = weight; }
+
   [[nodiscard]] BlockWeight max_cluster_weight(const BlockID b) const { return _p_ctx->max_block_weight(b); }
+
+  [[nodiscard]] bool move_cluster_weight(const BlockID from, const BlockID to, const BlockWeight delta,
+                                         const BlockWeight max_weight) {
+    if (_block_weights[to] + delta <= max_weight) {
+      _block_weights[to] += delta;
+      _block_weights[from] -= delta;
+      return true;
+    }
+    return false;
+  }
+
   [[nodiscard]] bool accept_cluster(const ClusterSelectionState &state) {
     const bool accept = (state.current_gain > state.best_gain ||
                          (state.current_gain == state.best_gain && state.local_rand.random_bool())) &&
@@ -74,6 +94,7 @@ public:
     if (accept) { _gains[state.u] = state.current_gain; }
     return accept;
   }
+
   [[nodiscard]] bool activate_neighbor(const NodeID u) const { return u < _p_graph->n(); }
 
 private:
@@ -88,5 +109,6 @@ private:
 
   scalable_vector<BlockID> _next_partition;
   scalable_vector<EdgeWeight> _gains;
+  scalable_vector<shm::parallel::IntegralAtomicWrapper<BlockWeight>> _block_weights;
 };
 } // namespace dkaminpar

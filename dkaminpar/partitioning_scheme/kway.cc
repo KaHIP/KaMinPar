@@ -47,7 +47,7 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
                                                              _ctx.initial_partitioning.sequential.partition,
                                                              _ctx.initial_partitioning.sequential.coarsening);
     // TODO total_n() only required for rating map
-    DistributedLocalLabelPropagationClustering coarsener(c_graph->total_n(), 0.5, _ctx.coarsening.lp);
+    DistributedLocalLabelPropagationClustering coarsener(c_graph->total_n(), _ctx.coarsening.lp);
     auto &clustering = coarsener.cluster(*c_graph, max_cluster_weight, _ctx.coarsening.lp.num_iterations);
     MPI_Barrier(MPI_COMM_WORLD);
     DBG << "... contract";
