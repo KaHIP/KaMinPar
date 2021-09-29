@@ -28,6 +28,7 @@
 
 #include <allocator/alignedallocator.hpp>
 #include <data-structures/table_config.hpp>
+#include <tbb/enumerable_thread_specific.h>
 #include <utils/hash/murmur2_hash.hpp>
 
 namespace dkaminpar {
@@ -48,17 +49,20 @@ public:
   }
 
   ClusterWeight cluster_weight(const ClusterID cluster) /* const */ {
-    auto handle = _cluster_weights.get_handle();
+    auto &handle = _cluster_weights_handles_ets.local();
     auto it = handle.find(cluster);
     ASSERT(it != handle.end());
-//    return *it;
-    return 0; // TODO
+    // ‘growt::migration_table_iterator<growt::migration_table_handle<growt::migration_table_data<growt::migration_table<growt::base_linear<growt::base_linear_config<growt::simple_slot<long unsigned int, int, true, 9223372036854775807>, utils_tm::hash_tm::murmur2_hash, growt::GenericAlignedAllocator<char, 128>, false, false, false> >, growt::table_config<long unsigned int, int, utils_tm::hash_tm::murmur2_hash, growt::GenericAlignedAllocator<char, 128>, hmod::growable, hmod::deletion>::workerstrat, growt::table_config<long unsigned int, int, utils_tm::hash_tm::murmur2_hash, growt::GenericAlignedAllocator<char, 128>, hmod::growable, hmod::deletion>::exclstrat> > >, false>’
+//    static_cast<int>(it);
+    // ‘growt::migration_table_reference<growt::migration_table_handle<growt::migration_table_data<growt::migration_table<growt::base_linear<growt::base_linear_config<growt::simple_slot<long unsigned int, int, true, 9223372036854775807>, utils_tm::hash_tm::murmur2_hash, growt::GenericAlignedAllocator<char, 128>, false, false, false> >, growt::table_config<long unsigned int, int, utils_tm::hash_tm::murmur2_hash, growt::GenericAlignedAllocator<char, 128>, hmod::growable, hmod::deletion>::workerstrat, growt::table_config<long unsigned int, int, utils_tm::hash_tm::murmur2_hash, growt::GenericAlignedAllocator<char, 128>, hmod::growable, hmod::deletion>::exclstrat> > >, false>’
+//    typename decltype(*it)::value_type i = "asd";
+    return (*it).second;
   }
 
   bool move_cluster_weight(const ClusterID old_cluster, const ClusterID new_cluster, const ClusterWeight delta,
                            const ClusterWeight max_weight) {
     if (cluster_weight(old_cluster) + delta <= max_weight) {
-      auto handle = _cluster_weights.get_handle();
+      auto &handle = _cluster_weights_handles_ets.local();
 
       const auto [old_it, old_found] = handle.update(
           old_cluster, [delta](auto &lhs, const auto rhs) { return lhs -= rhs; }, delta);
@@ -77,6 +81,8 @@ public:
 
 private:
   table_type _cluster_weights;
+  tbb::enumerable_thread_specific<typename table_type::handle_type> _cluster_weights_handles_ets{
+      [&] { return _cluster_weights.get_handle(); }};
 };
 
 struct DistributedGlobalLabelPropagationClusteringConfig : public shm::LabelPropagationConfig {
@@ -113,7 +119,7 @@ public:
   }
 
   const AtomicClusterArray &compute_clustering(const DistributedGraph &graph,
-                                                                         const NodeWeight max_cluster_weight) final;
+                                               const NodeWeight max_cluster_weight) final;
 
   void set_max_num_iterations(const std::size_t max_num_iterations) {
     _max_num_iterations = max_num_iterations == 0 ? std::numeric_limits<std::size_t>::max() : max_num_iterations;
