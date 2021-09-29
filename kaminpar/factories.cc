@@ -8,12 +8,16 @@
  ******************************************************************************/
 #include "kaminpar/factories.h"
 
-#include "kaminpar/coarsening/parallel_label_propagation_coarsener.h"
-#include "refinement/parallel_balancer.h"
-#include "refinement/parallel_label_propagation_refiner.h"
+#include "kaminpar/coarsening/label_propagation_clustering.h"
+#include "kaminpar/coarsening/cluster_coarsener.h"
+#include "kaminpar/coarsening/noop_coarsener.h"
+#include "kaminpar/refinement/parallel_balancer.h"
+#include "kaminpar/refinement/parallel_label_propagation_refiner.h"
+
+#include <memory>
 
 namespace kaminpar::factory {
-std::unique_ptr<Coarsener> create_coarsener(const Graph &graph, const CoarseningContext &c_ctx) {
+std::unique_ptr<ICoarsener> create_coarsener(const Graph &graph, const CoarseningContext &c_ctx) {
   SCOPED_TIMER("Allocation");
 
   switch (c_ctx.algorithm) {
@@ -22,7 +26,9 @@ std::unique_ptr<Coarsener> create_coarsener(const Graph &graph, const Coarsening
     }
 
     case ClusteringAlgorithm::LABEL_PROPAGATION: {
-      return std::make_unique<ParallelLabelPropagationCoarsener>(graph, c_ctx);
+      auto clustering_algorithm = std::make_unique<LabelPropagationClusteringAlgorithm>(graph.n(), c_ctx);
+      auto coarsener = std::make_unique<ClusteringCoarsener>(std::move(clustering_algorithm), graph, c_ctx);
+      return coarsener;
     }
   }
 

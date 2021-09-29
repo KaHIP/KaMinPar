@@ -45,7 +45,7 @@ void update_partition_context(PartitionContext &current_p_ctx, const Partitioned
   current_p_ctx.setup_max_block_weight(p_graph.final_ks());
 }
 
-PartitionedGraph uncoarsen_once(Coarsener *coarsener, PartitionedGraph p_graph, PartitionContext &current_p_ctx) {
+PartitionedGraph uncoarsen_once(ICoarsener *coarsener, PartitionedGraph p_graph, PartitionContext &current_p_ctx) {
   SCOPED_TIMER("Uncoarsening");
 
   if (!coarsener->empty()) {
@@ -186,11 +186,11 @@ void extend_partition(PartitionedGraph &p_graph, const BlockID k_prime, const Co
   extend_partition(p_graph, k_prime, input_ctx, current_p_ctx, memory, extraction_pool, ip_m_ctx_pool);
 }
 
-bool coarsen_once(Coarsener *coarsener, const Graph *graph, const Context &input_ctx, PartitionContext &current_p_ctx) {
+bool coarsen_once(ICoarsener *coarsener, const Graph *graph, const Context &input_ctx, PartitionContext &current_p_ctx) {
   SCOPED_TIMER("Coarsening");
 
   const NodeWeight max_cluster_weight = compute_max_cluster_weight(*graph, input_ctx.partition, input_ctx.coarsening);
-  const auto [c_graph, shrunk] = coarsener->coarsen(max_cluster_weight);
+  const auto [c_graph, shrunk] = coarsener->compute_coarse_graph(max_cluster_weight, 0);
 
   CLOG << "-> "                                              //
        << "n=" << c_graph->n() << " "                        //

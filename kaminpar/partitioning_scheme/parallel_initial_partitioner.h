@@ -7,7 +7,7 @@
  ******************************************************************************/
 #pragma once
 
-#include "kaminpar/coarsening/parallel_label_propagation_coarsener.h"
+#include "kaminpar/coarsening/label_propagation_clustering.h"
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/partitioning_scheme/helper.h"
 #include "kaminpar/refinement/parallel_balancer.h"
@@ -27,13 +27,13 @@ public:
   ParallelInitialPartitioner(const Context &input_ctx, GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool,
                              TemporaryGraphExtractionBufferPool &ip_extraction_pool);
 
-  PartitionedGraph partition(const Coarsener *coarsener, const PartitionContext &p_ctx);
+  PartitionedGraph partition(const ICoarsener *coarsener, const PartitionContext &p_ctx);
 
 private:
-  PartitionedGraph partition_recursive(const Coarsener *parent_coarsener, PartitionContext &p_ctx,
+  PartitionedGraph partition_recursive(const ICoarsener *parent_coarsener, PartitionContext &p_ctx,
                                        std::size_t num_threads);
 
-  PartitionedGraph split_and_join(const Coarsener *coarsener, const PartitionContext &p_ctx, bool converged,
+  PartitionedGraph split_and_join(const ICoarsener *coarsener, const PartitionContext &p_ctx, bool converged,
                                   std::size_t num_threads);
 
   const Context &_input_ctx;

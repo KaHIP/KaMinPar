@@ -11,15 +11,12 @@
 #include "dkaminpar/distributed_definitions.h"
 
 namespace dkaminpar {
-namespace clustering {
-template<typename ClusterID>
-using AtomicClusterArray = scalable_vector<shm::parallel::IntegralAtomicWrapper<ClusterID>>;
-}
-
 template<typename ClusterID>
 class ClusteringAlgorithm {
 public:
-  virtual const clustering::AtomicClusterArray<ClusterID> &cluster(const DistributedGraph &graph,
-                                                                   const NodeWeight max_cluster_weight) = 0;
+  using AtomicClusterArray = scalable_vector<shm::parallel::IntegralAtomicWrapper<ClusterID>>;
+
+  virtual const AtomicClusterArray &compute_clustering(const DistributedGraph &graph,
+                                                       const NodeWeight max_cluster_weight) = 0;
 };
 } // namespace dkaminpar

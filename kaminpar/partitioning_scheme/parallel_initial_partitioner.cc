@@ -15,12 +15,12 @@ ParallelInitialPartitioner::ParallelInitialPartitioner(const Context &input_ctx,
       _ip_m_ctx_pool{ip_m_ctx_pool},
       _ip_extraction_pool{ip_extraction_pool} {}
 
-PartitionedGraph ParallelInitialPartitioner::partition(const Coarsener *coarsener, const PartitionContext &p_ctx) {
+PartitionedGraph ParallelInitialPartitioner::partition(const ICoarsener *coarsener, const PartitionContext &p_ctx) {
   const std::size_t num_threads = helper::compute_num_threads_for_parallel_ip(_input_ctx);
   return split_and_join(coarsener, p_ctx, false, num_threads);
 }
 
-PartitionedGraph ParallelInitialPartitioner::partition_recursive(const Coarsener *parent_coarsener,
+PartitionedGraph ParallelInitialPartitioner::partition_recursive(const ICoarsener *parent_coarsener,
                                                                  PartitionContext &p_ctx,
                                                                  const std::size_t num_threads) {
   const Graph *graph = parent_coarsener->coarsest_graph();
@@ -29,13 +29,13 @@ PartitionedGraph ParallelInitialPartitioner::partition_recursive(const Coarsener
     DBG << "Sequential base case";
     return helper::bipartition(graph, _input_ctx.partition.k, _input_ctx, _ip_m_ctx_pool);
   } else { // recursive / parallel case
-    ParallelLabelPropagationCoarsener coarsener{*graph, _input_ctx.coarsening};
-    const bool shrunk = helper::coarsen_once(&coarsener, graph, _input_ctx, p_ctx);
+    auto coarsener = factory::create_coarsener(*graph, _input_ctx.coarsening);
+    const bool shrunk = helper::coarsen_once(coarsener.get(), graph, _input_ctx, p_ctx);
 
-    PartitionedGraph p_graph = split_and_join(&coarsener, p_ctx, !shrunk, num_threads);
+    PartitionedGraph p_graph = split_and_join(coarsener.get(), p_ctx, !shrunk, num_threads);
 
     // uncoarsen and refine
-    p_graph = helper::uncoarsen_once(&coarsener, std::move(p_graph), p_ctx);
+    p_graph = helper::uncoarsen_once(coarsener.get(), std::move(p_graph), p_ctx);
     auto refiner = factory::create_refiner(p_graph.graph(), p_ctx, _input_ctx.refinement);
     auto balancer = factory::create_balancer(p_graph.graph(), p_ctx, _input_ctx.refinement);
     helper::refine(refiner.get(), balancer.get(), p_graph, p_ctx, _input_ctx.refinement);
@@ -51,7 +51,7 @@ PartitionedGraph ParallelInitialPartitioner::partition_recursive(const Coarsener
   }
 }
 
-PartitionedGraph ParallelInitialPartitioner::split_and_join(const Coarsener *coarsener, const PartitionContext &p_ctx,
+PartitionedGraph ParallelInitialPartitioner::split_and_join(const ICoarsener *coarsener, const PartitionContext &p_ctx,
                                                             const bool converged, const std::size_t num_threads) {
   const Graph *graph = coarsener->coarsest_graph();
   const std::size_t num_copies = helper::compute_num_copies(_input_ctx, graph->n(), converged, num_threads);

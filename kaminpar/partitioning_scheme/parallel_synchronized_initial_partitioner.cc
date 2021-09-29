@@ -15,11 +15,11 @@ ParallelSynchronizedInitialPartitioner::ParallelSynchronizedInitialPartitioner(
       _ip_m_ctx_pool{ip_m_ctx_pool},
       _ip_extraction_pool{ip_extraction_pool} {}
 
-PartitionedGraph ParallelSynchronizedInitialPartitioner::partition(const Coarsener *coarsener,
+PartitionedGraph ParallelSynchronizedInitialPartitioner::partition(const ICoarsener *coarsener,
                                                                    const PartitionContext &p_ctx) {
   const std::size_t num_threads = helper::compute_num_threads_for_parallel_ip(_input_ctx);
 
-  std::vector<std::vector<std::unique_ptr<Coarsener>>> coarseners(1);
+  std::vector<std::vector<std::unique_ptr<ICoarsener>>> coarseners(1);
   std::vector<PartitionContext> current_p_ctxs;
   coarseners[0].push_back(duplicate_coarsener(coarsener));
   current_p_ctxs.push_back(p_ctx);
@@ -127,7 +127,7 @@ PartitionedGraph ParallelSynchronizedInitialPartitioner::partition(const Coarsen
   return std::move(current_p_graphs.front());
 }
 
-std::unique_ptr<Coarsener> ParallelSynchronizedInitialPartitioner::duplicate_coarsener(const Coarsener *coarsener) {
+std::unique_ptr<ICoarsener> ParallelSynchronizedInitialPartitioner::duplicate_coarsener(const ICoarsener *coarsener) {
   return factory::create_coarsener(*coarsener->coarsest_graph(), _input_ctx.coarsening);
 }
 } // namespace kaminpar::partitioning

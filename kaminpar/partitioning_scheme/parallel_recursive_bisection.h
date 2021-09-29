@@ -8,7 +8,7 @@
 #pragma once
 
 #include "kaminpar/algorithm/graph_extraction.h"
-#include "kaminpar/coarsening/parallel_label_propagation_coarsener.h"
+#include "kaminpar/coarsening/label_propagation_clustering.h"
 #include "kaminpar/context.h"
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/factories.h"
@@ -62,7 +62,7 @@ private:
   PartitionContext _current_p_ctx;
 
   // Coarsening
-  std::unique_ptr<Coarsener> _coarsener;
+  std::unique_ptr<ICoarsener> _coarsener;
 
   // Refinement
   std::unique_ptr<Refiner> _refiner;

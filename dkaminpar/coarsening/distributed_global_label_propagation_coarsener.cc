@@ -10,9 +10,9 @@
 #include "dkaminpar/coarsening/distributed_global_label_propagation_coarsener.h"
 
 namespace dkaminpar {
-const clustering::AtomicClusterArray<GlobalNodeID> &
-DistributedGlobalLabelPropagationClustering::cluster(const DistributedGraph &graph,
-                                                     const NodeWeight max_cluster_weight) {
+const DistributedGlobalLabelPropagationClustering::AtomicClusterArray &
+DistributedGlobalLabelPropagationClustering::compute_clustering(const DistributedGraph &graph,
+                                                                const NodeWeight max_cluster_weight) {
   initialize(&graph, graph.total_n());
   _max_cluster_weight = max_cluster_weight;
 

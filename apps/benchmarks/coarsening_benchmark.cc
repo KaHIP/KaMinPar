@@ -8,10 +8,12 @@
 #include "apps/apps.h"
 #include "kaminpar/application/arguments.h"
 #include "kaminpar/application/arguments_parser.h"
-#include "kaminpar/coarsening/parallel_label_propagation_coarsener.h"
+#include "kaminpar/coarsening/cluster_coarsener.h"
+#include "kaminpar/coarsening/label_propagation_clustering.h"
 #include "kaminpar/context.h"
 #include "kaminpar/io.h"
 #include "kaminpar/utility/timer.h"
+#include "kaminpar/utility/random.h"
 
 using namespace kaminpar;
 
@@ -53,14 +55,16 @@ int main(int argc, char *argv[]) {
     LOG << "Iteration " << i;
 
     if (flat) {
-      LabelPropagationClustering lp_core{graph.n(), ctx.coarsening.lp};
       const auto max_cluster_weight = compute_max_cluster_weight(graph, ctx.partition, ctx.coarsening);
       LOG << "max_cluster_weight=" << max_cluster_weight << " num_iterations=" << ctx.coarsening.lp.num_iterations;
       START_TIMER("Label Propagation");
-      lp_core.cluster(graph, max_cluster_weight, ctx.coarsening.lp.num_iterations);
+
+      LabelPropagationClusteringAlgorithm lp_core{graph.n(), ctx.coarsening};
+      lp_core.set_max_cluster_weight(max_cluster_weight);
+      lp_core.compute_clustering(graph);
       STOP_TIMER();
     } else {
-      ParallelLabelPropagationCoarsener coarsener{graph, ctx.coarsening};
+      ClusteringCoarsener coarsener{std::make_unique<LabelPropagationClusteringAlgorithm>(graph.n(), ctx.coarsening), graph, ctx.coarsening};
 
       const Graph *c_graph = &graph;
       bool shrunk = true;
@@ -68,7 +72,7 @@ int main(int argc, char *argv[]) {
       while (shrunk) {
         const auto max_cluster_weight = compute_max_cluster_weight(*c_graph, ctx.partition, ctx.coarsening);
         const NodeID old_n = c_graph->n();
-        const auto result = coarsener.coarsen(max_cluster_weight); // might invalidate c_graph ptr
+        const auto result = coarsener.compute_coarse_graph(max_cluster_weight, 0); // might invalidate c_graph ptr
         if (ctx.coarsening.should_converge(old_n, result.first->n())) { break; }
         std::tie(c_graph, shrunk) = result;
       }

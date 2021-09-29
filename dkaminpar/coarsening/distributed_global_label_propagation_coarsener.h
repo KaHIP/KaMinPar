@@ -38,7 +38,7 @@ class OwnedRelaxedClusterWeightMap {
   using table_type = typename growt::table_config<ClusterID, ClusterWeight, hasher_type, allocator_type, hmod::growable,
                                                   hmod::deletion>::table_type;
 
-protected:
+public:
   explicit OwnedRelaxedClusterWeightMap(const ClusterID max_num_clusters) : _cluster_weights(max_num_clusters) {}
 
   auto &&take_cluster_weights() { return std::move(_cluster_weights); }
@@ -51,7 +51,8 @@ protected:
     auto handle = _cluster_weights.get_handle();
     auto it = handle.find(cluster);
     ASSERT(it != handle.end());
-    return *it;
+//    return *it;
+    return 0; // TODO
   }
 
   bool move_cluster_weight(const ClusterID old_cluster, const ClusterID new_cluster, const ClusterWeight delta,
@@ -62,7 +63,7 @@ protected:
       const auto [old_it, old_found] = handle.update(
           old_cluster, [delta](auto &lhs, const auto rhs) { return lhs -= rhs; }, delta);
       const auto [new_it, new_found] = handle.update(
-          old_cluster, [delta](auto &lhs, const auto rhs) { return lhs += rhs; }, delta);
+          new_cluster, [delta](auto &lhs, const auto rhs) { return lhs += rhs; }, delta);
 
       ASSERT(old_found);
       UNUSED(old_found);
@@ -102,24 +103,17 @@ class DistributedGlobalLabelPropagationClustering final
   friend Base;
 
 public:
-  using ClusterBase::cluster;
-  using ClusterBase::init_cluster;
-  using ClusterBase::move_node;
-  using ClusterWeightBase::cluster_weight;
-  using ClusterWeightBase::init_cluster_weight;
-  using ClusterWeightBase::move_cluster_weight;
-
-  DistributedGlobalLabelPropagationClustering(const NodeID max_n, const LabelPropagationCoarseningContext &lp_ctx)
+  DistributedGlobalLabelPropagationClustering(const NodeID max_n, const CoarseningContext &c_ctx)
       : Base{max_n},
         ClusterWeightBase{max_n},
         ClusterBase{max_n} {
-    set_max_num_iterations(lp_ctx.num_iterations);
-    set_max_degree(lp_ctx.large_degree_threshold);
-    set_max_num_neighbors(lp_ctx.max_num_neighbors);
+    set_max_num_iterations(c_ctx.lp.num_iterations);
+    set_max_degree(c_ctx.lp.large_degree_threshold);
+    set_max_num_neighbors(c_ctx.lp.max_num_neighbors);
   }
 
-  const clustering::AtomicClusterArray<GlobalNodeID> &cluster(const DistributedGraph &graph,
-                                                              const NodeWeight max_cluster_weight) final;
+  const AtomicClusterArray &compute_clustering(const DistributedGraph &graph,
+                                                                         const NodeWeight max_cluster_weight) final;
 
   void set_max_num_iterations(const std::size_t max_num_iterations) {
     _max_num_iterations = max_num_iterations == 0 ? std::numeric_limits<std::size_t>::max() : max_num_iterations;

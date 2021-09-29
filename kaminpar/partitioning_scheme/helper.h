@@ -46,7 +46,7 @@ using TemporaryGraphExtractionBufferPool = tbb::enumerable_thread_specific<graph
 namespace helper {
 void update_partition_context(PartitionContext &p_ctx, const PartitionedGraph &p_graph);
 
-PartitionedGraph uncoarsen_once(Coarsener *coarsener, PartitionedGraph p_graph, PartitionContext &current_p_ctx);
+PartitionedGraph uncoarsen_once(ICoarsener *coarsener, PartitionedGraph p_graph, PartitionContext &current_p_ctx);
 
 void refine(Refiner *refiner, Balancer *balancer, PartitionedGraph &p_graph, const PartitionContext &current_p_ctx,
             const RefinementContext &r_ctx);
@@ -72,7 +72,7 @@ void extend_partition(PartitionedGraph &p_graph, BlockID k_prime, const Context 
                       PartitionContext &current_p_ctx, TemporaryGraphExtractionBufferPool &extraction_pool,
                       GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool);
 
-bool coarsen_once(Coarsener *coarsener, const Graph *graph, const Context &input_ctx, PartitionContext &current_p_ctx);
+bool coarsen_once(ICoarsener *coarsener, const Graph *graph, const Context &input_ctx, PartitionContext &current_p_ctx);
 
 // compute smallest k_prime such that it is a power of 2 and n / k_prime <= C
 BlockID compute_k_for_n(NodeID n, const Context &input_ctx);

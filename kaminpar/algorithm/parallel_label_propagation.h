@@ -608,7 +608,7 @@ protected:
 
 template<typename NodeID, typename ClusterID>
 class OwnedClusterVector {
-protected:
+public:
   explicit OwnedClusterVector(const NodeID max_num_nodes) : _clusters(max_num_nodes) {}
 
   [[nodiscard]] auto &&take_clusters() { return std::move(_clusters); }
@@ -627,7 +627,7 @@ private:
 
 template<typename ClusterID, typename ClusterWeight>
 class OwnedRelaxedClusterWeightVector {
-protected:
+public:
   explicit OwnedRelaxedClusterWeightVector(const ClusterID max_num_clusters) : _cluster_weights(max_num_clusters) {}
 
   auto &&take_cluster_weights() { return std::move(_cluster_weights); }
