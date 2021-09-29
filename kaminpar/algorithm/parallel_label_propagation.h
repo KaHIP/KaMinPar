@@ -97,7 +97,7 @@ protected:
   };
 
   explicit LabelPropagation(const ClusterID max_num_nodes)
-      : _max_num_nodes{max_num_nodes},
+      : _rating_map_ets{[max_num_nodes] { return RatingMap{max_num_nodes}; }},
         _active(max_num_nodes),
         _favored_clusters(Config::kUseTwoHopClustering * (max_num_nodes + 1)) {}
 
@@ -116,10 +116,13 @@ protected:
   void reset_state() {
     tbb::parallel_invoke(
         [&] {
-          tbb::parallel_for(static_cast<ClusterID>(0), _graph->n(), [&](const auto u) {
+          tbb::parallel_for(static_cast<ClusterID>(0), static_cast<ClusterID>(_graph->n()), [&](const auto u) {
             _active[u] = 1;
-            derived_init_cluster(u, derived_initial_cluster(u));
-            if constexpr (Config::kUseTwoHopClustering) { _favored_clusters[u] = derived_initial_cluster(u); }
+
+            const ClusterID initial_cluster = derived_initial_cluster(u);
+            derived_init_cluster(u, initial_cluster);
+            if constexpr (Config::kUseTwoHopClustering) { _favored_clusters[u] = initial_cluster; }
+
             derived_reset_node_state(u);
           });
         },
@@ -363,21 +366,20 @@ protected:
   }
 
 protected:
-  const ClusterID _max_num_nodes;
-
   const Graph *_graph{nullptr};
+
   ClusterID _initial_num_clusters;
   parallel::IntegralAtomicWrapper<ClusterID> _current_num_clusters;
-
-  ClusterID _max_degree{std::numeric_limits<ClusterID>::max()};
-  ClusterID _max_num_neighbors{std::numeric_limits<ClusterID>::max()};
   ClusterID _desired_num_clusters{0};
 
-  tbb::enumerable_thread_specific<RatingMap> _rating_map_ets{[&] { return RatingMap{_max_num_nodes}; }};
+  NodeID _max_degree{std::numeric_limits<NodeID>::max()};
+  NodeID _max_num_neighbors{std::numeric_limits<NodeID>::max()};
+
+  tbb::enumerable_thread_specific<RatingMap> _rating_map_ets;
   scalable_vector<parallel::IntegralAtomicWrapper<uint8_t>> _active;
+  scalable_vector<parallel::IntegralAtomicWrapper<ClusterID>> _favored_clusters;
 
   parallel::IntegralAtomicWrapper<EdgeWeight> _expected_total_gain;
-  scalable_vector<parallel::IntegralAtomicWrapper<ClusterID>> _favored_clusters;
 };
 
 template<typename Derived, std::derived_from<LabelPropagationConfig> Config>
@@ -401,7 +403,7 @@ protected:
   using Base::should_stop;
 
   template<typename... Args>
-  InOrderLabelPropagation(Args &&...args) : Base{std::forward<Args>(args)...} {}
+  explicit InOrderLabelPropagation(Args &&...args) : Base{std::forward<Args>(args)...} {}
 
   NodeID perform_iteration(const NodeID from = 0, const NodeID to = std::numeric_limits<NodeID>::max()) {
     tbb::enumerable_thread_specific<NodeID> num_moved_nodes_ets;
