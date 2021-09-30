@@ -214,6 +214,9 @@ GraphInfo read_observable(const std::string &filename, GraphFormatCB &&format_cb
   }
 
   munmap_file_from_disk(mapped_file);
+
+  if (!read_node_weights) { info.total_node_weight = format.number_of_nodes; }
+  if (!read_edge_weights) { info.total_edge_weight = 2 * format.number_of_edges; }
   return info;
 }
 } // namespace metis

@@ -175,7 +175,7 @@ NodePermutations rearrange_and_remove_isolated_nodes(const bool remove_isolated_
 
   if (remove_isolated_nodes) {
     if (total_node_weight == -1) {
-      if (node_weights.size() == 0) {
+      if (node_weights.empty()) {
         total_node_weight = nodes.size() - 1;
       } else {
         total_node_weight = parallel::accumulate(node_weights);
