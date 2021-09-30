@@ -10,6 +10,7 @@
 #include "dkaminpar/mpi_graph_utils.h"
 #include "dkaminpar/mpi_utils.h"
 #include "dkaminpar/utility/distributed_math.h"
+#include "dkaminpar/utility/distributed_metrics.h"
 #include "dkaminpar/utility/vector_ets.h"
 #include "kaminpar/algorithm/parallel_label_propagation.h"
 #include "kaminpar/datastructure/marker.h"
@@ -28,10 +29,53 @@ struct DistributedLabelPropagationRefinerConfig : public shm::LabelPropagationCo
 class DistributedProbabilisticLabelPropagationRefinerImpl final
     : public shm::InOrderLabelPropagation<DistributedProbabilisticLabelPropagationRefinerImpl,
                                           DistributedLabelPropagationRefinerConfig> {
-  SET_DEBUG(true);
+  SET_STATISTICS(true);
+  SET_DEBUG(false);
 
   using Base = shm::InOrderLabelPropagation<DistributedProbabilisticLabelPropagationRefinerImpl,
                                             DistributedLabelPropagationRefinerConfig>;
+
+  struct Statistics {
+    int num_successful_moves; // global
+    int num_rollbacks;        // global
+
+    double max_balance_violation;   // global, only if rollback occurred
+    double total_balance_violation; // global, only if rollback occurred
+
+    // local, expectation value of probabilistic gain values
+    shm::parallel::IntegralAtomicWrapper<EdgeWeight> expected_gain;
+    // local, gain values of moves that were executed
+    shm::parallel::IntegralAtomicWrapper<EdgeWeight> realized_gain;
+    // local, gain values that were rollbacked
+    shm::parallel::IntegralAtomicWrapper<EdgeWeight> rollback_gain;
+    // local, actual change in edge cut
+    shm::parallel::IntegralAtomicWrapper<EdgeWeight> actual_gain;
+
+    void reset() {
+      num_successful_moves = 0;
+      num_rollbacks = 0;
+      max_balance_violation = 0.0;
+      total_balance_violation = 0.0;
+      expected_gain = 0;
+      realized_gain = 0;
+      rollback_gain = 0;
+      actual_gain = 0;
+    }
+
+    void print() {
+      auto expected_gain_reduced = mpi::reduce(expected_gain, MPI_SUM);
+      auto realized_gain_reduced = mpi::reduce(realized_gain, MPI_SUM);
+      auto rollback_gain_reduced = mpi::reduce(rollback_gain, MPI_SUM);
+
+      STATS << "DistributedProbabilisticLabelPropagationRefiner:";
+      STATS << "- Iterations: " << num_successful_moves << " ok, " << num_rollbacks << " failed";
+      STATS << "- Expected gain: " << expected_gain_reduced << " (total expectation value of move gains)";
+      STATS << "- Realized gain: " << realized_gain_reduced << " (total value of realized move gains)";
+      STATS << "- Rollback gain: " << rollback_gain_reduced << " (gain of moves affected by rollback)";
+      STATS << "- Actual gain: " << actual_gain << " (actual change in edge cut)";
+      STATS << "- Balance violations: " << total_balance_violation / num_rollbacks << " / " << max_balance_violation;
+    }
+  };
 
 public:
   explicit DistributedProbabilisticLabelPropagationRefinerImpl(const Context &ctx)
@@ -41,11 +85,16 @@ public:
         _gains(ctx.partition.local_n()),
         _block_weights(ctx.partition.k) {}
 
-  void initialize(const DistributedGraph & /* graph */, const PartitionContext &p_ctx) { _p_ctx = &p_ctx; }
+  void initialize(const DistributedGraph & /* graph */, const PartitionContext &p_ctx) {
+    _p_ctx = &p_ctx;
+    IFSTATS(_statistics.reset());
+  }
 
   void refine(DistributedPartitionedGraph &p_graph) {
     _p_graph = &p_graph;
     Base::initialize(&p_graph.graph(), _p_ctx->k); // needs access to _p_graph
+
+    const auto cut_before = IFSTATS(metrics::edge_cut(*_p_graph));
 
     for (std::size_t iteration = 0; iteration < _lp_ctx.num_iterations; ++iteration) {
       for (std::size_t chunk = 0; chunk < _lp_ctx.num_chunks; ++chunk) {
@@ -53,6 +102,9 @@ public:
         process_chunk(from, to);
       }
     }
+
+    IFSTATS(_statistics.actual_gain += cut_before - metrics::edge_cut(*_p_graph));
+    IFSTATS(_statistics.print());
   }
 
 private:
@@ -60,12 +112,12 @@ private:
     mpi::barrier(_graph->communicator());
     HEAVY_ASSERT(ASSERT_NEXT_PARTITION_STATE());
 
+    DBG << "Running label propagation on node chunk [" << from << ".." << to << "]";
+
     // run label propagation
-    DBG << "in_order label propagation " << from << ".." << to;
-    this->perform_iteration(from, to);
+    perform_iteration(from, to);
 
     // accumulate total weight of nodes moved to each block
-    DBG << "compute weight and gain to each block";
     parallel::vector_ets<BlockWeight> weight_to_block_ets(_p_ctx->k);
     parallel::vector_ets<EdgeWeight> gain_to_block_ets(_p_ctx->k);
 
@@ -129,6 +181,7 @@ private:
         const BlockID b = _next_partition[u];
         const double gain_prob = (total_gains_to_block[b] == 0) ? 1.0 : 1.0 * _gains[u] / total_gains_to_block[b];
         const double probability = gain_prob * (1.0 * residual_block_weights[b] / _p_graph->node_weight(u));
+        IFSTATS(_statistics.expected_gain += probability * _gains[u]);
 
         // perform move with probability
         if (rand.random_bool(probability)) {
@@ -138,6 +191,8 @@ private:
           // temporary mark that this node was actually moved
           // we will revert this during synchronization or on rollback
           _next_partition[u] = kInvalidBlockID;
+
+          IFSTATS(_statistics.realized_gain += _gains[u]);
         }
       }
     });
@@ -153,11 +208,29 @@ private:
       if (global_block_weights[b] > max_cluster_weight(b)) { feasible = 0; }
     });
 
+    // record statistics
+    if constexpr (kStatistics) {
+      if (!feasible) {
+        _statistics.num_rollbacks += 1;
+        for (const BlockID b : _p_graph->blocks()) {
+          if (global_block_weights[b] > max_cluster_weight(b)) {
+            const double imbalance = global_block_weights[b] / max_cluster_weight(b);
+            _statistics.total_balance_violation += imbalance;
+            _statistics.max_balance_violation = std::max(_statistics.max_balance_violation, imbalance);
+          }
+        }
+      } else {
+        _statistics.num_successful_moves += 1;
+      }
+    }
+
     // revert moves if resulting partition is infeasible
     if (!feasible) {
       for (const auto &move : moves) {
         _next_partition[move.u] = _p_graph->block(move.u);
         _p_graph->set_block(move.u, move.from);
+
+        IFSTATS(_statistics.rollback_gain += _gains[move.u]);
       }
     }
 
@@ -262,6 +335,8 @@ private:
   scalable_vector<BlockID> _next_partition;
   scalable_vector<EdgeWeight> _gains;
   scalable_vector<shm::parallel::IntegralAtomicWrapper<BlockWeight>> _block_weights;
+
+  Statistics _statistics;
 };
 
 /*

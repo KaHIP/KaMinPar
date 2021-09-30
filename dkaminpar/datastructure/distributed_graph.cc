@@ -26,7 +26,7 @@
 #include <ranges>
 
 namespace dkaminpar::graph::debug {
-SET_DEBUG(true);
+SET_DEBUG(false);
 
 namespace {
 template<std::ranges::range R>
@@ -152,7 +152,6 @@ bool validate_partition(const DistributedPartitionedGraph &p_graph) {
                 static_cast<int>(p_graph.k()), 0, comm);
 
     if (ROOT(rank)) {
-      DBG << "block_weights=" << recv_block_weights;
       for (const BlockID b : p_graph.blocks()) {
         for (int pe = 0; pe < size; ++pe) {
           const BlockWeight expected = recv_block_weights[b];

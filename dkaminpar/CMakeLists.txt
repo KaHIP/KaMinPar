@@ -15,6 +15,7 @@ set(DKAMINPAR_SOURCE_FILES
         datastructure/distributed_graph.cc
         datastructure/distributed_graph.h
         datastructure/distributed_graph_builder.h
+        initial_partitioning/i_initial_partitioner.h
         distributed_io.cc
         distributed_io.h
         utility/distributed_math.h
