@@ -22,14 +22,10 @@
 #include "dkaminpar/coarsening/i_clustering_algorithm.h"
 #include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/distributed_context.h"
+#include "dkaminpar/growt.h"
 #include "kaminpar/algorithm/parallel_label_propagation.h"
 #include "kaminpar/datastructure/fast_reset_array.h"
 #include "kaminpar/datastructure/rating_map.h"
-
-#include <allocator/alignedallocator.hpp>
-#include <data-structures/table_config.hpp>
-#include <tbb/enumerable_thread_specific.h>
-#include <utils/hash/murmur2_hash.hpp>
 
 namespace dkaminpar {
 template<typename ClusterID, typename ClusterWeight>
@@ -53,9 +49,9 @@ public:
     auto it = handle.find(cluster);
     ASSERT(it != handle.end());
     // ‘growt::migration_table_iterator<growt::migration_table_handle<growt::migration_table_data<growt::migration_table<growt::base_linear<growt::base_linear_config<growt::simple_slot<long unsigned int, int, true, 9223372036854775807>, utils_tm::hash_tm::murmur2_hash, growt::GenericAlignedAllocator<char, 128>, false, false, false> >, growt::table_config<long unsigned int, int, utils_tm::hash_tm::murmur2_hash, growt::GenericAlignedAllocator<char, 128>, hmod::growable, hmod::deletion>::workerstrat, growt::table_config<long unsigned int, int, utils_tm::hash_tm::murmur2_hash, growt::GenericAlignedAllocator<char, 128>, hmod::growable, hmod::deletion>::exclstrat> > >, false>’
-//    static_cast<int>(it);
+    //    static_cast<int>(it);
     // ‘growt::migration_table_reference<growt::migration_table_handle<growt::migration_table_data<growt::migration_table<growt::base_linear<growt::base_linear_config<growt::simple_slot<long unsigned int, int, true, 9223372036854775807>, utils_tm::hash_tm::murmur2_hash, growt::GenericAlignedAllocator<char, 128>, false, false, false> >, growt::table_config<long unsigned int, int, utils_tm::hash_tm::murmur2_hash, growt::GenericAlignedAllocator<char, 128>, hmod::growable, hmod::deletion>::workerstrat, growt::table_config<long unsigned int, int, utils_tm::hash_tm::murmur2_hash, growt::GenericAlignedAllocator<char, 128>, hmod::growable, hmod::deletion>::exclstrat> > >, false>’
-//    typename decltype(*it)::value_type i = "asd";
+    //    typename decltype(*it)::value_type i = "asd";
     return (*it).second;
   }
 

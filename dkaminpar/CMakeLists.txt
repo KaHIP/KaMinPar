@@ -34,7 +34,8 @@ set(DKAMINPAR_SOURCE_FILES
         distributed_definitions.h
         distributed_context.cc
         distributed_context.h
-        mpi_wrapper.h)
+        mpi_wrapper.h
+        growt.h)
 
 # Only create target if MPI is available
 find_package(MPI)
