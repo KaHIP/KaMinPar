@@ -24,7 +24,7 @@
 #include <tbb/task_arena.h>
 
 namespace kaminpar {
-class ParallelBalancer : public Balancer {
+class ParallelBalancer : public IBalancer {
   SET_DEBUG(false);
   SET_STATISTICS(false);
   SET_OUTPUT(false);

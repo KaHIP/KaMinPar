@@ -10,8 +10,8 @@
 #include "kaminpar/coarsening/label_propagation_clustering.h"
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/partitioning_scheme/helper.h"
+#include "kaminpar/refinement/label_propagation_refiner.h"
 #include "kaminpar/refinement/parallel_balancer.h"
-#include "kaminpar/refinement/parallel_label_propagation_refiner.h"
 
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_invoke.h>

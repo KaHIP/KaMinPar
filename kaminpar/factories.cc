@@ -8,11 +8,11 @@
  ******************************************************************************/
 #include "kaminpar/factories.h"
 
-#include "kaminpar/coarsening/label_propagation_clustering.h"
 #include "kaminpar/coarsening/cluster_coarsener.h"
+#include "kaminpar/coarsening/label_propagation_clustering.h"
 #include "kaminpar/coarsening/noop_coarsener.h"
+#include "kaminpar/refinement/label_propagation_refiner.h"
 #include "kaminpar/refinement/parallel_balancer.h"
-#include "kaminpar/refinement/parallel_label_propagation_refiner.h"
 
 #include <memory>
 
@@ -63,8 +63,7 @@ std::unique_ptr<ip::InitialRefiner> create_initial_refiner(const Graph &graph, c
   __builtin_unreachable();
 }
 
-std::unique_ptr<Refiner> create_refiner(const Graph &graph, const PartitionContext &p_ctx,
-                                        const RefinementContext &r_ctx) {
+std::unique_ptr<IRefiner> create_refiner(const Graph &graph, const RefinementContext &r_ctx) {
   SCOPED_TIMER("Allocation");
 
   switch (r_ctx.algorithm) {
@@ -78,15 +77,15 @@ std::unique_ptr<Refiner> create_refiner(const Graph &graph, const PartitionConte
     }
 
     case RefinementAlgorithm::LABEL_PROPAGATION: {
-      return std::make_unique<LabelPropagationRefiner>(graph, p_ctx, r_ctx);
+      return std::make_unique<LabelPropagationRefiner>(graph, r_ctx);
     }
   }
 
   __builtin_unreachable();
 }
 
-std::unique_ptr<Balancer> create_balancer(const Graph &graph, const PartitionContext &p_ctx,
-                                          const RefinementContext &r_ctx) {
+std::unique_ptr<IBalancer> create_balancer(const Graph &graph, const PartitionContext &p_ctx,
+                                           const RefinementContext &r_ctx) {
   SCOPED_TIMER("Allocation");
 
   switch (r_ctx.balancer.algorithm) {

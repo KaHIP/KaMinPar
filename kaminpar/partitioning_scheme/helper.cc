@@ -19,7 +19,7 @@ bool should_balance(const BalancingTimepoint configured, const BalancingTimepoin
                                                        current == BalancingTimepoint::AFTER_KWAY_REFINEMENT));
 }
 
-void balance(Balancer *balancer, PartitionedGraph &p_graph, const BalancingTimepoint tp, const PartitionContext &p_ctx,
+void balance(IBalancer *balancer, PartitionedGraph &p_graph, const BalancingTimepoint tp, const PartitionContext &p_ctx,
              const RefinementContext &r_ctx) {
   SCOPED_TIMER("Balancing");
 
@@ -64,7 +64,7 @@ PartitionedGraph uncoarsen_once(ICoarsener *coarsener, PartitionedGraph p_graph,
   return p_graph;
 }
 
-void refine(Refiner *refiner, Balancer *balancer, PartitionedGraph &p_graph, const PartitionContext &current_p_ctx,
+void refine(IRefiner *refiner, IBalancer *balancer, PartitionedGraph &p_graph, const PartitionContext &current_p_ctx,
             const RefinementContext &r_ctx) {
   SCOPED_TIMER("Refinement");
 

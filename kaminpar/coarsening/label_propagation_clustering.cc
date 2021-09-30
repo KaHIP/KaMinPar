@@ -99,6 +99,8 @@ LabelPropagationClusteringAlgorithm::LabelPropagationClusteringAlgorithm(const N
                                                                          const CoarseningContext &c_ctx)
     : _core{std::make_unique<LabelPropagationClusteringCore>(max_n, c_ctx)} {}
 
+// we must declare the destructor explicitly here, otherwise, it is implicitly generated before
+// LabelPropagationClusterCore is complete
 LabelPropagationClusteringAlgorithm::~LabelPropagationClusteringAlgorithm() = default;
 
 void LabelPropagationClusteringAlgorithm::set_max_cluster_weight(const NodeWeight max_cluster_weight) {

@@ -36,7 +36,7 @@ PartitionedGraph ParallelInitialPartitioner::partition_recursive(const ICoarsene
 
     // uncoarsen and refine
     p_graph = helper::uncoarsen_once(coarsener.get(), std::move(p_graph), p_ctx);
-    auto refiner = factory::create_refiner(p_graph.graph(), p_ctx, _input_ctx.refinement);
+    auto refiner = factory::create_refiner(p_graph.graph(), _input_ctx.refinement);
     auto balancer = factory::create_balancer(p_graph.graph(), p_ctx, _input_ctx.refinement);
     helper::refine(refiner.get(), balancer.get(), p_graph, p_ctx, _input_ctx.refinement);
 

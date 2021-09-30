@@ -1,17 +1,20 @@
 /*******************************************************************************
- * @file:   parallel_label_propagation_refiner.h
+ * @file:   label_propagation_refiner.cc
  *
  * @author: Daniel Seemaier
- * @date:   21.09.21
- * @brief:
+ * @date:   30.09.21
+ * @brief:  Label propagation refinement algorithm.
  ******************************************************************************/
-#pragma once
+#include "kaminpar/refinement/label_propagation_refiner.h"
 
 #include "kaminpar/algorithm/parallel_label_propagation.h"
-#include "kaminpar/refinement/i_refiner.h"
 #include "kaminpar/utility/timer.h"
 
 namespace kaminpar {
+//
+// Private implementation
+//
+
 struct LabelPropagationRefinerConfig : public LabelPropagationConfig {
   using ClusterID = BlockID;
   using ClusterWeight = BlockWeight;
@@ -20,25 +23,22 @@ struct LabelPropagationRefinerConfig : public LabelPropagationConfig {
   static constexpr bool kReportEmptyClusters = false;
 };
 
-class LabelPropagationRefiner final
-    : public ChunkRandomizedLabelPropagation<LabelPropagationRefiner, LabelPropagationRefinerConfig>,
-      public Refiner {
-  using Base = ChunkRandomizedLabelPropagation<LabelPropagationRefiner, LabelPropagationRefinerConfig>;
+class LabelPropagationRefinerImpl final
+    : public ChunkRandomizedLabelPropagation<LabelPropagationRefinerImpl, LabelPropagationRefinerConfig> {
+  using Base = ChunkRandomizedLabelPropagation<LabelPropagationRefinerImpl, LabelPropagationRefinerConfig>;
   friend Base;
 
   static constexpr std::size_t kInfiniteIterations = std::numeric_limits<std::size_t>::max();
 
 public:
-  LabelPropagationRefiner(const Graph &graph, const PartitionContext & /* p_ctx */, const RefinementContext &r_ctx)
-      : Base{graph.n()},
-        _r_ctx{r_ctx} {
+  LabelPropagationRefinerImpl(const Graph &graph, const RefinementContext &r_ctx) : Base{graph.n()}, _r_ctx{r_ctx} {
     set_max_degree(r_ctx.lp.large_degree_threshold);
     set_max_num_neighbors(r_ctx.lp.max_num_neighbors);
   }
 
-  void initialize(const Graph &graph) final { _graph = &graph; }
+  void initialize(const Graph &graph) { _graph = &graph; }
 
-  bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) final {
+  bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
     ASSERT(_graph == &p_graph.graph());
     ASSERT(p_graph.k() <= p_ctx.k);
     _p_graph = &p_graph;
@@ -54,7 +54,7 @@ public:
     return true;
   }
 
-  [[nodiscard]] EdgeWeight expected_total_gain() const final { return Base::expected_total_gain(); }
+  using Base::expected_total_gain;
 
 public:
   [[nodiscard]] BlockID initial_cluster(const NodeID u) const { return _p_graph->block(u); }
@@ -98,4 +98,21 @@ public:
   const PartitionContext *_p_ctx;
   const RefinementContext &_r_ctx;
 };
+
+//
+// Exposed wrapper
+//
+
+LabelPropagationRefiner::LabelPropagationRefiner(const Graph &graph, const RefinementContext &r_ctx)
+    : _impl{std::make_unique<LabelPropagationRefinerImpl>(graph, r_ctx)} {}
+
+LabelPropagationRefiner::~LabelPropagationRefiner() = default;
+
+void LabelPropagationRefiner::initialize(const Graph &graph) { _impl->initialize(graph); }
+
+bool LabelPropagationRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
+  return _impl->refine(p_graph, p_ctx);
+}
+
+EdgeWeight LabelPropagationRefiner::expected_total_gain() const { return _impl->expected_total_gain(); }
 } // namespace kaminpar

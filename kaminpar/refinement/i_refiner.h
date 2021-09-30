@@ -11,26 +11,27 @@
 #include "kaminpar/datastructure/graph.h"
 
 namespace kaminpar {
-class Refiner {
+class IRefiner {
 public:
-  Refiner(const Refiner &) = delete;
-  Refiner &operator=(const Refiner &) = delete;
-  Refiner(Refiner &&) = delete;
-  Refiner &operator=(Refiner &&) = delete;
-  virtual ~Refiner() = default;
+  IRefiner(const IRefiner &) = delete;
+  IRefiner &operator=(const IRefiner &) = delete;
+  IRefiner(IRefiner &&) = delete;
+  IRefiner &operator=(IRefiner &&) = delete;
+
+  virtual ~IRefiner() = default;
 
   virtual void initialize(const Graph &graph) = 0;
   virtual bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) = 0;
-  virtual EdgeWeight expected_total_gain() const = 0;
+  [[nodiscard]] virtual EdgeWeight expected_total_gain() const = 0;
 
 protected:
-  Refiner() = default;
+  IRefiner() = default;
 };
 
-class NoopRefiner : public Refiner {
+class NoopRefiner : public IRefiner {
 public:
   void initialize(const Graph &) final {}
   bool refine(PartitionedGraph &, const PartitionContext &) final { return false; }
-  EdgeWeight expected_total_gain() const final { return 0; }
+  [[nodiscard]] EdgeWeight expected_total_gain() const final { return 0; }
 };
 } // namespace kaminpar

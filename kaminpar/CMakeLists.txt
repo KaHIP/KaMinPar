@@ -58,7 +58,8 @@ set(KAMINPAR_SOURCE_FILES
         refinement/i_refiner.h
         refinement/parallel_balancer.cc
         refinement/parallel_balancer.h
-        refinement/parallel_label_propagation_refiner.h
+        refinement/label_propagation_refiner.h
+        refinement/label_propagation_refiner.cc
         utility/strings.cc
         utility/strings.h
         utility/timer.cc

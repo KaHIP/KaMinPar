@@ -23,7 +23,7 @@
 namespace kaminpar::ip {
 using Queues = std::array<BinaryMinHeap<Gain>, 2>;
 
-class InitialRefiner : public Refiner {
+class InitialRefiner : public IRefiner {
 public:
   struct MemoryContext {
     Queues queues{BinaryMinHeap<Gain>{0}, BinaryMinHeap<Gain>{0}};

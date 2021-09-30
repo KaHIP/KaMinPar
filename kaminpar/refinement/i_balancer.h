@@ -11,14 +11,15 @@
 #include "kaminpar/datastructure/graph.h"
 
 namespace kaminpar {
-class Balancer {
+class IBalancer {
 public:
-  virtual ~Balancer() = default;
+  virtual ~IBalancer() = default;
+
   virtual void initialize(const PartitionedGraph &p_graph) = 0;
   virtual bool balance(PartitionedGraph &p_graph, const PartitionContext &p_ctx) = 0;
 };
 
-class NoopBalancer : public Balancer {
+class NoopBalancer : public IBalancer {
 public:
   void initialize(const PartitionedGraph &) final {}
   bool balance(PartitionedGraph &, const PartitionContext &) final { return true; }
