@@ -9,7 +9,7 @@ set(KAMINPAR_SOURCE_FILES
         application/arguments.cc
         application/arguments.h
         application/arguments_parser.h
-        coarsening/i_clustering_algorithm.h
+        coarsening/i_clustering.h
         coarsening/i_coarsener.h
         coarsening/noop_coarsener.h
         coarsening/cluster_coarsener.h

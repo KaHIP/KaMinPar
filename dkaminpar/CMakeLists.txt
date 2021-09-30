@@ -7,10 +7,11 @@ set(DKAMINPAR_SOURCE_FILES
         algorithm/allgather_graph.h
         algorithm/seq_global_graph_contraction_redistribution.cc
         algorithm/seq_global_graph_contraction_redistribution.h
-        coarsening/i_clustering_algorithm.h
-        coarsening/distributed_local_label_propagation_coarsener.h
+        coarsening/i_clustering.h
+        coarsening/distributed_local_label_propagation_clustering.h
+        coarsening/distributed_local_label_propagation_clustering.cc
         coarsening/distributed_global_label_propagation_coarsener.cc
-        coarsening/distributed_global_label_propagation_coarsener.h
+        coarsening/distributed_global_label_propagation_clustering.h
         datastructure/distributed_graph.cc
         datastructure/distributed_graph.h
         datastructure/distributed_graph_builder.h
@@ -24,9 +25,9 @@ set(DKAMINPAR_SOURCE_FILES
         utility/distributed_metrics.cc
         utility/distributed_metrics.h
         utility/vector_ets.h
-        refinement/distributed_refiner.h
-        refinement/distributed_label_propagation_refiner.cc
-        refinement/distributed_label_propagation_refiner.h
+        refinement/i_distributed_refiner.h
+        refinement/distributed_probabilistic_label_propagation_refiner.cc
+        refinement/distributed_probabilistic_label_propagation_refiner.h
         partitioning_scheme/kway.cc
         partitioning_scheme/kway.h
         partitioning_scheme/partitioning.cc

@@ -274,9 +274,9 @@ void copy_subgraph_partitions(PartitionedGraph &p_graph, const scalable_vector<B
 
   p_graph.change_k(k_prime);
   tbb::parallel_for(static_cast<NodeID>(0), p_graph.n(), [&](const NodeID &u) {
-    const BlockID b = p_graph._partition[u];
+    const BlockID b = p_graph.block(u);
     const NodeID s_u = mapping[u];
-    p_graph._partition[u] = k0[b] + p_subgraph_partitions[b][s_u];
+    p_graph.set_block<false>(u, k0[b] + p_subgraph_partitions[b][s_u]);
   });
 
   p_graph.set_final_ks(std::move(final_ks));

@@ -206,11 +206,6 @@ bool validate_graph(const Graph &graph);
 
 class ParallelBalancer;
 
-namespace graph {
-void copy_subgraph_partitions(PartitionedGraph &p_graph, const scalable_vector<BlockArray> &p_subgraph_partitions,
-                              BlockID k_prime, BlockID input_k, const scalable_vector<NodeID> &mapping);
-}
-
 /*!
  * Extends a kaminpar::Graph with a graph partition.
  *
@@ -224,10 +219,6 @@ class PartitionedGraph {
   friend ParallelBalancer;
 
   static constexpr auto kDebug = false;
-
-  friend void graph::copy_subgraph_partitions(PartitionedGraph &p_graph,
-                                              const scalable_vector<BlockArray> &p_subgraph_partitions, BlockID k_prime,
-                                              BlockID input_k, const scalable_vector<NodeID> &mapping);
 
 public:
   using NodeID = Graph::NodeID;
@@ -355,6 +346,11 @@ public:
   inline void set_final_k(const BlockID b, const BlockID final_k) { _final_k[b] = final_k; }
   inline void set_final_ks(scalable_vector<BlockID> final_ks) { _final_k = std::move(final_ks); }
 
+  void reinit_block_weights() {
+    for (const BlockID b : blocks()) { _block_weights[b] = 0; }
+    init_block_weights();
+  }
+
   //
   // Block / graph names
   //
@@ -390,11 +386,6 @@ private:
     for (const NodeID u : nodes()) {
       if (block(u) != kInvalidBlockID) { _block_weights[block(u)] += node_weight(u); }
     }
-  }
-
-  void reinit_block_weights() {
-    for (const BlockID b : blocks()) { _block_weights[b] = 0; }
-    init_block_weights();
   }
 
   //! This is the underlying graph structure.

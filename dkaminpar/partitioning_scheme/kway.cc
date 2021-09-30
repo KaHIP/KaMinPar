@@ -21,8 +21,8 @@
 
 #include "dkaminpar/algorithm/allgather_graph.h"
 #include "dkaminpar/algorithm/distributed_graph_contraction.h"
-#include "dkaminpar/coarsening/distributed_local_label_propagation_coarsener.h"
-#include "dkaminpar/refinement/distributed_label_propagation_refiner.h"
+#include "dkaminpar/coarsening/distributed_local_label_propagation_clustering.h"
+#include "dkaminpar/refinement/distributed_probabilistic_label_propagation_refiner.h"
 #include "dkaminpar/utility/distributed_metrics.h"
 #include "kaminpar/metrics.h"
 #include "kaminpar/partitioning_scheme/partitioning.h"
@@ -47,8 +47,8 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
                                                              _ctx.initial_partitioning.sequential.partition,
                                                              _ctx.initial_partitioning.sequential.coarsening);
     // TODO total_n() only required for rating map
-    DistributedLocalLabelPropagationClustering coarsener(c_graph->total_n(), _ctx.coarsening.lp);
-    auto &clustering = coarsener.cluster(*c_graph, max_cluster_weight, _ctx.coarsening.lp.num_iterations);
+    DistributedLocalLabelPropagationClustering coarsener(c_graph->total_n(), _ctx.coarsening);
+    auto &clustering = coarsener.compute_clustering(*c_graph, max_cluster_weight);
     MPI_Barrier(MPI_COMM_WORLD);
     DBG << "... contract";
     auto [contracted_graph, mapping, mem] = graph::contract_local_clustering(*c_graph, clustering);
@@ -91,7 +91,7 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
   auto refine = [&](DistributedPartitionedGraph &p_graph) {
     if (_ctx.refinement.algorithm == KWayRefinementAlgorithm::NOOP) { return; }
     DBG << "create local_n=" << _ctx.partition.local_n() << " k=" << _ctx.partition.k;
-    DistributedLabelPropagationRefiner refiner(_ctx);
+    DistributedProbabilisticLabelPropagationRefiner refiner(_ctx);
     DBG << "init";
     refiner.initialize(p_graph.graph(), _ctx.partition);
 

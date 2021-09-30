@@ -16,7 +16,7 @@
 namespace kaminpar {
 class ClusteringCoarsener : public ICoarsener {
 public:
-  ClusteringCoarsener(std::unique_ptr<IClusteringAlgorithm> clustering_algorithm, const Graph &input_graph,
+  ClusteringCoarsener(std::unique_ptr<IClustering> clustering_algorithm, const Graph &input_graph,
                       const CoarseningContext &c_ctx)
       : _input_graph{input_graph},
         _current_graph{&input_graph},
@@ -42,7 +42,7 @@ private:
   std::vector<Graph> _hierarchy;
   std::vector<scalable_vector<NodeID>> _mapping;
 
-  std::unique_ptr<IClusteringAlgorithm> _clustering_algorithm;
+  std::unique_ptr<IClustering> _clustering_algorithm;
 
   const CoarseningContext &_c_ctx;
   graph::contraction::MemoryContext _contraction_m_ctx{};

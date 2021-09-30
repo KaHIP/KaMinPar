@@ -12,17 +12,17 @@
 #include "kaminpar/parallel.h"
 
 namespace kaminpar {
-class IClusteringAlgorithm {
+class IClustering {
 public:
   using AtomicClusterArray = scalable_vector<parallel::IntegralAtomicWrapper<NodeID>>;
 
-  IClusteringAlgorithm() = default;
-  virtual ~IClusteringAlgorithm() = default;
+  IClustering() = default;
+  virtual ~IClustering() = default;
 
-  IClusteringAlgorithm(const IClusteringAlgorithm &) = delete;
-  IClusteringAlgorithm &operator=(const IClusteringAlgorithm &) = delete;
-  IClusteringAlgorithm(IClusteringAlgorithm &&) noexcept = default;
-  IClusteringAlgorithm &operator=(IClusteringAlgorithm &&) noexcept = default;
+  IClustering(const IClustering &) = delete;
+  IClustering &operator=(const IClustering &) = delete;
+  IClustering(IClustering &&) noexcept = default;
+  IClustering &operator=(IClustering &&) noexcept = default;
 
   //
   // Optional options

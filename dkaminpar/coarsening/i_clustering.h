@@ -12,11 +12,11 @@
 
 namespace dkaminpar {
 template<typename ClusterID>
-class ClusteringAlgorithm {
+class IClustering {
 public:
   using AtomicClusterArray = scalable_vector<shm::parallel::IntegralAtomicWrapper<ClusterID>>;
 
   virtual const AtomicClusterArray &compute_clustering(const DistributedGraph &graph,
-                                                       const NodeWeight max_cluster_weight) = 0;
+                                                       NodeWeight max_cluster_weight) = 0;
 };
 } // namespace dkaminpar

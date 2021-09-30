@@ -9,7 +9,7 @@
 
 #include "kaminpar/algorithm/graph_contraction.h"
 #include "kaminpar/algorithm/parallel_label_propagation.h"
-#include "kaminpar/coarsening/i_clustering_algorithm.h"
+#include "kaminpar/coarsening/i_clustering.h"
 #include "kaminpar/coarsening/i_coarsener.h"
 #include "kaminpar/context.h"
 #include "kaminpar/datastructure/graph.h"
@@ -36,7 +36,7 @@ class LabelPropagationClusteringCore final
     : public ChunkRandomizedLabelPropagation<LabelPropagationClusteringCore, LabelPropagationClusteringConfig>,
       public OwnedRelaxedClusterWeightVector<NodeID, NodeWeight>,
       public OwnedClusterVector<NodeID, NodeID>,
-      public IClusteringAlgorithm {
+      public IClustering {
   SET_DEBUG(false);
 
   using Base = ChunkRandomizedLabelPropagation<LabelPropagationClusteringCore, LabelPropagationClusteringConfig>;
@@ -111,7 +111,7 @@ void LabelPropagationClusteringAlgorithm::set_desired_cluster_count(const NodeID
   _core->set_desired_num_clusters(count);
 }
 
-const IClusteringAlgorithm::AtomicClusterArray &
+const IClustering::AtomicClusterArray &
 LabelPropagationClusteringAlgorithm::compute_clustering(const Graph &graph) {
   return _core->compute_clustering(graph);
 }

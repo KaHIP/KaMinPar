@@ -1,29 +1,13 @@
 /*******************************************************************************
- * This file is part of KaMinPar.
+ * @file:   distributed_local_label_propagation_clustering.cc
  *
- * Copyright (C) 2021 Daniel Seemaier <daniel.seemaier@kit.edu>
- *
- * KaMinPar is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * KaMinPar is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with KaMinPar.  If not, see <http://www.gnu.org/licenses/>.
- *
-******************************************************************************/
-#pragma once
+ * @author: Daniel Seemaier
+ * @date:   30.09.21
+ * @brief:
+ ******************************************************************************/
+#include "dkaminpar/coarsening/distributed_local_label_propagation_clustering.h"
 
-#include "dkaminpar/datastructure/distributed_graph.h"
-#include "dkaminpar/distributed_context.h"
 #include "kaminpar/algorithm/parallel_label_propagation.h"
-#include "kaminpar/datastructure/fast_reset_array.h"
-#include "kaminpar/datastructure/rating_map.h"
 
 namespace dkaminpar {
 struct DistributedLocalLabelPropagationClusteringConfig : public shm::LabelPropagationConfig {
@@ -34,38 +18,31 @@ struct DistributedLocalLabelPropagationClusteringConfig : public shm::LabelPropa
   static constexpr bool kUseTwoHopClustering = true;
 };
 
-class DistributedLocalLabelPropagationClustering final
-    : public shm::ChunkRandomizedLabelPropagation<DistributedLocalLabelPropagationClustering,
+class DistributedLocalLabelPropagationClusteringImpl final
+    : public shm::ChunkRandomizedLabelPropagation<DistributedLocalLabelPropagationClusteringImpl,
                                                   DistributedLocalLabelPropagationClusteringConfig>,
       public shm::OwnedClusterVector<NodeID, NodeID>,
       public shm::OwnedRelaxedClusterWeightVector<NodeID, NodeWeight> {
   SET_DEBUG(true);
 
-  using Base = shm::ChunkRandomizedLabelPropagation<DistributedLocalLabelPropagationClustering,
+  using Base = shm::ChunkRandomizedLabelPropagation<DistributedLocalLabelPropagationClusteringImpl,
                                                     DistributedLocalLabelPropagationClusteringConfig>;
   using ClusterBase = shm::OwnedClusterVector<NodeID, NodeID>;
   using ClusterWeightBase = shm::OwnedRelaxedClusterWeightVector<NodeID, NodeWeight>;
 
-  static constexpr std::size_t kInfiniteIterations{std::numeric_limits<std::size_t>::max()};
+  static constexpr auto kInfiniteIterations = std::numeric_limits<std::size_t>::max();
 
 public:
-  using ClusterBase::cluster;
-  using ClusterBase::init_cluster;
-  using ClusterBase::move_node;
-  using ClusterWeightBase::cluster_weight;
-  using ClusterWeightBase::init_cluster_weight;
-  using ClusterWeightBase::move_cluster_weight;
-
-  DistributedLocalLabelPropagationClustering(const NodeID max_n, const LabelPropagationCoarseningContext &lp_ctx)
+  DistributedLocalLabelPropagationClusteringImpl(const NodeID max_n, const CoarseningContext &c_ctx)
       : Base{max_n},
         ClusterBase{max_n},
-        ClusterWeightBase{max_n},
-        _max_cluster_weight{kInvalidBlockWeight} {
-    set_max_degree(lp_ctx.large_degree_threshold);
-    set_max_num_neighbors(lp_ctx.max_num_neighbors);
+        ClusterWeightBase{max_n} {
+    set_max_num_iterations(c_ctx.lp.num_iterations);
+    set_max_degree(c_ctx.lp.large_degree_threshold);
+    set_max_num_neighbors(c_ctx.lp.max_num_neighbors);
   }
 
-  const auto &cluster(const DistributedGraph &graph, const NodeWeight max_cluster_weight,
+  const auto &compute_clustering(const DistributedGraph &graph, const NodeWeight max_cluster_weight,
                       const std::size_t max_iterations = kInfiniteIterations) {
     initialize(&graph, graph.n());
     _max_cluster_weight = max_cluster_weight;
@@ -75,6 +52,10 @@ public:
     }
 
     return clusters();
+  }
+
+  void set_max_num_iterations(const std::size_t max_num_iterations) {
+    _max_num_iterations = (max_num_iterations == 0) ? std::numeric_limits<std::size_t>::max() : max_num_iterations;
   }
 
   //
@@ -100,5 +81,22 @@ public:
 
   using Base::_graph;
   NodeWeight _max_cluster_weight;
+  std::size_t _max_num_iterations;
 };
+
+//
+// Interface
+//
+
+DistributedLocalLabelPropagationClustering::DistributedLocalLabelPropagationClustering(const NodeID max_n,
+                                                                                       const CoarseningContext &c_ctx)
+    : _impl{std::make_unique<DistributedLocalLabelPropagationClusteringImpl>(max_n, c_ctx)} {}
+
+DistributedLocalLabelPropagationClustering::~DistributedLocalLabelPropagationClustering() = default;
+
+const DistributedLocalLabelPropagationClustering::AtomicClusterArray &
+DistributedLocalLabelPropagationClustering::compute_clustering(const DistributedGraph &graph,
+                                                               NodeWeight max_cluster_weight) {
+  return _impl->compute_clustering(graph, max_cluster_weight);
+}
 } // namespace dkaminpar

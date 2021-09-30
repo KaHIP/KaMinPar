@@ -23,8 +23,10 @@
 #include "dkaminpar/distributed_context.h"
 
 namespace dkaminpar {
-class DistributedRefiner {
+class IDistributedRefiner {
 public:
+  virtual ~IDistributedRefiner() = default;
+
   virtual void initialize(const DistributedGraph &graph, const PartitionContext &p_ctx) = 0;
   virtual void refine(DistributedPartitionedGraph &p_graph) = 0;
 };

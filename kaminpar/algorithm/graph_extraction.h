@@ -5,23 +5,21 @@
 * @date:   21.09.21
 * @brief:  Extracts the subgraphs induced by each block of a partition.
 ******************************************************************************/
-/** @file */
 #pragma once
 
-#include "context.h"
-#include "datastructure/graph.h"
+#include "kaminpar/context.h"
+#include "kaminpar/datastructure/graph.h"
 
 #include <utility>
 #include <vector>
 
 namespace kaminpar::graph {
-
 struct SubgraphMemoryStartPosition {
   std::size_t nodes_start_pos{0};
   std::size_t edges_start_pos{0};
 
   // operator overloads for parallel::prefix_sum()
-  SubgraphMemoryStartPosition operator+(const SubgraphMemoryStartPosition &other) {
+  SubgraphMemoryStartPosition operator+(const SubgraphMemoryStartPosition &other) const {
     return {nodes_start_pos + other.nodes_start_pos, edges_start_pos + other.edges_start_pos};
   }
 

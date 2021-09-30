@@ -57,8 +57,6 @@ class LabelPropagation {
   SET_DEBUG(false);
   SET_STATISTICS(false);
 
-  using Self = LabelPropagation<Derived, Config>;
-
 protected:
   using RatingMap = typename Config::RatingMap;
   using Graph = typename Config::Graph;
@@ -235,7 +233,6 @@ protected:
     }
   }
 
-protected:
   //
   // 2-hop clustering
   //
@@ -365,7 +362,6 @@ protected:
     return derived_cluster_weight(cluster);
   }
 
-protected:
   const Graph *_graph{nullptr};
 
   ClusterID _initial_num_clusters;
