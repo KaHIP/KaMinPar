@@ -380,9 +380,9 @@ protected:
 
 template<typename Derived, std::derived_from<LabelPropagationConfig> Config>
 class InOrderLabelPropagation : public LabelPropagation<Derived, Config> {
+protected:
   using Base = LabelPropagation<Derived, Config>;
 
-protected:
   using Graph = typename Base::Graph;
   using ClusterID = typename Base::ClusterID;
   using ClusterWeight = typename Base::ClusterWeight;
