@@ -8,7 +8,10 @@
  * of the balance constraint.
  ******************************************************************************/
 #include "dkaminpar/coarsening/distributed_global_label_propagation_clustering.h"
+
 #include "dkaminpar/growt.h"
+#include "dkaminpar/mpi_graph_utils.h"
+#include "dkaminpar/utility/distributed_math.h"
 #include "kaminpar/algorithm/parallel_label_propagation.h"
 
 namespace dkaminpar {
@@ -85,7 +88,9 @@ public:
   DistributedGlobalLabelPropagationClusteringImpl(const NodeID max_n, const CoarseningContext &c_ctx)
       : Base{max_n},
         ClusterWeightBase{max_n},
-        ClusterBase{max_n} {
+        ClusterBase{max_n},
+        _c_ctx{c_ctx},
+        _changed_label(max_n) {
     set_max_num_iterations(c_ctx.lp.num_iterations);
     set_max_degree(c_ctx.lp.large_degree_threshold);
     set_max_num_neighbors(c_ctx.lp.max_num_neighbors);
@@ -96,7 +101,12 @@ public:
     _max_cluster_weight = max_cluster_weight;
 
     for (std::size_t iteration = 0; iteration < _max_num_iterations; ++iteration) {
-      if (perform_iteration() == 0) { break; }
+      NodeID num_moved_nodes = 0;
+      for (std::size_t chunk = 0; chunk < _c_ctx.lp.num_chunks; ++chunk) {
+        const auto [from, to] = math::compute_local_range<NodeID>(_graph->n(), _c_ctx.lp.num_chunks, chunk);
+        num_moved_nodes += process_chunk(from, to);
+      }
+      if (num_moved_nodes == 0) { break; }
     }
 
     return clusters();
@@ -106,7 +116,15 @@ public:
     _max_num_iterations = max_num_iterations == 0 ? std::numeric_limits<std::size_t>::max() : max_num_iterations;
   }
 
-public:
+  void init_cluster(const NodeID node, const GlobalNodeID cluster) override {
+    OwnedClusterVector::init_cluster(node, cluster);
+    _changed_label[node] = 0;
+  }
+  void move_node(const NodeID node, const GlobalNodeID cluster) override {
+    OwnedClusterVector::move_node(node, cluster);
+    _changed_label[node] = 1;
+  }
+
   [[nodiscard]] GlobalNodeID initial_cluster(const NodeID u) const { return _graph->local_to_global_node(u); }
 
   [[nodiscard]] NodeWeight initial_cluster_weight(const GlobalNodeID cluster) const {
@@ -124,9 +142,45 @@ public:
 
   [[nodiscard]] inline bool activate_neighbor(const NodeID u) const { return _graph->is_owned_node(u); }
 
+private:
+  NodeID process_chunk(const NodeID from, const NodeID to) {
+    const NodeID num_moved_nodes = perform_iteration(from, to);
+    if (num_moved_nodes == 0) { return 0; } // nothing to do
+
+    synchronize_ghost_node_clusters(from, to);
+    return num_moved_nodes;
+  }
+
+  void synchronize_ghost_node_clusters(const NodeID from, const NodeID to) {
+    struct ChangedLabelMessage {
+      GlobalNodeID global_node;
+      GlobalNodeID new_label;
+      NodeWeight new_cluster_weight;
+    };
+
+    mpi::graph::sparse_alltoall_interface_node_range_filtered<ChangedLabelMessage, scalable_vector>(
+        *_graph, from, to, [&](const NodeID u) { return _changed_label[u]; },
+        [&](const NodeID u, const PEID /* pe */) -> ChangedLabelMessage {
+          const auto leader = cluster(u);
+          return {_graph->local_to_global_node(u), leader, cluster_weight(leader)};
+        },
+        [&](const PEID /* pe */, const auto &buffer) {
+          tbb::parallel_for<std::size_t>(0, buffer.size(), [&](const std::size_t i) {
+            const auto [global_node, new_label, new_cluster_weight] = buffer[i];
+            const NodeID local_node = _graph->global_to_local_node(global_node);
+            init_cluster_weight(new_label, new_cluster_weight);
+            move_node(local_node, new_label);
+          });
+        });
+  }
+
   using Base::_graph;
+  const CoarseningContext &_c_ctx;
   NodeWeight _max_cluster_weight{std::numeric_limits<NodeWeight>::max()};
   std::size_t _max_num_iterations{std::numeric_limits<std::size_t>::max()};
+
+  //! \code{_changed_label[u] = 1} iff. node \c u changed its label in the current round
+  scalable_vector<uint8_t> _changed_label;
 };
 
 //

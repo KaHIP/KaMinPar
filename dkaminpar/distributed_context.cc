@@ -47,11 +47,12 @@ DEFINE_ENUM_STRING_CONVERSION(KWayRefinementAlgorithm, kway_refinement_algorithm
 };
 
 void LabelPropagationCoarseningContext::print(std::ostream &out, const std::string &prefix) const {
-  out << prefix << "num_iterations=" << num_iterations << " "                                              //
-      << prefix << "max_degree=" << large_degree_threshold << " "                                          //
-      << prefix << "max_num_neighbors=" << max_num_neighbors << " "                                        //
-      << prefix << "merge_singleton_clusters=" << merge_singleton_clusters << " "                          //
-      << prefix << "merge_nonadjacent_clusters_threshold=" << merge_nonadjacent_clusters_threshold << " "; //
+  out << prefix << "num_iterations=" << num_iterations << " "                                             //
+      << prefix << "max_degree=" << large_degree_threshold << " "                                         //
+      << prefix << "max_num_neighbors=" << max_num_neighbors << " "                                       //
+      << prefix << "merge_singleton_clusters=" << merge_singleton_clusters << " "                         //
+      << prefix << "merge_nonadjacent_clusters_threshold=" << merge_nonadjacent_clusters_threshold << " " //
+      << prefix << "num_chunks=" << num_chunks << " ";                                                    //
 }
 
 void LabelPropagationRefinementContext::print(std::ostream &out, const std::string &prefix) const {
@@ -157,6 +158,7 @@ Context create_default_context() {
         .max_num_neighbors = kInvalidNodeID,
         .merge_singleton_clusters = true,
         .merge_nonadjacent_clusters_threshold = 0.5,
+        .num_chunks = 8,
       }
     },
     .initial_partitioning = {

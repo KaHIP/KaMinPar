@@ -55,6 +55,7 @@ struct LabelPropagationCoarseningContext {
   NodeID max_num_neighbors;
   bool merge_singleton_clusters;
   double merge_nonadjacent_clusters_threshold;
+  std::size_t num_chunks;
 
   [[nodiscard]] bool should_merge_nonadjacent_clusters(const NodeID old_n, const NodeID new_n) const {
     return (1.0 - 1.0 * static_cast<double>(new_n) / static_cast<double>(old_n)) <=

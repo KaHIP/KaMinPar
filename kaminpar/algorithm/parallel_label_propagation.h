@@ -391,7 +391,7 @@ protected:
   using NodeID = typename Base::NodeID;
   using NodeWeight = typename Base::NodeWeight;
 
-  using Base::ClusterSelectionState;
+  using typename Base::ClusterSelectionState;
 
   using Base::handle_node;
   using Base::set_max_degree;
@@ -611,11 +611,11 @@ public:
 
   [[nodiscard]] const auto &clusters() const { return _clusters; }
 
-  void init_cluster(const NodeID node, const ClusterID cluster) { _clusters[node] = cluster; }
+  virtual void init_cluster(const NodeID node, const ClusterID cluster) { _clusters[node] = cluster; }
 
   [[nodiscard]] ClusterID cluster(const NodeID node) const { return _clusters[node]; }
 
-  void move_node(const NodeID node, const ClusterID cluster) { _clusters[node] = cluster; }
+  virtual void move_node(const NodeID node, const ClusterID cluster) { _clusters[node] = cluster; }
 
 private:
   scalable_vector<parallel::IntegralAtomicWrapper<ClusterID>> _clusters;

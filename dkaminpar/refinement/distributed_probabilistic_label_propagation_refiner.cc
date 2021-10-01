@@ -97,10 +97,12 @@ public:
     const auto cut_before = IFSTATS(metrics::edge_cut(*_p_graph));
 
     for (std::size_t iteration = 0; iteration < _lp_ctx.num_iterations; ++iteration) {
+      NodeID num_moved_nodes = 0;
       for (std::size_t chunk = 0; chunk < _lp_ctx.num_chunks; ++chunk) {
         const auto [from, to] = math::compute_local_range<NodeID>(_p_graph->n(), _lp_ctx.num_chunks, chunk);
-        process_chunk(from, to);
+        num_moved_nodes += process_chunk(from, to);
       }
+      if (num_moved_nodes == 0) { break; }
     }
 
     IFSTATS(_statistics.actual_gain += cut_before - metrics::edge_cut(*_p_graph));
@@ -108,14 +110,15 @@ public:
   }
 
 private:
-  void process_chunk(const NodeID from, const NodeID to) {
+  NodeID process_chunk(const NodeID from, const NodeID to) {
     mpi::barrier(_graph->communicator());
     HEAVY_ASSERT(ASSERT_NEXT_PARTITION_STATE());
 
     DBG << "Running label propagation on node chunk [" << from << ".." << to << "]";
 
     // run label propagation
-    perform_iteration(from, to);
+    const NodeID num_moved_nodes = perform_iteration(from, to);
+    if (num_moved_nodes == 0) { return 0; } // nothing to do
 
     // accumulate total weight of nodes moved to each block
     parallel::vector_ets<BlockWeight> weight_to_block_ets(_p_ctx->k);
@@ -157,6 +160,7 @@ private:
 
     // _next_partition should be in a consistent state at this point
     HEAVY_ASSERT(ASSERT_NEXT_PARTITION_STATE());
+    return num_moved_nodes;
   }
 
   bool perform_moves(const NodeID from, const NodeID to, const std::vector<BlockWeight> &residual_block_weights,
