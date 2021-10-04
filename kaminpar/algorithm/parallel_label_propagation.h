@@ -94,10 +94,13 @@ protected:
     ClusterWeight current_cluster_weight;
   };
 
-  explicit LabelPropagation(const ClusterID max_num_nodes)
+  explicit LabelPropagation(const NodeID max_num_active_nodes)
+      : LabelPropagation(max_num_active_nodes, max_num_active_nodes) {}
+
+  LabelPropagation(const NodeID max_num_active_nodes, const NodeID max_num_nodes)
       : _rating_map_ets{[max_num_nodes] { return RatingMap{max_num_nodes}; }},
-        _active(max_num_nodes),
-        _favored_clusters(Config::kUseTwoHopClustering * (max_num_nodes + 1)) {}
+        _active(max_num_active_nodes),
+        _favored_clusters(Config::kUseTwoHopClustering * (max_num_active_nodes + 1)) {}
 
   void initialize(const Graph *graph, const ClusterID num_clusters) {
     _graph = graph;

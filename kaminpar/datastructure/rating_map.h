@@ -42,6 +42,12 @@ public:
   [[nodiscard]] std::size_t super_small_map_counter() const { return _super_small_map_counter; }
   [[nodiscard]] std::size_t large_map_counter() const { return _large_map_counter; }
 
+  [[nodiscard]] std::size_t max_size() const { return _max_size; }
+
+  void change_max_size(const std::size_t max_size) {
+    _max_size = max_size;
+  }
+
 private:
   void select_map(const std::size_t upper_bound_size) {
     if (upper_bound_size < SuperSmallMap::MAP_SIZE / 3) {
@@ -55,7 +61,7 @@ private:
       ++_small_map_counter;
     }
 
-    if (_selected_map == MapType::LARGE && _large_map.capacity() == 0) { _large_map.resize(_max_size); }
+    if (_selected_map == MapType::LARGE && _large_map.capacity() != _max_size) { _large_map.resize(_max_size); }
   }
 
   std::size_t _max_size;

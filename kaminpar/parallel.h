@@ -14,6 +14,7 @@
 #include <iterator>
 #include <ranges>
 #include <tbb/blocked_range.h>
+#include <tbb/parallel_for.h>
 #include <tbb/parallel_reduce.h>
 #include <tbb/parallel_scan.h>
 #include <tbb/scalable_allocator.h>
@@ -210,5 +211,38 @@ std::ranges::range_value_t<Range> max_element(const Range &r) {
   body b{r};
   tbb::parallel_reduce(tbb::blocked_range<r_size_t>(static_cast<r_size_t>(0), r.size()), b);
   return b._ans;
+}
+
+/*!
+ * @param buffers Vector of buffers of elements.
+ * @param lambda Invoked on each element, in parallel.
+ */
+void parallel_for_over_chunks(auto &buffers, auto &&lambda) {
+
+
+  std::size_t total_size = 0;
+  for (const auto &buffer : buffers) { total_size += buffer.size(); }
+  tbb::parallel_for(tbb::blocked_range<std::size_t>(0, total_size), [&](const auto r) {
+    std::size_t cur = r.begin();
+    std::size_t offset = 0;
+    std::size_t current_buf = 0;
+    std::size_t cur_size = buffers[current_buf].size();
+
+    // find first buffer for our range
+    while (offset + cur_size < cur) {
+      offset += cur_size;
+      ++current_buf;
+      cur_size = buffers[current_buf].size();
+    }
+
+    // iterate elements
+    while (cur != r.end()) {
+      if (cur - offset >= cur_size) {
+        offset += buffers[current_buf++].size();
+      }
+      lambda(buffers[current_buf][cur - offset]);
+      ++cur;
+    }
+  });
 }
 } // namespace kaminpar::parallel

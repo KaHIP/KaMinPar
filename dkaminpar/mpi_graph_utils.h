@@ -21,47 +21,14 @@
 
 #include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/distributed_definitions.h"
+#include "dkaminpar/mpi_utils.h"
 #include "kaminpar/datastructure/marker.h"
 
 #include <type_traits>
 
-namespace dkaminpar::mpi::graph {
-namespace internal {
-template<typename Message, template<typename> typename Buffer>
-void perform_sparse_alltoall(const std::vector<Buffer<Message>> &send_buffers, auto &&receiver, const PEID size,
-                             const PEID rank, MPI_Comm comm) {
-  using Receiver = decltype(receiver);
-  constexpr bool receiver_invocable_with_pe = std::is_invocable_r_v<void, Receiver, Buffer<Message>, PEID>;
-  constexpr bool receiver_invocable_without_pe = std::is_invocable_r_v<void, Receiver, Buffer<Message>>;
-  static_assert(receiver_invocable_with_pe || receiver_invocable_without_pe, "bad receiver type");
-
-  std::vector<MPI_Request> requests;
-  requests.reserve(size);
-
-  for (PEID pe = 0; pe < size; ++pe) {
-    if (pe != rank) {
-      requests.emplace_back();
-      mpi::isend(send_buffers[pe], pe, 0, requests.back(), comm);
-    }
-  }
-
-  for (PEID pe = 0; pe < size; ++pe) {
-    if (pe != rank) {
-      const auto recv_buffer = mpi::probe_recv<Message, Buffer>(pe, 0, MPI_STATUS_IGNORE, comm);
-      if constexpr (receiver_invocable_with_pe) {
-        receiver(std::move(recv_buffer), pe);
-      } else /* if (receiver_invocable_without_pe) */ {
-        receiver(std::move(recv_buffer));
-      }
-    }
-  }
-
-  mpi::waitall(requests);
-}
-} // namespace internal
-
 #define SPARSE_ALLTOALL_NOFILTER [](NodeID) { return true; }
 
+namespace dkaminpar::mpi::graph {
 template<typename Message, template<typename> typename Buffer = scalable_vector>
 void sparse_alltoall_interface_to_ghost(const DistributedGraph &graph, auto &&builder, auto &&receiver) {
   sparse_alltoall_interface_to_ghost<Message, Buffer>(graph, SPARSE_ALLTOALL_NOFILTER,
@@ -119,8 +86,7 @@ void sparse_alltoall_interface_to_ghost(const DistributedGraph &graph, const Nod
     }
   });
 
-  internal::perform_sparse_alltoall<Message, Buffer>(send_buffers, std::forward<decltype(receiver)>(receiver), size,
-                                                     rank, graph.communicator());
+  sparse_alltoall<Message, Buffer>(send_buffers, std::forward<decltype(receiver)>(receiver), graph.communicator());
 }
 
 template<typename Message, template<typename> typename Buffer = scalable_vector>
@@ -198,8 +164,7 @@ void sparse_alltoall_interface_to_pe(const DistributedGraph &graph, const NodeID
     }
   });
 
-  internal::perform_sparse_alltoall<Message, Buffer>(send_buffers, std::forward<decltype(receiver)>(receiver), size,
-                                                     rank, graph.communicator());
+  sparse_alltoall<Message, Buffer>(send_buffers, std::forward<decltype(receiver)>(receiver), graph.communicator());
 }
 
 template<typename Message, template<typename> typename Buffer = scalable_vector>

@@ -46,12 +46,22 @@ public:
     if (cluster_weight(old_cluster) + delta <= max_weight) {
       auto &handle = _cluster_weights_handles_ets.local();
       // clang-format off
-      handle.update(old_cluster, [delta](auto &lhs, const auto rhs) { return lhs -= rhs; }, delta);
-      handle.update(new_cluster, [delta](auto &lhs, const auto rhs) { return lhs += rhs; }, delta);
+      handle.update(old_cluster, [](auto &lhs, const auto rhs) { return lhs -= rhs; }, delta);
+      handle.update(new_cluster, [](auto &lhs, const auto rhs) { return lhs += rhs; }, delta);
       // clang-format on
       return true;
     }
     return false;
+  }
+
+  void set_cluster_weight(const ClusterID cluster, const ClusterWeight weight) {
+    _cluster_weights_handles_ets.local().insert(cluster, weight);
+  }
+
+  void change_cluster_weight(const ClusterID cluster, const ClusterWeight delta) {
+    // clang-format off
+    _cluster_weights_handles_ets.local().update(cluster, [](auto &lhs, const auto rhs) { return lhs += rhs; }, delta);
+    // clang-format on
   }
 
 private:
@@ -71,19 +81,24 @@ class LockingLpClusteringImpl : public shm::InOrderLabelPropagation<LockingLpClu
   friend Base::Base;
 
 public:
-  LockingLpClusteringImpl(const NodeID max_n, const CoarseningContext &c_ctx)
-      : Base{max_n},
-        ClusterWeightBase{max_n},
+  LockingLpClusteringImpl(const NodeID max_num_active_nodes, const NodeID max_num_nodes, const CoarseningContext &c_ctx)
+      : Base{max_num_active_nodes, max_num_nodes},
+        ClusterWeightBase{max_num_nodes},
         _c_ctx{c_ctx},
-        _current_clustering(max_n),
-        _next_clustering(max_n) {
+        _current_clustering(max_num_nodes),
+        _next_clustering(max_num_nodes),
+        _gain(max_num_active_nodes),
+        _gain_buffer_index(max_num_active_nodes) {
     set_max_degree(c_ctx.lp.large_degree_threshold);
     set_max_num_neighbors(c_ctx.lp.max_num_neighbors);
   }
 
   const auto &compute_clustering(const DistributedGraph &graph, const NodeWeight max_cluster_weight) {
-    initialize(&graph, graph.total_n());
+    initialize(&graph, graph.total_n()); // initializes _graph
     _max_cluster_weight = max_cluster_weight;
+
+    // catch special case where the coarse graph is larger than the fine graph due to an increased number of ghost nodes
+    ensure_allocation_ok();
 
     const auto num_iterations = _c_ctx.lp.num_iterations == 0 ? std::numeric_limits<std::size_t>::max()
                                                               : _c_ctx.lp.num_iterations;
@@ -132,6 +147,37 @@ protected:
   //--------------------------------------------------------------------------------
 
 private:
+  // a coarse graph could have a larger total size than the finer graph, since the number of ghost nodes could increase
+  // arbitrarily -- thus, resize the rating map (only component depending on total_n()) in this special case
+  // find a better solution to this issue in the future
+  void ensure_allocation_ok() {
+    SCOPED_TIMER("Allocation");
+
+    if (_rating_map_ets.local().max_size() < _graph->total_n()) {
+      for (auto &ets : _rating_map_ets) { ets.change_max_size(_graph->total_n()); }
+    }
+    if (_current_clustering.size() < _graph->total_n()) { _current_clustering.resize(_graph->total_n()); }
+    if (_next_clustering.size() < _graph->total_n()) { _next_clustering.resize(_graph->total_n()); }
+  }
+
+  struct JoinRequest {
+    GlobalNodeID global_requester;
+    NodeWeight requester_weight;
+    EdgeWeight requester_gain;
+    GlobalNodeID global_requested;
+  };
+
+  struct JoinResponse {
+    GlobalNodeID global_requester;
+    NodeWeight new_weight;
+    std::uint8_t response;
+  };
+
+  struct LabelMessage {
+    GlobalNodeID global_node;
+    GlobalNodeID global_new_label;
+  };
+
   /*
    * TODO: deactivate locked nodes
    */
@@ -145,32 +191,111 @@ private:
   }
 
   void perform_distributed_moves(const NodeID from, const NodeID to) {
-    struct JoinRequest {
-      GlobalNodeID global_requester;
-      NodeID requester_weight;
-      EdgeWeight requester_gain;
-      GlobalNodeID global_requested;
+    // exchange join requests and collect them in _gain_buffer
+    auto requests = mpi::graph::sparse_alltoall_interface_to_pe_get<JoinRequest>(
+        *_graph, from, to, [&](const NodeID u) { return was_moved_during_round(u); },
+        [&](const NodeID u) -> JoinRequest {
+          return {.global_requester = _graph->local_to_global_node(u),
+                  .requester_weight = _graph->node_weight(u),
+                  .requester_gain = _gain[u],
+                  .global_requested = _next_clustering[u]};
+        });
+    build_gain_buffer(requests);
+
+    // perform moves
+    tbb::parallel_for<NodeID>(0, _graph->n(), [&](const NodeID u) {
+      const auto global_u = _graph->local_to_global_node(u);
+      const auto to_cluster = cluster(global_u);
+
+      for (std::size_t i = _gain_buffer_index[u]; i < _gain_buffer_index[u + 1]; ++i) {
+        const auto [v, gain] = _gain_buffer[i];
+        const auto v_weight = _graph->node_weight(v);
+        const auto global_v = _graph->local_to_global_node(v);
+        const auto from_cluster = cluster(global_v);
+
+        if (move_cluster_weight(from_cluster, to_cluster, v_weight, max_cluster_weight(to_cluster))) {
+          move_node(v, to_cluster);
+        }
+      }
+    });
+
+    // build response messages
+    std::vector<scalable_vector<JoinResponse>> responses;
+    for (const auto &requests_from_pe : requests) { // allocate memory for responses
+      responses.emplace_back(requests_from_pe.size());
+    }
+
+    std::vector<shm::parallel::IntegralAtomicWrapper<std::size_t>> next_message(requests.size());
+
+    tbb::parallel_for<NodeID>(0, _graph->n(), [&](const NodeID u) {
+      const auto global_u = _graph->local_to_global_node(u);
+      const auto to_cluster = cluster(global_u);
+
+      for (std::size_t i = _gain_buffer_index[u]; i < _gain_buffer_index[u + 1]; ++i) {
+        const auto [v, gain] = _gain_buffer[i];
+        const auto global_v = _graph->local_to_global_node(v);
+        const auto pe = _graph->ghost_owner(v);
+        const auto slot = next_message[pe]++;
+
+        const std::uint8_t accepted = was_moved_during_round(v);
+        responses[pe][slot] = JoinResponse{.global_requester = global_v,
+                                           .new_weight = cluster_weight(to_cluster),
+                                           .response = accepted};
+      }
+    });
+
+    // exchange responses
+    mpi::sparse_alltoall<JoinResponse, scalable_vector>(
+        responses,
+        [&](const auto buffer) {
+          for (const auto [global_requester, new_weight, accepted] : buffer) {
+            const auto local_requester = _graph->global_to_local_node(global_requester);
+            set_cluster_weight(cluster(local_requester), new_weight);
+            if (!accepted) { // if accepted, nothing to do, otherwise move back
+              _next_clustering[local_requester] = _current_clustering[local_requester];
+              change_cluster_weight(cluster(local_requester), _graph->node_weight(local_requester));
+            }
+          }
+        },
+        _graph->communicator());
+  }
+
+  void build_gain_buffer(auto &join_requests_per_pe) {
+    // allocate memory only here since the number of ghost nodes could increase for coarse graphs
+    TIMED_SCOPE("Allocation") {
+      if (_gain_buffer.size() < _graph->ghost_n()) { _gain_buffer.resize(_graph->ghost_n()); }
     };
 
-    struct JoinResponse {
-      GlobalNodeID global_requested;
-      NodeWeight new_weight;
-      std::uint8_t response;
-    };
+    // reset _gain_buffer_index
+    _graph->pfor_nodes([&](const NodeID u) { _gain_buffer_index[u] = 0; });
 
+    // build _gain_buffer_index and _gain_buffer arrays
+    shm::parallel::parallel_for_over_chunks(join_requests_per_pe, [&](const JoinRequest &request) {
+      _gain_buffer_index[_graph->global_to_local_node(request.global_requested)];
+    });
+    shm::parallel::prefix_sum(_gain_buffer_index.begin(), _gain_buffer_index.begin() + _graph->n() + 1,
+                              _gain_buffer_index.begin());
+    shm::parallel::parallel_for_over_chunks(join_requests_per_pe, [&](const JoinRequest &request) {
+      const NodeID local_requested = _graph->global_to_local_node(request.global_requested);
+      const NodeID local_requester = _graph->global_to_local_node(request.global_requester);
+      _gain_buffer[--_gain_buffer_index[local_requested]] = {local_requester, request.requester_gain};
+    });
 
+    // sort buffer for each node by gain
+    tbb::parallel_for<NodeID>(0, _graph->n(), [&](const NodeID u) {
+      if (_gain_buffer_index[u] < _gain_buffer_index[u + 1]) {
+        std::sort(_gain_buffer.begin() + _gain_buffer_index[u], _gain_buffer.begin() + _gain_buffer_index[u + 1],
+                  [&](const auto &lhs, const auto &rhs) {
+                    return lhs.second < rhs.second || (lhs.second == rhs.second && lhs.first < rhs.first);
+                  });
+      }
+    });
   }
 
   //! Synchronize labels of ghost nodes.
-  // TODO: have to use global labels
   void synchronize_labels(const NodeID from, const NodeID to) {
-    struct LabelMessage {
-      GlobalNodeID global_node;
-      GlobalNodeID global_new_label;
-    };
-
     mpi::graph::sparse_alltoall_interface_to_pe<LabelMessage>(
-        *_graph, from, to, [&](const NodeID u) { return _next_clustering[u] != _current_clustering[u]; },
+        *_graph, from, to, [&](const NodeID u) { return was_moved_during_round(u); },
         [&](const NodeID u) -> LabelMessage {
           return {_graph->local_to_global_node(u), _next_clustering[u]};
         },
@@ -183,6 +308,10 @@ private:
         });
   }
 
+  [[nodiscard]] bool was_moved_during_round(const NodeID u) const {
+    return _next_clustering[u] != _current_clustering[u];
+  }
+
   using Base::_graph;
 
   const CoarseningContext &_c_ctx;
@@ -190,10 +319,19 @@ private:
   NodeWeight _max_cluster_weight;
   AtomicClusterArray _current_clustering;
   AtomicClusterArray _next_clustering;
+  scalable_vector<EdgeWeight> _gain;
+
+  //! After receiving join requests, sort ghost nodes that want to join a cluster here. Use \c _gain_buffer_index to
+  //! navigate this vector.
+  scalable_vector<std::pair<NodeID, EdgeWeight>> _gain_buffer;
+  //! After receiving join requests, sort ghost nodes that want to join a cluster into \c _gain_buffer. For each
+  //! interface node, store the index for that nodes join requests in \c _gain_buffer in this vector.
+  scalable_vector<shm::parallel::IntegralAtomicWrapper<NodeID>> _gain_buffer_index;
 };
 
-LockingLpClustering::LockingLpClustering(const NodeID max_n, const CoarseningContext &c_ctx)
-    : _impl{std::make_unique<LockingLpClusteringImpl>(max_n, c_ctx)} {}
+LockingLpClustering::LockingLpClustering(const NodeID max_num_active_nodes, const NodeID max_num_nodes,
+                                         const CoarseningContext &c_ctx)
+    : _impl{std::make_unique<LockingLpClusteringImpl>(max_num_nodes, max_num_active_nodes, c_ctx)} {}
 
 LockingLpClustering::~LockingLpClustering() = default;
 
