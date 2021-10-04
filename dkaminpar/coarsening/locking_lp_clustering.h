@@ -13,7 +13,7 @@
 #include "dkaminpar/distributed_definitions.h"
 
 namespace dkaminpar {
-class LockingLpClustering : public IClustering<NodeID> {
+class LockingLpClustering : public IClustering<GlobalNodeID> {
 public:
   LockingLpClustering(const NodeID max_n, const CoarseningContext &c_ctx);
   ~LockingLpClustering();

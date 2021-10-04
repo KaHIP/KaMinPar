@@ -247,7 +247,7 @@ private:
       BlockID new_block;
     };
 
-    mpi::graph::sparse_alltoall_interface_node_range_filtered<MoveMessage, scalable_vector>(
+    mpi::graph::sparse_alltoall_interface_to_pe<MoveMessage>(
         *_graph, from, to,
 
         // only for nodes that were moved -- we set _next_partition[] to kInvalidBlockID for nodes that were actually
@@ -259,12 +259,12 @@ private:
         },
 
         // send move to each ghost node adjacent to u
-        [&](const NodeID u, const PEID /* pe */) -> MoveMessage {
+        [&](const NodeID u) -> MoveMessage {
           return {.global_node = _p_graph->local_to_global_node(u), .new_block = _p_graph->block(u)};
         },
 
         // move ghost nodes
-        [&](const PEID /* p */, const auto &recv_buffer) {
+        [&](const auto recv_buffer) {
           tbb::parallel_for(static_cast<std::size_t>(0), recv_buffer.size(), [&](const std::size_t i) {
             const auto [global_node, new_block] = recv_buffer[i];
             const NodeID local_node = _p_graph->global_to_local_node(global_node);

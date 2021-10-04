@@ -78,13 +78,13 @@ bool validate(const DistributedGraph &graph, const int root) {
       NodeWeight weight;
     };
 
-    mpi::graph::sparse_alltoall_interface_node<GhostNodeWeightMessage, scalable_vector>(
+    mpi::graph::sparse_alltoall_interface_to_pe<GhostNodeWeightMessage>(
         graph,
-        [&](const NodeID u, const PEID) -> GhostNodeWeightMessage {
+        [&](const NodeID u) -> GhostNodeWeightMessage {
           return {.global_u = graph.local_to_global_node(u), .weight = graph.node_weight(u)};
         },
-        [&](const PEID /* pe */, const auto &recv_buffer) {
-          for (const auto [global_u, weight] : recv_buffer) {
+        [&](const auto buffer) {
+          for (const auto [global_u, weight] : buffer) {
             ALWAYS_ASSERT(graph.contains_global_node(global_u));
             const NodeID local_u = graph.global_to_local_node(global_u);
             ALWAYS_ASSERT(graph.node_weight(local_u) == weight);
@@ -100,12 +100,12 @@ bool validate(const DistributedGraph &graph, const int root) {
       GlobalNodeID ghost_node;
     };
 
-    mpi::graph::sparse_alltoall_ghost_edge<GhostNodeEdge>(
+    mpi::graph::sparse_alltoall_interface_to_ghost<GhostNodeEdge>(
         graph,
-        [&](const NodeID u, const EdgeID, const NodeID v, const PEID) -> GhostNodeEdge {
+        [&](const NodeID u, const EdgeID, const NodeID v) -> GhostNodeEdge {
           return {.owned_node = graph.local_to_global_node(u), .ghost_node = graph.local_to_global_node(v)};
         },
-        [&](const PEID pe, const auto &recv_buffer) {
+        [&](const auto recv_buffer, const PEID pe) {
           for (const auto [ghost_node, owned_node] : recv_buffer) { // NOLINT: roles are swapped on receiving PE
             ALWAYS_ASSERT(graph.contains_global_node(ghost_node));
             ALWAYS_ASSERT(graph.contains_global_node(owned_node));

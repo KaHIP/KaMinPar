@@ -19,13 +19,53 @@ struct LockingLpClusteringConfig : shm::LabelPropagationConfig {
   using ClusterID = NodeID;
   using ClusterWeight = NodeWeight;
 };
+
+template<typename ClusterID, typename ClusterWeight>
+class OwnedRelaxedClusterWeightMap {
+  using hasher_type = utils_tm::hash_tm::murmur2_hash;
+  using allocator_type = growt::AlignedAllocator<>;
+  using table_type = typename growt::table_config<ClusterID, ClusterWeight, hasher_type, allocator_type, hmod::growable,
+                                                  hmod::deletion>::table_type;
+
+public:
+  explicit OwnedRelaxedClusterWeightMap(const ClusterID max_num_clusters) : _cluster_weights(max_num_clusters) {}
+
+  void init_cluster_weight(const ClusterID cluster, const ClusterWeight weight) {
+    _cluster_weights_handles_ets.local().insert(cluster, weight);
+  }
+
+  ClusterWeight cluster_weight(const ClusterID cluster) {
+    auto &handle = _cluster_weights_handles_ets.local();
+    auto it = handle.find(cluster);
+    ASSERT(it != handle.end());
+    return (*it).second;
+  }
+
+  bool move_cluster_weight(const ClusterID old_cluster, const ClusterID new_cluster, const ClusterWeight delta,
+                           const ClusterWeight max_weight) {
+    if (cluster_weight(old_cluster) + delta <= max_weight) {
+      auto &handle = _cluster_weights_handles_ets.local();
+      // clang-format off
+      handle.update(old_cluster, [delta](auto &lhs, const auto rhs) { return lhs -= rhs; }, delta);
+      handle.update(new_cluster, [delta](auto &lhs, const auto rhs) { return lhs += rhs; }, delta);
+      // clang-format on
+      return true;
+    }
+    return false;
+  }
+
+private:
+  table_type _cluster_weights;
+  tbb::enumerable_thread_specific<typename table_type::handle_type> _cluster_weights_handles_ets{
+      [&] { return _cluster_weights.get_handle(); }};
+};
 } // namespace
 
 class LockingLpClusteringImpl : public shm::InOrderLabelPropagation<LockingLpClusteringImpl, LockingLpClusteringConfig>,
-                                public shm::OwnedRelaxedClusterWeightVector<NodeID, NodeWeight> {
+                                public OwnedRelaxedClusterWeightMap<GlobalNodeID, NodeWeight> {
   using Base = shm::InOrderLabelPropagation<LockingLpClusteringImpl, LockingLpClusteringConfig>;
-  using ClusterWeightBase = OwnedRelaxedClusterWeightVector<NodeID, NodeWeight>;
-  using AtomicClusterArray = scalable_vector<shm::parallel::IntegralAtomicWrapper<NodeID>>;
+  using ClusterWeightBase = OwnedRelaxedClusterWeightMap<GlobalNodeID, NodeWeight>;
+  using AtomicClusterArray = scalable_vector<shm::parallel::IntegralAtomicWrapper<GlobalNodeID>>;
 
   friend Base;
   friend Base::Base;
@@ -117,6 +157,8 @@ private:
       NodeWeight new_weight;
       std::uint8_t response;
     };
+
+
   }
 
   //! Synchronize labels of ghost nodes.
@@ -127,17 +169,16 @@ private:
       GlobalNodeID global_new_label;
     };
 
-    mpi::graph::sparse_alltoall_interface_node_range_filtered<LabelMessage, scalable_vector>(
+    mpi::graph::sparse_alltoall_interface_to_pe<LabelMessage>(
         *_graph, from, to, [&](const NodeID u) { return _next_clustering[u] != _current_clustering[u]; },
-        [&](const NodeID u, const PEID /* pe */) -> LabelMessage {
-          return {_graph->local_to_global_node(u), _graph->local_to_global_node(_next_clustering[u])};
+        [&](const NodeID u) -> LabelMessage {
+          return {_graph->local_to_global_node(u), _next_clustering[u]};
         },
-        [&](const PEID /* pe */, const auto &buffer) {
+        [&](const auto buffer) {
           tbb::parallel_for<std::size_t>(0, buffer.size(), [&](const std::size_t i) {
             const auto [global_node, global_new_label] = buffer[i];
             const auto local_node = _graph->global_to_local_node(global_node);
-            const auto local_new_label = _graph->global_to_local_node(global_new_label);
-            move_node(local_node, local_new_label);
+            move_node(local_node, global_new_label);
           });
         });
   }

@@ -35,7 +35,8 @@ SET_DEBUG(true);
  * Local cluster contraction
  */
 
-Result contract_local_clustering(const DistributedGraph &graph, const scalable_vector<shm::parallel::IntegralAtomicWrapper<NodeID>> &clustering,
+Result contract_local_clustering(const DistributedGraph &graph,
+                                 const scalable_vector<shm::parallel::IntegralAtomicWrapper<NodeID>> &clustering,
                                  MemoryContext m_ctx) {
   ASSERT(clustering.size() == graph.n());
 
@@ -130,16 +131,16 @@ Result contract_local_clustering(const DistributedGraph &graph, const scalable_v
   std::unordered_map<GlobalNodeID, NodeID> c_global_to_ghost;
   NodeID c_next_ghost_node = c_n;
 
-  mpi::graph::sparse_alltoall_interface_node<CoarseGhostNode, scalable_vector>(
+  mpi::graph::sparse_alltoall_interface_to_pe<CoarseGhostNode>(
       graph,
-      [&](const NodeID u, const PEID) -> CoarseGhostNode {
+      [&](const NodeID u) -> CoarseGhostNode {
         return {
             .old_global_node = graph.local_to_global_node(u),
             .new_global_node = first_node + mapping[u],
             .coarse_weight = c_node_weights[mapping[u]],
         };
       },
-      [&](const PEID pe, const auto &recv_buffer) { // TODO parallelize
+      [&](const auto recv_buffer, const PEID pe) { // TODO parallelize
         for (const auto [old_global_u, new_global_u, new_weight] : recv_buffer) {
           const NodeID old_local_u = graph.global_to_local_node(old_global_u);
           if (!c_global_to_ghost.contains(new_global_u)) {
@@ -278,8 +279,10 @@ Result contract_local_clustering(const DistributedGraph &graph, const scalable_v
 
 namespace {} // namespace
 
-contraction::Result contract_global_clustering(const DistributedGraph &graph, const scalable_vector<shm::parallel::IntegralAtomicWrapper<NodeID>> &clustering,
-                                               contraction::MemoryContext m_ctx) {
+contraction::Result
+contract_global_clustering(const DistributedGraph &graph,
+                           const scalable_vector<shm::parallel::IntegralAtomicWrapper<NodeID>> &clustering,
+                           contraction::MemoryContext m_ctx) {
   ASSERT(clustering.size() == graph.total_n());
 
   // first contract clusters locally on each PE

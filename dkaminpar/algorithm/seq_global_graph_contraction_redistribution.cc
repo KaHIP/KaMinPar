@@ -76,13 +76,13 @@ void exchange_ghost_node_mapping(const DistributedGraph &graph, auto &label_mapp
     GlobalNodeID coarse_global_node;
   };
 
-  mpi::graph::sparse_alltoall_interface_node<Message, std::vector>(
+  mpi::graph::sparse_alltoall_interface_to_pe<Message, std::vector>(
       graph,
-      [&](const NodeID u, const PEID /* pe */) -> Message {
+      [&](const NodeID u) -> Message {
         const GlobalNodeID global_u = graph.local_to_global_node(u);
         return {global_u, label_mapping[global_u]};
       },
-      [&](const PEID /* pe */, const auto &buffer) {
+      [&](const auto buffer) {
         for (const Message &message : buffer) { label_mapping[message.global_node] = message.coarse_global_node; }
       });
 }
@@ -162,12 +162,12 @@ void update_ghost_node_weights(DistributedGraph &graph) {
     NodeWeight weight;
   };
 
-  mpi::graph::sparse_alltoall_interface_node<Message, std::vector>(
+  mpi::graph::sparse_alltoall_interface_to_pe<Message, std::vector>(
       graph,
-      [&](const NodeID u, const PEID /* pe */) -> Message {
+      [&](const NodeID u) -> Message {
         return {graph.local_to_global_node(u), graph.node_weight(u)};
       },
-      [&](const PEID /* pe */, const auto &buffer) {
+      [&](const auto buffer) {
         for (const Message &message : buffer) {
           const NodeID local_node = graph.global_to_local_node(message.global_node);
           graph.set_ghost_node_weight(local_node, message.weight);
