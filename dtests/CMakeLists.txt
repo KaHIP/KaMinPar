@@ -12,4 +12,5 @@ function(add_kaminpar_dtest target nproc)
 endfunction()
 
 add_kaminpar_dtest(local_contraction_test 3 algorithm/local_contraction_test.cc)
+add_kaminpar_dtest(locking_lp_clustering_test 3 coarsening/locking_lp_clustering_test.cc)
 #add_kaminpar_dtest(global_contraction_test 3 algorithm/global_contraction_test.cc)

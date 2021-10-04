@@ -88,7 +88,8 @@ public:
         _current_clustering(max_num_nodes),
         _next_clustering(max_num_nodes),
         _gain(max_num_active_nodes),
-        _gain_buffer_index(max_num_active_nodes) {
+        _gain_buffer_index(max_num_active_nodes),
+        _locked(max_num_active_nodes) {
     set_max_degree(c_ctx.lp.large_degree_threshold);
     set_max_num_neighbors(c_ctx.lp.max_num_neighbors);
   }
@@ -119,6 +120,11 @@ protected:
   //--------------------------------------------------------------------------------
   // Called from base class
   //VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV
+  void reset_node_state(const NodeID u) {
+    Base::reset_node_state(u);
+    _locked[u] = 0;
+  }
+
   void init_cluster(const NodeID node, const NodeID cluster) {
     _current_clustering[node] = cluster;
     _next_clustering[node] = cluster;
@@ -141,7 +147,7 @@ protected:
             state.current_cluster == state.initial_cluster);
   }
 
-  [[nodiscard]] inline bool activate_neighbor(const NodeID u) const { return _graph->is_owned_node(u); }
+  [[nodiscard]] inline bool activate_neighbor(const NodeID u) const { return !_locked[u] && _graph->is_owned_node(u); }
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   // Called from base class
   //--------------------------------------------------------------------------------
@@ -178,14 +184,12 @@ private:
     GlobalNodeID global_new_label;
   };
 
-  /*
-   * TODO: deactivate locked nodes
-   */
   NodeID process_chunk(const NodeID from, const NodeID to) {
     const NodeID num_moved_nodes = perform_iteration(from, to);
     if (num_moved_nodes == 0) { return 0; } // nothing to do
 
     perform_distributed_moves(from, to);
+    synchronize_labels(from, to);
 
     return num_moved_nodes;
   }
@@ -215,6 +219,9 @@ private:
 
         if (move_cluster_weight(from_cluster, to_cluster, v_weight, max_cluster_weight(to_cluster))) {
           move_node(v, to_cluster);
+          _locked[u] = 1;
+        } else {
+          break;
         }
       }
     });
@@ -327,6 +334,8 @@ private:
   //! After receiving join requests, sort ghost nodes that want to join a cluster into \c _gain_buffer. For each
   //! interface node, store the index for that nodes join requests in \c _gain_buffer in this vector.
   scalable_vector<shm::parallel::IntegralAtomicWrapper<NodeID>> _gain_buffer_index;
+
+  scalable_vector<std::uint8_t> _locked;
 };
 
 LockingLpClustering::LockingLpClustering(const NodeID max_num_active_nodes, const NodeID max_num_nodes,
