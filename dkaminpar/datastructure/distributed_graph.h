@@ -151,9 +151,7 @@ public:
     return _node_weights[u];
   }
 
-  [[nodiscard]] inline const auto &node_weights() const {
-    return _node_weights;
-  }
+  [[nodiscard]] inline const auto &node_weights() const { return _node_weights; }
 
   // convenient to have this for ghost nodes
   void set_ghost_node_weight(const NodeID ghost_node, const NodeWeight weight) {
@@ -167,9 +165,7 @@ public:
     return _edge_weights[e];
   }
 
-  [[nodiscard]] inline const auto &edge_weights() const {
-    return _edge_weights;
-  }
+  [[nodiscard]] inline const auto &edge_weights() const { return _edge_weights; }
 
   // Graph structure
   [[nodiscard]] inline EdgeID first_edge(const NodeID u) const {
@@ -280,6 +276,44 @@ public:
   }
 
   [[nodiscard]] inline MPI_Comm communicator() const { return _communicator; }
+
+  // Functions to steal members of this graph
+  /*
+   * GlobalNodeID _global_n{0};
+GlobalEdgeID _global_m{0};
+NodeID _ghost_n{0};
+GlobalNodeID _offset_n{0};
+GlobalEdgeID _offset_m{0};
+
+NodeWeight _total_node_weight{};
+NodeWeight _max_node_weight{};
+
+scalable_vector<GlobalNodeID> _node_distribution{};
+scalable_vector<GlobalEdgeID> _edge_distribution{};
+
+scalable_vector<EdgeID> _nodes{};
+scalable_vector<NodeID> _edges{};
+scalable_vector<NodeWeight> _node_weights{};
+scalable_vector<EdgeWeight> _edge_weights{};
+
+scalable_vector<PEID> _ghost_owner{};
+scalable_vector<GlobalNodeID> _ghost_to_global{};
+mutable std::unordered_map<GlobalNodeID, NodeID> _global_to_ghost{};
+
+std::vector<EdgeID> _edge_cut_to_pe{};
+std::vector<EdgeID> _comm_vol_to_pe{};
+MPI_Comm _communicator;
+   */
+
+  auto &&take_node_distribution() { return std::move(_node_distribution); }
+  auto &&take_edge_distribution() { return std::move(_edge_distribution); }
+  auto &&take_nodes() { return std::move(_nodes); }
+  auto &&take_edges() { return std::move(_edges); }
+  auto &&take_node_weights() { return std::move(_node_weights); }
+  auto &&take_edge_weights() { return std::move(_edge_weights); }
+  auto &&take_ghost_owner() { return std::move(_ghost_owner); }
+  auto &&take_ghost_to_global() { return std::move(_ghost_to_global); }
+  auto &&take_global_to_ghost() { return std::move(_global_to_ghost); }
 
 private:
   inline void init_total_node_weight() {
