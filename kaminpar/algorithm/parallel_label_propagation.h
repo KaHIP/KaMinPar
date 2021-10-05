@@ -54,7 +54,7 @@ struct LabelPropagationConfig {
  */
 template<typename Derived, std::derived_from<LabelPropagationConfig> Config>
 class LabelPropagation {
-  SET_DEBUG(false);
+  SET_DEBUG(true);
   SET_STATISTICS(false);
 
 protected:
@@ -140,13 +140,19 @@ protected:
   // ... first:  whether the node could be moved to another cluster
   // ... second: whether the previous cluster of the node is now empty (only if Config::kReportEmptyClusters)
   std::pair<bool, bool> handle_node(const NodeID u, Randomize &local_rand, auto &local_rating_map) {
+    DBG << u;
+
     const NodeWeight u_weight = _graph->node_weight(u);
     const ClusterID u_cluster = derived_cluster(u);
     const auto [new_cluster, new_gain] = find_best_cluster(u, u_weight, u_cluster, local_rand, local_rating_map);
+    DBG << V(new_cluster) << V(new_gain);
 
     if (derived_cluster(u) != new_cluster) {
+      DBG << "update";
       if (derived_move_cluster_weight(u_cluster, new_cluster, u_weight, derived_max_cluster_weight(new_cluster))) {
+        DBG << "really update";
         derived_move_node(u, new_cluster);
+        DBG << "activate";
         activate_neighbors(u);
         IFSTATS(_expected_total_gain += new_gain);
 
@@ -383,6 +389,8 @@ protected:
 
 template<typename Derived, std::derived_from<LabelPropagationConfig> Config>
 class InOrderLabelPropagation : public LabelPropagation<Derived, Config> {
+  SET_DEBUG(true);
+
 protected:
   using Base = LabelPropagation<Derived, Config>;
 
@@ -408,6 +416,7 @@ protected:
     tbb::enumerable_thread_specific<NodeID> num_moved_nodes_ets;
 
     tbb::parallel_for(tbb::blocked_range<NodeID>(from, std::min(_graph->n(), to)), [&](const auto &r) {
+      DBG << ".";
       EdgeID work_since_update = 0;
       NodeID num_removed_clusters = 0;
 
@@ -416,6 +425,7 @@ protected:
       auto &rating_map = _rating_map_ets.local();
 
       for (NodeID u = r.begin(); u != r.end(); ++u) {
+        DBG << ".." << u;
         if (work_since_update > Config::kMinChunkSize) {
           if (Base::should_stop()) { return; }
 
@@ -431,6 +441,7 @@ protected:
       }
     });
 
+    DBG << "done";
     return num_moved_nodes_ets.combine(std::plus{});
   }
 

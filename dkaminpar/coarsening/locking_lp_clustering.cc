@@ -47,6 +47,7 @@ public:
         _gain_buffer_index(max_num_active_nodes),
         _locked(max_num_active_nodes),
         _cluster_weights(max_num_nodes) {
+    DBG << "Init HT with cap " << max_num_nodes;
     set_max_degree(c_ctx.lp.large_degree_threshold);
     set_max_num_neighbors(c_ctx.lp.max_num_neighbors);
   }
@@ -87,19 +88,30 @@ protected:
    * Note: offset cluster IDs by 1 since growt cannot use 0 as key
    */
 
+  auto create_handle_tmp() {
+    DBG << "create handle";
+    return _cluster_weights.get_handle();
+  }
+
+  auto &get_cluster_weights_handle() {
+    thread_local static table_type::handle_type handle = create_handle_tmp();
+    return handle;
+  }
+
   void init_cluster_weight(const GlobalNodeID local_cluster, const NodeWeight weight) {
     const auto cluster = _graph->local_to_global_node(local_cluster);
-    [[maybe_unused]] const auto [it, success] = _cluster_weights_handles_ets.local().insert(cluster + 1, weight);
-    ASSERT(success);
 
-    DBG << "Initialized cluster " << cluster << " to weight " << weight;
+    DBG << "insert(" << cluster + 1 << ", " << weight << ")";
+    auto &handle = get_cluster_weights_handle(); // TODO
+    [[maybe_unused]] const auto [it, success] = handle.insert(cluster + 1, weight);
+    ASSERT(success);
   }
 
   NodeWeight cluster_weight(const GlobalNodeID cluster) {
-    auto &handle = _cluster_weights_handles_ets.local();
+    DBG << "find(" << cluster + 1 << ")";
+    auto &handle = get_cluster_weights_handle(); // TODO
     auto it = handle.find(cluster + 1);
     ASSERT(it != handle.end()) << "Uninitialized cluster: " << cluster;
-    DBG << "Cluster " << cluster << " has weight " << (*it).second;
 
     return (*it).second;
   }
@@ -111,28 +123,40 @@ protected:
 
   bool move_cluster_weight(const GlobalNodeID old_cluster, const GlobalNodeID new_cluster, const NodeWeight delta,
                            const NodeWeight max_weight) {
-    DBG << "move_cluster_weight";
     if (cluster_weight(old_cluster) + delta <= max_weight) {
-      auto &handle = _cluster_weights_handles_ets.local();
-      // clang-format off
-      handle.update(old_cluster + 1, [](auto &lhs, const auto rhs) { return lhs -= rhs; }, delta);
-      handle.update(new_cluster + 1, [](auto &lhs, const auto rhs) { return lhs += rhs; }, delta);
-      // clang-format on
+      auto &handle = get_cluster_weights_handle(); // TODO
+      DBG << "update(" << old_cluster + 1 << ", ..., " << delta << ")";
+      [[maybe_unused]] const auto [old_it, old_found] = handle.update(
+          old_cluster + 1, [](auto &lhs, const auto rhs) { return lhs -= rhs; }, delta);
+      ASSERT(old_it != handle.end() && old_found) << "Uninitialized cluster: " << old_cluster;
+
+      DBG << "update(" << new_cluster + 1 << ", ..., " << delta << ")";
+      [[maybe_unused]] const auto [new_it, new_found] = handle.update(
+          new_cluster + 1, [](auto &lhs, const auto rhs) { return lhs += rhs; }, delta);
+      ASSERT(new_it != handle.end() && new_found) << "Uninitialized cluster: " << new_cluster;
+
+      DBG << "OK";
       return true;
     }
+    DBG << "condition is false";
     return false;
   }
 
   void set_cluster_weight(const GlobalNodeID cluster, const NodeWeight weight) {
-    DBG << "set_cluster_weight";
-    _cluster_weights_handles_ets.local().insert(cluster + 1, weight);
+    auto &handle = get_cluster_weights_handle(); // TODO
+    DBG << "insert_or_update(" << cluster + 1 << ", ..., " << weight << ")";
+    handle.insert_or_update(
+        cluster + 1, weight, [](auto &lhs, const auto rhs) { return lhs = rhs; }, weight);
   }
 
   void change_cluster_weight(const GlobalNodeID cluster, const NodeWeight delta) {
     DBG << "change_cluster_weight";
-    // clang-format off
-    _cluster_weights_handles_ets.local().update(cluster + 1, [](auto &lhs, const auto rhs) { return lhs += rhs; }, delta);
-    // clang-format on
+
+    auto &handle = get_cluster_weights_handle(); // TODO
+    DBG << "update(" << cluster + 1 << ", ..., " << delta << ")";
+    [[maybe_unused]] const auto [it, found] = handle.update(
+        cluster + 1, [](auto &lhs, const auto rhs) { return lhs += rhs; }, delta);
+    ASSERT(it != handle.end() && found) << "Uninitialized cluster: " << cluster;
   }
 
   [[nodiscard]] NodeWeight initial_cluster_weight(const NodeID u) const { return _graph->node_weight(u); }
@@ -174,9 +198,8 @@ protected:
 
 private:
   void initialize_ghost_node_clusters() {
-    tbb::parallel_for(_graph->n(), _graph->total_n(), [&](const NodeID local_u) {
-      init_cluster(local_u, _graph->local_to_global_node(local_u));
-    });
+    tbb::parallel_for(_graph->n(), _graph->total_n(),
+                      [&](const NodeID local_u) { init_cluster(local_u, _graph->local_to_global_node(local_u)); });
   }
 
   // a coarse graph could have a larger total size than the finer graph, since the number of ghost nodes could increase
@@ -223,8 +246,10 @@ private:
   void perform_distributed_moves(const NodeID from, const NodeID to) {
     // exchange join requests and collect them in _gain_buffer
     auto requests = mpi::graph::sparse_alltoall_interface_to_pe_get<JoinRequest>(
-        *_graph, from, to, [&](const NodeID u) { return was_moved_during_round(u); },
+        *_graph, from, to,
+        [&](const NodeID u) { return was_moved_during_round(u) && !_graph->contains_global_node(cluster(u)); },
         [&](const NodeID u) -> JoinRequest {
+          DBG << "send join request: " << _graph->local_to_global_node(u) << " --> " << _next_clustering[u];
           return {.global_requester = _graph->local_to_global_node(u),
                   .requester_weight = _graph->node_weight(u),
                   .requester_gain = _gain[u],
@@ -364,8 +389,8 @@ private:
   scalable_vector<std::uint8_t> _locked;
 
   table_type _cluster_weights;
-  tbb::enumerable_thread_specific<typename table_type::handle_type> _cluster_weights_handles_ets{
-      [&] { return table_type::handle_type{_cluster_weights}; }};
+//  tbb::enumerable_thread_specific<typename table_type::handle_type> _cluster_weights_handles_ets{
+//      [&] { return table_type::handle_type{_cluster_weights}; }};
 };
 
 LockingLpClustering::LockingLpClustering(const NodeID max_num_active_nodes, const NodeID max_num_nodes,

@@ -9,6 +9,8 @@
 #include "dkaminpar/datastructure/distributed_graph_builder.h"
 #include "dtests/mpi_test.h"
 
+#include <tbb/global_control.h>
+
 using ::testing::AnyOf;
 using ::testing::Each;
 
@@ -72,6 +74,8 @@ auto compute_clustering(const DistributedGraph &graph, NodeWeight max_cluster_we
 }
 
 TEST_F(DistributedTrianglesFixture, TestLocalClustering) {
+  auto gc = tbb::global_control{tbb::global_control::max_allowed_parallelism, 1};
+
   static constexpr EdgeWeight kInfinity = 100;
   // make internal edge much more attractive for contraction
   graph = graph::change_edge_weights_by_global_endpoints(std::move(graph), {{n0, n0 + 1, kInfinity},
