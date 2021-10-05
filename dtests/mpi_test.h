@@ -74,7 +74,12 @@ DistributedGraph change_edge_weights(DistributedGraph graph,
     edge_weights[e] = weight;
   }
 
-  return {graph.take_node_distribution(),
+  return {graph.global_n(),
+          graph.global_m(),
+          graph.ghost_n(),
+          graph.offset_n(),
+          graph.offset_m(),
+          graph.take_node_distribution(),
           graph.take_edge_distribution(),
           graph.take_nodes(),
           graph.take_edges(),
@@ -119,7 +124,12 @@ DistributedGraph change_node_weights(DistributedGraph graph,
     node_weights[u] = weight;
   }
 
-  return {graph.take_node_distribution(),
+  return {graph.global_n(),
+          graph.global_m(),
+          graph.ghost_n(),
+          graph.offset_n(),
+          graph.offset_m(),
+          graph.take_node_distribution(),
           graph.take_edge_distribution(),
           graph.take_nodes(),
           graph.take_edges(),

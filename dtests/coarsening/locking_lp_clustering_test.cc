@@ -57,11 +57,16 @@ protected:
   GlobalNodeID n0;
 };
 
-auto compute_clustering(const DistributedGraph &graph, NodeWeight max_cluster_weight = 0) {
+auto compute_clustering(const DistributedGraph &graph, NodeWeight max_cluster_weight = 0,
+                        const std::size_t num_iterations = 1) {
   // 0 --> no weight constraint
   if (max_cluster_weight == 0) { max_cluster_weight = graph.total_node_weight(); }
 
   Context ctx = create_default_context();
+  ctx.coarsening.lp.num_iterations = num_iterations;
+
+  DLOG << V(graph.n()) << V(graph.total_n());
+
   LockingLpClustering algorithm(graph.n(), graph.total_n(), ctx.coarsening);
   return algorithm.compute_clustering(graph, max_cluster_weight);
 }

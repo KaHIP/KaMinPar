@@ -15,7 +15,7 @@
 namespace dkaminpar {
 class LockingLpClustering : public IClustering<GlobalNodeID> {
 public:
-  LockingLpClustering(const NodeID max_num_active_nodes, const NodeID max_num_nodes, const CoarseningContext &c_ctx);
+  LockingLpClustering(NodeID max_num_active_nodes, NodeID max_num_nodes, const CoarseningContext &c_ctx);
   ~LockingLpClustering();
 
   const AtomicClusterArray &compute_clustering(const DistributedGraph &graph, NodeWeight max_cluster_weight) final;

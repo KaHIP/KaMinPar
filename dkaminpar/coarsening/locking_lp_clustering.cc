@@ -16,66 +16,23 @@ namespace dkaminpar {
 namespace {
 struct LockingLpClusteringConfig : shm::LabelPropagationConfig {
   using Graph = DistributedGraph;
-  using ClusterID = NodeID;
+  using ClusterID = GlobalNodeID;
   using ClusterWeight = NodeWeight;
 };
+} // namespace
 
-template<typename ClusterID, typename ClusterWeight>
-class OwnedRelaxedClusterWeightMap {
+class LockingLpClusteringImpl
+    : public shm::InOrderLabelPropagation<LockingLpClusteringImpl, LockingLpClusteringConfig> {
+  SET_DEBUG(true);
+  SET_STATISTICS(true);
+
+  using Base = shm::InOrderLabelPropagation<LockingLpClusteringImpl, LockingLpClusteringConfig>;
+  using AtomicClusterArray = scalable_vector<shm::parallel::IntegralAtomicWrapper<GlobalNodeID>>;
+
   using hasher_type = utils_tm::hash_tm::murmur2_hash;
   using allocator_type = growt::AlignedAllocator<>;
   using table_type = typename growt::table_config<ClusterID, ClusterWeight, hasher_type, allocator_type, hmod::growable,
                                                   hmod::deletion>::table_type;
-
-public:
-  explicit OwnedRelaxedClusterWeightMap(const ClusterID max_num_clusters) : _cluster_weights(max_num_clusters) {}
-
-  void init_cluster_weight(const ClusterID cluster, const ClusterWeight weight) {
-    _cluster_weights_handles_ets.local().insert(cluster, weight);
-  }
-
-  ClusterWeight cluster_weight(const ClusterID cluster) {
-    auto &handle = _cluster_weights_handles_ets.local();
-    auto it = handle.find(cluster);
-    ASSERT(it != handle.end());
-    return (*it).second;
-  }
-
-  bool move_cluster_weight(const ClusterID old_cluster, const ClusterID new_cluster, const ClusterWeight delta,
-                           const ClusterWeight max_weight) {
-    if (cluster_weight(old_cluster) + delta <= max_weight) {
-      auto &handle = _cluster_weights_handles_ets.local();
-      // clang-format off
-      handle.update(old_cluster, [](auto &lhs, const auto rhs) { return lhs -= rhs; }, delta);
-      handle.update(new_cluster, [](auto &lhs, const auto rhs) { return lhs += rhs; }, delta);
-      // clang-format on
-      return true;
-    }
-    return false;
-  }
-
-  void set_cluster_weight(const ClusterID cluster, const ClusterWeight weight) {
-    _cluster_weights_handles_ets.local().insert(cluster, weight);
-  }
-
-  void change_cluster_weight(const ClusterID cluster, const ClusterWeight delta) {
-    // clang-format off
-    _cluster_weights_handles_ets.local().update(cluster, [](auto &lhs, const auto rhs) { return lhs += rhs; }, delta);
-    // clang-format on
-  }
-
-private:
-  table_type _cluster_weights;
-  tbb::enumerable_thread_specific<typename table_type::handle_type> _cluster_weights_handles_ets{
-      [&] { return _cluster_weights.get_handle(); }};
-};
-} // namespace
-
-class LockingLpClusteringImpl : public shm::InOrderLabelPropagation<LockingLpClusteringImpl, LockingLpClusteringConfig>,
-                                public OwnedRelaxedClusterWeightMap<GlobalNodeID, NodeWeight> {
-  using Base = shm::InOrderLabelPropagation<LockingLpClusteringImpl, LockingLpClusteringConfig>;
-  using ClusterWeightBase = OwnedRelaxedClusterWeightMap<GlobalNodeID, NodeWeight>;
-  using AtomicClusterArray = scalable_vector<shm::parallel::IntegralAtomicWrapper<GlobalNodeID>>;
 
   friend Base;
   friend Base::Base;
@@ -83,20 +40,22 @@ class LockingLpClusteringImpl : public shm::InOrderLabelPropagation<LockingLpClu
 public:
   LockingLpClusteringImpl(const NodeID max_num_active_nodes, const NodeID max_num_nodes, const CoarseningContext &c_ctx)
       : Base{max_num_active_nodes, max_num_nodes},
-        ClusterWeightBase{max_num_nodes},
         _c_ctx{c_ctx},
         _current_clustering(max_num_nodes),
         _next_clustering(max_num_nodes),
         _gain(max_num_active_nodes),
         _gain_buffer_index(max_num_active_nodes),
-        _locked(max_num_active_nodes) {
+        _locked(max_num_active_nodes),
+        _cluster_weights(max_num_nodes) {
     set_max_degree(c_ctx.lp.large_degree_threshold);
     set_max_num_neighbors(c_ctx.lp.max_num_neighbors);
   }
 
   const auto &compute_clustering(const DistributedGraph &graph, const NodeWeight max_cluster_weight) {
     initialize(&graph, graph.total_n()); // initializes _graph
+    initialize_ghost_node_clusters();
     _max_cluster_weight = max_cluster_weight;
+    DBG << V(_current_clustering) << V(_next_clustering);
 
     // catch special case where the coarse graph is larger than the fine graph due to an increased number of ghost nodes
     ensure_allocation_ok();
@@ -118,12 +77,71 @@ public:
 
 protected:
   //--------------------------------------------------------------------------------
+  //
   // Called from base class
+  //
   //VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV
+  /*
+   * Cluster weights
+   *
+   * Note: offset cluster IDs by 1 since growt cannot use 0 as key
+   */
+
+  void init_cluster_weight(const GlobalNodeID local_cluster, const NodeWeight weight) {
+    const auto cluster = _graph->local_to_global_node(local_cluster);
+    [[maybe_unused]] const auto [it, success] = _cluster_weights_handles_ets.local().insert(cluster + 1, weight);
+    ASSERT(success);
+
+    DBG << "Initialized cluster " << cluster << " to weight " << weight;
+  }
+
+  NodeWeight cluster_weight(const GlobalNodeID cluster) {
+    auto &handle = _cluster_weights_handles_ets.local();
+    auto it = handle.find(cluster + 1);
+    ASSERT(it != handle.end()) << "Uninitialized cluster: " << cluster;
+    DBG << "Cluster " << cluster << " has weight " << (*it).second;
+
+    return (*it).second;
+  }
+
   void reset_node_state(const NodeID u) {
     Base::reset_node_state(u);
     _locked[u] = 0;
   }
+
+  bool move_cluster_weight(const GlobalNodeID old_cluster, const GlobalNodeID new_cluster, const NodeWeight delta,
+                           const NodeWeight max_weight) {
+    DBG << "move_cluster_weight";
+    if (cluster_weight(old_cluster) + delta <= max_weight) {
+      auto &handle = _cluster_weights_handles_ets.local();
+      // clang-format off
+      handle.update(old_cluster + 1, [](auto &lhs, const auto rhs) { return lhs -= rhs; }, delta);
+      handle.update(new_cluster + 1, [](auto &lhs, const auto rhs) { return lhs += rhs; }, delta);
+      // clang-format on
+      return true;
+    }
+    return false;
+  }
+
+  void set_cluster_weight(const GlobalNodeID cluster, const NodeWeight weight) {
+    DBG << "set_cluster_weight";
+    _cluster_weights_handles_ets.local().insert(cluster + 1, weight);
+  }
+
+  void change_cluster_weight(const GlobalNodeID cluster, const NodeWeight delta) {
+    DBG << "change_cluster_weight";
+    // clang-format off
+    _cluster_weights_handles_ets.local().update(cluster + 1, [](auto &lhs, const auto rhs) { return lhs += rhs; }, delta);
+    // clang-format on
+  }
+
+  [[nodiscard]] NodeWeight initial_cluster_weight(const NodeID u) const { return _graph->node_weight(u); }
+
+  [[nodiscard]] NodeWeight max_cluster_weight(const GlobalNodeID /* cluster */) const { return _max_cluster_weight; }
+
+  /*
+   * Clusters
+   */
 
   void init_cluster(const NodeID node, const NodeID cluster) {
     _current_clustering[node] = cluster;
@@ -134,11 +152,11 @@ protected:
 
   void move_node(const NodeID node, const GlobalNodeID cluster) { _next_clustering[node] = cluster; }
 
-  [[nodiscard]] NodeID initial_cluster(const NodeID u) const { return u; }
+  [[nodiscard]] GlobalNodeID initial_cluster(const NodeID u) const { return _graph->local_to_global_node(u); }
 
-  [[nodiscard]] NodeWeight initial_cluster_weight(const NodeID u) const { return _graph->node_weight(u); }
-
-  [[nodiscard]] NodeWeight max_cluster_weight(const GlobalNodeID /* cluster */) const { return _max_cluster_weight; }
+  /*
+   * Moving nodes
+   */
 
   [[nodiscard]] bool accept_cluster(const Base::ClusterSelectionState &state) const {
     return (state.current_gain > state.best_gain ||
@@ -149,10 +167,18 @@ protected:
 
   [[nodiscard]] inline bool activate_neighbor(const NodeID u) const { return !_locked[u] && _graph->is_owned_node(u); }
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //
   // Called from base class
+  //
   //--------------------------------------------------------------------------------
 
 private:
+  void initialize_ghost_node_clusters() {
+    tbb::parallel_for(_graph->n(), _graph->total_n(), [&](const NodeID local_u) {
+      init_cluster(local_u, _graph->local_to_global_node(local_u));
+    });
+  }
+
   // a coarse graph could have a larger total size than the finer graph, since the number of ghost nodes could increase
   // arbitrarily -- thus, resize the rating map (only component depending on total_n()) in this special case
   // find a better solution to this issue in the future
@@ -336,11 +362,15 @@ private:
   scalable_vector<shm::parallel::IntegralAtomicWrapper<NodeID>> _gain_buffer_index;
 
   scalable_vector<std::uint8_t> _locked;
+
+  table_type _cluster_weights;
+  tbb::enumerable_thread_specific<typename table_type::handle_type> _cluster_weights_handles_ets{
+      [&] { return table_type::handle_type{_cluster_weights}; }};
 };
 
 LockingLpClustering::LockingLpClustering(const NodeID max_num_active_nodes, const NodeID max_num_nodes,
                                          const CoarseningContext &c_ctx)
-    : _impl{std::make_unique<LockingLpClusteringImpl>(max_num_nodes, max_num_active_nodes, c_ctx)} {}
+    : _impl{std::make_unique<LockingLpClusteringImpl>(max_num_active_nodes, max_num_nodes, c_ctx)} {}
 
 LockingLpClustering::~LockingLpClustering() = default;
 

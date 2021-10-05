@@ -69,7 +69,7 @@ using scalable_vector = shm::scalable_vector<T>;
 
 #undef ALWAYS_ASSERT
 #define ALWAYS_ASSERT(x) kaminpar::debug::evaluate_assertion((x)) || kaminpar::debug::DisposableLogger<true>(std::cout) \
-  << kaminpar::logger::MAGENTA << POSITION << LOG_RANK << " "                                                           \
+  << kaminpar::logger::MAGENTA << POSITION << LOG_RANK << CPU << " "                                                    \
   << kaminpar::logger::RED << "Assertion failed: `" << #x << "`\n"
 
 // Assertions that are only evaluated on root (rank 0)
@@ -77,7 +77,8 @@ using scalable_vector = shm::scalable_vector<T>;
 #define ASSERT_ROOT(x) ASSERT(dkaminpar::mpi::get_comm_rank() != 0 || (x))
 
 #undef DBGC
-#define DBGC(cond) (kDebug && (cond)) && kaminpar::debug::DisposableLogger<false>(std::cout) << kaminpar::logger::MAGENTA << POSITION << LOG_RANK << " " << kaminpar::logger::DEFAULT_TEXT
+#define DBGC(cond) (kDebug && (cond)) && kaminpar::debug::DisposableLogger<false>(std::cout)                            \
+  << kaminpar::logger::MAGENTA << POSITION << LOG_RANK << CPU << " " << kaminpar::logger::DEFAULT_TEXT
 
 #undef LOG
 #undef LLOG
