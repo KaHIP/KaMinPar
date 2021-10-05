@@ -1,11 +1,21 @@
 #!/bin/bash
+cd "${0%/}" || exit # run from source directory or exit
+
 function get_num_cores {
-  if [[ $(uname) == "Linux" ]]; then grep -c ^processor /proc/cpuinfo; fi
-  if [[ $(uname) == "Darwin" ]]; then sysctl -n hw.ncpu; fi
+  case "$(uname)" in
+  Darwin)
+    sysctl -n hw.ncpu
+    ;;
+  *)
+    grep -c ^processor /proc/cpuinfo
+    ;;
+  esac
 }
+NCORES=$(get_num_cores)
+[ -n "$NCORES" ] || NCORES=4
 
 function build_target {
-  cmake --build build --parallel "$(get_num_cores)" --target $1
+  cmake --build build --parallel "$NCORES" --target $1
 }
 
 git submodule update --init --recursive
@@ -24,5 +34,9 @@ if [ ! -f build/Makefile ]; then
   exit
 fi
 
-build_target "KaMinPar"
-if [[ $1 == "DISTRIBUTED" ]]; then build_target "dKaMinPar"; fi
+build_target "KaMinPar" # binary
+build_target "kaminpar" # library
+build_target "GraphChecker" # tools
+build_target "GraphConverter" # tools
+build_target "VerifyPartition" # tools
+if [[ $1 == "DISTRIBUTED" ]]; then build_target "dKaMinPar"; fi # distributed binary

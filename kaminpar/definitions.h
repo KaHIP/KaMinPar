@@ -20,6 +20,11 @@
 #include <variant>
 #include <vector>
 
+#if __has_include(<sched.h>)
+#include <sched.h>
+#define HAS_SCHED_GETCPU
+#endif
+
 namespace kaminpar {
 struct Mandatory {};
 
@@ -106,6 +111,11 @@ private:
 // clang-format off
 #define FILENAME (std::strrchr(__FILE__, '/') ? std::strrchr(__FILE__, '/') + 1 : __FILE__)
 #define POSITION "[" << FILENAME << ":" << __LINE__ << "][" << __func__ << "]"
+#ifdef HAS_SCHED_GETCPU
+#define CPU "[CPU" << sched_getcpu() << "]"
+#else // HAS_SCHED_GETCPU
+#define CPU ""
+#endif // HAS_SCHED_GETCPU
 
 // Macros for assertions
 //
@@ -119,7 +129,7 @@ private:
 // Use ASSERT for cheap checks and HEAVY_ASSERT for checks that could cause a significant slowdown.
 
 #define ALWAYS_ASSERT(x) kaminpar::debug::evaluate_assertion((x)) || kaminpar::debug::DisposableLogger<true>(std::cout) \
-  << kaminpar::logger::MAGENTA << POSITION << " "                                                                       \
+  << kaminpar::logger::MAGENTA << POSITION << CPU << " "                                                                \
   << kaminpar::logger::RED << "Assertion failed: `" << #x << "`\n"
 
 // only for macro implementation, acts like an ASSERT but produces no code (with constant folding enabled)
@@ -173,7 +183,7 @@ private:
 // DBGC(cond) only produces output if the given condition evaluates to true
 // IFDBG(expr) evaluates the expression and returns its result iff kDebug is set to true, otherwise returns the default value for its result data type
 #define SET_DEBUG(value) static constexpr bool kDebug = value
-#define DBGC(cond) (kDebug && (cond)) && kaminpar::debug::DisposableLogger<false>(std::cout) << kaminpar::logger::MAGENTA << POSITION << " " << kaminpar::logger::DEFAULT_TEXT
+#define DBGC(cond) (kDebug && (cond)) && kaminpar::debug::DisposableLogger<false>(std::cout) << kaminpar::logger::MAGENTA << POSITION << CPU << " " << kaminpar::logger::DEFAULT_TEXT
 #define DBG DBGC(true)
 #define IFDBG(expr) (kDebug ? (expr) : decltype(expr)())
 
