@@ -7,6 +7,10 @@ function(add_kaminpar_test target)
     add_gmock_test(${target} ${ARGN})
     target_link_libraries(${target} PRIVATE kaminpar_impl)
     target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+
+    if (KAMINPAR_USE_BACKWARD_CPP)
+        add_backward(${target})
+    endif ()
 endfunction()
 
 # Partitioning components

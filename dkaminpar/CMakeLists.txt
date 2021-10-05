@@ -48,6 +48,11 @@ if (MPI_FOUND)
     add_library(dkaminpar_impl OBJECT ${DKAMINPAR_SOURCE_FILES})
     target_include_directories(dkaminpar_impl PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(dkaminpar_impl PUBLIC kaminpar_impl MPI::MPI_CXX growt)
+
+    if (KAMINPAR_USE_BACKWARD_CPP)
+        add_backward(dkaminpar_impl)
+    endif ()
 else ()
     message(STATUS "MPI is NOT available; distributed target will not be available!")
 endif ()
+

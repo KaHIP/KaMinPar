@@ -3,6 +3,10 @@ function(add_benchmark target)
     target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(${target} PRIVATE kaminpar_impl)
     message(STATUS "Benchmark ${target}")
+
+    if (KAMINPAR_USE_BACKWARD_CPP)
+        add_backward(${target})
+    endif ()
 endfunction()
 
 add_benchmark(coarsening_benchmark coarsening_benchmark.cc)

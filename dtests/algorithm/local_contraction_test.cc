@@ -46,7 +46,7 @@ protected:
     const GlobalEdgeID global_m = 6;
 
     n0 = 2 * rank;
-    graph = graph::Builder()
+    graph = dkaminpar::graph::Builder()
                 .initialize(global_n, global_m, rank, std::move(node_distribution))
                 .create_node(1)
                 .create_edge(1, n0 + 1)
@@ -72,7 +72,7 @@ TEST_F(DistributedEdgesFixture, DistributedEdgesAreAsExpected) {
 TEST_F(DistributedEdgesFixture, ContractingEdgesSimultaneouslyWorks) {
   mpi::barrier(MPI_COMM_WORLD);
 
-  auto [c_graph, mapping, m_ctx] = graph::contract_local_clustering(graph, {0, 0});
+  auto [c_graph, mapping, m_ctx] = dkaminpar::graph::contract_local_clustering(graph, {0, 0});
 
   EXPECT_EQ(c_graph.n(), 1);
   EXPECT_EQ(c_graph.m(), 0);
@@ -88,7 +88,7 @@ TEST_F(DistributedEdgesFixture, ContractingEdgeOnOnePEWorks) {
   clustering.push_back((rank == 0) ? 0 : 1);
   // {0, 0} on PE 0, {0, 1} on PEs 1, 2
 
-  auto [c_graph, mapping, m_ctx] = graph::contract_local_clustering(graph, clustering);
+  auto [c_graph, mapping, m_ctx] = dkaminpar::graph::contract_local_clustering(graph, clustering);
   if (rank == 0) {
     EXPECT_EQ(c_graph.n(), 1);
     EXPECT_EQ(c_graph.m(), 0);
@@ -123,7 +123,7 @@ protected:
     const GlobalEdgeID global_m = 30;
 
     n0 = 3 * rank;
-    graph = graph::Builder{}
+    graph = dkaminpar::graph::Builder{}
                 .initialize(global_n, global_m, rank, std::move(node_distribution))
                 .create_node(1)
                 .create_edge(1, n0 + 1)
@@ -165,7 +165,7 @@ TEST_F(DistributedTrianglesFixture, ContractingTriangleOnOnePEWorks) {
   clustering.push_back((rank == 0) ? 0 : 1);
   clustering.push_back((rank == 0) ? 0 : 2);
 
-  auto [c_graph, mapping, m_ctx] = graph::contract_local_clustering(graph, clustering);
+  auto [c_graph, mapping, m_ctx] = dkaminpar::graph::contract_local_clustering(graph, clustering);
 
   if (rank == 0) {
     EXPECT_EQ(c_graph.n(), 1);
@@ -196,7 +196,7 @@ TEST_F(DistributedTrianglesFixture, ContractigTrianglesOnTwoPEsWorks) {
   clustering.push_back((rank < 2) ? 0 : 1);
   clustering.push_back((rank < 2) ? 0 : 2);
 
-  auto [c_graph, mapping, m_ctx] = graph::contract_local_clustering(graph, clustering);
+  auto [c_graph, mapping, m_ctx] = dkaminpar::graph::contract_local_clustering(graph, clustering);
 
   if (rank < 2) {
     EXPECT_EQ(c_graph.n(), 1);
@@ -216,13 +216,12 @@ TEST_F(DistributedTrianglesFixture, ContractigTrianglesOnTwoPEsWorks) {
 
   EXPECT_EQ(c_graph.global_n(), 5);
   EXPECT_EQ(c_graph.global_m(), 16);
-
 }
 
 TEST_F(DistributedTrianglesFixture, ContractingAllTrianglesWorks) {
   mpi::barrier(MPI_COMM_WORLD);
 
-  auto [c_graph, mapping, m_ctx] = graph::contract_local_clustering(graph, {0, 0, 0});
+  auto [c_graph, mapping, m_ctx] = dkaminpar::graph::contract_local_clustering(graph, {0, 0, 0});
 
   EXPECT_EQ(c_graph.n(), 1);
   EXPECT_EQ(c_graph.m(), 2);

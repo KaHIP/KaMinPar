@@ -80,10 +80,16 @@ set(KAMINPAR_SOURCE_FILES
         metrics.h
         factories.cc
         factories.h
-        parallel.h)
+        parallel.h
+        definitions.cc
+        definitions.h)
 
 add_library(kaminpar_impl OBJECT ${KAMINPAR_SOURCE_FILES})
 target_include_directories(kaminpar_impl PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+
+if (KAMINPAR_USE_BACKWARD_CPP)
+    add_backward(kaminpar_impl)
+endif ()
 
 # Link TBB
 find_package(Threads REQUIRED)
