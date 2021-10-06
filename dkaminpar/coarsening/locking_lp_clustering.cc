@@ -31,7 +31,9 @@ class LockingLpClusteringImpl
 
   using hasher_type = utils_tm::hash_tm::murmur2_hash;
   using allocator_type = growt::AlignedAllocator<>;
-  // use 64 bit values for growt HT for now
+  static_assert(std::numeric_limits<GlobalNodeWeight>::digits == 63 ||
+                    std::numeric_limits<GlobalNodeWeight>::digits == 64,
+                "use 64 bit value type"); // bug in growt with 32 bit values types (?)
   using table_type = typename growt::table_config<ClusterID, GlobalNodeWeight, hasher_type, allocator_type,
                                                   hmod::growable, hmod::deletion>::table_type;
 
@@ -89,28 +91,18 @@ protected:
    * Note: offset cluster IDs by 1 since growt cannot use 0 as key
    */
 
-  auto create_handle_tmp() {
-    DBG << "create handle";
-    return _cluster_weights.get_handle();
-  }
-
-  auto &get_cluster_weights_handle() {
-    thread_local static table_type::handle_type handle = create_handle_tmp();
-    return handle;
-  }
-
   void init_cluster_weight(const GlobalNodeID local_cluster, const NodeWeight weight) {
     const auto cluster = _graph->local_to_global_node(local_cluster);
 
     DBG << "insert(" << cluster + 1 << ", " << weight << ")";
-    auto &handle = get_cluster_weights_handle(); // TODO
+    auto &handle = _cluster_weights_handles_ets.local();
     [[maybe_unused]] const auto [it, success] = handle.insert(cluster + 1, weight);
     ASSERT(success);
   }
 
   NodeWeight cluster_weight(const GlobalNodeID cluster) {
     DBG << "find(" << cluster + 1 << ")";
-    auto &handle = get_cluster_weights_handle(); // TODO
+    auto &handle = _cluster_weights_handles_ets.local();
     auto it = handle.find(cluster + 1);
     ASSERT(it != handle.end()) << "Uninitialized cluster: " << cluster;
 
@@ -125,7 +117,7 @@ protected:
   bool move_cluster_weight(const GlobalNodeID old_cluster, const GlobalNodeID new_cluster, const NodeWeight delta,
                            const NodeWeight max_weight) {
     if (cluster_weight(old_cluster) + delta <= max_weight) {
-      auto &handle = get_cluster_weights_handle(); // TODO
+      auto &handle = _cluster_weights_handles_ets.local();
       DBG << "update(" << old_cluster + 1 << ", ..., " << delta << ")";
       [[maybe_unused]] const auto [old_it, old_found] = handle.update(
           old_cluster + 1, [](auto &lhs, const auto rhs) { return lhs -= rhs; }, delta);
@@ -144,7 +136,7 @@ protected:
   }
 
   void set_cluster_weight(const GlobalNodeID cluster, const NodeWeight weight) {
-    auto &handle = get_cluster_weights_handle(); // TODO
+    auto &handle = _cluster_weights_handles_ets.local();
     DBG << "insert_or_update(" << cluster + 1 << ", ..., " << weight << ")";
     handle.insert_or_update(
         cluster + 1, weight, [](auto &lhs, const auto rhs) { return lhs = rhs; }, weight);
@@ -153,7 +145,7 @@ protected:
   void change_cluster_weight(const GlobalNodeID cluster, const NodeWeight delta) {
     DBG << "change_cluster_weight";
 
-    auto &handle = get_cluster_weights_handle(); // TODO
+    auto &handle = _cluster_weights_handles_ets.local();
     DBG << "update(" << cluster + 1 << ", ..., " << delta << ")";
     [[maybe_unused]] const auto [it, found] = handle.update(
         cluster + 1, [](auto &lhs, const auto rhs) { return lhs += rhs; }, delta);
@@ -390,8 +382,8 @@ private:
   scalable_vector<std::uint8_t> _locked;
 
   table_type _cluster_weights;
-  //  tbb::enumerable_thread_specific<typename table_type::handle_type> _cluster_weights_handles_ets{
-  //      [&] { return table_type::handle_type{_cluster_weights}; }};
+  tbb::enumerable_thread_specific<typename table_type::handle_type> _cluster_weights_handles_ets{
+      [&] { return table_type::handle_type{_cluster_weights}; }};
 };
 
 LockingLpClustering::LockingLpClustering(const NodeID max_num_active_nodes, const NodeID max_num_nodes,
