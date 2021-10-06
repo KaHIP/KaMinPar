@@ -31,8 +31,9 @@ class LockingLpClusteringImpl
 
   using hasher_type = utils_tm::hash_tm::murmur2_hash;
   using allocator_type = growt::AlignedAllocator<>;
-  using table_type = typename growt::table_config<ClusterID, ClusterWeight, hasher_type, allocator_type, hmod::growable,
-                                                  hmod::deletion>::table_type;
+  // use 64 bit values for growt HT for now
+  using table_type = typename growt::table_config<ClusterID, GlobalNodeWeight, hasher_type, allocator_type,
+                                                  hmod::growable, hmod::deletion>::table_type;
 
   friend Base;
   friend Base::Base;
@@ -389,8 +390,8 @@ private:
   scalable_vector<std::uint8_t> _locked;
 
   table_type _cluster_weights;
-//  tbb::enumerable_thread_specific<typename table_type::handle_type> _cluster_weights_handles_ets{
-//      [&] { return table_type::handle_type{_cluster_weights}; }};
+  //  tbb::enumerable_thread_specific<typename table_type::handle_type> _cluster_weights_handles_ets{
+  //      [&] { return table_type::handle_type{_cluster_weights}; }};
 };
 
 LockingLpClustering::LockingLpClustering(const NodeID max_num_active_nodes, const NodeID max_num_nodes,
