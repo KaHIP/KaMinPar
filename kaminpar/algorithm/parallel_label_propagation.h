@@ -247,41 +247,27 @@ protected:
   //
 
   void perform_two_hop_clustering(const NodeID from = 0, const NodeID to = std::numeric_limits<ClusterID>::max()) {
+    // reset _favored_clusters entries for nodes that are not considered for 2-hop matching
+    // == nodes that are already clustered with at least one other node or nodes that have more weight than max_weight/2
+    // set _favored_clusters to dummy entry _graph->n() for isolated nodes
     tbb::parallel_for(from, std::min<ClusterID>(to, _graph->n()), [&](const NodeID u) {
-      // abort once we merged enough clusters
-      if (should_stop()) { return; }
-
-      // only consider nodes that
-      // (a) are still alone in their cluster (== they still have their initial cluster weight)
-      //     the first check, u != leader, prevents a cache miss on the cluster weight lookup for nodes that changed
-      //     their block
-      // (b) are light (== less than half full)
-      const ClusterID leader = derived_cluster(u);
-      if (u != leader) {
-        const ClusterWeight initial_weight = derived_initial_cluster_weight(leader);
-        const ClusterWeight current_weight = derived_cluster_weight(leader);
-        const ClusterWeight max_weight = derived_max_cluster_weight(leader);
-        if (current_weight != initial_weight || current_weight > max_weight / 2) { return; }
+      if (u != derived_cluster(u)) {
+        _favored_clusters[u] = u;
+      } else {
+        const auto initial_weight = derived_initial_cluster_weight(u);
+        const auto current_weight = derived_cluster_weight(u);
+        const auto max_weight = derived_max_cluster_weight(u);
+        if (current_weight != initial_weight || current_weight > max_weight / 2) { _favored_clusters[u] = u; }
       }
+    });
 
-      NodeID favored_leader = _favored_clusters[u];
-      const bool u_is_isolated = (u == favored_leader);    // this only happens if u is an isolated node in the graph
-      if (u_is_isolated) { favored_leader = _graph->n(); } // cluster isolated nodes together
+    tbb::parallel_for(from, std::min<ClusterID>(to, _graph->n()), [&](const NodeID u) {
+      if (should_stop()) { return; } // abort once we merged enough clusters
+
+      const NodeID favored_leader = _favored_clusters[u];
+      if (favored_leader == u) { return; }
 
       do {
-        // we use _favored_clusters[l] to pair singleton clusters (nodes) that have favored cluster l
-        // initially, this _favored_clusters[l] is set to l
-        // the first node u replaces this value with u
-        // the second node v sees that _favored_clusters[l] = u has a value other than l and joins the cluster of v
-        // if possible
-
-        // this works, since for the represented node `l` of a favored cluster of node `u`, the following assertions
-        // hold:
-        // (a) they are not in a light cluster, otherwise, u could have joined the cluster
-        // (b) thus, they are not traversed in this function
-        // (c) thus, they don't use their _favored_clusters[] entry, and it is _favored_clusters[l] = l since
-        //     pick_cluster() does not change their entry
-
         NodeID expected_value = favored_leader;
         if (_favored_clusters[favored_leader].compare_exchange_strong(expected_value, u)) {
           break; // if this worked, we replaced favored_leader with u
@@ -291,8 +277,7 @@ protected:
         // cluster
         const NodeID partner = expected_value;
         if (_favored_clusters[favored_leader].compare_exchange_strong(expected_value, favored_leader)) {
-          if (derived_move_cluster_weight(leader, partner, derived_cluster_weight(leader),
-                                          derived_max_cluster_weight(partner))) {
+          if (derived_move_cluster_weight(u, partner, derived_cluster_weight(u), derived_max_cluster_weight(partner))) {
             derived_move_node(u, partner);
             --_current_num_clusters;
           }
