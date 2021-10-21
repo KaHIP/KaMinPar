@@ -5,7 +5,7 @@
  * @date:   04.10.21
  * @brief:  Unit tests for distributed locking label propagation clustering.
  ******************************************************************************/
-#include "dkaminpar/coarsening/locking_lp_clustering.h"
+#include "dkaminpar/coarsening/locking_label_propagation_clustering.h"
 #include "dkaminpar/datastructure/distributed_graph_builder.h"
 #include "dtests/mpi_test.h"
 
@@ -15,49 +15,7 @@ using ::testing::AnyOf;
 using ::testing::Each;
 
 namespace dkaminpar::test {
-//  0---1-#-3---4
-//  |\ /  #  \ /|
-//  | 2---#---5 |
-//  |  \  #  /  |
-// ###############
-//  |    \ /    |
-//  |     8     |
-//  |    / \    |
-//  +---7---6---+
-class DistributedTrianglesFixture : public DistributedGraphFixture {
-protected:
-  void SetUp() override {
-    DistributedGraphFixture::SetUp();
-
-    const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
-    ALWAYS_ASSERT(size == 3) << "must be tested on three PEs";
-
-    scalable_vector<GlobalNodeID> node_distribution{0, 3, 6, 9};
-    const GlobalNodeID global_n = 9;
-    const GlobalEdgeID global_m = 30;
-
-    n0 = 3 * rank;
-    graph = dkaminpar::graph::Builder{}
-                .initialize(global_n, global_m, rank, std::move(node_distribution))
-                .create_node(1)
-                .create_edge(1, n0 + 1)
-                .create_edge(1, n0 + 2)
-                .create_edge(1, prev(n0, 2, 9))
-                .create_node(1)
-                .create_edge(1, n0)
-                .create_edge(1, n0 + 2)
-                .create_edge(1, next(n0 + 1, 2, 9))
-                .create_node(1)
-                .create_edge(1, n0)
-                .create_edge(1, n0 + 1)
-                .create_edge(1, next(n0 + 2, 3, 9))
-                .create_edge(1, prev(n0 + 2, 3, 9))
-                .finalize();
-  }
-
-  DistributedGraph graph;
-  GlobalNodeID n0;
-};
+using namespace fixtures3PE;
 
 auto compute_clustering(const DistributedGraph &graph, NodeWeight max_cluster_weight = 0,
                         const std::size_t num_iterations = 1) {
@@ -73,7 +31,7 @@ auto compute_clustering(const DistributedGraph &graph, NodeWeight max_cluster_we
   return algorithm.compute_clustering(graph, max_cluster_weight);
 }
 
-TEST_F(DistributedTrianglesFixture, TestLocalClustering) {
+TEST_F(DistributedTriangles, TestLocalClustering) {
   auto gc = tbb::global_control{tbb::global_control::max_allowed_parallelism, 1};
 
   static constexpr EdgeWeight kInfinity = 100;
@@ -84,7 +42,7 @@ TEST_F(DistributedTrianglesFixture, TestLocalClustering) {
 
   // clustering should place all owned nodes into the same cluster, with a local node ID
   const auto &clustering = compute_clustering(graph);
-  LOG << clustering;
-  EXPECT_THAT(clustering, AnyOf(Each(0), Each(1), Each(2)));
+  std::vector<GlobalNodeID> local_clustering{clustering[0], clustering[1], clustering[2]};
+  EXPECT_THAT(local_clustering, AnyOf(Each(0), Each(1), Each(2), Each(3), Each(4), Each(5), Each(6), Each(7), Each(8)));
 }
 } // namespace dkaminpar::test

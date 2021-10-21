@@ -141,4 +141,44 @@ DistributedGraph change_node_weights(DistributedGraph graph,
           graph.communicator()};
 }
 } // namespace graph
+
+namespace fixtures3PE {
+//  0---1-#-3---4
+//  |\ /  #  \ /|
+//  | 2---#---5 |
+//  |  \  #  /  |
+// ###############
+//  |    \ /    |
+//  |     8     |
+//  |    / \    |
+//  +---7---6---+
+class DistributedTriangles : public DistributedGraphFixture {
+protected:
+  void SetUp() override {
+    DistributedGraphFixture::SetUp();
+    ALWAYS_ASSERT(size == 3) << "must be tested on three PEs";
+
+    n0 = 3 * rank;
+    graph = dkaminpar::graph::Builder{}
+                .initialize(9, 30, rank, {0, 3, 6, 9})
+                .create_node(1)
+                .create_edge(1, n0 + 1)
+                .create_edge(1, n0 + 2)
+                .create_edge(1, prev(n0, 2, 9))
+                .create_node(1)
+                .create_edge(1, n0)
+                .create_edge(1, n0 + 2)
+                .create_edge(1, next(n0 + 1, 2, 9))
+                .create_node(1)
+                .create_edge(1, n0)
+                .create_edge(1, n0 + 1)
+                .create_edge(1, next(n0 + 2, 3, 9))
+                .create_edge(1, prev(n0 + 2, 3, 9))
+                .finalize();
+  }
+
+  DistributedGraph graph;
+  GlobalNodeID n0;
+};
+} // namespace fixtures3PE
 } // namespace dkaminpar::test

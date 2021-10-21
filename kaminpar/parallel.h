@@ -217,7 +217,7 @@ std::ranges::range_value_t<Range> max_element(const Range &r) {
  * @param buffers Vector of buffers of elements.
  * @param lambda Invoked on each element, in parallel.
  */
-void parallel_for_over_chunks(auto &buffers, auto &&lambda) {
+void parallel_for_over_chunks(const auto &buffers, auto &&lambda) {
 
 
   std::size_t total_size = 0;

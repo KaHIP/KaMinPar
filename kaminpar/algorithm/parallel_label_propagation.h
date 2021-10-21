@@ -45,12 +45,15 @@ struct LabelPropagationConfig {
   // If true, we count the number of empty clusters
   static constexpr bool kTrackClusterCount = false;
 
-  // If true, try to shrink the number of clusters by joining clusters with distance 2
+  // If true, match singleton clusters in 2-hop distance
   static constexpr bool kUseTwoHopClustering = false;
 };
 
-/**
- * Generic implementation of parallelized label propagation.
+/*!
+ * Generic implementation of parallel label propagation.
+ * To use, inherit from this class and implement the mandatory template functions.
+ * @tparam Derived Derived class for static polymorphism.
+ * @tparam Config Algorithmic configuration and data types.
  */
 template<typename Derived, std::derived_from<LabelPropagationConfig> Config>
 class LabelPropagation {
@@ -80,20 +83,6 @@ public:
   [[nodiscard]] EdgeWeight expected_total_gain() const { return _expected_total_gain; }
 
 protected:
-  struct ClusterSelectionState {
-    Randomize &local_rand;
-    NodeID u;
-    NodeWeight u_weight;
-    ClusterID initial_cluster;
-    ClusterWeight initial_cluster_weight;
-    ClusterID best_cluster;
-    EdgeWeight best_gain;
-    ClusterWeight best_cluster_weight;
-    ClusterID current_cluster;
-    EdgeWeight current_gain;
-    ClusterWeight current_cluster_weight;
-  };
-
   explicit LabelPropagation(const NodeID max_num_active_nodes)
       : LabelPropagation(max_num_active_nodes, max_num_active_nodes) {}
 
@@ -140,19 +129,14 @@ protected:
   // ... first:  whether the node could be moved to another cluster
   // ... second: whether the previous cluster of the node is now empty (only if Config::kReportEmptyClusters)
   std::pair<bool, bool> handle_node(const NodeID u, Randomize &local_rand, auto &local_rating_map) {
-    DBG << u;
-
     const NodeWeight u_weight = _graph->node_weight(u);
     const ClusterID u_cluster = derived_cluster(u);
     const auto [new_cluster, new_gain] = find_best_cluster(u, u_weight, u_cluster, local_rand, local_rating_map);
     DBG << V(new_cluster) << V(new_gain);
 
     if (derived_cluster(u) != new_cluster) {
-      DBG << "update";
       if (derived_move_cluster_weight(u_cluster, new_cluster, u_weight, derived_max_cluster_weight(new_cluster))) {
-        DBG << "really update";
         derived_move_node(u, new_cluster);
-        DBG << "activate";
         activate_neighbors(u);
         IFSTATS(_expected_total_gain += new_gain);
 
@@ -165,6 +149,20 @@ protected:
     // did not move, did not reduce cluster count
     return {false, false};
   }
+
+  struct ClusterSelectionState {
+    Randomize &local_rand;
+    NodeID u;
+    NodeWeight u_weight;
+    ClusterID initial_cluster;
+    ClusterWeight initial_cluster_weight;
+    ClusterID best_cluster;
+    EdgeWeight best_gain;
+    ClusterWeight best_cluster_weight;
+    ClusterID current_cluster;
+    EdgeWeight current_gain;
+    ClusterWeight current_cluster_weight;
+  };
 
   std::pair<ClusterID, EdgeWeight> find_best_cluster(const NodeID u, const NodeWeight u_weight,
                                                      const ClusterID u_cluster, Randomize &local_rand,
@@ -288,90 +286,106 @@ protected:
   }
 
   //
-  // Template methods for derived class
+  // Template methods that must be implemented
   //
 
-  void derived_reset_node_state(const NodeID u) { static_cast<Derived *>(this)->reset_node_state(u); }
-
-  [[nodiscard]] ClusterID derived_initial_cluster(const NodeID u) {
-    return static_cast<Derived *>(this)->initial_cluster(u);
-  }
-
+  //! Return current cluster ID of  node \c u.
   [[nodiscard]] ClusterID derived_cluster(const NodeID u) { return static_cast<Derived *>(this)->cluster(u); }
 
+  //! Initially place \c u in cluster \cluster.
   void derived_init_cluster(const NodeID u, const ClusterID cluster) {
     static_cast<Derived *>(this)->init_cluster(u, cluster);
   }
 
+  //! Change cluster of node \c u to \c cluster.
   void derived_move_node(const NodeID u, const ClusterID cluster) {
     static_cast<Derived *>(this)->move_node(u, cluster);
   }
 
-  [[nodiscard]] ClusterWeight derived_initial_cluster_weight(const ClusterID cluster) {
-    return static_cast<Derived *>(this)->initial_cluster_weight(cluster);
-  }
-
+  //! Return current weight of cluster \c cluster.
   [[nodiscard]] ClusterWeight derived_cluster_weight(const ClusterID cluster) {
     return static_cast<Derived *>(this)->cluster_weight(cluster);
   }
 
+  //! Initially set weight of cluster \cluster to \c weight.
   void derived_init_cluster_weight(const ClusterID cluster, const ClusterWeight weight) {
     static_cast<Derived *>(this)->init_cluster_weight(cluster, weight);
   }
 
+  //! Attempt to move \c delta weight from cluster \c old_cluster to \c new_cluster, which can take at most
+  //! \c max_weight weight.
   [[nodiscard]] bool derived_move_cluster_weight(const ClusterID old_cluster, const ClusterID new_cluster,
                                                  const ClusterWeight delta, const ClusterWeight max_weight) {
     return static_cast<Derived *>(this)->move_cluster_weight(old_cluster, new_cluster, delta, max_weight);
   }
 
+  //! Return the maximum weight of cluster \c cluster.
   [[nodiscard]] ClusterWeight derived_max_cluster_weight(const ClusterID cluster) {
     return static_cast<Derived *>(this)->max_cluster_weight(cluster);
   }
 
+  //! Determine whether a node should be moved to a new cluster.
   [[nodiscard]] bool derived_accept_cluster(const ClusterSelectionState &state) {
     return static_cast<Derived *>(this)->accept_cluster(state);
-  }
-
-  [[nodiscard]] inline bool derived_accept_neighbor(const NodeID u) {
-    return static_cast<Derived *>(this)->accept_neighbor(u);
-  }
-
-  [[nodiscard]] inline bool derived_activate_neighbor(const NodeID u) {
-    return static_cast<Derived *>(this)->activate_neighbor(u);
   }
 
   //
   // Default implementation for optional template methods
   //
 
+  void derived_reset_node_state(const NodeID u) { static_cast<Derived *>(this)->reset_node_state(u); }
   void reset_node_state(const NodeID /* node */) {}
 
+  [[nodiscard]] inline bool derived_accept_neighbor(const NodeID u) {
+    return static_cast<Derived *>(this)->accept_neighbor(u);
+  }
   [[nodiscard]] inline bool accept_neighbor(const NodeID /* node */) const { return true; }
 
+  [[nodiscard]] inline bool derived_activate_neighbor(const NodeID u) {
+    return static_cast<Derived *>(this)->activate_neighbor(u);
+  }
   [[nodiscard]] inline bool activate_neighbor(const NodeID /* node */) const { return true; }
 
+  [[nodiscard]] ClusterID derived_initial_cluster(const NodeID u) {
+    return static_cast<Derived *>(this)->initial_cluster(u);
+  }
   [[nodiscard]] inline ClusterID initial_cluster(const NodeID u) { return derived_cluster(u); }
 
+  [[nodiscard]] ClusterWeight derived_initial_cluster_weight(const ClusterID cluster) {
+    return static_cast<Derived *>(this)->initial_cluster_weight(cluster);
+  }
   [[nodiscard]] inline ClusterWeight initial_cluster_weight(const ClusterID cluster) {
     return derived_cluster_weight(cluster);
   }
 
+  //
+  // Members
+  //
+
   const Graph *_graph{nullptr};
 
-  ClusterID _initial_num_clusters;
-  parallel::IntegralAtomicWrapper<ClusterID> _current_num_clusters;
-  ClusterID _desired_num_clusters{0};
+  ClusterID _initial_num_clusters; //! Number of clusters before the first iteration
+  parallel::IntegralAtomicWrapper<ClusterID> _current_num_clusters; //! Current number of clusters
+  ClusterID _desired_num_clusters{0}; //! Terminate once there are less than this many clusters
 
-  NodeID _max_degree{std::numeric_limits<NodeID>::max()};
-  NodeID _max_num_neighbors{std::numeric_limits<NodeID>::max()};
+  parallel::IntegralAtomicWrapper<EdgeWeight> _expected_total_gain; //! Total cut reduction when run sequentially
 
-  tbb::enumerable_thread_specific<RatingMap> _rating_map_ets;
-  scalable_vector<parallel::IntegralAtomicWrapper<uint8_t>> _active;
+  NodeID _max_degree{std::numeric_limits<NodeID>::max()}; //! Ignore nodes with degree larger than this
+  NodeID _max_num_neighbors{std::numeric_limits<NodeID>::max()}; //! Only consider this many neighbors per node
+
+  tbb::enumerable_thread_specific<RatingMap> _rating_map_ets; //! Thread-local map to compute gain values
+  scalable_vector<parallel::IntegralAtomicWrapper<uint8_t>> _active; //! Flag (in)active nodes
+
+  //! [2hop clustering] If a node cannot join any cluster, store the cluster with the highest gain
   scalable_vector<parallel::IntegralAtomicWrapper<ClusterID>> _favored_clusters;
 
-  parallel::IntegralAtomicWrapper<EdgeWeight> _expected_total_gain;
 };
 
+/*!
+ * Parallel label propagation template that iterates over nodes in their natural order.
+ * @tparam Derived Derived subclass for static polymorphism.
+ * @tparam Config Algorithmic configuration and data types.
+ */
 template<typename Derived, std::derived_from<LabelPropagationConfig> Config>
 class InOrderLabelPropagation : public LabelPropagation<Derived, Config> {
   SET_DEBUG(true);
@@ -401,7 +415,6 @@ protected:
     tbb::enumerable_thread_specific<NodeID> num_moved_nodes_ets;
 
     tbb::parallel_for(tbb::blocked_range<NodeID>(from, std::min(_graph->n(), to)), [&](const auto &r) {
-      DBG << ".";
       EdgeID work_since_update = 0;
       NodeID num_removed_clusters = 0;
 
@@ -410,7 +423,6 @@ protected:
       auto &rating_map = _rating_map_ets.local();
 
       for (NodeID u = r.begin(); u != r.end(); ++u) {
-        DBG << ".." << u;
         if (work_since_update > Config::kMinChunkSize) {
           if (Base::should_stop()) { return; }
 
@@ -426,7 +438,6 @@ protected:
       }
     });
 
-    DBG << "done";
     return num_moved_nodes_ets.combine(std::plus{});
   }
 
@@ -435,6 +446,11 @@ protected:
   using Base::_rating_map_ets;
 };
 
+/*!
+ * Parallel label propagation template that iterates over nodes in chunk random order.
+ * @tparam Derived Derived subclass for static polymorphism.
+ * @tparam Config Algorithmic configuration and data types.
+ */
 template<typename Derived, std::derived_from<LabelPropagationConfig> Config>
 class ChunkRandomizedLabelPropagation : public LabelPropagation<Derived, Config> {
   using Base = LabelPropagation<Derived, Config>;

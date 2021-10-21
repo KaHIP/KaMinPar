@@ -23,7 +23,7 @@ void print_stacktrace() {
   Printer p;
   p.print(st, oss);
 
-  LOG << oss.str();
+  std::cout << oss.str() << std::endl;
 #endif // USE_BACKWARD
 }
 } // namespace kaminpar::debug

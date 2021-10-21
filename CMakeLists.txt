@@ -105,6 +105,7 @@ if (KAMINPAR_USE_BACKWARD_CPP)
     set(CMAKE_POLICY_DEFAULT_CMP0063 NEW)
     add_subdirectory(external_tools/backward-cpp)
     add_definitions(-DUSE_BACKWARD)
+    message(STATUS "Use backward")
 endif (KAMINPAR_USE_BACKWARD_CPP)
 
 add_subdirectory(kaminpar)

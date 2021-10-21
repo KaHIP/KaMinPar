@@ -5,7 +5,7 @@
  * @date:   01.10.21
  * @brief:
  ******************************************************************************/
-#include "dkaminpar/coarsening/locking_lp_clustering.h"
+#include "dkaminpar/coarsening/locking_label_propagation_clustering.h"
 
 #include "dkaminpar/growt.h"
 #include "dkaminpar/mpi_graph_utils.h"
@@ -59,7 +59,7 @@ public:
     initialize(&graph, graph.total_n()); // initializes _graph
     initialize_ghost_node_clusters();
     _max_cluster_weight = max_cluster_weight;
-    DBG << V(_current_clustering) << V(_next_clustering);
+    //    DBG << V(_current_clustering) << V(_next_clustering);
 
     // catch special case where the coarse graph is larger than the fine graph due to an increased number of ghost nodes
     ensure_allocation_ok();
@@ -94,14 +94,14 @@ protected:
   void init_cluster_weight(const GlobalNodeID local_cluster, const NodeWeight weight) {
     const auto cluster = _graph->local_to_global_node(local_cluster);
 
-    DBG << "insert(" << cluster + 1 << ", " << weight << ")";
+    //    DBG << "insert(" << cluster + 1 << ", " << weight << ")";
     auto &handle = _cluster_weights_handles_ets.local();
     [[maybe_unused]] const auto [it, success] = handle.insert(cluster + 1, weight);
     ASSERT(success);
   }
 
   NodeWeight cluster_weight(const GlobalNodeID cluster) {
-    DBG << "find(" << cluster + 1 << ")";
+    //    DBG << "find(" << cluster + 1 << ")";
     auto &handle = _cluster_weights_handles_ets.local();
     auto it = handle.find(cluster + 1);
     ASSERT(it != handle.end()) << "Uninitialized cluster: " << cluster;
@@ -118,35 +118,31 @@ protected:
                            const NodeWeight max_weight) {
     if (cluster_weight(old_cluster) + delta <= max_weight) {
       auto &handle = _cluster_weights_handles_ets.local();
-      DBG << "update(" << old_cluster + 1 << ", ..., " << delta << ")";
+      //      DBG << "update(" << old_cluster + 1 << ", ..., " << delta << ")";
       [[maybe_unused]] const auto [old_it, old_found] = handle.update(
           old_cluster + 1, [](auto &lhs, const auto rhs) { return lhs -= rhs; }, delta);
       ASSERT(old_it != handle.end() && old_found) << "Uninitialized cluster: " << old_cluster;
 
-      DBG << "update(" << new_cluster + 1 << ", ..., " << delta << ")";
+      //      DBG << "update(" << new_cluster + 1 << ", ..., " << delta << ")";
       [[maybe_unused]] const auto [new_it, new_found] = handle.update(
           new_cluster + 1, [](auto &lhs, const auto rhs) { return lhs += rhs; }, delta);
       ASSERT(new_it != handle.end() && new_found) << "Uninitialized cluster: " << new_cluster;
 
-      DBG << "OK";
       return true;
     }
-    DBG << "condition is false";
     return false;
   }
 
   void set_cluster_weight(const GlobalNodeID cluster, const NodeWeight weight) {
     auto &handle = _cluster_weights_handles_ets.local();
-    DBG << "insert_or_update(" << cluster + 1 << ", ..., " << weight << ")";
+    //    DBG << "insert_or_update(" << cluster + 1 << ", ..., " << weight << ")";
     handle.insert_or_update(
         cluster + 1, weight, [](auto &lhs, const auto rhs) { return lhs = rhs; }, weight);
   }
 
   void change_cluster_weight(const GlobalNodeID cluster, const NodeWeight delta) {
-    DBG << "change_cluster_weight";
-
     auto &handle = _cluster_weights_handles_ets.local();
-    DBG << "update(" << cluster + 1 << ", ..., " << delta << ")";
+    //    DBG << "update(" << cluster + 1 << ", ..., " << delta << ")";
     [[maybe_unused]] const auto [it, found] = handle.update(
         cluster + 1, [](auto &lhs, const auto rhs) { return lhs += rhs; }, delta);
     ASSERT(it != handle.end() && found) << "Uninitialized cluster: " << cluster;
@@ -161,11 +157,15 @@ protected:
    */
 
   void init_cluster(const NodeID node, const NodeID cluster) {
+    ASSERT(node < _current_clustering.size() && node < _next_clustering.size());
     _current_clustering[node] = cluster;
     _next_clustering[node] = cluster;
   }
 
-  [[nodiscard]] NodeID cluster(const NodeID u) const { return _next_clustering[u]; }
+  [[nodiscard]] NodeID cluster(const NodeID u) const {
+    ASSERT(u < _next_clustering.size());
+    return _next_clustering[u];
+  }
 
   void move_node(const NodeID node, const GlobalNodeID cluster) { _next_clustering[node] = cluster; }
 
@@ -176,10 +176,11 @@ protected:
    */
 
   [[nodiscard]] bool accept_cluster(const Base::ClusterSelectionState &state) const {
-    return (state.current_gain > state.best_gain ||
-            (state.current_gain == state.best_gain && state.local_rand.random_bool())) &&
-           (state.current_cluster_weight + state.u_weight < max_cluster_weight(state.current_cluster) ||
-            state.current_cluster == state.initial_cluster);
+    const bool ans = (state.current_gain > state.best_gain ||
+                      (state.current_gain == state.best_gain && state.local_rand.random_bool())) &&
+                     (state.current_cluster_weight + state.u_weight <= max_cluster_weight(state.current_cluster) ||
+                      state.current_cluster == state.initial_cluster);
+    return ans;
   }
 
   [[nodiscard]] inline bool activate_neighbor(const NodeID u) const { return !_locked[u] && _graph->is_owned_node(u); }
@@ -227,16 +228,29 @@ private:
   };
 
   NodeID process_chunk(const NodeID from, const NodeID to) {
+    mpi::barrier();
+    LOG << "==============================";
+    LOG << "process_chunk(" << from << ", " << to << ")";
+    LOG << "==============================";
+    mpi::barrier();
+
     const NodeID num_moved_nodes = perform_iteration(from, to);
     if (num_moved_nodes == 0) { return 0; } // nothing to do
 
     perform_distributed_moves(from, to);
     synchronize_labels(from, to);
+    _graph->pfor_nodes(from, to, [&](const NodeID u) { _current_clustering[u] = _next_clustering[u]; });
 
     return num_moved_nodes;
   }
 
   void perform_distributed_moves(const NodeID from, const NodeID to) {
+    mpi::barrier();
+    LOG << "==============================";
+    LOG << "perform_distributed_moves";
+    LOG << "==============================";
+    mpi::barrier();
+
     // exchange join requests and collect them in _gain_buffer
     auto requests = mpi::graph::sparse_alltoall_interface_to_pe_get<JoinRequest>(
         *_graph, from, to,
@@ -250,16 +264,18 @@ private:
         });
     build_gain_buffer(requests);
 
+    mpi::barrier();
+    LOG << "--> perform moves";
+    mpi::barrier();
+
     // perform moves
     tbb::parallel_for<NodeID>(0, _graph->n(), [&](const NodeID u) {
-      const auto global_u = _graph->local_to_global_node(u);
-      const auto to_cluster = cluster(global_u);
+      const auto to_cluster = cluster(u);
 
       for (std::size_t i = _gain_buffer_index[u]; i < _gain_buffer_index[u + 1]; ++i) {
         const auto [v, gain] = _gain_buffer[i];
         const auto v_weight = _graph->node_weight(v);
-        const auto global_v = _graph->local_to_global_node(v);
-        const auto from_cluster = cluster(global_v);
+        const auto from_cluster = cluster(v);
 
         if (move_cluster_weight(from_cluster, to_cluster, v_weight, max_cluster_weight(to_cluster))) {
           move_node(v, to_cluster);
@@ -279,8 +295,7 @@ private:
     std::vector<shm::parallel::IntegralAtomicWrapper<std::size_t>> next_message(requests.size());
 
     tbb::parallel_for<NodeID>(0, _graph->n(), [&](const NodeID u) {
-      const auto global_u = _graph->local_to_global_node(u);
-      const auto to_cluster = cluster(global_u);
+      const auto to_cluster = cluster(u);
 
       for (std::size_t i = _gain_buffer_index[u]; i < _gain_buffer_index[u + 1]; ++i) {
         const auto [v, gain] = _gain_buffer[i];
@@ -312,6 +327,12 @@ private:
   }
 
   void build_gain_buffer(auto &join_requests_per_pe) {
+    mpi::barrier();
+    LOG << "==============================";
+    LOG << "build_gain_buffer";
+    LOG << "==============================";
+    mpi::barrier();
+
     // allocate memory only here since the number of ghost nodes could increase for coarse graphs
     TIMED_SCOPE("Allocation") {
       if (_gain_buffer.size() < _graph->ghost_n()) { _gain_buffer.resize(_graph->ghost_n()); }
@@ -360,6 +381,7 @@ private:
   }
 
   [[nodiscard]] bool was_moved_during_round(const NodeID u) const {
+    ASSERT(u < _next_clustering.size() && u < _current_clustering.size());
     return _next_clustering[u] != _current_clustering[u];
   }
 
