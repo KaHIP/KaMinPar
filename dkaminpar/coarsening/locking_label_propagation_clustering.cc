@@ -94,7 +94,7 @@ protected:
   void init_cluster_weight(const GlobalNodeID local_cluster, const NodeWeight weight) {
     const auto cluster = _graph->local_to_global_node(local_cluster);
 
-    //    DBG << "insert(" << cluster + 1 << ", " << weight << ")";
+        DBG << "insert(" << cluster + 1 << ", " << weight << ")";
     auto &handle = _cluster_weights_handles_ets.local();
     [[maybe_unused]] const auto [it, success] = handle.insert(cluster + 1, weight);
     ASSERT(success);
@@ -104,7 +104,7 @@ protected:
     //    DBG << "find(" << cluster + 1 << ")";
     auto &handle = _cluster_weights_handles_ets.local();
     auto it = handle.find(cluster + 1);
-    ASSERT(it != handle.end()) << "Uninitialized cluster: " << cluster;
+    ASSERT(it != handle.end()) << "Uninitialized cluster: " << cluster + 1;
 
     return (*it).second;
   }
@@ -118,15 +118,15 @@ protected:
                            const NodeWeight max_weight) {
     if (cluster_weight(old_cluster) + delta <= max_weight) {
       auto &handle = _cluster_weights_handles_ets.local();
-      //      DBG << "update(" << old_cluster + 1 << ", ..., " << delta << ")";
+            DBG << "update(" << old_cluster + 1 << ", ..., " << delta << ")";
       [[maybe_unused]] const auto [old_it, old_found] = handle.update(
           old_cluster + 1, [](auto &lhs, const auto rhs) { return lhs -= rhs; }, delta);
-      ASSERT(old_it != handle.end() && old_found) << "Uninitialized cluster: " << old_cluster;
+      ASSERT(old_it != handle.end() && old_found) << "Uninitialized cluster: " << old_cluster + 1;
 
-      //      DBG << "update(" << new_cluster + 1 << ", ..., " << delta << ")";
+            DBG << "update(" << new_cluster + 1 << ", ..., " << delta << ")";
       [[maybe_unused]] const auto [new_it, new_found] = handle.update(
           new_cluster + 1, [](auto &lhs, const auto rhs) { return lhs += rhs; }, delta);
-      ASSERT(new_it != handle.end() && new_found) << "Uninitialized cluster: " << new_cluster;
+      ASSERT(new_it != handle.end() && new_found) << "Uninitialized cluster: " << new_cluster + 1;
 
       return true;
     }
@@ -224,6 +224,7 @@ private:
 
   struct LabelMessage {
     GlobalNodeID global_node;
+    GlobalNodeWeight cluster_weight;
     GlobalNodeID global_new_label;
   };
 
@@ -369,13 +370,14 @@ private:
     mpi::graph::sparse_alltoall_interface_to_pe<LabelMessage>(
         *_graph, from, to, [&](const NodeID u) { return was_moved_during_round(u); },
         [&](const NodeID u) -> LabelMessage {
-          return {_graph->local_to_global_node(u), _next_clustering[u]};
+          return {_graph->local_to_global_node(u), cluster_weight(_next_clustering[u]), _next_clustering[u]};
         },
         [&](const auto buffer) {
           tbb::parallel_for<std::size_t>(0, buffer.size(), [&](const std::size_t i) {
-            const auto [global_node, global_new_label] = buffer[i];
+            const auto [global_node, cluster_weight, global_new_label] = buffer[i];
             const auto local_node = _graph->global_to_local_node(global_node);
             move_node(local_node, global_new_label);
+            set_cluster_weight(global_new_label, cluster_weight);
           });
         });
   }
