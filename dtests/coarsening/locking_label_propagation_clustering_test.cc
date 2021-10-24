@@ -255,6 +255,5 @@ TEST_F(DistributedPathOneNodePerPE, TestGhostClusteringAlongPathWithTwoIteration
   }
 
   mpi::barrier(MPI_COMM_WORLD);
-  std::cout << "OK" << std::endl;
 }
 } // namespace dkaminpar::test

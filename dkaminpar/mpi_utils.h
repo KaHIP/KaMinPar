@@ -131,7 +131,7 @@ void sparse_alltoall(const std::vector<Buffer<Message>> &send_buffers, auto &&re
   std::size_t next_req_index = 0;
   for (PEID pe = 0; pe < size; ++pe) {
     if (pe != rank) {
-      ASSERT(static_cast<std::size_t>(pe) < send_buffers.size());
+      ASSERT(static_cast<std::size_t>(pe) < send_buffers.size()) << V(pe) << V(send_buffers.size());
       mpi::isend(send_buffers[pe], pe, 0, requests[next_req_index++], comm);
     }
   }

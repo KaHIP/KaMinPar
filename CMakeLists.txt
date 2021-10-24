@@ -97,7 +97,7 @@ endif ()
 include(gmock)
 
 # Growt
-add_library(growt INTERFACE)
+add_library(growt INTERFACE apps/benchmarks/dcoarsening_benchmark.cc)
 target_include_directories(growt INTERFACE external_tools/growt/)
 
 # Backward-cpp for stack traces in MPI code

@@ -88,7 +88,7 @@ void sparse_alltoall_interface_to_ghost(const DistributedGraph &graph, const Nod
   });
 
   // resize filtered send buffer
-  for (PEID pe = 0; pe < size; ++pe) { send_buffers.resize(next_message[pe]); }
+  for (PEID pe = 0; pe < size; ++pe) { send_buffers[pe].resize(next_message[pe]); }
 
   sparse_alltoall<Message, Buffer>(send_buffers, std::forward<decltype(receiver)>(receiver), graph.communicator());
 }

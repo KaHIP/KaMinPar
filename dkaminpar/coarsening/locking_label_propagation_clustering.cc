@@ -183,12 +183,14 @@ protected:
    */
 
   [[nodiscard]] bool accept_cluster(const Base::ClusterSelectionState &state) {
+    SET_DEBUG(false);
+
     const bool ans = (state.current_gain > state.best_gain ||
                       (state.current_gain == state.best_gain && state.local_rand.random_bool())) &&
                      (state.current_cluster_weight + state.u_weight <= max_cluster_weight(state.current_cluster) ||
                       state.current_cluster == state.initial_cluster);
     if (ans) { _gain[state.u] = state.current_gain; }
-    LOG << V(state.u) << V(state.current_cluster) << V(state.current_gain) << V(state.best_cluster)
+    DBG << V(state.u) << V(state.current_cluster) << V(state.current_gain) << V(state.best_cluster)
         << V(state.best_gain) << V(ans) << V(state.current_cluster_weight) << V(state.u_weight)
         << V(max_cluster_weight(state.current_cluster));
     return ans;
@@ -240,7 +242,7 @@ private:
   };
 
   NodeID process_chunk(const NodeID from, const NodeID to) {
-    SET_DEBUG(true);
+    SET_DEBUG(false);
 
     if constexpr (kDebug) {
       mpi::barrier();
@@ -278,7 +280,7 @@ private:
   }
 
   void perform_distributed_moves(const NodeID from, const NodeID to) {
-    SET_DEBUG(true);
+    SET_DEBUG(false);
 
     mpi::barrier();
     LOG << "==============================";
@@ -409,7 +411,7 @@ private:
   }
 
   void build_gain_buffer(auto &join_requests_per_pe) {
-    SET_DEBUG(true);
+    SET_DEBUG(false);
 
     mpi::barrier();
     LOG << "==============================";
@@ -465,7 +467,6 @@ private:
         gain_buffer_str << "{.global_node=" << entry.global_node << ", .node_weight=" << entry.node_weight
                         << ", .gain=" << entry.gain << "} ";
       }
-      SLOG << gain_buffer_str.str();
     }
 
     // sort buffer for each node by gain
