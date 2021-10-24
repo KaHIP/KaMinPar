@@ -19,7 +19,7 @@ void print_stacktrace() {
   using namespace backward;
   std::ostringstream oss;
   StackTrace st;
-  st.load_here(32);
+  st.load_here(10);
   Printer p;
   p.print(st, oss);
 

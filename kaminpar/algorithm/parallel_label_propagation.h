@@ -132,7 +132,7 @@ protected:
     const NodeWeight u_weight = _graph->node_weight(u);
     const ClusterID u_cluster = derived_cluster(u);
     const auto [new_cluster, new_gain] = find_best_cluster(u, u_weight, u_cluster, local_rand, local_rating_map);
-//    DBG << V(new_cluster) << V(new_gain);
+    //    DBG << V(new_cluster) << V(new_gain);
 
     if (derived_cluster(u) != new_cluster) {
       if (derived_move_cluster_weight(u_cluster, new_cluster, u_weight, derived_max_cluster_weight(new_cluster))) {
@@ -364,21 +364,20 @@ protected:
 
   const Graph *_graph{nullptr};
 
-  ClusterID _initial_num_clusters; //! Number of clusters before the first iteration
+  ClusterID _initial_num_clusters;                                  //! Number of clusters before the first iteration
   parallel::IntegralAtomicWrapper<ClusterID> _current_num_clusters; //! Current number of clusters
   ClusterID _desired_num_clusters{0}; //! Terminate once there are less than this many clusters
 
   parallel::IntegralAtomicWrapper<EdgeWeight> _expected_total_gain; //! Total cut reduction when run sequentially
 
-  NodeID _max_degree{std::numeric_limits<NodeID>::max()}; //! Ignore nodes with degree larger than this
+  NodeID _max_degree{std::numeric_limits<NodeID>::max()};        //! Ignore nodes with degree larger than this
   NodeID _max_num_neighbors{std::numeric_limits<NodeID>::max()}; //! Only consider this many neighbors per node
 
-  tbb::enumerable_thread_specific<RatingMap> _rating_map_ets; //! Thread-local map to compute gain values
+  tbb::enumerable_thread_specific<RatingMap> _rating_map_ets;        //! Thread-local map to compute gain values
   scalable_vector<parallel::IntegralAtomicWrapper<uint8_t>> _active; //! Flag (in)active nodes
 
   //! [2hop clustering] If a node cannot join any cluster, store the cluster with the highest gain
   scalable_vector<parallel::IntegralAtomicWrapper<ClusterID>> _favored_clusters;
-
 };
 
 /*!
@@ -423,6 +422,9 @@ protected:
       auto &rating_map = _rating_map_ets.local();
 
       for (NodeID u = r.begin(); u != r.end(); ++u) {
+        if (!_active[u].load(std::memory_order_relaxed)) { continue; }
+        _active[u].store(0, std::memory_order_relaxed);
+
         if (work_since_update > Config::kMinChunkSize) {
           if (Base::should_stop()) { return; }
 
@@ -441,6 +443,7 @@ protected:
     return num_moved_nodes_ets.combine(std::plus{});
   }
 
+  using Base::_active;
   using Base::_current_num_clusters;
   using Base::_graph;
   using Base::_rating_map_ets;

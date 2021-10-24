@@ -213,15 +213,19 @@ std::ranges::range_value_t<Range> max_element(const Range &r) {
   return b._ans;
 }
 
+void parallel_for_over_chunks(const auto &buffers, auto &&lambda) {
+  parallel_for_over_chunks(const_cast<std::remove_const_t<decltype(buffers)>>(buffers),
+                           [&](const auto &&element) { lambda(std::forward<decltype(element)>(element)); });
+}
+
 /*!
  * @param buffers Vector of buffers of elements.
  * @param lambda Invoked on each element, in parallel.
  */
-void parallel_for_over_chunks(const auto &buffers, auto &&lambda) {
-
-
+void parallel_for_over_chunks(auto &buffers, auto &&lambda) {
   std::size_t total_size = 0;
   for (const auto &buffer : buffers) { total_size += buffer.size(); }
+
   tbb::parallel_for(tbb::blocked_range<std::size_t>(0, total_size), [&](const auto r) {
     std::size_t cur = r.begin();
     std::size_t offset = 0;
@@ -232,14 +236,20 @@ void parallel_for_over_chunks(const auto &buffers, auto &&lambda) {
     while (offset + cur_size < cur) {
       offset += cur_size;
       ++current_buf;
+      ASSERT(current_buf < buffers.size());
       cur_size = buffers[current_buf].size();
     }
 
     // iterate elements
     while (cur != r.end()) {
-      if (cur - offset >= cur_size) {
+      while (cur - offset >= cur_size) {
+        ASSERT(current_buf < buffers.size());
         offset += buffers[current_buf++].size();
+        cur_size = buffers[current_buf].size();
       }
+      ASSERT(current_buf < buffers.size());
+      ASSERT(cur_size == buffers[current_buf].size());
+      ASSERT(cur - offset < buffers[current_buf].size()) << V(cur) << V(offset) << V(cur_size) << V(current_buf);
       lambda(buffers[current_buf][cur - offset]);
       ++cur;
     }
