@@ -116,7 +116,8 @@ DistributedGraph change_edge_weights_by_global_endpoints(
     const auto real_v = v % graph.global_n();
     const auto [forward_edge, backward_edge] = get_edge_by_endpoints_global(graph, real_u, real_v);
     DBG << u << "/" << real_u << " / " << graph.global_to_local_node(real_u) << " -- " << v << " / " << real_v << " / "
-        << graph.global_to_local_node(real_v) << " == " << weight << " ----- " << forward_edge << " <-> " << backward_edge;
+        << graph.global_to_local_node(real_v) << " == " << weight << " ----- " << forward_edge << " <-> "
+        << backward_edge;
     edge_id_changes.emplace_back(forward_edge, weight);
     edge_id_changes.emplace_back(backward_edge, weight);
   }
@@ -183,6 +184,55 @@ protected:
                 .create_edge(1, n0 + 1)
                 .create_edge(1, next(n0 + 2, 3, 9))
                 .create_edge(1, prev(n0 + 2, 3, 9))
+                .finalize();
+  }
+
+  DistributedGraph graph;
+  GlobalNodeID n0;
+};
+
+// 0-#-1-#-2
+class DistributedPathOneNodePerPE : public DistributedGraphFixture {
+protected:
+  void SetUp() override {
+    DistributedGraphFixture::SetUp();
+    ALWAYS_ASSERT(size == 3) << "must be tested on three PEs";
+
+    n0 = rank;
+    auto builder = dkaminpar::graph::Builder{}.initialize(3, 4, rank, {0, 1, 2, 3}).create_node(1);
+
+    if (rank == 0) {
+      builder.create_edge(1, 1);
+    } else if (rank == 1) {
+      builder.create_edge(1, 0);
+      builder.create_edge(1, 2);
+    } else {
+      builder.create_edge(1, 1);
+    }
+
+    graph = builder.finalize();
+  }
+
+  DistributedGraph graph;
+  GlobalNodeID n0;
+};
+
+// 0--1-#-2--3-#-4--5
+class DistributedPathTwoNodesPerPE : public DistributedGraphFixture {
+protected:
+  void SetUp() override {
+    DistributedGraphFixture::SetUp();
+    ALWAYS_ASSERT(size == 3) << "must be tested on three PEs";
+
+    n0 = rank;
+    graph = dkaminpar::graph::Builder{}
+                .initialize(6, 10, rank, {0, 2, 4, 6})
+                .create_node(1)
+                .create_edge(1, prev(n0, 1, 3))
+                .create_edge(1, n0 + 1)
+                .create_node(1)
+                .create_edge(1, n0)
+                .create_edge(1, next(n0 + 1, 1, 3))
                 .finalize();
   }
 

@@ -94,10 +94,18 @@ public:
   [[nodiscard]] inline GlobalEdgeID global_m() const { return _global_m; }
 
   [[nodiscard]] inline NodeID n() const { return _nodes.size() - 1; }
+  [[nodiscard]] inline NodeID n(const PEID pe) const {
+    ASSERT(pe < static_cast<PEID>(_node_distribution.size()));
+    return _node_distribution[pe + 1] - _node_distribution[pe];
+  }
   [[nodiscard]] inline NodeID ghost_n() const { return _ghost_n; }
   [[nodiscard]] inline NodeID total_n() const { return ghost_n() + n(); }
 
   [[nodiscard]] inline EdgeID m() const { return _edges.size(); }
+  [[nodiscard]] inline EdgeID m(const PEID pe) const {
+    ASSERT(pe < static_cast<PEID>(_edge_distribution.size()));
+    return _edge_distribution[pe + 1] - _edge_distribution[pe];
+  }
 
   [[nodiscard]] inline GlobalNodeID offset_n() const { return _offset_n; }
   [[nodiscard]] inline GlobalEdgeID offset_m() const { return _offset_m; }
@@ -110,8 +118,8 @@ public:
   }
 
   [[nodiscard]] inline bool contains_global_node(const GlobalNodeID global_u) const {
-    return is_owned_global_node(global_u) // owned node
-           || _global_to_ghost.contains(global_u);                 // ghost node
+    return is_owned_global_node(global_u)          // owned node
+           || _global_to_ghost.contains(global_u); // ghost node
   }
 
   [[nodiscard]] inline bool contains_local_node(const NodeID local_u) const { return local_u < total_n(); }

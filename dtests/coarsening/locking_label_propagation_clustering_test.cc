@@ -24,7 +24,7 @@ using Clustering = LockingLpClustering::AtomicClusterArray;
 Clustering compute_clustering(const DistributedGraph &graph, NodeWeight max_cluster_weight = 0,
                               const std::size_t num_iterations = 1) {
   // 0 --> no weight constraint
-  if (max_cluster_weight == 0) { max_cluster_weight = graph.total_node_weight(); }
+  if (max_cluster_weight == 0) { max_cluster_weight = std::numeric_limits<NodeWeight>::max(); }
 
   Context ctx = create_default_context();
   ctx.coarsening.lp.num_iterations = num_iterations;
@@ -102,7 +102,7 @@ TEST_F(DistributedTriangles, TestGhostNodeLabelsAfterLocalClustering) {
   }
 }
 
-TEST_F(DistributedTriangles, TestTwoIterationsLocalClustering) {
+TEST_F(DistributedTriangles, TestLocalClusteringWithTwoIterations) {
   //  0---1-#-3---4
   //  |\ /  #  \ /|
   //  | 2---#---5 |
@@ -134,7 +134,39 @@ TEST_F(DistributedTriangles, TestTwoIterationsLocalClustering) {
   }
 }
 
-TEST_F(DistributedTriangles, TestSymmetricJoinGhostCluster) {
+TEST_F(DistributedTriangles, TestLocalClusteringWithWeightConstraintAndTwoIterations) {
+  //  0---1-#-3---4
+  //  |\ /  #  \ /|
+  //  | 2---#---5 |
+  //  |  \  #  /  |
+  // ###############
+  //  |    \ /    |
+  //  |     8     |
+  //  |    / \    |
+  //  +---7---6---+
+
+  SINGLE_THREADED_TEST;
+
+  static constexpr EdgeWeight kInfinity = 100;
+  graph = graph::change_edge_weights_by_global_endpoints(std::move(graph),
+                                                         {{n0, n0 + 1, kInfinity}, {n0 + 1, n0 + 2, 2 * kInfinity}});
+
+  static constexpr NodeWeight kClusterWeightLimit = 2; // 1 node cannot join
+  {                                                    // make one iteration
+    const auto clustering = compute_clustering(graph, kClusterWeightLimit, 1);
+    EXPECT_THAT(clustering[0], Eq(n0 + 1));
+    EXPECT_THAT(clustering[1], Eq(n0 + 2));
+    EXPECT_THAT(clustering[2], Eq(n0 + 2));
+  }
+  { // make two iterations
+    const auto clustering = compute_clustering(graph, kClusterWeightLimit, 2);
+    EXPECT_THAT(clustering[0], Eq(n0 + 1));
+    EXPECT_THAT(clustering[1], Eq(n0 + 2));
+    EXPECT_THAT(clustering[2], Eq(n0 + 2));
+  }
+}
+
+TEST_F(DistributedTriangles, TestGhostClusteringOneRequestPerChunkAndPE) {
   //   0---1=#=3---4
   //  ||\ /  #  \ /||
   //  || 2---#---5 ||
@@ -164,7 +196,6 @@ TEST_F(DistributedTriangles, TestSymmetricJoinGhostCluster) {
     changes.emplace_back(7, 0, kInfinity);
     changes.emplace_back(6, 8, kInfinity / 2);
   }
-
   graph = graph::change_edge_weights_by_global_endpoints(std::move(graph), changes);
   const auto clustering = compute_clustering(graph);
 
@@ -181,6 +212,37 @@ TEST_F(DistributedTriangles, TestSymmetricJoinGhostCluster) {
     EXPECT_THAT(clustering[0], Eq(4));
     EXPECT_THAT(clustering[1], Eq(7));
     EXPECT_THAT(clustering[2], Eq(4)); // if 8 is not in the same chunk as 6
+  }
+}
+
+TEST_F(DistributedPathOneNodePerPE, TestGhostClusteringAlongPathWithTwoIterations) {
+  // 0-#-1-#-2
+  SINGLE_THREADED_TEST;
+
+  int rank = mpi::get_comm_rank();
+  std::vector<std::tuple<GlobalNodeID, GlobalNodeID, EdgeWeight>> changes;
+  if (rank == 0) { // edge weights increase along path
+    changes.emplace_back(0, 1, 2);
+  } else if (rank == 1) {
+    changes.emplace_back(1, 0, 2);
+    changes.emplace_back(1, 2, 4);
+  } else if (rank == 2) {
+    changes.emplace_back(2, 1, 4);
+  }
+  graph = graph::change_edge_weights_by_global_endpoints(std::move(graph), changes);
+  graph.print();
+
+//  {
+//    const auto clustering = compute_clustering(graph);
+//    if (rank == 0) {
+//      EXPECT_THAT(clustering[0], Eq(0)); // 0 rejected because 1 tried to move to another PE
+//    } else {
+//      EXPECT_THAT(clustering[0], Eq(2));
+//    }
+//  }
+  {
+    const auto clustering = compute_clustering(graph, 0, 2);
+    EXPECT_THAT(clustering[0], Eq(2));
   }
 }
 } // namespace dkaminpar::test

@@ -132,7 +132,6 @@ protected:
     const NodeWeight u_weight = _graph->node_weight(u);
     const ClusterID u_cluster = derived_cluster(u);
     const auto [new_cluster, new_gain] = find_best_cluster(u, u_weight, u_cluster, local_rand, local_rating_map);
-    //    DBG << V(new_cluster) << V(new_gain);
 
     if (derived_cluster(u) != new_cluster) {
       if (derived_move_cluster_weight(u_cluster, new_cluster, u_weight, derived_max_cluster_weight(new_cluster))) {

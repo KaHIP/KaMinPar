@@ -71,11 +71,10 @@ public:
       for (std::size_t chunk = 0; chunk < std::min<std::size_t>(_graph->n(), _c_ctx.lp.num_chunks); ++chunk) {
         const auto [from, to] = math::compute_local_range<NodeID>(_graph->n(), _c_ctx.lp.num_chunks, chunk);
         num_moved_nodes += process_chunk(from, to);
+        SLOG << V(_current_clustering) << V(_next_clustering);
       }
       if (num_moved_nodes == 0) { break; }
     }
-
-    SLOG << V(_current_clustering) << V(_next_clustering);
 
     return _current_clustering;
   }
@@ -95,17 +94,15 @@ protected:
   void init_cluster_weight(const GlobalNodeID local_cluster, const NodeWeight weight) {
     const auto cluster = _graph->local_to_global_node(local_cluster);
 
-    //    DBG << "insert(" << cluster + 1 << ", " << weight << ")";
     auto &handle = _cluster_weights_handles_ets.local();
     [[maybe_unused]] const auto [it, success] = handle.insert(cluster + 1, weight);
     ASSERT(success);
   }
 
   NodeWeight cluster_weight(const GlobalNodeID cluster) {
-    //    DBG << "find(" << cluster + 1 << ")";
     auto &handle = _cluster_weights_handles_ets.local();
     auto it = handle.find(cluster + 1);
-    //    ASSERT(it != handle.end()) << "Uninitialized cluster: " << cluster + 1;
+    ASSERT(it != handle.end()) << "Uninitialized cluster: " << cluster + 1;
 
     return (*it).second;
   }
@@ -117,14 +114,12 @@ protected:
 
   bool move_cluster_weight(const GlobalNodeID old_cluster, const GlobalNodeID new_cluster, const NodeWeight delta,
                            const NodeWeight max_weight) {
-    if (cluster_weight(old_cluster) + delta <= max_weight) {
+    if (cluster_weight(new_cluster) + delta <= max_weight) {
       auto &handle = _cluster_weights_handles_ets.local();
-      //      DBG << "update(" << old_cluster + 1 << ", ..., " << delta << ")";
       [[maybe_unused]] const auto [old_it, old_found] = handle.update(
           old_cluster + 1, [](auto &lhs, const auto rhs) { return lhs -= rhs; }, delta);
       ASSERT(old_it != handle.end() && old_found) << "Uninitialized cluster: " << old_cluster + 1;
 
-      //      DBG << "update(" << new_cluster + 1 << ", ..., " << delta << ")";
       [[maybe_unused]] const auto [new_it, new_found] = handle.update(
           new_cluster + 1, [](auto &lhs, const auto rhs) { return lhs += rhs; }, delta);
       ASSERT(new_it != handle.end() && new_found) << "Uninitialized cluster: " << new_cluster + 1;
@@ -147,14 +142,12 @@ protected:
 
   void set_cluster_weight(const GlobalNodeID cluster, const NodeWeight weight) {
     auto &handle = _cluster_weights_handles_ets.local();
-    //    DBG << "insert_or_update(" << cluster + 1 << ", ..., " << weight << ")";
     handle.insert_or_update(
         cluster + 1, weight, [](auto &lhs, const auto rhs) { return lhs = rhs; }, weight);
   }
 
   void change_cluster_weight(const GlobalNodeID cluster, const NodeWeight delta) {
     auto &handle = _cluster_weights_handles_ets.local();
-    //    DBG << "update(" << cluster + 1 << ", ..., " << delta << ")";
     [[maybe_unused]] const auto [it, found] = handle.update(
         cluster + 1, [](auto &lhs, const auto rhs) { return lhs += rhs; }, delta);
     ASSERT(it != handle.end() && found) << "Uninitialized cluster: " << cluster;
@@ -193,7 +186,9 @@ protected:
                      (state.current_cluster_weight + state.u_weight <= max_cluster_weight(state.current_cluster) ||
                       state.current_cluster == state.initial_cluster);
     if (ans) { _gain[state.u] = state.current_gain; }
-    //    LOG << V(state.u) << V(state.current_cluster) << V(state.current_gain) << V(state.best_cluster) << V(state.best_gain) << V(ans);
+    LOG << V(state.u) << V(state.current_cluster) << V(state.current_gain) << V(state.best_cluster)
+        << V(state.best_gain) << V(ans) << V(state.current_cluster_weight) << V(state.u_weight)
+        << V(max_cluster_weight(state.current_cluster));
     return ans;
   }
 
@@ -254,6 +249,7 @@ private:
     }
 
     const NodeID num_moved_nodes = perform_iteration(from, to);
+    SLOG << V(num_moved_nodes);
     if (num_moved_nodes == 0) { return 0; } // nothing to do
 
     if constexpr (kDebug) {
@@ -328,20 +324,35 @@ private:
 
     // perform moves
     DBG << V(_gain_buffer_index);
+    const PEID rank = mpi::get_comm_rank(_graph->communicator());
+
     tbb::parallel_for<NodeID>(0, _graph->n(), [&](const NodeID u) {
       // TODO stop trying to insert nodes after the first insert operation failed?
 
+      // if u was moved to a ghost cluster this round, it may not accept join requests from other PEs!
+      const bool can_accept_nodes = !was_moved_during_round(u) || _graph->is_owned_global_node(cluster(u));
+      DBG << V(u) << V(can_accept_nodes);
+
       for (std::size_t i = _gain_buffer_index[u]; i < _gain_buffer_index[u + 1]; ++i) {
-        DBG << V(i) << V(u) << V(_gain_buffer[i].global_node) << V(_gain_buffer[i].node_weight) << V(_gain_buffer[i].gain);
+        DBG << V(i) << V(u) << V(_gain_buffer[i].global_node) << V(_gain_buffer[i].node_weight)
+            << V(_gain_buffer[i].gain);
 
         const auto to_cluster = cluster(u);
         const auto [global_v, v_weight, gain] = _gain_buffer[i];
         const auto pe = _graph->find_owner_of_global_node(global_v);
         const auto slot = next_message[pe]++;
-        // gain is unused, entries already sorted by rel. gain
 
-        // try to move node and build response message
-        const bool accepted = move_cluster_weight_to(to_cluster, v_weight, max_cluster_weight(to_cluster));
+        bool accepted = can_accept_nodes;
+
+        // we may accept a move anyways if OUR move request is symmetric, i.e., the leader of the cluster u wants to
+        // join also wants to merge with u --> in this case, tie-break with no. of edges, if equal with lower owning PE
+        if (!accepted && to_cluster == global_v) {
+          const EdgeID my_m = _graph->m();
+          const EdgeID their_m = _graph->m(pe);
+          accepted = (my_m < their_m) || ((my_m == their_m) && (rank < pe));
+        }
+
+        accepted = accepted && move_cluster_weight_to(to_cluster, v_weight, max_cluster_weight(to_cluster));
         if (accepted) {
           _locked[u] = 1;
           _active[u] = 0;
@@ -379,6 +390,7 @@ private:
             if (!accepted) { // if accepted, nothing to do, otherwise move back
               _next_clustering[local_requester] = _current_clustering[local_requester];
               change_cluster_weight(cluster(local_requester), _graph->node_weight(local_requester));
+              _active[local_requester] = 1;
             }
           }
         },
