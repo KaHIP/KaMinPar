@@ -68,7 +68,7 @@ public:
 
     for (std::size_t iteration = 0; iteration < num_iterations; ++iteration) {
       NodeID num_moved_nodes = 0;
-      for (std::size_t chunk = 0; chunk < _c_ctx.lp.num_chunks; ++chunk) {
+      for (std::size_t chunk = 0; chunk < std::min<std::size_t>(_graph->n(), _c_ctx.lp.num_chunks); ++chunk) {
         const auto [from, to] = math::compute_local_range<NodeID>(_graph->n(), _c_ctx.lp.num_chunks, chunk);
         num_moved_nodes += process_chunk(from, to);
       }
