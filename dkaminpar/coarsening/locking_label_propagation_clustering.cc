@@ -59,10 +59,11 @@ public:
     initialize(&graph, graph.total_n()); // initializes _graph
     initialize_ghost_node_clusters();
     _max_cluster_weight = max_cluster_weight;
-    //    DBG << V(_current_clustering) << V(_next_clustering);
 
     // catch special case where the coarse graph is larger than the fine graph due to an increased number of ghost nodes
     ensure_allocation_ok();
+
+    ASSERT(VALIDATE_INIT_STATE());
 
     const auto num_iterations = _c_ctx.lp.num_iterations == 0 ? std::numeric_limits<std::size_t>::max()
                                                               : _c_ctx.lp.num_iterations;
@@ -72,9 +73,12 @@ public:
       for (std::size_t chunk = 0; chunk < _c_ctx.lp.num_chunks; ++chunk) {
         const auto [from, to] = math::compute_local_range<NodeID>(_graph->n(), _c_ctx.lp.num_chunks, chunk);
         num_moved_nodes += process_chunk(from, to);
+        ASSERT(VALIDATE_STATE());
       }
       if (num_moved_nodes == 0) { break; }
     }
+
+    SLOG << V(_current_clustering) << V(_next_clustering);
 
     return _current_clustering;
   }
@@ -94,7 +98,7 @@ protected:
   void init_cluster_weight(const GlobalNodeID local_cluster, const NodeWeight weight) {
     const auto cluster = _graph->local_to_global_node(local_cluster);
 
-        DBG << "insert(" << cluster + 1 << ", " << weight << ")";
+    DBG << "insert(" << cluster + 1 << ", " << weight << ")";
     auto &handle = _cluster_weights_handles_ets.local();
     [[maybe_unused]] const auto [it, success] = handle.insert(cluster + 1, weight);
     ASSERT(success);
@@ -118,12 +122,12 @@ protected:
                            const NodeWeight max_weight) {
     if (cluster_weight(old_cluster) + delta <= max_weight) {
       auto &handle = _cluster_weights_handles_ets.local();
-            DBG << "update(" << old_cluster + 1 << ", ..., " << delta << ")";
+      DBG << "update(" << old_cluster + 1 << ", ..., " << delta << ")";
       [[maybe_unused]] const auto [old_it, old_found] = handle.update(
           old_cluster + 1, [](auto &lhs, const auto rhs) { return lhs -= rhs; }, delta);
       ASSERT(old_it != handle.end() && old_found) << "Uninitialized cluster: " << old_cluster + 1;
 
-            DBG << "update(" << new_cluster + 1 << ", ..., " << delta << ")";
+      DBG << "update(" << new_cluster + 1 << ", ..., " << delta << ")";
       [[maybe_unused]] const auto [new_it, new_found] = handle.update(
           new_cluster + 1, [](auto &lhs, const auto rhs) { return lhs += rhs; }, delta);
       ASSERT(new_it != handle.end() && new_found) << "Uninitialized cluster: " << new_cluster + 1;
@@ -183,7 +187,7 @@ protected:
     return ans;
   }
 
-  [[nodiscard]] inline bool activate_neighbor(const NodeID u) const { return !_locked[u] && _graph->is_owned_node(u); }
+  [[nodiscard]] inline bool activate_neighbor(const NodeID u) const { return _graph->is_owned_node(u) && !_locked[u]; }
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //
   // Called from base class
@@ -240,7 +244,8 @@ private:
 
     perform_distributed_moves(from, to);
     synchronize_labels(from, to);
-    _graph->pfor_nodes(from, to, [&](const NodeID u) { _current_clustering[u] = _next_clustering[u]; });
+    tbb::parallel_for<NodeID>(0, _graph->total_n(),
+                              [&](const NodeID u) { _current_clustering[u] = _next_clustering[u]; });
 
     return num_moved_nodes;
   }
@@ -387,11 +392,34 @@ private:
     return _next_clustering[u] != _current_clustering[u];
   }
 
+#ifdef KAMINPAR_ENABLE_ASSERTIONS
+  bool VALIDATE_INIT_STATE() {
+    ASSERT(_graph->total_n() <= _current_clustering.size());
+    ASSERT(_graph->total_n() <= _next_clustering.size());
+    ASSERT(_graph->n() <= _locked.size());
+    ASSERT(_graph->n() <= _gain.size());
+
+    for (const NodeID u : _graph->all_nodes()) {
+      ASSERT(_current_clustering[u] == _next_clustering[u]);
+      ASSERT(cluster(u) == _graph->local_to_global_node(u));
+      ASSERT(cluster_weight(cluster(u)) == _graph->node_weight(u));
+    }
+
+    return true;
+  }
+
+  bool VALIDATE_STATE() {
+    for (const NodeID u : _graph->all_nodes()) { ASSERT(_current_clustering[u] == _next_clustering[u]); }
+
+    return true;
+  }
+#endif // KAMINPAR_ENABLE_ASSERTIONS
+
   using Base::_graph;
 
   const CoarseningContext &_c_ctx;
 
-  NodeWeight _max_cluster_weight;
+  NodeWeight _max_cluster_weight{kInvalidNodeWeight};
   AtomicClusterArray _current_clustering;
   AtomicClusterArray _next_clustering;
   scalable_vector<EdgeWeight> _gain;

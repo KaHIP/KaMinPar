@@ -22,6 +22,7 @@
 #include "kaminpar/definitions.h"
 
 #include <cstdint>
+#include <iomanip>
 #include <mpi.h>
 
 namespace dkaminpar {
@@ -62,6 +63,59 @@ inline int get_rank(MPI_Comm comm = MPI_COMM_WORLD) {
 template<typename T>
 using scalable_vector = shm::scalable_vector<T>;
 
+class SynchronizedLogger {
+public:
+  SynchronizedLogger(int root = 0, MPI_Comm comm = MPI_COMM_WORLD) : _buf{}, _logger{_buf}, _root{root}, _comm{comm} {}
+
+  ~SynchronizedLogger() {
+    _logger.flush();
+
+    int size, rank;
+    MPI_Comm_size(_comm, &size);
+    MPI_Comm_rank(_comm, &rank);
+
+    if (rank != _root) {
+      std::string str = _buf.str();
+      MPI_Send(str.data(), static_cast<int>(str.length()), MPI_CHAR, _root, 0, MPI_COMM_WORLD);
+    } else {
+      kaminpar::Logger logger;
+
+      for (PEID pe = 0; pe < size; ++pe) {
+        logger << "-------------------- " << pe << " --------------------\n";
+
+        if (pe == rank) {
+          logger << _buf.str();
+        } else {
+          MPI_Status status;
+          MPI_Probe(pe, 0, MPI_COMM_WORLD, &status);
+
+          int cnt;
+          MPI_Get_count(&status, MPI_CHAR, &cnt);
+
+          char *str = new char[cnt];
+          MPI_Recv(str, cnt, MPI_CHAR, pe, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+          logger << std::string(str, cnt);
+        }
+      }
+
+      logger << "-------------------------------------------";
+    }
+  }
+
+  template<typename Arg>
+  SynchronizedLogger &operator<<(Arg &&arg) {
+    _logger << std::forward<Arg>(arg);
+    return *this;
+  }
+
+private:
+  std::ostringstream _buf;
+  shm::Logger _logger;
+  int _root;
+  MPI_Comm _comm;
+};
+
 #define ROOT(x) ((x) == 0)
 
 // clang-format off
@@ -94,5 +148,7 @@ using scalable_vector = shm::scalable_vector<T>;
 #define FATAL_PERROR (kaminpar::debug::DisposableLogger<true>(std::cout, std::string(": ") + std::strerror(errno) + "\n") << LOG_RANK << " " << kaminpar::logger::RED << "[Fatal] ")
 
 #define DLOG (kaminpar::Logger() << LOG_RANK << " ")
+#define SLOG (dkaminpar::SynchronizedLogger())
+#define SLOGP(root, comm) (dkaminpar::SynchronizedLogger(root, comm))
 // clang-format on
 } // namespace dkaminpar

@@ -63,8 +63,7 @@ TEST_F(DistributedTriangles, TestGhostNodeLabelsAfterLocalClustering) {
   for (NodeID u : graph.ghost_nodes()) { labels_on_pe[graph.ghost_owner(u)].push_back(clustering[u]); }
 
   for (const auto &[pe, labels] : labels_on_pe) {
-    LOG << V(pe) << V(labels);
-//    EXPECT_THAT(labels, AnyOf(Each(0), Each(1), Each(2), Each(3), Each(4), Each(5), Each(6), Each(7), Each(8)));
+    EXPECT_THAT(labels, AnyOf(Each(0), Each(1), Each(2), Each(3), Each(4), Each(5), Each(6), Each(7), Each(8)));
   }
 }
 } // namespace dkaminpar::test
