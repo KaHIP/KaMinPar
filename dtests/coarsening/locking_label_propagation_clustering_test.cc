@@ -22,12 +22,13 @@ using namespace fixtures3PE;
 using Clustering = LockingLpClustering::AtomicClusterArray;
 
 Clustering compute_clustering(const DistributedGraph &graph, NodeWeight max_cluster_weight = 0,
-                              const std::size_t num_iterations = 1) {
+                              const std::size_t num_iterations = 1, const std::size_t num_chunks = 0) {
   // 0 --> no weight constraint
   if (max_cluster_weight == 0) { max_cluster_weight = std::numeric_limits<NodeWeight>::max(); }
 
   Context ctx = create_default_context();
   ctx.coarsening.lp.num_iterations = num_iterations;
+  if (num_chunks != 0) { ctx.coarsening.lp.num_chunks = num_chunks; }
 
   DLOG << V(graph.n()) << V(graph.total_n());
 
@@ -166,6 +167,14 @@ TEST_F(DistributedTriangles, TestLocalClusteringWithWeightConstraintAndTwoIterat
   }
 }
 
+//TEST_F(DistributedTriangles, TestConvergenceWithMultipleChunks) {
+//  SINGLE_THREADED_TEST;
+//
+//  // no cluster weight limit, 10 iterations -> everything should be the same cluster
+//  const auto clustering = compute_clustering(graph, 0, 10);
+//  EXPECT_THAT(clustering, AnyOf(Each(0), Each(1), Each(2), Each(3), Each(4), Each(5), Each(6), Each(7), Each(8)));
+//}
+
 TEST_F(DistributedTriangles, TestGhostClusteringOneRequestPerChunkAndPE) {
   //   0---1=#=3---4
   //  ||\ /  #  \ /||
@@ -232,17 +241,20 @@ TEST_F(DistributedPathOneNodePerPE, TestGhostClusteringAlongPathWithTwoIteration
   graph = graph::change_edge_weights_by_global_endpoints(std::move(graph), changes);
   graph.print();
 
-//  {
-//    const auto clustering = compute_clustering(graph);
-//    if (rank == 0) {
-//      EXPECT_THAT(clustering[0], Eq(0)); // 0 rejected because 1 tried to move to another PE
-//    } else {
-//      EXPECT_THAT(clustering[0], Eq(2));
-//    }
-//  }
+  {
+    const auto clustering = compute_clustering(graph);
+    if (rank == 0) {
+      EXPECT_THAT(clustering[0], Eq(0)); // 0 rejected because 1 tried to move to another PE
+    } else {
+      EXPECT_THAT(clustering[0], Eq(2));
+    }
+  }
   {
     const auto clustering = compute_clustering(graph, 0, 2);
     EXPECT_THAT(clustering[0], Eq(2));
   }
+
+  mpi::barrier(MPI_COMM_WORLD);
+  std::cout << "OK" << std::endl;
 }
 } // namespace dkaminpar::test

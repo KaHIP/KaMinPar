@@ -200,8 +200,7 @@ void sparse_alltoall_custom(const DistributedGraph &graph, const NodeID from, co
   std::tie(size, rank) = mpi::get_comm_info(graph.communicator());
 
   // allocate send buffers
-  std::vector<tbb::concurrent_vector<Message>> send_buffers;
-  for (PEID pe = 0; pe < size; ++pe) { send_buffers.emplace_back(); }
+  std::vector<tbb::concurrent_vector<Message>> send_buffers(size);
 
   graph.pfor_nodes(from, to, [&](const NodeID u) {
     if (!filter(u)) { return; }
@@ -213,7 +212,7 @@ void sparse_alltoall_custom(const DistributedGraph &graph, const NodeID from, co
   std::vector<Buffer<Message>> real_send_buffers;
   for (PEID pe = 0; pe < size; ++pe) { real_send_buffers.emplace_back(send_buffers[pe].size()); }
   tbb::parallel_for(0, size, [&](const PEID pe) {
-      std::copy(send_buffers[pe].begin(), send_buffers[pe].end(), real_send_buffers[pe].begin());
+    std::copy(send_buffers[pe].begin(), send_buffers[pe].end(), real_send_buffers[pe].begin());
   });
 
   sparse_alltoall<Message, Buffer>(real_send_buffers, std::forward<decltype(receiver)>(receiver), graph.communicator());
@@ -222,7 +221,8 @@ void sparse_alltoall_custom(const DistributedGraph &graph, const NodeID from, co
 template<typename Message, template<typename> typename Buffer = scalable_vector>
 std::vector<Buffer<Message>> sparse_alltoall_custom(const DistributedGraph &graph, const NodeID from, const NodeID to,
                                                     auto &&filter, auto &&builder) {
-  std::vector<Buffer<Message>> recv_buffers(mpi::get_comm_size(graph.communicator()));
+  auto size = mpi::get_comm_size(graph.communicator());
+  std::vector<Buffer<Message>> recv_buffers(size);
   sparse_alltoall_custom<Message, Buffer>(graph, from, to, std::forward<decltype(filter)>(filter),
                                           std::forward<decltype(builder)>(builder),
                                           [&](auto recv_buffer, const PEID pe) {

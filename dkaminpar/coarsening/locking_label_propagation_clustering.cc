@@ -72,10 +72,12 @@ public:
         const auto [from, to] = math::compute_local_range<NodeID>(_graph->n(), _c_ctx.lp.num_chunks, chunk);
         num_moved_nodes += process_chunk(from, to);
         SLOG << V(_current_clustering) << V(_next_clustering);
+        mpi::barrier(MPI_COMM_WORLD);
       }
       if (num_moved_nodes == 0) { break; }
     }
 
+    mpi::barrier(graph.communicator());
     return _current_clustering;
   }
 
@@ -250,7 +252,9 @@ private:
 
     const NodeID num_moved_nodes = perform_iteration(from, to);
     SLOG << V(num_moved_nodes);
-    if (num_moved_nodes == 0) { return 0; } // nothing to do
+
+    // still has to take part in collective communication
+    // if (num_moved_nodes == 0) { return 0; } // nothing to do
 
     if constexpr (kDebug) {
       for (const NodeID u : _graph->all_nodes()) {
@@ -307,6 +311,13 @@ private:
                    .global_requested = new_cluster},
                   new_cluster_owner};
         });
+
+    mpi::barrier();
+    LOG << "==============================";
+    LOG << "build_gain_buffer";
+    LOG << "==============================";
+    mpi::barrier();
+
     build_gain_buffer(requests);
 
     mpi::barrier();

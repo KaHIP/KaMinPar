@@ -126,14 +126,13 @@ void sparse_alltoall(const std::vector<Buffer<Message>> &send_buffers, auto &&re
 
   const auto [size, rank] = mpi::get_comm_info(comm);
 
-  std::vector<MPI_Request> requests;
-  requests.reserve(size);
+  std::vector<MPI_Request> requests(size - 1);
 
+  std::size_t next_req_index = 0;
   for (PEID pe = 0; pe < size; ++pe) {
     if (pe != rank) {
-      requests.emplace_back();
       ASSERT(static_cast<std::size_t>(pe) < send_buffers.size());
-      mpi::isend(send_buffers[pe], pe, 0, requests.back(), comm);
+      mpi::isend(send_buffers[pe], pe, 0, requests[next_req_index++], comm);
     }
   }
 
@@ -149,5 +148,6 @@ void sparse_alltoall(const std::vector<Buffer<Message>> &send_buffers, auto &&re
   }
 
   mpi::waitall(requests);
+  mpi::barrier(comm);
 }
 } // namespace dkaminpar::mpi

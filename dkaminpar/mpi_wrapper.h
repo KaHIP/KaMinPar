@@ -189,14 +189,16 @@ inline int recv(T *buf, int count, int source, int tag, MPI_Status *status = MPI
 
 inline MPI_Status probe(const int source, const int tag, MPI_Comm comm = MPI_COMM_WORLD) {
   MPI_Status status;
-  MPI_Probe(source, tag, comm, &status);
+  [[maybe_unused]] auto result = MPI_Probe(source, tag, comm, &status);
+  ASSERT(result != MPI_UNDEFINED) << V(source) << V(tag);
   return status;
 }
 
 template<typename T>
 inline int get_count(const MPI_Status &status) {
   int count;
-  MPI_Get_count(&status, type::get<T>(), &count);
+  [[maybe_unused]] auto result = MPI_Get_count(&status, type::get<T>(), &count);
+  ASSERT(result != MPI_UNDEFINED && count >= 0) << V(get_count<char>(status)) << V(status.MPI_SOURCE) << V(status.MPI_TAG) << V(status.MPI_ERROR) << V(status._ucount);
   return count;
 }
 
@@ -217,7 +219,8 @@ int isend(const R &buf, const int dest, const int tag, MPI_Request &request, MPI
 template<typename T, template<typename> typename Container = scalable_vector>
 Container<T> probe_recv(const int source, const int tag, MPI_Status *status = MPI_STATUS_IGNORE,
                         MPI_Comm comm = MPI_COMM_WORLD) {
-  const auto count = mpi::get_count<T>(mpi::probe(source, tag, comm));
+  const auto count = mpi::get_count<T>(mpi::probe(source, MPI_ANY_TAG, comm));
+  ASSERT(count >= 0) << V(source) << V(tag);
   Container<T> buf(count);
   mpi::recv(buf.data(), count, source, tag, status, comm);
   return buf;
