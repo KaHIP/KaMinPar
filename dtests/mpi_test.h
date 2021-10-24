@@ -34,22 +34,30 @@ protected:
 namespace graph {
 //! Return the id of the edge connecting two adjacent nodes \c u and \c v in \c graph, found by linear search.
 std::pair<EdgeID, EdgeID> get_edge_by_endpoints(const DistributedGraph &graph, const NodeID u, const NodeID v) {
+  SET_DEBUG(true);
+
   EdgeID forward_edge = kInvalidEdgeID;
   EdgeID backward_edge = kInvalidEdgeID;
 
-  for (const auto [cur_e, cur_v] : graph.neighbors(u)) {
-    if (cur_v == v) {
-      forward_edge = cur_e;
-      break;
+  if (graph.is_owned_node(u)) {
+    for (const auto [cur_e, cur_v] : graph.neighbors(u)) {
+      if (cur_v == v) {
+        forward_edge = cur_e;
+        break;
+      }
     }
   }
 
-  for (const auto [cur_e, cur_u] : graph.neighbors(v)) {
-    if (cur_u == u) {
-      backward_edge = cur_e;
-      break;
+  if (graph.is_owned_node(v)) {
+    for (const auto [cur_e, cur_u] : graph.neighbors(v)) {
+      if (cur_u == u) {
+        backward_edge = cur_e;
+        break;
+      }
     }
   }
+
+  DBG << V(u) << V(v) << V(forward_edge) << V(backward_edge);
 
   // one of those edges might now exist due to ghost nodes
   return {forward_edge, backward_edge};
@@ -101,12 +109,14 @@ DistributedGraph change_edge_weights_by_endpoints(DistributedGraph graph,
 
 DistributedGraph change_edge_weights_by_global_endpoints(
     DistributedGraph graph, const std::vector<std::tuple<GlobalNodeID, GlobalNodeID, EdgeWeight>> &changes) {
+  SET_DEBUG(true);
   std::vector<std::pair<EdgeID, EdgeWeight>> edge_id_changes;
   for (const auto &[u, v, weight] : changes) {
     const auto real_u = u % graph.global_n();
     const auto real_v = v % graph.global_n();
-
     const auto [forward_edge, backward_edge] = get_edge_by_endpoints_global(graph, real_u, real_v);
+    DBG << u << "/" << real_u << " / " << graph.global_to_local_node(real_u) << " -- " << v << " / " << real_v << " / "
+        << graph.global_to_local_node(real_v) << " == " << weight << " ----- " << forward_edge << " <-> " << backward_edge;
     edge_id_changes.emplace_back(forward_edge, weight);
     edge_id_changes.emplace_back(backward_edge, weight);
   }

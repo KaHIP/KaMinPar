@@ -148,13 +148,28 @@ TEST_F(DistributedTriangles, TestSymmetricJoinGhostCluster) {
   SINGLE_THREADED_TEST;
 
   static constexpr EdgeWeight kInfinity = 100;
-  graph = graph::change_edge_weights_by_global_endpoints(std::move(graph),
-                                                         {{n0 + 1, n0 + 3, kInfinity}, {n0 + 2, n0, kInfinity / 2}});
+
+  int rank = mpi::get_comm_rank();
+  std::vector<std::tuple<GlobalNodeID, GlobalNodeID, EdgeWeight>> changes;
+  if (rank == 0) {
+    changes.emplace_back(0, 7, kInfinity);
+    changes.emplace_back(1, 3, kInfinity);
+    changes.emplace_back(0, 2, kInfinity / 2);
+  } else if (rank == 1) {
+    changes.emplace_back(1, 3, kInfinity);
+    changes.emplace_back(4, 6, kInfinity);
+    changes.emplace_back(3, 5, kInfinity / 2);
+  } else if (rank == 2) {
+    changes.emplace_back(6, 4, kInfinity);
+    changes.emplace_back(7, 0, kInfinity);
+    changes.emplace_back(6, 8, kInfinity / 2);
+  }
+
+  graph = graph::change_edge_weights_by_global_endpoints(std::move(graph), changes);
   graph.print();
   const auto clustering = compute_clustering(graph);
 
   // since all PEs have the same number of edges, smaller PEs should win the tie-breaking
-  int rank = mpi::get_comm_rank();
   if (rank == 0) {
     EXPECT_THAT(clustering[0], Eq(0));
     EXPECT_THAT(clustering[1], Eq(1));
@@ -167,8 +182,6 @@ TEST_F(DistributedTriangles, TestSymmetricJoinGhostCluster) {
     EXPECT_THAT(clustering[0], Eq(4));
     EXPECT_THAT(clustering[1], Eq(0));
     EXPECT_THAT(clustering[2], Eq(4)); // if 8 is not in the same chunk as 6
-  } else {
-    EXPECT_TRUE(false) << "invalid PE";
   }
 }
 } // namespace dkaminpar::test
