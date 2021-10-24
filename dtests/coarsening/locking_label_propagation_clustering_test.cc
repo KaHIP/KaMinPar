@@ -150,6 +150,7 @@ TEST_F(DistributedTriangles, TestSymmetricJoinGhostCluster) {
   static constexpr EdgeWeight kInfinity = 100;
   graph = graph::change_edge_weights_by_global_endpoints(std::move(graph),
                                                          {{n0 + 1, n0 + 3, kInfinity}, {n0 + 2, n0, kInfinity / 2}});
+  graph.print();
   const auto clustering = compute_clustering(graph);
 
   // since all PEs have the same number of edges, smaller PEs should win the tie-breaking
