@@ -23,7 +23,6 @@ struct LockingLpClusteringConfig : shm::LabelPropagationConfig {
 
 class LockingLpClusteringImpl
     : public shm::InOrderLabelPropagation<LockingLpClusteringImpl, LockingLpClusteringConfig> {
-  SET_DEBUG(true);
   SET_STATISTICS(true);
 
   using Base = shm::InOrderLabelPropagation<LockingLpClusteringImpl, LockingLpClusteringConfig>;
@@ -50,7 +49,6 @@ public:
         _gain_buffer_index(max_num_active_nodes),
         _locked(max_num_active_nodes),
         _cluster_weights(max_num_nodes) {
-    DBG << "Init HT with cap " << max_num_nodes;
     set_max_degree(c_ctx.lp.large_degree_threshold);
     set_max_num_neighbors(c_ctx.lp.max_num_neighbors);
   }
@@ -73,7 +71,6 @@ public:
       for (std::size_t chunk = 0; chunk < _c_ctx.lp.num_chunks; ++chunk) {
         const auto [from, to] = math::compute_local_range<NodeID>(_graph->n(), _c_ctx.lp.num_chunks, chunk);
         num_moved_nodes += process_chunk(from, to);
-        ASSERT(VALIDATE_STATE());
       }
       if (num_moved_nodes == 0) { break; }
     }
@@ -98,7 +95,7 @@ protected:
   void init_cluster_weight(const GlobalNodeID local_cluster, const NodeWeight weight) {
     const auto cluster = _graph->local_to_global_node(local_cluster);
 
-    DBG << "insert(" << cluster + 1 << ", " << weight << ")";
+    //    DBG << "insert(" << cluster + 1 << ", " << weight << ")";
     auto &handle = _cluster_weights_handles_ets.local();
     [[maybe_unused]] const auto [it, success] = handle.insert(cluster + 1, weight);
     ASSERT(success);
@@ -108,7 +105,7 @@ protected:
     //    DBG << "find(" << cluster + 1 << ")";
     auto &handle = _cluster_weights_handles_ets.local();
     auto it = handle.find(cluster + 1);
-    ASSERT(it != handle.end()) << "Uninitialized cluster: " << cluster + 1;
+    //    ASSERT(it != handle.end()) << "Uninitialized cluster: " << cluster + 1;
 
     return (*it).second;
   }
@@ -122,12 +119,12 @@ protected:
                            const NodeWeight max_weight) {
     if (cluster_weight(old_cluster) + delta <= max_weight) {
       auto &handle = _cluster_weights_handles_ets.local();
-      DBG << "update(" << old_cluster + 1 << ", ..., " << delta << ")";
+      //      DBG << "update(" << old_cluster + 1 << ", ..., " << delta << ")";
       [[maybe_unused]] const auto [old_it, old_found] = handle.update(
           old_cluster + 1, [](auto &lhs, const auto rhs) { return lhs -= rhs; }, delta);
       ASSERT(old_it != handle.end() && old_found) << "Uninitialized cluster: " << old_cluster + 1;
 
-      DBG << "update(" << new_cluster + 1 << ", ..., " << delta << ")";
+      //      DBG << "update(" << new_cluster + 1 << ", ..., " << delta << ")";
       [[maybe_unused]] const auto [new_it, new_found] = handle.update(
           new_cluster + 1, [](auto &lhs, const auto rhs) { return lhs += rhs; }, delta);
       ASSERT(new_it != handle.end() && new_found) << "Uninitialized cluster: " << new_cluster + 1;
@@ -179,11 +176,13 @@ protected:
    * Moving nodes
    */
 
-  [[nodiscard]] bool accept_cluster(const Base::ClusterSelectionState &state) const {
+  [[nodiscard]] bool accept_cluster(const Base::ClusterSelectionState &state) {
     const bool ans = (state.current_gain > state.best_gain ||
                       (state.current_gain == state.best_gain && state.local_rand.random_bool())) &&
                      (state.current_cluster_weight + state.u_weight <= max_cluster_weight(state.current_cluster) ||
                       state.current_cluster == state.initial_cluster);
+    if (ans) { _gain[state.u] = state.current_gain; }
+    //    LOG << V(state.u) << V(state.current_cluster) << V(state.current_gain) << V(state.best_cluster) << V(state.best_gain) << V(ans);
     return ans;
   }
 
@@ -233,19 +232,36 @@ private:
   };
 
   NodeID process_chunk(const NodeID from, const NodeID to) {
-    mpi::barrier();
-    LOG << "==============================";
-    LOG << "process_chunk(" << from << ", " << to << ")";
-    LOG << "==============================";
-    mpi::barrier();
+    SET_DEBUG(true);
+
+    if constexpr (kDebug) {
+      mpi::barrier();
+      LOG << "==============================";
+      LOG << "process_chunk(" << from << ", " << to << ")";
+      LOG << "==============================";
+      mpi::barrier();
+    }
 
     const NodeID num_moved_nodes = perform_iteration(from, to);
     if (num_moved_nodes == 0) { return 0; } // nothing to do
 
+    if constexpr (kDebug) {
+      for (const NodeID u : _graph->all_nodes()) {
+        if (was_moved_during_round(u)) {
+          const char prefix = _graph->is_owned_global_node(_next_clustering[u]) ? 'L' : 'G';
+          DBG << u << ": " << _current_clustering[u] << " --> " << prefix << _next_clustering[u] << " G" << _gain[u]
+              << " NW" << _graph->node_weight(u) << " NCW" << cluster_weight(_next_clustering[u]);
+        }
+      }
+    }
+
     perform_distributed_moves(from, to);
+
     synchronize_labels(from, to);
     tbb::parallel_for<NodeID>(0, _graph->total_n(),
                               [&](const NodeID u) { _current_clustering[u] = _next_clustering[u]; });
+
+    ASSERT(VALIDATE_STATE());
 
     return num_moved_nodes;
   }
@@ -262,7 +278,7 @@ private:
         *_graph, from, to,
         [&](const NodeID u) { return was_moved_during_round(u) && !_graph->contains_global_node(cluster(u)); },
         [&](const NodeID u) -> JoinRequest {
-          DBG << "send join request: " << _graph->local_to_global_node(u) << " --> " << _next_clustering[u];
+          //          DBG << "send join request: " << _graph->local_to_global_node(u) << " --> " << _next_clustering[u];
           return {.global_requester = _graph->local_to_global_node(u),
                   .requester_weight = _graph->node_weight(u),
                   .requester_gain = _gain[u],

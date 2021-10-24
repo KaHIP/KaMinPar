@@ -8,6 +8,9 @@
 #include <utility>
 #include <vector>
 
+#define SINGLE_THREADED_TEST                                                                                           \
+  auto GC = tbb::global_control { tbb::global_control::max_allowed_parallelism, 1 }
+
 namespace dkaminpar::test {
 class DistributedGraphFixture : public ::testing::Test {
 protected:
@@ -34,27 +37,21 @@ std::pair<EdgeID, EdgeID> get_edge_by_endpoints(const DistributedGraph &graph, c
   EdgeID forward_edge = kInvalidEdgeID;
   EdgeID backward_edge = kInvalidEdgeID;
 
-  for (const NodeID cur_u : graph.nodes()) {
-    for (const auto [cur_e, cur_v] : graph.neighbors(cur_u)) {
-      if (cur_v == v) {
-        forward_edge = cur_e;
-        goto found_forward_edge;
-      }
+  for (const auto [cur_e, cur_v] : graph.neighbors(u)) {
+    if (cur_v == v) {
+      forward_edge = cur_e;
+      break;
     }
   }
-found_forward_edge:
 
-  for (const NodeID cur_v : graph.nodes()) {
-    for (const auto [cur_e, cur_u] : graph.neighbors(cur_v)) {
-      if (cur_u == u) {
-        backward_edge = cur_e;
-        goto found_backward_edge;
-      }
+  for (const auto [cur_e, cur_u] : graph.neighbors(v)) {
+    if (cur_u == u) {
+      backward_edge = cur_e;
+      break;
     }
   }
-found_backward_edge:
-  ALWAYS_ASSERT(forward_edge != kInvalidEdgeID) << "there is no edge " << u << " --> " << v;
-  ALWAYS_ASSERT(backward_edge != kInvalidEdgeID) << "there is no edge " << v << " --> " << u;
+
+  // one of those edges might now exist due to ghost nodes
   return {forward_edge, backward_edge};
 }
 
@@ -70,8 +67,7 @@ DistributedGraph change_edge_weights(DistributedGraph graph,
                                      const std::vector<std::pair<EdgeID, EdgeWeight>> &changes) {
   auto edge_weights = graph.take_edge_weights();
   for (const auto &[e, weight] : changes) {
-    ALWAYS_ASSERT(e < edge_weights.size());
-    edge_weights[e] = weight;
+    if (e != kInvalidEdgeID) { edge_weights[e] = weight; }
   }
 
   return {graph.global_n(),
@@ -107,7 +103,10 @@ DistributedGraph change_edge_weights_by_global_endpoints(
     DistributedGraph graph, const std::vector<std::tuple<GlobalNodeID, GlobalNodeID, EdgeWeight>> &changes) {
   std::vector<std::pair<EdgeID, EdgeWeight>> edge_id_changes;
   for (const auto &[u, v, weight] : changes) {
-    const auto [forward_edge, backward_edge] = get_edge_by_endpoints_global(graph, u, v);
+    const auto real_u = u % graph.global_n();
+    const auto real_v = v % graph.global_n();
+
+    const auto [forward_edge, backward_edge] = get_edge_by_endpoints_global(graph, real_u, real_v);
     edge_id_changes.emplace_back(forward_edge, weight);
     edge_id_changes.emplace_back(backward_edge, weight);
   }

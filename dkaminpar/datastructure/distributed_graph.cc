@@ -23,7 +23,33 @@
 #include "dkaminpar/mpi_utils.h"
 #include "dkaminpar/mpi_wrapper.h"
 
+#include <iomanip>
 #include <ranges>
+
+namespace dkaminpar {
+void DistributedGraph::print() const {
+  std::ostringstream buf;
+
+  buf << "n=" << n() << " m=" << m() << " ghost_n=" << ghost_n() << " total_n=" << total_n() << "\n";
+  buf << "--------------------------------------------------------------------------------\n";
+  for (const NodeID u : all_nodes()) {
+    const char u_prefix = is_owned_node(u) ? 'L' : 'G';
+    buf << u_prefix << std::setw(4) << u << " : " << std::setw(4) << local_to_global_node(u) << " / " << std::setw(4)
+        << node_weight(u);
+    if (is_owned_node(u)) {
+      buf << " | ";
+      for (const auto [e, v] : neighbors(u)) {
+        const char v_prefix = is_owned_node(v) ? 'L' : 'G';
+        buf << "[" << std::setw(4) << edge_weight(e) << "]>" << v_prefix << std::setw(4) << v << " : " << std::setw(4)
+            << local_to_global_node(v) << "\t";
+      }
+    }
+    buf << "\n";
+  }
+  buf << "--------------------------------------------------------------------------------\n";
+  SLOG << buf.str();
+}
+} // namespace dkaminpar
 
 namespace dkaminpar::graph::debug {
 SET_DEBUG(false);

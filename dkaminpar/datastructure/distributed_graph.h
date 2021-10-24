@@ -105,8 +105,12 @@ public:
   [[nodiscard]] inline NodeWeight total_node_weight() const { return _total_node_weight; }
   [[nodiscard]] inline NodeWeight max_node_weight() const { return _max_node_weight; }
 
+  [[nodiscard]] inline bool is_owned_global_node(const GlobalNodeID global_u) const {
+    return (offset_n() <= global_u && global_u < offset_n() + n());
+  }
+
   [[nodiscard]] inline bool contains_global_node(const GlobalNodeID global_u) const {
-    return (offset_n() <= global_u && global_u < offset_n() + n()) // owned node
+    return is_owned_global_node(global_u) // owned node
            || _global_to_ghost.contains(global_u);                 // ghost node
   }
 
@@ -278,32 +282,6 @@ public:
   [[nodiscard]] inline MPI_Comm communicator() const { return _communicator; }
 
   // Functions to steal members of this graph
-  /*
-   * GlobalNodeID _global_n{0};
-GlobalEdgeID _global_m{0};
-NodeID _ghost_n{0};
-GlobalNodeID _offset_n{0};
-GlobalEdgeID _offset_m{0};
-
-NodeWeight _total_node_weight{};
-NodeWeight _max_node_weight{};
-
-scalable_vector<GlobalNodeID> _node_distribution{};
-scalable_vector<GlobalEdgeID> _edge_distribution{};
-
-scalable_vector<EdgeID> _nodes{};
-scalable_vector<NodeID> _edges{};
-scalable_vector<NodeWeight> _node_weights{};
-scalable_vector<EdgeWeight> _edge_weights{};
-
-scalable_vector<PEID> _ghost_owner{};
-scalable_vector<GlobalNodeID> _ghost_to_global{};
-mutable std::unordered_map<GlobalNodeID, NodeID> _global_to_ghost{};
-
-std::vector<EdgeID> _edge_cut_to_pe{};
-std::vector<EdgeID> _comm_vol_to_pe{};
-MPI_Comm _communicator;
-   */
 
   auto &&take_node_distribution() { return std::move(_node_distribution); }
   auto &&take_edge_distribution() { return std::move(_edge_distribution); }
@@ -314,6 +292,10 @@ MPI_Comm _communicator;
   auto &&take_ghost_owner() { return std::move(_ghost_owner); }
   auto &&take_ghost_to_global() { return std::move(_ghost_to_global); }
   auto &&take_global_to_ghost() { return std::move(_global_to_ghost); }
+
+  // Debug functions
+
+  void print() const;
 
 private:
   inline void init_total_node_weight() {
