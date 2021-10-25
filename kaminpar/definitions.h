@@ -182,7 +182,7 @@ private:
 // DBG can be used just like LOG
 // DBGC(cond) only produces output if the given condition evaluates to true
 // IFDBG(expr) evaluates the expression and returns its result iff kDebug is set to true, otherwise returns the default value for its result data type
-#define SET_DEBUG(value) static constexpr bool kDebug = value
+#define SET_DEBUG(value) [[maybe_unused]] static constexpr bool kDebug = value
 #define DBGC(cond) (kDebug && (cond)) && kaminpar::debug::DisposableLogger<false>(std::cout) << kaminpar::logger::MAGENTA << POSITION << CPU << " " << kaminpar::logger::DEFAULT_TEXT
 #define DBG DBGC(true)
 #define IFDBG(expr) (kDebug ? (expr) : decltype(expr)())

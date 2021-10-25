@@ -38,7 +38,8 @@ SET_DEBUG(true);
 Result contract_local_clustering(const DistributedGraph &graph,
                                  const scalable_vector<shm::parallel::IntegralAtomicWrapper<NodeID>> &clustering,
                                  MemoryContext m_ctx) {
-  ASSERT(clustering.size() == graph.n());
+  graph.print();
+  ASSERT(clustering.size() >= graph.n());
 
   MPI_Comm comm = graph.communicator();
   const auto [size, rank] = mpi::get_comm_info(comm);
@@ -59,7 +60,10 @@ Result contract_local_clustering(const DistributedGraph &graph,
 
   // Set node_mapping[x] = 1 iff. there is a cluster with leader x
   graph.pfor_nodes([&](const NodeID u) { leader_mapping[u] = 0; });
-  graph.pfor_nodes([&](const NodeID u) { leader_mapping[clustering[u]].store(1, std::memory_order_relaxed); });
+  graph.pfor_nodes([&](const NodeID u) {
+    ASSERT(clustering[u] < leader_mapping.size()) << V(clustering[u]) << V(leader_mapping.size());
+    leader_mapping[clustering[u]].store(1, std::memory_order_relaxed);
+  });
 
   // Compute prefix sum to get coarse node IDs (starting at 1!)
   shm::parallel::prefix_sum(leader_mapping.begin(), leader_mapping.begin() + graph.n(), leader_mapping.begin());
@@ -134,6 +138,9 @@ Result contract_local_clustering(const DistributedGraph &graph,
   mpi::graph::sparse_alltoall_interface_to_pe<CoarseGhostNode>(
       graph,
       [&](const NodeID u) -> CoarseGhostNode {
+        ASSERT(u < mapping.size());
+        ASSERT(mapping[u] < c_node_weights.size());
+
         return {
             .old_global_node = graph.local_to_global_node(u),
             .new_global_node = first_node + mapping[u],

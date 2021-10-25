@@ -7,13 +7,13 @@
  ******************************************************************************/
 #pragma once
 
+#include <tbb/enumerable_thread_specific.h>
 #include <type_traits>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
 #include <allocator/alignedallocator.hpp>
 #include <data-structures/table_config.hpp>
-#include <tbb/enumerable_thread_specific.h>
 #include <utils/hash/murmur2_hash.hpp>
 #pragma GCC diagnostic pop
 
@@ -31,4 +31,8 @@ template<typename Value>
 using GlobalNodeIDMap = typename ::growt::table_config<GlobalNodeID, internal::Ensure64BitType<Value>,
                                                        DefaultHasherType, DefaultAllocatorType, hmod::growable,
                                                        hmod::deletion>::table_type;
+
+auto create_handle_ets(auto &map) {
+  return tbb::enumerable_thread_specific<growt::GlobalNodeIDMap<NodeID>::handle_type>{[&] { return map.get_handle(); }};
+}
 } // namespace dkaminpar::growt

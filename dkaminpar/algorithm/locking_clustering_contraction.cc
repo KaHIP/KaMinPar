@@ -14,6 +14,9 @@
 
 namespace dkaminpar::graph {
 namespace {
+using LocalClusterArray = scalable_vector<shm::parallel::IntegralAtomicWrapper<NodeID>>;
+using GlobalClusterArray = LockingLpClustering::AtomicClusterArray;
+
 struct GlobalEdge {
   GlobalNodeID from;
   GlobalNodeID to;
@@ -50,7 +53,7 @@ std::pair<GlobalNodeID, scalable_vector<GlobalNodeID>> compute_coarse_node_distr
 
   // Compute new node distribution, total number of coarse nodes
   const GlobalNodeID last_node = mpi::scan(static_cast<GlobalNodeID>(c_n), MPI_SUM, graph.communicator());
-  const GlobalNodeID first_node = last_node - c_n;
+  [[maybe_unused]] const GlobalNodeID first_node = last_node - c_n;
   scalable_vector<GlobalNodeID> c_node_distribution(size + 1);
   c_node_distribution[rank + 1] = last_node;
   mpi::allgather(&c_node_distribution[rank + 1], 1, c_node_distribution.data() + 1, 1, graph.communicator());
@@ -87,317 +90,131 @@ auto migrate_edges(const DistributedGraph &graph, const LockingLpClustering::Ato
 
   return mpi::sparse_all_to_all_get<scalable_vector>(real_send_buffers, 0, graph.communicator());
 }
+
+std::pair<LocalClusterArray, std::unordered_map<GlobalNodeID, NodeID>>
+build_local_clustering(const DistributedGraph &graph, const GlobalClusterArray &clustering) {
+  SET_DEBUG(true);
+
+  //  growt::GlobalNodeIDMap<GlobalNodeID> global_ghost_to_local{graph.ghost_n()};
+  //  auto global_ghost_to_local_ets = growt::create_handle_ets(global_ghost_to_local);
+  std::unordered_map<GlobalNodeID, NodeID> global_to_local;
+
+  for (const NodeID u : graph.nodes()) { global_to_local[clustering[u]] = 1; }
+
+  NodeID next_id = 0;
+  { // compute prefix sum
+    for (const auto it : global_to_local) { global_to_local[it.first] = next_id++; }
+  }
+
+  LocalClusterArray local_clustering(graph.total_n());
+  for (const NodeID u : graph.nodes()) {
+    ASSERT(u < local_clustering.size());
+    ASSERT(u < clustering.size());
+    local_clustering[u] = global_to_local[clustering[u]];
+  }
+
+  HEAVY_ASSERT([&] {
+    for (const NodeID u : graph.nodes()) {
+      ASSERT(local_clustering[u] < graph.n()) << V(local_clustering[u]) << V(u) << V(graph.n());
+    }
+  });
+
+  return {std::move(local_clustering), std::move(global_to_local)};
+}
 } // namespace
 
 contraction::LockingClusteringContractionResult
-contract_locking_clustering(const DistributedGraph &graph, const LockingLpClustering::AtomicClusterArray &clustering) {
+contract_locking_clustering(const DistributedGraph &graph, const LockingLpClustering::AtomicClusterArray &clustering,
+                            contraction::MemoryContext m_ctx) {
   SET_DEBUG(true);
-
   HEAVY_ASSERT(CHECK_CLUSTERING_INVARIANT(graph, clustering));
   ASSERT(graph.total_n() <= clustering.size());
 
-  MPI_Comm comm = graph.communicator();
-  const auto [size, rank] = mpi::get_comm_info(comm);
+  const auto [size, rank] = mpi::get_comm_info(graph.communicator());
 
-  // Send edges to ghost coarse nodes
-  auto migrate_edges_recv_buffer = migrate_edges(graph, clustering);
+  // contract local part of the graph
+  auto [local_clustering, global_to_local_clustering] = build_local_clustering(graph, clustering);
+  SLOG << V(local_clustering);
+  auto [local_c_graph, local_c_mapping, local_m_ctx] = contract_local_clustering(graph, local_clustering,
+                                                                                 std::move(m_ctx));
+  m_ctx = std::move(local_m_ctx);
 
-  // Allocate data structures
-  struct BucketEntry {
-    GlobalNodeID node;
-    GlobalNodeID edge_weight;
+  // build map from coarse node to global cluster
+  scalable_vector<GlobalNodeID> c_node_to_global(local_c_graph.total_n(), kInvalidGlobalNodeID);
+  for (const NodeID u : graph.all_nodes()) {
+    const NodeID c_u = local_c_mapping[u];
+    ASSERT(c_node_to_global[c_u] == kInvalidGlobalNodeID || c_node_to_global[c_u] == clustering[u]);
+    c_node_to_global[c_u] = clustering[u];
+  }
+
+  HEAVY_ASSERT([&] {
+    for (const NodeID c_u : local_c_graph.all_nodes()) { ASSERT(c_node_to_global[c_u] != kInvalidGlobalNodeID); }
+  });
+
+  LOG << V(c_node_to_global);
+
+  // send coarse edges that belong to other PEs
+  // look for coarse nodes that we want to drop
+  scalable_vector<bool> drop_node(local_c_graph.total_n(), true);
+  std::vector<scalable_vector<GlobalEdge>> migrate_edges_send_buffers(size);
+
+  for (const NodeID c_u : local_c_graph.nodes()) {
+    const auto c_u_global = c_node_to_global[c_u];
+    const bool c_u_is_local_node = graph.is_owned_global_node(c_u_global);
+
+    if (c_u_is_local_node) {
+      drop_node[c_u] = false;
+
+      for (const NodeID c_v : local_c_graph.adjacent_nodes(c_u)) {
+        const bool c_v_is_local_node = graph.is_owned_global_node(c_node_to_global[c_v]);
+        if (!c_v_is_local_node) { drop_node[c_v] = false; } // keep as ghost node
+      }
+    } else {
+      const PEID c_u_owner = graph.find_owner_of_global_node(c_u_global);
+
+      for (const auto [e, c_v] : local_c_graph.neighbors(c_u)) {
+        const auto c_v_global = c_node_to_global[c_v];
+
+        if (c_v_global != c_u_global) {
+          migrate_edges_send_buffers[c_u_owner].push_back({
+              .from = c_u_global,
+              .to = c_v_global,
+              .weight = local_c_graph.edge_weight(e),
+          });
+        }
+      }
+    }
+  }
+  auto migrate_edges_recv_buffers = mpi::sparse_all_to_all_get<scalable_vector>(migrate_edges_send_buffers, 0,
+                                                                                graph.communicator());
+
+  // update node weights
+  struct UpdateNodeWeight {
+    GlobalNodeID label;
+    NodeWeight weight;
   };
 
-  scalable_vector<BucketEntry> buckets(graph.n());
-  scalable_vector<shm::parallel::IntegralAtomicWrapper<NodeID>> buckets_index;
-  scalable_vector<shm::parallel::IntegralAtomicWrapper<NodeID>> leader_mapping(graph.total_n());
-  scalable_vector<shm::NavigationMarker<NodeID, Edge>> all_buffered_nodes;
-  scalable_vector<NodeID> mapping(graph.total_n());
-
-  //
-  // Compute a mapping from the current global clustering to a local clustering, i.e., where cluster IDs are in
-  // 0..graph.total_n()
-  //
-
-  growt::GlobalNodeIDMap<NodeID> ghost_cluster_remap{graph.ghost_n()};
-  tbb::enumerable_thread_specific<growt::GlobalNodeIDMap<NodeID>::handle_type> ghost_cluster_remap_handle_ets{
-      [&] { return ghost_cluster_remap.get_handle(); }};
-
-  // Set node_mapping[x] = 1 iff. there is a cluster with leader
-  graph.pfor_all_nodes([&](const NodeID u) { leader_mapping[u] = 0; });
-  graph.pfor_all_nodes_range([&](const auto r) {
-    auto &map_handle = ghost_cluster_remap_handle_ets.local();
-
-    for (NodeID u = r.begin(); u != r.end(); ++u) {
-      const auto u_global_label = clustering[u];
-      if (!graph.is_owned_global_node(u_global_label)) { continue; }
-
-      // keep cluster if it is owned by this PE
-      const auto v_local_label = graph.global_to_local_node(u_global_label);
-      leader_mapping[v_local_label].store(1, std::memory_order_relaxed);
-
-      // keep any ghost cluster incident to this node
-      for (const NodeID v : graph.adjacent_nodes(u)) {
-        const auto v_global_label = clustering[v];
-        if (!graph.is_owned_global_node(v_global_label)) { map_handle[v_global_label] = 1; }
-      }
-    }
-  });
-
-  // Compute prefix sum to get coarse node IDs (starting at 1!)
-  shm::parallel::IntegralAtomicWrapper<NodeID> next_local_ghost_id = 0;
-  tbb::parallel_invoke(
-      [&] { // local IDs
-        shm::parallel::prefix_sum(leader_mapping.begin(), leader_mapping.begin() + graph.total_n(),
-                                  leader_mapping.begin());
+  mpi::graph::sparse_alltoall_custom<UpdateNodeWeight>(
+      graph, 0, graph.n(), [&](const NodeID u) { return !graph.is_owned_global_node(clustering[u]); },
+      [&](const NodeID u) -> std::pair<UpdateNodeWeight, PEID> {
+        const auto u_label = graph.local_to_global_node(u);
+        const PEID pe = graph.find_owner_of_global_node(u_label);
+        return {{.label = u_label, .weight = graph.node_weight(u)}, pe};
       },
-      [&] { // global IDs
-        auto &handle = ghost_cluster_remap_handle_ets.local();
-        for (const auto &it : handle) { handle[it.first] = ++next_local_ghost_id; }
-      });
-  const NodeID c_n = leader_mapping[graph.total_n() - 1]; // number of coarse nodes
-  const NodeID c_total_n = c_n + next_local_ghost_id;     // number of coarse nodes + coarse ghost nodes
-  ASSERT(c_n <= graph.n()) << V(c_n) << V(graph.n());
-  ASSERT(c_total_n <= graph.total_n()) << V(c_total_n) << V(graph.total_n());
-
-  // Assign coarse node ID to all nodes
-  graph.pfor_all_nodes_range([&](const auto r) {
-    auto &map_handle = ghost_cluster_remap_handle_ets.local();
-
-    for (NodeID u = r.begin(); u != r.end(); ++u) {
-      const auto global_label = clustering[u];
-      if (graph.is_owned_global_node(global_label)) {
-        const auto local_label = graph.global_to_local_node(global_label);
-        mapping[u] = leader_mapping[local_label] - 1;
-      } else if (map_handle.find(global_label) != map_handle.end()) {
-        mapping[u] = map_handle[global_label] + c_n - 1;
-      } else {
-        mapping[u] = kInvalidNodeID;
-      }
-    }
-  });
-
-  // mapping[] should be a range from 0 to tmp_c_n_1
-  HEAVY_ASSERT([&] {
-    for (NodeID u : graph.all_nodes()) { ASSERT(mapping[u] < c_total_n) << V(mapping[u]) << V(c_total_n); }
-  });
-
-  //--------------------------------------------------------------------------------
-  // At this point mapping[.] is ready
-  // Next, bucket sort local nodes by coarse node
-  //--------------------------------------------------------------------------------
-
-  buckets_index.clear();
-  buckets_index.resize(c_n + 1);
-
-  //
-  // Sort nodes into buckets: place all nodes belonging to coarse node i into the i-th bucket
-  //
-  // Count the number of nodes in each bucket, then compute the position of the bucket in the global buckets array
-  // using a prefix sum, roughly 2/5-th of time on europe.osm with 2/3-th to 1/3-tel for loop to prefix sum
-  //
-  graph.pfor_all_nodes([&](const NodeID u) { buckets_index[mapping[u]].fetch_add(1, std::memory_order_relaxed); });
-
-  shm::parallel::parallel_for_over_chunks(migrate_edges_recv_buffer, [&](const auto &edge) {
-    ASSERT(graph.is_owned_global_node(edge.from));
-    buckets_index[mapping[graph.global_to_local_node(edge.from)]].fetch_add(1, std::memory_order_relaxed);
-  });
-
-  shm::parallel::prefix_sum(buckets_index.begin(), buckets_index.end(), buckets_index.begin());
-  ASSERT(buckets_index.back() <= graph.total_n());
-
-  // Sort nodes into buckets
-  graph.pfor_nodes([&](const NodeID u) {
-    const std::size_t pos = buckets_index[mapping[u]].fetch_sub(1, std::memory_order_relaxed) - 1;
-    buckets[pos] = {.node = u, .weight = 0};
-  });
-
-  shm::parallel::parallel_for_over_chunks(migrate_edges_recv_buffer, [&](const auto &edge) {
-    const std::size_t pos = buckets_index[mapping[graph.global_to_local_node(edge.from)]]
-                                .fetch_sub(1, std::memory_order_relaxed) -
-                            1;
-    buckets[pos] = {.node = edge.to, .weight = edge.weight};
-  });
-
-  //
-  // Build nodes array of the coarse graph
-  // - firstly, we count the degree of each coarse node
-  // - secondly, we obtain the nodes array using a prefix sum
-  //
-  scalable_vector<EdgeID> c_nodes(c_total_n + 1);
-  scalable_vector<NodeWeight> c_node_weights(c_total_n);
-
-  // Build coarse node weights -- EXCLUDE ghost nodes, otherwise we would count their weight twice
-//  tbb::parallel_for<NodeID>(0, c_n, [&](const NodeID c_u) {
-//    const auto first = buckets_index[c_u];
-//    const auto last = buckets_index[c_u + 1];
-//
-//    for (std::size_t i = first; i < last; ++i) {
-//      const NodeID u = buckets[i];
-//      if (graph.is_owned_node(u)) { c_node_weights[c_u] += graph.node_weight(u); }
-//    }
-//  });
-
-  // Compute new node distribution, total number of coarse nodes
-  auto [c_global_n, c_node_distribution] = compute_coarse_node_distribution(graph, c_n);
-  const auto first_node = c_node_distribution[rank];
-  const auto last_node = c_node_distribution[rank + 1];
-
-  //
-  // Sparse all-to-all for building node mapping for ghost nodes
-  //
-
-//  struct CoarseGhostNode {
-//    GlobalNodeID old_global_node;
-//    GlobalNodeID new_global_node;
-//    NodeWeight coarse_weight;
-//  };
-
-  //  scalable_vector<PEID> c_ghost_owner;
-  //  scalable_vector<GlobalNodeID> c_ghost_to_global;
-  //  std::unordered_map<GlobalNodeID, NodeID> c_global_to_ghost;
-  //  NodeID c_next_ghost_node = c_n;
-  //
-  //  mpi::graph::sparse_alltoall_interface_to_pe<CoarseGhostNode>(
-  //      graph,
-  //      [&](const NodeID u) -> CoarseGhostNode {
-  //        return {
-  //            .old_global_node = graph.local_to_global_node(u),
-  //            .new_global_node = first_node + mapping[u],
-  //            .coarse_weight = c_node_weights[mapping[u]],
-  //        };
-  //      },
-  //      [&](const auto recv_buffer, const PEID pe) { // TODO parallelize
-  //        for (const auto [old_global_u, new_global_u, new_weight] : recv_buffer) {
-  //          const NodeID old_local_u = graph.global_to_local_node(old_global_u);
-  //          if (!c_global_to_ghost.contains(new_global_u)) {
-  //            c_global_to_ghost[new_global_u] = c_next_ghost_node++;
-  //            c_node_weights.push_back(new_weight);
-  //            c_ghost_owner.push_back(pe);
-  //            c_ghost_to_global.push_back(new_global_u);
-  //          }
-  //          mapping[old_local_u] = c_global_to_ghost[new_global_u];
-  //        }
-  //      });
-
-  //
-  // We build the coarse graph in multiple steps:
-  // (1) During the first step, we compute
-  //     - the node weight of each coarse node
-  //     - the degree of each coarse node
-  //     We can't build c_edges and c_edge_weights yet, because positioning edges in those arrays depends on c_nodes,
-  //     which we only have after computing a prefix sum over all coarse node degrees
-  //     Hence, we store edges and edge weights in unsorted auxiliary arrays during the first pass
-  // (2) We finalize c_nodes arrays by computing a prefix sum over all coarse node degrees
-  // (3) We copy coarse edges and coarse edge weights from the auxiliary arrays to c_edges and c_edge_weights
-  //
-  using Map = shm::RatingMap<EdgeWeight, shm::FastResetArray<EdgeWeight, NodeID>>;
-  tbb::enumerable_thread_specific<Map> collector_ets{[&] { return Map(c_total_n); }};
-  shm::NavigableLinkedList<NodeID, contraction::Edge> edge_buffer_ets;
-
-  tbb::parallel_for(tbb::blocked_range<NodeID>(0, c_n), [&](const auto &r) {
-    auto &local_collector = collector_ets.local();
-    auto &local_edge_buffer = edge_buffer_ets.local();
-
-    for (NodeID c_u = r.begin(); c_u != r.end(); ++c_u) {
-      local_edge_buffer.mark(c_u);
-
-      const std::size_t first = buckets_index[c_u];
-      const std::size_t last = buckets_index[c_u + 1];
-
-      // build coarse graph
-      auto collect_edges = [&](auto &map) {
-        for (std::size_t i = first; i < last; ++i) {
-          const GlobalNodeID u = buckets[i];
-          ASSERT(mapping[u] == c_u);
-
-          // collect coarse edges
-          for (const auto [e, v] : graph.neighbors(u)) {
-            const NodeID c_v = mapping[v];
-            if (c_u != c_v) { map[c_v] += graph.edge_weight(e); }
-          }
+      [&](const auto buffer) {
+        for (const auto [label, weight] : buffer) {
+          // increase label by weight
         }
-
-        c_nodes[c_u + 1] = map.size(); // node degree (used to build c_nodes)
-
-        // since we don't know the value of c_nodes[c_u] yet (so far, it only holds the nodes degree), we can't place the
-        // edges of c_u in the c_edges and c_edge_weights arrays; hence, we store them in auxiliary arrays and note their
-        // position in the auxiliary arrays
-        for (const auto [c_v, weight] : map.entries()) { local_edge_buffer.push_back({c_v, weight}); }
-        map.clear();
-      };
-
-      // to select the right map, we compute an upper bound on the coarse node degree by summing the degree of all fine
-      // nodes
-      EdgeID upper_bound_degree = 0;
-      for (std::size_t i = first; i < last; ++i) {
-        const NodeID u = buckets[i];
-        upper_bound_degree += graph.degree(u);
-      }
-      local_collector.update_upper_bound_size(upper_bound_degree);
-      local_collector.run_with_map(collect_edges, collect_edges);
-    }
-  });
-
-  shm::parallel::prefix_sum(c_nodes.begin(), c_nodes.end(), c_nodes.begin());
-
-  ASSERT(c_nodes[0] == 0) << V(c_nodes);
-  const EdgeID c_m = c_nodes.back();
-
-  //
-  // Construct rest of the coarse graph: edges, edge weights
-  //
-  all_buffered_nodes = shm::ts_navigable_list::combine<NodeID, contraction::Edge>(edge_buffer_ets,
-                                                                                  std::move(all_buffered_nodes));
-
-  scalable_vector<NodeID> c_edges(c_m);
-  scalable_vector<EdgeWeight> c_edge_weights(c_m);
+      });
 
   // build coarse graph
-  tbb::parallel_for(static_cast<NodeID>(0), c_n, [&](const NodeID i) {
-    const auto &marker = all_buffered_nodes[i];
-    const auto *list = marker.local_list;
-    const NodeID c_u = marker.key;
 
-    const EdgeID c_u_degree = c_nodes[c_u + 1] - c_nodes[c_u];
-    const EdgeID first_target_index = c_nodes[c_u];
-    const EdgeID first_source_index = marker.position;
+  DBG << V(drop_node);
 
-    for (std::size_t j = 0; j < c_u_degree; ++j) {
-      const auto to = first_target_index + j;
-      const auto [c_v, weight] = list->get(first_source_index + j);
-      c_edges[to] = c_v;
-      c_edge_weights[to] = weight;
-    }
+  shm::parallel::parallel_for_over_chunks(migrate_edges_recv_buffers, [&](const GlobalEdge &edge) {
+    DBG << V(edge.from) << V(edge.to) << V(edge.weight);
   });
 
-  // compute edge distribution
-  const GlobalEdgeID last_edge = mpi::scan(static_cast<GlobalEdgeID>(c_m), MPI_SUM, comm);
-  const GlobalEdgeID first_edge = last_edge - c_m;
-
-  scalable_vector<GlobalEdgeID> c_edge_distribution(size + 1);
-  c_edge_distribution[rank + 1] = last_edge;
-  mpi::allgather(&c_edge_distribution[rank + 1], 1, c_edge_distribution.data() + 1, 1, comm);
-  const GlobalNodeID c_global_m = c_edge_distribution.back();
-
-  DistributedGraph c_graph{c_global_n,
-                           c_global_m,
-                           c_next_ghost_node - c_n,
-                           first_node,
-                           first_edge,
-                           std::move(c_node_distribution),
-                           std::move(c_edge_distribution),
-                           std::move(c_nodes),
-                           std::move(c_edges),
-                           std::move(c_node_weights),
-                           std::move(c_edge_weights),
-                           std::move(c_ghost_owner),
-                           std::move(c_ghost_to_global),
-                           std::move(c_global_to_ghost)};
-
-  DBG << V(c_graph.n()) << V(c_graph.m()) << V(c_graph.ghost_n()) << V(c_graph.total_n()) << V(c_graph.global_n())
-      << V(c_graph.global_m());
-
-  return {std::move(c_graph), std::move(mapping), std::move(m_ctx)};
+  return {std::move(local_c_graph), std::move(local_c_mapping), std::move(m_ctx)};
 }
 } // namespace dkaminpar::graph

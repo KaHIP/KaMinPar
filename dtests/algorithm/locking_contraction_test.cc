@@ -38,11 +38,11 @@ TEST_F(DistributedTriangles, TestLocalClustering) {
   //  +---7---6---+
   SINGLE_THREADED_TEST;
 
+  graph.print();
+
   //  const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
 
-  auto [c_graph, mapping,
-        m_ctx] = contract_clustering(graph, {{0, 0, 0, 1, 2, 2, 1}, {1, 1, 1, 0, 2, 2, 0}, {2, 2, 2, 0, 1, 1, 0}});
-
+  auto [c_graph, mapping, m_ctx] = ::dkaminpar::graph::contract_locking_clustering(graph, {0, 0, 0, 0, 0, 0, 0});
   c_graph.print();
 
   //  EXPECT_THAT(c_graph.n(), Eq(1));
