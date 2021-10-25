@@ -179,7 +179,6 @@ protected:
   }
 
   void move_node(const NodeID node, const GlobalNodeID cluster) {
-    ASSERT(!_locked[node]);
     _next_clustering[node] = cluster;
   }
 
@@ -190,7 +189,7 @@ protected:
    */
 
   [[nodiscard]] bool accept_cluster(const Base::ClusterSelectionState &state) {
-    ASSERT(!_locked[state.u]);
+    ASSERT(state.u < _locked.size() && !_locked[state.u]);
 
     SET_DEBUG(true);
 
@@ -379,6 +378,7 @@ private:
 
         accepted = accepted && move_cluster_weight_to(to_cluster, v_weight, max_cluster_weight(to_cluster));
         if (accepted) {
+          DBG << "Locking node " << u;
           _locked[u] = 1;
           _active[u] = 0;
         }
