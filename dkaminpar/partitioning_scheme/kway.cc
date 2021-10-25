@@ -1,27 +1,15 @@
 /*******************************************************************************
- * This file is part of KaMinPar.
- *
- * Copyright (C) 2021 Daniel Seemaier <daniel.seemaier@kit.edu>
- *
- * KaMinPar is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * KaMinPar is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with KaMinPar.  If not, see <http://www.gnu.org/licenses/>.
- *
+* @file:   kway.cc
+*
+* @author: Daniel Seemaier
+* @date:   25.10.2021
+* @brief:  Direct k-way partitioning.
 ******************************************************************************/
 #include "dkaminpar/partitioning_scheme/kway.h"
 
 #include "dkaminpar/algorithm/allgather_graph.h"
-#include "dkaminpar/algorithm/distributed_graph_contraction.h"
-#include "dkaminpar/coarsening/distributed_local_label_propagation_clustering.h"
+#include "dkaminpar/algorithm/locking_clustering_contraction.h"
+#include "dkaminpar/coarsening/locking_label_propagation_clustering.h"
 #include "dkaminpar/refinement/distributed_probabilistic_label_propagation_refiner.h"
 #include "dkaminpar/utility/distributed_metrics.h"
 #include "kaminpar/metrics.h"
@@ -47,11 +35,11 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
                                                              _ctx.initial_partitioning.sequential.partition,
                                                              _ctx.initial_partitioning.sequential.coarsening);
     // TODO total_n() only required for rating map
-    DistributedLocalLabelPropagationClustering coarsener(c_graph->total_n(), _ctx.coarsening);
+    LockingLpClustering coarsener(c_graph->n(), c_graph->total_n(), _ctx.coarsening);
     auto &clustering = coarsener.compute_clustering(*c_graph, max_cluster_weight);
     MPI_Barrier(MPI_COMM_WORLD);
     DBG << "... contract";
-    auto [contracted_graph, mapping, mem] = graph::contract_local_clustering(*c_graph, clustering);
+    auto [contracted_graph, mapping, mem] = graph::contract_locking_clustering(*c_graph, clustering);
     DBG << ".... ok";
     MPI_Barrier(MPI_COMM_WORLD);
     graph::debug::validate(contracted_graph);

@@ -17,7 +17,7 @@
  * along with KaMinPar.  If not, see <http://www.gnu.org/licenses/>.
  *
 ******************************************************************************/
-#include "dkaminpar/algorithm/distributed_graph_contraction.h"
+#include "dkaminpar/algorithm/local_graph_contraction.h"
 #include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/datastructure/distributed_graph_builder.h"
 #include "dkaminpar/mpi_wrapper.h"

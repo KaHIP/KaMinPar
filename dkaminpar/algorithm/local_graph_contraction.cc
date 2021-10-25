@@ -17,7 +17,7 @@
  * along with KaMinPar.  If not, see <http://www.gnu.org/licenses/>.
  *
 ******************************************************************************/
-#include "dkaminpar/algorithm/distributed_graph_contraction.h"
+#include "dkaminpar/algorithm/local_graph_contraction.h"
 
 #include "dkaminpar/mpi_graph_utils.h"
 #include "dkaminpar/mpi_utils.h"
@@ -271,33 +271,5 @@ Result contract_local_clustering(const DistributedGraph &graph,
       << V(c_graph.global_m());
 
   return {std::move(c_graph), std::move(mapping), std::move(m_ctx)};
-}
-
-/*
- * Global cluster contraction
- */
-
-namespace {} // namespace
-
-contraction::Result
-contract_global_clustering(const DistributedGraph &graph,
-                           const scalable_vector<shm::parallel::IntegralAtomicWrapper<NodeID>> &clustering,
-                           contraction::MemoryContext m_ctx) {
-  ASSERT(clustering.size() == graph.total_n());
-
-  // first contract clusters locally on each PE
-  auto [c_local_graph, c_local_mapping, m_ctx_tmp] = contract_local_clustering(graph, clustering, std::move(m_ctx));
-  m_ctx = std::move(m_ctx_tmp);
-
-  // find clusters that should be contracted across PE borders
-  graph.pfor_nodes([&](const NodeID u) {
-    NodeID u_cluster = clustering[u];
-
-    for (const auto [e, v] : graph.neighbors(u)) {
-      if (graph.is_ghost_node(v) && u_cluster == clustering[v]) {}
-    }
-  });
-
-  return {};
 }
 } // namespace dkaminpar::graph

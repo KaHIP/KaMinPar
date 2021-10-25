@@ -31,11 +31,11 @@ class LockingLpClusteringImpl
   using AtomicClusterArray = scalable_vector<shm::parallel::IntegralAtomicWrapper<GlobalNodeID>>;
 
   using hasher_type = utils_tm::hash_tm::murmur2_hash;
-  using allocator_type = growt::AlignedAllocator<>;
+  using allocator_type = ::growt::AlignedAllocator<>;
   static_assert(std::numeric_limits<GlobalNodeWeight>::digits == 63 ||
                     std::numeric_limits<GlobalNodeWeight>::digits == 64,
                 "use 64 bit value type"); // bug in growt with 32 bit values types (?)
-  using table_type = typename growt::table_config<ClusterID, GlobalNodeWeight, hasher_type, allocator_type,
+  using table_type = typename ::growt::table_config<ClusterID, GlobalNodeWeight, hasher_type, allocator_type,
                                                   hmod::growable, hmod::deletion>::table_type;
 
   friend Base;
@@ -178,9 +178,7 @@ protected:
     return _next_clustering[u];
   }
 
-  void move_node(const NodeID node, const GlobalNodeID cluster) {
-    _next_clustering[node] = cluster;
-  }
+  void move_node(const NodeID node, const GlobalNodeID cluster) { _next_clustering[node] = cluster; }
 
   [[nodiscard]] GlobalNodeID initial_cluster(const NodeID u) const { return _graph->local_to_global_node(u); }
 
@@ -189,10 +187,8 @@ protected:
    */
 
   [[nodiscard]] bool accept_cluster(const Base::ClusterSelectionState &state) {
+    SET_DEBUG(false);
     ASSERT(state.u < _locked.size() && !_locked[state.u]);
-
-    SET_DEBUG(true);
-
     const bool ans = (state.current_gain > state.best_gain ||
                       (state.current_gain == state.best_gain && state.local_rand.random_bool())) &&
                      (state.current_cluster_weight + state.u_weight <= max_cluster_weight(state.current_cluster) ||
@@ -261,7 +257,6 @@ private:
     }
 
     const NodeID num_moved_nodes = perform_iteration(from, to);
-    SLOG << V(num_moved_nodes);
 
     // still has to take part in collective communication
     // if (num_moved_nodes == 0) { return 0; } // nothing to do
@@ -282,19 +277,21 @@ private:
     tbb::parallel_for<NodeID>(0, _graph->total_n(),
                               [&](const NodeID u) { _current_clustering[u] = _next_clustering[u]; });
 
-    ASSERT(VALIDATE_STATE());
+    HEAVY_ASSERT(VALIDATE_STATE());
 
     return num_moved_nodes;
   }
 
   void perform_distributed_moves(const NodeID from, const NodeID to) {
-    SET_DEBUG(true);
+    SET_DEBUG(false);
 
-    mpi::barrier();
-    LOG << "==============================";
-    LOG << "perform_distributed_moves";
-    LOG << "==============================";
-    mpi::barrier();
+    if constexpr (kDebug) {
+      mpi::barrier();
+      LOG << "==============================";
+      LOG << "perform_distributed_moves";
+      LOG << "==============================";
+      mpi::barrier();
+    }
 
     // exchange join requests and collect them in _gain_buffer
     auto requests = mpi::graph::sparse_alltoall_custom<JoinRequest>(
@@ -322,19 +319,23 @@ private:
                   new_cluster_owner};
         });
 
-    mpi::barrier();
-    LOG << "==============================";
-    LOG << "build_gain_buffer";
-    LOG << "==============================";
-    mpi::barrier();
+    if constexpr (kDebug) {
+      mpi::barrier();
+      LOG << "==============================";
+      LOG << "build_gain_buffer";
+      LOG << "==============================";
+      mpi::barrier();
+    }
 
     build_gain_buffer(requests);
 
-    mpi::barrier();
-    LOG << "==============================";
-    LOG << "perform moves from gain buffer";
-    LOG << "==============================";
-    mpi::barrier();
+    if constexpr (kDebug) {
+      mpi::barrier();
+      LOG << "==============================";
+      LOG << "perform moves from gain buffer";
+      LOG << "==============================";
+      mpi::barrier();
+    }
 
     // allocate memory for response messages
     std::vector<scalable_vector<JoinResponse>> responses;
@@ -415,8 +416,6 @@ private:
                 << _current_clustering[local_requester] << " --> " << _next_clustering[local_requester];
             ASSERT(!accepted || _locked[local_requester] == 0);
 
-
-
             // update weight of cluster that we want to join in any case
             set_cluster_weight(cluster(local_requester), new_weight);
 
@@ -433,13 +432,15 @@ private:
   }
 
   void build_gain_buffer(auto &join_requests_per_pe) {
-    SET_DEBUG(true);
+    SET_DEBUG(false);
 
-    mpi::barrier();
-    LOG << "==============================";
-    LOG << "build_gain_buffer";
-    LOG << "==============================";
-    mpi::barrier();
+    if constexpr (kDebug) {
+      mpi::barrier();
+      LOG << "==============================";
+      LOG << "build_gain_buffer";
+      LOG << "==============================";
+      mpi::barrier();
+    }
 
     ASSERT(_graph->n() <= _gain_buffer_index.size())
         << "_gain_buffer_index not large enough: " << _graph->n() << " > " << _gain_buffer_index.size();
@@ -562,10 +563,6 @@ private:
   }
 
   bool VALIDATE_LOCKING_INVARIANT() {
-    // set of nonempty labels on this PE
-    std::unordered_set<GlobalNodeID> nonempty_labels;
-    for (const NodeID u : _graph->nodes()) { nonempty_labels.insert(cluster(u)); }
-
     mpi::graph::sparse_alltoall_custom<GlobalNodeID>(
         *_graph, 0, _graph->n(),
         [&](const NodeID u) {
@@ -575,8 +572,12 @@ private:
         [&](const NodeID u) { return std::make_pair(cluster(u), _graph->find_owner_of_global_node(cluster(u))); },
         [&](const auto &buffer, const PEID pe) {
           for (const GlobalNodeID label : buffer) {
-            ASSERT(nonempty_labels.contains(label))
-                << label << " from PE " << pe << " does not exist on PE " << mpi::get_comm_rank(MPI_COMM_WORLD);
+            ASSERT(_graph->is_owned_global_node(label));
+            const NodeID local_label = _graph->global_to_local_node(label);
+            ASSERT(cluster(local_label) == label)
+                << "from PE: " << pe << " has nodes in cluster " << label << ", but local node " << local_label
+                << " is in cluster " << cluster(local_label);
+            ASSERT(_locked[local_label] == 1);
           }
         });
 

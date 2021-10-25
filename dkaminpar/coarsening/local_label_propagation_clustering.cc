@@ -5,7 +5,7 @@
  * @date:   30.09.21
  * @brief:
  ******************************************************************************/
-#include "dkaminpar/coarsening/distributed_local_label_propagation_clustering.h"
+#include "dkaminpar/coarsening/local_label_propagation_clustering.h"
 
 #include "kaminpar/algorithm/parallel_label_propagation.h"
 

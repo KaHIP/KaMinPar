@@ -243,8 +243,18 @@ public:
   }
 
   template<typename Lambda>
+  inline void pfor_all_nodes(Lambda &&l) const {
+    pfor_nodes(0, total_n(), std::forward<Lambda &&>(l));
+  }
+
+  template<typename Lambda>
   inline void pfor_nodes_range(Lambda &&l) const {
     pfor_nodes_range(0, n(), std::forward<Lambda &&>(l));
+  }
+
+  template<typename Lambda>
+  inline void pfor_all_nodes_range(Lambda &&l) const {
+    pfor_nodes_range(0, total_n(), std::forward<Lambda &&>(l));
   }
 
   template<typename Lambda>

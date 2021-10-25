@@ -1,6 +1,6 @@
 #pragma once
 
-#include "dkaminpar/algorithm/distributed_graph_contraction.h"
+#include "dkaminpar/algorithm/local_graph_contraction.h"
 
 namespace dkaminpar::graph {
 namespace contraction {

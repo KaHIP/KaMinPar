@@ -11,7 +11,7 @@
 // clang-format on
 
 #include "apps.h"
-#include "dkaminpar/algorithm/distributed_graph_contraction.h"
+#include "dkaminpar/algorithm/local_graph_contraction.h"
 #include "dkaminpar/application/arguments.h"
 #include "dkaminpar/distributed_context.h"
 #include "dkaminpar/distributed_io.h"

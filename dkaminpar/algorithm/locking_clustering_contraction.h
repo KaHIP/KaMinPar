@@ -7,7 +7,7 @@
 ******************************************************************************/
 #pragma once
 
-#include "dkaminpar/algorithm/distributed_graph_contraction.h"
+#include "dkaminpar/algorithm/local_graph_contraction.h"
 #include "dkaminpar/coarsening/locking_label_propagation_clustering.h"
 #include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/distributed_definitions.h"
@@ -16,7 +16,7 @@ namespace dkaminpar::graph {
 namespace contraction {
 struct LockingClusteringContractionResult {
   DistributedGraph graph;
-  scalable_vector<GlobalNodeID> mapping;
+  scalable_vector<NodeID> mapping;
   MemoryContext m_ctx;
 };
 } // namespace contraction

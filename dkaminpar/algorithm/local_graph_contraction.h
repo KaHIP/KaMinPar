@@ -17,6 +17,8 @@
  * along with KaMinPar.  If not, see <http://www.gnu.org/licenses/>.
  *
 ******************************************************************************/
+#pragma once
+
 #include "dkaminpar/datastructure/distributed_graph.h"
 #include "kaminpar/datastructure/ts_navigable_linked_list.h"
 
@@ -43,7 +45,4 @@ struct Result {
 
 contraction::Result contract_local_clustering(const DistributedGraph &graph, const scalable_vector<shm::parallel::IntegralAtomicWrapper<NodeID>> &clustering,
                                               contraction::MemoryContext m_ctx = {});
-
-contraction::Result contract_global_clustering(const DistributedGraph &graph, const scalable_vector<shm::parallel::IntegralAtomicWrapper<NodeID>> &clustering,
-                                               contraction::MemoryContext m_ctx = {});
 } // namespace dkaminpar::graph
