@@ -119,6 +119,8 @@ inline std::vector<int> build_distribution_displs(Distribution &&dist) {
 
 template<typename Message, template<typename> typename Buffer = scalable_vector>
 void sparse_alltoall(const std::vector<Buffer<Message>> &send_buffers, auto &&receiver, MPI_Comm comm) {
+  mpi::barrier(comm);
+
   using Receiver = decltype(receiver);
   constexpr bool receiver_invocable_with_pe = std::is_invocable_r_v<void, Receiver, Buffer<Message>, PEID>;
   constexpr bool receiver_invocable_without_pe = std::is_invocable_r_v<void, Receiver, Buffer<Message>>;

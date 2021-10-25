@@ -12,6 +12,8 @@
 #include "dkaminpar/utility/distributed_math.h"
 #include "kaminpar/algorithm/parallel_label_propagation.h"
 
+#include <unordered_set>
+
 namespace dkaminpar {
 namespace {
 struct LockingLpClusteringConfig : shm::LabelPropagationConfig {
@@ -68,16 +70,18 @@ public:
 
     for (std::size_t iteration = 0; iteration < num_iterations; ++iteration) {
       NodeID num_moved_nodes = 0;
-      for (std::size_t chunk = 0; chunk < std::min<std::size_t>(_graph->n(), _c_ctx.lp.num_chunks); ++chunk) {
+      for (std::size_t chunk = 0; chunk < _c_ctx.lp.num_chunks; ++chunk) {
         const auto [from, to] = math::compute_local_range<NodeID>(_graph->n(), _c_ctx.lp.num_chunks, chunk);
         num_moved_nodes += process_chunk(from, to);
-        SLOG << V(_current_clustering) << V(_next_clustering);
-        mpi::barrier(MPI_COMM_WORLD);
+        mpi::barrier(_graph->communicator());
       }
-      if (num_moved_nodes == 0) { break; }
+
+      const GlobalNodeID num_moved_nodes_global = mpi::allreduce(static_cast<GlobalNodeID>(num_moved_nodes), MPI_SUM,
+                                                                 _graph->communicator());
+      if (num_moved_nodes_global == 0) { break; }
     }
 
-    mpi::barrier(graph.communicator());
+    mpi::barrier(_graph->communicator());
     return _current_clustering;
   }
 
@@ -174,7 +178,10 @@ protected:
     return _next_clustering[u];
   }
 
-  void move_node(const NodeID node, const GlobalNodeID cluster) { _next_clustering[node] = cluster; }
+  void move_node(const NodeID node, const GlobalNodeID cluster) {
+    ASSERT(!_locked[node]);
+    _next_clustering[node] = cluster;
+  }
 
   [[nodiscard]] GlobalNodeID initial_cluster(const NodeID u) const { return _graph->local_to_global_node(u); }
 
@@ -183,7 +190,9 @@ protected:
    */
 
   [[nodiscard]] bool accept_cluster(const Base::ClusterSelectionState &state) {
-    SET_DEBUG(false);
+    ASSERT(!_locked[state.u]);
+
+    SET_DEBUG(true);
 
     const bool ans = (state.current_gain > state.best_gain ||
                       (state.current_gain == state.best_gain && state.local_rand.random_bool())) &&
@@ -280,7 +289,7 @@ private:
   }
 
   void perform_distributed_moves(const NodeID from, const NodeID to) {
-    SET_DEBUG(false);
+    SET_DEBUG(true);
 
     mpi::barrier();
     LOG << "==============================";
@@ -342,15 +351,15 @@ private:
     tbb::parallel_for<NodeID>(0, _graph->n(), [&](const NodeID u) {
       // TODO stop trying to insert nodes after the first insert operation failed?
 
-      // if u was moved to a ghost cluster this round, it may not accept join requests from other PEs!
-      const bool can_accept_nodes = !was_moved_during_round(u) || _graph->is_owned_global_node(cluster(u));
-      DBG << V(u) << V(can_accept_nodes);
+      const bool was_self_contained = _graph->local_to_global_node(u) == _current_clustering[u];
+      const bool is_self_contained = _graph->local_to_global_node(u) == _next_clustering[u];
+      const bool can_accept_nodes = was_self_contained && is_self_contained;
 
       for (std::size_t i = _gain_buffer_index[u]; i < _gain_buffer_index[u + 1]; ++i) {
         DBG << V(i) << V(u) << V(_gain_buffer[i].global_node) << V(_gain_buffer[i].node_weight)
             << V(_gain_buffer[i].gain);
 
-        const auto to_cluster = cluster(u);
+        auto to_cluster = cluster(u);
         const auto [global_v, v_weight, gain] = _gain_buffer[i];
         const auto pe = _graph->find_owner_of_global_node(global_v);
         const auto slot = next_message[pe]++;
@@ -359,11 +368,14 @@ private:
 
         // we may accept a move anyways if OUR move request is symmetric, i.e., the leader of the cluster u wants to
         // join also wants to merge with u --> in this case, tie-break with no. of edges, if equal with lower owning PE
-        if (!accepted && to_cluster == global_v) {
+        if (!accepted && was_self_contained && _next_clustering[u] == global_v) {
           const EdgeID my_m = _graph->m();
           const EdgeID their_m = _graph->m(pe);
           accepted = (my_m < their_m) || ((my_m == their_m) && (rank < pe));
-        }
+
+          _next_clustering[u] = _current_clustering[u];
+          to_cluster = cluster(u); // use u's old cluster -- the one v knows
+        } // TODO weight problem
 
         accepted = accepted && move_cluster_weight_to(to_cluster, v_weight, max_cluster_weight(to_cluster));
         if (accepted) {
@@ -380,7 +392,7 @@ private:
                                            .new_weight = u_as_weight,
                                            .response = accepted};
 
-        DBG << "Response to -->" << global_v << ": " << accepted;
+        DBG << "Response to -->" << global_v << ", label " << to_cluster << ": " << accepted;
       }
     });
 
@@ -399,11 +411,17 @@ private:
             DBG << "Response for " << global_requester << ": " << (accepted ? 1 : 0) << ", " << new_weight;
 
             const auto local_requester = _graph->global_to_local_node(global_requester);
+            ASSERT(!accepted || _locked[local_requester] == 0);
+
+            // update weight of cluster that we want to join in any case
             set_cluster_weight(cluster(local_requester), new_weight);
+
             if (!accepted) { // if accepted, nothing to do, otherwise move back
               _next_clustering[local_requester] = _current_clustering[local_requester];
               change_cluster_weight(cluster(local_requester), _graph->node_weight(local_requester));
-              _active[local_requester] = 1;
+
+              // if required for symmetric matching, i.e., u -> v and v -> u matched
+              if (!_locked[local_requester]) { _active[local_requester] = 1; }
             }
           }
         },
@@ -411,7 +429,7 @@ private:
   }
 
   void build_gain_buffer(auto &join_requests_per_pe) {
-    SET_DEBUG(false);
+    SET_DEBUG(true);
 
     mpi::barrier();
     LOG << "==============================";
@@ -535,6 +553,28 @@ private:
 
   bool VALIDATE_STATE() {
     for (const NodeID u : _graph->all_nodes()) { ASSERT(_current_clustering[u] == _next_clustering[u]); }
+    ASSERT(VALIDATE_LOCKING_INVARIANT());
+    return true;
+  }
+
+  bool VALIDATE_LOCKING_INVARIANT() {
+    // set of nonempty labels on this PE
+    std::unordered_set<GlobalNodeID> nonempty_labels;
+    for (const NodeID u : _graph->nodes()) { nonempty_labels.insert(cluster(u)); }
+
+    mpi::graph::sparse_alltoall_custom<GlobalNodeID>(
+        *_graph, 0, _graph->n(),
+        [&](const NodeID u) {
+          ASSERT(cluster(u) < _graph->global_n());
+          return !_graph->is_owned_global_node(cluster(u));
+        },
+        [&](const NodeID u) { return std::make_pair(cluster(u), _graph->find_owner_of_global_node(cluster(u))); },
+        [&](const auto &buffer, const PEID pe) {
+          for (const GlobalNodeID label : buffer) {
+            ASSERT(nonempty_labels.contains(label))
+                << label << " from PE " << pe << " does not exist on PE " << mpi::get_comm_rank(MPI_COMM_WORLD);
+          }
+        });
 
     return true;
   }

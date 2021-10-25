@@ -7,6 +7,8 @@ set(DKAMINPAR_SOURCE_FILES
         algorithm/allgather_graph.h
         algorithm/seq_global_graph_contraction_redistribution.cc
         algorithm/seq_global_graph_contraction_redistribution.h
+        algorithm/locking_clustering_contraction.cc
+        algorithm/locking_clustering_contraction.h
         coarsening/i_clustering.h
         coarsening/distributed_local_label_propagation_clustering.cc
         coarsening/distributed_local_label_propagation_clustering.h

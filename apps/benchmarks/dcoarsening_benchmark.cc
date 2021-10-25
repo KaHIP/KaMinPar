@@ -11,14 +11,11 @@
 // clang-format on
 
 #include "apps/apps.h"
-#include "dkaminpar/algorithm/distributed_graph_contraction.h"
+#include "dkaminpar/algorithm/locking_clustering_contraction.h"
 #include "dkaminpar/application/arguments.h"
 #include "dkaminpar/coarsening/locking_label_propagation_clustering.h"
 #include "dkaminpar/distributed_context.h"
 #include "dkaminpar/distributed_io.h"
-#include "dkaminpar/partitioning_scheme/partitioning.h"
-#include "dkaminpar/utility/distributed_metrics.h"
-#include "dkaminpar/utility/distributed_timer.h"
 #include "kaminpar/definitions.h"
 #include "kaminpar/utility/logger.h"
 #include "kaminpar/utility/random.h"
@@ -80,7 +77,7 @@ int main(int argc, char *argv[]) {
   ctx.setup(graph);
 
   // Perform partitioning
-  TIMED_SCOPE("Label Propagation")()->dist::LockingLpClustering::AtomicClusterArray { // force copy
+  auto clustering = TIMED_SCOPE("Label Propagation")()->dist::LockingLpClustering::AtomicClusterArray { // force copy
     const auto max_cluster_weight = shm::compute_max_cluster_weight(graph.global_n(), graph.total_node_weight(),
                                                                     ctx.initial_partitioning.sequential.partition,
                                                                     ctx.initial_partitioning.sequential.coarsening);
@@ -88,6 +85,11 @@ int main(int argc, char *argv[]) {
     dist::LockingLpClustering algorithm(graph.n(), graph.total_n(), ctx.coarsening);
     return algorithm.compute_clustering(graph, max_cluster_weight); // create copy
   };
+
+  dist::mpi::barrier();
+
+  const auto [c_graph, c_mapping, m_ctx] = dist::graph::contract_locking_clustering(graph, clustering);
+  LOG << "Coarse graph: n=" << c_graph.n() << " global_n=" << c_graph.global_n();
 
   // Output statistics
   dist::mpi::barrier();
