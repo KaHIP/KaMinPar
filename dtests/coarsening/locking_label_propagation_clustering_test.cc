@@ -225,7 +225,7 @@ TEST_F(DistributedTriangles, TestGhostClusteringOneRequestPerChunkAndPE) {
 }
 
 TEST_F(DistributedPathOneNodePerPE, TestGhostClusteringAlongPathWithTwoIterations) {
-  // 0-#-1-#-2
+  // 0-#-1=#=2
   SINGLE_THREADED_TEST;
 
   int rank = mpi::get_comm_rank();
@@ -243,6 +243,7 @@ TEST_F(DistributedPathOneNodePerPE, TestGhostClusteringAlongPathWithTwoIteration
 
   {
     const auto clustering = compute_clustering(graph);
+    SLOG << "1 iteration: " << V(clustering);
     if (rank == 0) {
       EXPECT_THAT(clustering[0], Eq(0)); // 0 rejected because 1 tried to move to another PE
     } else {

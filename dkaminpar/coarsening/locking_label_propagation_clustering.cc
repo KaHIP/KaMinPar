@@ -372,8 +372,10 @@ private:
           const EdgeID their_m = _graph->m(pe);
           accepted = (my_m < their_m) || ((my_m == their_m) && (rank < pe));
 
-          _next_clustering[u] = _current_clustering[u];
-          to_cluster = cluster(u); // use u's old cluster -- the one v knows
+          if (accepted) {
+            _next_clustering[u] = _current_clustering[u];
+            to_cluster = _current_clustering[u]; // use u's old cluster -- the one v knows
+          }
         } // TODO weight problem
 
         accepted = accepted && move_cluster_weight_to(to_cluster, v_weight, max_cluster_weight(to_cluster));
@@ -408,10 +410,12 @@ private:
         responses,
         [&](const auto buffer) {
           for (const auto [global_requester, new_weight, accepted] : buffer) {
-            DBG << "Response for " << global_requester << ": " << (accepted ? 1 : 0) << ", " << new_weight;
-
             const auto local_requester = _graph->global_to_local_node(global_requester);
+            DBG << "Response for " << global_requester << ": " << (accepted ? 1 : 0) << ", " << new_weight << " "
+                << _current_clustering[local_requester] << " --> " << _next_clustering[local_requester];
             ASSERT(!accepted || _locked[local_requester] == 0);
+
+
 
             // update weight of cluster that we want to join in any case
             set_cluster_weight(cluster(local_requester), new_weight);
