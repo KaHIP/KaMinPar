@@ -62,7 +62,8 @@ void LabelPropagationRefinementContext::print(std::ostream &out, const std::stri
 }
 
 void CoarseningContext::print(std::ostream &out, const std::string &prefix) const {
-  out << prefix << "algorithm=" << algorithm << " ";
+  out << prefix << "algorithm=" << algorithm << " "        //
+      << "contraction_limit=" << contraction_limit << " "; //
   lp.print(out, prefix + "lp.");
 }
 
@@ -152,6 +153,7 @@ Context create_default_context() {
     },
     .coarsening = {
       .algorithm = CoarseningAlgorithm::LOCAL_LP,
+      .contraction_limit = 5000,
       .lp = {
         .num_iterations = 5,
         .large_degree_threshold = 1000000,

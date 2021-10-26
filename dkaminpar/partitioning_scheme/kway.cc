@@ -28,7 +28,7 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
   std::vector<scalable_vector<NodeID>> mapping_hierarchy;
 
   const DistributedGraph *c_graph = &_graph;
-  while (c_graph->n() > 2 * 160) {
+  while (c_graph->n() > _ctx.partition.k * _ctx.coarsening.contraction_limit) {
     DBG << "... lp";
     const NodeWeight
         max_cluster_weight = shm::compute_max_cluster_weight(c_graph->global_n(), c_graph->total_node_weight(),

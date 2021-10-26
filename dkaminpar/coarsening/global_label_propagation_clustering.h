@@ -1,5 +1,5 @@
 /*******************************************************************************
-* @file:   distributed_global_label_propagation_coarsener.h
+* @file:   global_label_propagation_coarsener.h
 *
 * @author: Daniel Seemaier
 * @date:   29.09.21

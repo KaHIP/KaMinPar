@@ -75,6 +75,7 @@ struct LabelPropagationRefinementContext {
 
 struct CoarseningContext {
   CoarseningAlgorithm algorithm;
+  NodeID contraction_limit;
   LabelPropagationCoarseningContext lp;
 
   void print(std::ostream &out, const std::string &prefix = "") const;

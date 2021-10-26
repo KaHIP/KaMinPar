@@ -11,7 +11,7 @@
 // clang-format on
 
 #include "apps/apps.h"
-#include "dkaminpar/algorithm/locking_clustering_contraction.h"
+#include "dkaminpar/algorithm/seq_global_clustering_contraction_redistribution.h"
 #include "dkaminpar/application/arguments.h"
 #include "dkaminpar/coarsening/locking_label_propagation_clustering.h"
 #include "dkaminpar/distributed_context.h"
@@ -76,20 +76,39 @@ int main(int argc, char *argv[]) {
   ASSERT([&] { dist::graph::debug::validate(graph); });
   ctx.setup(graph);
 
-  // Perform partitioning
-  auto clustering = TIMED_SCOPE("Label Propagation")()->dist::LockingLpClustering::AtomicClusterArray { // force copy
-    const auto max_cluster_weight = shm::compute_max_cluster_weight(graph.global_n(), graph.total_node_weight(),
+  std::vector<dist::DistributedGraph> graph_hierarchy;
+
+  const dist::DistributedGraph *c_graph = &graph;
+  while (c_graph->n() > ctx.partition.k * ctx.coarsening.contraction_limit) {
+    const auto max_cluster_weight = shm::compute_max_cluster_weight(c_graph->global_n(), c_graph->total_node_weight(),
                                                                     ctx.initial_partitioning.sequential.partition,
                                                                     ctx.initial_partitioning.sequential.coarsening);
+    LOG << "... computing clustering";
 
-    dist::LockingLpClustering algorithm(graph.n(), graph.total_n(), ctx.coarsening);
-    return algorithm.compute_clustering(graph, max_cluster_weight); // create copy
-  };
+    START_TIMER("Clustering Algorithm", "Level " + std::to_string(graph_hierarchy.size()));
+    dist::LockingLpClustering clustering_algorithm(c_graph->n(), c_graph->total_n(), ctx.coarsening);
+    auto &clustering = clustering_algorithm.compute_clustering(*c_graph, max_cluster_weight);
+    STOP_TIMER();
 
-  dist::mpi::barrier();
+    break;
+    LOG << "... contracting";
 
-  const auto [c_graph, c_mapping, m_ctx] = dist::graph::contract_locking_clustering(graph, clustering);
-  LOG << "Coarse graph: n=" << c_graph.n() << " global_n=" << c_graph.global_n();
+    START_TIMER("Contraction", "Level " + std::to_string(graph_hierarchy.size()));
+    auto [contracted_graph, mapping, mem] = dist::graph::contract_global_clustering_redistribute(*c_graph, clustering);
+    STOP_TIMER();
+    dist::graph::debug::validate(contracted_graph);
+
+    const bool converged = contracted_graph.global_n() == c_graph->global_n();
+    graph_hierarchy.push_back(std::move(contracted_graph));
+    c_graph = &graph_hierarchy.back();
+
+    LOG << "=> n=" << c_graph->global_n() << " m=" << c_graph->global_m()
+        << " max_node_weight=" << c_graph->max_node_weight() << " max_cluster_weight=" << max_cluster_weight;
+    if (converged) {
+      LOG << "==> Coarsening converged";
+      break;
+    }
+  }
 
   // Output statistics
   dist::mpi::barrier();

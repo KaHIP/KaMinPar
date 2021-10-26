@@ -12,6 +12,8 @@ set(DKAMINPAR_SOURCE_FILES
         coarsening/i_clustering.h
         coarsening/local_label_propagation_clustering.cc
         coarsening/local_label_propagation_clustering.h
+        coarsening/global_label_propagation_clustering.cc
+        coarsening/global_label_propagation_clustering.h
         coarsening/locking_label_propagation_clustering.cc
         coarsening/locking_label_propagation_clustering.h
         datastructure/distributed_graph.cc

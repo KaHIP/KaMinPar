@@ -41,6 +41,31 @@ class LockingLpClusteringImpl
   friend Base;
   friend Base::Base;
 
+  struct Statistics {
+    shm::parallel::IntegralAtomicWrapper<int> num_move_accepted;
+    shm::parallel::IntegralAtomicWrapper<int> num_move_rejected;
+    shm::parallel::IntegralAtomicWrapper<int> num_moves;
+    shm::parallel::IntegralAtomicWrapper<EdgeWeight> gain_accepted;
+    shm::parallel::IntegralAtomicWrapper<EdgeWeight> gain_rejected;
+
+    void print() {
+      LOG << shm::logger::CYAN << "LockingLabelPropagationClustering statistics:";
+      LOG << shm::logger::CYAN << "- num_move_accepted: " << mpi::gather_statistics_str(num_move_accepted);
+      LOG << shm::logger::CYAN << "- num_move_rejected: " << mpi::gather_statistics_str(num_move_rejected);
+      LOG << shm::logger::CYAN << "- num_moves: " << mpi::gather_statistics_str(num_moves);
+      LOG << shm::logger::CYAN << "- gain_accepted: " << mpi::gather_statistics_str(gain_accepted);
+      LOG << shm::logger::CYAN << "- gain_rejected: " << mpi::gather_statistics_str(gain_rejected);
+    }
+
+    void reset() {
+      num_move_accepted = 0;
+      num_move_rejected = 0;
+      num_moves = 0;
+      gain_accepted = 0;
+      gain_rejected = 0;
+    }
+  };
+
 public:
   LockingLpClusteringImpl(const NodeID max_num_active_nodes, const NodeID max_num_nodes, const CoarseningContext &c_ctx)
       : Base{max_num_active_nodes, max_num_nodes},
@@ -83,6 +108,12 @@ public:
 
     mpi::barrier(_graph->communicator());
     return _current_clustering;
+  }
+
+  void print_statistics() {
+    if constexpr (!kStatistics) { return; }
+
+
   }
 
 protected:

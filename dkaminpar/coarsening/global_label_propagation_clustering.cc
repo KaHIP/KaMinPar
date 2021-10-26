@@ -1,5 +1,5 @@
 /*******************************************************************************
- * @file:   distributed_global_label_propagation_coarsener.cc
+ * @file:   global_label_propagation_coarsener.cc
  *
  * @author: Daniel Seemaier
  * @date:   29.09.21
@@ -7,7 +7,7 @@
  * every weight, otherwise moves nodes without communication causing violations
  * of the balance constraint.
  ******************************************************************************/
-#include "dkaminpar/coarsening/distributed_global_label_propagation_clustering.h"
+#include "dkaminpar/coarsening/global_label_propagation_clustering.h"
 
 #include "dkaminpar/growt.h"
 #include "dkaminpar/mpi_graph_utils.h"
@@ -17,10 +17,10 @@
 namespace dkaminpar {
 template<typename ClusterID, typename ClusterWeight>
 class OwnedRelaxedClusterWeightMap {
-  using hasher_type = utils_tm::hash_tm::murmur2_hash;
-  using allocator_type = growt::AlignedAllocator<>;
-  using table_type = typename growt::table_config<ClusterID, ClusterWeight, hasher_type, allocator_type, hmod::growable,
-                                                  hmod::deletion>::table_type;
+  using hasher_type = ::utils_tm::hash_tm::murmur2_hash;
+  using allocator_type = ::growt::AlignedAllocator<>;
+  using table_type = typename ::growt::table_config<ClusterID, ClusterWeight, hasher_type, allocator_type,
+                                                    hmod::growable, hmod::deletion>::table_type;
 
 public:
   explicit OwnedRelaxedClusterWeightMap(const ClusterID max_num_clusters) : _cluster_weights(max_num_clusters) {}
@@ -34,7 +34,6 @@ public:
   ClusterWeight cluster_weight(const ClusterID cluster) /* const */ {
     auto &handle = _cluster_weights_handles_ets.local();
     auto it = handle.find(cluster);
-    ASSERT(it != handle.end());
     return (*it).second;
   }
 
@@ -158,13 +157,13 @@ private:
       NodeWeight new_cluster_weight;
     };
 
-    mpi::graph::sparse_alltoall_interface_node_range_filtered<ChangedLabelMessage, scalable_vector>(
+    mpi::graph::sparse_alltoall_interface_to_pe<ChangedLabelMessage, scalable_vector>(
         *_graph, from, to, [&](const NodeID u) { return _changed_label[u]; },
-        [&](const NodeID u, const PEID /* pe */) -> ChangedLabelMessage {
+        [&](const NodeID u) -> ChangedLabelMessage {
           const auto leader = cluster(u);
           return {_graph->local_to_global_node(u), leader, cluster_weight(leader)};
         },
-        [&](const PEID /* pe */, const auto &buffer) {
+        [&](const auto &buffer) {
           tbb::parallel_for<std::size_t>(0, buffer.size(), [&](const std::size_t i) {
             const auto [global_node, new_label, new_cluster_weight] = buffer[i];
             const NodeID local_node = _graph->global_to_local_node(global_node);
