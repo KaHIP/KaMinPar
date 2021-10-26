@@ -7,4 +7,4 @@
 	url = https://github.com/bombela/backward-cpp.git
 [submodule "external_tools/growt"]
 	path = external_tools/growt
-	url = https://github.com/TooBiased/growt.git
+	url = https://github.com/DanielSeemaier/growt.git
