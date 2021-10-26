@@ -17,4 +17,5 @@ endfunction()
 
 add_kaminpar_dtest(locking_contraction_test 3 algorithm/locking_contraction_test.cc)
 add_kaminpar_dtest(local_contraction_test 3 algorithm/local_contraction_test.cc)
-add_kaminpar_dtest(locking_label_propagation_clustering_test 3 coarsening/locking_label_propagation_clustering_test.cc)
+#add_kaminpar_dtest(locking_label_propagation_clustering_test 3 coarsening/locking_label_propagation_clustering_test.cc)
+add_kaminpar_dtest(seq_global_contraction_redistribution_test 3 algorithm/seq_global_contraction_redistribution_test.cc)

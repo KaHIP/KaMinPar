@@ -118,7 +118,8 @@ inline std::vector<int> build_distribution_displs(Distribution &&dist) {
 }
 
 template<typename Message, template<typename> typename Buffer = scalable_vector>
-void sparse_alltoall(const std::vector<Buffer<Message>> &send_buffers, auto &&receiver, MPI_Comm comm) {
+void sparse_alltoall(const std::vector<Buffer<Message>> &send_buffers, auto &&receiver, MPI_Comm comm,
+                     const bool self = false) {
   mpi::barrier(comm);
 
   using Receiver = decltype(receiver);
@@ -132,14 +133,14 @@ void sparse_alltoall(const std::vector<Buffer<Message>> &send_buffers, auto &&re
 
   std::size_t next_req_index = 0;
   for (PEID pe = 0; pe < size; ++pe) {
-    if (pe != rank) {
+    if (self || pe != rank) {
       ASSERT(static_cast<std::size_t>(pe) < send_buffers.size()) << V(pe) << V(send_buffers.size());
       mpi::isend(send_buffers[pe], pe, 0, requests[next_req_index++], comm);
     }
   }
 
   for (PEID pe = 0; pe < size; ++pe) {
-    if (pe != rank) {
+    if (self || pe != rank) {
       const auto recv_buffer = mpi::probe_recv<Message, Buffer>(pe, 0, MPI_STATUS_IGNORE, comm);
       if constexpr (receiver_invocable_with_pe) {
         receiver(std::move(recv_buffer), pe);

@@ -201,10 +201,10 @@ contract_locking_clustering(const DistributedGraph &graph, const LockingLpCluste
         const PEID pe = graph.find_owner_of_global_node(u_label);
         return {{.label = u_label, .weight = graph.node_weight(u)}, pe};
       },
-      [&](const auto buffer) {
-        for (const auto [label, weight] : buffer) {
-          // increase label by weight
-        }
+      [&](const auto) {
+//        for (const auto [label, weight] : buffer) {
+//           increase label by weight
+//        }
       });
 
   // build coarse graph
