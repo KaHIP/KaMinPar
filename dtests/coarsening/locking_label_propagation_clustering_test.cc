@@ -27,12 +27,13 @@ Clustering compute_clustering(const DistributedGraph &graph, NodeWeight max_clus
   if (max_cluster_weight == 0) { max_cluster_weight = std::numeric_limits<NodeWeight>::max(); }
 
   Context ctx = create_default_context();
+  ctx.setup(graph);
   ctx.coarsening.lp.num_iterations = num_iterations;
   if (num_chunks != 0) { ctx.coarsening.lp.num_chunks = num_chunks; }
 
   DLOG << V(graph.n()) << V(graph.total_n());
 
-  LockingLpClustering algorithm(graph.n(), graph.total_n(), ctx.coarsening);
+  LockingLpClustering algorithm(ctx);
   return algorithm.compute_clustering(graph, max_cluster_weight); // create copy
 }
 

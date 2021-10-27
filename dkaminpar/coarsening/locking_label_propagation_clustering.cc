@@ -85,6 +85,7 @@ public:
     _max_cluster_weight = max_cluster_weight;
 
     ASSERT(VALIDATE_INIT_STATE());
+    ASSERT(VALIDATE_INIT_STATE());
 
     const auto num_iterations =
         _c_ctx.lp.num_iterations == 0 ? std::numeric_limits<std::size_t>::max() : _c_ctx.lp.num_iterations;
