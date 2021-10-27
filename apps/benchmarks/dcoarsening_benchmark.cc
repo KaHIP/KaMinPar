@@ -1,10 +1,10 @@
 /*******************************************************************************
-* @file:   dkaminpar.cc
-*
-* @author: Daniel Seemaier
-* @date:   21.09.21
-* @brief:  Distributed KaMinPar binary.
-******************************************************************************/
+ * @file:   dkaminpar.cc
+ *
+ * @author: Daniel Seemaier
+ * @date:   21.09.21
+ * @brief:  Distributed KaMinPar binary.
+ ******************************************************************************/
 // This must come first since it redefines output macros (LOG DBG etc)
 // clang-format off
 #include "dkaminpar/distributed_definitions.h"
@@ -52,7 +52,9 @@ int main(int argc, char *argv[]) {
   // Parse command line arguments
   try {
     ctx = dist::app::parse_options(argc, argv);
-  } catch (const std::runtime_error &e) { std::cout << e.what() << std::endl; }
+  } catch (const std::runtime_error &e) {
+    std::cout << e.what() << std::endl;
+  }
   shm::Logger::set_quiet_mode(ctx.quiet);
 
   shm::print_identifier(argc, argv);
@@ -64,7 +66,9 @@ int main(int argc, char *argv[]) {
 
   // Initialize TBB
   auto gc = shm::init_parallelism(ctx.parallel.num_threads);
-  if (ctx.parallel.use_interleaved_numa_allocation) { shm::init_numa(); }
+  if (ctx.parallel.use_interleaved_numa_allocation) {
+    shm::init_numa();
+  }
 
   // Load graph
   const auto graph = TIMED_SCOPE("IO") {
@@ -73,20 +77,21 @@ int main(int argc, char *argv[]) {
     return graph;
   };
   LOG << "Loaded graph with n=" << graph.global_n() << " m=" << graph.global_m();
+  SLOG << "n=" << graph.n() << " ghost_n=" << graph.ghost_n() << " total_n=" << graph.total_n() << " m=" << graph.m();
   ASSERT([&] { dist::graph::debug::validate(graph); });
   ctx.setup(graph);
 
   std::vector<dist::DistributedGraph> graph_hierarchy;
 
   const dist::DistributedGraph *c_graph = &graph;
-  while (c_graph->n() > ctx.partition.k * ctx.coarsening.contraction_limit) {
+  while (c_graph->global_n() > ctx.partition.k * ctx.coarsening.contraction_limit) {
     const auto max_cluster_weight = shm::compute_max_cluster_weight(c_graph->global_n(), c_graph->total_node_weight(),
                                                                     ctx.initial_partitioning.sequential.partition,
                                                                     ctx.initial_partitioning.sequential.coarsening);
     LOG << "... computing clustering";
 
     START_TIMER("Clustering Algorithm", "Level " + std::to_string(graph_hierarchy.size()));
-    dist::LockingLpClustering clustering_algorithm(c_graph->n(), c_graph->total_n(), ctx.coarsening);
+    dist::LockingLpClustering clustering_algorithm(ctx);
     auto &clustering = clustering_algorithm.compute_clustering(*c_graph, max_cluster_weight);
     STOP_TIMER();
 
@@ -103,6 +108,8 @@ int main(int argc, char *argv[]) {
 
     LOG << "=> n=" << c_graph->global_n() << " m=" << c_graph->global_m()
         << " max_node_weight=" << c_graph->max_node_weight() << " max_cluster_weight=" << max_cluster_weight;
+    SLOG << "n=" << c_graph->n() << " total_n=" << c_graph->total_n() << " ghost_n=" << c_graph->ghost_n()
+         << " m=" << c_graph->m();
     if (converged) {
       LOG << "==> Coarsening converged";
       break;

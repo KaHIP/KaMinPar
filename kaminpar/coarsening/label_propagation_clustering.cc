@@ -45,10 +45,8 @@ class LabelPropagationClusteringCore final
 
 public:
   LabelPropagationClusteringCore(const NodeID max_n, const CoarseningContext &c_ctx)
-      : Base{max_n},
-        ClusterWeightBase{max_n},
-        ClusterBase{max_n},
-        _c_ctx{c_ctx} {
+      : ClusterWeightBase{max_n}, ClusterBase{max_n}, _c_ctx{c_ctx} {
+    allocate(max_n);
     set_max_degree(c_ctx.lp.large_degree_threshold);
     set_max_num_neighbors(c_ctx.lp.max_num_neighbors);
   }
@@ -60,7 +58,9 @@ public:
 
     for (std::size_t iteration = 0; iteration < _c_ctx.lp.num_iterations; ++iteration) {
       SCOPED_TIMER("Iteration", std::to_string(iteration), TIMER_BENCHMARK);
-      if (perform_iteration() == 0) { break; }
+      if (perform_iteration() == 0) {
+        break;
+      }
     }
 
     if (_c_ctx.lp.should_merge_nonadjacent_clusters(_graph->n(), _current_num_clusters)) {
@@ -111,8 +111,7 @@ void LabelPropagationClusteringAlgorithm::set_desired_cluster_count(const NodeID
   _core->set_desired_num_clusters(count);
 }
 
-const IClustering::AtomicClusterArray &
-LabelPropagationClusteringAlgorithm::compute_clustering(const Graph &graph) {
+const IClustering::AtomicClusterArray &LabelPropagationClusteringAlgorithm::compute_clustering(const Graph &graph) {
   return _core->compute_clustering(graph);
 }
 } // namespace kaminpar

@@ -12,12 +12,26 @@
 #include "dkaminpar/utility/math.h"
 #include "kaminpar/algorithm/parallel_label_propagation.h"
 
+#include <unordered_map>
 #include <unordered_set>
 
 namespace dkaminpar {
 namespace {
+/*!
+ * Large rating map based on a \c unordered_map. We need this since cluster IDs are global node IDs.
+ */
+struct UnorderedRatingMap {
+  EdgeWeight &operator[](const GlobalNodeID key) { return map[key]; }
+  [[nodiscard]] auto &entries() { return map; }
+  void clear() { map.clear(); }
+  std::size_t capacity() const { return std::numeric_limits<std::size_t>::max(); }
+  void resize(const std::size_t /* capacity */) {}
+  std::unordered_map<GlobalNodeID, EdgeWeight> map{};
+};
+
 struct LockingLpClusteringConfig : shm::LabelPropagationConfig {
   using Graph = DistributedGraph;
+  using RatingMap = ::kaminpar::RatingMap<EdgeWeight, UnorderedRatingMap>;
   using ClusterID = GlobalNodeID;
   using ClusterWeight = NodeWeight;
 };
@@ -30,25 +44,17 @@ class LockingLpClusteringImpl
   using Base = shm::InOrderLabelPropagation<LockingLpClusteringImpl, LockingLpClusteringConfig>;
   using AtomicClusterArray = scalable_vector<shm::parallel::IntegralAtomicWrapper<GlobalNodeID>>;
 
-  using hasher_type = utils_tm::hash_tm::murmur2_hash;
-  using allocator_type = ::growt::AlignedAllocator<>;
-  static_assert(std::numeric_limits<GlobalNodeWeight>::digits == 63 ||
-                    std::numeric_limits<GlobalNodeWeight>::digits == 64,
-                "use 64 bit value type"); // bug in growt with 32 bit values types (?)
-  using table_type = typename ::growt::table_config<ClusterID, GlobalNodeWeight, hasher_type, allocator_type,
-                                                  hmod::growable, hmod::deletion>::table_type;
-
   friend Base;
   friend Base::Base;
 
   struct Statistics {
-    shm::parallel::IntegralAtomicWrapper<int> num_move_accepted;
-    shm::parallel::IntegralAtomicWrapper<int> num_move_rejected;
-    shm::parallel::IntegralAtomicWrapper<int> num_moves;
-    shm::parallel::IntegralAtomicWrapper<EdgeWeight> gain_accepted;
-    shm::parallel::IntegralAtomicWrapper<EdgeWeight> gain_rejected;
+    shm::parallel::IntegralAtomicWrapper<int> num_move_accepted{0};
+    shm::parallel::IntegralAtomicWrapper<int> num_move_rejected{0};
+    shm::parallel::IntegralAtomicWrapper<int> num_moves{0};
+    shm::parallel::IntegralAtomicWrapper<EdgeWeight> gain_accepted{0};
+    shm::parallel::IntegralAtomicWrapper<EdgeWeight> gain_rejected{0};
 
-    void print() {
+    void print() const {
       LOG << shm::logger::CYAN << "LockingLabelPropagationClustering statistics:";
       LOG << shm::logger::CYAN << "- num_move_accepted: " << mpi::gather_statistics_str(num_move_accepted);
       LOG << shm::logger::CYAN << "- num_move_rejected: " << mpi::gather_statistics_str(num_move_rejected);
@@ -67,31 +73,21 @@ class LockingLpClusteringImpl
   };
 
 public:
-  LockingLpClusteringImpl(const NodeID max_num_active_nodes, const NodeID max_num_nodes, const CoarseningContext &c_ctx)
-      : Base{max_num_active_nodes, max_num_nodes},
-        _c_ctx{c_ctx},
-        _current_clustering(max_num_nodes),
-        _next_clustering(max_num_nodes),
-        _gain(max_num_active_nodes),
-        _gain_buffer_index(max_num_active_nodes + 1),
-        _locked(max_num_active_nodes),
-        _cluster_weights(max_num_nodes) {
-    set_max_degree(c_ctx.lp.large_degree_threshold);
-    set_max_num_neighbors(c_ctx.lp.max_num_neighbors);
+  LockingLpClusteringImpl(const Context &ctx) : _c_ctx{ctx.coarsening}, _cluster_weights{ctx.partition.local_n()} {
+    set_max_degree(_c_ctx.lp.large_degree_threshold);
+    set_max_num_neighbors(_c_ctx.lp.max_num_neighbors);
   }
 
   const auto &compute_clustering(const DistributedGraph &graph, const NodeWeight max_cluster_weight) {
+    allocate(graph);
     initialize(&graph, graph.total_n()); // initializes _graph
     initialize_ghost_node_clusters();
     _max_cluster_weight = max_cluster_weight;
 
-    // catch special case where the coarse graph is larger than the fine graph due to an increased number of ghost nodes
-    ensure_allocation_ok();
-
     ASSERT(VALIDATE_INIT_STATE());
 
-    const auto num_iterations = _c_ctx.lp.num_iterations == 0 ? std::numeric_limits<std::size_t>::max()
-                                                              : _c_ctx.lp.num_iterations;
+    const auto num_iterations =
+        _c_ctx.lp.num_iterations == 0 ? std::numeric_limits<std::size_t>::max() : _c_ctx.lp.num_iterations;
 
     for (std::size_t iteration = 0; iteration < num_iterations; ++iteration) {
       NodeID num_moved_nodes = 0;
@@ -101,9 +97,11 @@ public:
         mpi::barrier(_graph->communicator());
       }
 
-      const GlobalNodeID num_moved_nodes_global = mpi::allreduce(static_cast<GlobalNodeID>(num_moved_nodes), MPI_SUM,
-                                                                 _graph->communicator());
-      if (num_moved_nodes_global == 0) { break; }
+      const GlobalNodeID num_moved_nodes_global =
+          mpi::allreduce(static_cast<GlobalNodeID>(num_moved_nodes), MPI_SUM, _graph->communicator());
+      if (num_moved_nodes_global == 0) {
+        break;
+      }
     }
 
     mpi::barrier(_graph->communicator());
@@ -111,17 +109,35 @@ public:
   }
 
   void print_statistics() {
-    if constexpr (!kStatistics) { return; }
-
-
+    if constexpr (!kStatistics) {
+      return;
+    }
   }
 
 protected:
+  void allocate(const DistributedGraph &graph) {
+    const NodeID allocated_num_nodes = _current_clustering.size();
+    const NodeID allocated_num_active_nodes = _gain.size();
+
+    if (allocated_num_nodes < graph.total_n()) {
+      _current_clustering.resize(graph.total_n());
+      _next_clustering.resize(graph.total_n());
+    }
+
+    if (allocated_num_active_nodes < graph.n()) {
+      _gain.resize(graph.n());
+      _gain_buffer_index.resize(graph.n() + 1);
+      _locked.resize(graph.n());
+    }
+
+    Base::allocate(graph.total_n(), graph.n());
+  }
+
   //--------------------------------------------------------------------------------
   //
   // Called from base class
   //
-  //VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV
+  // VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV
   /*
    * Cluster weights
    *
@@ -224,7 +240,9 @@ protected:
                       (state.current_gain == state.best_gain && state.local_rand.random_bool())) &&
                      (state.current_cluster_weight + state.u_weight <= max_cluster_weight(state.current_cluster) ||
                       state.current_cluster == state.initial_cluster);
-    if (ans) { _gain[state.u] = state.current_gain; }
+    if (ans) {
+      _gain[state.u] = state.current_gain;
+    }
     DBG << V(state.u) << V(state.current_cluster) << V(state.current_gain) << V(state.best_cluster)
         << V(state.best_gain) << V(ans) << V(state.current_cluster_weight) << V(state.u_weight)
         << V(max_cluster_weight(state.current_cluster));
@@ -242,19 +260,6 @@ private:
   void initialize_ghost_node_clusters() {
     tbb::parallel_for(_graph->n(), _graph->total_n(),
                       [&](const NodeID local_u) { init_cluster(local_u, _graph->local_to_global_node(local_u)); });
-  }
-
-  // a coarse graph could have a larger total size than the finer graph, since the number of ghost nodes could increase
-  // arbitrarily -- thus, resize the rating map (only component depending on total_n()) in this special case
-  // find a better solution to this issue in the future
-  void ensure_allocation_ok() {
-    SCOPED_TIMER("Allocation");
-
-    if (_rating_map_ets.local().max_size() < _graph->total_n()) {
-      for (auto &ets : _rating_map_ets) { ets.change_max_size(_graph->total_n()); }
-    }
-    if (_current_clustering.size() < _graph->total_n()) { _current_clustering.resize(_graph->total_n()); }
-    if (_next_clustering.size() < _graph->total_n()) { _next_clustering.resize(_graph->total_n()); }
   }
 
   struct JoinRequest {
@@ -422,9 +427,8 @@ private:
         NodeWeight u_as_weight;
         std::memcpy(&u_as_weight, &u, sizeof(NodeWeight));
 
-        responses[pe][slot] = JoinResponse{.global_requester = global_v,
-                                           .new_weight = u_as_weight,
-                                           .response = accepted};
+        responses[pe][slot] =
+            JoinResponse{.global_requester = global_v, .new_weight = u_as_weight, .response = accepted};
 
         DBG << "Response to -->" << global_v << ", label " << to_cluster << ": " << accepted;
       }
@@ -455,7 +459,9 @@ private:
               change_cluster_weight(cluster(local_requester), _graph->node_weight(local_requester));
 
               // if required for symmetric matching, i.e., u -> v and v -> u matched
-              if (!_locked[local_requester]) { _active[local_requester] = 1; }
+              if (!_locked[local_requester]) {
+                _active[local_requester] = 1;
+              }
             }
           }
         },
@@ -492,7 +498,9 @@ private:
 
     if constexpr (kDebug) {
       for (const NodeID u : _graph->nodes()) {
-        if (_gain_buffer_index[u] > 0) { DBG << _gain_buffer_index[u] << " requests for " << u; }
+        if (_gain_buffer_index[u] > 0) {
+          DBG << _gain_buffer_index[u] << " requests for " << u;
+        }
       }
     }
 
@@ -588,7 +596,9 @@ private:
   }
 
   bool VALIDATE_STATE() {
-    for (const NodeID u : _graph->all_nodes()) { ASSERT(_current_clustering[u] == _next_clustering[u]); }
+    for (const NodeID u : _graph->all_nodes()) {
+      ASSERT(_current_clustering[u] == _next_clustering[u]);
+    }
     ASSERT(VALIDATE_LOCKING_INVARIANT());
     return true;
   }
@@ -640,14 +650,13 @@ private:
 
   scalable_vector<std::uint8_t> _locked;
 
-  table_type _cluster_weights;
-  tbb::enumerable_thread_specific<typename table_type::handle_type> _cluster_weights_handles_ets{
-      [&] { return table_type::handle_type{_cluster_weights}; }};
+  using ClusterWeightsMap = typename growt::GlobalNodeIDMap<GlobalNodeWeight>;
+  ClusterWeightsMap _cluster_weights{0};
+  tbb::enumerable_thread_specific<typename ClusterWeightsMap::handle_type> _cluster_weights_handles_ets{
+      [&] { return ClusterWeightsMap::handle_type{_cluster_weights}; }};
 };
 
-LockingLpClustering::LockingLpClustering(const NodeID max_num_active_nodes, const NodeID max_num_nodes,
-                                         const CoarseningContext &c_ctx)
-    : _impl{std::make_unique<LockingLpClusteringImpl>(max_num_active_nodes, max_num_nodes, c_ctx)} {}
+LockingLpClustering::LockingLpClustering(const Context &ctx) : _impl{std::make_unique<LockingLpClusteringImpl>(ctx)} {}
 
 LockingLpClustering::~LockingLpClustering() = default;
 

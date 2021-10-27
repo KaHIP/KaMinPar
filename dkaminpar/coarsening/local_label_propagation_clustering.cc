@@ -34,21 +34,22 @@ class DistributedLocalLabelPropagationClusteringImpl final
 
 public:
   DistributedLocalLabelPropagationClusteringImpl(const NodeID max_n, const CoarseningContext &c_ctx)
-      : Base{max_n},
-        ClusterBase{max_n},
-        ClusterWeightBase{max_n} {
+      : ClusterBase{max_n}, ClusterWeightBase{max_n} {
+    allocate(max_n);
     set_max_num_iterations(c_ctx.lp.num_iterations);
     set_max_degree(c_ctx.lp.large_degree_threshold);
     set_max_num_neighbors(c_ctx.lp.max_num_neighbors);
   }
 
   const auto &compute_clustering(const DistributedGraph &graph, const NodeWeight max_cluster_weight,
-                      const std::size_t max_iterations = kInfiniteIterations) {
+                                 const std::size_t max_iterations = kInfiniteIterations) {
     initialize(&graph, graph.n());
     _max_cluster_weight = max_cluster_weight;
 
     for (std::size_t iteration = 0; iteration < max_iterations; ++iteration) {
-      if (perform_iteration() == 0) { break; }
+      if (perform_iteration() == 0) {
+        break;
+      }
     }
 
     return clusters();

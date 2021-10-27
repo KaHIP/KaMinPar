@@ -15,8 +15,7 @@
 #include "kaminpar/algorithm/parallel_label_propagation.h"
 
 namespace dkaminpar {
-template<typename ClusterID, typename ClusterWeight>
-class OwnedRelaxedClusterWeightMap {
+template <typename ClusterID, typename ClusterWeight> class OwnedRelaxedClusterWeightMap {
   using hasher_type = ::utils_tm::hash_tm::murmur2_hash;
   using allocator_type = ::growt::AlignedAllocator<>;
   using table_type = typename ::growt::table_config<ClusterID, ClusterWeight, hasher_type, allocator_type,
@@ -85,11 +84,8 @@ class DistributedGlobalLabelPropagationClusteringImpl final
 
 public:
   DistributedGlobalLabelPropagationClusteringImpl(const NodeID max_n, const CoarseningContext &c_ctx)
-      : Base{max_n},
-        ClusterWeightBase{max_n},
-        ClusterBase{max_n},
-        _c_ctx{c_ctx},
-        _changed_label(max_n) {
+      : ClusterWeightBase{max_n}, ClusterBase{max_n}, _c_ctx{c_ctx}, _changed_label(max_n) {
+    allocate(max_n);
     set_max_num_iterations(c_ctx.lp.num_iterations);
     set_max_degree(c_ctx.lp.large_degree_threshold);
     set_max_num_neighbors(c_ctx.lp.max_num_neighbors);
@@ -105,7 +101,9 @@ public:
         const auto [from, to] = math::compute_local_range<NodeID>(_graph->n(), _c_ctx.lp.num_chunks, chunk);
         num_moved_nodes += process_chunk(from, to);
       }
-      if (num_moved_nodes == 0) { break; }
+      if (num_moved_nodes == 0) {
+        break;
+      }
     }
 
     return clusters();
@@ -144,7 +142,9 @@ public:
 private:
   NodeID process_chunk(const NodeID from, const NodeID to) {
     const NodeID num_moved_nodes = perform_iteration(from, to);
-    if (num_moved_nodes == 0) { return 0; } // nothing to do
+    if (num_moved_nodes == 0) {
+      return 0;
+    } // nothing to do
 
     synchronize_ghost_node_clusters(from, to);
     return num_moved_nodes;

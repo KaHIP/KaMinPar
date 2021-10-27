@@ -3,14 +3,14 @@
  *
  * @author: Daniel Seemaier
  * @date:   21.09.21
- * @brief:  Generic implementation of label propagation.
+ * @brief:  Generic implementation of parallel label propagation.
  ******************************************************************************/
 #pragma once
 
-#include "datastructure/rating_map.h"
-#include "parallel.h"
-#include "utility/random.h"
-#include "utility/timer.h"
+#include "kaminpar/datastructure/rating_map.h"
+#include "kaminpar/parallel.h"
+#include "kaminpar/utility/random.h"
+#include "kaminpar/utility/timer.h"
 
 #include <atomic>
 #include <ranges>
@@ -50,14 +50,14 @@ struct LabelPropagationConfig {
 };
 
 /*!
- * Generic implementation of parallel label propagation.
- * To use, inherit from this class and implement the mandatory template functions.
+ * Generic implementation of parallel label propagation. To use, inherit from this class and implement all mandatory
+ * template functions.
+ *
  * @tparam Derived Derived class for static polymorphism.
  * @tparam Config Algorithmic configuration and data types.
  */
-template<typename Derived, std::derived_from<LabelPropagationConfig> Config>
-class LabelPropagation {
-  SET_DEBUG(true);
+template <typename Derived, std::derived_from<LabelPropagationConfig> Config> class LabelPropagation {
+  SET_DEBUG(false);
   SET_STATISTICS(false);
 
 protected:
@@ -83,51 +83,75 @@ public:
   [[nodiscard]] EdgeWeight expected_total_gain() const { return _expected_total_gain; }
 
 protected:
-  explicit LabelPropagation(const NodeID max_num_active_nodes)
-      : LabelPropagation(max_num_active_nodes, max_num_active_nodes) {}
+  /*!
+   * (Re)allocates memory to run label propagation on a graph with \c num_nodes nodes.
+   * @param num_nodes Number of nodes in the graph.
+   */
+  void allocate(const NodeID num_nodes) { allocate(num_nodes, num_nodes); }
 
-  LabelPropagation(const NodeID max_num_active_nodes, const NodeID max_num_nodes)
-      : _rating_map_ets{[max_num_nodes] { return RatingMap{max_num_nodes}; }},
-        _active(max_num_active_nodes),
-        _favored_clusters(Config::kUseTwoHopClustering * (max_num_active_nodes + 1)) {}
+  /*!
+   * (Re)allocates memory to run label propagation on a graph with \c num_nodes nodes in total, but a clustering is
+   * only computed for the first \c num_active_nodes nodes.
+   *
+   * This is mostly useful for distributed graphs where ghost nodes are always inactive.
+   *
+   * @param num_nodes Total number of nodes in the graph, i.e., neighbors of active nodes have an ID less than this.
+   * @param num_active_nodes Number of nodes for which a cluster label is computed.
+   */
+  void allocate(const NodeID num_nodes, const NodeID num_active_nodes) {
+    if (_num_nodes < num_nodes) {
+      for (auto &rating_map : _rating_map_ets) {
+        rating_map.change_max_size(num_nodes);
+      }
+    }
 
+    if (_num_active_nodes < num_active_nodes) {
+      _active.resize(num_active_nodes);
+      if constexpr (Config::kUseTwoHopClustering) {
+        _favored_clusters.resize(num_active_nodes);
+      }
+    }
+
+    _num_nodes = num_nodes;
+    _num_active_nodes = num_active_nodes;
+  }
+
+  /*!
+   * Initialize label propagation. Must be called after \c allocate().
+   * @param graph Graph for label propagation.
+   * @param num_clusters Number of different clusters the nodes are placed in initially. When using label propagation
+   * as refinement algorithm, this is usually the number of blocks. When using as for clustering, it is usually the
+   * number of nodes.
+   */
   void initialize(const Graph *graph, const ClusterID num_clusters) {
+    ALWAYS_ASSERT(_num_nodes > 0 && _num_active_nodes > 0) << "you must call allocate() before initialize()";
+
     _graph = graph;
     _initial_num_clusters = num_clusters;
     _current_num_clusters = num_clusters;
     reset_state();
   }
 
+  /*!
+   * Determines whether we should stop label propagation because the number of non-empty clusters has been reduced
+   * sufficiently.
+   * @return Whether label propagation should be stopped now.
+   */
   bool should_stop() {
-    if (Config::kTrackClusterCount) { return _current_num_clusters <= _desired_num_clusters; }
+    if (Config::kTrackClusterCount) {
+      return _current_num_clusters <= _desired_num_clusters;
+    }
     return false;
   }
 
-  void reset_state() {
-    tbb::parallel_invoke(
-        [&] {
-          tbb::parallel_for(static_cast<ClusterID>(0), static_cast<ClusterID>(_graph->n()), [&](const auto u) {
-            _active[u] = 1;
-
-            const ClusterID initial_cluster = derived_initial_cluster(u);
-            derived_init_cluster(u, initial_cluster);
-            if constexpr (Config::kUseTwoHopClustering) { _favored_clusters[u] = initial_cluster; }
-
-            derived_reset_node_state(u);
-          });
-        },
-        [&] {
-          tbb::parallel_for(static_cast<ClusterID>(0), _initial_num_clusters, [&](const auto cluster) {
-            derived_init_cluster_weight(cluster, derived_initial_cluster_weight(cluster));
-          });
-        });
-    IFSTATS(_expected_total_gain = 0);
-    _current_num_clusters = _initial_num_clusters;
-  }
-
-  // returns the following status flags:
-  // ... first:  whether the node could be moved to another cluster
-  // ... second: whether the previous cluster of the node is now empty (only if Config::kReportEmptyClusters)
+  /*!
+   * Move a single node to a new cluster.
+   *
+   * @param u The node that is moved.
+   * @param local_rand Thread-local \c Randomize object.
+   * @param local_rating_map Thread-local rating map for gain computation.
+   * @return Pair with: whether the node was moved to another cluster, whether the previous cluster is now empty.
+   */
   std::pair<bool, bool> handle_node(const NodeID u, Randomize &local_rand, auto &local_rating_map) {
     const NodeWeight u_weight = _graph->node_weight(u);
     const ClusterID u_cluster = derived_cluster(u);
@@ -163,6 +187,16 @@ protected:
     ClusterWeight current_cluster_weight;
   };
 
+  /*!
+   * Computes the best feasible cluster for a node.
+   *
+   * @param u The node for which the cluster is computed.
+   * @param u_weight The weight of the node.
+   * @param u_cluster The current cluster of the node.
+   * @param local_rand Thread-local \c Randomize object.
+   * @param local_rating_map Thread-local rating map to compute gain values.
+   * @return Pair with: new cluster of the node, gain value for the move to the new cluster.
+   */
   std::pair<ClusterID, EdgeWeight> find_best_cluster(const NodeID u, const NodeWeight u_weight,
                                                      const ClusterID u_cluster, Randomize &local_rand,
                                                      auto &local_rating_map) {
@@ -192,7 +226,9 @@ protected:
 
       const EdgeID from = _graph->first_edge(u);
       const EdgeID to = from + std::min(_graph->degree(u), _max_num_neighbors);
-      for (EdgeID e = from; e < to; ++e) { add_to_rating_map(e, _graph->edge_target(e)); }
+      for (EdgeID e = from; e < to; ++e) {
+        add_to_rating_map(e, _graph->edge_target(e));
+      }
 
       // after LP, we might want to use 2-hop clustering to merge nodes that could not find any cluster to join
       // for this, we store a favored cluster for each node u if:
@@ -208,7 +244,9 @@ protected:
         state.current_gain = rating;
         state.current_cluster_weight = derived_cluster_weight(cluster);
 
-        if (store_favored_cluster && state.current_gain > state.best_gain) { favored_cluster = state.current_cluster; }
+        if (store_favored_cluster && state.current_gain > state.best_gain) {
+          favored_cluster = state.current_cluster;
+        }
 
         if (derived_accept_cluster(state)) {
           state.best_cluster = state.current_cluster;
@@ -233,17 +271,27 @@ protected:
     return {best_cluster, gain};
   }
 
+  /*!
+   * Flags neighbors of a node that has been moved as active.
+   *
+   * @param u Node that was moved.
+   */
   void activate_neighbors(const NodeID u) {
     for (const NodeID v : _graph->adjacent_nodes(u)) {
-      if (derived_activate_neighbor(v)) { _active[v].store(1, std::memory_order_relaxed); }
+      if (derived_activate_neighbor(v)) {
+        _active[v].store(1, std::memory_order_relaxed);
+      }
     }
   }
 
-  //
-  // 2-hop clustering
-  //
-
+  /*!
+   * Compute a 2-hop clustering on nodes that are in singleton clusters.
+   * @param from
+   * @param to
+   */
   void perform_two_hop_clustering(const NodeID from = 0, const NodeID to = std::numeric_limits<ClusterID>::max()) {
+    static_assert(Config::kUseTwoHopClustering, "2-hop clustering is disabled");
+
     // reset _favored_clusters entries for nodes that are not considered for 2-hop matching
     // == nodes that are already clustered with at least one other node or nodes that have more weight than max_weight/2
     // set _favored_clusters to dummy entry _graph->n() for isolated nodes
@@ -254,15 +302,21 @@ protected:
         const auto initial_weight = derived_initial_cluster_weight(u);
         const auto current_weight = derived_cluster_weight(u);
         const auto max_weight = derived_max_cluster_weight(u);
-        if (current_weight != initial_weight || current_weight > max_weight / 2) { _favored_clusters[u] = u; }
+        if (current_weight != initial_weight || current_weight > max_weight / 2) {
+          _favored_clusters[u] = u;
+        }
       }
     });
 
     tbb::parallel_for(from, std::min<ClusterID>(to, _graph->n()), [&](const NodeID u) {
-      if (should_stop()) { return; } // abort once we merged enough clusters
+      if (should_stop()) {
+        return;
+      } // abort once we merged enough clusters
 
       const NodeID favored_leader = _favored_clusters[u];
-      if (favored_leader == u) { return; }
+      if (favored_leader == u) {
+        return;
+      }
 
       do {
         NodeID expected_value = favored_leader;
@@ -284,10 +338,32 @@ protected:
     });
   }
 
-  //
-  // Template methods that must be implemented
-  //
+private:
+  void reset_state() {
+    tbb::parallel_invoke(
+        [&] {
+          tbb::parallel_for(static_cast<ClusterID>(0), static_cast<ClusterID>(_graph->n()), [&](const auto u) {
+            _active[u] = 1;
 
+            const ClusterID initial_cluster = derived_initial_cluster(u);
+            derived_init_cluster(u, initial_cluster);
+            if constexpr (Config::kUseTwoHopClustering) {
+              _favored_clusters[u] = initial_cluster;
+            }
+
+            derived_reset_node_state(u);
+          });
+        },
+        [&] {
+          tbb::parallel_for(static_cast<ClusterID>(0), _initial_num_clusters, [&](const auto cluster) {
+            derived_init_cluster_weight(cluster, derived_initial_cluster_weight(cluster));
+          });
+        });
+    IFSTATS(_expected_total_gain = 0);
+    _current_num_clusters = _initial_num_clusters;
+  }
+
+private: // CRTP calls
   //! Return current cluster ID of  node \c u.
   [[nodiscard]] ClusterID derived_cluster(const NodeID u) { return static_cast<Derived *>(this)->cluster(u); }
 
@@ -328,55 +404,77 @@ protected:
     return static_cast<Derived *>(this)->accept_cluster(state);
   }
 
-  //
-  // Default implementation for optional template methods
-  //
-
   void derived_reset_node_state(const NodeID u) { static_cast<Derived *>(this)->reset_node_state(u); }
-  void reset_node_state(const NodeID /* node */) {}
 
   [[nodiscard]] inline bool derived_accept_neighbor(const NodeID u) {
     return static_cast<Derived *>(this)->accept_neighbor(u);
   }
-  [[nodiscard]] inline bool accept_neighbor(const NodeID /* node */) const { return true; }
 
   [[nodiscard]] inline bool derived_activate_neighbor(const NodeID u) {
     return static_cast<Derived *>(this)->activate_neighbor(u);
   }
-  [[nodiscard]] inline bool activate_neighbor(const NodeID /* node */) const { return true; }
 
   [[nodiscard]] ClusterID derived_initial_cluster(const NodeID u) {
     return static_cast<Derived *>(this)->initial_cluster(u);
   }
-  [[nodiscard]] inline ClusterID initial_cluster(const NodeID u) { return derived_cluster(u); }
 
   [[nodiscard]] ClusterWeight derived_initial_cluster_weight(const ClusterID cluster) {
     return static_cast<Derived *>(this)->initial_cluster_weight(cluster);
   }
+
+protected: // Default implementations
+  void reset_node_state(const NodeID /* node */) {}
+
+  [[nodiscard]] inline bool accept_neighbor(const NodeID /* node */) const { return true; }
+
+  [[nodiscard]] inline bool activate_neighbor(const NodeID /* node */) const { return true; }
+
+  [[nodiscard]] inline ClusterID initial_cluster(const NodeID u) { return derived_cluster(u); }
+
   [[nodiscard]] inline ClusterWeight initial_cluster_weight(const ClusterID cluster) {
     return derived_cluster_weight(cluster);
   }
 
-  //
-  // Members
-  //
-
+protected: // Members
+  //! Graph we operate on, or \c nullptr if \c initialize has not been called yet.
   const Graph *_graph{nullptr};
 
-  ClusterID _initial_num_clusters;                                  //! Number of clusters before the first iteration
-  parallel::IntegralAtomicWrapper<ClusterID> _current_num_clusters; //! Current number of clusters
-  ClusterID _desired_num_clusters{0}; //! Terminate once there are less than this many clusters
+  //! The number of non-empty clusters before we ran the first iteration of label propagation.
+  ClusterID _initial_num_clusters;
 
-  parallel::IntegralAtomicWrapper<EdgeWeight> _expected_total_gain; //! Total cut reduction when run sequentially
+  //! The current number of non-empty clusters. Only meaningful if empty clusters are being counted.
+  parallel::IntegralAtomicWrapper<ClusterID> _current_num_clusters;
 
-  NodeID _max_degree{std::numeric_limits<NodeID>::max()};        //! Ignore nodes with degree larger than this
+  //! We stop label propagation if the number of non-empty clusters falls below this threshold. Only has an effect if
+  //! empty clusters are being counted.
+  ClusterID _desired_num_clusters{0};
+
+  //! We do not move nodes with a degree higher than this. However, other nodes may still be moved to the cluster of
+  //! with degree larger than this threshold.
+  NodeID _max_degree{std::numeric_limits<NodeID>::max()};
+
+  //! When computing the gain values for a node, this is an upper limit on the number of neighbors of the nodes we
+  //! consider. Any more neighbors are ignored.
   NodeID _max_num_neighbors{std::numeric_limits<NodeID>::max()}; //! Only consider this many neighbors per node
 
-  tbb::enumerable_thread_specific<RatingMap> _rating_map_ets;        //! Thread-local map to compute gain values
-  scalable_vector<parallel::IntegralAtomicWrapper<uint8_t>> _active; //! Flag (in)active nodes
+  //! Thread-local map to compute gain values.
+  tbb::enumerable_thread_specific<RatingMap> _rating_map_ets{[this] { return RatingMap{_num_nodes}; }};
 
-  //! [2hop clustering] If a node cannot join any cluster, store the cluster with the highest gain
+  //! Flags nodes with at least one node in its neighborhood that changed clusters during the last iteration.
+  //! Nodes without this flag set must not be considered in the next iteration.
+  scalable_vector<parallel::IntegralAtomicWrapper<uint8_t>> _active;
+
+  //! If a node cannot join any cluster during an iteration, this vector stores the node's highest rated cluster
+  //! independent of the maximum cluster weight. This information is used during 2-hop clustering.
   scalable_vector<parallel::IntegralAtomicWrapper<ClusterID>> _favored_clusters;
+
+  //! If statistics are enabled, this is the sum of the gain of all moves that were performed. If executed
+  //! single-thread, this should be equal to the reduction of the edge cut.
+  parallel::IntegralAtomicWrapper<EdgeWeight> _expected_total_gain;
+
+private:
+  NodeID _num_nodes{0};
+  NodeID _num_active_nodes{0};
 };
 
 /*!
@@ -384,7 +482,7 @@ protected:
  * @tparam Derived Derived subclass for static polymorphism.
  * @tparam Config Algorithmic configuration and data types.
  */
-template<typename Derived, std::derived_from<LabelPropagationConfig> Config>
+template <typename Derived, std::derived_from<LabelPropagationConfig> Config>
 class InOrderLabelPropagation : public LabelPropagation<Derived, Config> {
   SET_DEBUG(true);
 
@@ -399,15 +497,10 @@ protected:
   using NodeID = typename Base::NodeID;
   using NodeWeight = typename Base::NodeWeight;
 
-  using typename Base::ClusterSelectionState;
-
   using Base::handle_node;
   using Base::set_max_degree;
   using Base::set_max_num_neighbors;
   using Base::should_stop;
-
-  template<typename... Args>
-  explicit InOrderLabelPropagation(Args &&...args) : Base{std::forward<Args>(args)...} {}
 
   NodeID perform_iteration(const NodeID from = 0, const NodeID to = std::numeric_limits<NodeID>::max()) {
     tbb::enumerable_thread_specific<NodeID> num_moved_nodes_ets;
@@ -421,11 +514,15 @@ protected:
       auto &rating_map = _rating_map_ets.local();
 
       for (NodeID u = r.begin(); u != r.end(); ++u) {
-        if (!_active[u].load(std::memory_order_relaxed)) { continue; }
+        if (!_active[u].load(std::memory_order_relaxed)) {
+          continue;
+        }
         _active[u].store(0, std::memory_order_relaxed);
 
         if (work_since_update > Config::kMinChunkSize) {
-          if (Base::should_stop()) { return; }
+          if (Base::should_stop()) {
+            return;
+          }
 
           _current_num_clusters -= num_removed_clusters;
           work_since_update = 0;
@@ -434,8 +531,12 @@ protected:
 
         const auto [moved_node, emptied_cluster] = handle_node(u, rand, rating_map);
         work_since_update += _graph->degree(u);
-        if (moved_node) { ++num_moved_nodes; }
-        if (emptied_cluster) { ++num_removed_clusters; }
+        if (moved_node) {
+          ++num_moved_nodes;
+        }
+        if (emptied_cluster) {
+          ++num_removed_clusters;
+        }
       }
     });
 
@@ -453,7 +554,7 @@ protected:
  * @tparam Derived Derived subclass for static polymorphism.
  * @tparam Config Algorithmic configuration and data types.
  */
-template<typename Derived, std::derived_from<LabelPropagationConfig> Config>
+template <typename Derived, std::derived_from<LabelPropagationConfig> Config>
 class ChunkRandomizedLabelPropagation : public LabelPropagation<Derived, Config> {
   using Base = LabelPropagation<Derived, Config>;
 
@@ -466,15 +567,10 @@ protected:
   using NodeID = typename Base::NodeID;
   using NodeWeight = typename Base::NodeWeight;
 
-  using Base::ClusterSelectionState;
-
   using Base::handle_node;
   using Base::set_max_degree;
   using Base::set_max_num_neighbors;
   using Base::should_stop;
-
-  template<typename... Args>
-  explicit ChunkRandomizedLabelPropagation(Args &&...args) : Base{std::forward<Args>(args)...} {}
 
   void initialize(const Graph *graph, const ClusterID num_clusters) {
     Base::initialize(graph, num_clusters);
@@ -486,14 +582,18 @@ protected:
     ALWAYS_ASSERT(from == 0 && to == std::numeric_limits<NodeID>::max())
         << "randomized iteration does not support node ranges";
 
-    if (_chunks.empty()) { init_chunks(); }
+    if (_chunks.empty()) {
+      init_chunks();
+    }
     shuffle_chunks();
 
     tbb::enumerable_thread_specific<NodeID> num_moved_nodes_ets;
     parallel::IntegralAtomicWrapper<std::size_t> next_chunk;
 
     tbb::parallel_for(static_cast<std::size_t>(0), _chunks.size(), [&](const std::size_t) {
-      if (should_stop()) { return; }
+      if (should_stop()) {
+        return;
+      }
 
       auto &local_num_moved_nodes = num_moved_nodes_ets.local();
       auto &local_rand = Randomize::instance();
@@ -516,8 +616,12 @@ protected:
             _active[u].store(0, std::memory_order_relaxed);
 
             const auto [moved_node, emptied_cluster] = handle_node(u, local_rand, local_rating_map);
-            if (moved_node) { ++local_num_moved_nodes; }
-            if (emptied_cluster) { ++num_removed_clusters; }
+            if (moved_node) {
+              ++local_num_moved_nodes;
+            }
+            if (emptied_cluster) {
+              ++num_removed_clusters;
+            }
           }
         }
       }
@@ -553,7 +657,9 @@ private:
 
     for (std::size_t bucket = 0; bucket < max_bucket; ++bucket) {
       const std::size_t bucket_size = _graph->bucket_size(bucket);
-      if (bucket_size == 0) { continue; }
+      if (bucket_size == 0) {
+        continue;
+      }
 
       parallel::IntegralAtomicWrapper<NodeID> offset = 0;
       tbb::enumerable_thread_specific<std::size_t> num_chunks_ets;
@@ -567,7 +673,9 @@ private:
 
         while (offset < bucket_size) {
           const NodeID begin = offset.fetch_add(max_node_chunk_size);
-          if (begin >= bucket_size) { break; }
+          if (begin >= bucket_size) {
+            break;
+          }
           const NodeID end = std::min<NodeID>(begin + max_node_chunk_size, bucket_size);
 
           Degree current_chunk_size = 0;
@@ -619,8 +727,7 @@ protected:
   std::vector<Bucket> _buckets;
 };
 
-template<typename NodeID, typename ClusterID>
-class OwnedClusterVector {
+template <typename NodeID, typename ClusterID> class OwnedClusterVector {
 public:
   explicit OwnedClusterVector(const NodeID max_num_nodes) : _clusters(max_num_nodes) {}
 
@@ -638,8 +745,7 @@ private:
   scalable_vector<parallel::IntegralAtomicWrapper<ClusterID>> _clusters;
 };
 
-template<typename ClusterID, typename ClusterWeight>
-class OwnedRelaxedClusterWeightVector {
+template <typename ClusterID, typename ClusterWeight> class OwnedRelaxedClusterWeightVector {
 public:
   explicit OwnedRelaxedClusterWeightVector(const ClusterID max_num_clusters) : _cluster_weights(max_num_clusters) {}
 

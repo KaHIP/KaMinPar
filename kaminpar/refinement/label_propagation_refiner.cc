@@ -31,7 +31,8 @@ class LabelPropagationRefinerImpl final
   static constexpr std::size_t kInfiniteIterations = std::numeric_limits<std::size_t>::max();
 
 public:
-  LabelPropagationRefinerImpl(const Graph &graph, const RefinementContext &r_ctx) : Base{graph.n()}, _r_ctx{r_ctx} {
+  LabelPropagationRefinerImpl(const Graph &graph, const RefinementContext &r_ctx) : _r_ctx{r_ctx} {
+    allocate(graph.n());
     set_max_degree(r_ctx.lp.large_degree_threshold);
     set_max_num_neighbors(r_ctx.lp.max_num_neighbors);
   }
@@ -48,7 +49,9 @@ public:
     const std::size_t max_iterations = _r_ctx.lp.num_iterations == 0 ? kInfiniteIterations : _r_ctx.lp.num_iterations;
     for (std::size_t iteration = 0; iteration < max_iterations; ++iteration) {
       SCOPED_TIMER("Label Propagation");
-      if (perform_iteration() == 0) { return false; }
+      if (perform_iteration() == 0) {
+        return false;
+      }
     }
 
     return true;

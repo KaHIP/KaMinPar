@@ -61,7 +61,7 @@ private:
       ++_small_map_counter;
     }
 
-    if (_selected_map == MapType::LARGE && _large_map.capacity() != _max_size) { _large_map.resize(_max_size); }
+    if (_selected_map == MapType::LARGE && _large_map.capacity() < _max_size) { _large_map.resize(_max_size); }
   }
 
   std::size_t _max_size;

@@ -31,7 +31,7 @@ public:
   FastResetArray &operator=(FastResetArray &&) noexcept = default;
 
   reference operator[](const size_type pos) {
-    ASSERT(pos < _data.size());
+    ASSERT(pos < _data.size()) << V(pos) << V(_data.size());
     if (_data[pos] == value_type()) { _used_entries.push_back(pos); }
     return _data[pos];
   }
@@ -66,6 +66,6 @@ public:
 
 private:
   std::vector<value_type> _data;
-  std::vector<size_type> _used_entries;
+  std::vector<size_type> _used_entries{};
 };
 } // namespace kaminpar

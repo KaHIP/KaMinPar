@@ -1,10 +1,10 @@
 /*******************************************************************************
-* @file:   distributed_probabilistic_label_propagation_refiner.h
-*
-* @author: Daniel Seemaier
-* @date:   30.09.2021
-* @brief:
-******************************************************************************/
+ * @file:   distributed_probabilistic_label_propagation_refiner.h
+ *
+ * @author: Daniel Seemaier
+ * @date:   30.09.2021
+ * @brief:
+ ******************************************************************************/
 #include "dkaminpar/refinement/distributed_probabilistic_label_propagation_refiner.h"
 
 #include "dkaminpar/mpi_graph.h"
@@ -79,11 +79,10 @@ class DistributedProbabilisticLabelPropagationRefinerImpl final
 
 public:
   explicit DistributedProbabilisticLabelPropagationRefinerImpl(const Context &ctx)
-      : Base{ctx.partition.local_n()},
-        _lp_ctx{ctx.refinement.lp},
-        _next_partition(ctx.partition.local_n()),
-        _gains(ctx.partition.local_n()),
-        _block_weights(ctx.partition.k) {}
+      : _lp_ctx{ctx.refinement.lp}, _next_partition(ctx.partition.local_n()), _gains(ctx.partition.local_n()),
+        _block_weights(ctx.partition.k) {
+    allocate(ctx.partition.local_n());
+  }
 
   void initialize(const DistributedGraph & /* graph */, const PartitionContext &p_ctx) {
     _p_ctx = &p_ctx;
@@ -102,7 +101,9 @@ public:
         const auto [from, to] = math::compute_local_range<NodeID>(_p_graph->n(), _lp_ctx.num_chunks, chunk);
         num_moved_nodes += process_chunk(from, to);
       }
-      if (num_moved_nodes == 0) { break; }
+      if (num_moved_nodes == 0) {
+        break;
+      }
     }
 
     IFSTATS(_statistics.actual_gain += cut_before - metrics::edge_cut(*_p_graph));
@@ -118,7 +119,9 @@ private:
 
     // run label propagation
     const NodeID num_moved_nodes = perform_iteration(from, to);
-    if (num_moved_nodes == 0) { return 0; } // nothing to do
+    if (num_moved_nodes == 0) {
+      return 0;
+    } // nothing to do
 
     // accumulate total weight of nodes moved to each block
     parallel::vector_ets<BlockWeight> weight_to_block_ets(_p_ctx->k);
@@ -179,7 +182,9 @@ private:
 
       for (NodeID u = r.begin(); u < r.end(); ++u) {
         // only iterate over nodes that changed block
-        if (_next_partition[u] == _p_graph->block(u)) { return; }
+        if (_next_partition[u] == _p_graph->block(u)) {
+          return;
+        }
 
         // compute move probability
         const BlockID b = _next_partition[u];
@@ -209,7 +214,9 @@ private:
     // check for balance violations
     shm::parallel::IntegralAtomicWrapper<std::uint8_t> feasible = 1;
     _p_graph->pfor_blocks([&](const BlockID b) {
-      if (global_block_weights[b] > max_cluster_weight(b)) { feasible = 0; }
+      if (global_block_weights[b] > max_cluster_weight(b)) {
+        feasible = 0;
+      }
     });
 
     // record statistics
@@ -309,7 +316,9 @@ public:
                          (state.current_gain == state.best_gain && state.local_rand.random_bool())) &&
                         (state.current_cluster_weight + state.u_weight < max_cluster_weight(state.current_cluster) ||
                          state.current_cluster == state.initial_cluster);
-    if (accept) { _gains[state.u] = state.current_gain; }
+    if (accept) {
+      _gains[state.u] = state.current_gain;
+    }
     return accept;
   }
 
