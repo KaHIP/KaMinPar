@@ -21,13 +21,11 @@
 
 #include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/distributed_definitions.h"
-#include "dkaminpar/mpi_utils.h"
+#include "dkaminpar/mpi_wrapper.h"
 #include "kaminpar/datastructure/marker.h"
 
 #include <tbb/concurrent_vector.h>
 #include <type_traits>
-
-#define SPARSE_ALLTOALL_NOFILTER [](NodeID) { return true; }
 
 namespace dkaminpar::mpi::graph {
 template<typename Message, template<typename> typename Buffer = scalable_vector>

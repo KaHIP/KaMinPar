@@ -2,7 +2,7 @@
 
 #include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/distributed_definitions.h"
-#include "dkaminpar/mpi_utils.h"
+#include "dkaminpar/mpi_wrapper.h"
 
 #include <gmock/gmock.h>
 #include <utility>

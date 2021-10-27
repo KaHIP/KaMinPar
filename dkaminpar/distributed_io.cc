@@ -20,11 +20,9 @@
 #include "dkaminpar/distributed_io.h"
 
 #include "dkaminpar/datastructure/distributed_graph_builder.h"
-#include "dkaminpar/utility/distributed_math.h"
+#include "dkaminpar/mpi_wrapper.h"
+#include "dkaminpar/utility/math.h"
 #include "kaminpar/io.h"
-#include "mpi_utils.h"
-
-#include <io.h>
 
 namespace dkaminpar::io {
 SET_DEBUG(false);

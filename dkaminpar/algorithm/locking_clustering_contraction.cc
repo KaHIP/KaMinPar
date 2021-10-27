@@ -9,7 +9,7 @@
 
 #include "dkaminpar/algorithm/local_graph_contraction.h"
 #include "dkaminpar/growt.h"
-#include "dkaminpar/mpi_graph_utils.h"
+#include "dkaminpar/mpi_graph.h"
 #include "kaminpar/datastructure/rating_map.h"
 
 namespace dkaminpar::graph {

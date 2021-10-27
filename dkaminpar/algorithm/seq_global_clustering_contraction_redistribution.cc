@@ -10,8 +10,8 @@
 #include "dkaminpar/algorithm/seq_global_clustering_contraction_redistribution.h"
 
 #include "dkaminpar/datastructure/distributed_graph_builder.h"
-#include "dkaminpar/mpi_graph_utils.h"
-#include "dkaminpar/mpi_utils.h"
+#include "dkaminpar/mpi_graph.h"
+#include "dkaminpar/mpi_wrapper.h"
 
 #include <vector>
 

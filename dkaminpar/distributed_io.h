@@ -19,8 +19,8 @@
 ******************************************************************************/
 #pragma once
 
-#include "datastructure/distributed_graph.h"
-#include "mpi_utils.h"
+#include "dkaminpar/datastructure/distributed_graph.h"
+#include "dkaminpar/mpi_wrapper.h"
 
 #include <fstream>
 #include <string>

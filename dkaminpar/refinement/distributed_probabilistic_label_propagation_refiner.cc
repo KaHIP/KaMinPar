@@ -2,15 +2,15 @@
 * @file:   distributed_probabilistic_label_propagation_refiner.h
 *
 * @author: Daniel Seemaier
-* @date:   30.09.21
+* @date:   30.09.2021
 * @brief:
 ******************************************************************************/
 #include "dkaminpar/refinement/distributed_probabilistic_label_propagation_refiner.h"
 
-#include "dkaminpar/mpi_graph_utils.h"
-#include "dkaminpar/mpi_utils.h"
-#include "dkaminpar/utility/distributed_math.h"
+#include "dkaminpar/mpi_graph.h"
+#include "dkaminpar/mpi_wrapper.h"
 #include "dkaminpar/utility/distributed_metrics.h"
+#include "dkaminpar/utility/math.h"
 #include "dkaminpar/utility/vector_ets.h"
 #include "kaminpar/algorithm/parallel_label_propagation.h"
 #include "kaminpar/datastructure/marker.h"

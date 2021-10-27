@@ -2,7 +2,7 @@
  * @file:   distributed_probabilistic_label_propagation_refiner.h
  *
  * @author: Daniel Seemaier
- * @date:   30.09.21
+ * @date:   30.09.2021
  * @brief:
  ******************************************************************************/
 #pragma once

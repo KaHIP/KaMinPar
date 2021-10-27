@@ -12,7 +12,6 @@
 #include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/distributed_context.h"
 
-
 namespace dkaminpar {
 class DistributedLocalLabelPropagationClustering : public IClustering<NodeID> {
 public:

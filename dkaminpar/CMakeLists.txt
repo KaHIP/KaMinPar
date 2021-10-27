@@ -22,11 +22,11 @@ set(DKAMINPAR_SOURCE_FILES
         initial_partitioning/i_initial_partitioner.h
         distributed_io.cc
         distributed_io.h
-        utility/distributed_math.h
+        utility/math.h
         utility/distributed_timer.cc
         utility/distributed_timer.h
-        mpi_utils.h
-        mpi_graph_utils.h
+        mpi_wrapper.h
+        mpi_graph.h
         utility/distributed_metrics.cc
         utility/distributed_metrics.h
         utility/vector_ets.h
@@ -40,7 +40,6 @@ set(DKAMINPAR_SOURCE_FILES
         distributed_definitions.h
         distributed_context.cc
         distributed_context.h
-        mpi_wrapper.h
         growt.h)
 
 # Only create target if MPI is available

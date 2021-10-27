@@ -8,8 +8,8 @@
 #include "dkaminpar/coarsening/locking_label_propagation_clustering.h"
 
 #include "dkaminpar/growt.h"
-#include "dkaminpar/mpi_graph_utils.h"
-#include "dkaminpar/utility/distributed_math.h"
+#include "dkaminpar/mpi_graph.h"
+#include "dkaminpar/utility/math.h"
 #include "kaminpar/algorithm/parallel_label_propagation.h"
 
 #include <unordered_set>
