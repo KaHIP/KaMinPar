@@ -5,7 +5,6 @@
  * @date:   27.10.2021
  * @brief:  C++ wrapper for MPI calls.
  ******************************************************************************/
-
 #pragma once
 
 #include "dkaminpar/distributed_definitions.h"
