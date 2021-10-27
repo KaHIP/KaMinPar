@@ -129,15 +129,17 @@ void sparse_alltoall(const std::vector<Buffer<Message>> &send_buffers, auto &&re
 
   const auto [size, rank] = mpi::get_comm_info(comm);
 
-  std::vector<MPI_Request> requests(size - 1);
+  std::vector<MPI_Request> requests(size - 1 + self);
 
   std::size_t next_req_index = 0;
   for (PEID pe = 0; pe < size; ++pe) {
     if (self || pe != rank) {
       ASSERT(static_cast<std::size_t>(pe) < send_buffers.size()) << V(pe) << V(send_buffers.size());
+      ASSERT(next_req_index < requests.size());
       mpi::isend(send_buffers[pe], pe, 0, requests[next_req_index++], comm);
     }
   }
+  ASSERT(next_req_index == requests.size());
 
   for (PEID pe = 0; pe < size; ++pe) {
     if (self || pe != rank) {
@@ -151,7 +153,6 @@ void sparse_alltoall(const std::vector<Buffer<Message>> &send_buffers, auto &&re
   }
 
   mpi::waitall(requests);
-  mpi::barrier(comm);
 }
 
 template<typename T>

@@ -90,7 +90,6 @@ int main(int argc, char *argv[]) {
     auto &clustering = clustering_algorithm.compute_clustering(*c_graph, max_cluster_weight);
     STOP_TIMER();
 
-    break;
     LOG << "... contracting";
 
     START_TIMER("Contraction", "Level " + std::to_string(graph_hierarchy.size()));
