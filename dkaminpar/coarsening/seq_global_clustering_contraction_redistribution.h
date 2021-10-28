@@ -9,19 +9,19 @@
  ******************************************************************************/
 #pragma once
 
-#include "dkaminpar/algorithm/local_graph_contraction.h"
+#include "dkaminpar/coarsening/local_graph_contraction.h"
 
-namespace dkaminpar::graph {
+namespace dkaminpar::coarsening {
 namespace contraction {
 struct GlobalMappingResult {
-  DistributedGraph graph;
-  scalable_vector<GlobalNodeID> mapping;
-  MemoryContext m_ctx;
+  DistributedGraph graph{};
+  scalable_vector<GlobalNodeID> mapping{};
+  MemoryContext m_ctx{};
 };
 } // namespace contraction
 
-contraction::GlobalMappingResult contract_global_clustering_redistribute(
+contraction::GlobalMappingResult contract_global_clustering_redistribute_sequential(
     const DistributedGraph &graph,
     const scalable_vector<shm::parallel::IntegralAtomicWrapper<GlobalNodeID>> &clustering,
     contraction::MemoryContext m_ctx = {});
-} // namespace dkaminpar::graph
+} // namespace dkaminpar::coarsening

@@ -5,7 +5,7 @@
  * @date:   27.10.2021
  * @brief:
  ******************************************************************************/
-#include "dkaminpar/algorithm/local_graph_contraction.h"
+#include "local_graph_contraction.h"
 
 #include "dkaminpar/mpi_graph.h"
 #include "dkaminpar/mpi_wrapper.h"
@@ -14,7 +14,7 @@
 #include <tbb/parallel_for.h>
 #include <tbb/parallel_invoke.h>
 
-namespace dkaminpar::graph {
+namespace dkaminpar::coarsening {
 using namespace contraction;
 
 SET_DEBUG(true);

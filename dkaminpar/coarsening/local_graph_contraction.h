@@ -7,10 +7,10 @@
  ******************************************************************************/
 #pragma once
 
-#include "dkaminpar/datastructure/distributed_graph.h"
-#include "kaminpar/datastructure/ts_navigable_linked_list.h"
+#include "../../kaminpar/datastructure/ts_navigable_linked_list.h"
+#include "../datastructure/distributed_graph.h"
 
-namespace dkaminpar::graph {
+namespace dkaminpar::coarsening {
 namespace contraction {
 struct Edge {
   NodeID target;
@@ -31,6 +31,8 @@ struct Result {
 };
 } // namespace contraction
 
-contraction::Result contract_local_clustering(const DistributedGraph &graph, const scalable_vector<shm::parallel::IntegralAtomicWrapper<NodeID>> &clustering,
-                                              contraction::MemoryContext m_ctx = {});
-} // namespace dkaminpar::graph
+contraction::Result
+contract_local_clustering(const DistributedGraph &graph,
+                          const scalable_vector<shm::parallel::IntegralAtomicWrapper<NodeID>> &clustering,
+                          contraction::MemoryContext m_ctx = {});
+} // namespace dkaminpar::coarsening

@@ -8,7 +8,7 @@
 #include "dkaminpar/partitioning_scheme/kway.h"
 
 #include "dkaminpar/algorithm/allgather_graph.h"
-#include "dkaminpar/algorithm/locking_clustering_contraction.h"
+#include "dkaminpar/coarsening/locking_clustering_contraction.h"
 #include "dkaminpar/coarsening/locking_label_propagation_clustering.h"
 #include "dkaminpar/refinement/distributed_probabilistic_label_propagation_refiner.h"
 #include "dkaminpar/utility/distributed_metrics.h"
@@ -39,7 +39,7 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
     auto &clustering = coarsener.compute_clustering(*c_graph, max_cluster_weight);
     MPI_Barrier(MPI_COMM_WORLD);
     DBG << "... contract";
-    auto [contracted_graph, mapping, mem] = graph::contract_locking_clustering(*c_graph, clustering);
+    auto [contracted_graph, mapping, mem] = coarsening::contract_locking_clustering(*c_graph, clustering);
     DBG << ".... ok";
     MPI_Barrier(MPI_COMM_WORLD);
     graph::debug::validate(contracted_graph);

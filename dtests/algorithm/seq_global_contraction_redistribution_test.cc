@@ -5,7 +5,7 @@
  * @date:   26.10.2021
  * @brief:  Unit tests for sequential global contraction and redistribution.
  ******************************************************************************/
-#include "dkaminpar/algorithm/seq_global_clustering_contraction_redistribution.h"
+#include "dkaminpar/coarsening/seq_global_clustering_contraction_redistribution.h"
 #include "dkaminpar/datastructure/distributed_graph_builder.h"
 #include "dtests/mpi_test.h"
 
@@ -26,11 +26,11 @@ using Clustering = scalable_vector<shm::parallel::IntegralAtomicWrapper<GlobalNo
 
 auto contract_clustering(const DistributedGraph &graph, const std::vector<Clustering> &clusterings) {
   const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
-  return contract_global_clustering_redistribute(graph, clusterings[rank]);
+  return coarsening::contract_global_clustering_redistribute_sequential(graph, clusterings[rank]);
 }
 
 auto contract_clustering(const DistributedGraph &graph, const Clustering &clusterings) {
-  return contract_global_clustering_redistribute(graph, clusterings);
+  return coarsening::contract_global_clustering_redistribute_sequential(graph, clusterings);
 }
 
 TEST_F(DistributedTriangles, TestFullContractionToEachPE) {

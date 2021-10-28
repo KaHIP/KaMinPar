@@ -7,12 +7,12 @@
 ******************************************************************************/
 #pragma once
 
-#include "dkaminpar/algorithm/local_graph_contraction.h"
-#include "dkaminpar/coarsening/locking_label_propagation_clustering.h"
-#include "dkaminpar/datastructure/distributed_graph.h"
-#include "dkaminpar/distributed_definitions.h"
+#include "../datastructure/distributed_graph.h"
+#include "../distributed_definitions.h"
+#include "local_graph_contraction.h"
+#include "locking_label_propagation_clustering.h"
 
-namespace dkaminpar::graph {
+namespace dkaminpar::coarsening {
 namespace contraction {
 struct LockingClusteringContractionResult {
   DistributedGraph graph;

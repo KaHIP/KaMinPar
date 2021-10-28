@@ -42,8 +42,7 @@ inline int get_comm_rank(MPI_Comm comm = MPI_COMM_WORLD) {
 // Map MPI datatypes
 //
 namespace type {
-template<std::size_t N>
-inline MPI_Datatype custom() {
+template <std::size_t N> inline MPI_Datatype custom() {
   static MPI_Datatype type = MPI_DATATYPE_NULL;
   if (type == MPI_DATATYPE_NULL) {
     MPI_Type_contiguous(N, MPI_CHAR, &type);
@@ -54,10 +53,7 @@ inline MPI_Datatype custom() {
 
 // Map to default MPI type
 #define MAP_DATATYPE(CPP_DATATYPE, MPI_DATATYPE)                                                                       \
-  template<std::same_as<CPP_DATATYPE>>                                                                                 \
-  inline MPI_Datatype get() {                                                                                          \
-    return MPI_DATATYPE;                                                                                               \
-  }
+  template <std::same_as<CPP_DATATYPE>> inline MPI_Datatype get() { return MPI_DATATYPE; }
 
 MAP_DATATYPE(std::uint8_t, MPI_UINT8_T)
 MAP_DATATYPE(std::int8_t, MPI_INT8_T)
@@ -70,7 +66,7 @@ MAP_DATATYPE(std::int64_t, MPI_INT64_T)
 MAP_DATATYPE(float, MPI_FLOAT)
 MAP_DATATYPE(double, MPI_DOUBLE)
 MAP_DATATYPE(long double, MPI_LONG_DOUBLE)
-//MAP_DATATYPE(std::size_t, MPI_UNSIGNED_LONG)
+// MAP_DATATYPE(std::size_t, MPI_UNSIGNED_LONG)
 
 #define COMMA ,
 MAP_DATATYPE(std::pair<float COMMA int>, MPI_FLOAT_INT)
@@ -81,10 +77,7 @@ MAP_DATATYPE(std::pair<long double COMMA int>, MPI_LONG_DOUBLE_INT)
 #undef MAP_DATATYPE
 
 // Fallback to custom MPI type
-template<typename T>
-inline MPI_Datatype get() {
-  return custom<sizeof(T)>();
-}
+template <typename T> inline MPI_Datatype get() { return custom<sizeof(T)>(); }
 } // namespace type
 
 //
@@ -93,68 +86,67 @@ inline MPI_Datatype get() {
 
 inline int barrier(MPI_Comm comm = MPI_COMM_WORLD) { return MPI_Barrier(comm); }
 
-template<typename T>
-inline int bcast(T *buffer, const int count, const int root = 0, MPI_Comm comm = MPI_COMM_WORLD) {
+template <typename T> inline int bcast(T *buffer, const int count, const int root = 0, MPI_Comm comm = MPI_COMM_WORLD) {
   return MPI_Bcast(buffer, count, type::get<T>(), root, comm);
 }
 
-template<typename T>
+template <typename T>
 inline int reduce(const T *sendbuf, T *recvbuf, const int count, MPI_Op op, const int root = 0,
                   MPI_Comm comm = MPI_COMM_WORLD) {
   return MPI_Reduce(sendbuf, recvbuf, count, type::get<T>(), op, root, comm);
 }
 
-template<typename T>
+template <typename T>
 inline int allreduce(const T *sendbuf, T *recvbuf, const int count, MPI_Op op, MPI_Comm comm = MPI_COMM_WORLD) {
   return MPI_Allreduce(sendbuf, recvbuf, count, type::get<T>(), op, comm);
 }
 
-template<typename Ts, typename Tr>
+template <typename Ts, typename Tr>
 inline int scatter(const Ts *sendbuf, const int sendcount, Tr *recvbuf, const int recvcount, const int root,
                    MPI_Comm comm = MPI_COMM_WORLD) {
   return MPI_Scatter(sendbuf, sendcount, type::get<Ts>(), recvbuf, recvcount, type::get<Tr>(), root, comm);
 }
 
-template<typename Ts, typename Tr>
+template <typename Ts, typename Tr>
 inline int gather(const Ts *sendbuf, const int sendcount, Tr *recvbuf, const int recvcount, const int root = 0,
                   MPI_Comm comm = MPI_COMM_WORLD) {
   return MPI_Gather(sendbuf, sendcount, type::get<Ts>(), recvbuf, recvcount, type::get<Tr>(), root, comm);
 }
 
-template<typename Ts, typename Tr>
+template <typename Ts, typename Tr>
 inline int allgather(const Ts *sendbuf, const int sendcount, Tr *recvbuf, const int recvcount,
                      MPI_Comm comm = MPI_COMM_WORLD) {
   return MPI_Allgather(sendbuf, sendcount, type::get<Ts>(), recvbuf, recvcount, type::get<Tr>(), comm);
 }
 
-template<typename Ts, typename Tr>
+template <typename Ts, typename Tr>
 inline int alltoall(const Ts *sendbuf, const int sendcount, Tr *recvbuf, const int recvcount,
                     MPI_Comm comm = MPI_COMM_WORLD) {
   return MPI_Alltoall(sendbuf, sendcount, type::get<Ts>(), recvbuf, recvcount, type::get<Tr>(), comm);
 }
 
-template<typename T>
+template <typename T>
 inline int scan(const T *sendbuf, T *recvbuf, const int count, MPI_Op op, MPI_Comm comm = MPI_COMM_WORLD) {
   return MPI_Scan(sendbuf, recvbuf, count, type::get<T>(), op, comm);
 }
 
-template<typename T>
+template <typename T>
 inline int exscan(const T *sendbuf, T *recvbuf, const int count, MPI_Op op, MPI_Comm comm = MPI_COMM_WORLD) {
   return MPI_Exscan(sendbuf, recvbuf, count, type::get<T>(), op, comm);
 }
 
-template<typename T>
+template <typename T>
 inline int reduce_scatter(const T *sendbuf, T *recvbuf, int *recvcounts, MPI_Op op, MPI_Comm comm = MPI_COMM_WORLD) {
   return MPI_Reduce_scatter(sendbuf, recvbuf, recvcounts, type::get<T>(), op, comm);
 }
 
-template<typename Ts, typename Tr>
+template <typename Ts, typename Tr>
 int gatherv(const Ts *sendbuf, const int sendcount, Tr *recvbuf, const int *recvcounts, const int *displs,
             const int root = 0, MPI_Comm comm = MPI_COMM_WORLD) {
   return MPI_Gatherv(sendbuf, sendcount, type::get<Ts>(), recvbuf, recvcounts, displs, type::get<Tr>(), root, comm);
 }
 
-template<typename Ts, typename Tr>
+template <typename Ts, typename Tr>
 int allgatherv(const Ts *sendbuf, const int sendcount, Tr *recvbuf, const int *recvcounts, const int *displs,
                MPI_Comm comm = MPI_COMM_WORLD) {
   return MPI_Allgatherv(sendbuf, sendcount, type::get<Ts>(), recvbuf, recvcounts, displs, type::get<Tr>(), comm);
@@ -164,18 +156,18 @@ int allgatherv(const Ts *sendbuf, const int sendcount, Tr *recvbuf, const int *r
 // Pointer interface for point-to-point operations
 //
 
-template<typename T>
+template <typename T>
 inline int send(const T *buf, const int count, const int dest, const int tag, MPI_Comm comm = MPI_COMM_WORLD) {
   return MPI_Send(buf, count, type::get<T>(), dest, tag, comm);
 }
 
-template<typename T>
+template <typename T>
 inline int isend(const T *buf, const int count, const int dest, const int tag, MPI_Request *request,
                  MPI_Comm comm = MPI_COMM_WORLD) {
   return MPI_Isend(buf, count, type::get<T>(), dest, tag, comm, request);
 }
 
-template<typename T>
+template <typename T>
 inline int recv(T *buf, int count, int source, int tag, MPI_Status *status = MPI_STATUS_IGNORE,
                 MPI_Comm comm = MPI_COMM_WORLD) {
   return MPI_Recv(buf, count, type::get<T>(), source, tag, comm, status);
@@ -188,8 +180,7 @@ inline MPI_Status probe(const int source, const int tag, MPI_Comm comm = MPI_COM
   return status;
 }
 
-template<typename T>
-inline int get_count(const MPI_Status &status) {
+template <typename T> inline int get_count(const MPI_Status &status) {
   int count;
   [[maybe_unused]] auto result = MPI_Get_count(&status, type::get<T>(), &count);
   ASSERT(result != MPI_UNDEFINED && count >= 0) << V(get_count<char>(status)) << V(status.MPI_SOURCE)
@@ -201,17 +192,17 @@ inline int get_count(const MPI_Status &status) {
 // Ranges interface for point-to-point operations
 //
 
-template<std::ranges::contiguous_range R>
+template <std::ranges::contiguous_range R>
 int send(const R &buf, const int dest, const int tag, MPI_Comm comm = MPI_COMM_WORLD) {
   return send(std::ranges::data(buf), std::ranges::ssize(buf), dest, tag, comm);
 }
 
-template<std::ranges::contiguous_range R>
+template <std::ranges::contiguous_range R>
 int isend(const R &buf, const int dest, const int tag, MPI_Request &request, MPI_Comm comm = MPI_COMM_WORLD) {
   return isend(std::ranges::data(buf), std::ranges::ssize(buf), dest, tag, &request, comm);
 }
 
-template<typename T, template<typename> typename Container = scalable_vector>
+template <typename T, template <typename> typename Container = scalable_vector>
 Container<T> probe_recv(const int source, const int tag, MPI_Status *status = MPI_STATUS_IGNORE,
                         MPI_Comm comm = MPI_COMM_WORLD) {
   const auto count = mpi::get_count<T>(mpi::probe(source, MPI_ANY_TAG, comm));
@@ -229,8 +220,7 @@ inline int waitall(int count, MPI_Request *array_of_requests, MPI_Status *array_
   return MPI_Waitall(count, array_of_requests, array_of_statuses);
 }
 
-template<std::ranges::contiguous_range R>
-int waitall(R &requests, MPI_Status *array_of_statuses = MPI_STATUS_IGNORE) {
+template <std::ranges::contiguous_range R> int waitall(R &requests, MPI_Status *array_of_statuses = MPI_STATUS_IGNORE) {
   return MPI_Waitall(std::ranges::size(requests), std::ranges::data(requests), array_of_statuses);
 }
 
@@ -238,67 +228,65 @@ int waitall(R &requests, MPI_Status *array_of_statuses = MPI_STATUS_IGNORE) {
 // Single element interface for collective operations
 //
 
-template<typename T>
-inline T bcast(T ans, const int root = 0, MPI_Comm comm = MPI_COMM_WORLD) {
+template <typename T> inline T bcast(T ans, const int root = 0, MPI_Comm comm = MPI_COMM_WORLD) {
   bcast(&ans, 1, root, comm);
   return ans;
 }
 
-template<typename T>
-inline T reduce(const T &element, MPI_Op op, const int root = 0, MPI_Comm comm = MPI_COMM_WORLD) {
+template <typename T> inline T reduce(const T &element, MPI_Op op, const int root = 0, MPI_Comm comm = MPI_COMM_WORLD) {
   T ans = T{};
   reduce(&element, &ans, 1, op, root, comm);
   return ans;
 }
 
-template<typename T>
+template <typename T>
 inline T reduce(const T &element, T &ans, MPI_Op op, const int root = 0, MPI_Comm comm = MPI_COMM_WORLD) {
   return reduce(&element, &ans, 1, op, root, comm);
 }
 
-template<typename T>
-inline T allreduce(const T &element, MPI_Op op, MPI_Comm comm = MPI_COMM_WORLD) {
+template <typename T> inline T allreduce(const T &element, MPI_Op op, MPI_Comm comm = MPI_COMM_WORLD) {
   T ans = T{};
   allreduce(&element, &ans, 1, op, comm);
   return ans;
 }
 
-template<typename T>
-int allreduce(const T &element, T &ans, MPI_Op op, MPI_Comm comm = MPI_COMM_WORLD) {
+template <typename T> int allreduce(const T &element, T &ans, MPI_Op op, MPI_Comm comm = MPI_COMM_WORLD) {
   return allreduce(&element, &ans, 1, op, comm);
 }
 
-template<typename T, template<typename> typename Container = scalable_vector>
+template <typename T, template <typename> typename Container = scalable_vector>
 Container<T> gather(const T &element, const int root = 0, MPI_Comm comm = MPI_COMM_WORLD) {
   Container<T> result;
-  if (mpi::get_comm_rank(comm) == root) { result.resize(mpi::get_comm_size(comm)); }
+  if (mpi::get_comm_rank(comm) == root) {
+    result.resize(mpi::get_comm_size(comm));
+  }
   gather(&element, 1, std::ranges::data(result), 1, root, comm);
   return result;
 }
 
-template<std::ranges::contiguous_range R>
+template <std::ranges::contiguous_range R>
 int gather(const std::ranges::range_value_t<R> &element, R &ans, const int root = 0, MPI_Comm comm = MPI_COMM_WORLD) {
   LIGHT_ASSERT(mpi::get_comm_rank(comm) != root || std::ranges::size(ans) == mpi::get_comm_size(comm));
 
   return gather(&element, 1, std::ranges::data(ans), 1, comm);
 }
 
-template<typename T, template<typename> typename Container = scalable_vector>
+template <typename T, template <typename> typename Container = scalable_vector>
 Container<T> allgather(const T &element, MPI_Comm comm = MPI_COMM_WORLD) {
   Container<T> result(mpi::get_comm_size(comm));
   allgather(&element, 1, std::ranges::data(result), 1, comm);
   return result;
 }
 
-template<std::ranges::contiguous_range R>
+template <std::ranges::contiguous_range R>
 inline int allgather(const std::ranges::range_value_t<R> &element, R &ans, MPI_Comm comm = MPI_COMM_WORLD) {
   LIGHT_ASSERT(std::ranges::size(ans) == mpi::get_comm_size(comm));
 
   return allgather(&element, 1, std::ranges::data(ans), 1, comm);
 }
 
-template<std::ranges::contiguous_range Rs, std::ranges::contiguous_range Rr, std::ranges::contiguous_range Rcounts,
-         std::ranges::contiguous_range Displs>
+template <std::ranges::contiguous_range Rs, std::ranges::contiguous_range Rr, std::ranges::contiguous_range Rcounts,
+          std::ranges::contiguous_range Displs>
 int allgatherv(const Rs &sendbuf, Rr &recvbuf, const Rcounts &recvcounts, const Displs &displs,
                MPI_Comm comm = MPI_COMM_WORLD) {
   static_assert(std::is_same_v<std::ranges::range_value_t<Rcounts>, int>);
@@ -307,15 +295,13 @@ int allgatherv(const Rs &sendbuf, Rr &recvbuf, const Rcounts &recvcounts, const 
                     std::ranges::data(recvcounts), std::ranges::data(displs), comm);
 }
 
-template<typename T>
-T scan(const T &sendbuf, MPI_Op op, MPI_Comm comm = MPI_COMM_WORLD) {
+template <typename T> T scan(const T &sendbuf, MPI_Op op, MPI_Comm comm = MPI_COMM_WORLD) {
   T recvbuf = T{};
   scan(&sendbuf, &recvbuf, 1, op, comm);
   return recvbuf;
 }
 
-template<typename T>
-T exscan(const T &sendbuf, MPI_Op op, MPI_Comm comm = MPI_COMM_WORLD) {
+template <typename T> T exscan(const T &sendbuf, MPI_Op op, MPI_Comm comm = MPI_COMM_WORLD) {
   T recvbuf = T{};
   exscan(&sendbuf, &recvbuf, 1, op, comm);
   return recvbuf;
@@ -325,7 +311,7 @@ T exscan(const T &sendbuf, MPI_Op op, MPI_Comm comm = MPI_COMM_WORLD) {
 // Ranges interface for collective operations
 //
 
-template<std::ranges::contiguous_range R>
+template <std::ranges::contiguous_range R>
 inline int reduce(const R &sendbuf, R &recvbuf, MPI_Op op, const int root = 0, MPI_Comm comm = MPI_COMM_WORLD) {
   LIGHT_ASSERT(mpi::get_comm_rank(comm) != root || std::ranges::size(sendbuf) == std::ranges::size(recvbuf));
 
@@ -333,15 +319,17 @@ inline int reduce(const R &sendbuf, R &recvbuf, MPI_Op op, const int root = 0, M
                                                std::ranges::ssize(sendbuf), op, root, comm);
 }
 
-template<std::ranges::contiguous_range R, template<typename> typename Container = scalable_vector>
+template <std::ranges::contiguous_range R, template <typename> typename Container = scalable_vector>
 inline auto reduce(const R &sendbuf, MPI_Op op, const int root = 0, MPI_Comm comm = MPI_COMM_WORLD) {
   Container<std::ranges::range_value_t<R>> recvbuf;
-  if (mpi::get_comm_rank(comm) == root) { recvbuf.resize(std::ranges::size(sendbuf)); }
+  if (mpi::get_comm_rank(comm) == root) {
+    recvbuf.resize(std::ranges::size(sendbuf));
+  }
   reduce(std::ranges::cdata(sendbuf), recvbuf.data(), std::ranges::ssize(sendbuf), op, root, comm);
   return recvbuf;
 }
 
-template<std::ranges::contiguous_range Rs, std::ranges::contiguous_range Rr>
+template <std::ranges::contiguous_range Rs, std::ranges::contiguous_range Rr>
 inline int gather(const Rs &sendbuf, Rr &recvbuf, const int root = 0, MPI_Comm comm = MPI_COMM_WORLD) {
   using rs_value_t = std::ranges::range_value_t<Rs>;
   using rr_value_t = std::ranges::range_value_t<Rr>;
@@ -359,64 +347,8 @@ inline int gather(const Rs &sendbuf, Rr &recvbuf, const int root = 0, MPI_Comm c
 //
 // Misc utility functions
 //
-template<template<typename> typename RecvContainer, std::ranges::contiguous_range SendBuffer,
-         template<typename> typename SendBufferContainer>
-std::vector<RecvContainer<std::ranges::range_value_t<SendBuffer>>>
-sparse_all_to_all_get(const SendBufferContainer<SendBuffer> &send_buffers, const int tag,
-                      MPI_Comm comm = MPI_COMM_WORLD, const bool self = false) {
-  const auto [size, rank] = mpi::get_comm_info(comm);
-  std::vector<MPI_Request> requests;
-  requests.reserve(size);
 
-  for (PEID pe = 0; pe < size; ++pe) {
-    if (self || pe != rank) {
-      requests.emplace_back();
-      mpi::isend(send_buffers[pe], pe, tag, requests.back(), comm);
-    }
-  }
-
-  std::vector<RecvContainer<std::ranges::range_value_t<SendBuffer>>> recv_messages(size);
-  for (PEID pe = 0; pe < size; ++pe) {
-    if (self || pe != rank) {
-      using T = std::ranges::range_value_t<SendBuffer>;
-      recv_messages[pe] = mpi::probe_recv<T, RecvContainer>(pe, tag, MPI_STATUS_IGNORE, comm);
-    }
-  }
-
-  mpi::waitall(requests);
-
-  return recv_messages;
-}
-
-template<template<typename> typename RecvContainer, std::ranges::contiguous_range SendBuffer,
-         template<typename> typename SendBufferContainer,
-         std::invocable<PEID, const RecvContainer<std::ranges::range_value_t<SendBuffer>> &> RecvLambda>
-void sparse_all_to_all(const SendBufferContainer<SendBuffer> &send_buffers, const int tag, RecvLambda &&recv_lambda,
-                       MPI_Comm comm = MPI_COMM_WORLD, const bool self = false) {
-  const auto [size, rank] = mpi::get_comm_info(comm);
-  std::vector<MPI_Request> requests;
-  requests.reserve(size);
-
-  for (PEID pe = 0; pe < size; ++pe) {
-    if (self || pe != rank) {
-      requests.emplace_back();
-      mpi::isend(send_buffers[pe], pe, tag, requests.back(), comm);
-    }
-  }
-
-  for (PEID pe = 0; pe < size; ++pe) {
-    if (self || pe != rank) {
-      using T = std::ranges::range_value_t<SendBuffer>;
-      auto recvbuf = mpi::probe_recv<T, RecvContainer>(pe, tag, MPI_STATUS_IGNORE, comm);
-      recv_lambda(pe, recvbuf);
-    }
-  }
-
-  mpi::waitall(requests);
-}
-
-template<typename Lambda>
-inline void sequentially(Lambda &&lambda, MPI_Comm comm = MPI_COMM_WORLD) {
+template <typename Lambda> inline void sequentially(Lambda &&lambda, MPI_Comm comm = MPI_COMM_WORLD) {
   constexpr bool use_rank_argument = requires { lambda(int()); };
   const auto [size, rank] = get_comm_info();
   for (int p = 0; p < size; ++p) {
@@ -431,23 +363,25 @@ inline void sequentially(Lambda &&lambda, MPI_Comm comm = MPI_COMM_WORLD) {
   }
 }
 
-template<std::ranges::range Distribution>
-inline std::vector<int> build_distribution_recvcounts(Distribution &&dist) {
+template <std::ranges::range Distribution> inline std::vector<int> build_distribution_recvcounts(Distribution &&dist) {
   ASSERT(!dist.empty());
   std::vector<int> recvcounts(dist.size() - 1);
-  for (std::size_t i = 0; i + 1 < dist.size(); ++i) { recvcounts[i] = dist[i + 1] - dist[i]; }
+  for (std::size_t i = 0; i + 1 < dist.size(); ++i) {
+    recvcounts[i] = dist[i + 1] - dist[i];
+  }
   return recvcounts;
 }
 
-template<std::ranges::range Distribution>
-inline std::vector<int> build_distribution_displs(Distribution &&dist) {
+template <std::ranges::range Distribution> inline std::vector<int> build_distribution_displs(Distribution &&dist) {
   ASSERT(!dist.empty());
   std::vector<int> displs(dist.size() - 1);
-  for (std::size_t i = 0; i + 1 < dist.size(); ++i) { displs[i] = static_cast<int>(dist[i]); }
+  for (std::size_t i = 0; i + 1 < dist.size(); ++i) {
+    displs[i] = static_cast<int>(dist[i]);
+  }
   return displs;
 }
 
-template<typename Message, template<typename> typename Buffer = scalable_vector>
+template <typename Message, template <typename> typename Buffer = scalable_vector>
 void sparse_alltoall(const std::vector<Buffer<Message>> &send_buffers, auto &&receiver, MPI_Comm comm,
                      const bool self = false) {
   mpi::barrier(comm);
@@ -485,8 +419,16 @@ void sparse_alltoall(const std::vector<Buffer<Message>> &send_buffers, auto &&re
   mpi::waitall(requests);
 }
 
-template<typename T>
-std::tuple<T, double, T> gather_statistics(const T value, MPI_Comm comm = MPI_COMM_WORLD) {
+template <typename Message, template <typename> typename Buffer = scalable_vector>
+std::vector<Buffer<Message>> sparse_alltoall_get(const std::vector<Buffer<Message>> &send_buffers,
+                                                 MPI_Comm comm = MPI_COMM_WORLD, const bool self = false) {
+  std::vector<Buffer<Message>> recv_buffers(mpi::get_comm_size(comm));
+  sparse_alltoall<Message, Buffer>(
+      send_buffers, [&](auto recv_buffer, const PEID pe) { recv_buffers[pe] = std::move(recv_buffer); }, comm, self);
+  return recv_buffers;
+}
+
+template <typename T> std::tuple<T, double, T> gather_statistics(const T value, MPI_Comm comm = MPI_COMM_WORLD) {
   const T min = mpi::allreduce(value, MPI_MIN, comm);
   const T max = mpi::allreduce(value, MPI_MAX, comm);
   const T sum = mpi::allreduce(value, MPI_SUM, comm);
@@ -494,8 +436,7 @@ std::tuple<T, double, T> gather_statistics(const T value, MPI_Comm comm = MPI_CO
   return {min, avg, max};
 }
 
-template<typename T>
-std::string gather_statistics_str(const T value, MPI_Comm comm = MPI_COMM_WORLD) {
+template <typename T> std::string gather_statistics_str(const T value, MPI_Comm comm = MPI_COMM_WORLD) {
   std::ostringstream os;
   const auto [min, avg, max] = gather_statistics(value, comm);
   os << "min=" << min << "/avg=" << avg << "/max=" << max;

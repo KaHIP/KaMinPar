@@ -5,14 +5,14 @@
  * @date:   25.10.2021
  * @brief:  Contracts a clustering computed by \c LockingLabelPropagation.
  ******************************************************************************/
-#include "dkaminpar/algorithm/locking_clustering_contraction.h"
+#include "locking_clustering_contraction.h"
 
-#include "dkaminpar/algorithm/local_graph_contraction.h"
 #include "dkaminpar/growt.h"
 #include "dkaminpar/mpi_graph.h"
 #include "kaminpar/datastructure/rating_map.h"
+#include "local_graph_contraction.h"
 
-namespace dkaminpar::graph {
+namespace dkaminpar::coarsening {
 namespace {
 using LocalClusterArray = scalable_vector<shm::parallel::IntegralAtomicWrapper<NodeID>>;
 using GlobalClusterArray = LockingLpClustering::AtomicClusterArray;
@@ -88,7 +88,7 @@ auto migrate_edges(const DistributedGraph &graph, const LockingLpClustering::Ato
     std::copy(send_buffers[pe].begin(), send_buffers[pe].end(), real_send_buffers[pe].begin());
   }
 
-  return mpi::sparse_all_to_all_get<scalable_vector>(real_send_buffers, 0, graph.communicator());
+  return mpi::sparse_alltoall_get<GlobalEdge, scalable_vector>(real_send_buffers, graph.communicator());
 }
 
 std::pair<LocalClusterArray, std::unordered_map<GlobalNodeID, NodeID>>
@@ -185,8 +185,8 @@ contract_locking_clustering(const DistributedGraph &graph, const LockingLpCluste
       }
     }
   }
-  auto migrate_edges_recv_buffers = mpi::sparse_all_to_all_get<scalable_vector>(migrate_edges_send_buffers, 0,
-                                                                                graph.communicator());
+  auto migrate_edges_recv_buffers =
+      mpi::sparse_alltoall_get<GlobalEdge, scalable_vector>(migrate_edges_send_buffers, graph.communicator());
 
   // update node weights
   struct UpdateNodeWeight {
