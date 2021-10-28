@@ -96,7 +96,9 @@ public:
   }
 
   [[nodiscard]] inline GlobalNodeID offset_n() const { return _offset_n; }
+  [[nodiscard]] inline GlobalNodeID offset_n(const PEID pe) const { return _node_distribution[pe]; }
   [[nodiscard]] inline GlobalEdgeID offset_m() const { return _offset_m; }
+  [[nodiscard]] inline GlobalEdgeID offset_m(const PEID pe) const { return _edge_distribution[pe]; }
 
   [[nodiscard]] inline NodeWeight total_node_weight() const { return _total_node_weight; }
   [[nodiscard]] inline NodeWeight max_node_weight() const { return _max_node_weight; }

@@ -14,5 +14,5 @@ namespace dkaminpar::coarsening {
 using LocalClustering = scalable_vector<shm::parallel::IntegralAtomicWrapper<NodeID>>;
 using GlobalClustering = scalable_vector<shm::parallel::IntegralAtomicWrapper<GlobalNodeID>>;
 using LocalMapping = scalable_vector<NodeID>;
-using GlobalMapping = scalable_vector<GlobalNodeID>;
+using GlobalMapping = scalable_vector<shm::parallel::IntegralAtomicWrapper<GlobalNodeID>>;
 }

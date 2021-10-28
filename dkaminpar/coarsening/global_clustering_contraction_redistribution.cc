@@ -14,77 +14,108 @@
 #include "dkaminpar/mpi_graph.h"
 #include "dkaminpar/mpi_wrapper.h"
 
+#include <tbb/concurrent_hash_map.h>
+
 namespace dkaminpar::coarsening {
 SET_DEBUG(true);
 
 namespace {
 // global mapping, global number of coarse nodes
-std::pair<std::unordered_map<GlobalNodeID, GlobalNodeID>, GlobalNodeID>
+std::pair<scalable_vector<shm::parallel::IntegralAtomicWrapper<GlobalNodeID>>, GlobalNodeID>
 compute_mapping(const DistributedGraph &graph,
                 const scalable_vector<shm::parallel::IntegralAtomicWrapper<GlobalNodeID>> &clustering) {
-  const auto [size, rank] = mpi::get_comm_info(graph.communicator());
-  const GlobalNodeID fine_nodes_per_pe = std::ceil(1.0 * graph.global_n() / size);
+  const auto size = mpi::get_comm_size(graph.communicator());
+  const auto rank = mpi::get_comm_rank(graph.communicator());
 
-  // mark global node ids that are used as cluster ids
-  using ConcurrentFilter = std::unordered_map<GlobalNodeID, bool>;
-  std::vector<ConcurrentFilter> filters(size);
-  std::vector<std::vector<GlobalNodeID>> used_ids_messages(size);
-  for (NodeID u : graph.nodes()) {
-    const auto u_cluster = clustering[u];
-    const PEID new_owner = static_cast<PEID>(u_cluster / fine_nodes_per_pe);
-    if (!filters[new_owner][u_cluster]) {
-      filters[new_owner][u_cluster] = true;
-      used_ids_messages[new_owner].push_back(u_cluster);
+  // mark global node IDs that are used as cluster IDs
+  std::vector<tbb::concurrent_hash_map<NodeID, NodeID>> used_clusters_map(size);
+  std::vector<shm::parallel::IntegralAtomicWrapper<NodeID>> next_slot_for_pe(size);
+
+  graph.pfor_nodes_range([&](const auto r) {
+    tbb::concurrent_hash_map<NodeID, NodeID>::accessor accessor;
+
+    for (NodeID u = r.begin(); u != r.end(); ++u) {
+      const GlobalNodeID u_cluster = clustering[u];
+
+      PEID u_cluster_owner;
+      NodeID u_local_cluster;
+      if (graph.is_owned_global_node(u_cluster)) {
+        u_cluster_owner = rank;
+        u_local_cluster = graph.global_to_local_node(u_cluster);
+      } else {
+        u_cluster_owner = graph.find_owner_of_global_node(u_cluster);
+        u_local_cluster = static_cast<NodeID>(u_cluster - graph.offset_n(u_cluster_owner));
+      }
+
+      if (used_clusters_map[rank].insert(accessor, u_local_cluster)) {
+        accessor->second = next_slot_for_pe[u_cluster_owner]++;
+      }
     }
-  }
+  });
 
-  // exchange messages -- store incoming messages for reply
-  std::vector<GlobalNodeID> local_labels; // all labels on our PE
-  auto inc_messages = mpi::sparse_alltoall_get<GlobalNodeID, std::vector>(used_ids_messages, graph.communicator(), true);
-  for (const auto &inc_messages_from_pe : inc_messages) {
-    for (const auto &node : inc_messages_from_pe) {
-      local_labels.push_back(node);
+  // used_clusters_vec[pe] holds local node IDs of PE pe that are used as cluster IDs on this PE
+  std::vector<scalable_vector<NodeID>> used_clusters_vec(size);
+  tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
+    used_clusters_vec[pe].resize(used_clusters_map[pe].size());
+    tbb::parallel_for(used_clusters_map[pe].range(), [&](const auto r) {
+      for (auto it = r.begin(); it != r.end(); ++it) {
+        used_clusters_vec[pe][it->second] = it->first;
+      }
+    });
+  });
+
+  // send each PE its local node IDs that are used as cluster IDs somewhere
+  const auto in_msg = mpi::sparse_alltoall_get<NodeID, scalable_vector>(used_clusters_vec, graph.communicator(), true);
+
+  // map local labels to consecutive coarse node IDs
+  scalable_vector<shm::parallel::IntegralAtomicWrapper<GlobalNodeID>> label_mapping(graph.n());
+  shm::parallel::parallel_for_over_chunks(in_msg, [&](const NodeID local_label) {
+    ASSERT(local_label < graph.n());
+    label_mapping[local_label].store(1, std::memory_order_relaxed);
+  });
+  shm::parallel::prefix_sum(label_mapping.begin(), label_mapping.end(), label_mapping.begin());
+
+  const NodeID c_label_n = static_cast<NodeID>(label_mapping.back());
+  const GlobalNodeID c_label_from = mpi::scan<GlobalNodeID>(c_label_n, MPI_SUM, graph.communicator());
+    const auto c_label_distribution = mpi::allgather(c_label_from, graph.communicator());
+  const GlobalNodeID c_global_n = mpi::allreduce(c_label_n, MPI_SUM, graph.communicator());
+
+  // send mapping to other PEs that use cluster IDs from this PE -- i.e., answer in_msg
+  std::vector<scalable_vector<NodeID>> out_msg(size);
+  tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
+    out_msg[pe].resize(in_msg[pe].size());
+    tbb::parallel_for<std::size_t>(0, in_msg[pe].size(), [&](const std::size_t i) {
+      ASSERT(in_msg[pe][i] < label_mapping.size());
+      out_msg[pe][i] = label_mapping[in_msg[pe][i]];
+    });
+  });
+
+  const auto label_remap = mpi::sparse_alltoall_get<NodeID, scalable_vector>(out_msg, graph.communicator(), true);
+
+  // now  we use label_mapping as a [fine node -> coarse node] mapping of local nodes on this PE -- and extend it
+  // for ghost nodes in the next step
+  // all cluster[.] labels are stored in label_remap, thus we can overwrite label_mapping
+  graph.pfor_nodes([&](const NodeID u) {
+    const GlobalNodeID u_cluster = clustering[u];
+    PEID u_cluster_owner;
+    NodeID u_local_cluster;
+
+    if (graph.is_owned_global_node(u_cluster)) {
+      u_cluster_owner = rank;
+      u_local_cluster = graph.global_to_local_node(u_cluster);
+    } else {
+      u_cluster_owner = graph.find_owner_of_global_node(u_cluster);
+      u_local_cluster = static_cast<NodeID>(u_cluster - graph.offset_n(u_cluster_owner));
     }
-  }
 
-  // filter duplicates
-  std::sort(local_labels.begin(), local_labels.end());
-  auto it = std::unique(local_labels.begin(), local_labels.end());
-  local_labels.resize(std::distance(local_labels.begin(), it));
+    tbb::concurrent_hash_map<NodeID, NodeID>::accessor accessor;
+    [[maybe_unused]] const bool found = used_clusters_map[u_cluster].find(accessor, u_local_cluster);
+    const NodeID slot_in_msg = accessor->second;
+    label_mapping[u] = graph.offset_n(u_cluster_owner) + label_remap[u_cluster_owner][slot_in_msg];
+  });
 
-  const GlobalNodeID local_n = local_labels.size();
-  const GlobalNodeID prefix_n = mpi::scan(local_n, MPI_SUM, graph.communicator());
-  const GlobalNodeID c_global_n = mpi::bcast(prefix_n, size - 1, graph.communicator());
-  const GlobalNodeID offset_n = prefix_n - local_n;
-  DBG << V(local_labels) << V(local_n) << V(prefix_n) << V(c_global_n) << V(offset_n);
-
-  // build mapping
-  std::unordered_map<GlobalNodeID, GlobalNodeID> label_mapping;
-
-  GlobalNodeID cur_id = offset_n;
-  for (const auto &node : local_labels) {
-    label_mapping[node] = cur_id++;
-  }
-
-  // send mappings back
-  std::vector<std::vector<GlobalNodeID>> out_messages(size);
-  for (PEID pe = 0; pe < size; ++pe) {
-    for (const auto &node : inc_messages[pe]) {
-      out_messages[pe].push_back(label_mapping[node]);
-    }
-  }
-  label_mapping.clear();
-
-  mpi::sparse_alltoall<GlobalNodeID>(
-      out_messages,
-      [&](const auto &buffer, const PEID pe) {
-        for (std::size_t i = 0; i < buffer.size(); ++i) {
-          label_mapping[used_ids_messages[pe][i]] = buffer[i];
-        }
-      },
-      graph.communicator(), true);
-
-  return {label_mapping, c_global_n};
+  // ASSERT label_mapping[0..n] maps to coarse node IDs
+  return {std::move(label_mapping), c_global_n};
 }
 
 void exchange_ghost_node_mapping(const DistributedGraph &graph, auto &label_mapping, auto &clustering) {
@@ -96,12 +127,11 @@ void exchange_ghost_node_mapping(const DistributedGraph &graph, auto &label_mapp
   mpi::graph::sparse_alltoall_interface_to_pe<Message, std::vector>(
       graph,
       [&](const NodeID u) -> Message {
-        const GlobalNodeID global_u = graph.local_to_global_node(u);
-        return {global_u, label_mapping[clustering[u]]};
+        return {graph.local_to_global_node(u), label_mapping[u]};
       },
       [&](const auto buffer) {
         for (const Message &message : buffer) {
-          label_mapping[message.global_node] = message.coarse_global_node;
+          label_mapping[graph.global_to_local_node(message.global_node)] = message.coarse_global_node;
         }
       });
 }
@@ -292,23 +322,16 @@ void update_ghost_node_weights(DistributedGraph &graph) {
 RedistributedGlobalContractionResult contract_global_clustering_redistribute(const DistributedGraph &graph,
                                                                              const GlobalClustering &clustering) {
   // compute local mapping for owned nodes
-  auto [global_mapping, c_global_n] = compute_mapping(graph, clustering);
-  scalable_vector<GlobalNodeID> local_mapping(graph.total_n());
-  for (const NodeID u : graph.nodes()) {
-    local_mapping[u] = global_mapping[clustering[u]];
-  }
+  auto [mapping, c_global_n] = compute_mapping(graph, clustering);
 
   // compute local mapping for ghost nodes
-  exchange_ghost_node_mapping(graph, global_mapping, clustering);
-  for (const NodeID u : graph.ghost_nodes()) {
-    local_mapping[u] = global_mapping[graph.local_to_global_node(u)];
-  }
+  exchange_ghost_node_mapping(graph, mapping, clustering);
 
   // build coarse graph
-  auto h_graph = hash_local_graph(graph, local_mapping);
+  auto h_graph = hash_local_graph(graph, mapping);
   auto c_graph = build_coarse_graph(graph, h_graph, c_global_n);
   update_ghost_node_weights(c_graph);
 
-  return {std::move(c_graph), std::move(local_mapping)};
+  return {std::move(c_graph), {}};
 }
 } // namespace dkaminpar::coarsening

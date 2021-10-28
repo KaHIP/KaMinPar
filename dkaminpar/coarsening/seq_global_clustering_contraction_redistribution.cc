@@ -45,8 +45,7 @@ compute_mapping(const DistributedGraph &graph,
 
   // exchange messages -- store incoming messages for reply
   std::vector<GlobalNodeID> local_labels; // all labels on our PE
-  auto inc_messages =
-      mpi::sparse_alltoall_get<GlobalNodeID, std::vector>(used_ids_messages, graph.communicator(), true);
+  auto inc_messages = mpi::sparse_alltoall_get<GlobalNodeID, std::vector>(used_ids_messages, graph.communicator(), true);
   for (const auto &inc_messages_from_pe : inc_messages) {
     for (const auto &node : inc_messages_from_pe) {
       local_labels.push_back(node);

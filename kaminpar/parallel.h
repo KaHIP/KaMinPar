@@ -213,11 +213,6 @@ std::ranges::range_value_t<Range> max_element(const Range &r) {
   return b._ans;
 }
 
-void parallel_for_over_chunks(const auto &buffers, auto &&lambda) {
-  parallel_for_over_chunks(const_cast<std::remove_const_t<decltype(buffers)>>(buffers),
-                           [&](const auto &&element) { lambda(std::forward<decltype(element)>(element)); });
-}
-
 /*!
  * @param buffers Vector of buffers of elements.
  * @param lambda Invoked on each element, in parallel.

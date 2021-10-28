@@ -381,7 +381,7 @@ template <std::ranges::range Distribution> inline std::vector<int> build_distrib
   return displs;
 }
 
-template <typename Message, template <typename> typename Buffer = scalable_vector>
+template <typename Message, template <typename> typename Buffer>
 void sparse_alltoall(const std::vector<Buffer<Message>> &send_buffers, auto &&receiver, MPI_Comm comm,
                      const bool self = false) {
   mpi::barrier(comm);
@@ -419,7 +419,7 @@ void sparse_alltoall(const std::vector<Buffer<Message>> &send_buffers, auto &&re
   mpi::waitall(requests);
 }
 
-template <typename Message, template <typename> typename Buffer = scalable_vector>
+template <typename Message, template <typename> typename Buffer>
 std::vector<Buffer<Message>> sparse_alltoall_get(const std::vector<Buffer<Message>> &send_buffers,
                                                  MPI_Comm comm = MPI_COMM_WORLD, const bool self = false) {
   std::vector<Buffer<Message>> recv_buffers(mpi::get_comm_size(comm));
