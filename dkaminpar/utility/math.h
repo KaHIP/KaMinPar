@@ -5,7 +5,6 @@
  * @date:   27.10.2021
  * @brief:  Math utility functions.
  ******************************************************************************/
- 
 #pragma once
 
 #include <concepts>
@@ -27,5 +26,20 @@ std::pair<Int, Int> compute_local_range(const Int n, const Int size, const Int r
   const Int from = rank * chunk + std::min<Int>(rank, remainder);
   const Int to = std::min<Int>(from + ((rank < remainder) ? chunk + 1 : chunk), n);
   return {from, to};
+}
+
+/**
+ * Computes \c rank such that \c element is contained in the local range computed by \c compute_local_range.
+ *
+ * @param n Number of elements.
+ * @param size Number of PEs that process elements.
+ * @param element A specific element.
+ * @return The rank of the local range containing the element, i.e., the \c rank parameter of \c compute_local_range
+ * such that its first return value is less-or-equal to \c element and its second return value is larger than
+ * \c element.
+ */
+template<std::integral Int>
+std::size_t compute_local_range_rank(const Int n, const Int size, const Int element) {
+  return element / (1.0 * n / size);
 }
 } // namespace dkaminpar::math

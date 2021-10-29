@@ -13,6 +13,7 @@
 #include "dkaminpar/growt.h"
 #include "dkaminpar/mpi_graph.h"
 #include "dkaminpar/mpi_wrapper.h"
+#include "dkaminpar/utility/math.h"
 
 #include <tbb/concurrent_hash_map.h>
 
@@ -139,9 +140,11 @@ void exchange_ghost_node_mapping(const DistributedGraph &graph, auto &label_mapp
         return {graph.local_to_global_node(u), label_mapping[u]};
       },
       [&](const auto buffer) {
-        for (const Message &message : buffer) {
-          label_mapping[graph.global_to_local_node(message.global_node)] = message.coarse_global_node;
-        }
+        tbb::parallel_for<std::size_t>(0, buffer.size(), [&](const std::size_t i) {
+          const auto &message = buffer[i];
+          const auto local_node = graph.global_to_local_node(message.global_node);
+          label_mapping[local_node] = message.coarse_global_node;
+        });
       });
 }
 
@@ -187,15 +190,13 @@ HashedGraph hash_local_graph(const DistributedGraph &graph, auto &label_mapping)
   return h_graph;
 }
 
-scalable_vector<GlobalNodeID> compute_coarse_node_distribution(const DistributedGraph &graph, const NodeID c_n) {
-  const auto [size, rank] = mpi::get_comm_info(graph.communicator());
+scalable_vector<GlobalNodeID> compute_coarse_node_distribution(const NodeID c_global_n, MPI_Comm comm) {
+  const auto size = mpi::get_comm_size(comm);
 
-  // Compute new node distribution, total number of coarse nodes
-  const GlobalNodeID last_node = mpi::scan(static_cast<GlobalNodeID>(c_n), MPI_SUM, graph.communicator());
-  [[maybe_unused]] const GlobalNodeID first_node = last_node - c_n;
   scalable_vector<GlobalNodeID> c_node_distribution(size + 1);
-  c_node_distribution[rank + 1] = last_node;
-  mpi::allgather(&c_node_distribution[rank + 1], 1, c_node_distribution.data() + 1, 1, graph.communicator());
+  for (PEID pe = 0; pe < size; ++pe) {
+    c_node_distribution[pe + 1] = math::compute_local_range<GlobalNodeID>(c_global_n, size, pe).second;
+  }
 
   return c_node_distribution;
 }
@@ -203,7 +204,13 @@ scalable_vector<GlobalNodeID> compute_coarse_node_distribution(const Distributed
 DistributedGraph build_coarse_graph(const DistributedGraph &graph, HashedGraph &h_graph,
                                     const GlobalNodeID c_global_n) {
   const auto [size, rank] = mpi::get_comm_info(graph.communicator());
-  const GlobalNodeID coarse_nodes_per_pe = std::ceil(1.0 * c_global_n / size);
+
+  // compute coarse node distribution
+  auto c_node_distribution = compute_coarse_node_distribution(c_global_n, graph.communicator());
+  const auto from = c_node_distribution[rank];
+  const auto to = c_node_distribution[rank + 1];
+
+  //
 
   struct EdgeMessage {
     GlobalNodeID u;
@@ -320,10 +327,11 @@ void update_ghost_node_weights(DistributedGraph &graph) {
         return {graph.local_to_global_node(u), graph.node_weight(u)};
       },
       [&](const auto buffer) {
-        for (const Message &message : buffer) {
+        tbb::parallel_for<std::size_t>(0, buffer.size(), [&](const std::size_t i) {
+          const auto &message = buffer[i];
           const NodeID local_node = graph.global_to_local_node(message.global_node);
           graph.set_ghost_node_weight(local_node, message.weight);
-        }
+        });
       });
 }
 } // namespace
@@ -335,13 +343,12 @@ RedistributedGlobalContractionResult contract_global_clustering_redistribute(con
 
   // compute local mapping for ghost nodes
   exchange_ghost_node_mapping(graph, mapping, clustering);
-  SLOG << V(mapping) << V(c_global_n);
 
   // build coarse graph
   auto h_graph = hash_local_graph(graph, mapping);
   auto c_graph = build_coarse_graph(graph, h_graph, c_global_n);
   update_ghost_node_weights(c_graph);
 
-  return {std::move(c_graph), {}};
+  return {std::move(c_graph), std::move(mapping)};
 }
 } // namespace dkaminpar::coarsening
