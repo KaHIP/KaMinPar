@@ -47,7 +47,7 @@ compute_mapping(const DistributedGraph &graph,
         u_local_cluster = static_cast<NodeID>(u_cluster - graph.offset_n(u_cluster_owner));
       }
 
-      if (used_clusters_map[rank].insert(accessor, u_local_cluster)) {
+      if (used_clusters_map[u_cluster_owner].insert(accessor, u_local_cluster)) {
         accessor->second = next_slot_for_pe[u_cluster_owner]++;
       }
     }
@@ -68,7 +68,7 @@ compute_mapping(const DistributedGraph &graph,
   const auto in_msg = mpi::sparse_alltoall_get<NodeID, scalable_vector>(used_clusters_vec, graph.communicator(), true);
 
   // map local labels to consecutive coarse node IDs
-  scalable_vector<shm::parallel::IntegralAtomicWrapper<GlobalNodeID>> label_mapping(graph.n());
+  scalable_vector<shm::parallel::IntegralAtomicWrapper<GlobalNodeID>> label_mapping(graph.total_n());
   shm::parallel::parallel_for_over_chunks(in_msg, [&](const NodeID local_label) {
     ASSERT(local_label < graph.n());
     label_mapping[local_label].store(1, std::memory_order_relaxed);
@@ -76,8 +76,8 @@ compute_mapping(const DistributedGraph &graph,
   shm::parallel::prefix_sum(label_mapping.begin(), label_mapping.end(), label_mapping.begin());
 
   const NodeID c_label_n = static_cast<NodeID>(label_mapping.back());
-  const GlobalNodeID c_label_from = mpi::scan<GlobalNodeID>(c_label_n, MPI_SUM, graph.communicator());
-    const auto c_label_distribution = mpi::allgather(c_label_from, graph.communicator());
+  const GlobalNodeID c_label_from = mpi::exscan<GlobalNodeID>(c_label_n, MPI_SUM, graph.communicator());
+  const auto c_label_distribution = mpi::allgather(c_label_from, graph.communicator());
   const GlobalNodeID c_global_n = mpi::allreduce(c_label_n, MPI_SUM, graph.communicator());
 
   // send mapping to other PEs that use cluster IDs from this PE -- i.e., answer in_msg
@@ -86,7 +86,7 @@ compute_mapping(const DistributedGraph &graph,
     out_msg[pe].resize(in_msg[pe].size());
     tbb::parallel_for<std::size_t>(0, in_msg[pe].size(), [&](const std::size_t i) {
       ASSERT(in_msg[pe][i] < label_mapping.size());
-      out_msg[pe][i] = label_mapping[in_msg[pe][i]];
+      out_msg[pe][i] = label_mapping[in_msg[pe][i]] - 1; // label_mapping is 1-based due to the prefix sum operation
     });
   });
 
@@ -108,10 +108,19 @@ compute_mapping(const DistributedGraph &graph,
       u_local_cluster = static_cast<NodeID>(u_cluster - graph.offset_n(u_cluster_owner));
     }
 
+    ASSERT(u_cluster_owner < size);
+    ASSERT(u_cluster_owner < used_clusters_map.size());
+
     tbb::concurrent_hash_map<NodeID, NodeID>::accessor accessor;
-    [[maybe_unused]] const bool found = used_clusters_map[u_cluster].find(accessor, u_local_cluster);
+    [[maybe_unused]] const bool found = used_clusters_map[u_cluster_owner].find(accessor, u_local_cluster);
+    ASSERT(found) << V(u_local_cluster) << V(u_cluster_owner) << V(u) << V(u_cluster);
+
     const NodeID slot_in_msg = accessor->second;
-    label_mapping[u] = graph.offset_n(u_cluster_owner) + label_remap[u_cluster_owner][slot_in_msg];
+
+    ASSERT(u < label_mapping.size());
+    ASSERT(u_cluster_owner < label_remap.size());
+    ASSERT(slot_in_msg < label_remap[u_cluster_owner].size());
+    label_mapping[u] = c_label_distribution[u_cluster_owner] + label_remap[u_cluster_owner][slot_in_msg];
   });
 
   // ASSERT label_mapping[0..n] maps to coarse node IDs
@@ -326,6 +335,7 @@ RedistributedGlobalContractionResult contract_global_clustering_redistribute(con
 
   // compute local mapping for ghost nodes
   exchange_ghost_node_mapping(graph, mapping, clustering);
+  SLOG << V(mapping) << V(c_global_n);
 
   // build coarse graph
   auto h_graph = hash_local_graph(graph, mapping);

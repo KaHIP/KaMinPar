@@ -5,6 +5,7 @@
 #include "dkaminpar/mpi_wrapper.h"
 
 #include <gmock/gmock.h>
+#include <tbb/global_control.h>
 #include <utility>
 #include <vector>
 
@@ -75,7 +76,9 @@ DistributedGraph change_edge_weights(DistributedGraph graph,
                                      const std::vector<std::pair<EdgeID, EdgeWeight>> &changes) {
   auto edge_weights = graph.take_edge_weights();
   for (const auto &[e, weight] : changes) {
-    if (e != kInvalidEdgeID) { edge_weights[e] = weight; }
+    if (e != kInvalidEdgeID) {
+      edge_weights[e] = weight;
+    }
   }
 
   return {graph.global_n(),

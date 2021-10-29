@@ -9,7 +9,6 @@
 #include "dkaminpar/datastructure/distributed_graph_builder.h"
 #include "dtests/mpi_test.h"
 
-#include <tbb/global_control.h>
 #include <unordered_map>
 
 using ::testing::AnyOf;
@@ -61,6 +60,7 @@ TEST_F(DistributedTriangles, TestFullContractionToEachPE) {
     EXPECT_THAT(c_graph.global_m(), Eq(0));
   }
 }
+
 
 TEST_F(DistributedTriangles, ContractLocalTriangles) {
   //  0---1-#-3---4

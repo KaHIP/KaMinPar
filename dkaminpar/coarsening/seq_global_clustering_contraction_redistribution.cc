@@ -304,6 +304,7 @@ contraction::GlobalMappingResult contract_global_clustering_redistribute_sequent
   for (const NodeID u : graph.nodes()) {
     local_mapping[u] = global_mapping[clustering[u]];
   }
+  SLOG << V(local_mapping);
 
   // compute local mapping for ghost nodes
   exchange_ghost_node_mapping(graph, global_mapping, clustering);
