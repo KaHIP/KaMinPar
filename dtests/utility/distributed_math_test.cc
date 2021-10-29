@@ -28,6 +28,20 @@ TEST(DistributedMathTest, TestLocalRangeComputationWithRemainder) {
   EXPECT_THAT(math::compute_local_range(10, 3, 2), Pair(Eq(7), Eq(10)));
 }
 
+TEST(DistributedMathTest, TestLocalRangeComputationWithFewElements) {
+  EXPECT_THAT(math::compute_local_range(3, 5, 0), Pair(Eq(0), Eq(1)));
+  EXPECT_THAT(math::compute_local_range(3, 5, 1), Pair(Eq(1), Eq(2)));
+  EXPECT_THAT(math::compute_local_range(3, 5, 2), Pair(Eq(2), Eq(3)));
+  EXPECT_THAT(math::compute_local_range(3, 5, 3), Pair(Eq(3), Eq(3)));
+  EXPECT_THAT(math::compute_local_range(3, 5, 4), Pair(Eq(3), Eq(3)));
+}
+
+TEST(DistributedMathTest, TestLocalRangeRankComptuationWithFewElements) {
+  EXPECT_THAT(math::compute_local_range_rank(3, 5, 0), Eq(0));
+  EXPECT_THAT(math::compute_local_range_rank(3, 5, 1), Eq(1));
+  EXPECT_THAT(math::compute_local_range_rank(3, 5, 2), Eq(2));
+}
+
 TEST(DistributedMathTest, TestLocalRangeRankComputationWithoutRemainder) {
   EXPECT_THAT(math::compute_local_range_rank(10, 2, 0), Eq(0));
   EXPECT_THAT(math::compute_local_range_rank(10, 2, 1), Eq(0));

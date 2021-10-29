@@ -40,6 +40,8 @@ std::pair<Int, Int> compute_local_range(const Int n, const Int size, const Int r
  */
 template<std::integral Int>
 std::size_t compute_local_range_rank(const Int n, const Int size, const Int element) {
+  if (n <= size) { return element; } // special case if n is very small
+
   const Int c = n / size;
   const Int rem = n % size;
   const Int r0 = (element - rem) / c;

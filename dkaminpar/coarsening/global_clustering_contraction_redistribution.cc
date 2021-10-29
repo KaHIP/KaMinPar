@@ -144,30 +144,41 @@ void exchange_ghost_node_mapping(const DistributedGraph &graph, auto &label_mapp
 
 DistributedGraph build_coarse_graph(const DistributedGraph &graph, const auto &mapping, const GlobalNodeID c_global_n) {
   const PEID size = mpi::get_comm_size(graph.communicator());
+  const PEID rank = mpi::get_comm_rank(graph.communicator());
 
   // compute coarse node distribution
   auto c_node_distribution = helper::compute_distribution<GlobalNodeID>(c_global_n, graph.communicator());
-  //const auto from = c_node_distribution[rank];
-  //const auto to = c_node_distribution[rank + 1];
+  DBG << V(c_node_distribution);
+  const auto from = c_node_distribution[rank];
+  const auto to = c_node_distribution[rank + 1];
 
   // lambda to map global coarse node IDs to their owner PE
   auto compute_coarse_node_owner = [size = size, c_global_n](const GlobalNodeID coarse_global_node) -> PEID {
+    ASSERT(coarse_global_node < c_global_n);
     return math::compute_local_range_rank<PEID>(c_global_n, size, coarse_global_node);
   };
 
-  // next, send each PE the edges in owns in the coarse graph
+  // next, send each PE the edges it owns in the coarse graph
   // first, count the number of edges for each PE
   parallel::vector_ets<EdgeID> num_edges_for_pe_ets(size);
   graph.pfor_nodes_range([&](const auto r) {
     auto &num_edges_for_pe = num_edges_for_pe_ets.local();
 
     for (NodeID u = r.begin(); u != r.end(); ++u) {
+      ASSERT(u < mapping.size());
       const auto c_u = mapping[u];
       const auto c_u_owner = compute_coarse_node_owner(c_u);
-      num_edges_for_pe[c_u_owner]++;
+      ASSERT(c_u_owner < num_edges_for_pe.size());
+
+      for (const auto [e, v] : graph.neighbors(u)) {
+        if (c_u != mapping[v]) { // ignore self loops
+          num_edges_for_pe[c_u_owner]++;
+        }
+      }
     }
   });
   auto num_edges_for_pe = num_edges_for_pe_ets.combine(std::plus{});
+  DBG << V(num_edges_for_pe);
 
   // allocate memory for edge messages
   struct EdgeMessage {
@@ -190,8 +201,13 @@ DistributedGraph build_coarse_graph(const DistributedGraph &graph, const auto &m
 
     for (const auto [e, v] : graph.neighbors(u)) {
       const auto c_v = mapping[v];
-      const std::size_t slot = next_out_msg_slot[c_u_owner].fetch_add(1, std::memory_order_relaxed);
-      out_msg[c_u_owner][slot] = {.u = local_c_u, .weight = graph.edge_weight(e), .v = c_v};
+
+      if (c_u != c_v) { // ignore self loops
+        const std::size_t slot = next_out_msg_slot[c_u_owner].fetch_add(1, std::memory_order_relaxed);
+        out_msg[c_u_owner][slot] = {.u = local_c_u, .weight = graph.edge_weight(e), .v = c_v};
+        DBG << "--> " << c_u_owner << ": [" << slot << "]={.u=" << local_c_u << ", .weight=" << graph.edge_weight(e)
+            << ", .v=" << c_v << "}";
+      }
     }
   });
 
@@ -221,9 +237,41 @@ DistributedGraph build_coarse_graph(const DistributedGraph &graph, const auto &m
     std::vector<scalable_vector<EdgeMessage>> tmp = std::move(in_msg);
   }
 
+  if constexpr (kDebug) {
+    mpi::barrier(graph.communicator());
+    for (const auto &edge : edge_list) {
+      DBG << V(edge.weight) << V(edge.v);
+    }
+    mpi::barrier(graph.communicator());
+  }
+
+  // TODO since we do not know the number of coarse ghost nodes yet, allocate memory only for local nodes and
+  // TODO resize in build_distributed_graph_from_edge_list
+  scalable_vector<shm::parallel::IntegralAtomicWrapper<NodeWeight>> node_weights(to - from);
+  struct NodeWeightMessage {
+    NodeID node;
+    NodeWeight weight;
+  };
+
+  // TODO accumulate node weights before sending them -> no longer need an atomic
+  mpi::graph::sparse_alltoall_custom<NodeWeightMessage>(
+      graph, 0, graph.n(), SPARSE_ALLTOALL_NOFILTER,
+      [&](const NodeID u) -> std::pair<NodeWeightMessage, PEID> {
+        const auto c_u = mapping[u];
+        const PEID c_u_owner = compute_coarse_node_owner(c_u);
+        const NodeID c_u_local = c_u - c_node_distribution[c_u_owner];
+        return {{c_u_local, graph.node_weight(u)}, c_u_owner};
+      },
+      [&](const auto r) {
+        tbb::parallel_for<std::size_t>(0, r.size(), [&](const std::size_t i) {
+          node_weights[r[i].node].fetch_add(r[i].weight, std::memory_order_relaxed);
+        });
+      }, true);
+
   // now every PE has an edge list with all edges -- so we can build the graph from it
-  return helper::build_distributed_graph_from_edge_list(edge_list, std::move(c_node_distribution),
-                                                        graph.communicator());
+  return helper::build_distributed_graph_from_edge_list(
+      edge_list, std::move(c_node_distribution), graph.communicator(),
+      [&](const NodeID u) { return node_weights[u].load(std::memory_order_relaxed); });
 }
 
 void update_ghost_node_weights(DistributedGraph &graph) {
@@ -254,6 +302,8 @@ RedistributedGlobalContractionResult contract_global_clustering_redistribute(con
 
   // compute local mapping for ghost nodes
   exchange_ghost_node_mapping(graph, mapping);
+
+  DBG << V(mapping);
 
   // build coarse graph
   auto c_graph = build_coarse_graph(graph, mapping, c_global_n);

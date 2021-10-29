@@ -31,9 +31,10 @@ template <typename T> scalable_vector<T> compute_distribution(const T c_global_n
  * \c v is a global node ID.
  * @return Distributed graph built from the edge list.
  */
+template <typename NodeWeightLambda>
 DistributedGraph build_distributed_graph_from_edge_list(const auto &edge_list,
-                                                        scalable_vector<GlobalNodeID> node_distribution,
-                                                        MPI_Comm comm) {
+                                                        scalable_vector<GlobalNodeID> node_distribution, MPI_Comm comm,
+                                                        NodeWeightLambda &&node_weight_lambda) {
   const PEID size = mpi::get_comm_size(comm);
   const PEID rank = mpi::get_comm_rank(comm);
   const NodeID n = node_distribution[rank + 1] - node_distribution[rank];
@@ -153,8 +154,11 @@ DistributedGraph build_distributed_graph_from_edge_list(const auto &edge_list,
     }
   });
 
-  // TODO compute node weights
-  scalable_vector<NodeWeight> node_weights(n + ghost_n, 1);
+  // node weights for ghost nodes must be computed afterwards
+  scalable_vector<NodeWeight> node_weights(n + ghost_n);
+  tbb::parallel_for<NodeID>(0, n, [&](const NodeID u) {
+    node_weights[u] = node_weight_lambda(u);
+  });
 
   return {std::move(node_distribution),
           compute_distribution<GlobalEdgeID>(m, comm),

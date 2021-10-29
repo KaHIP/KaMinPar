@@ -30,6 +30,31 @@ auto contract_clustering(const DistributedGraph &graph, const Clustering &cluste
   return coarsening::contract_global_clustering_redistribute(graph, clusterings);
 }
 
+TEST_F(DistributedTriangles, TestFullContractionToPE0) {
+  //  0---1-#-3---4
+  //  |\ /  #  \ /|
+  //  | 2---#---5 |
+  //  |  \  #  /  |
+  // ###############
+  //  |    \ /    |
+  //  |     8     |
+  //  |    / \    |
+  //  +---7---6---+
+  SINGLE_THREADED_TEST;
+
+  auto [c_graph, mapping] = contract_clustering(graph, {0, 0, 0, 0, 0, 0, 0});
+
+  if (rank == 0) {
+    EXPECT_THAT(c_graph.n(), Eq(1));
+    EXPECT_THAT(c_graph.node_weights(), ElementsAre(Eq(9)));
+    EXPECT_THAT(c_graph.total_node_weight(), Eq(9));
+  }
+
+  EXPECT_THAT(c_graph.m(), Eq(0));
+  EXPECT_THAT(c_graph.global_n(), Eq(1));
+  EXPECT_THAT(c_graph.global_m(), Eq(0));
+}
+
 TEST_F(DistributedTriangles, TestFullContractionToEachPE) {
   //  0---1-#-3---4
   //  |\ /  #  \ /|
@@ -49,8 +74,8 @@ TEST_F(DistributedTriangles, TestFullContractionToEachPE) {
 
     if (rank == 0) {
       EXPECT_THAT(c_graph.n(), Eq(1));
-      EXPECT_THAT(c_graph.node_weights(), ElementsAre(Eq(3)));
-      EXPECT_THAT(c_graph.total_node_weight(), Eq(3));
+      EXPECT_THAT(c_graph.node_weights(), ElementsAre(Eq(9)));
+      EXPECT_THAT(c_graph.total_node_weight(), Eq(9));
     }
 
     EXPECT_THAT(c_graph.m(), Eq(0));
