@@ -57,6 +57,40 @@ TEST(DistributedMathTest, TestLocalRangeRankComputationWithRemainder) {
   EXPECT_THAT(math::compute_local_range_rank(10, 3, 9), Eq(2));
 }
 
+TEST(DistributedMathTest, TestLocalRangeRankComputationWithRemainder2) {
+  EXPECT_THAT(math::compute_local_range_rank(10, 6, 0), Eq(0));
+  EXPECT_THAT(math::compute_local_range_rank(10, 6, 1), Eq(0));
+  EXPECT_THAT(math::compute_local_range_rank(10, 6, 2), Eq(1));
+  EXPECT_THAT(math::compute_local_range_rank(10, 6, 3), Eq(1));
+  EXPECT_THAT(math::compute_local_range_rank(10, 6, 4), Eq(2));
+  EXPECT_THAT(math::compute_local_range_rank(10, 6, 5), Eq(2));
+  EXPECT_THAT(math::compute_local_range_rank(10, 6, 6), Eq(3));
+  EXPECT_THAT(math::compute_local_range_rank(10, 6, 7), Eq(3));
+  EXPECT_THAT(math::compute_local_range_rank(10, 6, 8), Eq(4));
+  EXPECT_THAT(math::compute_local_range_rank(10, 6, 9), Eq(5));
+}
+
+TEST(DistributedMathTest, TestLocalRangeRankComputationWithRemainder_Exhaustive) {
+  const int max_n = 100;
+
+  for (int n = 1; n < max_n; ++n) {
+    for (int size = 1; size <= n; ++size) {
+      const int chunk = n / size;
+      EXPECT_THAT(math::compute_local_range(n, size, 0).first, Eq(0));
+      EXPECT_THAT(math::compute_local_range(n, size, size - 1).second, Eq(n));
+
+      for (int pe = 0; pe < size; ++pe) {
+        const auto [from, to] = math::compute_local_range(n, size, pe);
+        EXPECT_THAT(to - from, AnyOf(Eq(chunk), Eq(chunk + 1)));
+
+        for (int el = from; el < to; ++el) {
+          EXPECT_THAT(math::compute_local_range_rank(n, size, el), Eq(pe));
+        }
+      }
+    }
+  }
+}
+
 TEST(DistributedMathTest, Reg_TestLocalRangeComputation_ParHIPCrash) {
   // this set of arguments caused an overflow in ParHIP
   const std::uint32_t n = 1382867;
