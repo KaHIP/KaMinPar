@@ -3,6 +3,7 @@ set(DKAMINPAR_SOURCE_FILES
         application/arguments.h
         algorithm/allgather_graph.cc
         algorithm/allgather_graph.h
+        coarsening/contraction_helper.h
         coarsening/local_graph_contraction.cc
         coarsening/local_graph_contraction.h
         coarsening/seq_global_clustering_contraction_redistribution.cc
