@@ -30,6 +30,29 @@ auto contract_clustering(const DistributedGraph &graph, const Clustering &cluste
   return coarsening::contract_global_clustering_redistribute(graph, clusterings);
 }
 
+TEST_F(DistributedTriangles, ContractSingletonClusters) {
+  //  0---1-#-3---4
+  //  |\ /  #  \ /|
+  //  | 2---#---5 |
+  //  |  \  #  /  |
+  // ###############
+  //  |    \ /    |
+  //  |     8     |
+  //  |    / \    |
+  //  +---7---6---+
+  graph = graph::assign_node_weight_identifiers(std::move(graph));
+
+  const auto clustering = graph::distribute_node_info<Clustering>(graph, {0, 1, 2, 3, 4, 5, 6, 7, 8});
+  const auto [c_graph, c_mapping] = contract_clustering(graph, clustering);
+
+  EXPECT_EQ(c_graph.n(), graph.n()); // since the graph is already evenly distributed
+  EXPECT_EQ(c_graph.total_n(), graph.total_n());
+  EXPECT_EQ(c_graph.global_n(), graph.global_n());
+  EXPECT_EQ(c_graph.global_m(), graph.global_m());
+  EXPECT_EQ(c_graph.total_node_weight(), graph.total_node_weight());
+  graph::expect_isomorphic(c_graph, graph);
+}
+
 TEST_F(DistributedTriangles, FullContractionToPE0) {
   //  0---1-#-3---4
   //  |\ /  #  \ /|
@@ -40,7 +63,6 @@ TEST_F(DistributedTriangles, FullContractionToPE0) {
   //  |     8     |
   //  |    / \    |
   //  +---7---6---+
-  SINGLE_THREADED_TEST;
   graph = graph::assign_node_weight_identifiers(std::move(graph));
 
   auto [c_graph, mapping] = contract_clustering(graph, {0, 0, 0, 0, 0, 0, 0});
@@ -53,7 +75,7 @@ TEST_F(DistributedTriangles, FullContractionToPE0) {
   EXPECT_THAT(c_graph.global_n(), Eq(1));
   EXPECT_THAT(c_graph.global_m(), Eq(0));
 
-  graph::expect_isomorphic(c_graph, {});
+  graph::expect_empty(c_graph);
 }
 
 TEST_F(DistributedTriangles, FullContractionToEachPE) {
@@ -66,7 +88,6 @@ TEST_F(DistributedTriangles, FullContractionToEachPE) {
   //  |     8     |
   //  |    / \    |
   //  +---7---6---+
-  SINGLE_THREADED_TEST;
   graph = graph::assign_node_weight_identifiers(std::move(graph)); // for isomorphism check
 
   for (PEID pe = 0; pe < size; ++pe) {
@@ -82,7 +103,7 @@ TEST_F(DistributedTriangles, FullContractionToEachPE) {
     EXPECT_THAT(c_graph.global_n(), Eq(1));
     EXPECT_THAT(c_graph.global_m(), Eq(0));
 
-    graph::expect_isomorphic(c_graph, {});
+    graph::expect_empty(c_graph);
   }
 }
 
@@ -96,7 +117,6 @@ TEST_F(DistributedTriangles, ContractLocalTriangles) {
   //  |     8     |
   //  |    / \    |
   //  +---7---6---+
-  SINGLE_THREADED_TEST;
   graph = graph::assign_node_weight_identifiers(std::move(graph));
 
   Clustering clustering;
@@ -130,7 +150,6 @@ TEST_F(DistributedTriangles, ContractTriangleOnOnePE) {
   //  |     8     |
   //  |    / \    |
   //  +---7---6---+
-  SINGLE_THREADED_TEST;
   graph = graph::assign_node_weight_identifiers(std::move(graph));
 
   // contract nodes on PE 0 to one node, keep all other nodes in their cluster
@@ -178,7 +197,6 @@ TEST_F(DistributedTriangles, ContractTrianglesOnTwoPEs) {
   //  |     8     |
   //  |    / \    |
   //  +---7---6---+
-  SINGLE_THREADED_TEST;
   graph = graph::assign_node_weight_identifiers(std::move(graph));
 
   // contract nodes on PE 0 to one node, keep all other nodes in their cluster
@@ -223,7 +241,6 @@ TEST_F(DistributedTriangles, ContractRowWise) {
   //  |     8     |  -- C3
   //  |    / \    |
   //  +---7---6---+  -- C4
-  SINGLE_THREADED_TEST;
   graph = graph::assign_node_weight_identifiers(std::move(graph));
 
   Clustering clustering = graph::distribute_node_info<Clustering>(graph, {0, 0, 2, 1, 1, 2, 4, 4, 3});
@@ -244,10 +261,10 @@ TEST_F(DistributedTriangles, ContractRowWise) {
 }
 
 //
-// Edge case: empty graph
+// Edge cases: no nodes, no edges
 //
 
-TEST_F(DistributedEmptyGraph, ContractEmptyGraph) {
+TEST_F(DistributedNullGraph, ContractNullGraph) {
   Clustering clustering;
   const auto [c_graph, c_mapping] = contract_clustering(graph, clustering);
 
@@ -255,4 +272,23 @@ TEST_F(DistributedEmptyGraph, ContractEmptyGraph) {
   EXPECT_EQ(c_graph.global_m(), 0);
 }
 
+TEST_F(DistributedGraphWith9NodesAnd0Edges, ContractEmtpyGraphToOneNode) {
+  Clustering clustering = graph::distribute_node_info<Clustering>(graph, {0, 0, 0, 0, 0, 0, 0, 0, 0});
+  const auto [c_graph, c_mapping] = contract_clustering(graph, clustering);
+
+  EXPECT_EQ(c_graph.global_n(), 1);
+  EXPECT_EQ(c_graph.global_m(), 0);
+}
+
+TEST_F(DistributedGraphWith9NodesAnd0Edges, ContractEmptyGraphToOneNodePerPE) {
+  Clustering clustering = graph::distribute_node_info<Clustering>(graph, {0, 0, 0, 1, 1, 1, 2, 2, 2});
+  const auto [c_graph, c_mapping] = contract_clustering(graph, clustering);
+
+  EXPECT_EQ(c_graph.global_n(), 3);
+  EXPECT_EQ(c_graph.global_m(), 0);
+  EXPECT_EQ(c_graph.n(), 1);
+  EXPECT_EQ(c_graph.m(), 0);
+  EXPECT_THAT(c_graph.node_weights(), ElementsAre(Eq(3)));
+  EXPECT_EQ(c_graph.total_n(), 1);
+}
 } // namespace dkaminpar::test

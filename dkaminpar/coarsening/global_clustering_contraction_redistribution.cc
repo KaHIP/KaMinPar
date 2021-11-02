@@ -77,7 +77,7 @@ compute_mapping(const DistributedGraph &graph,
   });
   shm::parallel::prefix_sum(label_mapping.begin(), label_mapping.end(), label_mapping.begin());
 
-  const NodeID c_label_n = static_cast<NodeID>(label_mapping.back());
+  const NodeID c_label_n = label_mapping.empty() ? 0 : static_cast<NodeID>(label_mapping.back());
   const GlobalNodeID c_label_from = mpi::exscan<GlobalNodeID>(c_label_n, MPI_SUM, graph.communicator());
   const auto c_label_distribution = mpi::allgather(c_label_from, graph.communicator());
   const GlobalNodeID c_global_n = mpi::allreduce(c_label_n, MPI_SUM, graph.communicator());

@@ -201,6 +201,20 @@ struct NodeWeightIdentifiedEdge {
 };
 
 namespace internal {
+std::vector<NodeWeightIdentifiedEdge> graph_to_edge_list(const DistributedGraph &graph) {
+  const auto shm_graph = dkaminpar::graph::allgather(graph);
+
+  std::vector<NodeWeightIdentifiedEdge> list;
+  for (const NodeID u : shm_graph.nodes()) {
+    for (const auto [e, v] : shm_graph.neighbors(u)) {
+      if (u < v) {
+        list.emplace_back(shm_graph.node_weight(u), shm_graph.edge_weight(e), shm_graph.node_weight(v));
+      }
+    }
+  }
+  return list;
+}
+
 /**
  * Adds reverse edges to a list of undirected edges.
  * @param list List with edges only in one direction.
@@ -320,10 +334,17 @@ void expect_isomorphic(const DistributedGraph &lhs, const std::vector<NodeWeight
   EXPECT_TRUE(lhs_diff.empty());
   EXPECT_TRUE(rhs_diff.empty());
 }
+
+void expect_empty(const DistributedGraph &lhs) { expect_isomorphic(lhs, std::vector<NodeWeightIdentifiedEdge>{}); }
+
+void expect_isomorphic(const DistributedGraph &lhs, const DistributedGraph &rhs) {
+  const auto rhs_edge_list = internal::graph_to_edge_list(rhs);
+  expect_isomorphic(lhs, rhs_edge_list);
+}
 } // namespace graph
 
 namespace fixtures3PE {
-class DistributedEmptyGraph : public DistributedGraphFixture {
+class DistributedNullGraph : public DistributedGraphFixture {
 protected:
   void SetUp() override {
     DistributedGraphFixture::SetUp();
@@ -331,6 +352,25 @@ protected:
 
     n0 = 0;
     graph = dkaminpar::graph::Builder{}.initialize(0, 0, rank, {0, 0, 0, 0}).finalize();
+  }
+
+  DistributedGraph graph;
+  GlobalNodeID n0;
+};
+
+class DistributedGraphWith9NodesAnd0Edges : public DistributedGraphFixture {
+protected:
+  void SetUp() override {
+    DistributedGraphFixture::SetUp();
+    ALWAYS_ASSERT(size == 3) << "must be tested on three PEs";
+
+    n0 = 3 * rank;
+    graph = dkaminpar::graph::Builder{}
+                .initialize(9, 0, rank, {0, 3, 6, 9})
+                .create_node(1)
+                .create_node(1)
+                .create_node(1)
+                .finalize();
   }
 
   DistributedGraph graph;
