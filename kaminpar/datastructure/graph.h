@@ -351,19 +351,6 @@ public:
     init_block_weights();
   }
 
-  //
-  // Block / graph names
-  //
-
-#ifdef KAMINPAR_ENABLE_DEBUG_FEATURES
-  [[nodiscard]] inline const std::string &name() const { return _graph->name(); }
-  inline void set_name(const std::string &name) { _graph->set_name(name); }
-  [[nodiscard]] inline const std::vector<std::string> &block_names() const { return _block_names; }
-  inline void set_block_names(const std::vector<std::string> &block_names) { _block_names = block_names; }
-  [[nodiscard]] inline const std::string &block_name(const BlockID b) const { return _block_names[b]; }
-  inline void set_block_name(const BlockID b, const std::string &name) { _block_names[b] = name; }
-#endif // KAMINPAR_ENABLE_DEBUG_FEATURES
-
 private:
   void init_block_weights() {
     tbb::enumerable_thread_specific<std::vector<BlockWeight>> tl_block_weights{
@@ -400,9 +387,5 @@ private:
   //! final partition. For instance, after the first bisection, this might be {_k / 2, _k / 2}, although other values
   //! are possible when using adaptive k's or if _k is not a power of 2.
   scalable_vector<BlockID> _final_k; // O(k)
-
-#ifdef KAMINPAR_ENABLE_DEBUG_FEATURES
-  std::vector<std::string> _block_names{};
-#endif // KAMINPAR_ENABLE_DEBUG_FEATURES
 };
 } // namespace kaminpar

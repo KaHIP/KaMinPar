@@ -43,7 +43,9 @@ void print_statistics(const dist::DistributedPartitionedGraph &p_graph, const di
   const auto feasible = dist::metrics::is_feasible(p_graph, ctx.partition);
 
   LOG << "RESULT cut=" << edge_cut << " imbalance=" << imbalance << " feasible=" << feasible << " k=" << p_graph.k();
-  if (!ctx.quiet) { dist::timer::finalize_distributed_timer(GLOBAL_TIMER); }
+  if (!ctx.quiet) {
+    dist::timer::finalize_distributed_timer(GLOBAL_TIMER);
+  }
 
   if (dist::mpi::get_comm_rank(MPI_COMM_WORLD) == 0 && !ctx.quiet) {
     shm::Timer::global().print_machine_readable(std::cout);
@@ -62,7 +64,9 @@ void print_statistics(const dist::DistributedPartitionedGraph &p_graph, const di
     LOG << shm::logger::TABLE << p_graph.block_weights();
   }
 
-  if (p_graph.k() != ctx.partition.k || !feasible) { LOG_ERROR << "*** Partition is infeasible!"; }
+  if (p_graph.k() != ctx.partition.k || !feasible) {
+    LOG_ERROR << "*** Partition is infeasible!";
+  }
 }
 
 int main(int argc, char *argv[]) {
@@ -91,7 +95,9 @@ int main(int argc, char *argv[]) {
   try {
     ctx = dist::app::parse_options(argc, argv);
     sanitize_context(ctx);
-  } catch (const std::runtime_error &e) { std::cout << e.what() << std::endl; }
+  } catch (const std::runtime_error &e) {
+    std::cout << e.what() << std::endl;
+  }
   shm::Logger::set_quiet_mode(ctx.quiet);
 
   shm::print_identifier(argc, argv);
@@ -103,7 +109,9 @@ int main(int argc, char *argv[]) {
 
   // Initialize TBB
   auto gc = shm::init_parallelism(ctx.parallel.num_threads);
-  if (ctx.parallel.use_interleaved_numa_allocation) { shm::init_numa(); }
+  if (ctx.parallel.use_interleaved_numa_allocation) {
+    shm::init_numa();
+  }
 
   // Load graph
   const auto graph = TIMED_SCOPE("IO") {
@@ -111,7 +119,7 @@ int main(int argc, char *argv[]) {
     dist::mpi::barrier(MPI_COMM_WORLD);
     return graph;
   };
-  LOG << "Loaded graph with n=" << graph.global_n() << " m=" << graph.global_m();
+  LOG << "GRAPH global_n=" << graph.global_n() << " global_m=" << graph.global_m();
   ASSERT([&] { dist::graph::debug::validate(graph); });
   ctx.setup(graph);
 

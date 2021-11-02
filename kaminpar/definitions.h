@@ -15,6 +15,7 @@
 #include <ostream>
 #include <sstream>
 #include <string>
+#include <tbb/cache_aligned_allocator.h>
 #include <tbb/scalable_allocator.h>
 #include <type_traits>
 #include <variant>
@@ -50,8 +51,8 @@ constexpr EdgeWeight kInvalidEdgeWeight = std::numeric_limits<EdgeWeight>::max()
 constexpr BlockWeight kInvalidBlockWeight = std::numeric_limits<BlockWeight>::max();
 constexpr Degree kMaxDegree = std::numeric_limits<Degree>::max();
 
-template<typename T>
-using scalable_vector = std::vector<T, tbb::scalable_allocator<T>>;
+template <typename T> using scalable_vector = std::vector<T, tbb::scalable_allocator<T>>;
+template <typename T> using cache_aligned_vector = std::vector<T, tbb::cache_aligned_allocator<T>>;
 
 namespace tag {
 struct Parallel {};
@@ -62,11 +63,10 @@ constexpr inline Sequential seq{};
 
 // helper function to implement ASSERT() macros
 namespace debug {
-template<typename Arg>
-bool evaluate_assertion(Arg &&arg) {
-  if constexpr (std::is_invocable_r<bool, Arg>::value) {
+template <typename Arg> bool evaluate_assertion(Arg &&arg) {
+  if constexpr (std::is_invocable_r_v<bool, Arg>) {
     return arg();
-  } else if constexpr (std::is_invocable<Arg>::value) {
+  } else if constexpr (std::is_invocable_v<Arg>) {
     arg(); // should contain ASSERTs
     return true;
   } else {
@@ -77,11 +77,9 @@ bool evaluate_assertion(Arg &&arg) {
 void print_stacktrace();
 
 // helper function to implement ASSERT() and DBG() macros
-template<bool abort_on_destruction>
-class DisposableLogger {
+template <bool abort_on_destruction> class DisposableLogger {
 public:
-  template<typename... Args>
-  explicit DisposableLogger(Args &&...args) : _logger(std::forward<Args>(args)...) {}
+  template <typename... Args> explicit DisposableLogger(Args &&...args) : _logger(std::forward<Args>(args)...) {}
 
   ~DisposableLogger() {
     _logger << logger::RESET;
@@ -92,8 +90,7 @@ public:
     }
   }
 
-  template<typename Arg>
-  DisposableLogger &operator<<(Arg &&arg) {
+  template <typename Arg> DisposableLogger &operator<<(Arg &&arg) {
     _logger << std::forward<Arg>(arg);
     return *this;
   }
@@ -135,11 +132,11 @@ private:
 // only for macro implementation, acts like an ASSERT but produces no code (with constant folding enabled)
 #define NEVER_ASSERT(x) true || kaminpar::debug::DisposableLogger<false>(std::cout)
 
+// Assertions
 //
 // We have three levels of assertions: HEAVY_ASSERT, ASSERT and LIGHT_ASSERT
-// Heavier assertions imply lighter assertions, i.e., compiling with HEAVY_ASSERT enabled also enabled ASSERT and
-// LIGHT_ASSERT, and compiling ASSERT also enabled LIGHT_ASSERT.
-//
+// Heavier assertions imply lighter assertions, i.e., compiling with HEAVY_ASSERT enabled also enables ASSERT and
+// LIGHT_ASSERT, and compiling with ASSERT also enables LIGHT_ASSERT.
 #ifdef KAMINPAR_ENABLE_HEAVY_ASSERTIONS
 #define HEAVY_ASSERT(x) ALWAYS_ASSERT(x)
 #ifdef NDEBUG
@@ -167,13 +164,6 @@ private:
 #define LIGHT_ASSERT(x) NEVER_ASSERT(x)
 #endif // KAMINPAR_ENABLE_LIGHT_ASSERTIONS
 
-// IFASSERT evaluates to its argument iff. ASSERT is enabled, otherwise it produces a noop statement
-#ifdef KAMINPAR_ENABLE_ASSERTIONS
-#define IFASSERT(x) x
-#else // KAMINPAR_ENABLE_ASSERTIONS
-#define IFASSERT(x) (void(0));
-#endif // KAMINPAR_ENABLE_ASSERTIONS
-
 // Macros for debug output
 //
 // To use these macros, you must define a boolean variable kDebug somewhere
@@ -186,13 +176,6 @@ private:
 #define DBGC(cond) (kDebug && (cond)) && kaminpar::debug::DisposableLogger<false>(std::cout) << kaminpar::logger::MAGENTA << POSITION << CPU << " " << kaminpar::logger::DEFAULT_TEXT
 #define DBG DBGC(true)
 #define IFDBG(expr) (kDebug ? (expr) : decltype(expr)())
-
-// Macros for global debug features
-#ifdef KAMINPAR_ENABLE_DEBUG_FEATURES
-#define GDBG(x) x
-#else // KAMINPAR_ENABLE_DEBUG_FEATURES
-#define GDBG(x) ((void) 0)
-#endif // KAMINPAR_ENABLE_DEBUG_FEATURES
 
 // Macros for general console output
 //
@@ -215,7 +198,7 @@ private:
 #define FATAL_ERROR (kaminpar::debug::DisposableLogger<true>(std::cout) << kaminpar::logger::RED << "[Fatal] ")
 #define FATAL_PERROR (kaminpar::debug::DisposableLogger<true>(std::cout, std::string(": ") + std::strerror(errno) + "\n") << kaminpar::logger::RED << "[Fatal] ")
 
-// Macro that evalutes to true or false depending on whether another macro is defined or undefined
+// Macro that evaluates to true or false depending on whether another macro is defined or undefined
 // use DETECT_EXIST(SOME_OTHER_MACRO) to detect whether SOME_OTHER_MACRO is defined or undefined
 //
 // Copied from https://stackoverflow.com/questions/41265750/how-to-get-a-boolean-indicating-if-a-macro-is-defined-or-not
@@ -241,14 +224,19 @@ private:
 // IFSTATS(x): only evaluate this expression if statistics are enabled
 // STATS: LOG for statistics output: only evaluate and output if statistics are enabled
 #define SET_STATISTICS(value) constexpr static bool kStatistics = value
-#define SET_STATISTICS_FROM_GLOBAL() SET_STATISTICS(true) //SET_STATISTICS(DETECT_EXIST(KAMINPAR_ENABLE_STATISTICS))
 #define IFSTATS(x) (kStatistics ? (x) : std::decay_t<decltype(x)>())
 #define STATS kStatistics &&kaminpar::debug::DisposableLogger<false>(std::cout) << kaminpar::logger::CYAN
 
-#define UNUSED(x) ((void) x)
+#ifdef KAMINPAR_ENABLE_STATISTICS
+#define SET_STATISTICS_FROM_GLOBAL() SET_STATISTICS(true)
+#else // KAMINPAR_ENABLE_STATISTICS
+#define SET_STATISTICS_FROM_GLOBAL() SET_STATISTICS(false)
+#endif // KAMINPAR_ENABLE_STATISTISC
 
-#define SET_OUTPUT(x) static constexpr bool kOutput = (x)
+// Hide compiler warnings for unused variables
+#define UNUSED(x) ((void)(x))
 
 // clang-format off
+#define SET_OUTPUT(x) static constexpr bool kOutput = (x)
 #define CLOG if constexpr (kOutput) LOG
 // clang-format on

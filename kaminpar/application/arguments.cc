@@ -80,7 +80,6 @@ void create_miscellaneous_context_options(Context &ctx, Arguments &args, const s
 void create_debug_context_options(DebugContext &d_ctx, Arguments &args, const std::string &name, const std::string &prefix) {
   args.group(name, prefix)
       .argument(prefix + "-just-sanitize-args", "Sanitize command line arguments and exit.", &d_ctx.just_sanitize_args)
-      .argument(prefix + "-force-clean-build", "Abort execution if working directory is dirty.", &d_ctx.force_clean_build)
       ;
 }
 // clang-format on

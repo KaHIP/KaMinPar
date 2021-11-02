@@ -157,7 +157,6 @@ PartitionedGraph::PartitionedGraph(const Graph &graph, BlockID k,
   ASSERT(_partition.size() == graph.n());
 
   init_block_weights();
-  GDBG(_block_names.resize(k));
 }
 
 PartitionedGraph::PartitionedGraph(tag::Sequential, const Graph &graph, BlockID k,
@@ -173,13 +172,11 @@ PartitionedGraph::PartitionedGraph(tag::Sequential, const Graph &graph, BlockID 
   ASSERT(_partition.size() == graph.n());
 
   init_block_weights_seq();
-  GDBG(_block_names.resize(k));
 }
 
 void PartitionedGraph::change_k(const BlockID new_k) {
   _block_weights = StaticArray<parallel::IntegralAtomicWrapper<BlockWeight>>{new_k};
   _final_k.resize(new_k);
   _k = new_k;
-  GDBG(_block_names.resize(new_k));
 }
 } // namespace kaminpar

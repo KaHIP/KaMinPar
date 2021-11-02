@@ -211,7 +211,6 @@ struct InitialPartitioningContext {
 
 struct DebugContext {
   bool just_sanitize_args{false};
-  bool force_clean_build{false};
 
   void print(std::ostream &out, const std::string &prefix = "") const;
 };

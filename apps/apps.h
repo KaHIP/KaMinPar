@@ -35,10 +35,10 @@ void print_identifier(int argc, char *argv[]) {
   LLOG << "KAMINPAR_ENABLE_HEAVY_ASSERTIONS=" << DETECT_EXIST(KAMINPAR_ENABLE_HEAVY_ASSERTIONS) << " ";
   LLOG << "KAMINPAR_ENABLE_ASSERTIONS=" << DETECT_EXIST(KAMINPAR_ENABLE_ASSERTIONS) << " ";
   LLOG << "KAMINPAR_ENABLE_LIGHT_ASSERTIONS=" << DETECT_EXIST(KAMINPAR_ENABLE_LIGHT_ASSERTIONS) << " ";
-  LLOG << "KAMINPAR_ENABLE_DEBUG_FEATURES=" << DETECT_EXIST(KAMINPAR_ENABLE_DEBUG_FEATURES) << " ";
   LLOG << "KAMINPAR_ENABLE_TIMERS=" << DETECT_EXIST(KAMINPAR_ENABLE_TIMERS) << " ";
-  LLOG << "KAMINPAR_LINK_TCMALLOC=" << DETECT_EXIST(KAMINPAR_LINK_TCMALLOC) << " ";
+  LLOG << "KAMINPAR_ENABLE_STATISTICS=" << DETECT_EXIST(KAMINPAR_ENABLE_STATISTICS) << " ";
   LLOG << "KAMINPAR_64BIT_EDGE_IDS=" << DETECT_EXIST(KAMINPAR_64BIT_EDGE_IDS) << " ";
+  LLOG << "KAMINPAR_USE_BACKWARD_CPP=" << DETECT_EXIST(KAMINPAR_USE_BACKWARD_CPP) << " ";
   LOG;
 
   LOG << "MODIFIED files={" << Environment::GIT_MODIFIED_FILES << "}";
@@ -47,16 +47,11 @@ void print_identifier(int argc, char *argv[]) {
   for (int i = 0; i < argc; ++i) { LLOG << "argv[" << i << "]='" << argv[i] << "' "; }
   LOG;
 
-  if (DETECT_EXIST(KAMINPAR_ENABLE_ASSERTIONS)) {
+  if (DETECT_EXIST(KAMINPAR_ENABLE_ASSERTIONS) || DETECT_EXIST(KAMINPAR_ENABLE_HEAVY_ASSERTIONS)) {
     LOG << std::string(80, '*');
     LOG << "!!! RUNNING WITH ASSERTIONS !!!";
     LOG << std::string(80, '*');
   }
-}
-
-void force_clean_build() {
-  ALWAYS_ASSERT(Environment::GIT_MODIFIED_FILES != "<none>" && Environment::GIT_MODIFIED_FILES != "<unavailable>")
-      << "Please commit your changes before running experiments.";
 }
 
 tbb::global_control init_parallelism(const std::size_t num_threads) {

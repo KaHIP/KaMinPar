@@ -204,8 +204,7 @@ void InitialPartitioningContext::print(std::ostream &out, const std::string &pre
 }
 
 void DebugContext::print(std::ostream &out, const std::string &prefix) const {
-  out << prefix << "just_sanitize_args=" << just_sanitize_args << " " //
-      << prefix << "force_clean_build=" << force_clean_build << " ";  //
+  out << prefix << "just_sanitize_args=" << just_sanitize_args << " "; //
 }
 
 void ParallelContext::print(std::ostream &out, const std::string &prefix) const {
@@ -324,7 +323,6 @@ Context create_default_context() {
     },
     .debug = { // Context -> Debug
       .just_sanitize_args = false,
-      .force_clean_build = false,
     },
     .parallel = { // Context -> Parallel
       .use_interleaved_numa_allocation = true,
