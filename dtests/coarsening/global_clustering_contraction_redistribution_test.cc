@@ -213,7 +213,7 @@ TEST_F(DistributedTriangles, ContractTrianglesOnTwoPEs) {
                                     });
 }
 
-TEST_F(DistributedTriangles, ContractRowDoubleRowRow) {
+TEST_F(DistributedTriangles, ContractRowWise) {
   //  0---1-#-3---4  -- C0 # C1
   //  |\ /  #  \ /|
   //  | 2---#---5 |  -- C2
@@ -242,4 +242,17 @@ TEST_F(DistributedTriangles, ContractRowDoubleRowRow) {
                                         {0b011'000'000, 2, 0b100'000'000}, // [67] -- [8]
                                     });
 }
+
+//
+// Edge case: empty graph
+//
+
+TEST_F(DistributedEmptyGraph, ContractEmptyGraph) {
+  Clustering clustering;
+  const auto [c_graph, c_mapping] = contract_clustering(graph, clustering);
+
+  EXPECT_EQ(c_graph.global_n(), 0);
+  EXPECT_EQ(c_graph.global_m(), 0);
+}
+
 } // namespace dkaminpar::test

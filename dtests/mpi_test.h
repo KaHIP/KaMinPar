@@ -323,6 +323,20 @@ void expect_isomorphic(const DistributedGraph &lhs, const std::vector<NodeWeight
 } // namespace graph
 
 namespace fixtures3PE {
+class DistributedEmptyGraph : public DistributedGraphFixture {
+protected:
+  void SetUp() override {
+    DistributedGraphFixture::SetUp();
+    ALWAYS_ASSERT(size == 3) << "must be tested on three PEs";
+
+    n0 = 0;
+    graph = dkaminpar::graph::Builder{}.initialize(0, 0, rank, {0, 0, 0, 0}).finalize();
+  }
+
+  DistributedGraph graph;
+  GlobalNodeID n0;
+};
+
 //  0---1-#-3---4
 //  |\ /  #  \ /|
 //  | 2---#---5 |
