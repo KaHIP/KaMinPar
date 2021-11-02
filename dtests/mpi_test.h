@@ -1,5 +1,6 @@
 #pragma once
 
+#include "dkaminpar/algorithm/allgather_graph.h"
 #include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/distributed_definitions.h"
 #include "dkaminpar/mpi_wrapper.h"
@@ -142,6 +143,182 @@ DistributedGraph change_node_weights(DistributedGraph graph,
           graph.take_ghost_to_global(),
           graph.take_global_to_ghost(),
           graph.communicator()};
+}
+
+/**
+ * Given an array \c info with one element per global node, build a local array on each PE containing copies of the
+ * information associated with each node and ghost node.
+ *
+ * @tparam T Information associated with nodes.
+ * @tparam Buffer Vector type.
+ * @param graph Distributed graph.
+ * @param info Information associated with nodes.
+ * @return A local array of size \c total_n containing the information associated with each owned and ghost node on
+ * the PE.
+ */
+template <typename Container>
+Container distribute_node_info(const DistributedGraph &graph, const Container &global_info) {
+  ASSERT(global_info.size() == graph.global_n());
+
+  Container local_info(graph.total_n());
+  for (const NodeID u : graph.all_nodes()) {
+    local_info[u] = global_info[graph.local_to_global_node(u)];
+  }
+  return local_info;
+}
+
+/**
+ * Changes nodes weights such that node \c u has weight \c 2^u. Thus, the weight of each node is unique and the sum
+ * of node weights can be decomposed.
+ * @param graph Graph for which the node weights are changed, cannot have more than 31 nodes (globally) since node
+ * weights are usually 32 bit signed integers.
+ * @return Graph with unique node weights.
+ */
+DistributedGraph assign_node_weight_identifiers(DistributedGraph graph) {
+  ALWAYS_ASSERT(graph.global_n() <= 31) << "graph is too large: can have at most 30 nodes";
+
+  scalable_vector<NodeWeight> new_node_weights(graph.total_n());
+  for (const NodeID u : graph.all_nodes()) {
+    new_node_weights[u] = 1 << graph.local_to_global_node(u);
+  }
+
+  return {graph.take_node_distribution(),
+          graph.take_edge_distribution(),
+          graph.take_nodes(),
+          graph.take_edges(),
+          std::move(new_node_weights),
+          graph.take_edge_weights(),
+          graph.take_ghost_owner(),
+          graph.take_ghost_to_global(),
+          graph.take_global_to_ghost(),
+          graph.communicator()};
+}
+
+struct NodeWeightIdentifiedEdge {
+  NodeWeight u_weight;
+  EdgeWeight weight;
+  NodeWeight v_weight;
+};
+
+namespace internal {
+/**
+ * Adds reverse edges to a list of undirected edges.
+ * @param list List with edges only in one direction.
+ * @return List containing edges in both directions.
+ */
+std::vector<NodeWeightIdentifiedEdge> make_edge_list_undirected(std::vector<NodeWeightIdentifiedEdge> list) {
+  const std::size_t initial_size = list.size();
+  for (std::size_t i = 0; i < initial_size; ++i) {
+    list.emplace_back(list[i].v_weight, list[i].weight, list[i].u_weight);
+  }
+  return list;
+}
+
+/**
+ * Checks whether the given distributed graph with node weight identifiers is isomorphic to the specified edge list.
+ * The edge list describes edges by their weight and by the (unique) node weights of their endpoints.
+ * @param d_lhs Distributed graph to check.
+ * @param rhs Global edge list.
+ * @return Pair of two list: first contains edges in \c d_lhs not in \c rhs, second contains edges in
+ * \c rhs not in \c d_lhs.
+ */
+std::pair<std::vector<NodeWeightIdentifiedEdge>, std::vector<NodeWeightIdentifiedEdge>>
+check_isomorphic(const DistributedGraph &d_lhs, const std::vector<NodeWeightIdentifiedEdge> &rhs) {
+  // allgather graph
+  auto lhs = dkaminpar::graph::allgather(d_lhs);
+
+  std::vector<bool> found_from_lhs(lhs.m());
+  std::vector<bool> found_from_rhs(rhs.size());
+
+  // search in lhs
+  for (std::size_t i = 0; i < rhs.size(); ++i) {
+    const auto [u_weight, e_weight, v_weight] = rhs[i];
+
+    for (const NodeID u : lhs.nodes()) {
+      if (lhs.node_weight(u) != u_weight) {
+        continue;
+      }
+      for (const auto [e, v] : lhs.neighbors(u)) {
+        if (lhs.edge_weight(e) != e_weight) {
+          continue;
+        }
+        if (lhs.node_weight(v) != v_weight) {
+          continue;
+        }
+        found_from_rhs[i] = true;
+        break;
+      }
+    }
+  }
+
+  // search in rhs
+  for (const NodeID u : lhs.nodes()) {
+    for (const auto [e, v] : lhs.neighbors(u)) {
+      const NodeWeight u_weight = lhs.node_weight(u);
+      const EdgeWeight e_weight = lhs.edge_weight(e);
+      const NodeWeight v_weight = lhs.node_weight(v);
+
+      for (std::size_t i = 0; i < rhs.size(); ++i) {
+        if (u_weight != rhs[i].u_weight) {
+          continue;
+        }
+        if (e_weight != rhs[i].weight) {
+          continue;
+        }
+        if (v_weight != rhs[i].v_weight) {
+          continue;
+        }
+        found_from_lhs[e] = true;
+        break;
+      }
+    }
+  }
+
+  // build diff pair
+  std::pair<std::vector<NodeWeightIdentifiedEdge>, std::vector<NodeWeightIdentifiedEdge>> diff;
+
+  for (const NodeID u : lhs.nodes()) {
+    for (const auto [e, v] : lhs.neighbors(u)) {
+      if (!found_from_lhs[e]) {
+        diff.first.emplace_back(lhs.node_weight(u), lhs.edge_weight(e), lhs.node_weight(v));
+      }
+    }
+  }
+
+  for (std::size_t i = 0; i < rhs.size(); ++i) {
+    if (!found_from_rhs[i]) {
+      diff.second.push_back(rhs[i]);
+    }
+  }
+
+  return diff;
+}
+} // namespace internal
+
+void expect_isomorphic(const DistributedGraph &lhs, const std::vector<NodeWeightIdentifiedEdge> &undirected_rhs) {
+  const auto rhs = internal::make_edge_list_undirected(undirected_rhs);
+
+  EXPECT_EQ(lhs.global_m(), rhs.size());
+
+  const auto [lhs_diff, rhs_diff] = internal::check_isomorphic(lhs, rhs);
+  if (!lhs_diff.empty() || !rhs_diff.empty()) {
+    std::ostringstream oss;
+
+    oss << "Expected graphs to be isomorphic, but they are not:\n"
+        << "Edges contained in LHS that do not exist in RHS:\n";
+    for (const auto [u_weight, e_weight, v_weight] : lhs_diff) {
+      oss << "- " << u_weight << " --> " << v_weight << " with weight " << e_weight << "\n";
+    }
+    oss << "Edges contained in RHS that do not exist in LHS:\n";
+    for (const auto [u_weight, e_weight, v_weight] : rhs_diff) {
+      oss << "- " << u_weight << " --> " << v_weight << " with weight " << e_weight << "\n";
+    }
+
+    LOG << oss.str();
+  }
+
+  EXPECT_TRUE(lhs_diff.empty());
+  EXPECT_TRUE(rhs_diff.empty());
 }
 } // namespace graph
 
