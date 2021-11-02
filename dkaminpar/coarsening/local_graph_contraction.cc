@@ -38,8 +38,12 @@ Result contract_local_clustering(const DistributedGraph &graph,
   auto &all_buffered_nodes = m_ctx.all_buffered_nodes;
 
   scalable_vector<NodeID> mapping(graph.total_n());
-  if (leader_mapping.size() < graph.n()) { leader_mapping.resize(graph.n()); }
-  if (buckets.size() < graph.n()) { buckets.resize(graph.n()); }
+  if (leader_mapping.size() < graph.n()) {
+    leader_mapping.resize(graph.n());
+  }
+  if (buckets.size() < graph.n()) {
+    buckets.resize(graph.n());
+  }
 
   //
   // Compute a mapping from the nodes of the current graph to the nodes of the coarse graph
@@ -182,16 +186,20 @@ Result contract_local_clustering(const DistributedGraph &graph,
           // collect coarse edges
           for (const auto [e, v] : graph.neighbors(u)) {
             const NodeID c_v = mapping[v];
-            if (c_u != c_v) { map[c_v] += graph.edge_weight(e); }
+            if (c_u != c_v) {
+              map[c_v] += graph.edge_weight(e);
+            }
           }
         }
 
         c_nodes[c_u + 1] = map.size(); // node degree (used to build c_nodes)
 
-        // since we don't know the value of c_nodes[c_u] yet (so far, it only holds the nodes degree), we can't place the
-        // edges of c_u in the c_edges and c_edge_weights arrays; hence, we store them in auxiliary arrays and note their
-        // position in the auxiliary arrays
-        for (const auto [c_v, weight] : map.entries()) { local_edge_buffer.push_back({c_v, weight}); }
+        // since we don't know the value of c_nodes[c_u] yet (so far, it only holds the nodes degree), we can't place
+        // the edges of c_u in the c_edges and c_edge_weights arrays; hence, we store them in auxiliary arrays and note
+        // their position in the auxiliary arrays
+        for (const auto [c_v, weight] : map.entries()) {
+          local_edge_buffer.push_back({c_v, weight});
+        }
         map.clear();
       };
 
@@ -247,12 +255,7 @@ Result contract_local_clustering(const DistributedGraph &graph,
   mpi::allgather(&c_edge_distribution[rank + 1], 1, c_edge_distribution.data() + 1, 1, comm);
   const GlobalNodeID c_global_m = c_edge_distribution.back();
 
-  DistributedGraph c_graph{c_global_n,
-                           c_global_m,
-                           c_next_ghost_node - c_n,
-                           first_node,
-                           first_edge,
-                           std::move(c_node_distribution),
+  DistributedGraph c_graph{std::move(c_node_distribution),
                            std::move(c_edge_distribution),
                            std::move(c_nodes),
                            std::move(c_edges),
@@ -260,11 +263,12 @@ Result contract_local_clustering(const DistributedGraph &graph,
                            std::move(c_edge_weights),
                            std::move(c_ghost_owner),
                            std::move(c_ghost_to_global),
-                           std::move(c_global_to_ghost)};
+                           std::move(c_global_to_ghost),
+                           graph.communicator()};
 
   DBG << V(c_graph.n()) << V(c_graph.m()) << V(c_graph.ghost_n()) << V(c_graph.total_n()) << V(c_graph.global_n())
       << V(c_graph.global_m());
 
   return {std::move(c_graph), std::move(mapping), std::move(m_ctx)};
 }
-} // namespace dkaminpar::graph
+} // namespace dkaminpar::coarsening

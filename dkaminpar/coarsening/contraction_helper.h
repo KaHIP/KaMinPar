@@ -112,6 +112,8 @@ DistributedGraph build_distributed_graph_from_edge_list(const auto &edge_list,
   const GlobalNodeID from = node_distribution[rank];
   const GlobalNodeID to = node_distribution[rank + 1];
 
+  SLOG << "Remap ghost to local nodes";
+
   // Remap ghost nodes to local nodes
   // TODO parallelize this part
   std::unordered_map<GlobalNodeID, NodeID> global_to_ghost;
@@ -123,11 +125,13 @@ DistributedGraph build_distributed_graph_from_edge_list(const auto &edge_list,
     if ((v < from || v >= to) && !global_to_ghost.contains(v)) { // new ghost node?
       NodeID v_local = ghost_to_global.size();
       global_to_ghost[v] = v_local;
-      ghost_to_global[v_local] = v;
-      ghost_owner[v_local] = math::compute_local_range_rank<GlobalNodeID>(node_distribution.back(), size, v);
+      ghost_to_global.push_back(v);
+      ghost_owner.push_back(math::compute_local_range_rank<GlobalNodeID>(node_distribution.back(), size, v));
     }
   }
   const NodeID ghost_n = ghost_owner.size();
+
+  SLOG << "Construct local graph";
 
   // Now construct the coarse graph
   tbb::parallel_for<NodeID>(0, n, [&](const NodeID i) {
@@ -153,6 +157,10 @@ DistributedGraph build_distributed_graph_from_edge_list(const auto &edge_list,
       edge_weights[to] = weight;
     }
   });
+
+
+  SLOG << "Build the graph data structure with node distribution " << node_distribution.back()
+                                                                      << " and " << V(ghost_to_global.size());
 
   // node weights for ghost nodes must be computed afterwards
   scalable_vector<NodeWeight> node_weights(n + ghost_n);

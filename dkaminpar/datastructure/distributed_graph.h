@@ -1,10 +1,10 @@
 /*******************************************************************************
-* @file:   distributed_graph.h
-*
-* @author: Daniel Seemaier
-* @date:   27.10.2021
-* @brief:  Static distributed graph data structure.
-******************************************************************************/
+ * @file:   distributed_graph.h
+ *
+ * @author: Daniel Seemaier
+ * @date:   27.10.2021
+ * @brief:  Static distributed graph data structure.
+ ******************************************************************************/
 #pragma once
 
 #include "dkaminpar/distributed_definitions.h"
@@ -34,40 +34,27 @@ public:
 
   DistributedGraph() = default;
 
-  // do not move node_distribution and edge_distribution
   DistributedGraph(scalable_vector<GlobalNodeID> node_distribution, scalable_vector<GlobalEdgeID> edge_distribution,
                    scalable_vector<EdgeID> nodes, scalable_vector<NodeID> edges,
                    scalable_vector<NodeWeight> node_weights, scalable_vector<EdgeWeight> edge_weights,
                    scalable_vector<PEID> ghost_owner, scalable_vector<GlobalNodeID> ghost_to_global,
-                   std::unordered_map<GlobalNodeID, NodeID> global_to_ghost, MPI_Comm comm = MPI_COMM_WORLD)
-      : DistributedGraph(node_distribution.back(), edge_distribution.back(), ghost_to_global.size(),
-                         node_distribution[mpi::get_comm_rank(comm)], edge_distribution[mpi::get_comm_rank(comm)],
-                         node_distribution, edge_distribution, std::move(nodes), std::move(edges),
-                         std::move(node_weights), std::move(edge_weights), std::move(ghost_owner),
-                         std::move(ghost_to_global), std::move(global_to_ghost), comm) {}
+                   std::unordered_map<GlobalNodeID, NodeID> global_to_ghost, MPI_Comm comm)
+      : _node_distribution{std::move(node_distribution)}, _edge_distribution{std::move(edge_distribution)},
+        _nodes{std::move(nodes)}, _edges{std::move(edges)}, _node_weights{std::move(node_weights)},
+        _edge_weights{std::move(edge_weights)}, _ghost_owner{std::move(ghost_owner)},
+        _ghost_to_global{std::move(ghost_to_global)}, _global_to_ghost{std::move(global_to_ghost)}, _communicator{
+                                                                                                        comm} {
+    PEID rank;
+    MPI_Comm_rank(communicator(), &rank);
 
-  DistributedGraph(const GlobalNodeID global_n, const GlobalEdgeID global_m, const NodeID ghost_n,
-                   const GlobalNodeID offset_n, const GlobalEdgeID offset_m,
-                   scalable_vector<GlobalNodeID> node_distribution, scalable_vector<GlobalEdgeID> edge_distribution,
-                   scalable_vector<EdgeID> nodes, scalable_vector<NodeID> edges,
-                   scalable_vector<NodeWeight> node_weights, scalable_vector<EdgeWeight> edge_weights,
-                   scalable_vector<PEID> ghost_owner, scalable_vector<GlobalNodeID> ghost_to_global,
-                   std::unordered_map<GlobalNodeID, NodeID> global_to_ghost, MPI_Comm comm = MPI_COMM_WORLD)
-      : _global_n{global_n},
-        _global_m{global_m},
-        _ghost_n{ghost_n},
-        _offset_n{offset_n},
-        _offset_m{offset_m},
-        _node_distribution{std::move(node_distribution)},
-        _edge_distribution{std::move(edge_distribution)},
-        _nodes{std::move(nodes)},
-        _edges{std::move(edges)},
-        _node_weights{std::move(node_weights)},
-        _edge_weights{std::move(edge_weights)},
-        _ghost_owner{std::move(ghost_owner)},
-        _ghost_to_global{std::move(ghost_to_global)},
-        _global_to_ghost{std::move(global_to_ghost)},
-        _communicator{comm} {
+    _n = _nodes.size() - 1;
+    _m = _edges.size();
+    _ghost_n = _ghost_to_global.size();
+    _offset_n = _node_distribution[rank];
+    _offset_m = _edge_distribution[rank];
+    _global_n = _node_distribution.back();
+    _global_m = _edge_distribution.back();
+
     init_total_node_weight();
     init_communication_metrics();
   }
@@ -81,7 +68,7 @@ public:
   [[nodiscard]] inline GlobalNodeID global_n() const { return _global_n; }
   [[nodiscard]] inline GlobalEdgeID global_m() const { return _global_m; }
 
-  [[nodiscard]] inline NodeID n() const { return _nodes.size() - 1; }
+  [[nodiscard]] inline NodeID n() const { return _n; }
   [[nodiscard]] inline NodeID n(const PEID pe) const {
     ASSERT(pe < static_cast<PEID>(_node_distribution.size()));
     return _node_distribution[pe + 1] - _node_distribution[pe];
@@ -89,7 +76,7 @@ public:
   [[nodiscard]] inline NodeID ghost_n() const { return _ghost_n; }
   [[nodiscard]] inline NodeID total_n() const { return ghost_n() + n(); }
 
-  [[nodiscard]] inline EdgeID m() const { return _edges.size(); }
+  [[nodiscard]] inline EdgeID m() const { return _m; }
   [[nodiscard]] inline EdgeID m(const PEID pe) const {
     ASSERT(pe < static_cast<PEID>(_edge_distribution.size()));
     return _edge_distribution[pe + 1] - _edge_distribution[pe];
@@ -116,7 +103,7 @@ public:
 
   // Node type
   [[nodiscard]] inline bool is_ghost_node(const NodeID u) const {
-    ASSERT(u < total_n());
+    ASSERT(u < total_n()) << V(u) << V(total_n());
     return u >= n();
   }
   [[nodiscard]] inline bool is_owned_node(const NodeID u) const {
@@ -217,38 +204,31 @@ public:
   [[nodiscard]] const auto &raw_edge_weights() const { return _edge_weights; }
 
   // Parallel iteration
-  template<typename Lambda>
-  inline void pfor_nodes(const NodeID from, const NodeID to, Lambda &&l) const {
+  template <typename Lambda> inline void pfor_nodes(const NodeID from, const NodeID to, Lambda &&l) const {
     tbb::parallel_for(from, to, std::forward<Lambda &&>(l));
   }
 
-  template<typename Lambda>
-  inline void pfor_nodes_range(const NodeID from, const NodeID to, Lambda &&l) const {
+  template <typename Lambda> inline void pfor_nodes_range(const NodeID from, const NodeID to, Lambda &&l) const {
     tbb::parallel_for(tbb::blocked_range<NodeID>(from, to), std::forward<Lambda &&>(l));
   }
 
-  template<typename Lambda>
-  inline void pfor_nodes(Lambda &&l) const {
+  template <typename Lambda> inline void pfor_nodes(Lambda &&l) const {
     pfor_nodes(0, n(), std::forward<Lambda &&>(l));
   }
 
-  template<typename Lambda>
-  inline void pfor_all_nodes(Lambda &&l) const {
+  template <typename Lambda> inline void pfor_all_nodes(Lambda &&l) const {
     pfor_nodes(0, total_n(), std::forward<Lambda &&>(l));
   }
 
-  template<typename Lambda>
-  inline void pfor_nodes_range(Lambda &&l) const {
+  template <typename Lambda> inline void pfor_nodes_range(Lambda &&l) const {
     pfor_nodes_range(0, n(), std::forward<Lambda &&>(l));
   }
 
-  template<typename Lambda>
-  inline void pfor_all_nodes_range(Lambda &&l) const {
+  template <typename Lambda> inline void pfor_all_nodes_range(Lambda &&l) const {
     pfor_nodes_range(0, total_n(), std::forward<Lambda &&>(l));
   }
 
-  template<typename Lambda>
-  inline void pfor_edges(Lambda &&l) const {
+  template <typename Lambda> inline void pfor_edges(Lambda &&l) const {
     tbb::parallel_for(static_cast<EdgeID>(0), m(), std::forward<Lambda &&>(l));
   }
 
@@ -340,24 +320,27 @@ private:
     _edge_cut_to_pe.clear();
     _edge_cut_to_pe.resize(size);
     for (const auto &edge_cut_to_pe : edge_cut_to_pe_ets) { // PE x THREADS
-      for (std::size_t i = 0; i < edge_cut_to_pe.size(); ++i) { _edge_cut_to_pe[i] += edge_cut_to_pe[i]; }
+      for (std::size_t i = 0; i < edge_cut_to_pe.size(); ++i) {
+        _edge_cut_to_pe[i] += edge_cut_to_pe[i];
+      }
     }
 
     _comm_vol_to_pe.clear();
     _comm_vol_to_pe.resize(size);
     for (const auto &comm_vol_to_pe : comm_vol_to_pe_ets) {
-      for (std::size_t i = 0; i < comm_vol_to_pe.size(); ++i) { _comm_vol_to_pe[i] += comm_vol_to_pe[i]; }
+      for (std::size_t i = 0; i < comm_vol_to_pe.size(); ++i) {
+        _comm_vol_to_pe[i] += comm_vol_to_pe[i];
+      }
     }
-
-    //    DLOG << V(_edge_cut_to_pe);
-    //    DLOG << V(_comm_vol_to_pe);
   }
 
-  GlobalNodeID _global_n{0};
-  GlobalEdgeID _global_m{0};
-  NodeID _ghost_n{0};
-  GlobalNodeID _offset_n{0};
-  GlobalEdgeID _offset_m{0};
+  NodeID _n;
+  EdgeID _m;
+  NodeID _ghost_n;
+  GlobalNodeID _offset_n;
+  GlobalEdgeID _offset_m;
+  GlobalNodeID _global_n;
+  GlobalEdgeID _global_m;
 
   NodeWeight _total_node_weight{};
   NodeWeight _max_node_weight{};
@@ -376,6 +359,7 @@ private:
 
   std::vector<EdgeID> _edge_cut_to_pe{};
   std::vector<EdgeID> _comm_vol_to_pe{};
+
   MPI_Comm _communicator;
 };
 
@@ -396,13 +380,12 @@ public:
 
   DistributedPartitionedGraph(const DistributedGraph *graph, const BlockID k, scalable_vector<BlockID> partition,
                               block_weights_vector block_weights)
-      : _graph{graph},
-        _k{k},
-        _partition{std::move(partition)},
-        _block_weights{std::move(block_weights)} {
+      : _graph{graph}, _k{k}, _partition{std::move(partition)}, _block_weights{std::move(block_weights)} {
     ASSERT(_partition.size() == _graph->total_n());
     ASSERT([&] {
-      for (const BlockID b : _partition) { ASSERT(b < _k); }
+      for (const BlockID b : _partition) {
+        ASSERT(b < _k);
+      }
     });
   }
 
@@ -476,8 +459,7 @@ public:
 
   [[nodiscard]] BlockID k() const { return _k; }
 
-  template<typename Lambda>
-  inline void pfor_blocks(Lambda &&l) const {
+  template <typename Lambda> inline void pfor_blocks(Lambda &&l) const {
     tbb::parallel_for(static_cast<BlockID>(0), k(), std::forward<Lambda &&>(l));
   }
 

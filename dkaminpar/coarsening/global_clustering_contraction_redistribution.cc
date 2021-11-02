@@ -247,11 +247,14 @@ DistributedGraph build_coarse_graph(const DistributedGraph &graph, const auto &m
 
   // TODO since we do not know the number of coarse ghost nodes yet, allocate memory only for local nodes and
   // TODO resize in build_distributed_graph_from_edge_list
+  ASSERT(from <= to);
   scalable_vector<shm::parallel::IntegralAtomicWrapper<NodeWeight>> node_weights(to - from);
   struct NodeWeightMessage {
     NodeID node;
     NodeWeight weight;
   };
+
+  SLOG << "Exchange node weights";
 
   // TODO accumulate node weights before sending them -> no longer need an atomic
   mpi::graph::sparse_alltoall_custom<NodeWeightMessage>(
@@ -267,6 +270,8 @@ DistributedGraph build_coarse_graph(const DistributedGraph &graph, const auto &m
           node_weights[r[i].node].fetch_add(r[i].weight, std::memory_order_relaxed);
         });
       }, true);
+
+  SLOG << "Now build the coarse graph";
 
   // now every PE has an edge list with all edges -- so we can build the graph from it
   return helper::build_distributed_graph_from_edge_list(

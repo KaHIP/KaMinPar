@@ -17,7 +17,7 @@ class Builder {
 
 public:
   Builder &initialize(const GlobalNodeID global_n, const GlobalEdgeID global_m, const PEID rank,
-                  scalable_vector<GlobalNodeID> node_distribution) {
+                      scalable_vector<GlobalNodeID> node_distribution) {
     ASSERT(static_cast<std::size_t>(rank + 1) < node_distribution.size());
     ASSERT(global_n == node_distribution.back()) << V(global_n) << V(node_distribution.back());
     ASSERT(0 == node_distribution.front());
@@ -69,12 +69,7 @@ public:
 
     DBG << "Finalized graph: " << V(offset_m) << V(edge_distribution);
 
-    return {_global_n,
-            _global_m,
-            static_cast<NodeID>(_ghost_to_global.size()),
-            _offset_n,
-            offset_m,
-            std::move(_node_distribution),
+    return {std::move(_node_distribution),
             std::move(edge_distribution),
             std::move(_nodes),
             std::move(_edges),
@@ -82,7 +77,8 @@ public:
             std::move(_edge_weights),
             std::move(_ghost_owner),
             std::move(_ghost_to_global),
-            std::move(_global_to_ghost)};
+            std::move(_global_to_ghost),
+            MPI_COMM_WORLD};
   }
 
 private:

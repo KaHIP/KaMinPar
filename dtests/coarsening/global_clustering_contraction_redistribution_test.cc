@@ -30,7 +30,7 @@ auto contract_clustering(const DistributedGraph &graph, const Clustering &cluste
   return coarsening::contract_global_clustering_redistribute(graph, clusterings);
 }
 
-TEST_F(DistributedTriangles, TestFullContractionToPE0) {
+TEST_F(DistributedTriangles, FullContractionToPE0) {
   //  0---1-#-3---4
   //  |\ /  #  \ /|
   //  | 2---#---5 |
@@ -55,7 +55,7 @@ TEST_F(DistributedTriangles, TestFullContractionToPE0) {
   EXPECT_THAT(c_graph.global_m(), Eq(0));
 }
 
-TEST_F(DistributedTriangles, TestFullContractionToEachPE) {
+TEST_F(DistributedTriangles, FullContractionToEachPE) {
   //  0---1-#-3---4
   //  |\ /  #  \ /|
   //  | 2---#---5 |
@@ -112,7 +112,7 @@ TEST_F(DistributedTriangles, ContractLocalTriangles) {
   EXPECT_THAT(c_graph.global_m(), Eq(6));
 }
 
-TEST_F(DistributedTriangles, TestTriangleContractionOnOnePE) {
+TEST_F(DistributedTriangles, ContractTriangleOnOnePE) {
   //  0---1-#-3---4
   //  |\ /  #  \ /|
   //  | 2---#---5 |
@@ -146,7 +146,7 @@ TEST_F(DistributedTriangles, TestTriangleContractionOnOnePE) {
   EXPECT_THAT(c_graph.edge_weights(), Each(Eq(1)));
 }
 
-TEST_F(DistributedTriangles, TestTriangleContractionOnTwoPEs) {
+TEST_F(DistributedTriangles, ContractTrianglesOnTwoPEs) {
   //  0---1-#-3---4
   //  |\ /  #  \ /|
   //  | 2---#---5 |
