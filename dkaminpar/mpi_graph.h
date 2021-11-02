@@ -16,6 +16,8 @@
 #include <type_traits>
 
 namespace dkaminpar::mpi::graph {
+SET_DEBUG(true);
+
 template <typename Message, template <typename> typename Buffer = scalable_vector>
 void sparse_alltoall_interface_to_ghost(const DistributedGraph &graph, auto &&builder, auto &&receiver) {
   sparse_alltoall_interface_to_ghost<Message, Buffer>(graph, SPARSE_ALLTOALL_NOFILTER,
@@ -149,6 +151,8 @@ void sparse_alltoall_interface_to_pe(const DistributedGraph &graph, const NodeID
           ASSERT(static_cast<std::size_t>(pe) < send_buffers.size());
 
           if (!created_message_for_pe.get(pe)) {
+            DBG << V(pe) << V(u) << V(v) << V(graph.local_to_global_node(v));
+
             created_message_for_pe.set(pe);
             const auto slot = next_message[pe]++;
             ASSERT(static_cast<std::size_t>(slot) < send_buffers[pe].size());

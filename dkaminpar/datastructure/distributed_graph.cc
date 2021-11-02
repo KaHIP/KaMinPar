@@ -1,10 +1,10 @@
 /*******************************************************************************
-* @file:   distributed_graph.cc
-*
-* @author: Daniel Seemaier
-* @date:   27.10.2021
-* @brief:  Static distributed graph data structure.
-******************************************************************************/
+ * @file:   distributed_graph.cc
+ *
+ * @author: Daniel Seemaier
+ * @date:   27.10.2021
+ * @brief:  Static distributed graph data structure.
+ ******************************************************************************/
 #include "dkaminpar/datastructure/distributed_graph.h"
 
 #include "dkaminpar/mpi_graph.h"
@@ -22,16 +22,20 @@ void DistributedGraph::print() const {
   buf << "n=" << n() << " m=" << m() << " ghost_n=" << ghost_n() << " total_n=" << total_n() << "\n";
   buf << "--------------------------------------------------------------------------------\n";
   for (const NodeID u : all_nodes()) {
-    buf << "L" << std::setw(w) << u << " G" << std::setw(w) << local_to_global_node(u) << " W" << std::setw(w)
-        << node_weight(u);
+    const char u_prefix = is_owned_node(u) ? ' ' : '!';
+    buf << u_prefix << "L" << std::setw(w) << u << " G" << std::setw(w) << local_to_global_node(u) << " W"
+        << std::setw(w) << node_weight(u);
 
     if (is_owned_node(u)) {
       buf << " | ";
       for (const auto [e, v] : neighbors(u)) {
-        buf << "EW" << std::setw(w) << edge_weight(e) << " L" << std::setw(w) << v << " G" << std::setw(w)
-            << local_to_global_node(v) << "\t";
+        const char v_prefix = is_owned_node(v) ? ' ' : '!';
+        buf << v_prefix << "L" << std::setw(w) << v << " G" << std::setw(w) << local_to_global_node(v) << " EW"
+            << std::setw(w) << edge_weight(e) << "\t";
       }
-      if (degree(u) == 0) { buf << "<empty>"; }
+      if (degree(u) == 0) {
+        buf << "<empty>";
+      }
     }
     buf << "\n";
   }
@@ -44,8 +48,7 @@ namespace dkaminpar::graph::debug {
 SET_DEBUG(false);
 
 namespace {
-template<std::ranges::range R>
-bool all_equal(const R &r) {
+template <std::ranges::range R> bool all_equal(const R &r) {
   return std::ranges::adjacent_find(r, std::not_equal_to{}) == std::ranges::end(r);
 }
 } // namespace
@@ -83,7 +86,9 @@ bool validate(const DistributedGraph &graph, const int root) {
 
   // check that ghost nodes are actually ghost nodes
   DBG << "Checking ghost nodes";
-  for (NodeID ghost_u : graph.ghost_nodes()) { ALWAYS_ASSERT(graph.ghost_owner(ghost_u) != rank); }
+  for (NodeID ghost_u : graph.ghost_nodes()) {
+    ALWAYS_ASSERT(graph.ghost_owner(ghost_u) != rank);
+  }
 
   // check node weight of ghost nodes
   DBG << "Checking node weights of ghost nodes";
@@ -161,7 +166,9 @@ bool validate_partition(const DistributedPartitionedGraph &p_graph) {
     DBG << "Check that each PE has the same block weights";
 
     scalable_vector<BlockWeight> recv_block_weights;
-    if (ROOT(rank)) { recv_block_weights.resize(size * p_graph.k()); }
+    if (ROOT(rank)) {
+      recv_block_weights.resize(size * p_graph.k());
+    }
     const scalable_vector<BlockWeight> send_block_weights = p_graph.block_weights_copy();
     mpi::gather(send_block_weights.data(), static_cast<int>(p_graph.k()), recv_block_weights.data(),
                 static_cast<int>(p_graph.k()), 0, comm);
@@ -184,9 +191,13 @@ bool validate_partition(const DistributedPartitionedGraph &p_graph) {
     DBG << "Check that block weights are actually correct";
 
     scalable_vector<BlockWeight> send_block_weights(p_graph.k());
-    for (const NodeID u : p_graph.nodes()) { send_block_weights[p_graph.block(u)] += p_graph.node_weight(u); }
+    for (const NodeID u : p_graph.nodes()) {
+      send_block_weights[p_graph.block(u)] += p_graph.node_weight(u);
+    }
     scalable_vector<BlockWeight> recv_block_weights;
-    if (ROOT(rank)) { recv_block_weights.resize(p_graph.k()); }
+    if (ROOT(rank)) {
+      recv_block_weights.resize(p_graph.k());
+    }
     mpi::reduce(send_block_weights.data(), recv_block_weights.data(), static_cast<int>(p_graph.k()), MPI_SUM, 0, comm);
     if (ROOT(rank)) {
       for (const BlockID b : p_graph.blocks()) {
@@ -203,7 +214,9 @@ bool validate_partition(const DistributedPartitionedGraph &p_graph) {
 
     // collect partition on root
     scalable_vector<BlockID> recv_partition;
-    if (ROOT(rank)) { recv_partition.resize(p_graph.global_n()); }
+    if (ROOT(rank)) {
+      recv_partition.resize(p_graph.global_n());
+    }
 
     const auto recvcounts = mpi::build_distribution_recvcounts(p_graph.node_distribution());
     const auto displs = mpi::build_distribution_displs(p_graph.node_distribution());

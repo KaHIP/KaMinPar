@@ -68,7 +68,6 @@ Result contract_local_clustering(const DistributedGraph &graph,
   scalable_vector<GlobalNodeID> c_node_distribution(size + 1);
   c_node_distribution[rank + 1] = last_node;
   mpi::allgather(&c_node_distribution[rank + 1], 1, c_node_distribution.data() + 1, 1, comm);
-  const GlobalNodeID c_global_n = c_node_distribution.back();
 
   // Assign coarse node ID to all nodes
   graph.pfor_nodes([&](const NodeID u) { mapping[u] = leader_mapping[clustering[u]]; });
@@ -248,12 +247,9 @@ Result contract_local_clustering(const DistributedGraph &graph,
 
   // compute edge distribution
   const GlobalEdgeID last_edge = mpi::scan(static_cast<GlobalEdgeID>(c_m), MPI_SUM, comm);
-  const GlobalEdgeID first_edge = last_edge - c_m;
-
   scalable_vector<GlobalEdgeID> c_edge_distribution(size + 1);
   c_edge_distribution[rank + 1] = last_edge;
   mpi::allgather(&c_edge_distribution[rank + 1], 1, c_edge_distribution.data() + 1, 1, comm);
-  const GlobalNodeID c_global_m = c_edge_distribution.back();
 
   DistributedGraph c_graph{std::move(c_node_distribution),
                            std::move(c_edge_distribution),

@@ -14,13 +14,27 @@
 #include <algorithm>
 
 namespace dkaminpar::coarsening::helper {
-template <typename T> scalable_vector<T> compute_distribution(const T c_global_n, MPI_Comm comm) {
+SET_DEBUG(true);
+
+template <typename T>
+scalable_vector<T> create_perfect_distribution_from_global_count(const T global_count, MPI_Comm comm) {
   const auto size = mpi::get_comm_size(comm);
 
-  scalable_vector<GlobalNodeID> distribution(size + 1);
+  scalable_vector<T> distribution(size + 1);
   for (PEID pe = 0; pe < size; ++pe) {
-    distribution[pe + 1] = math::compute_local_range<T>(c_global_n, size, pe).second;
+    distribution[pe + 1] = math::compute_local_range<T>(global_count, size, pe).second;
   }
+
+  return distribution;
+}
+
+template <typename T> scalable_vector<T> create_distribution_from_local_count(const T local_count, MPI_Comm comm) {
+  const auto [size, rank] = mpi::get_comm_info(comm);
+
+  scalable_vector<T> distribution(size + 1);
+  mpi::allgather(&local_count, 1, distribution.data() + 1, 1, comm);
+  shm::parallel::prefix_sum(distribution.begin(), distribution.end(), distribution.begin());
+  distribution.front() = 0;
 
   return distribution;
 }
@@ -35,6 +49,14 @@ template <typename NodeWeightLambda>
 DistributedGraph build_distributed_graph_from_edge_list(const auto &edge_list,
                                                         scalable_vector<GlobalNodeID> node_distribution, MPI_Comm comm,
                                                         NodeWeightLambda &&node_weight_lambda) {
+  if constexpr (kDebug) {
+    std::ostringstream oss;
+    for (const auto &entry : edge_list) {
+      oss << entry.u << " -- " << entry.weight << " -- " << entry.v << "\n";
+    }
+    SLOG << "Edge list:\n" << oss.str();
+  }
+
   const PEID size = mpi::get_comm_size(comm);
   const PEID rank = mpi::get_comm_rank(comm);
   const NodeID n = node_distribution[rank + 1] - node_distribution[rank];
@@ -83,22 +105,27 @@ DistributedGraph build_distributed_graph_from_edge_list(const auto &edge_list,
       for (std::size_t i = u_bucket_start; i < u_bucket_end; ++i) {
         const GlobalNodeID v = edge_list[buckets[i]].v;
         const EdgeWeight weight = edge_list[buckets[i]].weight;
-        if (i > u_bucket_start && v != current_v) {
-          edge_buffer.push_back({current_v, current_weight});
+        if (v != current_v) {
+          if (current_v != kInvalidGlobalNodeID) {
+            DBG << "new edge: --> " << current_v << " / " << current_weight;
+            edge_buffer.push_back({current_v, current_weight});
+            ++degree;
+          }
           current_v = v;
           current_weight = 0;
-          ++degree;
         }
 
         current_weight += weight;
       }
 
       if (current_v != kInvalidGlobalNodeID) { // finish last edge if there was at least one edge
+        DBG << "!new edge: --> " << current_v << " / " << current_weight;
         edge_buffer.push_back({current_v, current_weight});
         ++degree;
       }
 
       nodes[u + 1] = degree;
+      DBG << "Degree of " << u << ": " << degree;
     }
   });
 
@@ -112,7 +139,7 @@ DistributedGraph build_distributed_graph_from_edge_list(const auto &edge_list,
   const GlobalNodeID from = node_distribution[rank];
   const GlobalNodeID to = node_distribution[rank + 1];
 
-  SLOG << "Remap ghost to local nodes";
+  SLOG << "Remap ghost to local nodes: " << V(node_distribution);
 
   // Remap ghost nodes to local nodes
   // TODO parallelize this part
@@ -123,12 +150,18 @@ DistributedGraph build_distributed_graph_from_edge_list(const auto &edge_list,
   for (std::size_t i = 0; i < edge_list.size(); ++i) {
     const auto v = edge_list[i].v;
     if ((v < from || v >= to) && !global_to_ghost.contains(v)) { // new ghost node?
-      NodeID v_local = ghost_to_global.size();
+      NodeID v_local = n + ghost_to_global.size();
       global_to_ghost[v] = v_local;
       ghost_to_global.push_back(v);
       ghost_owner.push_back(math::compute_local_range_rank<GlobalNodeID>(node_distribution.back(), size, v));
+      ASSERT(ghost_owner.back() >= 0 && ghost_owner.back() < size)
+          << V(ghost_owner.back()) << V(size) << V(v) << V(node_distribution.back())
+          << V(math::compute_local_range_rank<GlobalNodeID>(node_distribution.back(), size, v));
     }
   }
+
+  DBG << V(ghost_owner) << V(ghost_to_global);
+
   const NodeID ghost_n = ghost_owner.size();
 
   SLOG << "Construct local graph";
@@ -145,31 +178,29 @@ DistributedGraph build_distributed_graph_from_edge_list(const auto &edge_list,
     const EdgeID first_dst_index = nodes[u];
 
     for (EdgeID j = 0; j < u_degree; ++j) {
-      const auto to = first_dst_index + j;
-      const auto [v, weight] = list->get(first_src_index + j);
+      const auto dst_index = first_dst_index + j;
+      const auto src_index = first_src_index + j;
 
-      if (v >= from && v < to) { // local node
-        edges[to] = static_cast<NodeID>(v - from);
-      } else { // ghost node
-        edges[to] = global_to_ghost[v];
-      }
+      const auto [v, weight] = list->get(src_index);
+      DBG << "create edge: " << u << " --> " << v << " / " << weight << V(from) << V(to);
+      if (!(v >= from && v < to)) { DBG << V(global_to_ghost[v]) << V(ghost_owner[global_to_ghost[v]]); }
 
-      edge_weights[to] = weight;
+      edges[dst_index] = (v >= from && v < to) ? static_cast<NodeID>(v - from) : global_to_ghost[v];
+      edge_weights[dst_index] = weight;
     }
   });
 
-
-  SLOG << "Build the graph data structure with node distribution " << node_distribution.back()
-                                                                      << " and " << V(ghost_to_global.size());
+  SLOG << "Build the graph data structure with node distribution " << node_distribution.back() << " and "
+       << V(ghost_to_global.size());
 
   // node weights for ghost nodes must be computed afterwards
   scalable_vector<NodeWeight> node_weights(n + ghost_n);
-  tbb::parallel_for<NodeID>(0, n, [&](const NodeID u) {
-    node_weights[u] = node_weight_lambda(u);
-  });
+  tbb::parallel_for<NodeID>(0, n, [&](const NodeID u) { node_weights[u] = node_weight_lambda(u); });
+
+  DBG << create_distribution_from_local_count<GlobalEdgeID>(m, comm);
 
   return {std::move(node_distribution),
-          compute_distribution<GlobalEdgeID>(m, comm),
+          create_distribution_from_local_count<GlobalEdgeID>(m, comm),
           std::move(nodes),
           std::move(edges),
           std::move(node_weights),

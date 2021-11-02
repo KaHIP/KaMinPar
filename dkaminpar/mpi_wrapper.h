@@ -280,7 +280,7 @@ Container<T> allgather(const T &element, MPI_Comm comm = MPI_COMM_WORLD) {
 
 template <std::ranges::contiguous_range R>
 inline int allgather(const std::ranges::range_value_t<R> &element, R &ans, MPI_Comm comm = MPI_COMM_WORLD) {
-  LIGHT_ASSERT(std::ranges::size(ans) == mpi::get_comm_size(comm));
+  LIGHT_ASSERT(std::ranges::size(ans) >= static_cast<std::size_t>(mpi::get_comm_size(comm)));
 
   return allgather(&element, 1, std::ranges::data(ans), 1, comm);
 }

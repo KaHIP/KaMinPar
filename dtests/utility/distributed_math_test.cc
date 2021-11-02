@@ -105,6 +105,18 @@ TEST(DistributedMathTest, TestLocalRangeRankComputationWithRemainder_Exhaustive)
   }
 }
 
+TEST(DistributedMathTest, TestLocalRangeRankComputation_9_5) {
+  EXPECT_THAT(math::compute_local_range_rank(9, 5, 0), Eq(0));
+  EXPECT_THAT(math::compute_local_range_rank(9, 5, 1), Eq(0));
+  EXPECT_THAT(math::compute_local_range_rank(9, 5, 2), Eq(1));
+  EXPECT_THAT(math::compute_local_range_rank(9, 5, 3), Eq(1));
+  EXPECT_THAT(math::compute_local_range_rank(9, 5, 4), Eq(2));
+  EXPECT_THAT(math::compute_local_range_rank(9, 5, 5), Eq(2));
+  EXPECT_THAT(math::compute_local_range_rank(9, 5, 6), Eq(3));
+  EXPECT_THAT(math::compute_local_range_rank(9, 5, 7), Eq(3));
+  EXPECT_THAT(math::compute_local_range_rank(9, 5, 8), Eq(4));
+}
+
 TEST(DistributedMathTest, Reg_TestLocalRangeComputation_ParHIPCrash) {
   // this set of arguments caused an overflow in ParHIP
   const std::uint32_t n = 1382867;
@@ -124,5 +136,15 @@ TEST(DistributedMathTest, Reg_TestLocalRangeComputation_ParHIPCrash) {
     const std::uint32_t range_size = to - from;
     EXPECT_THAT(range_size, AnyOf(Eq(chunk), Eq(chunk + 1)));
   }
+}
+
+TEST(DistributedMathTest, Reg_7_3_Works) {
+  EXPECT_THAT(math::compute_local_range_rank<std::uint64_t>(7, 3, 0), Eq(0));
+  EXPECT_THAT(math::compute_local_range_rank<std::uint64_t>(7, 3, 1), Eq(0));
+  EXPECT_THAT(math::compute_local_range_rank<std::uint64_t>(7, 3, 2), Eq(0));
+  EXPECT_THAT(math::compute_local_range_rank<std::uint64_t>(7, 3, 3), Eq(1));
+  EXPECT_THAT(math::compute_local_range_rank<std::uint64_t>(7, 3, 4), Eq(1));
+  EXPECT_THAT(math::compute_local_range_rank<std::uint64_t>(7, 3, 5), Eq(2));
+  EXPECT_THAT(math::compute_local_range_rank<std::uint64_t>(7, 3, 6), Eq(2));
 }
 } // namespace dkaminpar::test

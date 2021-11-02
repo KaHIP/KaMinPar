@@ -102,6 +102,7 @@ TEST_F(DistributedTriangles, ContractLocalTriangles) {
   }
 
   const auto [c_graph, mapping] = contract_clustering(graph, clustering);
+  c_graph.print();
 
   EXPECT_THAT(c_graph.n(), Eq(1));
   EXPECT_THAT(c_graph.total_n(), Eq(3));

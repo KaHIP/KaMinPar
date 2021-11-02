@@ -7,6 +7,7 @@ function(add_kaminpar_dtest target nproc)
         target_link_libraries(${target} PRIVATE kaminpar_impl dkaminpar_impl)
 
         if (KAMINPAR_USE_BACKWARD_CPP)
+            message(STATUS "Add test ${target} with backward")
             add_backward(${target})
         endif ()
     else ()

@@ -147,7 +147,8 @@ DistributedGraph build_coarse_graph(const DistributedGraph &graph, const auto &m
   const PEID rank = mpi::get_comm_rank(graph.communicator());
 
   // compute coarse node distribution
-  auto c_node_distribution = helper::compute_distribution<GlobalNodeID>(c_global_n, graph.communicator());
+  auto c_node_distribution =
+      helper::create_perfect_distribution_from_global_count<GlobalNodeID>(c_global_n, graph.communicator());
   DBG << V(c_node_distribution);
   const auto from = c_node_distribution[rank];
   const auto to = c_node_distribution[rank + 1];
@@ -168,7 +169,7 @@ DistributedGraph build_coarse_graph(const DistributedGraph &graph, const auto &m
       ASSERT(u < mapping.size());
       const auto c_u = mapping[u];
       const auto c_u_owner = compute_coarse_node_owner(c_u);
-      ASSERT(c_u_owner < num_edges_for_pe.size());
+      ASSERT(static_cast<std::size_t>(c_u_owner) < num_edges_for_pe.size());
 
       for (const auto [e, v] : graph.neighbors(u)) {
         if (c_u != mapping[v]) { // ignore self loops
@@ -269,14 +270,17 @@ DistributedGraph build_coarse_graph(const DistributedGraph &graph, const auto &m
         tbb::parallel_for<std::size_t>(0, r.size(), [&](const std::size_t i) {
           node_weights[r[i].node].fetch_add(r[i].weight, std::memory_order_relaxed);
         });
-      }, true);
+      },
+      true);
 
   SLOG << "Now build the coarse graph";
 
   // now every PE has an edge list with all edges -- so we can build the graph from it
-  return helper::build_distributed_graph_from_edge_list(
-      edge_list, std::move(c_node_distribution), graph.communicator(),
-      [&](const NodeID u) { return node_weights[u].load(std::memory_order_relaxed); });
+  return helper::build_distributed_graph_from_edge_list(edge_list, std::move(c_node_distribution), graph.communicator(),
+                                                        [&](const NodeID u) {
+                                                          ASSERT(u < node_weights.size());
+                                                          return node_weights[u].load(std::memory_order_relaxed);
+                                                        });
 }
 
 void update_ghost_node_weights(DistributedGraph &graph) {
@@ -287,7 +291,9 @@ void update_ghost_node_weights(DistributedGraph &graph) {
 
   mpi::graph::sparse_alltoall_interface_to_pe<Message, std::vector>(
       graph,
-      [&](const NodeID u) -> Message {
+      [&](const NodeID u, const PEID pe) -> Message {
+        DBG << V(pe) << V(u) << V(graph.local_to_global_node(u)) << V(graph.node_weight(u))
+            << V(graph.contains_local_node(u));
         return {graph.local_to_global_node(u), graph.node_weight(u)};
       },
       [&](const auto buffer) {

@@ -55,7 +55,11 @@ public:
     _global_n = _node_distribution.back();
     _global_m = _edge_distribution.back();
 
+    SLOG << "A";
+
     init_total_node_weight();
+
+    SLOG << "B";
     init_communication_metrics();
   }
 
@@ -114,6 +118,9 @@ public:
   // Distributed info
   [[nodiscard]] inline PEID ghost_owner(const NodeID u) const {
     ASSERT(is_ghost_node(u));
+    ASSERT(u - n() < _ghost_owner.size());
+    ASSERT(_ghost_owner[u - n()] >= 0) << V(_ghost_owner[u - n()]) << V(u);
+    ASSERT(_ghost_owner[u - n()] < mpi::get_comm_size(communicator()));
     return _ghost_owner[u - n()];
   }
 
@@ -306,9 +313,14 @@ private:
         for (const auto v : adjacent_nodes(u)) {
           if (is_ghost_node(v)) {
             const PEID owner = ghost_owner(v);
+            ASSERT(static_cast<std::size_t>(owner) < edge_cut_to_pe.size()) << V(owner) << V(edge_cut_to_pe.size());
             ++edge_cut_to_pe[owner];
+
             if (!counted_pe.get(owner)) {
+              ASSERT(static_cast<std::size_t>(owner) < counted_pe.size());
               counted_pe.set(owner);
+
+              ASSERT(static_cast<std::size_t>(owner) < comm_vol_to_pe.size());
               ++comm_vol_to_pe[owner];
             }
           }
