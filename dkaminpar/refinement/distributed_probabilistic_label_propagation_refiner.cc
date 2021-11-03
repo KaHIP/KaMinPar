@@ -63,9 +63,9 @@ class DistributedProbabilisticLabelPropagationRefinerImpl final
     }
 
     void print() {
-      auto expected_gain_reduced = mpi::reduce(expected_gain, MPI_SUM);
-      auto realized_gain_reduced = mpi::reduce(realized_gain, MPI_SUM);
-      auto rollback_gain_reduced = mpi::reduce(rollback_gain, MPI_SUM);
+      auto expected_gain_reduced = mpi::reduce<EdgeWeight>(expected_gain, MPI_SUM);
+      auto realized_gain_reduced = mpi::reduce<EdgeWeight>(realized_gain, MPI_SUM);
+      auto rollback_gain_reduced = mpi::reduce<EdgeWeight>(rollback_gain, MPI_SUM);
 
       STATS << "DistributedProbabilisticLabelPropagationRefiner:";
       STATS << "- Iterations: " << num_successful_moves << " ok, " << num_rollbacks << " failed";
@@ -112,7 +112,6 @@ public:
 
 private:
   NodeID process_chunk(const NodeID from, const NodeID to) {
-    mpi::barrier(_graph->communicator());
     HEAVY_ASSERT(ASSERT_NEXT_PARTITION_STATE());
 
     DBG << "Running label propagation on node chunk [" << from << ".." << to << "]";
@@ -160,6 +159,9 @@ private:
         break;
       }
     }
+
+    // update _next_partition[.]
+    _p_graph->pfor_nodes(from, to, [&](const NodeID u) { _next_partition[u] = _p_graph->block(u); });
 
     // _next_partition should be in a consistent state at this point
     HEAVY_ASSERT(ASSERT_NEXT_PARTITION_STATE());
@@ -210,12 +212,12 @@ private:
     std::vector<BlockWeight> global_block_weights(_p_graph->k());
     mpi::allreduce(_p_graph->block_weights_copy().data(), global_block_weights.data(), static_cast<int>(_p_graph->k()),
                    MPI_SUM, _graph->communicator());
-
+    
     // check for balance violations
     shm::parallel::IntegralAtomicWrapper<std::uint8_t> feasible = 1;
     _p_graph->pfor_blocks([&](const BlockID b) {
       if (global_block_weights[b] > max_cluster_weight(b)) {
-        feasible = 0;
+        feasible.store(0, std::memory_order_relaxed);
       }
     });
 
@@ -237,12 +239,15 @@ private:
 
     // revert moves if resulting partition is infeasible
     if (!feasible) {
-      for (const auto &move : moves) {
-        _next_partition[move.u] = _p_graph->block(move.u);
-        _p_graph->set_block(move.u, move.from);
+      tbb::parallel_for(moves.range(), [&](const auto r) {
+        for (auto it = r.begin(); it != r.end(); ++it) {
+          const auto &move = *it;
+          _next_partition[move.u] = _p_graph->block(move.u);
+          _p_graph->set_block(move.u, move.from);
 
-        IFSTATS(_statistics.rollback_gain += _gains[move.u]);
-      }
+          IFSTATS(_statistics.rollback_gain += _gains[move.u]);
+        }
+      });
     }
 
     return feasible;
@@ -288,6 +293,8 @@ public:
   //
 
   void init_cluster(const NodeID u, const BlockID b) { _next_partition[u] = b; }
+
+  [[nodiscard]] BlockID initial_cluster(const NodeID u) { return _p_graph->block(u); }
 
   [[nodiscard]] BlockID cluster(const NodeID u) const { return _next_partition[u]; }
 
