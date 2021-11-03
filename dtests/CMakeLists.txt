@@ -16,10 +16,8 @@ function(add_kaminpar_dtest target nproc)
     endif ()
 endfunction()
 
-#add_kaminpar_dtest(locking_contraction_test 3 algorithm/locking_contraction_test.cc)
-add_kaminpar_dtest(local_contraction_test 3 coarsening/local_contraction_test.cc)
 add_kaminpar_dtest(locking_label_propagation_clustering_test 3 coarsening/locking_label_propagation_clustering_test.cc)
-add_kaminpar_dtest(seq_global_contraction_redistribution_test 3 coarsening/seq_global_contraction_redistribution_test.cc)
-add_kaminpar_dtest(global_clustering_contraction_redistribution_test 3 coarsening/global_clustering_contraction_redistribution_test.cc)
+add_kaminpar_dtest(local_contraction_test 3 coarsening/local_contraction_test.cc)
+add_kaminpar_dtest(global_clustering_contraction_test 3 coarsening/global_clustering_contraction_test.cc)
 
 add_kaminpar_test(distributed_math_test utility/distributed_math_test.cc)
