@@ -45,6 +45,13 @@ public:
     return *this;
   }
 
+  Builder &add_local_node_weight(const NodeID node, const NodeWeight delta) {
+    ASSERT(node < _node_weights.size());
+    _node_weights[node] += delta;
+
+    return *this;
+  }
+
   Builder &create_edge(const EdgeWeight weight, const GlobalNodeID global_v) {
     NodeID local_v = is_local_node(global_v) ? global_v - _offset_n : create_ghost_node(global_v);
     _edges.push_back(local_v);

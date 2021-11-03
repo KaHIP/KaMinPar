@@ -16,7 +16,7 @@
 #include <type_traits>
 
 namespace dkaminpar::mpi::graph {
-SET_DEBUG(true);
+SET_DEBUG(false);
 
 template <typename Message, template <typename> typename Buffer = scalable_vector>
 void sparse_alltoall_interface_to_ghost(const DistributedGraph &graph, auto &&builder, auto &&receiver) {

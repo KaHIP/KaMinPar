@@ -205,7 +205,7 @@ DistributedGraph build_coarse_graph(const DistributedGraph &graph, HashedGraph &
   ASSERT(from <= to);
   const auto c_n = to - from;
 
-  std::vector<std::vector<std::pair<GlobalNodeID, NodeWeight>>> sorted_graph;
+  std::vector<std::vector<std::pair<GlobalNodeID, EdgeWeight>>> sorted_graph;
   sorted_graph.resize(c_n);
 
   EdgeID next_edge_id = 0;
@@ -214,19 +214,19 @@ DistributedGraph build_coarse_graph(const DistributedGraph &graph, HashedGraph &
       ASSERT(he.u - from < c_n);
       ASSERT(he.v - from < c_n);
 
-      std::pair<GlobalNodeID, NodeWeight> e{he.v, weight / 4};
+      std::pair<GlobalNodeID, EdgeWeight> e{he.v, weight / 4};
       sorted_graph[he.u - from].push_back(e);
       DBG << he.u << " -L-> " << he.v << " / " << weight / 4;
       next_edge_id += 1;
 
-      std::pair<GlobalNodeID, NodeWeight> e_rev{he.u, weight / 4};
+      std::pair<GlobalNodeID, EdgeWeight> e_rev{he.u, weight / 4};
       sorted_graph[he.v - from].push_back(e_rev);
       DBG << he.v << " -L-> " << he.u << " / " << weight / 4;
       next_edge_id += 1;
     } else {
       ASSERT(he.u - from < c_n) << V(he.u) << V(he.v) << V(from) << V(c_n);
 
-      std::pair<GlobalNodeID, NodeWeight> e{he.v, weight / 2};
+      std::pair<GlobalNodeID, EdgeWeight> e{he.v, weight / 2};
       sorted_graph[he.u - from].push_back(e);
       DBG << he.u << " -G-> " << he.v << " / " << weight / 2;
       next_edge_id += 1;
@@ -266,7 +266,7 @@ DistributedGraph build_coarse_graph(const DistributedGraph &graph, HashedGraph &
         DBG << "got buf size " << buffer.size();
         for (const auto &[node, weight] : buffer) {
           DBG << "Set node weight of " << node - from << " to " << weight;
-          builder.change_local_node_weight(node - from, weight);
+          builder.add_local_node_weight(node - from, weight);
         }
       },
       graph.communicator(), true);

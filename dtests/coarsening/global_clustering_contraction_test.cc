@@ -26,13 +26,13 @@ using namespace fixtures3PE;
 using Clustering = coarsening::GlobalClustering;
 
 struct GlobalClusteringContractionRedistribution {
-  auto contract_clustering(const DistributedGraph &graph, const Clustering &clustering) {
+  static auto contract_clustering(const DistributedGraph &graph, const Clustering &clustering) {
     return coarsening::contract_global_clustering_redistribute(graph, clustering);
   }
 };
 
 struct SequentialGlobalClusteringContractionRedistribution {
-  auto contract_clustering(const DistributedGraph &graph, const Clustering &clustering) {
+  static auto contract_clustering(const DistributedGraph &graph, const Clustering &clustering) {
     auto [c_graph, c_mapping, m_ctx] =
         coarsening::contract_global_clustering_redistribute_sequential(graph, clustering, {});
     return std::make_pair(std::move(c_graph), std::move(c_mapping));
@@ -41,7 +41,8 @@ struct SequentialGlobalClusteringContractionRedistribution {
 
 template <typename Contractor> struct Typed { Contractor contractor; };
 template <typename Contractor> class TrianglesGraph : public DistributedTriangles, public Typed<Contractor> {};
-template <typename Contractor> class EmptyGraph : public DistributedGraphWith9NodesAnd0Edges, public Typed<Contractor> {};
+template <typename Contractor>
+class EmptyGraph : public DistributedGraphWith9NodesAnd0Edges, public Typed<Contractor> {};
 template <typename Contractor> class NullGraph : public DistributedNullGraph, public Typed<Contractor> {};
 template <typename Contractor> class PathGraph : public DistributedPathTwoNodesPerPE, public Typed<Contractor> {};
 
