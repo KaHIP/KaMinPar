@@ -55,11 +55,7 @@ public:
     _global_n = _node_distribution.back();
     _global_m = _edge_distribution.back();
 
-    SLOG << "A";
-
     init_total_node_weight();
-
-    SLOG << "B";
     init_communication_metrics();
   }
 
@@ -92,6 +88,7 @@ public:
   [[nodiscard]] inline GlobalEdgeID offset_m(const PEID pe) const { return _edge_distribution[pe]; }
 
   [[nodiscard]] inline NodeWeight total_node_weight() const { return _total_node_weight; }
+  [[nodiscard]] inline GlobalNodeWeight global_total_node_weight() const { return _global_total_node_weight; }
   [[nodiscard]] inline NodeWeight max_node_weight() const { return _max_node_weight; }
 
   [[nodiscard]] inline bool is_owned_global_node(const GlobalNodeID global_u) const {
@@ -296,6 +293,7 @@ private:
   inline void init_total_node_weight() {
     const auto owned_node_weights = std::ranges::take_view{_node_weights, static_cast<long int>(n())};
     _total_node_weight = shm::parallel::accumulate(owned_node_weights);
+    _global_total_node_weight = mpi::allreduce<GlobalNodeWeight>(_total_node_weight, MPI_SUM, communicator());
     _max_node_weight = shm::parallel::max_element(owned_node_weights);
   }
 
@@ -355,6 +353,7 @@ private:
   GlobalEdgeID _global_m;
 
   NodeWeight _total_node_weight{};
+  GlobalNodeWeight _global_total_node_weight{};
   NodeWeight _max_node_weight{};
 
   scalable_vector<GlobalNodeID> _node_distribution{};

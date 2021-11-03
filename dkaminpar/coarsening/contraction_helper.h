@@ -14,7 +14,7 @@
 #include <algorithm>
 
 namespace dkaminpar::coarsening::helper {
-SET_DEBUG(true);
+SET_DEBUG(false);
 
 template <typename T>
 scalable_vector<T> create_perfect_distribution_from_global_count(const T global_count, MPI_Comm comm) {
@@ -49,14 +49,6 @@ template <typename NodeWeightLambda>
 DistributedGraph build_distributed_graph_from_edge_list(const auto &edge_list,
                                                         scalable_vector<GlobalNodeID> node_distribution, MPI_Comm comm,
                                                         NodeWeightLambda &&node_weight_lambda) {
-  if constexpr (kDebug) {
-    std::ostringstream oss;
-    for (const auto &entry : edge_list) {
-      oss << entry.u << " -- " << entry.weight << " -- " << entry.v << "\n";
-    }
-    SLOG << "Edge list:\n" << oss.str();
-  }
-
   const PEID size = mpi::get_comm_size(comm);
   const PEID rank = mpi::get_comm_rank(comm);
   const NodeID n = node_distribution[rank + 1] - node_distribution[rank];
@@ -139,8 +131,6 @@ DistributedGraph build_distributed_graph_from_edge_list(const auto &edge_list,
   const GlobalNodeID from = node_distribution[rank];
   const GlobalNodeID to = node_distribution[rank + 1];
 
-  SLOG << "Remap ghost to local nodes: " << V(node_distribution);
-
   // Remap ghost nodes to local nodes
   // TODO parallelize this part
   std::unordered_map<GlobalNodeID, NodeID> global_to_ghost;
@@ -160,11 +150,7 @@ DistributedGraph build_distributed_graph_from_edge_list(const auto &edge_list,
     }
   }
 
-  DBG << V(ghost_owner) << V(ghost_to_global);
-
   const NodeID ghost_n = ghost_owner.size();
-
-  SLOG << "Construct local graph";
 
   // Now construct the coarse graph
   tbb::parallel_for<NodeID>(0, n, [&](const NodeID i) {
@@ -190,14 +176,9 @@ DistributedGraph build_distributed_graph_from_edge_list(const auto &edge_list,
     }
   });
 
-  SLOG << "Build the graph data structure with node distribution " << node_distribution.back() << " and "
-       << V(ghost_to_global.size());
-
   // node weights for ghost nodes must be computed afterwards
   scalable_vector<NodeWeight> node_weights(n + ghost_n);
   tbb::parallel_for<NodeID>(0, n, [&](const NodeID u) { node_weights[u] = node_weight_lambda(u); });
-
-  DBG << create_distribution_from_local_count<GlobalEdgeID>(m, comm);
 
   return {std::move(node_distribution),
           create_distribution_from_local_count<GlobalEdgeID>(m, comm),

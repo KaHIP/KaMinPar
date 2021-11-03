@@ -448,16 +448,20 @@ protected:
     DistributedGraphFixture::SetUp();
     ALWAYS_ASSERT(size == 3) << "must be tested on three PEs";
 
-    n0 = rank;
-    graph = dkaminpar::graph::Builder{}
-                .initialize(6, 10, rank, {0, 2, 4, 6})
-                .create_node(1)
-                .create_edge(1, prev(n0, 1, 3))
-                .create_edge(1, n0 + 1)
-                .create_node(1)
-                .create_edge(1, n0)
-                .create_edge(1, next(n0 + 1, 1, 3))
-                .finalize();
+    n0 = 2 * rank;
+    dkaminpar::graph::Builder builder{};
+    builder.initialize(6, 10, rank, {0, 2, 4, 6});
+    builder.create_node(1);
+    if (rank > 0) {
+      builder.create_edge(1, prev(n0, 1, 6));
+    }
+    builder.create_edge(1, n0 + 1);
+    builder.create_node(1);
+    builder.create_edge(1, n0);
+    if (rank + 1 < size) {
+      builder.create_edge(1, next(n0 + 1, 1, 6));
+    }
+    graph = builder.finalize();
   }
 
   DistributedGraph graph;

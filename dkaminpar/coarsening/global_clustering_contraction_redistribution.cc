@@ -19,7 +19,7 @@
 #include <tbb/concurrent_hash_map.h>
 
 namespace dkaminpar::coarsening {
-SET_DEBUG(true);
+SET_DEBUG(false);
 
 namespace {
 // global mapping, global number of coarse nodes
@@ -149,7 +149,6 @@ DistributedGraph build_coarse_graph(const DistributedGraph &graph, const auto &m
   // compute coarse node distribution
   auto c_node_distribution =
       helper::create_perfect_distribution_from_global_count<GlobalNodeID>(c_global_n, graph.communicator());
-  DBG << V(c_node_distribution);
   const auto from = c_node_distribution[rank];
   const auto to = c_node_distribution[rank + 1];
 
@@ -179,7 +178,6 @@ DistributedGraph build_coarse_graph(const DistributedGraph &graph, const auto &m
     }
   });
   auto num_edges_for_pe = num_edges_for_pe_ets.combine(std::plus{});
-  DBG << V(num_edges_for_pe);
 
   // allocate memory for edge messages
   struct EdgeMessage {
@@ -238,14 +236,6 @@ DistributedGraph build_coarse_graph(const DistributedGraph &graph, const auto &m
     std::vector<scalable_vector<EdgeMessage>> tmp = std::move(in_msg);
   }
 
-  if constexpr (kDebug) {
-    mpi::barrier(graph.communicator());
-    for (const auto &edge : edge_list) {
-      DBG << V(edge.weight) << V(edge.v);
-    }
-    mpi::barrier(graph.communicator());
-  }
-
   // TODO since we do not know the number of coarse ghost nodes yet, allocate memory only for local nodes and
   // TODO resize in build_distributed_graph_from_edge_list
   ASSERT(from <= to);
@@ -254,8 +244,6 @@ DistributedGraph build_coarse_graph(const DistributedGraph &graph, const auto &m
     NodeID node;
     NodeWeight weight;
   };
-
-  SLOG << "Exchange node weights";
 
   // TODO accumulate node weights before sending them -> no longer need an atomic
   mpi::graph::sparse_alltoall_custom<NodeWeightMessage>(
@@ -272,8 +260,6 @@ DistributedGraph build_coarse_graph(const DistributedGraph &graph, const auto &m
         });
       },
       true);
-
-  SLOG << "Now build the coarse graph";
 
   // now every PE has an edge list with all edges -- so we can build the graph from it
   return helper::build_distributed_graph_from_edge_list(edge_list, std::move(c_node_distribution), graph.communicator(),
@@ -313,8 +299,6 @@ RedistributedGlobalContractionResult contract_global_clustering_redistribute(con
 
   // compute local mapping for ghost nodes
   exchange_ghost_node_mapping(graph, mapping);
-
-  DBG << V(mapping);
 
   // build coarse graph
   auto c_graph = build_coarse_graph(graph, mapping, c_global_n);

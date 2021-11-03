@@ -294,6 +294,12 @@ TYPED_TEST(NullGraph, ContractNullGraph) {
 
   EXPECT_EQ(c_graph.global_n(), 0);
   EXPECT_EQ(c_graph.global_m(), 0);
+  EXPECT_EQ(c_graph.n(), 0);
+  EXPECT_EQ(c_graph.m(), 0);
+  EXPECT_EQ(c_graph.ghost_n(), 0);
+  EXPECT_EQ(c_graph.total_n(), 0);
+  EXPECT_EQ(c_graph.total_node_weight(), 0);
+  EXPECT_EQ(c_graph.global_total_node_weight(), 0);
 }
 
 TYPED_TEST(EmptyGraph, ContractEmtpyGraphToOneNode) {
@@ -302,6 +308,8 @@ TYPED_TEST(EmptyGraph, ContractEmtpyGraphToOneNode) {
 
   EXPECT_EQ(c_graph.global_n(), 1);
   EXPECT_EQ(c_graph.global_m(), 0);
+  EXPECT_EQ(c_graph.m(), 0);
+  EXPECT_EQ(c_graph.global_total_node_weight(), this->graph.global_total_node_weight());
 }
 
 TYPED_TEST(EmptyGraph, ContractEmptyGraphToOneNodePerPE) {
@@ -310,18 +318,73 @@ TYPED_TEST(EmptyGraph, ContractEmptyGraphToOneNodePerPE) {
 
   EXPECT_EQ(c_graph.global_n(), 3);
   EXPECT_EQ(c_graph.global_m(), 0);
-  EXPECT_EQ(c_graph.n(), 1);
-  EXPECT_EQ(c_graph.m(), 0);
+  EXPECT_EQ(c_graph.global_total_node_weight(), this->graph.global_total_node_weight());
   EXPECT_THAT(c_graph.node_weights(), ElementsAre(Eq(3)));
-  EXPECT_EQ(c_graph.total_n(), 1);
 }
 
 //
 // Test on graph path where not all PEs are adjacent
 //
 
-TEST_F(DistributedPathTwoNodesPerPE, ContractPathToPE0) {
+TYPED_TEST(PathGraph, ContractPathToCluster0) {
   // 0--1-#-2--3-#-4--5
+  this->graph = graph::assign_node_weight_identifiers(std::move(this->graph));
+
+  Clustering clustering = graph::distribute_node_info<Clustering>(this->graph, {0, 0, 0, 0, 0, 0});
+  const auto [c_graph, c_mapping] = this->contractor.contract_clustering(this->graph, clustering);
+
+  EXPECT_EQ(c_graph.global_n(), 1);
+  EXPECT_EQ(c_graph.global_m(), 0);
+  EXPECT_EQ(c_graph.global_total_node_weight(), this->graph.global_total_node_weight());
 }
 
+TYPED_TEST(PathGraph, ContractEachHalfToOneNode) {
+  // 0--1-#-2--3-#-4--5
+  this->graph = graph::assign_node_weight_identifiers(std::move(this->graph));
+
+  Clustering clustering = graph::distribute_node_info<Clustering>(this->graph, {0, 0, 0, 5, 5, 5});
+  const auto [c_graph, c_mapping] = this->contractor.contract_clustering(this->graph, clustering);
+
+  EXPECT_EQ(c_graph.global_n(), 2);
+  EXPECT_EQ(c_graph.global_m(), 2);
+  EXPECT_EQ(c_graph.global_total_node_weight(), this->graph.global_total_node_weight());
+
+  graph::expect_isomorphic(c_graph, {{0b000'111, 1, 0b111'000}});
+}
+
+TYPED_TEST(PathGraph, ContractMiddlePart) {
+  // 0--1-#-2--3-#-4--5
+  this->graph = graph::assign_node_weight_identifiers(std::move(this->graph));
+
+  Clustering clustering = graph::distribute_node_info<Clustering>(this->graph, {0, 1, 2, 2, 4, 5});
+  const auto [c_graph, c_mapping] = this->contractor.contract_clustering(this->graph, clustering);
+
+  EXPECT_EQ(c_graph.global_n(), 5);
+  EXPECT_EQ(c_graph.global_m(), 8);
+  EXPECT_EQ(c_graph.global_total_node_weight(), this->graph.global_total_node_weight());
+
+  graph::expect_isomorphic(c_graph, {
+                                        {0b00'00'01, 1, 0b00'00'10},
+                                        {0b00'00'10, 1, 0b00'11'00},
+                                        {0b00'11'00, 1, 0b01'00'00},
+                                        {0b01'00'00, 1, 0b10'00'00},
+                                    });
+}
+
+TYPED_TEST(PathGraph, ContractMiddleOut) {
+  // 0--1-#-2--3-#-4--5
+  this->graph = graph::assign_node_weight_identifiers(std::move(this->graph));
+
+  Clustering clustering = graph::distribute_node_info<Clustering>(this->graph, {0, 1, 2, 2, 1, 0});
+  const auto [c_graph, c_mapping] = this->contractor.contract_clustering(this->graph, clustering);
+
+  EXPECT_EQ(c_graph.global_n(), 3);
+  EXPECT_EQ(c_graph.global_m(), 4);
+  EXPECT_EQ(c_graph.global_total_node_weight(), this->graph.global_total_node_weight());
+
+  graph::expect_isomorphic(c_graph, {
+                                        {0b10'00'01, 2, 0b01'00'10},
+                                        {0b01'00'10, 2, 0b00'11'00},
+                                    });
+}
 } // namespace dkaminpar::test
