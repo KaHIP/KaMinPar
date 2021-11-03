@@ -12,8 +12,8 @@
 
 #include "apps/apps.h"
 #include "dkaminpar/application/arguments.h"
+#include "dkaminpar/coarsening/global_clustering_contraction_redistribution.h"
 #include "dkaminpar/coarsening/locking_label_propagation_clustering.h"
-#include "dkaminpar/coarsening/seq_global_clustering_contraction_redistribution.h"
 #include "dkaminpar/distributed_context.h"
 #include "dkaminpar/distributed_io.h"
 #include "kaminpar/definitions.h"
@@ -98,8 +98,7 @@ int main(int argc, char *argv[]) {
     LOG << "... contracting";
 
     START_TIMER("Contraction", "Level " + std::to_string(graph_hierarchy.size()));
-    auto [contracted_graph, mapping, m_ctx] =
-        dist::coarsening::contract_global_clustering_redistribute_sequential(*c_graph, clustering);
+    auto [contracted_graph, mapping] = dist::coarsening::contract_global_clustering_redistribute(*c_graph, clustering);
     STOP_TIMER();
     dist::graph::debug::validate(contracted_graph);
 

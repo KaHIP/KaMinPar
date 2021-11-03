@@ -100,7 +100,6 @@ int main(int argc, char *argv[]) {
     sanitize_context(ctx);
   } catch (const std::runtime_error &e) { FATAL_ERROR << e.what(); }
   if (ctx.debug.just_sanitize_args) { std::exit(0); }
-  if (ctx.debug.force_clean_build) { force_clean_build(); }
 
   if (ctx.partition.fast_initial_partitioning) {
     ctx.initial_partitioning.min_num_repetitions = 4;

@@ -291,4 +291,13 @@ TEST_F(DistributedGraphWith9NodesAnd0Edges, ContractEmptyGraphToOneNodePerPE) {
   EXPECT_THAT(c_graph.node_weights(), ElementsAre(Eq(3)));
   EXPECT_EQ(c_graph.total_n(), 1);
 }
+
+//
+// Test on graph path where not all PEs are adjacent
+//
+
+TEST_F(DistributedPathTwoNodesPerPE, ContractPathToPE0) {
+  // 0--1-#-2--3-#-4--5
+
+}
 } // namespace dkaminpar::test
