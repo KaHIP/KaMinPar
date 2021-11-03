@@ -297,7 +297,6 @@ public:
   void set_block(const NodeID u, const BlockID new_b) {
     ASSERT(u < n()) << "invalid node id " << u;
     ASSERT(new_b < k()) << "invalid block id " << new_b << " for node " << u;
-    ASSERT(new_b != block(u)) << V(u) << V(new_b) << V(block(u));
     DBG << "set_block(" << u << ", " << new_b << ")";
 
     if constexpr (update_block_weight) {

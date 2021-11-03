@@ -212,7 +212,7 @@ private:
     std::vector<BlockWeight> global_block_weights(_p_graph->k());
     mpi::allreduce(_p_graph->block_weights_copy().data(), global_block_weights.data(), static_cast<int>(_p_graph->k()),
                    MPI_SUM, _graph->communicator());
-    
+
     // check for balance violations
     shm::parallel::IntegralAtomicWrapper<std::uint8_t> feasible = 1;
     _p_graph->pfor_blocks([&](const BlockID b) {

@@ -8,12 +8,14 @@
 #include "dkaminpar/partitioning_scheme/kway.h"
 
 #include "dkaminpar/algorithm/allgather_graph.h"
-#include "dkaminpar/coarsening/locking_clustering_contraction.h"
+#include "dkaminpar/coarsening/global_clustering_contraction_redistribution.h"
 #include "dkaminpar/coarsening/locking_label_propagation_clustering.h"
 #include "dkaminpar/refinement/distributed_probabilistic_label_propagation_refiner.h"
 #include "dkaminpar/utility/distributed_metrics.h"
 #include "kaminpar/metrics.h"
 #include "kaminpar/partitioning_scheme/partitioning.h"
+
+#include "kaminpar/io.h"
 
 namespace dkaminpar {
 SET_DEBUG(true);
@@ -25,7 +27,7 @@ KWayPartitioningScheme::KWayPartitioningScheme(const DistributedGraph &graph, co
 DistributedPartitionedGraph KWayPartitioningScheme::partition() {
   // Coarsen graph
   std::vector<DistributedGraph> graph_hierarchy;
-  std::vector<scalable_vector<NodeID>> mapping_hierarchy;
+  std::vector<coarsening::GlobalMapping> mapping_hierarchy;
 
   const DistributedGraph *c_graph = &_graph;
   while (c_graph->n() > _ctx.partition.k * _ctx.coarsening.contraction_limit) {
@@ -34,12 +36,12 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
         max_cluster_weight = shm::compute_max_cluster_weight(c_graph->global_n(), c_graph->total_node_weight(),
                                                              _ctx.initial_partitioning.sequential.partition,
                                                              _ctx.initial_partitioning.sequential.coarsening);
-    // TODO total_n() only required for rating map
+
     LockingLpClustering coarsener(_ctx);
     auto &clustering = coarsener.compute_clustering(*c_graph, max_cluster_weight);
     MPI_Barrier(MPI_COMM_WORLD);
     DBG << "... contract";
-    auto [contracted_graph, mapping, mem] = coarsening::contract_locking_clustering(*c_graph, clustering);
+    auto [contracted_graph, mapping] = coarsening::contract_global_clustering_redistribute(*c_graph, clustering);
     DBG << ".... ok";
     MPI_Barrier(MPI_COMM_WORLD);
     graph::debug::validate(contracted_graph);
@@ -58,6 +60,8 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
 
   // initial partitioning
   auto shm_graph = graph::allgather(*c_graph);
+  shm::io::metis::write("test.graph", shm_graph);
+
   auto shm_ctx = _ctx.initial_partitioning.sequential;
   shm_ctx.refinement.lp.num_iterations = 1;
   shm_ctx.partition.k = _ctx.partition.k;
