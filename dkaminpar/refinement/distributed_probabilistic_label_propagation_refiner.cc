@@ -96,7 +96,7 @@ public:
     const auto cut_before = IFSTATS(metrics::edge_cut(*_p_graph));
 
     for (std::size_t iteration = 0; iteration < _lp_ctx.num_iterations; ++iteration) {
-      NodeID num_moved_nodes = 0;
+      GlobalNodeID num_moved_nodes = 0;
       for (std::size_t chunk = 0; chunk < _lp_ctx.num_chunks; ++chunk) {
         const auto [from, to] = math::compute_local_range<NodeID>(_p_graph->n(), _lp_ctx.num_chunks, chunk);
         num_moved_nodes += process_chunk(from, to);
@@ -111,16 +111,18 @@ public:
   }
 
 private:
-  NodeID process_chunk(const NodeID from, const NodeID to) {
+  GlobalNodeID process_chunk(const NodeID from, const NodeID to) {
     HEAVY_ASSERT(ASSERT_NEXT_PARTITION_STATE());
 
     DBG << "Running label propagation on node chunk [" << from << ".." << to << "]";
 
     // run label propagation
     const NodeID num_moved_nodes = perform_iteration(from, to);
-    if (num_moved_nodes == 0) {
-      return 0;
-    } // nothing to do
+    const GlobalNodeID global_num_moved_nodes =
+        mpi::allreduce<GlobalNodeID>(num_moved_nodes, MPI_SUM, _graph->communicator());
+    if (global_num_moved_nodes == 0) {
+      return 0; // nothing to do
+    }
 
     // accumulate total weight of nodes moved to each block
     parallel::vector_ets<BlockWeight> weight_to_block_ets(_p_ctx->k);
@@ -153,19 +155,26 @@ private:
     }
 
     // perform probabilistic moves
-    for (std::size_t i = 0; i < _lp_ctx.num_move_attempts; ++i) {
-      if (perform_moves(from, to, residual_cluster_weights, global_total_gains_to_block)) {
-        synchronize_state(from, to);
-        break;
+    {
+      PEID done = 0;
+      const PEID size = mpi::get_comm_size(_graph->communicator());
+      PEID num_done = 0;
+
+      for (std::size_t i = 0; num_done < size && i < _lp_ctx.num_move_attempts; ++i) {
+        if (perform_moves(from, to, residual_cluster_weights, global_total_gains_to_block)) {
+          done = 1;
+        }
+
+        num_done = mpi::allreduce(done, MPI_SUM, _graph->communicator());
       }
     }
 
-    // update _next_partition[.]
+    synchronize_state(from, to);
     _p_graph->pfor_nodes(from, to, [&](const NodeID u) { _next_partition[u] = _p_graph->block(u); });
 
     // _next_partition should be in a consistent state at this point
     HEAVY_ASSERT(ASSERT_NEXT_PARTITION_STATE());
-    return num_moved_nodes;
+    return global_num_moved_nodes;
   }
 
   bool perform_moves(const NodeID from, const NodeID to, const std::vector<BlockWeight> &residual_block_weights,
@@ -184,7 +193,7 @@ private:
 
       for (NodeID u = r.begin(); u < r.end(); ++u) {
         // only iterate over nodes that changed block
-        if (_next_partition[u] == _p_graph->block(u)) {
+        if (_next_partition[u] == _p_graph->block(u) || _next_partition[u] == kInvalidBlockID) {
           return;
         }
 

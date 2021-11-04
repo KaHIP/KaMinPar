@@ -82,16 +82,14 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
 
   auto refine = [&](DistributedPartitionedGraph &p_graph) {
     if (_ctx.refinement.algorithm == KWayRefinementAlgorithm::NOOP) { return; }
-    DBG << "create local_n=" << _ctx.partition.local_n() << " k=" << _ctx.partition.k;
     DistributedProbabilisticLabelPropagationRefiner refiner(_ctx);
-    DBG << "init";
     refiner.initialize(p_graph.graph(), _ctx.partition);
 
     for (std::size_t i = 0; i < _ctx.refinement.lp.num_iterations; ++i) {
       DBG << "iter " << i;
       refiner.refine(p_graph);
       DBG << "validate";
-      graph::debug::validate_partition(p_graph);
+      HEAVY_ASSERT(graph::debug::validate_partition(p_graph));
     }
   };
 
@@ -107,6 +105,7 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
     // create partition for new coarsest graph
     const auto *current_graph = graph_hierarchy.empty() ? &_graph : &graph_hierarchy.back();
     dist_p_graph = coarsening::project_global_contracted_graph(*current_graph, std::move(dist_p_graph), mapping);
+    HEAVY_ASSERT(graph::debug::validate_partition(dist_p_graph));
 
     // (2) Refine
     refine(dist_p_graph);
