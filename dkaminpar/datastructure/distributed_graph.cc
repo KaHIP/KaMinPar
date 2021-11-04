@@ -163,6 +163,13 @@ bool validate_partition(const DistributedPartitionedGraph &p_graph) {
   }
 
   {
+    DBG << "Check that block IDs are OK";
+    for (const NodeID u : p_graph.all_nodes()) {
+      ALWAYS_ASSERT(p_graph.block(u) < p_graph.k());
+    }
+  }
+
+  {
     DBG << "Check that each PE has the same block weights";
 
     scalable_vector<BlockWeight> recv_block_weights;

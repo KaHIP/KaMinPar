@@ -76,6 +76,7 @@ void PartitionContext::setup(const DistributedGraph &graph) {
   _global_m = graph.global_m();
   _global_total_node_weight = mpi::allreduce(graph.total_node_weight(), MPI_SUM, graph.communicator());
   _local_n = graph.n();
+  _total_n = graph.total_n();
   _local_m = graph.m();
   _total_node_weight = graph.total_node_weight();
 

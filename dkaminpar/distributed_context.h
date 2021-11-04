@@ -124,6 +124,11 @@ struct PartitionContext {
     return _local_n;
   }
 
+  [[nodiscard]] NodeID total_n() const {
+    ASSERT(_total_n != kInvalidNodeID);
+    return _total_n;
+  }
+
   [[nodiscard]] EdgeID local_m() const {
     ASSERT(_local_m != kInvalidEdgeID);
     return _local_m;
@@ -140,7 +145,7 @@ struct PartitionContext {
   }
 
   [[nodiscard]] inline BlockWeight max_block_weight(const BlockID b) const {
-    ASSERT(b < _max_block_weights.size());
+    ASSERT(b < _max_block_weights.size()) << V(b) << V(_max_block_weights.size());
     return _max_block_weights[b];
   }
 
@@ -155,6 +160,7 @@ private:
   GlobalNodeWeight _global_total_node_weight{kInvalidGlobalNodeWeight};
   NodeID _local_n{kInvalidNodeID};
   EdgeID _local_m{kInvalidEdgeID};
+  NodeID _total_n{kInvalidNodeID};
   NodeWeight _total_node_weight{kInvalidNodeWeight};
 
   scalable_vector<BlockWeight> _perfectly_balanced_block_weights{};

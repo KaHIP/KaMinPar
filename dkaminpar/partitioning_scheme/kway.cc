@@ -1,10 +1,10 @@
 /*******************************************************************************
-* @file:   kway.cc
-*
-* @author: Daniel Seemaier
-* @date:   25.10.2021
-* @brief:  Direct k-way partitioning.
-******************************************************************************/
+ * @file:   kway.cc
+ *
+ * @author: Daniel Seemaier
+ * @date:   25.10.2021
+ * @brief:  Direct k-way partitioning.
+ ******************************************************************************/
 #include "dkaminpar/partitioning_scheme/kway.h"
 
 #include "dkaminpar/algorithm/allgather_graph.h"
@@ -21,8 +21,7 @@ namespace dkaminpar {
 SET_DEBUG(true);
 
 KWayPartitioningScheme::KWayPartitioningScheme(const DistributedGraph &graph, const Context &ctx)
-    : _graph{graph},
-      _ctx{ctx} {}
+    : _graph{graph}, _ctx{ctx} {}
 
 DistributedPartitionedGraph KWayPartitioningScheme::partition() {
   // Coarsen graph
@@ -31,20 +30,15 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
 
   const DistributedGraph *c_graph = &_graph;
   while (c_graph->n() > _ctx.partition.k * _ctx.coarsening.contraction_limit) {
-    DBG << "... lp";
-    const NodeWeight
-        max_cluster_weight = shm::compute_max_cluster_weight(c_graph->global_n(), c_graph->total_node_weight(),
-                                                             _ctx.initial_partitioning.sequential.partition,
-                                                             _ctx.initial_partitioning.sequential.coarsening);
+    const NodeWeight max_cluster_weight = shm::compute_max_cluster_weight(
+        c_graph->global_n(), c_graph->total_node_weight(), _ctx.initial_partitioning.sequential.partition,
+        _ctx.initial_partitioning.sequential.coarsening);
 
     LockingLpClustering coarsener(_ctx);
     auto &clustering = coarsener.compute_clustering(*c_graph, max_cluster_weight);
-    MPI_Barrier(MPI_COMM_WORLD);
-    DBG << "... contract";
     auto [contracted_graph, mapping] = coarsening::contract_global_clustering_redistribute(*c_graph, clustering);
-    DBG << ".... ok";
-    MPI_Barrier(MPI_COMM_WORLD);
-    graph::debug::validate(contracted_graph);
+    HEAVY_ASSERT(graph::debug::validate(contracted_graph));
+
     const bool converged = contracted_graph.global_n() == c_graph->global_n();
     graph_hierarchy.push_back(std::move(contracted_graph));
     mapping_hierarchy.push_back(std::move(mapping));
@@ -60,7 +54,6 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
 
   // initial partitioning
   auto shm_graph = graph::allgather(*c_graph);
-  shm::io::metis::write("test.graph", shm_graph);
 
   auto shm_ctx = _ctx.initial_partitioning.sequential;
   shm_ctx.refinement.lp.num_iterations = 1;
@@ -81,31 +74,40 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
        << " imbalance=" << metrics::imbalance(dist_p_graph);
 
   auto refine = [&](DistributedPartitionedGraph &p_graph) {
-    if (_ctx.refinement.algorithm == KWayRefinementAlgorithm::NOOP) { return; }
+    if (_ctx.refinement.algorithm == KWayRefinementAlgorithm::NOOP) {
+      return;
+    }
     DistributedProbabilisticLabelPropagationRefiner refiner(_ctx);
     refiner.initialize(p_graph.graph(), _ctx.partition);
 
     for (std::size_t i = 0; i < _ctx.refinement.lp.num_iterations; ++i) {
-      DBG << "iter " << i;
+      HEAVY_ASSERT(graph::debug::validate_partition(p_graph));
       refiner.refine(p_graph);
-      DBG << "validate";
       HEAVY_ASSERT(graph::debug::validate_partition(p_graph));
     }
   };
 
   // Uncoarsen and refine
-  DBG << "Calling refiner";
   refine(dist_p_graph);
+
   while (!graph_hierarchy.empty()) {
     // (1) Uncoarsen graph
-    auto mapping = std::move(mapping_hierarchy.back());
-    graph_hierarchy.pop_back();
-    mapping_hierarchy.pop_back(); // destroy graph wrapped in dist_p_graph, but partition access is still ok
 
-    // create partition for new coarsest graph
-    const auto *current_graph = graph_hierarchy.empty() ? &_graph : &graph_hierarchy.back();
-    dist_p_graph = coarsening::project_global_contracted_graph(*current_graph, std::move(dist_p_graph), mapping);
+    // create partition for new coarsest graph -- but we need to keep the old one alive until projection is done
+    const auto *current_graph = graph_hierarchy.size() <= 1 ? &_graph : &graph_hierarchy[graph_hierarchy.size() - 2];
+    DBG << "Uncoarsen " << V(current_graph->node_distribution());
+    HEAVY_ASSERT(graph::debug::validate(*current_graph));
+
+    dist_p_graph = coarsening::project_global_contracted_graph(*current_graph, std::move(dist_p_graph), mapping_hierarchy.back());
     HEAVY_ASSERT(graph::debug::validate_partition(dist_p_graph));
+
+    graph_hierarchy.pop_back();
+    mapping_hierarchy.pop_back();
+
+    // update graph ptr in case graph_hierarchy was reallocated by the pop_back() operation
+    dist_p_graph.UNSAFE_set_graph(graph_hierarchy.empty() ? &_graph : &graph_hierarchy.back());
+
+    DBG << "OK";
 
     // (2) Refine
     refine(dist_p_graph);

@@ -191,7 +191,7 @@ public:
   PEID find_owner_of_global_node(const GlobalNodeID u) const {
     ASSERT(u < global_n()) << V(u) << V(global_n());
     auto it = std::upper_bound(_node_distribution.begin() + 1, _node_distribution.end(), u);
-    ASSERT(it != _node_distribution.end());
+    ASSERT(it != _node_distribution.end()) << V(u) << V(_node_distribution);
     return static_cast<PEID>(std::distance(_node_distribution.begin(), it) - 1);
   }
 
@@ -412,6 +412,7 @@ public:
   DistributedPartitionedGraph &operator=(DistributedPartitionedGraph &&) noexcept = default;
 
   [[nodiscard]] const DistributedGraph &graph() const { return *_graph; }
+  void UNSAFE_set_graph(const DistributedGraph *graph) { _graph = graph; }
 
   // Delegates to _graph
   // clang-format off

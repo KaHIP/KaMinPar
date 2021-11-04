@@ -236,7 +236,7 @@ private:
         _statistics.num_rollbacks += 1;
         for (const BlockID b : _p_graph->blocks()) {
           if (global_block_weights[b] > max_cluster_weight(b)) {
-            const double imbalance = global_block_weights[b] / max_cluster_weight(b);
+            const double imbalance = 1.0 * global_block_weights[b] / max_cluster_weight(b) - 1.0;
             _statistics.total_balance_violation += imbalance;
             _statistics.max_balance_violation = std::max(_statistics.max_balance_violation, imbalance);
           }
@@ -301,13 +301,25 @@ public:
   // Called from base class
   //
 
-  void init_cluster(const NodeID u, const BlockID b) { _next_partition[u] = b; }
+  void init_cluster(const NodeID u, const BlockID b) {
+    ASSERT(u < _next_partition.size());
+    _next_partition[u] = b;
+  }
 
-  [[nodiscard]] BlockID initial_cluster(const NodeID u) { return _p_graph->block(u); }
+  [[nodiscard]] BlockID initial_cluster(const NodeID u) {
+    ASSERT(u < _p_graph->n());
+    return _p_graph->block(u);
+  }
 
-  [[nodiscard]] BlockID cluster(const NodeID u) const { return _next_partition[u]; }
+  [[nodiscard]] BlockID cluster(const NodeID u) const {
+    ASSERT(u < _p_graph->total_n());
+    return _p_graph->is_owned_node(u) ? _next_partition[u] : _p_graph->block(u);
+  }
 
-  void move_node(const NodeID u, const BlockID b) { _next_partition[u] = b; }
+  void move_node(const NodeID u, const BlockID b) {
+    ASSERT(u < _p_graph->n());
+    _next_partition[u] = b;
+  }
 
   [[nodiscard]] BlockWeight initial_cluster_weight(const BlockID b) const { return _p_graph->block_weight(b); }
 

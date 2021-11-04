@@ -131,6 +131,9 @@ private:
 #define LOG (dkaminpar::internal::get_rank() == 0) && kaminpar::debug::DisposableLogger<false>(std::cout)
 #define LLOG (dkaminpar::internal::get_rank() == 0) && kaminpar::debug::DisposableLogger<false>(std::cout, "")
 
+#undef STATS
+#define STATS kStatistics && (dkaminpar::internal::get_rank() == 0) && kaminpar::debug::DisposableLogger<false>(std::cout) << kaminpar::logger::CYAN
+
 #undef LOG_ERROR
 #define LOG_ERROR (kaminpar::Logger(std::cout) << LOG_RANK << kaminpar::logger::RED << "[Error] ")
 

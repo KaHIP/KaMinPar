@@ -340,6 +340,7 @@ DistributedPartitionedGraph project_global_contracted_graph(const DistributedGra
 
   // find unique coarse_graph node IDs of fine_graph nodes
   auto resolve_coarse_node = [&](const GlobalNodeID coarse_node) {
+    ASSERT(coarse_node < coarse_graph.global_n());
     const PEID owner = coarse_graph.find_owner_of_global_node(coarse_node);
     const NodeID local = static_cast<NodeID>(coarse_node - coarse_graph.offset_n(owner));
     return std::make_pair(owner, local);
