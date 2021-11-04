@@ -8,6 +8,7 @@
 #pragma once
 
 #include "kaminpar/definitions.h"
+#include "kaminpar/parallel.h"
 
 #include <cstdint>
 #include <iomanip>
@@ -50,6 +51,9 @@ inline int get_rank(MPI_Comm comm = MPI_COMM_WORLD) {
 
 template<typename T>
 using scalable_vector = shm::scalable_vector<T>;
+
+template<typename T>
+using Atomic = shm::parallel::IntegralAtomicWrapper<T>;
 
 class SynchronizedLogger {
 public:

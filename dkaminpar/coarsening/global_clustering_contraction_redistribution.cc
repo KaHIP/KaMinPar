@@ -22,6 +22,26 @@ namespace dkaminpar::coarsening {
 SET_DEBUG(false);
 
 namespace {
+void exchange_ghost_node_mapping(const DistributedGraph &graph, auto &label_mapping) {
+  struct Message {
+    NodeID local_node;
+    GlobalNodeID coarse_global_node;
+  };
+
+  mpi::graph::sparse_alltoall_interface_to_pe<Message, std::vector>(
+      graph,
+      [&](const NodeID u) -> Message {
+        return {u, label_mapping[u]};
+      },
+      [&](const auto buffer, const PEID pe) {
+        tbb::parallel_for<std::size_t>(0, buffer.size(), [&](const std::size_t i) {
+          const auto &[local_node_on_other_pe, coarse_global_node] = buffer[i];
+          const auto local_node = graph.global_to_local_node(graph.offset_n(pe) + local_node_on_other_pe);
+          label_mapping[local_node] = coarse_global_node;
+        });
+      });
+}
+
 // global mapping, global number of coarse nodes
 std::pair<scalable_vector<shm::parallel::IntegralAtomicWrapper<GlobalNodeID>>, GlobalNodeID>
 compute_mapping(const DistributedGraph &graph,
@@ -77,10 +97,9 @@ compute_mapping(const DistributedGraph &graph,
   });
   shm::parallel::prefix_sum(label_mapping.begin(), label_mapping.end(), label_mapping.begin());
 
-  const NodeID c_label_n = label_mapping.empty() ? 0 : static_cast<NodeID>(label_mapping.back());
-  const GlobalNodeID c_label_from = mpi::exscan<GlobalNodeID>(c_label_n, MPI_SUM, graph.communicator());
-  const auto c_label_distribution = mpi::allgather(c_label_from, graph.communicator());
-  const GlobalNodeID c_global_n = mpi::allreduce(c_label_n, MPI_SUM, graph.communicator());
+  const NodeID c_n = label_mapping.empty() ? 0 : static_cast<NodeID>(label_mapping.back());
+  const auto c_distribution = helper::create_distribution_from_local_count<GlobalNodeID>(c_n, graph.communicator());
+  const GlobalNodeID c_global_n = c_distribution.back();
 
   // send mapping to other PEs that use cluster IDs from this PE -- i.e., answer in_msg
   std::vector<scalable_vector<NodeID>> out_msg(size);
@@ -115,31 +134,13 @@ compute_mapping(const DistributedGraph &graph,
     ASSERT(found) << V(u_local_cluster) << V(u_cluster_owner) << V(u) << V(u_cluster);
 
     const NodeID slot_in_msg = accessor->second;
-    label_mapping[u] = c_label_distribution[u_cluster_owner] + label_remap[u_cluster_owner][slot_in_msg];
+    label_mapping[u] = c_distribution[u_cluster_owner] + label_remap[u_cluster_owner][slot_in_msg];
   });
 
-  // ASSERT label_mapping[0..n] maps to coarse node IDs
+  // exchange labels for ghost nodes
+  exchange_ghost_node_mapping(graph, label_mapping);
+
   return {std::move(label_mapping), c_global_n};
-}
-
-void exchange_ghost_node_mapping(const DistributedGraph &graph, auto &label_mapping) {
-  struct Message {
-    NodeID local_node;
-    GlobalNodeID coarse_global_node;
-  };
-
-  mpi::graph::sparse_alltoall_interface_to_pe<Message, std::vector>(
-      graph,
-      [&](const NodeID u) -> Message {
-        return {u, label_mapping[u]};
-      },
-      [&](const auto buffer, const PEID pe) {
-        tbb::parallel_for<std::size_t>(0, buffer.size(), [&](const std::size_t i) {
-          const auto &[local_node_on_other_pe, coarse_global_node] = buffer[i];
-          const auto local_node = graph.global_to_local_node(graph.offset_n(pe) + local_node_on_other_pe);
-          label_mapping[local_node] = coarse_global_node;
-        });
-      });
 }
 
 DistributedGraph build_coarse_graph(const DistributedGraph &graph, const auto &mapping, const GlobalNodeID c_global_n) {
@@ -180,13 +181,7 @@ DistributedGraph build_coarse_graph(const DistributedGraph &graph, const auto &m
   auto num_edges_for_pe = num_edges_for_pe_ets.combine(std::plus{});
 
   // allocate memory for edge messages
-  struct EdgeMessage {
-    NodeID u;
-    EdgeWeight weight;
-    GlobalNodeID v;
-  };
-
-  std::vector<scalable_vector<EdgeMessage>> out_msg;
+  std::vector<scalable_vector<helper::LocalToGlobalEdge>> out_msg;
   for (PEID pe = 0; pe < size; ++pe) {
     out_msg.emplace_back(num_edges_for_pe[pe]);
   }
@@ -216,15 +211,24 @@ DistributedGraph build_coarse_graph(const DistributedGraph &graph, const auto &m
     }
   });
 
+  // deduplicate edges
+  helper::DeduplicateEdgeListMemoryContext deduplicate_m_ctx;
+  for (PEID pe = 0; pe < size; ++pe) {
+    NodeID n_on_pe = c_node_distribution[pe + 1] - c_node_distribution[pe];
+    auto result = helper::deduplicate_edge_list(std::move(out_msg[pe]), n_on_pe, std::move(deduplicate_m_ctx));
+    out_msg[pe] = std::move(result.first);
+    deduplicate_m_ctx = std::move(result.second);
+  }
+
   // exchange messages
-  const auto in_msg = mpi::sparse_alltoall_get<EdgeMessage, scalable_vector>(out_msg, graph.communicator(), true);
+  const auto in_msg = mpi::sparse_alltoall_get<helper::LocalToGlobalEdge, scalable_vector>(out_msg, graph.communicator(), true);
 
   // Copy edge lists to a single list and free old list
   EdgeID total_num_edges = 0;
   for (const auto &list : in_msg) {
     total_num_edges += list.size();
   }
-  scalable_vector<EdgeMessage> edge_list(total_num_edges);
+  scalable_vector<helper::LocalToGlobalEdge> edge_list(total_num_edges);
   {
     EdgeID pos = 0;
     for (const auto &list : in_msg) {
@@ -233,7 +237,7 @@ DistributedGraph build_coarse_graph(const DistributedGraph &graph, const auto &m
     }
 
     // free in_msg
-    std::vector<scalable_vector<EdgeMessage>> tmp = std::move(in_msg);
+    std::vector<scalable_vector<helper::LocalToGlobalEdge>> tmp = std::move(in_msg);
   }
 
   // TODO since we do not know the number of coarse ghost nodes yet, allocate memory only for local nodes and
@@ -271,22 +275,20 @@ DistributedGraph build_coarse_graph(const DistributedGraph &graph, const auto &m
 
 void update_ghost_node_weights(DistributedGraph &graph) {
   struct Message {
-    GlobalNodeID global_node;
+    NodeID local_node;
     NodeWeight weight;
   };
 
   mpi::graph::sparse_alltoall_interface_to_pe<Message, std::vector>(
       graph,
-      [&](const NodeID u, const PEID pe) -> Message {
-        DBG << V(pe) << V(u) << V(graph.local_to_global_node(u)) << V(graph.node_weight(u))
-            << V(graph.contains_local_node(u));
-        return {graph.local_to_global_node(u), graph.node_weight(u)};
+      [&](const NodeID u) -> Message {
+        return {u, graph.node_weight(u)};
       },
-      [&](const auto buffer) {
+      [&](const auto buffer, const PEID pe) {
         tbb::parallel_for<std::size_t>(0, buffer.size(), [&](const std::size_t i) {
-          const auto &message = buffer[i];
-          const NodeID local_node = graph.global_to_local_node(message.global_node);
-          graph.set_ghost_node_weight(local_node, message.weight);
+          const auto &[local_node_on_other_pe, weight] = buffer[i];
+          const NodeID local_node = graph.global_to_local_node(graph.offset_n(pe) + local_node_on_other_pe);
+          graph.set_ghost_node_weight(local_node, weight);
         });
       });
 }
@@ -294,16 +296,9 @@ void update_ghost_node_weights(DistributedGraph &graph) {
 
 RedistributedGlobalContractionResult contract_global_clustering_redistribute(const DistributedGraph &graph,
                                                                              const GlobalClustering &clustering) {
-  // compute local mapping for owned nodes
   auto [mapping, c_global_n] = compute_mapping(graph, clustering);
-
-  // compute local mapping for ghost nodes
-  exchange_ghost_node_mapping(graph, mapping);
-
-  // build coarse graph
   auto c_graph = build_coarse_graph(graph, mapping, c_global_n);
   update_ghost_node_weights(c_graph);
-
   return {std::move(c_graph), std::move(mapping)};
 }
 } // namespace dkaminpar::coarsening

@@ -10,11 +10,108 @@
 #include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/utility/math.h"
 #include "kaminpar/datastructure/ts_navigable_linked_list.h"
+#include "kaminpar/utility/timer.h"
 
 #include <algorithm>
 
 namespace dkaminpar::coarsening::helper {
 SET_DEBUG(false);
+
+struct LocalToGlobalEdge {
+  NodeID u;
+  EdgeWeight weight;
+  GlobalNodeID v;
+};
+
+struct DeduplicateEdgeListMemoryContext {
+  scalable_vector<Atomic<NodeID>> bucket_index;
+  scalable_vector<NodeID> deduplicated_bucket_index;
+  scalable_vector<LocalToGlobalEdge> buffer_list;
+};
+
+std::pair<scalable_vector<LocalToGlobalEdge>, DeduplicateEdgeListMemoryContext>
+deduplicate_edge_list(scalable_vector<LocalToGlobalEdge> edge_list, const NodeID n,
+                      DeduplicateEdgeListMemoryContext m_ctx) {
+  auto &bucket_index = m_ctx.bucket_index;
+  auto &deduplicated_bucket_index = m_ctx.deduplicated_bucket_index;
+  auto &buffer_list = m_ctx.buffer_list;
+
+  TIMED_SCOPE("Allocation") {
+    if (bucket_index.size() < n + 1) {
+      bucket_index.resize(n + 1);
+    }
+    if (deduplicated_bucket_index.size() < n + 1) {
+      deduplicated_bucket_index.resize(n + 1);
+    }
+    if (buffer_list.size() < edge_list.size() + 1) {
+      buffer_list.resize(edge_list.size() + 1);
+    }
+  };
+
+  // sort edges by u and store result in compressed_edge_list
+  tbb::parallel_for<NodeID>(0, n + 1, [&](const NodeID u) { bucket_index[u] = 0; });
+  tbb::parallel_for<std::size_t>(0, edge_list.size(), [&](const std::size_t i) {
+    ASSERT(edge_list[i].u < n);
+    bucket_index[edge_list[i].u].fetch_add(1, std::memory_order_relaxed);
+  });
+  shm::parallel::prefix_sum(bucket_index.begin(), bucket_index.end(), bucket_index.begin());
+  tbb::parallel_for<std::size_t>(0, edge_list.size(), [&](const std::size_t i) {
+    const std::size_t j = bucket_index[edge_list[i].u].fetch_sub(1, std::memory_order_relaxed) - 1;
+    buffer_list[j] = edge_list[i];
+  });
+  buffer_list.back().v = kInvalidGlobalNodeID; // dummy element
+
+  Atomic<std::size_t> next_edge_list_index = 0;
+
+  // sort outgoing edges for each node and collapse duplicated edges
+  tbb::parallel_for<NodeID>(0, n, [&](const NodeID u) {
+    const EdgeID first_edge_id = bucket_index[u];
+    const EdgeID first_invalid_edge_id = bucket_index[u + 1];
+
+    std::sort(buffer_list.begin() + first_edge_id, buffer_list.begin() + first_invalid_edge_id,
+              [&](const auto &lhs, const auto &rhs) { return lhs.v < rhs.v; });
+
+    EdgeID compressed_degree = 0;
+    EdgeID current_accumulate = buffer_list.size() - 1; // dummy element
+
+    // count number of compressed edges
+    for (EdgeID edge_id = first_edge_id; edge_id < first_invalid_edge_id; ++edge_id) {
+      ASSERT(buffer_list[edge_id].u == u);
+      if (buffer_list[edge_id].v != buffer_list[current_accumulate].v) {
+        ++compressed_degree;
+        current_accumulate = edge_id;
+      }
+    }
+
+    // reset to degree, so that after another prefix sum, it indexes the compressed edge list
+    deduplicated_bucket_index[u + 1] = compressed_degree;
+
+    // reserve memory in edge_list -- +1 in first iteration
+    std::size_t copy_to_index = next_edge_list_index.fetch_add(compressed_degree, std::memory_order_relaxed) - 1;
+
+    // compress and copy edges to edge_list
+    GlobalNodeID current_v = kInvalidGlobalNodeID;
+    for (EdgeID edge_id = first_edge_id; edge_id < first_invalid_edge_id; ++edge_id) {
+      const auto &edge = buffer_list[edge_id];
+      if (edge.v == current_v) {
+        ASSERT(edge_list[copy_to_index].u == edge.u);
+        ASSERT(edge_list[copy_to_index].v == edge.v);
+        edge_list[copy_to_index].weight += edge.weight;
+      } else {
+        copy_to_index++;
+        current_v = edge.v;
+        edge_list[copy_to_index] = edge;
+      }
+    }
+  });
+
+  deduplicated_bucket_index[0] = 0;
+  shm::parallel::prefix_sum(deduplicated_bucket_index.begin(), deduplicated_bucket_index.begin() + n + 1,
+                            deduplicated_bucket_index.begin());
+
+  edge_list.resize(deduplicated_bucket_index[n]);
+  return {std::move(edge_list), std::move(m_ctx)};
+}
 
 template <typename T>
 scalable_vector<T> create_perfect_distribution_from_global_count(const T global_count, MPI_Comm comm) {
@@ -169,7 +266,9 @@ DistributedGraph build_distributed_graph_from_edge_list(const auto &edge_list,
 
       const auto [v, weight] = list->get(src_index);
       DBG << "create edge: " << u << " --> " << v << " / " << weight << V(from) << V(to);
-      if (!(v >= from && v < to)) { DBG << V(global_to_ghost[v]) << V(ghost_owner[global_to_ghost[v]]); }
+      if (!(v >= from && v < to)) {
+        DBG << V(global_to_ghost[v]) << V(ghost_owner[global_to_ghost[v]]);
+      }
 
       edges[dst_index] = (v >= from && v < to) ? static_cast<NodeID>(v - from) : global_to_ghost[v];
       edge_weights[dst_index] = weight;
