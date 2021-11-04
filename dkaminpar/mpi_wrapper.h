@@ -428,18 +428,18 @@ std::vector<Buffer<Message>> sparse_alltoall_get(const std::vector<Buffer<Messag
   return recv_buffers;
 }
 
-template <typename T> std::tuple<T, double, T> gather_statistics(const T value, MPI_Comm comm = MPI_COMM_WORLD) {
+template <typename T> std::tuple<T, double, T, T> gather_statistics(const T value, MPI_Comm comm = MPI_COMM_WORLD) {
   const T min = mpi::allreduce(value, MPI_MIN, comm);
   const T max = mpi::allreduce(value, MPI_MAX, comm);
   const T sum = mpi::allreduce(value, MPI_SUM, comm);
   const double avg = 1.0 * sum / mpi::get_comm_size(comm);
-  return {min, avg, max};
+  return {min, avg, max, sum};
 }
 
 template <typename T> std::string gather_statistics_str(const T value, MPI_Comm comm = MPI_COMM_WORLD) {
   std::ostringstream os;
-  const auto [min, avg, max] = gather_statistics(value, comm);
-  os << "min=" << min << "/avg=" << avg << "/max=" << max;
+  const auto [min, avg, max, sum] = gather_statistics(value, comm);
+  os << "min=" << min << "|avg=" << std::setw(3) << avg << "|max=" << max << "|sum=" << sum;
   return os.str();
 }
 } // namespace dkaminpar::mpi

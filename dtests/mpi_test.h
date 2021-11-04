@@ -2,6 +2,7 @@
 
 #include "dkaminpar/algorithm/allgather_graph.h"
 #include "dkaminpar/datastructure/distributed_graph.h"
+#include "dkaminpar/datastructure/distributed_graph_builder.h"
 #include "dkaminpar/distributed_definitions.h"
 #include "dkaminpar/mpi_wrapper.h"
 
@@ -174,12 +175,30 @@ Container distribute_node_info(const DistributedGraph &graph, const Container &g
  * weights are usually 32 bit signed integers.
  * @return Graph with unique node weights.
  */
-DistributedGraph assign_node_weight_identifiers(DistributedGraph graph) {
+DistributedGraph use_pow_global_id_as_node_weights(DistributedGraph graph) {
   ALWAYS_ASSERT(graph.global_n() <= 31) << "graph is too large: can have at most 30 nodes";
 
   scalable_vector<NodeWeight> new_node_weights(graph.total_n());
   for (const NodeID u : graph.all_nodes()) {
     new_node_weights[u] = 1 << graph.local_to_global_node(u);
+  }
+
+  return {graph.take_node_distribution(),
+          graph.take_edge_distribution(),
+          graph.take_nodes(),
+          graph.take_edges(),
+          std::move(new_node_weights),
+          graph.take_edge_weights(),
+          graph.take_ghost_owner(),
+          graph.take_ghost_to_global(),
+          graph.take_global_to_ghost(),
+          graph.communicator()};
+}
+
+DistributedGraph use_global_id_as_node_weight(DistributedGraph graph) {
+  scalable_vector<NodeWeight> new_node_weights(graph.total_n());
+  for (const NodeID u : graph.all_nodes()) {
+    new_node_weights[u] = graph.local_to_global_node(u) + 1;
   }
 
   return {graph.take_node_distribution(),

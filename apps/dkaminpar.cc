@@ -12,7 +12,6 @@
 
 #include "apps.h"
 #include "dkaminpar/application/arguments.h"
-#include "dkaminpar/coarsening/local_graph_contraction.h"
 #include "dkaminpar/distributed_context.h"
 #include "dkaminpar/distributed_io.h"
 #include "dkaminpar/partitioning_scheme/partitioning.h"
@@ -70,33 +69,26 @@ void print_statistics(const dist::DistributedPartitionedGraph &p_graph, const di
 }
 
 int main(int argc, char *argv[]) {
-  dist::Context ctx = dist::create_default_context();
-
-  { // init MPI
+  // Initialize MPI
+  {
     int provided_thread_support;
-    MPI_Init_thread(&argc, &argv, ctx.parallel.mpi_thread_support, &provided_thread_support);
-    if (provided_thread_support != ctx.parallel.mpi_thread_support) {
+    MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED, &provided_thread_support);
+    if (provided_thread_support != MPI_THREAD_FUNNELED) {
       LOG_WARNING << "Desired MPI thread support unavailable: set to " << provided_thread_support;
       if (provided_thread_support == MPI_THREAD_SINGLE) {
         if (dist::mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
           LOG_ERROR << "Your MPI library does not support multithreading. This might cause malfunction.";
         }
-        provided_thread_support = MPI_THREAD_FUNNELED; // fake multithreading level for application
       }
-      ctx.parallel.mpi_thread_support = provided_thread_support;
     }
   }
 
-  // keep alive
+  // Initialize Backward-Cpp signal handler
   [[maybe_unused]] const auto sh = shm::init_backward();
 
   // Parse command line arguments
-  try {
-    ctx = dist::app::parse_options(argc, argv);
-    sanitize_context(ctx);
-  } catch (const std::runtime_error &e) {
-    std::cout << e.what() << std::endl;
-  }
+  auto ctx = dist::app::parse_options(argc, argv);
+  sanitize_context(ctx);
   shm::Logger::set_quiet_mode(ctx.quiet);
 
   shm::print_identifier(argc, argv);
@@ -113,12 +105,22 @@ int main(int argc, char *argv[]) {
   }
 
   // Load graph
-  const auto graph = TIMED_SCOPE("IO") {
-    auto graph = dist::io::metis::read_node_balanced(ctx.graph_filename);
-    dist::mpi::barrier(MPI_COMM_WORLD);
-    return graph;
-  };
-  LOG << "GRAPH global_n=" << graph.global_n() << " global_m=" << graph.global_m();
+  const auto graph = TIMED_SCOPE("IO") { return dist::io::metis::read_node_balanced(ctx.graph_filename); };
+
+  // Print statistics
+  {
+    const auto n_str = dist::mpi::gather_statistics_str<dist::GlobalNodeID>(graph.n());
+    const auto m_str = dist::mpi::gather_statistics_str<dist::GlobalEdgeID>(graph.m());
+    const auto ghost_n_str = dist::mpi::gather_statistics_str<dist::GlobalNodeID>(graph.ghost_n());
+
+    LOG << "GRAPH "
+        << "global_n=" << graph.global_n() << " "
+        << "global_m=" << graph.global_m() << " "
+        << "n=[" << n_str << "] "
+        << "m=[" << m_str << "] "
+        << "ghost_n=[" << ghost_n_str << "]";
+  }
+
   ASSERT([&] { dist::graph::debug::validate(graph); });
   ctx.setup(graph);
 

@@ -85,7 +85,7 @@ DistributedPartitionedGraph reduce_scatter(const DistributedGraph &dist_graph, s
   shm_p_graph.pfor_nodes([&](const shm::NodeID u) { block_weights[partition[u]] += shm_p_graph.node_weight(u); });
 
   // create distributed partition
-  scalable_vector<BlockID> dist_partition(dist_graph.total_n());
+  scalable_vector<Atomic<BlockID>> dist_partition(dist_graph.total_n());
   dist_graph.pfor_nodes(0, dist_graph.total_n(),
                         [&](const NodeID u) { dist_partition[u] = partition[dist_graph.local_to_global_node(u)]; });
 

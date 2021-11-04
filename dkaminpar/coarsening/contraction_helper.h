@@ -15,7 +15,9 @@
 #include <algorithm>
 
 namespace dkaminpar::coarsening::helper {
+namespace {
 SET_DEBUG(false);
+}
 
 struct LocalToGlobalEdge {
   NodeID u;

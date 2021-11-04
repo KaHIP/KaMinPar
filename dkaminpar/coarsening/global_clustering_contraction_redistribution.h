@@ -19,4 +19,8 @@ struct RedistributedGlobalContractionResult {
 
 RedistributedGlobalContractionResult contract_global_clustering_redistribute(const DistributedGraph &graph,
                                                                              const GlobalClustering &clustering);
+
+DistributedPartitionedGraph project_global_contracted_graph(const DistributedGraph &fine_graph,
+                                                            DistributedPartitionedGraph coarse_graph,
+                                                            const GlobalMapping &fine_to_coarse);
 } // namespace dkaminpar::coarsening

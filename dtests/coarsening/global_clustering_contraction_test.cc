@@ -19,6 +19,7 @@ using ::testing::Contains;
 using ::testing::Each;
 using ::testing::ElementsAre;
 using ::testing::Eq;
+using ::testing::UnorderedElementsAre;
 
 namespace dkaminpar::test {
 using namespace fixtures3PE;
@@ -54,6 +55,20 @@ TYPED_TEST_SUITE(EmptyGraph, Contractors);
 TYPED_TEST_SUITE(NullGraph, Contractors);
 TYPED_TEST_SUITE(PathGraph, Contractors);
 
+namespace {
+// expected_mapped_node_weights[i] should contain the expected node weight of the coarse node of node i
+void expect_mapping(const DistributedGraph &f_graph, const DistributedGraph &c_graph, const auto &mapping,
+                    const std::vector<NodeWeight> &expected_mapped_node_weights) {
+  const auto shm_graph = dkaminpar::graph::allgather(c_graph);
+
+  for (const NodeID u : f_graph.nodes()) {
+    const NodeWeight expected_weight = expected_mapped_node_weights[f_graph.local_to_global_node(u)];
+    const NodeWeight actual_weight = shm_graph.node_weight(mapping[u]);
+    EXPECT_EQ(actual_weight, expected_weight);
+  }
+}
+} // namespace
+
 TYPED_TEST(TrianglesGraph, ContractSingletonClusters) {
   //  0---1-#-3---4
   //  |\ /  #  \ /|
@@ -64,7 +79,7 @@ TYPED_TEST(TrianglesGraph, ContractSingletonClusters) {
   //  |     8     |
   //  |    / \    |
   //  +---7---6---+
-  this->graph = graph::assign_node_weight_identifiers(std::move(this->graph));
+  this->graph = graph::use_pow_global_id_as_node_weights(std::move(this->graph));
 
   const auto clustering = graph::distribute_node_info<Clustering>(this->graph, {0, 1, 2, 3, 4, 5, 6, 7, 8});
   const auto [c_graph, c_mapping] = this->contractor.contract_clustering(this->graph, clustering);
@@ -74,7 +89,20 @@ TYPED_TEST(TrianglesGraph, ContractSingletonClusters) {
   EXPECT_EQ(c_graph.global_n(), this->graph.global_n());
   EXPECT_EQ(c_graph.global_m(), this->graph.global_m());
   EXPECT_EQ(c_graph.total_node_weight(), this->graph.total_node_weight());
+
   graph::expect_isomorphic(c_graph, this->graph);
+  expect_mapping(this->graph, c_graph, c_mapping,
+                 {
+                     0b000'000'001,
+                     0b000'000'010,
+                     0b000'000'100,
+                     0b000'001'000,
+                     0b000'010'000,
+                     0b000'100'000,
+                     0b001'000'000,
+                     0b010'000'000,
+                     0b100'000'000,
+                 });
 }
 
 TYPED_TEST(TrianglesGraph, FullContractionToPE0) {
@@ -87,9 +115,9 @@ TYPED_TEST(TrianglesGraph, FullContractionToPE0) {
   //  |     8     |
   //  |    / \    |
   //  +---7---6---+
-  this->graph = graph::assign_node_weight_identifiers(std::move(this->graph));
+  this->graph = graph::use_pow_global_id_as_node_weights(std::move(this->graph));
 
-  auto [c_graph, mapping] = this->contractor.contract_clustering(this->graph, {0, 0, 0, 0, 0, 0, 0});
+  auto [c_graph, c_mapping] = this->contractor.contract_clustering(this->graph, {0, 0, 0, 0, 0, 0, 0});
 
   if (this->rank == 0) {
     EXPECT_THAT(c_graph.n(), Eq(1));
@@ -100,6 +128,18 @@ TYPED_TEST(TrianglesGraph, FullContractionToPE0) {
   EXPECT_THAT(c_graph.global_m(), Eq(0));
 
   graph::expect_empty(c_graph);
+  expect_mapping(this->graph, c_graph, c_mapping,
+                 {
+                     0b111'111'111,
+                     0b111'111'111,
+                     0b111'111'111,
+                     0b111'111'111,
+                     0b111'111'111,
+                     0b111'111'111,
+                     0b111'111'111,
+                     0b111'111'111,
+                     0b111'111'111,
+                 });
 }
 
 TYPED_TEST(TrianglesGraph, FullContractionToEachPE) {
@@ -112,11 +152,11 @@ TYPED_TEST(TrianglesGraph, FullContractionToEachPE) {
   //  |     8     |
   //  |    / \    |
   //  +---7---6---+
-  this->graph = graph::assign_node_weight_identifiers(std::move(this->graph)); // for isomorphism check
+  this->graph = graph::use_pow_global_id_as_node_weights(std::move(this->graph)); // for isomorphism check
 
   for (PEID pe = 0; pe < this->size; ++pe) {
     const NodeID cluster = pe * this->size; // 0, 3, 6 -> owned by PE pe
-    auto [c_graph, mapping] = this->contractor.contract_clustering(
+    auto [c_graph, c_mapping] = this->contractor.contract_clustering(
         this->graph, {cluster, cluster, cluster, cluster, cluster, cluster, cluster});
 
     if (this->rank == 0) {
@@ -128,6 +168,18 @@ TYPED_TEST(TrianglesGraph, FullContractionToEachPE) {
     EXPECT_THAT(c_graph.global_m(), Eq(0));
 
     graph::expect_empty(c_graph);
+    expect_mapping(this->graph, c_graph, c_mapping,
+                   {
+                       0b111'111'111,
+                       0b111'111'111,
+                       0b111'111'111,
+                       0b111'111'111,
+                       0b111'111'111,
+                       0b111'111'111,
+                       0b111'111'111,
+                       0b111'111'111,
+                       0b111'111'111,
+                   });
   }
 }
 
@@ -141,14 +193,14 @@ TYPED_TEST(TrianglesGraph, ContractLocalTriangles) {
   //  |     8     |
   //  |    / \    |
   //  +---7---6---+
-  this->graph = graph::assign_node_weight_identifiers(std::move(this->graph));
+  this->graph = graph::use_pow_global_id_as_node_weights(std::move(this->graph));
 
   Clustering clustering;
   for (const NodeID u : this->graph.all_nodes()) {
     clustering.push_back(this->graph.find_owner_of_global_node(this->graph.local_to_global_node(u)));
   }
 
-  auto [c_graph, mapping] = this->contractor.contract_clustering(this->graph, clustering);
+  auto [c_graph, c_mapping] = this->contractor.contract_clustering(this->graph, clustering);
 
   EXPECT_THAT(c_graph.n(), Eq(1));
   EXPECT_THAT(c_graph.total_n(), Eq(3));
@@ -162,6 +214,18 @@ TYPED_TEST(TrianglesGraph, ContractLocalTriangles) {
                                         {0b000'000'111, 2, 0b111'000'000},
                                         {0b000'111'000, 2, 0b111'000'000},
                                     });
+  expect_mapping(this->graph, c_graph, c_mapping,
+                 {
+                     0b000'000'111,
+                     0b000'000'111,
+                     0b000'000'111,
+                     0b000'111'000,
+                     0b000'111'000,
+                     0b000'111'000,
+                     0b111'000'000,
+                     0b111'000'000,
+                     0b111'000'000,
+                 });
 }
 
 TYPED_TEST(TrianglesGraph, ContractTriangleOnOnePE) {
@@ -174,7 +238,7 @@ TYPED_TEST(TrianglesGraph, ContractTriangleOnOnePE) {
   //  |     8     |
   //  |    / \    |
   //  +---7---6---+
-  this->graph = graph::assign_node_weight_identifiers(std::move(this->graph));
+  this->graph = graph::use_pow_global_id_as_node_weights(std::move(this->graph));
 
   // contract nodes on PE 0 to one node, keep all other nodes in their cluster
   Clustering clustering;
@@ -209,6 +273,18 @@ TYPED_TEST(TrianglesGraph, ContractTriangleOnOnePE) {
                                         {0b000'100'000, 1, 0b100'000'000},
                                         {0b000'010'000, 1, 0b001'000'000},
                                     });
+  expect_mapping(this->graph, c_graph, c_mapping,
+                 {
+                     0b000'000'111,
+                     0b000'000'111,
+                     0b000'000'111,
+                     0b000'001'000,
+                     0b000'010'000,
+                     0b000'100'000,
+                     0b001'000'000,
+                     0b010'000'000,
+                     0b100'000'000,
+                 });
 }
 
 TYPED_TEST(TrianglesGraph, ContractTrianglesOnTwoPEs) {
@@ -221,7 +297,7 @@ TYPED_TEST(TrianglesGraph, ContractTrianglesOnTwoPEs) {
   //  |     8     |
   //  |    / \    |
   //  +---7---6---+
-  this->graph = graph::assign_node_weight_identifiers(std::move(this->graph));
+  this->graph = graph::use_pow_global_id_as_node_weights(std::move(this->graph));
 
   // contract nodes on PE 0 to one node, keep all other nodes in their cluster
   Clustering clustering;
@@ -253,6 +329,18 @@ TYPED_TEST(TrianglesGraph, ContractTrianglesOnTwoPEs) {
                                         {0b010'000'000, 1, 0b000'000'111}, // [7] -- [012]
                                         {0b001'000'000, 1, 0b000'111'000}, // [6] -- [345]
                                     });
+  expect_mapping(this->graph, c_graph, c_mapping,
+                 {
+                     0b000'000'111,
+                     0b000'000'111,
+                     0b000'000'111,
+                     0b000'111'000,
+                     0b000'111'000,
+                     0b000'111'000,
+                     0b001'000'000,
+                     0b010'000'000,
+                     0b100'000'000,
+                 });
 }
 
 TYPED_TEST(TrianglesGraph, ContractRowWise) {
@@ -265,7 +353,7 @@ TYPED_TEST(TrianglesGraph, ContractRowWise) {
   //  |     8     |  -- C3
   //  |    / \    |
   //  +---7---6---+  -- C4
-  this->graph = graph::assign_node_weight_identifiers(std::move(this->graph));
+  this->graph = graph::use_pow_global_id_as_node_weights(std::move(this->graph));
 
   Clustering clustering = graph::distribute_node_info<Clustering>(this->graph, {0, 0, 2, 1, 1, 2, 4, 4, 3});
   const auto [c_graph, c_mapping] = this->contractor.contract_clustering(this->graph, clustering);
@@ -282,6 +370,18 @@ TYPED_TEST(TrianglesGraph, ContractRowWise) {
                                         {0b000'100'100, 2, 0b100'000'000}, // [25] -- [8]
                                         {0b011'000'000, 2, 0b100'000'000}, // [67] -- [8]
                                     });
+  expect_mapping(this->graph, c_graph, c_mapping,
+                 {
+                     0b000'000'011,
+                     0b000'000'011,
+                     0b000'100'100,
+                     0b000'011'000,
+                     0b000'011'000,
+                     0b000'100'100,
+                     0b011'000'000,
+                     0b011'000'000,
+                     0b100'000'000,
+                 });
 }
 
 //
@@ -310,6 +410,8 @@ TYPED_TEST(EmptyGraph, ContractEmtpyGraphToOneNode) {
   EXPECT_EQ(c_graph.global_m(), 0);
   EXPECT_EQ(c_graph.m(), 0);
   EXPECT_EQ(c_graph.global_total_node_weight(), this->graph.global_total_node_weight());
+
+  expect_mapping(this->graph, c_graph, c_mapping, {9, 9, 9, 9, 9, 9, 9, 9, 9});
 }
 
 TYPED_TEST(EmptyGraph, ContractEmptyGraphToOneNodePerPE) {
@@ -320,6 +422,8 @@ TYPED_TEST(EmptyGraph, ContractEmptyGraphToOneNodePerPE) {
   EXPECT_EQ(c_graph.global_m(), 0);
   EXPECT_EQ(c_graph.global_total_node_weight(), this->graph.global_total_node_weight());
   EXPECT_THAT(c_graph.node_weights(), ElementsAre(Eq(3)));
+
+  expect_mapping(this->graph, c_graph, c_mapping, {3, 3, 3, 3, 3, 3, 3, 3, 3});
 }
 
 //
@@ -328,7 +432,7 @@ TYPED_TEST(EmptyGraph, ContractEmptyGraphToOneNodePerPE) {
 
 TYPED_TEST(PathGraph, ContractPathToCluster0) {
   // 0--1-#-2--3-#-4--5
-  this->graph = graph::assign_node_weight_identifiers(std::move(this->graph));
+  this->graph = graph::use_pow_global_id_as_node_weights(std::move(this->graph));
 
   Clustering clustering = graph::distribute_node_info<Clustering>(this->graph, {0, 0, 0, 0, 0, 0});
   const auto [c_graph, c_mapping] = this->contractor.contract_clustering(this->graph, clustering);
@@ -336,11 +440,21 @@ TYPED_TEST(PathGraph, ContractPathToCluster0) {
   EXPECT_EQ(c_graph.global_n(), 1);
   EXPECT_EQ(c_graph.global_m(), 0);
   EXPECT_EQ(c_graph.global_total_node_weight(), this->graph.global_total_node_weight());
+
+  expect_mapping(this->graph, c_graph, c_mapping,
+                 {
+                     0b11'11'11,
+                     0b11'11'11,
+                     0b11'11'11,
+                     0b11'11'11,
+                     0b11'11'11,
+                     0b11'11'11,
+                 });
 }
 
 TYPED_TEST(PathGraph, ContractEachHalfToOneNode) {
   // 0--1-#-2--3-#-4--5
-  this->graph = graph::assign_node_weight_identifiers(std::move(this->graph));
+  this->graph = graph::use_pow_global_id_as_node_weights(std::move(this->graph));
 
   Clustering clustering = graph::distribute_node_info<Clustering>(this->graph, {0, 0, 0, 5, 5, 5});
   const auto [c_graph, c_mapping] = this->contractor.contract_clustering(this->graph, clustering);
@@ -350,11 +464,20 @@ TYPED_TEST(PathGraph, ContractEachHalfToOneNode) {
   EXPECT_EQ(c_graph.global_total_node_weight(), this->graph.global_total_node_weight());
 
   graph::expect_isomorphic(c_graph, {{0b000'111, 1, 0b111'000}});
+  expect_mapping(this->graph, c_graph, c_mapping,
+                 {
+                     0b00'01'11,
+                     0b00'01'11,
+                     0b00'01'11,
+                     0b11'10'00,
+                     0b11'10'00,
+                     0b11'10'00,
+                 });
 }
 
 TYPED_TEST(PathGraph, ContractMiddlePart) {
   // 0--1-#-2--3-#-4--5
-  this->graph = graph::assign_node_weight_identifiers(std::move(this->graph));
+  this->graph = graph::use_pow_global_id_as_node_weights(std::move(this->graph));
 
   Clustering clustering = graph::distribute_node_info<Clustering>(this->graph, {0, 1, 2, 2, 4, 5});
   const auto [c_graph, c_mapping] = this->contractor.contract_clustering(this->graph, clustering);
@@ -369,11 +492,20 @@ TYPED_TEST(PathGraph, ContractMiddlePart) {
                                         {0b00'11'00, 1, 0b01'00'00},
                                         {0b01'00'00, 1, 0b10'00'00},
                                     });
+  expect_mapping(this->graph, c_graph, c_mapping,
+                 {
+                     0b00'00'01,
+                     0b00'00'10,
+                     0b00'11'00,
+                     0b00'11'00,
+                     0b01'00'00,
+                     0b10'00'00,
+                 });
 }
 
 TYPED_TEST(PathGraph, ContractMiddleOut) {
   // 0--1-#-2--3-#-4--5
-  this->graph = graph::assign_node_weight_identifiers(std::move(this->graph));
+  this->graph = graph::use_pow_global_id_as_node_weights(std::move(this->graph));
 
   Clustering clustering = graph::distribute_node_info<Clustering>(this->graph, {0, 1, 2, 2, 1, 0});
   const auto [c_graph, c_mapping] = this->contractor.contract_clustering(this->graph, clustering);
@@ -386,5 +518,14 @@ TYPED_TEST(PathGraph, ContractMiddleOut) {
                                         {0b10'00'01, 2, 0b01'00'10},
                                         {0b01'00'10, 2, 0b00'11'00},
                                     });
+  expect_mapping(this->graph, c_graph, c_mapping,
+                 {
+                     0b10'00'01,
+                     0b01'00'10,
+                     0b00'11'00,
+                     0b00'11'00,
+                     0b01'00'10,
+                     0b10'00'01,
+                 });
 }
 } // namespace dkaminpar::test

@@ -106,11 +106,7 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
 
     // create partition for new coarsest graph
     const auto *current_graph = graph_hierarchy.empty() ? &_graph : &graph_hierarchy.back();
-    scalable_vector<BlockID> partition(current_graph->total_n());
-    tbb::parallel_for(static_cast<NodeID>(0), current_graph->total_n(),
-                      [&](const NodeID u) { partition[u] = dist_p_graph.block(mapping[u]); });
-    dist_p_graph = DistributedPartitionedGraph{current_graph, _ctx.partition.k, std::move(partition),
-                                               std::move(dist_p_graph.take_block_weights())};
+    dist_p_graph = coarsening::project_global_contracted_graph(*current_graph, std::move(dist_p_graph), mapping);
 
     // (2) Refine
     refine(dist_p_graph);

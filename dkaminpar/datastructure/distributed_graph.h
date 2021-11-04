@@ -389,7 +389,7 @@ public:
 
   using block_weights_vector = scalable_vector<shm::parallel::IntegralAtomicWrapper<BlockWeight>>;
 
-  DistributedPartitionedGraph(const DistributedGraph *graph, const BlockID k, scalable_vector<BlockID> partition,
+  DistributedPartitionedGraph(const DistributedGraph *graph, const BlockID k, scalable_vector<Atomic<BlockID>> partition,
                               block_weights_vector block_weights)
       : _graph{graph}, _k{k}, _partition{std::move(partition)}, _block_weights{std::move(block_weights)} {
     ASSERT(_partition.size() == _graph->total_n());
@@ -400,8 +400,8 @@ public:
     });
   }
 
-  DistributedPartitionedGraph(DistributedGraph *graph, const BlockID k)
-      : DistributedPartitionedGraph(graph, k, scalable_vector<BlockID>(graph->total_n()),
+  DistributedPartitionedGraph(const DistributedGraph *graph, const BlockID k)
+      : DistributedPartitionedGraph(graph, k, scalable_vector<Atomic<BlockID>>(graph->total_n()),
                                     block_weights_vector(graph->total_n())) {}
 
   DistributedPartitionedGraph() : _graph{nullptr}, _k{0}, _partition{} {}
@@ -421,6 +421,7 @@ public:
   [[nodiscard]] inline NodeID ghost_n() const { return _graph->ghost_n(); }
   [[nodiscard]] inline NodeID total_n() const { return _graph->total_n(); }
   [[nodiscard]] inline EdgeID m() const { return _graph->m(); }
+  [[nodiscard]] inline GlobalNodeID offset_n(const PEID pe) const { return _graph->offset_n(pe); }
   [[nodiscard]] inline GlobalNodeID offset_n() const { return _graph->offset_n(); }
   [[nodiscard]] inline GlobalEdgeID offset_m() const { return _graph->offset_m(); }
   [[nodiscard]] inline NodeWeight total_node_weight() const { return _graph->total_node_weight(); }
@@ -429,6 +430,7 @@ public:
   [[nodiscard]] inline bool contains_local_node(const NodeID local_u) const { return _graph->contains_local_node(local_u); }
   [[nodiscard]] inline bool is_ghost_node(const NodeID u) const { return _graph->is_ghost_node(u); }
   [[nodiscard]] inline bool is_owned_node(const NodeID u) const { return _graph->is_owned_node(u); }
+  [[nodiscard]] inline PEID find_owner_of_global_node(const GlobalNodeID u) const { return _graph->find_owner_of_global_node(u); }
   [[nodiscard]] inline PEID ghost_owner(const NodeID u) const { return _graph->ghost_owner(u); }
   [[nodiscard]] inline GlobalNodeID local_to_global_node(const NodeID local_u) const { return _graph->local_to_global_node(local_u); }
   [[nodiscard]] inline NodeID global_to_local_node(const GlobalNodeID global_u) const { return _graph->global_to_local_node(global_u); }
@@ -478,7 +480,7 @@ public:
 
   [[nodiscard]] BlockID block(const NodeID u) const {
     ASSERT(u < _partition.size());
-    return _partition[u];
+    return _partition[u].load(std::memory_order_relaxed);
   }
 
   void set_block(const NodeID u, const BlockID b) {
@@ -487,19 +489,19 @@ public:
 
     _block_weights[_partition[u]] -= u_weight;
     _block_weights[b] += u_weight;
-    _partition[u] = b;
+    _partition[u].store(b, std::memory_order_relaxed);
   }
 
   [[nodiscard]] inline BlockWeight block_weight(const BlockID b) const {
     ASSERT(b < k());
     ASSERT(b < _block_weights.size());
-    return _block_weights[b];
+    return _block_weights[b].load(std::memory_order_relaxed);
   }
 
   void set_block_weight(const BlockID b, const BlockWeight weight) {
     ASSERT(b < k());
     ASSERT(b < _block_weights.size());
-    _block_weights[b] = weight;
+    _block_weights[b].store(weight, std::memory_order_relaxed);
   }
 
   [[nodiscard]] const auto &block_weights() const { return _block_weights; }
@@ -524,9 +526,8 @@ public:
 private:
   const DistributedGraph *_graph;
   BlockID _k;
-  scalable_vector<BlockID> _partition;
-
-  scalable_vector<shm::parallel::IntegralAtomicWrapper<BlockWeight>> _block_weights;
+  scalable_vector<Atomic<BlockID>> _partition;
+  scalable_vector<Atomic<BlockWeight>> _block_weights;
 };
 
 namespace graph::debug {
