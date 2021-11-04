@@ -124,20 +124,20 @@ compute_mapping(const DistributedGraph &graph,
 
 void exchange_ghost_node_mapping(const DistributedGraph &graph, auto &label_mapping) {
   struct Message {
-    GlobalNodeID global_node;
+    NodeID local_node;
     GlobalNodeID coarse_global_node;
   };
 
   mpi::graph::sparse_alltoall_interface_to_pe<Message, std::vector>(
       graph,
       [&](const NodeID u) -> Message {
-        return {graph.local_to_global_node(u), label_mapping[u]};
+        return {u, label_mapping[u]};
       },
-      [&](const auto buffer) {
+      [&](const auto buffer, const PEID pe) {
         tbb::parallel_for<std::size_t>(0, buffer.size(), [&](const std::size_t i) {
-          const auto &message = buffer[i];
-          const auto local_node = graph.global_to_local_node(message.global_node);
-          label_mapping[local_node] = message.coarse_global_node;
+          const auto &[local_node_on_other_pe, coarse_global_node] = buffer[i];
+          const auto local_node = graph.global_to_local_node(graph.offset_n(pe) + local_node_on_other_pe);
+          label_mapping[local_node] = coarse_global_node;
         });
       });
 }
