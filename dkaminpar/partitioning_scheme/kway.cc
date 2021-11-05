@@ -28,7 +28,7 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
   std::vector<coarsening::GlobalMapping> mapping_hierarchy;
 
   const DistributedGraph *c_graph = &_graph;
-  while (c_graph->n() > _ctx.partition.k * _ctx.coarsening.contraction_limit) {
+  while (c_graph->global_n() > _ctx.partition.k * _ctx.coarsening.contraction_limit) {
     SCOPED_TIMER("Coarsening");
 
     const NodeWeight max_cluster_weight = shm::compute_max_cluster_weight(
