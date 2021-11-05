@@ -29,7 +29,7 @@ struct DistributedLabelPropagationRefinerConfig : public shm::LabelPropagationCo
 class DistributedProbabilisticLabelPropagationRefinerImpl final
     : public shm::InOrderLabelPropagation<DistributedProbabilisticLabelPropagationRefinerImpl,
                                           DistributedLabelPropagationRefinerConfig> {
-  SET_STATISTICS(true);
+  SET_STATISTICS_FROM_GLOBAL();
   SET_DEBUG(false);
 
   using Base = shm::InOrderLabelPropagation<DistributedProbabilisticLabelPropagationRefinerImpl,
@@ -42,14 +42,16 @@ class DistributedProbabilisticLabelPropagationRefinerImpl final
     double max_balance_violation;   // global, only if rollback occurred
     double total_balance_violation; // global, only if rollback occurred
 
-    // local, expectation value of probabilistic gain values
-    shm::parallel::IntegralAtomicWrapper<EdgeWeight> expected_gain;
-    // local, gain values of moves that were executed
-    shm::parallel::IntegralAtomicWrapper<EdgeWeight> realized_gain;
-    // local, gain values that were rollbacked
-    shm::parallel::IntegralAtomicWrapper<EdgeWeight> rollback_gain;
-    // local, actual change in edge cut
-    shm::parallel::IntegralAtomicWrapper<EdgeWeight> actual_gain;
+    // expectation value of probabilistic gain values
+    Atomic<EdgeWeight> expected_gain = 0;
+    // gain values of moves that were executed
+    Atomic<EdgeWeight> realized_gain = 0;
+    // gain values that were rollbacked
+    Atomic<EdgeWeight> rollback_gain = 0;
+    // actual change in edge cut
+    Atomic<EdgeWeight> actual_gain = 0;
+    // expected imbalance
+    double expected_imbalance = 0;
 
     void reset() {
       num_successful_moves = 0;
@@ -66,6 +68,7 @@ class DistributedProbabilisticLabelPropagationRefinerImpl final
       auto expected_gain_reduced = mpi::reduce<EdgeWeight>(expected_gain, MPI_SUM);
       auto realized_gain_reduced = mpi::reduce<EdgeWeight>(realized_gain, MPI_SUM);
       auto rollback_gain_reduced = mpi::reduce<EdgeWeight>(rollback_gain, MPI_SUM);
+      auto expected_imbalance_str = mpi::gather_statistics_str(expected_imbalance);
 
       STATS << "DistributedProbabilisticLabelPropagationRefiner:";
       STATS << "- Iterations: " << num_successful_moves << " ok, " << num_rollbacks << " failed";
@@ -74,6 +77,7 @@ class DistributedProbabilisticLabelPropagationRefinerImpl final
       STATS << "- Rollback gain: " << rollback_gain_reduced << " (gain of moves affected by rollback)";
       STATS << "- Actual gain: " << actual_gain << " (actual change in edge cut)";
       STATS << "- Balance violations: " << total_balance_violation / num_rollbacks << " / " << max_balance_violation;
+      STATS << "- Expected imbalance: [" << expected_imbalance_str << "]";
     }
   };
 
@@ -155,17 +159,9 @@ private:
     }
 
     // perform probabilistic moves
-    {
-      PEID done = 0;
-      const PEID size = mpi::get_comm_size(_graph->communicator());
-      PEID num_done = 0;
-
-      for (std::size_t i = 0; num_done < size && i < _lp_ctx.num_move_attempts; ++i) {
-        if (perform_moves(from, to, residual_cluster_weights, global_total_gains_to_block)) {
-          done = 1;
-        }
-
-        num_done = mpi::allreduce(done, MPI_SUM, _graph->communicator());
+    for (std::size_t i = 0; i < _lp_ctx.num_move_attempts; ++i) {
+      if (perform_moves(from, to, residual_cluster_weights, global_total_gains_to_block)) {
+        break;
       }
     }
 
@@ -180,6 +176,7 @@ private:
   bool perform_moves(const NodeID from, const NodeID to, const std::vector<BlockWeight> &residual_block_weights,
                      const std::vector<EdgeWeight> &total_gains_to_block) {
     mpi::barrier(_graph->communicator());
+    HEAVY_ASSERT(graph::debug::validate_partition(*_p_graph));
 
     struct Move {
       NodeID u;
@@ -187,6 +184,9 @@ private:
     };
 
     // perform probabilistic moves, but keep track of moves in case we need to roll back
+    std::vector<Atomic<NodeWeight>> expected_moved_weight(_p_ctx->k);
+    scalable_vector<Atomic<BlockWeight>> block_weight_deltas(_p_ctx->k);
+
     tbb::concurrent_vector<Move> moves;
     _p_graph->pfor_nodes_range(from, to, [&](const auto &r) {
       auto &rand = shm::Randomize::instance();
@@ -202,11 +202,18 @@ private:
         const double gain_prob = (total_gains_to_block[b] == 0) ? 1.0 : 1.0 * _gains[u] / total_gains_to_block[b];
         const double probability = gain_prob * (1.0 * residual_block_weights[b] / _p_graph->node_weight(u));
         IFSTATS(_statistics.expected_gain += probability * _gains[u]);
+        IFSTATS(expected_moved_weight[b] += probability * _p_graph->node_weight(u));
 
         // perform move with probability
         if (rand.random_bool(probability)) {
-          moves.emplace_back(u, _p_graph->block(u));
-          _p_graph->set_block(u, _next_partition[u]);
+          const BlockID from = _p_graph->block(u);
+          const BlockID to = _next_partition[u];
+          const NodeWeight u_weight = _p_graph->node_weight(u);
+
+          moves.emplace_back(u, from);
+          block_weight_deltas[from].fetch_sub(u_weight, std::memory_order_relaxed);
+          block_weight_deltas[to].fetch_add(u_weight, std::memory_order_relaxed);
+          _p_graph->set_block<false>(u, to);
 
           // temporary mark that this node was actually moved
           // we will revert this during synchronization or on rollback
@@ -218,28 +225,32 @@ private:
     });
 
     // compute global block weights after moves
-    std::vector<BlockWeight> global_block_weights(_p_graph->k());
-    mpi::allreduce(_p_graph->block_weights_copy().data(), global_block_weights.data(), static_cast<int>(_p_graph->k()),
-                   MPI_SUM, _graph->communicator());
+    scalable_vector<BlockWeight> block_weight_deltas_nonatomic(_p_ctx->k);
+    _p_graph->pfor_blocks([&](const BlockID b) {
+      block_weight_deltas_nonatomic[b] = block_weight_deltas[b].load(std::memory_order_relaxed);
+    });
+    scalable_vector<BlockWeight> global_block_weight_deltas(_p_ctx->k);
+    mpi::allreduce(block_weight_deltas_nonatomic.data(), global_block_weight_deltas.data(), _p_ctx->k, MPI_SUM,
+                   _p_graph->communicator());
 
     // check for balance violations
-    shm::parallel::IntegralAtomicWrapper<std::uint8_t> feasible = 1;
+    Atomic<std::uint8_t> feasible = 1;
     _p_graph->pfor_blocks([&](const BlockID b) {
-      if (global_block_weights[b] > max_cluster_weight(b)) {
+      if (_p_graph->block_weight(b) + global_block_weight_deltas[b] > max_cluster_weight(b)) {
         feasible.store(0, std::memory_order_relaxed);
       }
     });
-
+    
     // record statistics
     if constexpr (kStatistics) {
       if (!feasible) {
         _statistics.num_rollbacks += 1;
         for (const BlockID b : _p_graph->blocks()) {
-          if (global_block_weights[b] > max_cluster_weight(b)) {
-            const double imbalance = 1.0 * global_block_weights[b] / max_cluster_weight(b) - 1.0;
-            _statistics.total_balance_violation += imbalance;
-            _statistics.max_balance_violation = std::max(_statistics.max_balance_violation, imbalance);
-          }
+          // if (global_block_weights[b] > max_cluster_weight(b)) {
+          //   const double imbalance = 1.0 * global_block_weights[b] / max_cluster_weight(b) - 1.0;
+          //   _statistics.total_balance_violation += imbalance;
+          //   _statistics.max_balance_violation = std::max(_statistics.max_balance_violation, imbalance);
+          // }
         }
       } else {
         _statistics.num_successful_moves += 1;
@@ -252,11 +263,22 @@ private:
         for (auto it = r.begin(); it != r.end(); ++it) {
           const auto &move = *it;
           _next_partition[move.u] = _p_graph->block(move.u);
-          _p_graph->set_block(move.u, move.from);
+          _p_graph->set_block<false>(move.u, move.from);
 
           IFSTATS(_statistics.rollback_gain += _gains[move.u]);
         }
       });
+    } else { // otherwise, update block weights
+      _p_graph->pfor_blocks([&](const BlockID b) {
+        _p_graph->set_block_weight(b, _p_graph->block_weight(b) + global_block_weight_deltas[b]);
+      });
+    }
+
+    // check that feasible is the same on all PEs
+    if constexpr (kDebug) {
+      int feasible_nonatomic = feasible;
+      int root_feasible = mpi::bcast(feasible_nonatomic, 0, _p_graph->communicator());
+      ASSERT(root_feasible == feasible_nonatomic) << V(feasible_nonatomic) << V(root_feasible);
     }
 
     return feasible;
@@ -291,7 +313,7 @@ private:
             const NodeID local_node = _p_graph->global_to_local_node(global_node);
             ASSERT(new_block != _p_graph->block(local_node)); // otherwise, we should not have gotten this message
 
-            _p_graph->set_block(local_node, new_block);
+            _p_graph->set_block<false>(local_node, new_block);
           });
         });
   }

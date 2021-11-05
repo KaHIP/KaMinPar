@@ -28,6 +28,9 @@
 namespace dist = dkaminpar;
 namespace shm = kaminpar;
 
+namespace {
+SET_STATISTICS_FROM_GLOBAL();
+
 // clang-format off
 void sanitize_context(const dist::Context &ctx) {
   ALWAYS_ASSERT(!std::ifstream(ctx.graph_filename) == false) << "Graph file cannot be read. Ensure that the file exists and is readable: " << ctx.graph_filename;
@@ -36,7 +39,7 @@ void sanitize_context(const dist::Context &ctx) {
 }
 // clang-format on
 
-void print_statistics(const dist::DistributedPartitionedGraph &p_graph, const dist::Context &ctx) {
+void print_result_statistics(const dist::DistributedPartitionedGraph &p_graph, const dist::Context &ctx) {
   const auto edge_cut = dist::metrics::edge_cut(p_graph);
   const auto imbalance = dist::metrics::imbalance(p_graph);
   const auto feasible = dist::metrics::is_feasible(p_graph, ctx.partition);
@@ -67,6 +70,19 @@ void print_statistics(const dist::DistributedPartitionedGraph &p_graph, const di
     LOG_ERROR << "*** Partition is infeasible!";
   }
 }
+
+void print_input_statistics(const dist::DistributedGraph &graph) {
+  const auto local_n = dist::mpi::allgather(graph.n(), graph.communicator());
+  const auto local_m = dist::mpi::allgather(graph.m(), graph.communicator());
+  const auto ghost_n = dist::mpi::allgather(graph.ghost_n(), graph.communicator());
+  const auto total_n = dist::mpi::allgather(graph.total_n(), graph.communicator());
+
+  STATS << "local_n=[" << local_n << "]";
+  STATS << "local_m=[" << local_m << "]";
+  STATS << "ghost_n=[" << ghost_n << "]";
+  STATS << "total_n=[" << total_n << "]";
+}
+} // namespace
 
 int main(int argc, char *argv[]) {
   // Initialize MPI
@@ -120,6 +136,9 @@ int main(int argc, char *argv[]) {
         << "m=[" << m_str << "] "
         << "ghost_n=[" << ghost_n_str << "]";
   }
+  if constexpr (kStatistics) {
+    print_input_statistics(graph);
+  }
 
   ASSERT([&] { dist::graph::debug::validate(graph); });
   ctx.setup(graph);
@@ -130,7 +149,7 @@ int main(int argc, char *argv[]) {
 
   // Output statistics
   dist::mpi::barrier();
-  print_statistics(p_graph, ctx);
+  print_result_statistics(p_graph, ctx);
 
   MPI_Finalize();
   return 0;

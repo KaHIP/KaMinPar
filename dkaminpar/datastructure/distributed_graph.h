@@ -484,12 +484,15 @@ public:
     return _partition[u].load(std::memory_order_relaxed);
   }
 
+  template<bool update_block_weights = true>
   void set_block(const NodeID u, const BlockID b) {
     ASSERT(u < _graph->total_n());
-    const NodeWeight u_weight = _graph->node_weight(u);
 
-    _block_weights[_partition[u]] -= u_weight;
-    _block_weights[b] += u_weight;
+    if constexpr (update_block_weights) {
+      const NodeWeight u_weight = _graph->node_weight(u);
+      _block_weights[_partition[u]] -= u_weight;
+      _block_weights[b] += u_weight;
+    }
     _partition[u].store(b, std::memory_order_relaxed);
   }
 

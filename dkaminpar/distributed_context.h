@@ -149,6 +149,10 @@ struct PartitionContext {
     return _max_block_weights[b];
   }
 
+  [[nodiscard]] inline const auto &max_block_weights() const {
+    return _max_block_weights;
+  }
+
   void print(std::ostream &out, const std::string &prefix = "") const;
 
 private:
