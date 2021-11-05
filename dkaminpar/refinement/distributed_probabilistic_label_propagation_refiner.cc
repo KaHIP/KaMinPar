@@ -36,21 +36,22 @@ class DistributedProbabilisticLabelPropagationRefinerImpl final
                                             DistributedLabelPropagationRefinerConfig>;
 
   struct Statistics {
+    EdgeWeight cut_before;
+    EdgeWeight cut_after;
+
     int num_successful_moves; // global
     int num_rollbacks;        // global
 
     double max_balance_violation;   // global, only if rollback occurred
     double total_balance_violation; // global, only if rollback occurred
 
-    // expectation value of probabilistic gain values
+    // local, expectation value of probabilistic gain values
     Atomic<EdgeWeight> expected_gain = 0;
-    // gain values of moves that were executed
+    // local, gain values of moves that were executed
     Atomic<EdgeWeight> realized_gain = 0;
-    // gain values that were rollbacked
+    // local, gain values that were rollbacked
     Atomic<EdgeWeight> rollback_gain = 0;
-    // actual change in edge cut
-    Atomic<EdgeWeight> actual_gain = 0;
-    // expected imbalance
+    // local, expected imbalance
     double expected_imbalance = 0;
 
     void reset() {
@@ -61,7 +62,7 @@ class DistributedProbabilisticLabelPropagationRefinerImpl final
       expected_gain = 0;
       realized_gain = 0;
       rollback_gain = 0;
-      actual_gain = 0;
+      expected_imbalance = 0;
     }
 
     void print() {
@@ -75,7 +76,7 @@ class DistributedProbabilisticLabelPropagationRefinerImpl final
       STATS << "- Expected gain: " << expected_gain_reduced << " (total expectation value of move gains)";
       STATS << "- Realized gain: " << realized_gain_reduced << " (total value of realized move gains)";
       STATS << "- Rollback gain: " << rollback_gain_reduced << " (gain of moves affected by rollback)";
-      STATS << "- Actual gain: " << actual_gain << " (actual change in edge cut)";
+      STATS << "- Actual gain: " << cut_before - cut_after << " (from " << cut_before << " to " << cut_after << ")";
       STATS << "- Balance violations: " << total_balance_violation / num_rollbacks << " / " << max_balance_violation;
       STATS << "- Expected imbalance: [" << expected_imbalance_str << "]";
     }
@@ -94,10 +95,13 @@ public:
   }
 
   void refine(DistributedPartitionedGraph &p_graph) {
+    SCOPED_TIMER("Probabilistic Global Label Propagation");
+
     _p_graph = &p_graph;
     Base::initialize(&p_graph.graph(), _p_ctx->k); // needs access to _p_graph
 
-    const auto cut_before = IFSTATS(metrics::edge_cut(*_p_graph));
+    IFSTATS(_statistics.reset());
+    IFSTATS(_statistics.cut_before = metrics::edge_cut(*_p_graph));
 
     for (std::size_t iteration = 0; iteration < _lp_ctx.num_iterations; ++iteration) {
       GlobalNodeID num_moved_nodes = 0;
@@ -110,7 +114,7 @@ public:
       }
     }
 
-    IFSTATS(_statistics.actual_gain += cut_before - metrics::edge_cut(*_p_graph));
+    IFSTATS(_statistics.cut_after = metrics::edge_cut(*_p_graph));
     IFSTATS(_statistics.print());
   }
 
@@ -245,13 +249,6 @@ private:
     if constexpr (kStatistics) {
       if (!feasible) {
         _statistics.num_rollbacks += 1;
-        for (const BlockID b : _p_graph->blocks()) {
-          // if (global_block_weights[b] > max_cluster_weight(b)) {
-          //   const double imbalance = 1.0 * global_block_weights[b] / max_cluster_weight(b) - 1.0;
-          //   _statistics.total_balance_violation += imbalance;
-          //   _statistics.max_balance_violation = std::max(_statistics.max_balance_violation, imbalance);
-          // }
-        }
       } else {
         _statistics.num_successful_moves += 1;
       }
@@ -273,6 +270,9 @@ private:
         _p_graph->set_block_weight(b, _p_graph->block_weight(b) + global_block_weight_deltas[b]);
       });
     }
+
+    // update block weights used by LP
+    _p_graph->pfor_blocks([&](const BlockID b) { _block_weights[b] = _p_graph->block_weight(b); });
 
     // check that feasible is the same on all PEs
     if constexpr (kDebug) {
@@ -397,7 +397,7 @@ private:
 
   scalable_vector<BlockID> _next_partition;
   scalable_vector<EdgeWeight> _gains;
-  scalable_vector<shm::parallel::IntegralAtomicWrapper<BlockWeight>> _block_weights;
+  scalable_vector<Atomic<BlockWeight>> _block_weights;
 
   Statistics _statistics;
 };

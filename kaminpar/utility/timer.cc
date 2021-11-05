@@ -41,7 +41,6 @@ std::string Timer::TimerTreeNode::build_display_name_hr() const {
 }
 
 Timer::Timer(std::string_view name) : _name{name} {
-  _enabled[Type::DEFAULT] = true;
   _tree.root.start = timer::now();
 }
 

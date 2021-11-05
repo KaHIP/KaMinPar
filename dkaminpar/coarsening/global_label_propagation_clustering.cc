@@ -96,12 +96,12 @@ public:
     _max_cluster_weight = max_cluster_weight;
 
     for (std::size_t iteration = 0; iteration < _max_num_iterations; ++iteration) {
-      NodeID num_moved_nodes = 0;
+      GlobalNodeID global_num_moved_nodes = 0;
       for (std::size_t chunk = 0; chunk < _c_ctx.lp.num_chunks; ++chunk) {
         const auto [from, to] = math::compute_local_range<NodeID>(_graph->n(), _c_ctx.lp.num_chunks, chunk);
-        num_moved_nodes += process_chunk(from, to);
+        global_num_moved_nodes += process_chunk(from, to);
       }
-      if (num_moved_nodes == 0) {
+      if (global_num_moved_nodes == 0) {
         break;
       }
     }
@@ -140,14 +140,15 @@ public:
   [[nodiscard]] inline bool activate_neighbor(const NodeID u) const { return _graph->is_owned_node(u); }
 
 private:
-  NodeID process_chunk(const NodeID from, const NodeID to) {
-    const NodeID num_moved_nodes = perform_iteration(from, to);
-    if (num_moved_nodes == 0) {
-      return 0;
-    } // nothing to do
+  GlobalNodeID process_chunk(const NodeID from, const NodeID to) {
+    const NodeID local_num_moved_nodes = perform_iteration(from, to);
+    const GlobalNodeID global_num_moved_nodes = mpi::allreduce(local_num_moved_nodes, MPI_SUM, _graph->communicator());
 
-    synchronize_ghost_node_clusters(from, to);
-    return num_moved_nodes;
+    if (global_num_moved_nodes > 0) {
+      synchronize_ghost_node_clusters(from, to);
+    }
+
+    return global_num_moved_nodes;
   }
 
   void synchronize_ghost_node_clusters(const NodeID from, const NodeID to) {

@@ -79,7 +79,9 @@ public:
   }
 
   const auto &compute_clustering(const DistributedGraph &graph, const NodeWeight max_cluster_weight) {
-    allocate(graph);
+    TIMED_SCOPE("Allocation") { allocate(graph); };
+    SCOPED_TIMER("Locking Label Propagation");
+
     initialize(&graph, graph.total_n()); // initializes _graph
     initialize_ghost_node_clusters();
     _max_cluster_weight = max_cluster_weight;
@@ -105,7 +107,6 @@ public:
       }
     }
 
-    mpi::barrier(_graph->communicator());
     return _current_clustering;
   }
 

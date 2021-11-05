@@ -156,8 +156,7 @@ public:
     TimerTreeNode *current{&root};
   };
 
-  template<typename StrType>
-  bool is_empty_description(StrType description) {
+  template <typename StrType> bool is_empty_description(StrType description) {
     if constexpr (std::is_same_v<StrType, const char *>) {
       return *description == 0;
     } else {
@@ -179,9 +178,11 @@ public:
     start_timer<const std::string &>(name, description, Type::DEFAULT);
   }
 
-  template<typename StrType>
-  void start_timer(std::string_view name, StrType description, const Type type) {
-    if (!_enabled[type]) { return; }
+  template <typename StrType> void start_timer(std::string_view name, StrType description, const Type type) {
+    if (_disabled[type] > 0) {
+      return;
+    }
+
     std::lock_guard<std::mutex> lg{_mutex};
 
     // create new tree node if timer does not already exist
@@ -190,7 +191,9 @@ public:
       // create new tree node
       _tree.current->children.emplace_back(new TimerTreeNode{});
       auto *child = _tree.current->children.back().get();
-      if (empty_description) { _tree.current->children_tbl[name] = child; }
+      if (empty_description) {
+        _tree.current->children_tbl[name] = child;
+      }
 
       // init new tree node
       child->parent = _tree.current;
@@ -209,14 +212,17 @@ public:
   }
 
   void stop_timer(const Type type = Type::DEFAULT) {
-    if (!_enabled[type]) { return; }
+    if (_disabled[type] > 0) {
+      return;
+    }
+
     std::lock_guard<std::mutex> lg{_mutex};
 
     stop_timer_impl();
     _tree.current = _tree.current->parent;
   }
 
-  template<typename StrType>
+  template <typename StrType>
   auto start_scoped_timer(const std::string_view name, StrType description, const Type type) {
     start_timer(name, description, type);
     return timer::ScopedTimer{this, type};
@@ -233,11 +239,27 @@ public:
   void print_machine_readable(std::ostream &out);
   void print_human_readable(std::ostream &out);
 
-  void enable(Type type = Type::DEFAULT) { _enabled[type] = true; }
-  void disable(Type type = Type::DEFAULT) { _enabled[type] = false; }
+  void enable(Type type = Type::DEFAULT) {
+    if (_disabled[type] > 0) {
+      --_disabled[type];
+    }
+  }
 
-  void enable_all() { std::fill(std::begin(_enabled), std::end(_enabled), true); }
-  void disable_all() { std::fill(std::begin(_enabled), std::end(_enabled), false); }
+  void disable(Type type = Type::DEFAULT) { _disabled[type]++; }
+
+  void enable_all() {
+    for (auto &enabled : _disabled) {
+      if (enabled > 0) {
+        --enabled;
+      }
+    }
+  }
+
+  void disable_all() {
+    for (auto &enabled : _disabled) {
+      ++enabled;
+    }
+  }
 
   [[nodiscard]] inline TimerTreeNode &tree() { return _tree.root; }
   [[nodiscard]] inline const TimerTreeNode &tree() const { return _tree.root; }
@@ -261,7 +283,7 @@ private:
   std::string_view _name;
   TimerTree _tree{};
   std::mutex _mutex{};
-  bool _enabled[Type::NUM_TIMER_TYPES];
+  std::array<std::uint8_t, Type::NUM_TIMER_TYPES> _disabled{};
 
   std::size_t _hr_time_col;
   std::size_t _hr_max_time_len;
@@ -271,22 +293,17 @@ private:
 namespace timer {
 ScopedTimer::~ScopedTimer() { _timer->stop_timer(_type); }
 
-template<typename StrType>
-class TimedScope {
+template <typename StrType> class TimedScope {
 public:
   TimedScope(Timer *timer, std::string_view name, StrType description, Type type)
-      : _timer{timer},
-        _name{name},
-        _description{description},
-        _type{type} {}
+      : _timer{timer}, _name{name}, _description{description}, _type{type} {}
 
   explicit TimedScope(Timer *timer, std::string_view name, StrType description)
       : TimedScope{timer, name, description, Type::DEFAULT} {}
 
   explicit TimedScope(Timer *timer, std::string_view name, Type type) : TimedScope{timer, name, "", type} {}
 
-  template<typename F>
-  decltype(auto) operator+(F &&f) {
+  template <typename F> decltype(auto) operator+(F &&f) {
     const auto scope = _timer->start_scoped_timer<StrType>(_name, _description, _type);
     return f();
   }

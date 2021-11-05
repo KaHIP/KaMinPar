@@ -14,8 +14,7 @@
 #include "dkaminpar/utility/distributed_metrics.h"
 #include "kaminpar/metrics.h"
 #include "kaminpar/partitioning_scheme/partitioning.h"
-
-#include "kaminpar/io.h"
+#include "kaminpar/utility/timer.h"
 
 namespace dkaminpar {
 SET_DEBUG(true);
@@ -30,11 +29,14 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
 
   const DistributedGraph *c_graph = &_graph;
   while (c_graph->n() > _ctx.partition.k * _ctx.coarsening.contraction_limit) {
+    SCOPED_TIMER("Coarsening");
+
     const NodeWeight max_cluster_weight = shm::compute_max_cluster_weight(
         c_graph->global_n(), c_graph->total_node_weight(), _ctx.initial_partitioning.sequential.partition,
         _ctx.initial_partitioning.sequential.coarsening);
 
     LockingLpClustering coarsener(_ctx);
+
     auto &clustering = coarsener.compute_clustering(*c_graph, max_cluster_weight);
     auto [contracted_graph, mapping] = coarsening::contract_global_clustering_redistribute(*c_graph, clustering);
     HEAVY_ASSERT(graph::debug::validate(contracted_graph));
@@ -56,68 +58,74 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
   // initial partitioning
   auto shm_graph = graph::allgather(*c_graph);
 
-  auto shm_ctx = _ctx.initial_partitioning.sequential;
-  shm_ctx.refinement.lp.num_iterations = 1;
-  shm_ctx.partition.k = _ctx.partition.k;
-  shm_ctx.partition.epsilon = _ctx.partition.epsilon;
-  shm_ctx.setup(shm_graph);
+  auto shm_p_graph = TIMED_SCOPE("Initial partitioning") {
+    auto shm_ctx = _ctx.initial_partitioning.sequential;
+    shm_ctx.refinement.lp.num_iterations = 1;
+    shm_ctx.partition.k = _ctx.partition.k;
+    shm_ctx.partition.epsilon = _ctx.partition.epsilon;
+    shm_ctx.setup(shm_graph);
 
-  shm::Logger::set_quiet_mode(true);
-  auto shm_p_graph = shm::partitioning::partition(shm_graph, shm_ctx);
-  shm::Logger::set_quiet_mode(_ctx.quiet);
-  DLOG << "Obtained " << shm_ctx.partition.k << "-way partition with cut=" << shm::metrics::edge_cut(shm_p_graph)
-       << " and imbalance=" << shm::metrics::imbalance(shm_p_graph);
+    DISABLE_TIMERS();
+    shm::Logger::set_quiet_mode(true);
+    auto p_graph = shm::partitioning::partition(shm_graph, shm_ctx);
+    shm::Logger::set_quiet_mode(_ctx.quiet);
+    ENABLE_TIMERS();
+
+    SLOG << "Obtained " << shm_ctx.partition.k << "-way partition with cut=" << shm::metrics::edge_cut(p_graph)
+         << " and imbalance=" << shm::metrics::imbalance(p_graph);
+
+    return p_graph;
+  };
 
   DistributedPartitionedGraph dist_p_graph = graph::reduce_scatter(*c_graph, std::move(shm_p_graph));
-  graph::debug::validate_partition(dist_p_graph);
+  HEAVY_ASSERT(graph::debug::validate_partition(dist_p_graph));
 
-  DLOG << "Initial partition: cut=" << metrics::edge_cut(dist_p_graph)
-       << " imbalance=" << metrics::imbalance(dist_p_graph);
+  const auto initial_cut = metrics::edge_cut(dist_p_graph);
+  const auto initial_imbalance = metrics::imbalance(dist_p_graph);
+
+  LOG << "Initial partition: cut=" << initial_cut << " imbalance=" << initial_imbalance;
 
   auto refine = [&](DistributedPartitionedGraph &p_graph) {
+    SCOPED_TIMER("Refinement");
     if (_ctx.refinement.algorithm == KWayRefinementAlgorithm::NOOP) {
       return;
     }
+
     DistributedProbabilisticLabelPropagationRefiner refiner(_ctx);
     refiner.initialize(p_graph.graph(), _ctx.partition);
-
-    for (std::size_t i = 0; i < _ctx.refinement.lp.num_iterations; ++i) {
-      HEAVY_ASSERT(graph::debug::validate_partition(p_graph));
-      refiner.refine(p_graph);
-      HEAVY_ASSERT(graph::debug::validate_partition(p_graph));
-    }
+    refiner.refine(p_graph);
+    HEAVY_ASSERT(graph::debug::validate_partition(p_graph));
   };
 
   // Uncoarsen and refine
-  refine(dist_p_graph);
-
   while (!graph_hierarchy.empty()) {
-    // (1) Uncoarsen graph
+    SCOPED_TIMER("Uncoarsening");
 
-    // create partition for new coarsest graph -- but we need to keep the old one alive until projection is done
-    const auto *current_graph = graph_hierarchy.size() <= 1 ? &_graph : &graph_hierarchy[graph_hierarchy.size() - 2];
-    DBG << "Uncoarsen " << V(current_graph->node_distribution());
-    HEAVY_ASSERT(graph::debug::validate(*current_graph));
+    {
+      SCOPED_TIMER("Uncontraction");
 
-    dist_p_graph = coarsening::project_global_contracted_graph(*current_graph, std::move(dist_p_graph), mapping_hierarchy.back());
-    HEAVY_ASSERT(graph::debug::validate_partition(dist_p_graph));
+      const auto *current_graph = graph_hierarchy.size() <= 1 ? &_graph : &graph_hierarchy[graph_hierarchy.size() - 2];
+      HEAVY_ASSERT(graph::debug::validate(*current_graph));
 
-    graph_hierarchy.pop_back();
-    mapping_hierarchy.pop_back();
+      dist_p_graph = coarsening::project_global_contracted_graph(*current_graph, std::move(dist_p_graph),
+                                                                 mapping_hierarchy.back());
+      HEAVY_ASSERT(graph::debug::validate_partition(dist_p_graph));
 
-    // update graph ptr in case graph_hierarchy was reallocated by the pop_back() operation
-    dist_p_graph.UNSAFE_set_graph(graph_hierarchy.empty() ? &_graph : &graph_hierarchy.back());
+      graph_hierarchy.pop_back();
+      mapping_hierarchy.pop_back();
 
-    DBG << "OK";
+      // update graph ptr in case graph_hierarchy was reallocated by the pop_back() operation
+      dist_p_graph.UNSAFE_set_graph(graph_hierarchy.empty() ? &_graph : &graph_hierarchy.back());
+    }
 
-    // (2) Refine
     refine(dist_p_graph);
 
-    DLOG << "Cut after LP: cut=" << metrics::edge_cut(dist_p_graph)
-         << " imbalance=" << metrics::imbalance(dist_p_graph);
+    const auto current_cut = metrics::edge_cut(dist_p_graph);
+    const auto current_imbalance = metrics::imbalance(dist_p_graph);
+
+    LOG << "Cut after LP: cut=" << current_cut << " imbalance=" << current_imbalance;
   }
 
-  DLOG << "Done";
   return dist_p_graph;
 }
 } // namespace dkaminpar

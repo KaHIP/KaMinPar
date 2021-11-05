@@ -108,6 +108,7 @@ int main(int argc, char *argv[]) {
 
   // Load graph
   const auto graph = TIMED_SCOPE("IO") { return dist::io::metis::read_node_balanced(ctx.graph_filename); };
+  ctx.refinement.lp.num_chunks = 1024;
 
   // Print statistics
   {
