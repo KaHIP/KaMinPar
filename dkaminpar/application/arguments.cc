@@ -14,11 +14,36 @@
 namespace dkaminpar::app {
 using namespace std::string_literals;
 
+void create_coarsening_label_propagation_options(LabelPropagationCoarseningContext &lp_ctx, kaminpar::Arguments &args,
+                                                 const std::string &name, const std::string &prefix) {
+  // clang-format off
+  args.group(name, prefix)
+      .argument(prefix + "-iterations", "Maximum number of LP iterations.", &lp_ctx.num_iterations)
+      .argument(prefix + "-total-num-chunks", "Number of communication chunks times number of PEs.", &lp_ctx.total_num_chunks)
+      .argument(prefix + "-min-num-chunks", "Minimuim number of communication chunks.", &lp_ctx.min_num_chunks)
+      .argument(prefix + "-num-chunks", "Number of communication chunks. If set to 0, the value is computed from total-num-chunks.", &lp_ctx.num_chunks)
+      ;
+  // clang-format on
+}
+
 void create_coarsening_options(CoarseningContext &c_ctx, kaminpar::Arguments &args, const std::string &name,
                                const std::string &prefix) {
   // clang-format off
   args.group(name, prefix)
       .argument(prefix + "-algorithm", "Coarsening algorithm, possible values: {"s + coarsening_algorithm_names() + "}.", &c_ctx.algorithm, coarsening_algorithm_from_string)
+      ;
+  // clang-format on
+  create_coarsening_label_propagation_options(c_ctx.lp, args, name + " -> Label Propagation", prefix + "-lp");
+}
+
+void create_refinement_label_propagation_options(LabelPropagationRefinementContext &lp_ctx, kaminpar::Arguments &args,
+                                                 const std::string &name, const std::string &prefix) {
+  // clang-format off
+  args.group(name, prefix)
+      .argument(prefix + "-iterations", "Maximum number of LP iterations.", &lp_ctx.num_iterations)
+      .argument(prefix + "-total-num-chunks", "Number of communication chunks times number of PEs.", &lp_ctx.total_num_chunks)
+      .argument(prefix + "-min-num-chunks", "Minimum number of communication chunks.", &lp_ctx.min_num_chunks)
+      .argument(prefix + "-num-chunks", "Number of communication chunks. If set to 0, the value is computed from total-num-chunks.", &lp_ctx.num_chunks)
       ;
   // clang-format on
 }
@@ -30,6 +55,7 @@ void create_refinement_options(RefinementContext &r_ctx, kaminpar::Arguments &ar
       .argument(prefix + "-algorithm", "Refinement algorithm, possible values: {"s + kway_refinement_algorithm_names() + "}.", &r_ctx.algorithm, kway_refinement_algorithm_from_string)
       ;
   // clang-format on
+  create_refinement_label_propagation_options(r_ctx.lp, args, name + " -> Label Propagation", prefix + "-lp");
 }
 
 void create_initial_partitioning_options(InitialPartitioningContext &i_ctx, kaminpar::Arguments &args,
@@ -78,5 +104,4 @@ Context parse_options(int argc, char *argv[]) {
   arguments.parse(argc, argv);
   return context;
 }
-
 } // namespace dkaminpar::app

@@ -43,11 +43,19 @@ struct LabelPropagationCoarseningContext {
   NodeID max_num_neighbors;
   bool merge_singleton_clusters;
   double merge_nonadjacent_clusters_threshold;
+  std::size_t total_num_chunks;
   std::size_t num_chunks;
+  std::size_t min_num_chunks;
 
   [[nodiscard]] bool should_merge_nonadjacent_clusters(const NodeID old_n, const NodeID new_n) const {
     return (1.0 - 1.0 * static_cast<double>(new_n) / static_cast<double>(old_n)) <=
            merge_nonadjacent_clusters_threshold;
+  }
+
+  void setup(const DistributedGraph &graph) {
+    if (num_chunks == 0) {
+      num_chunks = std::max<std::size_t>(8, total_num_chunks / mpi::get_comm_size(graph.communicator()));
+    }
   }
 
   void print(std::ostream &out, const std::string &prefix = "") const;
@@ -55,8 +63,16 @@ struct LabelPropagationCoarseningContext {
 
 struct LabelPropagationRefinementContext {
   std::size_t num_iterations;
+  std::size_t total_num_chunks;
   std::size_t num_chunks;
+  std::size_t min_num_chunks;
   std::size_t num_move_attempts;
+
+  void setup(const DistributedGraph &graph) {
+    if (num_chunks == 0) {
+      num_chunks = std::max<std::size_t>(8, total_num_chunks / mpi::get_comm_size(graph.communicator()));
+    }
+  }
 
   void print(std::ostream &out, const std::string &prefix = "") const;
 };
@@ -65,6 +81,8 @@ struct CoarseningContext {
   CoarseningAlgorithm algorithm;
   NodeID contraction_limit;
   LabelPropagationCoarseningContext lp;
+
+  void setup(const DistributedGraph &graph) { lp.setup(graph); }
 
   void print(std::ostream &out, const std::string &prefix = "") const;
 };
@@ -80,6 +98,8 @@ struct RefinementContext {
   KWayRefinementAlgorithm algorithm;
   LabelPropagationRefinementContext lp;
 
+  void setup(const DistributedGraph &graph) { lp.setup(graph); }
+
   void print(std::ostream &out, const std::string &prefix = "") const;
 };
 
@@ -94,9 +114,7 @@ struct ParallelContext {
 struct PartitionContext {
   // required for braces-initializer with private members
   PartitionContext(const BlockID k, const double epsilon, const PartitioningMode mode)
-      : k{k},
-        epsilon{epsilon},
-        mode{mode} {}
+      : k{k}, epsilon{epsilon}, mode{mode} {}
 
   BlockID k{};
   double epsilon{};
@@ -149,9 +167,7 @@ struct PartitionContext {
     return _max_block_weights[b];
   }
 
-  [[nodiscard]] inline const auto &max_block_weights() const {
-    return _max_block_weights;
-  }
+  [[nodiscard]] inline const auto &max_block_weights() const { return _max_block_weights; }
 
   void print(std::ostream &out, const std::string &prefix = "") const;
 
@@ -182,7 +198,11 @@ struct Context {
   InitialPartitioningContext initial_partitioning;
   RefinementContext refinement;
 
-  void setup(const DistributedGraph &graph) { partition.setup(graph); }
+  void setup(const DistributedGraph &graph) {
+    coarsening.setup(graph);
+    refinement.setup(graph);
+    partition.setup(graph);
+  }
 
   void print(std::ostream &out, const std::string &prefix = "") const;
 };

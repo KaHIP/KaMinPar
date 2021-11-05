@@ -40,12 +40,16 @@ void LabelPropagationCoarseningContext::print(std::ostream &out, const std::stri
       << prefix << "max_num_neighbors=" << max_num_neighbors << " "                                       //
       << prefix << "merge_singleton_clusters=" << merge_singleton_clusters << " "                         //
       << prefix << "merge_nonadjacent_clusters_threshold=" << merge_nonadjacent_clusters_threshold << " " //
-      << prefix << "num_chunks=" << num_chunks << " ";                                                    //
+      << prefix << "total_num_chunks=" << total_num_chunks << " "                                         //
+      << prefix << "num_chunks=" << num_chunks << " "                                                     //
+      << prefix << "min_num_chunks=" << min_num_chunks << " ";                                            //
 }
 
 void LabelPropagationRefinementContext::print(std::ostream &out, const std::string &prefix) const {
   out << prefix << "num_iterations=" << num_iterations << " "        //
+      << prefix << "total_num_chunks=" << total_num_chunks << " "    //
       << prefix << "num_chunks=" << num_chunks << " "                //
+      << prefix << "min_num_chunks=" << min_num_chunks << " "        //
       << prefix << "num_move_attempts=" << num_move_attempts << " "; //
 }
 
@@ -88,17 +92,16 @@ void PartitionContext::setup_perfectly_balanced_block_weights() {
   _perfectly_balanced_block_weights.resize(k);
 
   const BlockWeight perfectly_balanced_block_weight = std::ceil(static_cast<double>(global_total_node_weight()) / k);
-  tbb::parallel_for<BlockID>(0, k, [&](const BlockID b) {
-    _perfectly_balanced_block_weights[b] = perfectly_balanced_block_weight;
-  });
+  tbb::parallel_for<BlockID>(
+      0, k, [&](const BlockID b) { _perfectly_balanced_block_weights[b] = perfectly_balanced_block_weight; });
 }
 
 void PartitionContext::setup_max_block_weights() {
   _max_block_weights.resize(k);
 
   tbb::parallel_for<BlockID>(0, k, [&](const BlockID b) {
-    _max_block_weights[b] = static_cast<BlockWeight>((1.0 + epsilon) *
-                                                     static_cast<double>(perfectly_balanced_block_weight(b)));
+    _max_block_weights[b] =
+        static_cast<BlockWeight>((1.0 + epsilon) * static_cast<double>(perfectly_balanced_block_weight(b)));
   });
 }
 
@@ -149,7 +152,9 @@ Context create_default_context() {
         .max_num_neighbors = kInvalidNodeID,
         .merge_singleton_clusters = true,
         .merge_nonadjacent_clusters_threshold = 0.5,
-        .num_chunks = 8,
+        .total_num_chunks = 128,
+        .num_chunks = 0,
+        .min_num_chunks = 8,
       }
     },
     .initial_partitioning = {
@@ -160,7 +165,9 @@ Context create_default_context() {
       .algorithm = KWayRefinementAlgorithm::LP,
       .lp = {
         .num_iterations = 5,
-        .num_chunks = 8,
+        .total_num_chunks = 128,
+        .num_chunks = 0,
+        .min_num_chunks = 8,
         .num_move_attempts = 2,
       }
     }
