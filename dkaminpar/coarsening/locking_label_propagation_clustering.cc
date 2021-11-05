@@ -508,8 +508,10 @@ private:
       ++_gain_buffer_index[local_node];
     });
 
+    START_TIMER("Prefix sum", TIMER_FINE);
     shm::parallel::prefix_sum(_gain_buffer_index.begin(), _gain_buffer_index.begin() + _graph->n() + 1,
                               _gain_buffer_index.begin());
+    STOP_TIMER(TIMER_FINE);
     STOP_TIMER(TIMER_FINE);
 
     // allocate buffer
