@@ -125,14 +125,17 @@ private:
     DBG << "Running label propagation on node chunk [" << from << ".." << to << "]";
 
     // run label propagation
+    START_TIMER("Label propagation", TIMER_FINE);
     const NodeID num_moved_nodes = perform_iteration(from, to);
     const GlobalNodeID global_num_moved_nodes =
         mpi::allreduce<GlobalNodeID>(num_moved_nodes, MPI_SUM, _graph->communicator());
+    STOP_TIMER(TIMER_FINE);
     if (global_num_moved_nodes == 0) {
       return 0; // nothing to do
     }
 
     // accumulate total weight of nodes moved to each block
+    START_TIMER("Gather weight and gain values", TIMER_FINE);
     parallel::vector_ets<BlockWeight> weight_to_block_ets(_p_ctx->k);
     parallel::vector_ets<EdgeWeight> gain_to_block_ets(_p_ctx->k);
 
@@ -161,16 +164,18 @@ private:
       residual_cluster_weights.push_back(max_cluster_weight(b) - _p_graph->block_weight(b));
       global_total_gains_to_block.push_back(global_gain_to);
     }
+    STOP_TIMER(TIMER_FINE);
 
     // perform probabilistic moves
+    START_TIMER("Perform moves", TIMER_FINE);
     for (std::size_t i = 0; i < _lp_ctx.num_move_attempts; ++i) {
       if (perform_moves(from, to, residual_cluster_weights, global_total_gains_to_block)) {
         break;
       }
     }
-
     synchronize_state(from, to);
     _p_graph->pfor_nodes(from, to, [&](const NodeID u) { _next_partition[u] = _p_graph->block(u); });
+    STOP_TIMER(TIMER_FINE);
 
     // _next_partition should be in a consistent state at this point
     HEAVY_ASSERT(ASSERT_NEXT_PARTITION_STATE());

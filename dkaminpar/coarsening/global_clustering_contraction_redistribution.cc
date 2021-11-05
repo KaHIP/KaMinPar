@@ -180,10 +180,12 @@ DistributedGraph build_coarse_graph(const DistributedGraph &graph, const auto &m
   const PEID rank = mpi::get_comm_rank(graph.communicator());
 
   // compute coarse node distribution
+  START_TIMER("Build coarse node distribution", TIMER_FINE);
   auto c_node_distribution =
       create_perfect_distribution_from_global_count<GlobalNodeID>(c_global_n, graph.communicator());
   const auto from = c_node_distribution[rank];
   const auto to = c_node_distribution[rank + 1];
+  STOP_TIMER(TIMER_FINE);
 
   // lambda to map global coarse node IDs to their owner PE
   auto compute_coarse_node_owner = [size = size, c_global_n](const GlobalNodeID coarse_global_node) -> PEID {
@@ -193,6 +195,7 @@ DistributedGraph build_coarse_graph(const DistributedGraph &graph, const auto &m
 
   // next, send each PE the edges it owns in the coarse graph
   // first, count the number of edges for each PE
+  START_TIMER("Count edges for each PE", TIMER_FINE);
   parallel::vector_ets<EdgeID> num_edges_for_pe_ets(size);
   graph.pfor_nodes_range([&](const auto r) {
     auto &num_edges_for_pe = num_edges_for_pe_ets.local();
@@ -210,14 +213,18 @@ DistributedGraph build_coarse_graph(const DistributedGraph &graph, const auto &m
     }
   });
   auto num_edges_for_pe = num_edges_for_pe_ets.combine(std::plus{});
+  STOP_TIMER(TIMER_FINE);
 
   // allocate memory for edge messages
+  START_TIMER("Allocation", TIMER_FINE);
   std::vector<scalable_vector<LocalToGlobalEdge>> out_msg;
   for (PEID pe = 0; pe < size; ++pe) {
     out_msg.emplace_back(num_edges_for_pe[pe]);
   }
+  STOP_TIMER(TIMER_FINE);
 
   // create messages
+  START_TIMER("Create edge messages", TIMER_FINE);
   std::vector<shm::parallel::IntegralAtomicWrapper<EdgeID>> next_out_msg_slot(size);
   graph.pfor_nodes([&](const NodeID u) {
     const auto c_u = mapping[u];
@@ -235,6 +242,7 @@ DistributedGraph build_coarse_graph(const DistributedGraph &graph, const auto &m
       }
     }
   });
+  STOP_TIMER(TIMER_FINE);
 
   ASSERT([&] {
     for (PEID pe = 0; pe < size; ++pe) {
@@ -243,6 +251,7 @@ DistributedGraph build_coarse_graph(const DistributedGraph &graph, const auto &m
   });
 
   // deduplicate edges
+  START_TIMER("Deduplicate edges before sending", TIMER_FINE);
   DeduplicateEdgeListMemoryContext deduplicate_m_ctx;
   for (PEID pe = 0; pe < size; ++pe) {
     NodeID n_on_pe = c_node_distribution[pe + 1] - c_node_distribution[pe];
@@ -250,11 +259,15 @@ DistributedGraph build_coarse_graph(const DistributedGraph &graph, const auto &m
     out_msg[pe] = std::move(result.first);
     deduplicate_m_ctx = std::move(result.second);
   }
+  STOP_TIMER(TIMER_FINE);
 
   // exchange messages
+  START_TIMER("Exchange edges", TIMER_FINE);
   const auto in_msg = mpi::sparse_alltoall_get<LocalToGlobalEdge, scalable_vector>(out_msg, graph.communicator(), true);
+  STOP_TIMER(TIMER_FINE);
 
   // Copy edge lists to a single list and free old list
+  START_TIMER("Copy edge list", TIMER_FINE);
   EdgeID total_num_edges = 0;
   for (const auto &list : in_msg) {
     total_num_edges += list.size();
@@ -270,6 +283,7 @@ DistributedGraph build_coarse_graph(const DistributedGraph &graph, const auto &m
     // free in_msg
     std::vector<scalable_vector<LocalToGlobalEdge>> tmp = std::move(in_msg);
   }
+  STOP_TIMER(TIMER_FINE);
 
   // TODO since we do not know the number of coarse ghost nodes yet, allocate memory only for local nodes and
   // TODO resize in build_distributed_graph_from_edge_list
@@ -281,6 +295,7 @@ DistributedGraph build_coarse_graph(const DistributedGraph &graph, const auto &m
   };
 
   // TODO accumulate node weights before sending them -> no longer need an atomic
+  START_TIMER("Exchange node weights", TIMER_FINE);
   mpi::graph::sparse_alltoall_custom<NodeWeightMessage>(
       graph, 0, graph.n(), SPARSE_ALLTOALL_NOFILTER,
       [&](const NodeID u) -> std::pair<NodeWeightMessage, PEID> {
@@ -295,6 +310,7 @@ DistributedGraph build_coarse_graph(const DistributedGraph &graph, const auto &m
         });
       },
       true);
+  STOP_TIMER(TIMER_FINE);
 
   // now every PE has an edge list with all edges -- so we can build the graph from it
   return build_distributed_graph_from_edge_list(edge_list, std::move(c_node_distribution), graph.communicator(),
@@ -327,9 +343,18 @@ void update_ghost_node_weights(DistributedGraph &graph) {
 
 RedistributedGlobalContractionResult contract_global_clustering_redistribute(const DistributedGraph &graph,
                                                                              const GlobalClustering &clustering) {
+  SCOPED_TIMER("Contraction");
+
+  START_TIMER("Compute mapping", TIMER_FINE);
   auto [mapping, c_global_n] = compute_mapping(graph, clustering);
+  STOP_TIMER(TIMER_FINE);
+  START_TIMER("Build coarse graph", TIMER_FINE);
   auto c_graph = build_coarse_graph(graph, mapping, c_global_n);
+  STOP_TIMER(TIMER_FINE);
+  START_TIMER("Update ghost node weights", TIMER_FINE);
   update_ghost_node_weights(c_graph);
+  STOP_TIMER(TIMER_FINE);
+
   return {std::move(c_graph), std::move(mapping)};
 }
 

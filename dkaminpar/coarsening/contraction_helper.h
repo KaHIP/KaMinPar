@@ -148,6 +148,8 @@ template <typename NodeWeightLambda>
 DistributedGraph build_distributed_graph_from_edge_list(const auto &edge_list,
                                                         scalable_vector<GlobalNodeID> node_distribution, MPI_Comm comm,
                                                         NodeWeightLambda &&node_weight_lambda) {
+  SCOPED_TIMER("Build graph from edge list", TIMER_FINE);
+
   const PEID size = mpi::get_comm_size(comm);
   const PEID rank = mpi::get_comm_rank(comm);
   const NodeID n = node_distribution[rank + 1] - node_distribution[rank];

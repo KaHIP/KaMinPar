@@ -97,7 +97,6 @@ public:
       for (std::size_t chunk = 0; chunk < _c_ctx.lp.num_chunks; ++chunk) {
         const auto [from, to] = math::compute_local_range<NodeID>(_graph->n(), _c_ctx.lp.num_chunks, chunk);
         num_moved_nodes += process_chunk(from, to);
-        mpi::barrier(_graph->communicator());
       }
 
       const GlobalNodeID num_moved_nodes_global =
@@ -294,7 +293,7 @@ private:
       mpi::barrier();
     }
 
-    const NodeID num_moved_nodes = perform_iteration(from, to);
+    const NodeID num_moved_nodes = TIMED_SCOPE("Label Propagation", TIMER_FINE) { return perform_iteration(from, to); };
 
     // still has to take part in collective communication
     // if (num_moved_nodes == 0) { return 0; } // nothing to do
@@ -310,8 +309,8 @@ private:
     }
 
     perform_distributed_moves(from, to);
-
     synchronize_labels(from, to);
+
     tbb::parallel_for<NodeID>(0, _graph->total_n(),
                               [&](const NodeID u) { _current_clustering[u] = _next_clustering[u]; });
 
@@ -322,6 +321,7 @@ private:
 
   void perform_distributed_moves(const NodeID from, const NodeID to) {
     SET_DEBUG(false);
+    SCOPED_TIMER("Distributed moves", TIMER_FINE);
 
     if constexpr (kDebug) {
       mpi::barrier();
@@ -331,6 +331,7 @@ private:
       mpi::barrier();
     }
 
+    START_TIMER("Exchange join requests", TIMER_FINE);
     // exchange join requests and collect them in _gain_buffer
     auto requests = mpi::graph::sparse_alltoall_custom<JoinRequest>(
         *_graph, from, to,
@@ -356,6 +357,7 @@ private:
                    .global_requested = new_cluster},
                   new_cluster_owner};
         });
+    STOP_TIMER(TIMER_FINE);
 
     if constexpr (kDebug) {
       mpi::barrier();
@@ -376,16 +378,19 @@ private:
     }
 
     // allocate memory for response messages
+    START_TIMER("Allocation", TIMER_FINE);
     std::vector<scalable_vector<JoinResponse>> responses;
     for (const auto &requests_from_pe : requests) { // allocate memory for responses
       responses.emplace_back(requests_from_pe.size());
     }
     std::vector<shm::parallel::IntegralAtomicWrapper<std::size_t>> next_message(requests.size());
+    STOP_TIMER(TIMER_FINE);
 
     // perform moves
     DBG << V(_gain_buffer_index);
     const PEID rank = mpi::get_comm_rank(_graph->communicator());
 
+    START_TIMER("Perform moves and create responses", TIMER_FINE);
     tbb::parallel_for<NodeID>(0, _graph->n(), [&](const NodeID u) {
       // TODO stop trying to insert nodes after the first insert operation failed?
 
@@ -442,7 +447,9 @@ private:
       std::memcpy(&u, &entry.new_weight, sizeof(NodeID));
       entry.new_weight = cluster_weight(cluster(u));
     });
+    STOP_TIMER(TIMER_FINE);
 
+    START_TIMER("Exchange join responses", TIMER_FINE);
     // exchange responses
     mpi::sparse_alltoall<JoinResponse, scalable_vector>(
         responses,
@@ -468,10 +475,12 @@ private:
           }
         },
         _graph->communicator());
+    STOP_TIMER(TIMER_FINE);
   }
 
   void build_gain_buffer(auto &join_requests_per_pe) {
     SET_DEBUG(false);
+    SCOPED_TIMER("Build gain buffer", TIMER_FINE);
 
     if constexpr (kDebug) {
       mpi::barrier();
@@ -485,33 +494,28 @@ private:
         << "_gain_buffer_index not large enough: " << _graph->n() << " > " << _gain_buffer_index.size();
 
     // reset _gain_buffer_index
-    _graph->pfor_nodes([&](const NodeID u) { _gain_buffer_index[u] = 0; });
-    _gain_buffer_index[_graph->n()] = 0;
+    TIMED_SCOPE("Reset gain buffer", TIMER_FINE) {
+      _graph->pfor_nodes([&](const NodeID u) { _gain_buffer_index[u] = 0; });
+      _gain_buffer_index[_graph->n()] = 0;
+    };
 
     // build _gain_buffer_index and _gain_buffer arrays
+    START_TIMER("Build index buffer", TIMER_FINE);
+
     shm::parallel::parallel_for_over_chunks(join_requests_per_pe, [&](const JoinRequest &request) {
       const GlobalNodeID global_node = request.global_requested;
-      ASSERT(_graph->is_owned_global_node(global_node));
       const NodeID local_node = _graph->global_to_local_node(global_node);
-      ASSERT(local_node < _gain_buffer_index.size());
-
       ++_gain_buffer_index[local_node];
     });
 
-    if constexpr (kDebug) {
-      for (const NodeID u : _graph->nodes()) {
-        if (_gain_buffer_index[u] > 0) {
-          DBG << _gain_buffer_index[u] << " requests for " << u;
-        }
-      }
-    }
-
     shm::parallel::prefix_sum(_gain_buffer_index.begin(), _gain_buffer_index.begin() + _graph->n() + 1,
                               _gain_buffer_index.begin());
+    STOP_TIMER(TIMER_FINE);
 
     // allocate buffer
-    TIMED_SCOPE("Allocation") { _gain_buffer.resize(_gain_buffer_index[_graph->n() - 1]); };
+    TIMED_SCOPE("Allocation", TIMER_FINE) { _gain_buffer.resize(_gain_buffer_index[_graph->n() - 1]); };
 
+    START_TIMER("Build buffer", TIMER_FINE);
     shm::parallel::parallel_for_over_chunks(join_requests_per_pe, [&](const JoinRequest &request) {
       ASSERT(_graph->is_owned_global_node(request.global_requested));
       const NodeID local_requested = _graph->global_to_local_node(request.global_requested);
@@ -523,6 +527,7 @@ private:
       _gain_buffer[--_gain_buffer_index[local_requested]] = {global_requester, request.requester_weight,
                                                              request.requester_gain};
     });
+    STOP_TIMER(TIMER_FINE);
 
     if constexpr (kDebug) {
       std::ostringstream gain_buffer_str;
@@ -534,6 +539,7 @@ private:
     }
 
     // sort buffer for each node by gain
+    START_TIMER("Sort buffer", TIMER_FINE);
     tbb::parallel_for<NodeID>(0, _graph->n(), [&](const NodeID u) {
       ASSERT(u + 1 < _gain_buffer_index.size());
       if (_gain_buffer_index[u] < _gain_buffer_index[u + 1]) {
@@ -547,6 +553,7 @@ private:
                   });
       }
     });
+    STOP_TIMER(TIMER_FINE);
 
     if constexpr (kDebug) {
       std::ostringstream gain_buffer_str;
@@ -561,6 +568,8 @@ private:
 
   //! Synchronize labels of ghost nodes.
   void synchronize_labels(const NodeID from, const NodeID to) {
+    SCOPED_TIMER("Synchronize labels");
+
     mpi::graph::sparse_alltoall_interface_to_pe<LabelMessage>(
         *_graph, from, to, [&](const NodeID u) { return was_moved_during_round(u); },
         [&](const NodeID u) -> LabelMessage {
@@ -648,7 +657,7 @@ private:
   scalable_vector<GainBufferEntry> _gain_buffer;
   //! After receiving join requests, sort ghost nodes that want to join a cluster into \c _gain_buffer. For each
   //! interface node, store the index for that nodes join requests in \c _gain_buffer in this vector.
-  scalable_vector<shm::parallel::IntegralAtomicWrapper<NodeID>> _gain_buffer_index;
+  scalable_vector<Atomic<NodeID>> _gain_buffer_index;
 
   scalable_vector<std::uint8_t> _locked;
 

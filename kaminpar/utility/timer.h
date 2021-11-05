@@ -19,6 +19,7 @@
 #define GLOBAL_TIMER_PTR &(GLOBAL_TIMER)
 #define TIMER_DEFAULT kaminpar::timer::Type::DEFAULT
 #define TIMER_BENCHMARK kaminpar::timer::Type::BENCHMARK
+#define TIMER_FINE kaminpar::timer::Type::FINE
 
 //
 // Private helper macros
@@ -92,6 +93,7 @@ inline std::chrono::time_point<std::chrono::high_resolution_clock> now() {
 enum Type {
   DEFAULT,
   BENCHMARK,
+  FINE,
   NUM_TIMER_TYPES,
 };
 
