@@ -42,9 +42,27 @@ void DistributedGraph::print() const {
   buf << "--------------------------------------------------------------------------------\n";
   SLOG << buf.str();
 }
-} // namespace dkaminpar
 
-namespace dkaminpar::graph::debug {
+namespace graph {
+void print_verbose_stats(const DistributedGraph &graph) {
+  SET_STATISTICS_FROM_GLOBAL();
+  if constexpr (kStatistics) {
+    const auto local_n = mpi::allgather(graph.n(), graph.communicator());
+    const auto local_m = mpi::allgather(graph.m(), graph.communicator());
+    const auto ghost_n = mpi::allgather(graph.ghost_n(), graph.communicator());
+    const auto total_n = mpi::allgather(graph.total_n(), graph.communicator());
+
+    STATS << "global_n=" << graph.global_n() << " "
+          << "global_m=" << graph.global_m() << " "
+          << "local_n=[" << local_n << "] "
+          << "local_m=[" << local_m << "] "
+          << "ghost_n=[" << ghost_n << "] "
+          << "total_n=[" << total_n << "]";
+  }
+}
+} // namespace graph
+
+namespace graph::debug {
 SET_DEBUG(false);
 
 namespace {
@@ -265,4 +283,5 @@ bool validate_partition(const DistributedPartitionedGraph &p_graph) {
 
   return true;
 }
-} // namespace dkaminpar::graph::debug
+} // namespace graph::debug
+} // namespace dkaminpar

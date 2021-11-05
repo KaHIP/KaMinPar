@@ -534,6 +534,15 @@ private:
   scalable_vector<Atomic<BlockWeight>> _block_weights;
 };
 
+namespace graph {
+/**
+ * Prints verbose statistics on the distribution of the graph across PEs and the number of ghost nodes, but only if
+ * verbose statistics are enabled as build option.
+ * @param graph Graph for which statistics are printed.
+ */
+void print_verbose_stats(const DistributedGraph &graph);
+}
+
 namespace graph::debug {
 // validate structure of a distributed graph
 bool validate(const DistributedGraph &global_n, int root = 0);

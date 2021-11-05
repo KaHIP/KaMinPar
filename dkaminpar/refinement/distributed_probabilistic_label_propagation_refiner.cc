@@ -240,7 +240,7 @@ private:
         feasible.store(0, std::memory_order_relaxed);
       }
     });
-    
+
     // record statistics
     if constexpr (kStatistics) {
       if (!feasible) {
