@@ -425,9 +425,9 @@ private: // CRTP calls
 protected: // Default implementations
   void reset_node_state(const NodeID /* node */) {}
 
-  [[nodiscard]] inline bool accept_neighbor(const NodeID /* node */) const { return true; }
+  [[nodiscard]] inline bool accept_neighbor(const NodeID /* node */) { return true; }
 
-  [[nodiscard]] inline bool activate_neighbor(const NodeID /* node */) const { return true; }
+  [[nodiscard]] inline bool activate_neighbor(const NodeID /* node */) { return true; }
 
   [[nodiscard]] inline ClusterID initial_cluster(const NodeID u) { return derived_cluster(u); }
 
@@ -733,13 +733,13 @@ public:
 
   [[nodiscard]] auto &&take_clusters() { return std::move(_clusters); }
 
-  [[nodiscard]] const auto &clusters() const { return _clusters; }
+  [[nodiscard]] const auto &clusters() { return _clusters; }
 
-  virtual void init_cluster(const NodeID node, const ClusterID cluster) { _clusters[node] = cluster; }
+  void init_cluster(const NodeID node, const ClusterID cluster) { _clusters[node] = cluster; }
 
-  [[nodiscard]] ClusterID cluster(const NodeID node) const { return _clusters[node]; }
+  [[nodiscard]] ClusterID cluster(const NodeID node) { return _clusters[node]; }
 
-  virtual void move_node(const NodeID node, const ClusterID cluster) { _clusters[node] = cluster; }
+  void move_node(const NodeID node, const ClusterID cluster) { _clusters[node] = cluster; }
 
 private:
   scalable_vector<parallel::IntegralAtomicWrapper<ClusterID>> _clusters;
@@ -753,7 +753,7 @@ public:
 
   void init_cluster_weight(const ClusterID cluster, const ClusterWeight weight) { _cluster_weights[cluster] = weight; }
 
-  ClusterWeight cluster_weight(const ClusterID cluster) const { return _cluster_weights[cluster]; }
+  ClusterWeight cluster_weight(const ClusterID cluster) { return _cluster_weights[cluster]; }
 
   bool move_cluster_weight(const ClusterID old_cluster, const ClusterID new_cluster, const ClusterWeight delta,
                            const ClusterWeight max_weight) {

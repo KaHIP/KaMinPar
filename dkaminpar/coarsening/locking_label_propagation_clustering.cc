@@ -87,12 +87,8 @@ public:
     _max_cluster_weight = max_cluster_weight;
 
     ASSERT(VALIDATE_INIT_STATE());
-    ASSERT(VALIDATE_INIT_STATE());
 
-    const auto num_iterations =
-        _c_ctx.global_lp.num_iterations == 0 ? std::numeric_limits<std::size_t>::max() : _c_ctx.global_lp.num_iterations;
-
-    for (std::size_t iteration = 0; iteration < num_iterations; ++iteration) {
+    for (std::size_t iteration = 0; iteration < _c_ctx.global_lp.num_iterations; ++iteration) {
       NodeID num_moved_nodes = 0;
       for (std::size_t chunk = 0; chunk < _c_ctx.global_lp.num_chunks; ++chunk) {
         const auto [from, to] = math::compute_local_range<NodeID>(_graph->n(), _c_ctx.global_lp.num_chunks, chunk);
@@ -207,28 +203,28 @@ protected:
     ASSERT(it != handle.end() && found) << "Uninitialized cluster: " << cluster;
   }
 
-  [[nodiscard]] NodeWeight initial_cluster_weight(const NodeID u) const { return _graph->node_weight(u); }
+  [[nodiscard]] NodeWeight initial_cluster_weight(const NodeID u) { return _graph->node_weight(u); }
 
-  [[nodiscard]] NodeWeight max_cluster_weight(const GlobalNodeID /* cluster */) const { return _max_cluster_weight; }
+  [[nodiscard]] NodeWeight max_cluster_weight(const GlobalNodeID /* cluster */) { return _max_cluster_weight; }
 
   /*
    * Clusters
    */
 
-  void init_cluster(const NodeID node, const NodeID cluster) {
+  void init_cluster(const NodeID node, const GlobalNodeID cluster) {
     ASSERT(node < _current_clustering.size() && node < _next_clustering.size());
     _current_clustering[node] = cluster;
     _next_clustering[node] = cluster;
   }
 
-  [[nodiscard]] NodeID cluster(const NodeID u) const {
+  [[nodiscard]] NodeID cluster(const NodeID u) {
     ASSERT(u < _next_clustering.size());
     return _next_clustering[u];
   }
 
   void move_node(const NodeID node, const GlobalNodeID cluster) { _next_clustering[node] = cluster; }
 
-  [[nodiscard]] GlobalNodeID initial_cluster(const NodeID u) const { return _graph->local_to_global_node(u); }
+  [[nodiscard]] GlobalNodeID initial_cluster(const NodeID u) { return _graph->local_to_global_node(u); }
 
   /*
    * Moving nodes
@@ -250,7 +246,7 @@ protected:
     return ans;
   }
 
-  [[nodiscard]] inline bool activate_neighbor(const NodeID u) const { return _graph->is_owned_node(u) && !_locked[u]; }
+  [[nodiscard]] inline bool activate_neighbor(const NodeID u) { return _graph->is_owned_node(u) && !_locked[u]; }
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //
   // Called from base class

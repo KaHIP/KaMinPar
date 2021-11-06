@@ -48,7 +48,7 @@ std::unique_ptr<IClustering<GlobalNodeID>> create_global_clustering(const Contex
   case GlobalClusteringAlgorithm::REQUEST_LP:
     return std::make_unique<LockingLpClustering>(ctx);
   case GlobalClusteringAlgorithm::GLOBAL_LP:
-    return std::make_unique<DistributedGlobalLabelPropagationClustering>(ctx.partition.local_n(), ctx.coarsening);
+    return std::make_unique<DistributedGlobalLabelPropagationClustering>(ctx);
   }
   __builtin_unreachable();
 }

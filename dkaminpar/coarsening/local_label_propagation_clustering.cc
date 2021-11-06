@@ -63,22 +63,22 @@ public:
   // Called from base class
   //
 
-  [[nodiscard]] NodeID initial_cluster(const NodeID u) const { return u; }
+  [[nodiscard]] NodeID initial_cluster(const NodeID u) { return u; }
 
-  [[nodiscard]] NodeWeight initial_cluster_weight(const NodeID cluster) const { return _graph->node_weight(cluster); }
+  [[nodiscard]] NodeWeight initial_cluster_weight(const NodeID cluster) { return _graph->node_weight(cluster); }
 
-  [[nodiscard]] NodeWeight max_cluster_weight(const NodeID) const { return _max_cluster_weight; }
+  [[nodiscard]] NodeWeight max_cluster_weight(const NodeID) { return _max_cluster_weight; }
 
-  [[nodiscard]] bool accept_cluster(const Base::ClusterSelectionState &state) const {
+  [[nodiscard]] bool accept_cluster(const Base::ClusterSelectionState &state) {
     return (state.current_gain > state.best_gain ||
             (state.current_gain == state.best_gain && state.local_rand.random_bool())) &&
            (state.current_cluster_weight + state.u_weight < max_cluster_weight(state.current_cluster) ||
             state.current_cluster == state.initial_cluster);
   }
 
-  [[nodiscard]] bool accept_neighbor(const NodeID u) const { return _graph->is_owned_node(u); }
+  [[nodiscard]] bool accept_neighbor(const NodeID u) { return _graph->is_owned_node(u); }
 
-  [[nodiscard]] bool activate_neighbor(const NodeID u) const { return _graph->is_owned_node(u); }
+  [[nodiscard]] bool activate_neighbor(const NodeID u) { return _graph->is_owned_node(u); }
 
   using Base::_graph;
   NodeWeight _max_cluster_weight;

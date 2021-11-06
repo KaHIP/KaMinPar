@@ -16,7 +16,7 @@
 namespace dkaminpar {
 class DistributedGlobalLabelPropagationClustering : public IClustering<GlobalNodeID> {
 public:
-  DistributedGlobalLabelPropagationClustering(NodeID max_n, const CoarseningContext &c_ctx);
+  DistributedGlobalLabelPropagationClustering(const Context &ctx);
 
   DistributedGlobalLabelPropagationClustering(const DistributedGlobalLabelPropagationClustering &) = delete;
   DistributedGlobalLabelPropagationClustering &operator=(const DistributedGlobalLabelPropagationClustering &) = delete;

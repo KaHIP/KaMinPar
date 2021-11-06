@@ -60,25 +60,25 @@ public:
   using Base::expected_total_gain;
 
 public:
-  [[nodiscard]] BlockID initial_cluster(const NodeID u) const { return _p_graph->block(u); }
+  [[nodiscard]] BlockID initial_cluster(const NodeID u) { return _p_graph->block(u); }
 
-  [[nodiscard]] BlockWeight initial_cluster_weight(const BlockID b) const { return _p_graph->block_weight(b); }
+  [[nodiscard]] BlockWeight initial_cluster_weight(const BlockID b) { return _p_graph->block_weight(b); }
 
-  [[nodiscard]] BlockWeight cluster_weight(const BlockID b) const { return _p_graph->block_weight(b); }
+  [[nodiscard]] BlockWeight cluster_weight(const BlockID b) { return _p_graph->block_weight(b); }
 
   bool move_cluster_weight(const BlockID old_block, const BlockID new_block, const BlockWeight delta,
                            const BlockWeight max_weight) {
     return _p_graph->try_move_block_weight(old_block, new_block, delta, max_weight);
   }
 
-  void init_cluster(const NodeID /* u */, const BlockID /* b */) const {}
+  void init_cluster(const NodeID /* u */, const BlockID /* b */) {}
 
-  void init_cluster_weight(const BlockID /* b */, const BlockWeight /* weight */) const {}
+  void init_cluster_weight(const BlockID /* b */, const BlockWeight /* weight */) {}
 
-  [[nodiscard]] BlockID cluster(const NodeID u) const { return _p_graph->block(u); }
+  [[nodiscard]] BlockID cluster(const NodeID u) { return _p_graph->block(u); }
   void move_node(const NodeID u, const BlockID block) { _p_graph->set_block<false>(u, block); }
-  [[nodiscard]] BlockID num_clusters() const { return _p_graph->k(); }
-  [[nodiscard]] BlockWeight max_cluster_weight(const BlockID block) const { return _p_ctx->max_block_weight(block); }
+  [[nodiscard]] BlockID num_clusters() { return _p_graph->k(); }
+  [[nodiscard]] BlockWeight max_cluster_weight(const BlockID block) { return _p_ctx->max_block_weight(block); }
 
   bool accept_cluster(const Base::ClusterSelectionState &state) {
     static_assert(std::is_signed_v<NodeWeight>);
