@@ -36,9 +36,9 @@ public:
   DistributedLocalLabelPropagationClusteringImpl(const NodeID max_n, const CoarseningContext &c_ctx)
       : ClusterBase{max_n}, ClusterWeightBase{max_n} {
     allocate(max_n);
-    set_max_num_iterations(c_ctx.lp.num_iterations);
-    set_max_degree(c_ctx.lp.large_degree_threshold);
-    set_max_num_neighbors(c_ctx.lp.max_num_neighbors);
+    set_max_num_iterations(c_ctx.local_lp.num_iterations);
+    set_max_degree(c_ctx.local_lp.large_degree_threshold);
+    set_max_num_neighbors(c_ctx.local_lp.max_num_neighbors);
   }
 
   const auto &compute_clustering(const DistributedGraph &graph, const NodeWeight max_cluster_weight,

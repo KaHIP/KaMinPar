@@ -74,8 +74,8 @@ class LockingLpClusteringImpl
 
 public:
   LockingLpClusteringImpl(const Context &ctx) : _c_ctx{ctx.coarsening}, _cluster_weights{ctx.partition.local_n()} {
-    set_max_degree(_c_ctx.lp.large_degree_threshold);
-    set_max_num_neighbors(_c_ctx.lp.max_num_neighbors);
+    set_max_degree(_c_ctx.global_lp.large_degree_threshold);
+    set_max_num_neighbors(_c_ctx.global_lp.max_num_neighbors);
   }
 
   const auto &compute_clustering(const DistributedGraph &graph, const NodeWeight max_cluster_weight) {
@@ -90,12 +90,12 @@ public:
     ASSERT(VALIDATE_INIT_STATE());
 
     const auto num_iterations =
-        _c_ctx.lp.num_iterations == 0 ? std::numeric_limits<std::size_t>::max() : _c_ctx.lp.num_iterations;
+        _c_ctx.global_lp.num_iterations == 0 ? std::numeric_limits<std::size_t>::max() : _c_ctx.global_lp.num_iterations;
 
     for (std::size_t iteration = 0; iteration < num_iterations; ++iteration) {
       NodeID num_moved_nodes = 0;
-      for (std::size_t chunk = 0; chunk < _c_ctx.lp.num_chunks; ++chunk) {
-        const auto [from, to] = math::compute_local_range<NodeID>(_graph->n(), _c_ctx.lp.num_chunks, chunk);
+      for (std::size_t chunk = 0; chunk < _c_ctx.global_lp.num_chunks; ++chunk) {
+        const auto [from, to] = math::compute_local_range<NodeID>(_graph->n(), _c_ctx.global_lp.num_chunks, chunk);
         num_moved_nodes += process_chunk(from, to);
       }
 

@@ -24,6 +24,10 @@ set(DKAMINPAR_SOURCE_FILES
         datastructure/distributed_graph_builder.h
         datastructure/concurrent_filter.h
         initial_partitioning/i_initial_partitioner.h
+        initial_partitioning/kaminpar_initial_partitioner.cc
+        initial_partitioning/kaminpar_initial_partitioner.h
+        initial_partitioning/random_initial_partitioner.cc
+        initial_partitioning/random_initial_partitioner.h
         distributed_io.cc
         distributed_io.h
         utility/math.h
@@ -35,6 +39,8 @@ set(DKAMINPAR_SOURCE_FILES
         utility/distributed_metrics.h
         utility/vector_ets.h
         refinement/i_distributed_refiner.h
+        refinement/noop_refiner.cc
+        refinement/noop_refiner.h
         refinement/distributed_probabilistic_label_propagation_refiner.cc
         refinement/distributed_probabilistic_label_propagation_refiner.h
         partitioning_scheme/kway.cc
@@ -44,6 +50,8 @@ set(DKAMINPAR_SOURCE_FILES
         distributed_definitions.h
         distributed_context.cc
         distributed_context.h
+        factories.cc
+        factories.h
         growt.h)
 
 # Only create target if MPI is available

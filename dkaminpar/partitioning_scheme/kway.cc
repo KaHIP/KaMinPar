@@ -9,11 +9,9 @@
 
 #include "dkaminpar/algorithm/allgather_graph.h"
 #include "dkaminpar/coarsening/global_clustering_contraction_redistribution.h"
-#include "dkaminpar/coarsening/locking_label_propagation_clustering.h"
-#include "dkaminpar/refinement/distributed_probabilistic_label_propagation_refiner.h"
+#include "dkaminpar/factories.h"
 #include "dkaminpar/utility/distributed_metrics.h"
 #include "kaminpar/metrics.h"
-#include "kaminpar/partitioning_scheme/partitioning.h"
 #include "kaminpar/utility/timer.h"
 
 namespace dkaminpar {
@@ -35,9 +33,9 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
         c_graph->global_n(), c_graph->total_node_weight(), _ctx.initial_partitioning.sequential.partition,
         _ctx.initial_partitioning.sequential.coarsening);
 
-    LockingLpClustering coarsener(_ctx);
+    auto clustering_algorithm = factory::create_global_clustering(_ctx);
+    auto &clustering = clustering_algorithm->compute_clustering(*c_graph, max_cluster_weight);
 
-    auto &clustering = coarsener.compute_clustering(*c_graph, max_cluster_weight);
     auto [contracted_graph, mapping] = coarsening::contract_global_clustering_redistribute(*c_graph, clustering);
     HEAVY_ASSERT(graph::debug::validate(contracted_graph));
 
@@ -56,26 +54,15 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
   }
 
   // initial partitioning
+  auto initial_partitioner = factory::create_initial_partitioner(_ctx);
   auto shm_graph = graph::allgather(*c_graph);
 
-  auto shm_p_graph = TIMED_SCOPE("Initial partitioning") {
-    auto shm_ctx = _ctx.initial_partitioning.sequential;
-    shm_ctx.refinement.lp.num_iterations = 1;
-    shm_ctx.partition.k = _ctx.partition.k;
-    shm_ctx.partition.epsilon = _ctx.partition.epsilon;
-    shm_ctx.setup(shm_graph);
+  START_TIMER("Initial Partitioning");
+  auto shm_p_graph = initial_partitioner->initial_partition(shm_graph);
+  STOP_TIMER();
 
-    DISABLE_TIMERS();
-    shm::Logger::set_quiet_mode(true);
-    auto p_graph = shm::partitioning::partition(shm_graph, shm_ctx);
-    shm::Logger::set_quiet_mode(_ctx.quiet);
-    ENABLE_TIMERS();
-
-    SLOG << "Obtained " << shm_ctx.partition.k << "-way partition with cut=" << shm::metrics::edge_cut(p_graph)
-         << " and imbalance=" << shm::metrics::imbalance(p_graph);
-
-    return p_graph;
-  };
+  SLOG << "Obtained " << _ctx.partition.k << "-way partition with cut=" << shm::metrics::edge_cut(shm_p_graph)
+       << " and imbalance=" << shm::metrics::imbalance(shm_p_graph);
 
   DistributedPartitionedGraph dist_p_graph = graph::reduce_scatter(*c_graph, std::move(shm_p_graph));
   HEAVY_ASSERT(graph::debug::validate_partition(dist_p_graph));
@@ -87,13 +74,9 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
 
   auto refine = [&](DistributedPartitionedGraph &p_graph) {
     SCOPED_TIMER("Refinement");
-    if (_ctx.refinement.algorithm == KWayRefinementAlgorithm::NOOP) {
-      return;
-    }
-
-    DistributedProbabilisticLabelPropagationRefiner refiner(_ctx);
-    refiner.initialize(p_graph.graph(), _ctx.partition);
-    refiner.refine(p_graph);
+    auto refiner = factory::create_distributed_refiner(_ctx);
+    refiner->initialize(p_graph.graph(), _ctx.partition);
+    refiner->refine(p_graph);
     HEAVY_ASSERT(graph::debug::validate_partition(p_graph));
   };
 

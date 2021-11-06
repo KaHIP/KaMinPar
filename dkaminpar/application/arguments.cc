@@ -30,10 +30,15 @@ void create_coarsening_options(CoarseningContext &c_ctx, kaminpar::Arguments &ar
                                const std::string &prefix) {
   // clang-format off
   args.group(name, prefix)
-      .argument(prefix + "-algorithm", "Coarsening algorithm, possible values: {"s + coarsening_algorithm_names() + "}.", &c_ctx.algorithm, coarsening_algorithm_from_string)
+      .argument(prefix + "-contraction-limit", "Contraction limit", &c_ctx.contraction_limit)
+      .argument(prefix + "-use-local-coarsening", "Enable local coarsening before global coarsening.", &c_ctx.use_local_clustering)
+      .argument(prefix + "-use-global-coarsening", "Enable global coarsening after local coarsening.", &c_ctx.use_global_clustering)
+      .argument(prefix + "-global-clustering-algorithm", "Clustering algorithm, possible values: {"s + global_clustering_algorithm_names() + "}.", &c_ctx.global_clustering_algorithm, global_clustering_algorithm_from_string)
+      .argument(prefix + "-global-contraction-algorithm", "Contraction algorithm, possible values: {"s + global_contraction_algorithm_names() + "}.", &c_ctx.global_contraction_algorithm, global_contraction_algorithm_from_string)
       ;
   // clang-format on
-  create_coarsening_label_propagation_options(c_ctx.lp, args, name + " -> Label Propagation", prefix + "-lp");
+  create_coarsening_label_propagation_options(c_ctx.local_lp, args, name + " -> Local Label Propagation", prefix + "-llp");
+  create_coarsening_label_propagation_options(c_ctx.global_lp, args, name + " -> Global Label Propagation", prefix + "-glp");
 }
 
 void create_refinement_label_propagation_options(LabelPropagationRefinementContext &lp_ctx, kaminpar::Arguments &args,

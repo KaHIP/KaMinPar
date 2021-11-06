@@ -86,9 +86,9 @@ public:
   DistributedGlobalLabelPropagationClusteringImpl(const NodeID max_n, const CoarseningContext &c_ctx)
       : ClusterWeightBase{max_n}, ClusterBase{max_n}, _c_ctx{c_ctx}, _changed_label(max_n) {
     allocate(max_n);
-    set_max_num_iterations(c_ctx.lp.num_iterations);
-    set_max_degree(c_ctx.lp.large_degree_threshold);
-    set_max_num_neighbors(c_ctx.lp.max_num_neighbors);
+    set_max_num_iterations(c_ctx.global_lp.num_iterations);
+    set_max_degree(c_ctx.global_lp.large_degree_threshold);
+    set_max_num_neighbors(c_ctx.global_lp.max_num_neighbors);
   }
 
   const auto &compute_clustering(const DistributedGraph &graph, const NodeWeight max_cluster_weight) {
@@ -97,8 +97,8 @@ public:
 
     for (std::size_t iteration = 0; iteration < _max_num_iterations; ++iteration) {
       GlobalNodeID global_num_moved_nodes = 0;
-      for (std::size_t chunk = 0; chunk < _c_ctx.lp.num_chunks; ++chunk) {
-        const auto [from, to] = math::compute_local_range<NodeID>(_graph->n(), _c_ctx.lp.num_chunks, chunk);
+      for (std::size_t chunk = 0; chunk < _c_ctx.global_lp.num_chunks; ++chunk) {
+        const auto [from, to] = math::compute_local_range<NodeID>(_graph->n(), _c_ctx.global_lp.num_chunks, chunk);
         global_num_moved_nodes += process_chunk(from, to);
       }
       if (global_num_moved_nodes == 0) {

@@ -15,23 +15,31 @@ namespace dkaminpar {
 using namespace std::string_literals;
 
 DEFINE_ENUM_STRING_CONVERSION(PartitioningMode, partitioning_mode) = {
-    {PartitioningMode::KWAY, "kway"}, //
-    {PartitioningMode::DEEP, "deep"}, //
-    {PartitioningMode::RB, "rb"}      //
+    {PartitioningMode::KWAY, "kway"},
+    {PartitioningMode::DEEP, "deep"},
+    {PartitioningMode::RB, "rb"},
 };
 
-DEFINE_ENUM_STRING_CONVERSION(CoarseningAlgorithm, coarsening_algorithm) = {
-    {CoarseningAlgorithm::NOOP, "noop"},        //
-    {CoarseningAlgorithm::LOCAL_LP, "local-lp"} //
+DEFINE_ENUM_STRING_CONVERSION(GlobalClusteringAlgorithm, global_clustering_algorithm) = {
+    {GlobalClusteringAlgorithm::NOOP, "noop"},
+    {GlobalClusteringAlgorithm::GLOBAL_LP, "global-lp"},
+    {GlobalClusteringAlgorithm::REQUEST_LP, "request-lp"},
+};
+
+DEFINE_ENUM_STRING_CONVERSION(GlobalContractionAlgorithm, global_contraction_algorithm) = {
+    {GlobalContractionAlgorithm::REDISTRIBUTE_SEQ, "redistribute-seq"},
+    {GlobalContractionAlgorithm::REDISTRIBUTE, "redistribute"},
+    {GlobalContractionAlgorithm::KEEP, "keep"},
 };
 
 DEFINE_ENUM_STRING_CONVERSION(InitialPartitioningAlgorithm, initial_partitioning_algorithm) = {
-    {InitialPartitioningAlgorithm::KAMINPAR, "kaminpar"} //
+    {InitialPartitioningAlgorithm::KAMINPAR, "kaminpar"},
+    {InitialPartitioningAlgorithm::RANDOM, "random"},
 };
 
 DEFINE_ENUM_STRING_CONVERSION(KWayRefinementAlgorithm, kway_refinement_algorithm) = {
-    {KWayRefinementAlgorithm::NOOP, "noop"}, //
-    {KWayRefinementAlgorithm::LP, "lp"}      //
+    {KWayRefinementAlgorithm::NOOP, "noop"},
+    {KWayRefinementAlgorithm::PROB_LP, "prob-lp"},
 };
 
 void LabelPropagationCoarseningContext::print(std::ostream &out, const std::string &prefix) const {
@@ -54,9 +62,13 @@ void LabelPropagationRefinementContext::print(std::ostream &out, const std::stri
 }
 
 void CoarseningContext::print(std::ostream &out, const std::string &prefix) const {
-  out << prefix << "algorithm=" << algorithm << " "        //
-      << "contraction_limit=" << contraction_limit << " "; //
-  lp.print(out, prefix + "lp.");
+  out << prefix << "use_local_clustering" << use_local_clustering << " "                  //
+      << prefix << "use_global_clustering=" << use_global_clustering << " "               //
+      << prefix << "global_clustering_algorithm=" << global_clustering_algorithm << " "   //
+      << prefix << "global_contraction_algorithm=" << global_contraction_algorithm << " " //
+      << prefix << "contraction_limit=" << contraction_limit << " ";                      //
+  local_lp.print(out, prefix + "local_lp.");
+  global_lp.print(out, prefix + "global_lp.");
 }
 
 void InitialPartitioningContext::print(std::ostream &out, const std::string &prefix) const {
@@ -144,11 +156,24 @@ Context create_default_context() {
       .mpi_thread_support = MPI_THREAD_FUNNELED,
     },
     .coarsening = {
-      .algorithm = CoarseningAlgorithm::LOCAL_LP,
+      .use_local_clustering = false,
+      .use_global_clustering = true,
+      .global_clustering_algorithm = GlobalClusteringAlgorithm::REQUEST_LP,
+      .global_contraction_algorithm = GlobalContractionAlgorithm::REDISTRIBUTE,
       .contraction_limit = 5000,
-      .lp = {
+      .local_lp = {
+        .num_iterations = 1,
+        .large_degree_threshold = 1'000'000,
+        .max_num_neighbors = kInvalidNodeID,
+        .merge_singleton_clusters = true,
+        .merge_nonadjacent_clusters_threshold = 0.5,
+        .total_num_chunks = 0, // unused
+        .num_chunks = 0, // unused
+        .min_num_chunks = 0, // unused
+      },
+      .global_lp = {
         .num_iterations = 5,
-        .large_degree_threshold = 1000000,
+        .large_degree_threshold = 1'000'000,
         .max_num_neighbors = kInvalidNodeID,
         .merge_singleton_clusters = true,
         .merge_nonadjacent_clusters_threshold = 0.5,
@@ -162,7 +187,7 @@ Context create_default_context() {
       .sequential = shm::create_default_context(),
     },
     .refinement = {
-      .algorithm = KWayRefinementAlgorithm::LP,
+      .algorithm = KWayRefinementAlgorithm::PROB_LP,
       .lp = {
         .num_iterations = 5,
         .total_num_chunks = 128,

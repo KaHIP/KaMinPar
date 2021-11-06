@@ -14,6 +14,8 @@ namespace dkaminpar {
 template<typename ClusterID>
 class IClustering {
 public:
+  virtual ~IClustering() = default;
+
   using AtomicClusterArray = scalable_vector<shm::parallel::IntegralAtomicWrapper<ClusterID>>;
 
   virtual const AtomicClusterArray &compute_clustering(const DistributedGraph &graph,

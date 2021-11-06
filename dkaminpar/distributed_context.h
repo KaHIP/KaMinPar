@@ -18,22 +18,31 @@ enum class PartitioningMode {
   DEEP,
 };
 
-enum class CoarseningAlgorithm {
+enum class GlobalClusteringAlgorithm {
   NOOP,
-  LOCAL_LP,
+  REQUEST_LP,
+  GLOBAL_LP,
+};
+
+enum class GlobalContractionAlgorithm {
+  REDISTRIBUTE_SEQ,
+  REDISTRIBUTE,
+  KEEP,
 };
 
 enum class InitialPartitioningAlgorithm {
   KAMINPAR,
+  RANDOM,
 };
 
 enum class KWayRefinementAlgorithm {
   NOOP,
-  LP,
+  PROB_LP,
 };
 
 DECLARE_ENUM_STRING_CONVERSION(PartitioningMode, partitioning_mode);
-DECLARE_ENUM_STRING_CONVERSION(CoarseningAlgorithm, coarsening_algorithm);
+DECLARE_ENUM_STRING_CONVERSION(GlobalContractionAlgorithm, global_contraction_algorithm);
+DECLARE_ENUM_STRING_CONVERSION(GlobalClusteringAlgorithm, global_clustering_algorithm);
 DECLARE_ENUM_STRING_CONVERSION(InitialPartitioningAlgorithm, initial_partitioning_algorithm);
 DECLARE_ENUM_STRING_CONVERSION(KWayRefinementAlgorithm, kway_refinement_algorithm);
 
@@ -78,11 +87,21 @@ struct LabelPropagationRefinementContext {
 };
 
 struct CoarseningContext {
-  CoarseningAlgorithm algorithm;
-  NodeID contraction_limit;
-  LabelPropagationCoarseningContext lp;
+  bool use_local_clustering;
+  bool use_global_clustering;
 
-  void setup(const DistributedGraph &graph) { lp.setup(graph); }
+  GlobalClusteringAlgorithm global_clustering_algorithm;
+  GlobalContractionAlgorithm global_contraction_algorithm;
+
+  NodeID contraction_limit;
+
+  LabelPropagationCoarseningContext local_lp;
+  LabelPropagationCoarseningContext global_lp;
+
+  void setup(const DistributedGraph &graph) {
+    local_lp.setup(graph);
+    global_lp.setup(graph);
+  }
 
   void print(std::ostream &out, const std::string &prefix = "") const;
 };
