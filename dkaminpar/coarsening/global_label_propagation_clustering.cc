@@ -181,7 +181,8 @@ public:
 
 private:
   void allocate(const DistributedGraph &graph) {
-    // const NodeID allocated_num_nodes = _current_clustering.size();
+    ensure_cluster_size(graph.total_n());
+
     const NodeID allocated_num_active_nodes = _changed_label.size();
 
     if (allocated_num_active_nodes < graph.n()) {

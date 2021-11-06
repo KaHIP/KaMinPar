@@ -741,6 +741,12 @@ public:
 
   void move_node(const NodeID node, const ClusterID cluster) { _clusters[node] = cluster; }
 
+  void ensure_cluster_size(const NodeID max_num_nodes) {
+    if (_clusters.size() < max_num_nodes) {
+      _clusters.resize(max_num_nodes);
+    }
+  }
+
 private:
   scalable_vector<parallel::IntegralAtomicWrapper<ClusterID>> _clusters;
 };
