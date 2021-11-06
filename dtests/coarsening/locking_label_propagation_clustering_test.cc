@@ -28,8 +28,8 @@ Clustering compute_clustering(const DistributedGraph &graph, NodeWeight max_clus
 
   Context ctx = create_default_context();
   ctx.setup(graph);
-  ctx.coarsening.lp.num_iterations = num_iterations;
-  if (num_chunks != 0) { ctx.coarsening.lp.num_chunks = num_chunks; }
+  ctx.coarsening.global_lp.num_iterations = num_iterations;
+  if (num_chunks != 0) { ctx.coarsening.global_lp.num_chunks = num_chunks; }
 
   DLOG << V(graph.n()) << V(graph.total_n());
 
