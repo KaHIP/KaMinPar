@@ -24,6 +24,7 @@ struct DistributedLabelPropagationRefinerConfig : public shm::LabelPropagationCo
   using ClusterWeight = BlockWeight;
   static constexpr bool kTrackClusterCount = false;
   static constexpr bool kUseTwoHopClustering = false;
+  static constexpr bool kUseActualGain = true;
 };
 
 class DistributedProbabilisticLabelPropagationRefinerImpl final
@@ -42,6 +43,9 @@ class DistributedProbabilisticLabelPropagationRefinerImpl final
     int num_successful_moves; // global
     int num_rollbacks;        // global
 
+    Atomic<int> num_tentatively_moved_nodes;
+    Atomic<int> num_tentatively_rejected_nodes;
+
     double max_balance_violation;   // global, only if rollback occurred
     double total_balance_violation; // global, only if rollback occurred
 
@@ -49,6 +53,7 @@ class DistributedProbabilisticLabelPropagationRefinerImpl final
     Atomic<EdgeWeight> expected_gain = 0;
     // local, gain values of moves that were executed
     Atomic<EdgeWeight> realized_gain = 0;
+    Atomic<EdgeWeight> rejected_gain = 0;
     // local, gain values that were rollbacked
     Atomic<EdgeWeight> rollback_gain = 0;
     // local, expected imbalance
@@ -61,24 +66,33 @@ class DistributedProbabilisticLabelPropagationRefinerImpl final
       total_balance_violation = 0.0;
       expected_gain = 0;
       realized_gain = 0;
+      rejected_gain = 0;
       rollback_gain = 0;
       expected_imbalance = 0;
+      num_tentatively_moved_nodes = 0;
+      num_tentatively_rejected_nodes = 0;
     }
 
     void print() {
       auto expected_gain_reduced = mpi::reduce<EdgeWeight>(expected_gain, MPI_SUM);
       auto realized_gain_reduced = mpi::reduce<EdgeWeight>(realized_gain, MPI_SUM);
+      auto rejected_gain_reduced = mpi::reduce<EdgeWeight>(rejected_gain, MPI_SUM);
       auto rollback_gain_reduced = mpi::reduce<EdgeWeight>(rollback_gain, MPI_SUM);
       auto expected_imbalance_str = mpi::gather_statistics_str(expected_imbalance);
+      auto num_tentatively_moved_nodes_str = mpi::gather_statistics_str(num_tentatively_moved_nodes.load());
+      auto num_tentatively_rejected_nodes_str = mpi::gather_statistics_str(num_tentatively_rejected_nodes.load());
 
       STATS << "DistributedProbabilisticLabelPropagationRefiner:";
       STATS << "- Iterations: " << num_successful_moves << " ok, " << num_rollbacks << " failed";
       STATS << "- Expected gain: " << expected_gain_reduced << " (total expectation value of move gains)";
       STATS << "- Realized gain: " << realized_gain_reduced << " (total value of realized move gains)";
+      STATS << "- Rejected gain: " << rejected_gain_reduced;
       STATS << "- Rollback gain: " << rollback_gain_reduced << " (gain of moves affected by rollback)";
       STATS << "- Actual gain: " << cut_before - cut_after << " (from " << cut_before << " to " << cut_after << ")";
       STATS << "- Balance violations: " << total_balance_violation / num_rollbacks << " / " << max_balance_violation;
       STATS << "- Expected imbalance: [" << expected_imbalance_str << "]";
+      STATS << "- Num tentatively moved nodes: [" << num_tentatively_moved_nodes_str << "]";
+      STATS << "- Num tentatively rejected nodes: [" << num_tentatively_rejected_nodes_str << "]";
     }
   };
 
@@ -195,7 +209,6 @@ private:
     // perform probabilistic moves, but keep track of moves in case we need to roll back
     std::vector<Atomic<NodeWeight>> expected_moved_weight(_p_ctx->k);
     scalable_vector<Atomic<BlockWeight>> block_weight_deltas(_p_ctx->k);
-
     tbb::concurrent_vector<Move> moves;
     _p_graph->pfor_nodes_range(from, to, [&](const auto &r) {
       auto &rand = shm::Randomize::instance();
@@ -203,7 +216,7 @@ private:
       for (NodeID u = r.begin(); u < r.end(); ++u) {
         // only iterate over nodes that changed block
         if (_next_partition[u] == _p_graph->block(u) || _next_partition[u] == kInvalidBlockID) {
-          return;
+          continue;
         }
 
         // compute move probability
@@ -215,6 +228,8 @@ private:
 
         // perform move with probability
         if (rand.random_bool(probability)) {
+          IFSTATS(_statistics.num_tentatively_moved_nodes++);
+
           const BlockID from = _p_graph->block(u);
           const BlockID to = _next_partition[u];
           const NodeWeight u_weight = _p_graph->node_weight(u);
@@ -229,6 +244,9 @@ private:
           _next_partition[u] = kInvalidBlockID;
 
           IFSTATS(_statistics.realized_gain += _gains[u]);
+        } else {
+          IFSTATS(_statistics.num_tentatively_rejected_nodes++);
+          IFSTATS(_statistics.rejected_gain += _gains[u]);
         }
       }
     });
@@ -245,10 +263,14 @@ private:
     // check for balance violations
     Atomic<std::uint8_t> feasible = 1;
     _p_graph->pfor_blocks([&](const BlockID b) {
-      if (_p_graph->block_weight(b) + global_block_weight_deltas[b] > max_cluster_weight(b)) {
+      if (_p_graph->block_weight(b) + global_block_weight_deltas[b] > max_cluster_weight(b) &&
+          global_block_weight_deltas[b] > 0) {
         feasible.store(0, std::memory_order_relaxed);
       }
     });
+
+    DBG << V(block_weight_deltas) << V(block_weight_deltas_nonatomic) << V(global_block_weight_deltas)
+        << V(_p_graph->block_weights()) << V(_p_ctx->max_block_weights()) << (feasible ? "feasible" : "not feasible");
 
     // record statistics
     if constexpr (kStatistics) {
@@ -291,7 +313,7 @@ private:
 
   void synchronize_state(const NodeID from, const NodeID to) {
     struct MoveMessage {
-      GlobalNodeID global_node;
+      NodeID local_node;
       BlockID new_block;
     };
 
@@ -308,13 +330,14 @@ private:
 
         // send move to each ghost node adjacent to u
         [&](const NodeID u) -> MoveMessage {
-          return {.global_node = _p_graph->local_to_global_node(u), .new_block = _p_graph->block(u)};
+          return {.local_node = u, .new_block = _p_graph->block(u)};
         },
 
         // move ghost nodes
-        [&](const auto recv_buffer) {
+        [&](const auto recv_buffer, const PEID pe) {
           tbb::parallel_for(static_cast<std::size_t>(0), recv_buffer.size(), [&](const std::size_t i) {
-            const auto [global_node, new_block] = recv_buffer[i];
+            const auto [local_node_on_pe, new_block] = recv_buffer[i];
+            const GlobalNodeID global_node = static_cast<GlobalNodeID>(_p_graph->offset_n(pe) + local_node_on_pe);
             const NodeID local_node = _p_graph->global_to_local_node(global_node);
             ASSERT(new_block != _p_graph->block(local_node)); // otherwise, we should not have gotten this message
 
@@ -338,7 +361,7 @@ public:
     return _p_graph->block(u);
   }
 
-  [[nodiscard]] BlockID cluster(const NodeID u) const {
+  [[nodiscard]] BlockID cluster(const NodeID u) {
     ASSERT(u < _p_graph->total_n());
     return _p_graph->is_owned_node(u) ? _next_partition[u] : _p_graph->block(u);
   }
@@ -348,13 +371,13 @@ public:
     _next_partition[u] = b;
   }
 
-  [[nodiscard]] BlockWeight initial_cluster_weight(const BlockID b) const { return _p_graph->block_weight(b); }
+  [[nodiscard]] BlockWeight initial_cluster_weight(const BlockID b) { return _p_graph->block_weight(b); }
 
-  [[nodiscard]] BlockWeight cluster_weight(const BlockID b) const { return _block_weights[b]; }
+  [[nodiscard]] BlockWeight cluster_weight(const BlockID b) { return _block_weights[b]; }
 
   void init_cluster_weight(const BlockID b, const BlockWeight weight) { _block_weights[b] = weight; }
 
-  [[nodiscard]] BlockWeight max_cluster_weight(const BlockID b) const { return _p_ctx->max_block_weight(b); }
+  [[nodiscard]] BlockWeight max_cluster_weight(const BlockID b) { return _p_ctx->max_block_weight(b); }
 
   [[nodiscard]] bool move_cluster_weight(const BlockID from, const BlockID to, const BlockWeight delta,
                                          const BlockWeight max_weight) {
@@ -377,7 +400,7 @@ public:
     return accept;
   }
 
-  [[nodiscard]] bool activate_neighbor(const NodeID u) const { return u < _p_graph->n(); }
+  [[nodiscard]] bool activate_neighbor(const NodeID u) { return u < _p_graph->n(); }
 
 private:
 #ifdef KAMINPAR_ENABLE_HEAVY_ASSERTIONS

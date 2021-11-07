@@ -47,6 +47,8 @@ struct LabelPropagationConfig {
 
   // If true, match singleton clusters in 2-hop distance
   static constexpr bool kUseTwoHopClustering = false;
+
+  static constexpr bool kUseActualGain = false;
 };
 
 /*!
@@ -239,9 +241,11 @@ protected:
       const bool store_favored_cluster = Config::kUseTwoHopClustering && u_weight == initial_cluster_weight &&
                                          initial_cluster_weight <= derived_max_cluster_weight(u_cluster) / 2;
 
+      const EdgeWeight gain_delta = (Config::kUseActualGain) ? map[u_cluster] : 0;
+
       for (const auto [cluster, rating] : map.entries()) {
         state.current_cluster = cluster;
-        state.current_gain = rating;
+        state.current_gain = rating - gain_delta;
         state.current_cluster_weight = derived_cluster_weight(cluster);
 
         if (store_favored_cluster && state.current_gain > state.best_gain) {
