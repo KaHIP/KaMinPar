@@ -29,9 +29,16 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
   while (c_graph->global_n() > _ctx.partition.k * _ctx.coarsening.contraction_limit) {
     SCOPED_TIMER("Coarsening");
 
+    shm::PartitionContext shm_p_ctx = _ctx.initial_partitioning.sequential.partition;
+    shm_p_ctx.k = _ctx.partition.k;
+    shm_p_ctx.epsilon = _ctx.partition.epsilon;
+
+    shm::CoarseningContext shm_c_ctx = _ctx.initial_partitioning.sequential.coarsening;
+    shm_c_ctx.contraction_limit = _ctx.coarsening.contraction_limit;
+
     const NodeWeight max_cluster_weight = shm::compute_max_cluster_weight(
-        c_graph->global_n(), c_graph->total_node_weight(), _ctx.initial_partitioning.sequential.partition,
-        _ctx.initial_partitioning.sequential.coarsening);
+        c_graph->global_n(), c_graph->global_total_node_weight(), shm_p_ctx,
+        shm_c_ctx);
 
     auto clustering_algorithm = factory::create_global_clustering(_ctx);
     auto &clustering = clustering_algorithm->compute_clustering(*c_graph, max_cluster_weight);
