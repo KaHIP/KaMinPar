@@ -10,15 +10,15 @@ set(DKAMINPAR_SOURCE_FILES
         coarsening/seq_global_clustering_contraction_redistribution.h
         coarsening/global_clustering_contraction_redistribution.cc
         coarsening/global_clustering_contraction_redistribution.h
-        coarsening/locking_clustering_contraction.cc
-        coarsening/locking_clustering_contraction.h
         coarsening/i_clustering.h
         coarsening/local_label_propagation_clustering.cc
         coarsening/local_label_propagation_clustering.h
-        coarsening/global_label_propagation_clustering.cc
-        coarsening/global_label_propagation_clustering.h
+        coarsening/global_clustering_contraction.cc
+        coarsening/global_clustering_contraction.h
         coarsening/locking_label_propagation_clustering.cc
         coarsening/locking_label_propagation_clustering.h
+        coarsening/global_label_propagation_clustering.cc
+        coarsening/global_label_propagation_clustering.h
         datastructure/distributed_graph.cc
         datastructure/distributed_graph.h
         datastructure/distributed_graph_builder.h

@@ -31,7 +31,7 @@ struct DeduplicateEdgeListMemoryContext {
   scalable_vector<LocalToGlobalEdge> buffer_list;
 };
 
-std::pair<scalable_vector<LocalToGlobalEdge>, DeduplicateEdgeListMemoryContext>
+inline std::pair<scalable_vector<LocalToGlobalEdge>, DeduplicateEdgeListMemoryContext>
 deduplicate_edge_list(scalable_vector<LocalToGlobalEdge> edge_list, const NodeID n,
                       DeduplicateEdgeListMemoryContext m_ctx) {
   auto &bucket_index = m_ctx.bucket_index;
@@ -116,7 +116,7 @@ deduplicate_edge_list(scalable_vector<LocalToGlobalEdge> edge_list, const NodeID
 }
 
 template <typename T>
-scalable_vector<T> create_perfect_distribution_from_global_count(const T global_count, MPI_Comm comm) {
+inline scalable_vector<T> create_perfect_distribution_from_global_count(const T global_count, MPI_Comm comm) {
   const auto size = mpi::get_comm_size(comm);
 
   scalable_vector<T> distribution(size + 1);
@@ -127,7 +127,8 @@ scalable_vector<T> create_perfect_distribution_from_global_count(const T global_
   return distribution;
 }
 
-template <typename T> scalable_vector<T> create_distribution_from_local_count(const T local_count, MPI_Comm comm) {
+template <typename T>
+inline scalable_vector<T> create_distribution_from_local_count(const T local_count, MPI_Comm comm) {
   const auto [size, rank] = mpi::get_comm_info(comm);
 
   scalable_vector<T> distribution(size + 1);
@@ -144,10 +145,11 @@ template <typename T> scalable_vector<T> create_distribution_from_local_count(co
  * \c v is a global node ID.
  * @return Distributed graph built from the edge list.
  */
-template <typename NodeWeightLambda>
-DistributedGraph build_distributed_graph_from_edge_list(const auto &edge_list,
-                                                        scalable_vector<GlobalNodeID> node_distribution, MPI_Comm comm,
-                                                        NodeWeightLambda &&node_weight_lambda) {
+template <typename NodeWeightLambda, typename FindGhostNodeOwnerLambda>
+inline DistributedGraph build_distributed_graph_from_edge_list(const auto &edge_list,
+                                                               scalable_vector<GlobalNodeID> node_distribution,
+                                                               MPI_Comm comm, NodeWeightLambda &&node_weight_lambda,
+                                                               FindGhostNodeOwnerLambda &&find_ghost_node_owner) {
   SCOPED_TIMER("Build graph from edge list", TIMER_FINE);
 
   const PEID size = mpi::get_comm_size(comm);
@@ -244,10 +246,10 @@ DistributedGraph build_distributed_graph_from_edge_list(const auto &edge_list,
       NodeID v_local = n + ghost_to_global.size();
       global_to_ghost[v] = v_local;
       ghost_to_global.push_back(v);
-      ghost_owner.push_back(math::compute_local_range_rank<GlobalNodeID>(node_distribution.back(), size, v));
+      ghost_owner.push_back(find_ghost_node_owner(v));
       ASSERT(ghost_owner.back() >= 0 && ghost_owner.back() < size)
           << V(ghost_owner.back()) << V(size) << V(v) << V(node_distribution.back())
-          << V(math::compute_local_range_rank<GlobalNodeID>(node_distribution.back(), size, v));
+          << V(find_ghost_node_owner(v));
     }
   }
 

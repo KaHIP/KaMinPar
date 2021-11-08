@@ -300,7 +300,7 @@ contraction::GlobalMappingResult contract_global_clustering_redistribute_sequent
     contraction::MemoryContext m_ctx) {
   // compute local mapping for owned nodes
   auto [global_mapping, c_global_n] = compute_mapping(graph, clustering);
-  scalable_vector<GlobalNodeID> local_mapping(graph.total_n());
+  GlobalMapping local_mapping(graph.total_n());
   for (const NodeID u : graph.nodes()) {
     local_mapping[u] = global_mapping[clustering[u]];
   }

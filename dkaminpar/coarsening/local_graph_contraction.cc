@@ -26,7 +26,6 @@ SET_DEBUG(true);
 Result contract_local_clustering(const DistributedGraph &graph,
                                  const scalable_vector<shm::parallel::IntegralAtomicWrapper<NodeID>> &clustering,
                                  MemoryContext m_ctx) {
-  graph.print();
   ASSERT(clustering.size() >= graph.n());
 
   MPI_Comm comm = graph.communicator();

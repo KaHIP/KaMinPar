@@ -9,13 +9,14 @@
  ******************************************************************************/
 #pragma once
 
+#include "dkaminpar/coarsening/coarsening.h"
 #include "dkaminpar/coarsening/local_graph_contraction.h"
 
 namespace dkaminpar::coarsening {
 namespace contraction {
 struct GlobalMappingResult {
   DistributedGraph graph{};
-  scalable_vector<GlobalNodeID> mapping{};
+  GlobalMapping mapping{};
   MemoryContext m_ctx{};
 };
 } // namespace contraction

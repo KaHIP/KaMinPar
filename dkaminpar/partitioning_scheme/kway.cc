@@ -9,6 +9,8 @@
 
 #include "dkaminpar/algorithm/allgather_graph.h"
 #include "dkaminpar/coarsening/global_clustering_contraction_redistribution.h"
+#include "dkaminpar/coarsening/seq_global_clustering_contraction_redistribution.h"
+#include "dkaminpar/coarsening/global_clustering_contraction.h"
 #include "dkaminpar/factories.h"
 #include "dkaminpar/utility/distributed_metrics.h"
 #include "kaminpar/metrics.h"
@@ -36,14 +38,31 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
     shm::CoarseningContext shm_c_ctx = _ctx.initial_partitioning.sequential.coarsening;
     shm_c_ctx.contraction_limit = _ctx.coarsening.contraction_limit;
 
-    const NodeWeight max_cluster_weight = shm::compute_max_cluster_weight(
-        c_graph->global_n(), c_graph->global_total_node_weight(), shm_p_ctx,
-        shm_c_ctx);
+    const NodeWeight max_cluster_weight =
+        shm::compute_max_cluster_weight(c_graph->global_n(), c_graph->global_total_node_weight(), shm_p_ctx, shm_c_ctx);
 
     auto clustering_algorithm = factory::create_global_clustering(_ctx);
     auto &clustering = clustering_algorithm->compute_clustering(*c_graph, max_cluster_weight);
 
-    auto [contracted_graph, mapping] = coarsening::contract_global_clustering_redistribute(*c_graph, clustering);
+    auto [contracted_graph, mapping] = [&]() -> std::pair<DistributedGraph, coarsening::GlobalMapping> {
+      switch (_ctx.coarsening.global_contraction_algorithm) {
+      case GlobalContractionAlgorithm::REDISTRIBUTE_SEQ: {
+        auto [tmp_graph, tmp_mapping, m_ctx] =
+            coarsening::contract_global_clustering_redistribute_sequential(*c_graph, clustering);
+        return {std::move(tmp_graph), std::move(tmp_mapping)};
+      }
+      case GlobalContractionAlgorithm::REDISTRIBUTE: {
+        auto [tmp_graph, tmp_mapping] = coarsening::contract_global_clustering_redistribute(*c_graph, clustering);
+        return {std::move(tmp_graph), std::move(tmp_mapping)};
+      }
+      case GlobalContractionAlgorithm::KEEP_SEQ:
+      case GlobalContractionAlgorithm::KEEP: {
+        auto [tmp_graph, tmp_mapping] = coarsening::contract_global_clustering(*c_graph, clustering);
+        return {std::move(tmp_graph), std::move(tmp_mapping)};
+      }
+      }
+      __builtin_unreachable();
+    }();
     HEAVY_ASSERT(graph::debug::validate(contracted_graph));
 
     const bool converged = contracted_graph.global_n() == c_graph->global_n();

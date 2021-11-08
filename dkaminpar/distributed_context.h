@@ -27,6 +27,7 @@ enum class GlobalClusteringAlgorithm {
 enum class GlobalContractionAlgorithm {
   REDISTRIBUTE_SEQ,
   REDISTRIBUTE,
+  KEEP_SEQ,
   KEEP,
 };
 

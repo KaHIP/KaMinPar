@@ -6,6 +6,7 @@
  * @brief:  Unit tests for graph contraction that do not make any assumptions on
  * how the contract graph is distributed across PEs.
  ******************************************************************************/
+#include "dkaminpar/coarsening/global_clustering_contraction.h"
 #include "dkaminpar/coarsening/global_clustering_contraction_redistribution.h"
 #include "dkaminpar/coarsening/seq_global_clustering_contraction_redistribution.h"
 
@@ -30,6 +31,7 @@ struct GlobalClusteringContractionRedistribution {
   static auto contract_clustering(const DistributedGraph &graph, const Clustering &clustering) {
     return coarsening::contract_global_clustering_redistribute(graph, clustering);
   }
+  bool redistribute = true;
 };
 
 struct SequentialGlobalClusteringContractionRedistribution {
@@ -38,6 +40,14 @@ struct SequentialGlobalClusteringContractionRedistribution {
         coarsening::contract_global_clustering_redistribute_sequential(graph, clustering, {});
     return std::make_pair(std::move(c_graph), std::move(c_mapping));
   }
+  bool redistribute = true;
+};
+
+struct GlobalClusteringContraction {
+  static auto contract_clustering(const DistributedGraph &graph, const Clustering &clustering) {
+    return coarsening::contract_global_clustering(graph, clustering);
+  }
+  bool redistribute = false;
 };
 
 template <typename Contractor> struct Typed { Contractor contractor; };
@@ -47,8 +57,8 @@ class EmptyGraph : public DistributedGraphWith9NodesAnd0Edges, public Typed<Cont
 template <typename Contractor> class NullGraph : public DistributedNullGraph, public Typed<Contractor> {};
 template <typename Contractor> class PathGraph : public DistributedPathTwoNodesPerPE, public Typed<Contractor> {};
 
-using Contractors =
-    ::testing::Types<GlobalClusteringContractionRedistribution, SequentialGlobalClusteringContractionRedistribution>;
+using Contractors = ::testing::Types<GlobalClusteringContractionRedistribution,
+                                     SequentialGlobalClusteringContractionRedistribution, GlobalClusteringContraction>;
 
 TYPED_TEST_SUITE(TrianglesGraph, Contractors);
 TYPED_TEST_SUITE(EmptyGraph, Contractors);
@@ -83,9 +93,12 @@ TYPED_TEST(TrianglesGraph, ContractSingletonClusters) {
 
   const auto clustering = graph::distribute_node_info<Clustering>(this->graph, {0, 1, 2, 3, 4, 5, 6, 7, 8});
   const auto [c_graph, c_mapping] = this->contractor.contract_clustering(this->graph, clustering);
+  c_graph.print();
 
+  // not affected by this->contractor.redistribute
   EXPECT_EQ(c_graph.n(), this->graph.n()); // since the graph is already evenly distributed
   EXPECT_EQ(c_graph.total_n(), this->graph.total_n());
+
   EXPECT_EQ(c_graph.global_n(), this->graph.global_n());
   EXPECT_EQ(c_graph.global_m(), this->graph.global_m());
   EXPECT_EQ(c_graph.total_node_weight(), this->graph.total_node_weight());
@@ -119,7 +132,7 @@ TYPED_TEST(TrianglesGraph, FullContractionToPE0) {
 
   auto [c_graph, c_mapping] = this->contractor.contract_clustering(this->graph, {0, 0, 0, 0, 0, 0, 0});
 
-  if (this->rank == 0) {
+  if (this->rank == 0) { // not affected by this->contractor.redistribute
     EXPECT_THAT(c_graph.n(), Eq(1));
   }
 
@@ -158,10 +171,6 @@ TYPED_TEST(TrianglesGraph, FullContractionToEachPE) {
     const NodeID cluster = pe * this->size; // 0, 3, 6 -> owned by PE pe
     auto [c_graph, c_mapping] = this->contractor.contract_clustering(
         this->graph, {cluster, cluster, cluster, cluster, cluster, cluster, cluster});
-
-    if (this->rank == 0) {
-      EXPECT_THAT(c_graph.n(), Eq(1));
-    }
 
     EXPECT_THAT(c_graph.m(), Eq(0));
     EXPECT_THAT(c_graph.global_n(), Eq(1));
@@ -202,12 +211,74 @@ TYPED_TEST(TrianglesGraph, ContractLocalTriangles) {
 
   auto [c_graph, c_mapping] = this->contractor.contract_clustering(this->graph, clustering);
 
+  // do not make assumptions on the graph distribution
+  if (this->contractor.redistribute) {
+    EXPECT_THAT(c_graph.n(), Eq(1));
+    EXPECT_THAT(c_graph.total_n(), Eq(3));
+    EXPECT_THAT(c_graph.ghost_n(), Eq(2));
+    EXPECT_THAT(c_graph.m(), Eq(2));
+    EXPECT_THAT(c_graph.edge_weights(), ElementsAre(Eq(2), Eq(2)));
+  } else { // we used labels only on PE 0 as clusters
+    if (this->rank == 0) {
+      EXPECT_THAT(c_graph.n(), Eq(3));
+      EXPECT_THAT(c_graph.m(), Eq(6));
+    } else {
+      EXPECT_THAT(c_graph.n(), Eq(0));
+      EXPECT_THAT(c_graph.m(), Eq(0));
+    }
+  }
+
+
+  EXPECT_THAT(c_graph.global_m(), Eq(6));
+  EXPECT_THAT(c_graph.global_n(), Eq(3));
+
+  graph::expect_isomorphic(c_graph, {
+                                        {0b000'000'111, 2, 0b000'111'000},
+                                        {0b000'000'111, 2, 0b111'000'000},
+                                        {0b000'111'000, 2, 0b111'000'000},
+                                    });
+  expect_mapping(this->graph, c_graph, c_mapping,
+                 {
+                     0b000'000'111,
+                     0b000'000'111,
+                     0b000'000'111,
+                     0b000'111'000,
+                     0b000'111'000,
+                     0b000'111'000,
+                     0b111'000'000,
+                     0b111'000'000,
+                     0b111'000'000,
+                 });
+}
+
+TYPED_TEST(TrianglesGraph, ContractLocalTrianglesWithSpacedClusterIDs) {
+  //  0---1-#-3---4
+  //  |\ /  #  \ /|
+  //  | 2---#---5 |
+  //  |  \  #  /  |
+  // ###############
+  //  |    \ /    |
+  //  |     8     |
+  //  |    / \    |
+  //  +---7---6---+
+  this->graph = graph::use_pow_global_id_as_node_weights(std::move(this->graph));
+
+  Clustering clustering;
+  for (const NodeID u : this->graph.all_nodes()) {
+    clustering.push_back(3 * this->graph.find_owner_of_global_node(this->graph.local_to_global_node(u)));
+  }
+
+  auto [c_graph, c_mapping] = this->contractor.contract_clustering(this->graph, clustering);
+
+  // should be the same for redistributed and not redistributed
   EXPECT_THAT(c_graph.n(), Eq(1));
   EXPECT_THAT(c_graph.total_n(), Eq(3));
   EXPECT_THAT(c_graph.ghost_n(), Eq(2));
   EXPECT_THAT(c_graph.m(), Eq(2));
   EXPECT_THAT(c_graph.edge_weights(), ElementsAre(Eq(2), Eq(2)));
+
   EXPECT_THAT(c_graph.global_m(), Eq(6));
+  EXPECT_THAT(c_graph.global_n(), Eq(3));
 
   graph::expect_isomorphic(c_graph, {
                                         {0b000'000'111, 2, 0b000'111'000},
@@ -257,7 +328,8 @@ TYPED_TEST(TrianglesGraph, ContractTriangleOnOnePE) {
 
   EXPECT_THAT(c_graph.global_n(), Eq(7));
   EXPECT_THAT(c_graph.global_m(), Eq(24));
-  EXPECT_THAT(c_graph.edge_weights(), Each(Eq(1)));
+  // do not make assumptions on the graph distribution
+  // EXPECT_THAT(c_graph.edge_weights(), Each(Eq(1)));
 
   graph::expect_isomorphic(c_graph, {
                                         {0b000'000'111, 1, 0b000'001'000},
@@ -421,7 +493,6 @@ TYPED_TEST(EmptyGraph, ContractEmptyGraphToOneNodePerPE) {
   EXPECT_EQ(c_graph.global_n(), 3);
   EXPECT_EQ(c_graph.global_m(), 0);
   EXPECT_EQ(c_graph.global_total_node_weight(), this->graph.global_total_node_weight());
-  EXPECT_THAT(c_graph.node_weights(), ElementsAre(Eq(3)));
 
   expect_mapping(this->graph, c_graph, c_mapping, {3, 3, 3, 3, 3, 3, 3, 3, 3});
 }

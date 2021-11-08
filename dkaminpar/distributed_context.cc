@@ -29,6 +29,7 @@ DEFINE_ENUM_STRING_CONVERSION(GlobalClusteringAlgorithm, global_clustering_algor
 DEFINE_ENUM_STRING_CONVERSION(GlobalContractionAlgorithm, global_contraction_algorithm) = {
     {GlobalContractionAlgorithm::REDISTRIBUTE_SEQ, "redistribute-seq"},
     {GlobalContractionAlgorithm::REDISTRIBUTE, "redistribute"},
+    {GlobalContractionAlgorithm::KEEP_SEQ, "keep-seq"},
     {GlobalContractionAlgorithm::KEEP, "keep"},
 };
 
