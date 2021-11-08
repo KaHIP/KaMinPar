@@ -28,6 +28,9 @@ void create_coarsening_label_propagation_options(LabelPropagationCoarseningConte
 
 void create_coarsening_options(CoarseningContext &c_ctx, kaminpar::Arguments &args, const std::string &name,
                                const std::string &prefix) {
+  //      << prefix << "cluster_weight_limit=" << cluster_weight_limit << " "                 //
+      //<< prefix << "cluster_weight_multiplier=" << cluster_weight_multiplier << " ";      //
+
   // clang-format off
   args.group(name, prefix)
       .argument(prefix + "-contraction-limit", "Contraction limit", &c_ctx.contraction_limit)
@@ -35,6 +38,8 @@ void create_coarsening_options(CoarseningContext &c_ctx, kaminpar::Arguments &ar
       .argument(prefix + "-use-global-coarsening", "Enable global coarsening after local coarsening.", &c_ctx.use_global_clustering)
       .argument(prefix + "-global-clustering-algorithm", "Clustering algorithm, possible values: {"s + global_clustering_algorithm_names() + "}.", &c_ctx.global_clustering_algorithm, global_clustering_algorithm_from_string)
       .argument(prefix + "-global-contraction-algorithm", "Contraction algorithm, possible values: {"s + global_contraction_algorithm_names() + "}.", &c_ctx.global_contraction_algorithm, global_contraction_algorithm_from_string)
+      .argument(prefix + "-cluster-weight-limit", "Function to compute the cluster weight limit, possible values: {"s + shm::cluster_weight_limit_names() + "}.", &c_ctx.cluster_weight_limit, shm::cluster_weight_limit_from_string)
+      .argument(prefix + "-cluster-weight-multiplier", "Multiplier for the cluster weight limit.", &c_ctx.cluster_weight_multiplier)
       ;
   // clang-format on
   create_coarsening_label_propagation_options(c_ctx.local_lp, args, name + " -> Local Label Propagation", prefix + "-llp");

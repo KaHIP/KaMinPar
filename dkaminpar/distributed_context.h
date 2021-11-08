@@ -99,6 +99,9 @@ struct CoarseningContext {
   LabelPropagationCoarseningContext local_lp;
   LabelPropagationCoarseningContext global_lp;
 
+  shm::ClusterWeightLimit cluster_weight_limit;
+  double cluster_weight_multiplier;
+
   void setup(const DistributedGraph &graph) {
     local_lp.setup(graph);
     global_lp.setup(graph);

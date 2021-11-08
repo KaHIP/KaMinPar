@@ -67,7 +67,9 @@ void CoarseningContext::print(std::ostream &out, const std::string &prefix) cons
       << prefix << "use_global_clustering=" << use_global_clustering << " "               //
       << prefix << "global_clustering_algorithm=" << global_clustering_algorithm << " "   //
       << prefix << "global_contraction_algorithm=" << global_contraction_algorithm << " " //
-      << prefix << "contraction_limit=" << contraction_limit << " ";                      //
+      << prefix << "contraction_limit=" << contraction_limit << " "                       //
+      << prefix << "cluster_weight_limit=" << cluster_weight_limit << " "                 //
+      << prefix << "cluster_weight_multiplier=" << cluster_weight_multiplier << " ";      //
   local_lp.print(out, prefix + "local_lp.");
   global_lp.print(out, prefix + "global_lp.");
 }
@@ -181,7 +183,9 @@ Context create_default_context() {
         .total_num_chunks = 128,
         .num_chunks = 0,
         .min_num_chunks = 8,
-      }
+      },
+      .cluster_weight_limit = shm::ClusterWeightLimit::EPSILON_BLOCK_WEIGHT,
+      .cluster_weight_multiplier = 1.0,
     },
     .initial_partitioning = {
       .algorithm = InitialPartitioningAlgorithm::KAMINPAR,

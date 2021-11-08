@@ -37,6 +37,8 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
 
     shm::CoarseningContext shm_c_ctx = _ctx.initial_partitioning.sequential.coarsening;
     shm_c_ctx.contraction_limit = _ctx.coarsening.contraction_limit;
+    shm_c_ctx.cluster_weight_limit = _ctx.coarsening.cluster_weight_limit;
+    shm_c_ctx.cluster_weight_multiplier = _ctx.coarsening.cluster_weight_multiplier;
 
     const NodeWeight max_cluster_weight =
         shm::compute_max_cluster_weight(c_graph->global_n(), c_graph->global_total_node_weight(), shm_p_ctx, shm_c_ctx);
