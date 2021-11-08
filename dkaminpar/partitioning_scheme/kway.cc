@@ -72,8 +72,9 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
     mapping_hierarchy.push_back(std::move(mapping));
     c_graph = &graph_hierarchy.back();
 
+    auto max_node_weight_str = mpi::gather_statistics_str<GlobalNodeWeight>(c_graph->max_node_weight(), c_graph->communicator());
     LOG << "=> n=" << c_graph->global_n() << " m=" << c_graph->global_m()
-        << " max_node_weight=" << c_graph->max_node_weight() << " max_cluster_weight=" << max_cluster_weight;
+        << " max_node_weight=[" << max_node_weight_str << "] max_cluster_weight=" << max_cluster_weight;
     graph::print_verbose_stats(*c_graph);
     if (converged) {
       LOG << "==> Coarsening converged";
