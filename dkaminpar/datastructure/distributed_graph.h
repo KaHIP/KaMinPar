@@ -24,7 +24,7 @@ namespace graph {
 [[nodiscard]] inline growt::StaticGhostNodeMapping
 build_static_ghost_node_mapping(std::unordered_map<GlobalNodeID, NodeID> global_to_ghost) {
   growt::StaticGhostNodeMapping static_mapping(global_to_ghost.size());
-  for (const auto &[key, value] : static_mapping) {
+  for (const auto &[key, value] : global_to_ghost) {
     static_mapping.insert(key + 1, value); // 0 cannot be used as a key in growt hash tables
   }
   return static_mapping;
