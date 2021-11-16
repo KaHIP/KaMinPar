@@ -169,7 +169,7 @@ inline int isend(const T *buf, const int count, const int dest, const int tag, M
 
 template <typename T>
 inline int recv(T *buf, int count, int source, int tag, MPI_Status *status = MPI_STATUS_IGNORE,
-                MPI_Comm comm = MPI_COMM_WORLD) {
+                MPI_Comm const comm = MPI_COMM_WORLD) {
   return MPI_Recv(buf, count, type::get<T>(), source, tag, comm, status);
 }
 
@@ -379,6 +379,18 @@ template <std::ranges::range Distribution> inline std::vector<int> build_distrib
     displs[i] = static_cast<int>(dist[i]);
   }
   return displs;
+}
+
+template <typename T, template<typename> typename Container>
+inline Container<T> build_distribution_from_local_count(const T value, MPI_Comm const comm) {
+  const auto [size, rank] = mpi::get_comm_info(comm);
+
+  Container<T> distribution(size + 1);
+  mpi::allgather(&value, 1, distribution.data() + 1, 1, comm);
+  shm::parallel::prefix_sum(distribution.begin(), distribution.end(), distribution.begin());
+  distribution.front() = 0;
+
+  return distribution;
 }
 
 template <typename Message, template <typename> typename Buffer>

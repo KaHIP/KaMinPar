@@ -8,6 +8,7 @@
 #pragma once
 
 #include "dkaminpar/distributed_definitions.h"
+#include "dkaminpar/growt.h"
 #include "dkaminpar/mpi_wrapper.h"
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/datastructure/marker.h"
@@ -19,6 +20,17 @@
 #include <vector>
 
 namespace dkaminpar {
+namespace graph {
+[[nodiscard]] inline growt::StaticGhostNodeMapping
+build_static_ghost_node_mapping(std::unordered_map<GlobalNodeID, NodeID> global_to_ghost) {
+  growt::StaticGhostNodeMapping static_mapping(global_to_ghost.size());
+  for (const auto &[key, value] : static_mapping) {
+    static_mapping.insert(key + 1, value); // 0 cannot be used as a key in growt hash tables
+  }
+  return static_mapping;
+}
+} // namespace graph
+
 class DistributedGraph {
   SET_DEBUG(true);
 
@@ -39,6 +51,22 @@ public:
                    scalable_vector<NodeWeight> node_weights, scalable_vector<EdgeWeight> edge_weights,
                    scalable_vector<PEID> ghost_owner, scalable_vector<GlobalNodeID> ghost_to_global,
                    std::unordered_map<GlobalNodeID, NodeID> global_to_ghost, MPI_Comm comm)
+      : DistributedGraph{std::move(node_distribution),
+                         std::move(edge_distribution),
+                         std::move(nodes),
+                         std::move(edges),
+                         std::move(node_weights),
+                         std::move(edge_weights),
+                         std::move(ghost_owner),
+                         std::move(ghost_to_global),
+                         graph::build_static_ghost_node_mapping(std::move(global_to_ghost)),
+                         comm} {}
+
+  DistributedGraph(scalable_vector<GlobalNodeID> node_distribution, scalable_vector<GlobalEdgeID> edge_distribution,
+                   scalable_vector<EdgeID> nodes, scalable_vector<NodeID> edges,
+                   scalable_vector<NodeWeight> node_weights, scalable_vector<EdgeWeight> edge_weights,
+                   scalable_vector<PEID> ghost_owner, scalable_vector<GlobalNodeID> ghost_to_global,
+                   growt::StaticGhostNodeMapping global_to_ghost, MPI_Comm comm)
       : _node_distribution{std::move(node_distribution)}, _edge_distribution{std::move(edge_distribution)},
         _nodes{std::move(nodes)}, _edges{std::move(edges)}, _node_weights{std::move(node_weights)},
         _edge_weights{std::move(edge_weights)}, _ghost_owner{std::move(ghost_owner)},
@@ -97,8 +125,8 @@ public:
   }
 
   [[nodiscard]] inline bool contains_global_node(const GlobalNodeID global_u) const {
-    return is_owned_global_node(global_u)          // owned node
-           || _global_to_ghost.contains(global_u); // ghost node
+    return is_owned_global_node(global_u)                                      // owned node
+           || (_global_to_ghost.find(global_u + 1) != _global_to_ghost.end()); // ghost node
   }
 
   [[nodiscard]] inline bool contains_local_node(const NodeID local_u) const { return local_u < total_n(); }
@@ -133,8 +161,9 @@ public:
     if (offset_n() <= global_u && global_u < offset_n() + n()) {
       return global_u - offset_n();
     } else {
-      ASSERT(_global_to_ghost.contains(global_u)) << V(global_u) << " is not a ghost node on this PE";
-      return _global_to_ghost[global_u];
+      ASSERT(_global_to_ghost.find(global_u + 1) != _global_to_ghost.end())
+          << V(global_u) << " is not a ghost node on this PE";
+      return (*_global_to_ghost.find(global_u + 1)).second;
     }
   }
 
@@ -369,7 +398,7 @@ private:
 
   scalable_vector<PEID> _ghost_owner{};
   scalable_vector<GlobalNodeID> _ghost_to_global{};
-  mutable std::unordered_map<GlobalNodeID, NodeID> _global_to_ghost{};
+  growt::StaticGhostNodeMapping _global_to_ghost{};
 
   std::vector<EdgeID> _edge_cut_to_pe{};
   std::vector<EdgeID> _comm_vol_to_pe{};
@@ -392,8 +421,8 @@ public:
 
   using block_weights_vector = scalable_vector<shm::parallel::IntegralAtomicWrapper<BlockWeight>>;
 
-  DistributedPartitionedGraph(const DistributedGraph *graph, const BlockID k, scalable_vector<Atomic<BlockID>> partition,
-                              block_weights_vector block_weights)
+  DistributedPartitionedGraph(const DistributedGraph *graph, const BlockID k,
+                              scalable_vector<Atomic<BlockID>> partition, block_weights_vector block_weights)
       : _graph{graph}, _k{k}, _partition{std::move(partition)}, _block_weights{std::move(block_weights)} {
     ASSERT(_partition.size() == _graph->total_n());
     ASSERT([&] {
@@ -487,8 +516,7 @@ public:
     return _partition[u].load(std::memory_order_relaxed);
   }
 
-  template<bool update_block_weights = true>
-  void set_block(const NodeID u, const BlockID b) {
+  template <bool update_block_weights = true> void set_block(const NodeID u, const BlockID b) {
     ASSERT(u < _graph->total_n());
 
     if constexpr (update_block_weights) {
@@ -544,7 +572,7 @@ namespace graph {
  * @param graph Graph for which statistics are printed.
  */
 void print_verbose_stats(const DistributedGraph &graph);
-}
+} // namespace graph
 
 namespace graph::debug {
 // validate structure of a distributed graph

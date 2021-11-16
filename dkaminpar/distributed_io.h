@@ -1,11 +1,11 @@
 /*******************************************************************************
-* @file:   distributed_io.h
-*
-* @author: Daniel Seemaier
-* @date:   27.10.2021
-* @brief:  Load distributed grpah from a single METIS file, node or edge
-* balanced.
-******************************************************************************/
+ * @file:   distributed_io.h
+ *
+ * @author: Daniel Seemaier
+ * @date:   27.10.2021
+ * @brief:  Load distributed grpah from a single METIS file, node or edge
+ * balanced.
+ ******************************************************************************/
 #pragma once
 
 #include "dkaminpar/datastructure/distributed_graph.h"
@@ -15,6 +15,8 @@
 #include <string>
 
 namespace dkaminpar::io {
+DistributedGraph read_node_balanced(const std::string &filename);
+
 namespace metis {
 DistributedGraph read_node_balanced(const std::string &filename);
 DistributedGraph read_edge_balanced(const std::string &filename);
@@ -22,12 +24,17 @@ void write(const std::string &filename, const DistributedGraph &graph, bool writ
            bool write_edge_weights = true);
 } // namespace metis
 
+namespace binary {
+DistributedGraph read_node_balanced(const std::string &filename);
+} // namespace binary
+
 namespace partition {
-template<typename Container>
-void write(const std::string &filename, const Container &partition) {
+template <typename Container> void write(const std::string &filename, const Container &partition) {
   mpi::sequentially([&] {
     std::ofstream out(filename, std::ios_base::out | std::ios_base::app);
-    for (const BlockID &b : partition) { out << b << "\n"; }
+    for (const BlockID &b : partition) {
+      out << b << "\n";
+    }
   });
 }
 } // namespace partition

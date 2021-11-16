@@ -107,7 +107,7 @@ int main(int argc, char *argv[]) {
   }
 
   // Load graph
-  const auto graph = TIMED_SCOPE("IO") { return dist::io::metis::read_node_balanced(ctx.graph_filename); };
+  const auto graph = TIMED_SCOPE("IO") { return dist::io::read_node_balanced(ctx.graph_filename); };
 
   // Print statistics
   {

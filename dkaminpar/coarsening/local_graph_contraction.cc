@@ -250,6 +250,12 @@ Result contract_local_clustering(const DistributedGraph &graph,
   c_edge_distribution[rank + 1] = last_edge;
   mpi::allgather(&c_edge_distribution[rank + 1], 1, c_edge_distribution.data() + 1, 1, comm);
 
+  // TODO
+  growt::StaticGhostNodeMapping static_mapping(c_global_to_ghost.size());
+  for (const auto &[key, value] : c_global_to_ghost) {
+    static_mapping.insert(key, value);
+  }
+
   DistributedGraph c_graph{std::move(c_node_distribution),
                            std::move(c_edge_distribution),
                            std::move(c_nodes),
@@ -258,7 +264,7 @@ Result contract_local_clustering(const DistributedGraph &graph,
                            std::move(c_edge_weights),
                            std::move(c_ghost_owner),
                            std::move(c_ghost_to_global),
-                           std::move(c_global_to_ghost),
+                           std::move(static_mapping),
                            graph.communicator()};
 
   DBG << V(c_graph.n()) << V(c_graph.m()) << V(c_graph.ghost_n()) << V(c_graph.total_n()) << V(c_graph.global_n())

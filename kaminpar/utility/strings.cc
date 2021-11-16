@@ -21,11 +21,17 @@ std::string to_lower(std::string arg) {
   return arg;
 }
 
+bool ends_with(const std::string &filename, const std::string &extension) {
+  return extension.length() <= filename.length() && std::equal(extension.rbegin(), extension.rend(), filename.rbegin());
+}
+
 std::vector<std::string> explode(const std::string &str, const char del) {
   std::stringstream ss(str);
   std::vector<std::string> splits;
   std::string part;
-  while (std::getline(ss, part, del)) { splits.push_back(part); }
+  while (std::getline(ss, part, del)) {
+    splits.push_back(part);
+  }
   return splits;
 }
 std::string &rtrim(std::string &s, const char *t) {

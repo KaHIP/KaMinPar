@@ -12,9 +12,34 @@
 #include "dkaminpar/mpi_wrapper.h"
 #include "dkaminpar/utility/math.h"
 #include "kaminpar/io.h"
+#include "kaminpar/utility/strings.h"
+
+#include <tbb/concurrent_hash_map.h>
+#include <tbb/concurrent_vector.h>
+#include <tbb/parallel_for.h>
 
 namespace dkaminpar::io {
+namespace {
+growt::StaticGhostNodeMapping create_static_ghost_node_mapping_from_hash_table(auto &ghost_node_mapping) {
+  growt::StaticGhostNodeMapping static_mapping(ghost_node_mapping.size());
+  for (const auto &[key, value] : ghost_node_mapping) {
+    static_mapping.insert(key, value);
+  }
+  return static_mapping;
+}
+} // namespace
+
 SET_DEBUG(false);
+
+DistributedGraph read_node_balanced(const std::string &filename) {
+  if (shm::utility::str::ends_with(filename, "bgf") || shm::utility::str::ends_with(filename, "bin")) {
+    DBG << "Expect binary graph format";
+    return binary::read_node_balanced(filename);
+  }
+
+  DBG << "Expect Metis graph format";
+  return metis::read_edge_balanced(filename);
+}
 
 namespace metis {
 namespace shm = kaminpar::io::metis;
@@ -53,12 +78,18 @@ DistributedGraph read_node_balanced(const std::string &filename) {
       },
       [&](const std::uint64_t &u_weight) {
         ++current;
-        if (current > to) { return false; }
-        if (current > from) { builder.create_node(static_cast<NodeWeight>(u_weight)); }
+        if (current > to) {
+          return false;
+        }
+        if (current > from) {
+          builder.create_node(static_cast<NodeWeight>(u_weight));
+        }
         return true;
       },
       [&](const std::uint64_t &e_weight, const std::uint64_t &v) {
-        if (current > from) { builder.create_edge(static_cast<EdgeWeight>(e_weight), static_cast<GlobalNodeID>(v)); }
+        if (current > from) {
+          builder.create_edge(static_cast<EdgeWeight>(e_weight), static_cast<GlobalNodeID>(v));
+        }
       });
 
   return builder.finalize();
@@ -157,7 +188,7 @@ DistributedGraph read_edge_balanced(const std::string &filename) {
           std::move(edge_weights),
           std::move(ghost_owner),
           std::move(ghost_to_global),
-          std::move(global_to_ghost),
+          create_static_ghost_node_mapping_from_hash_table(global_to_ghost),
           MPI_COMM_WORLD};
 }
 
@@ -166,7 +197,6 @@ void write(const std::string &filename, const DistributedGraph &graph, const boo
   { std::ofstream tmp(filename); } // clear file
 
   mpi::sequentially([&](const PEID pe) {
-    DLOG << "start " << pe;
     std::ofstream out(filename, std::ios_base::out | std::ios_base::app);
     if (pe == 0) {
       out << graph.global_n() << " " << graph.global_m() / 2;
@@ -179,15 +209,145 @@ void write(const std::string &filename, const DistributedGraph &graph, const boo
     }
 
     for (const NodeID u : graph.nodes()) {
-      if (write_node_weights) { out << graph.node_weight(u) << " "; }
+      if (write_node_weights) {
+        out << graph.node_weight(u) << " ";
+      }
       for (const auto [e, v] : graph.neighbors(u)) {
         out << graph.local_to_global_node(v) + 1 << " ";
-        if (write_edge_weights) { out << graph.edge_weight(e) << " "; }
+        if (write_edge_weights) {
+          out << graph.edge_weight(e) << " ";
+        }
       }
       out << "\n";
     }
-    DLOG << "end " << pe;
   });
 }
 } // namespace metis
+
+namespace binary {
+using IDType = unsigned long long;
+
+DistributedGraph read_node_balanced(const std::string &filename) {
+  std::ifstream in(filename);
+
+  // read header
+  IDType version, global_n, global_m;
+  in.read(reinterpret_cast<char *>(&version), sizeof(IDType));
+  ALWAYS_ASSERT(version == 3) << "invalid binary graph format!";
+
+  in.read(reinterpret_cast<char *>(&global_n), sizeof(IDType));
+  in.read(reinterpret_cast<char *>(&global_m), sizeof(IDType));
+
+  const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
+  const auto [from, to] = math::compute_local_range<GlobalNodeID>(global_n, size, rank);
+  const NodeID n = static_cast<NodeID>(to - from);
+
+  // read nodes
+  scalable_vector<EdgeID> nodes(n + 1);
+  IDType first_edge_index = 0;
+  IDType first_invalid_edge_index = 0;
+  {
+    // read part of global nodes array
+    scalable_vector<IDType> global_nodes(n + 1);
+    const std::streamsize offset = 3 * sizeof(IDType) + from * sizeof(IDType);
+    const std::streamsize length = (n + 1) * sizeof(IDType);
+    in.seekg(offset);
+    in.read(reinterpret_cast<char *>(global_nodes.data()), length);
+
+    // build local nodes array
+    first_edge_index = global_nodes.front();
+    first_invalid_edge_index = global_nodes.back();
+
+    tbb::parallel_for<std::size_t>(0, global_nodes.size(), [&](const std::size_t i) {
+      nodes[i] = static_cast<EdgeID>((global_nodes[i] - first_edge_index) / sizeof(IDType));
+    });
+  }
+  const EdgeID m = nodes.back();
+
+  // read edges
+  scalable_vector<NodeID> edges(m);
+
+  // read part of global edge array
+  scalable_vector<IDType> global_edges(m);
+  const std::streamsize offset = first_edge_index;
+  const std::streamsize length = first_invalid_edge_index - first_edge_index;
+  in.seekg(offset);
+  in.read(reinterpret_cast<char *>(global_edges.data()), length);
+
+  // translate to local edges
+  Atomic<NodeID> next_ghost_node_id = n;
+  using GhostNodeFilter = tbb::concurrent_hash_map<GlobalNodeID, NodeID>;
+  GhostNodeFilter discovered_ghost_nodes_filter;
+
+  tbb::parallel_for<std::size_t>(0, global_edges.size(),
+                                 [from = from, to = to, &global_edges, &edges, &next_ghost_node_id,
+                                  &discovered_ghost_nodes_filter](const std::size_t i) {
+                                   const GlobalNodeID edge_target = global_edges[i];
+                                   if (from <= edge_target && edge_target < to) { // local node
+                                     edges[i] = static_cast<NodeID>(edge_target - from);
+                                   } else { // ghost node
+                                     GhostNodeFilter::accessor accessor;
+                                     if (discovered_ghost_nodes_filter.insert(accessor, edge_target)) {
+                                       const NodeID ghost_node_id =
+                                           next_ghost_node_id.fetch_add(1, std::memory_order_relaxed);
+                                       DLOG << V(edge_target) << V(ghost_node_id);
+                                       accessor->second = ghost_node_id;
+                                     }
+                                   }
+                                 });
+
+  auto node_distribution = mpi::build_distribution_from_local_count<GlobalNodeID, scalable_vector>(n, MPI_COMM_WORLD);
+  auto edge_distribution = mpi::build_distribution_from_local_count<GlobalEdgeID, scalable_vector>(m, MPI_COMM_WORLD);
+
+  // remap ghost nodes
+  const NodeID ghost_n = static_cast<NodeID>(discovered_ghost_nodes_filter.size());
+  scalable_vector<GlobalNodeID> ghost_to_global(ghost_n);
+  growt::StaticGhostNodeMapping global_to_ghost(ghost_n);
+  scalable_vector<PEID> ghost_owner(discovered_ghost_nodes_filter.size());
+
+  tbb::parallel_for(discovered_ghost_nodes_filter.range(), [&](const auto r) {
+    for (auto it = r.begin(); it != r.end(); ++it) {
+      const GlobalNodeID global_node_id = it->first;
+      const NodeID local_node_id = it->second;
+      const NodeID local_ghost_id = local_node_id - n;
+      ASSERT(local_ghost_id < discovered_ghost_nodes_filter.size());
+
+      ghost_to_global[local_ghost_id] = global_node_id;
+      global_to_ghost.insert(global_node_id + 1, local_node_id); // 0 cannot be used as key
+
+      // find ghost node owner using binary search
+      const auto owner_it = std::upper_bound(node_distribution.begin() + 1, node_distribution.end(), global_node_id);
+      ghost_owner[local_ghost_id] = static_cast<PEID>(std::distance(node_distribution.begin(), owner_it) - 1);
+    }
+  });
+
+  // copy edges to ghost nodes to local edges array
+  tbb::parallel_for<std::size_t>(0, global_edges.size(),
+                                 [from = from, to = to, &edges, &global_edges, &global_to_ghost](const std::size_t i) {
+                                   const GlobalNodeID edge_target = global_edges[i];
+                                   if (edge_target < from || edge_target >= to) {
+                                     edges[i] = static_cast<NodeID>((*global_to_ghost.find(edge_target + 1)).second);
+                                   }
+                                 });
+
+  // binary input graph is always unweighted -- allocate dummy vectors
+  scalable_vector<NodeWeight> node_weights(next_ghost_node_id, 1);
+  scalable_vector<EdgeWeight> edge_weights(m, 1);
+
+  DistributedGraph graph{std::move(node_distribution),
+                         std::move(edge_distribution),
+                         std::move(nodes),
+                         std::move(edges),
+                         std::move(node_weights),
+                         std::move(edge_weights),
+                         std::move(ghost_owner),
+                         std::move(ghost_to_global),
+                         std::move(global_to_ghost),
+                         MPI_COMM_WORLD};
+
+  graph.print();
+
+  return graph;
+}
+} // namespace binary
 } // namespace dkaminpar::io
