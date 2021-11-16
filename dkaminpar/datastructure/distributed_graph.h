@@ -83,6 +83,8 @@ public:
     _global_n = _node_distribution.back();
     _global_m = _edge_distribution.back();
 
+    DLOG << V(_n) << V(_ghost_n);
+
     init_total_node_weight();
     init_communication_metrics();
   }

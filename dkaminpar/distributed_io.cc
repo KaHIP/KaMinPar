@@ -27,7 +27,7 @@ DistributedGraph read_node_balanced(const std::string &filename) {
   }
 
   DBG << "Expect Metis graph format";
-  return metis::read_edge_balanced(filename);
+  return metis::read_node_balanced(filename);
 }
 
 namespace metis {
@@ -279,7 +279,6 @@ DistributedGraph read_node_balanced(const std::string &filename) {
                                      if (discovered_ghost_nodes_filter.insert(accessor, edge_target)) {
                                        const NodeID ghost_node_id =
                                            next_ghost_node_id.fetch_add(1, std::memory_order_relaxed);
-                                       DLOG << V(edge_target) << V(ghost_node_id);
                                        accessor->second = ghost_node_id;
                                      }
                                    }
