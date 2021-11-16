@@ -15,20 +15,9 @@
 #include "kaminpar/utility/strings.h"
 
 #include <tbb/concurrent_hash_map.h>
-#include <tbb/concurrent_vector.h>
 #include <tbb/parallel_for.h>
 
 namespace dkaminpar::io {
-namespace {
-growt::StaticGhostNodeMapping create_static_ghost_node_mapping_from_hash_table(auto &ghost_node_mapping) {
-  growt::StaticGhostNodeMapping static_mapping(ghost_node_mapping.size());
-  for (const auto &[key, value] : ghost_node_mapping) {
-    static_mapping.insert(key, value);
-  }
-  return static_mapping;
-}
-} // namespace
-
 SET_DEBUG(false);
 
 DistributedGraph read_node_balanced(const std::string &filename) {
@@ -188,7 +177,7 @@ DistributedGraph read_edge_balanced(const std::string &filename) {
           std::move(edge_weights),
           std::move(ghost_owner),
           std::move(ghost_to_global),
-          create_static_ghost_node_mapping_from_hash_table(global_to_ghost),
+          std::move(global_to_ghost),
           MPI_COMM_WORLD};
 }
 
@@ -334,20 +323,16 @@ DistributedGraph read_node_balanced(const std::string &filename) {
   scalable_vector<NodeWeight> node_weights(next_ghost_node_id, 1);
   scalable_vector<EdgeWeight> edge_weights(m, 1);
 
-  DistributedGraph graph{std::move(node_distribution),
-                         std::move(edge_distribution),
-                         std::move(nodes),
-                         std::move(edges),
-                         std::move(node_weights),
-                         std::move(edge_weights),
-                         std::move(ghost_owner),
-                         std::move(ghost_to_global),
-                         std::move(global_to_ghost),
-                         MPI_COMM_WORLD};
-
-  graph.print();
-
-  return graph;
+  return {std::move(node_distribution),
+          std::move(edge_distribution),
+          std::move(nodes),
+          std::move(edges),
+          std::move(node_weights),
+          std::move(edge_weights),
+          std::move(ghost_owner),
+          std::move(ghost_to_global),
+          std::move(global_to_ghost),
+          MPI_COMM_WORLD};
 }
 } // namespace binary
 } // namespace dkaminpar::io
