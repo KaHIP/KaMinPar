@@ -13,19 +13,21 @@
 
 #include <fstream>
 #include <string>
+#include <mpi.h>
 
 namespace dkaminpar::io {
-DistributedGraph read_node_balanced(const std::string &filename);
+DistributedGraph read_node_balanced(const std::string &filename, MPI_Comm comm = MPI_COMM_WORLD);
 
 namespace metis {
-DistributedGraph read_node_balanced(const std::string &filename);
-DistributedGraph read_edge_balanced(const std::string &filename);
+DistributedGraph read_node_balanced(const std::string &filename, MPI_Comm comm = MPI_COMM_WORLD);
+DistributedGraph read_edge_balanced(const std::string &filename, MPI_Comm comm = MPI_COMM_WORLD);
 void write(const std::string &filename, const DistributedGraph &graph, bool write_node_weights = true,
            bool write_edge_weights = true);
 } // namespace metis
 
 namespace binary {
-DistributedGraph read_node_balanced(const std::string &filename);
+DistributedGraph read_node_balanced(const std::string &filename, MPI_Comm comm = MPI_COMM_WORLD);
+DistributedGraph read_edge_balanced(const std::string &filename, MPI_Comm comm = MPI_COMM_WORLD);
 } // namespace binary
 
 namespace partition {

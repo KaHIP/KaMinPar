@@ -370,7 +370,7 @@ protected:
     ALWAYS_ASSERT(size == 3) << "must be tested on three PEs";
 
     n0 = 0;
-    graph = dkaminpar::graph::Builder{}.initialize(0, 0, rank, {0, 0, 0, 0}).finalize();
+    graph = dkaminpar::graph::Builder{MPI_COMM_WORLD}.initialize({0, 0, 0, 0}).finalize();
   }
 
   DistributedGraph graph;
@@ -384,8 +384,8 @@ protected:
     ALWAYS_ASSERT(size == 3) << "must be tested on three PEs";
 
     n0 = 3 * rank;
-    graph = dkaminpar::graph::Builder{}
-                .initialize(9, 0, rank, {0, 3, 6, 9})
+    graph = dkaminpar::graph::Builder{MPI_COMM_WORLD}
+                .initialize({0, 3, 6, 9})
                 .create_node(1)
                 .create_node(1)
                 .create_node(1)
@@ -412,8 +412,8 @@ protected:
     ALWAYS_ASSERT(size == 3) << "must be tested on three PEs";
 
     n0 = 3 * rank;
-    graph = dkaminpar::graph::Builder{}
-                .initialize(9, 30, rank, {0, 3, 6, 9})
+    graph = dkaminpar::graph::Builder{MPI_COMM_WORLD}
+                .initialize({0, 3, 6, 9})
                 .create_node(1)
                 .create_edge(1, n0 + 1)
                 .create_edge(1, n0 + 2)
@@ -442,7 +442,7 @@ protected:
     ALWAYS_ASSERT(size == 3) << "must be tested on three PEs";
 
     n0 = rank;
-    auto builder = dkaminpar::graph::Builder{}.initialize(3, 4, rank, {0, 1, 2, 3}).create_node(1);
+    auto builder = dkaminpar::graph::Builder{MPI_COMM_WORLD}.initialize({0, 1, 2, 3}).create_node(1);
 
     if (rank == 0) {
       builder.create_edge(1, 1);
@@ -468,8 +468,8 @@ protected:
     ALWAYS_ASSERT(size == 3) << "must be tested on three PEs";
 
     n0 = 2 * rank;
-    dkaminpar::graph::Builder builder{};
-    builder.initialize(6, 10, rank, {0, 2, 4, 6});
+    dkaminpar::graph::Builder builder{MPI_COMM_WORLD};
+    builder.initialize({0, 2, 4, 6});
     builder.create_node(1);
     if (rank > 0) {
       builder.create_edge(1, prev(n0, 1, 6));

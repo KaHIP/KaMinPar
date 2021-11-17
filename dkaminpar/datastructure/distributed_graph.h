@@ -63,6 +63,21 @@ public:
                          comm} {}
 
   DistributedGraph(scalable_vector<GlobalNodeID> node_distribution, scalable_vector<GlobalEdgeID> edge_distribution,
+                   scalable_vector<EdgeID> nodes, scalable_vector<NodeID> edges, scalable_vector<PEID> ghost_owner,
+                   scalable_vector<GlobalNodeID> ghost_to_global, growt::StaticGhostNodeMapping global_to_ghost,
+                   MPI_Comm comm)
+      : DistributedGraph{std::move(node_distribution),
+                         std::move(edge_distribution),
+                         std::move(nodes),
+                         std::move(edges),
+                         {},
+                         {},
+                         std::move(ghost_owner),
+                         std::move(ghost_to_global),
+                         std::move(global_to_ghost),
+                         comm} {}
+
+  DistributedGraph(scalable_vector<GlobalNodeID> node_distribution, scalable_vector<GlobalEdgeID> edge_distribution,
                    scalable_vector<EdgeID> nodes, scalable_vector<NodeID> edges,
                    scalable_vector<NodeWeight> node_weights, scalable_vector<EdgeWeight> edge_weights,
                    scalable_vector<PEID> ghost_owner, scalable_vector<GlobalNodeID> ghost_to_global,
@@ -114,6 +129,9 @@ public:
   [[nodiscard]] inline GlobalNodeID offset_n(const PEID pe) const { return _node_distribution[pe]; }
   [[nodiscard]] inline GlobalEdgeID offset_m() const { return _offset_m; }
   [[nodiscard]] inline GlobalEdgeID offset_m(const PEID pe) const { return _edge_distribution[pe]; }
+
+  [[nodiscard]] inline bool is_node_weighted() const { return !_node_weights.empty(); }
+  [[nodiscard]] inline bool is_edge_weighted() const { return !_edge_weights.empty(); }
 
   [[nodiscard]] inline NodeWeight total_node_weight() const { return _total_node_weight; }
   [[nodiscard]] inline GlobalNodeWeight global_total_node_weight() const { return _global_total_node_weight; }
@@ -170,8 +188,8 @@ public:
   // Access methods
   [[nodiscard]] inline NodeWeight node_weight(const NodeID u) const {
     ASSERT(u < total_n());
-    ASSERT(u < _node_weights.size());
-    return _node_weights[u];
+    ASSERT(!is_node_weighted() || u < _node_weights.size());
+    return is_node_weighted() ? _node_weights[u] : 1;
   }
 
   [[nodiscard]] inline const auto &node_weights() const { return _node_weights; }
@@ -179,13 +197,14 @@ public:
   // convenient to have this for ghost nodes
   void set_ghost_node_weight(const NodeID ghost_node, const NodeWeight weight) {
     ASSERT(is_ghost_node(ghost_node));
+    ASSERT(is_node_weighted());
     _node_weights[ghost_node] = weight;
   }
 
   [[nodiscard]] inline EdgeWeight edge_weight(const EdgeID e) const {
     ASSERT(e < m());
-    ASSERT(e < _edge_weights.size());
-    return _edge_weights[e];
+    ASSERT(!is_edge_weighted() || e < _edge_weights.size());
+    return is_edge_weighted() ? _edge_weights[e] : 1;
   }
 
   [[nodiscard]] inline const auto &edge_weights() const { return _edge_weights; }
@@ -321,10 +340,16 @@ public:
 
 private:
   inline void init_total_node_weight() {
-    const auto owned_node_weights = std::ranges::take_view{_node_weights, static_cast<long int>(n())};
-    _total_node_weight = shm::parallel::accumulate(owned_node_weights);
+    if (is_node_weighted()) {
+      const auto owned_node_weights = std::ranges::take_view{_node_weights, static_cast<long int>(n())};
+      _total_node_weight = shm::parallel::accumulate(owned_node_weights);
+      _max_node_weight = shm::parallel::max_element(owned_node_weights);
+    } else {
+      _total_node_weight = n();
+      _max_node_weight = 1;
+    }
+
     _global_total_node_weight = mpi::allreduce<GlobalNodeWeight>(_total_node_weight, MPI_SUM, communicator());
-    _max_node_weight = shm::parallel::max_element(owned_node_weights);
     _global_max_node_weight = mpi::allreduce<GlobalNodeWeight>(_max_node_weight, MPI_MAX, communicator());
   }
 

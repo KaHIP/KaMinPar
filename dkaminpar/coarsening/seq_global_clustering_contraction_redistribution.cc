@@ -233,12 +233,9 @@ DistributedGraph build_coarse_graph(const DistributedGraph &graph, HashedGraph &
     }
   }
 
-  //  const EdgeID c_m = next_edge_id;
-  const auto c_global_m = mpi::allreduce<GlobalEdgeID>(next_edge_id, MPI_SUM, graph.communicator());
-
   // now construct the graph
-  graph::Builder builder;
-  builder.initialize(c_global_n, c_global_m, rank, compute_coarse_node_distribution(graph, c_n));
+  graph::Builder builder{graph.communicator()};
+  builder.initialize(compute_coarse_node_distribution(graph, c_n));
 
   for (NodeID u = 0; u < c_n; ++u) {
     builder.create_node(0);

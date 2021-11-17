@@ -41,13 +41,9 @@ protected:
     std::tie(size, rank) = mpi::get_comm_info(MPI_COMM_WORLD);
     ALWAYS_ASSERT(size == 3) << "must be tested on three PEs";
 
-    scalable_vector<GlobalNodeID> node_distribution{0, 2, 4, 6};
-    const GlobalNodeID global_n = 6;
-    const GlobalEdgeID global_m = 6;
-
     n0 = 2 * rank;
-    graph = dkaminpar::graph::Builder()
-                .initialize(global_n, global_m, rank, std::move(node_distribution))
+    graph = dkaminpar::graph::Builder(MPI_COMM_WORLD)
+                .initialize({0, 2, 4, 6})
                 .create_node(1)
                 .create_edge(1, n0 + 1)
                 .create_node(1)
@@ -118,13 +114,9 @@ protected:
     const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
     ALWAYS_ASSERT(size == 3) << "must be tested on three PEs";
 
-    scalable_vector<GlobalNodeID> node_distribution{0, 3, 6, 9};
-    const GlobalNodeID global_n = 9;
-    const GlobalEdgeID global_m = 30;
-
     n0 = 3 * rank;
-    graph = dkaminpar::graph::Builder{}
-                .initialize(global_n, global_m, rank, std::move(node_distribution))
+    graph = dkaminpar::graph::Builder{MPI_COMM_WORLD}
+                .initialize({0, 3, 6, 9})
                 .create_node(1)
                 .create_edge(1, n0 + 1)
                 .create_edge(1, n0 + 2)
