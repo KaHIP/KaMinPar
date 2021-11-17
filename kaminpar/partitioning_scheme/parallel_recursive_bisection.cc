@@ -12,11 +12,9 @@
 
 namespace kaminpar::partitioning {
 ParallelRecursiveBisection::ParallelRecursiveBisection(const Graph &input_graph, const Context &input_ctx)
-    : _input_graph{input_graph},
-      _input_ctx{input_ctx},
-      _current_p_ctx{input_ctx.partition}, //
-      _coarsener{factory::create_coarsener(input_graph, input_ctx.coarsening)},
-      _refiner{factory::create_refiner(input_graph, input_ctx.refinement)},
+    : _input_graph{input_graph}, _input_ctx{input_ctx}, _current_p_ctx{input_ctx.partition}, //
+      _coarsener{factory::create_coarsener(input_graph, input_ctx.coarsening)}, _refiner{factory::create_refiner(
+                                                                                    input_graph, input_ctx.refinement)},
       _balancer{factory::create_balancer(input_graph, input_ctx.partition, input_ctx.refinement)},
       _subgraph_memory{input_graph.n(), input_ctx.partition.k, input_graph.m(), true, true} {}
 
@@ -30,13 +28,17 @@ PartitionedGraph ParallelRecursiveBisection::partition() {
   cio::print_banner("Uncoarsening");
   bool refined;
   p_graph = uncoarsen(std::move(p_graph), refined);
-  if (!refined) { refine(p_graph); }
+  if (!refined) {
+    refine(p_graph);
+  }
   if (p_graph.k() < _input_ctx.partition.k) {
     extend_partition(p_graph, _input_ctx.partition.k);
     refine(p_graph);
   }
 
-  if constexpr (kStatistics) { print_statistics(); }
+  if constexpr (kStatistics) {
+    print_statistics();
+  }
 
   return p_graph;
 }

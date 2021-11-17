@@ -3,15 +3,15 @@
 *
 * @author: Daniel Seemaier
 * @date:   21.09.21
-* @brief:  Greedy refinement algorithm that moves nodes until an infeasible
+* @brief:  Greedy refinement graphutils that moves nodes until an infeasible
 * partition is feasible.
 ******************************************************************************/
-#include "kaminpar/refinement/parallel_balancer.h"
+#include "kaminpar/refinement/greedy_balancer.h"
 
 namespace kaminpar {
-void ParallelBalancer::initialize(const PartitionedGraph &p_graph) { UNUSED(p_graph); }
+void GreedyBalancer::initialize(const PartitionedGraph &p_graph) { UNUSED(p_graph); }
 
-bool ParallelBalancer::balance(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
+bool GreedyBalancer::balance(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
   _p_graph = &p_graph;
   _p_ctx = &p_ctx;
   _stats.reset();
@@ -27,14 +27,14 @@ bool ParallelBalancer::balance(PartitionedGraph &p_graph, const PartitionContext
   const BlockWeight delta = perform_round();
   const NodeWeight new_overload = initial_overload - delta;
 
-  CLOG << "-> Balancer: overload=[" << initial_overload << " --> " << new_overload << "]";
+  LOG << "-> Balancer: overload=[" << initial_overload << " --> " << new_overload << "]";
   DBG << "-> Balancer: cut=" << C(initial_cut, metrics::edge_cut(*_p_graph));
   if (kStatistics) { _stats.print(); }
 
   return new_overload == 0;
 }
 
-BlockWeight ParallelBalancer::perform_round() {
+BlockWeight GreedyBalancer::perform_round() {
   if (kStatistics) {
     _stats.initial_cut = metrics::edge_cut(*_p_graph);
     _stats.initial_overload = metrics::total_overload(*_p_graph, *_p_ctx);
@@ -122,14 +122,14 @@ BlockWeight ParallelBalancer::perform_round() {
   return global_overload_delta;
 }
 
-bool ParallelBalancer::add_to_pq(const BlockID b, const NodeID u) {
+bool GreedyBalancer::add_to_pq(const BlockID b, const NodeID u) {
   ASSERT(b == _p_graph->block(u));
 
   const auto [to, rel_gain] = compute_gain(u, b);
   return add_to_pq(b, u, _p_graph->node_weight(u), rel_gain);
 }
 
-bool ParallelBalancer::add_to_pq(const BlockID b, const NodeID u, const NodeWeight u_weight, const double rel_gain) {
+bool GreedyBalancer::add_to_pq(const BlockID b, const NodeID u, const NodeWeight u_weight, const double rel_gain) {
   ASSERT(u_weight == _p_graph->node_weight(u));
   ASSERT(b == _p_graph->block(u));
 
@@ -153,7 +153,7 @@ bool ParallelBalancer::add_to_pq(const BlockID b, const NodeID u, const NodeWeig
   return false;
 }
 
-void ParallelBalancer::init_pq() {
+void GreedyBalancer::init_pq() {
   SCOPED_TIMER("Initialize balancer PQ");
 
   const BlockID k = _p_graph->k();
@@ -214,7 +214,7 @@ void ParallelBalancer::init_pq() {
   _stats.total_pq_sizes = _pq.size();
 }
 
-[[nodiscard]] std::pair<BlockID, double> ParallelBalancer::compute_gain(const NodeID u, const BlockID u_block) const {
+[[nodiscard]] std::pair<BlockID, double> GreedyBalancer::compute_gain(const NodeID u, const BlockID u_block) const {
   const NodeWeight u_weight = _p_graph->node_weight(u);
   BlockID max_gainer = u_block;
   EdgeWeight max_external_gain = 0;
@@ -252,7 +252,7 @@ void ParallelBalancer::init_pq() {
   return {max_gainer, relative_gain};
 }
 
-bool ParallelBalancer::move_node_if_possible(const NodeID u, const BlockID from, const BlockID to) {
+bool GreedyBalancer::move_node_if_possible(const NodeID u, const BlockID from, const BlockID to) {
   const NodeWeight u_weight = _p_graph->node_weight(u);
   BlockWeight old_weight = _p_graph->block_weight(to);
 
@@ -267,7 +267,7 @@ bool ParallelBalancer::move_node_if_possible(const NodeID u, const BlockID from,
   return false;
 }
 
-bool ParallelBalancer::move_to_random_block(const NodeID u) {
+bool GreedyBalancer::move_to_random_block(const NodeID u) {
   auto &feasible_target_blocks = _feasible_target_blocks.local();
   const BlockID u_block = _p_graph->block(u);
 
@@ -290,7 +290,7 @@ bool ParallelBalancer::move_to_random_block(const NodeID u) {
   return false;
 }
 
-void ParallelBalancer::init_feasible_target_blocks() {
+void GreedyBalancer::init_feasible_target_blocks() {
   if (kStatistics) { ++_stats.num_feasible_target_block_inits; }
 
   auto &blocks = _feasible_target_blocks.local();

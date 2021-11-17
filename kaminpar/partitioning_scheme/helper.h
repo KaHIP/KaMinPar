@@ -7,10 +7,10 @@
  ******************************************************************************/
 #pragma once
 
-#include "kaminpar/algorithm/graph_extraction.h"
 #include "kaminpar/coarsening/i_coarsener.h"
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/definitions.h"
+#include "kaminpar/graphutils/graph_extraction.h"
 #include "kaminpar/initial_partitioning/initial_partitioning_facade.h"
 #include "kaminpar/refinement/i_balancer.h"
 #include "kaminpar/refinement/i_refiner.h"
@@ -33,7 +33,9 @@ struct InitialPartitionerMemoryPool {
 
   [[nodiscard]] std::size_t memory_in_kb() const {
     std::size_t memory = 0;
-    for (const auto &obj : pool) { memory += obj.memory_in_kb(); }
+    for (const auto &obj : pool) {
+      memory += obj.memory_in_kb();
+    }
     return memory;
   }
 

@@ -7,9 +7,9 @@
  ******************************************************************************/
 #pragma once
 
-#include "kaminpar/algorithm/graph_extraction.h"
 #include "kaminpar/context.h"
 #include "kaminpar/datastructure/graph.h"
+#include "kaminpar/graphutils/graph_extraction.h"
 #include "kaminpar/initial_partitioning/initial_partitioning_facade.h"
 #include "kaminpar/partitioning_scheme/helper.h"
 
@@ -19,8 +19,7 @@ namespace kaminpar::partitioning {
 class ParallelSimpleRecursiveBisection {
 public:
   ParallelSimpleRecursiveBisection(const Graph &input_graph, const Context &input_ctx)
-      : _input_graph{input_graph},
-        _input_ctx{input_ctx} {}
+      : _input_graph{input_graph}, _input_ctx{input_ctx} {}
 
   PartitionedGraph partition() {
     DISABLE_TIMERS();

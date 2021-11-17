@@ -3,25 +3,23 @@
  *
  * @author: Daniel Seemaier
  * @date:   29.09.21
- * @brief:  Coarsener that uses a clustering algorithm to coarsen the graph.
+ * @brief:  Coarsener that uses a clustering graphutils to coarsen the graph.
  ******************************************************************************/
 #pragma once
 
-#include "kaminpar/algorithm/graph_contraction.h"
 #include "kaminpar/coarsening/i_coarsener.h"
 #include "kaminpar/context.h"
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/definitions.h"
+#include "kaminpar/graphutils/graph_contraction.h"
 
 namespace kaminpar {
 class ClusteringCoarsener : public ICoarsener {
 public:
   ClusteringCoarsener(std::unique_ptr<IClustering> clustering_algorithm, const Graph &input_graph,
                       const CoarseningContext &c_ctx)
-      : _input_graph{input_graph},
-        _current_graph{&input_graph},
-        _clustering_algorithm{std::move(clustering_algorithm)},
-        _c_ctx{c_ctx} {}
+      : _input_graph{input_graph}, _current_graph{&input_graph},
+        _clustering_algorithm{std::move(clustering_algorithm)}, _c_ctx{c_ctx} {}
 
   ClusteringCoarsener(const ClusteringCoarsener &) = delete;
   ClusteringCoarsener &operator=(const ClusteringCoarsener) = delete;

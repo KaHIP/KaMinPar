@@ -13,10 +13,10 @@
 
 namespace kaminpar {
 /**
- * Clustering algorithm.
+ * Clustering graphutils.
  *
  * Call #coarsen() repeatedly to produce a hierarchy of coarse graph. The coarse graphs are owned by the clustering
- * algorithm. To unroll the graph hierarchy, call #uncoarsen() with a partition of the currently coarsest graph.
+ * graphutils. To unroll the graph hierarchy, call #uncoarsen() with a partition of the currently coarsest graph.
  */
 class ICoarsener {
 public:

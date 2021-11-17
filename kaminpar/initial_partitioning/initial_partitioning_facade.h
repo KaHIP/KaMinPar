@@ -40,7 +40,7 @@ public:
     std::tie(_final_k1, _final_k2) = math::split_integral(final_k);
     _p_ctx = create_bipartition_context(ctx.partition, _graph, _final_k1, _final_k2);
     _refiner = factory::create_initial_refiner(_graph, _p_ctx, _i_ctx.refinement, std::move(_m_ctx.refiner_m_ctx));
-    // O(R * k) initial bisections -> O(n + R * C * k) for the whole algorithm
+    // O(R * k) initial bisections -> O(n + R * C * k) for the whole graphutils
     _num_bipartition_repetitions = std::ceil(_i_ctx.repetition_multiplier * final_k / math::ceil_log2(ctx.partition.k));
   }
 

@@ -122,7 +122,7 @@ protected:
    * Initialize label propagation. Must be called after \c allocate().
    * @param graph Graph for label propagation.
    * @param num_clusters Number of different clusters the nodes are placed in initially. When using label propagation
-   * as refinement algorithm, this is usually the number of blocks. When using as for clustering, it is usually the
+   * as refinement graphutils, this is usually the number of blocks. When using as for clustering, it is usually the
    * number of nodes.
    */
   void initialize(const Graph *graph, const ClusterID num_clusters) {

@@ -12,7 +12,7 @@
 #include "dkaminpar/growt.h"
 #include "dkaminpar/mpi_graph.h"
 #include "dkaminpar/utility/math.h"
-#include "kaminpar/algorithm/parallel_label_propagation.h"
+#include "kaminpar/label_propagation.h"
 
 #include <unordered_map>
 

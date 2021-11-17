@@ -3,7 +3,7 @@
  *
  * @author: Daniel Seemaier
  * @date:   21.09.21
- * @brief:  Sequential local improvement algorithm used to improve an initial
+ * @brief:  Sequential local improvement graphutils used to improve an initial
  * partition.
  ******************************************************************************/
 #include "kaminpar/initial_partitioning/initial_refiner.h"

@@ -11,9 +11,7 @@ namespace kaminpar::partitioning {
 ParallelInitialPartitioner::ParallelInitialPartitioner(const Context &input_ctx,
                                                        GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool,
                                                        TemporaryGraphExtractionBufferPool &ip_extraction_pool)
-    : _input_ctx{input_ctx},
-      _ip_m_ctx_pool{ip_m_ctx_pool},
-      _ip_extraction_pool{ip_extraction_pool} {}
+    : _input_ctx{input_ctx}, _ip_m_ctx_pool{ip_m_ctx_pool}, _ip_extraction_pool{ip_extraction_pool} {}
 
 PartitionedGraph ParallelInitialPartitioner::partition(const ICoarsener *coarsener, const PartitionContext &p_ctx) {
   const std::size_t num_threads = helper::compute_num_threads_for_parallel_ip(_input_ctx);

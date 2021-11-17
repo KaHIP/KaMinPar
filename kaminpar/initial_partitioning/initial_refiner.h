@@ -3,7 +3,7 @@
  *
  * @author: Daniel Seemaier
  * @date:   21.09.21
- * @brief:  Sequential local improvement algorithm used to improve an initial
+ * @brief:  Sequential local improvement graphutils used to improve an initial
  * partition.
  ******************************************************************************/
 #pragma once
@@ -162,7 +162,7 @@ struct BalancedMinCutAcceptancePolicy {
 } // namespace fm
 
 /*!
- * 2-way FM refinement algorithm that uses two priority queues, one for each block. A round of local search is stopped
+ * 2-way FM refinement graphutils that uses two priority queues, one for each block. A round of local search is stopped
  * after 350 fruitless moves, i.e., moves that did not lead to an accepted cut; or after every node was tried to be
  * moved once.
  *

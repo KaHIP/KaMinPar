@@ -1,11 +1,12 @@
 set(KAMINPAR_SOURCE_FILES
-        algorithm/parallel_label_propagation.h
-        algorithm/graph_contraction.cc
-        algorithm/graph_contraction.h
-        algorithm/graph_extraction.cc
-        algorithm/graph_extraction.h
-        algorithm/graph_permutation.cc
-        algorithm/graph_permutation.h
+        label_propagation.h
+        graphutils/graph_contraction.cc
+        graphutils/graph_contraction.h
+        graphutils/graph_extraction.cc
+        graphutils/graph_extraction.h
+        graphutils/graph_permutation.h
+        graphutils/graph_rearrangement.cc
+        graphutils/graph_rearrangement.h
         application/arguments.cc
         application/arguments.h
         application/arguments_parser.h
@@ -56,8 +57,8 @@ set(KAMINPAR_SOURCE_FILES
         partitioning_scheme/partitioning.h
         refinement/i_balancer.h
         refinement/i_refiner.h
-        refinement/parallel_balancer.cc
-        refinement/parallel_balancer.h
+        refinement/greedy_balancer.cc
+        refinement/greedy_balancer.h
         refinement/label_propagation_refiner.h
         refinement/label_propagation_refiner.cc
         utility/strings.cc

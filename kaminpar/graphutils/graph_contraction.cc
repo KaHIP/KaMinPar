@@ -5,7 +5,7 @@
  * @date:   21.09.21
  * @brief:  Contracts a clustering and constructs the coarse graph.
  ******************************************************************************/
-#include "kaminpar/algorithm/graph_contraction.h"
+#include "kaminpar/graphutils/graph_contraction.h"
 
 #include "kaminpar/datastructure/rating_map.h"
 #include "kaminpar/datastructure/ts_navigable_linked_list.h"

@@ -1,6 +1,6 @@
-#include "kaminpar/algorithm/graph_contraction.h"
-#include "kaminpar/algorithm/graph_extraction.h"
-#include "kaminpar/algorithm/graph_permutation.h"
+#include "kaminpar/graphutils/graph_contraction.h"
+#include "kaminpar/graphutils/graph_extraction.h"
+#include "kaminpar/graphutils/graph_rearrangement.h"
 #include "matcher.h"
 #include "tests.h"
 
@@ -120,39 +120,19 @@ TEST(GraphPermutationTest, PermutationByNodeDegreeIsCorrect) {
 
   const auto permutations = graph::sort_by_degree_buckets(nodes);
   const auto &permutation = permutations.old_to_new;
-  EXPECT_THAT(permutation[0], AllOf(Ge(3), Le(4)));
-  EXPECT_THAT(permutation[1], AllOf(Ge(1), Le(2)));
-  EXPECT_THAT(permutation[2], Eq(5));
-  EXPECT_THAT(permutation[3], AllOf(Ge(1), Le(2)));
-  EXPECT_THAT(permutation[4], AllOf(Ge(3), Le(4)));
-  EXPECT_THAT(permutation[5], Eq(0));
-}
-
-TEST(GraphPermutationTest, MovingIsolatedNodesToFrontWorks) {
-  // node 0 1 2 3 4 5 6 7 8 9 10
-  // deg  0 0 1 1 1 0 0 1 1 0 0
-  const StaticArray<EdgeID> nodes = create_static_array<EdgeID>({0, 0, 0, 1, 2, 3, 3, 3, 4, 5, 5, 5});
-  const auto permutations = graph::sort_by_degree_buckets(nodes, false);
-  const auto &permutation = permutations.old_to_new;
-
-  EXPECT_THAT(permutation[0], Le(5));
-  EXPECT_THAT(permutation[1], Le(5));
-  EXPECT_THAT(permutation[2], Ge(6));
-  EXPECT_THAT(permutation[3], Ge(6));
-  EXPECT_THAT(permutation[4], Ge(6));
-  EXPECT_THAT(permutation[5], Le(5));
-  EXPECT_THAT(permutation[6], Le(5));
-  EXPECT_THAT(permutation[7], Ge(6));
-  EXPECT_THAT(permutation[8], Ge(6));
-  EXPECT_THAT(permutation[9], Le(5));
-  EXPECT_THAT(permutation[10], Le(5));
+  EXPECT_THAT(permutation[0], AllOf(Ge(2), Le(3)));
+  EXPECT_THAT(permutation[1], AllOf(Ge(0), Le(1)));
+  EXPECT_THAT(permutation[2], Eq(4));
+  EXPECT_THAT(permutation[3], AllOf(Ge(0), Le(1)));
+  EXPECT_THAT(permutation[4], AllOf(Ge(2), Le(3)));
+  EXPECT_THAT(permutation[5], Eq(05));
 }
 
 TEST(GraphPermutationTest, MovingIsolatedNodesToBackWorks) {
   // node 0 1 2 3 4 5 6 7 8 9 10
   // deg  0 0 1 1 1 0 0 1 1 0 0
   const StaticArray<EdgeID> nodes = create_static_array<EdgeID>({0, 0, 0, 1, 2, 3, 3, 3, 4, 5, 5, 5});
-  const auto permutations = graph::sort_by_degree_buckets(nodes, true);
+  const auto permutations = graph::sort_by_degree_buckets(nodes);
   const auto &permutation = permutations.old_to_new;
 
   EXPECT_THAT(permutation[0], Ge(5));
@@ -184,13 +164,12 @@ TEST(PreprocessingTest, PreprocessingFacadeRemovesIsolatedNodesAndAdaptsEpsilonF
   auto edges = create_static_array<NodeID>({2, 1, 3, 2, 7, 4, 8, 7});
   auto node_weights = create_static_array<NodeWeight>({});
   auto edge_weights = create_static_array<EdgeWeight>({});
-  const NodeWeight total_node_weight = 12;
 
   PartitionContext p_ctx;
   p_ctx.k = 2;
   p_ctx.epsilon = 0.17; // max block weight 7
 
-  graph::rearrange_and_remove_isolated_nodes(true, p_ctx, nodes, edges, node_weights, edge_weights, total_node_weight);
+  graph::rearrange_graph(p_ctx, nodes, edges, node_weights, edge_weights);
 
   EXPECT_THAT(nodes.size(), 7);
   EXPECT_THAT(edges.size(), 8);
@@ -227,30 +206,4 @@ TEST(SequentialGraphExtraction, SimpleSequentialBipartitionExtractionWorks) {
   EXPECT_THAT(positions[1].nodes_start_pos, Eq(4));
   EXPECT_THAT(positions[1].edges_start_pos, Eq(4));
 }
-
-//
-// Pseudo peripheral nodes
-//
-//TEST(PseudoPeripheralTest, FindsPeripheralNodesInConnectedGraph) {
-//  Graph graph = test::graphs::grid(4, 4);
-//  const auto [u, v] = find_far_away_nodes<0>(graph, 1);
-//  EXPECT_THAT(u, Eq(0));
-//  EXPECT_THAT(v, Eq(15));
-//}
-//
-//TEST(PseudoPeripheralTest, FindsPeripheralNodesInUnconnectedGraph) {
-//  Graph graph = test::graphs::empty(2);
-//  const auto [u, v] = find_far_away_nodes<0>(graph, 1);
-//  EXPECT_THAT(u, Eq(0));
-//  EXPECT_THAT(v, Eq(1));
-//}
-//
-//TEST(PseudoPeripheralTest, FindsPeripheralNodesInLargerUnconnectedGraph) {
-//  Graph block0 = test::graphs::grid(16, 16);
-//  Graph block1 = test::graphs::empty(1);
-//  Graph graph = test::merge_graphs({&block0, &block1});
-//  const auto [u, v] = find_far_away_nodes<0>(graph, 1);
-//  EXPECT_THAT(u, Eq(0));
-//  EXPECT_THAT(v, Eq(block0.n())); // first node in block1
-//}
 } // namespace kaminpar

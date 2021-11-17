@@ -12,7 +12,7 @@
 #include "dkaminpar/utility/distributed_metrics.h"
 #include "dkaminpar/utility/math.h"
 #include "dkaminpar/utility/vector_ets.h"
-#include "kaminpar/algorithm/parallel_label_propagation.h"
+#include "kaminpar/label_propagation.h"
 #include "kaminpar/datastructure/marker.h"
 #include "kaminpar/utility/random.h"
 

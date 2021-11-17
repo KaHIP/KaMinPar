@@ -4,7 +4,7 @@
  * @author: Daniel Seemaier
  * @date:   21.09.21
  * @brief:  Initial partitioner that uses a portfolio of initial partitioning
- * algorithms. Each algorithm is repeated multiple times. Algorithms that are
+ * algorithms. Each graphutils is repeated multiple times. Algorithms that are
  * unlikely to beat the best partition found so far are executed less often
  * than promising candidates.
  ******************************************************************************/

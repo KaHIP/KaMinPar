@@ -23,10 +23,10 @@
 inline int sched_getcpu() { return 0; }
 #endif
 
-namespace kaminpar::parallel {
+namespace kaminpar {
+namespace parallel {
 // https://github.com/kahypar/mt-kahypar/blob/master/mt-kahypar/parallel/atomic_wrapper.h
-template<std::integral T>
-class IntegralAtomicWrapper {
+template <std::integral T> class IntegralAtomicWrapper {
 public:
   IntegralAtomicWrapper() = default;
 
@@ -113,10 +113,10 @@ private:
   std::atomic<T> _value;
 };
 
-template<typename InputIterator, typename OutputIterator>
+template <typename InputIterator, typename OutputIterator>
 void prefix_sum(InputIterator first, InputIterator last, OutputIterator result) {
-  using size_t = std::size_t;                   //typename InputIterator::difference_type;
-  using Value = std::decay_t<decltype(*first)>; //typename InputIterator::value_type;
+  using size_t = std::size_t;                   // typename InputIterator::difference_type;
+  using Value = std::decay_t<decltype(*first)>; // typename InputIterator::value_type;
 
   const size_t n = std::distance(first, last);
   tbb::parallel_scan(
@@ -125,36 +125,33 @@ void prefix_sum(InputIterator first, InputIterator last, OutputIterator result) 
         Value temp = sum;
         for (auto i = r.begin(); i < r.end(); ++i) {
           temp += *(first + i);
-          if (is_final_scan) { *(result + i) = temp; }
+          if (is_final_scan) {
+            *(result + i) = temp;
+          }
         }
         return temp;
       },
       [](Value left, Value right) { return left + right; });
 }
 
-template<typename T>
-struct tbb_deleter {
+template <typename T> struct tbb_deleter {
   void operator()(T *p) { scalable_free(p); }
 };
 
-template<typename T>
-using tbb_unique_ptr = std::unique_ptr<T, tbb_deleter<T>>;
+template <typename T> using tbb_unique_ptr = std::unique_ptr<T, tbb_deleter<T>>;
 
-template<typename T>
-tbb_unique_ptr<T> make_unique(const std::size_t size) {
+template <typename T> tbb_unique_ptr<T> make_unique(const std::size_t size) {
   T *ptr = static_cast<T *>(scalable_malloc(sizeof(T) * size));
   return tbb_unique_ptr<T>(ptr, tbb_deleter<T>{});
 }
 
-template<typename T, typename... Args>
-tbb_unique_ptr<T> make_unique(Args &&...args) {
+template <typename T, typename... Args> tbb_unique_ptr<T> make_unique(Args &&...args) {
   void *memory = static_cast<T *>(scalable_malloc(sizeof(T)));
   T *ptr = new (memory) T(std::forward<Args...>(args)...);
   return tbb_unique_ptr<T>(ptr, tbb_deleter<T>{});
 }
 
-template<std::ranges::range Range>
-std::ranges::range_value_t<Range> accumulate(const Range &r) {
+template <std::ranges::range Range> std::ranges::range_value_t<Range> accumulate(const Range &r) {
   using r_size_t = std::ranges::range_difference_t<Range>;
   using value_t = std::ranges::range_size_t<Range>;
 
@@ -168,7 +165,9 @@ std::ranges::range_value_t<Range> accumulate(const Range &r) {
       const Range &r = _r;
       auto ans = _ans;
       auto end = indices.end();
-      for (auto i = indices.begin(); i != end; ++i) { ans += r[i]; }
+      for (auto i = indices.begin(); i != end; ++i) {
+        ans += r[i];
+      }
       _ans = ans;
     }
 
@@ -183,8 +182,7 @@ std::ranges::range_value_t<Range> accumulate(const Range &r) {
   return b._ans;
 }
 
-template<std::ranges::range Range>
-std::ranges::range_value_t<Range> max_element(const Range &r) {
+template <std::ranges::range Range> std::ranges::range_value_t<Range> max_element(const Range &r) {
   using r_size_t = std::ranges::range_difference_t<Range>;
   using value_t = std::ranges::range_size_t<Range>;
 
@@ -198,7 +196,9 @@ std::ranges::range_value_t<Range> max_element(const Range &r) {
       const Range &r = _r;
       auto ans = _ans;
       auto end = indices.end();
-      for (auto i = indices.begin(); i != end; ++i) { ans = std::max<value_t>(ans, r[i]); }
+      for (auto i = indices.begin(); i != end; ++i) {
+        ans = std::max<value_t>(ans, r[i]);
+      }
       _ans = ans;
     }
 
@@ -217,9 +217,11 @@ std::ranges::range_value_t<Range> max_element(const Range &r) {
  * @param buffers Vector of buffers of elements.
  * @param lambda Invoked on each element, in parallel.
  */
-void parallel_for_over_chunks(auto &buffers, auto &&lambda) {
+void chunked_for(auto &buffers, auto &&lambda) {
   std::size_t total_size = 0;
-  for (const auto &buffer : buffers) { total_size += buffer.size(); }
+  for (const auto &buffer : buffers) {
+    total_size += buffer.size();
+  }
 
   tbb::parallel_for(tbb::blocked_range<std::size_t>(0, total_size), [&](const auto r) {
     std::size_t cur = r.begin();
@@ -244,10 +246,41 @@ void parallel_for_over_chunks(auto &buffers, auto &&lambda) {
       }
       ASSERT(current_buf < buffers.size());
       ASSERT(cur_size == buffers[current_buf].size());
-      ASSERT(cur - offset < buffers[current_buf].size()) << V(cur) << V(offset) << V(cur_size) << V(current_buf);
+      ASSERT(cur - offset < buffers[current_buf].size());
       lambda(buffers[current_buf][cur - offset]);
       ++cur;
     }
   });
 }
+
+/*!
+ * Iterate over from..to in parallel, where from..from+x are processed by CPU 0, from+x..from+2x by CPU 1 etc.
+ * The number of CPUs is determined by the maximum concurrency of the current TBB task arena.
+ *
+ * @tparam Index
+ * @tparam Lambda Must take a start and end index and the CPU id.
+ * @param from
+ * @param to
+ * @param lambda Called once for each CPU (in parallel): first element, first invalid element, CPU id
+ */
+template <typename Index, typename Lambda>
+void deterministic_for(const Index from, const Index to, Lambda &&lambda) {
+  static_assert(std::is_invocable_v<Lambda, Index, Index, int>);
+
+  const Index n = to - from;
+  const int p = std::min<int>(tbb::this_task_arena::max_concurrency(), n);
+
+  tbb::parallel_for(static_cast<int>(0), p, [&](const int cpu) {
+    const NodeID chunk = n / p;
+    const NodeID rem = n % p;
+    const NodeID cpu_from = cpu * chunk + std::min(cpu, static_cast<int>(rem));
+    const NodeID cpu_to = cpu_from + ((cpu < static_cast<int>(rem)) ? chunk + 1 : chunk);
+
+    lambda(from + cpu_from, from + cpu_to, cpu);
+  });
+}
+}
+
+template<typename T>
+using Atomic = parallel::IntegralAtomicWrapper<T>;
 } // namespace kaminpar::parallel

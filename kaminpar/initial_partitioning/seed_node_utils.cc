@@ -19,7 +19,7 @@ namespace kaminpar::ip {
  *
  * @tparam seed_node If specified, start from this node instead of a random one (for unit tests).
  * @param graph
- * @param num_iterations Repeat the algorithm this many times for a chance of finding a pair of nodes with even larger
+ * @param num_iterations Repeat the graphutils this many times for a chance of finding a pair of nodes with even larger
  * distance.
  * @return Pair of nodes with large distance between them.
  */

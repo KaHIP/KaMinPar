@@ -7,7 +7,7 @@
  ******************************************************************************/
 #include "dkaminpar/coarsening/local_label_propagation_clustering.h"
 
-#include "kaminpar/algorithm/parallel_label_propagation.h"
+#include "kaminpar/label_propagation.h"
 
 namespace dkaminpar {
 struct DistributedLocalLabelPropagationClusteringConfig : public shm::LabelPropagationConfig {

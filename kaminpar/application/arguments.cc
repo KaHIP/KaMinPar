@@ -14,7 +14,7 @@ namespace kaminpar::app {
 void create_coarsening_context_options(CoarseningContext &c_ctx, Arguments &args, const std::string &name, const std::string &prefix) {
   using namespace std::string_literals;
   args.group(name, prefix)
-      .argument(prefix + "-algorithm", "Coarsening algorithm, possible values: {" + clustering_algorithm_names() + "}.", &c_ctx.algorithm, clustering_algorithm_from_string)
+      .argument(prefix + "-graphutils", "Coarsening graphutils, possible values: {" + clustering_algorithm_names() + "}.", &c_ctx.algorithm, clustering_algorithm_from_string)
         .line("- noop: assign each node to its own cluster, effectively disabling clustering")
         .line("- lp: compute clustering using parallel label propagation")
       .argument(prefix + "-contraction-limit", "Ideally, we always perform a bisection on a graph of size 2 * C.", &c_ctx.contraction_limit, 'C')
@@ -93,9 +93,9 @@ void create_initial_partitioning_context_options(InitialPartitioningContext &i_c
         .line("- sync-parallel: create diversified copies of coarser graphs and process them in lock step")
       .argument(prefix + "-multiplier-exp", "", &i_ctx.multiplier_exponent)
       .argument(prefix + "-rep-multiplier", "Multiplier for the number of attempts at computing an initial bisection.", &i_ctx.repetition_multiplier)
-      .argument(prefix + "-min-repetitions", "Minimum number of attempts at computing an initial bisection (per bipartition algorithm). A bipartitioning algorithm might be invoked less than specified if it is unlikely to find the best cut.", &i_ctx.min_num_repetitions)
-      .argument(prefix + "-min-non-adaptive-repetitions", "Minimum number of attempts at computing an initial bisection (per bipartition algorithm) before excluding bipartitioning algorithms unlikely to find the best cut.", &i_ctx.min_num_non_adaptive_repetitions)
-      .argument(prefix + "-max-repetitions", "Maximum number of attempts at computing an initial bisection (per bipartition algorithm).", &i_ctx.max_num_repetitions)
+      .argument(prefix + "-min-repetitions", "Minimum number of attempts at computing an initial bisection (per bipartition graphutils). A bipartitioning graphutils might be invoked less than specified if it is unlikely to find the best cut.", &i_ctx.min_num_repetitions)
+      .argument(prefix + "-min-non-adaptive-repetitions", "Minimum number of attempts at computing an initial bisection (per bipartition graphutils) before excluding bipartitioning algorithms unlikely to find the best cut.", &i_ctx.min_num_non_adaptive_repetitions)
+      .argument(prefix + "-max-repetitions", "Maximum number of attempts at computing an initial bisection (per bipartition graphutils).", &i_ctx.max_num_repetitions)
       .argument(prefix + "-num-seed-iterations", "Number of attempts at finding good seed nodes (BFS-based bipartition algorithms).", &i_ctx.num_seed_iterations)
       .argument(prefix + "-use-adaptive-epsilon", "If set, use adaptive epsilon for max block weights during IP.", &i_ctx.use_adaptive_epsilon)
       .argument(prefix + "-use-adaptive-bipartitioner-selection", "If set, determine which bipartitioning algorithms are unlikely to produce good results and run them less often than other algorithms.", &i_ctx.use_adaptive_bipartitioner_selection)
@@ -109,7 +109,7 @@ void create_refinement_context_options(RefinementContext &r_ctx, Arguments &args
   using namespace std::string_literals;
 
   args.group(name, prefix)
-      .argument(prefix + "-algorithm", "Refinement algorithm to be used, possible values: {"s + refinement_algorithm_names() + "}.", &r_ctx.algorithm, refinement_algorithm_from_string)
+      .argument(prefix + "-graphutils", "Refinement graphutils to be used, possible values: {"s + refinement_algorithm_names() + "}.", &r_ctx.algorithm, refinement_algorithm_from_string)
       ;
 }
 // clang-format on
@@ -118,7 +118,7 @@ void create_refinement_context_options(RefinementContext &r_ctx, Arguments &args
 void create_fm_refinement_context_options(FMRefinementContext &fm_ctx, Arguments &args, const std::string &name, const std::string &prefix) {
   using namespace std::string_literals;
   args.group(name, prefix)
-      .argument(prefix + "-stopping-rule", "Rule used to determine when to stop the FM algorithm, possible values: {"s + fm_stopping_rule_names() + "}.", &fm_ctx.stopping_rule, fm_stopping_rule_from_string)
+      .argument(prefix + "-stopping-rule", "Rule used to determine when to stop the FM graphutils, possible values: {"s + fm_stopping_rule_names() + "}.", &fm_ctx.stopping_rule, fm_stopping_rule_from_string)
       .argument(prefix + "-num-fruitless-moves", "[Simple stopping rule] Number of fruitless moves after which search is aborted.", &fm_ctx.num_fruitless_moves)
       .argument(prefix + "-alpha", "[Adaptive stopping rule] Alpha.", &fm_ctx.alpha)
       .argument(prefix + "-iterations", "Maximum number of iterations.", &fm_ctx.num_iterations)
@@ -141,7 +141,7 @@ void create_lp_refinement_context_options(LabelPropagationRefinementContext &lp_
 void create_balancer_refinement_context_options(BalancerRefinementContext &b_ctx, Arguments &args, const std::string &name, const std::string &prefix) {
   using namespace std::string_literals;
   args.group(name, prefix)
-      .argument(prefix + "-algorithm", "Balancer algorithm, possible values: {"s + balancing_algorithm_names() + "}.", &b_ctx.algorithm, balancing_algorithm_from_string)
+      .argument(prefix + "-graphutils", "Balancer graphutils, possible values: {"s + balancing_algorithm_names() + "}.", &b_ctx.algorithm, balancing_algorithm_from_string)
       .argument(prefix + "-timepoint", "When do we run the balancer, possible values: {"s + balancing_timepoint_names() + "}.", &b_ctx.timepoint, balancing_timepoint_from_string)
       ;
 }

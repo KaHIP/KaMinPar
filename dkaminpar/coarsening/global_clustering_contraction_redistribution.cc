@@ -123,7 +123,7 @@ compute_mapping(const DistributedGraph &graph,
 
   // map local labels to consecutive coarse node IDs
   scalable_vector<shm::parallel::IntegralAtomicWrapper<GlobalNodeID>> label_mapping(graph.total_n());
-  shm::parallel::parallel_for_over_chunks(in_msg, [&](const NodeID local_label) {
+  shm::parallel::chunked_for(in_msg, [&](const NodeID local_label) {
     ASSERT(local_label < graph.n());
     label_mapping[local_label].store(1, std::memory_order_relaxed);
   });

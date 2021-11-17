@@ -142,12 +142,11 @@ void PartitionContext::print(std::ostream &out, const std::string &prefix) const
   out << prefix << "mode=" << mode << " "                                            //
       << prefix << "epsilon=" << epsilon << " "                                      //
       << prefix << "k=" << k << " "                                                  //
-      << prefix << "remove_isolated_nodes=" << remove_isolated_nodes << " "          //
       << prefix << "fast_initial_partitioning=" << fast_initial_partitioning << " "; //
 }
 
 void CoarseningContext::print(std::ostream &out, const std::string &prefix) const {
-  out << prefix << "algorithm=" << algorithm << " "                                  //
+  out << prefix << "graphutils=" << algorithm << " "                                  //
       << prefix << "contraction_limit=" << contraction_limit << " "                  //
       << prefix << "enforce_contraction_limit=" << enforce_contraction_limit << " "  //
       << prefix << "convergence_threshold=" << convergence_threshold << " "          //
@@ -178,11 +177,11 @@ void FMRefinementContext::print(std::ostream &out, const std::string &prefix) co
 
 void BalancerRefinementContext::print(std::ostream &out, const std::string &prefix) const {
   out << prefix << "timepoint=" << timepoint << " "  //
-      << prefix << "algorithm=" << algorithm << " "; //
+      << prefix << "graphutils=" << algorithm << " "; //
 }
 
 void RefinementContext::print(std::ostream &out, const std::string &prefix) const {
-  out << prefix << "algorithm=" << algorithm << " "; //
+  out << prefix << "graphutils=" << algorithm << " "; //
 
   lp.print(out, prefix + "lp.");
   fm.print(out, prefix + "fm.");
@@ -248,7 +247,6 @@ Context create_default_context() {
       .mode = PartitioningMode::DEEP,
       .epsilon = 0.03,
       .k = 2,
-      .remove_isolated_nodes = true,
       .fast_initial_partitioning = false,
     },
     .coarsening = { // Context -> Coarsening

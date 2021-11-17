@@ -1,10 +1,10 @@
 /*******************************************************************************
-* @file:   graph.h
-*
-* @author: Daniel Seemaier
-* @date:   21.09.21
-* @brief:  Static graph data structure with dynamic partition wrapper.
-******************************************************************************/
+ * @file:   graph.h
+ *
+ * @author: Daniel Seemaier
+ * @date:   21.09.21
+ * @brief:  Static graph data structure with dynamic partition wrapper.
+ ******************************************************************************/
 #pragma once
 
 #include "kaminpar/datastructure/static_array.h"
@@ -204,7 +204,7 @@ private:
 
 bool validate_graph(const Graph &graph);
 
-class ParallelBalancer;
+class GreedyBalancer;
 
 /*!
  * Extends a kaminpar::Graph with a graph partition.
@@ -216,7 +216,7 @@ class ParallelBalancer;
  * block `kInvalidBlockID`.
  */
 class PartitionedGraph {
-  friend ParallelBalancer;
+  friend GreedyBalancer;
 
   static constexpr auto kDebug = false;
 
@@ -271,18 +271,15 @@ public:
   [[nodiscard]] inline bool sorted() const { return _graph->sorted(); }
   // clang-format on
 
-  template<typename Lambda>
-  inline void pfor_nodes(Lambda &&l) const {
+  template <typename Lambda> inline void pfor_nodes(Lambda &&l) const {
     _graph->pfor_nodes(std::forward<Lambda &&>(l));
   }
 
-  template<typename Lambda>
-  inline void pfor_edges(Lambda &&l) const {
+  template <typename Lambda> inline void pfor_edges(Lambda &&l) const {
     _graph->pfor_edges(std::forward<Lambda &&>(l));
   }
 
-  template<typename Lambda>
-  inline void pfor_blocks(Lambda &&l) const {
+  template <typename Lambda> inline void pfor_blocks(Lambda &&l) const {
     tbb::parallel_for(static_cast<BlockID>(0), k(), std::forward<Lambda &&>(l));
   }
 
@@ -293,14 +290,15 @@ public:
   [[nodiscard]] inline auto blocks() const { return std::views::iota(static_cast<BlockID>(0), k()); }
   [[nodiscard]] inline BlockID block(const NodeID u) const { return _partition[u].load(std::memory_order_relaxed); }
 
-  template<bool update_block_weight = true>
-  void set_block(const NodeID u, const BlockID new_b) {
+  template <bool update_block_weight = true> void set_block(const NodeID u, const BlockID new_b) {
     ASSERT(u < n()) << "invalid node id " << u;
     ASSERT(new_b < k()) << "invalid block id " << new_b << " for node " << u;
     DBG << "set_block(" << u << ", " << new_b << ")";
 
     if constexpr (update_block_weight) {
-      if (block(u) != kInvalidBlockID) { _block_weights[block(u)] -= node_weight(u); }
+      if (block(u) != kInvalidBlockID) {
+        _block_weights[block(u)] -= node_weight(u);
+      }
       _block_weights[new_b] += node_weight(u);
     }
 
@@ -322,7 +320,9 @@ public:
       }
     }
 
-    if (success) { _block_weights[from].fetch_sub(delta, std::memory_order_relaxed); }
+    if (success) {
+      _block_weights[from].fetch_sub(delta, std::memory_order_relaxed);
+    }
     return success;
   }
 
@@ -346,7 +346,9 @@ public:
   inline void set_final_ks(scalable_vector<BlockID> final_ks) { _final_k = std::move(final_ks); }
 
   void reinit_block_weights() {
-    for (const BlockID b : blocks()) { _block_weights[b] = 0; }
+    for (const BlockID b : blocks()) {
+      _block_weights[b] = 0;
+    }
     init_block_weights();
   }
 
@@ -357,20 +359,26 @@ private:
     tbb::parallel_for(tbb::blocked_range(static_cast<NodeID>(0), n()), [&](auto &r) {
       auto &local_block_weights = tl_block_weights.local();
       for (NodeID u = r.begin(); u != r.end(); ++u) {
-        if (block(u) != kInvalidBlockID) { local_block_weights[block(u)] += node_weight(u); }
+        if (block(u) != kInvalidBlockID) {
+          local_block_weights[block(u)] += node_weight(u);
+        }
       }
     });
 
     tbb::parallel_for(static_cast<BlockID>(0), k(), [&](const BlockID b) {
       BlockWeight sum = 0;
-      for (auto &local_block_weights : tl_block_weights) { sum += local_block_weights[b]; }
+      for (auto &local_block_weights : tl_block_weights) {
+        sum += local_block_weights[b];
+      }
       _block_weights[b] = sum;
     });
   }
 
   void init_block_weights_seq() {
     for (const NodeID u : nodes()) {
-      if (block(u) != kInvalidBlockID) { _block_weights[block(u)] += node_weight(u); }
+      if (block(u) != kInvalidBlockID) {
+        _block_weights[block(u)] += node_weight(u);
+      }
     }
   }
 

@@ -10,8 +10,7 @@
 namespace kaminpar::partitioning::helper {
 namespace {
 SET_DEBUG(false);
-SET_STATISTICS(false);
-SET_OUTPUT(true);
+SET_STATISTICS_FROM_GLOBAL();
 
 bool should_balance(const BalancingTimepoint configured, const BalancingTimepoint current) {
   return configured == current ||
@@ -24,7 +23,7 @@ void balance(IBalancer *balancer, PartitionedGraph &p_graph, const BalancingTime
   SCOPED_TIMER("Balancing");
 
   if (should_balance(r_ctx.balancer.timepoint, tp)) {
-    CLOG << "-> Balance graph with n=" << p_graph.n() << " m=" << p_graph.m() << " k=" << p_graph.k();
+    LOG << "-> Balance graph with n=" << p_graph.n() << " m=" << p_graph.m() << " k=" << p_graph.k();
     const EdgeWeight cut_before = IFDBG(metrics::edge_cut(p_graph));
     const double imbalance_before = IFDBG(metrics::imbalance(p_graph));
     const bool feasible_before = IFDBG(metrics::is_feasible(p_graph, p_ctx));
@@ -53,10 +52,10 @@ PartitionedGraph uncoarsen_once(ICoarsener *coarsener, PartitionedGraph p_graph,
     const EdgeID m_before = p_graph.m();
     p_graph = coarsener->uncoarsen(std::move(p_graph));
 
-    CLOG << "-> Uncoarsen graph: "           //
-         << "n=" << C(n_before, p_graph.n()) //
-         << "m=" << C(m_before, p_graph.m()) //
-         << "k=" << p_graph.k();             //
+    LOG << "-> Uncoarsen graph: "           //
+        << "n=" << C(n_before, p_graph.n()) //
+        << "m=" << C(m_before, p_graph.m()) //
+        << "k=" << p_graph.k();             //
 
     update_partition_context(current_p_ctx, p_graph);
   }
@@ -70,7 +69,7 @@ void refine(IRefiner *refiner, IBalancer *balancer, PartitionedGraph &p_graph, c
 
   balance(balancer, p_graph, BalancingTimepoint::BEFORE_KWAY_REFINEMENT, current_p_ctx, r_ctx);
 
-  CLOG << "-> Refine graph with n=" << p_graph.n() << " m=" << p_graph.m() << " k=" << p_graph.k();
+  LOG << "-> Refine graph with n=" << p_graph.n() << " m=" << p_graph.m() << " k=" << p_graph.k();
   const EdgeWeight cut_before = IFSTATS(metrics::edge_cut(p_graph));
   refiner->initialize(p_graph.graph());
   refiner->refine(p_graph, current_p_ctx);
@@ -113,7 +112,9 @@ void extend_partition_recursive(const Graph &graph, BlockArray &partition, const
   ASSERT(b[0] < input_ctx.partition.k && b[1] < input_ctx.partition.k);
   NodeID current_node = 0;
   for (std::size_t i = 0; i < partition.size(); ++i) {
-    if (partition[i] == b0) { partition[i] = b[p_graph.block(current_node++)]; }
+    if (partition[i] == b0) {
+      partition[i] = b[p_graph.block(current_node++)];
+    }
   }
   ASSERT(current_node == p_graph.n()) << V(current_node) << V(p_graph.n()) << V(b0) << V(b[0]) << V(b[1]) << V(k);
 
@@ -139,10 +140,10 @@ void extend_partition(PartitionedGraph &p_graph, const BlockID k_prime, const Co
 
   DBG << V(p_graph.final_ks());
 
-  CLOG << "-> Extend from=" << p_graph.k() << " "    //
-       << "to=" << k_prime << " "                    //
-       << "on a graph with n=" << p_graph.n() << " " //
-       << "m=" << p_graph.m();                       //
+  LOG << "-> Extend from=" << p_graph.k() << " "    //
+      << "to=" << k_prime << " "                    //
+      << "on a graph with n=" << p_graph.n() << " " //
+      << "m=" << p_graph.m();                       //
 
   auto extraction = TIMED_SCOPE("Extract subgraphs") { return extract_subgraphs(p_graph, subgraph_memory); };
   const auto &subgraphs = extraction.subgraphs;
@@ -151,7 +152,9 @@ void extend_partition(PartitionedGraph &p_graph, const BlockID k_prime, const Co
 
   START_TIMER("Allocation");
   scalable_vector<BlockArray> subgraph_partitions;
-  for (const auto &subgraph : subgraphs) { subgraph_partitions.emplace_back(subgraph.n()); }
+  for (const auto &subgraph : subgraphs) {
+    subgraph_partitions.emplace_back(subgraph.n());
+  }
   STOP_TIMER();
 
   START_TIMER("Bipartitioning");
@@ -186,24 +189,29 @@ void extend_partition(PartitionedGraph &p_graph, const BlockID k_prime, const Co
   extend_partition(p_graph, k_prime, input_ctx, current_p_ctx, memory, extraction_pool, ip_m_ctx_pool);
 }
 
-bool coarsen_once(ICoarsener *coarsener, const Graph *graph, const Context &input_ctx, PartitionContext &current_p_ctx) {
+bool coarsen_once(ICoarsener *coarsener, const Graph *graph, const Context &input_ctx,
+                  PartitionContext &current_p_ctx) {
   SCOPED_TIMER("Coarsening");
 
   const NodeWeight max_cluster_weight = compute_max_cluster_weight(*graph, input_ctx.partition, input_ctx.coarsening);
   const auto [c_graph, shrunk] = coarsener->compute_coarse_graph(max_cluster_weight, 0);
 
-  CLOG << "-> "                                              //
-       << "n=" << c_graph->n() << " "                        //
-       << "m=" << c_graph->m() << " "                        //
-       << "max_cluster_weight=" << max_cluster_weight << " " //
-       << ((shrunk) ? "" : "==> converged");                 //
+  LOG << "-> "                                              //
+      << "n=" << c_graph->n() << " "                        //
+      << "m=" << c_graph->m() << " "                        //
+      << "max_cluster_weight=" << max_cluster_weight << " " //
+      << ((shrunk) ? "" : "==> converged");                 //
 
-  if (shrunk) { current_p_ctx.setup(*c_graph); } // update graph stats (max node weight)
+  if (shrunk) {
+    current_p_ctx.setup(*c_graph);
+  } // update graph stats (max node weight)
   return shrunk;
 }
 
 BlockID compute_k_for_n(const NodeID n, const Context &input_ctx) {
-  if (n < 2 * input_ctx.coarsening.contraction_limit) { return 2; } // catch special case where log is negative
+  if (n < 2 * input_ctx.coarsening.contraction_limit) {
+    return 2;
+  } // catch special case where log is negative
   const BlockID k_prime = 1 << math::ceil_log2(n / input_ctx.coarsening.contraction_limit);
   return std::clamp(k_prime, static_cast<BlockID>(2), input_ctx.partition.k);
 }
@@ -214,13 +222,17 @@ std::size_t compute_num_copies(const Context &input_ctx, const NodeID n, const b
 
   // sequential base case?
   const NodeID C = input_ctx.coarsening.contraction_limit;
-  if (converged || n <= 2 * C) { return num_threads; }
+  if (converged || n <= 2 * C) {
+    return num_threads;
+  }
 
   // parallel case
   const std::size_t f = 1 << static_cast<std::size_t>(std::ceil(std::log2(1.0 * n / C)));
 
   // continue with coarsening if the graph is still too large
-  if (f > num_threads) { return 1; }
+  if (f > num_threads) {
+    return 1;
+  }
 
   // split into groups
   return num_threads / f;

@@ -5,7 +5,7 @@
  * @date:   21.09.21
  * @brief:  Extracts the subgraphs induced by each block of a partition.
  ******************************************************************************/
-#include "kaminpar/algorithm/graph_extraction.h"
+#include "kaminpar/graphutils/graph_extraction.h"
 
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/datastructure/static_array.h"

@@ -7,7 +7,6 @@
  ******************************************************************************/
 #pragma once
 
-#include "kaminpar/algorithm/graph_permutation.h"
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/definitions.h"
 
@@ -36,7 +35,8 @@ struct MappedFile {
 
 inline int open_file(const std::string &filename) {
   int fd = open(filename.c_str(), O_RDONLY);
-  if (fd < 0) FATAL_PERROR << "Error while opening " << filename;
+  if (fd < 0)
+    FATAL_PERROR << "Error while opening " << filename;
   return fd;
 }
 
@@ -76,11 +76,15 @@ inline void munmap_file_from_disk(const MappedFile &mapped_file) {
 }
 
 inline void skip_spaces(MappedFile &mapped_file) {
-  while (mapped_file.valid_position() && mapped_file.current() == ' ') { mapped_file.advance(); }
+  while (mapped_file.valid_position() && mapped_file.current() == ' ') {
+    mapped_file.advance();
+  }
 }
 
 inline void skip_comment(MappedFile &mapped_file) {
-  while (mapped_file.valid_position() && mapped_file.current() != '\n') { mapped_file.advance(); }
+  while (mapped_file.valid_position() && mapped_file.current() != '\n') {
+    mapped_file.advance();
+  }
   if (mapped_file.valid_position()) {
     ASSERT(mapped_file.current() == '\n');
     mapped_file.advance();
@@ -134,7 +138,9 @@ inline GraphFormat read_graph_header(internal::MappedFile &mapped_file) {
   const bool has_node_weights = (format % 100) / 10;         // == x1x
   const bool has_edge_weights = format % 10;                 // == xx1
 
-  if (has_node_sizes) { LOG_WARNING << "ignoring node sizes"; }
+  if (has_node_sizes) {
+    LOG_WARNING << "ignoring node sizes";
+  }
 
   return {
       .number_of_nodes = number_of_nodes,
@@ -151,8 +157,8 @@ void read_format(const std::string &filename, NodeID &n, EdgeID &m, bool &has_no
 GraphFormat read_format(const std::string &filename);
 void write(const std::string &filename, const Graph &graph, const std::string &comment = "");
 
-template<std::invocable<GraphFormat> GraphFormatCB, std::invocable<std::uint64_t> NextNodeCB,
-         std::invocable<std::uint64_t, std::uint64_t> NextEdgeCB>
+template <std::invocable<GraphFormat> GraphFormatCB, std::invocable<std::uint64_t> NextNodeCB,
+          std::invocable<std::uint64_t, std::uint64_t> NextEdgeCB>
 GraphInfo read_observable(const std::string &filename, GraphFormatCB &&format_cb, NextNodeCB &&next_node_cb,
                           NextEdgeCB &&next_edge_cb) {
   using namespace internal;
@@ -188,7 +194,9 @@ GraphInfo read_observable(const std::string &filename, GraphFormatCB &&format_cb
       }
     }
     if constexpr (stoppable) {
-      if (!next_node_cb(node_weight)) { break; }
+      if (!next_node_cb(node_weight)) {
+        break;
+      }
     } else {
       next_node_cb(node_weight);
     }
@@ -210,23 +218,29 @@ GraphInfo read_observable(const std::string &filename, GraphFormatCB &&format_cb
     }
     info.has_isolated_nodes |= isolated_node;
 
-    if (mapped_file.current() == '\n') { skip_nl(mapped_file); }
+    if (mapped_file.current() == '\n') {
+      skip_nl(mapped_file);
+    }
   }
 
   munmap_file_from_disk(mapped_file);
 
-  if (!read_node_weights) { info.total_node_weight = format.number_of_nodes; }
-  if (!read_edge_weights) { info.total_edge_weight = 2 * format.number_of_edges; }
+  if (!read_node_weights) {
+    info.total_node_weight = format.number_of_nodes;
+  }
+  if (!read_edge_weights) {
+    info.total_edge_weight = 2 * format.number_of_edges;
+  }
   return info;
 }
 } // namespace metis
 
 namespace partition {
-void write(const std::string &filename, const std::vector<parallel::IntegralAtomicWrapper<BlockID>> &partition);
+void write(const std::string &filename, const std::vector<Atomic<BlockID>> &partition);
 void write(const std::string &filename, const PartitionedGraph &p_graph);
-void write(const std::string &filename, const StaticArray<parallel::IntegralAtomicWrapper<BlockID>> &partition,
-           const graph::NodePermutation &permutation);
-void write(const std::string &filename, const PartitionedGraph &p_graph, const graph::NodePermutation &permutation);
+void write(const std::string &filename, const StaticArray<Atomic<BlockID>> &partition,
+           const StaticArray<NodeID> &permutation);
+void write(const std::string &filename, const PartitionedGraph &p_graph, const StaticArray<NodeID> &permutation);
 std::vector<BlockID> read(const std::string &filename);
 } // namespace partition
 } // namespace kaminpar::io

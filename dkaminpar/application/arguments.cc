@@ -36,8 +36,8 @@ void create_coarsening_options(CoarseningContext &c_ctx, kaminpar::Arguments &ar
       .argument(prefix + "-contraction-limit", "Contraction limit", &c_ctx.contraction_limit)
       .argument(prefix + "-use-local-coarsening", "Enable local coarsening before global coarsening.", &c_ctx.use_local_clustering)
       .argument(prefix + "-use-global-coarsening", "Enable global coarsening after local coarsening.", &c_ctx.use_global_clustering)
-      .argument(prefix + "-global-clustering-algorithm", "Clustering algorithm, possible values: {"s + global_clustering_algorithm_names() + "}.", &c_ctx.global_clustering_algorithm, global_clustering_algorithm_from_string)
-      .argument(prefix + "-global-contraction-algorithm", "Contraction algorithm, possible values: {"s + global_contraction_algorithm_names() + "}.", &c_ctx.global_contraction_algorithm, global_contraction_algorithm_from_string)
+      .argument(prefix + "-global-clustering-graphutils", "Clustering graphutils, possible values: {"s + global_clustering_algorithm_names() + "}.", &c_ctx.global_clustering_algorithm, global_clustering_algorithm_from_string)
+      .argument(prefix + "-global-contraction-graphutils", "Contraction graphutils, possible values: {"s + global_contraction_algorithm_names() + "}.", &c_ctx.global_contraction_algorithm, global_contraction_algorithm_from_string)
       .argument(prefix + "-cluster-weight-limit", "Function to compute the cluster weight limit, possible values: {"s + shm::cluster_weight_limit_names() + "}.", &c_ctx.cluster_weight_limit, shm::cluster_weight_limit_from_string)
       .argument(prefix + "-cluster-weight-multiplier", "Multiplier for the cluster weight limit.", &c_ctx.cluster_weight_multiplier)
       ;
@@ -62,7 +62,7 @@ void create_refinement_options(RefinementContext &r_ctx, kaminpar::Arguments &ar
                                const std::string &prefix) {
   // clang-format off
   args.group(name, prefix)
-      .argument(prefix + "-algorithm", "Refinement algorithm, possible values: {"s + kway_refinement_algorithm_names() + "}.", &r_ctx.algorithm, kway_refinement_algorithm_from_string)
+      .argument(prefix + "-graphutils", "Refinement graphutils, possible values: {"s + kway_refinement_algorithm_names() + "}.", &r_ctx.algorithm, kway_refinement_algorithm_from_string)
       ;
   // clang-format on
   create_refinement_label_propagation_options(r_ctx.lp, args, name + " -> Label Propagation", prefix + "-lp");
@@ -72,7 +72,7 @@ void create_initial_partitioning_options(InitialPartitioningContext &i_ctx, kami
                                          const std::string &name, const std::string &prefix) {
   // clang-format off
   args.group(name, prefix)
-      .argument(prefix + "-algorithm", "Initial partitioning algorithm, possible values: {"s + initial_partitioning_algorithm_names() + "}.", &i_ctx.algorithm, initial_partitioning_algorithm_from_string)
+      .argument(prefix + "-graphutils", "Initial partitioning graphutils, possible values: {"s + initial_partitioning_algorithm_names() + "}.", &i_ctx.algorithm, initial_partitioning_algorithm_from_string)
       ;
   // clang-format on
   shm::app::create_algorithm_options(i_ctx.sequential, args, "Initial Partitioning -> KaMinPar -> ", prefix + "i-");

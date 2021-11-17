@@ -10,7 +10,7 @@
 #include "dkaminpar/growt.h"
 #include "dkaminpar/mpi_graph.h"
 #include "dkaminpar/utility/math.h"
-#include "kaminpar/algorithm/parallel_label_propagation.h"
+#include "kaminpar/label_propagation.h"
 
 #include <unordered_map>
 #include <unordered_set>
@@ -438,7 +438,7 @@ private:
     });
 
     // second iteration to set weight in response messages
-    shm::parallel::parallel_for_over_chunks(responses, [&](auto &entry) {
+    shm::parallel::chunked_for(responses, [&](auto &entry) {
       NodeID u;
       std::memcpy(&u, &entry.new_weight, sizeof(NodeID));
       entry.new_weight = cluster_weight(cluster(u));
@@ -498,7 +498,7 @@ private:
     // build _gain_buffer_index and _gain_buffer arrays
     START_TIMER("Build index buffer", TIMER_FINE);
 
-    shm::parallel::parallel_for_over_chunks(join_requests_per_pe, [&](const JoinRequest &request) {
+    shm::parallel::chunked_for(join_requests_per_pe, [&](const JoinRequest &request) {
       const GlobalNodeID global_node = request.global_requested;
       const NodeID local_node = _graph->global_to_local_node(global_node);
       ++_gain_buffer_index[local_node];
@@ -514,7 +514,7 @@ private:
     TIMED_SCOPE("Allocation", TIMER_FINE) { _gain_buffer.resize(_gain_buffer_index[_graph->n() - 1]); };
 
     START_TIMER("Build buffer", TIMER_FINE);
-    shm::parallel::parallel_for_over_chunks(join_requests_per_pe, [&](const JoinRequest &request) {
+    shm::parallel::chunked_for(join_requests_per_pe, [&](const JoinRequest &request) {
       ASSERT(_graph->is_owned_global_node(request.global_requested));
       const NodeID local_requested = _graph->global_to_local_node(request.global_requested);
       ASSERT(local_requested < _gain_buffer_index.size());

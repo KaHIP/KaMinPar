@@ -75,12 +75,12 @@ void CoarseningContext::print(std::ostream &out, const std::string &prefix) cons
 }
 
 void InitialPartitioningContext::print(std::ostream &out, const std::string &prefix) const {
-  out << prefix << "algorithm=" << algorithm << " ";
+  out << prefix << "graphutils=" << algorithm << " ";
   sequential.print(out, prefix + "sequential.");
 }
 
 void RefinementContext::print(std::ostream &out, const std::string &prefix) const {
-  out << prefix << "algorithm=" << algorithm << " ";
+  out << prefix << "graphutils=" << algorithm << " ";
   lp.print(out, prefix + "lp.");
 }
 

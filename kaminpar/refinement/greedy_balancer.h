@@ -3,7 +3,7 @@
  *
  * @author: Daniel Seemaier
  * @date:   21.09.21
- * @brief:  Greedy refinement algorithm that moves nodes until an infeasible
+ * @brief:  Greedy refinement graphutils that moves nodes until an infeasible
  * partition is feasible.
  ******************************************************************************/
 #pragma once
@@ -24,10 +24,9 @@
 #include <tbb/task_arena.h>
 
 namespace kaminpar {
-class ParallelBalancer : public IBalancer {
+class GreedyBalancer : public IBalancer {
   SET_DEBUG(false);
-  SET_STATISTICS(false);
-  SET_OUTPUT(false);
+  SET_STATISTICS_FROM_GLOBAL();
 
 public:
   struct Statistics {
@@ -83,16 +82,16 @@ public:
     }
   };
 
-  ParallelBalancer(const Graph &graph, const BlockID max_k, const RefinementContext &)
+  GreedyBalancer(const Graph &graph, const BlockID max_k, const RefinementContext &)
       : _max_k{max_k},
         _pq{graph.n(), max_k},
         _marker{graph.n()},
         _pq_weight(max_k) {}
 
-  ParallelBalancer(const PartitionedGraph &) = delete;
-  ParallelBalancer(ParallelBalancer &&) noexcept = default;
-  ParallelBalancer &operator=(const ParallelBalancer &) = delete;
-  ParallelBalancer &operator=(ParallelBalancer &&) = delete;
+  GreedyBalancer(const PartitionedGraph &) = delete;
+  GreedyBalancer(GreedyBalancer &&) noexcept = default;
+  GreedyBalancer &operator=(const GreedyBalancer &) = delete;
+  GreedyBalancer &operator=(GreedyBalancer &&) = delete;
 
   void initialize(const PartitionedGraph &p_graph) final;
   bool balance(PartitionedGraph &p_graph, const PartitionContext &p_ctx) final;

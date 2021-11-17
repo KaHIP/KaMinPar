@@ -4,7 +4,7 @@
  * @author: Daniel Seemaier
  * @date:   21.09.21
  * @brief:  Factory functions to instantiate coarsening and local improvement
-* algorithms.
+ * algorithms.
  ******************************************************************************/
 #pragma once
 

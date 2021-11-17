@@ -76,7 +76,6 @@ struct PartitionContext {
   PartitioningMode mode{PartitioningMode::DEEP};
   double epsilon{0.03};
   BlockID k{0};
-  bool remove_isolated_nodes{true};
   bool fast_initial_partitioning{false};
 
   void setup(const Graph &graph);
@@ -127,14 +126,14 @@ struct LabelPropagationCoarseningContext {
 };
 
 struct CoarseningContext {
-  //! Clustering algorithm, e.g., label propagation.
+  //! Clustering graphutils, e.g., label propagation.
   ClusteringAlgorithm algorithm{ClusteringAlgorithm::NOOP};
   LabelPropagationCoarseningContext lp{};
 
   //! Abort coarsening once the number of nodes falls below `2 * contraction_limit`.
   NodeID contraction_limit{0};
 
-  //! Control the clustering algorithm to enforce the contraction limit.
+  //! Control the clustering graphutils to enforce the contraction limit.
   bool enforce_contraction_limit{false};
 
   //! We terminate coarsening once the graph shrunk by at most this factor.

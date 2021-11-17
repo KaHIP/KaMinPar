@@ -3,7 +3,7 @@
  *
  * @author: Daniel Seemaier
  * @date:   29.09.21
- * @brief:  Coarsener that uses a clustering algorithm to coarsen the graph.
+ * @brief:  Coarsener that uses a clustering graphutils to coarsen the graph.
  ******************************************************************************/
 #include "kaminpar/coarsening/cluster_coarsener.h"
 

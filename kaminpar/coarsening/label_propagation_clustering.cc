@@ -7,18 +7,14 @@
  ******************************************************************************/
 #include "kaminpar/coarsening/label_propagation_clustering.h"
 
-#include "kaminpar/algorithm/graph_contraction.h"
-#include "kaminpar/algorithm/parallel_label_propagation.h"
 #include "kaminpar/coarsening/i_clustering.h"
-#include "kaminpar/coarsening/i_coarsener.h"
 #include "kaminpar/context.h"
 #include "kaminpar/datastructure/graph.h"
+#include "kaminpar/label_propagation.h"
 #include "kaminpar/parallel.h"
 #include "kaminpar/utility/timer.h"
 
 #include <memory>
-#include <tbb/enumerable_thread_specific.h>
-#include <tbb/parallel_for.h>
 
 namespace kaminpar {
 //

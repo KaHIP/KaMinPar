@@ -10,9 +10,10 @@
 #include "kaminpar/application/arguments.h"
 #include "kaminpar/context.h"
 #include "kaminpar/datastructure/graph.h"
+#include "kaminpar/graphutils/graph_rearrangement.h"
 #include "kaminpar/io.h"
-#include "kaminpar/partitioning_scheme/partitioning.h"
 #include "kaminpar/metrics.h"
+#include "kaminpar/partitioning_scheme/partitioning.h"
 
 #include <tbb/parallel_for.h>
 
@@ -31,7 +32,7 @@ struct PartitionerBuilderPrivate {
 struct PartitionerPrivate {
   Graph graph;
   Context context;
-  graph::NodePermutations permutations;
+  graph::NodePermutations<StaticArray> permutations;
 
   NodeID n;
   NodeWeight original_total_node_weight;
@@ -96,11 +97,8 @@ Partitioner PartitionerBuilder::rearrange_and_create() {
 
   partitioner._pimpl->context = _pimpl->context;
   partitioner._pimpl->epsilon = _pimpl->context.partition.epsilon;
-  partitioner._pimpl->permutations = graph::rearrange_and_remove_isolated_nodes(true,
-                                                                                partitioner._pimpl->context.partition,
-                                                                                _pimpl->nodes, _pimpl->edges,
-                                                                                _pimpl->node_weights,
-                                                                                _pimpl->edge_weights);
+  partitioner._pimpl->permutations = graph::rearrange_graph(partitioner._pimpl->context.partition, _pimpl->nodes,
+                                                            _pimpl->edges, _pimpl->node_weights, _pimpl->edge_weights);
   partitioner._pimpl->graph = Graph{std::move(_pimpl->nodes), std::move(_pimpl->edges), std::move(_pimpl->node_weights),
                                     std::move(_pimpl->edge_weights), true};
   partitioner._pimpl->context.setup(partitioner._pimpl->graph);
@@ -142,7 +140,9 @@ std::unique_ptr<BlockID[]> finalize_partition(Graph &graph, PartitionedGraph &p_
   // rearrange partition for original graph
   tbb::parallel_for(static_cast<NodeID>(0), restricted_n, [&](const NodeID u) {
     const NodeID u_prime = pimpl->permutations.old_to_new[u];
-    if (u_prime < restricted_n) { new_partition[u] = p_graph.block(u_prime); }
+    if (u_prime < restricted_n) {
+      new_partition[u] = p_graph.block(u_prime);
+    }
   });
 
   const BlockID k = p_graph.k();
@@ -152,7 +152,9 @@ std::unique_ptr<BlockID[]> finalize_partition(Graph &graph, PartitionedGraph &p_
   // place isolated nodes into blocks
   for (NodeID u_prime = restricted_n; u_prime < graph.n(); ++u_prime) {
     const NodeID u = pimpl->permutations.new_to_old[u_prime];
-    while (b + 1 < k && block_weights[b] + graph.node_weight(u_prime) > p_ctx.max_block_weight(b)) { ++b; }
+    while (b + 1 < k && block_weights[b] + graph.node_weight(u_prime) > p_ctx.max_block_weight(b)) {
+      ++b;
+    }
     new_partition[u] = b;
     block_weights[b] += graph.node_weight(u);
   }
