@@ -5,7 +5,7 @@
 * @date:   04.10.21
 * @brief:  Unit tests for contracting locked clusters.
 ******************************************************************************/
-#include "dkaminpar/algorithm/locking_clustering_contraction.h"
+#include "dkaminpar/coarsening/locking_clustering_contraction.h"
 #include "dkaminpar/datastructure/distributed_graph_builder.h"
 #include "dtests/mpi_test.h"
 

@@ -35,7 +35,6 @@ DistributedGraph sort_by_degree_buckets(DistributedGraph graph) {
   shm::graph::build_permuted_graph<scalable_vector, true>(old_nodes, old_edges, old_node_weights, old_edge_weights,
                                                           permutations, new_nodes, new_edges, new_node_weights,
                                                           new_edge_weights);
-
   // communicate new global IDs of ghost nodes
   struct ChangedNodeLabel {
     NodeID old_node_local;
@@ -47,6 +46,7 @@ DistributedGraph sort_by_degree_buckets(DistributedGraph graph) {
         return {.old_node_local = u, .new_node_local = permutations.old_to_new[u]};
       });
 
+  const NodeID n = graph.n();
   auto old_global_to_ghost = graph.take_global_to_ghost(); // TODO cannot be cleared?
   growt::StaticGhostNodeMapping new_global_to_ghost(old_global_to_ghost.capacity());
   auto new_ghost_to_global = graph.take_ghost_to_global(); // can be reused
@@ -56,9 +56,11 @@ DistributedGraph sort_by_degree_buckets(DistributedGraph graph) {
     const GlobalNodeID old_node_global = graph.offset_n(pe) + old_node_local;
     const GlobalNodeID new_node_global = graph.offset_n(pe) + new_node_local;
 
-    const NodeID ghost_node = (*old_global_to_ghost.find(old_node_global)).second;
-    new_global_to_ghost.insert(new_node_global, ghost_node);
-    new_ghost_to_global[ghost_node] = new_node_global;
+    ASSERT(old_global_to_ghost.find(old_node_global + 1) != old_global_to_ghost.end())
+    << V(old_node_local) << V(old_node_global);
+    const NodeID ghost_node = (*old_global_to_ghost.find(old_node_global + 1)).second;
+    new_global_to_ghost.insert(new_node_global + 1, ghost_node);
+    new_ghost_to_global[ghost_node - n] = new_node_global;
   });
 
   return {graph.take_node_distribution(), graph.take_edge_distribution(),

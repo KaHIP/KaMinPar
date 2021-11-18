@@ -1,6 +1,6 @@
 #pragma once
 
-#include "dkaminpar/algorithm/allgather_graph.h"
+#include "dkaminpar/graphutils/allgather_graph.h"
 #include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/datastructure/distributed_graph_builder.h"
 #include "dkaminpar/distributed_definitions.h"
@@ -480,6 +480,49 @@ protected:
     if (rank + 1 < size) {
       builder.create_edge(1, next(n0 + 1, 1, 6));
     }
+    graph = builder.finalize();
+  }
+
+  DistributedGraph graph;
+  GlobalNodeID n0;
+};
+
+// +-------------+
+// +------+      |
+// 0--1-#-2--3-#-4--5
+//        +------+
+class UnsortedDistributedPath : public DistributedGraphFixture {
+protected:
+  void SetUp() override {
+    DistributedGraphFixture::SetUp();
+
+    n0 = 2 * rank;
+
+    dkaminpar::graph::Builder builder{MPI_COMM_WORLD};
+    builder.initialize(2);
+
+    builder.create_node(1);
+    switch (rank) {
+    case 0:
+      builder.create_edge(1, 2);
+      builder.create_edge(1, 4);
+      break;
+
+    case 1:
+      builder.create_edge(1, 0);
+      builder.create_edge(1, 4);
+      break;
+
+    case 2:
+      builder.create_edge(1, 0);
+      builder.create_edge(1, 2);
+      break;
+    }
+    builder.create_edge(1, n0 + 1);
+
+    builder.create_node(1);
+    builder.create_edge(1, n0);
+
     graph = builder.finalize();
   }
 
