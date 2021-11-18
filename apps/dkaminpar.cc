@@ -14,6 +14,7 @@
 #include "dkaminpar/application/arguments.h"
 #include "dkaminpar/distributed_context.h"
 #include "dkaminpar/distributed_io.h"
+#include "dkaminpar/graphutils/rearrange_graph.h"
 #include "dkaminpar/partitioning_scheme/partitioning.h"
 #include "dkaminpar/utility/distributed_metrics.h"
 #include "dkaminpar/utility/distributed_timer.h"
@@ -107,7 +108,7 @@ int main(int argc, char *argv[]) {
   }
 
   // Load graph
-  const auto graph = TIMED_SCOPE("IO") { return dist::io::read_node_balanced(ctx.graph_filename); };
+  auto graph = TIMED_SCOPE("IO") { return dist::io::read_node_balanced(ctx.graph_filename); };
 
   // Print statistics
   {
@@ -128,8 +129,13 @@ int main(int argc, char *argv[]) {
   ctx.setup(graph);
 
   // Perform partitioning
-  const auto p_graph = TIMED_SCOPE("Partitioning") { return dist::partition(graph, ctx); };
+  START_TIMER("Partitioning");
+  START_TIMER("Sort graph");
+  graph = dist::graph::sort_by_degree_buckets(std::move(graph));
+  STOP_TIMER();
+  const auto p_graph = dist::partition(graph, ctx);
   ASSERT([&] { dist::graph::debug::validate_partition(p_graph); });
+  STOP_TIMER();
 
   // Output statistics
   dist::mpi::barrier();

@@ -1,8 +1,10 @@
 set(DKAMINPAR_SOURCE_FILES
         application/arguments.cc
         application/arguments.h
-        algorithm/allgather_graph.cc
-        algorithm/allgather_graph.h
+        graphutils/allgather_graph.cc
+        graphutils/allgather_graph.h
+        graphutils/rearrange_graph.cc
+        graphutils/rearrange_graph.h
         coarsening/contraction_helper.h
         coarsening/local_graph_contraction.cc
         coarsening/local_graph_contraction.h

@@ -7,7 +7,7 @@
  ******************************************************************************/
 #include "dkaminpar/partitioning_scheme/kway.h"
 
-#include "dkaminpar/algorithm/allgather_graph.h"
+#include "dkaminpar/graphutils/allgather_graph.h"
 #include "dkaminpar/coarsening/global_clustering_contraction_redistribution.h"
 #include "dkaminpar/coarsening/seq_global_clustering_contraction_redistribution.h"
 #include "dkaminpar/coarsening/global_clustering_contraction.h"

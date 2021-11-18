@@ -5,7 +5,7 @@
  * @date:   27.10.2021
  * @brief:  Allgather a distributed graph to each PE.
  ******************************************************************************/
-#include "dkaminpar/algorithm/allgather_graph.h"
+#include "dkaminpar/graphutils/allgather_graph.h"
 
 #include "dkaminpar/mpi_wrapper.h"
 #include "kaminpar/metrics.h"

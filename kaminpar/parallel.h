@@ -213,6 +213,10 @@ template <std::ranges::range Range> std::ranges::range_value_t<Range> max_elemen
   return b._ans;
 }
 
+void container_for(const auto &buffer, auto &&lambda) {
+  tbb::parallel_for<std::size_t>(0, buffer.size(), [&](const std::size_t i) { lambda(buffer[i]); });
+}
+
 /*!
  * @param buffers Vector of buffers of elements.
  * @param lambda Invoked on each element, in parallel.
@@ -222,6 +226,8 @@ void chunked_for(auto &buffers, auto &&lambda) {
   for (const auto &buffer : buffers) {
     total_size += buffer.size();
   }
+
+  constexpr bool invocable_with_chunk_id = std::is_invocable_v<decltype(lambda), decltype(buffers[0][0]), int>;
 
   tbb::parallel_for(tbb::blocked_range<std::size_t>(0, total_size), [&](const auto r) {
     std::size_t cur = r.begin();
@@ -247,7 +253,11 @@ void chunked_for(auto &buffers, auto &&lambda) {
       ASSERT(current_buf < buffers.size());
       ASSERT(cur_size == buffers[current_buf].size());
       ASSERT(cur - offset < buffers[current_buf].size());
-      lambda(buffers[current_buf][cur - offset]);
+      if constexpr (invocable_with_chunk_id) {
+        lambda(buffers[current_buf][cur - offset], current_buf);
+      } else {
+        lambda(buffers[current_buf][cur - offset]);
+      }
       ++cur;
     }
   });
@@ -263,8 +273,7 @@ void chunked_for(auto &buffers, auto &&lambda) {
  * @param to
  * @param lambda Called once for each CPU (in parallel): first element, first invalid element, CPU id
  */
-template <typename Index, typename Lambda>
-void deterministic_for(const Index from, const Index to, Lambda &&lambda) {
+template <typename Index, typename Lambda> void deterministic_for(const Index from, const Index to, Lambda &&lambda) {
   static_assert(std::is_invocable_v<Lambda, Index, Index, int>);
 
   const Index n = to - from;
@@ -279,8 +288,7 @@ void deterministic_for(const Index from, const Index to, Lambda &&lambda) {
     lambda(from + cpu_from, from + cpu_to, cpu);
   });
 }
-}
+} // namespace parallel
 
-template<typename T>
-using Atomic = parallel::IntegralAtomicWrapper<T>;
-} // namespace kaminpar::parallel
+template <typename T> using Atomic = parallel::IntegralAtomicWrapper<T>;
+} // namespace kaminpar

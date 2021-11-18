@@ -178,7 +178,7 @@ DistributedGraph read_edge_balanced(const std::string &filename, MPI_Comm const 
           std::move(ghost_owner),
           std::move(ghost_to_global),
           std::move(global_to_ghost),
-          MPI_COMM_WORLD};
+          comm};
 }
 
 void write(const std::string &filename, const DistributedGraph &graph, const bool write_node_weights,
@@ -291,16 +291,10 @@ DistributedGraph read_node_balanced(const std::string &filename, MPI_Comm const 
     }
   });
 
-  return {std::move(node_distribution),
-          std::move(edge_distribution),
-          std::move(nodes),
-          std::move(edges),
-          std::move(ghost_owner),
-          std::move(ghost_to_global),
-          std::move(global_to_ghost),
-          comm};
+  return {std::move(node_distribution), std::move(edge_distribution), std::move(nodes),           std::move(edges),
+          std::move(ghost_owner),       std::move(ghost_to_global),   std::move(global_to_ghost), comm};
 }
 
-DistributedGraph read_edge_balanced(const std::string &filename, MPI_Comm const comm) { return {}; }
+DistributedGraph read_edge_balanced(const std::string &, MPI_Comm const) { return {}; }
 } // namespace binary
 } // namespace dkaminpar::io

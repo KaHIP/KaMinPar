@@ -188,6 +188,25 @@ std::vector<Buffer<Message>> sparse_alltoall_interface_to_pe_get(const Distribut
 }
 
 template <typename Message, template <typename> typename Buffer = scalable_vector>
+std::vector<Buffer<Message>> sparse_alltoall_interface_to_pe_get(const DistributedGraph &graph, auto &&filter,
+                                                                 auto &&builder) {
+  std::vector<Buffer<Message>> recv_buffers(mpi::get_comm_size(graph.communicator()));
+  sparse_alltoall_interface_to_pe<Message, Buffer>(
+      graph, 0, graph.n(), std::forward<decltype(filter)>(filter), std::forward<decltype(builder)>(builder),
+      [&](auto recv_buffer, const PEID pe) { recv_buffers[pe] = std::move(recv_buffer); });
+  return recv_buffers;
+}
+
+template <typename Message, template <typename> typename Buffer = scalable_vector>
+std::vector<Buffer<Message>> sparse_alltoall_interface_to_pe_get(const DistributedGraph &graph, auto &&builder) {
+  std::vector<Buffer<Message>> recv_buffers(mpi::get_comm_size(graph.communicator()));
+  sparse_alltoall_interface_to_pe<Message, Buffer>(
+      graph, 0, graph.n(), SPARSE_ALLTOALL_NOFILTER, std::forward<decltype(builder)>(builder),
+      [&](auto recv_buffer, const PEID pe) { recv_buffers[pe] = std::move(recv_buffer); });
+  return recv_buffers;
+}
+
+template <typename Message, template <typename> typename Buffer = scalable_vector>
 void sparse_alltoall_custom(const DistributedGraph &graph, const NodeID from, const NodeID to, auto &&filter,
                             auto &&builder, auto &&receiver, const bool self = false) {
   using Filter = decltype(filter);

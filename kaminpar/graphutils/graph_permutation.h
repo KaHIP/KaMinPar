@@ -90,6 +90,7 @@ NodePermutations<Container> sort_by_degree_buckets(const Container<EdgeID> &node
 /*!
  * Creates a permuted copy of a graph.
  * @tparam Container
+ * @tparam has_ghost_nodes If true, edge targets may not exist. These are not permuted.
  * @param old_nodes Original nodes array of a static graph.
  * @param old_edges Original edges array of a static graph.
  * @param old_node_weights Original node weights, may be empty.
@@ -100,7 +101,7 @@ NodePermutations<Container> sort_by_degree_buckets(const Container<EdgeID> &node
  * @param new_node_weights New node weights, may be empty iff. the old node weights array is empty.
  * @param new_edge_weights New edge weights, may be empty empty iff. the old edge weights array is empty.
  */
-template <template <typename> typename Container>
+template <template <typename> typename Container, bool has_ghost_nodes = false>
 void build_permuted_graph(const Container<EdgeID> &old_nodes, const Container<NodeID> &old_edges,
                           const Container<NodeWeight> &old_node_weights, const Container<EdgeWeight> &old_edge_weights,
                           const NodePermutations<Container> &permutations, Container<EdgeID> &new_nodes,
@@ -130,7 +131,7 @@ void build_permuted_graph(const Container<EdgeID> &old_nodes, const Container<No
     for (EdgeID e = old_nodes[old_u]; e < old_nodes[old_u + 1]; ++e) {
       const NodeID v = old_edges[e];
       const EdgeID p_e = --new_nodes[u];
-      new_edges[p_e] = permutations.old_to_new[v];
+      new_edges[p_e] = (!has_ghost_nodes || v < n) ? permutations.old_to_new[v] : v;
       if (is_edge_weighted) {
         new_edge_weights[p_e] = old_edge_weights[e];
       }
