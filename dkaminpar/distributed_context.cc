@@ -161,7 +161,7 @@ Context create_default_context() {
     .coarsening = {
       .use_local_clustering = false,
       .use_global_clustering = true,
-      .global_clustering_algorithm = GlobalClusteringAlgorithm::REQUEST_LP,
+      .global_clustering_algorithm = GlobalClusteringAlgorithm::GLOBAL_LP,
       .global_contraction_algorithm = GlobalContractionAlgorithm::REDISTRIBUTE,
       .contraction_limit = 5000,
       .local_lp = {
