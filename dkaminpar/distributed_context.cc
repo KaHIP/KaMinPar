@@ -27,10 +27,9 @@ DEFINE_ENUM_STRING_CONVERSION(GlobalClusteringAlgorithm, global_clustering_algor
 };
 
 DEFINE_ENUM_STRING_CONVERSION(GlobalContractionAlgorithm, global_contraction_algorithm) = {
-    {GlobalContractionAlgorithm::REDISTRIBUTE_SEQ, "redistribute-seq"},
-    {GlobalContractionAlgorithm::REDISTRIBUTE, "redistribute"},
-    {GlobalContractionAlgorithm::KEEP_SEQ, "keep-seq"},
-    {GlobalContractionAlgorithm::KEEP, "keep"},
+    {GlobalContractionAlgorithm::NO_MIGRATION, "no-migration"},
+    {GlobalContractionAlgorithm::MINIMAL_MIGRATION, "minimal-migration"},
+    {GlobalContractionAlgorithm::FULL_MIGRATION, "full-migration"},
 };
 
 DEFINE_ENUM_STRING_CONVERSION(InitialPartitioningAlgorithm, initial_partitioning_algorithm) = {
@@ -162,7 +161,7 @@ Context create_default_context() {
       .use_local_clustering = false,
       .use_global_clustering = true,
       .global_clustering_algorithm = GlobalClusteringAlgorithm::GLOBAL_LP,
-      .global_contraction_algorithm = GlobalContractionAlgorithm::REDISTRIBUTE,
+      .global_contraction_algorithm = GlobalContractionAlgorithm::MINIMAL_MIGRATION,
       .contraction_limit = 5000,
       .local_lp = {
         .num_iterations = 1,

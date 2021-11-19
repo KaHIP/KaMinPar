@@ -7,11 +7,9 @@
  ******************************************************************************/
 #include "dkaminpar/partitioning_scheme/kway.h"
 
-#include "dkaminpar/graphutils/allgather_graph.h"
-#include "dkaminpar/coarsening/global_clustering_contraction_redistribution.h"
-#include "dkaminpar/coarsening/seq_global_clustering_contraction_redistribution.h"
 #include "dkaminpar/coarsening/global_clustering_contraction.h"
 #include "dkaminpar/factories.h"
+#include "dkaminpar/graphutils/allgather_graph.h"
 #include "dkaminpar/utility/distributed_metrics.h"
 #include "kaminpar/metrics.h"
 #include "kaminpar/utility/timer.h"
@@ -46,25 +44,8 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
     auto clustering_algorithm = factory::create_global_clustering(_ctx);
     auto &clustering = clustering_algorithm->compute_clustering(*c_graph, max_cluster_weight);
 
-    auto [contracted_graph, mapping] = [&]() -> std::pair<DistributedGraph, coarsening::GlobalMapping> {
-      switch (_ctx.coarsening.global_contraction_algorithm) {
-      case GlobalContractionAlgorithm::REDISTRIBUTE_SEQ: {
-        auto [tmp_graph, tmp_mapping, m_ctx] =
-            coarsening::contract_global_clustering_redistribute_sequential(*c_graph, clustering);
-        return {std::move(tmp_graph), std::move(tmp_mapping)};
-      }
-      case GlobalContractionAlgorithm::REDISTRIBUTE: {
-        auto [tmp_graph, tmp_mapping] = coarsening::contract_global_clustering_redistribute(*c_graph, clustering);
-        return {std::move(tmp_graph), std::move(tmp_mapping)};
-      }
-      case GlobalContractionAlgorithm::KEEP_SEQ:
-      case GlobalContractionAlgorithm::KEEP: {
-        auto [tmp_graph, tmp_mapping] = coarsening::contract_global_clustering(*c_graph, clustering);
-        return {std::move(tmp_graph), std::move(tmp_mapping)};
-      }
-      }
-      __builtin_unreachable();
-    }();
+    auto [contracted_graph, mapping] =
+        coarsening::contract_global_clustering(*c_graph, clustering, _ctx.coarsening.global_contraction_algorithm);
     HEAVY_ASSERT(graph::debug::validate(contracted_graph));
 
     const bool converged = contracted_graph.global_n() == c_graph->global_n();
@@ -72,9 +53,10 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
     mapping_hierarchy.push_back(std::move(mapping));
     c_graph = &graph_hierarchy.back();
 
-    auto max_node_weight_str = mpi::gather_statistics_str<GlobalNodeWeight>(c_graph->max_node_weight(), c_graph->communicator());
-    LOG << "=> n=" << c_graph->global_n() << " m=" << c_graph->global_m()
-        << " max_node_weight=[" << max_node_weight_str << "] max_cluster_weight=" << max_cluster_weight;
+    auto max_node_weight_str =
+        mpi::gather_statistics_str<GlobalNodeWeight>(c_graph->max_node_weight(), c_graph->communicator());
+    LOG << "=> n=" << c_graph->global_n() << " m=" << c_graph->global_m() << " max_node_weight=[" << max_node_weight_str
+        << "] max_cluster_weight=" << max_cluster_weight;
     graph::print_verbose_stats(*c_graph);
     if (converged) {
       LOG << "==> Coarsening converged";

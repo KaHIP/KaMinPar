@@ -25,10 +25,9 @@ enum class GlobalClusteringAlgorithm {
 };
 
 enum class GlobalContractionAlgorithm {
-  REDISTRIBUTE_SEQ,
-  REDISTRIBUTE,
-  KEEP_SEQ,
-  KEEP,
+  NO_MIGRATION,
+  MINIMAL_MIGRATION,
+  FULL_MIGRATION,
 };
 
 enum class InitialPartitioningAlgorithm {

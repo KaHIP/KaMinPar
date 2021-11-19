@@ -8,7 +8,6 @@
  ******************************************************************************/
 #include "dkaminpar/coarsening/global_clustering_contraction.h"
 
-#include "dkaminpar/coarsening/coarsening.h"
 #include "dkaminpar/coarsening/contraction_helper.h"
 #include "dkaminpar/growt.h"
 #include "dkaminpar/mpi_graph.h"
@@ -99,9 +98,13 @@ find_used_cluster_ids_per_pe(const DistributedGraph &graph, const auto &clusteri
 }
 
 // global mapping, global number of coarse nodes
-std::pair<scalable_vector<shm::parallel::IntegralAtomicWrapper<GlobalNodeID>>, scalable_vector<GlobalNodeID>>
-compute_mapping(const DistributedGraph &graph,
-                const scalable_vector<shm::parallel::IntegralAtomicWrapper<GlobalNodeID>> &clustering) {
+struct MappingResult {
+  GlobalMapping mapping;
+  scalable_vector<GlobalNodeID> distribution;
+};
+
+MappingResult compute_mapping(const DistributedGraph &graph,
+                              const scalable_vector<shm::parallel::IntegralAtomicWrapper<GlobalNodeID>> &clustering) {
   const auto size = mpi::get_comm_size(graph.communicator());
   const auto rank = mpi::get_comm_rank(graph.communicator());
 
@@ -174,8 +177,10 @@ compute_mapping(const DistributedGraph &graph,
   return {std::move(label_mapping), std::move(c_distribution)};
 }
 
+template <typename CoarseNodeOwnerCallback>
 DistributedGraph build_coarse_graph(const DistributedGraph &graph, const auto &mapping,
-                                    scalable_vector<GlobalNodeID> c_node_distribution) {
+                                    scalable_vector<GlobalNodeID> c_node_distribution,
+                                    CoarseNodeOwnerCallback &&compute_coarse_node_owner) {
   const PEID size = mpi::get_comm_size(graph.communicator());
   const PEID rank = mpi::get_comm_rank(graph.communicator());
 
@@ -184,13 +189,6 @@ DistributedGraph build_coarse_graph(const DistributedGraph &graph, const auto &m
   const auto from = c_node_distribution[rank];
   const auto to = c_node_distribution[rank + 1];
   STOP_TIMER(TIMER_FINE);
-
-  // lambda to map global coarse node IDs to their owner PE
-  auto compute_coarse_node_owner = [size, c_node_distribution](const GlobalNodeID coarse_global_node) -> PEID {
-    auto it = std::upper_bound(c_node_distribution.begin() + 1, c_node_distribution.end(), coarse_global_node);
-    ASSERT(it != c_node_distribution.end()) << V(coarse_global_node) << V(c_node_distribution);
-    return static_cast<PEID>(std::distance(c_node_distribution.begin(), it) - 1);
-  };
 
   // next, send each PE the edges it owns in the coarse graph
   // first, count the number of edges for each PE
@@ -312,11 +310,13 @@ DistributedGraph build_coarse_graph(const DistributedGraph &graph, const auto &m
   STOP_TIMER(TIMER_FINE);
 
   // now every PE has an edge list with all edges -- so we can build the graph from it
-  return build_distributed_graph_from_edge_list(edge_list, std::move(c_node_distribution), graph.communicator(),
-                                                [&](const NodeID u) {
-                                                  ASSERT(u < node_weights.size());
-                                                  return node_weights[u].load(std::memory_order_relaxed);
-                                                }, compute_coarse_node_owner);
+  return build_distributed_graph_from_edge_list(
+      edge_list, std::move(c_node_distribution), graph.communicator(),
+      [&](const NodeID u) {
+        ASSERT(u < node_weights.size());
+        return node_weights[u].load(std::memory_order_relaxed);
+      },
+      compute_coarse_node_owner);
 }
 
 void update_ghost_node_weights(DistributedGraph &graph) {
@@ -340,19 +340,183 @@ void update_ghost_node_weights(DistributedGraph &graph) {
 }
 } // namespace
 
-GlobalContractionResult contract_global_clustering(const DistributedGraph &graph, const GlobalClustering &clustering) {
+GlobalContractionResult contract_global_clustering_no_migration(const DistributedGraph &graph,
+                                                                const GlobalClustering &clustering) {
   SCOPED_TIMER("Contraction");
 
   START_TIMER("Compute mapping", TIMER_FINE);
-  auto [mapping, c_node_distribution] = compute_mapping(graph, clustering);
+  auto mapping_result = compute_mapping(graph, clustering);
+  auto &mapping = mapping_result.mapping;
+  auto &distribution = mapping_result.distribution;
   STOP_TIMER(TIMER_FINE);
+
   START_TIMER("Build coarse graph", TIMER_FINE);
-  auto c_graph = build_coarse_graph(graph, mapping, std::move(c_node_distribution));
+  auto c_graph = build_coarse_graph(graph, mapping, distribution, [&distribution](const GlobalNodeID node) {
+    const auto it = std::upper_bound(distribution.begin() + 1, distribution.end(), node);
+    return static_cast<PEID>(std::distance(distribution.begin(), it) - 1);
+  });
   STOP_TIMER(TIMER_FINE);
+
   START_TIMER("Update ghost node weights", TIMER_FINE);
   update_ghost_node_weights(c_graph);
   STOP_TIMER(TIMER_FINE);
 
   return {std::move(c_graph), std::move(mapping)};
+}
+
+GlobalContractionResult contract_global_clustering_minimal_migration(const DistributedGraph &graph,
+                                                                     const GlobalClustering &clustering) {
+  SCOPED_TIMER("Contraction");
+
+  START_TIMER("Compute mapping", TIMER_FINE);
+  auto mapping_result = compute_mapping(graph, clustering);
+  auto &mapping = mapping_result.mapping;
+  auto &distribution = mapping_result.distribution;
+  STOP_TIMER(TIMER_FINE);
+
+  START_TIMER("Build coarse graph", TIMER_FINE);
+  auto c_graph = build_coarse_graph(graph, mapping, distribution, [&distribution](const GlobalNodeID node) {
+    const auto it = std::upper_bound(distribution.begin() + 1, distribution.end(), node);
+    return static_cast<PEID>(std::distance(distribution.begin(), it) - 1);
+  });
+  STOP_TIMER(TIMER_FINE);
+
+  START_TIMER("Update ghost node weights", TIMER_FINE);
+  update_ghost_node_weights(c_graph);
+  STOP_TIMER(TIMER_FINE);
+
+  return {std::move(c_graph), std::move(mapping)};
+}
+
+GlobalContractionResult contract_global_clustering_full_migration(const DistributedGraph &graph,
+                                                                  const GlobalClustering &clustering) {
+  SCOPED_TIMER("Contraction");
+
+  START_TIMER("Compute mapping", TIMER_FINE);
+  auto mapping_result = compute_mapping(graph, clustering);
+  auto &mapping = mapping_result.mapping;
+  auto &distribution = mapping_result.distribution;
+  STOP_TIMER(TIMER_FINE);
+
+  START_TIMER("Build coarse graph", TIMER_FINE);
+  const PEID size = mpi::get_comm_size(graph.communicator());
+  const GlobalNodeID c_global_n = distribution.back();
+
+  // create a new node distribution where nodes are evenly distributed across PEs
+  auto migrated_distribution =
+      create_perfect_distribution_from_global_count<GlobalNodeID>(c_global_n, graph.communicator());
+
+  auto c_graph = build_coarse_graph(graph, mapping, migrated_distribution, [size, c_global_n](const GlobalNodeID node) {
+    return math::compute_local_range_rank<PEID>(c_global_n, size, node);
+  });
+  STOP_TIMER(TIMER_FINE);
+
+  START_TIMER("Update ghost node weights", TIMER_FINE);
+  update_ghost_node_weights(c_graph);
+  STOP_TIMER(TIMER_FINE);
+
+  return {std::move(c_graph), std::move(mapping)};
+}
+
+GlobalContractionResult contract_global_clustering(const DistributedGraph &graph, const GlobalClustering &clustering,
+                                                   const GlobalContractionAlgorithm algorithm) {
+  switch (algorithm) {
+  case GlobalContractionAlgorithm::NO_MIGRATION:
+    return contract_global_clustering_no_migration(graph, clustering);
+  case GlobalContractionAlgorithm::MINIMAL_MIGRATION:
+    return contract_global_clustering_minimal_migration(graph, clustering);
+  case GlobalContractionAlgorithm::FULL_MIGRATION:
+    return contract_global_clustering_full_migration(graph, clustering);
+  }
+  __builtin_unreachable();
+}
+
+DistributedPartitionedGraph project_global_contracted_graph(const DistributedGraph &fine_graph,
+                                                            DistributedPartitionedGraph coarse_graph,
+                                                            const GlobalMapping &fine_to_coarse) {
+  const PEID size = mpi::get_comm_size(fine_graph.communicator());
+
+  // find unique coarse_graph node IDs of fine_graph nodes
+  auto resolve_coarse_node = [&](const GlobalNodeID coarse_node) {
+    ASSERT(coarse_node < coarse_graph.global_n());
+    const PEID owner = coarse_graph.find_owner_of_global_node(coarse_node);
+    const NodeID local = static_cast<NodeID>(coarse_node - coarse_graph.offset_n(owner));
+    return std::make_pair(owner, local);
+  };
+
+  auto used_coarse_nodes = find_used_cluster_ids_per_pe(fine_graph, fine_to_coarse, resolve_coarse_node);
+
+  auto &used_coarse_nodes_map = used_coarse_nodes.first;
+  auto &used_coarse_nodes_vec = used_coarse_nodes.second;
+
+  // send requests for block IDs
+  const auto reqs =
+      mpi::sparse_alltoall_get<NodeID, scalable_vector>(used_coarse_nodes_vec, fine_graph.communicator(), true);
+
+  // build response messages
+  std::vector<scalable_vector<BlockID>> resps;
+  for (PEID pe = 0; pe < size; ++pe) {
+    resps.emplace_back(reqs[pe].size());
+  }
+
+  tbb::parallel_for<std::size_t>(0, reqs.size(), [&](const std::size_t i) {
+    tbb::parallel_for<std::size_t>(0, reqs[i].size(), [&](const std::size_t j) {
+      ASSERT(coarse_graph.is_owned_node(reqs[i][j]));
+      resps[i][j] = coarse_graph.block(reqs[i][j]);
+    });
+  });
+
+  // exchange messages and use used_coarse_nodes_map to store block IDs
+  static_assert(std::numeric_limits<BlockID>::digits <= std::numeric_limits<NodeID>::digits);
+  mpi::sparse_alltoall<BlockID, scalable_vector>(
+      resps,
+      [&](const auto buffer, const PEID pe) {
+        tbb::parallel_for<std::size_t>(0, buffer.size(), [&](const std::size_t i) {
+          ASSERT(static_cast<std::size_t>(pe) < used_coarse_nodes_map.size());
+          ASSERT(static_cast<std::size_t>(pe) < reqs.size());
+          ASSERT(i < used_coarse_nodes_vec[pe].size()) << V(i) << V(pe) << V(used_coarse_nodes_vec[pe].size());
+
+          UsedClustersMap::accessor accessor;
+          [[maybe_unused]] const bool found = used_coarse_nodes_map[pe].find(accessor, used_coarse_nodes_vec[pe][i]);
+          ASSERT(found);
+          accessor->second = buffer[i];
+        });
+      },
+      fine_graph.communicator(), true);
+
+  // assign block IDs to fine nodes
+  scalable_vector<Atomic<BlockID>> fine_partition(fine_graph.total_n());
+
+  fine_graph.pfor_nodes([&](const NodeID u) {
+    const auto [owner, local] = resolve_coarse_node(fine_to_coarse[u]);
+
+    UsedClustersMap::accessor accessor;
+    [[maybe_unused]] const bool found = used_coarse_nodes_map[owner].find(accessor, local);
+    ASSERT(found);
+
+    fine_partition[u] = accessor->second;
+  });
+
+  // exchange ghost node labels
+  struct GhostNodeLabel {
+    NodeID local_node_on_sender;
+    BlockID block;
+  };
+
+  mpi::graph::sparse_alltoall_interface_to_pe<GhostNodeLabel>(
+      fine_graph,
+      [&](const NodeID u) -> GhostNodeLabel {
+        return {u, fine_partition[u]};
+      },
+      [&](const auto buffer, const PEID pe) {
+        tbb::parallel_for<std::size_t>(0, buffer.size(), [&](const std::size_t i) {
+          const auto &[local_node_on_sender, block] = buffer[i];
+          const GlobalNodeID global_node = fine_graph.offset_n(pe) + local_node_on_sender;
+          const NodeID local_node = fine_graph.global_to_local_node(global_node);
+          fine_partition[local_node] = block;
+        });
+      });
+
+  return {&fine_graph, coarse_graph.k(), std::move(fine_partition), coarse_graph.take_block_weights()};
 }
 } // namespace dkaminpar::coarsening

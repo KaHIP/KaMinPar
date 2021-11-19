@@ -7,8 +7,6 @@
  * how the contract graph is distributed across PEs.
  ******************************************************************************/
 #include "dkaminpar/coarsening/global_clustering_contraction.h"
-#include "dkaminpar/coarsening/global_clustering_contraction_redistribution.h"
-#include "dkaminpar/coarsening/seq_global_clustering_contraction_redistribution.h"
 
 #include "dkaminpar/datastructure/distributed_graph_builder.h"
 #include "dtests/mpi_test.h"
@@ -27,27 +25,27 @@ using namespace fixtures3PE;
 
 using Clustering = coarsening::GlobalClustering;
 
-struct GlobalClusteringContractionRedistribution {
-  static auto contract_clustering(const DistributedGraph &graph, const Clustering &clustering) {
-    return coarsening::contract_global_clustering_redistribute(graph, clustering);
-  }
-  bool redistribute = true;
-};
+// TODO refactor `redistribute` member
 
-struct SequentialGlobalClusteringContractionRedistribution {
+struct GlobalClusteringContractionNoMigration {
   static auto contract_clustering(const DistributedGraph &graph, const Clustering &clustering) {
-    auto [c_graph, c_mapping, m_ctx] =
-        coarsening::contract_global_clustering_redistribute_sequential(graph, clustering, {});
-    return std::make_pair(std::move(c_graph), std::move(c_mapping));
-  }
-  bool redistribute = true;
-};
-
-struct GlobalClusteringContraction {
-  static auto contract_clustering(const DistributedGraph &graph, const Clustering &clustering) {
-    return coarsening::contract_global_clustering(graph, clustering);
+    return coarsening::contract_global_clustering(graph, clustering, GlobalContractionAlgorithm::NO_MIGRATION);
   }
   bool redistribute = false;
+};
+
+struct GlobalClusteringContractionMinimalMigration {
+  static auto contract_clustering(const DistributedGraph &graph, const Clustering &clustering) {
+    return coarsening::contract_global_clustering(graph, clustering, GlobalContractionAlgorithm::MINIMAL_MIGRATION);
+  }
+  bool redistribute = false;
+};
+
+struct GlobalClusteringContractionFullMigration {
+  static auto contract_clustering(const DistributedGraph &graph, const Clustering &clustering) {
+    return coarsening::contract_global_clustering(graph, clustering, GlobalContractionAlgorithm::FULL_MIGRATION);
+  }
+  bool redistribute = true;
 };
 
 template <typename Contractor> struct Typed { Contractor contractor; };
@@ -57,8 +55,9 @@ class EmptyGraph : public DistributedGraphWith9NodesAnd0Edges, public Typed<Cont
 template <typename Contractor> class NullGraph : public DistributedNullGraph, public Typed<Contractor> {};
 template <typename Contractor> class PathGraph : public DistributedPathTwoNodesPerPE, public Typed<Contractor> {};
 
-using Contractors = ::testing::Types<GlobalClusteringContractionRedistribution,
-                                     SequentialGlobalClusteringContractionRedistribution, GlobalClusteringContraction>;
+using Contractors =
+    ::testing::Types<GlobalClusteringContractionNoMigration, GlobalClusteringContractionMinimalMigration,
+                     GlobalClusteringContractionFullMigration>;
 
 TYPED_TEST_SUITE(TrianglesGraph, Contractors);
 TYPED_TEST_SUITE(EmptyGraph, Contractors);
@@ -95,10 +94,8 @@ TYPED_TEST(TrianglesGraph, ContractSingletonClusters) {
   const auto [c_graph, c_mapping] = this->contractor.contract_clustering(this->graph, clustering);
   c_graph.print();
 
-  // not affected by this->contractor.redistribute
   EXPECT_EQ(c_graph.n(), this->graph.n()); // since the graph is already evenly distributed
   EXPECT_EQ(c_graph.total_n(), this->graph.total_n());
-
   EXPECT_EQ(c_graph.global_n(), this->graph.global_n());
   EXPECT_EQ(c_graph.global_m(), this->graph.global_m());
   EXPECT_EQ(c_graph.total_node_weight(), this->graph.total_node_weight());
@@ -227,7 +224,6 @@ TYPED_TEST(TrianglesGraph, ContractLocalTriangles) {
       EXPECT_THAT(c_graph.m(), Eq(0));
     }
   }
-
 
   EXPECT_THAT(c_graph.global_m(), Eq(6));
   EXPECT_THAT(c_graph.global_n(), Eq(3));

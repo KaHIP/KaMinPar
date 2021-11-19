@@ -6,17 +6,13 @@ set(DKAMINPAR_SOURCE_FILES
         graphutils/rearrange_graph.cc
         graphutils/rearrange_graph.h
         coarsening/contraction_helper.h
-        coarsening/local_graph_contraction.cc
-        coarsening/local_graph_contraction.h
-        coarsening/seq_global_clustering_contraction_redistribution.cc
-        coarsening/seq_global_clustering_contraction_redistribution.h
-        coarsening/global_clustering_contraction_redistribution.cc
-        coarsening/global_clustering_contraction_redistribution.h
+        coarsening/local_clustering_contraction.cc
+        coarsening/local_clustering_contraction.h
+        coarsening/global_clustering_contraction.cc
+        coarsening/global_clustering_contraction.h
         coarsening/i_clustering.h
         coarsening/local_label_propagation_clustering.cc
         coarsening/local_label_propagation_clustering.h
-        coarsening/global_clustering_contraction.cc
-        coarsening/global_clustering_contraction.h
         coarsening/locking_label_propagation_clustering.cc
         coarsening/locking_label_propagation_clustering.h
         coarsening/global_label_propagation_clustering.cc

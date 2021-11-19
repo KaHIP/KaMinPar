@@ -6,7 +6,7 @@
  * @brief:  Unit tests for graph projects that do not make any assumptions on
  * how the contracted graph is distributed across PEs.
  ******************************************************************************/
-#include "dkaminpar/coarsening/global_clustering_contraction_redistribution.h"
+#include "dkaminpar/coarsening/global_clustering_contraction.h"
 
 #include "dtests/mpi_test.h"
 
@@ -23,7 +23,7 @@ using namespace fixtures3PE;
 using Clustering = coarsening::GlobalClustering;
 
 auto contract_clustering(const DistributedGraph &graph, const Clustering &clustering) {
-  return coarsening::contract_global_clustering_redistribute(graph, clustering);
+  return coarsening::contract_global_clustering_full_migration(graph, clustering);
 }
 
 DistributedPartitionedGraph create_node_weight_partition(const DistributedGraph &graph) {

@@ -5,7 +5,7 @@
  * @date:   27.10.2021
  * @brief:
  ******************************************************************************/
-#include "local_graph_contraction.h"
+#include "local_clustering_contraction.h"
 
 #include "dkaminpar/mpi_graph.h"
 #include "dkaminpar/mpi_wrapper.h"
