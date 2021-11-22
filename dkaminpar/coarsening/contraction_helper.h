@@ -246,10 +246,10 @@ inline DistributedGraph build_distributed_graph_from_edge_list(const auto &edge_
       NodeID v_local = n + ghost_to_global.size();
       global_to_ghost[v] = v_local;
       ghost_to_global.push_back(v);
-      ghost_owner.push_back(find_ghost_node_owner(v));
+      ghost_owner.push_back(find_ghost_node_owner(v, node_distribution));
       ASSERT(ghost_owner.back() >= 0 && ghost_owner.back() < size)
           << V(ghost_owner.back()) << V(size) << V(v) << V(node_distribution.back())
-          << V(find_ghost_node_owner(v));
+          << V(find_ghost_node_owner(v, node_distribution));
     }
   }
 

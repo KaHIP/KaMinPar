@@ -38,7 +38,7 @@ struct GlobalClusteringContractionMinimalMigration {
   static auto contract_clustering(const DistributedGraph &graph, const Clustering &clustering) {
     return coarsening::contract_global_clustering(graph, clustering, GlobalContractionAlgorithm::MINIMAL_MIGRATION);
   }
-  bool redistribute = false;
+  bool redistribute = true;
 };
 
 struct GlobalClusteringContractionFullMigration {

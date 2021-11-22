@@ -19,8 +19,7 @@ namespace dkaminpar::math {
  * @param size Number of PEs that process the elements.
  * @return First (inclusive) and last (exclusive) element that should be processed by PE `rank`.
  */
-template<std::integral Int>
-std::pair<Int, Int> compute_local_range(const Int n, const Int size, const Int rank) {
+template <std::integral Int> std::pair<Int, Int> compute_local_range(const Int n, const Int size, const Int rank) {
   const Int chunk = n / size;
   const Int remainder = n % size;
   const Int from = rank * chunk + std::min<Int>(rank, remainder);
@@ -38,13 +37,21 @@ std::pair<Int, Int> compute_local_range(const Int n, const Int size, const Int r
  * such that its first return value is less-or-equal to \c element and its second return value is larger than
  * \c element.
  */
-template<std::integral Int>
-std::size_t compute_local_range_rank(const Int n, const Int size, const Int element) {
-  if (n <= size) { return element; } // special case if n is very small
+template <std::integral Int> std::size_t compute_local_range_rank(const Int n, const Int size, const Int element) {
+  if (n <= size) {
+    return element;
+  } // special case if n is very small
 
   const Int c = n / size;
   const Int rem = n % size;
   const Int r0 = (element - rem) / c;
   return (element < rem || r0 < rem) ? element / (c + 1) : r0;
+}
+
+template <std::integral Int>
+std::size_t find_in_distribution(const Int value, const auto &distribution) {
+  ASSERT(value < distribution.back()) << V(value) << V(distribution);
+  auto it = std::upper_bound(distribution.begin() + 1, distribution.end(), value);
+  return std::distance(distribution.begin(), it) - 1;
 }
 } // namespace dkaminpar::math

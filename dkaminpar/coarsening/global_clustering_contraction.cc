@@ -23,6 +23,12 @@ using namespace helper;
 namespace {
 SET_DEBUG(false);
 
+/*!
+ * Sparse all-to-all to exchange coarse node IDs of ghost nodes.
+ * @param graph
+ * @param label_mapping Current coarse node IDs, must be of size \code{graph.total_n()}, i.e., large enough to store
+ * coarse node IDs of owned nodes and ghost nodes.
+ */
 void exchange_ghost_node_mapping(const DistributedGraph &graph, auto &label_mapping) {
   struct Message {
     NodeID local_node;
@@ -36,8 +42,10 @@ void exchange_ghost_node_mapping(const DistributedGraph &graph, auto &label_mapp
       },
       [&](const auto buffer, const PEID pe) {
         tbb::parallel_for<std::size_t>(0, buffer.size(), [&](const std::size_t i) {
-          const auto &[local_node_on_other_pe, coarse_global_node] = buffer[i];
-          const auto local_node = graph.global_to_local_node(graph.offset_n(pe) + local_node_on_other_pe);
+          const auto &[local_node_on_pe, coarse_global_node] = buffer[i];
+          const GlobalNodeID global_node = graph.offset_n(pe) + local_node_on_pe;
+          const auto local_node = graph.global_to_local_node(global_node);
+
           label_mapping[local_node] = coarse_global_node;
         });
       });
@@ -46,7 +54,7 @@ void exchange_ghost_node_mapping(const DistributedGraph &graph, auto &label_mapp
 using UsedClustersMap = tbb::concurrent_hash_map<NodeID, NodeID>;
 using UsedClustersVector = scalable_vector<NodeID>;
 
-/**
+/*!
  * Given a graph with a mapping from nodes to clusters, finds the unique set of clusters that are used by the mapped
  * nodes. Each cluster is owned by some PE (determined by \c resolve_cluster_callback). For each PE, the function
  * returns a map and a vector of local cluster IDs used by the mapped nodes of this PE.
@@ -103,8 +111,16 @@ struct MappingResult {
   scalable_vector<GlobalNodeID> distribution;
 };
 
-MappingResult compute_mapping(const DistributedGraph &graph,
-                              const scalable_vector<shm::parallel::IntegralAtomicWrapper<GlobalNodeID>> &clustering) {
+/*!
+ * Compute a label mapping from fine nodes to coarse nodes.
+ * @param graph The distributed graph.
+ * @param clustering The global clustering to be contracted.
+ * @return Label mapping and coarse node distribution. The coarse node distribution is such that coarse nodes are placed
+ * on the PE which owned the corresponding cluster ID, i.e., if cluster ID \c x is owned by PE \c y, the coarse node ID
+ * \c x is mapped to is also owned by PE \c y.
+ */
+MappingResult compute_mapping(const DistributedGraph &graph, const scalable_vector<Atomic<GlobalNodeID>> &clustering,
+                              const bool migrate_nodes = false) {
   const auto size = mpi::get_comm_size(graph.communicator());
   const auto rank = mpi::get_comm_rank(graph.communicator());
 
@@ -133,7 +149,6 @@ MappingResult compute_mapping(const DistributedGraph &graph,
   shm::parallel::prefix_sum(label_mapping.begin(), label_mapping.end(), label_mapping.begin());
 
   const NodeID c_n = label_mapping.empty() ? 0 : static_cast<NodeID>(label_mapping.back());
-  const auto c_distribution = create_distribution_from_local_count<GlobalNodeID>(c_n, graph.communicator());
 
   // send mapping to other PEs that use cluster IDs from this PE -- i.e., answer in_msg
   std::vector<scalable_vector<NodeID>> out_msg(size);
@@ -146,6 +161,43 @@ MappingResult compute_mapping(const DistributedGraph &graph,
   });
 
   const auto label_remap = mpi::sparse_alltoall_get<NodeID, scalable_vector>(out_msg, graph.communicator(), true);
+
+  // migrate nodes from overloaded PEs
+  scalable_vector<GlobalNodeID> c_distribution =
+      create_distribution_from_local_count<GlobalNodeID>(c_n, graph.communicator());
+  scalable_vector<GlobalNodeID> perfect_distribution{};
+  scalable_vector<GlobalNodeID> pe_overload{};
+  scalable_vector<GlobalNodeID> pe_underload{};
+
+  if (migrate_nodes) {
+    const GlobalNodeID global_c_n = c_distribution.back();
+    perfect_distribution = create_perfect_distribution_from_global_count(global_c_n, graph.communicator());
+
+    // compute diff between perfect distribution and current distribution
+    pe_overload.resize(size + 1);
+    pe_underload.resize(size + 1);
+
+    scalable_vector<GlobalNodeID> pe_overload_tmp(size);
+    scalable_vector<GlobalNodeID> pe_underload_tmp(size);
+
+    for (PEID pe = 0; pe < size; ++pe) {
+      const auto [from, to] = math::compute_local_range<GlobalNodeID>(global_c_n, size, pe);
+      const NodeID balanced_count = static_cast<NodeID>(to - from);
+      const NodeID actual_count = c_distribution[pe + 1] - c_distribution[pe];
+
+      if (balanced_count > actual_count) {
+        pe_underload_tmp[pe] = balanced_count - actual_count;
+      } else {
+        pe_overload_tmp[pe] = actual_count - balanced_count;
+      }
+    }
+
+    // prefix sums allow us to find the new owner of a migrating node in log time using binary search
+    DBG << "Before prefix sum: " << V(pe_overload) << V(pe_underload);
+    shm::parallel::prefix_sum(pe_overload_tmp.begin(), pe_overload_tmp.end(), pe_overload.begin() + 1);
+    shm::parallel::prefix_sum(pe_underload_tmp.begin(), pe_underload_tmp.end(), pe_underload.begin() + 1);
+    DBG << "After prefix sum: " << V(pe_overload) << V(pe_underload);
+  }
 
   // now  we use label_mapping as a [fine node -> coarse node] mapping of local nodes on this PE -- and extend it
   // for ghost nodes in the next step
@@ -168,15 +220,55 @@ MappingResult compute_mapping(const DistributedGraph &graph,
     ASSERT(found) << V(u_local_cluster) << V(u_cluster_owner) << V(u) << V(u_cluster);
 
     const NodeID slot_in_msg = accessor->second;
-    label_mapping[u] = c_distribution[u_cluster_owner] + label_remap[u_cluster_owner][slot_in_msg];
+    const NodeID label = label_remap[u_cluster_owner][slot_in_msg];
+
+    if (migrate_nodes) {
+      const NodeID count =
+          static_cast<NodeID>(perfect_distribution[u_cluster_owner + 1] - perfect_distribution[u_cluster_owner]);
+      if (label < count) { // node can stay on PE
+        label_mapping[u] = perfect_distribution[u_cluster_owner] + label;
+      } else { // move node to another PE
+        const GlobalNodeID position = pe_overload[u_cluster_owner] + label - count;
+        const PEID new_owner = static_cast<PEID>(math::find_in_distribution<GlobalNodeID>(position, pe_underload));
+
+        ASSERT(position >= pe_underload[new_owner]);
+        ASSERT(perfect_distribution[new_owner + 1] - perfect_distribution[new_owner] >
+               c_distribution[new_owner + 1] - c_distribution[new_owner]);
+
+        label_mapping[u] = perfect_distribution[new_owner] + c_distribution[new_owner + 1] - c_distribution[new_owner] +
+                           position - pe_underload[new_owner];
+
+        // DBG << "Remap " << u << " to " << label_mapping[u] << "(from owner " << u_cluster_owner << " to owner "
+        //     << new_owner << ") -- overload position " << position
+        //     << ", local label @ new owner: " << position - pe_underload[new_owner];
+      }
+    } else {
+      label_mapping[u] = c_distribution[u_cluster_owner] + label;
+    }
   });
 
   // exchange labels for ghost nodes
   exchange_ghost_node_mapping(graph, label_mapping);
 
+  if (migrate_nodes) {
+    c_distribution = std::move(perfect_distribution);
+  }
+
   return {std::move(label_mapping), std::move(c_distribution)};
 }
 
+/*!
+ * Construct the coarse graph.
+ * @tparam CoarseNodeOwnerCallback
+ * @param graph The distributed graph to be contracted.
+ * @param mapping Label mapping from fine to coarse nodes.
+ * @param c_node_distribution Coarse node distribution: determines which coarse nodes are owned by which PEs using the
+ * lambda callback.
+ * @param compute_coarse_node_owner Determines which coarse node is owned by which PE: this could be computed using
+ * binary search on \c c_node_distribution, but based on the coarse node distribution, the PE could also be computed
+ * in constant time.
+ * @return The distributed coarse graph.
+ */
 template <typename CoarseNodeOwnerCallback>
 DistributedGraph build_coarse_graph(const DistributedGraph &graph, const auto &mapping,
                                     scalable_vector<GlobalNodeID> c_node_distribution,
@@ -199,7 +291,7 @@ DistributedGraph build_coarse_graph(const DistributedGraph &graph, const auto &m
     for (NodeID u = r.begin(); u != r.end(); ++u) {
       ASSERT(u < mapping.size());
       const auto c_u = mapping[u];
-      const auto c_u_owner = compute_coarse_node_owner(c_u);
+      const auto c_u_owner = compute_coarse_node_owner(c_u, c_node_distribution);
       ASSERT(static_cast<std::size_t>(c_u_owner) < num_edges_for_pe.size());
 
       for (const auto [e, v] : graph.neighbors(u)) {
@@ -225,7 +317,7 @@ DistributedGraph build_coarse_graph(const DistributedGraph &graph, const auto &m
   std::vector<shm::parallel::IntegralAtomicWrapper<EdgeID>> next_out_msg_slot(size);
   graph.pfor_nodes([&](const NodeID u) {
     const auto c_u = mapping[u];
-    const auto c_u_owner = compute_coarse_node_owner(c_u);
+    const auto c_u_owner = compute_coarse_node_owner(c_u, c_node_distribution);
     const auto local_c_u = static_cast<NodeID>(c_u - c_node_distribution[c_u_owner]);
 
     for (const auto [e, v] : graph.neighbors(u)) {
@@ -297,7 +389,7 @@ DistributedGraph build_coarse_graph(const DistributedGraph &graph, const auto &m
       graph, 0, graph.n(), SPARSE_ALLTOALL_NOFILTER,
       [&](const NodeID u) -> std::pair<NodeWeightMessage, PEID> {
         const auto c_u = mapping[u];
-        const PEID c_u_owner = compute_coarse_node_owner(c_u);
+        const PEID c_u_owner = compute_coarse_node_owner(c_u, c_node_distribution);
         const NodeID c_u_local = c_u - c_node_distribution[c_u_owner];
         return {{c_u_local, graph.node_weight(u)}, c_u_owner};
       },
@@ -319,6 +411,27 @@ DistributedGraph build_coarse_graph(const DistributedGraph &graph, const auto &m
       compute_coarse_node_owner);
 }
 
+/*!
+ * Construct the coarse graph.
+ * @param graph The distributed graph to be contracted.
+ * @param mapping Label mapping from fine to coarse nodes.
+ * @param c_node_distribution Coarse node distribution: determines which coarse nodes are owned by which PEs using
+ * binary search.
+ * @return The distributed coarse graph.
+ */
+DistributedGraph build_coarse_graph(const DistributedGraph &graph, const auto &mapping,
+                                    scalable_vector<GlobalNodeID> c_node_distribution) {
+  return build_coarse_graph(
+      graph, mapping, c_node_distribution, [](const GlobalNodeID node, const auto &node_distribution) {
+        const auto it = std::upper_bound(node_distribution.begin() + 1, node_distribution.end(), node);
+        return static_cast<PEID>(std::distance(node_distribution.begin(), it) - 1);
+      });
+}
+
+/*!
+ * Sparse all-to-all to update ghost node weights after coarse graph construction.
+ * @param graph Distributed graph with invalid ghost node weights.
+ */
 void update_ghost_node_weights(DistributedGraph &graph) {
   struct Message {
     NodeID local_node;
@@ -340,21 +453,17 @@ void update_ghost_node_weights(DistributedGraph &graph) {
 }
 } // namespace
 
+//! Contract a distributed graph such that coarse nodes are owned by the PE which owned the respective cluster ID.
 GlobalContractionResult contract_global_clustering_no_migration(const DistributedGraph &graph,
                                                                 const GlobalClustering &clustering) {
   SCOPED_TIMER("Contraction");
 
   START_TIMER("Compute mapping", TIMER_FINE);
-  auto mapping_result = compute_mapping(graph, clustering);
-  auto &mapping = mapping_result.mapping;
-  auto &distribution = mapping_result.distribution;
+  auto [mapping, distribution] = compute_mapping(graph, clustering);
   STOP_TIMER(TIMER_FINE);
 
   START_TIMER("Build coarse graph", TIMER_FINE);
-  auto c_graph = build_coarse_graph(graph, mapping, distribution, [&distribution](const GlobalNodeID node) {
-    const auto it = std::upper_bound(distribution.begin() + 1, distribution.end(), node);
-    return static_cast<PEID>(std::distance(distribution.begin(), it) - 1);
-  });
+  auto c_graph = build_coarse_graph(graph, mapping, std::move(distribution));
   STOP_TIMER(TIMER_FINE);
 
   START_TIMER("Update ghost node weights", TIMER_FINE);
@@ -364,21 +473,18 @@ GlobalContractionResult contract_global_clustering_no_migration(const Distribute
   return {std::move(c_graph), std::move(mapping)};
 }
 
+//! Contract a distributed graph such that *most* coarse nodes are owned by the PE which owned the respective cluster
+//! ID, while migrating enough coarse nodes such that each PE ownes approx. the same number of coarse nodes.
 GlobalContractionResult contract_global_clustering_minimal_migration(const DistributedGraph &graph,
                                                                      const GlobalClustering &clustering) {
   SCOPED_TIMER("Contraction");
 
   START_TIMER("Compute mapping", TIMER_FINE);
-  auto mapping_result = compute_mapping(graph, clustering);
-  auto &mapping = mapping_result.mapping;
-  auto &distribution = mapping_result.distribution;
+  auto [mapping, distribution] = compute_mapping(graph, clustering, true);
   STOP_TIMER(TIMER_FINE);
 
   START_TIMER("Build coarse graph", TIMER_FINE);
-  auto c_graph = build_coarse_graph(graph, mapping, distribution, [&distribution](const GlobalNodeID node) {
-    const auto it = std::upper_bound(distribution.begin() + 1, distribution.end(), node);
-    return static_cast<PEID>(std::distance(distribution.begin(), it) - 1);
-  });
+  auto c_graph = build_coarse_graph(graph, mapping, std::move(distribution));
   STOP_TIMER(TIMER_FINE);
 
   START_TIMER("Update ghost node weights", TIMER_FINE);
@@ -388,14 +494,14 @@ GlobalContractionResult contract_global_clustering_minimal_migration(const Distr
   return {std::move(c_graph), std::move(mapping)};
 }
 
+//! Contract a distributed graph such that each PE owns the same number of coarse nodes by assigning coarse nodes
+//! \code{p*n/s .. (p + 1)*n/s} to PE \c p, where \c n is the number of coarse nodes and \c s is the number of PEs.
 GlobalContractionResult contract_global_clustering_full_migration(const DistributedGraph &graph,
                                                                   const GlobalClustering &clustering) {
   SCOPED_TIMER("Contraction");
 
   START_TIMER("Compute mapping", TIMER_FINE);
-  auto mapping_result = compute_mapping(graph, clustering);
-  auto &mapping = mapping_result.mapping;
-  auto &distribution = mapping_result.distribution;
+  auto [mapping, distribution] = compute_mapping(graph, clustering);
   STOP_TIMER(TIMER_FINE);
 
   START_TIMER("Build coarse graph", TIMER_FINE);
@@ -403,12 +509,11 @@ GlobalContractionResult contract_global_clustering_full_migration(const Distribu
   const GlobalNodeID c_global_n = distribution.back();
 
   // create a new node distribution where nodes are evenly distributed across PEs
-  auto migrated_distribution =
-      create_perfect_distribution_from_global_count<GlobalNodeID>(c_global_n, graph.communicator());
-
-  auto c_graph = build_coarse_graph(graph, mapping, migrated_distribution, [size, c_global_n](const GlobalNodeID node) {
-    return math::compute_local_range_rank<PEID>(c_global_n, size, node);
-  });
+  auto c_graph = build_coarse_graph(
+      graph, mapping, create_perfect_distribution_from_global_count<GlobalNodeID>(c_global_n, graph.communicator()),
+      [size, c_global_n](const GlobalNodeID node, const auto & /* node_distribution */) {
+        return math::compute_local_range_rank<PEID>(c_global_n, size, node);
+      });
   STOP_TIMER(TIMER_FINE);
 
   START_TIMER("Update ghost node weights", TIMER_FINE);
@@ -431,6 +536,13 @@ GlobalContractionResult contract_global_clustering(const DistributedGraph &graph
   __builtin_unreachable();
 }
 
+/*!
+ * Projects the partition of the coarse graph onto the fine graph. Works for any graph contraction variations.
+ * @param fine_graph The distributed fine graph.
+ * @param coarse_graph The distributed coarse graph with partition.
+ * @param fine_to_coarse Mapping from fine to coarse nodes.
+ * @return Projected partition of the fine graph.
+ */
 DistributedPartitionedGraph project_global_contracted_graph(const DistributedGraph &fine_graph,
                                                             DistributedPartitionedGraph coarse_graph,
                                                             const GlobalMapping &fine_to_coarse) {
