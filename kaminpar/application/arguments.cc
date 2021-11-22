@@ -14,7 +14,7 @@ namespace kaminpar::app {
 void create_coarsening_context_options(CoarseningContext &c_ctx, Arguments &args, const std::string &name, const std::string &prefix) {
   using namespace std::string_literals;
   args.group(name, prefix)
-      .argument(prefix + "-graphutils", "Coarsening graphutils, possible values: {" + clustering_algorithm_names() + "}.", &c_ctx.algorithm, clustering_algorithm_from_string)
+      .argument(prefix + "-algorithm", "Coarsening algorithm, possible values: {" + clustering_algorithm_names() + "}.", &c_ctx.algorithm, clustering_algorithm_from_string)
         .line("- noop: assign each node to its own cluster, effectively disabling clustering")
         .line("- lp: compute clustering using parallel label propagation")
       .argument(prefix + "-contraction-limit", "Ideally, we always perform a bisection on a graph of size 2 * C.", &c_ctx.contraction_limit, 'C')
@@ -109,7 +109,7 @@ void create_refinement_context_options(RefinementContext &r_ctx, Arguments &args
   using namespace std::string_literals;
 
   args.group(name, prefix)
-      .argument(prefix + "-graphutils", "Refinement graphutils to be used, possible values: {"s + refinement_algorithm_names() + "}.", &r_ctx.algorithm, refinement_algorithm_from_string)
+      .argument(prefix + "-algorithm", "Refinement algorithm to be used, possible values: {"s + refinement_algorithm_names() + "}.", &r_ctx.algorithm, refinement_algorithm_from_string)
       ;
 }
 // clang-format on
@@ -141,7 +141,7 @@ void create_lp_refinement_context_options(LabelPropagationRefinementContext &lp_
 void create_balancer_refinement_context_options(BalancerRefinementContext &b_ctx, Arguments &args, const std::string &name, const std::string &prefix) {
   using namespace std::string_literals;
   args.group(name, prefix)
-      .argument(prefix + "-graphutils", "Balancer graphutils, possible values: {"s + balancing_algorithm_names() + "}.", &b_ctx.algorithm, balancing_algorithm_from_string)
+      .argument(prefix + "-algorithm", "Balancer algorithm, possible values: {"s + balancing_algorithm_names() + "}.", &b_ctx.algorithm, balancing_algorithm_from_string)
       .argument(prefix + "-timepoint", "When do we run the balancer, possible values: {"s + balancing_timepoint_names() + "}.", &b_ctx.timepoint, balancing_timepoint_from_string)
       ;
 }
