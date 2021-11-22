@@ -741,9 +741,15 @@ public:
 
   void init_cluster(const NodeID node, const ClusterID cluster) { _clusters[node] = cluster; }
 
-  [[nodiscard]] ClusterID cluster(const NodeID node) { return _clusters[node]; }
+  [[nodiscard]] ClusterID cluster(const NodeID node) {
+    ASSERT(node < _clusters.size()) << V(node) << V(_clusters.size());
+    return _clusters[node];
+  }
 
-  void move_node(const NodeID node, const ClusterID cluster) { _clusters[node] = cluster; }
+  void move_node(const NodeID node, const ClusterID cluster) {
+    ASSERT(node < _clusters.size());
+    _clusters[node] = cluster;
+  }
 
   void ensure_cluster_size(const NodeID max_num_nodes) {
     if (_clusters.size() < max_num_nodes) {

@@ -37,8 +37,6 @@ protected:
 namespace graph {
 //! Return the id of the edge connecting two adjacent nodes \c u and \c v in \c graph, found by linear search.
 std::pair<EdgeID, EdgeID> get_edge_by_endpoints(const DistributedGraph &graph, const NodeID u, const NodeID v) {
-  SET_DEBUG(true);
-
   EdgeID forward_edge = kInvalidEdgeID;
   EdgeID backward_edge = kInvalidEdgeID;
 
@@ -59,8 +57,6 @@ std::pair<EdgeID, EdgeID> get_edge_by_endpoints(const DistributedGraph &graph, c
       }
     }
   }
-
-  DBG << V(u) << V(v) << V(forward_edge) << V(backward_edge);
 
   // one of those edges might now exist due to ghost nodes
   return {forward_edge, backward_edge};
@@ -390,6 +386,25 @@ protected:
                 .create_node(1)
                 .create_node(1)
                 .finalize();
+  }
+
+  DistributedGraph graph;
+  GlobalNodeID n0;
+};
+
+class DistributedGraphWith900NodesAnd0Edges : public DistributedGraphFixture {
+protected:
+  void SetUp() override {
+    DistributedGraphFixture::SetUp();
+    ALWAYS_ASSERT(size == 3) << "must be tested on three PEs";
+
+    n0 = 300 * rank;
+    dkaminpar::graph::Builder builder{MPI_COMM_WORLD};
+    builder.initialize({0, 300, 600, 900});
+    for (NodeID u = 0; u < 300; ++u) {
+      builder.create_node(1);
+    }
+    graph = builder.finalize();
   }
 
   DistributedGraph graph;

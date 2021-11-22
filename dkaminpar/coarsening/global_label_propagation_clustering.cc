@@ -155,6 +155,7 @@ public:
    */
 
   void move_node(const NodeID node, const GlobalNodeID cluster) {
+    ASSERT(node < _changed_label.size());
     OwnedClusterVector::move_node(node, cluster);
     _changed_label[node] = 1;
   }
@@ -168,7 +169,7 @@ public:
   [[nodiscard]] bool accept_cluster(const Base::ClusterSelectionState &state) {
     return (state.current_gain > state.best_gain ||
             (state.current_gain == state.best_gain && state.local_rand.random_bool())) &&
-           (state.current_cluster_weight + state.u_weight < max_cluster_weight(state.current_cluster) ||
+           (state.current_cluster_weight + state.u_weight <= max_cluster_weight(state.current_cluster) ||
             state.current_cluster == state.initial_cluster);
   }
 
@@ -200,13 +201,15 @@ private:
   }
 
   GlobalNodeID process_chunk(const NodeID from, const NodeID to) {
-    DBG << "process_chunk(" << from << ".." << to << ")";
-
     const NodeID local_num_moved_nodes = perform_iteration(from, to);
     const GlobalNodeID global_num_moved_nodes = mpi::allreduce(local_num_moved_nodes, MPI_SUM, _graph->communicator());
 
     if (global_num_moved_nodes > 0) {
       synchronize_ghost_node_clusters(from, to);
+    }
+
+    if (_c_ctx.global_lp.merge_singleton_clusters) {
+      cluster_isolated_nodes(from, to);
     }
 
     return global_num_moved_nodes;
@@ -238,6 +241,43 @@ private:
             change_cluster_weight(cluster(local_node), local_node_weight, false);
           });
         });
+
+    _graph->pfor_nodes([&](const NodeID u) { _changed_label[u] = 0; });
+  }
+
+  /*!
+   * Build clusters of isolated nodes: store the first isolated node and add subsequent isolated nodes to its cluster
+   * until the maximum cluster weight is violated; then, move on to the next isolated node etc.
+   * @param from The first node to consider.
+   * @param to One-after the last node to consider.
+   */
+  void cluster_isolated_nodes(const NodeID from, const NodeID to) {
+    tbb::enumerable_thread_specific<GlobalNodeID> isolated_node_ets(kInvalidNodeID);
+    tbb::parallel_for(tbb::blocked_range<NodeID>(from, to), [&](tbb::blocked_range<NodeID> r) {
+      NodeID current = isolated_node_ets.local();
+      GlobalNodeID current_cluster = current == kInvalidNodeID ? kInvalidGlobalNodeID : cluster(current);
+      NodeWeight current_weight = current == kInvalidNodeID ? kInvalidNodeWeight : cluster_weight(current_cluster);
+
+      for (NodeID u = r.begin(); u != r.end(); ++u) {
+        if (_graph->degree(u) == 0) {
+          const GlobalNodeID u_cluster = cluster(u);
+          const NodeWeight u_weight = cluster_weight(u_cluster);
+          ASSERT(u_weight == _graph->node_weight(u));
+
+          if (current != kInvalidNodeID && current_weight + u_weight <= max_cluster_weight(u_cluster)) {
+            change_cluster_weight(current_cluster, u_weight, true);
+            OwnedClusterVector::move_node(u, current_cluster);
+            current_weight += u_weight;
+          } else {
+            current = u;
+            current_cluster = u_cluster;
+            current_weight = u_weight;
+          }
+        }
+      }
+
+      isolated_node_ets.local() = current;
+    });
   }
 
   using Base::_graph;
