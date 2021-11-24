@@ -1,5 +1,7 @@
 #!/bin/bash
-cd "${0%/}" || exit # run from source directory or exit
+BUILD_DIR="build"
+
+#cd "${0%/}" || exit # run from source directory or exit
 
 function get_num_cores {
   case "$(uname)" in
@@ -15,7 +17,7 @@ NCORES=$(get_num_cores)
 [ -n "$NCORES" ] || NCORES=4
 
 function build_target {
-  cmake --build build --parallel "$NCORES" --target $1
+  cmake --build "$BUILD_DIR" --parallel "$NCORES" --target $1
 }
 
 git submodule update --init --recursive
@@ -24,8 +26,8 @@ PROJECT_ROOT=$(pwd)
 if [ ! -f build/Makefile ]; then
   ADDITIONAL_COMMANDS=""
 
-  mkdir -p build &&
-    cd build &&
+  mkdir -p "$BUILD_DIR" &&
+    cd "$BUILD_DIR" &&
     cmake .. -DCMAKE_BUILD_TYPE=Release $ADDITIONAL_COMMANDS
   cd "$PROJECT_ROOT" || exit
 fi
@@ -36,7 +38,8 @@ fi
 
 build_target "KaMinPar" # binary
 build_target "kaminpar" # library
-build_target "GraphChecker" # tools
-build_target "GraphConverter" # tools
-build_target "VerifyPartition" # tools
-if [[ $1 == "DISTRIBUTED" ]]; then build_target "dKaMinPar"; fi # distributed binary
+
+if cmake --build "$BUILD_DIR" --target help | grep dKaMinPar; then
+    build_target "dKaMinPar"
+fi
+
