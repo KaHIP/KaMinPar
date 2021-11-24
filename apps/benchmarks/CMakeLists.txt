@@ -4,7 +4,7 @@ function(add_benchmark target)
     target_link_libraries(${target} PRIVATE kaminpar_impl)
     message(STATUS "Benchmark ${target}")
 
-    if (KAMINPAR_USE_BACKWARD_CPP)
+    if (KAMINPAR_BACKWARD_CPP)
         add_backward(${target})
     endif ()
 endfunction()

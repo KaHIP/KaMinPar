@@ -60,7 +60,7 @@ if (MPI_FOUND)
     target_include_directories(dkaminpar_impl PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(dkaminpar_impl PUBLIC kaminpar_impl MPI::MPI_CXX growt)
 
-    if (KAMINPAR_USE_BACKWARD_CPP)
+    if (KAMINPAR_BACKWARD_CPP)
         add_backward(dkaminpar_impl)
     endif ()
 else ()

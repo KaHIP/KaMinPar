@@ -6,7 +6,7 @@ function(add_kaminpar_dtest target nproc)
         target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
         target_link_libraries(${target} PRIVATE kaminpar_impl dkaminpar_impl)
 
-        if (KAMINPAR_USE_BACKWARD_CPP)
+        if (KAMINPAR_BACKWARD_CPP)
             message(STATUS "Add test ${target} with backward")
             add_backward(${target})
         endif ()

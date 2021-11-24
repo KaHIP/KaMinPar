@@ -88,7 +88,7 @@ set(KAMINPAR_SOURCE_FILES
 add_library(kaminpar_impl OBJECT ${KAMINPAR_SOURCE_FILES})
 target_include_directories(kaminpar_impl PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
-if (KAMINPAR_USE_BACKWARD_CPP)
+if (KAMINPAR_BACKWARD_CPP)
     add_backward(kaminpar_impl)
 endif ()
 

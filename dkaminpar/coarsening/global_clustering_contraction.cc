@@ -313,7 +313,7 @@ DistributedGraph build_coarse_graph(const DistributedGraph &graph, const auto &m
   STOP_TIMER(TIMER_FINE);
 
   // create messages
-  START_TIMER("Create edge messages", TIMER_FINE);
+  START_TIMER("Create edge messages", TIMER_FINE); // TODO bad parallelization
   std::vector<shm::parallel::IntegralAtomicWrapper<EdgeID>> next_out_msg_slot(size);
   graph.pfor_nodes([&](const NodeID u) {
     const auto c_u = mapping[u];
@@ -324,8 +324,8 @@ DistributedGraph build_coarse_graph(const DistributedGraph &graph, const auto &m
       const auto c_v = mapping[v];
 
       if (c_u != c_v) { // ignore self loops
-        const std::size_t slot = next_out_msg_slot[c_u_owner].fetch_add(1, std::memory_order_relaxed);
-        out_msg[c_u_owner][slot] = {.u = local_c_u, .weight = graph.edge_weight(e), .v = c_v};
+        const std::size_t slot = next_out_msg_slot[c_u_owner].fetch_add(1, std::memory_order_relaxed); // TODO parallelization bottleneck?
+        out_msg[c_u_owner][slot] = {.u = local_c_u, .weight = graph.edge_weight(e), .v = c_v}; // TODO false sharing?
         DBG << "--> " << c_u_owner << ": [" << slot << "]={.u=" << local_c_u << ", .weight=" << graph.edge_weight(e)
             << ", .v=" << c_v << "}";
       }
