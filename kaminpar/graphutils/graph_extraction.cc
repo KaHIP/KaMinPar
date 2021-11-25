@@ -132,10 +132,7 @@ SubgraphExtractionResult extract_subgraphs(const PartitionedGraph &p_graph, Subg
   START_TIMER("Allocation");
   scalable_vector<NodeID> mapping(p_graph.n());
   scalable_vector<SubgraphMemoryStartPosition> start_positions(p_graph.k() + 1);
-
-  using AtomicNodeCounter = parallel::IntegralAtomicWrapper<NodeID>;
-  std::vector<AtomicNodeCounter, tbb::cache_aligned_allocator<AtomicNodeCounter>> bucket_index(p_graph.n());
-
+  std::vector<Atomic<NodeID>> bucket_index(p_graph.n());
   scalable_vector<Graph> subgraphs(p_graph.k());
   STOP_TIMER();
 
