@@ -57,7 +57,7 @@ BlockWeight GreedyBalancer::perform_round() {
     }
 
     while (current_overload > 0 && !_pq.empty(from)) {
-      ASSERT(current_overload == std::max(0, _p_graph->block_weight(from) - _p_ctx->max_block_weight(from)));
+      ASSERT(current_overload == std::max(0, _p_graph->block_weight(from) - _p_ctx->block_weights.max(from)));
 
       const NodeID u = _pq.peek_max_id(from);
       const NodeWeight u_weight = _p_graph->node_weight(u);
@@ -109,7 +109,7 @@ BlockWeight GreedyBalancer::perform_round() {
       }
     }
 
-    ASSERT(current_overload == std::max(0, _p_graph->block_weight(from) - _p_ctx->max_block_weight(from)));
+    ASSERT(current_overload == std::max(0, _p_graph->block_weight(from) - _p_ctx->block_weights.max(from)));
   });
   STOP_TIMER();
 
@@ -154,6 +154,8 @@ bool GreedyBalancer::add_to_pq(const BlockID b, const NodeID u, const NodeWeight
 }
 
 void GreedyBalancer::init_pq() {
+  LOG << V(_p_graph->block_weights()) << V(_p_ctx->block_weights.all_max()) << V(_p_ctx->block_weights.all_perfectly_balanced());
+
   SCOPED_TIMER("Initialize balancer PQ");
 
   const BlockID k = _p_graph->k();
@@ -224,7 +226,7 @@ void GreedyBalancer::init_pq() {
     // compute external degree to each adjacent block that can take u without becoming overloaded
     for (const auto [e, v] : _p_graph->neighbors(u)) {
       const BlockID v_block = _p_graph->block(v);
-      if (u_block != v_block && _p_graph->block_weight(v_block) + u_weight <= _p_ctx->max_block_weight(v_block)) {
+      if (u_block != v_block && _p_graph->block_weight(v_block) + u_weight <= _p_ctx->block_weights.max(v_block)) {
         map[v_block] += _p_graph->edge_weight(e);
       } else if (u_block == v_block) {
         internal_degree += _p_graph->edge_weight(e);
@@ -256,7 +258,7 @@ bool GreedyBalancer::move_node_if_possible(const NodeID u, const BlockID from, c
   const NodeWeight u_weight = _p_graph->node_weight(u);
   BlockWeight old_weight = _p_graph->block_weight(to);
 
-  while (old_weight + u_weight <= _p_ctx->max_block_weight(to)) {
+  while (old_weight + u_weight <= _p_ctx->block_weights.max(to)) {
     if (_p_graph->_block_weights[to].compare_exchange_weak(old_weight, old_weight + u_weight)) {
       _p_graph->_block_weights[from] -= u_weight;
       _p_graph->set_block<false>(u, to); // don't update block weight -- we already did that
@@ -296,7 +298,7 @@ void GreedyBalancer::init_feasible_target_blocks() {
   auto &blocks = _feasible_target_blocks.local();
   blocks.clear();
   for (const BlockID b : _p_graph->blocks()) {
-    if (_p_graph->block_weight(b) < _p_ctx->perfectly_balanced_block_weight(b)) { blocks.push_back(b); }
+    if (_p_graph->block_weight(b) < _p_ctx->block_weights.perfectly_balanced(b)) { blocks.push_back(b); }
   }
 }
 } // namespace kaminpar

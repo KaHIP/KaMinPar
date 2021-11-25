@@ -41,7 +41,7 @@ struct lighter {
 struct sequential {
   BlockID operator()(const BlockID, const Bipartitioner::BlockWeights &block_weights, const PartitionContext &context,
                      const Queues &) {
-    return (block_weights[0] < context.perfectly_balanced_block_weight(0)) ? 0 : 1;
+    return (block_weights[0] < context.block_weights.perfectly_balanced(0)) ? 0 : 1;
   }
 };
 
@@ -141,7 +141,7 @@ protected:
         //        }
         // than this version
         const NodeWeight weight = _block_weights[active];
-        const bool assignment_allowed = (weight + _graph.node_weight(u) <= _p_ctx.max_block_weight(active));
+        const bool assignment_allowed = (weight + _graph.node_weight(u) <= _p_ctx.block_weights.max(active));
         active = assignment_allowed * active + (1 - assignment_allowed) * (1 - active);
 
         set_block(u, active);

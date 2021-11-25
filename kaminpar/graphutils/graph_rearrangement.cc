@@ -86,9 +86,8 @@ NodeID integrate_isolated_nodes(Graph &graph, const double epsilon, Context &ctx
   const NodeID num_isolated_nodes = graph.n() - num_nonisolated_nodes;
 
   // note: max block weights should not change
-  ctx.setup(graph);
   ctx.partition.epsilon = epsilon;
-  ctx.partition.setup_max_block_weight();
+  ctx.setup(graph);
 
   return num_isolated_nodes;
 }
@@ -110,7 +109,7 @@ PartitionedGraph assign_isolated_nodes(PartitionedGraph p_graph, const NodeID nu
 
   // TODO parallelize this
   for (NodeID u = num_nonisolated_nodes; u < num_nonisolated_nodes + num_isolated_nodes; ++u) {
-    while (b + 1 < k && block_weights[b] + graph.node_weight(u) > p_ctx.max_block_weight(b)) {
+    while (b + 1 < k && block_weights[b] + graph.node_weight(u) > p_ctx.block_weights.max(b)) {
       ++b;
     }
     partition[u] = b;

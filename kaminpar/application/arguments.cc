@@ -36,8 +36,7 @@ void create_lp_coarsening_context_options(LabelPropagationCoarseningContext &c_l
   args.group(name, prefix)
       .argument(prefix + "-num-iterations", "Number of label propagation iterations.", &c_lp_ctx.num_iterations)
       .argument(prefix + "-large-degree-threshold", "Ignore all nodes with degree higher than this during coarsening.", &c_lp_ctx.large_degree_threshold)
-      .argument(prefix + "-merge-nonadjacent-clusters-threshold", "If the graph shrunk by less than this factor, consider merging nonadjacent singleton clusters.", &c_lp_ctx.merge_nonadjacent_clusters_threshold)
-      .argument(prefix + "-merge-singleton-clusters", "If set, cluster isolated nodes.", &c_lp_ctx.merge_isolated_clusters)
+      .argument(prefix + "-two-hop-clustering-threshold", "If the graph shrunk by less than this factor, consider merging nonadjacent singleton clusters.", &c_lp_ctx.two_hop_clustering_threshold)
       .argument(prefix + "-max-num-neighbors", "Maximum numbers of neighbors that are scanned before deciding a nodes best cluster.", &c_lp_ctx.max_num_neighbors)
       ;
 }
@@ -97,9 +96,7 @@ void create_initial_partitioning_context_options(InitialPartitioningContext &i_c
       .argument(prefix + "-min-non-adaptive-repetitions", "Minimum number of attempts at computing an initial bisection (per bipartition graphutils) before excluding bipartitioning algorithms unlikely to find the best cut.", &i_ctx.min_num_non_adaptive_repetitions)
       .argument(prefix + "-max-repetitions", "Maximum number of attempts at computing an initial bisection (per bipartition graphutils).", &i_ctx.max_num_repetitions)
       .argument(prefix + "-num-seed-iterations", "Number of attempts at finding good seed nodes (BFS-based bipartition algorithms).", &i_ctx.num_seed_iterations)
-      .argument(prefix + "-use-adaptive-epsilon", "If set, use adaptive epsilon for max block weights during IP.", &i_ctx.use_adaptive_epsilon)
       .argument(prefix + "-use-adaptive-bipartitioner-selection", "If set, determine which bipartitioning algorithms are unlikely to produce good results and run them less often than other algorithms.", &i_ctx.use_adaptive_bipartitioner_selection)
-      .argument(prefix + "-parallelize-bisections", "Compute bisections in parallel.", &i_ctx.parallelize_bisections)
       ;
 }
 // clang-format on

@@ -34,8 +34,11 @@ function(add_distributed_app target)
 endfunction()
 
 add_app(KaMinPar kaminpar.cc)
+
 add_distributed_app(dKaMinPar dkaminpar.cc)
-#add_distributed_app(growt_playground growt_playground.cc)
+if (KAMINPAR_GRAPHGEN)
+    target_link_libraries(dKaMinPar PUBLIC kagen)
+endif ()
 
 add_subdirectory(tools)
 add_subdirectory(benchmarks)

@@ -40,7 +40,7 @@ const Graph *InitialCoarsener::coarsen(const std::function<NodeWeight(NodeID)> &
   if (!_precomputed_clustering) { perform_label_propagation(max_cluster_weight); }
 
   const NodeID c_n{_current_graph->n() - _current_num_moves};
-  const bool converged = _c_ctx.should_converge(_current_graph->n(), c_n);
+  const bool converged = _c_ctx.coarsening_should_converge(_current_graph->n(), c_n);
 
   if (!converged) {
     _interleaved_max_cluster_weight = cb_max_cluster_weight(c_n);
@@ -267,9 +267,6 @@ InitialCoarsener::ContractionResult InitialCoarsener::contract_current_clusterin
 
   Graph coarse_graph(tag::seq, std::move(c_nodes), std::move(c_edges), std::move(c_node_weights),
                      std::move(c_edge_weights));
-#ifdef KAMIPAR_GRAPH_NAMES
-  coarse_graph.set_name(_c_graph->name());
-#endif // KAMIPAR_GRAPH_NAMES
 
   return {std::move(coarse_graph), std::move(node_mapping)};
 }

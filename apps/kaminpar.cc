@@ -169,7 +169,7 @@ int main(int argc, char *argv[]) {
       << "m=" << graph.m() << " "
       << "k=" << ctx.partition.k << " "
       << "epsilon=" << ctx.partition.epsilon << " ";
-  LOG << "==> max_block_weight=" << ctx.partition.max_block_weight(0);
+  LOG << "==> max_block_weight=" << ctx.partition.block_weights.max(0);
 
   //
   // Perform actual partitioning

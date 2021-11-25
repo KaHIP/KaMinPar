@@ -21,10 +21,22 @@ DEFINE_ENUM_STRING_CONVERSION(ClusteringAlgorithm, clustering_algorithm) = {
     {ClusteringAlgorithm::LABEL_PROPAGATION, "lp"},
 };
 
+DEFINE_ENUM_STRING_CONVERSION(ClusterWeightLimit, cluster_weight_limit) = {
+    {ClusterWeightLimit::EPSILON_BLOCK_WEIGHT, "epsilon-block-weight"},
+    {ClusterWeightLimit::BLOCK_WEIGHT, "static-block-weight"},
+    {ClusterWeightLimit::ONE, "one"},
+    {ClusterWeightLimit::ZERO, "zero"},
+};
+
 DEFINE_ENUM_STRING_CONVERSION(RefinementAlgorithm, refinement_algorithm) = {
-    {RefinementAlgorithm::TWO_WAY_FM, "2way-fm"}, //
+    {RefinementAlgorithm::TWO_WAY_FM, "2way-fm"},
     {RefinementAlgorithm::LABEL_PROPAGATION, "lp"},
-    {RefinementAlgorithm::NOOP, "noop"}, //
+    {RefinementAlgorithm::NOOP, "noop"},
+};
+
+DEFINE_ENUM_STRING_CONVERSION(FMStoppingRule, fm_stopping_rule) = {
+    {FMStoppingRule::SIMPLE, "simple"},
+    {FMStoppingRule::ADAPTIVE, "adaptive"},
 };
 
 DEFINE_ENUM_STRING_CONVERSION(BalancingTimepoint, balancing_timepoint) = {
@@ -38,21 +50,9 @@ DEFINE_ENUM_STRING_CONVERSION(BalancingAlgorithm, balancing_algorithm) = {
     {BalancingAlgorithm::BLOCK_LEVEL_PARALLEL_BALANCER, "block-parallel-balancer"},
 };
 
-DEFINE_ENUM_STRING_CONVERSION(FMStoppingRule, fm_stopping_rule) = {
-    {FMStoppingRule::SIMPLE, "simple"},
-    {FMStoppingRule::ADAPTIVE, "adaptive"},
-};
-
 DEFINE_ENUM_STRING_CONVERSION(PartitioningMode, partitioning_mode) = {
     {PartitioningMode::DEEP, "deep"},
     {PartitioningMode::RB, "rb"},
-};
-
-DEFINE_ENUM_STRING_CONVERSION(ClusterWeightLimit, cluster_weight_limit) = {
-    {ClusterWeightLimit::EPSILON_BLOCK_WEIGHT, "epsilon-block-weight"},
-    {ClusterWeightLimit::BLOCK_WEIGHT, "static-block-weight"},
-    {ClusterWeightLimit::ONE, "one"},
-    {ClusterWeightLimit::ZERO, "zero"},
 };
 
 DEFINE_ENUM_STRING_CONVERSION(InitialPartitioningMode, initial_partitioning_mode) = {
@@ -71,67 +71,86 @@ void PartitionContext::setup(const Graph &graph) {
   total_node_weight = graph.total_node_weight();
   total_edge_weight = graph.total_edge_weight();
   max_node_weight = graph.max_node_weight();
+  setup_block_weights();
 }
 
-void PartitionContext::setup_max_block_weight() {
-  ASSERT(k != kInvalidBlockID);
+void PartitionContext::setup_block_weights() { block_weights.setup(*this); }
 
-  const NodeWeight perfectly_balanced_block_weight = std::ceil(1.0 * total_node_weight / k);
-  const NodeWeight max_block_weight = (1.0 + epsilon) * perfectly_balanced_block_weight;
+//
+// BlockWeightsContext
+//
 
-  reset_block_weights();
-  for (BlockID b = 0; b < k; ++b) {
-    _perfectly_balanced_block_weights.push_back(perfectly_balanced_block_weight);
-    if (max_node_weight == 1) { // don't relax balance constraint on output level
-      _max_block_weights.push_back(max_block_weight);
+void BlockWeightsContext::setup(const PartitionContext &p_ctx) {
+  ASSERT(p_ctx.k != kInvalidBlockID) << "PartitionContext::k not initialized";
+  ASSERT(p_ctx.total_node_weight != kInvalidNodeWeight) << "PartitionContext::total_node_weight not initialized";
+  ASSERT(p_ctx.max_node_weight != kInvalidNodeWeight) << "PartitionContext::max_node_weight not initialized";
+
+  const auto perfectly_balanced_block_weight =
+      static_cast<NodeWeight>(std::ceil(1.0 * p_ctx.total_node_weight / p_ctx.k));
+  const auto max_block_weight = static_cast<NodeWeight>((1.0 + p_ctx.epsilon) * perfectly_balanced_block_weight);
+
+  _max_block_weights.resize(p_ctx.k);
+  _perfectly_balanced_block_weights.resize(p_ctx.k);
+
+  tbb::parallel_for<BlockID>(0, p_ctx.k, [&](const BlockID b) {
+    _perfectly_balanced_block_weights[b] = perfectly_balanced_block_weight;
+
+    // relax balance constraint by max_node_weight on coarse levels only
+    if (p_ctx.max_node_weight == 1) {
+      _max_block_weights[b] = max_block_weight;
     } else {
-      _max_block_weights.push_back(
-          std::max<NodeWeight>(max_block_weight, perfectly_balanced_block_weight + max_node_weight));
+      _max_block_weights[b] =
+          std::max<NodeWeight>(max_block_weight, perfectly_balanced_block_weight + p_ctx.max_node_weight);
     }
-  }
+  });
+
+  LOG << V(max_block_weight) << V(_max_block_weights);
 }
 
-void PartitionContext::setup_max_block_weight(const scalable_vector<BlockID> &final_ks) {
-  ASSERT(k == final_ks.size());
+void BlockWeightsContext::setup(const PartitionContext &p_ctx, const scalable_vector<BlockID> &final_ks) {
+  ASSERT(p_ctx.k != kInvalidBlockID) << "PartitionContext::k not initialized";
+  ASSERT(p_ctx.total_node_weight != kInvalidNodeWeight) << "PartitionContext::total_node_weight not initialized";
+  ASSERT(p_ctx.max_node_weight != kInvalidNodeWeight) << "PartitionContext::max_node_weight not initialized";
+  ASSERT(p_ctx.k == final_ks.size()) << "bad number of blocks: got " << final_ks.size() << ", expected " << p_ctx.k;
 
-  const BlockID final_k = std::accumulate(final_ks.begin(), final_ks.end(), 0);
-  const double block_weight = 1.0 * total_node_weight / final_k;
+  const BlockID final_k = std::accumulate(final_ks.begin(), final_ks.end(), static_cast<BlockID>(0));
+  const double block_weight = 1.0 * p_ctx.total_node_weight / final_k;
 
-  reset_block_weights();
-  for (BlockID b = 0; b < final_ks.size(); ++b) {
-    _perfectly_balanced_block_weights.push_back(std::ceil(final_ks[b] * block_weight));
-    if (max_node_weight == 1) { // don't relax balance constraint on output level
-      _max_block_weights.push_back((1.0 + epsilon) * _perfectly_balanced_block_weights[b]);
+  _max_block_weights.resize(p_ctx.k);
+  _perfectly_balanced_block_weights.resize(p_ctx.k);
+
+  tbb::parallel_for<BlockID>(0, final_ks.size(), [&](const BlockID b) {
+    _perfectly_balanced_block_weights[b] = std::ceil(final_ks[b] * block_weight);
+
+    const auto max_block_weight =
+        static_cast<BlockWeight>((1.0 + p_ctx.epsilon) * _perfectly_balanced_block_weights[b]);
+
+    // relax balance constraint by max_node_weight on coarse levels only
+    if (p_ctx.max_node_weight == 1) {
+      _max_block_weights[b] = max_block_weight;
     } else {
-      _max_block_weights.push_back(std::max<NodeWeight>((1.0 + epsilon) * _perfectly_balanced_block_weights[b],
-                                                        _perfectly_balanced_block_weights[b] + max_node_weight));
+      _max_block_weights[b] =
+          std::max<BlockWeight>(max_block_weight, _perfectly_balanced_block_weights[b] + p_ctx.max_node_weight);
     }
-  }
+  });
+
+  LOG << "LL" << V(_max_block_weights) << V(_perfectly_balanced_block_weights);
 }
 
-[[nodiscard]] NodeWeight PartitionContext::max_block_weight(const BlockID b) const {
+[[nodiscard]] BlockWeight BlockWeightsContext::max(const BlockID b) const {
   ASSERT(b < _max_block_weights.size());
   return _max_block_weights[b];
 }
 
-[[nodiscard]] const scalable_vector<NodeWeight> &PartitionContext::max_block_weights() const {
-  return _max_block_weights;
-}
+[[nodiscard]] const scalable_vector<BlockWeight> &BlockWeightsContext::all_max() const { return _max_block_weights; }
 
-[[nodiscard]] NodeWeight PartitionContext::perfectly_balanced_block_weight(const BlockID b) const {
+[[nodiscard]] BlockWeight BlockWeightsContext::perfectly_balanced(const BlockID b) const {
   ASSERT(b < _perfectly_balanced_block_weights.size());
   return _perfectly_balanced_block_weights[b];
 }
 
-[[nodiscard]] const scalable_vector<NodeWeight> &PartitionContext::perfectly_balanced_block_weights() const {
+[[nodiscard]] const scalable_vector<BlockWeight> &BlockWeightsContext::all_perfectly_balanced() const {
   return _perfectly_balanced_block_weights;
-}
-
-void PartitionContext::reset_block_weights() {
-  _perfectly_balanced_block_weights.clear();
-  _perfectly_balanced_block_weights.reserve(k);
-  _max_block_weights.clear();
-  _max_block_weights.reserve(k);
 }
 
 //
@@ -146,7 +165,7 @@ void PartitionContext::print(std::ostream &out, const std::string &prefix) const
 }
 
 void CoarseningContext::print(std::ostream &out, const std::string &prefix) const {
-  out << prefix << "graphutils=" << algorithm << " "                                  //
+  out << prefix << "algorithm=" << algorithm << " "                                  //
       << prefix << "contraction_limit=" << contraction_limit << " "                  //
       << prefix << "enforce_contraction_limit=" << enforce_contraction_limit << " "  //
       << prefix << "convergence_threshold=" << convergence_threshold << " "          //
@@ -156,11 +175,10 @@ void CoarseningContext::print(std::ostream &out, const std::string &prefix) cons
 }
 
 void LabelPropagationCoarseningContext::print(std::ostream &out, const std::string &prefix) const {
-  out << prefix << "num_iterations=" << num_iterations << " "                                             //
-      << prefix << "max_degree=" << large_degree_threshold << " "                                         //
-      << prefix << "merge_nonadjacent_clusters_threshold=" << merge_nonadjacent_clusters_threshold << " " //
-      << prefix << "merge_isolated_clusters=" << merge_isolated_clusters << " "                           //
-      << prefix << "max_num_neighbors=" << max_num_neighbors << " ";                                      //
+  out << prefix << "num_iterations=" << num_iterations << " "                             //
+      << prefix << "max_degree=" << large_degree_threshold << " "                         //
+      << prefix << "two_hop_clustering_threshold=" << two_hop_clustering_threshold << " " //
+      << prefix << "max_num_neighbors=" << max_num_neighbors << " ";                      //
 }
 
 void LabelPropagationRefinementContext::print(std::ostream &out, const std::string &prefix) const {
@@ -177,11 +195,11 @@ void FMRefinementContext::print(std::ostream &out, const std::string &prefix) co
 
 void BalancerRefinementContext::print(std::ostream &out, const std::string &prefix) const {
   out << prefix << "timepoint=" << timepoint << " "  //
-      << prefix << "graphutils=" << algorithm << " "; //
+      << prefix << "algorithm=" << algorithm << " "; //
 }
 
 void RefinementContext::print(std::ostream &out, const std::string &prefix) const {
-  out << prefix << "graphutils=" << algorithm << " "; //
+  out << prefix << "algorithm=" << algorithm << " "; //
 
   lp.print(out, prefix + "lp.");
   fm.print(out, prefix + "fm.");
@@ -196,10 +214,8 @@ void InitialPartitioningContext::print(std::ostream &out, const std::string &pre
       << prefix << "min_num_repetitions=" << min_num_repetitions << " "                                   //
       << prefix << "max_num_repetitions=" << max_num_repetitions << " "                                   //
       << prefix << "num_seed_iterations=" << num_seed_iterations << " "                                   //
-      << prefix << "use_adaptive_epsilon=" << use_adaptive_epsilon << " "                                 //
       << prefix << "use_adaptive_bipartitioner_selection=" << use_adaptive_bipartitioner_selection << " " //
-      << prefix << "multiplier_exponent=" << multiplier_exponent << " "                                   //
-      << prefix << "parallelize_bisections=" << parallelize_bisections << " ";                            //
+      << prefix << "multiplier_exponent=" << multiplier_exponent << " ";                                  //
 }
 
 void DebugContext::print(std::ostream &out, const std::string &prefix) const {
@@ -217,7 +233,6 @@ void Context::print(std::ostream &out, const std::string &prefix) const {
       << prefix << "save_output_partition=" << save_partition << " "    //
       << prefix << "partition_filename=" << partition_filename << " "   //
       << prefix << "partition_directory=" << partition_directory << " " //
-      << prefix << "ignore_weights=" << ignore_weights << " "           //
       << prefix << "quiet=" << quiet << " ";                            //
 
   partition.print(out, prefix + "partition.");
@@ -230,7 +245,6 @@ void Context::print(std::ostream &out, const std::string &prefix) const {
 
 void Context::setup(const Graph &graph) {
   partition.setup(graph);
-  partition.setup_max_block_weight();
 }
 
 Context create_default_context() {
@@ -241,7 +255,6 @@ Context create_default_context() {
     .save_partition = false,
     .partition_directory = "./",
     .partition_filename = "", // generate filename
-    .ignore_weights = false,
     .quiet = false,
     .partition = { // Context -> Partition
       .mode = PartitioningMode::DEEP,
@@ -254,9 +267,8 @@ Context create_default_context() {
       .lp = { // Context -> Coarsening -> Label Propagation
         .num_iterations = 5,
         .large_degree_threshold = 1000000,
-        .merge_nonadjacent_clusters_threshold = 0.5,
-        .merge_isolated_clusters = true,
         .max_num_neighbors = 200000,
+        .two_hop_clustering_threshold = 0.5,
       },
       .contraction_limit = 2000,
       .enforce_contraction_limit = false,
@@ -270,11 +282,10 @@ Context create_default_context() {
         .lp = { // Context -> Initial Partitioning -> Coarsening -> Label Propagation
           .num_iterations = 1, // no effect
           .large_degree_threshold = 1000000, // no effect
-          .merge_nonadjacent_clusters_threshold = 0.5, // no effect
-          .merge_isolated_clusters = true, // no effect
           .max_num_neighbors = 200000, // no effect
+          .two_hop_clustering_threshold = 0.5, // no effect
         },
-        .contraction_limit = 20,
+        .contraction_limit = 160,
         .enforce_contraction_limit = false, // no effect
         .convergence_threshold = 0.05,
         .cluster_weight_limit = ClusterWeightLimit::BLOCK_WEIGHT,
@@ -301,10 +312,8 @@ Context create_default_context() {
       .min_num_non_adaptive_repetitions = 5,
       .max_num_repetitions = 50,
       .num_seed_iterations = 1,
-      .use_adaptive_epsilon = true,
       .use_adaptive_bipartitioner_selection = true,
       .multiplier_exponent = 0,
-      .parallelize_bisections = false,
     },
     .refinement = { // Context -> Refinement
       .algorithm = RefinementAlgorithm::LABEL_PROPAGATION,
@@ -332,10 +341,9 @@ Context create_default_context() {
 
 Context create_default_context(const Graph &graph, const BlockID k, const double epsilon) {
   Context context = create_default_context();
-  context.setup(graph);
   context.partition.k = k;
   context.partition.epsilon = epsilon;
-  context.partition.setup_max_block_weight();
+  context.setup(graph);
   return context;
 }
 
@@ -345,7 +353,7 @@ PartitionContext create_bipartition_context(const PartitionContext &k_p_ctx, con
   two_p_ctx.setup(subgraph);
   two_p_ctx.k = 2;
   two_p_ctx.epsilon = compute_2way_adaptive_epsilon(k_p_ctx, subgraph.total_node_weight(), final_k1 + final_k2);
-  two_p_ctx.setup_max_block_weight(scalable_vector<BlockID>{final_k1, final_k2});
+  two_p_ctx.block_weights.setup(two_p_ctx, {final_k1, final_k2});
   return two_p_ctx;
 }
 
@@ -357,8 +365,8 @@ std::ostream &operator<<(std::ostream &out, const Context &context) {
 double compute_2way_adaptive_epsilon(const PartitionContext &p_ctx, const NodeWeight subgraph_total_node_weight,
                                      const BlockID subgraph_final_k) {
   ASSERT(subgraph_final_k > 1);
-  const double base = (1.0 + p_ctx.epsilon) * subgraph_final_k * p_ctx.total_node_weight / p_ctx.k /
-                      subgraph_total_node_weight;
+  const double base =
+      (1.0 + p_ctx.epsilon) * subgraph_final_k * p_ctx.total_node_weight / p_ctx.k / subgraph_total_node_weight;
   const double exponent = 1.0 / math::ceil_log2(subgraph_final_k);
   const double epsilon_prime = std::pow(base, exponent) - 1.0;
   const double adaptive_epsilon = std::max(epsilon_prime, 0.0001);
@@ -370,19 +378,22 @@ NodeWeight compute_max_cluster_weight(const NodeID n, const NodeWeight total_nod
   double max_cluster_weight = 0.0;
 
   switch (c_ctx.cluster_weight_limit) {
-    case ClusterWeightLimit::EPSILON_BLOCK_WEIGHT: {
-      const BlockID k_prime = std::clamp<BlockID>(n / c_ctx.contraction_limit, 2, input_p_ctx.k);
-      max_cluster_weight = (input_p_ctx.epsilon * total_node_weight) / k_prime;
-      break;
-    }
+  case ClusterWeightLimit::EPSILON_BLOCK_WEIGHT:
+    max_cluster_weight =
+        (input_p_ctx.epsilon * total_node_weight) / std::clamp<BlockID>(n / c_ctx.contraction_limit, 2, input_p_ctx.k);
+    break;
 
-    case ClusterWeightLimit::BLOCK_WEIGHT:
-      max_cluster_weight = (1.0 + input_p_ctx.epsilon) * total_node_weight / input_p_ctx.k;
-      break;
+  case ClusterWeightLimit::BLOCK_WEIGHT:
+    max_cluster_weight = (1.0 + input_p_ctx.epsilon) * total_node_weight / input_p_ctx.k;
+    break;
 
-    case ClusterWeightLimit::ONE: max_cluster_weight = 1.0; break;
+  case ClusterWeightLimit::ONE:
+    max_cluster_weight = 1.0;
+    break;
 
-    case ClusterWeightLimit::ZERO: max_cluster_weight = 0.0; break;
+  case ClusterWeightLimit::ZERO:
+    max_cluster_weight = 0.0;
+    break;
   }
 
   return static_cast<NodeWeight>(max_cluster_weight * c_ctx.cluster_weight_multiplier);

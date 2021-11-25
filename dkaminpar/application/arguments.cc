@@ -28,9 +28,6 @@ void create_coarsening_label_propagation_options(LabelPropagationCoarseningConte
 
 void create_coarsening_options(CoarseningContext &c_ctx, kaminpar::Arguments &args, const std::string &name,
                                const std::string &prefix) {
-  //      << prefix << "cluster_weight_limit=" << cluster_weight_limit << " "                 //
-      //<< prefix << "cluster_weight_multiplier=" << cluster_weight_multiplier << " ";      //
-
   // clang-format off
   args.group(name, prefix)
       .argument(prefix + "-contraction-limit", "Contraction limit", &c_ctx.contraction_limit)

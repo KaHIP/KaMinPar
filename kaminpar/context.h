@@ -35,6 +35,11 @@ enum class RefinementAlgorithm {
   NOOP,
 };
 
+enum class FMStoppingRule {
+  SIMPLE,
+  ADAPTIVE,
+};
+
 enum class BalancingTimepoint {
   BEFORE_KWAY_REFINEMENT,
   AFTER_KWAY_REFINEMENT,
@@ -45,11 +50,6 @@ enum class BalancingTimepoint {
 enum class BalancingAlgorithm {
   NOOP,
   BLOCK_LEVEL_PARALLEL_BALANCER,
-};
-
-enum class FMStoppingRule {
-  SIMPLE,
-  ADAPTIVE,
 };
 
 enum class PartitioningMode {
@@ -65,181 +65,160 @@ enum class InitialPartitioningMode {
 
 DECLARE_ENUM_STRING_CONVERSION(ClusteringAlgorithm, clustering_algorithm);
 DECLARE_ENUM_STRING_CONVERSION(RefinementAlgorithm, refinement_algorithm);
+DECLARE_ENUM_STRING_CONVERSION(FMStoppingRule, fm_stopping_rule);
 DECLARE_ENUM_STRING_CONVERSION(BalancingTimepoint, balancing_timepoint);
 DECLARE_ENUM_STRING_CONVERSION(BalancingAlgorithm, balancing_algorithm);
-DECLARE_ENUM_STRING_CONVERSION(FMStoppingRule, fm_stopping_rule);
 DECLARE_ENUM_STRING_CONVERSION(PartitioningMode, partitioning_mode);
 DECLARE_ENUM_STRING_CONVERSION(ClusterWeightLimit, cluster_weight_limit);
 DECLARE_ENUM_STRING_CONVERSION(InitialPartitioningMode, initial_partitioning_mode);
 
+struct PartitionContext;
+
+struct BlockWeightsContext {
+  void setup(const PartitionContext &ctx);
+  void setup(const PartitionContext &ctx, const scalable_vector<BlockID> &final_ks);
+
+  [[nodiscard]] BlockWeight max(BlockID b) const;
+  [[nodiscard]] const scalable_vector<BlockWeight> &all_max() const;
+  [[nodiscard]] BlockWeight perfectly_balanced(BlockID b) const;
+  [[nodiscard]] const scalable_vector<BlockWeight> &all_perfectly_balanced() const;
+
+private:
+  scalable_vector<BlockWeight> _perfectly_balanced_block_weights;
+  scalable_vector<BlockWeight> _max_block_weights;
+};
+
 struct PartitionContext {
-  PartitioningMode mode{PartitioningMode::DEEP};
-  double epsilon{0.03};
-  BlockID k{0};
-  bool fast_initial_partitioning{false};
+  PartitioningMode mode;          //! Partitioning mode, e.g., k-way, rb, deep MGP
+  double epsilon;                 //! Imbalance factor.
+  BlockID k;                      //! Number of blocks.
+  bool fast_initial_partitioning; //! Use less iterations during initial bipartitioning.
+
+  //! Balance constraint: precomputed maximum block weights.
+  BlockWeightsContext block_weights{};
 
   void setup(const Graph &graph);
-  void setup_max_block_weight();
-  void setup_max_block_weight(const scalable_vector<BlockID> &final_ks);
+  void setup_block_weights();
 
-  [[nodiscard]] NodeWeight max_block_weight(BlockID b) const;
-  [[nodiscard]] const scalable_vector<NodeWeight> &max_block_weights() const;
-  [[nodiscard]] NodeWeight perfectly_balanced_block_weight(BlockID b) const;
-  [[nodiscard]] const scalable_vector<NodeWeight> &perfectly_balanced_block_weights() const;
+  NodeID n = kInvalidNodeID;                         //! Number of nodes in the input graph.
+  EdgeID m = kInvalidEdgeID;                         //! Number of edges in the input graph.
+  NodeWeight total_node_weight = kInvalidNodeWeight; //! Total node weight in the input graph.
+  EdgeWeight total_edge_weight = kInvalidEdgeWeight; //! Total edge weight in the input graph.
+  NodeWeight max_node_weight = kInvalidNodeWeight;   //! Weight of heaviest node in the input graph.
 
   void print(std::ostream &out, const std::string &prefix = "") const;
-
-  NodeID n{};
-  EdgeID m{};
-  NodeWeight total_node_weight{};
-  EdgeWeight total_edge_weight{};
-  NodeWeight max_node_weight{};
-
-  void reset_block_weights();
-
-  scalable_vector<NodeWeight> _perfectly_balanced_block_weights{};
-  scalable_vector<NodeWeight> _max_block_weights{};
 };
 
 struct LabelPropagationCoarseningContext {
-  //! Perform at most this many iterations.
-  std::size_t num_iterations{0};
-
-  //! Ignore nodes whose degree exceeds this threshold.
-  Degree large_degree_threshold{kMaxDegree};
-
-  //! If the number of clusters shrunk by less than this factor, try to merge singleton clusters that favor the same
-  //! cluster.
-  double merge_nonadjacent_clusters_threshold{0.5};
-
-  //! In case of `merge_nonadjacent_clusters_threshold`, also merge isolated singleton clusters.
-  bool merge_isolated_clusters{true};
-
-  //! Maximum number of neighbors to scan before assigning a node to a cluster. 0 = always scan all neighbors.
-  NodeID max_num_neighbors{std::numeric_limits<NodeID>::max()};
+  std::size_t num_iterations;          //! Maximum number of LP iterations.
+  Degree large_degree_threshold;       //! Ignore nodes with degree larger than this.
+  NodeID max_num_neighbors;            //! Only consider this many neighbors of each node.
+  double two_hop_clustering_threshold; //! Perform 2-hop clustering if graph shrunk by less than this factor.
 
   void print(std::ostream &out, const std::string &prefix = "") const;
 
-  [[nodiscard]] bool should_merge_nonadjacent_clusters(const NodeID old_n, const NodeID new_n) const {
-    return (1.0 - 1.0 * new_n / old_n) <= merge_nonadjacent_clusters_threshold;
+  [[nodiscard]] bool use_two_hop_clustering(const NodeID old_n, const NodeID new_n) const {
+    return (1.0 - 1.0 * new_n / old_n) <= two_hop_clustering_threshold;
   }
 };
 
 struct CoarseningContext {
-  //! Clustering graphutils, e.g., label propagation.
-  ClusteringAlgorithm algorithm{ClusteringAlgorithm::NOOP};
-  LabelPropagationCoarseningContext lp{};
-
-  //! Abort coarsening once the number of nodes falls below `2 * contraction_limit`.
-  NodeID contraction_limit{0};
-
-  //! Control the clustering graphutils to enforce the contraction limit.
-  bool enforce_contraction_limit{false};
-
-  //! We terminate coarsening once the graph shrunk by at most this factor.
-  double convergence_threshold{0.0};
-
-  //! The rule that use to compute the maximum cluster weight.
-  ClusterWeightLimit cluster_weight_limit{ClusterWeightLimit::EPSILON_BLOCK_WEIGHT};
-
-  //! Multiplicative factor to the maximum cluster weight limit computed.
-  double cluster_weight_multiplier{1.0};
+  ClusteringAlgorithm algorithm;        //! Clustering algorithm.
+  LabelPropagationCoarseningContext lp; //! Configuration for LP as clustering algorithm.
+  NodeID contraction_limit;             //! Abort coarsening if the coarsest graph has less than twice this many nodes.
+  bool enforce_contraction_limit;       //! Force the clustering algorithm to converge on the contraction limit.
+  double convergence_threshold;         //! Coarsening converges if the graph shrunk by less than this factor.
+  ClusterWeightLimit cluster_weight_limit; //! Rule to compute the maximum cluster weight.
+  double cluster_weight_multiplier;        //! Multiplicative factor to the maximum cluster weight.
 
   void print(std::ostream &out, const std::string &prefix = "") const;
 
-  [[nodiscard]] inline bool should_converge(const NodeID old_n, const NodeID new_n) const {
+  [[nodiscard]] inline bool coarsening_should_converge(const NodeID old_n, const NodeID new_n) const {
     return (1.0 - 1.0 * new_n / old_n) <= convergence_threshold;
   }
 };
 
 struct LabelPropagationRefinementContext {
-  //! Perform at most this many iterations.
-  std::size_t num_iterations{0};
-
-  //! Ignore nodes whose degree exceeds this threshold.
-  Degree large_degree_threshold{kMaxDegree};
-
-  //! Maximum number of neighbors to scan before assigning a node to a block. 0 = always scan all neighbors.
-  NodeID max_num_neighbors{std::numeric_limits<NodeID>::max()};
+  std::size_t num_iterations;    //! Maximum number of LP iterations.
+  Degree large_degree_threshold; //! Ignore nodes with degree larger than this.
+  NodeID max_num_neighbors;      //! Only consider this many neighbors of each node.
 
   void print(std::ostream &out, const std::string &prefix = "") const;
 };
 
 struct FMRefinementContext {
-  FMStoppingRule stopping_rule{FMStoppingRule::SIMPLE};
-  NodeID num_fruitless_moves{100};
-  double alpha{1.0};
-  std::size_t num_iterations{5};
-  double improvement_abortion_threshold{0.0001};
+  FMStoppingRule stopping_rule;          //! Rule to determine when to stop FM.
+  NodeID num_fruitless_moves;            //! Stop after more than this many moves without cut improvement.
+  double alpha;                          //! Config parameter of the adaptive stopping criteria.
+  std::size_t num_iterations;            //! Maximum number of FM iterations.
+  double improvement_abortion_threshold; //! Stop FM if last iteration improved the cut by less than this factor.
 
   void print(std::ostream &out, const std::string &prefix = "") const;
 };
 
 struct BalancerRefinementContext {
-  BalancingAlgorithm algorithm{BalancingAlgorithm::BLOCK_LEVEL_PARALLEL_BALANCER};
-  BalancingTimepoint timepoint{BalancingTimepoint::BEFORE_KWAY_REFINEMENT};
+  BalancingAlgorithm algorithm; //! Balancing algorithm.
+  BalancingTimepoint timepoint; //! Rule to determine when to run the balancing algorithm.
 
   void print(std::ostream &out, const std::string &prefix = "") const;
 };
 
 struct RefinementContext {
-  RefinementAlgorithm algorithm{RefinementAlgorithm::NOOP};
-  LabelPropagationRefinementContext lp;
-  FMRefinementContext fm;
-  BalancerRefinementContext balancer;
+  RefinementAlgorithm algorithm;        //! Refinement algorithm.
+  LabelPropagationRefinementContext lp; //! If LP is used: configuration for LP.
+  FMRefinementContext fm;               //! If FM is used: configuration for FM.
+  BalancerRefinementContext balancer;   //! If a balancer is used: configuration for balancer.
 
   void print(std::ostream &out, const std::string &prefix = "") const;
 };
 
 struct InitialPartitioningContext {
-  CoarseningContext coarsening;
-  RefinementContext refinement;
-  InitialPartitioningMode mode;
-  double repetition_multiplier{1.0};
-  std::size_t min_num_repetitions{10};
-  std::size_t min_num_non_adaptive_repetitions{5};
-  std::size_t max_num_repetitions{50};
-  std::size_t num_seed_iterations{1};
-  bool use_adaptive_epsilon{true};
-  bool use_adaptive_bipartitioner_selection{true};
-  std::size_t multiplier_exponent{0};
-  bool parallelize_bisections{false};
+  CoarseningContext coarsening; //! Configuration for IP coarsening.
+  RefinementContext refinement; //! Configuration for IP refinement.
+  InitialPartitioningMode mode; //! Initial partitioning mode.
+  double repetition_multiplier;
+  std::size_t min_num_repetitions;
+  std::size_t min_num_non_adaptive_repetitions;
+  std::size_t max_num_repetitions;
+  std::size_t num_seed_iterations;
+  bool use_adaptive_bipartitioner_selection;
+  std::size_t multiplier_exponent;
 
   void print(std::ostream &out, const std::string &prefix = "") const;
 };
 
 struct DebugContext {
-  bool just_sanitize_args{false};
+  bool just_sanitize_args; //! If true, check CLI arguments and exit.
 
   void print(std::ostream &out, const std::string &prefix = "") const;
 };
 
 struct ParallelContext {
-  bool use_interleaved_numa_allocation{true};
-  std::size_t num_threads{1};
+  bool use_interleaved_numa_allocation;
+  std::size_t num_threads;
 
   void print(std::ostream &out, const std::string &prefix = "") const;
 };
 
 struct Context {
-  std::string graph_filename{};
-  int seed{0};
-  bool save_partition{false};
-  std::string partition_directory{"./"};
-  std::string partition_filename{};
-  bool ignore_weights{false};
-  bool quiet{false};
+  std::string graph_filename;
+  int seed;
+  bool save_partition;
+  std::string partition_directory;
+  std::string partition_filename;
+  bool quiet;
 
-  PartitionContext partition{};
-  CoarseningContext coarsening{};
-  InitialPartitioningContext initial_partitioning{};
-  RefinementContext refinement{};
-  DebugContext debug{};
-  ParallelContext parallel{};
+  PartitionContext partition;
+  CoarseningContext coarsening;
+  InitialPartitioningContext initial_partitioning;
+  RefinementContext refinement;
+  DebugContext debug;
+  ParallelContext parallel;
 
   void print(std::ostream &out, const std::string &prefix = "") const;
 
   void setup(const Graph &graph);
+
   [[nodiscard]] std::string partition_file() const { return partition_directory + "/" + partition_filename; }
 };
 

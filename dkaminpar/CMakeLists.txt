@@ -52,9 +52,6 @@ set(DKAMINPAR_SOURCE_FILES
         factories.h
         growt.h)
 
-# Only create target if MPI is available
-find_package(MPI)
-
 if (MPI_FOUND)
     add_library(dkaminpar_impl OBJECT ${DKAMINPAR_SOURCE_FILES})
     target_include_directories(dkaminpar_impl PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

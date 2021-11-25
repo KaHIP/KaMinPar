@@ -41,7 +41,7 @@ void balance(IBalancer *balancer, PartitionedGraph &p_graph, const BalancingTime
 void update_partition_context(PartitionContext &current_p_ctx, const PartitionedGraph &p_graph) {
   current_p_ctx.setup(p_graph.graph());
   current_p_ctx.k = p_graph.k();
-  current_p_ctx.setup_max_block_weight(p_graph.final_ks());
+  current_p_ctx.block_weights.setup(current_p_ctx, p_graph.final_ks());
 }
 
 PartitionedGraph uncoarsen_once(ICoarsener *coarsener, PartitionedGraph p_graph, PartitionContext &current_p_ctx) {
@@ -175,7 +175,8 @@ void extend_partition(PartitionedGraph &p_graph, const BlockID k_prime, const Co
 
   ASSERT(p_graph.k() == k_prime);
 
-  DBG << V(p_graph.k()) << V(p_graph.final_ks()) << V(p_graph.block_weights()) << V(current_p_ctx.max_block_weights());
+  DBG << V(p_graph.k()) << V(p_graph.final_ks()) << V(p_graph.block_weights())
+      << V(current_p_ctx.block_weights.all_max());
 }
 
 // extend_partition with local memory allocation for subgraphs

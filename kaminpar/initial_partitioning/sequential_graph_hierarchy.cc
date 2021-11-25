@@ -39,12 +39,7 @@ PartitionedGraph SequentialGraphHierarchy::pop_and_project(PartitionedGraph &&co
   // this destroys underlying Graph wrapped in p_graph
   _coarse_graphs.pop_back();
 
-  PartitionedGraph p_graph{tag::seq, graph, coarse_p_graph.k(), std::move(partition),
-                           std::move(coarse_p_graph.take_final_k())};
-#ifdef KAMIPAR_GRAPH_NAMES
-  p_graph.set_block_names(coarse_p_graph.block_names());
-#endif // KAMIPAR_GRAPH_NAMES
-  return p_graph;
+  return {tag::seq, graph, coarse_p_graph.k(), std::move(partition), std::move(coarse_p_graph.take_final_k())};
 }
 
 const Graph &SequentialGraphHierarchy::get_second_coarsest_graph() const {

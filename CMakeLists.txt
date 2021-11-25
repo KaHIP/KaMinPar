@@ -22,7 +22,7 @@ option(KAMINPAR_STATISTICS "Generate and output detailed statistics." OFF)
 option(KAMINPAR_64BIT_EDGE_IDS "Use 64 bits for edge ids." OFF)
 option(KAMINPAR_BACKWARD_CPP "Use backward-cpp for better stacktraces." OFF)
 option(KAMINPAR_TESTS "If enabled, build unit tests." OFF)
-option(KAMINPAR_KAGEN "If enabled, include KaGen for in-memory graph generation." OFF)
+option(KAMINPAR_GRAPHGEN "If enabled, include KaGen for in-memory graph generation." OFF)
 
 include_directories(${PROJECT_SOURCE_DIR})
 
@@ -87,13 +87,8 @@ endif ()
 
 if (KAMINPAR_TESTS)
     add_definitions(-DKAMINPAR_BUILD_TESTS)
+    include(gmock)
 endif ()
-
-include(gmock)
-
-# Growt
-add_library(growt INTERFACE)
-target_include_directories(growt INTERFACE external_tools/growt/)
 
 # Backward-cpp for stack traces in MPI code
 if (KAMINPAR_BACKWARD_CPP)
@@ -101,6 +96,22 @@ if (KAMINPAR_BACKWARD_CPP)
     add_subdirectory(external_tools/backward-cpp)
     add_definitions(-DUSE_BACKWARD)
     message(STATUS "Use backward")
+endif ()
+
+# Look for MPI
+find_package(MPI)
+
+# Only include Growt if we can build the distributed partitioner
+if (MPI_FOUND)
+    add_library(growt INTERFACE)
+    target_include_directories(growt INTERFACE external_tools/growt/)
+endif ()
+
+if (KAMINPAR_GRAPHGEN)
+    include(external_tools/KaGen/)
+    add_library(kagen INTERFACE)
+    target_include_directories(kagen INTERFACE ${KAGEN_INCLUDE_DIRS})
+    target_link_libraries(kagen INTERFACE ${KAGEN_LINK_LIBRARIES})
 endif ()
 
 add_subdirectory(kaminpar)

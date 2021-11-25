@@ -125,8 +125,8 @@ private:
 struct MaxWeightSelectionPolicy {
   std::size_t operator()(const PartitionedGraph &p_graph, const PartitionContext &context, const Queues &,
                          Randomize &rand) {
-    const auto weight0 = p_graph.block_weight(0) - context.perfectly_balanced_block_weight(0);
-    const auto weight1 = p_graph.block_weight(1) - context.perfectly_balanced_block_weight(1);
+    const auto weight0 = p_graph.block_weight(0) - context.block_weights.perfectly_balanced(0);
+    const auto weight1 = p_graph.block_weight(1) - context.block_weights.perfectly_balanced(1);
     return weight1 > weight0 || (weight0 == weight1 && rand.random_bool());
   }
 };
@@ -145,8 +145,8 @@ struct MaxGainSelectionPolicy {
 struct MaxOverloadSelectionPolicy {
   std::size_t operator()(const PartitionedGraph &p_graph, const PartitionContext &context, const Queues &queues,
                          Randomize &rand) {
-    const NodeWeight overload0 = std::max(0, p_graph.block_weight(0) - context.max_block_weight(0));
-    const NodeWeight overload1 = std::max(0, p_graph.block_weight(1) - context.max_block_weight(1));
+    const NodeWeight overload0 = std::max(0, p_graph.block_weight(0) - context.block_weights.max(0));
+    const NodeWeight overload1 = std::max(0, p_graph.block_weight(1) - context.block_weights.max(1));
     if (overload0 == 0 && overload1 == 0) { return MaxGainSelectionPolicy()(p_graph, context, queues, rand); }
     return overload1 > overload0 || (overload1 == overload0 && rand.random_bool());
   }

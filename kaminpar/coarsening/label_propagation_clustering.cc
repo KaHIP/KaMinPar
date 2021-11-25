@@ -59,7 +59,7 @@ public:
       }
     }
 
-    if (_c_ctx.lp.should_merge_nonadjacent_clusters(_graph->n(), _current_num_clusters)) {
+    if (_c_ctx.lp.use_two_hop_clustering(_graph->n(), _current_num_clusters)) {
       TIMED_SCOPE("2-hop Clustering") { perform_two_hop_clustering(); };
     }
 

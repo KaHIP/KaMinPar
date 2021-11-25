@@ -35,7 +35,7 @@ void GreedyGraphGrowingBipartitioner::bipartition_impl() {
       ASSERT(_queue.peek_key() == compute_negative_gain(u));
       _queue.pop();
       change_block(u, V2);
-      if (_block_weights[V2] >= _p_ctx.perfectly_balanced_block_weight(V2)) { break; }
+      if (_block_weights[V2] >= _p_ctx.block_weights.perfectly_balanced(V2)) { break; }
 
       // queue unmarked neighbors / update gains
       for (const auto [e, v] : _graph.neighbors(u)) {
@@ -53,7 +53,7 @@ void GreedyGraphGrowingBipartitioner::bipartition_impl() {
         }
       }
     }
-  } while (_block_weights[V2] < _p_ctx.perfectly_balanced_block_weight(V2));
+  } while (_block_weights[V2] < _p_ctx.block_weights.perfectly_balanced(V2));
 
   _marker.reset();
   _queue.clear();

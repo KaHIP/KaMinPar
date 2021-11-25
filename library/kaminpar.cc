@@ -152,7 +152,7 @@ std::unique_ptr<BlockID[]> finalize_partition(Graph &graph, PartitionedGraph &p_
   // place isolated nodes into blocks
   for (NodeID u_prime = restricted_n; u_prime < graph.n(); ++u_prime) {
     const NodeID u = pimpl->permutations.new_to_old[u_prime];
-    while (b + 1 < k && block_weights[b] + graph.node_weight(u_prime) > p_ctx.max_block_weight(b)) {
+    while (b + 1 < k && block_weights[b] + graph.node_weight(u_prime) > p_ctx.block_weights.max(b)) {
       ++b;
     }
     new_partition[u] = b;

@@ -31,7 +31,7 @@ public:
   [[nodiscard]] inline const auto &coarse_graphs() const { return _coarse_graphs; }
 
 private:
-  const Graph &get_second_coarsest_graph() const;
+  [[nodiscard]] const Graph &get_second_coarsest_graph() const;
 
   const Graph *_finest_graph;
   std::vector<std::vector<NodeID>> _coarse_mappings;

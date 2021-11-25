@@ -73,7 +73,7 @@ int main(int argc, char *argv[]) {
         const auto max_cluster_weight = compute_max_cluster_weight(*c_graph, ctx.partition, ctx.coarsening);
         const NodeID old_n = c_graph->n();
         const auto result = coarsener.compute_coarse_graph(max_cluster_weight, 0); // might invalidate c_graph ptr
-        if (ctx.coarsening.should_converge(old_n, result.first->n())) { break; }
+        if (ctx.coarsening.coarsening_should_converge(old_n, result.first->n())) { break; }
         std::tie(c_graph, shrunk) = result;
       }
     }

@@ -26,7 +26,7 @@ std::pair<const Graph *, bool> ClusteringCoarsener::compute_coarse_graph(const N
   };
   _contraction_m_ctx = std::move(m_ctx);
 
-  const bool converged = _c_ctx.should_converge(_current_graph->n(), c_graph.n());
+  const bool converged = _c_ctx.coarsening_should_converge(_current_graph->n(), c_graph.n());
 
   _hierarchy.push_back(std::move(c_graph));
   _mapping.push_back(std::move(c_mapping));
@@ -56,11 +56,6 @@ PartitionedGraph ClusteringCoarsener::uncoarsen(PartitionedGraph &&p_graph) {
   STOP_TIMER();
 
   SCOPED_TIMER("Create graph");
-  PartitionedGraph new_p_graph(*_current_graph, p_graph.k(), std::move(partition), std::move(p_graph.take_final_k()));
-#ifdef KAMINPAR_ENABLE_DEBUG_FEATURES
-  new_p_graph.set_block_names(p_graph.block_names());
-#endif // KAMINPAR_ENABLE_DEBUG_FEATURES
-
-  return new_p_graph;
+  return {*_current_graph, p_graph.k(), std::move(partition), std::move(p_graph.take_final_k())};
 }
 } // namespace kaminpar
