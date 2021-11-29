@@ -5,7 +5,7 @@
  * @date:   27.10.2021
  * @brief:
  ******************************************************************************/
-#include "dkaminpar/application/arguments.h"
+#include "apps/dkaminpar_arguments.h"
 
 #include "kaminpar/application/arguments.h"
 
@@ -14,13 +14,31 @@
 namespace dkaminpar::app {
 using namespace std::string_literals;
 
+#ifdef KAMINPAR_GRAPHGEN
+void create_graphgen_options(graphgen::GeneratorContext &g_ctx, kaminpar::Arguments &args, const std::string &name,
+                             const std::string &prefix) {
+  // clang-format off
+  args.group(name, prefix)
+      .argument(prefix, "Graph generator, possible values: {" + graphgen::generator_type_names() + "}.", &g_ctx.type, graphgen::generator_type_from_string)
+      .argument(prefix + "-n", "Number of nodes in the graph.", &g_ctx.n)
+      .argument(prefix + "-m", "Number of edges in the graph.", &g_ctx.m)
+      .argument(prefix + "-k", "Number of chunks (depending on model). Can be 0.", &g_ctx.k)
+      .argument(prefix + "-d", "Average degree (depending on model).", &g_ctx.d)
+      .argument(prefix + "-p", "P?", &g_ctx.p)
+      .argument(prefix + "-r", "Radius (depending on model).", &g_ctx.r)
+      .argument(prefix + "-gamma", "Power law exponent (depending on model)", &g_ctx.gamma)
+      ;
+  // clang-format on
+}
+#endif // KAMINPAR_GRAPHGEN
+
 void create_coarsening_label_propagation_options(LabelPropagationCoarseningContext &lp_ctx, kaminpar::Arguments &args,
                                                  const std::string &name, const std::string &prefix) {
   // clang-format off
   args.group(name, prefix)
       .argument(prefix + "-iterations", "Maximum number of LP iterations.", &lp_ctx.num_iterations)
       .argument(prefix + "-total-num-chunks", "Number of communication chunks times number of PEs.", &lp_ctx.total_num_chunks)
-      .argument(prefix + "-min-num-chunks", "Minimuim number of communication chunks.", &lp_ctx.min_num_chunks)
+      .argument(prefix + "-min-num-chunks", "Minimum number of communication chunks.", &lp_ctx.min_num_chunks)
       .argument(prefix + "-num-chunks", "Number of communication chunks. If set to 0, the value is computed from total-num-chunks.", &lp_ctx.num_chunks)
       ;
   // clang-format on
@@ -39,8 +57,10 @@ void create_coarsening_options(CoarseningContext &c_ctx, kaminpar::Arguments &ar
       .argument(prefix + "-cluster-weight-multiplier", "Multiplier for the cluster weight limit.", &c_ctx.cluster_weight_multiplier)
       ;
   // clang-format on
-  create_coarsening_label_propagation_options(c_ctx.local_lp, args, name + " -> Local Label Propagation", prefix + "-llp");
-  create_coarsening_label_propagation_options(c_ctx.global_lp, args, name + " -> Global Label Propagation", prefix + "-glp");
+  create_coarsening_label_propagation_options(c_ctx.local_lp, args, name + " -> Local Label Propagation",
+                                              prefix + "-llp");
+  create_coarsening_label_propagation_options(c_ctx.global_lp, args, name + " -> Global Label Propagation",
+                                              prefix + "-glp");
 }
 
 void create_refinement_label_propagation_options(LabelPropagationRefinementContext &lp_ctx, kaminpar::Arguments &args,
@@ -96,19 +116,22 @@ void create_mandatory_options(Context &ctx, kaminpar::Arguments &args, const std
   // clang-format on
 }
 
-void create_context_options(Context &ctx, kaminpar::Arguments &args) {
-  create_mandatory_options(ctx, args, "Mandatory");
-  create_miscellaneous_context_options(ctx, args, "Miscellaneous", "m");
-  create_coarsening_options(ctx.coarsening, args, "Coarsening", "c");
-  create_initial_partitioning_options(ctx.initial_partitioning, args, "Initial Partitioning", "i");
-  create_refinement_options(ctx.refinement, args, "Refinement", "r");
+void create_context_options(ApplicationContext &a_ctx, kaminpar::Arguments &args) {
+  create_mandatory_options(a_ctx.ctx, args, "Mandatory");
+  create_miscellaneous_context_options(a_ctx.ctx, args, "Miscellaneous", "m");
+  create_coarsening_options(a_ctx.ctx.coarsening, args, "Coarsening", "c");
+  create_initial_partitioning_options(a_ctx.ctx.initial_partitioning, args, "Initial Partitioning", "i");
+  create_refinement_options(a_ctx.ctx.refinement, args, "Refinement", "r");
+#ifdef KAMINPAR_GRAPHGEN
+  create_graphgen_options(a_ctx.generator, args, "Graph Generation", "g");
+#endif // KAMINPAR_GRAPHGEN
 }
 
-Context parse_options(int argc, char *argv[]) {
-  Context context = create_default_context();
+ApplicationContext parse_options(int argc, char *argv[]) {
+  ApplicationContext a_ctx{create_default_context(), {}};
   kaminpar::Arguments arguments;
-  create_context_options(context, arguments);
+  create_context_options(a_ctx, arguments);
   arguments.parse(argc, argv);
-  return context;
+  return a_ctx;
 }
 } // namespace dkaminpar::app

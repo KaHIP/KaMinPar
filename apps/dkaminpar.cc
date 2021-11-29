@@ -10,8 +10,12 @@
 #include "dkaminpar/distributed_definitions.h"
 // clang-format on
 
-#include "apps.h"
-#include "dkaminpar/application/arguments.h"
+#include "apps/apps.h"
+#include "apps/dkaminpar_arguments.h"
+//#ifdef KAMINPAR_GRAPHGEN
+#include "apps/dkaminpar_graphgen.h"
+//#endif // KAMINPAR_GRAPHGEN
+
 #include "dkaminpar/distributed_context.h"
 #include "dkaminpar/distributed_io.h"
 #include "dkaminpar/graphutils/rearrange_graph.h"
@@ -30,13 +34,21 @@ namespace dist = dkaminpar;
 namespace shm = kaminpar;
 
 namespace {
-// clang-format off
-void sanitize_context(const dist::Context &ctx) {
-  ALWAYS_ASSERT(!std::ifstream(ctx.graph_filename) == false) << "Graph file cannot be read. Ensure that the file exists and is readable: " << ctx.graph_filename;
-  ALWAYS_ASSERT(ctx.partition.k >= 2) << "k must be at least 2.";
-  ALWAYS_ASSERT(ctx.partition.epsilon > 0) << "Epsilon must be greater than zero.";
+void sanitize_context(const dist::app::ApplicationContext &app) {
+#ifdef KAMINPAR_GRAPHGEN
+  ALWAYS_ASSERT(app.generator.type != dist::graphgen::GeneratorType::NONE || !app.ctx.graph_filename.empty())
+      << "must configure a graph generator or specify an input graph";
+  ALWAYS_ASSERT(app.generator.type == dist::graphgen::GeneratorType::NONE || app.ctx.graph_filename.empty())
+      << "cannot configure a graph generator and specify an input graph";
+  ALWAYS_ASSERT(app.ctx.graph_filename.empty() || !std::ifstream(app.ctx.graph_filename) == false)
+      << "input graph specified, but file cannot be read";
+#else  // KAMINPAR_GRAPHGEN
+  ALWAYS_ASSERT(!std::ifstream(app.ctx.graph_filename) == false) << "cannot read input graph";
+#endif // KAMINPAR_GRAPHGEN
+
+  ALWAYS_ASSERT(app.ctx.partition.k >= 2) << "k must be at least 2.";
+  ALWAYS_ASSERT(app.ctx.partition.epsilon > 0) << "Epsilon must be greater than zero.";
 }
-// clang-format on
 
 void print_result_statistics(const dist::DistributedPartitionedGraph &p_graph, const dist::Context &ctx) {
   const auto edge_cut = dist::metrics::edge_cut(p_graph);
@@ -90,8 +102,9 @@ int main(int argc, char *argv[]) {
   [[maybe_unused]] const auto sh = shm::init_backward();
 
   // Parse command line arguments
-  auto ctx = dist::app::parse_options(argc, argv);
-  sanitize_context(ctx);
+  auto app = dist::app::parse_options(argc, argv);
+  auto &ctx = app.ctx;
+  sanitize_context(app);
   shm::Logger::set_quiet_mode(ctx.quiet);
 
   shm::print_identifier(argc, argv);
@@ -108,7 +121,14 @@ int main(int argc, char *argv[]) {
   }
 
   // Load graph
-  auto graph = TIMED_SCOPE("IO") { return dist::io::read_node_balanced(ctx.graph_filename); };
+  auto graph = TIMED_SCOPE("IO") {
+#ifdef KAMINPAR_GRAPHGEN
+    if (app.generator.type != dist::graphgen::GeneratorType::NONE) {
+      return dist::graphgen::generate(app.generator);
+    }
+#endif // KAMINPAR_GRAPHGEN
+    return dist::io::read_node_balanced(ctx.graph_filename);
+  };
 
   // Print statistics
   {

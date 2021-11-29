@@ -7,15 +7,15 @@
  ******************************************************************************/
 #include "definitions.h"
 
-#ifdef USE_BACKWARD
+#ifdef KAMINPAR_BACKWARD_CPP
 #include "backward.hpp"
-#endif // USE_BACKWARD
+#endif // KAMINPAR_BACKWARD_CPP
 
 #include <sstream>
 
 namespace kaminpar::debug {
 void print_stacktrace() {
-#ifdef USE_BACKWARD
+#ifdef KAMINPAR_BACKWARD_CPP
   using namespace backward;
   std::ostringstream oss;
   StackTrace st;
@@ -24,6 +24,6 @@ void print_stacktrace() {
   p.print(st, oss);
 
   std::cout << oss.str() << std::endl;
-#endif // USE_BACKWARD
+#endif // KAMINPAR_BACKWARD_CPP
 }
 } // namespace kaminpar::debug

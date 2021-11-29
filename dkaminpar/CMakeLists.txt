@@ -1,6 +1,4 @@
 set(DKAMINPAR_SOURCE_FILES
-        application/arguments.cc
-        application/arguments.h
         graphutils/allgather_graph.cc
         graphutils/allgather_graph.h
         graphutils/rearrange_graph.cc

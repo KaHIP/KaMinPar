@@ -23,23 +23,28 @@ public:
     scalable_vector<PEID> ghost_owner;
   };
 
-  GhostNodeMapper(const scalable_vector<GlobalNodeID> &node_distribution, MPI_Comm const comm = MPI_COMM_WORLD)
+  explicit GhostNodeMapper(const scalable_vector<GlobalNodeID> &node_distribution, MPI_Comm comm = MPI_COMM_WORLD)
       : _node_distribution{node_distribution} {
     const PEID rank = mpi::get_comm_rank(comm);
     _n = static_cast<NodeID>(_node_distribution[rank + 1] - _node_distribution[rank]);
     _next_ghost_node = _n;
   }
 
-  void new_ghost_node(const GlobalNodeID global_node) {
+  NodeID new_ghost_node(const GlobalNodeID global_node) {
     GhostNodeMap::accessor entry;
     if (_global_to_ghost.insert(entry, global_node)) {
       const NodeID ghost_node = _next_ghost_node.fetch_add(1, std::memory_order_relaxed);
       entry->second = ghost_node;
+    } else {
+      [[maybe_unused]] const bool found = _global_to_ghost.find(entry, global_node);
+      ASSERT(found);
     }
+
+    return entry->second;
   }
 
   Result finalize() {
-    const NodeID ghost_n = static_cast<NodeID>(_next_ghost_node - _n);
+    const auto ghost_n = static_cast<NodeID>(_next_ghost_node - _n);
 
     growt::StaticGhostNodeMapping global_to_ghost(ghost_n);
     scalable_vector<GlobalNodeID> ghost_to_global(ghost_n);

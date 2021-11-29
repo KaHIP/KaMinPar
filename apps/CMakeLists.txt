@@ -35,9 +35,21 @@ endfunction()
 
 add_app(KaMinPar kaminpar.cc)
 
-add_distributed_app(dKaMinPar dkaminpar.cc)
+set(DKAMINPAR_SOURCE_FILES
+        dkaminpar.cc
+        dkaminpar_arguments.cc
+        dkaminpar_arguments.h)
+
 if (KAMINPAR_GRAPHGEN)
-    target_link_libraries(dKaMinPar PUBLIC kagen)
+    set(DKAMINPAR_SOURCE_FILES
+            dkaminpar_graphgen.cc
+            dkaminpar_graphgen.h
+            ${DKAMINPAR_SOURCE_FILES})
+endif ()
+
+add_distributed_app(dKaMinPar ${DKAMINPAR_SOURCE_FILES})
+if (KAMINPAR_GRAPHGEN)
+    target_link_libraries(dKaMinPar PUBLIC kagen_interface)
 endif ()
 
 add_subdirectory(tools)

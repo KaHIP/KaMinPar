@@ -262,7 +262,6 @@ private:
         if (_graph->degree(u) == 0) {
           const GlobalNodeID u_cluster = cluster(u);
           const NodeWeight u_weight = cluster_weight(u_cluster);
-          ASSERT(u_weight == _graph->node_weight(u));
 
           if (current != kInvalidNodeID && current_weight + u_weight <= max_cluster_weight(u_cluster)) {
             change_cluster_weight(current_cluster, u_weight, true);

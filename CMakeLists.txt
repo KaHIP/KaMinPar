@@ -27,7 +27,7 @@ option(KAMINPAR_GRAPHGEN "If enabled, include KaGen for in-memory graph generati
 include_directories(${PROJECT_SOURCE_DIR})
 
 # ensure that gmock is built before tests are executed
-if (KAMINPAR_BUILD_TESTS)
+if (KAMINPAR_TESTS)
     add_subdirectory(external_tools/googletest EXCLUDE_FROM_ALL)
     include_directories(SYSTEM ${gtest_SOURCE_DIR}/include ${gtest_SOURCE_DIR})
     include_directories(SYSTEM ${gtest_SOURCE_DIR}/../googletest/include ${gtest_SOURCE_DIR}/../googletest)
@@ -94,7 +94,7 @@ endif ()
 if (KAMINPAR_BACKWARD_CPP)
     set(CMAKE_POLICY_DEFAULT_CMP0063 NEW)
     add_subdirectory(external_tools/backward-cpp)
-    add_definitions(-DUSE_BACKWARD)
+    add_definitions(-DKAMINPAR_BACKWARD_CPP)
     message(STATUS "Use backward")
 endif ()
 
@@ -108,10 +108,9 @@ if (MPI_FOUND)
 endif ()
 
 if (KAMINPAR_GRAPHGEN)
-    include(external_tools/KaGen/)
-    add_library(kagen INTERFACE)
-    target_include_directories(kagen INTERFACE ${KAGEN_INCLUDE_DIRS})
-    target_link_libraries(kagen INTERFACE ${KAGEN_LINK_LIBRARIES})
+    set(CMAKE_POLICY_DEFAULT_CMP0063 NEW)
+    add_subdirectory(external_tools/KaGen/)
+    add_definitions(-DKAMINPAR_GRAPHGEN)
 endif ()
 
 add_subdirectory(kaminpar)

@@ -18,9 +18,9 @@
 
 #include <tbb/global_control.h>
 
-#ifdef USE_BACKWARD
+#ifdef KAMINPAR_BACKWARD_CPP
 #include "backward.hpp"
-#endif // USE_BACKWARD
+#endif // KAMINPAR_BACKWARD_CPP
 
 namespace kaminpar {
 void print_identifier(int argc, char *argv[]) {
@@ -70,10 +70,10 @@ void init_numa() {
 }
 
 auto init_backward() {
-#ifdef USE_BACKWARD
+#ifdef KAMINPAR_BACKWARD_CPP
   return backward::SignalHandling{};
-#else  // USE_BACKWARD
+#else  // KAMINPAR_BACKWARD_CPP
   return 0;
-#endif // USE_BACKWARD
+#endif // KAMINPAR_BACKWARD_CPP
 }
 } // namespace kaminpar

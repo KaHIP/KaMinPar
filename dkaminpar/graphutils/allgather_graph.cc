@@ -27,8 +27,8 @@ shm::Graph allgather(const DistributedGraph &graph) {
   // gather graph
   shm::StaticArray<shm::EdgeID> nodes(graph.global_n() + 1);
   shm::StaticArray<shm::NodeID> edges(graph.global_m());
-  shm::StaticArray<shm::NodeWeight> node_weights(graph.global_n());
-  shm::StaticArray<shm::EdgeWeight> edge_weights(graph.global_m());
+  shm::StaticArray<shm::NodeWeight> node_weights(graph.is_node_weighted() * graph.global_n());
+  shm::StaticArray<shm::EdgeWeight> edge_weights(graph.is_edge_weighted() * graph.global_m());
 
   auto nodes_recvcounts = mpi::build_distribution_recvcounts(graph.node_distribution());
   auto nodes_displs = mpi::build_distribution_displs(graph.node_distribution());
@@ -37,12 +37,16 @@ shm::Graph allgather(const DistributedGraph &graph) {
 
   mpi::allgatherv(graph.raw_nodes().data(), graph.n(), nodes.data(), nodes_recvcounts.data(), nodes_displs.data(),
                   comm);
-  mpi::allgatherv(graph.raw_node_weights().data(), graph.n(), node_weights.data(), nodes_recvcounts.data(),
-                  nodes_displs.data(), comm);
+  if (graph.is_node_weighted()) {
+    mpi::allgatherv(graph.raw_node_weights().data(), graph.n(), node_weights.data(), nodes_recvcounts.data(),
+                    nodes_displs.data(), comm);
+  }
   mpi::allgatherv(remapped_edges.data(), remapped_edges.size(), edges.data(), edges_recvcounts.data(),
                   edges_displs.data(), comm);
-  mpi::allgatherv(graph.raw_edge_weights().data(), graph.m(), edge_weights.data(), edges_recvcounts.data(),
-                  edges_displs.data(), comm);
+  if (graph.is_edge_weighted()) {
+    mpi::allgatherv(graph.raw_edge_weights().data(), graph.m(), edge_weights.data(), edges_recvcounts.data(),
+                    edges_displs.data(), comm);
+  }
   nodes.back() = graph.global_m();
 
   // remap nodes array
