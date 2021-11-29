@@ -39,29 +39,39 @@ DistributedGraph build_graph(const auto &edge_list, scalable_vector<GlobalNodeID
   const GlobalNodeID from = node_distribution[rank];
   const GlobalNodeID to = node_distribution[rank + 1];
   const auto n = static_cast<NodeID>(to - from);
-  const auto m = static_cast<EdgeID>(edge_list.size());
+  //const auto m = static_cast<EdgeID>(edge_list.size());
 
   // bucket sort nodes
   START_TIMER("Bucket sort");
   scalable_vector<Atomic<NodeID>> buckets(n);
-  tbb::parallel_for<EdgeID>(
-      0, m, [&](const EdgeID e) { buckets[edge_list[e].first].fetch_add(1, std::memory_order_relaxed); });
+  tbb::parallel_for<EdgeID>(0, edge_list.size(), [&](const EdgeID e) {
+    const GlobalNodeID u = edge_list[e].first;
+    if (from <= u && u < to) {
+      buckets[u - from].fetch_add(1, std::memory_order_relaxed);
+    }
+  });
   shm::parallel::prefix_sum(buckets.begin(), buckets.end(), buckets.begin());
   STOP_TIMER();
+
+  const EdgeID m = buckets.back();
 
   // build edges array
   START_TIMER("Build edges array");
   scalable_vector<EdgeID> edges(m);
   graph::GhostNodeMapper ghost_node_mapper(node_distribution);
-  tbb::parallel_for<EdgeID>(0, m, [&](const EdgeID e) {
+  tbb::parallel_for<EdgeID>(0, edge_list.size(), [&](const EdgeID e) {
     const auto u = static_cast<NodeID>(edge_list[e].first);
-    const auto v = static_cast<NodeID>(edge_list[e].second);
-    const auto pos = buckets[u].fetch_sub(1, std::memory_order_relaxed) - 1;
 
-    if (v >= from && v < to) {
-      edges[pos] = static_cast<NodeID>(v - from);
-    } else {
-      edges[pos] = ghost_node_mapper.new_ghost_node(v);
+    if (from <= u && u < to) {
+      const auto v = static_cast<NodeID>(edge_list[e].second);
+      const auto pos = buckets[u - from].fetch_sub(1, std::memory_order_relaxed) - 1;
+      ASSERT(pos < edges.size()) << V(pos) << V(edges.size());
+
+      if (v >= from && v < to) {
+        edges[pos] = static_cast<NodeID>(v - from);
+      } else {
+        edges[pos] = ghost_node_mapper.new_ghost_node(v);
+      }
     }
   });
   STOP_TIMER();
@@ -110,6 +120,8 @@ DistributedGraph create_rgg2d(const GlobalNodeID n, const double r, const BlockI
     const auto [size, rank] = mpi::get_comm_info();
     return KaGen{rank, size}.Generate2DRGG(n, r, k, seed);
   };
+  SLOG << V(range.first) << V(range.second);
+  SLOG << V(build_node_distribution(range));
   return build_graph(edges, build_node_distribution(range));
 }
 

@@ -17,8 +17,10 @@
 //#endif // KAMINPAR_GRAPHGEN
 
 #include "dkaminpar/distributed_io.h"
+#include "dkaminpar/graphutils/allgather_graph.h"
 #include "dkaminpar/utility/distributed_timer.h"
 #include "kaminpar/definitions.h"
+#include "kaminpar/io.h"
 #include "kaminpar/utility/logger.h"
 #include "kaminpar/utility/random.h"
 #include "kaminpar/utility/timer.h"
@@ -56,6 +58,7 @@ int main(int argc, char *argv[]) {
   if (ctx.parallel.use_interleaved_numa_allocation) {
     shm::init_numa();
   }
+  GLOBAL_TIMER.enable(TIMER_BENCHMARK);
 
   // Load graph
   auto graph = TIMED_SCOPE("IO") {
@@ -66,6 +69,9 @@ int main(int argc, char *argv[]) {
 #endif // KAMINPAR_GRAPHGEN
     return dist::io::read_node_balanced(ctx.graph_filename);
   };
+
+  //auto shm_graph = dist::graph::allgather(graph);
+  //shm::io::metis::write("test.graph", shm_graph);
 
   // Print statistics
   {
@@ -90,7 +96,7 @@ int main(int argc, char *argv[]) {
 
   STOP_TIMER();
 
-  //dist::timer::finalize_distributed_timer(GLOBAL_TIMER);
+  // dist::timer::finalize_distributed_timer(GLOBAL_TIMER);
   if (dist::mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
     shm::Timer::global().print_machine_readable(std::cout);
   }
