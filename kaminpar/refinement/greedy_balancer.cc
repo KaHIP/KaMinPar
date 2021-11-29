@@ -154,8 +154,6 @@ bool GreedyBalancer::add_to_pq(const BlockID b, const NodeID u, const NodeWeight
 }
 
 void GreedyBalancer::init_pq() {
-  LOG << V(_p_graph->block_weights()) << V(_p_ctx->block_weights.all_max()) << V(_p_ctx->block_weights.all_perfectly_balanced());
-
   SCOPED_TIMER("Initialize balancer PQ");
 
   const BlockID k = _p_graph->k();
