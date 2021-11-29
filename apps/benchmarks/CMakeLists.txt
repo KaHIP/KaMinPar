@@ -21,3 +21,7 @@ endfunction()
 
 add_benchmark(coarsening_benchmark coarsening_benchmark.cc)
 add_distributed_benchmark(dcoarsening_benchmark dcoarsening_benchmark.cc ../dkaminpar_arguments.cc)
+if (KAMINPAR_GRAPHGEN)
+    add_distributed_benchmark(graphgen_benchmark graphgen_benchmark.cc ../dkaminpar_arguments.cc ../dkaminpar_graphgen.cc)
+    target_link_libraries(graphgen_benchmark PUBLIC kagen_interface)
+endif ()
