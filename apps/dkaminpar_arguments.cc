@@ -128,7 +128,11 @@ void create_context_options(ApplicationContext &a_ctx, kaminpar::Arguments &args
 }
 
 ApplicationContext parse_options(int argc, char *argv[]) {
+#ifdef KAMINPAR_GRAPHGEN
   ApplicationContext a_ctx{create_default_context(), {}};
+#else // KAMINPAR_GRAPHGEN
+  ApplicationContext a_ctx{create_default_context()};
+#endif // KAMINPAR_GRAPHGEN
   kaminpar::Arguments arguments;
   create_context_options(a_ctx, arguments);
   arguments.parse(argc, argv);

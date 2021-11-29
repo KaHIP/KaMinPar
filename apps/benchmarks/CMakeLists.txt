@@ -20,4 +20,4 @@ function(add_distributed_benchmark target)
 endfunction()
 
 add_benchmark(coarsening_benchmark coarsening_benchmark.cc)
-add_distributed_benchmark(dcoarsening_benchmark dcoarsening_benchmark.cc)
+add_distributed_benchmark(dcoarsening_benchmark dcoarsening_benchmark.cc ../dkaminpar_arguments.cc)

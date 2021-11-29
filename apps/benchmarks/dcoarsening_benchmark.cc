@@ -11,7 +11,7 @@
 // clang-format on
 
 #include "apps/apps.h"
-#include "dkaminpar/application/arguments.h"
+#include "apps/dkaminpar_arguments.h"
 #include "dkaminpar/coarsening/global_clustering_contraction.h"
 #include "dkaminpar/coarsening/locking_label_propagation_clustering.h"
 #include "dkaminpar/distributed_context.h"
@@ -51,7 +51,7 @@ int main(int argc, char *argv[]) {
 
   // Parse command line arguments
   try {
-    ctx = dist::app::parse_options(argc, argv);
+    ctx = dist::app::parse_options(argc, argv).ctx;
   } catch (const std::runtime_error &e) {
     std::cout << e.what() << std::endl;
   }
