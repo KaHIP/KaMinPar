@@ -103,8 +103,6 @@ void BlockWeightsContext::setup(const PartitionContext &p_ctx) {
           std::max<NodeWeight>(max_block_weight, perfectly_balanced_block_weight + p_ctx.max_node_weight);
     }
   });
-
-  LOG << V(max_block_weight) << V(_max_block_weights);
 }
 
 void BlockWeightsContext::setup(const PartitionContext &p_ctx, const scalable_vector<BlockID> &final_ks) {
@@ -133,8 +131,6 @@ void BlockWeightsContext::setup(const PartitionContext &p_ctx, const scalable_ve
           std::max<BlockWeight>(max_block_weight, _perfectly_balanced_block_weights[b] + p_ctx.max_node_weight);
     }
   });
-
-  LOG << "LL" << V(_max_block_weights) << V(_perfectly_balanced_block_weights);
 }
 
 [[nodiscard]] BlockWeight BlockWeightsContext::max(const BlockID b) const {
