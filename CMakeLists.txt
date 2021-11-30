@@ -110,6 +110,7 @@ endif ()
 # Include KaGen if enabled
 if (KAMINPAR_GRAPHGEN)
     set(CMAKE_POLICY_DEFAULT_CMP0063 NEW)
+    set(CGAL_DO_NOT_WARN_ABOUT_CMAKE_BUILD_TYPE TRUE)
     add_subdirectory(external_tools/KaGen/)
     add_definitions(-DKAMINPAR_GRAPHGEN)
 endif ()
