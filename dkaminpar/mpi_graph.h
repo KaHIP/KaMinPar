@@ -34,6 +34,42 @@ void sparse_alltoall_interface_to_ghost(const DistributedGraph &graph, auto &&fi
                                                       std::forward<decltype(receiver)>(receiver));
 }
 
+namespace internal {
+void inclusive_col_prefix_sum(auto &data) {
+  if (data.empty()) {
+    return;
+  }
+
+  const std::size_t height = data.size();
+  const std::size_t width = data.front().size();
+
+  for (std::size_t i = 1; i < height; ++i) {
+    for (std::size_t j = 0; j < width; ++j) {
+      data[i][j] += data[i - 1][j];
+    }
+  }
+}
+
+void make_exclusive(auto &data) {
+  if (data.empty()) {
+    return;
+  }
+
+  const std::size_t height = data.size();
+  const std::size_t width = data.front().size();
+
+  for (std::size_t i = height - 1; i >= 1; --i) {
+    for (std::size_t j = 0; j < width; ++j) {
+      data[i][j] = data[i - 1][j];
+    }
+  }
+
+  for (std::size_t j = 0; j < width; ++j) {
+    data[0][j] = 0;
+  }
+}
+} // namespace internal
+
 template <typename Message, template <typename> typename Buffer = scalable_vector>
 void sparse_alltoall_interface_to_ghost(const DistributedGraph &graph, const NodeID from, const NodeID to,
                                         auto &&filter, auto &&builder, auto &&receiver) {
@@ -53,11 +89,8 @@ void sparse_alltoall_interface_to_ghost(const DistributedGraph &graph, const Nod
   const auto [size, rank] = mpi::get_comm_info(graph.communicator());
 
   // allocate message counters
-  const PEID num_threads = omp_get_num_threads();
-  std::vector<cache_aligned_vector<std::size_t>> num_messages(num_threads);
-  for (PEID thread = 0; thread < num_threads; ++thread) {
-    num_messages.resize(size);
-  }
+  const PEID num_threads = omp_get_max_threads();
+  std::vector<cache_aligned_vector<std::size_t>> num_messages(num_threads, cache_aligned_vector<std::size_t>(size));
 
   // count messages to each PE for each thread
   START_TIMER("Count messages", TIMER_FINE);
@@ -78,11 +111,7 @@ void sparse_alltoall_interface_to_ghost(const DistributedGraph &graph, const Nod
   }
 
   // offset messages for each thread
-  for (PEID thread = 0; thread < num_threads; ++thread) {
-    for (PEID pe = 1; pe < size; ++pe) {
-      num_messages[thread][pe] += num_messages[thread - 1][pe];
-    }
-  }
+  internal::inclusive_col_prefix_sum(num_messages);
   STOP_TIMER(TIMER_FINE);
 
   // allocate send buffers
@@ -158,11 +187,8 @@ void sparse_alltoall_interface_to_pe(const DistributedGraph &graph, const NodeID
   const PEID size = mpi::get_comm_size(graph.communicator());
 
   // allocate message counters
-  const PEID num_threads = omp_get_num_threads();
-  std::vector<cache_aligned_vector<std::size_t>> num_messages(num_threads);
-  for (PEID thread = 0; thread < num_threads; ++thread) {
-    num_messages.resize(size);
-  }
+  const PEID num_threads = omp_get_max_threads();
+  std::vector<cache_aligned_vector<std::size_t>> num_messages(num_threads, cache_aligned_vector<std::size_t>(size));
 
   // count messages to each PE for each thread
   START_TIMER("Count messages", TIMER_FINE);
@@ -187,8 +213,8 @@ void sparse_alltoall_interface_to_pe(const DistributedGraph &graph, const NodeID
         if (created_message_for_pe.get(pe)) {
           continue;
         }
-
         created_message_for_pe.set(pe);
+
         ++num_messages[thread][pe];
       }
 
@@ -197,11 +223,7 @@ void sparse_alltoall_interface_to_pe(const DistributedGraph &graph, const NodeID
   }
 
   // offset messages for each thread
-  for (PEID thread = 0; thread < num_threads; ++thread) {
-    for (PEID pe = 1; pe < size; ++pe) {
-      num_messages[thread][pe] += num_messages[thread - 1][pe];
-    }
-  }
+  internal::inclusive_col_prefix_sum(num_messages);
   STOP_TIMER(TIMER_FINE);
 
   // allocate send buffers
@@ -214,7 +236,7 @@ void sparse_alltoall_interface_to_pe(const DistributedGraph &graph, const NodeID
 
   // fill buffers
   START_TIMER("Partition messages", TIMER_FINE);
-#pragma omp parallel default(none) shared(send_buffers, size, from, to, builder, filter, graph, num_messages)
+#pragma omp parallel //default(none) shared(send_buffers, size, from, to, builder, filter, graph, num_messages)
   {
     shm::Marker<> created_message_for_pe(static_cast<std::size_t>(size));
     const PEID thread = omp_get_thread_num();
@@ -226,21 +248,24 @@ void sparse_alltoall_interface_to_pe(const DistributedGraph &graph, const NodeID
       }
 
       for (const NodeID v : graph.adjacent_nodes(u)) {
-        if (graph.is_ghost_node(v)) {
-          const PEID pe = graph.ghost_owner(v);
+        if (!graph.is_ghost_node(v)) {
+          continue;
+        }
 
-          if (created_message_for_pe.get(pe)) {
-            continue;
-          }
-          created_message_for_pe.set(pe);
+        const PEID pe = graph.ghost_owner(v);
 
-          const auto slot = --num_messages[thread][pe];
+        if (created_message_for_pe.get(pe)) {
+          continue;
+        }
+        created_message_for_pe.set(pe);
 
-          if constexpr (builder_invocable_with_pe) {
-            send_buffers[pe][slot] = builder(u, pe);
-          } else {
-            send_buffers[pe][slot] = builder(u);
-          }
+        const auto slot = --num_messages[thread][pe];
+        ASSERT(slot < send_buffers[pe].size()) << V(slot) << V(send_buffers[pe].size());
+
+        if constexpr (builder_invocable_with_pe) {
+          send_buffers[pe][slot] = builder(u, pe);
+        } else {
+          send_buffers[pe][slot] = builder(u);
         }
       }
 

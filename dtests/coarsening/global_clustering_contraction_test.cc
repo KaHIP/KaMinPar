@@ -162,6 +162,8 @@ TYPED_TEST(TrianglesGraph, FullContractionToEachPE) {
   //  |     8     |
   //  |    / \    |
   //  +---7---6---+
+  SINGLE_THREADED_TEST;
+  omp_set_num_threads(1);
   this->graph = graph::use_pow_global_id_as_node_weights(std::move(this->graph)); // for isomorphism check
 
   for (PEID pe = 0; pe < this->size; ++pe) {
