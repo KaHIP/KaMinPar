@@ -92,7 +92,6 @@ TYPED_TEST(TrianglesGraph, ContractSingletonClusters) {
 
   const auto clustering = graph::distribute_node_info<Clustering>(this->graph, {0, 1, 2, 3, 4, 5, 6, 7, 8});
   const auto [c_graph, c_mapping] = this->contractor.contract_clustering(this->graph, clustering);
-  c_graph.print();
 
   EXPECT_EQ(c_graph.n(), this->graph.n()); // since the graph is already evenly distributed
   EXPECT_EQ(c_graph.total_n(), this->graph.total_n());

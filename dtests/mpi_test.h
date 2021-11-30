@@ -75,6 +75,10 @@ std::pair<EdgeID, EdgeID> get_edge_by_endpoints_global(const DistributedGraph &g
 DistributedGraph change_edge_weights(DistributedGraph graph,
                                      const std::vector<std::pair<EdgeID, EdgeWeight>> &changes) {
   auto edge_weights = graph.take_edge_weights();
+  if (edge_weights.empty()) {
+    edge_weights.resize(graph.m(), 1);
+  }
+
   for (const auto &[e, weight] : changes) {
     if (e != kInvalidEdgeID) {
       edge_weights[e] = weight;
@@ -127,6 +131,10 @@ DistributedGraph change_edge_weights_by_global_endpoints(
 DistributedGraph change_node_weights(DistributedGraph graph,
                                      const std::vector<std::pair<NodeID, NodeWeight>> &changes) {
   auto node_weights = graph.take_node_weights();
+  if (node_weights.empty()) {
+    node_weights.resize(graph.total_n(), 1);
+  }
+
   for (const auto &[u, weight] : changes) {
     ALWAYS_ASSERT(u < node_weights.size());
     node_weights[u] = weight;
