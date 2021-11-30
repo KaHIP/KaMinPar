@@ -39,7 +39,7 @@ DistributedGraph build_graph(const auto &edge_list, scalable_vector<GlobalNodeID
   const GlobalNodeID from = node_distribution[rank];
   const GlobalNodeID to = node_distribution[rank + 1];
   const auto n = static_cast<NodeID>(to - from);
-  //const auto m = static_cast<EdgeID>(edge_list.size());
+  // const auto m = static_cast<EdgeID>(edge_list.size());
 
   // bucket sort nodes
   START_TIMER("Bucket sort");
@@ -120,8 +120,6 @@ DistributedGraph create_rgg2d(const GlobalNodeID n, const double r, const BlockI
     const auto [size, rank] = mpi::get_comm_info();
     return KaGen{rank, size}.Generate2DRGG(n, r, k, seed);
   };
-  SLOG << V(range.first) << V(range.second);
-  SLOG << V(build_node_distribution(range));
   return build_graph(edges, build_node_distribution(range));
 }
 
@@ -141,14 +139,49 @@ DistributedGraph generate(const GeneratorContext ctx) {
     FATAL_ERROR << "no graph generator configured";
     break;
 
-  case GeneratorType::GNM:
-    return create_undirected_gmm(ctx.n, ctx.m, ctx.k, seed);
+  case GeneratorType::GNM: {
+    ALWAYS_ASSERT(ctx.n > 0 && ctx.m > 0) << "Must specify bost number of nodes and number of edges";
+    GlobalNodeID n = 1;
+    GlobalEdgeID m = 1;
+    n <<= ctx.n;
+    m <<= ctx.m;
+    return create_undirected_gmm(n, m, ctx.k, seed);
+  }
 
-  case GeneratorType::RGG2D:
-    return create_rgg2d(ctx.n, ctx.r, ctx.k, seed);
+  case GeneratorType::RGG2D: {
+    ALWAYS_ASSERT(ctx.r > 0) << "Radius cannot be zero";
+    ALWAYS_ASSERT(ctx.n > 0 || ctx.m > 0) << "Number of nodes or number of edges must be specified";
+    ALWAYS_ASSERT(ctx.n == 0 || ctx.m == 0) << "Cannot specify both number of nodes and number of edges";
 
-  case GeneratorType::RHG:
-    return create_rhg(ctx.n, ctx.gamma, ctx.d, ctx.k, seed);
+    GlobalNodeID n = 1;
+    if (ctx.m > 0) {
+      GlobalEdgeID m = 1;
+      m <<= ctx.m;
+      n = static_cast<GlobalNodeID>(std::sqrt(1.0 * static_cast<double>(m) * M_PI) / ctx.r);
+    } else {
+      n <<= ctx.n;
+    }
+
+    return create_rgg2d(n, ctx.r, ctx.k, seed);
+  }
+
+  case GeneratorType::RHG: {
+    ALWAYS_ASSERT(ctx.gamma > 0) << "Must specify gamma";
+    ALWAYS_ASSERT(ctx.d > 0) << "Must specify average degree";
+    ALWAYS_ASSERT(ctx.n > 0 || ctx.m > 0) << "Must specify number of nodes or number of edges";
+    ALWAYS_ASSERT(ctx.n == 0 || ctx.m == 0) << "Cannot specify both number of nodes and number of edges";
+
+    GlobalNodeID n = 1;
+    if (ctx.m > 0) {
+      GlobalEdgeID m = 1;
+      m <<= ctx.m;
+      n = m / ctx.d;
+    } else {
+      n <<= ctx.n;
+    }
+
+    return create_rhg(n, ctx.gamma, ctx.d, ctx.k, seed);
+  }
   }
 
   __builtin_unreachable();
