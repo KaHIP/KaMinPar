@@ -1,17 +1,19 @@
 #pragma once
 
-#include "dkaminpar/graphutils/allgather_graph.h"
 #include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/datastructure/distributed_graph_builder.h"
 #include "dkaminpar/distributed_definitions.h"
+#include "dkaminpar/graphutils/allgather_graph.h"
 #include "dkaminpar/mpi_wrapper.h"
 
 #include <gmock/gmock.h>
+#include <omp.h>
 #include <tbb/global_control.h>
 #include <utility>
 #include <vector>
 
 #define SINGLE_THREADED_TEST                                                                                           \
+  omp_set_num_threads(1);                                                                                              \
   auto GC = tbb::global_control { tbb::global_control::max_allowed_parallelism, 1 }
 
 namespace dkaminpar::test {

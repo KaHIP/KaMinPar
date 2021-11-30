@@ -36,18 +36,17 @@ endfunction()
 add_app(KaMinPar kaminpar.cc)
 
 set(DKAMINPAR_SOURCE_FILES
-        dkaminpar.cc
-        dkaminpar_arguments.cc
-        dkaminpar_arguments.h)
+        ${CMAKE_CURRENT_SOURCE_DIR}/dkaminpar_arguments.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/dkaminpar_arguments.h)
 
 if (KAMINPAR_GRAPHGEN)
     set(DKAMINPAR_SOURCE_FILES
-            dkaminpar_graphgen.cc
-            dkaminpar_graphgen.h
+            ${CMAKE_CURRENT_SOURCE_DIR}/dkaminpar_graphgen.cc
+            ${CMAKE_CURRENT_SOURCE_DIR}/dkaminpar_graphgen.h
             ${DKAMINPAR_SOURCE_FILES})
 endif ()
 
-add_distributed_app(dKaMinPar ${DKAMINPAR_SOURCE_FILES})
+add_distributed_app(dKaMinPar dkaminpar.cc ${DKAMINPAR_SOURCE_FILES})
 if (KAMINPAR_GRAPHGEN)
     target_link_libraries(dKaMinPar PUBLIC kagen_interface)
 endif ()

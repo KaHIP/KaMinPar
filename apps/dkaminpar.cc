@@ -29,6 +29,7 @@
 
 #include <fstream>
 #include <mpi.h>
+#include <omp.h>
 
 namespace dist = dkaminpar;
 namespace shm = kaminpar;
@@ -116,6 +117,7 @@ int main(int argc, char *argv[]) {
 
   // Initialize TBB
   auto gc = shm::init_parallelism(ctx.parallel.num_threads);
+  omp_set_num_threads(static_cast<int>(ctx.parallel.num_threads));
   if (ctx.parallel.use_interleaved_numa_allocation) {
     shm::init_numa();
   }
