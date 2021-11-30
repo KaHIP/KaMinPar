@@ -8,6 +8,7 @@
 #pragma once
 
 #include "dkaminpar/distributed_definitions.h"
+#include "kaminpar/utility/timer.h"
 
 #include <concepts>
 #include <mpi.h>
@@ -381,8 +382,8 @@ template <std::ranges::range Distribution> inline std::vector<int> build_distrib
   return displs;
 }
 
-template <typename T, template<typename> typename Container>
-inline Container<T> build_distribution_from_local_count(const T value, MPI_Comm const comm) {
+template <typename T, template <typename> typename Container>
+inline Container<T> build_distribution_from_local_count(const T value, MPI_Comm comm) {
   const auto [size, rank] = mpi::get_comm_info(comm);
 
   Container<T> distribution(size + 1);
@@ -396,7 +397,7 @@ inline Container<T> build_distribution_from_local_count(const T value, MPI_Comm 
 template <typename Message, template <typename> typename Buffer>
 void sparse_alltoall(const std::vector<Buffer<Message>> &send_buffers, auto &&receiver, MPI_Comm comm,
                      const bool self = false) {
-  mpi::barrier(comm);
+  SCOPED_TIMER("Sparse AllToAll", TIMER_FINE);
 
   using Receiver = decltype(receiver);
   constexpr bool receiver_invocable_with_pe = std::is_invocable_r_v<void, Receiver, Buffer<Message>, PEID>;

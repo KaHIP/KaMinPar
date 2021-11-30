@@ -53,6 +53,9 @@ template<typename T>
 using scalable_vector = shm::scalable_vector<T>;
 
 template<typename T>
+using cache_aligned_vector = std::vector<T, tbb::cache_aligned_allocator<T>>;
+
+template<typename T>
 using Atomic = shm::parallel::IntegralAtomicWrapper<T>;
 
 class SynchronizedLogger {
