@@ -70,8 +70,10 @@ int main(int argc, char *argv[]) {
     return dist::io::read_node_balanced(ctx.graph_filename);
   };
 
-  //auto shm_graph = dist::graph::allgather(graph);
-  //shm::io::metis::write("test.graph", shm_graph);
+  if (ctx.seed == 42) {
+    auto shm_graph = dist::graph::allgather(graph);
+    shm::io::metis::write("generated.graph", shm_graph);
+  }
 
   // Print statistics
   {

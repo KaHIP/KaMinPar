@@ -16,7 +16,9 @@ enum class GeneratorType {
   NONE,
   GNM,
   RGG2D,
+  RDG2D,
   RHG,
+  KRONECKER,
 };
 
 DECLARE_ENUM_STRING_CONVERSION(GeneratorType, generator_type);

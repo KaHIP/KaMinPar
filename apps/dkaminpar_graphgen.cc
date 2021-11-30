@@ -21,10 +21,8 @@ namespace dkaminpar::graphgen {
 using namespace std::string_literals;
 
 DEFINE_ENUM_STRING_CONVERSION(GeneratorType, generator_type) = {
-    {GeneratorType::NONE, "none"},
-    {GeneratorType::GNM, "gnm"},
-    {GeneratorType::RGG2D, "rgg2d"},
-    {GeneratorType::RHG, "rhg"},
+    {GeneratorType::NONE, "none"}, {GeneratorType::GNM, "gnm"},     {GeneratorType::RGG2D, "rgg2d"},
+    {GeneratorType::RHG, "rhg"},   {GeneratorType::RDG2D, "rdg2d"}, {GeneratorType::KRONECKER, "kronecker"},
 };
 
 using namespace kagen::interface;
@@ -131,6 +129,22 @@ DistributedGraph create_rhg(const GlobalNodeID n, const double gamma, const Node
   return build_graph(edges, build_node_distribution(range));
 }
 
+DistributedGraph create_kronecker(const GlobalNodeID n, const GlobalEdgeID m, const BlockID k, const int seed) {
+  const auto [edges, range] = TIMED_SCOPE("KaGen") {
+    const auto [size, rank] = mpi::get_comm_info();
+    return KaGen{rank, size}.GenerateKronecker(n, m, k, seed);
+  };
+  return build_graph(edges, build_node_distribution(range));
+}
+
+DistributedGraph create_rdg2d(const GlobalNodeID n, const BlockID k, const int seed) {
+  const auto [edges, range] = TIMED_SCOPE("KaGen") {
+    const auto [size, rank] = mpi::get_comm_info();
+    return KaGen{rank, size}.Generate2DRDG(n, k, seed);
+  };
+  return build_graph(edges, build_node_distribution(range));
+}
+
 DistributedGraph generate(const GeneratorContext ctx) {
   const int seed = static_cast<int>(shm::Randomize::instance().random_index(0, std::numeric_limits<int>::max()));
 
@@ -181,6 +195,34 @@ DistributedGraph generate(const GeneratorContext ctx) {
     }
 
     return create_rhg(n, ctx.gamma, ctx.d, ctx.k, seed);
+  }
+
+  case GeneratorType::KRONECKER: {
+    ALWAYS_ASSERT(false) << "broken -- does not generate any edges";
+    ALWAYS_ASSERT(ctx.n > 0 && ctx.m > 0) << "Must specify number of nodes and number of edges";
+    GlobalNodeID n = 1;
+    GlobalEdgeID m = 1;
+    n <<= ctx.n;
+    m <<= ctx.m;
+
+    return create_kronecker(n, m, ctx.k, seed);
+  }
+
+  case GeneratorType::RDG2D: {
+    ALWAYS_ASSERT(false) << "broken";
+    ALWAYS_ASSERT(ctx.n > 0 || ctx.m > 0) << "Must specify number of nodes or number of edges";
+    ALWAYS_ASSERT(ctx.n == 0 || ctx.m == 0) << "Cannot specify both number of nodes and number of edges";
+    GlobalNodeID n = 1;
+
+    if (ctx.m > 0) {
+      GlobalEdgeID m = 1;
+      m <<= ctx.m;
+      n = m / 6;
+    } else {
+      n <<= ctx.n;
+    }
+
+    return create_rdg2d(n, ctx.k, seed);
   }
   }
 
