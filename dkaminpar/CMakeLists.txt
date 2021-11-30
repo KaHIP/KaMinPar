@@ -51,9 +51,11 @@ set(DKAMINPAR_SOURCE_FILES
         growt.h)
 
 if (MPI_FOUND)
+    find_package(OpenMP REQUIRED)
+
     add_library(dkaminpar_impl OBJECT ${DKAMINPAR_SOURCE_FILES})
     target_include_directories(dkaminpar_impl PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(dkaminpar_impl PUBLIC kaminpar_impl MPI::MPI_CXX growt)
+    target_link_libraries(dkaminpar_impl PUBLIC kaminpar_impl MPI::MPI_CXX OpenMP::OpenMP_CXX growt)
 
     if (KAMINPAR_BACKWARD_CPP)
         add_backward(dkaminpar_impl)

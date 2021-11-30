@@ -107,6 +107,7 @@ if (MPI_FOUND)
     target_include_directories(growt INTERFACE external_tools/growt/)
 endif ()
 
+# Include KaGen if enabled
 if (KAMINPAR_GRAPHGEN)
     set(CMAKE_POLICY_DEFAULT_CMP0063 NEW)
     add_subdirectory(external_tools/KaGen/)
