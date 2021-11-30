@@ -98,7 +98,7 @@ int main(int argc, char *argv[]) {
 
   STOP_TIMER();
 
-  // dist::timer::finalize_distributed_timer(GLOBAL_TIMER);
+  dist::timer::finalize_distributed_timer(GLOBAL_TIMER);
   if (dist::mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
     shm::Timer::global().print_machine_readable(std::cout);
   }

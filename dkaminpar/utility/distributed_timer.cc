@@ -45,7 +45,7 @@ public:
 
 private:
   std::vector<std::size_t> _column_len;
-  std::size_t _current_column;
+  std::size_t _current_column = 0;
 
   template<typename T>
   static std::size_t arg_to_len(const T &val) {
