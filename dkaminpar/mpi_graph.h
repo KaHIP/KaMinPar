@@ -228,7 +228,6 @@ void sparse_alltoall_interface_to_pe(const DistributedGraph &graph, const NodeID
       for (const NodeID v : graph.adjacent_nodes(u)) {
         if (graph.is_ghost_node(v)) {
           const PEID pe = graph.ghost_owner(v);
-          ASSERT(static_cast<std::size_t>(pe) < send_buffers.size());
 
           if (created_message_for_pe.get(pe)) {
             continue;
@@ -236,7 +235,6 @@ void sparse_alltoall_interface_to_pe(const DistributedGraph &graph, const NodeID
           created_message_for_pe.set(pe);
 
           const auto slot = --num_messages[thread][pe];
-          ASSERT(static_cast<std::size_t>(slot) < send_buffers[pe].size());
 
           if constexpr (builder_invocable_with_pe) {
             send_buffers[pe][slot] = builder(u, pe);

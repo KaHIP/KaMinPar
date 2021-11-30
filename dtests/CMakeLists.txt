@@ -24,4 +24,6 @@ add_kaminpar_dtest(global_clustering_projection_test 3 coarsening/global_cluster
 
 add_kaminpar_dtest(rearrange_graph_test 3 graphutils/rearrange_graph_test.cc)
 
+add_kaminpar_dtest(mpi_graph_test 3 mpi_graph_test.cc)
+
 add_kaminpar_test(distributed_math_test utility/distributed_math_test.cc)
