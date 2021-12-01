@@ -20,7 +20,14 @@ TEST_F(UnsortedDistributedPath, RearrangingUnsortedPathWorks) {
   // +------+      |
   // 0--1-#-2--3-#-4--5
   //        +------+
+  EXPECT_EQ(graph.total_node_weight(), 2);
+
   graph = ::dkaminpar::graph::sort_by_degree_buckets(std::move(graph));
+
+  EXPECT_EQ(graph.total_node_weight(), 2);
+  for (const NodeID u : graph.all_nodes()) {
+    EXPECT_EQ(graph.node_weight(u), 1);
+  }
 
   EXPECT_EQ(graph.degree(0), 1);
   EXPECT_EQ(graph.degree(1), 3);

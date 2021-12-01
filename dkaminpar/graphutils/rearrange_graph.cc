@@ -35,6 +35,13 @@ DistributedGraph sort_by_degree_buckets(DistributedGraph graph) {
   shm::graph::build_permuted_graph<scalable_vector, true>(old_nodes, old_edges, old_node_weights, old_edge_weights,
                                                           permutations, new_nodes, new_edges, new_node_weights,
                                                           new_edge_weights);
+
+  // copy weight of ghost nodes
+  if (!new_node_weights.empty()) {
+    tbb::parallel_for<NodeID>(graph.n(), graph.total_n(),
+                              [&](const NodeID u) { new_node_weights[u] = old_node_weights[u]; });
+  }
+
   // communicate new global IDs of ghost nodes
   struct ChangedNodeLabel {
     NodeID old_node_local;
