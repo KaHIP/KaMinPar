@@ -51,7 +51,7 @@ private:
 
   template <typename T> static std::string arg_to_str(const T &val) {
     std::stringstream ss;
-    ss << val;
+    ss << std::fixed << std::setprecision(2) << val;
     return ss.str();
   }
 };
@@ -174,8 +174,8 @@ void annotate_timer_tree(Timer::TimerTreeNode &node, std::size_t &pos, const std
   const auto &entry = statistics[pos++];
 
   std::stringstream ss;
-  ss << "|" << table.to_str_padded(entry.min) << " s <= " << table.to_str_padded(entry.mean)
-     << " s <= " << table.to_str_padded(entry.max) << " s :: sd=" << table.to_str_padded(entry.sd) << " s| ";
+  ss << "[" << table.to_str_padded(entry.min) << "s|" << table.to_str_padded(entry.mean) << "s|"
+     << table.to_str_padded(entry.max) << "s|" << table.to_str_padded(entry.sd) << "s] ";
 
   // also print running times that deviate by more than 3 sd
   for (std::size_t pe = 0; pe < entry.times.size(); ++pe) {
@@ -197,6 +197,18 @@ void collect_and_annotate_distributed_timer(shm::Timer &timer, MPI_Comm comm) {
   generate_statistics(timer.tree(), statistics, comm);
   if (mpi::get_comm_rank(comm) == 0) {
     AlignedTable table = align_statistics(statistics);
+    table.update_next_column("min");
+    table.update_next_column("avg");
+    table.update_next_column("max");
+    table.update_next_column("sd");
+    table.next_row();
+
+    // add captions
+    std::stringstream ss;
+    ss << " " << table.to_str_padded("min") << "  " << table.to_str_padded("avg") << "  " << table.to_str_padded("max")
+       << "  " << table.to_str_padded("sd") << "  ";
+    timer.annotate(ss.str());
+
     std::size_t pos = 0;
     annotate_timer_tree(timer.tree(), pos, statistics, table);
   }

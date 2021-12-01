@@ -86,6 +86,9 @@ void Timer::print_human_readable(std::ostream &out) {
   _hr_max_restarts_len = compute_restarts_len(&_tree.root);
   out << _name;
   print_padded_timing(out, _name.size(), &_tree.root);
+  if (!_annotation.empty()) {
+    out << std::string(kSpaceBetweenRestartsAndAnnotation, ' ') << _annotation;
+  }
   out << std::endl;
   print_children_hr(out, "", &_tree.root);
 }

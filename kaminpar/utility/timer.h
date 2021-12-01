@@ -263,6 +263,10 @@ public:
     }
   }
 
+  void annotate(std::string annotation) {
+    _annotation = std::move(annotation);
+  }
+
   [[nodiscard]] inline TimerTreeNode &tree() { return _tree.root; }
   [[nodiscard]] inline const TimerTreeNode &tree() const { return _tree.root; }
 
@@ -283,6 +287,7 @@ private:
   void print_node_mr(std::ostream &out, const std::string &prefix, const TimerTreeNode *node);
 
   std::string_view _name;
+  std::string _annotation;
   TimerTree _tree{};
   std::mutex _mutex{};
   std::array<std::uint8_t, Type::NUM_TIMER_TYPES> _disabled{};
