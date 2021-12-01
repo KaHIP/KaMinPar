@@ -58,7 +58,7 @@ void print_result_statistics(const dist::DistributedPartitionedGraph &p_graph, c
 
   LOG << "RESULT cut=" << edge_cut << " imbalance=" << imbalance << " feasible=" << feasible << " k=" << p_graph.k();
   if (!ctx.quiet) {
-    dist::timer::finalize_distributed_timer(GLOBAL_TIMER);
+    dist::timer::collect_and_annotate_distributed_timer(GLOBAL_TIMER);
   }
 
   if (dist::mpi::get_comm_rank(MPI_COMM_WORLD) == 0 && !ctx.quiet) {
@@ -68,6 +68,10 @@ void print_result_statistics(const dist::DistributedPartitionedGraph &p_graph, c
   if (dist::mpi::get_comm_rank(MPI_COMM_WORLD) == 0 && !ctx.quiet) {
     shm::Timer::global().print_human_readable(std::cout);
   }
+  std::string f = "timer";
+  f += std::to_string(dist::mpi::get_comm_rank());
+  std::ofstream out(f);
+  shm::Timer::global().print_human_readable(out);
   LOG;
   LOG << "-> k=" << p_graph.k();
   LOG << "-> cut=" << edge_cut;
@@ -161,6 +165,7 @@ int main(int argc, char *argv[]) {
 
   // Output statistics
   dist::mpi::barrier();
+  STOP_TIMER(); // stop root timer
   print_result_statistics(p_graph, ctx);
 
   MPI_Finalize();

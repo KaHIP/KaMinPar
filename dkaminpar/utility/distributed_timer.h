@@ -11,5 +11,5 @@
 #include "kaminpar/utility/timer.h"
 
 namespace dkaminpar::timer {
-void finalize_distributed_timer(shm::Timer &timer, MPI_Comm comm = MPI_COMM_WORLD);
+void collect_and_annotate_distributed_timer(shm::Timer &timer, MPI_Comm comm = MPI_COMM_WORLD);
 }
