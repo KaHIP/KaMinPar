@@ -73,6 +73,8 @@ void make_exclusive(auto &data) {
 template <typename Message, template <typename> typename Buffer = scalable_vector>
 void sparse_alltoall_interface_to_ghost(const DistributedGraph &graph, const NodeID from, const NodeID to,
                                         auto &&filter, auto &&builder, auto &&receiver) {
+  SCOPED_TIMER("Sparse AllToAll InterfaceToGhost");
+  
   using Filter = decltype(filter);
   static_assert(std::is_invocable_r_v<bool, Filter, NodeID>, "bad filter type");
 
@@ -176,6 +178,8 @@ void sparse_alltoall_interface_to_pe(const DistributedGraph &graph, auto &&filte
 template <typename Message, template <typename> typename Buffer = scalable_vector>
 void sparse_alltoall_interface_to_pe(const DistributedGraph &graph, const NodeID from, const NodeID to, auto &&filter,
                                      auto &&builder, auto &&receiver) {
+  SCOPED_TIMER("Sparse AllToAll InterfaceToPE");
+
   using Filter = decltype(filter);
   static_assert(std::is_invocable_r_v<bool, Filter, NodeID>, "bad filter type");
 
@@ -236,7 +240,7 @@ void sparse_alltoall_interface_to_pe(const DistributedGraph &graph, const NodeID
 
   // fill buffers
   START_TIMER("Partition messages", TIMER_FINE);
-#pragma omp parallel //default(none) shared(send_buffers, size, from, to, builder, filter, graph, num_messages)
+#pragma omp parallel default(none) shared(send_buffers, size, from, to, builder, filter, graph, num_messages)
   {
     shm::Marker<> created_message_for_pe(static_cast<std::size_t>(size));
     const PEID thread = omp_get_thread_num();
@@ -260,7 +264,6 @@ void sparse_alltoall_interface_to_pe(const DistributedGraph &graph, const NodeID
         created_message_for_pe.set(pe);
 
         const auto slot = --num_messages[thread][pe];
-        ASSERT(slot < send_buffers[pe].size()) << V(slot) << V(send_buffers[pe].size());
 
         if constexpr (builder_invocable_with_pe) {
           send_buffers[pe][slot] = builder(u, pe);
