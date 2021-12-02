@@ -68,10 +68,6 @@ void print_result_statistics(const dist::DistributedPartitionedGraph &p_graph, c
   if (dist::mpi::get_comm_rank(MPI_COMM_WORLD) == 0 && !ctx.quiet) {
     shm::Timer::global().print_human_readable(std::cout);
   }
-  std::string f = "timer";
-  f += std::to_string(dist::mpi::get_comm_rank());
-  std::ofstream out(f);
-  shm::Timer::global().print_human_readable(out);
   LOG;
   LOG << "-> k=" << p_graph.k();
   LOG << "-> cut=" << edge_cut;
