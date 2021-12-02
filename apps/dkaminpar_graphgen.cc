@@ -136,15 +136,14 @@ DistributedGraph create_kronecker(const GlobalNodeID n, const GlobalEdgeID m, co
   };
   return build_graph(edges, build_node_distribution(range));
 }
-  /*
-DistributedGraph create_rdg2d(const GlobalNodeID n, const BlockID k, const int seed) {
-  const auto [edges, range] = TIMED_SCOPE("KaGen") {
-    const auto [size, rank] = mpi::get_comm_info();
-    return KaGen{rank, size}.Generate2DRDG(n, k, seed);
-  };
-  return build_graph(edges, build_node_distribution(range));
-}
-  */
+
+//DistributedGraph create_rdg2d(const GlobalNodeID n, const BlockID k, const int seed) {
+//  const auto [edges, range] = TIMED_SCOPE("KaGen") {
+//    const auto [size, rank] = mpi::get_comm_info();
+//    return KaGen{rank, size}.Generate2DRDG(n, k, seed);
+//  };
+//  return build_graph(edges, build_node_distribution(range));
+//}
 
 DistributedGraph generate(const GeneratorContext ctx) {
   const int seed = static_cast<int>(shm::Randomize::instance().random_index(0, std::numeric_limits<int>::max()));

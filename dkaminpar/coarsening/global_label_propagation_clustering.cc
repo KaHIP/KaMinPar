@@ -51,7 +51,7 @@ class DistributedGlobalLabelPropagationClusteringImpl final
   using ClusterBase = shm::OwnedClusterVector<NodeID, GlobalNodeID>;
 
 public:
-  DistributedGlobalLabelPropagationClusteringImpl(const Context &ctx)
+  explicit DistributedGlobalLabelPropagationClusteringImpl(const Context &ctx)
       : ClusterBase{ctx.partition.total_n()}, _c_ctx{ctx.coarsening},
         _changed_label(ctx.partition.local_n()), _cluster_weights{ctx.partition.local_n()} {
     set_max_num_iterations(_c_ctx.global_lp.num_iterations);
@@ -60,7 +60,10 @@ public:
   }
 
   const auto &compute_clustering(const DistributedGraph &graph, const NodeWeight max_cluster_weight) {
+    SCOPED_TIMER("Global Label Propagation");
+
     TIMED_SCOPE("Allocation") { allocate(graph); };
+
     initialize(&graph, graph.total_n());
     initialize_ghost_node_clusters();
     _max_cluster_weight = max_cluster_weight;
@@ -201,7 +204,10 @@ private:
   }
 
   GlobalNodeID process_chunk(const NodeID from, const NodeID to) {
+    START_TIMER("Label propagation iteration");
     const NodeID local_num_moved_nodes = perform_iteration(from, to);
+    STOP_TIMER();
+
     const GlobalNodeID global_num_moved_nodes = mpi::allreduce(local_num_moved_nodes, MPI_SUM, _graph->communicator());
 
     if (global_num_moved_nodes > 0) {
@@ -216,6 +222,8 @@ private:
   }
 
   void synchronize_ghost_node_clusters(const NodeID from, const NodeID to) {
+    SCOPED_TIMER("Synchronize ghost node clusters");
+
     struct ChangedLabelMessage {
       NodeID local_node;
       GlobalNodeID new_label;
@@ -252,6 +260,8 @@ private:
    * @param to One-after the last node to consider.
    */
   void cluster_isolated_nodes(const NodeID from, const NodeID to) {
+    SCOPED_TIMER("Cluster isolated nodes");
+
     tbb::enumerable_thread_specific<GlobalNodeID> isolated_node_ets(kInvalidNodeID);
     tbb::parallel_for(tbb::blocked_range<NodeID>(from, to), [&](tbb::blocked_range<NodeID> r) {
       NodeID current = isolated_node_ets.local();
