@@ -204,7 +204,7 @@ private:
   }
 
   GlobalNodeID process_chunk(const NodeID from, const NodeID to) {
-    START_TIMER("Label propagation iteration");
+    START_TIMER("Chunk iteration");
     const NodeID local_num_moved_nodes = perform_iteration(from, to);
     STOP_TIMER();
 
@@ -250,7 +250,7 @@ private:
           });
         });
 
-    _graph->pfor_nodes([&](const NodeID u) { _changed_label[u] = 0; });
+    _graph->pfor_nodes(from, to, [&](const NodeID u) { _changed_label[u] = 0; });
   }
 
   /*!
