@@ -10,12 +10,15 @@
 #include "dkaminpar/distributed_definitions.h"
 
 #include <tbb/combinable.h>
+#include <tbb/cache_aligned_allocator.h>
 
 namespace dkaminpar::parallel {
-template<typename T, template<typename> typename Container = scalable_vector>
+template<typename T>
 class vector_ets {
 public:
-  explicit vector_ets(const std::size_t size) : _size{size}, _ets{[size] { return Container<T>(size); }} {}
+  using Container = std::vector<T, tbb::cache_aligned_allocator<T>>;
+  
+  explicit vector_ets(const std::size_t size) : _size{size}, _ets{[size] { return Container(size); }} {}
 
   vector_ets(const vector_ets &) = delete;
   vector_ets(vector_ets &&) noexcept = default;
@@ -25,9 +28,9 @@ public:
   auto &local() { return _ets.local(); }
 
   template<typename BinaryOp>
-  Container<T> combine(BinaryOp &&op) {
-    return _ets.combine([&](const Container<T> &a, const Container<T> &b) {
-      Container<T> ans(_size);
+  Container combine(BinaryOp &&op) {
+    return _ets.combine([&](const Container &a, const Container &b) {
+      Container ans(_size);
       for (std::size_t i = 0; i < _size; ++i) { ans[i] = op(a[i], b[i]); }
       return ans;
     });
@@ -35,6 +38,6 @@ public:
 
 private:
   std::size_t _size;
-  tbb::combinable<Container<T>> _ets;
+  tbb::combinable<Container> _ets;
 };
 } // namespace dkaminpar::parallel
