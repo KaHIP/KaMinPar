@@ -36,8 +36,9 @@ DistributedGraph build_graph(const auto &edge_list, scalable_vector<GlobalNodeID
   const auto [size, rank] = mpi::get_comm_info();
   const GlobalNodeID from = node_distribution[rank];
   const GlobalNodeID to = node_distribution[rank + 1];
+  ALWAYS_ASSERT(from <= to);
+  
   const auto n = static_cast<NodeID>(to - from);
-  // const auto m = static_cast<EdgeID>(edge_list.size());
 
   // bucket sort nodes
   START_TIMER("Bucket sort");
@@ -91,7 +92,7 @@ DistributedGraph build_graph(const auto &edge_list, scalable_vector<GlobalNodeID
                          std::move(mapped_ghost_nodes.ghost_to_global),
                          std::move(mapped_ghost_nodes.global_to_ghost),
                          MPI_COMM_WORLD};
-  graph::debug::validate(graph);
+  HEAVY_ASSERT(graph::debug::validate(graph));
   return graph;
 }
 
@@ -118,6 +119,8 @@ DistributedGraph create_rgg2d(const GlobalNodeID n, const double r, const BlockI
     const auto [size, rank] = mpi::get_comm_info();
     return KaGen{rank, size}.Generate2DRGG(n, r, k, seed);
   };
+
+  LOG << "Building graph with " << edges.size() << " edges on PE 0";
   return build_graph(edges, build_node_distribution(range));
 }
 
@@ -176,6 +179,7 @@ DistributedGraph generate(const GeneratorContext ctx) {
       n <<= ctx.n;
     }
 
+    LOG << "Generate 2D RGG graph with n=" << n << ", r=" << ctx.r << ", k=" << ctx.k << ", seed=" << seed;
     return create_rgg2d(n, ctx.r, ctx.k, seed);
   }
 
@@ -194,6 +198,7 @@ DistributedGraph generate(const GeneratorContext ctx) {
       n <<= ctx.n;
     }
 
+    LOG << "Generate 2D RHG graph with n=" << n << ", gamma=" << ctx.gamma << ", d=" << ctx.d << ", k=" << ctx.k << ", seed=" << seed;
     return create_rhg(n, ctx.gamma, ctx.d, ctx.k, seed);
   }
 

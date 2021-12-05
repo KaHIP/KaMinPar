@@ -144,6 +144,7 @@ private:
     const GlobalNodeID global_num_moved_nodes =
         mpi::allreduce<GlobalNodeID>(num_moved_nodes, MPI_SUM, _graph->communicator());
     STOP_TIMER(TIMER_FINE);
+    
     if (global_num_moved_nodes == 0) {
       return 0; // nothing to do
     }
@@ -173,10 +174,12 @@ private:
     std::vector<EdgeWeight> global_total_gains_to_block;
 
     // gather statistics
+    std::vector<EdgeWeight> global_gain_to(_p_ctx->k);
+    mpi::allreduce(gain_to_block.data(), global_gain_to.data(), _p_ctx->k, MPI_SUM, _graph->communicator());
+
     for (const BlockID b : _p_graph->blocks()) {
-      const EdgeWeight global_gain_to = mpi::allreduce(gain_to_block[b], MPI_SUM, _graph->communicator());
       residual_cluster_weights.push_back(max_cluster_weight(b) - _p_graph->block_weight(b));
-      global_total_gains_to_block.push_back(global_gain_to);
+      global_total_gains_to_block.push_back(global_gain_to[b]);
     }
     STOP_TIMER(TIMER_FINE);
 
