@@ -121,9 +121,9 @@ bool validate(const DistributedGraph &graph, const int root) {
         [&](const NodeID u) -> GhostNodeWeightMessage {
           return {.global_u = graph.local_to_global_node(u), .weight = graph.node_weight(u)};
         },
-        [&](const auto buffer) {
+        [&](const auto buffer, const PEID pe) {
           for (const auto [global_u, weight] : buffer) {
-            ALWAYS_ASSERT(graph.contains_global_node(global_u));
+            ALWAYS_ASSERT(graph.contains_global_node(global_u)) << V(global_u) << V(pe);
             const NodeID local_u = graph.global_to_local_node(global_u);
             ALWAYS_ASSERT(graph.node_weight(local_u) == weight);
           }

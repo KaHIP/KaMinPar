@@ -36,9 +36,23 @@ DistributedGraph build_graph(const auto &edge_list, scalable_vector<GlobalNodeID
   const auto [size, rank] = mpi::get_comm_info();
   const GlobalNodeID from = node_distribution[rank];
   const GlobalNodeID to = node_distribution[rank + 1];
+  //  DLOG << "from=" << from << " to=" << to << " size=" << edge_list.size();
   ALWAYS_ASSERT(from <= to);
   
   const auto n = static_cast<NodeID>(to - from);
+  //  DLOG << V(edge_list[0].first) << V(edge_list[0].second);
+  //  DLOG << V(edge_list.back().first) << V(edge_list.back().second);
+
+
+  /*  std::size_t j = 0;
+  for (std::size_t i = 0; i < edge_list.size(); ++i) {
+    const auto &[u, v] = edge_list[i];
+    if (from <= u && u < to) ++j;
+    if ((u == 15199616 && v == 13632795) || (u == 13632795 && v == 15199616)) {
+      std::cout << rank << " :: " << u << " --> " << v << " // " << i << " // " << j << std::endl;
+    }
+   }
+   DLOG << V(j) << V(edge_list.size()); */
 
   // bucket sort nodes
   START_TIMER("Bucket sort");
@@ -59,14 +73,14 @@ DistributedGraph build_graph(const auto &edge_list, scalable_vector<GlobalNodeID
   scalable_vector<EdgeID> edges(m);
   graph::GhostNodeMapper ghost_node_mapper(node_distribution);
   tbb::parallel_for<EdgeID>(0, edge_list.size(), [&](const EdgeID e) {
-    const auto u = static_cast<NodeID>(edge_list[e].first);
+    const GlobalNodeID u = edge_list[e].first;
 
     if (from <= u && u < to) {
-      const auto v = static_cast<NodeID>(edge_list[e].second);
+      const GlobalNodeID v = edge_list[e].second;
       const auto pos = buckets[u - from].fetch_sub(1, std::memory_order_relaxed) - 1;
       ASSERT(pos < edges.size()) << V(pos) << V(edges.size());
 
-      if (v >= from && v < to) {
+      if (from <= v && v < to) {
         edges[pos] = static_cast<NodeID>(v - from);
       } else {
         edges[pos] = ghost_node_mapper.new_ghost_node(v);
@@ -99,6 +113,7 @@ DistributedGraph build_graph(const auto &edge_list, scalable_vector<GlobalNodeID
 scalable_vector<GlobalNodeID> build_node_distribution(const std::pair<SInt, SInt> range) {
   const auto [size, rank] = mpi::get_comm_info();
   const GlobalNodeID to = range.second + 1;
+  //  DLOG << V(range.first) << V(range.second);
 
   scalable_vector<GlobalNodeID> node_distribution(size + 1);
   mpi::allgather(&to, 1, node_distribution.data() + 1, 1);

@@ -184,8 +184,6 @@ inline MPI_Status probe(const int source, const int tag, MPI_Comm comm = MPI_COM
 template <typename T> inline int get_count(const MPI_Status &status) {
   int count;
   [[maybe_unused]] auto result = MPI_Get_count(&status, type::get<T>(), &count);
-  ASSERT(result != MPI_UNDEFINED && count >= 0) << V(get_count<char>(status)) << V(status.MPI_SOURCE)
-                                                << V(status.MPI_TAG) << V(status.MPI_ERROR) << V(status._ucount);
   return count;
 }
 
