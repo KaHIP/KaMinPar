@@ -277,68 +277,58 @@ DistributedGraph build_coarse_graph(const DistributedGraph &graph, const auto &m
   const PEID rank = mpi::get_comm_rank(graph.communicator());
 
   // compute coarse node distribution
-  START_TIMER("Build coarse node distribution", TIMER_FINE);
   const auto from = c_node_distribution[rank];
   const auto to = c_node_distribution[rank + 1];
-  STOP_TIMER(TIMER_FINE);
 
-  // next, send each PE the edges it owns in the coarse graph
-  // first, count the number of edges for each PE
-  START_TIMER("Count edges for each PE", TIMER_FINE);
-  parallel::vector_ets<EdgeID> num_edges_for_pe_ets(size);
-  graph.pfor_nodes_range([&](const auto r) {
-    auto &num_edges_for_pe = num_edges_for_pe_ets.local();
-    for (NodeID u = r.begin(); u != r.end(); ++u) {
-      ASSERT(u < mapping.size());
+  // create messages
+  std::vector<scalable_vector<LocalToGlobalEdge>> out_msg;
+  {
+    SCOPED_TIMER("Create edge messages", TIMER_FINE);
+    const PEID num_threads = omp_get_max_threads();
+    std::vector<cache_aligned_vector<EdgeID>> num_messages(num_threads, cache_aligned_vector<EdgeID>(size));
+
+    START_TIMER("Count messages", TIMER_FINE);
+#pragma omp parallel for default(none)                                                                                 \
+    shared(num_messages, graph, mapping, compute_coarse_node_owner, c_node_distribution)
+    for (NodeID u = 0; u < graph.n(); ++u) {
+      const PEID thread = omp_get_thread_num();
       const auto c_u = mapping[u];
       const auto c_u_owner = compute_coarse_node_owner(c_u, c_node_distribution);
-      ASSERT(static_cast<std::size_t>(c_u_owner) < num_edges_for_pe.size());
 
       for (const auto [e, v] : graph.neighbors(u)) {
-        if (c_u != mapping[v]) { // ignore self loops
-          num_edges_for_pe[c_u_owner]++;
+        num_messages[thread][c_u_owner] += (c_u != mapping[v]);
+      }
+    }
+    mpi::graph::internal::inclusive_col_prefix_sum(num_messages); // TODO move this utility function somewhere else
+    STOP_TIMER(TIMER_FINE);
+
+    // allocate send buffers
+    START_TIMER("Allocation", TIMER_FINE);
+    for (PEID pe = 0; pe < size; ++pe) {
+      out_msg.emplace_back(num_messages.back()[pe]);
+    }
+    STOP_TIMER(TIMER_FINE);
+
+    START_TIMER("Create messages", TIMER_FINE);
+#pragma omp parallel for default(none)                                                                                 \
+    shared(num_messages, graph, mapping, compute_coarse_node_owner, c_node_distribution, out_msg)
+    for (NodeID u = 0; u < graph.n(); ++u) {
+      const PEID thread = omp_get_thread_num();
+      const auto c_u = mapping[u];
+      const auto c_u_owner = compute_coarse_node_owner(c_u, c_node_distribution);
+      const auto local_c_u = static_cast<NodeID>(c_u - c_node_distribution[c_u_owner]);
+
+      for (const auto [e, v] : graph.neighbors(u)) {
+        const auto c_v = mapping[v];
+
+        if (c_u != c_v) { // ignore self loops
+          const std::size_t slot = --num_messages[thread][c_u_owner];
+          out_msg[c_u_owner][slot] = {.u = local_c_u, .weight = graph.edge_weight(e), .v = c_v};
         }
       }
     }
-  });
-  auto num_edges_for_pe = num_edges_for_pe_ets.combine(std::plus{});
-  STOP_TIMER(TIMER_FINE);
-
-  // allocate memory for edge messages
-  START_TIMER("Allocation", TIMER_FINE);
-  std::vector<scalable_vector<LocalToGlobalEdge>> out_msg;
-  for (PEID pe = 0; pe < size; ++pe) {
-    out_msg.emplace_back(num_edges_for_pe[pe]);
+    STOP_TIMER(TIMER_FINE);
   }
-  STOP_TIMER(TIMER_FINE);
-
-  // create messages
-  START_TIMER("Create edge messages", TIMER_FINE); // TODO bad parallelization
-  std::vector<shm::parallel::IntegralAtomicWrapper<EdgeID>> next_out_msg_slot(size);
-  graph.pfor_nodes([&](const NodeID u) {
-    const auto c_u = mapping[u];
-    const auto c_u_owner = compute_coarse_node_owner(c_u, c_node_distribution);
-    const auto local_c_u = static_cast<NodeID>(c_u - c_node_distribution[c_u_owner]);
-
-    for (const auto [e, v] : graph.neighbors(u)) {
-      const auto c_v = mapping[v];
-
-      if (c_u != c_v) { // ignore self loops
-        const std::size_t slot =
-            next_out_msg_slot[c_u_owner].fetch_add(1, std::memory_order_relaxed); // TODO parallelization bottleneck?
-        out_msg[c_u_owner][slot] = {.u = local_c_u, .weight = graph.edge_weight(e), .v = c_v}; // TODO false sharing?
-        DBG << "--> " << c_u_owner << ": [" << slot << "]={.u=" << local_c_u << ", .weight=" << graph.edge_weight(e)
-            << ", .v=" << c_v << "}";
-      }
-    }
-  });
-  STOP_TIMER(TIMER_FINE);
-
-  ASSERT([&] {
-    for (PEID pe = 0; pe < size; ++pe) {
-      ASSERT(next_out_msg_slot[pe] == num_edges_for_pe[pe]);
-    }
-  });
 
   // deduplicate edges
   START_TIMER("Deduplicate edges before sending", TIMER_FINE);
