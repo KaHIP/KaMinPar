@@ -353,7 +353,7 @@ DistributedGraph build_coarse_graph(const DistributedGraph &graph, const auto &m
 
   // exchange messages
   START_TIMER("Exchange edges", TIMER_FINE);
-  const auto in_msg = mpi::sparse_alltoall_get<LocalToGlobalEdge, scalable_vector>(out_msg, graph.communicator(), true);
+  auto in_msg = mpi::sparse_alltoall_get<LocalToGlobalEdge, scalable_vector>(out_msg, graph.communicator(), true);
   STOP_TIMER(TIMER_FINE);
 
   // Copy edge lists to a single list and free old list
