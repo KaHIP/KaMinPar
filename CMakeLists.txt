@@ -17,11 +17,12 @@ endif ()
 
 option(KAMINPAR_HEAVY_ASSERTIONS "Enable assertions that have high impact on performance." OFF)
 option(KAMINPAR_LIGHT_ASSERTIONS "Enable very lightweight assertions." ON)
+
 option(KAMINPAR_TIMERS "Enable fine-grained timers. With this option disabled, we will still report the total partitioning time." ON)
-option(KAMINPAR_STATISTICS "Generate and output detailed statistics." OFF)
+option(KAMINPAR_STATISTICS "Generate and output detailed statistics." ON)
 option(KAMINPAR_64BIT_EDGE_IDS "Use 64 bits for edge ids." OFF)
-option(KAMINPAR_BACKWARD_CPP "Use backward-cpp for better stacktraces." OFF)
-option(KAMINPAR_TESTS "If enabled, build unit tests." OFF)
+option(KAMINPAR_BACKWARD_CPP "Use backward-cpp for better stacktraces." ON)
+option(KAMINPAR_TESTS "If enabled, build unit tests." ON)
 option(KAMINPAR_GRAPHGEN "If enabled, include KaGen for in-memory graph generation." OFF)
 
 include_directories(${PROJECT_SOURCE_DIR})
