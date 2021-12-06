@@ -76,7 +76,7 @@ find_used_cluster_ids_per_pe(const DistributedGraph &graph, const auto &clusteri
 
   // mark global node IDs that are used as cluster IDs
   std::vector<UsedClustersMap> used_clusters_map(size);
-  std::vector<shm::parallel::IntegralAtomicWrapper<NodeID>> next_slot_for_pe(size);
+  std::vector<Atomic<NodeID>> next_slot_for_pe(size);
 
   graph.pfor_nodes_range([&](const auto r) {
     tbb::concurrent_hash_map<NodeID, NodeID>::accessor accessor;

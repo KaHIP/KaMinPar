@@ -8,6 +8,7 @@
 #pragma once
 
 #include "dkaminpar/datastructure/distributed_graph.h"
+#include "dkaminpar/datastructure/distributed_graph_builder.h"
 #include "dkaminpar/utility/math.h"
 #include "kaminpar/datastructure/ts_navigable_linked_list.h"
 #include "kaminpar/utility/timer.h"
@@ -110,8 +111,8 @@ deduplicate_edge_list(scalable_vector<LocalToGlobalEdge> edge_list, const NodeID
   deduplicated_bucket_index[0] = 0;
   shm::parallel::prefix_sum(deduplicated_bucket_index.begin(), deduplicated_bucket_index.begin() + n + 1,
                             deduplicated_bucket_index.begin());
-
   edge_list.resize(deduplicated_bucket_index[n]);
+
   return {std::move(edge_list), std::move(m_ctx)};
 }
 
@@ -157,7 +158,8 @@ inline DistributedGraph build_distributed_graph_from_edge_list(const auto &edge_
   const NodeID n = node_distribution[rank + 1] - node_distribution[rank];
 
   // Bucket-sort edge list
-  scalable_vector<shm::parallel::IntegralAtomicWrapper<NodeID>> bucket_index(n + 1);
+  START_TIMER("Bucket sort edge list", TIMER_FINE);
+  scalable_vector<Atomic<NodeID>> bucket_index(n + 1);
   tbb::parallel_for<std::size_t>(0, edge_list.size(), [&](const std::size_t i) {
     bucket_index[edge_list[i].u].fetch_add(1, std::memory_order_relaxed);
   });
@@ -166,6 +168,7 @@ inline DistributedGraph build_distributed_graph_from_edge_list(const auto &edge_
   tbb::parallel_for<std::size_t>(0, edge_list.size(), [&](const std::size_t i) {
     buckets[bucket_index[edge_list[i].u].fetch_sub(1, std::memory_order_relaxed) - 1] = i;
   });
+  STOP_TIMER(TIMER_FINE);
 
   // Assertion:
   // Buckets of node u go from bucket_index[u]..bucket_index[u + 1]
@@ -178,8 +181,11 @@ inline DistributedGraph build_distributed_graph_from_edge_list(const auto &edge_
   };
   shm::NavigableLinkedList<NodeID, Edge> edge_buffer_ets;
 
+  START_TIMER("Allocation", TIMER_FINE);
   scalable_vector<EdgeID> nodes(n + 1);
+  STOP_TIMER(TIMER_FINE);
 
+  START_TIMER("Build coarse edges", TIMER_FINE);
   tbb::parallel_for(tbb::blocked_range<NodeID>(0, n), [&](const auto r) {
     auto &edge_buffer = edge_buffer_ets.local();
 
@@ -197,15 +203,17 @@ inline DistributedGraph build_distributed_graph_from_edge_list(const auto &edge_
       EdgeID degree = 0;
       GlobalNodeID current_v = kInvalidGlobalNodeID;
       EdgeWeight current_weight = 0;
+
       for (std::size_t i = u_bucket_start; i < u_bucket_end; ++i) {
         const GlobalNodeID v = edge_list[buckets[i]].v;
         const EdgeWeight weight = edge_list[buckets[i]].weight;
+
         if (v != current_v) {
           if (current_v != kInvalidGlobalNodeID) {
-            DBG << "new edge: --> " << current_v << " / " << current_weight;
             edge_buffer.push_back({current_v, current_weight});
             ++degree;
           }
+
           current_v = v;
           current_weight = 0;
         }
@@ -214,48 +222,31 @@ inline DistributedGraph build_distributed_graph_from_edge_list(const auto &edge_
       }
 
       if (current_v != kInvalidGlobalNodeID) { // finish last edge if there was at least one edge
-        DBG << "!new edge: --> " << current_v << " / " << current_weight;
         edge_buffer.push_back({current_v, current_weight});
         ++degree;
       }
 
       nodes[u + 1] = degree;
-      DBG << "Degree of " << u << ": " << degree;
     }
   });
 
   shm::parallel::prefix_sum(nodes.begin(), nodes.end(), nodes.begin());
   const auto all_buffered_nodes = shm::ts_navigable_list::combine<NodeID, Edge>(edge_buffer_ets);
+  STOP_TIMER(TIMER_FINE);
 
+  START_TIMER("Allocation", TIMER_FINE);
   const EdgeID m = nodes.back();
   scalable_vector<NodeID> edges(m);
   scalable_vector<EdgeWeight> edge_weights(m);
+  STOP_TIMER(TIMER_FINE);
 
   const GlobalNodeID from = node_distribution[rank];
   const GlobalNodeID to = node_distribution[rank + 1];
 
-  // Remap ghost nodes to local nodes
-  // TODO parallelize this part
-  std::unordered_map<GlobalNodeID, NodeID> global_to_ghost;
-  scalable_vector<GlobalNodeID> ghost_to_global;
-  scalable_vector<PEID> ghost_owner;
-
-  for (std::size_t i = 0; i < edge_list.size(); ++i) {
-    const auto v = edge_list[i].v;
-    if ((v < from || v >= to) && !global_to_ghost.contains(v)) { // new ghost node?
-      NodeID v_local = n + ghost_to_global.size();
-      global_to_ghost[v] = v_local;
-      ghost_to_global.push_back(v);
-      ghost_owner.push_back(find_ghost_node_owner(v, node_distribution));
-      ASSERT(ghost_owner.back() >= 0 && ghost_owner.back() < size)
-          << V(ghost_owner.back()) << V(size) << V(v) << V(node_distribution.back())
-          << V(find_ghost_node_owner(v, node_distribution));
-    }
-  }
-
-  const NodeID ghost_n = ghost_owner.size();
-
   // Now construct the coarse graph
+  START_TIMER("Construct coarse graph", TIMER_FINE);
+  graph::GhostNodeMapper mapper{node_distribution, comm};
+
   tbb::parallel_for<NodeID>(0, n, [&](const NodeID i) {
     const auto &marker = all_buffered_nodes[i];
     const auto *list = marker.local_list;
@@ -271,19 +262,26 @@ inline DistributedGraph build_distributed_graph_from_edge_list(const auto &edge_
       const auto src_index = first_src_index + j;
 
       const auto [v, weight] = list->get(src_index);
-      DBG << "create edge: " << u << " --> " << v << " / " << weight << V(from) << V(to);
-      if (!(v >= from && v < to)) {
-        DBG << V(global_to_ghost[v]) << V(ghost_owner[global_to_ghost[v]]);
-      }
 
-      edges[dst_index] = (v >= from && v < to) ? static_cast<NodeID>(v - from) : global_to_ghost[v];
+      if (from <= v && v < to) {
+        edges[dst_index] = static_cast<NodeID>(v - from);
+      } else {
+        edges[dst_index] = mapper.new_ghost_node(v);
+      }
       edge_weights[dst_index] = weight;
     }
   });
 
+  auto [global_to_ghost, ghost_to_global, ghost_owner] = mapper.finalize();
+  const NodeID ghost_n = ghost_to_global.size();
+  STOP_TIMER(TIMER_FINE);
+
+
   // node weights for ghost nodes must be computed afterwards
+  START_TIMER("Construct coarse node weights", TIMER_FINE);
   scalable_vector<NodeWeight> node_weights(n + ghost_n);
   tbb::parallel_for<NodeID>(0, n, [&](const NodeID u) { node_weights[u] = node_weight_lambda(u); });
+  STOP_TIMER(TIMER_FINE);
 
   return {std::move(node_distribution),
           create_distribution_from_local_count<GlobalEdgeID>(m, comm),
