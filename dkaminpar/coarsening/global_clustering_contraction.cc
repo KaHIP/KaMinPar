@@ -324,7 +324,8 @@ DistributedGraph build_coarse_graph(const DistributedGraph &graph, const auto &m
       const auto c_v = mapping[v];
 
       if (c_u != c_v) { // ignore self loops
-        const std::size_t slot = next_out_msg_slot[c_u_owner].fetch_add(1, std::memory_order_relaxed); // TODO parallelization bottleneck?
+        const std::size_t slot =
+            next_out_msg_slot[c_u_owner].fetch_add(1, std::memory_order_relaxed); // TODO parallelization bottleneck?
         out_msg[c_u_owner][slot] = {.u = local_c_u, .weight = graph.edge_weight(e), .v = c_v}; // TODO false sharing?
         DBG << "--> " << c_u_owner << ": [" << slot << "]={.u=" << local_c_u << ", .weight=" << graph.edge_weight(e)
             << ", .v=" << c_v << "}";
@@ -383,15 +384,15 @@ DistributedGraph build_coarse_graph(const DistributedGraph &graph, const auto &m
     NodeWeight weight;
   };
 
-  // TODO accumulate node weights before sending them -> no longer need an atomic
   START_TIMER("Exchange node weights", TIMER_FINE);
   mpi::graph::sparse_alltoall_custom<NodeWeightMessage>(
       graph, 0, graph.n(), SPARSE_ALLTOALL_NOFILTER,
-      [&](const NodeID u) -> std::pair<NodeWeightMessage, PEID> {
+      [&](const NodeID u) { return compute_coarse_node_owner(mapping[u], c_node_distribution); },
+      [&](const NodeID u) -> NodeWeightMessage {
         const auto c_u = mapping[u];
         const PEID c_u_owner = compute_coarse_node_owner(c_u, c_node_distribution);
         const NodeID c_u_local = c_u - c_node_distribution[c_u_owner];
-        return {{c_u_local, graph.node_weight(u)}, c_u_owner};
+        return {c_u_local, graph.node_weight(u)};
       },
       [&](const auto r) {
         tbb::parallel_for<std::size_t>(0, r.size(), [&](const std::size_t i) {

@@ -332,26 +332,24 @@ private:
     auto requests = mpi::graph::sparse_alltoall_custom<JoinRequest>(
         *_graph, from, to,
         [&](const NodeID u) { return was_moved_during_round(u) && !_graph->is_owned_global_node(cluster(u)); },
-        [&](const NodeID u) -> std::pair<JoinRequest, PEID> {
+        [&](const NodeID u) { return _graph->find_owner_of_global_node(_next_clustering[u]); },
+        [&](const NodeID u) -> JoinRequest {
           const auto u_global = _graph->local_to_global_node(u);
           const auto u_weight = _graph->node_weight(u);
           const EdgeWeight u_gain = _gain[u];
           const GlobalNodeID new_cluster = _next_clustering[u];
-          const PEID new_cluster_owner = _graph->find_owner_of_global_node(new_cluster);
-
           ASSERT(u_gain >= 0);
 
           DBG << "Join request: L" << u << "G" << _graph->local_to_global_node(u) << "={"
               << ".global_requester=" << _graph->local_to_global_node(u) << ", "
               << ".requester_weight=" << _graph->node_weight(u) << ", "
               << ".requester_gain=" << u_gain << ", "
-              << ".global_requested=" << new_cluster << "} --> " << new_cluster_owner;
+              << ".global_requested=" << new_cluster << "} --> " << _graph->find_owner_of_global_node(new_cluster);
 
-          return {{.global_requester = u_global,
-                   .requester_weight = u_weight,
-                   .requester_gain = u_gain,
-                   .global_requested = new_cluster},
-                  new_cluster_owner};
+          return {.global_requester = u_global,
+                  .requester_weight = u_weight,
+                  .requester_gain = u_gain,
+                  .global_requested = new_cluster};
         });
     STOP_TIMER(TIMER_FINE);
 
@@ -619,7 +617,8 @@ private:
           ASSERT(cluster(u) < _graph->global_n());
           return !_graph->is_owned_global_node(cluster(u));
         },
-        [&](const NodeID u) { return std::make_pair(cluster(u), _graph->find_owner_of_global_node(cluster(u))); },
+        [&](const NodeID u) { return _graph->find_owner_of_global_node(cluster(u)); },
+        [&](const NodeID u) { return cluster(u); },
         [&](const auto &buffer, const PEID pe) {
           for (const GlobalNodeID label : buffer) {
             ASSERT(_graph->is_owned_global_node(label));

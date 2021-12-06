@@ -74,7 +74,7 @@ template <typename Message, template <typename> typename Buffer = scalable_vecto
 void sparse_alltoall_interface_to_ghost(const DistributedGraph &graph, const NodeID from, const NodeID to,
                                         auto &&filter, auto &&builder, auto &&receiver) {
   SCOPED_TIMER("Sparse AllToAll InterfaceToGhost");
-  
+
   using Filter = decltype(filter);
   static_assert(std::is_invocable_r_v<bool, Filter, NodeID>, "bad filter type");
 
@@ -311,47 +311,76 @@ std::vector<Buffer<Message>> sparse_alltoall_interface_to_pe_get(const Distribut
 
 template <typename Message, template <typename> typename Buffer = scalable_vector>
 void sparse_alltoall_custom(const DistributedGraph &graph, const NodeID from, const NodeID to, auto &&filter,
-                            auto &&builder, auto &&receiver, const bool self = false) {
+                            auto &&pe_getter, auto &&builder, auto &&receiver, const bool self = false) {
   using Filter = decltype(filter);
   static_assert(std::is_invocable_r_v<bool, Filter, NodeID>, "bad filter type");
 
   using Builder = decltype(builder);
-  static_assert(std::is_invocable_r_v<std::pair<Message, PEID>, Builder, NodeID>, "bad builder type");
+  static_assert(std::is_invocable_r_v<Message, Builder, NodeID>, "bad builder type");
+
+  using PEGetter = decltype(pe_getter);
+  static_assert(std::is_invocable_r_v<PEID, PEGetter, NodeID>, "bad pe getter type");
 
   PEID size, rank;
   std::tie(size, rank) = mpi::get_comm_info(graph.communicator());
 
-  // allocate send buffers
-  std::vector<tbb::concurrent_vector<Message>> send_buffers(size);
+  // allocate message counters
+  const PEID num_threads = omp_get_max_threads();
+  std::vector<cache_aligned_vector<std::size_t>> num_messages(num_threads, cache_aligned_vector<std::size_t>(size));
 
-  graph.pfor_nodes(from, to, [&](const NodeID u) {
-    if (!filter(u)) {
-      return;
+  // count messages to each PE for each thread
+  START_TIMER("Count messages", TIMER_FINE);
+#pragma omp parallel default(none) shared(pe_getter, size, from, to, filter, graph, num_messages)
+  {
+    const PEID thread = omp_get_thread_num();
+#pragma omp for
+    for (NodeID u = from; u < to; ++u) {
+      if (filter(u)) {
+        ++num_messages[thread][pe_getter(u)];
+      }
     }
-    const auto [message, pe] = builder(u);
-    send_buffers[pe].push_back(std::move(message));
-  });
-
-  // TODO can we avoid copying here?
-  std::vector<Buffer<Message>> real_send_buffers;
-  for (PEID pe = 0; pe < size; ++pe) {
-    real_send_buffers.emplace_back(send_buffers[pe].size());
   }
-  tbb::parallel_for(0, size, [&](const PEID pe) {
-    std::copy(send_buffers[pe].begin(), send_buffers[pe].end(), real_send_buffers[pe].begin());
-  });
 
-  sparse_alltoall<Message, Buffer>(real_send_buffers, std::forward<decltype(receiver)>(receiver), graph.communicator(),
+  // offset messages for each thread
+  internal::inclusive_col_prefix_sum(num_messages);
+  STOP_TIMER(TIMER_FINE);
+
+  // allocate send buffers
+  START_TIMER("Allocation", TIMER_FINE);
+  std::vector<Buffer<Message>> send_buffers;
+  for (PEID pe = 0; pe < size; ++pe) {
+    send_buffers.emplace_back(num_messages.back()[pe]);
+  }
+  STOP_TIMER(TIMER_FINE);
+
+  // fill buffers
+  START_TIMER("Partition messages", TIMER_FINE);
+#pragma omp parallel default(none) shared(pe_getter, send_buffers, size, from, to, builder, filter, graph, num_messages)
+  {
+    const PEID thread = omp_get_thread_num();
+#pragma omp for
+    for (NodeID u = from; u < to; ++u) {
+      if (filter(u)) {
+        const PEID pe = pe_getter(u);
+        const auto slot = --num_messages[thread][pe];
+        send_buffers[pe][slot] = builder(u);
+      }
+    }
+  }
+  STOP_TIMER(TIMER_FINE);
+
+  sparse_alltoall<Message, Buffer>(send_buffers, std::forward<decltype(receiver)>(receiver), graph.communicator(),
                                    self);
 }
 
 template <typename Message, template <typename> typename Buffer = scalable_vector>
 std::vector<Buffer<Message>> sparse_alltoall_custom(const DistributedGraph &graph, const NodeID from, const NodeID to,
-                                                    auto &&filter, auto &&builder) {
+                                                    auto &&filter, auto &&pe_getter, auto &&builder) {
   auto size = mpi::get_comm_size(graph.communicator());
   std::vector<Buffer<Message>> recv_buffers(size);
   sparse_alltoall_custom<Message, Buffer>(
-      graph, from, to, std::forward<decltype(filter)>(filter), std::forward<decltype(builder)>(builder),
+      graph, from, to, std::forward<decltype(filter)>(filter), std::forward<decltype(pe_getter)>(pe_getter),
+      std::forward<decltype(builder)>(builder),
       [&](auto recv_buffer, const PEID pe) { recv_buffers[pe] = std::move(recv_buffer); });
   return recv_buffers;
 }
