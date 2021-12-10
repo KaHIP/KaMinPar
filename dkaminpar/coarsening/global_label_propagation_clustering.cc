@@ -229,7 +229,7 @@ private:
       GlobalNodeID new_label;
     };
 
-    mpi::graph::sparse_alltoall_interface_to_pe<ChangedLabelMessage, scalable_vector>(
+    mpi::graph::sparse_alltoall_interface_to_pe<ChangedLabelMessage>(
         *_graph, from, to, [&](const NodeID u) { return _changed_label[u]; },
         [&](const NodeID u) -> ChangedLabelMessage {
           return {u, cluster(u)};

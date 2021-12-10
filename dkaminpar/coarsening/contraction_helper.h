@@ -275,7 +275,6 @@ inline DistributedGraph build_distributed_graph_from_edge_list(const auto &edge_
   const NodeID ghost_n = ghost_to_global.size();
   STOP_TIMER(TIMER_FINE);
 
-
   // node weights for ghost nodes must be computed afterwards
   START_TIMER("Construct coarse node weights", TIMER_FINE);
   scalable_vector<NodeWeight> node_weights(n + ghost_n);
