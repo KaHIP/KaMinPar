@@ -51,5 +51,4 @@ if (KAMINPAR_GRAPHGEN)
     target_link_libraries(dKaMinPar PUBLIC kagen_interface)
 endif ()
 
-add_subdirectory(tools)
 add_subdirectory(benchmarks)
