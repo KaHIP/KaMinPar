@@ -119,7 +119,7 @@ public:
                     "Result type of transforming function must be convertible to the data type of the storage "
                     "pointer.");
 
-      auto setter = [storage, transformer](const char *arg) { *storage = transformer(arg); };
+      auto setter = [storage, transformer = transformer](const char *arg) { *storage = transformer(arg); };
       std::stringstream default_arg;
       if (!mandatory) { // mandatory arguments don't have implicit default values
         default_arg << *storage;
