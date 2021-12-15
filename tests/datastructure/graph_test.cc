@@ -17,11 +17,12 @@
  * along with KaMinPar.  If not, see <http://www.gnu.org/licenses/>.
  *
 ******************************************************************************/
-
 #include "tests.h"
 #include "matcher.h"
 
 #include "algorithm/graph_utils.h"
+#include "algorithm/graph_contraction.h"
+#include "algorithm/extract_subgraphs.h"
 
 using ::testing::Eq;
 using ::testing::UnorderedElementsAre;
@@ -49,7 +50,7 @@ public:
 
 TEST_F(AWeightedGridGraph, ExtractingBlockInducedSubgraphsWorkHorizontally) {
   PartitionedGraph p_graph{create_p_graph(graph, 2, {0, 0, 0, 0, 1, 1, 1, 1})};
-  SubgraphMemory memory{p_graph};
+  graph::SubgraphMemory memory{p_graph};
   const auto [subgraphs, node_mapping, positions] = extract_subgraphs(p_graph, memory);
   const auto &s_graph0 = subgraphs[0];
   const auto &s_graph1 = subgraphs[1];
@@ -69,7 +70,7 @@ TEST_F(AWeightedGridGraph, ExtractingBlockInducedSubgraphsWorkHorizontally) {
 
 TEST_F(AWeightedGridGraph, ExtractingEmptyBlockInducedSubgraphWorks) {
   PartitionedGraph p_graph{create_p_graph(graph, 2, {0, 0, 0, 0, 0, 0, 0, 0})};
-  SubgraphMemory memory{p_graph};
+  graph::SubgraphMemory memory{p_graph};
   const auto [subgraphs, node_mapping, positions] = extract_subgraphs(p_graph, memory);
   const auto &s_graph0 = subgraphs[0];
   const auto &s_graph1 = subgraphs[1];

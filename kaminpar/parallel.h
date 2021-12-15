@@ -3,9 +3,7 @@
 #include "kaminpar/definitions.h"
 
 #include <atomic>
-#include <concepts>
 #include <iterator>
-#include <ranges>
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_reduce.h>
 #include <tbb/parallel_scan.h>
@@ -17,7 +15,7 @@ inline int sched_getcpu() { return 0; }
 
 namespace kaminpar::parallel {
 // https://github.com/kahypar/mt-kahypar/blob/master/mt-kahypar/parallel/atomic_wrapper.h
-template<std::integral T>
+template<typename T>
 class IntegralAtomicWrapper {
 public:
   IntegralAtomicWrapper(const T value = T()) : _value(value) {}
@@ -141,10 +139,10 @@ tbb_unique_ptr<T> make_unique(Args &&...args) {
   return tbb_unique_ptr<T>(ptr, tbb_deleter<T>{});
 }
 
-template<std::ranges::range Range>
-std::ranges::range_value_t<Range> accumulate(const Range &r) {
-  using r_size_t = std::ranges::range_difference_t<Range>;
-  using value_t = std::ranges::range_size_t<Range>;
+template<typename Range>
+typename Range::value_type accumulate(const Range &r) {
+  using r_size_t = typename Range::size_type;
+  using value_t = typename Range::value_type;
 
   class body {
     const Range &_r;
@@ -167,14 +165,14 @@ std::ranges::range_value_t<Range> accumulate(const Range &r) {
   };
 
   body b{r};
-  tbb::parallel_reduce(tbb::blocked_range<r_size_t>(static_cast<r_size_t>(0), r.size()), b);
+  tbb::parallel_reduce(tbb::blocked_range(static_cast<r_size_t>(0), r.size()), b);
   return b._ans;
 }
 
-template<std::ranges::range Range>
-std::ranges::range_value_t<Range> max_element(const Range &r) {
-  using r_size_t = std::ranges::range_difference_t<Range>;
-  using value_t = std::ranges::range_size_t<Range>;
+template<typename Range>
+typename Range::value_type max_element(const Range &r) {
+  using r_size_t = typename Range::size_type;
+  using value_t = typename Range::value_type;
 
   class body {
     const Range &_r;
@@ -197,7 +195,7 @@ std::ranges::range_value_t<Range> max_element(const Range &r) {
   };
 
   body b{r};
-  tbb::parallel_reduce(tbb::blocked_range<r_size_t>(static_cast<r_size_t>(0), r.size()), b);
+  tbb::parallel_reduce(tbb::blocked_range(static_cast<r_size_t>(0), r.size()), b);
   return b._ans;
 }
 } // namespace kaminpar::parallel

@@ -1,3 +1,5 @@
+#include "algorithm/extract_subgraphs.h"
+#include "algorithm/graph_contraction.h"
 #include "algorithm/graph_utils.h"
 #include "matcher.h"
 #include "tests.h"
@@ -17,13 +19,11 @@ TEST(ParallelContractionTest, ContractingToSingleNodeWorks) {
   static constexpr auto GRID_LENGTH{2};
   Graph graph{graphs::grid(GRID_LENGTH, GRID_LENGTH)};
 
-  for (const bool leader_is_idempotent : {false, true}) {
-    for (const NodeID cluster : {0, 1, 2, 3}) {
-      auto [c_graph, c_mapping, m_ctx] = contract(graph, {cluster, cluster, cluster, cluster}, leader_is_idempotent);
-      EXPECT_THAT(c_graph.n(), 1);
-      EXPECT_THAT(c_graph.m(), 0);
-      EXPECT_THAT(c_graph.node_weight(0), graph.total_node_weight());
-    }
+  for (const NodeID cluster : {0, 1, 2, 3}) {
+    auto [c_graph, c_mapping, m_ctx] = graph::contract(graph, {cluster, cluster, cluster, cluster});
+    EXPECT_THAT(c_graph.n(), 1);
+    EXPECT_THAT(c_graph.m(), 0);
+    EXPECT_THAT(c_graph.node_weight(0), graph.total_node_weight());
   }
 }
 
@@ -35,18 +35,16 @@ TEST(ParallelContractionTest, ContractingToSingletonsWorks) {
   graph = change_node_weight(std::move(graph), 2, 3);
   graph = change_node_weight(std::move(graph), 3, 4);
 
-  for (const bool leader_is_idempotent : {false, true}) {
-    auto [c_graph, c_mapping, m_ctx] = contract(graph, {0, 1, 2, 3}, leader_is_idempotent);
-    EXPECT_THAT(c_graph.n(), graph.n());
-    EXPECT_THAT(c_graph.m(), graph.m());
-    EXPECT_THAT(c_graph.total_node_weight(), graph.total_node_weight());
-    EXPECT_THAT(c_graph.total_edge_weight(), graph.total_edge_weight());
+  auto [c_graph, c_mapping, m_ctx] = graph::contract(graph, {0, 1, 2, 3});
+  EXPECT_THAT(c_graph.n(), graph.n());
+  EXPECT_THAT(c_graph.m(), graph.m());
+  EXPECT_THAT(c_graph.total_node_weight(), graph.total_node_weight());
+  EXPECT_THAT(c_graph.total_edge_weight(), graph.total_edge_weight());
 
-    EXPECT_THAT(c_graph, HasEdgeWithWeightedEndpoints(1, 2));
-    EXPECT_THAT(c_graph, HasEdgeWithWeightedEndpoints(1, 3));
-    EXPECT_THAT(c_graph, HasEdgeWithWeightedEndpoints(2, 4));
-    EXPECT_THAT(c_graph, HasEdgeWithWeightedEndpoints(3, 4));
-  }
+  EXPECT_THAT(c_graph, HasEdgeWithWeightedEndpoints(1, 2));
+  EXPECT_THAT(c_graph, HasEdgeWithWeightedEndpoints(1, 3));
+  EXPECT_THAT(c_graph, HasEdgeWithWeightedEndpoints(2, 4));
+  EXPECT_THAT(c_graph, HasEdgeWithWeightedEndpoints(3, 4));
 }
 
 TEST(ParallelContractionTest, ContractingAllNodesButOneWorks) {
@@ -57,14 +55,12 @@ TEST(ParallelContractionTest, ContractingAllNodesButOneWorks) {
   // |  |
   // 2--3
 
-  for (const bool leader_is_idempotent : {false, true}) {
-    auto [c_graph, c_mapping, m_ctx] = contract(graph, {0, 1, 1, 1}, leader_is_idempotent);
-    EXPECT_THAT(c_graph.n(), 2);
-    EXPECT_THAT(c_graph.m(), 2); // one undirected edge
-    EXPECT_THAT(c_graph.total_node_weight(), graph.total_node_weight());
-    EXPECT_THAT(c_graph.total_edge_weight(), 2 * 2);
-    EXPECT_THAT(c_graph, HasEdgeWithWeightedEndpoints(1, 3));
-  }
+  auto [c_graph, c_mapping, m_ctx] = graph::contract(graph, {0, 1, 1, 1});
+  EXPECT_THAT(c_graph.n(), 2);
+  EXPECT_THAT(c_graph.m(), 2); // one undirected edge
+  EXPECT_THAT(c_graph.total_node_weight(), graph.total_node_weight());
+  EXPECT_THAT(c_graph.total_edge_weight(), 2 * 2);
+  EXPECT_THAT(c_graph, HasEdgeWithWeightedEndpoints(1, 3));
 }
 
 TEST(ParallelContractionTest, ContractingGridHorizontallyWorks) {
@@ -78,17 +74,15 @@ TEST(ParallelContractionTest, ContractingGridHorizontallyWorks) {
   graph = change_node_weight(std::move(graph), 6, 30);
   graph = change_node_weight(std::move(graph), 7, 40);
 
-  for (const bool leader_is_idempotent : {false, true}) {
-    auto [c_graph, c_mapping, m_ctx] = contract(graph, {0, 1, 2, 3, 0, 1, 2, 3}, leader_is_idempotent);
-    EXPECT_THAT(c_graph.n(), 4);
-    EXPECT_THAT(c_graph.m(), 2 * 3);
-    EXPECT_THAT(c_graph.node_weights(), UnorderedElementsAre(11, 22, 33, 44));
-    EXPECT_THAT(c_graph.total_node_weight(), graph.total_node_weight());
-    EXPECT_THAT(c_graph.total_edge_weight(), 4 * 3);
-    EXPECT_THAT(c_graph, HasEdgeWithWeightedEndpoints(11, 22));
-    EXPECT_THAT(c_graph, HasEdgeWithWeightedEndpoints(22, 33));
-    EXPECT_THAT(c_graph, HasEdgeWithWeightedEndpoints(33, 44));
-  }
+  auto [c_graph, c_mapping, m_ctx] = graph::contract(graph, {0, 1, 2, 3, 0, 1, 2, 3});
+  EXPECT_THAT(c_graph.n(), 4);
+  EXPECT_THAT(c_graph.m(), 2 * 3);
+  EXPECT_THAT(c_graph.node_weights(), UnorderedElementsAre(11, 22, 33, 44));
+  EXPECT_THAT(c_graph.total_node_weight(), graph.total_node_weight());
+  EXPECT_THAT(c_graph.total_edge_weight(), 4 * 3);
+  EXPECT_THAT(c_graph, HasEdgeWithWeightedEndpoints(11, 22));
+  EXPECT_THAT(c_graph, HasEdgeWithWeightedEndpoints(22, 33));
+  EXPECT_THAT(c_graph, HasEdgeWithWeightedEndpoints(33, 44));
 }
 
 TEST(ParallelContractionTest, ContractingGridVerticallyWorks) {
@@ -102,17 +96,15 @@ TEST(ParallelContractionTest, ContractingGridVerticallyWorks) {
   graph = change_node_weight(std::move(graph), 6, 4);
   graph = change_node_weight(std::move(graph), 7, 40);
 
-  for (const bool leader_is_idempotent : {false, true}) {
-    auto [c_graph, c_mapping, m_ctx] = contract(graph, {0, 0, 2, 2, 4, 4, 6, 6}, leader_is_idempotent);
-    EXPECT_THAT(c_graph.n(), 4);
-    EXPECT_THAT(c_graph.m(), 2 * 3);
-    EXPECT_THAT(c_graph.node_weights(), UnorderedElementsAre(11, 22, 33, 44));
-    EXPECT_THAT(c_graph.total_node_weight(), graph.total_node_weight());
-    EXPECT_THAT(c_graph.total_edge_weight(), 4 * 3);
-    EXPECT_THAT(c_graph, HasEdgeWithWeightedEndpoints(11, 22));
-    EXPECT_THAT(c_graph, HasEdgeWithWeightedEndpoints(22, 33));
-    EXPECT_THAT(c_graph, HasEdgeWithWeightedEndpoints(33, 44));
-  }
+  auto [c_graph, c_mapping, m_ctx] = graph::contract(graph, {0, 0, 2, 2, 4, 4, 6, 6});
+  EXPECT_THAT(c_graph.n(), 4);
+  EXPECT_THAT(c_graph.m(), 2 * 3);
+  EXPECT_THAT(c_graph.node_weights(), UnorderedElementsAre(11, 22, 33, 44));
+  EXPECT_THAT(c_graph.total_node_weight(), graph.total_node_weight());
+  EXPECT_THAT(c_graph.total_edge_weight(), 4 * 3);
+  EXPECT_THAT(c_graph, HasEdgeWithWeightedEndpoints(11, 22));
+  EXPECT_THAT(c_graph, HasEdgeWithWeightedEndpoints(22, 33));
+  EXPECT_THAT(c_graph, HasEdgeWithWeightedEndpoints(33, 44));
 }
 
 //
@@ -181,7 +173,7 @@ TEST(GraphPermutationTest, MovingIsolatedNodesToBackWorks) {
 // Permutation
 //
 
-  /*
+/*
 Graph build_permuted_graph_helper(const Graph &graph, const NodePermutation &permutation) {
   StaticArray<EdgeID> new_nodes(graph.n() + 1);
   StaticArray<NodeID> new_edges(graph.m());
@@ -268,10 +260,10 @@ TEST(SequentialGraphExtraction, SimpleSequentialBipartitionExtractionWorks) {
   Graph graph{test::create_graph({0, 2, 5, 6, 8, 11, 12}, {1, 3, 0, 4, 2, 1, 0, 4, 3, 1, 5, 4})};
   PartitionedGraph p_graph{test::create_p_graph(graph, 2, {0, 0, 0, 1, 1, 1})};
 
-  SubgraphMemory memory{p_graph};
-  SubgraphMemoryStartPosition position{0, 0};
-  TemporarySubgraphMemory buffer{};
-  const auto [subgraphs, positions] = extract_subgraphs_sequential(p_graph, position, memory, buffer);
+  graph::SubgraphMemory memory{p_graph};
+  graph::SubgraphMemoryStartPosition position{0, 0};
+  graph::TemporarySubgraphMemory buffer{};
+  const auto [subgraphs, positions] = graph::extract_subgraphs_sequential(p_graph, position, memory, buffer);
 
   for (const auto &subgraph : subgraphs) {
     EXPECT_THAT(subgraph.n(), Eq(3));

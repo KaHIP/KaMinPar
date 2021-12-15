@@ -93,7 +93,8 @@ std::size_t compute_num_copies(const Context &input_ctx, NodeID n, bool converge
 
 std::size_t select_best(const scalable_vector<PartitionedGraph> &p_graphs, const PartitionContext &p_ctx);
 
-std::size_t select_best(const auto p_graphs_begin, const auto p_graphs_end, const PartitionContext &p_ctx) {
+template<typename Iterator>
+std::size_t select_best(const Iterator p_graphs_begin, const Iterator p_graphs_end, const PartitionContext &p_ctx) {
   SET_DEBUG(false);
 
   ASSERT(p_graphs_begin < p_graphs_end) << "cannot select best result from an empty range";

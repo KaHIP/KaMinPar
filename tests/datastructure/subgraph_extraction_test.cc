@@ -1,4 +1,5 @@
 #include "algorithm/graph_utils.h"
+#include "algorithm/extract_subgraphs.h"
 #include "matcher.h"
 #include "tests.h"
 
@@ -18,8 +19,8 @@ TEST(SubgraphExtractionTest, ExtractsIsolatedNodes) {
   Graph graph{create_graph({0, 0, 0, 0, 0}, {})};
   PartitionedGraph p_graph{create_p_graph(graph, 4, {0, 1, 2, 3})};
 
-  SubgraphMemory memory{p_graph};
-  auto result = extract_subgraphs(p_graph, memory);
+  graph::SubgraphMemory memory{p_graph};
+  auto result = graph::extract_subgraphs(p_graph, memory);
 
   EXPECT_THAT(result.subgraphs[0].n(), 1);
   EXPECT_THAT(result.subgraphs[1].n(), 1);
@@ -35,8 +36,8 @@ TEST(SubgraphExtractionTest, ExtractsEdges) {
   Graph graph{create_graph({0, 1, 2, 3, 4}, {1, 0, 3, 2})};
   PartitionedGraph p_graph{create_p_graph(graph, 2, {0, 0, 1, 1})};
 
-  SubgraphMemory memory{p_graph};
-  auto result = extract_subgraphs(p_graph, memory);
+  graph::SubgraphMemory memory{p_graph};
+  auto result = graph::extract_subgraphs(p_graph, memory);
 
   EXPECT_THAT(result.subgraphs[0].n(), 2);
   EXPECT_THAT(result.subgraphs[1].n(), 2);
@@ -55,8 +56,8 @@ TEST(SubgraphExtractionTest, ExtractsPathCutInTwo) {
   Graph graph{create_graph({0, 1, 3, 5, 6}, {1, 0, 2, 1, 3, 2})};
   PartitionedGraph p_graph{create_p_graph(graph, 2, {0, 0, 1, 1})};
 
-  SubgraphMemory memory{p_graph};
-  auto result = extract_subgraphs(p_graph, memory);
+  graph::SubgraphMemory memory{p_graph};
+  auto result = graph::extract_subgraphs(p_graph, memory);
 
   EXPECT_THAT(result.subgraphs[0].n(), 2);
   EXPECT_THAT(result.subgraphs[1].n(), 2);
@@ -103,9 +104,9 @@ TEST(SubgraphExtractionTest, ComplexTrianglesWeightedExampleWorks) {
                             16, 17})};
   PartitionedGraph p_graph{create_p_graph(graph, 3, {0, 0, 1, 1, 0, 1, 2, 2, 2}, {4, 5, 6})};
 
-  SubgraphMemory memory{p_graph.n(), 15, p_graph.m(), p_graph.graph().is_node_weighted(),
+  graph::SubgraphMemory memory{p_graph.n(), 15, p_graph.m(), p_graph.graph().is_node_weighted(),
                         p_graph.graph().is_edge_weighted()};
-  auto result = extract_subgraphs(p_graph, memory);
+  auto result = graph::extract_subgraphs(p_graph, memory);
 
   EXPECT_THAT(result.subgraphs[0].n(), 3);
   EXPECT_THAT(result.subgraphs[1].n(), 3);

@@ -6,15 +6,15 @@
 #include "datastructure/static_array.h"
 #include "definitions.h"
 #include "parallel.h"
+#include "utility/ranges.h"
 #include "utility/utility.h"
 
 #include "gtest/gtest.h"
 #include <numeric>
-#include <ranges>
 #include <tbb/blocked_range.h>
 #include <tbb/enumerable_thread_specific.h>
-#include <tbb/parallel_reduce.h>
 #include <tbb/parallel_for.h>
+#include <tbb/parallel_reduce.h>
 #include <utility>
 #include <vector>
 
@@ -134,11 +134,11 @@ public:
   }
 
   // Iterators for nodes / edges
-  [[nodiscard]] inline auto nodes() const { return std::views::iota(static_cast<NodeID>(0), n()); }
-  [[nodiscard]] inline auto edges() const { return std::views::iota(static_cast<EdgeID>(0), m()); }
-  [[nodiscard]] inline auto incident_edges(const NodeID u) const { return std::views::iota(_nodes[u], _nodes[u + 1]); }
-  [[nodiscard]] inline auto adjacent_nodes(const NodeID u) const { return std::views::iota(_nodes[u], _nodes[u + 1]) | std::views::transform([this](const EdgeID e) { return this->edge_target(e); }); }
-  [[nodiscard]] inline auto neighbors(const NodeID u) const { return std::views::iota(_nodes[u], _nodes[u + 1]) | std::views::transform([this](const EdgeID e) { return std::make_pair(e, this->edge_target(e)); }); }
+  [[nodiscard]] inline IotaRange<NodeID> nodes() const { return IotaRange(static_cast<NodeID>(0), n()); }
+  [[nodiscard]] inline IotaRange<EdgeID> edges() const { return IotaRange(static_cast<EdgeID>(0), m()); }
+  [[nodiscard]] inline IotaRange<EdgeID> incident_edges(const NodeID u) const { return IotaRange(_nodes[u], _nodes[u + 1]); }
+  [[nodiscard]] inline auto adjacent_nodes(const NodeID u) const { return TransformedIotaRange(_nodes[u], _nodes[u + 1], [this](const EdgeID e) { return this->edge_target(e); }); }
+  [[nodiscard]] inline auto neighbors(const NodeID u) const { return TransformedIotaRange(_nodes[u], _nodes[u + 1], [this](const EdgeID e) { return std::make_pair(e, this->edge_target(e)); }); }
 
   // Degree buckets
   [[nodiscard]] inline std::size_t bucket_size(const std::size_t bucket) const { return _buckets[bucket + 1] - _buckets[bucket]; }
@@ -250,7 +250,7 @@ public:
   // Partition related members
   //
 
-  [[nodiscard]] inline auto blocks() const { return std::views::iota(static_cast<BlockID>(0), k()); }
+  [[nodiscard]] inline IotaRange<BlockID> blocks() const { return IotaRange(static_cast<BlockID>(0), k()); }
   [[nodiscard]] inline BlockID block(const NodeID u) const { return _partition[u]; }
 
   template<bool update_block_weight = true>
@@ -308,14 +308,21 @@ private:
     tbb::parallel_for(tbb::blocked_range(static_cast<NodeID>(0), n()), [&](auto &r) {
       auto &local_block_weights = tl_block_weights.local();
       for (NodeID u = r.begin(); u != r.end(); ++u) {
-        if (block(u) != kInvalidBlockID) { ALWAYS_ASSERT(block(u) < local_block_weights.size()) << V(k()) << V(block(u)) << V(local_block_weights.size()); local_block_weights[block(u)] += node_weight(u); }
+        if (block(u) != kInvalidBlockID) {
+          ALWAYS_ASSERT(block(u) < local_block_weights.size())
+              << V(k()) << V(block(u)) << V(local_block_weights.size());
+          local_block_weights[block(u)] += node_weight(u);
+        }
       }
     });
 
     tbb::parallel_for(static_cast<BlockID>(0), k(), [&](const BlockID b) {
       BlockWeight sum = 0;
 
-      for (auto &local_block_weights : tl_block_weights) {      ALWAYS_ASSERT(b < local_block_weights.size()); sum += local_block_weights[b]; }
+      for (auto &local_block_weights : tl_block_weights) {
+        ALWAYS_ASSERT(b < local_block_weights.size());
+        sum += local_block_weights[b];
+      }
       ALWAYS_ASSERT(b < _block_weights.size());
       _block_weights[b] = sum;
     });

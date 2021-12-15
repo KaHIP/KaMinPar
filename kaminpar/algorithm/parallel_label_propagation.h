@@ -107,11 +107,19 @@ protected:
   }
 
   struct Chunk {
+    Chunk() : start(0), end(0) {}
+
+    Chunk(const NodeID start, const NodeID end) : start(start), end(end) {}
+
     NodeID start;
     NodeID end;
   };
 
   struct Bucket {
+    Bucket() : start(0), end(0) {}
+
+    Bucket(const std::size_t start, const std::size_t end) : start(start), end(end) {}
+
     std::size_t start;
     std::size_t end;
   };
@@ -235,7 +243,8 @@ protected:
   }
 
 private:
-  std::pair<bool, bool> handle_node(const NodeID u, Randomize &local_rand, auto &local_rating_map) {
+  template<typename Map>
+  std::pair<bool, bool> handle_node(const NodeID u, Randomize &local_rand, Map &local_rating_map) {
     const NodeWeight u_weight = _graph->node_weight(u);
     const ClusterID u_cluster = derived_cluster(u);
     const auto [new_cluster, new_gain] = find_best_cluster(u, u_weight, u_cluster, local_rand, local_rating_map);
@@ -275,9 +284,10 @@ private:
     return {success, emptied_cluster};
   }
 
+  template<typename Map>
   std::pair<ClusterID, EdgeWeight> find_best_cluster(const NodeID u, const NodeWeight u_weight,
                                                      const ClusterID u_cluster, Randomize &local_rand,
-                                                     auto &local_rating_map) {
+                                                     Map &local_rating_map) {
     auto action = [&](auto &map) {
       const ClusterWeight initial_cluster_weight = _cluster_weights[u_cluster];
       ClusterSelectionState state{

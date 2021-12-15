@@ -39,12 +39,10 @@ public:
   }
 
   template<typename Container>
-  requires requires(Container c) {
-    c.begin();
-    c.end();
-  }
   void shuffle(Container &&vec) { std::shuffle(vec.begin(), vec.end(), _generator); }
-  void shuffle(auto begin, auto end) { std::shuffle(begin, end, _generator); }
+
+  template<typename Iterator>
+  void shuffle(Iterator begin, Iterator end) { std::shuffle(begin, end, _generator); }
 
   [[nodiscard]] auto &generator() { return _generator; }
 

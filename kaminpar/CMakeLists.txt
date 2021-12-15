@@ -61,6 +61,7 @@ set(KAMINPAR_SOURCE_FILES
   utility/console_io.cc
   utility/console_io.h
   utility/math.h
+  utility/ranges.h
   context.cc
   context.h
   io.cc

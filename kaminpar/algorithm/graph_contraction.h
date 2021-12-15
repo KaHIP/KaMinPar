@@ -25,6 +25,8 @@
 namespace kaminpar::graph {
 // TODO make local memory stuff more generic and move to its own file
 struct Edge {
+  Edge(const NodeID target, const EdgeWeight weight) : target(target), weight(weight) {}
+
   NodeID target;
   EdgeWeight weight;
 };
@@ -65,6 +67,13 @@ struct LocalEdgeMemory {
 };
 
 struct BufferNode {
+  BufferNode() : c_u(0), position(0), chunks(nullptr) {}
+
+  BufferNode(const NodeID c_u, const std::size_t position, LocalEdgeMemory *chunks)
+      : c_u(c_u),
+        position(position),
+        chunks(chunks) {}
+
   NodeID c_u;
   std::size_t position;
   LocalEdgeMemory *chunks;

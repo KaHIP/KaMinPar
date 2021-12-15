@@ -68,15 +68,15 @@ public:
           code(std::move(code)) {}
 
     //! Argument whose value can be parsed using `std::strtol()`.
-    template<std::integral Type>
-    Group &argument(const std::string &lname, const std::string &description, Type *storage, const char sname = 0) {
-      return argument(lname, description, storage, Arguments::parse_number<Type>, sname);
+    template<typename Int, std::enable_if_t<std::is_integral_v<Int>, bool> = true>
+    Group &argument(const std::string &lname, const std::string &description, Int *storage, const char sname = 0) {
+      return argument(lname, description, storage, Arguments::parse_number<Int>, sname);
     }
 
     //! Argument whose value can be parsed using `std::strtod()`.
-    template<std::floating_point Type>
-    Group &argument(const std::string &lname, const std::string &description, Type *storage, const char sname = 0) {
-      return argument(lname, description, storage, Arguments::parse_number<Type>, sname);
+    template<typename Float, std::enable_if_t<std::is_floating_point_v<Float>, bool> = true>
+    Group &argument(const std::string &lname, const std::string &description, Float *storage, const char sname = 0) {
+      return argument(lname, description, storage, Arguments::parse_number<Float>, sname);
     }
 
     Group &argument(const std::string &lname, const std::string &description, std::vector<std::string> *storage,
@@ -153,9 +153,7 @@ public:
     }
 
     Group &line(std::string text) {
-      if (arguments.empty()) {
-        extended_description.push_back(std::move(text));
-      }
+      if (arguments.empty()) { extended_description.push_back(std::move(text)); }
       arguments.back().extended_description.push_back(std::move(text));
       return *this;
     }
@@ -271,10 +269,9 @@ private:
   friend Group;
 
   static std::size_t compute_group_padding(const Group &group) {
-    const auto range = group.arguments | std::ranges::views::transform([](const Argument &argument) {
-                         return create_description_prefix(argument).size();
-                       });
-    return *std::ranges::max_element(range);
+    std::size_t max = 0;
+    for (const auto &arg : group.arguments) { max = std::max(max, create_description_prefix(arg).size()); }
+    return max;
   }
 
   static std::string create_description_prefix(const Argument &argument) {
@@ -290,11 +287,13 @@ private:
   }
 
   [[nodiscard]] std::vector<Argument>::const_iterator find_by_short_name(const char short_name) const {
-    return std::ranges::find_if(arguments, [&short_name](const Argument &arg) { return arg.short_name == short_name; });
+    return std::find_if(arguments.begin(), arguments.end(),
+                        [&short_name](const Argument &arg) { return arg.short_name == short_name; });
   }
 
   [[nodiscard]] std::vector<Argument>::const_iterator find_by_long_name(const std::string &long_name) const {
-    return std::ranges::find_if(arguments, [&long_name](const Argument &arg) { return arg.long_name == long_name; });
+    return std::find_if(arguments.begin(), arguments.end(),
+                        [&long_name](const Argument &arg) { return arg.long_name == long_name; });
   }
 
   [[nodiscard]] std::vector<struct option> create_options() const {

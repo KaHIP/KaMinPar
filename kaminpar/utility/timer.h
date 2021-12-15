@@ -139,7 +139,7 @@ private:
     // if we already have a subtree named `name`, merge it with the given subtree
     // otherwise, append the given subtree to this node
     void merge_append_local_subtree(const std::string &local_name, std::unique_ptr<TimerTreeNode> &&subtree) {
-      if (local_children.contains(local_name)) {
+      if (local_children.find(local_name) != local_children.end()) {
         auto &owned_subtree = local_children[local_name];
         owned_subtree->restarts += subtree->restarts;
         owned_subtree->elapsed += subtree->elapsed;
@@ -243,7 +243,7 @@ public:
 private:
   template<typename MapSelector>
   void start_timer(TimerTree &tree, const std::string &name, MapSelector &&selector) {
-    if (!selector(tree.current).contains(name)) {
+    if (selector(tree.current).find(name) == selector(tree.current).end()) {
       std::unique_ptr<TimerTreeNode> node{std::make_unique<TimerTreeNode>()};
       node->parent = tree.current;
       node->name = name;

@@ -6,5 +6,3 @@ function(add_app target)
 endfunction()
 
 add_app(KaMinPar kaminpar.cc)
-
-add_subdirectory(tools)

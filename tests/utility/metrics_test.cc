@@ -72,7 +72,7 @@ TEST_F(AWeightedStar, ImbalancedBipartitionHasCorrectImbalance) {
 TEST(MetricsTest, IsFeasibleMetricWorksForGraphWithSingleNode) {
   Graph graph{test::create_graph({0, 0}, {}, {1000}, {})};
   const PartitionedGraph p_graph{test::create_p_graph(graph, 1, {0})};
-  Context ctx = Context::create_default_for(graph, 1);
+  Context ctx = create_default_context(graph, 1, 0.03);
 
   ASSERT_TRUE(metrics::is_feasible(p_graph, ctx.partition));
 }
@@ -80,7 +80,7 @@ TEST(MetricsTest, IsFeasibleMetricWorksForGraphWithSingleNode) {
 TEST(MetricsTest, IsFeasibleMetricWorks) {
   Graph graph{test::create_graph({0, 0, 0, 0, 0}, {}, {200, 100, 100, 100}, {})};
   PartitionedGraph p_graph{test::create_p_graph(graph, 4, {0, 1, 2, 3})};
-  Context ctx = Context::create_default_for(graph, 4, 0);
+  Context ctx = create_default_context(graph, 4, 0);
 
   ASSERT_TRUE(metrics::is_feasible(p_graph, ctx.partition));
   p_graph.set_block(1, 0);
