@@ -4,10 +4,8 @@
 #include "utility/utility.h"
 
 #include <cctype>
-#include <concepts>
 #include <functional>
 #include <getopt.h>
-#include <ranges>
 #include <string>
 #include <type_traits>
 #include <vector>

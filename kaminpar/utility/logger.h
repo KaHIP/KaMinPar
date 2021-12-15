@@ -10,6 +10,7 @@
 #include <tbb/spin_mutex.h>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 #define LOG (kaminpar::Logger())
 #define LLOG (kaminpar::Logger(std::cout, ""))

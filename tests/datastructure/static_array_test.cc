@@ -3,8 +3,6 @@
 
 #include <gmock/gmock.h>
 
-#include <ranges>
-
 using ::testing::Eq;
 
 namespace kaminpar {

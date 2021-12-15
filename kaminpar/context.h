@@ -5,7 +5,6 @@
 
 #include <cmath>
 #include <map>
-#include <ranges>
 #include <string_view>
 
 #define DECLARE_ENUM_STRING_CONVERSION(type_name, prefix_name)                                                         \

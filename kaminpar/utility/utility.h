@@ -5,7 +5,6 @@
 
 #include <algorithm>
 #include <cctype>
-#include <concepts>
 
 namespace kaminpar::utility {
 namespace str {
