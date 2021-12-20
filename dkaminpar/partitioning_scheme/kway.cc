@@ -25,7 +25,10 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
   std::vector<DistributedGraph> graph_hierarchy;
   std::vector<coarsening::GlobalMapping> mapping_hierarchy;
 
+  auto clustering_algorithm = TIMED_SCOPE("Allocation") { return factory::create_global_clustering(_ctx); };
+
   const DistributedGraph *c_graph = &_graph;
+
   while (c_graph->global_n() > _ctx.partition.k * _ctx.coarsening.contraction_limit) {
     SCOPED_TIMER("Coarsening");
 
@@ -38,11 +41,11 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
     shm_c_ctx.cluster_weight_limit = _ctx.coarsening.cluster_weight_limit;
     shm_c_ctx.cluster_weight_multiplier = _ctx.coarsening.cluster_weight_multiplier;
 
-    const NodeWeight max_cluster_weight =
-        shm::compute_max_cluster_weight(c_graph->global_n(), c_graph->global_total_node_weight(), shm_p_ctx, shm_c_ctx);
+    const GlobalNodeWeight max_cluster_weight = shm::compute_max_cluster_weight<GlobalNodeID, GlobalNodeWeight>(
+        c_graph->global_n(), c_graph->global_total_node_weight(), shm_p_ctx, shm_c_ctx);
 
-    auto clustering_algorithm = factory::create_global_clustering(_ctx);
-    auto &clustering = clustering_algorithm->compute_clustering(*c_graph, max_cluster_weight);
+    ALWAYS_ASSERT(max_cluster_weight <= std::numeric_limits<NodeWeight>::max());
+    auto &clustering = clustering_algorithm->compute_clustering(*c_graph, static_cast<NodeWeight>(max_cluster_weight));
 
     auto [contracted_graph, mapping] =
         coarsening::contract_global_clustering(*c_graph, clustering, _ctx.coarsening.global_contraction_algorithm);
