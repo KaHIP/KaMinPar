@@ -622,6 +622,7 @@ DistributedPartitionedGraph project_global_contracted_graph(const DistributedGra
         });
       });
 
+  SCOPED_TIMER("Create graph");
   return {&fine_graph, coarse_graph.k(), std::move(fine_partition), coarse_graph.take_block_weights()};
 }
 } // namespace dkaminpar::coarsening
