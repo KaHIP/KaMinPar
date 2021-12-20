@@ -74,6 +74,7 @@ set(KAMINPAR_SOURCE_FILES
         utility/math.h
         utility/enum_string_conversion.h
         utility/noinit_allocator.h
+        parallel/aligned_element.h
         context.cc
         context.h
         io.cc

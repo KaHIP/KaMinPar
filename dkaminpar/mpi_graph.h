@@ -11,6 +11,7 @@
 #include "dkaminpar/distributed_definitions.h"
 #include "dkaminpar/mpi_wrapper.h"
 #include "kaminpar/datastructure/marker.h"
+#include "kaminpar/parallel/aligned_element.h"
 #include "kaminpar/utility/timer.h"
 
 #include <omp.h>
@@ -75,9 +76,18 @@ void sparse_alltoall_interface_to_ghost(const DistributedGraph &graph, const Nod
   const PEID num_threads = omp_get_max_threads();
   std::vector<cache_aligned_vector<std::size_t>> num_messages(num_threads, cache_aligned_vector<std::size_t>(size));
 
+  // ASSERT that we count the same number of messages that we create
+#ifdef KAMINPAR_ENABLE_ASSERTIONS
+  std::vector<shm::parallel::Aligned<std::size_t>> total_num_messages(num_threads);
+#endif // KAMINPAR_ENABLE_ASSERTIONS
+
   // count messages to each PE for each thread
   START_TIMER("Count messages", TIMER_FINE);
+#ifdef KAMINPAR_ENABLE_ASSERTIONS
+#pragma omp parallel for default(none) shared(from, to, graph, num_messages, filter, total_num_messages)
+#else // KAMINPAR_ENABLE_ASSERTIONS
 #pragma omp parallel for default(none) shared(from, to, graph, num_messages, filter)
+#endif // KAMINPAR_ENABLE_ASSERTIONS
   for (NodeID u = from; u < to; ++u) {
     if (!filter(u)) {
       continue;
@@ -89,6 +99,10 @@ void sparse_alltoall_interface_to_ghost(const DistributedGraph &graph, const Nod
       if (graph.is_ghost_node(v)) {
         const PEID owner = graph.ghost_owner(v);
         ++num_messages[thread][owner];
+
+#ifdef KAMINPAR_ENABLE_ASSERTIONS
+        ++total_num_messages[thread];
+#endif // KAMINPAR_ENABLE_ASSERTIONS
       }
     }
   }
@@ -107,7 +121,12 @@ void sparse_alltoall_interface_to_ghost(const DistributedGraph &graph, const Nod
 
   // fill buffers
   START_TIMER("Partition messages", TIMER_FINE);
+#ifdef KAMINPAR_ENABLE_ASSERTIONS
+#pragma omp parallel for default(none)                                                                                 \
+    shared(send_buffers, from, to, filter, graph, builder, num_messages, total_num_messages)
+#else // KAMINPAR_ENABLE_ASSERTIONS
 #pragma omp parallel for default(none) shared(send_buffers, from, to, filter, graph, builder, num_messages)
+#endif // KAMINPAR_ENABLE_ASSERTIONS
   for (NodeID u = from; u < to; ++u) {
     if (!filter(u)) {
       continue;
@@ -124,10 +143,17 @@ void sparse_alltoall_interface_to_ghost(const DistributedGraph &graph, const Nod
         } else /* if (builder_invocable_without_pe) */ {
           send_buffers[pe][slot] = builder(u, e, v);
         }
+
+#ifdef KAMINPAR_ENABLE_ASSERTIONS
+        --total_num_messages[thread];
+#endif // KAMINPAR_ENABLE_ASSERTIONS
       }
     }
   }
   STOP_TIMER(TIMER_FINE);
+
+  ASSERT(std::all_of(total_num_messages.begin(), total_num_messages.end(),
+                     [&](const auto &num_messages) { return num_messages == 0; }));
 
   sparse_alltoall<Message, Buffer>(send_buffers, std::forward<decltype(receiver)>(receiver), graph.communicator());
 }
@@ -175,9 +201,18 @@ void sparse_alltoall_interface_to_pe(const DistributedGraph &graph, const NodeID
   const PEID num_threads = omp_get_max_threads();
   std::vector<cache_aligned_vector<std::size_t>> num_messages(num_threads, cache_aligned_vector<std::size_t>(size));
 
+  // ASSERT that we count the same number of messages that we create
+#ifdef KAMINPAR_ENABLE_ASSERTIONS
+  std::vector<shm::parallel::Aligned<std::size_t>> total_num_messages(num_threads);
+#endif // KAMINPAR_ENABLE_ASSERTIONS
+
   // count messages to each PE for each thread
   START_TIMER("Count messages", TIMER_FINE);
+#ifdef KAMINPAR_ENABLE_ASSERTIONS
+#pragma omp parallel default(none) shared(size, from, to, filter, graph, num_messages, total_num_messages)
+#else // KAMINPAR_ENABLE_ASSERTIONS
 #pragma omp parallel default(none) shared(size, from, to, filter, graph, num_messages)
+#endif // KAMINPAR_ENABLE_ASSERTIONS
   {
     shm::Marker<> created_message_for_pe(static_cast<std::size_t>(size));
     const PEID thread = omp_get_thread_num();
@@ -201,6 +236,10 @@ void sparse_alltoall_interface_to_pe(const DistributedGraph &graph, const NodeID
         created_message_for_pe.set(pe);
 
         ++num_messages[thread][pe];
+
+#ifdef KAMINPAR_ENABLE_ASSERTIONS
+        ++total_num_messages[thread];
+#endif // KAMINPAR_ENABLE_ASSERTIONS
       }
 
       created_message_for_pe.reset();
@@ -221,7 +260,12 @@ void sparse_alltoall_interface_to_pe(const DistributedGraph &graph, const NodeID
 
   // fill buffers
   START_TIMER("Partition messages", TIMER_FINE);
+#ifdef KAMINPAR_ENABLE_ASSERTIONS
+#pragma omp parallel default(none)                                                                                     \
+    shared(send_buffers, size, from, to, builder, filter, graph, num_messages, total_num_messages)
+#else // KAMINPAR_ENABLE_ASSERTIONS
 #pragma omp parallel default(none) shared(send_buffers, size, from, to, builder, filter, graph, num_messages)
+#endif // KAMINPAR_ENABLE_ASSERTIONS
   {
     shm::Marker<> created_message_for_pe(static_cast<std::size_t>(size));
     const PEID thread = omp_get_thread_num();
@@ -251,12 +295,19 @@ void sparse_alltoall_interface_to_pe(const DistributedGraph &graph, const NodeID
         } else {
           send_buffers[pe][slot] = builder(u);
         }
+
+#ifdef KAMINPAR_ENABLE_ASSERTIONS
+        --total_num_messages[thread];
+#endif // KAMINPAR_ENABLE_ASSERTIONS
       }
 
       created_message_for_pe.reset();
     }
   }
   STOP_TIMER(TIMER_FINE);
+
+  ASSERT(std::all_of(total_num_messages.begin(), total_num_messages.end(),
+                     [&](const auto &num_messages) { return num_messages == 0; }));
 
   sparse_alltoall<Message, Buffer>(send_buffers, std::forward<decltype(receiver)>(receiver), graph.communicator());
 } // namespace dkaminpar::mpi::graph

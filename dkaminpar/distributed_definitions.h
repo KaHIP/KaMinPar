@@ -95,6 +95,8 @@ public:
           MPI_Recv(str, cnt, MPI_CHAR, pe, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
           logger << std::string(str, cnt);
+
+          delete[] str;
         }
       }
 
