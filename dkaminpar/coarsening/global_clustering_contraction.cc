@@ -72,6 +72,7 @@ template <typename ResolveClusterCallback>
 std::pair<std::vector<UsedClustersMap>, std::vector<UsedClustersVector>>
 find_used_cluster_ids_per_pe(const DistributedGraph &graph, const auto &clustering,
                              ResolveClusterCallback &&resolve_cluster_callback) {
+  SCOPED_TIMER("Find used cluster IDs per PE");
   const auto size = mpi::get_comm_size(graph.communicator());
 
   // mark global node IDs that are used as cluster IDs
@@ -530,6 +531,7 @@ GlobalContractionResult contract_global_clustering(const DistributedGraph &graph
 DistributedPartitionedGraph project_global_contracted_graph(const DistributedGraph &fine_graph,
                                                             DistributedPartitionedGraph coarse_graph,
                                                             const GlobalMapping &fine_to_coarse) {
+  SCOPED_TIMER("Project partition");
   const PEID size = mpi::get_comm_size(fine_graph.communicator());
 
   // find unique coarse_graph node IDs of fine_graph nodes
@@ -549,10 +551,12 @@ DistributedPartitionedGraph project_global_contracted_graph(const DistributedGra
   const auto reqs = mpi::sparse_alltoall_get<NodeID>(used_coarse_nodes_vec, fine_graph.communicator(), true);
 
   // build response messages
-  std::vector<scalable_vector<BlockID>> resps;
-  for (PEID pe = 0; pe < size; ++pe) {
-    resps.emplace_back(reqs[pe].size());
-  }
+  START_TIMER("Allocation");
+  std::vector<scalable_vector<BlockID>> resps(size);
+  tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
+    resps[pe].resize(reqs[pe].size());
+  });
+  STOP_TIMER();
 
   tbb::parallel_for<std::size_t>(0, reqs.size(), [&](const std::size_t i) {
     tbb::parallel_for<std::size_t>(0, reqs[i].size(), [&](const std::size_t j) {
@@ -580,7 +584,9 @@ DistributedPartitionedGraph project_global_contracted_graph(const DistributedGra
       fine_graph.communicator());
 
   // assign block IDs to fine nodes
+  START_TIMER("Allocation");
   scalable_vector<Atomic<BlockID>> fine_partition(fine_graph.total_n());
+  STOP_TIMER();
 
   fine_graph.pfor_nodes([&](const NodeID u) {
     const auto [owner, local] = resolve_coarse_node(fine_to_coarse[u]);
