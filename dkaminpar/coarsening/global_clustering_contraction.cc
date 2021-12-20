@@ -299,9 +299,7 @@ DistributedGraph build_coarse_graph(const DistributedGraph &graph, const auto &m
 
     // allocate send buffers
     START_TIMER("Allocation", TIMER_FINE);
-    tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
-      out_msg[pe].resize(num_messages.back()[pe]);
-    });
+    tbb::parallel_for<PEID>(0, size, [&](const PEID pe) { out_msg[pe].resize(num_messages.back()[pe]); });
     STOP_TIMER(TIMER_FINE);
 
     START_TIMER("Create messages", TIMER_FINE);
@@ -326,15 +324,35 @@ DistributedGraph build_coarse_graph(const DistributedGraph &graph, const auto &m
   }
 
   // deduplicate edges
-  START_TIMER("Deduplicate edges before sending", TIMER_FINE);
-  DeduplicateEdgeListMemoryContext deduplicate_m_ctx;
-  for (PEID pe = 0; pe < size; ++pe) {
-    NodeID n_on_pe = c_node_distribution[pe + 1] - c_node_distribution[pe];
-    auto result = deduplicate_edge_list(std::move(out_msg[pe]), n_on_pe, std::move(deduplicate_m_ctx));
-    out_msg[pe] = std::move(result.first);
-    deduplicate_m_ctx = std::move(result.second);
-  }
-  STOP_TIMER(TIMER_FINE);
+  TIMED_SCOPE("Deduplicate edges before sending", TIMER_FINE) {
+    // allocate enough memory to fit the largest edge list: avoids additional allocations
+    DeduplicateEdgeListMemoryContext deduplicate_m_ctx;
+    TIMED_SCOPE("Allocation") {
+      NodeID max_n = 0;
+      std::size_t max_edge_list_size = 0;
+      for (PEID pe = 0; pe < size; ++pe) {
+        max_n = std::max(max_n, static_cast<NodeID>(c_node_distribution[pe + 1] - c_node_distribution[pe]));
+        max_edge_list_size = std::max(max_edge_list_size, out_msg[pe].size());
+      }
+
+      if (deduplicate_m_ctx.bucket_index.size() < max_n + 1) {
+        deduplicate_m_ctx.bucket_index.resize(max_n + 1);
+      }
+      if (deduplicate_m_ctx.deduplicated_bucket_index.size() < max_n + 1) {
+        deduplicate_m_ctx.deduplicated_bucket_index.resize(max_n + 1);
+      }
+      if (deduplicate_m_ctx.buffer_list.size() < max_edge_list_size + 1) {
+        deduplicate_m_ctx.buffer_list.resize(max_edge_list_size + 1);
+      }
+    };
+
+    for (PEID pe = 0; pe < size; ++pe) {
+      NodeID n_on_pe = c_node_distribution[pe + 1] - c_node_distribution[pe];
+      auto result = deduplicate_edge_list(std::move(out_msg[pe]), n_on_pe, std::move(deduplicate_m_ctx));
+      out_msg[pe] = std::move(result.first);
+      deduplicate_m_ctx = std::move(result.second);
+    }
+  };
 
   // exchange messages
   START_TIMER("Exchange edges", TIMER_FINE);
@@ -553,9 +571,7 @@ DistributedPartitionedGraph project_global_contracted_graph(const DistributedGra
   // build response messages
   START_TIMER("Allocation");
   std::vector<scalable_vector<BlockID>> resps(size);
-  tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
-    resps[pe].resize(reqs[pe].size());
-  });
+  tbb::parallel_for<PEID>(0, size, [&](const PEID pe) { resps[pe].resize(reqs[pe].size()); });
   STOP_TIMER();
 
   START_TIMER("Build response messages");
