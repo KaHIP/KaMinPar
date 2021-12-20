@@ -44,16 +44,6 @@ DistributedGraph build_graph(const auto &edge_list, scalable_vector<GlobalNodeID
   //  DLOG << V(edge_list.back().first) << V(edge_list.back().second);
 
 
-  /*  std::size_t j = 0;
-  for (std::size_t i = 0; i < edge_list.size(); ++i) {
-    const auto &[u, v] = edge_list[i];
-    if (from <= u && u < to) ++j;
-    if ((u == 15199616 && v == 13632795) || (u == 13632795 && v == 15199616)) {
-      std::cout << rank << " :: " << u << " --> " << v << " // " << i << " // " << j << std::endl;
-    }
-   }
-   DLOG << V(j) << V(edge_list.size()); */
-
   // bucket sort nodes
   START_TIMER("Bucket sort");
   scalable_vector<Atomic<NodeID>> buckets(n);
@@ -121,6 +111,7 @@ scalable_vector<GlobalNodeID> build_node_distribution(const std::pair<SInt, SInt
 }
 } // namespace
 
+  /*
 DistributedGraph create_undirected_gmm(const GlobalNodeID n, const GlobalEdgeID m, const BlockID k, const int seed) {
   const auto [edges, range] = TIMED_SCOPE("KaGen") {
     const auto [size, rank] = mpi::get_comm_info();
@@ -128,6 +119,7 @@ DistributedGraph create_undirected_gmm(const GlobalNodeID n, const GlobalEdgeID 
   };
   return build_graph(edges, build_node_distribution(range));
 }
+  */
 
 DistributedGraph create_rgg2d(const GlobalNodeID n, const double r, const BlockID k, const int seed) {
   const auto [edges, range] = TIMED_SCOPE("KaGen") {
@@ -147,6 +139,7 @@ DistributedGraph create_rhg(const GlobalNodeID n, const double gamma, const Node
   return build_graph(edges, build_node_distribution(range));
 }
 
+  /*
 DistributedGraph create_kronecker(const GlobalNodeID n, const GlobalEdgeID m, const BlockID k, const int seed) {
   const auto [edges, range] = TIMED_SCOPE("KaGen") {
     const auto [size, rank] = mpi::get_comm_info();
@@ -154,14 +147,17 @@ DistributedGraph create_kronecker(const GlobalNodeID n, const GlobalEdgeID m, co
   };
   return build_graph(edges, build_node_distribution(range));
 }
+  */
 
-//DistributedGraph create_rdg2d(const GlobalNodeID n, const BlockID k, const int seed) {
-//  const auto [edges, range] = TIMED_SCOPE("KaGen") {
-//    const auto [size, rank] = mpi::get_comm_info();
-//    return KaGen{rank, size}.Generate2DRDG(n, k, seed);
-//  };
-//  return build_graph(edges, build_node_distribution(range));
-//}
+  /*
+DistributedGraph create_rdg2d(const GlobalNodeID n, const BlockID k, const int seed) {
+  const auto [edges, range] = TIMED_SCOPE("KaGen") {
+    const auto [size, rank] = mpi::get_comm_info();
+    return KaGen{rank, size}.Generate2DRDG(n, k, seed);
+  };
+  return build_graph(edges, build_node_distribution(range));
+}
+  */
 
 DistributedGraph generate(const GeneratorContext ctx) {
   const int seed = static_cast<int>(shm::Randomize::instance().random_index(0, std::numeric_limits<int>::max()));
@@ -171,6 +167,7 @@ DistributedGraph generate(const GeneratorContext ctx) {
     FATAL_ERROR << "no graph generator configured";
     break;
 
+    /*
   case GeneratorType::GNM: {
     ALWAYS_ASSERT(ctx.n > 0 && ctx.m > 0) << "Must specify bost number of nodes and number of edges";
     GlobalNodeID n = 1;
@@ -179,6 +176,7 @@ DistributedGraph generate(const GeneratorContext ctx) {
     m <<= ctx.m;
     return create_undirected_gmm(n, m, ctx.k, seed);
   }
+    */
 
   case GeneratorType::RGG2D: {
     ALWAYS_ASSERT(ctx.r > 0) << "Radius cannot be zero";
@@ -217,6 +215,7 @@ DistributedGraph generate(const GeneratorContext ctx) {
     return create_rhg(n, ctx.gamma, ctx.d, ctx.k, seed);
   }
 
+    /*
   case GeneratorType::KRONECKER: {
     ALWAYS_ASSERT(false) << "broken -- does not generate any edges";
     ALWAYS_ASSERT(ctx.n > 0 && ctx.m > 0) << "Must specify number of nodes and number of edges";
@@ -227,7 +226,9 @@ DistributedGraph generate(const GeneratorContext ctx) {
 
     return create_kronecker(n, m, ctx.k, seed);
   }
+    */
 
+    /*
   case GeneratorType::RDG2D: {
     ALWAYS_ASSERT(false) << "broken";
     ALWAYS_ASSERT(ctx.n > 0 || ctx.m > 0) << "Must specify number of nodes or number of edges";
@@ -244,6 +245,10 @@ DistributedGraph generate(const GeneratorContext ctx) {
     FATAL_ERROR << "disabled";
     //  return create_rdg2d(n, ctx.k, seed);
   }
+    */
+
+  default:
+    FATAL_ERROR << "graph generator is deactivated";
   }
 
   __builtin_unreachable();
