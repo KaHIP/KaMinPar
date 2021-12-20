@@ -52,21 +52,24 @@ deduplicate_edge_list(scalable_vector<LocalToGlobalEdge> edge_list, const NodeID
   };
 
   // sort edges by u and store result in compressed_edge_list
-  tbb::parallel_for<NodeID>(0, n + 1, [&](const NodeID u) { bucket_index[u] = 0; });
-  tbb::parallel_for<std::size_t>(0, edge_list.size(), [&](const std::size_t i) {
-    ASSERT(edge_list[i].u < n);
-    bucket_index[edge_list[i].u].fetch_add(1, std::memory_order_relaxed);
-  });
-  shm::parallel::prefix_sum(bucket_index.begin(), bucket_index.end(), bucket_index.begin());
-  tbb::parallel_for<std::size_t>(0, edge_list.size(), [&](const std::size_t i) {
-    const std::size_t j = bucket_index[edge_list[i].u].fetch_sub(1, std::memory_order_relaxed) - 1;
-    buffer_list[j] = edge_list[i];
-  });
-  buffer_list.back().v = kInvalidGlobalNodeID; // dummy element
+  TIMED_SCOPE("Bucket sort edges") {
+    tbb::parallel_for<NodeID>(0, n + 1, [&](const NodeID u) { bucket_index[u] = 0; });
+    tbb::parallel_for<std::size_t>(0, edge_list.size(), [&](const std::size_t i) {
+      ASSERT(edge_list[i].u < n);
+      bucket_index[edge_list[i].u].fetch_add(1, std::memory_order_relaxed);
+    });
+    shm::parallel::prefix_sum(bucket_index.begin(), bucket_index.end(), bucket_index.begin());
+    tbb::parallel_for<std::size_t>(0, edge_list.size(), [&](const std::size_t i) {
+      const std::size_t j = bucket_index[edge_list[i].u].fetch_sub(1, std::memory_order_relaxed) - 1;
+      buffer_list[j] = edge_list[i];
+    });
+    buffer_list.back().v = kInvalidGlobalNodeID; // dummy element
+  };
 
   Atomic<std::size_t> next_edge_list_index = 0;
 
   // sort outgoing edges for each node and collapse duplicated edges
+  START_TIMER("Deduplicate edges");
   tbb::parallel_for<NodeID>(0, n, [&](const NodeID u) {
     const EdgeID first_edge_id = bucket_index[u];
     const EdgeID first_invalid_edge_id = bucket_index[u + 1];
@@ -107,11 +110,14 @@ deduplicate_edge_list(scalable_vector<LocalToGlobalEdge> edge_list, const NodeID
       }
     }
   });
-
   deduplicated_bucket_index[0] = 0;
+  STOP_TIMER();
+
+  START_TIMER("Resize edge list");
   shm::parallel::prefix_sum(deduplicated_bucket_index.begin(), deduplicated_bucket_index.begin() + n + 1,
                             deduplicated_bucket_index.begin());
   edge_list.resize(deduplicated_bucket_index[n]);
+  STOP_TIMER();
 
   return {std::move(edge_list), std::move(m_ctx)};
 }
@@ -147,10 +153,10 @@ inline scalable_vector<T> create_distribution_from_local_count(const T local_cou
  * @return Distributed graph built from the edge list.
  */
 template <typename NodeWeightLambda, typename FindGhostNodeOwnerLambda>
-inline DistributedGraph build_distributed_graph_from_edge_list(const auto &edge_list,
-                                                               scalable_vector<GlobalNodeID> node_distribution,
-                                                               MPI_Comm comm, NodeWeightLambda &&node_weight_lambda,
-                                                               FindGhostNodeOwnerLambda && /* find_ghost_node_owner */) {
+inline DistributedGraph
+build_distributed_graph_from_edge_list(const auto &edge_list, scalable_vector<GlobalNodeID> node_distribution,
+                                       MPI_Comm comm, NodeWeightLambda &&node_weight_lambda,
+                                       FindGhostNodeOwnerLambda && /* find_ghost_node_owner */) {
   SCOPED_TIMER("Build graph from edge list", TIMER_FINE);
 
   const PEID rank = mpi::get_comm_rank(comm);
