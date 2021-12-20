@@ -52,66 +52,80 @@ deduplicate_edge_list(scalable_vector<LocalToGlobalEdge> edge_list, const NodeID
   };
 
   // sort edges by u and store result in compressed_edge_list
-  tbb::parallel_for<NodeID>(0, n + 1, [&](const NodeID u) { bucket_index[u] = 0; });
-  tbb::parallel_for<std::size_t>(0, edge_list.size(), [&](const std::size_t i) {
-    ASSERT(edge_list[i].u < n);
-    bucket_index[edge_list[i].u].fetch_add(1, std::memory_order_relaxed);
-  });
-  shm::parallel::prefix_sum(bucket_index.begin(), bucket_index.end(), bucket_index.begin());
-  tbb::parallel_for<std::size_t>(0, edge_list.size(), [&](const std::size_t i) {
-    const std::size_t j = bucket_index[edge_list[i].u].fetch_sub(1, std::memory_order_relaxed) - 1;
-    buffer_list[j] = edge_list[i];
-  });
-  buffer_list.back().v = kInvalidGlobalNodeID; // dummy element
-
-  Atomic<std::size_t> next_edge_list_index = 0;
+  TIMED_SCOPE("Bucket sort edges") {
+    tbb::parallel_for<NodeID>(0, n + 1, [&](const NodeID u) { bucket_index[u] = 0; });
+    tbb::parallel_for<std::size_t>(0, edge_list.size(), [&](const std::size_t i) {
+      ASSERT(edge_list[i].u < n);
+      bucket_index[edge_list[i].u].fetch_add(1, std::memory_order_relaxed);
+    });
+    shm::parallel::prefix_sum(bucket_index.begin(), bucket_index.end(), bucket_index.begin());
+    tbb::parallel_for<std::size_t>(0, edge_list.size(), [&](const std::size_t i) {
+      const std::size_t j = bucket_index[edge_list[i].u].fetch_sub(1, std::memory_order_relaxed) - 1;
+      buffer_list[j] = edge_list[i];
+    });
+    buffer_list.back().v = kInvalidGlobalNodeID; // dummy element
+  };
 
   // sort outgoing edges for each node and collapse duplicated edges
+  START_TIMER("Deduplicate edges");
+  START_TIMER("Count degrees");
   tbb::parallel_for<NodeID>(0, n, [&](const NodeID u) {
     const EdgeID first_edge_id = bucket_index[u];
     const EdgeID first_invalid_edge_id = bucket_index[u + 1];
 
+    // sort outgoing edges from u
     std::sort(buffer_list.begin() + first_edge_id, buffer_list.begin() + first_invalid_edge_id,
               [&](const auto &lhs, const auto &rhs) { return lhs.v < rhs.v; });
 
-    EdgeID compressed_degree = 0;
-    EdgeID current_accumulate = buffer_list.size() - 1; // dummy element
+    // compute degree of u after deduplicating
+    EdgeID deduplicated_degree = 0;
+    GlobalNodeID current_v = kInvalidGlobalNodeID;
 
-    // count number of compressed edges
     for (EdgeID edge_id = first_edge_id; edge_id < first_invalid_edge_id; ++edge_id) {
       ASSERT(buffer_list[edge_id].u == u);
-      if (buffer_list[edge_id].v != buffer_list[current_accumulate].v) {
-        ++compressed_degree;
-        current_accumulate = edge_id;
-      }
-    }
-
-    // reset to degree, so that after another prefix sum, it indexes the compressed edge list
-    deduplicated_bucket_index[u + 1] = compressed_degree;
-
-    // reserve memory in edge_list -- +1 in first iteration
-    std::size_t copy_to_index = next_edge_list_index.fetch_add(compressed_degree, std::memory_order_relaxed) - 1;
-
-    // compress and copy edges to edge_list
-    GlobalNodeID current_v = kInvalidGlobalNodeID;
-    for (EdgeID edge_id = first_edge_id; edge_id < first_invalid_edge_id; ++edge_id) {
       const auto &edge = buffer_list[edge_id];
-      if (edge.v == current_v) {
-        ASSERT(edge_list[copy_to_index].u == edge.u);
-        ASSERT(edge_list[copy_to_index].v == edge.v);
-        edge_list[copy_to_index].weight += edge.weight;
-      } else {
-        copy_to_index++;
+      if (edge.v != current_v) {
+        ++deduplicated_degree;
         current_v = edge.v;
-        edge_list[copy_to_index] = edge;
       }
     }
-  });
 
+    deduplicated_bucket_index[u + 1] = deduplicated_degree;
+  });
+  STOP_TIMER();
+
+  START_TIMER("Compute prefix sum over degrees");
   deduplicated_bucket_index[0] = 0;
   shm::parallel::prefix_sum(deduplicated_bucket_index.begin(), deduplicated_bucket_index.begin() + n + 1,
                             deduplicated_bucket_index.begin());
+  STOP_TIMER();
+
+  // now copy edges to edge_list
+  START_TIMER("Copy edges to compressed edge list");
+  tbb::parallel_for<NodeID>(0, n, [&](const NodeID u) {
+    const EdgeID first_edge_id = bucket_index[u];
+    const EdgeID first_invalid_edge_id = bucket_index[u + 1];
+    std::size_t dst_index = deduplicated_bucket_index[u];
+    GlobalNodeID current_v = kInvalidGlobalNodeID;
+
+    for (EdgeID edge_id = first_edge_id; edge_id < first_invalid_edge_id; ++edge_id) {
+      const auto &edge = buffer_list[edge_id];
+      if (edge.v == current_v) {
+        ASSERT(edge_list[dst_index - 1].u == edge.u);
+        ASSERT(edge_list[dst_index - 1].v == edge.v);
+        edge_list[dst_index - 1].weight += edge.weight;
+      } else {
+        current_v = edge.v;
+        edge_list[dst_index++] = edge;
+      }
+    }
+  });
+  STOP_TIMER();
+  STOP_TIMER();
+
+  START_TIMER("Resize edge list");
   edge_list.resize(deduplicated_bucket_index[n]);
+  STOP_TIMER();
 
   return {std::move(edge_list), std::move(m_ctx)};
 }
@@ -147,10 +161,10 @@ inline scalable_vector<T> create_distribution_from_local_count(const T local_cou
  * @return Distributed graph built from the edge list.
  */
 template <typename NodeWeightLambda, typename FindGhostNodeOwnerLambda>
-inline DistributedGraph build_distributed_graph_from_edge_list(const auto &edge_list,
-                                                               scalable_vector<GlobalNodeID> node_distribution,
-                                                               MPI_Comm comm, NodeWeightLambda &&node_weight_lambda,
-                                                               FindGhostNodeOwnerLambda && /* find_ghost_node_owner */) {
+inline DistributedGraph
+build_distributed_graph_from_edge_list(const auto &edge_list, scalable_vector<GlobalNodeID> node_distribution,
+                                       MPI_Comm comm, NodeWeightLambda &&node_weight_lambda,
+                                       FindGhostNodeOwnerLambda && /* find_ghost_node_owner */) {
   SCOPED_TIMER("Build graph from edge list", TIMER_FINE);
 
   const PEID rank = mpi::get_comm_rank(comm);
@@ -274,7 +288,6 @@ inline DistributedGraph build_distributed_graph_from_edge_list(const auto &edge_
   auto [global_to_ghost, ghost_to_global, ghost_owner] = mapper.finalize();
   const NodeID ghost_n = ghost_to_global.size();
   STOP_TIMER(TIMER_FINE);
-
 
   // node weights for ghost nodes must be computed afterwards
   START_TIMER("Construct coarse node weights", TIMER_FINE);

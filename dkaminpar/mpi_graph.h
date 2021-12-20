@@ -11,6 +11,7 @@
 #include "dkaminpar/distributed_definitions.h"
 #include "dkaminpar/mpi_wrapper.h"
 #include "kaminpar/datastructure/marker.h"
+#include "kaminpar/parallel/aligned_element.h"
 #include "kaminpar/utility/timer.h"
 
 #include <omp.h>
@@ -20,14 +21,14 @@
 namespace dkaminpar::mpi::graph {
 SET_DEBUG(false);
 
-template <typename Message, template <typename> typename Buffer = scalable_vector>
+template <typename Message, typename Buffer = scalable_noinit_vector<Message>>
 void sparse_alltoall_interface_to_ghost(const DistributedGraph &graph, auto &&builder, auto &&receiver) {
   sparse_alltoall_interface_to_ghost<Message, Buffer>(graph, SPARSE_ALLTOALL_NOFILTER,
                                                       std::forward<decltype(builder)>(builder),
                                                       std::forward<decltype(receiver)>(receiver));
 }
 
-template <typename Message, template <typename> typename Buffer = scalable_vector>
+template <typename Message, typename Buffer = scalable_noinit_vector<Message>>
 void sparse_alltoall_interface_to_ghost(const DistributedGraph &graph, auto &&filter, auto &&builder, auto &&receiver) {
   sparse_alltoall_interface_to_ghost<Message, Buffer>(graph, 0, graph.n(), std::forward<decltype(filter)>(filter),
                                                       std::forward<decltype(builder)>(builder),
@@ -49,28 +50,9 @@ void inclusive_col_prefix_sum(auto &data) {
     }
   }
 }
-
-void make_exclusive(auto &data) {
-  if (data.empty()) {
-    return;
-  }
-
-  const std::size_t height = data.size();
-  const std::size_t width = data.front().size();
-
-  for (std::size_t i = height - 1; i >= 1; --i) {
-    for (std::size_t j = 0; j < width; ++j) {
-      data[i][j] = data[i - 1][j];
-    }
-  }
-
-  for (std::size_t j = 0; j < width; ++j) {
-    data[0][j] = 0;
-  }
-}
 } // namespace internal
 
-template <typename Message, template <typename> typename Buffer = scalable_vector>
+template <typename Message, typename Buffer = scalable_noinit_vector<Message>>
 void sparse_alltoall_interface_to_ghost(const DistributedGraph &graph, const NodeID from, const NodeID to,
                                         auto &&filter, auto &&builder, auto &&receiver) {
   SCOPED_TIMER("Sparse AllToAll InterfaceToGhost");
@@ -84,8 +66,8 @@ void sparse_alltoall_interface_to_ghost(const DistributedGraph &graph, const Nod
   static_assert(builder_invocable_with_pe || builder_invocable_without_pe, "bad builder type");
 
   using Receiver = decltype(receiver);
-  constexpr bool receiver_invocable_with_pe = std::is_invocable_r_v<void, Receiver, const Buffer<Message> &, PEID>;
-  constexpr bool receiver_invocable_without_pe = std::is_invocable_r_v<void, Receiver, const Buffer<Message> &>;
+  constexpr bool receiver_invocable_with_pe = std::is_invocable_r_v<void, Receiver, const Buffer &, PEID>;
+  constexpr bool receiver_invocable_without_pe = std::is_invocable_r_v<void, Receiver, const Buffer &>;
   static_assert(receiver_invocable_with_pe || receiver_invocable_without_pe, "bad receiver type");
 
   const auto [size, rank] = mpi::get_comm_info(graph.communicator());
@@ -94,9 +76,18 @@ void sparse_alltoall_interface_to_ghost(const DistributedGraph &graph, const Nod
   const PEID num_threads = omp_get_max_threads();
   std::vector<cache_aligned_vector<std::size_t>> num_messages(num_threads, cache_aligned_vector<std::size_t>(size));
 
+  // ASSERT that we count the same number of messages that we create
+#ifdef KAMINPAR_ENABLE_ASSERTIONS
+  std::vector<shm::parallel::Aligned<std::size_t>> total_num_messages(num_threads);
+#endif // KAMINPAR_ENABLE_ASSERTIONS
+
   // count messages to each PE for each thread
   START_TIMER("Count messages", TIMER_FINE);
+#ifdef KAMINPAR_ENABLE_ASSERTIONS
+#pragma omp parallel for default(none) shared(from, to, graph, num_messages, filter, total_num_messages)
+#else // KAMINPAR_ENABLE_ASSERTIONS
 #pragma omp parallel for default(none) shared(from, to, graph, num_messages, filter)
+#endif // KAMINPAR_ENABLE_ASSERTIONS
   for (NodeID u = from; u < to; ++u) {
     if (!filter(u)) {
       continue;
@@ -108,6 +99,10 @@ void sparse_alltoall_interface_to_ghost(const DistributedGraph &graph, const Nod
       if (graph.is_ghost_node(v)) {
         const PEID owner = graph.ghost_owner(v);
         ++num_messages[thread][owner];
+
+#ifdef KAMINPAR_ENABLE_ASSERTIONS
+        ++total_num_messages[thread];
+#endif // KAMINPAR_ENABLE_ASSERTIONS
       }
     }
   }
@@ -118,15 +113,20 @@ void sparse_alltoall_interface_to_ghost(const DistributedGraph &graph, const Nod
 
   // allocate send buffers
   START_TIMER("Allocation", TIMER_FINE);
-  std::vector<Buffer<Message>> send_buffers;
-  for (PEID pe = 0; pe < size; ++pe) {
-    send_buffers.emplace_back(num_messages.back()[pe]);
-  }
+  std::vector<Buffer> send_buffers(size);
+  tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
+    send_buffers[pe].resize(num_messages.back()[pe]);
+  });
   STOP_TIMER(TIMER_FINE);
 
   // fill buffers
   START_TIMER("Partition messages", TIMER_FINE);
+#ifdef KAMINPAR_ENABLE_ASSERTIONS
+#pragma omp parallel for default(none)                                                                                 \
+    shared(send_buffers, from, to, filter, graph, builder, num_messages, total_num_messages)
+#else // KAMINPAR_ENABLE_ASSERTIONS
 #pragma omp parallel for default(none) shared(send_buffers, from, to, filter, graph, builder, num_messages)
+#endif // KAMINPAR_ENABLE_ASSERTIONS
   for (NodeID u = from; u < to; ++u) {
     if (!filter(u)) {
       continue;
@@ -143,39 +143,47 @@ void sparse_alltoall_interface_to_ghost(const DistributedGraph &graph, const Nod
         } else /* if (builder_invocable_without_pe) */ {
           send_buffers[pe][slot] = builder(u, e, v);
         }
+
+#ifdef KAMINPAR_ENABLE_ASSERTIONS
+        --total_num_messages[thread];
+#endif // KAMINPAR_ENABLE_ASSERTIONS
       }
     }
   }
   STOP_TIMER(TIMER_FINE);
 
-  sparse_alltoall<Message, Buffer>(send_buffers, std::forward<decltype(receiver)>(receiver), graph.communicator());
+  ASSERT(std::all_of(total_num_messages.begin(), total_num_messages.end(),
+                     [&](const auto &num_messages) { return num_messages == 0; }));
+
+  sparse_alltoall<Message, Buffer>(std::move(send_buffers), std::forward<decltype(receiver)>(receiver),
+                                   graph.communicator());
 }
 
-template <typename Message, template <typename> typename Buffer = scalable_vector>
-std::vector<Buffer<Message>> sparse_alltoall_interface_to_ghost_get(const DistributedGraph &graph, const NodeID from,
-                                                                    const NodeID to, auto &&filter, auto &&builder) {
-  std::vector<Buffer<Message>> recv_buffers(mpi::get_comm_size(graph.communicator()));
+template <typename Message, typename Buffer = scalable_noinit_vector<Message>>
+std::vector<Buffer> sparse_alltoall_interface_to_ghost_get(const DistributedGraph &graph, const NodeID from,
+                                                           const NodeID to, auto &&filter, auto &&builder) {
+  std::vector<Buffer> recv_buffers(mpi::get_comm_size(graph.communicator()));
   sparse_alltoall_interface_to_ghost<Message, Buffer>(
       graph, from, to, std::forward<decltype(filter)>(filter), std::forward<decltype(builder)>(builder),
       [&](auto recv_buffer, const PEID pe) { recv_buffers[pe] = std::move(recv_buffer); });
   return recv_buffers;
 }
 
-template <typename Message, template <typename> typename Buffer = scalable_vector>
+template <typename Message, typename Buffer = scalable_noinit_vector<Message>>
 void sparse_alltoall_interface_to_pe(const DistributedGraph &graph, auto &&builder, auto &&receiver) {
   sparse_alltoall_interface_to_pe<Message, Buffer>(graph, SPARSE_ALLTOALL_NOFILTER,
                                                    std::forward<decltype(builder)>(builder),
                                                    std::forward<decltype(receiver)>(receiver));
 }
 
-template <typename Message, template <typename> typename Buffer = scalable_vector>
+template <typename Message, typename Buffer = scalable_noinit_vector<Message>>
 void sparse_alltoall_interface_to_pe(const DistributedGraph &graph, auto &&filter, auto &&builder, auto &&receiver) {
   sparse_alltoall_interface_to_pe<Message, Buffer>(graph, 0, graph.n(), std::forward<decltype(filter)>(filter),
                                                    std::forward<decltype(builder)>(builder),
                                                    std::forward<decltype(receiver)>(receiver));
 }
 
-template <typename Message, template <typename> typename Buffer = scalable_vector>
+template <typename Message, typename Buffer = scalable_noinit_vector<Message>>
 void sparse_alltoall_interface_to_pe(const DistributedGraph &graph, const NodeID from, const NodeID to, auto &&filter,
                                      auto &&builder, auto &&receiver) {
   SCOPED_TIMER("Sparse AllToAll InterfaceToPE");
@@ -194,9 +202,18 @@ void sparse_alltoall_interface_to_pe(const DistributedGraph &graph, const NodeID
   const PEID num_threads = omp_get_max_threads();
   std::vector<cache_aligned_vector<std::size_t>> num_messages(num_threads, cache_aligned_vector<std::size_t>(size));
 
+  // ASSERT that we count the same number of messages that we create
+#ifdef KAMINPAR_ENABLE_ASSERTIONS
+  std::vector<shm::parallel::Aligned<std::size_t>> total_num_messages(num_threads);
+#endif // KAMINPAR_ENABLE_ASSERTIONS
+
   // count messages to each PE for each thread
   START_TIMER("Count messages", TIMER_FINE);
+#ifdef KAMINPAR_ENABLE_ASSERTIONS
+#pragma omp parallel default(none) shared(size, from, to, filter, graph, num_messages, total_num_messages)
+#else // KAMINPAR_ENABLE_ASSERTIONS
 #pragma omp parallel default(none) shared(size, from, to, filter, graph, num_messages)
+#endif // KAMINPAR_ENABLE_ASSERTIONS
   {
     shm::Marker<> created_message_for_pe(static_cast<std::size_t>(size));
     const PEID thread = omp_get_thread_num();
@@ -220,6 +237,10 @@ void sparse_alltoall_interface_to_pe(const DistributedGraph &graph, const NodeID
         created_message_for_pe.set(pe);
 
         ++num_messages[thread][pe];
+
+#ifdef KAMINPAR_ENABLE_ASSERTIONS
+        ++total_num_messages[thread];
+#endif // KAMINPAR_ENABLE_ASSERTIONS
       }
 
       created_message_for_pe.reset();
@@ -232,15 +253,20 @@ void sparse_alltoall_interface_to_pe(const DistributedGraph &graph, const NodeID
 
   // allocate send buffers
   START_TIMER("Allocation", TIMER_FINE);
-  std::vector<Buffer<Message>> send_buffers;
-  for (PEID pe = 0; pe < size; ++pe) {
-    send_buffers.emplace_back(num_messages.back()[pe]);
-  }
+  std::vector<Buffer> send_buffers(size);
+  tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
+      send_buffers[pe].resize(num_messages.back()[pe]);
+  });
   STOP_TIMER(TIMER_FINE);
 
   // fill buffers
   START_TIMER("Partition messages", TIMER_FINE);
+#ifdef KAMINPAR_ENABLE_ASSERTIONS
+#pragma omp parallel default(none)                                                                                     \
+    shared(send_buffers, size, from, to, builder, filter, graph, num_messages, total_num_messages)
+#else // KAMINPAR_ENABLE_ASSERTIONS
 #pragma omp parallel default(none) shared(send_buffers, size, from, to, builder, filter, graph, num_messages)
+#endif // KAMINPAR_ENABLE_ASSERTIONS
   {
     shm::Marker<> created_message_for_pe(static_cast<std::size_t>(size));
     const PEID thread = omp_get_thread_num();
@@ -270,6 +296,10 @@ void sparse_alltoall_interface_to_pe(const DistributedGraph &graph, const NodeID
         } else {
           send_buffers[pe][slot] = builder(u);
         }
+
+#ifdef KAMINPAR_ENABLE_ASSERTIONS
+        --total_num_messages[thread];
+#endif // KAMINPAR_ENABLE_ASSERTIONS
       }
 
       created_message_for_pe.reset();
@@ -277,41 +307,44 @@ void sparse_alltoall_interface_to_pe(const DistributedGraph &graph, const NodeID
   }
   STOP_TIMER(TIMER_FINE);
 
-  sparse_alltoall<Message, Buffer>(send_buffers, std::forward<decltype(receiver)>(receiver), graph.communicator());
+  ASSERT(std::all_of(total_num_messages.begin(), total_num_messages.end(),
+                     [&](const auto &num_messages) { return num_messages == 0; }));
+
+  sparse_alltoall<Message, Buffer>(std::move(send_buffers), std::forward<decltype(receiver)>(receiver),
+                                   graph.communicator());
 } // namespace dkaminpar::mpi::graph
 
-template <typename Message, template <typename> typename Buffer = scalable_vector>
-std::vector<Buffer<Message>> sparse_alltoall_interface_to_pe_get(const DistributedGraph &graph, const NodeID from,
-                                                                 const NodeID to, auto &&filter, auto &&builder) {
-  std::vector<Buffer<Message>> recv_buffers(mpi::get_comm_size(graph.communicator()));
+template <typename Message, typename Buffer = scalable_noinit_vector<Message>>
+std::vector<Buffer> sparse_alltoall_interface_to_pe_get(const DistributedGraph &graph, const NodeID from,
+                                                        const NodeID to, auto &&filter, auto &&builder) {
+  std::vector<Buffer> recv_buffers(mpi::get_comm_size(graph.communicator()));
   sparse_alltoall_interface_to_pe<Message, Buffer>(
       graph, from, to, std::forward<decltype(filter)>(filter), std::forward<decltype(builder)>(builder),
       [&](auto recv_buffer, const PEID pe) { recv_buffers[pe] = std::move(recv_buffer); });
   return recv_buffers;
 }
 
-template <typename Message, template <typename> typename Buffer = scalable_vector>
-std::vector<Buffer<Message>> sparse_alltoall_interface_to_pe_get(const DistributedGraph &graph, auto &&filter,
-                                                                 auto &&builder) {
-  std::vector<Buffer<Message>> recv_buffers(mpi::get_comm_size(graph.communicator()));
+template <typename Message, typename Buffer = scalable_noinit_vector<Message>>
+std::vector<Buffer> sparse_alltoall_interface_to_pe_get(const DistributedGraph &graph, auto &&filter, auto &&builder) {
+  std::vector<Buffer> recv_buffers(mpi::get_comm_size(graph.communicator()));
   sparse_alltoall_interface_to_pe<Message, Buffer>(
       graph, 0, graph.n(), std::forward<decltype(filter)>(filter), std::forward<decltype(builder)>(builder),
       [&](auto recv_buffer, const PEID pe) { recv_buffers[pe] = std::move(recv_buffer); });
   return recv_buffers;
 }
 
-template <typename Message, template <typename> typename Buffer = scalable_vector>
-std::vector<Buffer<Message>> sparse_alltoall_interface_to_pe_get(const DistributedGraph &graph, auto &&builder) {
-  std::vector<Buffer<Message>> recv_buffers(mpi::get_comm_size(graph.communicator()));
+template <typename Message, typename Buffer = scalable_noinit_vector<Message>>
+std::vector<Buffer> sparse_alltoall_interface_to_pe_get(const DistributedGraph &graph, auto &&builder) {
+  std::vector<Buffer> recv_buffers(mpi::get_comm_size(graph.communicator()));
   sparse_alltoall_interface_to_pe<Message, Buffer>(
       graph, 0, graph.n(), SPARSE_ALLTOALL_NOFILTER, std::forward<decltype(builder)>(builder),
       [&](auto recv_buffer, const PEID pe) { recv_buffers[pe] = std::move(recv_buffer); });
   return recv_buffers;
 }
 
-template <typename Message, template <typename> typename Buffer = scalable_vector>
+template <typename Message, typename Buffer = scalable_noinit_vector<Message>>
 void sparse_alltoall_custom(const DistributedGraph &graph, const NodeID from, const NodeID to, auto &&filter,
-                            auto &&pe_getter, auto &&builder, auto &&receiver, const bool self = false) {
+                            auto &&pe_getter, auto &&builder, auto &&receiver) {
   using Filter = decltype(filter);
   static_assert(std::is_invocable_r_v<bool, Filter, NodeID>, "bad filter type");
 
@@ -347,10 +380,10 @@ void sparse_alltoall_custom(const DistributedGraph &graph, const NodeID from, co
 
   // allocate send buffers
   START_TIMER("Allocation", TIMER_FINE);
-  std::vector<Buffer<Message>> send_buffers;
-  for (PEID pe = 0; pe < size; ++pe) {
-    send_buffers.emplace_back(num_messages.back()[pe]);
-  }
+  std::vector<Buffer> send_buffers(size);
+  tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
+    send_buffers[pe].resize(num_messages.back()[pe]);
+  });
   STOP_TIMER(TIMER_FINE);
 
   // fill buffers
@@ -369,15 +402,15 @@ void sparse_alltoall_custom(const DistributedGraph &graph, const NodeID from, co
   }
   STOP_TIMER(TIMER_FINE);
 
-  sparse_alltoall<Message, Buffer>(send_buffers, std::forward<decltype(receiver)>(receiver), graph.communicator(),
-                                   self);
+  sparse_alltoall<Message, Buffer>(std::move(send_buffers), std::forward<decltype(receiver)>(receiver),
+                                   graph.communicator());
 }
 
-template <typename Message, template <typename> typename Buffer = scalable_vector>
-std::vector<Buffer<Message>> sparse_alltoall_custom(const DistributedGraph &graph, const NodeID from, const NodeID to,
-                                                    auto &&filter, auto &&pe_getter, auto &&builder) {
+template <typename Message, typename Buffer = scalable_noinit_vector<Message>>
+std::vector<Buffer> sparse_alltoall_custom(const DistributedGraph &graph, const NodeID from, const NodeID to,
+                                           auto &&filter, auto &&pe_getter, auto &&builder) {
   auto size = mpi::get_comm_size(graph.communicator());
-  std::vector<Buffer<Message>> recv_buffers(size);
+  std::vector<Buffer> recv_buffers(size);
   sparse_alltoall_custom<Message, Buffer>(
       graph, from, to, std::forward<decltype(filter)>(filter), std::forward<decltype(pe_getter)>(pe_getter),
       std::forward<decltype(builder)>(builder),

@@ -12,8 +12,8 @@
 #include "dkaminpar/utility/distributed_metrics.h"
 #include "dkaminpar/utility/math.h"
 #include "dkaminpar/utility/vector_ets.h"
-#include "kaminpar/label_propagation.h"
 #include "kaminpar/datastructure/marker.h"
+#include "kaminpar/label_propagation.h"
 #include "kaminpar/utility/random.h"
 
 namespace dkaminpar {
@@ -37,17 +37,17 @@ class DistributedProbabilisticLabelPropagationRefinerImpl final
                                             DistributedLabelPropagationRefinerConfig>;
 
   struct Statistics {
-    EdgeWeight cut_before;
-    EdgeWeight cut_after;
+    EdgeWeight cut_before = 0;
+    EdgeWeight cut_after = 0;
 
-    int num_successful_moves; // global
-    int num_rollbacks;        // global
+    int num_successful_moves = 0; // global
+    int num_rollbacks = 0;        // global
 
-    Atomic<int> num_tentatively_moved_nodes;
-    Atomic<int> num_tentatively_rejected_nodes;
+    Atomic<int> num_tentatively_moved_nodes = 0;
+    Atomic<int> num_tentatively_rejected_nodes = 0;
 
-    double max_balance_violation;   // global, only if rollback occurred
-    double total_balance_violation; // global, only if rollback occurred
+    double max_balance_violation = 0.0;   // global, only if rollback occurred
+    double total_balance_violation = 0.0; // global, only if rollback occurred
 
     // local, expectation value of probabilistic gain values
     Atomic<EdgeWeight> expected_gain = 0;
@@ -141,10 +141,9 @@ private:
     // run label propagation
     START_TIMER("Label propagation", TIMER_FINE);
     const NodeID num_moved_nodes = perform_iteration(from, to);
-    const GlobalNodeID global_num_moved_nodes =
-        mpi::allreduce<GlobalNodeID>(num_moved_nodes, MPI_SUM, _graph->communicator());
+    const auto global_num_moved_nodes = mpi::allreduce<GlobalNodeID>(num_moved_nodes, MPI_SUM, _graph->communicator());
     STOP_TIMER(TIMER_FINE);
-    
+
     if (global_num_moved_nodes == 0) {
       return 0; // nothing to do
     }
@@ -175,7 +174,8 @@ private:
 
     // gather statistics
     std::vector<EdgeWeight> global_gain_to(_p_ctx->k);
-    mpi::allreduce(gain_to_block.data(), global_gain_to.data(), _p_ctx->k, MPI_SUM, _graph->communicator());
+    mpi::allreduce(gain_to_block.data(), global_gain_to.data(), static_cast<int>(_p_ctx->k), MPI_SUM,
+                   _graph->communicator());
 
     for (const BlockID b : _p_graph->blocks()) {
       residual_cluster_weights.push_back(max_cluster_weight(b) - _p_graph->block_weight(b));
@@ -225,7 +225,8 @@ private:
         // compute move probability
         const BlockID b = _next_partition[u];
         const double gain_prob = (total_gains_to_block[b] == 0) ? 1.0 : 1.0 * _gains[u] / total_gains_to_block[b];
-        const double probability = gain_prob * (1.0 * residual_block_weights[b] / _p_graph->node_weight(u));
+        const double probability =
+            gain_prob * (static_cast<double>(residual_block_weights[b]) / _p_graph->node_weight(u));
         IFSTATS(_statistics.expected_gain += probability * _gains[u]);
         IFSTATS(expected_moved_weight[b] += probability * _p_graph->node_weight(u));
 
@@ -260,8 +261,8 @@ private:
       block_weight_deltas_nonatomic[b] = block_weight_deltas[b].load(std::memory_order_relaxed);
     });
     scalable_vector<BlockWeight> global_block_weight_deltas(_p_ctx->k);
-    mpi::allreduce(block_weight_deltas_nonatomic.data(), global_block_weight_deltas.data(), _p_ctx->k, MPI_SUM,
-                   _p_graph->communicator());
+    mpi::allreduce(block_weight_deltas_nonatomic.data(), global_block_weight_deltas.data(), static_cast<int>(_p_ctx->k),
+                   MPI_SUM, _p_graph->communicator());
 
     // check for balance violations
     Atomic<std::uint8_t> feasible = 1;
@@ -323,16 +324,15 @@ private:
     mpi::graph::sparse_alltoall_interface_to_pe<MoveMessage>(
         *_graph, from, to,
 
-        // only for nodes that were moved -- we set _next_partition[] to kInvalidBlockID for nodes that were actually
-        // moved during perform_moves
-        [&](const NodeID u) -> bool {
-          const bool was_moved = (_next_partition[u] == kInvalidBlockID);
-          _next_partition[u] = _p_graph->block(u);
-          return was_moved;
-        },
+        // we set _next_partition[] to kInvalidBlockID for nodes that were moved during perform_moves()
+        [&](const NodeID u) -> bool { return _next_partition[u] == kInvalidBlockID; },
 
         // send move to each ghost node adjacent to u
         [&](const NodeID u) -> MoveMessage {
+          // perform_moves() marks nodes that were moved locally by setting _next_partition[] to kInvalidBlockID
+          // here, we revert this mark
+          _next_partition[u] = _p_graph->block(u);
+
           return {.local_node = u, .new_block = _p_graph->block(u)};
         },
 
@@ -340,7 +340,7 @@ private:
         [&](const auto recv_buffer, const PEID pe) {
           tbb::parallel_for(static_cast<std::size_t>(0), recv_buffer.size(), [&](const std::size_t i) {
             const auto [local_node_on_pe, new_block] = recv_buffer[i];
-            const GlobalNodeID global_node = static_cast<GlobalNodeID>(_p_graph->offset_n(pe) + local_node_on_pe);
+            const auto global_node = static_cast<GlobalNodeID>(_p_graph->offset_n(pe) + local_node_on_pe);
             const NodeID local_node = _p_graph->global_to_local_node(global_node);
             ASSERT(new_block != _p_graph->block(local_node)); // otherwise, we should not have gotten this message
 

@@ -9,6 +9,7 @@
 
 #include "kaminpar/definitions.h"
 #include "kaminpar/parallel.h"
+#include "kaminpar/utility/noinit_allocator.h"
 
 #include <cstdint>
 #include <iomanip>
@@ -56,6 +57,9 @@ template<typename T>
 using cache_aligned_vector = std::vector<T, tbb::cache_aligned_allocator<T>>;
 
 template<typename T>
+using scalable_noinit_vector = std::vector<T, shm::noinit_allocator<T, tbb::scalable_allocator<T>>>;
+
+template<typename T>
 using Atomic = shm::parallel::IntegralAtomicWrapper<T>;
 
 class SynchronizedLogger {
@@ -91,6 +95,8 @@ public:
           MPI_Recv(str, cnt, MPI_CHAR, pe, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
           logger << std::string(str, cnt);
+
+          delete[] str;
         }
       }
 

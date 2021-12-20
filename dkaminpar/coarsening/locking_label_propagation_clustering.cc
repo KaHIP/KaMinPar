@@ -73,7 +73,7 @@ class LockingLpClusteringImpl
   };
 
 public:
-  LockingLpClusteringImpl(const Context &ctx) : _c_ctx{ctx.coarsening}, _cluster_weights{ctx.partition.local_n()} {
+  explicit LockingLpClusteringImpl(const Context &ctx) : _c_ctx{ctx.coarsening}, _cluster_weights{ctx.partition.local_n()} {
     set_max_degree(_c_ctx.global_lp.large_degree_threshold);
     set_max_num_neighbors(_c_ctx.global_lp.max_num_neighbors);
   }
@@ -445,8 +445,8 @@ private:
 
     START_TIMER("Exchange join responses", TIMER_FINE);
     // exchange responses
-    mpi::sparse_alltoall<JoinResponse, scalable_vector>(
-        responses,
+    mpi::sparse_alltoall<JoinResponse>(
+        std::move(responses),
         [&](const auto buffer) {
           for (const auto [global_requester, new_weight, accepted] : buffer) {
             const auto local_requester = _graph->global_to_local_node(global_requester);
