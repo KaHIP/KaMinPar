@@ -393,7 +393,50 @@ inline Container<T> build_distribution_from_local_count(const T value, MPI_Comm 
 }
 
 template <typename Message, typename Buffer = scalable_noinit_vector<Message>>
-void sparse_alltoall(const std::vector<Buffer> &send_buffers, auto &&receiver, MPI_Comm comm, const bool self = false) {
+void sparse_alltoall(std::vector<Buffer> &&send_buffers, auto &&receiver, MPI_Comm comm) {
+  SCOPED_TIMER("Sparse AllToAll Move", TIMER_FINE);
+
+  using Receiver = decltype(receiver);
+  constexpr bool receiver_invocable_with_pe = std::is_invocable_r_v<void, Receiver, Buffer, PEID>;
+  constexpr bool receiver_invocable_without_pe = std::is_invocable_r_v<void, Receiver, Buffer>;
+  static_assert(receiver_invocable_with_pe || receiver_invocable_without_pe, "bad receiver type");
+
+  const auto [size, rank] = mpi::get_comm_info(comm);
+
+  std::vector<MPI_Request> requests(size - 1);
+
+  std::size_t next_req_index = 0;
+  for (PEID pe = 0; pe < size; ++pe) {
+    if (pe != rank) {
+      ASSERT(static_cast<std::size_t>(pe) < send_buffers.size()) << V(pe) << V(send_buffers.size());
+      ASSERT(next_req_index < requests.size());
+      mpi::isend(send_buffers[pe], pe, 0, requests[next_req_index++], comm);
+    }
+  }
+  ASSERT(next_req_index == requests.size());
+
+  for (PEID pe = 0; pe < size; ++pe) {
+    if (pe == rank) {
+      if constexpr (receiver_invocable_with_pe) {
+        receiver(std::move(send_buffers[rank]), pe);
+      } else {
+        receiver(std::move(send_buffers[rank]));
+      }
+    } else {
+      const auto recv_buffer = mpi::probe_recv<Message, Buffer>(pe, 0, MPI_STATUS_IGNORE, comm);
+      if constexpr (receiver_invocable_with_pe) {
+        receiver(std::move(recv_buffer), pe);
+      } else /* if (receiver_invocable_without_pe) */ {
+        receiver(std::move(recv_buffer));
+      }
+    }
+  }
+
+  mpi::waitall(requests);
+}
+
+template <typename Message, typename Buffer = scalable_noinit_vector<Message>>
+void sparse_alltoall(const std::vector<Buffer> &send_buffers, auto &&receiver, MPI_Comm comm, const bool self) {
   SCOPED_TIMER("Sparse AllToAll", TIMER_FINE);
 
   using Receiver = decltype(receiver);
@@ -430,8 +473,16 @@ void sparse_alltoall(const std::vector<Buffer> &send_buffers, auto &&receiver, M
 }
 
 template <typename Message, typename Buffer = scalable_noinit_vector<Message>>
-std::vector<Buffer> sparse_alltoall_get(const std::vector<Buffer> &send_buffers, MPI_Comm comm = MPI_COMM_WORLD,
-                                        const bool self = false) {
+std::vector<Buffer> sparse_alltoall_get(std::vector<Buffer> &&send_buffers, MPI_Comm comm) {
+  std::vector<Buffer> recv_buffers(mpi::get_comm_size(comm));
+  sparse_alltoall<Message, Buffer>(
+      std::move(send_buffers),
+      [&](const auto recv_buffer, const PEID pe) { recv_buffers[pe] = std::move(recv_buffer); }, comm);
+  return recv_buffers;
+}
+
+template <typename Message, typename Buffer = scalable_noinit_vector<Message>>
+std::vector<Buffer> sparse_alltoall_get(const std::vector<Buffer> &send_buffers, MPI_Comm comm, const bool self) {
   std::vector<Buffer> recv_buffers(mpi::get_comm_size(comm));
   sparse_alltoall<Message, Buffer>(
       send_buffers, [&](auto recv_buffer, const PEID pe) { recv_buffers[pe] = std::move(recv_buffer); }, comm, self);

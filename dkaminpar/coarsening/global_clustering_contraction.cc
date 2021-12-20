@@ -138,7 +138,7 @@ MappingResult compute_mapping(const DistributedGraph &graph, const scalable_vect
   auto &used_clusters_vec = used_clusters.second;
 
   // send each PE its local node IDs that are used as cluster IDs somewhere
-  const auto in_msg = mpi::sparse_alltoall_get<NodeID>(used_clusters_vec, graph.communicator(), true);
+  const auto in_msg = mpi::sparse_alltoall_get<NodeID>(std::move(used_clusters_vec), graph.communicator());
 
   // map local labels to consecutive coarse node IDs
   scalable_vector<shm::parallel::IntegralAtomicWrapper<GlobalNodeID>> label_mapping(graph.total_n());
@@ -160,7 +160,7 @@ MappingResult compute_mapping(const DistributedGraph &graph, const scalable_vect
     });
   });
 
-  const auto label_remap = mpi::sparse_alltoall_get<NodeID>(out_msg, graph.communicator(), true);
+  const auto label_remap = mpi::sparse_alltoall_get<NodeID>(std::move(out_msg), graph.communicator());
 
   // migrate nodes from overloaded PEs
   scalable_vector<GlobalNodeID> c_distribution =
@@ -337,7 +337,7 @@ DistributedGraph build_coarse_graph(const DistributedGraph &graph, const auto &m
 
   // exchange messages
   START_TIMER("Exchange edges", TIMER_FINE);
-  auto in_msg = mpi::sparse_alltoall_get<LocalToGlobalEdge>(out_msg, graph.communicator(), true);
+  auto in_msg = mpi::sparse_alltoall_get<LocalToGlobalEdge>(std::move(out_msg), graph.communicator());
   STOP_TIMER(TIMER_FINE);
 
   // Copy edge lists to a single list and free old list
@@ -382,8 +382,7 @@ DistributedGraph build_coarse_graph(const DistributedGraph &graph, const auto &m
         tbb::parallel_for<std::size_t>(0, r.size(), [&](const std::size_t i) {
           node_weights[r[i].node].fetch_add(r[i].weight, std::memory_order_relaxed);
         });
-      },
-      true);
+      });
   STOP_TIMER(TIMER_FINE);
 
   // now every PE has an edge list with all edges -- so we can build the graph from it
@@ -537,7 +536,7 @@ DistributedPartitionedGraph project_global_contracted_graph(const DistributedGra
   auto resolve_coarse_node = [&](const GlobalNodeID coarse_node) {
     ASSERT(coarse_node < coarse_graph.global_n());
     const PEID owner = coarse_graph.find_owner_of_global_node(coarse_node);
-    const NodeID local = static_cast<NodeID>(coarse_node - coarse_graph.offset_n(owner));
+    const auto local = static_cast<NodeID>(coarse_node - coarse_graph.offset_n(owner));
     return std::make_pair(owner, local);
   };
 
@@ -565,7 +564,7 @@ DistributedPartitionedGraph project_global_contracted_graph(const DistributedGra
   // exchange messages and use used_coarse_nodes_map to store block IDs
   static_assert(std::numeric_limits<BlockID>::digits <= std::numeric_limits<NodeID>::digits);
   mpi::sparse_alltoall<BlockID>(
-      resps,
+      std::move(resps),
       [&](const auto buffer, const PEID pe) {
         tbb::parallel_for<std::size_t>(0, buffer.size(), [&](const std::size_t i) {
           ASSERT(static_cast<std::size_t>(pe) < used_coarse_nodes_map.size());
@@ -578,7 +577,7 @@ DistributedPartitionedGraph project_global_contracted_graph(const DistributedGra
           accessor->second = buffer[i];
         });
       },
-      fine_graph.communicator(), true);
+      fine_graph.communicator());
 
   // assign block IDs to fine nodes
   scalable_vector<Atomic<BlockID>> fine_partition(fine_graph.total_n());

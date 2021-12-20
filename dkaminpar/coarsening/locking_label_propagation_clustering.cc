@@ -446,7 +446,7 @@ private:
     START_TIMER("Exchange join responses", TIMER_FINE);
     // exchange responses
     mpi::sparse_alltoall<JoinResponse>(
-        responses,
+        std::move(responses),
         [&](const auto buffer) {
           for (const auto [global_requester, new_weight, accepted] : buffer) {
             const auto local_requester = _graph->global_to_local_node(global_requester);
