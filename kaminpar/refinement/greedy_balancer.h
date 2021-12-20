@@ -124,7 +124,7 @@ private:
   [[nodiscard]] inline BlockWeight block_overload(const BlockID b) const {
     static_assert(std::numeric_limits<BlockWeight>::is_signed,
                   "This must be changed when using an unsigned data type for block weights!");
-    return std::max(0, _p_graph->block_weight(b) - _p_ctx->block_weights.max(b));
+    return std::max<BlockWeight>(0, _p_graph->block_weight(b) - _p_ctx->block_weights.max(b));
   }
 
   const BlockID _max_k;

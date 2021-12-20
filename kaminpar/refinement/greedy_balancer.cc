@@ -1,11 +1,11 @@
 /*******************************************************************************
-* @file:   parallel_balancer.cc
-*
-* @author: Daniel Seemaier
-* @date:   21.09.21
-* @brief:  Greedy refinement graphutils that moves nodes until an infeasible
-* partition is feasible.
-******************************************************************************/
+ * @file:   parallel_balancer.cc
+ *
+ * @author: Daniel Seemaier
+ * @date:   21.09.21
+ * @brief:  Greedy refinement graphutils that moves nodes until an infeasible
+ * partition is feasible.
+ ******************************************************************************/
 #include "kaminpar/refinement/greedy_balancer.h"
 
 namespace kaminpar {
@@ -19,7 +19,9 @@ bool GreedyBalancer::balance(PartitionedGraph &p_graph, const PartitionContext &
   _marker.reset();
 
   const NodeWeight initial_overload = metrics::total_overload(*_p_graph, *_p_ctx);
-  if (initial_overload == 0) { return true; }
+  if (initial_overload == 0) {
+    return true;
+  }
 
   const EdgeWeight initial_cut = IFDBG(metrics::edge_cut(*_p_graph));
 
@@ -29,7 +31,9 @@ bool GreedyBalancer::balance(PartitionedGraph &p_graph, const PartitionContext &
 
   LOG << "-> Balancer: overload=[" << initial_overload << " --> " << new_overload << "]";
   DBG << "-> Balancer: cut=" << C(initial_cut, metrics::edge_cut(*_p_graph));
-  if (kStatistics) { _stats.print(); }
+  if (kStatistics) {
+    _stats.print();
+  }
 
   return new_overload == 0;
 }
@@ -41,7 +45,9 @@ BlockWeight GreedyBalancer::perform_round() {
   }
 
   // reset feasible target blocks
-  for (auto &blocks : _feasible_target_blocks) { blocks.clear(); }
+  for (auto &blocks : _feasible_target_blocks) {
+    blocks.clear();
+  }
 
   tbb::enumerable_thread_specific<BlockWeight> overload_delta;
 
@@ -57,7 +63,8 @@ BlockWeight GreedyBalancer::perform_round() {
     }
 
     while (current_overload > 0 && !_pq.empty(from)) {
-      ASSERT(current_overload == std::max(0, _p_graph->block_weight(from) - _p_ctx->block_weights.max(from)));
+      ASSERT(current_overload ==
+             std::max<BlockWeight>(0, _p_graph->block_weight(from) - _p_ctx->block_weights.max(from)));
 
       const NodeID u = _pq.peek_max_id(from);
       const NodeWeight u_weight = _p_graph->node_weight(u);
@@ -97,7 +104,9 @@ BlockWeight GreedyBalancer::perform_round() {
 
           // try to add neighbors of moved node to PQ
           for (const NodeID v : _p_graph->adjacent_nodes(u)) {
-            if (!_marker.get(v) && _p_graph->block(v) == from) { add_to_pq(from, v); }
+            if (!_marker.get(v) && _p_graph->block(v) == from) {
+              add_to_pq(from, v);
+            }
             _marker.set(v);
           }
         } else {
@@ -105,11 +114,14 @@ BlockWeight GreedyBalancer::perform_round() {
         }
       } else { // gain changed after insertion --> try again with new gain
         add_to_pq(from, u, _p_graph->node_weight(u), actual_relative_gain);
-        if (kStatistics) { ++_stats.num_pq_reinserts; }
+        if (kStatistics) {
+          ++_stats.num_pq_reinserts;
+        }
       }
     }
 
-    ASSERT(current_overload == std::max(0, _p_graph->block_weight(from) - _p_ctx->block_weights.max(from)));
+    ASSERT(current_overload ==
+           std::max<BlockWeight>(0, _p_graph->block_weight(from) - _p_ctx->block_weights.max(from)));
   });
   STOP_TIMER();
 
@@ -181,7 +193,9 @@ void GreedyBalancer::init_pq() {
         if (!need_more_nodes) {
           const NodeWeight u_weight = _p_graph->node_weight(u);
           const NodeWeight min_weight = _p_graph->node_weight(pq[b].peek_id());
-          if (pq_weight[b] + u_weight - min_weight >= overload) { pq[b].pop(); }
+          if (pq_weight[b] + u_weight - min_weight >= overload) {
+            pq[b].pop();
+          }
         }
         pq[b].push(u, rel_gain);
         _marker.set(u);
@@ -195,11 +209,15 @@ void GreedyBalancer::init_pq() {
 
   START_TIMER("Merge thread-local PQs");
   tbb::parallel_for(static_cast<BlockID>(0), k, [&](const BlockID b) {
-    if (kStatistics && block_overload(b) > 0) { ++_stats.num_overloaded_blocks; }
+    if (kStatistics && block_overload(b) > 0) {
+      ++_stats.num_overloaded_blocks;
+    }
     _pq_weight[b] = 0;
 
     for (auto &pq : local_pq) {
-      for (const auto &[u, rel_gain] : pq[b].elements()) { add_to_pq(b, u, _p_graph->node_weight(u), rel_gain); }
+      for (const auto &[u, rel_gain] : pq[b].elements()) {
+        add_to_pq(b, u, _p_graph->node_weight(u), rel_gain);
+      }
     }
 
     if (!_pq.empty(b)) {
@@ -278,7 +296,9 @@ bool GreedyBalancer::move_to_random_block(const NodeID u) {
     const BlockID b = feasible_target_blocks[i];
 
     // try to move node to that block, if possible, operation succeeded
-    if (move_node_if_possible(u, u_block, b)) { return true; }
+    if (move_node_if_possible(u, u_block, b)) {
+      return true;
+    }
 
     // loop terminated without return, hence moving u to b failed --> we no longer consider b to be a feasible target
     // block and remove it from the list
@@ -291,12 +311,16 @@ bool GreedyBalancer::move_to_random_block(const NodeID u) {
 }
 
 void GreedyBalancer::init_feasible_target_blocks() {
-  if (kStatistics) { ++_stats.num_feasible_target_block_inits; }
+  if (kStatistics) {
+    ++_stats.num_feasible_target_block_inits;
+  }
 
   auto &blocks = _feasible_target_blocks.local();
   blocks.clear();
   for (const BlockID b : _p_graph->blocks()) {
-    if (_p_graph->block_weight(b) < _p_ctx->block_weights.perfectly_balanced(b)) { blocks.push_back(b); }
+    if (_p_graph->block_weight(b) < _p_ctx->block_weights.perfectly_balanced(b)) {
+      blocks.push_back(b);
+    }
   }
 }
 } // namespace kaminpar

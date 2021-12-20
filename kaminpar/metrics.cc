@@ -60,7 +60,7 @@ double imbalance(const PartitionedGraph &p_graph) {
 NodeWeight total_overload(const PartitionedGraph &p_graph, const PartitionContext &context) {
   NodeWeight total_overload = 0;
   for (const BlockID b : p_graph.blocks()) {
-    total_overload += std::max(0, p_graph.block_weight(b) - context.block_weights.max(b));
+    total_overload += std::max<BlockWeight>(0, p_graph.block_weight(b) - context.block_weights.max(b));
   }
   return total_overload;
 }

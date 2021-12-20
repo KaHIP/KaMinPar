@@ -20,10 +20,14 @@ option(KAMINPAR_LIGHT_ASSERTIONS "Enable very lightweight assertions." ON)
 
 option(KAMINPAR_TIMERS "Enable fine-grained timers. With this option disabled, we will still report the total partitioning time." ON)
 option(KAMINPAR_STATISTICS "Generate and output detailed statistics." ON)
-option(KAMINPAR_64BIT_EDGE_IDS "Use 64 bits for edge ids." OFF)
 option(KAMINPAR_BACKWARD_CPP "Use backward-cpp for better stacktraces." ON)
 option(KAMINPAR_TESTS "If enabled, build unit tests." ON)
 option(KAMINPAR_GRAPHGEN "If enabled, include KaGen for in-memory graph generation." OFF)
+
+option(KAMINPAR_64BIT_IDS "Use 64 bits for node and edge IDs." OFF)
+option(KAMINPAR_64BIT_EDGE_IDS "Use 64 bits for edge IDs." OFF)
+option(KAMINPAR_64BIT_NODE_IDS "Use 64 bits for node IDs." OFF)
+option(KAMINPAR_64BIT_WEIGHTS "Use 64 bit for node and edge weights." OFF)
 
 include_directories(${PROJECT_SOURCE_DIR})
 
@@ -82,13 +86,21 @@ if (KAMINPAR_STATISTICS)
     add_definitions(-DKAMINPAR_ENABLE_STATISTICS)
 endif ()
 
-if (KAMINPAR_64BIT_EDGE_IDS)
+if (KAMINPAR_64BIT_EDGE_IDS OR KAMINPAR_64BIT_IDs)
     add_definitions(-DKAMINPAR_64BIT_EDGE_IDS)
+endif ()
+
+if (KAMINPAR_64BIT_NODE_IDS OR KAMINPAR_64BIT_IDs)
+    add_definitions(-DKAMINPAR_64BIT_NODE_IDS)
 endif ()
 
 if (KAMINPAR_TESTS)
     add_definitions(-DKAMINPAR_BUILD_TESTS)
     include(gmock)
+endif ()
+
+if (KAMINPAR_64BIT_WEIGHTS)
+    add_definitions(-DKAMINPAR_64BIT_WEIGHTS)
 endif ()
 
 # Backward-cpp for stack traces in MPI code

@@ -424,7 +424,7 @@ private:
         }
 
         // use weight entries to temporarily store u -- replace it by the correct weight in the next iteration
-        static_assert(std::numeric_limits<NodeID>::digits == std::numeric_limits<NodeWeight>::digits + 1);
+        ALWAYS_ASSERT(std::numeric_limits<NodeID>::digits == std::numeric_limits<NodeWeight>::digits + 1); // TODO
         NodeWeight u_as_weight;
         std::memcpy(&u_as_weight, &u, sizeof(NodeWeight));
 
