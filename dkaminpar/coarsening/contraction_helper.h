@@ -68,6 +68,7 @@ deduplicate_edge_list(scalable_vector<LocalToGlobalEdge> edge_list, const NodeID
 
   // sort outgoing edges for each node and collapse duplicated edges
   START_TIMER("Deduplicate edges");
+  START_TIMER("Count degrees");
   tbb::parallel_for<NodeID>(0, n, [&](const NodeID u) {
     const EdgeID first_edge_id = bucket_index[u];
     const EdgeID first_invalid_edge_id = bucket_index[u + 1];
@@ -91,12 +92,16 @@ deduplicate_edge_list(scalable_vector<LocalToGlobalEdge> edge_list, const NodeID
 
     deduplicated_bucket_index[u + 1] = deduplicated_degree;
   });
+  STOP_TIMER();
 
+  START_TIMER("Compute prefix sum over degrees");
   deduplicated_bucket_index[0] = 0;
   shm::parallel::prefix_sum(deduplicated_bucket_index.begin(), deduplicated_bucket_index.begin() + n + 1,
                             deduplicated_bucket_index.begin());
+  STOP_TIMER();
 
   // now copy edges to edge_list
+  START_TIMER("Copy edges to compressed edge list");
   tbb::parallel_for<NodeID>(0, n, [&](const NodeID u) {
     const EdgeID first_edge_id = bucket_index[u];
     const EdgeID first_invalid_edge_id = bucket_index[u + 1];
@@ -115,6 +120,7 @@ deduplicate_edge_list(scalable_vector<LocalToGlobalEdge> edge_list, const NodeID
       }
     }
   });
+  STOP_TIMER();
   STOP_TIMER();
 
   START_TIMER("Resize edge list");
