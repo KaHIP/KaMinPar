@@ -558,12 +558,14 @@ DistributedPartitionedGraph project_global_contracted_graph(const DistributedGra
   });
   STOP_TIMER();
 
+  START_TIMER("Build response messages");
   tbb::parallel_for<std::size_t>(0, reqs.size(), [&](const std::size_t i) {
     tbb::parallel_for<std::size_t>(0, reqs[i].size(), [&](const std::size_t j) {
       ASSERT(coarse_graph.is_owned_node(reqs[i][j]));
       resps[i][j] = coarse_graph.block(reqs[i][j]);
     });
   });
+  STOP_TIMER();
 
   // exchange messages and use used_coarse_nodes_map to store block IDs
   static_assert(std::numeric_limits<BlockID>::digits <= std::numeric_limits<NodeID>::digits);
@@ -588,6 +590,7 @@ DistributedPartitionedGraph project_global_contracted_graph(const DistributedGra
   scalable_vector<Atomic<BlockID>> fine_partition(fine_graph.total_n());
   STOP_TIMER();
 
+  START_TIMER("Set blocks");
   fine_graph.pfor_nodes([&](const NodeID u) {
     const auto [owner, local] = resolve_coarse_node(fine_to_coarse[u]);
 
@@ -597,6 +600,7 @@ DistributedPartitionedGraph project_global_contracted_graph(const DistributedGra
 
     fine_partition[u] = accessor->second;
   });
+  STOP_TIMER();
 
   // exchange ghost node labels
   struct GhostNodeLabel {
