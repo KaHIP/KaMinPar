@@ -66,56 +66,58 @@ deduplicate_edge_list(scalable_vector<LocalToGlobalEdge> edge_list, const NodeID
     buffer_list.back().v = kInvalidGlobalNodeID; // dummy element
   };
 
-  Atomic<std::size_t> next_edge_list_index = 0;
-
   // sort outgoing edges for each node and collapse duplicated edges
   START_TIMER("Deduplicate edges");
   tbb::parallel_for<NodeID>(0, n, [&](const NodeID u) {
     const EdgeID first_edge_id = bucket_index[u];
     const EdgeID first_invalid_edge_id = bucket_index[u + 1];
 
+    // sort outgoing edges from u
     std::sort(buffer_list.begin() + first_edge_id, buffer_list.begin() + first_invalid_edge_id,
               [&](const auto &lhs, const auto &rhs) { return lhs.v < rhs.v; });
 
-    EdgeID compressed_degree = 0;
-    EdgeID current_accumulate = buffer_list.size() - 1; // dummy element
+    // compute degree of u after deduplicating
+    EdgeID deduplicated_degree = 0;
+    GlobalNodeID current_v = kInvalidGlobalNodeID;
 
-    // count number of compressed edges
     for (EdgeID edge_id = first_edge_id; edge_id < first_invalid_edge_id; ++edge_id) {
       ASSERT(buffer_list[edge_id].u == u);
-      if (buffer_list[edge_id].v != buffer_list[current_accumulate].v) {
-        ++compressed_degree;
-        current_accumulate = edge_id;
+      const auto &edge = buffer_list[edge_id];
+      if (edge.v != current_v) {
+        ++deduplicated_degree;
+        current_v = edge.v;
       }
     }
 
-    // reset to degree, so that after another prefix sum, it indexes the compressed edge list
-    deduplicated_bucket_index[u + 1] = compressed_degree;
+    deduplicated_bucket_index[u + 1] = deduplicated_degree;
+  });
 
-    // reserve memory in edge_list -- +1 in first iteration
-    std::size_t copy_to_index = next_edge_list_index.fetch_add(compressed_degree, std::memory_order_relaxed) - 1;
+  deduplicated_bucket_index[0] = 0;
+  shm::parallel::prefix_sum(deduplicated_bucket_index.begin(), deduplicated_bucket_index.begin() + n + 1,
+                            deduplicated_bucket_index.begin());
 
-    // compress and copy edges to edge_list
+  // now copy edges to edge_list
+  tbb::parallel_for<NodeID>(0, n, [&](const NodeID u) {
+    const EdgeID first_edge_id = bucket_index[u];
+    const EdgeID first_invalid_edge_id = bucket_index[u + 1];
+    std::size_t dst_index = deduplicated_bucket_index[u];
     GlobalNodeID current_v = kInvalidGlobalNodeID;
+
     for (EdgeID edge_id = first_edge_id; edge_id < first_invalid_edge_id; ++edge_id) {
       const auto &edge = buffer_list[edge_id];
       if (edge.v == current_v) {
-        ASSERT(edge_list[copy_to_index].u == edge.u);
-        ASSERT(edge_list[copy_to_index].v == edge.v);
-        edge_list[copy_to_index].weight += edge.weight;
+        ASSERT(edge_list[dst_index - 1].u == edge.u);
+        ASSERT(edge_list[dst_index - 1].v == edge.v);
+        edge_list[dst_index - 1].weight += edge.weight;
       } else {
-        copy_to_index++;
         current_v = edge.v;
-        edge_list[copy_to_index] = edge;
+        edge_list[dst_index++] = edge;
       }
     }
   });
-  deduplicated_bucket_index[0] = 0;
   STOP_TIMER();
 
   START_TIMER("Resize edge list");
-  shm::parallel::prefix_sum(deduplicated_bucket_index.begin(), deduplicated_bucket_index.begin() + n + 1,
-                            deduplicated_bucket_index.begin());
   edge_list.resize(deduplicated_bucket_index[n]);
   STOP_TIMER();
 
