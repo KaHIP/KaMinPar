@@ -335,15 +335,22 @@ DistributedGraph build_coarse_graph(const DistributedGraph &graph, const auto &m
         max_edge_list_size = std::max(max_edge_list_size, out_msg[pe].size());
       }
 
-      if (deduplicate_m_ctx.bucket_index.size() < max_n + 1) {
-        deduplicate_m_ctx.bucket_index.resize(max_n + 1);
-      }
-      if (deduplicate_m_ctx.deduplicated_bucket_index.size() < max_n + 1) {
-        deduplicate_m_ctx.deduplicated_bucket_index.resize(max_n + 1);
-      }
-      if (deduplicate_m_ctx.buffer_list.size() < max_edge_list_size + 1) {
-        deduplicate_m_ctx.buffer_list.resize(max_edge_list_size + 1);
-      }
+      tbb::parallel_invoke(
+          [&] {
+            if (deduplicate_m_ctx.bucket_index.size() < max_n + 1) {
+              deduplicate_m_ctx.bucket_index.resize(max_n + 1);
+            }
+          },
+          [&] {
+            if (deduplicate_m_ctx.deduplicated_bucket_index.size() < max_n + 1) {
+              deduplicate_m_ctx.deduplicated_bucket_index.resize(max_n + 1);
+            }
+          },
+          [&] {
+            if (deduplicate_m_ctx.buffer_list.size() < max_edge_list_size + 1) {
+              deduplicate_m_ctx.buffer_list.resize(max_edge_list_size + 1);
+            }
+          });
     };
 
     for (PEID pe = 0; pe < size; ++pe) {
