@@ -61,11 +61,12 @@ void print_result_statistics(const dist::DistributedPartitionedGraph &p_graph, c
     dist::timer::collect_and_annotate_distributed_timer(GLOBAL_TIMER);
   }
 
-  if (dist::mpi::get_comm_rank(MPI_COMM_WORLD) == 0 && !ctx.quiet) {
+  const bool is_root = dist::mpi::get_comm_rank(MPI_COMM_WORLD) == 0;
+  if (is_root && !ctx.quiet) {
     shm::Timer::global().print_machine_readable(std::cout);
   }
   LOG;
-  if (dist::mpi::get_comm_rank(MPI_COMM_WORLD) == 0 && !ctx.quiet) {
+  if (is_root && !ctx.quiet) {
     shm::Timer::global().print_human_readable(std::cout);
   }
   LOG;
@@ -78,7 +79,7 @@ void print_result_statistics(const dist::DistributedPartitionedGraph &p_graph, c
     LOG << shm::logger::TABLE << p_graph.block_weights();
   }
 
-  if (p_graph.k() != ctx.partition.k || !feasible) {
+  if (is_root && (p_graph.k() != ctx.partition.k || !feasible)) {
     LOG_ERROR << "*** Partition is infeasible!";
   }
 }
