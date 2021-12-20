@@ -276,7 +276,7 @@ DistributedGraph build_coarse_graph(const DistributedGraph &graph, const auto &m
   const auto to = c_node_distribution[rank + 1];
 
   // create messages
-  std::vector<scalable_vector<LocalToGlobalEdge>> out_msg;
+  std::vector<scalable_vector<LocalToGlobalEdge>> out_msg(size); // declare outside scope
   {
     SCOPED_TIMER("Create edge messages", TIMER_FINE);
     const PEID num_threads = omp_get_max_threads();
@@ -299,9 +299,9 @@ DistributedGraph build_coarse_graph(const DistributedGraph &graph, const auto &m
 
     // allocate send buffers
     START_TIMER("Allocation", TIMER_FINE);
-    for (PEID pe = 0; pe < size; ++pe) {
-      out_msg.emplace_back(num_messages.back()[pe]);
-    }
+    tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
+      out_msg[pe].resize(num_messages.back()[pe]);
+    });
     STOP_TIMER(TIMER_FINE);
 
     START_TIMER("Create messages", TIMER_FINE);
