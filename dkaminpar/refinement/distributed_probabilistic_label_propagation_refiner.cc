@@ -111,6 +111,7 @@ public:
   void refine(DistributedPartitionedGraph &p_graph) {
     SCOPED_TIMER("Probabilistic Global Label Propagation");
 
+    allocate(p_graph.n()); // no of local nodes might increase on some PEs
     _p_graph = &p_graph;
     Base::initialize(&p_graph.graph(), _p_ctx->k); // needs access to _p_graph
 
