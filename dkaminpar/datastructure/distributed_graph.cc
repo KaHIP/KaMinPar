@@ -45,17 +45,15 @@ void DistributedGraph::print() const {
 
 namespace graph {
 void print_verbose_stats(const DistributedGraph &graph) {
-  const auto local_n = mpi::allgather(graph.n(), graph.communicator());
-  const auto local_m = mpi::allgather(graph.m(), graph.communicator());
-  const auto ghost_n = mpi::allgather(graph.ghost_n(), graph.communicator());
-  const auto total_n = mpi::allgather(graph.total_n(), graph.communicator());
+  const auto n_str = mpi::gather_statistics_str<GlobalNodeID>(graph.n());
+  const auto m_str = mpi::gather_statistics_str<GlobalEdgeID>(graph.m());
+  const auto ghost_n_str = mpi::gather_statistics_str<GlobalNodeID>(graph.ghost_n());
 
   LOG << "global_n=" << graph.global_n() << " "
       << "global_m=" << graph.global_m() << " "
-      << "local_n=[" << local_n << "] "
-      << "local_m=[" << local_m << "] "
-      << "ghost_n=[" << ghost_n << "] "
-      << "total_n=[" << total_n << "]";
+      << "local_n=" << n_str << " "
+      << "local_m=" << m_str << " "
+      << "ghost_n=" << ghost_n_str << " ";
 }
 } // namespace graph
 
