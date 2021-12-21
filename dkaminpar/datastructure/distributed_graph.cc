@@ -45,20 +45,17 @@ void DistributedGraph::print() const {
 
 namespace graph {
 void print_verbose_stats(const DistributedGraph &graph) {
-  SET_STATISTICS_FROM_GLOBAL();
-  if constexpr (kStatistics) {
-    const auto local_n = mpi::allgather(graph.n(), graph.communicator());
-    const auto local_m = mpi::allgather(graph.m(), graph.communicator());
-    const auto ghost_n = mpi::allgather(graph.ghost_n(), graph.communicator());
-    const auto total_n = mpi::allgather(graph.total_n(), graph.communicator());
+  const auto local_n = mpi::allgather(graph.n(), graph.communicator());
+  const auto local_m = mpi::allgather(graph.m(), graph.communicator());
+  const auto ghost_n = mpi::allgather(graph.ghost_n(), graph.communicator());
+  const auto total_n = mpi::allgather(graph.total_n(), graph.communicator());
 
-    STATS << "global_n=" << graph.global_n() << " "
-          << "global_m=" << graph.global_m() << " "
-          << "local_n=[" << local_n << "] "
-          << "local_m=[" << local_m << "] "
-          << "ghost_n=[" << ghost_n << "] "
-          << "total_n=[" << total_n << "]";
-  }
+  LOG << "global_n=" << graph.global_n() << " "
+      << "global_m=" << graph.global_m() << " "
+      << "local_n=[" << local_n << "] "
+      << "local_m=[" << local_m << "] "
+      << "ghost_n=[" << ghost_n << "] "
+      << "total_n=[" << total_n << "]";
 }
 } // namespace graph
 

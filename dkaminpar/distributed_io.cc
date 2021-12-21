@@ -3,8 +3,7 @@
  *
  * @author: Daniel Seemaier
  * @date:   27.10.2021
- * @brief:  Load distributed grpah from a single METIS file, node or edge
- * balanced.
+ * @brief:  Load / store distributed graphs from METIS or KaHIP Binary formats.
  ******************************************************************************/
 #include "dkaminpar/distributed_io.h"
 
@@ -91,8 +90,6 @@ DistributedGraph read_node_balanced(const std::string &filename, MPI_Comm comm) 
 }
 
 DistributedGraph read_edge_balanced(const std::string &filename, MPI_Comm comm) {
-  ALWAYS_ASSERT(false) << "buggy";
-
   const auto comm_info = mpi::get_comm_info();
   const PEID size = comm_info.first;
   const PEID rank = comm_info.second;
