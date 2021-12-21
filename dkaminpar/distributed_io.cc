@@ -365,7 +365,7 @@ IDType compute_edge_balanced_from_node(std::ifstream &in, const IDType n, const 
 
   ASSERT(a.second <= target && target <= b.second);
   ASSERT(b.first < n);
-  return -1;
+  return b.first;
 }
 
 IDType compute_edge_balanced_to_node(std::ifstream &in, const IDType n, const IDType m, const int rank,
@@ -381,6 +381,7 @@ DistributedGraph read_edge_balanced(const std::string &filename, MPI_Comm comm) 
   const auto [size, rank] = mpi::get_comm_info(comm);
   const auto from = compute_edge_balanced_from_node(in, global_n, global_m, rank, size);
   const auto to = compute_edge_balanced_to_node(in, global_n, global_m, rank, size);
+  SLOG << V(from) << V(to) << V(global_n) << V(global_m);
 
   return read_distributed_graph(in, static_cast<GlobalNodeID>(from), static_cast<GlobalNodeID>(to), comm);
 }
