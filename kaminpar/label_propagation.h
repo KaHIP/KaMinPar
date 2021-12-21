@@ -105,6 +105,7 @@ protected:
       for (auto &rating_map : _rating_map_ets) {
         rating_map.change_max_size(num_nodes);
       }
+      _num_nodes = num_nodes;
     }
 
     if (_num_active_nodes < num_active_nodes) {
@@ -112,10 +113,8 @@ protected:
       if constexpr (Config::kUseTwoHopClustering) {
         _favored_clusters.resize(num_active_nodes);
       }
+      _num_active_nodes = num_active_nodes;
     }
-
-    _num_nodes = num_nodes;
-    _num_active_nodes = num_active_nodes;
   }
 
   /*!
