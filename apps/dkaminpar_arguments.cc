@@ -103,6 +103,7 @@ void create_miscellaneous_context_options(Context &ctx, kaminpar::Arguments &arg
       .argument("threads", "Maximum number of threads to be used.", &ctx.parallel.num_threads, 't')
       .argument("seed", "Seed for random number generator.", &ctx.seed, 's')
       .argument("quiet", "Do not produce any output to stdout.", &ctx.quiet, 'q')
+      .argument("edge-balanced", "Read input graph such that edges are distributed evenly across PEs.", &ctx.load_edge_balanced, 'E')
       ;
   // clang-format on
 }
@@ -130,7 +131,7 @@ void create_context_options(ApplicationContext &a_ctx, kaminpar::Arguments &args
 ApplicationContext parse_options(int argc, char *argv[]) {
 #ifdef KAMINPAR_GRAPHGEN
   ApplicationContext a_ctx{create_default_context(), {}};
-#else // KAMINPAR_GRAPHGEN
+#else  // KAMINPAR_GRAPHGEN
   ApplicationContext a_ctx{create_default_context()};
 #endif // KAMINPAR_GRAPHGEN
   kaminpar::Arguments arguments;

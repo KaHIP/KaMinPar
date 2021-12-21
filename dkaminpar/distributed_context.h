@@ -211,6 +211,7 @@ private:
 
 struct Context {
   std::string graph_filename{};
+  bool load_edge_balanced{};
   int seed{0};
   bool quiet{};
 

@@ -12,11 +12,16 @@
 #include "dkaminpar/mpi_wrapper.h"
 
 #include <fstream>
-#include <string>
 #include <mpi.h>
+#include <string>
 
 namespace dkaminpar::io {
-DistributedGraph read_node_balanced(const std::string &filename, MPI_Comm comm = MPI_COMM_WORLD);
+enum class DistributionType {
+  NODE_BALANCED,
+  EDGE_BALANCED,
+};
+
+DistributedGraph read_graph(const std::string &filename, DistributionType type, MPI_Comm comm = MPI_COMM_WORLD);
 
 namespace metis {
 DistributedGraph read_node_balanced(const std::string &filename, MPI_Comm comm = MPI_COMM_WORLD);

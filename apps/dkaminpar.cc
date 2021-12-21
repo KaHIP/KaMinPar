@@ -130,7 +130,9 @@ int main(int argc, char *argv[]) {
       return dist::graphgen::generate(app.generator);
     }
 #endif // KAMINPAR_GRAPHGEN
-    return dist::io::read_node_balanced(ctx.graph_filename);
+    const auto type =
+        ctx.load_edge_balanced ? dist::io::DistributionType::EDGE_BALANCED : dist::io::DistributionType::NODE_BALANCED;
+    return dist::io::read_graph(ctx.graph_filename, type);
   };
 
   // Print statistics

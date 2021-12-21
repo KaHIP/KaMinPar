@@ -20,20 +20,26 @@
 namespace dkaminpar::io {
 SET_DEBUG(false);
 
-DistributedGraph read_node_balanced(const std::string &filename, MPI_Comm const comm) {
+DistributedGraph read_graph(const std::string &filename, DistributionType type, MPI_Comm comm) {
   if (shm::utility::str::ends_with(filename, "bgf") || shm::utility::str::ends_with(filename, "bin")) {
-    DBG << "Expect binary graph format";
-    return binary::read_node_balanced(filename, comm);
+    if (type == DistributionType::NODE_BALANCED) {
+      return binary::read_node_balanced(filename, comm);
+    } else {
+      return binary::read_edge_balanced(filename, comm);
+    }
   }
 
-  DBG << "Expect Metis graph format";
-  return metis::read_node_balanced(filename, comm);
+  if (type == DistributionType::NODE_BALANCED) {
+    return metis::read_node_balanced(filename, comm);
+  } else {
+    return metis::read_edge_balanced(filename, comm);
+  }
 }
 
 namespace metis {
 namespace shm = kaminpar::io::metis;
 
-DistributedGraph read_node_balanced(const std::string &filename, MPI_Comm const comm) {
+DistributedGraph read_node_balanced(const std::string &filename, MPI_Comm comm) {
   const auto comm_info = mpi::get_comm_info();
   const PEID size = comm_info.first;
   const PEID rank = comm_info.second;
@@ -84,7 +90,9 @@ DistributedGraph read_node_balanced(const std::string &filename, MPI_Comm const 
   return builder.finalize();
 }
 
-DistributedGraph read_edge_balanced(const std::string &filename, MPI_Comm const comm) {
+DistributedGraph read_edge_balanced(const std::string &filename, MPI_Comm comm) {
+  ALWAYS_ASSERT(false) << "buggy";
+
   const auto comm_info = mpi::get_comm_info();
   const PEID size = comm_info.first;
   const PEID rank = comm_info.second;
@@ -216,10 +224,8 @@ void write(const std::string &filename, const DistributedGraph &graph, const boo
 namespace binary {
 using IDType = unsigned long long;
 
-DistributedGraph read_node_balanced(const std::string &filename, MPI_Comm const comm) {
-  std::ifstream in(filename);
-
-  // read header
+namespace {
+std::pair<IDType, IDType> read_header(std::ifstream &in) {
   IDType version, global_n, global_m;
   in.read(reinterpret_cast<char *>(&version), sizeof(IDType));
   ALWAYS_ASSERT(version == 3) << "invalid binary graph format!";
@@ -227,11 +233,12 @@ DistributedGraph read_node_balanced(const std::string &filename, MPI_Comm const 
   in.read(reinterpret_cast<char *>(&global_n), sizeof(IDType));
   in.read(reinterpret_cast<char *>(&global_m), sizeof(IDType));
 
-  const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
-  const auto local_range = math::compute_local_range<GlobalNodeID>(global_n, size, rank);
-  const auto &from = local_range.first;
-  const auto &to = local_range.second;
-  const NodeID n = static_cast<NodeID>(to - from);
+  return {global_n, global_m};
+}
+
+DistributedGraph read_distributed_graph(std::ifstream &in, const GlobalNodeID from, const GlobalNodeID to,
+                                        MPI_Comm comm) {
+  const auto n = static_cast<NodeID>(to - from);
 
   // read nodes
   scalable_vector<EdgeID> nodes(n + 1);
@@ -265,8 +272,8 @@ DistributedGraph read_node_balanced(const std::string &filename, MPI_Comm const 
   in.seekg(offset);
   in.read(reinterpret_cast<char *>(global_edges.data()), length);
 
-  auto node_distribution = mpi::build_distribution_from_local_count<GlobalNodeID, scalable_vector>(n, MPI_COMM_WORLD);
-  auto edge_distribution = mpi::build_distribution_from_local_count<GlobalEdgeID, scalable_vector>(m, MPI_COMM_WORLD);
+  auto node_distribution = mpi::build_distribution_from_local_count<GlobalNodeID, scalable_vector>(n, comm);
+  auto edge_distribution = mpi::build_distribution_from_local_count<GlobalEdgeID, scalable_vector>(m, comm);
 
   // map ghost nodes to local nodes
   graph::GhostNodeMapper mapper(node_distribution, comm);
@@ -294,7 +301,88 @@ DistributedGraph read_node_balanced(const std::string &filename, MPI_Comm const 
   return {std::move(node_distribution), std::move(edge_distribution), std::move(nodes),           std::move(edges),
           std::move(ghost_owner),       std::move(ghost_to_global),   std::move(global_to_ghost), comm};
 }
+} // namespace
 
-DistributedGraph read_edge_balanced(const std::string &, MPI_Comm const) { return {}; }
+DistributedGraph read_node_balanced(const std::string &filename, MPI_Comm comm) {
+  std::ifstream in(filename);
+
+  const auto [global_n, global_m] = read_header(in);
+
+  const auto [size, rank] = mpi::get_comm_info(comm);
+  const auto local_range = math::compute_local_range<GlobalNodeID>(global_n, size, rank);
+  const auto &from = local_range.first;
+  const auto &to = local_range.second;
+
+  return read_distributed_graph(in, static_cast<GlobalNodeID>(from), static_cast<GlobalNodeID>(to), comm);
+}
+
+namespace {
+IDType adj_list_offset_to_edge(const IDType n, const IDType offset) { return (offset / sizeof(IDType)) - 3 - (n + 1); }
+
+IDType read_first_edge(std::ifstream &in, const IDType n, const IDType u) {
+  ASSERT(u < n);
+
+  const IDType offset = (3 + u) * sizeof(IDType);
+  in.seekg(static_cast<std::streamsize>(offset));
+
+  IDType entry = 0;
+  in.read(reinterpret_cast<char *>(&entry), sizeof(IDType));
+  return adj_list_offset_to_edge(n, entry);
+}
+
+IDType read_first_invalid_edge(std::ifstream &in, const IDType n, const IDType u) {
+  return read_first_edge(in, n, u + 1);
+}
+
+IDType compute_edge_balanced_from_node(std::ifstream &in, const IDType n, const IDType m, const int rank,
+                                       const int size) {
+  if (rank == 0) {
+    return 0;
+  } else if (rank == size) {
+    return n;
+  }
+
+  const IDType chunk = m / size;
+  const IDType remainder = m % size;
+  const IDType target = rank * chunk + std::min<IDType>(rank, remainder);
+
+  std::pair<IDType, IDType> a{0, 0};
+  std::pair<IDType, IDType> b{n - 1, m - 1};
+
+  while (b.first - a.first > 1) {
+    std::pair<IDType, IDType> mid;
+    mid.first = (a.first + b.first) / 2;
+    mid.second = read_first_edge(in, n, mid.first);
+
+    if (mid.second < target) {
+      a = mid;
+    } else {
+      b = mid;
+    }
+
+    ASSERT(b.first >= a.first);
+  }
+
+  ASSERT(a.second <= target && target <= b.second);
+  ASSERT(b.first < n);
+  return -1;
+}
+
+IDType compute_edge_balanced_to_node(std::ifstream &in, const IDType n, const IDType m, const int rank,
+                                     const int size) {
+  return compute_edge_balanced_from_node(in, n, m, rank + 1, size);
+}
+} // namespace
+
+DistributedGraph read_edge_balanced(const std::string &filename, MPI_Comm comm) {
+  std::ifstream in(filename);
+
+  const auto [global_n, global_m] = read_header(in);
+  const auto [size, rank] = mpi::get_comm_info(comm);
+  const auto from = compute_edge_balanced_from_node(in, global_n, global_m, rank, size);
+  const auto to = compute_edge_balanced_to_node(in, global_n, global_m, rank, size);
+
+  return read_distributed_graph(in, static_cast<GlobalNodeID>(from), static_cast<GlobalNodeID>(to), comm);
+}
 } // namespace binary
 } // namespace dkaminpar::io
