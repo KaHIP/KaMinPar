@@ -13,16 +13,29 @@
 #include "kaminpar_export.h"
 
 namespace libkaminpar {
+#ifdef KAMINPAR_64BIT_NODE_IDS
+using NodeID = uint64_t;
+#else // KAMINPAR_64BIT_NODE_IDS
 using NodeID = uint32_t;
+#endif // KAMINPAR_64BIT_NODE_IDS
+
 #ifdef KAMINPAR_64BIT_EDGE_IDS
 using EdgeID = uint64_t;
 #else  // KAMINPAR_64BIT_EDGE_IDS
 using EdgeID = uint32_t;
 #endif // KAMINPAR_64BIT_EDGE_IDS
-using BlockID = uint32_t;
+
+#ifdef KAMINPAR_64BIT_WEIGHTS
+using NodeWeight = int64_t;
+using EdgeWeight = int64_t;
+#else // KAMINPAR_64BIT_WEIGHTS
 using NodeWeight = int32_t;
 using EdgeWeight = int32_t;
+#endif // KAMINPAR_64BIT_WEIGHTS
+
+using BlockID = uint32_t;
 using BlockWeight = NodeWeight;
+using Degree = EdgeID;
 
 class KAMINPAR_EXPORT Partitioner {
   friend class PartitionerBuilder;
