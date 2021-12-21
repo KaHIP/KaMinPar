@@ -188,7 +188,10 @@ DistributedGraph read_edge_balanced(const std::string &filename, MPI_Comm comm) 
 
 void write(const std::string &filename, const DistributedGraph &graph, const bool write_node_weights,
            const bool write_edge_weights) {
-  { std::ofstream tmp(filename); } // clear file
+  if (mpi::get_comm_rank() == 0) { // clear file
+    std::ofstream tmp(filename);
+  }
+  mpi::barrier();
 
   mpi::sequentially([&](const PEID pe) {
     std::ofstream out(filename, std::ios_base::out | std::ios_base::app);

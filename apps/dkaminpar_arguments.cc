@@ -27,6 +27,7 @@ void create_graphgen_options(graphgen::GeneratorContext &g_ctx, kaminpar::Argume
       .argument(prefix + "-p", "P?", &g_ctx.p)
       .argument(prefix + "-r", "Radius (depending on model).", &g_ctx.r)
       .argument(prefix + "-gamma", "Power law exponent (depending on model)", &g_ctx.gamma)
+      .argument(prefix + "-save-graph", "Write the generated graph to the hard disk.", &g_ctx.save_graph)
       ;
   // clang-format on
 }

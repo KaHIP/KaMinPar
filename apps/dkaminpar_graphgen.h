@@ -18,6 +18,7 @@ enum class GeneratorType {
   RGG2D,
   RDG2D,
   RHG,
+  BA,
   KRONECKER,
 };
 
@@ -32,6 +33,7 @@ struct GeneratorContext {
   double p{0};
   double r{0};
   double gamma{0};
+  bool save_graph{false};
 };
 
 DistributedGraph generate(GeneratorContext ctx);

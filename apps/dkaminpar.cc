@@ -127,7 +127,11 @@ int main(int argc, char *argv[]) {
   auto graph = TIMED_SCOPE("IO") {
 #ifdef KAMINPAR_GRAPHGEN
     if (app.generator.type != dist::graphgen::GeneratorType::NONE) {
-      return dist::graphgen::generate(app.generator);
+      auto graph = dist::graphgen::generate(app.generator);
+      if (app.generator.save_graph) {
+        dist::io::metis::write("generated.graph", graph, false, false);
+      }
+      return graph;
     }
 #endif // KAMINPAR_GRAPHGEN
     const auto type =
