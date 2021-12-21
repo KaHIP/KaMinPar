@@ -106,9 +106,10 @@ public:
     ASSERT(local_cluster < _graph->total_n());
     const auto cluster = _graph->local_to_global_node(static_cast<NodeID>(local_cluster));
 
+    // this might be an update rather than insert if we use this instance to coarsen multiple graphs
     auto &handle = _cluster_weights_handles_ets.local();
-    [[maybe_unused]] const auto [it, success] = handle.insert(cluster + 1, weight);
-    ASSERT(success);
+    handle.insert_or_update(
+        cluster + 1, weight, [](auto &lhs, const auto rhs) { return lhs = rhs; }, weight);
   }
 
   NodeWeight cluster_weight(const GlobalNodeID cluster) {
