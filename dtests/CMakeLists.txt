@@ -26,4 +26,4 @@ add_kaminpar_dtest(rearrange_graph_test 3 graphutils/rearrange_graph_test.cc)
 
 add_kaminpar_dtest(mpi_graph_test 3 mpi_graph_test.cc)
 
-add_kaminpar_test(distributed_math_test utility/distributed_math_test.cc)
+add_kaminpar_dtest(distributed_math_test 1 utility/distributed_math_test.cc)

@@ -7,6 +7,8 @@
  ******************************************************************************/
 #pragma once
 
+#include "kaminpar/definitions.h"
+
 #include <concepts>
 #include <utility>
 
@@ -48,10 +50,27 @@ template <std::integral Int> std::size_t compute_local_range_rank(const Int n, c
   return (element < rem || r0 < rem) ? element / (c + 1) : r0;
 }
 
-template <std::integral Int>
-std::size_t find_in_distribution(const Int value, const auto &distribution) {
+template <std::integral Int> std::size_t find_in_distribution(const Int value, const auto &distribution) {
   ASSERT(value < distribution.back()) << V(value) << V(distribution);
   auto it = std::upper_bound(distribution.begin() + 1, distribution.end(), value);
   return std::distance(distribution.begin(), it) - 1;
+}
+
+/**
+ * Given a total of n elements [0..n-1] across s PEs, compute a permutation such that elements are ordered
+ * 0, s, 2s, ..., ss, 1, s+1, 2s+1, ..., ss+1, ...
+ *
+ * @tparam Int
+ * @param n
+ * @param size
+ * @param element
+ * @return
+ */
+template <std::integral Int> Int distribute_round_robin(const Int n, const Int size, const Int element) {
+  const auto divisor = n / size;
+  const auto local = element - compute_local_range(n, size, compute_local_range_rank(n, size, element)).first;
+  const auto owner = compute_local_range_rank(n, size, element);
+  const auto ans = compute_local_range(n, size, local % size).first + (local / size) * size + owner;
+  return ans;
 }
 } // namespace dkaminpar::math

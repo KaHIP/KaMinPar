@@ -147,4 +147,61 @@ TEST(DistributedMathTest, Reg_7_3_Works) {
   EXPECT_THAT(math::compute_local_range_rank<std::uint64_t>(7, 3, 5), Eq(2));
   EXPECT_THAT(math::compute_local_range_rank<std::uint64_t>(7, 3, 6), Eq(2));
 }
+
+TEST(DistributedMathTest, TestRoundRobinPermutation_1PerPEPerPE) {
+  EXPECT_EQ(math::distribute_round_robin<std::uint64_t>(16, 4, 0), 0);
+  EXPECT_EQ(math::distribute_round_robin<std::uint64_t>(16, 4, 1), 4);
+  EXPECT_EQ(math::distribute_round_robin<std::uint64_t>(16, 4, 2), 8);
+  EXPECT_EQ(math::distribute_round_robin<std::uint64_t>(16, 4, 3), 12);
+  EXPECT_EQ(math::distribute_round_robin<std::uint64_t>(16, 4, 4), 1);
+  EXPECT_EQ(math::distribute_round_robin<std::uint64_t>(16, 4, 5), 5);
+  EXPECT_EQ(math::distribute_round_robin<std::uint64_t>(16, 4, 6), 9);
+  EXPECT_EQ(math::distribute_round_robin<std::uint64_t>(16, 4, 7), 13);
+  EXPECT_EQ(math::distribute_round_robin<std::uint64_t>(16, 4, 8), 2);
+  EXPECT_EQ(math::distribute_round_robin<std::uint64_t>(16, 4, 9), 6);
+  EXPECT_EQ(math::distribute_round_robin<std::uint64_t>(16, 4, 10), 10);
+  EXPECT_EQ(math::distribute_round_robin<std::uint64_t>(16, 4, 11), 14);
+  EXPECT_EQ(math::distribute_round_robin<std::uint64_t>(16, 4, 12), 3);
+  EXPECT_EQ(math::distribute_round_robin<std::uint64_t>(16, 4, 13), 7);
+  EXPECT_EQ(math::distribute_round_robin<std::uint64_t>(16, 4, 14), 11);
+  EXPECT_EQ(math::distribute_round_robin<std::uint64_t>(16, 4, 15), 15);
+}
+
+TEST(DistributedMathTest, TestRoundRobinPermutation_8PerPEPerPE) {
+  EXPECT_EQ(math::distribute_round_robin<std::uint64_t>(16, 2, 0), 0);
+  EXPECT_EQ(math::distribute_round_robin<std::uint64_t>(16, 2, 1), 8);
+  EXPECT_EQ(math::distribute_round_robin<std::uint64_t>(16, 2, 2), 2);
+  EXPECT_EQ(math::distribute_round_robin<std::uint64_t>(16, 2, 3), 10);
+  EXPECT_EQ(math::distribute_round_robin<std::uint64_t>(16, 2, 4), 4);
+  EXPECT_EQ(math::distribute_round_robin<std::uint64_t>(16, 2, 5), 12);
+  EXPECT_EQ(math::distribute_round_robin<std::uint64_t>(16, 2, 6), 6);
+  EXPECT_EQ(math::distribute_round_robin<std::uint64_t>(16, 2, 7), 14);
+  EXPECT_EQ(math::distribute_round_robin<std::uint64_t>(16, 2, 8), 1);
+  EXPECT_EQ(math::distribute_round_robin<std::uint64_t>(16, 2, 9), 9);
+  EXPECT_EQ(math::distribute_round_robin<std::uint64_t>(16, 2, 10), 3);
+  EXPECT_EQ(math::distribute_round_robin<std::uint64_t>(16, 2, 11), 11);
+  EXPECT_EQ(math::distribute_round_robin<std::uint64_t>(16, 2, 12), 5);
+  EXPECT_EQ(math::distribute_round_robin<std::uint64_t>(16, 2, 13), 13);
+  EXPECT_EQ(math::distribute_round_robin<std::uint64_t>(16, 2, 14), 7);
+  EXPECT_EQ(math::distribute_round_robin<std::uint64_t>(16, 2, 15), 15);
+}
+
+TEST(DistributedMathTest, TestRoundRobinPermutation_UnevenElementsPerPEPerPE) {
+  EXPECT_EQ(math::distribute_round_robin<std::uint64_t>(16, 3, 0), 0); // 0
+  EXPECT_EQ(math::distribute_round_robin<std::uint64_t>(16, 3, 1), 6); // 6
+  EXPECT_EQ(math::distribute_round_robin<std::uint64_t>(16, 3, 2), 12); // 11
+  EXPECT_EQ(math::distribute_round_robin<std::uint64_t>(16, 3, 3), 3); // 3
+  EXPECT_EQ(math::distribute_round_robin<std::uint64_t>(16, 3, 4), 9); // 9
+  EXPECT_EQ(math::distribute_round_robin<std::uint64_t>(16, 3, 5), 15); // 14
+  EXPECT_EQ(math::distribute_round_robin<std::uint64_t>(16, 3, 6), 1); // 1
+  EXPECT_EQ(math::distribute_round_robin<std::uint64_t>(16, 3, 7), 7); // 7
+  EXPECT_EQ(math::distribute_round_robin<std::uint64_t>(16, 3, 8), 13); // 12
+  EXPECT_EQ(math::distribute_round_robin<std::uint64_t>(16, 3, 9), 4); // 4
+  EXPECT_EQ(math::distribute_round_robin<std::uint64_t>(16, 3, 10), 10); // 10
+  EXPECT_EQ(math::distribute_round_robin<std::uint64_t>(16, 3, 11), 2); // 2
+  EXPECT_EQ(math::distribute_round_robin<std::uint64_t>(16, 3, 12), 8); // 8
+  EXPECT_EQ(math::distribute_round_robin<std::uint64_t>(16, 3, 13), 14); // 13
+  EXPECT_EQ(math::distribute_round_robin<std::uint64_t>(16, 3, 14), 5); // 5
+  EXPECT_EQ(math::distribute_round_robin<std::uint64_t>(16, 3, 15), 11); // 11
+}
 } // namespace dkaminpar::test
