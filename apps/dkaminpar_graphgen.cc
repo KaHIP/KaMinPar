@@ -221,30 +221,33 @@ return build_graph(edges, build_node_distribution(range));
 
 DistributedGraph create_ba(const GlobalNodeID n, const NodeID d, const BlockID k, const int seed,
                            const bool redistribute_edges) {
-  auto [edges, range] = TIMED_SCOPE("KaGen") {
+  auto result = TIMED_SCOPE("KaGen") {
     const auto [size, rank] = mpi::get_comm_info();
     return KaGen{rank, size}.GenerateBA(n, d, k, seed);
   };
+  auto &edges = result.edges;
+  auto &range = result.vertex_range;
   auto node_distribution = build_node_distribution(range);
 
   if (redistribute_edges) {
-    const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
-    const auto from = node_distribution[rank];
+    const auto size = mpi::get_comm_size(MPI_COMM_WORLD);
     const auto global_n = node_distribution.back();
+    const auto divisor = global_n / size;
 
-    const GlobalNodeID divisor = global_n / size;
-    for (auto &[u, v] : edges) {
-      const auto local_u = u - (u / divisor) * divisor;
-      const auto local_v = v - (v / divisor) * divisor;
+    tbb::parallel_for<std::size_t>(0, edges.size(), [&](const std::size_t i) {
+        auto &[u, v] = edges[i];
+        [[maybe_unused]] const auto old_u = u;
+        [[maybe_unused]] const auto old_v = v;
 
-      [[maybe_unused]] const auto old_u = u;
-      [[maybe_unused]] const auto old_v = v;
+        const auto local_u = u - (u / divisor) * divisor;
+        const auto local_v = v - (v / divisor) * divisor;
 
-      u = (local_u % size) * (global_n / size) + (local_u / size) * size + (u / divisor);
-      v = (local_v % size) * (global_n / size) + (local_v / size) * size + (v / divisor);
-      ASSERT(u < global_n) << V(old_u) << V(u) << V(global_n) << V(size) << V(rank) << V(local_u);
-      ASSERT(v < global_n) << V(old_v) << V(v) << V(global_n) << V(size) << V(rank) << V(local_v);
-    }
+        u = (local_u % size) * (global_n / size) + (local_u / size) * size + (u / divisor);
+        v = (local_v % size) * (global_n / size) + (local_v / size) * size + (v / divisor);
+
+        ASSERT(u < global_n) << V(old_u) << V(u) << V(global_n) << V(size) << V(local_u);
+        ASSERT(v < global_n) << V(old_v) << V(v) << V(global_n) << V(size) << V(local_v);
+    });
   }
   return build_graph_directed(edges, std::move(node_distribution));
 }
