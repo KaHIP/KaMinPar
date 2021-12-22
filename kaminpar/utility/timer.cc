@@ -8,6 +8,7 @@
 #include "kaminpar/utility/timer.h"
 
 #include <sstream>
+#include <iomanip>
 
 using namespace std::literals;
 
@@ -21,7 +22,7 @@ namespace {
 
 [[nodiscard]] std::size_t get_printed_length(const auto value) {
   std::stringstream ss;
-  ss << value;
+  ss << std::setprecision(3) << value;
   return ss.str().size();
 }
 } // namespace
@@ -122,7 +123,7 @@ void Timer::print_padded_timing(std::ostream &out, const std::size_t start_col, 
   const std::size_t time_padding_len = _hr_time_col - start_col - kNameDel.size();
   std::string time_padding = time_padding_len > 0 ? std::string(time_padding_len - 1, kPadding) + ' ' : "";
   const double time = node->seconds();
-  out << kNameDel << time_padding << time << kSecondsUnit;
+  out << kNameDel << time_padding << std::setprecision(3) << time << kSecondsUnit;
 
   const std::size_t time_len = get_printed_length(time);
   const std::size_t restarts_padding_length = _hr_max_time_len - time_len + kSpaceBetweenTimeAndRestarts;
