@@ -30,15 +30,16 @@ DEFINE_ENUM_STRING_CONVERSION(GeneratorType, generator_type) = {
 using namespace kagen::interface;
 
 namespace {
-SET_DEBUG(true);
+SET_DEBUG(false);
 
 DistributedGraph build_graph_directed(const auto &edge_list, scalable_vector<GlobalNodeID> node_distribution) {
+  const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
+
   auto find_node_owner = [&](const GlobalNodeID node) {
     const auto it = std::upper_bound(node_distribution.begin() + 1, node_distribution.end(), node);
     return static_cast<PEID>(std::distance(node_distribution.begin(), it) - 1);
   };
 
-  const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
   const auto from = node_distribution[rank];
   const auto to = node_distribution[rank + 1];
 
@@ -46,18 +47,27 @@ DistributedGraph build_graph_directed(const auto &edge_list, scalable_vector<Glo
   scalable_vector<coarsening::helper::LocalToGlobalEdge> my_edges;
   std::vector<std::vector<coarsening::helper::LocalToGlobalEdge>> other_edges(size);
   for (const auto &[u, v] : edge_list) {
+    ASSERT(u < node_distribution.back()) << V(u) << V(node_distribution.back());
+    ASSERT(v < node_distribution.back()) << V(v) << V(node_distribution.back());
+
+    // ignore self-loops
     if (u == v) {
       continue;
-    } // ignore self-loops
+    }
 
-    ASSERT(from <= u && u < to);
-    my_edges.push_back({static_cast<NodeID>(u - from), 1, v});
-
+    if (from <= u && u < to) {
+      my_edges.push_back({static_cast<NodeID>(u - from), 1, v});
+    } else {
+      const PEID u_owner = find_node_owner(u);
+      ASSERT(0 <= u_owner && u_owner != rank && u_owner < size);
+      other_edges[u_owner].push_back({static_cast<NodeID>(u - node_distribution[u_owner]), 1, v});
+    }
     if (from <= v && v < to) {
       my_edges.push_back({static_cast<NodeID>(v - from), 1, u});
     } else {
-      const PEID owner = find_node_owner(v);
-      other_edges[owner].push_back({static_cast<NodeID>(v - node_distribution[owner]), 1, u});
+      const PEID v_owner = find_node_owner(v);
+      ASSERT(0 <= v_owner && v_owner != rank && v_owner < size);
+      other_edges[v_owner].push_back({static_cast<NodeID>(v - node_distribution[v_owner]), 1, u});
     }
   }
 
@@ -209,12 +219,34 @@ return build_graph(edges, build_node_distribution(range));
 }
 */
 
-DistributedGraph create_ba(const GlobalNodeID n, const NodeID d, const BlockID k, const int seed) {
-  const auto [edges, range] = TIMED_SCOPE("KaGen") {
+DistributedGraph create_ba(const GlobalNodeID n, const NodeID d, const BlockID k, const int seed,
+                           const bool redistribute_edges) {
+  auto [edges, range] = TIMED_SCOPE("KaGen") {
     const auto [size, rank] = mpi::get_comm_info();
     return KaGen{rank, size}.GenerateBA(n, d, k, seed);
   };
-  return build_graph_directed(edges, build_node_distribution(range));
+  auto node_distribution = build_node_distribution(range);
+
+  if (redistribute_edges) {
+    const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
+    const auto from = node_distribution[rank];
+    const auto global_n = node_distribution.back();
+
+    const GlobalNodeID divisor = global_n / size;
+    for (auto &[u, v] : edges) {
+      const auto local_u = u - (u / divisor) * divisor;
+      const auto local_v = v - (v / divisor) * divisor;
+
+      [[maybe_unused]] const auto old_u = u;
+      [[maybe_unused]] const auto old_v = v;
+
+      u = (local_u % size) * (global_n / size) + (local_u / size) * size + (u / divisor);
+      v = (local_v % size) * (global_n / size) + (local_v / size) * size + (v / divisor);
+      ASSERT(u < global_n) << V(old_u) << V(u) << V(global_n) << V(size) << V(rank) << V(local_u);
+      ASSERT(v < global_n) << V(old_v) << V(v) << V(global_n) << V(size) << V(rank) << V(local_v);
+    }
+  }
+  return build_graph_directed(edges, std::move(node_distribution));
 }
 
 DistributedGraph generate(const GeneratorContext ctx) {
@@ -288,8 +320,9 @@ DistributedGraph generate(const GeneratorContext ctx) {
       n <<= ctx.n;
     }
 
-    LOG << "Generate BA graph with n=" << n << ", d=" << ctx.d << ", k=" << ctx.k << ", seed=" << seed;
-    return create_ba(n, ctx.d, ctx.k, seed);
+    LOG << "Generate BA graph with n=" << n << ", d=" << ctx.d << ", k=" << ctx.k << ", seed=" << seed
+        << ", redistribute edges: " << ctx.redistribute_edges;
+    return create_ba(n, ctx.d, ctx.k, seed, ctx.redistribute_edges);
   }
 
     /*

@@ -67,7 +67,7 @@ int main(int argc, char *argv[]) {
       return dist::graphgen::generate(app.generator);
     }
 #endif // KAMINPAR_GRAPHGEN
-    return dist::io::read_node_balanced(ctx.graph_filename);
+    return dist::io::read_graph(ctx.graph_filename, dist::io::DistributionType::NODE_BALANCED);
   };
 
   if (ctx.seed == 42) {
