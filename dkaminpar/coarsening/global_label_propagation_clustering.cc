@@ -64,9 +64,16 @@ public:
 
     TIMED_SCOPE("Allocation") { allocate(graph); };
 
-    initialize(&graph, graph.total_n());
-    initialize_ghost_node_clusters();
-    _max_cluster_weight = max_cluster_weight;
+    TIMED_SCOPE("Initialization") {
+      // clear hash map
+      _cluster_weights_handles_ets.clear();
+      _cluster_weights = ClusterWeightsMap{0};
+
+      // initialize data structures
+      initialize(&graph, graph.total_n());
+      initialize_ghost_node_clusters();
+      _max_cluster_weight = max_cluster_weight;
+    };
 
     for (std::size_t iteration = 0; iteration < _max_num_iterations; ++iteration) {
       GlobalNodeID global_num_moved_nodes = 0;
@@ -106,10 +113,9 @@ public:
     ASSERT(local_cluster < _graph->total_n());
     const auto cluster = _graph->local_to_global_node(static_cast<NodeID>(local_cluster));
 
-    // this might be an update rather than insert if we use this instance to coarsen multiple graphs
     auto &handle = _cluster_weights_handles_ets.local();
-    handle.insert_or_update(
-        cluster + 1, weight, [](auto &lhs, const auto rhs) { return lhs = rhs; }, weight);
+    [[maybe_unused]] const auto [it, success] = handle.insert(cluster + 1, weight);
+    ASSERT(success);
   }
 
   NodeWeight cluster_weight(const GlobalNodeID cluster) {
