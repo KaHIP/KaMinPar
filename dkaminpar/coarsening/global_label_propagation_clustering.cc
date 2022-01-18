@@ -105,45 +105,46 @@ public:
 
   /*
    * Cluster weights
-   *
-   * Note: offset cluster IDs by 1 since growt cannot use 0 as key
+   * Note: offset cluster IDs by 1 since growt cannot use 0 as key.
    */
 
-  void init_cluster_weight(const GlobalNodeID local_cluster, const NodeWeight weight) {
+  void init_cluster_weight(const ClusterID local_cluster, const ClusterWeight weight) {
     ASSERT(local_cluster < _graph->total_n());
     const auto cluster = _graph->local_to_global_node(static_cast<NodeID>(local_cluster));
 
     auto &handle = _cluster_weights_handles_ets.local();
     [[maybe_unused]] const auto [it, success] = handle.insert(cluster + 1, weight);
-    ASSERT(success);
+    ASSERT(success) << "Cluster already initialized: " << cluster + 1;
   }
 
-  NodeWeight cluster_weight(const GlobalNodeID cluster) {
+  ClusterWeight cluster_weight(const ClusterID cluster) {
     auto &handle = _cluster_weights_handles_ets.local();
     auto it = handle.find(cluster + 1);
     ASSERT(it != handle.end()) << "Uninitialized cluster: " << cluster + 1;
-
     return (*it).second;
   }
 
-  bool move_cluster_weight(const GlobalNodeID old_cluster, const GlobalNodeID new_cluster, const NodeWeight delta,
-                           const NodeWeight max_weight) {
-    if (cluster_weight(new_cluster) + delta <= max_weight) {
-      auto &handle = _cluster_weights_handles_ets.local();
-      [[maybe_unused]] const auto [old_it, old_found] = handle.update(
-          old_cluster + 1, [](auto &lhs, const auto rhs) { return lhs -= rhs; }, delta);
-      ASSERT(old_it != handle.end() && old_found) << "Uninitialized cluster: " << old_cluster + 1;
-
-      [[maybe_unused]] const auto [new_it, new_found] = handle.update(
-          new_cluster + 1, [](auto &lhs, const auto rhs) { return lhs += rhs; }, delta);
-      ASSERT(new_it != handle.end() && new_found) << "Uninitialized cluster: " << new_cluster + 1;
-
-      return true;
+  bool move_cluster_weight(const ClusterID old_cluster, const ClusterID new_cluster, const ClusterWeight delta,
+                           const ClusterWeight max_weight) {
+    // reject move if it violates local weight constraint
+    if (cluster_weight(new_cluster) + delta > max_weight) {
+      return false;
     }
-    return false;
+
+    // otherwise, move node to new cluster
+    auto &handle = _cluster_weights_handles_ets.local();
+    [[maybe_unused]] const auto [old_it, old_found] = handle.update(
+        old_cluster + 1, [](auto &lhs, const auto rhs) { return lhs -= rhs; }, delta);
+    ASSERT(old_it != handle.end() && old_found) << "Uninitialized cluster: " << old_cluster + 1;
+
+    [[maybe_unused]] const auto [new_it, new_found] = handle.update(
+        new_cluster + 1, [](auto &lhs, const auto rhs) { return lhs += rhs; }, delta);
+    ASSERT(new_it != handle.end() && new_found) << "Uninitialized cluster: " << new_cluster + 1;
+
+    return true;
   }
 
-  void change_cluster_weight(const GlobalNodeID cluster, const NodeWeight delta,
+  void change_cluster_weight(const ClusterID cluster, const ClusterWeight delta,
                              [[maybe_unused]] const bool must_exist) {
     auto &handle = _cluster_weights_handles_ets.local();
     [[maybe_unused]] const auto [it, not_found] = handle.insert_or_update(
@@ -156,21 +157,19 @@ public:
     return _graph->node_weight(static_cast<NodeID>(u));
   }
 
-  [[nodiscard]] NodeWeight max_cluster_weight(const GlobalNodeID /* cluster */) { return _max_cluster_weight; }
-
-  [[nodiscard]] NodeWeight initial_cluster_weight(const NodeID u) { return _graph->node_weight(u); }
+  [[nodiscard]] ClusterWeight max_cluster_weight(const GlobalNodeID /* cluster */) { return _max_cluster_weight; }
 
   /*
    * Clusters
    */
 
-  void move_node(const NodeID node, const GlobalNodeID cluster) {
+  void move_node(const NodeID node, const ClusterID cluster) {
     ASSERT(node < _changed_label.size());
     OwnedClusterVector::move_node(node, cluster);
     _changed_label[node] = 1;
   }
 
-  [[nodiscard]] GlobalNodeID initial_cluster(const NodeID u) { return _graph->local_to_global_node(u); }
+  [[nodiscard]] ClusterID initial_cluster(const NodeID u) { return _graph->local_to_global_node(u); }
 
   /*
    * Moving nodes
@@ -233,7 +232,7 @@ private:
 
     struct ChangedLabelMessage {
       NodeID local_node;
-      GlobalNodeID new_label;
+      ClusterID new_label;
     };
 
     mpi::graph::sparse_alltoall_interface_to_pe<ChangedLabelMessage>(
@@ -272,13 +271,13 @@ private:
     tbb::enumerable_thread_specific<GlobalNodeID> isolated_node_ets(kInvalidNodeID);
     tbb::parallel_for(tbb::blocked_range<NodeID>(from, to), [&](tbb::blocked_range<NodeID> r) {
       NodeID current = isolated_node_ets.local();
-      GlobalNodeID current_cluster = current == kInvalidNodeID ? kInvalidGlobalNodeID : cluster(current);
-      NodeWeight current_weight = current == kInvalidNodeID ? kInvalidNodeWeight : cluster_weight(current_cluster);
+      ClusterID current_cluster = current == kInvalidNodeID ? kInvalidGlobalNodeID : cluster(current);
+      ClusterWeight current_weight = current == kInvalidNodeID ? kInvalidNodeWeight : cluster_weight(current_cluster);
 
       for (NodeID u = r.begin(); u != r.end(); ++u) {
         if (_graph->degree(u) == 0) {
-          const GlobalNodeID u_cluster = cluster(u);
-          const NodeWeight u_weight = cluster_weight(u_cluster);
+          const auto u_cluster = cluster(u);
+          const auto u_weight = cluster_weight(u_cluster);
 
           if (current != kInvalidNodeID && current_weight + u_weight <= max_cluster_weight(u_cluster)) {
             change_cluster_weight(current_cluster, u_weight, true);
