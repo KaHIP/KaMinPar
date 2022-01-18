@@ -9,8 +9,8 @@
 #pragma once
 
 #include "dkaminpar/datastructure/distributed_graph.h"
-#include "dkaminpar/distributed_context.h"
-#include "dkaminpar/distributed_definitions.h"
+#include "dkaminpar/context.h"
+#include "dkaminpar/definitions.h"
 
 namespace dkaminpar::coarsening {
 using GlobalMapping = scalable_vector<Atomic<GlobalNodeID>>;

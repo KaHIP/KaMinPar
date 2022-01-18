@@ -21,10 +21,6 @@
 #include <utility>
 #include <vector>
 
-#ifdef KAMINPAR_BUILD_TESTS
-#include "gtest/gtest.h"
-#endif // KAMINPAR_BUILD_TESTS
-
 namespace kaminpar {
 using BlockArray = StaticArray<parallel::IntegralAtomicWrapper<BlockID>>;
 using BlockWeightArray = StaticArray<parallel::IntegralAtomicWrapper<BlockWeight>>;
@@ -168,38 +164,21 @@ public:
   [[nodiscard]] inline bool sorted() const { return _sorted; }
   // clang-format on
 
-#ifdef KAMINPAR_ENABLE_DEBUG_FEATURES
-  [[nodiscard]] inline const std::string &name() const { return _name; }
-  inline void set_name(const std::string &name) { _name = name; }
-#endif // KAMINPAR_ENABLE_DEBUG_FEATURES
-
-  void print() const;
-  void print_weighted() const;
-
   void update_total_node_weight();
 
 private:
-#ifdef KAMINPAR_BUILD_TESTS
-  FRIEND_TEST(AWeightedGridGraph, ContractingToSingletonClustersWorks);
-  FRIEND_TEST(AWeightedGridGraph, ContractingGridHorizontallyWorks);
-  FRIEND_TEST(AWeightedGridGraph, ContractingGridVerticallyWorks);
-#endif // KAMINPAR_BUILD_TESTS
-
   void init_degree_buckets();
 
   StaticArray<EdgeID> _nodes;
   StaticArray<NodeID> _edges;
   StaticArray<NodeWeight> _node_weights;
   StaticArray<EdgeWeight> _edge_weights;
-  NodeWeight _total_node_weight;
-  EdgeWeight _total_edge_weight;
-  NodeWeight _max_node_weight{1};
+  NodeWeight _total_node_weight = kInvalidNodeWeight;
+  EdgeWeight _total_edge_weight = kInvalidEdgeWeight;
+  NodeWeight _max_node_weight = kInvalidNodeWeight;
   bool _sorted;
-  std::vector<NodeID> _buckets{std::vector<NodeID>(kNumberOfDegreeBuckets + 1)};
-  std::size_t _number_of_buckets{0};
-#ifdef KAMINPAR_ENABLE_DEBUG_FEATURES
-  std::string _name{};
-#endif // KAMINPAR_ENABLE_DEBUG_FEATURES
+  std::vector<NodeID> _buckets = std::vector<NodeID>(kNumberOfDegreeBuckets + 1);
+  std::size_t _number_of_buckets = 0;
 };
 
 bool validate_graph(const Graph &graph);

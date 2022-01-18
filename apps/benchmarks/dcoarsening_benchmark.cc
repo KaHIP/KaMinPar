@@ -7,14 +7,14 @@
  ******************************************************************************/
 // This must come first since it redefines output macros (LOG DBG etc)
 // clang-format off
-#include "dkaminpar/distributed_definitions.h"
+#include "dkaminpar/definitions.h"
 // clang-format on
 
 #include "apps/apps.h"
 #include "apps/dkaminpar_arguments.h"
 #include "dkaminpar/coarsening/global_clustering_contraction.h"
 #include "dkaminpar/coarsening/locking_label_propagation_clustering.h"
-#include "dkaminpar/distributed_context.h"
+#include "dkaminpar/context.h"
 #include "dkaminpar/distributed_io.h"
 #include "kaminpar/definitions.h"
 #include "kaminpar/utility/logger.h"

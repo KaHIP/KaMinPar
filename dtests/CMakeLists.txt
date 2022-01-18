@@ -1,29 +1,35 @@
+    list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
+include(KaTestrophe)
+include(dKaMinParTestHelper)
+include(GoogleTest)
+
 file(COPY test_instances DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 
-function(add_kaminpar_dtest target nproc)
-    if (TARGET dkaminpar_impl)
-        add_gmock_mpi_test(${target} ${nproc} mpi_gtest_main.cc ${ARGN})
-        target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-        target_link_libraries(${target} PRIVATE kaminpar_impl dkaminpar_impl)
+# Coarsening
+dkaminpar_register_mpi_test(dtest_global_label_propagation_clustering
+        FILES coarsening/test_global_label_propagation_clustering.cc
+        CORES 3)
+dkaminpar_register_mpi_test(dtest_local_contraction
+        FILES coarsening/test_local_contraction.cc
+        CORES 3)
+dkaminpar_register_mpi_test(dtest_global_clustering_contraction
+        FILES coarsening/test_global_clustering_contraction.cc
+        CORES 3)
+dkaminpar_register_mpi_test(dtest_global_clustering_projection
+        FILES coarsening/test_global_clustering_projection.cc
+        CORES 3)
 
-        if (KAMINPAR_BACKWARD_CPP)
-            message(STATUS "Add test ${target} with backward")
-            add_backward(${target})
-        endif ()
-    else ()
-        message(STATUS "Cannot add distributed test: distributed library is not available, presumably because MPI"
-                " could not be found.")
-    endif ()
-endfunction()
+# Graph utils
+dkaminpar_register_mpi_test(dtest_rearrange_graph
+        FILES graphutils/test_rearrange_graph.cc
+        CORES 3)
 
-add_kaminpar_dtest(locking_label_propagation_clustering_test 3 coarsening/locking_label_propagation_clustering_test.cc)
-add_kaminpar_dtest(global_label_propagation_clustering_test 3 coarsening/global_label_propagation_clustering_test.cc)
-add_kaminpar_dtest(local_contraction_test 3 coarsening/local_contraction_test.cc)
-add_kaminpar_dtest(global_clustering_contraction_test 3 coarsening/global_clustering_contraction_test.cc)
-add_kaminpar_dtest(global_clustering_projection_test 3 coarsening/global_clustering_projection_test.cc)
+# MPI wrapper
+dkaminpar_register_mpi_test(dtest_mpi_graph
+        FILES test_mpi_graph.cc
+        CORES 3)
 
-add_kaminpar_dtest(rearrange_graph_test 3 graphutils/rearrange_graph_test.cc)
+# Utility functions
+dkaminpar_register_test(dtest_math
+        FILES utility/test_math.cc)
 
-add_kaminpar_dtest(mpi_graph_test 3 mpi_graph_test.cc)
-
-add_kaminpar_dtest(distributed_math_test 1 utility/distributed_math_test.cc)

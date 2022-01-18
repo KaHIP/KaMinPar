@@ -14,7 +14,7 @@ function(add_kaminpar_test target)
 endfunction()
 
 # Partitioning components
-add_kaminpar_test(initial_coarsener_test initial_partitioning/initial_coarsener_test.cc)
+#add_kaminpar_test(initial_coarsener_test initial_partitioning/initial_coarsener_test.cc)
 
 # Datastructures
 add_kaminpar_test(static_array_test datastructure/static_array_test.cc)

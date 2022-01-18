@@ -9,8 +9,8 @@
 #pragma once
 
 #include "dkaminpar/datastructure/distributed_graph.h"
-#include "dkaminpar/distributed_context.h"
-#include "dkaminpar/distributed_definitions.h"
+#include "dkaminpar/context.h"
+#include "dkaminpar/definitions.h"
 
 #include <tbb/enumerable_thread_specific.h>
 

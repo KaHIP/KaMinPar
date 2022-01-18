@@ -23,7 +23,7 @@ Graph::Graph(StaticArray<EdgeID> nodes, StaticArray<NodeID> edges, StaticArray<N
     : _nodes{std::move(nodes)}, _edges{std::move(edges)}, _node_weights{std::move(node_weights)},
       _edge_weights{std::move(edge_weights)}, _sorted{sorted} {
   if (_node_weights.empty()) {
-    _total_node_weight = n();
+    _total_node_weight = static_cast<NodeWeight>(n());
     _max_node_weight = 1;
   } else {
     _total_node_weight = parallel::accumulate(_node_weights);
@@ -31,7 +31,7 @@ Graph::Graph(StaticArray<EdgeID> nodes, StaticArray<NodeID> edges, StaticArray<N
   }
 
   if (_edge_weights.empty()) {
-    _total_edge_weight = m();
+    _total_edge_weight = static_cast<EdgeWeight>(m());
   } else {
     _total_edge_weight = parallel::accumulate(_edge_weights);
   }
@@ -44,7 +44,7 @@ Graph::Graph(tag::Sequential, StaticArray<EdgeID> nodes, StaticArray<NodeID> edg
     : _nodes{std::move(nodes)}, _edges{std::move(edges)}, _node_weights{std::move(node_weights)},
       _edge_weights{std::move(edge_weights)}, _sorted{sorted} {
   if (_node_weights.empty()) {
-    _total_node_weight = n();
+    _total_node_weight = static_cast<NodeWeight>(n());
     _max_node_weight = 1;
   } else {
     _total_node_weight = std::accumulate(_node_weights.begin(), _node_weights.end(), 0);
@@ -52,34 +52,12 @@ Graph::Graph(tag::Sequential, StaticArray<EdgeID> nodes, StaticArray<NodeID> edg
   }
 
   if (_edge_weights.empty()) {
-    _total_edge_weight = m();
+    _total_edge_weight = static_cast<EdgeWeight>(m());
   } else {
     _total_edge_weight = std::accumulate(_edge_weights.begin(), _edge_weights.end(), 0);
   }
 
   init_degree_buckets();
-}
-
-void Graph::print() const {
-  LOG << "n=" << n() << " m=" << m();
-  for (const NodeID u : nodes()) {
-    LLOG << u << " ";
-    for (const auto [e, v] : neighbors(u)) {
-      LLOG << "->" << v << " ";
-    }
-    LOG;
-  }
-}
-
-void Graph::print_weighted() const {
-  LOG << "n=" << n() << " m=" << m();
-  for (const NodeID u : nodes()) {
-    LLOG << u << "|" << node_weight(u) << " ";
-    for (const auto [e, v] : neighbors(u)) {
-      LLOG << "-" << e << "|" << edge_weight(e) << "->" << v << "|" << node_weight(v) << " ";
-    }
-    LOG;
-  }
 }
 
 void Graph::init_degree_buckets() {

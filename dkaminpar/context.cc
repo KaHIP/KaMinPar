@@ -5,7 +5,7 @@
  * @date:   27.10.2021
  * @brief:
  ******************************************************************************/
-#include "dkaminpar/distributed_context.h"
+#include "dkaminpar/context.h"
 
 #include "dkaminpar/mpi_wrapper.h"
 

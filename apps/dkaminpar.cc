@@ -7,7 +7,7 @@
  ******************************************************************************/
 // This must come first since it redefines output macros (LOG DBG etc)
 // clang-format off
-#include "dkaminpar/distributed_definitions.h"
+#include "dkaminpar/definitions.h"
 // clang-format on
 
 #include "apps/apps.h"
@@ -16,11 +16,11 @@
 #include "apps/dkaminpar_graphgen.h"
 //#endif // KAMINPAR_GRAPHGEN
 
-#include "dkaminpar/distributed_context.h"
+#include "dkaminpar/context.h"
 #include "dkaminpar/distributed_io.h"
 #include "dkaminpar/graphutils/rearrange_graph.h"
 #include "dkaminpar/partitioning_scheme/partitioning.h"
-#include "dkaminpar/utility/distributed_metrics.h"
+#include "dkaminpar/utility/metrics.h"
 #include "dkaminpar/utility/distributed_timer.h"
 #include "kaminpar/definitions.h"
 #include "kaminpar/utility/logger.h"

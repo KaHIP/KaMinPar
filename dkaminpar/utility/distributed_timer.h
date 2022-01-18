@@ -7,7 +7,7 @@
  ******************************************************************************/
 #pragma once
 
-#include "dkaminpar/distributed_definitions.h"
+#include "dkaminpar/definitions.h"
 #include "kaminpar/utility/timer.h"
 
 namespace dkaminpar::timer {

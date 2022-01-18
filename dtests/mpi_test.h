@@ -2,7 +2,7 @@
 
 #include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/datastructure/distributed_graph_builder.h"
-#include "dkaminpar/distributed_definitions.h"
+#include "dkaminpar/definitions.h"
 #include "dkaminpar/graphutils/allgather_graph.h"
 #include "dkaminpar/mpi_wrapper.h"
 

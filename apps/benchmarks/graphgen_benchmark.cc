@@ -7,7 +7,7 @@
  ******************************************************************************/
 // This must come first since it redefines output macros (LOG DBG etc)
 // clang-format off
-#include "dkaminpar/distributed_definitions.h"
+#include "dkaminpar/definitions.h"
 // clang-format on
 
 #include "apps/apps.h"

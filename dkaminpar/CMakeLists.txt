@@ -18,7 +18,6 @@ set(DKAMINPAR_SOURCE_FILES
         datastructure/distributed_graph.cc
         datastructure/distributed_graph.h
         datastructure/distributed_graph_builder.h
-        datastructure/concurrent_filter.h
         initial_partitioning/i_initial_partitioner.h
         initial_partitioning/kaminpar_initial_partitioner.cc
         initial_partitioning/kaminpar_initial_partitioner.h
@@ -31,8 +30,8 @@ set(DKAMINPAR_SOURCE_FILES
         utility/distributed_timer.h
         mpi_wrapper.h
         mpi_graph.h
-        utility/distributed_metrics.cc
-        utility/distributed_metrics.h
+        utility/metrics.cc
+        utility/metrics.h
         utility/vector_ets.h
         refinement/i_distributed_refiner.h
         refinement/noop_refiner.cc
@@ -43,24 +42,19 @@ set(DKAMINPAR_SOURCE_FILES
         partitioning_scheme/kway.h
         partitioning_scheme/partitioning.cc
         partitioning_scheme/partitioning.h
-        distributed_definitions.h
-        distributed_context.cc
-        distributed_context.h
+        definitions.h
+        context.cc
+        context.h
         factories.cc
         factories.h
         growt.h)
 
-if (MPI_FOUND)
-    find_package(OpenMP REQUIRED)
+find_package(OpenMP REQUIRED)
 
-    add_library(dkaminpar_impl OBJECT ${DKAMINPAR_SOURCE_FILES})
-    target_include_directories(dkaminpar_impl PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(dkaminpar_impl PUBLIC kaminpar_impl MPI::MPI_CXX OpenMP::OpenMP_CXX growt)
+add_library(dkaminpar_impl OBJECT ${DKAMINPAR_SOURCE_FILES})
+target_include_directories(dkaminpar_impl PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(dkaminpar_impl PUBLIC kaminpar_impl MPI::MPI_CXX OpenMP::OpenMP_CXX growt)
 
-    if (KAMINPAR_BACKWARD_CPP)
-        add_backward(dkaminpar_impl)
-    endif ()
-else ()
-    message(STATUS "MPI is NOT available; distributed target will not be available!")
+if (KAMINPAR_BACKWARD_CPP)
+    add_backward(dkaminpar_impl)
 endif ()
-

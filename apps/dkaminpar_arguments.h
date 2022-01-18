@@ -7,7 +7,7 @@
  ******************************************************************************/
 #pragma once
 
-#include "dkaminpar/distributed_context.h"
+#include "dkaminpar/context.h"
 #include "kaminpar/application/arguments_parser.h"
 #ifdef KAMINPAR_GRAPHGEN
 #include "apps/dkaminpar_graphgen.h"

@@ -8,7 +8,7 @@
 #pragma once
 
 #include "dkaminpar/datastructure/distributed_graph.h"
-#include "dkaminpar/distributed_definitions.h"
+#include "dkaminpar/definitions.h"
 
 namespace dkaminpar {
 template<typename ClusterID>

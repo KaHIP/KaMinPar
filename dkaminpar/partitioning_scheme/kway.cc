@@ -10,7 +10,7 @@
 #include "dkaminpar/coarsening/global_clustering_contraction.h"
 #include "dkaminpar/factories.h"
 #include "dkaminpar/graphutils/allgather_graph.h"
-#include "dkaminpar/utility/distributed_metrics.h"
+#include "dkaminpar/utility/metrics.h"
 #include "kaminpar/metrics.h"
 #include "kaminpar/utility/timer.h"
 

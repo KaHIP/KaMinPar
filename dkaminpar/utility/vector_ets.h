@@ -7,7 +7,7 @@
  ******************************************************************************/
 #pragma once
 
-#include "dkaminpar/distributed_definitions.h"
+#include "dkaminpar/definitions.h"
 
 #include <tbb/combinable.h>
 #include <tbb/cache_aligned_allocator.h>

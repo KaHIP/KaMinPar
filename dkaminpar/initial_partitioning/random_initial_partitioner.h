@@ -7,7 +7,7 @@
  ******************************************************************************/
 #pragma once
 
-#include "dkaminpar/distributed_context.h"
+#include "dkaminpar/context.h"
 #include "dkaminpar/initial_partitioning/i_initial_partitioner.h"
 
 namespace dkaminpar {

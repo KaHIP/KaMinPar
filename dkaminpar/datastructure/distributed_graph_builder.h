@@ -7,7 +7,7 @@
  ******************************************************************************/
 #pragma once
 
-#include "dkaminpar/distributed_definitions.h"
+#include "dkaminpar/definitions.h"
 
 #include <tbb/concurrent_hash_map.h>
 #include <unordered_map>

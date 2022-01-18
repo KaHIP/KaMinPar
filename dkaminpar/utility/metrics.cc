@@ -5,7 +5,7 @@
 * @date:   27.10.2021
 * @brief:  Partition metrics for distributed graphs.
 ******************************************************************************/
-#include "dkaminpar/utility/distributed_metrics.h"
+#include "dkaminpar/utility/metrics.h"
 
 #include "dkaminpar/mpi_wrapper.h"
 

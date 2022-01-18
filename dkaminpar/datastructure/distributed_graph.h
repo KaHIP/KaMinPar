@@ -7,7 +7,7 @@
  ******************************************************************************/
 #pragma once
 
-#include "dkaminpar/distributed_definitions.h"
+#include "dkaminpar/definitions.h"
 #include "dkaminpar/growt.h"
 #include "dkaminpar/mpi_wrapper.h"
 #include "kaminpar/datastructure/graph.h"

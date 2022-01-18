@@ -9,7 +9,7 @@
 
 #include "dkaminpar/mpi_graph.h"
 #include "dkaminpar/mpi_wrapper.h"
-#include "dkaminpar/utility/distributed_metrics.h"
+#include "dkaminpar/utility/metrics.h"
 #include "dkaminpar/utility/math.h"
 #include "dkaminpar/utility/vector_ets.h"
 #include "kaminpar/datastructure/marker.h"
