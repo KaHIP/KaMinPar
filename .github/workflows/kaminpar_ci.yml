@@ -24,6 +24,8 @@ jobs:
 
       - name: Build
         run: cmake --build ${{github.workspace}}/build --config Debug --parallel 2
+        env:
+          ASAN_OPTIONS: detect_leaks=0
 
       - name: Test
         working-directory: ${{github.workspace}}/build
