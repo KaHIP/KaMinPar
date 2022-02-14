@@ -35,6 +35,9 @@ option(KAMINPAR_64BIT_WEIGHTS "Use 64 bit for node and edge weights." OFF)
 
 include_directories(${PROJECT_SOURCE_DIR})
 
+# Export compile commands
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 # Set warning flags
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -W -Wall -Wextra ")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wunused ")
