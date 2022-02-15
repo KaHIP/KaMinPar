@@ -9,7 +9,6 @@
 
 #include <algorithm>
 #include <cctype>
-#include <concepts>
 #include <string>
 
 namespace kaminpar::utility {

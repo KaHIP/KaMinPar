@@ -79,7 +79,8 @@ public:
     }
   }
 
-  void reset_current_clustering(const NodeID n, const auto &node_weights) {
+  template<typename Weights>
+  void reset_current_clustering(const NodeID n, const Weights &node_weights) {
     ASSERT(n <= _clustering.size());
     ASSERT(n <= node_weights.size());
 
@@ -105,8 +106,19 @@ public:
   NodeID pick_cluster_from_rating_map(NodeID u, NodeWeight u_weight, NodeWeight max_cluster_weight);
 
 #ifdef TEST
-  void TEST_mock_clustering(const std::vector<NodeID> &clustering);
-  ContractionResult TEST_contract_clustering();
+  void TEST_mock_clustering(const std::vector<NodeID> &clustering) {
+    _current_num_moves = 0;
+    for (const NodeID u : _current_graph->nodes()) {
+      _clustering[u].leader = clustering[u];
+      _clustering[_clustering[u].leader].weight += _current_graph->node_weight(u);
+      if (u != clustering[u]) {
+        _clustering[_clustering[u].leader].locked = true;
+        ++_current_num_moves;
+      }
+    }
+  }
+
+  ContractionResult TEST_contract_clustering() { return contract_current_clustering(); }
 #endif
 
 private:

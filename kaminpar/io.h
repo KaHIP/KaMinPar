@@ -157,14 +157,15 @@ void read_format(const std::string &filename, NodeID &n, EdgeID &m, bool &has_no
 GraphFormat read_format(const std::string &filename);
 void write(const std::string &filename, const Graph &graph, const std::string &comment = "");
 
-template <std::invocable<GraphFormat> GraphFormatCB, std::invocable<std::uint64_t> NextNodeCB,
-          std::invocable<std::uint64_t, std::uint64_t> NextEdgeCB>
+template <typename GraphFormatCB, typename NextNodeCB, typename NextEdgeCB>
 GraphInfo read_observable(const std::string &filename, GraphFormatCB &&format_cb, NextNodeCB &&next_node_cb,
                           NextEdgeCB &&next_edge_cb) {
+  static_assert(std::is_invocable_v<GraphFormatCB, GraphFormat>);
+  static_assert(std::is_invocable_v<NextNodeCB, std::uint64_t>);
+  static_assert(std::is_invocable_v<NextEdgeCB, std::uint64_t, std::uint64_t>);
+
   using namespace internal;
-  constexpr bool stoppable = requires {
-    { next_node_cb(std::uint64_t()) } -> std::same_as<bool>;
-  };
+  constexpr bool stoppable = std::is_invocable_r_v<bool, NextNodeCB, std::uint64_t>;
 
   MappedFile mapped_file = mmap_file_from_disk(filename);
   const GraphFormat format = metis::read_graph_header(mapped_file);

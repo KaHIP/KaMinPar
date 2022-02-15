@@ -86,7 +86,7 @@ PartitionedGraph bipartition(const Graph *graph, const BlockID final_k, const Co
   ip::InitialPartitioner partitioner{*graph, input_ctx, final_k, ip_m_ctx_pool.local().get()};
   PartitionedGraph p_graph = partitioner.partition();
   ip_m_ctx_pool.local().put(partitioner.free());
-  DBG << "Bipartition result: " << V(p_graph.final_ks()) << V(p_graph.block_weights());
+  //  DBG << "Bipartition result: " << V(p_graph.final_ks()) << V(p_graph.block_weights());
   return p_graph;
 }
 
@@ -102,10 +102,14 @@ void extend_partition_recursive(const Graph &graph, BlockArray &partition, const
 
   const BlockID final_k1 = p_graph.final_k(0);
   const BlockID final_k2 = p_graph.final_k(1);
-  std::array<BlockID, 2> ks{std::clamp<BlockID>(std::ceil(k * 1.0 * final_k1 / final_k), 1, k - 1),
-                            std::clamp<BlockID>(std::floor(k * 1.0 * final_k2 / final_k), 1, k - 1)};
+  ASSERT(final_k1 > 0 && final_k2 > 0) << V(final_k1) << V(final_k2) << V(final_k);
+  ASSERT(final_k == final_k1 + final_k2);
+  
+  std::array<BlockID, 2> ks{0, 0};
+  std::tie(ks[0], ks[1]) = math::split_integral(k);
   ASSERT(ks[0] + ks[1] == k && ks[0] >= 1 && ks[1] >= 1)
       << V(ks[0]) << V(ks[1]) << V(k) << V(final_k1) << V(final_k2) << V(final_k);
+  ASSERT(final_k1 >= ks[0] && final_k2 >= ks[1]) << V(final_k1) << V(ks[0]) << V(final_k2) << V(ks[1]) << V(final_k) << V(k);
 
   // copy p_graph to partition -> replace b0 with b0 or b1
   std::array<BlockID, 2> b{b0, b0 + ks[0]};
@@ -138,8 +142,6 @@ void extend_partition(PartitionedGraph &p_graph, const BlockID k_prime, const Co
                       GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool) {
   SCOPED_TIMER("Initial partitioning");
 
-  DBG << V(p_graph.final_ks());
-
   LOG << "-> Extend from=" << p_graph.k() << " "    //
       << "to=" << k_prime << " "                    //
       << "on a graph with n=" << p_graph.n() << " " //
@@ -162,6 +164,7 @@ void extend_partition(PartitionedGraph &p_graph, const BlockID k_prime, const Co
     const auto &subgraph = subgraphs[b];
     const BlockID subgraph_k = (k_prime == input_ctx.partition.k) ? p_graph.final_k(b) : k_prime / p_graph.k();
     if (subgraph_k > 1) {
+      ASSERT(subgraph_k <= p_graph.final_k(b)) << V(subgraph_k) << V(p_graph.final_k(b));
       extend_partition_recursive(subgraph, subgraph_partitions[b], 0, subgraph_k, p_graph.final_k(b), input_ctx,
                                  subgraph_memory, positions[b], extraction_pool, ip_m_ctx_pool);
     }
@@ -174,9 +177,6 @@ void extend_partition(PartitionedGraph &p_graph, const BlockID k_prime, const Co
   update_partition_context(current_p_ctx, p_graph);
 
   ASSERT(p_graph.k() == k_prime);
-
-  DBG << V(p_graph.k()) << V(p_graph.final_ks()) << V(p_graph.block_weights())
-      << V(current_p_ctx.block_weights.all_max());
 }
 
 // extend_partition with local memory allocation for subgraphs

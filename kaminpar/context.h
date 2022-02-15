@@ -13,7 +13,6 @@
 
 #include <cmath>
 #include <map>
-#include <ranges>
 #include <string_view>
 
 namespace kaminpar {

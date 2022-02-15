@@ -58,7 +58,9 @@ struct LabelPropagationConfig {
  * @tparam Derived Derived class for static polymorphism.
  * @tparam Config Algorithmic configuration and data types.
  */
-template <typename Derived, std::derived_from<LabelPropagationConfig> Config> class LabelPropagation {
+template <typename Derived, typename Config> class LabelPropagation {
+  static_assert(std::is_base_of_v<LabelPropagationConfig, Config>);
+
   SET_DEBUG(false);
   SET_STATISTICS(false);
 
@@ -153,7 +155,8 @@ protected:
    * @param local_rating_map Thread-local rating map for gain computation.
    * @return Pair with: whether the node was moved to another cluster, whether the previous cluster is now empty.
    */
-  std::pair<bool, bool> handle_node(const NodeID u, Randomize &local_rand, auto &local_rating_map) {
+  template<typename LocalRatingMap>
+  std::pair<bool, bool> handle_node(const NodeID u, Randomize &local_rand, LocalRatingMap &local_rating_map) {
     const NodeWeight u_weight = _graph->node_weight(u);
     const ClusterID u_cluster = derived_cluster(u);
     const auto [new_cluster, new_gain] = find_best_cluster(u, u_weight, u_cluster, local_rand, local_rating_map);
@@ -198,9 +201,10 @@ protected:
    * @param local_rating_map Thread-local rating map to compute gain values.
    * @return Pair with: new cluster of the node, gain value for the move to the new cluster.
    */
+  template<typename LocalRatingMap>
   std::pair<ClusterID, EdgeWeight> find_best_cluster(const NodeID u, const NodeWeight u_weight,
                                                      const ClusterID u_cluster, Randomize &local_rand,
-                                                     auto &local_rating_map) {
+                                                     LocalRatingMap &local_rating_map) {
     auto action = [&](auto &map) {
       const ClusterWeight initial_cluster_weight = derived_cluster_weight(u_cluster);
       ClusterSelectionState state{
@@ -485,8 +489,8 @@ private:
  * @tparam Derived Derived subclass for static polymorphism.
  * @tparam Config Algorithmic configuration and data types.
  */
-template <typename Derived, std::derived_from<LabelPropagationConfig> Config>
-class InOrderLabelPropagation : public LabelPropagation<Derived, Config> {
+template <typename Derived, typename Config> class InOrderLabelPropagation : public LabelPropagation<Derived, Config> {
+  static_assert(std::is_base_of_v<LabelPropagationConfig, Config>);
   SET_DEBUG(true);
 
 protected:
@@ -557,8 +561,10 @@ protected:
  * @tparam Derived Derived subclass for static polymorphism.
  * @tparam Config Algorithmic configuration and data types.
  */
-template <typename Derived, std::derived_from<LabelPropagationConfig> Config>
+template <typename Derived, typename Config>
 class ChunkRandomizedLabelPropagation : public LabelPropagation<Derived, Config> {
+  static_assert(std::is_base_of_v<LabelPropagationConfig, Config>);
+
   using Base = LabelPropagation<Derived, Config>;
 
 protected:
@@ -688,7 +694,7 @@ private:
             const NodeID u = bucket_start + i;
             current_chunk_size += _graph->degree(u);
             if (current_chunk_size >= max_chunk_size) {
-              chunks.emplace_back(chunk_start, u + 1);
+              chunks.push_back({chunk_start, u + 1});
               chunk_start = u + 1;
               current_chunk_size = 0;
               ++num_chunks;
@@ -696,7 +702,7 @@ private:
           }
 
           if (current_chunk_size > 0) {
-            chunks.emplace_back(chunk_start, bucket_start + end);
+            chunks.push_back({chunk_start, bucket_start + end});
             ++num_chunks;
           }
         }
@@ -714,7 +720,7 @@ private:
         }
       });
 
-      _buckets.emplace_back(chunks_start, _chunks.size());
+      _buckets.push_back({chunks_start, _chunks.size()});
     }
   }
 

@@ -52,11 +52,11 @@ public:
   bool random_bool() { return _random_bools[_next_random_bool++ % kPrecomputedBools]; }
   bool random_bool(const double prob) { return std::uniform_real_distribution<>(0, 1)(_generator) <= prob; }
 
-  template<std::ranges::random_access_range R>
-  void shuffle(R &&r) {
-    std::ranges::shuffle(std::forward<R>(r), _generator);
-  }
-  void shuffle(auto begin, auto end) { std::shuffle(begin, end, _generator); }
+  template<typename Container>
+  void shuffle(Container &&vec) { std::shuffle(vec.begin(), vec.end(), _generator); }
+
+  template<typename Iterator>
+  void shuffle(Iterator begin, Iterator end) { std::shuffle(begin, end, _generator); }
 
   [[nodiscard]] auto &generator() { return _generator; }
 

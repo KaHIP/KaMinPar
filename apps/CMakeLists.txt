@@ -52,3 +52,4 @@ if (KAMINPAR_GRAPHGEN)
 endif ()
 
 add_subdirectory(benchmarks)
+

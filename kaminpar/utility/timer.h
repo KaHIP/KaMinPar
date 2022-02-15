@@ -7,13 +7,16 @@
  ******************************************************************************/
 #pragma once
 
-#include "definitions.h"
-#include "parallel.h"
+#include "kaminpar/definitions.h"
+#include "kaminpar/parallel.h"
 
 #include <chrono>
 #include <iostream>
 #include <map>
 #include <mutex>
+#include <unordered_map>
+#include <tbb/enumerable_thread_specific.h>
+#include <tbb/task_arena.h>
 
 #define GLOBAL_TIMER (kaminpar::Timer::global())
 #define GLOBAL_TIMER_PTR &(GLOBAL_TIMER)
@@ -188,8 +191,11 @@ public:
     std::lock_guard<std::mutex> lg{_mutex};
 
     // create new tree node if timer does not already exist
+    auto tbl_contains = [&](std::string_view name) {
+	return _tree.current->children_tbl.find(name) != _tree.current->children_tbl.end();
+    };
     const bool empty_description = is_empty_description(description);
-    if (!empty_description || !_tree.current->children_tbl.contains(name)) {
+    if (!empty_description || !tbl_contains(name)) {
       // create new tree node
       _tree.current->children.emplace_back(new TimerTreeNode{});
       auto *child = _tree.current->children.back().get();

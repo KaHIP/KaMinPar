@@ -10,7 +10,6 @@
 
 #include "kaminpar/definitions.h"
 
-#include <ranges>
 #include <utility>
 #include <vector>
 
@@ -43,13 +42,15 @@ public:
   [[nodiscard]] std::vector<size_type> &used_entry_ids() { return _used_entries; }
 
   [[nodiscard]] auto used_entry_values() {
-    return used_entry_ids() | std::views::transform([this](const std::size_t &entry) { return _data[entry]; });
+    return TransformedRange(used_entry_ids().begin(), used_entry_ids().end(),
+                            [this](const std::size_t entry) -> value_type { return _data[entry]; });
   }
 
   [[nodiscard]] auto entries() {
-    return _used_entries | std::views::transform([this](const size_type &entry) -> std::pair<size_type, value_type> {
-             return std::pair<size_type, value_type>{entry, _data[entry]};
-           });
+    return TransformedRange(used_entry_ids().begin(), used_entry_ids().end(),
+                            [this](const std::size_t entry) -> std::pair<Size, value_type> {
+                              return std::make_pair(static_cast<Size>(entry), _data[entry]);
+                            });
   }
 
   void clear() {

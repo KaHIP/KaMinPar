@@ -18,7 +18,8 @@ namespace kaminpar::graph {
 using namespace contraction;
 
 namespace {
-Result contract_generic_clustering(const Graph &graph, const auto &clustering, MemoryContext m_ctx) {
+template <typename Clustering>
+Result contract_generic_clustering(const Graph &graph, const Clustering &clustering, MemoryContext m_ctx) {
   auto &buckets_index = m_ctx.buckets_index;
   auto &buckets = m_ctx.buckets;
   auto &leader_mapping = m_ctx.leader_mapping;
@@ -26,8 +27,12 @@ Result contract_generic_clustering(const Graph &graph, const auto &clustering, M
 
   START_TIMER("Allocation");
   scalable_vector<NodeID> mapping(graph.n());
-  if (leader_mapping.size() < graph.n()) { leader_mapping.resize(graph.n()); }
-  if (buckets.size() < graph.n()) { buckets.resize(graph.n()); }
+  if (leader_mapping.size() < graph.n()) {
+    leader_mapping.resize(graph.n());
+  }
+  if (buckets.size() < graph.n()) {
+    buckets.resize(graph.n());
+  }
   STOP_TIMER();
 
   START_TIMER("Preprocessing");
@@ -122,17 +127,21 @@ Result contract_generic_clustering(const Graph &graph, const auto &clustering, M
           // collect coarse edges
           for (const auto [e, v] : graph.neighbors(u)) {
             const NodeID c_v = mapping[v];
-            if (c_u != c_v) { map[c_v] += graph.edge_weight(e); }
+            if (c_u != c_v) {
+              map[c_v] += graph.edge_weight(e);
+            }
           }
         }
 
         c_node_weights[c_u] = c_u_weight; // coarse node weights are done now
         c_nodes[c_u + 1] = map.size();    // node degree (used to build c_nodes)
 
-        // since we don't know the value of c_nodes[c_u] yet (so far, it only holds the nodes degree), we can't place the
-        // edges of c_u in the c_edges and c_edge_weights arrays; hence, we store them in auxiliary arrays and note their
-        // position in the auxiliary arrays
-        for (const auto [c_v, weight] : map.entries()) { local_edge_buffer.push_back({c_v, weight}); }
+        // since we don't know the value of c_nodes[c_u] yet (so far, it only holds the nodes degree), we can't place
+        // the edges of c_u in the c_edges and c_edge_weights arrays; hence, we store them in auxiliary arrays and note
+        // their position in the auxiliary arrays
+        for (const auto [c_v, weight] : map.entries()) {
+          local_edge_buffer.push_back({c_v, weight});
+        }
         map.clear();
       };
 

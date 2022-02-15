@@ -190,9 +190,8 @@ InitialCoarsener::ContractionResult InitialCoarsener::contract_current_clusterin
     // turn _cluster_sizes into a "first node of"-array: next, we place all nodes corresponding to coarse node 0 in
     // _cluster_nodes[_cluster_sizes[0]].._cluster_nodes[_cluster_sizes[1] - 1], all nodes corresponding to coarse node 1 in
     // _cluster_nodes[_cluster_sizes[1]].._cluster_nodes[_cluster_sizes[2] - 1] and so on
-    for (NodeID counter = 0; unsigned int &_cluster_size : _cluster_sizes) {
-      counter += std::exchange(_cluster_size, counter);
-    }
+    NodeID counter = 0;
+    for (unsigned int &_cluster_size : _cluster_sizes) { counter += std::exchange(_cluster_size, counter); }
 
     // build the _cluster_nodes[] array as described above
     for (const NodeID u : _current_graph->nodes()) { _cluster_nodes[_cluster_sizes[node_mapping[u]]++] = u; }

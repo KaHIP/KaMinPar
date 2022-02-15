@@ -10,27 +10,32 @@
 #include <algorithm>
 #include <cerrno>
 #include <cmath>
-#include <concepts>
 #include <csignal>
 #include <iostream>
 #include <memory>
-#include <ranges>
 #include <sstream>
 #include <tbb/spin_mutex.h>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 #define LOG (kaminpar::Logger())
 #define LLOG (kaminpar::Logger(std::cout, ""))
 
 namespace kaminpar {
 namespace logger {
+template<typename T, typename = void>
+struct is_iterable : std::false_type {};
+
 template<typename T>
-concept Container = requires(T t) {
-  requires !std::same_as<std::decay_t<T>, std::string>;
-  t.begin();
-  t.end();
-};
+struct is_iterable<T, std::void_t<decltype(std::begin(std::declval<T>())), decltype(std::end(std::declval<T>()))>>
+    : std::true_type {};
+
+template<typename T>
+constexpr bool is_container_v = !std::is_same_v<std::decay_t<T>, std::string> &&  //
+                                !std::is_same_v<std::decay_t<T>, char *> &&       //
+                                !std::is_same_v<std::decay_t<T>, const char *> && //
+                                is_iterable<T>::value;
 
 class ContainerFormatter {
 public:
@@ -78,6 +83,15 @@ private:
   Color _color;
 };
 
+template<typename T>
+constexpr bool is_text_formatter_v = std::is_base_of_v<TextFormatter, std::decay_t<T>>;
+
+template<typename T>
+constexpr bool is_container_formatter_v = std::is_base_of_v<ContainerFormatter, std::decay_t<T>>;
+
+template<typename T>
+constexpr bool is_default_log_arg_v = !is_container_v<T> && !is_text_formatter_v<T> && !is_container_formatter_v<T>;
+
 extern DefaultTextFormatter DEFAULT_TEXT;
 extern Colorized RED;
 extern Colorized GREEN;
@@ -101,7 +115,7 @@ public:
   Logger &operator=(Logger &&) = delete;
   virtual ~Logger() { flush(); };
 
-  template<typename Arg>
+  template<typename Arg, std::enable_if_t<logger::is_default_log_arg_v<Arg>, bool> = true>
   Logger &operator<<(Arg &&arg) {
     std::stringstream ss;
     ss << arg;
@@ -109,20 +123,20 @@ public:
     return *this;
   }
 
-  template<typename Formatter>
-  requires std::derived_from<std::decay_t<Formatter>, logger::TextFormatter> Logger &operator<<(Formatter &&formatter) {
+  template<typename Formatter, std::enable_if_t<logger::is_text_formatter_v<Formatter>, bool> = true>
+  Logger &operator<<(Formatter &&formatter) {
     _text_formatter = std::make_unique<std::decay_t<Formatter>>(formatter);
     return *this;
   }
 
-  template<typename Formatter>
-  requires std::derived_from<std::decay_t<Formatter>, logger::ContainerFormatter> Logger &
-  operator<<(Formatter &&formatter) {
+  template<typename Formatter, std::enable_if_t<logger::is_container_formatter_v<Formatter>, bool> = true>
+  Logger &operator<<(Formatter &&formatter) {
     _container_formatter = std::make_unique<std::decay_t<Formatter>>(formatter);
     return *this;
   }
 
-  Logger &operator<<(logger::Container auto &&container) {
+  template<typename T, std::enable_if_t<logger::is_container_v<T>, bool> = true>
+  Logger &operator<<(T &&container) {
     std::vector<std::string> str;
     for (const auto &element : container) {
       std::stringstream ss;

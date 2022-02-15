@@ -2,7 +2,6 @@
 #include "tests.h"
 
 #include <gmock/gmock.h>
-#include <ranges>
 
 using ::testing::Eq;
 
@@ -25,4 +24,4 @@ TEST(StaticArrayTest, IteratorTest) {
     ++i;
   }
 }
-} // namespace kaminpar
+}

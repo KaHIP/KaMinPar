@@ -66,14 +66,14 @@ NodeWeight total_overload(const PartitionedGraph &p_graph, const PartitionContex
 }
 
 bool is_balanced(const PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
-  return std::ranges::all_of(p_graph.blocks(), [&p_graph, &p_ctx](const BlockID b) {
+  return std::all_of(p_graph.blocks().begin(), p_graph.blocks().end(), [&p_graph, &p_ctx](const BlockID b) {
     return p_graph.block_weight(b) <= p_ctx.block_weights.max(b);
   });
 }
 
 bool is_feasible(const PartitionedGraph &p_graph, const BlockID input_k, const double eps) {
   const double max_block_weight = std::ceil((1.0 + eps) * p_graph.total_node_weight() / input_k);
-  return std::ranges::all_of(p_graph.blocks(), [&p_graph, max_block_weight](const BlockID b) {
+  return std::all_of(p_graph.blocks().begin(), p_graph.blocks().end(), [&p_graph, max_block_weight](const BlockID b) {
     return p_graph.block_weight(b) <= max_block_weight * p_graph.final_k(b) + p_graph.max_node_weight();
   });
 }

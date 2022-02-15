@@ -10,9 +10,7 @@
 #include "kaminpar/definitions.h"
 
 #include <atomic>
-#include <concepts>
 #include <iterator>
-#include <ranges>
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
 #include <tbb/parallel_reduce.h>
@@ -26,7 +24,8 @@ inline int sched_getcpu() { return 0; }
 namespace kaminpar {
 namespace parallel {
 // https://github.com/kahypar/mt-kahypar/blob/master/mt-kahypar/parallel/atomic_wrapper.h
-template <std::integral T> class IntegralAtomicWrapper {
+template<typename T>
+class IntegralAtomicWrapper {
 public:
   IntegralAtomicWrapper() = default;
 
@@ -151,9 +150,10 @@ template <typename T, typename... Args> tbb_unique_ptr<T> make_unique(Args &&...
   return tbb_unique_ptr<T>(ptr, tbb_deleter<T>{});
 }
 
-template <std::ranges::range Range> std::ranges::range_value_t<Range> accumulate(const Range &r) {
-  using r_size_t = std::ranges::range_difference_t<Range>;
-  using value_t = std::ranges::range_size_t<Range>;
+template<typename Range>
+typename Range::value_type accumulate(const Range &r) {
+  using r_size_t = typename Range::size_type;
+  using value_t = typename Range::value_type;
 
   class body {
     const Range &_r;
@@ -178,13 +178,14 @@ template <std::ranges::range Range> std::ranges::range_value_t<Range> accumulate
   };
 
   body b{r};
-  tbb::parallel_reduce(tbb::blocked_range<r_size_t>(static_cast<r_size_t>(0), r.size()), b);
+  tbb::parallel_reduce(tbb::blocked_range(static_cast<r_size_t>(0), r.size()), b);
   return b._ans;
 }
 
-template <std::ranges::range Range> std::ranges::range_value_t<Range> max_element(const Range &r) {
-  using r_size_t = std::ranges::range_difference_t<Range>;
-  using value_t = std::ranges::range_size_t<Range>;
+template<typename Range>
+typename Range::value_type max_element(const Range &r) {
+  using r_size_t = typename Range::size_type;
+  using value_t = typename Range::value_type;
 
   class body {
     const Range &_r;
@@ -209,11 +210,12 @@ template <std::ranges::range Range> std::ranges::range_value_t<Range> max_elemen
   };
 
   body b{r};
-  tbb::parallel_reduce(tbb::blocked_range<r_size_t>(static_cast<r_size_t>(0), r.size()), b);
+  tbb::parallel_reduce(tbb::blocked_range(static_cast<r_size_t>(0), r.size()), b);
   return b._ans;
 }
 
-void container_for(const auto &buffer, auto &&lambda) {
+template<typename Buffer, typename Lambda>
+void container_for(const Buffer &buffer, Lambda &&lambda) {
   tbb::parallel_for<std::size_t>(0, buffer.size(), [&](const std::size_t i) { lambda(buffer[i]); });
 }
 
@@ -221,7 +223,8 @@ void container_for(const auto &buffer, auto &&lambda) {
  * @param buffers Vector of buffers of elements.
  * @param lambda Invoked on each element, in parallel.
  */
-void chunked_for(auto &buffers, auto &&lambda) {
+template<typename Buffer, typename Lambda>
+void chunked_for(Buffer &buffers, Lambda &&lambda) {
   std::size_t total_size = 0;
   for (const auto &buffer : buffers) {
     total_size += buffer.size();
