@@ -61,7 +61,7 @@ Graph::Graph(tag::Sequential, StaticArray<EdgeID> nodes, StaticArray<NodeID> edg
 }
 
 void Graph::init_degree_buckets() {
-  ASSERT(std::ranges::all_of(_buckets, [](const auto n) { return n == 0; }));
+  ASSERT(std::all_of(_buckets.begin(), _buckets.end(), [](const auto n) { return n == 0; }));
   if (_sorted) {
     for (const NodeID u : nodes()) {
       ++_buckets[degree_bucket(degree(u)) + 1];
