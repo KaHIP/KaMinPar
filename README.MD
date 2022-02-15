@@ -11,7 +11,7 @@ Moreover, for large values of k, it is an order of magnitude faster than competi
 
 ### Requirements
 
-* Modern C++-20 ready compiler such as `g++` version 10 or higher
+* C++17 compiler
 * CMake 
 * Intel Thread Building Blocks library (TBB)
 
