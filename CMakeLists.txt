@@ -99,6 +99,7 @@ endif ()
 
 if (KAMINPAR_TESTS)
     add_definitions(-DKAMINPAR_BUILD_TESTS)
+    add_subdirectory("${PROJECT_SOURCE_DIR}/external_tools/googletest" "external_tools/googletest")
     include(gmock)
 endif ()
 
@@ -137,7 +138,7 @@ if (MPI_FOUND)
         add_definitions(-DKAMINPAR_GRAPHGEN)
     endif ()
 
-    add_subdirectory(dkaminpar)
+    #    add_subdirectory(dkaminpar)
 endif ()
 
 # Binaries
@@ -149,7 +150,7 @@ if (KAMINPAR_TESTS)
     add_subdirectory(tests)
 
     if (MPI_FOUND)
-        add_subdirectory(dtests)
+	    #        add_subdirectory(dtests)
     endif ()
 endif ()
 

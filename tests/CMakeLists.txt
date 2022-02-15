@@ -1,6 +1,5 @@
 file(COPY test_instances DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 
-add_definitions(-DVIRTUAL_TEST=virtual)
 add_definitions(-DTEST)
 
 function(add_kaminpar_test target)

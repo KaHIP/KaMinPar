@@ -1,6 +1,5 @@
 if (NOT DEFINED KATESTROPHE_INCLUDED)
     set(KATESTROPHE_INCLUDED TRUE)
-    add_subdirectory("${PROJECT_SOURCE_DIR}/external_tools/googletest" "external_tools/googletest")
 
     include(MPIGoogleTest)
 
