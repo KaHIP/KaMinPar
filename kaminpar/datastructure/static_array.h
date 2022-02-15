@@ -30,7 +30,9 @@ public:
 
     StaticArrayIterator() : _ptr(nullptr) {}
     explicit StaticArrayIterator(T *ptr) : _ptr(ptr) {}
-    StaticArrayIterator(const StaticArrayIterator &other) : _ptr(other._ptr) {}
+
+    StaticArrayIterator(const StaticArrayIterator &other) = default;
+    StaticArrayIterator &operator=(const StaticArrayIterator &other) = default; 
 
     reference operator*() const { return *_ptr; }
     pointer operator->() const { return _ptr; }

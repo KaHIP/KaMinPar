@@ -53,7 +53,7 @@ public:
   }
 
   [[nodiscard]] Element &get(const std::size_t position) {
-    return const_cast<Element &>(get(static_cast<const decltype(this)>(this)));
+    return const_cast<Element &>(static_cast<const Self &>(this).get(position));
   }
 
   void flush() {

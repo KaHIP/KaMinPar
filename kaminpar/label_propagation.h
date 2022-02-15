@@ -702,7 +702,7 @@ private:
           }
 
           if (current_chunk_size > 0) {
-            chunks.push_back({chunk_start, bucket_start + end});
+            chunks.push_back({static_cast<NodeID>(chunk_start), static_cast<NodeID>(bucket_start + end)});
             ++num_chunks;
           }
         }

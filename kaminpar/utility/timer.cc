@@ -20,7 +20,8 @@ namespace {
   return str;
 }
 
-[[nodiscard]] std::size_t get_printed_length(const auto value) {
+template<typename Value>
+[[nodiscard]] std::size_t get_printed_length(const Value value) {
   std::stringstream ss;
   ss << std::setprecision(3) << value;
   return ss.str().size();
