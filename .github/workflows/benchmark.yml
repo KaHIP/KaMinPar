@@ -25,7 +25,7 @@ jobs:
         working-directory: ${{github.workspace}}/ci/benchmark
         run: ./benchmark.sh
         env:
-          BENCHMARK_SET: /kaminpar_ci
+          BENCHMARK_DIR: /kaminpar_ci
           KAMINPAR_CURRENT: ${{github.workspace}}/build/apps/KaMinPar
           KAMINPAR_STABLE: /home/docker/kaminpar_esa21/build/apps/KaMinPar
 
