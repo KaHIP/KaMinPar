@@ -89,8 +89,8 @@ for k in $KS; do
 
 				cut_baseline=$(get_cut "$out_baseline")
 				total_cut_baseline=$((total_cut_baseline + cut_baseline))
-				feasible_baseline=$(get_feasible "$out_current")
-				time_baseline=$(get_time "$out_current")
+				feasible_baseline=$(get_feasible "$out_baseline")
+				time_baseline=$(get_time "$out_baseline")
 				total_time_baseline=$((total_time_baseline + time_baseline))
 				
 				# Only report single instances if the difference is very large to the baseline
