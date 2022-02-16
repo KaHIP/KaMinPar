@@ -1,5 +1,6 @@
 #!/bin/zsh
 
+# Configure via env variables:
 BENCHMARK_DIR="${BENCHMARK_DIR}"
 BINARY_CURRENT="${KAMINPAR_CURRENT}"
 BINARY_BASELINE="${KAMINPAR_STABLE}"
@@ -103,7 +104,7 @@ for k in $KS; do
 					echo "WARNING: edge cut (${cut_current}) on single instance $graph is more than 20% worse than the baseline edge cut (${cut_baseline})"
 				fi
 				if (( time_current > 1.05 * time_baseline )); then
-					echo "WARNING: time (${time_current}) on single instance $graph is more than 10% worse than the baseline time (${time_baseline})"
+					echo "WARNING: time (${time_current}) on single instance $graph is more than 5% worse than the baseline time (${time_baseline})"
 				fi
 			done
 		done
@@ -114,13 +115,22 @@ for k in $KS; do
 		avg_cut_baseline=$((total_cut_baseline / num_runs))
 		avg_time_baseline=$((total_time_baseline / num_runs))
 
+		echo "INFO: avg_cut: current=${avg_cut_current} baseline=${avg_cut_baseline}"
+		echo "INFO: avg_time: current=${avg_time_current} baseline=${avg_time_baseline}"
+
 		if (( avg_cut_current > 1.03 * avg_cut_baseline )); then
 			echo "ERROR: average cut (${avg_cut_current}) is more than 3% worse than the baseline cut (${avg_cut_baseline})"
 			fail=1
 		fi
+		if (( avg_cut_baseline > 1.03 * avg_cut_current )); then
+			echo "INFO: average cut (${avg_cut_current}) improved by more than 3% over the baseline cut (${avg_cut_baseline})"
+		fi
 		if (( avg_time_current > 1.03 * avg_time_baseline )); then
 			echo "ERROR: average time (${avg_time_current}) is more than 3% slower than the baseline time (${avg_time_baseline})"
 			fail=1
+		fi
+		if (( avg_time_baseline > 1.03 * avg_time_current )); then
+			echo "INFO: average time (${avg_time_current}) improved by more than 3% over the baseline time (${avg_time_baseline})"
 		fi
 	done
 done
