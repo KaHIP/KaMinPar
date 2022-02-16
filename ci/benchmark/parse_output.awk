@@ -1,5 +1,6 @@
 BEGIN {
 	split("", data)
+	parseStatistics = 0
 }
 
 match($0, /RESULT cut=([0-9]+) imbalance=([0-9\.\-e]+) feasible=(0|1)/, m) {
@@ -8,8 +9,14 @@ match($0, /RESULT cut=([0-9]+) imbalance=([0-9\.\-e]+) feasible=(0|1)/, m) {
 	data["Feasible"] = m[3]
 }
 
-match($0, /G\.partitioning=([0-9\.\-e]+)/, m) {
-	data["Time"] = m[1]
+match($0, /Statistics/, m) {
+	parseStatistics = 1
+}
+
+match($0, /partitioning=([0-9\.\-e]+)/, m) {
+	if (parseStatistics) {
+		data["Time"] = m[1]
+	}
 }
 
 END {
