@@ -281,7 +281,7 @@ Context create_default_context() {
           .max_num_neighbors = 200000, // no effect
           .two_hop_clustering_threshold = 0.5, // no effect
         },
-        .contraction_limit = 160,
+        .contraction_limit = 20,
         .enforce_contraction_limit = false, // no effect
         .convergence_threshold = 0.05,
         .cluster_weight_limit = ClusterWeightLimit::BLOCK_WEIGHT,
