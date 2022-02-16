@@ -77,7 +77,7 @@ for k in $KS; do
 						echo "ERROR: failed current run:"
 						echo "$log_current"
 					fi
-					continue
+					exit 1
 				fi
 
 				# Parse CSV output
