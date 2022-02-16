@@ -597,7 +597,7 @@ protected:
     shuffle_chunks();
 
     tbb::enumerable_thread_specific<NodeID> num_moved_nodes_ets;
-    parallel::IntegralAtomicWrapper<std::size_t> next_chunk;
+    parallel::IntegralAtomicWrapper<std::size_t> next_chunk = 0;
 
     tbb::parallel_for(static_cast<std::size_t>(0), _chunks.size(), [&](const std::size_t) {
       if (should_stop()) {

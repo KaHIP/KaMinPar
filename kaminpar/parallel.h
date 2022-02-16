@@ -109,7 +109,7 @@ public:
   T operator^=(T arg) noexcept { return _value.operator^=(arg); }
 
 private:
-  std::atomic<T> _value;
+  std::atomic<T> _value = 0;
 };
 
 template <typename InputIterator, typename OutputIterator>
