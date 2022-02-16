@@ -4,7 +4,7 @@ ARG RUNNER_VERSION="2.287.1"
 ARG DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update -y && apt-get upgrade -y
-RUN apt-get install git gcc libbtbb-dev libhwloc-dev clang curl wget ca-certificates wget build-essential libopenmpi-dev -y
+RUN apt-get install zsh git gawk gcc-10 g++-10 libtbb-dev cmake libhwloc-dev clang curl wget ca-certificates wget build-essential libopenmpi-dev -y
 
 RUN useradd -m docker
 RUN cd /home/docker && mkdir actions-runner && cd actions-runner \
