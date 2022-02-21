@@ -61,9 +61,9 @@ for k in $KS; do
 				num_runs=$((num_runs + 1))
 
 				# Partition graph with current build and baseline build
-				log_current="$(taskset -c 0-$max_core "$BINARY_CURRENT" -G "$graph" -k $k -s $seed -t $core)"
+				log_current="$(taskset -c 0-$max_core "$BINARY_CURRENT" -G "$graph" -k $k -s $seed -t $core 2> /dev/null)"
 				out_current=$(echo "$log_current" | gawk -f parse_output.awk)
-				log_baseline="$(taskset -c 0-$max_core "$BINARY_BASELINE" -G "$graph" -k $k -s $seed -t $core)"
+				log_baseline="$(taskset -c 0-$max_core "$BINARY_BASELINE" -G "$graph" -k $k -s $seed -t $core 2> /dev/null)"
 				out_baseline=$(echo "$log_baseline" | gawk -f parse_output.awk)
 
 				ok_current=$(get_ok "$out_current")
