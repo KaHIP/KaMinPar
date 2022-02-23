@@ -25,12 +25,12 @@ Graph create_graph(const std::vector<EdgeID> &nodes, const std::vector<NodeID> &
 }
 
 PartitionedGraph create_p_graph(const Graph &graph, const BlockID k, const std::vector<BlockID> &partition) {
-  return PartitionedGraph{graph, k, static_array::create_atomic_from(partition)};
+  return PartitionedGraph{graph, k, static_array::create_from(partition)};
 }
 
 PartitionedGraph create_p_graph(const Graph &graph, const BlockID k, const std::vector<BlockID> &partition,
                                 scalable_vector<BlockID> final_ks) {
-  return PartitionedGraph{graph, k, static_array::create_atomic_from(partition), std::move(final_ks)};
+  return PartitionedGraph{graph, k, static_array::create_from(partition), std::move(final_ks)};
 }
 
 PartitionedGraph create_p_graph(const Graph *graph, const BlockID k, const std::vector<BlockID> &partition) {
