@@ -135,6 +135,7 @@ int main(int argc, char *argv[]) {
   // Load input graph
   //
   const double original_epsilon = ctx.partition.epsilon;
+  bool need_postprocessing = false;
 
   auto [graph, permutations] = [&] {
     StaticArray<EdgeID> nodes;
@@ -144,12 +145,14 @@ int main(int argc, char *argv[]) {
 
     START_TIMER("IO");
     io::metis::read(ctx.graph_filename, nodes, edges, node_weights, edge_weights);
+    const NodeID n_before_preprocessing = nodes.size();
     STOP_TIMER();
 
     // sort nodes by degree bucket and rearrange graph, remove isolated nodes
     START_TIMER("Partitioning");
     START_TIMER("Preprocessing");
     auto node_permutations = graph::rearrange_graph(ctx.partition, nodes, edges, node_weights, edge_weights);
+    need_postprocessing = nodes.size() < n_before_preprocessing;
     STOP_TIMER();
     STOP_TIMER();
 
@@ -179,7 +182,7 @@ int main(int argc, char *argv[]) {
   //
   // Re-integrate isolated nodes that were cut off during preprocessing
   //
-  {
+  if (need_postprocessing) {
     SCOPED_TIMER("Partitioning");
     SCOPED_TIMER("Postprocessing");
 

@@ -237,9 +237,9 @@ GraphInfo read_observable(const std::string &filename, GraphFormatCB &&format_cb
 } // namespace metis
 
 namespace partition {
-void write(const std::string &filename, const std::vector<Atomic<BlockID>> &partition);
+void write(const std::string &filename, const std::vector<BlockID> &partition);
 void write(const std::string &filename, const PartitionedGraph &p_graph);
-void write(const std::string &filename, const StaticArray<Atomic<BlockID>> &partition,
+void write(const std::string &filename, const StaticArray<BlockID> &partition,
            const StaticArray<NodeID> &permutation);
 void write(const std::string &filename, const PartitionedGraph &p_graph, const StaticArray<NodeID> &permutation);
 std::vector<BlockID> read(const std::string &filename);

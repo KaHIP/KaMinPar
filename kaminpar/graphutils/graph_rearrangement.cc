@@ -97,7 +97,7 @@ PartitionedGraph assign_isolated_nodes(PartitionedGraph p_graph, const NodeID nu
   const Graph &graph = p_graph.graph();
   const NodeID num_nonisolated_nodes = graph.n() - num_isolated_nodes;
 
-  StaticArray<parallel::IntegralAtomicWrapper<BlockID>> partition(graph.n()); // n() should include isolated nodes now
+  StaticArray<BlockID> partition(graph.n()); // n() should include isolated nodes now
   // copy partition of non-isolated nodes
   tbb::parallel_for(static_cast<NodeID>(0), static_cast<NodeID>(num_nonisolated_nodes),
                     [&](const NodeID u) { partition[u] = p_graph.block(u); });

@@ -10,8 +10,8 @@
 #include "kaminpar/datastructure/static_array.h"
 #include "kaminpar/definitions.h"
 #include "kaminpar/parallel.h"
-#include "kaminpar/utility/strings.h"
 #include "kaminpar/utility/ranges.h"
+#include "kaminpar/utility/strings.h"
 
 #include <numeric>
 #include <tbb/blocked_range.h>
@@ -22,7 +22,7 @@
 #include <vector>
 
 namespace kaminpar {
-using BlockArray = StaticArray<parallel::IntegralAtomicWrapper<BlockID>>;
+using BlockArray = StaticArray<BlockID>;
 using BlockWeightArray = StaticArray<parallel::IntegralAtomicWrapper<BlockWeight>>;
 using NodeArray = StaticArray<NodeID>;
 using EdgeArray = StaticArray<EdgeID>;
@@ -207,10 +207,9 @@ public:
   using BlockID = ::kaminpar::BlockID;
   using BlockWeight = ::kaminpar::BlockWeight;
 
-  PartitionedGraph(const Graph &graph, BlockID k, StaticArray<parallel::IntegralAtomicWrapper<BlockID>> partition = {},
+  PartitionedGraph(const Graph &graph, BlockID k, StaticArray<BlockID> partition = {},
                    scalable_vector<BlockID> final_k = {});
-  PartitionedGraph(tag::Sequential, const Graph &graph, BlockID k,
-                   StaticArray<parallel::IntegralAtomicWrapper<BlockID>> partition = {},
+  PartitionedGraph(tag::Sequential, const Graph &graph, BlockID k, StaticArray<BlockID> partition = {},
                    scalable_vector<BlockID> final_k = {});
   PartitionedGraph() : _graph{nullptr} {}
 
@@ -267,7 +266,7 @@ public:
   //
 
   [[nodiscard]] inline IotaRange<BlockID> blocks() const { return IotaRange(static_cast<BlockID>(0), k()); }
-  [[nodiscard]] inline BlockID block(const NodeID u) const { return _partition[u]; }
+  [[nodiscard]] inline BlockID block(const NodeID u) const { return __atomic_load_n(&_partition[u], __ATOMIC_RELAXED); }
 
   template <bool update_block_weight = true> void set_block(const NodeID u, const BlockID new_b) {
     ASSERT(u < n()) << "invalid node id " << u;
@@ -282,7 +281,7 @@ public:
     }
 
     // change block
-    _partition[u].store(new_b, std::memory_order_relaxed);
+    __atomic_store_n(&_partition[u], new_b, __ATOMIC_RELAXED);
   }
 
   //! Attempt to move weight from block \c from to block \c to subject to the maximum block weight \c max_weight.
@@ -372,7 +371,7 @@ private:
   //! Number of blocks in this partition.
   BlockID _k;
   //! The partition, holds the block id [0, k) for each node.
-  StaticArray<parallel::IntegralAtomicWrapper<BlockID>> _partition; // O(n)
+  StaticArray<BlockID> _partition; // O(n)
   //! Current weight of each block.
   StaticArray<parallel::IntegralAtomicWrapper<NodeWeight>> _block_weights; // O(n)
   //! For each block in the current partition, this is the number of blocks that we want to split the block in the

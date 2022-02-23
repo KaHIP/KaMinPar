@@ -47,7 +47,9 @@ PartitionedGraph ClusteringCoarsener::uncoarsen(PartitionedGraph &&p_graph) {
   _current_graph = empty() ? &_input_graph : &_hierarchy.back();
   ASSERT(mapping.size() == _current_graph->n()) << V(mapping.size()) << V(_current_graph->n());
 
-  StaticArray<parallel::IntegralAtomicWrapper<BlockID>> partition(_current_graph->n());
+  START_TIMER("Allocate partition");
+  StaticArray<BlockID> partition(_current_graph->n());
+  STOP_TIMER();
   STOP_TIMER();
 
   START_TIMER("Copy partition");

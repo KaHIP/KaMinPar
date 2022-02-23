@@ -22,7 +22,7 @@ option(KAMINPAR_HEAVY_ASSERTIONS "Enable assertions that have high impact on per
 option(KAMINPAR_LIGHT_ASSERTIONS "Enable very lightweight assertions." ON)
 
 option(KAMINPAR_TIMERS "Enable fine-grained timers. With this option disabled, we will still report the total partitioning time." ON)
-option(KAMINPAR_STATISTICS "Generate and output detailed statistics." ON)
+option(KAMINPAR_STATISTICS "Generate and output detailed statistics." OFF)
 
 option(KAMINPAR_BACKWARD_CPP "Build with backward-cpp for better stack traces (requires the backward-cpp submodule)." ON)
 option(KAMINPAR_TESTS "Build unit tests (requires the GoogleTest submodule)." ON)

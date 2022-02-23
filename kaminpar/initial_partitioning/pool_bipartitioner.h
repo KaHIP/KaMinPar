@@ -121,7 +121,7 @@ public:
     _best_feasible = false;
     _best_cut = std::numeric_limits<EdgeWeight>::max();
     _best_imbalance = 0.0;
-    _best_partition = StaticArray<parallel::IntegralAtomicWrapper<BlockID>>(_graph.n());
+    _best_partition = StaticArray<BlockID>(_graph.n());
   }
 
   PartitionedGraph bipartition() {
@@ -236,12 +236,12 @@ private:
 
   MemoryContext _m_ctx{};
 
-  StaticArray<parallel::IntegralAtomicWrapper<BlockID>> _best_partition{_graph.n()};
+  StaticArray<BlockID> _best_partition{_graph.n()};
   EdgeWeight _best_cut{std::numeric_limits<EdgeWeight>::max()};
   bool _best_feasible{false};
   double _best_imbalance{0.0};
   std::size_t _best_bipartitioner{0};
-  StaticArray<parallel::IntegralAtomicWrapper<BlockID>> _current_partition{_graph.n()};
+  StaticArray<BlockID> _current_partition{_graph.n()};
 
   std::vector<std::string> _bipartitioner_names{};
   std::vector<std::unique_ptr<Bipartitioner>> _bipartitioners{};

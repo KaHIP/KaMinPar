@@ -24,10 +24,9 @@ inline int sched_getcpu() { return 0; }
 namespace kaminpar {
 namespace parallel {
 // https://github.com/kahypar/mt-kahypar/blob/master/mt-kahypar/parallel/atomic_wrapper.h
-template<typename T>
-class IntegralAtomicWrapper {
+template <typename T> class IntegralAtomicWrapper {
 public:
-  IntegralAtomicWrapper() = default;
+  IntegralAtomicWrapper() { _value.store(0, std::memory_order_relaxed); }
 
   // NOLINTNEXTLINE(google-explicit-constructor)
   IntegralAtomicWrapper(const T value) : _value(value) {}
@@ -109,7 +108,7 @@ public:
   T operator^=(T arg) noexcept { return _value.operator^=(arg); }
 
 private:
-  std::atomic<T> _value = 0;
+  std::atomic<T> _value;
 };
 
 template <typename InputIterator, typename OutputIterator>
@@ -150,8 +149,7 @@ template <typename T, typename... Args> tbb_unique_ptr<T> make_unique(Args &&...
   return tbb_unique_ptr<T>(ptr, tbb_deleter<T>{});
 }
 
-template<typename Range>
-typename Range::value_type accumulate(const Range &r) {
+template <typename Range> typename Range::value_type accumulate(const Range &r) {
   using r_size_t = typename Range::size_type;
   using value_t = typename Range::value_type;
 
@@ -182,8 +180,7 @@ typename Range::value_type accumulate(const Range &r) {
   return b._ans;
 }
 
-template<typename Range>
-typename Range::value_type max_element(const Range &r) {
+template <typename Range> typename Range::value_type max_element(const Range &r) {
   using r_size_t = typename Range::size_type;
   using value_t = typename Range::value_type;
 
@@ -214,8 +211,7 @@ typename Range::value_type max_element(const Range &r) {
   return b._ans;
 }
 
-template<typename Buffer, typename Lambda>
-void container_for(const Buffer &buffer, Lambda &&lambda) {
+template <typename Buffer, typename Lambda> void container_for(const Buffer &buffer, Lambda &&lambda) {
   tbb::parallel_for<std::size_t>(0, buffer.size(), [&](const std::size_t i) { lambda(buffer[i]); });
 }
 
@@ -223,8 +219,7 @@ void container_for(const Buffer &buffer, Lambda &&lambda) {
  * @param buffers Vector of buffers of elements.
  * @param lambda Invoked on each element, in parallel.
  */
-template<typename Buffer, typename Lambda>
-void chunked_for(Buffer &buffers, Lambda &&lambda) {
+template <typename Buffer, typename Lambda> void chunked_for(Buffer &buffers, Lambda &&lambda) {
   std::size_t total_size = 0;
   for (const auto &buffer : buffers) {
     total_size += buffer.size();
