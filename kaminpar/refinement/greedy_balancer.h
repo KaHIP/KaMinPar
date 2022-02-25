@@ -83,10 +83,7 @@ public:
   };
 
   GreedyBalancer(const Graph &graph, const BlockID max_k, const RefinementContext &)
-      : _max_k{max_k},
-        _pq{graph.n(), max_k},
-        _marker{graph.n()},
-        _pq_weight(max_k) {}
+      : _max_k{max_k}, _pq{graph.n(), max_k}, _marker{graph.n()}, _pq_weight(max_k) {}
 
   GreedyBalancer(const PartitionedGraph &) = delete;
   GreedyBalancer(GreedyBalancer &&) noexcept = default;

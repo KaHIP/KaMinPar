@@ -163,8 +163,7 @@ void write(const std::string &filename, const StaticArray<BlockID> &partition) {
 
 void write(const std::string &filename, const PartitionedGraph &p_graph) { write(filename, p_graph.partition()); }
 
-void write(const std::string &filename, const StaticArray<BlockID> &partition,
-           const StaticArray<NodeID> &permutation) {
+void write(const std::string &filename, const StaticArray<BlockID> &partition, const StaticArray<NodeID> &permutation) {
   std::ofstream out(filename);
   for (const NodeID u : permutation) {
     out << partition[u] << "\n";

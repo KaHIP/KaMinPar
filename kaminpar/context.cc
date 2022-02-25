@@ -239,9 +239,7 @@ void Context::print(std::ostream &out, const std::string &prefix) const {
   parallel.print(out, prefix + "parallel.");
 }
 
-void Context::setup(const Graph &graph) {
-  partition.setup(graph);
-}
+void Context::setup(const Graph &graph) { partition.setup(graph); }
 
 Context create_default_context() {
   // clang-format off

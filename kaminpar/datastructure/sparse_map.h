@@ -26,8 +26,7 @@
 #pragma once
 
 namespace kaminpar {
-template<typename Key, typename Value>
-class SparseMap {
+template <typename Key, typename Value> class SparseMap {
   struct Element {
     Key key;
     Value value;
@@ -111,4 +110,4 @@ private:
   std::size_t *_sparse{nullptr};
   Element *_dense{nullptr};
 };
-}
+} // namespace kaminpar

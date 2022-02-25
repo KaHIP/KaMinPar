@@ -1,4 +1,4 @@
-name: KaMinPar CI
+name: Compile and run units tests
 
 on: [ push, pull_request ]
 

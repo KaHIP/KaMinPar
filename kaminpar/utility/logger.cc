@@ -12,7 +12,9 @@ namespace logger {
 void CompactContainerFormatter::print(const std::vector<std::string> &container, std::ostream &out) const {
   bool first{true};
   for (const auto &element : container) {
-    if (!first) { out << _sep; }
+    if (!first) {
+      out << _sep;
+    }
     out << element;
     first = false;
   }
@@ -23,10 +25,14 @@ void Table::print(const std::vector<std::string> &container, std::ostream &out) 
 
   const std::size_t width = (_width == 0) ? std::sqrt(container.size()) : _width;
   std::size_t max_width = 0;
-  for (const auto &element : container) { max_width = std::max(max_width, element.length()); }
+  for (const auto &element : container) {
+    max_width = std::max(max_width, element.length());
+  }
 
   std::stringstream ss_h_del;
-  for (std::size_t i = 0; i < width; ++i) { ss_h_del << "+" << std::string(max_width + 2, '-'); }
+  for (std::size_t i = 0; i < width; ++i) {
+    ss_h_del << "+" << std::string(max_width + 2, '-');
+  }
   ss_h_del << "+";
   const std::string h_del = ss_h_del.str();
 
@@ -53,12 +59,23 @@ void DefaultTextFormatter::print(const std::string &text, std::ostream &out) con
 
 void Colorized::print(const std::string &text, std::ostream &out) const {
   switch (_color) {
-    case Color::RED: out << "\u001b[31m"; break;
-    case Color::GREEN: out << "\u001b[32m"; break;
-    case Color::ORANGE: out << "\u001b[33m"; break;
-    case Color::MAGENTA: out << "\u001b[35m"; break;
-    case Color::CYAN: out << "\u001b[36m"; break;
-    default: break; // do nothing
+  case Color::RED:
+    out << "\u001b[31m";
+    break;
+  case Color::GREEN:
+    out << "\u001b[32m";
+    break;
+  case Color::ORANGE:
+    out << "\u001b[33m";
+    break;
+  case Color::MAGENTA:
+    out << "\u001b[35m";
+    break;
+  case Color::CYAN:
+    out << "\u001b[36m";
+    break;
+  default:
+    break; // do nothing
   }
   out << text << "\u001b[0m";
 }
@@ -82,7 +99,9 @@ Logger::Logger() : Logger(std::cout) {}
 Logger::Logger(std::ostream &out, std::string append) : _buffer(), _out(out), _append(std::move(append)) {}
 
 void Logger::flush() {
-  if (_quiet) { return; }
+  if (_quiet) {
+    return;
+  }
 
   if (!_flushed) {
     tbb::spin_mutex::scoped_lock lock(flush_mutex());
@@ -97,7 +116,5 @@ tbb::spin_mutex &Logger::flush_mutex() {
   return mutex;
 }
 
-void Logger::set_quiet_mode(const bool quiet) {
-  _quiet = quiet;
-}
+void Logger::set_quiet_mode(const bool quiet) { _quiet = quiet; }
 } // namespace kaminpar

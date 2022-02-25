@@ -86,7 +86,7 @@ public:
  * @tparam seed_node If specified, a fixed seed node from the search for pseudo peripheral nodes is started. If not
  * specified, a random node is used instead.
  */
-template<typename block_selection_strategy, NodeID seed_node = kInvalidNodeID>
+template <typename block_selection_strategy, NodeID seed_node = kInvalidNodeID>
 class BfsBipartitioner : public BfsBipartitionerBase {
   static constexpr std::size_t kMarkAssigned = 2;
   using MemoryContext = BfsBipartitionerBase::MemoryContext;
@@ -94,13 +94,17 @@ class BfsBipartitioner : public BfsBipartitionerBase {
 public:
   BfsBipartitioner(const Graph &graph, const PartitionContext &p_ctx, const InitialPartitioningContext &i_ctx,
                    MemoryContext &m_ctx)
-      : BfsBipartitionerBase(graph, p_ctx, i_ctx),
-        _queues{m_ctx.queues},
-        _marker{m_ctx.marker},
+      : BfsBipartitionerBase(graph, p_ctx, i_ctx), _queues{m_ctx.queues}, _marker{m_ctx.marker},
         _num_seed_iterations(i_ctx.num_seed_iterations) {
-    if (_marker.capacity() < _graph.n()) { _marker.resize(_graph.n()); }
-    if (_queues[0].capacity() < _graph.n()) { _queues[0].resize(_graph.n()); }
-    if (_queues[1].capacity() < _graph.n()) { _queues[1].resize(_graph.n()); }
+    if (_marker.capacity() < _graph.n()) {
+      _marker.resize(_graph.n());
+    }
+    if (_queues[0].capacity() < _graph.n()) {
+      _queues[0].resize(_graph.n());
+    }
+    if (_queues[1].capacity() < _graph.n()) {
+      _queues[1].resize(_graph.n());
+    }
   }
 
 protected:
@@ -135,8 +139,8 @@ protected:
         // block instead
         // --------------------------------------------------
         // this version seems to perform worse in terms of balance
-        //        const bool balanced = (_block_weights[active] + _graph.node_weight(u) <= _p_ctx.max_block_weight(active));
-        //        if (!balanced) {
+        //        const bool balanced = (_block_weights[active] + _graph.node_weight(u) <=
+        //        _p_ctx.max_block_weight(active)); if (!balanced) {
         //          active = _block_weights[1 - active] < _block_weights[active] ? 1 - active : active;
         //        }
         // than this version
@@ -148,7 +152,9 @@ protected:
         _marker.set<true>(u, kMarkAssigned);
 
         for (const NodeID v : _graph.adjacent_nodes(u)) {
-          if (_marker.get(v, kMarkAssigned) || _marker.get(v, active)) { continue; }
+          if (_marker.get(v, kMarkAssigned) || _marker.get(v, active)) {
+            continue;
+          }
           _queues[active].push_tail(v);
           _marker.set(v, active);
         }
@@ -158,7 +164,8 @@ protected:
     }
 
     _marker.reset();
-    for (const auto i : {0, 1}) _queues[i].clear();
+    for (const auto i : {0, 1})
+      _queues[i].clear();
   }
 
 private:

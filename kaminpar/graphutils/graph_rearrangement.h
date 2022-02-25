@@ -7,10 +7,10 @@
  ******************************************************************************/
 #pragma once
 
-#include "kaminpar/graphutils/graph_permutation.h"
 #include "kaminpar/context.h"
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/definitions.h"
+#include "kaminpar/graphutils/graph_permutation.h"
 
 #include <utility>
 

@@ -14,9 +14,9 @@
 #include <iostream>
 #include <map>
 #include <mutex>
-#include <unordered_map>
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/task_arena.h>
+#include <unordered_map>
 
 #define GLOBAL_TIMER (kaminpar::Timer::global())
 #define GLOBAL_TIMER_PTR &(GLOBAL_TIMER)
@@ -192,7 +192,7 @@ public:
 
     // create new tree node if timer does not already exist
     auto tbl_contains = [&](std::string_view name) {
-	return _tree.current->children_tbl.find(name) != _tree.current->children_tbl.end();
+      return _tree.current->children_tbl.find(name) != _tree.current->children_tbl.end();
     };
     const bool empty_description = is_empty_description(description);
     if (!empty_description || !tbl_contains(name)) {
@@ -269,9 +269,7 @@ public:
     }
   }
 
-  void annotate(std::string annotation) {
-    _annotation = std::move(annotation);
-  }
+  void annotate(std::string annotation) { _annotation = std::move(annotation); }
 
   [[nodiscard]] inline TimerTreeNode &tree() { return _tree.root; }
   [[nodiscard]] inline const TimerTreeNode &tree() const { return _tree.root; }

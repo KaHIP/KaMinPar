@@ -31,7 +31,7 @@ struct Mandatory {};
 
 #ifdef KAMINPAR_64BIT_NODE_IDS
 using NodeID = uint64_t;
-#else // KAMINPAR_64BIT_NODE_IDS
+#else  // KAMINPAR_64BIT_NODE_IDS
 using NodeID = uint32_t;
 #endif // KAMINPAR_64BIT_NODE_IDS
 
@@ -44,7 +44,7 @@ using EdgeID = uint32_t;
 #ifdef KAMINPAR_64BIT_WEIGHTS
 using NodeWeight = int64_t;
 using EdgeWeight = int64_t;
-#else // KAMINPAR_64BIT_WEIGHTS
+#else  // KAMINPAR_64BIT_WEIGHTS
 using NodeWeight = int32_t;
 using EdgeWeight = int32_t;
 #endif // KAMINPAR_64BIT_WEIGHTS

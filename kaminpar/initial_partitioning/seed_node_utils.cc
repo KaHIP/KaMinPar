@@ -58,7 +58,8 @@ std::pair<NodeID, NodeID> find_furthest_away_node(const Graph &graph, const Node
     last_node = u;
 
     for (const NodeID v : graph.adjacent_nodes(u)) {
-      if (marker.get(v)) continue;
+      if (marker.get(v))
+        continue;
       queue.push_tail(v);
       marker.set<true>(v);
       ++nodes_in_next_level;

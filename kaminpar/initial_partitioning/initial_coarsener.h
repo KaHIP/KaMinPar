@@ -1,11 +1,11 @@
 /*******************************************************************************
-* @file:   initial_coarsener.h
-*
-* @author: Daniel Seemaier
-* @date:   21.09.21
-* @brief:  Sequential coarsener based on label propagation with leader
-* locking.
-******************************************************************************/
+ * @file:   initial_coarsener.h
+ *
+ * @author: Daniel Seemaier
+ * @date:   21.09.21
+ * @brief:  Sequential coarsener based on label propagation with leader
+ * locking.
+ ******************************************************************************/
 #pragma once
 
 #include "kaminpar/context.h"
@@ -79,8 +79,7 @@ public:
     }
   }
 
-  template<typename Weights>
-  void reset_current_clustering(const NodeID n, const Weights &node_weights) {
+  template <typename Weights> void reset_current_clustering(const NodeID n, const Weights &node_weights) {
     ASSERT(n <= _clustering.size());
     ASSERT(n <= node_weights.size());
 
@@ -146,7 +145,9 @@ private:
   }
 
   inline void interleaved_visit_neighbor(const NodeID, const NodeID c_v, const EdgeWeight weight) {
-    if (!_interleaved_locked) { _rating_map[_clustering[c_v].leader] += weight; }
+    if (!_interleaved_locked) {
+      _rating_map[_clustering[c_v].leader] += weight;
+    }
   }
 
   const Graph *_input_graph;

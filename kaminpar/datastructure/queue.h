@@ -18,8 +18,7 @@ namespace kaminpar {
  *
  * @tparam T Type of element.
  */
-template<typename T>
-class Queue {
+template <typename T> class Queue {
 public:
   using value_type = T;
   using size_type = std::size_t;

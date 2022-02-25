@@ -1,10 +1,10 @@
 /*******************************************************************************
-* @file:   graph_extraction.h
-*
-* @author: Daniel Seemaier
-* @date:   21.09.21
-* @brief:  Extracts the subgraphs induced by each block of a partition.
-******************************************************************************/
+ * @file:   graph_extraction.h
+ *
+ * @author: Daniel Seemaier
+ * @date:   21.09.21
+ * @brief:  Extracts the subgraphs induced by each block of a partition.
+ ******************************************************************************/
 #pragma once
 
 #include "kaminpar/context.h"
@@ -33,10 +33,7 @@ struct SubgraphMemoryStartPosition {
 struct SubgraphMemory {
   SubgraphMemory(const NodeID n, const BlockID k, const EdgeID m, const bool is_node_weighted = true,
                  const bool is_edge_weighted = true)
-      : nodes(n + k),
-        edges(m),
-        node_weights(is_node_weighted * (n + k)),
-        edge_weights(is_edge_weighted * m) {}
+      : nodes(n + k), edges(m), node_weights(is_node_weighted * (n + k)), edge_weights(is_edge_weighted * m) {}
 
   explicit SubgraphMemory(const PartitionedGraph &p_graph)
       : SubgraphMemory(p_graph.n(), p_graph.k(), p_graph.m(), p_graph.graph().is_node_weighted(),
@@ -67,8 +64,12 @@ struct TemporarySubgraphMemory {
       nodes.resize(n * kOverallocationFactor + 1);
       ++num_node_reallocs;
     }
-    if (is_node_weighed && node_weights.size() < n) { node_weights.resize(n * kOverallocationFactor); }
-    if (mapping.size() < n) { mapping.resize(n * kOverallocationFactor); }
+    if (is_node_weighed && node_weights.size() < n) {
+      node_weights.resize(n * kOverallocationFactor);
+    }
+    if (mapping.size() < n) {
+      mapping.resize(n * kOverallocationFactor);
+    }
   }
 
   void ensure_size_edges(const EdgeID m, const bool is_edge_weighted) {
@@ -76,7 +77,9 @@ struct TemporarySubgraphMemory {
       edges.resize(m * kOverallocationFactor);
       ++num_edge_reallocs;
     }
-    if (is_edge_weighted && edge_weights.size() < m) { edge_weights.resize(m * kOverallocationFactor); }
+    if (is_edge_weighted && edge_weights.size() < m) {
+      edge_weights.resize(m * kOverallocationFactor);
+    }
   }
 
   std::vector<EdgeID> nodes;

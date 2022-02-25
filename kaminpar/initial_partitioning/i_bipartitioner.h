@@ -29,12 +29,15 @@ public:
   }
 
   //! Compute bipartition and return as array.
-  StaticArray<BlockID>
-  bipartition_raw(StaticArray<BlockID> &&partition = {}) {
-    if (_graph.n() == 0) { return {}; }
+  StaticArray<BlockID> bipartition_raw(StaticArray<BlockID> &&partition = {}) {
+    if (_graph.n() == 0) {
+      return {};
+    }
 
     _partition = std::move(partition);
-    if (_partition.size() < _graph.n()) { _partition.resize(_graph.n()); }
+    if (_partition.size() < _graph.n()) {
+      _partition.resize(_graph.n());
+    }
 #ifdef KAMINPAR_ENABLE_ASSERTIONS
     std::fill(_partition.begin(), _partition.end(), kInvalidBlockID);
 #endif // KAMINPAR_ENABLE_ASSERTIONS
@@ -50,9 +53,7 @@ protected:
   static constexpr BlockID V2 = 1;
 
   Bipartitioner(const Graph &graph, const PartitionContext &p_ctx, const InitialPartitioningContext &i_ctx)
-      : _graph{graph},
-        _p_ctx{p_ctx},
-        _i_ctx{i_ctx} {
+      : _graph{graph}, _p_ctx{p_ctx}, _i_ctx{i_ctx} {
     ALWAYS_ASSERT(_p_ctx.k == 2) << "not a bipartition context";
   }
 

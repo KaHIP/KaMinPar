@@ -16,8 +16,7 @@
 #include <vector>
 
 namespace kaminpar {
-template<typename T>
-class StaticArray {
+template <typename T> class StaticArray {
 public:
   class StaticArrayIterator : public std::iterator<std::random_access_iterator_tag, T> {
     using Base = std::iterator<std::random_access_iterator_tag, T>;
@@ -32,7 +31,7 @@ public:
     explicit StaticArrayIterator(T *ptr) : _ptr(ptr) {}
 
     StaticArrayIterator(const StaticArrayIterator &other) = default;
-    StaticArrayIterator &operator=(const StaticArrayIterator &other) = default; 
+    StaticArrayIterator &operator=(const StaticArrayIterator &other) = default;
 
     reference operator*() const { return *_ptr; }
     pointer operator->() const { return _ptr; }
@@ -192,10 +191,14 @@ public:
     if (assign_parallel) {
       const std::size_t step{std::max(count / std::thread::hardware_concurrency(), 1UL)};
       tbb::parallel_for(0UL, count, step, [&](const size_type i) {
-        for (size_type j = i; j < std::min(i + step, count); ++j) { _data[j] = value; }
+        for (size_type j = i; j < std::min(i + step, count); ++j) {
+          _data[j] = value;
+        }
       });
     } else {
-      for (std::size_t i = 0; i < count; ++i) { _data[i] = value; }
+      for (std::size_t i = 0; i < count; ++i) {
+        _data[i] = value;
+      }
     }
   }
 
@@ -222,35 +225,33 @@ private:
 
 #if defined(TOOL) || defined(TEST)
 namespace static_array {
-template<typename T>
-StaticArray<T> create_from(const std::vector<T> &vec) {
+template <typename T> StaticArray<T> create_from(const std::vector<T> &vec) {
   StaticArray<T> arr(vec.size());
   std::copy(vec.begin(), vec.end(), arr.begin());
   return arr;
 }
 
-template<typename T>
-StaticArray<parallel::IntegralAtomicWrapper<T>> create_atomic_from(const std::vector<T> &vec) {
+template <typename T> StaticArray<parallel::IntegralAtomicWrapper<T>> create_atomic_from(const std::vector<T> &vec) {
   StaticArray<parallel::IntegralAtomicWrapper<T>> arr(vec.size());
-  for (std::size_t i = 0; i < vec.size(); ++i) { arr[i].store(vec[i]); }
+  for (std::size_t i = 0; i < vec.size(); ++i) {
+    arr[i].store(vec[i]);
+  }
   return arr;
 }
 
-template<typename T>
-std::vector<T> release(const StaticArray<T> &arr) {
+template <typename T> std::vector<T> release(const StaticArray<T> &arr) {
   std::vector<T> vec(arr.size());
   std::copy(arr.begin(), arr.end(), vec.begin());
   return vec;
 }
 
-template<typename T>
-std::vector<T> release_nonatomic(const StaticArray<parallel::IntegralAtomicWrapper<T>> &arr) {
+template <typename T> std::vector<T> release_nonatomic(const StaticArray<parallel::IntegralAtomicWrapper<T>> &arr) {
   std::vector<T> vec(arr.size());
   for (std::size_t i = 0; i < arr.size(); ++i) {
     vec[i] = arr[i].load();
   }
   return vec;
 }
-}
+} // namespace static_array
 #endif // TOOL
 } // namespace kaminpar

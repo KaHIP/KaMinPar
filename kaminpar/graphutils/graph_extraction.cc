@@ -49,7 +49,9 @@ SequentialSubgraphExtractionResult extract_subgraphs_sequential(const Partitione
     tmp_subgraph_memory.mapping[u] = s_n[b]++;
 
     for (const auto [e, v] : p_graph.neighbors(u)) {
-      if (p_graph.block(v) == b) { ++s_m[b]; }
+      if (p_graph.block(v) == b) {
+        ++s_m[b];
+      }
     }
   }
 
@@ -73,13 +75,17 @@ SequentialSubgraphExtractionResult extract_subgraphs_sequential(const Partitione
     for (const auto [e, v] : p_graph.neighbors(u)) {
       if (p_graph.block(v) == b) {
         edges[m0 + next_edge_id[b]] = mapping[v];
-        if (is_edge_weighted) { edge_weights[m0 + next_edge_id[b]] = p_graph.edge_weight(e); }
+        if (is_edge_weighted) {
+          edge_weights[m0 + next_edge_id[b]] = p_graph.edge_weight(e);
+        }
         ++next_edge_id[b];
       }
     }
 
     nodes[n0 + mapping[u] + 1] = next_edge_id[b];
-    if (is_node_weighted) { node_weights[n0 + mapping[u]] = p_graph.node_weight(u); }
+    if (is_node_weighted) {
+      node_weights[n0 + mapping[u]] = p_graph.node_weight(u);
+    }
   }
 
   // copy graphs to subgraph_memory at memory_position
@@ -151,7 +157,9 @@ SubgraphExtractionResult extract_subgraphs(const PartitionedGraph &p_graph, Subg
       const BlockID u_block = p_graph.block(u);
       ++num_nodes_in_block[u_block];
       for (const NodeID v : graph.adjacent_nodes(u)) {
-        if (p_graph.block(v) == u_block) { ++num_edges_in_block[u_block]; }
+        if (p_graph.block(v) == u_block) {
+          ++num_edges_in_block[u_block];
+        }
       }
     }
   });
@@ -161,8 +169,12 @@ SubgraphExtractionResult extract_subgraphs(const PartitionedGraph &p_graph, Subg
   tbb::parallel_for(static_cast<BlockID>(0), p_graph.k(), [&](const BlockID b) {
     NodeID num_nodes = p_graph.final_k(b); // padding for sequential subgraph extraction
     EdgeID num_edges = 0;
-    for (auto &local_num_nodes : tl_num_nodes_in_block) { num_nodes += local_num_nodes[b]; }
-    for (auto &local_num_edges : tl_num_edges_in_block) { num_edges += local_num_edges[b]; }
+    for (auto &local_num_nodes : tl_num_nodes_in_block) {
+      num_nodes += local_num_nodes[b];
+    }
+    for (auto &local_num_edges : tl_num_edges_in_block) {
+      num_edges += local_num_edges[b];
+    }
     start_positions[b + 1].nodes_start_pos = num_nodes;
     start_positions[b + 1].edges_start_pos = num_edges;
   });
@@ -192,13 +204,17 @@ SubgraphExtractionResult extract_subgraphs(const PartitionedGraph &p_graph, Subg
       const NodeID pos = nodes_start_pos + u;
       const NodeID u_prime = subgraph_memory.nodes[pos]; // u_prime = in graph
       subgraph_memory.nodes[pos] = e;
-      if (is_node_weighted) { subgraph_memory.node_weights[pos] = graph.node_weight(u_prime); }
+      if (is_node_weighted) {
+        subgraph_memory.node_weights[pos] = graph.node_weight(u_prime);
+      }
 
       const EdgeID e0 = start_positions[b].edges_start_pos;
 
       for (const auto [e_prime, v_prime] : graph.neighbors(u_prime)) { // e_prime, v_prime = in graph
         if (p_graph.block(v_prime) == b) {                             // only keep internal edges
-          if (is_edge_weighted) { subgraph_memory.edge_weights[e0 + e] = graph.edge_weight(e_prime); }
+          if (is_edge_weighted) {
+            subgraph_memory.edge_weights[e0 + e] = graph.edge_weight(e_prime);
+          }
           subgraph_memory.edges[e0 + e] = mapping[v_prime];
           ++e;
         }
@@ -244,8 +260,12 @@ void fill_final_k(scalable_vector<BlockID> &data, const BlockID b0, const BlockI
   data[b[0]] = final_k1;
   data[b[1]] = final_k2;
 
-  if (ks[0] > 1) { fill_final_k(data, b[0], final_k1, ks[0]); }
-  if (ks[1] > 1) { fill_final_k(data, b[1], final_k2, ks[1]); }
+  if (ks[0] > 1) {
+    fill_final_k(data, b[0], final_k1, ks[0]);
+  }
+  if (ks[1] > 1) {
+    fill_final_k(data, b[1], final_k2, ks[1]);
+  }
 }
 } // namespace
 
@@ -257,7 +277,9 @@ void copy_subgraph_partitions(PartitionedGraph &p_graph, const scalable_vector<B
   scalable_vector<BlockID> final_ks(k_prime, 1);
 
   // we are done partitioning? --> use final_ks
-  if (k_prime == input_k) { std::copy(p_graph.final_ks().begin(), p_graph.final_ks().end(), k0.begin() + 1); }
+  if (k_prime == input_k) {
+    std::copy(p_graph.final_ks().begin(), p_graph.final_ks().end(), k0.begin() + 1);
+  }
 
   parallel::prefix_sum(k0.begin(), k0.end(), k0.begin()); // blocks of old block i start at k0[i]
 

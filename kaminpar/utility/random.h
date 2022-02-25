@@ -23,10 +23,8 @@ class Randomize {
 
 public:
   Randomize()
-      : _generator(Randomize::seed + tbb::this_task_arena::current_thread_index()),
-        _bool_dist(0, 1),
-        _next_random_bool(0),
-        _random_bools{} {
+      : _generator(Randomize::seed + tbb::this_task_arena::current_thread_index()), _bool_dist(0, 1),
+        _next_random_bool(0), _random_bools{} {
     precompute_bools();
   }
 
@@ -52,11 +50,9 @@ public:
   bool random_bool() { return _random_bools[_next_random_bool++ % kPrecomputedBools]; }
   bool random_bool(const double prob) { return std::uniform_real_distribution<>(0, 1)(_generator) <= prob; }
 
-  template<typename Container>
-  void shuffle(Container &&vec) { std::shuffle(vec.begin(), vec.end(), _generator); }
+  template <typename Container> void shuffle(Container &&vec) { std::shuffle(vec.begin(), vec.end(), _generator); }
 
-  template<typename Iterator>
-  void shuffle(Iterator begin, Iterator end) { std::shuffle(begin, end, _generator); }
+  template <typename Iterator> void shuffle(Iterator begin, Iterator end) { std::shuffle(begin, end, _generator); }
 
   [[nodiscard]] auto &generator() { return _generator; }
 
@@ -65,7 +61,9 @@ public:
 private:
   void precompute_bools() {
     std::uniform_int_distribution<int> _dist(0, 1);
-    for (std::size_t i = 0; i < kPrecomputedBools; ++i) { _random_bools[i] = static_cast<bool>(_dist(_generator)); }
+    for (std::size_t i = 0; i < kPrecomputedBools; ++i) {
+      _random_bools[i] = static_cast<bool>(_dist(_generator));
+    }
   }
 
   std::mt19937 _generator;
@@ -74,8 +72,7 @@ private:
   std::array<bool, kPrecomputedBools> _random_bools;
 };
 
-template<typename ValueType, std::size_t size, std::size_t count>
-class RandomPermutations {
+template <typename ValueType, std::size_t size, std::size_t count> class RandomPermutations {
 public:
   RandomPermutations() : _rand{Randomize::instance()} { init_permutations(); }
 

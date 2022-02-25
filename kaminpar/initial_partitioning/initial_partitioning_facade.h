@@ -33,9 +33,7 @@ public:
   };
 
   InitialPartitioner(const Graph &graph, const Context &ctx, const BlockID final_k, MemoryContext m_ctx = {})
-      : _m_ctx{std::move(m_ctx)},
-        _graph{graph},
-        _i_ctx{ctx.initial_partitioning},
+      : _m_ctx{std::move(m_ctx)}, _graph{graph}, _i_ctx{ctx.initial_partitioning},
         _coarsener{&_graph, _i_ctx.coarsening, std::move(_m_ctx.coarsener_m_ctx)} {
     std::tie(_final_k1, _final_k2) = math::split_integral(final_k);
     _p_ctx = create_bipartition_context(ctx.partition, _graph, _final_k1, _final_k2);
@@ -90,7 +88,9 @@ private:
           << "max_cluster_weight=" << max_cluster_weight << " " //
           << ((shrunk) ? "" : "==> terminate");                 //
 
-      if (shrunk) { c_graph = new_c_graph; }
+      if (shrunk) {
+        c_graph = new_c_graph;
+      }
     }
 
     return c_graph;

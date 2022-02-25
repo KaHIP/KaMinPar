@@ -31,10 +31,18 @@ public:
     std::vector<EdgeWeight> weighted_degrees;
 
     void resize(const NodeID n) {
-      if (queues[0].capacity() < n) { queues[0].resize(n); }
-      if (queues[1].capacity() < n) { queues[1].resize(n); }
-      if (marker.size() < n) { marker.resize(n); }
-      if (weighted_degrees.size() < n) { weighted_degrees.resize(n); }
+      if (queues[0].capacity() < n) {
+        queues[0].resize(n);
+      }
+      if (queues[1].capacity() < n) {
+        queues[1].resize(n);
+      }
+      if (marker.size() < n) {
+        marker.resize(n);
+      }
+      if (weighted_degrees.size() < n) {
+        weighted_degrees.resize(n);
+      }
     }
 
     [[nodiscard]] std::size_t memory_in_kb() const {
@@ -137,7 +145,9 @@ struct MaxGainSelectionPolicy {
                          Randomize &rand) {
     const auto loss0 = queues[0].empty() ? std::numeric_limits<Gain>::max() : queues[0].peek_key();
     const auto loss1 = queues[1].empty() ? std::numeric_limits<Gain>::max() : queues[1].peek_key();
-    if (loss0 == loss1) { return MaxWeightSelectionPolicy()(p_graph, context, queues, rand); }
+    if (loss0 == loss1) {
+      return MaxWeightSelectionPolicy()(p_graph, context, queues, rand);
+    }
     return loss1 < loss0;
   }
 };
@@ -147,7 +157,9 @@ struct MaxOverloadSelectionPolicy {
                          Randomize &rand) {
     const NodeWeight overload0 = std::max<NodeWeight>(0, p_graph.block_weight(0) - context.block_weights.max(0));
     const NodeWeight overload1 = std::max<NodeWeight>(0, p_graph.block_weight(1) - context.block_weights.max(1));
-    if (overload0 == 0 && overload1 == 0) { return MaxGainSelectionPolicy()(p_graph, context, queues, rand); }
+    if (overload0 == 0 && overload1 == 0) {
+      return MaxGainSelectionPolicy()(p_graph, context, queues, rand);
+    }
     return overload1 > overload0 || (overload1 == overload0 && rand.random_bool());
   }
 };
@@ -169,7 +181,7 @@ struct BalancedMinCutAcceptancePolicy {
  * @tparam QueueSelectionPolicy Selects the next block from where we move a node.
  * @tparam CutAcceptancePolicy Decides whether we accept the current cut.
  */
-template<typename QueueSelectionPolicy, typename CutAcceptancePolicy, typename StoppingPolicy>
+template <typename QueueSelectionPolicy, typename CutAcceptancePolicy, typename StoppingPolicy>
 class InitialTwoWayFMRefiner : public InitialRefiner {
   static constexpr NodeID kChunkSize = 64;
   static constexpr std::size_t kNumberOfNodePermutations = 32;
@@ -179,17 +191,22 @@ class InitialTwoWayFMRefiner : public InitialRefiner {
 public:
   InitialTwoWayFMRefiner(const NodeID n, const PartitionContext &p_ctx, const RefinementContext &r_ctx,
                          MemoryContext m_ctx = {})
-      : _p_ctx{p_ctx},
-        _r_ctx{r_ctx},
-        _queues{std::move(m_ctx.queues)}, //
-        _marker{std::move(m_ctx.marker)},
-        _weighted_degrees{std::move(m_ctx.weighted_degrees)} {
+      : _p_ctx{p_ctx}, _r_ctx{r_ctx}, _queues{std::move(m_ctx.queues)}, //
+        _marker{std::move(m_ctx.marker)}, _weighted_degrees{std::move(m_ctx.weighted_degrees)} {
     ALWAYS_ASSERT(p_ctx.k == 2) << "2-way refiner cannot be used on a " << p_ctx.k << "-way partition.";
 
-    if (_queues[0].capacity() < n) { _queues[0].resize(n); }
-    if (_queues[1].capacity() < n) { _queues[1].resize(n); }
-    if (_marker.capacity() < n) { _marker.resize(n); }
-    if (_weighted_degrees.size() < n) { _weighted_degrees.resize(n); }
+    if (_queues[0].capacity() < n) {
+      _queues[0].resize(n);
+    }
+    if (_queues[1].capacity() < n) {
+      _queues[1].resize(n);
+    }
+    if (_marker.capacity() < n) {
+      _marker.resize(n);
+    }
+    if (_weighted_degrees.size() < n) {
+      _weighted_degrees.resize(n);
+    }
   }
 
   void initialize(const Graph &graph) final {
@@ -207,7 +224,9 @@ public:
     ASSERT(p_graph.k() == 2) << "2-way refiner cannot be used on a " << p_graph.k() << "-way partition.";
 
     const EdgeWeight initial_edge_cut = metrics::edge_cut(p_graph, tag::seq);
-    if (initial_edge_cut == 0) { return false; } // no improvement possible
+    if (initial_edge_cut == 0) {
+      return false;
+    } // no improvement possible
 
     EdgeWeight prev_edge_cut = initial_edge_cut;
     EdgeWeight cur_edge_cut = prev_edge_cut;
@@ -223,9 +242,8 @@ public:
   }
 
   MemoryContext free() final {
-    return {.queues = std::move(_queues),
-            .marker = std::move(_marker),
-            .weighted_degrees = std::move(_weighted_degrees)};
+    return {
+        .queues = std::move(_queues), .marker = std::move(_marker), .weighted_degrees = std::move(_weighted_degrees)};
   }
 
 private:
@@ -271,7 +289,9 @@ private:
 #endif // KAMINPAR_ENABLE_HEAVY_ASSERTIONS
 
       active = _queue_selection_policy(p_graph, _p_ctx, _queues, _rand);
-      if (_queues[active].empty()) { active = 1 - active; }
+      if (_queues[active].empty()) {
+        active = 1 - active;
+      }
       BinaryMinHeap<Gain> &queue = _queues[active];
 
       const NodeID u = queue.peek_id();
@@ -293,7 +313,9 @@ private:
 
       // update gain of neighboring nodes
       for (const auto [e, v] : _graph->neighbors(u)) {
-        if (_marker.get(v)) { continue; }
+        if (_marker.get(v)) {
+          continue;
+        }
 
         const EdgeWeight e_weight = _graph->edge_weight(e);
         const BlockID v_block = p_graph.block(v);
@@ -327,10 +349,14 @@ private:
     }
 
     // rollback to last accepted cut
-    for (const NodeID u : moves) { p_graph.set_block(u, 1 - p_graph.block(u)); };
+    for (const NodeID u : moves) {
+      p_graph.set_block(u, 1 - p_graph.block(u));
+    };
 
     // reset datastructures for next run
-    for (const std::size_t i : {0, 1}) { _queues[i].clear(); }
+    for (const std::size_t i : {0, 1}) {
+      _queues[i].clear();
+    }
     _marker.reset();
 
     ASSERT(!initially_feasible || accepted_delta <= 0); // only accept bad cuts when starting with bad balance
@@ -352,7 +378,9 @@ private:
       const auto &permutation = _permutations.get(_rand);
       for (const NodeID i : permutation) {
         const NodeID u = chunk + i;
-        if (u < _graph->n()) { insert_node(p_graph, u); }
+        if (u < _graph->n()) {
+          insert_node(p_graph, u);
+        }
       }
     }
 
@@ -364,7 +392,9 @@ private:
   void insert_node(const PartitionedGraph &p_graph, const NodeID u) {
     const EdgeWeight gain = compute_gain_from_scratch(p_graph, u);
     const BlockID u_block = p_graph.block(u);
-    if (_weighted_degrees[u] != gain) { _queues[u_block].push(u, gain); }
+    if (_weighted_degrees[u] != gain) {
+      _queues[u_block].push(u, gain);
+    }
   }
 
   EdgeWeight compute_gain_from_scratch(const PartitionedGraph &p_graph, const NodeID u) {
@@ -380,7 +410,9 @@ private:
   void init_weighted_degrees() {
     for (const NodeID u : _graph->nodes()) {
       EdgeWeight weighted_degree = 0;
-      for (const EdgeID e : _graph->incident_edges(u)) { weighted_degree += _graph->edge_weight(e); }
+      for (const EdgeID e : _graph->incident_edges(u)) {
+        weighted_degree += _graph->edge_weight(e);
+      }
       _weighted_degrees[u] = weighted_degree;
     }
   }
@@ -388,7 +420,9 @@ private:
 #ifdef KAMINPAR_ENABLE_HEAVY_ASSERTIONS
   bool IS_BOUNDARY_NODE(const PartitionedGraph &p_graph, const NodeID u) {
     for (const NodeID v : p_graph.adjacent_nodes(u)) {
-      if (p_graph.block(u) != p_graph.block(v)) { return true; }
+      if (p_graph.block(u) != p_graph.block(v)) {
+        return true;
+      }
     }
     return false;
   }

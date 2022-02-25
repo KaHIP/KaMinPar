@@ -39,7 +39,7 @@ namespace kaminpar {
  * element. Please make sure that no more than MAP_SIZE elements are inserted into the
  * sparse map. Otherwise, the behavior is undefined.
  */
-template<typename Key, typename Value, std::size_t fixed_size = 32768> // Size of sparse map is approx. 1 MB
+template <typename Key, typename Value, std::size_t fixed_size = 32768> // Size of sparse map is approx. 1 MB
 class FixedSizeSparseMap {
   struct Element {
     Key key;
@@ -118,7 +118,9 @@ private:
     std::size_t hash = key & (_map_size - 1);
     while (_sparse[hash].timestamp == _timestamp) {
       ASSERT(_sparse[hash].element);
-      if (_sparse[hash].element->key == key) { return &_sparse[hash]; }
+      if (_sparse[hash].element->key == key) {
+        return &_sparse[hash];
+      }
       hash = (hash + 1) & (_map_size - 1);
     }
     return &_sparse[hash];
@@ -129,7 +131,7 @@ private:
     const bool is_contained = s->timestamp == _timestamp;
     ASSERT(!is_contained || s->element->key == key);
 #ifndef KAMINPAR_ENABLE_ASSERTIONS
-    (void) key;
+    (void)key;
 #endif
     return is_contained;
   }

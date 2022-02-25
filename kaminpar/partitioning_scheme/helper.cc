@@ -104,12 +104,13 @@ void extend_partition_recursive(const Graph &graph, BlockArray &partition, const
   const BlockID final_k2 = p_graph.final_k(1);
   ASSERT(final_k1 > 0 && final_k2 > 0) << V(final_k1) << V(final_k2) << V(final_k);
   ASSERT(final_k == final_k1 + final_k2);
-  
+
   std::array<BlockID, 2> ks{0, 0};
   std::tie(ks[0], ks[1]) = math::split_integral(k);
   ASSERT(ks[0] + ks[1] == k && ks[0] >= 1 && ks[1] >= 1)
       << V(ks[0]) << V(ks[1]) << V(k) << V(final_k1) << V(final_k2) << V(final_k);
-  ASSERT(final_k1 >= ks[0] && final_k2 >= ks[1]) << V(final_k1) << V(ks[0]) << V(final_k2) << V(ks[1]) << V(final_k) << V(k);
+  ASSERT(final_k1 >= ks[0] && final_k2 >= ks[1])
+      << V(final_k1) << V(ks[0]) << V(final_k2) << V(ks[1]) << V(final_k) << V(k);
 
   // copy p_graph to partition -> replace b0 with b0 or b1
   std::array<BlockID, 2> b{b0, b0 + ks[0]};

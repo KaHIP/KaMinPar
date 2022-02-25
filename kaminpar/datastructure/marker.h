@@ -14,8 +14,7 @@
 #include <type_traits>
 
 namespace kaminpar {
-template<std::size_t num_concurrent_markers = 1, typename element_type = std::size_t>
-class Marker {
+template <std::size_t num_concurrent_markers = 1, typename element_type = std::size_t> class Marker {
 public:
   explicit Marker(const std::size_t capacity) : _data(capacity), _marker_id(0), _first_unmarked_element{0} {}
 
@@ -24,7 +23,7 @@ public:
   Marker(Marker &&) noexcept = default;
   Marker &operator=(Marker &&) noexcept = default;
 
-  template<bool track_first_unmarked_element = false>
+  template <bool track_first_unmarked_element = false>
   void set(const std::size_t element, const std::size_t marker = 0) {
     ASSERT(marker < num_concurrent_markers);
     _data[element] = ((_data[element] & ~((1u << num_concurrent_markers) - 1u)) == _marker_id)

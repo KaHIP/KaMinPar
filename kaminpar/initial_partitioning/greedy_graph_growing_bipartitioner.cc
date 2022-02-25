@@ -24,7 +24,9 @@ void GreedyGraphGrowingBipartitioner::bipartition_impl() {
       start_node = rand.random_index(0, _graph.n());
       counter++;
     } while (_marker.get(start_node) && counter < 5);
-    if (_marker.get(start_node)) { start_node = _marker.first_unmarked_element(); }
+    if (_marker.get(start_node)) {
+      start_node = _marker.first_unmarked_element();
+    }
 
     _queue.push(start_node, compute_negative_gain(start_node));
     _marker.set<true>(start_node);
@@ -35,11 +37,14 @@ void GreedyGraphGrowingBipartitioner::bipartition_impl() {
       ASSERT(_queue.peek_key() == compute_negative_gain(u));
       _queue.pop();
       change_block(u, V2);
-      if (_block_weights[V2] >= _p_ctx.block_weights.perfectly_balanced(V2)) { break; }
+      if (_block_weights[V2] >= _p_ctx.block_weights.perfectly_balanced(V2)) {
+        break;
+      }
 
       // queue unmarked neighbors / update gains
       for (const auto [e, v] : _graph.neighbors(u)) {
-        if (_partition[u] == V2) continue; // v already in V2: won't touch this node anymore
+        if (_partition[u] == V2)
+          continue; // v already in V2: won't touch this node anymore
         ASSERT(_partition[v] == V1);
 
         if (_marker.get(v)) {

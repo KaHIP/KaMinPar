@@ -14,8 +14,7 @@
 #include <vector>
 
 namespace kaminpar {
-template<typename Value, typename Size = std::size_t>
-class FastResetArray {
+template <typename Value, typename Size = std::size_t> class FastResetArray {
 public:
   using value_type = Value;
   using reference = Value &;
@@ -31,7 +30,9 @@ public:
 
   reference operator[](const size_type pos) {
     ASSERT(pos < _data.size()) << V(pos) << V(_data.size());
-    if (_data[pos] == value_type()) { _used_entries.push_back(pos); }
+    if (_data[pos] == value_type()) {
+      _used_entries.push_back(pos);
+    }
     return _data[pos];
   }
   const_reference operator[](const size_type pos) const { return _data[pos]; }
@@ -54,7 +55,9 @@ public:
   }
 
   void clear() {
-    for (const std::size_t pos : _used_entries) { _data[pos] = value_type(); }
+    for (const std::size_t pos : _used_entries) {
+      _data[pos] = value_type();
+    }
     _used_entries.clear();
   }
 

@@ -155,7 +155,7 @@ protected:
    * @param local_rating_map Thread-local rating map for gain computation.
    * @return Pair with: whether the node was moved to another cluster, whether the previous cluster is now empty.
    */
-  template<typename LocalRatingMap>
+  template <typename LocalRatingMap>
   std::pair<bool, bool> handle_node(const NodeID u, Randomize &local_rand, LocalRatingMap &local_rating_map) {
     const NodeWeight u_weight = _graph->node_weight(u);
     const ClusterID u_cluster = derived_cluster(u);
@@ -201,7 +201,7 @@ protected:
    * @param local_rating_map Thread-local rating map to compute gain values.
    * @return Pair with: new cluster of the node, gain value for the move to the new cluster.
    */
-  template<typename LocalRatingMap>
+  template <typename LocalRatingMap>
   std::pair<ClusterID, EdgeWeight> find_best_cluster(const NodeID u, const NodeWeight u_weight,
                                                      const ClusterID u_cluster, Randomize &local_rand,
                                                      LocalRatingMap &local_rating_map) {

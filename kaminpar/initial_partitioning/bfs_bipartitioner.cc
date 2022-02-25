@@ -1,10 +1,10 @@
 /*******************************************************************************
-* @file:   bfs_bipartitioner.h
-*
-* @author: Daniel Seemaier
-* @date:   21.09.21
-* @brief:  Initial partitioner based on breath-first searches.
-******************************************************************************/
+ * @file:   bfs_bipartitioner.h
+ *
+ * @author: Daniel Seemaier
+ * @date:   21.09.21
+ * @brief:  Initial partitioner based on breath-first searches.
+ ******************************************************************************/
 #include "kaminpar/initial_partitioning/bfs_bipartitioner.h"
 
 namespace kaminpar {

@@ -4,8 +4,7 @@
 #include <type_traits>
 
 namespace kaminpar {
-template<typename Int>
-class IotaRange {
+template <typename Int> class IotaRange {
 public:
   class iterator {
     friend IotaRange;
@@ -49,8 +48,7 @@ private:
   iterator _end;
 };
 
-template<typename Int, typename Function>
-class TransformedIotaRange {
+template <typename Int, typename Function> class TransformedIotaRange {
 public:
   class iterator {
   public:
@@ -84,8 +82,7 @@ public:
   };
 
   TransformedIotaRange(const Int begin, const Int end, const Function transformer)
-      : _begin(begin, transformer),
-        _end(end, transformer) {}
+      : _begin(begin, transformer), _end(end, transformer) {}
 
   iterator begin() const { return _begin; }
   iterator end() const { return _end; }
@@ -95,8 +92,7 @@ private:
   iterator _end;
 };
 
-template<typename Iterator, typename Function>
-class TransformedRange {
+template <typename Iterator, typename Function> class TransformedRange {
 public:
   class iterator {
   public:
@@ -130,8 +126,7 @@ public:
   };
 
   TransformedRange(Iterator begin, Iterator end, Function transformer)
-      : _begin(begin, transformer),
-        _end(end, transformer) {}
+      : _begin(begin, transformer), _end(end, transformer) {}
 
   iterator begin() { return _begin; }
   iterator end() { return _end; }

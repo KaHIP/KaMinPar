@@ -11,9 +11,7 @@ namespace kaminpar::partitioning {
 ParallelSynchronizedInitialPartitioner::ParallelSynchronizedInitialPartitioner(
     const Context &input_ctx, GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool,
     TemporaryGraphExtractionBufferPool &ip_extraction_pool)
-    : _input_ctx{input_ctx},
-      _ip_m_ctx_pool{ip_m_ctx_pool},
-      _ip_extraction_pool{ip_extraction_pool} {}
+    : _input_ctx{input_ctx}, _ip_m_ctx_pool{ip_m_ctx_pool}, _ip_extraction_pool{ip_extraction_pool} {}
 
 PartitionedGraph ParallelSynchronizedInitialPartitioner::partition(const ICoarsener *coarsener,
                                                                    const PartitionContext &p_ctx) {
@@ -59,7 +57,9 @@ PartitionedGraph ParallelSynchronizedInitialPartitioner::partition(const ICoarse
     tbb::parallel_for(static_cast<std::size_t>(0), num_current_copies, [&](const std::size_t i) {
       const bool shrunk = helper::coarsen_once(next_coarseners[i].get(), next_coarseners[i]->coarsest_graph(),
                                                _input_ctx, current_p_ctxs[i]);
-      if (shrunk) { converged = false; }
+      if (shrunk) {
+        converged = false;
+      }
     });
   }
 

@@ -24,8 +24,7 @@ namespace kaminpar {
 class Arguments {
 public:
   // Preset of parsing functions to be used as `Transformer` argument in Group::argument()
-  template<typename Type>
-  static Type parse_number(const char *_arg) {
+  template <typename Type> static Type parse_number(const char *_arg) {
     const std::string arg = utility::str::to_lower(_arg);
     if (arg == "max") {
       return std::numeric_limits<Type>::max();
@@ -42,7 +41,9 @@ public:
   }
   static std::string parse_string(const char *arg) { return arg; }
   static bool parse_bool(const char *_arg) {
-    if (_arg == nullptr) { return true; }
+    if (_arg == nullptr) {
+      return true;
+    }
     const std::string arg = utility::str::to_lower(_arg);
     return arg == "1" || arg == "yes" || arg == "on" || arg == "true" || arg.empty();
   }
@@ -68,19 +69,16 @@ public:
    */
   struct Group {
     Group(std::string name, Arguments *parent, const bool mandatory, std::string code)
-        : name(std::move(name)),
-          parent(parent),
-          mandatory(mandatory),
-          code(std::move(code)) {}
+        : name(std::move(name)), parent(parent), mandatory(mandatory), code(std::move(code)) {}
 
     //! Argument whose value can be parsed using `std::strtol()`.
-    template<typename Int, std::enable_if_t<std::is_integral_v<Int>, bool> = true>
+    template <typename Int, std::enable_if_t<std::is_integral_v<Int>, bool> = true>
     Group &argument(const std::string &lname, const std::string &description, Int *storage, const char sname = 0) {
       return argument(lname, description, storage, Arguments::parse_number<Int>, sname);
     }
 
     //! Argument whose value can be parsed using `std::strtod()`.
-    template<typename Float, std::enable_if_t<std::is_floating_point_v<Float>, bool> = true>
+    template <typename Float, std::enable_if_t<std::is_floating_point_v<Float>, bool> = true>
     Group &argument(const std::string &lname, const std::string &description, Float *storage, const char sname = 0) {
       return argument(lname, description, storage, Arguments::parse_number<Float>, sname);
     }
@@ -94,7 +92,7 @@ public:
       return *this;
     }
 
-    template<typename Type>
+    template <typename Type>
     Group &opt_argument(const std::string &lname, const std::string &description, Type *storage, const char sname = 0) {
       argument(lname, description, storage, sname);
       parent->arguments.back().optional = true;
@@ -128,7 +126,7 @@ public:
      * @param sname Optional short name for this argument.
      * @return `this`
      */
-    template<typename Type, typename Transformer>
+    template <typename Type, typename Transformer>
     Group &argument(const std::string &lname, const std::string &description, Type *storage, Transformer &&transformer,
                     char sname = 0, int argument_type = required_argument) {
       static_assert(std::is_convertible_v<std::result_of_t<Transformer(const char *)>, Type>,
@@ -167,7 +165,9 @@ public:
     }
 
     Group &line(std::string text) {
-      if (arguments.empty()) { extended_description.push_back(std::move(text)); }
+      if (arguments.empty()) {
+        extended_description.push_back(std::move(text));
+      }
       arguments.back().extended_description.push_back(std::move(text));
       return *this;
     }
@@ -201,7 +201,9 @@ public:
       }
 
       auto arg = (c == 0) ? find_by_long_name(options[index].name) : find_by_short_name(c);
-      if (arg == arguments.end()) { FATAL_ERROR << "bad argument (see above)"; }
+      if (arg == arguments.end()) {
+        FATAL_ERROR << "bad argument (see above)";
+      }
       arg->lambda(optarg);
     }
 
@@ -220,7 +222,9 @@ public:
 
       for (int j = 0, i = optind; i < argc; ++i) {
         positional_group.arguments[j].lambda(argv[i]);
-        if (!positional_group.arguments[j].vararg) { ++j; }
+        if (!positional_group.arguments[j].vararg) {
+          ++j;
+        }
       }
     }
   }
@@ -232,11 +236,15 @@ public:
     // print Usage: ...
     if (full) {
       LLOG << "Usage: " << argv[0] << " ";
-      if (!groups.empty()) { LLOG << "options... "; }
+      if (!groups.empty()) {
+        LLOG << "options... ";
+      }
       for (const auto &positional_argument : positional_group.arguments) {
         LLOG << (positional_argument.optional ? "[" : "<");
         LLOG << positional_argument.long_name;
-        if (positional_argument.vararg) { LLOG << "..."; }
+        if (positional_argument.vararg) {
+          LLOG << "...";
+        }
         LLOG << (positional_argument.optional ? "]" : "> ");
       }
       LOG << "\n";
@@ -260,7 +268,9 @@ public:
     // print description of mandatory and optional options
     bool printed_group{false};
     for (const auto &group : groups) {
-      if (!full && group.code != optarg) { continue; }
+      if (!full && group.code != optarg) {
+        continue;
+      }
       printed_group = true;
 
       LOG << group.name << ":";
@@ -290,13 +300,17 @@ private:
 
   static std::size_t compute_group_padding(const Group &group) {
     std::size_t max = 0;
-    for (const auto &arg : group.arguments) { max = std::max(max, create_description_prefix(arg).size()); }
+    for (const auto &arg : group.arguments) {
+      max = std::max(max, create_description_prefix(arg).size());
+    }
     return max;
   }
 
   static std::string create_description_prefix(const Argument &argument) {
     std::stringstream result;
-    if (argument.short_name != 0) { result << "-" << argument.short_name << ", "; }
+    if (argument.short_name != 0) {
+      result << "-" << argument.short_name << ", ";
+    }
     result << "--" << argument.long_name;
     if (argument.argument_type == required_argument) {
       result << "=<arg>";
@@ -331,7 +345,9 @@ private:
       const char c = argument.short_name;
       if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
         options += c;
-        if (argument.argument_type == required_argument) { options += ':'; }
+        if (argument.argument_type == required_argument) {
+          options += ':';
+        }
       }
     }
     return options;

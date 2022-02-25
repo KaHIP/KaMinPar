@@ -7,8 +7,8 @@
  ******************************************************************************/
 #include "kaminpar/utility/timer.h"
 
-#include <sstream>
 #include <iomanip>
+#include <sstream>
 
 using namespace std::literals;
 
@@ -20,8 +20,7 @@ namespace {
   return str;
 }
 
-template<typename Value>
-[[nodiscard]] std::size_t get_printed_length(const Value value) {
+template <typename Value> [[nodiscard]] std::size_t get_printed_length(const Value value) {
   std::stringstream ss;
   ss << std::setprecision(3) << value;
   return ss.str().size();
@@ -31,20 +30,22 @@ template<typename Value>
 std::string Timer::TimerTreeNode::build_display_name_mr() const {
   std::stringstream ss;
   ss << string_make_machine_readable(name.data());
-  if (!description.empty()) { ss << "_" << string_make_machine_readable(description); }
+  if (!description.empty()) {
+    ss << "_" << string_make_machine_readable(description);
+  }
   return ss.str();
 }
 
 std::string Timer::TimerTreeNode::build_display_name_hr() const {
   std::stringstream ss;
   ss << name.data();
-  if (!description.empty()) { ss << " " << description; }
+  if (!description.empty()) {
+    ss << " " << description;
+  }
   return ss.str();
 }
 
-Timer::Timer(std::string_view name) : _name{name} {
-  _tree.root.start = timer::now();
-}
+Timer::Timer(std::string_view name) : _name{name} { _tree.root.start = timer::now(); }
 
 Timer &Timer::global() {
   static Timer timer{"Global Timer"};
@@ -63,7 +64,9 @@ void __attribute__((noinline)) Timer::stop_timer_impl() {
 //
 
 void Timer::print_machine_readable(std::ostream &out) {
-  for (const auto &node : _tree.root.children) { print_node_mr(out, "", node.get()); }
+  for (const auto &node : _tree.root.children) {
+    print_node_mr(out, "", node.get());
+  }
   out << "\n";
 }
 
@@ -75,7 +78,9 @@ void Timer::print_node_mr(std::ostream &out, const std::string &prefix, const Ti
 
   // print children
   const std::string child_prefix = display_name + ".";
-  for (const auto &child : node->children) { print_node_mr(out, child_prefix, child.get()); }
+  for (const auto &child : node->children) {
+    print_node_mr(out, child_prefix, child.get());
+  }
 }
 
 //
@@ -146,20 +151,26 @@ void Timer::print_padded_timing(std::ostream &out, const std::size_t start_col, 
                                      : parent_prefix_len + kTailBranch.size(); // inner node or leaf
 
   std::size_t col = prefix_len + node->build_display_name_hr().size() + kNameDel.size();
-  for (const auto &child : node->children) { col = std::max(col, compute_time_col(prefix_len, child.get())); }
+  for (const auto &child : node->children) {
+    col = std::max(col, compute_time_col(prefix_len, child.get()));
+  }
 
   return col;
 }
 
 [[nodiscard]] std::size_t Timer::compute_time_len(const TimerTreeNode *node) const {
   std::size_t space = get_printed_length(node->seconds());
-  for (const auto &child : node->children) { space = std::max(space, compute_time_len(child.get())); }
+  for (const auto &child : node->children) {
+    space = std::max(space, compute_time_len(child.get()));
+  }
   return space;
 }
 
 [[nodiscard]] std::size_t Timer::compute_restarts_len(const TimerTreeNode *node) const {
   std::size_t space = node->restarts > 1 ? get_printed_length(node->restarts) : 0;
-  for (const auto &child : node->children) { space = std::max(space, compute_restarts_len(child.get())); }
+  for (const auto &child : node->children) {
+    space = std::max(space, compute_restarts_len(child.get()));
+  }
   return space;
 }
 } // namespace kaminpar

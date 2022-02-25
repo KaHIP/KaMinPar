@@ -19,7 +19,9 @@
                                                                                                                        \
   type_name prefix_name##_from_string(const std::string &searched) {                                                   \
     for (const auto [value, name] : type_name##Dummy::enum_to_name) {                                                  \
-      if (name == searched) { return value; }                                                                          \
+      if (name == searched) {                                                                                          \
+        return value;                                                                                                  \
+      }                                                                                                                \
     }                                                                                                                  \
     throw std::runtime_error("invalid name: "s + searched);                                                            \
   }                                                                                                                    \
@@ -32,7 +34,9 @@
     std::stringstream names;                                                                                           \
     bool first = true;                                                                                                 \
     for (const auto [value, name] : type_name##Dummy::enum_to_name) {                                                  \
-      if (!first) { names << sep; }                                                                                    \
+      if (!first) {                                                                                                    \
+        names << sep;                                                                                                  \
+      }                                                                                                                \
       names << name;                                                                                                   \
       first = false;                                                                                                   \
     }                                                                                                                  \

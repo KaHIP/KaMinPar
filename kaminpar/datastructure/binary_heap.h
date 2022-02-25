@@ -14,14 +14,12 @@
 
 namespace kaminpar {
 namespace binary_heap {
-template<typename Key>
-struct max_heap_comparator {
+template <typename Key> struct max_heap_comparator {
   constexpr static auto kMinValue = std::numeric_limits<Key>::max();
   bool operator()(Key a, Key b) { return b > a; }
 };
 
-template<typename Key>
-struct min_heap_comparator {
+template <typename Key> struct min_heap_comparator {
   constexpr static auto kMinValue = std::numeric_limits<Key>::lowest();
   bool operator()(Key a, Key b) { return a > b; }
 };
@@ -54,8 +52,7 @@ struct min_heap_comparator {
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-template<typename Key, template<typename> typename Comparator>
-class BinaryHeap {
+template <typename Key, template <typename> typename Comparator> class BinaryHeap {
   using ID = std::size_t;
 
   static constexpr ID kInvalidID = std::numeric_limits<ID>::max();
@@ -96,7 +93,9 @@ public:
   }
 
   void clear() {
-    for (std::size_t i = 0; i < _size; ++i) { _id_pos[_heap[i].id] = kInvalidID; }
+    for (std::size_t i = 0; i < _size; ++i) {
+      _id_pos[_heap[i].id] = kInvalidID;
+    }
     _size = 0;
   }
 
@@ -192,11 +191,14 @@ private:
   void sift_down(std::size_t pos) {
     while (true) {
       const std::size_t first_child = kTreeArity * pos + 1;
-      if (first_child >= _size) return;
+      if (first_child >= _size)
+        return;
 
       std::size_t smallest_child = first_child;
       for (std::size_t c = first_child + 1; c < std::min(kTreeArity * pos + kTreeArity + 1, _size); ++c) {
-        if (_comparator(_heap[smallest_child].key, _heap[c].key)) { smallest_child = c; }
+        if (_comparator(_heap[smallest_child].key, _heap[c].key)) {
+          smallest_child = c;
+        }
       }
 
       if (_comparator(_heap[smallest_child].key, _heap[pos].key) || _heap[smallest_child].key == _heap[pos].key) {
@@ -215,14 +217,11 @@ private:
   Comparator<Key> _comparator{};
 };
 
-template<typename Key>
-using BinaryMaxHeap = BinaryHeap<Key, binary_heap::max_heap_comparator>;
+template <typename Key> using BinaryMaxHeap = BinaryHeap<Key, binary_heap::max_heap_comparator>;
 
-template<typename Key>
-using BinaryMinHeap = BinaryHeap<Key, binary_heap::min_heap_comparator>;
+template <typename Key> using BinaryMinHeap = BinaryHeap<Key, binary_heap::min_heap_comparator>;
 
-template<typename ID, typename Key, template<typename> typename Comparator>
-class DynamicBinaryForest {
+template <typename ID, typename Key, template <typename> typename Comparator> class DynamicBinaryForest {
   static constexpr std::size_t kTreeArity = 4;
   static constexpr ID kInvalidID = std::numeric_limits<ID>::max();
 
@@ -233,8 +232,7 @@ public:
   };
 
   explicit DynamicBinaryForest(const std::size_t capacity, const std::size_t heaps)
-      : _id_pos(capacity, kInvalidID),
-        _heaps(heaps) {}
+      : _id_pos(capacity, kInvalidID), _heaps(heaps) {}
   DynamicBinaryForest(const DynamicBinaryForest &) = delete;
   DynamicBinaryForest(DynamicBinaryForest &&) noexcept = default;
   DynamicBinaryForest &operator=(const DynamicBinaryForest &) = delete;
@@ -309,17 +307,23 @@ public:
   }
 
   void clear(const std::size_t heap) {
-    for (std::size_t i = 0; i < size(heap); ++i) { _id_pos[_heaps[heap][i].id] = kInvalidID; }
+    for (std::size_t i = 0; i < size(heap); ++i) {
+      _id_pos[_heaps[heap][i].id] = kInvalidID;
+    }
     _heaps[heap].clear();
   }
   void clear() {
-    for (std::size_t i = 0; i < _heaps.size(); ++i) { clear(i); }
+    for (std::size_t i = 0; i < _heaps.size(); ++i) {
+      clear(i);
+    }
   }
   [[nodiscard]] std::size_t size(const std::size_t heap) const { return _heaps[heap].size(); }
 
   [[nodiscard]] std::size_t size() const {
     std::size_t total_size = 0;
-    for (std::size_t heap = 0; heap < _heaps.size(); ++heap) { total_size += size(heap); }
+    for (std::size_t heap = 0; heap < _heaps.size(); ++heap) {
+      total_size += size(heap);
+    }
     return total_size;
   }
 
@@ -333,7 +337,9 @@ private:
   void sift_up(const std::size_t heap, std::size_t pos) {
     while (pos != 0) {
       const std::size_t parent = (pos - 1) / kTreeArity;
-      if (_comparator(_heaps[heap][parent].key, _heaps[heap][pos].key)) { swap(heap, pos, parent); }
+      if (_comparator(_heaps[heap][parent].key, _heaps[heap][pos].key)) {
+        swap(heap, pos, parent);
+      }
       pos = parent;
     }
   }
@@ -341,11 +347,14 @@ private:
   void sift_down(const std::size_t heap, std::size_t pos) {
     while (true) {
       const std::size_t first_child = kTreeArity * pos + 1;
-      if (first_child >= size(heap)) return;
+      if (first_child >= size(heap))
+        return;
 
       std::size_t smallest_child = first_child;
       for (std::size_t c = first_child + 1; c < std::min(kTreeArity * pos + kTreeArity + 1, size(heap)); ++c) {
-        if (_comparator(_heaps[heap][smallest_child].key, _heaps[heap][c].key)) { smallest_child = c; }
+        if (_comparator(_heaps[heap][smallest_child].key, _heaps[heap][c].key)) {
+          smallest_child = c;
+        }
       }
 
       if (_comparator(_heaps[heap][smallest_child].key, _heaps[heap][pos].key) ||
@@ -368,18 +377,16 @@ private:
   Comparator<Key> _comparator{};
 };
 
-template<typename ID, typename Key>
+template <typename ID, typename Key>
 using DynamicBinaryMaxForest = DynamicBinaryForest<ID, Key, binary_heap::max_heap_comparator>;
 
-template<typename ID, typename Key>
+template <typename ID, typename Key>
 using DynamicBinaryMinForest = DynamicBinaryForest<ID, Key, binary_heap::min_heap_comparator>;
 
-template<typename ID, typename Key>
-class DynamicBinaryMinMaxForest {
+template <typename ID, typename Key> class DynamicBinaryMinMaxForest {
 public:
   DynamicBinaryMinMaxForest(const std::size_t capacity, const std::size_t heaps)
-      : _max_forest{capacity, heaps},
-        _min_forest{capacity, heaps} {}
+      : _max_forest{capacity, heaps}, _min_forest{capacity, heaps} {}
 
   DynamicBinaryMinMaxForest(const DynamicBinaryMinMaxForest &) = delete;
   DynamicBinaryMinMaxForest(DynamicBinaryMinMaxForest &&) noexcept = default;
@@ -444,8 +451,7 @@ private:
 };
 
 //! Dynamic binary heap, not addressable
-template<typename ID, typename Key, template<typename> typename Comparator>
-class DynamicBinaryHeap {
+template <typename ID, typename Key, template <typename> typename Comparator> class DynamicBinaryHeap {
   static constexpr std::size_t kTreeArity = 4;
 
 public:
@@ -491,7 +497,9 @@ private:
   void sift_up(std::size_t pos) {
     while (pos != 0) {
       const std::size_t parent = (pos - 1) / kTreeArity;
-      if (_comparator(_heap[parent].key, _heap[pos].key)) { std::swap(_heap[pos], _heap[parent]); }
+      if (_comparator(_heap[parent].key, _heap[pos].key)) {
+        std::swap(_heap[pos], _heap[parent]);
+      }
       pos = parent;
     }
   }
@@ -499,11 +507,14 @@ private:
   void sift_down(std::size_t pos) {
     while (true) {
       const std::size_t first_child = kTreeArity * pos + 1;
-      if (first_child >= size()) return;
+      if (first_child >= size())
+        return;
 
       std::size_t smallest_child = first_child;
       for (std::size_t c = first_child + 1; c < std::min(kTreeArity * pos + kTreeArity + 1, size()); ++c) {
-        if (_comparator(_heap[smallest_child].key, _heap[c].key)) { smallest_child = c; }
+        if (_comparator(_heap[smallest_child].key, _heap[c].key)) {
+          smallest_child = c;
+        }
       }
 
       if (_comparator(_heap[smallest_child].key, _heap[pos].key) || _heap[smallest_child].key == _heap[pos].key) {
@@ -519,9 +530,9 @@ private:
   Comparator<Key> _comparator{};
 };
 
-template<typename ID, typename Key>
+template <typename ID, typename Key>
 using DynamicBinaryMaxHeap = DynamicBinaryHeap<ID, Key, binary_heap::max_heap_comparator>;
 
-template<typename ID, typename Key>
+template <typename ID, typename Key>
 using DynamicBinaryMinHeap = DynamicBinaryHeap<ID, Key, binary_heap::min_heap_comparator>;
 } // namespace kaminpar

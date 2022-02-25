@@ -83,7 +83,7 @@ std::size_t compute_num_copies(const Context &input_ctx, NodeID n, bool converge
 
 std::size_t select_best(const scalable_vector<PartitionedGraph> &p_graphs, const PartitionContext &p_ctx);
 
-template<typename Iterator>
+template <typename Iterator>
 std::size_t select_best(const Iterator p_graphs_begin, const Iterator p_graphs_end, const PartitionContext &p_ctx) {
   SET_DEBUG(false);
 

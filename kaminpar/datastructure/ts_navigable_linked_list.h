@@ -14,8 +14,7 @@
 #include <tbb/parallel_invoke.h>
 
 namespace kaminpar {
-template<typename Key, typename Element>
-class LocalNavigableLinkedList {
+template <typename Key, typename Element> class LocalNavigableLinkedList {
   using Self = LocalNavigableLinkedList<Key, Element>;
   using MemoryChunk = scalable_vector<Element>;
 
@@ -40,8 +39,7 @@ public:
     _current_chunk.push_back(e);
   }
 
-  template<typename... Args>
-  void emplace_back(Args &&...args) {
+  template <typename... Args> void emplace_back(Args &&...args) {
     flush_if_full();
     _current_chunk.emplace_back(std::forward<Args>(args)...);
   }
@@ -68,7 +66,9 @@ public:
 
 private:
   void flush_if_full() {
-    if (_current_chunk.size() == kChunkSize) { flush(); }
+    if (_current_chunk.size() == kChunkSize) {
+      flush();
+    }
   }
 
   scalable_vector<MemoryChunk> _chunks;
@@ -76,25 +76,31 @@ private:
   scalable_vector<Marker> _markers;
 };
 
-template<typename Key, typename Element>
+template <typename Key, typename Element>
 using NavigableLinkedList = tbb::enumerable_thread_specific<LocalNavigableLinkedList<Key, Element>>;
 
-template<typename Key, typename Element>
+template <typename Key, typename Element>
 using NavigationMarker = typename LocalNavigableLinkedList<Key, Element>::Marker;
 
 namespace ts_navigable_list {
-template<typename Key, typename Element>
-scalable_vector<NavigationMarker<Key, Element>> combine(NavigableLinkedList<Key, Element> &list,
-                                       scalable_vector<NavigationMarker<Key, Element>> global_markers = {}) {
+template <typename Key, typename Element>
+scalable_vector<NavigationMarker<Key, Element>>
+combine(NavigableLinkedList<Key, Element> &list, scalable_vector<NavigationMarker<Key, Element>> global_markers = {}) {
   parallel::IntegralAtomicWrapper<std::size_t> global_pos = 0;
   std::size_t num_markers = 0;
-  for (const auto &local_list : list) { num_markers += local_list.markers().size(); }
-  if (global_markers.size() < num_markers) { global_markers.resize(num_markers); }
+  for (const auto &local_list : list) {
+    num_markers += local_list.markers().size();
+  }
+  if (global_markers.size() < num_markers) {
+    global_markers.resize(num_markers);
+  }
 
   tbb::parallel_invoke(
       [&] {
         tbb::parallel_for(list.range(), [&](auto &r) {
-          for (auto &local_list : r) { local_list.flush(); }
+          for (auto &local_list : r) {
+            local_list.flush();
+          }
         });
       },
       [&] {
