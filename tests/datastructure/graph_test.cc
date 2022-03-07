@@ -64,11 +64,15 @@ TEST_F(AWeightedGridGraph, ExtractingEmptyBlockInducedSubgraphWorks) {
 //
 
 TEST_F(AWeightedGridGraph, InitialNodeWeightingWorks) {
-  for (const NodeID u : graph.nodes()) { EXPECT_THAT(graph.node_weight(u), Eq(1 << u)); }
+  for (const NodeID u : graph.nodes()) {
+    EXPECT_THAT(graph.node_weight(u), Eq(1 << u));
+  }
 }
 
 TEST_F(AWeightedGridGraph, InitialEdgeWeightingWorks) {
-  for (const EdgeID e : graph.edges()) { EXPECT_THAT(graph.edge_weight(e), Eq(1)); }
+  for (const EdgeID e : graph.edges()) {
+    EXPECT_THAT(graph.edge_weight(e), Eq(1));
+  }
 }
 
 TEST_F(AWeightedGridGraph, InitialTotalNodeWeightWorks) {
@@ -136,7 +140,9 @@ TEST(GraphTest, PartitionedGraphReturnsCorrectNumberOfBlocks) {
 TEST(GraphTest, InitialBlocksAreCorrect) {
   Graph graph{create_graph({0, 0, 0, 0, 0}, {})};
   const PartitionedGraph p_graph{create_p_graph(&graph, 4, {0, 1, 2, 3})};
-  for (const NodeID u : {0, 1, 2, 3}) { EXPECT_THAT(p_graph.block(u), Eq(u)); }
+  for (const NodeID u : {0, 1, 2, 3}) {
+    EXPECT_THAT(p_graph.block(u), Eq(u));
+  }
 }
 
 TEST(GraphTest, ChangingBlocksWorks) {

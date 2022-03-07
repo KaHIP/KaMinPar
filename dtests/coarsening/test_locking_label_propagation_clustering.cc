@@ -24,12 +24,16 @@ using Clustering = LockingLpClustering::AtomicClusterArray;
 Clustering compute_clustering(const DistributedGraph &graph, NodeWeight max_cluster_weight = 0,
                               const std::size_t num_iterations = 1, const std::size_t num_chunks = 0) {
   // 0 --> no weight constraint
-  if (max_cluster_weight == 0) { max_cluster_weight = std::numeric_limits<NodeWeight>::max(); }
+  if (max_cluster_weight == 0) {
+    max_cluster_weight = std::numeric_limits<NodeWeight>::max();
+  }
 
   Context ctx = create_default_context();
   ctx.setup(graph);
   ctx.coarsening.global_lp.num_iterations = num_iterations;
-  if (num_chunks != 0) { ctx.coarsening.global_lp.num_chunks = num_chunks; }
+  if (num_chunks != 0) {
+    ctx.coarsening.global_lp.num_chunks = num_chunks;
+  }
 
   DLOG << V(graph.n()) << V(graph.total_n());
 
@@ -39,13 +43,17 @@ Clustering compute_clustering(const DistributedGraph &graph, NodeWeight max_clus
 
 Clustering get_local_clustering(const DistributedGraph &graph, const Clustering &clustering) {
   Clustering local_clustering(graph.n());
-  for (const NodeID u : graph.nodes()) { local_clustering[u] = clustering[u]; }
+  for (const NodeID u : graph.nodes()) {
+    local_clustering[u] = clustering[u];
+  }
   return local_clustering;
 }
 
 auto get_ghost_clustering(const DistributedGraph &graph, const Clustering &clustering) {
   std::unordered_map<PEID, std::vector<GlobalNodeID>> labels_on_pe;
-  for (NodeID u : graph.ghost_nodes()) { labels_on_pe[graph.ghost_owner(u)].push_back(clustering[u]); }
+  for (NodeID u : graph.ghost_nodes()) {
+    labels_on_pe[graph.ghost_owner(u)].push_back(clustering[u]);
+  }
   return labels_on_pe;
 }
 
@@ -97,7 +105,9 @@ TEST_F(DistributedTriangles, TestGhostNodeLabelsAfterLocalClustering) {
   const auto clustering = compute_clustering(graph);
 
   std::unordered_map<PEID, std::vector<GlobalNodeID>> labels_on_pe;
-  for (NodeID u : graph.ghost_nodes()) { labels_on_pe[graph.ghost_owner(u)].push_back(clustering[u]); }
+  for (NodeID u : graph.ghost_nodes()) {
+    labels_on_pe[graph.ghost_owner(u)].push_back(clustering[u]);
+  }
 
   for (const auto &[pe, labels] : labels_on_pe) {
     EXPECT_THAT(labels, AnyOf(Each(0), Each(1), Each(2), Each(3), Each(4), Each(5), Each(6), Each(7), Each(8)));
@@ -168,13 +178,13 @@ TEST_F(DistributedTriangles, TestLocalClusteringWithWeightConstraintAndTwoIterat
   }
 }
 
-//TEST_F(DistributedTriangles, TestConvergenceWithMultipleChunks) {
-//  SINGLE_THREADED_TEST;
+// TEST_F(DistributedTriangles, TestConvergenceWithMultipleChunks) {
+//   SINGLE_THREADED_TEST;
 //
-//  // no cluster weight limit, 10 iterations -> everything should be the same cluster
-//  const auto clustering = compute_clustering(graph, 0, 10);
-//  EXPECT_THAT(clustering, AnyOf(Each(0), Each(1), Each(2), Each(3), Each(4), Each(5), Each(6), Each(7), Each(8)));
-//}
+//   // no cluster weight limit, 10 iterations -> everything should be the same cluster
+//   const auto clustering = compute_clustering(graph, 0, 10);
+//   EXPECT_THAT(clustering, AnyOf(Each(0), Each(1), Each(2), Each(3), Each(4), Each(5), Each(6), Each(7), Each(8)));
+// }
 
 TEST_F(DistributedTriangles, TestGhostClusteringOneRequestPerChunkAndPE) {
   //   0---1=#=3---4

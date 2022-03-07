@@ -20,7 +20,8 @@ TEST(ParallelContractionTest, ContractingToSingleNodeWorks) {
   Graph graph{graphs::grid(GRID_LENGTH, GRID_LENGTH)};
 
   for (const NodeID cluster : {0, 1, 2, 3}) {
-    auto [c_graph, c_mapping, m_ctx] = graph::contract(graph, scalable_vector<NodeID>{cluster, cluster, cluster, cluster});
+    auto [c_graph, c_mapping, m_ctx] =
+        graph::contract(graph, scalable_vector<NodeID>{cluster, cluster, cluster, cluster});
     EXPECT_THAT(c_graph.n(), 1);
     EXPECT_THAT(c_graph.m(), 0);
     EXPECT_THAT(c_graph.node_weight(0), graph.total_node_weight());
@@ -173,7 +174,9 @@ TEST(PreprocessingTest, PreprocessingFacadeRemovesIsolatedNodesAndAdaptsEpsilonF
 
   EXPECT_THAT(nodes.size(), 7);
   EXPECT_THAT(edges.size(), 8);
-  for (const NodeID v : edges) { EXPECT_THAT(v, Lt(7)); } // edges are valid
+  for (const NodeID v : edges) {
+    EXPECT_THAT(v, Lt(7));
+  } // edges are valid
 
   // total weight of new graph: 6, perfectly balanced block weight: 3
   // hence eps' should be 1.3333....

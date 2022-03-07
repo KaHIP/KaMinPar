@@ -50,17 +50,14 @@ inline int get_rank(MPI_Comm comm = MPI_COMM_WORLD) {
 }
 } // namespace internal
 
-template<typename T>
-using scalable_vector = shm::scalable_vector<T>;
+template <typename T> using scalable_vector = shm::scalable_vector<T>;
 
-template<typename T>
-using cache_aligned_vector = std::vector<T, tbb::cache_aligned_allocator<T>>;
+template <typename T> using cache_aligned_vector = std::vector<T, tbb::cache_aligned_allocator<T>>;
 
-template<typename T>
+template <typename T>
 using scalable_noinit_vector = std::vector<T, shm::noinit_allocator<T, tbb::scalable_allocator<T>>>;
 
-template<typename T>
-using Atomic = shm::parallel::IntegralAtomicWrapper<T>;
+template <typename T> using Atomic = shm::parallel::IntegralAtomicWrapper<T>;
 
 class SynchronizedLogger {
 public:
@@ -104,8 +101,7 @@ public:
     }
   }
 
-  template<typename Arg>
-  SynchronizedLogger &operator<<(Arg &&arg) {
+  template <typename Arg> SynchronizedLogger &operator<<(Arg &&arg) {
     _logger << std::forward<Arg>(arg);
     return *this;
   }

@@ -27,7 +27,8 @@ TEST_F(AWeightedStar, BipartitionEdgeCutIsCorrect) {
   ASSERT_THAT(metrics::edge_cut(p_graph), Eq(0));
 
   // move center and two other nodes to block 1, should reduce the edge cut to 6
-  for (NodeID u = 0; u < 3; ++u) p_graph.set_block(u, 0);
+  for (NodeID u = 0; u < 3; ++u)
+    p_graph.set_block(u, 0);
   ASSERT_THAT(metrics::edge_cut(p_graph), Eq(2 * 3));
 }
 
@@ -40,7 +41,8 @@ TEST_F(AWeightedStar, BipartitionSeqEdgeCutIsCorrect) {
   ASSERT_THAT(metrics::edge_cut(p_graph, tag::seq), Eq(0));
 
   // move center and two other nodes to block 1, should reduce the edge cut to 6
-  for (NodeID u = 0; u < 3; ++u) p_graph.set_block(u, 0);
+  for (NodeID u = 0; u < 3; ++u)
+    p_graph.set_block(u, 0);
   ASSERT_THAT(metrics::edge_cut(p_graph, tag::seq), Eq(2 * 3));
 }
 

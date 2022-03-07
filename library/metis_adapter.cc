@@ -30,9 +30,15 @@ METIS_PartGraphKway(idx_t *nvtxs, idx_t *ncon, idx_t *xadj, idx_t *adjncy, idx_t
   static_assert(std::numeric_limits<idx_t>::digits == std::numeric_limits<BlockWeight>::digits);
 
   // print warnings if unsupported METIS features are used
-  if (vsize != nullptr) { std::cout << "ignoring vsize (unsupported)" << std::endl; }
-  if (tpwgts != nullptr) { std::cout << "ignoring tpwgts (unsupported)" << std::endl; }
-  if (*ncon != 1) { std::cout << "ignoring additional balancing constraints (unsupported)" << std::endl; }
+  if (vsize != nullptr) {
+    std::cout << "ignoring vsize (unsupported)" << std::endl;
+  }
+  if (tpwgts != nullptr) {
+    std::cout << "ignoring tpwgts (unsupported)" << std::endl;
+  }
+  if (*ncon != 1) {
+    std::cout << "ignoring additional balancing constraints (unsupported)" << std::endl;
+  }
 
   const NodeID n = *nvtxs;
   const BlockID k = *nparts;
@@ -45,28 +51,44 @@ METIS_PartGraphKway(idx_t *nvtxs, idx_t *ncon, idx_t *xadj, idx_t *adjncy, idx_t
   BlockID base = 0;
 
   auto builder = PartitionerBuilder::from_adjacency_array(n, nodes, edges);
-  if (node_weights != nullptr) { builder.with_node_weights(node_weights); }
-  if (edge_weights != nullptr) { builder.with_edge_weights(edge_weights); }
+  if (node_weights != nullptr) {
+    builder.with_node_weights(node_weights);
+  }
+  if (edge_weights != nullptr) {
+    builder.with_edge_weights(edge_weights);
+  }
   auto partitioner = builder.create();
 
   // set options
   if (options != nullptr) {
-    if (options[METIS_OPTION_MINCONN]) { std::cout << "ignoring METIS_OPTION_MINCONN (unsupported)" << std::endl; }
-    if (options[METIS_OPTION_CONTIG]) { std::cout << "ignoring METIS_OPTION_CONTIG (unsupported)" << std::endl; }
-    if (options[METIS_OPTION_COMPRESS]) { std::cout << "ignoring METIS_OPTION_COMPRESS (unsupported)" << std::endl; }
-    if (options[METIS_OPTION_PFACTOR]) { std::cout << "ignoring METIS_OPTION_PFACTOR (unsupported)" << std::endl; }
+    if (options[METIS_OPTION_MINCONN]) {
+      std::cout << "ignoring METIS_OPTION_MINCONN (unsupported)" << std::endl;
+    }
+    if (options[METIS_OPTION_CONTIG]) {
+      std::cout << "ignoring METIS_OPTION_CONTIG (unsupported)" << std::endl;
+    }
+    if (options[METIS_OPTION_COMPRESS]) {
+      std::cout << "ignoring METIS_OPTION_COMPRESS (unsupported)" << std::endl;
+    }
+    if (options[METIS_OPTION_PFACTOR]) {
+      std::cout << "ignoring METIS_OPTION_PFACTOR (unsupported)" << std::endl;
+    }
     if (options[METIS_OPTION_OBJTYPE] != METIS_OBJTYPE_CUT) {
       std::cout << "ignoring METIS_OPTION_OBJTYPE (unsupported)" << std::endl;
     }
 
-    if (options[METIS_OPTION_NCUTS]) { repetitions = options[METIS_OPTION_NCUTS]; }
+    if (options[METIS_OPTION_NCUTS]) {
+      repetitions = options[METIS_OPTION_NCUTS];
+    }
     base = options[METIS_OPTION_NUMBERING];
     if (options[METIS_OPTION_NITER] > 0) {
       partitioner.set_option("--r-lp-num-iters", std::to_string(options[METIS_OPTION_NITER]));
       partitioner.set_option("--i-r-fm-iterations", std::to_string(options[METIS_OPTION_NITER]));
     }
     partitioner.set_option("--seed", std::to_string(options[METIS_OPTION_SEED]));
-    if (options[METIS_OPTION_UFACTOR]) { epsilon = options[METIS_OPTION_UFACTOR] / 1000.0; }
+    if (options[METIS_OPTION_UFACTOR]) {
+      epsilon = options[METIS_OPTION_UFACTOR] / 1000.0;
+    }
   }
 
   partitioner.set_option("--epsilon", std::to_string(epsilon));
@@ -88,7 +110,9 @@ METIS_PartGraphKway(idx_t *nvtxs, idx_t *ncon, idx_t *xadj, idx_t *adjncy, idx_t
   }
 
   // copy the partition to part
-  for (NodeID u = 0; u < n; ++u) { part[u] = base + best_partition[u]; }
+  for (NodeID u = 0; u < n; ++u) {
+    part[u] = base + best_partition[u];
+  }
 
   return METIS_OK;
 }

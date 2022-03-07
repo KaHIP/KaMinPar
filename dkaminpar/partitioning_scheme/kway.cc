@@ -25,7 +25,6 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
   std::vector<DistributedGraph> graph_hierarchy;
   std::vector<coarsening::GlobalMapping> mapping_hierarchy;
 
-
   const DistributedGraph *c_graph = &_graph;
 
   ////////////////////////////////////////////////////////////////////////////////

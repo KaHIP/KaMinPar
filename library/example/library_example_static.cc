@@ -19,10 +19,14 @@ int main(int, char *[]) {
   auto partition = partitioner.partition(k); // compute 16-way partition
 
   std::vector<int> block_sizes(k);
-  for (std::size_t i = 0; i < partitioner.partition_size(); ++i) { ++block_sizes[partition[i]]; }
+  for (std::size_t i = 0; i < partitioner.partition_size(); ++i) {
+    ++block_sizes[partition[i]];
+  }
 
   std::cout << "Block sizes:" << std::endl;
-  for (int b = 0; b < k; ++b) { std::cout << " block " << b << ": " << block_sizes[b] << std::endl; }
+  for (int b = 0; b < k; ++b) {
+    std::cout << " block " << b << ": " << block_sizes[b] << std::endl;
+  }
 
   return 0;
 }

@@ -114,9 +114,7 @@ void sparse_alltoall_interface_to_ghost(const DistributedGraph &graph, const Nod
   // allocate send buffers
   START_TIMER("Allocation", TIMER_FINE);
   std::vector<Buffer> send_buffers(size);
-  tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
-    send_buffers[pe].resize(num_messages.back()[pe]);
-  });
+  tbb::parallel_for<PEID>(0, size, [&](const PEID pe) { send_buffers[pe].resize(num_messages.back()[pe]); });
   STOP_TIMER(TIMER_FINE);
 
   // fill buffers
@@ -254,9 +252,7 @@ void sparse_alltoall_interface_to_pe(const DistributedGraph &graph, const NodeID
   // allocate send buffers
   START_TIMER("Allocation", TIMER_FINE);
   std::vector<Buffer> send_buffers(size);
-  tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
-      send_buffers[pe].resize(num_messages.back()[pe]);
-  });
+  tbb::parallel_for<PEID>(0, size, [&](const PEID pe) { send_buffers[pe].resize(num_messages.back()[pe]); });
   STOP_TIMER(TIMER_FINE);
 
   // fill buffers
@@ -381,9 +377,7 @@ void sparse_alltoall_custom(const DistributedGraph &graph, const NodeID from, co
   // allocate send buffers
   START_TIMER("Allocation", TIMER_FINE);
   std::vector<Buffer> send_buffers(size);
-  tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
-    send_buffers[pe].resize(num_messages.back()[pe]);
-  });
+  tbb::parallel_for<PEID>(0, size, [&](const PEID pe) { send_buffers[pe].resize(num_messages.back()[pe]); });
   STOP_TIMER(TIMER_FINE);
 
   // fill buffers

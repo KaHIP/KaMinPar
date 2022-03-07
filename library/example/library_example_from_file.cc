@@ -23,10 +23,14 @@ int main(int argc, char *argv[]) {
   std::cout << "Finished!" << std::endl;
 
   std::vector<int> block_sizes(k);
-  for (std::size_t i = 0; i < partition_size; ++i) { ++block_sizes[partition[i]]; }
+  for (std::size_t i = 0; i < partition_size; ++i) {
+    ++block_sizes[partition[i]];
+  }
 
   std::cout << "Block sizes:" << std::endl;
-  for (int b = 0; b < k; ++b) { std::cout << " block " << b << ": " << block_sizes[b] << std::endl; }
+  for (int b = 0; b < k; ++b) {
+    std::cout << " block " << b << ": " << block_sizes[b] << std::endl;
+  }
 
   return 0;
 }
