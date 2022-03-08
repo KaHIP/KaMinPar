@@ -11,8 +11,7 @@
 #include "dkaminpar/definitions.h"
 
 namespace dkaminpar {
-template<typename ClusterID>
-class IClustering {
+template <typename ClusterID> class IClustering {
 public:
   virtual ~IClustering() = default;
 

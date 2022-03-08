@@ -73,7 +73,8 @@ class LockingLpClusteringImpl
   };
 
 public:
-  explicit LockingLpClusteringImpl(const Context &ctx) : _c_ctx{ctx.coarsening}, _cluster_weights{ctx.partition.local_n()} {
+  explicit LockingLpClusteringImpl(const Context &ctx)
+      : _c_ctx{ctx.coarsening}, _cluster_weights{ctx.partition.local_n()} {
     set_max_degree(_c_ctx.global_lp.large_degree_threshold);
     set_max_num_neighbors(_c_ctx.global_lp.max_num_neighbors);
   }

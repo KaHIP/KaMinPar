@@ -8,8 +8,8 @@
 #pragma once
 
 #include "dkaminpar/coarsening/i_clustering.h"
-#include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/context.h"
+#include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/definitions.h"
 
 namespace dkaminpar {

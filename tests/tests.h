@@ -41,23 +41,28 @@ PartitionedGraph create_p_graph(const Graph &graph, const BlockID k) { return Pa
 
 PartitionedGraph create_p_graph(const Graph *graph, const BlockID k) { return create_p_graph(*graph, k); }
 
-template<typename T>
-StaticArray<T> create_static_array(const std::vector<T> &elements) {
+template <typename T> StaticArray<T> create_static_array(const std::vector<T> &elements) {
   StaticArray<T> arr(elements.size());
-  for (std::size_t i = 0; i < elements.size(); ++i) { arr[i] = elements[i]; }
+  for (std::size_t i = 0; i < elements.size(); ++i) {
+    arr[i] = elements[i];
+  }
   return arr;
 }
 
 EdgeID find_edge_by_endpoints(const Graph &graph, const NodeID u, const NodeID v) {
   for (const auto [e, v_prime] : graph.neighbors(u)) {
-    if (v == v_prime) { return e; }
+    if (v == v_prime) {
+      return e;
+    }
   }
   return kInvalidEdgeID;
 }
 
 std::vector<Degree> degrees(const Graph &graph) {
   std::vector<Degree> degrees(graph.n());
-  for (const NodeID u : graph.nodes()) { degrees[u] = graph.degree(u); }
+  for (const NodeID u : graph.nodes()) {
+    degrees[u] = graph.degree(u);
+  }
   return degrees;
 }
 
@@ -94,17 +99,23 @@ Graph assign_exponential_weights(Graph graph, const bool assign_node_weights, co
 
   auto node_weights = graph.take_raw_node_weights();
   if (assign_node_weights) {
-    for (const NodeID u : graph.nodes()) { node_weights[u] = 1 << u; }
+    for (const NodeID u : graph.nodes()) {
+      node_weights[u] = 1 << u;
+    }
   }
 
   auto edge_weights = graph.take_raw_edge_weights();
   if (assign_edge_weights) {
     for (const NodeID u : graph.nodes()) {
       for (const auto [e, v] : graph.neighbors(u)) {
-        if (v > u) { continue; }
+        if (v > u) {
+          continue;
+        }
         edge_weights[e] = 1 << e;
         for (const auto [e_prime, u_prime] : graph.neighbors(v)) {
-          if (u == u_prime) { edge_weights[e_prime] = edge_weights[e]; }
+          if (u == u_prime) {
+            edge_weights[e_prime] = edge_weights[e];
+          }
         }
       }
     }
@@ -119,10 +130,11 @@ std::string test_instance(const std::string &name) {
   return "test_instances/"s + name;
 }
 
-template<typename View>
-auto view_to_vector(const View &&view) {
+template <typename View> auto view_to_vector(const View &&view) {
   std::vector<std::decay_t<decltype(*view.begin())>> vec;
-  for (const auto &e : view) { vec.push_back(e); }
+  for (const auto &e : view) {
+    vec.push_back(e);
+  }
   return vec;
 }
 
@@ -157,7 +169,9 @@ Graph merge_graphs(std::initializer_list<Graph *> graphs, const bool connect_gra
     if (connect_graphs) {
       NodeID first_node_in_other_graph = 0;
       for (const Graph *other_graph : graphs) {
-        if (other_graph == graph) { continue; }
+        if (other_graph == graph) {
+          continue;
+        }
         ASSERT(other_graph->n() > 0);
         builder.new_edge(first_node_in_other_graph);
         first_node_in_other_graph += other_graph->n();
@@ -165,8 +179,12 @@ Graph merge_graphs(std::initializer_list<Graph *> graphs, const bool connect_gra
     }
 
     for (const NodeID u : graph->nodes()) {
-      if (u > 0) { builder.new_node(graph->node_weight(u)); }
-      for (const auto [e, v] : graph->neighbors(u)) { builder.new_edge(offset + v, graph->edge_weight(e)); }
+      if (u > 0) {
+        builder.new_node(graph->node_weight(u));
+      }
+      for (const auto [e, v] : graph->neighbors(u)) {
+        builder.new_edge(offset + v, graph->edge_weight(e));
+      }
     }
 
     offset += graph->n();
@@ -182,10 +200,11 @@ namespace graphs {
  * @param n Number of nodes in the graph.
  * @return Graph on `n` nodes and zero edges.
  */
-template<typename... GraphArgs>
-Graph empty(const NodeID n, GraphArgs &&...graph_args) {
+template <typename... GraphArgs> Graph empty(const NodeID n, GraphArgs &&...graph_args) {
   GraphBuilder builder(n, 0);
-  for (NodeID u = 0; u < n; ++u) { builder.new_node(); }
+  for (NodeID u = 0; u < n; ++u) {
+    builder.new_node();
+  }
   return builder.build(std::forward<GraphArgs...>(graph_args)...);
 }
 
@@ -207,8 +226,7 @@ Graph empty(const NodeID n, GraphArgs &&...graph_args) {
  * @param v Number of columns.
  * @return Grid graph on `u * v` nodes.
  */
-template<typename... GraphArgs>
-Graph grid(const NodeID u, const NodeID v, GraphArgs &&...graph_args) { // u x v grid
+template <typename... GraphArgs> Graph grid(const NodeID u, const NodeID v, GraphArgs &&...graph_args) { // u x v grid
   GraphBuilder builder;
   for (NodeID i = 0; i < u; ++i) {
     const bool first_row = (i == 0);
@@ -217,10 +235,18 @@ Graph grid(const NodeID u, const NodeID v, GraphArgs &&...graph_args) { // u x v
       const bool first_column = (j == 0);
       const bool last_column = (j + 1 == v);
       const NodeID node = builder.new_node();
-      if (!first_row) { builder.new_edge(node - v); }
-      if (!last_row) { builder.new_edge(node + v); }
-      if (!first_column) { builder.new_edge(node - 1); }
-      if (!last_column) { builder.new_edge(node + 1); }
+      if (!first_row) {
+        builder.new_edge(node - v);
+      }
+      if (!last_row) {
+        builder.new_edge(node + v);
+      }
+      if (!first_column) {
+        builder.new_edge(node - 1);
+      }
+      if (!last_column) {
+        builder.new_edge(node + 1);
+      }
     }
   }
 
@@ -233,8 +259,7 @@ Graph grid(const NodeID u, const NodeID v, GraphArgs &&...graph_args) { // u x v
  * @param length Length of the path.
  * @return Path on `length` nodes.
  */
-template<typename... GraphArgs>
-Graph path(const NodeID length, GraphArgs &&...graph_args) {
+template <typename... GraphArgs> Graph path(const NodeID length, GraphArgs &&...graph_args) {
   return grid(length, 1, std::forward<GraphArgs...>(graph_args)...);
 }
 
@@ -245,16 +270,19 @@ Graph path(const NodeID length, GraphArgs &&...graph_args) {
  * @param m Number of nodes in the second set.
  * @return Complete bipartite graph on `n + m` nodes and `n * m` undirected edges.
  */
-template<typename... GraphArgs>
-Graph complete_bipartite(const NodeID n, const NodeID m, GraphArgs &&...graph_args) {
+template <typename... GraphArgs> Graph complete_bipartite(const NodeID n, const NodeID m, GraphArgs &&...graph_args) {
   GraphBuilder builder;
   for (NodeID u = 0; u < n; ++u) { // set A
     builder.new_node();
-    for (NodeID v = n; v < n + m; ++v) { builder.new_edge(v); }
+    for (NodeID v = n; v < n + m; ++v) {
+      builder.new_edge(v);
+    }
   }
   for (NodeID u = n; u < n + m; ++u) { // set B
     builder.new_node();
-    for (NodeID v = 0; v < n; ++v) { builder.new_edge(v); }
+    for (NodeID v = 0; v < n; ++v) {
+      builder.new_edge(v);
+    }
   }
   return builder.build(std::forward<GraphArgs...>(graph_args)...);
 }
@@ -266,13 +294,14 @@ Graph complete_bipartite(const NodeID n, const NodeID m, GraphArgs &&...graph_ar
  * @param edge_weight Weight used for all edges.
  * @return Complete graph with `n` nodes and `n * (n - 1)` undirected edges.
  */
-template<typename... GraphArgs>
-Graph complete(const NodeID n, GraphArgs &&...graph_args) {
+template <typename... GraphArgs> Graph complete(const NodeID n, GraphArgs &&...graph_args) {
   GraphBuilder builder;
   for (NodeID u = 0; u < n; ++u) {
     builder.new_node();
     for (NodeID v = 0; v < n; ++v) {
-      if (u != v) { builder.new_edge(v); }
+      if (u != v) {
+        builder.new_edge(v);
+      }
     }
   }
   return builder.build(std::forward<GraphArgs...>(graph_args)...);
@@ -285,13 +314,11 @@ Graph complete(const NodeID n, GraphArgs &&...graph_args) {
  * @param n Number of leaves.
  * @return Star graph with `n` leaves and one center.
  */
-template<typename... GraphArgs>
-Graph star(const NodeID n, GraphArgs &&...graph_args) {
+template <typename... GraphArgs> Graph star(const NodeID n, GraphArgs &&...graph_args) {
   return complete_bipartite(1, n, std::forward<GraphArgs...>(graph_args)...);
 }
 
-template<typename... GraphArgs>
-Graph matching(const NodeID m, GraphArgs &&...graph_args) {
+template <typename... GraphArgs> Graph matching(const NodeID m, GraphArgs &&...graph_args) {
   GraphBuilder builder;
   for (NodeID u = 0; u < 2 * m; u += 2) {
     builder.new_node();

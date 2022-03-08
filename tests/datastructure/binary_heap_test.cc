@@ -228,7 +228,9 @@ TEST(NonaddressableBinaryHeapTest, RepeatedPushPopWorks) {
 TEST(NonaddressableBinaryHeapTest, SortingWithHeapWorks) {
   DynamicBinaryMinHeap<int, int> heap;
   const std::vector<int> sequence{13, -12, 0, 4, 129, 21, -123, -23, 12, -5, -1, 434, 13, 3451, 123};
-  for (const auto e : sequence) { heap.push(e, e); }
+  for (const auto e : sequence) {
+    heap.push(e, e);
+  }
 
   std::vector<int> sorted;
   while (!heap.empty()) {
@@ -324,7 +326,9 @@ TEST(NonaddressableBinaryHeapTest, WorksWithDuplicateIDs) {
 TEST(DynamicBinaryForestTest, PushContainsPopSequenceWorks) {
   DynamicBinaryMaxForest<int, int> heap(10, 2);
 
-  for (const std::size_t i : {0, 1, 2, 3, 4, 5, 6, 7, 8, 9}) { EXPECT_FALSE(heap.contains(i)); }
+  for (const std::size_t i : {0, 1, 2, 3, 4, 5, 6, 7, 8, 9}) {
+    EXPECT_FALSE(heap.contains(i));
+  }
   EXPECT_TRUE(heap.empty(0));
   EXPECT_TRUE(heap.empty(1));
   EXPECT_THAT(heap.size(0), Eq(0));
@@ -339,8 +343,12 @@ TEST(DynamicBinaryForestTest, PushContainsPopSequenceWorks) {
   heap.push(1, 5, 5);
   heap.push(1, 6, -5);
 
-  for (const std::size_t i : {0, 1, 2, 3, 4, 5, 6}) { EXPECT_TRUE(heap.contains(i)); }
-  for (const std::size_t i : {7, 8, 9}) { EXPECT_FALSE(heap.contains(i)); }
+  for (const std::size_t i : {0, 1, 2, 3, 4, 5, 6}) {
+    EXPECT_TRUE(heap.contains(i));
+  }
+  for (const std::size_t i : {7, 8, 9}) {
+    EXPECT_FALSE(heap.contains(i));
+  }
   EXPECT_THAT(heap.size(0), Eq(4));
   EXPECT_THAT(heap.size(1), Eq(3));
 
@@ -373,7 +381,9 @@ TEST(DynamicBinaryForestTest, PushContainsPopSequenceWorks) {
   heap.pop(0);
   heap.pop(0);
 
-  for (const std::size_t i : {0, 1, 2, 3, 4, 5, 6, 7, 8, 9}) { EXPECT_FALSE(heap.contains(i)); }
+  for (const std::size_t i : {0, 1, 2, 3, 4, 5, 6, 7, 8, 9}) {
+    EXPECT_FALSE(heap.contains(i));
+  }
   EXPECT_TRUE(heap.empty(0));
   EXPECT_TRUE(heap.empty(1));
   EXPECT_THAT(heap.size(0), Eq(0));
@@ -551,8 +561,12 @@ TEST(DynamicBinaryForestTest, RemoveWorksWithTwoHeaps) {
   EXPECT_THAT(heap.peek_key(0), Eq(12));
   EXPECT_TRUE(heap.empty(1));
 
-  for (const std::size_t i : {0, 2}) { EXPECT_TRUE(heap.contains(i)); }
-  for (const std::size_t i : {1, 3, 4, 5, 6, 7, 8, 9}) { EXPECT_FALSE(heap.contains(i)); }
+  for (const std::size_t i : {0, 2}) {
+    EXPECT_TRUE(heap.contains(i));
+  }
+  for (const std::size_t i : {1, 3, 4, 5, 6, 7, 8, 9}) {
+    EXPECT_FALSE(heap.contains(i));
+  }
 
   heap.remove(0, 0);
   EXPECT_THAT(heap.peek_key(0), Eq(12));
@@ -560,7 +574,9 @@ TEST(DynamicBinaryForestTest, RemoveWorksWithTwoHeaps) {
   heap.remove(0, 2);
   EXPECT_TRUE(heap.empty(0));
 
-  for (const std::size_t i : {0, 1, 2, 3, 4, 5, 6, 7, 8, 9}) { EXPECT_FALSE(heap.contains(i)); }
+  for (const std::size_t i : {0, 1, 2, 3, 4, 5, 6, 7, 8, 9}) {
+    EXPECT_FALSE(heap.contains(i));
+  }
 }
 
 TEST(DynamicBinaryMinMaxForestTest, SequenceOfPushAndPopWorks) {
@@ -572,8 +588,12 @@ TEST(DynamicBinaryMinMaxForestTest, SequenceOfPushAndPopWorks) {
   heap.push(0, 3, 5);
   heap.push(0, 4, 15);
 
-  for (const std::size_t i : {0, 1, 2, 3, 4}) { EXPECT_TRUE(heap.contains(i)); }
-  for (const std::size_t i : {5, 6, 7, 8, 9}) { EXPECT_FALSE(heap.contains(i)); }
+  for (const std::size_t i : {0, 1, 2, 3, 4}) {
+    EXPECT_TRUE(heap.contains(i));
+  }
+  for (const std::size_t i : {5, 6, 7, 8, 9}) {
+    EXPECT_FALSE(heap.contains(i));
+  }
 
   EXPECT_THAT(heap.peek_min_key(0), Eq(0));
   EXPECT_THAT(heap.peek_max_key(0), Eq(20));
@@ -596,6 +616,8 @@ TEST(DynamicBinaryMinMaxForestTest, SequenceOfPushAndPopWorks) {
   heap.pop_min(0);
   EXPECT_TRUE(heap.empty(0));
 
-  for (const std::size_t i : {0, 1, 2, 3, 4, 5, 6, 7, 8, 9}) { EXPECT_FALSE(heap.contains(i)); }
+  for (const std::size_t i : {0, 1, 2, 3, 4, 5, 6, 7, 8, 9}) {
+    EXPECT_FALSE(heap.contains(i));
+  }
 }
 } // namespace kaminpar

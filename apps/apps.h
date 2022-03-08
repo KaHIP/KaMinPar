@@ -44,7 +44,9 @@ void print_identifier(int argc, char *argv[]) {
   LOG << "MODIFIED files={" << Environment::GIT_MODIFIED_FILES << "}";
 
   LLOG << "ARGS ";
-  for (int i = 0; i < argc; ++i) { LLOG << "argv[" << i << "]='" << argv[i] << "' "; }
+  for (int i = 0; i < argc; ++i) {
+    LLOG << "argv[" << i << "]='" << argv[i] << "' ";
+  }
   LOG;
 
   if (DETECT_EXIST(KAMINPAR_ENABLE_ASSERTIONS) || DETECT_EXIST(KAMINPAR_ENABLE_HEAVY_ASSERTIONS)) {

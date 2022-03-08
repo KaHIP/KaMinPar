@@ -51,9 +51,7 @@ class HasWeightedEdgeWithWeightedEndpointsMatcher : public MatcherInterface<cons
 public:
   HasWeightedEdgeWithWeightedEndpointsMatcher(const NodeWeight u_weight, const EdgeWeight e_weight,
                                               const NodeWeight v_weight)
-      : _u_weight(u_weight),
-        _e_weight(e_weight),
-        _v_weight(v_weight) {}
+      : _u_weight(u_weight), _e_weight(e_weight), _v_weight(v_weight) {}
 
   bool MatchAndExplain(const Graph &graph, MatchResultListener *) const override {
     for (const NodeID u : graph.nodes()) {

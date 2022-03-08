@@ -99,4 +99,4 @@ TEST(MathTest, RoundUpToPowerOfTwo) {
   EXPECT_THAT(math::round_up_to_power_of_2(1024u), Eq(1024));
   EXPECT_THAT(math::round_up_to_power_of_2(1025u), Eq(2048));
 }
-} // namespace kamipar::utility
+} // namespace kaminpar::math

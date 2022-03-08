@@ -1,17 +1,17 @@
 /*******************************************************************************
-* @file:   global_label_propagation_coarsener.h
-*
-* @author: Daniel Seemaier
-* @date:   29.09.21
-* @brief:  Label propagation across PEs, synchronizes cluster weights after
-* every weight, otherwise moves nodes without communication causing violations
-* of the balance constraint.
-******************************************************************************/
+ * @file:   global_label_propagation_coarsener.h
+ *
+ * @author: Daniel Seemaier
+ * @date:   29.09.21
+ * @brief:  Label propagation across PEs, synchronizes cluster weights after
+ * every weight, otherwise moves nodes without communication causing violations
+ * of the balance constraint.
+ ******************************************************************************/
 #pragma once
 
 #include "dkaminpar/coarsening/i_clustering.h"
-#include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/context.h"
+#include "dkaminpar/datastructure/distributed_graph.h"
 
 namespace dkaminpar {
 class DistributedGlobalLabelPropagationClustering : public IClustering<GlobalNodeID> {

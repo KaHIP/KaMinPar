@@ -222,7 +222,7 @@ return build_graph(edges, build_node_distribution(range));
 DistributedGraph create_ba(const GlobalNodeID n, const NodeID d, const BlockID k, const int seed,
                            const bool redistribute_edges) {
   auto result = TIMED_SCOPE("KaGen") {
-    const auto [size , rank] = mpi::get_comm_info();
+    const auto [size, rank] = mpi::get_comm_info();
     return KaGen{rank, size}.GenerateBA(n, d, k, seed);
   };
 
@@ -233,9 +233,9 @@ DistributedGraph create_ba(const GlobalNodeID n, const NodeID d, const BlockID k
     const auto size = mpi::get_comm_size(MPI_COMM_WORLD);
     const auto global_n = node_distribution.back();
     tbb::parallel_for<std::size_t>(0, edges.size(), [&](const std::size_t i) {
-        auto &[u, v] = edges[i];
-        u = math::distribute_round_robin<GlobalNodeID>(global_n, size, u);
-        v = math::distribute_round_robin<GlobalNodeID>(global_n, size, v);
+      auto &[u, v] = edges[i];
+      u = math::distribute_round_robin<GlobalNodeID>(global_n, size, u);
+      v = math::distribute_round_robin<GlobalNodeID>(global_n, size, v);
     });
   }
 

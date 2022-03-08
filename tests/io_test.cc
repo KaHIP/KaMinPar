@@ -18,7 +18,9 @@ inline void assert_K3_structure(const Graph &G) {
 
 inline auto outgoing_edge_weights(const Graph &G, const NodeID u) {
   std::vector<EdgeWeight> edge_weights;
-  for (const EdgeID &e : G.incident_edges(u)) { edge_weights.push_back(G.edge_weight(e)); }
+  for (const EdgeID &e : G.incident_edges(u)) {
+    edge_weights.push_back(G.edge_weight(e));
+  }
   return edge_weights;
 }
 
@@ -26,8 +28,10 @@ TEST(IOTest, LoadsUnweightedK3Correctly) {
   const auto G = metis::read(test::test_instance("unweighted_K3.graph"));
   assert_K3_structure(G);
 
-  for (const NodeID &u : G.nodes()) ASSERT_THAT(G.node_weight(u), Eq(1));
-  for (const EdgeID &e : G.edges()) ASSERT_THAT(G.edge_weight(e), Eq(1));
+  for (const NodeID &u : G.nodes())
+    ASSERT_THAT(G.node_weight(u), Eq(1));
+  for (const EdgeID &e : G.edges())
+    ASSERT_THAT(G.edge_weight(e), Eq(1));
 }
 
 TEST(IOTest, LoadsNodeWeightedK3Correctly) {
@@ -37,7 +41,8 @@ TEST(IOTest, LoadsNodeWeightedK3Correctly) {
   ASSERT_THAT(G.node_weight(0), Eq(1));
   ASSERT_THAT(G.node_weight(1), Eq(2));
   ASSERT_THAT(G.node_weight(2), Eq(3));
-  for (const EdgeID &e : G.edges()) ASSERT_THAT(G.edge_weight(e), Eq(1));
+  for (const EdgeID &e : G.edges())
+    ASSERT_THAT(G.edge_weight(e), Eq(1));
 }
 
 TEST(IOTest, LoadsEdgeWeightedK3Correctly) {

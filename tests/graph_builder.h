@@ -36,8 +36,7 @@ public:
 
   EdgeWeight &last_edge_weight() { return _edge_weights.back(); }
 
-  template<typename... Args>
-  Graph build(Args &&...args) {
+  template <typename... Args> Graph build(Args &&...args) {
     _nodes.push_back(_edges.size());
     return Graph(static_array::create_from(_nodes), static_array::create_from(_edges),
                  static_array::create_from(_node_weights), static_array::create_from(_edge_weights),

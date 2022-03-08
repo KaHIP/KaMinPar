@@ -8,8 +8,8 @@
 
 #pragma once
 
-#include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/context.h"
+#include "dkaminpar/datastructure/distributed_graph.h"
 
 namespace dkaminpar {
 DistributedPartitionedGraph partition(const DistributedGraph &graph, const Context &ctx);

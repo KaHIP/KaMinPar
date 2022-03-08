@@ -34,7 +34,8 @@ DistributedPartitionedGraph create_node_weight_partition(const DistributedGraph 
     block_weights[u] = graph.node_weight(u);
   }
 
-  return {&graph, static_cast<BlockID>(graph.global_total_node_weight() + 1), std::move(partition), std::move(block_weights)};
+  return {&graph, static_cast<BlockID>(graph.global_total_node_weight() + 1), std::move(partition),
+          std::move(block_weights)};
 }
 
 void expect_partition(const DistributedPartitionedGraph &p_graph, const scalable_vector<BlockID> &expected_partition) {
