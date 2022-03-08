@@ -63,10 +63,10 @@ std::unique_ptr<ip::InitialRefiner> create_initial_refiner(const Graph &graph, c
   __builtin_unreachable();
 }
 
-std::unique_ptr<IRefiner> create_refiner(const Graph &graph, const RefinementContext &r_ctx) {
+std::unique_ptr<IRefiner> create_refiner(const Context &ctx) {
   SCOPED_TIMER("Allocation");
 
-  switch (r_ctx.algorithm) {
+  switch (ctx.refinement.algorithm) {
   case RefinementAlgorithm::NOOP: {
     return std::make_unique<NoopRefiner>();
   }
@@ -77,7 +77,7 @@ std::unique_ptr<IRefiner> create_refiner(const Graph &graph, const RefinementCon
   }
 
   case RefinementAlgorithm::LABEL_PROPAGATION: {
-    return std::make_unique<LabelPropagationRefiner>(graph, r_ctx);
+    return std::make_unique<LabelPropagationRefiner>(ctx);
   }
   }
 

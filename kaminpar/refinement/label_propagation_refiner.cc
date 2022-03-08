@@ -31,10 +31,10 @@ class LabelPropagationRefinerImpl final
   static constexpr std::size_t kInfiniteIterations = std::numeric_limits<std::size_t>::max();
 
 public:
-  LabelPropagationRefinerImpl(const Graph &graph, const RefinementContext &r_ctx) : _r_ctx{r_ctx} {
-    allocate(graph.n());
-    set_max_degree(r_ctx.lp.large_degree_threshold);
-    set_max_num_neighbors(r_ctx.lp.max_num_neighbors);
+  LabelPropagationRefinerImpl(const Context &ctx) : _r_ctx{ctx.refinement} {
+    allocate(ctx.partition.n);
+    set_max_degree(_r_ctx.lp.large_degree_threshold);
+    set_max_num_neighbors(_r_ctx.lp.max_num_neighbors);
   }
 
   void initialize(const Graph &graph) { _graph = &graph; }
@@ -106,10 +106,8 @@ public:
 // Exposed wrapper
 //
 
-LabelPropagationRefiner::LabelPropagationRefiner(const Graph &graph, const RefinementContext &r_ctx)
-    : _impl{std::make_unique<LabelPropagationRefinerImpl>(graph, r_ctx)} {}
-
-LabelPropagationRefiner::~LabelPropagationRefiner() = default;
+LabelPropagationRefiner::LabelPropagationRefiner(const Context &ctx)
+    : _impl{std::make_unique<LabelPropagationRefinerImpl>(ctx)} {}
 
 void LabelPropagationRefiner::initialize(const Graph &graph) { _impl->initialize(graph); }
 

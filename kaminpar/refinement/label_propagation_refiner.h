@@ -12,9 +12,7 @@
 namespace kaminpar {
 class LabelPropagationRefiner : public IRefiner {
 public:
-  LabelPropagationRefiner(const Graph &graph, const RefinementContext &r_ctx);
-
-  ~LabelPropagationRefiner();
+  LabelPropagationRefiner(const Context &ctx);
 
   void initialize(const Graph &graph) override;
 

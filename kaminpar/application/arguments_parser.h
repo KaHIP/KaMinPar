@@ -7,8 +7,8 @@
  ******************************************************************************/
 #pragma once
 
-#include "definitions.h"
-#include "utility/strings.h"
+#include "kaminpar/definitions.h"
+#include "kaminpar/utility/strings.h"
 
 #include <cctype>
 #include <functional>
