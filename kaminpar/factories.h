@@ -22,7 +22,7 @@ std::unique_ptr<ip::InitialRefiner> create_initial_refiner(const Graph &graph, c
                                                            const RefinementContext &r_ctx,
                                                            ip::InitialRefiner::MemoryContext m_ctx = {});
 
-std::unique_ptr<IRefiner> create_refiner(const Graph &graph, const RefinementContext &r_ctx);
+std::unique_ptr<IRefiner> create_refiner(const Context &ctx);
 
 std::unique_ptr<IBalancer> create_balancer(const Graph &graph, const PartitionContext &p_ctx,
                                            const RefinementContext &r_ctx);

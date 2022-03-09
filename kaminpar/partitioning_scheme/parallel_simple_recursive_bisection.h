@@ -74,7 +74,7 @@ public:
     helper::update_partition_context(p_ctx, p_graph);
 
     // refine
-    auto refiner = factory::create_refiner(graph, _input_ctx.refinement);
+    auto refiner = factory::create_refiner(_input_ctx);
     auto balancer = factory::create_balancer(graph, p_ctx, _input_ctx.refinement);
 
     while (!coarsener->empty()) {

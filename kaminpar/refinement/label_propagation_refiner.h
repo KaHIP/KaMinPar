@@ -14,6 +14,8 @@ class LabelPropagationRefiner : public IRefiner {
 public:
   LabelPropagationRefiner(const Context &ctx);
 
+  ~LabelPropagationRefiner();
+
   void initialize(const Graph &graph) override;
 
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) override;
@@ -21,6 +23,6 @@ public:
   [[nodiscard]] EdgeWeight expected_total_gain() const override;
 
 private:
-  std::unique_ptr<class LabelPropagationRefinerImpl> _impl;
+  class LabelPropagationRefinerImpl *_impl;
 };
 } // namespace kaminpar

@@ -1,8 +1,6 @@
 #!/bin/bash
 BUILD_DIR="build"
 
-#cd "${0%/}" || exit # run from source directory or exit
-
 function get_num_cores {
   case "$(uname)" in
   Darwin)

@@ -106,8 +106,9 @@ public:
 // Exposed wrapper
 //
 
-LabelPropagationRefiner::LabelPropagationRefiner(const Context &ctx)
-    : _impl{std::make_unique<LabelPropagationRefinerImpl>(ctx)} {}
+LabelPropagationRefiner::LabelPropagationRefiner(const Context &ctx) : _impl{new LabelPropagationRefinerImpl(ctx)} {}
+
+LabelPropagationRefiner::~LabelPropagationRefiner() { delete _impl; }
 
 void LabelPropagationRefiner::initialize(const Graph &graph) { _impl->initialize(graph); }
 
