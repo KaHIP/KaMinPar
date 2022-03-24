@@ -18,10 +18,6 @@
 
 #include <tbb/global_control.h>
 
-#ifdef KAMINPAR_BACKWARD_CPP
-#include "backward.hpp"
-#endif // KAMINPAR_BACKWARD_CPP
-
 namespace kaminpar {
 void print_identifier(int argc, char *argv[]) {
   LLOG << "BUILD ";
@@ -69,13 +65,5 @@ void init_numa() {
   }
 #endif // __has_include(<numa.h>)
   LOG << "NUMA not available";
-}
-
-auto init_backward() {
-#ifdef KAMINPAR_BACKWARD_CPP
-  return backward::SignalHandling{};
-#else  // KAMINPAR_BACKWARD_CPP
-  return 0;
-#endif // KAMINPAR_BACKWARD_CPP
 }
 } // namespace kaminpar

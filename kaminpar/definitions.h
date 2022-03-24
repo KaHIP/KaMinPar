@@ -86,8 +86,6 @@ template <typename Arg> bool evaluate_assertion(Arg &&arg) {
   }
 }
 
-void print_stacktrace();
-
 // helper function to implement ASSERT() and DBG() macros
 template <bool abort_on_destruction> class DisposableLogger {
 public:
@@ -97,7 +95,6 @@ public:
     _logger << logger::RESET;
     _logger.flush();
     if constexpr (abort_on_destruction) {
-      print_stacktrace();
       std::abort();
     }
   }

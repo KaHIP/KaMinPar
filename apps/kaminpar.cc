@@ -91,10 +91,6 @@ std::string generate_partition_filename(const Context &ctx) {
 }
 
 int main(int argc, char *argv[]) {
-  // keep alive
-  const auto sh = init_backward();
-  UNUSED(sh); // hide compile warning if backward is non use
-
   //
   // Parse command line arguments, sanitize, generate output filenames
   //

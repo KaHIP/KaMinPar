@@ -15,18 +15,22 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/environment.cc.in" "${CMAKE_CURRENT_
 function(add_app target)
     add_executable(${target} ${ARGN} "${CMAKE_CURRENT_BINARY_DIR}/environment.cc")
     target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(${target} PRIVATE kaminpar_impl)
+    target_link_libraries(${target} PRIVATE shm_partitioner_base)
+
     if (KAMINPAR_BACKWARD_CPP)
+	target_sources(${target} PUBLIC ${BACKWARD_ENABLE})
         add_backward(${target})
     endif ()
+
     install(TARGETS ${target})
+
     message(STATUS "App ${target}")
 endfunction()
 
 function(add_distributed_app target)
     if (TARGET dkaminpar_impl)
         add_app(${target} ${ARGN})
-        target_link_libraries(${target} PRIVATE dkaminpar_impl)
+        target_link_libraries(${target} PRIVATE dist_partitioner_base)
     else ()
         message(STATUS "Cannot add distributed app: distributed library is not available, presumably because MPI"
                 " could not be found.")
@@ -48,7 +52,7 @@ endif ()
 
 add_distributed_app(dKaMinPar dkaminpar.cc ${DKAMINPAR_SOURCE_FILES})
 if (KAMINPAR_GRAPHGEN)
-    target_link_libraries(dKaMinPar PUBLIC kagen_interface)
+    target_link_libraries(dkaminpar public kagen_library)
 endif ()
 
 add_subdirectory(benchmarks)
