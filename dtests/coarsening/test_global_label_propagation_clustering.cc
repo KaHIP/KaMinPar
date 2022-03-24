@@ -5,9 +5,8 @@
  * @date:   22.11.2021
  * @brief:  Unit tests for global LP clustering.
  ******************************************************************************/
-#include "dtests/mpi_test.h"
-
 #include "dkaminpar/coarsening/global_label_propagation_clustering.h"
+#include "dtests/mpi_test.h"
 
 using ::testing::AnyOf;
 using ::testing::Each;

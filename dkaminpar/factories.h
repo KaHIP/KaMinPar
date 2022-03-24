@@ -11,6 +11,7 @@
 #include "dkaminpar/context.h"
 #include "dkaminpar/initial_partitioning/i_initial_partitioner.h"
 #include "dkaminpar/refinement/i_distributed_refiner.h"
+
 #include <memory>
 
 namespace dkaminpar::factory {

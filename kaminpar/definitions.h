@@ -89,7 +89,7 @@ template <typename Arg> bool evaluate_assertion(Arg &&arg) {
 // helper function to implement ASSERT() and DBG() macros
 template <bool abort_on_destruction> class DisposableLogger {
 public:
-  template <typename... Args> explicit DisposableLogger(Args &&...args) : _logger(std::forward<Args>(args)...) {}
+  template <typename... Args> explicit DisposableLogger(Args &&... args) : _logger(std::forward<Args>(args)...) {}
 
   ~DisposableLogger() {
     _logger << logger::RESET;

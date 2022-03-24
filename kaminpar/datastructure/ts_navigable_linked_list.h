@@ -39,7 +39,7 @@ public:
     _current_chunk.push_back(e);
   }
 
-  template <typename... Args> void emplace_back(Args &&...args) {
+  template <typename... Args> void emplace_back(Args &&... args) {
     flush_if_full();
     _current_chunk.emplace_back(std::forward<Args>(args)...);
   }

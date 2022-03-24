@@ -7,7 +7,6 @@
  * how the contracted graph is distributed across PEs.
  ******************************************************************************/
 #include "dkaminpar/coarsening/global_clustering_contraction.h"
-
 #include "dtests/mpi_test.h"
 
 using ::testing::AnyOf;
