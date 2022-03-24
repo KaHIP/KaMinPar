@@ -138,7 +138,7 @@ if (MPI_FOUND)
         add_definitions(-DKAMINPAR_GRAPHGEN)
     endif ()
 
-    #    add_subdirectory(dkaminpar)
+    add_subdirectory(dkaminpar)
 endif ()
 
 # Binaries
@@ -150,7 +150,7 @@ if (KAMINPAR_TESTS)
     add_subdirectory(tests)
 
     if (MPI_FOUND)
-	    #        add_subdirectory(dtests)
+	    add_subdirectory(dtests)
     endif ()
 endif ()
 

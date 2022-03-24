@@ -10,9 +10,7 @@
 #include "dkaminpar/definitions.h"
 #include "kaminpar/utility/timer.h"
 
-#include <concepts>
 #include <mpi.h>
-#include <ranges>
 #include <type_traits>
 #include <utility>
 
@@ -191,14 +189,14 @@ template <typename T> inline int get_count(const MPI_Status &status) {
 // Ranges interface for point-to-point operations
 //
 
-template <std::ranges::contiguous_range R>
-int send(const R &buf, const int dest, const int tag, MPI_Comm comm = MPI_COMM_WORLD) {
-  return send(std::ranges::data(buf), std::ranges::ssize(buf), dest, tag, comm);
+template <typename Container>
+int send(const Container &buf, const int dest, const int tag, MPI_Comm comm = MPI_COMM_WORLD) {
+  return send(std::data(buf), static_cast<int>(std::size(buf)), dest, tag, comm);
 }
 
-template <std::ranges::contiguous_range R>
-int isend(const R &buf, const int dest, const int tag, MPI_Request &request, MPI_Comm comm = MPI_COMM_WORLD) {
-  return isend(std::ranges::data(buf), std::ranges::ssize(buf), dest, tag, &request, comm);
+template <typename Container>
+int isend(const Container &buf, const int dest, const int tag, MPI_Request &request, MPI_Comm comm = MPI_COMM_WORLD) {
+  return isend(std::data(buf), static_cast<int>(std::size(buf)), dest, tag, &request, comm);
 }
 
 template <typename T, typename Buffer = scalable_noinit_vector<T>>
@@ -219,8 +217,8 @@ inline int waitall(int count, MPI_Request *array_of_requests, MPI_Status *array_
   return MPI_Waitall(count, array_of_requests, array_of_statuses);
 }
 
-template <std::ranges::contiguous_range R> int waitall(R &requests, MPI_Status *array_of_statuses = MPI_STATUS_IGNORE) {
-  return MPI_Waitall(std::ranges::size(requests), std::ranges::data(requests), array_of_statuses);
+template <typename Container> int waitall(Container &requests, MPI_Status *array_of_statuses = MPI_STATUS_IGNORE) {
+  return MPI_Waitall(std::size(requests), std::data(requests), array_of_statuses);
 }
 
 //
@@ -259,39 +257,39 @@ Container<T> gather(const T &element, const int root = 0, MPI_Comm comm = MPI_CO
   if (mpi::get_comm_rank(comm) == root) {
     result.resize(mpi::get_comm_size(comm));
   }
-  gather(&element, 1, std::ranges::data(result), 1, root, comm);
+  gather(&element, 1, std::data(result), 1, root, comm);
   return result;
 }
 
-template <std::ranges::contiguous_range R>
-int gather(const std::ranges::range_value_t<R> &element, R &ans, const int root = 0, MPI_Comm comm = MPI_COMM_WORLD) {
-  LIGHT_ASSERT(mpi::get_comm_rank(comm) != root || std::ranges::size(ans) == mpi::get_comm_size(comm));
+template <typename Container>
+int gather(const typename Container::value_type &element, Container &ans, const int root = 0,
+           MPI_Comm comm = MPI_COMM_WORLD) {
+  LIGHT_ASSERT(mpi::get_comm_rank(comm) != root || std::size(ans) == mpi::get_comm_size(comm));
 
-  return gather(&element, 1, std::ranges::data(ans), 1, comm);
+  return gather(&element, 1, std::data(ans), 1, comm);
 }
 
 template <typename T, template <typename> typename Container = scalable_vector>
 Container<T> allgather(const T &element, MPI_Comm comm = MPI_COMM_WORLD) {
   Container<T> result(mpi::get_comm_size(comm));
-  allgather(&element, 1, std::ranges::data(result), 1, comm);
+  allgather(&element, 1, std::data(result), 1, comm);
   return result;
 }
 
-template <std::ranges::contiguous_range R>
-inline int allgather(const std::ranges::range_value_t<R> &element, R &ans, MPI_Comm comm = MPI_COMM_WORLD) {
-  LIGHT_ASSERT(std::ranges::size(ans) >= static_cast<std::size_t>(mpi::get_comm_size(comm)));
+template <typename Container>
+inline int allgather(const typename Container::value_type &element, Container &ans, MPI_Comm comm = MPI_COMM_WORLD) {
+  LIGHT_ASSERT(std::size(ans) >= static_cast<std::size_t>(mpi::get_comm_size(comm)));
 
-  return allgather(&element, 1, std::ranges::data(ans), 1, comm);
+  return allgather(&element, 1, std::data(ans), 1, comm);
 }
 
-template <std::ranges::contiguous_range Rs, std::ranges::contiguous_range Rr, std::ranges::contiguous_range Rcounts,
-          std::ranges::contiguous_range Displs>
+template <typename Rs, typename Rr, typename Rcounts, typename Displs>
 int allgatherv(const Rs &sendbuf, Rr &recvbuf, const Rcounts &recvcounts, const Displs &displs,
                MPI_Comm comm = MPI_COMM_WORLD) {
-  static_assert(std::is_same_v<std::ranges::range_value_t<Rcounts>, int>);
-  static_assert(std::is_same_v<std::ranges::range_value_t<Displs>, int>);
-  return allgatherv(std::ranges::data(sendbuf), std::ranges::ssize(sendbuf), std::ranges::data(recvbuf),
-                    std::ranges::data(recvcounts), std::ranges::data(displs), comm);
+  static_assert(std::is_same_v<Rcounts::value_type, int>);
+  static_assert(std::is_same_v<Displs::value_type, int>);
+  return allgatherv(std::data(sendbuf), static_cast<int>(std::size(sendbuf)), std::data(recvbuf), std::data(recvcounts),
+                    std::data(displs), comm);
 }
 
 template <typename T> T scan(const T &sendbuf, MPI_Op op, MPI_Comm comm = MPI_COMM_WORLD) {
@@ -310,37 +308,37 @@ template <typename T> T exscan(const T &sendbuf, MPI_Op op, MPI_Comm comm = MPI_
 // Ranges interface for collective operations
 //
 
-template <std::ranges::contiguous_range R>
+template <typename R>
 inline int reduce(const R &sendbuf, R &recvbuf, MPI_Op op, const int root = 0, MPI_Comm comm = MPI_COMM_WORLD) {
-  LIGHT_ASSERT(mpi::get_comm_rank(comm) != root || std::ranges::size(sendbuf) == std::ranges::size(recvbuf));
+  LIGHT_ASSERT(mpi::get_comm_rank(comm) != root || std::size(sendbuf) == std::size(recvbuf));
 
-  return reduce<std::ranges::range_value_t<R>>(std::ranges::cdata(sendbuf), std::ranges::data(recvbuf),
-                                               std::ranges::ssize(sendbuf), op, root, comm);
+  return reduce<typename R::value_type>(sendbuf.cdata(), std::data(recvbuf), static_cast<int>(std::size(sendbuf)), op,
+                                        root, comm);
 }
 
-template <std::ranges::contiguous_range R, template <typename> typename Container = scalable_vector>
+template <typename R, template <typename> typename Container = scalable_vector>
 inline auto reduce(const R &sendbuf, MPI_Op op, const int root = 0, MPI_Comm comm = MPI_COMM_WORLD) {
-  Container<std::ranges::range_value_t<R>> recvbuf;
+  Container<R::value_type> recvbuf;
   if (mpi::get_comm_rank(comm) == root) {
-    recvbuf.resize(std::ranges::size(sendbuf));
+    recvbuf.resize(std::size(sendbuf));
   }
-  reduce(std::ranges::cdata(sendbuf), recvbuf.data(), std::ranges::ssize(sendbuf), op, root, comm);
+  reduce(sendbuf.cdata(), recvbuf.data(), static_cast<int>(std::size(sendbuf)), op, root, comm);
   return recvbuf;
 }
 
-template <std::ranges::contiguous_range Rs, std::ranges::contiguous_range Rr>
+template <typename Rs, typename Rr>
 inline int gather(const Rs &sendbuf, Rr &recvbuf, const int root = 0, MPI_Comm comm = MPI_COMM_WORLD) {
-  using rs_value_t = std::ranges::range_value_t<Rs>;
-  using rr_value_t = std::ranges::range_value_t<Rr>;
+  using rs_value_t = typename Rs::value_type;
+  using rr_value_t = typename Rr::value_type;
 
   LIGHT_ASSERT([&] {
-    const std::size_t expected = sizeof(rs_value_t) * std::ranges::size(sendbuf) * mpi::get_comm_size(comm);
-    const std::size_t actual = sizeof(rr_value_t) * std::ranges::size(recvbuf);
+    const std::size_t expected = sizeof(rs_value_t) * std::size(sendbuf) * mpi::get_comm_size(comm);
+    const std::size_t actual = sizeof(rr_value_t) * std::size(recvbuf);
     return mpi::get_comm_rank(comm) != root || expected >= actual;
   });
 
-  return gather<rs_value_t, rr_value_t>(std::ranges::cdata(sendbuf), std::ranges::ssize(sendbuf),
-                                        std::ranges::data(recvbuf), std::ranges::ssize(recvbuf), root, comm);
+  return gather<rs_value_t, rr_value_t>(sendbuf.cdata(), static_cast<int>(std::size(sendbuf)), std::data(recvbuf),
+                                        static_cast<int>(std::ssize(recvbuf)), root, comm);
 }
 
 //
@@ -362,7 +360,7 @@ template <typename Lambda> inline void sequentially(Lambda &&lambda, MPI_Comm co
   }
 }
 
-template <std::ranges::range Distribution> inline std::vector<int> build_distribution_recvcounts(Distribution &&dist) {
+template <typename Distribution> inline std::vector<int> build_distribution_recvcounts(Distribution &&dist) {
   ASSERT(!dist.empty());
   std::vector<int> recvcounts(dist.size() - 1);
   for (std::size_t i = 0; i + 1 < dist.size(); ++i) {
@@ -371,7 +369,7 @@ template <std::ranges::range Distribution> inline std::vector<int> build_distrib
   return recvcounts;
 }
 
-template <std::ranges::range Distribution> inline std::vector<int> build_distribution_displs(Distribution &&dist) {
+template <typename Distribution> inline std::vector<int> build_distribution_displs(Distribution &&dist) {
   ASSERT(!dist.empty());
   std::vector<int> displs(dist.size() - 1);
   for (std::size_t i = 0; i + 1 < dist.size(); ++i) {

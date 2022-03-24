@@ -35,7 +35,8 @@ using GlobalNodeIDMap =
 using StaticGhostNodeMapping =
     typename ::growt::table_config<GlobalNodeID, GlobalNodeID, DefaultHasherType, DefaultAllocatorType>::table_type;
 
-auto create_handle_ets(auto &map) {
+template<typename Map>
+auto create_handle_ets(Map &map) {
   return tbb::enumerable_thread_specific<growt::GlobalNodeIDMap<NodeID>::handle_type>{[&] { return map.get_handle(); }};
 }
 } // namespace dkaminpar::growt
