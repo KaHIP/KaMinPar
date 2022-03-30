@@ -7,7 +7,7 @@
  ******************************************************************************/
 #pragma once
 
-#include "kaminpar/parallel.h"
+#include "kaminpar/parallel/atomic.h"
 
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_for.h>
@@ -39,7 +39,7 @@ public:
     _current_chunk.push_back(e);
   }
 
-  template <typename... Args> void emplace_back(Args &&...args) {
+  template <typename... Args> void emplace_back(Args &&... args) {
     flush_if_full();
     _current_chunk.emplace_back(std::forward<Args>(args)...);
   }
@@ -86,7 +86,7 @@ namespace ts_navigable_list {
 template <typename Key, typename Element>
 scalable_vector<NavigationMarker<Key, Element>>
 combine(NavigableLinkedList<Key, Element> &list, scalable_vector<NavigationMarker<Key, Element>> global_markers = {}) {
-  parallel::IntegralAtomicWrapper<std::size_t> global_pos = 0;
+  parallel::Atomic<std::size_t> global_pos = 0;
   std::size_t num_markers = 0;
   for (const auto &local_list : list) {
     num_markers += local_list.markers().size();

@@ -9,6 +9,7 @@
 
 #include "kaminpar/datastructure/rating_map.h"
 #include "kaminpar/datastructure/ts_navigable_linked_list.h"
+#include "kaminpar/parallel/prefix_sum.h"
 #include "kaminpar/utility/timer.h"
 
 #include <tbb/parallel_for.h>
@@ -203,8 +204,7 @@ Result contract(const Graph &graph, const scalable_vector<NodeID> &clustering, M
   return contract_generic_clustering(graph, clustering, std::move(m_ctx));
 }
 
-Result contract(const Graph &graph, const scalable_vector<parallel::IntegralAtomicWrapper<NodeID>> &clustering,
-                MemoryContext m_ctx) {
+Result contract(const Graph &graph, const scalable_vector<parallel::Atomic<NodeID>> &clustering, MemoryContext m_ctx) {
   return contract_generic_clustering(graph, clustering, std::move(m_ctx));
 }
 

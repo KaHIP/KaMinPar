@@ -7,6 +7,7 @@
  ******************************************************************************/
 #include "kaminpar/graphutils/graph_rearrangement.h"
 
+#include "kaminpar/parallel/accumulate.h"
 #include "kaminpar/utility/timer.h"
 
 #include <tbb/enumerable_thread_specific.h>
@@ -58,7 +59,7 @@ NodePermutations<StaticArray> rearrange_graph(PartitionContext &p_ctx, StaticArr
   std::swap(edge_weights, tmp_edge_weights);
   STOP_TIMER();
 
-  const NodeWeight total_node_weight = node_weights.empty() ? nodes.size() - 1 : parallel::accumulate(node_weights);
+  const NodeWeight total_node_weight = node_weights.empty() ? nodes.size() - 1 : parallel::accumulate(node_weights, 0);
   const auto [isolated_nodes, isolated_nodes_weight] = find_isolated_nodes_info(nodes, node_weights);
 
   const NodeID old_n = nodes.size() - 1;

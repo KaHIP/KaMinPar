@@ -8,7 +8,7 @@
 #pragma once
 
 #include "kaminpar/datastructure/rating_map.h"
-#include "kaminpar/parallel.h"
+#include "kaminpar/parallel/atomic.h"
 #include "kaminpar/utility/random.h"
 #include "kaminpar/utility/timer.h"
 
@@ -450,7 +450,7 @@ protected: // Members
   ClusterID _initial_num_clusters;
 
   //! The current number of non-empty clusters. Only meaningful if empty clusters are being counted.
-  parallel::IntegralAtomicWrapper<ClusterID> _current_num_clusters;
+  parallel::Atomic<ClusterID> _current_num_clusters;
 
   //! We stop label propagation if the number of non-empty clusters falls below this threshold. Only has an effect if
   //! empty clusters are being counted.
@@ -469,15 +469,15 @@ protected: // Members
 
   //! Flags nodes with at least one node in its neighborhood that changed clusters during the last iteration.
   //! Nodes without this flag set must not be considered in the next iteration.
-  scalable_vector<parallel::IntegralAtomicWrapper<uint8_t>> _active;
+  scalable_vector<parallel::Atomic<uint8_t>> _active;
 
   //! If a node cannot join any cluster during an iteration, this vector stores the node's highest rated cluster
   //! independent of the maximum cluster weight. This information is used during 2-hop clustering.
-  scalable_vector<parallel::IntegralAtomicWrapper<ClusterID>> _favored_clusters;
+  scalable_vector<parallel::Atomic<ClusterID>> _favored_clusters;
 
   //! If statistics are enabled, this is the sum of the gain of all moves that were performed. If executed
   //! single-thread, this should be equal to the reduction of the edge cut.
-  parallel::IntegralAtomicWrapper<EdgeWeight> _expected_total_gain;
+  parallel::Atomic<EdgeWeight> _expected_total_gain;
 
 private:
   NodeID _num_nodes{0};
@@ -597,7 +597,7 @@ protected:
     shuffle_chunks();
 
     tbb::enumerable_thread_specific<NodeID> num_moved_nodes_ets;
-    parallel::IntegralAtomicWrapper<std::size_t> next_chunk = 0;
+    parallel::Atomic<std::size_t> next_chunk = 0;
 
     tbb::parallel_for(static_cast<std::size_t>(0), _chunks.size(), [&](const std::size_t) {
       if (should_stop()) {
@@ -670,7 +670,7 @@ private:
         continue;
       }
 
-      parallel::IntegralAtomicWrapper<NodeID> offset = 0;
+      parallel::Atomic<NodeID> offset = 0;
       tbb::enumerable_thread_specific<std::size_t> num_chunks_ets;
       tbb::enumerable_thread_specific<std::vector<Chunk>> chunks_ets;
 
@@ -711,7 +711,7 @@ private:
       const std::size_t num_chunks = num_chunks_ets.combine(std::plus{});
 
       const std::size_t chunks_start = _chunks.size();
-      parallel::IntegralAtomicWrapper<std::size_t> pos = chunks_start;
+      parallel::Atomic<std::size_t> pos = chunks_start;
       _chunks.resize(chunks_start + num_chunks);
       tbb::parallel_for(chunks_ets.range(), [&](auto &r) {
         for (auto &chunk : r) {
@@ -763,7 +763,7 @@ public:
   }
 
 private:
-  scalable_vector<parallel::IntegralAtomicWrapper<ClusterID>> _clusters;
+  scalable_vector<parallel::Atomic<ClusterID>> _clusters;
 };
 
 template <typename ClusterID, typename ClusterWeight> class OwnedRelaxedClusterWeightVector {
@@ -787,6 +787,6 @@ public:
   }
 
 private:
-  scalable_vector<parallel::IntegralAtomicWrapper<ClusterWeight>> _cluster_weights;
+  scalable_vector<parallel::Atomic<ClusterWeight>> _cluster_weights;
 };
 } // namespace kaminpar

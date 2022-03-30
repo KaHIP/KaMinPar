@@ -10,7 +10,8 @@
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/datastructure/static_array.h"
 #include "kaminpar/definitions.h"
-#include "kaminpar/parallel.h"
+#include "kaminpar/parallel/atomic.h"
+#include "kaminpar/parallel/prefix_sum.h"
 #include "kaminpar/utility/math.h"
 #include "kaminpar/utility/timer.h"
 
@@ -138,7 +139,7 @@ SubgraphExtractionResult extract_subgraphs(const PartitionedGraph &p_graph, Subg
   START_TIMER("Allocation");
   scalable_vector<NodeID> mapping(p_graph.n());
   scalable_vector<SubgraphMemoryStartPosition> start_positions(p_graph.k() + 1);
-  std::vector<Atomic<NodeID>> bucket_index(p_graph.n());
+  std::vector<parallel::Atomic<NodeID>> bucket_index(p_graph.n());
   scalable_vector<Graph> subgraphs(p_graph.k());
   STOP_TIMER();
 

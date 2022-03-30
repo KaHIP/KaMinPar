@@ -7,6 +7,8 @@
  ******************************************************************************/
 #include "kaminpar/datastructure/graph.h"
 
+#include "kaminpar/parallel/accumulate.h"
+#include "kaminpar/parallel/max_element.h"
 #include "kaminpar/utility/math.h"
 #include "kaminpar/utility/timer.h"
 
@@ -26,14 +28,14 @@ Graph::Graph(StaticArray<EdgeID> nodes, StaticArray<NodeID> edges, StaticArray<N
     _total_node_weight = static_cast<NodeWeight>(n());
     _max_node_weight = 1;
   } else {
-    _total_node_weight = parallel::accumulate(_node_weights);
+    _total_node_weight = parallel::accumulate(_node_weights, 0);
     _max_node_weight = parallel::max_element(_node_weights);
   }
 
   if (_edge_weights.empty()) {
     _total_edge_weight = static_cast<EdgeWeight>(m());
   } else {
-    _total_edge_weight = parallel::accumulate(_edge_weights);
+    _total_edge_weight = parallel::accumulate(_edge_weights, 0);
   }
 
   init_degree_buckets();
@@ -151,7 +153,7 @@ PartitionedGraph::PartitionedGraph(tag::Sequential, const Graph &graph, BlockID 
 }
 
 void PartitionedGraph::change_k(const BlockID new_k) {
-  _block_weights = StaticArray<parallel::IntegralAtomicWrapper<BlockWeight>>{new_k};
+  _block_weights = StaticArray<parallel::Atomic<BlockWeight>>{new_k};
   _final_k.resize(new_k);
   _k = new_k;
 }

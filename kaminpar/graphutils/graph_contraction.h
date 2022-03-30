@@ -9,7 +9,7 @@
 
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/datastructure/ts_navigable_linked_list.h"
-#include "kaminpar/parallel.h"
+#include "kaminpar/parallel/atomic.h"
 
 namespace kaminpar::graph {
 namespace contraction {
@@ -20,8 +20,8 @@ struct Edge {
 
 struct MemoryContext {
   scalable_vector<NodeID> buckets;
-  scalable_vector<parallel::IntegralAtomicWrapper<NodeID>> buckets_index;
-  scalable_vector<parallel::IntegralAtomicWrapper<NodeID>> leader_mapping;
+  scalable_vector<parallel::Atomic<NodeID>> buckets_index;
+  scalable_vector<parallel::Atomic<NodeID>> leader_mapping;
   scalable_vector<NavigationMarker<NodeID, Edge>> all_buffered_nodes;
 };
 
@@ -35,7 +35,6 @@ struct Result {
 contraction::Result contract(const Graph &r, const scalable_vector<NodeID> &clustering,
                              contraction::MemoryContext m_ctx = {});
 
-contraction::Result contract(const Graph &graph,
-                             const scalable_vector<parallel::IntegralAtomicWrapper<NodeID>> &clustering,
+contraction::Result contract(const Graph &graph, const scalable_vector<parallel::Atomic<NodeID>> &clustering,
                              contraction::MemoryContext m_ctx = {});
 } // namespace kaminpar::graph

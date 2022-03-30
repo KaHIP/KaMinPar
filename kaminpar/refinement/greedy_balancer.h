@@ -32,18 +32,18 @@ public:
   struct Statistics {
     EdgeWeight initial_cut;
     EdgeWeight final_cut;
-    parallel::IntegralAtomicWrapper<std::size_t> num_successful_random_moves;
-    parallel::IntegralAtomicWrapper<std::size_t> num_successful_adjacent_moves;
-    parallel::IntegralAtomicWrapper<std::size_t> num_unsuccessful_random_moves;
-    parallel::IntegralAtomicWrapper<std::size_t> num_unsuccessful_adjacent_moves;
-    parallel::IntegralAtomicWrapper<std::size_t> num_moved_border_nodes;
-    parallel::IntegralAtomicWrapper<std::size_t> num_moved_internal_nodes;
-    parallel::IntegralAtomicWrapper<std::size_t> num_pq_reinserts;
-    parallel::IntegralAtomicWrapper<std::size_t> num_overloaded_blocks;
+    parallel::Atomic<std::size_t> num_successful_random_moves;
+    parallel::Atomic<std::size_t> num_successful_adjacent_moves;
+    parallel::Atomic<std::size_t> num_unsuccessful_random_moves;
+    parallel::Atomic<std::size_t> num_unsuccessful_adjacent_moves;
+    parallel::Atomic<std::size_t> num_moved_border_nodes;
+    parallel::Atomic<std::size_t> num_moved_internal_nodes;
+    parallel::Atomic<std::size_t> num_pq_reinserts;
+    parallel::Atomic<std::size_t> num_overloaded_blocks;
     BlockWeight initial_overload;
     BlockWeight final_overload;
-    parallel::IntegralAtomicWrapper<std::size_t> total_pq_sizes;
-    parallel::IntegralAtomicWrapper<std::size_t> num_feasible_target_block_inits;
+    parallel::Atomic<std::size_t> total_pq_sizes;
+    parallel::Atomic<std::size_t> num_feasible_target_block_inits;
 
     void reset() {
       initial_cut = 0;

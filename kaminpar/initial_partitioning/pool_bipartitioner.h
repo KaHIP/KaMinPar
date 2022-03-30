@@ -96,7 +96,7 @@ public:
   }
 
   template <typename BipartitionerType, typename... BipartitionerArgs>
-  void register_bipartitioner(const std::string &name, BipartitionerArgs &&...args) {
+  void register_bipartitioner(const std::string &name, BipartitionerArgs &&... args) {
     ASSERT(std::find(_bipartitioner_names.begin(), _bipartitioner_names.end(), name) == _bipartitioner_names.end());
     auto *instance = new BipartitionerType(_graph, _p_ctx, _i_ctx, std::forward<BipartitionerArgs>(args)...);
     _bipartitioners.push_back(std::unique_ptr<BipartitionerType>(instance));

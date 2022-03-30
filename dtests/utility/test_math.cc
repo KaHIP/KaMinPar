@@ -6,9 +6,9 @@
  * @brief:  Unit tests for math utility functions only used for distributed
  * partitioning.
  ******************************************************************************/
-#include <gmock/gmock.h>
-
 #include "dkaminpar/utility/math.h"
+
+#include <gmock/gmock.h>
 
 using ::testing::AnyOf;
 using ::testing::Eq;

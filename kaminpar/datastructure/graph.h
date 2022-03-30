@@ -9,7 +9,7 @@
 
 #include "kaminpar/datastructure/static_array.h"
 #include "kaminpar/definitions.h"
-#include "kaminpar/parallel.h"
+#include "kaminpar/parallel/atomic.h"
 #include "kaminpar/utility/ranges.h"
 #include "kaminpar/utility/strings.h"
 
@@ -23,7 +23,7 @@
 
 namespace kaminpar {
 using BlockArray = StaticArray<BlockID>;
-using BlockWeightArray = StaticArray<parallel::IntegralAtomicWrapper<BlockWeight>>;
+using BlockWeightArray = StaticArray<parallel::Atomic<BlockWeight>>;
 using NodeArray = StaticArray<NodeID>;
 using EdgeArray = StaticArray<EdgeID>;
 using NodeWeightArray = StaticArray<NodeWeight>;
@@ -373,7 +373,7 @@ private:
   //! The partition, holds the block id [0, k) for each node.
   StaticArray<BlockID> _partition; // O(n)
   //! Current weight of each block.
-  StaticArray<parallel::IntegralAtomicWrapper<NodeWeight>> _block_weights; // O(n)
+  StaticArray<parallel::Atomic<NodeWeight>> _block_weights; // O(n)
   //! For each block in the current partition, this is the number of blocks that we want to split the block in the
   //! final partition. For instance, after the first bisection, this might be {_k / 2, _k / 2}, although other values
   //! are possible when using adaptive k's or if _k is not a power of 2.

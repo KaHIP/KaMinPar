@@ -10,7 +10,7 @@
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_scan.h>
 
-namespace kaminpar {
+namespace kaminpar::parallel {
 template <typename InputIterator, typename OutputIterator>
 void prefix_sum(InputIterator first, InputIterator last, OutputIterator result) {
   using size_t = std::size_t;                   // typename InputIterator::difference_type;

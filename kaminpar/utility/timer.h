@@ -8,7 +8,6 @@
 #pragma once
 
 #include "kaminpar/definitions.h"
-#include "kaminpar/parallel.h"
 
 #include <chrono>
 #include <iostream>

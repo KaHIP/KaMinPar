@@ -9,12 +9,12 @@
 
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/definitions.h"
-#include "kaminpar/parallel.h"
+#include "kaminpar/parallel/atomic.h"
 
 namespace kaminpar {
 class IClustering {
 public:
-  using AtomicClusterArray = scalable_vector<parallel::IntegralAtomicWrapper<NodeID>>;
+  using AtomicClusterArray = scalable_vector<parallel::Atomic<NodeID>>;
 
   IClustering() = default;
   virtual ~IClustering() = default;

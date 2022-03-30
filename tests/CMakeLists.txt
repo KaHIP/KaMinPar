@@ -4,16 +4,13 @@ add_definitions(-DTEST)
 
 function(add_kaminpar_test target)
     add_gmock_test(${target} ${ARGN})
-    target_link_libraries(${target} PRIVATE kaminpar_impl)
+    target_link_libraries(${target} PRIVATE shm_partitioner_base)
     target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
     if (KAMINPAR_BACKWARD_CPP)
         add_backward(${target})
     endif ()
 endfunction()
-
-# Partitioning components
-#add_kaminpar_test(initial_coarsener_test initial_partitioning/initial_coarsener_test.cc)
 
 # Datastructures
 add_kaminpar_test(static_array_test datastructure/static_array_test.cc)

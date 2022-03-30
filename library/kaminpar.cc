@@ -13,6 +13,7 @@
 #include "kaminpar/graphutils/graph_rearrangement.h"
 #include "kaminpar/io.h"
 #include "kaminpar/metrics.h"
+#include "kaminpar/parallel/accumulate.h"
 #include "kaminpar/partitioning_scheme/partitioning.h"
 
 #include <tbb/parallel_for.h>
@@ -92,7 +93,7 @@ Partitioner PartitionerBuilder::rearrange_and_create() {
   if (_pimpl->node_weights.size() == 0) {
     partitioner._pimpl->original_total_node_weight = _pimpl->n;
   } else {
-    partitioner._pimpl->original_total_node_weight = parallel::accumulate(_pimpl->node_weights);
+    partitioner._pimpl->original_total_node_weight = parallel::accumulate(_pimpl->node_weights, 0);
   }
 
   partitioner._pimpl->context = _pimpl->context;

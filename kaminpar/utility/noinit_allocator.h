@@ -16,7 +16,7 @@ public:
     ::new (static_cast<void *>(ptr)) U;
   }
 
-  template <typename U, typename... Args> void construct(U *ptr, Args &&...args) {
+  template <typename U, typename... Args> void construct(U *ptr, Args &&... args) {
     std::allocator_traits<Alloc>::construct(static_cast<Alloc &>(*this), ptr, std::forward<Args>(args)...);
   }
 };

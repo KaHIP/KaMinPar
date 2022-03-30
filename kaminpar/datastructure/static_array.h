@@ -8,7 +8,7 @@
 #pragma once
 
 #include "kaminpar/definitions.h"
-#include "kaminpar/parallel.h"
+#include "kaminpar/parallel/tbb_malloc.h"
 
 #include <iterator>
 #include <tbb/parallel_for.h>

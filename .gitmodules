@@ -8,6 +8,8 @@
 [submodule "external_tools/growt"]
 	path = external_tools/growt
 	url = https://github.com/DanielSeemaier/growt.git
+	ignore = dirty
 [submodule "external_tools/KaGen"]
 	path = external_tools/KaGen
 	url = git@github.com:DanielSeemaier/KaGen.git
+	ignore = dirty

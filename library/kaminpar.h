@@ -7,10 +7,10 @@
  ******************************************************************************/
 #pragma once
 
+#include "kaminpar_export.h"
+
 #include <memory>
 #include <string_view>
-
-#include "kaminpar_export.h"
 
 namespace libkaminpar {
 #ifdef KAMINPAR_64BIT_NODE_IDS

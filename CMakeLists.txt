@@ -21,9 +21,7 @@ endif ()
 option(KAMINPAR_HEAVY_ASSERTIONS "Enable assertions that have high impact on performance." OFF)
 option(KAMINPAR_LIGHT_ASSERTIONS "Enable very lightweight assertions." ON)
 
-option(KAMINPAR_TIMERS "Enable fine-grained timers. With this option disabled, we will still report the total partitioning time." ON)
 option(KAMINPAR_STATISTICS "Generate and output detailed statistics." OFF)
-
 option(KAMINPAR_BACKWARD_CPP "Build with backward-cpp for better stack traces (requires the backward-cpp submodule)." ON)
 option(KAMINPAR_TESTS "Build unit tests (requires the GoogleTest submodule)." ON)
 option(KAMINPAR_GRAPHGEN "Build with support for in-memory graph generation (requires the KaGen submodule)." OFF)
@@ -47,7 +45,6 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wcast-qual")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Woverloaded-virtual")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wredundant-decls")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Winit-self")
-#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pedantic")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-function")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mcx16") # growt
 
@@ -64,11 +61,6 @@ set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -g -mtune=native -ma
 #set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -fsanitize=address -fno-omit-frame-pointer")
 #set(CMAKE_LINKER_FLAGS_RELEASE "${CMAKE_LINKER_FLAGS_RELEASE} -fsanitize=address")
 
-message(STATUS "CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
-message(STATUS "CMAKE_CXX_FLAGS_RELEASE: ${CMAKE_CXX_FLAGS_RELEASE}")
-message(STATUS "CMAKE_CXX_FLAGS_DEBUG: ${CMAKE_CXX_FLAGS_DEBUG}")
-message(STATUS "CMAKE_LINKER_FLAGS_DEBUG: ${CMAKE_LINKER_FLAGS_DEBUG}")
-
 # Pass CMake options to code
 if (KAMINPAR_HEAVY_ASSERTIONS)
     add_definitions(-DKAMINPAR_ENABLE_HEAVY_ASSERTIONS)
@@ -77,34 +69,35 @@ endif ()
 
 if (KAMINPAR_LIGHT_ASSERTIONS)
     add_definitions(-DKAMINPAR_ENABLE_LIGHT_ASSERTIONS)
-    message(STATUS "Building with lightweight assertions enabled.")
-endif ()
-
-if (KAMINPAR_TIMERS)
-    add_definitions(-DKAMINPAR_ENABLE_TIMERS)
-    message(STATUS "Building with fine-grained timers enabled.")
+    message(STATUS "Building with light assertions enabled.")
 endif ()
 
 if (KAMINPAR_STATISTICS)
     add_definitions(-DKAMINPAR_ENABLE_STATISTICS)
+    message(STATUS "Building with statistics enabled.")
 endif ()
 
 if (KAMINPAR_64BIT_EDGE_IDS OR KAMINPAR_64BIT_IDs)
     add_definitions(-DKAMINPAR_64BIT_EDGE_IDS)
+    message(STATUS "Building with 64 bit edge IDs.")
 endif ()
 
 if (KAMINPAR_64BIT_NODE_IDS OR KAMINPAR_64BIT_IDs)
     add_definitions(-DKAMINPAR_64BIT_NODE_IDS)
+    message(STATUS "Building with 64 bit node IDs.")
 endif ()
 
 if (KAMINPAR_TESTS)
     add_definitions(-DKAMINPAR_BUILD_TESTS)
     add_subdirectory("${PROJECT_SOURCE_DIR}/external_tools/googletest" "external_tools/googletest")
     include(gmock)
+
+    message(STATUS "Building with unit tests.")
 endif ()
 
 if (KAMINPAR_64BIT_WEIGHTS)
     add_definitions(-DKAMINPAR_64BIT_WEIGHTS)
+    message(STATUS "Building with 64 bit edge and node weights.")
 endif ()
 
 # Backward-cpp for stack traces in MPI code
@@ -112,7 +105,7 @@ if (KAMINPAR_BACKWARD_CPP)
     set(CMAKE_POLICY_DEFAULT_CMP0063 NEW)
     add_subdirectory(external_tools/backward-cpp)
     add_definitions(-DKAMINPAR_BACKWARD_CPP)
-    message(STATUS "Use backward")
+    message(STATUS "Building with backward-cpp.")
 endif ()
 
 # Look for MPI -- if this fails, we give up on the distributed components

@@ -14,9 +14,8 @@
 #include "kaminpar/utility/random.h"
 #include "kaminpar/utility/timer.h"
 
-#include <tbb/parallel_sort.h>
-
 #include <kagen_interface.h>
+#include <tbb/parallel_sort.h>
 
 namespace dkaminpar::graphgen {
 using namespace std::string_literals;

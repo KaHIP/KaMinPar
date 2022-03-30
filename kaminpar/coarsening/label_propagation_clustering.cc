@@ -11,7 +11,6 @@
 #include "kaminpar/context.h"
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/label_propagation.h"
-#include "kaminpar/parallel.h"
 #include "kaminpar/utility/timer.h"
 
 #include <memory>

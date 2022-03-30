@@ -11,7 +11,7 @@
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_reduce.h>
 
-namespace kaminpar {
+namespace kaminpar::parallel {
 template <typename Container, typename T> T accumulate(const Container &r, T initial) {
   using size_t = typename Container::size_type;
 
@@ -71,4 +71,4 @@ template <typename InputIt, typename T> T accumulate(InputIt begin, InputIt end,
   tbb::parallel_reduce(tbb::blocked_range<size_t>(static_cast<size_t>(0), std::distance(begin, end)), b);
   return initial + b._ans;
 }
-} // namespace kaminpar
+} // namespace kaminpar::parallel
