@@ -51,32 +51,39 @@ template <std::size_t N> inline MPI_Datatype custom() {
 }
 
 // Map to default MPI type
-#define MAP_DATATYPE(CPP_DATATYPE, MPI_DATATYPE)                                                                       \
-  template <std::same_as<CPP_DATATYPE>> inline MPI_Datatype get() { return MPI_DATATYPE; }
-
-MAP_DATATYPE(std::uint8_t, MPI_UINT8_T)
-MAP_DATATYPE(std::int8_t, MPI_INT8_T)
-MAP_DATATYPE(std::uint16_t, MPI_UINT16_T)
-MAP_DATATYPE(std::int16_t, MPI_INT16_T)
-MAP_DATATYPE(std::uint32_t, MPI_UINT32_T)
-MAP_DATATYPE(std::int32_t, MPI_INT32_T)
-MAP_DATATYPE(std::uint64_t, MPI_UINT64_T)
-MAP_DATATYPE(std::int64_t, MPI_INT64_T)
-MAP_DATATYPE(float, MPI_FLOAT)
-MAP_DATATYPE(double, MPI_DOUBLE)
-MAP_DATATYPE(long double, MPI_LONG_DOUBLE)
-// MAP_DATATYPE(std::size_t, MPI_UNSIGNED_LONG)
-
-#define COMMA ,
-MAP_DATATYPE(std::pair<float COMMA int>, MPI_FLOAT_INT)
-MAP_DATATYPE(std::pair<double COMMA int>, MPI_DOUBLE_INT)
-MAP_DATATYPE(std::pair<long double COMMA int>, MPI_LONG_DOUBLE_INT)
-#undef COMMA
-
-#undef MAP_DATATYPE
-
-// Fallback to custom MPI type
-template <typename T> inline MPI_Datatype get() { return custom<sizeof(T)>(); }
+template <typename T> inline MPI_Datatype get() {
+  if constexpr (std::is_same_v<T, std::uint8_t>) {
+    return MPI_UINT8_T;
+  } else if constexpr (std::is_same_v<T, std::int8_t>) {
+    return MPI_INT8_T;
+  } else if constexpr (std::is_same_v<T, std::uint16_t>) {
+    return MPI_UINT16_T;
+  } else if constexpr (std::is_same_v<T, std::int16_t>) {
+    return MPI_INT16_T;
+  } else if constexpr (std::is_same_v<T, std::uint32_t>) {
+    return MPI_UINT32_T;
+  } else if constexpr (std::is_same_v<T, std::int32_t>) {
+    return MPI_INT32_T;
+  } else if constexpr (std::is_same_v<T, std::uint64_t>) {
+    return MPI_UINT64_T;
+  } else if constexpr (std::is_same_v<T, std::int64_t>) {
+    return MPI_INT64_T;
+  } else if constexpr (std::is_same_v<T, float>) {
+    return MPI_FLOAT;
+  } else if constexpr (std::is_same_v<T, double>) {
+    return MPI_DOUBLE;
+  } else if constexpr (std::is_same_v<T, long double>) {
+    return MPI_LONG_DOUBLE;
+  } else if constexpr (std::is_same_v<T, std::pair<float, int>>) {
+    return MPI_FLOAT_INT;
+  } else if constexpr (std::is_same_v<T, std::pair<double, int>>) {
+    return MPI_DOUBLE_INT;
+  } else if constexpr (std::is_same_v<T, std::pair<long double, int>>) {
+    return MPI_LONG_DOUBLE_INT;
+  } else {
+    return custom<sizeof(T)>();
+  }
+}
 } // namespace type
 
 //
@@ -318,7 +325,7 @@ inline int reduce(const R &sendbuf, R &recvbuf, MPI_Op op, const int root = 0, M
 
 template <typename R, template <typename> typename Container = scalable_vector>
 inline auto reduce(const R &sendbuf, MPI_Op op, const int root = 0, MPI_Comm comm = MPI_COMM_WORLD) {
-  Container<R::value_type> recvbuf;
+  Container<typename std::remove_reference_t<R>::value_type> recvbuf;
   if (mpi::get_comm_rank(comm) == root) {
     recvbuf.resize(std::size(sendbuf));
   }
@@ -338,7 +345,7 @@ inline int gather(const Rs &sendbuf, Rr &recvbuf, const int root = 0, MPI_Comm c
   });
 
   return gather<rs_value_t, rr_value_t>(sendbuf.cdata(), static_cast<int>(std::size(sendbuf)), std::data(recvbuf),
-                                        static_cast<int>(std::ssize(recvbuf)), root, comm);
+                                        static_cast<int>(std::size(recvbuf)), root, comm);
 }
 
 //
@@ -346,15 +353,10 @@ inline int gather(const Rs &sendbuf, Rr &recvbuf, const int root = 0, MPI_Comm c
 //
 
 template <typename Lambda> inline void sequentially(Lambda &&lambda, MPI_Comm comm = MPI_COMM_WORLD) {
-  constexpr bool use_rank_argument = requires { lambda(int()); };
   const auto [size, rank] = get_comm_info();
   for (int p = 0; p < size; ++p) {
     if (p == rank) {
-      if constexpr (use_rank_argument) {
-        lambda(p);
-      } else {
-        lambda();
-      }
+      lambda(p);
     }
     MPI_Barrier(comm);
   }
@@ -390,11 +392,10 @@ inline Container<T> build_distribution_from_local_count(const T value, MPI_Comm 
   return distribution;
 }
 
-template <typename Message, typename Buffer = scalable_noinit_vector<Message>>
-void sparse_alltoall(std::vector<Buffer> &&send_buffers, auto &&receiver, MPI_Comm comm) {
+template <typename Message, typename Buffer = scalable_noinit_vector<Message>, typename Receiver>
+void sparse_alltoall(std::vector<Buffer> &&send_buffers, Receiver &&receiver, MPI_Comm comm) {
   SCOPED_TIMER("Sparse AllToAll Move", TIMER_FINE);
 
-  using Receiver = decltype(receiver);
   constexpr bool receiver_invocable_with_pe = std::is_invocable_r_v<void, Receiver, Buffer, PEID>;
   constexpr bool receiver_invocable_without_pe = std::is_invocable_r_v<void, Receiver, Buffer>;
   static_assert(receiver_invocable_with_pe || receiver_invocable_without_pe, "bad receiver type");
@@ -433,11 +434,10 @@ void sparse_alltoall(std::vector<Buffer> &&send_buffers, auto &&receiver, MPI_Co
   mpi::waitall(requests);
 }
 
-template <typename Message, typename Buffer = scalable_noinit_vector<Message>>
-void sparse_alltoall(const std::vector<Buffer> &send_buffers, auto &&receiver, MPI_Comm comm, const bool self) {
+template <typename Message, typename Buffer = scalable_noinit_vector<Message>, typename Receiver>
+void sparse_alltoall(const std::vector<Buffer> &send_buffers, Receiver &&receiver, MPI_Comm comm, const bool self) {
   SCOPED_TIMER("Sparse AllToAll", TIMER_FINE);
 
-  using Receiver = decltype(receiver);
   constexpr bool receiver_invocable_with_pe = std::is_invocable_r_v<void, Receiver, Buffer, PEID>;
   constexpr bool receiver_invocable_without_pe = std::is_invocable_r_v<void, Receiver, Buffer>;
   static_assert(receiver_invocable_with_pe || receiver_invocable_without_pe, "bad receiver type");

@@ -111,27 +111,6 @@ private:
   std::atomic<T> _value;
 };
 
-template <typename InputIterator, typename OutputIterator>
-void prefix_sum(InputIterator first, InputIterator last, OutputIterator result) {
-  using size_t = std::size_t;                   // typename InputIterator::difference_type;
-  using Value = std::decay_t<decltype(*first)>; // typename InputIterator::value_type;
-
-  const size_t n = std::distance(first, last);
-  tbb::parallel_scan(
-      tbb::blocked_range<size_t>(0, n), Value(),
-      [first, result](const tbb::blocked_range<size_t> &r, Value sum, bool is_final_scan) {
-        Value temp = sum;
-        for (auto i = r.begin(); i < r.end(); ++i) {
-          temp += *(first + i);
-          if (is_final_scan) {
-            *(result + i) = temp;
-          }
-        }
-        return temp;
-      },
-      [](Value left, Value right) { return left + right; });
-}
-
 template <typename T> struct tbb_deleter {
   void operator()(T *p) { scalable_free(p); }
 };
@@ -149,67 +128,8 @@ template <typename T, typename... Args> tbb_unique_ptr<T> make_unique(Args &&...
   return tbb_unique_ptr<T>(ptr, tbb_deleter<T>{});
 }
 
-template <typename Range> typename Range::value_type accumulate(const Range &r) {
-  using r_size_t = typename Range::size_type;
-  using value_t = typename Range::value_type;
 
-  class body {
-    const Range &_r;
 
-  public:
-    value_t _ans{};
-
-    void operator()(const tbb::blocked_range<r_size_t> &indices) {
-      const Range &r = _r;
-      auto ans = _ans;
-      auto end = indices.end();
-      for (auto i = indices.begin(); i != end; ++i) {
-        ans += r[i];
-      }
-      _ans = ans;
-    }
-
-    void join(const body &y) { _ans += y._ans; }
-
-    body(body &x, tbb::split) : _r{x._r} {}
-    body(const Range &r) : _r{r} {}
-  };
-
-  body b{r};
-  tbb::parallel_reduce(tbb::blocked_range(static_cast<r_size_t>(0), r.size()), b);
-  return b._ans;
-}
-
-template <typename Range> typename Range::value_type max_element(const Range &r) {
-  using r_size_t = typename Range::size_type;
-  using value_t = typename Range::value_type;
-
-  class body {
-    const Range &_r;
-
-  public:
-    value_t _ans{std::numeric_limits<value_t>::min()};
-
-    void operator()(const tbb::blocked_range<r_size_t> &indices) {
-      const Range &r = _r;
-      auto ans = _ans;
-      auto end = indices.end();
-      for (auto i = indices.begin(); i != end; ++i) {
-        ans = std::max<value_t>(ans, r[i]);
-      }
-      _ans = ans;
-    }
-
-    void join(const body &y) { _ans = std::max(_ans, y._ans); }
-
-    body(body &x, tbb::split) : _r{x._r} {}
-    body(const Range &r) : _r{r} {}
-  };
-
-  body b{r};
-  tbb::parallel_reduce(tbb::blocked_range(static_cast<r_size_t>(0), r.size()), b);
-  return b._ans;
-}
 
 template <typename Buffer, typename Lambda> void container_for(const Buffer &buffer, Lambda &&lambda) {
   tbb::parallel_for<std::size_t>(0, buffer.size(), [&](const std::size_t i) { lambda(buffer[i]); });

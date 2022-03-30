@@ -15,7 +15,6 @@
 #include "kaminpar/parallel.h"
 
 #include <definitions.h>
-#include <ranges>
 #include <tbb/parallel_for.h>
 #include <vector>
 
@@ -286,20 +285,19 @@ public:
   }
 
   // Iterators for nodes / edges
-  [[nodiscard]] inline auto nodes() const { return std::views::iota(static_cast<NodeID>(0), n()); }
-  [[nodiscard]] inline auto ghost_nodes() const { return std::views::iota(n(), total_n()); }
-  [[nodiscard]] inline auto all_nodes() const { return std::views::iota(static_cast<NodeID>(0), total_n()); }
-  [[nodiscard]] inline auto edges() const { return std::views::iota(static_cast<EdgeID>(0), m()); }
-  [[nodiscard]] inline auto incident_edges(const NodeID u) const { return std::views::iota(_nodes[u], _nodes[u + 1]); }
+  [[nodiscard]] inline auto nodes() const { return shm::IotaRange(static_cast<NodeID>(0), n()); }
+  [[nodiscard]] inline auto ghost_nodes() const { return shm::IotaRange(n(), total_n()); }
+  [[nodiscard]] inline auto all_nodes() const { return shm::IotaRange(static_cast<NodeID>(0), total_n()); }
+  [[nodiscard]] inline auto edges() const { return shm::IotaRange(static_cast<EdgeID>(0), m()); }
+  [[nodiscard]] inline auto incident_edges(const NodeID u) const { return shm::IotaRange(_nodes[u], _nodes[u + 1]); }
 
   [[nodiscard]] inline auto adjacent_nodes(const NodeID u) const {
-    return std::views::iota(_nodes[u], _nodes[u + 1]) |
-           std::views::transform([this](const EdgeID e) { return this->edge_target(e); });
+    return shm::TransformedIotaRange(_nodes[u], _nodes[u + 1], [this](const EdgeID e) { return this->edge_target(e); });
   }
 
   [[nodiscard]] inline auto neighbors(const NodeID u) const {
-    return std::views::iota(_nodes[u], _nodes[u + 1]) |
-           std::views::transform([this](const EdgeID e) { return std::make_pair(e, this->edge_target(e)); });
+    return shm::TransformedIotaRange(_nodes[u], _nodes[u + 1],
+                                     [this](const EdgeID e) { return std::make_pair(e, this->edge_target(e)); });
   }
 
   // Degree buckets -- right now only for compatibility to shared memory graph data structure
@@ -342,8 +340,11 @@ private:
   inline void init_total_node_weight() {
     if (is_node_weighted()) {
       const auto owned_node_weights = std::ranges::take_view{_node_weights, static_cast<long int>(n())};
-      _total_node_weight = shm::parallel::accumulate(owned_node_weights);
-      _max_node_weight = shm::parallel::max_element(owned_node_weights);
+      const auto begin_node_weights = _node_weights.begin();
+      const auto end_node_weights = begin_node_weights + static_cast<std::size_t>(n());
+
+      _total_node_weight = shm::accumulate(begin_node_weights, end_node_weights);
+      _max_node_weight = shm::max_element(begin_node_weights, end_node_weights);
     } else {
       _total_node_weight = n();
       _max_node_weight = 1;
