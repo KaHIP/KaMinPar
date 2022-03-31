@@ -11,8 +11,8 @@
 #include "dkaminpar/datastructure/distributed_graph_builder.h"
 #include "dkaminpar/mpi_wrapper.h"
 #include "kaminpar/parallel.h"
-#include "kaminpar/utility/random.h"
-#include "kaminpar/utility/timer.h"
+#include "kaminpar/utils/random.h"
+#include "kaminpar/utils/timer.h"
 
 #include <kagen_interface.h>
 #include <tbb/parallel_sort.h>

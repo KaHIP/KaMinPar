@@ -8,7 +8,7 @@
 #pragma once
 
 #include "dkaminpar/definitions.h"
-#include "kaminpar/utility/timer.h"
+#include "kaminpar/utils/timer.h"
 
 #include <mpi.h>
 #include <type_traits>

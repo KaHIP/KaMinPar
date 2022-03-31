@@ -7,7 +7,7 @@
  ******************************************************************************/
 #include "dkaminpar/initial_partitioning/random_initial_partitioner.h"
 
-#include "kaminpar/utility/random.h"
+#include "kaminpar/utils/random.h"
 
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>

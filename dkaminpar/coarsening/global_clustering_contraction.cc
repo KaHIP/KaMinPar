@@ -12,8 +12,8 @@
 #include "dkaminpar/growt.h"
 #include "dkaminpar/mpi_graph.h"
 #include "dkaminpar/mpi_wrapper.h"
-#include "dkaminpar/utility/math.h"
-#include "dkaminpar/utility/vector_ets.h"
+#include "dkaminpar/utils/math.h"
+#include "dkaminpar/utils/vector_ets.h"
 
 #include <tbb/concurrent_hash_map.h>
 

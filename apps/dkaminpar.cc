@@ -20,12 +20,12 @@
 #include "dkaminpar/distributed_io.h"
 #include "dkaminpar/graphutils/rearrange_graph.h"
 #include "dkaminpar/partitioning_scheme/partitioning.h"
-#include "dkaminpar/utility/distributed_timer.h"
-#include "dkaminpar/utility/metrics.h"
+#include "dkaminpar/utils/distributed_timer.h"
+#include "dkaminpar/utils/metrics.h"
 #include "kaminpar/definitions.h"
-#include "kaminpar/utility/logger.h"
-#include "kaminpar/utility/random.h"
-#include "kaminpar/utility/timer.h"
+#include "kaminpar/utils/logger.h"
+#include "kaminpar/utils/random.h"
+#include "kaminpar/utils/timer.h"
 
 #include <fstream>
 #include <mpi.h>

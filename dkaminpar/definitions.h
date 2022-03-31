@@ -9,7 +9,7 @@
 
 #include "kaminpar/definitions.h"
 #include "kaminpar/parallel.h"
-#include "kaminpar/utility/noinit_allocator.h"
+#include "kaminpar/utils/noinit_allocator.h"
 
 #include <cstdint>
 #include <iomanip>

@@ -11,7 +11,7 @@
 #include "kaminpar/datastructure/marker.h"
 #include "kaminpar/graphutils/graph_rearrangement.h"
 #include "kaminpar/parallel.h"
-#include "kaminpar/utility/timer.h"
+#include "kaminpar/utils/timer.h"
 
 namespace dkaminpar::graph {
 DistributedGraph sort_by_degree_buckets(DistributedGraph graph) {

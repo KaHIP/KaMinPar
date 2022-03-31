@@ -9,9 +9,9 @@
 
 #include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/datastructure/distributed_graph_builder.h"
-#include "dkaminpar/utility/math.h"
+#include "dkaminpar/utils/math.h"
 #include "kaminpar/datastructure/ts_navigable_linked_list.h"
-#include "kaminpar/utility/timer.h"
+#include "kaminpar/utils/timer.h"
 
 #include <algorithm>
 

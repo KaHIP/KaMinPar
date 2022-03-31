@@ -10,7 +10,7 @@
 #include "apps/environment.h"
 #include "kaminpar/context.h"
 #include "kaminpar/definitions.h"
-#include "kaminpar/utility/logger.h"
+#include "kaminpar/utils/logger.h"
 
 #if __has_include(<numa.h>)
 #include <numa.h>

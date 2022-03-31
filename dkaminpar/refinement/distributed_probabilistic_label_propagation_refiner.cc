@@ -9,12 +9,12 @@
 
 #include "dkaminpar/mpi_graph.h"
 #include "dkaminpar/mpi_wrapper.h"
-#include "dkaminpar/utility/math.h"
-#include "dkaminpar/utility/metrics.h"
-#include "dkaminpar/utility/vector_ets.h"
+#include "dkaminpar/utils/math.h"
+#include "dkaminpar/utils/metrics.h"
+#include "dkaminpar/utils/vector_ets.h"
 #include "kaminpar/datastructure/marker.h"
 #include "kaminpar/label_propagation.h"
-#include "kaminpar/utility/random.h"
+#include "kaminpar/utils/random.h"
 
 namespace dkaminpar {
 struct DistributedLabelPropagationRefinerConfig : public shm::LabelPropagationConfig {

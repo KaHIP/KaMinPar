@@ -12,8 +12,8 @@
 #include "kaminpar/coarsening/label_propagation_clustering.h"
 #include "kaminpar/context.h"
 #include "kaminpar/io.h"
-#include "kaminpar/utility/random.h"
-#include "kaminpar/utility/timer.h"
+#include "kaminpar/utils/random.h"
+#include "kaminpar/utils/timer.h"
 
 using namespace kaminpar;
 

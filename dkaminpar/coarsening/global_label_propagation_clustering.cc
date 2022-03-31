@@ -11,7 +11,7 @@
 
 #include "dkaminpar/growt.h"
 #include "dkaminpar/mpi_graph.h"
-#include "dkaminpar/utility/math.h"
+#include "dkaminpar/utils/math.h"
 #include "kaminpar/label_propagation.h"
 
 #include <unordered_map>

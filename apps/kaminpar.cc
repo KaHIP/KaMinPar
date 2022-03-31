@@ -15,10 +15,10 @@
 #include "kaminpar/io.h"
 #include "kaminpar/metrics.h"
 #include "kaminpar/partitioning_scheme/partitioning.h"
-#include "kaminpar/utility/console_io.h"
-#include "kaminpar/utility/logger.h"
-#include "kaminpar/utility/random.h"
-#include "kaminpar/utility/timer.h"
+#include "kaminpar/utils/console_io.h"
+#include "kaminpar/utils/logger.h"
+#include "kaminpar/utils/random.h"
+#include "kaminpar/utils/timer.h"
 
 #include <iostream>
 #include <tbb/parallel_for.h>

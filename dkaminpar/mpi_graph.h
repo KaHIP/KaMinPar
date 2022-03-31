@@ -12,7 +12,7 @@
 #include "dkaminpar/mpi_wrapper.h"
 #include "kaminpar/datastructure/marker.h"
 #include "kaminpar/parallel/aligned_element.h"
-#include "kaminpar/utility/timer.h"
+#include "kaminpar/utils/timer.h"
 
 #include <omp.h>
 #include <tbb/concurrent_vector.h>

@@ -9,9 +9,9 @@
 
 #include "dkaminpar/datastructure/distributed_graph_builder.h"
 #include "dkaminpar/mpi_wrapper.h"
-#include "dkaminpar/utility/math.h"
+#include "dkaminpar/utils/math.h"
 #include "kaminpar/io.h"
-#include "kaminpar/utility/strings.h"
+#include "kaminpar/utils/strings.h"
 
 #include <tbb/concurrent_hash_map.h>
 #include <tbb/parallel_for.h>

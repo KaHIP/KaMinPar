@@ -8,7 +8,7 @@
 #include "dkaminpar/initial_partitioning/kaminpar_initial_partitioner.h"
 
 #include "kaminpar/partitioning_scheme/partitioning.h"
-#include "kaminpar/utility/timer.h"
+#include "kaminpar/utils/timer.h"
 
 namespace dkaminpar {
 shm::PartitionedGraph KaMinParInitialPartitioner::initial_partition(const shm::Graph &graph) {
