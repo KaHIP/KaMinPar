@@ -7,8 +7,7 @@
  ******************************************************************************/
 #include "kaminpar/datastructure/graph.h"
 
-#include "kaminpar/parallel/accumulate.h"
-#include "kaminpar/parallel/max_element.h"
+#include "kaminpar/parallel/algorithm.h"
 #include "kaminpar/utils/math.h"
 #include "kaminpar/utils/timer.h"
 

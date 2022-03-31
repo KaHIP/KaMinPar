@@ -10,8 +10,8 @@
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/datastructure/static_array.h"
 #include "kaminpar/definitions.h"
+#include "kaminpar/parallel/algorithm.h"
 #include "kaminpar/parallel/atomic.h"
-#include "kaminpar/parallel/prefix_sum.h"
 #include "kaminpar/utils/math.h"
 #include "kaminpar/utils/timer.h"
 

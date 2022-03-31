@@ -10,8 +10,8 @@
 #include "kaminpar/context.h"
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/definitions.h"
+#include "kaminpar/parallel/algorithm.h"
 #include "kaminpar/parallel/loops.h"
-#include "kaminpar/parallel/prefix_sum.h"
 
 namespace kaminpar::graph {
 /*!

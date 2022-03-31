@@ -1,6 +1,4 @@
-#include "kaminpar/parallel/accumulate.h"
-#include "kaminpar/parallel/max_element.h"
-#include "kaminpar/parallel/prefix_sum.h"
+#include "kaminpar/parallel/algorithm.h"
 
 #include <gmock/gmock.h>
 #include <numeric>

@@ -9,7 +9,7 @@
 
 #include "kaminpar/datastructure/rating_map.h"
 #include "kaminpar/datastructure/ts_navigable_linked_list.h"
-#include "kaminpar/parallel/prefix_sum.h"
+#include "kaminpar/parallel/algorithm.h"
 #include "kaminpar/utils/timer.h"
 
 #include <tbb/parallel_for.h>

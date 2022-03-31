@@ -13,7 +13,7 @@
 #include "kaminpar/graphutils/graph_rearrangement.h"
 #include "kaminpar/io.h"
 #include "kaminpar/metrics.h"
-#include "kaminpar/parallel/accumulate.h"
+#include "kaminpar/parallel/algorithm.h"
 #include "kaminpar/partitioning_scheme/partitioning.h"
 
 #include <tbb/parallel_for.h>
