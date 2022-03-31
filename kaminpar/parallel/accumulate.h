@@ -56,7 +56,7 @@ template <typename InputIt, typename T> T accumulate(InputIt begin, InputIt end,
       auto ans = _ans;
       auto end = indices.end();
       for (auto i = indices.begin(); i != end; ++i) {
-        ans += *(_begin + i);
+        ans += *(begin + i);
       }
       _ans = ans;
     }
