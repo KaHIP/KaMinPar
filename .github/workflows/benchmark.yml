@@ -22,7 +22,7 @@ jobs:
         run: cmake --build ${{github.workspace}}/build --config Release --parallel 4
 
       - name: Run benchmark script
-        working-directory: ${{github.workspace}}/misc/ci/benchmark
+        working-directory: ${{github.workspace}}/scripts/ci/benchmark
         run: ./benchmark.sh
         env:
           BENCHMARK_DIR: /kaminpar_ci
