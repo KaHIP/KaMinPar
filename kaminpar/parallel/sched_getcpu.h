@@ -8,6 +8,7 @@
 #pragma once
 
 #ifndef __linux__
-inline int sched_getcpu() { return 0; }
+inline int sched_getcpu() {
+    return 0;
+}
 #endif
-

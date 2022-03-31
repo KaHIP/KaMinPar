@@ -65,184 +65,190 @@ DEFINE_ENUM_STRING_CONVERSION(InitialPartitioningMode, initial_partitioning_mode
 // PartitionContext
 //
 
-void PartitionContext::setup(const Graph &graph) {
-  n = graph.n();
-  m = graph.m();
-  total_node_weight = graph.total_node_weight();
-  total_edge_weight = graph.total_edge_weight();
-  max_node_weight = graph.max_node_weight();
-  setup_block_weights();
+void PartitionContext::setup(const Graph& graph) {
+    n                 = graph.n();
+    m                 = graph.m();
+    total_node_weight = graph.total_node_weight();
+    total_edge_weight = graph.total_edge_weight();
+    max_node_weight   = graph.max_node_weight();
+    setup_block_weights();
 }
 
-void PartitionContext::setup_block_weights() { block_weights.setup(*this); }
+void PartitionContext::setup_block_weights() {
+    block_weights.setup(*this);
+}
 
 //
 // BlockWeightsContext
 //
 
-void BlockWeightsContext::setup(const PartitionContext &p_ctx) {
-  ASSERT(p_ctx.k != kInvalidBlockID) << "PartitionContext::k not initialized";
-  ASSERT(p_ctx.total_node_weight != kInvalidNodeWeight) << "PartitionContext::total_node_weight not initialized";
-  ASSERT(p_ctx.max_node_weight != kInvalidNodeWeight) << "PartitionContext::max_node_weight not initialized";
+void BlockWeightsContext::setup(const PartitionContext& p_ctx) {
+    ASSERT(p_ctx.k != kInvalidBlockID) << "PartitionContext::k not initialized";
+    ASSERT(p_ctx.total_node_weight != kInvalidNodeWeight) << "PartitionContext::total_node_weight not initialized";
+    ASSERT(p_ctx.max_node_weight != kInvalidNodeWeight) << "PartitionContext::max_node_weight not initialized";
 
-  const auto perfectly_balanced_block_weight =
-      static_cast<NodeWeight>(std::ceil(1.0 * p_ctx.total_node_weight / p_ctx.k));
-  const auto max_block_weight = static_cast<NodeWeight>((1.0 + p_ctx.epsilon) * perfectly_balanced_block_weight);
+    const auto perfectly_balanced_block_weight =
+        static_cast<NodeWeight>(std::ceil(1.0 * p_ctx.total_node_weight / p_ctx.k));
+    const auto max_block_weight = static_cast<NodeWeight>((1.0 + p_ctx.epsilon) * perfectly_balanced_block_weight);
 
-  _max_block_weights.resize(p_ctx.k);
-  _perfectly_balanced_block_weights.resize(p_ctx.k);
+    _max_block_weights.resize(p_ctx.k);
+    _perfectly_balanced_block_weights.resize(p_ctx.k);
 
-  tbb::parallel_for<BlockID>(0, p_ctx.k, [&](const BlockID b) {
-    _perfectly_balanced_block_weights[b] = perfectly_balanced_block_weight;
+    tbb::parallel_for<BlockID>(0, p_ctx.k, [&](const BlockID b) {
+        _perfectly_balanced_block_weights[b] = perfectly_balanced_block_weight;
 
-    // relax balance constraint by max_node_weight on coarse levels only
-    if (p_ctx.max_node_weight == 1) {
-      _max_block_weights[b] = max_block_weight;
-    } else {
-      _max_block_weights[b] =
-          std::max<NodeWeight>(max_block_weight, perfectly_balanced_block_weight + p_ctx.max_node_weight);
-    }
-  });
+        // relax balance constraint by max_node_weight on coarse levels only
+        if (p_ctx.max_node_weight == 1) {
+            _max_block_weights[b] = max_block_weight;
+        } else {
+            _max_block_weights[b] =
+                std::max<NodeWeight>(max_block_weight, perfectly_balanced_block_weight + p_ctx.max_node_weight);
+        }
+    });
 }
 
-void BlockWeightsContext::setup(const PartitionContext &p_ctx, const scalable_vector<BlockID> &final_ks) {
-  ASSERT(p_ctx.k != kInvalidBlockID) << "PartitionContext::k not initialized";
-  ASSERT(p_ctx.total_node_weight != kInvalidNodeWeight) << "PartitionContext::total_node_weight not initialized";
-  ASSERT(p_ctx.max_node_weight != kInvalidNodeWeight) << "PartitionContext::max_node_weight not initialized";
-  ASSERT(p_ctx.k == final_ks.size()) << "bad number of blocks: got " << final_ks.size() << ", expected " << p_ctx.k;
+void BlockWeightsContext::setup(const PartitionContext& p_ctx, const scalable_vector<BlockID>& final_ks) {
+    ASSERT(p_ctx.k != kInvalidBlockID) << "PartitionContext::k not initialized";
+    ASSERT(p_ctx.total_node_weight != kInvalidNodeWeight) << "PartitionContext::total_node_weight not initialized";
+    ASSERT(p_ctx.max_node_weight != kInvalidNodeWeight) << "PartitionContext::max_node_weight not initialized";
+    ASSERT(p_ctx.k == final_ks.size()) << "bad number of blocks: got " << final_ks.size() << ", expected " << p_ctx.k;
 
-  const BlockID final_k = std::accumulate(final_ks.begin(), final_ks.end(), static_cast<BlockID>(0));
-  const double block_weight = 1.0 * p_ctx.total_node_weight / final_k;
+    const BlockID final_k      = std::accumulate(final_ks.begin(), final_ks.end(), static_cast<BlockID>(0));
+    const double  block_weight = 1.0 * p_ctx.total_node_weight / final_k;
 
-  _max_block_weights.resize(p_ctx.k);
-  _perfectly_balanced_block_weights.resize(p_ctx.k);
+    _max_block_weights.resize(p_ctx.k);
+    _perfectly_balanced_block_weights.resize(p_ctx.k);
 
-  tbb::parallel_for<BlockID>(0, final_ks.size(), [&](const BlockID b) {
-    _perfectly_balanced_block_weights[b] = std::ceil(final_ks[b] * block_weight);
+    tbb::parallel_for<BlockID>(0, final_ks.size(), [&](const BlockID b) {
+        _perfectly_balanced_block_weights[b] = std::ceil(final_ks[b] * block_weight);
 
-    const auto max_block_weight =
-        static_cast<BlockWeight>((1.0 + p_ctx.epsilon) * _perfectly_balanced_block_weights[b]);
+        const auto max_block_weight =
+            static_cast<BlockWeight>((1.0 + p_ctx.epsilon) * _perfectly_balanced_block_weights[b]);
 
-    // relax balance constraint by max_node_weight on coarse levels only
-    if (p_ctx.max_node_weight == 1) {
-      _max_block_weights[b] = max_block_weight;
-    } else {
-      _max_block_weights[b] =
-          std::max<BlockWeight>(max_block_weight, _perfectly_balanced_block_weights[b] + p_ctx.max_node_weight);
-    }
-  });
+        // relax balance constraint by max_node_weight on coarse levels only
+        if (p_ctx.max_node_weight == 1) {
+            _max_block_weights[b] = max_block_weight;
+        } else {
+            _max_block_weights[b] =
+                std::max<BlockWeight>(max_block_weight, _perfectly_balanced_block_weights[b] + p_ctx.max_node_weight);
+        }
+    });
 }
 
 [[nodiscard]] BlockWeight BlockWeightsContext::max(const BlockID b) const {
-  ASSERT(b < _max_block_weights.size());
-  return _max_block_weights[b];
+    ASSERT(b < _max_block_weights.size());
+    return _max_block_weights[b];
 }
 
-[[nodiscard]] const scalable_vector<BlockWeight> &BlockWeightsContext::all_max() const { return _max_block_weights; }
+[[nodiscard]] const scalable_vector<BlockWeight>& BlockWeightsContext::all_max() const {
+    return _max_block_weights;
+}
 
 [[nodiscard]] BlockWeight BlockWeightsContext::perfectly_balanced(const BlockID b) const {
-  ASSERT(b < _perfectly_balanced_block_weights.size());
-  return _perfectly_balanced_block_weights[b];
+    ASSERT(b < _perfectly_balanced_block_weights.size());
+    return _perfectly_balanced_block_weights[b];
 }
 
-[[nodiscard]] const scalable_vector<BlockWeight> &BlockWeightsContext::all_perfectly_balanced() const {
-  return _perfectly_balanced_block_weights;
+[[nodiscard]] const scalable_vector<BlockWeight>& BlockWeightsContext::all_perfectly_balanced() const {
+    return _perfectly_balanced_block_weights;
 }
 
 //
 // print() member functions
 //
 
-void PartitionContext::print(std::ostream &out, const std::string &prefix) const {
-  out << prefix << "mode=" << mode << " "                                            //
-      << prefix << "epsilon=" << epsilon << " "                                      //
-      << prefix << "k=" << k << " "                                                  //
-      << prefix << "fast_initial_partitioning=" << fast_initial_partitioning << " "; //
+void PartitionContext::print(std::ostream& out, const std::string& prefix) const {
+    out << prefix << "mode=" << mode << " "                                            //
+        << prefix << "epsilon=" << epsilon << " "                                      //
+        << prefix << "k=" << k << " "                                                  //
+        << prefix << "fast_initial_partitioning=" << fast_initial_partitioning << " "; //
 }
 
-void CoarseningContext::print(std::ostream &out, const std::string &prefix) const {
-  out << prefix << "algorithm=" << algorithm << " "                                  //
-      << prefix << "contraction_limit=" << contraction_limit << " "                  //
-      << prefix << "enforce_contraction_limit=" << enforce_contraction_limit << " "  //
-      << prefix << "convergence_threshold=" << convergence_threshold << " "          //
-      << prefix << "cluster_weight_limit=" << cluster_weight_limit << " "            //
-      << prefix << "cluster_weight_multiplier=" << cluster_weight_multiplier << " "; //
-  lp.print(out, prefix + "lp.");
+void CoarseningContext::print(std::ostream& out, const std::string& prefix) const {
+    out << prefix << "algorithm=" << algorithm << " "                                  //
+        << prefix << "contraction_limit=" << contraction_limit << " "                  //
+        << prefix << "enforce_contraction_limit=" << enforce_contraction_limit << " "  //
+        << prefix << "convergence_threshold=" << convergence_threshold << " "          //
+        << prefix << "cluster_weight_limit=" << cluster_weight_limit << " "            //
+        << prefix << "cluster_weight_multiplier=" << cluster_weight_multiplier << " "; //
+    lp.print(out, prefix + "lp.");
 }
 
-void LabelPropagationCoarseningContext::print(std::ostream &out, const std::string &prefix) const {
-  out << prefix << "num_iterations=" << num_iterations << " "                             //
-      << prefix << "max_degree=" << large_degree_threshold << " "                         //
-      << prefix << "two_hop_clustering_threshold=" << two_hop_clustering_threshold << " " //
-      << prefix << "max_num_neighbors=" << max_num_neighbors << " ";                      //
+void LabelPropagationCoarseningContext::print(std::ostream& out, const std::string& prefix) const {
+    out << prefix << "num_iterations=" << num_iterations << " "                             //
+        << prefix << "max_degree=" << large_degree_threshold << " "                         //
+        << prefix << "two_hop_clustering_threshold=" << two_hop_clustering_threshold << " " //
+        << prefix << "max_num_neighbors=" << max_num_neighbors << " ";                      //
 }
 
-void LabelPropagationRefinementContext::print(std::ostream &out, const std::string &prefix) const {
-  out << prefix << "num_iterations=" << num_iterations << " "        //
-      << prefix << "max_degree=" << large_degree_threshold << " "    //
-      << prefix << "max_num_neighbors=" << max_num_neighbors << " "; //
+void LabelPropagationRefinementContext::print(std::ostream& out, const std::string& prefix) const {
+    out << prefix << "num_iterations=" << num_iterations << " "        //
+        << prefix << "max_degree=" << large_degree_threshold << " "    //
+        << prefix << "max_num_neighbors=" << max_num_neighbors << " "; //
 }
 
-void FMRefinementContext::print(std::ostream &out, const std::string &prefix) const {
-  out << prefix << "stopping_rule=" << stopping_rule << " "             //
-      << prefix << "num_fruitless_moves=" << num_fruitless_moves << " " //
-      << prefix << "alpha=" << alpha << " ";                            //
+void FMRefinementContext::print(std::ostream& out, const std::string& prefix) const {
+    out << prefix << "stopping_rule=" << stopping_rule << " "             //
+        << prefix << "num_fruitless_moves=" << num_fruitless_moves << " " //
+        << prefix << "alpha=" << alpha << " ";                            //
 }
 
-void BalancerRefinementContext::print(std::ostream &out, const std::string &prefix) const {
-  out << prefix << "timepoint=" << timepoint << " "  //
-      << prefix << "algorithm=" << algorithm << " "; //
+void BalancerRefinementContext::print(std::ostream& out, const std::string& prefix) const {
+    out << prefix << "timepoint=" << timepoint << " "  //
+        << prefix << "algorithm=" << algorithm << " "; //
 }
 
-void RefinementContext::print(std::ostream &out, const std::string &prefix) const {
-  out << prefix << "algorithm=" << algorithm << " "; //
+void RefinementContext::print(std::ostream& out, const std::string& prefix) const {
+    out << prefix << "algorithm=" << algorithm << " "; //
 
-  lp.print(out, prefix + "lp.");
-  fm.print(out, prefix + "fm.");
-  balancer.print(out, prefix + "balancer.");
+    lp.print(out, prefix + "lp.");
+    fm.print(out, prefix + "fm.");
+    balancer.print(out, prefix + "balancer.");
 }
 
-void InitialPartitioningContext::print(std::ostream &out, const std::string &prefix) const {
-  coarsening.print(out, prefix + "coarsening.");
-  refinement.print(out, prefix + "refinement.");
-  out << prefix << "mode=" << mode << " "                                                                 //
-      << prefix << "repetition_multiplier=" << repetition_multiplier << " "                               //
-      << prefix << "min_num_repetitions=" << min_num_repetitions << " "                                   //
-      << prefix << "max_num_repetitions=" << max_num_repetitions << " "                                   //
-      << prefix << "num_seed_iterations=" << num_seed_iterations << " "                                   //
-      << prefix << "use_adaptive_bipartitioner_selection=" << use_adaptive_bipartitioner_selection << " " //
-      << prefix << "multiplier_exponent=" << multiplier_exponent << " ";                                  //
+void InitialPartitioningContext::print(std::ostream& out, const std::string& prefix) const {
+    coarsening.print(out, prefix + "coarsening.");
+    refinement.print(out, prefix + "refinement.");
+    out << prefix << "mode=" << mode << " "                                                                 //
+        << prefix << "repetition_multiplier=" << repetition_multiplier << " "                               //
+        << prefix << "min_num_repetitions=" << min_num_repetitions << " "                                   //
+        << prefix << "max_num_repetitions=" << max_num_repetitions << " "                                   //
+        << prefix << "num_seed_iterations=" << num_seed_iterations << " "                                   //
+        << prefix << "use_adaptive_bipartitioner_selection=" << use_adaptive_bipartitioner_selection << " " //
+        << prefix << "multiplier_exponent=" << multiplier_exponent << " ";                                  //
 }
 
-void DebugContext::print(std::ostream &out, const std::string &prefix) const {
-  out << prefix << "just_sanitize_args=" << just_sanitize_args << " "; //
+void DebugContext::print(std::ostream& out, const std::string& prefix) const {
+    out << prefix << "just_sanitize_args=" << just_sanitize_args << " "; //
 }
 
-void ParallelContext::print(std::ostream &out, const std::string &prefix) const {
-  out << prefix << "use_interleaved_numa_allocation=" << use_interleaved_numa_allocation << " " //
-      << prefix << "num_threads=" << num_threads << " ";                                        //
+void ParallelContext::print(std::ostream& out, const std::string& prefix) const {
+    out << prefix << "use_interleaved_numa_allocation=" << use_interleaved_numa_allocation << " " //
+        << prefix << "num_threads=" << num_threads << " ";                                        //
 }
 
-void Context::print(std::ostream &out, const std::string &prefix) const {
-  out << prefix << "graph_filename=" << graph_filename << " "           //
-      << prefix << "seed=" << seed << " "                               //
-      << prefix << "save_output_partition=" << save_partition << " "    //
-      << prefix << "partition_filename=" << partition_filename << " "   //
-      << prefix << "partition_directory=" << partition_directory << " " //
-      << prefix << "quiet=" << quiet << " ";                            //
+void Context::print(std::ostream& out, const std::string& prefix) const {
+    out << prefix << "graph_filename=" << graph_filename << " "           //
+        << prefix << "seed=" << seed << " "                               //
+        << prefix << "save_output_partition=" << save_partition << " "    //
+        << prefix << "partition_filename=" << partition_filename << " "   //
+        << prefix << "partition_directory=" << partition_directory << " " //
+        << prefix << "quiet=" << quiet << " ";                            //
 
-  partition.print(out, prefix + "partition.");
-  coarsening.print(out, prefix + "coarsening.");
-  initial_partitioning.print(out, prefix + "initial_partitioning.");
-  refinement.print(out, prefix + "refinement.");
-  debug.print(out, prefix + "debug.");
-  parallel.print(out, prefix + "parallel.");
+    partition.print(out, prefix + "partition.");
+    coarsening.print(out, prefix + "coarsening.");
+    initial_partitioning.print(out, prefix + "initial_partitioning.");
+    refinement.print(out, prefix + "refinement.");
+    debug.print(out, prefix + "debug.");
+    parallel.print(out, prefix + "parallel.");
 }
 
-void Context::setup(const Graph &graph) { partition.setup(graph); }
+void Context::setup(const Graph& graph) {
+    partition.setup(graph);
+}
 
 Context create_default_context() {
-  // clang-format off
+    // clang-format off
   return { // Context
     .graph_filename = "",
     .seed = 0,
@@ -330,40 +336,40 @@ Context create_default_context() {
       .num_threads = 1,
     },
   };
-  // clang-format on
+    // clang-format on
 }
 
-Context create_default_context(const Graph &graph, const BlockID k, const double epsilon) {
-  Context context = create_default_context();
-  context.partition.k = k;
-  context.partition.epsilon = epsilon;
-  context.setup(graph);
-  return context;
+Context create_default_context(const Graph& graph, const BlockID k, const double epsilon) {
+    Context context           = create_default_context();
+    context.partition.k       = k;
+    context.partition.epsilon = epsilon;
+    context.setup(graph);
+    return context;
 }
 
-PartitionContext create_bipartition_context(const PartitionContext &k_p_ctx, const Graph &subgraph,
-                                            const BlockID final_k1, const BlockID final_k2) {
-  PartitionContext two_p_ctx{};
-  two_p_ctx.setup(subgraph);
-  two_p_ctx.k = 2;
-  two_p_ctx.epsilon = compute_2way_adaptive_epsilon(k_p_ctx, subgraph.total_node_weight(), final_k1 + final_k2);
-  two_p_ctx.block_weights.setup(two_p_ctx, {final_k1, final_k2});
-  return two_p_ctx;
+PartitionContext create_bipartition_context(
+    const PartitionContext& k_p_ctx, const Graph& subgraph, const BlockID final_k1, const BlockID final_k2) {
+    PartitionContext two_p_ctx{};
+    two_p_ctx.setup(subgraph);
+    two_p_ctx.k       = 2;
+    two_p_ctx.epsilon = compute_2way_adaptive_epsilon(k_p_ctx, subgraph.total_node_weight(), final_k1 + final_k2);
+    two_p_ctx.block_weights.setup(two_p_ctx, {final_k1, final_k2});
+    return two_p_ctx;
 }
 
-std::ostream &operator<<(std::ostream &out, const Context &context) {
-  context.print(out);
-  return out;
+std::ostream& operator<<(std::ostream& out, const Context& context) {
+    context.print(out);
+    return out;
 }
 
-double compute_2way_adaptive_epsilon(const PartitionContext &p_ctx, const NodeWeight subgraph_total_node_weight,
-                                     const BlockID subgraph_final_k) {
-  ASSERT(subgraph_final_k > 1);
-  const double base =
-      (1.0 + p_ctx.epsilon) * subgraph_final_k * p_ctx.total_node_weight / p_ctx.k / subgraph_total_node_weight;
-  const double exponent = 1.0 / math::ceil_log2(subgraph_final_k);
-  const double epsilon_prime = std::pow(base, exponent) - 1.0;
-  const double adaptive_epsilon = std::max(epsilon_prime, 0.0001);
-  return adaptive_epsilon;
+double compute_2way_adaptive_epsilon(
+    const PartitionContext& p_ctx, const NodeWeight subgraph_total_node_weight, const BlockID subgraph_final_k) {
+    ASSERT(subgraph_final_k > 1);
+    const double base =
+        (1.0 + p_ctx.epsilon) * subgraph_final_k * p_ctx.total_node_weight / p_ctx.k / subgraph_total_node_weight;
+    const double exponent         = 1.0 / math::ceil_log2(subgraph_final_k);
+    const double epsilon_prime    = std::pow(base, exponent) - 1.0;
+    const double adaptive_epsilon = std::max(epsilon_prime, 0.0001);
+    return adaptive_epsilon;
 }
 } // namespace kaminpar

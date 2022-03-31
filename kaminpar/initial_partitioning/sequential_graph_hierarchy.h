@@ -12,29 +12,37 @@
 namespace kaminpar::ip {
 class SequentialGraphHierarchy {
 public:
-  explicit SequentialGraphHierarchy(const Graph *finest_graph);
+    explicit SequentialGraphHierarchy(const Graph* finest_graph);
 
-  SequentialGraphHierarchy(const SequentialGraphHierarchy &) = delete;
-  SequentialGraphHierarchy &operator=(const SequentialGraphHierarchy &) = delete;
-  SequentialGraphHierarchy(SequentialGraphHierarchy &&) noexcept = default;
-  SequentialGraphHierarchy &operator=(SequentialGraphHierarchy &&) noexcept = default;
+    SequentialGraphHierarchy(const SequentialGraphHierarchy&) = delete;
+    SequentialGraphHierarchy& operator=(const SequentialGraphHierarchy&) = delete;
+    SequentialGraphHierarchy(SequentialGraphHierarchy&&) noexcept        = default;
+    SequentialGraphHierarchy& operator=(SequentialGraphHierarchy&&) noexcept = default;
 
-  void take_coarse_graph(Graph &&c_graph, std::vector<NodeID> &&c_mapping);
+    void take_coarse_graph(Graph&& c_graph, std::vector<NodeID>&& c_mapping);
 
-  [[nodiscard]] const Graph &coarsest_graph() const;
+    [[nodiscard]] const Graph& coarsest_graph() const;
 
-  PartitionedGraph pop_and_project(PartitionedGraph &&coarse_p_graph);
+    PartitionedGraph pop_and_project(PartitionedGraph&& coarse_p_graph);
 
-  [[nodiscard]] inline std::size_t size() const { return _coarse_graphs.size(); }
-  [[nodiscard]] inline bool empty() const { return _coarse_graphs.empty(); }
-  [[nodiscard]] inline const auto &coarse_mappings() const { return _coarse_mappings; }
-  [[nodiscard]] inline const auto &coarse_graphs() const { return _coarse_graphs; }
+    [[nodiscard]] inline std::size_t size() const {
+        return _coarse_graphs.size();
+    }
+    [[nodiscard]] inline bool empty() const {
+        return _coarse_graphs.empty();
+    }
+    [[nodiscard]] inline const auto& coarse_mappings() const {
+        return _coarse_mappings;
+    }
+    [[nodiscard]] inline const auto& coarse_graphs() const {
+        return _coarse_graphs;
+    }
 
 private:
-  [[nodiscard]] const Graph &get_second_coarsest_graph() const;
+    [[nodiscard]] const Graph& get_second_coarsest_graph() const;
 
-  const Graph *_finest_graph;
-  std::vector<std::vector<NodeID>> _coarse_mappings;
-  std::vector<Graph> _coarse_graphs;
+    const Graph*                     _finest_graph;
+    std::vector<std::vector<NodeID>> _coarse_mappings;
+    std::vector<Graph>               _coarse_graphs;
 };
 } // namespace kaminpar::ip

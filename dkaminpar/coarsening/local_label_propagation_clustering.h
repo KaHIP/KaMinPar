@@ -15,18 +15,18 @@
 namespace dkaminpar {
 class DistributedLocalLabelPropagationClustering : public IClustering<NodeID> {
 public:
-  DistributedLocalLabelPropagationClustering(NodeID max_n, const CoarseningContext &c_ctx);
+    DistributedLocalLabelPropagationClustering(NodeID max_n, const CoarseningContext& c_ctx);
 
-  DistributedLocalLabelPropagationClustering(const DistributedLocalLabelPropagationClustering &) = delete;
-  DistributedLocalLabelPropagationClustering &operator=(const DistributedLocalLabelPropagationClustering &) = delete;
-  DistributedLocalLabelPropagationClustering(DistributedLocalLabelPropagationClustering &&) = default;
-  DistributedLocalLabelPropagationClustering &operator=(DistributedLocalLabelPropagationClustering &&) = default;
+    DistributedLocalLabelPropagationClustering(const DistributedLocalLabelPropagationClustering&) = delete;
+    DistributedLocalLabelPropagationClustering& operator=(const DistributedLocalLabelPropagationClustering&) = delete;
+    DistributedLocalLabelPropagationClustering(DistributedLocalLabelPropagationClustering&&)                 = default;
+    DistributedLocalLabelPropagationClustering& operator=(DistributedLocalLabelPropagationClustering&&) = default;
 
-  ~DistributedLocalLabelPropagationClustering();
+    ~DistributedLocalLabelPropagationClustering();
 
-  const AtomicClusterArray &compute_clustering(const DistributedGraph &graph, NodeWeight max_cluster_weight) final;
+    const AtomicClusterArray& compute_clustering(const DistributedGraph& graph, NodeWeight max_cluster_weight) final;
 
 private:
-  std::unique_ptr<class DistributedLocalLabelPropagationClusteringImpl> _impl;
+    std::unique_ptr<class DistributedLocalLabelPropagationClusteringImpl> _impl;
 };
 } // namespace dkaminpar

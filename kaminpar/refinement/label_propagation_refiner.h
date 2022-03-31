@@ -12,17 +12,17 @@
 namespace kaminpar {
 class LabelPropagationRefiner : public IRefiner {
 public:
-  LabelPropagationRefiner(const Context &ctx);
+    LabelPropagationRefiner(const Context& ctx);
 
-  ~LabelPropagationRefiner();
+    ~LabelPropagationRefiner();
 
-  void initialize(const Graph &graph) override;
+    void initialize(const Graph& graph) override;
 
-  bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) override;
+    bool refine(PartitionedGraph& p_graph, const PartitionContext& p_ctx) override;
 
-  [[nodiscard]] EdgeWeight expected_total_gain() const override;
+    [[nodiscard]] EdgeWeight expected_total_gain() const override;
 
 private:
-  class LabelPropagationRefinerImpl *_impl;
+    class LabelPropagationRefinerImpl* _impl;
 };
 } // namespace kaminpar

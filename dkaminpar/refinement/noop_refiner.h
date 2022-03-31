@@ -12,7 +12,7 @@
 namespace dkaminpar {
 class NoopRefiner : public IDistributedRefiner {
 public:
-  void initialize(const DistributedGraph &, const PartitionContext &) override;
-  void refine(DistributedPartitionedGraph &) override;
+    void initialize(const DistributedGraph&, const PartitionContext&) override;
+    void refine(DistributedPartitionedGraph&) override;
 };
 } // namespace dkaminpar

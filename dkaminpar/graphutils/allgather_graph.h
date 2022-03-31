@@ -11,6 +11,6 @@
 #include "kaminpar/datastructure/graph.h"
 
 namespace dkaminpar::graph {
-shm::Graph allgather(const DistributedGraph &graph);
-DistributedPartitionedGraph reduce_scatter(const DistributedGraph &dist_graph, shm::PartitionedGraph shm_p_graph);
+shm::Graph                  allgather(const DistributedGraph& graph);
+DistributedPartitionedGraph reduce_scatter(const DistributedGraph& dist_graph, shm::PartitionedGraph shm_p_graph);
 } // namespace dkaminpar::graph

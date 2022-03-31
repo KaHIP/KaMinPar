@@ -11,19 +11,19 @@
 #include "kaminpar/utils/timer.h"
 
 namespace dkaminpar {
-shm::PartitionedGraph KaMinParInitialPartitioner::initial_partition(const shm::Graph &graph) {
-  auto shm_ctx = _ctx.initial_partitioning.sequential;
-  shm_ctx.refinement.lp.num_iterations = 1;
-  shm_ctx.partition.k = _ctx.partition.k;
-  shm_ctx.partition.epsilon = _ctx.partition.epsilon;
-  shm_ctx.setup(graph);
+shm::PartitionedGraph KaMinParInitialPartitioner::initial_partition(const shm::Graph& graph) {
+    auto shm_ctx                         = _ctx.initial_partitioning.sequential;
+    shm_ctx.refinement.lp.num_iterations = 1;
+    shm_ctx.partition.k                  = _ctx.partition.k;
+    shm_ctx.partition.epsilon            = _ctx.partition.epsilon;
+    shm_ctx.setup(graph);
 
-  DISABLE_TIMERS();
-  shm::Logger::set_quiet_mode(true);
-  auto p_graph = shm::partitioning::partition(graph, shm_ctx);
-  shm::Logger::set_quiet_mode(_ctx.quiet);
-  ENABLE_TIMERS();
+    DISABLE_TIMERS();
+    shm::Logger::set_quiet_mode(true);
+    auto p_graph = shm::partitioning::partition(graph, shm_ctx);
+    shm::Logger::set_quiet_mode(_ctx.quiet);
+    ENABLE_TIMERS();
 
-  return p_graph;
+    return p_graph;
 }
 } // namespace dkaminpar

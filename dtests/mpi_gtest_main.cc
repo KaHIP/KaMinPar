@@ -7,40 +7,41 @@
  *
  ******************************************************************************/
 
-#include "gtest-mpi-listener.h"
+#include <stdexcept>
 
 #include <gtest/gtest.h>
 #include <mpi.h>
-#include <stdexcept>
 
-int main(int argc, char **argv) {
-  // Filter out Google Test arguments
-  ::testing::InitGoogleTest(&argc, argv);
+#include "gtest-mpi-listener.h"
 
-  // Initialize MPI
-  MPI_Init(&argc, &argv);
+int main(int argc, char** argv) {
+    // Filter out Google Test arguments
+    ::testing::InitGoogleTest(&argc, argv);
 
-  int init_flag;
-  MPI_Initialized(&init_flag);
-  if (!init_flag) {
-    throw std::runtime_error("Not initialized");
-  }
+    // Initialize MPI
+    MPI_Init(&argc, &argv);
 
-  // Add object that will finalize MPI on exit; Google Test owns this pointer
-  ::testing::AddGlobalTestEnvironment(new GTestMPIListener::MPIEnvironment);
+    int init_flag;
+    MPI_Initialized(&init_flag);
+    if (!init_flag) {
+        throw std::runtime_error("Not initialized");
+    }
 
-  // Get the event listener list.
-  ::testing::TestEventListeners &listeners = ::testing::UnitTest::GetInstance()->listeners();
+    // Add object that will finalize MPI on exit; Google Test owns this pointer
+    ::testing::AddGlobalTestEnvironment(new GTestMPIListener::MPIEnvironment);
 
-  // Remove default listener: the default printer and the default XML printer
-  ::testing::TestEventListener *l = listeners.Release(listeners.default_result_printer());
+    // Get the event listener list.
+    ::testing::TestEventListeners& listeners = ::testing::UnitTest::GetInstance()->listeners();
 
-  // Adds MPI listener; Google Test owns this pointer
-  listeners.Append(new GTestMPIListener::MPIWrapperPrinter(l, MPI_COMM_WORLD));
+    // Remove default listener: the default printer and the default XML printer
+    ::testing::TestEventListener* l = listeners.Release(listeners.default_result_printer());
 
-  // Run tests, then clean up and exit. RUN_ALL_TESTS() returns 0 if all tests
-  // pass and 1 if some test fails.
-  int result = RUN_ALL_TESTS();
+    // Adds MPI listener; Google Test owns this pointer
+    listeners.Append(new GTestMPIListener::MPIWrapperPrinter(l, MPI_COMM_WORLD));
 
-  return result;
+    // Run tests, then clean up and exit. RUN_ALL_TESTS() returns 0 if all tests
+    // pass and 1 if some test fails.
+    int result = RUN_ALL_TESTS();
+
+    return result;
 }

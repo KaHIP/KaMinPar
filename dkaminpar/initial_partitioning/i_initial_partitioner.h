@@ -13,7 +13,7 @@
 namespace dkaminpar {
 class IInitialPartitioner {
 public:
-  virtual ~IInitialPartitioner() = default;
-  virtual shm::PartitionedGraph initial_partition(const shm::Graph &graph) = 0;
+    virtual ~IInitialPartitioner()                                           = default;
+    virtual shm::PartitionedGraph initial_partition(const shm::Graph& graph) = 0;
 };
 } // namespace dkaminpar

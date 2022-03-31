@@ -7,52 +7,67 @@
  ******************************************************************************/
 #pragma once
 
-#include "kaminpar/definitions.h"
-
 #include <utility>
 #include <vector>
 
+#include "kaminpar/definitions.h"
+
 namespace kaminpar::math {
 //! With `UInt = uint32_t`, same as `static_cast<uint32_t>(std::log2(arg))`
-template <typename T> T floor_log2(const T arg) {
-  constexpr std::size_t arg_width{std::numeric_limits<T>::digits};
+template <typename T>
+T floor_log2(const T arg) {
+    constexpr std::size_t arg_width{std::numeric_limits<T>::digits};
 
-  auto log2{static_cast<T>(arg_width)};
-  if constexpr (arg_width == std::numeric_limits<unsigned int>::digits) {
-    log2 -= __builtin_clz(arg);
-  } else {
-    static_assert(arg_width == std::numeric_limits<unsigned long>::digits, "unsupported data type width");
-    log2 -= __builtin_clzl(arg);
-  }
+    auto log2{static_cast<T>(arg_width)};
+    if constexpr (arg_width == std::numeric_limits<unsigned int>::digits) {
+        log2 -= __builtin_clz(arg);
+    } else {
+        static_assert(arg_width == std::numeric_limits<unsigned long>::digits, "unsupported data type width");
+        log2 -= __builtin_clzl(arg);
+    }
 
-  return log2 - 1;
+    return log2 - 1;
 }
 
 //! With `UInt = uint32_t`, same as `static_cast<uint32_t>(std::ceil(std::log2(arg)))`
-template <typename T> T ceil_log2(const T arg) { return floor_log2<T>(arg) + 1 - ((arg & (arg - 1)) == 0); }
+template <typename T>
+T ceil_log2(const T arg) {
+    return floor_log2<T>(arg) + 1 - ((arg & (arg - 1)) == 0);
+}
 
 //! Checks whether `arg` is a power of 2.
-template <typename T> constexpr bool is_power_of_2(const T arg) { return arg && ((arg & (arg - 1)) == 0); }
-
-template <typename E> double percentile(const std::vector<E> &sorted_sequence, const double percentile) {
-  ASSERT([&] {
-    for (std::size_t i = 1; i < sorted_sequence.size(); ++i) {
-      if (sorted_sequence[i - 1] > sorted_sequence[i]) {
-        return false;
-      }
-    }
-    return true;
-  });
-  ASSERT(0 <= percentile && percentile <= 1);
-
-  return sorted_sequence[std::ceil(percentile * sorted_sequence.size()) - 1];
+template <typename T>
+constexpr bool is_power_of_2(const T arg) {
+    return arg && ((arg & (arg - 1)) == 0);
 }
 
-template <typename T> auto split_integral(const T value, const double ratio = 0.5) {
-  return std::pair{static_cast<T>(std::ceil(value * ratio)), static_cast<T>(std::floor(value * (1.0 - ratio)))};
+template <typename E>
+double percentile(const std::vector<E>& sorted_sequence, const double percentile) {
+    ASSERT([&] {
+        for (std::size_t i = 1; i < sorted_sequence.size(); ++i) {
+            if (sorted_sequence[i - 1] > sorted_sequence[i]) {
+                return false;
+            }
+        }
+        return true;
+    });
+    ASSERT(0 <= percentile && percentile <= 1);
+
+    return sorted_sequence[std::ceil(percentile * sorted_sequence.size()) - 1];
 }
 
-template <typename Int> auto round_down_to_power_of_2(const Int value) { return 1 << floor_log2(value); }
+template <typename T>
+auto split_integral(const T value, const double ratio = 0.5) {
+    return std::pair{static_cast<T>(std::ceil(value * ratio)), static_cast<T>(std::floor(value * (1.0 - ratio)))};
+}
 
-template <typename Int> auto round_up_to_power_of_2(const Int value) { return 1 << ceil_log2(value); }
+template <typename Int>
+auto round_down_to_power_of_2(const Int value) {
+    return 1 << floor_log2(value);
+}
+
+template <typename Int>
+auto round_up_to_power_of_2(const Int value) {
+    return 1 << ceil_log2(value);
+}
 } // namespace kaminpar::math

@@ -7,8 +7,9 @@
  ******************************************************************************/
 #pragma once
 
-#include <tbb/enumerable_thread_specific.h>
 #include <type_traits>
+
+#include <tbb/enumerable_thread_specific.h>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
@@ -18,7 +19,7 @@
 #pragma GCC diagnostic pop
 
 namespace dkaminpar::growt {
-using DefaultHasherType = utils_tm::hash_tm::murmur2_hash;
+using DefaultHasherType    = utils_tm::hash_tm::murmur2_hash;
 using DefaultAllocatorType = ::growt::AlignedAllocator<>;
 
 namespace internal {
@@ -28,15 +29,17 @@ using Ensure64BitType = std::conditional_t<std::numeric_limits<Type>::is_signed,
 } // namespace internal
 
 template <typename Value>
-using GlobalNodeIDMap =
-    typename ::growt::table_config<GlobalNodeID, internal::Ensure64BitType<Value>, DefaultHasherType,
-                                   DefaultAllocatorType, hmod::growable, hmod::deletion>::table_type;
+using GlobalNodeIDMap = typename ::growt::table_config<
+    GlobalNodeID, internal::Ensure64BitType<Value>, DefaultHasherType, DefaultAllocatorType, hmod::growable,
+    hmod::deletion>::table_type;
 
 using StaticGhostNodeMapping =
     typename ::growt::table_config<GlobalNodeID, GlobalNodeID, DefaultHasherType, DefaultAllocatorType>::table_type;
 
-template<typename Map>
-auto create_handle_ets(Map &map) {
-  return tbb::enumerable_thread_specific<growt::GlobalNodeIDMap<NodeID>::handle_type>{[&] { return map.get_handle(); }};
+template <typename Map>
+auto create_handle_ets(Map& map) {
+    return tbb::enumerable_thread_specific<growt::GlobalNodeIDMap<NodeID>::handle_type>{[&] {
+        return map.get_handle();
+    }};
 }
 } // namespace dkaminpar::growt

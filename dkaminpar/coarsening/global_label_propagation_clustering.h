@@ -16,18 +16,18 @@
 namespace dkaminpar {
 class DistributedGlobalLabelPropagationClustering : public IClustering<GlobalNodeID> {
 public:
-  DistributedGlobalLabelPropagationClustering(const Context &ctx);
+    DistributedGlobalLabelPropagationClustering(const Context& ctx);
 
-  DistributedGlobalLabelPropagationClustering(const DistributedGlobalLabelPropagationClustering &) = delete;
-  DistributedGlobalLabelPropagationClustering &operator=(const DistributedGlobalLabelPropagationClustering &) = delete;
-  DistributedGlobalLabelPropagationClustering(DistributedGlobalLabelPropagationClustering &&) = default;
-  DistributedGlobalLabelPropagationClustering &operator=(DistributedGlobalLabelPropagationClustering &&) = default;
+    DistributedGlobalLabelPropagationClustering(const DistributedGlobalLabelPropagationClustering&) = delete;
+    DistributedGlobalLabelPropagationClustering& operator=(const DistributedGlobalLabelPropagationClustering&) = delete;
+    DistributedGlobalLabelPropagationClustering(DistributedGlobalLabelPropagationClustering&&) = default;
+    DistributedGlobalLabelPropagationClustering& operator=(DistributedGlobalLabelPropagationClustering&&) = default;
 
-  ~DistributedGlobalLabelPropagationClustering();
+    ~DistributedGlobalLabelPropagationClustering();
 
-  const AtomicClusterArray &compute_clustering(const DistributedGraph &graph, NodeWeight max_cluster_weight) final;
+    const AtomicClusterArray& compute_clustering(const DistributedGraph& graph, NodeWeight max_cluster_weight) final;
 
 private:
-  std::unique_ptr<class DistributedGlobalLabelPropagationClusteringImpl> _impl;
+    std::unique_ptr<class DistributedGlobalLabelPropagationClusteringImpl> _impl;
 };
 } // namespace dkaminpar

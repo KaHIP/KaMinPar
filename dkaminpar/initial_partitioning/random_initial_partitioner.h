@@ -13,16 +13,16 @@
 namespace dkaminpar {
 class RandomInitialPartitioner : public IInitialPartitioner {
 public:
-  RandomInitialPartitioner(const Context &ctx) : _ctx{ctx} {}
+    RandomInitialPartitioner(const Context& ctx) : _ctx{ctx} {}
 
-  RandomInitialPartitioner(const RandomInitialPartitioner &) = delete;
-  RandomInitialPartitioner &operator=(const RandomInitialPartitioner &) = delete;
-  RandomInitialPartitioner(RandomInitialPartitioner &&) noexcept = default;
-  RandomInitialPartitioner &operator=(RandomInitialPartitioner &&) = delete;
+    RandomInitialPartitioner(const RandomInitialPartitioner&) = delete;
+    RandomInitialPartitioner& operator=(const RandomInitialPartitioner&) = delete;
+    RandomInitialPartitioner(RandomInitialPartitioner&&) noexcept        = default;
+    RandomInitialPartitioner& operator=(RandomInitialPartitioner&&) = delete;
 
-  shm::PartitionedGraph initial_partition(const shm::Graph &graph) override;
+    shm::PartitionedGraph initial_partition(const shm::Graph& graph) override;
 
 private:
-  const Context &_ctx;
+    const Context& _ctx;
 };
 } // namespace dkaminpar

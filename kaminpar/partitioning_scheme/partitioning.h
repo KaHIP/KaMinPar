@@ -11,5 +11,5 @@
 #include "kaminpar/datastructure/graph.h"
 
 namespace kaminpar::partitioning {
-PartitionedGraph partition(const Graph &graph, const Context &ctx);
+PartitionedGraph partition(const Graph& graph, const Context& ctx);
 }

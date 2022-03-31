@@ -7,22 +7,22 @@
  ******************************************************************************/
 #pragma once
 
-#include "kaminpar_export.h"
-
 #include <memory>
 #include <string_view>
+
+#include "kaminpar_export.h"
 
 namespace libkaminpar {
 #ifdef KAMINPAR_64BIT_NODE_IDS
 using NodeID = uint64_t;
 #else  // KAMINPAR_64BIT_NODE_IDS
-using NodeID = uint32_t;
+using NodeID     = uint32_t;
 #endif // KAMINPAR_64BIT_NODE_IDS
 
 #ifdef KAMINPAR_64BIT_EDGE_IDS
 using EdgeID = uint64_t;
 #else  // KAMINPAR_64BIT_EDGE_IDS
-using EdgeID = uint32_t;
+using EdgeID     = uint32_t;
 #endif // KAMINPAR_64BIT_EDGE_IDS
 
 #ifdef KAMINPAR_64BIT_WEIGHTS
@@ -33,46 +33,46 @@ using NodeWeight = int32_t;
 using EdgeWeight = int32_t;
 #endif // KAMINPAR_64BIT_WEIGHTS
 
-using BlockID = uint32_t;
+using BlockID     = uint32_t;
 using BlockWeight = NodeWeight;
-using Degree = EdgeID;
+using Degree      = EdgeID;
 
 class KAMINPAR_EXPORT Partitioner {
-  friend class PartitionerBuilder;
+    friend class PartitionerBuilder;
 
 public:
-  Partitioner();
-  ~Partitioner();
+    Partitioner();
+    ~Partitioner();
 
-  Partitioner &set_option(const std::string &name, const std::string &value);
-  std::unique_ptr<BlockID[]> partition(BlockID k) const;
-  std::unique_ptr<BlockID[]> partition(BlockID k, EdgeWeight &edge_cut) const;
-  std::size_t partition_size() const;
+    Partitioner&               set_option(const std::string& name, const std::string& value);
+    std::unique_ptr<BlockID[]> partition(BlockID k) const;
+    std::unique_ptr<BlockID[]> partition(BlockID k, EdgeWeight& edge_cut) const;
+    std::size_t                partition_size() const;
 
 private:
-  struct PartitionerPrivate *_pimpl;
+    struct PartitionerPrivate* _pimpl;
 };
 
 class KAMINPAR_EXPORT PartitionerBuilder {
 public:
-  PartitionerBuilder(const PartitionerBuilder &) = delete;
-  PartitionerBuilder &operator=(const PartitionerBuilder &) = delete;
-  PartitionerBuilder(PartitionerBuilder &&) noexcept = default;
-  PartitionerBuilder &operator=(PartitionerBuilder &&) noexcept = default;
-  ~PartitionerBuilder();
+    PartitionerBuilder(const PartitionerBuilder&) = delete;
+    PartitionerBuilder& operator=(const PartitionerBuilder&) = delete;
+    PartitionerBuilder(PartitionerBuilder&&) noexcept        = default;
+    PartitionerBuilder& operator=(PartitionerBuilder&&) noexcept = default;
+    ~PartitionerBuilder();
 
-  static PartitionerBuilder from_graph_file(const std::string &filename);
-  static PartitionerBuilder from_adjacency_array(NodeID n, EdgeID *nodes, NodeID *edges);
+    static PartitionerBuilder from_graph_file(const std::string& filename);
+    static PartitionerBuilder from_adjacency_array(NodeID n, EdgeID* nodes, NodeID* edges);
 
-  void with_node_weights(NodeWeight *node_weights);
-  void with_edge_weights(EdgeWeight *edge_weights);
-  Partitioner create();
-  Partitioner rearrange_and_create();
-
-private:
-  PartitionerBuilder();
+    void        with_node_weights(NodeWeight* node_weights);
+    void        with_edge_weights(EdgeWeight* edge_weights);
+    Partitioner create();
+    Partitioner rearrange_and_create();
 
 private:
-  struct PartitionerBuilderPrivate *_pimpl;
+    PartitionerBuilder();
+
+private:
+    struct PartitionerBuilderPrivate* _pimpl;
 };
 } // namespace libkaminpar

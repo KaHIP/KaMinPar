@@ -8,6 +8,6 @@
 #include "dkaminpar/refinement/noop_refiner.h"
 
 namespace dkaminpar {
-void NoopRefiner::initialize(const DistributedGraph &, const PartitionContext &) {}
-void NoopRefiner::refine(DistributedPartitionedGraph &) {}
+void NoopRefiner::initialize(const DistributedGraph&, const PartitionContext&) {}
+void NoopRefiner::refine(DistributedPartitionedGraph&) {}
 } // namespace dkaminpar

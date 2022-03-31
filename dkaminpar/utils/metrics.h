@@ -8,11 +8,11 @@
 
 #pragma once
 
+#include <tbb/enumerable_thread_specific.h>
+
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/definitions.h"
-
-#include <tbb/enumerable_thread_specific.h>
 
 namespace dkaminpar::metrics {
 /*!
@@ -22,14 +22,14 @@ namespace dkaminpar::metrics {
  * @param p_graph Partitioned graph.
  * @return Weighted edge cut of @p p_graph with undirected edges counted twice.
  */
-EdgeWeight local_edge_cut(const DistributedPartitionedGraph &p_graph);
+EdgeWeight local_edge_cut(const DistributedPartitionedGraph& p_graph);
 
 /*!
  * Computes the number of edges cut in the whole graph, i.e., across all PEs. Undirected edges are only counted once.
  * @param p_graph Partitioned graph.
  * @return Weighted edge cut across all PEs with undirected edges only counted once.
  */
-GlobalEdgeWeight edge_cut(const DistributedPartitionedGraph &p_graph);
+GlobalEdgeWeight edge_cut(const DistributedPartitionedGraph& p_graph);
 
 /*!
  * Computes the partition imbalance of the whole graph partition, i.e., across all PEs.
@@ -39,7 +39,7 @@ GlobalEdgeWeight edge_cut(const DistributedPartitionedGraph &p_graph);
  * @param p_graph Partitioned graph.
  * @return Imbalance of the partition across all PEs.
  */
-double imbalance(const DistributedPartitionedGraph &p_graph);
+double imbalance(const DistributedPartitionedGraph& p_graph);
 
 /*!
  * Computes whether the blocks of the given partition satisfy the balance constraint given by @p p_ctx.
@@ -47,5 +47,5 @@ double imbalance(const DistributedPartitionedGraph &p_graph);
  * @param ctx Partition context describing the balance constraint.
  * @return Whether @p p_graph satisfies the balance constraint given by @p p_ctx.
  */
-bool is_feasible(const DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx);
+bool is_feasible(const DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx);
 } // namespace dkaminpar::metrics

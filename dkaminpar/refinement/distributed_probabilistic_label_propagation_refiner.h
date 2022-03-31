@@ -14,15 +14,15 @@
 namespace dkaminpar {
 class DistributedProbabilisticLabelPropagationRefiner : public IDistributedRefiner {
 public:
-  DistributedProbabilisticLabelPropagationRefiner(const Context &ctx);
+    DistributedProbabilisticLabelPropagationRefiner(const Context& ctx);
 
-  ~DistributedProbabilisticLabelPropagationRefiner();
+    ~DistributedProbabilisticLabelPropagationRefiner();
 
-  void initialize(const DistributedGraph &graph, const PartitionContext &p_ctx) override;
+    void initialize(const DistributedGraph& graph, const PartitionContext& p_ctx) override;
 
-  void refine(DistributedPartitionedGraph &p_graph) override;
+    void refine(DistributedPartitionedGraph& p_graph) override;
 
 private:
-  std::unique_ptr<class DistributedProbabilisticLabelPropagationRefinerImpl> _impl;
+    std::unique_ptr<class DistributedProbabilisticLabelPropagationRefinerImpl> _impl;
 };
 } // namespace dkaminpar

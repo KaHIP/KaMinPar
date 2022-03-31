@@ -8,16 +8,16 @@
  ******************************************************************************/
 #pragma once
 
+#include <utility>
+#include <vector>
+
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/datastructure/marker.h"
 #include "kaminpar/datastructure/queue.h"
 
-#include <utility>
-#include <vector>
-
 namespace kaminpar::ip {
-std::pair<NodeID, NodeID> find_far_away_nodes(const Graph &graph, std::size_t num_iterations = 1);
+std::pair<NodeID, NodeID> find_far_away_nodes(const Graph& graph, std::size_t num_iterations = 1);
 
-std::pair<NodeID, NodeID> find_furthest_away_node(const Graph &graph, NodeID start_node, Queue<NodeID> &queue,
-                                                  Marker<> &marker);
+std::pair<NodeID, NodeID>
+find_furthest_away_node(const Graph& graph, NodeID start_node, Queue<NodeID>& queue, Marker<>& marker);
 } // namespace kaminpar::ip

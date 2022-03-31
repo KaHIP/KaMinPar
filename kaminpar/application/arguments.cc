@@ -170,15 +170,15 @@ void create_context_options(Context &ctx, Arguments &args) {
 
 // clang-format on
 
-Context parse_options(int argc, char *argv[]) {
-  using namespace std::string_literals;
-  using namespace std::chrono;
+Context parse_options(int argc, char* argv[]) {
+    using namespace std::string_literals;
+    using namespace std::chrono;
 
-  Context context = create_default_context();
+    Context context = create_default_context();
 
-  Arguments arguments;
-  create_context_options(context, arguments);
-  arguments.parse(argc, argv);
-  return context;
+    Arguments arguments;
+    create_context_options(context, arguments);
+    arguments.parse(argc, argv);
+    return context;
 }
 } // namespace kaminpar::app

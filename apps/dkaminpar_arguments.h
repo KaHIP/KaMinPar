@@ -10,37 +10,37 @@
 #include "dkaminpar/context.h"
 #include "kaminpar/application/arguments_parser.h"
 #ifdef KAMINPAR_GRAPHGEN
-#include "apps/dkaminpar_graphgen.h"
+    #include "apps/dkaminpar_graphgen.h"
 #endif // KAMINPAR_GRAPHGEN
 
 namespace dkaminpar::app {
 struct ApplicationContext {
-  Context ctx;
+    Context ctx;
 #ifdef KAMINPAR_GRAPHGEN
-  graphgen::GeneratorContext generator;
+    graphgen::GeneratorContext generator;
 #endif // KAMINPAR_GRAPHGEN
 };
 
 #ifdef KAMINPAR_GRAPHGEN
-void create_graphgen_options(graphgen::GeneratorContext &g_ctx, kaminpar::Arguments &args, const std::string &name,
-                             const std::string &prefix);
+void create_graphgen_options(
+    graphgen::GeneratorContext& g_ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix);
 #endif // KAMINPAR_GRAPHGEN
 
-void create_coarsening_options(CoarseningContext &c_ctx, kaminpar::Arguments &args, const std::string &name,
-                               const std::string &prefix);
+void create_coarsening_options(
+    CoarseningContext& c_ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix);
 
-void create_refinement_options(RefinementContext &r_ctx, kaminpar::Arguments &args, const std::string &name,
-                               const std::string &prefix);
+void create_refinement_options(
+    RefinementContext& r_ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix);
 
-void create_initial_partitioning_options(InitialPartitioningContext &i_ctx, kaminpar::Arguments &args,
-                                         const std::string &name, const std::string &prefix);
+void create_initial_partitioning_options(
+    InitialPartitioningContext& i_ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix);
 
-void create_miscellaneous_context_options(Context &ctx, kaminpar::Arguments &args, const std::string &name,
-                                          const std::string &prefix);
+void create_miscellaneous_context_options(
+    Context& ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix);
 
-void create_mandatory_options(Context &ctx, kaminpar::Arguments &args, const std::string &name);
+void create_mandatory_options(Context& ctx, kaminpar::Arguments& args, const std::string& name);
 
-void create_context_options(ApplicationContext &ctx, kaminpar::Arguments &args);
+void create_context_options(ApplicationContext& ctx, kaminpar::Arguments& args);
 
-ApplicationContext parse_options(int argc, char *argv[]);
+ApplicationContext parse_options(int argc, char* argv[]);
 } // namespace dkaminpar::app

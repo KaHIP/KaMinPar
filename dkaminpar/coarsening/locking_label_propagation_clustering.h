@@ -15,12 +15,12 @@
 namespace dkaminpar {
 class LockingLpClustering : public IClustering<GlobalNodeID> {
 public:
-  explicit LockingLpClustering(const Context &ctx);
-  ~LockingLpClustering();
+    explicit LockingLpClustering(const Context& ctx);
+    ~LockingLpClustering();
 
-  const AtomicClusterArray &compute_clustering(const DistributedGraph &graph, NodeWeight max_cluster_weight) final;
+    const AtomicClusterArray& compute_clustering(const DistributedGraph& graph, NodeWeight max_cluster_weight) final;
 
 private:
-  std::unique_ptr<class LockingLpClusteringImpl> _impl{};
+    std::unique_ptr<class LockingLpClusteringImpl> _impl{};
 };
 } // namespace dkaminpar
