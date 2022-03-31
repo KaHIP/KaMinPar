@@ -20,12 +20,12 @@ add_kaminpar_test(marker_test datastructure/marker_test.cc)
 add_kaminpar_test(subgraph_extraction_test datastructure/subgraph_extraction_test.cc)
 
 # Utility code
-add_kaminpar_test(math_test utility/math_test.cc)
-add_kaminpar_test(utility_test utility/utility_test.cc)
-add_kaminpar_test(metrics_test utility/metrics_test.cc)
+add_kaminpar_test(test_utils_math utils/math_test.cc)
+add_kaminpar_test(test_utils utils/utility_test.cc)
+add_kaminpar_test(test_utils_metrics utils/metrics_test.cc)
 
-# Parallel utility code
+# Parallel code
 add_kaminpar_test(test_parallel_algorithm parallel/algorithm_test.cc)
 
 # IO
-add_kaminpar_test(io_test io_test.cc)
+add_kaminpar_test(test_io io_test.cc)
