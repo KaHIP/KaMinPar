@@ -10,8 +10,6 @@
 #include "kaminpar/utils/timer.h"
 
 namespace kaminpar::io {
-static constexpr auto kDebug = false;
-
 namespace metis {
 void write_file(std::ofstream &out, const StaticArray<EdgeID> &nodes, const StaticArray<NodeID> &edges,
                 const StaticArray<NodeWeight> &node_weights, const StaticArray<EdgeWeight> &edge_weights,
