@@ -21,7 +21,7 @@ add_kaminpar_test(subgraph_extraction_test datastructure/subgraph_extraction_tes
 
 # Utility code
 add_kaminpar_test(test_utils_math utils/math_test.cc)
-add_kaminpar_test(test_utils utils/utility_test.cc)
+add_kaminpar_test(test_utils_string utils/string_test.cc)
 add_kaminpar_test(test_utils_metrics utils/metrics_test.cc)
 
 # Parallel code
