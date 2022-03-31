@@ -9,7 +9,7 @@
 
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/definitions.h"
-#include "kaminpar/utility/enum_string_conversion.h"
+#include "kaminpar/utils/enum_string_conversion.h"
 
 #include <cmath>
 #include <map>

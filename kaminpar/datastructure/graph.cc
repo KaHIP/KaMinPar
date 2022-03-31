@@ -9,8 +9,8 @@
 
 #include "kaminpar/parallel/accumulate.h"
 #include "kaminpar/parallel/max_element.h"
-#include "kaminpar/utility/math.h"
-#include "kaminpar/utility/timer.h"
+#include "kaminpar/utils/math.h"
+#include "kaminpar/utils/timer.h"
 
 namespace kaminpar {
 Degree lowest_degree_in_bucket(const std::size_t bucket) { return (1u << bucket) >> 1u; }

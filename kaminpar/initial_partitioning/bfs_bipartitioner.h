@@ -12,7 +12,7 @@
 #include "kaminpar/definitions.h"
 #include "kaminpar/initial_partitioning/i_bipartitioner.h"
 #include "kaminpar/initial_partitioning/seed_node_utils.h"
-#include "kaminpar/utility/random.h"
+#include "kaminpar/utils/random.h"
 
 #include <array>
 

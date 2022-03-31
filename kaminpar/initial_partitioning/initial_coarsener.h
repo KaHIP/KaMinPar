@@ -12,7 +12,7 @@
 #include "kaminpar/datastructure/fast_reset_array.h"
 #include "kaminpar/definitions.h"
 #include "kaminpar/initial_partitioning/sequential_graph_hierarchy.h"
-#include "kaminpar/utility/random.h"
+#include "kaminpar/utils/random.h"
 
 #include <functional>
 #include <utility>

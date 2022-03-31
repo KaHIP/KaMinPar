@@ -16,8 +16,8 @@
 #include "kaminpar/datastructure/rating_map.h"
 #include "kaminpar/metrics.h"
 #include "kaminpar/refinement/i_balancer.h"
-#include "kaminpar/utility/random.h"
-#include "kaminpar/utility/timer.h"
+#include "kaminpar/utils/random.h"
+#include "kaminpar/utils/timer.h"
 
 #include <tbb/concurrent_vector.h>
 #include <tbb/enumerable_thread_specific.h>

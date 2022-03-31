@@ -7,7 +7,7 @@
  ******************************************************************************/
 #include "kaminpar/io.h"
 
-#include "kaminpar/utility/timer.h"
+#include "kaminpar/utils/timer.h"
 
 namespace kaminpar::io {
 static constexpr auto kDebug = false;

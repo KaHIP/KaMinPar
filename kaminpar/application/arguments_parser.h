@@ -8,7 +8,7 @@
 #pragma once
 
 #include "kaminpar/definitions.h"
-#include "kaminpar/utility/strings.h"
+#include "kaminpar/utils/strings.h"
 
 #include <cctype>
 #include <functional>

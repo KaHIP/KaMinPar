@@ -9,7 +9,7 @@
 
 #include "kaminpar/partitioning_scheme/parallel_recursive_bisection.h"
 #include "kaminpar/partitioning_scheme/parallel_simple_recursive_bisection.h"
-#include "kaminpar/utility/timer.h"
+#include "kaminpar/utils/timer.h"
 
 namespace kaminpar::partitioning {
 PartitionedGraph partition(const Graph &graph, const Context &ctx) {

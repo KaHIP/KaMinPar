@@ -8,7 +8,7 @@
  ******************************************************************************/
 #include "kaminpar/initial_partitioning/initial_coarsener.h"
 
-#include "kaminpar/utility/timer.h"
+#include "kaminpar/utils/timer.h"
 
 namespace kaminpar::ip {
 InitialCoarsener::InitialCoarsener(const Graph *graph, const CoarseningContext &c_ctx, MemoryContext &&m_ctx)     //

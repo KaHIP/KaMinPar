@@ -9,8 +9,8 @@
 
 #include "kaminpar/datastructure/rating_map.h"
 #include "kaminpar/parallel/atomic.h"
-#include "kaminpar/utility/random.h"
-#include "kaminpar/utility/timer.h"
+#include "kaminpar/utils/random.h"
+#include "kaminpar/utils/timer.h"
 
 #include <atomic>
 #include <ranges>

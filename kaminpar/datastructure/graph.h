@@ -10,8 +10,8 @@
 #include "kaminpar/datastructure/static_array.h"
 #include "kaminpar/definitions.h"
 #include "kaminpar/parallel/atomic.h"
-#include "kaminpar/utility/ranges.h"
-#include "kaminpar/utility/strings.h"
+#include "kaminpar/utils/ranges.h"
+#include "kaminpar/utils/strings.h"
 
 #include <numeric>
 #include <tbb/blocked_range.h>

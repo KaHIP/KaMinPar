@@ -9,7 +9,7 @@
 #include "kaminpar/initial_partitioning/seed_node_utils.h"
 
 #include "kaminpar/definitions.h"
-#include "kaminpar/utility/random.h"
+#include "kaminpar/utils/random.h"
 
 namespace kaminpar::ip {
 /*!

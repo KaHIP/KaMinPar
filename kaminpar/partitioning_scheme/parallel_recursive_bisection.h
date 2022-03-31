@@ -15,7 +15,7 @@
 #include "kaminpar/initial_partitioning/initial_partitioning_facade.h"
 #include "kaminpar/initial_partitioning/pool_bipartitioner.h"
 #include "kaminpar/partitioning_scheme/helper.h"
-#include "kaminpar/utility/console_io.h"
+#include "kaminpar/utils/console_io.h"
 
 #include <tbb/enumerable_thread_specific.h>
 

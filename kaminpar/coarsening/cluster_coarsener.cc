@@ -7,7 +7,7 @@
  ******************************************************************************/
 #include "kaminpar/coarsening/cluster_coarsener.h"
 
-#include "kaminpar/utility/timer.h"
+#include "kaminpar/utils/timer.h"
 
 namespace kaminpar {
 std::pair<const Graph *, bool> ClusteringCoarsener::compute_coarse_graph(const NodeWeight max_cluster_weight,

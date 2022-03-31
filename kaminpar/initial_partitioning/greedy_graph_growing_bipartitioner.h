@@ -10,7 +10,7 @@
 #include "kaminpar/datastructure/binary_heap.h"
 #include "kaminpar/datastructure/marker.h"
 #include "kaminpar/initial_partitioning/i_bipartitioner.h"
-#include "kaminpar/utility/random.h"
+#include "kaminpar/utils/random.h"
 
 namespace kaminpar {
 class GreedyGraphGrowingBipartitioner : public Bipartitioner {

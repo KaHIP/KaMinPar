@@ -25,7 +25,7 @@
  */
 #pragma once
 
-#include "kaminpar/utility/math.h"
+#include "kaminpar/utils/math.h"
 
 namespace kaminpar {
 /*!

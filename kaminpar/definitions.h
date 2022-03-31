@@ -7,7 +7,7 @@
  ******************************************************************************/
 #pragma once
 
-#include "kaminpar/utility/logger.h"
+#include "kaminpar/utils/logger.h"
 
 #include <cstdlib>
 #include <cstring>

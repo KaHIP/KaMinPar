@@ -8,7 +8,7 @@
 #pragma once
 
 #include "kaminpar/initial_partitioning/i_bipartitioner.h"
-#include "kaminpar/utility/random.h"
+#include "kaminpar/utils/random.h"
 
 #include <array>
 

@@ -7,7 +7,7 @@
  ******************************************************************************/
 #include "kaminpar/context.h"
 
-#include "kaminpar/utility/math.h"
+#include "kaminpar/utils/math.h"
 
 namespace kaminpar {
 using namespace std::string_literals;

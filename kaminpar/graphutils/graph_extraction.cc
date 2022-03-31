@@ -12,8 +12,8 @@
 #include "kaminpar/definitions.h"
 #include "kaminpar/parallel/atomic.h"
 #include "kaminpar/parallel/prefix_sum.h"
-#include "kaminpar/utility/math.h"
-#include "kaminpar/utility/timer.h"
+#include "kaminpar/utils/math.h"
+#include "kaminpar/utils/timer.h"
 
 #include <mutex>
 #include <tbb/enumerable_thread_specific.h>

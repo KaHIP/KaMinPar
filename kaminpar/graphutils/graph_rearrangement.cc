@@ -8,7 +8,7 @@
 #include "kaminpar/graphutils/graph_rearrangement.h"
 
 #include "kaminpar/parallel/accumulate.h"
-#include "kaminpar/utility/timer.h"
+#include "kaminpar/utils/timer.h"
 
 #include <tbb/enumerable_thread_specific.h>
 
