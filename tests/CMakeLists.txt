@@ -1,7 +1,5 @@
 file(COPY test_instances DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 
-add_definitions(-DTEST)
-
 function(add_kaminpar_test target)
     add_gmock_test(${target} ${ARGN})
     target_link_libraries(${target} PRIVATE shm_partitioner_base)
@@ -27,7 +25,7 @@ add_kaminpar_test(utility_test utility/utility_test.cc)
 add_kaminpar_test(metrics_test utility/metrics_test.cc)
 
 # Parallel utility code
-add_kaminpar_test(parallel_prefix_sum_test parallel/prefix_sum_test.cc)
+add_kaminpar_test(test_parallel_algorithm parallel/algorithm_test.cc)
 
 # IO
 add_kaminpar_test(io_test io_test.cc)

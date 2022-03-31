@@ -1,4 +1,4 @@
-#include "kaminpar/utility/strings.h"
+#include "kaminpar/utils/strings.h"
 
 #include "gmock/gmock.h"
 

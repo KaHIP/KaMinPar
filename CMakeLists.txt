@@ -31,6 +31,8 @@ option(KAMINPAR_64BIT_EDGE_IDS "Use 64 bits for edge IDs." OFF)
 option(KAMINPAR_64BIT_NODE_IDS "Use 64 bits for node IDs." OFF)
 option(KAMINPAR_64BIT_WEIGHTS "Use 64 bit for node and edge weights." OFF)
 
+option(KAMINPAR_ENABLE_DISTRIBUTED_PARTITIONER "Enable or disable the distributed component. If OpenMPI cannot be found on the system, the distributed component is disabled automatically." ON)
+
 include_directories(${PROJECT_SOURCE_DIR})
 
 # Export compile commands
@@ -113,7 +115,7 @@ set(MPI_DETERMINE_LIBRARY_VERSION TRUE)
 find_package(MPI)
 
 # Only include Growt if we can build the distributed partitioner
-if (MPI_FOUND)
+if (KAMINPAR_ENABLE_DISTRIBUTED_PARTITIONER AND MPI_FOUND)
     add_library(growt INTERFACE)
     target_include_directories(growt INTERFACE external_tools/growt/)
 endif ()
@@ -123,7 +125,7 @@ add_subdirectory(kaminpar)
 add_subdirectory(library)
 
 # Distributed components
-if (MPI_FOUND)
+if (KAMINPAR_ENABLE_DISTRIBUTED_PARTITIONER AND MPI_FOUND)
     if (KAMINPAR_GRAPHGEN) # KaGen
         set(CMAKE_POLICY_DEFAULT_CMP0063 NEW)
         set(CGAL_DO_NOT_WARN_ABOUT_CMAKE_BUILD_TYPE TRUE)
@@ -142,7 +144,7 @@ if (KAMINPAR_TESTS)
     enable_testing()
     add_subdirectory(tests)
 
-    if (MPI_FOUND)
+    if (KAMINPAR_ENABLE_DISTRIBUTED_PARTITIONER AND MPI_FOUND)
 	    add_subdirectory(dtests)
     endif ()
 endif ()

@@ -8,6 +8,7 @@
 #pragma once
 
 #include "kaminpar/definitions.h"
+#include "kaminpar/parallel/atomic.h"
 #include "kaminpar/parallel/tbb_malloc.h"
 
 #include <iterator>
@@ -223,7 +224,6 @@ private:
   value_type *_data{nullptr};
 };
 
-#if defined(TOOL) || defined(TEST)
 namespace static_array {
 template <typename T> StaticArray<T> create_from(const std::vector<T> &vec) {
   StaticArray<T> arr(vec.size());
@@ -231,8 +231,8 @@ template <typename T> StaticArray<T> create_from(const std::vector<T> &vec) {
   return arr;
 }
 
-template <typename T> StaticArray<parallel::IntegralAtomicWrapper<T>> create_atomic_from(const std::vector<T> &vec) {
-  StaticArray<parallel::IntegralAtomicWrapper<T>> arr(vec.size());
+template <typename T> StaticArray<parallel::Atomic<T>> create_atomic_from(const std::vector<T> &vec) {
+  StaticArray<parallel::Atomic<T>> arr(vec.size());
   for (std::size_t i = 0; i < vec.size(); ++i) {
     arr[i].store(vec[i]);
   }
@@ -245,7 +245,7 @@ template <typename T> std::vector<T> release(const StaticArray<T> &arr) {
   return vec;
 }
 
-template <typename T> std::vector<T> release_nonatomic(const StaticArray<parallel::IntegralAtomicWrapper<T>> &arr) {
+template <typename T> std::vector<T> release_nonatomic(const StaticArray<parallel::Atomic<T>> &arr) {
   std::vector<T> vec(arr.size());
   for (std::size_t i = 0; i < arr.size(); ++i) {
     vec[i] = arr[i].load();
@@ -253,5 +253,4 @@ template <typename T> std::vector<T> release_nonatomic(const StaticArray<paralle
   return vec;
 }
 } // namespace static_array
-#endif // TOOL
 } // namespace kaminpar

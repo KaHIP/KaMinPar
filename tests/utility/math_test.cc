@@ -1,4 +1,4 @@
-#include "kaminpar/utility/math.h"
+#include "kaminpar/utils/math.h"
 
 #include "gmock/gmock.h"
 
