@@ -12,6 +12,7 @@
 #include "dkaminpar/graphutils/allgather_graph.h"
 #include "dkaminpar/utils/metrics.h"
 #include "kaminpar/metrics.h"
+#include "kaminpar/utils/console_io.h"
 #include "kaminpar/utils/timer.h"
 
 namespace dkaminpar {
@@ -31,12 +32,16 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
     ////////////////////////////////////////////////////////////////////////////////
     // Step 1: Coarsening
     ////////////////////////////////////////////////////////////////////////////////
+    shm::cio::print_banner("Coarsening");
+
     {
         auto clustering_algorithm = TIMED_SCOPE("Allocation") {
             return factory::create_global_clustering(_ctx);
         };
+
+        int level = 0;
         while (c_graph->global_n() > _ctx.partition.k * _ctx.coarsening.contraction_limit) {
-            SCOPED_TIMER("Coarsening");
+            SCOPED_TIMER("Coarsening", std::string("Level ") + std::to_string(level));
 
             shm::PartitionContext shm_p_ctx = _ctx.initial_partitioning.sequential.partition;
             shm_p_ctx.k                     = _ctx.partition.k;
@@ -63,11 +68,23 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
             mapping_hierarchy.push_back(std::move(mapping));
             c_graph = &graph_hierarchy.back();
 
-            auto max_node_weight_str =
+            // Print statistics for coarse graph
+            const std::string n_str       = mpi::gather_statistics_str(c_graph->n(), c_graph->communicator());
+            const std::string ghost_n_str = mpi::gather_statistics_str(c_graph->ghost_n(), c_graph->communicator());
+            const std::string m_str       = mpi::gather_statistics_str(c_graph->m(), c_graph->communicator());
+            const std::string max_node_weight_str =
                 mpi::gather_statistics_str<GlobalNodeWeight>(c_graph->max_node_weight(), c_graph->communicator());
-            LOG << "=> n=" << c_graph->global_n() << " m=" << c_graph->global_m() << " max_node_weight=["
-                << max_node_weight_str << "] max_cluster_weight=" << max_cluster_weight;
-            graph::print_verbose_stats(*c_graph);
+
+            LOG << "=> level=" << level << " "
+                << "global_n=" << c_graph->global_n() << " "
+                << "global_m=" << c_graph->global_m() << " "
+                << "n=[" << n_str << "] "
+                << "ghost_n=[" << ghost_n_str << "] "
+                << "m=[" << m_str << "] "
+                << "max_node_weight=[" << max_node_weight_str << "] "
+                << "max_cluster_weight=" << max_cluster_weight;
+            level++;
+
             if (converged) {
                 LOG << "==> Coarsening converged";
                 break;
@@ -78,6 +95,8 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
     ////////////////////////////////////////////////////////////////////////////////
     // Step 2: Initial Partitioning
     ////////////////////////////////////////////////////////////////////////////////
+    shm::cio::print_banner("Initial Partitioning");
+
     auto initial_partitioner = TIMED_SCOPE("Allocation") {
         return factory::create_initial_partitioner(_ctx);
     };
@@ -98,6 +117,8 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
     ////////////////////////////////////////////////////////////////////////////////
     // Step 3: Refinement
     ////////////////////////////////////////////////////////////////////////////////
+    shm::cio::print_banner("Refinement");
+
     auto refinement_algorithm = TIMED_SCOPE("Allocation") {
         return factory::create_distributed_refiner(_ctx);
     };

@@ -102,7 +102,6 @@ DistributedGraph build_graph(const EdgeList& edge_list, scalable_vector<GlobalNo
 scalable_vector<GlobalNodeID> build_node_distribution(const std::pair<SInt, SInt> range) {
     const auto [size, rank] = mpi::get_comm_info();
     const GlobalNodeID to   = range.second + 1;
-    //  DLOG << V(range.first) << V(range.second);
 
     scalable_vector<GlobalNodeID> node_distribution(size + 1);
     mpi::allgather(&to, 1, node_distribution.data() + 1, 1);

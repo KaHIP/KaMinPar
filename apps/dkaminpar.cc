@@ -12,9 +12,7 @@
 
 #include "apps/apps.h"
 #include "apps/dkaminpar_arguments.h"
-//#ifdef KAMINPAR_GRAPHGEN
 #include "apps/dkaminpar_graphgen.h"
-//#endif // KAMINPAR_GRAPHGEN
 
 #include <fstream>
 
@@ -150,7 +148,6 @@ int main(int argc, char* argv[]) {
             << "m=[" << m_str << "] "
             << "ghost_n=[" << ghost_n_str << "]";
     }
-    dist::graph::print_verbose_stats(graph);
 
     ASSERT([&] { dist::graph::debug::validate(graph); });
     ctx.setup(graph);

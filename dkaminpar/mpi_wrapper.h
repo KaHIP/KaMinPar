@@ -531,7 +531,7 @@ template <typename T>
 std::string gather_statistics_str(const T value, MPI_Comm comm = MPI_COMM_WORLD) {
     std::ostringstream os;
     const auto [min, avg, max, sum] = gather_statistics(value, comm);
-    os << "min=" << min << "|avg=" << std::setw(3) << avg << "|max=" << max << "|sum=" << sum;
+    os << "min=" << min << "|avg=" << avg << "|max=" << max << "|sum=" << sum;
     return os.str();
 }
 } // namespace dkaminpar::mpi
