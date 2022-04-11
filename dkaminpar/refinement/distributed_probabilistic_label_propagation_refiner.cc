@@ -222,6 +222,7 @@ private:
         HEAVY_ASSERT(graph::debug::validate_partition(*_p_graph));
 
         struct Move {
+            Move(const NodeID u, const BlockID from) : u(u), from(from) {}
             NodeID  u;
             BlockID from;
         };

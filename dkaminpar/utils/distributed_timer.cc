@@ -157,7 +157,8 @@ void generate_statistics(const Timer::TimerTreeNode& node, std::vector<NodeStati
     const double sd    = compute_sd(times);
 
     if (mpi::get_comm_rank(comm) == root) {
-        const auto [min, max] = std::ranges::minmax(times);
+        const auto min = *std::min_element(times.begin(), times.end());
+        const auto max = *std::max_element(times.begin(), times.end());
         result.push_back({
             .min   = min,
             .mean  = mean,

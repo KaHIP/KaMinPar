@@ -101,9 +101,6 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    // Initialize Backward-Cpp signal handler
-    [[maybe_unused]] const auto sh = shm::init_backward();
-
     // Parse command line arguments
     auto  app = dist::app::parse_options(argc, argv);
     auto& ctx = app.ctx;
