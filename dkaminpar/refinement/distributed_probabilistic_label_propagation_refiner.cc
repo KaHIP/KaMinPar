@@ -74,10 +74,10 @@ class DistributedProbabilisticLabelPropagationRefinerImpl final
         }
 
         void print() {
-            auto expected_gain_reduced              = mpi::reduce<EdgeWeight>(expected_gain, MPI_SUM);
-            auto realized_gain_reduced              = mpi::reduce<EdgeWeight>(realized_gain, MPI_SUM);
-            auto rejected_gain_reduced              = mpi::reduce<EdgeWeight>(rejected_gain, MPI_SUM);
-            auto rollback_gain_reduced              = mpi::reduce<EdgeWeight>(rollback_gain, MPI_SUM);
+            auto expected_gain_reduced              = mpi::reduce_single<EdgeWeight>(expected_gain, MPI_SUM);
+            auto realized_gain_reduced              = mpi::reduce_single<EdgeWeight>(realized_gain, MPI_SUM);
+            auto rejected_gain_reduced              = mpi::reduce_single<EdgeWeight>(rejected_gain, MPI_SUM);
+            auto rollback_gain_reduced              = mpi::reduce_single<EdgeWeight>(rollback_gain, MPI_SUM);
             auto expected_imbalance_str             = mpi::gather_statistics_str(expected_imbalance);
             auto num_tentatively_moved_nodes_str    = mpi::gather_statistics_str(num_tentatively_moved_nodes.load());
             auto num_tentatively_rejected_nodes_str = mpi::gather_statistics_str(num_tentatively_rejected_nodes.load());

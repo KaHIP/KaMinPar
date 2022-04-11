@@ -9,7 +9,6 @@
 
 #include <vector>
 
-#include <definitions.h>
 #include <tbb/parallel_for.h>
 
 #include "dkaminpar/definitions.h"
@@ -17,7 +16,8 @@
 #include "dkaminpar/mpi_wrapper.h"
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/datastructure/marker.h"
-#include "kaminpar/parallel.h"
+#include "kaminpar/parallel/algorithm.h"
+#include "kaminpar/utils/ranges.h"
 
 namespace dkaminpar {
 namespace graph {
@@ -446,12 +446,11 @@ public:
 private:
     inline void init_total_node_weight() {
         if (is_node_weighted()) {
-            const auto owned_node_weights = std::ranges::take_view{_node_weights, static_cast<long int>(n())};
             const auto begin_node_weights = _node_weights.begin();
             const auto end_node_weights   = begin_node_weights + static_cast<std::size_t>(n());
 
-            _total_node_weight = shm::accumulate(begin_node_weights, end_node_weights);
-            _max_node_weight   = shm::max_element(begin_node_weights, end_node_weights);
+            _total_node_weight = shm::parallel::accumulate(begin_node_weights, end_node_weights, 0);
+            _max_node_weight   = shm::parallel::max_element(begin_node_weights, end_node_weights);
         } else {
             _total_node_weight = n();
             _max_node_weight   = 1;
@@ -557,7 +556,7 @@ public:
     using BlockID          = ::dkaminpar::BlockID;
     using BlockWeight      = ::dkaminpar::BlockWeight;
 
-    using block_weights_vector = scalable_vector<shm::parallel::IntegralAtomicWrapper<BlockWeight>>;
+    using block_weights_vector = scalable_vector<shm::parallel::Atomic<BlockWeight>>;
 
     DistributedPartitionedGraph(
         const DistributedGraph* graph, const BlockID k, scalable_vector<Atomic<BlockID>> partition,
@@ -659,7 +658,7 @@ public:
     }
 
     [[nodiscard]] inline auto blocks() const {
-        return std::views::iota(static_cast<BlockID>(0), k());
+        return shm::IotaRange<BlockID>(0, k());
     }
 
     [[nodiscard]] BlockID block(const NodeID u) const {

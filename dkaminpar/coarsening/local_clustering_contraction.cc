@@ -24,7 +24,7 @@ SET_DEBUG(true);
  */
 
 Result contract_local_clustering(
-    const DistributedGraph& graph, const scalable_vector<shm::parallel::IntegralAtomicWrapper<NodeID>>& clustering,
+    const DistributedGraph& graph, const scalable_vector<shm::parallel::Atomic<NodeID>>& clustering,
     MemoryContext m_ctx) {
     ASSERT(clustering.size() >= graph.n());
 
@@ -140,7 +140,7 @@ Result contract_local_clustering(
         [&](const auto recv_buffer, const PEID pe) { // TODO parallelize
             for (const auto [old_global_u, new_global_u, new_weight]: recv_buffer) {
                 const NodeID old_local_u = graph.global_to_local_node(old_global_u);
-                if (!c_global_to_ghost.contains(new_global_u)) {
+                if (c_global_to_ghost.find(new_global_u) == c_global_to_ghost.end()) {
                     c_global_to_ghost[new_global_u] = c_next_ghost_node++;
                     c_node_weights.push_back(new_weight);
                     c_ghost_owner.push_back(pe);

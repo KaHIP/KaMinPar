@@ -13,6 +13,8 @@
 #include "dkaminpar/mpi_graph.h"
 #include "dkaminpar/utils/math.h"
 #include "kaminpar/label_propagation.h"
+#include "kaminpar/parallel/atomic.h"
+#include "kaminpar/parallel/loops.h"
 
 namespace dkaminpar {
 namespace {
@@ -49,17 +51,17 @@ class LockingLpClusteringImpl
     SET_STATISTICS(true);
 
     using Base               = shm::InOrderLabelPropagation<LockingLpClusteringImpl, LockingLpClusteringConfig>;
-    using AtomicClusterArray = scalable_vector<shm::parallel::IntegralAtomicWrapper<GlobalNodeID>>;
+    using AtomicClusterArray = scalable_vector<shm::parallel::Atomic<GlobalNodeID>>;
 
     friend Base;
     friend Base::Base;
 
     struct Statistics {
-        shm::parallel::IntegralAtomicWrapper<int>        num_move_accepted{0};
-        shm::parallel::IntegralAtomicWrapper<int>        num_move_rejected{0};
-        shm::parallel::IntegralAtomicWrapper<int>        num_moves{0};
-        shm::parallel::IntegralAtomicWrapper<EdgeWeight> gain_accepted{0};
-        shm::parallel::IntegralAtomicWrapper<EdgeWeight> gain_rejected{0};
+        shm::parallel::Atomic<int>        num_move_accepted{0};
+        shm::parallel::Atomic<int>        num_move_rejected{0};
+        shm::parallel::Atomic<int>        num_moves{0};
+        shm::parallel::Atomic<EdgeWeight> gain_accepted{0};
+        shm::parallel::Atomic<EdgeWeight> gain_rejected{0};
 
         void print() const {
             LOG << shm::logger::CYAN << "LockingLabelPropagationClustering statistics:";
@@ -405,7 +407,7 @@ private:
         for (const auto& requests_from_pe: requests) { // allocate memory for responses
             responses.emplace_back(requests_from_pe.size());
         }
-        std::vector<shm::parallel::IntegralAtomicWrapper<std::size_t>> next_message(requests.size());
+        std::vector<shm::parallel::Atomic<std::size_t>> next_message(requests.size());
         STOP_TIMER(TIMER_FINE);
 
         // perform moves
@@ -502,7 +504,8 @@ private:
         STOP_TIMER(TIMER_FINE);
     }
 
-    void build_gain_buffer(auto& join_requests_per_pe) {
+    template <typename JoinRequests>
+    void build_gain_buffer(JoinRequests& join_requests_per_pe) {
         SET_DEBUG(false);
         SCOPED_TIMER("Build gain buffer", TIMER_FINE);
 

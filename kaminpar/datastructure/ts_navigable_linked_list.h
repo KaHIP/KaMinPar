@@ -11,6 +11,7 @@
 #include <tbb/parallel_for.h>
 #include <tbb/parallel_invoke.h>
 
+#include "kaminpar/definitions.h"
 #include "kaminpar/parallel/atomic.h"
 
 namespace kaminpar {

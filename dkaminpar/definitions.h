@@ -13,7 +13,8 @@
 #include <mpi.h>
 
 #include "kaminpar/definitions.h"
-#include "kaminpar/parallel.h"
+#include "kaminpar/parallel/atomic.h"
+#include "kaminpar/parallel/tbb_malloc.h"
 #include "kaminpar/utils/noinit_allocator.h"
 
 namespace dkaminpar {
@@ -61,7 +62,7 @@ template <typename T>
 using scalable_noinit_vector = std::vector<T, shm::noinit_allocator<T, tbb::scalable_allocator<T>>>;
 
 template <typename T>
-using Atomic = shm::parallel::IntegralAtomicWrapper<T>;
+using Atomic = shm::parallel::Atomic<T>;
 
 class SynchronizedLogger {
 public:

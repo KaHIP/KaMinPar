@@ -161,9 +161,9 @@ inline scalable_vector<T> create_distribution_from_local_count(const T local_cou
  * \c v is a global node ID.
  * @return Distributed graph built from the edge list.
  */
-template <typename NodeWeightLambda, typename FindGhostNodeOwnerLambda>
+template <typename EdgeList, typename NodeWeightLambda, typename FindGhostNodeOwnerLambda>
 inline DistributedGraph build_distributed_graph_from_edge_list(
-    const auto& edge_list, scalable_vector<GlobalNodeID> node_distribution, MPI_Comm comm,
+    const EdgeList& edge_list, scalable_vector<GlobalNodeID> node_distribution, MPI_Comm comm,
     NodeWeightLambda&& node_weight_lambda, FindGhostNodeOwnerLambda&& /* find_ghost_node_owner */) {
     SCOPED_TIMER("Build graph from edge list", TIMER_FINE);
 

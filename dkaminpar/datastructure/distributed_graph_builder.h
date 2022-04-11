@@ -157,7 +157,7 @@ private:
     }
 
     NodeID create_ghost_node(const GlobalNodeID global_u) {
-        if (!_global_to_ghost.contains(global_u)) {
+        if (_global_to_ghost.find(global_u) == _global_to_ghost.end()) {
             const NodeID local_id = _local_n + _ghost_to_global.size();
             _ghost_to_global.push_back(global_u);
             _global_to_ghost[global_u] = local_id;

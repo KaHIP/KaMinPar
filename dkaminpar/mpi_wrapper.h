@@ -13,6 +13,7 @@
 #include <mpi.h>
 
 #include "dkaminpar/definitions.h"
+#include "kaminpar/parallel/algorithm.h"
 #include "kaminpar/utils/timer.h"
 
 #define SPARSE_ALLTOALL_NOFILTER \
@@ -212,12 +213,12 @@ inline int get_count(const MPI_Status& status) {
 // Ranges interface for point-to-point operations
 //
 
-template <typename Container>
+template <typename Container, std::enable_if_t<!std::is_pointer_v<Container>, bool> = true>
 int send(const Container& buf, const int dest, const int tag, MPI_Comm comm = MPI_COMM_WORLD) {
     return send(std::data(buf), static_cast<int>(std::size(buf)), dest, tag, comm);
 }
 
-template <typename Container>
+template <typename Container, std::enable_if_t<!std::is_pointer_v<Container>, bool> = true>
 int isend(const Container& buf, const int dest, const int tag, MPI_Request& request, MPI_Comm comm = MPI_COMM_WORLD) {
     return isend(std::data(buf), static_cast<int>(std::size(buf)), dest, tag, &request, comm);
 }
@@ -255,15 +256,15 @@ inline T bcast(T ans, const int root = 0, MPI_Comm comm = MPI_COMM_WORLD) {
     return ans;
 }
 
-template <typename T>
-inline T reduce(const T& element, MPI_Op op, const int root = 0, MPI_Comm comm = MPI_COMM_WORLD) {
+template <typename T, std::enable_if_t<!std::is_pointer_v<T>, bool> = true>
+inline T reduce_single(const T& element, MPI_Op op, const int root = 0, MPI_Comm comm = MPI_COMM_WORLD) {
     T ans = T{};
     reduce(&element, &ans, 1, op, root, comm);
     return ans;
 }
 
-template <typename T>
-inline T reduce(const T& element, T& ans, MPI_Op op, const int root = 0, MPI_Comm comm = MPI_COMM_WORLD) {
+template <typename T, std::enable_if_t<!std::is_pointer_v<T>, bool> = true>
+inline T reduce_single(const T& element, T& ans, MPI_Op op, const int root = 0, MPI_Comm comm = MPI_COMM_WORLD) {
     return reduce(&element, &ans, 1, op, root, comm);
 }
 
@@ -339,7 +340,7 @@ T exscan(const T& sendbuf, MPI_Op op, MPI_Comm comm = MPI_COMM_WORLD) {
 // Ranges interface for collective operations
 //
 
-template <typename R>
+template <typename R, std::enable_if_t<!std::is_pointer_v<R>, bool> = true>
 inline int reduce(const R& sendbuf, R& recvbuf, MPI_Op op, const int root = 0, MPI_Comm comm = MPI_COMM_WORLD) {
     LIGHT_ASSERT(mpi::get_comm_rank(comm) != root || std::size(sendbuf) == std::size(recvbuf));
 
@@ -347,7 +348,9 @@ inline int reduce(const R& sendbuf, R& recvbuf, MPI_Op op, const int root = 0, M
         sendbuf.cdata(), std::data(recvbuf), static_cast<int>(std::size(sendbuf)), op, root, comm);
 }
 
-template <typename R, template <typename> typename Container = scalable_vector>
+template <
+    typename R, template <typename> typename Container = scalable_vector,
+    std::enable_if_t<!std::is_pointer_v<R>, bool> = true>
 inline auto reduce(const R& sendbuf, MPI_Op op, const int root = 0, MPI_Comm comm = MPI_COMM_WORLD) {
     Container<typename std::remove_reference_t<R>::value_type> recvbuf;
     if (mpi::get_comm_rank(comm) == root) {

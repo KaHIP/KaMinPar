@@ -14,8 +14,8 @@
 
 namespace dkaminpar {
 shm::PartitionedGraph RandomInitialPartitioner::initial_partition(const shm::Graph& graph) {
-    shm::StaticArray<Atomic<shm::BlockID>> partition(graph.n());
-    scalable_vector<BlockID>               final_k(graph.n(), 1);
+    shm::StaticArray<BlockID> partition(graph.n());
+    scalable_vector<BlockID>  final_k(graph.n(), 1);
 
     tbb::parallel_for(tbb::blocked_range<shm::NodeID>(0, graph.n()), [&](const auto& r) {
         auto& rand = shm::Randomize::instance();

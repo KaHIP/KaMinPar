@@ -16,6 +16,8 @@
 #include "dkaminpar/mpi_wrapper.h"
 #include "dkaminpar/utils/math.h"
 #include "dkaminpar/utils/vector_ets.h"
+#include "kaminpar/parallel/atomic.h"
+#include "kaminpar/parallel/loops.h"
 
 namespace dkaminpar::coarsening {
 using namespace helper;
@@ -29,7 +31,8 @@ SET_DEBUG(false);
  * @param label_mapping Current coarse node IDs, must be of size \code{graph.total_n()}, i.e., large enough to store
  * coarse node IDs of owned nodes and ghost nodes.
  */
-void exchange_ghost_node_mapping(const DistributedGraph& graph, auto& label_mapping) {
+template <typename LabelMapping>
+void exchange_ghost_node_mapping(const DistributedGraph& graph, LabelMapping& label_mapping) {
     struct Message {
         NodeID       local_node;
         GlobalNodeID coarse_global_node;
@@ -68,9 +71,9 @@ using UsedClustersVector = scalable_vector<NodeID>;
  * PE to entries in the second component; Second component: for each PE \c p, a vector containing all local cluster IDs
  * on PE \c p used by mapped nodes on this PE.
  */
-template <typename ResolveClusterCallback>
+template <typename ResolveClusterCallback, typename Clustering>
 std::pair<std::vector<UsedClustersMap>, std::vector<UsedClustersVector>> find_used_cluster_ids_per_pe(
-    const DistributedGraph& graph, const auto& clustering, ResolveClusterCallback&& resolve_cluster_callback) {
+    const DistributedGraph& graph, const Clustering& clustering, ResolveClusterCallback&& resolve_cluster_callback) {
     SCOPED_TIMER("Find used cluster IDs per PE");
     const auto size = mpi::get_comm_size(graph.communicator());
 
@@ -142,7 +145,7 @@ MappingResult compute_mapping(
     const auto in_msg = mpi::sparse_alltoall_get<NodeID>(std::move(used_clusters_vec), graph.communicator());
 
     // map local labels to consecutive coarse node IDs
-    scalable_vector<shm::parallel::IntegralAtomicWrapper<GlobalNodeID>> label_mapping(graph.total_n());
+    scalable_vector<shm::parallel::Atomic<GlobalNodeID>> label_mapping(graph.total_n());
     shm::parallel::chunked_for(in_msg, [&](const NodeID local_label) {
         ASSERT(local_label < graph.n());
         label_mapping[local_label].store(1, std::memory_order_relaxed);
@@ -267,9 +270,9 @@ MappingResult compute_mapping(
  * in constant time.
  * @return The distributed coarse graph.
  */
-template <typename CoarseNodeOwnerCallback>
+template <typename CoarseNodeOwnerCallback, typename Mapping>
 DistributedGraph build_coarse_graph(
-    const DistributedGraph& graph, const auto& mapping, scalable_vector<GlobalNodeID> c_node_distribution,
+    const DistributedGraph& graph, const Mapping& mapping, scalable_vector<GlobalNodeID> c_node_distribution,
     CoarseNodeOwnerCallback&& compute_coarse_node_owner) {
     const PEID size = mpi::get_comm_size(graph.communicator());
     const PEID rank = mpi::get_comm_rank(graph.communicator());
@@ -391,7 +394,7 @@ DistributedGraph build_coarse_graph(
     // TODO since we do not know the number of coarse ghost nodes yet, allocate memory only for local nodes and
     // TODO resize in build_distributed_graph_from_edge_list
     ASSERT(from <= to);
-    scalable_vector<shm::parallel::IntegralAtomicWrapper<NodeWeight>> node_weights(to - from);
+    scalable_vector<shm::parallel::Atomic<NodeWeight>> node_weights(to - from);
     struct NodeWeightMessage {
         NodeID     node;
         NodeWeight weight;
@@ -432,8 +435,9 @@ DistributedGraph build_coarse_graph(
  * binary search.
  * @return The distributed coarse graph.
  */
+template <typename Mapping>
 DistributedGraph build_coarse_graph(
-    const DistributedGraph& graph, const auto& mapping, scalable_vector<GlobalNodeID> c_node_distribution) {
+    const DistributedGraph& graph, const Mapping& mapping, scalable_vector<GlobalNodeID> c_node_distribution) {
     return build_coarse_graph(
         graph, mapping, c_node_distribution, [](const GlobalNodeID node, const auto& node_distribution) {
             const auto it = std::upper_bound(node_distribution.begin() + 1, node_distribution.end(), node);

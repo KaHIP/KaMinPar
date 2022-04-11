@@ -95,7 +95,7 @@ DistributedPartitionedGraph reduce_scatter(const DistributedGraph& dist_graph, s
     MPI_Bcast(partition.data(), static_cast<int>(dist_graph.global_n()), MPI_INT32_T, global.rank, comm);
 
     // compute block weights
-    scalable_vector<shm::parallel::IntegralAtomicWrapper<BlockWeight>> block_weights(shm_p_graph.k());
+    scalable_vector<shm::parallel::Atomic<BlockWeight>> block_weights(shm_p_graph.k());
     shm_p_graph.pfor_nodes([&](const shm::NodeID u) { block_weights[partition[u]] += shm_p_graph.node_weight(u); });
 
     // create distributed partition

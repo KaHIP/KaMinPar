@@ -18,10 +18,10 @@ struct Edge {
 };
 
 struct MemoryContext {
-    scalable_vector<NodeID>                                       buckets;
-    scalable_vector<shm::parallel::IntegralAtomicWrapper<NodeID>> buckets_index;
-    scalable_vector<shm::parallel::IntegralAtomicWrapper<NodeID>> leader_mapping;
-    scalable_vector<shm::NavigationMarker<NodeID, Edge>>          all_buffered_nodes;
+    scalable_vector<NodeID>                              buckets;
+    scalable_vector<shm::parallel::Atomic<NodeID>>       buckets_index;
+    scalable_vector<shm::parallel::Atomic<NodeID>>       leader_mapping;
+    scalable_vector<shm::NavigationMarker<NodeID, Edge>> all_buffered_nodes;
 };
 
 struct Result {
@@ -32,6 +32,6 @@ struct Result {
 } // namespace contraction
 
 contraction::Result contract_local_clustering(
-    const DistributedGraph& graph, const scalable_vector<shm::parallel::IntegralAtomicWrapper<NodeID>>& clustering,
+    const DistributedGraph& graph, const scalable_vector<shm::parallel::Atomic<NodeID>>& clustering,
     contraction::MemoryContext m_ctx = {});
 } // namespace dkaminpar::coarsening

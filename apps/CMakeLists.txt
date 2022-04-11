@@ -28,7 +28,7 @@ function(add_app target)
 endfunction()
 
 function(add_distributed_app target)
-    if (TARGET dkaminpar_impl)
+    if (TARGET dist_partitioner_base)
         add_app(${target} ${ARGN})
         target_link_libraries(${target} PRIVATE dist_partitioner_base)
     else ()

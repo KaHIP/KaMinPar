@@ -22,22 +22,25 @@
 namespace dkaminpar::mpi::graph {
 SET_DEBUG(false);
 
-template <typename Message, typename Buffer = scalable_noinit_vector<Message>>
-void sparse_alltoall_interface_to_ghost(const DistributedGraph& graph, auto&& builder, auto&& receiver) {
+template <typename Message, typename Buffer = scalable_noinit_vector<Message>, typename Builder, typename Receiver>
+void sparse_alltoall_interface_to_ghost(const DistributedGraph& graph, Builder&& builder, Receiver&& receiver) {
     sparse_alltoall_interface_to_ghost<Message, Buffer>(
-        graph, SPARSE_ALLTOALL_NOFILTER, std::forward<decltype(builder)>(builder),
-        std::forward<decltype(receiver)>(receiver));
+        graph, SPARSE_ALLTOALL_NOFILTER, std::forward<Builder>(builder), std::forward<Receiver>(receiver));
 }
 
-template <typename Message, typename Buffer = scalable_noinit_vector<Message>>
-void sparse_alltoall_interface_to_ghost(const DistributedGraph& graph, auto&& filter, auto&& builder, auto&& receiver) {
+template <
+    typename Message, typename Buffer = scalable_noinit_vector<Message>, typename Filter, typename Builder,
+    typename Receiver>
+void sparse_alltoall_interface_to_ghost(
+    const DistributedGraph& graph, Filter&& filter, Builder&& builder, Receiver&& receiver) {
     sparse_alltoall_interface_to_ghost<Message, Buffer>(
-        graph, 0, graph.n(), std::forward<decltype(filter)>(filter), std::forward<decltype(builder)>(builder),
-        std::forward<decltype(receiver)>(receiver));
+        graph, 0, graph.n(), std::forward<Filter>(filter), std::forward<Builder>(builder),
+        std::forward<Receiver>(receiver));
 }
 
 namespace internal {
-void inclusive_col_prefix_sum(auto& data) {
+template <typename Data>
+void inclusive_col_prefix_sum(Data& data) {
     if (data.empty()) {
         return;
     }
@@ -53,20 +56,20 @@ void inclusive_col_prefix_sum(auto& data) {
 }
 } // namespace internal
 
-template <typename Message, typename Buffer = scalable_noinit_vector<Message>>
+template <
+    typename Message, typename Buffer = scalable_noinit_vector<Message>, typename Filter, typename Builder,
+    typename Receiver>
 void sparse_alltoall_interface_to_ghost(
-    const DistributedGraph& graph, const NodeID from, const NodeID to, auto&& filter, auto&& builder, auto&& receiver) {
+    const DistributedGraph& graph, const NodeID from, const NodeID to, Filter&& filter, Builder&& builder,
+    Receiver&& receiver) {
     SCOPED_TIMER("Sparse AllToAll InterfaceToGhost");
 
-    using Filter = decltype(filter);
     static_assert(std::is_invocable_r_v<bool, Filter, NodeID>, "bad filter type");
 
-    using Builder                               = decltype(builder);
     constexpr bool builder_invocable_with_pe    = std::is_invocable_r_v<Message, Builder, NodeID, EdgeID, NodeID, PEID>;
     constexpr bool builder_invocable_without_pe = std::is_invocable_r_v<Message, Builder, NodeID, EdgeID, NodeID>;
     static_assert(builder_invocable_with_pe || builder_invocable_without_pe, "bad builder type");
 
-    using Receiver                               = decltype(receiver);
     constexpr bool receiver_invocable_with_pe    = std::is_invocable_r_v<void, Receiver, const Buffer&, PEID>;
     constexpr bool receiver_invocable_without_pe = std::is_invocable_r_v<void, Receiver, const Buffer&>;
     static_assert(receiver_invocable_with_pe || receiver_invocable_without_pe, "bad receiver type");
@@ -159,39 +162,42 @@ void sparse_alltoall_interface_to_ghost(
         std::move(send_buffers), std::forward<decltype(receiver)>(receiver), graph.communicator());
 }
 
-template <typename Message, typename Buffer = scalable_noinit_vector<Message>>
+template <typename Message, typename Buffer = scalable_noinit_vector<Message>, typename Filter, typename Builder>
 std::vector<Buffer> sparse_alltoall_interface_to_ghost_get(
-    const DistributedGraph& graph, const NodeID from, const NodeID to, auto&& filter, auto&& builder) {
+    const DistributedGraph& graph, const NodeID from, const NodeID to, Filter&& filter, Builder&& builder) {
     std::vector<Buffer> recv_buffers(mpi::get_comm_size(graph.communicator()));
     sparse_alltoall_interface_to_ghost<Message, Buffer>(
-        graph, from, to, std::forward<decltype(filter)>(filter), std::forward<decltype(builder)>(builder),
+        graph, from, to, std::forward<Filter>(filter), std::forward<Builder>(builder),
         [&](auto recv_buffer, const PEID pe) { recv_buffers[pe] = std::move(recv_buffer); });
     return recv_buffers;
 }
 
-template <typename Message, typename Buffer = scalable_noinit_vector<Message>>
-void sparse_alltoall_interface_to_pe(const DistributedGraph& graph, auto&& builder, auto&& receiver) {
+template <typename Message, typename Buffer = scalable_noinit_vector<Message>, typename Builder, typename Receiver>
+void sparse_alltoall_interface_to_pe(const DistributedGraph& graph, Builder&& builder, Receiver&& receiver) {
     sparse_alltoall_interface_to_pe<Message, Buffer>(
-        graph, SPARSE_ALLTOALL_NOFILTER, std::forward<decltype(builder)>(builder),
-        std::forward<decltype(receiver)>(receiver));
+        graph, SPARSE_ALLTOALL_NOFILTER, std::forward<Builder>(builder), std::forward<Receiver>(receiver));
 }
 
-template <typename Message, typename Buffer = scalable_noinit_vector<Message>>
-void sparse_alltoall_interface_to_pe(const DistributedGraph& graph, auto&& filter, auto&& builder, auto&& receiver) {
-    sparse_alltoall_interface_to_pe<Message, Buffer>(
-        graph, 0, graph.n(), std::forward<decltype(filter)>(filter), std::forward<decltype(builder)>(builder),
-        std::forward<decltype(receiver)>(receiver));
-}
-
-template <typename Message, typename Buffer = scalable_noinit_vector<Message>>
+template <
+    typename Message, typename Buffer = scalable_noinit_vector<Message>, typename Filter, typename Builder,
+    typename Receiver>
 void sparse_alltoall_interface_to_pe(
-    const DistributedGraph& graph, const NodeID from, const NodeID to, auto&& filter, auto&& builder, auto&& receiver) {
+    const DistributedGraph& graph, Filter&& filter, Builder&& builder, Receiver&& receiver) {
+    sparse_alltoall_interface_to_pe<Message, Buffer>(
+        graph, 0, graph.n(), std::forward<Filter>(filter), std::forward<Builder>(builder),
+        std::forward<Receiver>(receiver));
+}
+
+template <
+    typename Message, typename Buffer = scalable_noinit_vector<Message>, typename Filter, typename Builder,
+    typename Receiver>
+void sparse_alltoall_interface_to_pe(
+    const DistributedGraph& graph, const NodeID from, const NodeID to, Filter&& filter, Builder&& builder,
+    Receiver&& receiver) {
     SCOPED_TIMER("Sparse AllToAll InterfaceToPE");
 
-    using Filter = decltype(filter);
     static_assert(std::is_invocable_r_v<bool, Filter, NodeID>, "bad filter type");
 
-    using Builder                               = decltype(builder);
     constexpr bool builder_invocable_with_pe    = std::is_invocable_r_v<Message, Builder, NodeID, PEID>;
     constexpr bool builder_invocable_without_pe = std::is_invocable_r_v<Message, Builder, NodeID>;
     static_assert(builder_invocable_with_pe || builder_invocable_without_pe, "bad builder type");
@@ -309,49 +315,46 @@ void sparse_alltoall_interface_to_pe(
         return num_messages == 0;
     }));
 
-    sparse_alltoall<Message, Buffer>(
-        std::move(send_buffers), std::forward<decltype(receiver)>(receiver), graph.communicator());
+    sparse_alltoall<Message, Buffer>(std::move(send_buffers), std::forward<Receiver>(receiver), graph.communicator());
 } // namespace dkaminpar::mpi::graph
 
-template <typename Message, typename Buffer = scalable_noinit_vector<Message>>
+template <typename Message, typename Buffer = scalable_noinit_vector<Message>, typename Filter, typename Builder>
 std::vector<Buffer> sparse_alltoall_interface_to_pe_get(
-    const DistributedGraph& graph, const NodeID from, const NodeID to, auto&& filter, auto&& builder) {
+    const DistributedGraph& graph, const NodeID from, const NodeID to, Filter&& filter, Builder&& builder) {
     std::vector<Buffer> recv_buffers(mpi::get_comm_size(graph.communicator()));
     sparse_alltoall_interface_to_pe<Message, Buffer>(
-        graph, from, to, std::forward<decltype(filter)>(filter), std::forward<decltype(builder)>(builder),
+        graph, from, to, std::forward<Filter>(filter), std::forward<Builder>(builder),
         [&](auto recv_buffer, const PEID pe) { recv_buffers[pe] = std::move(recv_buffer); });
     return recv_buffers;
 }
 
-template <typename Message, typename Buffer = scalable_noinit_vector<Message>>
-std::vector<Buffer> sparse_alltoall_interface_to_pe_get(const DistributedGraph& graph, auto&& filter, auto&& builder) {
+template <typename Message, typename Buffer = scalable_noinit_vector<Message>, typename Filter, typename Builder>
+std::vector<Buffer>
+sparse_alltoall_interface_to_pe_get(const DistributedGraph& graph, Filter&& filter, Builder&& builder) {
     std::vector<Buffer> recv_buffers(mpi::get_comm_size(graph.communicator()));
     sparse_alltoall_interface_to_pe<Message, Buffer>(
-        graph, 0, graph.n(), std::forward<decltype(filter)>(filter), std::forward<decltype(builder)>(builder),
+        graph, 0, graph.n(), std::forward<Filter>(filter), std::forward<Builder>(builder),
         [&](auto recv_buffer, const PEID pe) { recv_buffers[pe] = std::move(recv_buffer); });
     return recv_buffers;
 }
 
-template <typename Message, typename Buffer = scalable_noinit_vector<Message>>
-std::vector<Buffer> sparse_alltoall_interface_to_pe_get(const DistributedGraph& graph, auto&& builder) {
+template <typename Message, typename Buffer = scalable_noinit_vector<Message>, typename Builder>
+std::vector<Buffer> sparse_alltoall_interface_to_pe_get(const DistributedGraph& graph, Builder&& builder) {
     std::vector<Buffer> recv_buffers(mpi::get_comm_size(graph.communicator()));
     sparse_alltoall_interface_to_pe<Message, Buffer>(
-        graph, 0, graph.n(), SPARSE_ALLTOALL_NOFILTER, std::forward<decltype(builder)>(builder),
+        graph, 0, graph.n(), SPARSE_ALLTOALL_NOFILTER, std::forward<Builder>(builder),
         [&](auto recv_buffer, const PEID pe) { recv_buffers[pe] = std::move(recv_buffer); });
     return recv_buffers;
 }
 
-template <typename Message, typename Buffer = scalable_noinit_vector<Message>>
+template <
+    typename Message, typename Buffer = scalable_noinit_vector<Message>, typename Filter, typename PEGetter,
+    typename Builder, typename Receiver>
 void sparse_alltoall_custom(
-    const DistributedGraph& graph, const NodeID from, const NodeID to, auto&& filter, auto&& pe_getter, auto&& builder,
-    auto&& receiver) {
-    using Filter = decltype(filter);
+    const DistributedGraph& graph, const NodeID from, const NodeID to, Filter&& filter, PEGetter&& pe_getter,
+    Builder&& builder, Receiver&& receiver) {
     static_assert(std::is_invocable_r_v<bool, Filter, NodeID>, "bad filter type");
-
-    using Builder = decltype(builder);
     static_assert(std::is_invocable_r_v<Message, Builder, NodeID>, "bad builder type");
-
-    using PEGetter = decltype(pe_getter);
     static_assert(std::is_invocable_r_v<PEID, PEGetter, NodeID>, "bad pe getter type");
 
     PEID size, rank;
@@ -400,19 +403,20 @@ void sparse_alltoall_custom(
     }
     STOP_TIMER(TIMER_FINE);
 
-    sparse_alltoall<Message, Buffer>(
-        std::move(send_buffers), std::forward<decltype(receiver)>(receiver), graph.communicator());
+    sparse_alltoall<Message, Buffer>(std::move(send_buffers), std::forward<Receiver>(receiver), graph.communicator());
 }
 
-template <typename Message, typename Buffer = scalable_noinit_vector<Message>>
+template <
+    typename Message, typename Buffer = scalable_noinit_vector<Message>, typename Filter, typename PEGetter,
+    typename Builder>
 std::vector<Buffer> sparse_alltoall_custom(
-    const DistributedGraph& graph, const NodeID from, const NodeID to, auto&& filter, auto&& pe_getter,
-    auto&& builder) {
+    const DistributedGraph& graph, const NodeID from, const NodeID to, Filter&& filter, PEGetter&& pe_getter,
+    Builder&& builder) {
     auto                size = mpi::get_comm_size(graph.communicator());
     std::vector<Buffer> recv_buffers(size);
     sparse_alltoall_custom<Message, Buffer>(
-        graph, from, to, std::forward<decltype(filter)>(filter), std::forward<decltype(pe_getter)>(pe_getter),
-        std::forward<decltype(builder)>(builder),
+        graph, from, to, std::forward<Filter>(filter), std::forward<PEGetter>(pe_getter),
+        std::forward<Builder>(builder),
         [&](auto recv_buffer, const PEID pe) { recv_buffers[pe] = std::move(recv_buffer); });
     return recv_buffers;
 }

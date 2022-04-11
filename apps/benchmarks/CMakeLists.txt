@@ -7,7 +7,7 @@ function(add_benchmark target)
 endfunction()
 
 function(add_distributed_benchmark target)
-    if (TARGET dkaminpar_impl)
+    if (TARGET dist_partitioner_base)
         add_benchmark(${target} ${ARGN} ${DKAMINPAR_SOURCE_FILES})
         target_link_libraries(${target} PRIVATE dist_partitioner_base)
 

@@ -61,12 +61,14 @@ private:
     }
 };
 
-double compute_mean(const auto& vec) {
+template <typename Container>
+double compute_mean(const Container& vec) {
     const auto sum = static_cast<double>(std::accumulate(vec.begin(), vec.end(), 0.0));
     return sum / static_cast<double>(vec.size());
 }
 
-double compute_sd(const auto& vec) {
+template <typename Container>
+double compute_sd(const Container& vec) {
     const double mean = compute_mean(vec);
 
     double sd_sum = 0;
@@ -85,8 +87,8 @@ struct NodeStatistics {
     std::vector<double> times;
 };
 
-template <std::size_t trunc_to = 1024>
-std::vector<std::string> gather_trunc_string(const auto& str, const PEID root, MPI_Comm comm) {
+template <std::size_t trunc_to = 1024, typename String>
+std::vector<std::string> gather_trunc_string(const String& str, const PEID root, MPI_Comm comm) {
     // copy str to char array
     char              trunc[trunc_to];
     const std::size_t len = std::min(trunc_to - 1, str.length());

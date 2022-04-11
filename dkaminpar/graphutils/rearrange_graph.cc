@@ -10,7 +10,7 @@
 #include "dkaminpar/mpi_graph.h"
 #include "kaminpar/datastructure/marker.h"
 #include "kaminpar/graphutils/graph_rearrangement.h"
-#include "kaminpar/parallel.h"
+#include "kaminpar/parallel/atomic.h"
 #include "kaminpar/utils/timer.h"
 
 namespace dkaminpar::graph {

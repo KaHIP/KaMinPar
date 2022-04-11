@@ -8,7 +8,7 @@
  ******************************************************************************/
 #include <gmock/gmock.h>
 
-#include "dkaminpar/utility/math.h"
+#include "dkaminpar/utils/math.h"
 
 using ::testing::AnyOf;
 using ::testing::Eq;

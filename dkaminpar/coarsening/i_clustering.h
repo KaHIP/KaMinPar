@@ -9,14 +9,15 @@
 
 #include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/definitions.h"
+#include "kaminpar/parallel/atomic.h"
 
 namespace dkaminpar {
 template <typename ClusterID>
 class IClustering {
 public:
-    virtual ~IClustering() = default;
+    using AtomicClusterArray = scalable_vector<shm::parallel::Atomic<ClusterID>>;
 
-    using AtomicClusterArray = scalable_vector<shm::parallel::IntegralAtomicWrapper<ClusterID>>;
+    virtual ~IClustering() = default;
 
     virtual const AtomicClusterArray&
     compute_clustering(const DistributedGraph& graph, NodeWeight max_cluster_weight) = 0;

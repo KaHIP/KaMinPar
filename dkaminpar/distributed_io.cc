@@ -159,7 +159,7 @@ DistributedGraph read_edge_balanced(const std::string& filename, MPI_Comm comm) 
         if (offset_n <= global_v && global_v < offset_n + local_n) { // owned node
             edges[i] = static_cast<NodeID>(global_v - offset_n);
         } else { // ghost node
-            if (!global_to_ghost.contains(global_v)) {
+            if (global_to_ghost.find(global_v) == global_to_ghost.end()) {
                 const NodeID local_id = local_n + ghost_to_global.size();
                 ghost_to_global.push_back(global_v);
                 global_to_ghost[global_v] = local_id;

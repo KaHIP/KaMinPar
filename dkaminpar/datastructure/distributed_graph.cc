@@ -7,7 +7,6 @@
  ******************************************************************************/
 #include "dkaminpar/datastructure/distributed_graph.h"
 #include <iomanip>
-#include <ranges>
 
 #include "dkaminpar/mpi_graph.h"
 #include "dkaminpar/mpi_wrapper.h"
@@ -60,9 +59,9 @@ namespace graph::debug {
 SET_DEBUG(false);
 
 namespace {
-template <std::ranges::range R>
+template <typename R>
 bool all_equal(const R& r) {
-    return std::ranges::adjacent_find(r, std::not_equal_to{}) == std::ranges::end(r);
+    return std::adjacent_find(r.begin(), r.end(), std::not_equal_to{}) == r.end();
 }
 } // namespace
 
