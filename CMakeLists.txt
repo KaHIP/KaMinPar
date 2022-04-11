@@ -110,6 +110,8 @@ if (KAMINPAR_BACKWARD_CPP)
     message(STATUS "Building with backward-cpp.")
 endif ()
 
+add_definitions(-DKAMINPAR_ENABLE_TIMERS)
+
 # Look for MPI -- if this fails, we give up on the distributed components
 set(MPI_DETERMINE_LIBRARY_VERSION TRUE)
 find_package(MPI)
