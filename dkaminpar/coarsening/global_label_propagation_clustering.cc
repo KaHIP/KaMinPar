@@ -53,12 +53,12 @@ struct DistributedGlobalLabelPropagationClusteringConfig : public shm::LabelProp
 } // namespace
 
 class DistributedGlobalLabelPropagationClusteringImpl final
-    : public shm::InOrderLabelPropagation<
+    : public shm::ChunkRandomizedLabelPropagation<
           DistributedGlobalLabelPropagationClusteringImpl, DistributedGlobalLabelPropagationClusteringConfig>,
       public shm::OwnedClusterVector<NodeID, GlobalNodeID> {
     SET_DEBUG(false);
 
-    using Base = shm::InOrderLabelPropagation<
+    using Base = shm::ChunkRandomizedLabelPropagation<
         DistributedGlobalLabelPropagationClusteringImpl, DistributedGlobalLabelPropagationClusteringConfig>;
     using ClusterBase = shm::OwnedClusterVector<NodeID, GlobalNodeID>;
 

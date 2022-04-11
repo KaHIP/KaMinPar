@@ -623,11 +623,9 @@ protected:
     }
 
     NodeID perform_iteration(const NodeID from = 0, const NodeID to = std::numeric_limits<NodeID>::max()) {
-        ALWAYS_ASSERT(from == 0 && to == std::numeric_limits<NodeID>::max())
-            << "randomized iteration does not support node ranges";
-
-        if (_chunks.empty()) {
-            init_chunks();
+        if (from != 0 || to != std::numeric_limits<NodeID>::max() || _chunks.empty()) {
+            _chunks.clear();
+            init_chunks(from, to);
         }
         shuffle_chunks();
 
@@ -695,13 +693,16 @@ private:
         });
     }
 
-    void init_chunks() {
+    // Note: we either use from/to or the bucket structure 
+    // If we use from/to (i.e., from > 0, to < n()), then there is only one bucket containing all nodes 
+    // If we use buckets (i.e., there is more than one bucket containing all nodes), then from == 0 and to == n()
+    void init_chunks(const NodeID from, const NodeID to) {
         const auto   max_bucket     = std::min<std::size_t>(math::floor_log2(_max_degree), _graph->number_of_buckets());
         const EdgeID max_chunk_size = std::max<EdgeID>(Config::kMinChunkSize, std::sqrt(_graph->m()));
         const NodeID max_node_chunk_size = std::max<NodeID>(Config::kMinChunkSize, std::sqrt(_graph->n()));
 
         for (std::size_t bucket = 0; bucket < max_bucket; ++bucket) {
-            const std::size_t bucket_size = _graph->bucket_size(bucket);
+            const std::size_t bucket_size = std::min<NodeID>(_graph->bucket_size(bucket), to - from);
             if (bucket_size == 0) {
                 continue;
             }
@@ -710,7 +711,7 @@ private:
             tbb::enumerable_thread_specific<std::size_t>        num_chunks_ets;
             tbb::enumerable_thread_specific<std::vector<Chunk>> chunks_ets;
 
-            const std::size_t bucket_start = _graph->first_node_in_bucket(bucket);
+            const std::size_t bucket_start = std::max(_graph->first_node_in_bucket(bucket), from);
 
             tbb::parallel_for(static_cast<int>(0), tbb::this_task_arena::max_concurrency(), [&](const int) {
                 auto& chunks     = chunks_ets.local();
