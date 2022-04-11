@@ -19,6 +19,7 @@
 #include <mpi.h>
 #include <omp.h>
 
+#include "dkaminpar/graphutils/allgather_graph.h"
 #include "dkaminpar/context.h"
 #include "dkaminpar/distributed_io.h"
 #include "dkaminpar/graphutils/rearrange_graph.h"
@@ -26,6 +27,7 @@
 #include "dkaminpar/utils/distributed_timer.h"
 #include "dkaminpar/utils/metrics.h"
 #include "kaminpar/definitions.h"
+#include "kaminpar/io.h"
 #include "kaminpar/utils/logger.h"
 #include "kaminpar/utils/random.h"
 #include "kaminpar/utils/timer.h"
@@ -136,6 +138,9 @@ int main(int argc, char* argv[]) {
                                                  : dist::io::DistributionType::NODE_BALANCED;
         return dist::io::read_graph(ctx.graph_filename, type);
     };
+
+    auto g = dist::graph::allgather(graph);
+    shm::io::metis::write("test.graph", g);
 
     // Print statistics
     {

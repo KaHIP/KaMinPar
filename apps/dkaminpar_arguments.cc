@@ -28,6 +28,7 @@ void create_graphgen_options(
       .argument(prefix + "-gamma", "Power law exponent (depending on model)", &g_ctx.gamma)
       .argument(prefix + "-save-graph", "Write the generated graph to the hard disk.", &g_ctx.save_graph)
       .argument(prefix + "-redistribute-edges", "Remap nodes such that edges are distributed evenly across PEs.", &g_ctx.redistribute_edges)
+      .argument(prefix + "-scale", "Scaling factor for the generated graph (e.g., number of PEs).", &g_ctx.scale)
         .line("Note: this option might be ignored depending on the selected graph generator.")
       ;
     // clang-format on

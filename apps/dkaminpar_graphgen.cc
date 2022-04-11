@@ -46,9 +46,8 @@ DistributedGraph build_graph(const EdgeList& edge_list, scalable_vector<GlobalNo
     scalable_vector<Atomic<NodeID>> buckets(n);
     tbb::parallel_for<EdgeID>(0, edge_list.size(), [&](const EdgeID e) {
         const GlobalNodeID u = std::get<0>(edge_list[e]);
-        if (from <= u && u < to) {
-            buckets[u - from].fetch_add(1, std::memory_order_relaxed);
-        }
+        ALWAYS_ASSERT(from <= u && u < to) << V(u) << V(from) << V(to);
+        buckets[u - from].fetch_add(1, std::memory_order_relaxed);
     });
     shm::parallel::prefix_sum(buckets.begin(), buckets.end(), buckets.begin());
     STOP_TIMER();
@@ -61,16 +60,15 @@ DistributedGraph build_graph(const EdgeList& edge_list, scalable_vector<GlobalNo
     graph::GhostNodeMapper  ghost_node_mapper(node_distribution);
     tbb::parallel_for<EdgeID>(0, edge_list.size(), [&](const EdgeID e) {
         const auto [u, v] = edge_list[e];
+        ALWAYS_ASSERT(from <= u && u < to) << V(u) << V(from) << V(to);
 
-        if (from <= u && u < to) {
-            const auto pos = buckets[u - from].fetch_sub(1, std::memory_order_relaxed) - 1;
-            ASSERT(pos < edges.size()) << V(pos) << V(edges.size());
+        const auto pos = buckets[u - from].fetch_sub(1, std::memory_order_relaxed) - 1;
+        ASSERT(pos < edges.size()) << V(pos) << V(edges.size());
 
-            if (from <= v && v < to) {
-                edges[pos] = static_cast<NodeID>(v - from);
-            } else {
-                edges[pos] = ghost_node_mapper.new_ghost_node(v);
-            }
+        if (from <= v && v < to) {
+            edges[pos] = static_cast<NodeID>(v - from);
+        } else {
+            edges[pos] = ghost_node_mapper.new_ghost_node(v);
         }
     });
     STOP_TIMER();
@@ -101,7 +99,7 @@ DistributedGraph build_graph(const EdgeList& edge_list, scalable_vector<GlobalNo
 
 scalable_vector<GlobalNodeID> build_node_distribution(const std::pair<SInt, SInt> range) {
     const auto [size, rank] = mpi::get_comm_info();
-    const GlobalNodeID to   = range.second + 1;
+    const GlobalNodeID to   = range.second;
 
     scalable_vector<GlobalNodeID> node_distribution(size + 1);
     mpi::allgather(&to, 1, node_distribution.data() + 1, 1);
@@ -114,6 +112,7 @@ DistributedGraph create_rgg2d(const GlobalNodeID n, const double r, const BlockI
         const auto [size, rank] = mpi::get_comm_info();
         KaGen gen(rank, size);
         gen.SetSeed(seed);
+        gen.EnableUndirectedGraphVerification();
         return gen.Generate2DRGG(n, r, k);
     };
     return build_graph(edges, build_node_distribution(range));
@@ -137,20 +136,13 @@ DistributedGraph generate(const GeneratorContext ctx, const int seed) {
 
         case GeneratorType::RGG2D: {
             ALWAYS_ASSERT(ctx.r > 0) << "Radius cannot be zero";
-            ALWAYS_ASSERT(ctx.n > 0 || ctx.m > 0) << "Number of nodes or number of edges must be specified";
-            ALWAYS_ASSERT(ctx.n == 0 || ctx.m == 0) << "Cannot specify both number of nodes and number of edges";
 
-            GlobalNodeID n = 1;
-            if (ctx.m > 0) {
-                GlobalEdgeID m = 1;
-                m <<= ctx.m;
-                n = static_cast<GlobalNodeID>(std::sqrt(1.0 * static_cast<double>(m) * M_PI) / ctx.r);
-            } else {
-                n <<= ctx.n;
-            }
+            const GlobalEdgeID m      = (static_cast<GlobalEdgeID>(1) << ctx.m) * ctx.scale;
+            const double       radius = ctx.r / std::sqrt(ctx.scale);
+            const GlobalNodeID n      = static_cast<GlobalNodeID>(std::sqrt(1.0 * m / M_PI) / radius);
 
-            LOG << "Generate 2D RGG graph with n=" << n << ", r=" << ctx.r << ", k=" << ctx.k << ", seed=" << seed;
-            return create_rgg2d(n, ctx.r, ctx.k, seed);
+            LOG << "Generate 2D RGG graph with n=" << n << " m=" << m << " r=" << radius << " scale=" << ctx.scale;
+            return create_rgg2d(n, radius, ctx.k, seed);
         }
 
         case GeneratorType::RHG: {
