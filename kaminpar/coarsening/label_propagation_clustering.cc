@@ -86,7 +86,7 @@ public:
     [[nodiscard]] bool accept_cluster(const Base::ClusterSelectionState& state) {
         return (state.current_gain > state.best_gain
                 || (state.current_gain == state.best_gain && state.local_rand.random_bool()))
-               && (state.current_cluster_weight + state.u_weight < max_cluster_weight(state.current_cluster)
+               && (state.current_cluster_weight + state.u_weight <= max_cluster_weight(state.current_cluster)
                    || state.current_cluster == state.initial_cluster);
     }
 

@@ -24,16 +24,21 @@ struct UnorderedRatingMap {
     EdgeWeight& operator[](const GlobalNodeID key) {
         return map[key];
     }
+
     [[nodiscard]] auto& entries() {
         return map;
     }
+
     void clear() {
         map.clear();
     }
+
     std::size_t capacity() const {
         return std::numeric_limits<std::size_t>::max();
     }
-    void                                         resize(const std::size_t /* capacity */) {}
+
+    void resize(const std::size_t /* capacity */) {}
+
     std::unordered_map<GlobalNodeID, EdgeWeight> map{};
 };
 
