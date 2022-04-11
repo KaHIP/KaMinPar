@@ -37,6 +37,8 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
     }
 
     {
+        SCOPED_TIMER("Coarsening");
+
         auto clustering_algorithm = TIMED_SCOPE("Allocation") {
             return factory::create_global_clustering(_ctx);
         };
@@ -119,50 +121,55 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
     ////////////////////////////////////////////////////////////////////////////////
     // Step 3: Refinement
     ////////////////////////////////////////////////////////////////////////////////
-    if (mpi::get_comm_rank() == 0) {
-        shm::cio::print_banner("Refinement");
-    }
+    {
+        SCOPED_TIMER("Uncoarsening");
 
-    auto refinement_algorithm = TIMED_SCOPE("Allocation") {
-        return factory::create_distributed_refiner(_ctx);
-    };
-
-    auto refine = [&](DistributedPartitionedGraph& p_graph) {
-        SCOPED_TIMER("Refinement");
-        refinement_algorithm->initialize(p_graph.graph(), _ctx.partition);
-        refinement_algorithm->refine(p_graph);
-        HEAVY_ASSERT(graph::debug::validate_partition(p_graph));
-    };
-
-    // Uncoarsen and refine
-    while (!graph_hierarchy.empty()) {
-        SCOPED_TIMER("Uncoarsening", std::string("Level ") + std::to_string(graph_hierarchy.size()));
-
-        {
-            SCOPED_TIMER("Uncontraction");
-
-            const auto* current_graph =
-                graph_hierarchy.size() <= 1 ? &_graph : &graph_hierarchy[graph_hierarchy.size() - 2];
-            HEAVY_ASSERT(graph::debug::validate(*current_graph));
-
-            dist_p_graph = coarsening::project_global_contracted_graph(
-                *current_graph, std::move(dist_p_graph), mapping_hierarchy.back());
-            HEAVY_ASSERT(graph::debug::validate_partition(dist_p_graph));
-
-            graph_hierarchy.pop_back();
-            mapping_hierarchy.pop_back();
-
-            // update graph ptr in case graph_hierarchy was reallocated by the pop_back() operation
-            dist_p_graph.UNSAFE_set_graph(graph_hierarchy.empty() ? &_graph : &graph_hierarchy.back());
+        if (mpi::get_comm_rank() == 0) {
+            shm::cio::print_banner("Refinement");
         }
 
-        refine(dist_p_graph);
+        auto refinement_algorithm = TIMED_SCOPE("Allocation") {
+            return factory::create_distributed_refiner(_ctx);
+        };
 
-        // Output refinement statistics
-        const auto current_cut       = metrics::edge_cut(dist_p_graph);
-        const auto current_imbalance = metrics::imbalance(dist_p_graph);
+        auto refine = [&](DistributedPartitionedGraph& p_graph) {
+            SCOPED_TIMER("Refinement");
+            refinement_algorithm->initialize(p_graph.graph(), _ctx.partition);
+            refinement_algorithm->refine(p_graph);
+            HEAVY_ASSERT(graph::debug::validate_partition(p_graph));
+        };
 
-        LOG << "=> level=" << graph_hierarchy.size() << " cut=" << current_cut << " imbalance=" << current_imbalance;
+        // Uncoarsen and refine
+        while (!graph_hierarchy.empty()) {
+            SCOPED_TIMER("Uncoarsening", std::string("Level ") + std::to_string(graph_hierarchy.size()));
+
+            {
+                SCOPED_TIMER("Uncontraction");
+
+                const auto* current_graph =
+                    graph_hierarchy.size() <= 1 ? &_graph : &graph_hierarchy[graph_hierarchy.size() - 2];
+                HEAVY_ASSERT(graph::debug::validate(*current_graph));
+
+                dist_p_graph = coarsening::project_global_contracted_graph(
+                    *current_graph, std::move(dist_p_graph), mapping_hierarchy.back());
+                HEAVY_ASSERT(graph::debug::validate_partition(dist_p_graph));
+
+                graph_hierarchy.pop_back();
+                mapping_hierarchy.pop_back();
+
+                // update graph ptr in case graph_hierarchy was reallocated by the pop_back() operation
+                dist_p_graph.UNSAFE_set_graph(graph_hierarchy.empty() ? &_graph : &graph_hierarchy.back());
+            }
+
+            refine(dist_p_graph);
+
+            // Output refinement statistics
+            const auto current_cut       = metrics::edge_cut(dist_p_graph);
+            const auto current_imbalance = metrics::imbalance(dist_p_graph);
+
+            LOG << "=> level=" << graph_hierarchy.size() << " cut=" << current_cut
+                << " imbalance=" << current_imbalance;
+        }
     }
 
     return dist_p_graph;
