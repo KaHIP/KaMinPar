@@ -7,13 +7,13 @@
  ******************************************************************************/
 #include "apps/dkaminpar_graphgen.h"
 
-#include <kagen_interface.h>
+#include <kagen_library.h>
 #include <tbb/parallel_sort.h>
 
 #include "dkaminpar/coarsening/contraction_helper.h"
 #include "dkaminpar/datastructure/distributed_graph_builder.h"
 #include "dkaminpar/mpi_wrapper.h"
-#include "kaminpar/parallel.h"
+#include "kaminpar/parallel/atomic.h"
 #include "kaminpar/utils/random.h"
 #include "kaminpar/utils/timer.h"
 
@@ -26,12 +26,13 @@ DEFINE_ENUM_STRING_CONVERSION(GeneratorType, generator_type) = {
     {GeneratorType::BA, "ba"},
 };
 
-using namespace kagen::interface;
+using namespace kagen;
 
 namespace {
 SET_DEBUG(false);
 
-DistributedGraph build_graph_directed(const auto& edge_list, scalable_vector<GlobalNodeID> node_distribution) {
+template <typename EdgeList>
+DistributedGraph build_graph_directed(const EdgeList& edge_list, scalable_vector<GlobalNodeID> node_distribution) {
     const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
 
     auto find_node_owner = [&](const GlobalNodeID node) {
@@ -93,7 +94,8 @@ DistributedGraph build_graph_directed(const auto& edge_list, scalable_vector<Glo
     return graph;
 }
 
-DistributedGraph build_graph(const auto& edge_list, scalable_vector<GlobalNodeID> node_distribution) {
+template <typename EdgeList>
+DistributedGraph build_graph(const EdgeList& edge_list, scalable_vector<GlobalNodeID> node_distribution) {
     SCOPED_TIMER("Build graph from edge list");
 
     const auto [size, rank] = mpi::get_comm_info();
@@ -107,7 +109,7 @@ DistributedGraph build_graph(const auto& edge_list, scalable_vector<GlobalNodeID
     START_TIMER("Bucket sort");
     scalable_vector<Atomic<NodeID>> buckets(n);
     tbb::parallel_for<EdgeID>(0, edge_list.size(), [&](const EdgeID e) {
-        const GlobalNodeID u = edge_list[e].first;
+        const GlobalNodeID u = std::get<0>(edge_list[e]);
         if (from <= u && u < to) {
             buckets[u - from].fetch_add(1, std::memory_order_relaxed);
         }
@@ -122,11 +124,10 @@ DistributedGraph build_graph(const auto& edge_list, scalable_vector<GlobalNodeID
     scalable_vector<EdgeID> edges(m);
     graph::GhostNodeMapper  ghost_node_mapper(node_distribution);
     tbb::parallel_for<EdgeID>(0, edge_list.size(), [&](const EdgeID e) {
-        const GlobalNodeID u = edge_list[e].first;
+        const auto [u, v] = edge_list[e];
 
         if (from <= u && u < to) {
-            const GlobalNodeID v   = edge_list[e].second;
-            const auto         pos = buckets[u - from].fetch_sub(1, std::memory_order_relaxed) - 1;
+            const auto pos = buckets[u - from].fetch_sub(1, std::memory_order_relaxed) - 1;
             ASSERT(pos < edges.size()) << V(pos) << V(edges.size());
 
             if (from <= v && v < to) {
@@ -173,75 +174,24 @@ scalable_vector<GlobalNodeID> build_node_distribution(const std::pair<SInt, SInt
 }
 } // namespace
 
-/*
-DistributedGraph create_undirected_gmm(const GlobalNodeID n, const GlobalEdgeID m, const BlockID k, const int seed) {
-const auto [edges, range] = TIMED_SCOPE("KaGen") {
-  const auto [size, rank] = mpi::get_comm_info();
-  return KaGen{rank, size}.GenerateUndirectedGNM(n, m, k, seed);
-};
-return build_graph(edges, build_node_distribution(range));
-}
-*/
-
 DistributedGraph create_rgg2d(const GlobalNodeID n, const double r, const BlockID k, const int seed) {
     const auto [edges, range] = TIMED_SCOPE("KaGen") {
         const auto [size, rank] = mpi::get_comm_info();
-        return KaGen{rank, size}.Generate2DRGG(n, r, k, seed);
+        KaGen gen(rank, size);
+        gen.SetSeed(seed);
+        return gen.Generate2DRGG(n, r, k);
     };
-
-    LOG << "Building graph with " << edges.size() << " edges on PE 0";
     return build_graph(edges, build_node_distribution(range));
 }
 
 DistributedGraph create_rhg(const GlobalNodeID n, const double gamma, const NodeID d, const BlockID k, const int seed) {
     const auto [edges, range] = TIMED_SCOPE("KaGen") {
         const auto [size, rank] = mpi::get_comm_info();
-        return KaGen{rank, size}.GenerateRHG(n, gamma, d, k, seed);
+        KaGen gen(rank, size);
+        gen.SetSeed(seed);
+        return gen.GenerateRHG(n, gamma, d, k);
     };
     return build_graph(edges, build_node_distribution(range));
-}
-
-/*
-DistributedGraph create_kronecker(const GlobalNodeID n, const GlobalEdgeID m, const BlockID k, const int seed) {
-const auto [edges, range] = TIMED_SCOPE("KaGen") {
-  const auto [size, rank] = mpi::get_comm_info();
-  return KaGen{rank, size}.GenerateKronecker(n, m, k, seed);
-};
-return build_graph(edges, build_node_distribution(range));
-}
-*/
-
-/*
-DistributedGraph create_rdg2d(const GlobalNodeID n, const BlockID k, const int seed) {
-const auto [edges, range] = TIMED_SCOPE("KaGen") {
-  const auto [size, rank] = mpi::get_comm_info();
-  return KaGen{rank, size}.Generate2DRDG(n, k, seed);
-};
-return build_graph(edges, build_node_distribution(range));
-}
-*/
-
-DistributedGraph
-create_ba(const GlobalNodeID n, const NodeID d, const BlockID k, const int seed, const bool redistribute_edges) {
-    auto result = TIMED_SCOPE("KaGen") {
-        const auto [size, rank] = mpi::get_comm_info();
-        return KaGen{rank, size}.GenerateBA(n, d, k, seed);
-    };
-
-    auto& edges             = result.edges;
-    auto  node_distribution = build_node_distribution(result.vertex_range);
-
-    if (redistribute_edges) {
-        const auto size     = mpi::get_comm_size(MPI_COMM_WORLD);
-        const auto global_n = node_distribution.back();
-        tbb::parallel_for<std::size_t>(0, edges.size(), [&](const std::size_t i) {
-            auto& [u, v] = edges[i];
-            u            = math::distribute_round_robin<GlobalNodeID>(global_n, size, u);
-            v            = math::distribute_round_robin<GlobalNodeID>(global_n, size, v);
-        });
-    }
-
-    return build_graph_directed(edges, std::move(node_distribution));
 }
 
 DistributedGraph generate(const GeneratorContext ctx) {
@@ -251,17 +201,6 @@ DistributedGraph generate(const GeneratorContext ctx) {
         case GeneratorType::NONE:
             FATAL_ERROR << "no graph generator configured";
             break;
-
-            /*
-          case GeneratorType::GNM: {
-            ALWAYS_ASSERT(ctx.n > 0 && ctx.m > 0) << "Must specify bost number of nodes and number of edges";
-            GlobalNodeID n = 1;
-            GlobalEdgeID m = 1;
-            n <<= ctx.n;
-            m <<= ctx.m;
-            return create_undirected_gmm(n, m, ctx.k, seed);
-          }
-            */
 
         case GeneratorType::RGG2D: {
             ALWAYS_ASSERT(ctx.r > 0) << "Radius cannot be zero";
@@ -300,57 +239,6 @@ DistributedGraph generate(const GeneratorContext ctx) {
                 << ", seed=" << seed;
             return create_rhg(n, ctx.gamma, ctx.d, ctx.k, seed);
         }
-
-        case GeneratorType::BA: {
-            ALWAYS_ASSERT(ctx.d > 0) << "Must specify minimum degree";
-            ALWAYS_ASSERT(ctx.n > 0 || ctx.m > 0) << "Must specify number of nodes or number of edges";
-            ALWAYS_ASSERT(ctx.n == 0 || ctx.m == 0) << "Cannot specify both number of nodes and number of edges";
-
-            GlobalNodeID n = 1;
-            if (ctx.m > 0) {
-                GlobalEdgeID m = 1;
-                m <<= ctx.m;
-                n = m / ctx.d / 2;
-            } else {
-                n <<= ctx.n;
-            }
-
-            LOG << "Generate BA graph with n=" << n << ", d=" << ctx.d << ", k=" << ctx.k << ", seed=" << seed
-                << ", redistribute edges: " << ctx.redistribute_edges;
-            return create_ba(n, ctx.d, ctx.k, seed, ctx.redistribute_edges);
-        }
-
-            /*
-          case GeneratorType::KRONECKER: {
-            ALWAYS_ASSERT(false) << "broken -- does not generate any edges";
-            ALWAYS_ASSERT(ctx.n > 0 && ctx.m > 0) << "Must specify number of nodes and number of edges";
-            GlobalNodeID n = 1;
-            GlobalEdgeID m = 1;
-            n <<= ctx.n;
-            m <<= ctx.m;
-
-            return create_kronecker(n, m, ctx.k, seed);
-          }
-            */
-
-            /*
-          case GeneratorType::RDG2D: {
-            ALWAYS_ASSERT(false) << "broken";
-            ALWAYS_ASSERT(ctx.n > 0 || ctx.m > 0) << "Must specify number of nodes or number of edges";
-            ALWAYS_ASSERT(ctx.n == 0 || ctx.m == 0) << "Cannot specify both number of nodes and number of edges";
-            GlobalNodeID n = 1;
-
-            if (ctx.m > 0) {
-              GlobalEdgeID m = 1;
-              m <<= ctx.m;
-              n = m / 6;
-            } else {
-              n <<= ctx.n;
-            }
-            FATAL_ERROR << "disabled";
-            //  return create_rdg2d(n, ctx.k, seed);
-          }
-            */
 
         default:
             FATAL_ERROR << "graph generator is deactivated";

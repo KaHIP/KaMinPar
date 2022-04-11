@@ -52,7 +52,7 @@ endif ()
 
 add_distributed_app(dKaMinPar dkaminpar.cc ${DKAMINPAR_SOURCE_FILES})
 if (KAMINPAR_GRAPHGEN)
-    target_link_libraries(dkaminpar public kagen_library)
+    target_link_libraries(dKaMinPar PUBLIC kagen_library)
 endif ()
 
 add_subdirectory(benchmarks)
