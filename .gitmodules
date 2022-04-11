@@ -1,15 +1,12 @@
-[submodule "external_tools/googletest"]
-	path = external_tools/googletest
+[submodule "extern/KaGen"]
+	path = extern/KaGen
+	url = git@github.com:sebalamm/KaGen.git
+[submodule "extern/googletest"]
+	path = extern/googletest
 	url = https://github.com/google/googletest.git
-	ignore = dirty
-[submodule "external_tools/backward-cpp"]
-	path = external_tools/backward-cpp
+[submodule "extern/growt"]
+	path = extern/growt
+	url = https://github.com/TooBiased/growt.git
+[submodule "extern/backward-cpp"]
+	path = extern/backward-cpp
 	url = https://github.com/bombela/backward-cpp.git
-[submodule "external_tools/growt"]
-	path = external_tools/growt
-	url = https://github.com/DanielSeemaier/growt.git
-	ignore = dirty
-[submodule "external_tools/KaGen"]
-	path = external_tools/KaGen
-	url = git@github.com:DanielSeemaier/KaGen.git
-	ignore = dirty

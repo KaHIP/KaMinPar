@@ -91,7 +91,7 @@ endif ()
 
 if (KAMINPAR_TESTS)
     add_definitions(-DKAMINPAR_BUILD_TESTS)
-    add_subdirectory("${PROJECT_SOURCE_DIR}/external_tools/googletest" "external_tools/googletest")
+    add_subdirectory("${PROJECT_SOURCE_DIR}/extern/googletest" "extern/googletest")
     include(gmock)
 
     message(STATUS "Building with unit tests.")
@@ -105,7 +105,7 @@ endif ()
 # Backward-cpp for stack traces in MPI code
 if (KAMINPAR_BACKWARD_CPP)
     set(CMAKE_POLICY_DEFAULT_CMP0063 NEW)
-    add_subdirectory(external_tools/backward-cpp)
+    add_subdirectory(extern/backward-cpp)
     add_definitions(-DKAMINPAR_BACKWARD_CPP)
     message(STATUS "Building with backward-cpp.")
 endif ()
@@ -117,7 +117,7 @@ find_package(MPI)
 # Only include Growt if we can build the distributed partitioner
 if (KAMINPAR_ENABLE_DISTRIBUTED_PARTITIONER AND MPI_FOUND)
     add_library(growt INTERFACE)
-    target_include_directories(growt INTERFACE external_tools/growt/)
+    target_include_directories(growt INTERFACE extern/growt/)
 endif ()
 
 # Shared memory components
@@ -129,7 +129,7 @@ if (KAMINPAR_ENABLE_DISTRIBUTED_PARTITIONER AND MPI_FOUND)
     if (KAMINPAR_GRAPHGEN) # KaGen
         set(CMAKE_POLICY_DEFAULT_CMP0063 NEW)
         set(CGAL_DO_NOT_WARN_ABOUT_CMAKE_BUILD_TYPE TRUE)
-        add_subdirectory(external_tools/KaGen/)
+        add_subdirectory(extern/KaGen/)
         add_definitions(-DKAMINPAR_GRAPHGEN)
     endif ()
 
