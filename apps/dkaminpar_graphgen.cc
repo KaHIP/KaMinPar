@@ -129,9 +129,7 @@ DistributedGraph create_rhg(const GlobalNodeID n, const double gamma, const Node
     return build_graph(edges, build_node_distribution(range));
 }
 
-DistributedGraph generate(const GeneratorContext ctx) {
-    const int seed = static_cast<int>(shm::Randomize::instance().random_index(0, std::numeric_limits<int>::max()));
-
+DistributedGraph generate(const GeneratorContext ctx, const int seed) {
     switch (ctx.type) {
         case GeneratorType::NONE:
             FATAL_ERROR << "no graph generator configured";

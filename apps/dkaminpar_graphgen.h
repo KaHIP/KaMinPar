@@ -37,5 +37,5 @@ struct GeneratorContext {
     bool          redistribute_edges{false};
 };
 
-DistributedGraph generate(GeneratorContext ctx);
+DistributedGraph generate(GeneratorContext ctx, int seed = 0);
 } // namespace dkaminpar::graphgen
