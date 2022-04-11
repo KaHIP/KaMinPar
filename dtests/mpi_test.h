@@ -229,6 +229,11 @@ DistributedGraph use_global_id_as_node_weight(DistributedGraph graph) {
 }
 
 struct NodeWeightIdentifiedEdge {
+    NodeWeightIdentifiedEdge(const NodeWeight u_weight, const EdgeWeight weight, const NodeWeight v_weight)
+        : u_weight(u_weight),
+          weight(weight),
+          v_weight(v_weight) {}
+
     NodeWeight u_weight;
     EdgeWeight weight;
     NodeWeight v_weight;

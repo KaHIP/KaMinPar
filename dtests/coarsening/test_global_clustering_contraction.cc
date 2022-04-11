@@ -71,8 +71,9 @@ TYPED_TEST_SUITE(PathGraph, Contractors);
 
 namespace {
 // expected_mapped_node_weights[i] should contain the expected node weight of the coarse node of node i
+template <typename Mapping>
 void expect_mapping(
-    const DistributedGraph& f_graph, const DistributedGraph& c_graph, const auto& mapping,
+    const DistributedGraph& f_graph, const DistributedGraph& c_graph, const Mapping& mapping,
     const std::vector<NodeWeight>& expected_mapped_node_weights) {
     const auto shm_graph = dkaminpar::graph::allgather(c_graph);
 

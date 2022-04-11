@@ -60,7 +60,7 @@ TEST_F(DistributedEdgesFixture, ContractingEdgesSimultaneouslyWorks) {
 TEST_F(DistributedEdgesFixture, ContractingEdgeOnOnePEWorks) {
     mpi::barrier(MPI_COMM_WORLD);
 
-    scalable_vector<shm::parallel::IntegralAtomicWrapper<NodeID>> clustering;
+    scalable_vector<shm::parallel::Atomic<NodeID>> clustering;
     clustering.push_back(0);
     clustering.push_back((rank == 0) ? 0 : 1);
     // {0, 0} on PE 0, {0, 1} on PEs 1, 2
@@ -133,7 +133,7 @@ TEST_F(DistributedTrianglesFixture, ContractingTriangleOnOnePEWorks) {
     mpi::barrier(MPI_COMM_WORLD);
 
     // contract all nodes on PE 0, keep nodes on PEs 1, 2
-    scalable_vector<shm::parallel::IntegralAtomicWrapper<NodeID>> clustering;
+    scalable_vector<shm::parallel::Atomic<NodeID>> clustering;
     clustering.push_back(0);
     clustering.push_back((rank == 0) ? 0 : 1);
     clustering.push_back((rank == 0) ? 0 : 2);
@@ -164,7 +164,7 @@ TEST_F(DistributedTrianglesFixture, ContractigTrianglesOnTwoPEsWorks) {
     mpi::barrier(MPI_COMM_WORLD);
 
     // contract all nodes on PE 0 and 1, keep nodes on PEs 2
-    scalable_vector<shm::parallel::IntegralAtomicWrapper<NodeID>> clustering;
+    scalable_vector<shm::parallel::Atomic<NodeID>> clustering;
     clustering.push_back(0);
     clustering.push_back((rank < 2) ? 0 : 1);
     clustering.push_back((rank < 2) ? 0 : 2);
