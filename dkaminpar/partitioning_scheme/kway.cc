@@ -39,9 +39,8 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
             return factory::create_global_clustering(_ctx);
         };
 
-        int level = 0;
         while (c_graph->global_n() > _ctx.partition.k * _ctx.coarsening.contraction_limit) {
-            SCOPED_TIMER("Coarsening", std::string("Level ") + std::to_string(level));
+            SCOPED_TIMER("Coarsening", std::string("Level ") + std::to_string(graph_hierarchy.size()));
 
             shm::PartitionContext shm_p_ctx = _ctx.initial_partitioning.sequential.partition;
             shm_p_ctx.k                     = _ctx.partition.k;
@@ -75,7 +74,7 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
             const std::string max_node_weight_str =
                 mpi::gather_statistics_str<GlobalNodeWeight>(c_graph->max_node_weight(), c_graph->communicator());
 
-            LOG << "=> level=" << level << " "
+            LOG << "=> level=" << graph_hierarchy.size() << " "
                 << "global_n=" << c_graph->global_n() << " "
                 << "global_m=" << c_graph->global_m() << " "
                 << "n=[" << n_str << "] "
@@ -83,7 +82,6 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
                 << "m=[" << m_str << "] "
                 << "max_node_weight=[" << max_node_weight_str << "] "
                 << "max_cluster_weight=" << max_cluster_weight;
-            level++;
 
             if (converged) {
                 LOG << "==> Coarsening converged";
@@ -132,7 +130,7 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
 
     // Uncoarsen and refine
     while (!graph_hierarchy.empty()) {
-        SCOPED_TIMER("Uncoarsening");
+        SCOPED_TIMER("Uncoarsening", std::string("Level ") + std::to_string(graph_hierarchy.size()));
 
         {
             SCOPED_TIMER("Uncontraction");
@@ -154,10 +152,11 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
 
         refine(dist_p_graph);
 
+        // Output refinement statistics
         const auto current_cut       = metrics::edge_cut(dist_p_graph);
         const auto current_imbalance = metrics::imbalance(dist_p_graph);
 
-        LOG << "Cut after LP: cut=" << current_cut << " imbalance=" << current_imbalance;
+        LOG << "=> level=" << graph_hierarchy.size() << " cut=" << current_cut << " imbalance=" << current_imbalance;
     }
 
     return dist_p_graph;

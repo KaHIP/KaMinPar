@@ -29,6 +29,7 @@
 #include "kaminpar/utils/logger.h"
 #include "kaminpar/utils/random.h"
 #include "kaminpar/utils/timer.h"
+#include "kaminpar/utils/console_io.h"
 
 namespace dist = dkaminpar;
 namespace shm  = kaminpar;
@@ -62,6 +63,7 @@ void print_result_statistics(const dist::DistributedPartitionedGraph& p_graph, c
 
     const bool is_root = dist::mpi::get_comm_rank(MPI_COMM_WORLD) == 0;
     if (is_root && !ctx.quiet) {
+	std::cout << "TIME ";
         shm::Timer::global().print_machine_readable(std::cout);
     }
     LOG;
@@ -162,6 +164,8 @@ int main(int argc, char* argv[]) {
     STOP_TIMER();
 
     // Output statistics
+    shm::cio::print_banner("Statistics");
+
     dist::mpi::barrier();
     STOP_TIMER(); // stop root timer
     print_result_statistics(p_graph, ctx);
