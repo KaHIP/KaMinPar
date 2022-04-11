@@ -32,7 +32,9 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
     ////////////////////////////////////////////////////////////////////////////////
     // Step 1: Coarsening
     ////////////////////////////////////////////////////////////////////////////////
-    shm::cio::print_banner("Coarsening");
+    if (mpi::get_comm_rank() == 0) {
+        shm::cio::print_banner("Coarsening");
+    }
 
     {
         auto clustering_algorithm = TIMED_SCOPE("Allocation") {
@@ -93,7 +95,9 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
     ////////////////////////////////////////////////////////////////////////////////
     // Step 2: Initial Partitioning
     ////////////////////////////////////////////////////////////////////////////////
-    shm::cio::print_banner("Initial Partitioning");
+    if (mpi::get_comm_rank() == 0) {
+        shm::cio::print_banner("Initial Partitioning");
+    }
 
     auto initial_partitioner = TIMED_SCOPE("Allocation") {
         return factory::create_initial_partitioner(_ctx);
@@ -115,7 +119,9 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
     ////////////////////////////////////////////////////////////////////////////////
     // Step 3: Refinement
     ////////////////////////////////////////////////////////////////////////////////
-    shm::cio::print_banner("Refinement");
+    if (mpi::get_comm_rank() == 0) {
+        shm::cio::print_banner("Refinement");
+    }
 
     auto refinement_algorithm = TIMED_SCOPE("Allocation") {
         return factory::create_distributed_refiner(_ctx);
