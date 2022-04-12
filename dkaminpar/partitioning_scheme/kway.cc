@@ -14,6 +14,7 @@
 #include "dkaminpar/utils/metrics.h"
 #include "kaminpar/metrics.h"
 #include "kaminpar/utils/console_io.h"
+#include "kaminpar/utils/strings.h"
 #include "kaminpar/utils/timer.h"
 
 namespace dkaminpar {
@@ -21,8 +22,10 @@ SET_DEBUG(true);
 
 namespace {
 void save_imbalanced_graph_partition(const DistributedPartitionedGraph& p_graph, const Context& ctx, int level) {
-    const std::string graph_filename     = ctx.graph_filename + ".level" + std::to_string(level) + ".graph";
-    const std::string partition_filename = ctx.graph_filename + ".level" + std::to_string(level) + ".part";
+    const std::string base               = shm::utility::str::extract_basename(ctx.graph_filename);
+    const std::string graph_filename     = base + ".level" + std::to_string(level) + ".graph";
+    const std::string partition_filename = base + ".level" + std::to_string(level) + ".part";
+
     io::metis::write(graph_filename, p_graph.graph());
     io::partition::write(partition_filename, p_graph.partition());
 }
@@ -128,7 +131,9 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
 
     LOG << "Initial partition: cut=" << initial_cut << " imbalance=" << initial_imbalance;
 
+    LOG << V(_ctx.save_imbalanced_partitions) << V(initial_imbalance) << V(_ctx.partition.epsilon);
     if (_ctx.save_imbalanced_partitions && initial_imbalance > _ctx.partition.epsilon) {
+        LOG << "STORE";
         save_imbalanced_graph_partition(dist_p_graph, _ctx, static_cast<int>(graph_hierarchy.size()));
     }
 
