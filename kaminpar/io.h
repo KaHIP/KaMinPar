@@ -249,6 +249,27 @@ void write(const std::string& filename, const std::vector<BlockID>& partition);
 void write(const std::string& filename, const PartitionedGraph& p_graph);
 void write(const std::string& filename, const StaticArray<BlockID>& partition, const StaticArray<NodeID>& permutation);
 void write(const std::string& filename, const PartitionedGraph& p_graph, const StaticArray<NodeID>& permutation);
+
+template <typename Container = std::vector<BlockID>>
+Container read(const std::string& filename) {
+    using namespace internal;
+
+    auto                 mapped_file = mmap_file_from_disk(filename);
+    std::vector<BlockID> partition;
+    while (mapped_file.valid_position()) {
+        partition.push_back(scan_uint(mapped_file));
+        skip_nl(mapped_file);
+    }
+    munmap_file_from_disk(mapped_file);
+
+    if constexpr (std::is_same_v<Container, std::vector<BlockID>>) {
+        return partition;
+    } else {
+        Container copy(partition.size());
+        std::copy(partition.begin(), partition.end(), copy.begin());
+        return copy;
+    }
+}
 std::vector<BlockID> read(const std::string& filename);
 } // namespace partition
 } // namespace kaminpar::io

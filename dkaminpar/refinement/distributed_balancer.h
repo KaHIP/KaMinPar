@@ -8,6 +8,7 @@
 #pragma once
 
 #include "dkaminpar/context.h"
+#include "dkaminpar/datastructure/distributed_graph.h"
 
 namespace dkaminpar {
 class DistributedBalancer {
@@ -19,6 +20,9 @@ public:
 
     DistributedBalancer(DistributedBalancer&&) noexcept = default;
     DistributedBalancer& operator=(DistributedBalancer&&) noexcept = default;
+
+    void initialize(const DistributedPartitionedGraph& p_graph);
+    void balance(DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx);
 };
 }; // namespace dkaminpar
 

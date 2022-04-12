@@ -27,7 +27,10 @@ void save_imbalanced_graph_partition(const DistributedPartitionedGraph& p_graph,
     const std::string partition_filename = base + ".level" + std::to_string(level) + ".part";
 
     io::metis::write(graph_filename, p_graph.graph());
-    io::partition::write(partition_filename, p_graph.partition());
+
+    std::vector<BlockID> partition(p_graph.n());
+    std::copy_n(p_graph.partition().begin(), p_graph.n(), partition.begin());
+    io::partition::write(partition_filename, partition);
 }
 } // namespace
 

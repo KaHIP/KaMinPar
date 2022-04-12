@@ -21,7 +21,11 @@ function(add_distributed_benchmark target)
 endfunction()
 
 add_benchmark(coarsening_benchmark coarsening_benchmark.cc)
+add_benchmark(balancing_benchmark balancing_benchmark.cc)
+
 add_distributed_benchmark(dcoarsening_benchmark dcoarsening_benchmark.cc)
+add_distributed_benchmark(dbalancing_benchmark dbalancing_benchmark.cc)
+
 if (KAMINPAR_GRAPHGEN)
     add_distributed_benchmark(graphgen_benchmark graphgen_benchmark.cc)
 endif ()

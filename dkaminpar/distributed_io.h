@@ -15,6 +15,7 @@
 
 #include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/mpi_wrapper.h"
+#include "kaminpar/io.h"
 
 namespace dkaminpar::io {
 enum class DistributionType {
@@ -39,7 +40,42 @@ DistributedGraph read_edge_balanced(const std::string& filename, MPI_Comm comm =
 
 namespace partition {
 template <typename Container>
+Container read(const std::string& filename, const NodeID n, MPI_Comm comm = MPI_COMM_WORLD) {
+    using namespace shm::io::internal;
+
+    const GlobalNodeID   offset      = mpi::exscan(static_cast<GlobalNodeID>(n), MPI_SUM, comm);
+    auto                 mapped_file = mmap_file_from_disk(filename);
+    GlobalNodeID         current     = 0;
+    std::vector<BlockID> partition;
+
+    while (mapped_file.valid_position()) {
+        if (current >= offset + n) {
+            break;
+        } else if (current >= offset) {
+            partition.push_back(scan_uint(mapped_file));
+        } else {
+            scan_uint(mapped_file);
+        }
+        skip_nl(mapped_file);
+        ++current;
+    }
+
+    if constexpr (std::is_same_v<Container, std::vector<BlockID>>) {
+        return partition;
+    } else {
+        Container copy(partition.size());
+        std::copy(partition.begin(), partition.end(), copy.begin());
+        return copy;
+    }
+}
+
+template <typename Container>
 void write(const std::string& filename, const Container& partition) {
+    if (mpi::get_comm_rank() == 0) { // clear file
+        std::ofstream tmp(filename);
+    }
+    mpi::barrier();
+
     mpi::sequentially([&](PEID) {
         std::ofstream out(filename, std::ios_base::out | std::ios_base::app);
         for (const auto& b: partition) {

@@ -176,18 +176,5 @@ void write(const std::string& filename, const StaticArray<BlockID>& partition, c
 void write(const std::string& filename, const PartitionedGraph& p_graph, const StaticArray<NodeID>& permutation) {
     write(filename, p_graph.partition(), permutation);
 }
-
-std::vector<BlockID> read(const std::string& filename) {
-    using namespace internal;
-
-    auto                 mapped_file = mmap_file_from_disk(filename);
-    std::vector<BlockID> partition;
-    while (mapped_file.valid_position()) {
-        partition.push_back(scan_uint(mapped_file));
-        skip_nl(mapped_file);
-    }
-    munmap_file_from_disk(mapped_file);
-    return partition;
-}
 } // namespace partition
 } // namespace kaminpar::io
