@@ -268,6 +268,7 @@ Result contract_local_clustering(
         std::move(c_ghost_owner),
         std::move(c_ghost_to_global),
         std::move(static_mapping),
+        false,
         graph.communicator()};
 
     DBG << V(c_graph.n()) << V(c_graph.m()) << V(c_graph.ghost_n()) << V(c_graph.total_n()) << V(c_graph.global_n())

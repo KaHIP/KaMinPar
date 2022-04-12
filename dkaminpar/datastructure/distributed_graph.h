@@ -51,7 +51,7 @@ public:
         scalable_vector<EdgeID> nodes, scalable_vector<NodeID> edges, scalable_vector<NodeWeight> node_weights,
         scalable_vector<EdgeWeight> edge_weights, scalable_vector<PEID> ghost_owner,
         scalable_vector<GlobalNodeID> ghost_to_global, std::unordered_map<GlobalNodeID, NodeID> global_to_ghost,
-        MPI_Comm comm)
+        const bool sorted, MPI_Comm comm)
         : DistributedGraph{
             std::move(node_distribution),
             std::move(edge_distribution),
@@ -62,29 +62,32 @@ public:
             std::move(ghost_owner),
             std::move(ghost_to_global),
             graph::build_static_ghost_node_mapping(std::move(global_to_ghost)),
+            sorted,
             comm} {}
 
     DistributedGraph(
         scalable_vector<GlobalNodeID> node_distribution, scalable_vector<GlobalEdgeID> edge_distribution,
         scalable_vector<EdgeID> nodes, scalable_vector<NodeID> edges, scalable_vector<PEID> ghost_owner,
-        scalable_vector<GlobalNodeID> ghost_to_global, growt::StaticGhostNodeMapping global_to_ghost, MPI_Comm comm)
-        : DistributedGraph{
-            std::move(node_distribution),
-            std::move(edge_distribution),
-            std::move(nodes),
-            std::move(edges),
-            {},
-            {},
-            std::move(ghost_owner),
-            std::move(ghost_to_global),
-            std::move(global_to_ghost),
-            comm} {}
+        scalable_vector<GlobalNodeID> ghost_to_global, growt::StaticGhostNodeMapping global_to_ghost, const bool sorted,
+        MPI_Comm comm)
+        : DistributedGraph{std::move(node_distribution),
+                           std::move(edge_distribution),
+                           std::move(nodes),
+                           std::move(edges),
+                           {},
+                           {},
+                           std::move(ghost_owner),
+                           std::move(ghost_to_global),
+                           std::move(global_to_ghost),
+                           sorted,
+                           comm} {}
 
     DistributedGraph(
         scalable_vector<GlobalNodeID> node_distribution, scalable_vector<GlobalEdgeID> edge_distribution,
         scalable_vector<EdgeID> nodes, scalable_vector<NodeID> edges, scalable_vector<NodeWeight> node_weights,
         scalable_vector<EdgeWeight> edge_weights, scalable_vector<PEID> ghost_owner,
-        scalable_vector<GlobalNodeID> ghost_to_global, growt::StaticGhostNodeMapping global_to_ghost, MPI_Comm comm)
+        scalable_vector<GlobalNodeID> ghost_to_global, growt::StaticGhostNodeMapping global_to_ghost, const bool sorted,
+        MPI_Comm comm)
         : _node_distribution{std::move(node_distribution)},
           _edge_distribution{std::move(edge_distribution)},
           _nodes{std::move(nodes)},
@@ -94,6 +97,7 @@ public:
           _ghost_owner{std::move(ghost_owner)},
           _ghost_to_global{std::move(ghost_to_global)},
           _global_to_ghost{std::move(global_to_ghost)},
+          _sorted{sorted},
           _communicator{comm} {
         PEID rank;
         MPI_Comm_rank(communicator(), &rank);
@@ -108,6 +112,7 @@ public:
 
         init_total_node_weight();
         init_communication_metrics();
+        init_degree_buckets();
     }
 
     DistributedGraph(const DistributedGraph&) = delete;
@@ -377,21 +382,21 @@ public:
             _nodes[u], _nodes[u + 1], [this](const EdgeID e) { return std::make_pair(e, this->edge_target(e)); });
     }
 
-    // Degree buckets -- right now only for compatibility to shared memory graph data structure
-    [[nodiscard]] inline std::size_t bucket_size(const std::size_t) const {
-        return n();
+    // Degree buckets 
+    [[nodiscard]] inline std::size_t bucket_size(const std::size_t bucket) const {
+        return _buckets[bucket + 1] - _buckets[bucket];
     }
-    [[nodiscard]] inline NodeID first_node_in_bucket(const std::size_t) const {
-        return 0;
+    [[nodiscard]] inline NodeID first_node_in_bucket(const std::size_t bucket) const {
+        return _buckets[bucket];
     }
-    [[nodiscard]] inline NodeID first_invalid_node_in_bucket(const std::size_t) const {
-        return n();
+    [[nodiscard]] inline NodeID first_invalid_node_in_bucket(const std::size_t bucket) const {
+        return first_node_in_bucket(bucket + 1);
     }
     [[nodiscard]] inline std::size_t number_of_buckets() const {
-        return 1;
+        return _number_of_buckets;
     }
     [[nodiscard]] inline bool sorted() const {
-        return false;
+        return _sorted;
     }
 
     // Cached inter-PE metrics
@@ -444,73 +449,9 @@ public:
     void print() const;
 
 private:
-    inline void init_total_node_weight() {
-        if (is_node_weighted()) {
-            const auto begin_node_weights = _node_weights.begin();
-            const auto end_node_weights   = begin_node_weights + static_cast<std::size_t>(n());
-
-            _total_node_weight = shm::parallel::accumulate(begin_node_weights, end_node_weights, 0);
-            _max_node_weight   = shm::parallel::max_element(begin_node_weights, end_node_weights);
-        } else {
-            _total_node_weight = n();
-            _max_node_weight   = 1;
-        }
-
-        _global_total_node_weight = mpi::allreduce<GlobalNodeWeight>(_total_node_weight, MPI_SUM, communicator());
-        _global_max_node_weight   = mpi::allreduce<GlobalNodeWeight>(_max_node_weight, MPI_MAX, communicator());
-    }
-
-    inline void init_communication_metrics() {
-        const PEID                                           size = mpi::get_comm_size(_communicator);
-        tbb::enumerable_thread_specific<std::vector<EdgeID>> edge_cut_to_pe_ets{[&] {
-            return std::vector<EdgeID>(size);
-        }};
-        tbb::enumerable_thread_specific<std::vector<EdgeID>> comm_vol_to_pe_ets{[&] {
-            return std::vector<EdgeID>(size);
-        }};
-
-        pfor_nodes_range([&](const auto r) {
-            auto&         edge_cut_to_pe = edge_cut_to_pe_ets.local();
-            auto&         comm_vol_to_pe = comm_vol_to_pe_ets.local();
-            shm::Marker<> counted_pe{static_cast<std::size_t>(size)};
-
-            for (NodeID u = r.begin(); u < r.end(); ++u) {
-                for (const auto v: adjacent_nodes(u)) {
-                    if (is_ghost_node(v)) {
-                        const PEID owner = ghost_owner(v);
-                        ASSERT(static_cast<std::size_t>(owner) < edge_cut_to_pe.size())
-                            << V(owner) << V(edge_cut_to_pe.size());
-                        ++edge_cut_to_pe[owner];
-
-                        if (!counted_pe.get(owner)) {
-                            ASSERT(static_cast<std::size_t>(owner) < counted_pe.size());
-                            counted_pe.set(owner);
-
-                            ASSERT(static_cast<std::size_t>(owner) < comm_vol_to_pe.size());
-                            ++comm_vol_to_pe[owner];
-                        }
-                    }
-                }
-                counted_pe.reset();
-            }
-        });
-
-        _edge_cut_to_pe.clear();
-        _edge_cut_to_pe.resize(size);
-        for (const auto& edge_cut_to_pe: edge_cut_to_pe_ets) { // PE x THREADS
-            for (std::size_t i = 0; i < edge_cut_to_pe.size(); ++i) {
-                _edge_cut_to_pe[i] += edge_cut_to_pe[i];
-            }
-        }
-
-        _comm_vol_to_pe.clear();
-        _comm_vol_to_pe.resize(size);
-        for (const auto& comm_vol_to_pe: comm_vol_to_pe_ets) {
-            for (std::size_t i = 0; i < comm_vol_to_pe.size(); ++i) {
-                _comm_vol_to_pe[i] += comm_vol_to_pe[i];
-            }
-        }
-    }
+    void init_degree_buckets();
+    void init_total_node_weight();
+    void init_communication_metrics();
 
     NodeID       _n;
     EdgeID       _m;
@@ -539,6 +480,10 @@ private:
 
     std::vector<EdgeID> _edge_cut_to_pe{};
     std::vector<EdgeID> _comm_vol_to_pe{};
+
+    bool                _sorted;
+    std::vector<NodeID> _buckets           = std::vector<NodeID>(shm::kNumberOfDegreeBuckets + 1);
+    std::size_t         _number_of_buckets = 0;
 
     MPI_Comm _communicator;
 };

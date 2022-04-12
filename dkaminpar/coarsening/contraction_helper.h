@@ -306,6 +306,7 @@ inline DistributedGraph build_distributed_graph_from_edge_list(
         std::move(ghost_owner),
         std::move(ghost_to_global),
         std::move(global_to_ghost),
+        false,
         comm};
 }
 } // namespace dkaminpar::coarsening::helper

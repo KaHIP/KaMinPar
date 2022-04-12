@@ -70,10 +70,17 @@ DistributedGraph sort_by_degree_buckets(DistributedGraph graph) {
         new_ghost_to_global[ghost_node - n] = new_node_global;
     });
 
-    return {graph.take_node_distribution(), graph.take_edge_distribution(),
-            std::move(new_nodes),           std::move(new_edges),
-            std::move(new_node_weights),    std::move(new_edge_weights),
-            graph.take_ghost_owner(),       std::move(new_ghost_to_global),
-            std::move(new_global_to_ghost), graph.communicator()};
+    return {
+        graph.take_node_distribution(),
+        graph.take_edge_distribution(),
+        std::move(new_nodes),
+        std::move(new_edges),
+        std::move(new_node_weights),
+        std::move(new_edge_weights),
+        graph.take_ghost_owner(),
+        std::move(new_ghost_to_global),
+        std::move(new_global_to_ghost),
+        true,
+        graph.communicator()};
 }
 } // namespace dkaminpar::graph

@@ -148,6 +148,7 @@ public:
             std::move(_ghost_owner),
             std::move(_ghost_to_global),
             std::move(_global_to_ghost),
+            false,
             _comm};
     }
 

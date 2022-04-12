@@ -693,19 +693,28 @@ private:
         });
     }
 
-    // Note: we either use from/to or the bucket structure 
-    // If we use from/to (i.e., from > 0, to < n()), then there is only one bucket containing all nodes 
-    // If we use buckets (i.e., there is more than one bucket containing all nodes), then from == 0 and to == n()
-    void init_chunks(const NodeID from, const NodeID to) {
+    void init_chunks(const NodeID from, NodeID to) {
+        to = std::min(to, _graph->n());
+
         const auto   max_bucket     = std::min<std::size_t>(math::floor_log2(_max_degree), _graph->number_of_buckets());
         const EdgeID max_chunk_size = std::max<EdgeID>(Config::kMinChunkSize, std::sqrt(_graph->m()));
         const NodeID max_node_chunk_size = std::max<NodeID>(Config::kMinChunkSize, std::sqrt(_graph->n()));
 
+        NodeID position = 0;
         for (std::size_t bucket = 0; bucket < max_bucket; ++bucket) {
-            const std::size_t bucket_size = std::min<NodeID>(_graph->bucket_size(bucket), to - from);
-            if (bucket_size == 0) {
+            if (position + _graph->bucket_size(bucket) < from || _graph->bucket_size(bucket) == 0) {
+                position += _graph->bucket_size(bucket);
                 continue;
             }
+            if (position >= to) {
+                break;
+            }
+
+            NodeID remaining_bucket_size = _graph->bucket_size(bucket);
+            if (from > _graph->first_node_in_bucket(bucket)) {
+                remaining_bucket_size -= from - _graph->first_node_in_bucket(bucket);
+            }
+            const std::size_t bucket_size = std::min<NodeID>({remaining_bucket_size, to - position, to - from});
 
             parallel::Atomic<NodeID>                            offset = 0;
             tbb::enumerable_thread_specific<std::size_t>        num_chunks_ets;
@@ -758,7 +767,25 @@ private:
             });
 
             _buckets.push_back({chunks_start, _chunks.size()});
+
+            position += _graph->bucket_size(bucket);
         }
+
+        // Make sure that we cover all nodes in [from, to)
+        ASSERT([&] {
+            std::vector<bool> hit(to - from);
+            for (const auto& [start, end]: _chunks) {
+                for (NodeID u = start; u < end; ++u) {
+                    ALWAYS_ASSERT(from <= u && u < to) << V(from) << V(u) << V(to);
+                    ALWAYS_ASSERT(!hit[u - from]) << V(from) << V(u) << V(to);
+                    hit[u - from] = true;
+                }
+            }
+
+            for (NodeID u = 0; u < to - from; ++u) {
+                ALWAYS_ASSERT(hit[u]) << V(from) << V(u + from) << V(to);
+            }
+        });
     }
 
 protected:

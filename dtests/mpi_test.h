@@ -100,6 +100,7 @@ change_edge_weights(DistributedGraph graph, const std::vector<std::pair<EdgeID, 
         graph.take_ghost_owner(),
         graph.take_ghost_to_global(),
         graph.take_global_to_ghost(),
+        false,
         graph.communicator()};
 }
 
@@ -156,6 +157,7 @@ change_node_weights(DistributedGraph graph, const std::vector<std::pair<NodeID, 
         graph.take_ghost_owner(),
         graph.take_ghost_to_global(),
         graph.take_global_to_ghost(),
+        false,
         graph.communicator()};
 }
 
@@ -206,6 +208,7 @@ DistributedGraph use_pow_global_id_as_node_weights(DistributedGraph graph) {
         graph.take_ghost_owner(),
         graph.take_ghost_to_global(),
         graph.take_global_to_ghost(),
+        false,
         graph.communicator()};
 }
 
@@ -225,6 +228,7 @@ DistributedGraph use_global_id_as_node_weight(DistributedGraph graph) {
         graph.take_ghost_owner(),
         graph.take_ghost_to_global(),
         graph.take_global_to_ghost(),
+        false,
         graph.communicator()};
 }
 

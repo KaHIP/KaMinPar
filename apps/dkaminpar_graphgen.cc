@@ -92,6 +92,7 @@ DistributedGraph build_graph(const EdgeList& edge_list, scalable_vector<GlobalNo
         std::move(mapped_ghost_nodes.ghost_owner),
         std::move(mapped_ghost_nodes.ghost_to_global),
         std::move(mapped_ghost_nodes.global_to_ghost),
+        false,
         MPI_COMM_WORLD};
     HEAVY_ASSERT(graph::debug::validate(graph));
     return graph;

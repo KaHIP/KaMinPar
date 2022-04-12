@@ -184,6 +184,7 @@ DistributedGraph read_edge_balanced(const std::string& filename, MPI_Comm comm) 
         std::move(ghost_owner),
         std::move(ghost_to_global),
         std::move(global_to_ghost),
+        false,
         comm};
 }
 
@@ -300,8 +301,16 @@ read_distributed_graph(std::ifstream& in, const GlobalNodeID from, const GlobalN
         }
     });
 
-    return {std::move(node_distribution), std::move(edge_distribution), std::move(nodes),           std::move(edges),
-            std::move(ghost_owner),       std::move(ghost_to_global),   std::move(global_to_ghost), comm};
+    return {
+        std::move(node_distribution),
+        std::move(edge_distribution),
+        std::move(nodes),
+        std::move(edges),
+        std::move(ghost_owner),
+        std::move(ghost_to_global),
+        std::move(global_to_ghost),
+        false,
+        comm};
 }
 } // namespace
 

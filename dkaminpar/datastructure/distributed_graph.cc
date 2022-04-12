@@ -6,10 +6,12 @@
  * @brief:  Static distributed graph data structure.
  ******************************************************************************/
 #include "dkaminpar/datastructure/distributed_graph.h"
+#include <numeric>
 #include <iomanip>
 
 #include "dkaminpar/mpi_graph.h"
 #include "dkaminpar/mpi_wrapper.h"
+#include "kaminpar/utils/math.h"
 
 namespace dkaminpar {
 void DistributedGraph::print() const {
@@ -39,6 +41,100 @@ void DistributedGraph::print() const {
     }
     buf << "--------------------------------------------------------------------------------\n";
     SLOG << buf.str();
+}
+
+namespace {
+inline EdgeID degree_bucket(const EdgeID degree) {
+    return (degree == 0) ? 0 : shm::math::floor_log2(degree) + 1;
+}
+} // namespace
+
+void DistributedGraph::init_degree_buckets() {
+    ASSERT(std::all_of(_buckets.begin(), _buckets.end(), [](const auto n) { return n == 0; }));
+
+    if (_sorted) {
+        for (const NodeID u: nodes()) {
+            ++_buckets[degree_bucket(degree(u)) + 1];
+        }
+
+        auto last_nonempty_bucket =
+            std::find_if(_buckets.rbegin(), _buckets.rend(), [](const auto n) { return n > 0; });
+        _number_of_buckets = std::distance(_buckets.begin(), (last_nonempty_bucket + 1).base());
+    } else {
+        _buckets[1]        = n();
+        _number_of_buckets = 1;
+    }
+
+    std::partial_sum(_buckets.begin(), _buckets.end(), _buckets.begin());
+}
+
+void DistributedGraph::init_total_node_weight() {
+    if (is_node_weighted()) {
+        const auto begin_node_weights = _node_weights.begin();
+        const auto end_node_weights   = begin_node_weights + static_cast<std::size_t>(n());
+
+        _total_node_weight = shm::parallel::accumulate(begin_node_weights, end_node_weights, 0);
+        _max_node_weight   = shm::parallel::max_element(begin_node_weights, end_node_weights);
+    } else {
+        _total_node_weight = n();
+        _max_node_weight   = 1;
+    }
+
+    _global_total_node_weight = mpi::allreduce<GlobalNodeWeight>(_total_node_weight, MPI_SUM, communicator());
+    _global_max_node_weight   = mpi::allreduce<GlobalNodeWeight>(_max_node_weight, MPI_MAX, communicator());
+}
+
+void DistributedGraph::init_communication_metrics() {
+    const PEID size = mpi::get_comm_size(_communicator);
+
+    tbb::enumerable_thread_specific<std::vector<EdgeID>> edge_cut_to_pe_ets{[&] {
+        return std::vector<EdgeID>(size);
+    }};
+    tbb::enumerable_thread_specific<std::vector<EdgeID>> comm_vol_to_pe_ets{[&] {
+        return std::vector<EdgeID>(size);
+    }};
+
+    pfor_nodes_range([&](const auto r) {
+        auto&         edge_cut_to_pe = edge_cut_to_pe_ets.local();
+        auto&         comm_vol_to_pe = comm_vol_to_pe_ets.local();
+        shm::Marker<> counted_pe{static_cast<std::size_t>(size)};
+
+        for (NodeID u = r.begin(); u < r.end(); ++u) {
+            for (const auto v: adjacent_nodes(u)) {
+                if (is_ghost_node(v)) {
+                    const PEID owner = ghost_owner(v);
+                    ASSERT(static_cast<std::size_t>(owner) < edge_cut_to_pe.size())
+                        << V(owner) << V(edge_cut_to_pe.size());
+                    ++edge_cut_to_pe[owner];
+
+                    if (!counted_pe.get(owner)) {
+                        ASSERT(static_cast<std::size_t>(owner) < counted_pe.size());
+                        counted_pe.set(owner);
+
+                        ASSERT(static_cast<std::size_t>(owner) < comm_vol_to_pe.size());
+                        ++comm_vol_to_pe[owner];
+                    }
+                }
+            }
+            counted_pe.reset();
+        }
+    });
+
+    _edge_cut_to_pe.clear();
+    _edge_cut_to_pe.resize(size);
+    for (const auto& edge_cut_to_pe: edge_cut_to_pe_ets) { // PE x THREADS
+        for (std::size_t i = 0; i < edge_cut_to_pe.size(); ++i) {
+            _edge_cut_to_pe[i] += edge_cut_to_pe[i];
+        }
+    }
+
+    _comm_vol_to_pe.clear();
+    _comm_vol_to_pe.resize(size);
+    for (const auto& comm_vol_to_pe: comm_vol_to_pe_ets) {
+        for (std::size_t i = 0; i < comm_vol_to_pe.size(); ++i) {
+            _comm_vol_to_pe[i] += comm_vol_to_pe[i];
+        }
+    }
 }
 
 namespace graph {
