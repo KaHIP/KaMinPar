@@ -67,6 +67,15 @@ void create_coarsening_options(
         c_ctx.global_lp, args, name + " -> Global Label Propagation", prefix + "-glp");
 }
 
+void create_balancing_options(
+    BalancingContext& b_ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix) {
+    args.group(name, prefix)
+        .argument(prefix + "-algorithm", "Balancing algorithm", &b_ctx.algorithm, balancing_algorithm_from_string)
+        .argument(
+            prefix + "-num-nodes-per-block", "Number of nodes per block to keep in each reduction step",
+            &b_ctx.num_nodes_per_block);
+}
+
 void create_refinement_label_propagation_options(
     LabelPropagationRefinementContext& lp_ctx, kaminpar::Arguments& args, const std::string& name,
     const std::string& prefix) {
@@ -88,6 +97,7 @@ void create_refinement_options(
       ;
     // clang-format on
     create_refinement_label_propagation_options(r_ctx.lp, args, name + " -> Label Propagation", prefix + "-lp");
+    create_balancing_options(r_ctx.balancing, args, name + " -> Balancing", prefix + "-b");
 }
 
 void create_initial_partitioning_options(

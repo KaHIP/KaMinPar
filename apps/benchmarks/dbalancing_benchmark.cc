@@ -15,6 +15,7 @@
 #include <mpi.h>
 
 #include "apps/apps.h"
+#include "apps/dkaminpar_arguments.h"
 #include "dkaminpar/coarsening/global_clustering_contraction.h"
 #include "dkaminpar/coarsening/locking_label_propagation_clustering.h"
 #include "dkaminpar/context.h"
@@ -59,6 +60,7 @@ int main(int argc, char* argv[]) {
     args.group("Misc")
         .argument("threads", "Number of threads", &ctx.parallel.num_threads, 't')
         .argument("seed", "Seed for RNG", &ctx.seed, 's');
+    app::create_balancing_options(ctx.refinement.balancing, args, "", "b");
     args.parse(argc, argv);
 
     shm::print_identifier(argc, argv);

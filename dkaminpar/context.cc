@@ -42,6 +42,10 @@ DEFINE_ENUM_STRING_CONVERSION(KWayRefinementAlgorithm, kway_refinement_algorithm
     {KWayRefinementAlgorithm::PROB_LP, "prob-lp"},
 };
 
+DEFINE_ENUM_STRING_CONVERSION(BalancingAlgorithm, balancing_algorithm) = {
+    {BalancingAlgorithm::DISTRIBUTED, "distributed"},
+};
+
 void LabelPropagationCoarseningContext::print(std::ostream& out, const std::string& prefix) const {
     out << prefix << "num_iterations=" << num_iterations << " "                                             //
         << prefix << "max_degree=" << large_degree_threshold << " "                                         //
@@ -73,6 +77,11 @@ void CoarseningContext::print(std::ostream& out, const std::string& prefix) cons
     global_lp.print(out, prefix + "global_lp.");
 }
 
+void BalancingContext::print(std::ostream& out, const std::string& prefix) const {
+    out << prefix << "algorithm=" << algorithm << " "                      //
+        << prefix << "num_nodes_per_block=" << num_nodes_per_block << " "; //
+}
+
 void InitialPartitioningContext::print(std::ostream& out, const std::string& prefix) const {
     out << prefix << "graphutils=" << algorithm << " ";
     sequential.print(out, prefix + "sequential.");
@@ -81,6 +90,7 @@ void InitialPartitioningContext::print(std::ostream& out, const std::string& pre
 void RefinementContext::print(std::ostream& out, const std::string& prefix) const {
     out << prefix << "graphutils=" << algorithm << " ";
     lp.print(out, prefix + "lp.");
+    balancing.print(out, prefix + "balancing.");
 }
 
 void ParallelContext::print(std::ostream& out, const std::string& prefix) const {
@@ -202,6 +212,10 @@ Context create_default_context() {
         .num_chunks = 0,
         .min_num_chunks = 8,
         .num_move_attempts = 2,
+      },
+      .balancing = {
+        .algorithm = BalancingAlgorithm::DISTRIBUTED, 
+        .num_nodes_per_block = 5,
       }
     }
   };

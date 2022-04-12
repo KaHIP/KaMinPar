@@ -29,6 +29,9 @@ void create_graphgen_options(
 void create_coarsening_options(
     CoarseningContext& c_ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix);
 
+void create_balancing_options(
+    BalancingContext& b_ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix);
+
 void create_refinement_options(
     RefinementContext& r_ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix);
 

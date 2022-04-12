@@ -40,11 +40,16 @@ enum class KWayRefinementAlgorithm {
     PROB_LP,
 };
 
+enum class BalancingAlgorithm {
+    DISTRIBUTED,
+};
+
 DECLARE_ENUM_STRING_CONVERSION(PartitioningMode, partitioning_mode);
 DECLARE_ENUM_STRING_CONVERSION(GlobalContractionAlgorithm, global_contraction_algorithm);
 DECLARE_ENUM_STRING_CONVERSION(GlobalClusteringAlgorithm, global_clustering_algorithm);
 DECLARE_ENUM_STRING_CONVERSION(InitialPartitioningAlgorithm, initial_partitioning_algorithm);
 DECLARE_ENUM_STRING_CONVERSION(KWayRefinementAlgorithm, kway_refinement_algorithm);
+DECLARE_ENUM_STRING_CONVERSION(BalancingAlgorithm, balancing_algorithm);
 
 struct LabelPropagationCoarseningContext {
     std::size_t num_iterations;
@@ -116,9 +121,17 @@ struct InitialPartitioningContext {
     void print(std::ostream& out, const std::string& prefix = "") const;
 };
 
+struct BalancingContext {
+    BalancingAlgorithm algorithm;
+    NodeID             num_nodes_per_block;
+
+    void print(std::ostream& out, const std::string& prefix = "") const;
+};
+
 struct RefinementContext {
     KWayRefinementAlgorithm           algorithm;
     LabelPropagationRefinementContext lp;
+    BalancingContext                  balancing;
 
     void setup(const DistributedGraph& graph) {
         lp.setup(graph);
