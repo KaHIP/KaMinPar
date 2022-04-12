@@ -221,6 +221,8 @@ struct Context {
     int         seed{0};
     bool        quiet{};
 
+    bool save_imbalanced_partitions;
+
     PartitionContext           partition;
     ParallelContext            parallel;
     CoarseningContext          coarsening;

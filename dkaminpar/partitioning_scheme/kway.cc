@@ -8,6 +8,7 @@
 #include "dkaminpar/partitioning_scheme/kway.h"
 
 #include "dkaminpar/coarsening/global_clustering_contraction.h"
+#include "dkaminpar/distributed_io.h"
 #include "dkaminpar/factories.h"
 #include "dkaminpar/graphutils/allgather_graph.h"
 #include "dkaminpar/utils/metrics.h"
@@ -17,6 +18,15 @@
 
 namespace dkaminpar {
 SET_DEBUG(true);
+
+namespace {
+void save_imbalanced_graph_partition(const DistributedPartitionedGraph& p_graph, const Context& ctx, int level) {
+    const std::string graph_filename     = ctx.graph_filename + ".level" + std::to_string(level) + ".graph";
+    const std::string partition_filename = ctx.graph_filename + ".level" + std::to_string(level) + ".part";
+    io::metis::write(graph_filename, p_graph.graph());
+    io::partition::write(partition_filename, p_graph.partition());
+}
+} // namespace
 
 KWayPartitioningScheme::KWayPartitioningScheme(const DistributedGraph& graph, const Context& ctx)
     : _graph{graph},
@@ -118,6 +128,10 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
 
     LOG << "Initial partition: cut=" << initial_cut << " imbalance=" << initial_imbalance;
 
+    if (_ctx.save_imbalanced_partitions && initial_imbalance > _ctx.partition.epsilon) {
+        save_imbalanced_graph_partition(dist_p_graph, _ctx, static_cast<int>(graph_hierarchy.size()));
+    }
+
     ////////////////////////////////////////////////////////////////////////////////
     // Step 3: Refinement
     ////////////////////////////////////////////////////////////////////////////////
@@ -169,6 +183,10 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
 
             LOG << "=> level=" << graph_hierarchy.size() << " cut=" << current_cut
                 << " imbalance=" << current_imbalance;
+
+            if (_ctx.save_imbalanced_partitions && current_imbalance > _ctx.partition.epsilon) {
+                save_imbalanced_graph_partition(dist_p_graph, _ctx, static_cast<int>(graph_hierarchy.size()));
+            }
         }
     }
 

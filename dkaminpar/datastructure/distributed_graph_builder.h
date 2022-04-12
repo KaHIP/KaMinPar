@@ -12,6 +12,7 @@
 #include <tbb/concurrent_hash_map.h>
 
 #include "dkaminpar/definitions.h"
+#include "dkaminpar/mpi_graph.h"
 
 namespace dkaminpar::graph {
 class GhostNodeMapper {
@@ -102,6 +103,7 @@ public:
     Builder& create_node(const NodeWeight weight) {
         _nodes.push_back(_edges.size());
         _node_weights.push_back(weight);
+        _unit_node_weights = _unit_node_weights && (weight == 1);
 
         return *this;
     }
@@ -109,6 +111,7 @@ public:
     Builder& change_local_node_weight(const NodeID node, const NodeWeight weight) {
         ASSERT(node < _node_weights.size());
         _node_weights[node] = weight;
+        _unit_node_weights  = _unit_node_weights && (weight == 1);
 
         return *this;
     }
@@ -116,6 +119,7 @@ public:
     Builder& add_local_node_weight(const NodeID node, const NodeWeight delta) {
         ASSERT(node < _node_weights.size());
         _node_weights[node] += delta;
+        _unit_node_weights = _unit_node_weights && (delta == 0);
 
         return *this;
     }
@@ -131,6 +135,8 @@ public:
     DistributedGraph finalize() {
         _nodes.push_back(_edges.size());
 
+        // First step: use unit node weights for ghost nodes
+        // If needed, we will update those afterwards once we have the graph data structure
         for (NodeID ghost_u = 0; ghost_u < _ghost_to_global.size(); ++ghost_u) {
             _node_weights.push_back(1);
         }
@@ -138,7 +144,7 @@ public:
         const EdgeID m         = _edges.size();
         auto edge_distribution = mpi::build_distribution_from_local_count<GlobalEdgeID, scalable_vector>(m, _comm);
 
-        return {
+        DistributedGraph graph{
             std::move(_node_distribution),
             std::move(edge_distribution),
             std::move(_nodes),
@@ -150,6 +156,30 @@ public:
             std::move(_global_to_ghost),
             false,
             _comm};
+
+        // If the graph does not have unit node weights, exchange ghost node weights now
+        struct Message {
+            NodeID     node;
+            NodeWeight weight;
+        };
+
+        if (!_unit_node_weights) {
+            mpi::graph::sparse_alltoall_interface_to_pe<Message>(
+                graph,
+                [&](const NodeID u) -> Message {
+                    return {u, graph.node_weight(u)};
+                },
+                [&](const auto buffer, const PEID pe) {
+                    tbb::parallel_for<std::size_t>(0, buffer.size(), [&](const std::size_t i) {
+                        const auto& [local_node_on_other_pe, weight] = buffer[i];
+                        const NodeID local_node =
+                            graph.global_to_local_node(graph.offset_n(pe) + local_node_on_other_pe);
+                        graph.set_ghost_node_weight(local_node, weight);
+                    });
+                });
+        }
+
+        return graph;
     }
 
 private:
@@ -187,5 +217,7 @@ private:
     scalable_vector<PEID>                    _ghost_owner{};
     scalable_vector<GlobalNodeID>            _ghost_to_global{};
     std::unordered_map<GlobalNodeID, NodeID> _global_to_ghost{};
+
+    bool _unit_node_weights{true};
 };
 } // namespace dkaminpar::graph

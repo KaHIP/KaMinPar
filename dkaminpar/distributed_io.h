@@ -40,9 +40,9 @@ DistributedGraph read_edge_balanced(const std::string& filename, MPI_Comm comm =
 namespace partition {
 template <typename Container>
 void write(const std::string& filename, const Container& partition) {
-    mpi::sequentially([&] {
+    mpi::sequentially([&](PEID) {
         std::ofstream out(filename, std::ios_base::out | std::ios_base::app);
-        for (const BlockID& b: partition) {
+        for (const auto& b: partition) {
             out << b << "\n";
         }
     });
