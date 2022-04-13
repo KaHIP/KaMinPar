@@ -82,7 +82,6 @@ int main(int argc, char* argv[]) {
     LOG << "Loaded graph with n=" << graph.global_n() << " m=" << graph.global_m();
     SLOG << "n=" << graph.n() << " ghost_n=" << graph.ghost_n() << " total_n=" << graph.total_n() << " m=" << graph.m();
     ASSERT([&] { graph::debug::validate(graph); });
-    ctx.setup(graph);
 
     // Load partition
     auto partition = io::partition::read<scalable_vector<Atomic<BlockID>>>(partition_filename, graph.n());
@@ -128,6 +127,10 @@ int main(int argc, char* argv[]) {
 
     DistributedPartitionedGraph p_graph(&graph, k, std::move(partition), std::move(block_weights));
 
+    // Setup context
+    ctx.partition.k = k;
+    ctx.setup(graph);
+
     // Output statistics
     const auto cut_before       = metrics::edge_cut(p_graph);
     const auto imbalance_before = metrics::imbalance(p_graph);
@@ -151,6 +154,8 @@ int main(int argc, char* argv[]) {
     const auto imbalance_after = metrics::imbalance(p_graph);
     LOG << "RESULT cut=" << cut_after << " imbalance=" << imbalance_after;
     mpi::barrier();
+
+    LOG << p_graph.block_weights();
 
     if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0 && !ctx.quiet) {
         shm::Timer::global().print_machine_readable(std::cout);

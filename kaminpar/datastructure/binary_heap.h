@@ -448,6 +448,11 @@ public:
         return _max_forest.peek_key(heap);
     }
 
+    void remove(const std::size_t heap, const ID id) {
+        _max_forest.remove(heap, id);
+        _min_forest.remove(heap, id);
+    }
+
     void pop_min(const std::size_t heap) {
         _max_forest.remove(heap, _min_forest.peek_id(heap));
         _min_forest.pop(heap);

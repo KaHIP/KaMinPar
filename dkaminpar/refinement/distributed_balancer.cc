@@ -7,7 +7,11 @@
  ******************************************************************************/
 #include "dkaminpar/refinement/distributed_balancer.h"
 
+#include "dkaminpar/mpi_graph.h"
+#include "dkaminpar/mpi_wrapper.h"
+#include "kaminpar/utils/math.h"
 #include "kaminpar/utils/random.h"
+#include "kaminpar/utils/timer.h"
 
 namespace dkaminpar {
 DistributedBalancer::DistributedBalancer(const Context& ctx)
@@ -19,10 +23,287 @@ DistributedBalancer::DistributedBalancer(const Context& ctx)
 void DistributedBalancer::initialize(const DistributedPartitionedGraph&) {}
 
 void DistributedBalancer::balance(DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx) {
+    const int rank = mpi::get_comm_rank(p_graph.communicator());
+
     _p_graph = &p_graph;
     _p_ctx   = &p_ctx;
 
+    START_TIMER("Initialize PQ");
     init_pq();
+    STOP_TIMER();
+
+    while (true) {
+        // pick best move candidates for each block
+        START_TIMER("Pick candidates");
+        auto candidates = pick_move_candidates();
+        STOP_TIMER();
+        
+        START_TIMER("Reudce");
+        candidates = reduce_move_candidates(std::move(candidates));
+        STOP_TIMER();
+
+        START_TIMER("Perform moves on root");
+        if (rank == 0) {
+            // move nodes that already have a target block
+            perform_moves(candidates);
+
+            // move nodes that do not have a target block
+            BlockID cur = 0;
+            for (auto& candidate: candidates) {
+                auto& [node, from, to, weight, rel_gain] = candidate;
+
+                if (from == to) {
+                    // look for next block that can take node
+                    while (cur == from || _p_graph->block_weight(cur) + weight > _p_ctx->max_block_weight(cur)) {
+                        ++cur;
+                        if (cur >= _p_ctx->k) {
+                            cur = 0;
+                        }
+                    }
+
+                    to = cur;
+                    perform_move(candidate);
+                }
+            }
+        }
+        STOP_TIMER();
+
+        // broadcast winners
+        START_TIMER("Broadcast reduction result");
+        const std::size_t num_winners = mpi::bcast(candidates.size(), 0, _p_graph->communicator());
+        candidates.resize(num_winners);
+        mpi::bcast(candidates.data(), num_winners, 0, _p_graph->communicator());
+        STOP_TIMER();
+
+        START_TIMER("Perform moves");
+        if (rank != 0) {
+            perform_moves(candidates);
+        }
+        STOP_TIMER();
+
+        ASSERT([&] { graph::debug::validate_partition(*_p_graph); });
+
+        if (num_winners == 0) {
+            break;
+        }
+    }
+}
+
+void DistributedBalancer::print_candidates(const std::vector<MoveCandidate>& moves) const {
+    std::stringstream ss;
+    ss << "[";
+    for (const auto& [node, from, to, weight, rel_gain]: moves) {
+        ss << "{node=" << node << ", from=" << from << ", to=" << to << ", weight=" << weight
+           << ", rel_gain=" << rel_gain << "}";
+    }
+    ss << "]";
+    DLOG << "candidates=" << ss.str();
+}
+
+void DistributedBalancer::print_overloads() const {
+    for (const BlockID b: _p_graph->blocks()) {
+        LOG << V(b) << V(block_overload(b));
+    }
+}
+
+void DistributedBalancer::perform_moves(const std::vector<MoveCandidate>& moves) {
+    for (const auto& move: moves) {
+        perform_move(move);
+    }
+}
+
+void DistributedBalancer::perform_move(const MoveCandidate& move) {
+    const auto& [node, from, to, weight, rel_gain] = move;
+
+    if (from == to) { // should only happen on root
+        ASSERT(mpi::get_comm_rank(_p_graph->communicator()) == 0);
+        return;
+    }
+
+    if (_p_graph->contains_global_node(node)) {
+        const NodeID u = _p_graph->global_to_local_node(node);
+
+        if (_p_graph->graph().is_owned_global_node(node)) { // move node on this PE
+            ASSERT(u < _p_graph->n());
+            if (_pq.contains(u)) {
+                _pq.remove(from, u);
+                _pq_weight[from] -= weight;
+            }
+
+            // activate neighbors
+            for (const NodeID v: _p_graph->adjacent_nodes(u)) {
+                if (!_p_graph->is_owned_node(v)) {
+                    continue;
+                }
+                if (!_marker.get(v) && _p_graph->block(v) == from) {
+                    add_to_pq(from, v);
+                }
+                _marker.set(v);
+            }
+        }
+
+        _p_graph->set_block(u, to);
+    } else { // only update block weight
+        _p_graph->set_block_weight(from, _p_graph->block_weight(from) - weight);
+        _p_graph->set_block_weight(to, _p_graph->block_weight(to) + weight);
+    }
+}
+
+auto DistributedBalancer::reduce_move_candidates(std::vector<MoveCandidate>&& candidates)
+    -> std::vector<MoveCandidate> {
+    const int size = mpi::get_comm_size(_p_graph->communicator());
+    const int rank = mpi::get_comm_rank(_p_graph->communicator());
+    ALWAYS_ASSERT(shm::math::is_power_of_2(size)) << "Currently only powers of 2 are supported";
+
+    int active_size = size;
+    while (active_size > 1) {
+        if (rank >= active_size) {
+            continue;
+        }
+
+        // false = receiver
+        // true = sender
+        const bool role = (rank >= active_size / 2);
+
+        if (role) {
+            const int dest = rank - active_size / 2;
+            mpi::send(candidates.data(), candidates.size(), dest, 0, _p_graph->communicator());
+            return {};
+        } else {
+            const int                  src        = rank + active_size / 2;
+            std::vector<MoveCandidate> tmp_buffer = mpi::probe_recv<MoveCandidate, std::vector<MoveCandidate>>(
+                src, 0, MPI_STATUS_IGNORE, _p_graph->communicator());
+
+            candidates = reduce_move_candidates(std::move(candidates), std::move(tmp_buffer));
+        }
+
+        active_size /= 2;
+    }
+
+    return candidates;
+}
+
+auto DistributedBalancer::reduce_move_candidates(std::vector<MoveCandidate>&& a, std::vector<MoveCandidate>&& b)
+    -> std::vector<MoveCandidate> {
+    std::vector<MoveCandidate> ans;
+
+    // precondition: candidates are sorted by from block
+    ASSERT([&] {
+        for (std::size_t i = 1; i < a.size(); ++i) {
+            ALWAYS_ASSERT(a[i].from >= a[i - 1].from);
+        }
+        for (std::size_t i = 1; i < b.size(); ++i) {
+            ALWAYS_ASSERT(b[i].from >= b[i - 1].from);
+        }
+    });
+
+    std::size_t i = 0; // index in a
+    std::size_t j = 0; // index in b
+
+    std::vector<NodeWeight> target_block_weight_delta(_p_ctx->k);
+
+    for (i = 0, j = 0; i < a.size() && j < b.size();) {
+        const BlockID from = std::min<BlockID>(a[i].from, b[j].from);
+
+        // find region in `a` and `b` with nodes from `from`
+        std::size_t i_end = i;
+        std::size_t j_end = j;
+        while (i_end < a.size() && a[i_end].from == from) {
+            ++i_end;
+        }
+        while (j_end < b.size() && b[j_end].from == from) {
+            ++j_end;
+        }
+
+        // pick best set of nodes
+        const std::size_t num_in_a = i_end - i;
+        const std::size_t num_in_b = j_end - j;
+        const std::size_t num      = num_in_a + num_in_b;
+
+        std::vector<MoveCandidate> candidates(num);
+        std::copy(a.begin() + i, a.begin() + i_end, candidates.begin());
+        std::copy(b.begin() + j, b.begin() + j_end, candidates.begin() + num_in_a);
+        std::sort(candidates.begin(), candidates.end(), [&](const auto& lhs, const auto& rhs) {
+            return lhs.rel_gain < rhs.rel_gain || (lhs.rel_gain == rhs.rel_gain && lhs.node < rhs.node);
+        });
+        // print_candidates(candidates);
+
+        NodeWeight total_weight = 0;
+        for (NodeID candidate = 0; candidate < candidates.size(); ++candidate) {
+            const BlockID    to     = candidates[candidate].to;
+            const NodeWeight weight = candidates[candidate].weight;
+
+            // only pick candidate if it does not overload the target block
+            if (from != to
+                && _p_graph->block_weight(to) + target_block_weight_delta[to] + weight > _p_ctx->max_block_weight(to)) {
+                continue;
+            }
+
+            ans.push_back(candidates[candidate]);
+            total_weight += weight;
+            if (from != to) {
+                target_block_weight_delta[to] += weight;
+            }
+
+            // only pick candidates while we do not have enough weight to balance the block
+            if (total_weight >= block_overload(from) || ans.size() >= _ctx.refinement.balancing.num_nodes_per_block) {
+                break;
+            }
+        }
+
+        // move forward
+        i = i_end;
+        j = j_end;
+    }
+
+    // keep remaining moves
+    while (i < a.size()) {
+        ans.push_back(a[i++]);
+    }
+    while (j < b.size()) {
+        ans.push_back(b[j++]);
+    }
+
+    return ans;
+}
+
+auto DistributedBalancer::pick_move_candidates() -> std::vector<MoveCandidate> {
+    std::vector<MoveCandidate> candidates;
+
+    for (const BlockID from: _p_graph->blocks()) {
+        if (block_overload(from) == 0) {
+            //            DBG << "skip " << from << V(_p_graph->block_weight(from)) << V(_p_ctx->max_block_weight(from))
+            //            << V(_p_ctx->perfectly_balanced_block_weight(from)) << V(_p_ctx->epsilon);
+            continue;
+        }
+
+        // fetch up to num_nodes_per_block move candidates from the PQ
+        // but keep them in the PQ, since they might not get moved
+        NodeID num = 0;
+        for (num = 0; num < _ctx.refinement.balancing.num_nodes_per_block; ++num) {
+            if (_pq.empty(from)) {
+                //               DBG << "pq empty " << from;
+                break;
+            }
+
+            const NodeID     u        = _pq.peek_max_id(from);
+            const NodeWeight u_weight = _p_graph->node_weight(u);
+            _pq.pop_max(from);
+
+            auto [to, actual_relative_gain] = compute_gain(u, from);
+
+            MoveCandidate candidate{_p_graph->local_to_global_node(u), from, to, u_weight, actual_relative_gain};
+            candidates.push_back(candidate);
+        }
+
+        for (NodeID rnum = 0; rnum < num; ++rnum) {
+            ASSERT(candidates.size() > rnum);
+            const auto& candidate = candidates[candidates.size() - rnum - 1];
+            _pq.push(from, _p_graph->global_to_local_node(candidate.node), candidate.rel_gain);
+        }
+    }
+
+    return candidates;
 }
 
 void DistributedBalancer::init_pq() {
@@ -40,8 +321,8 @@ void DistributedBalancer::init_pq() {
 
     _marker.reset();
 
-    // build thread-local PQs: one PQ for each thread and block, each PQ for block b has at most roughly |overload[b]|
-    // weight
+    // build thread-local PQs: one PQ for each thread and block, each PQ for block b has at most roughly
+    // |overload[b]| weight
     START_TIMER("Thread-local");
     tbb::parallel_for(static_cast<NodeID>(0), _p_graph->n(), [&](const NodeID u) {
         auto& pq        = local_pq_ets.local();

@@ -15,6 +15,8 @@
 
 namespace dkaminpar {
 class DistributedBalancer {
+    SET_DEBUG(false);
+
 public:
     DistributedBalancer(const Context& ctx);
 
@@ -28,6 +30,23 @@ public:
     void balance(DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx);
 
 private:
+    struct MoveCandidate {
+        GlobalNodeID node;
+        BlockID      from;
+        BlockID      to;
+        NodeWeight   weight;
+        double       rel_gain;
+    };
+
+    std::vector<MoveCandidate> pick_move_candidates();
+    std::vector<MoveCandidate> reduce_move_candidates(std::vector<MoveCandidate>&& candidates);
+    std::vector<MoveCandidate> reduce_move_candidates(std::vector<MoveCandidate>&& a, std::vector<MoveCandidate>&& b);
+    void                       perform_moves(const std::vector<MoveCandidate>& moves);
+    void                       perform_move(const MoveCandidate& move);
+
+    void print_candidates(const std::vector<MoveCandidate>& moves) const;
+    void print_overloads() const;
+
     void                       init_pq();
     std::pair<BlockID, double> compute_gain(NodeID u, BlockID u_block) const;
 
