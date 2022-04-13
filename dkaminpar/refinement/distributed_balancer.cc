@@ -37,7 +37,7 @@ void DistributedBalancer::balance(DistributedPartitionedGraph& p_graph, const Pa
         START_TIMER("Pick candidates");
         auto candidates = pick_move_candidates();
         STOP_TIMER();
-        
+
         START_TIMER("Reudce");
         candidates = reduce_move_candidates(std::move(candidates));
         STOP_TIMER();
@@ -135,6 +135,7 @@ void DistributedBalancer::perform_move(const MoveCandidate& move) {
                 if (!_p_graph->is_owned_node(v)) {
                     continue;
                 }
+
                 if (!_marker.get(v) && _p_graph->block(v) == from) {
                     add_to_pq(from, v);
                 }
@@ -229,6 +230,7 @@ auto DistributedBalancer::reduce_move_candidates(std::vector<MoveCandidate>&& a,
         // print_candidates(candidates);
 
         NodeWeight total_weight = 0;
+        NodeID     added_to_ans = 0;
         for (NodeID candidate = 0; candidate < candidates.size(); ++candidate) {
             const BlockID    to     = candidates[candidate].to;
             const NodeWeight weight = candidates[candidate].weight;
@@ -244,9 +246,10 @@ auto DistributedBalancer::reduce_move_candidates(std::vector<MoveCandidate>&& a,
             if (from != to) {
                 target_block_weight_delta[to] += weight;
             }
+            ++added_to_ans;
 
             // only pick candidates while we do not have enough weight to balance the block
-            if (total_weight >= block_overload(from) || ans.size() >= _ctx.refinement.balancing.num_nodes_per_block) {
+            if (total_weight >= block_overload(from) || added_to_ans >= _ctx.refinement.balancing.num_nodes_per_block) {
                 break;
             }
         }
@@ -272,8 +275,6 @@ auto DistributedBalancer::pick_move_candidates() -> std::vector<MoveCandidate> {
 
     for (const BlockID from: _p_graph->blocks()) {
         if (block_overload(from) == 0) {
-            //            DBG << "skip " << from << V(_p_graph->block_weight(from)) << V(_p_ctx->max_block_weight(from))
-            //            << V(_p_ctx->perfectly_balanced_block_weight(from)) << V(_p_ctx->epsilon);
             continue;
         }
 
@@ -282,18 +283,22 @@ auto DistributedBalancer::pick_move_candidates() -> std::vector<MoveCandidate> {
         NodeID num = 0;
         for (num = 0; num < _ctx.refinement.balancing.num_nodes_per_block; ++num) {
             if (_pq.empty(from)) {
-                //               DBG << "pq empty " << from;
                 break;
             }
 
-            const NodeID     u        = _pq.peek_max_id(from);
-            const NodeWeight u_weight = _p_graph->node_weight(u);
+            const NodeID     u             = _pq.peek_max_id(from);
+            const double     relative_gain = _pq.peek_max_key(from);
+            const NodeWeight u_weight      = _p_graph->node_weight(u);
             _pq.pop_max(from);
 
             auto [to, actual_relative_gain] = compute_gain(u, from);
 
-            MoveCandidate candidate{_p_graph->local_to_global_node(u), from, to, u_weight, actual_relative_gain};
-            candidates.push_back(candidate);
+            if (relative_gain == actual_relative_gain) {
+                MoveCandidate candidate{_p_graph->local_to_global_node(u), from, to, u_weight, actual_relative_gain};
+                candidates.push_back(candidate);
+            } else {
+                add_to_pq(from, u, u_weight, actual_relative_gain);
+            }
         }
 
         for (NodeID rnum = 0; rnum < num; ++rnum) {

@@ -80,7 +80,6 @@ int main(int argc, char* argv[]) {
         return graph;
     };
     LOG << "Loaded graph with n=" << graph.global_n() << " m=" << graph.global_m();
-    SLOG << "n=" << graph.n() << " ghost_n=" << graph.ghost_n() << " total_n=" << graph.total_n() << " m=" << graph.m();
     ASSERT([&] { graph::debug::validate(graph); });
 
     // Load partition
