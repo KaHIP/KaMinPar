@@ -22,9 +22,11 @@ SET_DEBUG(true);
 
 namespace {
 void save_imbalanced_graph_partition(const DistributedPartitionedGraph& p_graph, const Context& ctx, int level) {
-    const std::string base               = shm::utility::str::extract_basename(ctx.graph_filename);
-    const std::string graph_filename     = base + ".level" + std::to_string(level) + ".graph";
-    const std::string partition_filename = base + ".level" + std::to_string(level) + ".part";
+    const std::string base = shm::utility::str::extract_basename(ctx.graph_filename) + ".seed"
+                             + std::to_string(ctx.seed) + ".k" + std::to_string(ctx.partition.k) + ".level"
+                             + std::to_string(level);
+    const std::string graph_filename     = base + ".graph";
+    const std::string partition_filename = base + ".part";
 
     io::metis::write(graph_filename, p_graph.graph());
 
