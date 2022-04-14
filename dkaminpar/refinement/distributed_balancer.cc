@@ -125,10 +125,10 @@ void DistributedBalancer::perform_move(const MoveCandidate& move) {
 
         if (_p_graph->graph().is_owned_global_node(node)) { // move node on this PE
             ASSERT(u < _p_graph->n());
-            if (_pq.contains(u)) {
-                _pq.remove(from, u);
-                _pq_weight[from] -= weight;
-            }
+            ASSERT(_pq.contains(u));
+
+            _pq.remove(from, u);
+            _pq_weight[from] -= weight;
 
             // activate neighbors
             for (const NodeID v: _p_graph->adjacent_nodes(u)) {
@@ -138,8 +138,8 @@ void DistributedBalancer::perform_move(const MoveCandidate& move) {
 
                 if (!_marker.get(v) && _p_graph->block(v) == from) {
                     add_to_pq(from, v);
+                    _marker.set(v);
                 }
-                _marker.set(v);
             }
         }
 
@@ -290,6 +290,7 @@ auto DistributedBalancer::pick_move_candidates() -> std::vector<MoveCandidate> {
             const double     relative_gain = _pq.peek_max_key(from);
             const NodeWeight u_weight      = _p_graph->node_weight(u);
             _pq.pop_max(from);
+            _pq_weight[from] -= u_weight;
 
             auto [to, actual_relative_gain] = compute_gain(u, from);
 
@@ -298,6 +299,7 @@ auto DistributedBalancer::pick_move_candidates() -> std::vector<MoveCandidate> {
                 candidates.push_back(candidate);
             } else {
                 add_to_pq(from, u, u_weight, actual_relative_gain);
+                --num; // retry
             }
         }
 
@@ -305,6 +307,7 @@ auto DistributedBalancer::pick_move_candidates() -> std::vector<MoveCandidate> {
             ASSERT(candidates.size() > rnum);
             const auto& candidate = candidates[candidates.size() - rnum - 1];
             _pq.push(from, _p_graph->global_to_local_node(candidate.node), candidate.rel_gain);
+            _pq_weight[from] += candidate.weight;
         }
     }
 
