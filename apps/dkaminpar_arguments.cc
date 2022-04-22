@@ -30,6 +30,7 @@ void create_graphgen_options(
       .argument(prefix + "-redistribute-edges", "Remap nodes such that edges are distributed evenly across PEs.", &g_ctx.redistribute_edges)
       .argument(prefix + "-scale", "Scaling factor for the generated graph (e.g., number of PEs).", &g_ctx.scale)
         .line("Note: this option might be ignored depending on the selected graph generator.")
+      .argument(prefix + "-validate", "Validate the graph format before using it. Useful for debugging.", &g_ctx.validate_graph)
       ;
     // clang-format on
 }

@@ -108,23 +108,23 @@ scalable_vector<GlobalNodeID> build_node_distribution(const std::pair<SInt, SInt
 }
 } // namespace
 
-DistributedGraph create_rgg2d(const GlobalNodeID n, const double r, const BlockID k, const int seed) {
+DistributedGraph create_rgg2d(const GlobalNodeID n, const double r, const int seed) {
     const auto [edges, range] = TIMED_SCOPE("KaGen") {
         const auto [size, rank] = mpi::get_comm_info();
         KaGen gen(rank, size);
         gen.SetSeed(seed);
         gen.EnableUndirectedGraphVerification();
-        return gen.Generate2DRGG(n, r, k);
+        return gen.Generate2DRGG(n, r);
     };
     return build_graph(edges, build_node_distribution(range));
 }
 
-DistributedGraph create_rhg(const GlobalNodeID n, const double gamma, const NodeID d, const BlockID k, const int seed) {
+DistributedGraph create_rhg(const GlobalNodeID n, const double gamma, const NodeID d, const int seed) {
     const auto [edges, range] = TIMED_SCOPE("KaGen") {
         const auto [size, rank] = mpi::get_comm_info();
         KaGen gen(rank, size);
         gen.SetSeed(seed);
-        return gen.GenerateRHG(n, gamma, d, k);
+        return gen.GenerateRHG(n, gamma, d);
     };
     return build_graph(edges, build_node_distribution(range));
 }
@@ -143,7 +143,7 @@ DistributedGraph generate(const GeneratorContext ctx, const int seed) {
             const GlobalNodeID n      = static_cast<GlobalNodeID>(std::sqrt(1.0 * m / M_PI) / radius);
 
             LOG << "Generate 2D RGG graph with n=" << n << " m=" << m << " r=" << radius << " scale=" << ctx.scale;
-            return create_rgg2d(n, radius, ctx.k, seed);
+            return create_rgg2d(n, radius, seed);
         }
 
         case GeneratorType::RHG: {
@@ -161,9 +161,9 @@ DistributedGraph generate(const GeneratorContext ctx, const int seed) {
                 n <<= ctx.n;
             }
 
-            LOG << "Generate 2D RHG graph with n=" << n << ", gamma=" << ctx.gamma << ", d=" << ctx.d << ", k=" << ctx.k
+            LOG << "Generate 2D RHG graph with n=" << n << ", gamma=" << ctx.gamma << ", d=" << ctx.d
                 << ", seed=" << seed;
-            return create_rhg(n, ctx.gamma, ctx.d, ctx.k, seed);
+            return create_rhg(n, ctx.gamma, ctx.d, seed);
         }
 
         default:

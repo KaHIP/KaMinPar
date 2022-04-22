@@ -36,6 +36,7 @@ struct GeneratorContext {
     bool          save_graph{false};
     bool          redistribute_edges{false};
     int           scale{1};
+    bool          validate_graph{false};
 };
 
 DistributedGraph generate(GeneratorContext ctx, int seed = 0);
