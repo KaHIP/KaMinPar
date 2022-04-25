@@ -110,8 +110,7 @@ scalable_vector<GlobalNodeID> build_node_distribution(const std::pair<SInt, SInt
 
 DistributedGraph create_rgg2d(const GlobalNodeID n, const double r, const int seed) {
     const auto [edges, range] = TIMED_SCOPE("KaGen") {
-        const auto [size, rank] = mpi::get_comm_info();
-        KaGen gen(rank, size);
+        KaGen gen(MPI_COMM_WORLD);
         gen.SetSeed(seed);
         gen.EnableUndirectedGraphVerification();
         return gen.Generate2DRGG(n, r);
@@ -121,9 +120,9 @@ DistributedGraph create_rgg2d(const GlobalNodeID n, const double r, const int se
 
 DistributedGraph create_rhg(const GlobalNodeID n, const double gamma, const NodeID d, const int seed) {
     const auto [edges, range] = TIMED_SCOPE("KaGen") {
-        const auto [size, rank] = mpi::get_comm_info();
-        KaGen gen(rank, size);
+        KaGen gen(MPI_COMM_WORLD);
         gen.SetSeed(seed);
+	gen.EnableUndirectedGraphVerification();
         return gen.GenerateRHG(n, gamma, d);
     };
     return build_graph(edges, build_node_distribution(range));
