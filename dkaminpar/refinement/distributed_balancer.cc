@@ -36,11 +36,14 @@ void DistributedBalancer::balance(DistributedPartitionedGraph& p_graph, const Pa
         // pick best move candidates for each block
         START_TIMER("Pick candidates");
         auto candidates = pick_move_candidates();
+        //print_candidates(candidates);
         STOP_TIMER();
 
         START_TIMER("Reudce");
         candidates = reduce_move_candidates(std::move(candidates));
         STOP_TIMER();
+
+        //print_candidates(candidates);
 
         START_TIMER("Perform moves on root");
         if (rank == 0) {
@@ -89,9 +92,9 @@ void DistributedBalancer::balance(DistributedPartitionedGraph& p_graph, const Pa
     }
 }
 
-void DistributedBalancer::print_candidates(const std::vector<MoveCandidate>& moves) const {
+void DistributedBalancer::print_candidates(const std::vector<MoveCandidate>& moves, const std::string &desc) const {
     std::stringstream ss;
-    ss << "[";
+    ss << desc << " [";
     for (const auto& [node, from, to, weight, rel_gain]: moves) {
         ss << "{node=" << node << ", from=" << from << ", to=" << to << ", weight=" << weight
            << ", rel_gain=" << rel_gain << "}";
@@ -119,6 +122,8 @@ void DistributedBalancer::perform_move(const MoveCandidate& move) {
         ASSERT(mpi::get_comm_rank(_p_graph->communicator()) == 0);
         return;
     }
+
+    LOG << V(node) << V(from) << V(to) << V(weight) << V(rel_gain);
 
     if (_p_graph->contains_global_node(node)) {
         const NodeID u = _p_graph->global_to_local_node(node);
@@ -154,7 +159,7 @@ auto DistributedBalancer::reduce_move_candidates(std::vector<MoveCandidate>&& ca
     -> std::vector<MoveCandidate> {
     const int size = mpi::get_comm_size(_p_graph->communicator());
     const int rank = mpi::get_comm_rank(_p_graph->communicator());
-    ALWAYS_ASSERT(shm::math::is_power_of_2(size)) << "Currently only powers of 2 are supported";
+    ALWAYS_ASSERT(shm::math::is_power_of_2(size)) << "#PE must be a power of two";
 
     int active_size = size;
     while (active_size > 1) {
@@ -168,6 +173,7 @@ auto DistributedBalancer::reduce_move_candidates(std::vector<MoveCandidate>&& ca
 
         if (role) {
             const int dest = rank - active_size / 2;
+            //print_candidates(candidates, "before send");
             mpi::send(candidates.data(), candidates.size(), dest, 0, _p_graph->communicator());
             return {};
         } else {
@@ -175,6 +181,7 @@ auto DistributedBalancer::reduce_move_candidates(std::vector<MoveCandidate>&& ca
             std::vector<MoveCandidate> tmp_buffer = mpi::probe_recv<MoveCandidate, std::vector<MoveCandidate>>(
                 src, 0, MPI_STATUS_IGNORE, _p_graph->communicator());
 
+            //print_candidates(tmp_buffer, "after recv");
             candidates = reduce_move_candidates(std::move(candidates), std::move(tmp_buffer));
         }
 
@@ -225,7 +232,7 @@ auto DistributedBalancer::reduce_move_candidates(std::vector<MoveCandidate>&& a,
         std::copy(a.begin() + i, a.begin() + i_end, candidates.begin());
         std::copy(b.begin() + j, b.begin() + j_end, candidates.begin() + num_in_a);
         std::sort(candidates.begin(), candidates.end(), [&](const auto& lhs, const auto& rhs) {
-            return lhs.rel_gain < rhs.rel_gain || (lhs.rel_gain == rhs.rel_gain && lhs.node < rhs.node);
+            return lhs.rel_gain > rhs.rel_gain || (lhs.rel_gain == rhs.rel_gain && lhs.node > rhs.node);
         });
         // print_candidates(candidates);
 

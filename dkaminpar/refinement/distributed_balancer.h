@@ -44,7 +44,7 @@ private:
     void                       perform_moves(const std::vector<MoveCandidate>& moves);
     void                       perform_move(const MoveCandidate& move);
 
-    void print_candidates(const std::vector<MoveCandidate>& moves) const;
+    void print_candidates(const std::vector<MoveCandidate>& moves, const std::string& desc = "") const;
     void print_overloads() const;
 
     void                       init_pq();
