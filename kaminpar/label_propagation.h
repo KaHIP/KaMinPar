@@ -783,7 +783,7 @@ private:
             }
 
             for (NodeID u = 0; u < to - from; ++u) {
-                ALWAYS_ASSERT(hit[u]) << V(from) << V(u + from) << V(to);
+                ALWAYS_ASSERT(_graph->degree(u) == 0 || hit[u]) << V(from) << V(u + from) << V(to);
             }
         });
     }
