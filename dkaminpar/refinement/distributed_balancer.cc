@@ -123,7 +123,7 @@ void DistributedBalancer::perform_move(const MoveCandidate& move) {
         return;
     }
 
-    LOG << V(node) << V(from) << V(to) << V(weight) << V(rel_gain);
+    //LOG << V(node) << V(from) << V(to) << V(weight) << V(rel_gain);
 
     if (_p_graph->contains_global_node(node)) {
         const NodeID u = _p_graph->global_to_local_node(node);
