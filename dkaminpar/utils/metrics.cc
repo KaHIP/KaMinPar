@@ -7,11 +7,13 @@
  ******************************************************************************/
 #include "dkaminpar/utils/metrics.h"
 
+#include <tbb/enumerable_thread_specific.h>
+
 #include "dkaminpar/mpi_wrapper.h"
 
 namespace dkaminpar::metrics {
-EdgeWeight local_edge_cut(const DistributedPartitionedGraph& p_graph) {
-    tbb::enumerable_thread_specific<EdgeWeight> cut_ets;
+GlobalEdgeWeight local_edge_cut(const DistributedPartitionedGraph& p_graph) {
+    tbb::enumerable_thread_specific<GlobalEdgeWeight> cut_ets;
 
     p_graph.pfor_nodes_range([&](const auto r) {
         auto& cut = cut_ets.local();
@@ -29,8 +31,7 @@ EdgeWeight local_edge_cut(const DistributedPartitionedGraph& p_graph) {
 }
 
 GlobalEdgeWeight edge_cut(const DistributedPartitionedGraph& p_graph) {
-    const GlobalEdgeWeight global_edge_cut =
-        mpi::allreduce(static_cast<GlobalEdgeWeight>(local_edge_cut(p_graph)), MPI_SUM, p_graph.communicator());
+    const GlobalEdgeWeight global_edge_cut = mpi::allreduce(local_edge_cut(p_graph), MPI_SUM, p_graph.communicator());
     ASSERT(global_edge_cut % 2 == 0);
     return global_edge_cut / 2;
 }

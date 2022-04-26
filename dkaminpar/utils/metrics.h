@@ -5,10 +5,7 @@
  * @date:   27.10.2021
  * @brief:  Partition metrics for distributed graphs.
  ******************************************************************************/
-
 #pragma once
-
-#include <tbb/enumerable_thread_specific.h>
 
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructure/distributed_graph.h"
@@ -22,7 +19,7 @@ namespace dkaminpar::metrics {
  * @param p_graph Partitioned graph.
  * @return Weighted edge cut of @p p_graph with undirected edges counted twice.
  */
-EdgeWeight local_edge_cut(const DistributedPartitionedGraph& p_graph);
+GlobalEdgeWeight local_edge_cut(const DistributedPartitionedGraph& p_graph);
 
 /*!
  * Computes the number of edges cut in the whole graph, i.e., across all PEs. Undirected edges are only counted once.
