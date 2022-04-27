@@ -15,11 +15,14 @@ namespace dkaminpar::graphgen {
 enum class GeneratorType {
     NONE,
     GNM,
+    GNP,
     RGG2D,
+    RGG3D,
     RDG2D,
+    RDG3D,
     RHG,
-    BA,
-    KRONECKER,
+    GRID2D,
+    GRID3D,
 };
 
 DECLARE_ENUM_STRING_CONVERSION(GeneratorType, generator_type);
@@ -28,16 +31,15 @@ struct GeneratorContext {
     GeneratorType type{GeneratorType::NONE};
     GlobalNodeID  n{0};
     GlobalEdgeID  m{0};
-    unsigned long k{0};
     NodeID        d{0};
     double        p{0};
     double        r{0};
     double        gamma{0};
-    bool          save_graph{false};
-    bool          redistribute_edges{false};
     int           scale{1};
     bool          validate_graph{false};
+    bool          save_graph{false};
+    int           seed{0};
 };
 
-DistributedGraph generate(GeneratorContext ctx, int seed = 0);
+DistributedGraph generate(GeneratorContext ctx);
 } // namespace dkaminpar::graphgen

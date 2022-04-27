@@ -10,15 +10,14 @@
 #include "dkaminpar/definitions.h"
 // clang-format on
 
-#include "apps/apps.h"
-#include "apps/dkaminpar_arguments.h"
-#include "apps/dkaminpar_graphgen.h"
-
 #include <fstream>
 
 #include <mpi.h>
 #include <omp.h>
 
+#include "apps/apps.h"
+#include "apps/dkaminpar_arguments.h"
+#include "apps/dkaminpar_graphgen.h"
 #include "dkaminpar/context.h"
 #include "dkaminpar/distributed_io.h"
 #include "dkaminpar/graphutils/rearrange_graph.h"
@@ -26,10 +25,10 @@
 #include "dkaminpar/utils/distributed_timer.h"
 #include "dkaminpar/utils/metrics.h"
 #include "kaminpar/definitions.h"
+#include "kaminpar/utils/console_io.h"
 #include "kaminpar/utils/logger.h"
 #include "kaminpar/utils/random.h"
 #include "kaminpar/utils/timer.h"
-#include "kaminpar/utils/console_io.h"
 
 namespace dist = dkaminpar;
 namespace shm  = kaminpar;
@@ -113,6 +112,9 @@ int main(int argc, char* argv[]) {
 
     // Initialize random number generator
     shm::Randomize::seed = ctx.seed;
+#ifdef KAMINPAR_GRAPHGEN
+    app.generator.seed = ctx.seed;
+#endif // KAMINPAR_GRAPHGEN
 
     // Initialize TBB
     auto gc = shm::init_parallelism(ctx.parallel.num_threads);
@@ -125,7 +127,7 @@ int main(int argc, char* argv[]) {
     auto graph = TIMED_SCOPE("IO") {
 #ifdef KAMINPAR_GRAPHGEN
         if (app.generator.type != dist::graphgen::GeneratorType::NONE) {
-            auto graph = dist::graphgen::generate(app.generator, ctx.seed);
+            auto graph = dist::graphgen::generate(app.generator);
             if (app.generator.save_graph) {
                 dist::io::metis::write("generated.graph", graph, false, false);
             }

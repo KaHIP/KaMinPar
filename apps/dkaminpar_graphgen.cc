@@ -21,9 +21,10 @@ namespace dkaminpar::graphgen {
 using namespace std::string_literals;
 
 DEFINE_ENUM_STRING_CONVERSION(GeneratorType, generator_type) = {
-    {GeneratorType::NONE, "none"}, {GeneratorType::GNM, "gnm"},     {GeneratorType::RGG2D, "rgg2d"},
-    {GeneratorType::RHG, "rhg"},   {GeneratorType::RDG2D, "rdg2d"}, {GeneratorType::KRONECKER, "kronecker"},
-    {GeneratorType::BA, "ba"},
+    {GeneratorType::NONE, "none"},     {GeneratorType::GNM, "gnm"},     {GeneratorType::GNP, "gnp"},
+    {GeneratorType::RGG2D, "rgg2d"},   {GeneratorType::RGG3D, "rgg3d"}, {GeneratorType::RDG2D, "rdg2d"},
+    {GeneratorType::RDG3D, "rdg3d"},   {GeneratorType::RHG, "rhg"},     {GeneratorType::GRID2D, "grid2d"},
+    {GeneratorType::GRID3D, "grid3d"},
 };
 
 using namespace kagen;
@@ -106,29 +107,28 @@ scalable_vector<GlobalNodeID> build_node_distribution(const std::pair<SInt, SInt
     mpi::allgather(&to, 1, node_distribution.data() + 1, 1);
     return node_distribution;
 }
+
+KaGen create_generator_object(const GeneratorContext ctx) {
+    KaGen gen(MPI_COMM_WORLD);
+    gen.SetSeed(ctx.seed);
+    if (ctx.validate_graph) {
+        gen.EnableUndirectedGraphVerification();
+    }
+    return gen;
+}
 } // namespace
 
-DistributedGraph create_rgg2d(const GlobalNodeID n, const double r, const int seed) {
-    const auto [edges, range] = TIMED_SCOPE("KaGen") {
-        KaGen gen(MPI_COMM_WORLD);
-        gen.SetSeed(seed);
-        gen.EnableUndirectedGraphVerification();
-        return gen.Generate2DRGG(n, r);
-    };
+DistributedGraph create_rgg2d(const GeneratorContext ctx) {
+    const auto [edges, range] = create_generator_object(ctx).GenerateRGG2D(ctx.n, ctx.r);
     return build_graph(edges, build_node_distribution(range));
 }
 
-DistributedGraph create_rhg(const GlobalNodeID n, const double gamma, const NodeID d, const int seed) {
-    const auto [edges, range] = TIMED_SCOPE("KaGen") {
-        KaGen gen(MPI_COMM_WORLD);
-        gen.SetSeed(seed);
-	gen.EnableUndirectedGraphVerification();
-        return gen.GenerateRHG(n, gamma, d);
-    };
+DistributedGraph create_rhg(const GeneratorContext ctx) {
+    const auto [edges, range] = create_generator_object(ctx).GenerateRHG(ctx.n, ctx.gamma, ctx.d);
     return build_graph(edges, build_node_distribution(range));
 }
 
-DistributedGraph generate(const GeneratorContext ctx, const int seed) {
+DistributedGraph generate(const GeneratorContext ctx) {
     switch (ctx.type) {
         case GeneratorType::NONE:
             FATAL_ERROR << "no graph generator configured";
@@ -142,7 +142,7 @@ DistributedGraph generate(const GeneratorContext ctx, const int seed) {
             const GlobalNodeID n      = static_cast<GlobalNodeID>(std::sqrt(1.0 * m / M_PI) / radius);
 
             LOG << "Generate 2D RGG graph with n=" << n << " m=" << m << " r=" << radius << " scale=" << ctx.scale;
-            return create_rgg2d(n, radius, seed);
+            return create_rgg2d(ctx);
         }
 
         case GeneratorType::RHG: {
@@ -160,9 +160,8 @@ DistributedGraph generate(const GeneratorContext ctx, const int seed) {
                 n <<= ctx.n;
             }
 
-            LOG << "Generate 2D RHG graph with n=" << n << ", gamma=" << ctx.gamma << ", d=" << ctx.d
-                << ", seed=" << seed;
-            return create_rhg(n, ctx.gamma, ctx.d, seed);
+            LOG << "Generate 2D RHG graph with n=" << n << ", gamma=" << ctx.gamma << ", d=" << ctx.d;
+            return create_rhg(ctx);
         }
 
         default:
