@@ -114,60 +114,47 @@ KaGen create_generator_object(const GeneratorContext ctx) {
     if (ctx.validate_graph) {
         gen.EnableUndirectedGraphVerification();
     }
+    gen.EnableAdvancedStatistics();
     return gen;
+}
+
+KaGenResult create_rgg2d(const GeneratorContext ctx) {
+    const GlobalEdgeID m      = (static_cast<GlobalEdgeID>(1) << ctx.m) * ctx.scale;
+    const double       radius = ctx.r / std::sqrt(ctx.scale);
+    const GlobalNodeID n      = static_cast<GlobalNodeID>(std::sqrt(1.0 * m / M_PI) / radius);
+    return create_generator_object(ctx).GenerateRGG2D(n, radius);
+}
+
+KaGenResult create_rgg3d(const GeneratorContext ctx) {
+    const GlobalEdgeID m      = (static_cast<GlobalEdgeID>(1) << ctx.m) * ctx.scale;
+    const double       radius = ctx.r / std::cbrt(ctx.scale);
+    const GlobalNodeID n      = static_cast<GlobalNodeID>(std::sqrt(3.0 / 4.0 * m / M_PI / (radius * radius * radius)));
+    return create_generator_object(ctx).GenerateRGG3D(n, radius);
+}
+
+KaGenResult create_rhg(const GeneratorContext ctx) {
+    const GlobalNodeID m = (static_cast<GlobalNodeID>(1) << ctx.m) * ctx.scale;
+    const GlobalNodeID n = m / ctx.d;
+    return create_generator_object(ctx).GenerateRHG(n, ctx.gamma, ctx.d);
 }
 } // namespace
 
-DistributedGraph create_rgg2d(const GeneratorContext ctx) {
-    const auto [edges, range] = create_generator_object(ctx).GenerateRGG2D(ctx.n, ctx.r);
-    return build_graph(edges, build_node_distribution(range));
-}
-
-DistributedGraph create_rhg(const GeneratorContext ctx) {
-    const auto [edges, range] = create_generator_object(ctx).GenerateRHG(ctx.n, ctx.gamma, ctx.d);
-    return build_graph(edges, build_node_distribution(range));
-}
-
 DistributedGraph generate(const GeneratorContext ctx) {
-    switch (ctx.type) {
-        case GeneratorType::NONE:
-            FATAL_ERROR << "no graph generator configured";
-            break;
+    const auto [edges, range] = [&] {
+        switch (ctx.type) {
+            case GeneratorType::NONE:
+                FATAL_ERROR << "no graph generator configured";
+                break;
 
-        case GeneratorType::RGG2D: {
-            ALWAYS_ASSERT(ctx.r > 0) << "Radius cannot be zero";
+            case GeneratorType::RGG2D:
+                return create_rgg2d(ctx);
 
-            const GlobalEdgeID m      = (static_cast<GlobalEdgeID>(1) << ctx.m) * ctx.scale;
-            const double       radius = ctx.r / std::sqrt(ctx.scale);
-            const GlobalNodeID n      = static_cast<GlobalNodeID>(std::sqrt(1.0 * m / M_PI) / radius);
-
-            LOG << "Generate 2D RGG graph with n=" << n << " m=" << m << " r=" << radius << " scale=" << ctx.scale;
-            return create_rgg2d(ctx);
+            default:
+                FATAL_ERROR << "graph generator is deactivated";
         }
+        __builtin_unreachable();
+    }();
 
-        case GeneratorType::RHG: {
-            ALWAYS_ASSERT(ctx.gamma > 0) << "Must specify gamma";
-            ALWAYS_ASSERT(ctx.d > 0) << "Must specify average degree";
-            ALWAYS_ASSERT(ctx.n > 0 || ctx.m > 0) << "Must specify number of nodes or number of edges";
-            ALWAYS_ASSERT(ctx.n == 0 || ctx.m == 0) << "Cannot specify both number of nodes and number of edges";
-
-            GlobalNodeID n = 1;
-            if (ctx.m > 0) {
-                GlobalEdgeID m = 1;
-                m <<= ctx.m;
-                n = m / ctx.d;
-            } else {
-                n <<= ctx.n;
-            }
-
-            LOG << "Generate 2D RHG graph with n=" << n << ", gamma=" << ctx.gamma << ", d=" << ctx.d;
-            return create_rhg(ctx);
-        }
-
-        default:
-            FATAL_ERROR << "graph generator is deactivated";
-    }
-
-    __builtin_unreachable();
+    return build_graph(edges, build_node_distribution(range));
 }
 } // namespace dkaminpar::graphgen
