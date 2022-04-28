@@ -3,7 +3,7 @@
  *
  * @author: Daniel Seemaier
  * @date:   25.10.2021
- * @brief:  Direct k-way partitioning.
+ * @brief:  Partitioning scheme using direct k-way partitioning.
  ******************************************************************************/
 #include "dkaminpar/partitioning_scheme/kway.h"
 

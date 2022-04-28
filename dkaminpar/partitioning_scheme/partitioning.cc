@@ -7,16 +7,19 @@
  ******************************************************************************/
 #include "dkaminpar/partitioning_scheme/partitioning.h"
 
+#include "dkaminpar/partitioning_scheme/deep_mgp.h"
 #include "dkaminpar/partitioning_scheme/kway.h"
 
 namespace dkaminpar {
 DistributedPartitionedGraph partition(const DistributedGraph& graph, const Context& ctx) {
     switch (ctx.partition.mode) {
         case PartitioningMode::KWAY:
-            return KWayPartitioningScheme{graph, ctx}.partition();
+            return KWayPartitioningScheme(graph, ctx).partition();
+
         case PartitioningMode::DEEP:
-            FATAL_ERROR << "not implemented";
+            return DeepMGPPartitioningScheme(graph, ctx).partition();
             break;
+
         case PartitioningMode::RB:
             FATAL_ERROR << "not implemented";
             break;
