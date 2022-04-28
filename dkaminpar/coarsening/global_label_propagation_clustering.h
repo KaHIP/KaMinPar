@@ -1,11 +1,12 @@
 /*******************************************************************************
  * @file:   global_label_propagation_coarsener.h
- *
  * @author: Daniel Seemaier
  * @date:   29.09.21
- * @brief:  Label propagation across PEs, synchronizes cluster weights after
- * every weight, otherwise moves nodes without communication causing violations
- * of the balance constraint.
+ * @brief:  Label propagation with clusters that span multiple PEs. Cluster
+ * labels and weights are synchronized in rounds. Between communication rounds,
+ * a cluster can grow beyond the maximum cluster weight limit if more than one
+ * PE moves nodes to the cluster. Thus, the clustering might violate the
+ * maximum cluster weight limit.
  ******************************************************************************/
 #pragma once
 
@@ -20,6 +21,7 @@ public:
 
     DistributedGlobalLabelPropagationClustering(const DistributedGlobalLabelPropagationClustering&) = delete;
     DistributedGlobalLabelPropagationClustering& operator=(const DistributedGlobalLabelPropagationClustering&) = delete;
+
     DistributedGlobalLabelPropagationClustering(DistributedGlobalLabelPropagationClustering&&) = default;
     DistributedGlobalLabelPropagationClustering& operator=(DistributedGlobalLabelPropagationClustering&&) = default;
 

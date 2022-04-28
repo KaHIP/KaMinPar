@@ -19,7 +19,8 @@ public:
 
     DistributedLocalLabelPropagationClustering(const DistributedLocalLabelPropagationClustering&) = delete;
     DistributedLocalLabelPropagationClustering& operator=(const DistributedLocalLabelPropagationClustering&) = delete;
-    DistributedLocalLabelPropagationClustering(DistributedLocalLabelPropagationClustering&&)                 = default;
+
+    DistributedLocalLabelPropagationClustering(DistributedLocalLabelPropagationClustering&&) = default;
     DistributedLocalLabelPropagationClustering& operator=(DistributedLocalLabelPropagationClustering&&) = default;
 
     ~DistributedLocalLabelPropagationClustering();
