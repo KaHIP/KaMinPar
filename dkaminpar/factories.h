@@ -15,7 +15,7 @@
 #include "dkaminpar/refinement/i_distributed_refiner.h"
 
 namespace dkaminpar::factory {
-std::unique_ptr<IInitialPartitioner>       create_initial_partitioner(const Context& ctx);
-std::unique_ptr<IDistributedRefiner>       create_distributed_refiner(const Context& ctx);
-std::unique_ptr<IClustering<GlobalNodeID>> create_global_clustering(const Context& ctx);
+std::unique_ptr<IInitialPartitioner> create_initial_partitioner(const Context& ctx);
+std::unique_ptr<IDistributedRefiner> create_distributed_refiner(const Context& ctx);
+std::unique_ptr<ClusteringAlgorithm> create_clustering_algorithm(const Context& ctx);
 } // namespace dkaminpar::factory

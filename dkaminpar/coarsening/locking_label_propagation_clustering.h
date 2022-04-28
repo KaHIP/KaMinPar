@@ -13,14 +13,15 @@
 #include "dkaminpar/definitions.h"
 
 namespace dkaminpar {
-class LockingLpClustering : public IClustering<GlobalNodeID> {
+class LockingLabelPropagationClustering : public ClusteringAlgorithm {
 public:
-    explicit LockingLpClustering(const Context& ctx);
-    ~LockingLpClustering();
+    explicit LockingLabelPropagationClustering(const Context& ctx);
+    ~LockingLabelPropagationClustering();
 
-    const AtomicClusterArray& compute_clustering(const DistributedGraph& graph, NodeWeight max_cluster_weight) final;
+    const AtomicClusterArray&
+    compute_clustering(const DistributedGraph& graph, GlobalNodeWeight max_cluster_weight) final;
 
 private:
-    std::unique_ptr<class LockingLpClusteringImpl> _impl{};
+    std::unique_ptr<class LockingLabelPropagationClusteringImpl> _impl{};
 };
 } // namespace dkaminpar

@@ -14,7 +14,7 @@
 #include "dkaminpar/datastructure/distributed_graph.h"
 
 namespace dkaminpar {
-class DistributedGlobalLabelPropagationClustering : public IClustering<GlobalNodeID> {
+class DistributedGlobalLabelPropagationClustering : public ClusteringAlgorithm {
 public:
     DistributedGlobalLabelPropagationClustering(const Context& ctx);
 
@@ -25,7 +25,8 @@ public:
 
     ~DistributedGlobalLabelPropagationClustering();
 
-    const AtomicClusterArray& compute_clustering(const DistributedGraph& graph, NodeWeight max_cluster_weight) final;
+    const AtomicClusterArray&
+    compute_clustering(const DistributedGraph& graph, GlobalNodeWeight max_cluster_weight) final;
 
 private:
     std::unique_ptr<class DistributedGlobalLabelPropagationClusteringImpl> _impl;

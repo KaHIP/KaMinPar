@@ -13,7 +13,7 @@
 #include "dkaminpar/datastructure/distributed_graph.h"
 
 namespace dkaminpar {
-class DistributedLocalLabelPropagationClustering : public IClustering<NodeID> {
+class DistributedLocalLabelPropagationClustering : public ClusteringAlgorithm {
 public:
     DistributedLocalLabelPropagationClustering(NodeID max_n, const CoarseningContext& c_ctx);
 
@@ -24,7 +24,8 @@ public:
 
     ~DistributedLocalLabelPropagationClustering();
 
-    const AtomicClusterArray& compute_clustering(const DistributedGraph& graph, NodeWeight max_cluster_weight) final;
+    const AtomicClusterArray&
+    compute_clustering(const DistributedGraph& graph, GlobalNodeWeight max_cluster_weight) final;
 
 private:
     std::unique_ptr<class DistributedLocalLabelPropagationClusteringImpl> _impl;

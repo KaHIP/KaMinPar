@@ -13,8 +13,8 @@
 #include "dkaminpar/definitions.h"
 
 namespace dkaminpar::coarsening {
-using GlobalMapping    = scalable_vector<Atomic<GlobalNodeID>>;
-using GlobalClustering = scalable_vector<Atomic<GlobalNodeID>>;
+using GlobalMapping    = scalable_vector<parallel::Atomic<GlobalNodeID>>;
+using GlobalClustering = scalable_vector<parallel::Atomic<GlobalNodeID>>;
 
 struct GlobalContractionResult {
     DistributedGraph graph;

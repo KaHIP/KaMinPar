@@ -73,7 +73,7 @@ public:
         set_max_num_neighbors(_c_ctx.global_lp.max_num_neighbors);
     }
 
-    const auto& compute_clustering(const DistributedGraph& graph, const NodeWeight max_cluster_weight) {
+    const auto& compute_clustering(const DistributedGraph& graph, const GlobalNodeWeight max_cluster_weight) {
         SCOPED_TIMER("Global Label Propagation");
 
         TIMED_SCOPE("Allocation") {
@@ -347,7 +347,7 @@ DistributedGlobalLabelPropagationClustering::~DistributedGlobalLabelPropagationC
 
 const DistributedGlobalLabelPropagationClustering::AtomicClusterArray&
 DistributedGlobalLabelPropagationClustering::compute_clustering(
-    const DistributedGraph& graph, const NodeWeight max_cluster_weight) {
+    const DistributedGraph& graph, const GlobalNodeWeight max_cluster_weight) {
     return _impl->compute_clustering(graph, max_cluster_weight);
 }
 } // namespace dkaminpar

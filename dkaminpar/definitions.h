@@ -52,6 +52,12 @@ inline int get_rank(MPI_Comm comm = MPI_COMM_WORLD) {
 }
 } // namespace internal
 
+// Import commonly used symbols to dkaminpar namespace
+namespace parallel {
+template <typename T>
+using Atomic = shm::parallel::Atomic<T>;
+}
+
 template <typename T>
 using scalable_vector = shm::scalable_vector<T>;
 
@@ -61,6 +67,7 @@ using cache_aligned_vector = std::vector<T, tbb::cache_aligned_allocator<T>>;
 template <typename T>
 using scalable_noinit_vector = std::vector<T, shm::noinit_allocator<T, tbb::scalable_allocator<T>>>;
 
+// @todo remove
 template <typename T>
 using Atomic = shm::parallel::Atomic<T>;
 

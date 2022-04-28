@@ -21,14 +21,14 @@ struct DistributedLocalLabelPropagationClusteringConfig : public shm::LabelPropa
 class DistributedLocalLabelPropagationClusteringImpl final
     : public shm::ChunkRandomizedLabelPropagation<
           DistributedLocalLabelPropagationClusteringImpl, DistributedLocalLabelPropagationClusteringConfig>,
-      public shm::OwnedClusterVector<NodeID, NodeID>,
-      public shm::OwnedRelaxedClusterWeightVector<NodeID, NodeWeight> {
+      public shm::OwnedClusterVector<NodeID, GlobalNodeID>,
+      public shm::OwnedRelaxedClusterWeightVector<GlobalNodeID, NodeWeight> {
     SET_DEBUG(true);
 
     using Base = shm::ChunkRandomizedLabelPropagation<
         DistributedLocalLabelPropagationClusteringImpl, DistributedLocalLabelPropagationClusteringConfig>;
-    using ClusterBase       = shm::OwnedClusterVector<NodeID, NodeID>;
-    using ClusterWeightBase = shm::OwnedRelaxedClusterWeightVector<NodeID, NodeWeight>;
+    using ClusterBase       = shm::OwnedClusterVector<NodeID, GlobalNodeID>;
+    using ClusterWeightBase = shm::OwnedRelaxedClusterWeightVector<GlobalNodeID, NodeWeight>;
 
     static constexpr auto kInfiniteIterations = std::numeric_limits<std::size_t>::max();
 
@@ -43,7 +43,7 @@ public:
     }
 
     const auto& compute_clustering(
-        const DistributedGraph& graph, const NodeWeight max_cluster_weight,
+        const DistributedGraph& graph, const GlobalNodeWeight max_cluster_weight,
         const std::size_t max_iterations = kInfiniteIterations) {
         initialize(&graph, graph.n());
         _max_cluster_weight = max_cluster_weight;
@@ -109,7 +109,7 @@ DistributedLocalLabelPropagationClustering::~DistributedLocalLabelPropagationClu
 
 const DistributedLocalLabelPropagationClustering::AtomicClusterArray&
 DistributedLocalLabelPropagationClustering::compute_clustering(
-    const DistributedGraph& graph, NodeWeight max_cluster_weight) {
+    const DistributedGraph& graph, const GlobalNodeWeight max_cluster_weight) {
     return _impl->compute_clustering(graph, max_cluster_weight);
 }
 } // namespace dkaminpar

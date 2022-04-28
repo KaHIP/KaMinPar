@@ -38,7 +38,7 @@ struct UnorderedRatingMap {
     std::unordered_map<GlobalNodeID, EdgeWeight> map{};
 };
 
-struct LockingLpClusteringConfig : shm::LabelPropagationConfig {
+struct LockingLabelPropagationClusteringConfig : shm::LabelPropagationConfig {
     using Graph         = DistributedGraph;
     using RatingMap     = ::kaminpar::RatingMap<EdgeWeight, UnorderedRatingMap>;
     using ClusterID     = GlobalNodeID;
@@ -46,11 +46,13 @@ struct LockingLpClusteringConfig : shm::LabelPropagationConfig {
 };
 } // namespace
 
-class LockingLpClusteringImpl
-    : public shm::InOrderLabelPropagation<LockingLpClusteringImpl, LockingLpClusteringConfig> {
+class LockingLabelPropagationClusteringImpl
+    : public shm::InOrderLabelPropagation<
+          LockingLabelPropagationClusteringImpl, LockingLabelPropagationClusteringConfig> {
     SET_STATISTICS(true);
 
-    using Base               = shm::InOrderLabelPropagation<LockingLpClusteringImpl, LockingLpClusteringConfig>;
+    using Base =
+        shm::InOrderLabelPropagation<LockingLabelPropagationClusteringImpl, LockingLabelPropagationClusteringConfig>;
     using AtomicClusterArray = scalable_vector<shm::parallel::Atomic<GlobalNodeID>>;
 
     friend Base;
@@ -82,14 +84,14 @@ class LockingLpClusteringImpl
     };
 
 public:
-    explicit LockingLpClusteringImpl(const Context& ctx)
+    explicit LockingLabelPropagationClusteringImpl(const Context& ctx)
         : _c_ctx{ctx.coarsening},
           _cluster_weights{ctx.partition.local_n()} {
         set_max_degree(_c_ctx.global_lp.large_degree_threshold);
         set_max_num_neighbors(_c_ctx.global_lp.max_num_neighbors);
     }
 
-    const auto& compute_clustering(const DistributedGraph& graph, const NodeWeight max_cluster_weight) {
+    const auto& compute_clustering(const DistributedGraph& graph, const GlobalNodeWeight max_cluster_weight) {
         TIMED_SCOPE("Allocation") {
             allocate(graph);
         };
@@ -701,12 +703,13 @@ private:
     }};
 };
 
-LockingLpClustering::LockingLpClustering(const Context& ctx) : _impl{std::make_unique<LockingLpClusteringImpl>(ctx)} {}
+LockingLabelPropagationClustering::LockingLabelPropagationClustering(const Context& ctx)
+    : _impl{std::make_unique<LockingLabelPropagationClusteringImpl>(ctx)} {}
 
-LockingLpClustering::~LockingLpClustering() = default;
+LockingLabelPropagationClustering::~LockingLabelPropagationClustering() = default;
 
-const LockingLpClustering::AtomicClusterArray&
-LockingLpClustering::compute_clustering(const DistributedGraph& graph, const NodeWeight max_cluster_weight) {
+const LockingLabelPropagationClustering::AtomicClusterArray& LockingLabelPropagationClustering::compute_clustering(
+    const DistributedGraph& graph, const GlobalNodeWeight max_cluster_weight) {
     return _impl->compute_clustering(graph, max_cluster_weight);
 }
 } // namespace dkaminpar

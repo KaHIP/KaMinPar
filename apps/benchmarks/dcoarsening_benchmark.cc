@@ -88,7 +88,7 @@ int main(int argc, char* argv[]) {
         LOG << "... computing clustering";
 
         START_TIMER("Clustering Algorithm", "Level " + std::to_string(graph_hierarchy.size()));
-        dist::LockingLpClustering clustering_algorithm(ctx);
+        dist::LockingLabelPropagationClustering clustering_algorithm(ctx);
         auto&                     clustering = clustering_algorithm.compute_clustering(*c_graph, max_cluster_weight);
         STOP_TIMER();
 
