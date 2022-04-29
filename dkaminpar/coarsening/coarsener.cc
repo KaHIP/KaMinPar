@@ -30,7 +30,7 @@ const DistributedGraph* Coarsener::coarsen_once(const GlobalNodeWeight max_clust
     auto& clustering = _clustering_algorithm->compute_clustering(*graph, static_cast<NodeWeight>(max_cluster_weight));
     auto [c_graph, mapping] =
         coarsening::contract_global_clustering(*graph, clustering, _input_ctx.coarsening.global_contraction_algorithm);
-    HEAVY_ASSERT(graph::debug::validate(contracted_graph));
+    HEAVY_ASSERT(graph::debug::validate(c_graph));
 
     // only keep graph if coarsening has not converged yet
     const bool converged = (c_graph.global_n() == graph->global_n());

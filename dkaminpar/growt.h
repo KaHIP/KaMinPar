@@ -13,17 +13,25 @@
 
 #include "dkaminpar/definitions.h"
 
-#pragma GCC diagnostic   push
-#pragma clang diagnostic push
-#pragma GCC diagnostic   ignored "-Wpedantic"
-#pragma clang diagnostic ignored "-Wpedantic"
-#pragma clang diagnostic ignored "-Wunused-parameter"
-#pragma clang diagnostic ignored "-Wuninitialized"
+#if defined(__GNUC__) && !defined(__clang__)
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wpedantic"
+#elif defined(__clang__)
+    #pragma clang diagnostic push
+    #pragma clang diagnostic ignored "-Wpedantic"
+    #pragma clang diagnostic ignored "-Wunused-parameter"
+    #pragma clang diagnostic ignored "-Wuninitialized"
+#endif
+
 #include <allocator/alignedallocator.hpp>
 #include <data-structures/table_config.hpp>
 #include <utils/hash/murmur2_hash.hpp>
-#pragma GCC diagnostic   pop
-#pragma clang diagnostic pop
+
+#if defined(__GNUC__) && !defined(__clang__)
+    #pragma GCC diagnostic pop
+#elif defined(__clang__)
+    #pragma clang diagnostic pop
+#endif
 
 namespace dkaminpar::growt {
 using DefaultHasherType    = utils_tm::hash_tm::murmur2_hash;
