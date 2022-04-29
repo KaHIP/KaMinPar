@@ -23,6 +23,7 @@
 #define TIMER_DEFAULT    kaminpar::timer::Type::DEFAULT
 #define TIMER_BENCHMARK  kaminpar::timer::Type::BENCHMARK
 #define TIMER_FINE       kaminpar::timer::Type::FINE
+#define TIMER_DETAIL     kaminpar::timer::Type::DETAIL
 
 //
 // Private helper macros
@@ -98,6 +99,7 @@ enum Type {
     DEFAULT,
     BENCHMARK,
     FINE,
+    DETAIL,
     NUM_TIMER_TYPES,
 };
 

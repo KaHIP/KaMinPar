@@ -54,8 +54,7 @@ inline int get_rank(MPI_Comm comm = MPI_COMM_WORLD) {
 
 // Import commonly used symbols to dkaminpar namespace
 namespace parallel {
-template <typename T>
-using Atomic = shm::parallel::Atomic<T>;
+using namespace shm::parallel;
 }
 
 template <typename T>
