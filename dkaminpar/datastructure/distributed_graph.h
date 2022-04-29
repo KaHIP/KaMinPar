@@ -382,7 +382,7 @@ public:
             _nodes[u], _nodes[u + 1], [this](const EdgeID e) { return std::make_pair(e, this->edge_target(e)); });
     }
 
-    // Degree buckets 
+    // Degree buckets
     [[nodiscard]] inline std::size_t bucket_size(const std::size_t bucket) const {
         return _buckets[bucket + 1] - _buckets[bucket];
     }

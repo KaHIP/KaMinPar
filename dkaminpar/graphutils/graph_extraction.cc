@@ -19,6 +19,8 @@
 #include <mpi.h>
 
 namespace dkaminpar::graph {
+SET_DEBUG(true);
+
 namespace {
 PEID compute_block_owner(const BlockID b, const BlockID k, const PEID num_pes) {
     return static_cast<PEID>(math::compute_local_range_rank<BlockID>(k, static_cast<BlockID>(num_pes), b));
@@ -44,24 +46,14 @@ auto count_block_induced_subgraph_sizes(const DistributedPartitionedGraph& p_gra
 
     return std::make_pair(num_nodes_per_block_ets.combine(std::plus{}), num_edges_per_block_ets.combine(std::plus{}));
 }
-
-struct ExtractedSubgraphs {
-    std::vector<EdgeID>     shared_nodes;
-    std::vector<NodeWeight> shared_node_weights;
-    std::vector<NodeID>     shared_edges;
-    std::vector<EdgeWeight> shared_edge_weights;
-
-    std::vector<std::size_t> nodes_offset;
-    std::vector<std::size_t> edges_offset;
-
-    std::vector<NodeID> mapping;
-};
+} // namespace
 
 // Build a local block-induced subgraph for each block of the graph partition.
 ExtractedSubgraphs
-extract_local_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph, ExtractedSubgraphs memory = {}) {
+extract_local_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph, ExtractedSubgraphs memory) {
     auto [num_nodes_per_block, num_edges_per_block] = count_block_induced_subgraph_sizes(p_graph);
     const EdgeID num_internal_edges = std::accumulate(num_edges_per_block.begin(), num_edges_per_block.end(), 0);
+    DBG << V(num_nodes_per_block) << V(num_edges_per_block);
 
     auto& shared_nodes          = memory.shared_nodes;
     auto& shared_node_weights   = memory.shared_node_weights;
@@ -110,6 +102,7 @@ extract_local_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph
 
         parallel::prefix_sum(num_nodes_per_block.begin(), num_nodes_per_block.end(), nodes_offset.begin() + 1);
         parallel::prefix_sum(num_edges_per_block.begin(), num_edges_per_block.end(), edges_offset.begin() + 1);
+        DBG << V(nodes_offset) << V(edges_offset);
     }
 
     // Compute node ID offset of local subgraph in global subgraphs
@@ -124,9 +117,9 @@ extract_local_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph
         p_graph.pfor_nodes([&](const NodeID u) {
             const BlockID b               = p_graph.block(u);
             const NodeID  pos_in_subgraph = next_node_in_subgraph[b]++;
-            const NodeID  pos             = nodes_offset[u] + pos_in_subgraph;
-            shared_nodes[pos]             = u;
-            mapping[u]                    = global_node_offset[b] + pos_in_subgraph;
+            const NodeID  pos             = nodes_offset[b] + pos_in_subgraph;
+            shared_nodes[pos] = u;
+            mapping[u]        = global_node_offset[b] + pos_in_subgraph;
         });
     }
 
@@ -190,7 +183,8 @@ extract_local_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph
 }
 
 void gather_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph, ExtractedSubgraphs memory) {
-    const auto [size, rank] = mpi::get_comm_info();
+    const PEID size = mpi::get_comm_size(p_graph.communicator());
+    const PEID rank = mpi::get_comm_rank(p_graph.communicator());
     ALWAYS_ASSERT(p_graph.k() % size == 0) << "k must be a multiple of #PEs";
     const BlockID blocks_per_pe = p_graph.k() / size;
 
@@ -204,23 +198,38 @@ void gather_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph, 
         }
     };
 
-    std::vector<std::tuple<NodeID, EdgeID>> recv_subgraph_sizes(p_graph.k());
+    struct GraphSize {
+        NodeID n;
+        EdgeID m;
+    };
+    std::vector<GraphSize> recv_subgraph_sizes(p_graph.k());
 
     {
         SCOPED_TIMER("Alltoall recvcounts", TIMER_DETAIL);
 
-        std::vector<std::tuple<NodeID, EdgeID>> send_subgraph_sizes(p_graph.k());
+        START_TIMER("Compute counts", TIMER_DETAIL);
+        std::vector<GraphSize> send_subgraph_sizes(p_graph.k());
         p_graph.pfor_blocks([&](const BlockID b) {
-            std::get<0>(send_subgraph_sizes[b]) = memory.nodes_offset[b + 1] - memory.nodes_offset[b];
-            std::get<1>(send_subgraph_sizes[b]) = memory.edges_offset[b + 1] - memory.edges_offset[b];
+            send_subgraph_sizes[b].n = memory.nodes_offset[b + 1] - memory.nodes_offset[b];
+            send_subgraph_sizes[b].m = memory.edges_offset[b + 1] - memory.edges_offset[b];
         });
+        STOP_TIMER(TIMER_DETAIL);
+
+        START_TIMER("MPI_Alltoall", TIMER_DETAIL);
         mpi::alltoall(send_subgraph_sizes.data(), blocks_per_pe, recv_subgraph_sizes.data(), blocks_per_pe);
+        STOP_TIMER(TIMER_DETAIL);
     }
 
     // Exchange subgraphs
+    std::vector<EdgeID>     shared_nodes;
+    std::vector<NodeWeight> shared_node_weights;
+    std::vector<NodeID>     shared_edges;
+    std::vector<EdgeWeight> shared_edge_weights;
+
     {
         SCOPED_TIMER("Alltoallv block-induced subgraphs", TIMER_DETAIL);
 
+        START_TIMER("Allocation", TIMER_DETAIL);
         std::vector<int> sendcounts_nodes(size);
         std::vector<int> sendcounts_edges(size);
         std::vector<int> sdispls_nodes(size);
@@ -229,7 +238,9 @@ void gather_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph, 
         std::vector<int> recvcounts_edges(size);
         std::vector<int> rdispls_nodes(size);
         std::vector<int> rdispls_edges(size);
+        STOP_TIMER(TIMER_DETAIL);
 
+        START_TIMER("Compute counts and displs", TIMER_DETAIL);
         tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
             const BlockID first_block_on_pe         = pe * blocks_per_pe;
             const BlockID first_invalid_block_on_pe = (pe + 1) * blocks_per_pe;
@@ -239,13 +250,61 @@ void gather_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph, 
             sendcounts_edges[pe] =
                 memory.edges_offset[first_invalid_block_on_pe] - memory.edges_offset[first_block_on_pe];
 
-            std::tie(recvcounts_nodes[pe], recvcounts_edges[pe]) = std::accumulate(
-                recv_subgraph_sizes.begin() + first_block_on_pe,
-                recv_subgraph_sizes.begin() + first_invalid_block_on_pe, std::make_tuple(0, 0));
+            for (BlockID b = first_block_on_pe; b < first_invalid_block_on_pe; ++b) {
+                recvcounts_nodes[b] += recv_subgraph_sizes[b].n;
+                recvcounts_edges[b] += recv_subgraph_sizes[b].m;
+            }
+        });
+        STOP_TIMER(TIMER_DETAIL);
+
+        START_TIMER("MPI_Alltoallv", TIMER_DETAIL);
+        mpi::alltoallv(
+            memory.shared_nodes.data(), sendcounts_nodes.data(), sdispls_nodes.data(), shared_nodes.data(),
+            recvcounts_nodes.data(), rdispls_nodes.data(), p_graph.communicator());
+        mpi::alltoallv(
+            memory.shared_node_weights.data(), sendcounts_nodes.data(), sdispls_nodes.data(),
+            shared_node_weights.data(), recvcounts_nodes.data(), rdispls_nodes.data(), p_graph.communicator());
+        mpi::alltoallv(
+            memory.shared_edges.data(), sendcounts_edges.data(), sdispls_edges.data(), shared_edges.data(),
+            recvcounts_edges.data(), rdispls_edges.data(), p_graph.communicator());
+        mpi::alltoallv(
+            memory.shared_edge_weights.data(), sendcounts_edges.data(), sdispls_edges.data(),
+            shared_edge_weights.data(), recvcounts_edges.data(), rdispls_edges.data(), p_graph.communicator());
+        STOP_TIMER(TIMER_DETAIL);
+    }
+
+    // Construct subgraphs
+    std::vector<shm::StaticArray<EdgeID>>     subgraph_nodes(blocks_per_pe);
+    std::vector<shm::StaticArray<NodeWeight>> subgraph_node_weights(blocks_per_pe);
+    std::vector<shm::StaticArray<NodeID>>     subgraph_edges(blocks_per_pe);
+    std::vector<shm::StaticArray<EdgeWeight>> subgraph_edge_weights(blocks_per_pe);
+    std::vector<shm::Graph>                   subgraphs(blocks_per_pe);
+
+    {
+        SCOPED_TIMER("Construct subgraphs", TIMER_DETAIL);
+
+        tbb::parallel_for<BlockID>(0, blocks_per_pe, [&](const BlockID b) {
+            NodeID n = 0;
+            EdgeID m = 0;
+            for (PEID pe = 0; pe < size; ++pe) {
+                const std::size_t i = b + pe * blocks_per_pe;
+                n += recv_subgraph_sizes[i].n;
+                m += recv_subgraph_sizes[i].m;
+            }
+
+            // Allocate memory for subgraph
+            subgraph_nodes[b].resize(n + 1);
+            subgraph_node_weights[b].resize(n);
+            subgraph_edges[b].resize(m);
+            subgraph_edge_weights[b].resize(m);
+
+            // Copy subgraph to memory
+            // @todo better approach might be to compute a prefix sum on recv_subgraph_sizes
+            for (PEID pe = 0; pe < size; ++pe) {
+            }
         });
     }
 }
-} // namespace
 
 std::vector<DistributedGraph> distribute_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph) {
     return {};

@@ -22,7 +22,11 @@ dkaminpar_register_mpi_test(dtest_global_clustering_projection
 
 # Graph utils
 dkaminpar_register_mpi_test(dtest_rearrange_graph
-        FILES graphutils/test_rearrange_graph.cc
+        FILES graphutils/rearrange_graph_test.cc
+        CORES 3)
+
+dkaminpar_register_mpi_test(dtest_extract_subgraphs
+        FILES graphutils/extract_subgraphs_test.cc
         CORES 3)
 
 # MPI wrapper

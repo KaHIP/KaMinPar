@@ -145,8 +145,8 @@ alltoall(const Ts* sendbuf, const int sendcount, Tr* recvbuf, const int recvcoun
 
 template <typename Ts, typename Tr>
 inline int alltoallv(
-    const Ts* sendbuf, const int sendcounts, const int* sdispls, Tr* recvbuf, const int* recvcounts, const int* rdispls,
-    MPI_Comm comm = MPI_COMM_WORLD) {
+    const Ts* sendbuf, const int* sendcounts, const int* sdispls, Tr* recvbuf, const int* recvcounts,
+    const int* rdispls, MPI_Comm comm = MPI_COMM_WORLD) {
     return MPI_Alltoallv(
         sendbuf, sendcounts, sdispls, type::get<Ts>(), recvbuf, recvcounts, rdispls, type::get<Tr>(), comm);
 }

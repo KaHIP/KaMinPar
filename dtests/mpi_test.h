@@ -12,6 +12,7 @@
 #include "dkaminpar/definitions.h"
 #include "dkaminpar/graphutils/allgather_graph.h"
 #include "dkaminpar/mpi_wrapper.h"
+#include "mpi_graph.h"
 
 #define SINGLE_THREADED_TEST                            \
     omp_set_num_threads(1);                             \
@@ -42,8 +43,44 @@ protected:
  * Utility function for graphs
  */
 namespace graph {
+//! Create a partitioned graph based on block labels of owned nodes
+inline DistributedPartitionedGraph
+make_partitioned_graph(const DistributedGraph& graph, const BlockID k, const std::vector<BlockID>& local_partition) {
+    scalable_vector<parallel::Atomic<BlockID>>     partition(graph.total_n());
+    scalable_vector<BlockWeight> local_block_weights(k);
+
+    std::copy(local_partition.begin(), local_partition.end(), partition.begin());
+    for (const NodeID u: graph.nodes()) {
+        local_block_weights[partition[u]] += graph.node_weight(u);
+    }
+
+    scalable_vector<BlockWeight> global_block_weights_nonatomic(k);
+    mpi::allreduce(local_block_weights.data(), global_block_weights_nonatomic.data(), k, MPI_SUM, MPI_COMM_WORLD);
+    
+    scalable_vector<parallel::Atomic<BlockWeight>> block_weights(k);
+    std::copy(global_block_weights_nonatomic.begin(), global_block_weights_nonatomic.end(), block_weights.begin());
+
+    struct NodeBlock {
+        GlobalNodeID global_node;
+        BlockID      block_weights;
+    };
+
+    mpi::graph::sparse_alltoall_interface_to_pe<NodeBlock>(
+        graph,
+        [&](const NodeID u) {
+            return NodeBlock{graph.local_to_global_node(u), local_partition[u]};
+        },
+        [&](const auto& buffer) {
+            for (const auto& [global_node, block]: buffer) {
+                partition[graph.global_to_local_node(global_node)] = block;
+            }
+        });
+
+    return {&graph, k, std::move(partition), std::move(block_weights)};
+}
+
 //! Return the id of the edge connecting two adjacent nodes \c u and \c v in \c graph, found by linear search.
-std::pair<EdgeID, EdgeID> get_edge_by_endpoints(const DistributedGraph& graph, const NodeID u, const NodeID v) {
+inline std::pair<EdgeID, EdgeID> get_edge_by_endpoints(const DistributedGraph& graph, const NodeID u, const NodeID v) {
     EdgeID forward_edge  = kInvalidEdgeID;
     EdgeID backward_edge = kInvalidEdgeID;
 
@@ -71,13 +108,13 @@ std::pair<EdgeID, EdgeID> get_edge_by_endpoints(const DistributedGraph& graph, c
 
 //! Return the id of the edge connecting two adjacent nodes \c u and \c v given by their global id in \c graph,
 //! found by linear search
-std::pair<EdgeID, EdgeID>
+inline std::pair<EdgeID, EdgeID>
 get_edge_by_endpoints_global(const DistributedGraph& graph, const GlobalNodeID u, const GlobalNodeID v) {
     return get_edge_by_endpoints(graph, graph.global_to_local_node(u), graph.global_to_local_node(v));
 }
 
 //! Based on some graph, build a new graph with modified edge weights.
-DistributedGraph
+inline DistributedGraph
 change_edge_weights(DistributedGraph graph, const std::vector<std::pair<EdgeID, EdgeWeight>>& changes) {
     auto edge_weights = graph.take_edge_weights();
     if (edge_weights.empty()) {
@@ -104,7 +141,7 @@ change_edge_weights(DistributedGraph graph, const std::vector<std::pair<EdgeID, 
         graph.communicator()};
 }
 
-DistributedGraph change_edge_weights_by_endpoints(
+inline DistributedGraph change_edge_weights_by_endpoints(
     DistributedGraph graph, const std::vector<std::tuple<NodeID, NodeID, EdgeWeight>>& changes) {
     std::vector<std::pair<EdgeID, EdgeWeight>> edge_id_changes;
     for (const auto& [u, v, weight]: changes) {
@@ -116,7 +153,7 @@ DistributedGraph change_edge_weights_by_endpoints(
     return change_edge_weights(std::move(graph), edge_id_changes);
 }
 
-DistributedGraph change_edge_weights_by_global_endpoints(
+inline DistributedGraph change_edge_weights_by_global_endpoints(
     DistributedGraph graph, const std::vector<std::tuple<GlobalNodeID, GlobalNodeID, EdgeWeight>>& changes) {
     SET_DEBUG(true);
     std::vector<std::pair<EdgeID, EdgeWeight>> edge_id_changes;
@@ -135,7 +172,7 @@ DistributedGraph change_edge_weights_by_global_endpoints(
 }
 
 //! Based on some graph, build a new graph with modified node weights.
-DistributedGraph
+inline DistributedGraph
 change_node_weights(DistributedGraph graph, const std::vector<std::pair<NodeID, NodeWeight>>& changes) {
     auto node_weights = graph.take_node_weights();
     if (node_weights.empty()) {
@@ -190,7 +227,7 @@ Container distribute_node_info(const DistributedGraph& graph, const Container& g
  * weights are usually 32 bit signed integers.
  * @return Graph with unique node weights.
  */
-DistributedGraph use_pow_global_id_as_node_weights(DistributedGraph graph) {
+inline DistributedGraph use_pow_global_id_as_node_weights(DistributedGraph graph) {
     ALWAYS_ASSERT(graph.global_n() <= 31) << "graph is too large: can have at most 30 nodes";
 
     scalable_vector<NodeWeight> new_node_weights(graph.total_n());
@@ -212,7 +249,7 @@ DistributedGraph use_pow_global_id_as_node_weights(DistributedGraph graph) {
         graph.communicator()};
 }
 
-DistributedGraph use_global_id_as_node_weight(DistributedGraph graph) {
+inline DistributedGraph use_global_id_as_node_weight(DistributedGraph graph) {
     scalable_vector<NodeWeight> new_node_weights(graph.total_n());
     for (const NodeID u: graph.all_nodes()) {
         new_node_weights[u] = graph.local_to_global_node(u) + 1;
@@ -244,7 +281,7 @@ struct NodeWeightIdentifiedEdge {
 };
 
 namespace internal {
-std::vector<NodeWeightIdentifiedEdge> graph_to_edge_list(const DistributedGraph& graph) {
+inline std::vector<NodeWeightIdentifiedEdge> graph_to_edge_list(const DistributedGraph& graph) {
     const auto shm_graph = dkaminpar::graph::allgather(graph);
 
     std::vector<NodeWeightIdentifiedEdge> list;
@@ -263,7 +300,7 @@ std::vector<NodeWeightIdentifiedEdge> graph_to_edge_list(const DistributedGraph&
  * @param list List with edges only in one direction.
  * @return List containing edges in both directions.
  */
-std::vector<NodeWeightIdentifiedEdge> make_edge_list_undirected(std::vector<NodeWeightIdentifiedEdge> list) {
+inline std::vector<NodeWeightIdentifiedEdge> make_edge_list_undirected(std::vector<NodeWeightIdentifiedEdge> list) {
     const std::size_t initial_size = list.size();
     for (std::size_t i = 0; i < initial_size; ++i) {
         list.emplace_back(list[i].v_weight, list[i].weight, list[i].u_weight);
@@ -279,7 +316,7 @@ std::vector<NodeWeightIdentifiedEdge> make_edge_list_undirected(std::vector<Node
  * @return Pair of two list: first contains edges in \c d_lhs not in \c rhs, second contains edges in
  * \c rhs not in \c d_lhs.
  */
-std::pair<std::vector<NodeWeightIdentifiedEdge>, std::vector<NodeWeightIdentifiedEdge>>
+inline std::pair<std::vector<NodeWeightIdentifiedEdge>, std::vector<NodeWeightIdentifiedEdge>>
 check_isomorphic(const DistributedGraph& d_lhs, const std::vector<NodeWeightIdentifiedEdge>& rhs) {
     // allgather graph
     auto lhs = dkaminpar::graph::allgather(d_lhs);
@@ -352,7 +389,8 @@ check_isomorphic(const DistributedGraph& d_lhs, const std::vector<NodeWeightIden
 }
 } // namespace internal
 
-void expect_isomorphic(const DistributedGraph& lhs, const std::vector<NodeWeightIdentifiedEdge>& undirected_rhs) {
+inline void
+expect_isomorphic(const DistributedGraph& lhs, const std::vector<NodeWeightIdentifiedEdge>& undirected_rhs) {
     const auto rhs = internal::make_edge_list_undirected(undirected_rhs);
 
     EXPECT_EQ(lhs.global_m(), rhs.size());
@@ -378,11 +416,11 @@ void expect_isomorphic(const DistributedGraph& lhs, const std::vector<NodeWeight
     EXPECT_TRUE(rhs_diff.empty());
 }
 
-void expect_empty(const DistributedGraph& lhs) {
+inline void expect_empty(const DistributedGraph& lhs) {
     expect_isomorphic(lhs, std::vector<NodeWeightIdentifiedEdge>{});
 }
 
-void expect_isomorphic(const DistributedGraph& lhs, const DistributedGraph& rhs) {
+inline void expect_isomorphic(const DistributedGraph& lhs, const DistributedGraph& rhs) {
     const auto rhs_edge_list = internal::graph_to_edge_list(rhs);
     expect_isomorphic(lhs, rhs_edge_list);
 }
@@ -534,7 +572,7 @@ protected:
 
 // +-------------+
 // +------+      |
-// 0--1-#-2--3-#-4--5
+// 0--1 # 2--3 # 4--5
 //        +------+
 class UnsortedDistributedPath : public DistributedGraphFixture {
 protected:
