@@ -13,8 +13,10 @@
 #include "dkaminpar/utils/math.h"
 #include "dkaminpar/utils/vector_ets.h"
 #include "kaminpar/parallel/algorithm.h"
+#include "mpi_wrapper.h"
 
 #include <functional>
+#include <mpi.h>
 
 namespace dkaminpar::graph {
 namespace {
@@ -110,6 +112,10 @@ extract_local_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph
         parallel::prefix_sum(num_edges_per_block.begin(), num_edges_per_block.end(), edges_offset.begin() + 1);
     }
 
+    // Compute node ID offset of local subgraph in global subgraphs
+    std::vector<NodeID> global_node_offset(p_graph.k());
+    mpi::exscan(num_nodes_per_block.data(), global_node_offset.data(), p_graph.k(), MPI_SUM, p_graph.communicator());
+
     // Build mapping from node IDs in p_graph to node IDs in the extracted subgraph
     {
         SCOPED_TIMER("Build node mapping", TIMER_DETAIL);
@@ -120,11 +126,13 @@ extract_local_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph
             const NodeID  pos_in_subgraph = next_node_in_subgraph[b]++;
             const NodeID  pos             = nodes_offset[u] + pos_in_subgraph;
             shared_nodes[pos]             = u;
-            mapping[u]                    = pos_in_subgraph;
+            mapping[u]                    = global_node_offset[b] + pos_in_subgraph;
         });
     }
 
-    // Exchange mapping for ghost nodes
+    // Build mapping from local extract subgraph to global extracted subgraph for ghost nodes
+    std::vector<NodeID> global_ghost_node_mapping(p_graph.ghost_n());
+
     {
         SCOPED_TIMER("Exchange ghost node mapping", TIMER_DETAIL);
 
@@ -179,6 +187,63 @@ extract_local_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph
     }
 
     return memory;
+}
+
+void gather_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph, ExtractedSubgraphs memory) {
+    const auto [size, rank] = mpi::get_comm_info();
+    ALWAYS_ASSERT(p_graph.k() % size == 0) << "k must be a multiple of #PEs";
+    const BlockID blocks_per_pe = p_graph.k() / size;
+
+    // Communicate recvcounts
+    struct SubgraphSize {
+        NodeID n;
+        EdgeID m;
+
+        SubgraphSize operator+(const SubgraphSize other) {
+            return {n + other.n, m + other.m};
+        }
+    };
+
+    std::vector<std::tuple<NodeID, EdgeID>> recv_subgraph_sizes(p_graph.k());
+
+    {
+        SCOPED_TIMER("Alltoall recvcounts", TIMER_DETAIL);
+
+        std::vector<std::tuple<NodeID, EdgeID>> send_subgraph_sizes(p_graph.k());
+        p_graph.pfor_blocks([&](const BlockID b) {
+            std::get<0>(send_subgraph_sizes[b]) = memory.nodes_offset[b + 1] - memory.nodes_offset[b];
+            std::get<1>(send_subgraph_sizes[b]) = memory.edges_offset[b + 1] - memory.edges_offset[b];
+        });
+        mpi::alltoall(send_subgraph_sizes.data(), blocks_per_pe, recv_subgraph_sizes.data(), blocks_per_pe);
+    }
+
+    // Exchange subgraphs
+    {
+        SCOPED_TIMER("Alltoallv block-induced subgraphs", TIMER_DETAIL);
+
+        std::vector<int> sendcounts_nodes(size);
+        std::vector<int> sendcounts_edges(size);
+        std::vector<int> sdispls_nodes(size);
+        std::vector<int> sdispls_edges(size);
+        std::vector<int> recvcounts_nodes(size);
+        std::vector<int> recvcounts_edges(size);
+        std::vector<int> rdispls_nodes(size);
+        std::vector<int> rdispls_edges(size);
+
+        tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
+            const BlockID first_block_on_pe         = pe * blocks_per_pe;
+            const BlockID first_invalid_block_on_pe = (pe + 1) * blocks_per_pe;
+
+            sendcounts_nodes[pe] =
+                memory.nodes_offset[first_invalid_block_on_pe] - memory.nodes_offset[first_block_on_pe];
+            sendcounts_edges[pe] =
+                memory.edges_offset[first_invalid_block_on_pe] - memory.edges_offset[first_block_on_pe];
+
+            std::tie(recvcounts_nodes[pe], recvcounts_edges[pe]) = std::accumulate(
+                recv_subgraph_sizes.begin() + first_block_on_pe,
+                recv_subgraph_sizes.begin() + first_invalid_block_on_pe, std::make_tuple(0, 0));
+        });
+    }
 }
 } // namespace
 
