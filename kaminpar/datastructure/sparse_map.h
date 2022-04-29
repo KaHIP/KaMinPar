@@ -25,6 +25,8 @@
  */
 #pragma once
 
+#include <cstdlib>
+
 namespace kaminpar {
 template <typename Key, typename Value>
 class SparseMap {

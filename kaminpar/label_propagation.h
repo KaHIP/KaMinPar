@@ -8,7 +8,6 @@
 #pragma once
 
 #include <atomic>
-#include <ranges>
 #include <type_traits>
 
 #include <tbb/enumerable_thread_specific.h>
