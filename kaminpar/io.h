@@ -9,7 +9,6 @@
 
 #include <cctype>
 #include <cerrno>
-#include <concepts>
 #include <cstring>
 #include <fstream>
 
