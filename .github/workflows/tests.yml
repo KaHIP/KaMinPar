@@ -5,30 +5,38 @@ on: [ push, pull_request ]
 jobs:
   kaminpar_tests:
     runs-on: ubuntu-latest
+    continue-on-error: true 
+    strategy:
+      matrix:
+        compiler:
+          - { name: Clang, cc: clang, cxx: clang++ }
+          - { name: GNU, cc: gcc, cxx: g++ }
+        build-mode: [Debug, Release]
     steps:
+      - name: Install dependencies 
+        run: sudo apt-get install -y libtbb-dev libhwloc-dev mpi libopenmpi-dev libsparsehash-dev 
       - name: Checkout HEAD
         uses: actions/checkout@v2
         with:
           fetch-depth: 1
           submodules: recursive
-
-      - name: Install dependencies
+      - name: Export compiler 
         run: |
-          sudo apt-get install gcc-10 g++-10 libtbb-dev libhwloc-dev mpi libopenmpi-dev
-
-      - name: Configure CMake
-        run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=Debug -DKAMINPAR_HEAVY_ASSERTIONS=On -DKAMINPAR_LIGHT_ASSERTIONS=On -DKAMINPAR_TESTS=On
-        env:
-         CC: gcc-10
-         CXX: g++-10
-
+          echo CXX=${{ matrix.compiler.cxx }} >> $GITHUB_ENV 
+          echo CC=${{ matrix.compiler.cc }} >> $GITHUB_ENV 
+      - name: CPU cores
+        uses: SimenB/github-actions-cpu-cores@v1
+        id: cpu-cores 
+      - name: Print CPU cores
+        run: echo ${{ steps.cpu-cores.outputs.count }}
+      - name: CMake
+        run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{ matrix.build-mode }} -DCMAKE_C_COMPILER=${{ matrix.compiler.cc }} -DCMAKE_CXX_COMPILER=${{ matrix.compiler.cxx }} -DKAMINPAR_HEAVY_ASSERTIONS=On -DKAMINPAR_LIGHT_ASSERTIONS=On  -DKAMINPAR_TESTS=On
       - name: Build
-        run: cmake --build ${{github.workspace}}/build --config Debug --parallel 2
+        run: cmake --build ${{github.workspace}}/build --config Debug --parallel ${{ steps.cpu-cores.outputs.count }}
         env:
           ASAN_OPTIONS: detect_leaks=0
-
       - name: Test
         working-directory: ${{github.workspace}}/build
-        run: ctest -C Debug --output-on-failure
+        run: ctest --output-on-failure
         env:
           ASAN_OPTIONS: detect_leaks=0
