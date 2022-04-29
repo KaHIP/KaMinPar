@@ -51,6 +51,47 @@ TEST_F(UnsortedDistributedPath, ExtractSubgraphsWithOneBlockOnEachPE) {
     }
 }
 
+TEST_F(DistributedTriangles, ExtractSubgraphsWithRotated3rdNodes) {
+    //  0---1-#-3---4
+    //  |\ /  #  \ /|
+    //  | 2---#---5 |
+    //  |  \  #  /  |
+    // ###############
+    //  |    \ /    |
+    //  |     8     |
+    //  |    / \    |
+    //  +---7---6---+
+    const BlockID b       = static_cast<BlockID>(rank);
+    const auto    p_graph = test::graph::make_partitioned_graph(graph, 3, {b, b, (b + 1) % size});
+    const auto    result  = graph::extract_local_block_induced_subgraphs(p_graph);
+
+    EXPECT_THAT(result.shared_node_weights, ElementsAre(1, 1, 1));
+    EXPECT_THAT(result.shared_edge_weights, ElementsAre(1, 1));
+
+    switch (rank) {
+        case 0:
+            EXPECT_THAT(result.shared_nodes, ElementsAre(1, 2, 0));
+            EXPECT_THAT(result.shared_edges, ElementsAre(1, 0));
+            EXPECT_THAT(result.nodes_offset, ElementsAre(0, 2, 3, 3));
+            EXPECT_THAT(result.edges_offset, ElementsAre(0, 2, 2, 2));
+            break;
+
+        case 1:
+            EXPECT_THAT(result.shared_nodes, ElementsAre(1, 2, 0));
+            EXPECT_THAT(result.shared_edges, ElementsAre(2, 1));
+            EXPECT_THAT(result.nodes_offset, ElementsAre(0, 0, 2, 3));
+            EXPECT_THAT(result.edges_offset, ElementsAre(0, 0, 2, 2));
+            break;
+
+        case 2:
+            EXPECT_THAT(result.shared_nodes, ElementsAre(0, 1, 2));
+            EXPECT_THAT(result.shared_edges, ElementsAre(2, 1));
+            EXPECT_THAT(result.nodes_offset, ElementsAre(0, 1, 1, 3));
+            EXPECT_THAT(result.edges_offset, ElementsAre(0, 0, 0, 2));
+            break;
+    }
+}
+
 TEST_F(DistributedTriangles, ExtractSubgraphsWithOneBlockPerPE) {
     //  0---1-#-3---4
     //  |\ /  #  \ /|
