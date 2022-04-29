@@ -152,7 +152,7 @@ void generate_statistics(const Timer::TimerTreeNode& node, std::vector<NodeStati
             << descriptions;
     });
 
-    auto         times = mpi::gather<double, std::vector>(node.seconds(), 0, comm);
+    auto         times = mpi::gather<double, std::vector<double>>(node.seconds(), 0, comm);
     const double mean  = compute_mean(times);
     const double sd    = compute_sd(times);
 

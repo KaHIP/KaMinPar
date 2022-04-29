@@ -11,12 +11,19 @@
 
 #include <tbb/enumerable_thread_specific.h>
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpedantic"
+#include "dkaminpar/definitions.h"
+
+#pragma GCC diagnostic   push
+#pragma clang diagnostic push
+#pragma GCC diagnostic   ignored "-Wpedantic"
+#pragma clang diagnostic ignored "-Wpedantic"
+#pragma clang diagnostic ignored "-Wunused-parameter"
+#pragma clang diagnostic ignored "-Wuninitialized"
 #include <allocator/alignedallocator.hpp>
 #include <data-structures/table_config.hpp>
 #include <utils/hash/murmur2_hash.hpp>
-#pragma GCC diagnostic pop
+#pragma GCC diagnostic   pop
+#pragma clang diagnostic pop
 
 namespace dkaminpar::growt {
 using DefaultHasherType    = utils_tm::hash_tm::murmur2_hash;

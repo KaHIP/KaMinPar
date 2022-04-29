@@ -24,7 +24,7 @@ public:
     DistributedBalancer& operator=(const DistributedBalancer&) = delete;
 
     DistributedBalancer(DistributedBalancer&&) noexcept = default;
-    DistributedBalancer& operator=(DistributedBalancer&&) noexcept = default;
+    DistributedBalancer& operator=(DistributedBalancer&&) = delete;
 
     void initialize(const DistributedPartitionedGraph& p_graph);
     void balance(DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx);

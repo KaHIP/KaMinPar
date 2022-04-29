@@ -280,9 +280,9 @@ int allreduce(const T& element, T& ans, MPI_Op op, MPI_Comm comm = MPI_COMM_WORL
     return allreduce(&element, &ans, 1, op, comm);
 }
 
-template <typename T, template <typename> typename Container = scalable_vector>
-Container<T> gather(const T& element, const int root = 0, MPI_Comm comm = MPI_COMM_WORLD) {
-    Container<T> result;
+template <typename T, typename Container = scalable_vector<T>>
+Container gather(const T& element, const int root = 0, MPI_Comm comm = MPI_COMM_WORLD) {
+    Container result;
     if (mpi::get_comm_rank(comm) == root) {
         result.resize(mpi::get_comm_size(comm));
     }
@@ -315,8 +315,8 @@ inline int allgather(const typename Container::value_type& element, Container& a
 template <typename Rs, typename Rr, typename Rcounts, typename Displs>
 int allgatherv(
     const Rs& sendbuf, Rr& recvbuf, const Rcounts& recvcounts, const Displs& displs, MPI_Comm comm = MPI_COMM_WORLD) {
-    static_assert(std::is_same_v<Rcounts::value_type, int>);
-    static_assert(std::is_same_v<Displs::value_type, int>);
+    static_assert(std::is_same_v<typename Rcounts::value_type, int>);
+    static_assert(std::is_same_v<typename Displs::value_type, int>);
     return allgatherv(
         std::data(sendbuf), static_cast<int>(std::size(sendbuf)), std::data(recvbuf), std::data(recvcounts),
         std::data(displs), comm);
