@@ -76,13 +76,16 @@ public:
     }
 
     const auto& compute_clustering(const DistributedGraph& graph, const GlobalNodeWeight max_cluster_weight) {
-        SCOPED_TIMER("Global Label Propagation");
+        SCOPED_TIMER("Label propagation");
 
-        TIMED_SCOPE("Allocation") {
+        {
+            SCOPED_TIMER("Allocation", TIMER_DETAIL);
             allocate(graph);
-        };
+        }
 
-        TIMED_SCOPE("Initialization") {
+        {
+            SCOPED_TIMER("Initialization", TIMER_DETAIL);
+
             // clear hash map
             _cluster_weights_handles_ets.clear();
             _cluster_weights = ClusterWeightsMap{0};
@@ -91,7 +94,7 @@ public:
             initialize(&graph, graph.total_n());
             initialize_ghost_node_clusters();
             _max_cluster_weight = max_cluster_weight;
-        };
+        }
 
         for (std::size_t iteration = 0; iteration < _max_num_iterations; ++iteration) {
             GlobalNodeID global_num_moved_nodes = 0;
@@ -236,9 +239,9 @@ private:
     }
 
     GlobalNodeID process_chunk(const NodeID from, const NodeID to) {
-        START_TIMER("Chunk iteration");
+        START_TIMER("Chunk iteration", TIMER_DETAIL);
         const NodeID local_num_moved_nodes = perform_iteration(from, to);
-        STOP_TIMER();
+        STOP_TIMER(TIMER_DETAIL);
 
         const GlobalNodeID global_num_moved_nodes =
             mpi::allreduce(local_num_moved_nodes, MPI_SUM, _graph->communicator());
@@ -255,7 +258,7 @@ private:
     }
 
     void synchronize_ghost_node_clusters(const NodeID from, const NodeID to) {
-        SCOPED_TIMER("Synchronize ghost node clusters");
+        SCOPED_TIMER("Synchronize ghost node clusters", TIMER_DETAIL);
 
         struct ChangedLabelMessage {
             NodeID    local_node;
@@ -293,7 +296,7 @@ private:
      * @param to One-after the last node to consider.
      */
     void cluster_isolated_nodes(const NodeID from, const NodeID to) {
-        SCOPED_TIMER("Cluster isolated nodes");
+        SCOPED_TIMER("Cluster isolated nodes", TIMER_DETAIL);
 
         tbb::enumerable_thread_specific<GlobalNodeID> isolated_node_ets(kInvalidNodeID);
         tbb::parallel_for(tbb::blocked_range<NodeID>(from, to), [&](tbb::blocked_range<NodeID> r) {
