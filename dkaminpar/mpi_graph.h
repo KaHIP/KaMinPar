@@ -86,7 +86,7 @@ void sparse_alltoall_interface_to_ghost(
 #endif // KAMINPAR_ENABLE_ASSERTIONS
 
     // count messages to each PE for each thread
-    START_TIMER("Count messages", TIMER_FINE);
+    START_TIMER("Count messages", TIMER_DETAIL);
 #ifdef KAMINPAR_ENABLE_ASSERTIONS
     #pragma omp parallel for default(none) shared(from, to, graph, num_messages, filter, total_num_messages)
 #else // KAMINPAR_ENABLE_ASSERTIONS
@@ -113,16 +113,16 @@ void sparse_alltoall_interface_to_ghost(
 
     // offset messages for each thread
     internal::inclusive_col_prefix_sum(num_messages);
-    STOP_TIMER(TIMER_FINE);
+    STOP_TIMER(TIMER_DETAIL);
 
     // allocate send buffers
-    START_TIMER("Allocation", TIMER_FINE);
+    START_TIMER("Allocation", TIMER_DETAIL);
     std::vector<Buffer> send_buffers(size);
     tbb::parallel_for<PEID>(0, size, [&](const PEID pe) { send_buffers[pe].resize(num_messages.back()[pe]); });
-    STOP_TIMER(TIMER_FINE);
+    STOP_TIMER(TIMER_DETAIL);
 
     // fill buffers
-    START_TIMER("Partition messages", TIMER_FINE);
+    START_TIMER("Partition messages", TIMER_DETAIL);
 #ifdef KAMINPAR_ENABLE_ASSERTIONS
     #pragma omp parallel for default(none) \
         shared(send_buffers, from, to, filter, graph, builder, num_messages, total_num_messages)
@@ -152,7 +152,7 @@ void sparse_alltoall_interface_to_ghost(
             }
         }
     }
-    STOP_TIMER(TIMER_FINE);
+    STOP_TIMER(TIMER_DETAIL);
 
     ASSERT(std::all_of(total_num_messages.begin(), total_num_messages.end(), [&](const auto& num_messages) {
         return num_messages == 0;
@@ -214,7 +214,7 @@ void sparse_alltoall_interface_to_pe(
 #endif // KAMINPAR_ENABLE_ASSERTIONS
 
     // count messages to each PE for each thread
-    START_TIMER("Count messages", TIMER_FINE);
+    START_TIMER("Count messages", TIMER_DETAIL);
 #ifdef KAMINPAR_ENABLE_ASSERTIONS
     #pragma omp parallel default(none) shared(size, from, to, filter, graph, num_messages, total_num_messages)
 #else // KAMINPAR_ENABLE_ASSERTIONS
@@ -255,16 +255,16 @@ void sparse_alltoall_interface_to_pe(
 
     // offset messages for each thread
     internal::inclusive_col_prefix_sum(num_messages);
-    STOP_TIMER(TIMER_FINE);
+    STOP_TIMER(TIMER_DETAIL);
 
     // allocate send buffers
-    START_TIMER("Allocation", TIMER_FINE);
+    START_TIMER("Allocation", TIMER_DETAIL);
     std::vector<Buffer> send_buffers(size);
     tbb::parallel_for<PEID>(0, size, [&](const PEID pe) { send_buffers[pe].resize(num_messages.back()[pe]); });
-    STOP_TIMER(TIMER_FINE);
+    STOP_TIMER(TIMER_DETAIL);
 
     // fill buffers
-    START_TIMER("Partition messages", TIMER_FINE);
+    START_TIMER("Partition messages", TIMER_DETAIL);
 #ifdef KAMINPAR_ENABLE_ASSERTIONS
     #pragma omp parallel default(none) \
         shared(send_buffers, size, from, to, builder, filter, graph, num_messages, total_num_messages)
@@ -309,7 +309,7 @@ void sparse_alltoall_interface_to_pe(
             created_message_for_pe.reset();
         }
     }
-    STOP_TIMER(TIMER_FINE);
+    STOP_TIMER(TIMER_DETAIL);
 
     ASSERT(std::all_of(total_num_messages.begin(), total_num_messages.end(), [&](const auto& num_messages) {
         return num_messages == 0;
@@ -365,7 +365,7 @@ void sparse_alltoall_custom(
     std::vector<cache_aligned_vector<std::size_t>> num_messages(num_threads, cache_aligned_vector<std::size_t>(size));
 
     // count messages to each PE for each thread
-    START_TIMER("Count messages", TIMER_FINE);
+    START_TIMER("Count messages", TIMER_DETAIL);
 #pragma omp parallel default(none) shared(pe_getter, size, from, to, filter, graph, num_messages)
     {
         const PEID thread = omp_get_thread_num();
@@ -379,16 +379,16 @@ void sparse_alltoall_custom(
 
     // offset messages for each thread
     internal::inclusive_col_prefix_sum(num_messages);
-    STOP_TIMER(TIMER_FINE);
+    STOP_TIMER(TIMER_DETAIL);
 
     // allocate send buffers
-    START_TIMER("Allocation", TIMER_FINE);
+    START_TIMER("Allocation", TIMER_DETAIL);
     std::vector<Buffer> send_buffers(size);
     tbb::parallel_for<PEID>(0, size, [&](const PEID pe) { send_buffers[pe].resize(num_messages.back()[pe]); });
-    STOP_TIMER(TIMER_FINE);
+    STOP_TIMER(TIMER_DETAIL);
 
     // fill buffers
-    START_TIMER("Partition messages", TIMER_FINE);
+    START_TIMER("Partition messages", TIMER_DETAIL);
 #pragma omp parallel default(none) shared(pe_getter, send_buffers, size, from, to, builder, filter, graph, num_messages)
     {
         const PEID thread = omp_get_thread_num();
@@ -401,7 +401,7 @@ void sparse_alltoall_custom(
             }
         }
     }
-    STOP_TIMER(TIMER_FINE);
+    STOP_TIMER(TIMER_DETAIL);
 
     sparse_alltoall<Message, Buffer>(std::move(send_buffers), std::forward<Receiver>(receiver), graph.communicator());
 }

@@ -433,7 +433,7 @@ inline Container<T> build_distribution_from_local_count(const T value, MPI_Comm 
 
 template <typename Message, typename Buffer = scalable_noinit_vector<Message>, typename Receiver>
 void sparse_alltoall(std::vector<Buffer>&& send_buffers, Receiver&& receiver, MPI_Comm comm) {
-    SCOPED_TIMER("Sparse AllToAll Move", TIMER_FINE);
+    SCOPED_TIMER("Sparse AllToAll", TIMER_DETAIL);
 
     constexpr bool receiver_invocable_with_pe    = std::is_invocable_r_v<void, Receiver, Buffer, PEID>;
     constexpr bool receiver_invocable_without_pe = std::is_invocable_r_v<void, Receiver, Buffer>;
@@ -475,7 +475,7 @@ void sparse_alltoall(std::vector<Buffer>&& send_buffers, Receiver&& receiver, MP
 
 template <typename Message, typename Buffer = scalable_noinit_vector<Message>, typename Receiver>
 void sparse_alltoall(const std::vector<Buffer>& send_buffers, Receiver&& receiver, MPI_Comm comm, const bool self) {
-    SCOPED_TIMER("Sparse AllToAll", TIMER_FINE);
+    SCOPED_TIMER("Sparse AllToAll", TIMER_DETAIL);
 
     constexpr bool receiver_invocable_with_pe    = std::is_invocable_r_v<void, Receiver, Buffer, PEID>;
     constexpr bool receiver_invocable_without_pe = std::is_invocable_r_v<void, Receiver, Buffer>;
