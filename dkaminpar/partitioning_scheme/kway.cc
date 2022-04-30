@@ -12,6 +12,7 @@
 #include "dkaminpar/distributed_io.h"
 #include "dkaminpar/factories.h"
 #include "dkaminpar/graphutils/allgather_graph.h"
+#include "dkaminpar/refinement/distributed_balancer.h"
 #include "dkaminpar/utils/metrics.h"
 #include "kaminpar/metrics.h"
 #include "kaminpar/utils/console_io.h"
@@ -131,10 +132,20 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
         };
 
         auto refine = [&](DistributedPartitionedGraph& p_graph) {
-            SCOPED_TIMER("Refinement");
-            refinement_algorithm->initialize(p_graph.graph(), _ctx.partition);
-            refinement_algorithm->refine(p_graph);
-            HEAVY_ASSERT(graph::debug::validate_partition(p_graph));
+            {
+                SCOPED_TIMER("Balancing");
+                if (metrics::imbalance(p_graph) > _ctx.partition.epsilon) {
+                    DistributedBalancer balancer(_ctx);
+                    balancer.initialize(p_graph);
+                    balancer.balance(p_graph, _ctx.partition);
+                }
+            }
+            {
+                SCOPED_TIMER("Refinement");
+                refinement_algorithm->initialize(p_graph.graph(), _ctx.partition);
+                refinement_algorithm->refine(p_graph);
+                HEAVY_ASSERT(graph::debug::validate_partition(p_graph));
+            }
         };
 
         // Uncoarsen and refine
