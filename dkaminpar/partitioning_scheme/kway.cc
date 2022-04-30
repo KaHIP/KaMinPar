@@ -61,7 +61,7 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
             const GlobalNodeWeight max_cluster_weight = coarsener.max_cluster_weight();
 
             const DistributedGraph* c_graph   = coarsener.coarsen_once();
-            const bool              converged = (graph != c_graph);
+            const bool              converged = (graph == c_graph);
 
             if (!converged) {
                 // Print statistics for coarse graph

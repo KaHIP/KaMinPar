@@ -7,6 +7,7 @@
  ******************************************************************************/
 #include "dkaminpar/coarsening/coarsener.h"
 
+#include "context.h"
 #include "dkaminpar/coarsening/global_clustering_contraction.h"
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructure/distributed_graph.h"
@@ -68,10 +69,21 @@ std::size_t Coarsener::level() const {
 }
 
 const DistributedGraph* Coarsener::nth_coarsest(const std::size_t n) const {
-    return _graph_hierarchy.size() > n ? &_graph_hierarchy[_graph_hierarchy.size() - n] : &_input_graph;
+    return _graph_hierarchy.size() > n ? &_graph_hierarchy[_graph_hierarchy.size() - n - 1] : &_input_graph;
 }
 
 GlobalNodeWeight Coarsener::max_cluster_weight() const {
-    return 0; // @todo
+    shm::PartitionContext shm_p_ctx = _input_ctx.initial_partitioning.sequential.partition;
+    shm_p_ctx.k                     = _input_ctx.partition.k;
+    shm_p_ctx.epsilon               = _input_ctx.partition.epsilon;
+
+    shm::CoarseningContext shm_c_ctx    = _input_ctx.initial_partitioning.sequential.coarsening;
+    shm_c_ctx.contraction_limit         = _input_ctx.coarsening.contraction_limit;
+    shm_c_ctx.cluster_weight_limit      = _input_ctx.coarsening.cluster_weight_limit;
+    shm_c_ctx.cluster_weight_multiplier = _input_ctx.coarsening.cluster_weight_multiplier;
+
+    const auto* graph = coarsest();
+    return shm::compute_max_cluster_weight<GlobalNodeID, GlobalNodeWeight>(
+        graph->global_n(), graph->global_total_node_weight(), shm_p_ctx, shm_c_ctx);
 }
 } // namespace dkaminpar
