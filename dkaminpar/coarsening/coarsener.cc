@@ -34,7 +34,7 @@ const DistributedGraph* Coarsener::coarsen_once(const GlobalNodeWeight max_clust
     HEAVY_ASSERT(graph::debug::validate(c_graph));
 
     // only keep graph if coarsening has not converged yet
-    const bool converged = (c_graph.global_n() == graph->global_n());
+    const bool converged = (1.0 * c_graph.global_n() / graph->global_n()) >= 0.95;
     if (!converged) {
         _graph_hierarchy.push_back(std::move(c_graph));
         _mapping_hierarchy.push_back(std::move(mapping));
