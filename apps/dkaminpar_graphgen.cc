@@ -137,6 +137,16 @@ KaGenResult create_rhg(const GeneratorContext ctx) {
     const GlobalNodeID n = m / ctx.d;
     return create_generator_object(ctx).GenerateRHG(n, ctx.gamma, ctx.d);
 }
+
+KaGenResult create_grid2d(const GeneratorContext ctx) {
+    const GlobalNodeID n = (static_cast<GlobalNodeID>(1) << ctx.n) * ctx.scale;
+    return create_generator_object(ctx).GenerateGrid2D(n, ctx.p);
+}
+
+KaGenResult create_grid3d(const GeneratorContext ctx) {
+    const GlobalNodeID n = (static_cast<GlobalNodeID>(1) << ctx.n) * ctx.scale;
+    return create_generator_object(ctx).GenerateGrid3D(n, ctx.p);
+}
 } // namespace
 
 DistributedGraph generate(const GeneratorContext ctx) {
@@ -149,8 +159,17 @@ DistributedGraph generate(const GeneratorContext ctx) {
             case GeneratorType::RGG2D:
                 return create_rgg2d(ctx);
 
+            case GeneratorType::RGG3D:
+                return create_rgg3d(ctx);
+
             case GeneratorType::RHG:
                 return create_rhg(ctx);
+
+            case GeneratorType::GRID2D:
+                return create_grid2d(ctx);
+
+            case GeneratorType::GRID3D:
+                return create_grid3d(ctx);
 
             default:
                 FATAL_ERROR << "graph generator is deactivated";
