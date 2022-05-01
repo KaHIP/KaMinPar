@@ -149,6 +149,9 @@ DistributedGraph generate(const GeneratorContext ctx) {
             case GeneratorType::RGG2D:
                 return create_rgg2d(ctx);
 
+            case GeneratorType::RHG:
+                return create_rhg(ctx);
+
             default:
                 FATAL_ERROR << "graph generator is deactivated";
         }
