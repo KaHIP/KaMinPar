@@ -112,6 +112,13 @@ endif ()
 
 add_definitions(-DKAMINPAR_ENABLE_TIMERS)
 
+# Use ccache is available 
+find_program(CCACHE_FOUND ccache)
+if (CCACHE_FOUND)
+    message(STATUS "Using ccache")
+    set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ccache)
+endif ()
+
 # Look for MPI -- if this fails, we give up on the distributed components
 set(MPI_DETERMINE_LIBRARY_VERSION TRUE)
 find_package(MPI)
