@@ -18,22 +18,23 @@ if (NOT CMAKE_BUILD_TYPE OR CMAKE_BUILD_TYPE STREQUAL "")
     set(CMAKE_BUILD_TYPE "Release" CACHE STRING "" FORCE)
 endif ()
 
-option(KAMINPAR_HEAVY_ASSERTIONS "Enable assertions that have high impact on performance." OFF)
-option(KAMINPAR_LIGHT_ASSERTIONS "Enable very lightweight assertions." ON)
+option(KAMINPAR_ENABLE_STATISTICS "Generate and output detailed statistics." ON)
+option(KAMINPAR_ENABLE_BACKWARD_CPP "Build with backward-cpp for better stack traces (requires the backward-cpp submodule)." ON)
+option(KAMINPAR_ENABLE_GRAPHGEN "Build with support for in-memory graph generation (requires the KaGen submodule)." ON)
+option(KAMINPAR_ENABLE_SANITIZER "Enable address sanitizer." OFF)
+option(KAMINPAR_ENABLE_MTUNE_NATIVE "Build with -mtune=native." ON)
 
-option(KAMINPAR_STATISTICS "Generate and output detailed statistics." OFF)
-option(KAMINPAR_BACKWARD_CPP "Build with backward-cpp for better stack traces (requires the backward-cpp submodule)." ON)
-option(KAMINPAR_TESTS "Build unit tests (requires the GoogleTest submodule)." ON)
-option(KAMINPAR_GRAPHGEN "Build with support for in-memory graph generation (requires the KaGen submodule)." OFF)
+option(KAMINPAR_BUILD_TESTS "Build unit tests (requires the GoogleTest submodule)." ON)
+option(KAMINPAR_BUILD_DISTRIBUTED "Enable or disable the distributed partitioner (requires the growt submodule)." ON)
 
-option(KAMINPAR_64BIT_IDS "Use 64 bits for node and edge IDs." OFF)
-option(KAMINPAR_64BIT_EDGE_IDS "Use 64 bits for edge IDs." OFF)
-option(KAMINPAR_64BIT_NODE_IDS "Use 64 bits for node IDs." OFF)
-option(KAMINPAR_64BIT_WEIGHTS "Use 64 bit for node and edge weights." OFF)
+option(KAMINPAR_USE_64BIT_IDS "Use 64 bits for node and edge IDs." OFF)
+option(KAMINPAR_USE_64BIT_EDGE_IDS "Use 64 bits for edge IDs." OFF)
+option(KAMINPAR_USE_64BIT_NODE_IDS "Use 64 bits for node IDs." OFF)
+option(KAMINPAR_USE_64BIT_WEIGHTS "Use 64 bit for node and edge weights." OFF)
 
-option(KAMINPAR_ENABLE_DISTRIBUTED_PARTITIONER "Enable or disable the distributed component. If OpenMPI cannot be found on the system, the distributed component is disabled automatically." ON)
-
-include_directories(${PROJECT_SOURCE_DIR})
+set(KAMINPAR_ASSERTION_LEVEL "light" CACHE STRING "Assertion level.")
+set_property(CACHE KAMINPAR_ASSERTION_LEVEL PROPERTY STRINGS none light normal heavy)
+message(STATUS "Assertion level: ${KAMINPAR_ASSERTION_LEVEL}")
 
 # Export compile commands
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -48,98 +49,113 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Woverloaded-virtual")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wredundant-decls")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Winit-self")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-function")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mcx16") # growt
 
-# Enable debug symbols and address sanitizer in Debug mode
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O1 -g")
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=address -fno-omit-frame-pointer -fno-optimize-sibling-calls")
+# Growt requires -mcx16 (x86 only)
+if (KAMINPAR_BUILD_DISTRIBUTED)
+    include(CheckCXXCompilerFlag)
+    check_cxx_compiler_flag(-mcx16 COMPILER_SUPPORTS_MCX16)
+    if (COMPILER_SUPPORTS_MCX16) 
+        add_compile_options(-mcx16)
+    else ()
+        message(WARNING "Cannot build distributed partitioner: compiler does not support the -mcx16 flag.")
+    endif()
+endif ()
 
-set(CMAKE_LINKER_FLAGS_DEBUG "${CMAKE_LINKER_FLAGS_DEBUG} -fno-omit-frame-pointer")
-set(CMAKE_LINKER_FLAGS_DEBUG "${CMAKE_LINKER_FLAGS_DEBUG} -fsanitize=address")
+# Set compile flags 
+if (KAMINPAR_ENABLE_MTUNE_NATIVE) 
+    add_compile_options(-mtune=native -march=native)
+endif ()
 
-# Enable debug symbols and full optimization in Release mode
-set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -g -mtune=native -march=native")
-# (enable address sanitizer in Release mode:)
-#set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -fsanitize=address -fno-omit-frame-pointer")
-#set(CMAKE_LINKER_FLAGS_RELEASE "${CMAKE_LINKER_FLAGS_RELEASE} -fsanitize=address")
+if (KAMINPAR_ENABLE_SANITIZER) 
+    add_compile_options(-fsanitize=address)
+    add_link_options(-fsanitize=address)
+endif ()
 
 # Pass CMake options to code
-if (KAMINPAR_HEAVY_ASSERTIONS)
-    add_definitions(-DKAMINPAR_ENABLE_HEAVY_ASSERTIONS)
-    message(STATUS "Building with heavy assertions enabled.")
-endif ()
-
-if (KAMINPAR_LIGHT_ASSERTIONS)
-    add_definitions(-DKAMINPAR_ENABLE_LIGHT_ASSERTIONS)
-    message(STATUS "Building with light assertions enabled.")
-endif ()
-
-if (KAMINPAR_STATISTICS)
+if (KAMINPAR_ENABLE_STATISTICS)
     add_definitions(-DKAMINPAR_ENABLE_STATISTICS)
-    message(STATUS "Building with statistics enabled.")
-endif ()
-
-if (KAMINPAR_64BIT_EDGE_IDS OR KAMINPAR_64BIT_IDs)
-    add_definitions(-DKAMINPAR_64BIT_EDGE_IDS)
-    message(STATUS "Building with 64 bit edge IDs.")
+    message(STATUS "Enable statistics.")
 endif ()
 
 if (KAMINPAR_64BIT_NODE_IDS OR KAMINPAR_64BIT_IDs)
     add_definitions(-DKAMINPAR_64BIT_NODE_IDS)
-    message(STATUS "Building with 64 bit node IDs.")
+    message(STATUS "Use 64 bit node IDs.")
 endif ()
 
-if (KAMINPAR_TESTS)
-    add_definitions(-DKAMINPAR_BUILD_TESTS)
-    add_subdirectory("${PROJECT_SOURCE_DIR}/extern/googletest" "extern/googletest")
-    include(gmock)
-
-    message(STATUS "Building with unit tests.")
+if (KAMINPAR_64BIT_EDGE_IDS OR KAMINPAR_64BIT_IDs)
+    add_definitions(-DKAMINPAR_64BIT_EDGE_IDS)
+    message(STATUS "Use 64 bit edge IDs.")
 endif ()
 
 if (KAMINPAR_64BIT_WEIGHTS)
     add_definitions(-DKAMINPAR_64BIT_WEIGHTS)
-    message(STATUS "Building with 64 bit edge and node weights.")
+    message(STATUS "Use 64 bit node and edge weights.")
+endif ()
+
+if (KAMINPAR_BUILD_TESTS)
+    add_definitions(-DKAMINPAR_BUILD_TESTS)
+    add_subdirectory("${PROJECT_SOURCE_DIR}/extern/googletest" "extern/googletest")
+    include(gmock)
+
+    message(STATUS "Build unit tests.")
 endif ()
 
 # Backward-cpp for stack traces in MPI code
-if (KAMINPAR_BACKWARD_CPP)
+if (KAMINPAR_ENABLE_BACKWARD_CPP)
     set(CMAKE_POLICY_DEFAULT_CMP0063 NEW)
     add_subdirectory(extern/backward-cpp)
-    add_definitions(-DKAMINPAR_BACKWARD_CPP)
-    message(STATUS "Building with backward-cpp.")
+    add_definitions(-DKAMINPAR_ENABLE_BACKWARD_CPP)
+    message(STATUS "Enable backward-cpp.")
 endif ()
-
-add_definitions(-DKAMINPAR_ENABLE_TIMERS)
 
 # Use ccache is available 
 find_program(CCACHE_FOUND ccache)
 if (CCACHE_FOUND)
-    message(STATUS "Using ccache")
+    message(STATUS "Use ccache.")
     set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ccache)
 endif ()
 
-# Look for MPI -- if this fails, we give up on the distributed components
-set(MPI_DETERMINE_LIBRARY_VERSION TRUE)
-find_package(MPI)
+# Look for MPI 
+if (KAMINPAR_BUILD_DISTRIBUTED AND COMPILER_SUPPORTS_MCX16) 
+    set(MPI_DETERMINE_LIBRARY_VERSION TRUE)
+    find_package(MPI)
 
-# Only include Growt if we can build the distributed partitioner
-if (KAMINPAR_ENABLE_DISTRIBUTED_PARTITIONER AND MPI_FOUND)
-    add_library(growt INTERFACE)
-    target_include_directories(growt INTERFACE extern/growt/)
+    if (NOT MPI_FOUND) 
+        message(WARNING "Cannout build distributed partitioner: could not find MPI")
+    else () # Include growt 
+        add_library(growt INTERFACE)
+        target_include_directories(growt INTERFACE extern/growt/)
+    endif ()
 endif ()
+
+# Include kassert 
+if (KAMINPAR_ASSERTION_LEVEL STREQUAL "none")
+    set(KAMINPAR_ASSERTION_LEVEL 0)
+elseif (KAMINPAR_ASSERTION_LEVEL STREQUAL "light")
+    set(KASSERT_ASSERTION_LEVEL 1)
+elseif (KAMINPAR_ASSERTION_LEVEL STREQUAL "normal")
+    set(KASSERT_ASSERTION_LEVEL 2)
+elseif (KAMINPAR_ASSERTION_LEVEL STREQUAL "heavy")
+    set(KASSERT_ASSERTION_LEVEL 3)
+else ()
+    message(WARNING "Invalid assertion level: ${KAMINPAR_ASSERTION_LEVEL}")
+endif ()
+add_subdirectory(extern/kassert)
+
+# Start include paths on project root
+include_directories(${PROJECT_SOURCE_DIR})
 
 # Shared memory components
 add_subdirectory(kaminpar)
 add_subdirectory(library)
 
 # Distributed components
-if (KAMINPAR_ENABLE_DISTRIBUTED_PARTITIONER AND MPI_FOUND)
-    if (KAMINPAR_GRAPHGEN) # KaGen
+if (KAMINPAR_BUILD_DISTRIBUTED AND COMPILER_SUPPORTS_MCX16 AND MPI_FOUND)
+    if (KAMINPAR_ENABLE_GRAPHGEN) # KaGen
         set(CMAKE_POLICY_DEFAULT_CMP0063 NEW)
         set(CGAL_DO_NOT_WARN_ABOUT_CMAKE_BUILD_TYPE TRUE)
         add_subdirectory(extern/KaGen/)
-        add_definitions(-DKAMINPAR_GRAPHGEN)
+        add_definitions(-DKAMINPAR_ENABLE_GRAPHGEN)
     endif ()
 
     add_subdirectory(dkaminpar)
@@ -153,8 +169,8 @@ if (KAMINPAR_TESTS)
     enable_testing()
     add_subdirectory(tests)
 
-    if (KAMINPAR_ENABLE_DISTRIBUTED_PARTITIONER AND MPI_FOUND)
-	    add_subdirectory(dtests)
+    if (TARGET dist_partitioner_base)
+        add_subdirectory(dtests)
     endif ()
 endif ()
 

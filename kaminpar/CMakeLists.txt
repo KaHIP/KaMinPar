@@ -8,6 +8,9 @@ target_include_directories(shm_partitioner_base PUBLIC ${CMAKE_CURRENT_SOURCE_DI
 find_package(TBB REQUIRED)
 target_link_libraries(shm_partitioner_base PUBLIC TBB::tbb TBB::tbbmalloc)
 
+# Link kassert 
+target_link_libraries(shm_partitioner_base PRIVATE kassert::kassert)
+
 # Link libnuma if available
 find_library(NUMA_LIB numa)
 if (NUMA_LIB)
