@@ -16,6 +16,8 @@
 #include <tbb/parallel_for.h>
 #include <tbb/parallel_reduce.h>
 
+#include <kassert/kassert.hpp>
+
 #include "kaminpar/datastructure/static_array.h"
 #include "kaminpar/definitions.h"
 #include "kaminpar/parallel/atomic.h"
@@ -283,8 +285,8 @@ public:
 
     template <bool update_block_weight = true>
     void set_block(const NodeID u, const BlockID new_b) {
-        ASSERT(u < n()) << "invalid node id " << u;
-        ASSERT(new_b < k()) << "invalid block id " << new_b << " for node " << u;
+        KASSERT(u < n(), "invalid node id " << u);
+        KASSERT(new_b < k(), "invalid block id " << new_b << " for node " << u);
         DBG << "set_block(" << u << ", " << new_b << ")";
 
         if constexpr (update_block_weight) {
@@ -363,8 +365,6 @@ private:
             auto& local_block_weights = tl_block_weights.local();
             for (NodeID u = r.begin(); u != r.end(); ++u) {
                 if (block(u) != kInvalidBlockID) {
-                    ALWAYS_ASSERT(block(u) < local_block_weights.size())
-                        << V(k()) << V(block(u)) << V(local_block_weights.size());
                     local_block_weights[block(u)] += node_weight(u);
                 }
             }
@@ -372,13 +372,9 @@ private:
 
         tbb::parallel_for(static_cast<BlockID>(0), k(), [&](const BlockID b) {
             BlockWeight sum = 0;
-
             for (auto& local_block_weights: tl_block_weights) {
-                ALWAYS_ASSERT(b < local_block_weights.size());
                 sum += local_block_weights[b];
             }
-
-            ALWAYS_ASSERT(b < _block_weights.size());
             _block_weights[b] = sum;
         });
     }

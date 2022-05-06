@@ -36,8 +36,8 @@ ClusteringCoarsener::compute_coarse_graph(const NodeWeight max_cluster_weight, c
 }
 
 PartitionedGraph ClusteringCoarsener::uncoarsen(PartitionedGraph&& p_graph) {
-    ASSERT(&p_graph.graph() == _current_graph);
-    ASSERT(!empty()) << size();
+    KASSERT(&p_graph.graph() == _current_graph);
+    KASSERT(empty(), V(size()));
     SCOPED_TIMER("Level", std::to_string(_hierarchy.size()), TIMER_BENCHMARK);
 
     START_TIMER("Allocation");
@@ -45,7 +45,7 @@ PartitionedGraph ClusteringCoarsener::uncoarsen(PartitionedGraph&& p_graph) {
     _mapping.pop_back();
     _hierarchy.pop_back(); // destroys the graph wrapped in p_graph, but partition access is still ok
     _current_graph = empty() ? &_input_graph : &_hierarchy.back();
-    ASSERT(mapping.size() == _current_graph->n()) << V(mapping.size()) << V(_current_graph->n());
+    KASSERT(mapping.size() == _current_graph->n(), V(mapping.size()) << V(_current_graph->n()));
 
     START_TIMER("Allocate partition");
     StaticArray<BlockID> partition(_current_graph->n());

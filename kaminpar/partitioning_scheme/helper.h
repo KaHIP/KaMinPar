@@ -9,6 +9,8 @@
 
 #include <tbb/concurrent_vector.h>
 
+#include <kassert/kassert.hpp>
+
 #include "kaminpar/coarsening/i_coarsener.h"
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/definitions.h"
@@ -90,7 +92,7 @@ template <typename Iterator>
 std::size_t select_best(const Iterator p_graphs_begin, const Iterator p_graphs_end, const PartitionContext& p_ctx) {
     SET_DEBUG(false);
 
-    ASSERT(p_graphs_begin < p_graphs_end) << "cannot select best result from an empty range";
+    KASSERT(p_graphs_begin < p_graphs_end, "cannot select best result from an empty range");
     DBG << "Select best result from " << std::distance(p_graphs_begin, p_graphs_end) << " " << (*p_graphs_begin).k()
         << "-way partitions";
 

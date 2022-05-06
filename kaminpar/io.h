@@ -17,6 +17,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include <kassert/kassert.hpp>
+
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/definitions.h"
 
@@ -92,13 +94,14 @@ inline void skip_comment(MappedFile& mapped_file) {
         mapped_file.advance();
     }
     if (mapped_file.valid_position()) {
-        ASSERT(mapped_file.current() == '\n');
+        KASSERT(mapped_file.current() == '\n');
         mapped_file.advance();
     }
 }
 
 inline void skip_nl(MappedFile& mapped_file) {
-    ASSERT(mapped_file.valid_position() && mapped_file.current() == '\n');
+    KASSERT(mapped_file.valid_position());
+    KASSERT(mapped_file.current() == '\n');
     mapped_file.advance();
 }
 

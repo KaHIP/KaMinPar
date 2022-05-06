@@ -8,6 +8,8 @@
  ******************************************************************************/
 #include "kaminpar/initial_partitioning/seed_node_utils.h"
 
+#include <kassert/kassert.hpp>
+
 #include "kaminpar/definitions.h"
 #include "kaminpar/utils/random.h"
 
@@ -66,7 +68,7 @@ find_furthest_away_node(const Graph& graph, const NodeID start_node, Queue<NodeI
         }
 
         // keep track of distance from start_node
-        ASSERT(remaining_nodes_in_level > 0);
+        KASSERT(remaining_nodes_in_level > 0u);
         --remaining_nodes_in_level;
         if (remaining_nodes_in_level == 0) {
             ++current_distance;
@@ -74,7 +76,7 @@ find_furthest_away_node(const Graph& graph, const NodeID start_node, Queue<NodeI
             nodes_in_next_level      = 0;
         }
     }
-    ASSERT(current_distance > 0);
+    KASSERT(current_distance > 0u);
     --current_distance;
 
     // bfs did not scan the whole graph, i.e., we have disconnected components

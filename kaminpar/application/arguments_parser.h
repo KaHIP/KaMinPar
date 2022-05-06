@@ -15,6 +15,8 @@
 
 #include <getopt.h>
 
+#include <kassert/kassert.hpp>
+
 #include "kaminpar/definitions.h"
 #include "kaminpar/utils/strings.h"
 
@@ -168,7 +170,7 @@ public:
         Group& argument(
             const std::string& lname, const int argument_type, Setter lambda, const std::string& description,
             const std::string& default_description, const char sname = 0) {
-            ASSERT((sname >= 'a' && sname <= 'z') || (sname >= 'A' && sname <= 'Z') || sname == 0);
+            KASSERT(((sname >= 'a' && sname <= 'z') || (sname >= 'A' && sname <= 'Z') || sname == 0));
             parent->arguments.push_back({
                 .short_name          = sname,              //
                 .long_name           = lname,              //

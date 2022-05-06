@@ -11,6 +11,8 @@
 #include <functional>
 #include <utility>
 
+#include <kassert/kassert.hpp>
+
 #include "kaminpar/context.h"
 #include "kaminpar/datastructure/fast_reset_array.h"
 #include "kaminpar/definitions.h"
@@ -90,8 +92,8 @@ public:
 
     template <typename Weights>
     void reset_current_clustering(const NodeID n, const Weights& node_weights) {
-        ASSERT(n <= _clustering.size());
-        ASSERT(n <= node_weights.size());
+        KASSERT(n <= _clustering.size());
+        KASSERT(n <= node_weights.size());
 
         _current_num_moves = 0;
         for (NodeID u = 0; u < n; ++u) {

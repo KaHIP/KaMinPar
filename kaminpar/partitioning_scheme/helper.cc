@@ -98,33 +98,36 @@ void extend_partition_recursive(
     const Graph& graph, BlockArray& partition, const BlockID b0, const BlockID k, const BlockID final_k,
     const Context& input_ctx, graph::SubgraphMemory& subgraph_memory, const graph::SubgraphMemoryStartPosition position,
     TemporaryGraphExtractionBufferPool& extraction_pool, GlobalInitialPartitionerMemoryPool& ip_m_ctx_pool) {
-    ASSERT(k > 1) << V(k);
+    KASSERT(k > 1u);
 
     // obtain bipartition of current graph
     PartitionedGraph p_graph = bipartition(&graph, final_k, input_ctx, ip_m_ctx_pool);
 
     const BlockID final_k1 = p_graph.final_k(0);
     const BlockID final_k2 = p_graph.final_k(1);
-    ASSERT(final_k1 > 0 && final_k2 > 0) << V(final_k1) << V(final_k2) << V(final_k);
-    ASSERT(final_k == final_k1 + final_k2);
+    KASSERT(final_k1 > 0u);
+    KASSERT(final_k2 > 0u);
+    KASSERT(final_k == final_k1 + final_k2);
 
     std::array<BlockID, 2> ks{0, 0};
     std::tie(ks[0], ks[1]) = math::split_integral(k);
-    ASSERT(ks[0] + ks[1] == k && ks[0] >= 1 && ks[1] >= 1)
-        << V(ks[0]) << V(ks[1]) << V(k) << V(final_k1) << V(final_k2) << V(final_k);
-    ASSERT(final_k1 >= ks[0] && final_k2 >= ks[1])
-        << V(final_k1) << V(ks[0]) << V(final_k2) << V(ks[1]) << V(final_k) << V(k);
+    KASSERT(ks[0] + ks[1] == k);
+    KASSERT(ks[0] >= 1u);
+    KASSERT(ks[1] >= 1u);
+    KASSERT(final_k1 >= ks[0]);
+    KASSERT(final_k2 >= ks[1]);
 
     // copy p_graph to partition -> replace b0 with b0 or b1
     std::array<BlockID, 2> b{b0, b0 + ks[0]};
-    ASSERT(b[0] < input_ctx.partition.k && b[1] < input_ctx.partition.k);
+    KASSERT(b[0] < input_ctx.partition.k);
+    KASSERT(b[1] < input_ctx.partition.k);
     NodeID current_node = 0;
     for (std::size_t i = 0; i < partition.size(); ++i) {
         if (partition[i] == b0) {
             partition[i] = b[p_graph.block(current_node++)];
         }
     }
-    ASSERT(current_node == p_graph.n()) << V(current_node) << V(p_graph.n()) << V(b0) << V(b[0]) << V(b[1]) << V(k);
+    KASSERT(current_node == p_graph.n());
 
     if (k > 2) {
         auto extraction = extract_subgraphs_sequential(p_graph, position, subgraph_memory, extraction_pool.local());
@@ -171,7 +174,7 @@ void extend_partition(
         const auto&   subgraph   = subgraphs[b];
         const BlockID subgraph_k = (k_prime == input_ctx.partition.k) ? p_graph.final_k(b) : k_prime / p_graph.k();
         if (subgraph_k > 1) {
-            ASSERT(subgraph_k <= p_graph.final_k(b)) << V(subgraph_k) << V(p_graph.final_k(b));
+            KASSERT(subgraph_k <= p_graph.final_k(b));
             extend_partition_recursive(
                 subgraph, subgraph_partitions[b], 0, subgraph_k, p_graph.final_k(b), input_ctx, subgraph_memory,
                 positions[b], extraction_pool, ip_m_ctx_pool);
@@ -184,7 +187,7 @@ void extend_partition(
     };
     update_partition_context(current_p_ctx, p_graph);
 
-    ASSERT(p_graph.k() == k_prime);
+    KASSERT(p_graph.k() == k_prime);
 }
 
 // extend_partition with local memory allocation for subgraphs
@@ -228,7 +231,7 @@ BlockID compute_k_for_n(const NodeID n, const Context& input_ctx) {
 
 std::size_t
 compute_num_copies(const Context& input_ctx, const NodeID n, const bool converged, const std::size_t num_threads) {
-    ASSERT(num_threads > 0);
+    KASSERT(num_threads > 0u);
 
     // sequential base case?
     const NodeID C = input_ctx.coarsening.contraction_limit;

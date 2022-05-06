@@ -115,7 +115,7 @@ public:
     }
 
     const Value& get(const Key key) const {
-        ASSERT(contains(key)) << "key not in sparse map: " << key;
+        KASSERT(contains(key), "key not in sparse map: " << key);
         return _dense[_sparse[key]].value;
     }
 
@@ -123,7 +123,7 @@ private:
     void allocate_data(const std::size_t capacity) {
         _capacity = capacity;
 
-        ASSERT(!_data);
+        KASSERT(!_data);
         const std::size_t total_memory{_capacity * sizeof(Element) + _capacity * sizeof(std::size_t)};
         const std::size_t num_elements{static_cast<std::size_t>(std::ceil(1.0 * total_memory / sizeof(std::size_t)))};
         _data   = parallel::make_unique<std::size_t>(num_elements);

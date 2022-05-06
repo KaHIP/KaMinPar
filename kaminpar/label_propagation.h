@@ -144,7 +144,7 @@ protected:
      * number of nodes.
      */
     void initialize(const Graph* graph, const ClusterID num_clusters) {
-        ALWAYS_ASSERT(_num_nodes > 0 && _num_active_nodes > 0) << "you must call allocate() before initialize()";
+        KASSERT((_num_nodes > 0u && _num_active_nodes > 0u), "you must call allocate() before initialize()");
 
         _graph                = graph;
         _initial_num_clusters = num_clusters;
@@ -771,20 +771,24 @@ private:
         }
 
         // Make sure that we cover all nodes in [from, to)
-        ASSERT([&] {
-            std::vector<bool> hit(to - from);
-            for (const auto& [start, end]: _chunks) {
-                for (NodeID u = start; u < end; ++u) {
-                    ALWAYS_ASSERT(from <= u && u < to) << V(from) << V(u) << V(to);
-                    ALWAYS_ASSERT(!hit[u - from]) << V(from) << V(u) << V(to);
-                    hit[u - from] = true;
-                }
-            }
+        KASSERT(
+            [&] {
+                std::vector<bool> hit(to - from);
+                for (const auto& [start, end]: _chunks) {
+                    for (NodeID u = start; u < end; ++u) {
+                        KASSERT(from <= u);
+                        KASSERT(u < to);
+                        KASSERT(!hit[u - from]);
 
-            for (NodeID u = 0; u < to - from; ++u) {
-                ALWAYS_ASSERT(_graph->degree(u) == 0 || hit[u]) << V(from) << V(u + from) << V(to);
-            }
-        });
+                        hit[u - from] = true;
+                    }
+                }
+
+                for (NodeID u = 0; u < to - from; ++u) {
+                    KASSERT((_graph->degree(u) == 0 || hit[u]), V(from) << V(u + from) << V(to));
+                }
+            }(),
+            "", assert::heavy);
     }
 
 protected:
@@ -817,12 +821,12 @@ public:
     }
 
     [[nodiscard]] ClusterID cluster(const NodeID node) {
-        ASSERT(node < _clusters.size()) << V(node) << V(_clusters.size());
+        KASSERT(node < _clusters.size());
         return _clusters[node];
     }
 
     void move_node(const NodeID node, const ClusterID cluster) {
-        ASSERT(node < _clusters.size());
+        KASSERT(node < _clusters.size());
         _clusters[node] = cluster;
     }
 

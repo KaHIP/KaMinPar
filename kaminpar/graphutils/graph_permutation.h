@@ -49,7 +49,7 @@ NodePermutations<Container> sort_by_degree_buckets(const Container<EdgeID>& node
     std::vector<Buckets, tbb::cache_aligned_allocator<Buckets>> local_buckets(cpus + 1);
 
     parallel::deterministic_for<NodeID>(0, n, [&](const NodeID from, const NodeID to, const int cpu) {
-        ASSERT(cpu < cpus);
+        KASSERT(cpu < cpus);
         for (NodeID u = from; u < to; ++u) {
             const auto bucket = find_bucket(nodes[u + 1] - nodes[u]);
             permutation[u]    = local_buckets[cpu + 1][bucket]++;
@@ -75,7 +75,7 @@ NodePermutations<Container> sort_by_degree_buckets(const Container<EdgeID>& node
 
     // Apply offsets to obtain global permutation
     parallel::deterministic_for<NodeID>(0, n, [&](const NodeID from, const NodeID to, const int cpu) {
-        ASSERT(cpu < cpus);
+        KASSERT(cpu < cpus);
 
         for (NodeID u = from; u < to; ++u) {
             const Degree bucket = find_bucket(nodes[u + 1] - nodes[u]);
@@ -117,7 +117,7 @@ void build_permuted_graph(
     const bool is_edge_weighted = old_edge_weights.size() == old_edges.size();
 
     const NodeID n = old_nodes.size() - 1;
-    ASSERT(n + 1 == new_nodes.size());
+    KASSERT(n + 1 == new_nodes.size());
 
     // Build p_nodes, p_node_weights
     tbb::parallel_for<NodeID>(0, n, [&](const NodeID u) {

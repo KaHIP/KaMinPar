@@ -42,7 +42,7 @@ public:
     using generator_type = std::mt19937;
 
     std::size_t random_index(const std::size_t inclusive_lower_bound, const std::size_t exclusive_upper_bound) {
-        ASSERT(exclusive_upper_bound > 0);
+        KASSERT(exclusive_upper_bound > 0u);
         return std::uniform_int_distribution<std::size_t>(inclusive_lower_bound, exclusive_upper_bound - 1)(_generator);
     }
 

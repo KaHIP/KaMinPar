@@ -111,7 +111,7 @@ PartitionedGraph ParallelRecursiveBisection::parallel_initial_partition(const Gr
             ParallelSynchronizedInitialPartitioner initial_partitioner{_input_ctx, _ip_m_ctx_pool, _ip_extraction_pool};
             return initial_partitioner.partition(_coarsener.get(), _current_p_ctx);
         } else {
-            ALWAYS_ASSERT(_input_ctx.initial_partitioning.mode == InitialPartitioningMode::ASYNCHRONOUS_PARALLEL);
+            KASSERT(_input_ctx.initial_partitioning.mode == InitialPartitioningMode::ASYNCHRONOUS_PARALLEL, "", assert::light);
             ParallelInitialPartitioner initial_partitioner{_input_ctx, _ip_m_ctx_pool, _ip_extraction_pool};
             return initial_partitioner.partition(_coarsener.get(), _current_p_ctx);
         }

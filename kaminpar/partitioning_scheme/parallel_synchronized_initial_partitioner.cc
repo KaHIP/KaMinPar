@@ -124,8 +124,8 @@ ParallelSynchronizedInitialPartitioner::partition(const ICoarsener* coarsener, c
         coarseners.pop_back();
     }
 
-    ALWAYS_ASSERT(coarseners.size() == 1);
-    ALWAYS_ASSERT(&(current_p_graphs.front().graph()) == coarsener->coarsest_graph());
+    KASSERT(coarseners.size() == 1u, "", assert::light);
+    KASSERT(&(current_p_graphs.front().graph()) == coarsener->coarsest_graph(), "", assert::light);
     return std::move(current_p_graphs.front());
 }
 

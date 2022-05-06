@@ -8,6 +8,8 @@
  ******************************************************************************/
 #include "kaminpar/initial_partitioning/initial_coarsener.h"
 
+#include <kassert/kassert.hpp>
+
 #include "kaminpar/utils/timer.h"
 
 namespace kaminpar::ip {
@@ -81,7 +83,7 @@ InitialCoarsener::MemoryContext InitialCoarsener::free() {
 }
 
 NodeID InitialCoarsener::pick_cluster(const NodeID u, const NodeWeight u_weight, const NodeWeight max_cluster_weight) {
-    ASSERT(_rating_map.empty());
+    KASSERT(_rating_map.empty());
     for (const auto [e, v]: _current_graph->neighbors(u)) {
         _rating_map[_clustering[v].leader] += _current_graph->edge_weight(e);
     }
@@ -182,9 +184,9 @@ InitialCoarsener::ContractionResult InitialCoarsener::contract_current_clusterin
     std::fill(_leader_node_mapping.begin(), _leader_node_mapping.end(), 0);
     // _clustering does not need to be cleared
 
-    ASSERT(_current_graph->n() <= _cluster_sizes.size());
-    ASSERT(_current_graph->n() <= _leader_node_mapping.size());
-    ASSERT(_current_graph->n() <= _cluster_nodes.size());
+    KASSERT(_current_graph->n() <= _cluster_sizes.size());
+    KASSERT(_current_graph->n() <= _leader_node_mapping.size());
+    KASSERT(_current_graph->n() <= _cluster_nodes.size());
 
     {
         NodeID current_node = 0;
@@ -247,7 +249,7 @@ InitialCoarsener::ContractionResult InitialCoarsener::contract_current_clusterin
             // node mapping points to the next coarse graph, hence we've seen all nodes in the last cluster
             // we now add it to the coarse graph
             if (node_mapping[u] != c_u) {
-                ASSERT(node_mapping[u] == c_u + 1) << V(u) << V(node_mapping[u]) << V(c_u);
+                KASSERT(node_mapping[u] == c_u + 1, V(u) << V(node_mapping[u]) << V(c_u));
 
                 interleaved_handle_node(c_u, c_node_weights[c_u]);
                 for (const auto c_v: _edge_weight_collector.used_entry_ids()) {
@@ -281,7 +283,7 @@ InitialCoarsener::ContractionResult InitialCoarsener::contract_current_clusterin
         c_nodes[++c_u] = c_m;
         _edge_weight_collector.clear();
 
-        ASSERT(c_u == c_n);
+        KASSERT(c_u == c_n);
         c_edges.restrict(c_m);
         c_edge_weights.restrict(c_m);
     }

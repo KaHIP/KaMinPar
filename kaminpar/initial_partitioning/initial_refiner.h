@@ -10,6 +10,8 @@
 
 #include <algorithm>
 
+#include <kassert/kassert.hpp>
+
 #include "kaminpar/context.h"
 #include "kaminpar/datastructure/binary_heap.h"
 #include "kaminpar/datastructure/graph.h"
@@ -53,7 +55,6 @@ public:
     };
 
     [[nodiscard]] NodeWeight expected_total_gain() const final {
-        ASSERT(false) << "not implemented";
         return 0;
     }
 
@@ -207,7 +208,7 @@ public:
           _queues{std::move(m_ctx.queues)}, //
           _marker{std::move(m_ctx.marker)},
           _weighted_degrees{std::move(m_ctx.weighted_degrees)} {
-        ALWAYS_ASSERT(p_ctx.k == 2) << "2-way refiner cannot be used on a " << p_ctx.k << "-way partition.";
+        KASSERT(p_ctx.k == 2u, "2-way refiner cannot be used on a " << p_ctx.k << "-way partition" << assert::light);
 
         if (_queues[0].capacity() < n) {
             _queues[0].resize(n);
@@ -224,18 +225,19 @@ public:
     }
 
     void initialize(const Graph& graph) final {
-        ASSERT(_queues[0].capacity() >= graph.n());
-        ASSERT(_queues[1].capacity() >= graph.n());
-        ASSERT(_marker.capacity() >= graph.n());
-        ASSERT(_weighted_degrees.capacity() >= graph.n());
+        KASSERT(_queues[0].capacity() >= graph.n());
+        KASSERT(_queues[1].capacity() >= graph.n());
+        KASSERT(_marker.capacity() >= graph.n());
+        KASSERT(_weighted_degrees.capacity() >= graph.n());
         _graph = &graph;
         _stopping_policy.init(_graph);
         init_weighted_degrees();
     }
 
     bool refine(PartitionedGraph& p_graph, const PartitionContext&) final {
-        ASSERT(&p_graph.graph() == _graph) << "Must be initialized with the same graph";
-        ASSERT(p_graph.k() == 2) << "2-way refiner cannot be used on a " << p_graph.k() << "-way partition.";
+        KASSERT(&p_graph.graph() == _graph, "must be initialized with the same graph", assert::light);
+        KASSERT(
+            p_graph.k() == 2u, "2-way refiner cannot be used on a " << p_graph.k() << "-way partition", assert::light);
 
         const EdgeWeight initial_edge_cut = metrics::edge_cut(p_graph, tag::seq);
         if (initial_edge_cut == 0) {
@@ -274,12 +276,12 @@ private:
      * @return Whether we were able to improve the cut.
      */
     EdgeWeight round(PartitionedGraph& p_graph) {
-        ASSERT(p_graph.k() == 2) << "2-way FM with " << p_graph.k() << "-way partition";
+        KASSERT(p_graph.k() == 2u, "2-way FM with " << p_graph.k() << "-way partition", assert::light);
         DBG << "Initial refiner initialized with n=" << p_graph.n() << " m=" << p_graph.m();
 
-#ifdef KAMINPAR_ENABLE_ASSERTIONS
+#if KASSERT_ASSERTION_ENABLED(ASSERTION_LEVEL_NORMAL)
         const bool initially_feasible = metrics::is_feasible(p_graph, _p_ctx);
-#endif // KAMINPAR_ENABLE_ASSERTIONS
+#endif
 
         _stopping_policy.reset();
 
@@ -293,16 +295,16 @@ private:
 
         Gain current_delta  = 0;
         Gain accepted_delta = 0;
-#ifdef KAMINPAR_ENABLE_ASSERTIONS
+#if KASSERT_ASSERTION_ENABLED(ASSERTION_LEVEL_NORMAL)
         const EdgeWeight initial_edge_cut = metrics::edge_cut(p_graph, tag::seq);
-#endif // KAMINPAR_ENABLE_ASSERTIONS
+#endif
 
         DBG << "Starting main refinement loop with #_pq[0]=" << _queues[0].size() << " #_pq[1]=" << _queues[1].size();
 
         while ((!_queues[0].empty() || !_queues[1].empty()) && !_stopping_policy.should_stop(_r_ctx.fm)) {
-#ifdef KAMINPAR_ENABLE_HEAVY_ASSERTIONS
-            VALIDATE_PQS(p_graph);
-#endif // KAMINPAR_ENABLE_HEAVY_ASSERTIONS
+#if KASSERT_ASSERTION_ENABLED(ASSERTION_LEVEL_NORMAL)
+            validate_pqs(p_graph);
+#endif
 
             active = _queue_selection_policy(p_graph, _p_ctx, _queues, _rand);
             if (_queues[active].empty()) {
@@ -314,8 +316,8 @@ private:
             const Gain    delta = queue.peek_key();
             const BlockID from  = active;
             const BlockID to    = 1 - from;
-            ASSERT(!_marker.get(u));
-            ASSERT(from == p_graph.block(u));
+            KASSERT(!_marker.get(u));
+            KASSERT(from == p_graph.block(u));
             _marker.set(u);
             queue.pop();
 
@@ -323,7 +325,7 @@ private:
             p_graph.set_block(u, to);
             current_delta += delta;
             moves.push_back(u);
-            HEAVY_ASSERT(initial_edge_cut + current_delta == metrics::edge_cut(p_graph, tag::seq));
+            KASSERT(initial_edge_cut + current_delta == metrics::edge_cut(p_graph, tag::seq), "", assert::heavy);
             _stopping_policy.update(-delta); // assumes gain, not loss
             current_overload = metrics::total_overload(p_graph, _p_ctx);
 
@@ -342,14 +344,14 @@ private:
                     const bool       still_boundary_node = new_loss < _weighted_degrees[v];
 
                     if (!still_boundary_node) { // v is no longer a boundary node
-                        HEAVY_ASSERT(!IS_BOUNDARY_NODE(p_graph, v));
+                        KASSERT(!is_boundary_node(p_graph, v), "", assert::heavy);
                         _queues[v_block].remove(v);
                     } else { // v is still a boundary node
-                        HEAVY_ASSERT(IS_BOUNDARY_NODE(p_graph, v));
+                        KASSERT(is_boundary_node(p_graph, v), "", assert::heavy);
                         _queues[v_block].change_priority(v, new_loss);
                     }
                 } else { // since v was not a boundary node before, it must be one now
-                    HEAVY_ASSERT(IS_BOUNDARY_NODE(p_graph, v));
+                    KASSERT(is_boundary_node(p_graph, v), "", assert::heavy);
                     _queues[v_block].push(v, _weighted_degrees[v] + loss_delta);
                 }
             }
@@ -377,14 +379,15 @@ private:
         }
         _marker.reset();
 
-        ASSERT(!initially_feasible || accepted_delta <= 0); // only accept bad cuts when starting with bad balance
-        ASSERT(metrics::edge_cut(p_graph) == initial_edge_cut + accepted_delta)
-            << V(metrics::edge_cut(p_graph, tag::seq));
+        KASSERT((!initially_feasible || accepted_delta <= 0)); // only accept bad cuts when starting with bad balance
+        KASSERT(metrics::edge_cut(p_graph) == initial_edge_cut + accepted_delta);
+
         return accepted_delta;
     }
 
     void init_pq(const PartitionedGraph& p_graph) {
-        ASSERT(_queues[0].empty() && _queues[1].empty());
+        KASSERT(_queues[0].empty());
+        KASSERT(_queues[1].empty());
 
         const std::size_t num_chunks = _graph->n() / kChunkSize + 1;
 
@@ -404,9 +407,9 @@ private:
             }
         }
 
-#ifdef KAMINPAR_ENABLE_HEAVY_ASSERTIONS
-        VALIDATE_PQS(p_graph);
-#endif // KAMINPAR_ENABLE_HEAVY_ASSERTIONS
+#if KASSERT_ASSERTION_ENABLED(ASSERTION_LEVEL_NORMAL)
+        validate_pqs(p_graph);
+#endif
     }
 
     void insert_node(const PartitionedGraph& p_graph, const NodeID u) {
@@ -437,8 +440,7 @@ private:
         }
     }
 
-#ifdef KAMINPAR_ENABLE_HEAVY_ASSERTIONS
-    bool IS_BOUNDARY_NODE(const PartitionedGraph& p_graph, const NodeID u) {
+    bool is_boundary_node(const PartitionedGraph& p_graph, const NodeID u) {
         for (const NodeID v: p_graph.adjacent_nodes(u)) {
             if (p_graph.block(u) != p_graph.block(v)) {
                 return true;
@@ -447,24 +449,23 @@ private:
         return false;
     }
 
-    void VALIDATE_PQS(const PartitionedGraph& p_graph) {
+    void validate_pqs(const PartitionedGraph& p_graph) {
         for (const NodeID u: p_graph.nodes()) {
-            if (IS_BOUNDARY_NODE(p_graph, u)) {
+            if (is_boundary_node(p_graph, u)) {
                 if (_marker.get(u)) {
-                    ASSERT(!_queues[0].contains(u));
-                    ASSERT(!_queues[1].contains(u));
+                    KASSERT(!_queues[0].contains(u));
+                    KASSERT(!_queues[1].contains(u));
                 } else {
-                    ASSERT(_queues[p_graph.block(u)].contains(u));
-                    ASSERT(!_queues[1 - p_graph.block(u)].contains(u));
-                    ASSERT(_queues[p_graph.block(u)].key(u) == compute_gain_from_scratch(p_graph, u));
+                    KASSERT(_queues[p_graph.block(u)].contains(u));
+                    KASSERT(!_queues[1 - p_graph.block(u)].contains(u));
+                    KASSERT(_queues[p_graph.block(u)].key(u) == compute_gain_from_scratch(p_graph, u));
                 }
             } else {
-                ASSERT(!_queues[0].contains(u));
-                ASSERT(!_queues[1].contains(u));
+                KASSERT(!_queues[0].contains(u));
+                KASSERT(!_queues[1].contains(u));
             }
         }
     }
-#endif // KAMINPAR_ENABLE_HEAVY_ASSERTIONS
 
     const Graph*             _graph; //! Graph for refinement, partition to refine is passed to #refine().
     const PartitionContext&  _p_ctx;

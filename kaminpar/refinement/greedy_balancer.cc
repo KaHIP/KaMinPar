@@ -8,16 +8,16 @@
  ******************************************************************************/
 #include "kaminpar/refinement/greedy_balancer.h"
 
+#include <kassert/kassert.hpp>
+
 namespace kaminpar {
-void GreedyBalancer::initialize(const PartitionedGraph& p_graph) {
-    UNUSED(p_graph);
-}
+void GreedyBalancer::initialize(const PartitionedGraph&) {}
 
 bool GreedyBalancer::balance(PartitionedGraph& p_graph, const PartitionContext& p_ctx) {
     _p_graph = &p_graph;
     _p_ctx   = &p_ctx;
     _stats.reset();
-    ALWAYS_ASSERT(_marker.capacity() >= _p_graph->n());
+    KASSERT(_marker.capacity() >= _p_graph->n());
     _marker.reset();
 
     const NodeWeight initial_overload = metrics::total_overload(*_p_graph, *_p_ctx);
@@ -65,7 +65,7 @@ BlockWeight GreedyBalancer::perform_round() {
         }
 
         while (current_overload > 0 && !_pq.empty(from)) {
-            ASSERT(
+            KASSERT(
                 current_overload
                 == std::max<BlockWeight>(0, _p_graph->block_weight(from) - _p_ctx->block_weights.max(from)));
 
@@ -74,7 +74,7 @@ BlockWeight GreedyBalancer::perform_round() {
             const double     expected_relative_gain = _pq.peek_max_key(from);
             _pq.pop_max(from);
             _pq_weight[from] -= u_weight;
-            ASSERT(_marker.get(u));
+            KASSERT(_marker.get(u));
 
             auto [to, actual_relative_gain] = compute_gain(u, from);
             if (expected_relative_gain == actual_relative_gain) { // gain still correct --> try to move it
@@ -123,7 +123,7 @@ BlockWeight GreedyBalancer::perform_round() {
             }
         }
 
-        ASSERT(
+        KASSERT(
             current_overload
             == std::max<BlockWeight>(0, _p_graph->block_weight(from) - _p_ctx->block_weights.max(from)));
     });
@@ -139,15 +139,15 @@ BlockWeight GreedyBalancer::perform_round() {
 }
 
 bool GreedyBalancer::add_to_pq(const BlockID b, const NodeID u) {
-    ASSERT(b == _p_graph->block(u));
+    KASSERT(b == _p_graph->block(u));
 
     const auto [to, rel_gain] = compute_gain(u, b);
     return add_to_pq(b, u, _p_graph->node_weight(u), rel_gain);
 }
 
 bool GreedyBalancer::add_to_pq(const BlockID b, const NodeID u, const NodeWeight u_weight, const double rel_gain) {
-    ASSERT(u_weight == _p_graph->node_weight(u));
-    ASSERT(b == _p_graph->block(u));
+    KASSERT(u_weight == _p_graph->node_weight(u));
+    KASSERT(b == _p_graph->block(u));
 
     if (_pq_weight[b] < block_overload(b) || _pq.empty(b) || rel_gain > _pq.peek_min_key(b)) {
         DBG << "Add " << u << " pq weight " << _pq_weight[b] << " rel_gain " << rel_gain;

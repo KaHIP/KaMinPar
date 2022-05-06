@@ -15,7 +15,7 @@
 namespace kaminpar::graph {
 std::pair<NodeID, NodeWeight>
 find_isolated_nodes_info(const StaticArray<EdgeID>& nodes, const StaticArray<NodeWeight>& node_weights) {
-    ASSERT(node_weights.empty() || node_weights.size() + 1 == nodes.size());
+    KASSERT((node_weights.empty() || node_weights.size() + 1 == nodes.size()));
 
     tbb::enumerable_thread_specific<NodeID>     isolated_nodes;
     tbb::enumerable_thread_specific<NodeWeight> isolated_nodes_weights;

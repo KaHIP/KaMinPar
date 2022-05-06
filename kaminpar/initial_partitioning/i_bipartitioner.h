@@ -10,6 +10,8 @@
 #include <array>
 #include <tuple>
 
+#include <kassert/kassert.hpp>
+
 #include "kaminpar/context.h"
 
 namespace kaminpar {
@@ -38,9 +40,9 @@ public:
         if (_partition.size() < _graph.n()) {
             _partition.resize(_graph.n());
         }
-#ifdef KAMINPAR_ENABLE_ASSERTIONS
+#if KASSERT_ASSERTION_ENABLED(ASSERTION_LEVEL_NORMAL)
         std::fill(_partition.begin(), _partition.end(), kInvalidBlockID);
-#endif // KAMINPAR_ENABLE_ASSERTIONS
+#endif
 
         _block_weights.fill(0);
         bipartition_impl();
@@ -56,7 +58,7 @@ protected:
         : _graph{graph},
           _p_ctx{p_ctx},
           _i_ctx{i_ctx} {
-        ALWAYS_ASSERT(_p_ctx.k == 2) << "not a bipartition context";
+        KASSERT(_p_ctx.k == 2u, "not a bipartition context", assert::light);
     }
 
     // must be implemented by the base class -- compute bipartition
@@ -74,13 +76,13 @@ protected:
     }
 
     inline void set_block(const NodeID u, const BlockID b) {
-        ASSERT(_partition[u] == kInvalidBlockID) << "use update_block() instead";
+        KASSERT(_partition[u] == kInvalidBlockID, "use update_block() instead");
         _partition[u] = b;
         _block_weights[b] += _graph.node_weight(u);
     }
 
     inline void change_block(const NodeID u, const BlockID b) {
-        ASSERT(_partition[u] != kInvalidBlockID) << "only use set_block() instead";
+        KASSERT(_partition[u] != kInvalidBlockID, "only use set_block() instead");
         _partition[u] = b;
 
         const NodeWeight u_weight = _graph.node_weight(u);

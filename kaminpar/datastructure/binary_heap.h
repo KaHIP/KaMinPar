@@ -10,6 +10,8 @@
 #include <utility>
 #include <vector>
 
+#include <kassert/kassert.hpp>
+
 #include "kaminpar/definitions.h"
 
 namespace kaminpar {
@@ -83,26 +85,26 @@ public:
         return _heap.size();
     }
     [[nodiscard]] bool contains(const ID id) const {
-        ASSERT(id < capacity());
+        KASSERT(id < capacity());
         return _id_pos[id] != kInvalidID;
     }
     Key key(const ID id) const {
-        ASSERT(contains(id));
+        KASSERT(contains(id));
         return _heap[_id_pos[id]].key;
     }
     [[nodiscard]] ID peek_id() const {
-        ASSERT(!empty());
+        KASSERT(!empty());
         return _heap.front().id;
     }
     Key peek_key() const {
-        ASSERT(!empty());
+        KASSERT(!empty());
         return _heap.front().key;
     }
     void remove(const ID id) {
-        ASSERT(contains(id));
+        KASSERT(contains(id));
         decrease_priority(id, Comparator<Key>::kMinValue);
         pop();
-        ASSERT(!contains(id));
+        KASSERT(!contains(id));
     }
 
     void clear() {
@@ -113,7 +115,7 @@ public:
     }
 
     void pop() {
-        ASSERT(!empty());
+        KASSERT(!empty());
         --_size;
         std::swap(_heap.front(), _heap[_size]);
         _id_pos[_heap[0].id]     = 0;
@@ -122,8 +124,8 @@ public:
     }
 
     void push(const ID id, const Key& key) {
-        ASSERT(!contains(id));
-        ASSERT(size() < _heap.size()) << V(size()) << V(_heap.size());
+        KASSERT(!contains(id));
+        KASSERT(size() < _heap.size());
         const std::size_t pos = _size;
         ++_size;
         _heap[pos]  = {id, key};
@@ -152,28 +154,28 @@ public:
     // e.g., decreasing an integral key in a BinaryMinHeap *increases* its priority
     // hence, *increase_priority* must be called instead of decrease_priority
     void decrease_priority(const ID id, const Key& new_key) {
-        ASSERT(contains(id));
-        ASSERT(_comparator(key(id), new_key));
+        KASSERT(contains(id));
+        KASSERT(_comparator(key(id), new_key));
         _heap[_id_pos[id]].key = new_key;
         sift_up(_id_pos[id]);
     }
 
     // deprecated
     void decrease_priority_by(const ID id, const Key& delta) {
-        ASSERT(contains(id));
-        ASSERT(delta > 0);
+        KASSERT(contains(id));
+        KASSERT(delta > 0);
         decrease_priority(id, key(id) - delta);
     }
 
     void increase_priority(const ID id, const Key& new_key) {
-        ASSERT(contains(id));
-        ASSERT(_comparator(new_key, key(id)));
+        KASSERT(contains(id));
+        KASSERT(_comparator(new_key, key(id)));
         _heap[_id_pos[id]].key = new_key;
         sift_down(_id_pos[id]);
     }
 
     void resize(const std::size_t capacity) {
-        ASSERT(empty()) << "heap should be empty when resizing it";
+        KASSERT(empty(), "heap should be empty when resizing it");
         _id_pos.resize(capacity, kInvalidID);
         _heap.resize(capacity);
     }
@@ -256,23 +258,23 @@ public:
     DynamicBinaryForest& operator=(DynamicBinaryForest&&) noexcept = default;
 
     bool contains(const ID id) const {
-        ASSERT(static_cast<std::size_t>(id) < _id_pos.size());
+        KASSERT(static_cast<std::size_t>(id) < _id_pos.size());
         return _id_pos[id] != kInvalidID;
     }
 
     void push(const std::size_t heap, const ID id, const Key key) {
-        ASSERT(_comparator(key, Comparator<Key>::kMinValue)) << V(key) << V(Comparator<Key>::kMinValue);
+        KASSERT(_comparator(key, Comparator<Key>::kMinValue), V(key) << V(Comparator<Key>::kMinValue));
         _heaps[heap].push_back({id, key});
         _id_pos[id] = _heaps[heap].size() - 1;
         sift_up(heap, _id_pos[id]);
     }
 
     [[nodiscard]] ID peek_id(const std::size_t heap) const {
-        ASSERT(!empty(heap));
+        KASSERT(!empty(heap));
         return _heaps[heap].front().id;
     }
     [[nodiscard]] Key peek_key(const std::size_t heap) const {
-        ASSERT(!empty(heap));
+        KASSERT(!empty(heap));
         return _heaps[heap].front().key;
     }
 
@@ -310,15 +312,15 @@ public:
     // e.g., decreasing an integral key in a BinaryMinHeap *increases* its priority
     // hence, *increase_priority* must be called instead of decrease_priority
     void decrease_priority(const std::size_t heap, const ID id, const Key& new_key) {
-        ASSERT(contains(id));
-        ASSERT(_comparator(key(heap, id), new_key)) << V(heap) << V(id) << V(key(heap, id)) << V(new_key);
+        KASSERT(contains(id));
+        KASSERT(_comparator(key(heap, id), new_key), V(heap) << V(id) << V(key(heap, id)) << V(new_key));
         _heaps[heap][_id_pos[id]].key = new_key;
         sift_up(heap, _id_pos[id]);
     }
 
     void increase_priority(const std::size_t heap, const ID id, const Key& new_key) {
-        ASSERT(contains(id));
-        ASSERT(_comparator(new_key, key(heap, id)));
+        KASSERT(contains(id));
+        KASSERT(_comparator(new_key, key(heap, id)));
         _heaps[heap][_id_pos[id]].key = new_key;
         sift_down(heap, _id_pos[id]);
     }
@@ -426,12 +428,12 @@ public:
     }
 
     bool contains(const ID id) const {
-        ASSERT(_max_forest.contains(id) == _min_forest.contains(id));
+        KASSERT(_max_forest.contains(id) == _min_forest.contains(id));
         return _max_forest.contains(id);
     }
 
     bool empty(const std::size_t heap) const {
-        ASSERT(_max_forest.empty(heap) == _min_forest.empty(heap));
+        KASSERT(_max_forest.empty(heap) == _min_forest.empty(heap));
         return _max_forest.empty(heap);
     }
 
@@ -464,12 +466,12 @@ public:
     }
 
     std::size_t size(const std::size_t heap) {
-        ASSERT(_min_forest.size(heap) == _max_forest.size(heap));
+        KASSERT(_min_forest.size(heap) == _max_forest.size(heap));
         return _max_forest.size(heap);
     }
 
     std::size_t size() {
-        ASSERT(_min_forest.size() == _max_forest.size());
+        KASSERT(_min_forest.size() == _max_forest.size());
         return _max_forest.size();
     }
 
@@ -518,11 +520,11 @@ public:
     }
 
     [[nodiscard]] ID peek_id() const {
-        ASSERT(!empty());
+        KASSERT(!empty());
         return _heap.front().id;
     }
     [[nodiscard]] Key peek_key() const {
-        ASSERT(!empty());
+        KASSERT(!empty());
         return _heap.front().key;
     }
 

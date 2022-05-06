@@ -7,6 +7,9 @@
  ******************************************************************************/
 #include "kaminpar/datastructure/graph.h"
 
+#include <kassert/kassert.hpp>
+
+#include "definitions.h"
 #include "kaminpar/parallel/algorithm.h"
 #include "kaminpar/utils/math.h"
 #include "kaminpar/utils/timer.h"
@@ -74,7 +77,7 @@ Graph::Graph(
 }
 
 void Graph::init_degree_buckets() {
-    ASSERT(std::all_of(_buckets.begin(), _buckets.end(), [](const auto n) { return n == 0; }));
+    KASSERT(std::all_of(_buckets.begin(), _buckets.end(), [](const auto n) { return n == 0; }));
     if (_sorted) {
         for (const NodeID u: nodes()) {
             ++_buckets[degree_bucket(degree(u)) + 1];
@@ -104,30 +107,42 @@ void Graph::update_total_node_weight() {
 //
 
 bool validate_graph(const Graph& graph) {
-    LOG << "Validate n=" << graph.n() << " m=" << graph.m();
-
     for (NodeID u = 0; u < graph.n(); ++u) {
-        ALWAYS_ASSERT(graph.raw_nodes()[u] <= graph.raw_nodes()[u + 1])
-            << V(u) << V(graph.raw_nodes()[u]) << V(graph.raw_nodes()[u + 1]);
+        if (graph.raw_nodes()[u] >= graph.raw_nodes()[u + 1]) {
+            LOG_WARNING << "Bad node array at position " << u;
+            return false;
+        }
     }
 
     for (const NodeID u: graph.nodes()) {
         for (const auto [e, v]: graph.neighbors(u)) {
-            ALWAYS_ASSERT(v < graph.n());
+            if (v >= graph.n()) {
+                LOG_WARNING << "Neighbor " << v << " of " << u << " is out-of-graph";
+                return false;
+            }
             bool found_reverse = false;
             for (const auto [e_prime, u_prime]: graph.neighbors(v)) {
-                ALWAYS_ASSERT(u_prime < graph.n());
+                if (u_prime >= graph.n()) {
+                    LOG_WARNING << "Neighbor " << u_prime << " of neighbor " << v << " of " << u << " is out-of-graph";
+                    return false;
+                }
                 if (u != u_prime) {
                     continue;
                 }
-                ALWAYS_ASSERT(graph.edge_weight(e) == graph.edge_weight(e_prime))
-                    << V(e) << V(graph.edge_weight(e)) << V(e_prime) << V(graph.edge_weight(e_prime)) << " Edge from "
-                    << u << " --> " << v << " --> " << u_prime;
+                if (graph.edge_weight(e) != graph.edge_weight(e_prime)) {
+                    LOG_WARNING << "Weight of edge " << e << " (" << graph.edge_weight(e)
+                                << ") differs from the weight of its reverse edge " << e_prime << " ("
+                                << graph.edge_weight(e_prime) << ")";
+                    return false;
+                }
                 found_reverse = true;
                 break;
             }
-            ALWAYS_ASSERT(found_reverse) << u << " --> " << v << " exists with edge " << e
-                                         << " but no reverse edge found!";
+            if (!found_reverse) {
+                LOG_WARNING << "Edge " << u << " --> " << v << " exists with edge " << e
+                            << ", but the reverse edges does not exist";
+                return false;
+            }
         }
     }
     return true;
@@ -150,7 +165,7 @@ PartitionedGraph::PartitionedGraph(
     if (_final_k.empty()) {
         _final_k.resize(k, 1);
     }
-    ASSERT(_partition.size() == graph.n());
+    KASSERT(_partition.size() == graph.n());
 
     init_block_weights();
 }
@@ -168,7 +183,7 @@ PartitionedGraph::PartitionedGraph(
     if (_final_k.empty()) {
         _final_k.resize(k, 1);
     }
-    ASSERT(_partition.size() == graph.n());
+    KASSERT(_partition.size() == graph.n());
 
     init_block_weights_seq();
 }

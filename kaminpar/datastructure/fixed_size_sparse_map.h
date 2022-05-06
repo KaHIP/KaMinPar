@@ -25,6 +25,8 @@
  */
 #pragma once
 
+#include <kassert/kassert.hpp>
+
 #include "kaminpar/utils/math.h"
 
 namespace kaminpar {
@@ -120,7 +122,7 @@ public:
     Value& operator[](const Key key) {
         SparseElement* s = find(key);
         if (containsValidElement(key, s)) {
-            ASSERT(s->element);
+            KASSERT(s->element);
             return s->element->value;
         } else {
             return addElement(key, _initial_value, s)->value;
@@ -142,10 +144,10 @@ public:
 
 private:
     inline SparseElement* find(const Key key) const {
-        ASSERT(_size < _map_size);
+        KASSERT(_size < _map_size);
         std::size_t hash = key & (_map_size - 1);
         while (_sparse[hash].timestamp == _timestamp) {
-            ASSERT(_sparse[hash].element);
+            KASSERT(_sparse[hash].element);
             if (_sparse[hash].element->key == key) {
                 return &_sparse[hash];
             }
@@ -154,18 +156,15 @@ private:
         return &_sparse[hash];
     }
 
-    inline bool containsValidElement(const Key key, const SparseElement* s) const {
-        ASSERT(s);
+    inline bool containsValidElement([[maybe_unused]] const Key key, const SparseElement* s) const {
+        KASSERT(s);
         const bool is_contained = s->timestamp == _timestamp;
-        ASSERT(!is_contained || s->element->key == key);
-#ifndef KAMINPAR_ENABLE_ASSERTIONS
-        (void)key;
-#endif
+        KASSERT((!is_contained || s->element->key == key));
         return is_contained;
     }
 
     inline Element* addElement(const Key key, const Value value, SparseElement* s) {
-        ASSERT(find(key) == s);
+        KASSERT(find(key) == s);
         _dense[_size] = Element{key, value};
         *s            = SparseElement{&_dense[_size++], _timestamp};
         return s->element;

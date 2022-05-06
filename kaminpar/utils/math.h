@@ -10,6 +10,8 @@
 #include <utility>
 #include <vector>
 
+#include <kassert/kassert.hpp>
+
 #include "kaminpar/definitions.h"
 
 namespace kaminpar::math {
@@ -43,15 +45,15 @@ constexpr bool is_power_of_2(const T arg) {
 
 template <typename E>
 double percentile(const std::vector<E>& sorted_sequence, const double percentile) {
-    ASSERT([&] {
+    KASSERT([&] {
         for (std::size_t i = 1; i < sorted_sequence.size(); ++i) {
             if (sorted_sequence[i - 1] > sorted_sequence[i]) {
                 return false;
             }
         }
         return true;
-    });
-    ASSERT(0 <= percentile && percentile <= 1);
+    }());
+    KASSERT((0 <= percentile && percentile <= 1));
 
     return sorted_sequence[std::ceil(percentile * sorted_sequence.size()) - 1];
 }

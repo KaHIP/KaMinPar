@@ -9,6 +9,8 @@
 
 #include <vector>
 
+#include <kassert/kassert.hpp>
+
 #include "kaminpar/definitions.h"
 
 namespace kaminpar {
@@ -38,22 +40,22 @@ public:
 
     // Access operators
     const_reference tail() const {
-        ASSERT(!empty());
+        KASSERT(!empty());
         return _data[_tail];
     }
 
     const_reference head() const {
-        ASSERT(!empty());
+        KASSERT(!empty());
         return _data[_head];
     }
 
     const_reference operator[](const size_type pos) const {
-        ASSERT(_head + pos < _data.size());
+        KASSERT(_head + pos < _data.size());
         return _data[_head + pos];
     }
 
     reference operator[](const size_type pos) {
-        ASSERT(_head + pos < _data.size());
+        KASSERT(_head + pos < _data.size());
         return _data[_head + pos];
     }
 
@@ -88,22 +90,22 @@ public:
 
     // Modification
     void pop_head() {
-        ASSERT(_head < _tail);
+        KASSERT(_head < _tail);
         ++_head;
     }
 
     void push_head(const_reference element) {
-        ASSERT(0 < _head);
+        KASSERT(0 < _head);
         _data[--_head] = element;
     }
 
     void push_tail(const_reference element) {
-        ASSERT(_tail < _data.size());
+        KASSERT(_tail < _data.size());
         _data[_tail++] = element;
     }
 
     void pop_tail() {
-        ASSERT(_head < _tail);
+        KASSERT(_head < _tail);
         --_tail;
     }
 

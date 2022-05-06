@@ -11,6 +11,8 @@
 #include <bitset>
 #include <type_traits>
 
+#include <kassert/kassert.hpp>
+
 #include "kaminpar/definitions.h"
 
 namespace kaminpar {
@@ -26,7 +28,7 @@ public:
 
     template <bool track_first_unmarked_element = false>
     void set(const std::size_t element, const std::size_t marker = 0) {
-        ASSERT(marker < num_concurrent_markers);
+        KASSERT(marker < num_concurrent_markers);
         _data[element] = ((_data[element] & ~((1u << num_concurrent_markers) - 1u)) == _marker_id)
                              ? _data[element] | (1u << marker)
                              : _marker_id | (1u << marker);
@@ -38,12 +40,12 @@ public:
     }
 
     [[nodiscard]] inline std::size_t first_unmarked_element(const std::size_t marker = 0) const {
-        ASSERT(marker < num_concurrent_markers);
+        KASSERT(marker < num_concurrent_markers);
         return _first_unmarked_element[marker];
     }
 
     [[nodiscard]] bool get(const std::size_t element, const std::size_t marker = 0) const {
-        ASSERT(marker < num_concurrent_markers);
+        KASSERT(marker < num_concurrent_markers);
         return ((_data[element] & ~((1u << num_concurrent_markers) - 1u)) == _marker_id)
                && ((_data[element] & (1u << marker)) != 0);
     }

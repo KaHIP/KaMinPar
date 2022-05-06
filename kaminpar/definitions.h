@@ -28,6 +28,16 @@
 #endif
 
 namespace kaminpar {
+// Additional assertion levels to be used with KASSERT()
+namespace assert {
+#define ASSERTION_LEVEL_LIGHT 10
+constexpr int light = ASSERTION_LEVEL_LIGHT;
+#define ASSERTION_LEVEL_NORMAL 30
+constexpr int normal = ASSERTION_LEVEL_NORMAL; // same value as defined in KASSERT
+#define ASSERTION_LEVEL_HEAVY 40
+constexpr int heavy = ASSERTION_LEVEL_HEAVY;
+}; // namespace assert
+
 struct Mandatory {};
 
 #ifdef KAMINPAR_64BIT_NODE_IDS
@@ -78,18 +88,6 @@ constexpr inline Sequential seq{};
 
 // helper function to implement ASSERT() macros
 namespace debug {
-template <typename Arg>
-bool evaluate_assertion(Arg&& arg) {
-    if constexpr (std::is_invocable_r_v<bool, Arg>) {
-        return arg();
-    } else if constexpr (std::is_invocable_v<Arg>) {
-        arg(); // should contain ASSERTs
-        return true;
-    } else {
-        return arg;
-    }
-}
-
 // helper function to implement ASSERT() and DBG() macros
 template <bool abort_on_destruction>
 class DisposableLogger {
@@ -131,57 +129,7 @@ private:
 #else // HAS_SCHED_GETCPU
 #define CPU ""
 #endif // HAS_SCHED_GETCPU
-
-// Macros for assertions
-//
-// ALWAYS_ASSERT takes a boolean or a boolean returning lambda. If the boolean is false or the lambda returns false,
-// it aborts the program. To print additional information in case of an assertion failure, use <<, e.g.,
-// ALWAYS_ASSERT(1 + 1 == 2) << "1 + 1 appears to be something other than 2";
-//
-// ASSERT acts like ALWAYS_ASSERTS but does nothing if NDEBUG is undefined
-// HEAVY_ASSERT acts like ALWAYS_ASSERT but does nothing if KAMIPAR_ENABLE_HEAVY_ASSERTIONS is undefined
-//
-// Use ASSERT for cheap checks and HEAVY_ASSERT for checks that could cause a significant slowdown.
-
-#define ALWAYS_ASSERT(x) kaminpar::debug::evaluate_assertion((x)) || kaminpar::debug::DisposableLogger<true>(std::cout) \
-  << kaminpar::logger::MAGENTA << POSITION << CPU << " "                                                                \
-  << kaminpar::logger::RED << "Assertion failed: `" << #x << "`\n"
-
-// only for macro implementation, acts like an ASSERT but produces no code (with constant folding enabled)
-#define NEVER_ASSERT(x) true || kaminpar::debug::DisposableLogger<false>(std::cout)
-
-// Assertions
-//
-// We have three levels of assertions: HEAVY_ASSERT, ASSERT and LIGHT_ASSERT
-// Heavier assertions imply lighter assertions, i.e., compiling with HEAVY_ASSERT enabled also enables ASSERT and
-// LIGHT_ASSERT, and compiling with ASSERT also enables LIGHT_ASSERT.
-#ifdef KAMINPAR_ENABLE_HEAVY_ASSERTIONS
-#define HEAVY_ASSERT(x) ALWAYS_ASSERT(x)
-#ifdef NDEBUG
-#undef NDEBUG
-#endif // NDEBUG
-#else // KAMINPAR_ENABLE_HEAVY_ASSERTIONS
-#define HEAVY_ASSERT(x) NEVER_ASSERT(x)
-#endif // KAMINPAR_ENABLE_HEAVY_ASSERTIONS
-
-#ifdef NDEBUG
-#define ASSERT(x) NEVER_ASSERT(x)
-#else // NDEBUG
-#define ASSERT(x) ALWAYS_ASSERT(x)
-#ifndef KAMINPAR_ENABLE_LIGHT_ASSERTIONS
-#define KAMINPAR_ENABLE_LIGHT_ASSERTIONS
-#endif // KAMINPAR_ENABLE_LIGHT_ASSERTIONS
-#ifndef KAMINPAR_ENABLE_ASSERTIONS
-#define KAMINPAR_ENABLE_ASSERTIONS
-#endif // KAMINPAR_ENABLE_ASSERTIONS
-#endif // NDEBUG
-
-#ifdef KAMINPAR_ENABLE_LIGHT_ASSERTIONS
-#define LIGHT_ASSERT(x) ALWAYS_ASSERT(x)
-#else // KAMINPAR_ENABLE_LIGHT_ASSERTIONS
-#define LIGHT_ASSERT(x) NEVER_ASSERT(x)
-#endif // KAMINPAR_ENABLE_LIGHT_ASSERTIONS
-
+       
 // Macros for debug output
 //
 // To use these macros, you must define a boolean variable kDebug somewhere
@@ -250,11 +198,3 @@ private:
 #else // KAMINPAR_ENABLE_STATISTICS
     #define SET_STATISTICS_FROM_GLOBAL() SET_STATISTICS(false)
 #endif // KAMINPAR_ENABLE_STATISTISC
-
-// Hide compiler warnings for unused variables
-#define UNUSED(x) ((void)(x))
-
-// clang-format off
-#define SET_OUTPUT(x) static constexpr bool kOutput = (x)
-#define CLOG if constexpr (kOutput) LOG
-// clang-format on

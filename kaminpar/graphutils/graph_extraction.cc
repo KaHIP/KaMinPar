@@ -11,6 +11,8 @@
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_for.h>
 
+#include <kassert/kassert.hpp>
+
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/datastructure/static_array.h"
 #include "kaminpar/definitions.h"
@@ -23,9 +25,7 @@ namespace kaminpar::graph {
 SequentialSubgraphExtractionResult extract_subgraphs_sequential(
     const PartitionedGraph& p_graph, const SubgraphMemoryStartPosition memory_position, SubgraphMemory& subgraph_memory,
     TemporarySubgraphMemory& tmp_subgraph_memory) {
-    ALWAYS_ASSERT(p_graph.k() == 2) << "Only suitable for bipartitions!";
-    ALWAYS_ASSERT(tmp_subgraph_memory.in_use == false);
-    tmp_subgraph_memory.in_use = true;
+    KASSERT(p_graph.k() == 2u, "Only suitable for bipartitions!", assert::light);
 
     const bool is_node_weighted = p_graph.graph().is_node_weighted();
     const bool is_edge_weighted = p_graph.graph().is_edge_weighted();
@@ -105,8 +105,6 @@ SequentialSubgraphExtractionResult extract_subgraphs_sequential(
             edge_weights.begin(), edge_weights.begin() + s_m[0] + s_m[1],
             subgraph_memory.edge_weights.begin() + memory_position.edges_start_pos);
     }
-
-    tmp_subgraph_memory.in_use = false;
 
     std::array<SubgraphMemoryStartPosition, 2> subgraph_positions;
     subgraph_positions[0].nodes_start_pos = memory_position.nodes_start_pos;
@@ -247,13 +245,16 @@ SubgraphExtractionResult extract_subgraphs(const PartitionedGraph& p_graph, Subg
     });
     STOP_TIMER();
 
-    HEAVY_ASSERT([&] {
-        for (const BlockID b: p_graph.blocks()) {
-            LOG << "Validate " << b;
-            ALWAYS_ASSERT(validate_graph(subgraphs[b]));
-        }
-        return true;
-    });
+    KASSERT(
+        [&] {
+            for (const BlockID b: p_graph.blocks()) {
+                if (!validate_graph(subgraphs[b])) {
+                    return false;
+                }
+            }
+            return true;
+        }(),
+        "", assert::heavy);
 
     return {std::move(subgraphs), std::move(mapping), std::move(start_positions)};
 }
@@ -294,7 +295,7 @@ void copy_subgraph_partitions(
 
     // we are not done partitioning?
     if (k_prime != input_k) {
-        ALWAYS_ASSERT(math::is_power_of_2(k_prime));
+        KASSERT(math::is_power_of_2(k_prime), "must be a power of two", assert::light);
         const BlockID k_per_block = k_prime / p_graph.k();
         tbb::parallel_for(static_cast<BlockID>(0), p_graph.k(), [&](const BlockID b) {
             fill_final_k(final_ks, k0[b], p_graph.final_k(b), k_per_block);

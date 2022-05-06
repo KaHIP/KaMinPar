@@ -12,6 +12,8 @@
 
 #include <memory>
 
+#include <kassert/kassert.hpp>
+
 #include "kaminpar/factories.h"
 #include "kaminpar/initial_partitioning/bfs_bipartitioner.h"
 #include "kaminpar/initial_partitioning/greedy_graph_growing_bipartitioner.h"
@@ -103,7 +105,8 @@ public:
 
     template <typename BipartitionerType, typename... BipartitionerArgs>
     void register_bipartitioner(const std::string& name, BipartitionerArgs&&... args) {
-        ASSERT(std::find(_bipartitioner_names.begin(), _bipartitioner_names.end(), name) == _bipartitioner_names.end());
+        KASSERT(
+            std::find(_bipartitioner_names.begin(), _bipartitioner_names.end(), name) == _bipartitioner_names.end());
         auto* instance = new BipartitionerType(_graph, _p_ctx, _i_ctx, std::forward<BipartitionerArgs>(args)...);
         _bipartitioners.push_back(std::unique_ptr<BipartitionerType>(instance));
         _bipartitioner_names.push_back(name);
@@ -131,7 +134,8 @@ public:
     }
 
     PartitionedGraph bipartition() {
-        ASSERT(_current_partition.size() >= _graph.n() && _best_partition.size() >= _graph.n());
+        KASSERT(_current_partition.size() >= _graph.n());
+        KASSERT(_best_partition.size() >= _graph.n());
 
         // only perform more repetitions with bipartitioners that are somewhat likely to find a better partition than
         // the current one

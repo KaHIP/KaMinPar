@@ -9,6 +9,8 @@
 
 #include "kaminpar/utils/math.h"
 
+#include <kassert/kassert.hpp>
+
 namespace kaminpar {
 using namespace std::string_literals;
 
@@ -83,9 +85,9 @@ void PartitionContext::setup_block_weights() {
 //
 
 void BlockWeightsContext::setup(const PartitionContext& p_ctx) {
-    ASSERT(p_ctx.k != kInvalidBlockID) << "PartitionContext::k not initialized";
-    ASSERT(p_ctx.total_node_weight != kInvalidNodeWeight) << "PartitionContext::total_node_weight not initialized";
-    ASSERT(p_ctx.max_node_weight != kInvalidNodeWeight) << "PartitionContext::max_node_weight not initialized";
+    KASSERT(p_ctx.k != kInvalidBlockID, "PartitionContext::k not initialized");
+    KASSERT(p_ctx.total_node_weight != kInvalidNodeWeight, "PartitionContext::total_node_weight not initialized");
+    KASSERT(p_ctx.max_node_weight != kInvalidNodeWeight, "PartitionContext::max_node_weight not initialized");
 
     const auto perfectly_balanced_block_weight =
         static_cast<NodeWeight>(std::ceil(1.0 * p_ctx.total_node_weight / p_ctx.k));
@@ -108,10 +110,10 @@ void BlockWeightsContext::setup(const PartitionContext& p_ctx) {
 }
 
 void BlockWeightsContext::setup(const PartitionContext& p_ctx, const scalable_vector<BlockID>& final_ks) {
-    ASSERT(p_ctx.k != kInvalidBlockID) << "PartitionContext::k not initialized";
-    ASSERT(p_ctx.total_node_weight != kInvalidNodeWeight) << "PartitionContext::total_node_weight not initialized";
-    ASSERT(p_ctx.max_node_weight != kInvalidNodeWeight) << "PartitionContext::max_node_weight not initialized";
-    ASSERT(p_ctx.k == final_ks.size()) << "bad number of blocks: got " << final_ks.size() << ", expected " << p_ctx.k;
+    KASSERT(p_ctx.k != kInvalidBlockID, "PartitionContext::k not initialized");
+    KASSERT(p_ctx.total_node_weight != kInvalidNodeWeight, "PartitionContext::total_node_weight not initialized");
+    KASSERT(p_ctx.max_node_weight != kInvalidNodeWeight, "PartitionContext::max_node_weight not initialized");
+    KASSERT(p_ctx.k == final_ks.size(), "bad number of blocks: got " << final_ks.size() << ", expected " << p_ctx.k);
 
     const BlockID final_k      = std::accumulate(final_ks.begin(), final_ks.end(), static_cast<BlockID>(0));
     const double  block_weight = 1.0 * p_ctx.total_node_weight / final_k;
@@ -136,7 +138,7 @@ void BlockWeightsContext::setup(const PartitionContext& p_ctx, const scalable_ve
 }
 
 [[nodiscard]] BlockWeight BlockWeightsContext::max(const BlockID b) const {
-    ASSERT(b < _max_block_weights.size());
+    KASSERT(b < _max_block_weights.size());
     return _max_block_weights[b];
 }
 
@@ -145,7 +147,7 @@ void BlockWeightsContext::setup(const PartitionContext& p_ctx, const scalable_ve
 }
 
 [[nodiscard]] BlockWeight BlockWeightsContext::perfectly_balanced(const BlockID b) const {
-    ASSERT(b < _perfectly_balanced_block_weights.size());
+    KASSERT(b < _perfectly_balanced_block_weights.size());
     return _perfectly_balanced_block_weights[b];
 }
 
@@ -364,7 +366,8 @@ std::ostream& operator<<(std::ostream& out, const Context& context) {
 
 double compute_2way_adaptive_epsilon(
     const PartitionContext& p_ctx, const NodeWeight subgraph_total_node_weight, const BlockID subgraph_final_k) {
-    ASSERT(subgraph_final_k > 1);
+    KASSERT(subgraph_final_k > 1u);
+
     const double base =
         (1.0 + p_ctx.epsilon) * subgraph_final_k * p_ctx.total_node_weight / p_ctx.k / subgraph_total_node_weight;
     const double exponent         = 1.0 / math::ceil_log2(subgraph_final_k);

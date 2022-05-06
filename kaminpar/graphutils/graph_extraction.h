@@ -93,8 +93,6 @@ struct TemporarySubgraphMemory {
     std::vector<EdgeWeight> edge_weights;
     std::vector<NodeID>     mapping;
 
-    bool in_use{false};
-
     std::size_t num_node_reallocs = 0;
     std::size_t num_edge_reallocs = 0;
 

@@ -10,6 +10,8 @@
 #include <tbb/parallel_for.h>
 #include <tbb/parallel_invoke.h>
 
+#include <kassert/kassert.hpp>
+
 #include "kaminpar/datastructure/rating_map.h"
 #include "kaminpar/datastructure/ts_navigable_linked_list.h"
 #include "kaminpar/parallel/algorithm.h"
@@ -70,7 +72,7 @@ Result contract_generic_clustering(const Graph& graph, const Clustering& cluster
     graph.pfor_nodes([&](const NodeID u) { buckets_index[mapping[u]].fetch_add(1, std::memory_order_relaxed); });
 
     parallel::prefix_sum(buckets_index.begin(), buckets_index.end(), buckets_index.begin());
-    ASSERT(buckets_index.back() <= graph.n());
+    KASSERT(buckets_index.back() <= graph.n());
 
     // Sort nodes into   buckets, roughly 3/5-th of time on europe.osm
     tbb::parallel_for(static_cast<NodeID>(0), graph.n(), [&](const NodeID u) {
@@ -123,7 +125,7 @@ Result contract_generic_clustering(const Graph& graph, const Clustering& cluster
                 NodeWeight c_u_weight = 0;
                 for (std::size_t i = first; i < last; ++i) {
                     const NodeID u = buckets[i];
-                    ASSERT(mapping[u] == c_u);
+                    KASSERT(mapping[u] == c_u);
 
                     c_u_weight += graph.node_weight(u); // coarse node weight
 
@@ -163,7 +165,7 @@ Result contract_generic_clustering(const Graph& graph, const Clustering& cluster
     parallel::prefix_sum(c_nodes.begin(), c_nodes.end(), c_nodes.begin());
     STOP_TIMER(); // Graph construction
 
-    ASSERT(c_nodes[0] == 0) << V(c_nodes);
+    KASSERT(c_nodes[0] == 0u);
     const EdgeID c_m = c_nodes.back();
 
     //

@@ -13,6 +13,8 @@
 
 #include <tbb/parallel_for.h>
 
+#include <kassert/kassert.hpp>
+
 #include "kaminpar/definitions.h"
 #include "kaminpar/parallel/atomic.h"
 #include "kaminpar/parallel/tbb_malloc.h"
@@ -116,7 +118,7 @@ public:
 
     StaticArray(const std::size_t start, const std::size_t size, StaticArray& data)
         : StaticArray(size, data._data + start) {
-        ASSERT(start + size <= data.size());
+        KASSERT(start + size <= data.size());
     }
 
     StaticArray(const std::size_t size, value_type* data) : _size{size}, _data{data} {}
@@ -141,7 +143,7 @@ public:
     //
 
     reference operator[](const size_type pos) {
-        ASSERT(pos < _size);
+        KASSERT(pos < _size);
         return _data[pos];
     }
 
@@ -150,36 +152,36 @@ public:
     }
 
     reference back() {
-        ASSERT(_data);
-        ASSERT(_size > 0);
+        KASSERT(_data);
+        KASSERT(_size > 0u);
         return _data[_size - 1];
     }
 
     const_reference back() const {
-        ASSERT(_data);
-        ASSERT(_size > 0);
+        KASSERT(_data);
+        KASSERT(_size > 0u);
         return _data[_size - 1];
     }
 
     reference front() {
-        ASSERT(_data);
-        ASSERT(_size > 0);
+        KASSERT(_data);
+        KASSERT(_size > 0u);
         return _data[0];
     }
 
     const_reference front() const {
-        ASSERT(_data);
-        ASSERT(_size > 0);
+        KASSERT(_data);
+        KASSERT(_size > 0u);
         return _data[0];
     }
 
     value_type* data() {
-        ASSERT(_data);
+        KASSERT(_data);
         return _data;
     }
 
     const value_type* data() const {
-        ASSERT(_data);
+        KASSERT(_data);
         return _data;
     }
 
@@ -188,12 +190,12 @@ public:
     //
 
     iterator begin() {
-        ASSERT(_data);
+        KASSERT(_data);
         return iterator(_data);
     }
 
     const_iterator cbegin() const {
-        ASSERT(_data);
+        KASSERT(_data);
         return const_iterator(_data);
     }
 
@@ -213,7 +215,9 @@ public:
     }
 
     void restrict(const std::size_t new_size) {
-        ASSERT(new_size <= _size) << V(new_size) << V(_size);
+        KASSERT(
+            new_size <= _size,
+            "restricted size " << new_size << " must be smaller than the unrestricted size " << _size);
         _unrestricted_size = _size;
         _size              = new_size;
     }
@@ -234,7 +238,7 @@ public:
     }
 
     void resize_without_init(const size_type size) {
-        ASSERT(!_data);
+        KASSERT(!_data);
         allocate_data(size);
     }
 
@@ -243,13 +247,13 @@ public:
     }
 
     void resize(const size_type size, const value_type init_value = value_type(), const bool assign_parallel = true) {
-        ASSERT(_data == _owned_data.get());
+        KASSERT(_data == _owned_data.get());
         resize_without_init(size);
         assign(size, init_value, assign_parallel);
     }
 
     void assign(const size_type count, const value_type value, const bool assign_parallel = true) {
-        ASSERT(_data);
+        KASSERT(_data);
 
         if (assign_parallel) {
             const std::size_t step{std::max(count / std::thread::hardware_concurrency(), 1UL)};
