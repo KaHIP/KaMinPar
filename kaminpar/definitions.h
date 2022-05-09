@@ -30,6 +30,8 @@
 namespace kaminpar {
 // Additional assertion levels to be used with KASSERT()
 namespace assert {
+#define ASSERTION_LEVEL_ALWAYS 0
+constexpr int always = ASSERTION_LEVEL_ALWAYS;
 #define ASSERTION_LEVEL_LIGHT 10
 constexpr int light = ASSERTION_LEVEL_LIGHT;
 #define ASSERTION_LEVEL_NORMAL 30

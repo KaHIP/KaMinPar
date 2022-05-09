@@ -42,8 +42,8 @@ public:
     }
 
     bool refine(PartitionedGraph& p_graph, const PartitionContext& p_ctx) {
-        ASSERT(_graph == &p_graph.graph());
-        ASSERT(p_graph.k() <= p_ctx.k);
+        KASSERT(_graph == &p_graph.graph());
+        KASSERT(p_graph.k() <= p_ctx.k);
         _p_graph = &p_graph;
         _p_ctx   = &p_ctx;
         Base::initialize(_graph, _p_ctx->k);

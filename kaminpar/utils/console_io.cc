@@ -7,6 +7,8 @@
  ******************************************************************************/
 #include "kaminpar/utils/console_io.h"
 
+#include <kassert/kassert.hpp>
+
 namespace kaminpar::cio {
 void print_banner(const std::string& title) {
     LOG;
@@ -39,7 +41,7 @@ void ProgressBar::update(const std::size_t i, const std::string& description) {
     std::scoped_lock lk(_update_mutex);
 
 #ifndef KAMINPAR_EXPERIMENTS_MODE
-    ASSERT(i <= _n);
+    KASSERT(i <= _n);
     if (_silent) {
         return;
     }

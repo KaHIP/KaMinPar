@@ -12,6 +12,8 @@
 
 #include <mpi.h>
 
+#include <kassert/kassert.hpp>
+
 #include "dkaminpar/definitions.h"
 #include "kaminpar/parallel/algorithm.h"
 #include "kaminpar/utils/timer.h"
@@ -206,7 +208,7 @@ inline int recv(
 inline MPI_Status probe(const int source, const int tag, MPI_Comm comm = MPI_COMM_WORLD) {
     MPI_Status            status;
     [[maybe_unused]] auto result = MPI_Probe(source, tag, comm, &status);
-    ASSERT(result != MPI_UNDEFINED) << V(source) << V(tag);
+    KASSERT(result != MPI_UNDEFINED);
     return status;
 }
 
@@ -235,7 +237,7 @@ template <typename T, typename Buffer = scalable_noinit_vector<T>>
 Buffer
 probe_recv(const int source, const int tag, MPI_Status* status = MPI_STATUS_IGNORE, MPI_Comm comm = MPI_COMM_WORLD) {
     const auto count = mpi::get_count<T>(mpi::probe(source, MPI_ANY_TAG, comm));
-    ASSERT(count >= 0) << V(source) << V(tag);
+    KASSERT(count >= 0);
     Buffer buf(count);
     mpi::recv(buf.data(), count, source, tag, status, comm);
     return buf;
@@ -301,7 +303,7 @@ Container gather(const T& element, const int root = 0, MPI_Comm comm = MPI_COMM_
 template <typename Container>
 int gather(
     const typename Container::value_type& element, Container& ans, const int root = 0, MPI_Comm comm = MPI_COMM_WORLD) {
-    LIGHT_ASSERT(mpi::get_comm_rank(comm) != root || std::size(ans) == mpi::get_comm_size(comm));
+    KASSERT((mpi::get_comm_rank(comm) != root || std::size(ans) == mpi::get_comm_size(comm)), "", assert::light);
 
     return gather(&element, 1, std::data(ans), 1, comm);
 }
@@ -315,7 +317,7 @@ Container<T> allgather(const T& element, MPI_Comm comm = MPI_COMM_WORLD) {
 
 template <typename Container>
 inline int allgather(const typename Container::value_type& element, Container& ans, MPI_Comm comm = MPI_COMM_WORLD) {
-    LIGHT_ASSERT(std::size(ans) >= static_cast<std::size_t>(mpi::get_comm_size(comm)));
+    KASSERT(std::size(ans) >= static_cast<std::size_t>(mpi::get_comm_size(comm)), "", assert::light);
 
     return allgather(&element, 1, std::data(ans), 1, comm);
 }
@@ -350,7 +352,7 @@ T exscan(const T& sendbuf, MPI_Op op, MPI_Comm comm = MPI_COMM_WORLD) {
 
 template <typename R, std::enable_if_t<!std::is_pointer_v<R>, bool> = true>
 inline int reduce(const R& sendbuf, R& recvbuf, MPI_Op op, const int root = 0, MPI_Comm comm = MPI_COMM_WORLD) {
-    LIGHT_ASSERT(mpi::get_comm_rank(comm) != root || std::size(sendbuf) == std::size(recvbuf));
+    KASSERT((mpi::get_comm_rank(comm) != root || std::size(sendbuf) == std::size(recvbuf)), "", assert::light);
 
     return reduce<typename R::value_type>(
         sendbuf.cdata(), std::data(recvbuf), static_cast<int>(std::size(sendbuf)), op, root, comm);
@@ -373,11 +375,13 @@ inline int gather(const Rs& sendbuf, Rr& recvbuf, const int root = 0, MPI_Comm c
     using rs_value_t = typename Rs::value_type;
     using rr_value_t = typename Rr::value_type;
 
-    LIGHT_ASSERT([&] {
-        const std::size_t expected = sizeof(rs_value_t) * std::size(sendbuf) * mpi::get_comm_size(comm);
-        const std::size_t actual   = sizeof(rr_value_t) * std::size(recvbuf);
-        return mpi::get_comm_rank(comm) != root || expected >= actual;
-    });
+    KASSERT(
+        [&] {
+            const std::size_t expected = sizeof(rs_value_t) * std::size(sendbuf) * mpi::get_comm_size(comm);
+            const std::size_t actual   = sizeof(rr_value_t) * std::size(recvbuf);
+            return mpi::get_comm_rank(comm) != root || expected >= actual;
+        }(),
+        "", assert::light);
 
     return gather<rs_value_t, rr_value_t>(
         sendbuf.cdata(), static_cast<int>(std::size(sendbuf)), std::data(recvbuf), static_cast<int>(std::size(recvbuf)),
@@ -401,7 +405,7 @@ inline void sequentially(Lambda&& lambda, MPI_Comm comm = MPI_COMM_WORLD) {
 
 template <typename Distribution>
 inline std::vector<int> build_distribution_recvcounts(Distribution&& dist) {
-    ASSERT(!dist.empty());
+    KASSERT(!dist.empty());
     std::vector<int> recvcounts(dist.size() - 1);
     for (std::size_t i = 0; i + 1 < dist.size(); ++i) {
         recvcounts[i] = dist[i + 1] - dist[i];
@@ -411,7 +415,7 @@ inline std::vector<int> build_distribution_recvcounts(Distribution&& dist) {
 
 template <typename Distribution>
 inline std::vector<int> build_distribution_displs(Distribution&& dist) {
-    ASSERT(!dist.empty());
+    KASSERT(!dist.empty());
     std::vector<int> displs(dist.size() - 1);
     for (std::size_t i = 0; i + 1 < dist.size(); ++i) {
         displs[i] = static_cast<int>(dist[i]);
@@ -446,12 +450,12 @@ void sparse_alltoall(std::vector<Buffer>&& send_buffers, Receiver&& receiver, MP
     std::size_t next_req_index = 0;
     for (PEID pe = 0; pe < size; ++pe) {
         if (pe != rank) {
-            ASSERT(static_cast<std::size_t>(pe) < send_buffers.size()) << V(pe) << V(send_buffers.size());
-            ASSERT(next_req_index < requests.size());
+            KASSERT(static_cast<std::size_t>(pe) < send_buffers.size());
+            KASSERT(next_req_index < requests.size());
             mpi::isend(send_buffers[pe], pe, 0, requests[next_req_index++], comm);
         }
     }
-    ASSERT(next_req_index == requests.size());
+    KASSERT(next_req_index == requests.size());
 
     for (PEID pe = 0; pe < size; ++pe) {
         if (pe == rank) {
@@ -488,12 +492,12 @@ void sparse_alltoall(const std::vector<Buffer>& send_buffers, Receiver&& receive
     std::size_t next_req_index = 0;
     for (PEID pe = 0; pe < size; ++pe) {
         if (self || pe != rank) {
-            ASSERT(static_cast<std::size_t>(pe) < send_buffers.size()) << V(pe) << V(send_buffers.size());
-            ASSERT(next_req_index < requests.size());
+            KASSERT(static_cast<std::size_t>(pe) < send_buffers.size());
+            KASSERT(next_req_index < requests.size());
             mpi::isend(send_buffers[pe], pe, 0, requests[next_req_index++], comm);
         }
     }
-    ASSERT(next_req_index == requests.size());
+    KASSERT(next_req_index == requests.size());
 
     for (PEID pe = 0; pe < size; ++pe) {
         if (self || pe != rank) {

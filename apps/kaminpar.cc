@@ -10,6 +10,8 @@
 
 #include <tbb/parallel_for.h>
 
+#include <kassert/kassert.hpp>
+
 #include "apps/apps.h"
 #include "kaminpar/application/arguments.h"
 #include "kaminpar/application/arguments_parser.h"
@@ -29,24 +31,29 @@ using namespace std::string_literals;
 
 // clang-format off
 void sanitize_context(const Context &context) {
-  ALWAYS_ASSERT(!std::ifstream(context.graph_filename) == false)
-      << "Graph file cannot be read. Ensure that the file exists and is readable.";
-  ALWAYS_ASSERT(!context.save_partition || !std::ofstream(context.partition_file()) == false)
-      << "Partition file cannot be written to " << context.partition_file() << "."
-      << "Ensure that the directory exists and is writable.";
-  ALWAYS_ASSERT(context.partition.k >= 2) << "k must be at least 2.";
-  ALWAYS_ASSERT(context.partition.epsilon >= 0) << "Balance constraint cannot be negative.";
-  ALWAYS_ASSERT(context.partition.epsilon > 0) << "Epsilon cannot be zero.";
+  if (!std::ifstream(context.graph_filename)) {
+    FATAL_ERROR << "Graph file cannot be read. Ensure that the file exists and is readable.";
+  }
+  if (context.save_partition && !std::ofstream(context.partition_file())) {
+    FATAL_ERROR << "Partition file cannot be written to " << context.partition_file() << "."
+        << "Ensure that the directory exists and that it is writable.";
+  }
+  if (context.partition.k < 2) {
+    FATAL_ERROR << "Number of blocks must be at least 2.";
+  }
+  if (context.partition.epsilon <= 0) {
+    FATAL_ERROR << "Allowed imbalance must be greater than zero.";
+  }
 
   // Coarsening
-  ALWAYS_ASSERT(context.coarsening.contraction_limit >= 2) << "Contraction limit must be at least 2.";
+  if (context.coarsening.contraction_limit < 2) {
+      FATAL_ERROR << "Contraction limit cannot be smaller than 2.";
+  }
 
   // Initial Partitioning
-  ALWAYS_ASSERT(context.initial_partitioning.max_num_repetitions >= context.initial_partitioning.min_num_repetitions)
-      << "Maximum number of repetitions should be at least as large as the minimum number of repetitions.";
-
-  // Initial Partitioning -> Coarsening
-  ALWAYS_ASSERT(context.initial_partitioning.coarsening.contraction_limit >= 2);
+  if (context.initial_partitioning.max_num_repetitions < context.initial_partitioning.min_num_repetitions) {
+    FATAL_ERROR << "Maximum number of repetitions must be at least as large as the minimum number of repetitions.";
+  }
 }
 // clang-format on
 

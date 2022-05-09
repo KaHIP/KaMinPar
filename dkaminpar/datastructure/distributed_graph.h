@@ -132,7 +132,7 @@ public:
         return _n;
     }
     [[nodiscard]] inline NodeID n(const PEID pe) const {
-        ASSERT(pe < static_cast<PEID>(_node_distribution.size()));
+        KASSERT(pe < static_cast<PEID>(_node_distribution.size()));
         return _node_distribution[pe + 1] - _node_distribution[pe];
     }
     [[nodiscard]] inline NodeID ghost_n() const {
@@ -146,7 +146,7 @@ public:
         return _m;
     }
     [[nodiscard]] inline EdgeID m(const PEID pe) const {
-        ASSERT(pe < static_cast<PEID>(_edge_distribution.size()));
+        KASSERT(pe < static_cast<PEID>(_edge_distribution.size()));
         return _edge_distribution[pe + 1] - _edge_distribution[pe];
     }
 
@@ -198,44 +198,43 @@ public:
 
     // Node type
     [[nodiscard]] inline bool is_ghost_node(const NodeID u) const {
-        ASSERT(u < total_n()) << V(u) << V(total_n());
+        KASSERT(u < total_n());
         return u >= n();
     }
     [[nodiscard]] inline bool is_owned_node(const NodeID u) const {
-        ASSERT(u < total_n());
+        KASSERT(u < total_n());
         return u < n();
     }
 
     // Distributed info
     [[nodiscard]] inline PEID ghost_owner(const NodeID u) const {
-        ASSERT(is_ghost_node(u));
-        ASSERT(u - n() < _ghost_owner.size());
-        ASSERT(_ghost_owner[u - n()] >= 0) << V(_ghost_owner[u - n()]) << V(u);
-        ASSERT(_ghost_owner[u - n()] < mpi::get_comm_size(communicator()));
+        KASSERT(is_ghost_node(u));
+        KASSERT(u - n() < _ghost_owner.size());
+        KASSERT(_ghost_owner[u - n()] >= 0u);
+        KASSERT(_ghost_owner[u - n()] < mpi::get_comm_size(communicator()));
         return _ghost_owner[u - n()];
     }
 
     [[nodiscard]] inline GlobalNodeID local_to_global_node(const NodeID local_u) const {
-        ASSERT(contains_local_node(local_u));
+        KASSERT(contains_local_node(local_u));
         return is_owned_node(local_u) ? _offset_n + local_u : _ghost_to_global[local_u - n()];
     }
 
     [[nodiscard]] inline NodeID global_to_local_node(const GlobalNodeID global_u) const {
-        ASSERT(contains_global_node(global_u)) << V(global_u) << V(offset_n()) << V(n());
+        KASSERT(contains_global_node(global_u));
 
         if (offset_n() <= global_u && global_u < offset_n() + n()) {
             return global_u - offset_n();
         } else {
-            ASSERT(_global_to_ghost.find(global_u + 1) != _global_to_ghost.end())
-                << V(global_u) << " is not a ghost node on this PE";
+            KASSERT(_global_to_ghost.find(global_u + 1) != _global_to_ghost.end());
             return (*_global_to_ghost.find(global_u + 1)).second;
         }
     }
 
     // Access methods
     [[nodiscard]] inline NodeWeight node_weight(const NodeID u) const {
-        ASSERT(u < total_n());
-        ASSERT(!is_node_weighted() || u < _node_weights.size());
+        KASSERT(u < total_n());
+        KASSERT((!is_node_weighted() || u < _node_weights.size()));
         return is_node_weighted() ? _node_weights[u] : 1;
     }
 
@@ -245,14 +244,14 @@ public:
 
     // convenient to have this for ghost nodes
     void set_ghost_node_weight(const NodeID ghost_node, const NodeWeight weight) {
-        ASSERT(is_ghost_node(ghost_node));
-        ASSERT(is_node_weighted());
+        KASSERT(is_ghost_node(ghost_node));
+        KASSERT(is_node_weighted());
         _node_weights[ghost_node] = weight;
     }
 
     [[nodiscard]] inline EdgeWeight edge_weight(const EdgeID e) const {
-        ASSERT(e < m());
-        ASSERT(!is_edge_weighted() || e < _edge_weights.size());
+        KASSERT(e < m());
+        KASSERT((!is_edge_weighted() || e < _edge_weights.size()));
         return is_edge_weighted() ? _edge_weights[e] : 1;
     }
 
@@ -262,22 +261,22 @@ public:
 
     // Graph structure
     [[nodiscard]] inline EdgeID first_edge(const NodeID u) const {
-        ASSERT(u < n());
+        KASSERT(u < n());
         return _nodes[u];
     }
 
     [[nodiscard]] inline EdgeID first_invalid_edge(const NodeID u) const {
-        ASSERT(u < n());
+        KASSERT(u < n());
         return _nodes[u + 1];
     }
 
     [[nodiscard]] inline NodeID edge_target(const EdgeID e) const {
-        ASSERT(e < m());
+        KASSERT(e < m());
         return _edges[e];
     }
 
     [[nodiscard]] inline NodeID degree(const NodeID u) const {
-        ASSERT(is_owned_node(u));
+        KASSERT(is_owned_node(u));
         return _nodes[u + 1] - _nodes[u];
     }
 
@@ -286,14 +285,14 @@ public:
     }
 
     [[nodiscard]] GlobalNodeID node_distribution(const PEID pe) const {
-        ASSERT(static_cast<std::size_t>(pe) < _node_distribution.size());
+        KASSERT(static_cast<std::size_t>(pe) < _node_distribution.size());
         return _node_distribution[pe];
     }
 
     PEID find_owner_of_global_node(const GlobalNodeID u) const {
-        ASSERT(u < global_n()) << V(u) << V(global_n());
+        KASSERT(u < global_n());
         auto it = std::upper_bound(_node_distribution.begin() + 1, _node_distribution.end(), u);
-        ASSERT(it != _node_distribution.end()) << V(u) << V(_node_distribution);
+        KASSERT(it != _node_distribution.end());
         return static_cast<PEID>(std::distance(_node_distribution.begin(), it) - 1);
     }
 
@@ -302,7 +301,7 @@ public:
     }
 
     [[nodiscard]] GlobalEdgeID edge_distribution(const PEID pe) const {
-        ASSERT(static_cast<std::size_t>(pe) < _edge_distribution.size());
+        KASSERT(static_cast<std::size_t>(pe) < _edge_distribution.size());
         return _edge_distribution[pe];
     }
 
@@ -401,12 +400,12 @@ public:
 
     // Cached inter-PE metrics
     [[nodiscard]] inline EdgeID edge_cut_to_pe(const PEID pe) const {
-        ASSERT(static_cast<std::size_t>(pe) < _edge_cut_to_pe.size());
+        KASSERT(static_cast<std::size_t>(pe) < _edge_cut_to_pe.size());
         return _edge_cut_to_pe[pe];
     }
 
     [[nodiscard]] inline EdgeID comm_vol_to_pe(const PEID pe) const {
-        ASSERT(static_cast<std::size_t>(pe) < _comm_vol_to_pe.size());
+        KASSERT(static_cast<std::size_t>(pe) < _comm_vol_to_pe.size());
         return _comm_vol_to_pe[pe];
     }
 
@@ -510,12 +509,12 @@ public:
           _k{k},
           _partition{std::move(partition)},
           _block_weights{std::move(block_weights)} {
-        ASSERT(_partition.size() == _graph->total_n());
-        ASSERT([&] {
+        KASSERT(_partition.size() == _graph->total_n());
+        KASSERT([&] {
             for (const BlockID b: _partition) {
-                ASSERT(b < _k);
+                KASSERT(b < _k);
             }
-        });
+        }());
     }
 
     DistributedPartitionedGraph(const DistributedGraph* graph, const BlockID k)
@@ -630,8 +629,8 @@ public:
     }
 
     void set_block_weight(const BlockID b, const BlockWeight weight) {
-        ASSERT(b < k());
-        ASSERT(b < _block_weights.size());
+        KASSERT(b < k());
+        KASSERT(b < _block_weights.size());
         _block_weights[b].store(weight, std::memory_order_relaxed);
     }
 

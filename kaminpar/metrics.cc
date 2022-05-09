@@ -6,10 +6,13 @@
  * @brief:  Functions to compute partition quality metrics.
  ******************************************************************************/
 #include "kaminpar/metrics.h"
+
 #include <functional>
 
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_for.h>
+
+#include <kassert/kassert.hpp>
 
 namespace kaminpar::metrics {
 EdgeWeight edge_cut(const PartitionedGraph& p_graph, tag::Parallel) {
@@ -24,9 +27,11 @@ EdgeWeight edge_cut(const PartitionedGraph& p_graph, tag::Parallel) {
     });
 
     int64_t global_cut = cut_ets.combine(std::plus<>{});
-    ASSERT(global_cut % 2 == 0);
+    KASSERT(global_cut % 2 == 0u);
     global_cut /= 2;
-    ALWAYS_ASSERT(0 <= global_cut && global_cut <= std::numeric_limits<EdgeWeight>::max()) << V(global_cut);
+    KASSERT(
+        (0 <= global_cut && global_cut <= std::numeric_limits<EdgeWeight>::max()), "edge cut overflows: " << global_cut,
+        assert::always);
     return static_cast<EdgeWeight>(global_cut);
 }
 
@@ -39,9 +44,9 @@ EdgeWeight edge_cut(const PartitionedGraph& p_graph, tag::Sequential) {
         }
     }
 
-    ASSERT(cut % 2 == 0);
+    KASSERT(cut % 2 == 0u);
     cut /= 2;
-    ALWAYS_ASSERT(0 <= cut && cut <= std::numeric_limits<EdgeWeight>::max()) << V(cut);
+    KASSERT((0 <= cut && cut <= std::numeric_limits<EdgeWeight>::max()), "edge cut overflows: " << cut, assert::always);
     return static_cast<EdgeWeight>(cut);
 }
 
