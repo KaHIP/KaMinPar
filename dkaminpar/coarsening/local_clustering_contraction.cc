@@ -26,7 +26,7 @@ SET_DEBUG(true);
 Result contract_local_clustering(
     const DistributedGraph& graph, const scalable_vector<shm::parallel::Atomic<NodeID>>& clustering,
     MemoryContext m_ctx) {
-    ASSERT(clustering.size() >= graph.n());
+    KASSERT(clustering.size() >= graph.n());
 
     MPI_Comm comm           = graph.communicator();
     const auto [size, rank] = mpi::get_comm_info(comm);
@@ -52,7 +52,7 @@ Result contract_local_clustering(
     // Set node_mapping[x] = 1 iff. there is a cluster with leader x
     graph.pfor_nodes([&](const NodeID u) { leader_mapping[u] = 0; });
     graph.pfor_nodes([&](const NodeID u) {
-        ASSERT(clustering[u] < leader_mapping.size()) << V(clustering[u]) << V(leader_mapping.size());
+        KASSERT(clustering[u] < leader_mapping.size());
         leader_mapping[clustering[u]].store(1, std::memory_order_relaxed);
     });
 
@@ -83,7 +83,7 @@ Result contract_local_clustering(
     graph.pfor_nodes([&](const NodeID u) { buckets_index[mapping[u]].fetch_add(1, std::memory_order_relaxed); });
 
     shm::parallel::prefix_sum(buckets_index.begin(), buckets_index.end(), buckets_index.begin());
-    ASSERT(buckets_index.back() <= graph.n());
+    KASSERT(buckets_index.back() <= graph.n());
 
     // Sort nodes into   buckets, roughly 3/5-th of time on europe.osm
     graph.pfor_nodes([&](const NodeID u) {
@@ -128,8 +128,8 @@ Result contract_local_clustering(
     mpi::graph::sparse_alltoall_interface_to_pe<CoarseGhostNode>(
         graph,
         [&](const NodeID u) -> CoarseGhostNode {
-            ASSERT(u < mapping.size());
-            ASSERT(mapping[u] < c_node_weights.size());
+            KASSERT(u < mapping.size());
+            KASSERT(mapping[u] < c_node_weights.size());
 
             return {
                 .old_global_node = graph.local_to_global_node(u),
@@ -181,7 +181,7 @@ Result contract_local_clustering(
             auto collect_edges = [&](auto& map) {
                 for (std::size_t i = first; i < last; ++i) {
                     const NodeID u = buckets[i];
-                    ASSERT(mapping[u] == c_u);
+                    KASSERT(mapping[u] == c_u);
 
                     // collect coarse edges
                     for (const auto [e, v]: graph.neighbors(u)) {
@@ -217,7 +217,7 @@ Result contract_local_clustering(
 
     shm::parallel::prefix_sum(c_nodes.begin(), c_nodes.end(), c_nodes.begin());
 
-    ASSERT(c_nodes[0] == 0) << V(c_nodes);
+    KASSERT(c_nodes[0] == 0);
     const EdgeID c_m = c_nodes.back();
 
     //

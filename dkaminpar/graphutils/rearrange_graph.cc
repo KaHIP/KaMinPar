@@ -63,8 +63,7 @@ DistributedGraph sort_by_degree_buckets(DistributedGraph graph) {
         const GlobalNodeID old_node_global           = graph.offset_n(pe) + old_node_local;
         const GlobalNodeID new_node_global           = graph.offset_n(pe) + new_node_local;
 
-        ASSERT(old_global_to_ghost.find(old_node_global + 1) != old_global_to_ghost.end())
-            << V(old_node_local) << V(old_node_global);
+        KASSERT(old_global_to_ghost.find(old_node_global + 1) != old_global_to_ghost.end());
         const NodeID ghost_node = (*old_global_to_ghost.find(old_node_global + 1)).second;
         new_global_to_ghost.insert(new_node_global + 1, ghost_node);
         new_ghost_to_global[ghost_node - n] = new_node_global;

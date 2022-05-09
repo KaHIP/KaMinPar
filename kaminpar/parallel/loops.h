@@ -42,20 +42,20 @@ void chunked_for(Buffer& buffers, Lambda&& lambda) {
         while (offset + cur_size < cur) {
             offset += cur_size;
             ++current_buf;
-            ASSERT(current_buf < buffers.size());
+            KASSERT(current_buf < buffers.size());
             cur_size = buffers[current_buf].size();
         }
 
         // iterate elements
         while (cur != r.end()) {
             while (cur - offset >= cur_size) {
-                ASSERT(current_buf < buffers.size());
+                KASSERT(current_buf < buffers.size());
                 offset += buffers[current_buf++].size();
                 cur_size = buffers[current_buf].size();
             }
-            ASSERT(current_buf < buffers.size());
-            ASSERT(cur_size == buffers[current_buf].size());
-            ASSERT(cur - offset < buffers[current_buf].size());
+            KASSERT(current_buf < buffers.size());
+            KASSERT(cur_size == buffers[current_buf].size());
+            KASSERT(cur - offset < buffers[current_buf].size());
             if constexpr (invocable_with_chunk_id) {
                 lambda(buffers[current_buf][cur - offset], current_buf);
             } else {

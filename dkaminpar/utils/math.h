@@ -53,7 +53,6 @@ std::size_t compute_local_range_rank(const Int n, const Int size, const Int elem
 
 template <typename Int, typename Distribution>
 std::size_t find_in_distribution(const Int value, const Distribution& distribution) {
-    ASSERT(value < distribution.back()) << V(value) << V(distribution);
     auto it = std::upper_bound(distribution.begin() + 1, distribution.end(), value);
     return std::distance(distribution.begin(), it) - 1;
 }

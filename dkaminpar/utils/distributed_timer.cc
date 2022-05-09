@@ -31,7 +31,7 @@ public:
     }
 
     void next_row() {
-        ASSERT(_current_column == _column_len.size());
+        KASSERT(_current_column == _column_len.size());
         _current_column = 0;
     }
 
@@ -115,42 +115,46 @@ void generate_statistics(const Timer::TimerTreeNode& node, std::vector<NodeStati
     const PEID root = 0;
 
     // Make sure that we are looking at the same timer node on each PE
-    LIGHT_ASSERT([&] {
+    KASSERT([&] {
         constexpr std::size_t check_chars = 1024;
 
         const PEID rank = mpi::get_comm_rank(comm);
 
         // check that this timer node has the same number of children on each PE
         auto num_children = mpi::gather(node.children.size(), 0, comm);
-        LIGHT_ASSERT(
-            rank != root
-            || std::all_of(
-                num_children.begin(), num_children.end(),
-                [&](const std::size_t num) { return num == node.children.size(); }))
-            << "timers have diverged: number of children for node " << node.name << "/" << node.description << ": "
-            << num_children;
+        KASSERT(
+            (rank != root
+             || std::all_of(
+                 num_children.begin(), num_children.end(),
+                 [&](const std::size_t num) { return num == node.children.size(); })),
+            "timers have diverged: number of children for node " << node.name << "/" << node.description << ": "
+                                                                 << num_children,
+            assert::light);
 
         auto names = gather_trunc_string<check_chars>(node.name, root, comm);
-        LIGHT_ASSERT(
-            rank != root
-            || std::all_of(
-                names.begin(), names.end(),
-                [&](const std::string& name) {
-                    return name.substr(0, check_chars) == node.name.substr(0, check_chars);
-                }))
-            << "timers have diverged at node " << node.name << ": " << names;
+        KASSERT(
+            (rank != root
+             || std::all_of(
+                 names.begin(), names.end(),
+                 [&](const std::string& name) {
+                     return name.substr(0, check_chars) == node.name.substr(0, check_chars);
+                 })),
+            "timers have diverged at node " << node.name << ": " << names, assert::light);
 
         auto descriptions = gather_trunc_string<check_chars>(node.description, root, comm);
-        LIGHT_ASSERT(
-            rank != root
-            || std::all_of(
-                descriptions.begin(), descriptions.end(),
-                [&](const std::string& description) {
-                    return description.substr(0, check_chars) == node.description.substr(0, check_chars);
-                }))
-            << "timers have diverged at node " << node.name << " with description " << node.description << ": "
-            << descriptions;
-    });
+        KASSERT(
+            (rank != root
+             || std::all_of(
+                 descriptions.begin(), descriptions.end(),
+                 [&](const std::string& description) {
+                     return description.substr(0, check_chars) == node.description.substr(0, check_chars);
+                 })),
+            "timers have diverged at node " << node.name << " with description " << node.description << ": "
+                                            << descriptions,
+            assert::light);
+
+        return true;
+    }());
 
     auto         times = mpi::gather<double, std::vector<double>>(node.seconds(), 0, comm);
     const double mean  = compute_mean(times);

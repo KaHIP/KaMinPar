@@ -73,9 +73,9 @@ extract_local_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph
         const std::size_t min_offset_size  = p_graph.k() + 1;
         const std::size_t min_mapping_size = p_graph.total_n();
 
-        LIGHT_ASSERT(shared_nodes.size() == shared_node_weights.size());
-        LIGHT_ASSERT(shared_edges.size() == shared_edge_weights.size());
-        LIGHT_ASSERT(nodes_offset.size() == edges_offset.size());
+        KASSERT(shared_nodes.size() == shared_node_weights.size());
+        KASSERT(shared_edges.size() == shared_edge_weights.size());
+        KASSERT(nodes_offset.size() == edges_offset.size());
 
         if (shared_nodes.size() < min_nodes_size) {
             shared_nodes.resize(min_nodes_size);
@@ -118,8 +118,8 @@ extract_local_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph
             const BlockID b               = p_graph.block(u);
             const NodeID  pos_in_subgraph = next_node_in_subgraph[b]++;
             const NodeID  pos             = nodes_offset[b] + pos_in_subgraph;
-            shared_nodes[pos] = u;
-            mapping[u]        = global_node_offset[b] + pos_in_subgraph;
+            shared_nodes[pos]             = u;
+            mapping[u]                    = global_node_offset[b] + pos_in_subgraph;
         });
     }
 
@@ -184,8 +184,7 @@ extract_local_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph
 
 void gather_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph, ExtractedSubgraphs memory) {
     const PEID size = mpi::get_comm_size(p_graph.communicator());
-    const PEID rank = mpi::get_comm_rank(p_graph.communicator());
-    ALWAYS_ASSERT(p_graph.k() % size == 0) << "k must be a multiple of #PEs";
+    KASSERT(p_graph.k() % size == 0u, "k must be a multiple of #PEs", assert::always);
     const BlockID blocks_per_pe = p_graph.k() / size;
 
     // Communicate recvcounts

@@ -149,7 +149,9 @@ public:
 
 private:
     GlobalNodeID process_chunk(const NodeID from, const NodeID to) {
-        HEAVY_ASSERT(ASSERT_NEXT_PARTITION_STATE());
+#if KASSERT_ASSERTION_ENABLED(ASSERTION_LEVEL_HEAVY)
+        KASSERT(ASSERT_NEXT_PARTITION_STATE(), "", assert::heavy);
+#endif
 
         DBG << "Running label propagation on node chunk [" << from << ".." << to << "]";
 
@@ -211,7 +213,10 @@ private:
         STOP_TIMER(TIMER_DETAIL);
 
         // _next_partition should be in a consistent state at this point
-        HEAVY_ASSERT(ASSERT_NEXT_PARTITION_STATE());
+#if KASSERT_ASSERTION_ENABLED(ASSERTION_LEVEL_HEAVY)
+        KASSERT(ASSERT_NEXT_PARTITION_STATE(), "", assert::heavy);
+#endif
+
         return global_num_moved_nodes;
     }
 
@@ -219,7 +224,9 @@ private:
         const NodeID from, const NodeID to, const std::vector<BlockWeight>& residual_block_weights,
         const std::vector<EdgeWeight>& total_gains_to_block) {
         mpi::barrier(_graph->communicator());
-        HEAVY_ASSERT(graph::debug::validate_partition(*_p_graph));
+#if KASSERT_ASSERTION_ENABLED(ASSERTION_LEVEL_HEAVY)
+        KASSERT(graph::debug::validate_partition(*_p_graph), "", assert::heavy);
+#endif
 
         struct Move {
             Move(const NodeID u, const BlockID from) : u(u), from(from) {}
@@ -330,7 +337,7 @@ private:
         if constexpr (kDebug) {
             int feasible_nonatomic = feasible;
             int root_feasible      = mpi::bcast(feasible_nonatomic, 0, _p_graph->communicator());
-            ASSERT(root_feasible == feasible_nonatomic) << V(feasible_nonatomic) << V(root_feasible);
+            KASSERT(root_feasible == feasible_nonatomic);
         }
 
         return feasible;
@@ -363,7 +370,7 @@ private:
                     const auto [local_node_on_pe, new_block] = recv_buffer[i];
                     const auto   global_node = static_cast<GlobalNodeID>(_p_graph->offset_n(pe) + local_node_on_pe);
                     const NodeID local_node  = _p_graph->global_to_local_node(global_node);
-                    ASSERT(
+                    KASSERT(
                         new_block != _p_graph->block(local_node)); // otherwise, we should not have gotten this message
 
                     _p_graph->set_block<false>(local_node, new_block);
@@ -377,22 +384,22 @@ public:
     //
 
     void init_cluster(const NodeID u, const BlockID b) {
-        ASSERT(u < _next_partition.size());
+        KASSERT(u < _next_partition.size());
         _next_partition[u] = b;
     }
 
     [[nodiscard]] BlockID initial_cluster(const NodeID u) {
-        ASSERT(u < _p_graph->n());
+        KASSERT(u < _p_graph->n());
         return _p_graph->block(u);
     }
 
     [[nodiscard]] BlockID cluster(const NodeID u) {
-        ASSERT(u < _p_graph->total_n());
+        KASSERT(u < _p_graph->total_n());
         return _p_graph->is_owned_node(u) ? _next_partition[u] : _p_graph->block(u);
     }
 
     void move_node(const NodeID u, const BlockID b) {
-        ASSERT(u < _p_graph->n());
+        KASSERT(u < _p_graph->n());
         _next_partition[u] = b;
     }
 
@@ -439,7 +446,7 @@ public:
     }
 
 private:
-#ifdef KAMINPAR_ENABLE_HEAVY_ASSERTIONS
+#if KASSERT_ASSERTION_ENABLED(ASSERTION_LEVEL_HEAVY)
     bool ASSERT_NEXT_PARTITION_STATE() {
         mpi::barrier(_p_graph->communicator());
         for (const NodeID u: _p_graph->nodes()) {

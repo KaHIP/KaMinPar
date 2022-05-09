@@ -14,8 +14,8 @@ namespace dkaminpar::graph {
 SET_DEBUG(true);
 
 shm::Graph allgather(const DistributedGraph& graph) {
-    ALWAYS_ASSERT(graph.global_n() < std::numeric_limits<NodeID>::max()) << "number of nodes exceeds int size";
-    ALWAYS_ASSERT(graph.global_m() < std::numeric_limits<EdgeID>::max()) << "number of edges exceeds int size";
+    KASSERT(graph.global_n() < std::numeric_limits<NodeID>::max(), "number of nodes exceeds int size", assert::always);
+    KASSERT(graph.global_m() < std::numeric_limits<EdgeID>::max(), "number of edges exceeds int size", assert::always);
     MPI_Comm comm = graph.communicator();
 
     // copy edges array with global node IDs
@@ -44,7 +44,7 @@ shm::Graph allgather(const DistributedGraph& graph) {
     mpi::allgatherv(
         graph.raw_nodes().data(), graph.n(), nodes.data(), nodes_recvcounts.data(), nodes_displs.data(), comm);
     if (is_node_weighted) {
-        LIGHT_ASSERT(graph.is_node_weighted() || graph.n() == 0);
+        KASSERT((graph.is_node_weighted() || graph.n() == 0));
         mpi::allgatherv(
             graph.raw_node_weights().data(), graph.n(), node_weights.data(), nodes_recvcounts.data(),
             nodes_displs.data(), comm);
@@ -52,7 +52,7 @@ shm::Graph allgather(const DistributedGraph& graph) {
     mpi::allgatherv(
         remapped_edges.data(), remapped_edges.size(), edges.data(), edges_recvcounts.data(), edges_displs.data(), comm);
     if (is_edge_weighted) {
-        LIGHT_ASSERT(graph.is_edge_weighted() || graph.m() == 0);
+        KASSERT((graph.is_edge_weighted() || graph.m() == 0));
         mpi::allgatherv(
             graph.raw_edge_weights().data(), graph.m(), edge_weights.data(), edges_recvcounts.data(),
             edges_displs.data(), comm);
@@ -64,7 +64,7 @@ shm::Graph allgather(const DistributedGraph& graph) {
         PEID pe = 0;
         for (NodeID u = r.begin(); u < r.end(); ++u) {
             while (u >= graph.node_distribution(pe + 1)) {
-                ASSERT(pe < mpi::get_comm_size(comm));
+                KASSERT(pe < mpi::get_comm_size(comm));
                 ++pe;
             }
             nodes[u] += graph.edge_distribution(pe);
@@ -75,7 +75,9 @@ shm::Graph allgather(const DistributedGraph& graph) {
 }
 
 DistributedPartitionedGraph reduce_scatter(const DistributedGraph& dist_graph, shm::PartitionedGraph shm_p_graph) {
-    ALWAYS_ASSERT(dist_graph.global_n() < std::numeric_limits<int>::max()) << "partition size exceeds int size";
+    KASSERT(
+        dist_graph.global_n() < static_cast<GlobalNodeID>(std::numeric_limits<NodeID>::max()),
+        "partition size exceeds int size", assert::always);
     MPI_Comm comm = dist_graph.communicator();
 
     const int             rank    = mpi::get_comm_rank(comm);

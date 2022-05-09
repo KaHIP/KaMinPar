@@ -77,7 +77,7 @@ template <typename ResolveClusterCallback, typename Clustering>
 std::pair<std::vector<UsedClustersMap>, std::vector<UsedClustersVector>> find_used_cluster_ids_per_pe(
     const DistributedGraph& graph, const Clustering& clustering, ResolveClusterCallback&& resolve_cluster_callback) {
     SCOPED_TIMER("Find used cluster IDs per PE", TIMER_DETAIL);
-    
+
     const auto size = mpi::get_comm_size(graph.communicator());
 
     // mark global node IDs that are used as cluster IDs
@@ -152,7 +152,7 @@ MappingResult compute_mapping(
     // map local labels to consecutive coarse node IDs
     scalable_vector<shm::parallel::Atomic<GlobalNodeID>> label_mapping(graph.total_n());
     shm::parallel::chunked_for(in_msg, [&](const NodeID local_label) {
-        ASSERT(local_label < graph.n());
+        KASSERT(local_label < graph.n());
         label_mapping[local_label].store(1, std::memory_order_relaxed);
     });
     shm::parallel::prefix_sum(label_mapping.begin(), label_mapping.end(), label_mapping.begin());
@@ -164,7 +164,7 @@ MappingResult compute_mapping(
     tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
         out_msg[pe].resize(in_msg[pe].size());
         tbb::parallel_for<std::size_t>(0, in_msg[pe].size(), [&](const std::size_t i) {
-            ASSERT(in_msg[pe][i] < label_mapping.size());
+            KASSERT(in_msg[pe][i] < label_mapping.size());
             out_msg[pe][i] =
                 label_mapping[in_msg[pe][i]] - 1; // label_mapping is 1-based due to the prefix sum operation
         });
@@ -225,7 +225,7 @@ MappingResult compute_mapping(
 
         tbb::concurrent_hash_map<NodeID, NodeID>::accessor accessor;
         [[maybe_unused]] const bool found = used_clusters_map[u_cluster_owner].find(accessor, u_local_cluster);
-        ASSERT(found) << V(u_local_cluster) << V(u_cluster_owner) << V(u) << V(u_cluster);
+        KASSERT(found, V(u_local_cluster) << V(u_cluster_owner) << V(u) << V(u_cluster));
 
         const NodeID slot_in_msg = accessor->second;
         const NodeID label       = label_remap[u_cluster_owner][slot_in_msg];
@@ -240,8 +240,8 @@ MappingResult compute_mapping(
                 const PEID         new_owner =
                     static_cast<PEID>(math::find_in_distribution<GlobalNodeID>(position, pe_underload));
 
-                ASSERT(position >= pe_underload[new_owner]);
-                ASSERT(
+                KASSERT(position >= pe_underload[new_owner]);
+                KASSERT(
                     perfect_distribution[new_owner + 1] - perfect_distribution[new_owner]
                     > c_distribution[new_owner + 1] - c_distribution[new_owner]);
 
@@ -400,7 +400,7 @@ DistributedGraph build_coarse_graph(
 
     // TODO since we do not know the number of coarse ghost nodes yet, allocate memory only for local nodes and
     // TODO resize in build_distributed_graph_from_edge_list
-    ASSERT(from <= to);
+    KASSERT(from <= to);
     scalable_vector<shm::parallel::Atomic<NodeWeight>> node_weights(to - from);
     struct NodeWeightMessage {
         NodeID     node;
@@ -428,7 +428,7 @@ DistributedGraph build_coarse_graph(
     return build_distributed_graph_from_edge_list(
         edge_list, std::move(c_node_distribution), graph.communicator(),
         [&](const NodeID u) {
-            ASSERT(u < node_weights.size());
+            KASSERT(u < node_weights.size());
             return node_weights[u].load(std::memory_order_relaxed);
         },
         compute_coarse_node_owner);
@@ -485,7 +485,7 @@ contract_global_clustering_no_migration(const DistributedGraph& graph, const Glo
     SCOPED_TIMER("Contract clustering");
 
     auto [mapping, distribution] = compute_mapping(graph, clustering);
-    auto c_graph = build_coarse_graph(graph, mapping, std::move(distribution));
+    auto c_graph                 = build_coarse_graph(graph, mapping, std::move(distribution));
     update_ghost_node_weights(c_graph);
 
     return {std::move(c_graph), std::move(mapping)};
@@ -498,7 +498,7 @@ contract_global_clustering_minimal_migration(const DistributedGraph& graph, cons
     SCOPED_TIMER("Contract clustering");
 
     auto [mapping, distribution] = compute_mapping(graph, clustering, true);
-    auto c_graph = build_coarse_graph(graph, mapping, std::move(distribution));
+    auto c_graph                 = build_coarse_graph(graph, mapping, std::move(distribution));
     update_ghost_node_weights(c_graph);
 
     return {std::move(c_graph), std::move(mapping)};
@@ -515,11 +515,11 @@ contract_global_clustering_full_migration(const DistributedGraph& graph, const G
     // create a new node distribution where nodes are evenly distributed across PEs
     const PEID         size       = mpi::get_comm_size(graph.communicator());
     const GlobalNodeID c_global_n = distribution.back();
-    auto c_graph = build_coarse_graph(
-        graph, mapping, create_perfect_distribution_from_global_count<GlobalNodeID>(c_global_n, graph.communicator()),
-        [size, c_global_n](const GlobalNodeID node, const auto& /* node_distribution */) {
+    auto               c_graph    = build_coarse_graph(
+                         graph, mapping, create_perfect_distribution_from_global_count<GlobalNodeID>(c_global_n, graph.communicator()),
+                         [size, c_global_n](const GlobalNodeID node, const auto& /* node_distribution */) {
             return math::compute_local_range_rank<GlobalNodeID>(c_global_n, size, node);
-        });
+                         });
 
     update_ghost_node_weights(c_graph);
 
@@ -554,7 +554,7 @@ DistributedPartitionedGraph project_global_contracted_graph(
 
     // find unique coarse_graph node IDs of fine_graph nodes
     auto resolve_coarse_node = [&](const GlobalNodeID coarse_node) {
-        ASSERT(coarse_node < coarse_graph.global_n());
+        KASSERT(coarse_node < coarse_graph.global_n());
         const PEID owner = coarse_graph.find_owner_of_global_node(coarse_node);
         const auto local = static_cast<NodeID>(coarse_node - coarse_graph.offset_n(owner));
         return std::make_pair(owner, local);
@@ -577,7 +577,7 @@ DistributedPartitionedGraph project_global_contracted_graph(
     START_TIMER("Build response messages", TIMER_DETAIL);
     tbb::parallel_for<std::size_t>(0, reqs.size(), [&](const std::size_t i) {
         tbb::parallel_for<std::size_t>(0, reqs[i].size(), [&](const std::size_t j) {
-            ASSERT(coarse_graph.is_owned_node(reqs[i][j]));
+            KASSERT(coarse_graph.is_owned_node(reqs[i][j]));
             resps[i][j] = coarse_graph.block(reqs[i][j]);
         });
     });
@@ -589,14 +589,14 @@ DistributedPartitionedGraph project_global_contracted_graph(
         std::move(resps),
         [&](const auto buffer, const PEID pe) {
             tbb::parallel_for<std::size_t>(0, buffer.size(), [&](const std::size_t i) {
-                ASSERT(static_cast<std::size_t>(pe) < used_coarse_nodes_map.size());
-                ASSERT(static_cast<std::size_t>(pe) < reqs.size());
-                ASSERT(i < used_coarse_nodes_vec[pe].size()) << V(i) << V(pe) << V(used_coarse_nodes_vec[pe].size());
+                KASSERT(static_cast<std::size_t>(pe) < used_coarse_nodes_map.size());
+                KASSERT(static_cast<std::size_t>(pe) < reqs.size());
+                KASSERT(i < used_coarse_nodes_vec[pe].size());
 
                 UsedClustersMap::accessor   accessor;
                 [[maybe_unused]] const bool found =
                     used_coarse_nodes_map[pe].find(accessor, used_coarse_nodes_vec[pe][i]);
-                ASSERT(found);
+                KASSERT(found);
                 accessor->second = buffer[i];
             });
         },
@@ -613,7 +613,7 @@ DistributedPartitionedGraph project_global_contracted_graph(
 
         UsedClustersMap::accessor   accessor;
         [[maybe_unused]] const bool found = used_coarse_nodes_map[owner].find(accessor, local);
-        ASSERT(found);
+        KASSERT(found);
 
         fine_partition[u] = accessor->second;
     });

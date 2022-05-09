@@ -32,7 +32,7 @@ GlobalEdgeWeight local_edge_cut(const DistributedPartitionedGraph& p_graph) {
 
 GlobalEdgeWeight edge_cut(const DistributedPartitionedGraph& p_graph) {
     const GlobalEdgeWeight global_edge_cut = mpi::allreduce(local_edge_cut(p_graph), MPI_SUM, p_graph.communicator());
-    ASSERT(global_edge_cut % 2 == 0);
+    KASSERT(global_edge_cut % 2 == 0);
     return global_edge_cut / 2;
 }
 
