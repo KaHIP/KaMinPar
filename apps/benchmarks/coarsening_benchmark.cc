@@ -35,8 +35,9 @@ int main(int argc, char* argv[]) {
     app::create_lp_coarsening_context_options(ctx.coarsening.lp, args, "Coarsening -> Label Propagation", "c-lp");
     args.parse(argc, argv);
 
-    ALWAYS_ASSERT(!std::ifstream(ctx.graph_filename) == false)
-        << "Graph file cannot be read. Ensure that the file exists and is readable.";
+    if (!std::ifstream(ctx.graph_filename)) {
+        FATAL_ERROR << "Graph file cannot be read. Ensure that the file exists and that it is readable.";
+    }
 
     // init components
     init_numa();

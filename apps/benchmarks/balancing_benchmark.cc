@@ -35,10 +35,12 @@ int main(int argc, char* argv[]) {
         .argument("seed", "Seed for RNG", &ctx.seed, 's');
     args.parse(argc, argv);
 
-    ALWAYS_ASSERT(!std::ifstream(ctx.graph_filename) == false)
-        << "Graph file cannot be read. Ensure that the file exists and is readable.";
-    ALWAYS_ASSERT(!std::ifstream(partition_filename) == false)
-        << "Partition file cannot be read. Ensure that the file exists and is readable.";
+    if (!std::ifstream(ctx.graph_filename)) {
+        FATAL_ERROR << "Graph file cannot be read. Ensure that the file exists and is readable.";
+    }
+    if (!std::ifstream(partition_filename)) {
+        FATAL_ERROR << "Partition file cannot be read. Ensure that the file exists and is readable.";
+    }
 
     // init components
     init_numa();
@@ -55,7 +57,7 @@ int main(int argc, char* argv[]) {
     // load partition
     auto          partition = io::partition::read<StaticArray<BlockID>>(partition_filename);
     const BlockID k         = *std::max_element(partition.begin(), partition.end()) + 1;
-    ALWAYS_ASSERT(partition.size() == graph.n()) << V(partition.size()) << V(graph.n());
+    KASSERT(partition.size() == graph.n(), "", assert::always);
     PartitionedGraph p_graph(graph, k, std::move(partition));
 
     ctx.partition.k = k;

@@ -75,7 +75,7 @@ int main(int argc, char* argv[]) {
     };
     LOG << "Loaded graph with n=" << graph.global_n() << " m=" << graph.global_m();
     SLOG << "n=" << graph.n() << " ghost_n=" << graph.ghost_n() << " total_n=" << graph.total_n() << " m=" << graph.m();
-    ASSERT([&] { dist::graph::debug::validate(graph); });
+    KASSERT(dist::graph::debug::validate(graph));
     ctx.setup(graph);
 
     std::vector<dist::DistributedGraph> graph_hierarchy;

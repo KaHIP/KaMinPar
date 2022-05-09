@@ -80,11 +80,11 @@ int main(int argc, char* argv[]) {
         return graph;
     };
     LOG << "Loaded graph with n=" << graph.global_n() << " m=" << graph.global_m();
-    ASSERT([&] { graph::debug::validate(graph); });
+    KASSERT(graph::debug::validate(graph));
 
     // Load partition
     auto partition = io::partition::read<scalable_vector<Atomic<BlockID>>>(partition_filename, graph.n());
-    ALWAYS_ASSERT(partition.size() == graph.n());
+    KASSERT(partition.size() == graph.n(), "", assert::always);
 
     // Communicate blocks of ghost nodes
     for (NodeID u = graph.n(); u < graph.total_n(); ++u) {
