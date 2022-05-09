@@ -81,17 +81,17 @@ void sparse_alltoall_interface_to_ghost(
     std::vector<cache_aligned_vector<std::size_t>> num_messages(num_threads, cache_aligned_vector<std::size_t>(size));
 
     // ASSERT that we count the same number of messages that we create
-#ifdef KAMINPAR_ENABLE_ASSERTIONS
+#if KASSERT_ASSERTION_ENABLED(ASSERTION_LEVEL_NORMAL)
     std::vector<shm::parallel::Aligned<std::size_t>> total_num_messages(num_threads);
-#endif // KAMINPAR_ENABLE_ASSERTIONS
+#endif
 
     // count messages to each PE for each thread
     START_TIMER("Count messages", TIMER_DETAIL);
-#ifdef KAMINPAR_ENABLE_ASSERTIONS
+#if KASSERT_ASSERTION_ENABLED(ASSERTION_LEVEL_NORMAL)
     #pragma omp parallel for default(none) shared(from, to, graph, num_messages, filter, total_num_messages)
-#else // KAMINPAR_ENABLE_ASSERTIONS
+#else
     #pragma omp parallel for default(none) shared(from, to, graph, num_messages, filter)
-#endif // KAMINPAR_ENABLE_ASSERTIONS
+#endif
     for (NodeID u = from; u < to; ++u) {
         if (!filter(u)) {
             continue;
@@ -104,9 +104,9 @@ void sparse_alltoall_interface_to_ghost(
                 const PEID owner = graph.ghost_owner(v);
                 ++num_messages[thread][owner];
 
-#ifdef KAMINPAR_ENABLE_ASSERTIONS
+#if KASSERT_ASSERTION_ENABLED(ASSERTION_LEVEL_NORMAL)
                 ++total_num_messages[thread];
-#endif // KAMINPAR_ENABLE_ASSERTIONS
+#endif
             }
         }
     }
@@ -123,12 +123,12 @@ void sparse_alltoall_interface_to_ghost(
 
     // fill buffers
     START_TIMER("Partition messages", TIMER_DETAIL);
-#ifdef KAMINPAR_ENABLE_ASSERTIONS
+#if KASSERT_ASSERTION_ENABLED(ASSERTION_LEVEL_NORMAL)
     #pragma omp parallel for default(none) \
         shared(send_buffers, from, to, filter, graph, builder, num_messages, total_num_messages)
-#else // KAMINPAR_ENABLE_ASSERTIONS
+#else
     #pragma omp parallel for default(none) shared(send_buffers, from, to, filter, graph, builder, num_messages)
-#endif // KAMINPAR_ENABLE_ASSERTIONS
+#endif
     for (NodeID u = from; u < to; ++u) {
         if (!filter(u)) {
             continue;
@@ -146,15 +146,15 @@ void sparse_alltoall_interface_to_ghost(
                     send_buffers[pe][slot] = builder(u, e, v);
                 }
 
-#ifdef KAMINPAR_ENABLE_ASSERTIONS
+#if KASSERT_ASSERTION_ENABLED(ASSERTION_LEVEL_NORMAL)
                 --total_num_messages[thread];
-#endif // KAMINPAR_ENABLE_ASSERTIONS
+#endif
             }
         }
     }
     STOP_TIMER(TIMER_DETAIL);
 
-    ASSERT(std::all_of(total_num_messages.begin(), total_num_messages.end(), [&](const auto& num_messages) {
+    KASSERT(std::all_of(total_num_messages.begin(), total_num_messages.end(), [&](const auto& num_messages) {
         return num_messages == 0;
     }));
 
@@ -209,17 +209,17 @@ void sparse_alltoall_interface_to_pe(
     std::vector<cache_aligned_vector<std::size_t>> num_messages(num_threads, cache_aligned_vector<std::size_t>(size));
 
     // ASSERT that we count the same number of messages that we create
-#ifdef KAMINPAR_ENABLE_ASSERTIONS
+#if KASSERT_ASSERTION_ENABLED(ASSERTION_LEVEL_NORMAL)
     std::vector<shm::parallel::Aligned<std::size_t>> total_num_messages(num_threads);
-#endif // KAMINPAR_ENABLE_ASSERTIONS
+#endif
 
     // count messages to each PE for each thread
     START_TIMER("Count messages", TIMER_DETAIL);
-#ifdef KAMINPAR_ENABLE_ASSERTIONS
+#if KASSERT_ASSERTION_ENABLED(ASSERTION_LEVEL_NORMAL)
     #pragma omp parallel default(none) shared(size, from, to, filter, graph, num_messages, total_num_messages)
-#else // KAMINPAR_ENABLE_ASSERTIONS
+#else
     #pragma omp parallel default(none) shared(size, from, to, filter, graph, num_messages)
-#endif // KAMINPAR_ENABLE_ASSERTIONS
+#endif
     {
         shm::Marker<> created_message_for_pe(static_cast<std::size_t>(size));
         const PEID    thread = omp_get_thread_num();
@@ -244,9 +244,9 @@ void sparse_alltoall_interface_to_pe(
 
                 ++num_messages[thread][pe];
 
-#ifdef KAMINPAR_ENABLE_ASSERTIONS
+#if KASSERT_ASSERTION_ENABLED(ASSERTION_LEVEL_NORMAL)
                 ++total_num_messages[thread];
-#endif // KAMINPAR_ENABLE_ASSERTIONS
+#endif
             }
 
             created_message_for_pe.reset();
@@ -265,12 +265,12 @@ void sparse_alltoall_interface_to_pe(
 
     // fill buffers
     START_TIMER("Partition messages", TIMER_DETAIL);
-#ifdef KAMINPAR_ENABLE_ASSERTIONS
+#if KASSERT_ASSERTION_ENABLED(ASSERTION_LEVEL_NORMAL)
     #pragma omp parallel default(none) \
         shared(send_buffers, size, from, to, builder, filter, graph, num_messages, total_num_messages)
-#else // KAMINPAR_ENABLE_ASSERTIONS
+#else
     #pragma omp parallel default(none) shared(send_buffers, size, from, to, builder, filter, graph, num_messages)
-#endif // KAMINPAR_ENABLE_ASSERTIONS
+#endif
     {
         shm::Marker<> created_message_for_pe(static_cast<std::size_t>(size));
         const PEID    thread = omp_get_thread_num();
@@ -301,9 +301,9 @@ void sparse_alltoall_interface_to_pe(
                     send_buffers[pe][slot] = builder(u);
                 }
 
-#ifdef KAMINPAR_ENABLE_ASSERTIONS
+#if KASSERT_ASSERTION_ENABLED(ASSERTION_LEVEL_NORMAL)
                 --total_num_messages[thread];
-#endif // KAMINPAR_ENABLE_ASSERTIONS
+#endif
             }
 
             created_message_for_pe.reset();
@@ -311,7 +311,7 @@ void sparse_alltoall_interface_to_pe(
     }
     STOP_TIMER(TIMER_DETAIL);
 
-    ASSERT(std::all_of(total_num_messages.begin(), total_num_messages.end(), [&](const auto& num_messages) {
+    KASSERT(std::all_of(total_num_messages.begin(), total_num_messages.end(), [&](const auto& num_messages) {
         return num_messages == 0;
     }));
 

@@ -131,18 +131,18 @@ public:
      */
 
     void init_cluster_weight(const ClusterID local_cluster, const ClusterWeight weight) {
-        ASSERT(local_cluster < _graph->total_n());
+        KASSERT(local_cluster < _graph->total_n());
         const auto cluster = _graph->local_to_global_node(static_cast<NodeID>(local_cluster));
 
         auto& handle                              = _cluster_weights_handles_ets.local();
         [[maybe_unused]] const auto [it, success] = handle.insert(cluster + 1, weight);
-        ASSERT(success) << "Cluster already initialized: " << cluster + 1;
+        KASSERT(success, "Cluster already initialized: " << cluster + 1);
     }
 
     ClusterWeight cluster_weight(const ClusterID cluster) {
         auto& handle = _cluster_weights_handles_ets.local();
         auto  it     = handle.find(cluster + 1);
-        ASSERT(it != handle.end()) << "Uninitialized cluster: " << cluster + 1;
+        KASSERT(it != handle.end(), "Uninitialized cluster: " << cluster + 1);
         return (*it).second;
     }
 
@@ -158,11 +158,11 @@ public:
         auto& handle                                    = _cluster_weights_handles_ets.local();
         [[maybe_unused]] const auto [old_it, old_found] = handle.update(
             old_cluster + 1, [](auto& lhs, const auto rhs) { return lhs -= rhs; }, delta);
-        ASSERT(old_it != handle.end() && old_found) << "Uninitialized cluster: " << old_cluster + 1;
+        KASSERT((old_it != handle.end() && old_found), "Uninitialized cluster: " << old_cluster + 1);
 
         [[maybe_unused]] const auto [new_it, new_found] = handle.update(
             new_cluster + 1, [](auto& lhs, const auto rhs) { return lhs += rhs; }, delta);
-        ASSERT(new_it != handle.end() && new_found) << "Uninitialized cluster: " << new_cluster + 1;
+        KASSERT((new_it != handle.end() && new_found), "Uninitialized cluster: " << new_cluster + 1);
 
         return true;
     }
@@ -172,11 +172,11 @@ public:
         auto& handle                                = _cluster_weights_handles_ets.local();
         [[maybe_unused]] const auto [it, not_found] = handle.insert_or_update(
             cluster + 1, delta, [](auto& lhs, const auto rhs) { return lhs += rhs; }, delta);
-        ASSERT(it != handle.end() && (!must_exist || !not_found)) << "Could not update cluster: " << cluster;
+        KASSERT((it != handle.end() && (!must_exist || !not_found)), "Could not update cluster: " << cluster);
     }
 
     [[nodiscard]] NodeWeight initial_cluster_weight(const GlobalNodeID u) {
-        ASSERT(u < _graph->total_n());
+        KASSERT(u < _graph->total_n());
         return _graph->node_weight(static_cast<NodeID>(u));
     }
 
@@ -189,7 +189,7 @@ public:
      */
 
     void move_node(const NodeID node, const ClusterID cluster) {
-        ASSERT(node < _changed_label.size());
+        KASSERT(node < _changed_label.size());
         OwnedClusterVector::move_node(node, cluster);
         _changed_label[node] = 1;
     }
@@ -275,7 +275,7 @@ private:
                     const auto [local_node_on_pe, new_label] = buffer[i];
 
                     const GlobalNodeID global_node = _graph->offset_n(pe) + local_node_on_pe;
-                    ASSERT(!_graph->is_owned_global_node(global_node));
+                    KASSERT(!_graph->is_owned_global_node(global_node));
 
                     const NodeID     local_node        = _graph->global_to_local_node(global_node);
                     const NodeWeight local_node_weight = _graph->node_weight(local_node);

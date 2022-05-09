@@ -39,7 +39,7 @@ public:
             entry->second           = ghost_node;
         } else {
             [[maybe_unused]] const bool found = _global_to_ghost.find(entry, global_node);
-            ASSERT(found);
+            KASSERT(found);
         }
 
         return entry->second;
@@ -109,7 +109,7 @@ public:
     }
 
     Builder& change_local_node_weight(const NodeID node, const NodeWeight weight) {
-        ASSERT(node < _node_weights.size());
+        KASSERT(node < _node_weights.size());
         _node_weights[node] = weight;
         _unit_node_weights  = _unit_node_weights && (weight == 1);
 
@@ -117,7 +117,7 @@ public:
     }
 
     Builder& add_local_node_weight(const NodeID node, const NodeWeight delta) {
-        ASSERT(node < _node_weights.size());
+        KASSERT(node < _node_weights.size());
         _node_weights[node] += delta;
         _unit_node_weights = _unit_node_weights && (delta == 0);
 
@@ -200,7 +200,7 @@ private:
 
     PEID find_ghost_owner(const GlobalNodeID global_u) const {
         auto it = std::upper_bound(_node_distribution.begin() + 1, _node_distribution.end(), global_u);
-        ASSERT(it != _node_distribution.end());
+        KASSERT(it != _node_distribution.end());
         return static_cast<PEID>(std::distance(_node_distribution.begin(), it) - 1);
     }
 

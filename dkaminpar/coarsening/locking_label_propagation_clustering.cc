@@ -101,7 +101,7 @@ public:
         initialize_ghost_node_clusters();
         _max_cluster_weight = max_cluster_weight;
 
-        ASSERT(VALIDATE_INIT_STATE());
+        KASSERT(VALIDATE_INIT_STATE(), "", assert::heavy);
 
         for (std::size_t iteration = 0; iteration < _c_ctx.global_lp.num_iterations; ++iteration) {
             NodeID num_moved_nodes = 0;
@@ -162,13 +162,13 @@ protected:
 
         auto& handle                              = _cluster_weights_handles_ets.local();
         [[maybe_unused]] const auto [it, success] = handle.insert(cluster + 1, weight);
-        ASSERT(success);
+        KASSERT(success);
     }
 
     NodeWeight cluster_weight(const GlobalNodeID cluster) {
         auto& handle = _cluster_weights_handles_ets.local();
         auto  it     = handle.find(cluster + 1);
-        ASSERT(it != handle.end()) << "Uninitialized cluster: " << cluster + 1;
+        KASSERT(it != handle.end(), "Uninitialized cluster: " << cluster + 1);
 
         return (*it).second;
     }
@@ -185,11 +185,11 @@ protected:
             auto& handle                                    = _cluster_weights_handles_ets.local();
             [[maybe_unused]] const auto [old_it, old_found] = handle.update(
                 old_cluster + 1, [](auto& lhs, const auto rhs) { return lhs -= rhs; }, delta);
-            ASSERT(old_it != handle.end() && old_found) << "Uninitialized cluster: " << old_cluster + 1;
+            KASSERT((old_it != handle.end() && old_found), "Uninitialized cluster: " << old_cluster + 1);
 
             [[maybe_unused]] const auto [new_it, new_found] = handle.update(
                 new_cluster + 1, [](auto& lhs, const auto rhs) { return lhs += rhs; }, delta);
-            ASSERT(new_it != handle.end() && new_found) << "Uninitialized cluster: " << new_cluster + 1;
+            KASSERT(new_it != handle.end() && new_found), "Uninitialized cluster: " << new_cluster + 1);
 
             return true;
         }
@@ -201,7 +201,7 @@ protected:
             auto& handle                                    = _cluster_weights_handles_ets.local();
             [[maybe_unused]] const auto [new_it, new_found] = handle.update(
                 cluster + 1, [](auto& lhs, const auto rhs) { return lhs += rhs; }, delta);
-            ASSERT(new_it != handle.end() && new_found) << "Uninitialized cluster: " << cluster + 1;
+            KASSERT((new_it != handle.end() && new_found), "Uninitialized cluster: " << cluster + 1);
             return true;
         }
         return false;
@@ -217,7 +217,7 @@ protected:
         auto& handle                            = _cluster_weights_handles_ets.local();
         [[maybe_unused]] const auto [it, found] = handle.update(
             cluster + 1, [](auto& lhs, const auto rhs) { return lhs += rhs; }, delta);
-        ASSERT(it != handle.end() && found) << "Uninitialized cluster: " << cluster;
+        KASSERT((it != handle.end() && found), "Uninitialized cluster: " << cluster);
     }
 
     [[nodiscard]] NodeWeight initial_cluster_weight(const NodeID u) {
@@ -233,13 +233,13 @@ protected:
      */
 
     void init_cluster(const NodeID node, const GlobalNodeID cluster) {
-        ASSERT(node < _current_clustering.size() && node < _next_clustering.size());
+        KASSERT((node < _current_clustering.size() && node < _next_clustering.size()));
         _current_clustering[node] = cluster;
         _next_clustering[node]    = cluster;
     }
 
     [[nodiscard]] NodeID cluster(const NodeID u) {
-        ASSERT(u < _next_clustering.size());
+        KASSERT(u < _next_clustering.size());
         return _next_clustering[u];
     }
 
@@ -256,15 +256,17 @@ protected:
      */
 
     [[nodiscard]] bool accept_cluster(const Base::ClusterSelectionState& state) {
-        SET_DEBUG(false);
-        ASSERT(state.u < _locked.size() && !_locked[state.u]);
+        KASSERT((state.u < _locked.size() && !_locked[state.u]));
         const bool ans = (state.current_gain > state.best_gain
                           || (state.current_gain == state.best_gain && state.local_rand.random_bool()))
                          && (state.current_cluster_weight + state.u_weight <= max_cluster_weight(state.current_cluster)
                              || state.current_cluster == state.initial_cluster);
+
         if (ans) {
             _gain[state.u] = state.current_gain;
         }
+
+        SET_DEBUG(false);
         DBG << V(state.u) << V(state.current_cluster) << V(state.current_gain) << V(state.best_cluster)
             << V(state.best_gain) << V(ans) << V(state.current_cluster_weight) << V(state.u_weight)
             << V(max_cluster_weight(state.current_cluster));
@@ -340,7 +342,7 @@ private:
         tbb::parallel_for<NodeID>(
             0, _graph->total_n(), [&](const NodeID u) { _current_clustering[u] = _next_clustering[u]; });
 
-        HEAVY_ASSERT(VALIDATE_STATE());
+        KASSERT(VALIDATE_STATE(), "", assert::heavy);
 
         return num_moved_nodes;
     }
@@ -368,7 +370,7 @@ private:
                 const auto         u_weight    = _graph->node_weight(u);
                 const EdgeWeight   u_gain      = _gain[u];
                 const GlobalNodeID new_cluster = _next_clustering[u];
-                ASSERT(u_gain >= 0);
+                KASSERT(u_gain >= 0);
 
                 DBG << "Join request: L" << u << "G" << _graph->local_to_global_node(u) << "={"
                     << ".global_requester=" << _graph->local_to_global_node(u) << ", "
@@ -457,8 +459,7 @@ private:
                 }
 
                 // use weight entries to temporarily store u -- replace it by the correct weight in the next iteration
-                ALWAYS_ASSERT(
-                    std::numeric_limits<NodeID>::digits == std::numeric_limits<NodeWeight>::digits + 1); // TODO
+                KASSERT(std::numeric_limits<NodeID>::digits == std::numeric_limits<NodeWeight>::digits + 1); // TODO
                 NodeWeight u_as_weight;
                 std::memcpy(&u_as_weight, &u, sizeof(NodeWeight));
 
@@ -486,7 +487,7 @@ private:
                     const auto local_requester = _graph->global_to_local_node(global_requester);
                     DBG << "Response for " << global_requester << ": " << (accepted ? 1 : 0) << ", " << new_weight
                         << " " << _current_clustering[local_requester] << " --> " << _next_clustering[local_requester];
-                    ASSERT(!accepted || _locked[local_requester] == 0);
+                    KASSERT((!accepted || _locked[local_requester] == 0));
 
                     // update weight of cluster that we want to join in any case
                     set_cluster_weight(cluster(local_requester), new_weight);
@@ -519,8 +520,9 @@ private:
             mpi::barrier();
         }
 
-        ASSERT(_graph->n() <= _gain_buffer_index.size())
-            << "_gain_buffer_index not large enough: " << _graph->n() << " > " << _gain_buffer_index.size();
+        KASSERT(
+            _graph->n() <= _gain_buffer_index.size(),
+            "_gain_buffer_index not large enough: " << _graph->n() << " > " << _gain_buffer_index.size());
 
         // reset _gain_buffer_index
         TIMED_SCOPE("Reset gain buffer", TIMER_FINE) {
@@ -550,13 +552,12 @@ private:
 
         START_TIMER("Build buffer", TIMER_FINE);
         shm::parallel::chunked_for(join_requests_per_pe, [&](const JoinRequest& request) {
-            ASSERT(_graph->is_owned_global_node(request.global_requested));
+            KASSERT(_graph->is_owned_global_node(request.global_requested));
             const NodeID local_requested = _graph->global_to_local_node(request.global_requested);
-            ASSERT(local_requested < _gain_buffer_index.size());
+            KASSERT(local_requested < _gain_buffer_index.size());
             const NodeID global_requester = request.global_requester;
 
-            ASSERT(_gain_buffer_index[local_requested] - 1 < _gain_buffer.size())
-                << V(_gain_buffer_index[local_requested] - 1) << (_gain_buffer.size());
+            KASSERT(_gain_buffer_index[local_requested] - 1 < _gain_buffer.size());
             _gain_buffer[--_gain_buffer_index[local_requested]] = {
                 global_requester, request.requester_weight, request.requester_gain};
         });
@@ -574,12 +575,12 @@ private:
         // sort buffer for each node by gain
         START_TIMER("Sort buffer", TIMER_FINE);
         tbb::parallel_for<NodeID>(0, _graph->n(), [&](const NodeID u) {
-            ASSERT(u + 1 < _gain_buffer_index.size());
+            KASSERT(u + 1 < _gain_buffer_index.size());
             if (_gain_buffer_index[u] < _gain_buffer_index[u + 1]) {
                 std::sort(
                     _gain_buffer.begin() + _gain_buffer_index[u], _gain_buffer.begin() + _gain_buffer_index[u + 1],
                     [&](const auto& lhs, const auto& rhs) {
-                        ASSERT(lhs.global_node != rhs.global_node);
+                        KASSERT(lhs.global_node != rhs.global_node);
                         const double lhs_rel_gain = 1.0 * lhs.gain / lhs.node_weight;
                         const double rhs_rel_gain = 1.0 * rhs.gain / rhs.node_weight;
                         return lhs_rel_gain < rhs_rel_gain
@@ -620,21 +621,21 @@ private:
     }
 
     [[nodiscard]] bool was_moved_during_round(const NodeID u) const {
-        ASSERT(u < _next_clustering.size() && u < _current_clustering.size());
+        KASSERT((u < _next_clustering.size() && u < _current_clustering.size()));
         return _next_clustering[u] != _current_clustering[u];
     }
 
-#ifdef KAMINPAR_ENABLE_ASSERTIONS
+#if KASSERT_ASSERTION_ENABLED(ASSERTION_LEVEL_HEAVY)
     bool VALIDATE_INIT_STATE() {
-        ASSERT(_graph->total_n() <= _current_clustering.size());
-        ASSERT(_graph->total_n() <= _next_clustering.size());
-        ASSERT(_graph->n() <= _locked.size());
-        ASSERT(_graph->n() <= _gain.size());
+        KASSERT(_graph->total_n() <= _current_clustering.size());
+        KASSERT(_graph->total_n() <= _next_clustering.size());
+        KASSERT(_graph->n() <= _locked.size());
+        KASSERT(_graph->n() <= _gain.size());
 
         for (const NodeID u: _graph->all_nodes()) {
-            ASSERT(_current_clustering[u] == _next_clustering[u]);
-            ASSERT(cluster(u) == _graph->local_to_global_node(u));
-            ASSERT(cluster_weight(cluster(u)) == _graph->node_weight(u));
+            KASSERT(_current_clustering[u] == _next_clustering[u]);
+            KASSERT(cluster(u) == _graph->local_to_global_node(u));
+            KASSERT(cluster_weight(cluster(u)) == _graph->node_weight(u));
         }
 
         return true;
@@ -642,9 +643,9 @@ private:
 
     bool VALIDATE_STATE() {
         for (const NodeID u: _graph->all_nodes()) {
-            ASSERT(_current_clustering[u] == _next_clustering[u]);
+            KASSERT(_current_clustering[u] == _next_clustering[u]);
         }
-        ASSERT(VALIDATE_LOCKING_INVARIANT());
+        KASSERT(VALIDATE_LOCKING_INVARIANT());
         return true;
     }
 
@@ -652,25 +653,26 @@ private:
         mpi::graph::sparse_alltoall_custom<GlobalNodeID>(
             *_graph, 0, _graph->n(),
             [&](const NodeID u) {
-                ASSERT(cluster(u) < _graph->global_n());
+                KASSERT(cluster(u) < _graph->global_n());
                 return !_graph->is_owned_global_node(cluster(u));
             },
             [&](const NodeID u) { return _graph->find_owner_of_global_node(cluster(u)); },
             [&](const NodeID u) { return cluster(u); },
             [&](const auto& buffer, const PEID pe) {
                 for (const GlobalNodeID label: buffer) {
-                    ASSERT(_graph->is_owned_global_node(label));
+                    KASSERT(_graph->is_owned_global_node(label));
                     const NodeID local_label = _graph->global_to_local_node(label);
-                    ASSERT(cluster(local_label) == label)
-                        << "from PE: " << pe << " has nodes in cluster " << label << ", but local node " << local_label
-                        << " is in cluster " << cluster(local_label);
-                    ASSERT(_locked[local_label] == 1);
+                    KASSERT(
+                        cluster(local_label) == label, "from PE: " << pe << " has nodes in cluster " << label
+                                                                   << ", but local node " << local_label
+                                                                   << " is in cluster " << cluster(local_label));
+                    KASSERT(_locked[local_label] == 1);
                 }
             });
 
         return true;
     }
-#endif // KAMINPAR_ENABLE_ASSERTIONS
+#endif
 
     using Base::_graph;
 

@@ -162,47 +162,47 @@ struct PartitionContext {
     void setup(const DistributedGraph& graph);
 
     [[nodiscard]] GlobalNodeID global_n() const {
-        ASSERT(_global_n != kInvalidGlobalNodeID);
+        KASSERT(_global_n != kInvalidGlobalNodeID);
         return _global_n;
     }
 
     [[nodiscard]] GlobalEdgeID global_m() const {
-        ASSERT(_global_m != kInvalidGlobalEdgeID);
+        KASSERT(_global_m != kInvalidGlobalEdgeID);
         return _global_m;
     }
 
     [[nodiscard]] GlobalNodeWeight global_total_node_weight() const {
-        ASSERT(_global_total_node_weight != kInvalidGlobalNodeWeight);
+        KASSERT(_global_total_node_weight != kInvalidGlobalNodeWeight);
         return _global_total_node_weight;
     }
 
     [[nodiscard]] NodeID local_n() const {
-        ASSERT(_local_n != kInvalidNodeID);
+        KASSERT(_local_n != kInvalidNodeID);
         return _local_n;
     }
 
     [[nodiscard]] NodeID total_n() const {
-        ASSERT(_total_n != kInvalidNodeID);
+        KASSERT(_total_n != kInvalidNodeID);
         return _total_n;
     }
 
     [[nodiscard]] EdgeID local_m() const {
-        ASSERT(_local_m != kInvalidEdgeID);
+        KASSERT(_local_m != kInvalidEdgeID);
         return _local_m;
     }
 
     [[nodiscard]] NodeWeight total_node_weight() const {
-        ASSERT(_total_node_weight != kInvalidNodeWeight);
+        KASSERT(_total_node_weight != kInvalidNodeWeight);
         return _total_node_weight;
     }
 
     [[nodiscard]] inline BlockWeight perfectly_balanced_block_weight(const BlockID b) const {
-        ASSERT(b < _perfectly_balanced_block_weights.size());
+        KASSERT(b < _perfectly_balanced_block_weights.size());
         return _perfectly_balanced_block_weights[b];
     }
 
     [[nodiscard]] inline BlockWeight max_block_weight(const BlockID b) const {
-        ASSERT(b < _max_block_weights.size()) << V(b) << V(_max_block_weights.size());
+        KASSERT(b < _max_block_weights.size());
         return _max_block_weights[b];
     }
 

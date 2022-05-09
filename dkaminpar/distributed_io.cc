@@ -61,8 +61,8 @@ DistributedGraph read_node_balanced(const std::string& filename, MPI_Comm comm) 
                 const auto [p_from, p_to] = math::compute_local_range<GlobalNodeID>(global_n, size, p);
                 node_distribution[p + 1]  = p_to;
             }
-            ASSERT(node_distribution.front() == 0);
-            ASSERT(node_distribution.back() == global_n);
+            KASSERT(node_distribution.front() == 0u);
+            KASSERT(node_distribution.back() == global_n);
 
             from = node_distribution[rank];
             to   = node_distribution[rank + 1];
@@ -231,7 +231,7 @@ namespace {
 std::pair<IDType, IDType> read_header(std::ifstream& in) {
     IDType version, global_n, global_m;
     in.read(reinterpret_cast<char*>(&version), sizeof(IDType));
-    ALWAYS_ASSERT(version == 3) << "invalid binary graph format!";
+    KASSERT(version == 3, "invalid binary graph format", assert::always);
 
     in.read(reinterpret_cast<char*>(&global_n), sizeof(IDType));
     in.read(reinterpret_cast<char*>(&global_m), sizeof(IDType));
@@ -333,7 +333,7 @@ IDType adj_list_offset_to_edge(const IDType n, const IDType offset) {
 }
 
 IDType read_first_edge(std::ifstream& in, const IDType n, const IDType u) {
-    ASSERT(u < n);
+    KASSERT(u < n);
 
     const IDType offset = (3 + u) * sizeof(IDType);
     in.seekg(static_cast<std::streamsize>(offset));
@@ -373,11 +373,11 @@ compute_edge_balanced_from_node(std::ifstream& in, const IDType n, const IDType 
             b = mid;
         }
 
-        ASSERT(b.first >= a.first);
+        KASSERT(b.first >= a.first);
     }
 
-    ASSERT(a.second <= target && target <= b.second);
-    ASSERT(b.first < n);
+    KASSERT((a.second <= target && target <= b.second));
+    KASSERT(b.first < n);
     return b.first;
 }
 

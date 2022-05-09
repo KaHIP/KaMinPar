@@ -46,7 +46,7 @@ std::unique_ptr<IDistributedRefiner> create_distributed_refiner(const Context& c
 std::unique_ptr<ClusteringAlgorithm> create_clustering_algorithm(const Context& ctx) {
     switch (ctx.coarsening.global_clustering_algorithm) {
         case GlobalClusteringAlgorithm::NOOP:
-            ALWAYS_ASSERT(false) << "not implemented";
+            FATAL_ERROR << "not implemented";
             return nullptr;
 
         case GlobalClusteringAlgorithm::REQUEST_LP:

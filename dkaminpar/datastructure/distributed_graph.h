@@ -210,7 +210,7 @@ public:
     [[nodiscard]] inline PEID ghost_owner(const NodeID u) const {
         KASSERT(is_ghost_node(u));
         KASSERT(u - n() < _ghost_owner.size());
-        KASSERT(_ghost_owner[u - n()] >= 0u);
+        KASSERT(_ghost_owner[u - n()] >= 0);
         KASSERT(_ghost_owner[u - n()] < mpi::get_comm_size(communicator()));
         return _ghost_owner[u - n()];
     }
@@ -512,8 +512,11 @@ public:
         KASSERT(_partition.size() == _graph->total_n());
         KASSERT([&] {
             for (const BlockID b: _partition) {
-                KASSERT(b < _k);
+                if (b >= _k) {
+                    return false;
+                }
             }
+            return true;
         }());
     }
 
@@ -606,13 +609,13 @@ public:
     }
 
     [[nodiscard]] BlockID block(const NodeID u) const {
-        ASSERT(u < _partition.size());
+        KASSERT(u < _partition.size());
         return _partition[u].load(std::memory_order_relaxed);
     }
 
     template <bool update_block_weights = true>
     void set_block(const NodeID u, const BlockID b) {
-        ASSERT(u < _graph->total_n());
+        KASSERT(u < _graph->total_n());
 
         if constexpr (update_block_weights) {
             const NodeWeight u_weight = _graph->node_weight(u);
@@ -623,8 +626,8 @@ public:
     }
 
     [[nodiscard]] inline BlockWeight block_weight(const BlockID b) const {
-        ASSERT(b < k());
-        ASSERT(b < _block_weights.size());
+        KASSERT(b < k());
+        KASSERT(b < _block_weights.size());
         return _block_weights[b].load(std::memory_order_relaxed);
     }
 

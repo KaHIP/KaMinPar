@@ -6,8 +6,8 @@
  * @brief:  Static distributed graph data structure.
  ******************************************************************************/
 #include "dkaminpar/datastructure/distributed_graph.h"
-#include <numeric>
 #include <iomanip>
+#include <numeric>
 
 #include "dkaminpar/mpi_graph.h"
 #include "dkaminpar/mpi_wrapper.h"
@@ -50,7 +50,7 @@ inline EdgeID degree_bucket(const EdgeID degree) {
 } // namespace
 
 void DistributedGraph::init_degree_buckets() {
-    ASSERT(std::all_of(_buckets.begin(), _buckets.end(), [](const auto n) { return n == 0; }));
+    KASSERT(std::all_of(_buckets.begin(), _buckets.end(), [](const auto n) { return n == 0; }));
 
     if (_sorted) {
         for (const NodeID u: nodes()) {
@@ -103,15 +103,14 @@ void DistributedGraph::init_communication_metrics() {
             for (const auto v: adjacent_nodes(u)) {
                 if (is_ghost_node(v)) {
                     const PEID owner = ghost_owner(v);
-                    ASSERT(static_cast<std::size_t>(owner) < edge_cut_to_pe.size())
-                        << V(owner) << V(edge_cut_to_pe.size());
+                    KASSERT(static_cast<std::size_t>(owner) < edge_cut_to_pe.size());
                     ++edge_cut_to_pe[owner];
 
                     if (!counted_pe.get(owner)) {
-                        ASSERT(static_cast<std::size_t>(owner) < counted_pe.size());
+                        KASSERT(static_cast<std::size_t>(owner) < counted_pe.size());
                         counted_pe.set(owner);
 
-                        ASSERT(static_cast<std::size_t>(owner) < comm_vol_to_pe.size());
+                        KASSERT(static_cast<std::size_t>(owner) < comm_vol_to_pe.size());
                         ++comm_vol_to_pe[owner];
                     }
                 }
@@ -169,33 +168,33 @@ bool validate(const DistributedGraph& graph, const int root) {
 
     // check global n, global m
     DBG << "Checking global n, m";
-    ALWAYS_ASSERT(mpi::bcast(graph.global_n(), root, comm) == graph.global_n());
-    ALWAYS_ASSERT(mpi::bcast(graph.global_m(), root, comm) == graph.global_m());
+    KASSERT(mpi::bcast(graph.global_n(), root, comm) == graph.global_n());
+    KASSERT(mpi::bcast(graph.global_m(), root, comm) == graph.global_m());
 
     // check global node distribution
     DBG << "Checking node distribution";
-    ALWAYS_ASSERT(static_cast<int>(graph.node_distribution().size()) == size + 1);
-    ALWAYS_ASSERT(graph.node_distribution().front() == 0);
-    ALWAYS_ASSERT(graph.node_distribution().back() == graph.global_n());
+    KASSERT(static_cast<int>(graph.node_distribution().size()) == size + 1);
+    KASSERT(graph.node_distribution().front() == 0);
+    KASSERT(graph.node_distribution().back() == graph.global_n());
     for (PEID pe = 1; pe < size + 1; ++pe) {
-        ALWAYS_ASSERT(mpi::bcast(graph.node_distribution(pe), root, comm) == graph.node_distribution(pe));
-        ALWAYS_ASSERT(rank + 1 != pe || graph.node_distribution(pe) - graph.node_distribution(pe - 1) == graph.n());
+        KASSERT(mpi::bcast(graph.node_distribution(pe), root, comm) == graph.node_distribution(pe));
+        KASSERT(rank + 1 != pe || graph.node_distribution(pe) - graph.node_distribution(pe - 1) == graph.n());
     }
 
     // check global edge distribution
     DBG << "Checking edge distribution";
-    ALWAYS_ASSERT(static_cast<int>(graph.edge_distribution().size()) == size + 1);
-    ALWAYS_ASSERT(graph.edge_distribution().front() == 0);
-    ALWAYS_ASSERT(graph.edge_distribution().back() == graph.global_m());
+    KASSERT(static_cast<int>(graph.edge_distribution().size()) == size + 1);
+    KASSERT(graph.edge_distribution().front() == 0);
+    KASSERT(graph.edge_distribution().back() == graph.global_m());
     for (PEID pe = 1; pe < size + 1; ++pe) {
-        ALWAYS_ASSERT(mpi::bcast(graph.edge_distribution(pe), root, comm) == graph.edge_distribution(pe));
-        ALWAYS_ASSERT(rank + 1 != pe || graph.edge_distribution(pe) - graph.edge_distribution(pe - 1) == graph.m());
+        KASSERT(mpi::bcast(graph.edge_distribution(pe), root, comm) == graph.edge_distribution(pe));
+        KASSERT((rank + 1 != pe || graph.edge_distribution(pe) - graph.edge_distribution(pe - 1) == graph.m()));
     }
 
     // check that ghost nodes are actually ghost nodes
     DBG << "Checking ghost nodes";
     for (NodeID ghost_u: graph.ghost_nodes()) {
-        ALWAYS_ASSERT(graph.ghost_owner(ghost_u) != rank);
+        KASSERT(graph.ghost_owner(ghost_u) != rank);
     }
 
     // check node weight of ghost nodes
@@ -213,9 +212,9 @@ bool validate(const DistributedGraph& graph, const int root) {
             },
             [&](const auto buffer, const PEID pe) {
                 for (const auto [global_u, weight]: buffer) {
-                    ALWAYS_ASSERT(graph.contains_global_node(global_u)) << V(global_u) << V(pe);
+                    KASSERT(graph.contains_global_node(global_u));
                     const NodeID local_u = graph.global_to_local_node(global_u);
-                    ALWAYS_ASSERT(graph.node_weight(local_u) == weight);
+                    KASSERT(graph.node_weight(local_u) == weight);
                 }
             });
     }
@@ -235,8 +234,8 @@ bool validate(const DistributedGraph& graph, const int root) {
             },
             [&](const auto recv_buffer, const PEID pe) {
                 for (const auto [ghost_node, owned_node]: recv_buffer) { // NOLINT: roles are swapped on receiving PE
-                    ALWAYS_ASSERT(graph.contains_global_node(ghost_node));
-                    ALWAYS_ASSERT(graph.contains_global_node(owned_node));
+                    KASSERT(graph.contains_global_node(ghost_node));
+                    KASSERT(graph.contains_global_node(owned_node));
 
                     const NodeID local_owned_node = graph.global_to_local_node(owned_node);
                     const NodeID local_ghost_node = graph.global_to_local_node(ghost_node);
@@ -248,10 +247,11 @@ bool validate(const DistributedGraph& graph, const int root) {
                             break;
                         }
                     }
-                    ALWAYS_ASSERT(found) << "Node " << local_owned_node << " (g " << owned_node << ") "
-                                         << "is expected to be adjacent to " << local_ghost_node << " (g " << ghost_node
-                                         << ") "
-                                         << "due to an edge on PE " << pe << ", but is not";
+                    KASSERT(
+                        found, "Node " << local_owned_node << " (g " << owned_node << ") "
+                                       << "is expected to be adjacent to " << local_ghost_node << " (g " << ghost_node
+                                       << ") "
+                                       << "due to an edge on PE " << pe << ", but is not");
                 }
             });
     }
@@ -266,15 +266,15 @@ bool validate_partition(const DistributedPartitionedGraph& p_graph) {
 
     {
         DBG << "Check that each PE knows the same block count";
-        const auto recv_k = mpi::gather(p_graph.k());
-        ALWAYS_ASSERT_ROOT(all_equal(recv_k));
+        const auto recv_k = mpi::allgather(p_graph.k());
+        KASSERT(all_equal(recv_k));
         mpi::barrier(comm);
     }
 
     {
         DBG << "Check that block IDs are OK";
         for (const NodeID u: p_graph.all_nodes()) {
-            ALWAYS_ASSERT(p_graph.block(u) < p_graph.k());
+            KASSERT(p_graph.block(u) < p_graph.k());
         }
     }
 
@@ -295,8 +295,9 @@ bool validate_partition(const DistributedPartitionedGraph& p_graph) {
                 for (int pe = 0; pe < size; ++pe) {
                     const BlockWeight expected = recv_block_weights[b];
                     const BlockWeight actual   = recv_block_weights[p_graph.k() * pe + b];
-                    ALWAYS_ASSERT(expected == actual) << "for PE " << pe << ", block " << b << ": expected weight "
-                                                      << expected << " (weight on root), got weight " << actual;
+                    KASSERT(
+                        expected == actual, "for PE " << pe << ", block " << b << ": expected weight " << expected
+                                                      << " (weight on root), got weight " << actual);
                 }
             }
         }
@@ -319,8 +320,7 @@ bool validate_partition(const DistributedPartitionedGraph& p_graph) {
             send_block_weights.data(), recv_block_weights.data(), static_cast<int>(p_graph.k()), MPI_SUM, 0, comm);
         if (ROOT(rank)) {
             for (const BlockID b: p_graph.blocks()) {
-                ALWAYS_ASSERT(p_graph.block_weight(b) == recv_block_weights[b])
-                    << V(b) << V(p_graph.block_weight(b)) << V(recv_block_weights[b]);
+                KASSERT(p_graph.block_weight(b) == recv_block_weights[b]);
             }
         }
 
@@ -347,7 +347,7 @@ bool validate_partition(const DistributedPartitionedGraph& p_graph) {
         send_buffer.reserve(p_graph.ghost_n() * 2);
         for (const NodeID ghost_u: p_graph.ghost_nodes()) {
             if (ROOT(rank)) { // root can validate locally
-                ALWAYS_ASSERT(p_graph.block(ghost_u) == recv_partition[p_graph.local_to_global_node(ghost_u)]);
+                KASSERT(p_graph.block(ghost_u) == recv_partition[p_graph.local_to_global_node(ghost_u)]);
             } else {
                 send_buffer.push_back(p_graph.local_to_global_node(ghost_u));
                 send_buffer.push_back(p_graph.block(ghost_u));
@@ -363,7 +363,7 @@ bool validate_partition(const DistributedPartitionedGraph& p_graph) {
                 for (std::size_t i = 0; i < recv_buffer.size(); i += 2) {
                     const auto global_u = static_cast<GlobalNodeID>(recv_buffer[i]);
                     const auto b        = static_cast<BlockID>(recv_buffer[i + 1]);
-                    ALWAYS_ASSERT(recv_partition[global_u] == b)
+                    KASSERT(recv_partition[global_u] == b)
                         << "on PE " << pe << ": ghost node " << global_u << " is placed in block " << b
                         << ", but on its owner PE, it is placed in block " << recv_partition[global_u];
                 }
