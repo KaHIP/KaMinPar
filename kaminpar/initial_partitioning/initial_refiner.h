@@ -325,7 +325,9 @@ private:
             p_graph.set_block(u, to);
             current_delta += delta;
             moves.push_back(u);
+#if KASSERT_ASSERTION_ENABLED(ASSERTION_LEVEL_NORMAL)
             KASSERT(initial_edge_cut + current_delta == metrics::edge_cut(p_graph, tag::seq), "", assert::heavy);
+#endif
             _stopping_policy.update(-delta); // assumes gain, not loss
             current_overload = metrics::total_overload(p_graph, _p_ctx);
 
@@ -379,8 +381,10 @@ private:
         }
         _marker.reset();
 
+#if KASSERT_ASSERTION_ENABLED(ASSERTION_LEVEL_NORMAL)
         KASSERT((!initially_feasible || accepted_delta <= 0)); // only accept bad cuts when starting with bad balance
         KASSERT(metrics::edge_cut(p_graph) == initial_edge_cut + accepted_delta);
+#endif
 
         return accepted_delta;
     }

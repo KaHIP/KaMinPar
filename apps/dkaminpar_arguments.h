@@ -9,22 +9,22 @@
 
 #include "dkaminpar/context.h"
 #include "kaminpar/application/arguments_parser.h"
-#ifdef KAMINPAR_GRAPHGEN
+#ifdef KAMINPAR_ENABLE_GRAPHGEN
     #include "apps/dkaminpar_graphgen.h"
-#endif // KAMINPAR_GRAPHGEN
+#endif // KAMINPAR_ENABLE_GRAPHGEN
 
 namespace dkaminpar::app {
 struct ApplicationContext {
     Context ctx;
-#ifdef KAMINPAR_GRAPHGEN
+#ifdef KAMINPAR_ENABLE_GRAPHGEN
     graphgen::GeneratorContext generator;
-#endif // KAMINPAR_GRAPHGEN
+#endif // KAMINPAR_ENABLE_GRAPHGEN
 };
 
-#ifdef KAMINPAR_GRAPHGEN
+#ifdef KAMINPAR_ENABLE_GRAPHGEN
 void create_graphgen_options(
     graphgen::GeneratorContext& g_ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix);
-#endif // KAMINPAR_GRAPHGEN
+#endif // KAMINPAR_ENABLE_GRAPHGEN
 
 void create_coarsening_options(
     CoarseningContext& c_ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix);

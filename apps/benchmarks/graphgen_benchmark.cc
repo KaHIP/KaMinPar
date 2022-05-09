@@ -91,7 +91,7 @@ int main(int argc, char* argv[]) {
     }
     dist::graph::print_verbose_stats(graph);
 
-    ASSERT([&] { dist::graph::debug::validate(graph); });
+    KASSERT(dist::graph::debug::validate(graph));
     ctx.setup(graph);
 
     // Output statistics

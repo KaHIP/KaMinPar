@@ -154,9 +154,11 @@ void sparse_alltoall_interface_to_ghost(
     }
     STOP_TIMER(TIMER_DETAIL);
 
+#if KASSERT_ASSERTION_ENABLED(ASSERTION_LEVEL_NORMAL)
     KASSERT(std::all_of(total_num_messages.begin(), total_num_messages.end(), [&](const auto& num_messages) {
         return num_messages == 0;
     }));
+#endif
 
     sparse_alltoall<Message, Buffer>(
         std::move(send_buffers), std::forward<decltype(receiver)>(receiver), graph.communicator());
@@ -311,9 +313,11 @@ void sparse_alltoall_interface_to_pe(
     }
     STOP_TIMER(TIMER_DETAIL);
 
+#if KASSERT_ASSERTION_ENABLED(ASSERTION_LEVEL_NORMAL)
     KASSERT(std::all_of(total_num_messages.begin(), total_num_messages.end(), [&](const auto& num_messages) {
         return num_messages == 0;
     }));
+#endif
 
     sparse_alltoall<Message, Buffer>(std::move(send_buffers), std::forward<Receiver>(receiver), graph.communicator());
 } // namespace dkaminpar::mpi::graph

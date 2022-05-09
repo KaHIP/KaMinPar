@@ -217,7 +217,7 @@ Result contract_local_clustering(
 
     shm::parallel::prefix_sum(c_nodes.begin(), c_nodes.end(), c_nodes.begin());
 
-    KASSERT(c_nodes[0] == 0);
+    KASSERT(c_nodes[0] == 0u);
     const EdgeID c_m = c_nodes.back();
 
     //

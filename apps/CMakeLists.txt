@@ -37,13 +37,14 @@ function(add_distributed_app target)
     endif ()
 endfunction()
 
+# KaMinPar
 add_app(KaMinPar kaminpar.cc)
 
+# dKaMinPar
 set(DKAMINPAR_SOURCE_FILES
         ${CMAKE_CURRENT_SOURCE_DIR}/dkaminpar_arguments.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/dkaminpar_arguments.h)
-
-if (KAMINPAR_GRAPHGEN)
+if (KAMINPAR_ENABLE_GRAPHGEN)
     set(DKAMINPAR_SOURCE_FILES
             ${CMAKE_CURRENT_SOURCE_DIR}/dkaminpar_graphgen.cc
             ${CMAKE_CURRENT_SOURCE_DIR}/dkaminpar_graphgen.h
@@ -51,9 +52,10 @@ if (KAMINPAR_GRAPHGEN)
 endif ()
 
 add_distributed_app(dKaMinPar dkaminpar.cc ${DKAMINPAR_SOURCE_FILES})
-if (KAMINPAR_GRAPHGEN)
-    target_link_libraries(dKaMinPar PUBLIC kagen_library)
+if (KAMINPAR_ENABLE_GRAPHGEN)
+    target_link_libraries(dKaMinPar PRIVATE KaGen::KaGen) 
 endif ()
 
+# Benchmarks
 add_subdirectory(benchmarks)
 

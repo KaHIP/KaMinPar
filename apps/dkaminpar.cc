@@ -35,19 +35,27 @@ namespace shm  = kaminpar;
 
 namespace {
 void sanitize_context(const dist::app::ApplicationContext& app) {
-#ifdef KAMINPAR_GRAPHGEN
-    ALWAYS_ASSERT(app.generator.type != dist::graphgen::GeneratorType::NONE || !app.ctx.graph_filename.empty())
-        << "must configure a graph generator or specify an input graph";
-    ALWAYS_ASSERT(app.generator.type == dist::graphgen::GeneratorType::NONE || app.ctx.graph_filename.empty())
-        << "cannot configure a graph generator and specify an input graph";
-    ALWAYS_ASSERT(app.ctx.graph_filename.empty() || !std::ifstream(app.ctx.graph_filename) == false)
-        << "input graph specified, but file cannot be read";
-#else  // KAMINPAR_GRAPHGEN
-    ALWAYS_ASSERT(!std::ifstream(app.ctx.graph_filename) == false) << "cannot read input graph";
-#endif // KAMINPAR_GRAPHGEN
-
-    ALWAYS_ASSERT(app.ctx.partition.k >= 2) << "k must be at least 2.";
-    ALWAYS_ASSERT(app.ctx.partition.epsilon > 0) << "Epsilon must be greater than zero.";
+#ifdef KAMINPAR_ENABLE_GRAPHGEN
+    if (app.generator.type == dist::graphgen::GeneratorType::NONE && app.ctx.graph_filename.empty()) {
+        FATAL_ERROR << "Must configure a graph generator or specify an input graph";
+    }
+    if (app.generator.type != dist::graphgen::GeneratorType::NONE && !app.ctx.graph_filename.empty()) {
+        FATAL_ERROR << "cannot configure a graph generator and specify an input graph";
+    }
+    if (!app.ctx.graph_filename.empty() && !std::ifstream(app.ctx.graph_filename)) {
+        FATAL_ERROR << "input graph specified, but file cannot be read";
+    }
+#else  // KAMINPAR_ENABLE_GRAPHGEN
+    if (!std::ifstream(app.ctx.graph_filename)) {
+        FATAL_ERROR << "cannot read input graph";
+    }
+#endif // KAMINPAR_ENABLE_GRAPHGEN
+    if (app.ctx.partition.k < 2) {
+        FATAL_ERROR << "k must be at least 2.";
+    }
+    if (app.ctx.partition.epsilon <= 0) {
+        FATAL_ERROR << "Epsilon must be greater than zero.";
+    }
 }
 
 void print_result_statistics(const dist::DistributedPartitionedGraph& p_graph, const dist::Context& ctx) {
@@ -153,7 +161,7 @@ int main(int argc, char* argv[]) {
             << "ghost_n=[" << ghost_n_str << "]";
     }
 
-    ASSERT([&] { dist::graph::debug::validate(graph); });
+    KASSERT(dist::graph::debug::validate(graph));
     ctx.setup(graph);
 
     // Perform partitioning
@@ -162,7 +170,7 @@ int main(int argc, char* argv[]) {
     graph = dist::graph::sort_by_degree_buckets(std::move(graph));
     STOP_TIMER();
     const auto p_graph = dist::partition(graph, ctx);
-    ASSERT([&] { dist::graph::debug::validate_partition(p_graph); });
+    KASSERT(dist::graph::debug::validate_partition(p_graph));
     STOP_TIMER();
 
     // Output statistics

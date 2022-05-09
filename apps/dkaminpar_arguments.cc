@@ -13,7 +13,7 @@
 namespace dkaminpar::app {
 using namespace std::string_literals;
 
-#ifdef KAMINPAR_GRAPHGEN
+#ifdef KAMINPAR_ENABLE_GRAPHGEN
 void create_graphgen_options(
     graphgen::GeneratorContext& g_ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix) {
     // clang-format off
@@ -32,7 +32,7 @@ void create_graphgen_options(
       ;
     // clang-format on
 }
-#endif // KAMINPAR_GRAPHGEN
+#endif // KAMINPAR_ENABLE_GRAPHGEN
 
 void create_coarsening_label_propagation_options(
     LabelPropagationCoarseningContext& lp_ctx, kaminpar::Arguments& args, const std::string& name,
@@ -138,17 +138,17 @@ void create_context_options(ApplicationContext& a_ctx, kaminpar::Arguments& args
     create_coarsening_options(a_ctx.ctx.coarsening, args, "Coarsening", "c");
     create_initial_partitioning_options(a_ctx.ctx.initial_partitioning, args, "Initial Partitioning", "i");
     create_refinement_options(a_ctx.ctx.refinement, args, "Refinement", "r");
-#ifdef KAMINPAR_GRAPHGEN
+#ifdef KAMINPAR_ENABLE_GRAPHGEN
     create_graphgen_options(a_ctx.generator, args, "Graph Generation", "g");
-#endif // KAMINPAR_GRAPHGEN
+#endif // KAMINPAR_ENABLE_GRAPHGEN
 }
 
 ApplicationContext parse_options(int argc, char* argv[]) {
-#ifdef KAMINPAR_GRAPHGEN
+#ifdef KAMINPAR_ENABLE_GRAPHGEN
     ApplicationContext a_ctx{create_default_context(), {}};
-#else  // KAMINPAR_GRAPHGEN
+#else  // KAMINPAR_ENABLE_GRAPHGEN
     ApplicationContext a_ctx{create_default_context()};
-#endif // KAMINPAR_GRAPHGEN
+#endif // KAMINPAR_ENABLE_GRAPHGEN
     kaminpar::Arguments arguments;
     create_context_options(a_ctx, arguments);
     arguments.parse(argc, argv);

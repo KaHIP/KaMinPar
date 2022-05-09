@@ -38,7 +38,7 @@ DistributedGraph build_graph(const EdgeList& edge_list, scalable_vector<GlobalNo
     const auto [size, rank] = mpi::get_comm_info();
     const GlobalNodeID from = node_distribution[rank];
     const GlobalNodeID to   = node_distribution[rank + 1];
-    ALWAYS_ASSERT(from <= to);
+    KASSERT(from <= to, "", assert::always);
 
     const auto n = static_cast<NodeID>(to - from);
 
@@ -47,7 +47,9 @@ DistributedGraph build_graph(const EdgeList& edge_list, scalable_vector<GlobalNo
     scalable_vector<Atomic<NodeID>> buckets(n);
     tbb::parallel_for<EdgeID>(0, edge_list.size(), [&](const EdgeID e) {
         const GlobalNodeID u = std::get<0>(edge_list[e]);
-        ALWAYS_ASSERT(from <= u && u < to) << V(u) << V(from) << V(to);
+        KASSERT(from <= u, "", assert::always);
+        KASSERT(u < to, "", assert::always);
+
         buckets[u - from].fetch_add(1, std::memory_order_relaxed);
     });
     shm::parallel::prefix_sum(buckets.begin(), buckets.end(), buckets.begin());
@@ -61,10 +63,11 @@ DistributedGraph build_graph(const EdgeList& edge_list, scalable_vector<GlobalNo
     graph::GhostNodeMapper  ghost_node_mapper(node_distribution);
     tbb::parallel_for<EdgeID>(0, edge_list.size(), [&](const EdgeID e) {
         const auto [u, v] = edge_list[e];
-        ALWAYS_ASSERT(from <= u && u < to) << V(u) << V(from) << V(to);
+        KASSERT(from <= u, "", assert::always);
+        KASSERT(u < to, "", assert::always);
 
         const auto pos = buckets[u - from].fetch_sub(1, std::memory_order_relaxed) - 1;
-        ASSERT(pos < edges.size()) << V(pos) << V(edges.size());
+        KASSERT(pos < edges.size());
 
         if (from <= v && v < to) {
             edges[pos] = static_cast<NodeID>(v - from);
@@ -95,7 +98,7 @@ DistributedGraph build_graph(const EdgeList& edge_list, scalable_vector<GlobalNo
         std::move(mapped_ghost_nodes.global_to_ghost),
         false,
         MPI_COMM_WORLD};
-    HEAVY_ASSERT(graph::debug::validate(graph));
+    KASSERT(graph::debug::validate(graph), "", assert::heavy);
     return graph;
 }
 
