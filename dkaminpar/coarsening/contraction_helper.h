@@ -56,7 +56,7 @@ inline std::pair<scalable_vector<LocalToGlobalEdge>, DeduplicateEdgeListMemoryCo
     TIMED_SCOPE("Bucket sort edges", TIMER_DETAIL) {
         tbb::parallel_for<NodeID>(0, n + 1, [&](const NodeID u) { bucket_index[u] = 0; });
         tbb::parallel_for<std::size_t>(0, edge_list.size(), [&](const std::size_t i) {
-            ASSERT(edge_list[i].u < n);
+            KASSERT(edge_list[i].u < n);
             bucket_index[edge_list[i].u].fetch_add(1, std::memory_order_relaxed);
         });
         shm::parallel::prefix_sum(bucket_index.begin(), bucket_index.end(), bucket_index.begin());
@@ -85,7 +85,7 @@ inline std::pair<scalable_vector<LocalToGlobalEdge>, DeduplicateEdgeListMemoryCo
         GlobalNodeID current_v           = kInvalidGlobalNodeID;
 
         for (EdgeID edge_id = first_edge_id; edge_id < first_invalid_edge_id; ++edge_id) {
-            ASSERT(buffer_list[edge_id].u == u);
+            KASSERT(buffer_list[edge_id].u == u);
             const auto& edge = buffer_list[edge_id];
             if (edge.v != current_v) {
                 ++deduplicated_degree;
@@ -115,8 +115,8 @@ inline std::pair<scalable_vector<LocalToGlobalEdge>, DeduplicateEdgeListMemoryCo
         for (EdgeID edge_id = first_edge_id; edge_id < first_invalid_edge_id; ++edge_id) {
             const auto& edge = buffer_list[edge_id];
             if (edge.v == current_v) {
-                ASSERT(edge_list[dst_index - 1].u == edge.u);
-                ASSERT(edge_list[dst_index - 1].v == edge.v);
+                KASSERT(edge_list[dst_index - 1].u == edge.u);
+                KASSERT(edge_list[dst_index - 1].v == edge.v);
                 edge_list[dst_index - 1].weight += edge.weight;
             } else {
                 current_v              = edge.v;

@@ -231,7 +231,7 @@ namespace {
 std::pair<IDType, IDType> read_header(std::ifstream& in) {
     IDType version, global_n, global_m;
     in.read(reinterpret_cast<char*>(&version), sizeof(IDType));
-    KASSERT(version == 3, "invalid binary graph format", assert::always);
+    KASSERT(version == 3u, "invalid binary graph format", assert::always);
 
     in.read(reinterpret_cast<char*>(&global_n), sizeof(IDType));
     in.read(reinterpret_cast<char*>(&global_m), sizeof(IDType));

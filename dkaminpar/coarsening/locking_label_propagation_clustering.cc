@@ -101,7 +101,9 @@ public:
         initialize_ghost_node_clusters();
         _max_cluster_weight = max_cluster_weight;
 
+#if KASSERT_ASSERTION_ENABLED(ASSERTION_LEVEL_HEAVY)
         KASSERT(VALIDATE_INIT_STATE(), "", assert::heavy);
+#endif
 
         for (std::size_t iteration = 0; iteration < _c_ctx.global_lp.num_iterations; ++iteration) {
             NodeID num_moved_nodes = 0;
@@ -189,7 +191,7 @@ protected:
 
             [[maybe_unused]] const auto [new_it, new_found] = handle.update(
                 new_cluster + 1, [](auto& lhs, const auto rhs) { return lhs += rhs; }, delta);
-            KASSERT(new_it != handle.end() && new_found), "Uninitialized cluster: " << new_cluster + 1);
+            KASSERT((new_it != handle.end() && new_found), "Uninitialized cluster: " << new_cluster + 1);
 
             return true;
         }
@@ -342,7 +344,9 @@ private:
         tbb::parallel_for<NodeID>(
             0, _graph->total_n(), [&](const NodeID u) { _current_clustering[u] = _next_clustering[u]; });
 
+#if KASSERT_ASSERTION_ENABLED(ASSERTION_LEVEL_HEAVY)
         KASSERT(VALIDATE_STATE(), "", assert::heavy);
+#endif
 
         return num_moved_nodes;
     }

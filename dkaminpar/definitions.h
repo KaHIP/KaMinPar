@@ -53,8 +53,13 @@ inline int get_rank(MPI_Comm comm = MPI_COMM_WORLD) {
 } // namespace internal
 
 // Import commonly used symbols to dkaminpar namespace
-namespace parallel = shm::parallel;
-namespace assert   = shm::assert;
+namespace parallel {
+using namespace shm::parallel;
+};
+
+namespace assert {
+using namespace shm::assert;
+};
 
 template <typename T>
 using scalable_vector = shm::scalable_vector<T>;

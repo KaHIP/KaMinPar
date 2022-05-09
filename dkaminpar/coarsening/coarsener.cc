@@ -31,7 +31,7 @@ const DistributedGraph* Coarsener::coarsen_once(const GlobalNodeWeight max_clust
     auto& clustering = _clustering_algorithm->compute_clustering(*graph, static_cast<NodeWeight>(max_cluster_weight));
     auto [c_graph, mapping] =
         coarsening::contract_global_clustering(*graph, clustering, _input_ctx.coarsening.global_contraction_algorithm);
-    HEAVY_ASSERT(graph::debug::validate(c_graph));
+    KASSERT(graph::debug::validate(c_graph), "", assert::heavy);
 
     // only keep graph if coarsening has not converged yet
     const bool converged = (1.0 * c_graph.global_n() / graph->global_n()) >= 0.95;
@@ -45,11 +45,11 @@ const DistributedGraph* Coarsener::coarsen_once(const GlobalNodeWeight max_clust
 }
 
 DistributedPartitionedGraph Coarsener::uncoarsen_once(DistributedPartitionedGraph&& p_graph) {
-    ASSERT(coarsest() == &p_graph.graph()) << "expected graph partition of current coarsest graph";
+    KASSERT(coarsest() == &p_graph.graph(), "expected graph partition of current coarsest graph");
 
     const DistributedGraph* new_coarsest = nth_coarsest(1);
     p_graph = coarsening::project_global_contracted_graph(*new_coarsest, std::move(p_graph), _mapping_hierarchy.back());
-    HEAVY_ASSERT(graph::debug::validate_partition(p_graph));
+    KASSERT(graph::debug::validate_partition(p_graph), "", assert::heavy);
 
     _graph_hierarchy.pop_back();
     _mapping_hierarchy.pop_back();

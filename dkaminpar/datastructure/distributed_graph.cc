@@ -174,17 +174,17 @@ bool validate(const DistributedGraph& graph, const int root) {
     // check global node distribution
     DBG << "Checking node distribution";
     KASSERT(static_cast<int>(graph.node_distribution().size()) == size + 1);
-    KASSERT(graph.node_distribution().front() == 0);
+    KASSERT(graph.node_distribution().front() == 0u);
     KASSERT(graph.node_distribution().back() == graph.global_n());
     for (PEID pe = 1; pe < size + 1; ++pe) {
         KASSERT(mpi::bcast(graph.node_distribution(pe), root, comm) == graph.node_distribution(pe));
-        KASSERT(rank + 1 != pe || graph.node_distribution(pe) - graph.node_distribution(pe - 1) == graph.n());
+        KASSERT((rank + 1 != pe || graph.node_distribution(pe) - graph.node_distribution(pe - 1) == graph.n()));
     }
 
     // check global edge distribution
     DBG << "Checking edge distribution";
     KASSERT(static_cast<int>(graph.edge_distribution().size()) == size + 1);
-    KASSERT(graph.edge_distribution().front() == 0);
+    KASSERT(graph.edge_distribution().front() == 0u);
     KASSERT(graph.edge_distribution().back() == graph.global_m());
     for (PEID pe = 1; pe < size + 1; ++pe) {
         KASSERT(mpi::bcast(graph.edge_distribution(pe), root, comm) == graph.edge_distribution(pe));
@@ -210,7 +210,7 @@ bool validate(const DistributedGraph& graph, const int root) {
             [&](const NodeID u) -> GhostNodeWeightMessage {
                 return {.global_u = graph.local_to_global_node(u), .weight = graph.node_weight(u)};
             },
-            [&](const auto buffer, const PEID pe) {
+            [&](const auto buffer, PEID) {
                 for (const auto [global_u, weight]: buffer) {
                     KASSERT(graph.contains_global_node(global_u));
                     const NodeID local_u = graph.global_to_local_node(global_u);
@@ -363,9 +363,10 @@ bool validate_partition(const DistributedPartitionedGraph& p_graph) {
                 for (std::size_t i = 0; i < recv_buffer.size(); i += 2) {
                     const auto global_u = static_cast<GlobalNodeID>(recv_buffer[i]);
                     const auto b        = static_cast<BlockID>(recv_buffer[i + 1]);
-                    KASSERT(recv_partition[global_u] == b)
-                        << "on PE " << pe << ": ghost node " << global_u << " is placed in block " << b
-                        << ", but on its owner PE, it is placed in block " << recv_partition[global_u];
+                    KASSERT(
+                        recv_partition[global_u] == b,
+                        "on PE " << pe << ": ghost node " << global_u << " is placed in block " << b
+                                 << ", but on its owner PE, it is placed in block " << recv_partition[global_u]);
                 }
             }
         } else {

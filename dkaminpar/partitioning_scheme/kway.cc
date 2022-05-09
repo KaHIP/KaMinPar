@@ -106,7 +106,7 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
     DistributedPartitionedGraph dist_p_graph = graph::reduce_scatter(*graph, std::move(shm_p_graph));
     STOP_TIMER();
 
-    HEAVY_ASSERT(graph::debug::validate_partition(dist_p_graph));
+    KASSERT(graph::debug::validate_partition(dist_p_graph), "", assert::heavy);
 
     const auto initial_cut       = metrics::edge_cut(dist_p_graph);
     const auto initial_imbalance = metrics::imbalance(dist_p_graph);
@@ -144,7 +144,7 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
                 SCOPED_TIMER("Refinement");
                 refinement_algorithm->initialize(p_graph.graph(), _ctx.partition);
                 refinement_algorithm->refine(p_graph);
-                HEAVY_ASSERT(graph::debug::validate_partition(p_graph));
+                KASSERT(graph::debug::validate_partition(p_graph), "", assert::heavy);
             }
         };
 
