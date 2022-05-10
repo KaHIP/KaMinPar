@@ -82,11 +82,11 @@ Graph change_node_weight(Graph graph, const NodeID u, const NodeWeight new_node_
 Graph change_edge_weight(Graph graph, const NodeID u, const NodeID v, const EdgeWeight new_edge_weight) {
     const EdgeID forward_edge  = find_edge_by_endpoints(graph, u, v);
     const EdgeID backward_edge = find_edge_by_endpoints(graph, v, u);
-    ASSERT(forward_edge != kInvalidEdgeID);
-    ASSERT(backward_edge != kInvalidEdgeID);
+    KASSERT(forward_edge != kInvalidEdgeID);
+    KASSERT(backward_edge != kInvalidEdgeID);
 
     auto edge_weights = graph.take_raw_edge_weights();
-    ASSERT(edge_weights[forward_edge] == edge_weights[backward_edge]);
+    KASSERT(edge_weights[forward_edge] == edge_weights[backward_edge]);
 
     edge_weights[forward_edge]  = new_edge_weight;
     edge_weights[backward_edge] = new_edge_weight;
@@ -97,14 +97,14 @@ Graph change_edge_weight(Graph graph, const NodeID u, const NodeID v, const Edge
 }
 
 Graph assign_exponential_weights(Graph graph, const bool assign_node_weights, const bool assign_edge_weights) {
-    ALWAYS_ASSERT(
+    KASSERT(
         !assign_node_weights
-        || graph.n() <= std::numeric_limits<NodeWeight>::digits - std::numeric_limits<NodeWeight>::is_signed)
-        << "Cannot assign exponential node weights: graph has too many nodes";
-    ALWAYS_ASSERT(
+            || graph.n() <= std::numeric_limits<NodeWeight>::digits - std::numeric_limits<NodeWeight>::is_signed,
+        "Cannot assign exponential node weights: graph has too many nodes", assert::always);
+    KASSERT(
         !assign_edge_weights
-        || graph.m() <= std::numeric_limits<EdgeWeight>::digits - std::numeric_limits<EdgeWeight>::is_signed)
-        << "Cannot assign exponential edge weights: graph has too many edges";
+            || graph.m() <= std::numeric_limits<EdgeWeight>::digits - std::numeric_limits<EdgeWeight>::is_signed,
+        "Cannot assign exponential edge weights: graph has too many edges", assert::always);
 
     auto node_weights = graph.take_raw_node_weights();
     if (assign_node_weights) {
@@ -174,7 +174,7 @@ Graph merge_graphs(std::initializer_list<Graph*> graphs, const bool connect_grap
 
     NodeID offset = 0;
     for (const Graph* graph: graphs) {
-        ASSERT(graph->n() > 0);
+        KASSERT(graph->n() > 0);
         builder.new_node(graph->node_weight(0));
 
         if (connect_graphs) {
@@ -183,7 +183,7 @@ Graph merge_graphs(std::initializer_list<Graph*> graphs, const bool connect_grap
                 if (other_graph == graph) {
                     continue;
                 }
-                ASSERT(other_graph->n() > 0);
+                KASSERT(other_graph->n() > 0);
                 builder.new_edge(first_node_in_other_graph);
                 first_node_in_other_graph += other_graph->n();
             }

@@ -120,9 +120,9 @@ int main(int argc, char* argv[]) {
 
     // Initialize random number generator
     shm::Randomize::seed = ctx.seed;
-#ifdef KAMINPAR_GRAPHGEN
+#ifdef KAMINPAR_ENABLE_GRAPHGEN
     app.generator.seed = ctx.seed;
-#endif // KAMINPAR_GRAPHGEN
+#endif
 
     // Initialize TBB
     auto gc = shm::init_parallelism(ctx.parallel.num_threads);
@@ -133,7 +133,7 @@ int main(int argc, char* argv[]) {
 
     // Load graph
     auto graph = TIMED_SCOPE("IO") {
-#ifdef KAMINPAR_GRAPHGEN
+#ifdef KAMINPAR_ENABLE_GRAPHGEN
         if (app.generator.type != dist::graphgen::GeneratorType::NONE) {
             auto graph = dist::graphgen::generate(app.generator);
             if (app.generator.save_graph) {
@@ -141,7 +141,7 @@ int main(int argc, char* argv[]) {
             }
             return graph;
         }
-#endif // KAMINPAR_GRAPHGEN
+#endif
         const auto type = ctx.load_edge_balanced ? dist::io::DistributionType::EDGE_BALANCED
                                                  : dist::io::DistributionType::NODE_BALANCED;
         return dist::io::read_graph(ctx.graph_filename, type);
