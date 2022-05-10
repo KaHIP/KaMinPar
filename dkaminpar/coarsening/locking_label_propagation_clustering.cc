@@ -101,7 +101,7 @@ public:
         initialize_ghost_node_clusters();
         _max_cluster_weight = max_cluster_weight;
 
-#if KASSERT_ASSERTION_ENABLED(ASSERTION_LEVEL_HEAVY)
+#if KASSERT_ENABLED(ASSERTION_LEVEL_HEAVY)
         KASSERT(VALIDATE_INIT_STATE(), "", assert::heavy);
 #endif
 
@@ -344,7 +344,7 @@ private:
         tbb::parallel_for<NodeID>(
             0, _graph->total_n(), [&](const NodeID u) { _current_clustering[u] = _next_clustering[u]; });
 
-#if KASSERT_ASSERTION_ENABLED(ASSERTION_LEVEL_HEAVY)
+#if KASSERT_ENABLED(ASSERTION_LEVEL_HEAVY)
         KASSERT(VALIDATE_STATE(), "", assert::heavy);
 #endif
 
@@ -629,7 +629,7 @@ private:
         return _next_clustering[u] != _current_clustering[u];
     }
 
-#if KASSERT_ASSERTION_ENABLED(ASSERTION_LEVEL_HEAVY)
+#if KASSERT_ENABLED(ASSERTION_LEVEL_HEAVY)
     bool VALIDATE_INIT_STATE() {
         KASSERT(_graph->total_n() <= _current_clustering.size());
         KASSERT(_graph->total_n() <= _next_clustering.size());

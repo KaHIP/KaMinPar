@@ -40,7 +40,7 @@ public:
         if (_partition.size() < _graph.n()) {
             _partition.resize(_graph.n());
         }
-#if KASSERT_ASSERTION_ENABLED(ASSERTION_LEVEL_NORMAL)
+#if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
         std::fill(_partition.begin(), _partition.end(), kInvalidBlockID);
 #endif
 

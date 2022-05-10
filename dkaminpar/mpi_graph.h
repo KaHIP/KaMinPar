@@ -81,13 +81,13 @@ void sparse_alltoall_interface_to_ghost(
     std::vector<cache_aligned_vector<std::size_t>> num_messages(num_threads, cache_aligned_vector<std::size_t>(size));
 
     // ASSERT that we count the same number of messages that we create
-#if KASSERT_ASSERTION_ENABLED(ASSERTION_LEVEL_NORMAL)
+#if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
     std::vector<shm::parallel::Aligned<std::size_t>> total_num_messages(num_threads);
 #endif
 
     // count messages to each PE for each thread
     START_TIMER("Count messages", TIMER_DETAIL);
-#if KASSERT_ASSERTION_ENABLED(ASSERTION_LEVEL_NORMAL)
+#if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
     #pragma omp parallel for default(none) shared(from, to, graph, num_messages, filter, total_num_messages)
 #else
     #pragma omp parallel for default(none) shared(from, to, graph, num_messages, filter)
@@ -104,7 +104,7 @@ void sparse_alltoall_interface_to_ghost(
                 const PEID owner = graph.ghost_owner(v);
                 ++num_messages[thread][owner];
 
-#if KASSERT_ASSERTION_ENABLED(ASSERTION_LEVEL_NORMAL)
+#if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
                 ++total_num_messages[thread];
 #endif
             }
@@ -123,7 +123,7 @@ void sparse_alltoall_interface_to_ghost(
 
     // fill buffers
     START_TIMER("Partition messages", TIMER_DETAIL);
-#if KASSERT_ASSERTION_ENABLED(ASSERTION_LEVEL_NORMAL)
+#if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
     #pragma omp parallel for default(none) \
         shared(send_buffers, from, to, filter, graph, builder, num_messages, total_num_messages)
 #else
@@ -146,7 +146,7 @@ void sparse_alltoall_interface_to_ghost(
                     send_buffers[pe][slot] = builder(u, e, v);
                 }
 
-#if KASSERT_ASSERTION_ENABLED(ASSERTION_LEVEL_NORMAL)
+#if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
                 --total_num_messages[thread];
 #endif
             }
@@ -154,7 +154,7 @@ void sparse_alltoall_interface_to_ghost(
     }
     STOP_TIMER(TIMER_DETAIL);
 
-#if KASSERT_ASSERTION_ENABLED(ASSERTION_LEVEL_NORMAL)
+#if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
     KASSERT(std::all_of(total_num_messages.begin(), total_num_messages.end(), [&](const auto& num_messages) {
         return num_messages == 0;
     }));
@@ -211,13 +211,13 @@ void sparse_alltoall_interface_to_pe(
     std::vector<cache_aligned_vector<std::size_t>> num_messages(num_threads, cache_aligned_vector<std::size_t>(size));
 
     // ASSERT that we count the same number of messages that we create
-#if KASSERT_ASSERTION_ENABLED(ASSERTION_LEVEL_NORMAL)
+#if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
     std::vector<shm::parallel::Aligned<std::size_t>> total_num_messages(num_threads);
 #endif
 
     // count messages to each PE for each thread
     START_TIMER("Count messages", TIMER_DETAIL);
-#if KASSERT_ASSERTION_ENABLED(ASSERTION_LEVEL_NORMAL)
+#if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
     #pragma omp parallel default(none) shared(size, from, to, filter, graph, num_messages, total_num_messages)
 #else
     #pragma omp parallel default(none) shared(size, from, to, filter, graph, num_messages)
@@ -246,7 +246,7 @@ void sparse_alltoall_interface_to_pe(
 
                 ++num_messages[thread][pe];
 
-#if KASSERT_ASSERTION_ENABLED(ASSERTION_LEVEL_NORMAL)
+#if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
                 ++total_num_messages[thread];
 #endif
             }
@@ -267,7 +267,7 @@ void sparse_alltoall_interface_to_pe(
 
     // fill buffers
     START_TIMER("Partition messages", TIMER_DETAIL);
-#if KASSERT_ASSERTION_ENABLED(ASSERTION_LEVEL_NORMAL)
+#if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
     #pragma omp parallel default(none) \
         shared(send_buffers, size, from, to, builder, filter, graph, num_messages, total_num_messages)
 #else
@@ -303,7 +303,7 @@ void sparse_alltoall_interface_to_pe(
                     send_buffers[pe][slot] = builder(u);
                 }
 
-#if KASSERT_ASSERTION_ENABLED(ASSERTION_LEVEL_NORMAL)
+#if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
                 --total_num_messages[thread];
 #endif
             }
@@ -313,7 +313,7 @@ void sparse_alltoall_interface_to_pe(
     }
     STOP_TIMER(TIMER_DETAIL);
 
-#if KASSERT_ASSERTION_ENABLED(ASSERTION_LEVEL_NORMAL)
+#if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
     KASSERT(std::all_of(total_num_messages.begin(), total_num_messages.end(), [&](const auto& num_messages) {
         return num_messages == 0;
     }));

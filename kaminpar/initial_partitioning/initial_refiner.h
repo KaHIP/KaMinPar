@@ -279,7 +279,7 @@ private:
         KASSERT(p_graph.k() == 2u, "2-way FM with " << p_graph.k() << "-way partition", assert::light);
         DBG << "Initial refiner initialized with n=" << p_graph.n() << " m=" << p_graph.m();
 
-#if KASSERT_ASSERTION_ENABLED(ASSERTION_LEVEL_NORMAL)
+#if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
         const bool initially_feasible = metrics::is_feasible(p_graph, _p_ctx);
 #endif
 
@@ -295,14 +295,14 @@ private:
 
         Gain current_delta  = 0;
         Gain accepted_delta = 0;
-#if KASSERT_ASSERTION_ENABLED(ASSERTION_LEVEL_NORMAL)
+#if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
         const EdgeWeight initial_edge_cut = metrics::edge_cut(p_graph, tag::seq);
 #endif
 
         DBG << "Starting main refinement loop with #_pq[0]=" << _queues[0].size() << " #_pq[1]=" << _queues[1].size();
 
         while ((!_queues[0].empty() || !_queues[1].empty()) && !_stopping_policy.should_stop(_r_ctx.fm)) {
-#if KASSERT_ASSERTION_ENABLED(ASSERTION_LEVEL_NORMAL)
+#if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
             validate_pqs(p_graph);
 #endif
 
@@ -325,7 +325,7 @@ private:
             p_graph.set_block(u, to);
             current_delta += delta;
             moves.push_back(u);
-#if KASSERT_ASSERTION_ENABLED(ASSERTION_LEVEL_NORMAL)
+#if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
             KASSERT(initial_edge_cut + current_delta == metrics::edge_cut(p_graph, tag::seq), "", assert::heavy);
 #endif
             _stopping_policy.update(-delta); // assumes gain, not loss
@@ -381,7 +381,7 @@ private:
         }
         _marker.reset();
 
-#if KASSERT_ASSERTION_ENABLED(ASSERTION_LEVEL_NORMAL)
+#if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
         KASSERT((!initially_feasible || accepted_delta <= 0)); // only accept bad cuts when starting with bad balance
         KASSERT(metrics::edge_cut(p_graph) == initial_edge_cut + accepted_delta);
 #endif
@@ -411,7 +411,7 @@ private:
             }
         }
 
-#if KASSERT_ASSERTION_ENABLED(ASSERTION_LEVEL_NORMAL)
+#if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
         validate_pqs(p_graph);
 #endif
     }

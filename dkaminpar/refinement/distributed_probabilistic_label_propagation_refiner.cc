@@ -149,7 +149,7 @@ public:
 
 private:
     GlobalNodeID process_chunk(const NodeID from, const NodeID to) {
-#if KASSERT_ASSERTION_ENABLED(ASSERTION_LEVEL_HEAVY)
+#if KASSERT_ENABLED(ASSERTION_LEVEL_HEAVY)
         KASSERT(ASSERT_NEXT_PARTITION_STATE(), "", assert::heavy);
 #endif
 
@@ -213,7 +213,7 @@ private:
         STOP_TIMER(TIMER_DETAIL);
 
         // _next_partition should be in a consistent state at this point
-#if KASSERT_ASSERTION_ENABLED(ASSERTION_LEVEL_HEAVY)
+#if KASSERT_ENABLED(ASSERTION_LEVEL_HEAVY)
         KASSERT(ASSERT_NEXT_PARTITION_STATE(), "", assert::heavy);
 #endif
 
@@ -224,7 +224,7 @@ private:
         const NodeID from, const NodeID to, const std::vector<BlockWeight>& residual_block_weights,
         const std::vector<EdgeWeight>& total_gains_to_block) {
         mpi::barrier(_graph->communicator());
-#if KASSERT_ASSERTION_ENABLED(ASSERTION_LEVEL_HEAVY)
+#if KASSERT_ENABLED(ASSERTION_LEVEL_HEAVY)
         KASSERT(graph::debug::validate_partition(*_p_graph), "", assert::heavy);
 #endif
 
@@ -446,7 +446,7 @@ public:
     }
 
 private:
-#if KASSERT_ASSERTION_ENABLED(ASSERTION_LEVEL_HEAVY)
+#if KASSERT_ENABLED(ASSERTION_LEVEL_HEAVY)
     bool ASSERT_NEXT_PARTITION_STATE() {
         mpi::barrier(_p_graph->communicator());
         for (const NodeID u: _p_graph->nodes()) {
