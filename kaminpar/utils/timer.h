@@ -18,6 +18,8 @@
 
 #include "kaminpar/definitions.h"
 
+#define KAMINPAR_ENABLE_TIMERS
+
 #define GLOBAL_TIMER     (kaminpar::Timer::global())
 #define GLOBAL_TIMER_PTR &(GLOBAL_TIMER)
 #define TIMER_DEFAULT    kaminpar::timer::Type::DEFAULT

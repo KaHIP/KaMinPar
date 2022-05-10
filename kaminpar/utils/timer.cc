@@ -31,7 +31,7 @@ std::string Timer::TimerTreeNode::build_display_name_mr() const {
     std::stringstream ss;
     ss << string_make_machine_readable(name.data());
     if (!description.empty()) {
-        ss << "_" << string_make_machine_readable(description);
+        ss << "[" << string_make_machine_readable(description) << "]";
     }
     return ss.str();
 }
@@ -40,7 +40,7 @@ std::string Timer::TimerTreeNode::build_display_name_hr() const {
     std::stringstream ss;
     ss << name.data();
     if (!description.empty()) {
-        ss << " " << description;
+        ss << " (" << description << ")";
     }
     return ss.str();
 }
