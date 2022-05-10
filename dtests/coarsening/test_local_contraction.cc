@@ -20,7 +20,7 @@ protected:
         DistributedGraphFixture::SetUp();
 
         std::tie(size, rank) = mpi::get_comm_info(MPI_COMM_WORLD);
-        ALWAYS_ASSERT(size == 3) << "must be tested on three PEs";
+        KASSERT(size == 3, "must be tested on three PEs", assert::always);
 
         n0    = 2 * rank;
         graph = dkaminpar::graph::Builder(MPI_COMM_WORLD)
@@ -93,7 +93,7 @@ protected:
         DistributedGraphFixture::SetUp();
 
         const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
-        ALWAYS_ASSERT(size == 3) << "must be tested on three PEs";
+        KASSERT(size == 3, "must be tested on three PEs", assert::always);
 
         n0    = 3 * rank;
         graph = dkaminpar::graph::Builder{MPI_COMM_WORLD}

@@ -165,7 +165,7 @@ endif ()
 add_subdirectory(apps)
 
 # Unit tests
-if (KAMINPAR_TESTS)
+if (KAMINPAR_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
 

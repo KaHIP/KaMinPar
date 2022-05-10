@@ -4,6 +4,7 @@
 #include <vector>
 
 #include <gmock/gmock.h>
+#include <kassert/kassert.hpp>
 #include <omp.h>
 #include <tbb/global_control.h>
 
@@ -46,8 +47,8 @@ namespace graph {
 //! Create a partitioned graph based on block labels of owned nodes
 inline DistributedPartitionedGraph
 make_partitioned_graph(const DistributedGraph& graph, const BlockID k, const std::vector<BlockID>& local_partition) {
-    scalable_vector<parallel::Atomic<BlockID>>     partition(graph.total_n());
-    scalable_vector<BlockWeight> local_block_weights(k);
+    scalable_vector<parallel::Atomic<BlockID>> partition(graph.total_n());
+    scalable_vector<BlockWeight>               local_block_weights(k);
 
     std::copy(local_partition.begin(), local_partition.end(), partition.begin());
     for (const NodeID u: graph.nodes()) {
@@ -56,7 +57,7 @@ make_partitioned_graph(const DistributedGraph& graph, const BlockID k, const std
 
     scalable_vector<BlockWeight> global_block_weights_nonatomic(k);
     mpi::allreduce(local_block_weights.data(), global_block_weights_nonatomic.data(), k, MPI_SUM, MPI_COMM_WORLD);
-    
+
     scalable_vector<parallel::Atomic<BlockWeight>> block_weights(k);
     std::copy(global_block_weights_nonatomic.begin(), global_block_weights_nonatomic.end(), block_weights.begin());
 
@@ -180,7 +181,7 @@ change_node_weights(DistributedGraph graph, const std::vector<std::pair<NodeID, 
     }
 
     for (const auto& [u, weight]: changes) {
-        ALWAYS_ASSERT(u < node_weights.size());
+        KASSERT(u < node_weights.size(), "", assert::always);
         node_weights[u] = weight;
     }
 
@@ -211,7 +212,7 @@ change_node_weights(DistributedGraph graph, const std::vector<std::pair<NodeID, 
  */
 template <typename Container>
 Container distribute_node_info(const DistributedGraph& graph, const Container& global_info) {
-    ASSERT(global_info.size() == graph.global_n());
+    KASSERT(global_info.size() == graph.global_n());
 
     Container local_info(graph.total_n());
     for (const NodeID u: graph.all_nodes()) {
@@ -228,7 +229,7 @@ Container distribute_node_info(const DistributedGraph& graph, const Container& g
  * @return Graph with unique node weights.
  */
 inline DistributedGraph use_pow_global_id_as_node_weights(DistributedGraph graph) {
-    ALWAYS_ASSERT(graph.global_n() <= 31) << "graph is too large: can have at most 30 nodes";
+    KASSERT(graph.global_n() <= 31u, "graph is too large: can have at most 30 nodes", assert::always);
 
     scalable_vector<NodeWeight> new_node_weights(graph.total_n());
     for (const NodeID u: graph.all_nodes()) {
@@ -431,7 +432,7 @@ class DistributedNullGraph : public DistributedGraphFixture {
 protected:
     void SetUp() override {
         DistributedGraphFixture::SetUp();
-        ALWAYS_ASSERT(size == 3) << "must be tested on three PEs";
+        KASSERT(size == 3, "must be tested on three PEs", assert::always);
 
         n0    = 0;
         graph = dkaminpar::graph::Builder{MPI_COMM_WORLD}.initialize({0, 0, 0, 0}).finalize();
@@ -445,7 +446,7 @@ class DistributedGraphWith9NodesAnd0Edges : public DistributedGraphFixture {
 protected:
     void SetUp() override {
         DistributedGraphFixture::SetUp();
-        ALWAYS_ASSERT(size == 3) << "must be tested on three PEs";
+        KASSERT(size == 3, "must be tested on three PEs", assert::always);
 
         n0    = 3 * rank;
         graph = dkaminpar::graph::Builder{MPI_COMM_WORLD}
@@ -464,7 +465,7 @@ class DistributedGraphWith900NodesAnd0Edges : public DistributedGraphFixture {
 protected:
     void SetUp() override {
         DistributedGraphFixture::SetUp();
-        ALWAYS_ASSERT(size == 3) << "must be tested on three PEs";
+        KASSERT(size == 3, "must be tested on three PEs", assert::always);
 
         n0 = 300 * rank;
         dkaminpar::graph::Builder builder{MPI_COMM_WORLD};
@@ -492,7 +493,7 @@ class DistributedTriangles : public DistributedGraphFixture {
 protected:
     void SetUp() override {
         DistributedGraphFixture::SetUp();
-        ALWAYS_ASSERT(size == 3) << "must be tested on three PEs";
+        KASSERT(size == 3, "must be tested on three PEs", assert::always);
 
         n0    = 3 * rank;
         graph = dkaminpar::graph::Builder{MPI_COMM_WORLD}
@@ -522,7 +523,7 @@ class DistributedPathOneNodePerPE : public DistributedGraphFixture {
 protected:
     void SetUp() override {
         DistributedGraphFixture::SetUp();
-        ALWAYS_ASSERT(size == 3) << "must be tested on three PEs";
+        KASSERT(size == 3, "must be tested on three PEs", assert::always);
 
         n0           = rank;
         auto builder = dkaminpar::graph::Builder{MPI_COMM_WORLD}.initialize({0, 1, 2, 3}).create_node(1);
@@ -548,7 +549,7 @@ class DistributedPathTwoNodesPerPE : public DistributedGraphFixture {
 protected:
     void SetUp() override {
         DistributedGraphFixture::SetUp();
-        ALWAYS_ASSERT(size == 3) << "must be tested on three PEs";
+        KASSERT(size == 3, "must be tested on three PEs", assert::always);
 
         n0 = 2 * rank;
         dkaminpar::graph::Builder builder{MPI_COMM_WORLD};
