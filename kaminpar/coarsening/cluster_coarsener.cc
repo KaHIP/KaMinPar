@@ -37,7 +37,7 @@ ClusteringCoarsener::compute_coarse_graph(const NodeWeight max_cluster_weight, c
 
 PartitionedGraph ClusteringCoarsener::uncoarsen(PartitionedGraph&& p_graph) {
     KASSERT(&p_graph.graph() == _current_graph);
-    KASSERT(empty(), V(size()));
+    KASSERT(!empty(), V(size()));
     SCOPED_TIMER("Level", std::to_string(_hierarchy.size()), TIMER_BENCHMARK);
 
     START_TIMER("Allocation");
