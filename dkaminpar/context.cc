@@ -107,6 +107,7 @@ void PartitionContext::setup(const DistributedGraph& graph) {
     _total_n                  = graph.total_n();
     _local_m                  = graph.m();
     _total_node_weight        = graph.total_node_weight();
+    _global_max_node_weight   = graph.global_max_node_weight();
 
     setup_perfectly_balanced_block_weights();
     setup_max_block_weights();
@@ -124,8 +125,11 @@ void PartitionContext::setup_max_block_weights() {
     _max_block_weights.resize(k);
 
     tbb::parallel_for<BlockID>(0, k, [&](const BlockID b) {
-        _max_block_weights[b] =
+        const BlockWeight max_eps_weight =
             static_cast<BlockWeight>((1.0 + epsilon) * static_cast<double>(perfectly_balanced_block_weight(b)));
+        const BlockWeight max_abs_weight = perfectly_balanced_block_weight(b) + _global_max_node_weight;
+
+        _max_block_weights[b] = std::max(max_eps_weight, max_abs_weight);
     });
 }
 

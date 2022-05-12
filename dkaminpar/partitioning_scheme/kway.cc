@@ -134,6 +134,8 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
     ////////////////////////////////////////////////////////////////////////////////
     {
         SCOPED_TIMER("Uncoarsening");
+        auto ref_p_ctx = _ctx.partition;
+        ref_p_ctx.setup(dist_p_graph.graph());
 
         if (mpi::get_comm_rank() == 0) {
             shm::cio::print_banner("Refinement");
@@ -170,6 +172,7 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
             dist_p_graph = TIMED_SCOPE("Uncontraction") {
                 return coarsener.uncoarsen_once(std::move(dist_p_graph));
             };
+            ref_p_ctx.setup(dist_p_graph.graph());
 
             refine(dist_p_graph);
 

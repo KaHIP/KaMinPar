@@ -179,7 +179,7 @@ public:
     [[nodiscard]] inline NodeWeight max_node_weight() const {
         return _max_node_weight;
     }
-    [[nodiscard]] inline GlobalNodeWeight global_max_node_weight() const {
+    [[nodiscard]] inline NodeWeight global_max_node_weight() const {
         return _global_max_node_weight;
     }
 
@@ -463,7 +463,7 @@ private:
     NodeWeight       _total_node_weight{};
     GlobalNodeWeight _global_total_node_weight{};
     NodeWeight       _max_node_weight{};
-    GlobalNodeWeight _global_max_node_weight{};
+    NodeWeight       _global_max_node_weight{};
 
     scalable_vector<GlobalNodeID> _node_distribution{};
     scalable_vector<GlobalEdgeID> _edge_distribution{};

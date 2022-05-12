@@ -223,6 +223,7 @@ private:
     EdgeID           _local_m{kInvalidEdgeID};
     NodeID           _total_n{kInvalidNodeID};
     NodeWeight       _total_node_weight{kInvalidNodeWeight};
+    NodeWeight       _global_max_node_weight{kInvalidNodeWeight};
 
     scalable_vector<BlockWeight> _perfectly_balanced_block_weights{};
     scalable_vector<BlockWeight> _max_block_weights{};
