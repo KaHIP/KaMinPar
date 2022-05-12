@@ -7,6 +7,7 @@
  ******************************************************************************/
 #include "dkaminpar/partitioning_scheme/kway.h"
 
+#include "datastructure/distributed_graph.h"
 #include "dkaminpar/coarsening/coarsener.h"
 #include "dkaminpar/coarsening/global_clustering_contraction.h"
 #include "dkaminpar/distributed_io.h"
@@ -35,6 +36,13 @@ void save_imbalanced_graph_partition(const DistributedPartitionedGraph& p_graph,
     std::vector<BlockID> partition(p_graph.n());
     std::copy_n(p_graph.partition().begin(), p_graph.n(), partition.begin());
     io::partition::write(partition_filename, partition);
+}
+
+void save_coarsest_graph(const DistributedGraph& graph, const Context& ctx, int level) {
+    const std::string filename = shm::utility::str::extract_basename(ctx.graph_filename) + ".seed"
+                                 + std::to_string(ctx.seed) + ".k" + std::to_string(ctx.partition.k) + ".level"
+                                 + std::to_string(level) + ".C.graph";
+    io::metis::write(filename, graph);
 }
 } // namespace
 
@@ -89,6 +97,10 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
         }
     }
 
+    if (_ctx.save_coarsest_graph) {
+        save_coarsest_graph(*graph, _ctx, coarsener.level());
+    }
+
     ////////////////////////////////////////////////////////////////////////////////
     // Step 2: Initial Partitioning
     ////////////////////////////////////////////////////////////////////////////////
@@ -134,7 +146,9 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
         auto refine = [&](DistributedPartitionedGraph& p_graph) {
             {
                 SCOPED_TIMER("Balancing");
-                if (metrics::imbalance(p_graph) > _ctx.partition.epsilon) {
+                const bool feasible = metrics::is_feasible(p_graph, _ctx.partition);
+                if (!feasible) {
+                    LOG << "-> Balancing infeasible partition (imbalance=" << metrics::imbalance(p_graph) << ") ...";
                     DistributedBalancer balancer(_ctx);
                     balancer.initialize(p_graph);
                     balancer.balance(p_graph, _ctx.partition);
@@ -142,6 +156,7 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
             }
             {
                 SCOPED_TIMER("Refinement");
+                LOG << "-> Refining partition ...";
                 refinement_algorithm->initialize(p_graph.graph(), _ctx.partition);
                 refinement_algorithm->refine(p_graph);
                 KASSERT(graph::debug::validate_partition(p_graph), "", assert::heavy);

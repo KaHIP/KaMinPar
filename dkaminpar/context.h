@@ -235,6 +235,7 @@ struct Context {
     bool        quiet{};
 
     bool save_imbalanced_partitions;
+    bool save_coarsest_graph;
 
     PartitionContext           partition;
     ParallelContext            parallel;

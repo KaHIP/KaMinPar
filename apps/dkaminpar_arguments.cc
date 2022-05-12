@@ -119,6 +119,7 @@ void create_miscellaneous_context_options(
       .argument("quiet", "Do not produce any output to stdout.", &ctx.quiet, 'q')
       .argument("edge-balanced", "Read input graph such that edges are distributed evenly across PEs.", &ctx.load_edge_balanced, 'E')
       .argument("save-imbalanced-partitions", "Automatically save any imbalanced graph partition (+ the coarse graph)", &ctx.save_imbalanced_partitions)
+      .argument("save-coarsest-graph", "Save the coarsest graph", &ctx.save_coarsest_graph)
       ;
     // clang-format on
 }
