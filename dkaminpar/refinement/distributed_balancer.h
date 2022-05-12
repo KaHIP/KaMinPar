@@ -7,6 +7,7 @@
  ******************************************************************************/
 #pragma once
 
+#include "definitions.h"
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructure/distributed_graph.h"
 #include "kaminpar/datastructure/binary_heap.h"
@@ -15,7 +16,28 @@
 
 namespace dkaminpar {
 class DistributedBalancer {
+    SET_STATISTICS_FROM_GLOBAL();
     SET_DEBUG(false);
+    constexpr static std::size_t kPrintStatsEveryNRounds = 100'000;
+
+    struct Statistics {
+        bool         initial_feasible              = false;
+        bool         final_feasible                = false;
+        BlockID      initial_num_imbalanced_blocks = 0;
+        BlockID      final_num_imbalanced_blocks   = 0;
+        double       initial_imbalance             = 0;
+        double       final_imbalance               = 0;
+        BlockWeight  initial_total_overload        = 0;
+        BlockWeight  final_total_overload          = 0;
+        GlobalNodeID num_adjacent_moves            = 0;
+        GlobalNodeID num_nonadjacent_moves         = 0;
+        GlobalNodeID local_num_conflicts           = 0;
+        GlobalNodeID local_num_nonconflicts        = 0;
+        int          num_reduction_rounds          = 0;
+
+        GlobalEdgeWeight initial_cut = 0;
+        GlobalEdgeWeight final_cut   = 0;
+    };
 
 public:
     DistributedBalancer(const Context& ctx);
@@ -56,6 +78,9 @@ private:
     bool add_to_pq(BlockID b, NodeID u);
     bool add_to_pq(BlockID b, NodeID u, NodeWeight u_weight, double rel_gain);
 
+    void reset_statistics();
+    void print_statistics() const;
+
     const Context& _ctx;
 
     DistributedPartitionedGraph* _p_graph;
@@ -67,6 +92,7 @@ private:
     }};
     std::vector<BlockWeight>                                            _pq_weight;
     shm::Marker<>                                                       _marker;
+
+    Statistics _stats;
 };
 }; // namespace dkaminpar
-

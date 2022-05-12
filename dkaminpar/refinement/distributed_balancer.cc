@@ -9,6 +9,7 @@
 
 #include "dkaminpar/mpi_graph.h"
 #include "dkaminpar/mpi_wrapper.h"
+#include "dkaminpar/utils/metrics.h"
 #include "kaminpar/utils/math.h"
 #include "kaminpar/utils/random.h"
 #include "kaminpar/utils/timer.h"
@@ -23,6 +24,12 @@ DistributedBalancer::DistributedBalancer(const Context& ctx)
 void DistributedBalancer::initialize(const DistributedPartitionedGraph&) {}
 
 void DistributedBalancer::balance(DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx) {
+    IFSTATS(reset_statistics());
+    IFSTATS(_stats.initial_feasible = metrics::is_feasible(p_graph, p_ctx));
+    IFSTATS(_stats.initial_cut = metrics::edge_cut(p_graph));
+    IFSTATS(_stats.initial_imbalance = metrics::imbalance(p_graph));
+    IFSTATS(_stats.initial_num_imbalanced_blocks = metrics::num_imbalanced_blocks(p_graph, p_ctx));
+
     const int rank = mpi::get_comm_rank(p_graph.communicator());
 
     _p_graph = &p_graph;
@@ -32,23 +39,36 @@ void DistributedBalancer::balance(DistributedPartitionedGraph& p_graph, const Pa
     init_pq();
     STOP_TIMER();
 
-    while (true) {
+    for (std::size_t round = 0;; round++) {
+        // if balancing takes a very long time, we print statistics periodically
+        IFSTATS(++_stats.num_reduction_rounds);
+        if constexpr (kStatistics) {
+            if (round == kPrintStatsEveryNRounds) {
+                print_statistics();
+                round = 0;
+            }
+        }
+
         // pick best move candidates for each block
         START_TIMER("Pick candidates");
         auto candidates = pick_move_candidates();
-        // print_candidates(candidates);
         STOP_TIMER();
 
         START_TIMER("Reudce");
         candidates = reduce_move_candidates(std::move(candidates));
         STOP_TIMER();
 
-        // print_candidates(candidates);
-
         START_TIMER("Perform moves on root");
         if (rank == 0) {
             // move nodes that already have a target block
-            perform_moves(candidates);
+            for (const auto& move: candidates) {
+                if (move.from != move.to) {
+                    IFSTATS(++_stats.num_adjacent_moves);
+                    perform_move(move);
+                } else {
+                    IFSTATS(++_stats.num_nonadjacent_moves);
+                }
+            }
 
             // move nodes that do not have a target block
             BlockID cur = 0;
@@ -90,6 +110,12 @@ void DistributedBalancer::balance(DistributedPartitionedGraph& p_graph, const Pa
             break;
         }
     }
+
+    IFSTATS(_stats.final_feasible = metrics::is_feasible(p_graph, p_ctx));
+    IFSTATS(_stats.final_cut = metrics::edge_cut(p_graph));
+    IFSTATS(_stats.final_imbalance = metrics::imbalance(p_graph));
+    IFSTATS(_stats.final_num_imbalanced_blocks = metrics::num_imbalanced_blocks(p_graph, p_ctx));
+    IFSTATS(print_statistics());
 }
 
 void DistributedBalancer::print_candidates(const std::vector<MoveCandidate>& moves, const std::string& desc) const {
@@ -122,8 +148,6 @@ void DistributedBalancer::perform_move(const MoveCandidate& move) {
         KASSERT(mpi::get_comm_rank(_p_graph->communicator()) == 0);
         return;
     }
-
-    // LOG << V(node) << V(from) << V(to) << V(weight) << V(rel_gain);
 
     if (_p_graph->contains_global_node(node)) {
         const NodeID u = _p_graph->global_to_local_node(node);
@@ -305,9 +329,11 @@ auto DistributedBalancer::pick_move_candidates() -> std::vector<MoveCandidate> {
             if (relative_gain == actual_relative_gain) {
                 MoveCandidate candidate{_p_graph->local_to_global_node(u), from, to, u_weight, actual_relative_gain};
                 candidates.push_back(candidate);
+                IFSTATS(++_stats.local_num_nonconflicts);
             } else {
                 add_to_pq(from, u, u_weight, actual_relative_gain);
                 --num; // retry
+                IFSTATS(++_stats.local_num_conflicts);
             }
         }
 
@@ -462,5 +488,33 @@ bool DistributedBalancer::add_to_pq(const BlockID b, const NodeID u, const NodeW
     }
 
     return false;
+}
+
+void DistributedBalancer::reset_statistics() {
+    _stats = {};
+}
+
+void DistributedBalancer::print_statistics() const {
+    const GlobalNodeID global_num_conflicts =
+        mpi::allreduce(_stats.local_num_conflicts, MPI_SUM, _p_graph->communicator());
+    const GlobalNodeID global_num_nonconflicts =
+        mpi::allreduce(_stats.local_num_nonconflicts, MPI_SUM, _p_graph->communicator());
+
+    STATS << "DistributedBalancer:";
+    STATS << "  * Feasible changed: " << C(_stats.initial_feasible, _stats.final_feasible);
+    STATS << "  * Number of rounds: " << _stats.num_reduction_rounds;
+    STATS << "  * Change in number of imbalanced blocks: "
+          << C(_stats.initial_num_imbalanced_blocks, _stats.final_num_imbalanced_blocks) << " = by "
+          << _stats.initial_num_imbalanced_blocks - _stats.final_num_imbalanced_blocks;
+    STATS << "  * Change in edge cut: " << C(_stats.initial_cut, _stats.final_cut) << " = by "
+          << _stats.initial_cut - _stats.final_cut;
+    STATS << "  * Change in total overload: " << C(_stats.initial_total_overload, _stats.final_total_overload)
+          << " = by " << _stats.initial_total_overload - _stats.final_total_overload;
+    STATS << "  * Number of moved nodes: " << _stats.num_adjacent_moves + _stats.num_nonadjacent_moves;
+    STATS << "    # of moves to adjacent blocks: " << _stats.num_adjacent_moves;
+    STATS << "    # of moves to nonadjacent blocks: " << _stats.num_nonadjacent_moves;
+    STATS << "    # of conflicts: " << global_num_conflicts
+          << " (= " << 100.0 * global_num_conflicts / (global_num_conflicts + global_num_nonconflicts)
+          << "% of selected nodes)";
 }
 } // namespace dkaminpar

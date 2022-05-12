@@ -45,4 +45,12 @@ double imbalance(const DistributedPartitionedGraph& p_graph);
  * @return Whether @p p_graph satisfies the balance constraint given by @p p_ctx.
  */
 bool is_feasible(const DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx);
+
+/*!
+ * Counts the number of imbalanced blocks.
+ * @param p_graph Partitioned graph.
+ * @param p_ctx Partition context describing the maximum block weights.
+ * @return The number of imbalanced blocks in the graph.
+ */
+BlockID num_imbalanced_blocks(const DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx);
 } // namespace dkaminpar::metrics

@@ -9,6 +9,8 @@
 
 #include <tbb/enumerable_thread_specific.h>
 
+#include "context.h"
+#include "datastructure/distributed_graph.h"
 #include "dkaminpar/mpi_wrapper.h"
 
 namespace dkaminpar::metrics {
@@ -52,5 +54,17 @@ double imbalance(const DistributedPartitionedGraph& p_graph) {
 
 bool is_feasible(const DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx) {
     return imbalance(p_graph) < p_ctx.epsilon;
+}
+
+BlockID num_imbalanced_blocks(const DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx) {
+    BlockID local_num_imbalanced_blocks = 0;
+
+    for (const BlockID b: p_graph.blocks()) {
+        if (p_graph.block_weight(b) > p_ctx.max_block_weight(b)) {
+            ++local_num_imbalanced_blocks;
+        }
+    }
+
+    return mpi::allreduce(local_num_imbalanced_blocks, MPI_SUM, p_graph.communicator());
 }
 } // namespace dkaminpar::metrics
