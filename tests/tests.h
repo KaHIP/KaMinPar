@@ -174,7 +174,7 @@ Graph merge_graphs(std::initializer_list<Graph*> graphs, const bool connect_grap
 
     NodeID offset = 0;
     for (const Graph* graph: graphs) {
-        KASSERT(graph->n() > 0);
+        KASSERT(graph->n() > 0u);
         builder.new_node(graph->node_weight(0));
 
         if (connect_graphs) {
@@ -183,7 +183,7 @@ Graph merge_graphs(std::initializer_list<Graph*> graphs, const bool connect_grap
                 if (other_graph == graph) {
                     continue;
                 }
-                KASSERT(other_graph->n() > 0);
+                KASSERT(other_graph->n() > 0u);
                 builder.new_edge(first_node_in_other_graph);
                 first_node_in_other_graph += other_graph->n();
             }
