@@ -29,7 +29,6 @@ void DistributedBalancer::balance(DistributedPartitionedGraph& p_graph, const Pa
     IFSTATS(_stats.initial_cut = metrics::edge_cut(p_graph));
     IFSTATS(_stats.initial_imbalance = metrics::imbalance(p_graph));
     IFSTATS(_stats.initial_num_imbalanced_blocks = metrics::num_imbalanced_blocks(p_graph, p_ctx));
-
     const int rank = mpi::get_comm_rank(p_graph.communicator());
 
     _p_graph = &p_graph;

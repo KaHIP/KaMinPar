@@ -100,14 +100,15 @@ void ParallelContext::print(std::ostream& out, const std::string& prefix) const 
 }
 
 void PartitionContext::setup(const DistributedGraph& graph) {
-    _global_n                 = graph.global_n();
-    _global_m                 = graph.global_m();
-    _global_total_node_weight = mpi::allreduce(graph.total_node_weight(), MPI_SUM, graph.communicator());
-    _local_n                  = graph.n();
-    _total_n                  = graph.total_n();
-    _local_m                  = graph.m();
-    _total_node_weight        = graph.total_node_weight();
-    _global_max_node_weight   = graph.global_max_node_weight();
+    _global_n = graph.global_n();
+    _global_m = graph.global_m();
+    _global_total_node_weight =
+        mpi::allreduce<GlobalNodeWeight>(graph.total_node_weight(), MPI_SUM, graph.communicator());
+    _local_n                = graph.n();
+    _total_n                = graph.total_n();
+    _local_m                = graph.m();
+    _total_node_weight      = graph.total_node_weight();
+    _global_max_node_weight = graph.global_max_node_weight();
 
     setup_perfectly_balanced_block_weights();
     setup_max_block_weights();

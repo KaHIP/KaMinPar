@@ -150,7 +150,9 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
                 SCOPED_TIMER("Balancing");
                 const bool feasible = metrics::is_feasible(p_graph, _ctx.partition);
                 if (!feasible) {
-                    LOG << "-> Balancing infeasible partition (imbalance=" << metrics::imbalance(p_graph) << ") ...";
+                    const double imbalance = metrics::imbalance(p_graph);
+                    LOG << "-> Balancing infeasible partition (imbalance=" << imbalance << ") ...";
+
                     DistributedBalancer balancer(_ctx);
                     balancer.initialize(p_graph);
                     balancer.balance(p_graph, _ctx.partition);
