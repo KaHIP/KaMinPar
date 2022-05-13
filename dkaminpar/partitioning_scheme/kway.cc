@@ -65,7 +65,7 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
     {
         SCOPED_TIMER("Coarsening");
 
-        while (graph->global_n() > _ctx.partition.k * _ctx.coarsening.contraction_limit) {
+        while (graph->global_n() > _ctx.parallel.num_threads * _ctx.partition.k * _ctx.coarsening.contraction_limit) {
             SCOPED_TIMER("Coarsening", std::string("Level ") + std::to_string(coarsener.level()));
             const GlobalNodeWeight max_cluster_weight = coarsener.max_cluster_weight();
 
