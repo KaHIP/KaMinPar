@@ -33,7 +33,8 @@ class DistributedLocalLabelPropagationClusteringImpl final
 public:
     DistributedLocalLabelPropagationClusteringImpl(const NodeID max_n, const CoarseningContext& c_ctx)
         : ClusterBase{max_n},
-          ClusterWeightBase{max_n} {
+          ClusterWeightBase{max_n},
+          _ignore_ghost_nodes(c_ctx.local_lp.ignore_ghost_nodes) {
         allocate(max_n);
         set_max_num_iterations(c_ctx.local_lp.num_iterations);
         set_max_degree(c_ctx.local_lp.large_degree_threshold);
@@ -43,6 +44,11 @@ public:
     const auto& compute_clustering(const DistributedGraph& graph, const GlobalNodeWeight max_cluster_weight) {
         initialize(&graph, graph.n());
         _max_cluster_weight = max_cluster_weight;
+
+        // initialize ghost nodes
+        if (!_ignore_ghost_nodes) {
+            init_ghost_nodes();
+        }
 
         DBG << "Computing clustering on graph with " << graph.global_n() << " nodes (local: " << graph.n()
             << ", ghost: " << graph.ghost_n() << "), max cluster weight " << _max_cluster_weight << ", and at most "
@@ -56,11 +62,28 @@ public:
         }
         DBG << "Converged / stopped after " << iteration << " iterations";
 
+        // dissolve all clusters owned by ghost nodes
+        if (!_ignore_ghost_nodes) {
+            graph.pfor_nodes([&](const NodeID u) {
+                if (_graph->is_ghost_node(cluster(u))) {
+                    move_node(u, u);
+                }
+            });
+        }
+
         return clusters();
     }
 
     void set_max_num_iterations(const std::size_t max_num_iterations) {
         _max_num_iterations = (max_num_iterations == 0) ? std::numeric_limits<std::size_t>::max() : max_num_iterations;
+    }
+
+    void init_ghost_nodes() {
+        tbb::parallel_for(_graph->n(), _graph->total_n(), [&](const NodeID ghost) {
+            const ClusterID cluster = initial_cluster(ghost);
+            init_cluster(ghost, cluster);
+            init_cluster_weight(ghost, initial_cluster_weight(cluster));
+        });
     }
 
     //
@@ -87,7 +110,7 @@ public:
     }
 
     [[nodiscard]] bool accept_neighbor(const NodeID u) {
-        return _graph->is_owned_node(u);
+        return _ignore_ghost_nodes ? _graph->is_owned_node(u) : true;
     }
 
     [[nodiscard]] bool activate_neighbor(const NodeID u) {
@@ -97,6 +120,7 @@ public:
     using Base::_graph;
     NodeWeight  _max_cluster_weight;
     std::size_t _max_num_iterations;
+    bool        _ignore_ghost_nodes;
 };
 
 //
@@ -104,8 +128,9 @@ public:
 //
 
 DistributedLocalLabelPropagationClustering::DistributedLocalLabelPropagationClustering(const Context& ctx)
-    : _impl{std::make_unique<DistributedLocalLabelPropagationClusteringImpl>(ctx.partition.local_n(), ctx.coarsening)} {
-}
+    : _impl{std::make_unique<DistributedLocalLabelPropagationClusteringImpl>(
+        ctx.coarsening.local_lp.ignore_ghost_nodes ? ctx.partition.local_n() : ctx.partition.total_n(),
+        ctx.coarsening)} {}
 
 DistributedLocalLabelPropagationClustering::~DistributedLocalLabelPropagationClustering() = default;
 

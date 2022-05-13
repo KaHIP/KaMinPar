@@ -60,7 +60,8 @@ void LabelPropagationCoarseningContext::print(std::ostream& out, const std::stri
         << prefix << "merge_nonadjacent_clusters_threshold=" << merge_nonadjacent_clusters_threshold << " " //
         << prefix << "total_num_chunks=" << total_num_chunks << " "                                         //
         << prefix << "num_chunks=" << num_chunks << " "                                                     //
-        << prefix << "min_num_chunks=" << min_num_chunks << " ";                                            //
+        << prefix << "min_num_chunks=" << min_num_chunks << " "                                             //
+        << prefix << "ignore_ghost_nodes=" << ignore_ghost_nodes << " ";                                    //
 }
 
 void LabelPropagationRefinementContext::print(std::ostream& out, const std::string& prefix) const {
@@ -198,6 +199,7 @@ Context create_default_context() {
         .total_num_chunks = 128,
         .num_chunks = 0,
         .min_num_chunks = 8,
+        .ignore_ghost_nodes = false, // unused
       },
       .max_local_clustering_levels = 1,
       .local_clustering_algorithm = LocalClusteringAlgorithm::LP,
@@ -210,6 +212,7 @@ Context create_default_context() {
         .total_num_chunks = 0, // unused
         .num_chunks = 0, // unused
         .min_num_chunks = 0, // unused
+        .ignore_ghost_nodes = false,
       },
       .contraction_limit = 5000,
       .cluster_weight_limit = shm::ClusterWeightLimit::EPSILON_BLOCK_WEIGHT,
