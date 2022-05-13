@@ -500,11 +500,16 @@ public:
     using BlockID          = ::dkaminpar::BlockID;
     using BlockWeight      = ::dkaminpar::BlockWeight;
 
-    using block_weights_vector = scalable_vector<shm::parallel::Atomic<BlockWeight>>;
+    using Partition    = scalable_vector<Atomic<BlockID>>;
+    using BlockWeights = scalable_vector<Atomic<BlockWeight>>;
+
+    DistributedPartitionedGraph(const DistributedGraph* graph, const BlockID k, Partition partition)
+        : DistributedPartitionedGraph(graph, k, std::move(partition), BlockWeights(k)) {
+        init_block_weights();
+    }
 
     DistributedPartitionedGraph(
-        const DistributedGraph* graph, const BlockID k, scalable_vector<Atomic<BlockID>> partition,
-        block_weights_vector block_weights)
+        const DistributedGraph* graph, const BlockID k, Partition partition, BlockWeights block_weights)
         : _graph{graph},
           _k{k},
           _partition{std::move(partition)},
@@ -521,8 +526,7 @@ public:
     }
 
     DistributedPartitionedGraph(const DistributedGraph* graph, const BlockID k)
-        : DistributedPartitionedGraph(
-            graph, k, scalable_vector<Atomic<BlockID>>(graph->total_n()), block_weights_vector(graph->total_n())) {}
+        : DistributedPartitionedGraph(graph, k, Partition(graph->total_n()), BlockWeights(k)) {}
 
     DistributedPartitionedGraph() : _graph{nullptr}, _k{0}, _partition{} {}
 
@@ -665,10 +669,12 @@ public:
     }
 
 private:
-    const DistributedGraph*              _graph;
-    BlockID                              _k;
-    scalable_vector<Atomic<BlockID>>     _partition;
-    scalable_vector<Atomic<BlockWeight>> _block_weights;
+    void init_block_weights();
+
+    const DistributedGraph* _graph;
+    BlockID                 _k;
+    Partition               _partition;
+    BlockWeights            _block_weights;
 };
 
 namespace graph {

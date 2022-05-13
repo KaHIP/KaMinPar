@@ -2,18 +2,18 @@
  * @file:   distributed_locking_label_propagation.h
  *
  * @author: Daniel Seemaier
- * @date:   01.10.21
+ * @date:   01.10.2021
  * @brief:
  ******************************************************************************/
 #pragma once
 
-#include "dkaminpar/coarsening/i_clustering.h"
+#include "dkaminpar/coarsening/i_clustering_algorithm.h"
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/definitions.h"
 
 namespace dkaminpar {
-class LockingLabelPropagationClustering : public ClusteringAlgorithm {
+class LockingLabelPropagationClustering : public ClusteringAlgorithm<GlobalNodeID> {
 public:
     explicit LockingLabelPropagationClustering(const Context& ctx);
     ~LockingLabelPropagationClustering();

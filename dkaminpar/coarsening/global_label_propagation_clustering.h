@@ -10,12 +10,12 @@
  ******************************************************************************/
 #pragma once
 
-#include "dkaminpar/coarsening/i_clustering.h"
+#include "dkaminpar/coarsening/i_clustering_algorithm.h"
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructure/distributed_graph.h"
 
 namespace dkaminpar {
-class DistributedGlobalLabelPropagationClustering : public ClusteringAlgorithm {
+class DistributedGlobalLabelPropagationClustering : public ClusteringAlgorithm<GlobalNodeID> {
 public:
     DistributedGlobalLabelPropagationClustering(const Context& ctx);
 

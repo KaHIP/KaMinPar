@@ -8,14 +8,14 @@
  ******************************************************************************/
 #pragma once
 
-#include "dkaminpar/coarsening/i_clustering.h"
+#include "dkaminpar/coarsening/i_clustering_algorithm.h"
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructure/distributed_graph.h"
 
 namespace dkaminpar {
-class DistributedLocalLabelPropagationClustering : public ClusteringAlgorithm {
+class DistributedLocalLabelPropagationClustering : public ClusteringAlgorithm<NodeID> {
 public:
-    DistributedLocalLabelPropagationClustering(NodeID max_n, const CoarseningContext& c_ctx);
+    DistributedLocalLabelPropagationClustering(const Context& ctx);
 
     DistributedLocalLabelPropagationClustering(const DistributedLocalLabelPropagationClustering&) = delete;
     DistributedLocalLabelPropagationClustering& operator=(const DistributedLocalLabelPropagationClustering&) = delete;

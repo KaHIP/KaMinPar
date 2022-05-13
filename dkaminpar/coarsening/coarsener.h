@@ -10,7 +10,7 @@
 #include <vector>
 
 #include "dkaminpar/coarsening/global_clustering_contraction.h"
-#include "dkaminpar/coarsening/i_clustering.h"
+#include "dkaminpar/coarsening/i_clustering_algorithm.h"
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructure/distributed_graph.h"
 
@@ -21,7 +21,7 @@ public:
 
     const DistributedGraph* coarsen_once();
 
-    const DistributedGraph* coarsen_once(const GlobalNodeWeight max_cluster_weight);
+    const DistributedGraph* coarsen_once(GlobalNodeWeight max_cluster_weight);
 
     DistributedPartitionedGraph uncoarsen_once(DistributedPartitionedGraph&& p_graph);
 
@@ -30,14 +30,26 @@ public:
     std::size_t             level() const;
 
 private:
+    const DistributedGraph* coarsen_once_local(GlobalNodeWeight max_cluster_weight);
+    const DistributedGraph* coarsen_once_global(GlobalNodeWeight max_cluster_weight);
+
+    DistributedPartitionedGraph uncoarsen_once_local(DistributedPartitionedGraph&& p_graph);
+    DistributedPartitionedGraph uncoarsen_once_global(DistributedPartitionedGraph&& p_graph);
+
     const DistributedGraph* nth_coarsest(std::size_t n) const;
+
+    bool has_converged(const DistributedGraph& before, const DistributedGraph& after) const;
 
     const DistributedGraph& _input_graph;
     const Context&          _input_ctx;
 
-    std::unique_ptr<ClusteringAlgorithm> _clustering_algorithm;
+    std::unique_ptr<ClusteringAlgorithm<GlobalNodeID>> _global_clustering_algorithm;
+    std::unique_ptr<ClusteringAlgorithm<NodeID>>       _local_clustering_algorithm;
 
     std::vector<DistributedGraph>          _graph_hierarchy;
-    std::vector<coarsening::GlobalMapping> _mapping_hierarchy;
+    std::vector<coarsening::GlobalMapping> _global_mapping_hierarchy; //< produced by global clustering algorithm
+    std::vector<scalable_vector<NodeID>>   _local_mapping_hierarchy;  //< produced by local clustering_algorithm
+
+    bool _local_clustering_converged = false;
 };
 } // namespace dkaminpar

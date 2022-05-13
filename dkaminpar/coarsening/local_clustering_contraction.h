@@ -7,8 +7,8 @@
  ******************************************************************************/
 #pragma once
 
-#include "../../kaminpar/datastructure/ts_navigable_linked_list.h"
-#include "../datastructure/distributed_graph.h"
+#include "dkaminpar/datastructure/distributed_graph.h"
+#include "kaminpar/datastructure/ts_navigable_linked_list.h"
 
 namespace dkaminpar::coarsening {
 namespace contraction {
@@ -32,6 +32,6 @@ struct Result {
 } // namespace contraction
 
 contraction::Result contract_local_clustering(
-    const DistributedGraph& graph, const scalable_vector<shm::parallel::Atomic<NodeID>>& clustering,
+    const DistributedGraph& graph, const scalable_vector<Atomic<NodeID>>& clustering,
     contraction::MemoryContext m_ctx = {});
 } // namespace dkaminpar::coarsening

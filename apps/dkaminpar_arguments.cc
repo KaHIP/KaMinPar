@@ -52,10 +52,11 @@ void create_coarsening_options(
     // clang-format off
   args.group(name, prefix)
       .argument(prefix + "-contraction-limit", "Contraction limit", &c_ctx.contraction_limit)
-      .argument(prefix + "-use-local-coarsening", "Enable local coarsening before global coarsening.", &c_ctx.use_local_clustering)
-      .argument(prefix + "-use-global-coarsening", "Enable global coarsening after local coarsening.", &c_ctx.use_global_clustering)
+      .argument(prefix + "-max-local-levels", "Maximum number of local clustering levels.", &c_ctx.max_local_clustering_levels)
+      .argument(prefix + "-max-global-levels", "Maximum number of global clustering levels.", &c_ctx.max_global_clustering_levels)
       .argument(prefix + "-global-clustering-algorithm", "Clustering algorithm, possible values: {"s + global_clustering_algorithm_names() + "}.", &c_ctx.global_clustering_algorithm, global_clustering_algorithm_from_string)
       .argument(prefix + "-global-contraction-algorithm", "Contraction algorithm, possible values: {"s + global_contraction_algorithm_names() + "}.", &c_ctx.global_contraction_algorithm, global_contraction_algorithm_from_string)
+      .argument(prefix + "-local-clustering-algorithm", "Local clustering algorithm, possible values: {"s + local_clustering_algorithm_names() + "}.", &c_ctx.local_clustering_algorithm, local_clustering_algorithm_from_string)
       .argument(prefix + "-cluster-weight-limit", "Function to compute the cluster weight limit, possible values: {"s + shm::cluster_weight_limit_names() + "}.", &c_ctx.cluster_weight_limit, shm::cluster_weight_limit_from_string)
       .argument(prefix + "-cluster-weight-multiplier", "Multiplier for the cluster weight limit.", &c_ctx.cluster_weight_multiplier)
       ;

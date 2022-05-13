@@ -21,14 +21,14 @@ struct DistributedLocalLabelPropagationClusteringConfig : public shm::LabelPropa
 class DistributedLocalLabelPropagationClusteringImpl final
     : public shm::ChunkRandomizedLabelPropagation<
           DistributedLocalLabelPropagationClusteringImpl, DistributedLocalLabelPropagationClusteringConfig>,
-      public shm::OwnedClusterVector<NodeID, GlobalNodeID>,
-      public shm::OwnedRelaxedClusterWeightVector<GlobalNodeID, NodeWeight> {
+      public shm::OwnedClusterVector<NodeID, NodeID>,
+      public shm::OwnedRelaxedClusterWeightVector<NodeID, NodeWeight> {
     SET_DEBUG(true);
 
     using Base = shm::ChunkRandomizedLabelPropagation<
         DistributedLocalLabelPropagationClusteringImpl, DistributedLocalLabelPropagationClusteringConfig>;
-    using ClusterBase       = shm::OwnedClusterVector<NodeID, GlobalNodeID>;
-    using ClusterWeightBase = shm::OwnedRelaxedClusterWeightVector<GlobalNodeID, NodeWeight>;
+    using ClusterBase       = shm::OwnedClusterVector<NodeID, NodeID>;
+    using ClusterWeightBase = shm::OwnedRelaxedClusterWeightVector<NodeID, NodeWeight>;
 
     static constexpr auto kInfiniteIterations = std::numeric_limits<std::size_t>::max();
 
@@ -101,9 +101,9 @@ public:
 // Interface
 //
 
-DistributedLocalLabelPropagationClustering::DistributedLocalLabelPropagationClustering(
-    const NodeID max_n, const CoarseningContext& c_ctx)
-    : _impl{std::make_unique<DistributedLocalLabelPropagationClusteringImpl>(max_n, c_ctx)} {}
+DistributedLocalLabelPropagationClustering::DistributedLocalLabelPropagationClustering(const Context& ctx)
+    : _impl{std::make_unique<DistributedLocalLabelPropagationClusteringImpl>(ctx.partition.local_n(), ctx.coarsening)} {
+}
 
 DistributedLocalLabelPropagationClustering::~DistributedLocalLabelPropagationClustering() = default;
 

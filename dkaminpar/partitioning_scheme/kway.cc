@@ -109,7 +109,7 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
     }
 
     auto initial_partitioner = TIMED_SCOPE("Allocation") {
-        return factory::create_initial_partitioner(_ctx);
+        return factory::create_initial_partitioning_algorithm(_ctx);
     };
 
     START_TIMER("Initial Partitioning");
@@ -142,7 +142,7 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
         }
 
         auto refinement_algorithm = TIMED_SCOPE("Allocation") {
-            return factory::create_distributed_refiner(_ctx);
+            return factory::create_refinement_algorithm(_ctx);
         };
 
         auto refine = [&](DistributedPartitionedGraph& p_graph) {

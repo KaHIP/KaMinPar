@@ -10,6 +10,7 @@
 #include <tbb/parallel_for.h>
 
 #include "dkaminpar/mpi_wrapper.h"
+#include "utils/enum_string_conversion.h"
 
 namespace dkaminpar {
 using namespace std::string_literals;
@@ -22,8 +23,13 @@ DEFINE_ENUM_STRING_CONVERSION(PartitioningMode, partitioning_mode) = {
 
 DEFINE_ENUM_STRING_CONVERSION(GlobalClusteringAlgorithm, global_clustering_algorithm) = {
     {GlobalClusteringAlgorithm::NOOP, "noop"},
-    {GlobalClusteringAlgorithm::GLOBAL_LP, "global-lp"},
-    {GlobalClusteringAlgorithm::REQUEST_LP, "request-lp"},
+    {GlobalClusteringAlgorithm::LP, "lp"},
+    {GlobalClusteringAlgorithm::LOCKING_LP, "locking-lp"},
+};
+
+DEFINE_ENUM_STRING_CONVERSION(LocalClusteringAlgorithm, local_clustering_algorithm) = {
+    {LocalClusteringAlgorithm::NOOP, "noop"},
+    {LocalClusteringAlgorithm::LP, "lp"},
 };
 
 DEFINE_ENUM_STRING_CONVERSION(GlobalContractionAlgorithm, global_contraction_algorithm) = {
@@ -66,10 +72,11 @@ void LabelPropagationRefinementContext::print(std::ostream& out, const std::stri
 }
 
 void CoarseningContext::print(std::ostream& out, const std::string& prefix) const {
-    out << prefix << "use_local_clustering" << use_local_clustering << " "                  //
-        << prefix << "use_global_clustering=" << use_global_clustering << " "               //
+    out << prefix << "max_global_clustering_levels=" << max_global_clustering_levels << " " //
         << prefix << "global_clustering_algorithm=" << global_clustering_algorithm << " "   //
         << prefix << "global_contraction_algorithm=" << global_contraction_algorithm << " " //
+        << prefix << "max_local_clustering_levels=" << max_local_clustering_levels << " "   //
+        << prefix << "local_clustering_algorithm=" << local_clustering_algorithm << " "     //
         << prefix << "contraction_limit=" << contraction_limit << " "                       //
         << prefix << "cluster_weight_limit=" << cluster_weight_limit << " "                 //
         << prefix << "cluster_weight_multiplier=" << cluster_weight_multiplier << " ";      //
@@ -179,21 +186,9 @@ Context create_default_context() {
       .mpi_thread_support = MPI_THREAD_FUNNELED,
     },
     .coarsening = {
-      .use_local_clustering = false,
-      .use_global_clustering = true,
-      .global_clustering_algorithm = GlobalClusteringAlgorithm::GLOBAL_LP,
+      .max_global_clustering_levels = std::numeric_limits<std::size_t>::max(), 
+      .global_clustering_algorithm = GlobalClusteringAlgorithm::LP,
       .global_contraction_algorithm = GlobalContractionAlgorithm::MINIMAL_MIGRATION,
-      .contraction_limit = 5000,
-      .local_lp = {
-        .num_iterations = 1,
-        .large_degree_threshold = 1'000'000,
-        .max_num_neighbors = kInvalidNodeID,
-        .merge_singleton_clusters = true,
-        .merge_nonadjacent_clusters_threshold = 0.5,
-        .total_num_chunks = 0, // unused
-        .num_chunks = 0, // unused
-        .min_num_chunks = 0, // unused
-      },
       .global_lp = {
         .num_iterations = 5,
         .large_degree_threshold = 1'000'000,
@@ -204,6 +199,19 @@ Context create_default_context() {
         .num_chunks = 0,
         .min_num_chunks = 8,
       },
+      .max_local_clustering_levels = 1,
+      .local_clustering_algorithm = LocalClusteringAlgorithm::LP,
+      .local_lp = {
+        .num_iterations = 5,
+        .large_degree_threshold = 1'000'000,
+        .max_num_neighbors = kInvalidNodeID,
+        .merge_singleton_clusters = true,
+        .merge_nonadjacent_clusters_threshold = 0.5,
+        .total_num_chunks = 0, // unused
+        .num_chunks = 0, // unused
+        .min_num_chunks = 0, // unused
+      },
+      .contraction_limit = 5000,
       .cluster_weight_limit = shm::ClusterWeightLimit::EPSILON_BLOCK_WEIGHT,
       .cluster_weight_multiplier = 1.0,
     },

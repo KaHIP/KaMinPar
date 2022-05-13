@@ -12,6 +12,7 @@
 #include "dkaminpar/mpi_graph.h"
 #include "dkaminpar/mpi_wrapper.h"
 #include "kaminpar/utils/math.h"
+#include "utils/vector_ets.h"
 
 namespace dkaminpar {
 void DistributedGraph::print() const {
@@ -134,6 +135,24 @@ void DistributedGraph::init_communication_metrics() {
             _comm_vol_to_pe[i] += comm_vol_to_pe[i];
         }
     }
+}
+
+void DistributedPartitionedGraph::init_block_weights() {
+    parallel::vector_ets<BlockWeight> local_block_weights_ets(k());
+
+    tbb::parallel_for(tbb::blocked_range<NodeID>(0, n()), [&](const auto& r) {
+        auto& local_block_weights = local_block_weights_ets.local();
+        for (NodeID u = r.begin(); u != r.end(); ++u) {
+            local_block_weights[block(u)] += node_weight(u);
+        }
+    });
+    auto local_block_weights = local_block_weights_ets.combine(std::plus{});
+
+    scalable_vector<BlockWeight> global_block_weights_nonatomic(k());
+    mpi::allreduce(local_block_weights.data(), global_block_weights_nonatomic.data(), k(), MPI_SUM, communicator());
+
+    _block_weights.resize(k());
+    pfor_blocks([&](const BlockID b) { _block_weights[b] = global_block_weights_nonatomic[b]; });
 }
 
 namespace graph {

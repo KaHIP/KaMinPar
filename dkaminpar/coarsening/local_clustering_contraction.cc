@@ -16,15 +16,10 @@
 
 namespace dkaminpar::coarsening {
 using namespace contraction;
-
-SET_DEBUG(true);
-
-/*
- * Local cluster contraction
- */
+SET_DEBUG(false);
 
 Result contract_local_clustering(
-    const DistributedGraph& graph, const scalable_vector<shm::parallel::Atomic<NodeID>>& clustering,
+    const DistributedGraph& graph, const scalable_vector<Atomic<NodeID>>& clustering,
     MemoryContext m_ctx) {
     KASSERT(clustering.size() >= graph.n());
 

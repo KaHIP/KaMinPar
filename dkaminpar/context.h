@@ -20,8 +20,13 @@ enum class PartitioningMode {
 
 enum class GlobalClusteringAlgorithm {
     NOOP,
-    REQUEST_LP,
-    GLOBAL_LP,
+    LP,
+    LOCKING_LP,
+};
+
+enum class LocalClusteringAlgorithm {
+    NOOP,
+    LP,
 };
 
 enum class GlobalContractionAlgorithm {
@@ -47,6 +52,7 @@ enum class BalancingAlgorithm {
 DECLARE_ENUM_STRING_CONVERSION(PartitioningMode, partitioning_mode);
 DECLARE_ENUM_STRING_CONVERSION(GlobalContractionAlgorithm, global_contraction_algorithm);
 DECLARE_ENUM_STRING_CONVERSION(GlobalClusteringAlgorithm, global_clustering_algorithm);
+DECLARE_ENUM_STRING_CONVERSION(LocalClusteringAlgorithm, local_clustering_algorithm);
 DECLARE_ENUM_STRING_CONVERSION(InitialPartitioningAlgorithm, initial_partitioning_algorithm);
 DECLARE_ENUM_STRING_CONVERSION(KWayRefinementAlgorithm, kway_refinement_algorithm);
 DECLARE_ENUM_STRING_CONVERSION(BalancingAlgorithm, balancing_algorithm);
@@ -92,17 +98,16 @@ struct LabelPropagationRefinementContext {
 };
 
 struct CoarseningContext {
-    bool use_local_clustering;
-    bool use_global_clustering;
-
-    GlobalClusteringAlgorithm  global_clustering_algorithm;
-    GlobalContractionAlgorithm global_contraction_algorithm;
-
-    NodeID contraction_limit;
-
-    LabelPropagationCoarseningContext local_lp;
+    std::size_t                       max_global_clustering_levels;
+    GlobalClusteringAlgorithm         global_clustering_algorithm;
+    GlobalContractionAlgorithm        global_contraction_algorithm;
     LabelPropagationCoarseningContext global_lp;
 
+    std::size_t                       max_local_clustering_levels;
+    LocalClusteringAlgorithm          local_clustering_algorithm;
+    LabelPropagationCoarseningContext local_lp;
+
+    NodeID                  contraction_limit;
     shm::ClusterWeightLimit cluster_weight_limit;
     double                  cluster_weight_multiplier;
 

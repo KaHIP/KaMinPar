@@ -12,10 +12,10 @@
 #include "kaminpar/parallel/atomic.h"
 
 namespace dkaminpar {
+template <typename ClusterID>
 class ClusteringAlgorithm {
 public:
-    using ClusterID          = GlobalNodeID;
-    using AtomicClusterArray = scalable_vector<parallel::Atomic<ClusterID>>;
+    using AtomicClusterArray = scalable_vector<Atomic<ClusterID>>;
 
     virtual ~ClusteringAlgorithm() = default;
 
