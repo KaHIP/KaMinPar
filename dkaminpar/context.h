@@ -67,6 +67,7 @@ struct LabelPropagationCoarseningContext {
     std::size_t num_chunks;
     std::size_t min_num_chunks;
     bool        ignore_ghost_nodes;
+    bool        keep_ghost_clusters;
 
     [[nodiscard]] bool should_merge_nonadjacent_clusters(const NodeID old_n, const NodeID new_n) const {
         return (1.0 - 1.0 * static_cast<double>(new_n) / static_cast<double>(old_n))

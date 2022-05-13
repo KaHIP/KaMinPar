@@ -34,7 +34,8 @@ public:
     DistributedLocalLabelPropagationClusteringImpl(const NodeID max_n, const CoarseningContext& c_ctx)
         : ClusterBase{max_n},
           ClusterWeightBase{max_n},
-          _ignore_ghost_nodes(c_ctx.local_lp.ignore_ghost_nodes) {
+          _ignore_ghost_nodes(c_ctx.local_lp.ignore_ghost_nodes),
+          _keep_ghost_clusters(c_ctx.local_lp.keep_ghost_clusters) {
         allocate(max_n);
         set_max_num_iterations(c_ctx.local_lp.num_iterations);
         set_max_degree(c_ctx.local_lp.large_degree_threshold);
@@ -64,11 +65,25 @@ public:
 
         // dissolve all clusters owned by ghost nodes
         if (!_ignore_ghost_nodes) {
-            graph.pfor_nodes([&](const NodeID u) {
-                if (_graph->is_ghost_node(cluster(u))) {
-                    move_node(u, u);
+            if (_keep_ghost_clusters) {
+                for (NodeID u: _graph->nodes()) {
+                    const ClusterID u_cluster = cluster(u);
+                    if (_graph->is_ghost_node(u_cluster)) {
+                        // abuse cluster(u_cluster) to remap the whole cluster
+                        if (_graph->is_ghost_node(cluster(u_cluster))) {
+                            move_node(u_cluster, u);
+                        }
+
+                        move_node(u, cluster(u_cluster));
+                    }
                 }
-            });
+            } else {
+                graph.pfor_nodes([&](const NodeID u) {
+                    if (_graph->is_ghost_node(cluster(u))) {
+                        move_node(u, u);
+                    }
+                });
+            }
         }
 
         return clusters();
@@ -121,6 +136,7 @@ public:
     NodeWeight  _max_cluster_weight;
     std::size_t _max_num_iterations;
     bool        _ignore_ghost_nodes;
+    bool        _keep_ghost_clusters;
 };
 
 //

@@ -44,6 +44,7 @@ void create_coarsening_label_propagation_options(
       .argument(prefix + "-min-num-chunks", "Minimum number of communication chunks.", &lp_ctx.min_num_chunks)
       .argument(prefix + "-num-chunks", "Number of communication chunks. If set to 0, the value is computed from total-num-chunks.", &lp_ctx.num_chunks)
       .argument(prefix + "-ignore-ghost-nodes", "[Local LP only] Ignore ghost nodes for cluster ratings", &lp_ctx.ignore_ghost_nodes)
+      .argument(prefix + "-keep-ghost-clusters", "[Local LP only] Instead of completely dissolving ghost clusters, remap them to a local cluster ID.", &lp_ctx.keep_ghost_clusters)
       ;
     // clang-format on
 }
