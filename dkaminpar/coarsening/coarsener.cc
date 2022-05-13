@@ -110,7 +110,7 @@ const DistributedGraph* Coarsener::coarsen_once(const GlobalNodeWeight max_clust
 
 DistributedPartitionedGraph Coarsener::uncoarsen_once(DistributedPartitionedGraph&& p_graph) {
     KASSERT(coarsest() == &p_graph.graph(), "expected graph partition of current coarsest graph");
-    KASSERT(!_global_mapping_hierarchy.empty() || !_global_mapping_hierarchy.empty());
+    KASSERT(!_global_mapping_hierarchy.empty() || !_local_mapping_hierarchy.empty());
 
     if (!_global_mapping_hierarchy.empty()) {
         return uncoarsen_once_global(std::move(p_graph));
@@ -126,7 +126,7 @@ DistributedPartitionedGraph Coarsener::uncoarsen_once_local(DistributedPartition
     auto                    mapping      = std::move(_local_mapping_hierarchy.back());
 
     scalable_vector<Atomic<BlockID>> partition(new_coarsest->total_n());
-    new_coarsest->pfor_all_nodes([&](const NodeID u) { partition[u] = p_graph.block(mapping[u]); });
+    new_coarsest->pfor_nodes([&](const NodeID u) { partition[u] = p_graph.block(mapping[u]); });
     const BlockID k = p_graph.k();
 
     _local_mapping_hierarchy.pop_back();
