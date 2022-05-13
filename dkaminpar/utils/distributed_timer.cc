@@ -129,7 +129,7 @@ void generate_statistics(const Timer::TimerTreeNode& node, std::vector<NodeStati
                  [&](const std::size_t num) { return num == node.children.size(); })),
             "timers have diverged: number of children for node " << node.name << "/" << node.description << ": "
                                                                  << num_children,
-            assert::light);
+            assert::always);
 
         auto names = gather_trunc_string<check_chars>(node.name, root, comm);
         KASSERT(
@@ -139,7 +139,7 @@ void generate_statistics(const Timer::TimerTreeNode& node, std::vector<NodeStati
                  [&](const std::string& name) {
                      return name.substr(0, check_chars) == node.name.substr(0, check_chars);
                  })),
-            "timers have diverged at node " << node.name << ": " << names, assert::light);
+            "timers have diverged at node " << node.name << ": " << names, assert::always);
 
         auto descriptions = gather_trunc_string<check_chars>(node.description, root, comm);
         KASSERT(
@@ -151,10 +151,10 @@ void generate_statistics(const Timer::TimerTreeNode& node, std::vector<NodeStati
                  })),
             "timers have diverged at node " << node.name << " with description " << node.description << ": "
                                             << descriptions,
-            assert::light);
+            assert::always);
 
         return true;
-    }());
+    }(), "", assert::always);
 
     auto         times = mpi::gather<double, std::vector<double>>(node.seconds(), 0, comm);
     const double mean  = compute_mean(times);
@@ -194,8 +194,8 @@ void annotate_timer_tree(
     const auto& entry = statistics[pos++];
 
     std::stringstream ss;
-    ss << "[" << table.to_str_padded(entry.min) << "s|" << table.to_str_padded(entry.mean) << "s|"
-       << table.to_str_padded(entry.max) << "s|" << table.to_str_padded(entry.sd) << "s] ";
+    ss << "[" << table.to_str_padded(entry.min) << " s | " << table.to_str_padded(entry.mean) << " s | "
+       << table.to_str_padded(entry.max) << " s | " << table.to_str_padded(entry.sd) << " s] ";
 
     // also print running times that deviate by more than 3 sd
     // disable: too much output on large PE counts
@@ -228,8 +228,8 @@ void collect_and_annotate_distributed_timer(shm::Timer& timer, MPI_Comm comm) {
 
         // add captions
         std::stringstream ss;
-        ss << " " << table.to_str_padded("min") << "  " << table.to_str_padded("avg") << "  "
-           << table.to_str_padded("max") << "  " << table.to_str_padded("sd") << "  ";
+        ss << " " << table.to_str_padded("min") << "     " << table.to_str_padded("avg") << "     "
+           << table.to_str_padded("max") << "     " << table.to_str_padded("sd") << "  ";
         timer.annotate(ss.str());
 
         std::size_t pos = 0;
