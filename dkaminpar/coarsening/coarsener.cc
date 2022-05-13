@@ -126,7 +126,7 @@ DistributedPartitionedGraph Coarsener::uncoarsen_once_local(DistributedPartition
     auto                    mapping      = std::move(_local_mapping_hierarchy.back());
 
     scalable_vector<Atomic<BlockID>> partition(new_coarsest->total_n());
-    new_coarsest->pfor_nodes([&](const NodeID u) { partition[u] = p_graph.block(mapping[u]); });
+    new_coarsest->pfor_all_nodes([&](const NodeID u) { partition[u] = p_graph.block(mapping[u]); });
     const BlockID k = p_graph.k();
 
     _local_mapping_hierarchy.pop_back();

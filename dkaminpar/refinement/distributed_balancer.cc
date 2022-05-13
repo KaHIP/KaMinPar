@@ -502,13 +502,14 @@ void DistributedBalancer::print_statistics() const {
     STATS << "DistributedBalancer:";
     STATS << "  * Feasible changed: " << C(_stats.initial_feasible, _stats.final_feasible);
     STATS << "  * Number of rounds: " << _stats.num_reduction_rounds;
+    STATS << "  * Change in imbalance: " << C(_stats.initial_imbalance, _stats.final_imbalance);
     STATS << "  * Change in number of imbalanced blocks: "
           << C(_stats.initial_num_imbalanced_blocks, _stats.final_num_imbalanced_blocks) << " = by "
           << _stats.initial_num_imbalanced_blocks - _stats.final_num_imbalanced_blocks;
     STATS << "  * Change in edge cut: " << C(_stats.initial_cut, _stats.final_cut) << " = by "
           << _stats.initial_cut - _stats.final_cut;
-    STATS << "  * Change in total overload: " << C(_stats.initial_total_overload, _stats.final_total_overload)
-          << " = by " << _stats.initial_total_overload - _stats.final_total_overload;
+    //STATS << "  * Change in total overload: " << C(_stats.initial_total_overload, _stats.final_total_overload)
+          //<< " = by " << _stats.initial_total_overload - _stats.final_total_overload;
     STATS << "  * Number of moved nodes: " << _stats.num_adjacent_moves + _stats.num_nonadjacent_moves;
     STATS << "    # of moves to adjacent blocks: " << _stats.num_adjacent_moves;
     STATS << "    # of moves to nonadjacent blocks: " << _stats.num_nonadjacent_moves;
