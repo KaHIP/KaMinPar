@@ -15,6 +15,8 @@
 #include "dkaminpar/factories.h"
 
 namespace dkaminpar {
+SET_DEBUG(false);
+
 Coarsener::Coarsener(const DistributedGraph& input_graph, const Context& input_ctx)
     : _input_graph(input_graph),
       _input_ctx(input_ctx),
@@ -26,47 +28,61 @@ const DistributedGraph* Coarsener::coarsen_once() {
 }
 
 const DistributedGraph* Coarsener::coarsen_once_local(const GlobalNodeWeight max_cluster_weight) {
+    DBG << "Coarsen graph using local clustering algorithm ...";
+
     const DistributedGraph* graph = coarsest();
 
     auto& clustering =
         _local_clustering_algorithm->compute_clustering(*graph, static_cast<NodeWeight>(max_cluster_weight));
     if (clustering.empty()) {
+        DBG << "... converged with empty clustering";
         return graph;
     }
 
     auto [c_graph, mapping, m_ctx] = coarsening::contract_local_clustering(*graph, clustering);
     KASSERT(graph::debug::validate(c_graph), "", assert::heavy);
+    DBG << "Reduced number of nodes from " << graph->global_n() << " to " << c_graph.global_n();
 
     if (!has_converged(*graph, c_graph)) {
+        DBG << "... success";
+
         _graph_hierarchy.push_back(std::move(c_graph));
         _local_mapping_hierarchy.push_back(std::move(mapping));
         return coarsest();
     }
 
+    DBG << "... converged due to insufficient shrinkage";
     return graph;
 }
 
 const DistributedGraph* Coarsener::coarsen_once_global(const GlobalNodeWeight max_cluster_weight) {
+    DBG << "Coarsen graph using global clustering algorithm ...";
+
     const DistributedGraph* graph = coarsest();
 
     // compute coarse graph
     auto& clustering =
         _global_clustering_algorithm->compute_clustering(*graph, static_cast<NodeWeight>(max_cluster_weight));
     if (clustering.empty()) { // empty --> converged
+        DBG << "... converged with empty clustering";
         return graph;
     }
 
     auto [c_graph, mapping] =
         coarsening::contract_global_clustering(*graph, clustering, _input_ctx.coarsening.global_contraction_algorithm);
     KASSERT(graph::debug::validate(c_graph), "", assert::heavy);
+    DBG << "Reduced number of nodes from " << graph->global_n() << " to " << c_graph.global_n();
 
     // only keep graph if coarsening has not converged yet
     if (!has_converged(*graph, c_graph)) {
+        DBG << "... success";
+
         _graph_hierarchy.push_back(std::move(c_graph));
         _global_mapping_hierarchy.push_back(std::move(mapping));
         return coarsest();
     }
 
+    DBG << "... converged due to insufficient shrinkage";
     return graph;
 }
 

@@ -23,14 +23,12 @@ class DistributedLocalLabelPropagationClusteringImpl final
           DistributedLocalLabelPropagationClusteringImpl, DistributedLocalLabelPropagationClusteringConfig>,
       public shm::OwnedClusterVector<NodeID, NodeID>,
       public shm::OwnedRelaxedClusterWeightVector<NodeID, NodeWeight> {
-    SET_DEBUG(true);
+    SET_DEBUG(false);
 
     using Base = shm::ChunkRandomizedLabelPropagation<
         DistributedLocalLabelPropagationClusteringImpl, DistributedLocalLabelPropagationClusteringConfig>;
     using ClusterBase       = shm::OwnedClusterVector<NodeID, NodeID>;
     using ClusterWeightBase = shm::OwnedRelaxedClusterWeightVector<NodeID, NodeWeight>;
-
-    static constexpr auto kInfiniteIterations = std::numeric_limits<std::size_t>::max();
 
 public:
     DistributedLocalLabelPropagationClusteringImpl(const NodeID max_n, const CoarseningContext& c_ctx)
@@ -42,17 +40,21 @@ public:
         set_max_num_neighbors(c_ctx.local_lp.max_num_neighbors);
     }
 
-    const auto& compute_clustering(
-        const DistributedGraph& graph, const GlobalNodeWeight max_cluster_weight,
-        const std::size_t max_iterations = kInfiniteIterations) {
+    const auto& compute_clustering(const DistributedGraph& graph, const GlobalNodeWeight max_cluster_weight) {
         initialize(&graph, graph.n());
         _max_cluster_weight = max_cluster_weight;
 
-        for (std::size_t iteration = 0; iteration < max_iterations; ++iteration) {
+        DBG << "Computing clustering on graph with " << graph.global_n() << " nodes (local: " << graph.n()
+            << ", ghost: " << graph.ghost_n() << "), max cluster weight " << _max_cluster_weight << ", and at most "
+            << _max_num_iterations << " iterations";
+
+        std::size_t iteration;
+        for (iteration = 0; iteration < _max_num_iterations; ++iteration) {
             if (perform_iteration() == 0) {
                 break;
             }
         }
+        DBG << "Converged / stopped after " << iteration << " iterations";
 
         return clusters();
     }
@@ -80,7 +82,7 @@ public:
     [[nodiscard]] bool accept_cluster(const Base::ClusterSelectionState& state) {
         return (state.current_gain > state.best_gain
                 || (state.current_gain == state.best_gain && state.local_rand.random_bool()))
-               && (state.current_cluster_weight + state.u_weight < max_cluster_weight(state.current_cluster)
+               && (state.current_cluster_weight + state.u_weight <= max_cluster_weight(state.current_cluster)
                    || state.current_cluster == state.initial_cluster);
     }
 
