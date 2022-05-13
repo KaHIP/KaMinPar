@@ -122,17 +122,18 @@ DistributedPartitionedGraph Coarsener::uncoarsen_once(DistributedPartitionedGrap
 DistributedPartitionedGraph Coarsener::uncoarsen_once_local(DistributedPartitionedGraph&& p_graph) {
     KASSERT(!_local_mapping_hierarchy.empty(), "", assert::light);
 
-    const DistributedGraph* new_coarsest = nth_coarsest(1);
-    auto                    mapping      = std::move(_local_mapping_hierarchy.back());
+    auto                    block_weights = p_graph.take_block_weights();
+    const DistributedGraph* new_coarsest  = nth_coarsest(1);
+    const auto&             mapping       = _local_mapping_hierarchy.back();
 
     scalable_vector<Atomic<BlockID>> partition(new_coarsest->total_n());
-    new_coarsest->pfor_nodes([&](const NodeID u) { partition[u] = p_graph.block(mapping[u]); });
+    new_coarsest->pfor_all_nodes([&](const NodeID u) { partition[u] = p_graph.block(mapping[u]); });
     const BlockID k = p_graph.k();
 
     _local_mapping_hierarchy.pop_back();
     _graph_hierarchy.pop_back();
 
-    return {coarsest(), k, std::move(partition)};
+    return {coarsest(), k, std::move(partition), std::move(block_weights)};
 }
 
 DistributedPartitionedGraph Coarsener::uncoarsen_once_global(DistributedPartitionedGraph&& p_graph) {
