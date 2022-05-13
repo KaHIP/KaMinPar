@@ -198,12 +198,15 @@ void annotate_timer_tree(
        << table.to_str_padded(entry.max) << "s|" << table.to_str_padded(entry.sd) << "s] ";
 
     // also print running times that deviate by more than 3 sd
+    // disable: too much output on large PE counts
+    /*
     for (std::size_t pe = 0; pe < entry.times.size(); ++pe) {
         const double t = entry.times[pe];
         if (t < entry.mean - 3 * entry.sd || entry.mean + 3 * entry.sd < t) {
             ss << pe << "/" << t << " s ";
         }
     }
+    */
     node.annotation = ss.str();
 
     for (const auto& child: node.children) {
