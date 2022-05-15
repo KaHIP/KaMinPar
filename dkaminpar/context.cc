@@ -203,8 +203,8 @@ Context create_default_context() {
         .ignore_ghost_nodes = false, // unused
         .keep_ghost_clusters = false,
       },
-      .max_local_clustering_levels = 1,
-      .local_clustering_algorithm = LocalClusteringAlgorithm::LP,
+      .max_local_clustering_levels = 0,
+      .local_clustering_algorithm = LocalClusteringAlgorithm::NOOP,
       .local_lp = {
         .num_iterations = 5,
         .large_degree_threshold = 1'000'000,
