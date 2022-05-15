@@ -133,15 +133,16 @@ public:
      */
 
     void init_cluster_weight(const ClusterID local_cluster, const ClusterWeight weight) {
+        if (_graph->is_owned_node(local_cluster)) {
         _local_cluster_weights[local_cluster] = weight;
-        /*
+        } else {
         KASSERT(local_cluster < _graph->total_n());
         const auto cluster = _graph->local_to_global_node(static_cast<NodeID>(local_cluster));
 
         auto& handle                              = _cluster_weights_handles_ets.local();
         [[maybe_unused]] const auto [it, success] = handle.insert(cluster + 1, weight);
         KASSERT(success, "Cluster already initialized: " << cluster + 1);
-        */
+        }
     }
 
     ClusterWeight cluster_weight(const ClusterID cluster) {
