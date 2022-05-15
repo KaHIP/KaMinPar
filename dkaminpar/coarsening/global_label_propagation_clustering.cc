@@ -12,6 +12,8 @@
 
 #include <unordered_map>
 
+#include "datastructure/distributed_graph.h"
+#include "datastructure/fast_reset_array.h"
 #include "dkaminpar/growt.h"
 #include "dkaminpar/mpi_graph.h"
 #include "dkaminpar/utils/math.h"
@@ -19,6 +21,114 @@
 
 namespace dkaminpar {
 namespace {
+template <typename Iter1, typename Iter2>
+class CombinedRange {
+public:
+    class iterator {
+    public:
+        using iterator_category = std::input_iterator_tag;
+        using value_type        = typename Iter1::value_type;
+        using difference_type   = std::make_signed_t<std::size_t>;
+        using pointer           = value_type*;
+        using reference         = value_type&;
+
+        iterator(Iter1 begin1, std::size_t size1, Iter2 begin2, std::size_t size2, bool end)
+            : _begin1(begin1),
+              _size1(size1),
+              _begin2(begin2),
+              _size2(size2) {
+            if (end) {
+                _second = true;
+                _index  = _size2;
+            }
+        }
+
+        value_type operator*() const {
+            if (_second) {
+                return *(_begin2 + _index);
+            } else {
+                return *(_begin1 + _index);
+            }
+        }
+
+        iterator& operator++() {
+            ++_index;
+            if (!_second && _index == _size1) {
+                _second = true;
+                _index  = 0;
+            }
+            return *this;
+        }
+
+        iterator operator++(int) {
+            auto tmp = *this;
+            ++*this;
+            return tmp;
+        }
+
+        bool operator==(const iterator& other) const {
+            return _index == other._index && _second == other._second;
+        }
+        bool operator!=(const iterator& other) const {
+            return _index != other._index || _second != other._second;
+        }
+
+    private:
+        Iter1       _begin1;
+        std::size_t _size1;
+        Iter2       _begin2;
+        std::size_t _size2;
+        bool        _second = false;
+        std::size_t _index  = 0;
+    };
+
+    CombinedRange(Iter1 begin1, std::size_t size1, Iter2 begin2, std::size_t size2)
+        : _begin(begin1, size1, begin2, size2, false),
+          _end(begin1, size1, begin2, size2, true) {}
+
+    iterator begin() const {
+        return _begin;
+    }
+    iterator end() const {
+        return _end;
+    }
+
+private:
+    iterator _begin;
+    iterator _end;
+};
+
+struct VectorHashRatingMap {
+    VectorHashRatingMap(const DistributedGraph& graph) : _graph(graph), _local(graph.n()) {}
+
+    EdgeWeight& operator[](const GlobalNodeID key) {
+        if (_graph.is_owned_global_node(key)) {
+            return _local[_graph.global_to_local_node(key)];
+        } else {
+            return _global[key];
+        }
+    }
+
+    [[nodiscard]] auto entries() {
+        return CombinedRange(_local.entries().begin(), _local.size(), _global.begin(), _global.size());
+    }
+
+    void clear() {
+        _local.clear();
+        _global.clear();
+    }
+
+    std::size_t capacity() const {
+        return std::numeric_limits<std::size_t>::max();
+    }
+
+    void resize(const std::size_t /* capacity */) {}
+
+    const DistributedGraph&                      _graph;
+    shm::FastResetArray<EdgeWeight>              _local;
+    std::unordered_map<GlobalNodeID, EdgeWeight> _global{};
+};
+
 /*!
  * Large rating map based on a \c unordered_map. We need this since cluster IDs are global node IDs.
  */
@@ -45,10 +155,10 @@ struct UnorderedRatingMap {
 };
 
 struct DistributedGlobalLabelPropagationClusteringConfig : public shm::LabelPropagationConfig {
-    using Graph         = DistributedGraph;
-    using RatingMap     = ::kaminpar::RatingMap<EdgeWeight, UnorderedRatingMap>;
-    using ClusterID     = GlobalNodeID;
-    using ClusterWeight = GlobalNodeWeight;
+    using Graph                                = DistributedGraph;
+    using RatingMap                            = ::kaminpar::RatingMap<EdgeWeight, UnorderedRatingMap>;
+    using ClusterID                            = GlobalNodeID;
+    using ClusterWeight                        = GlobalNodeWeight;
     static constexpr bool kTrackClusterCount   = false;
     static constexpr bool kUseTwoHopClustering = false;
 };
