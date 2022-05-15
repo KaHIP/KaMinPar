@@ -45,10 +45,10 @@ struct UnorderedRatingMap {
 };
 
 struct DistributedGlobalLabelPropagationClusteringConfig : public shm::LabelPropagationConfig {
-    using Graph                                = DistributedGraph;
-    using RatingMap                            = ::kaminpar::RatingMap<EdgeWeight, UnorderedRatingMap>;
-    using ClusterID                            = GlobalNodeID;
-    using ClusterWeight                        = GlobalNodeWeight;
+    using Graph         = DistributedGraph;
+    using RatingMap     = ::kaminpar::RatingMap<EdgeWeight, shm::SparseMap<GlobalNodeID, EdgeWeight>>;
+    using ClusterID     = GlobalNodeID;
+    using ClusterWeight = GlobalNodeWeight;
     static constexpr bool kTrackClusterCount   = false;
     static constexpr bool kUseTwoHopClustering = false;
 };
@@ -69,7 +69,8 @@ public:
         : ClusterBase{ctx.partition.total_n()},
           _c_ctx{ctx.coarsening},
           _changed_label(ctx.partition.local_n()),
-          _cluster_weights{ctx.partition.local_n()} {
+          _cluster_weights{ctx.partition.total_n() - ctx.partition.local_n()},
+          _local_cluster_weights(ctx.partition.local_n()) {
         set_max_num_iterations(_c_ctx.global_lp.num_iterations);
         set_max_degree(_c_ctx.global_lp.large_degree_threshold);
         set_max_num_neighbors(_c_ctx.global_lp.max_num_neighbors);
@@ -89,6 +90,7 @@ public:
             // clear hash map
             _cluster_weights_handles_ets.clear();
             _cluster_weights = ClusterWeightsMap{0};
+            std::fill(_local_cluster_weights.begin(), _local_cluster_weights.end(), 0);
 
             // initialize data structures
             initialize(&graph, graph.total_n());
@@ -131,19 +133,26 @@ public:
      */
 
     void init_cluster_weight(const ClusterID local_cluster, const ClusterWeight weight) {
+        _local_cluster_weights[local_cluster] = weight;
+        /*
         KASSERT(local_cluster < _graph->total_n());
         const auto cluster = _graph->local_to_global_node(static_cast<NodeID>(local_cluster));
 
         auto& handle                              = _cluster_weights_handles_ets.local();
         [[maybe_unused]] const auto [it, success] = handle.insert(cluster + 1, weight);
         KASSERT(success, "Cluster already initialized: " << cluster + 1);
+        */
     }
 
     ClusterWeight cluster_weight(const ClusterID cluster) {
-        auto& handle = _cluster_weights_handles_ets.local();
-        auto  it     = handle.find(cluster + 1);
-        KASSERT(it != handle.end(), "Uninitialized cluster: " << cluster + 1);
-        return (*it).second;
+        if (_graph->is_owned_global_node(cluster)) {
+            return _local_cluster_weights[_graph->global_to_local_node(cluster)];
+        } else {
+            auto& handle = _cluster_weights_handles_ets.local();
+            auto  it     = handle.find(cluster + 1);
+            KASSERT(it != handle.end(), "Uninitialized cluster: " << cluster + 1);
+            return (*it).second;
+        }
     }
 
     bool move_cluster_weight(
@@ -154,25 +163,38 @@ public:
             return false;
         }
 
-        // otherwise, move node to new cluster
-        auto& handle                                    = _cluster_weights_handles_ets.local();
-        [[maybe_unused]] const auto [old_it, old_found] = handle.update(
-            old_cluster + 1, [](auto& lhs, const auto rhs) { return lhs -= rhs; }, delta);
-        KASSERT((old_it != handle.end() && old_found), "Uninitialized cluster: " << old_cluster + 1);
+        auto& handle = _cluster_weights_handles_ets.local();
 
-        [[maybe_unused]] const auto [new_it, new_found] = handle.update(
-            new_cluster + 1, [](auto& lhs, const auto rhs) { return lhs += rhs; }, delta);
-        KASSERT((new_it != handle.end() && new_found), "Uninitialized cluster: " << new_cluster + 1);
+        if (_graph->is_owned_global_node(old_cluster)) {
+            _local_cluster_weights[_graph->global_to_local_node(old_cluster)] -= delta;
+        } else {
+            // otherwise, move node to new cluster
+            [[maybe_unused]] const auto [old_it, old_found] = handle.update(
+                old_cluster + 1, [](auto& lhs, const auto rhs) { return lhs -= rhs; }, delta);
+            KASSERT((old_it != handle.end() && old_found), "Uninitialized cluster: " << old_cluster + 1);
+        }
+
+        if (_graph->is_owned_global_node(new_cluster)) {
+            _local_cluster_weights[_graph->global_to_local_node(new_cluster)] += delta;
+        } else {
+            [[maybe_unused]] const auto [new_it, new_found] = handle.update(
+                new_cluster + 1, [](auto& lhs, const auto rhs) { return lhs += rhs; }, delta);
+            KASSERT((new_it != handle.end() && new_found), "Uninitialized cluster: " << new_cluster + 1);
+        }
 
         return true;
     }
 
     void
     change_cluster_weight(const ClusterID cluster, const ClusterWeight delta, [[maybe_unused]] const bool must_exist) {
-        auto& handle                                = _cluster_weights_handles_ets.local();
-        [[maybe_unused]] const auto [it, not_found] = handle.insert_or_update(
-            cluster + 1, delta, [](auto& lhs, const auto rhs) { return lhs += rhs; }, delta);
-        KASSERT((it != handle.end() && (!must_exist || !not_found)), "Could not update cluster: " << cluster);
+        if (_graph->is_owned_global_node(cluster)) {
+            _local_cluster_weights[_graph->global_to_local_node(cluster)] += delta;
+        } else {
+            auto& handle                                = _cluster_weights_handles_ets.local();
+            [[maybe_unused]] const auto [it, not_found] = handle.insert_or_update(
+                cluster + 1, delta, [](auto& lhs, const auto rhs) { return lhs += rhs; }, delta);
+            KASSERT((it != handle.end() && (!must_exist || !not_found)), "Could not update cluster: " << cluster);
+        }
     }
 
     [[nodiscard]] NodeWeight initial_cluster_weight(const GlobalNodeID u) {
@@ -339,6 +361,7 @@ private:
     tbb::enumerable_thread_specific<typename ClusterWeightsMap::handle_type> _cluster_weights_handles_ets{[&] {
         return ClusterWeightsMap::handle_type{_cluster_weights};
     }};
+    scalable_vector<GlobalNodeWeight>                                        _local_cluster_weights;
 };
 
 //
