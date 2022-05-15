@@ -21,6 +21,8 @@
 
 namespace dkaminpar {
 namespace {
+inline const DistributedGraph* _global_graph;
+
 template <typename Iter1, typename Iter2>
 class CombinedRange {
 public:
@@ -44,18 +46,24 @@ public:
         }
 
         value_type operator*() const {
+            KASSERT((!_second && _index < _size1) || (_second && _index < _size2));
             if (_second) {
-                return *(_begin2 + _index);
+                return *_begin2;
             } else {
-                return *(_begin1 + _index);
+                const auto& [node, gain] = *_begin1;
+                return std::make_pair(_global_graph->local_to_global_node(node), gain);
             }
         }
 
         iterator& operator++() {
             ++_index;
-            if (!_second && _index == _size1) {
+            if (!_second && _index < _size1) {
+                ++_begin1;
+            } else if (!_second && _index == _size1) {
                 _second = true;
                 _index  = 0;
+            } else {
+                ++_begin2;
             }
             return *this;
         }
@@ -99,11 +107,13 @@ private:
 };
 
 struct VectorHashRatingMap {
-    VectorHashRatingMap(const DistributedGraph& graph) : _graph(graph), _local(graph.n()) {}
+    VectorHashRatingMap() {}
 
     EdgeWeight& operator[](const GlobalNodeID key) {
-        if (_graph.is_owned_global_node(key)) {
-            return _local[_graph.global_to_local_node(key)];
+        KASSERT(_global_graph != nullptr);
+        if (_global_graph->is_owned_global_node(key)) {
+            KASSERT(_global_graph->global_to_local_node(key) < _local.capacity());
+            return _local[_global_graph->global_to_local_node(key)];
         } else {
             return _global[key];
         }
@@ -119,13 +129,14 @@ struct VectorHashRatingMap {
     }
 
     std::size_t capacity() const {
-        return std::numeric_limits<std::size_t>::max();
+        return _local.capacity();
     }
 
-    void resize(const std::size_t /* capacity */) {}
+    void resize(const std::size_t capacity) {
+        _local.resize(capacity);
+    }
 
-    const DistributedGraph&                      _graph;
-    shm::FastResetArray<EdgeWeight>              _local;
+    shm::FastResetArray<EdgeWeight>              _local{};
     std::unordered_map<GlobalNodeID, EdgeWeight> _global{};
 };
 
@@ -155,8 +166,9 @@ struct UnorderedRatingMap {
 };
 
 struct DistributedGlobalLabelPropagationClusteringConfig : public shm::LabelPropagationConfig {
-    using Graph                                = DistributedGraph;
-    using RatingMap                            = ::kaminpar::RatingMap<EdgeWeight, UnorderedRatingMap>;
+    using Graph     = DistributedGraph;
+    using RatingMap = ::kaminpar::RatingMap<EdgeWeight, VectorHashRatingMap>;
+    // using RatingMap                            = ::kaminpar::RatingMap<EdgeWeight, UnorderedRatingMap>;
     using ClusterID                            = GlobalNodeID;
     using ClusterWeight                        = GlobalNodeWeight;
     static constexpr bool kTrackClusterCount   = false;
@@ -189,6 +201,7 @@ public:
     const auto& compute_clustering(const DistributedGraph& graph, const GlobalNodeWeight max_cluster_weight) {
         SCOPED_TIMER("Label propagation");
 
+        _global_graph = &graph;
         {
             SCOPED_TIMER("Allocation", TIMER_DETAIL);
             allocate(graph);
