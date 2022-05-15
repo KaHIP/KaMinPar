@@ -46,7 +46,7 @@ struct UnorderedRatingMap {
 
 struct DistributedGlobalLabelPropagationClusteringConfig : public shm::LabelPropagationConfig {
     using Graph         = DistributedGraph;
-    using RatingMap     = ::kaminpar::RatingMap<EdgeWeight, shm::SparseMap<GlobalNodeID, EdgeWeight>>;
+    using RatingMap     = ::kaminpar::RatingMap<EdgeWeight, UnorderedRatingMap>;
     using ClusterID     = GlobalNodeID;
     using ClusterWeight = GlobalNodeWeight;
     static constexpr bool kTrackClusterCount   = false;
@@ -134,14 +134,14 @@ public:
 
     void init_cluster_weight(const ClusterID local_cluster, const ClusterWeight weight) {
         if (_graph->is_owned_node(local_cluster)) {
-        _local_cluster_weights[local_cluster] = weight;
+            _local_cluster_weights[local_cluster] = weight;
         } else {
-        KASSERT(local_cluster < _graph->total_n());
-        const auto cluster = _graph->local_to_global_node(static_cast<NodeID>(local_cluster));
+            KASSERT(local_cluster < _graph->total_n());
+            const auto cluster = _graph->local_to_global_node(static_cast<NodeID>(local_cluster));
 
-        auto& handle                              = _cluster_weights_handles_ets.local();
-        [[maybe_unused]] const auto [it, success] = handle.insert(cluster + 1, weight);
-        KASSERT(success, "Cluster already initialized: " << cluster + 1);
+            auto& handle                              = _cluster_weights_handles_ets.local();
+            [[maybe_unused]] const auto [it, success] = handle.insert(cluster + 1, weight);
+            KASSERT(success, "Cluster already initialized: " << cluster + 1);
         }
     }
 
@@ -249,6 +249,7 @@ private:
 
         if (allocated_num_active_nodes < graph.n()) {
             _changed_label.resize(graph.n());
+            _local_cluster_weights.resize(graph.n());
         }
 
         Base::allocate(graph.total_n(), graph.n());
