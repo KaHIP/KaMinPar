@@ -166,9 +166,9 @@ struct UnorderedRatingMap {
 };
 
 struct DistributedGlobalLabelPropagationClusteringConfig : public shm::LabelPropagationConfig {
-    using Graph     = DistributedGraph;
-    using RatingMap = ::kaminpar::RatingMap<EdgeWeight, VectorHashRatingMap>;
-    // using RatingMap                            = ::kaminpar::RatingMap<EdgeWeight, UnorderedRatingMap>;
+    using Graph = DistributedGraph;
+    // using RatingMap = ::kaminpar::RatingMap<EdgeWeight, VectorHashRatingMap>;
+    using RatingMap                            = ::kaminpar::RatingMap<EdgeWeight, UnorderedRatingMap>;
     using ClusterID                            = GlobalNodeID;
     using ClusterWeight                        = GlobalNodeWeight;
     static constexpr bool kTrackClusterCount   = false;
