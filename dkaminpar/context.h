@@ -236,20 +236,27 @@ private:
     scalable_vector<BlockWeight> _max_block_weights{};
 };
 
+struct DebugContext {
+    bool save_imbalanced_partitions;
+    bool save_graph_hierarchy;
+    bool save_coarsest_graph;
+    bool save_clustering_hierarchy;
+
+    void print(std::ostream& out, const std::string& prefix = "") const;
+};
+
 struct Context {
     std::string graph_filename{};
     bool        load_edge_balanced{};
     int         seed{0};
     bool        quiet{};
 
-    bool save_imbalanced_partitions;
-    bool save_coarsest_graph;
-
     PartitionContext           partition;
     ParallelContext            parallel;
     CoarseningContext          coarsening;
     InitialPartitioningContext initial_partitioning;
     RefinementContext          refinement;
+    DebugContext               debug;
 
     void setup(const DistributedGraph& graph) {
         coarsening.setup(graph);

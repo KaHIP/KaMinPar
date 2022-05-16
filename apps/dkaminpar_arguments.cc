@@ -16,53 +16,78 @@ using namespace std::string_literals;
 #ifdef KAMINPAR_ENABLE_GRAPHGEN
 void create_graphgen_options(
     graphgen::GeneratorContext& g_ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix) {
-    // clang-format off
-  args.group(name, prefix)
-      .argument(prefix, "Graph generator, possible values: {" + graphgen::generator_type_names() + "}.", &g_ctx.type, graphgen::generator_type_from_string)
-      .argument(prefix + "-n", "Number of nodes in the graph.", &g_ctx.n)
-      .argument(prefix + "-m", "Number of edges in the graph.", &g_ctx.m)
-      .argument(prefix + "-d", "Average degree (depending on model).", &g_ctx.d)
-      .argument(prefix + "-p", "P?", &g_ctx.p)
-      .argument(prefix + "-r", "Radius (depending on model).", &g_ctx.r)
-      .argument(prefix + "-gamma", "Power law exponent (depending on model)", &g_ctx.gamma)
-      .argument(prefix + "-save-graph", "Write the generated graph to the hard disk.", &g_ctx.save_graph)
-      .argument(prefix + "-scale", "Scaling factor for the generated graph (e.g., number of PEs).", &g_ctx.scale)
+    args.group(name, prefix)
+        .argument(
+            prefix, "Graph generator, possible values: {" + graphgen::generator_type_names() + "}.", &g_ctx.type,
+            graphgen::generator_type_from_string)
+        .argument(prefix + "-n", "Number of nodes in the graph.", &g_ctx.n)
+        .argument(prefix + "-m", "Number of edges in the graph.", &g_ctx.m)
+        .argument(prefix + "-d", "Average degree (depending on model).", &g_ctx.d)
+        .argument(prefix + "-p", "P?", &g_ctx.p)
+        .argument(prefix + "-r", "Radius (depending on model).", &g_ctx.r)
+        .argument(prefix + "-gamma", "Power law exponent (depending on model)", &g_ctx.gamma)
+        .argument(prefix + "-save-graph", "Write the generated graph to the hard disk.", &g_ctx.save_graph)
+        .argument(prefix + "-scale", "Scaling factor for the generated graph (e.g., number of PEs).", &g_ctx.scale)
         .line("Note: this option might be ignored depending on the selected graph generator.")
-      .argument(prefix + "-validate", "Validate the graph format before using it. Useful for debugging.", &g_ctx.validate_graph)
-      ;
-    // clang-format on
+        .argument(
+            prefix + "-validate", "Validate the graph format before using it. Useful for debugging.",
+            &g_ctx.validate_graph);
 }
-#endif // KAMINPAR_ENABLE_GRAPHGEN
+#endif
 
 void create_coarsening_label_propagation_options(
     LabelPropagationCoarseningContext& lp_ctx, kaminpar::Arguments& args, const std::string& name,
     const std::string& prefix) {
-    // clang-format off
-  args.group(name, prefix)
-      .argument(prefix + "-iterations", "Maximum number of LP iterations.", &lp_ctx.num_iterations)
-      .argument(prefix + "-total-num-chunks", "Number of communication chunks times number of PEs.", &lp_ctx.total_num_chunks)
-      .argument(prefix + "-min-num-chunks", "Minimum number of communication chunks.", &lp_ctx.min_num_chunks)
-      .argument(prefix + "-num-chunks", "Number of communication chunks. If set to 0, the value is computed from total-num-chunks.", &lp_ctx.num_chunks)
-      .argument(prefix + "-ignore-ghost-nodes", "[Local LP only] Ignore ghost nodes for cluster ratings", &lp_ctx.ignore_ghost_nodes)
-      .argument(prefix + "-keep-ghost-clusters", "[Local LP only] Instead of completely dissolving ghost clusters, remap them to a local cluster ID.", &lp_ctx.keep_ghost_clusters)
-      ;
-    // clang-format on
+    args.group(name, prefix)
+        .argument(prefix + "-iterations", "Maximum number of LP iterations.", &lp_ctx.num_iterations)
+        .argument(
+            prefix + "-total-num-chunks", "Number of communication chunks times number of PEs.",
+            &lp_ctx.total_num_chunks)
+        .argument(prefix + "-min-num-chunks", "Minimum number of communication chunks.", &lp_ctx.min_num_chunks)
+        .argument(
+            prefix + "-num-chunks",
+            "Number of communication chunks. If set to 0, the value is computed from total-num-chunks.",
+            &lp_ctx.num_chunks)
+        .argument(
+            prefix + "-ignore-ghost-nodes", "[Local LP only] Ignore ghost nodes for cluster ratings",
+            &lp_ctx.ignore_ghost_nodes)
+        .argument(
+            prefix + "-keep-ghost-clusters",
+            "[Local LP only] Instead of completely dissolving ghost clusters, remap them to a local cluster ID.",
+            &lp_ctx.keep_ghost_clusters);
 }
 
 void create_coarsening_options(
     CoarseningContext& c_ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix) {
-    // clang-format off
-  args.group(name, prefix)
-      .argument(prefix + "-contraction-limit", "Contraction limit", &c_ctx.contraction_limit)
-      .argument(prefix + "-max-local-levels", "Maximum number of local clustering levels.", &c_ctx.max_local_clustering_levels)
-      .argument(prefix + "-max-global-levels", "Maximum number of global clustering levels.", &c_ctx.max_global_clustering_levels)
-      .argument(prefix + "-global-clustering-algorithm", "Clustering algorithm, possible values: {"s + global_clustering_algorithm_names() + "}.", &c_ctx.global_clustering_algorithm, global_clustering_algorithm_from_string)
-      .argument(prefix + "-global-contraction-algorithm", "Contraction algorithm, possible values: {"s + global_contraction_algorithm_names() + "}.", &c_ctx.global_contraction_algorithm, global_contraction_algorithm_from_string)
-      .argument(prefix + "-local-clustering-algorithm", "Local clustering algorithm, possible values: {"s + local_clustering_algorithm_names() + "}.", &c_ctx.local_clustering_algorithm, local_clustering_algorithm_from_string)
-      .argument(prefix + "-cluster-weight-limit", "Function to compute the cluster weight limit, possible values: {"s + shm::cluster_weight_limit_names() + "}.", &c_ctx.cluster_weight_limit, shm::cluster_weight_limit_from_string)
-      .argument(prefix + "-cluster-weight-multiplier", "Multiplier for the cluster weight limit.", &c_ctx.cluster_weight_multiplier)
-      ;
-    // clang-format on
+    args.group(name, prefix)
+        .argument(prefix + "-contraction-limit", "Contraction limit", &c_ctx.contraction_limit)
+        .argument(
+            prefix + "-max-local-levels", "Maximum number of local clustering levels.",
+            &c_ctx.max_local_clustering_levels)
+        .argument(
+            prefix + "-max-global-levels", "Maximum number of global clustering levels.",
+            &c_ctx.max_global_clustering_levels)
+        .argument(
+            prefix + "-global-clustering-algorithm",
+            "Clustering algorithm, possible values: {"s + global_clustering_algorithm_names() + "}.",
+            &c_ctx.global_clustering_algorithm, global_clustering_algorithm_from_string)
+        .argument(
+            prefix + "-global-contraction-algorithm",
+            "Contraction algorithm, possible values: {"s + global_contraction_algorithm_names() + "}.",
+            &c_ctx.global_contraction_algorithm, global_contraction_algorithm_from_string)
+        .argument(
+            prefix + "-local-clustering-algorithm",
+            "Local clustering algorithm, possible values: {"s + local_clustering_algorithm_names() + "}.",
+            &c_ctx.local_clustering_algorithm, local_clustering_algorithm_from_string)
+        .argument(
+            prefix + "-cluster-weight-limit",
+            "Function to compute the cluster weight limit, possible values: {"s + shm::cluster_weight_limit_names()
+                + "}.",
+            &c_ctx.cluster_weight_limit, shm::cluster_weight_limit_from_string)
+        .argument(
+            prefix + "-cluster-weight-multiplier", "Multiplier for the cluster weight limit.",
+            &c_ctx.cluster_weight_multiplier);
+
     create_coarsening_label_propagation_options(
         c_ctx.local_lp, args, name + " -> Local Label Propagation", prefix + "-llp");
     create_coarsening_label_propagation_options(
@@ -93,47 +118,50 @@ void create_refinement_label_propagation_options(
 
 void create_refinement_options(
     RefinementContext& r_ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix) {
-    // clang-format off
-  args.group(name, prefix)
-      .argument(prefix + "-algorithm", "Refinement algorithm, possible values: {"s + kway_refinement_algorithm_names() + "}.", &r_ctx.algorithm, kway_refinement_algorithm_from_string)
-      ;
-    // clang-format on
+    args.group(name, prefix)
+        .argument(
+            prefix + "-algorithm",
+            "Refinement algorithm, possible values: {"s + kway_refinement_algorithm_names() + "}.", &r_ctx.algorithm,
+            kway_refinement_algorithm_from_string);
     create_refinement_label_propagation_options(r_ctx.lp, args, name + " -> Label Propagation", prefix + "-lp");
     create_balancing_options(r_ctx.balancing, args, name + " -> Balancing", prefix + "-b");
 }
 
 void create_initial_partitioning_options(
     InitialPartitioningContext& i_ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix) {
-    // clang-format off
-  args.group(name, prefix)
-      .argument(prefix + "-algorithm", "Initial partitioning algorithm, possible values: {"s + initial_partitioning_algorithm_names() + "}.", &i_ctx.algorithm, initial_partitioning_algorithm_from_string)
-      ;
-    // clang-format on
+    args.group(name, prefix)
+        .argument(
+            prefix + "-algorithm",
+            "Initial partitioning algorithm, possible values: {"s + initial_partitioning_algorithm_names() + "}.",
+            &i_ctx.algorithm, initial_partitioning_algorithm_from_string);
     shm::app::create_algorithm_options(i_ctx.sequential, args, "Initial Partitioning -> KaMinPar -> ", prefix + "i-");
 }
 
 void create_miscellaneous_context_options(
     Context& ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix) {
-    // clang-format off
-  args.group(name, prefix)
-      .argument("epsilon", "Maximum allowed imbalance.", &ctx.partition.epsilon, 'e')
-      .argument("threads", "Maximum number of threads to be used.", &ctx.parallel.num_threads, 't')
-      .argument("seed", "Seed for random number generator.", &ctx.seed, 's')
-      .argument("quiet", "Do not produce any output to stdout.", &ctx.quiet, 'q')
-      .argument("edge-balanced", "Read input graph such that edges are distributed evenly across PEs.", &ctx.load_edge_balanced, 'E')
-      .argument("save-imbalanced-partitions", "Automatically save any imbalanced graph partition (+ the coarse graph)", &ctx.save_imbalanced_partitions)
-      .argument("save-coarsest-graph", "Save the coarsest graph", &ctx.save_coarsest_graph)
-      ;
-    // clang-format on
+    args.group(name, prefix)
+        .argument("epsilon", "Maximum allowed imbalance.", &ctx.partition.epsilon, 'e')
+        .argument("threads", "Maximum number of threads to be used.", &ctx.parallel.num_threads, 't')
+        .argument("seed", "Seed for random number generator.", &ctx.seed, 's')
+        .argument("quiet", "Do not produce any output to stdout.", &ctx.quiet, 'q')
+        .argument(
+            "edge-balanced", "Read input graph such that edges are distributed evenly across PEs.",
+            &ctx.load_edge_balanced, 'E');
 }
 
 void create_mandatory_options(Context& ctx, kaminpar::Arguments& args, const std::string& name) {
-    // clang-format off
-  args.group(name, "", true)
-      .argument("k", "Number of blocks", &ctx.partition.k, 'k')
-      .argument("graph", "Graph to partition", &ctx.graph_filename, 'G')
-      ;
-    // clang-format on
+    args.group(name, "", true)
+        .argument("k", "Number of blocks", &ctx.partition.k, 'k')
+        .argument("graph", "Graph to partition", &ctx.graph_filename, 'G');
+}
+
+void create_debug_options(
+    DebugContext& d_ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix) {
+    args.group(name, prefix)
+        .argument("save-imbalanced-partitions", "", &d_ctx.save_imbalanced_partitions)
+        .argument("save-graph-hierarchy", "", &d_ctx.save_graph_hierarchy)
+        .argument("save-coarsest-graph", "", &d_ctx.save_coarsest_graph)
+        .argument("save-clustering-hierarchy", "", &d_ctx.save_clustering_hierarchy);
 }
 
 void create_context_options(ApplicationContext& a_ctx, kaminpar::Arguments& args) {
@@ -144,15 +172,16 @@ void create_context_options(ApplicationContext& a_ctx, kaminpar::Arguments& args
     create_refinement_options(a_ctx.ctx.refinement, args, "Refinement", "r");
 #ifdef KAMINPAR_ENABLE_GRAPHGEN
     create_graphgen_options(a_ctx.generator, args, "Graph Generation", "g");
-#endif // KAMINPAR_ENABLE_GRAPHGEN
+#endif
+    create_debug_options(a_ctx.ctx.debug, args, "Debug", "d");
 }
 
 ApplicationContext parse_options(int argc, char* argv[]) {
 #ifdef KAMINPAR_ENABLE_GRAPHGEN
     ApplicationContext a_ctx{create_default_context(), {}};
-#else  // KAMINPAR_ENABLE_GRAPHGEN
+#else
     ApplicationContext a_ctx{create_default_context()};
-#endif // KAMINPAR_ENABLE_GRAPHGEN
+#endif
     kaminpar::Arguments arguments;
     create_context_options(a_ctx, arguments);
     arguments.parse(argc, argv);

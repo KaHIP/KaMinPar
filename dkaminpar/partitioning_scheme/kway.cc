@@ -10,6 +10,7 @@
 #include "datastructure/distributed_graph.h"
 #include "dkaminpar/coarsening/coarsener.h"
 #include "dkaminpar/coarsening/global_clustering_contraction.h"
+#include "dkaminpar/debug.h"
 #include "dkaminpar/distributed_io.h"
 #include "dkaminpar/factories.h"
 #include "dkaminpar/graphutils/allgather_graph.h"
@@ -22,29 +23,6 @@
 
 namespace dkaminpar {
 SET_DEBUG(false);
-
-namespace {
-void save_imbalanced_graph_partition(const DistributedPartitionedGraph& p_graph, const Context& ctx, int level) {
-    const std::string base = shm::utility::str::extract_basename(ctx.graph_filename) + ".seed"
-                             + std::to_string(ctx.seed) + ".k" + std::to_string(ctx.partition.k) + ".level"
-                             + std::to_string(level);
-    const std::string graph_filename     = base + ".graph";
-    const std::string partition_filename = base + ".part";
-
-    io::metis::write(graph_filename, p_graph.graph());
-
-    std::vector<BlockID> partition(p_graph.n());
-    std::copy_n(p_graph.partition().begin(), p_graph.n(), partition.begin());
-    io::partition::write(partition_filename, partition);
-}
-
-void save_coarsest_graph(const DistributedGraph& graph, const Context& ctx, int level) {
-    const std::string filename = shm::utility::str::extract_basename(ctx.graph_filename) + ".seed"
-                                 + std::to_string(ctx.seed) + ".k" + std::to_string(ctx.partition.k) + ".level"
-                                 + std::to_string(level) + ".C.graph";
-    io::metis::write(filename, graph);
-}
-} // namespace
 
 KWayPartitioningScheme::KWayPartitioningScheme(const DistributedGraph& graph, const Context& ctx)
     : _graph{graph},
@@ -73,6 +51,10 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
             const bool              converged = (graph == c_graph);
 
             if (!converged) {
+                if (_ctx.debug.save_graph_hierarchy) {
+                    debug::save_graph(*c_graph, _ctx, static_cast<int>(coarsener.level()));
+                }
+
                 // Print statistics for coarse graph
                 const std::string n_str       = mpi::gather_statistics_str(c_graph->n(), c_graph->communicator());
                 const std::string ghost_n_str = mpi::gather_statistics_str(c_graph->ghost_n(), c_graph->communicator());
@@ -97,8 +79,8 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
         }
     }
 
-    if (_ctx.save_coarsest_graph) {
-        save_coarsest_graph(*graph, _ctx, coarsener.level());
+    if (!_ctx.debug.save_graph_hierarchy && _ctx.debug.save_coarsest_graph) {
+        debug::save_graph(*graph, _ctx, static_cast<int>(coarsener.level()));
     }
 
     ////////////////////////////////////////////////////////////////////////////////
@@ -125,8 +107,8 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
 
     LOG << "Initial partition: cut=" << initial_cut << " imbalance=" << initial_imbalance;
 
-    if (_ctx.save_imbalanced_partitions && initial_imbalance > _ctx.partition.epsilon) {
-        save_imbalanced_graph_partition(dist_p_graph, _ctx, static_cast<int>(coarsener.level()));
+    if (_ctx.debug.save_imbalanced_partitions && initial_imbalance > _ctx.partition.epsilon) {
+        debug::save_partitioned_graph(dist_p_graph, _ctx, static_cast<int>(coarsener.level()));
     }
 
     ////////////////////////////////////////////////////////////////////////////////
@@ -184,8 +166,8 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
 
             LOG << "=> level=" << coarsener.level() << " cut=" << current_cut << " imbalance=" << current_imbalance;
 
-            if (_ctx.save_imbalanced_partitions && current_imbalance > _ctx.partition.epsilon) {
-                save_imbalanced_graph_partition(dist_p_graph, _ctx, static_cast<int>(coarsener.level()));
+            if (_ctx.debug.save_imbalanced_partitions && current_imbalance > _ctx.partition.epsilon) {
+                debug::save_partitioned_graph(dist_p_graph, _ctx, static_cast<int>(coarsener.level()));
             }
         }
     }

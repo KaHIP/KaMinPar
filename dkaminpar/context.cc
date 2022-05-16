@@ -149,13 +149,18 @@ void PartitionContext::print(std::ostream& out, const std::string& prefix) const
         << prefix << "mode=" << mode << " ";      //
 }
 
+void DebugContext::print(std::ostream& out, const std::string& prefix) const {
+    out << prefix << "save_imbalanced_partitions=" << save_imbalanced_partitions << " " //
+        << prefix << "save_graph_hierarchy=" << save_graph_hierarchy << " "             //
+        << prefix << "save_coarsest_graph=" << save_coarsest_graph << " "               //
+        << prefix << "save_clustering_hierarchy=" << save_clustering_hierarchy << " ";  //
+}
+
 void Context::print(std::ostream& out, const std::string& prefix) const {
-    out << prefix << "graph_filename=" << graph_filename << " "                         //
-        << prefix << "load_edge_balanced=" << load_edge_balanced << " "                 //
-        << prefix << "seed=" << seed << " "                                             //
-        << prefix << "quiet=" << quiet << " "                                           //
-        << prefix << "save_imbalanced_partitions=" << save_imbalanced_partitions << " " //
-        << prefix << "save_coarsest_graph=" << save_coarsest_graph << " ";              //
+    out << prefix << "graph_filename=" << graph_filename << " "         //
+        << prefix << "load_edge_balanced=" << load_edge_balanced << " " //
+        << prefix << "seed=" << seed << " "                             //
+        << prefix << "quiet=" << quiet << " ";                          //
     partition.print(out, prefix + "partition.");
     parallel.print(out, prefix + "parallel.");
     coarsening.print(out, prefix + "coarsening.");
@@ -175,8 +180,6 @@ Context create_default_context() {
     .load_edge_balanced = false,
     .seed = 0,
     .quiet = false,
-    .save_imbalanced_partitions = false,
-    .save_coarsest_graph = false,
     .partition = {
       /* .k = */ 0,
       /* .epsilon = */ 0.03,
@@ -238,6 +241,12 @@ Context create_default_context() {
         .algorithm = BalancingAlgorithm::DISTRIBUTED, 
         .num_nodes_per_block = 5,
       }
+    },
+    .debug = {
+        .save_imbalanced_partitions = false,
+        .save_graph_hierarchy = false,
+        .save_coarsest_graph = false,
+        .save_clustering_hierarchy = false,
     }
   };
     // clang-format on

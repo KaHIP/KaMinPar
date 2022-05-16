@@ -7,11 +7,11 @@
  ******************************************************************************/
 #include "dkaminpar/coarsening/coarsener.h"
 
-#include "coarsening/local_clustering_contraction.h"
-#include "context.h"
 #include "dkaminpar/coarsening/global_clustering_contraction.h"
+#include "dkaminpar/coarsening/local_clustering_contraction.h"
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructure/distributed_graph.h"
+#include "dkaminpar/debug.h"
 #include "dkaminpar/factories.h"
 
 namespace dkaminpar {
@@ -79,6 +79,11 @@ const DistributedGraph* Coarsener::coarsen_once_global(const GlobalNodeWeight ma
 
         _graph_hierarchy.push_back(std::move(c_graph));
         _global_mapping_hierarchy.push_back(std::move(mapping));
+
+        if (_input_ctx.debug.save_clustering_hierarchy) {
+            debug::save_global_clustering(clustering, _input_ctx, static_cast<int>(level()));
+        }
+
         return coarsest();
     }
 
