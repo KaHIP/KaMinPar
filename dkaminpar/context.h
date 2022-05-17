@@ -250,6 +250,8 @@ struct Context {
     bool        load_edge_balanced{};
     int         seed{0};
     bool        quiet{};
+    std::size_t num_repetitions;
+    std::size_t time_limit;
 
     PartitionContext           partition;
     ParallelContext            parallel;

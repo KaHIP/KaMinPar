@@ -7,6 +7,7 @@
  ******************************************************************************/
 // This must come first since it redefines output macros (LOG DBG etc)
 // clang-format off
+#include "datastructure/distributed_graph.h"
 #include "dkaminpar/definitions.h"
 // clang-format on
 
@@ -30,16 +31,15 @@
 #include "kaminpar/utils/random.h"
 #include "kaminpar/utils/timer.h"
 
-namespace dist = dkaminpar;
-namespace shm  = kaminpar;
+using namespace dkaminpar;
 
 namespace {
-void sanitize_context(const dist::app::ApplicationContext& app) {
+void sanitize_context(const app::ApplicationContext& app) {
 #ifdef KAMINPAR_ENABLE_GRAPHGEN
-    if (app.generator.type == dist::graphgen::GeneratorType::NONE && app.ctx.graph_filename.empty()) {
+    if (app.generator.type == graphgen::GeneratorType::NONE && app.ctx.graph_filename.empty()) {
         FATAL_ERROR << "Must configure a graph generator or specify an input graph";
     }
-    if (app.generator.type != dist::graphgen::GeneratorType::NONE && !app.ctx.graph_filename.empty()) {
+    if (app.generator.type != graphgen::GeneratorType::NONE && !app.ctx.graph_filename.empty()) {
         FATAL_ERROR << "cannot configure a graph generator and specify an input graph";
     }
     if (!app.ctx.graph_filename.empty() && !std::ifstream(app.ctx.graph_filename)) {
@@ -58,17 +58,17 @@ void sanitize_context(const dist::app::ApplicationContext& app) {
     }
 }
 
-void print_result_statistics(const dist::DistributedPartitionedGraph& p_graph, const dist::Context& ctx) {
-    const auto edge_cut  = dist::metrics::edge_cut(p_graph);
-    const auto imbalance = dist::metrics::imbalance(p_graph);
-    const auto feasible  = dist::metrics::is_feasible(p_graph, ctx.partition);
+void print_result_statistics(const DistributedPartitionedGraph& p_graph, const Context& ctx) {
+    const auto edge_cut  = metrics::edge_cut(p_graph);
+    const auto imbalance = metrics::imbalance(p_graph);
+    const auto feasible  = metrics::is_feasible(p_graph, ctx.partition);
 
     LOG << "RESULT cut=" << edge_cut << " imbalance=" << imbalance << " feasible=" << feasible << " k=" << p_graph.k();
     if (!ctx.quiet) {
-        dist::timer::collect_and_annotate_distributed_timer(GLOBAL_TIMER);
+        timer::collect_and_annotate_distributed_timer(GLOBAL_TIMER);
     }
 
-    const bool is_root = dist::mpi::get_comm_rank(MPI_COMM_WORLD) == 0;
+    const bool is_root = mpi::get_comm_rank(MPI_COMM_WORLD) == 0;
     if (is_root && !ctx.quiet) {
         std::cout << "TIME ";
         shm::Timer::global().print_machine_readable(std::cout);
@@ -93,6 +93,14 @@ void print_result_statistics(const dist::DistributedPartitionedGraph& p_graph, c
 }
 } // namespace
 
+void partition_once(const DistributedGraph& graph, const dkaminpar::Context& ctx, const int repetition) {
+    if (repetition > 0) {
+        START_TIMER("Partitioning", "Repetition " + std::to_string(repetition));
+    } else {
+        START_TIMER("Partitioning");
+    }
+}
+
 int main(int argc, char* argv[]) {
     // Initialize MPI
     {
@@ -101,7 +109,7 @@ int main(int argc, char* argv[]) {
         if (provided_thread_support != MPI_THREAD_FUNNELED) {
             LOG_WARNING << "Desired MPI thread support unavailable: set to " << provided_thread_support;
             if (provided_thread_support == MPI_THREAD_SINGLE) {
-                if (dist::mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
+                if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
                     LOG_ERROR << "Your MPI library does not support multithreading. This might cause malfunction.";
                 }
             }
@@ -109,13 +117,13 @@ int main(int argc, char* argv[]) {
     }
 
     // Parse command line arguments
-    auto  app = dist::app::parse_options(argc, argv);
+    auto  app = app::parse_options(argc, argv);
     auto& ctx = app.ctx;
     sanitize_context(app);
     shm::Logger::set_quiet_mode(ctx.quiet);
 
     shm::print_identifier(argc, argv);
-    LOG << "MPI size=" << dist::mpi::get_comm_size(MPI_COMM_WORLD);
+    LOG << "MPI size=" << mpi::get_comm_size(MPI_COMM_WORLD);
     LOG << "CONTEXT " << ctx;
 
     // Initialize random number generator
@@ -135,24 +143,24 @@ int main(int argc, char* argv[]) {
     // Load graph
     auto graph = TIMED_SCOPE("IO") {
 #ifdef KAMINPAR_ENABLE_GRAPHGEN
-        if (app.generator.type != dist::graphgen::GeneratorType::NONE) {
-            auto graph = dist::graphgen::generate(app.generator);
+        if (app.generator.type != graphgen::GeneratorType::NONE) {
+            auto graph = graphgen::generate(app.generator);
             if (app.generator.save_graph) {
-                dist::io::metis::write("generated.graph", graph, false, false);
+                io::metis::write("generated.graph", graph, false, false);
             }
             return graph;
         }
 #endif
-        const auto type = ctx.load_edge_balanced ? dist::io::DistributionType::EDGE_BALANCED
-                                                 : dist::io::DistributionType::NODE_BALANCED;
-        return dist::io::read_graph(ctx.graph_filename, type);
+        const auto type =
+            ctx.load_edge_balanced ? io::DistributionType::EDGE_BALANCED : io::DistributionType::NODE_BALANCED;
+        return io::read_graph(ctx.graph_filename, type);
     };
 
     // Print statistics
     {
-        const auto n_str       = dist::mpi::gather_statistics_str<dist::GlobalNodeID>(graph.n());
-        const auto m_str       = dist::mpi::gather_statistics_str<dist::GlobalEdgeID>(graph.m());
-        const auto ghost_n_str = dist::mpi::gather_statistics_str<dist::GlobalNodeID>(graph.ghost_n());
+        const auto n_str       = mpi::gather_statistics_str<GlobalNodeID>(graph.n());
+        const auto m_str       = mpi::gather_statistics_str<GlobalEdgeID>(graph.m());
+        const auto ghost_n_str = mpi::gather_statistics_str<GlobalNodeID>(graph.ghost_n());
 
         LOG << "GRAPH "
             << "global_n=" << graph.global_n() << " "
@@ -162,24 +170,24 @@ int main(int argc, char* argv[]) {
             << "ghost_n=[" << ghost_n_str << "]";
     }
 
-    KASSERT(dist::graph::debug::validate(graph));
+    KASSERT(graph::debug::validate(graph));
     ctx.setup(graph);
 
     // Perform partitioning
     START_TIMER("Partitioning");
     START_TIMER("Sort graph");
-    graph = dist::graph::sort_by_degree_buckets(std::move(graph));
+    graph = graph::sort_by_degree_buckets(std::move(graph));
     STOP_TIMER();
-    const auto p_graph = dist::partition(graph, ctx);
-    KASSERT(dist::graph::debug::validate_partition(p_graph));
+    const auto p_graph = partition(graph, ctx);
+    KASSERT(graph::debug::validate_partition(p_graph));
     STOP_TIMER();
 
     // Output statistics
-    if (dist::mpi::get_comm_rank() == 0) {
+    if (mpi::get_comm_rank() == 0) {
         shm::cio::print_banner("Statistics");
     }
 
-    dist::mpi::barrier();
+    mpi::barrier();
     STOP_TIMER(); // stop root timer
     print_result_statistics(p_graph, ctx);
 

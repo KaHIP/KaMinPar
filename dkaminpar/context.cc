@@ -160,7 +160,9 @@ void Context::print(std::ostream& out, const std::string& prefix) const {
     out << prefix << "graph_filename=" << graph_filename << " "         //
         << prefix << "load_edge_balanced=" << load_edge_balanced << " " //
         << prefix << "seed=" << seed << " "                             //
-        << prefix << "quiet=" << quiet << " ";                          //
+        << prefix << "quiet=" << quiet << " "                           //
+        << prefix << "num_repetitions=" << num_repetitions << " "       //
+        << prefix << "time_limit=" << time_limit << " ";                //
     partition.print(out, prefix + "partition.");
     parallel.print(out, prefix + "parallel.");
     coarsening.print(out, prefix + "coarsening.");
@@ -180,6 +182,8 @@ Context create_default_context() {
     .load_edge_balanced = false,
     .seed = 0,
     .quiet = false,
+    .num_repetitions = 0,
+    .time_limit = 0,
     .partition = {
       /* .k = */ 0,
       /* .epsilon = */ 0.03,

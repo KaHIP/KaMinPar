@@ -146,7 +146,9 @@ void create_miscellaneous_context_options(
         .argument("quiet", "Do not produce any output to stdout.", &ctx.quiet, 'q')
         .argument(
             "edge-balanced", "Read input graph such that edges are distributed evenly across PEs.",
-            &ctx.load_edge_balanced, 'E');
+            &ctx.load_edge_balanced, 'E')
+        .argument("repetitions", "Number of repetitions to perform.", &ctx.num_repetitions, 'R')
+        .argument("time-limit", "Time limit in seconds. Repeats partitioning until the time limit is exceeded.", &ctx.time_limit, 'T');
 }
 
 void create_mandatory_options(Context& ctx, kaminpar::Arguments& args, const std::string& name) {
