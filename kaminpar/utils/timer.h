@@ -289,8 +289,13 @@ public:
     [[nodiscard]] inline TimerTreeNode& tree() {
         return _tree.root;
     }
+
     [[nodiscard]] inline const TimerTreeNode& tree() const {
         return _tree.root;
+    }
+
+    [[nodiscard]] inline double elapsed_seconds() const {
+        return std::chrono::duration_cast<std::chrono::seconds>(timer::now() - _tree.root.start).count();
     }
 
 private:

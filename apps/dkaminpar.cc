@@ -34,6 +34,19 @@
 using namespace dkaminpar;
 
 namespace {
+void init_mpi(int& argc, char**& argv) {
+    int provided_thread_support;
+    MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED, &provided_thread_support);
+    if (provided_thread_support != MPI_THREAD_FUNNELED) {
+        LOG_WARNING << "Desired MPI thread support unavailable: set to " << provided_thread_support;
+        if (provided_thread_support == MPI_THREAD_SINGLE) {
+            if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
+                LOG_ERROR << "Your MPI library does not support multithreading. This might cause malfunction.";
+            }
+        }
+    }
+}
+
 void sanitize_context(const app::ApplicationContext& app) {
 #ifdef KAMINPAR_ENABLE_GRAPHGEN
     if (app.generator.type == graphgen::GeneratorType::NONE && app.ctx.graph_filename.empty()) {
@@ -93,28 +106,58 @@ void print_result_statistics(const DistributedPartitionedGraph& p_graph, const C
 }
 } // namespace
 
-void partition_once(const DistributedGraph& graph, const dkaminpar::Context& ctx, const int repetition) {
-    if (repetition > 0) {
+template <typename Terminator>
+DistributedPartitionedGraph
+partition_repeatedly(const DistributedGraph& graph, const dkaminpar::Context& ctx, Terminator&& terminator) {
+    struct Result {
+        Result(const double time, const GlobalEdgeWeight cut, const double imbalance, const bool feasible)
+            : time(time),
+              cut(cut),
+              imbalance(imbalance),
+              feasible(feasible) {}
+
+        double           time;
+        GlobalEdgeWeight cut;
+        double           imbalance;
+        bool             feasible;
+    };
+    std::vector<Result> results;
+
+    // Only keep best partition
+    DistributedPartitionedGraph best_partition;
+    bool                        best_feasible = false;
+    GlobalEdgeWeight            best_cut      = kInvalidGlobalEdgeWeight;
+
+    do {
+        const std::size_t repetition = results.size();
+
+        shm::Timer repetition_timer("");
         START_TIMER("Partitioning", "Repetition " + std::to_string(repetition));
-    } else {
-        START_TIMER("Partitioning");
-    }
+        auto p_graph = partition(graph, ctx);
+        STOP_TIMER();
+
+        // Gather statistics
+        const double           time      = repetition_timer.elapsed_seconds();
+        const GlobalEdgeWeight cut       = metrics::edge_cut(p_graph);
+        const double           imbalance = metrics::imbalance(p_graph);
+        const bool             feasible  = metrics::is_feasible(p_graph, ctx.partition);
+
+        // Only keep the partition if it is the best so far
+        if (best_cut == kInvalidGlobalEdgeWeight || (!best_feasible && feasible)
+            || (best_feasible == feasible && cut < best_cut)) {
+            best_partition = std::move(p_graph);
+            best_feasible  = feasible;
+            best_cut       = cut;
+        }
+
+        results.emplace_back(time, cut, imbalance, feasible);
+    } while (!terminator(results.size()));
+
+    return best_partition;
 }
 
 int main(int argc, char* argv[]) {
-    // Initialize MPI
-    {
-        int provided_thread_support;
-        MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED, &provided_thread_support);
-        if (provided_thread_support != MPI_THREAD_FUNNELED) {
-            LOG_WARNING << "Desired MPI thread support unavailable: set to " << provided_thread_support;
-            if (provided_thread_support == MPI_THREAD_SINGLE) {
-                if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
-                    LOG_ERROR << "Your MPI library does not support multithreading. This might cause malfunction.";
-                }
-            }
-        }
-    }
+    init_mpi(argc, argv);
 
     // Parse command line arguments
     auto  app = app::parse_options(argc, argv);
@@ -173,14 +216,36 @@ int main(int argc, char* argv[]) {
     KASSERT(graph::debug::validate(graph));
     ctx.setup(graph);
 
-    // Perform partitioning
-    START_TIMER("Partitioning");
-    START_TIMER("Sort graph");
-    graph = graph::sort_by_degree_buckets(std::move(graph));
-    STOP_TIMER();
-    const auto p_graph = partition(graph, ctx);
+    // If we load the graph from a file, rearrange it so that nodes are sorted by degree buckets
+#ifdef KAMINPAR_ENABLE_GRAPHGEN
+    if (app.generator.type != graphgen::GeneratorType::NONE) {
+#else
+    {
+#endif
+        SCOPED_TIMER("Partitioning");
+        SCOPED_TIMER("Sort graph");
+        graph = graph::sort_by_degree_buckets(std::move(graph));
+    }
+
+    auto p_graph = [&] {
+        if (ctx.num_repetitions > 0 || ctx.time_limit > 0) {
+            if (ctx.num_repetitions > 0) {
+                return partition_repeatedly(
+                    graph, ctx, [num_repetitions = ctx.num_repetitions](const std::size_t repetition) {
+                        return repetition == num_repetitions;
+                    });
+            } else { // time_limit > 0
+                shm::Timer time_limit_timer("");
+                return partition_repeatedly(graph, ctx, [&time_limit_timer, time_limit = ctx.time_limit](std::size_t) {
+                    return time_limit_timer.elapsed_seconds() >= time_limit;
+                });
+            }
+        } else {
+            SCOPED_TIMER("Partitioning");
+            return partition(graph, ctx);
+        }
+    }();
     KASSERT(graph::debug::validate_partition(p_graph));
-    STOP_TIMER();
 
     // Output statistics
     if (mpi::get_comm_rank() == 0) {
