@@ -26,10 +26,10 @@ public:
     class StaticArrayIterator {
     public:
         using iterator_category = std::random_access_iterator_tag;
-        using value_type      = T;
-        using reference       = T&;
-        using pointer         = T*;
-        using difference_type = std::ptrdiff_t;
+        using value_type        = T;
+        using reference         = T&;
+        using pointer           = T*;
+        using difference_type   = std::ptrdiff_t;
 
         StaticArrayIterator() : _ptr(nullptr) {}
         explicit StaticArrayIterator(T* ptr) : _ptr(ptr) {}
