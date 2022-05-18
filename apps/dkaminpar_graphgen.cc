@@ -37,7 +37,7 @@ DEFINE_ENUM_STRING_CONVERSION(GeneratorType, generator_type) = {
 using namespace kagen;
 
 namespace {
-SET_DEBUG(false);
+SET_DEBUG(true);
 
 PEID find_global_node_owner(const GlobalNodeID node, const scalable_vector<GlobalNodeID>& node_distribution) {
     KASSERT(node < node_distribution.back());
@@ -80,7 +80,9 @@ growt::StaticGhostNodeMapping remap_ghost_nodes(
     }
 
     // Exchange number of messages
-    mpi::alltoall(sendcounts.data(), size, recvcounts.data(), size);
+    DBG << V(sendcounts);
+    mpi::alltoall(sendcounts.data(), 1, recvcounts.data(), 1);
+    DBG << V(recvcounts);
 
     // Build send / receive displacements
     std::vector<int> sdispls(size + 1);
@@ -129,6 +131,18 @@ growt::StaticGhostNodeMapping remap_ghost_nodes(
     // Exchange messages
     const std::size_t         total_num_receive_messages = std::accumulate(recvcounts.begin(), recvcounts.end(), 0u);
     std::vector<RemapMessage> recvbuf(total_num_receive_messages);
+
+    KASSERT(sendcounts.size() >= static_cast<std::size_t>(size));
+    KASSERT(sdispls.size() >= static_cast<std::size_t>(size));
+    KASSERT(recvcounts.size() >= static_cast<std::size_t>(size));
+    KASSERT(rdispls.size() >= static_cast<std::size_t>(size));
+
+    KASSERT(sendbuf.size() == static_cast<std::size_t>(sendcounts[size - 1] + sdispls[size - 1]));
+    KASSERT(recvbuf.size() == static_cast<std::size_t>(recvcounts[size - 1] + rdispls[size - 1]));
+
+    DBG << V(sendcounts) << V(sdispls) << V(recvcounts) << V(rdispls);
+    DBG << V(sendbuf.size()) << V(recvbuf.size());
+
     mpi::alltoallv(
         sendbuf.data(), sendcounts.data(), sdispls.data(), recvbuf.data(), recvcounts.data(), rdispls.data());
 
@@ -198,7 +212,7 @@ DistributedGraph build_graph_sorted(EdgeList edge_list, scalable_vector<GlobalNo
             const EdgeID old_e = offset_e + degrees[old_u];
 
             const auto& [edge_u, edge_v] = edge_list[old_e];
-            KASSERT(edge_u + from == old_u);
+            KASSERT(edge_u - from == old_u, V(edge_u) << V(from));
 
             if (from <= edge_v && edge_v < to) {
                 edges[new_e] = permutation_old_to_new[edge_v - from];
