@@ -37,7 +37,7 @@ DEFINE_ENUM_STRING_CONVERSION(GeneratorType, generator_type) = {
 using namespace kagen;
 
 namespace {
-SET_DEBUG(true);
+SET_DEBUG(false);
 
 PEID find_global_node_owner(const GlobalNodeID node, const scalable_vector<GlobalNodeID>& node_distribution) {
     KASSERT(node < node_distribution.back());
@@ -122,7 +122,7 @@ growt::StaticGhostNodeMapping remap_ghost_nodes(
             const NodeID local_u = static_cast<NodeID>(global_u - from);
 
             sendbuf[index].old_global_label = global_u;
-            sendbuf[index].new_global_label = local_old_to_new[local_u];
+            sendbuf[index].new_global_label = from + local_old_to_new[local_u];
 
             counted_pe.set(owner);
         }
@@ -139,9 +139,6 @@ growt::StaticGhostNodeMapping remap_ghost_nodes(
 
     KASSERT(sendbuf.size() == static_cast<std::size_t>(sendcounts[size - 1] + sdispls[size - 1]));
     KASSERT(recvbuf.size() == static_cast<std::size_t>(recvcounts[size - 1] + rdispls[size - 1]));
-
-    DBG << V(sendcounts) << V(sdispls) << V(recvcounts) << V(rdispls);
-    DBG << V(sendbuf.size()) << V(recvbuf.size());
 
     mpi::alltoallv(
         sendbuf.data(), sendcounts.data(), sdispls.data(), recvbuf.data(), recvcounts.data(), rdispls.data());
@@ -203,6 +200,7 @@ DistributedGraph build_graph_sorted(EdgeList edge_list, scalable_vector<GlobalNo
     shm::parallel::prefix_sum(nodes.begin(), nodes.end(), nodes.begin());
 
     // --> Edges
+    DBG << V(node_distribution);
     graph::GhostNodeMapper ghost_node_mapper(node_distribution);
     tbb::parallel_for<NodeID>(0, n, [&](const NodeID new_u) {
         const NodeID old_u = permutation_new_to_old[new_u];
@@ -220,7 +218,7 @@ DistributedGraph build_graph_sorted(EdgeList edge_list, scalable_vector<GlobalNo
                 auto edge_v_it = permutation_ghost_old_to_new.find(edge_v + 1);
                 KASSERT(edge_v_it != permutation_ghost_old_to_new.end());
                 const GlobalNodeID remapped_edge_v = (*edge_v_it).second;
-
+                KASSERT(remapped_edge_v < from || remapped_edge_v >= to, V(from) << V(remapped_edge_v) << V(to) << V(edge_v));
                 edges[new_e] = ghost_node_mapper.new_ghost_node(remapped_edge_v);
             }
         }
