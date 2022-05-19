@@ -746,7 +746,7 @@ private:
                         }
                     }
 
-                    if (current_chunk_size > 0) {
+                    if (chunk_start != bucket_start + end) {
                         chunks.push_back({static_cast<NodeID>(chunk_start), static_cast<NodeID>(bucket_start + end)});
                         ++num_chunks;
                     }
@@ -785,7 +785,7 @@ private:
                 }
 
                 for (NodeID u = 0; u < to - from; ++u) {
-                    KASSERT((_graph->degree(u) == 0 || hit[u]), V(from) << V(u + from) << V(to));
+                    KASSERT(hit[u], V(from) << V(u + from) << V(to));
                 }
 
                 return true;
