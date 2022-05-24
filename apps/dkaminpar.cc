@@ -225,6 +225,7 @@ int main(int argc, char* argv[]) {
         SCOPED_TIMER("Partitioning");
         SCOPED_TIMER("Sort graph");
         graph = graph::sort_by_degree_buckets(std::move(graph));
+        KASSERT(graph::debug::validate(graph));
     }
 
     auto p_graph = [&] {

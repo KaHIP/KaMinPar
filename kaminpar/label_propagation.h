@@ -715,6 +715,9 @@ private:
     }
 
     void init_chunks(const NodeID from, NodeID to) {
+        _chunks.clear();
+        _buckets.clear();
+
         to = std::min(to, _graph->n());
 
         const auto   max_bucket     = std::min<std::size_t>(math::floor_log2(_max_degree), _graph->number_of_buckets());
