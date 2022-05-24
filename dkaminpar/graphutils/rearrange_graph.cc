@@ -22,7 +22,7 @@ DistributedGraph sort_by_degree_buckets(DistributedGraph graph) {
     const auto& old_node_weights = graph.raw_node_weights();
     const auto& old_edge_weights = graph.raw_edge_weights();
 
-    auto permutations = shm::graph::sort_by_degree_buckets<scalable_vector>(old_nodes);
+    auto permutations = shm::graph::sort_by_degree_buckets<scalable_vector, false>(old_nodes);
 
     // rearrange nodes, edges, node weights and edge weights
     // ghost nodes are copied without remapping them to new IDs

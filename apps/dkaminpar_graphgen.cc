@@ -181,7 +181,7 @@ DistributedGraph build_graph_sorted(EdgeList edge_list, scalable_vector<GlobalNo
     // Sort nodes by degree bucket
     shm::parallel::prefix_sum(
         degrees.begin(), degrees.end(), degrees.begin()); // sort_by_degree_buckets expects the prefix sum
-    const auto  node_permutation       = shm::graph::sort_by_degree_buckets<scalable_vector>(degrees);
+    const auto  node_permutation       = shm::graph::sort_by_degree_buckets<scalable_vector, false>(degrees);
     const auto& permutation_old_to_new = node_permutation.old_to_new;
     const auto& permutation_new_to_old = node_permutation.new_to_old;
 

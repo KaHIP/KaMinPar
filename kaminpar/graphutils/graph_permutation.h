@@ -32,10 +32,10 @@ struct NodePermutations {
  * @param nodes Nodes array of a static graph.
  * @return Bidirectional node permutation.
  */
-template <template <typename> typename Container>
+template <template <typename> typename Container, bool put_deg0_at_end = true>
 NodePermutations<Container> sort_by_degree_buckets(const Container<EdgeID>& nodes) {
     auto find_bucket = [&](const Degree deg) {
-        return deg == 0 ? kNumberOfDegreeBuckets - 1 : degree_bucket(deg);
+        return deg == 0 ? (put_deg0_at_end ? kNumberOfDegreeBuckets - 1 : 0) : degree_bucket(deg);
     };
 
     const NodeID n    = nodes.size() - 1;
