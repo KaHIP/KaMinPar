@@ -662,9 +662,8 @@ protected:
             auto&  local_rating_map      = _rating_map_ets.local();
             NodeID num_removed_clusters  = 0;
 
-            const auto  chunk_id   = next_chunk.fetch_add(1, std::memory_order_relaxed);
-            const auto& chunk      = _chunks[chunk_id];
-            const auto& [from, to] = chunk;
+            const auto  chunk_id    = next_chunk.fetch_add(1, std::memory_order_relaxed);
+            const auto& chunk       = _chunks[chunk_id];
             const auto& permutation = _random_permutations.get(local_rand);
 
             const std::size_t   num_sub_chunks = std::ceil(1.0 * (chunk.end - chunk.start) / Config::kPermutationSize);
