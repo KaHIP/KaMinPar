@@ -62,7 +62,7 @@ template <typename Derived, typename Config>
 class LabelPropagation {
     static_assert(std::is_base_of_v<LabelPropagationConfig, Config>);
 
-    SET_DEBUG(true);
+    SET_DEBUG(false);
     SET_STATISTICS(false);
 
 protected:
@@ -600,7 +600,7 @@ class ChunkRandomizedLabelPropagation : public LabelPropagation<Derived, Config>
     using Base = LabelPropagation<Derived, Config>;
     static_assert(std::is_base_of_v<LabelPropagationConfig, Config>);
 
-    SET_DEBUG(true);
+    SET_DEBUG(false);
 
 protected:
     using Graph         = typename Base::Graph;
@@ -649,14 +649,9 @@ protected:
         }
         shuffle_chunks();
 
-        LOG << "got " << _chunks.size() << " chunks:";
-        for (const auto& [start, end]: _chunks)
-            LOG << "  " << start << " .. " << end;
-
         tbb::enumerable_thread_specific<NodeID> num_moved_nodes_ets;
         parallel::Atomic<std::size_t>           next_chunk = 0;
 
-        DBG << "start";
         tbb::parallel_for(static_cast<std::size_t>(0), _chunks.size(), [&](const std::size_t) {
             if (should_stop()) {
                 return;
@@ -670,10 +665,6 @@ protected:
             const auto  chunk_id   = next_chunk.fetch_add(1, std::memory_order_relaxed);
             const auto& chunk      = _chunks[chunk_id];
             const auto& [from, to] = chunk;
-            EdgeWeight work        = 0;
-            for (NodeID u = from; u < to; ++u) {
-                work += _graph->degree(u);
-            }
             const auto& permutation = _random_permutations.get(local_rand);
 
             const std::size_t   num_sub_chunks = std::ceil(1.0 * (chunk.end - chunk.start) / Config::kPermutationSize);
@@ -681,7 +672,6 @@ protected:
             std::iota(sub_chunk_permutation.begin(), sub_chunk_permutation.end(), 0);
             local_rand.shuffle(sub_chunk_permutation);
 
-            NodeID deg = 0;
             for (std::size_t sub_chunk = 0; sub_chunk < num_sub_chunks; ++sub_chunk) {
                 for (std::size_t i = 0; i < Config::kPermutationSize; ++i) {
                     const NodeID u = chunk.start + Config::kPermutationSize * sub_chunk_permutation[sub_chunk]
@@ -689,8 +679,6 @@ protected:
                     if (u < chunk.end && _graph->degree(u) < _max_degree
                         && _active[u].load(std::memory_order_relaxed)) {
                         _active[u].store(0, std::memory_order_relaxed);
-                        deg += _graph->degree(u);
-                        // LOG << V(sched_getcpu()) << V(u) << V(_graph->degree(u));
 
                         const auto [moved_node, emptied_cluster] = handle_node(u, local_rand, local_rating_map);
                         if (moved_node) {
@@ -703,12 +691,9 @@ protected:
                 }
             }
 
-            LOG << sched_getcpu() << ": " << deg << ", " << work << " [" << from << ", " << to << "] chunk " << chunk_id
-                << " of " << _chunks.size();
             _current_num_clusters -= num_removed_clusters;
         });
 
-        DBG << "done";
         return num_moved_nodes_ets.combine(std::plus{});
     }
 
@@ -783,9 +768,9 @@ private:
                     for (NodeID i = begin; i < end; ++i) {
                         const NodeID u = bucket_start + i;
                         current_chunk_size += _graph->degree(u);
-                        DBG << " ---> " << V(u) << V(_graph->degree(u)) << V(current_chunk_size);
                         if (current_chunk_size >= max_chunk_size) {
-                            DBG << "Commmit chunk " << chunk_start << " .. " << u + 1 << " with size " << current_chunk_size;
+                            DBG << "Commmit chunk " << chunk_start << " .. " << u + 1 << " with size "
+                                << current_chunk_size;
                             chunks.push_back({chunk_start, u + 1});
                             chunk_start        = u + 1;
                             current_chunk_size = 0;
@@ -823,37 +808,34 @@ private:
         // Make sure that we cover all nodes in [from, to)
         DBG << "~~~~~~~~~~ done ~~~~~~~~~~";
         DBG << "Got " << _chunks.size() << " chunks:";
-        for (const auto& [start, end]: _chunks)
+        for (const auto& [start, end]: _chunks) {
             DBG << "  " << start << " .. " << end;
+        }
 
         KASSERT(
             [&] {
                 std::vector<bool> hit(to - from);
                 for (const auto& [start, end]: _chunks) {
-                    KASSERT(start <= end, "", assert::always);
+                    KASSERT(start <= end, "");
                     EdgeWeight total_work = 0;
 
                     for (NodeID u = start; u < end; ++u) {
-                        KASSERT(from <= u, "", assert::always);
-                        KASSERT(u < to, "", assert::always);
-                        KASSERT(!hit[u - from], "", assert::always);
+                        KASSERT(from <= u, "");
+                        KASSERT(u < to, "");
+                        KASSERT(!hit[u - from], "");
 
                         hit[u - from] = true;
                         total_work += _graph->degree(u);
                     }
-
-                    KASSERT(total_work < 10000, "", assert::always);
                 }
 
                 for (NodeID u = 0; u < to - from; ++u) {
-                    KASSERT(
-                        _graph->degree(u) == 0u || hit[u], V(_graph->degree(u)) << V(from) << V(u + from) << V(to),
-                        assert::always);
+                    KASSERT(_graph->degree(u) == 0u || hit[u], V(_graph->degree(u)) << V(from) << V(u + from) << V(to));
                 }
 
                 return true;
             }(),
-            "", assert::always);
+            "", assert::heavy);
     }
 
 protected:

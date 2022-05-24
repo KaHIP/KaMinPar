@@ -58,7 +58,6 @@ void DistributedGraph::init_degree_buckets() {
         for (const NodeID u: nodes()) {
             ++_buckets[degree_bucket(degree(u)) + 1];
         }
-        LOG << V(_buckets);
 
         auto last_nonempty_bucket =
             std::find_if(_buckets.rbegin(), _buckets.rend(), [](const auto n) { return n > 0; });
@@ -69,7 +68,6 @@ void DistributedGraph::init_degree_buckets() {
     }
 
     std::partial_sum(_buckets.begin(), _buckets.end(), _buckets.begin());
-    LOG << V(_buckets);
 }
 
 void DistributedGraph::init_total_node_weight() {

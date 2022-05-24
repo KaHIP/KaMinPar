@@ -180,7 +180,7 @@ class DistributedGlobalLabelPropagationClusteringImpl final
     : public shm::ChunkRandomizedLabelPropagation<
           DistributedGlobalLabelPropagationClusteringImpl, DistributedGlobalLabelPropagationClusteringConfig>,
       public shm::OwnedClusterVector<NodeID, GlobalNodeID> {
-    SET_DEBUG(true);
+    SET_DEBUG(false);
 
     using Base = shm::ChunkRandomizedLabelPropagation<
         DistributedGlobalLabelPropagationClusteringImpl, DistributedGlobalLabelPropagationClusteringConfig>;
@@ -386,18 +386,9 @@ private:
     }
 
     GlobalNodeID process_chunk(const NodeID from, const NodeID to) {
-        mpi::barrier();
-        LOG << "process_chunk(" << from << ", " << to << ")";
-        mpi::barrier();
-
         START_TIMER("Chunk iteration", TIMER_DETAIL);
         const NodeID local_num_moved_nodes = perform_iteration(from, to);
         STOP_TIMER(TIMER_DETAIL);
-
-        DBG << "OK";
-        mpi::barrier();
-        LOG << "... synchronize ghost node clusters";
-        mpi::barrier();
 
         const GlobalNodeID global_num_moved_nodes =
             mpi::allreduce(local_num_moved_nodes, MPI_SUM, _graph->communicator());
@@ -405,10 +396,6 @@ private:
         if (global_num_moved_nodes > 0) {
             synchronize_ghost_node_clusters(from, to);
         }
-
-        mpi::barrier();
-        LOG << "... merge singleton clusters";
-        mpi::barrier();
 
         if (_c_ctx.global_lp.merge_singleton_clusters) {
             cluster_isolated_nodes(from, to);
