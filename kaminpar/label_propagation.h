@@ -49,6 +49,8 @@ struct LabelPropagationConfig {
     static constexpr bool kUseTwoHopClustering = false;
 
     static constexpr bool kUseActualGain = false;
+
+    static constexpr bool kUseActiveSetStrategy = true;
 };
 
 /*!
@@ -128,7 +130,9 @@ protected:
         }
 
         if (_num_active_nodes < num_active_nodes) {
-            _active.resize(num_active_nodes);
+            if constexpr (Config::kUseActiveSetStrategy) {
+                _active.resize(num_active_nodes);
+            }
             if constexpr (Config::kUseTwoHopClustering) {
                 _favored_clusters.resize(num_active_nodes);
             }
@@ -304,8 +308,12 @@ protected:
      */
     void activate_neighbors(const NodeID u) {
         for (const NodeID v: _graph->adjacent_nodes(u)) {
+            // call derived_activate_neighbor() even if we do not use the active set strategy since the function
+            // might have side effects; the compiler should remove it if it does not side effects
             if (derived_activate_neighbor(v)) {
-                _active[v].store(1, std::memory_order_relaxed);
+                if constexpr (Config::kUseActiveSetStrategy) {
+                    _active[v].store(1, std::memory_order_relaxed);
+                }
             }
         }
     }
@@ -370,7 +378,9 @@ private:
         tbb::parallel_invoke(
             [&] {
                 tbb::parallel_for(static_cast<ClusterID>(0), static_cast<ClusterID>(_graph->n()), [&](const auto u) {
-                    _active[u] = 1;
+                    if constexpr (Config::kUseActiveSetStrategy) {
+                        _active[u] = 1;
+                    }
 
                     const ClusterID initial_cluster = derived_initial_cluster(u);
                     derived_init_cluster(u, initial_cluster);
@@ -555,10 +565,12 @@ protected:
             auto& rating_map      = _rating_map_ets.local();
 
             for (NodeID u = r.begin(); u != r.end(); ++u) {
-                if (!_active[u].load(std::memory_order_relaxed)) {
-                    continue;
+                if constexpr (Config::kUseActiveSetStrategy) {
+                    if (!_active[u].load(std::memory_order_relaxed)) {
+                        continue;
+                    }
+                    _active[u].store(0, std::memory_order_relaxed);
                 }
-                _active[u].store(0, std::memory_order_relaxed);
 
                 if (work_since_update > Config::kMinChunkSize) {
                     if (Base::should_stop()) {
@@ -676,8 +688,10 @@ protected:
                     const NodeID u = chunk.start + Config::kPermutationSize * sub_chunk_permutation[sub_chunk]
                                      + permutation[i % Config::kPermutationSize];
                     if (u < chunk.end && _graph->degree(u) < _max_degree
-                        && _active[u].load(std::memory_order_relaxed)) {
-                        _active[u].store(0, std::memory_order_relaxed);
+                        && (!Config::kUseActiveSetStrategy || _active[u].load(std::memory_order_relaxed))) {
+                        if constexpr (Config::kUseActiveSetStrategy) {
+                            _active[u].store(0, std::memory_order_relaxed);
+                        }
 
                         const auto [moved_node, emptied_cluster] = handle_node(u, local_rand, local_rating_map);
                         if (moved_node) {

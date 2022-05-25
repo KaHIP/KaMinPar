@@ -24,6 +24,7 @@ DEFINE_ENUM_STRING_CONVERSION(PartitioningMode, partitioning_mode) = {
 DEFINE_ENUM_STRING_CONVERSION(GlobalClusteringAlgorithm, global_clustering_algorithm) = {
     {GlobalClusteringAlgorithm::NOOP, "noop"},
     {GlobalClusteringAlgorithm::LP, "lp"},
+    {GlobalClusteringAlgorithm::ACTIVE_SET_LP, "active-set-lp"},
     {GlobalClusteringAlgorithm::LOCKING_LP, "locking-lp"},
 };
 

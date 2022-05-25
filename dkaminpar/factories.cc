@@ -18,6 +18,7 @@
 #include "dkaminpar/refinement/noop_refiner.h"
 
 // Clustering
+#include "dkaminpar/coarsening/global_active_set_label_propagation_clustering.h"
 #include "dkaminpar/coarsening/global_label_propagation_clustering.h"
 #include "dkaminpar/coarsening/local_label_propagation_clustering.h"
 #include "dkaminpar/coarsening/locking_label_propagation_clustering.h"
@@ -53,6 +54,9 @@ std::unique_ptr<ClusteringAlgorithm<GlobalNodeID>> create_global_clustering_algo
 
         case GlobalClusteringAlgorithm::LP:
             return std::make_unique<DistributedGlobalLabelPropagationClustering>(ctx);
+
+        case GlobalClusteringAlgorithm::ACTIVE_SET_LP:
+            return std::make_unique<DistributedActiveSetGlobalLabelPropagationClustering>(ctx);
 
         case GlobalClusteringAlgorithm::LOCKING_LP:
             return std::make_unique<LockingLabelPropagationClustering>(ctx);
