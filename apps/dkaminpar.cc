@@ -218,7 +218,7 @@ int main(int argc, char* argv[]) {
 
     // If we load the graph from a file, rearrange it so that nodes are sorted by degree buckets
 #ifdef KAMINPAR_ENABLE_GRAPHGEN
-    if (app.generator.type != graphgen::GeneratorType::NONE) {
+    if (app.generator.type == graphgen::GeneratorType::NONE) {
 #else
     {
 #endif
