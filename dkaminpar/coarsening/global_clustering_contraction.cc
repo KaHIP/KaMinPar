@@ -305,7 +305,8 @@ DistributedGraph build_coarse_graph(
             const auto c_u_owner = compute_coarse_node_owner(c_u, c_node_distribution);
 
             for (const auto [e, v]: graph.neighbors(u)) {
-                const bool is_message = c_u != mapping[v];
+                const auto c_v = mapping[v];
+                const bool is_message = c_u != c_v;
                 num_messages[thread][c_u_owner] += is_message;
             }
         }
