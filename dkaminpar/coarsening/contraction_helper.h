@@ -13,6 +13,7 @@
 #include "dkaminpar/datastructure/distributed_graph_builder.h"
 #include "dkaminpar/utils/math.h"
 #include "kaminpar/datastructure/ts_navigable_linked_list.h"
+#include "kaminpar/utils/noinit_allocator.h"
 #include "kaminpar/utils/timer.h"
 
 namespace dkaminpar::coarsening::helper {
@@ -27,9 +28,9 @@ struct LocalToGlobalEdge {
 };
 
 struct DeduplicateEdgeListMemoryContext {
-    scalable_vector<Atomic<NodeID>>    bucket_index;
-    scalable_vector<NodeID>            deduplicated_bucket_index;
-    scalable_vector<LocalToGlobalEdge> buffer_list;
+    shm::noinit_vector<Atomic<NodeID>>    bucket_index;
+    shm::noinit_vector<NodeID>            deduplicated_bucket_index;
+    shm::noinit_vector<LocalToGlobalEdge> buffer_list;
 };
 
 template <typename Container>
