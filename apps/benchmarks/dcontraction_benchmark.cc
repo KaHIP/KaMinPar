@@ -21,11 +21,12 @@
 #include "dkaminpar/coarsening/global_clustering_contraction.h"
 #include "dkaminpar/context.h"
 #include "dkaminpar/distributed_io.h"
+#include "dkaminpar/graphutils/rearrange_graph.h"
+#include "dkaminpar/mpi_wrapper.h"
 #include "kaminpar/definitions.h"
 #include "kaminpar/utils/logger.h"
 #include "kaminpar/utils/random.h"
 #include "kaminpar/utils/timer.h"
-#include "mpi_wrapper.h"
 
 using namespace dkaminpar;
 namespace shm = kaminpar;
@@ -49,6 +50,9 @@ DistributedGraph load_graph(Context& ctx) {
         KASSERT(graph::debug::validate(graph), "bad input graph", assert::heavy);
         return graph;
     };
+
+    graph = graph::sort_by_degree_buckets(std::move(graph));
+    KASSERT(graph::debug::validate(graph), "bad sorted graph", assert::heavy);
 
     LOG << "Input graph:";
     graph::print_summary(graph);

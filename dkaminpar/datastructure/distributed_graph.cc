@@ -54,6 +54,7 @@ void DistributedGraph::init_degree_buckets() {
     KASSERT(std::all_of(_buckets.begin(), _buckets.end(), [](const auto n) { return n == 0; }));
 
     if (_sorted) {
+        // @todo parallelize
         for (const NodeID u: nodes()) {
             ++_buckets[degree_bucket(degree(u)) + 1];
         }
@@ -198,33 +199,53 @@ bool validate(const DistributedGraph& graph, const int root) {
 
     // check global n, global m
     DBG << "Checking global n, m";
-    KASSERT(mpi::bcast(graph.global_n(), root, comm) == graph.global_n());
-    KASSERT(mpi::bcast(graph.global_m(), root, comm) == graph.global_m());
+    KASSERT(
+        mpi::bcast(graph.global_n(), root, comm) == graph.global_n(), "inconsistent global number of nodes",
+        assert::always);
+    KASSERT(
+        mpi::bcast(graph.global_m(), root, comm) == graph.global_m(), "inconsistent global number of edges",
+        assert::always);
 
     // check global node distribution
     DBG << "Checking node distribution";
-    KASSERT(static_cast<int>(graph.node_distribution().size()) == size + 1);
-    KASSERT(graph.node_distribution().front() == 0u);
-    KASSERT(graph.node_distribution().back() == graph.global_n());
+    KASSERT(
+        static_cast<int>(graph.node_distribution().size()) == size + 1, "bad size of node distribution array",
+        assert::always);
+    KASSERT(graph.node_distribution().front() == 0u, "bad first entry of node distribution array", assert::always);
+    KASSERT(
+        graph.node_distribution().back() == graph.global_n(), "bad last entry of node distribution array",
+        assert::always);
     for (PEID pe = 1; pe < size + 1; ++pe) {
-        KASSERT(mpi::bcast(graph.node_distribution(pe), root, comm) == graph.node_distribution(pe));
-        KASSERT((rank + 1 != pe || graph.node_distribution(pe) - graph.node_distribution(pe - 1) == graph.n()));
+        KASSERT(
+            mpi::bcast(graph.node_distribution(pe), root, comm) == graph.node_distribution(pe),
+            "inconsistent entry in node distribution array", assert::always);
+        KASSERT(
+            rank + 1 != pe || graph.node_distribution(pe) - graph.node_distribution(pe - 1) == graph.n(),
+            "bad entry in node distribution array", assert::always);
     }
 
     // check global edge distribution
     DBG << "Checking edge distribution";
-    KASSERT(static_cast<int>(graph.edge_distribution().size()) == size + 1);
-    KASSERT(graph.edge_distribution().front() == 0u);
-    KASSERT(graph.edge_distribution().back() == graph.global_m());
+    KASSERT(
+        static_cast<int>(graph.edge_distribution().size()) == size + 1, "bad size of edge distribution array",
+        assert::always);
+    KASSERT(graph.edge_distribution().front() == 0u, "bad first entry of edge distribution array", assert::always);
+    KASSERT(
+        graph.edge_distribution().back() == graph.global_m(), "bad last entry of edge distribution array",
+        assert::always);
     for (PEID pe = 1; pe < size + 1; ++pe) {
-        KASSERT(mpi::bcast(graph.edge_distribution(pe), root, comm) == graph.edge_distribution(pe));
-        KASSERT((rank + 1 != pe || graph.edge_distribution(pe) - graph.edge_distribution(pe - 1) == graph.m()));
+        KASSERT(
+            mpi::bcast(graph.edge_distribution(pe), root, comm) == graph.edge_distribution(pe),
+            "inconsistent entry in edge distribution array", assert::always);
+        KASSERT(
+            rank + 1 != pe || graph.edge_distribution(pe) - graph.edge_distribution(pe - 1) == graph.m(),
+            "bad entry in edge distribution array", assert::always);
     }
 
     // check that ghost nodes are actually ghost nodes
     DBG << "Checking ghost nodes";
     for (NodeID ghost_u: graph.ghost_nodes()) {
-        KASSERT(graph.ghost_owner(ghost_u) != rank);
+        KASSERT(graph.ghost_owner(ghost_u) != rank, "owner of ghost node should not be the same PE", assert::always);
     }
 
     // check node weight of ghost nodes
@@ -242,9 +263,15 @@ bool validate(const DistributedGraph& graph, const int root) {
             },
             [&](const auto buffer, PEID) {
                 for (const auto [global_u, weight]: buffer) {
-                    KASSERT(graph.contains_global_node(global_u));
+                    KASSERT(
+                        graph.contains_global_node(global_u),
+                        "global node " << global_u << " has edge to this PE, but this PE does not know the node",
+                        assert::always);
                     const NodeID local_u = graph.global_to_local_node(global_u);
-                    KASSERT(graph.node_weight(local_u) == weight);
+                    KASSERT(
+                        graph.node_weight(local_u) == weight,
+                        "inconsistent weight for global node " << global_u << " / local node " << local_u,
+                        assert::always);
                 }
             });
     }
@@ -264,8 +291,15 @@ bool validate(const DistributedGraph& graph, const int root) {
             },
             [&](const auto recv_buffer, const PEID pe) {
                 for (const auto [ghost_node, owned_node]: recv_buffer) { // NOLINT: roles are swapped on receiving PE
-                    KASSERT(graph.contains_global_node(ghost_node));
-                    KASSERT(graph.contains_global_node(owned_node));
+                    KASSERT(
+                        graph.contains_global_node(ghost_node),
+                        "global node " << ghost_node << " has edge to this PE, but this PE does not know the node",
+                        assert::always);
+                    KASSERT(
+                        graph.contains_global_node(owned_node),
+                        "global node " << ghost_node << " has edge to global node " << owned_node
+                                       << " which should be owned by this PE, but this PE does not know that node",
+                        assert::always);
 
                     const NodeID local_owned_node = graph.global_to_local_node(owned_node);
                     const NodeID local_ghost_node = graph.global_to_local_node(ghost_node);
@@ -278,12 +312,38 @@ bool validate(const DistributedGraph& graph, const int root) {
                         }
                     }
                     KASSERT(
-                        found, "Node " << local_owned_node << " (g " << owned_node << ") "
-                                       << "is expected to be adjacent to " << local_ghost_node << " (g " << ghost_node
-                                       << ") "
-                                       << "due to an edge on PE " << pe << ", but is not");
+                        found,
+                        "local node " << local_owned_node << " (global node " << owned_node << ") "
+                                      << "is expected to be adjacent to local node " << local_ghost_node
+                                      << " (global node " << ghost_node << ") "
+                                      << "due to an edge on PE " << pe << ", but is not",
+                        assert::always);
                 }
             });
+    }
+
+    // check that the graph is sorted if it claims that it is sorted
+    DBG << "Checking degree buckets";
+    if (graph.sorted()) {
+        for (std::size_t bucket = 0; bucket < graph.number_of_buckets(); ++bucket) {
+            if (graph.bucket_size(bucket) == 0) {
+                continue;
+            }
+
+            KASSERT(
+                graph.first_node_in_bucket(bucket) != graph.first_invalid_node_in_bucket(bucket),
+                "bucket is empty, but graph data structure claims that it has size " << graph.bucket_size(bucket),
+                assert::always);
+
+            for (NodeID u = graph.first_node_in_bucket(bucket); u < graph.first_invalid_node_in_bucket(bucket); ++u) {
+                const auto expected_bucket = shm::degree_bucket(graph.degree(u));
+                KASSERT(
+                    expected_bucket == bucket,
+                    "node " << u << " with degree " << graph.degree(u) << " is expected to be in bucket "
+                            << expected_bucket << ", but is in bucket " << bucket,
+                    assert::always);
+            }
+        }
     }
 
     mpi::barrier(comm);

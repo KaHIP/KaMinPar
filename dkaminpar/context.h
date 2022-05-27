@@ -20,6 +20,7 @@ enum class PartitioningMode {
 
 enum class GlobalClusteringAlgorithm {
     NOOP,
+    ACTIVE_SET_LP,
     LP,
     LOCKING_LP,
 };

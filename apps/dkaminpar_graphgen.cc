@@ -181,7 +181,7 @@ DistributedGraph build_graph_sorted(EdgeList edge_list, scalable_vector<GlobalNo
     // Sort nodes by degree bucket
     shm::parallel::prefix_sum(
         degrees.begin(), degrees.end(), degrees.begin()); // sort_by_degree_buckets expects the prefix sum
-    const auto  node_permutation       = shm::graph::sort_by_degree_buckets<scalable_vector>(degrees);
+    const auto  node_permutation       = shm::graph::sort_by_degree_buckets<scalable_vector, false>(degrees);
     const auto& permutation_old_to_new = node_permutation.old_to_new;
     const auto& permutation_new_to_old = node_permutation.new_to_old;
 
@@ -333,6 +333,8 @@ KaGenResult create_rgg2d(const GeneratorContext ctx) {
     const GlobalEdgeID m      = (static_cast<GlobalEdgeID>(1) << ctx.m) * ctx.scale;
     const double       radius = ctx.r / std::sqrt(ctx.scale);
     const GlobalNodeID n      = static_cast<GlobalNodeID>(std::sqrt(1.0 * m / M_PI) / radius);
+
+    LOG << "Generating RGG2D(" << n << ", " << radius << ")";
     return create_generator_object(ctx).GenerateRGG2D(n, radius);
 }
 
@@ -340,22 +342,30 @@ KaGenResult create_rgg3d(const GeneratorContext ctx) {
     const GlobalEdgeID m      = (static_cast<GlobalEdgeID>(1) << ctx.m) * ctx.scale;
     const double       radius = ctx.r / std::cbrt(ctx.scale);
     const GlobalNodeID n      = static_cast<GlobalNodeID>(std::sqrt(3.0 / 4.0 * m / M_PI / (radius * radius * radius)));
+
+    LOG << "Generating RGG3D(" << n << ", " << radius << ")";
     return create_generator_object(ctx).GenerateRGG3D(n, radius);
 }
 
 KaGenResult create_rhg(const GeneratorContext ctx) {
     const GlobalNodeID m = (static_cast<GlobalNodeID>(1) << ctx.m) * ctx.scale;
     const GlobalNodeID n = m / ctx.d;
+   
+    LOG << "Generating RHG(" << n << ", " << ctx.gamma << ", " << ctx.d << ")";
     return create_generator_object(ctx).GenerateRHG(n, ctx.gamma, ctx.d);
 }
 
 KaGenResult create_grid2d(const GeneratorContext ctx) {
     const GlobalNodeID n = (static_cast<GlobalNodeID>(1) << ctx.n) * ctx.scale;
+
+    LOG << "Generating Grid2D(" << n << ", " << ctx.p << ")";
     return create_generator_object(ctx).GenerateGrid2D(n, ctx.p);
 }
 
 KaGenResult create_grid3d(const GeneratorContext ctx) {
     const GlobalNodeID n = (static_cast<GlobalNodeID>(1) << ctx.n) * ctx.scale;
+
+    LOG << "Generating Grid3D(" << n << ", " << ctx.p << ")";
     return create_generator_object(ctx).GenerateGrid3D(n, ctx.p);
 }
 } // namespace

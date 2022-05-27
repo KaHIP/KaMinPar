@@ -1,14 +1,15 @@
 /*******************************************************************************
- * @file:   global_label_propagation_coarsener.cc
+ * @file:   global_active_set_label_propagation_coarsener.cc
  * @author: Daniel Seemaier
- * @date:   29.09.21
+ * @date:   25.05.2022
  * @brief:  Label propagation with clusters that span multiple PEs. Cluster
  * labels and weights are synchronized in rounds. Between communication rounds,
  * a cluster can grow beyond the maximum cluster weight limit if more than one
  * PE moves nodes to the cluster. Thus, the clustering might violate the
  * maximum cluster weight limit.
+ * This implementation uses an active set strategy.
  ******************************************************************************/
-#include "dkaminpar/coarsening/global_label_propagation_clustering.h"
+#include "dkaminpar/coarsening/global_active_set_label_propagation_clustering.h"
 
 #include <unordered_map>
 
@@ -21,125 +22,6 @@
 
 namespace dkaminpar {
 namespace {
-inline const DistributedGraph* _global_graph;
-
-template <typename Iter1, typename Iter2>
-class CombinedRange {
-public:
-    class iterator {
-    public:
-        using iterator_category = std::input_iterator_tag;
-        using value_type        = typename Iter1::value_type;
-        using difference_type   = std::make_signed_t<std::size_t>;
-        using pointer           = value_type*;
-        using reference         = value_type&;
-
-        iterator(Iter1 begin1, std::size_t size1, Iter2 begin2, std::size_t size2, bool end)
-            : _begin1(begin1),
-              _size1(size1),
-              _begin2(begin2),
-              _size2(size2) {
-            if (end) {
-                _second = true;
-                _index  = _size2;
-            }
-        }
-
-        value_type operator*() const {
-            KASSERT((!_second && _index < _size1) || (_second && _index < _size2));
-            if (_second) {
-                return *_begin2;
-            } else {
-                const auto& [node, gain] = *_begin1;
-                return std::make_pair(_global_graph->local_to_global_node(node), gain);
-            }
-        }
-
-        iterator& operator++() {
-            ++_index;
-            if (!_second && _index < _size1) {
-                ++_begin1;
-            } else if (!_second && _index == _size1) {
-                _second = true;
-                _index  = 0;
-            } else {
-                ++_begin2;
-            }
-            return *this;
-        }
-
-        iterator operator++(int) {
-            auto tmp = *this;
-            ++*this;
-            return tmp;
-        }
-
-        bool operator==(const iterator& other) const {
-            return _index == other._index && _second == other._second;
-        }
-        bool operator!=(const iterator& other) const {
-            return _index != other._index || _second != other._second;
-        }
-
-    private:
-        Iter1       _begin1;
-        std::size_t _size1;
-        Iter2       _begin2;
-        std::size_t _size2;
-        bool        _second = false;
-        std::size_t _index  = 0;
-    };
-
-    CombinedRange(Iter1 begin1, std::size_t size1, Iter2 begin2, std::size_t size2)
-        : _begin(begin1, size1, begin2, size2, false),
-          _end(begin1, size1, begin2, size2, true) {}
-
-    iterator begin() const {
-        return _begin;
-    }
-    iterator end() const {
-        return _end;
-    }
-
-private:
-    iterator _begin;
-    iterator _end;
-};
-
-struct VectorHashRatingMap {
-    VectorHashRatingMap() {}
-
-    EdgeWeight& operator[](const GlobalNodeID key) {
-        KASSERT(_global_graph != nullptr);
-        if (_global_graph->is_owned_global_node(key)) {
-            KASSERT(_global_graph->global_to_local_node(key) < _local.capacity());
-            return _local[_global_graph->global_to_local_node(key)];
-        } else {
-            return _global[key];
-        }
-    }
-
-    [[nodiscard]] auto entries() {
-        return CombinedRange(_local.entries().begin(), _local.size(), _global.begin(), _global.size());
-    }
-
-    void clear() {
-        _local.clear();
-        _global.clear();
-    }
-
-    std::size_t capacity() const {
-        return _local.capacity();
-    }
-
-    void resize(const std::size_t capacity) {
-        _local.resize(capacity);
-    }
-
-    shm::FastResetArray<EdgeWeight>              _local{};
-    std::unordered_map<GlobalNodeID, EdgeWeight> _global{};
-};
-
 /*!
  * Large rating map based on a \c unordered_map. We need this since cluster IDs are global node IDs.
  */
@@ -165,7 +47,7 @@ struct UnorderedRatingMap {
     std::unordered_map<GlobalNodeID, EdgeWeight> map{};
 };
 
-struct DistributedGlobalLabelPropagationClusteringConfig : public shm::LabelPropagationConfig {
+struct DistributedActiveSetGlobalLabelPropagationClusteringConfig : public shm::LabelPropagationConfig {
     using Graph = DistributedGraph;
     // using RatingMap = ::kaminpar::RatingMap<EdgeWeight, VectorHashRatingMap>;
     using RatingMap                             = ::kaminpar::RatingMap<EdgeWeight, UnorderedRatingMap>;
@@ -173,22 +55,24 @@ struct DistributedGlobalLabelPropagationClusteringConfig : public shm::LabelProp
     using ClusterWeight                         = GlobalNodeWeight;
     static constexpr bool kTrackClusterCount    = false;
     static constexpr bool kUseTwoHopClustering  = false;
-    static constexpr bool kUseActiveSetStrategy = false;
+    static constexpr bool kUseActiveSetStrategy = true;
 };
 } // namespace
 
-class DistributedGlobalLabelPropagationClusteringImpl final
+class DistributedActiveSetGlobalLabelPropagationClusteringImpl final
     : public shm::ChunkRandomizedLabelPropagation<
-          DistributedGlobalLabelPropagationClusteringImpl, DistributedGlobalLabelPropagationClusteringConfig>,
+          DistributedActiveSetGlobalLabelPropagationClusteringImpl,
+          DistributedActiveSetGlobalLabelPropagationClusteringConfig>,
       public shm::OwnedClusterVector<NodeID, GlobalNodeID> {
     SET_DEBUG(false);
 
     using Base = shm::ChunkRandomizedLabelPropagation<
-        DistributedGlobalLabelPropagationClusteringImpl, DistributedGlobalLabelPropagationClusteringConfig>;
+        DistributedActiveSetGlobalLabelPropagationClusteringImpl,
+        DistributedActiveSetGlobalLabelPropagationClusteringConfig>;
     using ClusterBase = shm::OwnedClusterVector<NodeID, GlobalNodeID>;
 
 public:
-    explicit DistributedGlobalLabelPropagationClusteringImpl(const Context& ctx)
+    explicit DistributedActiveSetGlobalLabelPropagationClusteringImpl(const Context& ctx)
         : ClusterBase{ctx.partition.total_n()},
           _c_ctx{ctx.coarsening},
           _changed_label(ctx.partition.local_n()),
@@ -202,7 +86,6 @@ public:
     const auto& compute_clustering(const DistributedGraph& graph, const GlobalNodeWeight max_cluster_weight) {
         SCOPED_TIMER("Label propagation");
 
-        _global_graph = &graph;
         {
             SCOPED_TIMER("Allocation", TIMER_DETAIL);
             allocate(graph);
@@ -494,13 +377,14 @@ private:
 // Exposed wrapper
 //
 
-DistributedGlobalLabelPropagationClustering::DistributedGlobalLabelPropagationClustering(const Context& ctx)
-    : _impl{std::make_unique<DistributedGlobalLabelPropagationClusteringImpl>(ctx)} {}
+DistributedActiveSetGlobalLabelPropagationClustering::DistributedActiveSetGlobalLabelPropagationClustering(
+    const Context& ctx)
+    : _impl{std::make_unique<DistributedActiveSetGlobalLabelPropagationClusteringImpl>(ctx)} {}
 
-DistributedGlobalLabelPropagationClustering::~DistributedGlobalLabelPropagationClustering() = default;
+DistributedActiveSetGlobalLabelPropagationClustering::~DistributedActiveSetGlobalLabelPropagationClustering() = default;
 
-const DistributedGlobalLabelPropagationClustering::AtomicClusterArray&
-DistributedGlobalLabelPropagationClustering::compute_clustering(
+const DistributedActiveSetGlobalLabelPropagationClustering::AtomicClusterArray&
+DistributedActiveSetGlobalLabelPropagationClustering::compute_clustering(
     const DistributedGraph& graph, const GlobalNodeWeight max_cluster_weight) {
     return _impl->compute_clustering(graph, max_cluster_weight);
 }
