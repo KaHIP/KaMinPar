@@ -17,7 +17,7 @@
 
 namespace dkaminpar::coarsening::helper {
 namespace {
-SET_DEBUG(false);
+SET_DEBUG(true);
 }
 
 struct LocalToGlobalEdge {
@@ -264,6 +264,10 @@ inline DistributedGraph build_distributed_graph_from_edge_list(
     START_TIMER("Construct coarse graph", TIMER_DETAIL);
     graph::GhostNodeMapper mapper{node_distribution, comm};
 
+    DBG << "Number of nodes n=" << n;
+    EdgeID num_entries_used = 0;
+    EdgeID num_ghost_entries_used = 0;
+
     tbb::parallel_for<NodeID>(0, n, [&](const NodeID i) {
         const auto&  marker = all_buffered_nodes[i];
         const auto*  list   = marker.local_list;
@@ -282,13 +286,18 @@ inline DistributedGraph build_distributed_graph_from_edge_list(
 
             if (from <= v && v < to) {
                 edges[dst_index] = static_cast<NodeID>(v - from);
+                ++num_entries_used;
             } else {
                 edges[dst_index] = mapper.new_ghost_node(v);
+                ++num_ghost_entries_used;
             }
             edge_weights[dst_index] = weight;
         }
     });
+    DBG << V(num_entries_used) << V(num_ghost_entries_used);
+    STOP_TIMER(TIMER_DETAIL);
 
+    START_TIMER("Finalize coarse graph mapping", TIMER_DETAIL);
     auto [global_to_ghost, ghost_to_global, ghost_owner] = mapper.finalize();
     const NodeID ghost_n                                 = ghost_to_global.size();
     STOP_TIMER(TIMER_DETAIL);

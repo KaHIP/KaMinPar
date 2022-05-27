@@ -77,6 +77,8 @@ int main(int argc, char* argv[]) {
         args.positional()
             .argument("graph", "Graph", &ctx.graph_filename)
             .argument("clustering", "Clustering filename", &clustering_filename);
+        args.group("Misc")
+            .argument("threads", "Number of threads", &ctx.parallel.num_threads, 't');
         args.parse(argc, argv);
     } catch (const std::runtime_error& e) {
         std::cout << e.what() << std::endl;
