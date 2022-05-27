@@ -18,12 +18,13 @@
 #include "dkaminpar/utils/vector_ets.h"
 #include "kaminpar/parallel/atomic.h"
 #include "kaminpar/parallel/loops.h"
+#include "kaminpar/utils/noinit_allocator.h"
 
 namespace dkaminpar::coarsening {
 using namespace helper;
 
 namespace {
-SET_DEBUG(false);
+SET_DEBUG(true);
 
 /*!
  * Sparse all-to-all to exchange coarse node IDs of ghost nodes.
@@ -289,7 +290,7 @@ DistributedGraph build_coarse_graph(
     const auto to   = c_node_distribution[rank + 1];
 
     // create messages
-    std::vector<scalable_vector<LocalToGlobalEdge>> out_msg(size); // declare outside scope
+    std::vector<shm::noinit_vector<LocalToGlobalEdge>> out_msg(size); // declare outside scope
     {
         SCOPED_TIMER("Create edge messages", TIMER_DETAIL);
         const PEID                                num_threads = omp_get_max_threads();
@@ -304,9 +305,11 @@ DistributedGraph build_coarse_graph(
             const auto c_u_owner = compute_coarse_node_owner(c_u, c_node_distribution);
 
             for (const auto [e, v]: graph.neighbors(u)) {
-                num_messages[thread][c_u_owner] += (c_u != mapping[v]);
+                const bool is_message = c_u != mapping[v];
+                num_messages[thread][c_u_owner] += is_message;
             }
         }
+
         mpi::graph::internal::inclusive_col_prefix_sum(num_messages); // TODO move this utility function somewhere else
         STOP_TIMER(TIMER_DETAIL);
 
@@ -381,21 +384,20 @@ DistributedGraph build_coarse_graph(
 
     // Copy edge lists to a single list and free old list
     START_TIMER("Copy edge list", TIMER_DETAIL);
-    EdgeID total_num_edges = 0;
-    for (const auto& list: in_msg) {
-        total_num_edges += list.size();
-    }
-    scalable_vector<LocalToGlobalEdge> edge_list(total_num_edges);
-    {
-        EdgeID pos = 0;
-        for (const auto& list: in_msg) {
-            std::copy(list.begin(), list.end(), edge_list.begin() + pos);
-            pos += list.size();
-        }
+    std::vector<std::size_t> in_msg_sizes(size);
+    tbb::parallel_for<PEID>(0, size, [&](const PEID pe) { in_msg_sizes[pe] = in_msg[pe].size(); });
+    shm::parallel::prefix_sum(in_msg_sizes.begin(), in_msg_sizes.end(), in_msg_sizes.begin());
 
-        // free in_msg
-        std::vector<scalable_vector<LocalToGlobalEdge>> tmp = std::move(in_msg);
-    }
+    START_TIMER("Allocation", TIMER_DETAIL);
+    shm::noinit_vector<LocalToGlobalEdge> edge_list(in_msg_sizes.back());
+    STOP_TIMER(TIMER_DETAIL);
+
+    tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
+        tbb::parallel_for<std::size_t>(0, in_msg[pe].size(), [&](const std::size_t i) {
+            edge_list[in_msg_sizes[pe] - in_msg[pe].size() + i] = in_msg[pe][i];
+        });
+        //std::copy(in_msg[pe].begin(), in_msg[pe].end(), edge_list.begin() + in_msg_sizes[pe] - in_msg[pe].size());
+    });
     STOP_TIMER(TIMER_DETAIL);
 
     // TODO since we do not know the number of coarse ghost nodes yet, allocate memory only for local nodes and
@@ -516,10 +518,10 @@ contract_global_clustering_full_migration(const DistributedGraph& graph, const G
     const PEID         size       = mpi::get_comm_size(graph.communicator());
     const GlobalNodeID c_global_n = distribution.back();
     auto               c_graph    = build_coarse_graph(
-                         graph, mapping, create_perfect_distribution_from_global_count<GlobalNodeID>(c_global_n, graph.communicator()),
-                         [size, c_global_n](const GlobalNodeID node, const auto& /* node_distribution */) {
+        graph, mapping, create_perfect_distribution_from_global_count<GlobalNodeID>(c_global_n, graph.communicator()),
+        [size, c_global_n](const GlobalNodeID node, const auto& /* node_distribution */) {
             return math::compute_local_range_rank<GlobalNodeID>(c_global_n, size, node);
-                         });
+        });
 
     update_ghost_node_weights(c_graph);
 

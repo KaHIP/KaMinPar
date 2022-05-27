@@ -32,8 +32,9 @@ struct DeduplicateEdgeListMemoryContext {
     scalable_vector<LocalToGlobalEdge> buffer_list;
 };
 
-inline std::pair<scalable_vector<LocalToGlobalEdge>, DeduplicateEdgeListMemoryContext> deduplicate_edge_list(
-    scalable_vector<LocalToGlobalEdge> edge_list, const NodeID n, DeduplicateEdgeListMemoryContext m_ctx) {
+template <typename Container>
+inline std::pair<Container, DeduplicateEdgeListMemoryContext>
+deduplicate_edge_list(Container edge_list, const NodeID n, DeduplicateEdgeListMemoryContext m_ctx) {
     SCOPED_TIMER("Deduplicate edge list", TIMER_DETAIL);
 
     auto& bucket_index              = m_ctx.bucket_index;
@@ -265,7 +266,7 @@ inline DistributedGraph build_distributed_graph_from_edge_list(
     graph::GhostNodeMapper mapper{node_distribution, comm};
 
     DBG << "Number of nodes n=" << n;
-    EdgeID num_entries_used = 0;
+    EdgeID num_entries_used       = 0;
     EdgeID num_ghost_entries_used = 0;
 
     tbb::parallel_for<NodeID>(0, n, [&](const NodeID i) {

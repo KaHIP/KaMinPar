@@ -446,8 +446,7 @@ void sparse_alltoall(std::vector<Buffer>&& send_buffers, Receiver&& receiver, MP
     const auto [size, rank] = mpi::get_comm_info(comm);
 
     std::vector<MPI_Request> requests(size - 1);
-
-    std::size_t next_req_index = 0;
+    std::size_t              next_req_index = 0;
     for (PEID pe = 0; pe < size; ++pe) {
         if (pe != rank) {
             KASSERT(static_cast<std::size_t>(pe) < send_buffers.size());
@@ -465,7 +464,7 @@ void sparse_alltoall(std::vector<Buffer>&& send_buffers, Receiver&& receiver, MP
                 receiver(std::move(send_buffers[rank]));
             }
         } else {
-            const auto recv_buffer = mpi::probe_recv<Message, Buffer>(pe, 0, MPI_STATUS_IGNORE, comm);
+            auto recv_buffer = mpi::probe_recv<Message, Buffer>(pe, 0, MPI_STATUS_IGNORE, comm);
             if constexpr (receiver_invocable_with_pe) {
                 receiver(std::move(recv_buffer), pe);
             } else /* if (receiver_invocable_without_pe) */ {
@@ -474,7 +473,9 @@ void sparse_alltoall(std::vector<Buffer>&& send_buffers, Receiver&& receiver, MP
         }
     }
 
-    mpi::waitall(requests);
+    if (size > 1) {
+        mpi::waitall(requests);
+    }
 }
 
 template <typename Message, typename Buffer = scalable_noinit_vector<Message>, typename Receiver>
@@ -501,7 +502,7 @@ void sparse_alltoall(const std::vector<Buffer>& send_buffers, Receiver&& receive
 
     for (PEID pe = 0; pe < size; ++pe) {
         if (self || pe != rank) {
-            const auto recv_buffer = mpi::probe_recv<Message, Buffer>(pe, 0, MPI_STATUS_IGNORE, comm);
+            auto recv_buffer = mpi::probe_recv<Message, Buffer>(pe, 0, MPI_STATUS_IGNORE, comm);
             if constexpr (receiver_invocable_with_pe) {
                 receiver(std::move(recv_buffer), pe);
             } else /* if (receiver_invocable_without_pe) */ {
@@ -517,8 +518,8 @@ template <typename Message, typename Buffer = scalable_noinit_vector<Message>>
 std::vector<Buffer> sparse_alltoall_get(std::vector<Buffer>&& send_buffers, MPI_Comm comm) {
     std::vector<Buffer> recv_buffers(mpi::get_comm_size(comm));
     sparse_alltoall<Message, Buffer>(
-        std::move(send_buffers),
-        [&](const auto recv_buffer, const PEID pe) { recv_buffers[pe] = std::move(recv_buffer); }, comm);
+        std::move(send_buffers), [&](auto recv_buffer, const PEID pe) { recv_buffers[pe] = std::move(recv_buffer); },
+        comm);
     return recv_buffers;
 }
 

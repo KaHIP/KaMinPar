@@ -15,6 +15,7 @@
 #include <fstream>
 
 #include <mpi.h>
+#include <omp.h>
 
 #include "apps/apps.h"
 #include "apps/dkaminpar_arguments.h"
@@ -96,6 +97,7 @@ int main(int argc, char* argv[]) {
 
     // Initialize TBB
     auto gc = shm::init_parallelism(ctx.parallel.num_threads);
+    omp_set_num_threads(static_cast<int>(ctx.parallel.num_threads));
     if (ctx.parallel.use_interleaved_numa_allocation) {
         shm::init_numa();
     }
@@ -111,7 +113,7 @@ int main(int argc, char* argv[]) {
     STOP_TIMER();
 
     LOG << "Coarse graph:";
-    graph::print_summary(c_graph);
+    //graph::print_summary(c_graph);
 
     // Output statistics
     mpi::barrier();

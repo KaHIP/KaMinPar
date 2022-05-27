@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <vector>
 
 namespace kaminpar {
 // https://hackingcpp.com/cpp/recipe/uninitialized_numeric_array.html
@@ -24,4 +25,7 @@ public:
         std::allocator_traits<Alloc>::construct(static_cast<Alloc&>(*this), ptr, std::forward<Args>(args)...);
     }
 };
+
+template <typename T>
+using noinit_vector = std::vector<T, noinit_allocator<T>>;
 } // namespace kaminpar
