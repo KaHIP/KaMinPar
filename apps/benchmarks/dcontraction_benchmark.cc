@@ -51,8 +51,10 @@ DistributedGraph load_graph(Context& ctx) {
         return graph;
     };
 
+    /*
     graph = graph::sort_by_degree_buckets(std::move(graph));
     KASSERT(graph::debug::validate(graph), "bad sorted graph", assert::heavy);
+    */
 
     LOG << "Input graph:";
     graph::print_summary(graph);
