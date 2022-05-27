@@ -785,7 +785,8 @@ private:
                 }
 
                 for (NodeID u = 0; u < to - from; ++u) {
-                    KASSERT((_graph->degree(u) == 0 || hit[u]), V(from) << V(u + from) << V(to));
+                    KASSERT(
+                        (_graph->degree(u) == 0 || hit[u]), V(from) << V(u + from) << V(to) << V(_graph->degree(u)));
                 }
 
                 return true;

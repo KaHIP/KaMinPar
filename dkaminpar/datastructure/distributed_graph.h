@@ -683,7 +683,7 @@ namespace graph {
  * verbose statistics are enabled as build option.
  * @param graph Graph for which statistics are printed.
  */
-void print_verbose_stats(const DistributedGraph& graph);
+void print_summary(const DistributedGraph& graph);
 } // namespace graph
 
 namespace graph::debug {

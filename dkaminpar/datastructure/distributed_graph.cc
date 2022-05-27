@@ -5,14 +5,14 @@
  * @date:   27.10.2021
  * @brief:  Static distributed graph data structure.
  ******************************************************************************/
-#include "dkaminpar/datastructure/distributed_graph.h"
 #include <iomanip>
 #include <numeric>
 
+#include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/mpi_graph.h"
 #include "dkaminpar/mpi_wrapper.h"
+#include "dkaminpar/utils/vector_ets.h"
 #include "kaminpar/utils/math.h"
-#include "utils/vector_ets.h"
 
 namespace dkaminpar {
 void DistributedGraph::print() const {
@@ -156,16 +156,27 @@ void DistributedPartitionedGraph::init_block_weights() {
 }
 
 namespace graph {
-void print_verbose_stats(const DistributedGraph& graph) {
-    const auto n_str       = mpi::gather_statistics_str<GlobalNodeID>(graph.n());
-    const auto m_str       = mpi::gather_statistics_str<GlobalEdgeID>(graph.m());
-    const auto ghost_n_str = mpi::gather_statistics_str<GlobalNodeID>(graph.ghost_n());
+void print_summary(const DistributedGraph& graph) {
+    const auto global_n = graph.global_n();
+    const auto global_m = graph.global_m();
+    const auto [local_n_min, local_n_avg, local_n_max, local_n_sum] =
+        mpi::gather_statistics(graph.n(), graph.communicator());
+    const double local_n_imbalance = 1.0 * local_n_max / local_n_avg;
+    const auto [local_m_min, local_m_avg, local_m_max, local_m_sum] =
+        mpi::gather_statistics(graph.m(), graph.communicator());
+    const double local_m_imbalance = 1.0 * local_m_max / local_m_avg;
+    const auto   local_width       = static_cast<std::streamsize>(std::log10(std::max(local_n_max, local_m_max)) + 1);
 
-    LOG << "global_n=" << graph.global_n() << " "
-        << "global_m=" << graph.global_m() << " "
-        << "local_n=" << n_str << " "
-        << "local_m=" << m_str << " "
-        << "ghost_n=" << ghost_n_str << " ";
+    LOG << "  Global number of nodes: " << global_n;
+    LOG << "  Global number of edges: " << global_m;
+    LOG << "  Local number of nodes:  [min=" << std::setw(local_width) << local_n_min << "|avg=" << std::fixed
+        << std::setprecision(1) << std::setw(local_width) << local_n_avg << "|max=" << std::setw(local_width)
+        << local_n_max << "|imbalance=" << std::fixed << std::setprecision(3) << std::setw(local_width)
+        << local_n_imbalance << "]";
+    LOG << "  Local number of edges:  [min=" << std::setw(local_width) << local_m_min << "|avg=" << std::fixed
+        << std::setprecision(1) << std::setw(local_width) << local_m_avg << "|max=" << std::setw(local_width)
+        << local_m_max << "|imbalance=" << std::fixed << std::setprecision(3) << std::setw(local_width)
+        << local_m_imbalance << "]";
 }
 } // namespace graph
 

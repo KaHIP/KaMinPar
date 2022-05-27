@@ -89,7 +89,7 @@ int main(int argc, char* argv[]) {
             << "m=[" << m_str << "] "
             << "ghost_n=[" << ghost_n_str << "]";
     }
-    dist::graph::print_verbose_stats(graph);
+    dist::graph::print_summary(graph);
 
     KASSERT(dist::graph::debug::validate(graph));
     ctx.setup(graph);
