@@ -62,6 +62,7 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
                 const std::string max_node_weight_str =
                     mpi::gather_statistics_str<GlobalNodeWeight>(c_graph->max_node_weight(), c_graph->communicator());
 
+                // Machine readable
                 LOG << "=> level=" << coarsener.level() << " "
                     << "global_n=" << c_graph->global_n() << " "
                     << "global_m=" << c_graph->global_m() << " "
@@ -70,6 +71,10 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
                     << "m=[" << m_str << "] "
                     << "max_node_weight=[" << max_node_weight_str << "] "
                     << "max_cluster_weight=" << max_cluster_weight;
+
+                // Human readable
+                LOG << "Level " << coarsener.level() << ":";
+                graph::print_summary(*c_graph);
 
                 graph = c_graph;
             } else if (converged) {
