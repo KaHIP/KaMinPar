@@ -163,6 +163,7 @@ void Context::print(std::ostream& out, const std::string& prefix) const {
         << prefix << "seed=" << seed << " "                             //
         << prefix << "quiet=" << quiet << " "                           //
         << prefix << "num_repetitions=" << num_repetitions << " "       //
+        << prefix << "sort_graph=" << sort_graph << " "                 //
         << prefix << "time_limit=" << time_limit << " ";                //
     partition.print(out, prefix + "partition.");
     parallel.print(out, prefix + "parallel.");
@@ -185,6 +186,7 @@ Context create_default_context() {
     .quiet = false,
     .num_repetitions = 0,
     .time_limit = 0,
+    .sort_graph = true,
     .partition = {
       /* .k = */ 0,
       /* .epsilon = */ 0.03,

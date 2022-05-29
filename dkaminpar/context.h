@@ -253,6 +253,7 @@ struct Context {
     bool        quiet{};
     std::size_t num_repetitions;
     std::size_t time_limit;
+    bool        sort_graph;
 
     PartitionContext           partition;
     ParallelContext            parallel;

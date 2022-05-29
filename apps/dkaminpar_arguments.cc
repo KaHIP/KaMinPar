@@ -148,7 +148,10 @@ void create_miscellaneous_context_options(
             "edge-balanced", "Read input graph such that edges are distributed evenly across PEs.",
             &ctx.load_edge_balanced, 'E')
         .argument("repetitions", "Number of repetitions to perform.", &ctx.num_repetitions, 'R')
-        .argument("time-limit", "Time limit in seconds. Repeats partitioning until the time limit is exceeded.", &ctx.time_limit, 'T');
+        .argument(
+            "time-limit", "Time limit in seconds. Repeats partitioning until the time limit is exceeded.",
+            &ctx.time_limit, 'T')
+        .argument("sort-graph", "Sort and rearrange the graph by degree buckets.", &ctx.sort_graph);
 }
 
 void create_mandatory_options(Context& ctx, kaminpar::Arguments& args, const std::string& name) {
@@ -160,10 +163,10 @@ void create_mandatory_options(Context& ctx, kaminpar::Arguments& args, const std
 void create_debug_options(
     DebugContext& d_ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix) {
     args.group(name, prefix)
-        .argument("save-imbalanced-partitions", "", &d_ctx.save_imbalanced_partitions)
-        .argument("save-graph-hierarchy", "", &d_ctx.save_graph_hierarchy)
-        .argument("save-coarsest-graph", "", &d_ctx.save_coarsest_graph)
-        .argument("save-clustering-hierarchy", "", &d_ctx.save_clustering_hierarchy);
+        .argument(prefix + "-save-imbalanced-partitions", "", &d_ctx.save_imbalanced_partitions)
+        .argument(prefix + "-save-graph-hierarchy", "", &d_ctx.save_graph_hierarchy)
+        .argument(prefix + "-save-coarsest-graph", "", &d_ctx.save_coarsest_graph)
+        .argument(prefix + "-save-clustering-hierarchy", "", &d_ctx.save_clustering_hierarchy);
 }
 
 void create_context_options(ApplicationContext& a_ctx, kaminpar::Arguments& args) {

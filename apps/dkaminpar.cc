@@ -217,18 +217,18 @@ int main(int argc, char* argv[]) {
     ctx.setup(graph);
 
     // If we load the graph from a file, rearrange it so that nodes are sorted by degree buckets
-    /*
+    if (ctx.sort_graph) {
 #ifdef KAMINPAR_ENABLE_GRAPHGEN
-    if (app.generator.type == graphgen::GeneratorType::NONE) {
+        if (app.generator.type == graphgen::GeneratorType::NONE) {
 #else
-    {
+        {
 #endif
-        SCOPED_TIMER("Partitioning");
-        SCOPED_TIMER("Sort graph");
-        graph = graph::sort_by_degree_buckets(std::move(graph));
-        KASSERT(graph::debug::validate(graph));
+            SCOPED_TIMER("Partitioning");
+            SCOPED_TIMER("Sort graph");
+            graph = graph::sort_by_degree_buckets(std::move(graph));
+            KASSERT(graph::debug::validate(graph));
+        }
     }
-    */
 
     auto p_graph = [&] {
         if (ctx.num_repetitions > 0 || ctx.time_limit > 0) {
