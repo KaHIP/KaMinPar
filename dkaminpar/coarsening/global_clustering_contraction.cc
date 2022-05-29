@@ -24,7 +24,7 @@ namespace dkaminpar::coarsening {
 using namespace helper;
 
 namespace {
-SET_DEBUG(true);
+SET_DEBUG(false);
 
 /*!
  * Sparse all-to-all to exchange coarse node IDs of ghost nodes.

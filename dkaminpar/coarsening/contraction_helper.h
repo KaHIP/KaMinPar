@@ -18,7 +18,7 @@
 
 namespace dkaminpar::coarsening::helper {
 namespace {
-SET_DEBUG(true);
+SET_DEBUG(false);
 }
 
 struct LocalToGlobalEdge {
