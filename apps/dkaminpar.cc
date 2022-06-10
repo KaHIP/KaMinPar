@@ -201,9 +201,9 @@ int main(int argc, char* argv[]) {
 
     // Print statistics
     {
-        const auto n_str       = mpi::gather_statistics_str<GlobalNodeID>(graph.n());
-        const auto m_str       = mpi::gather_statistics_str<GlobalEdgeID>(graph.m());
-        const auto ghost_n_str = mpi::gather_statistics_str<GlobalNodeID>(graph.ghost_n());
+        const auto n_str       = mpi::gather_statistics_str<GlobalNodeID>(graph.n(), MPI_COMM_WORLD);
+        const auto m_str       = mpi::gather_statistics_str<GlobalEdgeID>(graph.m(), MPI_COMM_WORLD);
+        const auto ghost_n_str = mpi::gather_statistics_str<GlobalNodeID>(graph.ghost_n(), MPI_COMM_WORLD);
 
         LOG << "GRAPH "
             << "global_n=" << graph.global_n() << " "
@@ -251,11 +251,11 @@ int main(int argc, char* argv[]) {
     KASSERT(graph::debug::validate_partition(p_graph));
 
     // Output statistics
-    if (mpi::get_comm_rank() == 0) {
+    if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
         shm::cio::print_banner("Statistics");
     }
 
-    mpi::barrier();
+    mpi::barrier(MPI_COMM_WORLD);
     STOP_TIMER(); // stop root timer
     print_result_statistics(p_graph, ctx);
 

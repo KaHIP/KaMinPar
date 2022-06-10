@@ -3,7 +3,6 @@
 #include "dkaminpar/coarsening/local_clustering_contraction.h"
 #include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/datastructure/distributed_graph_builder.h"
-#include "dkaminpar/mpi_wrapper.h"
 #include "mpi_test.h"
 
 using ::testing::Each;

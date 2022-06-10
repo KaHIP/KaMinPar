@@ -14,7 +14,7 @@
 #include <mpi.h>
 
 #include "dkaminpar/datastructure/distributed_graph.h"
-#include "dkaminpar/mpi_wrapper.h"
+#include "dkaminpar/mpi/wrapper.h"
 #include "kaminpar/io.h"
 
 namespace dkaminpar::io {
@@ -71,17 +71,19 @@ Container read(const std::string& filename, const NodeID n, MPI_Comm comm = MPI_
 
 template <typename Container>
 void write(const std::string& filename, const Container& partition) {
-    if (mpi::get_comm_rank() == 0) { // clear file
+    if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) { // clear file
         std::ofstream tmp(filename);
     }
-    mpi::barrier();
+    mpi::barrier(MPI_COMM_WORLD);
 
-    mpi::sequentially([&](PEID) {
-        std::ofstream out(filename, std::ios_base::out | std::ios_base::app);
-        for (const auto& b: partition) {
-            out << b << "\n";
-        }
-    });
+    mpi::sequentially(
+        [&](PEID) {
+            std::ofstream out(filename, std::ios_base::out | std::ios_base::app);
+            for (const auto& b: partition) {
+                out << b << "\n";
+            }
+        },
+        MPI_COMM_WORLD);
 }
 } // namespace partition
 } // namespace dkaminpar::io

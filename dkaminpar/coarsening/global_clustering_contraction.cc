@@ -12,8 +12,8 @@
 
 #include "dkaminpar/coarsening/contraction_helper.h"
 #include "dkaminpar/growt.h"
-#include "dkaminpar/mpi_graph.h"
-#include "dkaminpar/mpi_wrapper.h"
+#include "dkaminpar/mpi/graph_communication.h"
+#include "dkaminpar/mpi/wrapper.h"
 #include "dkaminpar/utils/math.h"
 #include "dkaminpar/utils/vector_ets.h"
 #include "kaminpar/parallel/atomic.h"
@@ -304,10 +304,10 @@ DistributedGraph build_coarse_graph(
             const auto c_u       = mapping[u];
             const auto c_u_owner = compute_coarse_node_owner(c_u, c_node_distribution);
 
-            //for (EdgeID e = graph.first_edge(u); e < graph.first_invalid_edge(u); ++e) {
+            // for (EdgeID e = graph.first_edge(u); e < graph.first_invalid_edge(u); ++e) {
             for (const auto [e, v]: graph.neighbors(u)) {
-                //const auto v = graph.edge_target(e);
-                const auto c_v = mapping[v];
+                // const auto v = graph.edge_target(e);
+                const auto c_v        = mapping[v];
                 const bool is_message = c_u != c_v;
                 num_messages[thread][c_u_owner] += is_message;
             }
@@ -399,7 +399,7 @@ DistributedGraph build_coarse_graph(
         tbb::parallel_for<std::size_t>(0, in_msg[pe].size(), [&](const std::size_t i) {
             edge_list[in_msg_sizes[pe] - in_msg[pe].size() + i] = in_msg[pe][i];
         });
-        //std::copy(in_msg[pe].begin(), in_msg[pe].end(), edge_list.begin() + in_msg_sizes[pe] - in_msg[pe].size());
+        // std::copy(in_msg[pe].begin(), in_msg[pe].end(), edge_list.begin() + in_msg_sizes[pe] - in_msg[pe].size());
     });
     STOP_TIMER(TIMER_DETAIL);
 
@@ -521,10 +521,10 @@ contract_global_clustering_full_migration(const DistributedGraph& graph, const G
     const PEID         size       = mpi::get_comm_size(graph.communicator());
     const GlobalNodeID c_global_n = distribution.back();
     auto               c_graph    = build_coarse_graph(
-        graph, mapping, create_perfect_distribution_from_global_count<GlobalNodeID>(c_global_n, graph.communicator()),
-        [size, c_global_n](const GlobalNodeID node, const auto& /* node_distribution */) {
+                         graph, mapping, create_perfect_distribution_from_global_count<GlobalNodeID>(c_global_n, graph.communicator()),
+                         [size, c_global_n](const GlobalNodeID node, const auto& /* node_distribution */) {
             return math::compute_local_range_rank<GlobalNodeID>(c_global_n, size, node);
-        });
+                         });
 
     update_ghost_node_weights(c_graph);
 

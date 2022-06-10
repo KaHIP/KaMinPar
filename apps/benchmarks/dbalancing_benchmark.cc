@@ -19,10 +19,10 @@
 #include "dkaminpar/coarsening/global_clustering_contraction.h"
 #include "dkaminpar/coarsening/locking_label_propagation_clustering.h"
 #include "dkaminpar/context.h"
-#include "dkaminpar/mpi_graph.h"
-#include "dkaminpar/utils/metrics.h"
 #include "dkaminpar/distributed_io.h"
+#include "dkaminpar/mpi/graph_communication.h"
 #include "dkaminpar/refinement/distributed_balancer.h"
+#include "dkaminpar/utils/metrics.h"
 #include "kaminpar/application/arguments.h"
 #include "kaminpar/definitions.h"
 #include "kaminpar/utils/logger.h"
@@ -111,7 +111,7 @@ int main(int argc, char* argv[]) {
 
     // Create partitioned graph object
     const BlockID local_k = *std::max_element(partition.begin(), partition.end()) + 1;
-    const BlockID k       = mpi::allreduce(local_k, MPI_MAX);
+    const BlockID k       = mpi::allreduce(local_k, MPI_MAX, MPI_COMM_WORLD);
 
     scalable_vector<BlockWeight> local_block_weights(k);
     for (const NodeID u: graph.nodes()) {
@@ -119,7 +119,8 @@ int main(int argc, char* argv[]) {
     }
 
     scalable_vector<BlockWeight> global_block_weight_nonatomic(k);
-    mpi::allreduce(local_block_weights.data(), global_block_weight_nonatomic.data(), static_cast<int>(k), MPI_SUM);
+    mpi::allreduce(
+        local_block_weights.data(), global_block_weight_nonatomic.data(), static_cast<int>(k), MPI_SUM, MPI_COMM_WORLD);
 
     scalable_vector<Atomic<BlockWeight>> block_weights(k);
     std::copy(global_block_weight_nonatomic.begin(), global_block_weight_nonatomic.end(), block_weights.begin());
@@ -152,7 +153,7 @@ int main(int argc, char* argv[]) {
     const auto cut_after       = metrics::edge_cut(p_graph);
     const auto imbalance_after = metrics::imbalance(p_graph);
     LOG << "RESULT cut=" << cut_after << " imbalance=" << imbalance_after;
-    mpi::barrier();
+    mpi::barrier(MPI_COMM_WORLD);
 
     LOG << p_graph.block_weights();
 

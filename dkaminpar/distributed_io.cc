@@ -11,7 +11,7 @@
 #include <tbb/parallel_for.h>
 
 #include "dkaminpar/datastructure/distributed_graph_builder.h"
-#include "dkaminpar/mpi_wrapper.h"
+#include "dkaminpar/mpi/wrapper.h"
 #include "dkaminpar/utils/math.h"
 #include "kaminpar/io.h"
 #include "kaminpar/utils/strings.h"
@@ -39,7 +39,7 @@ namespace metis {
 namespace shm = kaminpar::io::metis;
 
 DistributedGraph read_node_balanced(const std::string& filename, MPI_Comm comm) {
-    const auto comm_info = mpi::get_comm_info();
+    const auto comm_info = mpi::get_comm_info(comm);
     const PEID size      = comm_info.first;
     const PEID rank      = comm_info.second;
 
@@ -90,7 +90,7 @@ DistributedGraph read_node_balanced(const std::string& filename, MPI_Comm comm) 
 }
 
 DistributedGraph read_edge_balanced(const std::string& filename, MPI_Comm comm) {
-    const auto comm_info = mpi::get_comm_info();
+    const auto comm_info = mpi::get_comm_info(comm);
     const PEID size      = comm_info.first;
     const PEID rank      = comm_info.second;
 
@@ -191,36 +191,38 @@ DistributedGraph read_edge_balanced(const std::string& filename, MPI_Comm comm) 
 void write(
     const std::string& filename, const DistributedGraph& graph, const bool write_node_weights,
     const bool write_edge_weights) {
-    if (mpi::get_comm_rank() == 0) { // clear file
+    if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) { // clear file
         std::ofstream tmp(filename);
     }
-    mpi::barrier();
+    mpi::barrier(MPI_COMM_WORLD);
 
-    mpi::sequentially([&](const PEID pe) {
-        std::ofstream out(filename, std::ios_base::out | std::ios_base::app);
-        if (pe == 0) {
-            out << graph.global_n() << " " << graph.global_m() / 2;
-            if (write_node_weights || write_edge_weights) {
-                out << " ";
-                out << static_cast<int>(write_node_weights);
-                out << static_cast<int>(write_edge_weights);
-            }
-            out << "\n";
-        }
-
-        for (const NodeID u: graph.nodes()) {
-            if (write_node_weights) {
-                out << graph.node_weight(u) << " ";
-            }
-            for (const auto [e, v]: graph.neighbors(u)) {
-                out << graph.local_to_global_node(v) + 1 << " ";
-                if (write_edge_weights) {
-                    out << graph.edge_weight(e) << " ";
+    mpi::sequentially(
+        [&](const PEID pe) {
+            std::ofstream out(filename, std::ios_base::out | std::ios_base::app);
+            if (pe == 0) {
+                out << graph.global_n() << " " << graph.global_m() / 2;
+                if (write_node_weights || write_edge_weights) {
+                    out << " ";
+                    out << static_cast<int>(write_node_weights);
+                    out << static_cast<int>(write_edge_weights);
                 }
+                out << "\n";
             }
-            out << "\n";
-        }
-    });
+
+            for (const NodeID u: graph.nodes()) {
+                if (write_node_weights) {
+                    out << graph.node_weight(u) << " ";
+                }
+                for (const auto [e, v]: graph.neighbors(u)) {
+                    out << graph.local_to_global_node(v) + 1 << " ";
+                    if (write_edge_weights) {
+                        out << graph.edge_weight(e) << " ";
+                    }
+                }
+                out << "\n";
+            }
+        },
+        MPI_COMM_WORLD);
 }
 } // namespace metis
 

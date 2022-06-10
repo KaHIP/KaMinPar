@@ -15,7 +15,7 @@
 #include "dkaminpar/datastructure/distributed_graph_builder.h"
 #include "dkaminpar/definitions.h"
 #include "dkaminpar/growt.h"
-#include "dkaminpar/mpi_wrapper.h"
+#include "dkaminpar/mpi/wrapper.h"
 #include "kaminpar/datastructure/marker.h"
 #include "kaminpar/graphutils/graph_permutation.h"
 #include "kaminpar/graphutils/graph_rearrangement.h"
@@ -49,7 +49,7 @@ PEID find_global_node_owner(const GlobalNodeID node, const scalable_vector<Globa
 growt::StaticGhostNodeMapping remap_ghost_nodes(
     const EdgeList& edge_list, const scalable_vector<NodeID>& local_old_to_new,
     const scalable_vector<GlobalNodeID>& node_distribution) {
-    const auto [size, rank] = mpi::get_comm_info();
+    const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
     const GlobalNodeID from = node_distribution[rank];
     const GlobalNodeID to   = node_distribution[rank + 1];
 
@@ -81,7 +81,7 @@ growt::StaticGhostNodeMapping remap_ghost_nodes(
 
     // Exchange number of messages
     DBG << V(sendcounts);
-    mpi::alltoall(sendcounts.data(), 1, recvcounts.data(), 1);
+    mpi::alltoall(sendcounts.data(), 1, recvcounts.data(), 1, MPI_COMM_WORLD);
     DBG << V(recvcounts);
 
     // Build send / receive displacements
@@ -141,7 +141,8 @@ growt::StaticGhostNodeMapping remap_ghost_nodes(
     KASSERT(recvbuf.size() == static_cast<std::size_t>(recvcounts[size - 1] + rdispls[size - 1]));
 
     mpi::alltoallv(
-        sendbuf.data(), sendcounts.data(), sdispls.data(), recvbuf.data(), recvcounts.data(), rdispls.data());
+        sendbuf.data(), sendcounts.data(), sdispls.data(), recvbuf.data(), recvcounts.data(), rdispls.data(),
+        MPI_COMM_WORLD);
 
     // Build ghost node mapping
     growt::StaticGhostNodeMapping old_to_new_mapping(rdispls.back() + 1);
@@ -154,7 +155,7 @@ growt::StaticGhostNodeMapping remap_ghost_nodes(
 }
 
 DistributedGraph build_graph_sorted(EdgeList edge_list, scalable_vector<GlobalNodeID> node_distribution) {
-    const auto [size, rank] = mpi::get_comm_info();
+    const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
     const GlobalNodeID from = node_distribution[rank];
     const GlobalNodeID to   = node_distribution[rank + 1];
     KASSERT(from <= to, "invalid node range", assert::light);
@@ -218,7 +219,9 @@ DistributedGraph build_graph_sorted(EdgeList edge_list, scalable_vector<GlobalNo
                 auto edge_v_it = permutation_ghost_old_to_new.find(edge_v + 1);
                 KASSERT(edge_v_it != permutation_ghost_old_to_new.end());
                 const GlobalNodeID remapped_edge_v = (*edge_v_it).second;
-                KASSERT(remapped_edge_v < from || remapped_edge_v >= to, V(from) << V(remapped_edge_v) << V(to) << V(edge_v));
+                KASSERT(
+                    remapped_edge_v < from || remapped_edge_v >= to, V(from)
+                                                                         << V(remapped_edge_v) << V(to) << V(edge_v));
                 edges[new_e] = ghost_node_mapper.new_ghost_node(remapped_edge_v);
             }
         }
@@ -243,7 +246,7 @@ DistributedGraph build_graph_sorted(EdgeList edge_list, scalable_vector<GlobalNo
 DistributedGraph build_graph(const EdgeList& edge_list, scalable_vector<GlobalNodeID> node_distribution) {
     SCOPED_TIMER("Build graph from edge list");
 
-    const auto [size, rank] = mpi::get_comm_info();
+    const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
     const GlobalNodeID from = node_distribution[rank];
     const GlobalNodeID to   = node_distribution[rank + 1];
     KASSERT(from <= to, "", assert::always);
@@ -311,11 +314,11 @@ DistributedGraph build_graph(const EdgeList& edge_list, scalable_vector<GlobalNo
 }
 
 scalable_vector<GlobalNodeID> build_node_distribution(const std::pair<SInt, SInt> range) {
-    const auto [size, rank] = mpi::get_comm_info();
+    const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
     const GlobalNodeID to   = range.second;
 
     scalable_vector<GlobalNodeID> node_distribution(size + 1);
-    mpi::allgather(&to, 1, node_distribution.data() + 1, 1);
+    mpi::allgather(&to, 1, node_distribution.data() + 1, 1, MPI_COMM_WORLD);
     return node_distribution;
 }
 
@@ -350,7 +353,7 @@ KaGenResult create_rgg3d(const GeneratorContext ctx) {
 KaGenResult create_rhg(const GeneratorContext ctx) {
     const GlobalNodeID m = (static_cast<GlobalNodeID>(1) << ctx.m) * ctx.scale;
     const GlobalNodeID n = m / ctx.d;
-   
+
     LOG << "Generating RHG(" << n << ", " << ctx.gamma << ", " << ctx.d << ")";
     return create_generator_object(ctx).GenerateRHG(n, ctx.gamma, ctx.d);
 }

@@ -23,7 +23,7 @@
 #include "dkaminpar/context.h"
 #include "dkaminpar/distributed_io.h"
 #include "dkaminpar/graphutils/rearrange_graph.h"
-#include "dkaminpar/mpi_wrapper.h"
+#include "dkaminpar/mpi/wrapper.h"
 #include "kaminpar/definitions.h"
 #include "kaminpar/utils/logger.h"
 #include "kaminpar/utils/random.h"
@@ -80,8 +80,7 @@ int main(int argc, char* argv[]) {
         args.positional()
             .argument("graph", "Graph", &ctx.graph_filename)
             .argument("clustering", "Clustering filename", &clustering_filename);
-        args.group("Misc")
-            .argument("threads", "Number of threads", &ctx.parallel.num_threads, 't');
+        args.group("Misc").argument("threads", "Number of threads", &ctx.parallel.num_threads, 't');
         args.parse(argc, argv);
     } catch (const std::runtime_error& e) {
         std::cout << e.what() << std::endl;
@@ -113,10 +112,10 @@ int main(int argc, char* argv[]) {
     STOP_TIMER();
 
     LOG << "Coarse graph:";
-    //graph::print_summary(c_graph);
+    // graph::print_summary(c_graph);
 
     // Output statistics
-    mpi::barrier();
+    mpi::barrier(MPI_COMM_WORLD);
     if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0 && !ctx.quiet) {
         shm::Timer::global().print_machine_readable(std::cout);
     }

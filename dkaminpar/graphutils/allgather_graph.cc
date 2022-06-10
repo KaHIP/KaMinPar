@@ -7,7 +7,7 @@
  ******************************************************************************/
 #include "dkaminpar/graphutils/allgather_graph.h"
 
-#include "dkaminpar/mpi_wrapper.h"
+#include "dkaminpar/mpi/wrapper.h"
 #include "kaminpar/metrics.h"
 
 namespace dkaminpar::graph {
@@ -30,8 +30,8 @@ shm::Graph allgather(const DistributedGraph& graph) {
     shm::StaticArray<shm::EdgeID> nodes(graph.global_n() + 1);
     shm::StaticArray<shm::NodeID> edges(graph.global_m());
 
-    const bool is_node_weighted = mpi::allreduce<std::uint8_t>(graph.is_node_weighted(), MPI_MAX);
-    const bool is_edge_weighted = mpi::allreduce<std::uint8_t>(graph.is_edge_weighted(), MPI_MAX);
+    const bool is_node_weighted = mpi::allreduce<std::uint8_t>(graph.is_node_weighted(), MPI_MAX, graph.communicator());
+    const bool is_edge_weighted = mpi::allreduce<std::uint8_t>(graph.is_edge_weighted(), MPI_MAX, graph.communicator());
 
     shm::StaticArray<shm::NodeWeight> node_weights(is_node_weighted * graph.global_n());
     shm::StaticArray<shm::EdgeWeight> edge_weights(is_edge_weighted * graph.global_m());

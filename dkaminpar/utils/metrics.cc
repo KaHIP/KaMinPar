@@ -9,9 +9,9 @@
 
 #include <tbb/enumerable_thread_specific.h>
 
-#include "context.h"
-#include "datastructure/distributed_graph.h"
-#include "dkaminpar/mpi_wrapper.h"
+#include "dkaminpar/context.h"
+#include "dkaminpar/datastructure/distributed_graph.h"
+#include "dkaminpar/mpi/wrapper.h"
 
 namespace dkaminpar::metrics {
 GlobalEdgeWeight local_edge_cut(const DistributedPartitionedGraph& p_graph) {

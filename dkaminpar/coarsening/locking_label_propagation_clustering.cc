@@ -10,7 +10,7 @@
 #include <unordered_set>
 
 #include "dkaminpar/growt.h"
-#include "dkaminpar/mpi_graph.h"
+#include "dkaminpar/mpi/graph_communication.h"
 #include "dkaminpar/utils/math.h"
 #include "kaminpar/label_propagation.h"
 #include "kaminpar/parallel/atomic.h"
@@ -67,11 +67,15 @@ class LockingLabelPropagationClusteringImpl
 
         void print() const {
             LOG << shm::logger::CYAN << "LockingLabelPropagationClustering statistics:";
-            LOG << shm::logger::CYAN << "- num_move_accepted: " << mpi::gather_statistics_str(num_move_accepted);
-            LOG << shm::logger::CYAN << "- num_move_rejected: " << mpi::gather_statistics_str(num_move_rejected);
-            LOG << shm::logger::CYAN << "- num_moves: " << mpi::gather_statistics_str(num_moves);
-            LOG << shm::logger::CYAN << "- gain_accepted: " << mpi::gather_statistics_str(gain_accepted);
-            LOG << shm::logger::CYAN << "- gain_rejected: " << mpi::gather_statistics_str(gain_rejected);
+            LOG << shm::logger::CYAN
+                << "- num_move_accepted: " << mpi::gather_statistics_str(num_move_accepted, MPI_COMM_WORLD);
+            LOG << shm::logger::CYAN
+                << "- num_move_rejected: " << mpi::gather_statistics_str(num_move_rejected, MPI_COMM_WORLD);
+            LOG << shm::logger::CYAN << "- num_moves: " << mpi::gather_statistics_str(num_moves, MPI_COMM_WORLD);
+            LOG << shm::logger::CYAN
+                << "- gain_accepted: " << mpi::gather_statistics_str(gain_accepted, MPI_COMM_WORLD);
+            LOG << shm::logger::CYAN
+                << "- gain_rejected: " << mpi::gather_statistics_str(gain_rejected, MPI_COMM_WORLD);
         }
 
         void reset() {
@@ -314,11 +318,11 @@ private:
         SET_DEBUG(false);
 
         if constexpr (kDebug) {
-            mpi::barrier();
+            mpi::barrier(_graph->communicator());
             LOG << "==============================";
             LOG << "process_chunk(" << from << ", " << to << ")";
             LOG << "==============================";
-            mpi::barrier();
+            mpi::barrier(_graph->communicator());
         }
 
         const NodeID num_moved_nodes = TIMED_SCOPE("Label Propagation", TIMER_FINE) {
@@ -356,11 +360,11 @@ private:
         SCOPED_TIMER("Distributed moves", TIMER_FINE);
 
         if constexpr (kDebug) {
-            mpi::barrier();
+            mpi::barrier(_graph->communicator());
             LOG << "==============================";
             LOG << "perform_distributed_moves";
             LOG << "==============================";
-            mpi::barrier();
+            mpi::barrier(_graph->communicator());
         }
 
         START_TIMER("Exchange join requests", TIMER_FINE);
@@ -392,21 +396,21 @@ private:
         STOP_TIMER(TIMER_FINE);
 
         if constexpr (kDebug) {
-            mpi::barrier();
+            mpi::barrier(_graph->communicator());
             LOG << "==============================";
             LOG << "build_gain_buffer";
             LOG << "==============================";
-            mpi::barrier();
+            mpi::barrier(_graph->communicator());
         }
 
         build_gain_buffer(requests);
 
         if constexpr (kDebug) {
-            mpi::barrier();
+            mpi::barrier(_graph->communicator());
             LOG << "==============================";
             LOG << "perform moves from gain buffer";
             LOG << "==============================";
-            mpi::barrier();
+            mpi::barrier(_graph->communicator());
         }
 
         // allocate memory for response messages
@@ -517,11 +521,11 @@ private:
         SCOPED_TIMER("Build gain buffer", TIMER_FINE);
 
         if constexpr (kDebug) {
-            mpi::barrier();
+            mpi::barrier(_graph->communicator());
             LOG << "==============================";
             LOG << "build_gain_buffer";
             LOG << "==============================";
-            mpi::barrier();
+            mpi::barrier(_graph->communicator());
         }
 
         KASSERT(

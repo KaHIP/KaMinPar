@@ -6,11 +6,12 @@
  * @brief:
  ******************************************************************************/
 #include "dkaminpar/utils/distributed_timer.h"
+
 #include <cmath>
 #include <numeric>
 #include <sstream>
 
-#include "dkaminpar/mpi_wrapper.h"
+#include "dkaminpar/mpi/wrapper.h"
 
 namespace dkaminpar::timer {
 using shm::Timer;
@@ -115,46 +116,48 @@ void generate_statistics(const Timer::TimerTreeNode& node, std::vector<NodeStati
     const PEID root = 0;
 
     // Make sure that we are looking at the same timer node on each PE
-    KASSERT([&] {
-        constexpr std::size_t check_chars = 1024;
+    KASSERT(
+        [&] {
+            constexpr std::size_t check_chars = 1024;
 
-        const PEID rank = mpi::get_comm_rank(comm);
+            const PEID rank = mpi::get_comm_rank(comm);
 
-        // check that this timer node has the same number of children on each PE
-        auto num_children = mpi::gather(node.children.size(), 0, comm);
-        KASSERT(
-            (rank != root
-             || std::all_of(
-                 num_children.begin(), num_children.end(),
-                 [&](const std::size_t num) { return num == node.children.size(); })),
-            "timers have diverged: number of children for node " << node.name << "/" << node.description << ": "
-                                                                 << num_children,
-            assert::always);
+            // check that this timer node has the same number of children on each PE
+            auto num_children = mpi::gather(node.children.size(), 0, comm);
+            KASSERT(
+                (rank != root
+                 || std::all_of(
+                     num_children.begin(), num_children.end(),
+                     [&](const std::size_t num) { return num == node.children.size(); })),
+                "timers have diverged: number of children for node " << node.name << "/" << node.description << ": "
+                                                                     << num_children,
+                assert::always);
 
-        auto names = gather_trunc_string<check_chars>(node.name, root, comm);
-        KASSERT(
-            (rank != root
-             || std::all_of(
-                 names.begin(), names.end(),
-                 [&](const std::string& name) {
-                     return name.substr(0, check_chars) == node.name.substr(0, check_chars);
-                 })),
-            "timers have diverged at node " << node.name << ": " << names, assert::always);
+            auto names = gather_trunc_string<check_chars>(node.name, root, comm);
+            KASSERT(
+                (rank != root
+                 || std::all_of(
+                     names.begin(), names.end(),
+                     [&](const std::string& name) {
+                         return name.substr(0, check_chars) == node.name.substr(0, check_chars);
+                     })),
+                "timers have diverged at node " << node.name << ": " << names, assert::always);
 
-        auto descriptions = gather_trunc_string<check_chars>(node.description, root, comm);
-        KASSERT(
-            (rank != root
-             || std::all_of(
-                 descriptions.begin(), descriptions.end(),
-                 [&](const std::string& description) {
-                     return description.substr(0, check_chars) == node.description.substr(0, check_chars);
-                 })),
-            "timers have diverged at node " << node.name << " with description " << node.description << ": "
-                                            << descriptions,
-            assert::always);
+            auto descriptions = gather_trunc_string<check_chars>(node.description, root, comm);
+            KASSERT(
+                (rank != root
+                 || std::all_of(
+                     descriptions.begin(), descriptions.end(),
+                     [&](const std::string& description) {
+                         return description.substr(0, check_chars) == node.description.substr(0, check_chars);
+                     })),
+                "timers have diverged at node " << node.name << " with description " << node.description << ": "
+                                                << descriptions,
+                assert::always);
 
-        return true;
-    }(), "", assert::always);
+            return true;
+        }(),
+        "", assert::always);
 
     auto         times = mpi::gather<double, std::vector<double>>(node.seconds(), 0, comm);
     const double mean  = compute_mean(times);

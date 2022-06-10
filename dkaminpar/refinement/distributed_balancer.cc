@@ -7,8 +7,8 @@
  ******************************************************************************/
 #include "dkaminpar/refinement/distributed_balancer.h"
 
-#include "dkaminpar/mpi_graph.h"
-#include "dkaminpar/mpi_wrapper.h"
+#include "dkaminpar/mpi/graph_communication.h"
+#include "dkaminpar/mpi/wrapper.h"
 #include "dkaminpar/utils/metrics.h"
 #include "kaminpar/utils/math.h"
 #include "kaminpar/utils/random.h"
@@ -200,9 +200,9 @@ auto DistributedBalancer::reduce_move_candidates(std::vector<MoveCandidate>&& ca
             mpi::send(candidates.data(), candidates.size(), dest, 0, _p_graph->communicator());
             return {};
         } else {
-            const int                  src        = rank + active_size / 2;
-            std::vector<MoveCandidate> tmp_buffer = mpi::probe_recv<MoveCandidate, std::vector<MoveCandidate>>(
-                src, 0, MPI_STATUS_IGNORE, _p_graph->communicator());
+            const int                  src = rank + active_size / 2;
+            std::vector<MoveCandidate> tmp_buffer =
+                mpi::probe_recv<MoveCandidate, std::vector<MoveCandidate>>(src, 0, _p_graph->communicator());
 
             // print_candidates(tmp_buffer, "after recv");
             candidates = reduce_move_candidates(std::move(candidates), std::move(tmp_buffer));
@@ -508,8 +508,8 @@ void DistributedBalancer::print_statistics() const {
           << _stats.initial_num_imbalanced_blocks - _stats.final_num_imbalanced_blocks;
     STATS << "  * Change in edge cut: " << C(_stats.initial_cut, _stats.final_cut) << " = by "
           << _stats.initial_cut - _stats.final_cut;
-    //STATS << "  * Change in total overload: " << C(_stats.initial_total_overload, _stats.final_total_overload)
-          //<< " = by " << _stats.initial_total_overload - _stats.final_total_overload;
+    // STATS << "  * Change in total overload: " << C(_stats.initial_total_overload, _stats.final_total_overload)
+    //<< " = by " << _stats.initial_total_overload - _stats.final_total_overload;
     STATS << "  * Number of moved nodes: " << _stats.num_adjacent_moves + _stats.num_nonadjacent_moves;
     STATS << "    # of moves to adjacent blocks: " << _stats.num_adjacent_moves;
     STATS << "    # of moves to nonadjacent blocks: " << _stats.num_nonadjacent_moves;

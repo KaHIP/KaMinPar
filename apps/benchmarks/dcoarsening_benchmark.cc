@@ -89,7 +89,7 @@ int main(int argc, char* argv[]) {
 
         START_TIMER("Clustering Algorithm", "Level " + std::to_string(graph_hierarchy.size()));
         dist::LockingLabelPropagationClustering clustering_algorithm(ctx);
-        auto&                     clustering = clustering_algorithm.compute_clustering(*c_graph, max_cluster_weight);
+        auto& clustering = clustering_algorithm.compute_clustering(*c_graph, max_cluster_weight);
         STOP_TIMER();
 
         LOG << "... contracting";
@@ -115,7 +115,7 @@ int main(int argc, char* argv[]) {
     }
 
     // Output statistics
-    dist::mpi::barrier();
+    dist::mpi::barrier(MPI_COMM_WORLD);
 
     if (dist::mpi::get_comm_rank(MPI_COMM_WORLD) == 0 && !ctx.quiet) {
         shm::Timer::global().print_machine_readable(std::cout);

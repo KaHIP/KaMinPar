@@ -78,9 +78,9 @@ int main(int argc, char* argv[]) {
 
     // Print statistics
     {
-        const auto n_str       = dist::mpi::gather_statistics_str<dist::GlobalNodeID>(graph.n());
-        const auto m_str       = dist::mpi::gather_statistics_str<dist::GlobalEdgeID>(graph.m());
-        const auto ghost_n_str = dist::mpi::gather_statistics_str<dist::GlobalNodeID>(graph.ghost_n());
+        const auto n_str       = dist::mpi::gather_statistics_str<dist::GlobalNodeID>(graph.n(), MPI_COMM_WORLD);
+        const auto m_str       = dist::mpi::gather_statistics_str<dist::GlobalEdgeID>(graph.m(), MPI_COMM_WORLD);
+        const auto ghost_n_str = dist::mpi::gather_statistics_str<dist::GlobalNodeID>(graph.ghost_n(), MPI_COMM_WORLD);
 
         LOG << "GRAPH "
             << "global_n=" << graph.global_n() << " "
@@ -95,7 +95,7 @@ int main(int argc, char* argv[]) {
     ctx.setup(graph);
 
     // Output statistics
-    dist::mpi::barrier();
+    dist::mpi::barrier(MPI_COMM_WORLD);
 
     STOP_TIMER();
 

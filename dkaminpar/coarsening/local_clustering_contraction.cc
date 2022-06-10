@@ -10,8 +10,8 @@
 #include <tbb/parallel_for.h>
 #include <tbb/parallel_invoke.h>
 
-#include "dkaminpar/mpi_graph.h"
-#include "dkaminpar/mpi_wrapper.h"
+#include "dkaminpar/mpi/graph_communication.h"
+#include "dkaminpar/mpi/wrapper.h"
 #include "kaminpar/datastructure/rating_map.h"
 
 namespace dkaminpar::coarsening {
@@ -19,8 +19,7 @@ using namespace contraction;
 SET_DEBUG(false);
 
 Result contract_local_clustering(
-    const DistributedGraph& graph, const scalable_vector<Atomic<NodeID>>& clustering,
-    MemoryContext m_ctx) {
+    const DistributedGraph& graph, const scalable_vector<Atomic<NodeID>>& clustering, MemoryContext m_ctx) {
     KASSERT(clustering.size() >= graph.n());
 
     MPI_Comm comm           = graph.communicator();

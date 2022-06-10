@@ -13,7 +13,7 @@
 
 #include "dkaminpar/definitions.h"
 #include "dkaminpar/growt.h"
-#include "dkaminpar/mpi_wrapper.h"
+#include "dkaminpar/mpi/wrapper.h"
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/datastructure/marker.h"
 #include "kaminpar/parallel/algorithm.h"

@@ -12,7 +12,8 @@
 #include <tbb/concurrent_hash_map.h>
 
 #include "dkaminpar/definitions.h"
-#include "dkaminpar/mpi_graph.h"
+#include "dkaminpar/growt.h"
+#include "dkaminpar/mpi/graph_communication.h"
 
 namespace dkaminpar::graph {
 class GhostNodeMapper {

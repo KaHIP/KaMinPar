@@ -5,7 +5,6 @@
  * @date:   30.11.2021
  * @brief:  Unit tests for MPI functions depending on the graph topology.
  ******************************************************************************/
-#include "dkaminpar/mpi_graph.h"
 #include "dtests/mpi_test.h"
 
 namespace dkaminpar::test {

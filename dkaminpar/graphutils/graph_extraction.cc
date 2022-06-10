@@ -8,15 +8,16 @@
  ******************************************************************************/
 #include "dkaminpar/graphutils/graph_extraction.h"
 
+#include <functional>
+
+#include <mpi.h>
+
 #include "dkaminpar/datastructure/distributed_graph.h"
-#include "dkaminpar/mpi_graph.h"
+#include "dkaminpar/mpi/graph_communication.h"
+#include "dkaminpar/mpi/wrapper.h"
 #include "dkaminpar/utils/math.h"
 #include "dkaminpar/utils/vector_ets.h"
 #include "kaminpar/parallel/algorithm.h"
-#include "mpi_wrapper.h"
-
-#include <functional>
-#include <mpi.h>
 
 namespace dkaminpar::graph {
 SET_DEBUG(true);
@@ -215,7 +216,9 @@ void gather_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph, 
         STOP_TIMER(TIMER_DETAIL);
 
         START_TIMER("MPI_Alltoall", TIMER_DETAIL);
-        mpi::alltoall(send_subgraph_sizes.data(), blocks_per_pe, recv_subgraph_sizes.data(), blocks_per_pe);
+        mpi::alltoall(
+            send_subgraph_sizes.data(), blocks_per_pe, recv_subgraph_sizes.data(), blocks_per_pe,
+            p_graph.communicator());
         STOP_TIMER(TIMER_DETAIL);
     }
 

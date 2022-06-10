@@ -1,5 +1,5 @@
 /*******************************************************************************
- * @file:   mpi_graph.h
+ * @file:   graph_communication.h
  *
  * @author: Daniel Seemaier
  * @date:   27.10.2021
@@ -10,14 +10,18 @@
 #include <type_traits>
 
 #include <omp.h>
-#include <tbb/concurrent_vector.h>
 
 #include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/definitions.h"
-#include "dkaminpar/mpi_wrapper.h"
+#include "dkaminpar/mpi/alltoall.h"
 #include "kaminpar/datastructure/marker.h"
 #include "kaminpar/parallel/aligned_element.h"
 #include "kaminpar/utils/timer.h"
+
+#define SPARSE_ALLTOALL_NOFILTER \
+    [](NodeID) {                 \
+        return true;             \
+    }
 
 namespace dkaminpar::mpi::graph {
 SET_DEBUG(false);

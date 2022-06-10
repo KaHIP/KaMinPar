@@ -7,9 +7,9 @@
  ******************************************************************************/
 #include "dkaminpar/partitioning_scheme/kway.h"
 
-#include "datastructure/distributed_graph.h"
 #include "dkaminpar/coarsening/coarsener.h"
 #include "dkaminpar/coarsening/global_clustering_contraction.h"
+#include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/debug.h"
 #include "dkaminpar/distributed_io.h"
 #include "dkaminpar/factories.h"
@@ -36,7 +36,7 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
     ////////////////////////////////////////////////////////////////////////////////
     // Step 1: Coarsening
     ////////////////////////////////////////////////////////////////////////////////
-    if (mpi::get_comm_rank() == 0) {
+    if (mpi::get_comm_rank(_graph.communicator()) == 0) {
         shm::cio::print_banner("Coarsening");
     }
 
@@ -91,7 +91,7 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
     ////////////////////////////////////////////////////////////////////////////////
     // Step 2: Initial Partitioning
     ////////////////////////////////////////////////////////////////////////////////
-    if (mpi::get_comm_rank() == 0) {
+    if (mpi::get_comm_rank(_graph.communicator()) == 0) {
         shm::cio::print_banner("Initial Partitioning");
     }
 
@@ -124,7 +124,7 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
         auto ref_p_ctx = _ctx.partition;
         ref_p_ctx.setup(dist_p_graph.graph());
 
-        if (mpi::get_comm_rank() == 0) {
+        if (mpi::get_comm_rank(_graph.communicator()) == 0) {
             shm::cio::print_banner("Refinement");
         }
 

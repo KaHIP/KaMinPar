@@ -7,8 +7,8 @@
  ******************************************************************************/
 #include "dkaminpar/refinement/distributed_probabilistic_label_propagation_refiner.h"
 
-#include "dkaminpar/mpi_graph.h"
-#include "dkaminpar/mpi_wrapper.h"
+#include "dkaminpar/mpi/graph_communication.h"
+#include "dkaminpar/mpi/wrapper.h"
 #include "dkaminpar/utils/math.h"
 #include "dkaminpar/utils/metrics.h"
 #include "dkaminpar/utils/vector_ets.h"
@@ -74,13 +74,15 @@ class DistributedProbabilisticLabelPropagationRefinerImpl final
         }
 
         void print() {
-            auto expected_gain_reduced              = mpi::reduce_single<EdgeWeight>(expected_gain, MPI_SUM);
-            auto realized_gain_reduced              = mpi::reduce_single<EdgeWeight>(realized_gain, MPI_SUM);
-            auto rejected_gain_reduced              = mpi::reduce_single<EdgeWeight>(rejected_gain, MPI_SUM);
-            auto rollback_gain_reduced              = mpi::reduce_single<EdgeWeight>(rollback_gain, MPI_SUM);
-            auto expected_imbalance_str             = mpi::gather_statistics_str(expected_imbalance);
-            auto num_tentatively_moved_nodes_str    = mpi::gather_statistics_str(num_tentatively_moved_nodes.load());
-            auto num_tentatively_rejected_nodes_str = mpi::gather_statistics_str(num_tentatively_rejected_nodes.load());
+            auto expected_gain_reduced  = mpi::reduce_single<EdgeWeight>(expected_gain, MPI_SUM, 0, MPI_COMM_WORLD);
+            auto realized_gain_reduced  = mpi::reduce_single<EdgeWeight>(realized_gain, MPI_SUM, 0, MPI_COMM_WORLD);
+            auto rejected_gain_reduced  = mpi::reduce_single<EdgeWeight>(rejected_gain, MPI_SUM, 0, MPI_COMM_WORLD);
+            auto rollback_gain_reduced  = mpi::reduce_single<EdgeWeight>(rollback_gain, MPI_SUM, 0, MPI_COMM_WORLD);
+            auto expected_imbalance_str = mpi::gather_statistics_str(expected_imbalance, MPI_COMM_WORLD);
+            auto num_tentatively_moved_nodes_str =
+                mpi::gather_statistics_str(num_tentatively_moved_nodes.load(), MPI_COMM_WORLD);
+            auto num_tentatively_rejected_nodes_str =
+                mpi::gather_statistics_str(num_tentatively_rejected_nodes.load(), MPI_COMM_WORLD);
 
             STATS << "DistributedProbabilisticLabelPropagationRefiner:";
             STATS << "- Iterations: " << num_successful_moves << " ok, " << num_rollbacks << " failed";

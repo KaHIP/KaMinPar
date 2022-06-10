@@ -9,8 +9,8 @@
 #include <numeric>
 
 #include "dkaminpar/datastructure/distributed_graph.h"
-#include "dkaminpar/mpi_graph.h"
-#include "dkaminpar/mpi_wrapper.h"
+#include "dkaminpar/mpi/graph_communication.h"
+#include "dkaminpar/mpi/wrapper.h"
 #include "dkaminpar/utils/vector_ets.h"
 #include "kaminpar/utils/math.h"
 
@@ -364,7 +364,7 @@ bool validate_partition(const DistributedPartitionedGraph& p_graph) {
 
     {
         DBG << "Check that each PE knows the same block count";
-        const auto recv_k = mpi::allgather(p_graph.k());
+        const auto recv_k = mpi::allgather(p_graph.k(), p_graph.communicator());
         KASSERT(all_equal(recv_k));
         mpi::barrier(comm);
     }
@@ -455,7 +455,7 @@ bool validate_partition(const DistributedPartitionedGraph& p_graph) {
         // exchange messages and validate
         if (ROOT(rank)) {
             for (int pe = 1; pe < size; ++pe) { // recv from all but root
-                const auto recv_buffer = mpi::probe_recv<std::uint64_t>(pe, 0, MPI_STATUS_IGNORE, comm);
+                const auto recv_buffer = mpi::probe_recv<std::uint64_t>(pe, 0, comm);
 
                 // now validate received data
                 for (std::size_t i = 0; i < recv_buffer.size(); i += 2) {
@@ -468,7 +468,7 @@ bool validate_partition(const DistributedPartitionedGraph& p_graph) {
                 }
             }
         } else {
-            mpi::send(send_buffer.data(), send_buffer.size(), 0, 0);
+            mpi::send(send_buffer.data(), send_buffer.size(), 0, 0, comm);
         }
 
         mpi::barrier(comm);

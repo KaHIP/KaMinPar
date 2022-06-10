@@ -15,7 +15,7 @@
 #include "datastructure/distributed_graph.h"
 #include "datastructure/fast_reset_array.h"
 #include "dkaminpar/growt.h"
-#include "dkaminpar/mpi_graph.h"
+#include "dkaminpar/mpi/graph_communication.h"
 #include "dkaminpar/utils/math.h"
 #include "kaminpar/label_propagation.h"
 
