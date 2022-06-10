@@ -22,13 +22,10 @@ void create_graphgen_options(
             graphgen::generator_type_from_string)
         .argument(prefix + "-n", "Number of nodes in the graph.", &g_ctx.n)
         .argument(prefix + "-m", "Number of edges in the graph.", &g_ctx.m)
-        .argument(prefix + "-d", "Average degree (depending on model).", &g_ctx.d)
-        .argument(prefix + "-p", "P?", &g_ctx.p)
-        .argument(prefix + "-r", "Radius (depending on model).", &g_ctx.r)
+        .argument(prefix + "-p", "Edge probability.", &g_ctx.p)
         .argument(prefix + "-gamma", "Power law exponent (depending on model)", &g_ctx.gamma)
         .argument(prefix + "-save-graph", "Write the generated graph to the hard disk.", &g_ctx.save_graph)
         .argument(prefix + "-scale", "Scaling factor for the generated graph (e.g., number of PEs).", &g_ctx.scale)
-        .line("Note: this option might be ignored depending on the selected graph generator.")
         .argument(
             prefix + "-validate", "Validate the graph format before using it. Useful for debugging.",
             &g_ctx.validate_graph);

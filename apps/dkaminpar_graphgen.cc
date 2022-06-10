@@ -28,10 +28,9 @@ namespace dkaminpar::graphgen {
 using namespace std::string_literals;
 
 DEFINE_ENUM_STRING_CONVERSION(GeneratorType, generator_type) = {
-    {GeneratorType::NONE, "none"},     {GeneratorType::GNM, "gnm"},     {GeneratorType::GNP, "gnp"},
-    {GeneratorType::RGG2D, "rgg2d"},   {GeneratorType::RGG3D, "rgg3d"}, {GeneratorType::RDG2D, "rdg2d"},
-    {GeneratorType::RDG3D, "rdg3d"},   {GeneratorType::RHG, "rhg"},     {GeneratorType::GRID2D, "grid2d"},
-    {GeneratorType::GRID3D, "grid3d"},
+    {GeneratorType::NONE, "none"},   {GeneratorType::GNM, "gnm"},       {GeneratorType::RGG2D, "rgg2d"},
+    {GeneratorType::RGG3D, "rgg3d"}, {GeneratorType::RDG2D, "rdg2d"},   {GeneratorType::RDG3D, "rdg3d"},
+    {GeneratorType::RHG, "rhg"},     {GeneratorType::GRID2D, "grid2d"}, {GeneratorType::GRID3D, "grid3d"},
 };
 
 using namespace kagen;
@@ -328,54 +327,77 @@ KaGen create_generator_object(const GeneratorContext ctx) {
     if (ctx.validate_graph) {
         gen.EnableUndirectedGraphVerification();
     }
-    gen.EnableAdvancedStatistics();
+    gen.EnableBasicStatistics();
     return gen;
 }
 
-KaGenResult create_rgg2d(const GeneratorContext ctx) {
-    const GlobalEdgeID m      = (static_cast<GlobalEdgeID>(1) << ctx.m) * ctx.scale;
-    const double       radius = ctx.r / std::sqrt(ctx.scale);
-    const GlobalNodeID n      = static_cast<GlobalNodeID>(std::sqrt(1.0 * m / M_PI) / radius);
+KaGenResult create_gnm(const GeneratorContext ctx) {
+    const GlobalNodeID n = (static_cast<GlobalNodeID>(1) << ctx.n) * ctx.scale;
+    const GlobalEdgeID m = (static_cast<GlobalEdgeID>(1) << ctx.m) * ctx.scale;
 
-    LOG << "Generating RGG2D(" << n << ", " << radius << ")";
-    return create_generator_object(ctx).GenerateRGG2D(n, radius);
+    LOG << "Generating GNM(n=" << n << ", m=" << m << ")";
+    return create_generator_object(ctx).GenerateUndirectedGNM(n, m);
+}
+
+KaGenResult create_rgg2d(const GeneratorContext ctx) {
+    const GlobalNodeID n = (static_cast<GlobalNodeID>(1) << ctx.n) * ctx.scale;
+    const GlobalEdgeID m = (static_cast<GlobalEdgeID>(1) << ctx.m) * ctx.scale;
+
+    LOG << "Generating RGG2D(n=" << n << ", m=" << m << ")";
+    return create_generator_object(ctx).GenerateRGG2D_NM(n, m);
 }
 
 KaGenResult create_rgg3d(const GeneratorContext ctx) {
-    const GlobalEdgeID m      = (static_cast<GlobalEdgeID>(1) << ctx.m) * ctx.scale;
-    const double       radius = ctx.r / std::cbrt(ctx.scale);
-    const GlobalNodeID n      = static_cast<GlobalNodeID>(std::sqrt(3.0 / 4.0 * m / M_PI / (radius * radius * radius)));
+    const GlobalNodeID n = (static_cast<GlobalNodeID>(1) << ctx.n) * ctx.scale;
+    const GlobalEdgeID m = (static_cast<GlobalEdgeID>(1) << ctx.m) * ctx.scale;
 
-    LOG << "Generating RGG3D(" << n << ", " << radius << ")";
-    return create_generator_object(ctx).GenerateRGG3D(n, radius);
+    LOG << "Generating RGG3D(n=" << n << ", m=" << m << ")";
+    return create_generator_object(ctx).GenerateRGG3D_NM(n, m);
+}
+
+KaGenResult create_rdg2d(const GeneratorContext ctx) {
+    const GlobalEdgeID m = (static_cast<GlobalEdgeID>(1) << ctx.m) * ctx.scale;
+
+    LOG << "Generating RDG2D(m=" << m << ", periodic=" << ctx.periodic << ")";
+    return create_generator_object(ctx).GenerateRDG2D_M(m, ctx.periodic);
+}
+
+KaGenResult create_rdg3d(const GeneratorContext ctx) {
+    const GlobalEdgeID m = (static_cast<GlobalEdgeID>(1) << ctx.m) * ctx.scale;
+
+    LOG << "Generating RDG3D(m=" << m << ", periodic=" << ctx.periodic << ")";
+    return create_generator_object(ctx).GenerateRDG3D_M(m);
 }
 
 KaGenResult create_rhg(const GeneratorContext ctx) {
-    const GlobalNodeID m = (static_cast<GlobalNodeID>(1) << ctx.m) * ctx.scale;
-    const GlobalNodeID n = m / ctx.d;
+    const GlobalNodeID n = (static_cast<GlobalNodeID>(1) << ctx.n) * ctx.scale;
+    const GlobalEdgeID m = (static_cast<GlobalNodeID>(1) << ctx.m) * ctx.scale;
 
-    LOG << "Generating RHG(" << n << ", " << ctx.gamma << ", " << ctx.d << ")";
-    return create_generator_object(ctx).GenerateRHG(n, ctx.gamma, ctx.d);
+    LOG << "Generating RHG(gamma=" << ctx.gamma << ", n=" << n << ", m=" << m << ")";
+    return create_generator_object(ctx).GenerateRHG_NM(ctx.gamma, n, m);
 }
 
 KaGenResult create_grid2d(const GeneratorContext ctx) {
     const GlobalNodeID n = (static_cast<GlobalNodeID>(1) << ctx.n) * ctx.scale;
 
-    LOG << "Generating Grid2D(" << n << ", " << ctx.p << ")";
-    return create_generator_object(ctx).GenerateGrid2D(n, ctx.p);
+    LOG << "Generating Grid2D(n=" << n << ", p=" << ctx.p << ")";
+    return create_generator_object(ctx).GenerateGrid2D_N(n, ctx.p);
 }
 
 KaGenResult create_grid3d(const GeneratorContext ctx) {
     const GlobalNodeID n = (static_cast<GlobalNodeID>(1) << ctx.n) * ctx.scale;
 
-    LOG << "Generating Grid3D(" << n << ", " << ctx.p << ")";
-    return create_generator_object(ctx).GenerateGrid3D(n, ctx.p);
+    LOG << "Generating Grid3D(n=" << n << ", p=" << ctx.p << ")";
+    return create_generator_object(ctx).GenerateGrid3D_N(n, ctx.p);
 }
 } // namespace
 
 DistributedGraph generate(const GeneratorContext ctx) {
     auto [edges, local_range] = [&] {
         switch (ctx.type) {
+            case GeneratorType::GNM:
+                return create_gnm(ctx);
+
             case GeneratorType::RGG2D:
                 return create_rgg2d(ctx);
 
@@ -384,6 +406,9 @@ DistributedGraph generate(const GeneratorContext ctx) {
 
             case GeneratorType::RHG:
                 return create_rhg(ctx);
+
+            case GeneratorType::RDG2D:
+                return create_rdg2d(ctx);
 
             case GeneratorType::GRID2D:
                 return create_grid2d(ctx);
