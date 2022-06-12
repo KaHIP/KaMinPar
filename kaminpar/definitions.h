@@ -22,7 +22,11 @@ using EdgeID = uint32_t;
 #endif // KAMINPAR_64BIT_EDGE_IDS
 using BlockID = uint32_t;
 using NodeWeight = int32_t;
+#ifdef KAMINPAR_64BIT_EDGE_WEIGHTS
+using EdgeWeight = int64_t;
+#else // KAMINPAR_64BIT_EDGE_WEIGHTS 
 using EdgeWeight = int32_t;
+#endif // KAMINPAR_64BIT_EDGE_WEIGHTS
 using BlockWeight = NodeWeight;
 using Gain = int32_t;
 using Degree = EdgeID;

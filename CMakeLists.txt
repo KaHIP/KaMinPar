@@ -17,6 +17,7 @@ option(KAMINPAR_ENABLE_TIMERS "Enable fine-grained timers. With this option disa
 option(KAMINPAR_ENABLE_DEBUG_FEATURES "Enable features that might slow down execution but are helpful for debug purposes (e.g., naming graphs)." OFF)
 option(KAMINPAR_ENABLE_STATISTICS "Generate and output much more detailed statistics." OFF)
 option(KAMINPAR_64BIT_EDGE_IDS "Use 64 bits for edge ids." OFF)
+option(KAMINPAR_64BIT_EDGE_WEIGHTS "Use 64 bits for edge weights." OFF)
 
 include_directories(${PROJECT_SOURCE_DIR})
 
@@ -90,6 +91,9 @@ endif ()
 
 if (KAMINPAR_64BIT_EDGE_IDS)
   add_definitions(-DKAMINPAR_64BIT_EDGE_IDS)
+endif ()
+if (KAMINPAR_64BIT_EDGE_WEIGHTS)
+  add_definitions(-DKAMINPAR_64BIT_EDGE_WEIGHTS)
 endif ()
 
 # Make commit hash available

@@ -55,7 +55,7 @@ public:
     }
   };
 
-  NodeWeight expected_total_gain() const final {
+  EdgeWeight expected_total_gain() const final {
     ASSERT(false) << "not implemented";
     return 0;
   }
