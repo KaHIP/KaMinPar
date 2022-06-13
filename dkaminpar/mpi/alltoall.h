@@ -59,6 +59,87 @@ void forward_self_buffer(SendBuffer& self_buffer, const PEID rank, const Receive
 } // namespace internal
 
 template <typename Message, typename Buffer, typename SendBuffers, typename Receiver>
+void sparse_alltoall_sparse(SendBuffers&& send_buffers, Receiver&& receiver, const bool self, MPI_Comm comm) {
+    using namespace internal;
+
+    thread_local static int tag_counter = 0;
+    const int               tag         = tag_counter++;
+
+    const auto [size, rank] = mpi::get_comm_info(comm);
+
+    std::vector<MPI_Request> requests;
+    requests.reserve(size);
+    std::vector<std::uint8_t> sends_message_to(size);
+
+    // Send MPI messages
+    for (PEID pe = 0; pe < size; ++pe) {
+        if (pe == rank || send_buffers[pe].empty()) {
+            continue;
+        }
+
+        sends_message_to[pe] = true;
+        requests.emplace_back();
+
+        MPI_Issend(
+            send_buffers[pe].data(), asserting_cast<int>(send_buffers[pe].size()), mpi::type::get<Message>(), pe, tag,
+            comm, &requests.back());
+    }
+
+    if (self && !send_buffers[rank].empty()) {
+        forward_self_buffer<decltype(send_buffers)>(send_buffers[rank], rank, receiver);
+    }
+
+    // Receive messages until MPI_Issend is completed
+    int isend_done = 0;
+    while (isend_done == 0) {
+        int iprobe_success = 1;
+        while (iprobe_success > 0) {
+            iprobe_success = 0;
+
+            MPI_Status status{};
+            MPI_Iprobe(MPI_ANY_SOURCE, tag, MPI_COMM_WORLD, &iprobe_success, &status);
+            if (iprobe_success) {
+                int count;
+                MPI_Get_count(&status, mpi::type::get<Message>(), &count);
+                Buffer recv_buffer(count);
+                mpi::recv(recv_buffer.data(), count, status.MPI_SOURCE, tag, comm, MPI_STATUS_IGNORE);
+
+                invoke_receiver(std::move(recv_buffer), status.MPI_SOURCE, receiver);
+            }
+        }
+
+        isend_done = 0;
+        MPI_Testall(static_cast<int>(requests.size()), requests.data(), &isend_done, MPI_STATUSES_IGNORE);
+    }
+
+    MPI_Request barrier_request;
+    MPI_Ibarrier(comm, &barrier_request);
+
+    // Receive messages until all PEs reached the barrier
+    int ibarrier_done = 0;
+    while (ibarrier_done == 0) {
+        int iprobe_success = 1;
+        while (iprobe_success > 0) {
+            iprobe_success = 0;
+
+            MPI_Status status{};
+            MPI_Iprobe(MPI_ANY_SOURCE, tag, MPI_COMM_WORLD, &iprobe_success, &status);
+            if (iprobe_success) {
+                int count;
+                MPI_Get_count(&status, mpi::type::get<Message>(), &count);
+                Buffer recv_buffer(count);
+                mpi::recv(recv_buffer.data(), count, status.MPI_SOURCE, tag, comm, MPI_STATUS_IGNORE);
+
+                invoke_receiver(std::move(recv_buffer), status.MPI_SOURCE, receiver);
+            }
+        }
+
+        // Test if all PEs reached the Ibarrier
+        MPI_Test(&barrier_request, &ibarrier_done, MPI_STATUS_IGNORE);
+    }
+}
+
+template <typename Message, typename Buffer, typename SendBuffers, typename Receiver>
 void sparse_alltoall_alltoallv(SendBuffers&& send_buffers, Receiver&& receiver, const bool self, MPI_Comm comm) {
     // Note: copies data twice which could be avoided
 
