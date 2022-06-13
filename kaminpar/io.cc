@@ -68,7 +68,7 @@ void munmap_file_from_disk(const MappedFile &mapped_file) {
 }
 
 inline void skip_spaces(MappedFile &mapped_file) {
-  while (mapped_file.valid_position() && mapped_file.current() == ' ') { mapped_file.advance(); }
+  while (mapped_file.valid_position() && std::isspace(mapped_file.current())) { mapped_file.advance(); }
 }
 
 inline void skip_comment(MappedFile &mapped_file) {
