@@ -6,6 +6,7 @@
  * @brief:
  ******************************************************************************/
 #include "dkaminpar/coarsening/locking_label_propagation_clustering.h"
+
 #include <unordered_map>
 #include <unordered_set>
 
@@ -511,7 +512,7 @@ private:
                     }
                 }
             },
-            _graph->communicator());
+            true, _graph->communicator());
         STOP_TIMER(TIMER_FINE);
     }
 

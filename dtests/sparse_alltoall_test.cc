@@ -15,8 +15,8 @@ template <typename T>
 struct CompleteSendRecvImplementation {
     std::vector<std::vector<T>> operator()(const std::vector<std::vector<T>>& sendbuf, MPI_Comm comm, bool self) {
         std::vector<std::vector<T>> recvbufs(mpi::get_comm_size(comm));
-        mpi::sparse_alltoall<T>(
-            sendbuf, [&](auto recvbuf, const PEID pe) { recvbufs[pe] = std::move(recvbuf); }, comm, self);
+        mpi::sparse_alltoall_complete<T, std::vector<T>>(
+            sendbuf, [&](auto recvbuf, const PEID pe) { recvbufs[pe] = std::move(recvbuf); }, self, comm);
         return recvbufs;
     }
 };
@@ -89,6 +89,24 @@ TYPED_TEST(SparseAlltoallTest, irregular_triangle_alltoall) {
         } else {
             EXPECT_TRUE(recvbufs[from].empty());
         }
+    }
+}
+
+TEST(DefaultSparseAlltoallTest, does_not_move_lvalue_reference) {
+    const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
+
+    std::vector<std::vector<int>> sendbuf(size);
+    for (PEID pe = 0; pe < size; ++pe) {
+        sendbuf[pe].push_back(pe);
+    }
+
+    mpi::sparse_alltoall<int>(
+        sendbuf, [&](auto) {}, true, MPI_COMM_WORLD);
+
+    EXPECT_EQ(sendbuf.size(), size);
+    for (PEID pe = 0; pe < size; ++pe) {
+        EXPECT_EQ(sendbuf[pe].size(), 1);
+        EXPECT_EQ(sendbuf[pe].front(), pe);
     }
 }
 } // namespace dkaminpar
