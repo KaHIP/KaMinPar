@@ -6,7 +6,27 @@
 using namespace testing;
 
 namespace dkaminpar {
-TEST(SparseAllToAllTest, regular_alltoall_one_element_works) {
+template <typename Implementation>
+struct SparseAlltoallTest : public Test {
+    Implementation impl;
+};
+
+template <typename T>
+struct CompleteSendRecvImplementation {
+    std::vector<std::vector<T>> operator()(const std::vector<std::vector<T>>& sendbuf, MPI_Comm comm, bool self) {
+        std::vector<std::vector<T>> recvbufs(mpi::get_comm_size(comm));
+        mpi::sparse_alltoall<T>(
+            sendbuf, [&](auto recvbuf, const PEID pe) { recvbufs[pe] = std::move(recvbuf); }, comm, self);
+        return recvbufs;
+    }
+};
+
+template <typename T>
+using SparseAlltoallImplementations = Types<CompleteSendRecvImplementation<T>>;
+
+TYPED_TEST_SUITE(SparseAlltoallTest, SparseAlltoallImplementations<int>);
+
+TYPED_TEST(SparseAlltoallTest, regular_single_element_alltoall) {
     const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
 
     // send one message to each PE containing this PEs rank
@@ -15,24 +35,16 @@ TEST(SparseAllToAllTest, regular_alltoall_one_element_works) {
         sendbuf[pe].push_back(rank);
     }
 
-    std::vector<bool> got_message_from(size);
+    auto recvbufs = this->impl(sendbuf, MPI_COMM_WORLD, true);
 
-    mpi::sparse_alltoall<int>(
-        sendbuf,
-        [&](const auto& recvbuf, const PEID from) {
-            got_message_from[from] = true;
-            EXPECT_EQ(recvbuf.size(), 1);
-            EXPECT_EQ(recvbuf.front(), from);
-        },
-        MPI_COMM_WORLD, true);
-
-    for (PEID pe = 0; pe < size; ++pe) {
-        EXPECT_TRUE(got_message_from[pe]);
+    for (PEID from = 0; from < size; ++from) {
+        EXPECT_EQ(recvbufs[from].size(), 1);
+        EXPECT_EQ(recvbufs[from].front(), from);
     }
 }
 
 // send single message to next PE
-TEST(SparseAllToAllTest, ring_exchange_works) {
+TYPED_TEST(SparseAlltoallTest, ring_exchange) {
     const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
     const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
     const PEID next = (rank + 1) % size;
@@ -41,25 +53,20 @@ TEST(SparseAllToAllTest, ring_exchange_works) {
     std::vector<std::vector<int>> sendbuf(size);
     sendbuf[next].push_back(rank);
 
-    bool got_message_from_prev = false;
-    mpi::sparse_alltoall<int>(
-        sendbuf,
-        [&](const auto& recvbuf, const PEID from) {
-            if (from == prev) {
-                got_message_from_prev = true;
-                EXPECT_EQ(recvbuf.size(), 1);
-                EXPECT_EQ(recvbuf.front(), from);
-            } else {
-                EXPECT_TRUE(recvbuf.empty());
-            }
-        },
-        MPI_COMM_WORLD, true);
+    auto recvbufs = this->impl(sendbuf, MPI_COMM_WORLD, true);
 
-    EXPECT_TRUE(got_message_from_prev);
+    for (PEID from = 0; from < size; ++from) {
+        if (from == prev) {
+            EXPECT_EQ(recvbufs[from].size(), 1);
+            EXPECT_EQ(recvbufs[from].front(), from);
+        } else {
+            EXPECT_TRUE(recvbufs[from].empty());
+        }
+    }
 }
 
 // each PE $j sends $i messages to all PEs $i < $j containing $j
-TEST(SparseAllToAllTest, triangle_alltoall_works) {
+TYPED_TEST(SparseAlltoallTest, irregular_triangle_alltoall) {
     const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
     const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
 
@@ -72,24 +79,15 @@ TEST(SparseAllToAllTest, triangle_alltoall_works) {
         }
     }
 
-    std::vector<bool> got_message_from(size);
-    mpi::sparse_alltoall<int>(
-        sendbuf,
-        [&](const auto& recvbuf, const PEID from) {
-            if (from >= rank) {
-                got_message_from[from] = true;
-                EXPECT_EQ(recvbuf.size(), rank);
-                EXPECT_TRUE(
-                    std::all_of(recvbuf.begin(), recvbuf.end(), [&](const int value) { return value == from; }));
-            } else {
-                EXPECT_TRUE(recvbuf.empty());
-            }
-        },
-        MPI_COMM_WORLD, true);
+    auto recvbufs = this->impl(sendbuf, MPI_COMM_WORLD, true);
 
-    for (PEID pe = 0; pe < size; ++pe) {
-        if (pe >= rank) {
-            EXPECT_TRUE(got_message_from[pe]);
+    for (PEID from = 0; from < size; ++from) {
+        if (from >= rank) {
+            EXPECT_EQ(recvbufs[from].size(), rank);
+            EXPECT_TRUE(std::all_of(
+                recvbufs[from].begin(), recvbufs[from].end(), [&](const int value) { return value == from; }));
+        } else {
+            EXPECT_TRUE(recvbufs[from].empty());
         }
     }
 }
