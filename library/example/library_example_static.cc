@@ -36,7 +36,7 @@ int main(int, char *[]) {
   partitioner.set_option("--threads", "6");    // use 6 cores
   partitioner.set_option("--epsilon", "0.04"); // allow 4% imbalance
 
-  auto partition = partitioner.partition(k); // compute 16-way partition
+  auto partition = partitioner.partition(k); // compute 2-way partition
 
   std::vector<int> block_sizes(k);
   for (std::size_t i = 0; i < partitioner.partition_size(); ++i) { ++block_sizes[partition[i]]; }
