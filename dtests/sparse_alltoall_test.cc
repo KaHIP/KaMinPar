@@ -12,6 +12,16 @@ struct SparseAlltoallTest : public Test {
 };
 
 template <typename T>
+struct AlltoallvImplementation {
+    std::vector<std::vector<T>> operator()(const std::vector<std::vector<T>>& sendbuf, MPI_Comm comm, bool self) {
+        std::vector<std::vector<T>> recvbufs(mpi::get_comm_size(comm));
+        mpi::sparse_alltoall_alltoallv<T, std::vector<T>>(
+            sendbuf, [&](auto recvbuf, const PEID pe) { recvbufs[pe] = std::move(recvbuf); }, self, comm);
+        return recvbufs;
+    }
+};
+
+template <typename T>
 struct CompleteSendRecvImplementation {
     std::vector<std::vector<T>> operator()(const std::vector<std::vector<T>>& sendbuf, MPI_Comm comm, bool self) {
         std::vector<std::vector<T>> recvbufs(mpi::get_comm_size(comm));
@@ -22,8 +32,7 @@ struct CompleteSendRecvImplementation {
 };
 
 template <typename T>
-using SparseAlltoallImplementations = Types<CompleteSendRecvImplementation<T>>;
-
+using SparseAlltoallImplementations = Types<CompleteSendRecvImplementation<T>, AlltoallvImplementation<T>>;
 TYPED_TEST_SUITE(SparseAlltoallTest, SparseAlltoallImplementations<int>);
 
 TYPED_TEST(SparseAlltoallTest, regular_single_element_alltoall) {

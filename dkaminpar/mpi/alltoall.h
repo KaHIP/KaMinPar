@@ -11,6 +11,8 @@
 #include <kassert/kassert.hpp>
 #include <mpi.h>
 
+#include <tbb/parallel_for.h>
+
 #include "dkaminpar/mpi/wrapper.h"
 #include "kaminpar/utils/timer.h"
 
@@ -57,10 +59,65 @@ void forward_self_buffer(SendBuffer& self_buffer, const PEID rank, const Receive
 } // namespace internal
 
 template <typename Message, typename Buffer, typename SendBuffers, typename Receiver>
-void sparse_alltoall_complete(SendBuffers&& send_buffers, Receiver&& receiver, const bool self, MPI_Comm comm) {
-    using namespace internal;
+void sparse_alltoall_alltoallv(SendBuffers&& send_buffers, Receiver&& receiver, const bool self, MPI_Comm comm) {
+    // Note: copies data twice which could be avoided
 
     const auto [size, rank] = mpi::get_comm_info(comm);
+    using namespace internal;
+
+    std::vector<int> send_counts(size);
+    std::vector<int> recv_counts(size);
+    std::vector<int> send_displs(size + 1);
+    std::vector<int> recv_displs(size + 1);
+
+    // Exchange send counts
+    for (PEID pe = 0; pe < size; ++pe) {
+        send_counts[pe] = asserting_cast<int>(send_buffers[pe].size());
+    }
+    parallel::prefix_sum(send_counts.begin(), send_counts.end(), send_displs.begin() + 1);
+    mpi::alltoall(send_counts.data(), 1, recv_counts.data(), 1, comm);
+    parallel::prefix_sum(recv_counts.begin(), recv_counts.end(), recv_displs.begin() + 1);
+
+    // Build shared send buffer
+    Buffer common_send_buffer;
+    common_send_buffer.reserve(send_displs.back() + send_counts.back());
+    for (PEID pe = 0; pe < size; ++pe) {
+        for (const auto& e: send_buffers[pe]) {
+            common_send_buffer.push_back(e);
+        }
+
+        if (!std::is_lvalue_reference_v<SendBuffers>) {
+            std::move(send_buffers[pe]); // clear
+        }
+    }
+
+    // Exchange data
+    Buffer common_recv_buffer(recv_displs.back() + recv_counts.back());
+    START_TIMER("MPI_Alltoallv", TIMER_DETAIL);
+    mpi::alltoallv(
+        common_send_buffer.data(), send_counts.data(), send_displs.data(), common_recv_buffer.data(),
+        recv_counts.data(), recv_displs.data(), comm);
+    STOP_TIMER();
+
+    // Call receiver
+    std::vector<Buffer> recv_buffers(size);
+    tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
+        recv_buffers[pe].resize(recv_counts[pe]);
+        tbb::parallel_for<int>(
+            0, recv_counts[pe], [&](const int i) { recv_buffers[pe][i] = common_recv_buffer[recv_displs[pe] + i]; });
+    });
+
+    for (PEID pe = 0; pe < size; ++pe) {
+        if (pe != rank || self) {
+            invoke_receiver(std::move(recv_buffers[pe]), pe, receiver);
+        }
+    }
+}
+
+template <typename Message, typename Buffer, typename SendBuffers, typename Receiver>
+void sparse_alltoall_complete(SendBuffers&& send_buffers, Receiver&& receiver, const bool self, MPI_Comm comm) {
+    const auto [size, rank] = mpi::get_comm_info(comm);
+    using namespace internal;
 
     std::vector<MPI_Request> requests(size - 1);
     std::size_t              next_req_index = 0;

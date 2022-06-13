@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <iomanip>
 
+#include <kassert/kassert.hpp>
 #include <mpi.h>
 
 #include "kaminpar/definitions.h"
@@ -43,6 +44,13 @@ using shm::kInvalidBlockID;
 using shm::kInvalidBlockWeight;
 
 using PEID = int;
+
+template <typename To, typename From>
+To asserting_cast(From value) {
+    KASSERT(value <= std::numeric_limits<To>::max());
+    KASSERT(value >= std::numeric_limits<To>::lowest());
+    return static_cast<To>(value);
+}
 
 namespace internal {
 inline int get_rank(MPI_Comm comm = MPI_COMM_WORLD) {
