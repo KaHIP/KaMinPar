@@ -12,38 +12,48 @@ struct SparseAlltoallTest : public Test {
 };
 
 template <typename T>
+struct GridImplementation {
+    std::vector<std::vector<T>> operator()(const std::vector<std::vector<T>>& sendbuf, MPI_Comm comm) {
+        std::vector<std::vector<T>> recvbufs(mpi::get_comm_size(comm));
+        mpi::sparse_alltoall_grid<T, std::vector<T>>(
+            sendbuf, [&](auto recvbuf, const PEID pe) { recvbufs[pe] = std::move(recvbuf); }, comm);
+        return recvbufs;
+    }
+};
+
+template <typename T>
 struct AlltoallvImplementation {
-    std::vector<std::vector<T>> operator()(const std::vector<std::vector<T>>& sendbuf, MPI_Comm comm, bool self) {
+    std::vector<std::vector<T>> operator()(const std::vector<std::vector<T>>& sendbuf, MPI_Comm comm) {
         std::vector<std::vector<T>> recvbufs(mpi::get_comm_size(comm));
         mpi::sparse_alltoall_alltoallv<T, std::vector<T>>(
-            sendbuf, [&](auto recvbuf, const PEID pe) { recvbufs[pe] = std::move(recvbuf); }, self, comm);
+            sendbuf, [&](auto recvbuf, const PEID pe) { recvbufs[pe] = std::move(recvbuf); }, comm);
         return recvbufs;
     }
 };
 
 template <typename T>
 struct CompleteSendRecvImplementation {
-    std::vector<std::vector<T>> operator()(const std::vector<std::vector<T>>& sendbuf, MPI_Comm comm, bool self) {
+    std::vector<std::vector<T>> operator()(const std::vector<std::vector<T>>& sendbuf, MPI_Comm comm) {
         std::vector<std::vector<T>> recvbufs(mpi::get_comm_size(comm));
         mpi::sparse_alltoall_complete<T, std::vector<T>>(
-            sendbuf, [&](auto recvbuf, const PEID pe) { recvbufs[pe] = std::move(recvbuf); }, self, comm);
+            sendbuf, [&](auto recvbuf, const PEID pe) { recvbufs[pe] = std::move(recvbuf); }, comm);
         return recvbufs;
     }
 };
 
 template <typename T>
 struct SparseImplementation {
-    std::vector<std::vector<T>> operator()(const std::vector<std::vector<T>>& sendbuf, MPI_Comm comm, bool self) {
+    std::vector<std::vector<T>> operator()(const std::vector<std::vector<T>>& sendbuf, MPI_Comm comm) {
         std::vector<std::vector<T>> recvbufs(mpi::get_comm_size(comm));
         mpi::sparse_alltoall_sparse<T, std::vector<T>>(
-            sendbuf, [&](auto recvbuf, const PEID pe) { recvbufs[pe] = std::move(recvbuf); }, self, comm);
+            sendbuf, [&](auto recvbuf, const PEID pe) { recvbufs[pe] = std::move(recvbuf); }, comm);
         return recvbufs;
     }
 };
 
 template <typename T>
-using SparseAlltoallImplementations =
-    Types<CompleteSendRecvImplementation<T>, AlltoallvImplementation<T>, SparseImplementation<T>>;
+using SparseAlltoallImplementations = Types<
+    CompleteSendRecvImplementation<T>, AlltoallvImplementation<T>, SparseImplementation<T>, GridImplementation<T>>;
 TYPED_TEST_SUITE(SparseAlltoallTest, SparseAlltoallImplementations<int>);
 
 TYPED_TEST(SparseAlltoallTest, regular_single_element_alltoall) {
@@ -55,7 +65,7 @@ TYPED_TEST(SparseAlltoallTest, regular_single_element_alltoall) {
         sendbuf[pe].push_back(rank);
     }
 
-    auto recvbufs = this->impl(sendbuf, MPI_COMM_WORLD, true);
+    auto recvbufs = this->impl(sendbuf, MPI_COMM_WORLD);
 
     for (PEID from = 0; from < size; ++from) {
         EXPECT_EQ(recvbufs[from].size(), 1);
@@ -73,7 +83,7 @@ TYPED_TEST(SparseAlltoallTest, ring_exchange) {
     std::vector<std::vector<int>> sendbuf(size);
     sendbuf[next].push_back(rank);
 
-    auto recvbufs = this->impl(sendbuf, MPI_COMM_WORLD, true);
+    auto recvbufs = this->impl(sendbuf, MPI_COMM_WORLD);
 
     for (PEID from = 0; from < size; ++from) {
         if (from == prev) {
@@ -99,7 +109,7 @@ TYPED_TEST(SparseAlltoallTest, irregular_triangle_alltoall) {
         }
     }
 
-    auto recvbufs = this->impl(sendbuf, MPI_COMM_WORLD, true);
+    auto recvbufs = this->impl(sendbuf, MPI_COMM_WORLD);
 
     for (PEID from = 0; from < size; ++from) {
         if (from >= rank) {
@@ -121,7 +131,7 @@ TEST(DefaultSparseAlltoallTest, does_not_move_lvalue_reference) {
     }
 
     mpi::sparse_alltoall<int>(
-        sendbuf, [&](auto) {}, true, MPI_COMM_WORLD);
+        sendbuf, [&](auto) {}, MPI_COMM_WORLD);
 
     EXPECT_EQ(sendbuf.size(), size);
     for (PEID pe = 0; pe < size; ++pe) {

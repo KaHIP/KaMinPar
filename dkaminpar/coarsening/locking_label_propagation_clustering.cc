@@ -512,7 +512,7 @@ private:
                     }
                 }
             },
-            true, _graph->communicator());
+            _graph->communicator());
         STOP_TIMER(TIMER_FINE);
     }
 

@@ -148,7 +148,7 @@ MappingResult compute_mapping(
     auto& used_clusters_vec = used_clusters.second;
 
     // send each PE its local node IDs that are used as cluster IDs somewhere
-    const auto in_msg = mpi::sparse_alltoall_get<NodeID>(std::move(used_clusters_vec), true, graph.communicator());
+    const auto in_msg = mpi::sparse_alltoall_get<NodeID>(std::move(used_clusters_vec), graph.communicator());
 
     // map local labels to consecutive coarse node IDs
     scalable_vector<shm::parallel::Atomic<GlobalNodeID>> label_mapping(graph.total_n());
@@ -171,7 +171,7 @@ MappingResult compute_mapping(
         });
     });
 
-    const auto label_remap = mpi::sparse_alltoall_get<NodeID>(std::move(out_msg), true, graph.communicator());
+    const auto label_remap = mpi::sparse_alltoall_get<NodeID>(std::move(out_msg), graph.communicator());
 
     // migrate nodes from overloaded PEs
     scalable_vector<GlobalNodeID> c_distribution =
@@ -382,7 +382,7 @@ DistributedGraph build_coarse_graph(
 
     // exchange messages
     START_TIMER("Exchange edges", TIMER_DETAIL);
-    auto in_msg = mpi::sparse_alltoall_get<LocalToGlobalEdge>(std::move(out_msg), true, graph.communicator());
+    auto in_msg = mpi::sparse_alltoall_get<LocalToGlobalEdge>(std::move(out_msg), graph.communicator());
     STOP_TIMER(TIMER_DETAIL);
 
     // Copy edge lists to a single list and free old list
@@ -571,7 +571,7 @@ DistributedPartitionedGraph project_global_contracted_graph(
     auto& used_coarse_nodes_vec = used_coarse_nodes.second;
 
     // send requests for block IDs
-    const auto reqs = mpi::sparse_alltoall_get<NodeID>(used_coarse_nodes_vec, fine_graph.communicator(), true);
+    const auto reqs = mpi::sparse_alltoall_get<NodeID>(used_coarse_nodes_vec, fine_graph.communicator());
 
     // build response messages
     START_TIMER("Allocation", TIMER_DETAIL);
@@ -605,7 +605,7 @@ DistributedPartitionedGraph project_global_contracted_graph(
                 accessor->second = buffer[i];
             });
         },
-        true, fine_graph.communicator());
+        fine_graph.communicator());
 
     // assign block IDs to fine nodes
     START_TIMER("Allocation", TIMER_DETAIL);

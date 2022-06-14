@@ -59,7 +59,10 @@ void forward_self_buffer(SendBuffer& self_buffer, const PEID rank, const Receive
 } // namespace internal
 
 template <typename Message, typename Buffer, typename SendBuffers, typename Receiver>
-void sparse_alltoall_sparse(SendBuffers&& send_buffers, Receiver&& receiver, const bool self, MPI_Comm comm) {
+void sparse_alltoall_grid(SendBuffers&& send_buffers, Receiver&& receiver, MPI_Comm comm) {}
+
+template <typename Message, typename Buffer, typename SendBuffers, typename Receiver>
+void sparse_alltoall_sparse(SendBuffers&& send_buffers, Receiver&& receiver, MPI_Comm comm) {
     using namespace internal;
 
     thread_local static int tag_counter = 0;
@@ -85,7 +88,7 @@ void sparse_alltoall_sparse(SendBuffers&& send_buffers, Receiver&& receiver, con
             comm, &requests.back());
     }
 
-    if (self && !send_buffers[rank].empty()) {
+    if (!send_buffers[rank].empty()) {
         forward_self_buffer<decltype(send_buffers)>(send_buffers[rank], rank, receiver);
     }
 
@@ -140,7 +143,7 @@ void sparse_alltoall_sparse(SendBuffers&& send_buffers, Receiver&& receiver, con
 }
 
 template <typename Message, typename Buffer, typename SendBuffers, typename Receiver>
-void sparse_alltoall_alltoallv(SendBuffers&& send_buffers, Receiver&& receiver, const bool self, MPI_Comm comm) {
+void sparse_alltoall_alltoallv(SendBuffers&& send_buffers, Receiver&& receiver, MPI_Comm comm) {
     // Note: copies data twice which could be avoided
 
     const auto [size, rank] = mpi::get_comm_info(comm);
@@ -189,14 +192,12 @@ void sparse_alltoall_alltoallv(SendBuffers&& send_buffers, Receiver&& receiver, 
     });
 
     for (PEID pe = 0; pe < size; ++pe) {
-        if (pe != rank || self) {
-            invoke_receiver(std::move(recv_buffers[pe]), pe, receiver);
-        }
+        invoke_receiver(std::move(recv_buffers[pe]), pe, receiver);
     }
 }
 
 template <typename Message, typename Buffer, typename SendBuffers, typename Receiver>
-void sparse_alltoall_complete(SendBuffers&& send_buffers, Receiver&& receiver, const bool self, MPI_Comm comm) {
+void sparse_alltoall_complete(SendBuffers&& send_buffers, Receiver&& receiver, MPI_Comm comm) {
     const auto [size, rank] = mpi::get_comm_info(comm);
     using namespace internal;
 
@@ -212,7 +213,7 @@ void sparse_alltoall_complete(SendBuffers&& send_buffers, Receiver&& receiver, c
     KASSERT(next_req_index == requests.size());
 
     for (PEID pe = 0; pe < size; ++pe) {
-        if (self && pe == rank) {
+        if (pe == rank) {
             forward_self_buffer<decltype(send_buffers)>(send_buffers[rank], rank, receiver);
         } else if (pe != rank) {
             auto recv_buffer = mpi::probe_recv<Message, Buffer>(pe, 0, comm, MPI_STATUS_IGNORE);
@@ -226,31 +227,31 @@ void sparse_alltoall_complete(SendBuffers&& send_buffers, Receiver&& receiver, c
 }
 
 template <typename Message, typename Buffer = scalable_noinit_vector<Message>, typename Receiver>
-void sparse_alltoall(const std::vector<Buffer>& send_buffers, Receiver&& receiver, const bool self, MPI_Comm comm) {
+void sparse_alltoall(const std::vector<Buffer>& send_buffers, Receiver&& receiver, MPI_Comm comm) {
     SCOPED_TIMER("Sparse Alltoall", TIMER_DETAIL);
-    sparse_alltoall_complete<Message, Buffer>(send_buffers, std::forward<Receiver>(receiver), self, comm);
+    sparse_alltoall_complete<Message, Buffer>(send_buffers, std::forward<Receiver>(receiver), comm);
 }
 
 template <typename Message, typename Buffer = scalable_noinit_vector<Message>, typename Receiver>
-void sparse_alltoall(std::vector<Buffer>&& send_buffers, Receiver&& receiver, const bool self, MPI_Comm comm) {
+void sparse_alltoall(std::vector<Buffer>&& send_buffers, Receiver&& receiver, MPI_Comm comm) {
     SCOPED_TIMER("Sparse Alltoall", TIMER_DETAIL);
-    sparse_alltoall_complete<Message, Buffer>(std::move(send_buffers), std::forward<Receiver>(receiver), self, comm);
+    sparse_alltoall_complete<Message, Buffer>(std::move(send_buffers), std::forward<Receiver>(receiver), comm);
 }
 
 template <typename Message, typename Buffer = scalable_noinit_vector<Message>>
-std::vector<Buffer> sparse_alltoall_get(std::vector<Buffer>&& send_buffers, const bool self, MPI_Comm comm) {
+std::vector<Buffer> sparse_alltoall_get(std::vector<Buffer>&& send_buffers, MPI_Comm comm) {
     std::vector<Buffer> recv_buffers(mpi::get_comm_size(comm));
     sparse_alltoall<Message, Buffer>(
         std::move(send_buffers), [&](auto recv_buffer, const PEID pe) { recv_buffers[pe] = std::move(recv_buffer); },
-        self, comm);
+        comm);
     return recv_buffers;
 }
 
 template <typename Message, typename Buffer = scalable_noinit_vector<Message>>
-std::vector<Buffer> sparse_alltoall_get(const std::vector<Buffer>& send_buffers, MPI_Comm comm, const bool self) {
+std::vector<Buffer> sparse_alltoall_get(const std::vector<Buffer>& send_buffers, MPI_Comm comm) {
     std::vector<Buffer> recv_buffers(mpi::get_comm_size(comm));
     sparse_alltoall<Message, Buffer>(
-        send_buffers, [&](auto recv_buffer, const PEID pe) { recv_buffers[pe] = std::move(recv_buffer); }, self, comm);
+        send_buffers, [&](auto recv_buffer, const PEID pe) { recv_buffers[pe] = std::move(recv_buffer); }, comm);
     return recv_buffers;
 }
 } // namespace dkaminpar::mpi
