@@ -35,7 +35,7 @@ dkaminpar_register_mpi_test(dtest_mpi_graph
         CORES 3)
 dkaminpar_register_mpi_test(dtest_sparse_alltoall 
         FILES sparse_alltoall_test.cc 
-        CORES 1 2 4)
+        CORES 1 2 3 4 5 6 7 8)
 
 # Utility functions
 dkaminpar_register_test(dtest_math
