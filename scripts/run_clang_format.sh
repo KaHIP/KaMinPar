@@ -5,7 +5,7 @@ if [[ "$PWD" == */scripts ]]; then
     exit 1
 fi
 
-for directory in "apps" "kaminpar" "dkaminpar" "tests" "dtests" "library"; do
+for directory in "apps" "common" "kaminpar" "dkaminpar" "tests" "dtests" "library"; do
     find "$directory"                           \
         -type f                                 \
         \( -name "*.cpp" -or -name "*.hpp" \)   \

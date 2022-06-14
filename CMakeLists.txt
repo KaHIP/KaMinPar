@@ -147,6 +147,7 @@ add_subdirectory(extern/kassert)
 include_directories(${PROJECT_SOURCE_DIR})
 
 # Shared memory components
+add_subdirectory(common)
 add_subdirectory(kaminpar)
 add_subdirectory(library)
 

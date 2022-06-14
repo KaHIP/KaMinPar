@@ -204,4 +204,50 @@ TEST(DistributedMathTest, TestRoundRobinPermutation_8PerPEPerPE) {
 //   EXPECT_EQ(math::distribute_round_robin<std::uint64_t>(16, 3, 14), 5); // 5
 //   EXPECT_EQ(math::distribute_round_robin<std::uint64_t>(16, 3, 15), 11); // 11
 // }
+
+TEST(DistributedMathTest, encode_4x4_grid) {
+    // 0  1  2  3
+    // 4  5  6  7
+    // 8  9  10 11
+    // 12 13 14 15
+    EXPECT_EQ(math::encode_grid_position(0, 0, 4), 0);
+    EXPECT_EQ(math::encode_grid_position(0, 1, 4), 1);
+    EXPECT_EQ(math::encode_grid_position(0, 2, 4), 2);
+    EXPECT_EQ(math::encode_grid_position(0, 3, 4), 3);
+    EXPECT_EQ(math::encode_grid_position(1, 0, 4), 4);
+    EXPECT_EQ(math::encode_grid_position(1, 1, 4), 5);
+    EXPECT_EQ(math::encode_grid_position(1, 2, 4), 6);
+    EXPECT_EQ(math::encode_grid_position(1, 3, 4), 7);
+    EXPECT_EQ(math::encode_grid_position(2, 0, 4), 8);
+    EXPECT_EQ(math::encode_grid_position(2, 1, 4), 9);
+    EXPECT_EQ(math::encode_grid_position(2, 2, 4), 10);
+    EXPECT_EQ(math::encode_grid_position(2, 3, 4), 11);
+    EXPECT_EQ(math::encode_grid_position(3, 0, 4), 12);
+    EXPECT_EQ(math::encode_grid_position(3, 1, 4), 13);
+    EXPECT_EQ(math::encode_grid_position(3, 2, 4), 14);
+    EXPECT_EQ(math::encode_grid_position(3, 3, 4), 15);
+}
+
+TEST(DistributedMathTest, decode_4x4_grid) {
+    // 0  1  2  3
+    // 4  5  6  7
+    // 8  9  10 11
+    // 12 13 14 15
+    EXPECT_EQ(math::decode_grid_position(0, 4), std::make_pair(0, 0));
+    EXPECT_EQ(math::decode_grid_position(1, 4), std::make_pair(0, 1));
+    EXPECT_EQ(math::decode_grid_position(2, 4), std::make_pair(0, 2));
+    EXPECT_EQ(math::decode_grid_position(3, 4), std::make_pair(0, 3));
+    EXPECT_EQ(math::decode_grid_position(4, 4), std::make_pair(1, 0));
+    EXPECT_EQ(math::decode_grid_position(5, 4), std::make_pair(1, 1));
+    EXPECT_EQ(math::decode_grid_position(6, 4), std::make_pair(1, 2));
+    EXPECT_EQ(math::decode_grid_position(7, 4), std::make_pair(1, 3));
+    EXPECT_EQ(math::decode_grid_position(8, 4), std::make_pair(2, 0));
+    EXPECT_EQ(math::decode_grid_position(9, 4), std::make_pair(2, 1));
+    EXPECT_EQ(math::decode_grid_position(10, 4), std::make_pair(2, 2));
+    EXPECT_EQ(math::decode_grid_position(11, 4), std::make_pair(2, 3));
+    EXPECT_EQ(math::decode_grid_position(12, 4), std::make_pair(3, 0));
+    EXPECT_EQ(math::decode_grid_position(13, 4), std::make_pair(3, 1));
+    EXPECT_EQ(math::decode_grid_position(14, 4), std::make_pair(3, 2));
+    EXPECT_EQ(math::decode_grid_position(15, 4), std::make_pair(3, 3));
+}
 } // namespace dkaminpar::test

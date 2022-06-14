@@ -14,6 +14,7 @@
 #include <tbb/parallel_for.h>
 
 #include "dkaminpar/mpi/wrapper.h"
+#include "dkaminpar/utils/math.h"
 #include "kaminpar/utils/timer.h"
 
 #define SPARSE_ALLTOALL_NOFILTER \
@@ -56,10 +57,32 @@ void forward_self_buffer(SendBuffer& self_buffer, const PEID rank, const Receive
         }
     }
 }
+
+class GridCommunicator {
+public:
+    GridCommunicator(const PEID size, const PEID rank, MPI_Comm comm)
+        : _floor_sqrt(static_cast<PEID>(std::floor(std::sqrt(size)))) {
+        const auto [row, column] = math::decode_grid_position(rank, _floor_sqrt);
+        MPI_Comm_split(comm, row, rank, &_row_comm);
+        MPI_Comm_split(comm, column, rank, &_column_comm);
+    }
+
+    ~GridCommunicator() {
+        MPI_Comm_free(&_row_comm);
+        MPI_Comm_free(&_column_comm);
+    }
+
+private:
+    PEID     _floor_sqrt;
+    MPI_Comm _row_comm;
+    MPI_Comm _column_comm;
+};
 } // namespace internal
 
 template <typename Message, typename Buffer, typename SendBuffers, typename Receiver>
-void sparse_alltoall_grid(SendBuffers&& send_buffers, Receiver&& receiver, MPI_Comm comm) {}
+void sparse_alltoall_grid(SendBuffers&& send_buffers, Receiver&& receiver, MPI_Comm comm) {
+    // pass 1: send messages to the right column
+}
 
 template <typename Message, typename Buffer, typename SendBuffers, typename Receiver>
 void sparse_alltoall_sparse(SendBuffers&& send_buffers, Receiver&& receiver, MPI_Comm comm) {

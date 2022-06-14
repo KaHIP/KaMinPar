@@ -74,4 +74,16 @@ Int distribute_round_robin(const Int n, const Int size, const Int element) {
     const auto ans   = compute_local_range(n, size, local % size).first + (local / size) * size + owner;
     return ans;
 }
+
+template <typename Int>
+std::pair<Int, Int> decode_grid_position(const Int pos, const Int num_columns) {
+    const Int i = pos / num_columns;
+    const Int j = pos % num_columns;
+    return {i, j};
+}
+
+template <typename Int>
+Int encode_grid_position(const Int row, const Int column, const Int num_columns) {
+    return row * num_columns + column;
+}
 } // namespace dkaminpar::math
