@@ -8,6 +8,6 @@ fi
 for directory in "apps" "common" "kaminpar" "dkaminpar" "tests" "dtests" "library"; do
     find "$directory"                           \
         -type f                                 \
-        \( -name "*.cpp" -or -name "*.hpp" \)   \
+        \( -name "*.cc" -or -name "*.h" \)   \
         -exec clang-format -i {} \;
 done
