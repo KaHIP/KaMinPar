@@ -56,16 +56,73 @@ using SparseAlltoallImplementations = Types<
     CompleteSendRecvImplementation<T>, AlltoallvImplementation<T>, SparseImplementation<T>, GridImplementation<T>>;
 TYPED_TEST_SUITE(SparseAlltoallTest, SparseAlltoallImplementations<int>);
 
+TYPED_TEST(SparseAlltoallTest, empty_alltoall) {
+    const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
+
+    std::vector<std::vector<int>> sendbufs(size);
+    const auto                    recvbufs = this->impl(sendbufs, MPI_COMM_WORLD);
+
+    ASSERT_EQ(recvbufs.size(), size);
+    for (PEID pe = 0; pe < size; ++pe) {
+        EXPECT_TRUE(recvbufs[pe].empty());
+    }
+}
+
+TYPED_TEST(SparseAlltoallTest, full_alltoall) {
+    const int num_elements  = 1024;
+    const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
+
+    std::vector<std::vector<int>> sendbufs(size);
+    for (PEID pe = 0; pe < size; ++pe) {
+        for (int i = 0; i < num_elements; ++i) {
+            sendbufs[pe].push_back(rank + i);
+        }
+    }
+
+    auto recvbufs = this->impl(sendbufs, MPI_COMM_WORLD);
+
+    ASSERT_EQ(recvbufs.size(), size);
+    for (PEID pe = 0; pe < size; ++pe) {
+        ASSERT_EQ(recvbufs[pe].size(), num_elements);
+
+        for (int i = 0; i < num_elements; ++i) {
+            EXPECT_EQ(recvbufs[pe][i], pe + i);
+        }
+    }
+}
+
+TYPED_TEST(SparseAlltoallTest, single_message) {
+    const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
+
+    std::vector<std::vector<int>> sendbufs(size);
+    if (rank == 0) {
+        sendbufs[size - 1].push_back(42);
+    }
+
+    auto recvbufs = this->impl(sendbufs, MPI_COMM_WORLD);
+
+    if (rank == size - 1) {
+        EXPECT_EQ(recvbufs[0].size(), 1);
+        EXPECT_EQ(recvbufs[0].front(), 42);
+    } else {
+        EXPECT_TRUE(recvbufs[0].empty());
+    }
+
+    for (PEID pe = 1; pe < size; ++pe) {
+        EXPECT_TRUE(recvbufs[pe].empty());
+    }
+}
+
 TYPED_TEST(SparseAlltoallTest, regular_single_element_alltoall) {
     const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
 
     // send one message to each PE containing this PEs rank
-    std::vector<std::vector<int>> sendbuf(size);
+    std::vector<std::vector<int>> sendbufs(size);
     for (PEID pe = 0; pe < size; ++pe) {
-        sendbuf[pe].push_back(rank);
+        sendbufs[pe].push_back(rank);
     }
 
-    auto recvbufs = this->impl(sendbuf, MPI_COMM_WORLD);
+    auto recvbufs = this->impl(sendbufs, MPI_COMM_WORLD);
 
     for (PEID from = 0; from < size; ++from) {
         EXPECT_EQ(recvbufs[from].size(), 1);
@@ -80,10 +137,10 @@ TYPED_TEST(SparseAlltoallTest, ring_exchange) {
     const PEID next = (rank + 1) % size;
     const PEID prev = (rank + size - 1) % size;
 
-    std::vector<std::vector<int>> sendbuf(size);
-    sendbuf[next].push_back(rank);
+    std::vector<std::vector<int>> sendbufs(size);
+    sendbufs[next].push_back(rank);
 
-    auto recvbufs = this->impl(sendbuf, MPI_COMM_WORLD);
+    auto recvbufs = this->impl(sendbufs, MPI_COMM_WORLD);
 
     for (PEID from = 0; from < size; ++from) {
         if (from == prev) {
@@ -100,16 +157,16 @@ TYPED_TEST(SparseAlltoallTest, irregular_triangle_alltoall) {
     const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
     const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
 
-    std::vector<std::vector<int>> sendbuf(size);
+    std::vector<std::vector<int>> sendbufs(size);
     for (PEID pe = 0; pe < size; ++pe) {
         if (pe <= rank) {
             for (int i = 0; i < pe; ++i) {
-                sendbuf[pe].push_back(rank);
+                sendbufs[pe].push_back(rank);
             }
         }
     }
 
-    auto recvbufs = this->impl(sendbuf, MPI_COMM_WORLD);
+    auto recvbufs = this->impl(sendbufs, MPI_COMM_WORLD);
 
     for (PEID from = 0; from < size; ++from) {
         if (from >= rank) {
@@ -125,18 +182,18 @@ TYPED_TEST(SparseAlltoallTest, irregular_triangle_alltoall) {
 TEST(DefaultSparseAlltoallTest, does_not_move_lvalue_reference) {
     const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
 
-    std::vector<std::vector<int>> sendbuf(size);
+    std::vector<std::vector<int>> sendbufs(size);
     for (PEID pe = 0; pe < size; ++pe) {
-        sendbuf[pe].push_back(pe);
+        sendbufs[pe].push_back(pe);
     }
 
     mpi::sparse_alltoall<int>(
-        sendbuf, [&](auto) {}, MPI_COMM_WORLD);
+        sendbufs, [&](auto) {}, MPI_COMM_WORLD);
 
-    EXPECT_EQ(sendbuf.size(), size);
+    EXPECT_EQ(sendbufs.size(), size);
     for (PEID pe = 0; pe < size; ++pe) {
-        EXPECT_EQ(sendbuf[pe].size(), 1);
-        EXPECT_EQ(sendbuf[pe].front(), pe);
+        EXPECT_EQ(sendbufs[pe].size(), 1);
+        EXPECT_EQ(sendbufs[pe].front(), pe);
     }
 }
 } // namespace dkaminpar
