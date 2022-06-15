@@ -34,7 +34,7 @@
 
 namespace kaminpar {
 class LabelPropagationClustering final : public LabelPropagation<LabelPropagationClustering, NodeID, NodeWeight> {
-  SET_DEBUG(true);
+  SET_DEBUG(false);
 
   using Base = LabelPropagation<LabelPropagationClustering, NodeID, NodeWeight>;
   friend Base;
