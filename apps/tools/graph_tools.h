@@ -22,7 +22,7 @@ struct KCoreStatistics {
   EdgeWeight max_weighted_degree{0};
 };
 
-std::vector<NodeWeight> compute_k_core(const Graph &graph, EdgeWeight k, std::vector<EdgeWeight> core = {});
+std::vector<EdgeWeight> compute_k_core(const Graph &graph, EdgeWeight k, std::vector<EdgeWeight> core = {});
 
 KCoreStatistics compute_k_core_statistics(const Graph &graph, const std::vector<EdgeWeight> &k_core);
 

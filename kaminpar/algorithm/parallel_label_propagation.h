@@ -301,7 +301,7 @@ private:
       };
 
       const EdgeID from = _graph->first_edge(u);
-      const EdgeID to = from + std::min(_graph->degree(u), _max_num_neighbors);
+      const EdgeID to = from + std::min<EdgeID>(_graph->degree(u), _max_num_neighbors);
       for (EdgeID e = from; e < to; ++e) { add_to_rating_map(e, _graph->edge_target(e)); }
 
       // the favored cluster is the one with the highest gain, independent of whether we can actually join that cluster

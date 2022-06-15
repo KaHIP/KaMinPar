@@ -4,7 +4,7 @@
 #include "utility/console_io.h"
 
 namespace kaminpar::tool {
-std::vector<NodeWeight> compute_k_core(const Graph &graph, const EdgeWeight k, std::vector<EdgeWeight> core) {
+std::vector<EdgeWeight> compute_k_core(const Graph &graph, const EdgeWeight k, std::vector<EdgeWeight> core) {
   ALWAYS_ASSERT(k > 0);
   ALWAYS_ASSERT(core.empty() || core.size() == graph.n());
 
