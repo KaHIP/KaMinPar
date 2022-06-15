@@ -7,4 +7,4 @@ endfunction()
 
 add_app(KaMinPar kaminpar.cc)
 
-add_subdirectory(tools)
+#add_subdirectory(tools)
