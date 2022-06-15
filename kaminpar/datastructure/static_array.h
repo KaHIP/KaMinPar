@@ -12,14 +12,13 @@ namespace kaminpar {
 template<typename T>
 class StaticArray {
 public:
-  class StaticArrayIterator : public std::iterator<std::random_access_iterator_tag, T> {
-    using Base = std::iterator<std::random_access_iterator_tag, T>;
-
+  class StaticArrayIterator {
   public:
-    using value_type = typename Base::value_type;
-    using reference = typename Base::reference;
-    using pointer = typename Base::pointer;
-    using difference_type = typename Base::difference_type;
+    using iterator_category = std::random_access_iterator_tag;
+    using value_type = T;
+    using reference = T &;
+    using pointer = T *;
+    using difference_type = std::ptrdiff_t;
 
     StaticArrayIterator() : _ptr(nullptr) {}
     explicit StaticArrayIterator(T *ptr) : _ptr(ptr) {}
