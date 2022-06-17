@@ -38,4 +38,3 @@ add_kaminpar_test(test_io io_test.cc)
 
 # Common 
 add_common_test(test_common_utils_preallocated_vector common/utils/preallocated_vector_test.cc)
-add_common_test(test_common_utils_math common/utils/math_test.cc)

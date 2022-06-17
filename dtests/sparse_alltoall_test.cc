@@ -1,24 +1,17 @@
 #include <gtest/gtest.h>
 
+#include "common/utils/math.h"
 #include "dkaminpar/mpi/alltoall.h"
+#include "dkaminpar/mpi/grid_alltoall.h"
 #include "dkaminpar/mpi/wrapper.h"
 
 using namespace testing;
+using namespace kaminpar;
+using namespace dkaminpar;
 
-namespace dkaminpar {
 template <typename Implementation>
 struct SparseAlltoallTest : public Test {
     Implementation impl;
-};
-
-template <typename T>
-struct GridImplementation {
-    std::vector<std::vector<T>> operator()(const std::vector<std::vector<T>>& sendbuf, MPI_Comm comm) {
-        std::vector<std::vector<T>> recvbufs(mpi::get_comm_size(comm));
-        mpi::sparse_alltoall_grid<T, std::vector<T>>(
-            sendbuf, [&](auto recvbuf, const PEID pe) { recvbufs[pe] = std::move(recvbuf); }, comm);
-        return recvbufs;
-    }
 };
 
 template <typename T>
@@ -28,6 +21,25 @@ struct AlltoallvImplementation {
         mpi::sparse_alltoall_alltoallv<T, std::vector<T>>(
             sendbuf, [&](auto recvbuf, const PEID pe) { recvbufs[pe] = std::move(recvbuf); }, comm);
         return recvbufs;
+    }
+};
+
+template <typename T>
+struct GridImplementation {
+    std::vector<std::vector<T>> operator()(const std::vector<std::vector<T>>& sendbuf, MPI_Comm comm) {
+        const PEID size = mpi::get_comm_size(comm);
+
+        // @todo remove once restriction to square no. of PEs is lifted
+        if (math::is_square(size)) {
+            std::vector<std::vector<T>> recvbufs(size);
+            mpi::sparse_alltoall_grid<T, std::vector<T>>(
+                sendbuf, [&](auto recvbuf, const PEID pe) { recvbufs[pe] = std::move(recvbuf); }, comm);
+            return recvbufs;
+        } else {
+            LOG << "Fallback to MPI_Alltoallv() for " << size << " PEs";
+            AlltoallvImplementation<T> fallback_impl;
+            return fallback_impl(sendbuf, comm);
+        }
     }
 };
 
@@ -196,4 +208,3 @@ TEST(DefaultSparseAlltoallTest, does_not_move_lvalue_reference) {
         EXPECT_EQ(sendbufs[pe].front(), pe);
     }
 }
-} // namespace dkaminpar

@@ -8,12 +8,12 @@
 #pragma once
 
 #include <type_traits>
+
 #include <kassert/kassert.hpp>
 #include <mpi.h>
 
 #include <tbb/parallel_for.h>
 
-//#include "common/utils/math.h"
 #include "common/utils/noinit_vector.h"
 #include "dkaminpar/mpi/wrapper.h"
 #include "kaminpar/utils/timer.h"
@@ -58,54 +58,7 @@ void forward_self_buffer(SendBuffer& self_buffer, const PEID rank, const Receive
         }
     }
 }
-
-class GridCommunicator {
-public:
-    GridCommunicator(const PEID size, const PEID rank, MPI_Comm comm) {
-        // const auto [row, column] = shm::decode_virtual_square_position(rank, size);
-        // MPI_Comm_split(comm, row, rank, &_row_comm);
-        // MPI_Comm_split(comm, column, rank, &_column_comm);
-    }
-
-    ~GridCommunicator() {
-        MPI_Comm_free(&_row_comm);
-        MPI_Comm_free(&_column_comm);
-    }
-
-private:
-    MPI_Comm _row_comm;
-    MPI_Comm _column_comm;
-};
 } // namespace internal
-
-template <typename Message, typename SendBuffer, typename CountsBuffer, typename Receiver>
-void sparse_alltoall_grid(
-    SendBuffer&& send_buffer, const CountsBuffer& counts, const CountsBuffer& displs, Receiver&& receiver,
-    MPI_Comm comm) {
-    const auto [size, rank] = mpi::get_comm_info(comm);
-    KASSERT(counts.size() >= static_cast<std::size_t>(size));
-    KASSERT(displs.size() >= static_cast<std::size_t>(size));
-}
-
-template <typename Message, typename Buffer, typename SendBuffers, typename Receiver>
-void sparse_alltoall_grid(SendBuffers&& send_buffers, Receiver&& receiver, MPI_Comm comm) {
-    // @todo avoid using this variant since it requires a full copy of the send buffers
-
-    const auto [size, rank] = mpi::get_comm_info(comm);
-    shm::NoinitVector<int> counts(size);
-
-    tbb::parallel_for<PEID>(0, size, [&](const PEID pe) { counts[pe] = asserting_cast<int>(send_buffers[pe].size()); });
-    shm::NoinitVector<int> displs(size + 1);
-    shm::parallel::prefix_sum(counts.begin(), counts.end(), displs.begin() + 1);
-    displs.front() = 0;
-
-    shm::NoinitVector<Message> dense_buffer(displs.back());
-    tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
-        std::copy(send_buffers[pe].begin(), send_buffers[pe].end(), dense_buffer.begin() + displs[pe]);
-    });
-
-    sparse_alltoall_grid<Message>(std::move(dense_buffer), counts, displs, std::forward<Receiver>(receiver), comm);
-}
 
 template <typename Message, typename Buffer, typename SendBuffers, typename Receiver>
 void sparse_alltoall_sparse(SendBuffers&& send_buffers, Receiver&& receiver, MPI_Comm comm) {
