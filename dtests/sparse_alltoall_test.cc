@@ -135,9 +135,10 @@ TYPED_TEST(SparseAlltoallTest, regular_single_element_alltoall) {
     }
 
     auto recvbufs = this->impl(sendbufs, MPI_COMM_WORLD);
+    ASSERT_EQ(recvbufs.size(), size);
 
     for (PEID from = 0; from < size; ++from) {
-        EXPECT_EQ(recvbufs[from].size(), 1);
+        ASSERT_EQ(recvbufs[from].size(), 1);
         EXPECT_EQ(recvbufs[from].front(), from);
     }
 }
@@ -153,10 +154,11 @@ TYPED_TEST(SparseAlltoallTest, ring_exchange) {
     sendbufs[next].push_back(rank);
 
     auto recvbufs = this->impl(sendbufs, MPI_COMM_WORLD);
+    ASSERT_EQ(recvbufs.size(), size);
 
     for (PEID from = 0; from < size; ++from) {
         if (from == prev) {
-            EXPECT_EQ(recvbufs[from].size(), 1);
+            ASSERT_EQ(recvbufs[from].size(), 1);
             EXPECT_EQ(recvbufs[from].front(), from);
         } else {
             EXPECT_TRUE(recvbufs[from].empty());
