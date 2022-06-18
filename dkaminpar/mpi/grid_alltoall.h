@@ -63,7 +63,7 @@ void sparse_alltoall_grid(SendBuffer&& data, const CountsBuffer& counts, Receive
     const PEID              num_rows_cols = grid_comm.sqrt();
 
     SET_DEBUG(false);
-    DBG << V(num_rows_cols);
+    //DBG << V(num_rows_cols);
 
     //
     // Step 1: Send rows to the right PE in the same column
@@ -88,7 +88,7 @@ void sparse_alltoall_grid(SendBuffer&& data, const CountsBuffer& counts, Receive
     parallel::prefix_sum(row_send_counts.begin(), row_send_counts.end(), row_send_displs.begin() + 1);
     parallel::prefix_sum(row_recv_counts.begin(), row_recv_counts.end(), row_recv_displs.begin() + 1);
 
-    DBG << V(data) << V(counts) << V(row_send_counts) << V(row_recv_counts) << V(row_send_displs) << V(row_recv_displs);
+    //DBG << V(data) << V(counts) << V(row_send_counts) << V(row_recv_counts) << V(row_send_displs) << V(row_recv_displs);
 
     // --> Exchange payloads
     using MessageType = typename SendBuffer::value_type;
@@ -103,7 +103,7 @@ void sparse_alltoall_grid(SendBuffer&& data, const CountsBuffer& counts, Receive
     std::vector<int> row_displs(size + 1);
     parallel::prefix_sum(row_counts.begin(), row_counts.end(), row_displs.begin() + 1);
 
-    DBG << "After first hop: " << V(row_data) << V(row_counts) << V(row_displs);
+    //DBG << "After first hop: " << V(row_data) << V(row_counts) << V(row_displs);
 
     //
     // Step 2: Collect scattered data for each PE, and deliver the final payload
@@ -147,8 +147,8 @@ void sparse_alltoall_grid(SendBuffer&& data, const CountsBuffer& counts, Receive
     std::vector<int> col_recv_displs(num_rows_cols + 1);
     parallel::prefix_sum(col_recv_counts.begin(), col_recv_counts.end(), col_recv_displs.begin() + 1);
 
-    DBG << "Before payload exchange: " << V(col_data) << V(col_counts) << V(col_displs) << V(col_recv_counts)
-        << V(col_recv_displs) << V(col_subcounts);
+    //DBG << "Before payload exchange: " << V(col_data) << V(col_counts) << V(col_displs) << V(col_recv_counts)
+        //<< V(col_recv_displs) << V(col_subcounts);
 
     // --> Exchange payload
     NoinitVector<MessageType> final_data(col_recv_displs.back());
@@ -160,7 +160,7 @@ void sparse_alltoall_grid(SendBuffer&& data, const CountsBuffer& counts, Receive
     std::vector<int> final_subcounts(size);
     mpi::alltoall(col_subcounts.data(), num_rows_cols, final_subcounts.data(), num_rows_cols, grid_comm.row_comm());
 
-    DBG << "Final: " << V(final_data) << V(final_subcounts);
+    //DBG << "Final: " << V(final_data) << V(final_subcounts);
 
     std::size_t displ = 0;
     for (PEID col = 0; col < num_rows_cols; ++col) {
