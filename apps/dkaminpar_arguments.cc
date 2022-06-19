@@ -26,6 +26,7 @@ void create_graphgen_options(
         .argument(prefix + "-gamma", "Power law exponent (depending on model)", &g_ctx.gamma)
         .argument(prefix + "-save-graph", "Write the generated graph to the hard disk.", &g_ctx.save_graph)
         .argument(prefix + "-scale", "Scaling factor for the generated graph (e.g., number of PEs).", &g_ctx.scale)
+        .argument(prefix + "-preiodic", "Use periodic boundary condition when generating RDG2D graphs.", &g_ctx.periodic)
         .argument(
             prefix + "-validate", "Validate the graph format before using it. Useful for debugging.",
             &g_ctx.validate_graph);
