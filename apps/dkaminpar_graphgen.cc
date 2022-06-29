@@ -327,6 +327,7 @@ KaGen create_generator_object(const GeneratorContext ctx) {
     if (ctx.validate_graph) {
         gen.EnableUndirectedGraphVerification();
     }
+    gen.EnableOutput(true);
     gen.EnableBasicStatistics();
     return gen;
 }
