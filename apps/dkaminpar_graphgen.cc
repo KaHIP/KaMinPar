@@ -31,6 +31,7 @@ DEFINE_ENUM_STRING_CONVERSION(GeneratorType, generator_type) = {
     {GeneratorType::NONE, "none"},   {GeneratorType::GNM, "gnm"},       {GeneratorType::RGG2D, "rgg2d"},
     {GeneratorType::RGG3D, "rgg3d"}, {GeneratorType::RDG2D, "rdg2d"},   {GeneratorType::RDG3D, "rdg3d"},
     {GeneratorType::RHG, "rhg"},     {GeneratorType::GRID2D, "grid2d"}, {GeneratorType::GRID3D, "grid3d"},
+    {GeneratorType::RMAT, "rmat"},
 };
 
 using namespace kagen;
@@ -391,6 +392,15 @@ KaGenResult create_grid3d(const GeneratorContext ctx) {
     LOG << "Generating Grid3D(n=" << n << ", p=" << ctx.p << ")";
     return create_generator_object(ctx).GenerateGrid3D_N(n, ctx.p);
 }
+
+KaGenResult create_rmat(const GeneratorContext ctx) {
+    const GlobalNodeID n = (static_cast<GlobalNodeID>(1) << ctx.n) * ctx.scale;
+    const GlobalEdgeID m = (static_cast<GlobalEdgeID>(1) << ctx.m) * ctx.scale;
+
+    LOG << "Generating R-MAT(n=" << n << ", m=" << m << ", a=" << ctx.prob_a << ", b=" << ctx.prob_b
+        << ", c=" << ctx.prob_c << ")";
+    return create_generator_object(ctx).GenerateRMAT(n, m, ctx.prob_a, ctx.prob_b, ctx.prob_c);
+}
 } // namespace
 
 DistributedGraph generate(const GeneratorContext ctx) {
@@ -416,6 +426,9 @@ DistributedGraph generate(const GeneratorContext ctx) {
 
             case GeneratorType::GRID3D:
                 return create_grid3d(ctx);
+
+            case GeneratorType::RMAT:
+                return create_rmat(ctx);
 
             default:
                 FATAL_ERROR << "selected graph generator is not implemented";

@@ -22,6 +22,7 @@ enum class GeneratorType {
     RHG,
     GRID2D,
     GRID3D,
+    RMAT,
 };
 
 DECLARE_ENUM_STRING_CONVERSION(GeneratorType, generator_type);
@@ -37,6 +38,9 @@ struct GeneratorContext {
     bool          validate_graph = false;
     bool          save_graph     = false;
     int           seed           = 0;
+    double        prob_a         = 0.0;
+    double        prob_b         = 0.0;
+    double        prob_c         = 0.0;
 };
 
 DistributedGraph generate(GeneratorContext ctx);
