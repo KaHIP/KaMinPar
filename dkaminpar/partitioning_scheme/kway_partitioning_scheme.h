@@ -1,9 +1,9 @@
 /*******************************************************************************
- * @file:   kway.h
- *
+ * @file:   kway_partitioning_scheme.h
  * @author: Daniel Seemaier
  * @date:   25.10.2021
- * @brief:  Partitioning scheme using direct k-way partitioning.
+ * @brief:  Multilevel graph partitioning using direct k-way initial
+ * partitioning.
  ******************************************************************************/
 #pragma once
 

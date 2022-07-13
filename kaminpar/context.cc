@@ -7,7 +7,7 @@
  ******************************************************************************/
 #include "kaminpar/context.h"
 
-#include "kaminpar/utils/math.h"
+#include "common/utils/math.h"
 
 #include <kassert/kassert.hpp>
 

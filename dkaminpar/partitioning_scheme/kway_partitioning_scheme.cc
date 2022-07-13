@@ -5,7 +5,7 @@
  * @date:   25.10.2021
  * @brief:  Partitioning scheme using direct k-way partitioning.
  ******************************************************************************/
-#include "dkaminpar/partitioning_scheme/kway.h"
+#include "dkaminpar/partitioning_scheme/kway_partitioning_scheme.h"
 
 #include "dkaminpar/coarsening/coarsener.h"
 #include "dkaminpar/coarsening/global_clustering_contraction.h"

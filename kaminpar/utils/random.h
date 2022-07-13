@@ -12,9 +12,9 @@
 
 #include <tbb/task_arena.h>
 
+#include "common/utils/math.h"
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/definitions.h"
-#include "kaminpar/utils/math.h"
 #include "kaminpar/utils/strings.h"
 
 namespace kaminpar {
@@ -33,10 +33,10 @@ public:
 
     static Randomize& instance();
 
-    Randomize(const Randomize&) = delete;
+    Randomize(const Randomize&)            = delete;
     Randomize& operator=(const Randomize&) = delete;
 
-    Randomize(Randomize&&) noexcept = default; // might be expensive
+    Randomize(Randomize&&) noexcept   = default; // might be expensive
     Randomize& operator=(Randomize&&) = delete;
 
     using generator_type = std::mt19937;
@@ -94,10 +94,10 @@ public:
         init_permutations();
     }
 
-    RandomPermutations(const RandomPermutations&) = delete;
+    RandomPermutations(const RandomPermutations&)            = delete;
     RandomPermutations& operator=(const RandomPermutations&) = delete;
     RandomPermutations(RandomPermutations&&)                 = delete;
-    RandomPermutations& operator=(RandomPermutations&&) = delete;
+    RandomPermutations& operator=(RandomPermutations&&)      = delete;
 
     const std::array<ValueType, size>& get(Randomize& rand) {
         return _permutations[rand.random_index(0, _permutations.size())];

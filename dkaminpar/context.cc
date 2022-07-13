@@ -18,7 +18,6 @@ using namespace std::string_literals;
 DEFINE_ENUM_STRING_CONVERSION(PartitioningMode, partitioning_mode) = {
     {PartitioningMode::KWAY, "kway"},
     {PartitioningMode::DEEP, "deep"},
-    {PartitioningMode::RB, "rb"},
 };
 
 DEFINE_ENUM_STRING_CONVERSION(GlobalClusteringAlgorithm, global_clustering_algorithm) = {

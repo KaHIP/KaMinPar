@@ -7,6 +7,8 @@
  ******************************************************************************/
 #include "kaminpar/partitioning_scheme/helper.h"
 
+#include "common/utils/math.h"
+
 namespace kaminpar::partitioning::helper {
 namespace {
 SET_DEBUG(false);
@@ -256,7 +258,6 @@ std::size_t select_best(const scalable_vector<PartitionedGraph>& p_graphs, const
 }
 
 std::size_t compute_num_threads_for_parallel_ip(const Context& input_ctx) {
-    return math::round_down_to_power_of_2(input_ctx.parallel.num_threads)
-           * (1 << input_ctx.initial_partitioning.multiplier_exponent);
+    return math::floor2(input_ctx.parallel.num_threads) * (1 << input_ctx.initial_partitioning.multiplier_exponent);
 }
 } // namespace kaminpar::partitioning::helper

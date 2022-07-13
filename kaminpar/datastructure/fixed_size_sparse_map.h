@@ -27,7 +27,7 @@
 
 #include <kassert/kassert.hpp>
 
-#include "kaminpar/utils/math.h"
+#include "common/utils/math.h"
 
 namespace kaminpar {
 /*!
@@ -79,7 +79,7 @@ public:
         allocate(max_size);
     }
 
-    FixedSizeSparseMap(const FixedSizeSparseMap&) = delete;
+    FixedSizeSparseMap(const FixedSizeSparseMap&)                  = delete;
     FixedSizeSparseMap& operator=(const FixedSizeSparseMap& other) = delete;
 
     // Query functions

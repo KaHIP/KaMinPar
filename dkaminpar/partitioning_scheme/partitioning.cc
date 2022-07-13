@@ -7,8 +7,8 @@
  ******************************************************************************/
 #include "dkaminpar/partitioning_scheme/partitioning.h"
 
-//#include "dkaminpar/partitioning_scheme/deep_mgp.h"
-#include "dkaminpar/partitioning_scheme/kway.h"
+#include "dkaminpar/partitioning_scheme/deep_partitioning_scheme.h"
+#include "dkaminpar/partitioning_scheme/kway_partitioning_scheme.h"
 
 namespace dkaminpar {
 DistributedPartitionedGraph partition(const DistributedGraph& graph, const Context& ctx) {
@@ -17,12 +17,7 @@ DistributedPartitionedGraph partition(const DistributedGraph& graph, const Conte
             return KWayPartitioningScheme(graph, ctx).partition();
 
         case PartitioningMode::DEEP:
- //           return DeepMGPPartitioningScheme(graph, ctx).partition();
-            break;
-
-        case PartitioningMode::RB:
-            FATAL_ERROR << "not implemented";
-            break;
+            return DeepPartitioningScheme(graph, ctx).partition();
     }
 
     __builtin_unreachable();

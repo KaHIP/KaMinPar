@@ -9,9 +9,9 @@
 
 #include <kassert/kassert.hpp>
 
-#include "definitions.h"
+#include "common/utils/math.h"
+#include "kaminpar/definitions.h"
 #include "kaminpar/parallel/algorithm.h"
-#include "kaminpar/utils/math.h"
 #include "kaminpar/utils/timer.h"
 
 namespace kaminpar {

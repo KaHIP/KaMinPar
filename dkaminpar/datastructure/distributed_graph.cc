@@ -8,11 +8,11 @@
 #include <iomanip>
 #include <numeric>
 
+#include "common/utils/math.h"
 #include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/mpi/graph_communication.h"
 #include "dkaminpar/mpi/wrapper.h"
 #include "dkaminpar/utils/vector_ets.h"
-#include "kaminpar/utils/math.h"
 
 namespace dkaminpar {
 void DistributedGraph::print() const {

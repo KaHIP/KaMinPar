@@ -1,10 +1,11 @@
 /*******************************************************************************
- * @file:   common.h
- *
+ * @file:   mgp_operations.h
  * @author: Daniel Seemaier
  * @date:   28.04.2022
- * @brief:  Common abstractions for partitioning schemes.
+ * @brief:  Operations for distributed multilevel graph partitioning.
  ******************************************************************************/
 #pragma once
 
-namespace dkaminpar {}
+namespace dkaminpar {
+
+}

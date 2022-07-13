@@ -109,4 +109,8 @@ DistributedPartitionedGraph reduce_scatter(const DistributedGraph& dist_graph, s
     // create distributed partitioned graph
     return {&dist_graph, shm_p_graph.k(), std::move(dist_partition), std::move(block_weights)};
 }
+
+DistributedGraph allgather_on_groups(const DistributedGraph& graph, MPI_Comm group) {
+    __builtin_unreachable();
+}
 } // namespace dkaminpar::graph

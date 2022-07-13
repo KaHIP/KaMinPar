@@ -13,4 +13,6 @@
 namespace dkaminpar::graph {
 shm::Graph                  allgather(const DistributedGraph& graph);
 DistributedPartitionedGraph reduce_scatter(const DistributedGraph& dist_graph, shm::PartitionedGraph shm_p_graph);
+
+DistributedGraph allgather_on_groups(const DistributedGraph& graph, MPI_Comm group);
 } // namespace dkaminpar::graph

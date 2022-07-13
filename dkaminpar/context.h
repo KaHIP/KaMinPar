@@ -14,7 +14,6 @@
 namespace dkaminpar {
 enum class PartitioningMode {
     KWAY,
-    RB,
     DEEP,
 };
 
