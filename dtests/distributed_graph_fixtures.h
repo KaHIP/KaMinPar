@@ -7,7 +7,72 @@
 #include "dkaminpar/definitions.h"
 #include "dkaminpar/mpi/wrapper.h"
 
-namespace dkaminpar::testing::fixtures {
+namespace dkaminpar::testing {
+inline DistributedGraph create_distributed_circle_graph() {
+    const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
+    const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
+
+    dkaminpar::graph::Builder builder(MPI_COMM_WORLD);
+    builder.initialize(1);
+
+    const GlobalNodeID prev = static_cast<GlobalNodeID>(rank > 0 ? rank - 1 : size - 1);
+    const GlobalNodeID next = static_cast<GlobalNodeID>((rank + 1) % size);
+
+    builder.create_node(1);
+    if (prev != next) {
+        builder.create_edge(1, prev);
+        builder.create_edge(1, next);
+    }
+
+    return builder.finalize();
+}
+
+inline DistributedGraph create_distributed_isolated_graph(const NodeID num_nodes_per_pe) {
+    dkaminpar::graph::Builder builder(MPI_COMM_WORLD);
+    builder.initialize(num_nodes_per_pe);
+    for (NodeID u = 0; u < num_nodes_per_pe; ++u) {
+        builder.create_node(1);
+    }
+    return builder.finalize();
+}
+
+// Each PE has a clique on a given number of nodes.
+// Nodes with the same local IDs are further connected in a global circle.
+inline DistributedGraph create_distributed_circle_clique_graph(const NodeID num_nodes_per_pe) {
+    const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
+    const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
+
+    dkaminpar::graph::Builder builder(MPI_COMM_WORLD);
+    builder.initialize(num_nodes_per_pe);
+
+    const GlobalNodeID my_n0   = rank * num_nodes_per_pe;
+    const GlobalNodeID prev_n0 = (rank > 0 ? (rank - 1) * num_nodes_per_pe : (size - 1) * num_nodes_per_pe);
+    const GlobalNodeID next_n0 = (rank + 1 < size ? (rank + 1) * num_nodes_per_pe : 0);
+
+    for (NodeID u = 0; u < num_nodes_per_pe; ++u) {
+        builder.create_node(1);
+
+        // Clique
+        for (NodeID v = 0; v < num_nodes_per_pe; ++v) {
+            if (u == v) {
+                continue;
+            }
+            builder.create_edge(1, my_n0 + v);
+        }
+
+        // Circle
+        if (prev_n0 != my_n0) {
+            builder.create_edge(1, prev_n0 + u);
+        }
+        if (next_n0 != prev_n0) {
+            builder.create_edge(1, next_n0 + u);
+        }
+    }
+
+    return builder.finalize();
+}
+
+namespace fixtures {
 class DistributedTestFixture : public ::testing::Test {
 protected:
     void SetUp() override {
@@ -26,18 +91,8 @@ class DistributedIsolatedNodesGraphFixture : public DistributedTestFixture {
 protected:
     void SetUp() override {
         DistributedTestFixture::SetUp();
-        graph = create_graph();
+        graph = create_distributed_isolated_graph(num_nodes_per_pe);
         n0    = rank * num_nodes_per_pe;
-    }
-
-private:
-    DistributedGraph create_graph() {
-        dkaminpar::graph::Builder builder(MPI_COMM_WORLD);
-        builder.initialize(1);
-        for (NodeID u = 0; u < num_nodes_per_pe; ++u) {
-            builder.create_node(1);
-        }
-        return builder.finalize();
     }
 
 protected:
@@ -57,24 +112,7 @@ class DistributedCircleGraphFixture : public DistributedTestFixture {
 protected:
     void SetUp() override {
         DistributedTestFixture::SetUp();
-        graph = create_graph();
-    }
-
-private:
-    DistributedGraph create_graph() {
-        dkaminpar::graph::Builder builder(MPI_COMM_WORLD);
-        builder.initialize(1);
-
-        const GlobalNodeID prev = static_cast<GlobalNodeID>(rank > 0 ? rank - 1 : size - 1);
-        const GlobalNodeID next = static_cast<GlobalNodeID>((rank + 1) % size);
-
-        builder.create_node(1);
-        if (prev != next) {
-            builder.create_edge(1, prev);
-            builder.create_edge(1, next);
-        }
-
-        return builder.finalize();
+        graph = create_distributed_circle_graph();
     }
 
 protected:
@@ -89,6 +127,7 @@ class DistributedEdgesGraphFixture : public DistributedTestFixture {
 protected:
     void SetUp() override {
         DistributedTestFixture::SetUp();
+        n0    = num_edges_per_pe * 2 * rank;
         graph = create_graph();
     }
 
@@ -98,15 +137,16 @@ private:
         builder.initialize(2 * num_edges_per_pe);
         for (EdgeID e = 0; e < num_edges_per_pe; ++e) {
             builder.create_node(1);
-            builder.create_edge(1, 2 * e + 1);
+            builder.create_edge(1, n0 + 2 * e + 1);
             builder.create_node(1);
-            builder.create_edge(1, 2 * e);
+            builder.create_edge(1, n0 + 2 * e);
         }
         return builder.finalize();
     }
 
 protected:
     DistributedGraph graph;
+    GlobalNodeID     n0;
 };
 
 /*
@@ -169,4 +209,5 @@ protected:
     GlobalNodeID     prev_n0;
     GlobalNodeID     next_n0;
 };
-} // namespace dkaminpar::testing::fixtures
+} // namespace fixtures
+} // namespace dkaminpar::testing

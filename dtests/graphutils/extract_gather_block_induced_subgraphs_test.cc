@@ -65,13 +65,97 @@ TEST_F(OneEdgeOnEachPE, extracts_local_edge) {
     auto p_graph   = make_partitioned_graph_by_rank(graph);
     auto subgraphs = dkaminpar::graph::distribute_block_induced_subgraphs(p_graph);
 
-    // each PE should get one block 
+    // each PE should get one block
     ASSERT_EQ(subgraphs.size(), 1);
 
-    // the block should contain a single edge 
-    const auto &subgraph = subgraphs.front();
+    // the block should contain a single edge
+    const auto& subgraph = subgraphs.front();
     ASSERT_EQ(subgraph.n(), 2);
     EXPECT_EQ(subgraph.degree(0), 1);
     EXPECT_EQ(subgraph.degree(1), 1);
     EXPECT_EQ(subgraph.m(), 2);
+}
+
+// Test with 10 local egdes
+using TenEdgesOnEachPE = DistributedEdgesGraphFixture<10>;
+TEST_F(TenEdgesOnEachPE, extracts_local_edges) {
+    auto p_graph   = make_partitioned_graph_by_rank(graph);
+    auto subgraphs = dkaminpar::graph::distribute_block_induced_subgraphs(p_graph);
+
+    // each PE should still get one block
+    ASSERT_EQ(subgraphs.size(), 1);
+
+    // the block should contain 10 edges
+    const auto& subgraph = subgraphs.front();
+    ASSERT_EQ(subgraph.n(), 20);
+    EXPECT_EQ(subgraph.m(), 20);
+
+    for (const NodeID u: subgraph.nodes()) {
+        EXPECT_EQ(subgraph.degree(u), 1);
+        const NodeID neighbor = subgraph.edge_target(subgraph.first_edge(u));
+        EXPECT_EQ(subgraph.degree(neighbor), 1);
+        const NodeID neighbor_neighbor = subgraph.edge_target(subgraph.first_edge(neighbor));
+        EXPECT_EQ(neighbor_neighbor, u);
+    }
+}
+
+// Test with cut edges: ring across PEs, but there should be still no local egdes
+TEST_F(DistributedCircleGraphFixture, extracts_local_node) {
+    auto p_graph   = make_partitioned_graph_by_rank(graph);
+    auto subgraphs = dkaminpar::graph::distribute_block_induced_subgraphs(p_graph);
+
+    // each PE should still get one block
+    ASSERT_EQ(subgraphs.size(), 1);
+
+    // each block should contain a single node
+    const auto& subgraph = subgraphs.front();
+    ASSERT_EQ(subgraph.n(), 1);
+    EXPECT_EQ(subgraph.m(), 0);
+}
+
+// Test extracting isolated nodes that are spread across PEs
+TEST_F(DistributedTestFixture, extracts_distributed_isolated_nodes) {
+    // create graph with one local node for each PE
+    auto                 graph = create_distributed_isolated_graph(size);
+    std::vector<BlockID> partition(size);
+    std::iota(partition.begin(), partition.end(), 0);
+    auto p_graph = make_partitioned_graph(graph, static_cast<BlockID>(size), partition);
+
+    auto subgraphs = dkaminpar::graph::distribute_block_induced_subgraphs(p_graph);
+
+    // each PE should get one block
+    ASSERT_EQ(subgraphs.size(), 1);
+    const auto& subgraph = subgraphs.front();
+
+    // ... with size isolated nodes
+    ASSERT_EQ(subgraph.n(), size);
+    ASSERT_EQ(subgraph.m(), 0);
+}
+
+// Test local clique + global circle extraction, where nodes within a clique belong to different blocks
+TEST_F(DistributedTestFixture, extract_circles_from_clique_graph) {
+    auto                 graph = create_distributed_circle_clique_graph(size);
+    std::vector<BlockID> partition(size);
+    std::iota(partition.begin(), partition.end(), 0);
+    auto p_graph = make_partitioned_graph(graph, static_cast<BlockID>(size), partition);
+
+    auto subgraphs = dkaminpar::graph::distribute_block_induced_subgraphs(p_graph);
+
+    // each PE should still get one block
+    ASSERT_EQ(subgraphs.size(), 1);
+    const auto& subgraph = subgraphs.front();
+
+    // each block should be a circle
+    ASSERT_EQ(subgraph.n(), size);
+
+    if (size == 1) {
+        EXPECT_EQ(subgraph.m(), 0);
+    } else if (size == 2) {
+        EXPECT_EQ(subgraph.m(), 2);
+    } else {
+        EXPECT_EQ(subgraph.m(), 2 * size);
+        for (const NodeID u: subgraph.nodes()) {
+            EXPECT_EQ(subgraph.degree(u), 2);
+        }
+    }
 }

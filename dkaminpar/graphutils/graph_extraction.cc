@@ -294,7 +294,7 @@ gather_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph, Extra
         STOP_TIMER(TIMER_DETAIL);
     }
 
-    std::vector<shm::Graph> subgraphs;
+    std::vector<shm::Graph> subgraphs(blocks_per_pe);
     {
         SCOPED_TIMER("Construct subgraphs", TIMER_DETAIL);
 
@@ -336,14 +336,19 @@ gather_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph, Extra
                     shared_edge_weights.begin() + offset_edges, shared_edge_weights.begin() + offset_edges + num_edges,
                     subgraph_edge_weights.begin() + pos_m);
 
+                // copied independent nodes arrays -- thus, offset segment by number of edges received from previous PEs
+                for (NodeID u = 0; u < num_nodes; ++u) {
+                    subgraph_nodes[pos_n + 1 + u] += pos_m;
+                }
+
                 pos_n += num_nodes;
                 pos_m += num_edges;
             }
 
             DBG << V(b) << V(subgraph_nodes) << V(subgraph_edges);
-            subgraphs.emplace_back(
+            subgraphs[b] = {
                 std::move(subgraph_nodes), std::move(subgraph_edges), std::move(subgraph_node_weights),
-                std::move(subgraph_edge_weights), false);
+                std::move(subgraph_edge_weights), false};
         });
     }
 
