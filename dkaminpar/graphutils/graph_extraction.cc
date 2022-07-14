@@ -183,7 +183,8 @@ extract_local_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph
     return memory;
 }
 
-void gather_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph, ExtractedSubgraphs memory) {
+std::vector<shm::Graph>
+gather_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph, ExtractedSubgraphs memory) {
     const PEID size = mpi::get_comm_size(p_graph.communicator());
     KASSERT(p_graph.k() % size == 0u, "k must be a multiple of #PEs", assert::always);
     const BlockID blocks_per_pe = p_graph.k() / size;
@@ -275,13 +276,7 @@ void gather_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph, 
         STOP_TIMER(TIMER_DETAIL);
     }
 
-    // Construct subgraphs
-    std::vector<shm::StaticArray<EdgeID>>     subgraph_nodes(blocks_per_pe);
-    std::vector<shm::StaticArray<NodeWeight>> subgraph_node_weights(blocks_per_pe);
-    std::vector<shm::StaticArray<NodeID>>     subgraph_edges(blocks_per_pe);
-    std::vector<shm::StaticArray<EdgeWeight>> subgraph_edge_weights(blocks_per_pe);
-    std::vector<shm::Graph>                   subgraphs(blocks_per_pe);
-
+    std::vector<shm::Graph> subgraphs(blocks_per_pe);
     {
         SCOPED_TIMER("Construct subgraphs", TIMER_DETAIL);
 
@@ -295,20 +290,26 @@ void gather_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph, 
             }
 
             // Allocate memory for subgraph
-            subgraph_nodes[b].resize(n + 1);
-            subgraph_node_weights[b].resize(n);
-            subgraph_edges[b].resize(m);
-            subgraph_edge_weights[b].resize(m);
+            shm::StaticArray<EdgeID>     subgraph_nodes(n + 1);
+            shm::StaticArray<NodeWeight> subgraph_node_weights(n);
+            shm::StaticArray<NodeID>     subgraph_edges(m);
+            shm::StaticArray<EdgeWeight> subgraph_edge_weights(m);
 
             // Copy subgraph to memory
             // @todo better approach might be to compute a prefix sum on recv_subgraph_sizes
             for (PEID pe = 0; pe < size; ++pe) {
             }
+
+            subgraphs.emplace_back(
+                std::move(subgraph_nodes), std::move(subgraph_edges), std::move(subgraph_node_weights),
+                std::move(subgraph_edge_weights), false);
         });
     }
+
+    return subgraphs;
 }
 
-std::vector<DistributedGraph> distribute_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph) {
-    return {};
+std::vector<shm::Graph> distribute_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph) {
+    return gather_block_induced_subgraphs(p_graph, extract_local_block_induced_subgraphs(p_graph));
 }
 } // namespace dkaminpar::graph

@@ -9,6 +9,7 @@
 #pragma once
 
 #include "dkaminpar/datastructure/distributed_graph.h"
+#include "kaminpar/datastructure/graph.h"
 
 #include <vector>
 
@@ -27,5 +28,5 @@ struct ExtractedSubgraphs {
 ExtractedSubgraphs
 extract_local_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph, ExtractedSubgraphs memory = {});
 
-std::vector<DistributedGraph> distribute_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph);
+std::vector<shm::Graph> distribute_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph);
 } // namespace dkaminpar::graph

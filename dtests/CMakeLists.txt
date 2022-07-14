@@ -29,6 +29,10 @@ dkaminpar_register_mpi_test(dtest_extract_subgraphs
         FILES graphutils/extract_subgraphs_test.cc
         CORES 3)
 
+dkaminpar_register_mpi_test(dtest_extract_gather_block_induced_subgraphs
+        FILES graphutils/extract_gather_block_induced_subgraphs_test.cc
+        CORES 1 4)
+
 # MPI wrapper
 dkaminpar_register_mpi_test(dtest_mpi_graph
         FILES test_mpi_graph.cc
