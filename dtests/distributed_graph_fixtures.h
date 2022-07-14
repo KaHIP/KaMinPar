@@ -19,26 +19,36 @@ protected:
 };
 
 /*
- * Each PE has a single vertex without any edges.
+ * Each PE has a few isolated nodes without any edges.
  */
+template <NodeID num_nodes_per_pe>
 class DistributedIsolatedNodesGraphFixture : public DistributedTestFixture {
 protected:
     void SetUp() override {
         DistributedTestFixture::SetUp();
         graph = create_graph();
+        n0    = rank * num_nodes_per_pe;
     }
 
 private:
     DistributedGraph create_graph() {
         dkaminpar::graph::Builder builder(MPI_COMM_WORLD);
         builder.initialize(1);
-        builder.create_node(1);
+        for (NodeID u = 0; u < num_nodes_per_pe; ++u) {
+            builder.create_node(1);
+        }
         return builder.finalize();
     }
 
 protected:
     DistributedGraph graph;
+    GlobalNodeID     n0;
 };
+
+/*
+ * Graph without any nodes or edges.
+ */
+using EmptyGraphFixture = DistributedIsolatedNodesGraphFixture<0>;
 
 /*
  * Each PE has a single node that are connected in a ring.
@@ -64,6 +74,34 @@ private:
             builder.create_edge(1, next);
         }
 
+        return builder.finalize();
+    }
+
+protected:
+    DistributedGraph graph;
+};
+
+/*
+ * Each PE owns a number of local edges with disjoint end points, i.e., m edges and 2m nodes.
+ */
+template <EdgeID num_edges_per_pe>
+class DistributedEdgesGraphFixture : public DistributedTestFixture {
+protected:
+    void SetUp() override {
+        DistributedTestFixture::SetUp();
+        graph = create_graph();
+    }
+
+private:
+    DistributedGraph create_graph() {
+        dkaminpar::graph::Builder builder(MPI_COMM_WORLD);
+        builder.initialize(2 * num_edges_per_pe);
+        for (EdgeID e = 0; e < num_edges_per_pe; ++e) {
+            builder.create_node(1);
+            builder.create_edge(1, 2 * e + 1);
+            builder.create_node(1);
+            builder.create_edge(1, 2 * e);
+        }
         return builder.finalize();
     }
 

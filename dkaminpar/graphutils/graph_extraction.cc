@@ -325,7 +325,7 @@ gather_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph, Extra
 
                 std::copy(
                     shared_nodes.begin() + offset_nodes, shared_nodes.begin() + offset_nodes + num_nodes,
-                    subgraph_nodes.begin() + pos_n);
+                    subgraph_nodes.begin() + pos_n + 1);
                 std::copy(
                     shared_node_weights.begin() + offset_nodes, shared_node_weights.begin() + offset_nodes + num_nodes,
                     subgraph_node_weights.begin() + pos_n);
@@ -340,6 +340,7 @@ gather_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph, Extra
                 pos_m += num_edges;
             }
 
+            DBG << V(b) << V(subgraph_nodes) << V(subgraph_edges);
             subgraphs.emplace_back(
                 std::move(subgraph_nodes), std::move(subgraph_edges), std::move(subgraph_node_weights),
                 std::move(subgraph_edge_weights), false);
