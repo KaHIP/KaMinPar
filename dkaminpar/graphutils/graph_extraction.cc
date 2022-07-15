@@ -364,8 +364,6 @@ ExtractedSubgraphs distribute_block_induced_subgraphs(const DistributedPartition
 DistributedPartitionedGraph copy_subgraph_partitions(
     DistributedPartitionedGraph p_graph, const std::vector<shm::PartitionedGraph>& p_subgraphs,
     const ExtractedSubgraphs& extracted_subgraphs) {
-    auto partition = p_graph.take_partition();
-
     const auto& offsets = extracted_subgraphs.subgraph_offsets;
     const auto& mapping = extracted_subgraphs.mapping;
 
@@ -373,7 +371,8 @@ DistributedPartitionedGraph copy_subgraph_partitions(
 
     // Assume that all subgraph partitions have the same number of blocks
     KASSERT(!p_subgraphs.empty());
-    const PEID new_k = p_graph.k() * p_subgraphs.front().k();
+    const PEID k_multiplier = p_subgraphs.front().k();
+    const PEID new_k        = p_graph.k() * k_multiplier;
 
     // Send new block IDs to the right PE
     std::vector<std::vector<BlockID>> partition_sendbufs(size);
@@ -393,14 +392,17 @@ DistributedPartitionedGraph copy_subgraph_partitions(
     // To index partition_recvbufs, we need the number of nodes *on our PE* in each block
     // -> Compute this now
     // @todo could also be kept in memory when extracting the subgraphs
-    parallel::vector_ets<NodeID> block_offsets_ets(p_graph.k());
+    parallel::vector_ets<NodeID> block_sizes_ets(p_graph.k());
     tbb::parallel_for(tbb::blocked_range<NodeID>(0, p_graph.n()), [&](const auto& r) {
-        auto& block_offsets = block_offsets_ets.local();
+        auto& block_sizes = block_sizes_ets.local();
         for (NodeID u = r.begin(); u != r.end(); ++u) {
-            ++block_offsets[p_graph.block(u)];
+            ++block_sizes[p_graph.block(u)];
         }
     });
-    const auto block_offsets = block_offsets_ets.combine(std::plus{});
+    const auto block_sizes = block_sizes_ets.combine(std::plus{});
+
+    std::vector<NodeID> block_offsets(p_graph.k() + 1);
+    parallel::prefix_sum(block_sizes.begin(), block_sizes.end(), block_offsets.begin() + 1);
 
     // Assign nodes in p_graph to new blocks
     const BlockID num_blocks_per_pe = p_graph.k() / size;
@@ -409,11 +411,18 @@ DistributedPartitionedGraph copy_subgraph_partitions(
         return static_cast<PEID>(b / num_blocks_per_pe);
     };
 
+    auto partition = p_graph.take_partition(); // NOTE: do not use p_graph after this
+
     p_graph.pfor_nodes([&](const NodeID u) {
-        const BlockID b        = p_graph.block(u);
+        const BlockID b        = partition[u];
         const PEID    owner    = compute_block_owner(b);
         const NodeID  mapped_u = mapping[u]; // ID of u in its block-induced subgraph
-        partition[u]           = partition_recvbufs[owner][block_offsets[b] + mapped_u];
+
+        KASSERT(static_cast<std::size_t>(owner) < partition_recvbufs.size());
+        KASSERT(static_cast<std::size_t>(block_offsets[b] + mapped_u) < partition_recvbufs[owner].size());
+        const BlockID new_b = b * k_multiplier + partition_recvbufs[owner][block_offsets[b] + mapped_u];
+        DBG << "Move " << u << " to " << new_b;
+        partition[u] = new_b;
     });
 
     // Create partitioned graph with the new partition
