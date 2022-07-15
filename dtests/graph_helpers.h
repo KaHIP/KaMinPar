@@ -45,4 +45,118 @@ inline DistributedPartitionedGraph make_partitioned_graph_by_rank(const Distribu
     std::vector<BlockID> local_partition(graph.n(), rank);
     return make_partitioned_graph(graph, size, local_partition);
 }
+
+//! Return the id of the edge connecting two adjacent nodes \c u and \c v in \c graph, found by linear search.
+inline std::pair<EdgeID, EdgeID> get_edge_by_endpoints(const DistributedGraph& graph, const NodeID u, const NodeID v) {
+    EdgeID forward_edge  = kInvalidEdgeID;
+    EdgeID backward_edge = kInvalidEdgeID;
+
+    if (graph.is_owned_node(u)) {
+        for (const auto [cur_e, cur_v]: graph.neighbors(u)) {
+            if (cur_v == v) {
+                forward_edge = cur_e;
+                break;
+            }
+        }
+    }
+
+    if (graph.is_owned_node(v)) {
+        for (const auto [cur_e, cur_u]: graph.neighbors(v)) {
+            if (cur_u == u) {
+                backward_edge = cur_e;
+                break;
+            }
+        }
+    }
+
+    // one of those edges might now exist due to ghost nodes
+    return {forward_edge, backward_edge};
+}
+
+//! Return the id of the edge connecting two adjacent nodes \c u and \c v given by their global id in \c graph,
+//! found by linear search
+inline std::pair<EdgeID, EdgeID>
+get_edge_by_endpoints_global(const DistributedGraph& graph, const GlobalNodeID u, const GlobalNodeID v) {
+    return get_edge_by_endpoints(graph, graph.global_to_local_node(u), graph.global_to_local_node(v));
+}
+
+//! Based on some graph, build a new graph with modified edge weights.
+inline DistributedGraph
+change_edge_weights(DistributedGraph graph, const std::vector<std::pair<EdgeID, EdgeWeight>>& changes) {
+    auto edge_weights = graph.take_edge_weights();
+    if (edge_weights.empty()) {
+        edge_weights.resize(graph.m(), 1);
+    }
+
+    for (const auto& [e, weight]: changes) {
+        if (e != kInvalidEdgeID) {
+            edge_weights[e] = weight;
+        }
+    }
+
+    return {
+        graph.take_node_distribution(),
+        graph.take_edge_distribution(),
+        graph.take_nodes(),
+        graph.take_edges(),
+        graph.take_node_weights(),
+        std::move(edge_weights),
+        graph.take_ghost_owner(),
+        graph.take_ghost_to_global(),
+        graph.take_global_to_ghost(),
+        false,
+        graph.communicator()};
+}
+
+inline DistributedGraph change_edge_weights_by_endpoints(
+    DistributedGraph graph, const std::vector<std::tuple<NodeID, NodeID, EdgeWeight>>& changes) {
+    std::vector<std::pair<EdgeID, EdgeWeight>> edge_id_changes;
+    for (const auto& [u, v, weight]: changes) {
+        const auto [forward_edge, backward_edge] = get_edge_by_endpoints(graph, u, v);
+        edge_id_changes.emplace_back(forward_edge, weight);
+        edge_id_changes.emplace_back(backward_edge, weight);
+    }
+
+    return change_edge_weights(std::move(graph), edge_id_changes);
+}
+
+inline DistributedGraph change_edge_weights_by_global_endpoints(
+    DistributedGraph graph, const std::vector<std::tuple<GlobalNodeID, GlobalNodeID, EdgeWeight>>& changes) {
+    std::vector<std::pair<EdgeID, EdgeWeight>> edge_id_changes;
+    for (const auto& [u, v, weight]: changes) {
+        const auto real_u                        = u % graph.global_n();
+        const auto real_v                        = v % graph.global_n();
+        const auto [forward_edge, backward_edge] = get_edge_by_endpoints_global(graph, real_u, real_v);
+        edge_id_changes.emplace_back(forward_edge, weight);
+        edge_id_changes.emplace_back(backward_edge, weight);
+    }
+
+    return change_edge_weights(std::move(graph), edge_id_changes);
+}
+
+//! Based on some graph, build a new graph with modified node weights.
+inline DistributedGraph
+change_node_weights(DistributedGraph graph, const std::vector<std::pair<NodeID, NodeWeight>>& changes) {
+    auto node_weights = graph.take_node_weights();
+    if (node_weights.empty()) {
+        node_weights.resize(graph.total_n(), 1);
+    }
+
+    for (const auto& [u, weight]: changes) {
+        node_weights[u] = weight;
+    }
+
+    return {
+        graph.take_node_distribution(),
+        graph.take_edge_distribution(),
+        graph.take_nodes(),
+        graph.take_edges(),
+        std::move(node_weights),
+        graph.take_edge_weights(),
+        graph.take_ghost_owner(),
+        graph.take_ghost_to_global(),
+        graph.take_global_to_ghost(),
+        false,
+        graph.communicator()};
+}
 } // namespace dkaminpar::testing

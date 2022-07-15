@@ -8,7 +8,7 @@
 #include "dkaminpar/mpi/wrapper.h"
 
 namespace dkaminpar::testing {
-inline DistributedGraph create_distributed_circle_graph() {
+inline DistributedGraph make_distributed_circle_graph() {
     const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
     const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
 
@@ -27,7 +27,7 @@ inline DistributedGraph create_distributed_circle_graph() {
     return builder.finalize();
 }
 
-inline DistributedGraph create_distributed_isolated_graph(const NodeID num_nodes_per_pe) {
+inline DistributedGraph make_distributed_isolated_graph(const NodeID num_nodes_per_pe) {
     dkaminpar::graph::Builder builder(MPI_COMM_WORLD);
     builder.initialize(num_nodes_per_pe);
     for (NodeID u = 0; u < num_nodes_per_pe; ++u) {
@@ -38,7 +38,7 @@ inline DistributedGraph create_distributed_isolated_graph(const NodeID num_nodes
 
 // Each PE has a clique on a given number of nodes.
 // Nodes with the same local IDs are further connected in a global circle.
-inline DistributedGraph create_distributed_circle_clique_graph(const NodeID num_nodes_per_pe) {
+inline DistributedGraph make_distributed_circle_clique_graph(const NodeID num_nodes_per_pe) {
     const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
     const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
 
@@ -91,7 +91,7 @@ class DistributedIsolatedNodesGraphFixture : public DistributedTestFixture {
 protected:
     void SetUp() override {
         DistributedTestFixture::SetUp();
-        graph = create_distributed_isolated_graph(num_nodes_per_pe);
+        graph = make_distributed_isolated_graph(num_nodes_per_pe);
         n0    = rank * num_nodes_per_pe;
     }
 
@@ -112,7 +112,7 @@ class DistributedCircleGraphFixture : public DistributedTestFixture {
 protected:
     void SetUp() override {
         DistributedTestFixture::SetUp();
-        graph = create_distributed_circle_graph();
+        graph = make_distributed_circle_graph();
     }
 
 protected:
