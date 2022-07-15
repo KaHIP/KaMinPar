@@ -43,7 +43,7 @@ T floor_log2(const T arg) {
 
 template <typename T>
 T floor2(const T arg) {
-    1 << floor_log2(arg);
+    return 1 << floor_log2(arg);
 }
 
 //! With `UInt = uint32_t`, same as `static_cast<uint32_t>(std::ceil(std::log2(arg)))`
@@ -67,7 +67,7 @@ double percentile(const std::vector<E>& sorted_sequence, const double percentile
         }
         return true;
     }());
-    KASSERT((0 <= percentile && percentile <= 1));
+    KASSERT(0 <= percentile && percentile <= 1);
 
     return sorted_sequence[std::ceil(percentile * sorted_sequence.size()) - 1];
 }

@@ -10,12 +10,12 @@
 
 #include <tbb/concurrent_hash_map.h>
 
+#include "common/parallel/vector_ets.h"
 #include "dkaminpar/coarsening/contraction_helper.h"
 #include "dkaminpar/growt.h"
 #include "dkaminpar/mpi/graph_communication.h"
 #include "dkaminpar/mpi/wrapper.h"
 #include "dkaminpar/utils/math.h"
-#include "dkaminpar/utils/vector_ets.h"
 #include "kaminpar/parallel/atomic.h"
 #include "kaminpar/parallel/loops.h"
 #include "kaminpar/utils/noinit_allocator.h"
@@ -524,7 +524,7 @@ contract_global_clustering_full_migration(const DistributedGraph& graph, const G
                          graph, mapping, create_perfect_distribution_from_global_count<GlobalNodeID>(c_global_n, graph.communicator()),
                          [size, c_global_n](const GlobalNodeID node, const auto& /* node_distribution */) {
             return math::compute_local_range_rank<GlobalNodeID>(c_global_n, size, node);
-                         });
+        });
 
     update_ghost_node_weights(c_graph);
 

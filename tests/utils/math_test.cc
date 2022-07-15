@@ -72,30 +72,30 @@ TEST(MathTest, SplitNumberWithRatioWorks) {
 }
 
 TEST(MathTest, RoundDownToPowerOfTwo) {
-    EXPECT_THAT(math::round_down_to_power_of_2(1u), Eq(1));
-    EXPECT_THAT(math::round_down_to_power_of_2(2u), Eq(2));
-    EXPECT_THAT(math::round_down_to_power_of_2(3u), Eq(2));
-    EXPECT_THAT(math::round_down_to_power_of_2(4u), Eq(4));
-    EXPECT_THAT(math::round_down_to_power_of_2(5u), Eq(4));
-    EXPECT_THAT(math::round_down_to_power_of_2(6u), Eq(4));
-    EXPECT_THAT(math::round_down_to_power_of_2(7u), Eq(4));
-    EXPECT_THAT(math::round_down_to_power_of_2(8u), Eq(8));
-    EXPECT_THAT(math::round_down_to_power_of_2(1023u), Eq(512));
-    EXPECT_THAT(math::round_down_to_power_of_2(1024u), Eq(1024));
-    EXPECT_THAT(math::round_down_to_power_of_2(1025u), Eq(1024));
+    EXPECT_THAT(math::floor2(1u), Eq(1));
+    EXPECT_THAT(math::floor2(2u), Eq(2));
+    EXPECT_THAT(math::floor2(3u), Eq(2));
+    EXPECT_THAT(math::floor2(4u), Eq(4));
+    EXPECT_THAT(math::floor2(5u), Eq(4));
+    EXPECT_THAT(math::floor2(6u), Eq(4));
+    EXPECT_THAT(math::floor2(7u), Eq(4));
+    EXPECT_THAT(math::floor2(8u), Eq(8));
+    EXPECT_THAT(math::floor2(1023u), Eq(512));
+    EXPECT_THAT(math::floor2(1024u), Eq(1024));
+    EXPECT_THAT(math::floor2(1025u), Eq(1024));
 }
 
 TEST(MathTest, RoundUpToPowerOfTwo) {
-    EXPECT_THAT(math::round_up_to_power_of_2(1u), Eq(1));
-    EXPECT_THAT(math::round_up_to_power_of_2(2u), Eq(2));
-    EXPECT_THAT(math::round_up_to_power_of_2(3u), Eq(4));
-    EXPECT_THAT(math::round_up_to_power_of_2(4u), Eq(4));
-    EXPECT_THAT(math::round_up_to_power_of_2(5u), Eq(8));
-    EXPECT_THAT(math::round_up_to_power_of_2(6u), Eq(8));
-    EXPECT_THAT(math::round_up_to_power_of_2(7u), Eq(8));
-    EXPECT_THAT(math::round_up_to_power_of_2(8u), Eq(8));
-    EXPECT_THAT(math::round_up_to_power_of_2(1023u), Eq(1024));
-    EXPECT_THAT(math::round_up_to_power_of_2(1024u), Eq(1024));
-    EXPECT_THAT(math::round_up_to_power_of_2(1025u), Eq(2048));
+    EXPECT_THAT(math::ceil2(1u), Eq(1));
+    EXPECT_THAT(math::ceil2(2u), Eq(2));
+    EXPECT_THAT(math::ceil2(3u), Eq(4));
+    EXPECT_THAT(math::ceil2(4u), Eq(4));
+    EXPECT_THAT(math::ceil2(5u), Eq(8));
+    EXPECT_THAT(math::ceil2(6u), Eq(8));
+    EXPECT_THAT(math::ceil2(7u), Eq(8));
+    EXPECT_THAT(math::ceil2(8u), Eq(8));
+    EXPECT_THAT(math::ceil2(1023u), Eq(1024));
+    EXPECT_THAT(math::ceil2(1024u), Eq(1024));
+    EXPECT_THAT(math::ceil2(1025u), Eq(2048));
 }
 } // namespace kaminpar::math
