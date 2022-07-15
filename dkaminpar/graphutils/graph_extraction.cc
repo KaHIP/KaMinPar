@@ -14,6 +14,8 @@
 #include <mpi.h>
 
 #include "dkaminpar/datastructure/distributed_graph.h"
+#include "dkaminpar/graphutils/graph_synchronization.h"
+#include "dkaminpar/mpi/alltoall.h"
 #include "dkaminpar/mpi/graph_communication.h"
 #include "dkaminpar/mpi/wrapper.h"
 #include "dkaminpar/utils/math.h"
@@ -51,21 +53,21 @@ auto count_block_induced_subgraph_sizes(const DistributedPartitionedGraph& p_gra
 } // namespace
 
 // Build a local block-induced subgraph for each block of the graph partition.
-ExtractedSubgraphs
-extract_local_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph, ExtractedSubgraphs memory) {
+ExtractedLocalSubgraphs extract_local_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph) {
     auto [num_nodes_per_block, num_edges_per_block] = count_block_induced_subgraph_sizes(p_graph);
     const EdgeID num_internal_edges = std::accumulate(num_edges_per_block.begin(), num_edges_per_block.end(), 0);
 
-    auto& shared_nodes          = memory.shared_nodes;
-    auto& shared_node_weights   = memory.shared_node_weights;
-    auto& shared_edges          = memory.shared_edges;
-    auto& shared_edge_weights   = memory.shared_edge_weights;
-    auto& nodes_offset          = memory.nodes_offset;
-    auto& edges_offset          = memory.edges_offset;
-    auto& mapping               = memory.mapping;
-    auto  next_node_in_subgraph = std::vector<parallel::Atomic<NodeID>>();
+    ExtractedLocalSubgraphs memory;
+    auto&                   shared_nodes          = memory.shared_nodes;
+    auto&                   shared_node_weights   = memory.shared_node_weights;
+    auto&                   shared_edges          = memory.shared_edges;
+    auto&                   shared_edge_weights   = memory.shared_edge_weights;
+    auto&                   nodes_offset          = memory.nodes_offset;
+    auto&                   edges_offset          = memory.edges_offset;
+    auto&                   mapping               = memory.mapping;
+    auto                    next_node_in_subgraph = std::vector<parallel::Atomic<NodeID>>();
 
-    // Allocate memory
+    // Allocate memory @todo
     {
         SCOPED_TIMER("Allocation", TIMER_DETAIL);
 
@@ -182,8 +184,9 @@ extract_local_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph
     return memory;
 }
 
-std::vector<shm::Graph>
-gather_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph, ExtractedSubgraphs memory) {
+namespace {
+std::pair<std::vector<shm::Graph>, std::vector<std::vector<NodeID>>>
+gather_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph, const ExtractedLocalSubgraphs& memory) {
     const PEID size = mpi::get_comm_size(p_graph.communicator());
     KASSERT(p_graph.k() % size == 0u, "k must be a multiple of #PEs", assert::always);
     const BlockID blocks_per_pe = p_graph.k() / size;
@@ -286,7 +289,9 @@ gather_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph, Extra
         STOP_TIMER(TIMER_DETAIL);
     }
 
-    std::vector<shm::Graph> subgraphs(blocks_per_pe);
+    std::vector<shm::Graph>          subgraphs(blocks_per_pe);
+    std::vector<std::vector<NodeID>> offsets(blocks_per_pe);
+
     {
         SCOPED_TIMER("Construct subgraphs", TIMER_DETAIL);
 
@@ -314,6 +319,7 @@ gather_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph, Extra
                 const std::size_t id                    = pe * blocks_per_pe + b;
                 const auto [num_nodes, num_edges]       = recv_subgraph_sizes[id];
                 const auto [offset_nodes, offset_edges] = recv_subgraph_displs[id];
+                offsets[b].push_back(pos_n);
 
                 std::copy(
                     shared_nodes.begin() + offset_nodes, shared_nodes.begin() + offset_nodes + num_nodes,
@@ -336,6 +342,7 @@ gather_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph, Extra
                 pos_n += num_nodes;
                 pos_m += num_edges;
             }
+            offsets[b].push_back(pos_n);
 
             subgraphs[b] = {
                 std::move(subgraph_nodes), std::move(subgraph_edges), std::move(subgraph_node_weights),
@@ -343,10 +350,78 @@ gather_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph, Extra
         });
     }
 
-    return subgraphs;
+    return {std::move(subgraphs), std::move(offsets)};
+}
+} // namespace
+
+ExtractedSubgraphs distribute_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph) {
+    auto extracted_local_subgraphs     = extract_local_block_induced_subgraphs(p_graph);
+    auto [gathered_subgraphs, offsets] = gather_block_induced_subgraphs(p_graph, extracted_local_subgraphs);
+
+    return {std::move(gathered_subgraphs), std::move(offsets), std::move(extracted_local_subgraphs.mapping)};
 }
 
-std::vector<shm::Graph> distribute_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph) {
-    return gather_block_induced_subgraphs(p_graph, extract_local_block_induced_subgraphs(p_graph));
+DistributedPartitionedGraph copy_subgraph_partitions(
+    DistributedPartitionedGraph p_graph, const std::vector<shm::PartitionedGraph>& p_subgraphs,
+    const ExtractedSubgraphs& extracted_subgraphs) {
+    auto partition = p_graph.take_partition();
+
+    const auto& offsets = extracted_subgraphs.subgraph_offsets;
+    const auto& mapping = extracted_subgraphs.mapping;
+
+    const PEID size = mpi::get_comm_size(p_graph.communicator());
+
+    // Assume that all subgraph partitions have the same number of blocks
+    KASSERT(!p_subgraphs.empty());
+    const PEID new_k = p_graph.k() * p_subgraphs.front().k();
+
+    // Send new block IDs to the right PE
+    std::vector<std::vector<BlockID>> partition_sendbufs(size);
+    for (BlockID b = 0; b < p_subgraphs.size(); ++b) {
+        const auto& p_subgraph = p_subgraphs[b];
+        tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
+            const NodeID from = offsets[b][pe];
+            const NodeID to   = offsets[b][pe + 1];
+            for (NodeID u = from; u < to; ++u) {
+                partition_sendbufs[pe].push_back(p_subgraph.block(u));
+            }
+        });
+    }
+
+    const auto partition_recvbufs = mpi::sparse_alltoall_get<BlockID>(partition_sendbufs, p_graph.communicator());
+
+    // To index partition_recvbufs, we need the number of nodes *on our PE* in each block
+    // -> Compute this now
+    // @todo could also be kept in memory when extracting the subgraphs
+    parallel::vector_ets<NodeID> block_offsets_ets(p_graph.k());
+    tbb::parallel_for(tbb::blocked_range<NodeID>(0, p_graph.n()), [&](const auto& r) {
+        auto& block_offsets = block_offsets_ets.local();
+        for (NodeID u = r.begin(); u != r.end(); ++u) {
+            ++block_offsets[p_graph.block(u)];
+        }
+    });
+    const auto block_offsets = block_offsets_ets.combine(std::plus{});
+
+    // Assign nodes in p_graph to new blocks
+    const BlockID num_blocks_per_pe = p_graph.k() / size;
+
+    auto compute_block_owner = [&](const BlockID b) {
+        return static_cast<PEID>(b / num_blocks_per_pe);
+    };
+
+    p_graph.pfor_nodes([&](const NodeID u) {
+        const BlockID b        = p_graph.block(u);
+        const PEID    owner    = compute_block_owner(b);
+        const NodeID  mapped_u = mapping[u]; // ID of u in its block-induced subgraph
+        partition[u]           = partition_recvbufs[owner][block_offsets[b] + mapped_u];
+    });
+
+    // Create partitioned graph with the new partition
+    DistributedPartitionedGraph new_p_graph(&p_graph.graph(), new_k, std::move(partition));
+
+    // Synchronize block assignment of ghost nodes
+    synchronize_ghost_node_block_ids(new_p_graph);
+
+    return new_p_graph;
 }
 } // namespace dkaminpar::graph

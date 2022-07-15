@@ -11,7 +11,7 @@ using namespace dkaminpar::testing;
 using namespace dkaminpar::testing::fixtures;
 
 inline auto extract_subgraphs(const DistributedPartitionedGraph& p_graph) {
-    return dkaminpar::graph::distribute_block_induced_subgraphs(p_graph);
+    return dkaminpar::graph::distribute_block_induced_subgraphs(p_graph).subgraphs;
 }
 
 // One isolated node on each PE, no edges at all
@@ -237,12 +237,12 @@ TEST_F(DistributedTestFixture, node_weights_are_correct) {
     // create clique/circle graph with rank as node weight
     auto                                       graph = make_distributed_circle_clique_graph(2 * size);
     std::vector<std::pair<NodeID, NodeWeight>> node_weights;
-    std::vector<BlockID> local_partition;
+    std::vector<BlockID>                       local_partition;
     for (const NodeID u: graph.nodes()) {
         node_weights.emplace_back(u, rank);
         local_partition.push_back(u);
     }
-    graph = change_node_weights(std::move(graph), node_weights);
+    graph          = change_node_weights(std::move(graph), node_weights);
     auto p_graph   = make_partitioned_graph(graph, 2 * size, local_partition);
     auto subgraphs = extract_subgraphs(p_graph);
 
