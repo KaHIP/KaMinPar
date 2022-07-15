@@ -263,8 +263,8 @@ gather_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph, Extra
                 memory.edges_offset[first_invalid_block_on_pe] - memory.edges_offset[first_block_on_pe];
 
             for (BlockID b = first_block_on_pe; b < first_invalid_block_on_pe; ++b) {
-                recvcounts_nodes[b] += recv_subgraph_sizes[b].n;
-                recvcounts_edges[b] += recv_subgraph_sizes[b].m;
+                recvcounts_nodes[pe] += recv_subgraph_sizes[b].n;
+                recvcounts_edges[pe] += recv_subgraph_sizes[b].m;
             }
         });
         parallel::prefix_sum(sendcounts_nodes.begin(), sendcounts_nodes.end(), sdispls_nodes.begin() + 1);
@@ -277,6 +277,10 @@ gather_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph, Extra
         shared_node_weights.resize(rdispls_nodes.back());
         shared_edges.resize(rdispls_edges.back());
         shared_edge_weights.resize(rdispls_edges.back());
+
+        DBG << V(memory.shared_nodes.size()) << V(memory.shared_edges.size()) << V(sendcounts_nodes) << V(sdispls_nodes)
+            << V(recvcounts_nodes) << V(rdispls_nodes) << V(sendcounts_edges) << V(sdispls_edges) << V(recvcounts_edges)
+            << V(rdispls_edges);
 
         START_TIMER("MPI_Alltoallv", TIMER_DETAIL);
         mpi::alltoallv(

@@ -154,8 +154,37 @@ TEST_F(DistributedTestFixture, extract_circles_from_clique_graph) {
         EXPECT_EQ(subgraph.m(), 2);
     } else {
         EXPECT_EQ(subgraph.m(), 2 * size);
-        for (const NodeID u: subgraph.nodes()) {
-            EXPECT_EQ(subgraph.degree(u), 2);
+
+        NodeID start = 0;
+        NodeID prev  = start;
+        NodeID cur   = subgraph.edge_target(subgraph.first_edge(start));
+
+        while (cur != start) {
+            EXPECT_EQ(subgraph.degree(cur), 2);
+
+            const NodeID neighbor1 = subgraph.edge_target(subgraph.first_edge(cur));
+            const NodeID neighbor2 = subgraph.edge_target(subgraph.first_edge(cur) + 1);
+            EXPECT_TRUE(neighbor1 == prev || neighbor2 == prev);
+
+            // move to next node
+            prev = cur;
+            cur  = (neighbor1 == prev) ? neighbor2 : neighbor1;
         }
+    }
+}
+
+// Test extracting two blocks per PE, each block with a isolated node
+TEST_F(TwoIsolatedNodesOnEachPE, extract_two_isolated_node_blocks_per_pe) {
+    auto p_graph =
+        make_partitioned_graph(graph, 2 * size, {static_cast<BlockID>(2 * rank), static_cast<BlockID>(2 * rank + 1)});
+    auto subgraphs = dkaminpar::graph::distribute_block_induced_subgraphs(p_graph);
+
+    // two blocks per PE
+    ASSERT_EQ(subgraphs.size(), 2);
+
+    // each containing a single block
+    for (const auto& subgraph: subgraphs) {
+        EXPECT_EQ(subgraph.n(), 1);
+        EXPECT_EQ(subgraph.m(), 0);
     }
 }
