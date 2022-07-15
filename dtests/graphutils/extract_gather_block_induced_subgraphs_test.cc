@@ -303,8 +303,9 @@ TEST_F(TwoIsolatedNodesOnEachPE, copy_partition_back_to_distributed_graph) {
 
     EXPECT_EQ(p_graph.k(), 2 * size); // k should not have doubled
     ASSERT_EQ(p_graph.n(), 2);
-    EXPECT_EQ(p_graph.block(0), 2 * rank);
-    EXPECT_EQ(p_graph.block(1), 2 * rank + 1);
+    // We cannot tell which node is in which block, only that one should be in block 0 and one in block 1
+    EXPECT_NE(p_graph.block(0), p_graph.block(1));
+    EXPECT_EQ(p_graph.block(0) + p_graph.block(1), 2 * rank + 2 * rank + 1);
 }
 
 // ... test with clique
@@ -342,7 +343,7 @@ TEST_F(DistributedTestFixture, copy_partition_back_to_distributed_graph_circle) 
     // Should have size * (size / 2) blocks now
     ASSERT_EQ(p_graph.k(), size * size);
 
-    for (const NodeID u : p_graph.nodes()) {
-        EXPECT_EQ(p_graph.block(u), (u / 2) * size + u / 2);
+    for (const NodeID u: p_graph.nodes()) {
+       EXPECT_EQ(p_graph.block(u), (u / 2) * size + rank);
     }
 }

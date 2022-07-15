@@ -115,7 +115,7 @@ ExtractedLocalSubgraphs extract_local_block_induced_subgraphs(const DistributedP
     {
         SCOPED_TIMER("Build node mapping", TIMER_DETAIL);
 
-        // @todo bottleneck for scalibility
+        // @todo bottleneck for scalability
         p_graph.pfor_nodes([&](const NodeID u) {
             const BlockID b               = p_graph.block(u);
             const NodeID  pos_in_subgraph = next_node_in_subgraph[b]++;
@@ -180,6 +180,13 @@ ExtractedLocalSubgraphs extract_local_block_induced_subgraphs(const DistributedP
             }
         });
     }
+
+    // remove global node offset in mapping -- we need the PE-relative value when copying the subgraph partitions pack
+    // to the original graph
+    p_graph.pfor_nodes([&](const NodeID u) {
+        const BlockID b = p_graph.block(u);
+        mapping[u] -= global_node_offset[b];
+    });
 
     return memory;
 }
@@ -414,15 +421,16 @@ DistributedPartitionedGraph copy_subgraph_partitions(
     auto partition = p_graph.take_partition(); // NOTE: do not use p_graph after this
 
     p_graph.pfor_nodes([&](const NodeID u) {
-        const BlockID b        = partition[u];
-        const PEID    owner    = compute_block_owner(b);
-        const NodeID  mapped_u = mapping[u]; // ID of u in its block-induced subgraph
+        const BlockID b                    = partition[u];
+        const PEID    owner                = compute_block_owner(b);
+        const BlockID first_block_on_owner = owner * num_blocks_per_pe;
+        const BlockID block_offset         = block_offsets[b] - block_offsets[first_block_on_owner];
+        const NodeID  mapped_u             = mapping[u]; // ID of u in its block-induced subgraph
 
-        KASSERT(static_cast<std::size_t>(owner) < partition_recvbufs.size());
-        KASSERT(static_cast<std::size_t>(block_offsets[b] + mapped_u) < partition_recvbufs[owner].size());
-        const BlockID new_b = b * k_multiplier + partition_recvbufs[owner][block_offsets[b] + mapped_u];
-        DBG << "Move " << u << " to " << new_b;
-        partition[u] = new_b;
+        KASSERT(static_cast<BlockID>(owner) < partition_recvbufs.size());
+        KASSERT(mapped_u - block_offset < partition_recvbufs[owner].size());
+        const BlockID new_b = b * k_multiplier + partition_recvbufs[owner][mapped_u - block_offset];
+        partition[u]        = new_b;
     });
 
     // Create partitioned graph with the new partition
@@ -431,6 +439,7 @@ DistributedPartitionedGraph copy_subgraph_partitions(
     // Synchronize block assignment of ghost nodes
     synchronize_ghost_node_block_ids(new_p_graph);
 
+    KASSERT(graph::debug::validate_partition(new_p_graph), "graph partition in inconsistent state", assert::heavy);
     return new_p_graph;
 }
 } // namespace dkaminpar::graph
