@@ -7,9 +7,9 @@
  ******************************************************************************/
 #pragma once
 
+#include "common/parallel/atomic.h"
 #include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/definitions.h"
-#include "kaminpar/parallel/atomic.h"
 
 namespace dkaminpar {
 template <typename ClusterID>

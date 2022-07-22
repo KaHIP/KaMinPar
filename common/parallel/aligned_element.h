@@ -1,6 +1,5 @@
 /*******************************************************************************
  * @file   aligned_element.h
- *
  * @author Daniel Seemaier
  * @date   20.12.2021
  * @brief  Wrapper that aligns values to a cache line.

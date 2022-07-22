@@ -1,8 +1,7 @@
 /*******************************************************************************
  * @file:   queue.h
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:  Queue with fixed capacity.
  ******************************************************************************/
 #pragma once
@@ -10,8 +9,6 @@
 #include <vector>
 
 #include <kassert/kassert.hpp>
-
-#include "kaminpar/definitions.h"
 
 namespace kaminpar {
 /*!

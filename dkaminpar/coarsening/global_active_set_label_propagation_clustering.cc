@@ -13,11 +13,11 @@
 
 #include <unordered_map>
 
+#include "common/datastructures/fast_reset_array.h"
 #include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/growt.h"
 #include "dkaminpar/mpi/graph_communication.h"
 #include "dkaminpar/utils/math.h"
-#include "kaminpar/datastructure/fast_reset_array.h"
 #include "kaminpar/label_propagation.h"
 
 namespace dkaminpar {

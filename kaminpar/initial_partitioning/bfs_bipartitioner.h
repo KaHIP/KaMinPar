@@ -9,9 +9,9 @@
 
 #include <array>
 
+#include "common/datastructures/marker.h"
+#include "common/datastructures/queue.h"
 #include "common/random.h"
-#include "kaminpar/datastructure/marker.h"
-#include "kaminpar/datastructure/queue.h"
 #include "kaminpar/definitions.h"
 #include "kaminpar/initial_partitioning/i_bipartitioner.h"
 #include "kaminpar/initial_partitioning/seed_node_utils.h"

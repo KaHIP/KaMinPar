@@ -11,12 +11,12 @@
 
 #include <tbb/parallel_for.h>
 
+#include "common/datastructures/marker.h"
+#include "common/parallel/algorithm.h"
 #include "dkaminpar/definitions.h"
 #include "dkaminpar/growt.h"
 #include "dkaminpar/mpi/wrapper.h"
 #include "kaminpar/datastructure/graph.h"
-#include "kaminpar/datastructure/marker.h"
-#include "kaminpar/parallel/algorithm.h"
 #include "kaminpar/utils/ranges.h"
 
 namespace dkaminpar {

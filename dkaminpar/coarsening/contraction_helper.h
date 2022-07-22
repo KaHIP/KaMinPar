@@ -9,10 +9,11 @@
 
 #include <algorithm>
 
+#include "common/datastructures/ts_navigable_linked_list.h"
+#include "definitions.h"
 #include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/datastructure/distributed_graph_builder.h"
 #include "dkaminpar/utils/math.h"
-#include "kaminpar/datastructure/ts_navigable_linked_list.h"
 #include "kaminpar/utils/noinit_allocator.h"
 #include "kaminpar/utils/timer.h"
 
@@ -197,7 +198,7 @@ inline DistributedGraph build_distributed_graph_from_edge_list(
         GlobalNodeID v;
         EdgeWeight   weight;
     };
-    shm::NavigableLinkedList<NodeID, Edge> edge_buffer_ets;
+    shm::NavigableLinkedList<NodeID, Edge, scalable_vector> edge_buffer_ets;
 
     START_TIMER("Allocation", TIMER_DETAIL);
     scalable_vector<EdgeID> nodes(n + 1);
@@ -250,7 +251,7 @@ inline DistributedGraph build_distributed_graph_from_edge_list(
     });
 
     shm::parallel::prefix_sum(nodes.begin(), nodes.end(), nodes.begin());
-    const auto all_buffered_nodes = shm::ts_navigable_list::combine<NodeID, Edge>(edge_buffer_ets);
+    const auto all_buffered_nodes = shm::ts_navigable_list::combine<NodeID, Edge, scalable_vector>(edge_buffer_ets);
     STOP_TIMER(TIMER_DETAIL);
 
     START_TIMER("Allocation", TIMER_DETAIL);

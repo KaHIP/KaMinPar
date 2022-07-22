@@ -1,12 +1,11 @@
 #include <gmock/gmock.h>
 
-#include "datastructure/graph.h"
-#include "datastructure/static_array.h"
+#include "common/datastructures/static_array.h"
+#include "dkaminpar/graphutils/graph_extraction.h"
 #include "dtests/distributed_graph_fixtures.h"
 #include "dtests/graph_assertions.h"
 #include "dtests/graph_helpers.h"
-
-#include "dkaminpar/graphutils/graph_extraction.h"
+#include "kaminpar/datastructure/graph.h"
 
 using namespace dkaminpar;
 using namespace dkaminpar::testing;

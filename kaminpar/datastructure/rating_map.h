@@ -8,9 +8,9 @@
  ******************************************************************************/
 #pragma once
 
-#include "kaminpar/datastructure/fast_reset_array.h"
-#include "kaminpar/datastructure/fixed_size_sparse_map.h"
-#include "kaminpar/datastructure/sparse_map.h"
+#include "common/datastructures/fast_reset_array.h"
+#include "common/datastructures/fixed_size_sparse_map.h"
+#include "common/datastructures/sparse_map.h"
 
 namespace kaminpar {
 template <typename Value, typename LargeMap = FastResetArray<Value, NodeID>>

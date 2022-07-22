@@ -9,13 +9,13 @@
 
 #include <tbb/parallel_for.h>
 
+#include "common/parallel/algorithm.h"
 #include "kaminpar/application/arguments.h"
 #include "kaminpar/context.h"
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/graphutils/graph_rearrangement.h"
 #include "kaminpar/io.h"
 #include "kaminpar/metrics.h"
-#include "kaminpar/parallel/algorithm.h"
 #include "kaminpar/partitioning_scheme/partitioning.h"
 
 namespace libkaminpar {

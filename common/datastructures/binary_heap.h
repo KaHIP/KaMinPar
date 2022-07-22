@@ -1,18 +1,16 @@
 /*******************************************************************************
  * @file:   binary_heap.h
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:  Priority queue implementations.
  ******************************************************************************/
 #pragma once
 
+#include <limits>
 #include <utility>
 #include <vector>
 
 #include <kassert/kassert.hpp>
-
-#include "kaminpar/definitions.h"
 
 namespace kaminpar {
 namespace binary_heap {
@@ -313,7 +311,7 @@ public:
     // hence, *increase_priority* must be called instead of decrease_priority
     void decrease_priority(const std::size_t heap, const ID id, const Key& new_key) {
         KASSERT(contains(id));
-        KASSERT(_comparator(key(heap, id), new_key), V(heap) << V(id) << V(key(heap, id)) << V(new_key));
+        KASSERT(_comparator(key(heap, id), new_key));
         _heaps[heap][_id_pos[id]].key = new_key;
         sift_up(heap, _id_pos[id]);
     }

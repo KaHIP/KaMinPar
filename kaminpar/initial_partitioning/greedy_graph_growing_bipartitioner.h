@@ -7,9 +7,9 @@
  ******************************************************************************/
 #pragma once
 
+#include "common/datastructures/binary_heap.h"
+#include "common/datastructures/marker.h"
 #include "common/random.h"
-#include "kaminpar/datastructure/binary_heap.h"
-#include "kaminpar/datastructure/marker.h"
 #include "kaminpar/initial_partitioning/i_bipartitioner.h"
 
 namespace kaminpar {

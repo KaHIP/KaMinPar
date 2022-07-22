@@ -13,9 +13,9 @@
 
 #include <kassert/kassert.hpp>
 
+#include "common/datastructures/fast_reset_array.h"
 #include "common/random.h"
 #include "kaminpar/context.h"
-#include "kaminpar/datastructure/fast_reset_array.h"
 #include "kaminpar/definitions.h"
 #include "kaminpar/initial_partitioning/sequential_graph_hierarchy.h"
 

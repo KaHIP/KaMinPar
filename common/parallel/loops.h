@@ -1,7 +1,8 @@
-/******************************************************************************* @file:   loops.h
+/*******************************************************************************
+ * @file:   loops.h
  * @author: Daniel Seemaier
  * @date:   30.03.2022
- * @brief:  Helper for parallel loops.
+ * @brief:  Helpers for parallel loops.
  ******************************************************************************/
 #pragma once
 
@@ -11,14 +12,7 @@
 #include <tbb/parallel_for.h>
 #include <tbb/task_arena.h>
 
-#include "kaminpar/definitions.h"
-
 namespace kaminpar::parallel {
-template <typename Buffer, typename Lambda>
-void container_for(const Buffer& buffer, Lambda&& lambda) {
-    tbb::parallel_for<std::size_t>(0, buffer.size(), [&](const std::size_t i) { lambda(buffer[i]); });
-}
-
 /*!
  * @param buffers Vector of buffers of elements.
  * @param lambda Invoked on each element, in parallel.
@@ -84,10 +78,10 @@ void deterministic_for(const Index from, const Index to, Lambda&& lambda) {
     const int   p = std::min<int>(tbb::this_task_arena::max_concurrency(), n);
 
     tbb::parallel_for(static_cast<int>(0), p, [&](const int cpu) {
-        const NodeID chunk    = n / p;
-        const NodeID rem      = n % p;
-        const NodeID cpu_from = cpu * chunk + std::min(cpu, static_cast<int>(rem));
-        const NodeID cpu_to   = cpu_from + ((cpu < static_cast<int>(rem)) ? chunk + 1 : chunk);
+        const Index chunk    = n / p;
+        const Index rem      = n % p;
+        const Index cpu_from = cpu * chunk + std::min(cpu, static_cast<int>(rem));
+        const Index cpu_to   = cpu_from + ((cpu < static_cast<int>(rem)) ? chunk + 1 : chunk);
 
         lambda(from + cpu_from, from + cpu_to, cpu);
     });

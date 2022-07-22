@@ -12,8 +12,8 @@
 
 #include <unordered_map>
 
-#include "datastructure/distributed_graph.h"
-#include "datastructure/fast_reset_array.h"
+#include "common/datastructures/fast_reset_array.h"
+#include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/growt.h"
 #include "dkaminpar/mpi/graph_communication.h"
 #include "dkaminpar/utils/math.h"

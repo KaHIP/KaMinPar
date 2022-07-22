@@ -2,7 +2,7 @@
 
 #include <gmock/gmock.h>
 
-#include "kaminpar/parallel/algorithm.h"
+#include "common/parallel/algorithm.h"
 
 using ::testing::ElementsAre;
 using namespace kaminpar;

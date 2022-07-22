@@ -9,7 +9,7 @@
 
 #include <tbb/enumerable_thread_specific.h>
 
-#include "kaminpar/parallel/algorithm.h"
+#include "common/parallel/algorithm.h"
 #include "kaminpar/utils/timer.h"
 
 namespace kaminpar::graph {

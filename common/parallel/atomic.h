@@ -1,6 +1,5 @@
 /*******************************************************************************
  * @file:   atomic.h
- *
  * @author: Daniel Seemaier
  * @date:   30.03.2022
  * @brief:  Wrapper for std::atomic with copy ctor.

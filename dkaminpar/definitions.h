@@ -13,9 +13,9 @@
 #include <kassert/kassert.hpp>
 #include <mpi.h>
 
+#include "common/parallel/atomic.h"
+#include "common/parallel/tbb_malloc.h"
 #include "kaminpar/definitions.h"
-#include "kaminpar/parallel/atomic.h"
-#include "kaminpar/parallel/tbb_malloc.h"
 #include "kaminpar/utils/noinit_allocator.h"
 
 namespace dkaminpar {

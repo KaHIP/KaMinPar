@@ -13,6 +13,7 @@
 
 #include <mpi.h>
 
+#include "common/parallel/algorithm.h"
 #include "common/parallel/vector_ets.h"
 #include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/graphutils/graph_synchronization.h"
@@ -20,7 +21,6 @@
 #include "dkaminpar/mpi/graph_communication.h"
 #include "dkaminpar/mpi/wrapper.h"
 #include "dkaminpar/utils/math.h"
-#include "kaminpar/parallel/algorithm.h"
 
 namespace dkaminpar::graph {
 SET_DEBUG(true);

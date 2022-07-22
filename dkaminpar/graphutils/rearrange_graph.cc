@@ -7,10 +7,10 @@
  ******************************************************************************/
 #include "dkaminpar/graphutils/rearrange_graph.h"
 
+#include "common/datastructures/marker.h"
+#include "common/parallel/atomic.h"
 #include "dkaminpar/mpi/graph_communication.h"
-#include "kaminpar/datastructure/marker.h"
 #include "kaminpar/graphutils/graph_rearrangement.h"
-#include "kaminpar/parallel/atomic.h"
 #include "kaminpar/utils/timer.h"
 
 namespace dkaminpar::graph {

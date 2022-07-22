@@ -2,8 +2,8 @@
  * @file:   static_array.h
  *
  * @author: Daniel Seemaier
- * @date:   21.09.21
- * @brief:  TODO remove this
+ * @date:   21.09.2021
+ * @brief:  TODO deprecated
  ******************************************************************************/
 #pragma once
 
@@ -15,9 +15,8 @@
 
 #include <kassert/kassert.hpp>
 
-#include "kaminpar/definitions.h"
-#include "kaminpar/parallel/atomic.h"
-#include "kaminpar/parallel/tbb_malloc.h"
+#include "common/parallel/atomic.h"
+#include "common/parallel/tbb_malloc.h"
 
 namespace kaminpar {
 template <typename T>

@@ -1,5 +1,5 @@
+#include "common/datastructures/marker.h"
 #include "gmock/gmock.h"
-#include "kaminpar/datastructure/marker.h"
 
 namespace kaminpar {
 TEST(MarkerTests, ConcurrentMarkersWork) {

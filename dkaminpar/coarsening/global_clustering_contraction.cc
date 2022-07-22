@@ -10,14 +10,14 @@
 
 #include <tbb/concurrent_hash_map.h>
 
+#include "common/parallel/atomic.h"
+#include "common/parallel/loops.h"
 #include "common/parallel/vector_ets.h"
 #include "dkaminpar/coarsening/contraction_helper.h"
 #include "dkaminpar/growt.h"
 #include "dkaminpar/mpi/graph_communication.h"
 #include "dkaminpar/mpi/wrapper.h"
 #include "dkaminpar/utils/math.h"
-#include "kaminpar/parallel/atomic.h"
-#include "kaminpar/parallel/loops.h"
 #include "kaminpar/utils/noinit_allocator.h"
 
 namespace dkaminpar::coarsening {

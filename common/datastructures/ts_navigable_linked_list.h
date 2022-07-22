@@ -11,14 +11,13 @@
 #include <tbb/parallel_for.h>
 #include <tbb/parallel_invoke.h>
 
-#include "kaminpar/definitions.h"
-#include "kaminpar/parallel/atomic.h"
+#include "common/parallel/atomic.h"
 
 namespace kaminpar {
-template <typename Key, typename Element>
+template <typename Key, typename Element, template <typename> typename Container>
 class LocalNavigableLinkedList {
-    using Self        = LocalNavigableLinkedList<Key, Element>;
-    using MemoryChunk = scalable_vector<Element>;
+    using Self        = LocalNavigableLinkedList<Key, Element, Container>;
+    using MemoryChunk = Container<Element>;
 
     static constexpr std::size_t kChunkSize = 1 << 15;
 
@@ -80,21 +79,22 @@ private:
         }
     }
 
-    scalable_vector<MemoryChunk> _chunks;
-    MemoryChunk                  _current_chunk;
-    scalable_vector<Marker>      _markers;
+    Container<MemoryChunk> _chunks;
+    MemoryChunk            _current_chunk;
+    Container<Marker>      _markers;
 };
 
-template <typename Key, typename Element>
-using NavigableLinkedList = tbb::enumerable_thread_specific<LocalNavigableLinkedList<Key, Element>>;
+template <typename Key, typename Element, template <typename> typename Container>
+using NavigableLinkedList = tbb::enumerable_thread_specific<LocalNavigableLinkedList<Key, Element, Container>>;
 
-template <typename Key, typename Element>
-using NavigationMarker = typename LocalNavigableLinkedList<Key, Element>::Marker;
+template <typename Key, typename Element, template <typename> typename Container>
+using NavigationMarker = typename LocalNavigableLinkedList<Key, Element, Container>::Marker;
 
 namespace ts_navigable_list {
-template <typename Key, typename Element>
-scalable_vector<NavigationMarker<Key, Element>>
-combine(NavigableLinkedList<Key, Element>& list, scalable_vector<NavigationMarker<Key, Element>> global_markers = {}) {
+template <typename Key, typename Element, template <typename> typename Container>
+Container<NavigationMarker<Key, Element, Container>> combine(
+    NavigableLinkedList<Key, Element, Container>&        list,
+    Container<NavigationMarker<Key, Element, Container>> global_markers = {}) {
     parallel::Atomic<std::size_t> global_pos  = 0;
     std::size_t                   num_markers = 0;
     for (const auto& local_list: list) {

@@ -1,6 +1,6 @@
 #include <gmock/gmock.h>
 
-#include "kaminpar/datastructure/static_array.h"
+#include "common/datastructures/static_array.h"
 #include "tests.h"
 
 using ::testing::Eq;

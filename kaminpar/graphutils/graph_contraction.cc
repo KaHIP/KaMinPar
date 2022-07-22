@@ -12,9 +12,9 @@
 
 #include <kassert/kassert.hpp>
 
+#include "common/datastructures/ts_navigable_linked_list.h"
+#include "common/parallel/algorithm.h"
 #include "kaminpar/datastructure/rating_map.h"
-#include "kaminpar/datastructure/ts_navigable_linked_list.h"
-#include "kaminpar/parallel/algorithm.h"
 #include "kaminpar/utils/timer.h"
 
 namespace kaminpar::graph {
@@ -107,7 +107,7 @@ Result contract_generic_clustering(const Graph& graph, const Clustering& cluster
     // (2) We finalize c_nodes arrays by computing a prefix sum over all coarse node degrees
     // (3) We copy coarse edges and coarse edge weights from the auxiliary arrays to c_edges and c_edge_weights
     //
-    NavigableLinkedList<NodeID, Edge> edge_buffer_ets;
+    NavigableLinkedList<NodeID, Edge, scalable_vector> edge_buffer_ets;
 
     START_TIMER("Graph construction");
     tbb::parallel_for(tbb::blocked_range<NodeID>(0, c_n), [&](const auto& r) {
@@ -172,7 +172,8 @@ Result contract_generic_clustering(const Graph& graph, const Clustering& cluster
     // Construct rest of the coarse graph: edges, edge weights
     //
 
-    all_buffered_nodes = ts_navigable_list::combine<NodeID, Edge>(edge_buffer_ets, std::move(all_buffered_nodes));
+    all_buffered_nodes =
+        ts_navigable_list::combine<NodeID, Edge, scalable_vector>(edge_buffer_ets, std::move(all_buffered_nodes));
 
     START_TIMER("Allocation");
     StaticArray<NodeID>     c_edges{c_m};

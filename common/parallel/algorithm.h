@@ -1,11 +1,9 @@
 /*******************************************************************************
  * @file:   accumulate.h
- *
  * @author: Daniel Seemaier
  * @date:   30.03.2022
  * @brief:  Helper classes and functions for parallel programming.
  ******************************************************************************/
-
 #pragma once
 
 #include <iterator>

@@ -18,9 +18,9 @@
 
 #include <kassert/kassert.hpp>
 
-#include "kaminpar/datastructure/static_array.h"
+#include "common/datastructures/static_array.h"
+#include "common/parallel/atomic.h"
 #include "kaminpar/definitions.h"
-#include "kaminpar/parallel/atomic.h"
 #include "kaminpar/utils/ranges.h"
 #include "kaminpar/utils/strings.h"
 

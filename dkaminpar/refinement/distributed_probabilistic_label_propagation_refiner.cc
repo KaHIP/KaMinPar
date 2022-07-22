@@ -7,13 +7,13 @@
  ******************************************************************************/
 #include "dkaminpar/refinement/distributed_probabilistic_label_propagation_refiner.h"
 
+#include "common/datastructures/marker.h"
 #include "common/parallel/vector_ets.h"
 #include "common/random.h"
 #include "dkaminpar/mpi/graph_communication.h"
 #include "dkaminpar/mpi/wrapper.h"
 #include "dkaminpar/utils/math.h"
 #include "dkaminpar/utils/metrics.h"
-#include "kaminpar/datastructure/marker.h"
 #include "kaminpar/label_propagation.h"
 
 namespace dkaminpar {

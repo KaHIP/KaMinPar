@@ -15,9 +15,9 @@
 #include <tbb/parallel_invoke.h>
 #include <tbb/scalable_allocator.h>
 
+#include "common/parallel/atomic.h"
 #include "common/random.h"
 #include "kaminpar/datastructure/rating_map.h"
-#include "kaminpar/parallel/atomic.h"
 #include "kaminpar/utils/timer.h"
 
 namespace kaminpar {

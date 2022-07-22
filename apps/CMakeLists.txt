@@ -18,7 +18,7 @@ function(add_app target)
     target_link_libraries(${target} PRIVATE common_base shm_partitioner_base)
 
     if (KAMINPAR_BACKWARD_CPP)
-	target_sources(${target} PUBLIC ${BACKWARD_ENABLE})
+	    target_sources(${target} PUBLIC ${BACKWARD_ENABLE})
         add_backward(${target})
     endif ()
 

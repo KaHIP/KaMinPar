@@ -12,9 +12,9 @@
 #include <kassert/kassert.hpp>
 #include <mpi.h>
 
+#include "common/parallel/algorithm.h"
 #include "dkaminpar/definitions.h"
 #include "dkaminpar/mpi/datatype.h"
-#include "kaminpar/parallel/algorithm.h"
 
 namespace dkaminpar::mpi {
 inline std::pair<int, int> get_comm_info(MPI_Comm comm) {

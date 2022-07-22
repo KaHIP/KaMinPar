@@ -12,12 +12,12 @@
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/task_arena.h>
 
+#include "common/datastructures/binary_heap.h"
+#include "common/datastructures/fast_reset_array.h"
+#include "common/datastructures/marker.h"
 #include "common/random.h"
 #include "kaminpar/context.h"
-#include "kaminpar/datastructure/binary_heap.h"
-#include "kaminpar/datastructure/fast_reset_array.h"
 #include "kaminpar/datastructure/graph.h"
-#include "kaminpar/datastructure/marker.h"
 #include "kaminpar/datastructure/rating_map.h"
 #include "kaminpar/metrics.h"
 #include "kaminpar/refinement/i_balancer.h"

@@ -7,9 +7,9 @@
  ******************************************************************************/
 #pragma once
 
+#include "common/datastructures/ts_navigable_linked_list.h"
+#include "common/parallel/atomic.h"
 #include "kaminpar/datastructure/graph.h"
-#include "kaminpar/datastructure/ts_navigable_linked_list.h"
-#include "kaminpar/parallel/atomic.h"
 
 namespace kaminpar::graph {
 namespace contraction {
@@ -19,10 +19,10 @@ struct Edge {
 };
 
 struct MemoryContext {
-    scalable_vector<NodeID>                         buckets;
-    scalable_vector<parallel::Atomic<NodeID>>       buckets_index;
-    scalable_vector<parallel::Atomic<NodeID>>       leader_mapping;
-    scalable_vector<NavigationMarker<NodeID, Edge>> all_buffered_nodes;
+    scalable_vector<NodeID>                                          buckets;
+    scalable_vector<parallel::Atomic<NodeID>>                        buckets_index;
+    scalable_vector<parallel::Atomic<NodeID>>                        leader_mapping;
+    scalable_vector<NavigationMarker<NodeID, Edge, scalable_vector>> all_buffered_nodes;
 };
 
 struct Result {

@@ -10,6 +10,7 @@
 #include <tbb/parallel_for.h>
 #include <tbb/parallel_invoke.h>
 
+#include "definitions.h"
 #include "dkaminpar/mpi/graph_communication.h"
 #include "dkaminpar/mpi/wrapper.h"
 #include "kaminpar/datastructure/rating_map.h"
@@ -156,10 +157,10 @@ Result contract_local_clustering(
     // (3) We copy coarse edges and coarse edge weights from the auxiliary arrays to c_edges and c_edge_weights
     //
     using Map = shm::RatingMap<EdgeWeight, shm::FastResetArray<EdgeWeight, NodeID>>;
-    tbb::enumerable_thread_specific<Map>   collector_ets{[&] {
+    tbb::enumerable_thread_specific<Map>                    collector_ets{[&] {
         return Map(c_next_ghost_node);
     }};
-    shm::NavigableLinkedList<NodeID, Edge> edge_buffer_ets;
+    shm::NavigableLinkedList<NodeID, Edge, scalable_vector> edge_buffer_ets;
 
     tbb::parallel_for(tbb::blocked_range<NodeID>(0, c_n), [&](const auto& r) {
         auto& local_collector   = collector_ets.local();
@@ -217,7 +218,8 @@ Result contract_local_clustering(
     //
     // Construct rest of the coarse graph: edges, edge weights
     //
-    all_buffered_nodes = shm::ts_navigable_list::combine<NodeID, Edge>(edge_buffer_ets, std::move(all_buffered_nodes));
+    all_buffered_nodes =
+        shm::ts_navigable_list::combine<NodeID, Edge, scalable_vector>(edge_buffer_ets, std::move(all_buffered_nodes));
 
     scalable_vector<NodeID>     c_edges(c_m);
     scalable_vector<EdgeWeight> c_edge_weights(c_m);

@@ -7,11 +7,11 @@
  ******************************************************************************/
 #pragma once
 
+#include "common/parallel/algorithm.h"
+#include "common/parallel/loops.h"
 #include "kaminpar/context.h"
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/definitions.h"
-#include "kaminpar/parallel/algorithm.h"
-#include "kaminpar/parallel/loops.h"
 
 namespace kaminpar::graph {
 /*!

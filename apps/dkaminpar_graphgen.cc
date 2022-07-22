@@ -10,6 +10,9 @@
 #include <kagen_library.h>
 #include <tbb/parallel_sort.h>
 
+#include "common/datastructures/marker.h"
+#include "common/parallel/algorithm.h"
+#include "common/parallel/atomic.h"
 #include "common/random.h"
 #include "dkaminpar/coarsening/contraction_helper.h"
 #include "dkaminpar/datastructure/distributed_graph.h"
@@ -17,11 +20,8 @@
 #include "dkaminpar/definitions.h"
 #include "dkaminpar/growt.h"
 #include "dkaminpar/mpi/wrapper.h"
-#include "kaminpar/datastructure/marker.h"
 #include "kaminpar/graphutils/graph_permutation.h"
 #include "kaminpar/graphutils/graph_rearrangement.h"
-#include "kaminpar/parallel/algorithm.h"
-#include "kaminpar/parallel/atomic.h"
 #include "kaminpar/utils/timer.h"
 
 namespace dkaminpar::graphgen {

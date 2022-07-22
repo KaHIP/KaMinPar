@@ -7,9 +7,9 @@
  ******************************************************************************/
 #pragma once
 
+#include "common/parallel/atomic.h"
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/definitions.h"
-#include "kaminpar/parallel/atomic.h"
 
 namespace kaminpar {
 class IClustering {

@@ -7,11 +7,11 @@
  ******************************************************************************/
 #pragma once
 
+#include "common/datastructures/binary_heap.h"
+#include "common/datastructures/marker.h"
 #include "definitions.h"
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructure/distributed_graph.h"
-#include "kaminpar/datastructure/binary_heap.h"
-#include "kaminpar/datastructure/marker.h"
 #include "kaminpar/datastructure/rating_map.h"
 
 namespace dkaminpar {

@@ -1,6 +1,5 @@
 /*******************************************************************************
  * @file:   tbb_malloc.h
- *
  * @author: Daniel Seemaier
  * @date:   30.03.2022
  * @brief:  Memory allocation functions that use the TBB scalable allocator.

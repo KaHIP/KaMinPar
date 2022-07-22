@@ -1,19 +1,18 @@
 /*******************************************************************************
  * @file:   marker.h
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:  Marker array with static size. Markets can be reset in amortized
  * constant time.
  ******************************************************************************/
 #pragma once
 
+#include <array>
 #include <bitset>
+#include <limits>
 #include <type_traits>
 
 #include <kassert/kassert.hpp>
-
-#include "kaminpar/definitions.h"
 
 namespace kaminpar {
 template <std::size_t num_concurrent_markers = 1, typename element_type = std::size_t>

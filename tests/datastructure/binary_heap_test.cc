@@ -1,5 +1,5 @@
+#include "common/datastructures/binary_heap.h"
 #include "gmock/gmock.h"
-#include "kaminpar/datastructure/binary_heap.h"
 
 using ::testing::ElementsAre;
 using ::testing::Eq;

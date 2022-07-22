@@ -13,12 +13,12 @@
 
 #include <kassert/kassert.hpp>
 
+#include "common/datastructures/static_array.h"
+#include "common/parallel/algorithm.h"
+#include "common/parallel/atomic.h"
 #include "common/utils/math.h"
 #include "kaminpar/datastructure/graph.h"
-#include "kaminpar/datastructure/static_array.h"
 #include "kaminpar/definitions.h"
-#include "kaminpar/parallel/algorithm.h"
-#include "kaminpar/parallel/atomic.h"
 #include "kaminpar/utils/timer.h"
 
 namespace kaminpar::graph {
