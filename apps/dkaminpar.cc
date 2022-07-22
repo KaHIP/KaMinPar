@@ -19,6 +19,7 @@
 #include "apps/apps.h"
 #include "apps/dkaminpar_arguments.h"
 #include "apps/dkaminpar_graphgen.h"
+#include "common/random.h"
 #include "dkaminpar/context.h"
 #include "dkaminpar/distributed_io.h"
 #include "dkaminpar/graphutils/rearrange_graph.h"
@@ -28,7 +29,6 @@
 #include "kaminpar/definitions.h"
 #include "kaminpar/utils/console_io.h"
 #include "kaminpar/utils/logger.h"
-#include "kaminpar/utils/random.h"
 #include "kaminpar/utils/timer.h"
 
 using namespace dkaminpar;
@@ -170,7 +170,7 @@ int main(int argc, char* argv[]) {
     LOG << "CONTEXT " << ctx;
 
     // Initialize random number generator
-    shm::Randomize::seed = ctx.seed;
+    shm::Random::seed = ctx.seed;
 #ifdef KAMINPAR_ENABLE_GRAPHGEN
     app.generator.seed = ctx.seed;
 #endif

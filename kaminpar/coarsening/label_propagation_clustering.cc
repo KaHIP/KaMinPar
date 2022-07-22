@@ -27,13 +27,13 @@ struct LabelPropagationClusteringConfig : public LabelPropagationConfig {
 };
 
 class LabelPropagationClusteringCore final
-    : public ChunkRandomizedLabelPropagation<LabelPropagationClusteringCore, LabelPropagationClusteringConfig>,
+    : public ChunkRandomdLabelPropagation<LabelPropagationClusteringCore, LabelPropagationClusteringConfig>,
       public OwnedRelaxedClusterWeightVector<NodeID, NodeWeight>,
       public OwnedClusterVector<NodeID, NodeID>,
       public IClustering {
     SET_DEBUG(false);
 
-    using Base = ChunkRandomizedLabelPropagation<LabelPropagationClusteringCore, LabelPropagationClusteringConfig>;
+    using Base = ChunkRandomdLabelPropagation<LabelPropagationClusteringCore, LabelPropagationClusteringConfig>;
     using ClusterWeightBase = OwnedRelaxedClusterWeightVector<NodeID, NodeWeight>;
     using ClusterBase       = OwnedClusterVector<NodeID, NodeID>;
 

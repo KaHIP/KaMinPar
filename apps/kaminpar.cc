@@ -13,6 +13,7 @@
 #include <kassert/kassert.hpp>
 
 #include "apps/apps.h"
+#include "common/random.h"
 #include "kaminpar/application/arguments.h"
 #include "kaminpar/application/arguments_parser.h"
 #include "kaminpar/datastructure/graph.h"
@@ -23,7 +24,6 @@
 #include "kaminpar/partitioning_scheme/partitioning.h"
 #include "kaminpar/utils/console_io.h"
 #include "kaminpar/utils/logger.h"
-#include "kaminpar/utils/random.h"
 #include "kaminpar/utils/timer.h"
 
 using namespace kaminpar;
@@ -129,8 +129,8 @@ int main(int argc, char* argv[]) {
     //
     // Initialize
     //
-    Randomize::seed = ctx.seed;
-    auto gc         = init_parallelism(ctx.parallel.num_threads); // must stay alive
+    Random::seed = ctx.seed;
+    auto gc      = init_parallelism(ctx.parallel.num_threads); // must stay alive
     if (ctx.parallel.use_interleaved_numa_allocation) {
         init_numa();
     }

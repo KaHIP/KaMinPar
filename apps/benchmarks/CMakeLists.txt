@@ -1,7 +1,7 @@
 function(add_benchmark target)
     add_executable(${target} ${ARGN} "${CMAKE_CURRENT_BINARY_DIR}/../environment.cc")
     target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(${target} PRIVATE shm_partitioner_base)
+    target_link_libraries(${target} PRIVATE common_base shm_partitioner_base)
 
     message(STATUS "Added benchmark ${target}.")
 endfunction()

@@ -9,8 +9,8 @@
 
 #include <array>
 
+#include "common/random.h"
 #include "kaminpar/initial_partitioning/i_bipartitioner.h"
-#include "kaminpar/utils/random.h"
 
 namespace kaminpar {
 class RandomBipartitioner : public Bipartitioner {
@@ -37,6 +37,6 @@ protected:
         }
     }
 
-    Randomize& _rand{Randomize::instance()};
+    Random& _rand{Random::instance()};
 };
 } // namespace kaminpar

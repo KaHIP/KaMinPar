@@ -19,9 +19,9 @@ public:
     IClustering()          = default;
     virtual ~IClustering() = default;
 
-    IClustering(const IClustering&) = delete;
-    IClustering& operator=(const IClustering&) = delete;
-    IClustering(IClustering&&) noexcept        = default;
+    IClustering(const IClustering&)                = delete;
+    IClustering& operator=(const IClustering&)     = delete;
+    IClustering(IClustering&&) noexcept            = default;
     IClustering& operator=(IClustering&&) noexcept = default;
 
     //

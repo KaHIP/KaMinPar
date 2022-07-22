@@ -43,7 +43,8 @@ void create_miscellaneous_context_options(
 
 void create_mandatory_options(Context& ctx, kaminpar::Arguments& args, const std::string& name);
 
-void create_debug_options(DebugContext& d_ctx, kaminpar::Arguments& args, const std::string& name, const std::string &prefix);
+void create_debug_options(
+    DebugContext& d_ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix);
 
 void create_context_options(ApplicationContext& ctx, kaminpar::Arguments& args);
 

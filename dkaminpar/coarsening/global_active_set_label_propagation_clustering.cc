@@ -60,13 +60,13 @@ struct DistributedActiveSetGlobalLabelPropagationClusteringConfig : public shm::
 } // namespace
 
 class DistributedActiveSetGlobalLabelPropagationClusteringImpl final
-    : public shm::ChunkRandomizedLabelPropagation<
+    : public shm::ChunkRandomdLabelPropagation<
           DistributedActiveSetGlobalLabelPropagationClusteringImpl,
           DistributedActiveSetGlobalLabelPropagationClusteringConfig>,
       public shm::OwnedClusterVector<NodeID, GlobalNodeID> {
     SET_DEBUG(false);
 
-    using Base = shm::ChunkRandomizedLabelPropagation<
+    using Base = shm::ChunkRandomdLabelPropagation<
         DistributedActiveSetGlobalLabelPropagationClusteringImpl,
         DistributedActiveSetGlobalLabelPropagationClusteringConfig>;
     using ClusterBase = shm::OwnedClusterVector<NodeID, GlobalNodeID>;

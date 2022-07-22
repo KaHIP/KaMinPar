@@ -19,9 +19,9 @@ class Bipartitioner {
 public:
     using BlockWeights = std::array<BlockWeight, 2>;
 
-    Bipartitioner(const Bipartitioner&) = delete;
-    Bipartitioner& operator=(Bipartitioner&&) = delete;
-    Bipartitioner(Bipartitioner&&) noexcept   = default;
+    Bipartitioner(const Bipartitioner&)            = delete;
+    Bipartitioner& operator=(Bipartitioner&&)      = delete;
+    Bipartitioner(Bipartitioner&&) noexcept        = default;
     Bipartitioner& operator=(const Bipartitioner&) = delete;
     virtual ~Bipartitioner()                       = default;
 

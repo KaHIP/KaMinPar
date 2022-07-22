@@ -1,53 +1,45 @@
 /*******************************************************************************
  * @file:   random.h
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
- * @brief:  Helper class for randomization.
+ * @date:   21.09.2021
+ * @brief:  Helper class for PRNG.
  ******************************************************************************/
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <random>
 
 #include <tbb/task_arena.h>
 
 #include "common/utils/math.h"
-#include "kaminpar/datastructure/graph.h"
-#include "kaminpar/definitions.h"
-#include "kaminpar/utils/strings.h"
 
 namespace kaminpar {
-class Randomize {
+class Random {
     static constexpr std::size_t kPrecomputedBools = 1024;
     static_assert(math::is_power_of_2(kPrecomputedBools), "not a power of 2");
 
 public:
-    Randomize()
-        : _generator(Randomize::seed + tbb::this_task_arena::current_thread_index()),
+    Random()
+        : _generator(Random::seed + tbb::this_task_arena::current_thread_index()),
           _bool_dist(0, 1),
           _next_random_bool(0),
           _random_bools{} {
         precompute_bools();
     }
 
-    static Randomize& instance();
+    static Random& instance();
 
-    Randomize(const Randomize&)            = delete;
-    Randomize& operator=(const Randomize&) = delete;
+    Random(const Random&)            = delete;
+    Random& operator=(const Random&) = delete;
 
-    Randomize(Randomize&&) noexcept   = default; // might be expensive
-    Randomize& operator=(Randomize&&) = delete;
+    Random(Random&&) noexcept   = default; // might be expensive
+    Random& operator=(Random&&) = delete;
 
     using generator_type = std::mt19937;
 
     std::size_t random_index(const std::size_t inclusive_lower_bound, const std::size_t exclusive_upper_bound) {
-        KASSERT(exclusive_upper_bound > 0u);
         return std::uniform_int_distribution<std::size_t>(inclusive_lower_bound, exclusive_upper_bound - 1)(_generator);
-    }
-
-    NodeID random_node(const Graph& graph) {
-        return static_cast<NodeID>(random_index(0, static_cast<std::size_t>(graph.n())));
     }
 
     bool random_bool() {
@@ -90,7 +82,7 @@ private:
 template <typename ValueType, std::size_t size, std::size_t count>
 class RandomPermutations {
 public:
-    RandomPermutations() : _rand{Randomize::instance()} {
+    RandomPermutations() : _rand{Random::instance()} {
         init_permutations();
     }
 
@@ -99,7 +91,7 @@ public:
     RandomPermutations(RandomPermutations&&)                 = delete;
     RandomPermutations& operator=(RandomPermutations&&)      = delete;
 
-    const std::array<ValueType, size>& get(Randomize& rand) {
+    const std::array<ValueType, size>& get(Random& rand) {
         return _permutations[rand.random_index(0, _permutations.size())];
     }
 
@@ -115,7 +107,7 @@ private:
         }
     }
 
-    Randomize&                                     _rand;
+    Random&                                        _rand;
     std::array<std::array<ValueType, size>, count> _permutations{};
 };
 } // namespace kaminpar

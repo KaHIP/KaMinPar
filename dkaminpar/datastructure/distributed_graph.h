@@ -115,9 +115,9 @@ public:
         init_degree_buckets();
     }
 
-    DistributedGraph(const DistributedGraph&) = delete;
-    DistributedGraph& operator=(const DistributedGraph&) = delete;
-    DistributedGraph(DistributedGraph&&) noexcept        = default;
+    DistributedGraph(const DistributedGraph&)                = delete;
+    DistributedGraph& operator=(const DistributedGraph&)     = delete;
+    DistributedGraph(DistributedGraph&&) noexcept            = default;
     DistributedGraph& operator=(DistributedGraph&&) noexcept = default;
 
     // Graph size
@@ -530,9 +530,9 @@ public:
 
     DistributedPartitionedGraph() : _graph{nullptr}, _k{0}, _partition{} {}
 
-    DistributedPartitionedGraph(const DistributedPartitionedGraph&) = delete;
-    DistributedPartitionedGraph& operator=(const DistributedPartitionedGraph&) = delete;
-    DistributedPartitionedGraph(DistributedPartitionedGraph&&) noexcept        = default;
+    DistributedPartitionedGraph(const DistributedPartitionedGraph&)                = delete;
+    DistributedPartitionedGraph& operator=(const DistributedPartitionedGraph&)     = delete;
+    DistributedPartitionedGraph(DistributedPartitionedGraph&&) noexcept            = default;
     DistributedPartitionedGraph& operator=(DistributedPartitionedGraph&&) noexcept = default;
 
     [[nodiscard]] const DistributedGraph& graph() const {

@@ -16,13 +16,13 @@
 
 #include "apps/apps.h"
 #include "apps/dkaminpar_arguments.h"
+#include "common/random.h"
 #include "dkaminpar/coarsening/global_clustering_contraction.h"
 #include "dkaminpar/coarsening/locking_label_propagation_clustering.h"
 #include "dkaminpar/context.h"
 #include "dkaminpar/distributed_io.h"
 #include "kaminpar/definitions.h"
 #include "kaminpar/utils/logger.h"
-#include "kaminpar/utils/random.h"
 #include "kaminpar/utils/timer.h"
 
 namespace dist = dkaminpar;
@@ -59,7 +59,7 @@ int main(int argc, char* argv[]) {
     LOG << "CONTEXT " << ctx;
 
     // Initialize random number generator
-    shm::Randomize::seed = ctx.seed;
+    shm::Random::seed = ctx.seed;
 
     // Initialize TBB
     auto gc = shm::init_parallelism(ctx.parallel.num_threads);

@@ -17,9 +17,9 @@ public:
     LabelPropagationClusteringAlgorithm(NodeID max_n, const CoarseningContext& c_ctx);
     ~LabelPropagationClusteringAlgorithm() override;
 
-    LabelPropagationClusteringAlgorithm(const LabelPropagationClusteringAlgorithm&) = delete;
-    LabelPropagationClusteringAlgorithm& operator=(const LabelPropagationClusteringAlgorithm&) = delete;
-    LabelPropagationClusteringAlgorithm(LabelPropagationClusteringAlgorithm&&) noexcept        = default;
+    LabelPropagationClusteringAlgorithm(const LabelPropagationClusteringAlgorithm&)                = delete;
+    LabelPropagationClusteringAlgorithm& operator=(const LabelPropagationClusteringAlgorithm&)     = delete;
+    LabelPropagationClusteringAlgorithm(LabelPropagationClusteringAlgorithm&&) noexcept            = default;
     LabelPropagationClusteringAlgorithm& operator=(LabelPropagationClusteringAlgorithm&&) noexcept = default;
 
     void set_max_cluster_weight(NodeWeight max_cluster_weight) final;

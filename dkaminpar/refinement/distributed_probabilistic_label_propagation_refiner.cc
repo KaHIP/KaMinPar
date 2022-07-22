@@ -8,13 +8,13 @@
 #include "dkaminpar/refinement/distributed_probabilistic_label_propagation_refiner.h"
 
 #include "common/parallel/vector_ets.h"
+#include "common/random.h"
 #include "dkaminpar/mpi/graph_communication.h"
 #include "dkaminpar/mpi/wrapper.h"
 #include "dkaminpar/utils/math.h"
 #include "dkaminpar/utils/metrics.h"
 #include "kaminpar/datastructure/marker.h"
 #include "kaminpar/label_propagation.h"
-#include "kaminpar/utils/random.h"
 
 namespace dkaminpar {
 struct DistributedLabelPropagationRefinerConfig : public shm::LabelPropagationConfig {
@@ -241,7 +241,7 @@ private:
         scalable_vector<Atomic<BlockWeight>> block_weight_deltas(_p_ctx->k);
         tbb::concurrent_vector<Move>         moves;
         _p_graph->pfor_nodes_range(from, to, [&](const auto& r) {
-            auto& rand = shm::Randomize::instance();
+            auto& rand = shm::Random::instance();
 
             for (NodeID u = r.begin(); u < r.end(); ++u) {
                 // only iterate over nodes that changed block

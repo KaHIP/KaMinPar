@@ -344,6 +344,6 @@ TEST_F(DistributedTestFixture, copy_partition_back_to_distributed_graph_circle) 
     ASSERT_EQ(p_graph.k(), size * size);
 
     for (const NodeID u: p_graph.nodes()) {
-       EXPECT_EQ(p_graph.block(u), (u / 2) * size + rank);
+        EXPECT_EQ(p_graph.block(u), (u / 2) * size + rank);
     }
 }

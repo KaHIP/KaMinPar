@@ -16,7 +16,7 @@ void GreedyGraphGrowingBipartitioner::bipartition_impl() {
     std::fill(_partition.begin(), _partition.end(), V1);
     _block_weights[V1] = _graph.total_node_weight();
 
-    Randomize& rand = Randomize::instance();
+    Random& rand = Random::instance();
 
     do {
         // find random unmarked node -- if too many attempts fail, take the first unmarked node in sequence

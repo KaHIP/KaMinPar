@@ -24,8 +24,8 @@ struct LabelPropagationRefinerConfig : public LabelPropagationConfig {
 };
 
 class LabelPropagationRefinerImpl final
-    : public ChunkRandomizedLabelPropagation<LabelPropagationRefinerImpl, LabelPropagationRefinerConfig> {
-    using Base = ChunkRandomizedLabelPropagation<LabelPropagationRefinerImpl, LabelPropagationRefinerConfig>;
+    : public ChunkRandomdLabelPropagation<LabelPropagationRefinerImpl, LabelPropagationRefinerConfig> {
+    using Base = ChunkRandomdLabelPropagation<LabelPropagationRefinerImpl, LabelPropagationRefinerConfig>;
     friend Base;
 
     static constexpr std::size_t kInfiniteIterations = std::numeric_limits<std::size_t>::max();

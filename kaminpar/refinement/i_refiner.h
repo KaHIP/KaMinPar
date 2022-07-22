@@ -13,10 +13,10 @@
 namespace kaminpar {
 class IRefiner {
 public:
-    IRefiner(const IRefiner&) = delete;
+    IRefiner(const IRefiner&)            = delete;
     IRefiner& operator=(const IRefiner&) = delete;
     IRefiner(IRefiner&&)                 = delete;
-    IRefiner& operator=(IRefiner&&) = delete;
+    IRefiner& operator=(IRefiner&&)      = delete;
 
     virtual ~IRefiner() = default;
 

@@ -107,9 +107,9 @@ public:
         tag::Sequential, StaticArray<EdgeID> nodes, StaticArray<NodeID> edges,
         StaticArray<NodeWeight> node_weights = {}, StaticArray<EdgeWeight> edge_weights = {}, bool sorted = false);
 
-    Graph(const Graph&) = delete;
-    Graph& operator=(const Graph&) = delete;
-    Graph(Graph&&) noexcept        = default;
+    Graph(const Graph&)                = delete;
+    Graph& operator=(const Graph&)     = delete;
+    Graph(Graph&&) noexcept            = default;
     Graph& operator=(Graph&&) noexcept = default;
 
     // clang-format off
@@ -219,9 +219,9 @@ public:
         scalable_vector<BlockID> final_k = {});
     PartitionedGraph() : _graph{nullptr} {}
 
-    PartitionedGraph(const PartitionedGraph&) = delete;
-    PartitionedGraph& operator=(const PartitionedGraph&) = delete;
-    PartitionedGraph(PartitionedGraph&&) noexcept        = default;
+    PartitionedGraph(const PartitionedGraph&)                      = delete;
+    PartitionedGraph& operator=(const PartitionedGraph&)           = delete;
+    PartitionedGraph(PartitionedGraph&&) noexcept                  = default;
     PartitionedGraph& operator=(PartitionedGraph&& other) noexcept = default;
 
     [[nodiscard]] inline bool initialized() const {

@@ -6,6 +6,4 @@
  ******************************************************************************/
 #pragma once
 
-namespace dkaminpar {
-
-}
+namespace dkaminpar {}

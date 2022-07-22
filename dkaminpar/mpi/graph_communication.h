@@ -324,7 +324,8 @@ void sparse_alltoall_interface_to_pe(
     }));
 #endif
 
-    sparse_alltoall_grid<Message, Buffer>(std::move(send_buffers), std::forward<Receiver>(receiver), graph.communicator());
+    sparse_alltoall_grid<Message, Buffer>(
+        std::move(send_buffers), std::forward<Receiver>(receiver), graph.communicator());
 } // namespace dkaminpar::mpi::graph
 
 template <typename Message, typename Buffer = scalable_noinit_vector<Message>, typename Filter, typename Builder>
@@ -412,7 +413,8 @@ void sparse_alltoall_custom(
     }
     STOP_TIMER(TIMER_DETAIL);
 
-    sparse_alltoall_grid<Message, Buffer>(std::move(send_buffers), std::forward<Receiver>(receiver), graph.communicator());
+    sparse_alltoall_grid<Message, Buffer>(
+        std::move(send_buffers), std::forward<Receiver>(receiver), graph.communicator());
 }
 
 template <

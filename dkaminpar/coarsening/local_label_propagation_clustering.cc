@@ -19,13 +19,13 @@ struct DistributedLocalLabelPropagationClusteringConfig : public shm::LabelPropa
 };
 
 class DistributedLocalLabelPropagationClusteringImpl final
-    : public shm::ChunkRandomizedLabelPropagation<
+    : public shm::ChunkRandomdLabelPropagation<
           DistributedLocalLabelPropagationClusteringImpl, DistributedLocalLabelPropagationClusteringConfig>,
       public shm::OwnedClusterVector<NodeID, NodeID>,
       public shm::OwnedRelaxedClusterWeightVector<NodeID, NodeWeight> {
     SET_DEBUG(false);
 
-    using Base = shm::ChunkRandomizedLabelPropagation<
+    using Base = shm::ChunkRandomdLabelPropagation<
         DistributedLocalLabelPropagationClusteringImpl, DistributedLocalLabelPropagationClusteringConfig>;
     using ClusterBase       = shm::OwnedClusterVector<NodeID, NodeID>;
     using ClusterWeightBase = shm::OwnedRelaxedClusterWeightVector<NodeID, NodeWeight>;

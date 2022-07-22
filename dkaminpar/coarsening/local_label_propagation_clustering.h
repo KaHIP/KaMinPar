@@ -17,10 +17,10 @@ class DistributedLocalLabelPropagationClustering : public ClusteringAlgorithm<No
 public:
     DistributedLocalLabelPropagationClustering(const Context& ctx);
 
-    DistributedLocalLabelPropagationClustering(const DistributedLocalLabelPropagationClustering&) = delete;
+    DistributedLocalLabelPropagationClustering(const DistributedLocalLabelPropagationClustering&)            = delete;
     DistributedLocalLabelPropagationClustering& operator=(const DistributedLocalLabelPropagationClustering&) = delete;
 
-    DistributedLocalLabelPropagationClustering(DistributedLocalLabelPropagationClustering&&) = default;
+    DistributedLocalLabelPropagationClustering(DistributedLocalLabelPropagationClustering&&)            = default;
     DistributedLocalLabelPropagationClustering& operator=(DistributedLocalLabelPropagationClustering&&) = default;
 
     ~DistributedLocalLabelPropagationClustering();

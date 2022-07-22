@@ -258,7 +258,7 @@ void GreedyBalancer::init_pq() {
         }
 
         // select neighbor that maximizes gain
-        Randomize& rand = Randomize::instance();
+        Random& rand = Random::instance();
         for (const auto [block, gain]: map.entries()) {
             if (gain > max_external_gain || (gain == max_external_gain && rand.random_bool())) {
                 max_gainer        = block;
@@ -300,7 +300,7 @@ bool GreedyBalancer::move_to_random_block(const NodeID u) {
     while (!feasible_target_blocks.empty()) {
         // get random block from feasible block list
         const std::size_t n = feasible_target_blocks.size();
-        const std::size_t i = Randomize::instance().random_index(0, n);
+        const std::size_t i = Random::instance().random_index(0, n);
         const BlockID     b = feasible_target_blocks[i];
 
         // try to move node to that block, if possible, operation succeeded

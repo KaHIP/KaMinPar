@@ -17,10 +17,10 @@ class InitialPartitioner {
 
 public:
     struct MemoryContext {
-        MemoryContext()                     = default;
-        MemoryContext(const MemoryContext&) = delete;
-        MemoryContext& operator=(const MemoryContext&) = delete;
-        MemoryContext(MemoryContext&&) noexcept        = default;
+        MemoryContext()                                    = default;
+        MemoryContext(const MemoryContext&)                = delete;
+        MemoryContext& operator=(const MemoryContext&)     = delete;
+        MemoryContext(MemoryContext&&) noexcept            = default;
         MemoryContext& operator=(MemoryContext&&) noexcept = default;
 
         InitialCoarsener::MemoryContext  coarsener_m_ctx;

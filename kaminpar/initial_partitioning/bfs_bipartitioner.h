@@ -9,12 +9,12 @@
 
 #include <array>
 
+#include "common/random.h"
 #include "kaminpar/datastructure/marker.h"
 #include "kaminpar/datastructure/queue.h"
 #include "kaminpar/definitions.h"
 #include "kaminpar/initial_partitioning/i_bipartitioner.h"
 #include "kaminpar/initial_partitioning/seed_node_utils.h"
-#include "kaminpar/utils/random.h"
 
 namespace kaminpar::bfs {
 namespace {

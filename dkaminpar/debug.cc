@@ -31,7 +31,8 @@ void save_partitioned_graph(const DistributedPartitionedGraph& p_graph, const Co
     save_graph(p_graph.graph(), ctx, level);
 }
 
-void save_global_clustering(const scalable_vector<Atomic<GlobalNodeID>> & clustering, const Context& ctx, const int level) {
+void save_global_clustering(
+    const scalable_vector<Atomic<GlobalNodeID>>& clustering, const Context& ctx, const int level) {
     io::partition::write(create_basename(ctx, level) + ".clustering", clustering);
 }
 } // namespace dkaminpar::debug

@@ -12,6 +12,7 @@
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/task_arena.h>
 
+#include "common/random.h"
 #include "kaminpar/context.h"
 #include "kaminpar/datastructure/binary_heap.h"
 #include "kaminpar/datastructure/fast_reset_array.h"
@@ -20,7 +21,6 @@
 #include "kaminpar/datastructure/rating_map.h"
 #include "kaminpar/metrics.h"
 #include "kaminpar/refinement/i_balancer.h"
-#include "kaminpar/utils/random.h"
 #include "kaminpar/utils/timer.h"
 
 namespace kaminpar {
@@ -89,10 +89,10 @@ public:
           _marker{graph.n()},
           _pq_weight(max_k) {}
 
-    GreedyBalancer(const PartitionedGraph&)   = delete;
-    GreedyBalancer(GreedyBalancer&&) noexcept = default;
+    GreedyBalancer(const PartitionedGraph&)          = delete;
+    GreedyBalancer(GreedyBalancer&&) noexcept        = default;
     GreedyBalancer& operator=(const GreedyBalancer&) = delete;
-    GreedyBalancer& operator=(GreedyBalancer&&) = delete;
+    GreedyBalancer& operator=(GreedyBalancer&&)      = delete;
 
     void initialize(const PartitionedGraph& p_graph) final;
     bool balance(PartitionedGraph& p_graph, const PartitionContext& p_ctx) final;

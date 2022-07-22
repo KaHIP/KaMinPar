@@ -34,7 +34,7 @@ public:
         StaticArrayIterator() : _ptr(nullptr) {}
         explicit StaticArrayIterator(T* ptr) : _ptr(ptr) {}
 
-        StaticArrayIterator(const StaticArrayIterator& other) = default;
+        StaticArrayIterator(const StaticArrayIterator& other)            = default;
         StaticArrayIterator& operator=(const StaticArrayIterator& other) = default;
 
         reference operator*() const {
@@ -132,9 +132,9 @@ public:
 
     StaticArray() {}
 
-    StaticArray(const StaticArray&) = delete;
-    StaticArray& operator=(const StaticArray&) = delete;
-    StaticArray(StaticArray&&) noexcept        = default;
+    StaticArray(const StaticArray&)                = delete;
+    StaticArray& operator=(const StaticArray&)     = delete;
+    StaticArray(StaticArray&&) noexcept            = default;
     StaticArray& operator=(StaticArray&&) noexcept = default;
 
     //

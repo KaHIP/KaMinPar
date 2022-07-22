@@ -131,7 +131,7 @@ void InitialCoarsener::perform_label_propagation(const NodeWeight max_cluster_we
         std::transform(chunks.begin(), chunks.end(), chunks.begin(), [first_node](const std::size_t i) {
             return first_node + i * kChunkSize;
         });
-        Randomize::instance().shuffle(chunks);
+        Random::instance().shuffle(chunks);
 
         for (const NodeID chunk_offset: chunks) {
             const auto& permutation{_random_permutations.get()};

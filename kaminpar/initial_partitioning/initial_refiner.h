@@ -12,6 +12,7 @@
 
 #include <kassert/kassert.hpp>
 
+#include "common/random.h"
 #include "kaminpar/context.h"
 #include "kaminpar/datastructure/binary_heap.h"
 #include "kaminpar/datastructure/graph.h"
@@ -19,7 +20,6 @@
 #include "kaminpar/definitions.h"
 #include "kaminpar/metrics.h"
 #include "kaminpar/refinement/i_refiner.h"
-#include "kaminpar/utils/random.h"
 #include "kaminpar/utils/timer.h"
 
 namespace kaminpar::ip {
@@ -143,7 +143,7 @@ private:
 //! Always move the next node from the heavier block. This should improve balance.
 struct MaxWeightSelectionPolicy {
     std::size_t
-    operator()(const PartitionedGraph& p_graph, const PartitionContext& context, const Queues&, Randomize& rand) {
+    operator()(const PartitionedGraph& p_graph, const PartitionContext& context, const Queues&, Random& rand) {
         const auto weight0 = p_graph.block_weight(0) - context.block_weights.perfectly_balanced(0);
         const auto weight1 = p_graph.block_weight(1) - context.block_weights.perfectly_balanced(1);
         return weight1 > weight0 || (weight0 == weight1 && rand.random_bool());
@@ -152,8 +152,8 @@ struct MaxWeightSelectionPolicy {
 
 //! Always select the node with the highest gain / lowest loss.
 struct MaxGainSelectionPolicy {
-    std::size_t operator()(
-        const PartitionedGraph& p_graph, const PartitionContext& context, const Queues& queues, Randomize& rand) {
+    std::size_t
+    operator()(const PartitionedGraph& p_graph, const PartitionContext& context, const Queues& queues, Random& rand) {
         const auto loss0 = queues[0].empty() ? std::numeric_limits<Gain>::max() : queues[0].peek_key();
         const auto loss1 = queues[1].empty() ? std::numeric_limits<Gain>::max() : queues[1].peek_key();
         if (loss0 == loss1) {
@@ -164,8 +164,8 @@ struct MaxGainSelectionPolicy {
 };
 
 struct MaxOverloadSelectionPolicy {
-    std::size_t operator()(
-        const PartitionedGraph& p_graph, const PartitionContext& context, const Queues& queues, Randomize& rand) {
+    std::size_t
+    operator()(const PartitionedGraph& p_graph, const PartitionContext& context, const Queues& queues, Random& rand) {
         const NodeWeight overload0 = std::max<NodeWeight>(0, p_graph.block_weight(0) - context.block_weights.max(0));
         const NodeWeight overload1 = std::max<NodeWeight>(0, p_graph.block_weight(1) - context.block_weights.max(1));
         if (overload0 == 0 && overload1 == 0) {
@@ -480,7 +480,7 @@ private:
     QueueSelectionPolicy     _queue_selection_policy{};
     CutAcceptancePolicy      _cut_acceptance_policy{};
     StoppingPolicy           _stopping_policy{};
-    Randomize&               _rand{Randomize::instance()};
+    Random&                  _rand{Random::instance()};
     RandomPermutations<NodeID, kChunkSize, kNumberOfNodePermutations> _permutations;
 };
 

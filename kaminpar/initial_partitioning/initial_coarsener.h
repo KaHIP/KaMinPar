@@ -13,11 +13,11 @@
 
 #include <kassert/kassert.hpp>
 
+#include "common/random.h"
 #include "kaminpar/context.h"
 #include "kaminpar/datastructure/fast_reset_array.h"
 #include "kaminpar/definitions.h"
 #include "kaminpar/initial_partitioning/sequential_graph_hierarchy.h"
-#include "kaminpar/utils/random.h"
 
 #define STATIC_MAX_CLUSTER_WEIGHT(x) \
     [&](const NodeID) {              \
@@ -60,10 +60,10 @@ public:
     InitialCoarsener(const Graph* graph, const CoarseningContext& c_ctx, MemoryContext&& m_ctx);
     InitialCoarsener(const Graph* graph, const CoarseningContext& c_ctx);
 
-    InitialCoarsener(const InitialCoarsener&) = delete;
+    InitialCoarsener(const InitialCoarsener&)            = delete;
     InitialCoarsener& operator=(const InitialCoarsener&) = delete;
     InitialCoarsener(InitialCoarsener&&) noexcept        = default;
-    InitialCoarsener& operator=(InitialCoarsener&&) = delete;
+    InitialCoarsener& operator=(InitialCoarsener&&)      = delete;
 
     [[nodiscard]] inline std::size_t size() const {
         return _hierarchy.size();
@@ -81,10 +81,10 @@ public:
 
     MemoryContext free();
     void          reset_current_clustering() {
-        if (_current_graph->is_node_weighted()) {
-            reset_current_clustering(_current_graph->n(), _current_graph->node_weights());
+                 if (_current_graph->is_node_weighted()) {
+                     reset_current_clustering(_current_graph->n(), _current_graph->node_weights());
         } else {
-            // this is robust if _current_graph is empty (then we can't use node_weight(0))
+                     // this is robust if _current_graph is empty (then we can't use node_weight(0))
             reset_current_clustering_unweighted(
                          _current_graph->n(), _current_graph->total_node_weight() / _current_graph->n());
         }
@@ -182,7 +182,7 @@ private:
     NodeWeight _interleaved_max_cluster_weight{0};
     bool       _interleaved_locked{false};
 
-    Randomize&                                                               _rand{Randomize::instance()};
+    Random&                                                                  _rand{Random::instance()};
     static RandomPermutations<NodeID, kChunkSize, kNumberOfNodePermutations> _random_permutations;
 };
 } // namespace kaminpar::ip

@@ -2,7 +2,7 @@ file(COPY test_instances DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 
 function(add_kaminpar_test target)
     add_gmock_test(${target} ${ARGN})
-    target_link_libraries(${target} PRIVATE shm_partitioner_base)
+    target_link_libraries(${target} PRIVATE common_base shm_partitioner_base)
     target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
     if (KAMINPAR_BACKWARD_CPP)

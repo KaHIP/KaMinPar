@@ -42,10 +42,10 @@ class DistributedBalancer {
 public:
     DistributedBalancer(const Context& ctx);
 
-    DistributedBalancer(const DistributedBalancer&) = delete;
+    DistributedBalancer(const DistributedBalancer&)            = delete;
     DistributedBalancer& operator=(const DistributedBalancer&) = delete;
 
-    DistributedBalancer(DistributedBalancer&&) noexcept = default;
+    DistributedBalancer(DistributedBalancer&&) noexcept   = default;
     DistributedBalancer& operator=(DistributedBalancer&&) = delete;
 
     void initialize(const DistributedPartitionedGraph& p_graph);

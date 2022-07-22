@@ -10,7 +10,7 @@
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
 
-#include "kaminpar/utils/random.h"
+#include "common/random.h"
 
 namespace dkaminpar {
 shm::PartitionedGraph RandomInitialPartitioner::initial_partition(const shm::Graph& graph) {
@@ -18,7 +18,7 @@ shm::PartitionedGraph RandomInitialPartitioner::initial_partition(const shm::Gra
     scalable_vector<BlockID>  final_k(graph.n(), 1);
 
     tbb::parallel_for(tbb::blocked_range<shm::NodeID>(0, graph.n()), [&](const auto& r) {
-        auto& rand = shm::Randomize::instance();
+        auto& rand = shm::Random::instance();
         for (shm::NodeID u = r.begin(); u != r.end(); ++u) {
             partition[u] = rand.random_index(0, _ctx.partition.k);
         }

@@ -16,6 +16,7 @@
 
 #include "apps/apps.h"
 #include "apps/dkaminpar_arguments.h"
+#include "common/random.h"
 #include "dkaminpar/coarsening/global_clustering_contraction.h"
 #include "dkaminpar/coarsening/locking_label_propagation_clustering.h"
 #include "dkaminpar/context.h"
@@ -26,7 +27,6 @@
 #include "kaminpar/application/arguments.h"
 #include "kaminpar/definitions.h"
 #include "kaminpar/utils/logger.h"
-#include "kaminpar/utils/random.h"
 #include "kaminpar/utils/timer.h"
 
 namespace shm = kaminpar;
@@ -67,7 +67,7 @@ int main(int argc, char* argv[]) {
     LOG << "MPI size=" << mpi::get_comm_size(MPI_COMM_WORLD);
 
     // Initialize random number generator
-    shm::Randomize::seed = ctx.seed;
+    shm::Random::seed = ctx.seed;
 
     // Initialize TBB
     shm::init_numa();

@@ -55,9 +55,9 @@ private:
 
 class KAMINPAR_EXPORT PartitionerBuilder {
 public:
-    PartitionerBuilder(const PartitionerBuilder&) = delete;
-    PartitionerBuilder& operator=(const PartitionerBuilder&) = delete;
-    PartitionerBuilder(PartitionerBuilder&&) noexcept        = default;
+    PartitionerBuilder(const PartitionerBuilder&)                = delete;
+    PartitionerBuilder& operator=(const PartitionerBuilder&)     = delete;
+    PartitionerBuilder(PartitionerBuilder&&) noexcept            = default;
     PartitionerBuilder& operator=(PartitionerBuilder&&) noexcept = default;
     ~PartitionerBuilder();
 

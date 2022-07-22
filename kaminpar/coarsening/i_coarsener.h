@@ -23,9 +23,9 @@ public:
     ICoarsener()          = default;
     virtual ~ICoarsener() = default;
 
-    ICoarsener(const ICoarsener&) = delete;
-    ICoarsener& operator=(const ICoarsener&) = delete;
-    ICoarsener(ICoarsener&&) noexcept        = default;
+    ICoarsener(const ICoarsener&)                = delete;
+    ICoarsener& operator=(const ICoarsener&)     = delete;
+    ICoarsener(ICoarsener&&) noexcept            = default;
     ICoarsener& operator=(ICoarsener&&) noexcept = default;
 
     /**

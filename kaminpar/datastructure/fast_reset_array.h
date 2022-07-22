@@ -26,9 +26,9 @@ public:
 
     explicit FastResetArray(const std::size_t capacity = 0) : _data(capacity) {}
 
-    FastResetArray(const FastResetArray&) = delete;
-    FastResetArray& operator=(const FastResetArray&) = delete;
-    FastResetArray(FastResetArray&&) noexcept        = default;
+    FastResetArray(const FastResetArray&)                = delete;
+    FastResetArray& operator=(const FastResetArray&)     = delete;
+    FastResetArray(FastResetArray&&) noexcept            = default;
     FastResetArray& operator=(FastResetArray&&) noexcept = default;
 
     reference operator[](const size_type pos) {

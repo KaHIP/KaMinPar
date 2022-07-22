@@ -108,7 +108,7 @@ enum Type {
 class ScopedTimer {
 public:
     explicit ScopedTimer(Timer* timer, const Type type) : _timer{timer}, _type{type} {}
-    ScopedTimer(const ScopedTimer&) = delete;
+    ScopedTimer(const ScopedTimer&)            = delete;
     ScopedTimer& operator=(const ScopedTimer&) = delete;
     ScopedTimer(ScopedTimer&& other) noexcept : _timer{other._timer} {
         other._timer = nullptr;

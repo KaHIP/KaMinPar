@@ -32,10 +32,10 @@ public:
 
     explicit Queue(const std::size_t capacity) : _data(capacity), _head(0), _tail(0) {}
 
-    Queue(const Queue&) = delete;
+    Queue(const Queue&)            = delete;
     Queue& operator=(const Queue&) = delete;
 
-    Queue(Queue&&) noexcept = default;
+    Queue(Queue&&) noexcept            = default;
     Queue& operator=(Queue&&) noexcept = default;
 
     // Access operators

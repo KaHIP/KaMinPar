@@ -27,10 +27,10 @@ class ParallelRecursiveBisection {
 public:
     ParallelRecursiveBisection(const Graph& input_graph, const Context& input_ctx);
 
-    ParallelRecursiveBisection(const ParallelRecursiveBisection&) = delete;
+    ParallelRecursiveBisection(const ParallelRecursiveBisection&)            = delete;
     ParallelRecursiveBisection& operator=(const ParallelRecursiveBisection&) = delete;
     ParallelRecursiveBisection(ParallelRecursiveBisection&&)                 = delete;
-    ParallelRecursiveBisection& operator=(ParallelRecursiveBisection&&) = delete;
+    ParallelRecursiveBisection& operator=(ParallelRecursiveBisection&&)      = delete;
 
     PartitionedGraph partition();
 

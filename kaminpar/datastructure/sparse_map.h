@@ -41,9 +41,9 @@ public:
         allocate_data(capacity);
     }
 
-    SparseMap(const SparseMap&) = delete;
-    SparseMap& operator=(const SparseMap&) = delete;
-    SparseMap(SparseMap&&) noexcept        = default;
+    SparseMap(const SparseMap&)                = delete;
+    SparseMap& operator=(const SparseMap&)     = delete;
+    SparseMap(SparseMap&&) noexcept            = default;
     SparseMap& operator=(SparseMap&&) noexcept = default;
 
     std::size_t capacity() const {

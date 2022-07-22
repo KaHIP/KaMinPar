@@ -6,6 +6,7 @@
  * @brief:  Performance benchmark for shared-memory balancing algorithms.
  ******************************************************************************/
 #include "apps/apps.h"
+#include "common/random.h"
 #include "kaminpar/application/arguments.h"
 #include "kaminpar/application/arguments_parser.h"
 #include "kaminpar/coarsening/cluster_coarsener.h"
@@ -14,7 +15,6 @@
 #include "kaminpar/factories.h"
 #include "kaminpar/io.h"
 #include "kaminpar/metrics.h"
-#include "kaminpar/utils/random.h"
 #include "kaminpar/utils/timer.h"
 
 using namespace kaminpar;
@@ -46,7 +46,7 @@ int main(int argc, char* argv[]) {
     init_numa();
     auto gc = init_parallelism(ctx.parallel.num_threads);
     GLOBAL_TIMER.enable(TIMER_BENCHMARK);
-    Randomize::seed = ctx.seed;
+    Random::seed = ctx.seed;
 
     // load graph
     START_TIMER("IO");

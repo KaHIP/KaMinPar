@@ -20,7 +20,7 @@ template <typename Key>
 struct max_heap_comparator {
     constexpr static auto kMinValue = std::numeric_limits<Key>::max();
     bool                  operator()(Key a, Key b) {
-        return b > a;
+                         return b > a;
     }
 };
 
@@ -28,7 +28,7 @@ template <typename Key>
 struct min_heap_comparator {
     constexpr static auto kMinValue = std::numeric_limits<Key>::lowest();
     bool                  operator()(Key a, Key b) {
-        return a > b;
+                         return a > b;
     }
 };
 } // namespace binary_heap
@@ -70,9 +70,9 @@ class BinaryHeap {
 public:
     explicit BinaryHeap(const std::size_t capacity) : _id_pos(capacity, kInvalidID), _heap(capacity), _size(0) {}
 
-    BinaryHeap(const BinaryHeap&) = delete;
-    BinaryHeap& operator=(const BinaryHeap&) = delete;
-    BinaryHeap(BinaryHeap&&) noexcept        = default;
+    BinaryHeap(const BinaryHeap&)                = delete;
+    BinaryHeap& operator=(const BinaryHeap&)     = delete;
+    BinaryHeap(BinaryHeap&&) noexcept            = default;
     BinaryHeap& operator=(BinaryHeap&&) noexcept = default;
 
     [[nodiscard]] bool empty() const {
@@ -252,9 +252,9 @@ public:
     explicit DynamicBinaryForest(const std::size_t capacity, const std::size_t heaps)
         : _id_pos(capacity, kInvalidID),
           _heaps(heaps) {}
-    DynamicBinaryForest(const DynamicBinaryForest&)     = delete;
-    DynamicBinaryForest(DynamicBinaryForest&&) noexcept = default;
-    DynamicBinaryForest& operator=(const DynamicBinaryForest&) = delete;
+    DynamicBinaryForest(const DynamicBinaryForest&)                = delete;
+    DynamicBinaryForest(DynamicBinaryForest&&) noexcept            = default;
+    DynamicBinaryForest& operator=(const DynamicBinaryForest&)     = delete;
     DynamicBinaryForest& operator=(DynamicBinaryForest&&) noexcept = default;
 
     bool contains(const ID id) const {
@@ -417,9 +417,9 @@ public:
         : _max_forest{capacity, heaps},
           _min_forest{capacity, heaps} {}
 
-    DynamicBinaryMinMaxForest(const DynamicBinaryMinMaxForest&)     = delete;
-    DynamicBinaryMinMaxForest(DynamicBinaryMinMaxForest&&) noexcept = default;
-    DynamicBinaryMinMaxForest& operator=(const DynamicBinaryMinMaxForest&) = delete;
+    DynamicBinaryMinMaxForest(const DynamicBinaryMinMaxForest&)                = delete;
+    DynamicBinaryMinMaxForest(DynamicBinaryMinMaxForest&&) noexcept            = default;
+    DynamicBinaryMinMaxForest& operator=(const DynamicBinaryMinMaxForest&)     = delete;
     DynamicBinaryMinMaxForest& operator=(DynamicBinaryMinMaxForest&&) noexcept = default;
 
     void push(const std::size_t heap, const ID id, const Key key) {
@@ -509,9 +509,9 @@ public:
         _heap.reserve(initial_capacity);
     }
 
-    DynamicBinaryHeap(const DynamicBinaryHeap&) = delete;
-    DynamicBinaryHeap& operator=(const DynamicBinaryHeap&) = delete;
-    DynamicBinaryHeap(DynamicBinaryHeap&&) noexcept        = default;
+    DynamicBinaryHeap(const DynamicBinaryHeap&)                = delete;
+    DynamicBinaryHeap& operator=(const DynamicBinaryHeap&)     = delete;
+    DynamicBinaryHeap(DynamicBinaryHeap&&) noexcept            = default;
     DynamicBinaryHeap& operator=(DynamicBinaryHeap&&) noexcept = default;
 
     void push(const ID id, const Key key) {

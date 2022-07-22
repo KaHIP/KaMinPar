@@ -14,10 +14,10 @@ public:
         _edge_weights.reserve(m);
     }
 
-    GraphBuilder(const GraphBuilder&) = delete;
+    GraphBuilder(const GraphBuilder&)            = delete;
     GraphBuilder& operator=(const GraphBuilder&) = delete;
 
-    GraphBuilder(GraphBuilder&&) noexcept = default;
+    GraphBuilder(GraphBuilder&&) noexcept            = default;
     GraphBuilder& operator=(GraphBuilder&&) noexcept = default;
 
     NodeID new_node(const NodeWeight weight = 1) {

@@ -19,10 +19,10 @@ class DistributedGlobalLabelPropagationClustering : public ClusteringAlgorithm<G
 public:
     DistributedGlobalLabelPropagationClustering(const Context& ctx);
 
-    DistributedGlobalLabelPropagationClustering(const DistributedGlobalLabelPropagationClustering&) = delete;
+    DistributedGlobalLabelPropagationClustering(const DistributedGlobalLabelPropagationClustering&)            = delete;
     DistributedGlobalLabelPropagationClustering& operator=(const DistributedGlobalLabelPropagationClustering&) = delete;
 
-    DistributedGlobalLabelPropagationClustering(DistributedGlobalLabelPropagationClustering&&) = default;
+    DistributedGlobalLabelPropagationClustering(DistributedGlobalLabelPropagationClustering&&)            = default;
     DistributedGlobalLabelPropagationClustering& operator=(DistributedGlobalLabelPropagationClustering&&) = default;
 
     ~DistributedGlobalLabelPropagationClustering();

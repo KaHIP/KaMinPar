@@ -10,8 +10,8 @@
 
 #include <kassert/kassert.hpp>
 
+#include "common/random.h"
 #include "kaminpar/definitions.h"
-#include "kaminpar/utils/random.h"
 
 namespace kaminpar::ip {
 /*!
@@ -32,10 +32,10 @@ std::pair<NodeID, NodeID> find_far_away_nodes(const Graph& graph, const std::siz
     NodeID                    best_distance = 0;
     std::pair<NodeID, NodeID> best_pair{0, 0};
     for (std::size_t i = 0; i < num_iterations; ++i) {
-        const NodeID u           = Randomize::instance().random_node(graph);
+        const NodeID u           = Random::instance().random_index(0, graph.n());
         const auto [v, distance] = find_furthest_away_node(graph, u, queue, marker);
 
-        if (distance > best_distance || (distance == best_distance && Randomize::instance().random_bool())) {
+        if (distance > best_distance || (distance == best_distance && Random::instance().random_bool())) {
             best_distance = distance;
             best_pair     = {u, v};
         }

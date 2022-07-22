@@ -110,10 +110,10 @@ public:
     Logger();
     explicit Logger(std::ostream& out, std::string append = "\n");
 
-    Logger(const Logger&) = delete;
+    Logger(const Logger&)            = delete;
     Logger& operator=(const Logger&) = delete;
     Logger(Logger&&) noexcept        = default;
-    Logger& operator=(Logger&&) = delete;
+    Logger& operator=(Logger&&)      = delete;
     virtual ~Logger() {
         flush();
     };

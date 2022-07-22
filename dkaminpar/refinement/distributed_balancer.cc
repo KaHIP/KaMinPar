@@ -7,11 +7,11 @@
  ******************************************************************************/
 #include "dkaminpar/refinement/distributed_balancer.h"
 
+#include "common/random.h"
 #include "common/utils/math.h"
 #include "dkaminpar/mpi/graph_communication.h"
 #include "dkaminpar/mpi/wrapper.h"
 #include "dkaminpar/utils/metrics.h"
-#include "kaminpar/utils/random.h"
 #include "kaminpar/utils/timer.h"
 
 namespace dkaminpar {
@@ -424,7 +424,7 @@ std::pair<BlockID, double> DistributedBalancer::compute_gain(const NodeID u, con
         }
 
         // select neighbor that maximizes gain
-        auto& rand = shm::Randomize::instance();
+        auto& rand = shm::Random::instance();
         for (const auto [block, gain]: map.entries()) {
             if (gain > max_external_gain || (gain == max_external_gain && rand.random_bool())) {
                 max_gainer        = block;

@@ -15,9 +15,9 @@
 #include <tbb/parallel_invoke.h>
 #include <tbb/scalable_allocator.h>
 
+#include "common/random.h"
 #include "kaminpar/datastructure/rating_map.h"
 #include "kaminpar/parallel/atomic.h"
-#include "kaminpar/utils/random.h"
 #include "kaminpar/utils/timer.h"
 
 namespace kaminpar {
@@ -172,12 +172,12 @@ protected:
      * Move a single node to a new cluster.
      *
      * @param u The node that is moved.
-     * @param local_rand Thread-local \c Randomize object.
+     * @param local_rand Thread-local \c Random object.
      * @param local_rating_map Thread-local rating map for gain computation.
      * @return Pair with: whether the node was moved to another cluster, whether the previous cluster is now empty.
      */
     template <typename LocalRatingMap>
-    std::pair<bool, bool> handle_node(const NodeID u, Randomize& local_rand, LocalRatingMap& local_rating_map) {
+    std::pair<bool, bool> handle_node(const NodeID u, Random& local_rand, LocalRatingMap& local_rating_map) {
         const NodeWeight u_weight          = _graph->node_weight(u);
         const ClusterID  u_cluster         = derived_cluster(u);
         const auto [new_cluster, new_gain] = find_best_cluster(u, u_weight, u_cluster, local_rand, local_rating_map);
@@ -201,7 +201,7 @@ protected:
     }
 
     struct ClusterSelectionState {
-        Randomize&    local_rand;
+        Random&       local_rand;
         NodeID        u;
         NodeWeight    u_weight;
         ClusterID     initial_cluster;
@@ -220,13 +220,13 @@ protected:
      * @param u The node for which the cluster is computed.
      * @param u_weight The weight of the node.
      * @param u_cluster The current cluster of the node.
-     * @param local_rand Thread-local \c Randomize object.
+     * @param local_rand Thread-local \c Random object.
      * @param local_rating_map Thread-local rating map to compute gain values.
      * @return Pair with: new cluster of the node, gain value for the move to the new cluster.
      */
     template <typename LocalRatingMap>
     std::pair<ClusterID, EdgeWeight> find_best_cluster(
-        const NodeID u, const NodeWeight u_weight, const ClusterID u_cluster, Randomize& local_rand,
+        const NodeID u, const NodeWeight u_weight, const ClusterID u_cluster, Random& local_rand,
         LocalRatingMap& local_rating_map) {
         auto action = [&](auto& map) {
             const ClusterWeight   initial_cluster_weight = derived_cluster_weight(u_cluster);
@@ -561,7 +561,7 @@ protected:
             NodeID num_removed_clusters = 0;
 
             auto& num_moved_nodes = num_moved_nodes_ets.local();
-            auto& rand            = Randomize::instance();
+            auto& rand            = Random::instance();
             auto& rating_map      = _rating_map_ets.local();
 
             for (NodeID u = r.begin(); u != r.end(); ++u) {
@@ -608,7 +608,7 @@ protected:
  * @tparam Config Algorithmic configuration and data types.
  */
 template <typename Derived, typename Config>
-class ChunkRandomizedLabelPropagation : public LabelPropagation<Derived, Config> {
+class ChunkRandomdLabelPropagation : public LabelPropagation<Derived, Config> {
     using Base = LabelPropagation<Derived, Config>;
     static_assert(std::is_base_of_v<LabelPropagationConfig, Config>);
 
@@ -670,7 +670,7 @@ protected:
             }
 
             auto&  local_num_moved_nodes = num_moved_nodes_ets.local();
-            auto&  local_rand            = Randomize::instance();
+            auto&  local_rand            = Random::instance();
             auto&  local_rating_map      = _rating_map_ets.local();
             NodeID num_removed_clusters  = 0;
 
@@ -724,7 +724,7 @@ private:
     void shuffle_chunks() {
         tbb::parallel_for<std::size_t>(0, _buckets.size(), [&](const std::size_t i) {
             const auto& bucket = _buckets[i];
-            Randomize::instance().shuffle(_chunks.begin() + bucket.start, _chunks.begin() + bucket.end);
+            Random::instance().shuffle(_chunks.begin() + bucket.start, _chunks.begin() + bucket.end);
         });
     }
 

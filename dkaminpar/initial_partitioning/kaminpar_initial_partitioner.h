@@ -15,10 +15,10 @@ class KaMinParInitialPartitioner : public IInitialPartitioner {
 public:
     KaMinParInitialPartitioner(const Context& ctx) : _ctx{ctx} {}
 
-    KaMinParInitialPartitioner(const KaMinParInitialPartitioner&) = delete;
+    KaMinParInitialPartitioner(const KaMinParInitialPartitioner&)            = delete;
     KaMinParInitialPartitioner& operator=(const KaMinParInitialPartitioner&) = delete;
     KaMinParInitialPartitioner(KaMinParInitialPartitioner&&) noexcept        = default;
-    KaMinParInitialPartitioner& operator=(KaMinParInitialPartitioner&&) = delete;
+    KaMinParInitialPartitioner& operator=(KaMinParInitialPartitioner&&)      = delete;
 
     shm::PartitionedGraph initial_partition(const shm::Graph& graph) override;
 

@@ -1,17 +1,16 @@
 /*******************************************************************************
  * @file:   random.cc
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
- * @brief:  Helper class for randomization.
+ * @date:   21.09.2021
+ * @brief:  Helper class for PRNG.
  ******************************************************************************/
-#include "kaminpar/utils/random.h"
+#include "common/random.h"
 
 namespace kaminpar {
-Randomize& Randomize::instance() {
-    thread_local static Randomize instance;
+Random& Random::instance() {
+    thread_local static Random instance;
     return instance;
 }
 
-int Randomize::seed = 0;
+int Random::seed = 0;
 } // namespace kaminpar

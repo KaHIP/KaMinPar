@@ -14,5 +14,4 @@
 
 #include "kaminpar/definitions.h"
 
-namespace kaminpar::math {
-} // namespace kaminpar::math
+namespace kaminpar::math {} // namespace kaminpar::math
