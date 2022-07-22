@@ -77,6 +77,7 @@ void create_miscellaneous_context_options(Context &ctx, Arguments &args, const s
       .argument("use-interleaved-numa-allocation", "Interleave allocations across NUMA nodes round-robin style.", &ctx.parallel.use_interleaved_numa_allocation)
       .argument("fast-ip", "Use cheaper initial partitioning if k is larger than this.", &ctx.partition.fast_initial_partitioning)
       .argument("mode", "Partitioning mode, possible values: {" + partitioning_mode_names() + "}.", &ctx.partition.mode, partitioning_mode_from_string)
+      .argument("degree-weight", "Use node degree as node weight, ignore input weight.", &ctx.degree_weights)
       .argument("quiet", "Do not produce any output.", &ctx.quiet, 'q')
       ;
 }

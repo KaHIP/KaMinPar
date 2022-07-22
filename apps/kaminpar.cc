@@ -123,7 +123,14 @@ int main(int argc, char *argv[]) {
     StaticArray<EdgeWeight> edge_weights;
 
     const io::metis::GraphInfo info = TIMED_SCOPE(TIMER_IO) {
-      return io::metis::read(ctx.graph_filename, nodes, edges, node_weights, edge_weights);
+      auto info =  io::metis::read(ctx.graph_filename, nodes, edges, node_weights, edge_weights);
+      if (ctx.degree_weights) {
+        std::adjacent_difference(nodes.begin(), nodes.end() - 1, node_weights.begin());
+        std::shift_left(node_weights.begin(), node_weights.end(), 1);
+        node_weights.back() = node_weights[node_weights.size() - 1] - node_weights[node_weights.size() - 2];
+        info.total_node_weight = nodes.back();
+      }
+      return info;
     };
 
     START_TIMER(TIMER_PARTITIONING);
