@@ -125,9 +125,12 @@ int main(int argc, char *argv[]) {
     const io::metis::GraphInfo info = TIMED_SCOPE(TIMER_IO) {
       auto info =  io::metis::read(ctx.graph_filename, nodes, edges, node_weights, edge_weights);
       if (ctx.degree_weights) {
-        std::adjacent_difference(nodes.begin(), nodes.end() - 1, node_weights.begin());
-        std::shift_left(node_weights.begin(), node_weights.end(), 1);
-        node_weights.back() = node_weights[node_weights.size() - 1] - node_weights[node_weights.size() - 2];
+        if (node_weights.size() != nodes.size() - 1) {
+          node_weights.resize_without_init(nodes.size() - 1);
+        }
+        tbb::parallel_for<NodeID>(0, node_weights.size(), [&node_weights, &nodes](const NodeID u) {
+          node_weights[u] = nodes[u + 1] - nodes[u];
+        });
         info.total_node_weight = nodes.back();
       }
       return info;
