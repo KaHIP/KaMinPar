@@ -1,8 +1,7 @@
 /*******************************************************************************
  * @file:   initial_coarsener.cc
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:  Sequential coarsener based on label propagation with leader
  * locking.
  ******************************************************************************/
@@ -12,7 +11,7 @@
 
 #include "kaminpar/utils/timer.h"
 
-namespace kaminpar::ip {
+namespace kaminpar::shm::ip {
 InitialCoarsener::InitialCoarsener(const Graph* graph, const CoarseningContext& c_ctx, MemoryContext&& m_ctx) //
     : _input_graph{graph},
       _current_graph{graph},
@@ -314,4 +313,4 @@ InitialCoarsener::ContractionResult InitialCoarsener::TEST_contract_clustering()
 
 RandomPermutations<NodeID, InitialCoarsener::kChunkSize, InitialCoarsener::kNumberOfNodePermutations>
     InitialCoarsener::_random_permutations{};
-} // namespace kaminpar::ip
+} // namespace kaminpar::shm::ip

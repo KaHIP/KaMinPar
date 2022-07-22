@@ -1,6 +1,5 @@
 /*******************************************************************************
  * @file:   graph_rearrangement.cc
- *
  * @author: Daniel Seemaier
  * @date:   17.11.2021
  * @brief:  Algorithms to rearrange graphs.
@@ -12,7 +11,7 @@
 #include "common/parallel/algorithm.h"
 #include "kaminpar/utils/timer.h"
 
-namespace kaminpar::graph {
+namespace kaminpar::shm::graph {
 std::pair<NodeID, NodeWeight>
 find_isolated_nodes_info(const StaticArray<EdgeID>& nodes, const StaticArray<NodeWeight>& node_weights) {
     KASSERT((node_weights.empty() || node_weights.size() + 1 == nodes.size()));
@@ -122,4 +121,4 @@ assign_isolated_nodes(PartitionedGraph p_graph, const NodeID num_isolated_nodes,
 
     return {graph, k, std::move(partition)};
 }
-} // namespace kaminpar::graph
+} // namespace kaminpar::shm::graph

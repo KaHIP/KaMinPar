@@ -1,8 +1,7 @@
 /*******************************************************************************
  * @file:   metrics.cc
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:  Functions to compute partition quality metrics.
  ******************************************************************************/
 #include "kaminpar/metrics.h"
@@ -14,7 +13,7 @@
 
 #include <kassert/kassert.hpp>
 
-namespace kaminpar::metrics {
+namespace kaminpar::shm::metrics {
 EdgeWeight edge_cut(const PartitionedGraph& p_graph, tag::Parallel) {
     tbb::enumerable_thread_specific<int64_t> cut_ets{0};
     tbb::parallel_for(tbb::blocked_range(static_cast<NodeID>(0), p_graph.n()), [&](const auto& r) {
@@ -86,4 +85,4 @@ bool is_feasible(const PartitionedGraph& p_graph, const BlockID input_k, const d
 bool is_feasible(const PartitionedGraph& p_graph, const PartitionContext& p_ctx) {
     return is_balanced(p_graph, p_ctx);
 }
-} // namespace kaminpar::metrics
+} // namespace kaminpar::shm::metrics

@@ -13,10 +13,10 @@
 #include <kassert/kassert.hpp>
 
 #include "apps/apps.h"
+#include "common/arguments_parser.h"
 #include "common/random.h"
 #include "common/utils/console_io.h"
 #include "kaminpar/application/arguments.h"
-#include "kaminpar/application/arguments_parser.h"
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/definitions.h"
 #include "kaminpar/graphutils/graph_rearrangement.h"
@@ -27,6 +27,7 @@
 #include "kaminpar/utils/timer.h"
 
 using namespace kaminpar;
+using namespace kaminpar::shm;
 using namespace std::string_literals;
 
 // clang-format off

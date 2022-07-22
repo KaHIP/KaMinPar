@@ -1,8 +1,7 @@
 /*******************************************************************************
  * @file:   i_refiner.h
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:
  ******************************************************************************/
 #pragma once
@@ -10,7 +9,7 @@
 #include "kaminpar/context.h"
 #include "kaminpar/datastructure/graph.h"
 
-namespace kaminpar {
+namespace kaminpar::shm {
 class IRefiner {
 public:
     IRefiner(const IRefiner&)            = delete;
@@ -38,4 +37,4 @@ public:
         return 0;
     }
 };
-} // namespace kaminpar
+} // namespace kaminpar::shm

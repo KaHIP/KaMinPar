@@ -1,8 +1,7 @@
 /*******************************************************************************
  * @file:   parallel_balancer.cc
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:  Greedy refinement graphutils that moves nodes until an infeasible
  * partition is feasible.
  ******************************************************************************/
@@ -10,7 +9,7 @@
 
 #include <kassert/kassert.hpp>
 
-namespace kaminpar {
+namespace kaminpar::shm {
 void GreedyBalancer::initialize(const PartitionedGraph&) {}
 
 bool GreedyBalancer::balance(PartitionedGraph& p_graph, const PartitionContext& p_ctx) {
@@ -331,4 +330,4 @@ void GreedyBalancer::init_feasible_target_blocks() {
         }
     }
 }
-} // namespace kaminpar
+} // namespace kaminpar::shm

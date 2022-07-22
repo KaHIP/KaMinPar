@@ -1,8 +1,7 @@
 /*******************************************************************************
  * @file:   pool_bipartitioner.h
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:  Initial partitioner that uses a portfolio of initial partitioning
  * algorithms. Each graphutils is repeated multiple times. Algorithms that are
  * unlikely to beat the best partition found so far are executed less often
@@ -21,7 +20,7 @@
 #include "kaminpar/initial_partitioning/initial_refiner.h"
 #include "kaminpar/initial_partitioning/random_bipartitioner.h"
 
-namespace kaminpar {
+namespace kaminpar::shm {
 class PoolBipartitioner {
     friend class PoolBipartitionerFactory;
 
@@ -289,4 +288,4 @@ public:
         return pool;
     }
 };
-} // namespace kaminpar
+} // namespace kaminpar::shm

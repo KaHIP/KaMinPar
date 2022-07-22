@@ -1,8 +1,7 @@
 /*******************************************************************************
  * @file:   graph.cc
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:  Static graph data structure with dynamic partition wrapper.
  ******************************************************************************/
 #include "kaminpar/datastructure/graph.h"
@@ -14,7 +13,7 @@
 #include "kaminpar/definitions.h"
 #include "kaminpar/utils/timer.h"
 
-namespace kaminpar {
+namespace kaminpar::shm {
 Degree lowest_degree_in_bucket(const std::size_t bucket) {
     return (1u << bucket) >> 1u;
 }
@@ -193,4 +192,4 @@ void PartitionedGraph::change_k(const BlockID new_k) {
     _final_k.resize(new_k);
     _k = new_k;
 }
-} // namespace kaminpar
+} // namespace kaminpar::shm

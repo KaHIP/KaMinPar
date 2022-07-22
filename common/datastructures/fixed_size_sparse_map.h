@@ -25,6 +25,9 @@
  */
 #pragma once
 
+#include <cstring>
+#include <memory>
+
 #include <kassert/kassert.hpp>
 
 #include "common/utils/math.h"
@@ -178,7 +181,7 @@ private:
             _timestamp = 1;
             _sparse    = reinterpret_cast<SparseElement*>(_data.get());
             _dense     = reinterpret_cast<Element*>(_data.get() + +sizeof(SparseElement) * _map_size);
-            memset(_data.get(), 0, _map_size * (sizeof(Element) + sizeof(SparseElement)));
+            std::memset(_data.get(), 0, _map_size * (sizeof(Element) + sizeof(SparseElement)));
         }
     }
 

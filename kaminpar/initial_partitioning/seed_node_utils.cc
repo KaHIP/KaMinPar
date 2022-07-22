@@ -13,7 +13,7 @@
 #include "common/random.h"
 #include "kaminpar/definitions.h"
 
-namespace kaminpar::ip {
+namespace kaminpar::shm::ip {
 /*!
  * Fast heuristic for finding two nodes with large distance: selects a random node (if seed_node is not specified),
  * performs a BFS and selects the last node processed as pseudo peripheral node. If the graph is disconnected, we select
@@ -89,4 +89,4 @@ find_furthest_away_node(const Graph& graph, const NodeID start_node, Queue<NodeI
     queue.clear();
     return {last_node, current_distance};
 }
-} // namespace kaminpar::ip
+} // namespace kaminpar::shm::ip

@@ -1,15 +1,14 @@
 /*******************************************************************************
  * @file:   sequential_graph_hierarchy.h
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:
  ******************************************************************************/
 #pragma once
 
 #include "kaminpar/datastructure/graph.h"
 
-namespace kaminpar::ip {
+namespace kaminpar::shm::ip {
 class SequentialGraphHierarchy {
 public:
     explicit SequentialGraphHierarchy(const Graph* finest_graph);
@@ -45,4 +44,4 @@ private:
     std::vector<std::vector<NodeID>> _coarse_mappings;
     std::vector<Graph>               _coarse_graphs;
 };
-} // namespace kaminpar::ip
+} // namespace kaminpar::shm::ip

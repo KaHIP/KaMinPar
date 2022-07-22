@@ -1,8 +1,7 @@
 /*******************************************************************************
  * @file:   label_propagation_refiner.cc
- *
  * @author: Daniel Seemaier
- * @date:   30.09.21
+ * @date:   30.09.2021
  * @brief:  Label propagation refinement graphutils.
  ******************************************************************************/
 #include "kaminpar/refinement/label_propagation_refiner.h"
@@ -10,15 +9,15 @@
 #include "kaminpar/label_propagation.h"
 #include "kaminpar/utils/timer.h"
 
-namespace kaminpar {
+namespace kaminpar::shm {
 //
 // Private implementation
 //
 
 struct LabelPropagationRefinerConfig : public LabelPropagationConfig {
-    using ClusterID                                = BlockID;
-    using ClusterWeight                            = BlockWeight;
-    using RatingMap                                = ::kaminpar::RatingMap<EdgeWeight, SparseMap<NodeID, EdgeWeight>>;
+    using ClusterID     = BlockID;
+    using ClusterWeight = BlockWeight;
+    using RatingMap     = ::kaminpar::RatingMap<EdgeWeight, NodeID, SparseMap<NodeID, EdgeWeight>>;
     static constexpr bool kUseHardWeightConstraint = true;
     static constexpr bool kReportEmptyClusters     = false;
 };
@@ -140,4 +139,4 @@ bool LabelPropagationRefiner::refine(PartitionedGraph& p_graph, const PartitionC
 EdgeWeight LabelPropagationRefiner::expected_total_gain() const {
     return _impl->expected_total_gain();
 }
-} // namespace kaminpar
+} // namespace kaminpar::shm

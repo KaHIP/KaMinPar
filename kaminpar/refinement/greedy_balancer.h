@@ -1,8 +1,7 @@
 /*******************************************************************************
  * @file:   parallel_balancer.h
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:  Greedy refinement graphutils that moves nodes until an infeasible
  * partition is feasible.
  ******************************************************************************/
@@ -15,15 +14,15 @@
 #include "common/datastructures/binary_heap.h"
 #include "common/datastructures/fast_reset_array.h"
 #include "common/datastructures/marker.h"
+#include "common/datastructures/rating_map.h"
 #include "common/random.h"
 #include "kaminpar/context.h"
 #include "kaminpar/datastructure/graph.h"
-#include "kaminpar/datastructure/rating_map.h"
 #include "kaminpar/metrics.h"
 #include "kaminpar/refinement/i_balancer.h"
 #include "kaminpar/utils/timer.h"
 
-namespace kaminpar {
+namespace kaminpar::shm {
 class GreedyBalancer : public IBalancer {
     SET_DEBUG(false);
     SET_STATISTICS_FROM_GLOBAL();
@@ -134,14 +133,14 @@ private:
     PartitionedGraph*       _p_graph;
     const PartitionContext* _p_ctx;
 
-    DynamicBinaryMinMaxForest<NodeID, double>                      _pq;
-    mutable tbb::enumerable_thread_specific<RatingMap<EdgeWeight>> _rating_map{[&] {
-        return RatingMap<EdgeWeight>{_max_k};
+    DynamicBinaryMinMaxForest<NodeID, double>                              _pq;
+    mutable tbb::enumerable_thread_specific<RatingMap<EdgeWeight, NodeID>> _rating_map{[&] {
+        return RatingMap<EdgeWeight, NodeID>{_max_k};
     }};
-    tbb::enumerable_thread_specific<std::vector<BlockID>>          _feasible_target_blocks;
-    Marker<>                                                       _marker;
-    std::vector<BlockWeight>                                       _pq_weight;
+    tbb::enumerable_thread_specific<std::vector<BlockID>>                  _feasible_target_blocks;
+    Marker<>                                                               _marker;
+    std::vector<BlockWeight>                                               _pq_weight;
 
     Statistics _stats;
 };
-} // namespace kaminpar
+} // namespace kaminpar::shm

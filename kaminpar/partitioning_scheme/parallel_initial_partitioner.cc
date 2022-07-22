@@ -1,13 +1,12 @@
 /*******************************************************************************
  * @file:   parallel_initial_partitioner.cc
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:
  ******************************************************************************/
 #include "kaminpar/partitioning_scheme/parallel_initial_partitioner.h"
 
-namespace kaminpar::partitioning {
+namespace kaminpar::shm::partitioning {
 ParallelInitialPartitioner::ParallelInitialPartitioner(
     const Context& input_ctx, GlobalInitialPartitionerMemoryPool& ip_m_ctx_pool,
     TemporaryGraphExtractionBufferPool& ip_extraction_pool)
@@ -73,4 +72,4 @@ PartitionedGraph ParallelInitialPartitioner::split_and_join(
     const std::size_t best = helper::select_best(p_graphs, p_ctx);
     return std::move(p_graphs[best]);
 }
-} // namespace kaminpar::partitioning
+} // namespace kaminpar::shm::partitioning

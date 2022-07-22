@@ -9,7 +9,7 @@
 
 #include "kaminpar/utils/timer.h"
 
-namespace kaminpar::io {
+namespace kaminpar::shm::io {
 namespace metis {
 void write_file(
     std::ofstream& out, const StaticArray<EdgeID>& nodes, const StaticArray<NodeID>& edges,
@@ -177,4 +177,4 @@ void write(const std::string& filename, const PartitionedGraph& p_graph, const S
     write(filename, p_graph.partition(), permutation);
 }
 } // namespace partition
-} // namespace kaminpar::io
+} // namespace kaminpar::shm::io

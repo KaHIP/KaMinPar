@@ -1,8 +1,7 @@
 /*******************************************************************************
  * @file:   context.cc
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:  Configuration struct for KaMinPar.
  ******************************************************************************/
 #include "kaminpar/context.h"
@@ -11,7 +10,7 @@
 
 #include <kassert/kassert.hpp>
 
-namespace kaminpar {
+namespace kaminpar::shm {
 using namespace std::string_literals;
 
 //
@@ -375,4 +374,4 @@ double compute_2way_adaptive_epsilon(
     const double adaptive_epsilon = std::max(epsilon_prime, 0.0001);
     return adaptive_epsilon;
 }
-} // namespace kaminpar
+} // namespace kaminpar::shm

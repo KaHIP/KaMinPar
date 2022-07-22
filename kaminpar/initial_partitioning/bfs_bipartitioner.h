@@ -1,8 +1,7 @@
 /*******************************************************************************
  * @file:   bfs_bipartitioner.h
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:  Initial partitioner based on breath-first searches.
  ******************************************************************************/
 #pragma once
@@ -16,7 +15,7 @@
 #include "kaminpar/initial_partitioning/i_bipartitioner.h"
 #include "kaminpar/initial_partitioning/seed_node_utils.h"
 
-namespace kaminpar::bfs {
+namespace kaminpar::shm::bfs {
 namespace {
 using Queues = std::array<Queue<NodeID>, 2>;
 }
@@ -179,9 +178,9 @@ private:
     const std::size_t             _num_seed_iterations;
     block_selection_strategy      _block_selection_strategy{};
 };
-} // namespace kaminpar::bfs
+} // namespace kaminpar::shm::bfs
 
-namespace kaminpar {
+namespace kaminpar::shm {
 extern template class bfs::BfsBipartitioner<bfs::alternating>;
 extern template class bfs::BfsBipartitioner<bfs::lighter>;
 extern template class bfs::BfsBipartitioner<bfs::sequential>;
@@ -193,4 +192,4 @@ using LighterBlockBfsBipartitioner = bfs::BfsBipartitioner<bfs::lighter>;
 using SequentialBfsBipartitioner   = bfs::BfsBipartitioner<bfs::sequential>;
 using LongerQueueBfsBipartitioner  = bfs::BfsBipartitioner<bfs::longer_queue>;
 using ShorterQueueBfsBipartitioner = bfs::BfsBipartitioner<bfs::shorter_queue>;
-} // namespace kaminpar
+} // namespace kaminpar::shm

@@ -1,12 +1,12 @@
 /*******************************************************************************
  * @file:   factories.cc
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:  Factory functions to instantiate coarsening and local improvement
  * algorithms.
  ******************************************************************************/
 #include "kaminpar/factories.h"
+
 #include <memory>
 
 #include "kaminpar/coarsening/cluster_coarsener.h"
@@ -15,7 +15,7 @@
 #include "kaminpar/refinement/greedy_balancer.h"
 #include "kaminpar/refinement/label_propagation_refiner.h"
 
-namespace kaminpar::factory {
+namespace kaminpar::shm::factory {
 std::unique_ptr<ICoarsener> create_coarsener(const Graph& graph, const CoarseningContext& c_ctx) {
     SCOPED_TIMER("Allocation");
 
@@ -99,4 +99,4 @@ create_balancer(const Graph& graph, const PartitionContext& p_ctx, const Refinem
 
     __builtin_unreachable();
 }
-} // namespace kaminpar::factory
+} // namespace kaminpar::shm::factory

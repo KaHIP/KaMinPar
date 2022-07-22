@@ -1,8 +1,7 @@
 /*******************************************************************************
  * @file:   initial_refiner.h
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:  Sequential local improvement graphutils used to improve an initial
  * partition.
  ******************************************************************************/
@@ -22,7 +21,7 @@
 #include "kaminpar/refinement/i_refiner.h"
 #include "kaminpar/utils/timer.h"
 
-namespace kaminpar::ip {
+namespace kaminpar::shm::ip {
 using Queues = std::array<BinaryMinHeap<Gain>, 2>;
 
 class InitialRefiner : public IRefiner {
@@ -493,4 +492,4 @@ using InitialSimple2WayFM = InitialTwoWayFMRefiner<
     fm::MaxOverloadSelectionPolicy, fm::BalancedMinCutAcceptancePolicy, fm::SimpleStoppingPolicy>;
 using InitialAdaptive2WayFM = InitialTwoWayFMRefiner<
     fm::MaxOverloadSelectionPolicy, fm::BalancedMinCutAcceptancePolicy, fm::AdaptiveStoppingPolicy>;
-} // namespace kaminpar::ip
+} // namespace kaminpar::shm::ip

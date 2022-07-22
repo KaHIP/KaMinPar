@@ -1,8 +1,7 @@
 /*******************************************************************************
  * @file:   helper.h
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:
  ******************************************************************************/
 #pragma once
@@ -19,7 +18,7 @@
 #include "kaminpar/refinement/i_balancer.h"
 #include "kaminpar/refinement/i_refiner.h"
 
-namespace kaminpar::partitioning {
+namespace kaminpar::shm::partitioning {
 struct InitialPartitionerMemoryPool {
     std::vector<ip::InitialPartitioner::MemoryContext> pool;
 
@@ -125,4 +124,4 @@ inline bool parallel_ip_mode(const InitialPartitioningMode& mode) {
            || mode == InitialPartitioningMode::SYNCHRONOUS_PARALLEL;
 }
 } // namespace helper
-} // namespace kaminpar::partitioning
+} // namespace kaminpar::shm::partitioning

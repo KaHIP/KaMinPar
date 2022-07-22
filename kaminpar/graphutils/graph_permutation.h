@@ -1,8 +1,7 @@
 /*******************************************************************************
  * @file:   graph_permutation.h
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:  Computes graph permutations and builds the permuted graph.
  ******************************************************************************/
 #pragma once
@@ -13,7 +12,7 @@
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/definitions.h"
 
-namespace kaminpar::graph {
+namespace kaminpar::shm::graph {
 /*!
  * Bidirectional node permutation.
  * @tparam Container
@@ -144,4 +143,4 @@ void build_permuted_graph(
         }
     });
 }
-} // namespace kaminpar::graph
+} // namespace kaminpar::shm::graph

@@ -1,8 +1,7 @@
 /*******************************************************************************
  * @file:   parallel_label_propagation.h
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:  Generic implementation of parallel label propagation.
  ******************************************************************************/
 #pragma once
@@ -15,28 +14,30 @@
 #include <tbb/parallel_invoke.h>
 #include <tbb/scalable_allocator.h>
 
+#include "common/datastructures/rating_map.h"
 #include "common/parallel/atomic.h"
 #include "common/random.h"
-#include "kaminpar/datastructure/rating_map.h"
+#include "kaminpar/datastructure/graph.h"
+#include "kaminpar/definitions.h"
 #include "kaminpar/utils/timer.h"
 
 namespace kaminpar {
 struct LabelPropagationConfig {
-    using Graph = ::kaminpar::Graph;
+    using Graph = ::kaminpar::shm::Graph;
 
     // Data structure used to accumulate edge weights for gain value calculation
-    using RatingMap = ::kaminpar::RatingMap<EdgeWeight, FastResetArray<EdgeWeight>>;
+    using RatingMap = ::kaminpar::RatingMap<shm::EdgeWeight, shm::NodeID, FastResetArray<shm::EdgeWeight>>;
 
     // Data type for cluster IDs and weights
-    using ClusterID     = Mandatory;
-    using ClusterWeight = Mandatory;
+    using ClusterID     = shm::Mandatory;
+    using ClusterWeight = shm::Mandatory;
 
     // Approx. number of edges per work unit
-    static constexpr NodeID kMinChunkSize = 1024;
+    static constexpr shm::NodeID kMinChunkSize = 1024;
 
     // Nodes per permutation unit: when iterating over nodes in a chunk, we divide them into permutation units, iterate
     // over permutation orders in random order, and iterate over nodes inside a permutation unit in random order.
-    static constexpr NodeID kPermutationSize = 64;
+    static constexpr shm::NodeID kPermutationSize = 64;
 
     // When randomizing the node order inside a permutation unit, we pick a random permutation from a pool of
     // permutations. This constant determines the pool size.
@@ -778,7 +779,7 @@ private:
                     const NodeID end = std::min<NodeID>(begin + max_node_chunk_size, bucket_size);
                     DBG << "(fill next chunk: " << begin << " .. " << end << ")";
 
-                    Degree current_chunk_size = 0;
+                    EdgeID current_chunk_size = 0;
                     NodeID chunk_start        = bucket_start + begin;
 
                     for (NodeID i = begin; i < end; ++i) {

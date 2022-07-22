@@ -1,15 +1,14 @@
 /*******************************************************************************
  * @file:   helper.cc
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:
  ******************************************************************************/
 #include "kaminpar/partitioning_scheme/helper.h"
 
 #include "common/utils/math.h"
 
-namespace kaminpar::partitioning::helper {
+namespace kaminpar::shm::partitioning::helper {
 namespace {
 SET_DEBUG(false);
 SET_STATISTICS_FROM_GLOBAL();
@@ -260,4 +259,4 @@ std::size_t select_best(const scalable_vector<PartitionedGraph>& p_graphs, const
 std::size_t compute_num_threads_for_parallel_ip(const Context& input_ctx) {
     return math::floor2(input_ctx.parallel.num_threads) * (1 << input_ctx.initial_partitioning.multiplier_exponent);
 }
-} // namespace kaminpar::partitioning::helper
+} // namespace kaminpar::shm::partitioning::helper

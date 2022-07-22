@@ -1,8 +1,7 @@
 /*******************************************************************************
  * @file:   rating_map.h
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:  Map to compute gain values. The specific implementation depends on
  * the number of target blocks.
  ******************************************************************************/
@@ -13,10 +12,10 @@
 #include "common/datastructures/sparse_map.h"
 
 namespace kaminpar {
-template <typename Value, typename LargeMap = FastResetArray<Value, NodeID>>
+template <typename Value, typename Key, typename LargeMap = FastResetArray<Value, Key>>
 class RatingMap {
-    using SuperSmallMap = FixedSizeSparseMap<NodeID, Value, 128>;
-    using SmallMap      = FixedSizeSparseMap<NodeID, Value>;
+    using SuperSmallMap = FixedSizeSparseMap<Key, Value, 128>;
+    using SmallMap      = FixedSizeSparseMap<Key, Value>;
 
 public:
     enum class MapType { SUPER_SMALL, SMALL, LARGE };

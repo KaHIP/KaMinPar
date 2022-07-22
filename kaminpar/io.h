@@ -22,7 +22,7 @@
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/definitions.h"
 
-namespace kaminpar::io {
+namespace kaminpar::shm::io {
 namespace internal {
 struct MappedFile {
     const int         fd;
@@ -274,4 +274,4 @@ Container read(const std::string& filename) {
 }
 std::vector<BlockID> read(const std::string& filename);
 } // namespace partition
-} // namespace kaminpar::io
+} // namespace kaminpar::shm::io

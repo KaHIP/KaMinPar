@@ -1,8 +1,7 @@
 /*******************************************************************************
  * @file:   graph_extraction.h
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:  Extracts the subgraphs induced by each block of a partition.
  ******************************************************************************/
 #pragma once
@@ -13,7 +12,7 @@
 #include "kaminpar/context.h"
 #include "kaminpar/datastructure/graph.h"
 
-namespace kaminpar::graph {
+namespace kaminpar::shm::graph {
 struct SubgraphMemoryStartPosition {
     std::size_t nodes_start_pos{0};
     std::size_t edges_start_pos{0};
@@ -114,4 +113,4 @@ SequentialSubgraphExtractionResult extract_subgraphs_sequential(
 void copy_subgraph_partitions(
     PartitionedGraph& p_graph, const scalable_vector<BlockArray>& p_subgraph_partitions, BlockID k_prime,
     BlockID input_k, const scalable_vector<NodeID>& mapping);
-} // namespace kaminpar::graph
+} // namespace kaminpar::shm::graph

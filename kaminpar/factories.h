@@ -1,8 +1,7 @@
 /*******************************************************************************
  * @file:   factories.h
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:  Factory functions to instantiate coarsening and local improvement
  * algorithms.
  ******************************************************************************/
@@ -15,7 +14,7 @@
 #include "kaminpar/refinement/i_balancer.h"
 #include "kaminpar/refinement/i_refiner.h"
 
-namespace kaminpar::factory {
+namespace kaminpar::shm::factory {
 std::unique_ptr<ICoarsener> create_coarsener(const Graph& graph, const CoarseningContext& c_ctx);
 
 std::unique_ptr<ip::InitialRefiner> create_initial_refiner(
@@ -26,4 +25,4 @@ std::unique_ptr<IRefiner> create_refiner(const Context& ctx);
 
 std::unique_ptr<IBalancer>
 create_balancer(const Graph& graph, const PartitionContext& p_ctx, const RefinementContext& r_ctx);
-} // namespace kaminpar::factory
+} // namespace kaminpar::shm::factory

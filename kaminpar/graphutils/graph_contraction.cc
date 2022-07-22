@@ -1,8 +1,7 @@
 /*******************************************************************************
  * @file:   graph_contraction.cc
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:  Contracts a clustering and constructs the coarse graph.
  ******************************************************************************/
 #include "kaminpar/graphutils/graph_contraction.h"
@@ -12,12 +11,12 @@
 
 #include <kassert/kassert.hpp>
 
+#include "common/datastructures/rating_map.h"
 #include "common/datastructures/ts_navigable_linked_list.h"
 #include "common/parallel/algorithm.h"
-#include "kaminpar/datastructure/rating_map.h"
 #include "kaminpar/utils/timer.h"
 
-namespace kaminpar::graph {
+namespace kaminpar::shm::graph {
 using namespace contraction;
 
 namespace {
@@ -92,8 +91,8 @@ Result contract_generic_clustering(const Graph& graph, const Clustering& cluster
     StaticArray<NodeWeight> c_node_weights{c_n};
     STOP_TIMER();
 
-    tbb::enumerable_thread_specific<RatingMap<EdgeWeight>> collector{[&] {
-        return RatingMap<EdgeWeight>(c_n);
+    tbb::enumerable_thread_specific<RatingMap<EdgeWeight, NodeID>> collector{[&] {
+        return RatingMap<EdgeWeight, NodeID>(c_n);
     }};
 
     //
@@ -214,4 +213,4 @@ Result contract(const Graph& graph, const scalable_vector<parallel::Atomic<NodeI
     return contract_generic_clustering(graph, clustering, std::move(m_ctx));
 }
 
-} // namespace kaminpar::graph
+} // namespace kaminpar::shm::graph

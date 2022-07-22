@@ -1,8 +1,7 @@
 /*******************************************************************************
  * @file:   greedy_graph_growing_bipartitioner.h
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:  Initial partitioner based on greedy graph growing.
  ******************************************************************************/
 #pragma once
@@ -12,7 +11,7 @@
 #include "common/random.h"
 #include "kaminpar/initial_partitioning/i_bipartitioner.h"
 
-namespace kaminpar {
+namespace kaminpar::shm {
 class GreedyGraphGrowingBipartitioner : public Bipartitioner {
 public:
     struct MemoryContext {
@@ -47,4 +46,4 @@ private:
     BinaryMinHeap<Gain>& _queue;
     Marker<>&            _marker;
 };
-} // namespace kaminpar
+} // namespace kaminpar::shm

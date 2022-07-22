@@ -1,8 +1,7 @@
 /*******************************************************************************
  * @file:   metrics.h
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:  Functions to compute partition quality metric.s
  ******************************************************************************/
 #pragma once
@@ -13,7 +12,7 @@
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/definitions.h"
 
-namespace kaminpar::metrics {
+namespace kaminpar::shm::metrics {
 EdgeWeight        edge_cut(const PartitionedGraph& p_graph, tag::Parallel);
 EdgeWeight        edge_cut(const PartitionedGraph& p_graph, tag::Sequential);
 inline EdgeWeight edge_cut(const PartitionedGraph& p_graph) {
@@ -29,4 +28,4 @@ bool is_balanced(const PartitionedGraph& p_graph, const PartitionContext& p_ctx)
 bool is_feasible(const PartitionedGraph& p_graph, BlockID input_k, double eps);
 
 bool is_feasible(const PartitionedGraph& p_graph, const PartitionContext& p_ctx);
-} // namespace kaminpar::metrics
+} // namespace kaminpar::shm::metrics

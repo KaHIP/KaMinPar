@@ -1,8 +1,7 @@
 /*******************************************************************************
  * @file:   coarsener.h
- *
  * @author: Daniel Seemaier
- * @date:   29.09.21
+ * @date:   29.09.2021
  * @brief:  Coarsener that uses a clustering graphutils to coarsen the graph.
  ******************************************************************************/
 #pragma once
@@ -13,7 +12,7 @@
 #include "kaminpar/definitions.h"
 #include "kaminpar/graphutils/graph_contraction.h"
 
-namespace kaminpar {
+namespace kaminpar::shm {
 class ClusteringCoarsener : public ICoarsener {
 public:
     ClusteringCoarsener(
@@ -53,4 +52,4 @@ private:
     const CoarseningContext&          _c_ctx;
     graph::contraction::MemoryContext _contraction_m_ctx{};
 };
-} // namespace kaminpar
+} // namespace kaminpar::shm

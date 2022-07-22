@@ -1,14 +1,14 @@
 /*******************************************************************************
  * @file:   arguments_parser.h
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:  Command line argument parser based on GNU getopt.
  ******************************************************************************/
 #pragma once
 
 #include <cctype>
 #include <functional>
+#include <limits>
 #include <string>
 #include <type_traits>
 #include <vector>
@@ -18,7 +18,6 @@
 #include <kassert/kassert.hpp>
 
 #include "common/utils/strings.h"
-#include "kaminpar/definitions.h"
 
 namespace kaminpar {
 /**
@@ -223,7 +222,8 @@ public:
 
             auto arg = (c == 0) ? find_by_long_name(options[index].name) : find_by_short_name(c);
             if (arg == arguments.end()) {
-                FATAL_ERROR << "bad argument (see above)";
+                std::cerr << "bad argument (see above)\n";
+                std::exit(1);
             }
             arg->lambda(optarg);
         }
@@ -241,8 +241,9 @@ public:
             if (enforce_positional_arguments && !has_vararg
                 && (actual_num_pos_args < expected_pos_args - num_optional
                     || actual_num_pos_args > expected_pos_args)) {
-                FATAL_ERROR << "unexpected number of positional arguments: got " << actual_num_pos_args << ", expected "
-                            << expected_pos_args;
+                std::cerr << "unexpected number of positional arguments: got " << actual_num_pos_args << ", expected "
+                          << expected_pos_args << "\n";
+                std::exit(1);
             }
 
             for (int j = 0, i = optind; i < argc; ++i) {
@@ -260,34 +261,34 @@ public:
 
         // print Usage: ...
         if (full) {
-            LLOG << "Usage: " << argv[0] << " ";
+            std::cout << "Usage: " << argv[0] << " ";
             if (!groups.empty()) {
-                LLOG << "options... ";
+                std::cout << "options... ";
             }
             for (const auto& positional_argument: positional_group.arguments) {
-                LLOG << (positional_argument.optional ? "[" : "<");
-                LLOG << positional_argument.long_name;
+                std::cout << (positional_argument.optional ? "[" : "<");
+                std::cout << positional_argument.long_name;
                 if (positional_argument.vararg) {
-                    LLOG << "...";
+                    std::cout << "...";
                 }
-                LLOG << (positional_argument.optional ? "]" : "> ");
+                std::cout << (positional_argument.optional ? "]" : "> ");
             }
-            LOG << "\n";
+            std::cout << "\n";
         }
 
         // print description of positional arguments
         if (full && !positional_group.arguments.empty()) {
-            LOG << "Positional arguments are:";
+            std::cout << "Positional arguments are:\n";
             const std::size_t padding_length = compute_group_padding(positional_group);
             for (const auto& positional_argument: positional_group.arguments) {
                 const std::string prefix = "<"s + positional_argument.long_name + ">"s;
                 const std::string padding(padding_length - prefix.size(), '.');
-                LOG << " " << prefix << " ." << padding << ". " << positional_argument.description;
+                std::cout << " " << prefix << " ." << padding << ". " << positional_argument.description << "\n";
                 for (const auto& line: positional_argument.extended_description) {
-                    LOG << std::string(padding_length + 5, ' ') << line;
+                    std::cout << std::string(padding_length + 5, ' ') << line << "\n";
                 }
             }
-            LOG;
+            std::cout << std::endl;
         }
 
         // print description of mandatory and optional options
@@ -298,26 +299,27 @@ public:
             }
             printed_group = true;
 
-            LOG << group.name << ":";
+            std::cout << group.name << ":\n";
 
             const std::size_t padding_length = compute_group_padding(group);
             for (const auto& argument: group.arguments) {
                 const std::string prefix = create_description_prefix(argument);
                 const std::string padding(padding_length - prefix.size(), '.');
-                LOG << " " << prefix << " ." << padding << ". " << argument.description;
+                std::cout << " " << prefix << " ." << padding << ". " << argument.description << "\n";
                 for (const auto& line: argument.extended_description) {
-                    LOG << "   " << std::string(padding_length, ' ') << "  " << line;
+                    std::cout << "   " << std::string(padding_length, ' ') << "  " << line << "\n";
                 }
                 if (!argument.default_description.empty()) {
-                    LOG << "   " << std::string(padding_length, ' ')
-                        << "  Default: <arg>=" << argument.default_description;
+                    std::cout << "   " << std::string(padding_length, ' ')
+                              << "  Default: <arg>=" << argument.default_description << "\n";
                 }
             }
-            LOG;
+            std::cout << std::endl;
         }
 
         if (!full && !printed_group) {
-            LOG_ERROR << "No group with code " << optarg << "; run with --help to see all options";
+            std::cerr << "No group with code " << optarg << "; run with --help to see all options\n";
+            std::exit(1);
         }
     }
 

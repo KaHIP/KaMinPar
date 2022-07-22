@@ -1,15 +1,14 @@
 /*******************************************************************************
  * @file:   greedy_graph_growing_bipartitioner.cc
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:  Initial partitioner using greedy graph growing.
  ******************************************************************************/
 #include "kaminpar/initial_partitioning/greedy_graph_growing_bipartitioner.h"
 
 #include <kassert/kassert.hpp>
 
-namespace kaminpar {
+namespace kaminpar::shm {
 void GreedyGraphGrowingBipartitioner::bipartition_impl() {
     KASSERT(_graph.n() > 0u);
 
@@ -73,4 +72,4 @@ void GreedyGraphGrowingBipartitioner::bipartition_impl() {
     }
     return gain;
 }
-} // namespace kaminpar
+} // namespace kaminpar::shm

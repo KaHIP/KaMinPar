@@ -1,8 +1,7 @@
 /*******************************************************************************
  * @file:   context.h
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:  Configuration struct for KaMinPar.
  ******************************************************************************/
 #pragma once
@@ -15,7 +14,7 @@
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/definitions.h"
 
-namespace kaminpar {
+namespace kaminpar::shm {
 enum class ClusteringAlgorithm {
     NOOP,
     LABEL_PROPAGATION,
@@ -267,4 +266,4 @@ NodeWeight_
 compute_max_cluster_weight(const Graph_& c_graph, const PartitionContext& input_p_ctx, const CoarseningContext& c_ctx) {
     return compute_max_cluster_weight(c_graph.n(), c_graph.total_node_weight(), input_p_ctx, c_ctx);
 }
-} // namespace kaminpar
+} // namespace kaminpar::shm

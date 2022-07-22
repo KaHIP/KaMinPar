@@ -1,8 +1,7 @@
 /*******************************************************************************
  * @file:   graph.h
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:  Static graph data structure with dynamic partition wrapper.
  ******************************************************************************/
 #pragma once
@@ -18,13 +17,13 @@
 
 #include <kassert/kassert.hpp>
 
-#include "common//ranges.h"
 #include "common/datastructures/static_array.h"
 #include "common/parallel/atomic.h"
+#include "common/ranges.h"
 #include "common/utils/strings.h"
 #include "kaminpar/definitions.h"
 
-namespace kaminpar {
+namespace kaminpar::shm {
 using BlockArray       = StaticArray<BlockID>;
 using BlockWeightArray = StaticArray<parallel::Atomic<BlockWeight>>;
 using NodeArray        = StaticArray<NodeID>;
@@ -92,10 +91,10 @@ Degree degree_bucket(Degree degree);
 class Graph {
 public:
     // data types used by this graph
-    using NodeID     = ::kaminpar::NodeID;
-    using NodeWeight = ::kaminpar::NodeWeight;
-    using EdgeID     = ::kaminpar::EdgeID;
-    using EdgeWeight = ::kaminpar::EdgeWeight;
+    using NodeID     = ::kaminpar::shm::NodeID;
+    using NodeWeight = ::kaminpar::shm::NodeWeight;
+    using EdgeID     = ::kaminpar::shm::EdgeID;
+    using EdgeWeight = ::kaminpar::shm::EdgeWeight;
 
     Graph() = default;
 
@@ -209,8 +208,8 @@ public:
     using NodeWeight  = Graph::NodeWeight;
     using EdgeID      = Graph::EdgeID;
     using EdgeWeight  = Graph::EdgeWeight;
-    using BlockID     = ::kaminpar::BlockID;
-    using BlockWeight = ::kaminpar::BlockWeight;
+    using BlockID     = ::kaminpar::shm::BlockID;
+    using BlockWeight = ::kaminpar::shm::BlockWeight;
 
     PartitionedGraph(
         const Graph& graph, BlockID k, StaticArray<BlockID> partition = {}, scalable_vector<BlockID> final_k = {});
@@ -400,4 +399,4 @@ private:
     //! are possible when using adaptive k's or if _k is not a power of 2.
     scalable_vector<BlockID> _final_k; // O(k)
 };
-} // namespace kaminpar
+} // namespace kaminpar::shm

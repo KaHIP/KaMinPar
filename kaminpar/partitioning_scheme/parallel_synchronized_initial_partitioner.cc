@@ -1,13 +1,12 @@
 /*******************************************************************************
  * @file:   parallel_synchronized_initial_partitioner.cc
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:
  ******************************************************************************/
 #include "kaminpar/partitioning_scheme/parallel_synchronized_initial_partitioner.h"
 
-namespace kaminpar::partitioning {
+namespace kaminpar::shm::partitioning {
 ParallelSynchronizedInitialPartitioner::ParallelSynchronizedInitialPartitioner(
     const Context& input_ctx, GlobalInitialPartitionerMemoryPool& ip_m_ctx_pool,
     TemporaryGraphExtractionBufferPool& ip_extraction_pool)
@@ -132,4 +131,4 @@ ParallelSynchronizedInitialPartitioner::partition(const ICoarsener* coarsener, c
 std::unique_ptr<ICoarsener> ParallelSynchronizedInitialPartitioner::duplicate_coarsener(const ICoarsener* coarsener) {
     return factory::create_coarsener(*coarsener->coarsest_graph(), _input_ctx.coarsening);
 }
-} // namespace kaminpar::partitioning
+} // namespace kaminpar::shm::partitioning

@@ -1,13 +1,12 @@
 /*******************************************************************************
  * @file:   sequential_graph_hierarchy.cc
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:
  ******************************************************************************/
 #include "kaminpar/initial_partitioning/sequential_graph_hierarchy.h"
 
-namespace kaminpar::ip {
+namespace kaminpar::shm::ip {
 SequentialGraphHierarchy::SequentialGraphHierarchy(const Graph* finest_graph) : _finest_graph(finest_graph) {}
 
 void SequentialGraphHierarchy::take_coarse_graph(Graph&& c_graph, std::vector<NodeID>&& c_mapping) {
@@ -46,4 +45,4 @@ const Graph& SequentialGraphHierarchy::get_second_coarsest_graph() const {
     KASSERT(!_coarse_graphs.empty());
     return (_coarse_graphs.size() > 1) ? _coarse_graphs[_coarse_graphs.size() - 2] : *_finest_graph;
 }
-} // namespace kaminpar::ip
+} // namespace kaminpar::shm::ip

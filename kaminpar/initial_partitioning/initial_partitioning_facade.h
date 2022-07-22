@@ -1,8 +1,7 @@
 /*******************************************************************************
  * @file:   initial_partitioning_facade.h
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:  Facade for sequential initial partitioning.
  ******************************************************************************/
 #pragma once
@@ -11,7 +10,7 @@
 #include "kaminpar/initial_partitioning/initial_refiner.h"
 #include "kaminpar/initial_partitioning/pool_bipartitioner.h"
 
-namespace kaminpar::ip {
+namespace kaminpar::shm::ip {
 class InitialPartitioner {
     static constexpr bool kDebug = false;
 
@@ -129,4 +128,4 @@ private:
     BlockID     _final_k2;
     std::size_t _num_bipartition_repetitions;
 };
-} // namespace kaminpar::ip
+} // namespace kaminpar::shm::ip

@@ -1,15 +1,14 @@
 /*******************************************************************************
  * @file:   parallel_label_propagation_refiner.h
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:
  ******************************************************************************/
 #pragma once
 
 #include "kaminpar/refinement/i_refiner.h"
 
-namespace kaminpar {
+namespace kaminpar::shm {
 class LabelPropagationRefiner : public IRefiner {
 public:
     LabelPropagationRefiner(const Context& ctx);
@@ -25,4 +24,4 @@ public:
 private:
     class LabelPropagationRefinerImpl* _impl;
 };
-} // namespace kaminpar
+} // namespace kaminpar::shm

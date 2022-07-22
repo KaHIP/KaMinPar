@@ -1,8 +1,7 @@
 /*******************************************************************************
  * @file:   parallel_label_propagation_clustering.h
- *
  * @author: Daniel Seemaier
- * @date:   29.09.21
+ * @date:   29.09.2021
  * @brief:  Parallel label propgation for clustering.
  ******************************************************************************/
 #pragma once
@@ -11,7 +10,7 @@
 #include "kaminpar/context.h"
 #include "kaminpar/datastructure/graph.h"
 
-namespace kaminpar {
+namespace kaminpar::shm {
 class LabelPropagationClusteringAlgorithm : public IClustering {
 public:
     LabelPropagationClusteringAlgorithm(NodeID max_n, const CoarseningContext& c_ctx);
@@ -31,4 +30,4 @@ private:
     std::unique_ptr<class LabelPropagationClusteringCore> _core;
 };
 
-} // namespace kaminpar
+} // namespace kaminpar::shm

@@ -1,8 +1,7 @@
 /*******************************************************************************
  * @file:   parallel_recursive_bisection.cc
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:
  ******************************************************************************/
 #include "kaminpar/partitioning_scheme/parallel_recursive_bisection.h"
@@ -10,7 +9,7 @@
 #include "kaminpar/partitioning_scheme/parallel_initial_partitioner.h"
 #include "kaminpar/partitioning_scheme/parallel_synchronized_initial_partitioner.h"
 
-namespace kaminpar::partitioning {
+namespace kaminpar::shm::partitioning {
 ParallelRecursiveBisection::ParallelRecursiveBisection(const Graph& input_graph, const Context& input_ctx)
     : _input_graph{input_graph},
       _input_ctx{input_ctx},
@@ -166,4 +165,4 @@ void ParallelRecursiveBisection::print_statistics() {
         << ", # of edge buffer reallocs: " << extraction_edges_reallocs;
     LOG << logger::CYAN << " * total memory: " << extraction_memory_in_kb / 1000 << " Mb";
 }
-} // namespace kaminpar::partitioning
+} // namespace kaminpar::shm::partitioning

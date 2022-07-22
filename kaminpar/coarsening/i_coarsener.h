@@ -1,8 +1,7 @@
 /*******************************************************************************
  * @file:   i_coarsener.h
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:  Interface for coarsening algorithms.
  ******************************************************************************/
 #pragma once
@@ -11,7 +10,7 @@
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/definitions.h"
 
-namespace kaminpar {
+namespace kaminpar::shm {
 /**
  * Clustering graphutils.
  *
@@ -60,4 +59,4 @@ public:
     //! Re-initialize this coarsener object with a new graph.
     virtual void initialize(const Graph* graph) = 0;
 };
-} // namespace kaminpar
+} // namespace kaminpar::shm

@@ -1,8 +1,7 @@
 /*******************************************************************************
  * @file:   i_bipartitioner.h
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:  Interface for initial partitioning algorithms.
  ******************************************************************************/
 #pragma once
@@ -14,7 +13,7 @@
 
 #include "kaminpar/context.h"
 
-namespace kaminpar {
+namespace kaminpar::shm {
 class Bipartitioner {
 public:
     using BlockWeights = std::array<BlockWeight, 2>;
@@ -101,4 +100,4 @@ protected:
     StaticArray<BlockID> _partition;
     BlockWeights         _block_weights;
 };
-} // namespace kaminpar
+} // namespace kaminpar::shm

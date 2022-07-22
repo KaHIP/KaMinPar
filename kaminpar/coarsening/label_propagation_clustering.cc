@@ -1,8 +1,7 @@
 /*******************************************************************************
  * @file:   parallel_label_propagation_clustering.cc
- *
  * @author: Daniel Seemaier
- * @date:   29.09.21
+ * @date:   29.09.2021
  * @brief:  Parallel label propgation for clustering.
  ******************************************************************************/
 #include "kaminpar/coarsening/label_propagation_clustering.h"
@@ -14,7 +13,7 @@
 #include "kaminpar/label_propagation.h"
 #include "kaminpar/utils/timer.h"
 
-namespace kaminpar {
+namespace kaminpar::shm {
 //
 // Actual implementation -- not exposed in header
 //
@@ -120,4 +119,4 @@ void LabelPropagationClusteringAlgorithm::set_desired_cluster_count(const NodeID
 const IClustering::AtomicClusterArray& LabelPropagationClusteringAlgorithm::compute_clustering(const Graph& graph) {
     return _core->compute_clustering(graph);
 }
-} // namespace kaminpar
+} // namespace kaminpar::shm

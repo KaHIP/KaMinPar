@@ -1,8 +1,7 @@
 /*******************************************************************************
  * @file:   random_bipartitioner.h
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:  Initial partitioner that assigns nodes to random blocks.
  ******************************************************************************/
 #pragma once
@@ -12,7 +11,7 @@
 #include "common/random.h"
 #include "kaminpar/initial_partitioning/i_bipartitioner.h"
 
-namespace kaminpar {
+namespace kaminpar::shm {
 class RandomBipartitioner : public Bipartitioner {
 public:
     struct MemoryContext {
@@ -39,4 +38,4 @@ protected:
 
     Random& _rand{Random::instance()};
 };
-} // namespace kaminpar
+} // namespace kaminpar::shm

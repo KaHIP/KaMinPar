@@ -1,15 +1,14 @@
 /*******************************************************************************
  * @file:   cluster_coarsener.cc
- *
  * @author: Daniel Seemaier
- * @date:   29.09.21
+ * @date:   29.09.2021
  * @brief:  Coarsener that uses a clustering graphutils to coarsen the graph.
  ******************************************************************************/
 #include "kaminpar/coarsening/cluster_coarsener.h"
 
 #include "kaminpar/utils/timer.h"
 
-namespace kaminpar {
+namespace kaminpar::shm {
 std::pair<const Graph*, bool>
 ClusteringCoarsener::compute_coarse_graph(const NodeWeight max_cluster_weight, const NodeID to_size) {
     SCOPED_TIMER("Level", std::to_string(_hierarchy.size()), TIMER_BENCHMARK);
@@ -60,4 +59,4 @@ PartitionedGraph ClusteringCoarsener::uncoarsen(PartitionedGraph&& p_graph) {
     SCOPED_TIMER("Create graph");
     return {*_current_graph, p_graph.k(), std::move(partition), std::move(p_graph.take_final_k())};
 }
-} // namespace kaminpar
+} // namespace kaminpar::shm

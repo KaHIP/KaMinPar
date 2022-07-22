@@ -9,7 +9,7 @@
  ******************************************************************************/
 #include "kaminpar/application/arguments.h"
 
-namespace kaminpar::app {
+namespace kaminpar::shm::app {
 // clang-format off
 void create_coarsening_context_options(CoarseningContext &c_ctx, Arguments &args, const std::string &name, const std::string &prefix) {
   using namespace std::string_literals;
@@ -181,4 +181,4 @@ Context parse_options(int argc, char* argv[]) {
     arguments.parse(argc, argv);
     return context;
 }
-} // namespace kaminpar::app
+} // namespace kaminpar::shm::app

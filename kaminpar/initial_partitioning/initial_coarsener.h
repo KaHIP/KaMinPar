@@ -1,8 +1,7 @@
 /*******************************************************************************
  * @file:   initial_coarsener.h
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:  Sequential coarsener based on label propagation with leader
  * locking.
  ******************************************************************************/
@@ -24,7 +23,7 @@
         return x;                    \
     }
 
-namespace kaminpar::ip {
+namespace kaminpar::shm::ip {
 class InitialCoarsener {
     static constexpr auto kChunkSize                = 256;
     static constexpr auto kNumberOfNodePermutations = 16;
@@ -185,4 +184,4 @@ private:
     Random&                                                                  _rand{Random::instance()};
     static RandomPermutations<NodeID, kChunkSize, kNumberOfNodePermutations> _random_permutations;
 };
-} // namespace kaminpar::ip
+} // namespace kaminpar::shm::ip

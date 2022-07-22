@@ -1,8 +1,7 @@
 /*******************************************************************************
  * @file:   definitions.h
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:  General type and macro definitions.
  ******************************************************************************/
 #pragma once
@@ -18,9 +17,9 @@
 #include <vector>
 
 #include <tbb/cache_aligned_allocator.h>
-#include <tbb/scalable_allocator.h>
 
 #include "common/assert.h"
+#include "common/scalable_vector.h"
 #include "kaminpar/utils/logger.h"
 
 #if __has_include(<sched.h>)
@@ -28,7 +27,7 @@
     #define HAS_SCHED_GETCPU
 #endif
 
-namespace kaminpar {
+namespace kaminpar::shm {
 
 struct Mandatory {};
 
@@ -66,8 +65,6 @@ constexpr EdgeWeight  kInvalidEdgeWeight  = std::numeric_limits<EdgeWeight>::max
 constexpr BlockWeight kInvalidBlockWeight = std::numeric_limits<BlockWeight>::max();
 constexpr Degree      kMaxDegree          = std::numeric_limits<Degree>::max();
 
-template <typename T>
-using scalable_vector = std::vector<T, tbb::scalable_allocator<T>>;
 template <typename T>
 using cache_aligned_vector = std::vector<T, tbb::cache_aligned_allocator<T>>;
 
@@ -111,7 +108,7 @@ private:
     Logger _logger;
 };
 } // namespace debug
-} // namespace kaminpar
+} // namespace kaminpar::shm
 
 // clang-format off
 #define FILENAME (std::strrchr(__FILE__, '/') ? std::strrchr(__FILE__, '/') + 1 : __FILE__)
@@ -131,7 +128,7 @@ private:
 // DBGC(cond) only produces output if the given condition evaluates to true
 // IFDBG(expr) evaluates the expression and returns its result iff kDebug is set to true, otherwise returns the default value for its result data type
 #define SET_DEBUG(value) [[maybe_unused]] static constexpr bool kDebug = value
-#define DBGC(cond) (kDebug && (cond)) && kaminpar::debug::DisposableLogger<false>(std::cout) << kaminpar::logger::MAGENTA << POSITION << CPU << " " << kaminpar::logger::DEFAULT_TEXT
+#define DBGC(cond) (kDebug && (cond)) && kaminpar::shm::debug::DisposableLogger<false>(std::cout) << kaminpar::logger::MAGENTA << POSITION << CPU << " " << kaminpar::logger::DEFAULT_TEXT
 #define DBG DBGC(true)
 #define IFDBG(expr) (kDebug ? (expr) : decltype(expr)())
 
@@ -153,8 +150,8 @@ private:
 #define LOG_LSUCCESS (kaminpar::Logger(std::cout, "") << kaminpar::logger::GREEN)
 #define LOG_WARNING (kaminpar::Logger(std::cout) << kaminpar::logger::ORANGE << "[Warning] ")
 #define LOG_LWARNING (kaminpar::Logger(std::cout, "") << kaminpar::logger::ORANGE)
-#define FATAL_ERROR (kaminpar::debug::DisposableLogger<true>(std::cout) << kaminpar::logger::RED << "[Fatal] ")
-#define FATAL_PERROR (kaminpar::debug::DisposableLogger<true>(std::cout, std::string(": ") + std::strerror(errno) + "\n") << kaminpar::logger::RED << "[Fatal] ")
+#define FATAL_ERROR (kaminpar::shm::debug::DisposableLogger<true>(std::cout) << kaminpar::logger::RED << "[Fatal] ")
+#define FATAL_PERROR (kaminpar::shm::debug::DisposableLogger<true>(std::cout, std::string(": ") + std::strerror(errno) + "\n") << kaminpar::logger::RED << "[Fatal] ")
 
 // Macro that evaluates to true or false depending on whether another macro is defined or undefined
 // use DETECT_EXIST(SOME_OTHER_MACRO) to detect whether SOME_OTHER_MACRO is defined or undefined
@@ -183,7 +180,7 @@ private:
 // STATS: LOG for statistics output: only evaluate and output if statistics are enabled
 #define SET_STATISTICS(value) constexpr static bool kStatistics = value
 #define IFSTATS(x)            (kStatistics ? (x) : std::decay_t<decltype(x)>())
-#define STATS                 kStatistics&& kaminpar::debug::DisposableLogger<false>(std::cout) << kaminpar::logger::CYAN
+#define STATS                 kStatistics&& kaminpar::shm::debug::DisposableLogger<false>(std::cout) << kaminpar::logger::CYAN
 
 #ifdef KAMINPAR_ENABLE_STATISTICS
     #define SET_STATISTICS_FROM_GLOBAL() SET_STATISTICS(true)

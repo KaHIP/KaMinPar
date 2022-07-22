@@ -20,6 +20,7 @@
 
 namespace libkaminpar {
 using namespace kaminpar;
+using namespace kaminpar::shm;
 
 struct PartitionerBuilderPrivate {
     NodeID                  n{kInvalidNodeID};

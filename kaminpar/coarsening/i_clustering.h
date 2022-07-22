@@ -1,8 +1,7 @@
 /*******************************************************************************
  * @file:   i_clustering_algorithm.h
- *
  * @author: Daniel Seemaier
- * @date:   29.09.21
+ * @date:   29.09.2021
  * @brief:  Interface for clustering algorithms used for coarsening.
  ******************************************************************************/
 #pragma once
@@ -11,7 +10,7 @@
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/definitions.h"
 
-namespace kaminpar {
+namespace kaminpar::shm {
 class IClustering {
 public:
     using AtomicClusterArray = scalable_vector<parallel::Atomic<NodeID>>;
@@ -37,4 +36,4 @@ public:
 
     virtual const AtomicClusterArray& compute_clustering(const Graph& graph) = 0;
 };
-} // namespace kaminpar
+} // namespace kaminpar::shm

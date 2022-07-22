@@ -1,8 +1,7 @@
 /*******************************************************************************
  * @file:   partitioning.cc
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:
  ******************************************************************************/
 #include "kaminpar/partitioning_scheme/partitioning.h"
@@ -11,7 +10,7 @@
 #include "kaminpar/partitioning_scheme/parallel_simple_recursive_bisection.h"
 #include "kaminpar/utils/timer.h"
 
-namespace kaminpar::partitioning {
+namespace kaminpar::shm::partitioning {
 PartitionedGraph partition(const Graph& graph, const Context& ctx) {
     switch (ctx.partition.mode) {
         case PartitioningMode::DEEP: {
@@ -39,4 +38,4 @@ PartitionedGraph partition(const Graph& graph, const Context& ctx) {
     }
     __builtin_unreachable();
 }
-} // namespace kaminpar::partitioning
+} // namespace kaminpar::shm::partitioning

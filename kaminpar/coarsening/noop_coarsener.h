@@ -1,8 +1,7 @@
 /*******************************************************************************
  * @file:   noop_coarsener.h
- *
  * @author: Daniel Seemaier
- * @date:   29.09.21
+ * @date:   29.09.2021
  * @brief:  Coarsener that converges immediately.
  ******************************************************************************/
 #pragma once
@@ -11,7 +10,7 @@
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/definitions.h"
 
-namespace kaminpar {
+namespace kaminpar::shm {
 class NoopCoarsener : public ICoarsener {
 public:
     void initialize(const Graph* graph) final {
@@ -38,4 +37,4 @@ public:
 private:
     const Graph* _graph{nullptr};
 };
-} // namespace kaminpar
+} // namespace kaminpar::shm

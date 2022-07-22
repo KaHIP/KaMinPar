@@ -1,8 +1,7 @@
 /*******************************************************************************
  * @file:   i_balancer.h
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:
  ******************************************************************************/
 #pragma once
@@ -10,7 +9,7 @@
 #include "kaminpar/context.h"
 #include "kaminpar/datastructure/graph.h"
 
-namespace kaminpar {
+namespace kaminpar::shm {
 class IBalancer {
 public:
     virtual ~IBalancer() = default;
@@ -26,4 +25,4 @@ public:
         return true;
     }
 };
-} // namespace kaminpar
+} // namespace kaminpar::shm

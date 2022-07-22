@@ -1,8 +1,7 @@
 /*******************************************************************************
  * @file:   parallel_simple_recursive_bisection.h
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:
  ******************************************************************************/
 #pragma once
@@ -15,7 +14,7 @@
 #include "kaminpar/initial_partitioning/initial_partitioning_facade.h"
 #include "kaminpar/partitioning_scheme/helper.h"
 
-namespace kaminpar::partitioning {
+namespace kaminpar::shm::partitioning {
 class ParallelSimpleRecursiveBisection {
 public:
     ParallelSimpleRecursiveBisection(const Graph& input_graph, const Context& input_ctx)
@@ -94,4 +93,4 @@ private:
 
     GlobalInitialPartitionerMemoryPool ip_m_ctx_pool;
 };
-} // namespace kaminpar::partitioning
+} // namespace kaminpar::shm::partitioning

@@ -1,8 +1,7 @@
 /*******************************************************************************
  * @file:   graph_contraction.h
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:  Contracts a clustering and constructs the coarse graph.
  ******************************************************************************/
 #pragma once
@@ -11,7 +10,7 @@
 #include "common/parallel/atomic.h"
 #include "kaminpar/datastructure/graph.h"
 
-namespace kaminpar::graph {
+namespace kaminpar::shm::graph {
 namespace contraction {
 struct Edge {
     NodeID     target;
@@ -38,4 +37,4 @@ contract(const Graph& r, const scalable_vector<NodeID>& clustering, contraction:
 contraction::Result contract(
     const Graph& graph, const scalable_vector<parallel::Atomic<NodeID>>& clustering,
     contraction::MemoryContext m_ctx = {});
-} // namespace kaminpar::graph
+} // namespace kaminpar::shm::graph

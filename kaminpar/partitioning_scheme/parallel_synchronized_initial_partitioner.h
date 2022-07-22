@@ -1,8 +1,7 @@
 /*******************************************************************************
  * @file:   parallel_synchronized_initial_partitioner.h
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:
  ******************************************************************************/
 #pragma once
@@ -19,7 +18,7 @@
 #include "kaminpar/refinement/greedy_balancer.h"
 #include "kaminpar/refinement/label_propagation_refiner.h"
 
-namespace kaminpar::partitioning {
+namespace kaminpar::shm::partitioning {
 class ParallelSynchronizedInitialPartitioner {
     SET_DEBUG(false);
 
@@ -37,4 +36,4 @@ private:
     GlobalInitialPartitionerMemoryPool& _ip_m_ctx_pool;
     TemporaryGraphExtractionBufferPool& _ip_extraction_pool;
 };
-} // namespace kaminpar::partitioning
+} // namespace kaminpar::shm::partitioning

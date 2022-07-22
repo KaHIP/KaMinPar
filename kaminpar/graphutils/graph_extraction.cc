@@ -1,8 +1,7 @@
 /*******************************************************************************
  * @file:   graph_extraction.cc
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:  Extracts the subgraphs induced by each block of a partition.
  ******************************************************************************/
 #include "kaminpar/graphutils/graph_extraction.h"
@@ -21,7 +20,7 @@
 #include "kaminpar/definitions.h"
 #include "kaminpar/utils/timer.h"
 
-namespace kaminpar::graph {
+namespace kaminpar::shm::graph {
 SequentialSubgraphExtractionResult extract_subgraphs_sequential(
     const PartitionedGraph& p_graph, const SubgraphMemoryStartPosition memory_position, SubgraphMemory& subgraph_memory,
     TemporarySubgraphMemory& tmp_subgraph_memory) {
@@ -312,4 +311,4 @@ void copy_subgraph_partitions(
     p_graph.set_final_ks(std::move(final_ks));
     p_graph.reinit_block_weights();
 }
-} // namespace kaminpar::graph
+} // namespace kaminpar::shm::graph

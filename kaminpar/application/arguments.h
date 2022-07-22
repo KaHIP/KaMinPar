@@ -9,10 +9,10 @@
  ******************************************************************************/
 #pragma once
 
-#include "kaminpar/application/arguments_parser.h"
+#include "common/arguments_parser.h"
 #include "kaminpar/context.h"
 
-namespace kaminpar::app {
+namespace kaminpar::shm::app {
 void create_coarsening_context_options(
     CoarseningContext& c_ctx, Arguments& args, const std::string& name, const std::string& prefix);
 
@@ -50,4 +50,4 @@ void create_algorithm_options(
 void create_context_options(Context& ctx, Arguments& args);
 
 Context parse_options(int argc, char* argv[]);
-} // namespace kaminpar::app
+} // namespace kaminpar::shm::app
