@@ -1,14 +1,14 @@
 /*******************************************************************************
  * @file:   strings.cc
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:  Helper functions for string operations.
  ******************************************************************************/
-#include "kaminpar/utils/strings.h"
+#include "common/utils/strings.h"
+
 #include <sstream>
 
-namespace kaminpar::utility::str {
+namespace kaminpar::str {
 std::string extract_basename(const std::string& path) {
     const std::size_t slash = path.find_last_of('/');
     const std::string name  = path.substr(slash == std::string::npos ? 0 : slash + 1);
@@ -48,4 +48,4 @@ std::string& ltrim(std::string& s, const char* t) {
 std::string& trim(std::string& s, const char* t) {
     return ltrim(rtrim(s, t), t);
 }
-} // namespace kaminpar::utility::str
+} // namespace kaminpar::str

@@ -10,17 +10,17 @@
 #include <tbb/concurrent_hash_map.h>
 #include <tbb/parallel_for.h>
 
+#include "common/utils/strings.h"
 #include "dkaminpar/datastructure/distributed_graph_builder.h"
 #include "dkaminpar/mpi/wrapper.h"
 #include "dkaminpar/utils/math.h"
 #include "kaminpar/io.h"
-#include "kaminpar/utils/strings.h"
 
 namespace dkaminpar::io {
 SET_DEBUG(false);
 
 DistributedGraph read_graph(const std::string& filename, DistributionType type, MPI_Comm comm) {
-    if (shm::utility::str::ends_with(filename, "bgf") || shm::utility::str::ends_with(filename, "bin")) {
+    if (shm::str::ends_with(filename, "bgf") || shm::str::ends_with(filename, "bin")) {
         if (type == DistributionType::NODE_BALANCED) {
             return binary::read_node_balanced(filename, comm);
         } else {

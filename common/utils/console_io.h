@@ -1,17 +1,14 @@
 /*******************************************************************************
- * @file:   math.h
+ * @file:   console_io.h
  *
  * @author: Daniel Seemaier
  * @date:   21.09.21
- * @brief:  Math helper functions.
+ * @brief:  Helper functions for console IO.
  ******************************************************************************/
 #pragma once
 
-#include <utility>
-#include <vector>
+#include <mutex>
 
-#include <kassert/kassert.hpp>
-
-#include "kaminpar/definitions.h"
-
-namespace kaminpar::math {} // namespace kaminpar::math
+namespace kaminpar::cio {
+void print_banner(const std::string& title);
+} // namespace kaminpar::cio

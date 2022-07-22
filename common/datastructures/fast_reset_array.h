@@ -1,8 +1,7 @@
 /*******************************************************************************
  * @file:   fast_reset_array.h
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:  Static array that can reset used elements in O(# of used elements),
  * where # of used elements might be much smaller than the array's capacity.
  ******************************************************************************/
@@ -13,7 +12,7 @@
 
 #include <kassert/kassert.hpp>
 
-#include "kaminpar/definitions.h"
+#include "common/ranges.h"
 
 namespace kaminpar {
 template <typename Value, typename Size = std::size_t>

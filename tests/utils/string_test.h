@@ -1,6 +1,6 @@
 #include <gmock/gmock.h>
 
-#include "kaminpar/utils/strings.h"
+#include "common/utils/strings.h"
 
 using namespace kaminpar;
 

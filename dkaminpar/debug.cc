@@ -11,7 +11,7 @@
 namespace dkaminpar::debug {
 namespace {
 std::string create_basename(const Context& ctx, const int level) {
-    return shm::utility::str::extract_basename(ctx.graph_filename) + ".seed" + std::to_string(ctx.seed) + ".k"
+    return shm::str::extract_basename(ctx.graph_filename) + ".seed" + std::to_string(ctx.seed) + ".k"
            + std::to_string(ctx.partition.k) + ".level" + std::to_string(level);
 }
 } // namespace

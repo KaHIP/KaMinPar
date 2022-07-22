@@ -9,6 +9,7 @@
 
 #include <tbb/enumerable_thread_specific.h>
 
+#include "common/utils/console_io.h"
 #include "kaminpar/coarsening/label_propagation_clustering.h"
 #include "kaminpar/context.h"
 #include "kaminpar/datastructure/graph.h"
@@ -17,7 +18,6 @@
 #include "kaminpar/initial_partitioning/initial_partitioning_facade.h"
 #include "kaminpar/initial_partitioning/pool_bipartitioner.h"
 #include "kaminpar/partitioning_scheme/helper.h"
-#include "kaminpar/utils/console_io.h"
 
 namespace kaminpar::partitioning {
 class ParallelRecursiveBisection {

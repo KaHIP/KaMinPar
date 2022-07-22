@@ -1,8 +1,7 @@
 /*******************************************************************************
  * @file:   enum_string_conversion.h
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:  Helper macros to convert between strings and enum elements.
  ******************************************************************************/
 #pragma once

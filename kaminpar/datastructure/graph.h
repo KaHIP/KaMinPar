@@ -18,11 +18,11 @@
 
 #include <kassert/kassert.hpp>
 
+#include "common//ranges.h"
 #include "common/datastructures/static_array.h"
 #include "common/parallel/atomic.h"
+#include "common/utils/strings.h"
 #include "kaminpar/definitions.h"
-#include "kaminpar/utils/ranges.h"
-#include "kaminpar/utils/strings.h"
 
 namespace kaminpar {
 using BlockArray       = StaticArray<BlockID>;

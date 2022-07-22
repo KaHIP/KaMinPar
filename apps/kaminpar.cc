@@ -14,6 +14,7 @@
 
 #include "apps/apps.h"
 #include "common/random.h"
+#include "common/utils/console_io.h"
 #include "kaminpar/application/arguments.h"
 #include "kaminpar/application/arguments_parser.h"
 #include "kaminpar/datastructure/graph.h"
@@ -22,7 +23,6 @@
 #include "kaminpar/io.h"
 #include "kaminpar/metrics.h"
 #include "kaminpar/partitioning_scheme/partitioning.h"
-#include "kaminpar/utils/console_io.h"
 #include "kaminpar/utils/logger.h"
 #include "kaminpar/utils/timer.h"
 
@@ -89,7 +89,7 @@ void print_statistics(const PartitionedGraph& p_graph, const Context& ctx) {
 
 std::string generate_partition_filename(const Context& ctx) {
     std::stringstream filename;
-    filename << utility::str::extract_basename(ctx.graph_filename);
+    filename << str::extract_basename(ctx.graph_filename);
     filename << "__t" << ctx.parallel.num_threads;
     filename << "__k" << ctx.partition.k;
     filename << "__eps" << ctx.partition.epsilon;

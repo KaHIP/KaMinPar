@@ -9,8 +9,8 @@
 
 #include <tbb/parallel_for.h>
 
+#include "common/utils/enum_string_conversion.h"
 #include "dkaminpar/mpi/wrapper.h"
-#include "kaminpar/utils/enum_string_conversion.h"
 
 namespace dkaminpar {
 using namespace std::string_literals;

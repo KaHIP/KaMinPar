@@ -7,6 +7,8 @@
  ******************************************************************************/
 #include "dkaminpar/partitioning_scheme/kway_partitioning_scheme.h"
 
+#include "common/utils/console_io.h"
+#include "common/utils/strings.h"
 #include "dkaminpar/coarsening/coarsener.h"
 #include "dkaminpar/coarsening/global_clustering_contraction.h"
 #include "dkaminpar/datastructure/distributed_graph.h"
@@ -17,8 +19,6 @@
 #include "dkaminpar/refinement/distributed_balancer.h"
 #include "dkaminpar/utils/metrics.h"
 #include "kaminpar/metrics.h"
-#include "kaminpar/utils/console_io.h"
-#include "kaminpar/utils/strings.h"
 #include "kaminpar/utils/timer.h"
 
 namespace dkaminpar {

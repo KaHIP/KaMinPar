@@ -17,8 +17,8 @@
 
 #include <kassert/kassert.hpp>
 
+#include "common/utils/strings.h"
 #include "kaminpar/definitions.h"
-#include "kaminpar/utils/strings.h"
 
 namespace kaminpar {
 /**
@@ -29,7 +29,7 @@ public:
     // Preset of parsing functions to be used as `Transformer` argument in Group::argument()
     template <typename Type>
     static Type parse_number(const char* _arg) {
-        const std::string arg = utility::str::to_lower(_arg);
+        const std::string arg = str::to_lower(_arg);
         if (arg == "max") {
             return std::numeric_limits<Type>::max();
         } else if (arg == "min") {
@@ -50,7 +50,7 @@ public:
         if (_arg == nullptr) {
             return true;
         }
-        const std::string arg = utility::str::to_lower(_arg);
+        const std::string arg = str::to_lower(_arg);
         return arg == "1" || arg == "yes" || arg == "on" || arg == "true" || arg.empty();
     }
 
