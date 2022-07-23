@@ -14,12 +14,14 @@
 #include <tbb/parallel_invoke.h>
 #include <tbb/scalable_allocator.h>
 
+#include "common/assert.h"
 #include "common/datastructures/rating_map.h"
 #include "common/parallel/atomic.h"
 #include "common/random.h"
+#include "common/tags.h"
+#include "common/timer.h"
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/definitions.h"
-#include "kaminpar/utils/timer.h"
 
 namespace kaminpar {
 struct LabelPropagationConfig {
@@ -29,8 +31,8 @@ struct LabelPropagationConfig {
     using RatingMap = ::kaminpar::RatingMap<shm::EdgeWeight, shm::NodeID, FastResetArray<shm::EdgeWeight>>;
 
     // Data type for cluster IDs and weights
-    using ClusterID     = shm::Mandatory;
-    using ClusterWeight = shm::Mandatory;
+    using ClusterID     = tag::Mandatory;
+    using ClusterWeight = tag::Mandatory;
 
     // Approx. number of edges per work unit
     static constexpr shm::NodeID kMinChunkSize = 1024;

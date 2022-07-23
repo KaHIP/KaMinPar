@@ -11,7 +11,7 @@
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_for.h>
 
-#include <kassert/kassert.hpp>
+#include "common/assert.h"
 
 namespace kaminpar::shm::metrics {
 EdgeWeight edge_cut(const PartitionedGraph& p_graph, tag::Parallel) {

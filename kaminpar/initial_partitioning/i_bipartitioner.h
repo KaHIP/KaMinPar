@@ -9,8 +9,7 @@
 #include <array>
 #include <tuple>
 
-#include <kassert/kassert.hpp>
-
+#include "common/assert.h"
 #include "kaminpar/context.h"
 
 namespace kaminpar::shm {

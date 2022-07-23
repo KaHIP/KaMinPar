@@ -9,7 +9,7 @@
 #include <tbb/enumerable_thread_specific.h>
 
 #include "common/parallel/algorithm.h"
-#include "kaminpar/utils/timer.h"
+#include "common/timer.h"
 
 namespace kaminpar::shm::graph {
 std::pair<NodeID, NodeWeight>

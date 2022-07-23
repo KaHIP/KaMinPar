@@ -6,7 +6,7 @@
  ******************************************************************************/
 #include "kaminpar/coarsening/cluster_coarsener.h"
 
-#include "kaminpar/utils/timer.h"
+#include "common/timer.h"
 
 namespace kaminpar::shm {
 std::pair<const Graph*, bool>

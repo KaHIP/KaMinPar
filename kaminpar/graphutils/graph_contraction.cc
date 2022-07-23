@@ -14,7 +14,7 @@
 #include "common/datastructures/rating_map.h"
 #include "common/datastructures/ts_navigable_linked_list.h"
 #include "common/parallel/algorithm.h"
-#include "kaminpar/utils/timer.h"
+#include "common/timer.h"
 
 namespace kaminpar::shm::graph {
 using namespace contraction;

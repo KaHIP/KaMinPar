@@ -18,8 +18,11 @@
 #include <kassert/kassert.hpp>
 
 #include "common/datastructures/static_array.h"
+#include "common/logger.h"
 #include "common/parallel/atomic.h"
 #include "common/ranges.h"
+#include "common/scalable_vector.h"
+#include "common/tags.h"
 #include "common/utils/strings.h"
 #include "kaminpar/definitions.h"
 

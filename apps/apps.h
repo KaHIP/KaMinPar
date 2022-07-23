@@ -1,24 +1,22 @@
 /*******************************************************************************
  * @file:   apps.h
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:
  ******************************************************************************/
 #pragma once
-
-#include "apps/environment.h"
-#include "kaminpar/context.h"
-#include "kaminpar/definitions.h"
-#include "kaminpar/utils/logger.h"
-
-#include <kassert/kassert.hpp>
 
 #if __has_include(<numa.h>)
     #include <numa.h>
 #endif // __has_include(<numa.h>)
 
 #include <tbb/global_control.h>
+#include "apps/environment.h"
+#include "common/assert.h"
+#include "common/detect_macro.h"
+#include "common/logger.h"
+#include "kaminpar/context.h"
+#include "kaminpar/definitions.h"
 
 namespace kaminpar {
 inline void print_identifier(int argc, char* argv[]) {

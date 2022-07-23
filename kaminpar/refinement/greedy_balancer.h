@@ -16,11 +16,11 @@
 #include "common/datastructures/marker.h"
 #include "common/datastructures/rating_map.h"
 #include "common/random.h"
+#include "common/timer.h"
 #include "kaminpar/context.h"
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/metrics.h"
 #include "kaminpar/refinement/i_balancer.h"
-#include "kaminpar/utils/timer.h"
 
 namespace kaminpar::shm {
 class GreedyBalancer : public IBalancer {

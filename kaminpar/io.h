@@ -17,8 +17,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include <kassert/kassert.hpp>
-
+#include "common/assert.h"
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/definitions.h"
 
