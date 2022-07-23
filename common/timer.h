@@ -1,8 +1,7 @@
 /*******************************************************************************
  * @file:   timer.h
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:  Helper class for time measurement.
  ******************************************************************************/
 #pragma once
@@ -15,8 +14,6 @@
 
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/task_arena.h>
-
-#include "kaminpar/definitions.h"
 
 #define KAMINPAR_ENABLE_TIMERS
 

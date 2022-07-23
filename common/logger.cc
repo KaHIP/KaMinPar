@@ -1,11 +1,10 @@
 /*******************************************************************************
  * @file:   logger.cc
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:  Helper for console output.
  ******************************************************************************/
-#include "kaminpar/utils/logger.h"
+#include "common/logger.h"
 
 namespace kaminpar {
 namespace logger {

@@ -1,8 +1,7 @@
 /*******************************************************************************
  * @file:   logger.h
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:  Helper for console output.
  ******************************************************************************/
 #pragma once
@@ -20,8 +19,83 @@
 
 #include <tbb/spin_mutex.h>
 
+#if __has_include(<sched.h>)
+    #include <sched.h>
+    #define HAS_SCHED_GETCPU
+#endif
+
+// Macros for debug output
+//
+// To use these macros, you must define a boolean variable kDebug somewhere
+// The macros only produce output if the boolean variable is set to true
+//
+// DBG can be used just like LOG
+// DBGC(cond) only produces output if the given condition evaluates to true
+// IFDBG(expr) evaluates the expression and returns its result iff kDebug is set to true, otherwise returns the default
+// value for its result data type
+#define FILENAME (std::strrchr(__FILE__, '/') ? std::strrchr(__FILE__, '/') + 1 : __FILE__)
+#define POSITION "[" << FILENAME << ":" << __LINE__ << "][" << __func__ << "]"
+#ifdef HAS_SCHED_GETCPU
+    #define CPU "[CPU" << sched_getcpu() << "]"
+#else // HAS_SCHED_GETCPU
+    #define CPU ""
+#endif // HAS_SCHED_GETCPU
+
+#define SET_DEBUG(value) [[maybe_unused]] static constexpr bool kDebug = value
+#define DBGC(cond)                                      \
+    (kDebug && (cond))                                  \
+        && kaminpar::DisposableLogger<false>(std::cout) \
+               << kaminpar::logger::MAGENTA << POSITION << CPU << " " << kaminpar::logger::DEFAULT_TEXT
+#define DBG         DBGC(true)
+#define IFDBG(expr) (kDebug ? (expr) : decltype(expr)())
+
+// Macros for general console output
+//
+// LOG, SUCCESS, WARNING, ERROR print one line of colored output
+// LOG: no colors
+// SUCCESS: in green with prefix [Success]
+// WARNING: in orange with prefix [Warning]
+// ERROR: in red with prefix [Error]
+//
+// LLOG, LSUCCESS, LWARNING, LERROR print the message without appending a new line symbol
+//
+// FATAL_ERROR and FATAL_PERROR act like ERROR but also aborting the program after printing the message
+// FATAL_PERROR appends the output of std::perror()
 #define LOG  (kaminpar::Logger())
 #define LLOG (kaminpar::Logger(std::cout, ""))
+
+#define LOG_ERROR    (kaminpar::Logger(std::cout) << kaminpar::logger::RED << "[Error] ")
+#define LOG_LERROR   (kaminpar::Logger(std::cout, "") << kaminpar::logger::RED)
+#define LOG_SUCCESS  (kaminpar::Logger(std::cout) << kaminpar::logger::GREEN << "[Success] ")
+#define LOG_LSUCCESS (kaminpar::Logger(std::cout, "") << kaminpar::logger::GREEN)
+#define LOG_WARNING  (kaminpar::Logger(std::cout) << kaminpar::logger::ORANGE << "[Warning] ")
+#define LOG_LWARNING (kaminpar::Logger(std::cout, "") << kaminpar::logger::ORANGE)
+#define FATAL_ERROR  (kaminpar::DisposableLogger<true>(std::cout) << kaminpar::logger::RED << "[Fatal] ")
+#define FATAL_PERROR                                                                              \
+    (kaminpar::DisposableLogger<true>(std::cout, std::string(": ") + std::strerror(errno) + "\n") \
+     << kaminpar::logger::RED << "[Fatal] ")
+
+// V(x) prints x<space><value of x><space>, e.g., use LOG << V(a) << V(b) << V(c); to quickly print the values of
+// variables a, b, c
+// C(x, y) prints [<value of x> --> <value of y>]
+#define V(x)    std::string(#x "=") << (x) << " "
+#define C(x, y) "[" << (x) << " --> " << (y) << "] "
+
+// Macros for statistics
+//
+// SET_STATISTICS(false or true): disable or enable statistics for the given module
+// SET_STATISTICS_FROM_GLOBAL: respect compiler option -DKAMINPAR_ENABLE_STATISTICS for this module
+// IFSTATS(x): only evaluate this expression if statistics are enabled
+// STATS: LOG for statistics output: only evaluate and output if statistics are enabled
+#define SET_STATISTICS(value) [[maybe_unused]] constexpr static bool kStatistics = value
+#define IFSTATS(x)            (kStatistics ? (x) : std::decay_t<decltype(x)>())
+#define STATS                 kStatistics&& kaminpar::DisposableLogger<false>(std::cout) << kaminpar::logger::CYAN
+
+#ifdef KAMINPAR_ENABLE_STATISTICS
+    #define SET_STATISTICS_FROM_GLOBAL() SET_STATISTICS(true)
+#else // KAMINPAR_ENABLE_STATISTICS
+    #define SET_STATISTICS_FROM_GLOBAL() SET_STATISTICS(false)
+#endif // KAMINPAR_ENABLE_STATISTISC
 
 namespace kaminpar {
 namespace logger {
@@ -174,5 +248,36 @@ private:
     std::ostream&      _out;
     std::string        _append;
     bool               _flushed{false};
+};
+
+// Helper function to implement ASSERT() and DBG() macros
+template <bool abort_on_destruction>
+class DisposableLogger {
+public:
+    template <typename... Args>
+    explicit DisposableLogger(Args&&... args) : _logger(std::forward<Args>(args)...) {}
+
+    ~DisposableLogger() {
+        _logger << logger::RESET;
+        _logger.flush();
+        if constexpr (abort_on_destruction) {
+            std::abort();
+        }
+    }
+
+    template <typename Arg>
+    DisposableLogger& operator<<(Arg&& arg) {
+        _logger << std::forward<Arg>(arg);
+        return *this;
+    }
+
+    // if the ASSERT or DBG macro is disabled, we use short circuit evaluation to dispose this logger and all calls to
+    // it for do this, it must be implicitly convertible to bool (the return value does not matter)
+    operator bool() {
+        return false;
+    } // NOLINT
+
+private:
+    Logger _logger;
 };
 } // namespace kaminpar

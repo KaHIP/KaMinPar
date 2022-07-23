@@ -1,11 +1,11 @@
 /*******************************************************************************
  * @file:   timer.cc
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:  Helper class for time measurement.
  ******************************************************************************/
-#include "kaminpar/utils/timer.h"
+#include "common/timer.h"
+
 #include <iomanip>
 #include <sstream>
 
