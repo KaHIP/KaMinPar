@@ -19,7 +19,7 @@
 #include "dkaminpar/mpi/wrapper.h"
 #include "kaminpar/datastructure/graph.h"
 
-namespace dkaminpar {
+namespace kaminpar::dist {
 namespace graph {
 [[nodiscard]] inline growt::StaticGhostNodeMapping
 build_static_ghost_node_mapping(std::unordered_map<GlobalNodeID, NodeID> global_to_ghost) {
@@ -693,4 +693,4 @@ bool validate(const DistributedGraph& graph, int root = 0);
 // validate structure of a distributed graph partition
 bool validate_partition(const DistributedPartitionedGraph& p_graph);
 } // namespace graph::debug
-} // namespace dkaminpar
+} // namespace kaminpar::dist

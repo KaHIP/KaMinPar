@@ -1,6 +1,5 @@
 /*******************************************************************************
  * @file:   distributed_context.h
- *
  * @author: Daniel Seemaier
  * @date:   27.10.2021
  * @brief:
@@ -11,7 +10,7 @@
 #include "dkaminpar/definitions.h"
 #include "kaminpar/context.h"
 
-namespace dkaminpar {
+namespace kaminpar::dist {
 enum class PartitioningMode {
     KWAY,
     DEEP,
@@ -273,4 +272,4 @@ struct Context {
 std::ostream& operator<<(std::ostream& out, const Context& context);
 
 Context create_default_context();
-} // namespace dkaminpar
+} // namespace kaminpar::dist

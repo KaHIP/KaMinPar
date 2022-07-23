@@ -17,7 +17,7 @@
 #include "dkaminpar/mpi/wrapper.h"
 #include "kaminpar/io.h"
 
-namespace dkaminpar::io {
+namespace kaminpar::dist::io {
 enum class DistributionType {
     NODE_BALANCED,
     EDGE_BALANCED,
@@ -86,4 +86,4 @@ void write(const std::string& filename, const Container& partition) {
         MPI_COMM_WORLD);
 }
 } // namespace partition
-} // namespace dkaminpar::io
+} // namespace kaminpar::dist::io

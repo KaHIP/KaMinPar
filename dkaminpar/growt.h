@@ -33,7 +33,7 @@
     #pragma clang diagnostic pop
 #endif
 
-namespace dkaminpar::growt {
+namespace kaminpar::dist::growt {
 using DefaultHasherType    = utils_tm::hash_tm::murmur2_hash;
 using DefaultAllocatorType = ::growt::AlignedAllocator<>;
 
@@ -57,4 +57,4 @@ auto create_handle_ets(Map& map) {
         return map.get_handle();
     }};
 }
-} // namespace dkaminpar::growt
+} // namespace kaminpar::dist::growt

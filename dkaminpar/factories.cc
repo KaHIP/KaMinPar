@@ -24,7 +24,7 @@
 #include "dkaminpar/coarsening/locking_label_propagation_clustering.h"
 #include "dkaminpar/coarsening/noop_clustering.h"
 
-namespace dkaminpar::factory {
+namespace kaminpar::dist::factory {
 std::unique_ptr<IInitialPartitioner> create_initial_partitioning_algorithm(const Context& ctx) {
     switch (ctx.initial_partitioning.algorithm) {
         case InitialPartitioningAlgorithm::KAMINPAR:
@@ -75,4 +75,4 @@ std::unique_ptr<ClusteringAlgorithm<NodeID>> create_local_clustering_algorithm(c
 
     __builtin_unreachable();
 }
-} // namespace dkaminpar::factory
+} // namespace kaminpar::dist::factory

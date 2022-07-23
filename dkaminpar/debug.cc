@@ -8,10 +8,10 @@
 
 #include "dkaminpar/distributed_io.h"
 
-namespace dkaminpar::debug {
+namespace kaminpar::dist::debug {
 namespace {
 std::string create_basename(const Context& ctx, const int level) {
-    return shm::str::extract_basename(ctx.graph_filename) + ".seed" + std::to_string(ctx.seed) + ".k"
+    return str::extract_basename(ctx.graph_filename) + ".seed" + std::to_string(ctx.seed) + ".k"
            + std::to_string(ctx.partition.k) + ".level" + std::to_string(level);
 }
 } // namespace
@@ -35,4 +35,4 @@ void save_global_clustering(
     const scalable_vector<Atomic<GlobalNodeID>>& clustering, const Context& ctx, const int level) {
     io::partition::write(create_basename(ctx, level) + ".clustering", clustering);
 }
-} // namespace dkaminpar::debug
+} // namespace kaminpar::dist::debug

@@ -14,7 +14,7 @@
 #include "dkaminpar/mpi/graph_communication.h"
 #include "dkaminpar/mpi/wrapper.h"
 
-namespace dkaminpar {
+namespace kaminpar::dist {
 void DistributedGraph::print() const {
     std::ostringstream buf;
 
@@ -477,4 +477,4 @@ bool validate_partition(const DistributedPartitionedGraph& p_graph) {
     return true;
 }
 } // namespace graph::debug
-} // namespace dkaminpar
+} // namespace kaminpar::dist

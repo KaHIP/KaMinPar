@@ -15,7 +15,7 @@
 #include "dkaminpar/growt.h"
 #include "dkaminpar/mpi/graph_communication.h"
 
-namespace dkaminpar::graph {
+namespace kaminpar::dist::graph {
 class GhostNodeMapper {
     using GhostNodeMap = tbb::concurrent_hash_map<GlobalNodeID, NodeID>;
 
@@ -221,4 +221,4 @@ private:
 
     bool _unit_node_weights{true};
 };
-} // namespace dkaminpar::graph
+} // namespace kaminpar::dist::graph

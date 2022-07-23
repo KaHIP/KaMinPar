@@ -16,7 +16,7 @@
 #include "dkaminpar/utils/math.h"
 #include "kaminpar/io.h"
 
-namespace dkaminpar::io {
+namespace kaminpar::dist::io {
 SET_DEBUG(false);
 
 DistributedGraph read_graph(const std::string& filename, DistributionType type, MPI_Comm comm) {
@@ -401,4 +401,4 @@ DistributedGraph read_edge_balanced(const std::string& filename, MPI_Comm comm) 
     return read_distributed_graph(in, static_cast<GlobalNodeID>(from), static_cast<GlobalNodeID>(to), comm);
 }
 } // namespace binary
-} // namespace dkaminpar::io
+} // namespace kaminpar::dist::io

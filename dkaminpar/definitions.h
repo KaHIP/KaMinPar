@@ -18,9 +18,7 @@
 #include "kaminpar/definitions.h"
 #include "kaminpar/utils/noinit_allocator.h"
 
-namespace dkaminpar {
-namespace shm = kaminpar;
-
+namespace kaminpar::dist {
 using shm::NodeID;
 using GlobalNodeID = uint64_t;
 using shm::NodeWeight;
@@ -60,28 +58,6 @@ inline int get_rank(MPI_Comm comm = MPI_COMM_WORLD) {
     return rank;
 }
 } // namespace internal
-
-// Import commonly used symbols to dkaminpar namespace
-namespace parallel {
-using namespace shm::parallel;
-};
-
-namespace assert {
-using namespace shm::assert;
-};
-
-template <typename T>
-using scalable_vector = shm::scalable_vector<T>;
-
-template <typename T>
-using cache_aligned_vector = std::vector<T, tbb::cache_aligned_allocator<T>>;
-
-template <typename T>
-using scalable_noinit_vector = std::vector<T, shm::noinit_allocator<T, tbb::scalable_allocator<T>>>;
-
-// @todo remove
-template <typename T>
-using Atomic = shm::parallel::Atomic<T>;
 
 class SynchronizedLogger {
 public:
@@ -137,7 +113,7 @@ public:
 
 private:
     std::ostringstream _buf;
-    shm::Logger        _logger;
+    Logger             _logger;
     int                _root;
     MPI_Comm           _comm;
 };
@@ -180,4 +156,4 @@ private:
 #define SLOG (dkaminpar::SynchronizedLogger())
 #define SLOGP(root, comm) (dkaminpar::SynchronizedLogger(root, comm))
 // clang-format on
-} // namespace dkaminpar
+} // namespace kaminpar::dist

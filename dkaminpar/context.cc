@@ -1,6 +1,5 @@
 /*******************************************************************************
  * @file:   distributed_context.cc
- *
  * @author: Daniel Seemaier
  * @date:   27.10.2021
  * @brief:
@@ -12,7 +11,7 @@
 #include "common/utils/enum_string_conversion.h"
 #include "dkaminpar/mpi/wrapper.h"
 
-namespace dkaminpar {
+namespace kaminpar::dist {
 using namespace std::string_literals;
 
 DEFINE_ENUM_STRING_CONVERSION(PartitioningMode, partitioning_mode) = {
@@ -257,4 +256,4 @@ Context create_default_context() {
   };
     // clang-format on
 }
-} // namespace dkaminpar
+} // namespace kaminpar::dist
