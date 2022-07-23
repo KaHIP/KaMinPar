@@ -1,6 +1,5 @@
 /*******************************************************************************
  * @file:   wrapper.h
- *
  * @author: Daniel Seemaier
  * @date:   27.10.2021
  * @brief:  C++ wrapper for MPI calls.

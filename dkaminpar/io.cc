@@ -1,11 +1,10 @@
 /*******************************************************************************
  * @file:   distributed_io.cc
- *
  * @author: Daniel Seemaier
  * @date:   27.10.2021
  * @brief:  Load / store distributed graphs from METIS or KaHIP Binary formats.
  ******************************************************************************/
-#include "dkaminpar/distributed_io.h"
+#include "dkaminpar/io.h"
 
 #include <tbb/concurrent_hash_map.h>
 #include <tbb/parallel_for.h>

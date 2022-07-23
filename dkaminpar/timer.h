@@ -1,15 +1,14 @@
 /*******************************************************************************
  * @file:   distributed_timer.h
- *
  * @author: Daniel Seemaier
  * @date:   27.10.2021
  * @brief:
  ******************************************************************************/
 #pragma once
 
+#include "common/timer.h"
 #include "dkaminpar/definitions.h"
-#include "kaminpar/utils/timer.h"
 
-namespace dkaminpar::timer {
-void collect_and_annotate_distributed_timer(shm::Timer& timer, MPI_Comm comm = MPI_COMM_WORLD);
+namespace kaminpar::dist {
+void finalize_distributed_timer(Timer& timer, MPI_Comm comm = MPI_COMM_WORLD);
 }

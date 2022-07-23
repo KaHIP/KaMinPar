@@ -1,6 +1,5 @@
 /*******************************************************************************
  * @file:   distributed_graph.h
- *
  * @author: Daniel Seemaier
  * @date:   27.10.2021
  * @brief:  Static distributed graph data structure.
@@ -14,8 +13,10 @@
 #include "common//ranges.h"
 #include "common/datastructures/marker.h"
 #include "common/parallel/algorithm.h"
+#include "common/scalable_vector.h"
 #include "dkaminpar/definitions.h"
 #include "dkaminpar/growt.h"
+#include "dkaminpar/logger.h"
 #include "dkaminpar/mpi/wrapper.h"
 #include "kaminpar/datastructure/graph.h"
 
@@ -35,14 +36,14 @@ class DistributedGraph {
     SET_DEBUG(true);
 
 public:
-    using NodeID           = ::dkaminpar::NodeID;
-    using GlobalNodeID     = ::dkaminpar::GlobalNodeID;
-    using NodeWeight       = ::dkaminpar::NodeWeight;
-    using GlobalNodeWeight = ::dkaminpar::GlobalNodeWeight;
-    using EdgeID           = ::dkaminpar::EdgeID;
-    using GlobalEdgeID     = ::dkaminpar::GlobalEdgeID;
-    using EdgeWeight       = ::dkaminpar::EdgeWeight;
-    using GlobalEdgeWeight = ::dkaminpar::GlobalEdgeWeight;
+    using NodeID           = ::kaminpar::dist::NodeID;
+    using GlobalNodeID     = ::kaminpar::dist::GlobalNodeID;
+    using NodeWeight       = ::kaminpar::dist::NodeWeight;
+    using GlobalNodeWeight = ::kaminpar::dist::GlobalNodeWeight;
+    using EdgeID           = ::kaminpar::dist::EdgeID;
+    using GlobalEdgeID     = ::kaminpar::dist::GlobalEdgeID;
+    using EdgeWeight       = ::kaminpar::dist::EdgeWeight;
+    using GlobalEdgeWeight = ::kaminpar::dist::GlobalEdgeWeight;
 
     DistributedGraph() = default;
 

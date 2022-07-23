@@ -1,11 +1,10 @@
 /*******************************************************************************
  * @file:   distributed_timer.cc
- *
  * @author: Daniel Seemaier
  * @date:   27.10.2021
  * @brief:
  ******************************************************************************/
-#include "dkaminpar/utils/distributed_timer.h"
+#include "dkaminpar/timer.h"
 
 #include <cmath>
 #include <numeric>
@@ -13,9 +12,7 @@
 
 #include "dkaminpar/mpi/wrapper.h"
 
-namespace dkaminpar::timer {
-using shm::Timer;
-
+namespace kaminpar::dist {
 namespace {
 class AlignedTable {
 public:
@@ -218,7 +215,7 @@ void annotate_timer_tree(
 }
 } // namespace
 
-void collect_and_annotate_distributed_timer(shm::Timer& timer, MPI_Comm comm) {
+void finalize_distributed_timer(shm::Timer& timer, MPI_Comm comm) {
     std::vector<NodeStatistics> statistics;
     generate_statistics(timer.tree(), statistics, comm);
     if (mpi::get_comm_rank(comm) == 0) {
@@ -239,4 +236,4 @@ void collect_and_annotate_distributed_timer(shm::Timer& timer, MPI_Comm comm) {
         annotate_timer_tree(timer.tree(), pos, statistics, table);
     }
 }
-} // namespace dkaminpar::timer
+} // namespace kaminpar::dist
