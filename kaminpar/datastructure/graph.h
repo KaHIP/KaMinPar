@@ -10,12 +10,13 @@
 #include <utility>
 #include <vector>
 
+#include <kassert/kassert.hpp>
 #include <tbb/blocked_range.h>
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_for.h>
 #include <tbb/parallel_reduce.h>
 
-#include <kassert/kassert.hpp>
+#include "kaminpar/definitions.h"
 
 #include "common/datastructures/static_array.h"
 #include "common/logger.h"
@@ -24,7 +25,6 @@
 #include "common/scalable_vector.h"
 #include "common/tags.h"
 #include "common/utils/strings.h"
-#include "kaminpar/definitions.h"
 
 namespace kaminpar::shm {
 using BlockArray       = StaticArray<BlockID>;

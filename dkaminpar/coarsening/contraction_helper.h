@@ -9,13 +9,16 @@
 
 #include <algorithm>
 
-#include "common/datastructures/ts_navigable_linked_list.h"
 #include "definitions.h"
+
 #include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/datastructure/distributed_graph_builder.h"
 #include "dkaminpar/utils/math.h"
+
 #include "kaminpar/utils/noinit_allocator.h"
 #include "kaminpar/utils/timer.h"
+
+#include "common/datastructures/ts_navigable_linked_list.h"
 
 namespace dkaminpar::coarsening::helper {
 namespace {

@@ -11,9 +11,8 @@
 #include <thread>
 #include <vector>
 
-#include <tbb/parallel_for.h>
-
 #include <kassert/kassert.hpp>
+#include <tbb/parallel_for.h>
 
 #include "common/parallel/atomic.h"
 #include "common/parallel/tbb_malloc.h"

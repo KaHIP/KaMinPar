@@ -6,9 +6,9 @@
  ******************************************************************************/
 #include "kaminpar/context.h"
 
-#include "common/utils/math.h"
-
 #include <kassert/kassert.hpp>
+
+#include "common/utils/math.h"
 
 namespace kaminpar::shm {
 using namespace std::string_literals;

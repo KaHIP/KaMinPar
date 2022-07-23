@@ -7,4 +7,3 @@ To asserting_cast(const From value) {
     return static_cast<To>(value);
 }
 } // namespace kaminpar
-

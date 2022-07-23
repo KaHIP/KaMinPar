@@ -10,15 +10,17 @@
 
 #include <tbb/parallel_for.h>
 
-#include "common//ranges.h"
-#include "common/datastructures/marker.h"
-#include "common/parallel/algorithm.h"
-#include "common/scalable_vector.h"
 #include "dkaminpar/definitions.h"
 #include "dkaminpar/growt.h"
 #include "dkaminpar/logger.h"
 #include "dkaminpar/mpi/wrapper.h"
+
 #include "kaminpar/datastructure/graph.h"
+
+#include "common/datastructures/marker.h"
+#include "common/parallel/algorithm.h"
+#include "common/ranges.h"
+#include "common/scalable_vector.h"
 
 namespace kaminpar::dist {
 namespace graph {

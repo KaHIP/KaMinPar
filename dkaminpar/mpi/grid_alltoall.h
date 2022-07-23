@@ -11,16 +11,17 @@
 
 #include <kassert/kassert.hpp>
 #include <mpi.h>
-
 #include <tbb/parallel_for.h>
+
+#include "dkaminpar/definitions.h"
+#include "dkaminpar/mpi/alltoall.h"
+#include "dkaminpar/mpi/wrapper.h"
+
+#include "kaminpar/utils/timer.h"
 
 #include "common/utils/math.h"
 #include "common/utils/noinit_vector.h"
 #include "common/utils/preallocated_vector.h"
-#include "dkaminpar/definitions.h"
-#include "dkaminpar/mpi/alltoall.h"
-#include "dkaminpar/mpi/wrapper.h"
-#include "kaminpar/utils/timer.h"
 
 namespace dkaminpar::mpi {
 namespace internal {

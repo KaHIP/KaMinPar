@@ -14,7 +14,6 @@
 #include <vector>
 
 #include <getopt.h>
-
 #include <kassert/kassert.hpp>
 
 #include "common/utils/strings.h"

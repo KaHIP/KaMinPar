@@ -1,13 +1,12 @@
 /*******************************************************************************
  * @file:   console_io.h
- *
  * @author: Daniel Seemaier
- * @date:   21.09.21
+ * @date:   21.09.2021
  * @brief:  Helper functions for console IO.
  ******************************************************************************/
 #pragma once
 
-#include <mutex>
+#include <string>
 
 namespace kaminpar::cio {
 void print_banner(const std::string& title);

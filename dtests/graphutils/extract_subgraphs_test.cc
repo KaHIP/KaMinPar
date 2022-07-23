@@ -6,8 +6,9 @@
  * @brief:  Unit tests to test the extraction of block induced subgraphs.
  ******************************************************************************/
 #include "datastructure/distributed_graph.h"
-#include "dkaminpar/graphutils/graph_extraction.h"
 #include "dtests/mpi_test.h"
+
+#include "dkaminpar/graphutils/graph_extraction.h"
 
 using namespace testing;
 using namespace dkaminpar::test::fixtures3PE;

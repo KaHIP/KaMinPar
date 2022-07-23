@@ -10,12 +10,14 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "common/parallel/atomic.h"
-#include "common/parallel/loops.h"
 #include "dkaminpar/growt.h"
 #include "dkaminpar/mpi/graph_communication.h"
 #include "dkaminpar/utils/math.h"
+
 #include "kaminpar/label_propagation.h"
+
+#include "common/parallel/atomic.h"
+#include "common/parallel/loops.h"
 
 namespace dkaminpar {
 namespace {

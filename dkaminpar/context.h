@@ -8,6 +8,7 @@
 
 #include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/definitions.h"
+
 #include "kaminpar/context.h"
 
 namespace kaminpar::dist {

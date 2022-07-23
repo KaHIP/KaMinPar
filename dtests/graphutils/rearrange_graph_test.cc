@@ -5,8 +5,9 @@
  * @date:   18.11.21
  * @brief:  Unit tests for rearranging distributed graphs by node degree.
  ******************************************************************************/
-#include "dkaminpar/graphutils/rearrange_graph.h"
 #include "dtests/mpi_test.h"
+
+#include "dkaminpar/graphutils/rearrange_graph.h"
 
 using ::testing::AnyOf;
 using ::testing::Each;

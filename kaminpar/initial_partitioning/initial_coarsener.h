@@ -12,11 +12,12 @@
 
 #include <kassert/kassert.hpp>
 
-#include "common/datastructures/fast_reset_array.h"
-#include "common/random.h"
 #include "kaminpar/context.h"
 #include "kaminpar/definitions.h"
 #include "kaminpar/initial_partitioning/sequential_graph_hierarchy.h"
+
+#include "common/datastructures/fast_reset_array.h"
+#include "common/random.h"
 
 #define STATIC_MAX_CLUSTER_WEIGHT(x) \
     [&](const NodeID) {              \

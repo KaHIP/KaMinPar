@@ -11,8 +11,10 @@
 #include <tbb/parallel_invoke.h>
 
 #include "definitions.h"
+
 #include "dkaminpar/mpi/graph_communication.h"
 #include "dkaminpar/mpi/wrapper.h"
+
 #include "kaminpar/datastructure/rating_map.h"
 
 namespace dkaminpar::coarsening {

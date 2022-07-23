@@ -11,12 +11,13 @@
 
 #include <kassert/kassert.hpp>
 #include <mpi.h>
-
 #include <tbb/parallel_for.h>
 
-#include "common/utils/noinit_vector.h"
 #include "dkaminpar/mpi/wrapper.h"
+
 #include "kaminpar/utils/timer.h"
+
+#include "common/utils/noinit_vector.h"
 
 #define SPARSE_ALLTOALL_NOFILTER \
     [](NodeID) {                 \

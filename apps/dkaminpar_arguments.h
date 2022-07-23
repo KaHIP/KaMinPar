@@ -8,6 +8,7 @@
 #pragma once
 
 #include "dkaminpar/context.h"
+
 #include "kaminpar/application/arguments_parser.h"
 #ifdef KAMINPAR_ENABLE_GRAPHGEN
     #include "apps/dkaminpar_graphgen.h"

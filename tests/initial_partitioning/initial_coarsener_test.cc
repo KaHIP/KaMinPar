@@ -7,10 +7,11 @@
  ******************************************************************************/
 #include <gmock/gmock.h>
 
-#include "kaminpar/context.h"
-#include "kaminpar/initial_partitioning/initial_coarsener.h"
 #include "matcher.h"
 #include "tests.h"
+
+#include "kaminpar/context.h"
+#include "kaminpar/initial_partitioning/initial_coarsener.h"
 
 using ::testing::UnorderedElementsAre;
 

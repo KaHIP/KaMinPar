@@ -9,13 +9,6 @@
 
 #include <tbb/parallel_for.h>
 
-#include "apps/apps.h"
-#include "common/arguments_parser.h"
-#include "common/assert.h"
-#include "common/logger.h"
-#include "common/random.h"
-#include "common/timer.h"
-#include "common/utils/console_io.h"
 #include "kaminpar/application/arguments.h"
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/definitions.h"
@@ -23,6 +16,15 @@
 #include "kaminpar/io.h"
 #include "kaminpar/metrics.h"
 #include "kaminpar/partitioning_scheme/partitioning.h"
+
+#include "common/arguments_parser.h"
+#include "common/assert.h"
+#include "common/console_io.h"
+#include "common/logger.h"
+#include "common/random.h"
+#include "common/timer.h"
+
+#include "apps/apps.h"
 
 using namespace kaminpar;
 using namespace kaminpar::shm;

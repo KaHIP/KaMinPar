@@ -15,6 +15,7 @@
 
 #include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/mpi/wrapper.h"
+
 #include "kaminpar/io.h"
 
 namespace kaminpar::dist::io {

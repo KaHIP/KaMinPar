@@ -18,4 +18,4 @@ void save_graph(const DistributedGraph& graph, const Context& ctx, const int lev
 void save_partitioned_graph(const DistributedPartitionedGraph& p_graph, const Context& ctx, const int level);
 
 void save_global_clustering(const scalable_vector<Atomic<GlobalNodeID>>& mapping, const Context& ctx, const int level);
-} // namespace dkaminpar::debug
+} // namespace kaminpar::dist::debug

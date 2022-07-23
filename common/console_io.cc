@@ -4,9 +4,9 @@
  * @date:   21.09.2021
  * @brief:  Helper functions for console IO.
  ******************************************************************************/
-#include "common/utils/console_io.h"
+#include "common/console_io.h"
 
-#include <kassert/kassert.hpp>
+#include <iostream>
 
 namespace kaminpar::cio {
 void print_banner(const std::string& title) {

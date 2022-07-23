@@ -8,6 +8,7 @@
 #include "dkaminpar/graphutils/allgather_graph.h"
 
 #include "dkaminpar/mpi/wrapper.h"
+
 #include "kaminpar/metrics.h"
 
 namespace dkaminpar::graph {

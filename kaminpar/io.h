@@ -17,9 +17,10 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include "common/assert.h"
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/definitions.h"
+
+#include "common/assert.h"
 
 namespace kaminpar::shm::io {
 namespace internal {

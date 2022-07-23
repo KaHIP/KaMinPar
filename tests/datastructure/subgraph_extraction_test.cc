@@ -1,6 +1,7 @@
-#include "kaminpar/graphutils/graph_extraction.h"
 #include "matcher.h"
 #include "tests.h"
+
+#include "kaminpar/graphutils/graph_extraction.h"
 
 using ::testing::AllOf;
 using ::testing::AnyOf;

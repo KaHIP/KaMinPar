@@ -8,8 +8,9 @@
 
 #include <array>
 
-#include "common/random.h"
 #include "kaminpar/initial_partitioning/i_bipartitioner.h"
+
+#include "common/random.h"
 
 namespace kaminpar::shm {
 class RandomBipartitioner : public Bipartitioner {

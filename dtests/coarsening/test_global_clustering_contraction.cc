@@ -8,9 +8,10 @@
  ******************************************************************************/
 #include <utility>
 
+#include "dtests/mpi_test.h"
+
 #include "dkaminpar/coarsening/global_clustering_contraction.h"
 #include "dkaminpar/datastructure/distributed_graph_builder.h"
-#include "dtests/mpi_test.h"
 
 using ::testing::AnyOf;
 using ::testing::Contains;

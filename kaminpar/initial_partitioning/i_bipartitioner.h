@@ -9,8 +9,9 @@
 #include <array>
 #include <tuple>
 
-#include "common/assert.h"
 #include "kaminpar/context.h"
+
+#include "common/assert.h"
 
 namespace kaminpar::shm {
 class Bipartitioner {

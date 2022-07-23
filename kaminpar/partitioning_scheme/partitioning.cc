@@ -6,10 +6,11 @@
  ******************************************************************************/
 #include "kaminpar/partitioning_scheme/partitioning.h"
 
-#include "common/logger.h"
-#include "common/timer.h"
 #include "kaminpar/partitioning_scheme/parallel_recursive_bisection.h"
 #include "kaminpar/partitioning_scheme/parallel_simple_recursive_bisection.h"
+
+#include "common/logger.h"
+#include "common/timer.h"
 
 namespace kaminpar::shm::partitioning {
 PartitionedGraph partition(const Graph& graph, const Context& ctx) {

@@ -1,5 +1,6 @@
-#include "common/datastructures/fast_reset_array.h"
 #include "gmock/gmock.h"
+
+#include "common/datastructures/fast_reset_array.h"
 
 namespace kaminpar {
 TEST(FastResetArrayTest, CapacityWorks) {

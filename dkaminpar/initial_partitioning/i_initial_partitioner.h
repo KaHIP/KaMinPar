@@ -8,6 +8,7 @@
 #pragma once
 
 #include "dkaminpar/definitions.h"
+
 #include "kaminpar/datastructure/graph.h"
 
 namespace dkaminpar {

@@ -45,4 +45,3 @@ constexpr EdgeWeight  kInvalidEdgeWeight  = std::numeric_limits<EdgeWeight>::max
 constexpr BlockWeight kInvalidBlockWeight = std::numeric_limits<BlockWeight>::max();
 constexpr Degree      kMaxDegree          = std::numeric_limits<Degree>::max();
 } // namespace kaminpar::shm
-

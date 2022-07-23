@@ -1,18 +1,19 @@
 /*******************************************************************************
  * @file:   distributed_graph.cc
- *
  * @author: Daniel Seemaier
  * @date:   27.10.2021
  * @brief:  Static distributed graph data structure.
  ******************************************************************************/
+#include "dkaminpar/datastructure/distributed_graph.h"
+
 #include <iomanip>
 #include <numeric>
 
-#include "common/parallel/vector_ets.h"
-#include "common/utils/math.h"
-#include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/mpi/graph_communication.h"
 #include "dkaminpar/mpi/wrapper.h"
+
+#include "common/parallel/vector_ets.h"
+#include "common/utils/math.h"
 
 namespace kaminpar::dist {
 void DistributedGraph::print() const {

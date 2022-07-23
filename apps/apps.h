@@ -11,12 +11,15 @@
 #endif // __has_include(<numa.h>)
 
 #include <tbb/global_control.h>
-#include "apps/environment.h"
+
+#include "kaminpar/context.h"
+#include "kaminpar/definitions.h"
+
 #include "common/assert.h"
 #include "common/detect_macro.h"
 #include "common/logger.h"
-#include "kaminpar/context.h"
-#include "kaminpar/definitions.h"
+
+#include "apps/environment.h"
 
 namespace kaminpar {
 inline void print_identifier(int argc, char* argv[]) {

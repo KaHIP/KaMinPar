@@ -17,17 +17,20 @@
 #include <mpi.h>
 #include <omp.h>
 
-#include "apps/apps.h"
-#include "apps/dkaminpar_arguments.h"
-#include "common/random.h"
 #include "dkaminpar/coarsening/global_clustering_contraction.h"
 #include "dkaminpar/context.h"
 #include "dkaminpar/distributed_io.h"
 #include "dkaminpar/graphutils/rearrange_graph.h"
 #include "dkaminpar/mpi/wrapper.h"
+
 #include "kaminpar/definitions.h"
 #include "kaminpar/utils/logger.h"
 #include "kaminpar/utils/timer.h"
+
+#include "common/random.h"
+
+#include "apps/apps.h"
+#include "apps/dkaminpar_arguments.h"
 
 using namespace dkaminpar;
 namespace shm = kaminpar;

@@ -5,15 +5,18 @@
  * @brief:  Deep multilevel graph partitioning scheme.
  ******************************************************************************/
 #include "dkaminpar/partitioning_scheme/deep_partitioning_scheme.h"
+
 #include <mpi.h>
 
-#include "common/utils/math.h"
 #include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/factories.h"
 #include "dkaminpar/graphutils/allgather_graph.h"
 #include "dkaminpar/mpi/wrapper.h"
 #include "dkaminpar/partitioning_scheme/kway_partitioning_scheme.h"
+
 #include "kaminpar/utils/timer.h"
+
+#include "common/utils/math.h"
 
 namespace dkaminpar {
 DeepPartitioningScheme::DeepPartitioningScheme(const DistributedGraph& input_graph, const Context& input_ctx)

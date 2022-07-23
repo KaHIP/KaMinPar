@@ -1,7 +1,8 @@
 #include <gmock/gmock.h>
 
-#include "common/datastructures/static_array.h"
 #include "tests.h"
+
+#include "common/datastructures/static_array.h"
 
 using ::testing::Eq;
 

@@ -5,8 +5,6 @@
  * @date:   21.09.21
  * @brief:  Performance benchmark for coarsening.
  ******************************************************************************/
-#include "apps/apps.h"
-#include "common/random.h"
 #include "kaminpar/application/arguments.h"
 #include "kaminpar/application/arguments_parser.h"
 #include "kaminpar/coarsening/cluster_coarsener.h"
@@ -14,6 +12,10 @@
 #include "kaminpar/context.h"
 #include "kaminpar/io.h"
 #include "kaminpar/utils/timer.h"
+
+#include "common/random.h"
+
+#include "apps/apps.h"
 
 using namespace kaminpar;
 

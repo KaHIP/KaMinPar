@@ -6,9 +6,8 @@
  ******************************************************************************/
 #pragma once
 
-#include <tbb/concurrent_vector.h>
-
 #include <kassert/kassert.hpp>
+#include <tbb/concurrent_vector.h>
 
 #include "kaminpar/coarsening/i_coarsener.h"
 #include "kaminpar/datastructure/graph.h"

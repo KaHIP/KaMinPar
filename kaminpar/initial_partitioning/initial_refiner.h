@@ -11,16 +11,17 @@
 
 #include <kassert/kassert.hpp>
 
-#include "common/assert.h"
-#include "common/datastructures/binary_heap.h"
-#include "common/datastructures/marker.h"
-#include "common/random.h"
-#include "common/timer.h"
 #include "kaminpar/context.h"
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/definitions.h"
 #include "kaminpar/metrics.h"
 #include "kaminpar/refinement/i_refiner.h"
+
+#include "common/assert.h"
+#include "common/datastructures/binary_heap.h"
+#include "common/datastructures/marker.h"
+#include "common/random.h"
+#include "common/timer.h"
 
 namespace kaminpar::shm::ip {
 using Queues = std::array<BinaryMinHeap<Gain>, 2>;

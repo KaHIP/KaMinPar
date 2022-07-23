@@ -11,16 +11,17 @@
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/task_arena.h>
 
+#include "kaminpar/context.h"
+#include "kaminpar/datastructure/graph.h"
+#include "kaminpar/metrics.h"
+#include "kaminpar/refinement/i_balancer.h"
+
 #include "common/datastructures/binary_heap.h"
 #include "common/datastructures/fast_reset_array.h"
 #include "common/datastructures/marker.h"
 #include "common/datastructures/rating_map.h"
 #include "common/random.h"
 #include "common/timer.h"
-#include "kaminpar/context.h"
-#include "kaminpar/datastructure/graph.h"
-#include "kaminpar/metrics.h"
-#include "kaminpar/refinement/i_balancer.h"
 
 namespace kaminpar::shm {
 class GreedyBalancer : public IBalancer {

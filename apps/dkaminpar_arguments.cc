@@ -6,6 +6,7 @@
  * @brief:
  ******************************************************************************/
 #include "apps/dkaminpar_arguments.h"
+
 #include <string>
 
 #include "kaminpar/application/arguments.h"

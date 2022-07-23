@@ -1,6 +1,7 @@
 #pragma once
 
 #include "gmock/gmock.h"
+
 #include "kaminpar/datastructure/graph.h"
 
 using ::testing::Matcher;

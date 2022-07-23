@@ -20,14 +20,16 @@
 
 #include <mpi.h>
 
-#include "common/random.h"
 #include "dkaminpar/distributed_io.h"
 #include "dkaminpar/graphutils/allgather_graph.h"
 #include "dkaminpar/utils/distributed_timer.h"
+
 #include "kaminpar/definitions.h"
 #include "kaminpar/io.h"
 #include "kaminpar/utils/logger.h"
 #include "kaminpar/utils/timer.h"
+
+#include "common/random.h"
 
 namespace dist = dkaminpar;
 namespace shm  = kaminpar;

@@ -6,8 +6,9 @@
  * @brief:  Unit tests for graph projects that do not make any assumptions on
  * how the contracted graph is distributed across PEs.
  ******************************************************************************/
-#include "dkaminpar/coarsening/global_clustering_contraction.h"
 #include "dtests/mpi_test.h"
+
+#include "dkaminpar/coarsening/global_clustering_contraction.h"
 
 using ::testing::AnyOf;
 using ::testing::Contains;

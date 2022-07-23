@@ -14,16 +14,19 @@
 
 #include <mpi.h>
 
-#include "apps/apps.h"
-#include "apps/dkaminpar_arguments.h"
-#include "common/random.h"
 #include "dkaminpar/coarsening/global_clustering_contraction.h"
 #include "dkaminpar/coarsening/locking_label_propagation_clustering.h"
 #include "dkaminpar/context.h"
 #include "dkaminpar/distributed_io.h"
+
 #include "kaminpar/definitions.h"
 #include "kaminpar/utils/logger.h"
 #include "kaminpar/utils/timer.h"
+
+#include "common/random.h"
+
+#include "apps/apps.h"
+#include "apps/dkaminpar_arguments.h"
 
 namespace dist = dkaminpar;
 namespace shm  = kaminpar;

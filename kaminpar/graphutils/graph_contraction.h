@@ -6,9 +6,10 @@
  ******************************************************************************/
 #pragma once
 
+#include "kaminpar/datastructure/graph.h"
+
 #include "common/datastructures/ts_navigable_linked_list.h"
 #include "common/parallel/atomic.h"
-#include "kaminpar/datastructure/graph.h"
 
 namespace kaminpar::shm::graph {
 namespace contraction {

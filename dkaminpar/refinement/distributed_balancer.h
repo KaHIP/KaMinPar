@@ -7,12 +7,15 @@
  ******************************************************************************/
 #pragma once
 
-#include "common/datastructures/binary_heap.h"
-#include "common/datastructures/marker.h"
 #include "definitions.h"
+
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructure/distributed_graph.h"
+
 #include "kaminpar/datastructure/rating_map.h"
+
+#include "common/datastructures/binary_heap.h"
+#include "common/datastructures/marker.h"
 
 namespace dkaminpar {
 class DistributedBalancer {

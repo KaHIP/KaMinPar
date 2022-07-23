@@ -9,8 +9,9 @@
  ******************************************************************************/
 #pragma once
 
-#include "common/arguments_parser.h"
 #include "kaminpar/context.h"
+
+#include "common/arguments_parser.h"
 
 namespace kaminpar::shm::app {
 void create_coarsening_context_options(

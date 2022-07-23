@@ -5,8 +5,6 @@
  * @date:   12.04.2022
  * @brief:  Performance benchmark for shared-memory balancing algorithms.
  ******************************************************************************/
-#include "apps/apps.h"
-#include "common/random.h"
 #include "kaminpar/application/arguments.h"
 #include "kaminpar/application/arguments_parser.h"
 #include "kaminpar/coarsening/cluster_coarsener.h"
@@ -16,6 +14,10 @@
 #include "kaminpar/io.h"
 #include "kaminpar/metrics.h"
 #include "kaminpar/utils/timer.h"
+
+#include "common/random.h"
+
+#include "apps/apps.h"
 
 using namespace kaminpar;
 

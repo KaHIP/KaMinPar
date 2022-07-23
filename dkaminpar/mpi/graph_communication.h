@@ -11,13 +11,15 @@
 
 #include <omp.h>
 
-#include "common/datastructures/marker.h"
-#include "common/parallel/aligned_element.h"
 #include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/definitions.h"
 #include "dkaminpar/mpi/alltoall.h"
 #include "dkaminpar/mpi/grid_alltoall.h"
+
 #include "kaminpar/utils/timer.h"
+
+#include "common/datastructures/marker.h"
+#include "common/parallel/aligned_element.h"
 
 #define SPARSE_ALLTOALL_NOFILTER \
     [](NodeID) {                 \

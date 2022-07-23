@@ -8,8 +8,9 @@
 
 #include <tbb/parallel_for.h>
 
-#include "common/utils/enum_string_conversion.h"
 #include "dkaminpar/mpi/wrapper.h"
+
+#include "common/utils/enum_string_conversion.h"
 
 namespace kaminpar::dist {
 using namespace std::string_literals;

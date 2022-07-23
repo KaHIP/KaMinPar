@@ -7,8 +7,9 @@
  ******************************************************************************/
 #pragma once
 
-#include "common/datastructures/ts_navigable_linked_list.h"
 #include "dkaminpar/datastructure/distributed_graph.h"
+
+#include "common/datastructures/ts_navigable_linked_list.h"
 
 namespace dkaminpar::coarsening {
 namespace contraction {

@@ -6,10 +6,9 @@
  ******************************************************************************/
 #include "kaminpar/graphutils/graph_contraction.h"
 
+#include <kassert/kassert.hpp>
 #include <tbb/parallel_for.h>
 #include <tbb/parallel_invoke.h>
-
-#include <kassert/kassert.hpp>
 
 #include "common/datastructures/rating_map.h"
 #include "common/datastructures/ts_navigable_linked_list.h"

@@ -8,10 +8,11 @@
 
 #include <kassert/kassert.hpp>
 
+#include "kaminpar/definitions.h"
+
 #include "common/parallel/algorithm.h"
 #include "common/timer.h"
 #include "common/utils/math.h"
-#include "kaminpar/definitions.h"
 
 namespace kaminpar::shm {
 Degree lowest_degree_in_bucket(const std::size_t bucket) {

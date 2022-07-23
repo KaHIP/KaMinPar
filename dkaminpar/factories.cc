@@ -10,6 +10,7 @@
 // Initial Partitioning
 #include "coarsening/local_label_propagation_clustering.h"
 #include "definitions.h"
+
 #include "dkaminpar/initial_partitioning/kaminpar_initial_partitioner.h"
 #include "dkaminpar/initial_partitioning/random_initial_partitioner.h"
 

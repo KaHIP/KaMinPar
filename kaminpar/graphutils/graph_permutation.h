@@ -6,11 +6,12 @@
  ******************************************************************************/
 #pragma once
 
-#include "common/parallel/algorithm.h"
-#include "common/parallel/loops.h"
 #include "kaminpar/context.h"
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/definitions.h"
+
+#include "common/parallel/algorithm.h"
+#include "common/parallel/loops.h"
 
 namespace kaminpar::shm::graph {
 /*!

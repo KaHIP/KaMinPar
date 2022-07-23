@@ -1,8 +1,9 @@
 #include <gmock/gmock.h>
 
+#include "tests.h"
+
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/io.h"
-#include "tests.h"
 
 using ::testing::Eq;
 using ::testing::UnorderedElementsAre;

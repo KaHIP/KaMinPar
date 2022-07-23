@@ -14,9 +14,6 @@
 
 #include <mpi.h>
 
-#include "apps/apps.h"
-#include "apps/dkaminpar_arguments.h"
-#include "common/random.h"
 #include "dkaminpar/coarsening/global_clustering_contraction.h"
 #include "dkaminpar/coarsening/locking_label_propagation_clustering.h"
 #include "dkaminpar/context.h"
@@ -24,10 +21,16 @@
 #include "dkaminpar/mpi/graph_communication.h"
 #include "dkaminpar/refinement/distributed_balancer.h"
 #include "dkaminpar/utils/metrics.h"
+
 #include "kaminpar/application/arguments.h"
 #include "kaminpar/definitions.h"
 #include "kaminpar/utils/logger.h"
 #include "kaminpar/utils/timer.h"
+
+#include "common/random.h"
+
+#include "apps/apps.h"
+#include "apps/dkaminpar_arguments.h"
 
 namespace shm = kaminpar;
 

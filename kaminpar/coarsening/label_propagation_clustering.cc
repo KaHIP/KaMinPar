@@ -8,11 +8,12 @@
 
 #include <memory>
 
-#include "common/timer.h"
 #include "kaminpar/coarsening/i_clustering.h"
 #include "kaminpar/context.h"
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/label_propagation.h"
+
+#include "common/timer.h"
 
 namespace kaminpar::shm {
 //

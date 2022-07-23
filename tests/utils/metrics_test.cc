@@ -1,8 +1,9 @@
 #include <gmock/gmock.h>
 
+#include "tests.h"
+
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/metrics.h"
-#include "tests.h"
 
 using ::testing::Test;
 using namespace kaminpar;

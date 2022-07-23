@@ -14,14 +14,15 @@
 #include <tbb/parallel_invoke.h>
 #include <tbb/scalable_allocator.h>
 
+#include "kaminpar/datastructure/graph.h"
+#include "kaminpar/definitions.h"
+
 #include "common/assert.h"
 #include "common/datastructures/rating_map.h"
 #include "common/parallel/atomic.h"
 #include "common/random.h"
 #include "common/tags.h"
 #include "common/timer.h"
-#include "kaminpar/datastructure/graph.h"
-#include "kaminpar/definitions.h"
 
 namespace kaminpar {
 struct LabelPropagationConfig {

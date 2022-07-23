@@ -1,9 +1,10 @@
 #include <gmock/gmock.h>
 
+#include "mpi_test.h"
+
 #include "dkaminpar/coarsening/local_clustering_contraction.h"
 #include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/datastructure/distributed_graph_builder.h"
-#include "mpi_test.h"
 
 using ::testing::Each;
 using ::testing::Eq;

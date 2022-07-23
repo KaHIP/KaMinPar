@@ -6,10 +6,11 @@
  ******************************************************************************/
 #pragma once
 
+#include "kaminpar/initial_partitioning/i_bipartitioner.h"
+
 #include "common/datastructures/binary_heap.h"
 #include "common/datastructures/marker.h"
 #include "common/random.h"
-#include "kaminpar/initial_partitioning/i_bipartitioner.h"
 
 namespace kaminpar::shm {
 class GreedyGraphGrowingBipartitioner : public Bipartitioner {

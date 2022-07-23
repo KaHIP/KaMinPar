@@ -9,9 +9,10 @@
 
 #include <tbb/global_control.h>
 
+#include "dtests/mpi_test.h"
+
 #include "dkaminpar/coarsening/locking_label_propagation_clustering.h"
 #include "dkaminpar/datastructure/distributed_graph_builder.h"
-#include "dtests/mpi_test.h"
 
 using ::testing::AnyOf;
 using ::testing::Each;

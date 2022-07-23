@@ -7,12 +7,14 @@
  ******************************************************************************/
 #include "dkaminpar/refinement/distributed_balancer.h"
 
-#include "common/random.h"
-#include "common/utils/math.h"
 #include "dkaminpar/mpi/graph_communication.h"
 #include "dkaminpar/mpi/wrapper.h"
 #include "dkaminpar/utils/metrics.h"
+
 #include "kaminpar/utils/timer.h"
+
+#include "common/random.h"
+#include "common/utils/math.h"
 
 namespace dkaminpar {
 DistributedBalancer::DistributedBalancer(const Context& ctx)

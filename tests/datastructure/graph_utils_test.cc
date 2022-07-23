@@ -1,8 +1,9 @@
+#include "matcher.h"
+#include "tests.h"
+
 #include "kaminpar/graphutils/graph_contraction.h"
 #include "kaminpar/graphutils/graph_extraction.h"
 #include "kaminpar/graphutils/graph_rearrangement.h"
-#include "matcher.h"
-#include "tests.h"
 
 using ::testing::AllOf;
 using ::testing::AnyOf;

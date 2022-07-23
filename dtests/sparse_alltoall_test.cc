@@ -1,9 +1,10 @@
 #include <gtest/gtest.h>
 
-#include "common/utils/math.h"
 #include "dkaminpar/mpi/alltoall.h"
 #include "dkaminpar/mpi/grid_alltoall.h"
 #include "dkaminpar/mpi/wrapper.h"
+
+#include "common/utils/math.h"
 
 using namespace testing;
 using namespace kaminpar;

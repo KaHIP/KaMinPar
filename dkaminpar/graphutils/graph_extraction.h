@@ -8,10 +8,11 @@
  ******************************************************************************/
 #pragma once
 
-#include "dkaminpar/datastructure/distributed_graph.h"
-#include "kaminpar/datastructure/graph.h"
-
 #include <vector>
+
+#include "dkaminpar/datastructure/distributed_graph.h"
+
+#include "kaminpar/datastructure/graph.h"
 
 namespace dkaminpar::graph {
 struct ExtractedLocalSubgraphs {

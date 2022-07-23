@@ -10,8 +10,9 @@
 
 #include <kassert/kassert.hpp>
 
-#include "common/random.h"
 #include "kaminpar/definitions.h"
+
+#include "common/random.h"
 
 namespace kaminpar::shm::ip {
 /*!

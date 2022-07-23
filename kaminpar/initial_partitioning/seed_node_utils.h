@@ -11,9 +11,10 @@
 #include <utility>
 #include <vector>
 
+#include "kaminpar/datastructure/graph.h"
+
 #include "common/datastructures/marker.h"
 #include "common/datastructures/queue.h"
-#include "kaminpar/datastructure/graph.h"
 
 namespace kaminpar::shm::ip {
 std::pair<NodeID, NodeID> find_far_away_nodes(const Graph& graph, std::size_t num_iterations = 1);
