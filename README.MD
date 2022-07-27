@@ -78,7 +78,8 @@ Then, simply link against our library (together with `libtbb` and `libtbbmalloc`
 
 ## Licensing
 
-KaMinPar is free software provided under the GNU General Public License (GPLv3).
+License: MIT
+
 If you publish results using our algorithms, please acknowledge our work by citing the following paper ([pdf](http://algo2.iti.kit.edu/seemaier/deep_mgp/)):
 
 ```
