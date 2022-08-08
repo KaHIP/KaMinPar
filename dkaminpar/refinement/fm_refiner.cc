@@ -158,7 +158,7 @@ public:
             block = _p_graph->block(u);
         }
 
-        //DBG << "Improved local cut by " << best_total_gain;
+        // DBG << "Improved local cut by " << best_total_gain;
         return moves;
     }
 
@@ -403,11 +403,13 @@ void FMRefiner::refine(DistributedPartitionedGraph& p_graph) {
             local_node_weights[next_node] = _p_graph->node_weight(u);
             ++next_node;
 
-            for (const auto [e, v]: _p_graph->neighbors(u)) {
-                const GlobalNodeID global_v = _p_graph->local_to_global_node(v);
-                if (to_local_map.find(global_v) != to_local_map.end()) {
-                    local_edges.push_back(to_local_map[global_v]);
-                    local_edge_weights.push_back(_p_graph->edge_weight(e));
+            if (!b) {
+                for (const auto [e, v]: _p_graph->neighbors(u)) {
+                    const GlobalNodeID global_v = _p_graph->local_to_global_node(v);
+                    if (to_local_map.find(global_v) != to_local_map.end()) {
+                        local_edges.push_back(to_local_map[global_v]);
+                        local_edge_weights.push_back(_p_graph->edge_weight(e));
+                    }
                 }
             }
         }
@@ -431,8 +433,8 @@ void FMRefiner::refine(DistributedPartitionedGraph& p_graph) {
         p_local_graphs[i] =
             shm::PartitionedGraph(shm::no_block_weights, local_graphs[i], _p_ctx.k, std::move(partition));
 
-        //DBG << "Local graph around seed node " << i << " grew to " << local_graphs[i].n() << " nodes and "
-        //    << local_graphs[i].m() << " edges";
+        // DBG << "Local graph around seed node " << i << " grew to " << local_graphs[i].n() << " nodes and "
+        //     << local_graphs[i].m() << " edges";
     });
     STOP_TIMER();
 
