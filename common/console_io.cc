@@ -6,14 +6,14 @@
  ******************************************************************************/
 #include "common/console_io.h"
 
-#include <iostream>
+#include "common/logger.h"
 
 namespace kaminpar::cio {
 void print_banner(const std::string& title) {
-    std::cout << std::endl;
-    std::cout << std::string(80, '*') << std::endl;
-    std::cout << "* " << title << std::string(80 - 4 - title.size(), ' ') << " *" << std::endl;
-    std::cout << std::string(80, '*') << std::endl;
-    std::cout << std::endl;
+    LOG;
+    LOG << std::string(80, '*');
+    LOG << "* " << title << std::string(80 - 4 - title.size(), ' ') << " *";
+    LOG << std::string(80, '*');
+    LOG;
 }
 } // namespace kaminpar::cio
