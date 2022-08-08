@@ -188,6 +188,18 @@ PartitionedGraph::PartitionedGraph(
     init_block_weights_seq();
 }
 
+PartitionedGraph::PartitionedGraph(NoBlockWeights, const Graph& graph, const BlockID k, StaticArray<BlockID> partition)
+    : _graph(&graph),
+      _k(k),
+      _partition(std::move(partition)) {
+    if (graph.n() > 0 && _partition.empty()) {
+        _partition.resize(_graph->n(), kInvalidBlockID);
+    }
+    if (_final_k.empty()) {
+        _final_k.resize(k, 1);
+    }
+}
+
 void PartitionedGraph::change_k(const BlockID new_k) {
     _block_weights = StaticArray<parallel::Atomic<BlockWeight>>{new_k};
     _final_k.resize(new_k);

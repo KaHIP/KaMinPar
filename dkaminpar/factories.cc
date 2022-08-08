@@ -9,12 +9,15 @@
 // Initial Partitioning
 #include "coarsening/local_label_propagation_clustering.h"
 #include "definitions.h"
+#include "refinement/i_distributed_refiner.h"
 
 #include "dkaminpar/initial_partitioning/kaminpar_initial_partitioner.h"
 #include "dkaminpar/initial_partitioning/random_initial_partitioner.h"
 
 // Refinement
 #include "dkaminpar/refinement/distributed_probabilistic_label_propagation_refiner.h"
+#include "dkaminpar/refinement/fm_refiner.h"
+#include "dkaminpar/refinement/multi_refiner.h"
 #include "dkaminpar/refinement/noop_refiner.h"
 
 // Clustering
@@ -43,6 +46,16 @@ std::unique_ptr<IDistributedRefiner> create_refinement_algorithm(const Context& 
 
         case KWayRefinementAlgorithm::PROB_LP:
             return std::make_unique<DistributedProbabilisticLabelPropagationRefiner>(ctx);
+
+        case KWayRefinementAlgorithm::FM:
+            return std::make_unique<FMRefiner>(ctx);
+
+        case KWayRefinementAlgorithm::PROB_LP_FM: {
+            std::vector<std::unique_ptr<IDistributedRefiner>> refiners;
+            refiners.push_back(std::make_unique<DistributedProbabilisticLabelPropagationRefiner>(ctx));
+            refiners.push_back(std::make_unique<FMRefiner>(ctx));
+            return std::make_unique<MultiRefiner>(std::move(refiners));
+        }
     }
     __builtin_unreachable();
 }

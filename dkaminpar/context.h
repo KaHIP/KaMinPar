@@ -43,6 +43,8 @@ enum class InitialPartitioningAlgorithm {
 enum class KWayRefinementAlgorithm {
     NOOP,
     PROB_LP,
+    FM,
+    PROB_LP_FM,
 };
 
 enum class BalancingAlgorithm {
@@ -99,6 +101,13 @@ struct LabelPropagationRefinementContext {
     void print(std::ostream& out, const std::string& prefix = "") const;
 };
 
+struct FMRefinementContext {
+    double alpha; 
+    NodeID diameter;
+
+    void print(std::ostream& out, const std::string& prefix = "") const;
+};
+
 struct CoarseningContext {
     std::size_t                       max_global_clustering_levels;
     GlobalClusteringAlgorithm         global_clustering_algorithm;
@@ -138,6 +147,7 @@ struct BalancingContext {
 struct RefinementContext {
     KWayRefinementAlgorithm           algorithm;
     LabelPropagationRefinementContext lp;
+    FMRefinementContext               fm;
     BalancingContext                  balancing;
 
     void setup(const DistributedGraph& graph) {

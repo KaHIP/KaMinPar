@@ -192,6 +192,9 @@ bool validate_graph(const Graph& graph);
 
 class GreedyBalancer;
 
+struct NoBlockWeights {};
+constexpr NoBlockWeights no_block_weights;
+
 /*!
  * Extends a kaminpar::Graph with a graph partition.
  *
@@ -219,6 +222,8 @@ public:
     PartitionedGraph(
         tag::Sequential, const Graph& graph, BlockID k, StaticArray<BlockID> partition = {},
         scalable_vector<BlockID> final_k = {});
+    PartitionedGraph(NoBlockWeights, const Graph& graph, BlockID k, StaticArray<BlockID> partition);
+
     PartitionedGraph() : _graph{nullptr} {}
 
     PartitionedGraph(const PartitionedGraph&)                      = delete;

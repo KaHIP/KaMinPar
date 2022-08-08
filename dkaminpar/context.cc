@@ -46,6 +46,8 @@ DEFINE_ENUM_STRING_CONVERSION(InitialPartitioningAlgorithm, initial_partitioning
 DEFINE_ENUM_STRING_CONVERSION(KWayRefinementAlgorithm, kway_refinement_algorithm) = {
     {KWayRefinementAlgorithm::NOOP, "noop"},
     {KWayRefinementAlgorithm::PROB_LP, "prob-lp"},
+    {KWayRefinementAlgorithm::FM, "fm"},
+    {KWayRefinementAlgorithm::PROB_LP_FM, "prob-lp+fm"},
 };
 
 DEFINE_ENUM_STRING_CONVERSION(BalancingAlgorithm, balancing_algorithm) = {
@@ -73,6 +75,11 @@ void LabelPropagationRefinementContext::print(std::ostream& out, const std::stri
         << prefix << "num_move_attempts=" << num_move_attempts << " "; //
 }
 
+void FMRefinementContext::print(std::ostream& out, const std::string& prefix) const {
+    out << prefix << "alpha=" << alpha << " "        //
+        << prefix << "diameter=" << diameter << " "; //
+}
+
 void CoarseningContext::print(std::ostream& out, const std::string& prefix) const {
     out << prefix << "max_global_clustering_levels=" << max_global_clustering_levels << " " //
         << prefix << "global_clustering_algorithm=" << global_clustering_algorithm << " "   //
@@ -92,13 +99,14 @@ void BalancingContext::print(std::ostream& out, const std::string& prefix) const
 }
 
 void InitialPartitioningContext::print(std::ostream& out, const std::string& prefix) const {
-    out << prefix << "graphutils=" << algorithm << " ";
+    out << prefix << "algorithm=" << algorithm << " ";
     sequential.print(out, prefix + "sequential.");
 }
 
 void RefinementContext::print(std::ostream& out, const std::string& prefix) const {
-    out << prefix << "graphutils=" << algorithm << " ";
+    out << prefix << "algorithm=" << algorithm << " ";
     lp.print(out, prefix + "lp.");
+    fm.print(out, prefix + "fm.");
     balancing.print(out, prefix + "balancing.");
 }
 
@@ -242,6 +250,10 @@ Context create_default_context() {
         .num_chunks = 0,
         .min_num_chunks = 8,
         .num_move_attempts = 2,
+      },
+      .fm = {
+        .alpha = 1.0,
+        .diameter = 3,
       },
       .balancing = {
         .algorithm = BalancingAlgorithm::DISTRIBUTED, 
