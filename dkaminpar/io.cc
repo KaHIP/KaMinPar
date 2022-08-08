@@ -1,5 +1,5 @@
 /*******************************************************************************
- * @file:   distributed_io.cc
+ * @file:   io.h
  * @author: Daniel Seemaier
  * @date:   27.10.2021
  * @brief:  Load / store distributed graphs from METIS or KaHIP Binary formats.
@@ -11,17 +11,17 @@
 
 #include "dkaminpar/datastructure/distributed_graph_builder.h"
 #include "dkaminpar/mpi/wrapper.h"
-#include "dkaminpar/utils/math.h"
 
 #include "kaminpar/io.h"
 
+#include "common/utils/math.h"
 #include "common/utils/strings.h"
 
 namespace kaminpar::dist::io {
 SET_DEBUG(false);
 
 DistributedGraph read_graph(const std::string& filename, DistributionType type, MPI_Comm comm) {
-    if (shm::str::ends_with(filename, "bgf") || shm::str::ends_with(filename, "bin")) {
+    if (str::ends_with(filename, "bgf") || str::ends_with(filename, "bin")) {
         if (type == DistributionType::NODE_BALANCED) {
             return binary::read_node_balanced(filename, comm);
         } else {
@@ -37,7 +37,7 @@ DistributedGraph read_graph(const std::string& filename, DistributionType type, 
 }
 
 namespace metis {
-namespace shm = kaminpar::io::metis;
+namespace shm = kaminpar::shm::io::metis;
 
 DistributedGraph read_node_balanced(const std::string& filename, MPI_Comm comm) {
     const auto comm_info = mpi::get_comm_info(comm);

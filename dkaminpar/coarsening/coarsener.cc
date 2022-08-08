@@ -1,6 +1,5 @@
 /*******************************************************************************
  * @file:   coarsener.cc
- *
  * @author: Daniel Seemaier
  * @date:   28.04.2022
  * @brief:  Builds and manages a hierarchy of coarse graphs.
@@ -14,7 +13,9 @@
 #include "dkaminpar/debug.h"
 #include "dkaminpar/factories.h"
 
-namespace dkaminpar {
+#include "kaminpar/context.h"
+
+namespace kaminpar::dist {
 SET_DEBUG(false);
 
 Coarsener::Coarsener(const DistributedGraph& input_graph, const Context& input_ctx)
@@ -39,7 +40,7 @@ const DistributedGraph* Coarsener::coarsen_once_local(const GlobalNodeWeight max
         return graph;
     }
 
-    auto [c_graph, mapping, m_ctx] = coarsening::contract_local_clustering(*graph, clustering);
+    auto [c_graph, mapping, m_ctx] = contract_local_clustering(*graph, clustering);
     KASSERT(graph::debug::validate(c_graph), "", assert::heavy);
     DBG << "Reduced number of nodes from " << graph->global_n() << " to " << c_graph.global_n();
 
@@ -69,7 +70,7 @@ const DistributedGraph* Coarsener::coarsen_once_global(const GlobalNodeWeight ma
     }
 
     auto [c_graph, mapping] =
-        coarsening::contract_global_clustering(*graph, clustering, _input_ctx.coarsening.global_contraction_algorithm);
+        contract_global_clustering(*graph, clustering, _input_ctx.coarsening.global_contraction_algorithm);
     KASSERT(graph::debug::validate(c_graph), "", assert::heavy);
     DBG << "Reduced number of nodes from " << graph->global_n() << " to " << c_graph.global_n();
 
@@ -131,7 +132,7 @@ DistributedPartitionedGraph Coarsener::uncoarsen_once_local(DistributedPartition
     const DistributedGraph* new_coarsest  = nth_coarsest(1);
     const auto&             mapping       = _local_mapping_hierarchy.back();
 
-    scalable_vector<Atomic<BlockID>> partition(new_coarsest->total_n());
+    scalable_vector<parallel::Atomic<BlockID>> partition(new_coarsest->total_n());
     new_coarsest->pfor_all_nodes([&](const NodeID u) { partition[u] = p_graph.block(mapping[u]); });
     const BlockID k = p_graph.k();
 
@@ -144,8 +145,7 @@ DistributedPartitionedGraph Coarsener::uncoarsen_once_local(DistributedPartition
 DistributedPartitionedGraph Coarsener::uncoarsen_once_global(DistributedPartitionedGraph&& p_graph) {
     const DistributedGraph* new_coarsest = nth_coarsest(1);
 
-    p_graph = coarsening::project_global_contracted_graph(
-        *new_coarsest, std::move(p_graph), _global_mapping_hierarchy.back());
+    p_graph = project_global_contracted_graph(*new_coarsest, std::move(p_graph), _global_mapping_hierarchy.back());
     KASSERT(graph::debug::validate_partition(p_graph), "", assert::heavy);
 
     _graph_hierarchy.pop_back();
@@ -187,4 +187,4 @@ GlobalNodeWeight Coarsener::max_cluster_weight() const {
     return shm::compute_max_cluster_weight<GlobalNodeID, GlobalNodeWeight>(
         graph->global_n(), graph->global_total_node_weight(), shm_p_ctx, shm_c_ctx);
 }
-} // namespace dkaminpar
+} // namespace kaminpar::dist

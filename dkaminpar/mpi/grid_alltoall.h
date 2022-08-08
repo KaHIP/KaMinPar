@@ -1,9 +1,8 @@
 /*******************************************************************************
  * @file:   grid_alltoall.h
- *
  * @author: Daniel Seemaier
  * @date:   17.06.2022
- * @brief:  Algorithms to perform (sparse) all-to-all communications.
+ * @brief:  Algorithms to perform (sparse) all-to-all communication.
  ******************************************************************************/
 #pragma once
 
@@ -17,13 +16,12 @@
 #include "dkaminpar/mpi/alltoall.h"
 #include "dkaminpar/mpi/wrapper.h"
 
-#include "kaminpar/utils/timer.h"
-
+#include "common/noinit_vector.h"
+#include "common/preallocated_vector.h"
+#include "common/timer.h"
 #include "common/utils/math.h"
-#include "common/utils/noinit_vector.h"
-#include "common/utils/preallocated_vector.h"
 
-namespace dkaminpar::mpi {
+namespace kaminpar::mpi {
 namespace internal {
 class GridCommunicator {
 public:
@@ -186,18 +184,18 @@ void sparse_alltoall_grid(SendBuffers&& send_buffers, Receiver&& receiver, MPI_C
     // @todo avoid using this variant since it requires a full copy of the send buffers
 
     const auto [size, rank] = mpi::get_comm_info(comm);
-    shm::NoinitVector<int> counts(size);
+    NoinitVector<int> counts(size);
 
     tbb::parallel_for<PEID>(0, size, [&](const PEID pe) { counts[pe] = asserting_cast<int>(send_buffers[pe].size()); });
-    shm::NoinitVector<int> displs(size + 1);
-    shm::parallel::prefix_sum(counts.begin(), counts.end(), displs.begin() + 1);
+    NoinitVector<int> displs(size + 1);
+    parallel::prefix_sum(counts.begin(), counts.end(), displs.begin() + 1);
     displs.front() = 0;
 
-    shm::NoinitVector<Message> dense_buffer(displs.back());
+    NoinitVector<Message> dense_buffer(displs.back());
     tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
         std::copy(send_buffers[pe].begin(), send_buffers[pe].end(), dense_buffer.begin() + displs[pe]);
     });
 
     sparse_alltoall_grid<Message, Buffer>(std::move(dense_buffer), counts, std::forward<Receiver>(receiver), comm);
 }
-} // namespace dkaminpar::mpi
+} // namespace kaminpar::mpi

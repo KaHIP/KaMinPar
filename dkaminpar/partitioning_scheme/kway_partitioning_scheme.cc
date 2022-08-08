@@ -1,6 +1,5 @@
 /*******************************************************************************
  * @file:   kway.cc
- *
  * @author: Daniel Seemaier
  * @date:   25.10.2021
  * @brief:  Partitioning scheme using direct k-way partitioning.
@@ -11,19 +10,19 @@
 #include "dkaminpar/coarsening/global_clustering_contraction.h"
 #include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/debug.h"
-#include "dkaminpar/distributed_io.h"
 #include "dkaminpar/factories.h"
 #include "dkaminpar/graphutils/allgather_graph.h"
+#include "dkaminpar/io.h"
+#include "dkaminpar/metrics.h"
 #include "dkaminpar/refinement/distributed_balancer.h"
-#include "dkaminpar/utils/metrics.h"
 
 #include "kaminpar/metrics.h"
-#include "kaminpar/utils/timer.h"
 
-#include "common/utils/console_io.h"
+#include "common/console_io.h"
+#include "common/timer.h"
 #include "common/utils/strings.h"
 
-namespace dkaminpar {
+namespace kaminpar::dist {
 SET_DEBUG(false);
 
 KWayPartitioningScheme::KWayPartitioningScheme(const DistributedGraph& graph, const Context& ctx)
@@ -39,7 +38,7 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
     // Step 1: Coarsening
     ////////////////////////////////////////////////////////////////////////////////
     if (mpi::get_comm_rank(_graph.communicator()) == 0) {
-        shm::cio::print_banner("Coarsening");
+        cio::print_banner("Coarsening");
     }
 
     {
@@ -94,7 +93,7 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
     // Step 2: Initial Partitioning
     ////////////////////////////////////////////////////////////////////////////////
     if (mpi::get_comm_rank(_graph.communicator()) == 0) {
-        shm::cio::print_banner("Initial Partitioning");
+        cio::print_banner("Initial Partitioning");
     }
 
     auto initial_partitioner = TIMED_SCOPE("Allocation") {
@@ -127,7 +126,7 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
         ref_p_ctx.setup(dist_p_graph.graph());
 
         if (mpi::get_comm_rank(_graph.communicator()) == 0) {
-            shm::cio::print_banner("Refinement");
+            cio::print_banner("Refinement");
         }
 
         auto refinement_algorithm = TIMED_SCOPE("Allocation") {
@@ -181,4 +180,4 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
 
     return dist_p_graph;
 }
-} // namespace dkaminpar
+} // namespace kaminpar::dist

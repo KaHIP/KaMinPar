@@ -1,19 +1,19 @@
 /*******************************************************************************
- * @file:   distributed_metrics.cc
- *
+ * @file:   metrics.cc
  * @author: Daniel Seemaier
  * @date:   27.10.2021
  * @brief:  Partition metrics for distributed graphs.
  ******************************************************************************/
-#include "dkaminpar/utils/metrics.h"
+#include "dkaminpar/metrics.h"
 
 #include <tbb/enumerable_thread_specific.h>
 
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructure/distributed_graph.h"
+#include "dkaminpar/definitions.h"
 #include "dkaminpar/mpi/wrapper.h"
 
-namespace dkaminpar::metrics {
+namespace kaminpar::dist::metrics {
 GlobalEdgeWeight local_edge_cut(const DistributedPartitionedGraph& p_graph) {
     tbb::enumerable_thread_specific<GlobalEdgeWeight> cut_ets;
 
@@ -68,4 +68,4 @@ BlockID num_imbalanced_blocks(const DistributedPartitionedGraph& p_graph, const 
 
     return mpi::allreduce<BlockID>(local_num_imbalanced_blocks, MPI_SUM, p_graph.communicator());
 }
-} // namespace dkaminpar::metrics
+} // namespace kaminpar::dist::metrics

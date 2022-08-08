@@ -9,7 +9,7 @@
 #include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/mpi/graph_communication.h"
 
-namespace dkaminpar::graph {
+namespace kaminpar::dist::graph {
 /*!
  * Synchronizes the block assignment of ghost nodes: each node sends its current assignment to all replicates (ghost
  * nodes) residing on other PEs.
@@ -17,4 +17,4 @@ namespace dkaminpar::graph {
  * @param p_graph Graph partition to synchronize.
  */
 void synchronize_ghost_node_block_ids(DistributedPartitionedGraph& p_graph);
-} // namespace dkaminpar::graph
+} // namespace kaminpar::dist::graph

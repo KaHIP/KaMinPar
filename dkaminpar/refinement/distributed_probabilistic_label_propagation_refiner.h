@@ -1,6 +1,5 @@
 /*******************************************************************************
  * @file:   distributed_probabilistic_label_propagation_refiner.h
- *
  * @author: Daniel Seemaier
  * @date:   30.09.2021
  * @brief:
@@ -11,7 +10,7 @@
 #include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/refinement/i_distributed_refiner.h"
 
-namespace dkaminpar {
+namespace kaminpar::dist {
 class DistributedProbabilisticLabelPropagationRefiner : public IDistributedRefiner {
 public:
     DistributedProbabilisticLabelPropagationRefiner(const Context& ctx);
@@ -25,4 +24,4 @@ public:
 private:
     std::unique_ptr<class DistributedProbabilisticLabelPropagationRefinerImpl> _impl;
 };
-} // namespace dkaminpar
+} // namespace kaminpar::dist

@@ -1,6 +1,5 @@
 /*******************************************************************************
- * @file:   rearrange_graph.h
- *
+ * @file:   rearrange_graph.cc
  * @author: Daniel Seemaier
  * @date:   18.11.2021
  * @brief:  Sort and rearrange a graph by degree buckets.
@@ -10,12 +9,13 @@
 #include "dkaminpar/mpi/graph_communication.h"
 
 #include "kaminpar/graphutils/graph_rearrangement.h"
-#include "kaminpar/utils/timer.h"
 
 #include "common/datastructures/marker.h"
 #include "common/parallel/atomic.h"
+#include "common/parallel/loops.h"
+#include "common/timer.h"
 
-namespace dkaminpar::graph {
+namespace kaminpar::dist::graph {
 DistributedGraph sort_by_degree_buckets(DistributedGraph graph) {
     SCOPED_TIMER("Sort and rearrange graph");
 
@@ -60,7 +60,7 @@ DistributedGraph sort_by_degree_buckets(DistributedGraph graph) {
     growt::StaticGhostNodeMapping new_global_to_ghost(old_global_to_ghost.capacity());
     auto                          new_ghost_to_global = graph.take_ghost_to_global(); // can be reused
 
-    shm::parallel::chunked_for(received, [&](const ChangedNodeLabel& message, const PEID pe) {
+    parallel::chunked_for(received, [&](const ChangedNodeLabel& message, const PEID pe) {
         const auto& [old_node_local, new_node_local] = message;
         const GlobalNodeID old_node_global           = graph.offset_n(pe) + old_node_local;
         const GlobalNodeID new_node_global           = graph.offset_n(pe) + new_node_local;
@@ -84,4 +84,4 @@ DistributedGraph sort_by_degree_buckets(DistributedGraph graph) {
         true,
         graph.communicator()};
 }
-} // namespace dkaminpar::graph
+} // namespace kaminpar::dist::graph

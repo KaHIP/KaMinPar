@@ -1,9 +1,8 @@
 /*******************************************************************************
  * @file:   noinit_vector.h
- *
  * @author: Daniel Seemaier
  * @date:   31.05.2022
- * @brief:  Partial instantiation of `std::vector` that does not initialize its memory.
+ * @brief:  `std::vector` without initialization.
  ******************************************************************************/
 #pragma once
 

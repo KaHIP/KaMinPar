@@ -1,28 +1,28 @@
 /*******************************************************************************
- * @file:   local_graph_contraction.cc
- *
+ * @file:   local_clustering_contraction.cc
  * @author: Daniel Seemaier
  * @date:   27.10.2021
  * @brief:
  ******************************************************************************/
-#include "local_clustering_contraction.h"
+#include "dkaminpar/coarsening/local_clustering_contraction.h"
 
 #include <tbb/parallel_for.h>
 #include <tbb/parallel_invoke.h>
 
-#include "definitions.h"
-
+#include "dkaminpar/definitions.h"
 #include "dkaminpar/mpi/graph_communication.h"
 #include "dkaminpar/mpi/wrapper.h"
 
-#include "kaminpar/datastructure/rating_map.h"
+#include "common/datastructures/rating_map.h"
+#include "common/datastructures/ts_navigable_linked_list.h"
+#include "common/parallel/atomic.h"
 
-namespace dkaminpar::coarsening {
+namespace kaminpar::dist {
 using namespace contraction;
 SET_DEBUG(false);
 
 Result contract_local_clustering(
-    const DistributedGraph& graph, const scalable_vector<Atomic<NodeID>>& clustering, MemoryContext m_ctx) {
+    const DistributedGraph& graph, const scalable_vector<parallel::Atomic<NodeID>>& clustering, MemoryContext m_ctx) {
     KASSERT(clustering.size() >= graph.n());
 
     MPI_Comm comm           = graph.communicator();
@@ -54,7 +54,7 @@ Result contract_local_clustering(
     });
 
     // Compute prefix sum to get coarse node IDs (starting at 1!)
-    shm::parallel::prefix_sum(leader_mapping.begin(), leader_mapping.begin() + graph.n(), leader_mapping.begin());
+    parallel::prefix_sum(leader_mapping.begin(), leader_mapping.begin() + graph.n(), leader_mapping.begin());
     const NodeID c_n = leader_mapping[graph.n() - 1]; // number of nodes in the coarse graph
 
     // Compute new node distribution, total number of coarse nodes
@@ -79,7 +79,7 @@ Result contract_local_clustering(
     // using a prefix sum, roughly 2/5-th of time on europe.osm with 2/3-th to 1/3-tel for loop to prefix sum
     graph.pfor_nodes([&](const NodeID u) { buckets_index[mapping[u]].fetch_add(1, std::memory_order_relaxed); });
 
-    shm::parallel::prefix_sum(buckets_index.begin(), buckets_index.end(), buckets_index.begin());
+    parallel::prefix_sum(buckets_index.begin(), buckets_index.end(), buckets_index.begin());
     KASSERT(buckets_index.back() <= graph.n());
 
     // Sort nodes into   buckets, roughly 3/5-th of time on europe.osm
@@ -158,11 +158,11 @@ Result contract_local_clustering(
     // (2) We finalize c_nodes arrays by computing a prefix sum over all coarse node degrees
     // (3) We copy coarse edges and coarse edge weights from the auxiliary arrays to c_edges and c_edge_weights
     //
-    using Map = shm::RatingMap<EdgeWeight, shm::FastResetArray<EdgeWeight, NodeID>>;
-    tbb::enumerable_thread_specific<Map>                    collector_ets{[&] {
+    using Map = RatingMap<EdgeWeight, NodeID, FastResetArray<EdgeWeight, NodeID>>;
+    tbb::enumerable_thread_specific<Map>               collector_ets{[&] {
         return Map(c_next_ghost_node);
     }};
-    shm::NavigableLinkedList<NodeID, Edge, scalable_vector> edge_buffer_ets;
+    NavigableLinkedList<NodeID, Edge, scalable_vector> edge_buffer_ets;
 
     tbb::parallel_for(tbb::blocked_range<NodeID>(0, c_n), [&](const auto& r) {
         auto& local_collector   = collector_ets.local();
@@ -212,7 +212,7 @@ Result contract_local_clustering(
         }
     });
 
-    shm::parallel::prefix_sum(c_nodes.begin(), c_nodes.end(), c_nodes.begin());
+    parallel::prefix_sum(c_nodes.begin(), c_nodes.end(), c_nodes.begin());
 
     KASSERT(c_nodes[0] == 0u);
     const EdgeID c_m = c_nodes.back();
@@ -221,7 +221,7 @@ Result contract_local_clustering(
     // Construct rest of the coarse graph: edges, edge weights
     //
     all_buffered_nodes =
-        shm::ts_navigable_list::combine<NodeID, Edge, scalable_vector>(edge_buffer_ets, std::move(all_buffered_nodes));
+        ts_navigable_list::combine<NodeID, Edge, scalable_vector>(edge_buffer_ets, std::move(all_buffered_nodes));
 
     scalable_vector<NodeID>     c_edges(c_m);
     scalable_vector<EdgeWeight> c_edge_weights(c_m);
@@ -268,4 +268,4 @@ Result contract_local_clustering(
 
     return {std::move(c_graph), std::move(mapping), std::move(m_ctx)};
 }
-} // namespace dkaminpar::coarsening
+} // namespace kaminpar::dist

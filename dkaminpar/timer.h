@@ -1,10 +1,13 @@
 /*******************************************************************************
- * @file:   distributed_timer.h
+ * @file:   timer.h
  * @author: Daniel Seemaier
  * @date:   27.10.2021
- * @brief:
+ * @brief:  Functions to annotate the timer on the root PE with min/max/mean/sd
+ * timings of other PEs.
  ******************************************************************************/
 #pragma once
+
+#include <mpi.h>
 
 #include "dkaminpar/definitions.h"
 

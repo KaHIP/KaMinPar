@@ -1,23 +1,20 @@
 /*******************************************************************************
  * @file:   distributed_balancer.h
- *
  * @author: Daniel Seemaier
  * @date:   12.04.2022
  * @brief:  Distributed balancing refinement algorithm.
  ******************************************************************************/
 #pragma once
 
-#include "definitions.h"
-
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructure/distributed_graph.h"
-
-#include "kaminpar/datastructure/rating_map.h"
+#include "dkaminpar/definitions.h"
 
 #include "common/datastructures/binary_heap.h"
 #include "common/datastructures/marker.h"
+#include "common/datastructures/rating_map.h"
 
-namespace dkaminpar {
+namespace kaminpar::dist {
 class DistributedBalancer {
     SET_STATISTICS_FROM_GLOBAL();
     SET_DEBUG(false);
@@ -89,13 +86,13 @@ private:
     DistributedPartitionedGraph* _p_graph;
     const PartitionContext*      _p_ctx;
 
-    shm::DynamicBinaryMinMaxForest<NodeID, double>                      _pq;
-    mutable tbb::enumerable_thread_specific<shm::RatingMap<EdgeWeight>> _rating_map{[&] {
-        return shm::RatingMap<EdgeWeight>{_ctx.partition.k};
+    DynamicBinaryMinMaxForest<NodeID, double>                               _pq;
+    mutable tbb::enumerable_thread_specific<RatingMap<EdgeWeight, BlockID>> _rating_map{[&] {
+        return RatingMap<EdgeWeight, BlockID>{_ctx.partition.k};
     }};
-    std::vector<BlockWeight>                                            _pq_weight;
-    shm::Marker<>                                                       _marker;
+    std::vector<BlockWeight>                                                _pq_weight;
+    Marker<>                                                                _marker;
 
     Statistics _stats;
 };
-}; // namespace dkaminpar
+}; // namespace kaminpar::dist

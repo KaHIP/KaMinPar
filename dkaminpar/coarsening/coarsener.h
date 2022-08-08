@@ -1,6 +1,5 @@
 /*******************************************************************************
  * @file:   coarsener.h
- *
  * @author: Daniel Seemaier
  * @date:   28.04.2022
  * @brief:  Builds and manages a hierarchy of coarse graphs.
@@ -14,7 +13,7 @@
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructure/distributed_graph.h"
 
-namespace dkaminpar {
+namespace kaminpar::dist {
 class Coarsener {
 public:
     Coarsener(const DistributedGraph& input_graph, const Context& input_ctx);
@@ -46,10 +45,10 @@ private:
     std::unique_ptr<ClusteringAlgorithm<GlobalNodeID>> _global_clustering_algorithm;
     std::unique_ptr<ClusteringAlgorithm<NodeID>>       _local_clustering_algorithm;
 
-    std::vector<DistributedGraph>          _graph_hierarchy;
-    std::vector<coarsening::GlobalMapping> _global_mapping_hierarchy; //< produced by global clustering algorithm
-    std::vector<scalable_vector<NodeID>>   _local_mapping_hierarchy;  //< produced by local clustering_algorithm
+    std::vector<DistributedGraph>        _graph_hierarchy;
+    std::vector<GlobalMapping>           _global_mapping_hierarchy; //< produced by global clustering algorithm
+    std::vector<scalable_vector<NodeID>> _local_mapping_hierarchy;  //< produced by local clustering_algorithm
 
     bool _local_clustering_converged = false;
 };
-} // namespace dkaminpar
+} // namespace kaminpar::dist

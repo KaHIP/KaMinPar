@@ -22,10 +22,11 @@
 #include "common/random.h"
 
 #include "apps/apps.h"
-#include "apps/dkaminpar_arguments.h"
-#include "apps/dkaminpar_graphgen.h"
+#include "apps/dkaminpar/arguments.h"
+#include "apps/dkaminpar/graphgen.h"
 
-using namespace dkaminpar;
+using namespace kaminpar;
+using namespace kaminpar::dist;
 
 namespace {
 void init_mpi(int& argc, char**& argv) {
@@ -41,12 +42,12 @@ void init_mpi(int& argc, char**& argv) {
     }
 }
 
-void sanitize_context(const app::ApplicationContext& app) {
+void sanitize_context(const ApplicationContext& app) {
 #ifdef KAMINPAR_ENABLE_GRAPHGEN
-    if (app.generator.type == graphgen::GeneratorType::NONE && app.ctx.graph_filename.empty()) {
+    if (app.generator.type == GeneratorType::NONE && app.ctx.graph_filename.empty()) {
         FATAL_ERROR << "Must configure a graph generator or specify an input graph";
     }
-    if (app.generator.type != graphgen::GeneratorType::NONE && !app.ctx.graph_filename.empty()) {
+    if (app.generator.type != GeneratorType::NONE && !app.ctx.graph_filename.empty()) {
         FATAL_ERROR << "cannot configure a graph generator and specify an input graph";
     }
     if (!app.ctx.graph_filename.empty() && !std::ifstream(app.ctx.graph_filename)) {
@@ -72,17 +73,17 @@ void print_result_statistics(const DistributedPartitionedGraph& p_graph, const C
 
     LOG << "RESULT cut=" << edge_cut << " imbalance=" << imbalance << " feasible=" << feasible << " k=" << p_graph.k();
     if (!ctx.quiet) {
-        timer::collect_and_annotate_distributed_timer(GLOBAL_TIMER);
+        finalize_distributed_timer(GLOBAL_TIMER);
     }
 
     const bool is_root = mpi::get_comm_rank(MPI_COMM_WORLD) == 0;
     if (is_root && !ctx.quiet) {
         std::cout << "TIME ";
-        shm::Timer::global().print_machine_readable(std::cout);
+        Timer::global().print_machine_readable(std::cout);
     }
     LOG;
     if (is_root && !ctx.quiet) {
-        shm::Timer::global().print_human_readable(std::cout);
+        Timer::global().print_human_readable(std::cout);
     }
     LOG;
     LOG << "-> k=" << p_graph.k();
@@ -91,7 +92,7 @@ void print_result_statistics(const DistributedPartitionedGraph& p_graph, const C
     LOG << "-> feasible=" << feasible;
     if (p_graph.k() <= 512) {
         LOG << "-> block_weights:";
-        LOG << shm::logger::TABLE << p_graph.block_weights();
+        LOG << logger::TABLE << p_graph.block_weights();
     }
 
     if (is_root && (p_graph.k() != ctx.partition.k || !feasible)) {
@@ -102,7 +103,7 @@ void print_result_statistics(const DistributedPartitionedGraph& p_graph, const C
 
 template <typename Terminator>
 DistributedPartitionedGraph
-partition_repeatedly(const DistributedGraph& graph, const dkaminpar::Context& ctx, Terminator&& terminator) {
+partition_repeatedly(const DistributedGraph& graph, const Context& ctx, Terminator&& terminator) {
     struct Result {
         Result(const double time, const GlobalEdgeWeight cut, const double imbalance, const bool feasible)
             : time(time),
@@ -125,7 +126,7 @@ partition_repeatedly(const DistributedGraph& graph, const dkaminpar::Context& ct
     do {
         const std::size_t repetition = results.size();
 
-        shm::Timer repetition_timer("");
+        Timer repetition_timer("");
         START_TIMER("Partitioning", "Repetition " + std::to_string(repetition));
         auto p_graph = partition(graph, ctx);
         STOP_TIMER();
@@ -154,34 +155,34 @@ int main(int argc, char* argv[]) {
     init_mpi(argc, argv);
 
     // Parse command line arguments
-    auto  app = app::parse_options(argc, argv);
+    auto  app = parse_options(argc, argv);
     auto& ctx = app.ctx;
     sanitize_context(app);
-    shm::Logger::set_quiet_mode(ctx.quiet);
+    Logger::set_quiet_mode(ctx.quiet);
 
-    shm::print_identifier(argc, argv);
+    print_identifier(argc, argv);
     LOG << "MPI size=" << mpi::get_comm_size(MPI_COMM_WORLD);
     LOG << "CONTEXT " << ctx;
 
     // Initialize random number generator
-    shm::Random::seed = ctx.seed;
+    Random::seed = ctx.seed;
 #ifdef KAMINPAR_ENABLE_GRAPHGEN
     app.generator.seed = ctx.seed;
 #endif
 
     // Initialize parallelism
-    auto gc = shm::init_parallelism(ctx.parallel.num_threads);
+    auto gc = init_parallelism(ctx.parallel.num_threads);
     omp_set_num_threads(static_cast<int>(ctx.parallel.num_threads));
     ctx.initial_partitioning.sequential.parallel.num_threads = ctx.parallel.num_threads;
     if (ctx.parallel.use_interleaved_numa_allocation) {
-        shm::init_numa();
+        init_numa();
     }
 
     // Load graph
     auto graph = TIMED_SCOPE("IO") {
 #ifdef KAMINPAR_ENABLE_GRAPHGEN
-        if (app.generator.type != graphgen::GeneratorType::NONE) {
-            auto graph = graphgen::generate(app.generator);
+        if (app.generator.type != GeneratorType::NONE) {
+            auto graph = generate(app.generator);
             if (app.generator.save_graph) {
                 io::metis::write("generated.graph", graph, false, false);
             }
@@ -213,7 +214,7 @@ int main(int argc, char* argv[]) {
     // If we load the graph from a file, rearrange it so that nodes are sorted by degree buckets
     if (ctx.sort_graph) {
 #ifdef KAMINPAR_ENABLE_GRAPHGEN
-        if (app.generator.type == graphgen::GeneratorType::NONE) {
+        if (app.generator.type == GeneratorType::NONE) {
 #else
         {
 #endif
@@ -232,7 +233,7 @@ int main(int argc, char* argv[]) {
                         return repetition == num_repetitions;
                     });
             } else { // time_limit > 0
-                shm::Timer time_limit_timer("");
+                Timer time_limit_timer("");
                 return partition_repeatedly(graph, ctx, [&time_limit_timer, time_limit = ctx.time_limit](std::size_t) {
                     return time_limit_timer.elapsed_seconds() >= time_limit;
                 });
@@ -246,7 +247,7 @@ int main(int argc, char* argv[]) {
 
     // Output statistics
     if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
-        shm::cio::print_banner("Statistics");
+        cio::print_banner("Statistics");
     }
 
     mpi::barrier(MPI_COMM_WORLD);

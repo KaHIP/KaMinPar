@@ -1,6 +1,5 @@
 /*******************************************************************************
- * @file:   distributed_metrics.h
- *
+ * @file:   metrics.h
  * @author: Daniel Seemaier
  * @date:   27.10.2021
  * @brief:  Partition metrics for distributed graphs.
@@ -11,7 +10,7 @@
 #include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/definitions.h"
 
-namespace dkaminpar::metrics {
+namespace kaminpar::dist::metrics {
 /*!
  * Computes the number of edges cut in the part of the graph owned by this PE. Includes edges to ghost nodes. Since the
  * graph is directed (there are no reverse edges from ghost nodes to interface nodes), undirected edges are counted
@@ -53,4 +52,4 @@ bool is_feasible(const DistributedPartitionedGraph& p_graph, const PartitionCont
  * @return The number of imbalanced blocks in the graph.
  */
 BlockID num_imbalanced_blocks(const DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx);
-} // namespace dkaminpar::metrics
+} // namespace kaminpar::dist::metrics

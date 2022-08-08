@@ -1,26 +1,25 @@
 /*******************************************************************************
  * @file:   arguments.cc
- *
  * @author: Daniel Seemaier
  * @date:   27.10.2021
  * @brief:
  ******************************************************************************/
-#include "apps/dkaminpar_arguments.h"
+#include "apps/dkaminpar/arguments.h"
 
 #include <string>
 
 #include "kaminpar/application/arguments.h"
 
-namespace dkaminpar::app {
+namespace kaminpar::dist {
 using namespace std::string_literals;
 
 #ifdef KAMINPAR_ENABLE_GRAPHGEN
 void create_graphgen_options(
-    graphgen::GeneratorContext& g_ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix) {
+    GeneratorContext& g_ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix) {
     args.group(name, prefix)
         .argument(
-            prefix, "Graph generator, possible values: {" + graphgen::generator_type_names() + "}.", &g_ctx.type,
-            graphgen::generator_type_from_string)
+            prefix, "Graph generator, possible values: {" + generator_type_names() + "}.", &g_ctx.type,
+            generator_type_from_string)
         .argument(prefix + "-n", "Number of nodes in the graph.", &g_ctx.n)
         .argument(prefix + "-m", "Number of edges in the graph.", &g_ctx.m)
         .argument(prefix + "-p", "Edge probability.", &g_ctx.p)
@@ -195,4 +194,4 @@ ApplicationContext parse_options(int argc, char* argv[]) {
     arguments.parse(argc, argv);
     return a_ctx;
 }
-} // namespace dkaminpar::app
+} // namespace kaminpar::dist

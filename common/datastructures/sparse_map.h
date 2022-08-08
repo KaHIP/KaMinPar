@@ -68,6 +68,8 @@ public:
     }
 
     bool contains(const Key key) const {
+        KASSERT(_data != nullptr);
+        KASSERT(key < _capacity);
         const std::size_t index{_sparse[key]};
         return index < _size && _dense[index].key == key;
     }
@@ -125,6 +127,7 @@ public:
 
 private:
     void allocate_data(const std::size_t capacity) {
+        std::cout << "ALLOCATE " << capacity << std::endl;
         _capacity = capacity;
 
         KASSERT(!_data);

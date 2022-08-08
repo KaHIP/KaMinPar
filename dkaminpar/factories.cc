@@ -1,6 +1,5 @@
 /*******************************************************************************
  * @file:   factories.cc
- *
  * @author: Daniel Seemaier
  * @date:   06.11.2021
  * @brief:  Instantiates the configured partitioning components.

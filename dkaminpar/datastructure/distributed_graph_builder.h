@@ -1,6 +1,5 @@
 /*******************************************************************************
  * @file:   distributed_graph_builder.h
- *
  * @author: Daniel Seemaier
  * @date:   27.10.2021
  * @brief:  Utility class to build a distributed graph from an edge list.
@@ -14,6 +13,9 @@
 #include "dkaminpar/definitions.h"
 #include "dkaminpar/growt.h"
 #include "dkaminpar/mpi/graph_communication.h"
+
+#include "common/parallel/atomic.h"
+#include "common/scalable_vector.h"
 
 namespace kaminpar::dist::graph {
 class GhostNodeMapper {
@@ -77,7 +79,7 @@ public:
 private:
     scalable_vector<GlobalNodeID> _node_distribution;
     NodeID                        _n;
-    Atomic<NodeID>                _next_ghost_node;
+    parallel::Atomic<NodeID>      _next_ghost_node;
     GhostNodeMap                  _global_to_ghost;
 };
 

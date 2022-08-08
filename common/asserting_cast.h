@@ -1,5 +1,16 @@
+/*******************************************************************************
+ * @file:   asserting_cast.h
+ * @author: Daniel Seemaier
+ * @date:   08.08.2022
+ * @brief:  A `static_cast()` asserting that no (un)signed overlow occurs.
+ ******************************************************************************/
+#pragma once
+
+#include <cstdint>
 #include <limits>
 #include <type_traits>
+
+#include "common/assert.h"
 
 namespace kaminpar {
 template <typename To, typename From>
@@ -30,14 +41,16 @@ constexpr bool in_range(const From value) noexcept {
         return (value < 0) ? false
                            : (static_cast<std::uintmax_t>(value)
                               <= static_cast<std::uintmax_t>(std::numeric_limits<To>::max()));
-    } else if constexpr (std::is_unsiged_v<From> && std::is_signed_v<To>) {
+    } else if constexpr (std::is_unsigned_v<From> && std::is_signed_v<To>) {
         return static_cast<std::uintmax_t>(value) <= static_cast<std::uintmax_t>(std::numeric_limits<To>::max());
     }
 }
 
 template <typename To, typename From>
 To asserting_cast(const From value) {
-    KASSERT(in_range<To, From>(value));
+    KASSERT(
+        in_range<To>(value),
+        value << " of type " << typeid(From).name() << " not in range of type " << typeid(To).name(), assert::light);
     return static_cast<To>(value);
 }
 } // namespace kaminpar

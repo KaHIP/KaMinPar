@@ -6,7 +6,7 @@
  ******************************************************************************/
 #include "dkaminpar/debug.h"
 
-#include "dkaminpar/distributed_io.h"
+#include "dkaminpar/io.h"
 
 namespace kaminpar::dist::debug {
 namespace {
@@ -32,7 +32,7 @@ void save_partitioned_graph(const DistributedPartitionedGraph& p_graph, const Co
 }
 
 void save_global_clustering(
-    const scalable_vector<Atomic<GlobalNodeID>>& clustering, const Context& ctx, const int level) {
+    const scalable_vector<parallel::Atomic<GlobalNodeID>>& clustering, const Context& ctx, const int level) {
     io::partition::write(create_basename(ctx, level) + ".clustering", clustering);
 }
 } // namespace kaminpar::dist::debug

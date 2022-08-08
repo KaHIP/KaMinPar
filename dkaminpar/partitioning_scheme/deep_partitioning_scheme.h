@@ -12,7 +12,7 @@
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructure/distributed_graph.h"
 
-namespace dkaminpar {
+namespace kaminpar::dist {
 class DeepPartitioningScheme {
 public:
     DeepPartitioningScheme(const DistributedGraph& input_graph, const Context& input_ctx);
@@ -33,4 +33,4 @@ private:
 
     std::stack<Coarsener> _coarseners;
 };
-} // namespace dkaminpar
+} // namespace kaminpar::dist

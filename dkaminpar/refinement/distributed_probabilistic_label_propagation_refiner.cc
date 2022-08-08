@@ -1,26 +1,26 @@
 /*******************************************************************************
- * @file:   distributed_probabilistic_label_propagation_refiner.h
- *
+ * @file:   distributed_probabilistic_label_propagation_refiner.cc
  * @author: Daniel Seemaier
  * @date:   30.09.2021
  * @brief:
  ******************************************************************************/
 #include "dkaminpar/refinement/distributed_probabilistic_label_propagation_refiner.h"
 
+#include "dkaminpar/metrics.h"
 #include "dkaminpar/mpi/graph_communication.h"
 #include "dkaminpar/mpi/wrapper.h"
-#include "dkaminpar/utils/math.h"
-#include "dkaminpar/utils/metrics.h"
 
 #include "kaminpar/label_propagation.h"
 
 #include "common/datastructures/marker.h"
+#include "common/datastructures/rating_map.h"
 #include "common/parallel/vector_ets.h"
 #include "common/random.h"
+#include "common/utils/math.h"
 
-namespace dkaminpar {
-struct DistributedLabelPropagationRefinerConfig : public shm::LabelPropagationConfig {
-    using RatingMap                            = shm::RatingMap<EdgeWeight, shm::FastResetArray<EdgeWeight>>;
+namespace kaminpar::dist {
+struct DistributedLabelPropagationRefinerConfig : public LabelPropagationConfig {
+    using RatingMap                            = ::kaminpar::RatingMap<EdgeWeight, BlockID, FastResetArray<EdgeWeight>>;
     using Graph                                = DistributedGraph;
     using ClusterID                            = BlockID;
     using ClusterWeight                        = BlockWeight;
@@ -30,12 +30,12 @@ struct DistributedLabelPropagationRefinerConfig : public shm::LabelPropagationCo
 };
 
 class DistributedProbabilisticLabelPropagationRefinerImpl final
-    : public shm::InOrderLabelPropagation<
+    : public InOrderLabelPropagation<
           DistributedProbabilisticLabelPropagationRefinerImpl, DistributedLabelPropagationRefinerConfig> {
     SET_STATISTICS_FROM_GLOBAL();
     SET_DEBUG(false);
 
-    using Base = shm::InOrderLabelPropagation<
+    using Base = InOrderLabelPropagation<
         DistributedProbabilisticLabelPropagationRefinerImpl, DistributedLabelPropagationRefinerConfig>;
 
     struct Statistics {
@@ -45,19 +45,19 @@ class DistributedProbabilisticLabelPropagationRefinerImpl final
         int num_successful_moves = 0; // global
         int num_rollbacks        = 0; // global
 
-        Atomic<int> num_tentatively_moved_nodes    = 0;
-        Atomic<int> num_tentatively_rejected_nodes = 0;
+        parallel::Atomic<int> num_tentatively_moved_nodes    = 0;
+        parallel::Atomic<int> num_tentatively_rejected_nodes = 0;
 
         double max_balance_violation   = 0.0; // global, only if rollback occurred
         double total_balance_violation = 0.0; // global, only if rollback occurred
 
         // local, expectation value of probabilistic gain values
-        Atomic<EdgeWeight> expected_gain = 0;
+        parallel::Atomic<EdgeWeight> expected_gain = 0;
         // local, gain values of moves that were executed
-        Atomic<EdgeWeight> realized_gain = 0;
-        Atomic<EdgeWeight> rejected_gain = 0;
+        parallel::Atomic<EdgeWeight> realized_gain = 0;
+        parallel::Atomic<EdgeWeight> rejected_gain = 0;
         // local, gain values that were rollbacked
-        Atomic<EdgeWeight> rollback_gain = 0;
+        parallel::Atomic<EdgeWeight> rollback_gain = 0;
         // local, expected imbalance
         double expected_imbalance = 0;
 
@@ -239,11 +239,11 @@ private:
         };
 
         // perform probabilistic moves, but keep track of moves in case we need to roll back
-        std::vector<Atomic<NodeWeight>>      expected_moved_weight(_p_ctx->k);
-        scalable_vector<Atomic<BlockWeight>> block_weight_deltas(_p_ctx->k);
+        std::vector<parallel::Atomic<NodeWeight>>      expected_moved_weight(_p_ctx->k);
+        scalable_vector<parallel::Atomic<BlockWeight>> block_weight_deltas(_p_ctx->k);
         tbb::concurrent_vector<Move>         moves;
         _p_graph->pfor_nodes_range(from, to, [&](const auto& r) {
-            auto& rand = shm::Random::instance();
+            auto& rand = Random::instance();
 
             for (NodeID u = r.begin(); u < r.end(); ++u) {
                 // only iterate over nodes that changed block
@@ -296,7 +296,7 @@ private:
             MPI_SUM, _p_graph->communicator());
 
         // check for balance violations
-        Atomic<std::uint8_t> feasible = 1;
+        parallel::Atomic<std::uint8_t> feasible = 1;
         _p_graph->pfor_blocks([&](const BlockID b) {
             if (_p_graph->block_weight(b) + global_block_weight_deltas[b] > max_cluster_weight(b)
                 && global_block_weight_deltas[b] > 0) {
@@ -472,7 +472,7 @@ private:
 
     scalable_vector<BlockID>             _next_partition;
     scalable_vector<EdgeWeight>          _gains;
-    scalable_vector<Atomic<BlockWeight>> _block_weights;
+    scalable_vector<parallel::Atomic<BlockWeight>> _block_weights;
 
     Statistics _statistics;
 };
@@ -494,4 +494,4 @@ void DistributedProbabilisticLabelPropagationRefiner::initialize(
 void DistributedProbabilisticLabelPropagationRefiner::refine(DistributedPartitionedGraph& p_graph) {
     _impl->refine(p_graph);
 }
-} // namespace dkaminpar
+} // namespace kaminpar::dist

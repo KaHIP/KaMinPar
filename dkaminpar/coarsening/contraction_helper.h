@@ -1,6 +1,5 @@
 /*******************************************************************************
  * @file:   contraction_helper.h
- *
  * @author: Daniel Seemaier
  * @date:   29.10.2021
  * @brief:  Utility functions for contracting distributed graphs.
@@ -9,18 +8,17 @@
 
 #include <algorithm>
 
-#include "definitions.h"
-
 #include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/datastructure/distributed_graph_builder.h"
-#include "dkaminpar/utils/math.h"
-
-#include "kaminpar/utils/noinit_allocator.h"
-#include "kaminpar/utils/timer.h"
+#include "dkaminpar/definitions.h"
 
 #include "common/datastructures/ts_navigable_linked_list.h"
+#include "common/noinit_vector.h"
+#include "common/scalable_vector.h"
+#include "common/timer.h"
+#include "common/utils/math.h"
 
-namespace dkaminpar::coarsening::helper {
+namespace kaminpar::dist::helper {
 namespace {
 SET_DEBUG(false);
 }
@@ -32,9 +30,9 @@ struct LocalToGlobalEdge {
 };
 
 struct DeduplicateEdgeListMemoryContext {
-    shm::noinit_vector<Atomic<NodeID>>    bucket_index;
-    shm::noinit_vector<NodeID>            deduplicated_bucket_index;
-    shm::noinit_vector<LocalToGlobalEdge> buffer_list;
+    NoinitVector<parallel::Atomic<NodeID>> bucket_index;
+    NoinitVector<NodeID>                   deduplicated_bucket_index;
+    NoinitVector<LocalToGlobalEdge>        buffer_list;
 };
 
 template <typename Container>
@@ -65,7 +63,7 @@ deduplicate_edge_list(Container edge_list, const NodeID n, DeduplicateEdgeListMe
             KASSERT(edge_list[i].u < n);
             bucket_index[edge_list[i].u].fetch_add(1, std::memory_order_relaxed);
         });
-        shm::parallel::prefix_sum(bucket_index.begin(), bucket_index.end(), bucket_index.begin());
+        parallel::prefix_sum(bucket_index.begin(), bucket_index.end(), bucket_index.begin());
         tbb::parallel_for<std::size_t>(0, edge_list.size(), [&](const std::size_t i) {
             const std::size_t j = bucket_index[edge_list[i].u].fetch_sub(1, std::memory_order_relaxed) - 1;
             buffer_list[j]      = edge_list[i];
@@ -105,7 +103,7 @@ deduplicate_edge_list(Container edge_list, const NodeID n, DeduplicateEdgeListMe
 
     START_TIMER("Compute prefix sum over degrees", TIMER_DETAIL);
     deduplicated_bucket_index[0] = 0;
-    shm::parallel::prefix_sum(
+    parallel::prefix_sum(
         deduplicated_bucket_index.begin(), deduplicated_bucket_index.begin() + n + 1,
         deduplicated_bucket_index.begin());
     STOP_TIMER();
@@ -158,7 +156,7 @@ inline scalable_vector<T> create_distribution_from_local_count(const T local_cou
 
     scalable_vector<T> distribution(size + 1);
     mpi::allgather(&local_count, 1, distribution.data() + 1, 1, comm);
-    shm::parallel::prefix_sum(distribution.begin(), distribution.end(), distribution.begin());
+    parallel::prefix_sum(distribution.begin(), distribution.end(), distribution.begin());
     distribution.front() = 0;
 
     return distribution;
@@ -181,11 +179,11 @@ inline DistributedGraph build_distributed_graph_from_edge_list(
 
     // Bucket-sort edge list
     START_TIMER("Bucket sort edge list", TIMER_DETAIL);
-    scalable_vector<Atomic<NodeID>> bucket_index(n + 1);
+    scalable_vector<parallel::Atomic<NodeID>> bucket_index(n + 1);
     tbb::parallel_for<std::size_t>(0, edge_list.size(), [&](const std::size_t i) {
         bucket_index[edge_list[i].u].fetch_add(1, std::memory_order_relaxed);
     });
-    shm::parallel::prefix_sum(bucket_index.begin(), bucket_index.end(), bucket_index.begin());
+    parallel::prefix_sum(bucket_index.begin(), bucket_index.end(), bucket_index.begin());
     scalable_vector<std::size_t> buckets(edge_list.size());
     tbb::parallel_for<std::size_t>(0, edge_list.size(), [&](const std::size_t i) {
         buckets[bucket_index[edge_list[i].u].fetch_sub(1, std::memory_order_relaxed) - 1] = i;
@@ -201,7 +199,7 @@ inline DistributedGraph build_distributed_graph_from_edge_list(
         GlobalNodeID v;
         EdgeWeight   weight;
     };
-    shm::NavigableLinkedList<NodeID, Edge, scalable_vector> edge_buffer_ets;
+    NavigableLinkedList<NodeID, Edge, scalable_vector> edge_buffer_ets;
 
     START_TIMER("Allocation", TIMER_DETAIL);
     scalable_vector<EdgeID> nodes(n + 1);
@@ -253,8 +251,8 @@ inline DistributedGraph build_distributed_graph_from_edge_list(
         }
     });
 
-    shm::parallel::prefix_sum(nodes.begin(), nodes.end(), nodes.begin());
-    const auto all_buffered_nodes = shm::ts_navigable_list::combine<NodeID, Edge, scalable_vector>(edge_buffer_ets);
+    parallel::prefix_sum(nodes.begin(), nodes.end(), nodes.begin());
+    const auto all_buffered_nodes = ts_navigable_list::combine<NodeID, Edge, scalable_vector>(edge_buffer_ets);
     STOP_TIMER(TIMER_DETAIL);
 
     START_TIMER("Allocation", TIMER_DETAIL);
@@ -327,4 +325,4 @@ inline DistributedGraph build_distributed_graph_from_edge_list(
         false,
         comm};
 }
-} // namespace dkaminpar::coarsening::helper
+} // namespace kaminpar::dist::helper

@@ -1,17 +1,15 @@
 /*******************************************************************************
  * @file:   i_distributed_refiner.h
- *
  * @author: Daniel Seemaier
  * @date:   27.10.2021
  * @brief:  Interface for refinement algorithms.
  ******************************************************************************/
-
 #pragma once
 
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructure/distributed_graph.h"
 
-namespace dkaminpar {
+namespace kaminpar::dist {
 class IDistributedRefiner {
 public:
     virtual ~IDistributedRefiner() = default;

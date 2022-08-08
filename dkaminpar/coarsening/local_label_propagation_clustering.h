@@ -1,6 +1,5 @@
 /*******************************************************************************
  * @file:   distributed_local_label_propagation_clustering.h
- *
  * @author: Daniel Seemaier
  * @date:   30.09.21
  * @brief:  Label propagation clustering that only clusters node within a PE
@@ -12,7 +11,7 @@
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructure/distributed_graph.h"
 
-namespace dkaminpar {
+namespace kaminpar::dist {
 class DistributedLocalLabelPropagationClustering : public ClusteringAlgorithm<NodeID> {
 public:
     DistributedLocalLabelPropagationClustering(const Context& ctx);
@@ -31,4 +30,4 @@ public:
 private:
     std::unique_ptr<class DistributedLocalLabelPropagationClusteringImpl> _impl;
 };
-} // namespace dkaminpar
+} // namespace kaminpar::dist

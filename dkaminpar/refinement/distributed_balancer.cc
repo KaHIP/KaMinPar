@@ -1,22 +1,20 @@
 /*******************************************************************************
  * @file:   distributed_balancer.cc
- *
  * @author: Daniel Seemaier
  * @date:   12.04.2022
  * @brief:  Distributed balancing refinement algorithm.
  ******************************************************************************/
 #include "dkaminpar/refinement/distributed_balancer.h"
 
+#include "dkaminpar/metrics.h"
 #include "dkaminpar/mpi/graph_communication.h"
 #include "dkaminpar/mpi/wrapper.h"
-#include "dkaminpar/utils/metrics.h"
-
-#include "kaminpar/utils/timer.h"
 
 #include "common/random.h"
+#include "common/timer.h"
 #include "common/utils/math.h"
 
-namespace dkaminpar {
+namespace kaminpar::dist {
 DistributedBalancer::DistributedBalancer(const Context& ctx)
     : _ctx(ctx),
       _pq(ctx.partition.local_n(), ctx.partition.k),
@@ -184,7 +182,7 @@ auto DistributedBalancer::reduce_move_candidates(std::vector<MoveCandidate>&& ca
     -> std::vector<MoveCandidate> {
     const int size = mpi::get_comm_size(_p_graph->communicator());
     const int rank = mpi::get_comm_rank(_p_graph->communicator());
-    KASSERT(shm::math::is_power_of_2(size), "#PE must be a power of two", assert::always);
+    KASSERT(math::is_power_of_2(size), "#PE must be a power of two", assert::always);
 
     int active_size = size;
     while (active_size > 1) {
@@ -354,8 +352,8 @@ void DistributedBalancer::init_pq() {
 
     const BlockID k = _p_graph->k();
 
-    tbb::enumerable_thread_specific<std::vector<shm::DynamicBinaryMinHeap<NodeID, double>>> local_pq_ets{[&] {
-        return std::vector<shm::DynamicBinaryMinHeap<NodeID, double>>(k);
+    tbb::enumerable_thread_specific<std::vector<DynamicBinaryMinHeap<NodeID, double>>> local_pq_ets{[&] {
+        return std::vector<DynamicBinaryMinHeap<NodeID, double>>(k);
     }};
 
     tbb::enumerable_thread_specific<std::vector<NodeWeight>> local_pq_weight_ets{[&] {
@@ -426,7 +424,7 @@ std::pair<BlockID, double> DistributedBalancer::compute_gain(const NodeID u, con
         }
 
         // select neighbor that maximizes gain
-        auto& rand = shm::Random::instance();
+        auto& rand = Random::instance();
         for (const auto [block, gain]: map.entries()) {
             if (gain > max_external_gain || (gain == max_external_gain && rand.random_bool())) {
                 max_gainer        = block;

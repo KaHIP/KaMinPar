@@ -1,6 +1,5 @@
 /*******************************************************************************);
  * @file:   dkaminpar_graphgen.h
- *
  * @author: Daniel Seemaier
  * @date:   26.11.21
  * @brief:  In-memory graph generator using KaGen.
@@ -12,7 +11,7 @@
 
 #include "kaminpar/application/arguments.h"
 
-namespace dkaminpar::graphgen {
+namespace kaminpar::dist {
 enum class GeneratorType {
     NONE,
     GNM,
@@ -45,4 +44,4 @@ struct GeneratorContext {
 };
 
 DistributedGraph generate(GeneratorContext ctx);
-} // namespace dkaminpar::graphgen
+} // namespace kaminpar::dist

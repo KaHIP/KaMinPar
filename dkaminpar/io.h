@@ -1,6 +1,5 @@
 /*******************************************************************************
- * @file:   distributed_io.h
- *
+ * @file:   io.h
  * @author: Daniel Seemaier
  * @date:   27.10.2021
  * @brief:  Load distributed grpah from a single METIS file, node or edge

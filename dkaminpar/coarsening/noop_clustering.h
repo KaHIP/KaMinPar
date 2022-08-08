@@ -1,6 +1,5 @@
 /*******************************************************************************
  * @file:   noop_clustering.h
- *
  * @author: Daniel Seemaier
  * @date:   13.05.2022
  * @brief:  Clustering algorithm that assigns each node to its own cluster.
@@ -10,7 +9,7 @@
 #include "dkaminpar/coarsening/i_clustering_algorithm.h"
 #include "dkaminpar/context.h"
 
-namespace dkaminpar {
+namespace kaminpar::dist {
 template <typename ClusterID>
 class NoopClustering : public ClusteringAlgorithm<ClusterID> {
     using AtomicClusterArray = typename ClusteringAlgorithm<ClusterID>::AtomicClusterArray;
@@ -28,4 +27,4 @@ private:
 
 using LocalNoopClustering  = NoopClustering<NodeID>;
 using GlobalNoopClustering = NoopClustering<GlobalNodeID>;
-} // namespace dkaminpar
+} // namespace kaminpar::dist

@@ -1,6 +1,5 @@
 /*******************************************************************************
  * @file:   random_initial_partitioner.h
- *
  * @author: Daniel Seemaier
  * @date:   06.11.2021
  * @brief:  Initial partitioner that assigns nodes to blocks randomly.
@@ -10,7 +9,7 @@
 #include "dkaminpar/context.h"
 #include "dkaminpar/initial_partitioning/i_initial_partitioner.h"
 
-namespace dkaminpar {
+namespace kaminpar::dist {
 class RandomInitialPartitioner : public IInitialPartitioner {
 public:
     RandomInitialPartitioner(const Context& ctx) : _ctx{ctx} {}

@@ -1,6 +1,5 @@
 /*******************************************************************************
  * @file:   graph_extraction.cc
- *
  * @author: Daniel Seemaier
  * @date:   28.04.2022
  * @brief:  Distributes block-induced subgraphs of a partitioned graph across
@@ -18,13 +17,14 @@
 #include "dkaminpar/mpi/alltoall.h"
 #include "dkaminpar/mpi/graph_communication.h"
 #include "dkaminpar/mpi/wrapper.h"
-#include "dkaminpar/utils/math.h"
 
+#include "common/datastructures/static_array.h"
 #include "common/parallel/algorithm.h"
 #include "common/parallel/vector_ets.h"
+#include "common/utils/math.h"
 
-namespace dkaminpar::graph {
-SET_DEBUG(true);
+namespace kaminpar::dist::graph {
+SET_DEBUG(false);
 
 namespace {
 PEID compute_block_owner(const BlockID b, const BlockID k, const PEID num_pes) {
@@ -313,10 +313,10 @@ gather_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph, const
             }
 
             // Allocate memory for subgraph
-            shm::StaticArray<EdgeID>     subgraph_nodes(n + 1);
-            shm::StaticArray<NodeWeight> subgraph_node_weights(n);
-            shm::StaticArray<NodeID>     subgraph_edges(m);
-            shm::StaticArray<EdgeWeight> subgraph_edge_weights(m);
+            StaticArray<EdgeID>     subgraph_nodes(n + 1);
+            StaticArray<NodeWeight> subgraph_node_weights(n);
+            StaticArray<NodeID>     subgraph_edges(m);
+            StaticArray<EdgeWeight> subgraph_edge_weights(m);
 
             // Copy subgraph to memory
             // @todo better approach might be to compute a prefix sum on recv_subgraph_sizes
@@ -443,4 +443,4 @@ DistributedPartitionedGraph copy_subgraph_partitions(
     KASSERT(graph::debug::validate_partition(new_p_graph), "graph partition in inconsistent state", assert::heavy);
     return new_p_graph;
 }
-} // namespace dkaminpar::graph
+} // namespace kaminpar::dist::graph

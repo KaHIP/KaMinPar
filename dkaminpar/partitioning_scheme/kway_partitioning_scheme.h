@@ -10,7 +10,7 @@
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructure/distributed_graph.h"
 
-namespace dkaminpar {
+namespace kaminpar::dist {
 class KWayPartitioningScheme {
 public:
     KWayPartitioningScheme(const DistributedGraph& graph, const Context& ctx);
@@ -21,4 +21,4 @@ private:
     const DistributedGraph& _graph;
     const Context&          _ctx;
 };
-} // namespace dkaminpar
+} // namespace kaminpar::dist

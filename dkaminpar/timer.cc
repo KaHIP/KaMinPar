@@ -1,12 +1,14 @@
 /*******************************************************************************
- * @file:   distributed_timer.cc
+ * @file:   timer.cc
  * @author: Daniel Seemaier
  * @date:   27.10.2021
- * @brief:
+ * @brief:  Functions to annotate the timer on the root PE with min/max/mean/sd
+ * timings of other PEs.
  ******************************************************************************/
 #include "dkaminpar/timer.h"
 
 #include <cmath>
+#include <iomanip>
 #include <numeric>
 #include <sstream>
 
@@ -215,7 +217,7 @@ void annotate_timer_tree(
 }
 } // namespace
 
-void finalize_distributed_timer(shm::Timer& timer, MPI_Comm comm) {
+void finalize_distributed_timer(Timer& timer, MPI_Comm comm) {
     std::vector<NodeStatistics> statistics;
     generate_statistics(timer.tree(), statistics, comm);
     if (mpi::get_comm_rank(comm) == 0) {

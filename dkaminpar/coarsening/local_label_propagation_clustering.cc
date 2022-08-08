@@ -1,16 +1,16 @@
 /*******************************************************************************
  * @file:   distributed_local_label_propagation_clustering.cc
- *
  * @author: Daniel Seemaier
  * @date:   30.09.21
- * @brief:
+ * @brief:  Label propagation clustering that only clusters node within a PE
+ * (i.e., not with ghost nodes).
  ******************************************************************************/
 #include "dkaminpar/coarsening/local_label_propagation_clustering.h"
 
 #include "kaminpar/label_propagation.h"
 
-namespace dkaminpar {
-struct DistributedLocalLabelPropagationClusteringConfig : public shm::LabelPropagationConfig {
+namespace kaminpar::dist {
+struct DistributedLocalLabelPropagationClusteringConfig : public LabelPropagationConfig {
     using Graph                                = DistributedGraph;
     using ClusterID                            = NodeID;
     using ClusterWeight                        = NodeWeight;
@@ -19,16 +19,16 @@ struct DistributedLocalLabelPropagationClusteringConfig : public shm::LabelPropa
 };
 
 class DistributedLocalLabelPropagationClusteringImpl final
-    : public shm::ChunkRandomdLabelPropagation<
+    : public ChunkRandomdLabelPropagation<
           DistributedLocalLabelPropagationClusteringImpl, DistributedLocalLabelPropagationClusteringConfig>,
-      public shm::OwnedClusterVector<NodeID, NodeID>,
-      public shm::OwnedRelaxedClusterWeightVector<NodeID, NodeWeight> {
+      public OwnedClusterVector<NodeID, NodeID>,
+      public OwnedRelaxedClusterWeightVector<NodeID, NodeWeight> {
     SET_DEBUG(false);
 
-    using Base = shm::ChunkRandomdLabelPropagation<
+    using Base = ChunkRandomdLabelPropagation<
         DistributedLocalLabelPropagationClusteringImpl, DistributedLocalLabelPropagationClusteringConfig>;
-    using ClusterBase       = shm::OwnedClusterVector<NodeID, NodeID>;
-    using ClusterWeightBase = shm::OwnedRelaxedClusterWeightVector<NodeID, NodeWeight>;
+    using ClusterBase       = OwnedClusterVector<NodeID, NodeID>;
+    using ClusterWeightBase = OwnedRelaxedClusterWeightVector<NodeID, NodeWeight>;
 
 public:
     DistributedLocalLabelPropagationClusteringImpl(const NodeID max_n, const CoarseningContext& c_ctx)
@@ -155,4 +155,4 @@ DistributedLocalLabelPropagationClustering::compute_clustering(
     const DistributedGraph& graph, const GlobalNodeWeight max_cluster_weight) {
     return _impl->compute_clustering(graph, max_cluster_weight);
 }
-} // namespace dkaminpar
+} // namespace kaminpar::dist

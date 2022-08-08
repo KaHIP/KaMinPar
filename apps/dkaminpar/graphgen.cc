@@ -1,13 +1,12 @@
 /*******************************************************************************
- * @file:   dkaminpar_graphgen.h
- *
+ * @file:   graphgen.cc
  * @author: Daniel Seemaier
  * @date:   26.11.21
  * @brief:  In-memory graph generator using KaGen.
  ******************************************************************************/
-#include "apps/dkaminpar_graphgen.h"
+#include "apps/dkaminpar/graphgen.h"
 
-#include <kagen_library.h>
+#include <kagen.h>
 #include <tbb/parallel_sort.h>
 
 #include "dkaminpar/coarsening/contraction_helper.h"
@@ -19,14 +18,14 @@
 
 #include "kaminpar/graphutils/graph_permutation.h"
 #include "kaminpar/graphutils/graph_rearrangement.h"
-#include "kaminpar/utils/timer.h"
 
 #include "common/datastructures/marker.h"
 #include "common/parallel/algorithm.h"
 #include "common/parallel/atomic.h"
 #include "common/random.h"
+#include "common/timer.h"
 
-namespace dkaminpar::graphgen {
+namespace kaminpar::dist {
 using namespace std::string_literals;
 
 DEFINE_ENUM_STRING_CONVERSION(GeneratorType, generator_type) = {
@@ -59,8 +58,8 @@ growt::StaticGhostNodeMapping remap_ghost_nodes(
     std::vector<int> recvcounts(size);
 
     // Count number of messages for each PE
-    shm::Marker<> counted_pe(size);
-    GlobalNodeID  current_global_u = kInvalidGlobalNodeID;
+    Marker<>     counted_pe(size);
+    GlobalNodeID current_global_u = kInvalidGlobalNodeID;
 
     for (const auto& [global_u, global_v]: edge_list) {
         if (from <= global_v && global_v < to) {
@@ -182,7 +181,7 @@ DistributedGraph build_graph_sorted(EdgeList edge_list, scalable_vector<GlobalNo
     }
 
     // Sort nodes by degree bucket
-    shm::parallel::prefix_sum(
+    parallel::prefix_sum(
         degrees.begin(), degrees.end(), degrees.begin()); // sort_by_degree_buckets expects the prefix sum
     const auto  node_permutation       = shm::graph::sort_by_degree_buckets<scalable_vector, false>(degrees);
     const auto& permutation_old_to_new = node_permutation.old_to_new;
@@ -200,7 +199,7 @@ DistributedGraph build_graph_sorted(EdgeList edge_list, scalable_vector<GlobalNo
         const NodeID old_u = permutation_new_to_old[new_u];
         nodes[new_u + 1]   = degrees[old_u + 1] - degrees[old_u]; // Node degree
     });
-    shm::parallel::prefix_sum(nodes.begin(), nodes.end(), nodes.begin());
+    parallel::prefix_sum(nodes.begin(), nodes.end(), nodes.begin());
 
     // --> Edges
     DBG << V(node_distribution);
@@ -257,7 +256,7 @@ DistributedGraph build_graph(const EdgeList& edge_list, scalable_vector<GlobalNo
 
     // bucket sort nodes
     START_TIMER("Bucket sort");
-    scalable_vector<Atomic<NodeID>> buckets(n);
+    scalable_vector<parallel::Atomic<NodeID>> buckets(n);
     tbb::parallel_for<EdgeID>(0, edge_list.size(), [&](const EdgeID e) {
         const GlobalNodeID u = std::get<0>(edge_list[e]);
         KASSERT(from <= u, "", assert::always);
@@ -265,7 +264,7 @@ DistributedGraph build_graph(const EdgeList& edge_list, scalable_vector<GlobalNo
 
         buckets[u - from].fetch_add(1, std::memory_order_relaxed);
     });
-    shm::parallel::prefix_sum(buckets.begin(), buckets.end(), buckets.begin());
+    parallel::prefix_sum(buckets.begin(), buckets.end(), buckets.begin());
     STOP_TIMER();
 
     const EdgeID m = buckets.back();
@@ -441,4 +440,4 @@ DistributedGraph generate(const GeneratorContext ctx) {
 
     return build_graph_sorted(std::move(edges), build_node_distribution(local_range));
 }
-} // namespace dkaminpar::graphgen
+} // namespace kaminpar::dist

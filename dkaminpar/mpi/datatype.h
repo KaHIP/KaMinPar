@@ -1,9 +1,10 @@
 /*******************************************************************************
  * @file:   datatype.h
- *
  * @author: Daniel Seemaier
  * @date:   10.06.2022
- * @brief:  Automatic selection for MPI datatypes.
+ * @brief:  Utility functions to automatically select the right MPI type.
+ * If a type does not map to any of the predefined MPI data types, a new
+ * contiguous MPI type is created.
  ******************************************************************************/
 #pragma once
 
@@ -13,7 +14,7 @@
 
 #include <mpi.h>
 
-namespace dkaminpar::mpi::type {
+namespace kaminpar::mpi::type {
 template <std::size_t N>
 inline MPI_Datatype custom() {
     static MPI_Datatype type = MPI_DATATYPE_NULL;
@@ -59,4 +60,4 @@ inline MPI_Datatype get() {
         return custom<sizeof(T)>();
     }
 }
-} // namespace dkaminpar::mpi::type
+} // namespace kaminpar::mpi::type

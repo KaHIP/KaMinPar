@@ -359,28 +359,27 @@ public:
 
     // Iterators for nodes / edges
     [[nodiscard]] inline auto nodes() const {
-        return shm::IotaRange(static_cast<NodeID>(0), n());
+        return IotaRange(static_cast<NodeID>(0), n());
     }
     [[nodiscard]] inline auto ghost_nodes() const {
-        return shm::IotaRange(n(), total_n());
+        return IotaRange(n(), total_n());
     }
     [[nodiscard]] inline auto all_nodes() const {
-        return shm::IotaRange(static_cast<NodeID>(0), total_n());
+        return IotaRange(static_cast<NodeID>(0), total_n());
     }
     [[nodiscard]] inline auto edges() const {
-        return shm::IotaRange(static_cast<EdgeID>(0), m());
+        return IotaRange(static_cast<EdgeID>(0), m());
     }
     [[nodiscard]] inline auto incident_edges(const NodeID u) const {
-        return shm::IotaRange(_nodes[u], _nodes[u + 1]);
+        return IotaRange(_nodes[u], _nodes[u + 1]);
     }
 
     [[nodiscard]] inline auto adjacent_nodes(const NodeID u) const {
-        return shm::TransformedIotaRange(
-            _nodes[u], _nodes[u + 1], [this](const EdgeID e) { return this->edge_target(e); });
+        return TransformedIotaRange(_nodes[u], _nodes[u + 1], [this](const EdgeID e) { return this->edge_target(e); });
     }
 
     [[nodiscard]] inline auto neighbors(const NodeID u) const {
-        return shm::TransformedIotaRange(
+        return TransformedIotaRange(
             _nodes[u], _nodes[u + 1], [this](const EdgeID e) { return std::make_pair(e, this->edge_target(e)); });
     }
 
@@ -500,11 +499,11 @@ public:
     using GlobalEdgeID     = DistributedGraph::GlobalEdgeID;
     using EdgeWeight       = DistributedGraph::EdgeWeight;
     using GlobalEdgeWeight = DistributedGraph::GlobalEdgeWeight;
-    using BlockID          = ::dkaminpar::BlockID;
-    using BlockWeight      = ::dkaminpar::BlockWeight;
+    using BlockID          = ::kaminpar::dist::BlockID;
+    using BlockWeight      = ::kaminpar::dist::BlockWeight;
 
-    using Partition    = scalable_vector<Atomic<BlockID>>;
-    using BlockWeights = scalable_vector<Atomic<BlockWeight>>;
+    using Partition    = scalable_vector<parallel::Atomic<BlockID>>;
+    using BlockWeights = scalable_vector<parallel::Atomic<BlockWeight>>;
 
     DistributedPartitionedGraph(const DistributedGraph* graph, const BlockID k, Partition partition)
         : DistributedPartitionedGraph(graph, k, std::move(partition), BlockWeights(k)) {
@@ -612,7 +611,7 @@ public:
     }
 
     [[nodiscard]] inline auto blocks() const {
-        return shm::IotaRange<BlockID>(0, k());
+        return IotaRange<BlockID>(0, k());
     }
 
     [[nodiscard]] BlockID block(const NodeID u) const {

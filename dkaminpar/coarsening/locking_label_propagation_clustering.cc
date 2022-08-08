@@ -1,6 +1,5 @@
 /*******************************************************************************
  * @file:   locking_lp_clustering.cc
- *
  * @author: Daniel Seemaier
  * @date:   01.10.21
  * @brief:
@@ -12,14 +11,14 @@
 
 #include "dkaminpar/growt.h"
 #include "dkaminpar/mpi/graph_communication.h"
-#include "dkaminpar/utils/math.h"
 
 #include "kaminpar/label_propagation.h"
 
 #include "common/parallel/atomic.h"
 #include "common/parallel/loops.h"
+#include "common/utils/math.h"
 
-namespace dkaminpar {
+namespace kaminpar::dist {
 namespace {
 /*!
  * Large rating map based on a \c unordered_map. We need this since cluster IDs are global node IDs.
@@ -41,44 +40,41 @@ struct UnorderedRatingMap {
     std::unordered_map<GlobalNodeID, EdgeWeight> map{};
 };
 
-struct LockingLabelPropagationClusteringConfig : shm::LabelPropagationConfig {
+struct LockingLabelPropagationClusteringConfig : LabelPropagationConfig {
     using Graph         = DistributedGraph;
-    using RatingMap     = ::kaminpar::RatingMap<EdgeWeight, UnorderedRatingMap>;
+    using RatingMap     = ::kaminpar::RatingMap<EdgeWeight, GlobalNodeID, UnorderedRatingMap>;
     using ClusterID     = GlobalNodeID;
     using ClusterWeight = NodeWeight;
 };
 } // namespace
 
 class LockingLabelPropagationClusteringImpl
-    : public shm::InOrderLabelPropagation<
-          LockingLabelPropagationClusteringImpl, LockingLabelPropagationClusteringConfig> {
+    : public InOrderLabelPropagation<LockingLabelPropagationClusteringImpl, LockingLabelPropagationClusteringConfig> {
     SET_STATISTICS(true);
 
     using Base =
-        shm::InOrderLabelPropagation<LockingLabelPropagationClusteringImpl, LockingLabelPropagationClusteringConfig>;
-    using AtomicClusterArray = scalable_vector<shm::parallel::Atomic<GlobalNodeID>>;
+        InOrderLabelPropagation<LockingLabelPropagationClusteringImpl, LockingLabelPropagationClusteringConfig>;
+    using AtomicClusterArray = scalable_vector<parallel::Atomic<GlobalNodeID>>;
 
     friend Base;
     friend Base::Base;
 
     struct Statistics {
-        shm::parallel::Atomic<int>        num_move_accepted{0};
-        shm::parallel::Atomic<int>        num_move_rejected{0};
-        shm::parallel::Atomic<int>        num_moves{0};
-        shm::parallel::Atomic<EdgeWeight> gain_accepted{0};
-        shm::parallel::Atomic<EdgeWeight> gain_rejected{0};
+        parallel::Atomic<int>        num_move_accepted{0};
+        parallel::Atomic<int>        num_move_rejected{0};
+        parallel::Atomic<int>        num_moves{0};
+        parallel::Atomic<EdgeWeight> gain_accepted{0};
+        parallel::Atomic<EdgeWeight> gain_rejected{0};
 
         void print() const {
-            LOG << shm::logger::CYAN << "LockingLabelPropagationClustering statistics:";
-            LOG << shm::logger::CYAN
+            LOG << logger::CYAN << "LockingLabelPropagationClustering statistics:";
+            LOG << logger::CYAN
                 << "- num_move_accepted: " << mpi::gather_statistics_str(num_move_accepted, MPI_COMM_WORLD);
-            LOG << shm::logger::CYAN
+            LOG << logger::CYAN
                 << "- num_move_rejected: " << mpi::gather_statistics_str(num_move_rejected, MPI_COMM_WORLD);
-            LOG << shm::logger::CYAN << "- num_moves: " << mpi::gather_statistics_str(num_moves, MPI_COMM_WORLD);
-            LOG << shm::logger::CYAN
-                << "- gain_accepted: " << mpi::gather_statistics_str(gain_accepted, MPI_COMM_WORLD);
-            LOG << shm::logger::CYAN
-                << "- gain_rejected: " << mpi::gather_statistics_str(gain_rejected, MPI_COMM_WORLD);
+            LOG << logger::CYAN << "- num_moves: " << mpi::gather_statistics_str(num_moves, MPI_COMM_WORLD);
+            LOG << logger::CYAN << "- gain_accepted: " << mpi::gather_statistics_str(gain_accepted, MPI_COMM_WORLD);
+            LOG << logger::CYAN << "- gain_rejected: " << mpi::gather_statistics_str(gain_rejected, MPI_COMM_WORLD);
         }
 
         void reset() {
@@ -422,7 +418,7 @@ private:
         for (const auto& requests_from_pe: requests) { // allocate memory for responses
             responses.emplace_back(requests_from_pe.size());
         }
-        std::vector<shm::parallel::Atomic<std::size_t>> next_message(requests.size());
+        std::vector<parallel::Atomic<std::size_t>> next_message(requests.size());
         STOP_TIMER(TIMER_FINE);
 
         // perform moves
@@ -482,7 +478,7 @@ private:
         });
 
         // second iteration to set weight in response messages
-        shm::parallel::chunked_for(responses, [&](auto& entry) {
+        parallel::chunked_for(responses, [&](auto& entry) {
             NodeID u;
             std::memcpy(&u, &entry.new_weight, sizeof(NodeID));
             entry.new_weight = cluster_weight(cluster(u));
@@ -544,14 +540,14 @@ private:
         // build _gain_buffer_index and _gain_buffer arrays
         START_TIMER("Build index buffer", TIMER_FINE);
 
-        shm::parallel::chunked_for(join_requests_per_pe, [&](const JoinRequest& request) {
+        parallel::chunked_for(join_requests_per_pe, [&](const JoinRequest& request) {
             const GlobalNodeID global_node = request.global_requested;
             const NodeID       local_node  = _graph->global_to_local_node(global_node);
             ++_gain_buffer_index[local_node];
         });
 
         START_TIMER("Prefix sum", TIMER_FINE);
-        shm::parallel::prefix_sum(
+        parallel::prefix_sum(
             _gain_buffer_index.begin(), _gain_buffer_index.begin() + _graph->n() + 1, _gain_buffer_index.begin());
         STOP_TIMER(TIMER_FINE);
         STOP_TIMER(TIMER_FINE);
@@ -562,7 +558,7 @@ private:
         };
 
         START_TIMER("Build buffer", TIMER_FINE);
-        shm::parallel::chunked_for(join_requests_per_pe, [&](const JoinRequest& request) {
+        parallel::chunked_for(join_requests_per_pe, [&](const JoinRequest& request) {
             KASSERT(_graph->is_owned_global_node(request.global_requested));
             const NodeID local_requested = _graph->global_to_local_node(request.global_requested);
             KASSERT(local_requested < _gain_buffer_index.size());
@@ -705,7 +701,7 @@ private:
     scalable_vector<GainBufferEntry> _gain_buffer;
     //! After receiving join requests, sort ghost nodes that want to join a cluster into \c _gain_buffer. For each
     //! interface node, store the index for that nodes join requests in \c _gain_buffer in this vector.
-    scalable_vector<Atomic<NodeID>> _gain_buffer_index;
+    scalable_vector<parallel::Atomic<NodeID>> _gain_buffer_index;
 
     scalable_vector<std::uint8_t> _locked;
 
@@ -725,4 +721,4 @@ const LockingLabelPropagationClustering::AtomicClusterArray& LockingLabelPropaga
     const DistributedGraph& graph, const GlobalNodeWeight max_cluster_weight) {
     return _impl->compute_clustering(graph, max_cluster_weight);
 }
-} // namespace dkaminpar
+} // namespace kaminpar::dist

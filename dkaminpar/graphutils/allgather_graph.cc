@@ -1,18 +1,22 @@
 /*******************************************************************************
  * @file:   allgather_graph.cc
- *
  * @author: Daniel Seemaier
  * @date:   27.10.2021
  * @brief:  Allgather a distributed graph to each PE.
  ******************************************************************************/
 #include "dkaminpar/graphutils/allgather_graph.h"
 
+#include "dkaminpar/definitions.h"
 #include "dkaminpar/mpi/wrapper.h"
 
+#include "kaminpar/datastructure/graph.h"
 #include "kaminpar/metrics.h"
 
-namespace dkaminpar::graph {
-SET_DEBUG(true);
+#include "common/datastructures/static_array.h"
+#include "common/parallel/atomic.h"
+
+namespace kaminpar::dist::graph {
+SET_DEBUG(false);
 
 shm::Graph allgather(const DistributedGraph& graph) {
     KASSERT(graph.global_n() < std::numeric_limits<NodeID>::max(), "number of nodes exceeds int size", assert::always);
@@ -20,7 +24,7 @@ shm::Graph allgather(const DistributedGraph& graph) {
     MPI_Comm comm = graph.communicator();
 
     // copy edges array with global node IDs
-    shm::StaticArray<shm::NodeID> remapped_edges(graph.m());
+    StaticArray<NodeID> remapped_edges(graph.m());
     graph.pfor_nodes([&](const NodeID u) {
         for (const auto [e, v]: graph.neighbors(u)) {
             remapped_edges[e] = graph.local_to_global_node(v);
@@ -28,14 +32,14 @@ shm::Graph allgather(const DistributedGraph& graph) {
     });
 
     // gather graph
-    shm::StaticArray<shm::EdgeID> nodes(graph.global_n() + 1);
-    shm::StaticArray<shm::NodeID> edges(graph.global_m());
+    StaticArray<EdgeID> nodes(graph.global_n() + 1);
+    StaticArray<NodeID> edges(graph.global_m());
 
     const bool is_node_weighted = mpi::allreduce<std::uint8_t>(graph.is_node_weighted(), MPI_MAX, graph.communicator());
     const bool is_edge_weighted = mpi::allreduce<std::uint8_t>(graph.is_edge_weighted(), MPI_MAX, graph.communicator());
 
-    shm::StaticArray<shm::NodeWeight> node_weights(is_node_weighted * graph.global_n());
-    shm::StaticArray<shm::EdgeWeight> edge_weights(is_edge_weighted * graph.global_m());
+    StaticArray<NodeWeight> node_weights(is_node_weighted * graph.global_n());
+    StaticArray<EdgeWeight> edge_weights(is_edge_weighted * graph.global_m());
 
     auto nodes_recvcounts = mpi::build_distribution_recvcounts(graph.node_distribution());
     auto nodes_displs     = mpi::build_distribution_displs(graph.node_distribution());
@@ -81,8 +85,8 @@ DistributedPartitionedGraph reduce_scatter(const DistributedGraph& dist_graph, s
         "partition size exceeds int size", assert::always);
     MPI_Comm comm = dist_graph.communicator();
 
-    const int             rank    = mpi::get_comm_rank(comm);
-    const shm::EdgeWeight shm_cut = shm::metrics::edge_cut(shm_p_graph);
+    const int        rank    = mpi::get_comm_rank(comm);
+    const EdgeWeight shm_cut = shm::metrics::edge_cut(shm_p_graph);
 
     // find PE with best partition
     struct ReductionMessage {
@@ -98,11 +102,11 @@ DistributedPartitionedGraph reduce_scatter(const DistributedGraph& dist_graph, s
     MPI_Bcast(partition.data(), static_cast<int>(dist_graph.global_n()), MPI_INT32_T, global.rank, comm);
 
     // compute block weights
-    scalable_vector<shm::parallel::Atomic<BlockWeight>> block_weights(shm_p_graph.k());
+    scalable_vector<parallel::Atomic<BlockWeight>> block_weights(shm_p_graph.k());
     shm_p_graph.pfor_nodes([&](const shm::NodeID u) { block_weights[partition[u]] += shm_p_graph.node_weight(u); });
 
     // create distributed partition
-    scalable_vector<Atomic<BlockID>> dist_partition(dist_graph.total_n());
+    scalable_vector<parallel::Atomic<BlockID>> dist_partition(dist_graph.total_n());
     dist_graph.pfor_nodes(0, dist_graph.total_n(), [&](const NodeID u) {
         dist_partition[u] = partition[dist_graph.local_to_global_node(u)];
     });

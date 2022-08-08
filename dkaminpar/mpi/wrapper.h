@@ -13,34 +13,16 @@
 
 #include "dkaminpar/definitions.h"
 #include "dkaminpar/mpi/datatype.h"
+#include "dkaminpar/mpi/utils.h"
 
+#include "common/asserting_cast.h"
+#include "common/noinit_vector.h"
 #include "common/parallel/algorithm.h"
 
-namespace dkaminpar::mpi {
-inline std::pair<int, int> get_comm_info(MPI_Comm comm) {
-    int size;
-    MPI_Comm_size(comm, &size);
-    int rank;
-    MPI_Comm_rank(comm, &rank);
-    return {size, rank};
-}
-
-inline int get_comm_size(MPI_Comm comm) {
-    int size;
-    MPI_Comm_size(comm, &size);
-    return size;
-}
-
-inline int get_comm_rank(MPI_Comm comm) {
-    int rank;
-    MPI_Comm_rank(comm, &rank);
-    return rank;
-}
-
+namespace kaminpar::mpi {
 //
 // Pointer interface for collective operations
 //
-
 inline int barrier(MPI_Comm comm) {
     return MPI_Barrier(comm);
 }
@@ -157,15 +139,15 @@ inline int get_count(const MPI_Status& status) {
 
 template <typename Container, std::enable_if_t<!std::is_pointer_v<Container>, bool> = true>
 int send(const Container& buf, const int dest, const int tag, MPI_Comm comm) {
-    return send(std::data(buf), static_cast<int>(std::size(buf)), dest, tag, comm);
+    return send(std::data(buf), asserting_cast<int>(std::size(buf)), dest, tag, comm);
 }
 
 template <typename Container, std::enable_if_t<!std::is_pointer_v<Container>, bool> = true>
 int isend(const Container& buf, const int dest, const int tag, MPI_Request& request, MPI_Comm comm) {
-    return isend(std::data(buf), static_cast<int>(std::size(buf)), dest, tag, &request, comm);
+    return isend(std::data(buf), asserting_cast<int>(std::size(buf)), dest, tag, &request, comm);
 }
 
-template <typename T, typename Buffer = scalable_noinit_vector<T>>
+template <typename T, typename Buffer = NoinitVector<T>>
 Buffer probe_recv(const int source, const int tag, MPI_Comm comm, MPI_Status* status = MPI_STATUS_IGNORE) {
     const auto count = mpi::get_count<T>(mpi::probe(source, MPI_ANY_TAG, comm));
     KASSERT(count >= 0);
@@ -221,7 +203,7 @@ int allreduce(const T& element, T& ans, MPI_Op op, MPI_Comm comm) {
     return allreduce(&element, &ans, 1, op, comm);
 }
 
-template <typename T, typename Container = scalable_vector<T>>
+template <typename T, typename Container = NoinitVector<T>>
 Container gather(const T& element, const int root, MPI_Comm comm) {
     Container result;
     if (mpi::get_comm_rank(comm) == root) {
@@ -233,12 +215,11 @@ Container gather(const T& element, const int root, MPI_Comm comm) {
 
 template <typename Container>
 int gather(const typename Container::value_type& element, Container& ans, const int root, MPI_Comm comm) {
-    KASSERT((mpi::get_comm_rank(comm) != root || std::size(ans) == mpi::get_comm_size(comm)), "", assert::light);
-
+    KASSERT(mpi::get_comm_rank(comm) != root || std::size(ans) == mpi::get_comm_size(comm), "", assert::light);
     return gather(&element, 1, std::data(ans), 1, comm);
 }
 
-template <typename T, template <typename> typename Container = scalable_vector>
+template <typename T, template <typename> typename Container = NoinitVector>
 Container<T> allgather(const T& element, MPI_Comm comm) {
     Container<T> result(mpi::get_comm_size(comm));
     allgather(&element, 1, std::data(result), 1, comm);
@@ -248,7 +229,6 @@ Container<T> allgather(const T& element, MPI_Comm comm) {
 template <typename Container>
 inline int allgather(const typename Container::value_type& element, Container& ans, MPI_Comm comm) {
     KASSERT(std::size(ans) >= static_cast<std::size_t>(mpi::get_comm_size(comm)), "", assert::light);
-
     return allgather(&element, 1, std::data(ans), 1, comm);
 }
 
@@ -257,7 +237,7 @@ int allgatherv(const Rs& sendbuf, Rr& recvbuf, const Rcounts& recvcounts, const 
     static_assert(std::is_same_v<typename Rcounts::value_type, int>);
     static_assert(std::is_same_v<typename Displs::value_type, int>);
     return allgatherv(
-        std::data(sendbuf), static_cast<int>(std::size(sendbuf)), std::data(recvbuf), std::data(recvcounts),
+        std::data(sendbuf), asserting_cast<int>(std::size(sendbuf)), std::data(recvbuf), std::data(recvcounts),
         std::data(displs), comm);
 }
 
@@ -281,21 +261,20 @@ T exscan(const T& sendbuf, MPI_Op op, MPI_Comm comm) {
 
 template <typename R, std::enable_if_t<!std::is_pointer_v<R>, bool> = true>
 inline int reduce(const R& sendbuf, R& recvbuf, MPI_Op op, const int root, MPI_Comm comm) {
-    KASSERT((mpi::get_comm_rank(comm) != root || std::size(sendbuf) == std::size(recvbuf)), "", assert::light);
-
+    KASSERT(mpi::get_comm_rank(comm) != root || std::size(sendbuf) == std::size(recvbuf), "", assert::light);
     return reduce<typename R::value_type>(
-        sendbuf.cdata(), std::data(recvbuf), static_cast<int>(std::size(sendbuf)), op, root, comm);
+        sendbuf.cdata(), std::data(recvbuf), asserting_cast<int>(std::size(sendbuf)), op, root, comm);
 }
 
 template <
-    typename R, template <typename> typename Container = scalable_vector,
+    typename R, template <typename> typename Container = NoinitVector,
     std::enable_if_t<!std::is_pointer_v<R>, bool> = true>
 inline auto reduce(const R& sendbuf, MPI_Op op, const int root, MPI_Comm comm) {
     Container<typename std::remove_reference_t<R>::value_type> recvbuf;
     if (mpi::get_comm_rank(comm) == root) {
         recvbuf.resize(std::size(sendbuf));
     }
-    reduce(sendbuf.cdata(), recvbuf.data(), static_cast<int>(std::size(sendbuf)), op, root, comm);
+    reduce(sendbuf.cdata(), recvbuf.data(), asserting_cast<int>(std::size(sendbuf)), op, root, comm);
     return recvbuf;
 }
 
@@ -313,24 +292,13 @@ inline int gather(const Rs& sendbuf, Rr& recvbuf, const int root, MPI_Comm comm)
         "", assert::light);
 
     return gather<rs_value_t, rr_value_t>(
-        sendbuf.cdata(), static_cast<int>(std::size(sendbuf)), std::data(recvbuf), static_cast<int>(std::size(recvbuf)),
+        sendbuf.cdata(), asserting_cast<int>(std::size(sendbuf)), std::data(recvbuf), asserting_cast<int>(std::size(recvbuf)),
         root, comm);
 }
 
 //
 // Misc utility functions
 //
-
-template <typename Lambda>
-inline void sequentially(Lambda&& lambda, MPI_Comm comm) {
-    const auto [size, rank] = get_comm_info(comm);
-    for (int p = 0; p < size; ++p) {
-        if (p == rank) {
-            lambda(p);
-        }
-        MPI_Barrier(comm);
-    }
-}
 
 template <typename Distribution>
 inline std::vector<int> build_distribution_recvcounts(Distribution&& dist) {
@@ -347,18 +315,18 @@ inline std::vector<int> build_distribution_displs(Distribution&& dist) {
     KASSERT(!dist.empty());
     std::vector<int> displs(dist.size() - 1);
     for (std::size_t i = 0; i + 1 < dist.size(); ++i) {
-        displs[i] = static_cast<int>(dist[i]);
+        displs[i] = asserting_cast<int>(dist[i]);
     }
     return displs;
 }
 
 template <typename T, template <typename> typename Container>
 inline Container<T> build_distribution_from_local_count(const T value, MPI_Comm comm) {
-    const auto [size, rank] = mpi::get_comm_info(comm);
+    const auto [size, rank] = get_comm_info(comm);
 
     Container<T> distribution(size + 1);
-    mpi::allgather(&value, 1, distribution.data() + 1, 1, comm);
-    shm::parallel::prefix_sum(distribution.begin(), distribution.end(), distribution.begin());
+    allgather(&value, 1, distribution.data() + 1, 1, comm);
+    parallel::prefix_sum(distribution.begin(), distribution.end(), distribution.begin());
     distribution.front() = 0;
 
     return distribution;
@@ -366,10 +334,10 @@ inline Container<T> build_distribution_from_local_count(const T value, MPI_Comm 
 
 template <typename T>
 std::tuple<T, double, T, T> gather_statistics(const T value, MPI_Comm comm) {
-    const T      min = mpi::allreduce(value, MPI_MIN, comm);
-    const T      max = mpi::allreduce(value, MPI_MAX, comm);
-    const T      sum = mpi::allreduce(value, MPI_SUM, comm);
-    const double avg = 1.0 * sum / mpi::get_comm_size(comm);
+    const T      min = allreduce(value, MPI_MIN, comm);
+    const T      max = allreduce(value, MPI_MAX, comm);
+    const T      sum = allreduce(value, MPI_SUM, comm);
+    const double avg = 1.0 * sum / get_comm_size(comm);
     return {min, avg, max, sum};
 }
 
@@ -380,4 +348,4 @@ std::string gather_statistics_str(const T value, MPI_Comm comm) {
     os << "min=" << min << "|avg=" << avg << "|max=" << max << "|sum=" << sum;
     return os.str();
 }
-} // namespace dkaminpar::mpi
+} // namespace kaminpar::mpi

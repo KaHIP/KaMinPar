@@ -14,7 +14,7 @@
 
 #include "kaminpar/datastructure/graph.h"
 
-namespace dkaminpar::graph {
+namespace kaminpar::dist::graph {
 struct ExtractedLocalSubgraphs {
     std::vector<EdgeID>      shared_nodes;
     std::vector<NodeWeight>  shared_node_weights;
@@ -60,4 +60,4 @@ ExtractedSubgraphs distribute_block_induced_subgraphs(const DistributedPartition
 DistributedPartitionedGraph copy_subgraph_partitions(
     DistributedPartitionedGraph p_graph, const std::vector<shm::PartitionedGraph>& p_subgraphs,
     const ExtractedSubgraphs& subgraphs);
-} // namespace dkaminpar::graph
+} // namespace kaminpar::dist::graph

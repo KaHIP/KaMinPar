@@ -2,9 +2,11 @@
 
 #include <mpi.h>
 
+#include "dkaminpar/mpi/utils.h"
+
 #include "common/logger.h"
 
-#define LOG_RANK "[PE" << kaminpar::dist::logger::get_rank() << "]"
+#define LOG_RANK "[PE" << kaminpar::mpi::get_comm_rank(MPI_COMM_WORLD) << "]"
 
 #undef DBGC
 #define DBGC(cond)                                      \
@@ -14,12 +16,12 @@
 
 #undef LOG
 #undef LLOG
-#define LOG  (kaminpar::dist::logger::get_rank() == 0) && kaminpar::DisposableLogger<false>(std::cout)
-#define LLOG (kaminpar::dist::logger::get_rank() == 0) && kaminpar::DisposableLogger<false>(std::cout, "")
+#define LOG  (kaminpar::mpi::get_comm_rank(MPI_COMM_WORLD) == 0) && kaminpar::DisposableLogger<false>(std::cout)
+#define LLOG (kaminpar::mpi::get_comm_rank(MPI_COMM_WORLD) == 0) && kaminpar::DisposableLogger<false>(std::cout, "")
 
 #undef STATS
-#define STATS                                                \
-    kStatistics && (kaminpar::dist::logger::get_rank() == 0) \
+#define STATS                                                          \
+    kStatistics && (kaminpar::mpi::get_comm_rank(MPI_COMM_WORLD) == 0) \
         && kaminpar::DisposableLogger<false>(std::cout) << kaminpar::logger::CYAN
 
 #undef LOG_ERROR
@@ -38,14 +40,6 @@
 #define SLOGP(root, comm) (kaminpar::dist::SynchronizedLogger(root, comm))
 
 namespace kaminpar::dist {
-namespace logger {
-inline int get_rank() {
-    int rank;
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    return rank;
-}
-} // namespace logger
-
 class SynchronizedLogger {
 public:
     SynchronizedLogger(const int root = 0, MPI_Comm comm = MPI_COMM_WORLD)

@@ -42,12 +42,12 @@ add_app(KaMinPar kaminpar.cc)
 
 # dKaMinPar
 set(DKAMINPAR_SOURCE_FILES
-        ${CMAKE_CURRENT_SOURCE_DIR}/dkaminpar_arguments.cc
-        ${CMAKE_CURRENT_SOURCE_DIR}/dkaminpar_arguments.h)
+        ${CMAKE_CURRENT_SOURCE_DIR}/dkaminpar/arguments.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/dkaminpar/arguments.h)
 if (KAMINPAR_ENABLE_GRAPHGEN)
     set(DKAMINPAR_SOURCE_FILES
-            ${CMAKE_CURRENT_SOURCE_DIR}/dkaminpar_graphgen.cc
-            ${CMAKE_CURRENT_SOURCE_DIR}/dkaminpar_graphgen.h
+            ${CMAKE_CURRENT_SOURCE_DIR}/dkaminpar/graphgen.cc
+            ${CMAKE_CURRENT_SOURCE_DIR}/dkaminpar/graphgen.h
             ${DKAMINPAR_SOURCE_FILES})
 endif ()
 

@@ -1,6 +1,5 @@
 /*******************************************************************************
  * @file:   global_clustering_contraction_redistribution.cc
- *
  * @author: Daniel Seemaier
  * @date:   28.10.2021
  * @brief:  Shared-memory parallel contraction of global clustering without
@@ -14,15 +13,13 @@
 #include "dkaminpar/growt.h"
 #include "dkaminpar/mpi/graph_communication.h"
 #include "dkaminpar/mpi/wrapper.h"
-#include "dkaminpar/utils/math.h"
 
-#include "kaminpar/utils/noinit_allocator.h"
-
+#include "common/noinit_vector.h"
 #include "common/parallel/atomic.h"
 #include "common/parallel/loops.h"
 #include "common/parallel/vector_ets.h"
 
-namespace dkaminpar::coarsening {
+namespace kaminpar::dist {
 using namespace helper;
 
 namespace {
@@ -84,8 +81,8 @@ std::pair<std::vector<UsedClustersMap>, std::vector<UsedClustersVector>> find_us
     const auto size = mpi::get_comm_size(graph.communicator());
 
     // mark global node IDs that are used as cluster IDs
-    std::vector<UsedClustersMap> used_clusters_map(size);
-    std::vector<Atomic<NodeID>>  next_slot_for_pe(size);
+    std::vector<UsedClustersMap>          used_clusters_map(size);
+    std::vector<parallel::Atomic<NodeID>> next_slot_for_pe(size);
 
     graph.pfor_nodes_range([&](const auto r) {
         tbb::concurrent_hash_map<NodeID, NodeID>::accessor accessor;
@@ -129,7 +126,7 @@ struct MappingResult {
  * \c x is mapped to is also owned by PE \c y.
  */
 MappingResult compute_mapping(
-    const DistributedGraph& graph, const scalable_vector<Atomic<GlobalNodeID>>& clustering,
+    const DistributedGraph& graph, const scalable_vector<parallel::Atomic<GlobalNodeID>>& clustering,
     const bool migrate_nodes = false) {
     SCOPED_TIMER("Compute coarse node mapping", TIMER_DETAIL);
 
@@ -153,12 +150,12 @@ MappingResult compute_mapping(
     const auto in_msg = mpi::sparse_alltoall_get<NodeID>(std::move(used_clusters_vec), graph.communicator());
 
     // map local labels to consecutive coarse node IDs
-    scalable_vector<shm::parallel::Atomic<GlobalNodeID>> label_mapping(graph.total_n());
-    shm::parallel::chunked_for(in_msg, [&](const NodeID local_label) {
+    scalable_vector<parallel::Atomic<GlobalNodeID>> label_mapping(graph.total_n());
+    parallel::chunked_for(in_msg, [&](const NodeID local_label) {
         KASSERT(local_label < graph.n());
         label_mapping[local_label].store(1, std::memory_order_relaxed);
     });
-    shm::parallel::prefix_sum(label_mapping.begin(), label_mapping.end(), label_mapping.begin());
+    parallel::prefix_sum(label_mapping.begin(), label_mapping.end(), label_mapping.begin());
 
     const NodeID c_n = label_mapping.empty() ? 0 : static_cast<NodeID>(label_mapping.back());
 
@@ -206,8 +203,8 @@ MappingResult compute_mapping(
         }
 
         // prefix sums allow us to find the new owner of a migrating node in log time using binary search
-        shm::parallel::prefix_sum(pe_overload_tmp.begin(), pe_overload_tmp.end(), pe_overload.begin() + 1);
-        shm::parallel::prefix_sum(pe_underload_tmp.begin(), pe_underload_tmp.end(), pe_underload.begin() + 1);
+        parallel::prefix_sum(pe_overload_tmp.begin(), pe_overload_tmp.end(), pe_overload.begin() + 1);
+        parallel::prefix_sum(pe_underload_tmp.begin(), pe_underload_tmp.end(), pe_underload.begin() + 1);
     }
 
     // now  we use label_mapping as a [fine node -> coarse node] mapping of local nodes on this PE -- and extend it
@@ -292,7 +289,7 @@ DistributedGraph build_coarse_graph(
     const auto to   = c_node_distribution[rank + 1];
 
     // create messages
-    std::vector<shm::noinit_vector<LocalToGlobalEdge>> out_msg(size); // declare outside scope
+    std::vector<NoinitVector<LocalToGlobalEdge>> out_msg(size); // declare outside scope
     {
         SCOPED_TIMER("Create edge messages", TIMER_DETAIL);
         const PEID                                num_threads = omp_get_max_threads();
@@ -391,10 +388,10 @@ DistributedGraph build_coarse_graph(
     START_TIMER("Copy edge list", TIMER_DETAIL);
     std::vector<std::size_t> in_msg_sizes(size);
     tbb::parallel_for<PEID>(0, size, [&](const PEID pe) { in_msg_sizes[pe] = in_msg[pe].size(); });
-    shm::parallel::prefix_sum(in_msg_sizes.begin(), in_msg_sizes.end(), in_msg_sizes.begin());
+    parallel::prefix_sum(in_msg_sizes.begin(), in_msg_sizes.end(), in_msg_sizes.begin());
 
     START_TIMER("Allocation", TIMER_DETAIL);
-    shm::noinit_vector<LocalToGlobalEdge> edge_list(in_msg_sizes.back());
+    NoinitVector<LocalToGlobalEdge> edge_list(in_msg_sizes.back());
     STOP_TIMER(TIMER_DETAIL);
 
     tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
@@ -408,7 +405,7 @@ DistributedGraph build_coarse_graph(
     // TODO since we do not know the number of coarse ghost nodes yet, allocate memory only for local nodes and
     // TODO resize in build_distributed_graph_from_edge_list
     KASSERT(from <= to);
-    scalable_vector<shm::parallel::Atomic<NodeWeight>> node_weights(to - from);
+    scalable_vector<parallel::Atomic<NodeWeight>> node_weights(to - from);
     struct NodeWeightMessage {
         NodeID     node;
         NodeWeight weight;
@@ -611,7 +608,7 @@ DistributedPartitionedGraph project_global_contracted_graph(
 
     // assign block IDs to fine nodes
     START_TIMER("Allocation", TIMER_DETAIL);
-    scalable_vector<Atomic<BlockID>> fine_partition(fine_graph.total_n());
+    scalable_vector<parallel::Atomic<BlockID>> fine_partition(fine_graph.total_n());
     STOP_TIMER(TIMER_DETAIL);
 
     START_TIMER("Set blocks", TIMER_DETAIL);
@@ -648,4 +645,4 @@ DistributedPartitionedGraph project_global_contracted_graph(
 
     return {&fine_graph, coarse_graph.k(), std::move(fine_partition), coarse_graph.take_block_weights()};
 }
-} // namespace dkaminpar::coarsening
+} // namespace kaminpar::dist

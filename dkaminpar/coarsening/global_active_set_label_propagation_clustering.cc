@@ -16,13 +16,14 @@
 #include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/growt.h"
 #include "dkaminpar/mpi/graph_communication.h"
-#include "dkaminpar/utils/math.h"
 
 #include "kaminpar/label_propagation.h"
 
 #include "common/datastructures/fast_reset_array.h"
+#include "common/datastructures/rating_map.h"
+#include "common/utils/math.h"
 
-namespace dkaminpar {
+namespace kaminpar::dist {
 namespace {
 /*!
  * Large rating map based on a \c unordered_map. We need this since cluster IDs are global node IDs.
@@ -49,10 +50,10 @@ struct UnorderedRatingMap {
     std::unordered_map<GlobalNodeID, EdgeWeight> map{};
 };
 
-struct DistributedActiveSetGlobalLabelPropagationClusteringConfig : public shm::LabelPropagationConfig {
+struct DistributedActiveSetGlobalLabelPropagationClusteringConfig : public LabelPropagationConfig {
     using Graph = DistributedGraph;
     // using RatingMap = ::kaminpar::RatingMap<EdgeWeight, VectorHashRatingMap>;
-    using RatingMap                             = ::kaminpar::RatingMap<EdgeWeight, UnorderedRatingMap>;
+    using RatingMap                             = ::kaminpar::RatingMap<EdgeWeight, GlobalNodeID, UnorderedRatingMap>;
     using ClusterID                             = GlobalNodeID;
     using ClusterWeight                         = GlobalNodeWeight;
     static constexpr bool kTrackClusterCount    = false;
@@ -62,16 +63,16 @@ struct DistributedActiveSetGlobalLabelPropagationClusteringConfig : public shm::
 } // namespace
 
 class DistributedActiveSetGlobalLabelPropagationClusteringImpl final
-    : public shm::ChunkRandomdLabelPropagation<
+    : public ChunkRandomdLabelPropagation<
           DistributedActiveSetGlobalLabelPropagationClusteringImpl,
           DistributedActiveSetGlobalLabelPropagationClusteringConfig>,
-      public shm::OwnedClusterVector<NodeID, GlobalNodeID> {
+      public OwnedClusterVector<NodeID, GlobalNodeID> {
     SET_DEBUG(false);
 
-    using Base = shm::ChunkRandomdLabelPropagation<
+    using Base = ChunkRandomdLabelPropagation<
         DistributedActiveSetGlobalLabelPropagationClusteringImpl,
         DistributedActiveSetGlobalLabelPropagationClusteringConfig>;
-    using ClusterBase = shm::OwnedClusterVector<NodeID, GlobalNodeID>;
+    using ClusterBase = OwnedClusterVector<NodeID, GlobalNodeID>;
 
 public:
     explicit DistributedActiveSetGlobalLabelPropagationClusteringImpl(const Context& ctx)
@@ -390,4 +391,4 @@ DistributedActiveSetGlobalLabelPropagationClustering::compute_clustering(
     const DistributedGraph& graph, const GlobalNodeWeight max_cluster_weight) {
     return _impl->compute_clustering(graph, max_cluster_weight);
 }
-} // namespace dkaminpar
+} // namespace kaminpar::dist

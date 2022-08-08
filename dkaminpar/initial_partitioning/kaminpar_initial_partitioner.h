@@ -1,6 +1,5 @@
 /*******************************************************************************
  * @file:   kaminpar_initial_partitioner.h
- *
  * @author: Daniel Seemaier
  * @date:   06.11.2021
  * @brief:  Initial partitioner invoking KaMinPar.
@@ -10,7 +9,7 @@
 #include "dkaminpar/context.h"
 #include "dkaminpar/initial_partitioning/i_initial_partitioner.h"
 
-namespace dkaminpar {
+namespace kaminpar::dist {
 class KaMinParInitialPartitioner : public IInitialPartitioner {
 public:
     KaMinParInitialPartitioner(const Context& ctx) : _ctx{ctx} {}

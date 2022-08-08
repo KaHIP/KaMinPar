@@ -12,7 +12,9 @@
 #include "dkaminpar/mpi/graph_communication.h"
 #include "dkaminpar/mpi/wrapper.h"
 
+#include "common/datastructures/marker.h"
 #include "common/parallel/vector_ets.h"
+#include "common/scalable_vector.h"
 #include "common/utils/math.h"
 
 namespace kaminpar::dist {
@@ -47,7 +49,7 @@ void DistributedGraph::print() const {
 
 namespace {
 inline EdgeID degree_bucket(const EdgeID degree) {
-    return (degree == 0) ? 0 : shm::math::floor_log2(degree) + 1;
+    return (degree == 0) ? 0 : math::floor_log2(degree) + 1;
 }
 } // namespace
 
@@ -76,8 +78,8 @@ void DistributedGraph::init_total_node_weight() {
         const auto begin_node_weights = _node_weights.begin();
         const auto end_node_weights   = begin_node_weights + static_cast<std::size_t>(n());
 
-        _total_node_weight = shm::parallel::accumulate(begin_node_weights, end_node_weights, 0);
-        _max_node_weight   = shm::parallel::max_element(begin_node_weights, end_node_weights);
+        _total_node_weight = parallel::accumulate(begin_node_weights, end_node_weights, 0);
+        _max_node_weight   = parallel::max_element(begin_node_weights, end_node_weights);
     } else {
         _total_node_weight = n();
         _max_node_weight   = 1;
@@ -98,9 +100,9 @@ void DistributedGraph::init_communication_metrics() {
     }};
 
     pfor_nodes_range([&](const auto r) {
-        auto&         edge_cut_to_pe = edge_cut_to_pe_ets.local();
-        auto&         comm_vol_to_pe = comm_vol_to_pe_ets.local();
-        shm::Marker<> counted_pe{static_cast<std::size_t>(size)};
+        auto&    edge_cut_to_pe = edge_cut_to_pe_ets.local();
+        auto&    comm_vol_to_pe = comm_vol_to_pe_ets.local();
+        Marker<> counted_pe{static_cast<std::size_t>(size)};
 
         for (NodeID u = r.begin(); u < r.end(); ++u) {
             for (const auto v: adjacent_nodes(u)) {
@@ -381,7 +383,7 @@ bool validate_partition(const DistributedPartitionedGraph& p_graph) {
         DBG << "Check that each PE has the same block weights";
 
         scalable_vector<BlockWeight> recv_block_weights;
-        if (ROOT(rank)) {
+        if (rank == 0) {
             recv_block_weights.resize(size * p_graph.k());
         }
         const scalable_vector<BlockWeight> send_block_weights = p_graph.block_weights_copy();
@@ -389,7 +391,7 @@ bool validate_partition(const DistributedPartitionedGraph& p_graph) {
             send_block_weights.data(), static_cast<int>(p_graph.k()), recv_block_weights.data(),
             static_cast<int>(p_graph.k()), 0, comm);
 
-        if (ROOT(rank)) {
+        if (rank == 0) {
             for (const BlockID b: p_graph.blocks()) {
                 for (int pe = 0; pe < size; ++pe) {
                     const BlockWeight expected = recv_block_weights[b];
@@ -412,12 +414,12 @@ bool validate_partition(const DistributedPartitionedGraph& p_graph) {
             send_block_weights[p_graph.block(u)] += p_graph.node_weight(u);
         }
         scalable_vector<BlockWeight> recv_block_weights;
-        if (ROOT(rank)) {
+        if (rank == 0) {
             recv_block_weights.resize(p_graph.k());
         }
         mpi::reduce(
             send_block_weights.data(), recv_block_weights.data(), static_cast<int>(p_graph.k()), MPI_SUM, 0, comm);
-        if (ROOT(rank)) {
+        if (rank == 0) {
             for (const BlockID b: p_graph.blocks()) {
                 KASSERT(p_graph.block_weight(b) == recv_block_weights[b]);
             }
@@ -431,7 +433,7 @@ bool validate_partition(const DistributedPartitionedGraph& p_graph) {
 
         // collect partition on root
         scalable_vector<BlockID> recv_partition;
-        if (ROOT(rank)) {
+        if (rank == 0) {
             recv_partition.resize(p_graph.global_n());
         }
 
@@ -445,7 +447,7 @@ bool validate_partition(const DistributedPartitionedGraph& p_graph) {
         scalable_vector<std::uint64_t> send_buffer;
         send_buffer.reserve(p_graph.ghost_n() * 2);
         for (const NodeID ghost_u: p_graph.ghost_nodes()) {
-            if (ROOT(rank)) { // root can validate locally
+            if (rank == 0) { // root can validate locally
                 KASSERT(p_graph.block(ghost_u) == recv_partition[p_graph.local_to_global_node(ghost_u)]);
             } else {
                 send_buffer.push_back(p_graph.local_to_global_node(ghost_u));
@@ -454,7 +456,7 @@ bool validate_partition(const DistributedPartitionedGraph& p_graph) {
         }
 
         // exchange messages and validate
-        if (ROOT(rank)) {
+        if (rank == 0) {
             for (int pe = 1; pe < size; ++pe) { // recv from all but root
                 const auto recv_buffer = mpi::probe_recv<std::uint64_t>(pe, 0, comm);
 

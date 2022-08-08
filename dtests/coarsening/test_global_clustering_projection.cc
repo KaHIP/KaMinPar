@@ -1,6 +1,5 @@
 /*******************************************************************************
  * @file:   global_contraction_redistribution_test.cc
- *
  * @author: Daniel Seemaier
  * @date:   04.11.2021
  * @brief:  Unit tests for graph projects that do not make any assumptions on

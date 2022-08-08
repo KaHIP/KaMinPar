@@ -1,6 +1,5 @@
 /*******************************************************************************
  * @file:   alltoall.h
- *
  * @author: Daniel Seemaier
  * @date:   10.06.2022
  * @brief:  Algorithms to perform (sparse) all-to-all communications.
@@ -13,18 +12,18 @@
 #include <mpi.h>
 #include <tbb/parallel_for.h>
 
+#include "dkaminpar/definitions.h"
 #include "dkaminpar/mpi/wrapper.h"
 
-#include "kaminpar/utils/timer.h"
-
-#include "common/utils/noinit_vector.h"
+#include "common/noinit_vector.h"
+#include "common/timer.h"
 
 #define SPARSE_ALLTOALL_NOFILTER \
     [](NodeID) {                 \
         return true;             \
     }
 
-namespace dkaminpar::mpi {
+namespace kaminpar::mpi {
 namespace internal {
 template <typename Buffer, typename Receiver>
 void invoke_receiver(Buffer buffer, const PEID pe, const Receiver& receiver) {
@@ -84,7 +83,7 @@ void sparse_alltoall_sparse(SendBuffers&& send_buffers, Receiver&& receiver, MPI
         requests.emplace_back();
 
         MPI_Issend(
-            send_buffers[pe].data(), asserting_cast<int>(send_buffers[pe].size()), mpi::type::get<Message>(), pe, tag,
+            send_buffers[pe].data(), static_cast<int>(send_buffers[pe].size()), mpi::type::get<Message>(), pe, tag,
             comm, &requests.back());
     }
 
@@ -112,7 +111,7 @@ void sparse_alltoall_sparse(SendBuffers&& send_buffers, Receiver&& receiver, MPI
         }
 
         isend_done = 0;
-        MPI_Testall(static_cast<int>(requests.size()), requests.data(), &isend_done, MPI_STATUSES_IGNORE);
+        MPI_Testall(asserting_cast<int>(requests.size()), requests.data(), &isend_done, MPI_STATUSES_IGNORE);
     }
 
     MPI_Request barrier_request;
@@ -226,19 +225,19 @@ void sparse_alltoall_complete(SendBuffers&& send_buffers, Receiver&& receiver, M
     }
 }
 
-template <typename Message, typename Buffer = scalable_noinit_vector<Message>, typename Receiver>
+template <typename Message, typename Buffer = NoinitVector<Message>, typename Receiver>
 void sparse_alltoall(const std::vector<Buffer>& send_buffers, Receiver&& receiver, MPI_Comm comm) {
     SCOPED_TIMER("Sparse Alltoall", TIMER_DETAIL);
     sparse_alltoall_complete<Message, Buffer>(send_buffers, std::forward<Receiver>(receiver), comm);
 }
 
-template <typename Message, typename Buffer = scalable_noinit_vector<Message>, typename Receiver>
+template <typename Message, typename Buffer = NoinitVector<Message>, typename Receiver>
 void sparse_alltoall(std::vector<Buffer>&& send_buffers, Receiver&& receiver, MPI_Comm comm) {
     SCOPED_TIMER("Sparse Alltoall", TIMER_DETAIL);
     sparse_alltoall_complete<Message, Buffer>(std::move(send_buffers), std::forward<Receiver>(receiver), comm);
 }
 
-template <typename Message, typename Buffer = scalable_noinit_vector<Message>>
+template <typename Message, typename Buffer = NoinitVector<Message>>
 std::vector<Buffer> sparse_alltoall_get(std::vector<Buffer>&& send_buffers, MPI_Comm comm) {
     std::vector<Buffer> recv_buffers(mpi::get_comm_size(comm));
     sparse_alltoall<Message, Buffer>(
@@ -247,11 +246,11 @@ std::vector<Buffer> sparse_alltoall_get(std::vector<Buffer>&& send_buffers, MPI_
     return recv_buffers;
 }
 
-template <typename Message, typename Buffer = scalable_noinit_vector<Message>>
+template <typename Message, typename Buffer = NoinitVector<Message>>
 std::vector<Buffer> sparse_alltoall_get(const std::vector<Buffer>& send_buffers, MPI_Comm comm) {
     std::vector<Buffer> recv_buffers(mpi::get_comm_size(comm));
     sparse_alltoall<Message, Buffer>(
         send_buffers, [&](auto recv_buffer, const PEID pe) { recv_buffers[pe] = std::move(recv_buffer); }, comm);
     return recv_buffers;
 }
-} // namespace dkaminpar::mpi
+} // namespace kaminpar::mpi

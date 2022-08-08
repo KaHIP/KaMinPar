@@ -15,7 +15,7 @@
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructure/distributed_graph.h"
 
-namespace dkaminpar {
+namespace kaminpar::dist {
 class DistributedActiveSetGlobalLabelPropagationClustering : public ClusteringAlgorithm<GlobalNodeID> {
 public:
     DistributedActiveSetGlobalLabelPropagationClustering(const Context& ctx);
@@ -38,4 +38,4 @@ public:
 private:
     std::unique_ptr<class DistributedActiveSetGlobalLabelPropagationClusteringImpl> _impl;
 };
-} // namespace dkaminpar
+} // namespace kaminpar::dist

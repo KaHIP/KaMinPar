@@ -1,6 +1,5 @@
 /*******************************************************************************
  * @file:   partitioning.cc
- *
  * @author: Daniel Seemaier
  * @date:   27.10.2021
  * @brief:  Interface for partitioning schemes.
@@ -10,7 +9,7 @@
 #include "dkaminpar/partitioning_scheme/deep_partitioning_scheme.h"
 #include "dkaminpar/partitioning_scheme/kway_partitioning_scheme.h"
 
-namespace dkaminpar {
+namespace kaminpar::dist {
 DistributedPartitionedGraph partition(const DistributedGraph& graph, const Context& ctx) {
     switch (ctx.partition.mode) {
         case PartitioningMode::KWAY:

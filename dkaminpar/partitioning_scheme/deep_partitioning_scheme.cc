@@ -14,11 +14,10 @@
 #include "dkaminpar/mpi/wrapper.h"
 #include "dkaminpar/partitioning_scheme/kway_partitioning_scheme.h"
 
-#include "kaminpar/utils/timer.h"
-
+#include "common/timer.h"
 #include "common/utils/math.h"
 
-namespace dkaminpar {
+namespace kaminpar::dist {
 DeepPartitioningScheme::DeepPartitioningScheme(const DistributedGraph& input_graph, const Context& input_ctx)
     : _input_graph(input_graph),
       _input_ctx(input_ctx) {
@@ -85,7 +84,7 @@ DistributedPartitionedGraph DeepPartitioningScheme::partition() {
             // split communicator into groups
             const unsigned int desired_multiplicity =
                 1.0 * _input_ctx.coarsening.contraction_limit * current_parallelism / current_graph->global_n();
-            const unsigned int multiplicity = std::min<int>(current_comm_size, shm::math::ceil2(desired_multiplicity));
+            const unsigned int multiplicity = std::min<int>(current_comm_size, math::ceil2(desired_multiplicity));
             const int          new_size     = current_comm_size / multiplicity;
             const int          new_group    = current_comm_rank / new_size;
 
@@ -114,4 +113,4 @@ Coarsener* DeepPartitioningScheme::get_current_coarsener() {
     KASSERT(!_coarseners.empty());
     return &_coarseners.top();
 }
-} // namespace dkaminpar
+} // namespace kaminpar::dist

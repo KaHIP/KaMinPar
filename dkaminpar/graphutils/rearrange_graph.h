@@ -1,6 +1,5 @@
 /*******************************************************************************
  * @file:   rearrange_graph.h
- *
  * @author: Daniel Seemaier
  * @date:   18.11.2021
  * @brief:  Sort and rearrange a graph by degree buckets.
@@ -9,6 +8,6 @@
 
 #include "dkaminpar/datastructure/distributed_graph.h"
 
-namespace dkaminpar::graph {
+namespace kaminpar::dist::graph {
 DistributedGraph sort_by_degree_buckets(DistributedGraph graph);
 }
