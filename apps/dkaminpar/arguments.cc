@@ -122,7 +122,8 @@ void create_refinement_fm_options(
     FMRefinementContext& fm_ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix) {
     args.group(name, prefix)
         .argument(prefix + "-alpha", "Stopping policy alpha", &fm_ctx.alpha)
-        .argument(prefix + "-diameter", "Local search graph diameter", &fm_ctx.diameter);
+        .argument(prefix + "-distance", "Local search graph diameter", &fm_ctx.distance)
+        .argument(prefix + "-hops", "PE hops", &fm_ctx.hops);
 }
 
 void create_refinement_options(
@@ -131,7 +132,8 @@ void create_refinement_options(
         .argument(
             prefix + "-algorithm",
             "Refinement algorithm, possible values: {"s + kway_refinement_algorithm_names() + "}.", &r_ctx.algorithm,
-            kway_refinement_algorithm_from_string);
+            kway_refinement_algorithm_from_string)
+        .argument(prefix + "-coarsest", "Refine coarsest level", &r_ctx.refine_coarsest_level);
     create_refinement_label_propagation_options(r_ctx.lp, args, name + " -> Label Propagation", prefix + "-lp");
     create_refinement_fm_options(r_ctx.fm, args, name + " -> FM", prefix + "-fm");
     create_balancing_options(r_ctx.balancing, args, name + " -> Balancing", prefix + "-b");

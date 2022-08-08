@@ -671,6 +671,10 @@ public:
         return copy;
     }
 
+    void reinit_block_weights() {
+        init_block_weights();
+    }
+
 private:
     void init_block_weights();
 

@@ -6,8 +6,10 @@
  ******************************************************************************/
 #include "dkaminpar/refinement/fm_refiner.h"
 
+#include <cstdint>
 #include <limits>
 #include <random>
+#include <stack>
 
 #include <tbb/concurrent_vector.h>
 #include <tbb/enumerable_thread_specific.h>
@@ -24,10 +26,13 @@
 #include "common/datastructures/marker.h"
 #include "common/datastructures/rating_map.h"
 #include "common/noinit_vector.h"
+#include "common/parallel/atomic.h"
 #include "common/random.h"
 #include "common/timer.h"
 
 namespace kaminpar::dist {
+SET_DEBUG(true);
+
 namespace {
 struct AdaptiveStoppingPolicy {
     AdaptiveStoppingPolicy(const GlobalNodeID n) : _beta(std::log(n)) {}
@@ -87,8 +92,12 @@ public:
           _rating_map(_p_ctx.k),
           _stopping_policy(p_ctx.global_n()) {}
 
-    std::vector<Move> refine(shm::PartitionedGraph& p_graph) {
-        initialize(p_graph);
+    std::vector<Move> refine(shm::PartitionedGraph& p_graph, const std::vector<bool>& fixed_nodes) {
+        if (p_graph.n() == 0) {
+            return {};
+        }
+
+        initialize(p_graph, fixed_nodes);
 
         // record of FM nodes for rollback
         EdgeWeight        best_total_gain    = 0;
@@ -106,7 +115,8 @@ public:
 
             // only perform move if target block can take u without becoming overloaded
             const bool feasible =
-                _global_graph.block_weight(to) + _block_weight_deltas[to] + weight <= _p_ctx.max_block_weight(to);
+                to != from
+                && _global_graph.block_weight(to) + _block_weight_deltas[to] + weight <= _p_ctx.max_block_weight(to);
 
             if (feasible) {
                 // move u to its target block
@@ -114,7 +124,7 @@ public:
                 _block_weight_deltas[from] -= weight;
                 _block_weight_deltas[to] += weight;
                 moves.emplace_back(u, from);
-                update_pq_after_move(u, from, to);
+                update_pq_after_move(u, from, to, fixed_nodes);
                 current_total_gain += gain;
                 _stopping_policy.update(gain);
 
@@ -132,8 +142,14 @@ public:
 
         // rollback to best cut found
         while (moves.size() > rollback_index) {
-            const auto [node, original_block] = moves.back();
-            _p_graph->set_block<false>(node, original_block);
+            const auto [node, to]   = moves.back();
+            const BlockID    from   = _p_graph->block(node);
+            const NodeWeight weight = _p_graph->node_weight(node);
+
+            _block_weight_deltas[from] -= weight;
+            _block_weight_deltas[to] += weight;
+            _p_graph->set_block<false>(node, to);
+
             moves.pop_back();
         }
 
@@ -142,15 +158,23 @@ public:
             block = _p_graph->block(u);
         }
 
+        //DBG << "Improved local cut by " << best_total_gain;
         return moves;
     }
 
+    void commit_block_weight_deltas(DistributedPartitionedGraph& p_graph) {
+        for (const auto& [block, delta]: _block_weight_deltas) {
+            p_graph.set_block_weight(block, p_graph.block_weight(block) + delta);
+        }
+    }
+
 private:
-    void initialize(shm::PartitionedGraph& p_graph) {
+    void initialize(shm::PartitionedGraph& p_graph, const std::vector<bool> fixed_nodes) {
         _p_graph = &p_graph;
 
         // resize data structures s.t. they are large enough for _p_graph
         if (_pq.capacity() < _p_graph->n()) {
+            _pq.clear();
             _pq.resize(_p_graph->n());
             _marker.resize(_p_graph->n());
         }
@@ -163,13 +187,20 @@ private:
 
         // fill PQ with all border nodes
         for (const NodeID u: _p_graph->nodes()) {
-            insert_node_into_pq<true>(u);
+            if (!fixed_nodes[u]) {
+                insert_node_into_pq<true>(u);
+            }
         }
     }
 
-    void update_pq_after_move(const NodeID u, const BlockID from, const BlockID to) {
+    void
+    update_pq_after_move(const NodeID u, const BlockID from, const BlockID to, const std::vector<bool>& fixed_nodes) {
         // update neighbors
         for (const auto [e, v]: _p_graph->neighbors(u)) {
+            if (fixed_nodes[v]) {
+                continue;
+            }
+
             const BlockID v_block = _p_graph->block(v);
 
             if (v_block == from || v_block == to) {
@@ -269,13 +300,16 @@ void FMRefiner::initialize(const DistributedGraph&, const PartitionContext&) {}
 void FMRefiner::refine(DistributedPartitionedGraph& p_graph) {
     SCOPED_TIMER("FM");
     _p_graph = &p_graph;
+    ++_iteration;
 
-    auto seed_nodes = find_seed_nodes();
+    // collect seed nodes
+    const auto seed_nodes = find_seed_nodes();
 
-    std::vector<shm::Graph>                local_graphs(seed_nodes.size());
-    std::vector<shm::PartitionedGraph>     p_local_graphs(seed_nodes.size());
-    std::vector<std::vector<GlobalNodeID>> local_graph_mappings(seed_nodes.size());
-
+    std::vector<shm::Graph>                     local_graphs(seed_nodes.size());
+    std::vector<shm::PartitionedGraph>          p_local_graphs(seed_nodes.size());
+    std::vector<std::vector<GlobalNodeID>>      local_graph_mappings(seed_nodes.size());
+    std::vector<parallel::Atomic<std::uint8_t>> taken(p_graph.total_n());
+    std::vector<std::vector<bool>>              fixed_nodes(seed_nodes.size());
     using GlobalMovesMap = growt::GlobalNodeIDMap<BlockID>;
     GlobalMovesMap                                                        global_moves(0);
     tbb::enumerable_thread_specific<typename GlobalMovesMap::handle_type> global_moves_handle_ets{[&] {
@@ -283,7 +317,123 @@ void FMRefiner::refine(DistributedPartitionedGraph& p_graph) {
     }};
 
     START_TIMER("Collect local search graphs");
-    // TODO ...
+    // mark seed nodes as taken
+    tbb::parallel_for<std::size_t>(0, seed_nodes.size(), [&](const std::size_t i) { taken[seed_nodes[i]] = 1; });
+
+    struct DiscoveredNode {
+        DiscoveredNode() {}
+        DiscoveredNode(const NodeID node, const NodeID distance, const bool border)
+            : node(node),
+              distance(distance),
+              border(border) {}
+
+        NodeID node;
+        NodeID distance;
+        bool   border;
+    };
+
+    tbb::parallel_for<std::size_t>(0, seed_nodes.size(), [&](const std::size_t i) {
+        const NodeID                seed_node = seed_nodes[i];
+        std::vector<DiscoveredNode> discovered_owned_nodes;
+        std::vector<DiscoveredNode> discovered_ghost_nodes;
+
+        std::stack<NodeID> search_front;
+        search_front.push(seed_node);
+        NodeID current_front_size = 1; // no. of elements beloning to current front
+        NodeID current_distance   = 0;
+
+        while (current_distance < _fm_ctx.distance + 1 && !search_front.empty()) {
+            const NodeID current = search_front.top();
+            search_front.pop();
+            --current_front_size;
+
+            // try to take this node
+            if (_p_graph->is_owned_node(current)) {
+                discovered_owned_nodes.emplace_back(current, current_distance, false);
+
+                // grow to neighbors
+                for (const auto [e, v]: _p_graph->neighbors(current)) {
+                    std::uint8_t free = 0;
+                    if (current_distance + 1 < _fm_ctx.distance && taken[v].compare_exchange_strong(free, 1)) {
+                        search_front.push(v);
+                    } else {
+                        discovered_owned_nodes.emplace_back(v, current_distance + 1, true);
+                    }
+                }
+            } else {
+                discovered_owned_nodes.emplace_back(current, current_distance, true);
+                discovered_ghost_nodes.emplace_back(current, current_distance, false);
+            }
+
+            // +1 distance from seed
+            if (current_front_size == 0) {
+                current_front_size = search_front.size();
+                ++current_distance;
+            }
+        }
+
+        // @todo inter-PE growth
+
+        // build local graphs
+        const NodeID n = discovered_owned_nodes.size();
+
+        // build local_graph_mappings[i]
+        auto& mapping = local_graph_mappings[i];
+        auto& fixed   = fixed_nodes[i];
+        for (const auto [u, d, b]: discovered_owned_nodes) {
+            mapping.push_back(_p_graph->local_to_global_node(u));
+            fixed.push_back(b);
+        }
+
+        // build inverse mapping
+        std::unordered_map<GlobalNodeID, NodeID> to_local_map;
+        for (std::size_t i = 0; i < n; ++i) {
+            to_local_map[mapping[i]] = i;
+        }
+
+        // build local graph
+        StaticArray<EdgeID>     local_nodes(n + 1);
+        std::vector<NodeID>     local_edges;
+        StaticArray<NodeWeight> local_node_weights(n);
+        std::vector<EdgeWeight> local_edge_weights;
+        NodeID                  next_node = 0;
+
+        for (const auto [u, d, b]: discovered_owned_nodes) {
+            local_nodes[next_node]        = local_edges.size();
+            local_node_weights[next_node] = _p_graph->node_weight(u);
+            ++next_node;
+
+            for (const auto [e, v]: _p_graph->neighbors(u)) {
+                const GlobalNodeID global_v = _p_graph->local_to_global_node(v);
+                if (to_local_map.find(global_v) != to_local_map.end()) {
+                    local_edges.push_back(to_local_map[global_v]);
+                    local_edge_weights.push_back(_p_graph->edge_weight(e));
+                }
+            }
+        }
+        local_nodes[n] = local_edges.size();
+
+        // build partition
+        StaticArray<BlockID> partition(n);
+        for (std::size_t i = 0; i < discovered_owned_nodes.size(); ++i) {
+            partition[i] = _p_graph->block(discovered_owned_nodes[i].node);
+        }
+
+        // create graph objects
+        StaticArray<NodeID> local_edges_prime(local_edges.size());
+        std::copy(local_edges.begin(), local_edges.end(), local_edges_prime.begin());
+        StaticArray<EdgeWeight> local_edge_weights_prime(local_edge_weights.size());
+        std::copy(local_edge_weights.begin(), local_edge_weights.end(), local_edge_weights_prime.begin());
+
+        local_graphs[i] = shm::Graph(
+            std::move(local_nodes), std::move(local_edges_prime), std::move(local_node_weights),
+            std::move(local_edge_weights_prime));
+        p_local_graphs[i] =
+            shm::PartitionedGraph(shm::no_block_weights, local_graphs[i], _p_ctx.k, std::move(partition));
+
+        //DBG << "Local graph around seed node " << i << " grew to " << local_graphs[i].n() << " nodes and "
+        //    << local_graphs[i].m() << " edges";
+    });
     STOP_TIMER();
 
     START_TIMER("Local search");
@@ -291,9 +441,11 @@ void FMRefiner::refine(DistributedPartitionedGraph& p_graph) {
         [&] { return LocalFMRefiner(*_p_graph, _fm_ctx, _p_ctx); });
 
     tbb::parallel_for<std::size_t>(0, local_graphs.size(), [&](const std::size_t i) {
-        auto&       p_local_graph       = p_local_graphs[i];
-        auto&       refiner             = local_refiner_ets.local();
-        const auto  moves               = refiner.refine(p_local_graph);
+        auto&       p_local_graph     = p_local_graphs[i];
+        const auto& local_fixed_nodes = fixed_nodes[i];
+        auto&       refiner           = local_refiner_ets.local();
+        const auto  moves             = refiner.refine(p_local_graph, local_fixed_nodes);
+        refiner.commit_block_weight_deltas(*_p_graph);
         auto&       global_moves_handle = global_moves_handle_ets.local();
         const auto& mapping             = local_graph_mappings[i];
 
@@ -316,8 +468,10 @@ void FMRefiner::refine(DistributedPartitionedGraph& p_graph) {
 
     START_TIMER("Build send buffer");
     std::vector<std::vector<MoveMessage>> sendbuf(mpi::get_comm_size(_p_graph->communicator()));
-    for (const auto [global_u_prime, to]: global_moves_handle_ets.local()) { // @todo parallelize
+    for (const auto [to, global_u_prime]: global_moves_handle_ets.local()) { // @todo parallelize
+        KASSERT(global_u_prime != 0u);
         const GlobalNodeID global_u = global_u_prime - 1;
+        KASSERT(global_u < _p_graph->global_n());
 
         if (_p_graph->is_owned_global_node(global_u)) {
             // move local nodes right away
@@ -343,6 +497,7 @@ void FMRefiner::refine(DistributedPartitionedGraph& p_graph) {
 
     START_TIMER("Synchronize ghost node labels");
     graph::synchronize_ghost_node_block_ids(p_graph);
+    p_graph.reinit_block_weights();
     STOP_TIMER();
 }
 
@@ -374,7 +529,7 @@ tbb::concurrent_vector<NodeID> FMRefiner::find_seed_nodes() {
 
         if (is_border_node) {
             auto& generator = generator_ets.local();
-            generator.seed(_p_graph->local_to_global_node(u));
+            generator.seed(_iteration + _p_graph->local_to_global_node(u));
             score[u] = dist(generator);
         } else {
             score[u] = std::numeric_limits<double>::max();
@@ -392,7 +547,7 @@ tbb::concurrent_vector<NodeID> FMRefiner::find_seed_nodes() {
         for (const auto [e, v]: _p_graph->neighbors(u)) {
             if (score[v] < 0) { // ghost node, compute score lazy
                 auto& generator = generator_ets.local();
-                generator.seed(_p_graph->local_to_global_node(v));
+                generator.seed(_iteration + _p_graph->local_to_global_node(v));
                 score[v] = dist(generator);
             }
 
@@ -406,6 +561,8 @@ tbb::concurrent_vector<NodeID> FMRefiner::find_seed_nodes() {
             seed_nodes.push_back(u);
         }
     });
+
+    DBG << "Selected " << seed_nodes.size() << " seed nodes";
 
     return seed_nodes;
 }

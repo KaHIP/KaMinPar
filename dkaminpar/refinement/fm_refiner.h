@@ -32,5 +32,8 @@ private:
 
     // initalized by refine()
     DistributedPartitionedGraph* _p_graph;
+
+    // initialized here
+    std::size_t _iteration{0};
 };
 } // namespace kaminpar::dist

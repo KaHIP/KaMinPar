@@ -102,8 +102,9 @@ struct LabelPropagationRefinementContext {
 };
 
 struct FMRefinementContext {
-    double alpha; 
-    NodeID diameter;
+    double alpha;
+    NodeID distance;
+    PEID   hops;
 
     void print(std::ostream& out, const std::string& prefix = "") const;
 };
@@ -149,6 +150,7 @@ struct RefinementContext {
     LabelPropagationRefinementContext lp;
     FMRefinementContext               fm;
     BalancingContext                  balancing;
+    bool                              refine_coarsest_level;
 
     void setup(const DistributedGraph& graph) {
         lp.setup(graph);

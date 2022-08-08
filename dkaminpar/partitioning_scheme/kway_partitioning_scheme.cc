@@ -153,7 +153,36 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
                 refinement_algorithm->refine(p_graph);
                 KASSERT(graph::debug::validate_partition(p_graph), "", assert::heavy);
             }
+            {
+                SCOPED_TIMER("Balancing");
+                const bool feasible = metrics::is_feasible(p_graph, _ctx.partition);
+                if (!feasible) {
+                    const double imbalance = metrics::imbalance(p_graph);
+                    LOG << "-> Balancing infeasible partition (imbalance=" << imbalance << ") ...";
+
+                    DistributedBalancer balancer(_ctx);
+                    balancer.initialize(p_graph);
+                    balancer.balance(p_graph, _ctx.partition);
+                }
+            }
         };
+
+        // special case: graph too small for multilevel, still run refinement
+        if (_ctx.refinement.refine_coarsest_level) {
+            SCOPED_TIMER("Uncoarsening", std::string("Level ") + std::to_string(coarsener.level()));
+            ref_p_ctx.setup(dist_p_graph.graph());
+            refine(dist_p_graph);
+
+            // Output refinement statistics
+            const auto current_cut       = metrics::edge_cut(dist_p_graph);
+            const auto current_imbalance = metrics::imbalance(dist_p_graph);
+
+            LOG << "=> level=" << coarsener.level() << " cut=" << current_cut << " imbalance=" << current_imbalance;
+
+            if (_ctx.debug.save_imbalanced_partitions && current_imbalance > _ctx.partition.epsilon) {
+                debug::save_partitioned_graph(dist_p_graph, _ctx, static_cast<int>(coarsener.level()));
+            }
+        }
 
         // Uncoarsen and refine
         while (coarsener.level() > 0) {
