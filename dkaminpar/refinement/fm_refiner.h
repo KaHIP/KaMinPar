@@ -24,6 +24,7 @@ public:
     void refine(DistributedPartitionedGraph& p_graph);
 
 private:
+    void                           refinement_round();
     tbb::concurrent_vector<NodeID> find_seed_nodes();
 
     // initialized by ctor
@@ -34,6 +35,7 @@ private:
     DistributedPartitionedGraph* _p_graph;
 
     // initialized here
-    std::size_t _iteration{0};
+    std::size_t                                 _round{0};
+    std::vector<parallel::Atomic<std::uint8_t>> _locked;
 };
 } // namespace kaminpar::dist

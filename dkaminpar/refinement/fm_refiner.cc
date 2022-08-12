@@ -295,21 +295,27 @@ private:
 
 FMRefiner::FMRefiner(const Context& ctx) : _p_ctx(ctx.partition), _fm_ctx(ctx.refinement.fm) {}
 
-void FMRefiner::initialize(const DistributedGraph&, const PartitionContext&) {}
+void FMRefiner::initialize(const DistributedGraph& graph, const PartitionContext&) {
+    _locked.resize(graph.total_n());
+}
 
 void FMRefiner::refine(DistributedPartitionedGraph& p_graph) {
     SCOPED_TIMER("FM");
     _p_graph = &p_graph;
-    ++_iteration;
 
+    for (_round = 0; _round < _fm_ctx.num_iterations; ++_round) {
+        refinement_round();
+    }
+}
+
+void FMRefiner::refinement_round() {
     // collect seed nodes
     const auto seed_nodes = find_seed_nodes();
 
-    std::vector<shm::Graph>                     local_graphs(seed_nodes.size());
-    std::vector<shm::PartitionedGraph>          p_local_graphs(seed_nodes.size());
-    std::vector<std::vector<GlobalNodeID>>      local_graph_mappings(seed_nodes.size());
-    std::vector<parallel::Atomic<std::uint8_t>> taken(p_graph.total_n());
-    std::vector<std::vector<bool>>              fixed_nodes(seed_nodes.size());
+    std::vector<shm::Graph>                local_graphs(seed_nodes.size());
+    std::vector<shm::PartitionedGraph>     p_local_graphs(seed_nodes.size());
+    std::vector<std::vector<GlobalNodeID>> local_graph_mappings(seed_nodes.size());
+    std::vector<std::vector<bool>>         fixed_nodes(seed_nodes.size());
     using GlobalMovesMap = growt::GlobalNodeIDMap<BlockID>;
     GlobalMovesMap                                                        global_moves(0);
     tbb::enumerable_thread_specific<typename GlobalMovesMap::handle_type> global_moves_handle_ets{[&] {
@@ -318,7 +324,7 @@ void FMRefiner::refine(DistributedPartitionedGraph& p_graph) {
 
     START_TIMER("Collect local search graphs");
     // mark seed nodes as taken
-    tbb::parallel_for<std::size_t>(0, seed_nodes.size(), [&](const std::size_t i) { taken[seed_nodes[i]] = 1; });
+    tbb::parallel_for<std::size_t>(0, seed_nodes.size(), [&](const std::size_t i) { _locked[seed_nodes[i]] = 1; });
 
     struct DiscoveredNode {
         DiscoveredNode() {}
@@ -342,7 +348,7 @@ void FMRefiner::refine(DistributedPartitionedGraph& p_graph) {
         NodeID current_front_size = 1; // no. of elements beloning to current front
         NodeID current_distance   = 0;
 
-        while (current_distance < _fm_ctx.distance + 1 && !search_front.empty()) {
+        while (current_distance < _fm_ctx.radius + 1 && !search_front.empty()) {
             const NodeID current = search_front.top();
             search_front.pop();
             --current_front_size;
@@ -354,7 +360,7 @@ void FMRefiner::refine(DistributedPartitionedGraph& p_graph) {
                 // grow to neighbors
                 for (const auto [e, v]: _p_graph->neighbors(current)) {
                     std::uint8_t free = 0;
-                    if (current_distance + 1 < _fm_ctx.distance && taken[v].compare_exchange_strong(free, 1)) {
+                    if (current_distance + 1 < _fm_ctx.radius && _locked[v].compare_exchange_strong(free, 1)) {
                         search_front.push(v);
                     } else {
                         discovered_owned_nodes.emplace_back(v, current_distance + 1, true);
@@ -432,9 +438,6 @@ void FMRefiner::refine(DistributedPartitionedGraph& p_graph) {
             std::move(local_edge_weights_prime));
         p_local_graphs[i] =
             shm::PartitionedGraph(shm::no_block_weights, local_graphs[i], _p_ctx.k, std::move(partition));
-
-        // DBG << "Local graph around seed node " << i << " grew to " << local_graphs[i].n() << " nodes and "
-        //     << local_graphs[i].m() << " edges";
     });
     STOP_TIMER();
 
@@ -498,8 +501,8 @@ void FMRefiner::refine(DistributedPartitionedGraph& p_graph) {
     STOP_TIMER();
 
     START_TIMER("Synchronize ghost node labels");
-    graph::synchronize_ghost_node_block_ids(p_graph);
-    p_graph.reinit_block_weights();
+    graph::synchronize_ghost_node_block_ids(*_p_graph);
+    _p_graph->reinit_block_weights();
     STOP_TIMER();
 }
 
@@ -531,7 +534,7 @@ tbb::concurrent_vector<NodeID> FMRefiner::find_seed_nodes() {
 
         if (is_border_node) {
             auto& generator = generator_ets.local();
-            generator.seed(_iteration + _p_graph->local_to_global_node(u));
+            generator.seed(_round + _p_graph->local_to_global_node(u));
             score[u] = dist(generator);
         } else {
             score[u] = std::numeric_limits<double>::max();
@@ -549,7 +552,7 @@ tbb::concurrent_vector<NodeID> FMRefiner::find_seed_nodes() {
         for (const auto [e, v]: _p_graph->neighbors(u)) {
             if (score[v] < 0) { // ghost node, compute score lazy
                 auto& generator = generator_ets.local();
-                generator.seed(_iteration + _p_graph->local_to_global_node(v));
+                generator.seed(_round + _p_graph->local_to_global_node(v));
                 score[v] = dist(generator);
             }
 

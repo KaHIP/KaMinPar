@@ -102,9 +102,11 @@ struct LabelPropagationRefinementContext {
 };
 
 struct FMRefinementContext {
-    double alpha;
-    NodeID distance;
-    PEID   hops;
+    double      alpha;
+    NodeID      radius;
+    PEID        pe_radius;
+    bool        overlap_regions;
+    std::size_t num_iterations;
 
     void print(std::ostream& out, const std::string& prefix = "") const;
 };

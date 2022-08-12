@@ -121,9 +121,10 @@ void create_refinement_label_propagation_options(
 void create_refinement_fm_options(
     FMRefinementContext& fm_ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix) {
     args.group(name, prefix)
-        .argument(prefix + "-alpha", "Stopping policy alpha", &fm_ctx.alpha)
-        .argument(prefix + "-distance", "Local search graph diameter", &fm_ctx.distance)
-        .argument(prefix + "-hops", "PE hops", &fm_ctx.hops);
+        .argument(prefix + "-alpha", "Alpha parameter for the adaptive stopping policy.", &fm_ctx.alpha)
+        .argument(prefix + "-radius", "Search radius.", &fm_ctx.radius)
+        .argument(prefix + "-pe-radius", "Search radius in number of PEs.", &fm_ctx.pe_radius)
+        .argument(prefix + "-overlap-regions", "Overlap search regions.", &fm_ctx.overlap_regions);
 }
 
 void create_refinement_options(
