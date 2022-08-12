@@ -124,7 +124,8 @@ void create_refinement_fm_options(
         .argument(prefix + "-alpha", "Alpha parameter for the adaptive stopping policy.", &fm_ctx.alpha)
         .argument(prefix + "-radius", "Search radius.", &fm_ctx.radius)
         .argument(prefix + "-pe-radius", "Search radius in number of PEs.", &fm_ctx.pe_radius)
-        .argument(prefix + "-overlap-regions", "Overlap search regions.", &fm_ctx.overlap_regions);
+        .argument(prefix + "-overlap-regions", "Overlap search regions.", &fm_ctx.overlap_regions)
+        .argument(prefix + "-iterations", "Number of iterations to perform.", &fm_ctx.num_iterations);
 }
 
 void create_refinement_options(
