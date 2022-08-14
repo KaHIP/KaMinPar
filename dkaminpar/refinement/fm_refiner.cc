@@ -345,8 +345,9 @@ void FMRefiner::refinement_round() {
 
         std::stack<NodeID> search_front;
         search_front.push(seed_node);
-        NodeID current_front_size = 1; // no. of elements beloning to current front
-        NodeID current_distance   = 0;
+        NodeID  current_front_size = 1; // no. of elements beloning to current front
+        NodeID  current_distance   = 0;
+        Random& rand               = Random::instance();
 
         while (current_distance < _fm_ctx.radius + 1 && !search_front.empty()) {
             const NodeID current = search_front.top();
@@ -357,10 +358,16 @@ void FMRefiner::refinement_round() {
             if (_p_graph->is_owned_node(current)) {
                 discovered_owned_nodes.emplace_back(current, current_distance, false);
 
+                const bool sample_neighbors =
+                    _fm_ctx.bound_degree > 0 && _p_graph->degree(current) > _fm_ctx.bound_degree;
+                const double prob = sample_neighbors ? 1.0 * _fm_ctx.bound_degree / _p_graph->degree(current) : 1.0;
+
                 // grow to neighbors
                 for (const auto [e, v]: _p_graph->neighbors(current)) {
+                    const bool   take = sample_neighbors ? rand.random_bool(prob) : true;
                     std::uint8_t free = 0;
-                    if (current_distance + 1 < _fm_ctx.radius
+
+                    if (take && current_distance + 1 < _fm_ctx.radius
                         && ((!_fm_ctx.overlap_regions && _locked[v].compare_exchange_strong(free, 1)) // obtain overship
                             || (_fm_ctx.overlap_regions && !_locked[v]))) { // take everything, except for seed nodes
                         search_front.push(v);

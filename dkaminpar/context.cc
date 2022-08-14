@@ -76,13 +76,14 @@ void LabelPropagationRefinementContext::print(std::ostream& out, const std::stri
 }
 
 void FMRefinementContext::print(std::ostream& out, const std::string& prefix) const {
-    out << prefix << "alpha=" << alpha << " "                      //
-        << prefix << "distance=" << radius << " "                  //
-        << prefix << "hops=" << pe_radius << " "                   //
-        << prefix << "overlap_regions=" << overlap_regions << " "  //
-        << prefix << "num_iterations=" << num_iterations << " "    //
-        << prefix << "sequential=" << sequential << " "            //
-        << prefix << "premove_locally=" << premove_locally << " "; //
+    out << prefix << "alpha=" << alpha << " "                     //
+        << prefix << "distance=" << radius << " "                 //
+        << prefix << "hops=" << pe_radius << " "                  //
+        << prefix << "overlap_regions=" << overlap_regions << " " //
+        << prefix << "num_iterations=" << num_iterations << " "   //
+        << prefix << "sequential=" << sequential << " "           //
+        << prefix << "premove_locally=" << premove_locally << " " //
+        << prefix << "bound_degree=" << bound_degree << " ";      //
 }
 
 void CoarseningContext::print(std::ostream& out, const std::string& prefix) const {
@@ -264,6 +265,7 @@ Context create_default_context() {
         .num_iterations = 5,
         .sequential = false,
         .premove_locally = true,
+        .bound_degree = 0,
       },
       .balancing = {
         .algorithm = BalancingAlgorithm::DISTRIBUTED, 
@@ -280,4 +282,5 @@ Context create_default_context() {
   };
     // clang-format on
 }
+
 } // namespace kaminpar::dist

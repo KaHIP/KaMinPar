@@ -129,7 +129,10 @@ void create_refinement_fm_options(
         .argument(prefix + "-sequential", "Refine search regions sequentially.", &fm_ctx.sequential)
         .argument(
             prefix + "-premove-locally", "Move nodes right away, i.e., before global synchronization steps.",
-            &fm_ctx.premove_locally);
+            &fm_ctx.premove_locally)
+        .argument(
+            prefix + "-bound-degree", "Add at most this many neighbors of a high-degree node to a search region.",
+            &fm_ctx.bound_degree);
 }
 
 void create_refinement_options(

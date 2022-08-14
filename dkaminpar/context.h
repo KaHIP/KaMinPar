@@ -109,6 +109,7 @@ struct FMRefinementContext {
     std::size_t num_iterations;
     bool        sequential;
     bool        premove_locally;
+    NodeID      bound_degree;
 
     void print(std::ostream& out, const std::string& prefix = "") const;
 };

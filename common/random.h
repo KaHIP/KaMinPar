@@ -23,6 +23,7 @@ public:
     Random()
         : _generator(Random::seed + tbb::this_task_arena::current_thread_index()),
           _bool_dist(0, 1),
+          _real_dist(0, 1),
           _next_random_bool(0),
           _random_bools{} {
         precompute_bools();
@@ -46,7 +47,7 @@ public:
         return _random_bools[_next_random_bool++ % kPrecomputedBools];
     }
     bool random_bool(const double prob) {
-        return std::uniform_real_distribution<>(0, 1)(_generator) <= prob;
+        return _real_dist(_generator) <= prob;
     }
 
     template <typename Container>
@@ -75,6 +76,7 @@ private:
 
     std::mt19937                        _generator;
     std::uniform_int_distribution<int>  _bool_dist;
+    std::uniform_real_distribution<>    _real_dist;
     std::size_t                         _next_random_bool;
     std::array<bool, kPrecomputedBools> _random_bools;
 };
