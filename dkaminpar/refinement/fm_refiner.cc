@@ -360,7 +360,9 @@ void FMRefiner::refinement_round() {
                 // grow to neighbors
                 for (const auto [e, v]: _p_graph->neighbors(current)) {
                     std::uint8_t free = 0;
-                    if (current_distance + 1 < _fm_ctx.radius && _locked[v].compare_exchange_strong(free, 1)) {
+                    if (current_distance + 1 < _fm_ctx.radius
+                        && ((!_fm_ctx.overlap_regions && _locked[v].compare_exchange_strong(free, 1)) // obtain overship
+                            || (_fm_ctx.overlap_regions && !_locked[v]))) { // take everything, except for seed nodes
                         search_front.push(v);
                     } else {
                         discovered_owned_nodes.emplace_back(v, current_distance + 1, true);
@@ -461,7 +463,7 @@ void FMRefiner::refinement_round() {
             if (_fm_ctx.premove_locally && _p_graph->is_owned_global_node(global_u)) {
                 const NodeID local_u = _p_graph->global_to_local_node(global_u);
                 _p_graph->set_block<false>(local_u, to); // block weights already updated
-            } else { // remember non-local nodes in a global move buffer
+            } else {                                     // remember non-local nodes in a global move buffer
                 const GlobalNodeID global_u_prime         = global_u + 1; // growt does not allow 0 as key
                 [[maybe_unused]] const auto [it, success] = global_moves_handle.insert(global_u_prime, to);
                 KASSERT(success);
@@ -514,6 +516,9 @@ void FMRefiner::refinement_round() {
     graph::synchronize_ghost_node_block_ids(*_p_graph);
     _p_graph->reinit_block_weights();
     STOP_TIMER();
+
+    // free all locked nodes
+    std::fill(_locked.begin(), _locked.end(), 0);
 }
 
 tbb::concurrent_vector<NodeID> FMRefiner::find_seed_nodes() {
