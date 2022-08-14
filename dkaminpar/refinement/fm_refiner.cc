@@ -455,10 +455,17 @@ void FMRefiner::refinement_round() {
         const auto& mapping             = local_graph_mappings[i];
 
         for (const auto [u, to]: moves) {
-            const GlobalNodeID global_u               = mapping[u];
-            const GlobalNodeID global_u_prime         = global_u + 1; // growt does not allow 0 as key
-            [[maybe_unused]] const auto [it, success] = global_moves_handle.insert(global_u_prime, to);
-            KASSERT(success);
+            const GlobalNodeID global_u = mapping[u];
+
+            // move nodes owned by this PE right away
+            if (_fm_ctx.premove_locally && _p_graph->is_owned_global_node(global_u)) {
+                const NodeID local_u = _p_graph->global_to_local_node(global_u);
+                _p_graph->set_block<false>(local_u, to); // block weights already updated
+            } else { // remember non-local nodes in a global move buffer
+                const GlobalNodeID global_u_prime         = global_u + 1; // growt does not allow 0 as key
+                [[maybe_unused]] const auto [it, success] = global_moves_handle.insert(global_u_prime, to);
+                KASSERT(success);
+            }
         }
     });
     STOP_TIMER();
@@ -478,10 +485,13 @@ void FMRefiner::refinement_round() {
         const GlobalNodeID global_u = global_u_prime - 1;
         KASSERT(global_u < _p_graph->global_n());
 
-        if (_p_graph->is_owned_global_node(global_u)) {
-            // move local nodes right away
+        // If we move nodes between global synchronization steps, the global move buffer should not contain any moves
+        // for owned nodes
+        KASSERT(!_p_graph->is_owned_global_node(global_u) || !_fm_ctx.premove_locally);
+
+        if (!_fm_ctx.premove_locally && _p_graph->is_owned_global_node(global_u)) {
             const NodeID local_u = _p_graph->global_to_local_node(global_u);
-            _p_graph->set_block(local_u, to);
+            _p_graph->set_block<false>(local_u, to); // block weights are already up to date
         } else {
             const PEID owner = _p_graph->find_owner_of_global_node(global_u);
             sendbuf[owner].emplace_back(static_cast<NodeID>(global_u - _p_graph->offset_n(owner)), to);

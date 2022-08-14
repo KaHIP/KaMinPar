@@ -107,6 +107,8 @@ struct FMRefinementContext {
     PEID        pe_radius;
     bool        overlap_regions;
     std::size_t num_iterations;
+    bool        sequential;
+    bool        premove_locally;
 
     void print(std::ostream& out, const std::string& prefix = "") const;
 };
