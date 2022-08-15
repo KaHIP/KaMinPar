@@ -367,196 +367,10 @@ void FMRefiner::refinement_round() {
     // mark seed nodes as taken
     tbb::parallel_for<std::size_t>(0, seed_nodes.size(), [&](const std::size_t i) { _locked[seed_nodes[i]] = 1; });
 
-    struct DiscoveredNode {
-        DiscoveredNode() {}
-        DiscoveredNode(const NodeID node, const NodeID distance, const bool border)
-            : node(node),
-              distance(distance),
-              border(border) {}
-
-        NodeID node;
-        NodeID distance;
-        bool   border;
-    };
-
-    tbb::parallel_for<std::size_t>(0, seed_nodes.size(), [&](const std::size_t i) {
-        const NodeID                seed_node = seed_nodes[i];
-        std::vector<DiscoveredNode> discovered_owned_nodes;
-        std::vector<DiscoveredNode> discovered_ghost_nodes;
-
-        std::stack<NodeID> search_front;
-        search_front.push(seed_node);
-        NodeID  current_front_size = 1; // no. of elements beloning to current front
-        NodeID  current_distance   = 0;
-        Random& rand               = Random::instance();
-
-        while (current_distance < _fm_ctx.radius + 1 && !search_front.empty()) {
-            const NodeID current = search_front.top();
-            search_front.pop();
-            --current_front_size;
-
-            // try to take this node
-            if (_p_graph->is_owned_node(current)) {
-                discovered_owned_nodes.emplace_back(current, current_distance, false);
-
-                const bool sample_neighbors =
-                    _fm_ctx.bound_degree > 0 && _p_graph->degree(current) > _fm_ctx.bound_degree;
-                const double prob = sample_neighbors ? 1.0 * _fm_ctx.bound_degree / _p_graph->degree(current) : 1.0;
-
-                // grow to neighbors
-                for (const auto [e, v]: _p_graph->neighbors(current)) {
-                    const bool   take = sample_neighbors ? rand.random_bool(prob) : true;
-                    std::uint8_t free = 0;
-
-                    if (take && current_distance + 1 < _fm_ctx.radius
-                        && ((!_fm_ctx.overlap_regions && _locked[v].compare_exchange_strong(free, 1)) // obtain overship
-                            || (_fm_ctx.overlap_regions && !_locked[v]))) { // take everything, except for seed nodes
-                        search_front.push(v);
-                    } else if (!_fm_ctx.contract_border) { // otherwise, we build fake neighbors later on
-                        discovered_owned_nodes.emplace_back(v, current_distance + 1, true);
-                    }
-                }
-            } else {
-                discovered_owned_nodes.emplace_back(current, current_distance, true);
-                discovered_ghost_nodes.emplace_back(current, current_distance, false);
-            }
-
-            // +1 distance from seed
-            if (current_front_size == 0) {
-                current_front_size = search_front.size();
-                ++current_distance;
-            }
-        }
-
-        // @todo inter-PE growth
-
-        // build local graphs
-        const NodeID real_n = discovered_owned_nodes.size();
-        const NodeID n      = _fm_ctx.contract_border ? real_n + _p_graph->k() : real_n;
-
-        // build local_graph_mappings[i]
-        auto& mapping = local_graph_mappings[i];
-        auto& fixed   = fixed_nodes[i];
-        for (const auto [u, d, b]: discovered_owned_nodes) {
-            mapping.push_back(_p_graph->local_to_global_node(u));
-            fixed.push_back(b);
-        }
-        if (_fm_ctx.contract_border) {
-            KASSERT(std::none_of(fixed.begin(), fixed.end(), [](const bool v) { return v; }));
-            for (BlockID b = 0; b < _p_graph->k(); ++b) {
-                fixed.push_back(true);
-            }
-        }
-
-        // build inverse mapping
-        std::unordered_map<GlobalNodeID, NodeID> to_local_map;
-        for (std::size_t i = 0; i < real_n; ++i) {
-            to_local_map[mapping[i]] = i;
-        }
-
-        // build local graph
-        StaticArray<EdgeID>     local_nodes(n + 1);
-        std::vector<NodeID>     local_edges;
-        StaticArray<NodeWeight> local_node_weights(n);
-        std::vector<EdgeWeight> local_edge_weights;
-        NodeID                  next_node   = 0;
-        NodeID                  border_size = 0;
-        std::vector<EdgeWeight> covered_external_degrees(_p_graph->k());
-
-        if (_fm_ctx.contract_border) {
-            border_size = _p_graph->k();
-        }
-
-        for (const auto [u, d, b]: discovered_owned_nodes) {
-            local_nodes[next_node]        = local_edges.size();
-            local_node_weights[next_node] = _p_graph->node_weight(u);
-            ++next_node;
-
-            if (!b) {
-                const bool last_hop = _fm_ctx.contract_border && d + 1 == _fm_ctx.radius;
-
-                for (const auto [e, v]: _p_graph->neighbors(u)) {
-                    const GlobalNodeID global_v = _p_graph->local_to_global_node(v);
-                    if (to_local_map.find(global_v) != to_local_map.end()) {
-                        KASSERT(to_local_map[global_v] < real_n);
-
-                        local_edges.push_back(to_local_map[global_v]);
-                        local_edge_weights.push_back(_p_graph->edge_weight(e));
-
-                        if (last_hop) {
-                            covered_external_degrees[_p_graph->block(v)] += _p_graph->edge_weight(e);
-                        }
-                    } else {
-                        KASSERT(_fm_ctx.contract_border || mpi::get_comm_rank(_p_graph->communicator()) > 0);
-                    }
-                }
-
-                if (last_hop) { // connect to pseudo-nodes
-                    for (BlockID b = 0; b < _p_graph->k(); ++b) {
-                        local_edges.push_back(real_n + b);
-                        local_edge_weights.push_back(external_degree(u, b) - covered_external_degrees[b]);
-                    }
-                    std::fill(covered_external_degrees.begin(), covered_external_degrees.end(), 0);
-                }
-            } else {
-                ++border_size;
-            }
-        }
-
-        for (NodeID u = real_n; u < n + 1; ++u) {
-            local_nodes[u] = local_edges.size();
-        }
-
-        KASSERT([&] {
-            KASSERT(static_cast<NodeID>(local_nodes.size()) == n + 1);
-            KASSERT(local_nodes[0] == 0u);
-            KASSERT(local_nodes[n] == static_cast<NodeID>(local_edges.size()));
-            for (NodeID u = 0; u < n; ++u) {
-                KASSERT(local_nodes[u] <= local_nodes[u + 1]);
-                KASSERT(local_nodes[u + 1] <= local_edges.size());
-            }
-            for (const auto& v: local_edges) {
-                KASSERT(v < n);
-            }
-            return true;
-        }());
-
-        if (kStatistics) {
-            _stats.graphs_n.push_back(n);
-            _stats.graphs_m.push_back(local_nodes.back());
-            _stats.graphs_border_n.push_back(border_size);
-        }
-
-        // build partition
-        StaticArray<BlockID> partition(n);
-        for (std::size_t i = 0; i < discovered_owned_nodes.size(); ++i) {
-            partition[i] = _p_graph->block(discovered_owned_nodes[i].node);
-        }
-
-        for (BlockID b = 0; b < _p_graph->k(); ++b) {
-            partition[real_n + b]          = b;
-            local_node_weights[real_n + b] = 1; // should not matter
-        }
-
-        // create graph objects
-        StaticArray<NodeID> local_edges_prime(local_edges.size());
-        std::copy(local_edges.begin(), local_edges.end(), local_edges_prime.begin());
-        StaticArray<EdgeWeight> local_edge_weights_prime(local_edge_weights.size());
-        std::copy(local_edge_weights.begin(), local_edge_weights.end(), local_edge_weights_prime.begin());
-
-        local_graphs[i] = shm::Graph(
-            std::move(local_nodes), std::move(local_edges_prime), std::move(local_node_weights),
-            std::move(local_edge_weights_prime));
-        p_local_graphs[i] =
-            shm::PartitionedGraph(shm::no_block_weights, local_graphs[i], _p_ctx->k, std::move(partition));
-    });
-    STOP_TIMER();
-
-    START_TIMER("Local search");
     tbb::enumerable_thread_specific<LocalFMRefiner> local_refiner_ets(
         [&] { return LocalFMRefiner(*_p_graph, _fm_ctx, *_p_ctx); });
 
-    auto handle_local_graph = [&](const std::size_t i) {
+    auto do_refine_local_graph = [&](const std::size_t i) {
         auto&       p_local_graph     = p_local_graphs[i];
         const auto& local_fixed_nodes = fixed_nodes[i];
         auto&       refiner           = local_refiner_ets.local();
@@ -574,9 +388,19 @@ void FMRefiner::refinement_round() {
 
             // move nodes owned by this PE right away
             if (_fm_ctx.premove_locally && _p_graph->is_owned_global_node(global_u)) {
-                const NodeID local_u = _p_graph->global_to_local_node(global_u);
+                const NodeID  local_u = _p_graph->global_to_local_node(global_u);
+                const BlockID from    = _p_graph->block(local_u);
                 _p_graph->set_block<false>(local_u, to); // block weights already updated
-            } else {                                     // remember non-local nodes in a global move buffer
+
+                // update external degrees
+                if (_fm_ctx.contract_border) {
+                    for (const auto [e, v]: _p_graph->neighbors(local_u)) {
+                        const EdgeWeight weight = _p_graph->edge_weight(e);
+                        external_degree(v, from) -= weight;
+                        external_degree(v, to) += weight;
+                    }
+                }
+            } else { // remember non-local nodes in a global move buffer
                 const GlobalNodeID global_u_prime         = global_u + 1; // growt does not allow 0 as key
                 [[maybe_unused]] const auto [it, success] = global_moves_handle.insert(global_u_prime, to);
                 KASSERT(success);
@@ -584,14 +408,27 @@ void FMRefiner::refinement_round() {
         }
     };
 
+    auto do_build_local_graph = [&](const std::size_t i) {
+        build_local_graph(seed_nodes[i], local_graphs[i], p_local_graphs[i], local_graph_mappings[i], fixed_nodes[i]);
+    };
+
     if (_fm_ctx.sequential) {
         for (std::size_t i = 0; i < local_graphs.size(); ++i) {
-            handle_local_graph(i);
+            START_TIMER("Build local graphs");
+            do_build_local_graph(i);
+            STOP_TIMER();
+            START_TIMER("Refine local graphs");
+            do_refine_local_graph(i);
+            STOP_TIMER();
         }
     } else {
-        tbb::parallel_for<std::size_t>(0, local_graphs.size(), [&](const std::size_t i) { handle_local_graph(i); });
+        START_TIMER("Build and refine local graphs");
+        tbb::parallel_for<std::size_t>(0, local_graphs.size(), [&](const std::size_t i) {
+            do_build_local_graph(i);
+            do_refine_local_graph(i);
+        });
+        STOP_TIMER();
     }
-
     STOP_TIMER();
 
     START_TIMER("Broadcast moves");
@@ -707,6 +544,187 @@ tbb::concurrent_vector<NodeID> FMRefiner::find_seed_nodes() {
     DBG << "Selected " << seed_nodes.size() << " seed nodes";
 
     return seed_nodes;
+}
+
+void FMRefiner::build_local_graph(
+    const NodeID seed_node, shm::Graph& out_graph, shm::PartitionedGraph& out_p_graph,
+    std::vector<GlobalNodeID>& mapping, std::vector<bool>& fixed) {
+    struct DiscoveredNode {
+        DiscoveredNode() {}
+        DiscoveredNode(const NodeID node, const NodeID distance, const bool border)
+            : node(node),
+              distance(distance),
+              border(border) {}
+
+        NodeID node;
+        NodeID distance;
+        bool   border;
+    };
+
+    std::vector<DiscoveredNode> discovered_owned_nodes;
+    std::vector<DiscoveredNode> discovered_ghost_nodes;
+
+    std::stack<NodeID> search_front;
+    search_front.push(seed_node);
+    NodeID  current_front_size = 1; // no. of elements beloning to current front
+    NodeID  current_distance   = 0;
+    Random& rand               = Random::instance();
+
+    while (current_distance < _fm_ctx.radius + 1 && !search_front.empty()) {
+        const NodeID current = search_front.top();
+        search_front.pop();
+        --current_front_size;
+
+        // try to take this node
+        if (_p_graph->is_owned_node(current)) {
+            discovered_owned_nodes.emplace_back(current, current_distance, false);
+
+            const bool sample_neighbors = _fm_ctx.bound_degree > 0 && _p_graph->degree(current) > _fm_ctx.bound_degree;
+            const double prob = sample_neighbors ? 1.0 * _fm_ctx.bound_degree / _p_graph->degree(current) : 1.0;
+
+            // grow to neighbors
+            for (const auto [e, v]: _p_graph->neighbors(current)) {
+                const bool   take = sample_neighbors ? rand.random_bool(prob) : true;
+                std::uint8_t free = 0;
+
+                if (take && current_distance + 1 < _fm_ctx.radius
+                    && ((!_fm_ctx.overlap_regions && _locked[v].compare_exchange_strong(free, 1)) // obtain overship
+                        || (_fm_ctx.overlap_regions && !_locked[v]))) { // take everything, except for seed nodes
+                    search_front.push(v);
+                } else if (!_fm_ctx.contract_border) { // otherwise, we build fake neighbors later on
+                    discovered_owned_nodes.emplace_back(v, current_distance + 1, true);
+                }
+            }
+        } else {
+            discovered_owned_nodes.emplace_back(current, current_distance, true);
+            discovered_ghost_nodes.emplace_back(current, current_distance, false);
+        }
+
+        // +1 distance from seed
+        if (current_front_size == 0) {
+            current_front_size = search_front.size();
+            ++current_distance;
+        }
+    }
+
+    // @todo inter-PE growth
+
+    // build local graphs
+    const NodeID real_n = discovered_owned_nodes.size();
+    const NodeID n      = _fm_ctx.contract_border ? real_n + _p_graph->k() : real_n;
+
+    // build local_graph_mappings[i]
+    for (const auto [u, d, b]: discovered_owned_nodes) {
+        mapping.push_back(_p_graph->local_to_global_node(u));
+        fixed.push_back(b);
+    }
+    if (_fm_ctx.contract_border) {
+        KASSERT(std::none_of(fixed.begin(), fixed.end(), [](const bool v) { return v; }));
+        for (BlockID b = 0; b < _p_graph->k(); ++b) {
+            fixed.push_back(true);
+        }
+    }
+
+    // build inverse mapping
+    std::unordered_map<GlobalNodeID, NodeID> to_local_map;
+    for (std::size_t i = 0; i < real_n; ++i) {
+        to_local_map[mapping[i]] = i;
+    }
+
+    // build local graph
+    StaticArray<EdgeID>     local_nodes(n + 1);
+    std::vector<NodeID>     local_edges;
+    StaticArray<NodeWeight> local_node_weights(n);
+    std::vector<EdgeWeight> local_edge_weights;
+    NodeID                  next_node   = 0;
+    NodeID                  border_size = 0;
+    std::vector<EdgeWeight> covered_external_degrees(_p_graph->k());
+
+    if (_fm_ctx.contract_border) {
+        border_size = _p_graph->k();
+    }
+
+    for (const auto [u, d, b]: discovered_owned_nodes) {
+        local_nodes[next_node]        = local_edges.size();
+        local_node_weights[next_node] = _p_graph->node_weight(u);
+        ++next_node;
+
+        if (!b) {
+            const bool last_hop = _fm_ctx.contract_border && d + 1 == _fm_ctx.radius;
+
+            for (const auto [e, v]: _p_graph->neighbors(u)) {
+                const GlobalNodeID global_v = _p_graph->local_to_global_node(v);
+                if (to_local_map.find(global_v) != to_local_map.end()) {
+                    KASSERT(to_local_map[global_v] < real_n);
+
+                    local_edges.push_back(to_local_map[global_v]);
+                    local_edge_weights.push_back(_p_graph->edge_weight(e));
+
+                    if (last_hop) {
+                        covered_external_degrees[_p_graph->block(v)] += _p_graph->edge_weight(e);
+                    }
+                } else {
+                    KASSERT(_fm_ctx.contract_border || mpi::get_comm_rank(_p_graph->communicator()) > 0);
+                }
+            }
+
+            if (last_hop) { // connect to pseudo-nodes
+                for (BlockID b = 0; b < _p_graph->k(); ++b) {
+                    local_edges.push_back(real_n + b);
+                    local_edge_weights.push_back(external_degree(u, b) - covered_external_degrees[b]);
+                }
+                std::fill(covered_external_degrees.begin(), covered_external_degrees.end(), 0);
+            }
+        } else {
+            ++border_size;
+        }
+    }
+
+    for (NodeID u = real_n; u < n + 1; ++u) {
+        local_nodes[u] = local_edges.size();
+    }
+
+    KASSERT([&] {
+        KASSERT(static_cast<NodeID>(local_nodes.size()) == n + 1);
+        KASSERT(local_nodes[0] == 0u);
+        KASSERT(local_nodes[n] == static_cast<NodeID>(local_edges.size()));
+        for (NodeID u = 0; u < n; ++u) {
+            KASSERT(local_nodes[u] <= local_nodes[u + 1]);
+            KASSERT(local_nodes[u + 1] <= local_edges.size());
+        }
+        for (const auto& v: local_edges) {
+            KASSERT(v < n);
+        }
+        return true;
+    }());
+
+    if (kStatistics) {
+        _stats.graphs_n.push_back(n);
+        _stats.graphs_m.push_back(local_nodes.back());
+        _stats.graphs_border_n.push_back(border_size);
+    }
+
+    // build partition
+    StaticArray<BlockID> partition(n);
+    for (std::size_t i = 0; i < discovered_owned_nodes.size(); ++i) {
+        partition[i] = _p_graph->block(discovered_owned_nodes[i].node);
+    }
+
+    for (BlockID b = 0; b < _p_graph->k(); ++b) {
+        partition[real_n + b]          = b;
+        local_node_weights[real_n + b] = 1; // should not matter
+    }
+
+    // create graph objects
+    StaticArray<NodeID> local_edges_prime(local_edges.size());
+    std::copy(local_edges.begin(), local_edges.end(), local_edges_prime.begin());
+    StaticArray<EdgeWeight> local_edge_weights_prime(local_edge_weights.size());
+    std::copy(local_edge_weights.begin(), local_edge_weights.end(), local_edge_weights_prime.begin());
+
+    out_graph = shm::Graph(
+        std::move(local_nodes), std::move(local_edges_prime), std::move(local_node_weights),
+        std::move(local_edge_weights_prime));
+    out_p_graph = shm::PartitionedGraph(shm::no_block_weights, out_graph, _p_ctx->k, std::move(partition));
 }
 
 void FMRefiner::init_external_degrees() {
