@@ -6,12 +6,38 @@
  ******************************************************************************/
 #pragma once
 
+#include <oneapi/tbb/concurrent_vector.h>
+#include <tbb/concurrent_vector.h>
+
+#include "logger.h"
+
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/refinement/i_distributed_refiner.h"
 
+#include "common/parallel/atomic.h"
+
 namespace kaminpar::dist {
 class FMRefiner : public IDistributedRefiner {
+    SET_STATISTICS(true);
+
+    struct Statistics {
+        // Sizes of search graphs
+        tbb::concurrent_vector<NodeID> graphs_n{};
+        tbb::concurrent_vector<EdgeID> graphs_m{};
+        tbb::concurrent_vector<NodeID> graphs_border_n{};
+
+        // Number of move conflicts when applying moves from search graphs to the global partition
+        parallel::Atomic<NodeID> num_conflicts{0};
+
+        // Improvement statistics
+        parallel::Atomic<NodeID> num_searches_with_improvement{0};
+        EdgeWeight               initial_cut{kInvalidEdgeWeight};
+        EdgeWeight               final_cut{kInvalidEdgeWeight};
+
+        void print() const;
+    };
+
 public:
     FMRefiner(const Context& ctx);
 
@@ -37,5 +63,7 @@ private:
     // initialized here
     std::size_t                                 _round{0};
     std::vector<parallel::Atomic<std::uint8_t>> _locked;
+
+    Statistics _stats;
 };
 } // namespace kaminpar::dist

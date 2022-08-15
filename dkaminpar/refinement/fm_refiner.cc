@@ -17,6 +17,7 @@
 #include "dkaminpar/context.h"
 #include "dkaminpar/graphutils/graph_synchronization.h"
 #include "dkaminpar/growt.h"
+#include "dkaminpar/metrics.h"
 #include "dkaminpar/mpi/alltoall.h"
 #include "dkaminpar/mpi/utils.h"
 
@@ -25,13 +26,32 @@
 #include "common/datastructures/binary_heap.h"
 #include "common/datastructures/marker.h"
 #include "common/datastructures/rating_map.h"
+#include "common/logger.h"
 #include "common/noinit_vector.h"
 #include "common/parallel/atomic.h"
 #include "common/random.h"
 #include "common/timer.h"
+#include "common/utils/math.h"
 
 namespace kaminpar::dist {
 SET_DEBUG(true);
+
+void FMRefiner::Statistics::print() const {
+    const auto [n_min, n_mean, n_max] = math::find_min_mean_max(graphs_n);
+    const auto [b_min, b_mean, b_max] = math::find_min_mean_max(graphs_border_n);
+    const auto [m_min, m_mean, m_max] = math::find_min_mean_max(graphs_m);
+
+    LOG_STATS << "Distributed FM refiner:";
+    LOG_STATS << "  * Search graphs: #=" << graphs_n.size();
+    LOG_STATS << "    | Number of all nodes:    min=" << n_min << ", mean=" << n_mean << ", max=" << n_max;
+    LOG_STATS << "    | Number of border nodes: min=" << b_min << ", mean=" << b_mean << ", max=" << b_max;
+    LOG_STATS << "    | Number of edges:        min=" << m_min << ", mean=" << m_mean << ", max=" << m_max;
+    LOG_STATS << "  * Improvement: from=" << initial_cut << ", to=" << final_cut << ", by=" << initial_cut - final_cut;
+    LOG_STATS << "    | Number of searches with positive gain: " << num_searches_with_improvement;
+    LOG_STATS << "    | Average gain improvement per search:   "
+              << 1.0 * (initial_cut - final_cut) / num_searches_with_improvement;
+    LOG_STATS << "    | Number of conflicts: @todo";
+}
 
 namespace {
 struct AdaptiveStoppingPolicy {
@@ -302,9 +322,18 @@ void FMRefiner::initialize(const DistributedGraph& graph, const PartitionContext
 void FMRefiner::refine(DistributedPartitionedGraph& p_graph) {
     SCOPED_TIMER("FM");
     _p_graph = &p_graph;
+    if (kStatistics) {
+        _stats             = Statistics{};
+        _stats.initial_cut = metrics::edge_cut(*_p_graph);
+    }
 
     for (_round = 0; _round < _fm_ctx.num_iterations; ++_round) {
         refinement_round();
+    }
+
+    if (kStatistics) {
+        _stats.final_cut = metrics::edge_cut(*_p_graph);
+        _stats.print();
     }
 }
 
@@ -411,7 +440,8 @@ void FMRefiner::refinement_round() {
         std::vector<NodeID>     local_edges;
         StaticArray<NodeWeight> local_node_weights(n);
         std::vector<EdgeWeight> local_edge_weights;
-        NodeID                  next_node = 0;
+        NodeID                  next_node   = 0;
+        NodeID                  border_size = 0;
 
         for (const auto [u, d, b]: discovered_owned_nodes) {
             local_nodes[next_node]        = local_edges.size();
@@ -426,9 +456,17 @@ void FMRefiner::refinement_round() {
                         local_edge_weights.push_back(_p_graph->edge_weight(e));
                     }
                 }
+            } else {
+                ++border_size;
             }
         }
         local_nodes[n] = local_edges.size();
+
+        if (kStatistics) {
+            _stats.graphs_n.push_back(n);
+            _stats.graphs_m.push_back(local_nodes.back());
+            _stats.graphs_border_n.push_back(border_size);
+        }
 
         // build partition
         StaticArray<BlockID> partition(n);
@@ -462,6 +500,10 @@ void FMRefiner::refinement_round() {
         refiner.commit_block_weight_deltas(*_p_graph);
         auto&       global_moves_handle = global_moves_handle_ets.local();
         const auto& mapping             = local_graph_mappings[i];
+
+        if (kStatistics && !moves.empty()) {
+            ++_stats.num_searches_with_improvement;
+        }
 
         for (const auto [u, to]: moves) {
             const GlobalNodeID global_u = mapping[u];

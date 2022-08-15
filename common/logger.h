@@ -75,6 +75,9 @@
     (kaminpar::DisposableLogger<true>(std::cout, std::string(": ") + std::strerror(errno) + "\n") \
      << kaminpar::logger::RED << "[Fatal] ")
 
+#define LOG_STATS  (kaminpar::Logger(std::cout) << kaminpar::logger::CYAN << "[Statistics ]")
+#define LOG_LSTATS (kaminpar::Logger(std::cout, "") << kaminpar::logger::CYAN)
+
 // V(x) prints x<space><value of x><space>, e.g., use LOG << V(a) << V(b) << V(c); to quickly print the values of
 // variables a, b, c
 // C(x, y) prints [<value of x> --> <value of y>]
