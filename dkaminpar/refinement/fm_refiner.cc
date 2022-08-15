@@ -710,9 +710,11 @@ void FMRefiner::build_local_graph(
         partition[i] = _p_graph->block(discovered_owned_nodes[i].node);
     }
 
-    for (BlockID b = 0; b < _p_graph->k(); ++b) {
-        partition[real_n + b]          = b;
-        local_node_weights[real_n + b] = 1; // should not matter
+    if (_fm_ctx.contract_border) {
+        for (BlockID b = 0; b < _p_graph->k(); ++b) {
+            partition[real_n + b]          = b;
+            local_node_weights[real_n + b] = 1; // should not matter
+        }
     }
 
     // create graph objects
