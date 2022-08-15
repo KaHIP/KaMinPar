@@ -53,12 +53,20 @@ private:
     void                           refinement_round();
     tbb::concurrent_vector<NodeID> find_seed_nodes();
 
+    void init_external_degrees();
+
+    EdgeWeight& external_degree(const NodeID u, const BlockID b) {
+        KASSERT(_external_degrees.size() >= _p_graph->n() * _p_graph->k());
+        return _external_degrees[u * _p_graph->k() + b];
+    }
+
     // initialized by ctor
-    const PartitionContext&    _p_ctx;
     const FMRefinementContext& _fm_ctx;
 
     // initalized by refine()
+    const PartitionContext*      _p_ctx;
     DistributedPartitionedGraph* _p_graph;
+    std::vector<EdgeWeight>      _external_degrees;
 
     // initialized here
     std::size_t                                 _round{0};
