@@ -132,7 +132,8 @@ void create_refinement_fm_options(
             &fm_ctx.premove_locally)
         .argument(
             prefix + "-bound-degree", "Add at most this many neighbors of a high-degree node to a search region.",
-            &fm_ctx.bound_degree);
+            &fm_ctx.bound_degree)
+        .argument(prefix + "-contract-border", "Contract border of search graphs", &fm_ctx.contract_border);
 }
 
 void create_refinement_options(

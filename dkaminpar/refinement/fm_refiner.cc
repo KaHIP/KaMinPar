@@ -255,6 +255,8 @@ private:
         auto action = [&](auto& map) {
             EdgeWeight internal_degree = 0;
             for (const auto [e, v]: _p_graph->neighbors(u)) {
+                KASSERT(v < _p_graph->n());
+
                 const BlockID    v_block  = _p_graph->block(v);
                 const EdgeWeight e_weight = _p_graph->edge_weight(e);
 
@@ -476,6 +478,8 @@ void FMRefiner::refinement_round() {
                 for (const auto [e, v]: _p_graph->neighbors(u)) {
                     const GlobalNodeID global_v = _p_graph->local_to_global_node(v);
                     if (to_local_map.find(global_v) != to_local_map.end()) {
+                        KASSERT(to_local_map[global_v] < real_n);
+
                         local_edges.push_back(to_local_map[global_v]);
                         local_edge_weights.push_back(_p_graph->edge_weight(e));
 
@@ -498,7 +502,24 @@ void FMRefiner::refinement_round() {
                 ++border_size;
             }
         }
-        local_nodes[n] = local_edges.size();
+
+        for (NodeID u = real_n; u < n + 1; ++u) {
+            local_nodes[u] = local_edges.size();
+        }
+
+        KASSERT([&] {
+            KASSERT(static_cast<NodeID>(local_nodes.size()) == n + 1);
+            KASSERT(local_nodes[0] == 0u);
+            KASSERT(local_nodes[n] == static_cast<NodeID>(local_edges.size()));
+            for (NodeID u = 0; u < n; ++u) {
+                KASSERT(local_nodes[u] <= local_nodes[u + 1]);
+                KASSERT(local_nodes[u + 1] <= local_edges.size());
+            }
+            for (const auto& v: local_edges) {
+                KASSERT(v < n);
+            }
+            return true;
+        }());
 
         if (kStatistics) {
             _stats.graphs_n.push_back(n);
