@@ -12,7 +12,7 @@ function(add_distributed_benchmark target)
         target_link_libraries(${target} PRIVATE dist_partitioner_base)
 
         if (KAMINPAR_ENABLE_GRAPHGEN)
-            target_link_libraries(${target} PUBLIC kagen_library)
+            target_link_libraries(${target} PUBLIC kagen)
         endif ()
     else ()
         message(STATUS "Cannot add distributed app: distributed library is not available, presumably because MPI"

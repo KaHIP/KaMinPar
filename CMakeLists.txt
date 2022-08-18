@@ -170,9 +170,5 @@ add_subdirectory(apps)
 if (KAMINPAR_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
-
-    if (TARGET dist_partitioner_base)
-        add_subdirectory(dtests)
-    endif ()
 endif ()
 

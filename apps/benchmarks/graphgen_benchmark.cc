@@ -1,6 +1,5 @@
 /*******************************************************************************
  * @file:   graphgen_benchmark.cc
- *
  * @author: Daniel Seemaier
  * @date:   29.11.21
  * @brief:  Benchmark for in-memory graph generation.
@@ -10,29 +9,27 @@
 #include "dkaminpar/definitions.h"
 // clang-format on
 
-#include "apps/apps.h"
-#include "apps/dkaminpar_arguments.h"
-//#ifdef KAMINPAR_GRAPHGEN
-#include "apps/dkaminpar_graphgen.h"
-//#endif // KAMINPAR_GRAPHGEN
-
 #include <fstream>
 
 #include <mpi.h>
 
-#include "dkaminpar/distributed_io.h"
 #include "dkaminpar/graphutils/allgather_graph.h"
-#include "dkaminpar/utils/distributed_timer.h"
+#include "dkaminpar/io.h"
+#include "dkaminpar/timer.h"
 
 #include "kaminpar/definitions.h"
 #include "kaminpar/io.h"
-#include "kaminpar/utils/logger.h"
-#include "kaminpar/utils/timer.h"
 
+#include "common/logger.h"
 #include "common/random.h"
+#include "common/timer.h"
 
-namespace dist = dkaminpar;
-namespace shm  = kaminpar;
+#include "apps/apps.h"
+#include "apps/dkaminpar/arguments.h"
+#include "apps/dkaminpar/graphgen.h"
+
+using namespace kaminpar;
+using namespace kaminpar::dist;
 
 int main(int argc, char* argv[]) {
     // Initialize MPI
@@ -42,7 +39,7 @@ int main(int argc, char* argv[]) {
         if (provided_thread_support != MPI_THREAD_FUNNELED) {
             LOG_WARNING << "Desired MPI thread support unavailable: set to " << provided_thread_support;
             if (provided_thread_support == MPI_THREAD_SINGLE) {
-                if (dist::mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
+                if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
                     LOG_ERROR << "Your MPI library does not support multithreading. This might cause malfunction.";
                 }
             }
@@ -50,16 +47,16 @@ int main(int argc, char* argv[]) {
     }
 
     // Parse command line arguments
-    auto  app = dist::app::parse_options(argc, argv);
+    auto  app = parse_options(argc, argv);
     auto& ctx = app.ctx;
 
     // Initialize random number generator
-    shm::Random::seed = ctx.seed;
+    Random::seed = ctx.seed;
 
     // Initialize TBB
-    auto gc = shm::init_parallelism(ctx.parallel.num_threads);
+    auto gc = init_parallelism(ctx.parallel.num_threads);
     if (ctx.parallel.use_interleaved_numa_allocation) {
-        shm::init_numa();
+        init_numa();
     }
     GLOBAL_TIMER.enable(TIMER_BENCHMARK);
 
@@ -80,9 +77,9 @@ int main(int argc, char* argv[]) {
 
     // Print statistics
     {
-        const auto n_str       = dist::mpi::gather_statistics_str<dist::GlobalNodeID>(graph.n(), MPI_COMM_WORLD);
-        const auto m_str       = dist::mpi::gather_statistics_str<dist::GlobalEdgeID>(graph.m(), MPI_COMM_WORLD);
-        const auto ghost_n_str = dist::mpi::gather_statistics_str<dist::GlobalNodeID>(graph.ghost_n(), MPI_COMM_WORLD);
+        const auto n_str       = mpi::gather_statistics_str<dist::GlobalNodeID>(graph.n(), MPI_COMM_WORLD);
+        const auto m_str       = mpi::gather_statistics_str<dist::GlobalEdgeID>(graph.m(), MPI_COMM_WORLD);
+        const auto ghost_n_str = mpi::gather_statistics_str<dist::GlobalNodeID>(graph.ghost_n(), MPI_COMM_WORLD);
 
         LOG << "GRAPH "
             << "global_n=" << graph.global_n() << " "
@@ -97,17 +94,17 @@ int main(int argc, char* argv[]) {
     ctx.setup(graph);
 
     // Output statistics
-    dist::mpi::barrier(MPI_COMM_WORLD);
+    mpi::barrier(MPI_COMM_WORLD);
 
     STOP_TIMER();
 
-    dist::timer::collect_and_annotate_distributed_timer(GLOBAL_TIMER);
-    if (dist::mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
-        shm::Timer::global().print_machine_readable(std::cout);
+    finalize_distributed_timer(GLOBAL_TIMER);
+    if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
+        Timer::global().print_machine_readable(std::cout);
     }
     LOG;
-    if (dist::mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
-        shm::Timer::global().print_human_readable(std::cout);
+    if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
+        Timer::global().print_human_readable(std::cout);
     }
 
     MPI_Finalize();

@@ -1,6 +1,5 @@
 /*******************************************************************************
  * @file:   dkaminpar.cc
- *
  * @author: Daniel Seemaier
  * @date:   21.09.21
  * @brief:  Distributed KaMinPar binary.
@@ -17,22 +16,22 @@
 #include "dkaminpar/coarsening/global_clustering_contraction.h"
 #include "dkaminpar/coarsening/locking_label_propagation_clustering.h"
 #include "dkaminpar/context.h"
-#include "dkaminpar/distributed_io.h"
+#include "dkaminpar/io.h"
 
 #include "kaminpar/definitions.h"
-#include "kaminpar/utils/logger.h"
-#include "kaminpar/utils/timer.h"
 
+#include "common/logger.h"
 #include "common/random.h"
+#include "common/timer.h"
 
 #include "apps/apps.h"
-#include "apps/dkaminpar_arguments.h"
+#include "apps/dkaminpar/arguments.h"
 
-namespace dist = dkaminpar;
-namespace shm  = kaminpar;
+using namespace kaminpar;
+using namespace kaminpar::dist;
 
 int main(int argc, char* argv[]) {
-    dist::Context ctx = dist::create_default_context();
+    Context ctx = dist::create_default_context();
 
     { // init MPI
         int provided_thread_support;
@@ -40,7 +39,7 @@ int main(int argc, char* argv[]) {
         if (provided_thread_support != ctx.parallel.mpi_thread_support) {
             LOG_WARNING << "Desired MPI thread support unavailable: set to " << provided_thread_support;
             if (provided_thread_support == MPI_THREAD_SINGLE) {
-                if (dist::mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
+                if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
                     LOG_ERROR << "Your MPI library does not support multithreading. This might cause malfunction.";
                 }
                 provided_thread_support = MPI_THREAD_FUNNELED; // fake multithreading level for application
@@ -51,29 +50,29 @@ int main(int argc, char* argv[]) {
 
     // Parse command line arguments
     try {
-        ctx = dist::app::parse_options(argc, argv).ctx;
+        ctx = parse_options(argc, argv).ctx;
     } catch (const std::runtime_error& e) {
         std::cout << e.what() << std::endl;
     }
-    shm::Logger::set_quiet_mode(ctx.quiet);
+    Logger::set_quiet_mode(ctx.quiet);
 
-    shm::print_identifier(argc, argv);
-    LOG << "MPI size=" << dist::mpi::get_comm_size(MPI_COMM_WORLD);
+    print_identifier(argc, argv);
+    LOG << "MPI size=" << mpi::get_comm_size(MPI_COMM_WORLD);
     LOG << "CONTEXT " << ctx;
 
     // Initialize random number generator
-    shm::Random::seed = ctx.seed;
+    Random::seed = ctx.seed;
 
     // Initialize TBB
-    auto gc = shm::init_parallelism(ctx.parallel.num_threads);
+    auto gc = init_parallelism(ctx.parallel.num_threads);
     if (ctx.parallel.use_interleaved_numa_allocation) {
-        shm::init_numa();
+        init_numa();
     }
 
     // Load graph
     const auto graph = TIMED_SCOPE("IO") {
         auto graph = dist::io::metis::read_node_balanced(ctx.graph_filename);
-        dist::mpi::barrier(MPI_COMM_WORLD);
+        mpi::barrier(MPI_COMM_WORLD);
         return graph;
     };
     LOG << "Loaded graph with n=" << graph.global_n() << " m=" << graph.global_m();
@@ -98,8 +97,8 @@ int main(int argc, char* argv[]) {
         LOG << "... contracting";
 
         START_TIMER("Contraction", "Level " + std::to_string(graph_hierarchy.size()));
-        auto [contracted_graph, mapping] = dist::coarsening::contract_global_clustering(
-            *c_graph, clustering, ctx.coarsening.global_contraction_algorithm);
+        auto [contracted_graph, mapping] =
+            contract_global_clustering(*c_graph, clustering, ctx.coarsening.global_contraction_algorithm);
         STOP_TIMER();
         dist::graph::debug::validate(contracted_graph);
 
@@ -118,14 +117,14 @@ int main(int argc, char* argv[]) {
     }
 
     // Output statistics
-    dist::mpi::barrier(MPI_COMM_WORLD);
+    mpi::barrier(MPI_COMM_WORLD);
 
-    if (dist::mpi::get_comm_rank(MPI_COMM_WORLD) == 0 && !ctx.quiet) {
-        shm::Timer::global().print_machine_readable(std::cout);
+    if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0 && !ctx.quiet) {
+        Timer::global().print_machine_readable(std::cout);
     }
     LOG;
-    if (dist::mpi::get_comm_rank(MPI_COMM_WORLD) == 0 && !ctx.quiet) {
-        shm::Timer::global().print_human_readable(std::cout);
+    if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0 && !ctx.quiet) {
+        Timer::global().print_human_readable(std::cout);
     }
     LOG;
 

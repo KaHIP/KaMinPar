@@ -1,23 +1,23 @@
 /*******************************************************************************
  * @file:   coarsening_benchmark.cc
- *
  * @author: Daniel Seemaier
  * @date:   21.09.21
  * @brief:  Performance benchmark for coarsening.
  ******************************************************************************/
 #include "kaminpar/application/arguments.h"
-#include "kaminpar/application/arguments_parser.h"
 #include "kaminpar/coarsening/cluster_coarsener.h"
 #include "kaminpar/coarsening/label_propagation_clustering.h"
 #include "kaminpar/context.h"
 #include "kaminpar/io.h"
-#include "kaminpar/utils/timer.h"
 
+#include "common/arguments_parser.h"
 #include "common/random.h"
+#include "common/timer.h"
 
 #include "apps/apps.h"
 
 using namespace kaminpar;
+using namespace kaminpar::shm;
 
 int main(int argc, char* argv[]) {
     Context ctx     = create_default_context();

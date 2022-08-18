@@ -7,8 +7,6 @@
  ******************************************************************************/
 // This must come first since it redefines output macros (LOG DBG etc)
 // clang-format off
-#include "application/arguments_parser.h"
-#include "datastructure/distributed_graph.h"
 #include "dkaminpar/definitions.h"
 // clang-format on
 
@@ -19,21 +17,23 @@
 
 #include "dkaminpar/coarsening/global_clustering_contraction.h"
 #include "dkaminpar/context.h"
-#include "dkaminpar/distributed_io.h"
+#include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/graphutils/rearrange_graph.h"
+#include "dkaminpar/io.h"
 #include "dkaminpar/mpi/wrapper.h"
 
 #include "kaminpar/definitions.h"
-#include "kaminpar/utils/logger.h"
-#include "kaminpar/utils/timer.h"
 
+#include "common/arguments_parser.h"
+#include "common/logger.h"
 #include "common/random.h"
+#include "common/timer.h"
 
 #include "apps/apps.h"
-#include "apps/dkaminpar_arguments.h"
+#include "apps/dkaminpar/arguments.h"
 
-using namespace dkaminpar;
-namespace shm = kaminpar;
+using namespace kaminpar;
+using namespace kaminpar::dist;
 
 void init_mpi(int& argc, char**& argv) {
     int provided_thread_support;
@@ -68,7 +68,7 @@ DistributedGraph load_graph(Context& ctx) {
 }
 
 auto load_clustering(Context& ctx, const std::string& filename) {
-    return io::partition::read<scalable_vector<Atomic<GlobalNodeID>>>(filename, ctx.partition.local_n());
+    return io::partition::read<scalable_vector<parallel::Atomic<GlobalNodeID>>>(filename, ctx.partition.local_n());
 }
 
 int main(int argc, char* argv[]) {
@@ -79,7 +79,7 @@ int main(int argc, char* argv[]) {
 
     // Parse command line arguments
     try {
-        shm::Arguments args;
+        Arguments args;
         args.positional()
             .argument("graph", "Graph", &ctx.graph_filename)
             .argument("clustering", "Clustering filename", &clustering_filename);
@@ -88,20 +88,20 @@ int main(int argc, char* argv[]) {
     } catch (const std::runtime_error& e) {
         std::cout << e.what() << std::endl;
     }
-    shm::Logger::set_quiet_mode(ctx.quiet);
+    Logger::set_quiet_mode(ctx.quiet);
 
-    shm::print_identifier(argc, argv);
+    print_identifier(argc, argv);
     LOG << "MPI size=" << mpi::get_comm_size(MPI_COMM_WORLD);
     LOG << "CONTEXT " << ctx;
 
     // Initialize random number generator
-    shm::Random::seed = ctx.seed;
+    Random::seed = ctx.seed;
 
     // Initialize TBB
-    auto gc = shm::init_parallelism(ctx.parallel.num_threads);
+    auto gc = init_parallelism(ctx.parallel.num_threads);
     omp_set_num_threads(static_cast<int>(ctx.parallel.num_threads));
     if (ctx.parallel.use_interleaved_numa_allocation) {
-        shm::init_numa();
+        init_numa();
     }
 
     // Load data
@@ -111,7 +111,7 @@ int main(int argc, char* argv[]) {
     // Compute coarse graph
     START_TIMER("Contraction");
     const auto [c_graph, c_mappuing] =
-        coarsening::contract_global_clustering(graph, clustering, ctx.coarsening.global_contraction_algorithm);
+        contract_global_clustering(graph, clustering, ctx.coarsening.global_contraction_algorithm);
     STOP_TIMER();
 
     LOG << "Coarse graph:";
@@ -120,11 +120,11 @@ int main(int argc, char* argv[]) {
     // Output statistics
     mpi::barrier(MPI_COMM_WORLD);
     if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0 && !ctx.quiet) {
-        shm::Timer::global().print_machine_readable(std::cout);
+        Timer::global().print_machine_readable(std::cout);
     }
     LOG;
     if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0 && !ctx.quiet) {
-        shm::Timer::global().print_human_readable(std::cout);
+        Timer::global().print_human_readable(std::cout);
     }
     LOG;
 

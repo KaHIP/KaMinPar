@@ -1,6 +1,5 @@
 /*******************************************************************************
  * @file:   dbalancing_benchmark.cc
- *
  * @author: Daniel Seemaier
  * @date:   12.04.2022
  * @brief:  Benchmark for distributed graph partition balancing.
@@ -17,24 +16,23 @@
 #include "dkaminpar/coarsening/global_clustering_contraction.h"
 #include "dkaminpar/coarsening/locking_label_propagation_clustering.h"
 #include "dkaminpar/context.h"
-#include "dkaminpar/distributed_io.h"
+#include "dkaminpar/io.h"
+#include "dkaminpar/metrics.h"
 #include "dkaminpar/mpi/graph_communication.h"
 #include "dkaminpar/refinement/distributed_balancer.h"
-#include "dkaminpar/utils/metrics.h"
 
 #include "kaminpar/application/arguments.h"
 #include "kaminpar/definitions.h"
-#include "kaminpar/utils/logger.h"
-#include "kaminpar/utils/timer.h"
 
+#include "common/logger.h"
 #include "common/random.h"
+#include "common/timer.h"
 
 #include "apps/apps.h"
-#include "apps/dkaminpar_arguments.h"
+#include "apps/dkaminpar/arguments.h"
 
-namespace shm = kaminpar;
-
-using namespace dkaminpar;
+using namespace kaminpar;
+using namespace kaminpar::dist;
 
 int main(int argc, char* argv[]) {
     Context     ctx = create_default_context();
@@ -55,7 +53,7 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    shm::Arguments args;
+    Arguments args;
     args.positional()
         .argument("graph", "Input graph", &ctx.graph_filename)
         .argument("partition", "Input partition", &partition_filename);
@@ -63,18 +61,18 @@ int main(int argc, char* argv[]) {
     args.group("Misc")
         .argument("threads", "Number of threads", &ctx.parallel.num_threads, 't')
         .argument("seed", "Seed for RNG", &ctx.seed, 's');
-    app::create_balancing_options(ctx.refinement.balancing, args, "", "b");
+    create_balancing_options(ctx.refinement.balancing, args, "", "b");
     args.parse(argc, argv);
 
-    shm::print_identifier(argc, argv);
+    print_identifier(argc, argv);
     LOG << "MPI size=" << mpi::get_comm_size(MPI_COMM_WORLD);
 
     // Initialize random number generator
-    shm::Random::seed = ctx.seed;
+    Random::seed = ctx.seed;
 
     // Initialize TBB
-    shm::init_numa();
-    auto gc = shm::init_parallelism(ctx.parallel.num_threads);
+    init_numa();
+    auto gc = init_parallelism(ctx.parallel.num_threads);
 
     // Load graph
     const auto graph = TIMED_SCOPE("IO") {
@@ -86,7 +84,7 @@ int main(int argc, char* argv[]) {
     KASSERT(graph::debug::validate(graph));
 
     // Load partition
-    auto partition = io::partition::read<scalable_vector<Atomic<BlockID>>>(partition_filename, graph.n());
+    auto partition = io::partition::read<scalable_vector<parallel::Atomic<BlockID>>>(partition_filename, graph.n());
     KASSERT(partition.size() == graph.n(), "", assert::always);
 
     // Communicate blocks of ghost nodes
@@ -125,7 +123,7 @@ int main(int argc, char* argv[]) {
     mpi::allreduce(
         local_block_weights.data(), global_block_weight_nonatomic.data(), static_cast<int>(k), MPI_SUM, MPI_COMM_WORLD);
 
-    scalable_vector<Atomic<BlockWeight>> block_weights(k);
+    scalable_vector<parallel::Atomic<BlockWeight>> block_weights(k);
     std::copy(global_block_weight_nonatomic.begin(), global_block_weight_nonatomic.end(), block_weights.begin());
 
     DistributedPartitionedGraph p_graph(&graph, k, std::move(partition), std::move(block_weights));
@@ -161,11 +159,11 @@ int main(int argc, char* argv[]) {
     LOG << p_graph.block_weights();
 
     if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0 && !ctx.quiet) {
-        shm::Timer::global().print_machine_readable(std::cout);
+        Timer::global().print_machine_readable(std::cout);
     }
     LOG;
     if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0 && !ctx.quiet) {
-        shm::Timer::global().print_human_readable(std::cout);
+        Timer::global().print_human_readable(std::cout);
     }
     LOG;
 
