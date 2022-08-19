@@ -2,7 +2,7 @@
 
 #include "kaminpar/datastructure/graph.h"
 
-namespace kaminpar {
+namespace kaminpar::shm::testing {
 class GraphBuilder {
 public:
     GraphBuilder() = default;
@@ -55,4 +55,4 @@ private:
     std::vector<NodeWeight> _node_weights{};
     std::vector<EdgeWeight> _edge_weights{};
 };
-} // namespace kaminpar
+} // namespace kaminpar::shm::testing

@@ -4,7 +4,7 @@
 
 #include "kaminpar/datastructure/graph.h"
 
-namespace dkaminpar::testing {
+namespace kaminpar::dist::testing {
 inline void expect_triangle_graph(const shm::Graph& graph) {
     EXPECT_EQ(graph.n(), 3);
     EXPECT_EQ(graph.m(), 6);
@@ -32,4 +32,4 @@ inline void expect_unweighted_graph(
         EXPECT_EQ(graph.edge_weight(e), expected_edge_weight);
     }
 }
-} // namespace dkaminpar::testing
+} // namespace kaminpar::dist::testing

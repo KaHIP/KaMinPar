@@ -3,7 +3,7 @@
 #include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/mpi/wrapper.h"
 
-namespace dkaminpar::testing {
+namespace kaminpar::dist::testing {
 inline DistributedPartitionedGraph
 make_partitioned_graph(const DistributedGraph& graph, const BlockID k, const std::vector<BlockID>& local_partition) {
     scalable_vector<parallel::Atomic<BlockID>> partition(graph.total_n());
@@ -159,4 +159,4 @@ change_node_weights(DistributedGraph graph, const std::vector<std::pair<NodeID, 
         false,
         graph.communicator()};
 }
-} // namespace dkaminpar::testing
+} // namespace kaminpar::dist::testing

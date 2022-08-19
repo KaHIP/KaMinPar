@@ -7,12 +7,12 @@
 #include "dkaminpar/definitions.h"
 #include "dkaminpar/mpi/wrapper.h"
 
-namespace dkaminpar::testing {
+namespace kaminpar::dist::testing {
 inline DistributedGraph make_distributed_circle_graph() {
     const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
     const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
 
-    dkaminpar::graph::Builder builder(MPI_COMM_WORLD);
+    graph::Builder builder(MPI_COMM_WORLD);
     builder.initialize(1);
 
     const GlobalNodeID prev = static_cast<GlobalNodeID>(rank > 0 ? rank - 1 : size - 1);
@@ -28,7 +28,7 @@ inline DistributedGraph make_distributed_circle_graph() {
 }
 
 inline DistributedGraph make_distributed_isolated_graph(const NodeID num_nodes_per_pe) {
-    dkaminpar::graph::Builder builder(MPI_COMM_WORLD);
+    graph::Builder builder(MPI_COMM_WORLD);
     builder.initialize(num_nodes_per_pe);
     for (NodeID u = 0; u < num_nodes_per_pe; ++u) {
         builder.create_node(1);
@@ -42,7 +42,7 @@ inline DistributedGraph make_distributed_circle_clique_graph(const NodeID num_no
     const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
     const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
 
-    dkaminpar::graph::Builder builder(MPI_COMM_WORLD);
+    graph::Builder builder(MPI_COMM_WORLD);
     builder.initialize(num_nodes_per_pe);
 
     const GlobalNodeID my_n0   = rank * num_nodes_per_pe;
@@ -133,7 +133,7 @@ protected:
 
 private:
     DistributedGraph create_graph() {
-        dkaminpar::graph::Builder builder(MPI_COMM_WORLD);
+        graph::Builder builder(MPI_COMM_WORLD);
         builder.initialize(2 * num_edges_per_pe);
         for (EdgeID e = 0; e < num_edges_per_pe; ++e) {
             builder.create_node(1);
@@ -167,7 +167,7 @@ protected:
 
 private:
     DistributedGraph create_graph() {
-        dkaminpar::graph::Builder builder(MPI_COMM_WORLD);
+        graph::Builder builder(MPI_COMM_WORLD);
         builder.initialize(num_nodes_per_pe);
 
         // PE 0: 2 <-- 0 --> 1
@@ -210,4 +210,4 @@ protected:
     GlobalNodeID     next_n0;
 };
 } // namespace fixtures
-} // namespace dkaminpar::testing
+} // namespace kaminpar::dist::testing

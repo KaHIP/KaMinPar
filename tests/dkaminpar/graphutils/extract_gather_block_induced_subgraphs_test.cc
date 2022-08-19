@@ -1,8 +1,8 @@
 #include <gmock/gmock.h>
 
-#include "dtests/distributed_graph_fixtures.h"
-#include "dtests/graph_assertions.h"
-#include "dtests/graph_helpers.h"
+#include "tests/dkaminpar/distributed_graph_fixtures.h"
+#include "tests/dkaminpar/graph_assertions.h"
+#include "tests/dkaminpar/graph_helpers.h"
 
 #include "dkaminpar/graphutils/graph_extraction.h"
 
@@ -10,12 +10,12 @@
 
 #include "common/datastructures/static_array.h"
 
-using namespace dkaminpar;
-using namespace dkaminpar::testing;
-using namespace dkaminpar::testing::fixtures;
+namespace kaminpar::dist {
+using namespace kaminpar::dist::testing;
+using namespace kaminpar::dist::testing::fixtures;
 
 inline auto extract_subgraphs(const DistributedPartitionedGraph& p_graph) {
-    return dkaminpar::graph::distribute_block_induced_subgraphs(p_graph).subgraphs;
+    return graph::distribute_block_induced_subgraphs(p_graph).subgraphs;
 }
 
 // One isolated node on each PE, no edges at all
@@ -265,19 +265,19 @@ TEST_F(DistributedTestFixture, node_weights_are_correct) {
 TEST_F(OneIsolatedNodeOnEachPE, copy_partition_back_to_distributed_graph) {
     auto p_graph = make_partitioned_graph_by_rank(graph);
 
-    auto  result    = dkaminpar::graph::distribute_block_induced_subgraphs(p_graph);
+    auto  result    = graph::distribute_block_induced_subgraphs(p_graph);
     auto& subgraphs = result.subgraphs;
 
     // one block with one node -> assign to block 0
     auto& subgraph = subgraphs.front();
 
     std::vector<shm::PartitionedGraph> p_subgraphs;
-    shm::StaticArray<BlockID>          partition(1);
+    StaticArray<BlockID>               partition(1);
     partition[0] = 0;
     p_subgraphs.push_back({subgraph, 1, std::move(partition), {1}});
 
     // Copy back to p_graph
-    p_graph = dkaminpar::graph::copy_subgraph_partitions(std::move(p_graph), p_subgraphs, result);
+    p_graph = graph::copy_subgraph_partitions(std::move(p_graph), p_subgraphs, result);
 
     EXPECT_EQ(p_graph.k(), size); // k should not have changed
     ASSERT_EQ(p_graph.n(), 1);
@@ -288,20 +288,20 @@ TEST_F(OneIsolatedNodeOnEachPE, copy_partition_back_to_distributed_graph) {
 TEST_F(TwoIsolatedNodesOnEachPE, copy_partition_back_to_distributed_graph) {
     auto p_graph = make_partitioned_graph_by_rank(graph);
 
-    auto  result    = dkaminpar::graph::distribute_block_induced_subgraphs(p_graph);
+    auto  result    = graph::distribute_block_induced_subgraphs(p_graph);
     auto& subgraphs = result.subgraphs;
 
     // one block with one node -> assign to block 0
     auto& subgraph = subgraphs.front();
 
     std::vector<shm::PartitionedGraph> p_subgraphs;
-    shm::StaticArray<BlockID>          partition(2);
+    StaticArray<BlockID>               partition(2);
     partition[0] = 0;
     partition[1] = 1;
     p_subgraphs.push_back({subgraph, 2, std::move(partition), {1, 1}});
 
     // Copy back to p_graph
-    p_graph = dkaminpar::graph::copy_subgraph_partitions(std::move(p_graph), p_subgraphs, result);
+    p_graph = graph::copy_subgraph_partitions(std::move(p_graph), p_subgraphs, result);
 
     EXPECT_EQ(p_graph.k(), 2 * size); // k should not have doubled
     ASSERT_EQ(p_graph.n(), 2);
@@ -322,7 +322,7 @@ TEST_F(DistributedTestFixture, copy_partition_back_to_distributed_graph_circle) 
     auto p_graph = make_partitioned_graph(graph, size, local_partition);
 
     // Extract blocks
-    auto  result    = dkaminpar::graph::distribute_block_induced_subgraphs(p_graph);
+    auto  result    = graph::distribute_block_induced_subgraphs(p_graph);
     auto& subgraphs = result.subgraphs;
     ASSERT_EQ(subgraphs.size(), 1);
     auto& subgraph = subgraphs.front();
@@ -332,7 +332,7 @@ TEST_F(DistributedTestFixture, copy_partition_back_to_distributed_graph_circle) 
 
     // Assign 2 nodes to a new block
     std::vector<shm::PartitionedGraph> p_subgraphs;
-    shm::StaticArray<BlockID>          partition(2 * size);
+    StaticArray<BlockID>               partition(2 * size);
     for (const NodeID u: subgraph.nodes()) {
         partition[u] = u / 2;
     }
@@ -340,7 +340,7 @@ TEST_F(DistributedTestFixture, copy_partition_back_to_distributed_graph_circle) 
         {subgraph, static_cast<BlockID>(size), std::move(partition), scalable_vector<BlockID>(size / 2, 1)});
 
     // Copy back to p_graph
-    p_graph = dkaminpar::graph::copy_subgraph_partitions(std::move(p_graph), p_subgraphs, result);
+    p_graph = graph::copy_subgraph_partitions(std::move(p_graph), p_subgraphs, result);
 
     // Should have size * (size / 2) blocks now
     ASSERT_EQ(p_graph.k(), size * size);
@@ -349,3 +349,4 @@ TEST_F(DistributedTestFixture, copy_partition_back_to_distributed_graph_circle) 
         EXPECT_EQ(p_graph.block(u), (u / 2) * size + rank);
     }
 }
+} // namespace kaminpar::dist

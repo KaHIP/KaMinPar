@@ -11,3 +11,15 @@ kaminpar_add_common_test(test_common_fast_reset_array common/datastructures/fast
 kaminpar_add_common_test(test_common_marker common/datastructures/marker_test.cc)
 kaminpar_add_common_test(test_common_static_array common/datastructures/static_array_test.cc)
 
+# Common 
+kaminpar_add_common_test(test_common_math common/math_test.cc)
+kaminpar_add_common_test(test_common_string common/string_test.cc)
+kaminpar_add_common_test(test_common_parallel_algorithm common/parallel/algorithm_test.cc)
+
+# dKaMinPar -> Graph Utils
+kaminpar_add_dist_test(test_dist_extract_block_induced_subgraph 
+    FILES dkaminpar/graphutils/extract_gather_block_induced_subgraphs_test.cc
+    CORES 1 4)
+
+# KaMinPar 
+kaminpar_add_shm_test(test_shm_io kaminpar/io_test.cc)
