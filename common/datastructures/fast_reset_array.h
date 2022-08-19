@@ -31,7 +31,7 @@ public:
     FastResetArray& operator=(FastResetArray&&) noexcept = default;
 
     reference operator[](const size_type pos) {
-        KASSERT(pos < _data.size(), V(pos) << V(_data.size()));
+        KASSERT(pos < _data.size());
         if (_data[pos] == value_type()) {
             _used_entries.push_back(pos);
         }

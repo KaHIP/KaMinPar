@@ -261,7 +261,7 @@ public:
     }
 
     void push(const std::size_t heap, const ID id, const Key key) {
-        KASSERT(_comparator(key, Comparator<Key>::kMinValue), V(key) << V(Comparator<Key>::kMinValue));
+        KASSERT(_comparator(key, Comparator<Key>::kMinValue));
         _heaps[heap].push_back({id, key});
         _id_pos[id] = _heaps[heap].size() - 1;
         sift_up(heap, _id_pos[id]);

@@ -1,4 +1,4 @@
-#include "gmock/gmock.h"
+#include <gmock/gmock.h>
 
 #include "common/datastructures/marker.h"
 

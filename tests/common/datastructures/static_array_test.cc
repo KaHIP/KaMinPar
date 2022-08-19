@@ -1,10 +1,6 @@
 #include <gmock/gmock.h>
 
-#include "tests.h"
-
 #include "common/datastructures/static_array.h"
-
-using ::testing::Eq;
 
 namespace kaminpar {
 TEST(StaticArrayTest, SimpleStorageTest) {
@@ -13,9 +9,9 @@ TEST(StaticArrayTest, SimpleStorageTest) {
         array[i] = 10 * i;
     }
     for (std::size_t i = 0; i < 10; ++i) {
-        EXPECT_THAT(array[i], Eq(10 * i));
+        EXPECT_EQ(array[i], 10 * i);
     }
-    EXPECT_THAT(array.size(), Eq(10));
+    EXPECT_EQ(array.size(), 10);
     EXPECT_FALSE(array.empty());
 }
 
@@ -27,7 +23,7 @@ TEST(StaticArrayTest, IteratorTest) {
     std::size_t i{0};
 
     for (const int& v: array) {
-        EXPECT_THAT(v, i * 10);
+        EXPECT_EQ(v, i * 10);
         ++i;
     }
 }
