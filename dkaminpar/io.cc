@@ -85,7 +85,8 @@ DistributedGraph read_node_balanced(const std::string& filename, MPI_Comm comm) 
             if (current > from) {
                 builder.create_edge(static_cast<EdgeWeight>(e_weight), static_cast<GlobalNodeID>(v));
             }
-        });
+        }
+    );
 
     return builder.finalize();
 }
@@ -147,7 +148,8 @@ DistributedGraph read_edge_balanced(const std::string& filename, MPI_Comm comm) 
                 edge_weights.push_back(static_cast<EdgeWeight>(e_weight));
             }
             ++current_edge;
-        });
+        }
+    );
 
     // at this point we should have a valid node and edge distribution
     const GlobalNodeID offset_n = node_distribution[rank];
@@ -191,7 +193,8 @@ DistributedGraph read_edge_balanced(const std::string& filename, MPI_Comm comm) 
 
 void write(
     const std::string& filename, const DistributedGraph& graph, const bool write_node_weights,
-    const bool write_edge_weights) {
+    const bool write_edge_weights
+) {
     if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) { // clear file
         std::ofstream tmp(filename);
     }
@@ -223,7 +226,8 @@ void write(
                 out << "\n";
             }
         },
-        MPI_COMM_WORLD);
+        MPI_COMM_WORLD
+    );
 }
 } // namespace metis
 

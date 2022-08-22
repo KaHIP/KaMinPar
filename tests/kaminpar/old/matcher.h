@@ -54,7 +54,8 @@ Matcher<const Graph&> HasEdge(const NodeID u, const NodeID v) {
 class HasWeightedEdgeWithWeightedEndpointsMatcher : public MatcherInterface<const Graph&> {
 public:
     HasWeightedEdgeWithWeightedEndpointsMatcher(
-        const NodeWeight u_weight, const EdgeWeight e_weight, const NodeWeight v_weight)
+        const NodeWeight u_weight, const EdgeWeight e_weight, const NodeWeight v_weight
+    )
         : _u_weight(u_weight),
           _e_weight(e_weight),
           _v_weight(v_weight) {}

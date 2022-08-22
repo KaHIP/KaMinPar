@@ -75,7 +75,8 @@ make_partitioned_graph(const DistributedGraph& graph, const BlockID k, const std
             for (const auto& [global_node, block]: buffer) {
                 partition[graph.global_to_local_node(global_node)] = block;
             }
-        });
+        }
+    );
 
     return {&graph, k, std::move(partition), std::move(block_weights)};
 }
@@ -143,7 +144,8 @@ change_edge_weights(DistributedGraph graph, const std::vector<std::pair<EdgeID, 
 }
 
 inline DistributedGraph change_edge_weights_by_endpoints(
-    DistributedGraph graph, const std::vector<std::tuple<NodeID, NodeID, EdgeWeight>>& changes) {
+    DistributedGraph graph, const std::vector<std::tuple<NodeID, NodeID, EdgeWeight>>& changes
+) {
     std::vector<std::pair<EdgeID, EdgeWeight>> edge_id_changes;
     for (const auto& [u, v, weight]: changes) {
         const auto [forward_edge, backward_edge] = get_edge_by_endpoints(graph, u, v);
@@ -155,7 +157,8 @@ inline DistributedGraph change_edge_weights_by_endpoints(
 }
 
 inline DistributedGraph change_edge_weights_by_global_endpoints(
-    DistributedGraph graph, const std::vector<std::tuple<GlobalNodeID, GlobalNodeID, EdgeWeight>>& changes) {
+    DistributedGraph graph, const std::vector<std::tuple<GlobalNodeID, GlobalNodeID, EdgeWeight>>& changes
+) {
     SET_DEBUG(true);
     std::vector<std::pair<EdgeID, EdgeWeight>> edge_id_changes;
     for (const auto& [u, v, weight]: changes) {

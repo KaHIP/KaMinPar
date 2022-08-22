@@ -232,12 +232,14 @@ PartitionContext
 create_bipartition_context(const PartitionContext& k_p_ctx, const Graph& subgraph, BlockID final_k1, BlockID final_k2);
 
 double compute_2way_adaptive_epsilon(
-    const PartitionContext& p_ctx, NodeWeight subgraph_total_node_weight, BlockID subgraph_final_k);
+    const PartitionContext& p_ctx, NodeWeight subgraph_total_node_weight, BlockID subgraph_final_k
+);
 
 template <typename NodeID_ = NodeID, typename NodeWeight_ = NodeWeight>
 NodeWeight_ compute_max_cluster_weight(
     const NodeID_ n, const NodeWeight_ total_node_weight, const PartitionContext& input_p_ctx,
-    const CoarseningContext& c_ctx) {
+    const CoarseningContext& c_ctx
+) {
     double max_cluster_weight = 0.0;
 
     switch (c_ctx.cluster_weight_limit) {

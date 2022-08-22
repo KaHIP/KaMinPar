@@ -25,8 +25,8 @@ public:
     };
 
     GreedyGraphGrowingBipartitioner(
-        const Graph& graph, const PartitionContext& p_ctx, const InitialPartitioningContext& i_ctx,
-        MemoryContext& m_ctx)
+        const Graph& graph, const PartitionContext& p_ctx, const InitialPartitioningContext& i_ctx, MemoryContext& m_ctx
+    )
         : Bipartitioner(graph, p_ctx, i_ctx),
           _queue{m_ctx.queue},
           _marker{m_ctx.marker} {

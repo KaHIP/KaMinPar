@@ -162,14 +162,16 @@ inline GraphFormat read_graph_header(internal::MappedFile& mapped_file) {
 Graph     read(const std::string& filename, bool ignore_node_weights = false, bool ignore_edge_weights = false);
 GraphInfo read(
     const std::string& filename, StaticArray<EdgeID>& nodes, StaticArray<NodeID>& edges,
-    StaticArray<NodeWeight>& node_weights, StaticArray<EdgeWeight>& edge_weights);
+    StaticArray<NodeWeight>& node_weights, StaticArray<EdgeWeight>& edge_weights
+);
 void read_format(const std::string& filename, NodeID& n, EdgeID& m, bool& has_node_weights, bool& has_edge_weights);
 GraphFormat read_format(const std::string& filename);
 void        write(const std::string& filename, const Graph& graph, const std::string& comment = "");
 
 template <typename GraphFormatCB, typename NextNodeCB, typename NextEdgeCB>
 GraphInfo read_observable(
-    const std::string& filename, GraphFormatCB&& format_cb, NextNodeCB&& next_node_cb, NextEdgeCB&& next_edge_cb) {
+    const std::string& filename, GraphFormatCB&& format_cb, NextNodeCB&& next_node_cb, NextEdgeCB&& next_edge_cb
+) {
     static_assert(std::is_invocable_v<GraphFormatCB, GraphFormat>);
     static_assert(std::is_invocable_v<NextNodeCB, std::uint64_t>);
     static_assert(std::is_invocable_v<NextEdgeCB, std::uint64_t, std::uint64_t>);

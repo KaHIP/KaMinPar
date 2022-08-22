@@ -127,10 +127,12 @@ void generate_statistics(const Timer::TimerTreeNode& node, std::vector<NodeStati
                 (rank != root
                  || std::all_of(
                      num_children.begin(), num_children.end(),
-                     [&](const std::size_t num) { return num == node.children.size(); })),
+                     [&](const std::size_t num) { return num == node.children.size(); }
+                 )),
                 "timers have diverged: number of children for node " << node.name << "/" << node.description << ": "
                                                                      << num_children,
-                assert::always);
+                assert::always
+            );
 
             auto names = gather_trunc_string<check_chars>(node.name, root, comm);
             KASSERT(
@@ -139,8 +141,10 @@ void generate_statistics(const Timer::TimerTreeNode& node, std::vector<NodeStati
                      names.begin(), names.end(),
                      [&](const std::string& name) {
                          return name.substr(0, check_chars) == node.name.substr(0, check_chars);
-                     })),
-                "timers have diverged at node " << node.name << ": " << names, assert::always);
+                     }
+                 )),
+                "timers have diverged at node " << node.name << ": " << names, assert::always
+            );
 
             auto descriptions = gather_trunc_string<check_chars>(node.description, root, comm);
             KASSERT(
@@ -149,14 +153,17 @@ void generate_statistics(const Timer::TimerTreeNode& node, std::vector<NodeStati
                      descriptions.begin(), descriptions.end(),
                      [&](const std::string& description) {
                          return description.substr(0, check_chars) == node.description.substr(0, check_chars);
-                     })),
+                     }
+                 )),
                 "timers have diverged at node " << node.name << " with description " << node.description << ": "
                                                 << descriptions,
-                assert::always);
+                assert::always
+            );
 
             return true;
         }(),
-        "", assert::always);
+        "", assert::always
+    );
 
     auto         times = mpi::gather<double, std::vector<double>>(node.seconds(), 0, comm);
     const double mean  = compute_mean(times);
@@ -192,7 +199,8 @@ AlignedTable align_statistics(const std::vector<NodeStatistics>& statistics) {
 }
 
 void annotate_timer_tree(
-    Timer::TimerTreeNode& node, std::size_t& pos, const std::vector<NodeStatistics>& statistics, AlignedTable& table) {
+    Timer::TimerTreeNode& node, std::size_t& pos, const std::vector<NodeStatistics>& statistics, AlignedTable& table
+) {
     const auto& entry = statistics[pos++];
 
     std::stringstream ss;

@@ -21,8 +21,7 @@ public:
         }
     };
 
-    RandomBipartitioner(
-        const Graph& graph, const PartitionContext& p_ctx, const InitialPartitioningContext& i_ctx, MemoryContext&)
+    RandomBipartitioner(const Graph& graph, const PartitionContext& p_ctx, const InitialPartitioningContext& i_ctx, MemoryContext&)
         : Bipartitioner(graph, p_ctx, i_ctx) {}
 
 protected:

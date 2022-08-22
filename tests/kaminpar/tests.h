@@ -20,7 +20,8 @@ Graph create_graph(const std::vector<EdgeID>& nodes, const std::vector<NodeID>& 
 
 Graph create_graph(
     const std::vector<EdgeID>& nodes, const std::vector<NodeID>& edges, const std::vector<NodeWeight>& node_weights,
-    const std::vector<EdgeWeight>& edge_weights, const bool sorted = false) {
+    const std::vector<EdgeWeight>& edge_weights, const bool sorted = false
+) {
     return Graph{
         static_array::create_from(nodes), static_array::create_from(edges), static_array::create_from(node_weights),
         static_array::create_from(edge_weights), sorted};
@@ -31,7 +32,8 @@ PartitionedGraph create_p_graph(const Graph& graph, const BlockID k, const std::
 }
 
 PartitionedGraph create_p_graph(
-    const Graph& graph, const BlockID k, const std::vector<BlockID>& partition, scalable_vector<BlockID> final_ks) {
+    const Graph& graph, const BlockID k, const std::vector<BlockID>& partition, scalable_vector<BlockID> final_ks
+) {
     return PartitionedGraph{graph, k, static_array::create_from(partition), std::move(final_ks)};
 }
 
@@ -102,11 +104,13 @@ Graph assign_exponential_weights(Graph graph, const bool assign_node_weights, co
     KASSERT(
         !assign_node_weights
             || graph.n() <= std::numeric_limits<NodeWeight>::digits - std::numeric_limits<NodeWeight>::is_signed,
-        "Cannot assign exponential node weights: graph has too many nodes", assert::always);
+        "Cannot assign exponential node weights: graph has too many nodes", assert::always
+    );
     KASSERT(
         !assign_edge_weights
             || graph.m() <= std::numeric_limits<EdgeWeight>::digits - std::numeric_limits<EdgeWeight>::is_signed,
-        "Cannot assign exponential edge weights: graph has too many edges", assert::always);
+        "Cannot assign exponential edge weights: graph has too many edges", assert::always
+    );
 
     auto node_weights = graph.take_raw_node_weights();
     if (assign_node_weights) {
@@ -163,10 +167,12 @@ Context create_context(const Graph& graph, const BlockID k = 2, const double eps
  * @return A single graph containing all other graphs.
  */
 Graph merge_graphs(std::initializer_list<Graph*> graphs, const bool connect_graphs = false) {
-    const NodeID n = std::accumulate(
-        graphs.begin(), graphs.end(), 0, [&](const NodeID acc, const Graph* graph) { return acc + graph->n(); });
-    const EdgeID m = std::accumulate(
-        graphs.begin(), graphs.end(), 0, [&](const EdgeID acc, const Graph* graph) { return acc + graph->m(); });
+    const NodeID n = std::accumulate(graphs.begin(), graphs.end(), 0, [&](const NodeID acc, const Graph* graph) {
+        return acc + graph->n();
+    });
+    const EdgeID m = std::accumulate(graphs.begin(), graphs.end(), 0, [&](const EdgeID acc, const Graph* graph) {
+        return acc + graph->m();
+    });
     GraphBuilder builder(n, m);
 
     NodeID offset = 0;

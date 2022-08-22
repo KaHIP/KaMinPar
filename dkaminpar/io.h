@@ -30,7 +30,8 @@ DistributedGraph read_node_balanced(const std::string& filename, MPI_Comm comm =
 DistributedGraph read_edge_balanced(const std::string& filename, MPI_Comm comm = MPI_COMM_WORLD);
 void             write(
                 const std::string& filename, const DistributedGraph& graph, bool write_node_weights = true,
-                bool write_edge_weights = true);
+                bool write_edge_weights = true
+            );
 } // namespace metis
 
 namespace binary {
@@ -83,7 +84,8 @@ void write(const std::string& filename, const Container& partition) {
                 out << b << "\n";
             }
         },
-        MPI_COMM_WORLD);
+        MPI_COMM_WORLD
+    );
 }
 } // namespace partition
 } // namespace kaminpar::dist::io

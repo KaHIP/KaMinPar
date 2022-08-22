@@ -24,4 +24,4 @@ public:
 private:
     const Context& _ctx;
 };
-} // namespace dkaminpar
+} // namespace kaminpar::dist

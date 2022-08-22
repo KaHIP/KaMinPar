@@ -94,7 +94,8 @@ namespace ts_navigable_list {
 template <typename Key, typename Element, template <typename> typename Container>
 Container<NavigationMarker<Key, Element, Container>> combine(
     NavigableLinkedList<Key, Element, Container>&        list,
-    Container<NavigationMarker<Key, Element, Container>> global_markers = {}) {
+    Container<NavigationMarker<Key, Element, Container>> global_markers = {}
+) {
     parallel::Atomic<std::size_t> global_pos  = 0;
     std::size_t                   num_markers = 0;
     for (const auto& local_list: list) {
@@ -120,7 +121,8 @@ Container<NavigationMarker<Key, Element, Container>> combine(
                     std::copy(markers.begin(), markers.end(), global_markers.begin() + local_pos);
                 }
             });
-        });
+        }
+    );
 
     return global_markers;
 }

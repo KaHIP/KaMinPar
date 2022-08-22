@@ -103,11 +103,13 @@ public:
 
     Graph(
         StaticArray<EdgeID> nodes, StaticArray<NodeID> edges, StaticArray<NodeWeight> node_weights = {},
-        StaticArray<EdgeWeight> edge_weights = {}, bool sorted = false);
+        StaticArray<EdgeWeight> edge_weights = {}, bool sorted = false
+    );
 
     Graph(
         tag::Sequential, StaticArray<EdgeID> nodes, StaticArray<NodeID> edges,
-        StaticArray<NodeWeight> node_weights = {}, StaticArray<EdgeWeight> edge_weights = {}, bool sorted = false);
+        StaticArray<NodeWeight> node_weights = {}, StaticArray<EdgeWeight> edge_weights = {}, bool sorted = false
+    );
 
     Graph(const Graph&)                = delete;
     Graph& operator=(const Graph&)     = delete;
@@ -218,10 +220,12 @@ public:
     using BlockWeight = ::kaminpar::shm::BlockWeight;
 
     PartitionedGraph(
-        const Graph& graph, BlockID k, StaticArray<BlockID> partition = {}, scalable_vector<BlockID> final_k = {});
+        const Graph& graph, BlockID k, StaticArray<BlockID> partition = {}, scalable_vector<BlockID> final_k = {}
+    );
     PartitionedGraph(
         tag::Sequential, const Graph& graph, BlockID k, StaticArray<BlockID> partition = {},
-        scalable_vector<BlockID> final_k = {});
+        scalable_vector<BlockID> final_k = {}
+    );
     PartitionedGraph(NoBlockWeights, const Graph& graph, BlockID k, StaticArray<BlockID> partition);
 
     PartitionedGraph() : _graph{nullptr} {}

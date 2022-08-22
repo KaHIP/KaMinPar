@@ -59,5 +59,6 @@ ExtractedSubgraphs distribute_block_induced_subgraphs(const DistributedPartition
 
 DistributedPartitionedGraph copy_subgraph_partitions(
     DistributedPartitionedGraph p_graph, const std::vector<shm::PartitionedGraph>& p_subgraphs,
-    const ExtractedSubgraphs& subgraphs);
+    const ExtractedSubgraphs& subgraphs
+);
 } // namespace kaminpar::dist::graph

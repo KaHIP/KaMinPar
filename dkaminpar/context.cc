@@ -142,8 +142,9 @@ void PartitionContext::setup_perfectly_balanced_block_weights() {
     _perfectly_balanced_block_weights.resize(k);
 
     const BlockWeight perfectly_balanced_block_weight = std::ceil(static_cast<double>(global_total_node_weight()) / k);
-    tbb::parallel_for<BlockID>(
-        0, k, [&](const BlockID b) { _perfectly_balanced_block_weights[b] = perfectly_balanced_block_weight; });
+    tbb::parallel_for<BlockID>(0, k, [&](const BlockID b) {
+        _perfectly_balanced_block_weights[b] = perfectly_balanced_block_weight;
+    });
 }
 
 void PartitionContext::setup_max_block_weights() {

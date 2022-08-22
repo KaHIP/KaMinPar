@@ -148,7 +148,8 @@ ExtractedLocalSubgraphs extract_local_block_induced_subgraphs(const DistributedP
                     const NodeID local_node                = p_graph.global_to_local_node(global_node);
                     mapping[local_node]                    = mapped_node;
                 });
-            });
+            }
+        );
     }
 
     // Extract the subgraphs
@@ -229,8 +230,8 @@ gather_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph, const
 
         START_TIMER("MPI_Alltoall", TIMER_DETAIL);
         mpi::alltoall(
-            send_subgraph_sizes.data(), blocks_per_pe, recv_subgraph_sizes.data(), blocks_per_pe,
-            p_graph.communicator());
+            send_subgraph_sizes.data(), blocks_per_pe, recv_subgraph_sizes.data(), blocks_per_pe, p_graph.communicator()
+        );
         STOP_TIMER(TIMER_DETAIL);
     }
     std::vector<GraphSize> recv_subgraph_displs(p_graph.k() + 1);
@@ -284,16 +285,20 @@ gather_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph, const
         START_TIMER("MPI_Alltoallv", TIMER_DETAIL);
         mpi::alltoallv(
             memory.shared_nodes.data(), sendcounts_nodes.data(), sdispls_nodes.data(), shared_nodes.data(),
-            recvcounts_nodes.data(), rdispls_nodes.data(), p_graph.communicator());
+            recvcounts_nodes.data(), rdispls_nodes.data(), p_graph.communicator()
+        );
         mpi::alltoallv(
             memory.shared_node_weights.data(), sendcounts_nodes.data(), sdispls_nodes.data(),
-            shared_node_weights.data(), recvcounts_nodes.data(), rdispls_nodes.data(), p_graph.communicator());
+            shared_node_weights.data(), recvcounts_nodes.data(), rdispls_nodes.data(), p_graph.communicator()
+        );
         mpi::alltoallv(
             memory.shared_edges.data(), sendcounts_edges.data(), sdispls_edges.data(), shared_edges.data(),
-            recvcounts_edges.data(), rdispls_edges.data(), p_graph.communicator());
+            recvcounts_edges.data(), rdispls_edges.data(), p_graph.communicator()
+        );
         mpi::alltoallv(
             memory.shared_edge_weights.data(), sendcounts_edges.data(), sdispls_edges.data(),
-            shared_edge_weights.data(), recvcounts_edges.data(), rdispls_edges.data(), p_graph.communicator());
+            shared_edge_weights.data(), recvcounts_edges.data(), rdispls_edges.data(), p_graph.communicator()
+        );
         STOP_TIMER(TIMER_DETAIL);
     }
 
@@ -331,16 +336,20 @@ gather_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph, const
 
                 std::copy(
                     shared_nodes.begin() + offset_nodes, shared_nodes.begin() + offset_nodes + num_nodes,
-                    subgraph_nodes.begin() + pos_n + 1);
+                    subgraph_nodes.begin() + pos_n + 1
+                );
                 std::copy(
                     shared_node_weights.begin() + offset_nodes, shared_node_weights.begin() + offset_nodes + num_nodes,
-                    subgraph_node_weights.begin() + pos_n);
+                    subgraph_node_weights.begin() + pos_n
+                );
                 std::copy(
                     shared_edges.begin() + offset_edges, shared_edges.begin() + offset_edges + num_edges,
-                    subgraph_edges.begin() + pos_m);
+                    subgraph_edges.begin() + pos_m
+                );
                 std::copy(
                     shared_edge_weights.begin() + offset_edges, shared_edge_weights.begin() + offset_edges + num_edges,
-                    subgraph_edge_weights.begin() + pos_m);
+                    subgraph_edge_weights.begin() + pos_m
+                );
 
                 // copied independent nodes arrays -- thus, offset segment by number of edges received from previous PEs
                 for (NodeID u = 0; u < num_nodes; ++u) {
@@ -371,7 +380,8 @@ ExtractedSubgraphs distribute_block_induced_subgraphs(const DistributedPartition
 
 DistributedPartitionedGraph copy_subgraph_partitions(
     DistributedPartitionedGraph p_graph, const std::vector<shm::PartitionedGraph>& p_subgraphs,
-    const ExtractedSubgraphs& extracted_subgraphs) {
+    const ExtractedSubgraphs& extracted_subgraphs
+) {
     const auto& offsets = extracted_subgraphs.subgraph_offsets;
     const auto& mapping = extracted_subgraphs.mapping;
 

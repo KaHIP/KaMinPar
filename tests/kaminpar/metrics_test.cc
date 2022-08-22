@@ -11,8 +11,9 @@ using namespace kaminpar;
 class MetricsTestFixture : public Test {
 public:
     MetricsTestFixture()
-        : graph(test::create_graph(
-            {0, 4, 5, 6, 7, 8}, {1, 2, 3, 4, 0, 0, 0, 0}, {4, 1, 1, 1, 1}, {3, 3, 3, 3, 3, 3, 3, 3})) {}
+        : graph(
+            test::create_graph({0, 4, 5, 6, 7, 8}, {1, 2, 3, 4, 0, 0, 0, 0}, {4, 1, 1, 1, 1}, {3, 3, 3, 3, 3, 3, 3, 3})
+        ) {}
 
     Graph graph;
 };

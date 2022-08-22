@@ -42,7 +42,8 @@ TEST_F(DistributedTriangles, TestInterfaceToPE) {
                 .to      = graph.local_to_global_node(v),
                 .to_pe   = pe,
             };
-        });
+        }
+    );
 
     EXPECT_EQ(recv_buffers.size(), 3);
     EXPECT_TRUE(recv_buffers[rank].empty());
@@ -91,7 +92,8 @@ TEST_F(DistributedTriangles, TestInterfaceToGhost) {
     };
 
     auto recv_buffers = mpi::graph::sparse_alltoall_interface_to_pe_get<Message>(
-        graph, 0, graph.n(), SPARSE_ALLTOALL_NOFILTER, [&](const NodeID u, const PEID pe) -> Message {
+        graph, 0, graph.n(), SPARSE_ALLTOALL_NOFILTER,
+        [&](const NodeID u, const PEID pe) -> Message {
             EXPECT_FALSE(graph.is_ghost_node(u));
             EXPECT_NE(rank, pe);
 
@@ -100,7 +102,8 @@ TEST_F(DistributedTriangles, TestInterfaceToGhost) {
                 .from    = graph.local_to_global_node(u),
                 .to_pe   = pe,
             };
-        });
+        }
+    );
 
     EXPECT_EQ(recv_buffers.size(), 3);
     EXPECT_TRUE(recv_buffers[rank].empty());

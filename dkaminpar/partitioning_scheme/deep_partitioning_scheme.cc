@@ -45,8 +45,8 @@ DistributedPartitionedGraph DeepPartitioningScheme::partition() {
     std::stack<DistributedGraph> gathered_graphs;
 
     while (!converged && current_graph->global_n() > _input_ctx.coarsening.contraction_limit) {
-        while (!converged
-               && current_graph->global_n() >= current_parallelism * _input_ctx.coarsening.contraction_limit) {
+        while (!converged && current_graph->global_n() >= current_parallelism * _input_ctx.coarsening.contraction_limit
+        ) {
             SCOPED_TIMER("Coarsening", std::string("Level ") + std::to_string(current_coarsener->level()));
 
             const GlobalNodeWeight max_cluster_weight = current_coarsener->max_cluster_weight();

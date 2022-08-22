@@ -31,17 +31,16 @@ struct alternating {
 
 /*! Always selects the block with the smaller weight. */
 struct lighter {
-    BlockID operator()(
-        const BlockID, const Bipartitioner::BlockWeights& block_weights, const PartitionContext&, const Queues&) {
+    BlockID
+    operator()(const BlockID, const Bipartitioner::BlockWeights& block_weights, const PartitionContext&, const Queues&) {
         return (block_weights[0] < block_weights[1]) ? 0 : 1;
     }
 };
 
 /*! Selects the first block until it has more than half weight. */
 struct sequential {
-    BlockID operator()(
-        const BlockID, const Bipartitioner::BlockWeights& block_weights, const PartitionContext& context,
-        const Queues&) {
+    BlockID
+    operator()(const BlockID, const Bipartitioner::BlockWeights& block_weights, const PartitionContext& context, const Queues&) {
         return (block_weights[0] < context.block_weights.perfectly_balanced(0)) ? 0 : 1;
     }
 };
@@ -94,8 +93,8 @@ class BfsBipartitioner : public BfsBipartitionerBase {
 
 public:
     BfsBipartitioner(
-        const Graph& graph, const PartitionContext& p_ctx, const InitialPartitioningContext& i_ctx,
-        MemoryContext& m_ctx)
+        const Graph& graph, const PartitionContext& p_ctx, const InitialPartitioningContext& i_ctx, MemoryContext& m_ctx
+    )
         : BfsBipartitionerBase(graph, p_ctx, i_ctx),
           _queues{m_ctx.queues},
           _marker{m_ctx.marker},

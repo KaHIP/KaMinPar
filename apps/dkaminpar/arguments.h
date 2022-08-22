@@ -23,28 +23,35 @@ struct ApplicationContext {
 
 #ifdef KAMINPAR_ENABLE_GRAPHGEN
 void create_graphgen_options(
-    GeneratorContext& g_ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix);
+    GeneratorContext& g_ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix
+);
 #endif // KAMINPAR_ENABLE_GRAPHGEN
 
 void create_coarsening_options(
-    CoarseningContext& c_ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix);
+    CoarseningContext& c_ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix
+);
 
 void create_balancing_options(
-    BalancingContext& b_ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix);
+    BalancingContext& b_ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix
+);
 
 void create_refinement_options(
-    RefinementContext& r_ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix);
+    RefinementContext& r_ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix
+);
 
 void create_initial_partitioning_options(
-    InitialPartitioningContext& i_ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix);
+    InitialPartitioningContext& i_ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix
+);
 
 void create_miscellaneous_context_options(
-    Context& ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix);
+    Context& ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix
+);
 
 void create_mandatory_options(Context& ctx, kaminpar::Arguments& args, const std::string& name);
 
 void create_debug_options(
-    DebugContext& d_ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix);
+    DebugContext& d_ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix
+);
 
 void create_context_options(ApplicationContext& ctx, kaminpar::Arguments& args);
 

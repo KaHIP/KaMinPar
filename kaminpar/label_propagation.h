@@ -188,7 +188,8 @@ protected:
 
         if (derived_cluster(u) != new_cluster) {
             if (derived_move_cluster_weight(
-                    u_cluster, new_cluster, u_weight, derived_max_cluster_weight(new_cluster))) {
+                    u_cluster, new_cluster, u_weight, derived_max_cluster_weight(new_cluster)
+                )) {
                 derived_move_node(u, new_cluster);
                 activate_neighbors(u);
                 IFSTATS(_expected_total_gain += new_gain);
@@ -231,7 +232,8 @@ protected:
     template <typename LocalRatingMap>
     std::pair<ClusterID, EdgeWeight> find_best_cluster(
         const NodeID u, const NodeWeight u_weight, const ClusterID u_cluster, Random& local_rand,
-        LocalRatingMap& local_rating_map) {
+        LocalRatingMap& local_rating_map
+    ) {
         auto action = [&](auto& map) {
             const ClusterWeight   initial_cluster_weight = derived_cluster_weight(u_cluster);
             ClusterSelectionState state{
@@ -367,7 +369,8 @@ protected:
                 const NodeID partner = expected_value;
                 if (_favored_clusters[favored_leader].compare_exchange_strong(expected_value, favored_leader)) {
                     if (derived_move_cluster_weight(
-                            u, partner, derived_cluster_weight(u), derived_max_cluster_weight(partner))) {
+                            u, partner, derived_cluster_weight(u), derived_max_cluster_weight(partner)
+                        )) {
                         derived_move_node(u, partner);
                         --_current_num_clusters;
                     }
@@ -399,7 +402,8 @@ private:
                 tbb::parallel_for(static_cast<ClusterID>(0), _initial_num_clusters, [&](const auto cluster) {
                     derived_init_cluster_weight(cluster, derived_initial_cluster_weight(cluster));
                 });
-            });
+            }
+        );
         IFSTATS(_expected_total_gain = 0);
         _current_num_clusters = _initial_num_clusters;
     }
@@ -434,7 +438,8 @@ private: // CRTP calls
     //! \c max_weight weight.
     [[nodiscard]] bool derived_move_cluster_weight(
         const ClusterID old_cluster, const ClusterID new_cluster, const ClusterWeight delta,
-        const ClusterWeight max_weight) {
+        const ClusterWeight max_weight
+    ) {
         return static_cast<Derived*>(this)->move_cluster_weight(old_cluster, new_cluster, delta, max_weight);
     }
 
@@ -855,7 +860,8 @@ private:
 
                 return true;
             }(),
-            "", assert::heavy);
+            "", assert::heavy
+        );
     }
 
 protected:
@@ -926,7 +932,8 @@ public:
 
     bool move_cluster_weight(
         const ClusterID old_cluster, const ClusterID new_cluster, const ClusterWeight delta,
-        const ClusterWeight max_weight) {
+        const ClusterWeight max_weight
+    ) {
         if (_cluster_weights[new_cluster] + delta <= max_weight) {
             _cluster_weights[new_cluster].fetch_add(delta, std::memory_order_relaxed);
             _cluster_weights[old_cluster].fetch_sub(delta, std::memory_order_relaxed);

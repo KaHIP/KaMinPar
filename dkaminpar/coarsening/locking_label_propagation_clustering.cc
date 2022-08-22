@@ -185,15 +185,18 @@ protected:
 
     bool move_cluster_weight(
         const GlobalNodeID old_cluster, const GlobalNodeID new_cluster, const NodeWeight delta,
-        const NodeWeight max_weight) {
+        const NodeWeight max_weight
+    ) {
         if (cluster_weight(new_cluster) + delta <= max_weight) {
             auto& handle                                    = _cluster_weights_handles_ets.local();
             [[maybe_unused]] const auto [old_it, old_found] = handle.update(
-                old_cluster + 1, [](auto& lhs, const auto rhs) { return lhs -= rhs; }, delta);
+                old_cluster + 1, [](auto& lhs, const auto rhs) { return lhs -= rhs; }, delta
+            );
             KASSERT((old_it != handle.end() && old_found), "Uninitialized cluster: " << old_cluster + 1);
 
             [[maybe_unused]] const auto [new_it, new_found] = handle.update(
-                new_cluster + 1, [](auto& lhs, const auto rhs) { return lhs += rhs; }, delta);
+                new_cluster + 1, [](auto& lhs, const auto rhs) { return lhs += rhs; }, delta
+            );
             KASSERT((new_it != handle.end() && new_found), "Uninitialized cluster: " << new_cluster + 1);
 
             return true;
@@ -205,7 +208,8 @@ protected:
         if (cluster_weight(cluster) + delta <= max_weight) {
             auto& handle                                    = _cluster_weights_handles_ets.local();
             [[maybe_unused]] const auto [new_it, new_found] = handle.update(
-                cluster + 1, [](auto& lhs, const auto rhs) { return lhs += rhs; }, delta);
+                cluster + 1, [](auto& lhs, const auto rhs) { return lhs += rhs; }, delta
+            );
             KASSERT((new_it != handle.end() && new_found), "Uninitialized cluster: " << cluster + 1);
             return true;
         }
@@ -215,13 +219,15 @@ protected:
     void set_cluster_weight(const GlobalNodeID cluster, const NodeWeight weight) {
         auto& handle = _cluster_weights_handles_ets.local();
         handle.insert_or_update(
-            cluster + 1, weight, [](auto& lhs, const auto rhs) { return lhs = rhs; }, weight);
+            cluster + 1, weight, [](auto& lhs, const auto rhs) { return lhs = rhs; }, weight
+        );
     }
 
     void change_cluster_weight(const GlobalNodeID cluster, const NodeWeight delta) {
         auto& handle                            = _cluster_weights_handles_ets.local();
         [[maybe_unused]] const auto [it, found] = handle.update(
-            cluster + 1, [](auto& lhs, const auto rhs) { return lhs += rhs; }, delta);
+            cluster + 1, [](auto& lhs, const auto rhs) { return lhs += rhs; }, delta
+        );
         KASSERT((it != handle.end() && found), "Uninitialized cluster: " << cluster);
     }
 
@@ -344,8 +350,9 @@ private:
         perform_distributed_moves(from, to);
         synchronize_labels(from, to);
 
-        tbb::parallel_for<NodeID>(
-            0, _graph->total_n(), [&](const NodeID u) { _current_clustering[u] = _next_clustering[u]; });
+        tbb::parallel_for<NodeID>(0, _graph->total_n(), [&](const NodeID u) {
+            _current_clustering[u] = _next_clustering[u];
+        });
 
 #if KASSERT_ENABLED(ASSERTION_LEVEL_HEAVY)
         KASSERT(VALIDATE_STATE(), "", assert::heavy);
@@ -391,7 +398,8 @@ private:
                     .requester_weight = u_weight,
                     .requester_gain   = u_gain,
                     .global_requested = new_cluster};
-            });
+            }
+        );
         STOP_TIMER(TIMER_FINE);
 
         if constexpr (kDebug) {
@@ -510,7 +518,8 @@ private:
                     }
                 }
             },
-            _graph->communicator());
+            _graph->communicator()
+        );
         STOP_TIMER(TIMER_FINE);
     }
 
@@ -529,7 +538,8 @@ private:
 
         KASSERT(
             _graph->n() <= _gain_buffer_index.size(),
-            "_gain_buffer_index not large enough: " << _graph->n() << " > " << _gain_buffer_index.size());
+            "_gain_buffer_index not large enough: " << _graph->n() << " > " << _gain_buffer_index.size()
+        );
 
         // reset _gain_buffer_index
         TIMED_SCOPE("Reset gain buffer", TIMER_FINE) {
@@ -548,7 +558,8 @@ private:
 
         START_TIMER("Prefix sum", TIMER_FINE);
         parallel::prefix_sum(
-            _gain_buffer_index.begin(), _gain_buffer_index.begin() + _graph->n() + 1, _gain_buffer_index.begin());
+            _gain_buffer_index.begin(), _gain_buffer_index.begin() + _graph->n() + 1, _gain_buffer_index.begin()
+        );
         STOP_TIMER(TIMER_FINE);
         STOP_TIMER(TIMER_FINE);
 
@@ -592,7 +603,8 @@ private:
                         const double rhs_rel_gain = 1.0 * rhs.gain / rhs.node_weight;
                         return lhs_rel_gain < rhs_rel_gain
                                || (lhs_rel_gain == rhs_rel_gain && lhs.global_node < rhs.global_node);
-                    });
+                    }
+                );
             }
         });
         STOP_TIMER(TIMER_FINE);
@@ -624,7 +636,8 @@ private:
                     move_node(local_node, global_new_label);
                     set_cluster_weight(global_new_label, cluster_weight);
                 });
-            });
+            }
+        );
     }
 
     [[nodiscard]] bool was_moved_during_round(const NodeID u) const {
@@ -672,10 +685,12 @@ private:
                     KASSERT(
                         cluster(local_label) == label, "from PE: " << pe << " has nodes in cluster " << label
                                                                    << ", but local node " << local_label
-                                                                   << " is in cluster " << cluster(local_label));
+                                                                   << " is in cluster " << cluster(local_label)
+                    );
                     KASSERT(_locked[local_label] == 1);
                 }
-            });
+            }
+        );
 
         return true;
     }
@@ -718,7 +733,8 @@ LockingLabelPropagationClustering::LockingLabelPropagationClustering(const Conte
 LockingLabelPropagationClustering::~LockingLabelPropagationClustering() = default;
 
 const LockingLabelPropagationClustering::AtomicClusterArray& LockingLabelPropagationClustering::compute_clustering(
-    const DistributedGraph& graph, const GlobalNodeWeight max_cluster_weight) {
+    const DistributedGraph& graph, const GlobalNodeWeight max_cluster_weight
+) {
     return _impl->compute_clustering(graph, max_cluster_weight);
 }
 } // namespace kaminpar::dist

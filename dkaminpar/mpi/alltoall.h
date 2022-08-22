@@ -84,7 +84,8 @@ void sparse_alltoall_sparse(SendBuffers&& send_buffers, Receiver&& receiver, MPI
 
         MPI_Issend(
             send_buffers[pe].data(), static_cast<int>(send_buffers[pe].size()), mpi::type::get<Message>(), pe, tag,
-            comm, &requests.back());
+            comm, &requests.back()
+        );
     }
 
     if (!send_buffers[rank].empty()) {
@@ -179,15 +180,17 @@ void sparse_alltoall_alltoallv(SendBuffers&& send_buffers, Receiver&& receiver, 
     START_TIMER("MPI_Alltoallv", TIMER_DETAIL);
     mpi::alltoallv(
         common_send_buffer.data(), send_counts.data(), send_displs.data(), common_recv_buffer.data(),
-        recv_counts.data(), recv_displs.data(), comm);
+        recv_counts.data(), recv_displs.data(), comm
+    );
     STOP_TIMER();
 
     // Call receiver
     std::vector<Buffer> recv_buffers(size);
     tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
         recv_buffers[pe].resize(recv_counts[pe]);
-        tbb::parallel_for<int>(
-            0, recv_counts[pe], [&](const int i) { recv_buffers[pe][i] = common_recv_buffer[recv_displs[pe] + i]; });
+        tbb::parallel_for<int>(0, recv_counts[pe], [&](const int i) {
+            recv_buffers[pe][i] = common_recv_buffer[recv_displs[pe] + i];
+        });
     });
 
     for (PEID pe = 0; pe < size; ++pe) {
@@ -242,7 +245,8 @@ std::vector<Buffer> sparse_alltoall_get(std::vector<Buffer>&& send_buffers, MPI_
     std::vector<Buffer> recv_buffers(mpi::get_comm_size(comm));
     sparse_alltoall<Message, Buffer>(
         std::move(send_buffers), [&](auto recv_buffer, const PEID pe) { recv_buffers[pe] = std::move(recv_buffer); },
-        comm);
+        comm
+    );
     return recv_buffers;
 }
 
@@ -250,7 +254,8 @@ template <typename Message, typename Buffer = NoinitVector<Message>>
 std::vector<Buffer> sparse_alltoall_get(const std::vector<Buffer>& send_buffers, MPI_Comm comm) {
     std::vector<Buffer> recv_buffers(mpi::get_comm_size(comm));
     sparse_alltoall<Message, Buffer>(
-        send_buffers, [&](auto recv_buffer, const PEID pe) { recv_buffers[pe] = std::move(recv_buffer); }, comm);
+        send_buffers, [&](auto recv_buffer, const PEID pe) { recv_buffers[pe] = std::move(recv_buffer); }, comm
+    );
     return recv_buffers;
 }
 } // namespace kaminpar::mpi

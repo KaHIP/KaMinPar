@@ -15,11 +15,13 @@ using namespace std::string_literals;
 
 #ifdef KAMINPAR_ENABLE_GRAPHGEN
 void create_graphgen_options(
-    GeneratorContext& g_ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix) {
+    GeneratorContext& g_ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix
+) {
     args.group(name, prefix)
         .argument(
             prefix, "Graph generator, possible values: {" + generator_type_names() + "}.", &g_ctx.type,
-            generator_type_from_string)
+            generator_type_from_string
+        )
         .argument(prefix + "-n", "Number of nodes in the graph.", &g_ctx.n)
         .argument(prefix + "-m", "Number of edges in the graph.", &g_ctx.m)
         .argument(prefix + "-p", "Edge probability.", &g_ctx.p)
@@ -27,10 +29,12 @@ void create_graphgen_options(
         .argument(prefix + "-save-graph", "Write the generated graph to the hard disk.", &g_ctx.save_graph)
         .argument(prefix + "-scale", "Scaling factor for the generated graph (e.g., number of PEs).", &g_ctx.scale)
         .argument(
-            prefix + "-periodic", "Use periodic boundary condition when generating RDG2D graphs.", &g_ctx.periodic)
+            prefix + "-periodic", "Use periodic boundary condition when generating RDG2D graphs.", &g_ctx.periodic
+        )
         .argument(
             prefix + "-validate", "Validate the graph format before using it. Useful for debugging.",
-            &g_ctx.validate_graph)
+            &g_ctx.validate_graph
+        )
         .argument(prefix + "-a", "R-MAT", &g_ctx.prob_a)
         .argument(prefix + "-b", "R-MAT", &g_ctx.prob_b)
         .argument(prefix + "-c", "R-MAT", &g_ctx.prob_c);
@@ -39,75 +43,93 @@ void create_graphgen_options(
 
 void create_coarsening_label_propagation_options(
     LabelPropagationCoarseningContext& lp_ctx, kaminpar::Arguments& args, const std::string& name,
-    const std::string& prefix) {
+    const std::string& prefix
+) {
     args.group(name, prefix)
         .argument(prefix + "-iterations", "Maximum number of LP iterations.", &lp_ctx.num_iterations)
         .argument(
             prefix + "-total-num-chunks", "Number of communication chunks times number of PEs.",
-            &lp_ctx.total_num_chunks)
+            &lp_ctx.total_num_chunks
+        )
         .argument(prefix + "-min-num-chunks", "Minimum number of communication chunks.", &lp_ctx.min_num_chunks)
         .argument(
             prefix + "-num-chunks",
             "Number of communication chunks. If set to 0, the value is computed from total-num-chunks.",
-            &lp_ctx.num_chunks)
+            &lp_ctx.num_chunks
+        )
         .argument(
             prefix + "-ignore-ghost-nodes", "[Local LP only] Ignore ghost nodes for cluster ratings",
-            &lp_ctx.ignore_ghost_nodes)
+            &lp_ctx.ignore_ghost_nodes
+        )
         .argument(
             prefix + "-keep-ghost-clusters",
             "[Local LP only] Instead of completely dissolving ghost clusters, remap them to a local cluster ID.",
-            &lp_ctx.keep_ghost_clusters);
+            &lp_ctx.keep_ghost_clusters
+        );
 }
 
 void create_coarsening_options(
-    CoarseningContext& c_ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix) {
+    CoarseningContext& c_ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix
+) {
     args.group(name, prefix)
         .argument(prefix + "-contraction-limit", "Contraction limit", &c_ctx.contraction_limit)
         .argument(
             prefix + "-max-local-levels", "Maximum number of local clustering levels.",
-            &c_ctx.max_local_clustering_levels)
+            &c_ctx.max_local_clustering_levels
+        )
         .argument(
             prefix + "-max-global-levels", "Maximum number of global clustering levels.",
-            &c_ctx.max_global_clustering_levels)
+            &c_ctx.max_global_clustering_levels
+        )
         .argument(
             prefix + "-global-clustering-algorithm",
             "Clustering algorithm, possible values: {"s + global_clustering_algorithm_names() + "}.",
-            &c_ctx.global_clustering_algorithm, global_clustering_algorithm_from_string)
+            &c_ctx.global_clustering_algorithm, global_clustering_algorithm_from_string
+        )
         .argument(
             prefix + "-global-contraction-algorithm",
             "Contraction algorithm, possible values: {"s + global_contraction_algorithm_names() + "}.",
-            &c_ctx.global_contraction_algorithm, global_contraction_algorithm_from_string)
+            &c_ctx.global_contraction_algorithm, global_contraction_algorithm_from_string
+        )
         .argument(
             prefix + "-local-clustering-algorithm",
             "Local clustering algorithm, possible values: {"s + local_clustering_algorithm_names() + "}.",
-            &c_ctx.local_clustering_algorithm, local_clustering_algorithm_from_string)
+            &c_ctx.local_clustering_algorithm, local_clustering_algorithm_from_string
+        )
         .argument(
             prefix + "-cluster-weight-limit",
             "Function to compute the cluster weight limit, possible values: {"s + shm::cluster_weight_limit_names()
                 + "}.",
-            &c_ctx.cluster_weight_limit, shm::cluster_weight_limit_from_string)
+            &c_ctx.cluster_weight_limit, shm::cluster_weight_limit_from_string
+        )
         .argument(
             prefix + "-cluster-weight-multiplier", "Multiplier for the cluster weight limit.",
-            &c_ctx.cluster_weight_multiplier);
+            &c_ctx.cluster_weight_multiplier
+        );
 
     create_coarsening_label_propagation_options(
-        c_ctx.local_lp, args, name + " -> Local Label Propagation", prefix + "-llp");
+        c_ctx.local_lp, args, name + " -> Local Label Propagation", prefix + "-llp"
+    );
     create_coarsening_label_propagation_options(
-        c_ctx.global_lp, args, name + " -> Global Label Propagation", prefix + "-glp");
+        c_ctx.global_lp, args, name + " -> Global Label Propagation", prefix + "-glp"
+    );
 }
 
 void create_balancing_options(
-    BalancingContext& b_ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix) {
+    BalancingContext& b_ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix
+) {
     args.group(name, prefix)
         .argument(prefix + "-algorithm", "Balancing algorithm", &b_ctx.algorithm, balancing_algorithm_from_string)
         .argument(
             prefix + "-num-nodes-per-block", "Number of nodes per block to keep in each reduction step",
-            &b_ctx.num_nodes_per_block);
+            &b_ctx.num_nodes_per_block
+        );
 }
 
 void create_refinement_label_propagation_options(
     LabelPropagationRefinementContext& lp_ctx, kaminpar::Arguments& args, const std::string& name,
-    const std::string& prefix) {
+    const std::string& prefix
+) {
     // clang-format off
   args.group(name, prefix)
       .argument(prefix + "-iterations", "Maximum number of LP iterations.", &lp_ctx.num_iterations)
@@ -119,7 +141,8 @@ void create_refinement_label_propagation_options(
 }
 
 void create_refinement_fm_options(
-    FMRefinementContext& fm_ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix) {
+    FMRefinementContext& fm_ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix
+) {
     args.group(name, prefix)
         .argument(prefix + "-alpha", "Alpha parameter for the adaptive stopping policy.", &fm_ctx.alpha)
         .argument(prefix + "-radius", "Search radius.", &fm_ctx.radius)
@@ -129,20 +152,24 @@ void create_refinement_fm_options(
         .argument(prefix + "-sequential", "Refine search regions sequentially.", &fm_ctx.sequential)
         .argument(
             prefix + "-premove-locally", "Move nodes right away, i.e., before global synchronization steps.",
-            &fm_ctx.premove_locally)
+            &fm_ctx.premove_locally
+        )
         .argument(
             prefix + "-bound-degree", "Add at most this many neighbors of a high-degree node to a search region.",
-            &fm_ctx.bound_degree)
+            &fm_ctx.bound_degree
+        )
         .argument(prefix + "-contract-border", "Contract border of search graphs", &fm_ctx.contract_border);
 }
 
 void create_refinement_options(
-    RefinementContext& r_ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix) {
+    RefinementContext& r_ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix
+) {
     args.group(name, prefix)
         .argument(
             prefix + "-algorithm",
             "Refinement algorithm, possible values: {"s + kway_refinement_algorithm_names() + "}.", &r_ctx.algorithm,
-            kway_refinement_algorithm_from_string)
+            kway_refinement_algorithm_from_string
+        )
         .argument(prefix + "-coarsest", "Refine coarsest level", &r_ctx.refine_coarsest_level);
     create_refinement_label_propagation_options(r_ctx.lp, args, name + " -> Label Propagation", prefix + "-lp");
     create_refinement_fm_options(r_ctx.fm, args, name + " -> FM", prefix + "-fm");
@@ -150,17 +177,20 @@ void create_refinement_options(
 }
 
 void create_initial_partitioning_options(
-    InitialPartitioningContext& i_ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix) {
+    InitialPartitioningContext& i_ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix
+) {
     args.group(name, prefix)
         .argument(
             prefix + "-algorithm",
             "Initial partitioning algorithm, possible values: {"s + initial_partitioning_algorithm_names() + "}.",
-            &i_ctx.algorithm, initial_partitioning_algorithm_from_string);
+            &i_ctx.algorithm, initial_partitioning_algorithm_from_string
+        );
     shm::app::create_algorithm_options(i_ctx.sequential, args, "Initial Partitioning -> KaMinPar -> ", prefix + "i-");
 }
 
 void create_miscellaneous_context_options(
-    Context& ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix) {
+    Context& ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix
+) {
     args.group(name, prefix)
         .argument("epsilon", "Maximum allowed imbalance.", &ctx.partition.epsilon, 'e')
         .argument("threads", "Maximum number of threads to be used.", &ctx.parallel.num_threads, 't')
@@ -168,11 +198,13 @@ void create_miscellaneous_context_options(
         .argument("quiet", "Do not produce any output to stdout.", &ctx.quiet, 'q')
         .argument(
             "edge-balanced", "Read input graph such that edges are distributed evenly across PEs.",
-            &ctx.load_edge_balanced, 'E')
+            &ctx.load_edge_balanced, 'E'
+        )
         .argument("repetitions", "Number of repetitions to perform.", &ctx.num_repetitions, 'R')
         .argument(
             "time-limit", "Time limit in seconds. Repeats partitioning until the time limit is exceeded.",
-            &ctx.time_limit, 'T')
+            &ctx.time_limit, 'T'
+        )
         .argument("sort-graph", "Sort and rearrange the graph by degree buckets.", &ctx.sort_graph);
 }
 
@@ -183,7 +215,8 @@ void create_mandatory_options(Context& ctx, kaminpar::Arguments& args, const std
 }
 
 void create_debug_options(
-    DebugContext& d_ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix) {
+    DebugContext& d_ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix
+) {
     args.group(name, prefix)
         .argument(prefix + "-save-imbalanced-partitions", "", &d_ctx.save_imbalanced_partitions)
         .argument(prefix + "-save-graph-hierarchy", "", &d_ctx.save_graph_hierarchy)

@@ -31,8 +31,10 @@ GlobalContractionResult
 contract_global_clustering_full_migration(const DistributedGraph& graph, const GlobalClustering& clustering);
 
 GlobalContractionResult contract_global_clustering(
-    const DistributedGraph& graph, const GlobalClustering& clustering, GlobalContractionAlgorithm algorithm);
+    const DistributedGraph& graph, const GlobalClustering& clustering, GlobalContractionAlgorithm algorithm
+);
 
 DistributedPartitionedGraph project_global_contracted_graph(
-    const DistributedGraph& fine_graph, DistributedPartitionedGraph coarse_graph, const GlobalMapping& fine_to_coarse);
+    const DistributedGraph& fine_graph, DistributedPartitionedGraph coarse_graph, const GlobalMapping& fine_to_coarse
+);
 } // namespace kaminpar::dist

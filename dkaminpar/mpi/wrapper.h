@@ -67,9 +67,11 @@ inline int alltoall(const Ts* sendbuf, const int sendcount, Tr* recvbuf, const i
 template <typename Ts, typename Tr>
 inline int alltoallv(
     const Ts* sendbuf, const int* sendcounts, const int* sdispls, Tr* recvbuf, const int* recvcounts,
-    const int* rdispls, MPI_Comm comm) {
+    const int* rdispls, MPI_Comm comm
+) {
     return MPI_Alltoallv(
-        sendbuf, sendcounts, sdispls, type::get<Ts>(), recvbuf, recvcounts, rdispls, type::get<Tr>(), comm);
+        sendbuf, sendcounts, sdispls, type::get<Ts>(), recvbuf, recvcounts, rdispls, type::get<Tr>(), comm
+    );
 }
 
 template <typename T>
@@ -90,13 +92,15 @@ inline int reduce_scatter(const T* sendbuf, T* recvbuf, int* recvcounts, MPI_Op 
 template <typename Ts, typename Tr>
 int gatherv(
     const Ts* sendbuf, const int sendcount, Tr* recvbuf, const int* recvcounts, const int* displs, const int root,
-    MPI_Comm comm) {
+    MPI_Comm comm
+) {
     return MPI_Gatherv(sendbuf, sendcount, type::get<Ts>(), recvbuf, recvcounts, displs, type::get<Tr>(), root, comm);
 }
 
 template <typename Ts, typename Tr>
 int allgatherv(
-    const Ts* sendbuf, const int sendcount, Tr* recvbuf, const int* recvcounts, const int* displs, MPI_Comm comm) {
+    const Ts* sendbuf, const int sendcount, Tr* recvbuf, const int* recvcounts, const int* displs, MPI_Comm comm
+) {
     return MPI_Allgatherv(sendbuf, sendcount, type::get<Ts>(), recvbuf, recvcounts, displs, type::get<Tr>(), comm);
 }
 
@@ -238,7 +242,8 @@ int allgatherv(const Rs& sendbuf, Rr& recvbuf, const Rcounts& recvcounts, const 
     static_assert(std::is_same_v<typename Displs::value_type, int>);
     return allgatherv(
         std::data(sendbuf), asserting_cast<int>(std::size(sendbuf)), std::data(recvbuf), std::data(recvcounts),
-        std::data(displs), comm);
+        std::data(displs), comm
+    );
 }
 
 template <typename T>
@@ -263,7 +268,8 @@ template <typename R, std::enable_if_t<!std::is_pointer_v<R>, bool> = true>
 inline int reduce(const R& sendbuf, R& recvbuf, MPI_Op op, const int root, MPI_Comm comm) {
     KASSERT(mpi::get_comm_rank(comm) != root || std::size(sendbuf) == std::size(recvbuf), "", assert::light);
     return reduce<typename R::value_type>(
-        sendbuf.cdata(), std::data(recvbuf), asserting_cast<int>(std::size(sendbuf)), op, root, comm);
+        sendbuf.cdata(), std::data(recvbuf), asserting_cast<int>(std::size(sendbuf)), op, root, comm
+    );
 }
 
 template <
@@ -289,11 +295,13 @@ inline int gather(const Rs& sendbuf, Rr& recvbuf, const int root, MPI_Comm comm)
             const std::size_t actual   = sizeof(rr_value_t) * std::size(recvbuf);
             return mpi::get_comm_rank(comm) != root || expected >= actual;
         }(),
-        "", assert::light);
+        "", assert::light
+    );
 
     return gather<rs_value_t, rr_value_t>(
-        sendbuf.cdata(), asserting_cast<int>(std::size(sendbuf)), std::data(recvbuf), asserting_cast<int>(std::size(recvbuf)),
-        root, comm);
+        sendbuf.cdata(), asserting_cast<int>(std::size(sendbuf)), std::data(recvbuf),
+        asserting_cast<int>(std::size(recvbuf)), root, comm
+    );
 }
 
 //

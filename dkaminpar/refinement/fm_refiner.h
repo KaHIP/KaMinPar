@@ -54,7 +54,8 @@ private:
 
     void build_local_graph(
         const NodeID seed, shm::Graph& out_graph, shm::PartitionedGraph& out_p_graph,
-        std::vector<GlobalNodeID>& mapping, std::vector<bool>& fixed);
+        std::vector<GlobalNodeID>& mapping, std::vector<bool>& fixed
+    );
 
     void init_external_degrees();
 

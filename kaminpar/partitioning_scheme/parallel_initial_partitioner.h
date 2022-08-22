@@ -25,7 +25,8 @@ class ParallelInitialPartitioner {
 public:
     ParallelInitialPartitioner(
         const Context& input_ctx, GlobalInitialPartitionerMemoryPool& ip_m_ctx_pool,
-        TemporaryGraphExtractionBufferPool& ip_extraction_pool);
+        TemporaryGraphExtractionBufferPool& ip_extraction_pool
+    );
 
     PartitionedGraph partition(const ICoarsener* coarsener, const PartitionContext& p_ctx);
 

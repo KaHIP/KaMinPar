@@ -75,7 +75,8 @@ namespace {
 template <typename Mapping>
 void expect_mapping(
     const DistributedGraph& f_graph, const DistributedGraph& c_graph, const Mapping& mapping,
-    const std::vector<NodeWeight>& expected_mapped_node_weights) {
+    const std::vector<NodeWeight>& expected_mapped_node_weights
+) {
     const auto shm_graph = dkaminpar::graph::allgather(c_graph);
 
     for (const NodeID u: f_graph.nodes()) {
@@ -120,7 +121,8 @@ TYPED_TEST(TrianglesGraph, ContractSingletonClusters) {
             0b001'000'000,
             0b010'000'000,
             0b100'000'000,
-        });
+        }
+    );
 }
 
 TYPED_TEST(TrianglesGraph, FullContractionToPE0) {
@@ -158,7 +160,8 @@ TYPED_TEST(TrianglesGraph, FullContractionToPE0) {
             0b111'111'111,
             0b111'111'111,
             0b111'111'111,
-        });
+        }
+    );
 }
 
 TYPED_TEST(TrianglesGraph, FullContractionToEachPE) {
@@ -178,7 +181,8 @@ TYPED_TEST(TrianglesGraph, FullContractionToEachPE) {
     for (PEID pe = 0; pe < this->size; ++pe) {
         const NodeID cluster      = pe * this->size; // 0, 3, 6 -> owned by PE pe
         auto [c_graph, c_mapping] = this->contractor.contract_clustering(
-            this->graph, {cluster, cluster, cluster, cluster, cluster, cluster, cluster});
+            this->graph, {cluster, cluster, cluster, cluster, cluster, cluster, cluster}
+        );
 
         EXPECT_THAT(c_graph.m(), Eq(0));
         EXPECT_THAT(c_graph.global_n(), Eq(1));
@@ -197,7 +201,8 @@ TYPED_TEST(TrianglesGraph, FullContractionToEachPE) {
                 0b111'111'111,
                 0b111'111'111,
                 0b111'111'111,
-            });
+            }
+        );
     }
 }
 
@@ -241,11 +246,13 @@ TYPED_TEST(TrianglesGraph, ContractLocalTriangles) {
     EXPECT_THAT(c_graph.global_n(), Eq(3));
 
     graph::expect_isomorphic(
-        c_graph, {
-                     {0b000'000'111, 2, 0b000'111'000},
-                     {0b000'000'111, 2, 0b111'000'000},
-                     {0b000'111'000, 2, 0b111'000'000},
-                 });
+        c_graph,
+        {
+            {0b000'000'111, 2, 0b000'111'000},
+            {0b000'000'111, 2, 0b111'000'000},
+            {0b000'111'000, 2, 0b111'000'000},
+        }
+    );
     expect_mapping(
         this->graph, c_graph, c_mapping,
         {
@@ -258,7 +265,8 @@ TYPED_TEST(TrianglesGraph, ContractLocalTriangles) {
             0b111'000'000,
             0b111'000'000,
             0b111'000'000,
-        });
+        }
+    );
 }
 
 TYPED_TEST(TrianglesGraph, ContractLocalTrianglesWithSpacedClusterIDs) {
@@ -291,11 +299,13 @@ TYPED_TEST(TrianglesGraph, ContractLocalTrianglesWithSpacedClusterIDs) {
     EXPECT_THAT(c_graph.global_n(), Eq(3));
 
     graph::expect_isomorphic(
-        c_graph, {
-                     {0b000'000'111, 2, 0b000'111'000},
-                     {0b000'000'111, 2, 0b111'000'000},
-                     {0b000'111'000, 2, 0b111'000'000},
-                 });
+        c_graph,
+        {
+            {0b000'000'111, 2, 0b000'111'000},
+            {0b000'000'111, 2, 0b111'000'000},
+            {0b000'111'000, 2, 0b111'000'000},
+        }
+    );
     expect_mapping(
         this->graph, c_graph, c_mapping,
         {
@@ -308,7 +318,8 @@ TYPED_TEST(TrianglesGraph, ContractLocalTrianglesWithSpacedClusterIDs) {
             0b111'000'000,
             0b111'000'000,
             0b111'000'000,
-        });
+        }
+    );
 }
 
 TYPED_TEST(TrianglesGraph, ContractTriangleOnOnePE) {
@@ -344,20 +355,22 @@ TYPED_TEST(TrianglesGraph, ContractTriangleOnOnePE) {
     // EXPECT_THAT(c_graph.edge_weights(), Each(Eq(1)));
 
     graph::expect_isomorphic(
-        c_graph, {
-                     {0b000'000'111, 1, 0b000'001'000},
-                     {0b000'000'111, 1, 0b000'100'000},
-                     {0b000'000'111, 1, 0b100'000'000},
-                     {0b000'000'111, 1, 0b010'000'000},
-                     {0b100'000'000, 1, 0b010'000'000},
-                     {0b100'000'000, 1, 0b001'000'000},
-                     {0b010'000'000, 1, 0b001'000'000},
-                     {0b000'001'000, 1, 0b000'010'000},
-                     {0b000'001'000, 1, 0b000'100'000},
-                     {0b000'100'000, 1, 0b000'010'000},
-                     {0b000'100'000, 1, 0b100'000'000},
-                     {0b000'010'000, 1, 0b001'000'000},
-                 });
+        c_graph,
+        {
+            {0b000'000'111, 1, 0b000'001'000},
+            {0b000'000'111, 1, 0b000'100'000},
+            {0b000'000'111, 1, 0b100'000'000},
+            {0b000'000'111, 1, 0b010'000'000},
+            {0b100'000'000, 1, 0b010'000'000},
+            {0b100'000'000, 1, 0b001'000'000},
+            {0b010'000'000, 1, 0b001'000'000},
+            {0b000'001'000, 1, 0b000'010'000},
+            {0b000'001'000, 1, 0b000'100'000},
+            {0b000'100'000, 1, 0b000'010'000},
+            {0b000'100'000, 1, 0b100'000'000},
+            {0b000'010'000, 1, 0b001'000'000},
+        }
+    );
     expect_mapping(
         this->graph, c_graph, c_mapping,
         {
@@ -370,7 +383,8 @@ TYPED_TEST(TrianglesGraph, ContractTriangleOnOnePE) {
             0b001'000'000,
             0b010'000'000,
             0b100'000'000,
-        });
+        }
+    );
 }
 
 TYPED_TEST(TrianglesGraph, ContractTrianglesOnTwoPEs) {
@@ -406,16 +420,18 @@ TYPED_TEST(TrianglesGraph, ContractTrianglesOnTwoPEs) {
     EXPECT_THAT(c_graph.global_m(), Eq(16));
 
     graph::expect_isomorphic(
-        c_graph, {
-                     {0b000'000'111, 2, 0b000'111'000}, // [012] -- [345]
-                     {0b100'000'000, 1, 0b010'000'000}, // [8] -- [7]
-                     {0b100'000'000, 1, 0b001'000'000}, // [8] -- [6]
-                     {0b010'000'000, 1, 0b001'000'000}, // [7] -- [6]
-                     {0b100'000'000, 1, 0b000'000'111}, // [8] -- [012]
-                     {0b100'000'000, 1, 0b000'111'000}, // [8] -- [345]
-                     {0b010'000'000, 1, 0b000'000'111}, // [7] -- [012]
-                     {0b001'000'000, 1, 0b000'111'000}, // [6] -- [345]
-                 });
+        c_graph,
+        {
+            {0b000'000'111, 2, 0b000'111'000}, // [012] -- [345]
+            {0b100'000'000, 1, 0b010'000'000}, // [8] -- [7]
+            {0b100'000'000, 1, 0b001'000'000}, // [8] -- [6]
+            {0b010'000'000, 1, 0b001'000'000}, // [7] -- [6]
+            {0b100'000'000, 1, 0b000'000'111}, // [8] -- [012]
+            {0b100'000'000, 1, 0b000'111'000}, // [8] -- [345]
+            {0b010'000'000, 1, 0b000'000'111}, // [7] -- [012]
+            {0b001'000'000, 1, 0b000'111'000}, // [6] -- [345]
+        }
+    );
     expect_mapping(
         this->graph, c_graph, c_mapping,
         {
@@ -428,7 +444,8 @@ TYPED_TEST(TrianglesGraph, ContractTrianglesOnTwoPEs) {
             0b001'000'000,
             0b010'000'000,
             0b100'000'000,
-        });
+        }
+    );
 }
 
 TYPED_TEST(TrianglesGraph, ContractRowWise) {
@@ -450,15 +467,17 @@ TYPED_TEST(TrianglesGraph, ContractRowWise) {
     EXPECT_THAT(c_graph.global_m(), Eq(14));
 
     graph::expect_isomorphic(
-        c_graph, {
-                     {0b000'000'011, 1, 0b000'011'000}, // [01] -- [34]
-                     {0b000'000'011, 2, 0b000'100'100}, // [01] -- [25]
-                     {0b000'011'000, 2, 0b000'100'100}, // [34] -- [25]
-                     {0b000'000'011, 1, 0b011'000'000}, // [01] -- [67]
-                     {0b000'011'000, 1, 0b011'000'000}, // [34] -- [67]
-                     {0b000'100'100, 2, 0b100'000'000}, // [25] -- [8]
-                     {0b011'000'000, 2, 0b100'000'000}, // [67] -- [8]
-                 });
+        c_graph,
+        {
+            {0b000'000'011, 1, 0b000'011'000}, // [01] -- [34]
+            {0b000'000'011, 2, 0b000'100'100}, // [01] -- [25]
+            {0b000'011'000, 2, 0b000'100'100}, // [34] -- [25]
+            {0b000'000'011, 1, 0b011'000'000}, // [01] -- [67]
+            {0b000'011'000, 1, 0b011'000'000}, // [34] -- [67]
+            {0b000'100'100, 2, 0b100'000'000}, // [25] -- [8]
+            {0b011'000'000, 2, 0b100'000'000}, // [67] -- [8]
+        }
+    );
     expect_mapping(
         this->graph, c_graph, c_mapping,
         {
@@ -471,7 +490,8 @@ TYPED_TEST(TrianglesGraph, ContractRowWise) {
             0b011'000'000,
             0b011'000'000,
             0b100'000'000,
-        });
+        }
+    );
 }
 
 //
@@ -539,7 +559,8 @@ TYPED_TEST(PathGraph, ContractPathToCluster0) {
             0b11'11'11,
             0b11'11'11,
             0b11'11'11,
-        });
+        }
+    );
 }
 
 TYPED_TEST(PathGraph, ContractEachHalfToOneNode) {
@@ -563,7 +584,8 @@ TYPED_TEST(PathGraph, ContractEachHalfToOneNode) {
             0b11'10'00,
             0b11'10'00,
             0b11'10'00,
-        });
+        }
+    );
 }
 
 TYPED_TEST(PathGraph, ContractMiddlePart) {
@@ -578,12 +600,14 @@ TYPED_TEST(PathGraph, ContractMiddlePart) {
     EXPECT_EQ(c_graph.global_total_node_weight(), this->graph.global_total_node_weight());
 
     graph::expect_isomorphic(
-        c_graph, {
-                     {0b00'00'01, 1, 0b00'00'10},
-                     {0b00'00'10, 1, 0b00'11'00},
-                     {0b00'11'00, 1, 0b01'00'00},
-                     {0b01'00'00, 1, 0b10'00'00},
-                 });
+        c_graph,
+        {
+            {0b00'00'01, 1, 0b00'00'10},
+            {0b00'00'10, 1, 0b00'11'00},
+            {0b00'11'00, 1, 0b01'00'00},
+            {0b01'00'00, 1, 0b10'00'00},
+        }
+    );
     expect_mapping(
         this->graph, c_graph, c_mapping,
         {
@@ -593,7 +617,8 @@ TYPED_TEST(PathGraph, ContractMiddlePart) {
             0b00'11'00,
             0b01'00'00,
             0b10'00'00,
-        });
+        }
+    );
 }
 
 TYPED_TEST(PathGraph, ContractMiddleOut) {
@@ -608,10 +633,12 @@ TYPED_TEST(PathGraph, ContractMiddleOut) {
     EXPECT_EQ(c_graph.global_total_node_weight(), this->graph.global_total_node_weight());
 
     graph::expect_isomorphic(
-        c_graph, {
-                     {0b10'00'01, 2, 0b01'00'10},
-                     {0b01'00'10, 2, 0b00'11'00},
-                 });
+        c_graph,
+        {
+            {0b10'00'01, 2, 0b01'00'10},
+            {0b01'00'10, 2, 0b00'11'00},
+        }
+    );
     expect_mapping(
         this->graph, c_graph, c_mapping,
         {
@@ -621,6 +648,7 @@ TYPED_TEST(PathGraph, ContractMiddleOut) {
             0b00'11'00,
             0b01'00'10,
             0b10'00'01,
-        });
+        }
+    );
 }
 } // namespace dkaminpar::test

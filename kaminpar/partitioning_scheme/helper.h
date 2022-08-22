@@ -54,28 +54,34 @@ PartitionedGraph uncoarsen_once(ICoarsener* coarsener, PartitionedGraph p_graph,
 
 void refine(
     IRefiner* refiner, IBalancer* balancer, PartitionedGraph& p_graph, const PartitionContext& current_p_ctx,
-    const RefinementContext& r_ctx);
+    const RefinementContext& r_ctx
+);
 
 PartitionedGraph bipartition(
-    const Graph* graph, BlockID final_k, const Context& input_ctx, GlobalInitialPartitionerMemoryPool& ip_m_ctx_pool);
+    const Graph* graph, BlockID final_k, const Context& input_ctx, GlobalInitialPartitionerMemoryPool& ip_m_ctx_pool
+);
 
 void extend_partition_recursive(
     const Graph& graph, StaticArray<BlockID>& partition, BlockID b0, BlockID k, BlockID final_k,
     const Context& input_ctx, graph::SubgraphMemory& subgraph_memory, graph::SubgraphMemoryStartPosition position,
-    TemporaryGraphExtractionBufferPool& extraction_pool, GlobalInitialPartitionerMemoryPool& ip_m_ctx_pool);
+    TemporaryGraphExtractionBufferPool& extraction_pool, GlobalInitialPartitionerMemoryPool& ip_m_ctx_pool
+);
 
 void extend_partition(
     PartitionedGraph& p_graph, BlockID k_prime, const Context& input_ctx, PartitionContext& current_p_ctx,
-    GlobalInitialPartitionerMemoryPool& ip_m_ctx_pool);
+    GlobalInitialPartitionerMemoryPool& ip_m_ctx_pool
+);
 
 void extend_partition(
     PartitionedGraph& p_graph, BlockID k_prime, const Context& input_ctx, PartitionContext& current_p_ctx,
     graph::SubgraphMemory& subgraph_memory, TemporaryGraphExtractionBufferPool& extraction_pool,
-    GlobalInitialPartitionerMemoryPool& ip_m_ctx_pool);
+    GlobalInitialPartitionerMemoryPool& ip_m_ctx_pool
+);
 
 void extend_partition(
     PartitionedGraph& p_graph, BlockID k_prime, const Context& input_ctx, PartitionContext& current_p_ctx,
-    TemporaryGraphExtractionBufferPool& extraction_pool, GlobalInitialPartitionerMemoryPool& ip_m_ctx_pool);
+    TemporaryGraphExtractionBufferPool& extraction_pool, GlobalInitialPartitionerMemoryPool& ip_m_ctx_pool
+);
 
 bool coarsen_once(ICoarsener* coarsener, const Graph* graph, const Context& input_ctx, PartitionContext& current_p_ctx);
 

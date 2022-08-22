@@ -54,7 +54,8 @@ public:
         scalable_vector<EdgeID> nodes, scalable_vector<NodeID> edges, scalable_vector<NodeWeight> node_weights,
         scalable_vector<EdgeWeight> edge_weights, scalable_vector<PEID> ghost_owner,
         scalable_vector<GlobalNodeID> ghost_to_global, std::unordered_map<GlobalNodeID, NodeID> global_to_ghost,
-        const bool sorted, MPI_Comm comm)
+        const bool sorted, MPI_Comm comm
+    )
         : DistributedGraph{
             std::move(node_distribution),
             std::move(edge_distribution),
@@ -72,7 +73,8 @@ public:
         scalable_vector<GlobalNodeID> node_distribution, scalable_vector<GlobalEdgeID> edge_distribution,
         scalable_vector<EdgeID> nodes, scalable_vector<NodeID> edges, scalable_vector<PEID> ghost_owner,
         scalable_vector<GlobalNodeID> ghost_to_global, growt::StaticGhostNodeMapping global_to_ghost, const bool sorted,
-        MPI_Comm comm)
+        MPI_Comm comm
+    )
         : DistributedGraph{std::move(node_distribution),
                            std::move(edge_distribution),
                            std::move(nodes),
@@ -90,7 +92,8 @@ public:
         scalable_vector<EdgeID> nodes, scalable_vector<NodeID> edges, scalable_vector<NodeWeight> node_weights,
         scalable_vector<EdgeWeight> edge_weights, scalable_vector<PEID> ghost_owner,
         scalable_vector<GlobalNodeID> ghost_to_global, growt::StaticGhostNodeMapping global_to_ghost, const bool sorted,
-        MPI_Comm comm)
+        MPI_Comm comm
+    )
         : _node_distribution{std::move(node_distribution)},
           _edge_distribution{std::move(edge_distribution)},
           _nodes{std::move(nodes)},
@@ -379,8 +382,9 @@ public:
     }
 
     [[nodiscard]] inline auto neighbors(const NodeID u) const {
-        return TransformedIotaRange(
-            _nodes[u], _nodes[u + 1], [this](const EdgeID e) { return std::make_pair(e, this->edge_target(e)); });
+        return TransformedIotaRange(_nodes[u], _nodes[u + 1], [this](const EdgeID e) {
+            return std::make_pair(e, this->edge_target(e));
+        });
     }
 
     // Degree buckets
@@ -511,7 +515,8 @@ public:
     }
 
     DistributedPartitionedGraph(
-        const DistributedGraph* graph, const BlockID k, Partition partition, BlockWeights block_weights)
+        const DistributedGraph* graph, const BlockID k, Partition partition, BlockWeights block_weights
+    )
         : _graph{graph},
           _k{k},
           _partition{std::move(partition)},

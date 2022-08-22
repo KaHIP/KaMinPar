@@ -22,7 +22,8 @@ using namespace contraction;
 SET_DEBUG(false);
 
 Result contract_local_clustering(
-    const DistributedGraph& graph, const scalable_vector<parallel::Atomic<NodeID>>& clustering, MemoryContext m_ctx) {
+    const DistributedGraph& graph, const scalable_vector<parallel::Atomic<NodeID>>& clustering, MemoryContext m_ctx
+) {
     KASSERT(clustering.size() >= graph.n());
 
     MPI_Comm comm           = graph.communicator();
@@ -145,7 +146,8 @@ Result contract_local_clustering(
                 }
                 mapping[old_local_u] = c_global_to_ghost[new_global_u];
             }
-        });
+        }
+    );
 
     //
     // We build the coarse graph in multiple steps:

@@ -349,7 +349,8 @@ Context create_default_context(const Graph& graph, const BlockID k, const double
 }
 
 PartitionContext create_bipartition_context(
-    const PartitionContext& k_p_ctx, const Graph& subgraph, const BlockID final_k1, const BlockID final_k2) {
+    const PartitionContext& k_p_ctx, const Graph& subgraph, const BlockID final_k1, const BlockID final_k2
+) {
     PartitionContext two_p_ctx{};
     two_p_ctx.setup(subgraph);
     two_p_ctx.k       = 2;
@@ -364,7 +365,8 @@ std::ostream& operator<<(std::ostream& out, const Context& context) {
 }
 
 double compute_2way_adaptive_epsilon(
-    const PartitionContext& p_ctx, const NodeWeight subgraph_total_node_weight, const BlockID subgraph_final_k) {
+    const PartitionContext& p_ctx, const NodeWeight subgraph_total_node_weight, const BlockID subgraph_final_k
+) {
     KASSERT(subgraph_final_k > 1u);
 
     const double base =

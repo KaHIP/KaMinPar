@@ -22,7 +22,8 @@ bool should_balance(const BalancingTimepoint configured, const BalancingTimepoin
 
 void balance(
     IBalancer* balancer, PartitionedGraph& p_graph, const BalancingTimepoint tp, const PartitionContext& p_ctx,
-    const RefinementContext& r_ctx) {
+    const RefinementContext& r_ctx
+) {
     SCOPED_TIMER("Balancing");
 
     if (should_balance(r_ctx.balancer.timepoint, tp)) {
@@ -68,7 +69,8 @@ PartitionedGraph uncoarsen_once(ICoarsener* coarsener, PartitionedGraph p_graph,
 
 void refine(
     IRefiner* refiner, IBalancer* balancer, PartitionedGraph& p_graph, const PartitionContext& current_p_ctx,
-    const RefinementContext& r_ctx) {
+    const RefinementContext& r_ctx
+) {
     SCOPED_TIMER("Refinement");
 
     balance(balancer, p_graph, BalancingTimepoint::BEFORE_KWAY_REFINEMENT, current_p_ctx, r_ctx);
@@ -87,7 +89,8 @@ void refine(
 
 PartitionedGraph bipartition(
     const Graph* graph, const BlockID final_k, const Context& input_ctx,
-    GlobalInitialPartitionerMemoryPool& ip_m_ctx_pool) {
+    GlobalInitialPartitionerMemoryPool& ip_m_ctx_pool
+) {
     ip::InitialPartitioner partitioner{*graph, input_ctx, final_k, ip_m_ctx_pool.local().get()};
     PartitionedGraph       p_graph = partitioner.partition();
     ip_m_ctx_pool.local().put(partitioner.free());
@@ -98,7 +101,8 @@ PartitionedGraph bipartition(
 void extend_partition_recursive(
     const Graph& graph, BlockArray& partition, const BlockID b0, const BlockID k, const BlockID final_k,
     const Context& input_ctx, graph::SubgraphMemory& subgraph_memory, const graph::SubgraphMemoryStartPosition position,
-    TemporaryGraphExtractionBufferPool& extraction_pool, GlobalInitialPartitionerMemoryPool& ip_m_ctx_pool) {
+    TemporaryGraphExtractionBufferPool& extraction_pool, GlobalInitialPartitionerMemoryPool& ip_m_ctx_pool
+) {
     KASSERT(k > 1u);
 
     // obtain bipartition of current graph
@@ -139,7 +143,8 @@ void extend_partition_recursive(
             if (ks[i] > 1) {
                 extend_partition_recursive(
                     subgraphs[i], partition, b[i], ks[i], p_graph.final_k(i), input_ctx, subgraph_memory, positions[i],
-                    extraction_pool, ip_m_ctx_pool);
+                    extraction_pool, ip_m_ctx_pool
+                );
             }
         }
     }
@@ -148,7 +153,8 @@ void extend_partition_recursive(
 void extend_partition(
     PartitionedGraph& p_graph, const BlockID k_prime, const Context& input_ctx, PartitionContext& current_p_ctx,
     graph::SubgraphMemory& subgraph_memory, TemporaryGraphExtractionBufferPool& extraction_pool,
-    GlobalInitialPartitionerMemoryPool& ip_m_ctx_pool) {
+    GlobalInitialPartitionerMemoryPool& ip_m_ctx_pool
+) {
     SCOPED_TIMER("Initial partitioning");
 
     LOG << "-> Extend from=" << p_graph.k() << " "    //
@@ -178,7 +184,8 @@ void extend_partition(
             KASSERT(subgraph_k <= p_graph.final_k(b));
             extend_partition_recursive(
                 subgraph, subgraph_partitions[b], 0, subgraph_k, p_graph.final_k(b), input_ctx, subgraph_memory,
-                positions[b], extraction_pool, ip_m_ctx_pool);
+                positions[b], extraction_pool, ip_m_ctx_pool
+            );
         }
     });
     STOP_TIMER();
@@ -194,7 +201,8 @@ void extend_partition(
 // extend_partition with local memory allocation for subgraphs
 void extend_partition(
     PartitionedGraph& p_graph, const BlockID k_prime, const Context& input_ctx, PartitionContext& current_p_ctx,
-    TemporaryGraphExtractionBufferPool& extraction_pool, GlobalInitialPartitionerMemoryPool& ip_m_ctx_pool) {
+    TemporaryGraphExtractionBufferPool& extraction_pool, GlobalInitialPartitionerMemoryPool& ip_m_ctx_pool
+) {
     START_TIMER("Allocation");
     graph::SubgraphMemory memory{
         p_graph.n(), input_ctx.partition.k, p_graph.m(), p_graph.graph().is_node_weighted(),
@@ -204,7 +212,8 @@ void extend_partition(
 }
 
 bool coarsen_once(
-    ICoarsener* coarsener, const Graph* graph, const Context& input_ctx, PartitionContext& current_p_ctx) {
+    ICoarsener* coarsener, const Graph* graph, const Context& input_ctx, PartitionContext& current_p_ctx
+) {
     SCOPED_TIMER("Coarsening");
 
     const NodeWeight max_cluster_weight = compute_max_cluster_weight(*graph, input_ctx.partition, input_ctx.coarsening);

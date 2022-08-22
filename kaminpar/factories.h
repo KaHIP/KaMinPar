@@ -19,7 +19,8 @@ std::unique_ptr<ICoarsener> create_coarsener(const Graph& graph, const Coarsenin
 
 std::unique_ptr<ip::InitialRefiner> create_initial_refiner(
     const Graph& graph, const PartitionContext& p_ctx, const RefinementContext& r_ctx,
-    ip::InitialRefiner::MemoryContext m_ctx = {});
+    ip::InitialRefiner::MemoryContext m_ctx = {}
+);
 
 std::unique_ptr<IRefiner> create_refiner(const Context& ctx);
 

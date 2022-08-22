@@ -90,7 +90,8 @@ public:
 
     PoolBipartitioner(
         const Graph& graph, const PartitionContext& p_ctx, const InitialPartitioningContext& i_ctx,
-        MemoryContext m_ctx = {})
+        MemoryContext m_ctx = {}
+    )
         : _graph{graph},
           _p_ctx{p_ctx},
           _i_ctx{i_ctx},
@@ -105,7 +106,8 @@ public:
     template <typename BipartitionerType, typename... BipartitionerArgs>
     void register_bipartitioner(const std::string& name, BipartitionerArgs&&... args) {
         KASSERT(
-            std::find(_bipartitioner_names.begin(), _bipartitioner_names.end(), name) == _bipartitioner_names.end());
+            std::find(_bipartitioner_names.begin(), _bipartitioner_names.end(), name) == _bipartitioner_names.end()
+        );
         auto* instance = new BipartitionerType(_graph, _p_ctx, _i_ctx, std::forward<BipartitionerArgs>(args)...);
         _bipartitioners.push_back(std::unique_ptr<BipartitionerType>(instance));
         _bipartitioner_names.push_back(name);
@@ -276,7 +278,8 @@ class PoolBipartitionerFactory {
 public:
     std::unique_ptr<PoolBipartitioner> create(
         const Graph& graph, const PartitionContext& p_ctx, const InitialPartitioningContext& i_ctx,
-        PoolBipartitioner::MemoryContext m_ctx = {}) {
+        PoolBipartitioner::MemoryContext m_ctx = {}
+    ) {
         auto pool = std::make_unique<PoolBipartitioner>(graph, p_ctx, i_ctx, std::move(m_ctx));
         pool->register_bipartitioner<GreedyGraphGrowingBipartitioner>("greedy_graph_growing", pool->_m_ctx.ggg_m_ctx);
         pool->register_bipartitioner<AlternatingBfsBipartitioner>("bfs_alternating", pool->_m_ctx.bfs_m_ctx);

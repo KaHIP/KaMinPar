@@ -52,8 +52,9 @@ PartitionedGraph ClusteringCoarsener::uncoarsen(PartitionedGraph&& p_graph) {
     STOP_TIMER();
 
     START_TIMER("Copy partition");
-    tbb::parallel_for(
-        static_cast<NodeID>(0), _current_graph->n(), [&](const NodeID u) { partition[u] = p_graph.block(mapping[u]); });
+    tbb::parallel_for(static_cast<NodeID>(0), _current_graph->n(), [&](const NodeID u) {
+        partition[u] = p_graph.block(mapping[u]);
+    });
     STOP_TIMER();
 
     SCOPED_TIMER("Create graph");

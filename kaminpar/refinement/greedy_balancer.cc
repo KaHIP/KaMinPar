@@ -66,7 +66,8 @@ BlockWeight GreedyBalancer::perform_round() {
         while (current_overload > 0 && !_pq.empty(from)) {
             KASSERT(
                 current_overload
-                == std::max<BlockWeight>(0, _p_graph->block_weight(from) - _p_ctx->block_weights.max(from)));
+                == std::max<BlockWeight>(0, _p_graph->block_weight(from) - _p_ctx->block_weights.max(from))
+            );
 
             const NodeID     u                      = _pq.peek_max_id(from);
             const NodeWeight u_weight               = _p_graph->node_weight(u);
@@ -123,8 +124,8 @@ BlockWeight GreedyBalancer::perform_round() {
         }
 
         KASSERT(
-            current_overload
-            == std::max<BlockWeight>(0, _p_graph->block_weight(from) - _p_ctx->block_weights.max(from)));
+            current_overload == std::max<BlockWeight>(0, _p_graph->block_weight(from) - _p_ctx->block_weights.max(from))
+        );
     });
     STOP_TIMER();
 

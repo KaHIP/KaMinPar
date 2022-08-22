@@ -12,8 +12,8 @@ namespace kaminpar::shm::io {
 namespace metis {
 void write_file(
     std::ofstream& out, const StaticArray<EdgeID>& nodes, const StaticArray<NodeID>& edges,
-    const StaticArray<NodeWeight>& node_weights, const StaticArray<EdgeWeight>& edge_weights,
-    const std::string& comment) {
+    const StaticArray<NodeWeight>& node_weights, const StaticArray<EdgeWeight>& edge_weights, const std::string& comment
+) {
     const bool write_node_weights = !node_weights.empty();
     const bool write_edge_weights = !edge_weights.empty();
 
@@ -45,8 +45,8 @@ void write_file(
 
 void write_file(
     const std::string& filename, const StaticArray<EdgeID>& nodes, const StaticArray<NodeID>& edges,
-    const StaticArray<NodeWeight>& node_weights, const StaticArray<EdgeWeight>& edge_weights,
-    const std::string& comment) {
+    const StaticArray<NodeWeight>& node_weights, const StaticArray<EdgeWeight>& edge_weights, const std::string& comment
+) {
     std::ofstream out(filename);
     if (!out) {
         FATAL_PERROR << "Error while opening " << filename;
@@ -77,7 +77,8 @@ void read_format(const std::string& filename, NodeID& n, EdgeID& m, bool& has_no
 
 GraphInfo read(
     const std::string& filename, StaticArray<EdgeID>& nodes, StaticArray<NodeID>& edges,
-    StaticArray<NodeWeight>& node_weights, StaticArray<EdgeWeight>& edge_weights) {
+    StaticArray<NodeWeight>& node_weights, StaticArray<EdgeWeight>& edge_weights
+) {
     bool store_node_weights = false;
     bool store_edge_weights = false;
 
@@ -110,7 +111,8 @@ GraphInfo read(
             }
             edges[e] = static_cast<NodeID>(v);
             ++e;
-        });
+        }
+    );
     nodes[u] = e;
 
     // only keep weights if the graph is really weighted
@@ -145,7 +147,8 @@ Graph read(const std::string& filename, bool ignore_node_weights, bool ignore_ed
 
 void write(const std::string& filename, const Graph& graph, const std::string& comment) {
     metis::write_file(
-        filename, graph.raw_nodes(), graph.raw_edges(), graph.raw_node_weights(), graph.raw_edge_weights(), comment);
+        filename, graph.raw_nodes(), graph.raw_edges(), graph.raw_node_weights(), graph.raw_edge_weights(), comment
+    );
 }
 } // namespace metis
 

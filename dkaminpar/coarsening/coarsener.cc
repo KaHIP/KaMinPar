@@ -185,6 +185,7 @@ GlobalNodeWeight Coarsener::max_cluster_weight() const {
 
     const auto* graph = coarsest();
     return shm::compute_max_cluster_weight<GlobalNodeID, GlobalNodeWeight>(
-        graph->global_n(), graph->global_total_node_weight(), shm_p_ctx, shm_c_ctx);
+        graph->global_n(), graph->global_total_node_weight(), shm_p_ctx, shm_c_ctx
+    );
 }
 } // namespace kaminpar::dist

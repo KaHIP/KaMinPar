@@ -107,7 +107,8 @@ public:
 
     LocalFMRefiner(
         const DistributedPartitionedGraph& global_graph, const FMRefinementContext& fm_ctx,
-        const PartitionContext& p_ctx)
+        const PartitionContext& p_ctx
+    )
         : _global_graph(global_graph),
           _fm_ctx(fm_ctx),
           _p_ctx(p_ctx),
@@ -367,8 +368,9 @@ void FMRefiner::refinement_round() {
     // mark seed nodes as taken
     tbb::parallel_for<std::size_t>(0, seed_nodes.size(), [&](const std::size_t i) { _locked[seed_nodes[i]] = 1; });
 
-    tbb::enumerable_thread_specific<LocalFMRefiner> local_refiner_ets(
-        [&] { return LocalFMRefiner(*_p_graph, _fm_ctx, *_p_ctx); });
+    tbb::enumerable_thread_specific<LocalFMRefiner> local_refiner_ets([&] {
+        return LocalFMRefiner(*_p_graph, _fm_ctx, *_p_ctx);
+    });
 
     auto do_refine_local_graph = [&](const std::size_t i) {
         auto&       p_local_graph     = p_local_graphs[i];
@@ -468,7 +470,8 @@ void FMRefiner::refinement_round() {
                 _p_graph->set_block(node, block);
             });
         },
-        _p_graph->communicator());
+        _p_graph->communicator()
+    );
     STOP_TIMER();
 
     START_TIMER("Synchronize ghost node labels");
@@ -548,7 +551,8 @@ tbb::concurrent_vector<NodeID> FMRefiner::find_seed_nodes() {
 
 void FMRefiner::build_local_graph(
     const NodeID seed_node, shm::Graph& out_graph, shm::PartitionedGraph& out_p_graph,
-    std::vector<GlobalNodeID>& mapping, std::vector<bool>& fixed) {
+    std::vector<GlobalNodeID>& mapping, std::vector<bool>& fixed
+) {
     struct DiscoveredNode {
         DiscoveredNode() {}
         DiscoveredNode(const NodeID node, const NodeID distance, const bool border)
@@ -725,7 +729,8 @@ void FMRefiner::build_local_graph(
 
     out_graph = shm::Graph(
         std::move(local_nodes), std::move(local_edges_prime), std::move(local_node_weights),
-        std::move(local_edge_weights_prime));
+        std::move(local_edge_weights_prime)
+    );
     out_p_graph = shm::PartitionedGraph(shm::no_block_weights, out_graph, _p_ctx->k, std::move(partition));
 }
 

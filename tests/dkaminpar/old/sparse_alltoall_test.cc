@@ -20,7 +20,8 @@ struct AlltoallvImplementation {
     std::vector<std::vector<T>> operator()(const std::vector<std::vector<T>>& sendbuf, MPI_Comm comm) {
         std::vector<std::vector<T>> recvbufs(mpi::get_comm_size(comm));
         mpi::sparse_alltoall_alltoallv<T, std::vector<T>>(
-            sendbuf, [&](auto recvbuf, const PEID pe) { recvbufs[pe] = std::move(recvbuf); }, comm);
+            sendbuf, [&](auto recvbuf, const PEID pe) { recvbufs[pe] = std::move(recvbuf); }, comm
+        );
         return recvbufs;
     }
 };
@@ -34,7 +35,8 @@ struct GridImplementation {
         if (math::is_square(size)) {
             std::vector<std::vector<T>> recvbufs(size);
             mpi::sparse_alltoall_grid<T, std::vector<T>>(
-                sendbuf, [&](auto recvbuf, const PEID pe) { recvbufs[pe] = std::move(recvbuf); }, comm);
+                sendbuf, [&](auto recvbuf, const PEID pe) { recvbufs[pe] = std::move(recvbuf); }, comm
+            );
             return recvbufs;
         } else {
             LOG << "Fallback to MPI_Alltoallv() for " << size << " PEs";
@@ -49,7 +51,8 @@ struct CompleteSendRecvImplementation {
     std::vector<std::vector<T>> operator()(const std::vector<std::vector<T>>& sendbuf, MPI_Comm comm) {
         std::vector<std::vector<T>> recvbufs(mpi::get_comm_size(comm));
         mpi::sparse_alltoall_complete<T, std::vector<T>>(
-            sendbuf, [&](auto recvbuf, const PEID pe) { recvbufs[pe] = std::move(recvbuf); }, comm);
+            sendbuf, [&](auto recvbuf, const PEID pe) { recvbufs[pe] = std::move(recvbuf); }, comm
+        );
         return recvbufs;
     }
 };
@@ -59,7 +62,8 @@ struct SparseImplementation {
     std::vector<std::vector<T>> operator()(const std::vector<std::vector<T>>& sendbuf, MPI_Comm comm) {
         std::vector<std::vector<T>> recvbufs(mpi::get_comm_size(comm));
         mpi::sparse_alltoall_sparse<T, std::vector<T>>(
-            sendbuf, [&](auto recvbuf, const PEID pe) { recvbufs[pe] = std::move(recvbuf); }, comm);
+            sendbuf, [&](auto recvbuf, const PEID pe) { recvbufs[pe] = std::move(recvbuf); }, comm
+        );
         return recvbufs;
     }
 };
@@ -186,8 +190,9 @@ TYPED_TEST(SparseAlltoallTest, irregular_triangle_alltoall) {
     for (PEID from = 0; from < size; ++from) {
         if (from >= rank) {
             EXPECT_EQ(recvbufs[from].size(), rank);
-            EXPECT_TRUE(std::all_of(
-                recvbufs[from].begin(), recvbufs[from].end(), [&](const int value) { return value == from; }));
+            EXPECT_TRUE(std::all_of(recvbufs[from].begin(), recvbufs[from].end(), [&](const int value) {
+                return value == from;
+            }));
         } else {
             EXPECT_TRUE(recvbufs[from].empty());
         }
@@ -203,7 +208,8 @@ TEST(DefaultSparseAlltoallTest, does_not_move_lvalue_reference) {
     }
 
     mpi::sparse_alltoall<int>(
-        sendbufs, [&](auto) {}, MPI_COMM_WORLD);
+        sendbufs, [&](auto) {}, MPI_COMM_WORLD
+    );
 
     EXPECT_EQ(sendbufs.size(), size);
     for (PEID pe = 0; pe < size; ++pe) {

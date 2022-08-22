@@ -229,9 +229,11 @@ int main(int argc, char* argv[]) {
         if (ctx.num_repetitions > 0 || ctx.time_limit > 0) {
             if (ctx.num_repetitions > 0) {
                 return partition_repeatedly(
-                    graph, ctx, [num_repetitions = ctx.num_repetitions](const std::size_t repetition) {
+                    graph, ctx,
+                    [num_repetitions = ctx.num_repetitions](const std::size_t repetition) {
                         return repetition == num_repetitions;
-                    });
+                    }
+                );
             } else { // time_limit > 0
                 Timer time_limit_timer("");
                 return partition_repeatedly(graph, ctx, [&time_limit_timer, time_limit = ctx.time_limit](std::size_t) {

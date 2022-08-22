@@ -179,7 +179,8 @@ public:
                             graph.global_to_local_node(graph.offset_n(pe) + local_node_on_other_pe);
                         graph.set_ghost_node_weight(local_node, weight);
                     });
-                });
+                }
+            );
         }
 
         return graph;

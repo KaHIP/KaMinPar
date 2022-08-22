@@ -37,5 +37,6 @@ contract(const Graph& r, const scalable_vector<NodeID>& clustering, contraction:
 
 contraction::Result contract(
     const Graph& graph, const scalable_vector<parallel::Atomic<NodeID>>& clustering,
-    contraction::MemoryContext m_ctx = {});
+    contraction::MemoryContext m_ctx = {}
+);
 } // namespace kaminpar::shm::graph

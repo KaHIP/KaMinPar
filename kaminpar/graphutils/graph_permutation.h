@@ -111,7 +111,8 @@ void build_permuted_graph(
     const Container<EdgeID>& old_nodes, const Container<NodeID>& old_edges,
     const Container<NodeWeight>& old_node_weights, const Container<EdgeWeight>& old_edge_weights,
     const NodePermutations<Container>& permutations, Container<EdgeID>& new_nodes, Container<NodeID>& new_edges,
-    Container<NodeWeight>& new_node_weights, Container<EdgeWeight>& new_edge_weights) {
+    Container<NodeWeight>& new_node_weights, Container<EdgeWeight>& new_edge_weights
+) {
     // >= for ghost nodes in a distributed graph
     const bool is_node_weighted = old_node_weights.size() + 1 >= old_nodes.size();
     const bool is_edge_weighted = old_edge_weights.size() == old_edges.size();

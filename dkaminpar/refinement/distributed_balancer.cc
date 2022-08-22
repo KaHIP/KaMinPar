@@ -447,7 +447,8 @@ std::pair<BlockID, double> DistributedBalancer::compute_gain(const NodeID u, con
 BlockWeight DistributedBalancer::block_overload(const BlockID b) const {
     static_assert(
         std::numeric_limits<BlockWeight>::is_signed,
-        "This must be changed when using an unsigned data type for block weights!");
+        "This must be changed when using an unsigned data type for block weights!"
+    );
     return std::max<BlockWeight>(0, _p_graph->block_weight(b) - _p_ctx->max_block_weight(b));
 }
 
@@ -517,4 +518,4 @@ void DistributedBalancer::print_statistics() const {
           << " (= " << 100.0 * global_num_conflicts / (global_num_conflicts + global_num_nonconflicts)
           << "% of selected nodes)";
 }
-} // namespace dkaminpar
+} // namespace kaminpar::dist

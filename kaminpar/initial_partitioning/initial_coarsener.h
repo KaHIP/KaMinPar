@@ -86,7 +86,8 @@ public:
         } else {
                      // this is robust if _current_graph is empty (then we can't use node_weight(0))
             reset_current_clustering_unweighted(
-                         _current_graph->n(), _current_graph->total_node_weight() / _current_graph->n());
+                         _current_graph->n(), _current_graph->total_node_weight() / _current_graph->n()
+                     );
         }
     }
 

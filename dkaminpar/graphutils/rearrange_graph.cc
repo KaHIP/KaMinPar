@@ -36,12 +36,14 @@ DistributedGraph sort_by_degree_buckets(DistributedGraph graph) {
     STOP_TIMER();
     shm::graph::build_permuted_graph<scalable_vector, true>(
         old_nodes, old_edges, old_node_weights, old_edge_weights, permutations, new_nodes, new_edges, new_node_weights,
-        new_edge_weights);
+        new_edge_weights
+    );
 
     // copy weight of ghost nodes
     if (!new_node_weights.empty()) {
-        tbb::parallel_for<NodeID>(
-            graph.n(), graph.total_n(), [&](const NodeID u) { new_node_weights[u] = old_node_weights[u]; });
+        tbb::parallel_for<NodeID>(graph.n(), graph.total_n(), [&](const NodeID u) {
+            new_node_weights[u] = old_node_weights[u];
+        });
     }
 
     // communicate new global IDs of ghost nodes
@@ -51,9 +53,11 @@ DistributedGraph sort_by_degree_buckets(DistributedGraph graph) {
     };
 
     auto received = mpi::graph::sparse_alltoall_interface_to_pe_get<ChangedNodeLabel>(
-        graph, [&](const NodeID u) -> ChangedNodeLabel {
+        graph,
+        [&](const NodeID u) -> ChangedNodeLabel {
             return {.old_node_local = u, .new_node_local = permutations.old_to_new[u]};
-        });
+        }
+    );
 
     const NodeID                  n                   = graph.n();
     auto                          old_global_to_ghost = graph.take_global_to_ghost(); // TODO cannot be cleared?

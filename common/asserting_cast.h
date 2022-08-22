@@ -50,7 +50,8 @@ template <typename To, typename From>
 To asserting_cast(const From value) {
     KASSERT(
         in_range<To>(value),
-        value << " of type " << typeid(From).name() << " not in range of type " << typeid(To).name(), assert::light);
+        value << " of type " << typeid(From).name() << " not in range of type " << typeid(To).name(), assert::light
+    );
     return static_cast<To>(value);
 }
 } // namespace kaminpar

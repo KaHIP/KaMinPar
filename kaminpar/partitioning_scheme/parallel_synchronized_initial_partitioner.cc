@@ -9,7 +9,8 @@
 namespace kaminpar::shm::partitioning {
 ParallelSynchronizedInitialPartitioner::ParallelSynchronizedInitialPartitioner(
     const Context& input_ctx, GlobalInitialPartitionerMemoryPool& ip_m_ctx_pool,
-    TemporaryGraphExtractionBufferPool& ip_extraction_pool)
+    TemporaryGraphExtractionBufferPool& ip_extraction_pool
+)
     : _input_ctx{input_ctx},
       _ip_m_ctx_pool{ip_m_ctx_pool},
       _ip_extraction_pool{ip_extraction_pool} {}
@@ -57,7 +58,8 @@ ParallelSynchronizedInitialPartitioner::partition(const ICoarsener* coarsener, c
         converged = true;
         tbb::parallel_for(static_cast<std::size_t>(0), num_current_copies, [&](const std::size_t i) {
             const bool shrunk = helper::coarsen_once(
-                next_coarseners[i].get(), next_coarseners[i]->coarsest_graph(), _input_ctx, current_p_ctxs[i]);
+                next_coarseners[i].get(), next_coarseners[i]->coarsest_graph(), _input_ctx, current_p_ctxs[i]
+            );
             if (shrunk) {
                 converged = false;
             }
@@ -110,7 +112,8 @@ ParallelSynchronizedInitialPartitioner::partition(const ICoarsener* coarsener, c
             const std::size_t start_pos = i * num_local_copies;
             PartitionContext& p_ctx     = current_p_ctxs[start_pos];
             const std::size_t pos       = helper::select_best(
-                      current_p_graphs.begin() + start_pos, current_p_graphs.begin() + start_pos + num_local_copies, p_ctx);
+                      current_p_graphs.begin() + start_pos, current_p_graphs.begin() + start_pos + num_local_copies, p_ctx
+                  );
             PartitionedGraph& p_graph = current_p_graphs[start_pos + pos];
 
             // store

@@ -287,7 +287,8 @@ InitialCoarsener::ContractionResult InitialCoarsener::contract_current_clusterin
     }
 
     Graph coarse_graph(
-        tag::seq, std::move(c_nodes), std::move(c_edges), std::move(c_node_weights), std::move(c_edge_weights));
+        tag::seq, std::move(c_nodes), std::move(c_edges), std::move(c_node_weights), std::move(c_edge_weights)
+    );
 
     return {std::move(coarse_graph), std::move(node_mapping)};
 }

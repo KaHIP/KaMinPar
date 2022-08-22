@@ -86,7 +86,8 @@ int main(int argc, char* argv[]) {
     while (c_graph->global_n() > ctx.partition.k * ctx.coarsening.contraction_limit) {
         const auto max_cluster_weight = shm::compute_max_cluster_weight(
             c_graph->global_n(), c_graph->total_node_weight(), ctx.initial_partitioning.sequential.partition,
-            ctx.initial_partitioning.sequential.coarsening);
+            ctx.initial_partitioning.sequential.coarsening
+        );
         LOG << "... computing clustering";
 
         START_TIMER("Clustering Algorithm", "Level " + std::to_string(graph_hierarchy.size()));

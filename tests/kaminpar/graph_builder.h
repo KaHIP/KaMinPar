@@ -46,7 +46,8 @@ public:
         return Graph(
             static_array::create_from(_nodes), static_array::create_from(_edges),
             static_array::create_from(_node_weights), static_array::create_from(_edge_weights),
-            std::forward<Args>(args)...);
+            std::forward<Args>(args)...
+        );
     }
 
 private:

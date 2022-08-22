@@ -25,7 +25,8 @@ using Clustering = LockingLpClustering::AtomicClusterArray;
 
 Clustering compute_clustering(
     const DistributedGraph& graph, NodeWeight max_cluster_weight = 0, const std::size_t num_iterations = 1,
-    const std::size_t num_chunks = 0) {
+    const std::size_t num_chunks = 0
+) {
     // 0 --> no weight constraint
     if (max_cluster_weight == 0) {
         max_cluster_weight = std::numeric_limits<NodeWeight>::max();
@@ -76,13 +77,15 @@ TEST_F(DistributedTriangles, TestLocalClustering) {
     static constexpr EdgeWeight kInfinity = 100;
     // make internal edge much more attractive for contraction
     graph = graph::change_edge_weights_by_global_endpoints(
-        std::move(graph), {{n0, n0 + 2, kInfinity}, {n0 + 1, n0 + 2, kInfinity}});
+        std::move(graph), {{n0, n0 + 2, kInfinity}, {n0 + 1, n0 + 2, kInfinity}}
+    );
 
     // clustering should place all owned nodes into the same cluster, with a local node ID
     const auto                clustering = compute_clustering(graph);
     std::vector<GlobalNodeID> local_clustering{clustering[0], clustering[1], clustering[2]};
     EXPECT_THAT(
-        local_clustering, AnyOf(Each(0), Each(1), Each(2), Each(3), Each(4), Each(5), Each(6), Each(7), Each(8)));
+        local_clustering, AnyOf(Each(0), Each(1), Each(2), Each(3), Each(4), Each(5), Each(6), Each(7), Each(8))
+    );
 
     SLOG;
 }
@@ -103,7 +106,8 @@ TEST_F(DistributedTriangles, TestGhostNodeLabelsAfterLocalClustering) {
     static constexpr EdgeWeight kInfinity = 100;
     // make internal edge much more attractive for contraction
     graph = graph::change_edge_weights_by_global_endpoints(
-        std::move(graph), {{n0, n0 + 2, kInfinity}, {n0 + 1, n0 + 2, kInfinity}});
+        std::move(graph), {{n0, n0 + 2, kInfinity}, {n0 + 1, n0 + 2, kInfinity}}
+    );
 
     // clustering should place all owned nodes into the same cluster, with a local node ID
     const auto clustering = compute_clustering(graph);
@@ -134,7 +138,8 @@ TEST_F(DistributedTriangles, TestLocalClusteringWithTwoIterations) {
     static constexpr EdgeWeight kInfinity = 100;
     // add path of increasing weights
     graph = graph::change_edge_weights_by_global_endpoints(
-        std::move(graph), {{n0, n0 + 1, kInfinity}, {n0 + 1, n0 + 2, 2 * kInfinity}});
+        std::move(graph), {{n0, n0 + 1, kInfinity}, {n0 + 1, n0 + 2, 2 * kInfinity}}
+    );
 
     { // make one iteration
         const auto clustering = compute_clustering(graph);
@@ -165,7 +170,8 @@ TEST_F(DistributedTriangles, TestLocalClusteringWithWeightConstraintAndTwoIterat
 
     static constexpr EdgeWeight kInfinity = 100;
     graph                                 = graph::change_edge_weights_by_global_endpoints(
-                                        std::move(graph), {{n0, n0 + 1, kInfinity}, {n0 + 1, n0 + 2, 2 * kInfinity}});
+                                        std::move(graph), {{n0, n0 + 1, kInfinity}, {n0 + 1, n0 + 2, 2 * kInfinity}}
+                                    );
 
     static constexpr NodeWeight kClusterWeightLimit = 2; // 1 node cannot join
     {                                                    // make one iteration

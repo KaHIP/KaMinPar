@@ -30,7 +30,8 @@ EdgeWeight edge_cut(const PartitionedGraph& p_graph, tag::Parallel) {
     global_cut /= 2;
     KASSERT(
         (0 <= global_cut && global_cut <= std::numeric_limits<EdgeWeight>::max()), "edge cut overflows: " << global_cut,
-        assert::always);
+        assert::always
+    );
     return static_cast<EdgeWeight>(global_cut);
 }
 

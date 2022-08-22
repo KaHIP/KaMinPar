@@ -8,4 +8,3 @@ std::string test_instance(const std::string& name) {
     return "test_instances/"s + name;
 }
 } // namespace kaminpar::testing
-

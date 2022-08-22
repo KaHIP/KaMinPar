@@ -32,7 +32,8 @@ void save_partitioned_graph(const DistributedPartitionedGraph& p_graph, const Co
 }
 
 void save_global_clustering(
-    const scalable_vector<parallel::Atomic<GlobalNodeID>>& clustering, const Context& ctx, const int level) {
+    const scalable_vector<parallel::Atomic<GlobalNodeID>>& clustering, const Context& ctx, const int level
+) {
     io::partition::write(create_basename(ctx, level) + ".clustering", clustering);
 }
 } // namespace kaminpar::dist::debug

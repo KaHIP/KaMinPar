@@ -22,6 +22,7 @@ void synchronize_ghost_node_block_ids(DistributedPartitionedGraph& p_graph) {
                 const NodeID local_node  = p_graph.global_to_local_node(global_node);
                 p_graph.set_block<false>(local_node, block);
             });
-        });
+        }
+    );
 }
 } // namespace kaminpar::dist::graph

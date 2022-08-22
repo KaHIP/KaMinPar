@@ -16,7 +16,8 @@ namespace kaminpar::shm {
 class ClusteringCoarsener : public ICoarsener {
 public:
     ClusteringCoarsener(
-        std::unique_ptr<IClustering> clustering_algorithm, const Graph& input_graph, const CoarseningContext& c_ctx)
+        std::unique_ptr<IClustering> clustering_algorithm, const Graph& input_graph, const CoarseningContext& c_ctx
+    )
         : _input_graph{input_graph},
           _current_graph{&input_graph},
           _clustering_algorithm{std::move(clustering_algorithm)},

@@ -47,20 +47,24 @@ shm::Graph allgather(const DistributedGraph& graph) {
     auto edges_displs     = mpi::build_distribution_displs(graph.edge_distribution());
 
     mpi::allgatherv(
-        graph.raw_nodes().data(), graph.n(), nodes.data(), nodes_recvcounts.data(), nodes_displs.data(), comm);
+        graph.raw_nodes().data(), graph.n(), nodes.data(), nodes_recvcounts.data(), nodes_displs.data(), comm
+    );
     if (is_node_weighted) {
         KASSERT((graph.is_node_weighted() || graph.n() == 0));
         mpi::allgatherv(
             graph.raw_node_weights().data(), graph.n(), node_weights.data(), nodes_recvcounts.data(),
-            nodes_displs.data(), comm);
+            nodes_displs.data(), comm
+        );
     }
     mpi::allgatherv(
-        remapped_edges.data(), remapped_edges.size(), edges.data(), edges_recvcounts.data(), edges_displs.data(), comm);
+        remapped_edges.data(), remapped_edges.size(), edges.data(), edges_recvcounts.data(), edges_displs.data(), comm
+    );
     if (is_edge_weighted) {
         KASSERT((graph.is_edge_weighted() || graph.m() == 0));
         mpi::allgatherv(
             graph.raw_edge_weights().data(), graph.m(), edge_weights.data(), edges_recvcounts.data(),
-            edges_displs.data(), comm);
+            edges_displs.data(), comm
+        );
     }
     nodes.back() = graph.global_m();
 
@@ -82,7 +86,8 @@ shm::Graph allgather(const DistributedGraph& graph) {
 DistributedPartitionedGraph reduce_scatter(const DistributedGraph& dist_graph, shm::PartitionedGraph shm_p_graph) {
     KASSERT(
         dist_graph.global_n() < static_cast<GlobalNodeID>(std::numeric_limits<NodeID>::max()),
-        "partition size exceeds int size", assert::always);
+        "partition size exceeds int size", assert::always
+    );
     MPI_Comm comm = dist_graph.communicator();
 
     const int        rank    = mpi::get_comm_rank(comm);
@@ -118,4 +123,4 @@ DistributedPartitionedGraph reduce_scatter(const DistributedGraph& dist_graph, s
 DistributedGraph allgather_on_groups(const DistributedGraph& graph, MPI_Comm group) {
     __builtin_unreachable();
 }
-} // namespace dkaminpar::graph
+} // namespace kaminpar::dist::graph

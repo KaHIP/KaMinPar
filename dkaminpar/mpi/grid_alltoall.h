@@ -95,7 +95,8 @@ void sparse_alltoall_grid(SendBuffer&& data, const CountsBuffer& counts, Receive
     NoinitVector<MessageType> row_data(row_recv_displs.back());
     mpi::alltoallv(
         data.data(), row_send_counts.data(), row_send_displs.data(), row_data.data(), row_recv_counts.data(),
-        row_recv_displs.data(), grid_comm.col_comm());
+        row_recv_displs.data(), grid_comm.col_comm()
+    );
 
     // --> Exchange counts within payload
     std::vector<int> row_counts(size);
@@ -154,7 +155,8 @@ void sparse_alltoall_grid(SendBuffer&& data, const CountsBuffer& counts, Receive
     NoinitVector<MessageType> final_data(col_recv_displs.back());
     mpi::alltoallv(
         col_data.data(), col_counts.data(), col_displs.data(), final_data.data(), col_recv_counts.data(),
-        col_recv_displs.data(), grid_comm.row_comm());
+        col_recv_displs.data(), grid_comm.row_comm()
+    );
 
     // --> Exchange counts within payload
     std::vector<int> final_subcounts(size);
@@ -170,8 +172,9 @@ void sparse_alltoall_grid(SendBuffer&& data, const CountsBuffer& counts, Receive
             const std::size_t size  = final_subcounts[index];
 
             Buffer buffer(size);
-            tbb::parallel_for<std::size_t>(
-                0, final_subcounts[index], [&](const std::size_t i) { buffer[i] = final_data[displ + i]; });
+            tbb::parallel_for<std::size_t>(0, final_subcounts[index], [&](const std::size_t i) {
+                buffer[i] = final_data[displ + i];
+            });
             displ += size;
 
             invoke_receiver(std::move(buffer), pe, receiver);

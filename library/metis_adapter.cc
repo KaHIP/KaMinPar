@@ -21,7 +21,8 @@ extern "C" {
 METIS_API(int)
 METIS_PartGraphKway(
     idx_t* nvtxs, idx_t* ncon, idx_t* xadj, idx_t* adjncy, idx_t* vwgt, idx_t* vsize, idx_t* adjwgt, idx_t* nparts,
-    real_t* tpwgts, real_t* ubvec, idx_t* options, idx_t* edgecut, idx_t* part) {
+    real_t* tpwgts, real_t* ubvec, idx_t* options, idx_t* edgecut, idx_t* part
+) {
     // ensure that idx_t is compatible with KaMinPar data types
     using uidx_t = std::make_unsigned_t<idx_t>;
     static_assert(std::numeric_limits<uidx_t>::digits == std::numeric_limits<NodeID>::digits);
@@ -122,10 +123,12 @@ METIS_PartGraphKway(
 METIS_API(int)
 METIS_PartGraphRecursive(
     idx_t* nvtxs, idx_t* ncon, idx_t* xadj, idx_t* adjncy, idx_t* vwgt, idx_t* vsize, idx_t* adjwgt, idx_t* nparts,
-    real_t* tpwgts, real_t* ubvec, idx_t* options, idx_t* edgecut, idx_t* part) {
+    real_t* tpwgts, real_t* ubvec, idx_t* options, idx_t* edgecut, idx_t* part
+) {
     // TODO adjust ufactor parameter
     return METIS_PartGraphKway(
-        nvtxs, ncon, xadj, adjncy, vwgt, vsize, adjwgt, nparts, tpwgts, ubvec, options, edgecut, part);
+        nvtxs, ncon, xadj, adjncy, vwgt, vsize, adjwgt, nparts, tpwgts, ubvec, options, edgecut, part
+    );
 }
 
 METIS_API(int)
@@ -144,8 +147,7 @@ METIS_PartMeshNodal(idx_t*, idx_t*, idx_t*, idx_t*, idx_t*, idx_t*, idx_t*, real
 }
 
 METIS_API(int)
-METIS_PartMeshDual(
-    idx_t*, idx_t*, idx_t*, idx_t*, idx_t*, idx_t*, idx_t*, idx_t*, real_t*, idx_t*, idx_t*, idx_t*, idx_t*) {
+METIS_PartMeshDual(idx_t*, idx_t*, idx_t*, idx_t*, idx_t*, idx_t*, idx_t*, idx_t*, real_t*, idx_t*, idx_t*, idx_t*, idx_t*) {
     return METIS_ERROR;
 }
 

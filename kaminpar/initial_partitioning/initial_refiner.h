@@ -180,7 +180,8 @@ struct MaxOverloadSelectionPolicy {
 struct BalancedMinCutAcceptancePolicy {
     bool operator()(
         const PartitionedGraph&, const PartitionContext&, const EdgeWeight accepted_overload,
-        const EdgeWeight current_overload, const Gain accepted_delta, const Gain delta) {
+        const EdgeWeight current_overload, const Gain accepted_delta, const Gain delta
+    ) {
         return current_overload <= accepted_overload && delta < accepted_delta;
     }
 };
@@ -203,7 +204,8 @@ class InitialTwoWayFMRefiner : public InitialRefiner {
 
 public:
     InitialTwoWayFMRefiner(
-        const NodeID n, const PartitionContext& p_ctx, const RefinementContext& r_ctx, MemoryContext m_ctx = {})
+        const NodeID n, const PartitionContext& p_ctx, const RefinementContext& r_ctx, MemoryContext m_ctx = {}
+    )
         : _p_ctx{p_ctx},
           _r_ctx{r_ctx},
           _queues{std::move(m_ctx.queues)}, //
@@ -238,7 +240,8 @@ public:
     bool refine(PartitionedGraph& p_graph, const PartitionContext&) final {
         KASSERT(&p_graph.graph() == _graph, "must be initialized with the same graph", assert::light);
         KASSERT(
-            p_graph.k() == 2u, "2-way refiner cannot be used on a " << p_graph.k() << "-way partition", assert::light);
+            p_graph.k() == 2u, "2-way refiner cannot be used on a " << p_graph.k() << "-way partition", assert::light
+        );
 
         const EdgeWeight initial_edge_cut = metrics::edge_cut(p_graph, tag::seq);
         if (initial_edge_cut == 0) {
@@ -361,7 +364,8 @@ private:
 
             // accept move if it improves the best edge cut found so far
             if (_cut_acceptance_policy(
-                    p_graph, _p_ctx, accepted_overload, current_overload, accepted_delta, current_delta)) {
+                    p_graph, _p_ctx, accepted_overload, current_overload, accepted_delta, current_delta
+                )) {
                 DBG << "Accepted new bipartition: delta=" << current_delta
                     << " cut=" << metrics::edge_cut(p_graph, tag::seq);
                 _stopping_policy.reset();
@@ -398,8 +402,9 @@ private:
 
         std::vector<std::size_t> chunks(num_chunks);
         std::iota(chunks.begin(), chunks.end(), 0);
-        std::transform(
-            chunks.begin(), chunks.end(), chunks.begin(), [](const std::size_t i) { return i * kChunkSize; });
+        std::transform(chunks.begin(), chunks.end(), chunks.begin(), [](const std::size_t i) {
+            return i * kChunkSize;
+        });
         _rand.shuffle(chunks);
 
         for (const std::size_t chunk: chunks) {

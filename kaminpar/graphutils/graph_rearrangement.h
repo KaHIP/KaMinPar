@@ -19,7 +19,8 @@ find_isolated_nodes_info(const StaticArray<EdgeID>& nodes, const StaticArray<Nod
 
 NodePermutations<StaticArray> rearrange_graph(
     PartitionContext& p_ctx, StaticArray<EdgeID>& nodes, StaticArray<NodeID>& edges,
-    StaticArray<NodeWeight>& node_weights, StaticArray<EdgeWeight>& edge_weights);
+    StaticArray<NodeWeight>& node_weights, StaticArray<EdgeWeight>& edge_weights
+);
 
 NodeID integrate_isolated_nodes(Graph& graph, double epsilon, Context& ctx);
 

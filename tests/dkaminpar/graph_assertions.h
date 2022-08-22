@@ -24,7 +24,8 @@ inline void expect_triangle_graph(const shm::Graph& graph) {
 }
 
 inline void expect_unweighted_graph(
-    const shm::Graph& graph, const NodeWeight expected_node_weight = 1, const EdgeWeight expected_edge_weight = 1) {
+    const shm::Graph& graph, const NodeWeight expected_node_weight = 1, const EdgeWeight expected_edge_weight = 1
+) {
     for (const NodeID u: graph.nodes()) {
         EXPECT_EQ(graph.node_weight(u), expected_node_weight);
     }

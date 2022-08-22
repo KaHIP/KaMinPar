@@ -337,7 +337,8 @@ TEST_F(DistributedTestFixture, copy_partition_back_to_distributed_graph_circle) 
         partition[u] = u / 2;
     }
     p_subgraphs.push_back(
-        {subgraph, static_cast<BlockID>(size), std::move(partition), scalable_vector<BlockID>(size / 2, 1)});
+        {subgraph, static_cast<BlockID>(size), std::move(partition), scalable_vector<BlockID>(size / 2, 1)}
+    );
 
     // Copy back to p_graph
     p_graph = dkaminpar::graph::copy_subgraph_partitions(std::move(p_graph), p_subgraphs, result);

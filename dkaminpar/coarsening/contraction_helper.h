@@ -82,7 +82,8 @@ deduplicate_edge_list(Container edge_list, const NodeID n, DeduplicateEdgeListMe
         // sort outgoing edges from u
         std::sort(
             buffer_list.begin() + first_edge_id, buffer_list.begin() + first_invalid_edge_id,
-            [&](const auto& lhs, const auto& rhs) { return lhs.v < rhs.v; });
+            [&](const auto& lhs, const auto& rhs) { return lhs.v < rhs.v; }
+        );
 
         // compute degree of u after deduplicating
         EdgeID       deduplicated_degree = 0;
@@ -104,8 +105,8 @@ deduplicate_edge_list(Container edge_list, const NodeID n, DeduplicateEdgeListMe
     START_TIMER("Compute prefix sum over degrees", TIMER_DETAIL);
     deduplicated_bucket_index[0] = 0;
     parallel::prefix_sum(
-        deduplicated_bucket_index.begin(), deduplicated_bucket_index.begin() + n + 1,
-        deduplicated_bucket_index.begin());
+        deduplicated_bucket_index.begin(), deduplicated_bucket_index.begin() + n + 1, deduplicated_bucket_index.begin()
+    );
     STOP_TIMER();
 
     // now copy edges to edge_list
@@ -171,7 +172,8 @@ inline scalable_vector<T> create_distribution_from_local_count(const T local_cou
 template <typename EdgeList, typename NodeWeightLambda, typename FindGhostNodeOwnerLambda>
 inline DistributedGraph build_distributed_graph_from_edge_list(
     const EdgeList& edge_list, scalable_vector<GlobalNodeID> node_distribution, MPI_Comm comm,
-    NodeWeightLambda&& node_weight_lambda, FindGhostNodeOwnerLambda&& /* find_ghost_node_owner */) {
+    NodeWeightLambda&& node_weight_lambda, FindGhostNodeOwnerLambda&& /* find_ghost_node_owner */
+) {
     SCOPED_TIMER("Build graph from edge list", TIMER_DETAIL);
 
     const PEID   rank = mpi::get_comm_rank(comm);
@@ -218,7 +220,8 @@ inline DistributedGraph build_distributed_graph_from_edge_list(
             // Sort outgoing edges from u by target node
             std::sort(
                 buckets.begin() + u_bucket_start, buckets.begin() + u_bucket_end,
-                [&](const auto& lhs, const auto& rhs) { return edge_list[lhs].v < edge_list[rhs].v; });
+                [&](const auto& lhs, const auto& rhs) { return edge_list[lhs].v < edge_list[rhs].v; }
+            );
 
             // Construct outgoing edges
             EdgeID       degree         = 0;

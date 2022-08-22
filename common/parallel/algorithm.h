@@ -167,6 +167,7 @@ void prefix_sum(InputIterator first, InputIterator last, OutputIterator result) 
             }
             return temp;
         },
-        [](Value left, Value right) { return left + right; });
+        [](Value left, Value right) { return left + right; }
+    );
 }
 } // namespace kaminpar::parallel

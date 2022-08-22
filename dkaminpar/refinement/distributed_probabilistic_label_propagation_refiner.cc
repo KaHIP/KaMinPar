@@ -197,7 +197,8 @@ private:
         // gather statistics
         std::vector<EdgeWeight> global_gain_to(_p_ctx->k);
         mpi::allreduce(
-            gain_to_block.data(), global_gain_to.data(), static_cast<int>(_p_ctx->k), MPI_SUM, _graph->communicator());
+            gain_to_block.data(), global_gain_to.data(), static_cast<int>(_p_ctx->k), MPI_SUM, _graph->communicator()
+        );
 
         for (const BlockID b: _p_graph->blocks()) {
             residual_cluster_weights.push_back(max_cluster_weight(b) - _p_graph->block_weight(b));
@@ -226,7 +227,8 @@ private:
 
     bool perform_moves(
         const NodeID from, const NodeID to, const std::vector<BlockWeight>& residual_block_weights,
-        const std::vector<EdgeWeight>& total_gains_to_block) {
+        const std::vector<EdgeWeight>& total_gains_to_block
+    ) {
         mpi::barrier(_graph->communicator());
 #if KASSERT_ENABLED(ASSERTION_LEVEL_HEAVY)
         KASSERT(graph::debug::validate_partition(*_p_graph), "", assert::heavy);
@@ -241,7 +243,7 @@ private:
         // perform probabilistic moves, but keep track of moves in case we need to roll back
         std::vector<parallel::Atomic<NodeWeight>>      expected_moved_weight(_p_ctx->k);
         scalable_vector<parallel::Atomic<BlockWeight>> block_weight_deltas(_p_ctx->k);
-        tbb::concurrent_vector<Move>         moves;
+        tbb::concurrent_vector<Move>                   moves;
         _p_graph->pfor_nodes_range(from, to, [&](const auto& r) {
             auto& rand = Random::instance();
 
@@ -293,7 +295,8 @@ private:
         scalable_vector<BlockWeight> global_block_weight_deltas(_p_ctx->k);
         mpi::allreduce(
             block_weight_deltas_nonatomic.data(), global_block_weight_deltas.data(), static_cast<int>(_p_ctx->k),
-            MPI_SUM, _p_graph->communicator());
+            MPI_SUM, _p_graph->communicator()
+        );
 
         // check for balance violations
         parallel::Atomic<std::uint8_t> feasible = 1;
@@ -375,11 +378,13 @@ private:
                     const auto   global_node = static_cast<GlobalNodeID>(_p_graph->offset_n(pe) + local_node_on_pe);
                     const NodeID local_node  = _p_graph->global_to_local_node(global_node);
                     KASSERT(
-                        new_block != _p_graph->block(local_node)); // otherwise, we should not have gotten this message
+                        new_block != _p_graph->block(local_node)
+                    ); // otherwise, we should not have gotten this message
 
                     _p_graph->set_block<false>(local_node, new_block);
                 });
-            });
+            }
+        );
     }
 
 public:
@@ -470,8 +475,8 @@ private:
     DistributedPartitionedGraph* _p_graph{nullptr};
     const PartitionContext*      _p_ctx{nullptr};
 
-    scalable_vector<BlockID>             _next_partition;
-    scalable_vector<EdgeWeight>          _gains;
+    scalable_vector<BlockID>                       _next_partition;
+    scalable_vector<EdgeWeight>                    _gains;
     scalable_vector<parallel::Atomic<BlockWeight>> _block_weights;
 
     Statistics _statistics;
@@ -487,7 +492,8 @@ DistributedProbabilisticLabelPropagationRefiner::DistributedProbabilisticLabelPr
 DistributedProbabilisticLabelPropagationRefiner::~DistributedProbabilisticLabelPropagationRefiner() = default;
 
 void DistributedProbabilisticLabelPropagationRefiner::initialize(
-    const DistributedGraph& graph, const PartitionContext& p_ctx) {
+    const DistributedGraph& graph, const PartitionContext& p_ctx
+) {
     _impl->initialize(graph, p_ctx);
 }
 

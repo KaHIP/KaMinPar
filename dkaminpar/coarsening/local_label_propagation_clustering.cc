@@ -145,14 +145,15 @@ public:
 
 DistributedLocalLabelPropagationClustering::DistributedLocalLabelPropagationClustering(const Context& ctx)
     : _impl{std::make_unique<DistributedLocalLabelPropagationClusteringImpl>(
-        ctx.coarsening.local_lp.ignore_ghost_nodes ? ctx.partition.local_n() : ctx.partition.total_n(),
-        ctx.coarsening)} {}
+        ctx.coarsening.local_lp.ignore_ghost_nodes ? ctx.partition.local_n() : ctx.partition.total_n(), ctx.coarsening
+    )} {}
 
 DistributedLocalLabelPropagationClustering::~DistributedLocalLabelPropagationClustering() = default;
 
 const DistributedLocalLabelPropagationClustering::AtomicClusterArray&
 DistributedLocalLabelPropagationClustering::compute_clustering(
-    const DistributedGraph& graph, const GlobalNodeWeight max_cluster_weight) {
+    const DistributedGraph& graph, const GlobalNodeWeight max_cluster_weight
+) {
     return _impl->compute_clustering(graph, max_cluster_weight);
 }
 } // namespace kaminpar::dist

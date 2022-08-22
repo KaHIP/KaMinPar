@@ -108,7 +108,8 @@ int main(int argc, char* argv[]) {
                 const NodeID local_node = graph.global_to_local_node(graph.offset_n(pe) + local_node_on_other_pe);
                 partition[local_node]   = block;
             });
-        });
+        }
+    );
 
     // Create partitioned graph object
     const BlockID local_k = *std::max_element(partition.begin(), partition.end()) + 1;
@@ -121,7 +122,8 @@ int main(int argc, char* argv[]) {
 
     scalable_vector<BlockWeight> global_block_weight_nonatomic(k);
     mpi::allreduce(
-        local_block_weights.data(), global_block_weight_nonatomic.data(), static_cast<int>(k), MPI_SUM, MPI_COMM_WORLD);
+        local_block_weights.data(), global_block_weight_nonatomic.data(), static_cast<int>(k), MPI_SUM, MPI_COMM_WORLD
+    );
 
     scalable_vector<parallel::Atomic<BlockWeight>> block_weights(k);
     std::copy(global_block_weight_nonatomic.begin(), global_block_weight_nonatomic.end(), block_weights.begin());

@@ -93,7 +93,8 @@ public:
 
         Group& argument(
             const std::string& lname, const std::string& description, std::vector<std::string>* storage,
-            const char sname = 0) {
+            const char sname = 0
+        ) {
             auto lambda = [storage](const char* arg) {
                 storage->push_back(arg);
             };
@@ -141,11 +142,13 @@ public:
         template <typename Type, typename Transformer>
         Group& argument(
             const std::string& lname, const std::string& description, Type* storage, Transformer&& transformer,
-            char sname = 0, int argument_type = required_argument) {
+            char sname = 0, int argument_type = required_argument
+        ) {
             static_assert(
                 std::is_convertible_v<std::result_of_t<Transformer(const char*)>, Type>,
                 "Result type of transforming function must be convertible to the data type of the storage "
-                "pointer.");
+                "pointer."
+            );
 
             auto setter = [storage, transformer = transformer](const char* arg) {
                 *storage = transformer(arg);
@@ -167,7 +170,8 @@ public:
         //! Argument without storage address, instead we call a lambda when encountering the argument.
         Group& argument(
             const std::string& lname, const int argument_type, Setter lambda, const std::string& description,
-            const std::string& default_description, const char sname = 0) {
+            const std::string& default_description, const char sname = 0
+        ) {
             KASSERT(((sname >= 'a' && sname <= 'z') || (sname >= 'A' && sname <= 'Z') || sname == 0));
             parent->arguments.push_back({
                 .short_name          = sname,              //
@@ -236,10 +240,11 @@ public:
                 });
             const bool num_optional = std::count_if(
                 positional_group.arguments.begin(), positional_group.arguments.end(),
-                [](const auto& arg) { return arg.optional; });
+                [](const auto& arg) { return arg.optional; }
+            );
             if (enforce_positional_arguments && !has_vararg
-                && (actual_num_pos_args < expected_pos_args - num_optional
-                    || actual_num_pos_args > expected_pos_args)) {
+                && (actual_num_pos_args < expected_pos_args - num_optional || actual_num_pos_args > expected_pos_args
+                )) {
                 std::cerr << "unexpected number of positional arguments: got " << actual_num_pos_args << ", expected "
                           << expected_pos_args << "\n";
                 std::exit(1);

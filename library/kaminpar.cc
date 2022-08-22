@@ -57,7 +57,8 @@ PartitionerBuilder PartitionerBuilder::from_graph_file(const std::string& filena
     PartitionerBuilder builder;
     io::metis::read(
         filename, builder._pimpl->nodes, builder._pimpl->edges, builder._pimpl->node_weights,
-        builder._pimpl->edge_weights);
+        builder._pimpl->edge_weights
+    );
     builder._pimpl->n = builder._pimpl->nodes.size() - 1;
     return builder;
 }
@@ -107,8 +108,8 @@ Partitioner PartitionerBuilder::rearrange_and_create() {
     partitioner._pimpl->context      = _pimpl->context;
     partitioner._pimpl->epsilon      = _pimpl->context.partition.epsilon;
     partitioner._pimpl->permutations = graph::rearrange_graph(
-        partitioner._pimpl->context.partition, _pimpl->nodes, _pimpl->edges, _pimpl->node_weights,
-        _pimpl->edge_weights);
+        partitioner._pimpl->context.partition, _pimpl->nodes, _pimpl->edges, _pimpl->node_weights, _pimpl->edge_weights
+    );
     partitioner._pimpl->graph = Graph{
         std::move(_pimpl->nodes), std::move(_pimpl->edges), std::move(_pimpl->node_weights),
         std::move(_pimpl->edge_weights), true};
@@ -184,7 +185,8 @@ std::unique_ptr<BlockID[]> finalize_partition(Graph& graph, PartitionedGraph& p_
 }
 
 void adapt_epsilon_after_isolated_nodes_removal(
-    const Graph& graph, PartitionContext& p_ctx, const NodeWeight original_total_node_weight) {
+    const Graph& graph, PartitionContext& p_ctx, const NodeWeight original_total_node_weight
+) {
     const BlockID k                    = p_ctx.k;
     const double  old_max_block_weight = (1 + p_ctx.epsilon) * std::ceil(1.0 * original_total_node_weight / k);
     const double  new_epsilon          = old_max_block_weight / std::ceil(1.0 * graph.total_node_weight() / k) - 1;
@@ -216,7 +218,8 @@ std::unique_ptr<BlockID[]> Partitioner::partition(BlockID k, EdgeWeight& edge_cu
     _pimpl->context.partition.epsilon = _pimpl->epsilon;
     if (was_rearranged(_pimpl)) {
         adapt_epsilon_after_isolated_nodes_removal(
-            _pimpl->graph, _pimpl->context.partition, _pimpl->original_total_node_weight);
+            _pimpl->graph, _pimpl->context.partition, _pimpl->original_total_node_weight
+        );
     }
     PartitionedGraph p_graph = partitioning::partition(_pimpl->graph, _pimpl->context);
     edge_cut                 = metrics::edge_cut(p_graph);

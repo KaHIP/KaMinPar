@@ -55,7 +55,8 @@ public:
     [[nodiscard]] auto used_entry_values() {
         return TransformedRange(
             used_entry_ids().begin(), used_entry_ids().end(),
-            [this](const std::size_t entry) -> value_type { return _data[entry]; });
+            [this](const std::size_t entry) -> value_type { return _data[entry]; }
+        );
     }
 
     [[nodiscard]] auto entries() {
@@ -63,7 +64,8 @@ public:
             used_entry_ids().begin(), used_entry_ids().end(),
             [this](const std::size_t entry) -> std::pair<Size, value_type> {
                 return std::make_pair(static_cast<Size>(entry), _data[entry]);
-            });
+            }
+        );
     }
 
     void clear() {

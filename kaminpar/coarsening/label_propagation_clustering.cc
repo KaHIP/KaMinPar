@@ -103,7 +103,8 @@ public:
 //
 
 LabelPropagationClusteringAlgorithm::LabelPropagationClusteringAlgorithm(
-    const NodeID max_n, const CoarseningContext& c_ctx)
+    const NodeID max_n, const CoarseningContext& c_ctx
+)
     : _core{std::make_unique<LabelPropagationClusteringCore>(max_n, c_ctx)} {}
 
 // we must declare the destructor explicitly here, otherwise, it is implicitly generated before

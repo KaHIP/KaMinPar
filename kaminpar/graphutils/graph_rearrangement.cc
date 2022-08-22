@@ -38,7 +38,8 @@ find_isolated_nodes_info(const StaticArray<EdgeID>& nodes, const StaticArray<Nod
 
 NodePermutations<StaticArray> rearrange_graph(
     PartitionContext& p_ctx, StaticArray<EdgeID>& nodes, StaticArray<NodeID>& edges,
-    StaticArray<NodeWeight>& node_weights, StaticArray<EdgeWeight>& edge_weights) {
+    StaticArray<NodeWeight>& node_weights, StaticArray<EdgeWeight>& edge_weights
+) {
     START_TIMER("Allocation");
     StaticArray<EdgeID>     tmp_nodes(nodes.size());
     StaticArray<NodeID>     tmp_edges(edges.size());
@@ -51,8 +52,8 @@ NodePermutations<StaticArray> rearrange_graph(
     START_TIMER("Rearrange input graph");
     NodePermutations<StaticArray> permutations = sort_by_degree_buckets<StaticArray>(nodes);
     build_permuted_graph(
-        nodes, edges, node_weights, edge_weights, permutations, tmp_nodes, tmp_edges, tmp_node_weights,
-        tmp_edge_weights);
+        nodes, edges, node_weights, edge_weights, permutations, tmp_nodes, tmp_edges, tmp_node_weights, tmp_edge_weights
+    );
     std::swap(nodes, tmp_nodes);
     std::swap(edges, tmp_edges);
     std::swap(node_weights, tmp_node_weights);

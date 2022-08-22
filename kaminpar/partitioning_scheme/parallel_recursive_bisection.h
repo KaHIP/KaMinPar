@@ -47,7 +47,8 @@ private:
 
     inline void extend_partition(PartitionedGraph& p_graph, const BlockID k_prime) {
         helper::extend_partition(
-            p_graph, k_prime, _input_ctx, _current_p_ctx, _subgraph_memory, _ip_extraction_pool, _ip_m_ctx_pool);
+            p_graph, k_prime, _input_ctx, _current_p_ctx, _subgraph_memory, _ip_extraction_pool, _ip_m_ctx_pool
+        );
     }
 
     const Graph*     coarsen();

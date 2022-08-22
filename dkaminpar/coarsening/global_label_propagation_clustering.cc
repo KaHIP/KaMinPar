@@ -284,7 +284,8 @@ public:
 
     bool move_cluster_weight(
         const ClusterID old_cluster, const ClusterID new_cluster, const ClusterWeight delta,
-        const ClusterWeight max_weight) {
+        const ClusterWeight max_weight
+    ) {
         // reject move if it violates local weight constraint
         if (cluster_weight(new_cluster) + delta > max_weight) {
             return false;
@@ -297,7 +298,8 @@ public:
         } else {
             // otherwise, move node to new cluster
             [[maybe_unused]] const auto [old_it, old_found] = handle.update(
-                old_cluster + 1, [](auto& lhs, const auto rhs) { return lhs -= rhs; }, delta);
+                old_cluster + 1, [](auto& lhs, const auto rhs) { return lhs -= rhs; }, delta
+            );
             KASSERT((old_it != handle.end() && old_found), "Uninitialized cluster: " << old_cluster + 1);
         }
 
@@ -305,7 +307,8 @@ public:
             _local_cluster_weights[_graph->global_to_local_node(new_cluster)] += delta;
         } else {
             [[maybe_unused]] const auto [new_it, new_found] = handle.update(
-                new_cluster + 1, [](auto& lhs, const auto rhs) { return lhs += rhs; }, delta);
+                new_cluster + 1, [](auto& lhs, const auto rhs) { return lhs += rhs; }, delta
+            );
             KASSERT((new_it != handle.end() && new_found), "Uninitialized cluster: " << new_cluster + 1);
         }
 
@@ -319,7 +322,8 @@ public:
         } else {
             auto& handle                                = _cluster_weights_handles_ets.local();
             [[maybe_unused]] const auto [it, not_found] = handle.insert_or_update(
-                cluster + 1, delta, [](auto& lhs, const auto rhs) { return lhs += rhs; }, delta);
+                cluster + 1, delta, [](auto& lhs, const auto rhs) { return lhs += rhs; }, delta
+            );
             KASSERT((it != handle.end() && (!must_exist || !not_found)), "Could not update cluster: " << cluster);
         }
     }
@@ -434,7 +438,8 @@ private:
                     OwnedClusterVector::move_node(local_node, new_label);
                     change_cluster_weight(cluster(local_node), local_node_weight, false);
                 });
-            });
+            }
+        );
 
         _graph->pfor_nodes(from, to, [&](const NodeID u) { _changed_label[u] = 0; });
     }
@@ -503,7 +508,8 @@ DistributedGlobalLabelPropagationClustering::~DistributedGlobalLabelPropagationC
 
 const DistributedGlobalLabelPropagationClustering::AtomicClusterArray&
 DistributedGlobalLabelPropagationClustering::compute_clustering(
-    const DistributedGraph& graph, const GlobalNodeWeight max_cluster_weight) {
+    const DistributedGraph& graph, const GlobalNodeWeight max_cluster_weight
+) {
     return _impl->compute_clustering(graph, max_cluster_weight);
 }
 } // namespace kaminpar::dist

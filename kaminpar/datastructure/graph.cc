@@ -28,7 +28,8 @@ Degree degree_bucket(const Degree degree) {
 
 Graph::Graph(
     StaticArray<EdgeID> nodes, StaticArray<NodeID> edges, StaticArray<NodeWeight> node_weights,
-    StaticArray<EdgeWeight> edge_weights, const bool sorted)
+    StaticArray<EdgeWeight> edge_weights, const bool sorted
+)
     : _nodes{std::move(nodes)},
       _edges{std::move(edges)},
       _node_weights{std::move(node_weights)},
@@ -53,7 +54,8 @@ Graph::Graph(
 
 Graph::Graph(
     tag::Sequential, StaticArray<EdgeID> nodes, StaticArray<NodeID> edges, StaticArray<NodeWeight> node_weights,
-    StaticArray<EdgeWeight> edge_weights, const bool sorted)
+    StaticArray<EdgeWeight> edge_weights, const bool sorted
+)
     : _nodes{std::move(nodes)},
       _edges{std::move(edges)},
       _node_weights{std::move(node_weights)},
@@ -153,7 +155,8 @@ bool validate_graph(const Graph& graph) {
 //
 
 PartitionedGraph::PartitionedGraph(
-    const Graph& graph, BlockID k, StaticArray<BlockID> partition, scalable_vector<BlockID> final_k)
+    const Graph& graph, BlockID k, StaticArray<BlockID> partition, scalable_vector<BlockID> final_k
+)
     : _graph{&graph},
       _k{k},
       _partition{std::move(partition)},
@@ -171,7 +174,8 @@ PartitionedGraph::PartitionedGraph(
 }
 
 PartitionedGraph::PartitionedGraph(
-    tag::Sequential, const Graph& graph, BlockID k, StaticArray<BlockID> partition, scalable_vector<BlockID> final_k)
+    tag::Sequential, const Graph& graph, BlockID k, StaticArray<BlockID> partition, scalable_vector<BlockID> final_k
+)
     : _graph{&graph},
       _k{k},
       _partition{std::move(partition)},

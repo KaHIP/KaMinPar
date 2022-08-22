@@ -212,45 +212,55 @@ bool validate(const DistributedGraph& graph, const int root) {
     DBG << "Checking global n, m";
     KASSERT(
         mpi::bcast(graph.global_n(), root, comm) == graph.global_n(), "inconsistent global number of nodes",
-        assert::always);
+        assert::always
+    );
     KASSERT(
         mpi::bcast(graph.global_m(), root, comm) == graph.global_m(), "inconsistent global number of edges",
-        assert::always);
+        assert::always
+    );
 
     // check global node distribution
     DBG << "Checking node distribution";
     KASSERT(
         static_cast<int>(graph.node_distribution().size()) == size + 1, "bad size of node distribution array",
-        assert::always);
+        assert::always
+    );
     KASSERT(graph.node_distribution().front() == 0u, "bad first entry of node distribution array", assert::always);
     KASSERT(
         graph.node_distribution().back() == graph.global_n(), "bad last entry of node distribution array",
-        assert::always);
+        assert::always
+    );
     for (PEID pe = 1; pe < size + 1; ++pe) {
         KASSERT(
             mpi::bcast(graph.node_distribution(pe), root, comm) == graph.node_distribution(pe),
-            "inconsistent entry in node distribution array", assert::always);
+            "inconsistent entry in node distribution array", assert::always
+        );
         KASSERT(
             rank + 1 != pe || graph.node_distribution(pe) - graph.node_distribution(pe - 1) == graph.n(),
-            "bad entry in node distribution array", assert::always);
+            "bad entry in node distribution array", assert::always
+        );
     }
 
     // check global edge distribution
     DBG << "Checking edge distribution";
     KASSERT(
         static_cast<int>(graph.edge_distribution().size()) == size + 1, "bad size of edge distribution array",
-        assert::always);
+        assert::always
+    );
     KASSERT(graph.edge_distribution().front() == 0u, "bad first entry of edge distribution array", assert::always);
     KASSERT(
         graph.edge_distribution().back() == graph.global_m(), "bad last entry of edge distribution array",
-        assert::always);
+        assert::always
+    );
     for (PEID pe = 1; pe < size + 1; ++pe) {
         KASSERT(
             mpi::bcast(graph.edge_distribution(pe), root, comm) == graph.edge_distribution(pe),
-            "inconsistent entry in edge distribution array", assert::always);
+            "inconsistent entry in edge distribution array", assert::always
+        );
         KASSERT(
             rank + 1 != pe || graph.edge_distribution(pe) - graph.edge_distribution(pe - 1) == graph.m(),
-            "bad entry in edge distribution array", assert::always);
+            "bad entry in edge distribution array", assert::always
+        );
     }
 
     // check that ghost nodes are actually ghost nodes
@@ -277,14 +287,17 @@ bool validate(const DistributedGraph& graph, const int root) {
                     KASSERT(
                         graph.contains_global_node(global_u),
                         "global node " << global_u << " has edge to this PE, but this PE does not know the node",
-                        assert::always);
+                        assert::always
+                    );
                     const NodeID local_u = graph.global_to_local_node(global_u);
                     KASSERT(
                         graph.node_weight(local_u) == weight,
                         "inconsistent weight for global node " << global_u << " / local node " << local_u,
-                        assert::always);
+                        assert::always
+                    );
                 }
-            });
+            }
+        );
     }
 
     // check that edges to ghost nodes exist in both directions
@@ -305,12 +318,14 @@ bool validate(const DistributedGraph& graph, const int root) {
                     KASSERT(
                         graph.contains_global_node(ghost_node),
                         "global node " << ghost_node << " has edge to this PE, but this PE does not know the node",
-                        assert::always);
+                        assert::always
+                    );
                     KASSERT(
                         graph.contains_global_node(owned_node),
                         "global node " << ghost_node << " has edge to global node " << owned_node
                                        << " which should be owned by this PE, but this PE does not know that node",
-                        assert::always);
+                        assert::always
+                    );
 
                     const NodeID local_owned_node = graph.global_to_local_node(owned_node);
                     const NodeID local_ghost_node = graph.global_to_local_node(ghost_node);
@@ -328,9 +343,11 @@ bool validate(const DistributedGraph& graph, const int root) {
                                       << "is expected to be adjacent to local node " << local_ghost_node
                                       << " (global node " << ghost_node << ") "
                                       << "due to an edge on PE " << pe << ", but is not",
-                        assert::always);
+                        assert::always
+                    );
                 }
-            });
+            }
+        );
     }
 
     // check that the graph is sorted if it claims that it is sorted
@@ -344,7 +361,8 @@ bool validate(const DistributedGraph& graph, const int root) {
             KASSERT(
                 graph.first_node_in_bucket(bucket) != graph.first_invalid_node_in_bucket(bucket),
                 "bucket is empty, but graph data structure claims that it has size " << graph.bucket_size(bucket),
-                assert::always);
+                assert::always
+            );
 
             for (NodeID u = graph.first_node_in_bucket(bucket); u < graph.first_invalid_node_in_bucket(bucket); ++u) {
                 const auto expected_bucket = shm::degree_bucket(graph.degree(u));
@@ -352,7 +370,8 @@ bool validate(const DistributedGraph& graph, const int root) {
                     expected_bucket == bucket,
                     "node " << u << " with degree " << graph.degree(u) << " is expected to be in bucket "
                             << expected_bucket << ", but is in bucket " << bucket,
-                    assert::always);
+                    assert::always
+                );
             }
         }
     }
@@ -389,7 +408,8 @@ bool validate_partition(const DistributedPartitionedGraph& p_graph) {
         const scalable_vector<BlockWeight> send_block_weights = p_graph.block_weights_copy();
         mpi::gather(
             send_block_weights.data(), static_cast<int>(p_graph.k()), recv_block_weights.data(),
-            static_cast<int>(p_graph.k()), 0, comm);
+            static_cast<int>(p_graph.k()), 0, comm
+        );
 
         if (rank == 0) {
             for (const BlockID b: p_graph.blocks()) {
@@ -398,7 +418,8 @@ bool validate_partition(const DistributedPartitionedGraph& p_graph) {
                     const BlockWeight actual   = recv_block_weights[p_graph.k() * pe + b];
                     KASSERT(
                         expected == actual, "for PE " << pe << ", block " << b << ": expected weight " << expected
-                                                      << " (weight on root), got weight " << actual);
+                                                      << " (weight on root), got weight " << actual
+                    );
                 }
             }
         }
@@ -418,7 +439,8 @@ bool validate_partition(const DistributedPartitionedGraph& p_graph) {
             recv_block_weights.resize(p_graph.k());
         }
         mpi::reduce(
-            send_block_weights.data(), recv_block_weights.data(), static_cast<int>(p_graph.k()), MPI_SUM, 0, comm);
+            send_block_weights.data(), recv_block_weights.data(), static_cast<int>(p_graph.k()), MPI_SUM, 0, comm
+        );
         if (rank == 0) {
             for (const BlockID b: p_graph.blocks()) {
                 KASSERT(p_graph.block_weight(b) == recv_block_weights[b]);
@@ -441,7 +463,8 @@ bool validate_partition(const DistributedPartitionedGraph& p_graph) {
         const auto displs     = mpi::build_distribution_displs(p_graph.node_distribution());
         mpi::gatherv(
             p_graph.partition().data(), static_cast<int>(p_graph.n()), recv_partition.data(), recvcounts.data(),
-            displs.data(), 0, comm);
+            displs.data(), 0, comm
+        );
 
         // next, each PE validates the block of its ghost nodes by sending them to root
         scalable_vector<std::uint64_t> send_buffer;
@@ -467,7 +490,8 @@ bool validate_partition(const DistributedPartitionedGraph& p_graph) {
                     KASSERT(
                         recv_partition[global_u] == b,
                         "on PE " << pe << ": ghost node " << global_u << " is placed in block " << b
-                                 << ", but on its owner PE, it is placed in block " << recv_partition[global_u]);
+                                 << ", but on its owner PE, it is placed in block " << recv_partition[global_u]
+                    );
                 }
             }
         } else {

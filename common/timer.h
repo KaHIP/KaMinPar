@@ -71,20 +71,22 @@
 #define ENABLE_TIMERS()  (GLOBAL_TIMER.enable_all())
 #define DISABLE_TIMERS() (GLOBAL_TIMER.disable_all())
 
-#define SCOPED_TIMER(...)                                                                                       \
-    VARARG_SELECT_HELPER3(                                                                                      \
-        , ##__VA_ARGS__, SCOPED_TIMER_3(__VA_ARGS__), SCOPED_TIMER_2(__VA_ARGS__), SCOPED_TIMER_1(__VA_ARGS__), \
-        ignore)
-#define START_TIMER(...)   \
-    VARARG_SELECT_HELPER3( \
-        , ##__VA_ARGS__, START_TIMER_3(__VA_ARGS__), START_TIMER_2(__VA_ARGS__), START_TIMER_1(__VA_ARGS__), ignore)
+#define SCOPED_TIMER(...)                                                                                              \
+    VARARG_SELECT_HELPER3(                                                                                             \
+        , ##__VA_ARGS__, SCOPED_TIMER_3(__VA_ARGS__), SCOPED_TIMER_2(__VA_ARGS__), SCOPED_TIMER_1(__VA_ARGS__), ignore \
+    )
+#define START_TIMER(...)                                                                                            \
+    VARARG_SELECT_HELPER3(                                                                                          \
+        , ##__VA_ARGS__, START_TIMER_3(__VA_ARGS__), START_TIMER_2(__VA_ARGS__), START_TIMER_1(__VA_ARGS__), ignore \
+    )
 #define STOP_TIMER(...) \
     VARARG_SELECT_HELPER1(, ##__VA_ARGS__, STOP_TIMER_1(__VA_ARGS__), STOP_TIMER_0(__VA_ARGS__), ignore)
 
 // must be followed by a lambda body that may or may not return some value
-#define TIMED_SCOPE(...)   \
-    VARARG_SELECT_HELPER3( \
-        , ##__VA_ARGS__, TIMED_SCOPE_3(__VA_ARGS__), TIMED_SCOPE_2(__VA_ARGS__), TIMED_SCOPE_1(__VA_ARGS__), ignore)
+#define TIMED_SCOPE(...)                                                                                            \
+    VARARG_SELECT_HELPER3(                                                                                          \
+        , ##__VA_ARGS__, TIMED_SCOPE_3(__VA_ARGS__), TIMED_SCOPE_2(__VA_ARGS__), TIMED_SCOPE_1(__VA_ARGS__), ignore \
+    )
 
 namespace kaminpar {
 class Timer;

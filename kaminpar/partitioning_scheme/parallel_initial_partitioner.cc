@@ -9,7 +9,8 @@
 namespace kaminpar::shm::partitioning {
 ParallelInitialPartitioner::ParallelInitialPartitioner(
     const Context& input_ctx, GlobalInitialPartitionerMemoryPool& ip_m_ctx_pool,
-    TemporaryGraphExtractionBufferPool& ip_extraction_pool)
+    TemporaryGraphExtractionBufferPool& ip_extraction_pool
+)
     : _input_ctx{input_ctx},
       _ip_m_ctx_pool{ip_m_ctx_pool},
       _ip_extraction_pool{ip_extraction_pool} {}
@@ -20,7 +21,8 @@ PartitionedGraph ParallelInitialPartitioner::partition(const ICoarsener* coarsen
 }
 
 PartitionedGraph ParallelInitialPartitioner::partition_recursive(
-    const ICoarsener* parent_coarsener, PartitionContext& p_ctx, const std::size_t num_threads) {
+    const ICoarsener* parent_coarsener, PartitionContext& p_ctx, const std::size_t num_threads
+) {
     const Graph* graph = parent_coarsener->coarsest_graph();
 
     if (num_threads == 1) { // base case: compute bipartition
@@ -50,7 +52,8 @@ PartitionedGraph ParallelInitialPartitioner::partition_recursive(
 }
 
 PartitionedGraph ParallelInitialPartitioner::split_and_join(
-    const ICoarsener* coarsener, const PartitionContext& p_ctx, const bool converged, const std::size_t num_threads) {
+    const ICoarsener* coarsener, const PartitionContext& p_ctx, const bool converged, const std::size_t num_threads
+) {
     const Graph*      graph            = coarsener->coarsest_graph();
     const std::size_t num_copies       = helper::compute_num_copies(_input_ctx, graph->n(), converged, num_threads);
     const std::size_t threads_per_copy = num_threads / num_copies;

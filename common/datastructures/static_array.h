@@ -213,8 +213,8 @@ public:
 
     void restrict(const std::size_t new_size) {
         KASSERT(
-            new_size <= _size,
-            "restricted size " << new_size << " must be smaller than the unrestricted size " << _size);
+            new_size <= _size, "restricted size " << new_size << " must be smaller than the unrestricted size " << _size
+        );
         _unrestricted_size = _size;
         _size              = new_size;
     }

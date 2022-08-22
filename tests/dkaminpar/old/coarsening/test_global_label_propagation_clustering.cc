@@ -18,7 +18,8 @@ using namespace fixtures3PE;
 
 auto compute_clustering(
     const DistributedGraph& graph, const NodeWeight max_cluster_weight, bool merge_singleton_nodes,
-    bool single_round = false) {
+    bool single_round = false
+) {
     Context ctx                                       = ::dkaminpar::create_default_context();
     ctx.coarsening.global_lp.merge_singleton_clusters = merge_singleton_nodes;
     ctx.coarsening.global_lp.num_iterations           = 5;
@@ -42,11 +43,13 @@ TEST_F(DistributedTriangles, HeavyEdgesOnPEs) {
     //  |    //\\    |
     //  +---7====6---+
     graph = graph::change_edge_weights_by_endpoints(
-        std::move(graph), {
-                              {0, 1, 10},
-                              {0, 2, 5},
-                              {1, 2, 5},
-                          });
+        std::move(graph),
+        {
+            {0, 1, 10},
+            {0, 2, 5},
+            {1, 2, 5},
+        }
+    );
 
     auto clustering = compute_clustering(graph, 3, true);
 

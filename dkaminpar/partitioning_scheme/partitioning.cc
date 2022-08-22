@@ -21,4 +21,4 @@ DistributedPartitionedGraph partition(const DistributedGraph& graph, const Conte
 
     __builtin_unreachable();
 }
-} // namespace dkaminpar
+} // namespace kaminpar::dist
