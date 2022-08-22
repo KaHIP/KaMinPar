@@ -371,7 +371,7 @@ gather_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph, const
 }
 } // namespace
 
-ExtractedSubgraphs distribute_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph) {
+ExtractedSubgraphs extract_and_scatter_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph) {
     auto extracted_local_subgraphs     = extract_local_block_induced_subgraphs(p_graph);
     auto [gathered_subgraphs, offsets] = gather_block_induced_subgraphs(p_graph, extracted_local_subgraphs);
 

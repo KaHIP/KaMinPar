@@ -8,7 +8,7 @@
 #include "dkaminpar/mpi/wrapper.h"
 
 namespace kaminpar::dist::testing {
-inline DistributedGraph make_distributed_circle_graph() {
+inline DistributedGraph make_circle_graph() {
     const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
     const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
 
@@ -27,7 +27,7 @@ inline DistributedGraph make_distributed_circle_graph() {
     return builder.finalize();
 }
 
-inline DistributedGraph make_distributed_isolated_graph(const NodeID num_nodes_per_pe) {
+inline DistributedGraph make_isolated_nodes_graph(const NodeID num_nodes_per_pe) {
     graph::Builder builder(MPI_COMM_WORLD);
     builder.initialize(num_nodes_per_pe);
     for (NodeID u = 0; u < num_nodes_per_pe; ++u) {
@@ -36,9 +36,28 @@ inline DistributedGraph make_distributed_isolated_graph(const NodeID num_nodes_p
     return builder.finalize();
 }
 
+inline DistributedGraph make_empty_graph() {
+    return make_isolated_nodes_graph(0);
+}
+
+inline DistributedGraph make_isolated_edges_graph(const NodeID num_edges_per_pe) {
+    const PEID   rank = mpi::get_comm_rank(MPI_COMM_WORLD);
+    const NodeID n0   = rank * num_edges_per_pe * 2;
+
+    graph::Builder builder(MPI_COMM_WORLD);
+    builder.initialize(2 * num_edges_per_pe);
+    for (EdgeID e = 0; e < num_edges_per_pe; ++e) {
+        builder.create_node(1);
+        builder.create_edge(1, n0 + 2 * e + 1);
+        builder.create_node(1);
+        builder.create_edge(1, n0 + 2 * e);
+    }
+    return builder.finalize();
+}
+
 // Each PE has a clique on a given number of nodes.
 // Nodes with the same local IDs are further connected in a global circle.
-inline DistributedGraph make_distributed_circle_clique_graph(const NodeID num_nodes_per_pe) {
+inline DistributedGraph make_circle_clique_graph(const NodeID num_nodes_per_pe) {
     const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
     const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
 
@@ -91,7 +110,7 @@ class DistributedIsolatedNodesGraphFixture : public DistributedTestFixture {
 protected:
     void SetUp() override {
         DistributedTestFixture::SetUp();
-        graph = make_distributed_isolated_graph(num_nodes_per_pe);
+        graph = make_isolated_nodes_graph(num_nodes_per_pe);
         n0    = rank * num_nodes_per_pe;
     }
 
@@ -112,7 +131,7 @@ class DistributedCircleGraphFixture : public DistributedTestFixture {
 protected:
     void SetUp() override {
         DistributedTestFixture::SetUp();
-        graph = make_distributed_circle_graph();
+        graph = make_circle_graph();
     }
 
 protected:

@@ -17,8 +17,8 @@ kaminpar_add_common_test(test_common_string common/string_test.cc)
 kaminpar_add_common_test(test_common_parallel_algorithm common/parallel/algorithm_test.cc)
 
 # dKaMinPar -> Graph Utils
-kaminpar_add_dist_test(test_dist_extract_block_induced_subgraph 
-    FILES dkaminpar/graphutils/extract_gather_block_induced_subgraphs_test.cc
+kaminpar_add_dist_test(test_dist_graph_extraction
+    FILES dkaminpar/graphutils/graph_extraction_test.cc
     CORES 1 4)
 
 # KaMinPar 

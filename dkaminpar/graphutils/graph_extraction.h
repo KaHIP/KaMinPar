@@ -25,11 +25,17 @@ struct ExtractedLocalSubgraphs {
     std::vector<NodeID>      mapping;
 };
 
+/*!
+ * Extracts the block induced subgraph for each block.
+ *
+ * @param p_graph Partitioned graph from which the block induced subgraphs are extracted.
+ * @return For each block k, a data structure describing the graph induced by all *local* nodes of p_graph in block k.
+ */
 ExtractedLocalSubgraphs extract_local_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph);
 
 struct ExtractedSubgraphs {
     /*!
-     * Completely local subgraphs assigned to this PE.
+     * Subgraphs assigned to this PE.
      */
     std::vector<shm::Graph> subgraphs;
 
@@ -47,15 +53,12 @@ struct ExtractedSubgraphs {
 };
 
 /*!
- * This operation builds a subgraph for each block of the partitioned graphs. The blocks are assigned to PE (each PE
- * gets the same number of blocks) and gathered, i.e., each PE will have an array of fully local graphs.
+ * Extracts all block induced subgraphs and distributes them to PEs.
  *
- * @param p_graph The distributed, partitioned graph whose block-induced subgraphs are extracted and assigned to PEs.
- *
- * @return Extracted, local subgraphs along with some meta data required to implement the reverse operation, i.e.,
- * projecting partitions of the extracted subgraphs back to the distributed graph.
+ * @param p_graph Partitioned graph from which the block induced subgraphs are extracted.
+ * @return Block induced subgraphs with meta data required to implement the reverse operation.
  */
-ExtractedSubgraphs distribute_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph);
+ExtractedSubgraphs extract_and_scatter_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph);
 
 DistributedPartitionedGraph copy_subgraph_partitions(
     DistributedPartitionedGraph p_graph, const std::vector<shm::PartitionedGraph>& p_subgraphs,

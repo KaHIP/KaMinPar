@@ -1,3 +1,9 @@
+/*******************************************************************************
+ * @file:   graph_extraction_test.cc
+ * @author: Daniel Seemaier
+ * @date:   29.04.2022
+ * @brief:  Unit tests to test the extraction of block induced subgraphs.
+ ******************************************************************************/
 #include <gmock/gmock.h>
 
 #include "tests/dkaminpar/distributed_graph_fixtures.h"
@@ -15,7 +21,7 @@ using namespace kaminpar::dist::testing;
 using namespace kaminpar::dist::testing::fixtures;
 
 inline auto extract_subgraphs(const DistributedPartitionedGraph& p_graph) {
-    return graph::distribute_block_induced_subgraphs(p_graph).subgraphs;
+    return graph::extract_and_scatter_block_induced_subgraphs(p_graph).subgraphs;
 }
 
 // One isolated node on each PE, no edges at all
@@ -124,7 +130,7 @@ TEST_F(DistributedCircleGraphFixture, extracts_local_node) {
 // Test extracting isolated nodes that are spread across PEs
 TEST_F(DistributedTestFixture, extracts_distributed_isolated_nodes) {
     // create graph with one local node for each PE
-    auto                 graph = make_distributed_isolated_graph(size);
+    auto                 graph = make_isolated_nodes_graph(size);
     std::vector<BlockID> partition(size);
     std::iota(partition.begin(), partition.end(), 0);
     auto p_graph = make_partitioned_graph(graph, static_cast<BlockID>(size), partition);
@@ -165,7 +171,7 @@ void expect_circle(const shm::Graph& graph) {
 
 // Test local clique + global circle extraction, where nodes within a clique belong to different blocks
 TEST_F(DistributedTestFixture, extract_circles_from_clique_graph) {
-    auto                 graph = make_distributed_circle_clique_graph(size);
+    auto                 graph = make_circle_clique_graph(size);
     std::vector<BlockID> partition(size);
     std::iota(partition.begin(), partition.end(), 0);
     auto p_graph = make_partitioned_graph(graph, static_cast<BlockID>(size), partition);
@@ -208,7 +214,7 @@ TEST_F(TwoIsolatedNodesOnEachPE, extract_two_isolated_node_blocks_per_pe) {
 
 // Test extracting two blocks, both containing a circle
 TEST_F(DistributedTestFixture, extract_two_blocks_from_clique_graph) {
-    auto                 graph = make_distributed_circle_clique_graph(2 * size); // two nodes per PE
+    auto                 graph = make_circle_clique_graph(2 * size); // two nodes per PE
     std::vector<BlockID> local_partition(2 * size);
     for (const NodeID u: graph.nodes()) {
         local_partition[u] = u;
@@ -239,7 +245,7 @@ TEST_F(DistributedTestFixture, extract_two_blocks_from_clique_graph) {
 // Test node weights
 TEST_F(DistributedTestFixture, node_weights_are_correct) {
     // create clique/circle graph with rank as node weight
-    auto                                       graph = make_distributed_circle_clique_graph(2 * size);
+    auto                                       graph = make_circle_clique_graph(2 * size);
     std::vector<std::pair<NodeID, NodeWeight>> node_weights;
     std::vector<BlockID>                       local_partition;
     for (const NodeID u: graph.nodes()) {
@@ -265,7 +271,7 @@ TEST_F(DistributedTestFixture, node_weights_are_correct) {
 TEST_F(OneIsolatedNodeOnEachPE, copy_partition_back_to_distributed_graph) {
     auto p_graph = make_partitioned_graph_by_rank(graph);
 
-    auto  result    = graph::distribute_block_induced_subgraphs(p_graph);
+    auto  result    = graph::extract_and_scatter_block_induced_subgraphs(p_graph);
     auto& subgraphs = result.subgraphs;
 
     // one block with one node -> assign to block 0
@@ -288,7 +294,7 @@ TEST_F(OneIsolatedNodeOnEachPE, copy_partition_back_to_distributed_graph) {
 TEST_F(TwoIsolatedNodesOnEachPE, copy_partition_back_to_distributed_graph) {
     auto p_graph = make_partitioned_graph_by_rank(graph);
 
-    auto  result    = graph::distribute_block_induced_subgraphs(p_graph);
+    auto  result    = graph::extract_and_scatter_block_induced_subgraphs(p_graph);
     auto& subgraphs = result.subgraphs;
 
     // one block with one node -> assign to block 0
@@ -312,7 +318,7 @@ TEST_F(TwoIsolatedNodesOnEachPE, copy_partition_back_to_distributed_graph) {
 
 // ... test with clique
 TEST_F(DistributedTestFixture, copy_partition_back_to_distributed_graph_circle) {
-    auto graph = make_distributed_circle_clique_graph(2 * size); // two nodes per PE
+    auto graph = make_circle_clique_graph(2 * size); // two nodes per PE
 
     // Always place two nodes in one partition
     std::vector<BlockID> local_partition(2 * size);
@@ -322,7 +328,7 @@ TEST_F(DistributedTestFixture, copy_partition_back_to_distributed_graph_circle) 
     auto p_graph = make_partitioned_graph(graph, size, local_partition);
 
     // Extract blocks
-    auto  result    = graph::distribute_block_induced_subgraphs(p_graph);
+    auto  result    = graph::extract_and_scatter_block_induced_subgraphs(p_graph);
     auto& subgraphs = result.subgraphs;
     ASSERT_EQ(subgraphs.size(), 1);
     auto& subgraph = subgraphs.front();
