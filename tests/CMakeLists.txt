@@ -23,6 +23,9 @@ kaminpar_add_dist_test(test_dist_graph_extraction
 kaminpar_add_dist_test(test_dist_graph_rearrangement
     FILES dkaminpar/graphutils/graph_rearrangement_test.cc
     CORES 1 4)
+kaminpar_add_dist_test(test_dist_independent_set
+    FILES dkaminpar/graphutils/independent_set_test.cc
+    CORES 1 4)
 
 # KaMinPar 
 kaminpar_add_shm_test(test_shm_io kaminpar/io_test.cc)

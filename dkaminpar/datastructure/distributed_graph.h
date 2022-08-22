@@ -6,6 +6,7 @@
  ******************************************************************************/
 #pragma once
 
+#include <algorithm>
 #include <vector>
 
 #include <tbb/parallel_for.h>
@@ -587,6 +588,7 @@ public:
   [[nodiscard]] const auto &raw_edge_weights() const { return _graph->raw_edge_weights(); }
   template<typename Lambda> inline void pfor_nodes(const NodeID from, const NodeID to, Lambda &&l) const { _graph->pfor_nodes(from, to, std::forward<Lambda>(l)); }
   template<typename Lambda> inline void pfor_nodes_range(const NodeID from, const NodeID to, Lambda &&l) const { _graph->pfor_nodes_range(from, to, std::forward<Lambda>(l)); }
+  template<typename Lambda> inline void pfor_all_nodes(Lambda &&l) const { _graph->pfor_all_nodes(std::forward<Lambda>(l)); }
   template<typename Lambda> inline void pfor_nodes(Lambda &&l) const { _graph->pfor_nodes(std::forward<Lambda>(l)); }
   template<typename Lambda> inline void pfor_nodes_range(Lambda &&l) const { _graph->pfor_nodes_range(std::forward<Lambda>(l)); }
   template<typename Lambda> inline void pfor_edges(Lambda &&l) const { _graph->pfor_edges(std::forward<Lambda>(l)); }
@@ -678,6 +680,13 @@ public:
 
     void reinit_block_weights() {
         init_block_weights();
+    }
+
+    [[nodiscard]] inline bool check_border_node(const NodeID u) const {
+        const BlockID u_block = block(u);
+        return std::any_of(adjacent_nodes(u).begin(), adjacent_nodes(u).end(), [&](const NodeID v) {
+            return u_block != block(v);
+        });
     }
 
 private:
