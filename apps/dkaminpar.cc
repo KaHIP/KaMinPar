@@ -11,7 +11,7 @@
 
 #include "dkaminpar/context.h"
 #include "dkaminpar/definitions.h"
-#include "dkaminpar/graphutils/rearrange_graph.h"
+#include "dkaminpar/graphutils/graph_rearrangement.h"
 #include "dkaminpar/io.h"
 #include "dkaminpar/logger.h"
 #include "dkaminpar/metrics.h"

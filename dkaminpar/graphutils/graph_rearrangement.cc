@@ -1,10 +1,10 @@
 /*******************************************************************************
- * @file:   rearrange_graph.cc
+ * @file:   graph_rearrangement.cc
  * @author: Daniel Seemaier
  * @date:   18.11.2021
  * @brief:  Sort and rearrange a graph by degree buckets.
  ******************************************************************************/
-#include "dkaminpar/graphutils/rearrange_graph.h"
+#include "dkaminpar/graphutils/graph_rearrangement.h"
 
 #include "dkaminpar/mpi/graph_communication.h"
 

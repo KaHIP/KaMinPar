@@ -18,7 +18,7 @@
 #include "dkaminpar/coarsening/global_clustering_contraction.h"
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructure/distributed_graph.h"
-#include "dkaminpar/graphutils/rearrange_graph.h"
+#include "dkaminpar/graphutils/graph_rearrangement.h"
 #include "dkaminpar/io.h"
 #include "dkaminpar/mpi/wrapper.h"
 

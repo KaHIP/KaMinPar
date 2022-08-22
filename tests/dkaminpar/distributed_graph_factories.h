@@ -8,6 +8,7 @@
 #pragma once
 
 #include <gtest/gtest.h>
+#include <mpi.h>
 
 #include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/datastructure/distributed_graph_builder.h"
@@ -15,6 +16,32 @@
 #include "dkaminpar/mpi/wrapper.h"
 
 namespace kaminpar::dist::testing {
+/*!
+ * Creates a distributed path with `num_nodes_per_pe` nodes per PE.
+ *
+ * @param num_nodes_per_pe Number of nodes per PE.
+ * @return Distributed graph with `num_nodes_per_pe` nodes per PE.
+ */
+inline DistributedGraph make_path(const NodeID num_nodes_per_pe) {
+    const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
+    const NodeID n0         = num_nodes_per_pe * rank;
+
+    graph::Builder builder(MPI_COMM_WORLD);
+    builder.initialize(num_nodes_per_pe);
+
+    for (NodeID u = 0; u < num_nodes_per_pe; ++u) {
+        builder.create_node(1);
+        if (n0 > 0 || u > 0) {
+            builder.create_edge(1, n0 + u - 1);
+        }
+        if (rank + 1 < size || u + 1 < num_nodes_per_pe) {
+            builder.create_edge(1, n0 + u + 1);
+        }
+    }
+
+    return builder.finalize();
+}
+
 /*!
  * Creates a distributed circle with one node on each PE.
  *

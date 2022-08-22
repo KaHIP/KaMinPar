@@ -1,5 +1,5 @@
 /*******************************************************************************
- * @file:   rearrange_graph.h
+ * @file:   graph_rearrangement.h
  * @author: Daniel Seemaier
  * @date:   18.11.2021
  * @brief:  Sort and rearrange a graph by degree buckets.
