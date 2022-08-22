@@ -20,7 +20,7 @@ namespace kaminpar::dist {
 using namespace kaminpar::dist::testing;
 using namespace kaminpar::dist::testing::fixtures;
 
-inline auto extract_subgraphs(const DistributedPartitionedGraph& p_graph) {
+inline auto extract_global_subgraphs(const DistributedPartitionedGraph& p_graph) {
     return graph::extract_and_scatter_block_induced_subgraphs(p_graph).subgraphs;
 }
 
@@ -28,7 +28,7 @@ inline auto extract_subgraphs(const DistributedPartitionedGraph& p_graph) {
 using OneIsolatedNodeOnEachPE = DistributedIsolatedNodesGraphFixture<1>;
 TEST_F(OneIsolatedNodeOnEachPE, extracts_local_node) {
     auto p_graph   = make_partitioned_graph_by_rank(graph);
-    auto subgraphs = extract_subgraphs(p_graph);
+    auto subgraphs = extract_global_subgraphs(p_graph);
 
     // each PE should get one block
     ASSERT_EQ(subgraphs.size(), 1);
@@ -45,7 +45,7 @@ TEST_F(OneIsolatedNodeOnEachPE, extracts_local_node) {
 using TwoIsolatedNodesOnEachPE = DistributedIsolatedNodesGraphFixture<2>;
 TEST_F(TwoIsolatedNodesOnEachPE, extracts_local_nodes) {
     auto p_graph   = make_partitioned_graph_by_rank(graph);
-    auto subgraphs = extract_subgraphs(p_graph);
+    auto subgraphs = extract_global_subgraphs(p_graph);
 
     // each PE should get one block
     ASSERT_EQ(subgraphs.size(), 1);
@@ -61,7 +61,7 @@ TEST_F(TwoIsolatedNodesOnEachPE, extracts_local_nodes) {
 // Test empty blocks
 TEST_F(EmptyGraphFixture, extracts_empty_graphs) {
     auto p_graph   = make_partitioned_graph_by_rank(graph);
-    auto subgraphs = extract_subgraphs(p_graph);
+    auto subgraphs = extract_global_subgraphs(p_graph);
 
     // still expect one (empty) block pe PE
     ASSERT_EQ(subgraphs.size(), 1);
@@ -77,7 +77,7 @@ TEST_F(EmptyGraphFixture, extracts_empty_graphs) {
 using OneEdgeOnEachPE = DistributedEdgesGraphFixture<1>;
 TEST_F(OneEdgeOnEachPE, extracts_local_edge) {
     auto p_graph   = make_partitioned_graph_by_rank(graph);
-    auto subgraphs = extract_subgraphs(p_graph);
+    auto subgraphs = extract_global_subgraphs(p_graph);
 
     // each PE should get one block
     ASSERT_EQ(subgraphs.size(), 1);
@@ -94,7 +94,7 @@ TEST_F(OneEdgeOnEachPE, extracts_local_edge) {
 using TenEdgesOnEachPE = DistributedEdgesGraphFixture<10>;
 TEST_F(TenEdgesOnEachPE, extracts_local_edges) {
     auto p_graph   = make_partitioned_graph_by_rank(graph);
-    auto subgraphs = extract_subgraphs(p_graph);
+    auto subgraphs = extract_global_subgraphs(p_graph);
 
     // each PE should still get one block
     ASSERT_EQ(subgraphs.size(), 1);
@@ -116,7 +116,7 @@ TEST_F(TenEdgesOnEachPE, extracts_local_edges) {
 // Test with cut edges: ring across PEs, but there should be still no local egdes
 TEST_F(DistributedCircleGraphFixture, extracts_local_node) {
     auto p_graph   = make_partitioned_graph_by_rank(graph);
-    auto subgraphs = extract_subgraphs(p_graph);
+    auto subgraphs = extract_global_subgraphs(p_graph);
 
     // each PE should still get one block
     ASSERT_EQ(subgraphs.size(), 1);
@@ -135,7 +135,7 @@ TEST_F(DistributedTestFixture, extracts_distributed_isolated_nodes) {
     std::iota(partition.begin(), partition.end(), 0);
     auto p_graph = make_partitioned_graph(graph, static_cast<BlockID>(size), partition);
 
-    auto subgraphs = extract_subgraphs(p_graph);
+    auto subgraphs = extract_global_subgraphs(p_graph);
 
     // each PE should get one block
     ASSERT_EQ(subgraphs.size(), 1);
@@ -176,7 +176,7 @@ TEST_F(DistributedTestFixture, extract_circles_from_clique_graph) {
     std::iota(partition.begin(), partition.end(), 0);
     auto p_graph = make_partitioned_graph(graph, static_cast<BlockID>(size), partition);
 
-    auto subgraphs = extract_subgraphs(p_graph);
+    auto subgraphs = extract_global_subgraphs(p_graph);
 
     // each PE should still get one block
     ASSERT_EQ(subgraphs.size(), 1);
@@ -200,7 +200,7 @@ TEST_F(DistributedTestFixture, extract_circles_from_clique_graph) {
 TEST_F(TwoIsolatedNodesOnEachPE, extract_two_isolated_node_blocks_per_pe) {
     auto p_graph =
         make_partitioned_graph(graph, 2 * size, {static_cast<BlockID>(2 * rank), static_cast<BlockID>(2 * rank + 1)});
-    auto subgraphs = extract_subgraphs(p_graph);
+    auto subgraphs = extract_global_subgraphs(p_graph);
 
     // two blocks per PE
     ASSERT_EQ(subgraphs.size(), 2);
@@ -221,7 +221,7 @@ TEST_F(DistributedTestFixture, extract_two_blocks_from_clique_graph) {
     }
     auto p_graph = make_partitioned_graph(graph, 2 * size, local_partition);
 
-    auto subgraphs = extract_subgraphs(p_graph);
+    auto subgraphs = extract_global_subgraphs(p_graph);
 
     // two blocks per PE
     ASSERT_EQ(subgraphs.size(), 2);
@@ -254,7 +254,7 @@ TEST_F(DistributedTestFixture, node_weights_are_correct) {
     }
     graph          = change_node_weights(std::move(graph), node_weights);
     auto p_graph   = make_partitioned_graph(graph, 2 * size, local_partition);
-    auto subgraphs = extract_subgraphs(p_graph);
+    auto subgraphs = extract_global_subgraphs(p_graph);
 
     ASSERT_EQ(subgraphs.size(), 2);
 

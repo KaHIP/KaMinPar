@@ -6,29 +6,123 @@
  ******************************************************************************/
 #include <gmock/gmock.h>
 
-#include "tests/dkaminpar/distributed_graph_fixtures.h"
-#include "tests/dkaminpar/graph_assertions.h"
-#include "tests/dkaminpar/graph_helpers.h"
+#include "tests/dkaminpar/distributed_graph_factories.h"
+#include "tests/dkaminpar/distributed_graph_helpers.h"
 
+#include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/graphutils/graph_extraction.h"
 
 #include "kaminpar/datastructure/graph.h"
 
 #include "common/datastructures/static_array.h"
 
+using testing::ElementsAre;
+using testing::UnorderedElementsAre;
+
 namespace kaminpar::dist {
 using namespace kaminpar::dist::testing;
-using namespace kaminpar::dist::testing::fixtures;
 
-inline auto extract_subgraphs(const DistributedPartitionedGraph& p_graph) {
+////////////////////////////////////////////////////////////////////////////////
+/// Extract local subgraphs
+////////////////////////////////////////////////////////////////////////////////
+
+inline auto extract_local_subgraphs(const DistributedPartitionedGraph& p_graph) {
+    return graph::extract_local_block_induced_subgraphs(p_graph);
+}
+
+TEST(LocalGraphExtractionTest, extract_local_nodes_from_isolated_nodes_graph_1) {
+    auto graph   = make_isolated_nodes_graph(1);
+    auto p_graph = make_partitioned_graph_by_rank(graph);
+    auto result  = extract_local_subgraphs(p_graph);
+
+    ASSERT_EQ(result.shared_nodes.size(), 1);
+    EXPECT_EQ(result.shared_nodes[0], 0);
+    EXPECT_EQ(result.shared_edges.size(), 0);
+    ASSERT_EQ(result.shared_node_weights.size(), 1);
+    EXPECT_EQ(result.shared_node_weights[0], 1);
+    EXPECT_EQ(result.shared_edge_weights.size(), 0);
+}
+
+TEST(LocalGraphExtractionTest, extract_local_nodes_from_isolated_nodes_graph_2) {
+    auto graph   = make_isolated_nodes_graph(2);
+    auto p_graph = make_partitioned_graph_by_rank(graph);
+    auto result  = extract_local_subgraphs(p_graph);
+
+    ASSERT_EQ(result.shared_nodes.size(), 2);
+    EXPECT_THAT(result.shared_nodes, ElementsAre(0, 0));
+    EXPECT_EQ(result.shared_edges.size(), 0);
+    ASSERT_EQ(result.shared_node_weights.size(), 2);
+    EXPECT_THAT(result.shared_node_weights, ElementsAre(1, 1));
+    EXPECT_EQ(result.shared_edge_weights.size(), 0);
+}
+
+TEST(LocalGraphExtractionTest, extract_local_edge_from_isolated_edges_graph_1) {
+    auto graph   = make_isolated_edges_graph(1);
+    auto p_graph = make_partitioned_graph_by_rank(graph);
+    auto result  = extract_local_subgraphs(p_graph);
+
+    ASSERT_EQ(result.shared_nodes.size(), 2);
+    EXPECT_THAT(result.shared_nodes, ElementsAre(1, 2));
+    ASSERT_EQ(result.shared_edges.size(), 2);
+    EXPECT_THAT(result.shared_edges, ElementsAre(1, 0));
+    ASSERT_EQ(result.shared_node_weights.size(), 2);
+    EXPECT_THAT(result.shared_node_weights, ElementsAre(1, 1));
+    ASSERT_EQ(result.shared_edge_weights.size(), 2);
+    EXPECT_THAT(result.shared_edge_weights, ElementsAre(1, 1));
+}
+
+TEST(LocalGraphExtractionTest, extract_empty_graph) {
+    auto graph   = make_empty_graph();
+    auto p_graph = make_partitioned_graph_by_rank(graph);
+    auto result  = extract_local_subgraphs(p_graph);
+
+    EXPECT_EQ(result.shared_nodes.size(), 0);
+    EXPECT_EQ(result.shared_edges.size(), 0);
+    EXPECT_EQ(result.shared_node_weights.size(), 0);
+    EXPECT_EQ(result.shared_edge_weights.size(), 0);
+}
+
+TEST(LocalGraphExtractionTest, extract_circle_graph) {
+    auto graph   = make_circle_graph();
+    auto p_graph = make_partitioned_graph_by_rank(graph);
+    auto result  = extract_local_subgraphs(p_graph);
+
+    ASSERT_EQ(result.shared_nodes.size(), 1);
+    EXPECT_THAT(result.shared_nodes, ElementsAre(0));
+    EXPECT_EQ(result.shared_edges.size(), 0);
+    ASSERT_EQ(result.shared_node_weights.size(), 1);
+    EXPECT_THAT(result.shared_node_weights, ElementsAre(1));
+    EXPECT_EQ(result.shared_edge_weights.size(), 0);
+}
+
+TEST(LocalGraphExtractionTest, extract_local_triangles) {
+    auto graph   = make_circle_clique_graph(3);
+    auto p_graph = make_partitioned_graph_by_rank(graph);
+    auto result  = extract_local_subgraphs(p_graph);
+
+    ASSERT_EQ(result.shared_nodes.size(), 3);
+    EXPECT_THAT(result.shared_nodes, ElementsAre(2, 4, 6));
+    ASSERT_EQ(result.shared_edges.size(), 6);
+    EXPECT_THAT(result.shared_edges, UnorderedElementsAre(1, 2, 0, 2, 0, 1));
+    ASSERT_EQ(result.shared_node_weights.size(), 3);
+    EXPECT_THAT(result.shared_node_weights, ElementsAre(1, 1, 1));
+    ASSERT_EQ(result.shared_edge_weights.size(), 6);
+    EXPECT_THAT(result.shared_edge_weights, ElementsAre(1, 1, 1, 1, 1, 1));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+/// Extract global block induced subgraphs
+////////////////////////////////////////////////////////////////////////////////
+
+inline auto extract_global_subgraphs(const DistributedPartitionedGraph& p_graph) {
     return graph::extract_and_scatter_block_induced_subgraphs(p_graph).subgraphs;
 }
 
 // One isolated node on each PE, no edges at all
-TEST(GraphExtractionTest, extract_local_node_from_isolated_nodes_graph_1) {
+TEST(GlobalGraphExtractionTest, extract_local_node_from_isolated_nodes_graph_1) {
     auto graph     = make_isolated_nodes_graph(1);
     auto p_graph   = make_partitioned_graph_by_rank(graph);
-    auto subgraphs = extract_subgraphs(p_graph);
+    auto subgraphs = extract_global_subgraphs(p_graph);
 
     // each PE should get one block
     ASSERT_EQ(subgraphs.size(), 1);
@@ -42,10 +136,10 @@ TEST(GraphExtractionTest, extract_local_node_from_isolated_nodes_graph_1) {
 }
 
 // Two isolated nodes on each PE, no edges at all
-TEST(GraphExtractionTest, extract_local_nodes_from_isolated_nodes_graph_2) {
+TEST(GlobalGraphExtractionTest, extract_local_nodes_from_isolated_nodes_graph_2) {
     auto graph     = make_isolated_nodes_graph(2);
     auto p_graph   = make_partitioned_graph_by_rank(graph);
-    auto subgraphs = extract_subgraphs(p_graph);
+    auto subgraphs = extract_global_subgraphs(p_graph);
 
     // each PE should get one block
     ASSERT_EQ(subgraphs.size(), 1);
@@ -59,10 +153,10 @@ TEST(GraphExtractionTest, extract_local_nodes_from_isolated_nodes_graph_2) {
 }
 
 // Test empty blocks
-TEST(GraphExtractionTest, extract_empty_graphs) {
+TEST(GlobalGraphExtractionTest, extract_empty_graphs) {
     auto graph     = make_empty_graph();
     auto p_graph   = make_partitioned_graph_by_rank(graph);
-    auto subgraphs = extract_subgraphs(p_graph);
+    auto subgraphs = extract_global_subgraphs(p_graph);
 
     // still expect one (empty) block pe PE
     ASSERT_EQ(subgraphs.size(), 1);
@@ -75,10 +169,10 @@ TEST(GraphExtractionTest, extract_empty_graphs) {
 }
 
 // Test with local egdes
-TEST(GraphExtractionTest, extract_local_edge) {
+TEST(GlobalGraphExtractionTest, extract_local_edge) {
     auto graph     = make_isolated_edges_graph(1);
     auto p_graph   = make_partitioned_graph_by_rank(graph);
-    auto subgraphs = extract_subgraphs(p_graph);
+    auto subgraphs = extract_global_subgraphs(p_graph);
 
     // each PE should get one block
     ASSERT_EQ(subgraphs.size(), 1);
@@ -92,10 +186,10 @@ TEST(GraphExtractionTest, extract_local_edge) {
 }
 
 // Test with 10 local egdes
-TEST(GraphExtractionTest, extract_local_edges) {
+TEST(GlobalGraphExtractionTest, extract_local_edges) {
     auto graph     = make_isolated_edges_graph(10);
     auto p_graph   = make_partitioned_graph_by_rank(graph);
-    auto subgraphs = extract_subgraphs(p_graph);
+    auto subgraphs = extract_global_subgraphs(p_graph);
 
     // each PE should still get one block
     ASSERT_EQ(subgraphs.size(), 1);
@@ -115,10 +209,10 @@ TEST(GraphExtractionTest, extract_local_edges) {
 }
 
 // Test with cut edges: ring across PEs, but there should be still no local egdes
-TEST(GraphExtractionTest, extract_local_node_from_circle_graph) {
+TEST(GlobalGraphExtractionTest, extract_local_node_from_circle_graph) {
     auto graph     = make_circle_graph();
     auto p_graph   = make_partitioned_graph_by_rank(graph);
-    auto subgraphs = extract_subgraphs(p_graph);
+    auto subgraphs = extract_global_subgraphs(p_graph);
 
     // each PE should still get one block
     ASSERT_EQ(subgraphs.size(), 1);
@@ -130,7 +224,7 @@ TEST(GraphExtractionTest, extract_local_node_from_circle_graph) {
 }
 
 // Test extracting isolated nodes that are spread across PEs
-TEST(GraphExtractionTest, extract_distributed_isolated_nodes) {
+TEST(GlobalGraphExtractionTest, extract_distributed_isolated_nodes) {
     const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
 
     // create graph with one local node for each PE
@@ -139,7 +233,7 @@ TEST(GraphExtractionTest, extract_distributed_isolated_nodes) {
     std::iota(partition.begin(), partition.end(), 0);
     auto p_graph = make_partitioned_graph(graph, static_cast<BlockID>(size), partition);
 
-    auto subgraphs = extract_subgraphs(p_graph);
+    auto subgraphs = extract_global_subgraphs(p_graph);
 
     // each PE should get one block
     ASSERT_EQ(subgraphs.size(), 1);
@@ -174,7 +268,7 @@ void expect_circle(const shm::Graph& graph) {
 }
 
 // Test local clique + global circle extraction, where nodes within a clique belong to different blocks
-TEST(GraphExtractionTest, extract_circles_from_clique_graph) {
+TEST(GlobalGraphExtractionTest, extract_circles_from_clique_graph) {
     const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
 
     auto                 graph = make_circle_clique_graph(size);
@@ -182,7 +276,7 @@ TEST(GraphExtractionTest, extract_circles_from_clique_graph) {
     std::iota(partition.begin(), partition.end(), 0);
     auto p_graph = make_partitioned_graph(graph, static_cast<BlockID>(size), partition);
 
-    auto subgraphs = extract_subgraphs(p_graph);
+    auto subgraphs = extract_global_subgraphs(p_graph);
 
     // each PE should still get one block
     ASSERT_EQ(subgraphs.size(), 1);
@@ -203,13 +297,13 @@ TEST(GraphExtractionTest, extract_circles_from_clique_graph) {
 }
 
 // Test extracting two blocks per PE, each block with a isolated node
-TEST(GraphExtractionTest, extract_two_isolated_node_blocks_per_pe) {
+TEST(GlobalGraphExtractionTest, extract_two_isolated_node_blocks_per_pe) {
     const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
 
     auto graph = make_isolated_nodes_graph(2);
     auto p_graph =
         make_partitioned_graph(graph, 2 * size, {static_cast<BlockID>(2 * rank), static_cast<BlockID>(2 * rank + 1)});
-    auto subgraphs = extract_subgraphs(p_graph);
+    auto subgraphs = extract_global_subgraphs(p_graph);
 
     // two blocks per PE
     ASSERT_EQ(subgraphs.size(), 2);
@@ -222,7 +316,7 @@ TEST(GraphExtractionTest, extract_two_isolated_node_blocks_per_pe) {
 }
 
 // Test extracting two blocks, both containing a circle
-TEST(GraphExtractionTest, extract_two_blocks_from_clique_graph) {
+TEST(GlobalGraphExtractionTest, extract_two_blocks_from_clique_graph) {
     const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
 
     auto                 graph = make_circle_clique_graph(2 * size); // two nodes per PE
@@ -232,7 +326,7 @@ TEST(GraphExtractionTest, extract_two_blocks_from_clique_graph) {
     }
     auto p_graph = make_partitioned_graph(graph, 2 * size, local_partition);
 
-    auto subgraphs = extract_subgraphs(p_graph);
+    auto subgraphs = extract_global_subgraphs(p_graph);
 
     // two blocks per PE
     ASSERT_EQ(subgraphs.size(), 2);
@@ -254,7 +348,7 @@ TEST(GraphExtractionTest, extract_two_blocks_from_clique_graph) {
 }
 
 // Test node weights
-TEST(GraphExtractionTest, extract_node_weights_in_circle_clique_graph) {
+TEST(GlobalGraphExtractionTest, extract_node_weights_in_circle_clique_graph) {
     const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
 
     // create clique/circle graph with rank as node weight
@@ -267,7 +361,7 @@ TEST(GraphExtractionTest, extract_node_weights_in_circle_clique_graph) {
     }
     graph          = change_node_weights(std::move(graph), node_weights);
     auto p_graph   = make_partitioned_graph(graph, 2 * size, local_partition);
-    auto subgraphs = extract_subgraphs(p_graph);
+    auto subgraphs = extract_global_subgraphs(p_graph);
 
     ASSERT_EQ(subgraphs.size(), 2);
 
@@ -281,7 +375,7 @@ TEST(GraphExtractionTest, extract_node_weights_in_circle_clique_graph) {
 }
 
 // Test copying subgraph partition back to the distributed graph: one isolated nodes that is not migrated
-TEST(GraphExtractionTest, project_isolated_nodes_1_partition) {
+TEST(GlobalGraphExtractionTest, project_isolated_nodes_1_partition) {
     const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
 
     auto graph   = make_isolated_nodes_graph(1);
@@ -307,7 +401,7 @@ TEST(GraphExtractionTest, project_isolated_nodes_1_partition) {
 }
 
 // ... test with two nodes
-TEST(GraphExtractionTest, project_isolated_nodes_2_partition) {
+TEST(GlobalGraphExtractionTest, project_isolated_nodes_2_partition) {
     const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
 
     auto graph   = make_isolated_nodes_graph(2);
@@ -336,7 +430,7 @@ TEST(GraphExtractionTest, project_isolated_nodes_2_partition) {
 }
 
 // ... test with clique
-TEST(GraphExtractionTest, project_circle_clique_partition) {
+TEST(GlobalGraphExtractionTest, project_circle_clique_partition) {
     const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
 
     auto graph = make_circle_clique_graph(2 * size); // two nodes per PE

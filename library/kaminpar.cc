@@ -1,6 +1,5 @@
 /*******************************************************************************
  * @file:   kaminpar.cc
- *
  * @author: Daniel Seemaier
  * @date:   21.09.21
  * @brief:  KaMinPar library implementation.

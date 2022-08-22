@@ -1,7 +1,19 @@
+/*******************************************************************************
+ * @file:   distributed_graph_helpers.h
+ * @author: Daniel Seemaier
+ * @date:   29.04.2022
+ * @brief:  Utility functions to handle distributed graphs in unit tests.
+ ******************************************************************************/
 #pragma once
 
+#include <vector>
+
 #include "dkaminpar/datastructure/distributed_graph.h"
+#include "dkaminpar/definitions.h"
+#include "dkaminpar/mpi/graph_communication.h"
 #include "dkaminpar/mpi/wrapper.h"
+
+#include "common/parallel/atomic.h"
 
 namespace kaminpar::dist::testing {
 inline DistributedPartitionedGraph
