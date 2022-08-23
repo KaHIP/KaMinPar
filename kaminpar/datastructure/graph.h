@@ -367,6 +367,10 @@ public:
         init_block_weights();
     }
 
+    void update_graph_ptr(const Graph* graph) {
+        _graph = graph;
+    }
+
 private:
     void init_block_weights() {
         tbb::enumerable_thread_specific<std::vector<BlockWeight>> tl_block_weights{[&] {
