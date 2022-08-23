@@ -94,5 +94,22 @@ TEST(IndependentBorderSetTest, select_in_circle_graph) {
         expect_nonempty_independent_set(p_graph, is);
     }
 }
+
+TEST(IndependentBorderSetTest, select_in_cut_edge_graph_10) {
+    for (const NodeID num_nodes_per_pe: {1, 2, 8, 16, 32, 64}) {
+        auto graph     = make_cut_edge_graph(num_nodes_per_pe);
+        auto p_graph   = make_partitioned_graph_by_rank(graph);
+        auto is        = find_independent_border_set(p_graph, 0);
+        auto global_is = allgather_independent_set(p_graph, is);
+
+        const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
+        if (size == 1) {
+            ASSERT_TRUE(global_is.empty());
+        } else {
+            ASSERT_EQ(global_is.size(), size * num_nodes_per_pe);
+            expect_nonempty_independent_set(p_graph, is);
+        }
+    }
+}
 } // namespace kaminpar::dist::graph
 

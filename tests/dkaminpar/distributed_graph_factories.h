@@ -153,4 +153,53 @@ inline DistributedGraph make_circle_clique_graph(const NodeID num_nodes_per_pe) 
 
     return builder.finalize();
 }
+
+/*!
+ * Creates a distributed graph with `2 * num_nodes_per_pe` nodes on each PE, that are connected to a node on the next /
+ * previous PE:
+ *
+ * O O-#-O O-#-O O
+ * |   #######   |
+ * +-------------+
+ *
+ * @param num_nodes_per_pe Number of nodes on each side of each PE.
+ * @return Distributed graph as described above.
+ */
+inline DistributedGraph make_cut_edge_graph(const NodeID num_nodes_per_pe) {
+    const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
+    const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
+
+    graph::Builder builder(MPI_COMM_WORLD);
+    builder.initialize(2 * num_nodes_per_pe);
+
+    const GlobalNodeID my_n0_to_prev = 2 * num_nodes_per_pe * rank;
+    const GlobalNodeID my_n0_to_next = 2 * num_nodes_per_pe * rank + num_nodes_per_pe;
+
+    // connect to prev PE
+    for (NodeID u = 0; u < num_nodes_per_pe; ++u) {
+        builder.create_node(1);
+
+        GlobalNodeID neighbor;
+        if (rank == 0) {
+            neighbor = 2 * size * num_nodes_per_pe + my_n0_to_prev + u - num_nodes_per_pe;
+        } else {
+            neighbor = my_n0_to_prev + u - num_nodes_per_pe;
+        }
+        builder.create_edge(1, neighbor);
+    }
+
+    for (NodeID u = 0; u < num_nodes_per_pe; ++u) {
+        builder.create_node(1);
+
+        GlobalNodeID neighbor;
+        if (rank + 1 == size) {
+            neighbor = my_n0_to_next + u + num_nodes_per_pe - 2 * size * num_nodes_per_pe;
+        } else {
+            neighbor = my_n0_to_next + u + num_nodes_per_pe;
+        }
+        builder.create_edge(1, neighbor);
+    }
+
+    return builder.finalize();
+}
 } // namespace kaminpar::dist::testing
