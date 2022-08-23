@@ -111,5 +111,24 @@ TEST(IndependentBorderSetTest, select_in_cut_edge_graph_10) {
         }
     }
 }
+
+TEST(IndependentBorderSetTest, randomization_works) {
+    auto graph   = make_cut_edge_graph(1000);
+    auto p_graph = make_partitioned_graph_by_rank(graph);
+
+    auto a_is        = find_independent_border_set(p_graph, 0);
+    auto a_global_is = allgather_independent_set(p_graph, a_is);
+
+    auto b_is        = find_independent_border_set(p_graph, 1);
+    auto b_global_is = allgather_independent_set(p_graph, b_is);
+
+    // prob. for same IS negetible
+    const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
+    if (size == 1) {
+        EXPECT_EQ(a_global_is, b_global_is);
+    } else {
+        EXPECT_NE(a_global_is, b_global_is);
+    }
+}
 } // namespace kaminpar::dist::graph
 
