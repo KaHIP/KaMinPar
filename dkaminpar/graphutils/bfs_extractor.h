@@ -9,10 +9,14 @@
 #include <limits>
 #include <type_traits>
 
+#include <tbb/enumerable_thread_specific.h>
+
 #include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/definitions.h"
 
 #include "kaminpar/datastructure/graph.h"
+
+#include "common/datastructures/marker.h"
 
 namespace kaminpar::dist::graph {
 class BfsExtractedGraph {
@@ -52,6 +56,8 @@ public:
     void set_exterior_strategy(ExteriorStrategy exterior_strategy);
 
 private:
+    BfsExtractedGraph extract_from_node(NodeID start_node);
+
     void grow_multi_seeded_region(const std::vector<std::vector<NodeID>>& seed_nodes_per_distance);
 
     void        init_external_degrees();
@@ -68,6 +74,10 @@ private:
     ExteriorStrategy   _exterior_strategy{ExteriorStrategy::EXCLUDE};
 
     NoinitVector<EdgeWeight> _external_degrees{};
+
+    tbb::enumerable_thread_specific<Marker<>> _taken_ets{[&] {
+        return Marker<>(_p_graph.total_n());
+    }};
 };
 } // namespace kaminpar::dist::graph
 

@@ -15,6 +15,7 @@
 #include "dkaminpar/datastructure/distributed_graph.h"
 
 #include "common/datastructures/marker.h"
+#include "common/random.h"
 
 namespace kaminpar::dist::graph {
 SET_DEBUG(true);
@@ -27,6 +28,17 @@ std::vector<BfsExtractedGraph> BfsExtractor::extract(const std::vector<NodeID>& 
         init_external_degrees();
     }
 
+    std::vector<BfsExtractedGraph> ans(start_nodes.size());
+
+    tbb::parallel_for<std::size_t>(0, start_nodes.size(), [&](const std::size_t i) {
+        const NodeID start_node = start_nodes[i];
+        grow_multi_seeded_region({{start_node}}, 0);
+    });
+
+    return ans;
+}
+
+BfsExtractedGraph BfsExtractor::extract_from_node(const NodeID start_node) {
     return {};
 }
 
@@ -37,12 +49,15 @@ void BfsExtractor::grow_multi_seeded_region(const std::vector<std::vector<NodeID
          ++distance) {
     }
 
-    // Initialize stack with closest seed nodes
     std::stack<NodeID> search;
 
-    // Prob. generator @todo
-    std::mt19937 gen(0);
-    Marker<>     taken(_p_graph.total_n());
+    auto& gen   = Random::instance().generator();
+    auto& taken = _taken_ets.local();
+    taken.reset();
+
+    // Result vectors
+    std::vector<NodeID>                    ans;
+    std::vector<std::pair<NodeID, NodeID>> ans_hop_seeds;
 
     auto add_layer_seeds_to_stack = [&](const NodeID layer) {
         if (layer < seed_nodes_per_distance.size()) {
@@ -64,15 +79,20 @@ void BfsExtractor::grow_multi_seeded_region(const std::vector<std::vector<NodeID
         search.pop();
         --front_size;
 
+        ans.push_back(node);
+        if (ans.size() == _max_size) {
+            break;
+        }
+
         // Grow search to neighbors of `node`
         if (_p_graph.is_owned_node(node)) {
-            auto explore_edge = [&](const EdgeID e, const NodeID v) {
+            auto explore_neighbor = [&](const NodeID v) {
                 // Only consider nodes once
                 if (taken.get(v)) {
                     return;
                 }
-                taken.set(v);
 
+                taken.set(v);
                 search.push(v);
             };
 
@@ -80,25 +100,26 @@ void BfsExtractor::grow_multi_seeded_region(const std::vector<std::vector<NodeID
             const bool is_high_degree_node = _p_graph.degree(node) >= _high_degree_threshold;
             if (!is_high_degree_node || _high_degree_strategy == HighDegreeStrategy::TAKE_ALL) {
                 for (const auto [e, v]: _p_graph.neighbors(node)) {
-                    explore_edge(e, v);
+                    explore_neighbor(v);
                 }
             } else if (_high_degree_strategy == HighDegreeStrategy::CUT) {
                 for (EdgeID e = _p_graph.first_edge(node); e < _p_graph.first_edge(node) + _high_degree_threshold;
                      ++e) {
-                    explore_edge(e, _p_graph.edge_target(e));
+                    explore_neighbor(_p_graph.edge_target(e));
                 }
             } else if (_high_degree_strategy == HighDegreeStrategy::SAMPLE) {
                 const double                        skip_prob = 1.0 * _high_degree_threshold / _p_graph.degree(node);
                 std::geometric_distribution<EdgeID> skip_dist(skip_prob);
 
                 for (EdgeID e = _p_graph.first_edge(node); e < _p_graph.first_invalid_edge(node); e += skip_dist(gen)) {
-                    explore_edge(e, _p_graph.edge_target(e));
+                    explore_neighbor(_p_graph.edge_target(e));
                 }
             } else {
                 // do nothing for HighDegreeStrategy::IGNORE
             }
         } else {
-            // new seed node
+            // New seed node
+            ans_hop_seeds.emplace_back(distance, node);
         }
 
         // Increase distance to seed if current layer was fully consumed
