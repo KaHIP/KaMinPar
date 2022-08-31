@@ -47,6 +47,33 @@ void DistributedGraph::print() const {
     SLOG << buf.str();
 }
 
+void DistributedGraph::init_high_degree_info(const EdgeID high_degree_threshold) const {
+    if (_high_degree_threshold == high_degree_threshold) {
+        return;
+    }
+
+    _high_degree_threshold = high_degree_threshold;
+    _high_degree_ghost_node.resize(ghost_n());
+
+    struct Message {
+        NodeID       node;
+        std::uint8_t high_degree;
+    };
+
+    mpi::graph::sparse_alltoall_interface_to_pe<Message>(
+        *this,
+        [&](const NodeID u) -> Message { return {.node = u, .high_degree = degree(u) > _high_degree_threshold}; },
+        [&](const auto& recv_buffer, const PEID pe) {
+            tbb::parallel_for<std::size_t>(0, recv_buffer.size(), [&](const std::size_t i) {
+                const auto [remote_node, high_degree]     = recv_buffer[i];
+                const auto   global_node                  = static_cast<GlobalNodeID>(offset_n(pe) + remote_node);
+                const NodeID local_node                   = global_to_local_node(global_node);
+                _high_degree_ghost_node[local_node - n()] = high_degree;
+            });
+        }
+    );
+}
+
 namespace {
 inline EdgeID degree_bucket(const EdgeID degree) {
     return (degree == 0) ? 0 : math::floor_log2(degree) + 1;

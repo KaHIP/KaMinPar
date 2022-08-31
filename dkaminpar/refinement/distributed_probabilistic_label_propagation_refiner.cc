@@ -108,6 +108,7 @@ public:
           _next_partition(ctx.partition.local_n()),
           _gains(ctx.partition.local_n()),
           _block_weights(ctx.partition.k) {
+        set_max_degree(_lp_ctx.active_high_degree_threshold);
         allocate(ctx.partition.local_n());
     }
 

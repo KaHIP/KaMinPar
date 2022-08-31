@@ -574,6 +574,10 @@ protected:
             auto& rating_map      = _rating_map_ets.local();
 
             for (NodeID u = r.begin(); u != r.end(); ++u) {
+                if (_graph->degree(u) > _max_degree) {
+                    continue;
+                }
+
                 if constexpr (Config::kUseActiveSetStrategy) {
                     if (!_active[u].load(std::memory_order_relaxed)) {
                         continue;
@@ -609,6 +613,7 @@ protected:
     using Base::_current_num_clusters;
     using Base::_graph;
     using Base::_rating_map_ets;
+    using Base::_max_degree;
 };
 
 /*!

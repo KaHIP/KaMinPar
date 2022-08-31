@@ -195,9 +195,10 @@ public:
           _c_ctx{ctx.coarsening},
           _changed_label(ctx.partition.local_n()),
           _cluster_weights{ctx.partition.total_n() - ctx.partition.local_n()},
-          _local_cluster_weights(ctx.partition.local_n()) {
+          _local_cluster_weights(ctx.partition.local_n()),
+          _passive_high_degree_threshold(_c_ctx.global_lp.passive_high_degree_threshold) {
         set_max_num_iterations(_c_ctx.global_lp.num_iterations);
-        set_max_degree(_c_ctx.global_lp.large_degree_threshold);
+        set_max_degree(_c_ctx.global_lp.active_high_degree_threshold);
         set_max_num_neighbors(_c_ctx.global_lp.max_num_neighbors);
     }
 
@@ -205,6 +206,13 @@ public:
         SCOPED_TIMER("Label propagation");
 
         _global_graph = &graph;
+        {
+            SCOPED_TIMER("High-degree computation");
+            if (_passive_high_degree_threshold > 0) {
+                graph.init_high_degree_info(_passive_high_degree_threshold);
+            }
+        }
+
         {
             SCOPED_TIMER("Allocation", TIMER_DETAIL);
             allocate(graph);
@@ -365,6 +373,11 @@ public:
     [[nodiscard]] inline bool activate_neighbor(const NodeID u) {
         return _graph->is_owned_node(u);
     }
+
+    [[nodiscard]] inline bool accept_neighbor(const NodeID node) {
+        return _passive_high_degree_threshold == 0 || !_graph->is_high_degree_node(node);
+    }
+
     //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     //
     // Called from base class
@@ -495,6 +508,8 @@ private:
         return ClusterWeightsMap::handle_type{_cluster_weights};
     }};
     scalable_vector<GlobalNodeWeight>                                        _local_cluster_weights;
+
+    EdgeID _passive_high_degree_threshold{0};
 };
 
 //

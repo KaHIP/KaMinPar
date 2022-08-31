@@ -58,13 +58,22 @@ void create_coarsening_label_propagation_options(
             &lp_ctx.num_chunks
         )
         .argument(
-            prefix + "-ignore-ghost-nodes", "[Local LP only] Ignore ghost nodes for cluster ratings",
-            &lp_ctx.ignore_ghost_nodes
+            prefix + "-ignore-ghost-nodes", "[Local] Ignore ghost nodes for cluster ratings", &lp_ctx.ignore_ghost_nodes
         )
         .argument(
             prefix + "-keep-ghost-clusters",
-            "[Local LP only] Instead of completely dissolving ghost clusters, remap them to a local cluster ID.",
+            "[Local] Instead of completely dissolving ghost clusters, remap them to a local cluster ID.",
             &lp_ctx.keep_ghost_clusters
+        )
+        .argument(
+            prefix + "-active-large-degree-threshold",
+            "[Global] Nodes with a degree larger than this are not moved to a new cluster.",
+            &lp_ctx.active_high_degree_threshold
+        )
+        .argument(
+            prefix + "-passive-large-degree-threshold",
+            "[Global] Nodes with a degree larger than this are not considered when moving neighbors to a new cluster.",
+            &lp_ctx.passive_high_degree_threshold
         );
 }
 
@@ -130,14 +139,22 @@ void create_refinement_label_propagation_options(
     LabelPropagationRefinementContext& lp_ctx, kaminpar::Arguments& args, const std::string& name,
     const std::string& prefix
 ) {
-    // clang-format off
-  args.group(name, prefix)
-      .argument(prefix + "-iterations", "Maximum number of LP iterations.", &lp_ctx.num_iterations)
-      .argument(prefix + "-total-num-chunks", "Number of communication chunks times number of PEs.", &lp_ctx.total_num_chunks)
-      .argument(prefix + "-min-num-chunks", "Minimum number of communication chunks.", &lp_ctx.min_num_chunks)
-      .argument(prefix + "-num-chunks", "Number of communication chunks. If set to 0, the value is computed from total-num-chunks.", &lp_ctx.num_chunks)
-      ;
-    // clang-format on
+    args.group(name, prefix)
+        .argument(prefix + "-iterations", "Maximum number of LP iterations.", &lp_ctx.num_iterations)
+        .argument(
+            prefix + "-total-num-chunks", "Number of communication chunks times number of PEs.",
+            &lp_ctx.total_num_chunks
+        )
+        .argument(prefix + "-min-num-chunks", "Minimum number of communication chunks.", &lp_ctx.min_num_chunks)
+        .argument(
+            prefix + "-num-chunks",
+            "Number of communication chunks. If set to 0, the value is computed from total-num-chunks.",
+            &lp_ctx.num_chunks
+        )
+        .argument(
+            prefix + "-active-large-degree-threshold",
+            "Nodes with a degree larger than this are not moved to new blocks.", &lp_ctx.active_high_degree_threshold
+        );
 }
 
 void create_refinement_fm_options(

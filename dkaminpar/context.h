@@ -61,7 +61,8 @@ DECLARE_ENUM_STRING_CONVERSION(BalancingAlgorithm, balancing_algorithm);
 
 struct LabelPropagationCoarseningContext {
     std::size_t num_iterations;
-    NodeID      large_degree_threshold;
+    NodeID      passive_high_degree_threshold;
+    NodeID      active_high_degree_threshold;
     NodeID      max_num_neighbors;
     bool        merge_singleton_clusters;
     double      merge_nonadjacent_clusters_threshold;
@@ -86,6 +87,7 @@ struct LabelPropagationCoarseningContext {
 };
 
 struct LabelPropagationRefinementContext {
+    NodeID active_high_degree_threshold;
     std::size_t num_iterations;
     std::size_t total_num_chunks;
     std::size_t num_chunks;

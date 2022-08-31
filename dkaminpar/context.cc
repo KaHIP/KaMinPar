@@ -56,7 +56,8 @@ DEFINE_ENUM_STRING_CONVERSION(BalancingAlgorithm, balancing_algorithm) = {
 
 void LabelPropagationCoarseningContext::print(std::ostream& out, const std::string& prefix) const {
     out << prefix << "num_iterations=" << num_iterations << " "                                             //
-        << prefix << "max_degree=" << large_degree_threshold << " "                                         //
+        << prefix << "active_high_degree_threshold=" << active_high_degree_threshold << " "                 //
+        << prefix << "passive_high_degree_threshold=" << passive_high_degree_threshold << " "               //
         << prefix << "max_num_neighbors=" << max_num_neighbors << " "                                       //
         << prefix << "merge_singleton_clusters=" << merge_singleton_clusters << " "                         //
         << prefix << "merge_nonadjacent_clusters_threshold=" << merge_nonadjacent_clusters_threshold << " " //
@@ -68,11 +69,12 @@ void LabelPropagationCoarseningContext::print(std::ostream& out, const std::stri
 }
 
 void LabelPropagationRefinementContext::print(std::ostream& out, const std::string& prefix) const {
-    out << prefix << "num_iterations=" << num_iterations << " "        //
-        << prefix << "total_num_chunks=" << total_num_chunks << " "    //
-        << prefix << "num_chunks=" << num_chunks << " "                //
-        << prefix << "min_num_chunks=" << min_num_chunks << " "        //
-        << prefix << "num_move_attempts=" << num_move_attempts << " "; //
+    out << prefix << "active_high_degree_threshold=" << active_high_degree_threshold << " " //
+        << prefix << "num_iterations=" << num_iterations << " "                             //
+        << prefix << "total_num_chunks=" << total_num_chunks << " "                         //
+        << prefix << "num_chunks=" << num_chunks << " "                                     //
+        << prefix << "min_num_chunks=" << min_num_chunks << " "                             //
+        << prefix << "num_move_attempts=" << num_move_attempts << " ";                      //
 }
 
 void FMRefinementContext::print(std::ostream& out, const std::string& prefix) const {
@@ -218,7 +220,8 @@ Context create_default_context() {
       .global_contraction_algorithm = GlobalContractionAlgorithm::MINIMAL_MIGRATION,
       .global_lp = {
         .num_iterations = 5,
-        .large_degree_threshold = 1'000'000,
+        .passive_high_degree_threshold = 1'000'000,
+        .active_high_degree_threshold = 1'000'000,
         .max_num_neighbors = kInvalidNodeID,
         .merge_singleton_clusters = true,
         .merge_nonadjacent_clusters_threshold = 0.5,
@@ -232,7 +235,7 @@ Context create_default_context() {
       .local_clustering_algorithm = LocalClusteringAlgorithm::NOOP,
       .local_lp = {
         .num_iterations = 5,
-        .large_degree_threshold = 1'000'000,
+        .active_high_degree_threshold = 1'000'000,
         .max_num_neighbors = kInvalidNodeID,
         .merge_singleton_clusters = true,
         .merge_nonadjacent_clusters_threshold = 0.5,

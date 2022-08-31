@@ -454,6 +454,16 @@ public:
 
     void print() const;
 
+    // High degree classification
+
+    void init_high_degree_info(EdgeID high_degree_threshold) const;
+
+    [[nodiscard]] bool is_high_degree_node(const NodeID node) const {
+        KASSERT(!_high_degree_ghost_node.empty());
+        KASSERT(!is_ghost_node(node) || node - n() < _high_degree_ghost_node.size());
+        return is_ghost_node(node) ? _high_degree_ghost_node[node - n()] : degree(node) > _high_degree_threshold;
+    }
+
 private:
     void init_degree_buckets();
     void init_total_node_weight();
@@ -483,6 +493,9 @@ private:
     scalable_vector<PEID>         _ghost_owner{};
     scalable_vector<GlobalNodeID> _ghost_to_global{};
     growt::StaticGhostNodeMapping _global_to_ghost{};
+
+    mutable scalable_vector<std::uint8_t> _high_degree_ghost_node{};
+    mutable EdgeID                        _high_degree_threshold;
 
     std::vector<EdgeID> _edge_cut_to_pe{};
     std::vector<EdgeID> _comm_vol_to_pe{};
