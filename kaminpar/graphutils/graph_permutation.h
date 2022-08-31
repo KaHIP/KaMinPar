@@ -6,6 +6,8 @@
  ******************************************************************************/
 #pragma once
 
+#include <array>
+
 #include "kaminpar/context.h"
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/definitions.h"

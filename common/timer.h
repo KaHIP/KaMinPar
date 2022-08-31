@@ -11,6 +11,7 @@
 #include <map>
 #include <mutex>
 #include <unordered_map>
+#include <array>
 
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/task_arena.h>

@@ -8,6 +8,7 @@
 
 #include <utility>
 #include <vector>
+#include <array>
 
 #include "kaminpar/context.h"
 #include "kaminpar/datastructure/graph.h"
