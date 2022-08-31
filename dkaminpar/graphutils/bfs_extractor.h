@@ -85,7 +85,7 @@ private:
         std::vector<EdgeWeight>   edge_weights;
     };
 
-    std::vector<GraphSegment> exchange_subgraphs(const std::vector<std::vector<NodeID>>& nodes);
+//    std::vector<GraphSegment> exchange_subgraphs(const std::vector<std::vector<NodeID>>& nodes);
 
     struct InducedSubgraph {
         shm::Graph                 graph;
@@ -103,7 +103,6 @@ private:
     const DistributedGraph*            _graph   = nullptr;
     const DistributedPartitionedGraph* _p_graph = nullptr;
 
-    bool               _overlap{false};
     PEID               _max_hops{std::numeric_limits<PEID>::max()};
     GlobalNodeID       _max_radius{std::numeric_limits<GlobalNodeID>::max()};
     GlobalNodeID       _max_size{std::numeric_limits<GlobalNodeID>::max()};

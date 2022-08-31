@@ -36,8 +36,8 @@ auto BfsExtractor::extract(const std::vector<NodeID>& seed_nodes) -> Result {
         init_external_degrees();
     }
 
-    const PEID size = mpi::get_comm_size(_p_graph->communicator());
-    const PEID rank = mpi::get_comm_rank(_p_graph->communicator());
+    const PEID size = mpi::get_comm_size(_graph->communicator());
+    const PEID rank = mpi::get_comm_rank(_graph->communicator());
 
     NoinitVector<GhostSeedNode> initial_seed_nodes;
     for (const auto seed_node: seed_nodes) {
@@ -89,7 +89,7 @@ auto BfsExtractor::exchange_ghost_seed_nodes(std::vector<NoinitVector<GhostSeedE
     std::vector<NoinitVector<GhostSeedEdge>> incoming_ghost_seed_edges(size);
     mpi::sparse_alltoall<NodeID>(
         std::move(sendbufs),
-        [&](const PEID pe, const auto& recvbuf) {
+        [&](const auto& recvbuf, const PEID pe) {
             for (std::size_t i = 0; i < recvbuf.size();) {
                 const PEID   initiating_pe        = asserting_cast<PEID>(recvbuf[i++]);
                 const NodeID remote_ghost_node    = recvbuf[i++];
@@ -130,18 +130,18 @@ auto BfsExtractor::exchange_ghost_seed_nodes(std::vector<NoinitVector<GhostSeedE
     return {std::move(next_ghost_seed_nodes), std::move(next_ignored_nodes)};
 }
 
-std::vector<BfsExtractor::GraphSegment> exchange_subgraphs(const std::vector<std::vector<NodeID>>& nodes) {
-    const PEID size = mpi::get_comm_size(_p_graph.communicator());
+/*std::vector<BfsExtractor::GraphSegment> exchange_subgraphs(const std::vector<std::vector<NodeID>>& nodes) {
+    const PEID size = mpi::get_comm_size(_graph->communicator());
 
     // Build subgraph segments for each PE
     std::vector<std::vector<NodeID>> sendbufs(static_cast<std::size_t>(size));
     for (PEID pe = 0; pe < size; ++pe) {
     }
-}
+}*/
 
-BfsExtractedGraph BfsExtractor::extract_from_node(const NodeID start_node) {
+/*BfsExtractedGraph BfsExtractor::extract_from_node(const NodeID start_node) {
     return {};
-}
+}*/
 
 auto BfsExtractor::bfs(NoinitVector<GhostSeedNode>& ghost_seed_nodes, const NoinitVector<NodeID>& ignored_nodes)
     -> ExploredSubgraph {
@@ -169,11 +169,11 @@ auto BfsExtractor::bfs(NoinitVector<GhostSeedNode>& ghost_seed_nodes, const Noin
     // Initialize search from closest ghost seed nodes
     NodeID                      current_distance = std::get<0>(ghost_seed_nodes.front());
     std::stack<NodeID>          front;
-    NoinitVector<NodeID>        visited_nodes;
+    NoinitVector<ExploredNode>  visited_nodes;
     NoinitVector<GhostSeedEdge> next_ghost_seed_edges;
 
     auto add_seed_nodes_to_search_front = [&](const NodeID with_distance) {
-        for (const auto& [distance, hops, node]: ghost_seed_nodes) {
+        for (const auto& [distance, node]: ghost_seed_nodes) {
             if (distance == with_distance) {
                 front.push(node);
             } else if (with_distance < distance) {
@@ -194,7 +194,7 @@ auto BfsExtractor::bfs(NoinitVector<GhostSeedNode>& ghost_seed_nodes, const Noin
         --front_size;
 
         // Explore neighbors of owned nodes
-        if (_p_graph.is_owned_node(node)) {
+        if (_graph->is_owned_node(node)) {
             explore_outgoing_edges(node, [&](const NodeID neighbor) {
                 if (taken.get(neighbor)) {
                     // Skip nodes already discovered
@@ -203,7 +203,7 @@ auto BfsExtractor::bfs(NoinitVector<GhostSeedNode>& ghost_seed_nodes, const Noin
 
                 if (!_graph->is_owned_node(neighbor)) {
                     // Record ghost seeds for the next hop
-                    next_ghost_seed_nodes.emplace_back(node, neighbor, current_distance + 1);
+                    next_ghost_seed_edges.emplace_back(node, neighbor, current_distance + 1);
                     // do not mark as taken
                     return true;
                 }
@@ -214,7 +214,7 @@ auto BfsExtractor::bfs(NoinitVector<GhostSeedNode>& ghost_seed_nodes, const Noin
                 }
 
                 // Record node as discovered
-                const bool is_border_node = current_distance + 1 == _max_distance;
+                const bool is_border_node = current_distance + 1 == _max_radius;
                 visited_nodes.emplace_back(neighbor, is_border_node);
                 taken.set(neighbor);
 
@@ -233,43 +233,39 @@ auto BfsExtractor::bfs(NoinitVector<GhostSeedNode>& ghost_seed_nodes, const Noin
 
     ExploredSubgraph ans;
     ans.explored_nodes  = std::move(visited_nodes);
-    ans.explored_ghosts = std::move(next_ghost_seed_nodes);
+    ans.explored_ghosts = std::move(next_ghost_seed_edges);
     return ans;
 }
 
 template <typename Lambda>
 void BfsExtractor::explore_outgoing_edges(const NodeID node, Lambda&& lambda) {
-    const bool is_high_degree_node = _p_graph.degree(node) >= _high_degree_threshold;
+    const bool is_high_degree_node = _graph->degree(node) >= _high_degree_threshold;
 
     if (!is_high_degree_node || _high_degree_strategy == HighDegreeStrategy::TAKE_ALL) {
-        for (const auto [e, v]: _p_graph.neighbors(node)) {
-            if (!explore_neighbor(v)) {
+        for (const auto [e, v]: _graph->neighbors(node)) {
+            if (!lambda(v)) {
                 break;
             }
         }
     } else if (_high_degree_strategy == HighDegreeStrategy::CUT) {
-        for (EdgeID e = _p_graph.first_edge(node); e < _p_graph.first_edge(node) + _high_degree_threshold; ++e) {
-            if (!explore_neighbor(_p_graph.edge_target(e))) {
+        for (EdgeID e = _graph->first_edge(node); e < _graph->first_edge(node) + _high_degree_threshold; ++e) {
+            if (!lambda(_graph->edge_target(e))) {
                 break;
             }
         }
     } else if (_high_degree_strategy == HighDegreeStrategy::SAMPLE) {
-        const double                        skip_prob = 1.0 * _high_degree_threshold / _p_graph.degree(node);
+        const double                        skip_prob = 1.0 * _high_degree_threshold / _graph->degree(node);
         std::geometric_distribution<EdgeID> skip_dist(skip_prob);
 
-        for (EdgeID e = _p_graph.first_edge(node); e < _p_graph.first_invalid_edge(node);
+        for (EdgeID e = _graph->first_edge(node); e < _graph->first_invalid_edge(node);
              ++e) { // e += skip_dist(gen)) { // @todo
-            if (!explore_neighbor(_p_graph.edge_target(e))) {
+            if (!lambda(_graph->edge_target(e))) {
                 break;
             }
         }
     } else {
         // do nothing for HighDegreeStrategy::IGNORE
     }
-}
-
-BfsExtractedGraph BfsExtractor::extract(const NodeID start_node) {
-    return std::move(extract(std::vector<NodeID>{start_node}).front());
 }
 
 BfsExtractor::InducedSubgraph BfsExtractor::build_induced_subgraph(const std::vector<NodeID>& nodes) {
@@ -281,20 +277,20 @@ BfsExtractor::InducedSubgraph BfsExtractor::build_induced_subgraph(const std::ve
     }
 
     // Data strucutes for subgraph
-    const NodeID            sub_n       = nodes.size() + _p_graph.k();
+    const NodeID            sub_n       = nodes.size() + _p_graph->k();
     const NodeID            sub_n_prime = nodes.size();
     std::vector<EdgeID>     sub_nodes(sub_n + 1);
     std::vector<NodeID>     sub_edges;
     std::vector<NodeWeight> sub_node_weights(sub_n);
     std::vector<EdgeWeight> sub_edge_weights;
 
-    std::vector<EdgeWeight> edge_weights_to_block_nodes(_p_graph.k());
+    std::vector<EdgeWeight> edge_weights_to_block_nodes(_p_graph->k());
 
     for (const NodeID u: nodes) {
         sub_nodes[u]        = asserting_cast<EdgeID>(sub_edges.size());
-        sub_node_weights[u] = _p_graph.node_weight(u);
+        sub_node_weights[u] = _graph->node_weight(u);
 
-        for (const auto [e, v]: _p_graph.neighbors(u)) {
+        for (const auto [e, v]: _graph->neighbors(u)) {
             auto v_it = mapping_graph_to_subgraph.find(v);
 
             if (v_it != mapping_graph_to_subgraph.end()) {
@@ -302,14 +298,14 @@ BfsExtractor::InducedSubgraph BfsExtractor::build_induced_subgraph(const std::ve
                 const auto [v_prime, sub_v] = *v_it;
                 KASSERT(v_prime == v);
                 sub_edges.push_back(sub_v);
-                sub_edge_weights.push_back(_p_graph.edge_weight(e));
+                sub_edge_weights.push_back(_graph->edge_weight(e));
             } else {
                 // v is not in the subgraph -> contributes to our edge to a block node
-                edge_weights_to_block_nodes[_p_graph.block(v)] += _p_graph.edge_weight(e);
+                edge_weights_to_block_nodes[_p_graph->block(v)] += _graph->edge_weight(e);
             }
         }
 
-        for (const BlockID b: _p_graph.blocks()) {
+        for (const BlockID b: _p_graph->blocks()) {
             if (edge_weights_to_block_nodes[b] > 0) {
                 sub_edges.push_back(sub_n_prime + b);
                 sub_edge_weights.push_back(edge_weights_to_block_nodes[b]);
@@ -341,13 +337,13 @@ BfsExtractor::InducedSubgraph BfsExtractor::build_induced_subgraph(const std::ve
     NoinitVector<GlobalNodeID> mapping(mapping_subgraph_to_graph.size());
     std::transform(
         mapping_subgraph_to_graph.begin(), mapping_subgraph_to_graph.end(), mapping.begin(),
-        [&](const NodeID node) { return _p_graph.local_to_global_node(node); }
+        [&](const NodeID node) { return _graph->local_to_global_node(node); }
     );
 
     NoinitVector<BlockID> partition(sub_n);
     std::transform(
         mapping_subgraph_to_graph.begin(), mapping_subgraph_to_graph.end(), partition.begin(),
-        [&](const NodeID node) { return _p_graph.block(node); }
+        [&](const NodeID node) { return _p_graph->block(node); }
     );
 
     return {std::move(subgraph), std::move(partition), std::move(mapping)};
@@ -355,10 +351,6 @@ BfsExtractor::InducedSubgraph BfsExtractor::build_induced_subgraph(const std::ve
 
 auto BfsExtractor::build_result(std::vector<IncompleteSubgraph>& fragments) -> Result {
     return {};
-}
-
-void BfsExtractor::allow_overlap() {
-    _overlap = true;
 }
 
 void BfsExtractor::set_max_hops(const PEID max_hops) {
@@ -382,21 +374,21 @@ void BfsExtractor::set_high_degree_strategy(const HighDegreeStrategy high_degree
 }
 
 void BfsExtractor::init_external_degrees() {
-    _external_degrees.resize(_p_graph.n() * _p_graph.k());
+    _external_degrees.resize(_graph->n() * _p_graph->k());
     tbb::parallel_for<std::size_t>(0, _external_degrees.size(), [&](const std::size_t i) { _external_degrees[i] = 0; });
 
-    _p_graph.pfor_nodes([&](const NodeID u) {
-        for (const auto [e, v]: _p_graph.neighbors(u)) {
-            const BlockID    v_block  = _p_graph.block(v);
-            const EdgeWeight e_weight = _p_graph.edge_weight(e);
+    _graph->pfor_nodes([&](const NodeID u) {
+        for (const auto [e, v]: _graph->neighbors(u)) {
+            const BlockID    v_block  = _p_graph->block(v);
+            const EdgeWeight e_weight = _graph->edge_weight(e);
             external_degree(u, v_block) += e_weight;
         }
     });
 }
 
 EdgeWeight& BfsExtractor::external_degree(const NodeID u, const BlockID b) {
-    KASSERT(u * _p_graph.k() + b < _external_degrees.size());
-    return _external_degrees[u * _p_graph.k() + b];
+    KASSERT(u * _p_graph->k() + b < _external_degrees.size());
+    return _external_degrees[u * _p_graph->k() + b];
 }
 } // namespace kaminpar::dist::graph
 

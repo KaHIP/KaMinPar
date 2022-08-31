@@ -47,17 +47,13 @@ T accumulate(const Container& r, T initial) {
     return initial + b._ans;
 }
 
-template <typename InputIt, typename T>
-T accumulate(InputIt begin, InputIt end, T initial) {
-    return accumulate(begin, end, initial, [](const auto& v) { return v; });
-}
-
 template <typename InputIt, typename T, typename UnaryOperation>
 T accumulate(InputIt begin, InputIt end, T initial, UnaryOperation op) {
     using size_t = typename std::iterator_traits<InputIt>::difference_type;
 
     class body {
         const InputIt _begin;
+        UnaryOperation _op;
 
     public:
         T _ans{};
@@ -67,7 +63,7 @@ T accumulate(InputIt begin, InputIt end, T initial, UnaryOperation op) {
             auto          ans   = _ans;
             auto          end   = indices.end();
             for (auto i = indices.begin(); i != end; ++i) {
-                ans += op(*(begin + i));
+                ans += _op(*(begin + i));
             }
             _ans = ans;
         }
@@ -76,13 +72,18 @@ T accumulate(InputIt begin, InputIt end, T initial, UnaryOperation op) {
             _ans += y._ans;
         }
 
-        body(body& x, tbb::split) : _begin{x._begin} {}
-        body(const InputIt begin) : _begin{begin} {}
+        body(body& x, tbb::split) : _begin{x._begin}, _op{x._op} {}
+        body(const InputIt begin, UnaryOperation op) : _begin{begin}, _op{op} {}
     };
 
-    body b{begin};
+    body b{begin, op};
     tbb::parallel_reduce(tbb::blocked_range<size_t>(static_cast<size_t>(0), std::distance(begin, end)), b);
     return initial + b._ans;
+}
+
+template <typename InputIt, typename T>
+T accumulate(InputIt begin, InputIt end, T initial) {
+    return ::kaminpar::parallel::accumulate(begin, end, initial, [](const auto& v) { return v; });
 }
 
 template <typename Container>
