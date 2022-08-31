@@ -6,12 +6,13 @@
  ******************************************************************************/
 #pragma once
 
+#include <array>
 #include <chrono>
 #include <iostream>
 #include <map>
 #include <mutex>
 #include <unordered_map>
-#include <array>
+#include <vector>
 
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/task_arena.h>
