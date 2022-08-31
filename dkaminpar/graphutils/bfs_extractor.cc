@@ -24,73 +24,118 @@
 namespace kaminpar::dist::graph {
 SET_DEBUG(true);
 
-BfsExtractor::BfsExtractor(const DistributedPartitionedGraph& p_graph) : _p_graph(p_graph) {}
+BfsExtractor::BfsExtractor(const DistributedGraph& graph) : _graph(&graph) {}
 
-std::vector<BfsExtractedGraph> BfsExtractor::extract(const std::vector<NodeID>& start_nodes) {
+void BfsExtractor::initialize(const DistributedPartitionedGraph& p_graph) {
+    _p_graph = &p_graph;
+}
+
+auto BfsExtractor::extract(const std::vector<NodeID>& seed_nodes) -> Result {
     // Initialize external degrees if needed
     if (_exterior_strategy == ExteriorStrategy::CONTRACT && _external_degrees.empty()) {
         init_external_degrees();
     }
 
-    const PEID size = mpi::get_comm_size(_p_graph.communicator());
-    const PEID rank = mpi::get_comm_rank(_p_graph.communicator());
+    const PEID size = mpi::get_comm_size(_p_graph->communicator());
+    const PEID rank = mpi::get_comm_rank(_p_graph->communicator());
 
-    std::vector<GhostSeedNode> initial_seed_nodes;
-    for (const auto start_node: start_nodes) {
-        initial_seed_nodes.emplace_back(0, start_node);
+    NoinitVector<GhostSeedNode> initial_seed_nodes;
+    for (const auto seed_node: seed_nodes) {
+        initial_seed_nodes.emplace_back(0, seed_node);
     }
 
-    auto local_result = run_multi_seeded_bfs(rank, initial_seed_nodes);
+    auto local_bfs_result = bfs(initial_seed_nodes, {});
+
+    std::vector<NoinitVector<GhostSeedEdge>> cur_ghost_seed_edges(size);
+    cur_ghost_seed_edges[rank] = std::move(local_bfs_result.explored_ghosts);
+
+    for (PEID hop = 0; hop < _max_hops; ++hop) {
+        auto  ghost_exchange_result = exchange_ghost_seed_nodes(cur_ghost_seed_edges);
+        auto& next_ghost_seed_nodes = ghost_exchange_result.first;
+        auto& next_ignored_nodes    = ghost_exchange_result.second;
+
+        tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
+            auto continued_bfs_result = bfs(next_ghost_seed_nodes[pe], next_ignored_nodes[pe]);
+            cur_ghost_seed_edges[pe]  = std::move(continued_bfs_result.explored_ghosts);
+        });
+    }
 }
 
-std::vector<std::vector<BfsExtractor::GhostSeedNode>>
-exchange_ghost_seed_nodes(const std::vector<std::vector<GhostSeedNode>>& all_ghost_seed_nodes) {
-    const PEID size = mpi::get_comm_size(_p_graph.communicator());
+auto BfsExtractor::exchange_ghost_seed_nodes(std::vector<NoinitVector<GhostSeedEdge>>& outgoing_ghost_seed_edges)
+    -> std::pair<std::vector<NoinitVector<GhostSeedNode>>, std::vector<NoinitVector<NodeID>>> {
+    const PEID size = mpi::get_comm_size(_graph->communicator());
 
-    std::vector<std::vector<NodeID>> sendbufs(static_cast<std::size_t>(size));
+    // Exchange new ghost nodes
+    std::vector<NoinitVector<NodeID>> sendbufs(size);
     for (PEID pe = 0; pe < size; ++pe) {
-        const auto& ghost_seed_nodes = all_ghost_seed_nodes[pe];
-        if (!ghost_seed_nodes.empty()) {
-            sendbufs.push_back(asserting_cast<NodeID>(pe));
-            sendbufs.push_back(asserting_cast<NodeID>(ghost_seed_nodes.size()));
-        }
-        for (const auto& [distance, local_ghost_node]: ghost_seed_nodes) {
-            const auto owner       = _p_graph.ghost_owner(local_ghost_node);
-            const auto global_node = _p_graph.ghost_to_global(local_ghost_node);
-            const auto remote_node = asserting_cast<NodeID>(global_node - _p_graph.node_distribution(owner));
-            sendbufs[owner].push_back(distance);
-            sendbufs[owner].push_back(remote_node);
+        // Ghost seed nodes to continue the BFS search initiated on PE `pe`
+        const auto& ghost_seed_edges = outgoing_ghost_seed_edges[pe];
+
+        for (const auto& [local_interface_node, local_ghost_node, distance]: ghost_seed_edges) {
+            KASSERT(_graph->is_ghost_node(local_ghost_node));
+
+            const auto ghost_owner       = _graph->ghost_owner(local_ghost_node);
+            const auto global_ghost_node = _graph->local_to_global_node(local_ghost_node);
+            const auto remote_ghost_node =
+                asserting_cast<NodeID>(global_ghost_node - _graph->node_distribution(ghost_owner));
+
+            sendbufs[ghost_owner].push_back(static_cast<NodeID>(pe));
+            sendbufs[ghost_owner].push_back(local_interface_node);
+            sendbufs[ghost_owner].push_back(remote_ghost_node);
+            sendbufs[ghost_owner].push_back(distance);
         }
     }
 
-    std::vector<std::vector<GhostSeedNode>> next_all_ghost_seed_nodes(static_cast<std::size_t>(size));
+    std::vector<NoinitVector<GhostSeedEdge>> incoming_ghost_seed_edges(size);
     mpi::sparse_alltoall<NodeID>(
         std::move(sendbufs),
         [&](const PEID pe, const auto& recvbuf) {
             for (std::size_t i = 0; i < recvbuf.size();) {
-                const PEID        initial_pe     = asserting_cast<PEID>(recvbuf[i++]);
-                const std::size_t num_seed_nodes = asserting_cast<std::size_t>(recvbuf[i++]);
+                const PEID   initiating_pe        = asserting_cast<PEID>(recvbuf[i++]);
+                const NodeID remote_ghost_node    = recvbuf[i++];
+                const NodeID local_interface_node = recvbuf[i++];
+                const NodeID distance             = recvbuf[i++];
 
-                for (std::size_t j = 0; j < num_seed_nodes; ++j) {
-                    const NodeID distance = recvbuf[i++];
-                    const NodeID node     = recvbuf[i++];
-                    next_all_ghost_seed_nodes[initial_pe].emplace_back(distance, node);
-                }
+                const auto global_ghost_node = _graph->node_distribution(pe) + remote_ghost_node;
+                const auto local_ghost_node  = _graph->global_to_local_node(global_ghost_node);
+
+                incoming_ghost_seed_edges[initiating_pe].emplace_back(local_ghost_node, local_interface_node, distance);
             }
         },
-        _p_graph.communicator()
+        _graph->communicator()
     );
 
-    return next_all_ghost_seed_nodes;
+    // Filter edges that where already explored from this PE
+    std::vector<NoinitVector<GhostSeedNode>> next_ghost_seed_nodes(size);
+    std::vector<NoinitVector<NodeID>>        next_ignored_nodes(size);
+
+    tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
+        auto& outgoing_edges = outgoing_ghost_seed_edges[pe];
+        auto& incoming_edges = incoming_ghost_seed_edges[pe];
+        std::sort(outgoing_edges.begin(), outgoing_edges.end());
+        std::sort(incoming_edges.begin(), incoming_edges.end());
+
+        // std::size_t outgoing_pos  = 0;
+        for (std::size_t incoming_pos = 0; incoming_pos < incoming_edges.size(); ++incoming_pos) {
+            const auto& [cur_ghost_node, cur_interface_node, distance] = incoming_edges[incoming_pos];
+
+            // @todo filter
+            // Only use this as a ghost node
+
+            next_ghost_seed_nodes[pe].emplace_back(distance, cur_interface_node);
+            next_ignored_nodes[pe].push_back(cur_ghost_node);
+        }
+    });
+
+    return {std::move(next_ghost_seed_nodes), std::move(next_ignored_nodes)};
 }
 
-std::vector<BfsExtractor::GraphSegment> exchange_subgraphs(const std::vector<std::vector<NodeID>> &nodes) {
+std::vector<BfsExtractor::GraphSegment> exchange_subgraphs(const std::vector<std::vector<NodeID>>& nodes) {
     const PEID size = mpi::get_comm_size(_p_graph.communicator());
 
     // Build subgraph segments for each PE
     std::vector<std::vector<NodeID>> sendbufs(static_cast<std::size_t>(size));
     for (PEID pe = 0; pe < size; ++pe) {
-        
     }
 }
 
@@ -98,18 +143,23 @@ BfsExtractedGraph BfsExtractor::extract_from_node(const NodeID start_node) {
     return {};
 }
 
-BfsExtractor::LocalBfsResult
-BfsExtractor::run_multi_seeded_bfs(const PEID initial_pe, std::vector<BfsExtractor::GhostSeedNode>& ghost_seed_nodes) {
+auto BfsExtractor::bfs(NoinitVector<GhostSeedNode>& ghost_seed_nodes, const NoinitVector<NodeID>& ignored_nodes)
+    -> ExploredSubgraph {
     // Catch case where there are no seed nodes
     if (ghost_seed_nodes.empty()) {
         return {};
     }
 
     // Maximum number of nodes to be explored by this BFS search
-    const NodeID max_size = _p_graph.total_n() < _max_size ? _p_graph.total_n() : _max_size * ghost_seed_nodes.size();
+    const NodeID max_size = _graph->total_n() < _max_size ? _graph->total_n() : _max_size * ghost_seed_nodes.size();
 
     // Marker for nodes that were already explored by this BFS search
     auto& taken = _taken_ets.local();
+    taken.reset();
+    for (const NodeID ignored_node: ignored_nodes) {
+        // Prevent that we explore edges from which this BFS continues from another PE
+        taken.set(ignored_node);
+    }
 
     // Sort ghost seed nodes by distance
     std::sort(ghost_seed_nodes.begin(), ghost_seed_nodes.end(), [](const auto& lhs, const auto& rhs) {
@@ -117,10 +167,10 @@ BfsExtractor::run_multi_seeded_bfs(const PEID initial_pe, std::vector<BfsExtract
     });
 
     // Initialize search from closest ghost seed nodes
-    NodeID                     current_distance = std::get<0>(ghost_seed_nodes.front());
-    std::stack<NodeID>         front;
-    std::vector<NodeID>        visited_nodes;
-    std::vector<GhostSeedNode> next_ghost_seed_nodes;
+    NodeID                      current_distance = std::get<0>(ghost_seed_nodes.front());
+    std::stack<NodeID>          front;
+    NoinitVector<NodeID>        visited_nodes;
+    NoinitVector<GhostSeedEdge> next_ghost_seed_edges;
 
     auto add_seed_nodes_to_search_front = [&](const NodeID with_distance) {
         for (const auto& [distance, hops, node]: ghost_seed_nodes) {
@@ -146,24 +196,29 @@ BfsExtractor::run_multi_seeded_bfs(const PEID initial_pe, std::vector<BfsExtract
         // Explore neighbors of owned nodes
         if (_p_graph.is_owned_node(node)) {
             explore_outgoing_edges(node, [&](const NodeID neighbor) {
-                if (taken.get(node)) {
+                if (taken.get(neighbor)) {
                     // Skip nodes already discovered
                     return true;
                 }
-                if (!_p_graph.is_owned_node(neighbor) && _p_graph.ghost_owner(neighbor) != initial_pe) {
+
+                if (!_graph->is_owned_node(neighbor)) {
                     // Record ghost seeds for the next hop
-                    next_ghost_seed_nodes.emplace_back(current_distance, node);
+                    next_ghost_seed_nodes.emplace_back(node, neighbor, current_distance + 1);
+                    // do not mark as taken
+                    return true;
                 }
+
                 if (current_distance + 1 < _max_radius) {
                     // Add to stack for the next search layer
                     front.push(neighbor);
                 }
 
                 // Record node as discovered
-                visited_nodes.push_back(neighbor);
+                const bool is_border_node = current_distance + 1 == _max_distance;
+                visited_nodes.emplace_back(neighbor, is_border_node);
                 taken.set(neighbor);
 
-                return visited_nodes.size() < _max_size;
+                return true;
             });
         }
 
@@ -174,7 +229,9 @@ BfsExtractor::run_multi_seeded_bfs(const PEID initial_pe, std::vector<BfsExtract
         }
     }
 
-    LocalBfsResult ans;
+    // @todo if _max_size aborted BFS, mark nodes without neighbors as border nodes
+
+    ExploredSubgraph ans;
     ans.explored_nodes  = std::move(visited_nodes);
     ans.explored_ghosts = std::move(next_ghost_seed_nodes);
     return ans;
@@ -200,7 +257,8 @@ void BfsExtractor::explore_outgoing_edges(const NodeID node, Lambda&& lambda) {
         const double                        skip_prob = 1.0 * _high_degree_threshold / _p_graph.degree(node);
         std::geometric_distribution<EdgeID> skip_dist(skip_prob);
 
-        for (EdgeID e = _p_graph.first_edge(node); e < _p_graph.first_invalid_edge(node); e += skip_dist(gen)) {
+        for (EdgeID e = _p_graph.first_edge(node); e < _p_graph.first_invalid_edge(node);
+             ++e) { // e += skip_dist(gen)) { // @todo
             if (!explore_neighbor(_p_graph.edge_target(e))) {
                 break;
             }
@@ -293,6 +351,10 @@ BfsExtractor::InducedSubgraph BfsExtractor::build_induced_subgraph(const std::ve
     );
 
     return {std::move(subgraph), std::move(partition), std::move(mapping)};
+}
+
+auto BfsExtractor::build_result(std::vector<IncompleteSubgraph>& fragments) -> Result {
+    return {};
 }
 
 void BfsExtractor::allow_overlap() {

@@ -49,6 +49,11 @@ T accumulate(const Container& r, T initial) {
 
 template <typename InputIt, typename T>
 T accumulate(InputIt begin, InputIt end, T initial) {
+    return accumulate(begin, end, initial, [](const auto& v) { return v; });
+}
+
+template <typename InputIt, typename T, typename UnaryOperation>
+T accumulate(InputIt begin, InputIt end, T initial, UnaryOperation op) {
     using size_t = typename std::iterator_traits<InputIt>::difference_type;
 
     class body {
@@ -62,7 +67,7 @@ T accumulate(InputIt begin, InputIt end, T initial) {
             auto          ans   = _ans;
             auto          end   = indices.end();
             for (auto i = indices.begin(); i != end; ++i) {
-                ans += *(begin + i);
+                ans += op(*(begin + i));
             }
             _ans = ans;
         }

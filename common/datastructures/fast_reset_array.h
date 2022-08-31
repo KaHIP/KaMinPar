@@ -15,7 +15,7 @@
 #include "common/ranges.h"
 
 namespace kaminpar {
-template <typename Value, typename Size = std::size_t, Value kDefault = Value()>
+template <typename Value, typename Size = std::size_t>
 class FastResetArray {
 public:
     using value_type      = Value;
@@ -23,7 +23,7 @@ public:
     using const_reference = const Value&;
     using size_type       = Size;
 
-    explicit FastResetArray(const std::size_t capacity = 0) : _data(capacity, kDefault) {}
+    explicit FastResetArray(const std::size_t capacity = 0) : _data(capacity) {}
 
     FastResetArray(const FastResetArray&)                = delete;
     FastResetArray& operator=(const FastResetArray&)     = delete;
@@ -32,7 +32,7 @@ public:
 
     reference operator[](const size_type pos) {
         KASSERT(pos < _data.size());
-        if (_data[pos] == kDefault) {
+        if (_data[pos] == Value()) {
             _used_entries.push_back(pos);
         }
         return _data[pos];
@@ -49,7 +49,7 @@ public:
     }
 
     [[nodiscard]] bool exists(const size_type pos) const {
-        return _data[pos] == kDefault;
+        return _data[pos] == Value();
     }
 
     [[nodiscard]] std::vector<size_type>& used_entry_ids() {
@@ -74,7 +74,7 @@ public:
 
     void clear() {
         for (const std::size_t pos: _used_entries) {
-            _data[pos] = kDefault;
+            _data[pos] = Value();
         }
         _used_entries.clear();
     }

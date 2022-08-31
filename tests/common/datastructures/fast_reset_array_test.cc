@@ -1,3 +1,5 @@
+#include <string>
+
 #include <gmock/gmock.h>
 
 #include "common/datastructures/fast_reset_array.h"
