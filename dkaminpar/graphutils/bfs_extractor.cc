@@ -232,7 +232,7 @@ auto BfsExtractor::bfs(NoinitVector<GhostSeedNode>& ghost_seed_nodes, const Noin
     add_seed_nodes_to_search_front(current_distance + 1);
 
     NoinitVector<EdgeID>       nodes;
-    NoinitVector<NodeID>       edges;
+    NoinitVector<GlobalNodeID> edges;
     NoinitVector<NodeWeight>   node_weights;
     NoinitVector<EdgeWeight>   edge_weights;
     NoinitVector<GlobalNodeID> node_mapping; // @todo makes explored_nodes redundant?
@@ -257,7 +257,7 @@ auto BfsExtractor::bfs(NoinitVector<GhostSeedNode>& ghost_seed_nodes, const Noin
                 const BlockID neighbor_block = _p_graph->block(neighbor);
                 external_degrees_map[neighbor_block] += _graph->edge_weight(edge);
             } else {
-                edges.push_back(neighbor);
+                edges.push_back(_graph->local_to_global_node(neighbor));
                 edge_weights.push_back(_graph->edge_weight(edge));
             }
 
@@ -345,8 +345,8 @@ auto BfsExtractor::combine_fragments(tbb::concurrent_vector<GraphFragment>& frag
     const NodeID real_n   = parallel::accumulate(fragments.begin(), fragments.end(), 0, [&](const auto& fragment) {
         return fragment.nodes.size() - 1;
     });
-    const NodeID pseudo_n = real_n + _p_grap->k(); // Include pseudo-nodes for contracted neighbors
-    const EdgeID m        = parallel::accumulate(fragments.begin(), fragments.end(), 0, [&](const auto& fragmnet) {
+    const NodeID pseudo_n = real_n + _p_graph->k(); // Include pseudo-nodes for contracted neighbors
+    const EdgeID m        = parallel::accumulate(fragments.begin(), fragments.end(), 0, [&](const auto& fragment) {
         return fragment.edges.size();
     });
 
@@ -373,14 +373,14 @@ auto BfsExtractor::combine_fragments(tbb::concurrent_vector<GraphFragment>& frag
     );
 
     // Global graph to new graph mapping
-    auto encode_node_fragment_pair = [](const NodeID node, const std::size_t fragment) -> GlobalNodeID {
+    /*auto encode_node_fragment_pair = [](const NodeID node, const std::size_t fragment) -> GlobalNodeID {
         return (static_cast<GlobalNodeID>(node) << 32) | fragment;
     };
     auto decode_node_fragment_pair = [](const GlobalNodeID pair) -> std::pair<NodeID, std::size_t> {
         const NodeID      node     = static_cast<NodeID>(pair >> 32);
         const std::size_t fragment = static_cast<std::size_t>(pair & 0xffffffffu);
         return {node, fragment};
-    };
+    };*/
 
     growt::StaticGhostNodeMapping global_to_graph_mapping(first_node_id_for_fragment.back());
     tbb::parallel_for<std::size_t>(0, fragments.size(), [&](const std::size_t i) {
@@ -401,7 +401,7 @@ auto BfsExtractor::combine_fragments(tbb::concurrent_vector<GraphFragment>& frag
         auto& fragment_nodes        = fragments[i].nodes;
         auto& fragment_edges        = fragments[i].edges;
         auto& fragment_node_weights = fragments[i].node_weights;
-        auto& framgent_edge_weights = fragments[i].edge_weights;
+        auto& fragment_edge_weights = fragments[i].edge_weights;
         auto& fragment_partition    = fragments[i].partition;
 
         EdgeID next_edge_id = first_edge_id_for_fragment[i];
@@ -420,7 +420,9 @@ auto BfsExtractor::combine_fragments(tbb::concurrent_vector<GraphFragment>& frag
                     const BlockID block = map_pseudo_node_to_block(global_v);
                     edges[new_e]        = real_n + block;
                 } else {
-                    edges[new_e] = global_to_graph_mapping[global_v + 1];
+                    auto it = global_to_graph_mapping.find(global_v + 1);
+                    KASSERT(it != global_to_graph_mapping.end());
+                    edges[new_e] = (*it).second;
                 }
             }
         }
