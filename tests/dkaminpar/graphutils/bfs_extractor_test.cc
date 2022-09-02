@@ -80,5 +80,24 @@ TEST(BfsExtractor, zero_hops_in_path_1_graph) {
         }
     }
 }
+
+TEST(BfsExtracot, zero_hops_in_circle_graph) {
+    const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
+    const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
+
+    auto graph                    = make_circle_graph();
+    auto p_graph                  = make_partitioned_graph_by_rank(graph);
+    auto [bfs_graph, p_bfs_graph] = extract_bfs_subgraph(p_graph, 0, {0});
+    EXPECT_EQ(bfs_graph->n(), 1 + p_graph.k());
+    EXPECT_EQ(p_bfs_graph->block(0), rank);
+
+    if (size == 1) {
+        EXPECT_EQ(bfs_graph->m(), 0);
+    } else if (size == 2) {
+        EXPECT_EQ(bfs_graph->m(), 1); // edge to block pseudo-node
+    } else if (size > 2) {
+        EXPECT_EQ(bfs_graph->m(), 2); // edges to two block pseudo-nodes
+    }
+}
 } // namespace kaminpar::dist::graph
 
