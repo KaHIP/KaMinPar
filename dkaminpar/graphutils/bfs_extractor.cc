@@ -150,9 +150,6 @@ auto BfsExtractor::bfs(NoinitVector<GhostSeedNode>& ghost_seed_nodes, const Noin
         return {};
     }
 
-    // Maximum number of nodes to be explored by this BFS search
-    const NodeID max_size = _graph->total_n() < _max_size ? _graph->total_n() : _max_size * ghost_seed_nodes.size();
-
     // Marker for nodes that were already explored by this BFS search
     auto& taken = _taken_ets.local();
     taken.reset();
@@ -160,6 +157,9 @@ auto BfsExtractor::bfs(NoinitVector<GhostSeedNode>& ghost_seed_nodes, const Noin
         // Prevent that we explore edges from which this BFS continues from another PE
         taken.set(ignored_node);
     }
+
+    auto& external_degrees_map = _external_degrees_ets.local();
+    external_degrees_map.clear();
 
     // Sort ghost seed nodes by distance
     std::sort(ghost_seed_nodes.begin(), ghost_seed_nodes.end(), [](const auto& lhs, const auto& rhs) {
@@ -187,39 +187,61 @@ auto BfsExtractor::bfs(NoinitVector<GhostSeedNode>& ghost_seed_nodes, const Noin
     NodeID front_size = front.size();
     add_seed_nodes_to_search_front(current_distance + 1);
 
+    NoinitVector<EdgeID>     nodes;
+    NoinitVector<NodeID>     edges;
+    NoinitVector<NodeWeight> node_weights;
+    NoinitVector<EdgeWeight> edge_weights;
+    NoinitVector<BlockID>    partition;
+
     // Perform BFS
-    while (!front.empty() && visited_nodes.size() < _max_size && current_distance < _max_radius) {
+    while (!front.empty() && current_distance < _max_radius) {
         const NodeID node = front.top();
+        KASSERT(_graph->is_owned_node(node));
         front.pop();
         --front_size;
 
+        nodes.push_back(edges.size());
+        node_weights.push_back(_graph->node_weight(node));
+        partition.push_back(_p_graph->block(node));
+
         // Explore neighbors of owned nodes
-        if (_graph->is_owned_node(node)) {
-            explore_outgoing_edges(node, [&](const NodeID neighbor) {
-                if (taken.get(neighbor)) {
-                    // Skip nodes already discovered
-                    return true;
-                }
+        explore_outgoing_edges(node, [&](const EdgeID edge, const NodeID neighbor) {
+            const bool is_border_node = current_distance + 1 == _max_radius;
+            if (is_border_node) {
+                const BlockID neighbor_block = _p_graph->block(neighbor);
+                external_degrees_map[neighbor_block] += _graph->edge_weight(edge);
+            } else {
+                edges.push_back(neighbor);
+                edge_weights.push_back(_graph->edge_weight(edge));
+            }
 
-                if (!_graph->is_owned_node(neighbor)) {
-                    // Record ghost seeds for the next hop
-                    next_ghost_seed_edges.emplace_back(node, neighbor, current_distance + 1);
-                    // do not mark as taken
-                    return true;
-                }
-
-                if (current_distance + 1 < _max_radius) {
-                    // Add to stack for the next search layer
-                    front.push(neighbor);
-                }
-
-                // Record node as discovered
-                const bool is_border_node = current_distance + 1 == _max_radius;
-                visited_nodes.emplace_back(neighbor, is_border_node);
-                taken.set(neighbor);
-
+            if (!_graph->is_owned_node(neighbor)) {
+                // Record ghost seeds for the next hop
+                next_ghost_seed_edges.emplace_back(node, neighbor, current_distance + 1);
+                // do not mark as taken
                 return true;
-            });
+            }
+
+            if (taken.get(neighbor)) {
+                // Skip nodes already discovered
+                return true;
+            }
+
+            if (current_distance + 1 < _max_radius) {
+                // Add to stack for the next search layer
+                front.push(neighbor);
+            }
+
+            // Record node as discovered
+            visited_nodes.emplace_back(neighbor, is_border_node);
+            taken.set(neighbor);
+
+            return true;
+        });
+
+        for (const auto& [block, weight]: external_degrees_map.entries()) {
+            edges.push_back(map_block_to_pseudo_node(block));
+            edge_weights.push_back(weight);
         }
 
         if (front_size == 0) {
@@ -229,11 +251,14 @@ auto BfsExtractor::bfs(NoinitVector<GhostSeedNode>& ghost_seed_nodes, const Noin
         }
     }
 
-    // @todo if _max_size aborted BFS, mark nodes without neighbors as border nodes
-
     ExploredSubgraph ans;
     ans.explored_nodes  = std::move(visited_nodes);
     ans.explored_ghosts = std::move(next_ghost_seed_edges);
+    ans.nodes           = std::move(nodes);
+    ans.edges           = std::move(edges);
+    ans.node_weights    = std::move(node_weights);
+    ans.edge_weights    = std::move(edge_weights);
+    ans.partition       = std::move(partition);
     return ans;
 }
 
@@ -243,13 +268,13 @@ void BfsExtractor::explore_outgoing_edges(const NodeID node, Lambda&& lambda) {
 
     if (!is_high_degree_node || _high_degree_strategy == HighDegreeStrategy::TAKE_ALL) {
         for (const auto [e, v]: _graph->neighbors(node)) {
-            if (!lambda(v)) {
+            if (!lambda(e, v)) {
                 break;
             }
         }
     } else if (_high_degree_strategy == HighDegreeStrategy::CUT) {
         for (EdgeID e = _graph->first_edge(node); e < _graph->first_edge(node) + _high_degree_threshold; ++e) {
-            if (!lambda(_graph->edge_target(e))) {
+            if (!lambda(e, _graph->edge_target(e))) {
                 break;
             }
         }
@@ -259,7 +284,7 @@ void BfsExtractor::explore_outgoing_edges(const NodeID node, Lambda&& lambda) {
 
         for (EdgeID e = _graph->first_edge(node); e < _graph->first_invalid_edge(node);
              ++e) { // e += skip_dist(gen)) { // @todo
-            if (!lambda(_graph->edge_target(e))) {
+            if (!lambda(e, _graph->edge_target(e))) {
                 break;
             }
         }
@@ -268,6 +293,7 @@ void BfsExtractor::explore_outgoing_edges(const NodeID node, Lambda&& lambda) {
     }
 }
 
+/*
 BfsExtractor::InducedSubgraph BfsExtractor::build_induced_subgraph(const std::vector<NodeID>& nodes) {
     // Build mappings from and to subgraph
     const auto&                        mapping_subgraph_to_graph = nodes;
@@ -348,8 +374,9 @@ BfsExtractor::InducedSubgraph BfsExtractor::build_induced_subgraph(const std::ve
 
     return {std::move(subgraph), std::move(partition), std::move(mapping)};
 }
+*/
 
-auto BfsExtractor::build_result(std::vector<IncompleteSubgraph>& fragments) -> Result {
+auto BfsExtractor::combine_fragments(std::vector<GraphFragment>& fragments) -> Result {
     return {};
 }
 
@@ -359,10 +386,6 @@ void BfsExtractor::set_max_hops(const PEID max_hops) {
 
 void BfsExtractor::set_max_radius(const GlobalNodeID max_radius) {
     _max_radius = max_radius;
-}
-
-void BfsExtractor::set_max_size(const GlobalNodeID max_size) {
-    _max_size = max_size;
 }
 
 void BfsExtractor::set_high_degree_threshold(const GlobalEdgeID high_degree_threshold) {
@@ -389,6 +412,19 @@ void BfsExtractor::init_external_degrees() {
 EdgeWeight& BfsExtractor::external_degree(const NodeID u, const BlockID b) {
     KASSERT(u * _p_graph->k() + b < _external_degrees.size());
     return _external_degrees[u * _p_graph->k() + b];
+}
+
+GlobalNodeID BfsExtractor::map_block_to_pseudo_node(const BlockID block) {
+    return _graph->total_n() + block;
+}
+
+BlockID BfsExtractor::map_pseudo_node_to_block(const GlobalNodeID node) {
+    KASSERT(is_pseudo_block_node(node));
+    return static_cast<BlockID>(node - _graph->total_n());
+}
+
+bool BfsExtractor::is_pseudo_block_node(const GlobalNodeID node) {
+    return node >= _graph->total_n();
 }
 } // namespace kaminpar::dist::graph
 
