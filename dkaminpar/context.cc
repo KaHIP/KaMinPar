@@ -235,6 +235,7 @@ Context create_default_context() {
       .local_clustering_algorithm = LocalClusteringAlgorithm::NOOP,
       .local_lp = {
         .num_iterations = 5,
+        .passive_high_degree_threshold = 1'000'000, // unused
         .active_high_degree_threshold = 1'000'000,
         .max_num_neighbors = kInvalidNodeID,
         .merge_singleton_clusters = true,

@@ -17,27 +17,19 @@
 namespace kaminpar::dist::graph {
 using namespace kaminpar::dist::testing;
 
-std::vector<shm::Graph>
-extract_bfs_subgraphs(DistributedPartitionedGraph& p_graph, const std::vector<NodeID>& seed_nodes) {
-    BfsExtractor extractor(p_graph);
-
-    std::vector<shm::Graph> bfs_graphs;
-    auto                    results = extractor.extract(seed_nodes);
-    for (auto& result: results) {
-        bfs_graphs.push_back(std::move(result.graph()));
-    }
-    return bfs_graphs;
-}
-
-shm::Graph extract_bfs_subgraph(DistributedPartitionedGraph& p_graph, const NodeID seed_node) {
-    return std::move(extract_bfs_subgraphs(p_graph, {seed_node}).front());
+std::pair<std::unique_ptr<shm::Graph>, std::unique_ptr<shm::PartitionedGraph>>
+extract_bfs_subgraph(DistributedPartitionedGraph& p_graph, const std::vector<NodeID>& seed_nodes) {
+    BfsExtractor extractor(p_graph.graph());
+    extractor.initialize(p_graph);
+    auto result = extractor.extract(seed_nodes);
+    return {std::move(result.graph), std::move(result.p_graph)};
 }
 
 TEST(BfsExtractor, empty_graph) {
-    auto graph      = make_empty_graph();
-    auto p_graph    = make_partitioned_graph_by_rank(graph);
-    auto bfs_graphs = extract_bfs_subgraphs(p_graph, {});
-    EXPECT_TRUE(bfs_graphs.empty());
+    auto graph                    = make_empty_graph();
+    auto p_graph                  = make_partitioned_graph_by_rank(graph);
+    auto [bfs_graph, p_bfs_graph] = extract_bfs_subgraph(p_graph, {});
+    EXPECT_EQ(bfs_graph->n(), 0);
 }
 } // namespace kaminpar::dist::graph
 

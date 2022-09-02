@@ -5,6 +5,8 @@
  * @date:   31.05.2022
  * @brief:  Partial instantiation of `std::vector` using preallocated memory.
  ******************************************************************************/
+#pragma once
+
 #include <iostream>
 #include <memory>
 #include <vector>
