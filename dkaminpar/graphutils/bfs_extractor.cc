@@ -7,6 +7,7 @@
 #include "dkaminpar/graphutils/bfs_extractor.h"
 
 #include <algorithm>
+#include <memory>
 #include <random>
 #include <stack>
 #include <vector>
@@ -18,7 +19,10 @@
 #include "dkaminpar/growt.h"
 #include "dkaminpar/mpi/alltoall.h"
 
+#include "kaminpar/datastructure/graph.h"
+
 #include "common/datastructures/marker.h"
+#include "common/datastructures/static_array.h"
 #include "common/random.h"
 
 namespace kaminpar::dist::graph {
@@ -49,16 +53,28 @@ auto BfsExtractor::extract(const std::vector<NodeID>& seed_nodes) -> Result {
     std::vector<NoinitVector<GhostSeedEdge>> cur_ghost_seed_edges(size);
     cur_ghost_seed_edges[rank] = std::move(local_bfs_result.explored_ghosts);
 
+    tbb::concurrent_vector<GraphFragment> fragments;
+    fragments.push_back(local_bfs_result.build_fragment());
+
+    std::vector<ExploredSubgraph> local_bfs_results(size);
+
     for (PEID hop = 0; hop < _max_hops; ++hop) {
         auto  ghost_exchange_result = exchange_ghost_seed_nodes(cur_ghost_seed_edges);
         auto& next_ghost_seed_nodes = ghost_exchange_result.first;
         auto& next_ignored_nodes    = ghost_exchange_result.second;
 
         tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
-            auto continued_bfs_result = bfs(next_ghost_seed_nodes[pe], next_ignored_nodes[pe]);
-            cur_ghost_seed_edges[pe]  = std::move(continued_bfs_result.explored_ghosts);
+            local_bfs_results[pe]    = bfs(next_ghost_seed_nodes[pe], next_ignored_nodes[pe]);
+            cur_ghost_seed_edges[pe] = std::move(local_bfs_results[pe].explored_ghosts);
         });
+
+        auto local_fragments = exchange_explored_subgraphs(local_bfs_results);
+        for (auto& fragment: local_fragments) {
+            fragments.push_back(std::move(fragment));
+        }
     }
+
+    return combine_fragments(fragments);
 }
 
 auto BfsExtractor::exchange_ghost_seed_nodes(std::vector<NoinitVector<GhostSeedEdge>>& outgoing_ghost_seed_edges)
@@ -130,18 +146,46 @@ auto BfsExtractor::exchange_ghost_seed_nodes(std::vector<NoinitVector<GhostSeedE
     return {std::move(next_ghost_seed_nodes), std::move(next_ignored_nodes)};
 }
 
-/*std::vector<BfsExtractor::GraphSegment> exchange_subgraphs(const std::vector<std::vector<NodeID>>& nodes) {
+auto BfsExtractor::exchange_explored_subgraphs(const std::vector<ExploredSubgraph>& explored_subgraphs)
+    -> std::vector<GraphFragment> {
     const PEID size = mpi::get_comm_size(_graph->communicator());
 
-    // Build subgraph segments for each PE
-    std::vector<std::vector<NodeID>> sendbufs(static_cast<std::size_t>(size));
-    for (PEID pe = 0; pe < size; ++pe) {
-    }
-}*/
+    // Preparse sendbuffers
+    std::vector<NoinitVector<EdgeID>>       nodes_sendbufs(size);
+    std::vector<NoinitVector<GlobalNodeID>> edges_sendbufs(size);
+    std::vector<NoinitVector<NodeWeight>>   node_weights_sendbufs(size);
+    std::vector<NoinitVector<EdgeWeight>>   edge_weights_sendbufs(size);
+    std::vector<NoinitVector<BlockID>>      partition_sendbufs(size);
+    std::vector<NoinitVector<GlobalNodeID>> node_mapping_sendbufs(size);
 
-/*BfsExtractedGraph BfsExtractor::extract_from_node(const NodeID start_node) {
-    return {};
-}*/
+    tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
+        nodes_sendbufs[pe]        = std::move(explored_subgraphs[pe].nodes);
+        edges_sendbufs[pe]        = std::move(explored_subgraphs[pe].edges);
+        node_weights_sendbufs[pe] = std::move(explored_subgraphs[pe].node_weights);
+        edge_weights_sendbufs[pe] = std::move(explored_subgraphs[pe].edge_weights);
+        partition_sendbufs[pe]    = std::move(explored_subgraphs[pe].partition);
+        node_mapping_sendbufs[pe] = std::move(explored_subgraphs[pe].node_mapping);
+    });
+
+    auto nodes_recvbufs = mpi::sparse_alltoall_get<EdgeID>(std::move(nodes_sendbufs), _graph->communicator());
+    auto edges_recvbufs = mpi::sparse_alltoall_get<GlobalNodeID>(std::move(edges_sendbufs), _graph->communicator());
+    auto node_weights_recvbufs =
+        mpi::sparse_alltoall_get<NodeWeight>(std::move(node_weights_sendbufs), _graph->communicator());
+    auto edge_weights_recvbufs =
+        mpi::sparse_alltoall_get<EdgeWeight>(std::move(edge_weights_sendbufs), _graph->communicator());
+    auto partition_recvbufs = mpi::sparse_alltoall_get<BlockID>(std::move(partition_sendbufs), _graph->communicator());
+    auto node_mapping_recvbufs =
+        mpi::sparse_alltoall_get<GlobalNodeID>(std::move(node_mapping_sendbufs), _graph->communicator());
+
+    std::vector<GraphFragment> fragments(size);
+    tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
+        fragments[pe] = {std::move(nodes_recvbufs[pe]),        std::move(edges_recvbufs[pe]),
+                         std::move(node_weights_recvbufs[pe]), std::move(edge_weights_recvbufs[pe]),
+                         std::move(node_mapping_recvbufs[pe]), std::move(partition_recvbufs[pe])};
+    });
+
+    return fragments;
+}
 
 auto BfsExtractor::bfs(NoinitVector<GhostSeedNode>& ghost_seed_nodes, const NoinitVector<NodeID>& ignored_nodes)
     -> ExploredSubgraph {
@@ -187,11 +231,12 @@ auto BfsExtractor::bfs(NoinitVector<GhostSeedNode>& ghost_seed_nodes, const Noin
     NodeID front_size = front.size();
     add_seed_nodes_to_search_front(current_distance + 1);
 
-    NoinitVector<EdgeID>     nodes;
-    NoinitVector<NodeID>     edges;
-    NoinitVector<NodeWeight> node_weights;
-    NoinitVector<EdgeWeight> edge_weights;
-    NoinitVector<BlockID>    partition;
+    NoinitVector<EdgeID>       nodes;
+    NoinitVector<NodeID>       edges;
+    NoinitVector<NodeWeight>   node_weights;
+    NoinitVector<EdgeWeight>   edge_weights;
+    NoinitVector<GlobalNodeID> node_mapping; // @todo makes explored_nodes redundant?
+    NoinitVector<BlockID>      partition;
 
     // Perform BFS
     while (!front.empty() && current_distance < _max_radius) {
@@ -202,6 +247,7 @@ auto BfsExtractor::bfs(NoinitVector<GhostSeedNode>& ghost_seed_nodes, const Noin
 
         nodes.push_back(edges.size());
         node_weights.push_back(_graph->node_weight(node));
+        node_mapping.push_back(_graph->local_to_global_node(node));
         partition.push_back(_p_graph->block(node));
 
         // Explore neighbors of owned nodes
@@ -258,6 +304,7 @@ auto BfsExtractor::bfs(NoinitVector<GhostSeedNode>& ghost_seed_nodes, const Noin
     ans.edges           = std::move(edges);
     ans.node_weights    = std::move(node_weights);
     ans.edge_weights    = std::move(edge_weights);
+    ans.node_mapping    = std::move(node_mapping);
     ans.partition       = std::move(partition);
     return ans;
 }
@@ -293,91 +340,100 @@ void BfsExtractor::explore_outgoing_edges(const NodeID node, Lambda&& lambda) {
     }
 }
 
-/*
-BfsExtractor::InducedSubgraph BfsExtractor::build_induced_subgraph(const std::vector<NodeID>& nodes) {
-    // Build mappings from and to subgraph
-    const auto&                        mapping_subgraph_to_graph = nodes;
-    std::unordered_map<NodeID, NodeID> mapping_graph_to_subgraph;
-    for (std::size_t i = 0; i < nodes.size(); ++i) {
-        mapping_graph_to_subgraph[nodes[i]] = asserting_cast<NodeID>(i);
-    }
+auto BfsExtractor::combine_fragments(tbb::concurrent_vector<GraphFragment>& fragments) -> Result {
+    // Compute size of combined graph
+    const NodeID real_n   = parallel::accumulate(fragments.begin(), fragments.end(), 0, [&](const auto& fragment) {
+        return fragment.nodes.size() - 1;
+    });
+    const NodeID pseudo_n = real_n + _p_grap->k(); // Include pseudo-nodes for contracted neighbors
+    const EdgeID m        = parallel::accumulate(fragments.begin(), fragments.end(), 0, [&](const auto& fragmnet) {
+        return fragment.edges.size();
+    });
 
-    // Data strucutes for subgraph
-    const NodeID            sub_n       = nodes.size() + _p_graph->k();
-    const NodeID            sub_n_prime = nodes.size();
-    std::vector<EdgeID>     sub_nodes(sub_n + 1);
-    std::vector<NodeID>     sub_edges;
-    std::vector<NodeWeight> sub_node_weights(sub_n);
-    std::vector<EdgeWeight> sub_edge_weights;
+    // Allocate arrays for combined graph
+    NoinitVector<GlobalNodeID> node_mapping(real_n);
+    StaticArray<EdgeID>        nodes(pseudo_n + 1);
+    StaticArray<NodeID>        edges(m);
+    StaticArray<NodeWeight>    node_weights(pseudo_n);
+    StaticArray<EdgeWeight>    edge_weights(m);
+    StaticArray<BlockID>       partition(pseudo_n);
 
-    std::vector<EdgeWeight> edge_weights_to_block_nodes(_p_graph->k());
-
-    for (const NodeID u: nodes) {
-        sub_nodes[u]        = asserting_cast<EdgeID>(sub_edges.size());
-        sub_node_weights[u] = _graph->node_weight(u);
-
-        for (const auto [e, v]: _graph->neighbors(u)) {
-            auto v_it = mapping_graph_to_subgraph.find(v);
-
-            if (v_it != mapping_graph_to_subgraph.end()) {
-                // v is also in the subgraph
-                const auto [v_prime, sub_v] = *v_it;
-                KASSERT(v_prime == v);
-                sub_edges.push_back(sub_v);
-                sub_edge_weights.push_back(_graph->edge_weight(e));
-            } else {
-                // v is not in the subgraph -> contributes to our edge to a block node
-                edge_weights_to_block_nodes[_p_graph->block(v)] += _graph->edge_weight(e);
-            }
-        }
-
-        for (const BlockID b: _p_graph->blocks()) {
-            if (edge_weights_to_block_nodes[b] > 0) {
-                sub_edges.push_back(sub_n_prime + b);
-                sub_edge_weights.push_back(edge_weights_to_block_nodes[b]);
-                edge_weights_to_block_nodes[b] = 0;
-            }
-        }
-    }
-
-    for (NodeID u = nodes.size(); u < sub_nodes.size(); ++u) {
-        sub_nodes[u] = sub_edges.size();
-    }
-
-    // Copy subgraph to StaticArray<>
-    shm::Graph subgraph = [&] {
-        StaticArray<EdgeID>     real_sub_nodes(sub_nodes.size());
-        StaticArray<NodeID>     real_sub_edges(sub_edges.size());
-        StaticArray<NodeWeight> real_sub_node_weights(sub_node_weights.size());
-        StaticArray<EdgeWeight> real_sub_edge_weights(sub_edge_weights.size());
-        std::copy(sub_nodes.begin(), sub_nodes.end(), real_sub_nodes.begin());
-        std::copy(sub_edges.begin(), sub_edges.end(), real_sub_edges.begin());
-        std::copy(sub_node_weights.begin(), sub_node_weights.end(), real_sub_node_weights.begin());
-        std::copy(sub_edge_weights.begin(), sub_edge_weights.end(), real_sub_edge_weights.begin());
-        return shm::Graph(
-            std::move(real_sub_nodes), std::move(real_sub_edges), std::move(real_sub_node_weights),
-            std::move(real_sub_edge_weights)
-        );
-    }();
-
-    NoinitVector<GlobalNodeID> mapping(mapping_subgraph_to_graph.size());
-    std::transform(
-        mapping_subgraph_to_graph.begin(), mapping_subgraph_to_graph.end(), mapping.begin(),
-        [&](const NodeID node) { return _graph->local_to_global_node(node); }
+    // Compute node mapping
+    std::vector<NodeID> first_node_id_for_fragment(fragments.size() + 1);
+    std::vector<EdgeID> first_edge_id_for_fragment(fragments.size() + 1);
+    tbb::parallel_for<std::size_t>(0, fragments.size(), [&](const std::size_t i) {
+        first_node_id_for_fragment[i] = fragments[i].nodes.size() - 1;
+        first_edge_id_for_fragment[i] = fragments[i].edges.size();
+    });
+    parallel::prefix_sum(
+        first_node_id_for_fragment.begin(), first_node_id_for_fragment.end(), first_node_id_for_fragment.begin() + 1
+    );
+    parallel::prefix_sum(
+        first_edge_id_for_fragment.begin(), first_edge_id_for_fragment.end(), first_edge_id_for_fragment.begin() + 1
     );
 
-    NoinitVector<BlockID> partition(sub_n);
-    std::transform(
-        mapping_subgraph_to_graph.begin(), mapping_subgraph_to_graph.end(), partition.begin(),
-        [&](const NodeID node) { return _p_graph->block(node); }
+    // Global graph to new graph mapping
+    auto encode_node_fragment_pair = [](const NodeID node, const std::size_t fragment) -> GlobalNodeID {
+        return (static_cast<GlobalNodeID>(node) << 32) | fragment;
+    };
+    auto decode_node_fragment_pair = [](const GlobalNodeID pair) -> std::pair<NodeID, std::size_t> {
+        const NodeID      node     = static_cast<NodeID>(pair >> 32);
+        const std::size_t fragment = static_cast<std::size_t>(pair & 0xffffffffu);
+        return {node, fragment};
+    };
+
+    growt::StaticGhostNodeMapping global_to_graph_mapping(first_node_id_for_fragment.back());
+    tbb::parallel_for<std::size_t>(0, fragments.size(), [&](const std::size_t i) {
+        for (std::size_t j = 0; j < fragments[i].node_mapping.size(); ++j) {
+            const GlobalNodeID global_node = fragments[i].node_mapping[j];
+            const NodeID       new_node    = first_node_id_for_fragment[i] + j;
+
+            // New graph to global graph
+            node_mapping[new_node] = global_node;
+
+            // Global graph to new graph
+            global_to_graph_mapping.insert(global_node + 1, new_node); // encode_node_fragment_pair(new_node, i));
+        }
+    });
+
+    // Construct graph arrays
+    tbb::parallel_for<std::size_t>(0, fragments.size(), [&](const std::size_t i) {
+        auto& fragment_nodes        = fragments[i].nodes;
+        auto& fragment_edges        = fragments[i].edges;
+        auto& fragment_node_weights = fragments[i].node_weights;
+        auto& framgent_edge_weights = fragments[i].edge_weights;
+        auto& fragment_partition    = fragments[i].partition;
+
+        EdgeID next_edge_id = first_edge_id_for_fragment[i];
+        for (NodeID frag_u = 0; frag_u < fragment_nodes.size() - 1; ++frag_u) {
+            const NodeID new_u  = first_node_id_for_fragment[i] + frag_u;
+            nodes[new_u]        = next_edge_id;
+            node_weights[new_u] = fragment_node_weights[frag_u];
+            partition[new_u]    = fragment_partition[frag_u];
+
+            for (EdgeID frag_e = fragment_nodes[frag_u]; frag_e < fragment_nodes[frag_u + 1]; ++frag_e) {
+                const EdgeID new_e  = next_edge_id++;
+                edge_weights[new_e] = fragment_edge_weights[frag_e];
+
+                const NodeID global_v = fragment_edges[frag_e];
+                if (is_pseudo_block_node(global_v)) {
+                    const BlockID block = map_pseudo_node_to_block(global_v);
+                    edges[new_e]        = real_n + block;
+                } else {
+                    edges[new_e] = global_to_graph_mapping[global_v + 1];
+                }
+            }
+        }
+    });
+
+    // Construct shared-memory graph
+    auto graph = std::make_unique<shm::Graph>(
+        std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights)
     );
-
-    return {std::move(subgraph), std::move(partition), std::move(mapping)};
-}
-*/
-
-auto BfsExtractor::combine_fragments(std::vector<GraphFragment>& fragments) -> Result {
-    return {};
+    auto p_graph = std::make_unique<shm::PartitionedGraph>(
+        *graph, _p_graph->k(), std::move(partition), scalable_vector<BlockID>(_p_graph->k(), 1)
+    );
+    return {std::move(graph), std::move(p_graph), std::move(node_mapping)};
 }
 
 void BfsExtractor::set_max_hops(const PEID max_hops) {

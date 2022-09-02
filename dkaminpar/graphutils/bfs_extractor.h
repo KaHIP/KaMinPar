@@ -9,6 +9,7 @@
 #include <limits>
 #include <type_traits>
 
+#include <tbb/concurrent_vector.h>
 #include <tbb/enumerable_thread_specific.h>
 
 #include "datastructures/fast_reset_array.h"
@@ -58,26 +59,33 @@ private:
     using GhostSeedEdge = std::tuple<NodeID, NodeID, NodeID>; // distance, from, to
     using ExploredNode  = std::pair<NodeID, bool>;            // is border node, node
 
-    struct ExploredSubgraph {
-        NoinitVector<ExploredNode>  explored_nodes;
-        NoinitVector<GhostSeedEdge> explored_ghosts;
-
-        NoinitVector<NodeID>     edges;
-        NoinitVector<EdgeID>     nodes;
-        NoinitVector<NodeWeight> node_weights;
-        NoinitVector<EdgeWeight> edge_weights;
-        NoinitVector<BlockID>    partition;
-    };
-
-    ExploredSubgraph bfs(NoinitVector<GhostSeedNode>& seed_nodes, const NoinitVector<NodeID>& ignored_nodes);
-
     struct GraphFragment {
         NoinitVector<EdgeID>       nodes;
         NoinitVector<GlobalNodeID> edges;
         NoinitVector<NodeWeight>   node_weights;
         NoinitVector<EdgeWeight>   edge_weights;
         NoinitVector<GlobalNodeID> node_mapping;
+        NoinitVector<BlockID>      partition;
     };
+
+    struct ExploredSubgraph {
+        NoinitVector<ExploredNode>  explored_nodes;
+        NoinitVector<GhostSeedEdge> explored_ghosts;
+
+        NoinitVector<EdgeID>       nodes;
+        NoinitVector<GlobalNodeID> edges;
+        NoinitVector<NodeWeight>   node_weights;
+        NoinitVector<EdgeWeight>   edge_weights;
+        NoinitVector<GlobalNodeID> node_mapping;
+        NoinitVector<BlockID>      partition;
+
+        GraphFragment build_fragment() {
+            return {std::move(nodes),        std::move(edges),        std::move(node_weights),
+                    std::move(edge_weights), std::move(node_mapping), std::move(partition)};
+        }
+    };
+
+    ExploredSubgraph bfs(NoinitVector<GhostSeedNode>& seed_nodes, const NoinitVector<NodeID>& ignored_nodes);
 
     template <typename Lambda>
     void explore_outgoing_edges(NodeID node, Lambda&& action);
@@ -85,24 +93,9 @@ private:
     std::pair<std::vector<NoinitVector<GhostSeedNode>>, std::vector<NoinitVector<NodeID>>>
     exchange_ghost_seed_nodes(std::vector<NoinitVector<GhostSeedEdge>>& next_ghost_seed_nodes);
 
-    NodeID compute_number_of_nodes_in_explored_subgraph(const ExploredSubgraph& explored_subgraph);
-    EdgeID compute_number_of_edges_in_explored_subgraph(const ExploredSubgraph& explored_subgraph);
-
-    void build_fragment_nodes(PreallocatedVector<EdgeID>& nodes, const ExploredSubgraph& explored_subgraph);
-    void build_fragment_edges(PreallocatedVector<NodeID>& edges, const ExploredSubgraph& explored_subgraph);
-    void build_fragment_node_weights(
-        PreallocatedVector<NodeWeight>& node_weights, const ExploredSubgraph& explored_subgraph
-    );
-    void build_fragment_edge_weights(
-        PreallocatedVector<EdgeWeight>& edge_weights, const ExploredSubgraph& explored_subgraph
-    );
-    void build_fragment_node_mapping(
-        PreallocatedVector<GlobalNodeID>& node_mapping, const ExploredSubgraph& explored_subgraph
-    );
-
     std::vector<GraphFragment> exchange_explored_subgraphs(const std::vector<ExploredSubgraph>& explored_subgraphs);
 
-    Result combine_fragments(std::vector<GraphFragment>& fragments);
+    Result combine_fragments(tbb::concurrent_vector<GraphFragment>& fragments);
 
     void        init_external_degrees();
     EdgeWeight& external_degree(NodeID u, BlockID b);
