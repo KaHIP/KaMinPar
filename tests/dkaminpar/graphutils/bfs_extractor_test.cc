@@ -72,6 +72,12 @@ TEST(BfsExtractor, zero_hops_in_path_1_graph) {
         EXPECT_EQ(bfs_graph->m(), 0);
     } else if (size == 2) {
         EXPECT_EQ(bfs_graph->m(), 1); // edge to block pseudo-node
+    } else if (size > 2) {
+        if (rank == 0 || rank + 1 == size) {
+            EXPECT_EQ(bfs_graph->m(), 1); // edge to one block pseudo-nodes
+        } else {
+            EXPECT_EQ(bfs_graph->m(), 2); // edges to two block pseudo-nodes
+        }
     }
 }
 } // namespace kaminpar::dist::graph
