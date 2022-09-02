@@ -18,9 +18,10 @@ namespace kaminpar::dist::graph {
 using namespace kaminpar::dist::testing;
 
 std::pair<std::unique_ptr<shm::Graph>, std::unique_ptr<shm::PartitionedGraph>>
-extract_bfs_subgraph(DistributedPartitionedGraph& p_graph, const std::vector<NodeID>& seed_nodes) {
+extract_bfs_subgraph(DistributedPartitionedGraph& p_graph, const PEID hops ,const std::vector<NodeID>& seed_nodes) {
     BfsExtractor extractor(p_graph.graph());
     extractor.initialize(p_graph);
+    extractor.set_max_hops(hops);
     auto result = extractor.extract(seed_nodes);
     return {std::move(result.graph), std::move(result.p_graph)};
 }
@@ -28,8 +29,9 @@ extract_bfs_subgraph(DistributedPartitionedGraph& p_graph, const std::vector<Nod
 TEST(BfsExtractor, empty_graph) {
     auto graph                    = make_empty_graph();
     auto p_graph                  = make_partitioned_graph_by_rank(graph);
-    auto [bfs_graph, p_bfs_graph] = extract_bfs_subgraph(p_graph, {});
-    EXPECT_EQ(bfs_graph->n(), 0);
+    auto [bfs_graph, p_bfs_graph] = extract_bfs_subgraph(p_graph, 2, {});
+    EXPECT_EQ(bfs_graph->n(), p_graph.k());
+    EXPECT_EQ(bfs_graph->m(), 0);
 }
 } // namespace kaminpar::dist::graph
 

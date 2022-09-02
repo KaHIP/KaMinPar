@@ -48,7 +48,10 @@ auto BfsExtractor::extract(const std::vector<NodeID>& seed_nodes) -> Result {
         initial_seed_nodes.emplace_back(0, seed_node);
     }
 
+    DBG << "Running initial BFS on local PE ...";
     auto local_bfs_result = bfs(initial_seed_nodes, {});
+    DBG << "-> Discovered " << local_bfs_result.nodes.size() - 1 << " nodes and "
+        << local_bfs_result.explored_nodes.size() << " ghost edges";
 
     std::vector<NoinitVector<GhostSeedEdge>> cur_ghost_seed_edges(size);
     cur_ghost_seed_edges[rank] = std::move(local_bfs_result.explored_ghosts);
@@ -81,6 +84,8 @@ auto BfsExtractor::exchange_ghost_seed_nodes(std::vector<NoinitVector<GhostSeedE
     -> std::pair<std::vector<NoinitVector<GhostSeedNode>>, std::vector<NoinitVector<NodeID>>> {
     const PEID size = mpi::get_comm_size(_graph->communicator());
 
+    DBG << "Building sendbufs ...";
+
     // Exchange new ghost nodes
     std::vector<NoinitVector<NodeID>> sendbufs(size);
     for (PEID pe = 0; pe < size; ++pe) {
@@ -102,6 +107,7 @@ auto BfsExtractor::exchange_ghost_seed_nodes(std::vector<NoinitVector<GhostSeedE
         }
     }
 
+    DBG << "Exchanging data ...";
     std::vector<NoinitVector<GhostSeedEdge>> incoming_ghost_seed_edges(size);
     mpi::sparse_alltoall<NodeID>(
         std::move(sendbufs),
@@ -120,6 +126,8 @@ auto BfsExtractor::exchange_ghost_seed_nodes(std::vector<NoinitVector<GhostSeedE
         },
         _graph->communicator()
     );
+
+    DBG << "Filtering circular ghost edges ...";
 
     // Filter edges that where already explored from this PE
     std::vector<NoinitVector<GhostSeedNode>> next_ghost_seed_nodes(size);
@@ -189,11 +197,6 @@ auto BfsExtractor::exchange_explored_subgraphs(const std::vector<ExploredSubgrap
 
 auto BfsExtractor::bfs(NoinitVector<GhostSeedNode>& ghost_seed_nodes, const NoinitVector<NodeID>& ignored_nodes)
     -> ExploredSubgraph {
-    // Catch case where there are no seed nodes
-    if (ghost_seed_nodes.empty()) {
-        return {};
-    }
-
     // Marker for nodes that were already explored by this BFS search
     auto& taken = _taken_ets.local();
     taken.reset();
@@ -211,8 +214,8 @@ auto BfsExtractor::bfs(NoinitVector<GhostSeedNode>& ghost_seed_nodes, const Noin
     });
 
     // Initialize search from closest ghost seed nodes
-    NodeID                      current_distance = std::get<0>(ghost_seed_nodes.front());
-    std::stack<NodeID>          front;
+    NodeID             current_distance = (!ghost_seed_nodes.empty() ? std::get<0>(ghost_seed_nodes.front()) : 0);
+    std::stack<NodeID> front;
     NoinitVector<ExploredNode>  visited_nodes;
     NoinitVector<GhostSeedEdge> next_ghost_seed_edges;
 
@@ -297,6 +300,8 @@ auto BfsExtractor::bfs(NoinitVector<GhostSeedNode>& ghost_seed_nodes, const Noin
         }
     }
 
+    nodes.push_back(edges.size());
+
     ExploredSubgraph ans;
     ans.explored_nodes  = std::move(visited_nodes);
     ans.explored_ghosts = std::move(next_ghost_seed_edges);
@@ -341,6 +346,8 @@ void BfsExtractor::explore_outgoing_edges(const NodeID node, Lambda&& lambda) {
 }
 
 auto BfsExtractor::combine_fragments(tbb::concurrent_vector<GraphFragment>& fragments) -> Result {
+    DBG << "Combining " << fragments.size() << " fragments to the resulting BFS search graph ...";
+
     // Compute size of combined graph
     const NodeID real_n   = parallel::accumulate(fragments.begin(), fragments.end(), 0, [&](const auto& fragment) {
         return fragment.nodes.size() - 1;
@@ -349,6 +356,8 @@ auto BfsExtractor::combine_fragments(tbb::concurrent_vector<GraphFragment>& frag
     const EdgeID m        = parallel::accumulate(fragments.begin(), fragments.end(), 0, [&](const auto& fragment) {
         return fragment.edges.size();
     });
+
+    DBG << "Graph size: " << V(real_n) << V(pseudo_n) << V(m);
 
     // Allocate arrays for combined graph
     NoinitVector<GlobalNodeID> node_mapping(real_n);
