@@ -257,6 +257,7 @@ Context create_default_context() {
     .refinement = {
       .algorithm = KWayRefinementAlgorithm::PROB_LP,
       .lp = {
+        .active_high_degree_threshold = 1'000'000, 
         .num_iterations = 5,
         .total_num_chunks = 128,
         .num_chunks = 0,
