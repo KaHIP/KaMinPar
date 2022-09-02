@@ -18,7 +18,7 @@ namespace kaminpar::dist::graph {
 using namespace kaminpar::dist::testing;
 
 std::pair<std::unique_ptr<shm::Graph>, std::unique_ptr<shm::PartitionedGraph>>
-extract_bfs_subgraph(DistributedPartitionedGraph& p_graph, const PEID hops ,const std::vector<NodeID>& seed_nodes) {
+extract_bfs_subgraph(DistributedPartitionedGraph& p_graph, const PEID hops, const std::vector<NodeID>& seed_nodes) {
     BfsExtractor extractor(p_graph.graph());
     extractor.initialize(p_graph);
     extractor.set_max_hops(hops);
@@ -26,12 +26,53 @@ extract_bfs_subgraph(DistributedPartitionedGraph& p_graph, const PEID hops ,cons
     return {std::move(result.graph), std::move(result.p_graph)};
 }
 
-TEST(BfsExtractor, empty_graph) {
+TEST(BfsExtractor, empty_seeds_in_empty_graph) {
     auto graph                    = make_empty_graph();
     auto p_graph                  = make_partitioned_graph_by_rank(graph);
     auto [bfs_graph, p_bfs_graph] = extract_bfs_subgraph(p_graph, 2, {});
     EXPECT_EQ(bfs_graph->n(), p_graph.k());
     EXPECT_EQ(bfs_graph->m(), 0);
+}
+
+TEST(BfsExtractor, empty_seeds_in_nonempty_graph) {
+    auto graph                    = make_path(1);
+    auto p_graph                  = make_partitioned_graph_by_rank(graph);
+    auto [bfs_graph, p_bfs_graph] = extract_bfs_subgraph(p_graph, 2, {});
+    EXPECT_EQ(bfs_graph->n(), p_graph.k());
+    EXPECT_EQ(bfs_graph->m(), 0);
+}
+
+TEST(BfsExtractor, zero_hops_zero_seeds_in_empty_graph) {
+    auto graph                    = make_empty_graph();
+    auto p_graph                  = make_partitioned_graph_by_rank(graph);
+    auto [bfs_graph, p_bfs_graph] = extract_bfs_subgraph(p_graph, 0, {});
+    EXPECT_EQ(bfs_graph->n(), p_graph.k());
+    EXPECT_EQ(bfs_graph->m(), 0);
+}
+
+TEST(BfsExtractor, zero_hops_zero_seeds_in_nonempty_graph) {
+    auto graph                    = make_path(1);
+    auto p_graph                  = make_partitioned_graph_by_rank(graph);
+    auto [bfs_graph, p_bfs_graph] = extract_bfs_subgraph(p_graph, 0, {});
+    EXPECT_EQ(bfs_graph->n(), p_graph.k());
+    EXPECT_EQ(bfs_graph->m(), 0);
+}
+
+TEST(BfsExtractor, zero_hops_in_path_1_graph) {
+    const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
+    const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
+
+    auto graph                    = make_path(1);
+    auto p_graph                  = make_partitioned_graph_by_rank(graph);
+    auto [bfs_graph, p_bfs_graph] = extract_bfs_subgraph(p_graph, 0, {0});
+    EXPECT_EQ(bfs_graph->n(), 1 + p_graph.k());
+    EXPECT_EQ(p_bfs_graph->block(0), rank);
+
+    if (size == 1) {
+        EXPECT_EQ(bfs_graph->m(), 0);
+    } else if (size == 2) {
+        EXPECT_EQ(bfs_graph->m(), 1); // edge to block pseudo-node
+    }
 }
 } // namespace kaminpar::dist::graph
 

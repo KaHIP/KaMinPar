@@ -85,7 +85,8 @@ private:
         }
     };
 
-    ExploredSubgraph bfs(NoinitVector<GhostSeedNode>& seed_nodes, const NoinitVector<NodeID>& ignored_nodes);
+    ExploredSubgraph
+    bfs(PEID current_hop, NoinitVector<GhostSeedNode>& seed_nodes, const NoinitVector<NodeID>& ignored_nodes);
 
     template <typename Lambda>
     void explore_outgoing_edges(NodeID node, Lambda&& action);
