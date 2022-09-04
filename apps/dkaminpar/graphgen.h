@@ -41,6 +41,7 @@ struct GeneratorContext {
     double        prob_a         = 0.0;
     double        prob_b         = 0.0;
     double        prob_c         = 0.0;
+    bool          advanced_stats = false;
 };
 
 DistributedGraph generate(GeneratorContext ctx);

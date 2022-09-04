@@ -35,6 +35,9 @@ void create_graphgen_options(
             prefix + "-validate", "Validate the graph format before using it. Useful for debugging.",
             &g_ctx.validate_graph
         )
+        .argument(
+                prefix + "-stats", "Enable more statistics.", &g_ctx.advanced_stats
+        )
         .argument(prefix + "-a", "R-MAT", &g_ctx.prob_a)
         .argument(prefix + "-b", "R-MAT", &g_ctx.prob_b)
         .argument(prefix + "-c", "R-MAT", &g_ctx.prob_c);

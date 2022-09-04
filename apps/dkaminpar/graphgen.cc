@@ -334,6 +334,9 @@ KaGen create_generator_object(const GeneratorContext ctx) {
     }
     gen.EnableOutput(true);
     gen.EnableBasicStatistics();
+    if (ctx.advanced_stats) {
+        gen.EnableAdvancedStatistics();
+    }
     return gen;
 }
 
