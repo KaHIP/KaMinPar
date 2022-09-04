@@ -19,10 +19,7 @@
 
 #include <tbb/spin_mutex.h>
 
-#if __has_include(<sched.h>)
-    #include <sched.h>
-    #define HAS_SCHED_GETCPU
-#endif
+#include "common/parallel/sched_getcpu.h"
 
 // Macros for debug output
 //

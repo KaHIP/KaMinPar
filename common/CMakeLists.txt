@@ -8,5 +8,8 @@ target_include_directories(common_base PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 find_package(TBB REQUIRED) 
 find_library(NUMA_LIB numa) # optional 
 
-target_link_libraries(common_base PUBLIC TBB::tbb TBB::tbbmalloc kassert::kassert ${NUMA_LIB})
+target_link_libraries(common_base PUBLIC TBB::tbb TBB::tbbmalloc kassert::kassert)
+if (NUMA_LIB) 
+    target_link_libraries(common_base PUBLIC ${NUMA_LIB})
+endif ()
 

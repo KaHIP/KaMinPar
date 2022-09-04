@@ -16,6 +16,7 @@
 #include "dkaminpar/mpi/alltoall.h"
 #include "dkaminpar/mpi/wrapper.h"
 
+#include "common/logger.h"
 #include "common/noinit_vector.h"
 #include "common/preallocated_vector.h"
 #include "common/timer.h"

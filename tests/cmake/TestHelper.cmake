@@ -4,18 +4,22 @@ include(GoogleTest)
 function(kaminpar_add_dist_test KAMINPAR_TARGET_NAME)
     cmake_parse_arguments(
             "KAMINPAR"
-            ""
+            "NO_LINK"
             ""
             "FILES;CORES"
             ${ARGN}
     )
     katestrophe_add_test_executable(${KAMINPAR_TARGET_NAME} FILES ${KAMINPAR_FILES})
-    target_link_libraries(${KAMINPAR_TARGET_NAME} PRIVATE common_base shm_partitioner_base dist_partitioner_base)
+    if (NOT KAMINPAR_NO_LINK) 
+        target_link_libraries(${KAMINPAR_TARGET_NAME} PRIVATE common_base shm_partitioner_base dist_partitioner_base)
+    else ()
+        target_link_libraries(${KAMINPAR_TARGET_NAME} PRIVATE common_base shm_partitioner_base)
+    endif ()
     target_include_directories(${KAMINPAR_TARGET_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     if (KAMINPAR_BACKWARD_CPP)
         add_backward(${KAMINPAR_TARGET_NAME})
     endif ()
-    katestrophe_add_mpi_test(${KAMINPAR_TARGET_NAME} CORES ${KAMINPAR_CORES} DISCOVER_TESTS)
+    katestrophe_add_mpi_test(${KAMINPAR_TARGET_NAME} CORES ${KAMINPAR_CORES})# DISCOVER_TESTS)
 endfunction()
 
 function(kaminpar_add_shm_test target)

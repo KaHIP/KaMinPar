@@ -22,7 +22,7 @@ function(dkaminpar_register_test KAMINPAR_TARGET_NAME)
     if (KAMINPAR_BACKWARD_CPP)
         add_backward(${KAMINPAR_TARGET_NAME})
     endif ()
-    gtest_discover_tests(${KAMINPAR_TARGET_NAME} WORKING_DIRECTORY ${PROJECT_DIR})
+    #gtest_discover_tests(${KAMINPAR_TARGET_NAME} WORKING_DIRECTORY ${PROJECT_DIR})
 endfunction()
 
 # Convenience wrapper for adding tests for KaMPI.ng which rely on MPI

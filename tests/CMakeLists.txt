@@ -30,6 +30,11 @@ kaminpar_add_dist_test(test_dist_bfs_extractor
     FILES dkaminpar/graphutils/bfs_extractor_test.cc
     CORES 1 4)
 
+kaminpar_add_dist_test(test_dist_sparse_alltoall
+    NO_LINK
+    FILES dkaminpar/sparse_alltoall_test.cc
+    CORES 1 4)
+
 # KaMinPar 
 kaminpar_add_shm_test(test_shm_io kaminpar/io_test.cc)
 
