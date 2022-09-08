@@ -6,6 +6,7 @@
  ******************************************************************************/
 #include <gmock/gmock.h>
 
+#include "gmock/gmock.h"
 #include "tests/dkaminpar/distributed_graph_factories.h"
 #include "tests/dkaminpar/distributed_graph_helpers.h"
 
@@ -81,7 +82,7 @@ TEST(BfsExtractor, zero_hops_in_path_1_graph) {
     }
 }
 
-TEST(BfsExtracot, zero_hops_in_circle_graph) {
+TEST(BfsExtractor, zero_hops_in_circle_graph) {
     const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
     const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
 
@@ -97,6 +98,41 @@ TEST(BfsExtracot, zero_hops_in_circle_graph) {
         EXPECT_EQ(bfs_graph->m(), 1); // edge to block pseudo-node
     } else if (size > 2) {
         EXPECT_EQ(bfs_graph->m(), 2); // edges to two block pseudo-nodes
+    }
+}
+
+SET_DEBUG(true);
+TEST(BfsExtractor, one_hop_in_circle_graph) {
+    const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
+    const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
+
+    auto graph                    = make_circle_graph();
+    auto p_graph                  = make_partitioned_graph_by_rank(graph);
+    auto [bfs_graph, p_bfs_graph] = extract_bfs_subgraph(p_graph, 1, {0});
+
+    if (size == 1) {
+        EXPECT_EQ(bfs_graph->n(), 1 + p_graph.k());
+        EXPECT_EQ(bfs_graph->m(), 0);
+        EXPECT_EQ(p_bfs_graph->block(0), rank); // == 0
+    } else if (size == 2) {
+    } else if (size > 3) {
+        ASSERT_EQ(bfs_graph->n(), 3 + p_graph.k());
+        EXPECT_NE(p_bfs_graph->block(0), p_bfs_graph->block(1));
+        EXPECT_NE(p_bfs_graph->block(0), p_bfs_graph->block(2));
+        EXPECT_NE(p_bfs_graph->block(1), p_bfs_graph->block(2));
+        EXPECT_EQ(bfs_graph->m(), 6);
+
+        /*
+        if (rank == 0) {
+            DBG << "nodes: " << bfs_graph->raw_nodes();
+            DBG << "edges: " << bfs_graph->raw_edges();
+            for (const NodeID u: bfs_graph->nodes()) {
+                for (const auto [e, v]: bfs_graph->neighbors(u)) {
+                    DBG << u << "(" << p_bfs_graph->block(u) << ") --> " << v << "(" << p_bfs_graph->block(v) << ")";
+                }
+            }
+        }
+        */
     }
 }
 } // namespace kaminpar::dist::graph

@@ -454,7 +454,15 @@ auto BfsExtractor::combine_fragments(tbb::concurrent_vector<GraphFragment>& frag
                 }
             }
         }
+
+        if (i + 1 == fragments.size()) { // last fragment
+            const NodeID last_u = first_node_id_for_fragment[i] + fragment_nodes.size() - 1;
+            nodes[last_u]       = next_edge_id;
+        }
     });
+
+    // Create nodes entries for pseudo-block nodes
+    tbb::parallel_for<NodeID>(real_n, pseudo_n + 1, [&](const NodeID u) { nodes[u] = nodes[real_n]; });
 
     // Construct shared-memory graph
     auto graph = std::make_unique<shm::Graph>(
