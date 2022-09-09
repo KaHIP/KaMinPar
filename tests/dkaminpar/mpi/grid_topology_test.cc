@@ -8,7 +8,7 @@
 
 #include "dkaminpar/mpi/grid_topology.h"
 
-namespace kaminpar::dist::mpi {
+namespace kaminpar::mpi {
 TEST(GridTopologyTest, size_1_rows) {
     GridTopology topo(1);
     EXPECT_EQ(topo.row(0), 0);
@@ -16,12 +16,19 @@ TEST(GridTopologyTest, size_1_rows) {
 
 TEST(GridTopologyTest, size_1_cols) {
     GridTopology topo(1);
-    EXPECT_EQ(topo.column(0), 0);
+    EXPECT_EQ(topo.col(0), 0);
 }
 
 TEST(GridTopologyTest, size_1_virtual_cols) {
     GridTopology topo(1);
-    EXPECT_EQ(topo.virtual_column(0), 0);
+    EXPECT_EQ(topo.virtual_col(0), 0);
+}
+
+TEST(GridTopologyTest, size_1_sizes) {
+    GridTopology topo(1);
+    EXPECT_EQ(topo.row_size(0), 1);
+    EXPECT_EQ(topo.col_size(0), 1);
+    EXPECT_EQ(topo.virtual_col_size(0), 1);
 }
 
 TEST(GridTopologyTest, size_4_rows) {
@@ -34,18 +41,28 @@ TEST(GridTopologyTest, size_4_rows) {
 
 TEST(GridTopologyTest, size_4_cols) {
     GridTopology topo(4);
-    EXPECT_EQ(topo.column(0), 0);
-    EXPECT_EQ(topo.column(1), 1);
-    EXPECT_EQ(topo.column(2), 0);
-    EXPECT_EQ(topo.column(3), 1);
+    EXPECT_EQ(topo.col(0), 0);
+    EXPECT_EQ(topo.col(1), 1);
+    EXPECT_EQ(topo.col(2), 0);
+    EXPECT_EQ(topo.col(3), 1);
+}
+
+TEST(GridTopologyTest, size_4_sizes) {
+    GridTopology topo(4);
+    EXPECT_EQ(topo.row_size(0), 2);
+    EXPECT_EQ(topo.row_size(1), 2);
+    EXPECT_EQ(topo.col_size(0), 2);
+    EXPECT_EQ(topo.col_size(1), 2);
+    EXPECT_EQ(topo.virtual_col_size(0), 2);
+    EXPECT_EQ(topo.virtual_col_size(1), 2);
 }
 
 TEST(GridTopologyTest, size_4_virtual_cols) {
     GridTopology topo(4);
-    EXPECT_EQ(topo.virtual_column(0), 0);
-    EXPECT_EQ(topo.virtual_column(1), 1);
-    EXPECT_EQ(topo.virtual_column(2), 0);
-    EXPECT_EQ(topo.virtual_column(3), 1);
+    EXPECT_EQ(topo.virtual_col(0), 0);
+    EXPECT_EQ(topo.virtual_col(1), 1);
+    EXPECT_EQ(topo.virtual_col(2), 0);
+    EXPECT_EQ(topo.virtual_col(3), 1);
 }
 
 TEST(GridTopologyTest, size_8_rows) {
@@ -62,26 +79,38 @@ TEST(GridTopologyTest, size_8_rows) {
 
 TEST(GridTopologyTest, size_8_cols) {
     GridTopology topo(8);
-    EXPECT_EQ(topo.column(0), 0);
-    EXPECT_EQ(topo.column(1), 1);
-    EXPECT_EQ(topo.column(2), 2);
-    EXPECT_EQ(topo.column(3), 3);
-    EXPECT_EQ(topo.column(4), 0);
-    EXPECT_EQ(topo.column(5), 1);
-    EXPECT_EQ(topo.column(6), 2);
-    EXPECT_EQ(topo.column(7), 3);
+    EXPECT_EQ(topo.col(0), 0);
+    EXPECT_EQ(topo.col(1), 1);
+    EXPECT_EQ(topo.col(2), 2);
+    EXPECT_EQ(topo.col(3), 3);
+    EXPECT_EQ(topo.col(4), 0);
+    EXPECT_EQ(topo.col(5), 1);
+    EXPECT_EQ(topo.col(6), 2);
+    EXPECT_EQ(topo.col(7), 3);
 }
 
 TEST(GridTopologyTest, size_8_virtual_cols) {
     GridTopology topo(8);
-    EXPECT_EQ(topo.virtual_column(0), 0);
-    EXPECT_EQ(topo.virtual_column(1), 1);
-    EXPECT_EQ(topo.virtual_column(2), 2);
-    EXPECT_EQ(topo.virtual_column(3), 3);
-    EXPECT_EQ(topo.virtual_column(4), 0);
-    EXPECT_EQ(topo.virtual_column(5), 1);
-    EXPECT_EQ(topo.virtual_column(6), 2);
-    EXPECT_EQ(topo.virtual_column(7), 3);
+    EXPECT_EQ(topo.virtual_col(0), 0);
+    EXPECT_EQ(topo.virtual_col(1), 1);
+    EXPECT_EQ(topo.virtual_col(2), 2);
+    EXPECT_EQ(topo.virtual_col(3), 3);
+    EXPECT_EQ(topo.virtual_col(4), 0);
+    EXPECT_EQ(topo.virtual_col(5), 1);
+    EXPECT_EQ(topo.virtual_col(6), 2);
+    EXPECT_EQ(topo.virtual_col(7), 3);
+}
+
+TEST(GridTopologyTest, size_8_sizes) {
+    GridTopology topo(8);
+    EXPECT_EQ(topo.row_size(0), 4);
+    EXPECT_EQ(topo.row_size(1), 4);
+    EXPECT_EQ(topo.col_size(0), 2);
+    EXPECT_EQ(topo.col_size(1), 2);
+    EXPECT_EQ(topo.col_size(2), 2);
+    EXPECT_EQ(topo.col_size(3), 2);
+    EXPECT_EQ(topo.virtual_col_size(0), 2);
+    EXPECT_EQ(topo.virtual_col_size(1), 2);
 }
 
 TEST(GridTopologyTest, size_21_rows) {
@@ -111,51 +140,70 @@ TEST(GridTopologyTest, size_21_rows) {
 
 TEST(GridTopologyTest, size_21_cols) {
     GridTopology topo(21);
-    EXPECT_EQ(topo.column(0), 0);
-    EXPECT_EQ(topo.column(1), 1);
-    EXPECT_EQ(topo.column(2), 2);
-    EXPECT_EQ(topo.column(3), 3);
-    EXPECT_EQ(topo.column(4), 4);
-    EXPECT_EQ(topo.column(5), 5);
-    EXPECT_EQ(topo.column(6), 0);
-    EXPECT_EQ(topo.column(7), 1);
-    EXPECT_EQ(topo.column(8), 2);
-    EXPECT_EQ(topo.column(9), 3);
-    EXPECT_EQ(topo.column(10), 4);
-    EXPECT_EQ(topo.column(11), 0);
-    EXPECT_EQ(topo.column(12), 1);
-    EXPECT_EQ(topo.column(13), 2);
-    EXPECT_EQ(topo.column(14), 3);
-    EXPECT_EQ(topo.column(15), 4);
-    EXPECT_EQ(topo.column(16), 0);
-    EXPECT_EQ(topo.column(17), 1);
-    EXPECT_EQ(topo.column(18), 2);
-    EXPECT_EQ(topo.column(19), 3);
-    EXPECT_EQ(topo.column(20), 4);
+    EXPECT_EQ(topo.col(0), 0);
+    EXPECT_EQ(topo.col(1), 1);
+    EXPECT_EQ(topo.col(2), 2);
+    EXPECT_EQ(topo.col(3), 3);
+    EXPECT_EQ(topo.col(4), 4);
+    EXPECT_EQ(topo.col(5), 5);
+    EXPECT_EQ(topo.col(6), 0);
+    EXPECT_EQ(topo.col(7), 1);
+    EXPECT_EQ(topo.col(8), 2);
+    EXPECT_EQ(topo.col(9), 3);
+    EXPECT_EQ(topo.col(10), 4);
+    EXPECT_EQ(topo.col(11), 0);
+    EXPECT_EQ(topo.col(12), 1);
+    EXPECT_EQ(topo.col(13), 2);
+    EXPECT_EQ(topo.col(14), 3);
+    EXPECT_EQ(topo.col(15), 4);
+    EXPECT_EQ(topo.col(16), 0);
+    EXPECT_EQ(topo.col(17), 1);
+    EXPECT_EQ(topo.col(18), 2);
+    EXPECT_EQ(topo.col(19), 3);
+    EXPECT_EQ(topo.col(20), 4);
 }
 
 TEST(GridTopologyTest, size_21_virtual_cols) {
     GridTopology topo(21);
-    EXPECT_EQ(topo.virtual_column(0), 0);
-    EXPECT_EQ(topo.virtual_column(1), 1);
-    EXPECT_EQ(topo.virtual_column(2), 2);
-    EXPECT_EQ(topo.virtual_column(3), 3);
-    EXPECT_EQ(topo.virtual_column(4), 4);
-    EXPECT_EQ(topo.virtual_column(5), 0);
-    EXPECT_EQ(topo.virtual_column(6), 0);
-    EXPECT_EQ(topo.virtual_column(7), 1);
-    EXPECT_EQ(topo.virtual_column(8), 2);
-    EXPECT_EQ(topo.virtual_column(9), 3);
-    EXPECT_EQ(topo.virtual_column(10), 4);
-    EXPECT_EQ(topo.virtual_column(11), 0);
-    EXPECT_EQ(topo.virtual_column(12), 1);
-    EXPECT_EQ(topo.virtual_column(13), 2);
-    EXPECT_EQ(topo.virtual_column(14), 3);
-    EXPECT_EQ(topo.virtual_column(15), 4);
-    EXPECT_EQ(topo.virtual_column(16), 0);
-    EXPECT_EQ(topo.virtual_column(17), 1);
-    EXPECT_EQ(topo.virtual_column(18), 2);
-    EXPECT_EQ(topo.virtual_column(19), 3);
-    EXPECT_EQ(topo.virtual_column(20), 4);
+    EXPECT_EQ(topo.virtual_col(0), 0);
+    EXPECT_EQ(topo.virtual_col(1), 1);
+    EXPECT_EQ(topo.virtual_col(2), 2);
+    EXPECT_EQ(topo.virtual_col(3), 3);
+    EXPECT_EQ(topo.virtual_col(4), 4);
+    EXPECT_EQ(topo.virtual_col(5), 0);
+    EXPECT_EQ(topo.virtual_col(6), 0);
+    EXPECT_EQ(topo.virtual_col(7), 1);
+    EXPECT_EQ(topo.virtual_col(8), 2);
+    EXPECT_EQ(topo.virtual_col(9), 3);
+    EXPECT_EQ(topo.virtual_col(10), 4);
+    EXPECT_EQ(topo.virtual_col(11), 0);
+    EXPECT_EQ(topo.virtual_col(12), 1);
+    EXPECT_EQ(topo.virtual_col(13), 2);
+    EXPECT_EQ(topo.virtual_col(14), 3);
+    EXPECT_EQ(topo.virtual_col(15), 4);
+    EXPECT_EQ(topo.virtual_col(16), 0);
+    EXPECT_EQ(topo.virtual_col(17), 1);
+    EXPECT_EQ(topo.virtual_col(18), 2);
+    EXPECT_EQ(topo.virtual_col(19), 3);
+    EXPECT_EQ(topo.virtual_col(20), 4);
 }
-} // namespace kaminpar::dist::mpi
+
+TEST(GridTopologyTest, size_21_sizes) {
+    GridTopology topo(21);
+    EXPECT_EQ(topo.row_size(0), 6);
+    EXPECT_EQ(topo.row_size(1), 5);
+    EXPECT_EQ(topo.row_size(2), 5);
+    EXPECT_EQ(topo.row_size(3), 5);
+    EXPECT_EQ(topo.col_size(0), 4);
+    EXPECT_EQ(topo.col_size(1), 4);
+    EXPECT_EQ(topo.col_size(2), 4);
+    EXPECT_EQ(topo.col_size(3), 4);
+    EXPECT_EQ(topo.col_size(4), 4);
+    EXPECT_EQ(topo.col_size(5), 1);
+    EXPECT_EQ(topo.virtual_col_size(0), 5);
+    EXPECT_EQ(topo.virtual_col_size(1), 4);
+    EXPECT_EQ(topo.virtual_col_size(2), 4);
+    EXPECT_EQ(topo.virtual_col_size(3), 4);
+    EXPECT_EQ(topo.virtual_col_size(4), 4);
+}
+} // namespace kaminpar::mpi
