@@ -126,8 +126,8 @@ void sparse_alltoall_grid(SendBuffer&& data, const CountsBuffer& counts, Receive
         int i = col_displs[col];
         for (PEID row = 0; row < grid_size; ++row) {
             const PEID pe        = row * grid_size + col;
-            const int row_displ = row_displs[pe];
-            const int row_count = row_counts[pe];
+            const int  row_displ = row_displs[pe];
+            const int  row_count = row_counts[pe];
 
             std::copy(
                 row_recv_buf.begin() + row_displ, row_recv_buf.begin() + row_displ + row_count, col_data.begin() + i

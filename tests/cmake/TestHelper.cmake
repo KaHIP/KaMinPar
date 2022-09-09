@@ -4,13 +4,13 @@ include(GoogleTest)
 function(kaminpar_add_dist_test KAMINPAR_TARGET_NAME)
     cmake_parse_arguments(
             "KAMINPAR"
-            "NO_LINK"
+            "HEADER_ONLY"
             ""
             "FILES;CORES"
             ${ARGN}
     )
     katestrophe_add_test_executable(${KAMINPAR_TARGET_NAME} FILES ${KAMINPAR_FILES})
-    if (NOT KAMINPAR_NO_LINK) 
+    if (NOT KAMINPAR_HEADER_ONLY) 
         target_link_libraries(${KAMINPAR_TARGET_NAME} PRIVATE common_base shm_partitioner_base dist_partitioner_base)
     else ()
         target_link_libraries(${KAMINPAR_TARGET_NAME} PRIVATE common_base shm_partitioner_base)

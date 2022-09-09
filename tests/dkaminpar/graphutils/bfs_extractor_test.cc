@@ -101,7 +101,6 @@ TEST(BfsExtractor, zero_hops_in_circle_graph) {
     }
 }
 
-SET_DEBUG(true);
 TEST(BfsExtractor, one_hop_in_circle_graph) {
     const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
     const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
@@ -115,24 +114,13 @@ TEST(BfsExtractor, one_hop_in_circle_graph) {
         EXPECT_EQ(bfs_graph->m(), 0);
         EXPECT_EQ(p_bfs_graph->block(0), rank); // == 0
     } else if (size == 2) {
+        // @todo
     } else if (size > 3) {
         ASSERT_EQ(bfs_graph->n(), 3 + p_graph.k());
         EXPECT_NE(p_bfs_graph->block(0), p_bfs_graph->block(1));
         EXPECT_NE(p_bfs_graph->block(0), p_bfs_graph->block(2));
         EXPECT_NE(p_bfs_graph->block(1), p_bfs_graph->block(2));
         EXPECT_EQ(bfs_graph->m(), 6);
-
-        /*
-        if (rank == 0) {
-            DBG << "nodes: " << bfs_graph->raw_nodes();
-            DBG << "edges: " << bfs_graph->raw_edges();
-            for (const NodeID u: bfs_graph->nodes()) {
-                for (const auto [e, v]: bfs_graph->neighbors(u)) {
-                    DBG << u << "(" << p_bfs_graph->block(u) << ") --> " << v << "(" << p_bfs_graph->block(v) << ")";
-                }
-            }
-        }
-        */
     }
 }
 } // namespace kaminpar::dist::graph
