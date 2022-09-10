@@ -77,8 +77,7 @@ TYPED_TEST(SparseAlltoallTest, empty_alltoall) {
 }
 
 TYPED_TEST(SparseAlltoallTest, full_alltoall) {
-    return;
-    const int num_elements  = 1024;
+    const int num_elements  = 2;
     const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
 
     std::vector<std::vector<int>> sendbufs(size);
@@ -111,7 +110,7 @@ TYPED_TEST(SparseAlltoallTest, single_message) {
     auto recvbufs = this->impl(sendbufs, MPI_COMM_WORLD);
 
     if (rank == size - 1) {
-        EXPECT_EQ(recvbufs[0].size(), 1);
+        ASSERT_EQ(recvbufs[0].size(), 1);
         EXPECT_EQ(recvbufs[0].front(), 42);
     } else {
         EXPECT_TRUE(recvbufs[0].empty());

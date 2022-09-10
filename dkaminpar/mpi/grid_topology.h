@@ -87,10 +87,19 @@ public:
         return _size / _sqrt;
     }
 
+    // @todo O(1)
     inline PEID virtual_element(const PEID row_, const PEID virtual_col_) const {
-        for (PEID pe = 0; pe < _size; ++pe) {
-            if (row_ == row(pe) && virtual_col_ == virtual_col(pe)) {
-                return pe;
+        if (row_ < num_rows()) {
+            for (PEID pe = 0; pe < _size; ++pe) {
+                if (row_ == row(pe) && virtual_col_ == virtual_col(pe)) {
+                    return pe;
+                }
+            }
+        } else {
+            for (PEID pe = 0; pe < _size; ++pe) {
+                if (virtual_col(pe) != col(pe) && virtual_col_ == virtual_col(pe)) {
+                    return pe;
+                }
             }
         }
         return 0;

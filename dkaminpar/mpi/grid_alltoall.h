@@ -293,10 +293,10 @@ void sparse_alltoall_grid(SendBuffer&& data, const CountsBuffer& counts, Receive
 
     std::vector<int> col_recv_counts(row_comm_size);
     PEID             _p = 0;
-    for (PEID row = 0; row < topo.num_rows(); ++row) {
+    for (PEID row = 0; row < topo.num_full_cols(); ++row) {
         int sum = 0;
 
-        for (PEID col = 0; col < topo.num_cols_in_row(row); ++col) {
+        for (PEID col = 0; col < topo.virtual_col_size(row); ++col) {
             KASSERT(_p < subcounts.size());
             sum += subcounts[_p++];
         }
@@ -383,6 +383,7 @@ void sparse_alltoall_grid(SendBuffer&& data, const CountsBuffer& counts, Receive
         for (PEID row = 0; row < topo.virtual_col_size(col); ++row) {
             // const PEID index = col * row_comm_size + row;
             const PEID pe = topo.virtual_element(row, col); // row * col_comm_size + col;
+            DBG << V(pe) << V(row) << V(col);
 
             KASSERT(index < subcounts.size());
             const auto buf_size = subcounts[index++];
