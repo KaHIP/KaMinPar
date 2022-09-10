@@ -28,11 +28,8 @@ namespace internal {
 class GridCommunicator {
 public:
     GridCommunicator(MPI_Comm comm) {
-        SET_DEBUG(true);
-
         const auto [size, rank] = get_comm_info(comm);
         GridTopology topo(size);
-        DBG << rank << " --> row=" << topo.row(rank) << " col=" << topo.virtual_col(rank);
         MPI_Comm_split(comm, topo.row(rank), rank, &_row_comm);
         MPI_Comm_split(
             comm, topo.virtual_col(rank), topo.virtual_col(rank) == topo.col(rank) ? rank : size + rank, &_col_comm
@@ -63,7 +60,7 @@ private:
 
 template <typename Message, typename Buffer, typename SendBuffer, typename CountsBuffer, typename Receiver>
 void sparse_alltoall_grid(SendBuffer&& data, const CountsBuffer& counts, Receiver&& receiver, MPI_Comm comm) {
-    SET_DEBUG(true);
+    SET_DEBUG(false);
 
     using namespace internal;
 
@@ -282,14 +279,7 @@ void sparse_alltoall_grid(SendBuffer&& data, const CountsBuffer& counts, Receive
         col_subcounts_recv_counts.data(), col_subcounts_recv_displs.data(), row_comm
     );
 
-    DBG << "OK SO FAR?";
-
     DBG << V(subcounts);
-
-    DBG << "OK SO FAR";
-
-    // Assertion:
-    // subcounts
 
     std::vector<int> col_recv_counts(row_comm_size);
     PEID             _p = 0;

@@ -77,7 +77,7 @@ TYPED_TEST(SparseAlltoallTest, empty_alltoall) {
 }
 
 TYPED_TEST(SparseAlltoallTest, full_alltoall) {
-    const int num_elements  = 2;
+    const int num_elements  = 10;
     const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
 
     std::vector<std::vector<int>> sendbufs(size);
