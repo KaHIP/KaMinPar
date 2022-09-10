@@ -74,9 +74,8 @@ void sparse_alltoall_grid(SendBuffer&& data, const CountsBuffer& counts, Receive
     const auto& col_comm      = grid_comm.col_comm();
     const PEID  col_comm_size = grid_comm.col_comm_size();
 
-    const PEID size      = mpi::get_comm_size(comm);
-    const PEID rank      = mpi::get_comm_rank(comm);
-    const PEID grid_size = std::sqrt(size);
+    const PEID size = mpi::get_comm_size(comm);
+    const PEID rank = mpi::get_comm_rank(comm);
 
     GridTopology topo(size);
     const PEID   my_row         = topo.row(rank);
@@ -172,8 +171,8 @@ void sparse_alltoall_grid(SendBuffer&& data, const CountsBuffer& counts, Receive
         );
     }
 
-    std::vector<int> row_send_displs(grid_size + 1);
-    std::vector<int> row_recv_displs(grid_size + 1);
+    std::vector<int> row_send_displs(col_comm_size + 1);
+    std::vector<int> row_recv_displs(col_comm_size + 1);
     std::partial_sum(row_send_counts.begin(), row_send_counts.end(), row_send_displs.begin() + 1);
     std::partial_sum(row_recv_counts.begin(), row_recv_counts.end(), row_recv_displs.begin() + 1);
 
@@ -318,13 +317,13 @@ void sparse_alltoall_grid(SendBuffer&& data, const CountsBuffer& counts, Receive
         int i = col_displs[col];
 
         for (PEID row = 0; row < col_comm_size; ++row) {
-            const PEID pe        = row * row_comm_size + col;
+            const PEID pe = row * row_comm_size + col;
 
             KASSERT(pe < row_displs.size());
             KASSERT(pe < row_counts.size());
 
-            const int  row_displ = row_displs[pe];
-            const int  row_count = row_counts[pe];
+            const int row_displ = row_displs[pe];
+            const int row_count = row_counts[pe];
 
             KASSERT(row_displ <= row_recv_buf.size());
             KASSERT(row_displ + row_count <= row_recv_buf.size());
