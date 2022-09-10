@@ -23,7 +23,7 @@ public:
         if (pe < num_pes_in_full_rectangle()) {
             return pe / num_cols();
         } else {
-            return (pe - num_pes_in_full_rectangle()) / num_full_columns() + partial_column_size();
+            return (pe - num_pes_in_full_rectangle()) / num_full_cols() + partial_column_size();
         }
     }
 
@@ -31,12 +31,12 @@ public:
         if (pe < num_pes_in_full_rectangle()) {
             return pe % num_cols();
         } else {
-            return (pe - num_pes_in_full_rectangle()) % num_full_columns();
+            return (pe - num_pes_in_full_rectangle()) % num_full_cols();
         }
     }
 
     inline PEID virtual_col(const PEID pe) const {
-        if (partial_column_size() == 0 || col(pe) < num_full_columns()) {
+        if (partial_column_size() == 0 || col(pe) < num_full_cols()) {
             return col(pe);
         } else {
             return row(pe);
@@ -47,12 +47,16 @@ public:
         if (row < partial_column_size()) {
             return num_cols();
         } else {
-            return num_full_columns();
+            return num_full_cols();
         }
     }
 
+    inline PEID max_row_size() const {
+        return num_cols();
+    }
+
     inline PEID col_size(const PEID column) const {
-        if (column < num_full_columns()) {
+        if (column < num_full_cols()) {
             return _sqrt;
         } else {
             return partial_column_size();
@@ -61,6 +65,10 @@ public:
 
     inline PEID virtual_col_size(const PEID column) const {
         return _sqrt + (column < partial_column_size());
+    }
+
+    inline PEID max_col_size() const {
+        return _sqrt;
     }
 
     inline PEID num_cols() const {
@@ -72,16 +80,16 @@ public:
     }
 
     inline PEID num_cols_in_row(const PEID row) const {
-        return num_full_columns() + (row < partial_column_size());
+        return num_full_cols() + (row < partial_column_size());
     }
 
-private:
-    inline PEID num_full_columns() const {
+    inline PEID num_full_cols() const {
         return _size / _sqrt;
     }
 
+private:
     inline PEID partial_column_size() const {
-        return _size - _sqrt * num_full_columns();
+        return _size - _sqrt * num_full_cols();
     }
 
     inline PEID num_pes_in_full_rectangle() const {
