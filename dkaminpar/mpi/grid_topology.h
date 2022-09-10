@@ -87,6 +87,15 @@ public:
         return _size / _sqrt;
     }
 
+    inline PEID virtual_element(const PEID row_, const PEID virtual_col_) const {
+        for (PEID pe = 0; pe < _size; ++pe) {
+            if (row_ == row(pe) && virtual_col_ == virtual_col(pe)) {
+                return pe;
+            }
+        }
+        return 0;
+    }
+
 private:
     inline PEID partial_column_size() const {
         return _size - _sqrt * num_full_cols();

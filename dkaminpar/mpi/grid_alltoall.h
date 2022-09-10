@@ -381,16 +381,21 @@ void sparse_alltoall_grid(SendBuffer&& data, const CountsBuffer& counts, Receive
     PEID index = 0;
     for (PEID col = 0; col < topo.num_full_cols(); ++col) {
         for (PEID row = 0; row < topo.virtual_col_size(col); ++row) {
-            //const PEID index = col * row_comm_size + row;
-            const PEID pe    = row * col_comm_size + col;
+            // const PEID index = col * row_comm_size + row;
+            const PEID pe = topo.virtual_element(row, col); // row * col_comm_size + col;
 
             KASSERT(index < subcounts.size());
-            const auto size  = subcounts[index++];
+            const auto buf_size = subcounts[index++];
 
-            Buffer buffer(size);
-            tbb::parallel_for<std::size_t>(0, size, [&](const std::size_t i) { buffer[i] = col_recv_buf[displ + i]; });
-            displ += size;
+            Buffer buffer(buf_size);
+            tbb::parallel_for<std::size_t>(0, buf_size, [&](const std::size_t i) {
+                KASSERT(i < buffer.size());
+                KASSERT(displ + i < col_recv_buf.size());
+                buffer[i] = col_recv_buf[displ + i];
+            });
+            displ += buf_size;
 
+            KASSERT(pe < size);
             invoke_receiver(std::move(buffer), pe, receiver);
         }
     }
