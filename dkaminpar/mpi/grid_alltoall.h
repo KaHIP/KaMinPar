@@ -191,7 +191,7 @@ void sparse_alltoall_grid(SendBuffer&& data, const CountsBuffer& counts, Receive
         row_recv_displs.data(), col_comm
     );
 
-    std::vector<int> row_displs(size + 1);
+    std::vector<int> row_displs(row_comm_size * col_comm_size + 1);
     std::partial_sum(row_counts.begin(), row_counts.end(), row_displs.begin() + 1);
 
     DBG << V(row_recv_buf) << V(row_counts);
@@ -362,11 +362,12 @@ void sparse_alltoall_grid(SendBuffer&& data, const CountsBuffer& counts, Receive
     DBG << V(col_recv_buf) << V(col_recv_counts);
 
     std::size_t displ = 0;
-    for (PEID pe = 0; pe < size; ++pe) {
+    /*for (PEID pe = 0; pe < size; ++pe) {
         const PEID row         = topo.row(pe);
         const PEID virtual_col = topo.virtual_col(pe);
 
         const PEID index = row * topo.num_full_cols() + virtual_col;
+        KASSERT(index < subcounts.size());
         const auto size  = subcounts[index];
 
         Buffer buffer(size);
@@ -375,13 +376,16 @@ void sparse_alltoall_grid(SendBuffer&& data, const CountsBuffer& counts, Receive
 
         invoke_receiver(std::move(buffer), pe, receiver);
     }
-    return;
+    return;*/
 
-    for (PEID col = 0; col < row_comm_size; ++col) {
-        for (PEID row = 0; row < col_comm_size; ++row) {
-            const PEID index = col * row_comm_size + row;
+    PEID index = 0;
+    for (PEID col = 0; col < topo.num_full_cols(); ++col) {
+        for (PEID row = 0; row < topo.virtual_col_size(col); ++row) {
+            //const PEID index = col * row_comm_size + row;
             const PEID pe    = row * col_comm_size + col;
-            const auto size  = subcounts[index];
+
+            KASSERT(index < subcounts.size());
+            const auto size  = subcounts[index++];
 
             Buffer buffer(size);
             tbb::parallel_for<std::size_t>(0, size, [&](const std::size_t i) { buffer[i] = col_recv_buf[displ + i]; });
