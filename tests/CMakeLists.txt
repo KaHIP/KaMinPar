@@ -33,7 +33,7 @@ kaminpar_add_dist_test(test_dist_bfs_extractor
 kaminpar_add_dist_test(test_dist_sparse_alltoall
     HEADER_ONLY
     FILES dkaminpar/sparse_alltoall_test.cc
-    CORES 1 4 16)
+    CORES 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 20 21 22 23 24 32 64)
 kaminpar_add_dist_test(test_dist_graph_topology
     HEADER_ONLY
     FILES dkaminpar/mpi/grid_topology_test.cc

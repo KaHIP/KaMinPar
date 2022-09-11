@@ -80,9 +80,9 @@ void sparse_alltoall_grid(SendBuffer&& data, const CountsBuffer& counts, Receive
     const PEID   my_virtual_col = topo.virtual_col(rank);
 
     KASSERT(row_comm_size == topo.row_size(my_row));
-    KASSERT(col_comm_size == topo.virtual_col_size(my_virtual_col), V(my_row) << V(my_col) << V(rank));
+    KASSERT(col_comm_size == topo.virtual_col_size(my_virtual_col));
 
-    DBG << V(my_row) << V(my_col) << V(my_virtual_col) << V(row_comm_size) << V(col_comm_size);
+    // DBG << V(my_row) << V(my_col) << V(my_virtual_col) << V(row_comm_size) << V(col_comm_size);
 
     /*
      * Step 1 (column)
@@ -123,12 +123,12 @@ void sparse_alltoall_grid(SendBuffer&& data, const CountsBuffer& counts, Receive
 
     // Exchange counts within payload
     std::vector<int> row_counts(row_comm_size * col_comm_size);
-    KASSERT(row_counts.size() >= row_counts_recv_displs.back());
-    KASSERT(row_counts_send_counts.size() >= col_comm_size);
-    KASSERT(counts.size() >= row_counts_send_displs.back());
-    KASSERT(row_counts_recv_counts.size() >= col_comm_size);
-    KASSERT(row_counts_recv_displs.size() >= col_comm_size);
-    KASSERT(row_counts_send_displs.size() >= col_comm_size);
+    KASSERT(asserting_cast<int>(row_counts.size()) >= row_counts_recv_displs.back());
+    KASSERT(asserting_cast<int>(row_counts_send_counts.size()) >= col_comm_size);
+    KASSERT(asserting_cast<int>(counts.size()) >= row_counts_send_displs.back());
+    KASSERT(asserting_cast<int>(row_counts_recv_counts.size()) >= col_comm_size);
+    KASSERT(asserting_cast<int>(row_counts_recv_displs.size()) >= col_comm_size);
+    KASSERT(asserting_cast<int>(row_counts_send_displs.size()) >= col_comm_size);
     mpi::alltoallv(
         counts.data(), row_counts_send_counts.data(), row_counts_send_displs.data(), row_counts.data(),
         row_counts_recv_counts.data(), row_counts_recv_displs.data(), col_comm
@@ -153,16 +153,11 @@ void sparse_alltoall_grid(SendBuffer&& data, const CountsBuffer& counts, Receive
 
     std::vector<int> row_send_counts(col_comm_size);
     for (PEID pe = 0; pe < size; ++pe) {
-        const PEID row = topo.row(pe);
-
-        KASSERT(row < row_send_counts.size());
-        row_send_counts[row] += counts[pe];
+        row_send_counts[topo.row(pe)] += counts[pe];
     }
 
     std::vector<int> row_recv_counts(col_comm_size);
     for (PEID row = 0; row < col_comm_size; ++row) {
-        KASSERT(row * row_comm_size < row_counts.size());
-        KASSERT((row + 1) * row_comm_size <= row_counts.size());
         row_recv_counts[row] = std::accumulate(
             row_counts.begin() + row * row_comm_size, row_counts.begin() + (row + 1) * row_comm_size, 0
         );
@@ -174,15 +169,15 @@ void sparse_alltoall_grid(SendBuffer&& data, const CountsBuffer& counts, Receive
     std::partial_sum(row_recv_counts.begin(), row_recv_counts.end(), row_recv_displs.begin() + 1);
 
     // Exchange 1st hop payload
-    DBG << V(row_recv_displs);
+    // DBG << V(row_recv_displs);
 
     std::vector<Message> row_recv_buf(row_recv_displs.back());
-    KASSERT(row_send_counts.size() >= col_comm_size);
-    KASSERT(row_send_displs.size() >= col_comm_size);
-    KASSERT(data.size() >= row_send_displs.back());
-    KASSERT(row_recv_counts.size() >= col_comm_size);
-    KASSERT(row_recv_displs.size() >= col_comm_size);
-    KASSERT(row_recv_buf.size() >= row_recv_displs.back());
+    KASSERT(asserting_cast<PEID>(row_send_counts.size()) >= col_comm_size);
+    KASSERT(asserting_cast<PEID>(row_send_displs.size()) >= col_comm_size);
+    KASSERT(asserting_cast<int>(data.size()) >= row_send_displs.back());
+    KASSERT(asserting_cast<PEID>(row_recv_counts.size()) >= col_comm_size);
+    KASSERT(asserting_cast<PEID>(row_recv_displs.size()) >= col_comm_size);
+    KASSERT(asserting_cast<int>(row_recv_buf.size()) >= row_recv_displs.back());
     mpi::alltoallv(
         data.data(), row_send_counts.data(), row_send_displs.data(), row_recv_buf.data(), row_recv_counts.data(),
         row_recv_displs.data(), col_comm
@@ -191,7 +186,7 @@ void sparse_alltoall_grid(SendBuffer&& data, const CountsBuffer& counts, Receive
     std::vector<int> row_displs(row_comm_size * col_comm_size + 1);
     std::partial_sum(row_counts.begin(), row_counts.end(), row_displs.begin() + 1);
 
-    DBG << V(row_recv_buf) << V(row_counts);
+    // DBG << V(row_recv_buf) << V(row_counts);
 
     /*
      * After step 2 (column)
@@ -223,9 +218,9 @@ void sparse_alltoall_grid(SendBuffer&& data, const CountsBuffer& counts, Receive
     for (PEID col = 0; col < row_comm_size; ++col) {
         for (PEID from_row = 0; from_row < col_comm_size; ++from_row) {
             const PEID pe = col + from_row * row_comm_size;
-            KASSERT(col < col_counts.size());
-            KASSERT(pe < row_counts.size());
-            KASSERT(from_row + col * col_comm_size < col_subcounts.size());
+            KASSERT(col < asserting_cast<PEID>(col_counts.size()));
+            KASSERT(pe < asserting_cast<PEID>(row_counts.size()));
+            KASSERT(from_row + col * col_comm_size < asserting_cast<PEID>(col_subcounts.size()));
 
             col_counts[col] += row_counts[pe];
             col_subcounts[from_row + col * col_comm_size] = row_counts[pe];
@@ -244,7 +239,7 @@ void sparse_alltoall_grid(SendBuffer&& data, const CountsBuffer& counts, Receive
 
         col_subcounts_recv_counts.resize(row_comm_size);
         for (PEID col = 0; col < topo.num_full_cols(); ++col) {
-            KASSERT(col < col_subcounts_recv_counts.size());
+            KASSERT(col < asserting_cast<PEID>(col_subcounts_recv_counts.size()));
             col_subcounts_recv_counts[col] = topo.virtual_col_size(col);
         }
 
@@ -258,28 +253,28 @@ void sparse_alltoall_grid(SendBuffer&& data, const CountsBuffer& counts, Receive
         );
     }
 
-    DBG << V(col_counts) << V(col_subcounts);
-    DBG << V(col_subcounts_send_counts) << V(col_subcounts_send_displs) << V(col_subcounts_recv_counts)
-        << V(col_subcounts_recv_displs);
+    // DBG << V(col_counts) << V(col_subcounts);
+    // DBG << V(col_subcounts_send_counts) << V(col_subcounts_send_displs) << V(col_subcounts_recv_counts)
+    //     << V(col_subcounts_recv_displs);
 
-    KASSERT(col_subcounts_recv_displs.back() == size);
+    KASSERT(asserting_cast<PEID>(col_subcounts_recv_displs.back()) == size);
 
     // Exchange counts
     std::vector<int> subcounts(size);
 
-    KASSERT(col_subcounts_send_counts.size() >= row_comm_size);
-    KASSERT(col_subcounts_recv_counts.size() >= row_comm_size);
-    KASSERT(col_subcounts.size() >= col_subcounts_send_displs.back());
-    KASSERT(col_subcounts_recv_counts.size() >= row_comm_size);
-    KASSERT(col_subcounts_recv_displs.size() >= row_comm_size);
-    KASSERT(subcounts.size() >= col_subcounts_recv_displs.back());
+    KASSERT(asserting_cast<PEID>(col_subcounts_send_counts.size()) >= row_comm_size);
+    KASSERT(asserting_cast<PEID>(col_subcounts_recv_counts.size()) >= row_comm_size);
+    KASSERT(asserting_cast<int>(col_subcounts.size()) >= col_subcounts_send_displs.back());
+    KASSERT(asserting_cast<PEID>(col_subcounts_recv_counts.size()) >= row_comm_size);
+    KASSERT(asserting_cast<PEID>(col_subcounts_recv_displs.size()) >= row_comm_size);
+    KASSERT(asserting_cast<int>(subcounts.size()) >= col_subcounts_recv_displs.back());
 
     mpi::alltoallv(
         col_subcounts.data(), col_subcounts_send_counts.data(), col_subcounts_send_displs.data(), subcounts.data(),
         col_subcounts_recv_counts.data(), col_subcounts_recv_displs.data(), row_comm
     );
 
-    DBG << V(subcounts);
+    // DBG << V(subcounts);
 
     std::vector<int> col_recv_counts(row_comm_size);
     PEID             _p = 0;
@@ -287,11 +282,11 @@ void sparse_alltoall_grid(SendBuffer&& data, const CountsBuffer& counts, Receive
         int sum = 0;
 
         for (PEID col = 0; col < topo.virtual_col_size(row); ++col) {
-            KASSERT(_p < subcounts.size());
+            KASSERT(_p < asserting_cast<PEID>(subcounts.size()));
             sum += subcounts[_p++];
         }
 
-        KASSERT(row < col_recv_counts.size());
+        KASSERT(row < asserting_cast<PEID>(col_recv_counts.size()));
         col_recv_counts[row] = sum;
     }
 
@@ -303,22 +298,22 @@ void sparse_alltoall_grid(SendBuffer&& data, const CountsBuffer& counts, Receive
 
     std::vector<Message> col_data(row_recv_buf.size());
     for (PEID col = 0; col < row_comm_size; ++col) {
-        KASSERT(col < col_displs.size());
+        KASSERT(col < asserting_cast<PEID>(col_displs.size()));
         int i = col_displs[col];
 
         for (PEID row = 0; row < col_comm_size; ++row) {
             const PEID pe = row * row_comm_size + col;
 
-            KASSERT(pe < row_displs.size());
-            KASSERT(pe < row_counts.size());
+            KASSERT(pe < asserting_cast<PEID>(row_displs.size()));
+            KASSERT(pe < asserting_cast<PEID>(row_counts.size()));
 
             const int row_displ = row_displs[pe];
             const int row_count = row_counts[pe];
 
-            KASSERT(row_displ <= row_recv_buf.size());
-            KASSERT(row_displ + row_count <= row_recv_buf.size());
-            KASSERT(i <= col_data.size());
-            KASSERT(i + row_count <= col_data.size());
+            KASSERT(row_displ <= asserting_cast<PEID>(row_recv_buf.size()));
+            KASSERT(row_displ + row_count <= asserting_cast<PEID>(row_recv_buf.size()));
+            KASSERT(i <= asserting_cast<int>(col_data.size()));
+            KASSERT(i + row_count <= asserting_cast<int>(col_data.size()));
 
             std::copy(
                 row_recv_buf.begin() + row_displ, row_recv_buf.begin() + row_displ + row_count, col_data.begin() + i
@@ -328,17 +323,16 @@ void sparse_alltoall_grid(SendBuffer&& data, const CountsBuffer& counts, Receive
     }
 
     // Exchange col payload
-    DBG << V(col_recv_displs);
+    // DBG << V(col_recv_displs);
     std::vector<Message> col_recv_buf(col_recv_displs.back());
+    // DBG << V(col_data) << V(col_counts) << V(col_displs) << V(col_recv_counts) << V(col_recv_displs);
 
-    DBG << V(col_data) << V(col_counts) << V(col_displs) << V(col_recv_counts) << V(col_recv_displs);
-
-    KASSERT(col_counts.size() >= row_comm_size);
-    KASSERT(col_displs.size() >= row_comm_size);
-    KASSERT(col_data.size() >= col_displs.back());
-    KASSERT(col_recv_counts.size() >= row_comm_size);
-    KASSERT(col_recv_displs.size() >= row_comm_size);
-    KASSERT(col_recv_buf.size() >= col_recv_displs.back());
+    KASSERT(asserting_cast<PEID>(col_counts.size()) >= row_comm_size);
+    KASSERT(asserting_cast<PEID>(col_displs.size()) >= row_comm_size);
+    KASSERT(asserting_cast<int>(col_data.size()) >= col_displs.back());
+    KASSERT(asserting_cast<PEID>(col_recv_counts.size()) >= row_comm_size);
+    KASSERT(asserting_cast<PEID>(col_recv_displs.size()) >= row_comm_size);
+    KASSERT(asserting_cast<int>(col_recv_buf.size()) >= col_recv_displs.back());
 
     mpi::alltoallv(
         col_data.data(), col_counts.data(), col_displs.data(), col_recv_buf.data(), col_recv_counts.data(),
@@ -349,32 +343,13 @@ void sparse_alltoall_grid(SendBuffer&& data, const CountsBuffer& counts, Receive
     // col_recv_buf contains all data adressed to this PE:
     // data from 0x0, 1x0, 2x0, ..., 0x1, 0x2, ... ...
 
-    DBG << V(col_recv_buf) << V(col_recv_counts);
+    // DBG << V(col_recv_buf) << V(col_recv_counts);
 
     std::size_t displ = 0;
-    /*for (PEID pe = 0; pe < size; ++pe) {
-        const PEID row         = topo.row(pe);
-        const PEID virtual_col = topo.virtual_col(pe);
-
-        const PEID index = row * topo.num_full_cols() + virtual_col;
-        KASSERT(index < subcounts.size());
-        const auto size  = subcounts[index];
-
-        Buffer buffer(size);
-        tbb::parallel_for<std::size_t>(0, size, [&](const std::size_t i) { buffer[i] = col_recv_buf[displ + i]; });
-        displ += size;
-
-        invoke_receiver(std::move(buffer), pe, receiver);
-    }
-    return;*/
-
-    PEID index = 0;
+    std::size_t index = 0;
     for (PEID col = 0; col < topo.num_full_cols(); ++col) {
         for (PEID row = 0; row < topo.virtual_col_size(col); ++row) {
-            // const PEID index = col * row_comm_size + row;
             const PEID pe = topo.virtual_element(row, col); // row * col_comm_size + col;
-            DBG << V(pe) << V(row) << V(col);
-
             KASSERT(index < subcounts.size());
             const auto buf_size = subcounts[index++];
 
