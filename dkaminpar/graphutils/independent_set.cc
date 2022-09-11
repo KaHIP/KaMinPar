@@ -10,9 +10,12 @@
 #include <limits>
 #include <random>
 
+#include <tbb/concurrent_vector.h>
 #include <tbb/enumerable_thread_specific.h>
 
 #include "dkaminpar/datastructure/distributed_graph.h"
+
+#include "common/timer.h"
 
 namespace kaminpar::dist::graph {
 SET_DEBUG(true);
@@ -25,7 +28,9 @@ ScoreType compute_score(Generator& generator, const GlobalNodeID node, const int
 }
 } // namespace
 
-tbb::concurrent_vector<NodeID> find_independent_border_set(const DistributedPartitionedGraph& p_graph, int seed) {
+std::vector<NodeID> find_independent_border_set(const DistributedPartitionedGraph& p_graph, const int seed) {
+    SCOPED_TIMER("Find independent border node set");
+
     constexpr std::int64_t kNoBorderNode = std::numeric_limits<std::int64_t>::max();
 
     NoinitVector<std::int64_t>                    score(p_graph.total_n());
@@ -68,6 +73,6 @@ tbb::concurrent_vector<NodeID> find_independent_border_set(const DistributedPart
         }
     });
 
-    return seed_nodes;
+    return std::vector<NodeID>(seed_nodes.begin(), seed_nodes.end());
 }
 } // namespace kaminpar::dist::graph

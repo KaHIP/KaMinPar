@@ -24,6 +24,7 @@
 #include "common/datastructures/marker.h"
 #include "common/datastructures/static_array.h"
 #include "common/random.h"
+#include "common/timer.h"
 
 namespace kaminpar::dist::graph {
 SET_DEBUG(true);
@@ -35,6 +36,8 @@ void BfsExtractor::initialize(const DistributedPartitionedGraph& p_graph) {
 }
 
 auto BfsExtractor::extract(const std::vector<NodeID>& seed_nodes) -> Result {
+    SCOPED_TIMER("BFS extraction");
+
     // Initialize external degrees if needed
     if (_exterior_strategy == ExteriorStrategy::CONTRACT && _external_degrees.empty()) {
         init_external_degrees();
@@ -49,7 +52,9 @@ auto BfsExtractor::extract(const std::vector<NodeID>& seed_nodes) -> Result {
     }
 
     DBG << "Running initial BFS on local PE ...";
+    START_TIMER("Initial BFS");
     auto local_bfs_result = bfs(0, initial_seed_nodes, {});
+    STOP_TIMER();
     DBG << "-> Discovered " << local_bfs_result.nodes.size() - 1 << " nodes and "
         << local_bfs_result.explored_nodes.size() << " ghost edges";
 
@@ -62,21 +67,30 @@ auto BfsExtractor::extract(const std::vector<NodeID>& seed_nodes) -> Result {
     std::vector<ExploredSubgraph> local_bfs_results(size);
 
     for (PEID hop = 0; hop < _max_hops; ++hop) {
+        START_TIMER("Exchange ghost seed nodes");
         auto  ghost_exchange_result = exchange_ghost_seed_nodes(cur_ghost_seed_edges);
+        STOP_TIMER();
+
         auto& next_ghost_seed_nodes = ghost_exchange_result.first;
         auto& next_ignored_nodes    = ghost_exchange_result.second;
 
+        START_TIMER("Continued BFS");
         tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
             local_bfs_results[pe]    = bfs(hop + 1, next_ghost_seed_nodes[pe], next_ignored_nodes[pe]);
             cur_ghost_seed_edges[pe] = std::move(local_bfs_results[pe].explored_ghosts);
         });
+        STOP_TIMER();
 
+        START_TIMER("Exchange explored subgraphs");
         auto local_fragments = exchange_explored_subgraphs(local_bfs_results);
+        STOP_TIMER();
+
         for (auto& fragment: local_fragments) {
             fragments.push_back(std::move(fragment));
         }
     }
 
+    SCOPED_TIMER("Combine subgraph fragments");
     return combine_fragments(fragments);
 }
 
@@ -259,7 +273,8 @@ auto BfsExtractor::bfs(
         const bool is_hop_border_node      = current_hop == _max_hops;
         const bool is_border_node          = is_distance_border_node || is_hop_border_node;
 
-        DBG << "Exploring node " << node << ": " << V(is_distance_border_node) << V(is_hop_border_node) << V(is_border_node);
+        DBG << "Exploring node " << node << ": " << V(is_distance_border_node) << V(is_hop_border_node)
+            << V(is_border_node);
 
         if (is_border_node) {
             for (const auto [edge, neighbor]: _graph->neighbors(node)) {
