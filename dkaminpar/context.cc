@@ -46,7 +46,9 @@ DEFINE_ENUM_STRING_CONVERSION(InitialPartitioningAlgorithm, initial_partitioning
 DEFINE_ENUM_STRING_CONVERSION(KWayRefinementAlgorithm, kway_refinement_algorithm) = {
     {KWayRefinementAlgorithm::NOOP, "noop"},
     {KWayRefinementAlgorithm::PROB_LP, "prob-lp"},
+    {KWayRefinementAlgorithm::LOCAL_FM, "local-fm"},
     {KWayRefinementAlgorithm::FM, "fm"},
+    {KWayRefinementAlgorithm::PROB_LP_LOCAL_FM, "prob-lp+local-fm"},
     {KWayRefinementAlgorithm::PROB_LP_FM, "prob-lp+fm"},
 };
 

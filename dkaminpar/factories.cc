@@ -17,6 +17,7 @@
 // Refinement
 #include "dkaminpar/refinement/distributed_probabilistic_label_propagation_refiner.h"
 #include "dkaminpar/refinement/fm_refiner.h"
+#include "dkaminpar/refinement/local_fm_refiner.h"
 #include "dkaminpar/refinement/multi_refiner.h"
 #include "dkaminpar/refinement/noop_refiner.h"
 
@@ -47,8 +48,18 @@ std::unique_ptr<IDistributedRefiner> create_refinement_algorithm(const Context& 
         case KWayRefinementAlgorithm::PROB_LP:
             return std::make_unique<DistributedProbabilisticLabelPropagationRefiner>(ctx);
 
+        case KWayRefinementAlgorithm::LOCAL_FM:
+            return std::make_unique<LocalFMRefiner>(ctx);
+
         case KWayRefinementAlgorithm::FM:
             return std::make_unique<FMRefiner>(ctx);
+
+        case KWayRefinementAlgorithm::PROB_LP_LOCAL_FM: {
+            std::vector<std::unique_ptr<IDistributedRefiner>> refiners;
+            refiners.push_back(std::make_unique<DistributedProbabilisticLabelPropagationRefiner>(ctx));
+            refiners.push_back(std::make_unique<LocalFMRefiner>(ctx));
+            return std::make_unique<MultiRefiner>(std::move(refiners));
+        }
 
         case KWayRefinementAlgorithm::PROB_LP_FM: {
             std::vector<std::unique_ptr<IDistributedRefiner>> refiners;

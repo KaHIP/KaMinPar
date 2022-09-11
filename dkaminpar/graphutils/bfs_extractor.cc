@@ -259,8 +259,11 @@ auto BfsExtractor::bfs(
         const bool is_hop_border_node      = current_hop == _max_hops;
         const bool is_border_node          = is_distance_border_node || is_hop_border_node;
 
+        DBG << "Exploring node " << node << ": " << V(is_distance_border_node) << V(is_hop_border_node) << V(is_border_node);
+
         if (is_border_node) {
             for (const auto [edge, neighbor]: _graph->neighbors(node)) {
+                DBG << "--> edge to " << neighbor << ", " << V(taken.get(neighbor));
                 if (taken.get(neighbor)) {
                     edges.push_back(_graph->local_to_global_node(neighbor));
                     edge_weights.push_back(_graph->edge_weight(edge));
@@ -271,6 +274,7 @@ auto BfsExtractor::bfs(
             }
 
             for (const auto& [block, weight]: external_degrees_map.entries()) {
+                DBG << "Adding edge to block " << block;
                 edges.push_back(map_block_to_pseudo_node(block));
                 edge_weights.push_back(weight);
             }

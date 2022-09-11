@@ -110,11 +110,15 @@ TEST(BfsExtractor, one_hop_in_circle_graph) {
     auto [bfs_graph, p_bfs_graph] = extract_bfs_subgraph(p_graph, 1, {0});
 
     if (size == 1) {
-        EXPECT_EQ(bfs_graph->n(), 1 + p_graph.k());
+        ASSERT_EQ(bfs_graph->n(), 1 + p_graph.k());
         EXPECT_EQ(bfs_graph->m(), 0);
         EXPECT_EQ(p_bfs_graph->block(0), rank); // == 0
     } else if (size == 2) {
-        // @todo
+        ASSERT_EQ(bfs_graph->n(), 2 + p_graph.k());
+        ASSERT_EQ(bfs_graph->m(), 2);
+        EXPECT_THAT(p_bfs_graph->block(0), ::testing::AnyOf(0, 1));
+        EXPECT_THAT(p_bfs_graph->block(1), ::testing::AnyOf(0, 1));
+        EXPECT_NE(p_bfs_graph->block(0), p_bfs_graph->block(1));
     } else if (size > 3) {
         ASSERT_EQ(bfs_graph->n(), 3 + p_graph.k());
         EXPECT_NE(p_bfs_graph->block(0), p_bfs_graph->block(1));
