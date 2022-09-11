@@ -18,7 +18,7 @@
 namespace kaminpar::dist {
 class FMRefiner : public IDistributedRefiner {
     SET_STATISTICS(true);
-    SET_DEBUG(true);
+    SET_DEBUG(false);
 
 public:
     FMRefiner(const Context& ctx);
