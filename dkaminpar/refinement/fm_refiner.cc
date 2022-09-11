@@ -68,6 +68,8 @@ private:
 };
 
 class ThreadLocalFMRefiner {
+    SET_DEBUG(false);
+
 public:
     struct Move {
         Move(const NodeID node, const EdgeWeight gain, const BlockID block) : node(node), gain(gain), block(block) {}
@@ -112,6 +114,14 @@ public:
                 && _global_p_graph.block_weight(to) + _block_weight_deltas[to] + weight <= _p_ctx.max_block_weight(to);
 
             if (feasible) {
+                /*DBG << "Feasible move with gain " << gain << ": " << u << " > " << from << " --> " << to;
+                if (u == 226) {
+                    DBG << "Neighbors: (n= " << _p_graph.n() << ")";
+                    for (const auto& [e, v]: _p_graph.neighbors(u)) {
+                        DBG << V(v) << " with edge weight " << _p_graph.edge_weight(e) << " block " << block(v);
+                    }
+                }*/
+
                 // Move u to its target block
                 set_block(u, to);
                 _block_weight_deltas[from] -= weight;
@@ -132,6 +142,8 @@ public:
                 insert_node_into_pq<false>(u);
             }
         }
+
+        DBG << "Accepted gain: " << best_total_gain;
 
         // Rollback to best cut found
         while (moves.size() > rollback_index) {
@@ -326,7 +338,7 @@ void FMRefiner::refine(DistributedPartitionedGraph& p_graph) {
         return ThreadLocalFMRefiner(*_p_graph, *extraction_result.p_graph, _fm_ctx, *_p_ctx);
     }};
 
-    for (std::size_t local_round = 0; local_round < _fm_ctx.num_iterations; ++local_round) {
+    for (std::size_t local_round = 0; local_round < 1; ++local_round) {
         DBG << "Starting FM round " << local_round;
 
         START_TIMER("Local FM");
@@ -345,6 +357,7 @@ void FMRefiner::refine(DistributedPartitionedGraph& p_graph) {
             const auto&  p_graph      = extraction_result.p_graph;
             const auto&  node_mapping = extraction_result.node_mapping;
             for (const auto& [node, gain, to]: moves) {
+                KASSERT(node < node_mapping.size());
                 local_move_buffer.push_back(
                     {node_mapping[node], group, p_graph->node_weight(node), gain, p_graph->block(node), to}
                 );
@@ -354,17 +367,22 @@ void FMRefiner::refine(DistributedPartitionedGraph& p_graph) {
 
         DBG << "Found a total of " << local_move_buffer.size() << " move candidates for " << seed_nodes.size()
             << " seed nodes";
+        for (const auto& move: local_move_buffer) {
+            DBG << "- " << move.node;
+        }
 
         // Resolve global move conflicts
         START_TIMER("Move conflict resolution");
         std::vector<GlobalMove> local_move_buffer_cpy(local_move_buffer.begin(), local_move_buffer.end());
         auto global_move_buffer = broadcast_and_resolve_global_moves(local_move_buffer_cpy, _p_graph->communicator());
+        // auto global_move_buffer = local_move_buffer_cpy;
         STOP_TIMER();
 
         // Apply moves to global partition and extract graph
         DBG << "Cut before moving nodes: " << metrics::edge_cut(*_p_graph);
 
         START_TIMER("Apply moves");
+        const auto cut_before = metrics::edge_cut(*_p_graph); //
         for (const auto& [node, group, weight, gain, from, to]: global_move_buffer) {
             if (node == kInvalidGlobalNodeID) {
                 continue; // Move conflicts with a better move
@@ -373,17 +391,22 @@ void FMRefiner::refine(DistributedPartitionedGraph& p_graph) {
             // Apply move to distributed graph
             if (_p_graph->contains_global_node(node)) {
                 const NodeID local_node = _p_graph->global_to_local_node(node);
-                KASSERT(_p_graph->block(local_node) == from);
                 _p_graph->set_block(local_node, to);
+            } else {
+                _p_graph->set_block_weight(from, _p_graph->block_weight(from) - weight);
+                _p_graph->set_block_weight(to, _p_graph->block_weight(to) + weight);
             }
 
-            // Apply move to local graph
-            KASSERT(reverse_node_mapping.find(node + 1) != reverse_node_mapping.end());
-            const NodeID extracted_node = (*reverse_node_mapping.find(node + 1)).second;
-            KASSERT(extraction_result.p_graph->block(extracted_node) == from);
-            extraction_result.p_graph->set_block<false>(extracted_node, to);
+            // Apply move to local graph (if contained in local graph)
+            auto it = reverse_node_mapping.find(node + 1);
+            if (it != reverse_node_mapping.end()) {
+                const NodeID extracted_node = (*it).second;
+                extraction_result.p_graph->set_block<false>(extracted_node, to);
+            }
         }
         STOP_TIMER();
+        const auto cut_after = metrics::edge_cut(*_p_graph); //
+        DBG << "Cut changed from " << cut_before << " to " << cut_after;
 
         DBG << "Cut after moving nodes: " << metrics::edge_cut(*_p_graph);
     }

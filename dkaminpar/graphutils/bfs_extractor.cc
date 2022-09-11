@@ -68,7 +68,7 @@ auto BfsExtractor::extract(const std::vector<NodeID>& seed_nodes) -> Result {
 
     for (PEID hop = 0; hop < _max_hops; ++hop) {
         START_TIMER("Exchange ghost seed nodes");
-        auto  ghost_exchange_result = exchange_ghost_seed_nodes(cur_ghost_seed_edges);
+        auto ghost_exchange_result = exchange_ghost_seed_nodes(cur_ghost_seed_edges);
         STOP_TIMER();
 
         auto& next_ghost_seed_nodes = ghost_exchange_result.first;
@@ -480,6 +480,10 @@ auto BfsExtractor::combine_fragments(tbb::concurrent_vector<GraphFragment>& frag
         }
     });
 
+    for (NodeID pseudo_node = real_n; pseudo_node < pseudo_n; ++pseudo_node) {
+        partition[pseudo_node] = pseudo_node - real_n;
+    }
+
     // Create nodes entries for pseudo-block nodes
     tbb::parallel_for<NodeID>(real_n, pseudo_n + 1, [&](const NodeID u) { nodes[u] = nodes[real_n]; });
 
@@ -528,16 +532,16 @@ EdgeWeight& BfsExtractor::external_degree(const NodeID u, const BlockID b) {
 }
 
 GlobalNodeID BfsExtractor::map_block_to_pseudo_node(const BlockID block) {
-    return _graph->total_n() + block;
+    return _graph->global_n() + block;
 }
 
 BlockID BfsExtractor::map_pseudo_node_to_block(const GlobalNodeID node) {
     KASSERT(is_pseudo_block_node(node));
-    return static_cast<BlockID>(node - _graph->total_n());
+    return static_cast<BlockID>(node - _graph->global_n());
 }
 
 bool BfsExtractor::is_pseudo_block_node(const GlobalNodeID node) {
-    return node >= _graph->total_n();
+    return node >= _graph->global_n();
 }
 } // namespace kaminpar::dist::graph
 
