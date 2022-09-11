@@ -12,13 +12,13 @@
 
 #include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/definitions.h"
-#include "dkaminpar/mpi/alltoall.h"
-#include "dkaminpar/mpi/grid_alltoall.h"
+#include "dkaminpar/mpi/sparse_alltoall.h"
 #include "dkaminpar/mpi/utils.h"
 
 #include "common/assert.h"
 #include "common/cache_aligned_vector.h"
 #include "common/datastructures/marker.h"
+#include "common/noinit_vector.h"
 #include "common/parallel/aligned_element.h"
 #include "common/timer.h"
 
@@ -335,9 +335,7 @@ void sparse_alltoall_interface_to_pe(
     }));
 #endif
 
-    sparse_alltoall_grid<Message, Buffer>(
-        std::move(send_buffers), std::forward<Receiver>(receiver), graph.communicator()
-    );
+    sparse_alltoall<Message, Buffer>(std::move(send_buffers), std::forward<Receiver>(receiver), graph.communicator());
 } // namespace dkaminpar::mpi::graph
 
 template <typename Message, typename Buffer = NoinitVector<Message>, typename Filter, typename Builder>
@@ -430,9 +428,7 @@ void sparse_alltoall_custom(
     }
     STOP_TIMER(TIMER_DETAIL);
 
-    sparse_alltoall_grid<Message, Buffer>(
-        std::move(send_buffers), std::forward<Receiver>(receiver), graph.communicator()
-    );
+    sparse_alltoall<Message, Buffer>(std::move(send_buffers), std::forward<Receiver>(receiver), graph.communicator());
 }
 
 template <

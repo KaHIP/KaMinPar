@@ -18,10 +18,6 @@
 #include "common/noinit_vector.h"
 #include "common/timer.h"
 
-#define SPARSE_ALLTOALL_NOFILTER \
-    [](NodeID) {                 \
-        return true;             \
-    }
 
 namespace kaminpar::mpi {
 namespace internal {
@@ -226,36 +222,5 @@ void sparse_alltoall_complete(SendBuffers&& send_buffers, Receiver&& receiver, M
     if (size > 1) {
         mpi::waitall(requests);
     }
-}
-
-template <typename Message, typename Buffer = NoinitVector<Message>, typename Receiver>
-void sparse_alltoall(const std::vector<Buffer>& send_buffers, Receiver&& receiver, MPI_Comm comm) {
-    SCOPED_TIMER("Sparse Alltoall", TIMER_DETAIL);
-    sparse_alltoall_complete<Message, Buffer>(send_buffers, std::forward<Receiver>(receiver), comm);
-}
-
-template <typename Message, typename Buffer = NoinitVector<Message>, typename Receiver>
-void sparse_alltoall(std::vector<Buffer>&& send_buffers, Receiver&& receiver, MPI_Comm comm) {
-    SCOPED_TIMER("Sparse Alltoall", TIMER_DETAIL);
-    sparse_alltoall_complete<Message, Buffer>(std::move(send_buffers), std::forward<Receiver>(receiver), comm);
-}
-
-template <typename Message, typename Buffer = NoinitVector<Message>>
-std::vector<Buffer> sparse_alltoall_get(std::vector<Buffer>&& send_buffers, MPI_Comm comm) {
-    std::vector<Buffer> recv_buffers(mpi::get_comm_size(comm));
-    sparse_alltoall<Message, Buffer>(
-        std::move(send_buffers), [&](auto recv_buffer, const PEID pe) { recv_buffers[pe] = std::move(recv_buffer); },
-        comm
-    );
-    return recv_buffers;
-}
-
-template <typename Message, typename Buffer = NoinitVector<Message>>
-std::vector<Buffer> sparse_alltoall_get(const std::vector<Buffer>& send_buffers, MPI_Comm comm) {
-    std::vector<Buffer> recv_buffers(mpi::get_comm_size(comm));
-    sparse_alltoall<Message, Buffer>(
-        send_buffers, [&](auto recv_buffer, const PEID pe) { recv_buffers[pe] = std::move(recv_buffer); }, comm
-    );
-    return recv_buffers;
 }
 } // namespace kaminpar::mpi

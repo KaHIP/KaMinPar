@@ -1,8 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "dkaminpar/definitions.h"
-#include "dkaminpar/mpi/alltoall.h"
-#include "dkaminpar/mpi/grid_alltoall.h"
+#include "dkaminpar/mpi/sparse_alltoall.h"
 #include "dkaminpar/mpi/wrapper.h"
 
 #include "common/utils/math.h"
@@ -17,8 +16,8 @@ template <typename T>
 struct AlltoallvImplementation {
     std::vector<std::vector<T>> operator()(const std::vector<std::vector<T>>& sendbuf, MPI_Comm comm) {
         std::vector<std::vector<T>> recvbufs(mpi::get_comm_size(comm));
-        mpi::sparse_alltoall_alltoallv<T, std::vector<T>>(
-            sendbuf, [&](auto recvbuf, const PEID pe) { recvbufs[pe] = std::move(recvbuf); }, comm
+        mpi::sparse_alltoall<T, std::vector<T>>(
+            mpi::tag::alltoallv, sendbuf, [&](auto recvbuf, const PEID pe) { recvbufs[pe] = std::move(recvbuf); }, comm
         );
         return recvbufs;
     }
@@ -30,8 +29,8 @@ struct GridImplementation {
         const PEID size = mpi::get_comm_size(comm);
 
         std::vector<std::vector<T>> recvbufs(size);
-        mpi::sparse_alltoall_grid<T, std::vector<T>>(
-            sendbuf, [&](auto recvbuf, const PEID pe) { recvbufs[pe] = std::move(recvbuf); }, comm
+        mpi::sparse_alltoall<T, std::vector<T>>(
+            mpi::tag::grid, sendbuf, [&](auto recvbuf, const PEID pe) { recvbufs[pe] = std::move(recvbuf); }, comm
         );
         return recvbufs;
     }
@@ -41,8 +40,9 @@ template <typename T>
 struct CompleteSendRecvImplementation {
     std::vector<std::vector<T>> operator()(const std::vector<std::vector<T>>& sendbuf, MPI_Comm comm) {
         std::vector<std::vector<T>> recvbufs(mpi::get_comm_size(comm));
-        mpi::sparse_alltoall_complete<T, std::vector<T>>(
-            sendbuf, [&](auto recvbuf, const PEID pe) { recvbufs[pe] = std::move(recvbuf); }, comm
+        mpi::sparse_alltoall<T, std::vector<T>>(
+            mpi::tag::complete_send_recv, sendbuf,
+            [&](auto recvbuf, const PEID pe) { recvbufs[pe] = std::move(recvbuf); }, comm
         );
         return recvbufs;
     }
@@ -52,8 +52,9 @@ template <typename T>
 struct SparseImplementation {
     std::vector<std::vector<T>> operator()(const std::vector<std::vector<T>>& sendbuf, MPI_Comm comm) {
         std::vector<std::vector<T>> recvbufs(mpi::get_comm_size(comm));
-        mpi::sparse_alltoall_sparse<T, std::vector<T>>(
-            sendbuf, [&](auto recvbuf, const PEID pe) { recvbufs[pe] = std::move(recvbuf); }, comm
+        mpi::sparse_alltoall<T, std::vector<T>>(
+            mpi::tag::sparse_isend_irecv, sendbuf,
+            [&](auto recvbuf, const PEID pe) { recvbufs[pe] = std::move(recvbuf); }, comm
         );
         return recvbufs;
     }

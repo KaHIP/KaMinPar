@@ -17,7 +17,7 @@
 
 #include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/growt.h"
-#include "dkaminpar/mpi/alltoall.h"
+#include "dkaminpar/mpi/sparse_alltoall.h"
 
 #include "kaminpar/datastructure/graph.h"
 
