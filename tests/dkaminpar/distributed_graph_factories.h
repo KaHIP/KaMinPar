@@ -58,7 +58,9 @@ inline DistributedGraph make_circle_graph() {
     const GlobalNodeID next = static_cast<GlobalNodeID>((rank + 1) % size);
 
     builder.create_node(1);
-    builder.create_edge(1, prev);
+    if (rank != static_cast<PEID>(prev)) {
+        builder.create_edge(1, prev);
+    }
     if (prev != next) {
         builder.create_edge(1, next);
     }

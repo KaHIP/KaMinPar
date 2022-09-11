@@ -13,19 +13,9 @@
 #include "dkaminpar/mpi/graph_communication.h"
 #include "dkaminpar/mpi/wrapper.h"
 
-#include "kaminpar/datastructure/graph.h"
-
 #include "common/parallel/atomic.h"
 
 namespace kaminpar::dist::testing {
-inline std::vector<NodeID> local_neighbors(const shm::Graph& graph, const NodeID u) {
-    std::vector<NodeID> neighbors;
-    for (const auto& [e, v]: graph.neighbors(u)) {
-        neighbors.push_back(v);
-    }
-    return neighbors;
-}
-
 inline std::vector<NodeID> local_neighbors(const DistributedGraph& graph, const NodeID u) {
     std::vector<NodeID> neighbors;
     for (const auto& [e, v]: graph.neighbors(u)) {

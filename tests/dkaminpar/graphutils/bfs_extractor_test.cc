@@ -6,7 +6,6 @@
  ******************************************************************************/
 #include <gmock/gmock.h>
 
-#include "gmock/gmock.h"
 #include "tests/dkaminpar/distributed_graph_factories.h"
 #include "tests/dkaminpar/distributed_graph_helpers.h"
 
@@ -110,17 +109,45 @@ TEST(BfsExtractor, one_hop_in_circle_graph) {
     auto [bfs_graph, p_bfs_graph] = extract_bfs_subgraph(p_graph, 1, {0});
 
     if (size == 1) {
+        // Graph is just a single node without any edges
+        // Thus, expect a single node without any edges
         ASSERT_EQ(bfs_graph->n(), 1 + p_graph.k());
         EXPECT_EQ(bfs_graph->m(), 0);
         EXPECT_EQ(p_bfs_graph->block(0), rank); // == 0
     } else if (size == 2) {
+        // Graph consists of two nodes on two PEs with an edge between them
+        // Thus, expect the full graph on each PE
         ASSERT_EQ(bfs_graph->n(), 2 + p_graph.k());
         ASSERT_EQ(bfs_graph->m(), 2);
         EXPECT_THAT(p_bfs_graph->block(0), ::testing::AnyOf(0, 1));
         EXPECT_THAT(p_bfs_graph->block(1), ::testing::AnyOf(0, 1));
         EXPECT_NE(p_bfs_graph->block(0), p_bfs_graph->block(1));
-    } else if (size > 3) {
+    } else if (size == 3) {
+        // Graph is a triangle on three PEs: BFS graph should also be a triangle
         ASSERT_EQ(bfs_graph->n(), 3 + p_graph.k());
+        ASSERT_EQ(bfs_graph->m(), 6);
+        EXPECT_THAT(p_bfs_graph->block(0), ::testing::AnyOf(0, 1, 2));
+        EXPECT_THAT(p_bfs_graph->block(1), ::testing::AnyOf(0, 1, 2));
+        EXPECT_THAT(p_bfs_graph->block(2), ::testing::AnyOf(0, 1, 2));
+        EXPECT_NE(p_bfs_graph->block(0), p_bfs_graph->block(1));
+        EXPECT_NE(p_bfs_graph->block(0), p_bfs_graph->block(2));
+        EXPECT_NE(p_bfs_graph->block(1), p_bfs_graph->block(2));
+        ASSERT_EQ(bfs_graph->degree(0), 2);
+        ASSERT_EQ(bfs_graph->degree(1), 2);
+        ASSERT_EQ(bfs_graph->degree(2), 2);
+        EXPECT_THAT(local_neighbors(*bfs_graph, 0), ::testing::UnorderedElementsAre(1, 2));
+        EXPECT_THAT(local_neighbors(*bfs_graph, 1), ::testing::UnorderedElementsAre(0, 2));
+        EXPECT_THAT(local_neighbors(*bfs_graph, 2), ::testing::UnorderedElementsAre(0, 1));
+    } else if (size > 3) {
+        const BlockID prev = static_cast<BlockID>(rank > 0 ? rank - 1 : size - 1);
+        const BlockID next = static_cast<BlockID>((rank + 1) % size);
+
+        // Graph is a circle with diameter > 3
+        // Thus, expect a path of length 3 + edges to pseudo-block nodes
+        ASSERT_EQ(bfs_graph->n(), 3 + p_graph.k());
+        EXPECT_THAT(p_bfs_graph->block(0), ::testing::AnyOf(prev, rank, next));
+        EXPECT_THAT(p_bfs_graph->block(1), ::testing::AnyOf(prev, rank, next));
+        EXPECT_THAT(p_bfs_graph->block(2), ::testing::AnyOf(prev, rank, next));
         EXPECT_NE(p_bfs_graph->block(0), p_bfs_graph->block(1));
         EXPECT_NE(p_bfs_graph->block(0), p_bfs_graph->block(2));
         EXPECT_NE(p_bfs_graph->block(1), p_bfs_graph->block(2));
