@@ -27,7 +27,7 @@
 #include "common/timer.h"
 
 namespace kaminpar::dist::graph {
-SET_DEBUG(true);
+SET_DEBUG(false);
 
 BfsExtractor::BfsExtractor(const DistributedGraph& graph) : _graph(&graph) {}
 
