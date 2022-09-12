@@ -322,6 +322,8 @@ void FMRefiner::refine(DistributedPartitionedGraph& p_graph) {
         const auto seed_nodes = graph::find_independent_border_set(*_p_graph, global_round);
         STOP_TIMER();
 
+        mpi::barrier(_p_graph->communicator());
+
         // Run BFS
         START_TIMER("Call BfsExtractor");
         graph::BfsExtractor bfs_extractor(_p_graph->graph());
@@ -331,6 +333,8 @@ void FMRefiner::refine(DistributedPartitionedGraph& p_graph) {
         auto extraction_result = bfs_extractor.extract(seed_nodes);
         STOP_TIMER();
 
+        mpi::barrier(_p_graph->communicator());
+
         START_TIMER("Build reverse node mapping");
         growt::StaticGhostNodeMapping reverse_node_mapping(extraction_result.node_mapping.size());
         tbb::parallel_for<std::size_t>(0, extraction_result.node_mapping.size(), [&](const std::size_t i) {
@@ -338,6 +342,8 @@ void FMRefiner::refine(DistributedPartitionedGraph& p_graph) {
         });
         STOP_TIMER();
 
+        mpi::barrier(_p_graph->communicator());
+        
         // Run FM
         tbb::enumerable_thread_specific<ThreadLocalFMRefiner> fm_refiner_ets{[&] {
             return ThreadLocalFMRefiner(*_p_graph, *extraction_result.p_graph, _fm_ctx, *_p_ctx);
@@ -370,6 +376,8 @@ void FMRefiner::refine(DistributedPartitionedGraph& p_graph) {
             });
             STOP_TIMER();
 
+            mpi::barrier(_p_graph->communicator());
+
             // Resolve global move conflicts
             START_TIMER("Move conflict resolution");
             std::vector<GlobalMove> local_move_buffer_cpy(local_move_buffer.begin(), local_move_buffer.end());
@@ -377,6 +385,8 @@ void FMRefiner::refine(DistributedPartitionedGraph& p_graph) {
                 broadcast_and_resolve_global_moves(local_move_buffer_cpy, _p_graph->communicator());
             // auto global_move_buffer = local_move_buffer_cpy;
             STOP_TIMER();
+
+            mpi::barrier(_p_graph->communicator());
 
             // Apply moves to global partition and extract graph
             START_TIMER("Apply moves");
@@ -402,6 +412,8 @@ void FMRefiner::refine(DistributedPartitionedGraph& p_graph) {
                 }
             }
             STOP_TIMER();
+
+            mpi::barrier(_p_graph->communicator());
         }
     }
 }
