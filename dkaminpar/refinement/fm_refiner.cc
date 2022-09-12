@@ -343,7 +343,7 @@ void FMRefiner::refine(DistributedPartitionedGraph& p_graph) {
             return ThreadLocalFMRefiner(*_p_graph, *extraction_result.p_graph, _fm_ctx, *_p_ctx);
         }};
 
-        for (std::size_t local_round = 0; local_round < 5; ++local_round) {
+        for (std::size_t local_round = 0; local_round < 32; ++local_round) {
             DBG << "Starting FM round " << local_round;
 
             START_TIMER("Local FM");
