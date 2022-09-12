@@ -18,30 +18,41 @@
 
 namespace kaminpar::dist {
 namespace {
-SET_DEBUG(false);
+SET_DEBUG(true);
 }
 
 std::vector<GlobalMove> allgather_global_moves(std::vector<GlobalMove>& my_global_moves, MPI_Comm comm) {
     SCOPED_TIMER("Allgather global moves");
 
+    DBG << "Contributing " << my_global_moves.size() << " moves";
+
     // Make groups unique by PE
+    START_TIMER("Make groups unique");
     const PEID rank = mpi::get_comm_rank(comm);
     for (auto& move: my_global_moves) {
         move.group = move.group << 32 | rank;
     }
+    STOP_TIMER();
 
     // Allgather number of global moves on each PE
+    START_TIMER("Allgather move counts");
     const int  my_moves_count = asserting_cast<int>(my_global_moves.size());
     const auto recv_counts    = mpi::allgather(my_moves_count, comm);
+    STOP_TIMER();
 
+    START_TIMER("Compute move displs");
     std::vector<int> recv_displs(recv_counts.size() + 1);
     parallel::prefix_sum(recv_counts.begin(), recv_counts.end(), recv_displs.begin() + 1);
+    STOP_TIMER();
 
     // Allgather global moves
+    START_TIMER("Allgathering moves");
     std::vector<GlobalMove> result(recv_displs.back());
     mpi::allgatherv<GlobalMove, GlobalMove>(
         my_global_moves.data(), my_moves_count, result.data(), recv_counts.data(), recv_displs.data(), comm
     );
+    STOP_TIMER();
+
     return result;
 }
 
@@ -57,7 +68,7 @@ void sort_and_compress_move_groups(std::vector<GlobalMove>& global_moves) {
     std::vector<EdgeWeight> group_gains;
     for (std::size_t i = 0; i < global_moves.size();) {
         std::int64_t current_group = global_moves[i].group;
-        EdgeWeight group_gain      = 0;
+        EdgeWeight   group_gain    = 0;
 
         while (i < global_moves.size() && global_moves[i].group == current_group) {
             group_gain += global_moves[i].gain;
@@ -93,7 +104,6 @@ void resolve_move_conflicts_greedy(std::vector<GlobalMove>& global_moves) {
         // Second pass: mark all moves in this group as invalid or add them to the moved nodes
         for (std::size_t j = i; j < global_moves.size() && global_moves[j].group == current_group; ++j) {
             if (found_conflict) {
-                DBG << "Lost: " << V(global_moves[j].node) << V(global_moves[j].gain);
                 global_moves[j].node = kInvalidGlobalNodeID; // mark move as do not take
             } else {
                 const GlobalNodeID current_node = global_moves[j].node;
