@@ -446,4 +446,50 @@ DistributedGraph generate(const GeneratorContext ctx) {
 
     return build_graph_sorted(std::move(edges), build_node_distribution(local_range));
 }
+
+std::string generate_filename(GeneratorContext ctx) {
+    std::stringstream filename;
+    filename << "kagen_";
+
+    switch (ctx.type) {
+        case GeneratorType::GNM:
+            filename << "gnm_n=" << ctx.n << "_m=" << ctx.m;
+            break;
+
+        case GeneratorType::RGG2D:
+            filename << "rgg2d_n=" << ctx.n << "_m=" << ctx.m;
+            break;
+
+        case GeneratorType::RGG3D:
+            filename << "rgg3d_n=" << ctx.n << "_m=" << ctx.m;
+            break;
+
+        case GeneratorType::RHG:
+            filename << "rhg_n=" << ctx.n << "_m=" << ctx.m << "_gamma=" << ctx.gamma;
+            break;
+
+        case GeneratorType::RDG2D:
+            filename << "rdg2d_n=" << ctx.n << "_m=" << ctx.m;
+            break;
+
+        case GeneratorType::GRID2D:
+            filename << "rdg3d_n=" << ctx.n << "_m=" << ctx.m;
+            break;
+
+        case GeneratorType::GRID3D:
+            filename << "grid3d_n=" << ctx.n;
+            break;
+
+        case GeneratorType::RMAT:
+            filename << "rmat_n=" << ctx.n << "_m=" << ctx.m << "_a=" << ctx.prob_a << "_b=" << ctx.prob_b
+                     << "_c=" << ctx.prob_c;
+            break;
+
+        default:
+            filename << "unknown_generator";
+            break;
+    }
+
+    return filename.str();
+}
 } // namespace kaminpar::dist

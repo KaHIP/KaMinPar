@@ -182,9 +182,11 @@ int main(int argc, char* argv[]) {
     auto graph = TIMED_SCOPE("IO") {
 #ifdef KAMINPAR_ENABLE_GRAPHGEN
         if (app.generator.type != GeneratorType::NONE) {
-            auto graph = generate(app.generator);
+            auto graph         = generate(app.generator);
+            ctx.graph_filename = generate_filename(app.generator);
+
             if (app.generator.save_graph) {
-                io::metis::write("generated.graph", graph, false, false);
+                io::metis::write(ctx.graph_filename, graph, false, false);
             }
             return graph;
         }

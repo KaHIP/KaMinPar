@@ -45,4 +45,6 @@ struct GeneratorContext {
 };
 
 DistributedGraph generate(GeneratorContext ctx);
+
+std::string generate_filename(GeneratorContext ctx);
 } // namespace kaminpar::dist
