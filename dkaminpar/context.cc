@@ -76,7 +76,8 @@ void LabelPropagationRefinementContext::print(std::ostream& out, const std::stri
         << prefix << "total_num_chunks=" << total_num_chunks << " "                         //
         << prefix << "num_chunks=" << num_chunks << " "                                     //
         << prefix << "min_num_chunks=" << min_num_chunks << " "                             //
-        << prefix << "num_move_attempts=" << num_move_attempts << " ";                      //
+        << prefix << "num_move_attempts=" << num_move_attempts << " "                       //
+        << prefix << "ignore_probabilities=" << ignore_probabilities << " ";                //
 }
 
 void FMRefinementContext::print(std::ostream& out, const std::string& prefix) const {
@@ -265,6 +266,7 @@ Context create_default_context() {
         .num_chunks = 0,
         .min_num_chunks = 8,
         .num_move_attempts = 2,
+        .ignore_probabilities = false,
       },
       .fm = {
         .alpha = 1.0,

@@ -95,6 +95,7 @@ struct LabelPropagationRefinementContext {
     std::size_t num_chunks;
     std::size_t min_num_chunks;
     std::size_t num_move_attempts;
+    bool        ignore_probabilities;
 
     void setup(const DistributedGraph& graph) {
         if (num_chunks == 0) {

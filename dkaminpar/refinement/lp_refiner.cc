@@ -6,6 +6,8 @@
  ******************************************************************************/
 #include "dkaminpar/refinement/lp_refiner.h"
 
+#include <mpi.h>
+
 #include "dkaminpar/metrics.h"
 #include "dkaminpar/mpi/graph_communication.h"
 #include "dkaminpar/mpi/wrapper.h"
@@ -261,7 +263,7 @@ private:
                 IFSTATS(expected_moved_weight[b] += probability * _p_graph->node_weight(u));
 
                 // perform move with probability
-                if (rand.random_bool(probability)) {
+                if (_lp_ctx.ignore_probabilities || rand.random_bool(probability)) {
                     IFSTATS(_statistics.num_tentatively_moved_nodes++);
 
                     const BlockID    from     = _p_graph->block(u);
@@ -286,14 +288,11 @@ private:
         });
 
         // compute global block weights after moves
-        scalable_vector<BlockWeight> block_weight_deltas_nonatomic(_p_ctx->k);
-        _p_graph->pfor_blocks([&](const BlockID b) {
-            block_weight_deltas_nonatomic[b] = block_weight_deltas[b].load(std::memory_order_relaxed);
-        });
         scalable_vector<BlockWeight> global_block_weight_deltas(_p_ctx->k);
-        mpi::allreduce(
-            block_weight_deltas_nonatomic.data(), global_block_weight_deltas.data(), static_cast<int>(_p_ctx->k),
-            MPI_SUM, _p_graph->communicator()
+        _p_graph->pfor_blocks([&](const BlockID b) { global_block_weight_deltas[b] = block_weight_deltas[b]; });
+        MPI_Allreduce(
+            MPI_IN_PLACE, global_block_weight_deltas.data(), asserting_cast<int>(_p_ctx->k),
+            mpi::type::get<BlockWeight>(), MPI_SUM, _p_graph->communicator()
         );
 
         // check for balance violations
@@ -304,10 +303,6 @@ private:
                 feasible.store(0, std::memory_order_relaxed);
             }
         });
-
-        DBG << V(block_weight_deltas) << V(block_weight_deltas_nonatomic) << V(global_block_weight_deltas)
-            << V(_p_graph->block_weights()) << V(_p_ctx->max_block_weights())
-            << (feasible ? "feasible" : "not feasible");
 
         // record statistics
         if constexpr (kStatistics) {

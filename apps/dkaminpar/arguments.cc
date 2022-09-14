@@ -35,9 +35,7 @@ void create_graphgen_options(
             prefix + "-validate", "Validate the graph format before using it. Useful for debugging.",
             &g_ctx.validate_graph
         )
-        .argument(
-                prefix + "-stats", "Enable more statistics.", &g_ctx.advanced_stats
-        )
+        .argument(prefix + "-stats", "Enable more statistics.", &g_ctx.advanced_stats)
         .argument(prefix + "-a", "R-MAT", &g_ctx.prob_a)
         .argument(prefix + "-b", "R-MAT", &g_ctx.prob_b)
         .argument(prefix + "-c", "R-MAT", &g_ctx.prob_c);
@@ -157,6 +155,10 @@ void create_refinement_label_propagation_options(
         .argument(
             prefix + "-active-large-degree-threshold",
             "Nodes with a degree larger than this are not moved to new blocks.", &lp_ctx.active_high_degree_threshold
+        )
+        .argument(
+            prefix + "-ignore-probabilities", "Always move nodes regardless of their move probability.",
+            &lp_ctx.ignore_probabilities
         );
 }
 
