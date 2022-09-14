@@ -124,6 +124,7 @@ void RefinementContext::print(std::ostream& out, const std::string& prefix) cons
 
 void ParallelContext::print(std::ostream& out, const std::string& prefix) const {
     out << prefix << "num_threads=" << num_threads << " "                                         //
+        << prefix << "num_mpis=" << num_mpis << " "                                               //
         << prefix << "use_interleaved_numa_allocation=" << use_interleaved_numa_allocation << " " //
         << prefix << "mpi_thread_support=" << mpi_thread_support << " ";                          //
 }

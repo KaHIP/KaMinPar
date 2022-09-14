@@ -75,6 +75,11 @@ void create_coarsening_label_propagation_options(
             prefix + "-passive-large-degree-threshold",
             "[Global] Nodes with a degree larger than this are not considered when moving neighbors to a new cluster.",
             &lp_ctx.passive_high_degree_threshold
+        )
+        .argument(
+            prefix + "-scale-chunks-with-threads",
+            "Scale number of total chunks s.t. the number of chunks is independent of the number of threads.",
+            &lp_ctx.scale_chunks_with_threads
         );
 }
 
@@ -159,6 +164,11 @@ void create_refinement_label_propagation_options(
         .argument(
             prefix + "-ignore-probabilities", "Always move nodes regardless of their move probability.",
             &lp_ctx.ignore_probabilities
+        )
+        .argument(
+            prefix + "-scale-chunks-with-threads",
+            "Scale number of total chunks s.t. the number of chunks is independent of the number of threads.",
+            &lp_ctx.scale_chunks_with_threads
         );
 }
 

@@ -61,6 +61,15 @@ DECLARE_ENUM_STRING_CONVERSION(InitialPartitioningAlgorithm, initial_partitionin
 DECLARE_ENUM_STRING_CONVERSION(KWayRefinementAlgorithm, kway_refinement_algorithm);
 DECLARE_ENUM_STRING_CONVERSION(BalancingAlgorithm, balancing_algorithm);
 
+struct ParallelContext {
+    std::size_t num_threads;
+    std::size_t num_mpis;
+    bool        use_interleaved_numa_allocation;
+    int         mpi_thread_support;
+
+    void print(std::ostream& out, const std::string& prefix = "") const;
+};
+
 struct LabelPropagationCoarseningContext {
     std::size_t num_iterations;
     NodeID      passive_high_degree_threshold;
@@ -73,15 +82,18 @@ struct LabelPropagationCoarseningContext {
     std::size_t min_num_chunks;
     bool        ignore_ghost_nodes;
     bool        keep_ghost_clusters;
+    bool        scale_chunks_with_threads;
 
     [[nodiscard]] bool should_merge_nonadjacent_clusters(const NodeID old_n, const NodeID new_n) const {
         return (1.0 - 1.0 * static_cast<double>(new_n) / static_cast<double>(old_n))
                <= merge_nonadjacent_clusters_threshold;
     }
 
-    void setup(const DistributedGraph& graph) {
+    void setup(const ParallelContext& parallel) {
         if (num_chunks == 0) {
-            num_chunks = std::max<std::size_t>(8, total_num_chunks / mpi::get_comm_size(graph.communicator()));
+            const std::size_t chunks =
+                scale_chunks_with_threads ? total_num_chunks / parallel.num_threads : total_num_chunks;
+            num_chunks = std::max<std::size_t>(8, chunks / parallel.num_mpis);
         }
     }
 
@@ -96,10 +108,13 @@ struct LabelPropagationRefinementContext {
     std::size_t min_num_chunks;
     std::size_t num_move_attempts;
     bool        ignore_probabilities;
+    bool        scale_chunks_with_threads;
 
-    void setup(const DistributedGraph& graph) {
+    void setup(const ParallelContext& parallel) {
         if (num_chunks == 0) {
-            num_chunks = std::max<std::size_t>(8, total_num_chunks / mpi::get_comm_size(graph.communicator()));
+            const std::size_t chunks =
+                scale_chunks_with_threads ? total_num_chunks / parallel.num_threads : total_num_chunks;
+            num_chunks = std::max<std::size_t>(8, chunks / parallel.num_mpis);
         }
     }
 
@@ -134,9 +149,9 @@ struct CoarseningContext {
     shm::ClusterWeightLimit cluster_weight_limit;
     double                  cluster_weight_multiplier;
 
-    void setup(const DistributedGraph& graph) {
-        local_lp.setup(graph);
-        global_lp.setup(graph);
+    void setup(const ParallelContext& parallel) {
+        local_lp.setup(parallel);
+        global_lp.setup(parallel);
     }
 
     void print(std::ostream& out, const std::string& prefix = "") const;
@@ -163,17 +178,9 @@ struct RefinementContext {
     BalancingContext                  balancing;
     bool                              refine_coarsest_level;
 
-    void setup(const DistributedGraph& graph) {
-        lp.setup(graph);
+    void setup(const ParallelContext& parallel) {
+        lp.setup(parallel);
     }
-
-    void print(std::ostream& out, const std::string& prefix = "") const;
-};
-
-struct ParallelContext {
-    std::size_t num_threads;
-    bool        use_interleaved_numa_allocation;
-    int         mpi_thread_support;
 
     void print(std::ostream& out, const std::string& prefix = "") const;
 };
@@ -285,8 +292,8 @@ struct Context {
     DebugContext               debug;
 
     void setup(const DistributedGraph& graph) {
-        coarsening.setup(graph);
-        refinement.setup(graph);
+        coarsening.setup(parallel);
+        refinement.setup(parallel);
         partition.setup(graph);
     }
 

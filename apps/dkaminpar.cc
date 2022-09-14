@@ -161,7 +161,8 @@ int main(int argc, char* argv[]) {
     Logger::set_quiet_mode(ctx.quiet);
 
     print_identifier(argc, argv);
-    LOG << "MPI size=" << mpi::get_comm_size(MPI_COMM_WORLD);
+    ctx.parallel.num_mpis = static_cast<std::size_t>(mpi::get_comm_size(MPI_COMM_WORLD));
+    LOG << "MPI size=" << ctx.parallel.num_mpis;
     LOG << "CONTEXT " << ctx;
 
     // Initialize random number generator
