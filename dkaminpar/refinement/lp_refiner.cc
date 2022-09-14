@@ -297,12 +297,14 @@ private:
 
         // check for balance violations
         parallel::Atomic<std::uint8_t> feasible = 1;
-        _p_graph->pfor_blocks([&](const BlockID b) {
-            if (_p_graph->block_weight(b) + global_block_weight_deltas[b] > max_cluster_weight(b)
-                && global_block_weight_deltas[b] > 0) {
-                feasible.store(0, std::memory_order_relaxed);
-            }
-        });
+        if (!_lp_ctx.ignore_probabilities) {
+            _p_graph->pfor_blocks([&](const BlockID b) {
+                if (_p_graph->block_weight(b) + global_block_weight_deltas[b] > max_cluster_weight(b)
+                    && global_block_weight_deltas[b] > 0) {
+                    feasible = 0;
+                }
+            });
+        }
 
         // record statistics
         if constexpr (kStatistics) {
