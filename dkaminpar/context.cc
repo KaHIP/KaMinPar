@@ -215,6 +215,7 @@ Context create_default_context() {
     },
     .parallel = {
       .num_threads = 1,
+      .num_mpis = 1,
       .use_interleaved_numa_allocation = true,
       .mpi_thread_support = MPI_THREAD_FUNNELED,
     },
@@ -234,6 +235,7 @@ Context create_default_context() {
         .min_num_chunks = 8,
         .ignore_ghost_nodes = false, // unused
         .keep_ghost_clusters = false,
+        .scale_chunks_with_threads = false,
       },
       .max_local_clustering_levels = 0,
       .local_clustering_algorithm = LocalClusteringAlgorithm::NOOP,
@@ -249,6 +251,7 @@ Context create_default_context() {
         .min_num_chunks = 0, // unused
         .ignore_ghost_nodes = false,
         .keep_ghost_clusters = false,
+        .scale_chunks_with_threads = false, // unused
       },
       .contraction_limit = 5000,
       .cluster_weight_limit = shm::ClusterWeightLimit::EPSILON_BLOCK_WEIGHT,
@@ -268,6 +271,7 @@ Context create_default_context() {
         .min_num_chunks = 8,
         .num_move_attempts = 2,
         .ignore_probabilities = false,
+        .scale_chunks_with_threads = false,
       },
       .fm = {
         .alpha = 1.0,
