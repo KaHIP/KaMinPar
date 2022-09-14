@@ -58,14 +58,14 @@ bool is_feasible(const DistributedPartitionedGraph& p_graph, const PartitionCont
 }
 
 BlockID num_imbalanced_blocks(const DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx) {
-    BlockID local_num_imbalanced_blocks = 0;
+    BlockID num_imbalanced_blocks = 0;
 
     for (const BlockID b: p_graph.blocks()) {
         if (p_graph.block_weight(b) > p_ctx.max_block_weight(b)) {
-            ++local_num_imbalanced_blocks;
+            ++num_imbalanced_blocks;
         }
     }
 
-    return mpi::allreduce<BlockID>(local_num_imbalanced_blocks, MPI_SUM, p_graph.communicator());
+    return num_imbalanced_blocks;
 }
 } // namespace kaminpar::dist::metrics
