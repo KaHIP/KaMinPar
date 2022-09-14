@@ -42,11 +42,11 @@ enum class InitialPartitioningAlgorithm {
 
 enum class KWayRefinementAlgorithm {
     NOOP,
-    PROB_LP,
+    LP,
     LOCAL_FM,
     FM,
-    PROB_LP_LOCAL_FM,
-    PROB_LP_FM,
+    LP_THEN_LOCAL_FM,
+    LP_THEN_FM,
 };
 
 enum class BalancingAlgorithm {

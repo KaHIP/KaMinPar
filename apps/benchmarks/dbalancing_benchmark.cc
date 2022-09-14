@@ -19,7 +19,7 @@
 #include "dkaminpar/io.h"
 #include "dkaminpar/metrics.h"
 #include "dkaminpar/mpi/graph_communication.h"
-#include "dkaminpar/refinement/distributed_balancer.h"
+#include "dkaminpar/refinement/balancer.h"
 
 #include "kaminpar/application/arguments.h"
 #include "kaminpar/definitions.h"

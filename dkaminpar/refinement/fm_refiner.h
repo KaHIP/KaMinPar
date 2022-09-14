@@ -10,13 +10,13 @@
 
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructure/distributed_graph.h"
-#include "dkaminpar/refinement/i_distributed_refiner.h"
+#include "dkaminpar/refinement/refiner.h"
 
 #include "common/logger.h"
 #include "common/parallel/atomic.h"
 
 namespace kaminpar::dist {
-class FMRefiner : public IDistributedRefiner {
+class FMRefiner : public Refiner {
     SET_STATISTICS(true);
     SET_DEBUG(false);
 

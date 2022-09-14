@@ -4,7 +4,7 @@
  * @date:   12.04.2022
  * @brief:  Distributed balancing refinement algorithm.
  ******************************************************************************/
-#include "dkaminpar/refinement/distributed_balancer.h"
+#include "dkaminpar/refinement/balancer.h"
 
 #include "dkaminpar/metrics.h"
 #include "dkaminpar/mpi/graph_communication.h"

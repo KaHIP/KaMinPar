@@ -373,6 +373,7 @@ void sparse_alltoall_grid(SendBuffer&& data, const CountsBuffer& counts, Receive
     // col_recv_buf contains all data adressed to this PE:
     // data from 0x0, 1x0, 2x0, ..., 0x1, 0x2, ... ...
 
+    START_TIMER("Invoke receiver lambda");
     std::size_t displ = 0;
     std::size_t index = 0;
     for (PEID col = 0; col < topo.num_full_cols(); ++col) {
@@ -393,6 +394,7 @@ void sparse_alltoall_grid(SendBuffer&& data, const CountsBuffer& counts, Receive
             invoke_receiver(std::move(buffer), pe, receiver);
         }
     }
+    STOP_TIMER();
 }
 
 template <typename Message, typename Buffer, typename SendBuffers, typename Receiver>

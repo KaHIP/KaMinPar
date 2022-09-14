@@ -11,9 +11,9 @@
 #include "kaminpar/datastructure/graph.h"
 
 namespace kaminpar::dist {
-class IInitialPartitioner {
+class InitialPartitioner {
 public:
-    virtual ~IInitialPartitioner()                                           = default;
+    virtual ~InitialPartitioner()                                            = default;
     virtual shm::PartitionedGraph initial_partition(const shm::Graph& graph) = 0;
 };
 } // namespace kaminpar::dist

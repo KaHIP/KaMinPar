@@ -11,7 +11,7 @@
  ******************************************************************************/
 #pragma once
 
-#include "dkaminpar/coarsening/i_clustering_algorithm.h"
+#include "dkaminpar/coarsening/clustering_algorithm.h"
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructure/distributed_graph.h"
 

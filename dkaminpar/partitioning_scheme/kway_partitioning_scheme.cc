@@ -14,7 +14,7 @@
 #include "dkaminpar/graphutils/allgather_graph.h"
 #include "dkaminpar/io.h"
 #include "dkaminpar/metrics.h"
-#include "dkaminpar/refinement/distributed_balancer.h"
+#include "dkaminpar/refinement/balancer.h"
 
 #include "kaminpar/metrics.h"
 

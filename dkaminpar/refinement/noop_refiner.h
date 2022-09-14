@@ -6,10 +6,10 @@
  ******************************************************************************/
 #pragma once
 
-#include "dkaminpar/refinement/i_distributed_refiner.h"
+#include "dkaminpar/refinement/refiner.h"
 
 namespace kaminpar::dist {
-class NoopRefiner : public IDistributedRefiner {
+class NoopRefiner : public Refiner {
 public:
     void initialize(const DistributedGraph&, const PartitionContext&) override;
     void refine(DistributedPartitionedGraph&) override;

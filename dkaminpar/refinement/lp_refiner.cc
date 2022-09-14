@@ -1,10 +1,10 @@
 /*******************************************************************************
- * @file:   distributed_probabilistic_label_propagation_refiner.cc
+ * @file:   lp_refiner.cc
  * @author: Daniel Seemaier
  * @date:   30.09.2021
- * @brief:
+ * @brief:  Refiner based on label propagation.
  ******************************************************************************/
-#include "dkaminpar/refinement/distributed_probabilistic_label_propagation_refiner.h"
+#include "dkaminpar/refinement/lp_refiner.h"
 
 #include "dkaminpar/metrics.h"
 #include "dkaminpar/mpi/graph_communication.h"
@@ -19,7 +19,7 @@
 #include "common/utils/math.h"
 
 namespace kaminpar::dist {
-struct DistributedLabelPropagationRefinerConfig : public LabelPropagationConfig {
+struct LPRefinerConfig : public LabelPropagationConfig {
     using RatingMap                            = ::kaminpar::RatingMap<EdgeWeight, BlockID, FastResetArray<EdgeWeight>>;
     using Graph                                = DistributedGraph;
     using ClusterID                            = BlockID;
@@ -29,14 +29,11 @@ struct DistributedLabelPropagationRefinerConfig : public LabelPropagationConfig 
     static constexpr bool kUseActualGain       = true;
 };
 
-class DistributedProbabilisticLabelPropagationRefinerImpl final
-    : public InOrderLabelPropagation<
-          DistributedProbabilisticLabelPropagationRefinerImpl, DistributedLabelPropagationRefinerConfig> {
+class LPRefinerImpl final : public InOrderLabelPropagation<LPRefinerImpl, LPRefinerConfig> {
     SET_STATISTICS_FROM_GLOBAL();
     SET_DEBUG(false);
 
-    using Base = InOrderLabelPropagation<
-        DistributedProbabilisticLabelPropagationRefinerImpl, DistributedLabelPropagationRefinerConfig>;
+    using Base = InOrderLabelPropagation<LPRefinerImpl, LPRefinerConfig>;
 
     struct Statistics {
         EdgeWeight cut_before = 0;
@@ -103,7 +100,7 @@ class DistributedProbabilisticLabelPropagationRefinerImpl final
     };
 
 public:
-    explicit DistributedProbabilisticLabelPropagationRefinerImpl(const Context& ctx)
+    explicit LPRefinerImpl(const Context& ctx)
         : _lp_ctx{ctx.refinement.lp},
           _next_partition(ctx.partition.local_n()),
           _gains(ctx.partition.local_n()),
@@ -487,18 +484,15 @@ private:
  * Public interface
  */
 
-DistributedProbabilisticLabelPropagationRefiner::DistributedProbabilisticLabelPropagationRefiner(const Context& ctx)
-    : _impl{std::make_unique<DistributedProbabilisticLabelPropagationRefinerImpl>(ctx)} {}
+LPRefiner::LPRefiner(const Context& ctx) : _impl{std::make_unique<LPRefinerImpl>(ctx)} {}
 
-DistributedProbabilisticLabelPropagationRefiner::~DistributedProbabilisticLabelPropagationRefiner() = default;
+LPRefiner::~LPRefiner() = default;
 
-void DistributedProbabilisticLabelPropagationRefiner::initialize(
-    const DistributedGraph& graph, const PartitionContext& p_ctx
-) {
+void LPRefiner::initialize(const DistributedGraph& graph, const PartitionContext& p_ctx) {
     _impl->initialize(graph, p_ctx);
 }
 
-void DistributedProbabilisticLabelPropagationRefiner::refine(DistributedPartitionedGraph& p_graph) {
+void LPRefiner::refine(DistributedPartitionedGraph& p_graph) {
     _impl->refine(p_graph);
 }
 } // namespace kaminpar::dist

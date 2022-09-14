@@ -7,12 +7,12 @@
 #pragma once
 
 #include "dkaminpar/datastructure/distributed_graph.h"
-#include "dkaminpar/refinement/i_distributed_refiner.h"
+#include "dkaminpar/refinement/refiner.h"
 
 namespace kaminpar::dist {
-class MultiRefiner : public IDistributedRefiner {
+class MultiRefiner : public Refiner {
 public:
-    MultiRefiner(std::vector<std::unique_ptr<IDistributedRefiner>> refiners);
+    MultiRefiner(std::vector<std::unique_ptr<Refiner>> refiners);
 
     MultiRefiner(const MultiRefiner&)            = delete;
     MultiRefiner(MultiRefiner&&)                 = default;
@@ -23,6 +23,6 @@ public:
     void refine(DistributedPartitionedGraph& p_graph);
 
 private:
-    std::vector<std::unique_ptr<IDistributedRefiner>> _refiners;
+    std::vector<std::unique_ptr<Refiner>> _refiners;
 };
 } // namespace kaminpar::dist

@@ -1,27 +1,25 @@
 /*******************************************************************************
- * @file:   distributed_probabilistic_label_propagation_refiner.h
+ * @file:   lp_refiner.h
  * @author: Daniel Seemaier
  * @date:   30.09.2021
- * @brief:
+ * @brief:  Refiner based on label propagation.
  ******************************************************************************/
 #pragma once
 
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructure/distributed_graph.h"
-#include "dkaminpar/refinement/i_distributed_refiner.h"
+#include "dkaminpar/refinement/refiner.h"
 
 namespace kaminpar::dist {
-class DistributedProbabilisticLabelPropagationRefiner : public IDistributedRefiner {
+class LPRefiner : public Refiner {
 public:
-    DistributedProbabilisticLabelPropagationRefiner(const Context& ctx);
-
-    ~DistributedProbabilisticLabelPropagationRefiner();
+    LPRefiner(const Context& ctx);
+    ~LPRefiner();
 
     void initialize(const DistributedGraph& graph, const PartitionContext& p_ctx) override;
-
     void refine(DistributedPartitionedGraph& p_graph) override;
 
 private:
-    std::unique_ptr<class DistributedProbabilisticLabelPropagationRefinerImpl> _impl;
+    std::unique_ptr<class LPRefinerImpl> _impl;
 };
 } // namespace kaminpar::dist

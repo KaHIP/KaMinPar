@@ -45,11 +45,11 @@ DEFINE_ENUM_STRING_CONVERSION(InitialPartitioningAlgorithm, initial_partitioning
 
 DEFINE_ENUM_STRING_CONVERSION(KWayRefinementAlgorithm, kway_refinement_algorithm) = {
     {KWayRefinementAlgorithm::NOOP, "noop"},
-    {KWayRefinementAlgorithm::PROB_LP, "prob-lp"},
+    {KWayRefinementAlgorithm::LP, "lp"},
     {KWayRefinementAlgorithm::LOCAL_FM, "local-fm"},
     {KWayRefinementAlgorithm::FM, "fm"},
-    {KWayRefinementAlgorithm::PROB_LP_LOCAL_FM, "prob-lp+local-fm"},
-    {KWayRefinementAlgorithm::PROB_LP_FM, "prob-lp+fm"},
+    {KWayRefinementAlgorithm::LP_THEN_LOCAL_FM, "lp+local-fm"},
+    {KWayRefinementAlgorithm::LP_THEN_FM, "lp+fm"},
 };
 
 DEFINE_ENUM_STRING_CONVERSION(BalancingAlgorithm, balancing_algorithm) = {
@@ -257,7 +257,7 @@ Context create_default_context() {
       .sequential = shm::create_default_context(),
     },
     .refinement = {
-      .algorithm = KWayRefinementAlgorithm::PROB_LP,
+      .algorithm = KWayRefinementAlgorithm::LP,
       .lp = {
         .active_high_degree_threshold = 1'000'000, 
         .num_iterations = 5,

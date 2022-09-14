@@ -7,10 +7,10 @@
 #pragma once
 
 #include "dkaminpar/context.h"
-#include "dkaminpar/initial_partitioning/i_initial_partitioner.h"
+#include "dkaminpar/initial_partitioning/initial_partitioner.h"
 
 namespace kaminpar::dist {
-class KaMinParInitialPartitioner : public IInitialPartitioner {
+class KaMinParInitialPartitioner : public InitialPartitioner {
 public:
     KaMinParInitialPartitioner(const Context& ctx) : _ctx{ctx} {}
 

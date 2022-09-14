@@ -6,18 +6,16 @@
  ******************************************************************************/
 #include "dkaminpar/factories.h"
 
-// Initial Partitioning
-#include "coarsening/local_label_propagation_clustering.h"
-#include "definitions.h"
-#include "refinement/i_distributed_refiner.h"
+#include "dkaminpar/definitions.h"
 
+// Initial Partitioning
 #include "dkaminpar/initial_partitioning/kaminpar_initial_partitioner.h"
 #include "dkaminpar/initial_partitioning/random_initial_partitioner.h"
 
 // Refinement
-#include "dkaminpar/refinement/distributed_probabilistic_label_propagation_refiner.h"
 #include "dkaminpar/refinement/fm_refiner.h"
 #include "dkaminpar/refinement/local_fm_refiner.h"
+#include "dkaminpar/refinement/lp_refiner.h"
 #include "dkaminpar/refinement/multi_refiner.h"
 #include "dkaminpar/refinement/noop_refiner.h"
 
@@ -29,7 +27,7 @@
 #include "dkaminpar/coarsening/noop_clustering.h"
 
 namespace kaminpar::dist::factory {
-std::unique_ptr<IInitialPartitioner> create_initial_partitioning_algorithm(const Context& ctx) {
+std::unique_ptr<InitialPartitioner> create_initial_partitioning_algorithm(const Context& ctx) {
     switch (ctx.initial_partitioning.algorithm) {
         case InitialPartitioningAlgorithm::KAMINPAR:
             return std::make_unique<KaMinParInitialPartitioner>(ctx);
@@ -40,13 +38,13 @@ std::unique_ptr<IInitialPartitioner> create_initial_partitioning_algorithm(const
     __builtin_unreachable();
 }
 
-std::unique_ptr<IDistributedRefiner> create_refinement_algorithm(const Context& ctx) {
+std::unique_ptr<Refiner> create_refinement_algorithm(const Context& ctx) {
     switch (ctx.refinement.algorithm) {
         case KWayRefinementAlgorithm::NOOP:
             return std::make_unique<NoopRefiner>();
 
-        case KWayRefinementAlgorithm::PROB_LP:
-            return std::make_unique<DistributedProbabilisticLabelPropagationRefiner>(ctx);
+        case KWayRefinementAlgorithm::LP:
+            return std::make_unique<LPRefiner>(ctx);
 
         case KWayRefinementAlgorithm::LOCAL_FM:
             return std::make_unique<LocalFMRefiner>(ctx);
@@ -54,16 +52,16 @@ std::unique_ptr<IDistributedRefiner> create_refinement_algorithm(const Context& 
         case KWayRefinementAlgorithm::FM:
             return std::make_unique<FMRefiner>(ctx);
 
-        case KWayRefinementAlgorithm::PROB_LP_LOCAL_FM: {
-            std::vector<std::unique_ptr<IDistributedRefiner>> refiners;
-            refiners.push_back(std::make_unique<DistributedProbabilisticLabelPropagationRefiner>(ctx));
+        case KWayRefinementAlgorithm::LP_THEN_LOCAL_FM: {
+            std::vector<std::unique_ptr<Refiner>> refiners;
+            refiners.push_back(std::make_unique<LPRefiner>(ctx));
             refiners.push_back(std::make_unique<LocalFMRefiner>(ctx));
             return std::make_unique<MultiRefiner>(std::move(refiners));
         }
 
-        case KWayRefinementAlgorithm::PROB_LP_FM: {
-            std::vector<std::unique_ptr<IDistributedRefiner>> refiners;
-            refiners.push_back(std::make_unique<DistributedProbabilisticLabelPropagationRefiner>(ctx));
+        case KWayRefinementAlgorithm::LP_THEN_FM: {
+            std::vector<std::unique_ptr<Refiner>> refiners;
+            refiners.push_back(std::make_unique<LPRefiner>(ctx));
             refiners.push_back(std::make_unique<FMRefiner>(ctx));
             return std::make_unique<MultiRefiner>(std::move(refiners));
         }
