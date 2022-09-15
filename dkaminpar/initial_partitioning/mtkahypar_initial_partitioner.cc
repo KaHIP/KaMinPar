@@ -38,6 +38,7 @@ shm::PartitionedGraph MtKaHyParInitialPartitioner::initial_partition(const shm::
 
     // Abuse edge_indices initially to build a prefix sum over the new node degrees
     NoinitVector<std::size_t> edge_indices(std::max<std::size_t>(num_vertices, num_edges) + 1);
+    edge_indices.front() = 0;
     graph.pfor_nodes([&](const NodeID u) {
         const auto   adjacent_nodes = graph.adjacent_nodes(u);
         const EdgeID degree =
@@ -61,6 +62,7 @@ shm::PartitionedGraph MtKaHyParInitialPartitioner::initial_partition(const shm::
     });
 
     // Build actual edge indices
+    edge_indices.resize(num_edges + 1);
     tbb::parallel_for<std::size_t>(0, num_edges + 1, [&](const std::size_t i) { edge_indices[i] = 2 * i; });
 
     NoinitVector<mt_kahypar_partition_id_t> partition(num_vertices);
