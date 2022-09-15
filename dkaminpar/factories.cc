@@ -6,10 +6,13 @@
  ******************************************************************************/
 #include "dkaminpar/factories.h"
 
+#include <memory>
+
 #include "dkaminpar/definitions.h"
 
 // Initial Partitioning
 #include "dkaminpar/initial_partitioning/kaminpar_initial_partitioner.h"
+#include "dkaminpar/initial_partitioning/mtkahypar_initial_partitioner.h"
 #include "dkaminpar/initial_partitioning/random_initial_partitioner.h"
 
 // Refinement
@@ -31,6 +34,9 @@ std::unique_ptr<InitialPartitioner> create_initial_partitioning_algorithm(const 
     switch (ctx.initial_partitioning.algorithm) {
         case InitialPartitioningAlgorithm::KAMINPAR:
             return std::make_unique<KaMinParInitialPartitioner>(ctx);
+
+        case InitialPartitioningAlgorithm::MTKAHYPAR:
+            return std::make_unique<MtKaHyParInitialPartitioner>(ctx);
 
         case InitialPartitioningAlgorithm::RANDOM:
             return std::make_unique<RandomInitialPartitioner>(ctx);

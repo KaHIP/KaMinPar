@@ -8,6 +8,7 @@
 #include "dkaminpar/initial_partitioning/mtkahypar_initial_partitioner.h"
 
 #include <kassert/kassert.hpp>
+#include <libmtkahypar.h>
 
 #include "kaminpar/partitioning_scheme/partitioning.h"
 
@@ -23,7 +24,7 @@ shm::PartitionedGraph MtKaHyParInitialPartitioner::initial_partition(const shm::
     mt_kahypar_initialize_thread_pool(_ctx.parallel.num_threads, true);
 
     mt_kahypar_context_t* mtkahypar_ctx = mt_kahypar_context_new();
-    mt_kahypar_configure_context_from_file(mtkahypar_context, _ctx.initial_partitioning.mtkahypar.preset_filename);
+    mt_kahypar_configure_context_from_file(mtkahypar_ctx, _ctx.initial_partitioning.mtkahypar.preset_filename.c_str());
 
     // Setup graph for Mt-KaHyPar
     const mt_kahypar_hypernode_id_t num_vertices = graph.n();
@@ -46,8 +47,8 @@ shm::PartitionedGraph MtKaHyParInitialPartitioner::initial_partition(const shm::
     parallel::prefix_sum(edge_indices.begin(), edge_indices.end(), edge_indices.begin());
 
     // Copy edge weights and egdes
-    NoinitVector<mt_kahypar_hyperedge_weight_t[]> edge_weights(num_edges);
-    NoinitVector<mt_kahypar_hyperedge_id_t[]>     edges(2 * num_edges);
+    NoinitVector<mt_kahypar_hyperedge_weight_t> edge_weights(num_edges);
+    NoinitVector<mt_kahypar_hyperedge_id_t>     edges(2 * num_edges);
     graph.pfor_nodes([&](const NodeID u) {
         for (const auto& [e, v]: graph.neighbors(u)) {
             if (u < v) {
@@ -62,17 +63,25 @@ shm::PartitionedGraph MtKaHyParInitialPartitioner::initial_partition(const shm::
     // Build actual edge indices
     tbb::parallel_for<std::size_t>(0, num_edges + 1, [&](const std::size_t i) { edge_indices[i] = 2 * i; });
 
-    NoinitVector<mt_kahypar_block_id_t> partition(num_vertices);
+    NoinitVector<mt_kahypar_partition_id_t> partition(num_vertices);
+    tbb::parallel_for<std::size_t>(0, partition.size(), [&partition](const std::size_t i) { partition[i] = -1; });
     mt_kahypar_hyperedge_weight_t objective = 0;
 
     mt_kahypar_partition(
         num_vertices, num_edges, imbalance, k, _ctx.seed, node_weights.data(), edge_weights.data(), edge_indices.data(),
-        edges.data(), &objective, mtkahypar_context, partition.data(), false
+        edges.data(), &objective, mtkahypar_ctx, partition.data(), false
     );
 
-    //auto p_graph = shm::partitioning::partition(graph, shm_ctx);
+    // Copy partition to BlockID vector
+    StaticArray<BlockID> partition_cpy(num_vertices);
+    tbb::parallel_for<std::size_t>(0, num_vertices, [&](const std::size_t i) {
+        partition_cpy[i] = static_cast<BlockID>(partition[i]);
+    });
 
-    //return p_graph;
+    scalable_vector<BlockID> final_ks(k);
+    tbb::parallel_for<std::size_t>(0, k, [&final_ks](const std::size_t i) { final_ks[i] = 1; });
+
+    return shm::PartitionedGraph(graph, static_cast<BlockID>(k), std::move(partition_cpy), std::move(final_ks));
 #else  // KAMINPAR_HAS_MTKAHYPAR_LIB
     KASSERT(false, "Mt-KaHyPar initial partitioner is not available.", assert::always);
     __builtin_unreachable();

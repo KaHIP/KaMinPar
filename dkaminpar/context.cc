@@ -40,6 +40,7 @@ DEFINE_ENUM_STRING_CONVERSION(GlobalContractionAlgorithm, global_contraction_alg
 
 DEFINE_ENUM_STRING_CONVERSION(InitialPartitioningAlgorithm, initial_partitioning_algorithm) = {
     {InitialPartitioningAlgorithm::KAMINPAR, "kaminpar"},
+    {InitialPartitioningAlgorithm::MTKAHYPAR, "mtkahypar"},
     {InitialPartitioningAlgorithm::RANDOM, "random"},
 };
 
@@ -117,7 +118,7 @@ void MtKaHyParContext::print(std::ostream& out, const std::string& prefix) const
 void InitialPartitioningContext::print(std::ostream& out, const std::string& prefix) const {
     out << prefix << "algorithm=" << algorithm << " ";
     mtkahypar.print(out, prefix + "mtkahypar.");
-    //kaminpar.print(out, prefix + "kaminpar.");
+    // kaminpar.print(out, prefix + "kaminpar.");
 }
 
 void RefinementContext::print(std::ostream& out, const std::string& prefix) const {
