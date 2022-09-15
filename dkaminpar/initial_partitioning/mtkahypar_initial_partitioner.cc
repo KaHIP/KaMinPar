@@ -7,6 +7,10 @@
  ******************************************************************************/
 #include "dkaminpar/initial_partitioning/mtkahypar_initial_partitioner.h"
 
+#include <cstdio>
+#include <filesystem>
+#include <fstream>
+
 #include <kassert/kassert.hpp>
 #include <libmtkahypar.h>
 
@@ -19,12 +23,123 @@
 #include "common/timer.h"
 
 namespace kaminpar::dist {
+namespace {
+const char* default_flows_preset = R"(
+# general
+maxnet-removal-factor=0.01
+smallest-maxnet-threshold=50000
+maxnet-ignore=1000
+num-vcycles=0
+# main -> shared_memory
+s-use-localized-random-shuffle=false
+s-static-balancing-work-packages=128
+# main -> preprocessing
+p-enable-community-detection=true
+# main -> preprocessing -> community_detection
+p-louvain-edge-weight-function=hybrid
+p-max-louvain-pass-iterations=5
+p-louvain-min-vertex-move-fraction=0.01
+p-vertex-degree-sampling-threshold=200000
+# main -> coarsening
+c-type=multilevel_coarsener
+c-use-adaptive-edge-size=true
+c-min-shrink-factor=1.01
+c-max-shrink-factor=2.5
+c-s=1
+c-t=160
+c-vertex-degree-sampling-threshold=200000
+# main -> coarsening -> rating
+c-rating-score=heavy_edge
+c-rating-heavy-node-penalty=no_penalty
+c-rating-acceptance-criterion=best_prefer_unmatched
+# main -> initial_partitioning
+i-mode=rb
+i-runs=20
+i-use-adaptive-ip-runs=true
+i-min-adaptive-ip-runs=5
+i-perform-refinement-on-best-partitions=true
+i-fm-refinement-rounds=1
+i-lp-maximum-iterations=20
+i-lp-initial-block-size=5
+# main -> initial_partitioning -> refinement
+i-r-refine-until-no-improvement=false
+i-r-relative-improvement-threshold=0.0
+# main -> initial_partitioning -> refinement -> label_propagation
+i-r-lp-type=label_propagation_km1
+i-r-lp-maximum-iterations=5
+i-r-lp-rebalancing=true
+i-r-lp-he-size-activation-threshold=100
+# main -> initial_partitioning -> refinement -> fm
+i-r-fm-type=fm_gain_cache
+i-r-fm-multitry-rounds=5
+i-r-fm-perform-moves-global=false
+i-r-fm-rollback-parallel=true
+i-r-fm-rollback-balance-violation-factor=1
+i-r-fm-seed-nodes=25
+i-r-fm-obey-minimal-parallelism=false
+i-r-fm-release-nodes=true
+i-r-fm-time-limit-factor=0.25
+i-r-fm-iter-moves-on-recalc=true
+# main -> initial_partitioning -> refinement -> flows
+i-r-flow-algo=do_nothing
+# main -> refinement
+r-refine-until-no-improvement=true
+r-relative-improvement-threshold=0.0025
+# main -> refinement -> label_propagation
+r-lp-type=label_propagation_km1
+r-lp-maximum-iterations=5
+r-lp-rebalancing=true
+r-lp-he-size-activation-threshold=100
+# main -> refinement -> fm
+r-fm-type=fm_gain_cache
+r-fm-multitry-rounds=10
+r-fm-perform-moves-global=false
+r-fm-rollback-parallel=true
+r-fm-rollback-balance-violation-factor=1.25
+r-fm-seed-nodes=25
+r-fm-release-nodes=true
+r-fm-min-improvement=-1.0
+r-fm-obey-minimal-parallelism=true
+r-fm-time-limit-factor=0.25
+r-fm-iter-moves-on-recalc=true
+# main -> refinement -> flows
+r-flow-algo=flow_cutter
+r-flow-scaling=16
+r-flow-max-num-pins=4294967295
+r-flow-find-most-balanced-cut=true
+r-flow-determine-distance-from-cut=true
+r-flow-parallel-search-multiplier=1.0
+r-flow-max-bfs-distance=2
+r-flow-min-relative-improvement-per-round=0.001
+r-flow-time-limit-factor=8
+r-flow-skip-small-cuts=true
+r-flow-skip-unpromising-blocks=true
+r-flow-pierce-in-bulk=true
+)";
+}
+
 shm::PartitionedGraph MtKaHyParInitialPartitioner::initial_partition(const shm::Graph& graph) {
 #ifdef KAMINPAR_HAS_MTKAHYPAR_LIB
     mt_kahypar_initialize_thread_pool(_ctx.parallel.num_threads, true);
 
     mt_kahypar_context_t* mtkahypar_ctx = mt_kahypar_context_new();
-    mt_kahypar_configure_context_from_file(mtkahypar_ctx, _ctx.initial_partitioning.mtkahypar.preset_filename.c_str());
+    if (_ctx.initial_partitioning.mtkahypar.preset_filename.empty()) {
+        char filename[] = "kaminpar_mtkahypar_ip.XXXXXX";
+        {
+            int fd = mkstemp(filename);
+            if (fd < 0) {
+                FATAL_ERROR << "Could not create a temporary file for the Mt-KaHyPar preset";
+            }
+            FILE* file = fdopen(fd, "r");
+            fputs(default_flows_preset, file);
+            fclose(file);
+        }
+        mt_kahypar_configure_context_from_file(mtkahypar_ctx, filename);
+    } else {
+        mt_kahypar_configure_context_from_file(
+            mtkahypar_ctx, _ctx.initial_partitioning.mtkahypar.preset_filename.c_str()
+        );
+    }
 
     // Setup graph for Mt-KaHyPar
     const mt_kahypar_hypernode_id_t num_vertices = graph.n();
