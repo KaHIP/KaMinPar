@@ -19,28 +19,28 @@ kaminpar_add_common_test(test_common_parallel_algorithm common/parallel/algorith
 # dKaMinPar -> Graph Utils
 kaminpar_add_dist_test(test_dist_graph_extraction
     FILES dkaminpar/graphutils/graph_extraction_test.cc
-    CORES 1 4 16)
+    CORES 1 2 3 4 16)
 
 kaminpar_add_dist_test(test_dist_graph_rearrangement
     FILES dkaminpar/graphutils/graph_rearrangement_test.cc
-    CORES 1 4 16)
+    CORES 1 2 3 4 16)
 
 kaminpar_add_dist_test(test_dist_independent_set
     FILES dkaminpar/graphutils/independent_set_test.cc
-    CORES 1 4 16)
+    CORES 1 2 3 4 16)
 
 kaminpar_add_dist_test(test_dist_bfs_extractor
     FILES dkaminpar/graphutils/bfs_extractor_test.cc
-    CORES 1 2 4 8 16)
+    CORES 1 2 4 16)
 
 kaminpar_add_dist_test(test_dist_global_move_conflict_resolver
     FILES dkaminpar/refinement/move_conflict_resolver_test.cc
-    CORES 1 2 3 4 5 6 7 8)
+    CORES 1 2 3 4 8)
 
 kaminpar_add_dist_test(test_dist_sparse_alltoall
     HEADER_ONLY
     FILES dkaminpar/sparse_alltoall_test.cc
-    CORES 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 20 21 22 23 24 32 64)
+    CORES 1 2 3 4 5 6 7 8 20 21)
 
 kaminpar_add_dist_test(test_dist_graph_topology
     HEADER_ONLY

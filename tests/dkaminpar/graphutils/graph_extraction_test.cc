@@ -374,6 +374,30 @@ TEST(GlobalGraphExtractionTest, extract_node_weights_in_circle_clique_graph) {
     }
 }
 
+// Test edge weights
+TEST(GlobalGraphExtractionTest, extract_local_edge_weights_in_circle_clique_graph) {
+    const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
+
+    // create clique/circle graph with rank as node weight
+    auto graph = make_circle_clique_graph(2);
+
+    std::vector<std::tuple<EdgeID, EdgeID, EdgeWeight>> edge_weights;
+    edge_weights.emplace_back(0, 1, rank);
+    edge_weights.emplace_back(1, 0, rank);
+
+    graph          = change_edge_weights_by_endpoints(std::move(graph), edge_weights);
+    auto p_graph   = make_partitioned_graph_by_rank(graph);
+    auto subgraphs = extract_global_subgraphs(p_graph);
+
+    ASSERT_EQ(subgraphs.size(), 1);
+    auto &subgraph = subgraphs.front();
+
+    ASSERT_EQ(subgraph.n(), 2);
+    ASSERT_EQ(subgraph.m(), 2);
+    EXPECT_EQ(subgraph.edge_weight(0), rank);
+    EXPECT_EQ(subgraph.edge_weight(1), rank);
+}
+
 // Test copying subgraph partition back to the distributed graph: one isolated nodes that is not migrated
 TEST(GlobalGraphExtractionTest, project_isolated_nodes_1_partition) {
     const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
