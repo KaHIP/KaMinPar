@@ -12,7 +12,10 @@
 #include <fstream>
 
 #include <kassert/kassert.hpp>
-#include <libmtkahypar.h>
+
+#ifdef KAMINPAR_HAS_MTKAHYPAR_LIB
+    #include <libmtkahypar.h>
+#endif // KAMINPAR_HAS_MTKAHYPAR_LIB
 
 #include "kaminpar/partitioning_scheme/partitioning.h"
 
