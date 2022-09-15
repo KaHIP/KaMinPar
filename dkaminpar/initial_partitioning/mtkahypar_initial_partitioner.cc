@@ -143,9 +143,16 @@ shm::PartitionedGraph MtKaHyParInitialPartitioner::initial_partition(const shm::
 
     // Setup graph for Mt-KaHyPar
     const mt_kahypar_hypernode_id_t num_vertices = graph.n();
-    const mt_kahypar_hyperedge_id_t num_edges    = graph.m() / 2;          // Only need one direction
-    const double                    imbalance    = _ctx.partition.epsilon; // @todo adjust epsilon
+    const mt_kahypar_hyperedge_id_t num_edges    = graph.m() / 2; // Only need one direction
     const mt_kahypar_partition_id_t k            = _ctx.partition.k;
+
+    double imbalance = 0;
+    for (BlockID b = 0; b < k; ++b) {
+        imbalance = std::max<double>(
+            imbalance,
+            1.0 * _ctx.partition.max_block_weight(b) / _ctx.partition.perfectly_balanced_block_weight(b) - 1.0
+        );
+    }
 
     // Copy node weights
     NoinitVector<mt_kahypar_hypernode_weight_t> node_weights(num_vertices);
