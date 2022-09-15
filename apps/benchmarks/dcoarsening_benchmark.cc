@@ -85,8 +85,8 @@ int main(int argc, char* argv[]) {
     const dist::DistributedGraph* c_graph = &graph;
     while (c_graph->global_n() > ctx.partition.k * ctx.coarsening.contraction_limit) {
         const auto max_cluster_weight = shm::compute_max_cluster_weight(
-            c_graph->global_n(), c_graph->total_node_weight(), ctx.initial_partitioning.sequential.partition,
-            ctx.initial_partitioning.sequential.coarsening
+            c_graph->global_n(), c_graph->total_node_weight(), ctx.initial_partitioning.kaminpar.partition,
+            ctx.initial_partitioning.kaminpar.coarsening
         );
         LOG << "... computing clustering";
 

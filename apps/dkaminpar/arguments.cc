@@ -216,8 +216,12 @@ void create_initial_partitioning_options(
             prefix + "-algorithm",
             "Initial partitioning algorithm, possible values: {"s + initial_partitioning_algorithm_names() + "}.",
             &i_ctx.algorithm, initial_partitioning_algorithm_from_string
+        )
+        .argument(
+            prefix + "-mtkahypar-preset", "Preset configuration file for the Mt-KaHyPar initial partitioner.",
+            &i_ctx.mtkahypar.preset_filename
         );
-    shm::app::create_algorithm_options(i_ctx.sequential, args, "Initial Partitioning -> KaMinPar -> ", prefix + "i-");
+    // shm::app::create_algorithm_options(i_ctx.kaminpar, args, "Initial Partitioning -> KaMinPar -> ", prefix + "i-");
 }
 
 void create_miscellaneous_context_options(

@@ -174,11 +174,11 @@ const DistributedGraph* Coarsener::nth_coarsest(const std::size_t n) const {
 }
 
 GlobalNodeWeight Coarsener::max_cluster_weight() const {
-    shm::PartitionContext shm_p_ctx = _input_ctx.initial_partitioning.sequential.partition;
+    shm::PartitionContext shm_p_ctx = _input_ctx.initial_partitioning.kaminpar.partition;
     shm_p_ctx.k                     = _input_ctx.partition.k;
     shm_p_ctx.epsilon               = _input_ctx.partition.epsilon;
 
-    shm::CoarseningContext shm_c_ctx    = _input_ctx.initial_partitioning.sequential.coarsening;
+    shm::CoarseningContext shm_c_ctx    = _input_ctx.initial_partitioning.kaminpar.coarsening;
     shm_c_ctx.contraction_limit         = _input_ctx.coarsening.contraction_limit;
     shm_c_ctx.cluster_weight_limit      = _input_ctx.coarsening.cluster_weight_limit;
     shm_c_ctx.cluster_weight_multiplier = _input_ctx.coarsening.cluster_weight_multiplier;

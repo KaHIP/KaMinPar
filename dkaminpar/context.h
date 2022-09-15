@@ -37,6 +37,7 @@ enum class GlobalContractionAlgorithm {
 
 enum class InitialPartitioningAlgorithm {
     KAMINPAR,
+    MTKAHYPAR,
     RANDOM,
 };
 
@@ -157,9 +158,16 @@ struct CoarseningContext {
     void print(std::ostream& out, const std::string& prefix = "") const;
 };
 
+struct MtKaHyParContext {
+    std::string preset_filename;
+
+    void print(std::ostream& out, const std::string& prefix = "") const;
+};
+
 struct InitialPartitioningContext {
     InitialPartitioningAlgorithm algorithm;
-    shm::Context                 sequential;
+    MtKaHyParContext             mtkahypar;
+    shm::Context                 kaminpar;
 
     void print(std::ostream& out, const std::string& prefix = "") const;
 };

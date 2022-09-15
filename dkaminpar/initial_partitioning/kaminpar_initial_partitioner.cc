@@ -13,7 +13,7 @@
 
 namespace kaminpar::dist {
 shm::PartitionedGraph KaMinParInitialPartitioner::initial_partition(const shm::Graph& graph) {
-    auto shm_ctx                         = _ctx.initial_partitioning.sequential;
+    auto shm_ctx                         = _ctx.initial_partitioning.kaminpar;
     shm_ctx.refinement.lp.num_iterations = 1;
     shm_ctx.partition.k                  = _ctx.partition.k;
     shm_ctx.partition.epsilon            = _ctx.partition.epsilon;

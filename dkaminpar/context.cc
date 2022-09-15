@@ -110,9 +110,14 @@ void BalancingContext::print(std::ostream& out, const std::string& prefix) const
         << prefix << "num_nodes_per_block=" << num_nodes_per_block << " "; //
 }
 
+void MtKaHyParContext::print(std::ostream& out, const std::string& prefix) const {
+    out << prefix << "preset_filename=" << preset_filename << " "; //
+}
+
 void InitialPartitioningContext::print(std::ostream& out, const std::string& prefix) const {
     out << prefix << "algorithm=" << algorithm << " ";
-    sequential.print(out, prefix + "sequential.");
+    mtkahypar.print(out, prefix + "mtkahypar.");
+    //kaminpar.print(out, prefix + "kaminpar.");
 }
 
 void RefinementContext::print(std::ostream& out, const std::string& prefix) const {
@@ -259,7 +264,10 @@ Context create_default_context() {
     },
     .initial_partitioning = {
       .algorithm = InitialPartitioningAlgorithm::KAMINPAR,
-      .sequential = shm::create_default_context(),
+      .mtkahypar = {
+        .preset_filename = "",
+      },
+      .kaminpar = shm::create_default_context(),
     },
     .refinement = {
       .algorithm = KWayRefinementAlgorithm::LP,

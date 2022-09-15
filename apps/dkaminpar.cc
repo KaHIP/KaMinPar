@@ -174,7 +174,7 @@ int main(int argc, char* argv[]) {
     // Initialize parallelism
     auto gc = init_parallelism(ctx.parallel.num_threads);
     omp_set_num_threads(static_cast<int>(ctx.parallel.num_threads));
-    ctx.initial_partitioning.sequential.parallel.num_threads = ctx.parallel.num_threads;
+    ctx.initial_partitioning.kaminpar.parallel.num_threads = ctx.parallel.num_threads;
     if (ctx.parallel.use_interleaved_numa_allocation) {
         init_numa();
     }
