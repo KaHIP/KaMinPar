@@ -108,7 +108,7 @@ public:
           _gains(ctx.partition.local_n()),
           _block_weights(ctx.partition.k) {
         set_max_degree(_lp_ctx.active_high_degree_threshold);
-        allocate(ctx.partition.local_n());
+        allocate(ctx.partition.k, ctx.partition.local_n());
     }
 
     void initialize(const DistributedGraph& /* graph */, const PartitionContext& p_ctx) {
@@ -127,7 +127,7 @@ public:
         if (_gains.size() < p_graph.n()) {
             _gains.resize(p_graph.n());
         }
-        allocate(p_graph.n());
+        allocate(_block_weights.size(), p_graph.n());
         STOP_TIMER(TIMER_DETAIL);
 
         _p_graph = &p_graph;

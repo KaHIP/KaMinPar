@@ -32,7 +32,7 @@ class LabelPropagationRefinerImpl final
 
 public:
     LabelPropagationRefinerImpl(const Context& ctx) : _r_ctx{ctx.refinement} {
-        allocate(ctx.partition.n);
+        allocate(ctx.partition.k, ctx.partition.n);
         set_max_degree(_r_ctx.lp.large_degree_threshold);
         set_max_num_neighbors(_r_ctx.lp.max_num_neighbors);
     }
