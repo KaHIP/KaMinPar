@@ -19,7 +19,6 @@ if (NOT CMAKE_BUILD_TYPE OR CMAKE_BUILD_TYPE STREQUAL "")
 endif ()
 
 option(KAMINPAR_ENABLE_STATISTICS "Generate and output detailed statistics." ON)
-option(KAMINPAR_ENABLE_BACKWARD_CPP "Build with backward-cpp for better stack traces (requires the backward-cpp submodule)." ON)
 option(KAMINPAR_ENABLE_GRAPHGEN "Build with support for in-memory graph generation (requires the KaGen submodule)." ON)
 option(KAMINPAR_ENABLE_SANITIZER "Enable address sanitizer." OFF)
 option(KAMINPAR_ENABLE_MTUNE_NATIVE "Build with -mtune=native." ON)
@@ -101,14 +100,6 @@ if (KAMINPAR_BUILD_TESTS)
     include(gmock)
 
     message(STATUS "Build unit tests.")
-endif ()
-
-# Backward-cpp for stack traces in MPI code
-if (KAMINPAR_ENABLE_BACKWARD_CPP)
-    set(CMAKE_POLICY_DEFAULT_CMP0063 NEW)
-    add_subdirectory(extern/backward-cpp)
-    add_definitions(-DKAMINPAR_ENABLE_BACKWARD_CPP)
-    message(STATUS "Enable backward-cpp.")
 endif ()
 
 # Use ccache is available 

@@ -7,9 +7,6 @@
 [submodule "extern/growt"]
 	path = extern/growt
 	url = https://github.com/TooBiased/growt.git
-[submodule "extern/backward-cpp"]
-	path = extern/backward-cpp
-	url = https://github.com/bombela/backward-cpp.git
 [submodule "extern/kassert"]
 	path = extern/kassert
 	url = git@github.com:kamping-site/kassert.git

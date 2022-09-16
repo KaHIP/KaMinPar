@@ -142,7 +142,7 @@ public:
   [[nodiscard]] inline NodeWeight max_node_weight() const { return _max_node_weight; }
 
   // Graph structure
-  [[nodiscard]] inline NodeID edge_target(const EdgeID e) const { return _edges[e]; }
+  [[nodiscard]] inline NodeID edge_target(const EdgeID e) const { KASSERT(e < _edges.size()); return _edges[e]; }
   [[nodiscard]] inline NodeID degree(const NodeID u) const { return static_cast<NodeID>(_nodes[u + 1] - _nodes[u]); }
   [[nodiscard]] inline EdgeID first_edge(const NodeID u) const { return _nodes[u]; }
   [[nodiscard]] inline EdgeID first_invalid_edge(const NodeID u) const { return _nodes[u + 1]; }

@@ -16,14 +16,7 @@ function(add_app target)
     add_executable(${target} ${ARGN} "${CMAKE_CURRENT_BINARY_DIR}/environment.cc")
     target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(${target} PRIVATE common_base shm_partitioner_base)
-
-    if (KAMINPAR_BACKWARD_CPP)
-	    target_sources(${target} PUBLIC ${BACKWARD_ENABLE})
-        add_backward(${target})
-    endif ()
-
     install(TARGETS ${target})
-
     message(STATUS "App ${target}")
 endfunction()
 
