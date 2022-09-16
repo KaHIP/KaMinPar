@@ -495,12 +495,12 @@ private:
     growt::StaticGhostNodeMapping _global_to_ghost{};
 
     mutable scalable_vector<std::uint8_t> _high_degree_ghost_node{};
-    mutable EdgeID                        _high_degree_threshold;
+    mutable EdgeID                        _high_degree_threshold = 0;
 
     std::vector<EdgeID> _edge_cut_to_pe{};
     std::vector<EdgeID> _comm_vol_to_pe{};
 
-    bool                _sorted;
+    bool                _sorted            = false;
     std::vector<NodeID> _buckets           = std::vector<NodeID>(shm::kNumberOfDegreeBuckets + 1);
     std::size_t         _number_of_buckets = 0;
 
