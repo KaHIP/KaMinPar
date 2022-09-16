@@ -26,6 +26,7 @@
 #include "common/timer.h"
 
 namespace kaminpar::dist {
+#ifdef KAMINPAR_HAS_MTKAHYPAR_LIB
 namespace {
 const char* default_flows_preset = R"(
 # general
@@ -120,8 +121,9 @@ r-flow-skip-unpromising-blocks=true
 r-flow-pierce-in-bulk=true
 )";
 }
+#endif // KAMINPAR_HAS_MTKAHYPAR_LIB
 
-shm::PartitionedGraph MtKaHyParInitialPartitioner::initial_partition(const shm::Graph& graph) {
+shm::PartitionedGraph MtKaHyParInitialPartitioner::initial_partition([[maybe_unused]] const shm::Graph& graph) {
 #ifdef KAMINPAR_HAS_MTKAHYPAR_LIB
     mt_kahypar_initialize_thread_pool(_ctx.parallel.num_threads, true);
 

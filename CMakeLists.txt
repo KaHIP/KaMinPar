@@ -24,6 +24,8 @@ option(KAMINPAR_ENABLE_GRAPHGEN "Build with support for in-memory graph generati
 option(KAMINPAR_ENABLE_SANITIZER "Enable address sanitizer." OFF)
 option(KAMINPAR_ENABLE_MTUNE_NATIVE "Build with -mtune=native." ON)
 
+option(KAMINPAR_ENABLE_MTKAHYPAR "Enable Mt-KaHyPar as initial partitioner for the distributed partitioner." OFF)
+
 option(KAMINPAR_BUILD_TESTS "Build unit tests (requires the GoogleTest submodule)." ON)
 option(KAMINPAR_BUILD_DISTRIBUTED "Enable or disable the distributed partitioner (requires the growt submodule)." ON)
 

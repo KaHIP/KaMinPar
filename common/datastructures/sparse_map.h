@@ -127,7 +127,6 @@ public:
 
 private:
     void allocate_data(const std::size_t capacity) {
-        std::cout << "ALLOCATE " << capacity << std::endl;
         _capacity = capacity;
 
         KASSERT(!_data);
