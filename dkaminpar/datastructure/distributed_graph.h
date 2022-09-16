@@ -459,7 +459,7 @@ public:
     void init_high_degree_info(EdgeID high_degree_threshold) const;
 
     [[nodiscard]] bool is_high_degree_node(const NodeID node) const {
-        KASSERT(!_high_degree_ghost_node.empty());
+        KASSERT(_high_degree_ghost_node.size() == ghost_n());
         KASSERT(!is_ghost_node(node) || node - n() < _high_degree_ghost_node.size());
         return is_ghost_node(node) ? _high_degree_ghost_node[node - n()] : degree(node) > _high_degree_threshold;
     }

@@ -160,6 +160,7 @@ int main(int argc, char* argv[]) {
     sanitize_context(app);
     Logger::set_quiet_mode(ctx.quiet);
 
+    cio::print_dkaminpar_banner();
     print_identifier(argc, argv);
     ctx.parallel.num_mpis = static_cast<std::size_t>(mpi::get_comm_size(MPI_COMM_WORLD));
     LOG << "MPI size=" << ctx.parallel.num_mpis;

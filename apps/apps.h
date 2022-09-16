@@ -49,12 +49,6 @@ inline void print_identifier(int argc, char* argv[]) {
         LLOG << "argv[" << i << "]='" << argv[i] << "' ";
     }
     LOG;
-
-#if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
-    LOG << std::string(80, '*');
-    LOG << "!!! RUNNING WITH ASSERTIONS !!!";
-    LOG << std::string(80, '*');
-#endif
 }
 
 inline tbb::global_control init_parallelism(const std::size_t num_threads) {

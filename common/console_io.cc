@@ -6,12 +6,19 @@
  ******************************************************************************/
 #include "common/console_io.h"
 
+#include <kassert/kassert.hpp>
+
+#include "common/assert.h"
 #include "common/logger.h"
 
 namespace kaminpar::cio {
 void print_kaminpar_banner() {
     LOG << "################################################################################";
+#if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
+    LOG << "#                _  __       __  __  _         ____                 ASSERTIONS #";
+#else 
     LOG << "#                _  __       __  __  _         ____                            #";
+#endif 
     LOG << "#               | |/ / __ _ |  \\/  |(_) _ __  |  _ \\  __ _  _ __               #";
     LOG << "#               | ' / / _` || |\\/| || || '_ \\ | |_) |/ _` || '__|              #";
     LOG << "#               | . \\| (_| || |  | || || | | ||  __/| (_| || |                 #";
@@ -22,7 +29,11 @@ void print_kaminpar_banner() {
 
 void print_dkaminpar_banner() {
     LOG << "################################################################################";
+#if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
+    LOG << "#                _  _  __       __  __  _         ____              ASSERTIONS #";
+#else
     LOG << "#                _  _  __       __  __  _         ____                         #";
+#endif 
     LOG << "#             __| || |/ / __ _ |  \\/  |(_) _ __  |  _ \\  __ _  _ __            #";
     LOG << "#            / _` || ' / / _` || |\\/| || || '_ \\ | |_) |/ _` || '__|           #";
     LOG << "#           | (_| || . \\| (_| || |  | || || | | ||  __/| (_| || |              #";
@@ -31,8 +42,7 @@ void print_dkaminpar_banner() {
     LOG << "################################################################################";
 }
 
-void print_assertions_banner() {
-    LOG << "#                       !!! RUNNING WITH ASSERTIONS !!!                        #";
+void print_build_identifier() {
     LOG << "################################################################################";
 }
 

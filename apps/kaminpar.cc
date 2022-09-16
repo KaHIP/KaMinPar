@@ -125,6 +125,7 @@ int main(int argc, char* argv[]) {
 
     Logger::set_quiet_mode(ctx.quiet);
 
+    cio::print_kaminpar_banner();
     print_identifier(argc, argv);
 
     //
