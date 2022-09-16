@@ -11,6 +11,6 @@
 namespace kaminpar::cio {
 void print_kaminpar_banner();
 void print_dkaminpar_banner();
-void print_build_identifier();
+void print_build_identifier(const std::string& commit, const std::string& hostname);
 void print_banner(const std::string& title);
 } // namespace kaminpar::cio

@@ -160,8 +160,12 @@ int main(int argc, char* argv[]) {
     sanitize_context(app);
     Logger::set_quiet_mode(ctx.quiet);
 
-    cio::print_dkaminpar_banner();
-    print_identifier(argc, argv);
+    const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
+    if (rank == 0) {
+        cio::print_dkaminpar_banner();
+        cio::print_build_identifier(Environment::GIT_SHA1, Environment::HOSTNAME);
+    }
+
     ctx.parallel.num_mpis = static_cast<std::size_t>(mpi::get_comm_size(MPI_COMM_WORLD));
     LOG << "MPI size=" << ctx.parallel.num_mpis;
     LOG << "CONTEXT " << ctx;

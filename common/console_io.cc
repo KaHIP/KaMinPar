@@ -9,16 +9,17 @@
 #include <kassert/kassert.hpp>
 
 #include "common/assert.h"
+#include "common/detect_macro.h"
 #include "common/logger.h"
 
 namespace kaminpar::cio {
 void print_kaminpar_banner() {
     LOG << "################################################################################";
 #if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
-    LOG << "#                _  __       __  __  _         ____                 ASSERTIONS #";
-#else 
+    LOG << "#                _  __       __  __  _         ____                  ASSERTIONS#";
+#else
     LOG << "#                _  __       __  __  _         ____                            #";
-#endif 
+#endif
     LOG << "#               | |/ / __ _ |  \\/  |(_) _ __  |  _ \\  __ _  _ __               #";
     LOG << "#               | ' / / _` || |\\/| || || '_ \\ | |_) |/ _` || '__|              #";
     LOG << "#               | . \\| (_| || |  | || || | | ||  __/| (_| || |                 #";
@@ -30,10 +31,10 @@ void print_kaminpar_banner() {
 void print_dkaminpar_banner() {
     LOG << "################################################################################";
 #if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
-    LOG << "#                _  _  __       __  __  _         ____              ASSERTIONS #";
+    LOG << "#                _  _  __       __  __  _         ____               ASSERTIONS#";
 #else
     LOG << "#                _  _  __       __  __  _         ____                         #";
-#endif 
+#endif
     LOG << "#             __| || |/ / __ _ |  \\/  |(_) _ __  |  _ \\  __ _  _ __            #";
     LOG << "#            / _` || ' / / _` || |\\/| || || '_ \\ | |_) |/ _` || '__|           #";
     LOG << "#           | (_| || . \\| (_| || |  | || || | | ||  __/| (_| || |              #";
@@ -42,7 +43,25 @@ void print_dkaminpar_banner() {
     LOG << "################################################################################";
 }
 
-void print_build_identifier() {
+void print_build_identifier(const std::string& commit, const std::string& hostname) {
+    LOG << "Current commit hash:          " << (commit.empty() ? "<not available>" : commit);
+    std::string assertion_level_name = "always";
+    if (KASSERT_ASSERTION_LEVEL >= ASSERTION_LEVEL_LIGHT) {
+        assertion_level_name += "+light";
+    }
+    if (KASSERT_ASSERTION_LEVEL >= ASSERTION_LEVEL_NORMAL) {
+        assertion_level_name += "+normal";
+    }
+    if (KASSERT_ASSERTION_LEVEL >= ASSERTION_LEVEL_HEAVY) {
+        assertion_level_name += "+heavy";
+    }
+    LOG << "Assertion level:              " << assertion_level_name;
+    LOG << "Statistics:                   " << (DETECT_EXIST(KAMINPAR_ENABLE_STATISTICS) ? "enabled" : "disabled");
+    LOG << "Data type widths:             "
+        << "Nodes: " << (DETECT_EXIST(KAMINPAR_64BIT_NODE_IDS) ? "64" : "32") << " bits / "
+        << "Edges: " << (DETECT_EXIST(KAMINPAR_64BIT_EDGE_IDS) ? "64" : "32") << " bits / "
+        << "Weights: " << (DETECT_EXIST(KAMINPAR_64BIT_WEIGHTS) ? "64" : "32") << " bits";
+    LOG << "Built on:                     " << (hostname.empty() ? "<not available>" : hostname);
     LOG << "################################################################################";
 }
 
