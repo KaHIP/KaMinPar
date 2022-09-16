@@ -124,7 +124,7 @@ inline int recv(T* buf, int count, int source, int tag, MPI_Comm comm, MPI_Statu
 }
 
 inline MPI_Status probe(const int source, const int tag, MPI_Comm comm) {
-    MPI_Status            status;
+    MPI_Status            status{};
     [[maybe_unused]] auto result = MPI_Probe(source, tag, comm, &status);
     KASSERT(result != MPI_UNDEFINED);
     return status;
@@ -132,7 +132,7 @@ inline MPI_Status probe(const int source, const int tag, MPI_Comm comm) {
 
 template <typename T>
 inline int get_count(const MPI_Status& status) {
-    int                   count;
+    int                   count  = 0;
     [[maybe_unused]] auto result = MPI_Get_count(&status, type::get<T>(), &count);
     return count;
 }
@@ -209,7 +209,7 @@ int allreduce(const T& element, T& ans, MPI_Op op, MPI_Comm comm) {
 
 template <typename T, typename Container = NoinitVector<T>>
 Container gather(const T& element, const int root, MPI_Comm comm) {
-    Container result;
+    Container result{};
     if (mpi::get_comm_rank(comm) == root) {
         result.resize(mpi::get_comm_size(comm));
     }
