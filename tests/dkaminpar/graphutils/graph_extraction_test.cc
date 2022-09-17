@@ -6,6 +6,7 @@
  ******************************************************************************/
 #include <gmock/gmock.h>
 
+#include "mpi/utils.h"
 #include "tests/dkaminpar/distributed_graph_factories.h"
 #include "tests/dkaminpar/distributed_graph_helpers.h"
 
@@ -291,9 +292,8 @@ TEST(GlobalGraphExtractionTest, extract_circles_from_clique_graph) {
         EXPECT_EQ(subgraph.m(), 2);
     } else {
         EXPECT_EQ(subgraph.m(), 2 * size);
+        expect_circle(subgraph);
     }
-
-    expect_circle(subgraph);
 }
 
 // Test extracting two blocks per PE, each block with a isolated node
@@ -341,9 +341,8 @@ TEST(GlobalGraphExtractionTest, extract_two_blocks_from_clique_graph) {
             EXPECT_EQ(subgraph.m(), 2); // just two nodes with an edge between them
         } else {
             EXPECT_EQ(subgraph.m(), 2 * size);
+            expect_circle(subgraph);
         }
-
-        expect_circle(subgraph);
     }
 }
 
@@ -356,8 +355,11 @@ TEST(GlobalGraphExtractionTest, extract_node_weights_in_circle_clique_graph) {
     std::vector<std::pair<NodeID, NodeWeight>> node_weights;
     std::vector<BlockID>                       local_partition;
     for (const NodeID u: graph.nodes()) {
-        node_weights.emplace_back(u, rank);
+        node_weights.emplace_back(u, rank + 1);
         local_partition.push_back(u);
+    }
+    for (const NodeID u: graph.ghost_nodes()) {
+        node_weights.emplace_back(u, graph.ghost_owner(u) + 1);
     }
     graph          = change_node_weights(std::move(graph), node_weights);
     auto p_graph   = make_partitioned_graph(graph, 2 * size, local_partition);
@@ -365,12 +367,19 @@ TEST(GlobalGraphExtractionTest, extract_node_weights_in_circle_clique_graph) {
 
     ASSERT_EQ(subgraphs.size(), 2);
 
+    std::vector<int> weights(size + 1);
+
     for (const auto& subgraph: subgraphs) {
-        // we assume that the i-th node in a subgraph comes from PE i and thus has weight i
-        // this should always be true with the current implementation, but might be too assertive?
         for (const NodeID u: subgraph.nodes()) {
-            EXPECT_EQ(subgraph.node_weight(u), u);
+            const NodeWeight weight = subgraph.node_weight(u);
+            EXPECT_LT(weight, size + 1);
+            EXPECT_LE(weights[weight], 2);
+            ++weights[weight];
         }
+    }
+
+    for (std::size_t i = 1; i < weights.size(); ++i) {
+        EXPECT_EQ(weights[i], 2);
     }
 }
 
@@ -390,7 +399,7 @@ TEST(GlobalGraphExtractionTest, extract_local_edge_weights_in_circle_clique_grap
     auto subgraphs = extract_global_subgraphs(p_graph);
 
     ASSERT_EQ(subgraphs.size(), 1);
-    auto &subgraph = subgraphs.front();
+    auto& subgraph = subgraphs.front();
 
     ASSERT_EQ(subgraph.n(), 2);
     ASSERT_EQ(subgraph.m(), 2);

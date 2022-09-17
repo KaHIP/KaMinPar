@@ -28,7 +28,7 @@ void DistributedGraph::print() const {
     buf << "--------------------------------------------------------------------------------\n";
     for (const NodeID u: all_nodes()) {
         const char u_prefix = is_owned_node(u) ? ' ' : '!';
-        buf << u_prefix << "L" << std::setw(w) << u << " G" << std::setw(w) << local_to_global_node(u) << " W"
+        buf << u_prefix << "L" << std::setw(w) << u << " G" << std::setw(w) << local_to_global_node(u) << " NW"
             << std::setw(w) << node_weight(u);
 
         if (is_owned_node(u)) {
@@ -36,7 +36,7 @@ void DistributedGraph::print() const {
             for (const auto [e, v]: neighbors(u)) {
                 const char v_prefix = is_owned_node(v) ? ' ' : '!';
                 buf << v_prefix << "L" << std::setw(w) << v << " G" << std::setw(w) << local_to_global_node(v) << " EW"
-                    << std::setw(w) << edge_weight(e) << "\t";
+                    << std::setw(w) << edge_weight(e) << " NW" << std::setw(w) << node_weight(v) << "\t";
             }
             if (degree(u) == 0) {
                 buf << "<empty>";

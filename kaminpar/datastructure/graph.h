@@ -175,6 +175,8 @@ public:
 
     void update_total_node_weight();
 
+    void print() const;
+
 private:
     void init_degree_buckets();
 

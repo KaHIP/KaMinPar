@@ -104,6 +104,16 @@ void Graph::update_total_node_weight() {
     }
 }
 
+void Graph::print() const {
+    for (const NodeID u: nodes()) {
+        LLOG << "L" << u << " NW" << node_weight(u) << " | ";
+        for (const auto [e, v]: neighbors(u)) {
+            LLOG << "EW" << edge_weight(e) << " L" << v << " NW" << node_weight(v) << "  ";
+        }
+        LOG;
+    }
+}
+
 //
 // Utility debug functions
 //
