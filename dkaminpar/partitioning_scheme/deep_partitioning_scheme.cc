@@ -56,7 +56,7 @@ void DeepPartitioningScheme::print_coarsening_level(const GlobalNodeWeight max_c
     );
     const int width = std::log10(max_value) + 1;
 
-    LOG << "Level " << coarsener->level() << ":";
+    LOG << "Coarsening -> Level " << coarsener->level() << ":";
     LOG << "  Number of local nodes: [Min=" << std::setw(width) << n_min << " | Mean=" << std::setw(width)
         << static_cast<NodeID>(n_avg) << " | Max=" << std::setw(width) << n_max
         << " | Imbalance=" << std::setprecision(2) << std::setw(width) << n_imbalance << "]";
@@ -96,6 +96,7 @@ void DeepPartitioningScheme::print_initial_partitioning_result(const Distributed
     LOG << "  Number of blocks: " << p_graph.k();
     LOG << "  Cut:              " << cut;
     LOG << "  Imbalance:        " << imbalance;
+    LOG;
 }
 
 DistributedPartitionedGraph DeepPartitioningScheme::partition() {
@@ -243,7 +244,7 @@ DistributedPartitionedGraph DeepPartitioningScheme::partition() {
         dist_p_graph = coarsener->uncoarsen_once(std::move(dist_p_graph));
         STOP_TIMER();
 
-        LOG << "Level " << coarsener->level() - 1 << ":";
+        LOG << "Uncoarsening -> Level " << coarsener->level() - 1 << ":";
 
         // Extend partition
         extend_partition(dist_p_graph);
@@ -260,6 +261,7 @@ DistributedPartitionedGraph DeepPartitioningScheme::partition() {
         const auto imbalance = metrics::imbalance(dist_p_graph);
         LOG << "  Cut:       " << cut;
         LOG << "  Imbalance: " << imbalance;
+        LOG;
         STOP_TIMER();
         STOP_TIMER();
     }
@@ -267,7 +269,7 @@ DistributedPartitionedGraph DeepPartitioningScheme::partition() {
     // Extend partition if we have not already reached the desired number of blocks
     // This should only be used to cover the special case where the input graph is too small for coarsening
     if (dist_p_graph.k() != _input_ctx.partition.k) {
-        LOG << "Level -1:";
+        LOG << "Uncoarsening -> Level -1:";
 
         // Extend partition
         extend_partition(dist_p_graph);
@@ -284,6 +286,7 @@ DistributedPartitionedGraph DeepPartitioningScheme::partition() {
         const auto imbalance = metrics::imbalance(dist_p_graph);
         LOG << "  Cut:       " << cut;
         LOG << "  Imbalance: " << imbalance;
+        LOG;
         STOP_TIMER();
         STOP_TIMER();
     }

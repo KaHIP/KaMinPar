@@ -184,6 +184,10 @@ int main(int argc, char* argv[]) {
         init_numa();
     }
 
+    if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
+        cio::print_delimiter();
+    }
+
     // Load graph
     auto graph = TIMED_SCOPE("IO") {
 #ifdef KAMINPAR_ENABLE_GRAPHGEN
@@ -214,6 +218,7 @@ int main(int argc, char* argv[]) {
             << "n=[" << n_str << "] "
             << "m=[" << m_str << "] "
             << "ghost_n=[" << ghost_n_str << "]";
+        LOG;
     }
 
     KASSERT(graph::debug::validate(graph), "", assert::heavy);
@@ -254,6 +259,10 @@ int main(int argc, char* argv[]) {
         }
     }();
     KASSERT(graph::debug::validate_partition(p_graph), "", assert::heavy);
+
+    if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
+        cio::print_delimiter();
+    }
 
     // Output statistics
     if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {

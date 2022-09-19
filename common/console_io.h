@@ -9,6 +9,7 @@
 #include <string>
 
 namespace kaminpar::cio {
+void print_delimiter();
 void print_kaminpar_banner();
 void print_dkaminpar_banner();
 void print_build_identifier(const std::string& commit, const std::string& hostname);

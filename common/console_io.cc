@@ -13,34 +13,39 @@
 #include "common/logger.h"
 
 namespace kaminpar::cio {
-void print_kaminpar_banner() {
+void print_delimiter() {
     LOG << "################################################################################";
+}
+void print_kaminpar_banner() {
+    print_delimiter();
 #if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
-    LOG << "#                _  __       __  __  _         ____                  ASSERTIONS#";
+    LOG << "#                _  __       __  __  _         ____                 #ASSERTIONS#";
+    LOG << "#               | |/ / __ _ |  \\/  |(_) _ __  |  _ \\  __ _  _ __    ############";
 #else
     LOG << "#                _  __       __  __  _         ____                            #";
-#endif
     LOG << "#               | |/ / __ _ |  \\/  |(_) _ __  |  _ \\  __ _  _ __               #";
+#endif
     LOG << "#               | ' / / _` || |\\/| || || '_ \\ | |_) |/ _` || '__|              #";
     LOG << "#               | . \\| (_| || |  | || || | | ||  __/| (_| || |                 #";
     LOG << "#               |_|\\_\\\\__,_||_|  |_||_||_| |_||_|    \\__,_||_|                 #";
     LOG << "#                                                                              #";
-    LOG << "################################################################################";
+    print_delimiter();
 }
 
 void print_dkaminpar_banner() {
-    LOG << "################################################################################";
+    print_delimiter();
 #if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
-    LOG << "#                _  _  __       __  __  _         ____               ASSERTIONS#";
+    LOG << "#                _  _  __       __  __  _         ____              #ASSERTIONS#";
+    LOG << "#             __| || |/ / __ _ |  \\/  |(_) _ __  |  _ \\  __ _  _ __ ############";
 #else
     LOG << "#                _  _  __       __  __  _         ____                         #";
-#endif
     LOG << "#             __| || |/ / __ _ |  \\/  |(_) _ __  |  _ \\  __ _  _ __            #";
+#endif
     LOG << "#            / _` || ' / / _` || |\\/| || || '_ \\ | |_) |/ _` || '__|           #";
     LOG << "#           | (_| || . \\| (_| || |  | || || | | ||  __/| (_| || |              #";
     LOG << "#            \\__,_||_|\\_\\\\__,_||_|  |_||_||_| |_||_|    \\__,_||_|              #";
     LOG << "#                                                                              #";
-    LOG << "################################################################################";
+    print_delimiter();
 }
 
 void print_build_identifier(const std::string& commit, const std::string& hostname) {
