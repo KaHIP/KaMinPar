@@ -123,7 +123,9 @@ r-flow-pierce-in-bulk=true
 }
 #endif // KAMINPAR_HAS_MTKAHYPAR_LIB
 
-shm::PartitionedGraph MtKaHyParInitialPartitioner::initial_partition([[maybe_unused]] const shm::Graph& graph) {
+shm::PartitionedGraph MtKaHyParInitialPartitioner::initial_partition(
+    [[maybe_unused]] const shm::Graph& graph, [[maybe_unused]] const PartitionContext& p_ctx
+) {
 #ifdef KAMINPAR_HAS_MTKAHYPAR_LIB
     mt_kahypar_initialize_thread_pool(_ctx.parallel.num_threads, true);
 
@@ -149,15 +151,14 @@ shm::PartitionedGraph MtKaHyParInitialPartitioner::initial_partition([[maybe_unu
     // Setup graph for Mt-KaHyPar
     const mt_kahypar_hypernode_id_t num_vertices = graph.n();
     const mt_kahypar_hyperedge_id_t num_edges    = graph.m() / 2; // Only need one direction
-    const mt_kahypar_partition_id_t k            = _ctx.partition.k;
+    const mt_kahypar_partition_id_t k            = p_ctx.k;
 
-    double imbalance = 0;
-    for (BlockID b = 0; b < k; ++b) {
+    double imbalance = 0 = p_ctx.epsilon;
+    /*for (BlockID b = 0; b < k; ++b) {
         imbalance = std::max<double>(
-            imbalance,
-            1.0 * _ctx.partition.max_block_weight(b) / _ctx.partition.perfectly_balanced_block_weight(b) - 1.0
+            imbalance, 1.0 * p_ctx.max_block_weight(b) / p_ctx.perfectly_balanced_block_weight(b) - 1.0
         );
-    }
+    }*/
 
     // Copy node weights
     NoinitVector<mt_kahypar_hypernode_weight_t> node_weights(num_vertices);

@@ -150,6 +150,20 @@ void PartitionContext::setup(const DistributedGraph& graph) {
     setup_max_block_weights();
 }
 
+void PartitionContext::setup(const shm::Graph& graph) {
+    _global_n                 = graph.n();
+    _global_m                 = graph.m();
+    _global_total_node_weight = graph.total_node_weight();
+    _local_n                  = graph.n();
+    _total_n                  = graph.n();
+    _local_m                  = graph.m();
+    _total_node_weight        = graph.total_node_weight();
+    _global_max_node_weight   = graph.max_node_weight();
+
+    setup_perfectly_balanced_block_weights();
+    setup_max_block_weights();
+}
+
 void PartitionContext::setup_perfectly_balanced_block_weights() {
     _perfectly_balanced_block_weights.resize(k);
 
@@ -173,6 +187,7 @@ void PartitionContext::setup_max_block_weights() {
 
 void PartitionContext::print(std::ostream& out, const std::string& prefix) const {
     out << prefix << "k=" << k << " "             //
+        << prefix << "k_prime=" << k_prime << " " //
         << prefix << "epsilon=" << epsilon << " " //
         << prefix << "mode=" << mode << " ";      //
 }
@@ -205,108 +220,116 @@ std::ostream& operator<<(std::ostream& out, const Context& context) {
 }
 
 Context create_default_context() {
-    // clang-format off
-  return {
-    .graph_filename = "",
-    .load_edge_balanced = false,
-    .seed = 0,
-    .quiet = false,
-    .num_repetitions = 0,
-    .time_limit = 0,
-    .sort_graph = true,
-    .partition = {
-      /* .k = */ 0,
-      /* .epsilon = */ 0.03,
-      /* .mode = */ PartitioningMode::KWAY,
-    },
-    .parallel = {
-      .num_threads = 1,
-      .num_mpis = 1,
-      .use_interleaved_numa_allocation = true,
-      .mpi_thread_support = MPI_THREAD_FUNNELED,
-    },
-    .coarsening = {
-      .max_global_clustering_levels = std::numeric_limits<std::size_t>::max(), 
-      .global_clustering_algorithm = GlobalClusteringAlgorithm::LP,
-      .global_contraction_algorithm = GlobalContractionAlgorithm::MINIMAL_MIGRATION,
-      .global_lp = {
-        .num_iterations = 5,
-        .passive_high_degree_threshold = 1'000'000,
-        .active_high_degree_threshold = 1'000'000,
-        .max_num_neighbors = kInvalidNodeID,
-        .merge_singleton_clusters = true,
-        .merge_nonadjacent_clusters_threshold = 0.5,
-        .total_num_chunks = 128,
-        .num_chunks = 0,
-        .min_num_chunks = 8,
-        .ignore_ghost_nodes = false, // unused
-        .keep_ghost_clusters = false,
-        .scale_chunks_with_threads = false,
-      },
-      .max_local_clustering_levels = 0,
-      .local_clustering_algorithm = LocalClusteringAlgorithm::NOOP,
-      .local_lp = {
-        .num_iterations = 5,
-        .passive_high_degree_threshold = 1'000'000, // unused
-        .active_high_degree_threshold = 1'000'000,
-        .max_num_neighbors = kInvalidNodeID,
-        .merge_singleton_clusters = true,
-        .merge_nonadjacent_clusters_threshold = 0.5,
-        .total_num_chunks = 0, // unused
-        .num_chunks = 0, // unused
-        .min_num_chunks = 0, // unused
-        .ignore_ghost_nodes = false,
-        .keep_ghost_clusters = false,
-        .scale_chunks_with_threads = false, // unused
-      },
-      .contraction_limit = 5000,
-      .cluster_weight_limit = shm::ClusterWeightLimit::EPSILON_BLOCK_WEIGHT,
-      .cluster_weight_multiplier = 1.0,
-    },
-    .initial_partitioning = {
-      .algorithm = InitialPartitioningAlgorithm::KAMINPAR,
-      .mtkahypar = {
-        .preset_filename = "",
-      },
-      .kaminpar = shm::create_default_context(),
-    },
-    .refinement = {
-      .algorithm = KWayRefinementAlgorithm::LP,
-      .lp = {
-        .active_high_degree_threshold = 1'000'000, 
-        .num_iterations = 5,
-        .total_num_chunks = 128,
-        .num_chunks = 0,
-        .min_num_chunks = 8,
-        .num_move_attempts = 2,
-        .ignore_probabilities = false,
-        .scale_chunks_with_threads = false,
-      },
-      .fm = {
-        .alpha = 1.0,
-        .radius = 3,
-        .pe_radius = 2,
-        .overlap_regions = false,
-        .num_iterations = 5,
-        .sequential = false,
-        .premove_locally = true,
-        .bound_degree = 0,
-        .contract_border = false,
-      },
-      .balancing = {
-        .algorithm = BalancingAlgorithm::DISTRIBUTED, 
-        .num_nodes_per_block = 5,
-      },
-      .refine_coarsest_level = false,
-    },
-    .debug = {
-        .save_imbalanced_partitions = false,
-        .save_graph_hierarchy = false,
-        .save_coarsest_graph = false,
-        .save_clustering_hierarchy = false,
-    }
-  };
-    // clang-format on
+    return {
+        .graph_filename     = "",
+        .load_edge_balanced = false,
+        .seed               = 0,
+        .quiet              = false,
+        .num_repetitions    = 0,
+        .time_limit         = 0,
+        .sort_graph         = true,
+        .partition          = {
+                     /* .k = */ 0,
+            /* .k_prime = */ 128,
+            /* .epsilon = */ 0.03,
+            /* .mode = */ PartitioningMode::DEEP,
+        },
+        .parallel =
+            {
+                .num_threads                     = 1,
+                .num_mpis                        = 1,
+                .use_interleaved_numa_allocation = true,
+                .mpi_thread_support              = MPI_THREAD_FUNNELED,
+            },
+        .coarsening =
+            {
+                .max_global_clustering_levels = std::numeric_limits<std::size_t>::max(),
+                .global_clustering_algorithm  = GlobalClusteringAlgorithm::LP,
+                .global_contraction_algorithm = GlobalContractionAlgorithm::MINIMAL_MIGRATION,
+                .global_lp =
+                    {
+                        .num_iterations                       = 5,
+                        .passive_high_degree_threshold        = 1'000'000,
+                        .active_high_degree_threshold         = 1'000'000,
+                        .max_num_neighbors                    = kInvalidNodeID,
+                        .merge_singleton_clusters             = true,
+                        .merge_nonadjacent_clusters_threshold = 0.5,
+                        .total_num_chunks                     = 128,
+                        .num_chunks                           = 0,
+                        .min_num_chunks                       = 8,
+                        .ignore_ghost_nodes                   = false, // unused
+                        .keep_ghost_clusters                  = false,
+                        .scale_chunks_with_threads            = false,
+                    },
+                .max_local_clustering_levels = 0,
+                .local_clustering_algorithm  = LocalClusteringAlgorithm::NOOP,
+                .local_lp =
+                    {
+                        .num_iterations                       = 5,
+                        .passive_high_degree_threshold        = 1'000'000, // unused
+                        .active_high_degree_threshold         = 1'000'000,
+                        .max_num_neighbors                    = kInvalidNodeID,
+                        .merge_singleton_clusters             = true,
+                        .merge_nonadjacent_clusters_threshold = 0.5,
+                        .total_num_chunks                     = 0, // unused
+                        .num_chunks                           = 0, // unused
+                        .min_num_chunks                       = 0, // unused
+                        .ignore_ghost_nodes                   = false,
+                        .keep_ghost_clusters                  = false,
+                        .scale_chunks_with_threads            = false, // unused
+                    },
+                .contraction_limit         = 5000,
+                .cluster_weight_limit      = shm::ClusterWeightLimit::EPSILON_BLOCK_WEIGHT,
+                .cluster_weight_multiplier = 1.0,
+            },
+        .initial_partitioning =
+            {
+                .algorithm = InitialPartitioningAlgorithm::KAMINPAR,
+                .mtkahypar =
+                    {
+                        .preset_filename = "",
+                    },
+                .kaminpar = shm::create_default_context(),
+            },
+        .refinement =
+            {
+                .algorithm = KWayRefinementAlgorithm::LP,
+                .lp =
+                    {
+                        .active_high_degree_threshold = 1'000'000,
+                        .num_iterations               = 5,
+                        .total_num_chunks             = 128,
+                        .num_chunks                   = 0,
+                        .min_num_chunks               = 8,
+                        .num_move_attempts            = 2,
+                        .ignore_probabilities         = false,
+                        .scale_chunks_with_threads    = false,
+                    },
+                .fm =
+                    {
+                        .alpha           = 1.0,
+                        .radius          = 3,
+                        .pe_radius       = 2,
+                        .overlap_regions = false,
+                        .num_iterations  = 5,
+                        .sequential      = false,
+                        .premove_locally = true,
+                        .bound_degree    = 0,
+                        .contract_border = false,
+                    },
+                .balancing =
+                    {
+                        .algorithm           = BalancingAlgorithm::DISTRIBUTED,
+                        .num_nodes_per_block = 5,
+                    },
+                .refine_coarsest_level = false,
+            },
+        .debug = {
+            .save_imbalanced_partitions = false,
+            .save_graph_hierarchy       = false,
+            .save_coarsest_graph        = false,
+            .save_clustering_hierarchy  = false,
+        }};
 }
 
 } // namespace kaminpar::dist

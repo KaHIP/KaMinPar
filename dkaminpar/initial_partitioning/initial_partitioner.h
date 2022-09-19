@@ -6,6 +6,7 @@
  ******************************************************************************/
 #pragma once
 
+#include "dkaminpar/context.h"
 #include "dkaminpar/definitions.h"
 
 #include "kaminpar/datastructure/graph.h"
@@ -13,7 +14,7 @@
 namespace kaminpar::dist {
 class InitialPartitioner {
 public:
-    virtual ~InitialPartitioner()                                            = default;
-    virtual shm::PartitionedGraph initial_partition(const shm::Graph& graph) = 0;
+    virtual ~InitialPartitioner()                                                                           = default;
+    virtual shm::PartitionedGraph initial_partition(const shm::Graph& graph, const PartitionContext& p_ctx) = 0;
 };
 } // namespace kaminpar::dist

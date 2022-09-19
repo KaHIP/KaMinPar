@@ -228,6 +228,7 @@ void create_miscellaneous_context_options(
     Context& ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix
 ) {
     args.group(name, prefix)
+        .argument("k-prime", "Deep block count multiplier", &ctx.partition.k_prime, 'K')
         .argument("epsilon", "Maximum allowed imbalance.", &ctx.partition.epsilon, 'e')
         .argument("threads", "Maximum number of threads to be used.", &ctx.parallel.num_threads, 't')
         .argument("seed", "Seed for random number generator.", &ctx.seed, 's')

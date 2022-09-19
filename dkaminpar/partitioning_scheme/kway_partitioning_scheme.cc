@@ -102,7 +102,7 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
 
     START_TIMER("Initial Partitioning");
     auto                        shm_graph    = graph::allgather(*graph);
-    auto                        shm_p_graph  = initial_partitioner->initial_partition(shm_graph);
+    auto                        shm_p_graph  = initial_partitioner->initial_partition(shm_graph, _ctx.partition);
     DistributedPartitionedGraph dist_p_graph = graph::reduce_scatter(*graph, std::move(shm_p_graph));
     STOP_TIMER();
 

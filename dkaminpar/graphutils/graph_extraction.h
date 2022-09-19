@@ -1,6 +1,5 @@
 /*******************************************************************************
  * @file:   graph_extraction.h
- *
  * @author: Daniel Seemaier
  * @date:   28.04.2022
  * @brief:  Distributes block-induced subgraphs of a partitioned graph across

@@ -10,6 +10,7 @@
 #include "dkaminpar/definitions.h"
 
 #include "kaminpar/context.h"
+#include "kaminpar/datastructure/graph.h"
 
 namespace kaminpar::dist {
 enum class PartitioningMode {
@@ -195,16 +196,19 @@ struct RefinementContext {
 
 struct PartitionContext {
     // required for braces-initializer with private members
-    PartitionContext(const BlockID k, const double epsilon, const PartitioningMode mode)
+    PartitionContext(const BlockID k, const BlockID k_prime, const double epsilon, const PartitioningMode mode)
         : k{k},
+          k_prime{k_prime},
           epsilon{epsilon},
           mode{mode} {}
 
     BlockID          k{};
+    BlockID          k_prime{};
     double           epsilon{};
     PartitioningMode mode{};
 
     void setup(const DistributedGraph& graph);
+    void setup(const shm::Graph& graph);
 
     [[nodiscard]] GlobalNodeID global_n() const {
         KASSERT(_global_n != kInvalidGlobalNodeID);

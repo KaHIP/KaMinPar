@@ -341,10 +341,10 @@ inline Container<T> build_distribution_from_local_count(const T value, MPI_Comm 
 }
 
 template <typename T>
-std::tuple<T, double, T, T> gather_statistics(const T value, MPI_Comm comm) {
+std::tuple<T, double, T, std::int64_t> gather_statistics(const T value, MPI_Comm comm) {
     const T      min = allreduce(value, MPI_MIN, comm);
     const T      max = allreduce(value, MPI_MAX, comm);
-    const T      sum = allreduce(value, MPI_SUM, comm);
+    const auto   sum = allreduce<std::int64_t>(value, MPI_SUM, comm);
     const double avg = 1.0 * sum / get_comm_size(comm);
     return {min, avg, max, sum};
 }

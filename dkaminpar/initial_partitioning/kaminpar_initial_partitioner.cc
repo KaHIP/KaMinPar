@@ -12,11 +12,12 @@
 #include "common/timer.h"
 
 namespace kaminpar::dist {
-shm::PartitionedGraph KaMinParInitialPartitioner::initial_partition(const shm::Graph& graph) {
+shm::PartitionedGraph
+KaMinParInitialPartitioner::initial_partition(const shm::Graph& graph, const PartitionContext& p_ctx) {
     auto shm_ctx                         = _ctx.initial_partitioning.kaminpar;
     shm_ctx.refinement.lp.num_iterations = 1;
-    shm_ctx.partition.k                  = _ctx.partition.k;
-    shm_ctx.partition.epsilon            = _ctx.partition.epsilon;
+    shm_ctx.partition.k                  = p_ctx.k;
+    shm_ctx.partition.epsilon            = p_ctx.epsilon;
     shm_ctx.setup(graph);
 
     DISABLE_TIMERS();
