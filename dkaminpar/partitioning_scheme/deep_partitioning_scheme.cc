@@ -194,7 +194,7 @@ DistributedPartitionedGraph DeepPartitioningScheme::partition() {
         }
         while (dist_p_graph.k() < desired_k) {
             const BlockID next_k = std::min<BlockID>(desired_k, dist_p_graph.k() * _input_ctx.partition.k_prime);
-            KASSERT(next_k % dist_p_graph.k() == 0);
+            KASSERT(next_k % dist_p_graph.k() == 0u);
             const BlockID k_per_block = next_k / dist_p_graph.k();
 
             LOG << "  Extending partition from " << dist_p_graph.k() << " blocks to " << next_k << " blocks";
