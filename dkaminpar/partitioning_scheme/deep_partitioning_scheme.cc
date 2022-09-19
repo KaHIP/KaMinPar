@@ -134,7 +134,7 @@ DistributedPartitionedGraph DeepPartitioningScheme::partition() {
     /*
      * Initial Partitioning
      */
-    START_TIMER("Initial Partitioning");
+    START_TIMER("Initial partitioning");
     auto initial_partitioner = TIMED_SCOPE("Allocation") {
         return factory::create_initial_partitioning_algorithm(_input_ctx);
     };
@@ -205,6 +205,7 @@ DistributedPartitionedGraph DeepPartitioningScheme::partition() {
             const auto& subgraphs               = block_extraction_result.subgraphs;
 
             // Partition block-induced subgraphs
+            START_TIMER("Initial partitioning");
             std::vector<shm::PartitionedGraph> p_subgraphs;
             for (const auto& subgraph: subgraphs) {
                 ip_p_ctx.k       = k_per_block;
@@ -212,6 +213,7 @@ DistributedPartitionedGraph DeepPartitioningScheme::partition() {
                 ip_p_ctx.setup(subgraph);
                 p_subgraphs.push_back(initial_partitioner->initial_partition(subgraph, ip_p_ctx));
             }
+            STOP_TIMER();
 
             // Project subgraph partitions onto dist_p_graph
             dist_p_graph =
@@ -269,13 +271,13 @@ DistributedPartitionedGraph DeepPartitioningScheme::partition() {
     // Extend partition if we have not already reached the desired number of blocks
     // This should only be used to cover the special case where the input graph is too small for coarsening
     if (dist_p_graph.k() != _input_ctx.partition.k) {
-        LOG << "Uncoarsening -> Level -1:";
+        LOG << "Flat partitioning:";
 
         // Extend partition
         extend_partition(dist_p_graph);
 
         // Run refinement
-        START_TIMER("Refinement", "Level -1");
+        START_TIMER("Refinement", std::string("Level ") + std::to_string(coarsener->level()));
         LOG << "  Running balancing and local search on " << dist_p_graph.k() << " blocks";
         ref_p_ctx.setup(dist_p_graph.graph());
         run_refinement(dist_p_graph, ref_p_ctx);

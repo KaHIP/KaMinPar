@@ -55,6 +55,8 @@ auto count_block_induced_subgraph_sizes(const DistributedPartitionedGraph& p_gra
 
 // Build a local block-induced subgraph for each block of the graph partition.
 ExtractedLocalSubgraphs extract_local_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph) {
+    SCOPED_TIMER("Extracting local block induced subgraphs");
+
     auto [num_nodes_per_block, num_edges_per_block] = count_block_induced_subgraph_sizes(p_graph);
     const EdgeID num_internal_edges = std::accumulate(num_edges_per_block.begin(), num_edges_per_block.end(), 0);
 
@@ -196,6 +198,8 @@ ExtractedLocalSubgraphs extract_local_block_induced_subgraphs(const DistributedP
 namespace {
 std::pair<std::vector<shm::Graph>, std::vector<std::vector<NodeID>>>
 gather_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph, const ExtractedLocalSubgraphs& memory) {
+    SCOPED_TIMER("Gathering block induced subgraphs");
+
     const PEID size = mpi::get_comm_size(p_graph.communicator());
     KASSERT(p_graph.k() % size == 0u, "k must be a multiple of #PEs", assert::always);
     const BlockID blocks_per_pe = p_graph.k() / size;
@@ -383,6 +387,8 @@ DistributedPartitionedGraph copy_subgraph_partitions(
     DistributedPartitionedGraph p_graph, const std::vector<shm::PartitionedGraph>& p_subgraphs,
     const ExtractedSubgraphs& extracted_subgraphs
 ) {
+    SCOPED_TIMER("Projecting subgraph partitions");
+
     const auto& offsets = extracted_subgraphs.subgraph_offsets;
     const auto& mapping = extracted_subgraphs.mapping;
 

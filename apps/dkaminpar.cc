@@ -264,11 +264,6 @@ int main(int argc, char* argv[]) {
         cio::print_delimiter();
     }
 
-    // Output statistics
-    if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
-        cio::print_banner("Statistics");
-    }
-
     mpi::barrier(MPI_COMM_WORLD);
     STOP_TIMER(); // stop root timer
     print_result_statistics(p_graph, ctx);
