@@ -182,7 +182,7 @@ void PartitionContext::setup_max_block_weights() {
         const BlockWeight max_abs_weight = perfectly_balanced_block_weight(b) + _global_max_node_weight;
 
         // Only relax weight on coarse levels
-        if (static_cast<GlobalNodeWeight>(_global_n) == _global_total_node_weight) { 
+        if (static_cast<GlobalNodeWeight>(_global_n) == _global_total_node_weight) {
             _max_block_weights[b] = max_eps_weight;
         } else {
             _max_block_weights[b] = std::max(max_eps_weight, max_abs_weight);
@@ -245,6 +245,7 @@ Context create_default_context() {
                 .num_mpis                        = 1,
                 .use_interleaved_numa_allocation = true,
                 .mpi_thread_support              = MPI_THREAD_FUNNELED,
+                .simulate_singlethread           = false,
             },
         .coarsening =
             {

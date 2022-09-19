@@ -8,6 +8,8 @@
 
 #include <string>
 
+#include "context.h"
+
 #include "kaminpar/application/arguments.h"
 
 namespace kaminpar::dist {
@@ -242,7 +244,9 @@ void create_miscellaneous_context_options(
             "time-limit", "Time limit in seconds. Repeats partitioning until the time limit is exceeded.",
             &ctx.time_limit, 'T'
         )
-        .argument("sort-graph", "Sort and rearrange the graph by degree buckets.", &ctx.sort_graph);
+        .argument("sort-graph", "Sort and rearrange the graph by degree buckets.", &ctx.sort_graph)
+        .argument("simulate-singlethreaded", "", &ctx.parallel.simulate_singlethread)
+        .argument("mode", "Partitioning mode", &ctx.partition.mode, partitioning_mode_from_string);
 }
 
 void create_mandatory_options(Context& ctx, kaminpar::Arguments& args, const std::string& name) {

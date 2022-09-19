@@ -6,6 +6,8 @@
  ******************************************************************************/
 #include "dkaminpar/partitioning_scheme/kway_partitioning_scheme.h"
 
+#include "datastructure/graph.h"
+
 #include "dkaminpar/coarsening/coarsener.h"
 #include "dkaminpar/coarsening/global_clustering_contraction.h"
 #include "dkaminpar/datastructure/distributed_graph.h"
@@ -44,7 +46,9 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
     {
         SCOPED_TIMER("Coarsening");
 
-        while (graph->global_n() > _ctx.parallel.num_threads * _ctx.partition.k * _ctx.coarsening.contraction_limit) {
+        const GlobalNodeID threshold = (_ctx.parallel.simulate_singlethread ? 1 : _ctx.parallel.num_threads)
+                                       * _ctx.partition.k * _ctx.coarsening.contraction_limit;
+        while (graph->global_n() > threshold) {
             SCOPED_TIMER("Coarsening", std::string("Level ") + std::to_string(coarsener.level()));
             const GlobalNodeWeight max_cluster_weight = coarsener.max_cluster_weight();
 
@@ -101,8 +105,23 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
     };
 
     START_TIMER("Initial Partitioning");
-    auto                        shm_graph    = graph::allgather(*graph);
-    auto                        shm_p_graph  = initial_partitioner->initial_partition(shm_graph, _ctx.partition);
+    auto                  shm_graph = graph::allgather(*graph);
+    shm::PartitionedGraph shm_p_graph{};
+    if (_ctx.parallel.simulate_singlethread) {
+        shm_p_graph         = initial_partitioner->initial_partition(shm_graph, _ctx.partition);
+        EdgeWeight best_cut = shm::metrics::edge_cut(shm_p_graph);
+
+        for (std::size_t rep = 1; rep < _ctx.parallel.num_threads; ++rep) {
+            auto       partition = initial_partitioner->initial_partition(shm_graph, _ctx.partition);
+            const auto cut       = shm::metrics::edge_cut(partition);
+            if (cut < best_cut) {
+                best_cut    = cut;
+                shm_p_graph = std::move(partition);
+            }
+        }
+    } else {
+        shm_p_graph = initial_partitioner->initial_partition(shm_graph, _ctx.partition);
+    }
     DistributedPartitionedGraph dist_p_graph = graph::reduce_scatter(*graph, std::move(shm_p_graph));
     STOP_TIMER();
 

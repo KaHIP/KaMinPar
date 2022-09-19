@@ -68,6 +68,7 @@ struct ParallelContext {
     std::size_t num_mpis;
     bool        use_interleaved_numa_allocation;
     int         mpi_thread_support;
+    bool        simulate_singlethread;
 
     void print(std::ostream& out, const std::string& prefix = "") const;
 };
