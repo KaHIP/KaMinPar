@@ -181,7 +181,12 @@ void PartitionContext::setup_max_block_weights() {
             static_cast<BlockWeight>((1.0 + epsilon) * static_cast<double>(perfectly_balanced_block_weight(b)));
         const BlockWeight max_abs_weight = perfectly_balanced_block_weight(b) + _global_max_node_weight;
 
-        _max_block_weights[b] = std::max(max_eps_weight, max_abs_weight);
+        // Only relax weight on coarse levels
+        if (static_cast<GlobalNodeWeight>(_global_n) == _global_total_node_weight) { 
+            _max_block_weights[b] = max_eps_weight;
+        } else {
+            _max_block_weights[b] = std::max(max_eps_weight, max_abs_weight);
+        }
     });
 }
 

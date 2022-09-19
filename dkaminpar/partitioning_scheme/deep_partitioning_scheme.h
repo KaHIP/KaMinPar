@@ -29,7 +29,8 @@ private:
     void print_coarsening_level(GlobalNodeWeight max_cluster_weight) const;
     void print_coarsening_converged() const;
     void print_coarsening_terminated(GlobalNodeID desired_num_nodes) const;
-    void print_initial_partitioning_result(const DistributedPartitionedGraph& p_graph) const;
+    void
+    print_initial_partitioning_result(const DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx) const;
 
     inline Coarsener* get_current_coarsener();
     const Coarsener*  get_current_coarsener() const;

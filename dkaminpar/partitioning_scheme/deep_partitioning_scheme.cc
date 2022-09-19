@@ -28,6 +28,8 @@
 #include "common/utils/math.h"
 
 namespace kaminpar::dist {
+SET_DEBUG(false);
+
 DeepPartitioningScheme::DeepPartitioningScheme(const DistributedGraph& input_graph, const Context& input_ctx)
     : _input_graph(input_graph),
       _input_ctx(input_ctx) {
@@ -84,18 +86,22 @@ void DeepPartitioningScheme::print_coarsening_terminated(const GlobalNodeID desi
     LOG;
 }
 
-void DeepPartitioningScheme::print_initial_partitioning_result(const DistributedPartitionedGraph& p_graph) const {
+void DeepPartitioningScheme::print_initial_partitioning_result(
+    const DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx
+) const {
     mpi::barrier(p_graph.communicator());
 
     SCOPED_TIMER("Print partition statistics");
 
     const auto cut       = metrics::edge_cut(p_graph);
     const auto imbalance = metrics::imbalance(p_graph);
+    const bool feasible  = metrics::is_feasible(p_graph, p_ctx);
 
     LOG << "Initial partition:";
     LOG << "  Number of blocks: " << p_graph.k();
     LOG << "  Cut:              " << cut;
     LOG << "  Imbalance:        " << imbalance;
+    LOG << "  Feasible:         " << (feasible ? "yes" : "no");
 }
 
 DistributedPartitionedGraph DeepPartitioningScheme::partition() {
@@ -138,16 +144,16 @@ DistributedPartitionedGraph DeepPartitioningScheme::partition() {
         return factory::create_initial_partitioning_algorithm(_input_ctx);
     };
 
-    PartitionContext ip_p_ctx = _input_ctx.partition;
-    ip_p_ctx.k                = first_step_k;
-    ip_p_ctx.epsilon          = _input_ctx.partition.epsilon; // @todo
-    ip_p_ctx.setup(*graph);
-    auto                        shm_graph    = graph::allgather(*graph);
+    auto             shm_graph = graph::allgather(*graph);
+    PartitionContext ip_p_ctx  = _input_ctx.partition;
+    ip_p_ctx.k                 = first_step_k;
+    ip_p_ctx.epsilon           = _input_ctx.partition.epsilon;
+    ip_p_ctx.setup(shm_graph);
     auto                        shm_p_graph  = initial_partitioner->initial_partition(shm_graph, ip_p_ctx);
     DistributedPartitionedGraph dist_p_graph = graph::reduce_scatter(*graph, std::move(shm_p_graph));
 
     KASSERT(graph::debug::validate_partition(dist_p_graph), "", assert::heavy);
-    print_initial_partitioning_result(dist_p_graph);
+    print_initial_partitioning_result(dist_p_graph, ip_p_ctx);
     STOP_TIMER();
 
     // @todo implement subgraph replication
@@ -205,13 +211,24 @@ DistributedPartitionedGraph DeepPartitioningScheme::partition() {
             const auto& subgraphs               = block_extraction_result.subgraphs;
 
             // Partition block-induced subgraphs
+
             START_TIMER("Initial partitioning");
             std::vector<shm::PartitionedGraph> p_subgraphs;
             for (const auto& subgraph: subgraphs) {
+                const double target_max_block_weight =
+                    (1.0 + _input_ctx.partition.epsilon) * _input_graph.global_total_node_weight() / next_k;
+                const double next_epsilon =
+                    1.0 * target_max_block_weight / subgraph.total_node_weight() * k_per_block - 1.0;
                 ip_p_ctx.k       = k_per_block;
-                ip_p_ctx.epsilon = _input_ctx.partition.epsilon; // @todo
+                ip_p_ctx.epsilon = std::max(0.001, next_epsilon);
+
                 ip_p_ctx.setup(subgraph);
                 p_subgraphs.push_back(initial_partitioner->initial_partition(subgraph, ip_p_ctx));
+
+                DBG << "Next subgraph with epsilon=" << next_epsilon
+                    << " and total_node_weight=" << subgraph.total_node_weight()
+                    << " | target_max_block_weight=" << target_max_block_weight << " | k_per_block=" << k_per_block
+                    << " | next_k=" << next_k;
             }
             STOP_TIMER();
 
@@ -223,8 +240,15 @@ DistributedPartitionedGraph DeepPartitioningScheme::partition() {
             START_TIMER("Print partition statistics");
             const auto cut       = metrics::edge_cut(dist_p_graph);
             const auto imbalance = metrics::imbalance(dist_p_graph);
+
+            ip_p_ctx.k       = next_k;
+            ip_p_ctx.epsilon = _input_ctx.partition.epsilon;
+            ip_p_ctx.setup(dist_p_graph.graph());
+            const bool feasible = metrics::is_feasible(dist_p_graph, ip_p_ctx);
+
             LOG << "    Cut:       " << cut;
-            LOG << "    Imbalance: " << imbalance;
+            LOG << "    Imbalance: " << std::setprecision(3) << imbalance;
+            LOG << "    Feasible:  " << (feasible ? "yes" : "no");
             STOP_TIMER();
         }
         STOP_TIMER();
@@ -255,6 +279,8 @@ DistributedPartitionedGraph DeepPartitioningScheme::partition() {
         // Run refinement
         START_TIMER("Refinement", std::string("Level ") + std::to_string(coarsener->level()));
         LOG << "  Running balancing and local search on " << dist_p_graph.k() << " blocks";
+        ref_p_ctx.k       = dist_p_graph.k();
+        ref_p_ctx.epsilon = _input_ctx.partition.epsilon;
         ref_p_ctx.setup(dist_p_graph.graph());
         run_refinement(dist_p_graph, ref_p_ctx);
 
@@ -262,8 +288,10 @@ DistributedPartitionedGraph DeepPartitioningScheme::partition() {
         START_TIMER("Print partition statistics");
         const auto cut       = metrics::edge_cut(dist_p_graph);
         const auto imbalance = metrics::imbalance(dist_p_graph);
+        const bool feasible  = metrics::is_feasible(dist_p_graph, ref_p_ctx);
         LOG << "  Cut:       " << cut;
         LOG << "  Imbalance: " << imbalance;
+        LOG << "  Feasible:  " << (feasible ? "yes" : "no");
         STOP_TIMER();
         STOP_TIMER();
     }
@@ -279,7 +307,10 @@ DistributedPartitionedGraph DeepPartitioningScheme::partition() {
 
         // Run refinement
         START_TIMER("Refinement", std::string("Level ") + std::to_string(coarsener->level()));
+
         LOG << "  Running balancing and local search on " << dist_p_graph.k() << " blocks";
+        ref_p_ctx.k       = dist_p_graph.k();
+        ref_p_ctx.epsilon = _input_ctx.partition.epsilon;
         ref_p_ctx.setup(dist_p_graph.graph());
         run_refinement(dist_p_graph, ref_p_ctx);
 
@@ -287,8 +318,10 @@ DistributedPartitionedGraph DeepPartitioningScheme::partition() {
         START_TIMER("Print partition statistics");
         const auto cut       = metrics::edge_cut(dist_p_graph);
         const auto imbalance = metrics::imbalance(dist_p_graph);
+        const bool feasible  = metrics::is_feasible(dist_p_graph, ref_p_ctx);
         LOG << "  Cut:       " << cut;
         LOG << "  Imbalance: " << imbalance;
+        LOG << "  Feasible:  " << (feasible ? "yes" : "no");
         STOP_TIMER();
         STOP_TIMER();
     }
