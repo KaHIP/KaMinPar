@@ -180,32 +180,18 @@ DistributedPartitionedGraph DeepPartitioningScheme::partition() {
         KASSERT(graph::debug::validate_partition(p_graph), "", assert::heavy);
     };
 
-    auto run_refinement = [&](DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx) {
-        run_balancer(p_graph, p_ctx);
-        run_local_search(p_graph, p_ctx);
-        run_balancer(p_graph, p_ctx);
-    };
-
-    auto ref_p_ctx = _input_ctx.partition;
-    ref_p_ctx.setup(dist_p_graph.graph());
-
-    // Uncoarsen, partition blocks and refine
-    while (coarsener->level() > 0) {
-        // Uncoarsen graph
-        START_TIMER("Uncontraction", std::string("Level ") + std::to_string(coarsener->level()));
-        dist_p_graph = coarsener->uncoarsen_once(std::move(dist_p_graph));
-        STOP_TIMER();
-
-        LOG << "Level " << coarsener->level() - 1 << ":";
-
-        // Extend partition
+    auto extend_partition = [&](DistributedPartitionedGraph& p_graph) {
         START_TIMER("Extending partition", std::string("Level ") + std::to_string(coarsener->level()));
-        const BlockID desired_k = std::min<BlockID>(
+        BlockID desired_k = std::min<BlockID>(
             _input_ctx.partition.k,
             math::ceil2(
                 dist_p_graph.global_n() / _input_ctx.parallel.num_threads * _input_ctx.coarsening.contraction_limit
             )
         );
+        if (_input_graph.global_n() == p_graph.global_n()) {
+            // If we work on the input graph, extend to final number of blocks
+            desired_k = _input_ctx.partition.k;
+        }
         while (dist_p_graph.k() < desired_k) {
             const BlockID next_k = std::min<BlockID>(desired_k, dist_p_graph.k() * _input_ctx.partition.k_prime);
             KASSERT(next_k % dist_p_graph.k() == 0);
@@ -239,9 +225,55 @@ DistributedPartitionedGraph DeepPartitioningScheme::partition() {
             STOP_TIMER();
         }
         STOP_TIMER();
+    };
+
+    auto run_refinement = [&](DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx) {
+        run_balancer(p_graph, p_ctx);
+        run_local_search(p_graph, p_ctx);
+        run_balancer(p_graph, p_ctx);
+    };
+
+    auto ref_p_ctx = _input_ctx.partition;
+    ref_p_ctx.setup(dist_p_graph.graph());
+
+    // Uncoarsen, partition blocks and refine
+    while (coarsener->level() > 0) {
+        // Uncoarsen graph
+        START_TIMER("Uncontraction", std::string("Level ") + std::to_string(coarsener->level()));
+        dist_p_graph = coarsener->uncoarsen_once(std::move(dist_p_graph));
+        STOP_TIMER();
+
+        LOG << "Level " << coarsener->level() - 1 << ":";
+
+        // Extend partition
+        extend_partition(dist_p_graph);
 
         // Run refinement
         START_TIMER("Refinement", std::string("Level ") + std::to_string(coarsener->level()));
+        LOG << "  Running balancing and local search on " << dist_p_graph.k() << " blocks";
+        ref_p_ctx.setup(dist_p_graph.graph());
+        run_refinement(dist_p_graph, ref_p_ctx);
+
+        // Output statistics
+        START_TIMER("Print partition statistics");
+        const auto cut       = metrics::edge_cut(dist_p_graph);
+        const auto imbalance = metrics::imbalance(dist_p_graph);
+        LOG << "  Cut:       " << cut;
+        LOG << "  Imbalance: " << imbalance;
+        STOP_TIMER();
+        STOP_TIMER();
+    }
+
+    // Extend partition if we have not already reached the desired number of blocks
+    // This should only be used to cover the special case where the input graph is too small for coarsening
+    if (dist_p_graph.k() != _input_ctx.partition.k) {
+        LOG << "Level -1:";
+
+        // Extend partition
+        extend_partition(dist_p_graph);
+
+        // Run refinement
+        START_TIMER("Refinement", "Level -1");
         LOG << "  Running balancing and local search on " << dist_p_graph.k() << " blocks";
         ref_p_ctx.setup(dist_p_graph.graph());
         run_refinement(dist_p_graph, ref_p_ctx);

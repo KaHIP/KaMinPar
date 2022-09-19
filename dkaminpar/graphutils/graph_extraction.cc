@@ -302,8 +302,6 @@ gather_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph, const
         STOP_TIMER(TIMER_DETAIL);
     }
 
-    DBG << V(shared_node_weights);
-
     std::vector<shm::Graph>          subgraphs(blocks_per_pe);
     std::vector<std::vector<NodeID>> offsets(blocks_per_pe);
 
@@ -395,6 +393,8 @@ DistributedPartitionedGraph copy_subgraph_partitions(
     const PEID k_multiplier = p_subgraphs.front().k();
     const PEID new_k        = p_graph.k() * k_multiplier;
 
+    DBG << V(k_multiplier) << V(new_k);
+
     // Send new block IDs to the right PE
     std::vector<std::vector<BlockID>> partition_sendbufs(size);
     for (BlockID b = 0; b < p_subgraphs.size(); ++b) {
@@ -442,8 +442,8 @@ DistributedPartitionedGraph copy_subgraph_partitions(
         const NodeID  mapped_u             = mapping[u]; // ID of u in its block-induced subgraph
 
         KASSERT(static_cast<BlockID>(owner) < partition_recvbufs.size());
-        KASSERT(mapped_u - block_offset < partition_recvbufs[owner].size());
-        const BlockID new_b = b * k_multiplier + partition_recvbufs[owner][mapped_u - block_offset];
+        KASSERT(mapped_u + block_offset < partition_recvbufs[owner].size(), V(mapped_u) << V(block_offset) << V(b) << V(block_offsets));
+        const BlockID new_b = b * k_multiplier + partition_recvbufs[owner][mapped_u + block_offset];
         partition[u]        = new_b;
     });
 
