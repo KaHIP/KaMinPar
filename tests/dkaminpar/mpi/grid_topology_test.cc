@@ -101,6 +101,18 @@ TEST(GridTopologyTest, size_8_virtual_cols) {
     EXPECT_EQ(topo.virtual_col(7), 3);
 }
 
+TEST(GridTopologyTest, size_8_virtual_elements) {
+    GridTopology topo(8);
+    EXPECT_EQ(topo.virtual_element(0, 0), 0);
+    EXPECT_EQ(topo.virtual_element(0, 1), 1);
+    EXPECT_EQ(topo.virtual_element(0, 2), 2);
+    EXPECT_EQ(topo.virtual_element(0, 3), 3);
+    EXPECT_EQ(topo.virtual_element(1, 0), 4);
+    EXPECT_EQ(topo.virtual_element(1, 1), 5);
+    EXPECT_EQ(topo.virtual_element(1, 2), 6);
+    EXPECT_EQ(topo.virtual_element(1, 3), 7);
+}
+
 TEST(GridTopologyTest, size_8_sizes) {
     GridTopology topo(8);
     EXPECT_EQ(topo.row_size(0), 4);

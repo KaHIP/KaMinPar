@@ -87,7 +87,6 @@ public:
         return _size / _sqrt;
     }
 
-    // @todo O(1)
     inline PEID virtual_element(const PEID row_, const PEID virtual_col_) const {
         if (row_ < partial_column_size()) {
             return row_ * num_cols() + virtual_col_;
