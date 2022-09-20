@@ -87,30 +87,14 @@ public:
         return _size / _sqrt;
     }
 
-    inline PEID virtual_element(const PEID row_, const PEID virtual_col_) const {
-        if (row_ < partial_column_size()) {
-            return row_ * num_cols() + virtual_col_;
-        } else if (row_ < num_rows()) {
-            return row_ * num_full_cols() + virtual_col_ + partial_column_size();
+    inline PEID virtual_element(const PEID row, const PEID virtual_col) const {
+        if (row < partial_column_size()) {
+            return row * num_cols() + virtual_col;
+        } else if (row < num_rows()) {
+            return row * num_full_cols() + virtual_col + partial_column_size();
         } else {
-            return num_cols() - 1 + (num_cols() * virtual_col_);
+            return num_cols() - 1 + (num_cols() * virtual_col);
         }
-        /*
-                if (row_ < num_rows()) {
-                    for (PEID pe = 0; pe < _size; ++pe) {
-                        if (row_ == row(pe) && virtual_col_ == virtual_col(pe)) {
-                            return pe;
-                        }
-                    }
-                } else {
-                    for (PEID pe = 0; pe < _size; ++pe) {
-                        if (virtual_col(pe) != col(pe) && virtual_col_ == virtual_col(pe)) {
-                            return pe;
-                        }
-                    }
-                }
-                */
-        return 0;
     }
 
 private:
