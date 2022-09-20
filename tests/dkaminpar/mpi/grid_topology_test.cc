@@ -206,4 +206,29 @@ TEST(GridTopologyTest, size_21_sizes) {
     EXPECT_EQ(topo.virtual_col_size(3), 4);
     EXPECT_EQ(topo.virtual_col_size(4), 4);
 }
+
+TEST(GridTopologyTest, size_21_virtual_elements) {
+    GridTopology topo(21);
+    EXPECT_EQ(topo.virtual_element(0, 0), 0);
+    EXPECT_EQ(topo.virtual_element(0, 1), 1);
+    EXPECT_EQ(topo.virtual_element(0, 2), 2);
+    EXPECT_EQ(topo.virtual_element(0, 3), 3);
+    EXPECT_EQ(topo.virtual_element(0, 4), 4);
+    EXPECT_EQ(topo.virtual_element(1, 0), 6);
+    EXPECT_EQ(topo.virtual_element(1, 1), 7);
+    EXPECT_EQ(topo.virtual_element(1, 2), 8);
+    EXPECT_EQ(topo.virtual_element(1, 3), 9);
+    EXPECT_EQ(topo.virtual_element(1, 4), 10);
+    EXPECT_EQ(topo.virtual_element(2, 0), 11);
+    EXPECT_EQ(topo.virtual_element(2, 1), 12);
+    EXPECT_EQ(topo.virtual_element(2, 2), 13);
+    EXPECT_EQ(topo.virtual_element(2, 3), 14);
+    EXPECT_EQ(topo.virtual_element(2, 4), 15);
+    EXPECT_EQ(topo.virtual_element(3, 0), 16);
+    EXPECT_EQ(topo.virtual_element(3, 1), 17);
+    EXPECT_EQ(topo.virtual_element(3, 2), 18);
+    EXPECT_EQ(topo.virtual_element(3, 3), 19);
+    EXPECT_EQ(topo.virtual_element(3, 4), 20);
+    EXPECT_EQ(topo.virtual_element(4, 0), 5);
+}
 } // namespace kaminpar::mpi
