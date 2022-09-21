@@ -327,7 +327,7 @@ scalable_vector<GlobalNodeID> build_node_distribution(const std::pair<SInt, SInt
 
 KaGen create_generator_object(const GeneratorContext ctx) {
     KaGen gen(MPI_COMM_WORLD);
-    gen.SetSeed(ctx.seed);
+    //gen.SetSeed(ctx.seed);
     if (ctx.validate_graph) {
         gen.EnableUndirectedGraphVerification();
     }
