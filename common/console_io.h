@@ -39,8 +39,8 @@ void print_build_identifier(const std::string& commit, const std::string& hostna
     LOG << "Statistics:                   disabled";
 #endif
     LOG << "Data type sizes:";
-    LOG << "  Nodes:        " << sizeof(NodeID) << " bytes | Edges:        " << sizeof(EdgeID) << " bytes";
-    LOG << "  Node weights: " << sizeof(NodeWeight) << " bytes | Edge weights: " << sizeof(EdgeWeight) << " bytes";
+    LOG << "  Nodes IDs: " << sizeof(NodeID) << " bytes | Node weights: " << sizeof(NodeWeight) << " bytes";
+    LOG << "  Edges IDs: " << sizeof(EdgeID) << " bytes | Edge weights: " << sizeof(EdgeWeight) << " bytes";
     LOG << "Built on:                     " << (hostname.empty() ? "<not available>" : hostname);
     LOG << "################################################################################";
 }
