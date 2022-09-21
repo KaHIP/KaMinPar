@@ -151,7 +151,8 @@ partition_repeatedly(const DistributedGraph& graph, const Context& ctx, Terminat
         results.emplace_back(time, cut, imbalance, feasible);
 
         if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
-            LOG << "RESULT run=" << repetition << " cut=" << cut << " imbalance=" << imbalance << " time=" << time
+            LOG;
+            LOG << "REPETITION run=" << repetition << " cut=" << cut << " imbalance=" << imbalance << " time=" << time
                 << " feasible=" << feasible;
             cio::print_delimiter();
         }
