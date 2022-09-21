@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.16)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake/modules)
 
 project(KaMinPar
-        DESCRIPTION "Shared-memory and distributed graph partitioner for Large K Partitioning"
+        DESCRIPTION "Shared-memory and distributed graph partitioner for large k partitioning."
         LANGUAGES CXX)
 
 set(PROJECT_VENDOR "Daniel Seemaier")

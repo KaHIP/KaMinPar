@@ -6,6 +6,8 @@
  ******************************************************************************/
 #include "common/console_io.h"
 
+#include <limit>
+
 #include <kassert/kassert.hpp>
 
 #include "common/assert.h"
@@ -48,6 +50,7 @@ void print_dkaminpar_banner() {
     print_delimiter();
 }
 
+template <typename NodeID, typename EdgeID, typename NodeWeight, typename EdgeWeight>
 void print_build_identifier(const std::string& commit, const std::string& hostname) {
     LOG << "Current commit hash:          " << (commit.empty() ? "<not available>" : commit);
     std::string assertion_level_name = "always";
@@ -62,10 +65,9 @@ void print_build_identifier(const std::string& commit, const std::string& hostna
     }
     LOG << "Assertion level:              " << assertion_level_name;
     LOG << "Statistics:                   " << (DETECT_EXIST(KAMINPAR_ENABLE_STATISTICS) ? "enabled" : "disabled");
-    LOG << "Data type widths:             "
-        << "Nodes: " << (DETECT_EXIST(KAMINPAR_64BIT_NODE_IDS) ? "64" : "32") << " bits / "
-        << "Edges: " << (DETECT_EXIST(KAMINPAR_64BIT_EDGE_IDS) ? "64" : "32") << " bits / "
-        << "Weights: " << (DETECT_EXIST(KAMINPAR_64BIT_WEIGHTS) ? "64" : "32") << " bits";
+    LOG << "Data type sizes:";
+    LOG << "  Nodes:        " << sizeof(NodeID) << " bytes | Edges:        " << sizeof(EdgeID) << " bytes";
+    LOG << "  Node weights: " << sizeof(NodeWeight) << " bytes | Edge weights: " << sizeof(EdgeWeight) << " bytes";
     LOG << "Built on:                     " << (hostname.empty() ? "<not available>" : hostname);
     LOG << "################################################################################";
 }
