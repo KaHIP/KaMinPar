@@ -72,6 +72,7 @@ void PartitionContext::setup(const Graph& graph) {
     total_node_weight = graph.total_node_weight();
     total_edge_weight = graph.total_edge_weight();
     max_node_weight   = graph.max_node_weight();
+    LOG << V(n) << V(m) << V(total_node_weight) << V(total_edge_weight) << V(max_node_weight);
     setup_block_weights();
 }
 

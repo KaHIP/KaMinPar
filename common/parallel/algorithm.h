@@ -14,15 +14,16 @@
 #include <tbb/parallel_scan.h>
 
 namespace kaminpar::parallel {
-template <typename Container, typename T>
-T accumulate(const Container& r, T initial) {
+template <typename Container>
+typename Container::value_type accumulate(const Container& r, typename Container::value_type initial) {
     using size_t = typename Container::size_type;
+    using value_t = typename Container::value_type;
 
     class body {
         const Container& _r;
 
     public:
-        T _ans{};
+        value_t _ans{};
 
         void operator()(const tbb::blocked_range<size_t>& indices) {
             const Container& r   = _r;
@@ -47,16 +48,17 @@ T accumulate(const Container& r, T initial) {
     return initial + b._ans;
 }
 
-template <typename InputIt, typename T, typename UnaryOperation>
-T accumulate(InputIt begin, InputIt end, T initial, UnaryOperation op) {
+template <typename InputIt, typename UnaryOperation, typename ValueType = std::result_of_t<UnaryOperation(typename std::iterator_traits<InputIt>::value_type)>>
+ValueType accumulate(InputIt begin, InputIt end, ValueType initial, UnaryOperation op) {
     using size_t = typename std::iterator_traits<InputIt>::difference_type;
+    using value_t = ValueType;
 
     class body {
         const InputIt _begin;
         UnaryOperation _op;
 
     public:
-        T _ans{};
+        value_t _ans{};
 
         void operator()(const tbb::blocked_range<size_t>& indices) {
             const InputIt begin = _begin;
@@ -81,8 +83,8 @@ T accumulate(InputIt begin, InputIt end, T initial, UnaryOperation op) {
     return initial + b._ans;
 }
 
-template <typename InputIt, typename T>
-T accumulate(InputIt begin, InputIt end, T initial) {
+template <typename InputIt>
+typename std::iterator_traits<InputIt>::value_type accumulate(InputIt begin, InputIt end, typename std::iterator_traits<InputIt>::value_type initial) {
     return ::kaminpar::parallel::accumulate(begin, end, initial, [](const auto& v) { return v; });
 }
 

@@ -39,14 +39,14 @@ Graph::Graph(
         _total_node_weight = static_cast<NodeWeight>(n());
         _max_node_weight   = 1;
     } else {
-        _total_node_weight = parallel::accumulate(_node_weights, 0);
+        _total_node_weight = parallel::accumulate(_node_weights, static_cast<NodeWeight>(0));
         _max_node_weight   = parallel::max_element(_node_weights);
     }
 
     if (_edge_weights.empty()) {
         _total_edge_weight = static_cast<EdgeWeight>(m());
     } else {
-        _total_edge_weight = parallel::accumulate(_edge_weights, 0);
+        _total_edge_weight = parallel::accumulate(_edge_weights, static_cast<EdgeWeight>(0));
     }
 
     init_degree_buckets();
@@ -65,14 +65,14 @@ Graph::Graph(
         _total_node_weight = static_cast<NodeWeight>(n());
         _max_node_weight   = 1;
     } else {
-        _total_node_weight = std::accumulate(_node_weights.begin(), _node_weights.end(), 0);
+        _total_node_weight = std::accumulate(_node_weights.begin(), _node_weights.end(), static_cast<NodeWeight>(0));
         _max_node_weight   = *std::max_element(_node_weights.begin(), _node_weights.end());
     }
 
     if (_edge_weights.empty()) {
         _total_edge_weight = static_cast<EdgeWeight>(m());
     } else {
-        _total_edge_weight = std::accumulate(_edge_weights.begin(), _edge_weights.end(), 0);
+        _total_edge_weight = std::accumulate(_edge_weights.begin(), _edge_weights.end(), static_cast<EdgeWeight>(0));
     }
 
     init_degree_buckets();
@@ -99,7 +99,7 @@ void Graph::update_total_node_weight() {
         _total_node_weight = n();
         _max_node_weight   = 1;
     } else {
-        _total_node_weight = std::accumulate(_node_weights.begin(), _node_weights.end(), 0);
+        _total_node_weight = std::accumulate(_node_weights.begin(), _node_weights.end(), static_cast<NodeWeight>(0));
         _max_node_weight   = *std::max_element(_node_weights.begin(), _node_weights.end());
     }
 }

@@ -9,6 +9,8 @@
 
 #include <tbb/parallel_for.h>
 
+#include "apps/environment.h"
+
 #include "kaminpar/application/arguments.h"
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/definitions.h"
@@ -126,7 +128,7 @@ int main(int argc, char* argv[]) {
     Logger::set_quiet_mode(ctx.quiet);
 
     cio::print_kaminpar_banner();
-    print_identifier(argc, argv);
+    cio::print_build_identifier<NodeID, EdgeID, NodeWeight, EdgeWeight>(Environment::GIT_SHA1, Environment::HOSTNAME);
 
     //
     // Initialize
