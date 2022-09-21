@@ -231,7 +231,6 @@ int main(int argc, char* argv[]) {
             << "n=[" << n_str << "] "
             << "m=[" << m_str << "] "
             << "ghost_n=[" << ghost_n_str << "]";
-        LOG;
     }
 
     if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {

@@ -296,7 +296,7 @@ public:
     }
 
     [[nodiscard]] inline double elapsed_seconds() const {
-        return std::chrono::duration_cast<std::chrono::seconds>(timer::now() - _tree.root.start).count();
+        return std::chrono::duration_cast<std::chrono::milliseconds>(timer::now() - _tree.root.start).count() / 1000.0;
     }
 
 private:
