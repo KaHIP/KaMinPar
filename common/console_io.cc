@@ -6,8 +6,6 @@
  ******************************************************************************/
 #include "common/console_io.h"
 
-#include <limit>
-
 #include <kassert/kassert.hpp>
 
 #include "common/assert.h"
