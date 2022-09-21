@@ -8,6 +8,7 @@
 
 #include <mpi.h>
 #include <omp.h>
+#include "mpi/utils.h"
 
 #include "dkaminpar/context.h"
 #include "dkaminpar/definitions.h"
@@ -231,6 +232,10 @@ int main(int argc, char* argv[]) {
             << "m=[" << m_str << "] "
             << "ghost_n=[" << ghost_n_str << "]";
         LOG;
+    }
+
+    if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
+        cio::print_delimiter();
     }
 
     KASSERT(graph::debug::validate(graph), "", assert::heavy);
