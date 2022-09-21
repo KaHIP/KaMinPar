@@ -8,6 +8,7 @@
 
 #include <mpi.h>
 #include <omp.h>
+
 #include "mpi/utils.h"
 
 #include "dkaminpar/context.h"
@@ -130,6 +131,7 @@ partition_repeatedly(const DistributedGraph& graph, const Context& ctx, Terminat
 
         Timer repetition_timer("");
         START_TIMER("Partitioning", "Repetition " + std::to_string(repetition));
+
         auto p_graph = partition(graph, ctx);
         mpi::barrier(MPI_COMM_WORLD);
         STOP_TIMER();
@@ -240,18 +242,11 @@ int main(int argc, char* argv[]) {
     KASSERT(graph::debug::validate(graph), "", assert::heavy);
     ctx.setup(graph);
 
-    // If we load the graph from a file, rearrange it so that nodes are sorted by degree buckets
+    // Sort graph by degree buckets
     if (ctx.sort_graph) {
-#ifdef KAMINPAR_ENABLE_GRAPHGEN
-        if (app.generator.type == GeneratorType::NONE) {
-#else
-        {
-#endif
-            SCOPED_TIMER("Partitioning");
-            SCOPED_TIMER("Sort graph");
-            graph = graph::sort_by_degree_buckets(std::move(graph));
-            KASSERT(graph::debug::validate(graph), "", assert::heavy);
-        }
+        SCOPED_TIMER("Partitioning");
+        graph = graph::sort_by_degree_buckets(std::move(graph));
+        KASSERT(graph::debug::validate(graph), "", assert::heavy);
     }
 
     auto p_graph = [&] {

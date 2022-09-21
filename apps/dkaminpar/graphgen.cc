@@ -205,7 +205,6 @@ DistributedGraph build_graph_sorted(EdgeList edge_list, scalable_vector<GlobalNo
     parallel::prefix_sum(nodes.begin(), nodes.end(), nodes.begin());
 
     // --> Edges
-    DBG << V(node_distribution);
     graph::GhostNodeMapper ghost_node_mapper(node_distribution);
     tbb::parallel_for<NodeID>(0, n, [&](const NodeID new_u) {
         const NodeID old_u = permutation_new_to_old[new_u];
@@ -444,7 +443,7 @@ DistributedGraph generate(const GeneratorContext ctx) {
         __builtin_unreachable();
     }();
 
-    return build_graph_sorted(std::move(edges), build_node_distribution(local_range));
+    return build_graph(std::move(edges), build_node_distribution(local_range));
 }
 
 std::string generate_filename(GeneratorContext ctx) {
