@@ -8,10 +8,41 @@
 
 #include <string>
 
+#include <kassert/kassert.hpp>
+
+#include "common/assert.h"
+#include "common/logger.h"
+
 namespace kaminpar::cio {
 void print_delimiter();
 void print_kaminpar_banner();
 void print_dkaminpar_banner();
-void print_build_identifier(const std::string& commit, const std::string& hostname);
 void print_banner(const std::string& title);
+
+template <typename NodeID, typename EdgeID, typename NodeWeight, typename EdgeWeight>
+void print_build_identifier(const std::string& commit, const std::string& hostname) {
+    LOG << "Current commit hash:          " << (commit.empty() ? "<not available>" : commit);
+    std::string assertion_level_name = "always";
+    if (KASSERT_ASSERTION_LEVEL >= ASSERTION_LEVEL_LIGHT) {
+        assertion_level_name += "+light";
+    }
+    if (KASSERT_ASSERTION_LEVEL >= ASSERTION_LEVEL_NORMAL) {
+        assertion_level_name += "+normal";
+    }
+    if (KASSERT_ASSERTION_LEVEL >= ASSERTION_LEVEL_HEAVY) {
+        assertion_level_name += "+heavy";
+    }
+    LOG << "Assertion level:              " << assertion_level_name;
+#ifdef KAMINPAR_ENABLE_STATISTICS
+    LOG << "Statistics:                   enabled";
+#else
+    LOG << "Statistics:                   disabled";
+#endif
+    LOG << "Data type sizes:";
+    LOG << "  Nodes:        " << sizeof(NodeID) << " bytes | Edges:        " << sizeof(EdgeID) << " bytes";
+    LOG << "  Node weights: " << sizeof(NodeWeight) << " bytes | Edge weights: " << sizeof(EdgeWeight) << " bytes";
+    LOG << "Built on:                     " << (hostname.empty() ? "<not available>" : hostname);
+    LOG << "################################################################################";
+}
+
 } // namespace kaminpar::cio

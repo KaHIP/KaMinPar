@@ -125,11 +125,14 @@ partition_repeatedly(const DistributedGraph& graph, const Context& ctx, Terminat
 
     do {
         const std::size_t repetition = results.size();
+        mpi::barrier(MPI_COMM_WORLD);
 
         Timer repetition_timer("");
         START_TIMER("Partitioning", "Repetition " + std::to_string(repetition));
         auto p_graph = partition(graph, ctx);
+        mpi::barrier(MPI_COMM_WORLD);
         STOP_TIMER();
+        repetition_timer.stop_timer();
 
         // Gather statistics
         const double           time      = repetition_timer.elapsed_seconds();
@@ -148,6 +151,8 @@ partition_repeatedly(const DistributedGraph& graph, const Context& ctx, Terminat
         results.emplace_back(time, cut, imbalance, feasible);
 
         if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
+            LOG << "RESULT run=" << repetition << " cut=" << cut << " imbalance=" << imbalance << " time=" << time
+                << " feasible=" << feasible;
             cio::print_delimiter();
         }
     } while (!terminator(results.size()));
@@ -167,7 +172,9 @@ int main(int argc, char* argv[]) {
     const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
     if (rank == 0) {
         cio::print_dkaminpar_banner();
-        cio::print_build_identifier(Environment::GIT_SHA1, Environment::HOSTNAME);
+        cio::print_build_identifier<NodeID, EdgeID, NodeWeight, EdgeWeight>(
+            Environment::GIT_SHA1, Environment::HOSTNAME
+        );
     }
 
     ctx.parallel.num_mpis = static_cast<std::size_t>(mpi::get_comm_size(MPI_COMM_WORLD));
