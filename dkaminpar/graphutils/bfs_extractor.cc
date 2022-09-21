@@ -396,12 +396,12 @@ auto BfsExtractor::combine_fragments(tbb::concurrent_vector<GraphFragment>& frag
     DBG << "Graph size: " << V(real_n) << V(pseudo_n) << V(m);
 
     // Allocate arrays for combined graph
-    NoinitVector<GlobalNodeID> node_mapping(real_n);
-    StaticArray<EdgeID>        nodes(pseudo_n + 1);
-    StaticArray<NodeID>        edges(m);
-    StaticArray<NodeWeight>    node_weights(pseudo_n);
-    StaticArray<EdgeWeight>    edge_weights(m);
-    StaticArray<BlockID>       partition(pseudo_n);
+    NoinitVector<GlobalNodeID>   node_mapping(real_n);
+    StaticArray<shm::EdgeID>     nodes(pseudo_n + 1);
+    StaticArray<shm::NodeID>     edges(m);
+    StaticArray<shm::NodeWeight> node_weights(pseudo_n);
+    StaticArray<shm::EdgeWeight> edge_weights(m);
+    StaticArray<shm::BlockID>    partition(pseudo_n);
 
     // Compute node mapping
     std::vector<NodeID> first_node_id_for_fragment(fragments.size() + 1);
@@ -544,4 +544,3 @@ bool BfsExtractor::is_pseudo_block_node(const GlobalNodeID node) {
     return node >= _graph->global_n();
 }
 } // namespace kaminpar::dist::graph
-

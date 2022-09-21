@@ -32,14 +32,14 @@ shm::Graph allgather(const DistributedGraph& graph) {
     });
 
     // gather graph
-    StaticArray<EdgeID> nodes(graph.global_n() + 1);
-    StaticArray<NodeID> edges(graph.global_m());
+    StaticArray<shm::EdgeID> nodes(graph.global_n() + 1);
+    StaticArray<shm::NodeID> edges(graph.global_m());
 
     const bool is_node_weighted = mpi::allreduce<std::uint8_t>(graph.is_node_weighted(), MPI_MAX, graph.communicator());
     const bool is_edge_weighted = mpi::allreduce<std::uint8_t>(graph.is_edge_weighted(), MPI_MAX, graph.communicator());
 
-    StaticArray<NodeWeight> node_weights(is_node_weighted * graph.global_n());
-    StaticArray<EdgeWeight> edge_weights(is_edge_weighted * graph.global_m());
+    StaticArray<shm::NodeWeight> node_weights(is_node_weighted * graph.global_n());
+    StaticArray<shm::EdgeWeight> edge_weights(is_edge_weighted * graph.global_m());
 
     auto nodes_recvcounts = mpi::build_distribution_recvcounts(graph.node_distribution());
     auto nodes_displs     = mpi::build_distribution_displs(graph.node_distribution());
@@ -49,22 +49,44 @@ shm::Graph allgather(const DistributedGraph& graph) {
     mpi::allgatherv(
         graph.raw_nodes().data(), graph.n(), nodes.data(), nodes_recvcounts.data(), nodes_displs.data(), comm
     );
-    if (is_node_weighted) {
-        KASSERT((graph.is_node_weighted() || graph.n() == 0));
-        mpi::allgatherv(
-            graph.raw_node_weights().data(), graph.n(), node_weights.data(), nodes_recvcounts.data(),
-            nodes_displs.data(), comm
-        );
-    }
     mpi::allgatherv(
         remapped_edges.data(), remapped_edges.size(), edges.data(), edges_recvcounts.data(), edges_displs.data(), comm
     );
+    if (is_node_weighted) {
+        KASSERT((graph.is_node_weighted() || graph.n() == 0));
+        if constexpr (std::is_same_v<shm::NodeWeight, NodeWeight>) {
+            mpi::allgatherv(
+                graph.raw_node_weights().data(), graph.n(), node_weights.data(), nodes_recvcounts.data(),
+                nodes_displs.data(), comm
+            );
+        } else {
+            StaticArray<NodeWeight> node_weights_buffer(graph.global_n());
+            mpi::allgatherv(
+                graph.raw_node_weights().data(), graph.n(), node_weights_buffer.data(), nodes_recvcounts.data(),
+                nodes_displs.data(), comm
+            );
+            tbb::parallel_for<std::size_t>(0, node_weights_buffer.size(), [&](const std::size_t i) {
+                node_weights[i] = node_weights_buffer[i];
+            });
+        }
+    }
     if (is_edge_weighted) {
         KASSERT((graph.is_edge_weighted() || graph.m() == 0));
-        mpi::allgatherv(
-            graph.raw_edge_weights().data(), graph.m(), edge_weights.data(), edges_recvcounts.data(),
-            edges_displs.data(), comm
-        );
+        if constexpr (std::is_same_v<shm::EdgeWeight, EdgeWeight>) {
+            mpi::allgatherv(
+                graph.raw_edge_weights().data(), graph.m(), edge_weights.data(), edges_recvcounts.data(),
+                edges_displs.data(), comm
+            );
+        } else {
+            StaticArray<EdgeWeight> edge_weights_buffer(graph.global_m());
+            mpi::allgatherv(
+                graph.raw_edge_weights().data(), graph.m(), edge_weights_buffer.data(), edges_recvcounts.data(),
+                edges_displs.data(), comm
+            );
+            tbb::parallel_for<std::size_t>(0, edge_weights_buffer.size(), [&](const std::size_t i) {
+                edge_weights[i] = edge_weights_buffer[i];
+            });
+        }
     }
     nodes.back() = graph.global_m();
 
@@ -104,7 +126,9 @@ DistributedPartitionedGraph reduce_scatter(const DistributedGraph& dist_graph, s
 
     // broadcast best partition
     auto partition = shm_p_graph.take_partition();
-    MPI_Bcast(partition.data(), static_cast<int>(dist_graph.global_n()), MPI_INT32_T, global.rank, comm);
+    MPI_Bcast(
+        partition.data(), static_cast<int>(dist_graph.global_n()), mpi::type::get<shm::BlockID>(), global.rank, comm
+    );
 
     // compute block weights
     scalable_vector<parallel::Atomic<BlockWeight>> block_weights(shm_p_graph.k());

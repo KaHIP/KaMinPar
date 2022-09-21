@@ -612,8 +612,8 @@ protected:
     using Base::_active;
     using Base::_current_num_clusters;
     using Base::_graph;
-    using Base::_rating_map_ets;
     using Base::_max_degree;
+    using Base::_rating_map_ets;
 };
 
 /*!

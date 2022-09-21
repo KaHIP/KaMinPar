@@ -18,7 +18,6 @@
 #include "common/noinit_vector.h"
 #include "common/timer.h"
 
-
 namespace kaminpar::mpi {
 namespace internal {
 template <typename Buffer, typename Receiver>

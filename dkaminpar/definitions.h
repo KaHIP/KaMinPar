@@ -16,17 +16,25 @@ using PEID = int;
 }
 
 namespace kaminpar::dist {
-using shm::NodeID;
-using GlobalNodeID = std::uint64_t;
-using shm::NodeWeight;
+using GlobalNodeID     = std::uint64_t;
 using GlobalNodeWeight = std::int64_t;
-using shm::EdgeID;
-using GlobalEdgeID = std::uint64_t;
-using shm::EdgeWeight;
+using GlobalEdgeID     = std::uint64_t;
 using GlobalEdgeWeight = std::int64_t;
-using shm::BlockID;
-using BlockWeight = std::int64_t;
+using BlockWeight      = std::int64_t;
+
 using mpi::PEID;
+
+using shm::BlockID;
+using shm::EdgeID;
+using shm::NodeID;
+
+#ifdef KAMINPAR_64BIT_LOCAL_WEIGHTS
+using NodeWeight = std::int64_t;
+using EdgeWeight = std::int64_t;
+#else
+using NodeWeight = std::int32_t;
+using EdgeWeight = std::int32_t;
+#endif
 
 constexpr NodeID           kInvalidNodeID           = std::numeric_limits<NodeID>::max();
 constexpr GlobalNodeID     kInvalidGlobalNodeID     = std::numeric_limits<GlobalNodeID>::max();

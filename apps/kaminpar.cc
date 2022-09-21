@@ -9,8 +9,6 @@
 
 #include <tbb/parallel_for.h>
 
-#include "apps/environment.h"
-
 #include "kaminpar/application/arguments.h"
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/definitions.h"
@@ -27,6 +25,7 @@
 #include "common/timer.h"
 
 #include "apps/apps.h"
+#include "apps/environment.h"
 
 using namespace kaminpar;
 using namespace kaminpar::shm;

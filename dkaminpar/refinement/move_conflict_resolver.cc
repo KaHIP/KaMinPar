@@ -8,6 +8,7 @@
 #include "dkaminpar/refinement/move_conflict_resolver.h"
 
 #include <unordered_set>
+
 #include "definitions.h"
 
 #include "dkaminpar/mpi/wrapper.h"
@@ -119,15 +120,15 @@ void resolve_move_conflicts_greedy(std::vector<GlobalMove>& global_moves) {
 std::vector<GlobalMove> broadcast_and_resolve_global_moves(std::vector<GlobalMove>& my_global_moves, MPI_Comm comm) {
     DBG << "Got " << my_global_moves.size() << " global moves on this PE";
 
-    // Resolve conflicts locally 
+    // Resolve conflicts locally
     START_TIMER("Local conflict resolution");
     sort_and_compress_move_groups(my_global_moves);
     resolve_move_conflicts_greedy(my_global_moves);
     STOP_TIMER();
 
-    // Filter 
+    // Filter
     std::vector<GlobalMove> my_filtered_global_moves;
-    for (const auto &move : my_global_moves) {
+    for (const auto& move: my_global_moves) {
         if (move.node != kInvalidGlobalNodeID) {
             my_filtered_global_moves.push_back(move);
         }

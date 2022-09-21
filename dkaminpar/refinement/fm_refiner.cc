@@ -343,7 +343,7 @@ void FMRefiner::refine(DistributedPartitionedGraph& p_graph) {
         STOP_TIMER();
 
         mpi::barrier(_p_graph->communicator());
-        
+
         // Run FM
         tbb::enumerable_thread_specific<ThreadLocalFMRefiner> fm_refiner_ets{[&] {
             return ThreadLocalFMRefiner(*_p_graph, *extraction_result.p_graph, _fm_ctx, *_p_ctx);

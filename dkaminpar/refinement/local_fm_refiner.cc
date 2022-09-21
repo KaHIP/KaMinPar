@@ -636,13 +636,13 @@ void LocalFMRefiner::build_local_graph(
     }
 
     // build local graph
-    StaticArray<EdgeID>     local_nodes(n + 1);
-    std::vector<NodeID>     local_edges;
-    StaticArray<NodeWeight> local_node_weights(n);
-    std::vector<EdgeWeight> local_edge_weights;
-    NodeID                  next_node   = 0;
-    NodeID                  border_size = 0;
-    std::vector<EdgeWeight> covered_external_degrees(_p_graph->k());
+    StaticArray<shm::EdgeID>     local_nodes(n + 1);
+    std::vector<shm::NodeID>     local_edges;
+    StaticArray<shm::NodeWeight> local_node_weights(n);
+    std::vector<shm::EdgeWeight> local_edge_weights;
+    NodeID                       next_node   = 0;
+    NodeID                       border_size = 0;
+    std::vector<shm::EdgeWeight> covered_external_degrees(_p_graph->k());
 
     if (_fm_ctx.contract_border) {
         border_size = _p_graph->k();
@@ -722,9 +722,9 @@ void LocalFMRefiner::build_local_graph(
     }
 
     // create graph objects
-    StaticArray<NodeID> local_edges_prime(local_edges.size());
+    StaticArray<shm::NodeID> local_edges_prime(local_edges.size());
     std::copy(local_edges.begin(), local_edges.end(), local_edges_prime.begin());
-    StaticArray<EdgeWeight> local_edge_weights_prime(local_edge_weights.size());
+    StaticArray<shm::EdgeWeight> local_edge_weights_prime(local_edge_weights.size());
     std::copy(local_edge_weights.begin(), local_edge_weights.end(), local_edge_weights_prime.begin());
 
     out_graph = shm::Graph(

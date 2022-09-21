@@ -131,4 +131,3 @@ TEST(IndependentBorderSetTest, randomization_works) {
     }
 }
 } // namespace kaminpar::dist::graph
-

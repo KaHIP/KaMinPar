@@ -130,4 +130,3 @@ private:
     }};
 };
 } // namespace kaminpar::dist::graph
-

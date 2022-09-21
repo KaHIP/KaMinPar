@@ -16,7 +16,7 @@
 namespace kaminpar::parallel {
 template <typename Container>
 typename Container::value_type accumulate(const Container& r, typename Container::value_type initial) {
-    using size_t = typename Container::size_type;
+    using size_t  = typename Container::size_type;
     using value_t = typename Container::value_type;
 
     class body {
@@ -48,13 +48,15 @@ typename Container::value_type accumulate(const Container& r, typename Container
     return initial + b._ans;
 }
 
-template <typename InputIt, typename UnaryOperation, typename ValueType = std::result_of_t<UnaryOperation(typename std::iterator_traits<InputIt>::value_type)>>
+template <
+    typename InputIt, typename UnaryOperation,
+    typename ValueType = std::result_of_t<UnaryOperation(typename std::iterator_traits<InputIt>::value_type)>>
 ValueType accumulate(InputIt begin, InputIt end, ValueType initial, UnaryOperation op) {
-    using size_t = typename std::iterator_traits<InputIt>::difference_type;
+    using size_t  = typename std::iterator_traits<InputIt>::difference_type;
     using value_t = ValueType;
 
     class body {
-        const InputIt _begin;
+        const InputIt  _begin;
         UnaryOperation _op;
 
     public:
@@ -84,7 +86,8 @@ ValueType accumulate(InputIt begin, InputIt end, ValueType initial, UnaryOperati
 }
 
 template <typename InputIt>
-typename std::iterator_traits<InputIt>::value_type accumulate(InputIt begin, InputIt end, typename std::iterator_traits<InputIt>::value_type initial) {
+typename std::iterator_traits<InputIt>::value_type
+accumulate(InputIt begin, InputIt end, typename std::iterator_traits<InputIt>::value_type initial) {
     return ::kaminpar::parallel::accumulate(begin, end, initial, [](const auto& v) { return v; });
 }
 

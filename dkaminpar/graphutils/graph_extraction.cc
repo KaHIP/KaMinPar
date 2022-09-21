@@ -322,10 +322,10 @@ gather_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph, const
             }
 
             // Allocate memory for subgraph
-            StaticArray<EdgeID>     subgraph_nodes(n + 1);
-            StaticArray<NodeWeight> subgraph_node_weights(n);
-            StaticArray<NodeID>     subgraph_edges(m);
-            StaticArray<EdgeWeight> subgraph_edge_weights(m);
+            StaticArray<shm::EdgeID>     subgraph_nodes(n + 1);
+            StaticArray<shm::NodeWeight> subgraph_node_weights(n);
+            StaticArray<shm::NodeID>     subgraph_edges(m);
+            StaticArray<shm::EdgeWeight> subgraph_edge_weights(m);
 
             // Copy subgraph to memory
             // @todo better approach might be to compute a prefix sum on recv_subgraph_sizes
@@ -448,7 +448,10 @@ DistributedPartitionedGraph copy_subgraph_partitions(
         const NodeID  mapped_u             = mapping[u]; // ID of u in its block-induced subgraph
 
         KASSERT(static_cast<BlockID>(owner) < partition_recvbufs.size());
-        KASSERT(mapped_u + block_offset < partition_recvbufs[owner].size(), V(mapped_u) << V(block_offset) << V(b) << V(block_offsets));
+        KASSERT(
+            mapped_u + block_offset < partition_recvbufs[owner].size(),
+            V(mapped_u) << V(block_offset) << V(b) << V(block_offsets)
+        );
         const BlockID new_b = b * k_multiplier + partition_recvbufs[owner][mapped_u + block_offset];
         partition[u]        = new_b;
     });

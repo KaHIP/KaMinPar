@@ -176,7 +176,7 @@ int main(int argc, char* argv[]) {
     const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
     if (rank == 0) {
         cio::print_dkaminpar_banner();
-        cio::print_build_identifier<NodeID, EdgeID, NodeWeight, EdgeWeight>(
+        cio::print_build_identifier<NodeID, EdgeID, shm::NodeWeight, shm::EdgeWeight, NodeWeight, EdgeWeight>(
             Environment::GIT_SHA1, Environment::HOSTNAME
         );
     }

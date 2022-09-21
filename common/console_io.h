@@ -19,7 +19,9 @@ void print_kaminpar_banner();
 void print_dkaminpar_banner();
 void print_banner(const std::string& title);
 
-template <typename NodeID, typename EdgeID, typename NodeWeight, typename EdgeWeight>
+template <
+    typename NodeID, typename EdgeID, typename NodeWeight, typename EdgeWeight, typename LocalNodeWeight = NodeWeight,
+    typename LocalEdgeWeight = EdgeWeight>
 void print_build_identifier(const std::string& commit, const std::string& hostname) {
     LOG << "Current commit hash:          " << (commit.empty() ? "<not available>" : commit);
     std::string assertion_level_name = "always";
@@ -39,8 +41,10 @@ void print_build_identifier(const std::string& commit, const std::string& hostna
     LOG << "Statistics:                   disabled";
 #endif
     LOG << "Data type sizes:";
-    LOG << "  Nodes IDs: " << sizeof(NodeID) << " bytes | Node weights: " << sizeof(NodeWeight) << " bytes";
-    LOG << "  Edges IDs: " << sizeof(EdgeID) << " bytes | Edge weights: " << sizeof(EdgeWeight) << " bytes";
+    LOG << "  Nodes IDs: " << sizeof(NodeID) << " bytes | Node weights: " << sizeof(NodeWeight)
+        << " bytes | Local node weights: " << sizeof(LocalNodeWeight);
+    LOG << "  Edges IDs: " << sizeof(EdgeID) << " bytes | Edge weights: " << sizeof(EdgeWeight)
+        << " bytes | Local edge weights: " << sizeof(LocalEdgeWeight);
     LOG << "Built on:                     " << (hostname.empty() ? "<not available>" : hostname);
     LOG << "################################################################################";
 }

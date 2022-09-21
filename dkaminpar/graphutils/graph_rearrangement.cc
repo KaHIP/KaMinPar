@@ -34,7 +34,7 @@ DistributedGraph sort_by_degree_buckets(DistributedGraph graph) {
     scalable_vector<NodeWeight> new_node_weights(old_node_weights.size());
     scalable_vector<EdgeWeight> new_edge_weights(old_edge_weights.size());
     STOP_TIMER();
-    shm::graph::build_permuted_graph<scalable_vector, true>(
+    shm::graph::build_permuted_graph<scalable_vector, true, NodeID, EdgeID, NodeWeight, EdgeWeight>(
         old_nodes, old_edges, old_node_weights, old_edge_weights, permutations, new_nodes, new_edges, new_node_weights,
         new_edge_weights
     );

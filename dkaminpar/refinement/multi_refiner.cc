@@ -7,8 +7,7 @@
 #include "dkaminpar/refinement/multi_refiner.h"
 
 namespace kaminpar::dist {
-MultiRefiner::MultiRefiner(std::vector<std::unique_ptr<Refiner>> refiners)
-    : _refiners(std::move(refiners)) {}
+MultiRefiner::MultiRefiner(std::vector<std::unique_ptr<Refiner>> refiners) : _refiners(std::move(refiners)) {}
 
 void MultiRefiner::initialize(const DistributedGraph& graph, const PartitionContext& p_ctx) {
     for (const auto& refiner: _refiners) {

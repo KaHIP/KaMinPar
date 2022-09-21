@@ -108,23 +108,26 @@ NodePermutations<Container> sort_by_degree_buckets(const Container<EdgeID>& node
  * @param new_node_weights New node weights, may be empty iff. the old node weights array is empty.
  * @param new_edge_weights New edge weights, may be empty empty iff. the old edge weights array is empty.
  */
-template <template <typename> typename Container, bool has_ghost_nodes = false>
+template <
+    template <typename> typename Container, bool has_ghost_nodes = false, typename GraphNodeID = NodeID,
+    typename GraphEdgeID = EdgeID, typename GraphNodeWeight = NodeWeight, typename GraphEdgeWeight = EdgeWeight>
 void build_permuted_graph(
-    const Container<EdgeID>& old_nodes, const Container<NodeID>& old_edges,
-    const Container<NodeWeight>& old_node_weights, const Container<EdgeWeight>& old_edge_weights,
-    const NodePermutations<Container>& permutations, Container<EdgeID>& new_nodes, Container<NodeID>& new_edges,
-    Container<NodeWeight>& new_node_weights, Container<EdgeWeight>& new_edge_weights
+    const Container<GraphEdgeID>& old_nodes, const Container<GraphNodeID>& old_edges,
+    const Container<GraphNodeWeight>& old_node_weights, const Container<GraphEdgeWeight>& old_edge_weights,
+    const NodePermutations<Container>& permutations, Container<GraphEdgeID>& new_nodes,
+    Container<GraphNodeID>& new_edges, Container<GraphNodeWeight>& new_node_weights,
+    Container<GraphEdgeWeight>& new_edge_weights
 ) {
     // >= for ghost nodes in a distributed graph
     const bool is_node_weighted = old_node_weights.size() + 1 >= old_nodes.size();
     const bool is_edge_weighted = old_edge_weights.size() == old_edges.size();
 
-    const NodeID n = old_nodes.size() - 1;
+    const GraphNodeID n = old_nodes.size() - 1;
     KASSERT(n + 1 == new_nodes.size());
 
     // Build p_nodes, p_node_weights
-    tbb::parallel_for<NodeID>(0, n, [&](const NodeID u) {
-        const NodeID old_u = permutations.new_to_old[u];
+    tbb::parallel_for<GraphNodeID>(0, n, [&](const GraphNodeID u) {
+        const auto old_u = permutations.new_to_old[u];
 
         new_nodes[u] = old_nodes[old_u + 1] - old_nodes[old_u];
         if (is_node_weighted) {
@@ -134,13 +137,13 @@ void build_permuted_graph(
     parallel::prefix_sum(new_nodes.begin(), new_nodes.end(), new_nodes.begin());
 
     // Build p_edges, p_edge_weights
-    tbb::parallel_for(static_cast<NodeID>(0), n, [&](const NodeID u) {
+    tbb::parallel_for(static_cast<GraphNodeID>(0), n, [&](const GraphNodeID u) {
         const NodeID old_u = permutations.new_to_old[u];
 
-        for (EdgeID e = old_nodes[old_u]; e < old_nodes[old_u + 1]; ++e) {
-            const NodeID v   = old_edges[e];
-            const EdgeID p_e = --new_nodes[u];
-            new_edges[p_e]   = (!has_ghost_nodes || v < n) ? permutations.old_to_new[v] : v;
+        for (auto e = old_nodes[old_u]; e < old_nodes[old_u + 1]; ++e) {
+            const auto v   = old_edges[e];
+            const auto p_e = --new_nodes[u];
+            new_edges[p_e] = (!has_ghost_nodes || v < n) ? permutations.old_to_new[v] : v;
             if (is_edge_weighted) {
                 new_edge_weights[p_e] = old_edge_weights[e];
             }

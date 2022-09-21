@@ -155,4 +155,3 @@ TEST(BfsExtractor, one_hop_in_circle_graph) {
     }
 }
 } // namespace kaminpar::dist::graph
-
