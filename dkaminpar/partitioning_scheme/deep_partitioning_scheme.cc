@@ -13,6 +13,7 @@
 
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructure/distributed_graph.h"
+#include "dkaminpar/debug.h"
 #include "dkaminpar/factories.h"
 #include "dkaminpar/graphutils/allgather_graph.h"
 #include "dkaminpar/graphutils/graph_extraction.h"
@@ -28,7 +29,7 @@
 #include "common/utils/math.h"
 
 namespace kaminpar::dist {
-SET_DEBUG(true);
+SET_DEBUG(false);
 
 DeepPartitioningScheme::DeepPartitioningScheme(const DistributedGraph& input_graph, const Context& input_ctx)
     : _input_graph(input_graph),
@@ -144,25 +145,20 @@ DistributedPartitionedGraph DeepPartitioningScheme::partition() {
         return factory::create_initial_partitioning_algorithm(_input_ctx);
     };
 
-    DBG << "Gathering";
+    auto shm_graph = graph::allgather(*graph);
+    if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0 && _input_ctx.debug.save_coarsest_graph) {
+        debug::save_graph(shm_graph, _input_ctx, coarsener->level());
+    }
 
-    auto             shm_graph = graph::allgather(*graph);
-
-    DBG << "Calling IP";
-
-    PartitionContext ip_p_ctx  = _input_ctx.partition;
-    ip_p_ctx.k                 = first_step_k;
-    ip_p_ctx.epsilon           = _input_ctx.partition.epsilon;
+    PartitionContext ip_p_ctx = _input_ctx.partition;
+    ip_p_ctx.k                = first_step_k;
+    ip_p_ctx.epsilon          = _input_ctx.partition.epsilon;
     ip_p_ctx.setup(shm_graph);
-    auto                        shm_p_graph  = initial_partitioner->initial_partition(shm_graph, ip_p_ctx);
-
-    DBG << "Scattering";
+    auto shm_p_graph = initial_partitioner->initial_partition(shm_graph, ip_p_ctx);
 
     DistributedPartitionedGraph dist_p_graph = graph::reduce_scatter(*graph, std::move(shm_p_graph));
 
     KASSERT(graph::debug::validate_partition(dist_p_graph), "", assert::heavy);
-
-    DBG << "Printing statistics";
 
     print_initial_partitioning_result(dist_p_graph, ip_p_ctx);
     STOP_TIMER();

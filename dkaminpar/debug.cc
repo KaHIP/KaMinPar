@@ -8,6 +8,8 @@
 
 #include "dkaminpar/io.h"
 
+#include "kaminpar/io.h"
+
 namespace kaminpar::dist::debug {
 namespace {
 std::string create_basename(const Context& ctx, const int level) {
@@ -24,6 +26,10 @@ void save_partition(const DistributedPartitionedGraph& p_graph, const Context& c
 
 void save_graph(const DistributedGraph& graph, const Context& ctx, const int level) {
     io::metis::write(create_basename(ctx, level) + ".graph", graph);
+}
+
+void save_graph(const shm::Graph& graph, const Context& ctx, const int level) {
+    shm::io::metis::write(create_basename(ctx, level) + ".graph", graph);
 }
 
 void save_partitioned_graph(const DistributedPartitionedGraph& p_graph, const Context& ctx, const int level) {

@@ -10,12 +10,16 @@
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructure/distributed_graph.h"
 
+#include "kaminpar/datastructure/graph.h"
+
 #include "common/parallel/atomic.h"
 
 namespace kaminpar::dist::debug {
 void save_partition(const DistributedPartitionedGraph& p_graph, const Context& ctx, int level);
 
 void save_graph(const DistributedGraph& graph, const Context& ctx, int level);
+
+void save_graph(const shm::Graph& graph, const Context& ctx, const int level);
 
 void save_partitioned_graph(const DistributedPartitionedGraph& p_graph, const Context& ctx, int level);
 
