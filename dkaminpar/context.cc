@@ -245,7 +245,7 @@ Context create_default_context() {
                 .num_mpis                        = 1,
                 .use_interleaved_numa_allocation = true,
                 .mpi_thread_support              = MPI_THREAD_FUNNELED,
-                .simulate_singlethread           = false,
+                .simulate_singlethread           = true,
             },
         .coarsening =
             {
@@ -308,7 +308,7 @@ Context create_default_context() {
                         .num_chunks                   = 0,
                         .min_num_chunks               = 8,
                         .num_move_attempts            = 2,
-                        .ignore_probabilities         = false,
+                        .ignore_probabilities         = true,
                         .scale_chunks_with_threads    = false,
                     },
                 .fm =
