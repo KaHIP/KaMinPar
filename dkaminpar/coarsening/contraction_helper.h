@@ -18,6 +18,9 @@
 #include "common/timer.h"
 #include "common/utils/math.h"
 
+#include <oneapi/tbb/parallel_sort.h>
+#include <tbb/parallel_sort.h>
+
 namespace kaminpar::dist::helper {
 namespace {
 SET_DEBUG(false);
@@ -34,6 +37,36 @@ struct DeduplicateEdgeListMemoryContext {
     NoinitVector<NodeID>                   deduplicated_bucket_index;
     NoinitVector<LocalToGlobalEdge>        buffer_list;
 };
+
+template <typename Container>
+inline Container
+deduplicate_edge_list2(Container edge_list) {
+    START_TIMER("Sorting edges");
+    tbb::parallel_sort(edge_list.begin(), edge_list.end(), [&](const auto &lhs, const auto &rhs) {
+        return lhs.u < rhs.u || (lhs.u == rhs.u && lhs.v < rhs.v);
+    });
+    STOP_TIMER();
+
+    START_TIMER("Compressing edges");
+    std::size_t free = 0; // @todo parallelize
+    for (std::size_t i = 0; i < edge_list.size();) {
+        edge_list[free] = edge_list[i];
+        auto &acc_edge = edge_list[free - 1];
+
+        ++free;
+        ++i;
+
+        while (acc_edge.u == edge_list[i].u && acc_edge.v == edge_list[i].v) {
+           acc_edge.weight += edge_list[i].weight;
+           ++i;
+        }
+    }
+    STOP_TIMER();
+
+    edge_list.resize(free);
+
+    return edge_list;
+}
 
 template <typename Container>
 inline std::pair<Container, DeduplicateEdgeListMemoryContext>

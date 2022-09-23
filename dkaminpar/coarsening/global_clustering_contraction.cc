@@ -349,7 +349,7 @@ DistributedGraph build_coarse_graph(
     // deduplicate edges
     TIMED_SCOPE("Deduplicate edges before sending", TIMER_DETAIL) {
         // allocate enough memory to fit the largest edge list: avoids additional allocations
-        DeduplicateEdgeListMemoryContext deduplicate_m_ctx;
+        /*DeduplicateEdgeListMemoryContext deduplicate_m_ctx;
         TIMED_SCOPE("Allocation") {
             NodeID      max_n              = 0;
             std::size_t max_edge_list_size = 0;
@@ -375,13 +375,14 @@ DistributedGraph build_coarse_graph(
                     }
                 }
             );
-        };
+        };*/
 
         for (PEID pe = 0; pe < size; ++pe) {
-            NodeID n_on_pe    = c_node_distribution[pe + 1] - c_node_distribution[pe];
-            auto   result     = deduplicate_edge_list(std::move(out_msg[pe]), n_on_pe, std::move(deduplicate_m_ctx));
-            out_msg[pe]       = std::move(result.first);
-            deduplicate_m_ctx = std::move(result.second);
+            //NodeID n_on_pe    = c_node_distribution[pe + 1] - c_node_distribution[pe];
+            //auto   result     = deduplicate_edge_list(std::move(out_msg[pe]), n_on_pe, std::move(deduplicate_m_ctx));
+            out_msg[pe]     = deduplicate_edge_list2(std::move(out_msg[pe]));
+            //out_msg[pe]       = std::move(result.first);
+            //deduplicate_m_ctx = std::move(result.second);
         }
     };
 
