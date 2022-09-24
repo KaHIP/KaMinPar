@@ -10,6 +10,8 @@
 
 #include <tbb/parallel_sort.h>
 
+#include "parallel/algorithm.h"
+
 #include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/datastructure/distributed_graph_builder.h"
 #include "dkaminpar/definitions.h"
@@ -32,13 +34,14 @@ struct LocalToGlobalEdge {
 };
 
 struct DeduplicateEdgeListMemoryContext {
-    NoinitVector<parallel::Atomic<NodeID>> bucket_index;
-    NoinitVector<NodeID>                   deduplicated_bucket_index;
-    NoinitVector<LocalToGlobalEdge>        buffer_list;
+    NoinitVector<NodeID>            edge_positions;
+    NoinitVector<LocalToGlobalEdge> buffer;
 };
 
 template <typename Container>
 inline Container deduplicate_edge_list2(Container edge_list) {
+    SCOPED_TIMER("Deduplicate edge list", TIMER_DETAIL);
+
     START_TIMER("Sorting edges");
     tbb::parallel_sort(edge_list.begin(), edge_list.end(), [&](const auto& lhs, const auto& rhs) {
         return lhs.u < rhs.u || (lhs.u == rhs.u && lhs.v < rhs.v);
@@ -68,104 +71,51 @@ inline Container deduplicate_edge_list2(Container edge_list) {
 
 template <typename Container>
 inline std::pair<Container, DeduplicateEdgeListMemoryContext>
-deduplicate_edge_list(Container edge_list, const NodeID n, DeduplicateEdgeListMemoryContext m_ctx) {
+deduplicate_edge_list_parallel(Container edge_list, DeduplicateEdgeListMemoryContext m_ctx) {
     SCOPED_TIMER("Deduplicate edge list", TIMER_DETAIL);
 
-    auto& bucket_index              = m_ctx.bucket_index;
-    auto& deduplicated_bucket_index = m_ctx.deduplicated_bucket_index;
-    auto& buffer_list               = m_ctx.buffer_list;
+    auto& edge_positions = m_ctx.edge_positions;
+    auto& buffer         = m_ctx.buffer;
 
     TIMED_SCOPE("Allocation", TIMER_DETAIL) {
-        if (bucket_index.size() < n + 1) {
-            bucket_index.resize(n + 1);
-        }
-        if (deduplicated_bucket_index.size() < n + 1) {
-            deduplicated_bucket_index.resize(n + 1);
-        }
-        if (buffer_list.size() < edge_list.size() + 1) {
-            buffer_list.resize(edge_list.size() + 1);
+        if (edge_positions.size() < edge_list.size()) {
+            edge_positions.resize(edge_list.size());
         }
     };
 
-    // sort edges by u and store result in compressed_edge_list
-    TIMED_SCOPE("Bucket sort edges", TIMER_DETAIL) {
-        tbb::parallel_for<NodeID>(0, n + 1, [&](const NodeID u) { bucket_index[u] = 0; });
-        tbb::parallel_for<std::size_t>(0, edge_list.size(), [&](const std::size_t i) {
-            KASSERT(edge_list[i].u < n);
-            bucket_index[edge_list[i].u].fetch_add(1, std::memory_order_relaxed);
-        });
-        parallel::prefix_sum(bucket_index.begin(), bucket_index.end(), bucket_index.begin());
-        tbb::parallel_for<std::size_t>(0, edge_list.size(), [&](const std::size_t i) {
-            const std::size_t j = bucket_index[edge_list[i].u].fetch_sub(1, std::memory_order_relaxed) - 1;
-            buffer_list[j]      = edge_list[i];
-        });
-        buffer_list.back().v = kInvalidGlobalNodeID; // dummy element
-    };
-
-    // sort outgoing edges for each node and collapse duplicated edges
-    START_TIMER("Deduplicate edges", TIMER_DETAIL);
-
-    START_TIMER("Count degrees", TIMER_DETAIL);
-    tbb::parallel_for<NodeID>(0, n, [&](const NodeID u) {
-        const EdgeID first_edge_id         = bucket_index[u];
-        const EdgeID first_invalid_edge_id = bucket_index[u + 1];
-
-        // sort outgoing edges from u
-        std::sort(
-            buffer_list.begin() + first_edge_id, buffer_list.begin() + first_invalid_edge_id,
-            [&](const auto& lhs, const auto& rhs) { return lhs.v < rhs.v; }
-        );
-
-        // compute degree of u after deduplicating
-        EdgeID       deduplicated_degree = 0;
-        GlobalNodeID current_v           = kInvalidGlobalNodeID;
-
-        for (EdgeID edge_id = first_edge_id; edge_id < first_invalid_edge_id; ++edge_id) {
-            KASSERT(buffer_list[edge_id].u == u);
-            const auto& edge = buffer_list[edge_id];
-            if (edge.v != current_v) {
-                ++deduplicated_degree;
-                current_v = edge.v;
-            }
-        }
-
-        deduplicated_bucket_index[u + 1] = deduplicated_degree;
+    START_TIMER("Sorting edges", TIMER_DETAIL);
+    tbb::parallel_sort(edge_list.begin(), edge_list.end(), [&](const auto& lhs, const auto& rhs) {
+        return lhs.u < rhs.u || (lhs.u == rhs.u && lhs.v < rhs.v);
     });
-    STOP_TIMER(TIMER_DETAIL);
-
-    START_TIMER("Compute prefix sum over degrees", TIMER_DETAIL);
-    deduplicated_bucket_index[0] = 0;
-    parallel::prefix_sum(
-        deduplicated_bucket_index.begin(), deduplicated_bucket_index.begin() + n + 1, deduplicated_bucket_index.begin()
-    );
     STOP_TIMER();
 
-    // now copy edges to edge_list
-    START_TIMER("Copy edges to compressed edge list", TIMER_DETAIL);
-    tbb::parallel_for<NodeID>(0, n, [&](const NodeID u) {
-        const EdgeID first_edge_id         = bucket_index[u];
-        const EdgeID first_invalid_edge_id = bucket_index[u + 1];
-        std::size_t  dst_index             = deduplicated_bucket_index[u];
-        GlobalNodeID current_v             = kInvalidGlobalNodeID;
-
-        for (EdgeID edge_id = first_edge_id; edge_id < first_invalid_edge_id; ++edge_id) {
-            const auto& edge = buffer_list[edge_id];
-            if (edge.v == current_v) {
-                KASSERT(edge_list[dst_index - 1].u == edge.u);
-                KASSERT(edge_list[dst_index - 1].v == edge.v);
-                edge_list[dst_index - 1].weight += edge.weight;
-            } else {
-                current_v              = edge.v;
-                edge_list[dst_index++] = edge;
-            }
+    START_TIMER("Find edge start positions", TIMER_DETAIL);
+    tbb::parallel_for<std::size_t>(0, edge_list.size(), [&](const std::size_t i) { edge_positions[i] = 0; });
+    tbb::parallel_for<std::size_t>(1, edge_list.size(), [&](const std::size_t i) {
+        if (edge_list[i].u != edge_list[i - 1].u || edge_list[i].v != edge_list[i - 1].v) {
+            edge_positions[i] = 1;
         }
     });
-    STOP_TIMER(TIMER_DETAIL);
-    STOP_TIMER(TIMER_DETAIL);
+    parallel::prefix_sum(edge_positions.begin(), edge_positions.end(), edge_positions.begin());
+    STOP_TIMER();
 
-    START_TIMER("Resize edge list", TIMER_DETAIL);
-    edge_list.resize(deduplicated_bucket_index[n]);
-    STOP_TIMER(TIMER_DETAIL);
+    TIMED_SCOPE("Allocation", TIMER_DETAIL) {
+        if (buffer.size() < edge_positions.back() + 1) {
+            buffer.resize(edge_positions.back() + 1);
+        }
+    };
+
+    START_TIMER("Compress edge list", TIMER_DETAIL);
+    tbb::parallel_for<std::size_t>(0, edge_positions.back() + 1, [&](const std::size_t i) { buffer[i].weight = 0; });
+    tbb::parallel_for<std::size_t>(0, edge_list.size(), [&](const std::size_t i) {
+        const std::size_t pos = edge_positions[i];
+        __atomic_store_n(&(buffer[pos].u), edge_list[i].u, __ATOMIC_RELAXED);
+        __atomic_store_n(&(buffer[pos].v), edge_list[i].v, __ATOMIC_RELAXED);
+        __atomic_fetch_add(&(buffer[pos].weight), edge_list[i].weight, __ATOMIC_RELAXED);
+    });
+    tbb::parallel_for<std::size_t>(0, edge_positions.back() + 1, [&](const std::size_t i) { edge_list[i] = buffer[i]; });
+    edge_list.resize(edge_positions.back() + 1);
+    STOP_TIMER();
 
     return {std::move(edge_list), std::move(m_ctx)};
 }
