@@ -7,7 +7,6 @@
  ******************************************************************************/
 #include "dkaminpar/coarsening/global_clustering_contraction.h"
 
-#include <oneapi/tbb/task_arena.h>
 #include <tbb/concurrent_hash_map.h>
 #include <tbb/task_arena.h>
 
