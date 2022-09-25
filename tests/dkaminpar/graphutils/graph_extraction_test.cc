@@ -520,12 +520,43 @@ TEST(GlobalGraphExtractionTest, extract_from_circle_clique_graph_less_pes_than_b
     std::vector<BlockID> local_partition(size / 2);
     std::iota(local_partition.begin(), local_partition.end(), 0);
 
+    // Use global node IDs as node weights
+    std::vector<std::pair<NodeID, NodeWeight>> node_weights;
+    for (const NodeID u : graph.all_nodes()) {
+        node_weights.emplace_back(u, graph.local_to_global_node(u) + 1);
+    }
+    graph = change_node_weights(std::move(graph), node_weights);
+
     auto p_graph   = make_partitioned_graph(graph, size / 2, local_partition);
     auto subgraphs = extract_global_subgraphs(p_graph);
-
     ASSERT_EQ(subgraphs.size(), 1);
     auto& subgraph = subgraphs.front();
 
-    ASSERT_EQ(subgraph.n(), size);
+    // Check node weights
+    const BlockID my_block = rank / 2;
+    std::vector<bool> seen_weight(graph.global_n());
+    NodeID seen_weights = 0;
+    for (const NodeID u : subgraph.nodes()) {
+        const NodeWeight weight = subgraph.node_weight(u);
+        ASSERT_LT(weight - 1, graph.global_n());
+        EXPECT_FALSE(seen_weight[weight - 1]);
+        seen_weight[weight - 1] = true; 
+        ++seen_weights;
+    }
+    EXPECT_EQ(seen_weights, size);
+    for (NodeID u = my_block; u < graph.global_n(); u += size / 2) {
+        EXPECT_TRUE(seen_weight[u]) << u;
+    }
+
+    // Check topology
+    EXPECT_EQ(subgraph.n(), size);
+    if (size == 1) {
+        EXPECT_EQ(subgraph.m(), 0);
+    } else if (size == 2) {
+        EXPECT_EQ(subgraph.m(), 2);
+    } else {
+        EXPECT_EQ(subgraph.m(), 2 * size);
+        expect_circle(subgraph);
+    }
 }
 } // namespace kaminpar::dist
