@@ -504,4 +504,28 @@ TEST(GlobalGraphExtractionTest, project_circle_clique_partition) {
         EXPECT_EQ(p_graph.block(u), (u / 2) * size + rank);
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
+/// Extract global block induced subgraphs with less PEs than blocks
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(GlobalGraphExtractionTest, extract_from_circle_clique_graph_less_pes_than_blocks) {
+    const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
+    if (size % 2 != 0) {
+        return;
+    }
+
+    auto graph = make_circle_clique_graph(size / 2);
+
+    std::vector<BlockID> local_partition(size / 2);
+    std::iota(local_partition.begin(), local_partition.end(), 0);
+
+    auto p_graph   = make_partitioned_graph(graph, size / 2, local_partition);
+    auto subgraphs = extract_global_subgraphs(p_graph);
+
+    ASSERT_EQ(subgraphs.size(), 1);
+    auto& subgraph = subgraphs.front();
+
+    ASSERT_EQ(subgraph.n(), size);
+}
 } // namespace kaminpar::dist
