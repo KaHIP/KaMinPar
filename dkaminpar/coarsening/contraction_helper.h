@@ -74,6 +74,10 @@ inline std::pair<Container, DeduplicateEdgeListMemoryContext>
 deduplicate_edge_list_parallel(Container edge_list, DeduplicateEdgeListMemoryContext m_ctx) {
     SCOPED_TIMER("Deduplicate edge list", TIMER_DETAIL);
 
+    if (edge_list.empty()) {
+        return {std::move(edge_list), std::move(m_ctx)};
+    }
+
     auto& edge_positions = m_ctx.edge_positions;
     auto& buffer         = m_ctx.buffer;
 
