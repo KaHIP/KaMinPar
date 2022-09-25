@@ -78,9 +78,7 @@ deduplicate_edge_list_parallel(Container edge_list, DeduplicateEdgeListMemoryCon
     auto& buffer         = m_ctx.buffer;
 
     TIMED_SCOPE("Allocation", TIMER_DETAIL) {
-        if (edge_positions.size() < edge_list.size()) {
-            edge_positions.resize(edge_list.size());
-        }
+        edge_positions.resize(edge_list.size());
     };
 
     START_TIMER("Sorting edges", TIMER_DETAIL);
@@ -113,7 +111,9 @@ deduplicate_edge_list_parallel(Container edge_list, DeduplicateEdgeListMemoryCon
         __atomic_store_n(&(buffer[pos].v), edge_list[i].v, __ATOMIC_RELAXED);
         __atomic_fetch_add(&(buffer[pos].weight), edge_list[i].weight, __ATOMIC_RELAXED);
     });
-    tbb::parallel_for<std::size_t>(0, edge_positions.back() + 1, [&](const std::size_t i) { edge_list[i] = buffer[i]; });
+    tbb::parallel_for<std::size_t>(0, edge_positions.back() + 1, [&](const std::size_t i) {
+        edge_list[i] = buffer[i];
+    });
     edge_list.resize(edge_positions.back() + 1);
     STOP_TIMER();
 
