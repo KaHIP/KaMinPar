@@ -490,7 +490,7 @@ DistributedPartitionedGraph copy_duplicated_subgraph_partitions(
 ) {
     SCOPED_TIMER("Projecting subgraph partitions");
 
-    KASSERT(p_subgraphs.size() == 1, "use copy_subgraph_partitions()", assert::always);
+    KASSERT(p_subgraphs.size() == 1u, "use copy_subgraph_partitions()", assert::always);
     const shm::PartitionedGraph& p_subgraph = p_subgraphs.front();
 
     const PEID    size          = mpi::get_comm_size(p_graph.communicator());
