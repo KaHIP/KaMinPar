@@ -522,7 +522,7 @@ TEST(GlobalGraphExtractionTest, extract_from_circle_clique_graph_less_pes_than_b
 
     // Use global node IDs as node weights
     std::vector<std::pair<NodeID, NodeWeight>> node_weights;
-    for (const NodeID u : graph.all_nodes()) {
+    for (const NodeID u: graph.all_nodes()) {
         node_weights.emplace_back(u, graph.local_to_global_node(u) + 1);
     }
     graph = change_node_weights(std::move(graph), node_weights);
@@ -533,14 +533,14 @@ TEST(GlobalGraphExtractionTest, extract_from_circle_clique_graph_less_pes_than_b
     auto& subgraph = subgraphs.front();
 
     // Check node weights
-    const BlockID my_block = rank / 2;
+    const BlockID     my_block = rank / 2;
     std::vector<bool> seen_weight(graph.global_n());
-    NodeID seen_weights = 0;
-    for (const NodeID u : subgraph.nodes()) {
+    NodeID            seen_weights = 0;
+    for (const NodeID u: subgraph.nodes()) {
         const NodeWeight weight = subgraph.node_weight(u);
         ASSERT_LT(weight - 1, graph.global_n());
         EXPECT_FALSE(seen_weight[weight - 1]);
-        seen_weight[weight - 1] = true; 
+        seen_weight[weight - 1] = true;
         ++seen_weights;
     }
     EXPECT_EQ(seen_weights, size);
