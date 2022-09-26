@@ -407,11 +407,15 @@ DistributedPartitionedGraph copy_subgraph_partitions(
     const ExtractedSubgraphs& extracted_subgraphs
 ) {
     SCOPED_TIMER("Projecting subgraph partitions");
+    const PEID size = mpi::get_comm_size(p_graph.communicator());
+
+    // Catch case where we have more PEs than blocks == blocks are duplicated across PEs
+    if (static_cast<BlockID>(size) > p_graph.k()) {
+        return copy_duplicated_subgraph_partitions(std::move(p_graph), p_subgraphs, extracted_subgraphs);
+    }
 
     const auto& offsets = extracted_subgraphs.subgraph_offsets;
     const auto& mapping = extracted_subgraphs.mapping;
-
-    const PEID size = mpi::get_comm_size(p_graph.communicator());
 
     // Assume that all subgraph partitions have the same number of blocks
     KASSERT(!p_subgraphs.empty());

@@ -19,7 +19,7 @@ kaminpar_add_common_test(test_common_parallel_algorithm common/parallel/algorith
 # dKaMinPar -> Graph Utils
 kaminpar_add_dist_test(test_dist_graph_extraction
     FILES dkaminpar/graphutils/graph_extraction_test.cc
-    CORES 1 2 3 4 16)
+    CORES 1 2 4 16)
 
 kaminpar_add_dist_test(test_dist_graph_rearrangement
     FILES dkaminpar/graphutils/graph_rearrangement_test.cc

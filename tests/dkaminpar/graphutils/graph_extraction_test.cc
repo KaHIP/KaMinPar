@@ -14,6 +14,7 @@
 #include "dkaminpar/graphutils/graph_extraction.h"
 
 #include "kaminpar/datastructure/graph.h"
+#include "kaminpar/metrics.h"
 
 #include "common/datastructures/static_array.h"
 
@@ -557,6 +558,54 @@ TEST(GlobalGraphExtractionTest, extract_from_circle_clique_graph_less_pes_than_b
     } else {
         EXPECT_EQ(subgraph.m(), 2 * size);
         expect_circle(subgraph);
+    }
+}
+
+TEST(GlobalGraphExtractionTest, project_from_circle_clique_graph_less_pes_than_blocks) {
+    const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
+    if (size % 2 != 0) {
+        return;
+    }
+
+    auto graph = make_circle_clique_graph(size / 2);
+
+    // k = size/2
+    std::vector<BlockID> local_partition(size / 2);
+    std::iota(local_partition.begin(), local_partition.end(), 0);
+
+    auto  p_graph   = make_partitioned_graph(graph, size / 2, local_partition);
+    auto  result    = graph::extract_and_scatter_block_induced_subgraphs(p_graph);
+    auto& subgraphs = result.subgraphs;
+    ASSERT_EQ(subgraphs.size(), 1);
+    auto& subgraph = subgraphs.front();
+
+    // Create one bad and one good partition
+    // If our block is even, the first one is the good one, otherwise the second one
+    StaticArray<BlockID> partition(subgraph.n());
+    const bool           good_partition = rank % 2 == (rank / 2) % 2;
+    if (good_partition) { // Good partition: but everything in the same block for min cut (ignore balance)
+        std::fill(partition.begin(), partition.end(), 0);
+    } else { // Bad partition: alternate between blocks
+        for (const NodeID u: subgraph.nodes()) {
+            partition[u] = u % 2;
+        }
+    }
+    shm::PartitionedGraph p_subgraph(subgraph, 2, std::move(partition), {1, 1});
+    if (good_partition) {
+        EXPECT_EQ(shm::metrics::edge_cut(p_subgraph), 0);
+    } else {
+        EXPECT_GT(shm::metrics::edge_cut(p_subgraph), 0);
+    }
+    std::vector<shm::PartitionedGraph> p_subgraphs;
+    p_subgraphs.push_back(std::move(p_subgraph));
+
+    // Project back
+    p_graph = graph::copy_subgraph_partitions(std::move(p_graph), p_subgraphs, result);
+
+    EXPECT_EQ(p_graph.k(), size);
+
+    for (const NodeID u: p_graph.nodes()) {
+        EXPECT_TRUE(p_graph.block(u) % 2 == 0) << V(u) << V(p_graph.block(u));
     }
 }
 } // namespace kaminpar::dist

@@ -154,11 +154,6 @@ shm::PartitionedGraph MtKaHyParInitialPartitioner::initial_partition(
     const mt_kahypar_partition_id_t k            = p_ctx.k;
 
     double imbalance = p_ctx.epsilon;
-    /*for (BlockID b = 0; b < k; ++b) {
-        imbalance = std::max<double>(
-            imbalance, 1.0 * p_ctx.max_block_weight(b) / p_ctx.perfectly_balanced_block_weight(b) - 1.0
-        );
-    }*/
 
     // Copy node weights
     NoinitVector<mt_kahypar_hypernode_weight_t> node_weights(num_vertices);
