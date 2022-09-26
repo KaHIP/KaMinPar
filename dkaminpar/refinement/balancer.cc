@@ -39,6 +39,10 @@ void DistributedBalancer::balance(DistributedPartitionedGraph& p_graph, const Pa
     STOP_TIMER();
 
     for (std::size_t round = 0;; round++) {
+        if (metrics::is_feasible(*_p_graph, *_p_ctx)) {
+            break;
+        }
+
         // if balancing takes a very long time, we print statistics periodically
         IFSTATS(++_stats.num_reduction_rounds);
         if constexpr (kStatistics) {
