@@ -55,10 +55,12 @@ void DistributedBalancer::balance(DistributedPartitionedGraph& p_graph, const Pa
         // pick best move candidates for each block
         START_TIMER("Pick candidates");
         auto candidates = pick_move_candidates();
+        // DBG << V(candidates.size());
         STOP_TIMER();
 
         START_TIMER("Reudce");
         candidates = reduce_move_candidates(std::move(candidates));
+        // DBG << V(candidates.size());
         STOP_TIMER();
 
         START_TIMER("Perform moves on root");
@@ -273,6 +275,8 @@ auto DistributedBalancer::reduce_move_candidates(std::vector<MoveCandidate>&& a,
             // only pick candidate if it does not overload the target block
             if (from != to
                 && _p_graph->block_weight(to) + target_block_weight_delta[to] + weight > _p_ctx->max_block_weight(to)) {
+                //DBG << "Not taking candidate for move " << from << " --> " << to
+                    //<< " because target would become overloaded";
                 continue;
             }
 
@@ -296,10 +300,34 @@ auto DistributedBalancer::reduce_move_candidates(std::vector<MoveCandidate>&& a,
 
     // keep remaining moves
     while (i < a.size()) {
-        ans.push_back(a[i++]);
+        const BlockID    from   = a[i].from;
+        const BlockID    to     = a[i].to;
+        const NodeWeight weight = a[i].weight;
+
+        if (from == to
+            || _p_graph->block_weight(to) + target_block_weight_delta[to] + weight <= _p_ctx->max_block_weight(to)) {
+            ans.push_back(a[i]);
+            if (from != to) {
+                target_block_weight_delta[to] += weight;
+            }
+        }
+
+        ++i;
     }
     while (j < b.size()) {
-        ans.push_back(b[j++]);
+        const BlockID    from   = b[j].from;
+        const BlockID    to     = b[j].to;
+        const NodeWeight weight = b[j].weight;
+
+        if (from == to
+            || _p_graph->block_weight(to) + target_block_weight_delta[to] + weight <= _p_ctx->max_block_weight(to)) {
+            ans.push_back(b[j]);
+            if (from != to) {
+                target_block_weight_delta[to] += weight;
+            }
+        }
+
+        ++j;
     }
 
     return ans;
