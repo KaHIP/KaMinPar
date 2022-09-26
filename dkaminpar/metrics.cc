@@ -54,7 +54,7 @@ double imbalance(const DistributedPartitionedGraph& p_graph) {
 }
 
 bool is_feasible(const DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx) {
-    return imbalance(p_graph) <= p_ctx.epsilon;
+    return num_imbalanced_blocks(p_graph, p_ctx) == 0;
 }
 
 BlockID num_imbalanced_blocks(const DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx) {
