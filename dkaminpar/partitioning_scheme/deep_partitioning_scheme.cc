@@ -163,12 +163,6 @@ DistributedPartitionedGraph DeepPartitioningScheme::partition() {
     print_initial_partitioning_result(dist_p_graph, ip_p_ctx);
     STOP_TIMER();
 
-    // @todo implement subgraph replication
-    KASSERT(
-        dist_p_graph.k() >= std::min<BlockID>(_input_ctx.partition.k, size),
-        "require k' >= #MPI processes (" << size << ")", assert::always
-    );
-
     /*
      * Uncoarsening and Refinement
      */
