@@ -40,15 +40,10 @@ struct DeduplicateEdgeListMemoryContext {
 
 template <typename Container>
 inline Container deduplicate_edge_list2(Container edge_list) {
-    SCOPED_TIMER("Deduplicate edge list", TIMER_DETAIL);
-
-    START_TIMER("Sorting edges");
     tbb::parallel_sort(edge_list.begin(), edge_list.end(), [&](const auto& lhs, const auto& rhs) {
         return lhs.u < rhs.u || (lhs.u == rhs.u && lhs.v < rhs.v);
     });
-    STOP_TIMER();
 
-    START_TIMER("Compressing edges");
     std::size_t free = 0; // @todo parallelize
     for (std::size_t i = 0; i < edge_list.size();) {
         edge_list[free] = edge_list[i];
@@ -62,7 +57,6 @@ inline Container deduplicate_edge_list2(Container edge_list) {
             ++i;
         }
     }
-    STOP_TIMER();
 
     edge_list.resize(free);
 
@@ -72,8 +66,6 @@ inline Container deduplicate_edge_list2(Container edge_list) {
 template <typename Container>
 inline std::pair<Container, DeduplicateEdgeListMemoryContext>
 deduplicate_edge_list_parallel(Container edge_list, DeduplicateEdgeListMemoryContext m_ctx) {
-    SCOPED_TIMER("Deduplicate edge list", TIMER_DETAIL);
-
     if (edge_list.empty()) {
         return {std::move(edge_list), std::move(m_ctx)};
     }
@@ -81,17 +73,12 @@ deduplicate_edge_list_parallel(Container edge_list, DeduplicateEdgeListMemoryCon
     auto& edge_positions = m_ctx.edge_positions;
     auto& buffer         = m_ctx.buffer;
 
-    TIMED_SCOPE("Allocation", TIMER_DETAIL) {
-        edge_positions.resize(edge_list.size());
-    };
+    edge_positions.resize(edge_list.size());
 
-    START_TIMER("Sorting edges", TIMER_DETAIL);
     tbb::parallel_sort(edge_list.begin(), edge_list.end(), [&](const auto& lhs, const auto& rhs) {
         return lhs.u < rhs.u || (lhs.u == rhs.u && lhs.v < rhs.v);
     });
-    STOP_TIMER();
 
-    START_TIMER("Find edge start positions", TIMER_DETAIL);
     tbb::parallel_for<std::size_t>(0, edge_list.size(), [&](const std::size_t i) { edge_positions[i] = 0; });
     tbb::parallel_for<std::size_t>(1, edge_list.size(), [&](const std::size_t i) {
         if (edge_list[i].u != edge_list[i - 1].u || edge_list[i].v != edge_list[i - 1].v) {
@@ -99,15 +86,11 @@ deduplicate_edge_list_parallel(Container edge_list, DeduplicateEdgeListMemoryCon
         }
     });
     parallel::prefix_sum(edge_positions.begin(), edge_positions.end(), edge_positions.begin());
-    STOP_TIMER();
 
-    TIMED_SCOPE("Allocation", TIMER_DETAIL) {
-        if (buffer.size() < edge_positions.back() + 1) {
-            buffer.resize(edge_positions.back() + 1);
-        }
-    };
+    if (buffer.size() < edge_positions.back() + 1) {
+        buffer.resize(edge_positions.back() + 1);
+    }
 
-    START_TIMER("Compress edge list", TIMER_DETAIL);
     tbb::parallel_for<std::size_t>(0, edge_positions.back() + 1, [&](const std::size_t i) { buffer[i].weight = 0; });
     tbb::parallel_for<std::size_t>(0, edge_list.size(), [&](const std::size_t i) {
         const std::size_t pos = edge_positions[i];
@@ -119,7 +102,6 @@ deduplicate_edge_list_parallel(Container edge_list, DeduplicateEdgeListMemoryCon
         edge_list[i] = buffer[i];
     });
     edge_list.resize(edge_positions.back() + 1);
-    STOP_TIMER();
 
     return {std::move(edge_list), std::move(m_ctx)};
 }

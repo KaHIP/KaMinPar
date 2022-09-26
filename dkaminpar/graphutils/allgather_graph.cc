@@ -143,8 +143,4 @@ DistributedPartitionedGraph reduce_scatter(const DistributedGraph& dist_graph, s
     // create distributed partitioned graph
     return {&dist_graph, shm_p_graph.k(), std::move(dist_partition), std::move(block_weights)};
 }
-
-DistributedGraph allgather_on_groups([[maybe_unused]] const DistributedGraph& graph, [[maybe_unused]] MPI_Comm group) {
-    __builtin_unreachable();
-}
 } // namespace kaminpar::dist::graph
