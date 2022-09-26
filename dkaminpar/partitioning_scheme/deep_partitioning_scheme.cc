@@ -191,10 +191,7 @@ DistributedPartitionedGraph DeepPartitioningScheme::partition() {
     auto extend_partition = [&](DistributedPartitionedGraph& p_graph) {
         START_TIMER("Extending partition", std::string("Level ") + std::to_string(coarsener->level()));
         BlockID desired_k = std::min<BlockID>(
-            _input_ctx.partition.k,
-            math::ceil2(
-                dist_p_graph.global_n() / _input_ctx.parallel.num_threads * _input_ctx.coarsening.contraction_limit
-            )
+            _input_ctx.partition.k, math::ceil2(dist_p_graph.global_n() / _input_ctx.coarsening.contraction_limit)
         );
         if (_input_graph.global_n() == p_graph.global_n()) {
             // If we work on the input graph, extend to final number of blocks

@@ -327,7 +327,7 @@ scalable_vector<GlobalNodeID> build_node_distribution(const std::pair<SInt, SInt
 
 KaGen create_generator_object(const GeneratorContext ctx) {
     KaGen gen(MPI_COMM_WORLD);
-    //gen.SetSeed(ctx.seed);
+    // gen.SetSeed(ctx.seed);
     if (ctx.validate_graph) {
         gen.EnableUndirectedGraphVerification();
     }
@@ -387,16 +387,18 @@ KaGenResult create_rhg(const GeneratorContext ctx) {
 
 KaGenResult create_grid2d(const GeneratorContext ctx) {
     const GlobalNodeID n = (static_cast<GlobalNodeID>(1) << ctx.n) * ctx.scale;
+    const GlobalEdgeID m = (static_cast<GlobalNodeID>(1) << ctx.m) * ctx.scale;
 
-    LOG << "Generating Grid2D(n=" << n << ", p=" << ctx.p << ")";
-    return create_generator_object(ctx).GenerateGrid2D_N(n, ctx.p);
+    LOG << "Generating Grid2D(n=" << n << ", m=" << m << ")";
+    return create_generator_object(ctx).GenerateGrid2D_NM(n, m);
 }
 
 KaGenResult create_grid3d(const GeneratorContext ctx) {
     const GlobalNodeID n = (static_cast<GlobalNodeID>(1) << ctx.n) * ctx.scale;
+    const GlobalEdgeID m = (static_cast<GlobalNodeID>(1) << ctx.m) * ctx.scale;
 
-    LOG << "Generating Grid3D(n=" << n << ", p=" << ctx.p << ")";
-    return create_generator_object(ctx).GenerateGrid3D_N(n, ctx.p);
+    LOG << "Generating Grid3D(n=" << n << ", m=" << m << ")";
+    return create_generator_object(ctx).GenerateGrid3D_NM(n, m);
 }
 
 KaGenResult create_rmat(const GeneratorContext ctx) {
@@ -471,12 +473,16 @@ std::string generate_filename(GeneratorContext ctx) {
             filename << "rdg2d_n=" << ctx.n << "_m=" << ctx.m;
             break;
 
-        case GeneratorType::GRID2D:
+        case GeneratorType::RDG3D:
             filename << "rdg3d_n=" << ctx.n << "_m=" << ctx.m;
             break;
 
+        case GeneratorType::GRID2D:
+            filename << "grid2d_n=" << ctx.n << "_m=" << ctx.m;
+            break;
+
         case GeneratorType::GRID3D:
-            filename << "grid3d_n=" << ctx.n;
+            filename << "grid3d_n=" << ctx.n << "_m=" << ctx.m;
             break;
 
         case GeneratorType::RMAT:
