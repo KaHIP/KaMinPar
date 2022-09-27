@@ -196,9 +196,12 @@ private:
 
         // gather statistics
         std::vector<EdgeWeight> global_gain_to(_p_ctx->k);
-        mpi::allreduce(
-            gain_to_block.data(), global_gain_to.data(), static_cast<int>(_p_ctx->k), MPI_SUM, _graph->communicator()
-        );
+        if (!_lp_ctx.ignore_probabilities) {
+            mpi::allreduce(
+                gain_to_block.data(), global_gain_to.data(), static_cast<int>(_p_ctx->k), MPI_SUM,
+                _graph->communicator()
+            );
+        }
 
         for (const BlockID b: _p_graph->blocks()) {
             residual_cluster_weights.push_back(max_cluster_weight(b) - _p_graph->block_weight(b));
@@ -256,9 +259,13 @@ private:
                 // compute move probability
                 const BlockID b = _next_partition[u];
                 const double  gain_prob =
-                    (total_gains_to_block[b] == 0) ? 1.0 : 1.0 * _gains[u] / total_gains_to_block[b];
+                    _lp_ctx.ignore_probabilities
+                         ? 1.0
+                         : ((total_gains_to_block[b] == 0) ? 1.0 : 1.0 * _gains[u] / total_gains_to_block[b]);
                 const double probability =
-                    gain_prob * (static_cast<double>(residual_block_weights[b]) / _p_graph->node_weight(u));
+                    _lp_ctx.ignore_probabilities
+                        ? 1.0
+                        : gain_prob * (static_cast<double>(residual_block_weights[b]) / _p_graph->node_weight(u));
                 IFSTATS(_statistics.expected_gain += probability * _gains[u]);
                 IFSTATS(expected_moved_weight[b] += probability * _p_graph->node_weight(u));
 
