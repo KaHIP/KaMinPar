@@ -114,8 +114,10 @@ ExtractedLocalSubgraphs extract_local_block_induced_subgraphs(const DistributedP
     }
 
     // Compute node ID offset of local subgraph in global subgraphs
+    START_TIMER("Compute offsets");
     std::vector<NodeID> global_node_offset(p_graph.k());
     mpi::exscan(num_nodes_per_block.data(), global_node_offset.data(), p_graph.k(), MPI_SUM, p_graph.communicator());
+    STOP_TIMER();
 
     // Build mapping from node IDs in p_graph to node IDs in the extracted subgraph
     {
@@ -132,7 +134,9 @@ ExtractedLocalSubgraphs extract_local_block_induced_subgraphs(const DistributedP
     }
 
     // Build mapping from local extract subgraph to global extracted subgraph for ghost nodes
+    START_TIMER("Node mapping allocation");
     std::vector<NodeID> global_ghost_node_mapping(p_graph.ghost_n());
+    STOP_TIMER();
 
     {
         SCOPED_TIMER("Exchange ghost node mapping", TIMER_DETAIL);
