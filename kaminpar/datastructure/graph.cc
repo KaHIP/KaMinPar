@@ -120,7 +120,7 @@ void Graph::print() const {
 
 bool validate_graph(const Graph& graph) {
     for (NodeID u = 0; u < graph.n(); ++u) {
-        if (graph.raw_nodes()[u] >= graph.raw_nodes()[u + 1]) {
+        if (graph.raw_nodes()[u] > graph.raw_nodes()[u + 1]) {
             LOG_WARNING << "Bad node array at position " << u;
             return false;
         }
