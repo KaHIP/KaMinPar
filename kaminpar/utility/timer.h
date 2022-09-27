@@ -9,6 +9,7 @@
 #include <mutex>
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/task_arena.h>
+#include <unordered_map>
 
 #define TIMER_EXTRACT_SUBGRAPHS "Subgraph extraction"
 #define TIMER_COARSENING "Coarsening"
