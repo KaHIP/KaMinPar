@@ -5,8 +5,11 @@
  * @brief:  Allgather a distributed graph to each PE.
  ******************************************************************************/
 #include "dkaminpar/graphutils/allgather_graph.h"
+#include <mpi.h>
 
+#include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/definitions.h"
+#include "dkaminpar/mpi/utils.h"
 #include "dkaminpar/mpi/wrapper.h"
 
 #include "kaminpar/datastructure/graph.h"
@@ -103,6 +106,21 @@ shm::Graph allgather(const DistributedGraph& graph) {
     });
 
     return {std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights)};
+}
+
+DistributedGraph allgather_on_groups(const DistributedGraph& graph, MPI_Comm group_comm) {
+    const PEID size       = mpi::get_comm_size(graph.communicator());
+    const PEID rank       = mpi::get_comm_rank(graph.communicator());
+    const PEID group_size = mpi::get_comm_size(group_comm);
+    const PEID group_rank = mpi::get_comm_rank(group_comm);
+
+    // Duplicate graph within PEs with the same rank in their group
+    MPI_Comm dup_group;
+    MPI_Comm_split(graph.communicator(), group_rank, rank, &dup_group);
+    
+    MPI_Comm_free(&dup_group);
+
+    return {};
 }
 
 DistributedPartitionedGraph reduce_scatter(const DistributedGraph& dist_graph, shm::PartitionedGraph shm_p_graph) {
