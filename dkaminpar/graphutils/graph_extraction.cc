@@ -58,6 +58,7 @@ auto count_block_induced_subgraph_sizes(const DistributedPartitionedGraph& p_gra
 
 // Build a local block-induced subgraph for each block of the graph partition.
 ExtractedLocalSubgraphs extract_local_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph) {
+    mpi::barrier(p_graph.communicator());
     SCOPED_TIMER("Extracting local block induced subgraphs");
 
     auto [num_nodes_per_block, num_edges_per_block] = count_block_induced_subgraph_sizes(p_graph);
@@ -103,6 +104,8 @@ ExtractedLocalSubgraphs extract_local_block_induced_subgraphs(const DistributedP
         }
 
         next_node_in_subgraph.resize(p_graph.k());
+
+        mpi::barrier(p_graph.communicator());
     }
 
     // Compute of graphs in shared_* arrays
@@ -111,12 +114,15 @@ ExtractedLocalSubgraphs extract_local_block_induced_subgraphs(const DistributedP
 
         parallel::prefix_sum(num_nodes_per_block.begin(), num_nodes_per_block.end(), nodes_offset.begin() + 1);
         parallel::prefix_sum(num_edges_per_block.begin(), num_edges_per_block.end(), edges_offset.begin() + 1);
+
+        mpi::barrier(p_graph.communicator());
     }
 
     // Compute node ID offset of local subgraph in global subgraphs
     START_TIMER("Compute offsets");
     std::vector<NodeID> global_node_offset(p_graph.k());
     mpi::exscan(num_nodes_per_block.data(), global_node_offset.data(), p_graph.k(), MPI_SUM, p_graph.communicator());
+    mpi::barrier(p_graph.communicator());
     STOP_TIMER();
 
     // Build mapping from node IDs in p_graph to node IDs in the extracted subgraph
@@ -131,11 +137,14 @@ ExtractedLocalSubgraphs extract_local_block_induced_subgraphs(const DistributedP
             shared_nodes[pos]             = u;
             mapping[u]                    = global_node_offset[b] + pos_in_subgraph;
         });
+
+        mpi::barrier(p_graph.communicator());
     }
 
     // Build mapping from local extract subgraph to global extracted subgraph for ghost nodes
     START_TIMER("Node mapping allocation");
     std::vector<NodeID> global_ghost_node_mapping(p_graph.ghost_n());
+    mpi::barrier(p_graph.communicator());
     STOP_TIMER();
 
     {
@@ -159,6 +168,7 @@ ExtractedLocalSubgraphs extract_local_block_induced_subgraphs(const DistributedP
                 });
             }
         );
+        mpi::barrier(p_graph.communicator());
     }
 
     // Extract the subgraphs
