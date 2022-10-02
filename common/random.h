@@ -84,6 +84,10 @@ private:
 template <typename ValueType, std::size_t size, std::size_t count>
 class RandomPermutations {
 public:
+    RandomPermutations(Random& rand) : _rand{rand} {
+        init_permutations();
+    }
+
     RandomPermutations() : _rand{Random::instance()} {
         init_permutations();
     }

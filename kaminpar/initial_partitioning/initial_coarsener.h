@@ -183,7 +183,7 @@ private:
     NodeWeight _interleaved_max_cluster_weight{0};
     bool       _interleaved_locked{false};
 
-    Random&                                                                  _rand{Random::instance()};
-    static RandomPermutations<NodeID, kChunkSize, kNumberOfNodePermutations> _random_permutations;
+    Random&                                                           _rand{Random::instance()};
+    RandomPermutations<NodeID, kChunkSize, kNumberOfNodePermutations> _random_permutations{_rand};
 };
 } // namespace kaminpar::shm::ip

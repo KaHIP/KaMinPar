@@ -310,7 +310,4 @@ InitialCoarsener::ContractionResult InitialCoarsener::TEST_contract_clustering()
     return contract_current_clustering();
 }
 #endif // TEST
-
-RandomPermutations<NodeID, InitialCoarsener::kChunkSize, InitialCoarsener::kNumberOfNodePermutations>
-    InitialCoarsener::_random_permutations{};
 } // namespace kaminpar::shm::ip
