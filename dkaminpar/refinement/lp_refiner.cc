@@ -31,11 +31,11 @@ struct LPRefinerConfig : public LabelPropagationConfig {
     static constexpr bool kUseActualGain       = true;
 };
 
-class LPRefinerImpl final : public InOrderLabelPropagation<LPRefinerImpl, LPRefinerConfig> {
+class LPRefinerImpl final : public ChunkRandomdLabelPropagation<LPRefinerImpl, LPRefinerConfig> {
     SET_STATISTICS_FROM_GLOBAL();
     SET_DEBUG(false);
 
-    using Base = InOrderLabelPropagation<LPRefinerImpl, LPRefinerConfig>;
+    using Base = ChunkRandomdLabelPropagation<LPRefinerImpl, LPRefinerConfig>;
 
     struct Statistics {
         EdgeWeight cut_before = 0;
