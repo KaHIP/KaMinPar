@@ -197,6 +197,17 @@ shm::PartitionedGraph MtKaHyParInitialPartitioner::initial_partition(
         edges.data(), &objective, mtkahypar_ctx, partition.data(), false
     );
 
+    if (_ctx.debug.save_coarsest_graph) {
+        std::ofstream out("coarsest.hgr");
+        out << num_edges << " " << num_vertices << " 11\n";
+        for (std::size_t e = 0; e < num_edges; ++e) {
+            out << edge_weights[e] << " " << edges[2 * e] + 1 << " " << edges[2 * e + 1] + 1 << "\n";
+        }
+        for (std::size_t u = 0; u < num_vertices; ++u) {
+            out << node_weights[u] << "\n";
+        }
+    }
+
     // Copy partition to BlockID vector
     StaticArray<BlockID> partition_cpy(num_vertices);
     tbb::parallel_for<std::size_t>(0, num_vertices, [&](const std::size_t i) {
