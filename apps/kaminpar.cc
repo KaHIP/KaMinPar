@@ -2,12 +2,15 @@
  * @file:   kaminpar.cc
  * @author: Daniel Seemaier
  * @date:   21.09.2021
- * @brief:  KaMinPar binary. Use --help for information on how to use this
- * program.
  ******************************************************************************/
+// clang-format off
+#include "apps/CLI11.h"
+// clang-format on
+
 #include <iostream>
 
 #include <tbb/parallel_for.h>
+#include "context.h"
 
 #include "kaminpar/application/arguments.h"
 #include "kaminpar/datastructure/graph.h"
@@ -30,34 +33,6 @@
 using namespace kaminpar;
 using namespace kaminpar::shm;
 using namespace std::string_literals;
-
-// clang-format off
-void sanitize_context(const Context &context) {
-  if (!std::ifstream(context.graph_filename)) {
-    FATAL_ERROR << "Graph file cannot be read. Ensure that the file exists and is readable.";
-  }
-  if (context.save_partition && !std::ofstream(context.partition_file())) {
-    FATAL_ERROR << "Partition file cannot be written to " << context.partition_file() << "."
-        << "Ensure that the directory exists and that it is writable.";
-  }
-  if (context.partition.k < 2) {
-    FATAL_ERROR << "Number of blocks must be at least 2.";
-  }
-  if (context.partition.epsilon <= 0) {
-    FATAL_ERROR << "Allowed imbalance must be greater than zero.";
-  }
-
-  // Coarsening
-  if (context.coarsening.contraction_limit < 2) {
-      FATAL_ERROR << "Contraction limit cannot be smaller than 2.";
-  }
-
-  // Initial Partitioning
-  if (context.initial_partitioning.max_num_repetitions < context.initial_partitioning.min_num_repetitions) {
-    FATAL_ERROR << "Maximum number of repetitions must be at least as large as the minimum number of repetitions.";
-  }
-}
-// clang-format on
 
 void print_statistics(const PartitionedGraph& p_graph, const Context& ctx) {
     const EdgeWeight cut       = metrics::edge_cut(p_graph);
@@ -101,19 +76,36 @@ std::string generate_partition_filename(const Context& ctx) {
 }
 
 int main(int argc, char* argv[]) {
-    //
-    // Parse command line arguments, sanitize, generate output filenames
-    //
-    Context ctx;
-    try {
-        ctx = app::parse_options(argc, argv);
-        if (ctx.partition_filename.empty()) {
-            ctx.partition_filename = generate_partition_filename(ctx);
-        }
-        sanitize_context(ctx);
-    } catch (const std::runtime_error& e) {
-        FATAL_ERROR << e.what();
+    Context ctx = create_default_context();
+
+    CLI::App app("KaMinPar: (Somewhat) Minimal Deep Multilevel Graph Partitioner");
+
+    app.set_config("-C,--config", "", "Read parameters from a TOML configuration file.", false);
+
+    // Mandatory
+    app.add_option("-G,--graph", ctx.graph_filename, "Input graph in METIS file format.")->required();
+    app.add_option("-k,--k", ctx.partition.k, "Number of blocks in the partition.")->required();
+
+    // Partitioning options
+    app.add_option("-e,--epsilon", ctx.partition.epsilon, "Maximum allowed imbalance.");
+    app.add_option("-s,--seed", ctx.seed, "Seed for random number generation.");
+    app.add_option("-o,--output", ctx.partition_filename, "Name of the partition file.");
+    app.add_option(
+        "--output-directory", ctx.partition_directory, "Directory in which the partition file should be placed."
+    );
+    app.add_option(
+        "--fast-initial-partitioning", ctx.partition.fast_initial_partitioning,
+        "Tune initial partitioning parameters for faster speed (useful if k is large)."
+    );
+    app.add_flag("-q,--quiet", ctx.quiet, "Suppress all console output.");
+    app.add_option("-t,--threads", ctx.parallel.num_threads, "Number of threads to be used.");
+
+    CLI11_PARSE(app, argc, argv);
+
+    if (ctx.partition_filename.empty()) {
+        ctx.partition_filename = generate_partition_filename(ctx);
     }
+
     if (ctx.debug.just_sanitize_args) {
         std::exit(0);
     }
