@@ -6,17 +6,20 @@
  ******************************************************************************/
 #include "kaminpar/context.h"
 
+#include <iomanip>
 #include <unordered_map>
 
 #include <kassert/kassert.hpp>
 
+#include "common/asserting_cast.h"
+#include "common/console_io.h"
 #include "common/utils/math.h"
 
 namespace kaminpar::shm {
 using namespace std::string_literals;
 
 //
-// Define std::string <-> enum conversion functions
+// std::string <-> enum conversion
 //
 
 std::unordered_map<std::string, ClusteringAlgorithm> get_clustering_algorithms() {
@@ -277,97 +280,6 @@ void BlockWeightsContext::setup(const PartitionContext& p_ctx, const scalable_ve
     return _perfectly_balanced_block_weights;
 }
 
-//
-// print() member functions
-//
-
-void PartitionContext::print(std::ostream& out, const std::string& prefix) const {
-    out << prefix << "mode=" << mode << " "       //
-        << prefix << "epsilon=" << epsilon << " " //
-        << prefix << "k=" << k << " ";            //
-}
-
-void CoarseningContext::print(std::ostream& out, const std::string& prefix) const {
-    out << prefix << "algorithm=" << algorithm << " "                                  //
-        << prefix << "contraction_limit=" << contraction_limit << " "                  //
-        << prefix << "enforce_contraction_limit=" << enforce_contraction_limit << " "  //
-        << prefix << "convergence_threshold=" << convergence_threshold << " "          //
-        << prefix << "cluster_weight_limit=" << cluster_weight_limit << " "            //
-        << prefix << "cluster_weight_multiplier=" << cluster_weight_multiplier << " "; //
-    lp.print(out, prefix + "lp.");
-}
-
-void LabelPropagationCoarseningContext::print(std::ostream& out, const std::string& prefix) const {
-    out << prefix << "num_iterations=" << num_iterations << " "                             //
-        << prefix << "max_degree=" << large_degree_threshold << " "                         //
-        << prefix << "two_hop_clustering_threshold=" << two_hop_clustering_threshold << " " //
-        << prefix << "max_num_neighbors=" << max_num_neighbors << " ";                      //
-}
-
-void LabelPropagationRefinementContext::print(std::ostream& out, const std::string& prefix) const {
-    out << prefix << "num_iterations=" << num_iterations << " "        //
-        << prefix << "max_degree=" << large_degree_threshold << " "    //
-        << prefix << "max_num_neighbors=" << max_num_neighbors << " "; //
-}
-
-void FMRefinementContext::print(std::ostream& out, const std::string& prefix) const {
-    out << prefix << "stopping_rule=" << stopping_rule << " "             //
-        << prefix << "num_fruitless_moves=" << num_fruitless_moves << " " //
-        << prefix << "alpha=" << alpha << " ";                            //
-}
-
-void BalancerRefinementContext::print(std::ostream& out, const std::string& prefix) const {
-    out << prefix << "timepoint=" << timepoint << " "  //
-        << prefix << "algorithm=" << algorithm << " "; //
-}
-
-void RefinementContext::print(std::ostream& out, const std::string& prefix) const {
-    out << prefix << "algorithm=" << algorithm << " "; //
-
-    lp.print(out, prefix + "lp.");
-    fm.print(out, prefix + "fm.");
-    balancer.print(out, prefix + "balancer.");
-}
-
-void InitialPartitioningContext::print(std::ostream& out, const std::string& prefix) const {
-    coarsening.print(out, prefix + "coarsening.");
-    refinement.print(out, prefix + "refinement.");
-    out << prefix << "mode=" << mode << " "                                                                 //
-        << prefix << "repetition_multiplier=" << repetition_multiplier << " "                               //
-        << prefix << "min_num_repetitions=" << min_num_repetitions << " "                                   //
-        << prefix << "max_num_repetitions=" << max_num_repetitions << " "                                   //
-        << prefix << "num_seed_iterations=" << num_seed_iterations << " "                                   //
-        << prefix << "use_adaptive_bipartitioner_selection=" << use_adaptive_bipartitioner_selection << " " //
-        << prefix << "multiplier_exponent=" << multiplier_exponent << " ";                                  //
-}
-
-void DebugContext::print(std::ostream& out, const std::string& prefix) const {
-    ((void)out);
-    ((void)prefix);
-}
-
-void ParallelContext::print(std::ostream& out, const std::string& prefix) const {
-    out << prefix << "use_interleaved_numa_allocation=" << use_interleaved_numa_allocation << " " //
-        << prefix << "num_threads=" << num_threads << " ";                                        //
-}
-
-void Context::print(std::ostream& out, const std::string& prefix) const {
-    out << prefix << "graph_filename=" << graph_filename << " "           //
-        << prefix << "seed=" << seed << " "                               //
-        << prefix << "save_output_partition=" << save_partition << " "    //
-        << prefix << "partition_filename=" << partition_filename << " "   //
-        << prefix << "partition_directory=" << partition_directory << " " //
-        << prefix << "quiet=" << quiet << " ";                            //
-                                                                          //
-
-    partition.print(out, prefix + "partition.");
-    coarsening.print(out, prefix + "coarsening.");
-    initial_partitioning.print(out, prefix + "initial_partitioning.");
-    refinement.print(out, prefix + "refinement.");
-    debug.print(out, prefix + "debug.");
-    parallel.print(out, prefix + "parallel.");
-}
-
 void Context::setup(const Graph& graph) {
     partition.setup(graph);
 }
@@ -383,11 +295,6 @@ PartitionContext create_bipartition_context(
     return two_p_ctx;
 }
 
-std::ostream& operator<<(std::ostream& out, const Context& context) {
-    context.print(out);
-    return out;
-}
-
 double compute_2way_adaptive_epsilon(
     const PartitionContext& p_ctx, const NodeWeight subgraph_total_node_weight, const BlockID subgraph_final_k
 ) {
@@ -399,5 +306,129 @@ double compute_2way_adaptive_epsilon(
     const double epsilon_prime    = std::pow(base, exponent) - 1.0;
     const double adaptive_epsilon = std::max(epsilon_prime, 0.0001);
     return adaptive_epsilon;
+}
+
+//
+// Functions to print all parameters in a compact and parsable format
+//
+
+void PartitionContext::print_compact(std::ostream& out, const std::string& prefix) const {
+    out << prefix << "mode=" << mode << " "       //
+        << prefix << "epsilon=" << epsilon << " " //
+        << prefix << "k=" << k << " ";            //
+}
+
+void CoarseningContext::print_compact(std::ostream& out, const std::string& prefix) const {
+    out << prefix << "algorithm=" << algorithm << " "                                  //
+        << prefix << "contraction_limit=" << contraction_limit << " "                  //
+        << prefix << "enforce_contraction_limit=" << enforce_contraction_limit << " "  //
+        << prefix << "convergence_threshold=" << convergence_threshold << " "          //
+        << prefix << "cluster_weight_limit=" << cluster_weight_limit << " "            //
+        << prefix << "cluster_weight_multiplier=" << cluster_weight_multiplier << " "; //
+    lp.print_compact(out, prefix + "lp.");
+}
+
+void LabelPropagationCoarseningContext::print_compact(std::ostream& out, const std::string& prefix) const {
+    out << prefix << "num_iterations=" << num_iterations << " "                             //
+        << prefix << "max_degree=" << large_degree_threshold << " "                         //
+        << prefix << "two_hop_clustering_threshold=" << two_hop_clustering_threshold << " " //
+        << prefix << "max_num_neighbors=" << max_num_neighbors << " ";                      //
+}
+
+void LabelPropagationRefinementContext::print_compact(std::ostream& out, const std::string& prefix) const {
+    out << prefix << "num_iterations=" << num_iterations << " "        //
+        << prefix << "max_degree=" << large_degree_threshold << " "    //
+        << prefix << "max_num_neighbors=" << max_num_neighbors << " "; //
+}
+
+void FMRefinementContext::print_compact(std::ostream& out, const std::string& prefix) const {
+    out << prefix << "stopping_rule=" << stopping_rule << " "             //
+        << prefix << "num_fruitless_moves=" << num_fruitless_moves << " " //
+        << prefix << "alpha=" << alpha << " ";                            //
+}
+
+void BalancerRefinementContext::print_compact(std::ostream& out, const std::string& prefix) const {
+    out << prefix << "timepoint=" << timepoint << " "  //
+        << prefix << "algorithm=" << algorithm << " "; //
+}
+
+void RefinementContext::print_compact(std::ostream& out, const std::string& prefix) const {
+    out << prefix << "algorithm=" << algorithm << " "; //
+
+    lp.print_compact(out, prefix + "lp.");
+    fm.print_compact(out, prefix + "fm.");
+    balancer.print_compact(out, prefix + "balancer.");
+}
+
+void InitialPartitioningContext::print_compact(std::ostream& out, const std::string& prefix) const {
+    coarsening.print_compact(out, prefix + "coarsening.");
+    refinement.print_compact(out, prefix + "refinement.");
+    out << prefix << "mode=" << mode << " "                                                                 //
+        << prefix << "repetition_multiplier=" << repetition_multiplier << " "                               //
+        << prefix << "min_num_repetitions=" << min_num_repetitions << " "                                   //
+        << prefix << "max_num_repetitions=" << max_num_repetitions << " "                                   //
+        << prefix << "num_seed_iterations=" << num_seed_iterations << " "                                   //
+        << prefix << "use_adaptive_bipartitioner_selection=" << use_adaptive_bipartitioner_selection << " " //
+        << prefix << "multiplier_exponent=" << multiplier_exponent << " ";                                  //
+}
+
+void DebugContext::print_compact(std::ostream& out, const std::string& prefix) const {
+    ((void)out);
+    ((void)prefix);
+}
+
+void ParallelContext::print_compact(std::ostream& out, const std::string& prefix) const {
+    out << prefix << "use_interleaved_numa_allocation=" << use_interleaved_numa_allocation << " " //
+        << prefix << "num_threads=" << num_threads << " ";                                        //
+}
+
+void Context::print_compact(std::ostream& out, const std::string& prefix) const {
+    out << prefix << "graph_filename=" << graph_filename << " "           //
+        << prefix << "seed=" << seed << " "                               //
+        << prefix << "save_output_partition=" << save_partition << " "    //
+        << prefix << "partition_filename=" << partition_filename << " "   //
+        << prefix << "partition_directory=" << partition_directory << " " //
+        << prefix << "quiet=" << quiet << " ";                            //
+                                                                          //
+    partition.print_compact(out, prefix + "partition.");
+    coarsening.print_compact(out, prefix + "coarsening.");
+    initial_partitioning.print_compact(out, prefix + "initial_partitioning.");
+    refinement.print_compact(out, prefix + "refinement.");
+    debug.print_compact(out, prefix + "debug.");
+    parallel.print_compact(out, prefix + "parallel.");
+}
+
+//
+// Functions to print important parameters in a readable format
+//
+
+void PartitionContext::print(std::ostream& out) const {
+    const BlockWeight  max_block_weight = block_weights.max(0);
+    const std::int64_t size             = std::max<std::int64_t>({n, m, max_block_weight});
+    const std::size_t  width            = std::ceil(std::log10(size));
+
+    out << "  Number of nodes:            " << std::setw(width) << n;
+    if (asserting_cast<NodeWeight>(n) == total_node_weight) {
+        out << " (unweighted)\n";
+    } else {
+        out << " (total weight: " << total_node_weight << ")\n";
+    }
+    out << "  Number of edges:            " << std::setw(width) << m;
+    if (asserting_cast<EdgeWeight>(m) == total_edge_weight) {
+        out << " (unweighted)\n";
+    } else {
+        out << " (total weight: " << total_edge_weight << ")\n";
+    }
+    out << "Number of blocks:             " << k << "\n";
+    out << "Maximum block weight:         " << block_weights.max(0) << " (" << block_weights.perfectly_balanced(0)
+        << " + " << 100 * epsilon << "%)\n";
+}
+
+void Context::print(std::ostream& out) const {
+    out << "Seed:                         " << seed << "\n";
+    out << "Graph:                        " << graph_filename << "\n";
+    partition.print(out);
+    cio::print_delimiter();
+    // @todo
 }
 } // namespace kaminpar::shm

@@ -201,9 +201,13 @@ int main(int argc, char* argv[]) {
 
     // Setup graph dependent context parameters
     ctx.setup(graph);
+    ctx.print(std::cout);
 
     if (ctx.parsable_output) {
-        LOG << "CONTEXT " << ctx;
+        std::cout << "CONTEXT ";
+        ctx.print_compact(std::cout);
+        std::cout << "\n";
+
         LOG << "INPUT graph=" << ctx.graph_filename << " "
             << "n=" << graph.n() << " "
             << "m=" << graph.m() << " "

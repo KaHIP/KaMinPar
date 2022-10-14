@@ -114,7 +114,8 @@ struct PartitionContext {
     EdgeWeight total_edge_weight = kInvalidEdgeWeight; //! Total edge weight in the input graph.
     NodeWeight max_node_weight   = kInvalidNodeWeight; //! Weight of heaviest node in the input graph.
 
-    void print(std::ostream& out, const std::string& prefix = "") const;
+    void print_compact(std::ostream& out, const std::string& prefix = "") const;
+    void print(std::ostream& out) const;
 };
 
 struct LabelPropagationCoarseningContext {
@@ -123,7 +124,7 @@ struct LabelPropagationCoarseningContext {
     NodeID      max_num_neighbors;            //! Only consider this many neighbors of each node.
     double      two_hop_clustering_threshold; //! Perform 2-hop clustering if graph shrunk by less than this factor.
 
-    void print(std::ostream& out, const std::string& prefix = "") const;
+    void print_compact(std::ostream& out, const std::string& prefix = "") const;
 
     [[nodiscard]] bool use_two_hop_clustering(const NodeID old_n, const NodeID new_n) const {
         return (1.0 - 1.0 * new_n / old_n) <= two_hop_clustering_threshold;
@@ -139,7 +140,7 @@ struct CoarseningContext {
     ClusterWeightLimit cluster_weight_limit;      //! Rule to compute the maximum cluster weight.
     double             cluster_weight_multiplier; //! Multiplicative factor to the maximum cluster weight.
 
-    void print(std::ostream& out, const std::string& prefix = "") const;
+    void print_compact(std::ostream& out, const std::string& prefix = "") const;
 
     [[nodiscard]] inline bool coarsening_should_converge(const NodeID old_n, const NodeID new_n) const {
         return (1.0 - 1.0 * new_n / old_n) <= convergence_threshold;
@@ -151,7 +152,7 @@ struct LabelPropagationRefinementContext {
     Degree      large_degree_threshold; //! Ignore nodes with degree larger than this.
     NodeID      max_num_neighbors;      //! Only consider this many neighbors of each node.
 
-    void print(std::ostream& out, const std::string& prefix = "") const;
+    void print_compact(std::ostream& out, const std::string& prefix = "") const;
 };
 
 struct FMRefinementContext {
@@ -161,14 +162,14 @@ struct FMRefinementContext {
     std::size_t    num_iterations;         //! Maximum number of FM iterations.
     double improvement_abortion_threshold; //! Stop FM if last iteration improved the cut by less than this factor.
 
-    void print(std::ostream& out, const std::string& prefix = "") const;
+    void print_compact(std::ostream& out, const std::string& prefix = "") const;
 };
 
 struct BalancerRefinementContext {
     BalancingAlgorithm algorithm; //! Balancing algorithm.
     BalancingTimepoint timepoint; //! Rule to determine when to run the balancing algorithm.
 
-    void print(std::ostream& out, const std::string& prefix = "") const;
+    void print_compact(std::ostream& out, const std::string& prefix = "") const;
 };
 
 struct RefinementContext {
@@ -177,7 +178,7 @@ struct RefinementContext {
     FMRefinementContext               fm;        //! If FM is used: configuration for FM.
     BalancerRefinementContext         balancer;  //! If a balancer is used: configuration for balancer.
 
-    void print(std::ostream& out, const std::string& prefix = "") const;
+    void print_compact(std::ostream& out, const std::string& prefix = "") const;
 };
 
 struct InitialPartitioningContext {
@@ -192,18 +193,18 @@ struct InitialPartitioningContext {
     bool                    use_adaptive_bipartitioner_selection;
     std::size_t             multiplier_exponent;
 
-    void print(std::ostream& out, const std::string& prefix = "") const;
+    void print_compact(std::ostream& out, const std::string& prefix = "") const;
 };
 
 struct DebugContext {
-    void print(std::ostream& out, const std::string& prefix = "") const;
+    void print_compact(std::ostream& out, const std::string& prefix = "") const;
 };
 
 struct ParallelContext {
     bool        use_interleaved_numa_allocation;
     std::size_t num_threads;
 
-    void print(std::ostream& out, const std::string& prefix = "") const;
+    void print_compact(std::ostream& out, const std::string& prefix = "") const;
 };
 
 struct Context {
@@ -222,7 +223,8 @@ struct Context {
     DebugContext               debug;
     ParallelContext            parallel;
 
-    void print(std::ostream& out, const std::string& prefix = "") const;
+    void print_compact(std::ostream& out, const std::string& prefix = "") const;
+    void print(std::ostream& out) const;
 
     void setup(const Graph& graph);
 
@@ -230,8 +232,6 @@ struct Context {
         return partition_directory + "/" + partition_filename;
     }
 };
-
-std::ostream& operator<<(std::ostream& out, const Context& context);
 
 PartitionContext
 create_bipartition_context(const PartitionContext& k_p_ctx, const Graph& subgraph, BlockID final_k1, BlockID final_k2);

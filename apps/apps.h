@@ -59,7 +59,6 @@ inline void init_numa() {
 #if __has_include(<numa.h>)
     if (numa_available() >= 0) {
         numa_set_interleave_mask(numa_all_nodes_ptr);
-        LOG << "NUMA using round-robin allocations";
         return;
     }
 #endif // __has_include(<numa.h>)
