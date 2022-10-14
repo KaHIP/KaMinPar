@@ -10,7 +10,7 @@
 
 #include "context.h"
 
-#include "kaminpar/application/arguments.h"
+#include "common/arguments_parser.h"
 
 namespace kaminpar::dist {
 using namespace std::string_literals;
@@ -112,12 +112,6 @@ void create_coarsening_options(
             prefix + "-local-clustering-algorithm",
             "Local clustering algorithm, possible values: {"s + local_clustering_algorithm_names() + "}.",
             &c_ctx.local_clustering_algorithm, local_clustering_algorithm_from_string
-        )
-        .argument(
-            prefix + "-cluster-weight-limit",
-            "Function to compute the cluster weight limit, possible values: {"s + shm::cluster_weight_limit_names()
-                + "}.",
-            &c_ctx.cluster_weight_limit, shm::cluster_weight_limit_from_string
         )
         .argument(
             prefix + "-cluster-weight-multiplier", "Multiplier for the cluster weight limit.",

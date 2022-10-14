@@ -9,7 +9,7 @@
 #include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/definitions.h"
 
-#include "kaminpar/application/arguments.h"
+#include "common/utils/enum_string_conversion.h"
 
 namespace kaminpar::dist {
 enum class GeneratorType {

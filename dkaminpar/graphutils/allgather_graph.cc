@@ -117,6 +117,9 @@ DistributedGraph allgather_on_groups(const DistributedGraph& graph, MPI_Comm gro
     // Duplicate graph within PEs with the same rank in their group
     MPI_Comm dup_group;
     MPI_Comm_split(graph.communicator(), group_rank, rank, &dup_group);
+
+    ((void) size);
+    ((void) group_size);
     
     MPI_Comm_free(&dup_group);
 

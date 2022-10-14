@@ -10,6 +10,8 @@
 
 #include "dkaminpar/mpi/wrapper.h"
 
+#include "kaminpar/presets.h"
+
 #include "common/utils/enum_string_conversion.h"
 
 namespace kaminpar::dist {

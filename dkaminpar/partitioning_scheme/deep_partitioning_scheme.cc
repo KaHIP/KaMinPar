@@ -106,7 +106,7 @@ void DeepPartitioningScheme::print_initial_partitioning_result(
 }
 
 DistributedPartitionedGraph DeepPartitioningScheme::partition() {
-    const PEID size = mpi::get_comm_size(_input_graph.communicator());
+    //const PEID size = mpi::get_comm_size(_input_graph.communicator());
 
     const DistributedGraph* graph     = &_input_graph;
     auto*                   coarsener = get_current_coarsener();
