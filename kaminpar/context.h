@@ -62,14 +62,24 @@ enum class InitialPartitioningMode {
     SYNCHRONOUS_PARALLEL,
 };
 
-DECLARE_ENUM_STRING_CONVERSION(ClusteringAlgorithm, clustering_algorithm);
-DECLARE_ENUM_STRING_CONVERSION(RefinementAlgorithm, refinement_algorithm);
-DECLARE_ENUM_STRING_CONVERSION(FMStoppingRule, fm_stopping_rule);
-DECLARE_ENUM_STRING_CONVERSION(BalancingTimepoint, balancing_timepoint);
-DECLARE_ENUM_STRING_CONVERSION(BalancingAlgorithm, balancing_algorithm);
-DECLARE_ENUM_STRING_CONVERSION(PartitioningMode, partitioning_mode);
-DECLARE_ENUM_STRING_CONVERSION(ClusterWeightLimit, cluster_weight_limit);
-DECLARE_ENUM_STRING_CONVERSION(InitialPartitioningMode, initial_partitioning_mode);
+std::ostream& operator<<(std::ostream& out, ClusteringAlgorithm algorithm);
+std::ostream& operator<<(std::ostream& out, ClusterWeightLimit limit);
+std::ostream& operator<<(std::ostream& out, RefinementAlgorithm algorithm);
+std::ostream& operator<<(std::ostream& out, FMStoppingRule rule);
+std::ostream& operator<<(std::ostream& out, BalancingTimepoint timepoint);
+std::ostream& operator<<(std::ostream& out, BalancingAlgorithm algorithm);
+std::ostream& operator<<(std::ostream& out, PartitioningMode mode);
+std::ostream& operator<<(std::ostream& out, InitialPartitioningMode mode);
+
+std::unordered_map<std::string, ClusteringAlgorithm>     get_clustering_algorithms();
+std::unordered_map<std::string, ClusterWeightLimit>      get_cluster_weight_limits();
+std::unordered_map<std::string, RefinementAlgorithm>     get_2way_refinement_algorithms();
+std::unordered_map<std::string, RefinementAlgorithm>     get_kway_refinement_algorithms();
+std::unordered_map<std::string, FMStoppingRule>          get_fm_stopping_rules();
+std::unordered_map<std::string, BalancingTimepoint>      get_balancing_timepoints();
+std::unordered_map<std::string, BalancingAlgorithm>      get_balancing_algorithms();
+std::unordered_map<std::string, PartitioningMode>        get_partitioning_modes();
+std::unordered_map<std::string, InitialPartitioningMode> get_initial_partitioning_modes();
 
 struct PartitionContext;
 
@@ -91,7 +101,6 @@ struct PartitionContext {
     PartitioningMode mode;                      //! Partitioning mode, e.g., k-way, rb, deep MGP
     double           epsilon;                   //! Imbalance factor.
     BlockID          k;                         //! Number of blocks.
-    bool             fast_initial_partitioning; //! Use less iterations during initial bipartitioning.
 
     //! Balance constraint: precomputed maximum block weights.
     BlockWeightsContext block_weights{};
@@ -187,8 +196,6 @@ struct InitialPartitioningContext {
 };
 
 struct DebugContext {
-    bool just_sanitize_args; //! If true, check CLI arguments and exit.
-
     void print(std::ostream& out, const std::string& prefix = "") const;
 };
 
@@ -224,9 +231,6 @@ struct Context {
 };
 
 std::ostream& operator<<(std::ostream& out, const Context& context);
-
-Context create_default_context();
-Context create_default_context(const Graph& graph, BlockID k, double epsilon);
 
 PartitionContext
 create_bipartition_context(const PartitionContext& k_p_ctx, const Graph& subgraph, BlockID final_k1, BlockID final_k2);

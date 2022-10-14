@@ -2,24 +2,20 @@
  * @file:   kaminpar.cc
  * @author: Daniel Seemaier
  * @date:   21.09.2021
+ * @brief:  KaMinPar binary. Use --help for information on how to use this
+ * program.
  ******************************************************************************/
-// clang-format off
-#include "kaminpar/arguments.h"
-// clang-format on
-
 #include <iostream>
 
 #include <tbb/parallel_for.h>
 
-#include "context.h"
-
+#include "kaminpar/application/arguments.h"
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/definitions.h"
 #include "kaminpar/graphutils/graph_rearrangement.h"
 #include "kaminpar/io.h"
 #include "kaminpar/metrics.h"
 #include "kaminpar/partitioning_scheme/partitioning.h"
-#include "kaminpar/presets.h"
 
 #include "common/arguments_parser.h"
 #include "common/assert.h"
@@ -34,6 +30,34 @@
 using namespace kaminpar;
 using namespace kaminpar::shm;
 using namespace std::string_literals;
+
+// clang-format off
+void sanitize_context(const Context &context) {
+  if (!std::ifstream(context.graph_filename)) {
+    FATAL_ERROR << "Graph file cannot be read. Ensure that the file exists and is readable.";
+  }
+  if (context.save_partition && !std::ofstream(context.partition_file())) {
+    FATAL_ERROR << "Partition file cannot be written to " << context.partition_file() << "."
+        << "Ensure that the directory exists and that it is writable.";
+  }
+  if (context.partition.k < 2) {
+    FATAL_ERROR << "Number of blocks must be at least 2.";
+  }
+  if (context.partition.epsilon <= 0) {
+    FATAL_ERROR << "Allowed imbalance must be greater than zero.";
+  }
+
+  // Coarsening
+  if (context.coarsening.contraction_limit < 2) {
+      FATAL_ERROR << "Contraction limit cannot be smaller than 2.";
+  }
+
+  // Initial Partitioning
+  if (context.initial_partitioning.max_num_repetitions < context.initial_partitioning.min_num_repetitions) {
+    FATAL_ERROR << "Maximum number of repetitions must be at least as large as the minimum number of repetitions.";
+  }
+}
+// clang-format on
 
 void print_statistics(const PartitionedGraph& p_graph, const Context& ctx) {
     const EdgeWeight cut       = metrics::edge_cut(p_graph);
@@ -77,65 +101,27 @@ std::string generate_partition_filename(const Context& ctx) {
 }
 
 int main(int argc, char* argv[]) {
-    Context ctx         = create_default_context();
-    bool    dump_config = false;
-
-    CLI::App app("KaMinPar: (Somewhat) Minimal Deep Multilevel Graph Partitioner");
-
-    app.set_config("-C,--config", "", "Read parameters from a TOML configuration file.", false);
-    app.add_option_function<std::string>(
-           "-P,--preset",
-           [&](const std::string preset) {
-               if (preset == "default") {
-                   ctx = create_default_context();
-               } else if (preset == "largek") {
-                   ctx = create_largek_context();
-               }
-           }
-    )->check(CLI::IsMember({"default", "largek"}));
-
-    // Mandatory
-    auto* mandatory_group = app.add_option_group("Application")->require_option(1);
-
-    // Mandatory -> either dump config ...
-    mandatory_group->add_flag("--dump-config", dump_config)->configurable(false);
-
-    // Mandatory -> ... or partition a graph
-    auto* gp_group = mandatory_group->add_option_group("Partitioning")->silent(true);
-    gp_group->add_option("-G,--graph", ctx.graph_filename, "Input graph in METIS file format.")
-        ->configurable(false)
-        ->required();
-    gp_group->add_option("-k,--k", ctx.partition.k, "Number of blocks in the partition.")
-        ->configurable(false)
-        ->required();
-
-    // Application options
-    app.add_option("-s,--seed", ctx.seed, "Seed for random number generation.")->default_val(ctx.seed);
-    app.add_option("-o,--output", ctx.partition_filename, "Name of the partition file.")->configurable(false);
-    app.add_option(
-           "--output-directory", ctx.partition_directory, "Directory in which the partition file should be placed."
-    )
-        ->capture_default_str();
-    app.add_flag("-q,--quiet", ctx.quiet, "Suppress all console output.");
-    app.add_option("-t,--threads", ctx.parallel.num_threads, "Number of threads to be used.")
-        ->check(CLI::NonNegativeNumber)
-        ->default_val(ctx.parallel.num_threads);
-
-    // Algorithmic options
-    create_all_options(&app, ctx);
-
-    CLI11_PARSE(app, argc, argv);
-
-    // Only dump config and exit
-    if (dump_config) {
-        CLI::App dump;
-        create_all_options(&dump, ctx);
-        std::cout << dump.config_to_str(true, true);
+    //
+    // Parse command line arguments, sanitize, generate output filenames
+    //
+    Context ctx;
+    try {
+        ctx = app::parse_options(argc, argv);
+        if (ctx.partition_filename.empty()) {
+            ctx.partition_filename = generate_partition_filename(ctx);
+        }
+        sanitize_context(ctx);
+    } catch (const std::runtime_error& e) {
+        FATAL_ERROR << e.what();
+    }
+    if (ctx.debug.just_sanitize_args) {
         std::exit(0);
     }
 
-    if (ctx.partition_filename.empty()) {
-        ctx.partition_filename = generate_partition_filename(ctx);
+    if (ctx.partition.fast_initial_partitioning) {
+        ctx.initial_partitioning.min_num_repetitions              = 4;
+        ctx.initial_partitioning.min_num_non_adaptive_repetitions = 2;
+        ctx.initial_partitioning.max_num_repetitions              = 4;
     }
 
     Logger::set_quiet_mode(ctx.quiet);

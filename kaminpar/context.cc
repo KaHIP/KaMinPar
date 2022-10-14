@@ -6,6 +6,8 @@
  ******************************************************************************/
 #include "kaminpar/context.h"
 
+#include <unordered_map>
+
 #include <kassert/kassert.hpp>
 
 #include "common/utils/math.h"
@@ -17,50 +19,171 @@ using namespace std::string_literals;
 // Define std::string <-> enum conversion functions
 //
 
-DEFINE_ENUM_STRING_CONVERSION(ClusteringAlgorithm, clustering_algorithm) = {
-    {ClusteringAlgorithm::NOOP, "noop"},
-    {ClusteringAlgorithm::LABEL_PROPAGATION, "lp"},
-};
+std::unordered_map<std::string, ClusteringAlgorithm> get_clustering_algorithms() {
+    return {
+        {"noop", ClusteringAlgorithm::NOOP},
+        {"lp", ClusteringAlgorithm::LABEL_PROPAGATION},
+    };
+}
 
-DEFINE_ENUM_STRING_CONVERSION(ClusterWeightLimit, cluster_weight_limit) = {
-    {ClusterWeightLimit::EPSILON_BLOCK_WEIGHT, "epsilon-block-weight"},
-    {ClusterWeightLimit::BLOCK_WEIGHT, "static-block-weight"},
-    {ClusterWeightLimit::ONE, "one"},
-    {ClusterWeightLimit::ZERO, "zero"},
-};
+std::ostream& operator<<(std::ostream& out, const ClusteringAlgorithm algorithm) {
+    switch (algorithm) {
+        case ClusteringAlgorithm::NOOP:
+            return out << "noop";
+        case ClusteringAlgorithm::LABEL_PROPAGATION:
+            return out << "lp";
+    }
+    return out << "<invalid>";
+}
 
-DEFINE_ENUM_STRING_CONVERSION(RefinementAlgorithm, refinement_algorithm) = {
-    {RefinementAlgorithm::TWO_WAY_FM, "2way-fm"},
-    {RefinementAlgorithm::LABEL_PROPAGATION, "lp"},
-    {RefinementAlgorithm::NOOP, "noop"},
-};
+std::unordered_map<std::string, ClusterWeightLimit> get_cluster_weight_limits() {
+    return {
+        {"epsilon-block-weight", ClusterWeightLimit::EPSILON_BLOCK_WEIGHT},
+        {"static-block-weight", ClusterWeightLimit::BLOCK_WEIGHT},
+        {"one", ClusterWeightLimit::ONE},
+        {"zero", ClusterWeightLimit::ZERO},
+    };
+}
 
-DEFINE_ENUM_STRING_CONVERSION(FMStoppingRule, fm_stopping_rule) = {
-    {FMStoppingRule::SIMPLE, "simple"},
-    {FMStoppingRule::ADAPTIVE, "adaptive"},
-};
+std::ostream& operator<<(std::ostream& out, const ClusterWeightLimit limit) {
+    switch (limit) {
+        case ClusterWeightLimit::EPSILON_BLOCK_WEIGHT:
+            return out << "epsilon-block-weight";
+        case ClusterWeightLimit::BLOCK_WEIGHT:
+            return out << "static-block-weight";
+        case ClusterWeightLimit::ONE:
+            return out << "one";
+        case ClusterWeightLimit::ZERO:
+            return out << "zero";
+    }
+    return out << "<invalid>";
+}
 
-DEFINE_ENUM_STRING_CONVERSION(BalancingTimepoint, balancing_timepoint) = {
-    {BalancingTimepoint::BEFORE_KWAY_REFINEMENT, "before-kway-ref"},
-    {BalancingTimepoint::AFTER_KWAY_REFINEMENT, "after-kway-ref"},
-    {BalancingTimepoint::ALWAYS, "always"},
-    {BalancingTimepoint::NEVER, "never"},
-};
+std::unordered_map<std::string, RefinementAlgorithm> get_2way_refinement_algorithms() {
+    return {
+        {"noop", RefinementAlgorithm::NOOP},
+        {"fm", RefinementAlgorithm::TWO_WAY_FM},
+    };
+}
 
-DEFINE_ENUM_STRING_CONVERSION(BalancingAlgorithm, balancing_algorithm) = {
-    {BalancingAlgorithm::BLOCK_LEVEL_PARALLEL_BALANCER, "block-parallel-balancer"},
-};
+std::unordered_map<std::string, RefinementAlgorithm> get_kway_refinement_algorithms() {
+    return {
+        {"noop", RefinementAlgorithm::NOOP},
+        {"lp", RefinementAlgorithm::LABEL_PROPAGATION},
+    };
+}
 
-DEFINE_ENUM_STRING_CONVERSION(PartitioningMode, partitioning_mode) = {
-    {PartitioningMode::DEEP, "deep"},
-    {PartitioningMode::RB, "rb"},
-};
+std::ostream& operator<<(std::ostream& out, const RefinementAlgorithm algorithm) {
+    switch (algorithm) {
+        case RefinementAlgorithm::NOOP:
+            return out << "noop";
+        case RefinementAlgorithm::TWO_WAY_FM:
+            return out << "fm";
+        case RefinementAlgorithm::LABEL_PROPAGATION:
+            return out << "lp";
+    }
 
-DEFINE_ENUM_STRING_CONVERSION(InitialPartitioningMode, initial_partitioning_mode) = {
-    {InitialPartitioningMode::SEQUENTIAL, "sequential"},
-    {InitialPartitioningMode::ASYNCHRONOUS_PARALLEL, "async-parallel"},
-    {InitialPartitioningMode::SYNCHRONOUS_PARALLEL, "sync-parallel"},
-};
+    return out << "<invalid>";
+}
+
+std::unordered_map<std::string, FMStoppingRule> get_fm_stopping_rules() {
+    return {
+        {"simple", FMStoppingRule::SIMPLE},
+        {"adaptive", FMStoppingRule::ADAPTIVE},
+    };
+}
+
+std::ostream& operator<<(std::ostream& out, const FMStoppingRule rule) {
+    switch (rule) {
+        case FMStoppingRule::SIMPLE:
+            return out << "simple";
+        case FMStoppingRule::ADAPTIVE:
+            return out << "adaptive";
+    }
+
+    return out << "<invalid>";
+}
+
+std::unordered_map<std::string, BalancingTimepoint> get_balancing_timepoints() {
+    return {
+        {"before-refinement", BalancingTimepoint::BEFORE_KWAY_REFINEMENT},
+        {"after-refinement", BalancingTimepoint::AFTER_KWAY_REFINEMENT},
+        {"always", BalancingTimepoint::ALWAYS},
+        {"never", BalancingTimepoint::NEVER},
+    };
+}
+
+std::ostream& operator<<(std::ostream& out, const BalancingTimepoint timepoint) {
+    switch (timepoint) {
+        case BalancingTimepoint::BEFORE_KWAY_REFINEMENT:
+            return out << "before-refinement";
+        case BalancingTimepoint::AFTER_KWAY_REFINEMENT:
+            return out << "after-refinement";
+        case BalancingTimepoint::ALWAYS:
+            return out << "aways";
+        case BalancingTimepoint::NEVER:
+            return out << "never";
+    }
+
+    return out << "<invalid>";
+}
+
+std::unordered_map<std::string, BalancingAlgorithm> get_balancing_algorithms() {
+    return {
+        {"noop", BalancingAlgorithm::NOOP},
+        {"greedy", BalancingAlgorithm::BLOCK_LEVEL_PARALLEL_BALANCER},
+    };
+}
+
+std::ostream& operator<<(std::ostream& out, const BalancingAlgorithm algorithm) {
+    switch (algorithm) {
+        case BalancingAlgorithm::NOOP:
+            return out << "noop";
+        case BalancingAlgorithm::BLOCK_LEVEL_PARALLEL_BALANCER:
+            return out << "greedy";
+    }
+
+    return out << "<invalid>";
+}
+
+std::unordered_map<std::string, PartitioningMode> get_partitioning_modes() {
+    return {
+        {"deep", PartitioningMode::DEEP},
+        {"rb", PartitioningMode::RB},
+    };
+}
+
+std::ostream& operator<<(std::ostream& out, const PartitioningMode mode) {
+    switch (mode) {
+        case PartitioningMode::DEEP:
+            return out << "deep";
+        case PartitioningMode::RB:
+            return out << "rb";
+    }
+
+    return out << "<invalid>";
+}
+
+std::unordered_map<std::string, InitialPartitioningMode> get_initial_partitioning_modes() {
+    return {
+        {"sequential", InitialPartitioningMode::SEQUENTIAL},
+        {"async-parallel", InitialPartitioningMode::ASYNCHRONOUS_PARALLEL},
+        {"sync-parallel", InitialPartitioningMode::SYNCHRONOUS_PARALLEL},
+    };
+}
+
+std::ostream& operator<<(std::ostream& out, const InitialPartitioningMode mode) {
+    switch (mode) {
+        case InitialPartitioningMode::SEQUENTIAL:
+            return out << "sequential";
+        case InitialPartitioningMode::ASYNCHRONOUS_PARALLEL:
+            return out << "async-parallel";
+        case InitialPartitioningMode::SYNCHRONOUS_PARALLEL:
+            return out << "sync-parallel";
+    }
+
+    return out << "<invalid>";
+}
 
 //
 // PartitionContext
@@ -159,48 +282,48 @@ void BlockWeightsContext::setup(const PartitionContext& p_ctx, const scalable_ve
 //
 
 void PartitionContext::print(std::ostream& out, const std::string& prefix) const {
-    out << prefix << "mode=" << mode << " "                                            //
+    /*out << prefix << "mode=" << mode << " "                                            //
         << prefix << "epsilon=" << epsilon << " "                                      //
         << prefix << "k=" << k << " "                                                  //
-        << prefix << "fast_initial_partitioning=" << fast_initial_partitioning << " "; //
+        << prefix << "fast_initial_partitioning=" << fast_initial_partitioning << " "; //*/
 }
 
 void CoarseningContext::print(std::ostream& out, const std::string& prefix) const {
-    out << prefix << "algorithm=" << algorithm << " "                                  //
+    /*out << prefix << "algorithm=" << algorithm << " "                                  //
         << prefix << "contraction_limit=" << contraction_limit << " "                  //
         << prefix << "enforce_contraction_limit=" << enforce_contraction_limit << " "  //
         << prefix << "convergence_threshold=" << convergence_threshold << " "          //
         << prefix << "cluster_weight_limit=" << cluster_weight_limit << " "            //
-        << prefix << "cluster_weight_multiplier=" << cluster_weight_multiplier << " "; //
+        << prefix << "cluster_weight_multiplier=" << cluster_weight_multiplier << " "; //*/
     lp.print(out, prefix + "lp.");
 }
 
 void LabelPropagationCoarseningContext::print(std::ostream& out, const std::string& prefix) const {
-    out << prefix << "num_iterations=" << num_iterations << " "                             //
+    /*out << prefix << "num_iterations=" << num_iterations << " "                             //
         << prefix << "max_degree=" << large_degree_threshold << " "                         //
         << prefix << "two_hop_clustering_threshold=" << two_hop_clustering_threshold << " " //
-        << prefix << "max_num_neighbors=" << max_num_neighbors << " ";                      //
+        << prefix << "max_num_neighbors=" << max_num_neighbors << " ";                      //*/
 }
 
 void LabelPropagationRefinementContext::print(std::ostream& out, const std::string& prefix) const {
-    out << prefix << "num_iterations=" << num_iterations << " "        //
+    /*out << prefix << "num_iterations=" << num_iterations << " "        //
         << prefix << "max_degree=" << large_degree_threshold << " "    //
-        << prefix << "max_num_neighbors=" << max_num_neighbors << " "; //
+        << prefix << "max_num_neighbors=" << max_num_neighbors << " "; //*/
 }
 
 void FMRefinementContext::print(std::ostream& out, const std::string& prefix) const {
-    out << prefix << "stopping_rule=" << stopping_rule << " "             //
+    /*out << prefix << "stopping_rule=" << stopping_rule << " "             //
         << prefix << "num_fruitless_moves=" << num_fruitless_moves << " " //
-        << prefix << "alpha=" << alpha << " ";                            //
+        << prefix << "alpha=" << alpha << " ";                            //*/
 }
 
 void BalancerRefinementContext::print(std::ostream& out, const std::string& prefix) const {
-    out << prefix << "timepoint=" << timepoint << " "  //
-        << prefix << "algorithm=" << algorithm << " "; //
+    /*out << prefix << "timepoint=" << timepoint << " "  //
+        << prefix << "algorithm=" << algorithm << " "; //*/
 }
 
 void RefinementContext::print(std::ostream& out, const std::string& prefix) const {
-    out << prefix << "algorithm=" << algorithm << " "; //
+    // out << prefix << "algorithm=" << algorithm << " "; //
 
     lp.print(out, prefix + "lp.");
     fm.print(out, prefix + "fm.");
@@ -210,31 +333,32 @@ void RefinementContext::print(std::ostream& out, const std::string& prefix) cons
 void InitialPartitioningContext::print(std::ostream& out, const std::string& prefix) const {
     coarsening.print(out, prefix + "coarsening.");
     refinement.print(out, prefix + "refinement.");
-    out << prefix << "mode=" << mode << " "                                                                 //
+    /*out << prefix << "mode=" << mode << " "                                                                 //
         << prefix << "repetition_multiplier=" << repetition_multiplier << " "                               //
         << prefix << "min_num_repetitions=" << min_num_repetitions << " "                                   //
         << prefix << "max_num_repetitions=" << max_num_repetitions << " "                                   //
         << prefix << "num_seed_iterations=" << num_seed_iterations << " "                                   //
         << prefix << "use_adaptive_bipartitioner_selection=" << use_adaptive_bipartitioner_selection << " " //
-        << prefix << "multiplier_exponent=" << multiplier_exponent << " ";                                  //
+        << prefix << "multiplier_exponent=" << multiplier_exponent << " ";                                  //*/
 }
 
 void DebugContext::print(std::ostream& out, const std::string& prefix) const {
-    out << prefix << "just_sanitize_args=" << just_sanitize_args << " "; //
+    /*out << prefix << "just_sanitize_args=" << just_sanitize_args << " "; //*/
 }
 
 void ParallelContext::print(std::ostream& out, const std::string& prefix) const {
-    out << prefix << "use_interleaved_numa_allocation=" << use_interleaved_numa_allocation << " " //
-        << prefix << "num_threads=" << num_threads << " ";                                        //
+    /*out << prefix << "use_interleaved_numa_allocation=" << use_interleaved_numa_allocation << " " //
+        << prefix << "num_threads=" << num_threads << " ";                                        //*/
 }
 
 void Context::print(std::ostream& out, const std::string& prefix) const {
-    out << prefix << "graph_filename=" << graph_filename << " "           //
-        << prefix << "seed=" << seed << " "                               //
-        << prefix << "save_output_partition=" << save_partition << " "    //
-        << prefix << "partition_filename=" << partition_filename << " "   //
-        << prefix << "partition_directory=" << partition_directory << " " //
-        << prefix << "quiet=" << quiet << " ";                            //
+    /*    out << prefix << "graph_filename=" << graph_filename << " "           //
+            << prefix << "seed=" << seed << " "                               //
+            << prefix << "save_output_partition=" << save_partition << " "    //
+            << prefix << "partition_filename=" << partition_filename << " "   //
+            << prefix << "partition_directory=" << partition_directory << " " //
+            << prefix << "quiet=" << quiet << " ";                            //
+                                                                              //*/
 
     partition.print(out, prefix + "partition.");
     coarsening.print(out, prefix + "coarsening.");
@@ -246,106 +370,6 @@ void Context::print(std::ostream& out, const std::string& prefix) const {
 
 void Context::setup(const Graph& graph) {
     partition.setup(graph);
-}
-
-Context create_default_context() {
-    // clang-format off
-  return { // Context
-    .graph_filename = "",
-    .seed = 0,
-    .save_partition = false,
-    .partition_directory = "./",
-    .partition_filename = "", // generate filename
-    .quiet = false,
-    .partition = { // Context -> Partition
-      .mode = PartitioningMode::DEEP,
-      .epsilon = 0.03,
-      .k = 2,
-      .fast_initial_partitioning = false,
-    },
-    .coarsening = { // Context -> Coarsening
-      .algorithm = ClusteringAlgorithm::LABEL_PROPAGATION,
-      .lp = { // Context -> Coarsening -> Label Propagation
-        .num_iterations = 5,
-        .large_degree_threshold = 1000000,
-        .max_num_neighbors = 200000,
-        .two_hop_clustering_threshold = 0.5,
-      },
-      .contraction_limit = 2000,
-      .enforce_contraction_limit = false,
-      .convergence_threshold = 0.05,
-      .cluster_weight_limit = ClusterWeightLimit::EPSILON_BLOCK_WEIGHT,
-      .cluster_weight_multiplier = 1.0,
-    },
-    .initial_partitioning = { // Context -> Initial Partitioning
-      .coarsening = { // Context -> Initial Partitioning -> Coarsening
-        .algorithm = ClusteringAlgorithm::LABEL_PROPAGATION,
-        .lp = { // Context -> Initial Partitioning -> Coarsening -> Label Propagation
-          .num_iterations = 1, // no effect
-          .large_degree_threshold = 1000000, // no effect
-          .max_num_neighbors = 200000, // no effect
-          .two_hop_clustering_threshold = 0.5, // no effect
-        },
-        .contraction_limit = 20,
-        .enforce_contraction_limit = false, // no effect
-        .convergence_threshold = 0.05,
-        .cluster_weight_limit = ClusterWeightLimit::BLOCK_WEIGHT,
-        .cluster_weight_multiplier = 1.0 / 12.0,
-      },
-      .refinement = { // Context -> Initial Partitioning -> Refinement
-        .algorithm = RefinementAlgorithm::TWO_WAY_FM,
-        .lp = {},
-        .fm = { // Context -> Initial Partitioning -> Refinement -> FM
-          .stopping_rule = FMStoppingRule::SIMPLE,
-          .num_fruitless_moves = 100,
-          .alpha = 1.0,
-          .num_iterations = 5,
-          .improvement_abortion_threshold = 0.0001,
-        },
-        .balancer = { // Context -> Initial Partitioning -> Refinement -> Balancer
-          .algorithm = BalancingAlgorithm::BLOCK_LEVEL_PARALLEL_BALANCER,
-          .timepoint = BalancingTimepoint::BEFORE_KWAY_REFINEMENT,
-        },
-      },
-      .mode = InitialPartitioningMode::SYNCHRONOUS_PARALLEL,
-      .repetition_multiplier = 1.0,
-      .min_num_repetitions = 10,
-      .min_num_non_adaptive_repetitions = 5,
-      .max_num_repetitions = 50,
-      .num_seed_iterations = 1,
-      .use_adaptive_bipartitioner_selection = true,
-      .multiplier_exponent = 0,
-    },
-    .refinement = { // Context -> Refinement
-      .algorithm = RefinementAlgorithm::LABEL_PROPAGATION,
-      .lp = { // Context -> Refinement -> Label Propagation
-        .num_iterations = 5,
-        .large_degree_threshold = 1000000,
-        .max_num_neighbors = std::numeric_limits<NodeID>::max(),
-      },
-      .fm = {},
-      .balancer = { // Context -> Refinement -> Balancer
-        .algorithm = BalancingAlgorithm::BLOCK_LEVEL_PARALLEL_BALANCER,
-        .timepoint = BalancingTimepoint::BEFORE_KWAY_REFINEMENT,
-      },
-    },
-    .debug = { // Context -> Debug
-      .just_sanitize_args = false,
-    },
-    .parallel = { // Context -> Parallel
-      .use_interleaved_numa_allocation = true,
-      .num_threads = 1,
-    },
-  };
-    // clang-format on
-}
-
-Context create_default_context(const Graph& graph, const BlockID k, const double epsilon) {
-    Context context           = create_default_context();
-    context.partition.k       = k;
-    context.partition.epsilon = epsilon;
-    context.setup(graph);
-    return context;
 }
 
 PartitionContext create_bipartition_context(
