@@ -8,14 +8,16 @@
 
 #include <tbb/parallel_for.h>
 
-#include "kaminpar/application/arguments.h"
+#include "kaminpar/arguments.h"
 #include "kaminpar/context.h"
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/graphutils/graph_rearrangement.h"
 #include "kaminpar/io.h"
 #include "kaminpar/metrics.h"
 #include "kaminpar/partitioning_scheme/partitioning.h"
+#include "kaminpar/presets.h"
 
+#include "common/CLI11.h"
 #include "common/parallel/algorithm.h"
 
 namespace libkaminpar {
@@ -194,9 +196,6 @@ void adapt_epsilon_after_isolated_nodes_removal(
 } // namespace
 
 Partitioner& Partitioner::set_option(const std::string& name, const std::string& value) {
-    Arguments args;
-    app::create_context_options(_pimpl->context, args);
-
     // simulate argc / argv arguments
     std::string empty     = "";
     std::string name_cpy  = name;
@@ -207,7 +206,14 @@ Partitioner& Partitioner::set_option(const std::string& name, const std::string&
     argv[1] = &name_cpy[0];
     argv[2] = &value_cpy[0];
 
-    args.parse(argv.size(), argv.data(), false);
+    // parse via CLI11
+    CLI::App app;
+    create_all_options(&app, _pimpl->context);
+    try {
+        app.parse(argv.size(), argv.data());
+    } catch (const CLI::ParseError& e) {
+        app.exit(e);
+    }
 
     return *this;
 }

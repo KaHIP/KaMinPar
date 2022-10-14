@@ -50,5 +50,5 @@ if (KAMINPAR_ENABLE_GRAPHGEN)
 endif ()
 
 # Benchmarks
-add_subdirectory(benchmarks)
+# add_subdirectory(benchmarks)
 
