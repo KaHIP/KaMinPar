@@ -55,13 +55,21 @@ enum class BalancingAlgorithm {
     DISTRIBUTED,
 };
 
-DECLARE_ENUM_STRING_CONVERSION(PartitioningMode, partitioning_mode);
-DECLARE_ENUM_STRING_CONVERSION(GlobalContractionAlgorithm, global_contraction_algorithm);
-DECLARE_ENUM_STRING_CONVERSION(GlobalClusteringAlgorithm, global_clustering_algorithm);
-DECLARE_ENUM_STRING_CONVERSION(LocalClusteringAlgorithm, local_clustering_algorithm);
-DECLARE_ENUM_STRING_CONVERSION(InitialPartitioningAlgorithm, initial_partitioning_algorithm);
-DECLARE_ENUM_STRING_CONVERSION(KWayRefinementAlgorithm, kway_refinement_algorithm);
-DECLARE_ENUM_STRING_CONVERSION(BalancingAlgorithm, balancing_algorithm);
+std::ostream& operator<<(std::ostream& out, PartitioningMode mode);
+std::ostream& operator<<(std::ostream& out, GlobalClusteringAlgorithm algorithm);
+std::ostream& operator<<(std::ostream& out, LocalClusteringAlgorithm algorithm);
+std::ostream& operator<<(std::ostream& out, GlobalContractionAlgorithm algorithm);
+std::ostream& operator<<(std::ostream& out, InitialPartitioningAlgorithm algorithm);
+std::ostream& operator<<(std::ostream& out, KWayRefinementAlgorithm algorithm);
+std::ostream& operator<<(std::ostream& out, BalancingAlgorithm algorithm);
+
+std::unordered_map<std::string, PartitioningMode>             get_partitioning_modes();
+std::unordered_map<std::string, GlobalClusteringAlgorithm>    get_global_clustering_algorithms();
+std::unordered_map<std::string, LocalClusteringAlgorithm>     get_local_clustering_algorithms();
+std::unordered_map<std::string, GlobalContractionAlgorithm>   get_global_contraction_algorithms();
+std::unordered_map<std::string, InitialPartitioningAlgorithm> get_initial_partitioning_algorithms();
+std::unordered_map<std::string, KWayRefinementAlgorithm>      get_kway_refinement_algorithms();
+std::unordered_map<std::string, BalancingAlgorithm>           get_balancing_algorithms();
 
 struct ParallelContext {
     std::size_t num_threads;
@@ -314,6 +322,4 @@ struct Context {
 };
 
 std::ostream& operator<<(std::ostream& out, const Context& context);
-
-Context create_default_context();
 } // namespace kaminpar::dist

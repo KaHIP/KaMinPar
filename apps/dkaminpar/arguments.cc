@@ -8,7 +8,8 @@
 
 #include <string>
 
-#include "context.h"
+#include "dkaminpar/context.h"
+#include "dkaminpar/presets.h"
 
 #include "common/arguments_parser.h"
 
@@ -141,91 +142,29 @@ void create_refinement_label_propagation_options(
     LabelPropagationRefinementContext& lp_ctx, kaminpar::Arguments& args, const std::string& name,
     const std::string& prefix
 ) {
-    args.group(name, prefix)
-        .argument(prefix + "-iterations", "Maximum number of LP iterations.", &lp_ctx.num_iterations)
-        .argument(
-            prefix + "-total-num-chunks", "Number of communication chunks times number of PEs.",
-            &lp_ctx.total_num_chunks
-        )
-        .argument(prefix + "-min-num-chunks", "Minimum number of communication chunks.", &lp_ctx.min_num_chunks)
-        .argument(
-            prefix + "-num-chunks",
-            "Number of communication chunks. If set to 0, the value is computed from total-num-chunks.",
-            &lp_ctx.num_chunks
-        )
-        .argument(
-            prefix + "-active-large-degree-threshold",
-            "Nodes with a degree larger than this are not moved to new blocks.", &lp_ctx.active_high_degree_threshold
-        )
-        .argument(
-            prefix + "-ignore-probabilities", "Always move nodes regardless of their move probability.",
-            &lp_ctx.ignore_probabilities
-        )
-        .argument(
-            prefix + "-scale-chunks-with-threads",
-            "Scale number of total chunks s.t. the number of chunks is independent of the number of threads.",
-            &lp_ctx.scale_chunks_with_threads
-        );
 }
 
 void create_refinement_fm_options(
     FMRefinementContext& fm_ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix
 ) {
-    args.group(name, prefix)
-        .argument(prefix + "-alpha", "Alpha parameter for the adaptive stopping policy.", &fm_ctx.alpha)
-        .argument(prefix + "-radius", "Search radius.", &fm_ctx.radius)
-        .argument(prefix + "-pe-radius", "Search radius in number of PEs.", &fm_ctx.pe_radius)
-        .argument(prefix + "-overlap-regions", "Overlap search regions.", &fm_ctx.overlap_regions)
-        .argument(prefix + "-iterations", "Number of iterations to perform.", &fm_ctx.num_iterations)
-        .argument(prefix + "-sequential", "Refine search regions sequentially.", &fm_ctx.sequential)
-        .argument(
-            prefix + "-premove-locally", "Move nodes right away, i.e., before global synchronization steps.",
-            &fm_ctx.premove_locally
-        )
-        .argument(
-            prefix + "-bound-degree", "Add at most this many neighbors of a high-degree node to a search region.",
-            &fm_ctx.bound_degree
-        )
-        .argument(prefix + "-contract-border", "Contract border of search graphs", &fm_ctx.contract_border);
 }
 
 void create_refinement_options(
     RefinementContext& r_ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix
 ) {
-    args.group(name, prefix)
-        .argument(
-            prefix + "-algorithm",
-            "Refinement algorithm, possible values: {"s + kway_refinement_algorithm_names() + "}.", &r_ctx.algorithm,
-            kway_refinement_algorithm_from_string
-        )
-        .argument(prefix + "-coarsest", "Refine coarsest level", &r_ctx.refine_coarsest_level);
     create_refinement_label_propagation_options(r_ctx.lp, args, name + " -> Label Propagation", prefix + "-lp");
-    create_refinement_fm_options(r_ctx.fm, args, name + " -> FM", prefix + "-fm");
     create_balancing_options(r_ctx.balancing, args, name + " -> Balancing", prefix + "-b");
 }
 
 void create_initial_partitioning_options(
     InitialPartitioningContext& i_ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix
 ) {
-    args.group(name, prefix)
-        .argument(
-            prefix + "-algorithm",
-            "Initial partitioning algorithm, possible values: {"s + initial_partitioning_algorithm_names() + "}.",
-            &i_ctx.algorithm, initial_partitioning_algorithm_from_string
-        )
-        .argument(
-            prefix + "-mtkahypar-preset", "Preset configuration file for the Mt-KaHyPar initial partitioner.",
-            &i_ctx.mtkahypar.preset_filename
-        );
-    // shm::app::create_algorithm_options(i_ctx.kaminpar, args, "Initial Partitioning -> KaMinPar -> ", prefix + "i-");
 }
 
 void create_miscellaneous_context_options(
     Context& ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix
 ) {
     args.group(name, prefix)
-        .argument("k-prime", "Deep block count multiplier", &ctx.partition.k_prime, 'K')
-        .argument("epsilon", "Maximum allowed imbalance.", &ctx.partition.epsilon, 'e')
         .argument("threads", "Maximum number of threads to be used.", &ctx.parallel.num_threads, 't')
         .argument("seed", "Seed for random number generator.", &ctx.seed, 's')
         .argument("quiet", "Do not produce any output to stdout.", &ctx.quiet, 'q')
@@ -239,8 +178,7 @@ void create_miscellaneous_context_options(
             &ctx.time_limit, 'T'
         )
         .argument("sort-graph", "Sort and rearrange the graph by degree buckets.", &ctx.sort_graph)
-        .argument("simulate-singlethreaded", "", &ctx.parallel.simulate_singlethread)
-        .argument("mode", "Partitioning mode", &ctx.partition.mode, partitioning_mode_from_string);
+        .argument("simulate-singlethreaded", "", &ctx.parallel.simulate_singlethread);
 }
 
 void create_mandatory_options(Context& ctx, kaminpar::Arguments& args, const std::string& name) {
@@ -252,11 +190,6 @@ void create_mandatory_options(Context& ctx, kaminpar::Arguments& args, const std
 void create_debug_options(
     DebugContext& d_ctx, kaminpar::Arguments& args, const std::string& name, const std::string& prefix
 ) {
-    args.group(name, prefix)
-        .argument(prefix + "-save-imbalanced-partitions", "", &d_ctx.save_imbalanced_partitions)
-        .argument(prefix + "-save-graph-hierarchy", "", &d_ctx.save_graph_hierarchy)
-        .argument(prefix + "-save-coarsest-graph", "", &d_ctx.save_coarsest_graph)
-        .argument(prefix + "-save-clustering-hierarchy", "", &d_ctx.save_clustering_hierarchy);
 }
 
 void create_context_options(ApplicationContext& a_ctx, kaminpar::Arguments& args) {

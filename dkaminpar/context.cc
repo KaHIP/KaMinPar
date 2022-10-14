@@ -6,58 +6,169 @@
  ******************************************************************************/
 #include "dkaminpar/context.h"
 
+#include <unordered_map>
+
 #include <tbb/parallel_for.h>
 
 #include "dkaminpar/mpi/wrapper.h"
 
-#include "kaminpar/presets.h"
-
-#include "common/utils/enum_string_conversion.h"
-
 namespace kaminpar::dist {
 using namespace std::string_literals;
 
-DEFINE_ENUM_STRING_CONVERSION(PartitioningMode, partitioning_mode) = {
-    {PartitioningMode::KWAY, "kway"},
-    {PartitioningMode::DEEP, "deep"},
-};
+//
+// Functions for string <-> enum conversion
+//
 
-DEFINE_ENUM_STRING_CONVERSION(GlobalClusteringAlgorithm, global_clustering_algorithm) = {
-    {GlobalClusteringAlgorithm::NOOP, "noop"},
-    {GlobalClusteringAlgorithm::LP, "lp"},
-    {GlobalClusteringAlgorithm::ACTIVE_SET_LP, "active-set-lp"},
-    {GlobalClusteringAlgorithm::LOCKING_LP, "locking-lp"},
-};
+std::unordered_map<std::string, PartitioningMode> get_partitioning_modes() {
+    return {
+        {"deep", PartitioningMode::DEEP},
+        {"kway", PartitioningMode::KWAY},
+    };
+}
 
-DEFINE_ENUM_STRING_CONVERSION(LocalClusteringAlgorithm, local_clustering_algorithm) = {
-    {LocalClusteringAlgorithm::NOOP, "noop"},
-    {LocalClusteringAlgorithm::LP, "lp"},
-};
+std::ostream& operator<<(std::ostream& out, const PartitioningMode mode) {
+    switch (mode) {
+        case PartitioningMode::DEEP:
+            return out << "deep";
+        case PartitioningMode::KWAY:
+            return out << "kway";
+    }
 
-DEFINE_ENUM_STRING_CONVERSION(GlobalContractionAlgorithm, global_contraction_algorithm) = {
-    {GlobalContractionAlgorithm::NO_MIGRATION, "no-migration"},
-    {GlobalContractionAlgorithm::MINIMAL_MIGRATION, "minimal-migration"},
-    {GlobalContractionAlgorithm::FULL_MIGRATION, "full-migration"},
-};
+    return out << "<invalid>";
+}
 
-DEFINE_ENUM_STRING_CONVERSION(InitialPartitioningAlgorithm, initial_partitioning_algorithm) = {
-    {InitialPartitioningAlgorithm::KAMINPAR, "kaminpar"},
-    {InitialPartitioningAlgorithm::MTKAHYPAR, "mtkahypar"},
-    {InitialPartitioningAlgorithm::RANDOM, "random"},
-};
+std::unordered_map<std::string, GlobalClusteringAlgorithm> get_global_clustering_algorithms() {
+    return {
+        {"noop", GlobalClusteringAlgorithm::NOOP},
+        {"lp", GlobalClusteringAlgorithm::LP},
+        {"active-set-lp", GlobalClusteringAlgorithm::ACTIVE_SET_LP},
+        {"locking-lp", GlobalClusteringAlgorithm::LOCKING_LP},
+    };
+}
 
-DEFINE_ENUM_STRING_CONVERSION(KWayRefinementAlgorithm, kway_refinement_algorithm) = {
-    {KWayRefinementAlgorithm::NOOP, "noop"},
-    {KWayRefinementAlgorithm::LP, "lp"},
-    {KWayRefinementAlgorithm::LOCAL_FM, "local-fm"},
-    {KWayRefinementAlgorithm::FM, "fm"},
-    {KWayRefinementAlgorithm::LP_THEN_LOCAL_FM, "lp+local-fm"},
-    {KWayRefinementAlgorithm::LP_THEN_FM, "lp+fm"},
-};
+std::ostream& operator<<(std::ostream& out, const GlobalClusteringAlgorithm algorithm) {
+    switch (algorithm) {
+        case GlobalClusteringAlgorithm::NOOP:
+            return out << "noop";
+        case GlobalClusteringAlgorithm::LP:
+            return out << "lp";
+        case GlobalClusteringAlgorithm::ACTIVE_SET_LP:
+            return out << "active-set-lp";
+        case GlobalClusteringAlgorithm::LOCKING_LP:
+            return out << "locking-lp";
+    }
 
-DEFINE_ENUM_STRING_CONVERSION(BalancingAlgorithm, balancing_algorithm) = {
-    {BalancingAlgorithm::DISTRIBUTED, "distributed"},
-};
+    return out << "<invalid>";
+}
+
+std::unordered_map<std::string, LocalClusteringAlgorithm> get_local_clustering_algorithms() {
+    return {
+        {"noop", LocalClusteringAlgorithm::NOOP},
+        {"lp", LocalClusteringAlgorithm::LP},
+    };
+}
+
+std::ostream& operator<<(std::ostream& out, const LocalClusteringAlgorithm algorithm) {
+    switch (algorithm) {
+        case LocalClusteringAlgorithm::NOOP:
+            return out << "noop";
+        case LocalClusteringAlgorithm::LP:
+            return out << "lp";
+    }
+
+    return out << "<invalid>";
+}
+
+std::unordered_map<std::string, GlobalContractionAlgorithm> get_global_contraction_algorithms() {
+    return {
+        {"no-migration", GlobalContractionAlgorithm::NO_MIGRATION},
+        {"minimal-migration", GlobalContractionAlgorithm::MINIMAL_MIGRATION},
+        {"full-migration", GlobalContractionAlgorithm::FULL_MIGRATION},
+    };
+}
+
+std::ostream& operator<<(std::ostream& out, const GlobalContractionAlgorithm algorithm) {
+    switch (algorithm) {
+        case GlobalContractionAlgorithm::NO_MIGRATION:
+            return out << "no-migration";
+        case GlobalContractionAlgorithm::MINIMAL_MIGRATION:
+            return out << "minimal-migration";
+        case GlobalContractionAlgorithm::FULL_MIGRATION:
+            return out << "full-migration";
+    }
+
+    return out << "<invalid>";
+}
+
+std::unordered_map<std::string, InitialPartitioningAlgorithm> get_initial_partitioning_algorithms() {
+    return {
+        {"kaminpar", InitialPartitioningAlgorithm::KAMINPAR},
+        {"mtkahypar", InitialPartitioningAlgorithm::MTKAHYPAR},
+        {"random", InitialPartitioningAlgorithm::RANDOM},
+    };
+}
+
+std::ostream& operator<<(std::ostream& out, const InitialPartitioningAlgorithm algorithm) {
+    switch (algorithm) {
+        case InitialPartitioningAlgorithm::KAMINPAR:
+            return out << "kaminpar";
+        case InitialPartitioningAlgorithm::MTKAHYPAR:
+            return out << "mtkahypar";
+        case InitialPartitioningAlgorithm::RANDOM:
+            return out << "random";
+    }
+
+    return out << "<invalid>";
+}
+
+std::unordered_map<std::string, KWayRefinementAlgorithm> get_kway_refinement_algorithms() {
+    return {
+        {"noop", KWayRefinementAlgorithm::NOOP},
+        {"lp", KWayRefinementAlgorithm::LP},
+        {"local-fm", KWayRefinementAlgorithm::LOCAL_FM},
+        {"fm", KWayRefinementAlgorithm::FM},
+        {"lp+local-fm", KWayRefinementAlgorithm::LP_THEN_LOCAL_FM},
+        {"lp+fm", KWayRefinementAlgorithm::LP_THEN_FM},
+    };
+}
+
+std::ostream& operator<<(std::ostream& out, const KWayRefinementAlgorithm algorithm) {
+    switch (algorithm) {
+        case KWayRefinementAlgorithm::NOOP:
+            return out << "noop";
+        case KWayRefinementAlgorithm::LP:
+            return out << "lp";
+        case KWayRefinementAlgorithm::LOCAL_FM:
+            return out << "local-fm";
+        case KWayRefinementAlgorithm::FM:
+            return out << "fm";
+        case KWayRefinementAlgorithm::LP_THEN_LOCAL_FM:
+            return out << "lp+local-fm";
+        case KWayRefinementAlgorithm::LP_THEN_FM:
+            return out << "lp+fm";
+    }
+
+    return out << "<invalid>";
+}
+
+std::unordered_map<std::string, BalancingAlgorithm> get_balancing_algorithms() {
+    return {
+        {"distributed", BalancingAlgorithm::DISTRIBUTED},
+    };
+}
+
+std::ostream& operator<<(std::ostream& out, const BalancingAlgorithm algorithm) {
+    switch (algorithm) {
+        case BalancingAlgorithm::DISTRIBUTED:
+            return out << "distributed";
+    }
+
+    return out << "<invalid>";
+}
+
+//
+// Functions for compact, parsable context output 
+// 
 
 void LabelPropagationCoarseningContext::print(std::ostream& out, const std::string& prefix) const {
     out << prefix << "num_iterations=" << num_iterations << " "                                             //
@@ -225,119 +336,4 @@ std::ostream& operator<<(std::ostream& out, const Context& context) {
     context.print(out);
     return out;
 }
-
-Context create_default_context() {
-    return {
-        .graph_filename     = "",
-        .load_edge_balanced = false,
-        .seed               = 0,
-        .quiet              = false,
-        .num_repetitions    = 0,
-        .time_limit         = 0,
-        .sort_graph         = true,
-        .partition          = {
-                     /* .k = */ 0,
-            /* .k_prime = */ 128,
-            /* .epsilon = */ 0.03,
-            /* .mode = */ PartitioningMode::DEEP,
-        },
-        .parallel =
-            {
-                .num_threads                     = 1,
-                .num_mpis                        = 1,
-                .use_interleaved_numa_allocation = true,
-                .mpi_thread_support              = MPI_THREAD_FUNNELED,
-                .simulate_singlethread           = true,
-            },
-        .coarsening =
-            {
-                .max_global_clustering_levels = std::numeric_limits<std::size_t>::max(),
-                .global_clustering_algorithm  = GlobalClusteringAlgorithm::LP,
-                .global_contraction_algorithm = GlobalContractionAlgorithm::MINIMAL_MIGRATION,
-                .global_lp =
-                    {
-                        .num_iterations                       = 5,
-                        .passive_high_degree_threshold        = 1'000'000,
-                        .active_high_degree_threshold         = 1'000'000,
-                        .max_num_neighbors                    = kInvalidNodeID,
-                        .merge_singleton_clusters             = true,
-                        .merge_nonadjacent_clusters_threshold = 0.5,
-                        .total_num_chunks                     = 128,
-                        .num_chunks                           = 0,
-                        .min_num_chunks                       = 8,
-                        .ignore_ghost_nodes                   = false, // unused
-                        .keep_ghost_clusters                  = false,
-                        .scale_chunks_with_threads            = false,
-                    },
-                .max_local_clustering_levels = 0,
-                .local_clustering_algorithm  = LocalClusteringAlgorithm::NOOP,
-                .local_lp =
-                    {
-                        .num_iterations                       = 5,
-                        .passive_high_degree_threshold        = 1'000'000, // unused
-                        .active_high_degree_threshold         = 1'000'000,
-                        .max_num_neighbors                    = kInvalidNodeID,
-                        .merge_singleton_clusters             = true,
-                        .merge_nonadjacent_clusters_threshold = 0.5,
-                        .total_num_chunks                     = 0, // unused
-                        .num_chunks                           = 0, // unused
-                        .min_num_chunks                       = 0, // unused
-                        .ignore_ghost_nodes                   = false,
-                        .keep_ghost_clusters                  = false,
-                        .scale_chunks_with_threads            = false, // unused
-                    },
-                .contraction_limit         = 5000,
-                .cluster_weight_limit      = shm::ClusterWeightLimit::EPSILON_BLOCK_WEIGHT,
-                .cluster_weight_multiplier = 1.0,
-            },
-        .initial_partitioning =
-            {
-                .algorithm = InitialPartitioningAlgorithm::KAMINPAR,
-                .mtkahypar =
-                    {
-                        .preset_filename = "",
-                    },
-                .kaminpar = shm::create_default_context(),
-            },
-        .refinement =
-            {
-                .algorithm = KWayRefinementAlgorithm::LP,
-                .lp =
-                    {
-                        .active_high_degree_threshold = 1'000'000,
-                        .num_iterations               = 5,
-                        .total_num_chunks             = 128,
-                        .num_chunks                   = 0,
-                        .min_num_chunks               = 8,
-                        .num_move_attempts            = 2,
-                        .ignore_probabilities         = true,
-                        .scale_chunks_with_threads    = false,
-                    },
-                .fm =
-                    {
-                        .alpha           = 1.0,
-                        .radius          = 3,
-                        .pe_radius       = 2,
-                        .overlap_regions = false,
-                        .num_iterations  = 5,
-                        .sequential      = false,
-                        .premove_locally = true,
-                        .bound_degree    = 0,
-                        .contract_border = false,
-                    },
-                .balancing =
-                    {
-                        .algorithm           = BalancingAlgorithm::DISTRIBUTED,
-                        .num_nodes_per_block = 5,
-                    },
-                .refine_coarsest_level = false,
-            },
-        .debug = {
-            .save_imbalanced_partitions = false,
-            .save_graph_hierarchy       = false,
-            .save_coarsest_graph        = false,
-            .save_clustering_hierarchy  = false,
-        }};
-}
-
 } // namespace kaminpar::dist
