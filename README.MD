@@ -52,11 +52,16 @@ Common command line options include:
 * `--seed=<int>` - seed for random number generation
 * `--parsable` - use output format that is easier to parse
 
-For a description of the graph format, please have a look at the [KaHiP manual](https://github.com/KaHIP/KaHIP/raw/master/manual/kahip.pdf).
+To setup algorithmic tuning parameters, (d)KaMinPar offers configuration presets that can be set using the `-P <preset>` option (view `--help` for a list of all presets).
+Presets can be viewed by using the `--dump-config` flag; to use a custom preset, load a configuration file using the `-C <filename>` option, e.g.,
 
-(d)KaMinPar offer configuration presets that can be set using `-P <preset>`.
-You can view this preset using the `--dump-config` flag.
-To build your own preset, store the output to a file, modify it, and use it using `-C <filename>`.
+```shell
+./KaMinPar [-P default] --dump-config > my_preset.ini
+# Edit my_preset.ini
+./KaMinPar -C my_preset.ini -G <...> -k <...> -t <...>
+```
+
+For a description of the graph format, please have a look at the [KaHiP manual](https://github.com/KaHIP/KaHIP/raw/master/manual/kahip.pdf).
 
 ### Using KaMinPar as a Library
 
