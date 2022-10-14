@@ -41,11 +41,13 @@ void print_statistics(const PartitionedGraph& p_graph, const Context& ctx) {
     const bool       feasible  = metrics::is_feasible(p_graph, ctx.partition);
 
     // statistics output that is easy to parse
-    if (!ctx.quiet) {
-        Timer::global().print_machine_readable(std::cout);
+    if (ctx.parsable_output) {
+        if (!ctx.quiet) {
+            Timer::global().print_machine_readable(std::cout);
+        }
+        LOG << "RESULT cut=" << cut << " imbalance=" << imbalance << " feasible=" << feasible << " k=" << p_graph.k();
+        LOG;
     }
-    LOG << "RESULT cut=" << cut << " imbalance=" << imbalance << " feasible=" << feasible << " k=" << p_graph.k();
-    LOG;
 
     // statistics output that is easy to read
     if (!ctx.quiet) {
@@ -76,11 +78,9 @@ std::string generate_partition_filename(const Context& ctx) {
     return filename.str();
 }
 
-int main(int argc, char* argv[]) {
+Context setup_context(CLI::App& app, int argc, char* argv[]) {
     Context ctx         = create_default_context();
     bool    dump_config = false;
-
-    CLI::App app("KaMinPar: (Somewhat) Minimal Deep Multilevel Graph Partitioner");
 
     app.set_config("-C,--config", "", "Read parameters from a TOML configuration file.", false);
     app.add_option_function<std::string>(
@@ -92,13 +92,20 @@ int main(int argc, char* argv[]) {
                    ctx = create_largek_context();
                }
            }
-    )->check(CLI::IsMember({"default", "largek"}));
+    )
+        ->check(CLI::IsMember({"default", "largek"}))
+        ->description(R"(Use a configuration preset:
+  - default: default parameters
+  - largek:  reduce repetitions during initial partitioning (better performance if k is large))");
 
     // Mandatory
     auto* mandatory_group = app.add_option_group("Application")->require_option(1);
 
     // Mandatory -> either dump config ...
-    mandatory_group->add_flag("--dump-config", dump_config)->configurable(false);
+    mandatory_group->add_flag("--dump-config", dump_config)
+        ->configurable(false)
+        ->description(R"(Print the current configuration and exit.
+The output should be stored in a file and can be used by the -C,--config option)");
 
     // Mandatory -> ... or partition a graph
     auto* gp_group = mandatory_group->add_option_group("Partitioning")->silent(true);
@@ -120,11 +127,12 @@ int main(int argc, char* argv[]) {
     app.add_option("-t,--threads", ctx.parallel.num_threads, "Number of threads to be used.")
         ->check(CLI::NonNegativeNumber)
         ->default_val(ctx.parallel.num_threads);
+    app.add_flag("-p,--parsable", ctx.parsable_output, "Use an output format that is easier to parse.");
 
     // Algorithmic options
     create_all_options(&app, ctx);
 
-    CLI11_PARSE(app, argc, argv);
+    app.parse(argc, argv);
 
     // Only dump config and exit
     if (dump_config) {
@@ -138,23 +146,32 @@ int main(int argc, char* argv[]) {
         ctx.partition_filename = generate_partition_filename(ctx);
     }
 
+    return ctx;
+}
+
+int main(int argc, char* argv[]) {
+    CLI::App app("KaMinPar: (Somewhat) Minimal Deep Multilevel Graph Partitioner");
+    Context  ctx;
+    try {
+        ctx = setup_context(app, argc, argv);
+    } catch (const CLI::ParseError& e) {
+        return app.exit(e);
+    }
+
+    // Disable console output in quiet mode;
     Logger::set_quiet_mode(ctx.quiet);
 
     cio::print_kaminpar_banner();
     cio::print_build_identifier<NodeID, EdgeID, NodeWeight, EdgeWeight>(Environment::GIT_SHA1, Environment::HOSTNAME);
 
-    //
     // Initialize
-    //
     Random::seed = ctx.seed;
     auto gc      = init_parallelism(ctx.parallel.num_threads); // must stay alive
     if (ctx.parallel.use_interleaved_numa_allocation) {
         init_numa();
     }
 
-    //
     // Load input graph
-    //
     const double original_epsilon    = ctx.partition.epsilon;
     bool         need_postprocessing = false;
 
@@ -182,28 +199,23 @@ int main(int argc, char* argv[]) {
             std::move(node_permutations)};
     }();
 
-    //
     // Setup graph dependent context parameters
-    //
     ctx.setup(graph);
 
-    cio::print_banner("Input parameters");
-    LOG << "CONTEXT " << ctx;
-    LOG << "INPUT graph=" << ctx.graph_filename << " "
-        << "n=" << graph.n() << " "
-        << "m=" << graph.m() << " "
-        << "k=" << ctx.partition.k << " "
-        << "epsilon=" << ctx.partition.epsilon << " ";
-    LOG << "==> max_block_weight=" << ctx.partition.block_weights.max(0);
+    if (ctx.parsable_output) {
+        LOG << "CONTEXT " << ctx;
+        LOG << "INPUT graph=" << ctx.graph_filename << " "
+            << "n=" << graph.n() << " "
+            << "m=" << graph.m() << " "
+            << "k=" << ctx.partition.k << " "
+            << "epsilon=" << ctx.partition.epsilon << " ";
+        LOG << "==> max_block_weight=" << ctx.partition.block_weights.max(0);
+    }
 
-    //
     // Perform actual partitioning
-    //
     PartitionedGraph p_graph = partitioning::partition(graph, ctx);
 
-    //
     // Re-integrate isolated nodes that were cut off during preprocessing
-    //
     if (need_postprocessing) {
         SCOPED_TIMER("Partitioning");
         SCOPED_TIMER("Postprocessing");
@@ -212,20 +224,15 @@ int main(int argc, char* argv[]) {
         p_graph = graph::assign_isolated_nodes(std::move(p_graph), num_isolated_nodes, ctx.partition);
     }
 
-    //
     // Store output partition (if requested)
-    //
     if (ctx.save_partition) {
         SCOPED_TIMER("IO");
         io::partition::write(ctx.partition_file(), p_graph, permutations.old_to_new);
         LOG << "Wrote partition to: " << ctx.partition_file();
     }
 
-    //
     // Print some statistics
-    //
     STOP_TIMER(); // stop root timer
-
     cio::print_banner("Statistics");
     print_statistics(p_graph, ctx);
     return 0;

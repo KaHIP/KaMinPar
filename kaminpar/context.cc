@@ -282,48 +282,47 @@ void BlockWeightsContext::setup(const PartitionContext& p_ctx, const scalable_ve
 //
 
 void PartitionContext::print(std::ostream& out, const std::string& prefix) const {
-    /*out << prefix << "mode=" << mode << " "                                            //
-        << prefix << "epsilon=" << epsilon << " "                                      //
-        << prefix << "k=" << k << " "                                                  //
-        << prefix << "fast_initial_partitioning=" << fast_initial_partitioning << " "; //*/
+    out << prefix << "mode=" << mode << " "       //
+        << prefix << "epsilon=" << epsilon << " " //
+        << prefix << "k=" << k << " ";            //
 }
 
 void CoarseningContext::print(std::ostream& out, const std::string& prefix) const {
-    /*out << prefix << "algorithm=" << algorithm << " "                                  //
+    out << prefix << "algorithm=" << algorithm << " "                                  //
         << prefix << "contraction_limit=" << contraction_limit << " "                  //
         << prefix << "enforce_contraction_limit=" << enforce_contraction_limit << " "  //
         << prefix << "convergence_threshold=" << convergence_threshold << " "          //
         << prefix << "cluster_weight_limit=" << cluster_weight_limit << " "            //
-        << prefix << "cluster_weight_multiplier=" << cluster_weight_multiplier << " "; //*/
+        << prefix << "cluster_weight_multiplier=" << cluster_weight_multiplier << " "; //
     lp.print(out, prefix + "lp.");
 }
 
 void LabelPropagationCoarseningContext::print(std::ostream& out, const std::string& prefix) const {
-    /*out << prefix << "num_iterations=" << num_iterations << " "                             //
+    out << prefix << "num_iterations=" << num_iterations << " "                             //
         << prefix << "max_degree=" << large_degree_threshold << " "                         //
         << prefix << "two_hop_clustering_threshold=" << two_hop_clustering_threshold << " " //
-        << prefix << "max_num_neighbors=" << max_num_neighbors << " ";                      //*/
+        << prefix << "max_num_neighbors=" << max_num_neighbors << " ";                      //
 }
 
 void LabelPropagationRefinementContext::print(std::ostream& out, const std::string& prefix) const {
-    /*out << prefix << "num_iterations=" << num_iterations << " "        //
+    out << prefix << "num_iterations=" << num_iterations << " "        //
         << prefix << "max_degree=" << large_degree_threshold << " "    //
-        << prefix << "max_num_neighbors=" << max_num_neighbors << " "; //*/
+        << prefix << "max_num_neighbors=" << max_num_neighbors << " "; //
 }
 
 void FMRefinementContext::print(std::ostream& out, const std::string& prefix) const {
-    /*out << prefix << "stopping_rule=" << stopping_rule << " "             //
+    out << prefix << "stopping_rule=" << stopping_rule << " "             //
         << prefix << "num_fruitless_moves=" << num_fruitless_moves << " " //
-        << prefix << "alpha=" << alpha << " ";                            //*/
+        << prefix << "alpha=" << alpha << " ";                            //
 }
 
 void BalancerRefinementContext::print(std::ostream& out, const std::string& prefix) const {
-    /*out << prefix << "timepoint=" << timepoint << " "  //
-        << prefix << "algorithm=" << algorithm << " "; //*/
+    out << prefix << "timepoint=" << timepoint << " "  //
+        << prefix << "algorithm=" << algorithm << " "; //
 }
 
 void RefinementContext::print(std::ostream& out, const std::string& prefix) const {
-    // out << prefix << "algorithm=" << algorithm << " "; //
+    out << prefix << "algorithm=" << algorithm << " "; //
 
     lp.print(out, prefix + "lp.");
     fm.print(out, prefix + "fm.");
@@ -333,32 +332,33 @@ void RefinementContext::print(std::ostream& out, const std::string& prefix) cons
 void InitialPartitioningContext::print(std::ostream& out, const std::string& prefix) const {
     coarsening.print(out, prefix + "coarsening.");
     refinement.print(out, prefix + "refinement.");
-    /*out << prefix << "mode=" << mode << " "                                                                 //
+    out << prefix << "mode=" << mode << " "                                                                 //
         << prefix << "repetition_multiplier=" << repetition_multiplier << " "                               //
         << prefix << "min_num_repetitions=" << min_num_repetitions << " "                                   //
         << prefix << "max_num_repetitions=" << max_num_repetitions << " "                                   //
         << prefix << "num_seed_iterations=" << num_seed_iterations << " "                                   //
         << prefix << "use_adaptive_bipartitioner_selection=" << use_adaptive_bipartitioner_selection << " " //
-        << prefix << "multiplier_exponent=" << multiplier_exponent << " ";                                  //*/
+        << prefix << "multiplier_exponent=" << multiplier_exponent << " ";                                  //
 }
 
 void DebugContext::print(std::ostream& out, const std::string& prefix) const {
-    /*out << prefix << "just_sanitize_args=" << just_sanitize_args << " "; //*/
+    ((void)out);
+    ((void)prefix);
 }
 
 void ParallelContext::print(std::ostream& out, const std::string& prefix) const {
-    /*out << prefix << "use_interleaved_numa_allocation=" << use_interleaved_numa_allocation << " " //
-        << prefix << "num_threads=" << num_threads << " ";                                        //*/
+    out << prefix << "use_interleaved_numa_allocation=" << use_interleaved_numa_allocation << " " //
+        << prefix << "num_threads=" << num_threads << " ";                                        //
 }
 
 void Context::print(std::ostream& out, const std::string& prefix) const {
-    /*    out << prefix << "graph_filename=" << graph_filename << " "           //
-            << prefix << "seed=" << seed << " "                               //
-            << prefix << "save_output_partition=" << save_partition << " "    //
-            << prefix << "partition_filename=" << partition_filename << " "   //
-            << prefix << "partition_directory=" << partition_directory << " " //
-            << prefix << "quiet=" << quiet << " ";                            //
-                                                                              //*/
+    out << prefix << "graph_filename=" << graph_filename << " "           //
+        << prefix << "seed=" << seed << " "                               //
+        << prefix << "save_output_partition=" << save_partition << " "    //
+        << prefix << "partition_filename=" << partition_filename << " "   //
+        << prefix << "partition_directory=" << partition_directory << " " //
+        << prefix << "quiet=" << quiet << " ";                            //
+                                                                          //
 
     partition.print(out, prefix + "partition.");
     coarsening.print(out, prefix + "coarsening.");

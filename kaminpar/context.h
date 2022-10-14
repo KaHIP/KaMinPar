@@ -98,9 +98,9 @@ private:
 };
 
 struct PartitionContext {
-    PartitioningMode mode;                      //! Partitioning mode, e.g., k-way, rb, deep MGP
-    double           epsilon;                   //! Imbalance factor.
-    BlockID          k;                         //! Number of blocks.
+    PartitioningMode mode;    //! Partitioning mode, e.g., k-way, rb, deep MGP
+    double           epsilon; //! Imbalance factor.
+    BlockID          k;       //! Number of blocks.
 
     //! Balance constraint: precomputed maximum block weights.
     BlockWeightsContext block_weights{};
@@ -213,6 +213,7 @@ struct Context {
     std::string partition_directory;
     std::string partition_filename;
     bool        quiet;
+    bool        parsable_output;
 
     PartitionContext           partition;
     CoarseningContext          coarsening;

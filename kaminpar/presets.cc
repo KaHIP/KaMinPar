@@ -12,6 +12,7 @@ Context create_default_context() {
         .partition_directory = "./",
         .partition_filename  = "", // generate filename
         .quiet               = false,
+        .parsable_output     = false,
         .partition =
             {
                 // Context -> Partition

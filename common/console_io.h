@@ -41,10 +41,10 @@ void print_build_identifier(const std::string& commit, const std::string& hostna
     LOG << "Statistics:                   disabled";
 #endif
     LOG << "Data type sizes:";
-    LOG << "  Nodes IDs: " << sizeof(NodeID) << " bytes | Node weights: " << sizeof(NodeWeight)
-        << " bytes | Local node weights: " << sizeof(LocalNodeWeight);
-    LOG << "  Edges IDs: " << sizeof(EdgeID) << " bytes | Edge weights: " << sizeof(EdgeWeight)
-        << " bytes | Local edge weights: " << sizeof(LocalEdgeWeight);
+    LOG << "  Nodes IDs: " << sizeof(NodeID) << " bytes | Node weights (Local): " << sizeof(LocalNodeWeight)
+        << " bytes | Node weights (IP): " << sizeof(NodeWeight);
+    LOG << "  Edges IDs: " << sizeof(EdgeID) << " bytes | Edge weights (Local): " << sizeof(LocalEdgeWeight)
+        << " bytes | Edge weights (IP): " << sizeof(EdgeWeight);
     LOG << "Built on:                     " << (hostname.empty() ? "<not available>" : hostname);
     LOG << "################################################################################";
 }
