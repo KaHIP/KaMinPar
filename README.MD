@@ -41,19 +41,22 @@ The resulting binary is located in `build/apps/`.
 To partition a graph in METIS format using KaMinPar, run
 
 ```shell
-./KaMinPar -G <graph filename> -k <number of blocks> 
+./KaMinPar [--preset {default, largek}] -G <graph filename> -k <number of blocks> 
 ```
 
 Common command line options include:
 
 * `--help` - print a complete list of command line options
 * `--threads=<int>` - maximum number of threads to be used
-* `--epsilon=<double>` - maximum allowed imbalance,e.g., `0.03` for 3%
+* `--epsilon=<double>` - maximum allowed imbalance, e.g., `0.03` for 3%
 * `--seed=<int>` - seed for random number generation
-* `--save-partition` - write the partition to a file 
-  (you also might want to specify the partition filename using `--partition-name=<str>`) 
+* `--parsable` - use output format that is easier to parse
 
 For a description of the graph format, please have a look at the [KaHiP manual](https://github.com/KaHIP/KaHIP/raw/master/manual/kahip.pdf).
+
+(d)KaMinPar offer configuration presets that can be set using `-P <preset>`.
+You can view this preset using the `--dump-config` flag.
+To build your own preset, store the output to a file, modify it, and use it using `-C <filename>`.
 
 ### Using KaMinPar as a Library
 
