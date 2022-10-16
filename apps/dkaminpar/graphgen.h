@@ -6,10 +6,14 @@
  ******************************************************************************/
 #pragma once
 
+// clang-format off
+#include "common/CLI11.h"
+// clang-format on
+
+#include <unordered_map>
+
 #include "dkaminpar/datastructure/distributed_graph.h"
 #include "dkaminpar/definitions.h"
-
-#include "common/utils/enum_string_conversion.h"
 
 namespace kaminpar::dist {
 enum class GeneratorType {
@@ -25,7 +29,8 @@ enum class GeneratorType {
     RMAT,
 };
 
-DECLARE_ENUM_STRING_CONVERSION(GeneratorType, generator_type);
+std::unordered_map<std::string, GeneratorType> get_generator_types();
+std::ostream&                                  operator<<(std::ostream& out, GeneratorType type);
 
 struct GeneratorContext {
     GeneratorType type           = GeneratorType::NONE;
@@ -44,7 +49,9 @@ struct GeneratorContext {
     bool          advanced_stats = false;
 };
 
-DistributedGraph generate(GeneratorContext ctx);
+CLI::Option_group* create_generator_options(CLI::App* app, GeneratorContext& g_ctx);
 
-std::string generate_filename(GeneratorContext ctx);
+DistributedGraph generate(const GeneratorContext& ctx);
+
+std::string generate_filename(const GeneratorContext& ctx);
 } // namespace kaminpar::dist

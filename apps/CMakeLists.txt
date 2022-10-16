@@ -22,6 +22,7 @@ endfunction()
 
 function(add_distributed_app target)
     if (TARGET dist_partitioner_base)
+        message(${ARGN})
         add_app(${target} ${ARGN})
         target_link_libraries(${target} PRIVATE dist_partitioner_base)
     else ()
@@ -34,17 +35,11 @@ endfunction()
 add_app(KaMinPar kaminpar.cc)
 
 # dKaMinPar
-set(DKAMINPAR_SOURCE_FILES
-        ${CMAKE_CURRENT_SOURCE_DIR}/dkaminpar/arguments.cc
-        ${CMAKE_CURRENT_SOURCE_DIR}/dkaminpar/arguments.h)
-if (KAMINPAR_ENABLE_GRAPHGEN)
-    set(DKAMINPAR_SOURCE_FILES
-            ${CMAKE_CURRENT_SOURCE_DIR}/dkaminpar/graphgen.cc
-            ${CMAKE_CURRENT_SOURCE_DIR}/dkaminpar/graphgen.h
-            ${DKAMINPAR_SOURCE_FILES})
-endif ()
+add_distributed_app(dKaMinPar 
+    dkaminpar.cc 
+    ${CMAKE_CURRENT_SOURCE_DIR}/dkaminpar/graphgen.cc 
+    ${CMAKE_CURRENT_SOURCE_DIR}/dkaminpar/graphgen.h)
 
-add_distributed_app(dKaMinPar dkaminpar.cc ${DKAMINPAR_SOURCE_FILES})
 if (KAMINPAR_ENABLE_GRAPHGEN)
     target_link_libraries(dKaMinPar PRIVATE KaGen::KaGen) 
 endif ()

@@ -27,16 +27,86 @@
 
 namespace kaminpar::dist {
 using namespace std::string_literals;
-
-DEFINE_ENUM_STRING_CONVERSION(GeneratorType, generator_type) = {
-    {GeneratorType::NONE, "none"},   {GeneratorType::GNM, "gnm"},       {GeneratorType::RGG2D, "rgg2d"},
-    {GeneratorType::RGG3D, "rgg3d"}, {GeneratorType::RDG2D, "rdg2d"},   {GeneratorType::RDG3D, "rdg3d"},
-    {GeneratorType::RHG, "rhg"},     {GeneratorType::GRID2D, "grid2d"}, {GeneratorType::GRID3D, "grid3d"},
-    {GeneratorType::RMAT, "rmat"},
-};
-
 using namespace kagen;
 
+std::unordered_map<std::string, GeneratorType> get_generator_types() {
+    return {
+        {"rgg2d", GeneratorType::RGG2D},   {"rgg3d", GeneratorType::RGG3D},   {"rdg2d", GeneratorType::RDG2D},
+        {"rdg3d", GeneratorType::RDG3D},   {"gnm", GeneratorType::GNM},       {"rhg", GeneratorType::RHG},
+        {"grid2d", GeneratorType::GRID2D}, {"grid3d", GeneratorType::GRID3D}, {"rmat", GeneratorType::RMAT},
+    };
+}
+
+std::ostream& operator<<(std::ostream& out, const GeneratorType generator) {
+    switch (generator) {
+        case GeneratorType::NONE:
+            return out << "none";
+        case GeneratorType::RGG2D:
+            return out << "rgg2d";
+        case GeneratorType::RGG3D:
+            return out << "rgg3d";
+        case GeneratorType::RDG2D:
+            return out << "rdg2d";
+        case GeneratorType::RDG3D:
+            return out << "rdg3d";
+        case GeneratorType::GNM:
+            return out << "gnm";
+        case GeneratorType::RHG:
+            return out << "rhg";
+        case GeneratorType::GRID2D:
+            return out << "grid2d";
+        case GeneratorType::GRID3D:
+            return out << "grid3d";
+        case GeneratorType::RMAT:
+            return out << "rmat";
+    }
+
+    return out << "<invalid>";
+}
+
+CLI::Option_group* create_generator_options(CLI::App* app, GeneratorContext& g_ctx) {
+    auto* generator = app->add_option_group("Graph Generator");
+
+    generator->add_option("--g-type", g_ctx.type)
+        ->transform(CLI::CheckedTransformer(get_generator_types()).description(""))
+        ->description(R"(Graph model, options are:
+  - rgg2d
+  - rgg3d
+  - rdg2d (if CGal is available)
+  - rdg3d (if CGal is available)
+  - gnm
+  - rhg
+  - grid2d
+  - grid3d
+  - rmat
+Please refer to the KaGen manual for a description of each graph model.)")
+        ->capture_default_str()
+        ->required();
+    generator->add_option("--g-n", g_ctx.n, "Number of nodes, as a power of two.")->required();
+    generator->add_option("--g-m", g_ctx.m, "Number of edges, as a power of two.")->required();
+    generator->add_option("--g-gamma", g_ctx.gamma, "Power law exponent for hyperbolic graphs.")->capture_default_str();
+    generator
+        ->add_option(
+            "--g-scale", g_ctx.scale,
+            "Scaling factor for the generated graph (scale number of nodes, keep average degree constant)."
+        )
+        ->capture_default_str();
+    generator->add_option("--g-prob-a", g_ctx.prob_a, "R-MAT probability A.")->capture_default_str();
+    generator->add_option("--g-prob-b", g_ctx.prob_b, "R-MAT probability B.")->capture_default_str();
+    generator->add_option("--g-prob-c", g_ctx.prob_c, "R-MAT probability C.")->capture_default_str();
+
+    generator
+        ->add_flag("--g-periodic", g_ctx.periodic, "Use periodic boundary condition for RDG and GRID{2D,3D} graphs.")
+        ->capture_default_str();
+    generator->add_flag("--g-validate", g_ctx.validate_graph, "Validate the generated graph (debug only).")
+        ->capture_default_str();
+    generator->add_flag("--g-stats", g_ctx.advanced_stats, "Print statistics on the generated graph.")
+        ->capture_default_str();
+
+    return generator;
+}
+
+#ifdef KAMINPAR_ENABLE_GRAPHGEN
 namespace {
 SET_DEBUG(false);
 
@@ -410,8 +480,10 @@ KaGenResult create_rmat(const GeneratorContext ctx) {
     return create_generator_object(ctx).GenerateRMAT(n, m, ctx.prob_a, ctx.prob_b, ctx.prob_c);
 }
 } // namespace
+#endif // KAMINPAR_ENABLE_GRAPHGEN
 
-DistributedGraph generate(const GeneratorContext ctx) {
+DistributedGraph generate(const GeneratorContext& ctx) {
+#ifdef KAMINPAR_ENABLE_GRAPHGEN
     auto [edges, local_range] = [&] {
         switch (ctx.type) {
             case GeneratorType::GNM:
@@ -446,9 +518,12 @@ DistributedGraph generate(const GeneratorContext ctx) {
     }();
 
     return build_graph(std::move(edges), build_node_distribution(local_range));
+#endif // KAMINPAR_ENABLE_GRAPHGEN
+
+    throw std::runtime_error("graph generator not available");
 }
 
-std::string generate_filename(GeneratorContext ctx) {
+std::string generate_filename(const GeneratorContext& ctx) {
     std::stringstream filename;
     filename << "kagen_";
 

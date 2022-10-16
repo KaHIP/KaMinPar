@@ -4,6 +4,10 @@
  * @date:   21.09.2021
  * @brief:  Distributed KaMinPar binary.
  ******************************************************************************/
+// clang-format off
+#include "common/CLI11.h"
+// clang-format on
+
 #include <fstream>
 
 #include <mpi.h>
@@ -11,6 +15,7 @@
 
 #include "mpi/utils.h"
 
+#include "dkaminpar/arguments.h"
 #include "dkaminpar/context.h"
 #include "dkaminpar/definitions.h"
 #include "dkaminpar/graphutils/graph_rearrangement.h"
@@ -25,7 +30,6 @@
 #include "common/random.h"
 
 #include "apps/apps.h"
-#include "apps/dkaminpar/arguments.h"
 #include "apps/dkaminpar/graphgen.h"
 
 using namespace kaminpar;
@@ -42,30 +46,6 @@ void init_mpi(int& argc, char**& argv) {
                 LOG_ERROR << "Your MPI library does not support multithreading. This might cause malfunction.";
             }
         }
-    }
-}
-
-void sanitize_context(const ApplicationContext& app) {
-#ifdef KAMINPAR_ENABLE_GRAPHGEN
-    if (app.generator.type == GeneratorType::NONE && app.ctx.graph_filename.empty()) {
-        FATAL_ERROR << "Must configure a graph generator or specify an input graph";
-    }
-    if (app.generator.type != GeneratorType::NONE && !app.ctx.graph_filename.empty()) {
-        FATAL_ERROR << "cannot configure a graph generator and specify an input graph";
-    }
-    if (!app.ctx.graph_filename.empty() && !std::ifstream(app.ctx.graph_filename)) {
-        FATAL_ERROR << "input graph specified, but file cannot be read";
-    }
-#else  // KAMINPAR_ENABLE_GRAPHGEN
-    if (!std::ifstream(app.ctx.graph_filename)) {
-        FATAL_ERROR << "cannot read input graph";
-    }
-#endif // KAMINPAR_ENABLE_GRAPHGEN
-    if (app.ctx.partition.k < 2) {
-        FATAL_ERROR << "k must be at least 2.";
-    }
-    if (app.ctx.partition.epsilon <= 0) {
-        FATAL_ERROR << "Epsilon must be greater than zero.";
     }
 }
 
@@ -165,13 +145,103 @@ partition_repeatedly(const DistributedGraph& graph, const Context& ctx, Terminat
     return best_partition;
 }
 
+std::pair<Context, GeneratorContext> setup_context(CLI::App& app, int argc, char* argv[]) {
+    Context          ctx = create_default_context();
+    GeneratorContext g_ctx;
+    bool             dump_config = false;
+
+    app.set_config("-C,--config", "", "Read parameters from a TOML configuration file.", false);
+    app.add_option_function<std::string>(
+           "-P,--preset",
+           [&](const std::string preset) {
+               if (preset == "default" || preset == "fast") {
+                   ctx = create_default_context();
+               } else if (preset == "strong") {
+                   ctx = create_strong_context();
+               }
+           }
+    )
+        ->check(CLI::IsMember({"default", "fast", "strong"}))
+        ->description(R"(Use configuration preset:
+  - default: default parameters
+  - fast:    alias for default
+  - strong:  use Mt-KaHyPar for initial partitioning and more label propagation iterations)");
+
+    // Mandatory
+    auto* mandatory = app.add_option_group("Application")->require_option(1);
+
+    // Mandatory -> either dump config ...
+    mandatory->add_flag("--dump-config", dump_config)
+        ->configurable(false)
+        ->description(R"(Print the current configuration and exit.
+The output should be stored in a file and can be used by the -C,--config option.)");
+
+    // Mandatory -> ... or partition a graph
+    auto* gp_group = mandatory->add_option_group("Partitioning")->silent();
+    gp_group->add_option("-k,--k", ctx.partition.k, "Number of blocks in the partition.")
+        ->configurable(false)
+        ->required();
+
+    // Graph can come from KaGen or from disk
+    auto* graph_source = gp_group->add_option_group("Graph source")->require_option(1)->silent();
+#ifdef KAMINPAR_ENABLE_GRAPHGEN
+    create_generator_options(graph_source, g_ctx);
+#endif
+    graph_source
+        ->add_option(
+            "-G,--graph", ctx.graph_filename,
+            "Input graph in METIS (file extension *.graph or *.metis) or binary format (file extension *.bgf)."
+        )
+        ->configurable(false);
+
+    // Application options
+    app.add_option("-s,--seed", ctx.seed, "Seed for random number generation.")->default_val(ctx.seed);
+    app.add_flag("-q,--quiet", ctx.quiet, "Suppress all console output.");
+    app.add_option("-t,--threads", ctx.parallel.num_threads, "Number of threads to be used.")
+        ->check(CLI::NonNegativeNumber)
+        ->default_val(ctx.parallel.num_threads);
+    app.add_flag(
+           "--edge-balanced", ctx.load_edge_balanced,
+           "Load the input graph such that each PE has roughly the same number of edges."
+    )
+        ->capture_default_str();
+    app.add_option("-R,--repetitions", ctx.num_repetitions, "Number of partitioning repetitions to perform.")
+        ->capture_default_str();
+    app.add_option("-T,--time-limit", ctx.time_limit, "Time limit in seconds.")->capture_default_str();
+    app.add_flag("--sort-graph", ctx.sort_graph, "Rearrange graph by degree buckets after loading it.")
+        ->capture_default_str();
+    app.add_flag("--simulate-singlethreaded", ctx.parallel.simulate_singlethread, "")->capture_default_str();
+    app.add_flag("-p,--parsable", ctx.parsable_output, "Use an output format that is easier to parse.");
+
+    // Algorithmic options
+    create_all_options(&app, ctx);
+
+    app.parse(argc, argv);
+
+    if (dump_config) {
+        CLI::App dump;
+        create_all_options(&dump, ctx);
+        std::cout << dump.config_to_str(true, true);
+        std::exit(1);
+    }
+
+    return {ctx, g_ctx};
+}
+
 int main(int argc, char* argv[]) {
     init_mpi(argc, argv);
 
-    // Parse command line arguments
-    auto  app = parse_options(argc, argv);
-    auto& ctx = app.ctx;
-    sanitize_context(app);
+    CLI::App         app("dKaMinPar: (Somewhat) Minimal Distributed Deep Multilevel Graph Partitioning");
+    Context          ctx;
+    GeneratorContext g_ctx;
+
+    try {
+        std::tie(ctx, g_ctx) = setup_context(app, argc, argv);
+    } catch (CLI::ParseError& e) {
+        return app.exit(e);
+    }
+
+    // Disable console output if requested
     Logger::set_quiet_mode(ctx.quiet);
 
     const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
@@ -189,7 +259,7 @@ int main(int argc, char* argv[]) {
     // Initialize random number generator
     Random::seed = ctx.seed;
 #ifdef KAMINPAR_ENABLE_GRAPHGEN
-    app.generator.seed = ctx.seed;
+    g_ctx.seed = ctx.seed;
 #endif
 
     // Initialize parallelism
@@ -207,16 +277,17 @@ int main(int argc, char* argv[]) {
     // Load graph
     auto graph = TIMED_SCOPE("IO") {
 #ifdef KAMINPAR_ENABLE_GRAPHGEN
-        if (app.generator.type != GeneratorType::NONE) {
-            auto graph         = generate(app.generator);
-            ctx.graph_filename = generate_filename(app.generator);
+        if (g_ctx.type != GeneratorType::NONE) {
+            auto graph         = generate(g_ctx);
+            ctx.graph_filename = generate_filename(g_ctx);
 
-            if (app.generator.save_graph) {
+            if (g_ctx.save_graph) {
                 io::metis::write(ctx.graph_filename, graph, false, false);
             }
             return graph;
         }
 #endif
+
         const auto type =
             ctx.load_edge_balanced ? io::DistributionType::EDGE_BALANCED : io::DistributionType::NODE_BALANCED;
         return io::read_graph(ctx.graph_filename, type);

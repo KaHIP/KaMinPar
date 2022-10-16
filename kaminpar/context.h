@@ -13,8 +13,6 @@
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/definitions.h"
 
-#include "common/utils/enum_string_conversion.h"
-
 namespace kaminpar::shm {
 enum class ClusteringAlgorithm {
     NOOP,

@@ -4,7 +4,7 @@
  * @date:   21.09.2021
  ******************************************************************************/
 // clang-format off
-#include "kaminpar/arguments.h"
+#include "common/CLI11.h"
 // clang-format on
 
 #include <iostream>
@@ -13,6 +13,7 @@
 
 #include "context.h"
 
+#include "kaminpar/arguments.h"
 #include "kaminpar/datastructure/graph.h"
 #include "kaminpar/definitions.h"
 #include "kaminpar/graphutils/graph_rearrangement.h"
@@ -21,7 +22,6 @@
 #include "kaminpar/partitioning_scheme/partitioning.h"
 #include "kaminpar/presets.h"
 
-#include "common/arguments_parser.h"
 #include "common/assert.h"
 #include "common/console_io.h"
 #include "common/logger.h"

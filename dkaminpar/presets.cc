@@ -18,6 +18,7 @@ Context create_default_context() {
         .num_repetitions    = 0,
         .time_limit         = 0,
         .sort_graph         = true,
+        .parsable_output    = false,
         .partition          = {
                      /* .k = */ 0,
             /* .k_prime = */ 128,
@@ -39,7 +40,7 @@ Context create_default_context() {
                 .global_contraction_algorithm = GlobalContractionAlgorithm::MINIMAL_MIGRATION,
                 .global_lp =
                     {
-                        .num_iterations                       = 5,
+                        .num_iterations                       = 3,
                         .passive_high_degree_threshold        = 1'000'000,
                         .active_high_degree_threshold         = 1'000'000,
                         .max_num_neighbors                    = kInvalidNodeID,
@@ -121,5 +122,12 @@ Context create_default_context() {
             .save_coarsest_graph        = false,
             .save_clustering_hierarchy  = false,
         }};
+}
+
+Context create_strong_context() {
+    Context ctx = create_default_context();
+    ctx.initial_partitioning.algorithm = InitialPartitioningAlgorithm::MTKAHYPAR;
+    ctx.coarsening.global_lp.num_iterations = 5;
+    return ctx;
 }
 } // namespace kaminpar::dist

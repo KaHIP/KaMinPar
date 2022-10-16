@@ -204,6 +204,8 @@ struct RefinementContext {
 };
 
 struct PartitionContext {
+    PartitionContext() = default;
+
     // required for braces-initializer with private members
     PartitionContext(const BlockID k, const BlockID k_prime, const double epsilon, const PartitioningMode mode)
         : k{k},
@@ -304,6 +306,7 @@ struct Context {
     std::size_t num_repetitions;
     std::size_t time_limit;
     bool        sort_graph;
+    bool        parsable_output;
 
     PartitionContext           partition;
     ParallelContext            parallel;
