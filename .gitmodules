@@ -1,12 +1,12 @@
 [submodule "extern/KaGen"]
-	path = extern/KaGen
+	path = external/KaGen
 	url = git@github.com:sebalamm/KaGen.git
 [submodule "extern/googletest"]
-	path = extern/googletest
+	path = external/googletest
 	url = https://github.com/google/googletest.git
 [submodule "extern/growt"]
-	path = extern/growt
+	path = external/growt
 	url = https://github.com/TooBiased/growt.git
 [submodule "extern/kassert"]
-	path = extern/kassert
+	path = external/kassert
 	url = git@github.com:kamping-site/kassert.git
