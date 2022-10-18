@@ -23,16 +23,16 @@ To build the distributed graph partitioner, you also need:
 
 To build the software, clone this repository and type
 ```shell
-./build.sh [DISTRIBUTED]
+./build.sh [DbgHeavy|Dbg|DbgLight|Rel]
 ```
 
 Alternatively, you can use the standard CMake build process:
 
 1. Clone the repository including submodules: `git clone --depth=1 --recursive git@github.com:KaHIP/KaMinPar.git`
 2. Create a build directory: `mkdir build && cd build`
-3. Run CMake: `cmake .. -DCMAKE_BUILD_TYPE=Release`
+3. Run CMake: `cmake .. -DCMAKE_BUILD_TYPE=Release [-DKAMINPAR_ASSERTION_LEVEL=none|light|normal|heavy]`
 4. Build the software: `make KaMinPar -j`
-5. (optional) Build the distributed software: `make dKaMinPar -j`
+5. (optional) Build the distributed partitioner: `make dKaMinPar -j`
 
 The resulting binary is located in `build/apps/`.
 
@@ -41,7 +41,8 @@ The resulting binary is located in `build/apps/`.
 To partition a graph in METIS format using KaMinPar, run
 
 ```shell
-./KaMinPar [--preset {default, largek}] -G <graph filename> -k <number of blocks> 
+./build/apps/KaMinPar [--preset default|largek] -G <graph filename> -k <number of blocks> 
+mpirun -n <nproc> ./build/apps/dKaMinPar [--preset default|strong] -G <graph filename> -k <number of blocks>
 ```
 
 Common command line options include:
@@ -57,7 +58,6 @@ Presets can be viewed by using the `--dump-config` flag; to use a custom preset,
 
 ```shell
 ./KaMinPar [-P default] --dump-config > my_preset.ini
-# Edit my_preset.ini
 ./KaMinPar -C my_preset.ini -G <...> -k <...> -t <...>
 ```
 
