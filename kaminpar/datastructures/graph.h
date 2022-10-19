@@ -23,8 +23,8 @@
 #include "common/parallel/atomic.h"
 #include "common/ranges.h"
 #include "common/scalable_vector.h"
+#include "common/strutils.h"
 #include "common/tags.h"
-#include "common/utils/strings.h"
 
 namespace kaminpar::shm {
 using BlockArray       = StaticArray<BlockID>;

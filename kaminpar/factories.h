@@ -9,7 +9,7 @@
 
 #include "kaminpar/coarsening/i_coarsener.h"
 #include "kaminpar/context.h"
-#include "kaminpar/datastructure/graph.h"
+#include "kaminpar/datastructures/graph.h"
 #include "kaminpar/initial_partitioning/initial_refiner.h"
 #include "kaminpar/refinement/i_balancer.h"
 #include "kaminpar/refinement/i_refiner.h"

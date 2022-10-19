@@ -12,7 +12,7 @@
 #include <kassert/kassert.hpp>
 
 #include "kaminpar/context.h"
-#include "kaminpar/datastructure/graph.h"
+#include "kaminpar/datastructures/graph.h"
 #include "kaminpar/definitions.h"
 #include "kaminpar/metrics.h"
 #include "kaminpar/refinement/i_refiner.h"

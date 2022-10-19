@@ -22,7 +22,7 @@
 #include "dkaminpar/io.h"
 #include "dkaminpar/logger.h"
 #include "dkaminpar/metrics.h"
-#include "dkaminpar/partitioning_scheme/partitioning.h"
+#include "dkaminpar/partitioning/partitioning.h"
 #include "dkaminpar/presets.h"
 #include "dkaminpar/timer.h"
 

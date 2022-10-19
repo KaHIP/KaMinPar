@@ -8,12 +8,12 @@
 
 #include <vector>
 
-#include "dkaminpar/datastructure/distributed_graph.h"
+#include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/definitions.h"
 #include "dkaminpar/mpi/graph_communication.h"
 #include "dkaminpar/mpi/wrapper.h"
 
-#include "kaminpar/datastructure/graph.h"
+#include "kaminpar/datastructures/graph.h"
 
 #include "common/parallel/atomic.h"
 

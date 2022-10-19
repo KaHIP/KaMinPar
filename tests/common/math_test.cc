@@ -1,6 +1,6 @@
 #include <gmock/gmock.h>
 
-#include "common/utils/math.h"
+#include "common/math.h"
 
 using ::testing::AnyOf;
 using ::testing::Eq;

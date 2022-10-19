@@ -7,7 +7,7 @@
 #pragma once
 
 #include "dkaminpar/context.h"
-#include "dkaminpar/datastructure/distributed_graph.h"
+#include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/definitions.h"
 
 #include "common/datastructures/binary_heap.h"

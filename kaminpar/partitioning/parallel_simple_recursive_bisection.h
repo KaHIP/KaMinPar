@@ -9,10 +9,10 @@
 #include <tbb/parallel_invoke.h>
 
 #include "kaminpar/context.h"
-#include "kaminpar/datastructure/graph.h"
+#include "kaminpar/datastructures/graph.h"
 #include "kaminpar/graphutils/graph_extraction.h"
 #include "kaminpar/initial_partitioning/initial_partitioning_facade.h"
-#include "kaminpar/partitioning_scheme/helper.h"
+#include "kaminpar/partitioning/helper.h"
 
 namespace kaminpar::shm::partitioning {
 class ParallelSimpleRecursiveBisection {

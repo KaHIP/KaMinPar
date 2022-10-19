@@ -3,7 +3,7 @@
 #include "tests/basic_test_helpers.h"
 #include "tests/kaminpar/tests.h"
 
-#include "kaminpar/datastructure/graph.h"
+#include "kaminpar/datastructures/graph.h"
 #include "kaminpar/io.h"
 
 using ::testing::UnorderedElementsAre;

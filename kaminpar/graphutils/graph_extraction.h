@@ -11,7 +11,7 @@
 #include <vector>
 
 #include "kaminpar/context.h"
-#include "kaminpar/datastructure/graph.h"
+#include "kaminpar/datastructures/graph.h"
 
 namespace kaminpar::shm::graph {
 struct SubgraphMemoryStartPosition {

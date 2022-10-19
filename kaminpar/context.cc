@@ -13,7 +13,7 @@
 
 #include "common/asserting_cast.h"
 #include "common/console_io.h"
-#include "common/utils/math.h"
+#include "common/math.h"
 
 namespace kaminpar::shm {
 using namespace std::string_literals;

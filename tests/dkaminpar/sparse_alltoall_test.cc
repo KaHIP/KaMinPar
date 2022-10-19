@@ -4,7 +4,7 @@
 #include "dkaminpar/mpi/sparse_alltoall.h"
 #include "dkaminpar/mpi/wrapper.h"
 
-#include "common/utils/math.h"
+#include "common/math.h"
 
 namespace kaminpar::dist {
 template <typename Implementation>

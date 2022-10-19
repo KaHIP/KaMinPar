@@ -6,7 +6,7 @@
  ******************************************************************************/
 #pragma once
 
-#include "kaminpar/datastructure/graph.h"
+#include "kaminpar/datastructures/graph.h"
 #include "kaminpar/definitions.h"
 
 #include "common/parallel/atomic.h"

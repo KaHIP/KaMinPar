@@ -8,7 +8,7 @@
 
 #include <vector>
 
-#include "dkaminpar/datastructure/distributed_graph.h"
+#include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/definitions.h"
 
 namespace kaminpar::dist::graph {

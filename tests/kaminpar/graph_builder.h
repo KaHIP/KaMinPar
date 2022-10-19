@@ -1,6 +1,6 @@
 #pragma once
 
-#include "kaminpar/datastructure/graph.h"
+#include "kaminpar/datastructures/graph.h"
 
 namespace kaminpar::shm::testing {
 class GraphBuilder {

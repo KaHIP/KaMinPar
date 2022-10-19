@@ -7,7 +7,7 @@
 #pragma once
 
 #include "kaminpar/coarsening/clustering_algorithm.h"
-#include "kaminpar/datastructure/graph.h"
+#include "kaminpar/datastructures/graph.h"
 #include "kaminpar/definitions.h"
 
 namespace kaminpar::shm {

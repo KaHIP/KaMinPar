@@ -9,7 +9,7 @@
 #include <tbb/enumerable_thread_specific.h>
 
 #include "dkaminpar/context.h"
-#include "dkaminpar/datastructure/distributed_graph.h"
+#include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/definitions.h"
 #include "dkaminpar/mpi/wrapper.h"
 

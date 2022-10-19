@@ -1,10 +1,10 @@
 /*******************************************************************************
- * @file:   deep_partitioning_scheme.cc
+ * @file:   deep_partitioning.cc
  * @author: Daniel Seemaier
  * @date:   28.04.2022
  * @brief:  Deep multilevel graph partitioning scheme.
  ******************************************************************************/
-#include "dkaminpar/partitioning_scheme/deep_partitioning_scheme.h"
+#include "dkaminpar/partitioning/deep_partitioning_scheme.h"
 
 #include <cmath>
 #include <iomanip>
@@ -12,21 +12,21 @@
 #include <mpi.h>
 
 #include "dkaminpar/context.h"
-#include "dkaminpar/datastructure/distributed_graph.h"
+#include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/debug.h"
 #include "dkaminpar/factories.h"
 #include "dkaminpar/graphutils/allgather_graph.h"
 #include "dkaminpar/graphutils/graph_extraction.h"
 #include "dkaminpar/metrics.h"
 #include "dkaminpar/mpi/wrapper.h"
-#include "dkaminpar/partitioning_scheme/kway_partitioning_scheme.h"
+#include "dkaminpar/partitioning/kway_partitioning_scheme.h"
 #include "dkaminpar/refinement/balancer.h"
 
-#include "kaminpar/datastructure/graph.h"
+#include "kaminpar/datastructures/graph.h"
 
 #include "common/assert.h"
+#include "common/math.h"
 #include "common/timer.h"
-#include "common/utils/math.h"
 
 namespace kaminpar::dist {
 SET_DEBUG(false);
@@ -106,7 +106,7 @@ void DeepPartitioningScheme::print_initial_partitioning_result(
 }
 
 DistributedPartitionedGraph DeepPartitioningScheme::partition() {
-    //const PEID size = mpi::get_comm_size(_input_graph.communicator());
+    // const PEID size = mpi::get_comm_size(_input_graph.communicator());
 
     const DistributedGraph* graph     = &_input_graph;
     auto*                   coarsener = get_current_coarsener();

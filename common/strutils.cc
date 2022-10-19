@@ -4,7 +4,7 @@
  * @date:   21.09.2021
  * @brief:  Helper functions for string operations.
  ******************************************************************************/
-#include "common/utils/strings.h"
+#include "common/strutils.h"
 
 #include <sstream>
 

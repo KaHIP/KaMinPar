@@ -12,15 +12,15 @@
 
 #include "parallel/algorithm.h"
 
-#include "dkaminpar/datastructure/distributed_graph.h"
-#include "dkaminpar/datastructure/distributed_graph_builder.h"
+#include "dkaminpar/datastructures/distributed_graph.h"
+#include "dkaminpar/datastructures/distributed_graph_builder.h"
 #include "dkaminpar/definitions.h"
 
 #include "common/datastructures/ts_navigable_linked_list.h"
 #include "common/noinit_vector.h"
 #include "common/scalable_vector.h"
 #include "common/timer.h"
-#include "common/utils/math.h"
+#include "common/math.h"
 
 namespace kaminpar::dist::helper {
 namespace {

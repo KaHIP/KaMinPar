@@ -12,7 +12,7 @@
 
 #include "common/random.h"
 #include "common/timer.h"
-#include "common/utils/math.h"
+#include "common/math.h"
 
 namespace kaminpar::dist {
 DistributedBalancer::DistributedBalancer(const Context& ctx)

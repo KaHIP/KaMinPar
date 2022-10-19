@@ -6,7 +6,7 @@
  ******************************************************************************/
 #pragma once
 
-#include "dkaminpar/datastructure/distributed_graph.h"
+#include "dkaminpar/datastructures/distributed_graph.h"
 
 namespace kaminpar::dist::graph {
 DistributedGraph sort_by_degree_buckets(DistributedGraph graph);

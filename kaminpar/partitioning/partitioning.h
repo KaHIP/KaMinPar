@@ -7,7 +7,7 @@
 #pragma once
 
 #include "kaminpar/context.h"
-#include "kaminpar/datastructure/graph.h"
+#include "kaminpar/datastructures/graph.h"
 
 namespace kaminpar::shm::partitioning {
 PartitionedGraph partition(const Graph& graph, const Context& ctx);

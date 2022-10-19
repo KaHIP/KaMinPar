@@ -11,7 +11,7 @@
 #include "dkaminpar/coarsening/clustering_algorithm.h"
 #include "dkaminpar/coarsening/global_clustering_contraction.h"
 #include "dkaminpar/context.h"
-#include "dkaminpar/datastructure/distributed_graph.h"
+#include "dkaminpar/datastructures/distributed_graph.h"
 
 namespace kaminpar::dist {
 class Coarsener {

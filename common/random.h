@@ -12,7 +12,7 @@
 
 #include <tbb/task_arena.h>
 
-#include "common/utils/math.h"
+#include "common/math.h"
 
 namespace kaminpar {
 class Random {

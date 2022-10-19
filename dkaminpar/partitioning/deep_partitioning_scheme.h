@@ -1,5 +1,5 @@
 /*******************************************************************************
- * @file:   deep_partitioning_scheme.h
+ * @file:   deep_partitioning.h
  * @author: Daniel Seemaier
  * @date:   28.04.2022
  * @brief:  Deep multilevel graph partitioning scheme.
@@ -10,7 +10,7 @@
 
 #include "dkaminpar/coarsening/coarsener.h"
 #include "dkaminpar/context.h"
-#include "dkaminpar/datastructure/distributed_graph.h"
+#include "dkaminpar/datastructures/distributed_graph.h"
 
 namespace kaminpar::dist {
 class DeepPartitioningScheme {

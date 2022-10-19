@@ -13,7 +13,7 @@
 
 #include <unordered_map>
 
-#include "dkaminpar/datastructure/distributed_graph.h"
+#include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/growt.h"
 #include "dkaminpar/mpi/graph_communication.h"
 
@@ -21,7 +21,7 @@
 
 #include "common/datastructures/fast_reset_array.h"
 #include "common/datastructures/rating_map.h"
-#include "common/utils/math.h"
+#include "common/math.h"
 
 namespace kaminpar::dist {
 namespace {

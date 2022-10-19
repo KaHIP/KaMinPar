@@ -10,7 +10,7 @@
 #include <tbb/concurrent_vector.h>
 
 #include "kaminpar/coarsening/i_coarsener.h"
-#include "kaminpar/datastructure/graph.h"
+#include "kaminpar/datastructures/graph.h"
 #include "kaminpar/definitions.h"
 #include "kaminpar/graphutils/graph_extraction.h"
 #include "kaminpar/initial_partitioning/initial_partitioning_facade.h"

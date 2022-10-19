@@ -4,10 +4,10 @@
  * @date:   21.09.2021
  * @brief:
  ******************************************************************************/
-#include "kaminpar/partitioning_scheme/partitioning.h"
+#include "kaminpar/partitioning/partitioning.h"
 
-#include "kaminpar/partitioning_scheme/parallel_recursive_bisection.h"
-#include "kaminpar/partitioning_scheme/parallel_simple_recursive_bisection.h"
+#include "kaminpar/partitioning/parallel_recursive_bisection.h"
+#include "kaminpar/partitioning/parallel_simple_recursive_bisection.h"
 
 #include "common/logger.h"
 #include "common/timer.h"

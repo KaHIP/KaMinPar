@@ -8,7 +8,7 @@
 
 #include "kaminpar/coarsening/i_clustering.h"
 #include "kaminpar/context.h"
-#include "kaminpar/datastructure/graph.h"
+#include "kaminpar/datastructures/graph.h"
 
 namespace kaminpar::shm {
 class LabelPropagationClusteringAlgorithm : public IClustering {

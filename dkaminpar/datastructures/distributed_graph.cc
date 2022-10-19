@@ -4,7 +4,7 @@
  * @date:   27.10.2021
  * @brief:  Static distributed graph data structure.
  ******************************************************************************/
-#include "dkaminpar/datastructure/distributed_graph.h"
+#include "dkaminpar/datastructures/distributed_graph.h"
 
 #include <iomanip>
 #include <numeric>
@@ -16,7 +16,7 @@
 #include "common/parallel/vector_ets.h"
 #include "common/scalable_vector.h"
 #include "common/timer.h"
-#include "common/utils/math.h"
+#include "common/math.h"
 
 namespace kaminpar::dist {
 void DistributedGraph::print() const {

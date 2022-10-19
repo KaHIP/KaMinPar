@@ -22,7 +22,6 @@ endfunction()
 
 function(add_distributed_app target)
     if (TARGET dist_partitioner_base)
-        message(${ARGN})
         add_app(${target} ${ARGN})
         target_link_libraries(${target} PRIVATE dist_partitioner_base)
     else ()

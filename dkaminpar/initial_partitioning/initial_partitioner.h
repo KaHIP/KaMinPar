@@ -9,7 +9,7 @@
 #include "dkaminpar/context.h"
 #include "dkaminpar/definitions.h"
 
-#include "kaminpar/datastructure/graph.h"
+#include "kaminpar/datastructures/graph.h"
 
 namespace kaminpar::dist {
 class InitialPartitioner {

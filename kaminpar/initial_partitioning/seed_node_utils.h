@@ -11,7 +11,7 @@
 #include <utility>
 #include <vector>
 
-#include "kaminpar/datastructure/graph.h"
+#include "kaminpar/datastructures/graph.h"
 
 #include "common/datastructures/marker.h"
 #include "common/datastructures/queue.h"

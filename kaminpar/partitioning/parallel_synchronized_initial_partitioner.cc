@@ -4,7 +4,7 @@
  * @date:   21.09.2021
  * @brief:
  ******************************************************************************/
-#include "kaminpar/partitioning_scheme/parallel_synchronized_initial_partitioner.h"
+#include "kaminpar/partitioning/parallel_synchronized_initial_partitioner.h"
 
 namespace kaminpar::shm::partitioning {
 ParallelSynchronizedInitialPartitioner::ParallelSynchronizedInitialPartitioner(

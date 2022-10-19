@@ -6,7 +6,7 @@
  ******************************************************************************/
 #pragma once
 
-#include "dkaminpar/datastructure/distributed_graph.h"
+#include "dkaminpar/datastructures/distributed_graph.h"
 
 #include "common/datastructures/ts_navigable_linked_list.h"
 #include "common/parallel/atomic.h"

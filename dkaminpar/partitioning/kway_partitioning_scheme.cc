@@ -4,13 +4,11 @@
  * @date:   25.10.2021
  * @brief:  Partitioning scheme using direct k-way partitioning.
  ******************************************************************************/
-#include "dkaminpar/partitioning_scheme/kway_partitioning_scheme.h"
-
-#include "datastructure/graph.h"
+#include "dkaminpar/partitioning/kway_partitioning_scheme.h"
 
 #include "dkaminpar/coarsening/coarsener.h"
 #include "dkaminpar/coarsening/global_clustering_contraction.h"
-#include "dkaminpar/datastructure/distributed_graph.h"
+#include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/debug.h"
 #include "dkaminpar/factories.h"
 #include "dkaminpar/graphutils/allgather_graph.h"
@@ -18,11 +16,12 @@
 #include "dkaminpar/metrics.h"
 #include "dkaminpar/refinement/balancer.h"
 
+#include "kaminpar/datastructures/graph.h"
 #include "kaminpar/metrics.h"
 
 #include "common/console_io.h"
+#include "common/strutils.h"
 #include "common/timer.h"
-#include "common/utils/strings.h"
 
 namespace kaminpar::dist {
 SET_DEBUG(false);

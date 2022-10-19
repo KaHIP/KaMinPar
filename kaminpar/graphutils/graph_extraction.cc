@@ -11,7 +11,7 @@
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_for.h>
 
-#include "kaminpar/datastructure/graph.h"
+#include "kaminpar/datastructures/graph.h"
 #include "kaminpar/definitions.h"
 
 #include "common/assert.h"
@@ -19,7 +19,7 @@
 #include "common/parallel/algorithm.h"
 #include "common/parallel/atomic.h"
 #include "common/timer.h"
-#include "common/utils/math.h"
+#include "common/math.h"
 
 namespace kaminpar::shm::graph {
 SequentialSubgraphExtractionResult extract_subgraphs_sequential(

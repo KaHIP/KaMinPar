@@ -4,15 +4,15 @@
  * @date:   21.09.2021
  * @brief:  Static graph data structure with dynamic partition wrapper.
  ******************************************************************************/
-#include "kaminpar/datastructure/graph.h"
+#include "kaminpar/datastructures/graph.h"
 
 #include <kassert/kassert.hpp>
 
 #include "kaminpar/definitions.h"
 
+#include "common/math.h"
 #include "common/parallel/algorithm.h"
 #include "common/timer.h"
-#include "common/utils/math.h"
 
 namespace kaminpar::shm {
 Degree lowest_degree_in_bucket(const std::size_t bucket) {

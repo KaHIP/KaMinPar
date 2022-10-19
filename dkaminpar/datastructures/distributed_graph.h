@@ -16,7 +16,7 @@
 #include "dkaminpar/logger.h"
 #include "dkaminpar/mpi/wrapper.h"
 
-#include "kaminpar/datastructure/graph.h"
+#include "kaminpar/datastructures/graph.h"
 
 #include "common/datastructures/marker.h"
 #include "common/parallel/algorithm.h"

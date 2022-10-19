@@ -13,8 +13,8 @@
 #include <tbb/task_scheduler_observer.h>
 
 #include "kaminpar/coarsening/label_propagation_clustering.h"
-#include "kaminpar/datastructure/graph.h"
-#include "kaminpar/partitioning_scheme/helper.h"
+#include "kaminpar/datastructures/graph.h"
+#include "kaminpar/partitioning/helper.h"
 #include "kaminpar/refinement/greedy_balancer.h"
 #include "kaminpar/refinement/label_propagation_refiner.h"
 

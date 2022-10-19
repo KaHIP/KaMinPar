@@ -10,7 +10,6 @@
 #include <cerrno>
 #include <cmath>
 #include <csignal>
-#include <cstring>
 #include <iostream>
 #include <memory>
 #include <sstream>

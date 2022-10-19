@@ -23,7 +23,7 @@
 #include "dkaminpar/mpi/alltoall.h"
 #include "dkaminpar/mpi/utils.h"
 
-#include "kaminpar/datastructure/graph.h"
+#include "kaminpar/datastructures/graph.h"
 
 #include "common/datastructures/binary_heap.h"
 #include "common/datastructures/marker.h"
@@ -33,7 +33,7 @@
 #include "common/parallel/atomic.h"
 #include "common/random.h"
 #include "common/timer.h"
-#include "common/utils/math.h"
+#include "common/math.h"
 
 namespace kaminpar::dist {
 SET_DEBUG(true);

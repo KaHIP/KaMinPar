@@ -4,9 +4,9 @@
  * @date:   21.09.2021
  * @brief:
  ******************************************************************************/
-#include "kaminpar/partitioning_scheme/helper.h"
+#include "kaminpar/partitioning/helper.h"
 
-#include "common/utils/math.h"
+#include "common/math.h"
 
 namespace kaminpar::shm::partitioning::helper {
 namespace {

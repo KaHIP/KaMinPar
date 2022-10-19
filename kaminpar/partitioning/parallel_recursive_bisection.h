@@ -10,12 +10,12 @@
 
 #include "kaminpar/coarsening/label_propagation_clustering.h"
 #include "kaminpar/context.h"
-#include "kaminpar/datastructure/graph.h"
+#include "kaminpar/datastructures/graph.h"
 #include "kaminpar/factories.h"
 #include "kaminpar/graphutils/graph_extraction.h"
 #include "kaminpar/initial_partitioning/initial_partitioning_facade.h"
 #include "kaminpar/initial_partitioning/pool_bipartitioner.h"
-#include "kaminpar/partitioning_scheme/helper.h"
+#include "kaminpar/partitioning/helper.h"
 
 #include "common/console_io.h"
 

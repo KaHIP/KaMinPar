@@ -2,7 +2,7 @@
 
 #include "tests.h"
 
-#include "kaminpar/datastructure/graph.h"
+#include "kaminpar/datastructures/graph.h"
 #include "kaminpar/metrics.h"
 
 using ::testing::Test;

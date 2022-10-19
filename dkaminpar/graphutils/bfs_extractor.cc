@@ -15,11 +15,11 @@
 #include <kassert/kassert.hpp>
 #include <tbb/parallel_for.h>
 
-#include "dkaminpar/datastructure/distributed_graph.h"
+#include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/growt.h"
 #include "dkaminpar/mpi/sparse_alltoall.h"
 
-#include "kaminpar/datastructure/graph.h"
+#include "kaminpar/datastructures/graph.h"
 
 #include "common/datastructures/marker.h"
 #include "common/datastructures/static_array.h"

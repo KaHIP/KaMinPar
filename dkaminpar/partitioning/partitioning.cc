@@ -4,10 +4,10 @@
  * @date:   27.10.2021
  * @brief:  Interface for partitioning schemes.
  ******************************************************************************/
-#include "dkaminpar/partitioning_scheme/partitioning.h"
+#include "dkaminpar/partitioning/partitioning.h"
 
-#include "dkaminpar/partitioning_scheme/deep_partitioning_scheme.h"
-#include "dkaminpar/partitioning_scheme/kway_partitioning_scheme.h"
+#include "dkaminpar/partitioning/deep_partitioning_scheme.h"
+#include "dkaminpar/partitioning/kway_partitioning_scheme.h"
 
 namespace kaminpar::dist {
 DistributedPartitionedGraph partition(const DistributedGraph& graph, const Context& ctx) {

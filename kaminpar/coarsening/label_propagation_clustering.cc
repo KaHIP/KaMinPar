@@ -10,7 +10,7 @@
 
 #include "kaminpar/coarsening/i_clustering.h"
 #include "kaminpar/context.h"
-#include "kaminpar/datastructure/graph.h"
+#include "kaminpar/datastructures/graph.h"
 #include "kaminpar/label_propagation.h"
 
 #include "common/timer.h"

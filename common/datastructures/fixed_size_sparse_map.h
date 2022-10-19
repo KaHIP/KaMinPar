@@ -30,7 +30,7 @@
 
 #include <kassert/kassert.hpp>
 
-#include "common/utils/math.h"
+#include "common/math.h"
 
 namespace kaminpar {
 /*!

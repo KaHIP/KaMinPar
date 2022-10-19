@@ -6,8 +6,8 @@
  ******************************************************************************/
 #include "dkaminpar/initial_partitioning/kaminpar_initial_partitioner.h"
 
-#include "kaminpar/datastructure/graph.h"
-#include "kaminpar/partitioning_scheme/partitioning.h"
+#include "kaminpar/datastructures/graph.h"
+#include "kaminpar/partitioning/partitioning.h"
 
 #include "common/datastructures/static_array.h"
 #include "common/logger.h"

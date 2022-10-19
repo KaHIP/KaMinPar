@@ -9,13 +9,13 @@
 #include <tbb/concurrent_hash_map.h>
 #include <tbb/parallel_for.h>
 
-#include "dkaminpar/datastructure/distributed_graph_builder.h"
+#include "dkaminpar/datastructures/distributed_graph_builder.h"
 #include "dkaminpar/mpi/wrapper.h"
 
 #include "kaminpar/io.h"
 
-#include "common/utils/math.h"
-#include "common/utils/strings.h"
+#include "common/math.h"
+#include "common/strutils.h"
 
 namespace kaminpar::dist::io {
 SET_DEBUG(false);

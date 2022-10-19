@@ -10,15 +10,15 @@
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_for.h>
 
-#include "datastructure/distributed_graph.h"
-#include "datastructure/graph.h"
-
 #include "dkaminpar/context.h"
+#include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/graphutils/bfs_extractor.h"
 #include "dkaminpar/graphutils/independent_set.h"
 #include "dkaminpar/growt.h"
 #include "dkaminpar/metrics.h"
 #include "dkaminpar/refinement/move_conflict_resolver.h"
+
+#include "kaminpar/datastructures/graph.h"
 
 #include "common/datastructures/binary_heap.h"
 #include "common/datastructures/rating_map.h"

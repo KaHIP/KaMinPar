@@ -10,7 +10,7 @@
 #include <map>
 #include <string_view>
 
-#include "kaminpar/datastructure/graph.h"
+#include "kaminpar/datastructures/graph.h"
 #include "kaminpar/definitions.h"
 
 namespace kaminpar::shm {

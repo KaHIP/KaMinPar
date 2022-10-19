@@ -22,7 +22,7 @@
 #include "common/parallel/algorithm.h"
 #include "common/preallocated_vector.h"
 #include "common/timer.h"
-#include "common/utils/math.h"
+#include "common/math.h"
 
 namespace kaminpar::mpi {
 namespace internal {

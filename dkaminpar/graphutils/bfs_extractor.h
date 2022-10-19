@@ -14,10 +14,10 @@
 
 #include "datastructures/fast_reset_array.h"
 
-#include "dkaminpar/datastructure/distributed_graph.h"
+#include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/definitions.h"
 
-#include "kaminpar/datastructure/graph.h"
+#include "kaminpar/datastructures/graph.h"
 
 #include "common/datastructures/fast_reset_array.h"
 #include "common/datastructures/marker.h"

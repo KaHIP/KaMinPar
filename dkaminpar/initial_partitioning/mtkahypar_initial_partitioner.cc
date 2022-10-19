@@ -17,7 +17,7 @@
     #include <libmtkahypar.h>
 #endif // KAMINPAR_HAS_MTKAHYPAR_LIB
 
-#include "kaminpar/partitioning_scheme/partitioning.h"
+#include "kaminpar/partitioning/partitioning.h"
 
 #include "common/assert.h"
 #include "common/logger.h"

@@ -14,7 +14,7 @@
 #include <tbb/parallel_invoke.h>
 #include <tbb/scalable_allocator.h>
 
-#include "kaminpar/datastructure/graph.h"
+#include "kaminpar/datastructures/graph.h"
 #include "kaminpar/definitions.h"
 
 #include "common/assert.h"

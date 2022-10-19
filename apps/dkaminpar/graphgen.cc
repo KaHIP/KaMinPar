@@ -6,12 +6,15 @@
  ******************************************************************************/
 #include "apps/dkaminpar/graphgen.h"
 
-#include <kagen.h>
+#ifdef KAMINPAR_ENABLE_GRAPHGEN
+    #include <kagen.h>
+#endif // KAMINPAR_ENABLE_GRAPHGEN
+
 #include <tbb/parallel_sort.h>
 
 #include "dkaminpar/coarsening/contraction_helper.h"
-#include "dkaminpar/datastructure/distributed_graph.h"
-#include "dkaminpar/datastructure/distributed_graph_builder.h"
+#include "dkaminpar/datastructures/distributed_graph.h"
+#include "dkaminpar/datastructures/distributed_graph_builder.h"
 #include "dkaminpar/definitions.h"
 #include "dkaminpar/growt.h"
 #include "dkaminpar/mpi/wrapper.h"
@@ -27,7 +30,6 @@
 
 namespace kaminpar::dist {
 using namespace std::string_literals;
-using namespace kagen;
 
 std::unordered_map<std::string, GeneratorType> get_generator_types() {
     return {
@@ -107,6 +109,8 @@ Please refer to the KaGen manual for a description of each graph model.)")
 }
 
 #ifdef KAMINPAR_ENABLE_GRAPHGEN
+using namespace kagen;
+
 namespace {
 SET_DEBUG(false);
 
@@ -482,7 +486,7 @@ KaGenResult create_rmat(const GeneratorContext ctx) {
 } // namespace
 #endif // KAMINPAR_ENABLE_GRAPHGEN
 
-DistributedGraph generate(const GeneratorContext& ctx) {
+DistributedGraph generate([[maybe_unused]] const GeneratorContext& ctx) {
 #ifdef KAMINPAR_ENABLE_GRAPHGEN
     auto [edges, local_range] = [&] {
         switch (ctx.type) {

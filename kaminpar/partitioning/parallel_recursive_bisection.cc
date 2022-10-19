@@ -4,10 +4,10 @@
  * @date:   21.09.2021
  * @brief:
  ******************************************************************************/
-#include "kaminpar/partitioning_scheme/parallel_recursive_bisection.h"
+#include "kaminpar/partitioning/parallel_recursive_bisection.h"
 
-#include "kaminpar/partitioning_scheme/parallel_initial_partitioner.h"
-#include "kaminpar/partitioning_scheme/parallel_synchronized_initial_partitioner.h"
+#include "kaminpar/partitioning/parallel_initial_partitioner.h"
+#include "kaminpar/partitioning/parallel_synchronized_initial_partitioner.h"
 
 namespace kaminpar::shm::partitioning {
 ParallelRecursiveBisection::ParallelRecursiveBisection(const Graph& input_graph, const Context& input_ctx)

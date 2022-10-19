@@ -6,7 +6,7 @@
  ******************************************************************************/
 #pragma once
 
-#include "dkaminpar/datastructure/distributed_graph.h"
+#include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/refinement/refiner.h"
 
 namespace kaminpar::dist {

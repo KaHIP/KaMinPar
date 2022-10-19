@@ -8,8 +8,8 @@
 #include <omp.h>
 #include <tbb/global_control.h>
 
-#include "dkaminpar/datastructure/distributed_graph.h"
-#include "dkaminpar/datastructure/distributed_graph_builder.h"
+#include "dkaminpar/datastructures/distributed_graph.h"
+#include "dkaminpar/datastructures/distributed_graph_builder.h"
 #include "dkaminpar/definitions.h"
 #include "dkaminpar/graphutils/allgather_graph.h"
 #include "dkaminpar/mpi/graph_communication.h"
