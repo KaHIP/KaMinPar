@@ -1,7 +1,7 @@
 #include <gmock/gmock.h>
 
 #include "tests/basic_test_helpers.h"
-#include "tests/kaminpar/tests.h"
+#include "tests/kaminpar/test_helpers.h"
 
 #include "kaminpar/datastructures/graph.h"
 #include "kaminpar/io.h"

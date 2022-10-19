@@ -13,7 +13,7 @@ kaminpar_add_common_test(test_common_static_array common/datastructures/static_a
 
 # Common 
 kaminpar_add_common_test(test_common_math common/math_test.cc)
-kaminpar_add_common_test(test_common_string common/string_test.cc)
+kaminpar_add_common_test(test_common_string common/strutils_test.cc)
 kaminpar_add_common_test(test_common_parallel_algorithm common/parallel/algorithm_test.cc)
 
 # dKaMinPar -> Graph Utils
@@ -49,4 +49,4 @@ kaminpar_add_dist_test(test_dist_graph_topology
 
 # KaMinPar 
 kaminpar_add_shm_test(test_shm_io kaminpar/io_test.cc)
-
+kaminpar_add_shm_test(test_shm_metrics kaminpar/metrics_test.cc)
