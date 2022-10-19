@@ -1,5 +1,7 @@
-#include "matcher.h"
-#include "tests.h"
+#include "tests/kaminpar/graph_factories.h"
+#include "tests/kaminpar/graph_helpers.h"
+#include "tests/kaminpar/matchers.h"
+#include "tests/kaminpar/test_helpers.h"
 
 #include "kaminpar/graphutils/graph_contraction.h"
 #include "kaminpar/graphutils/graph_extraction.h"
@@ -7,15 +9,13 @@
 
 using ::testing::AllOf;
 using ::testing::AnyOf;
-using ::testing::Eq;
 using ::testing::Ge;
 using ::testing::Gt;
 using ::testing::Le;
 using ::testing::Lt;
 using ::testing::UnorderedElementsAre;
-using namespace ::kaminpar::test;
 
-namespace kaminpar {
+namespace kaminpar::shm::testing {
 TEST(ParallelContractionTest, ContractingToSingleNodeWorks) {
     static constexpr auto GRID_LENGTH{2};
     Graph                 graph{graphs::grid(GRID_LENGTH, GRID_LENGTH)};
@@ -124,10 +124,10 @@ TEST(GraphPermutationTest, PermutationByNodeDegreeIsCorrect) {
     const auto& permutation  = permutations.old_to_new;
     EXPECT_THAT(permutation[0], AllOf(Ge(2), Le(3)));
     EXPECT_THAT(permutation[1], AllOf(Ge(0), Le(1)));
-    EXPECT_THAT(permutation[2], Eq(4));
+    EXPECT_EQ(permutation[2], 4);
     EXPECT_THAT(permutation[3], AllOf(Ge(0), Le(1)));
     EXPECT_THAT(permutation[4], AllOf(Ge(2), Le(3)));
-    EXPECT_THAT(permutation[5], Eq(05));
+    EXPECT_EQ(permutation[5], 5);
 }
 
 TEST(GraphPermutationTest, MovingIsolatedNodesToBackWorks) {
@@ -137,17 +137,17 @@ TEST(GraphPermutationTest, MovingIsolatedNodesToBackWorks) {
     const auto                permutations = graph::sort_by_degree_buckets(nodes);
     const auto&               permutation  = permutations.old_to_new;
 
-    EXPECT_THAT(permutation[0], Ge(5));
-    EXPECT_THAT(permutation[1], Ge(5));
-    EXPECT_THAT(permutation[2], Le(4));
-    EXPECT_THAT(permutation[3], Le(4));
-    EXPECT_THAT(permutation[4], Le(4));
-    EXPECT_THAT(permutation[5], Ge(5));
-    EXPECT_THAT(permutation[6], Ge(5));
-    EXPECT_THAT(permutation[7], Le(4));
-    EXPECT_THAT(permutation[8], Le(4));
-    EXPECT_THAT(permutation[9], Ge(5));
-    EXPECT_THAT(permutation[10], Ge(5));
+    EXPECT_GE(permutation[0], 5);
+    EXPECT_GE(permutation[1], 5);
+    EXPECT_LE(permutation[2], 4);
+    EXPECT_LE(permutation[3], 4);
+    EXPECT_LE(permutation[4], 4);
+    EXPECT_GE(permutation[5], 5);
+    EXPECT_GE(permutation[6], 5);
+    EXPECT_LE(permutation[7], 4);
+    EXPECT_LE(permutation[8], 4);
+    EXPECT_GE(permutation[9], 5);
+    EXPECT_GE(permutation[10], 5);
 }
 
 //
@@ -173,10 +173,10 @@ TEST(PreprocessingTest, PreprocessingFacadeRemovesIsolatedNodesAndAdaptsEpsilonF
 
     graph::rearrange_graph(p_ctx, nodes, edges, node_weights, edge_weights);
 
-    EXPECT_THAT(nodes.size(), 7);
-    EXPECT_THAT(edges.size(), 8);
+    EXPECT_EQ(nodes.size(), 7);
+    EXPECT_EQ(edges.size(), 8);
     for (const NodeID v: edges) {
-        EXPECT_THAT(v, Lt(7));
+        EXPECT_LT(v, 7);
     } // edges are valid
 
     // total weight of new graph: 6, perfectly balanced block weight: 3
@@ -191,8 +191,8 @@ TEST(SequentialGraphExtraction, SimpleSequentialBipartitionExtractionWorks) {
     // 0--1--2     block 0
     //-|--|--
     // 3--4--5     block 1
-    Graph            graph{test::create_graph({0, 2, 5, 6, 8, 11, 12}, {1, 3, 0, 4, 2, 1, 0, 4, 3, 1, 5, 4})};
-    PartitionedGraph p_graph{test::create_p_graph(graph, 2, {0, 0, 0, 1, 1, 1})};
+    Graph            graph{create_graph({0, 2, 5, 6, 8, 11, 12}, {1, 3, 0, 4, 2, 1, 0, 4, 3, 1, 5, 4})};
+    PartitionedGraph p_graph{create_p_graph(graph, 2, {0, 0, 0, 1, 1, 1})};
 
     graph::SubgraphMemory              memory{p_graph};
     graph::SubgraphMemoryStartPosition position{0, 0};
@@ -200,14 +200,14 @@ TEST(SequentialGraphExtraction, SimpleSequentialBipartitionExtractionWorks) {
     const auto [subgraphs, positions] = graph::extract_subgraphs_sequential(p_graph, position, memory, buffer);
 
     for (const auto& subgraph: subgraphs) {
-        EXPECT_THAT(subgraph.n(), Eq(3));
-        EXPECT_THAT(subgraph.m(), Eq(4));
-        EXPECT_THAT(test::degrees(subgraph), UnorderedElementsAre(1, 1, 2));
+        EXPECT_EQ(subgraph.n(), 3);
+        EXPECT_EQ(subgraph.m(), 4);
+        EXPECT_THAT(degrees(subgraph), UnorderedElementsAre(1, 1, 2));
     }
 
-    EXPECT_THAT(positions[0].nodes_start_pos, Eq(0));
-    EXPECT_THAT(positions[0].edges_start_pos, Eq(0));
-    EXPECT_THAT(positions[1].nodes_start_pos, Eq(4));
-    EXPECT_THAT(positions[1].edges_start_pos, Eq(4));
+    EXPECT_EQ(positions[0].nodes_start_pos, 0);
+    EXPECT_EQ(positions[0].edges_start_pos, 0);
+    EXPECT_EQ(positions[1].nodes_start_pos, 4);
+    EXPECT_EQ(positions[1].edges_start_pos, 4);
 }
-} // namespace kaminpar
+} // namespace kaminpar::shm::testing
