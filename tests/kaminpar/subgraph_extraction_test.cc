@@ -1,20 +1,13 @@
-#include "matcher.h"
-#include "tests.h"
+#include "tests/kaminpar/graph_factories.h"
+#include "tests/kaminpar/graph_helpers.h"
+#include "tests/kaminpar/matchers.h"
+#include "tests/kaminpar/test_helpers.h"
 
 #include "kaminpar/graphutils/graph_extraction.h"
 
-using ::testing::AllOf;
 using ::testing::AnyOf;
-using ::testing::Eq;
-using ::testing::Ge;
-using ::testing::Gt;
-using ::testing::Le;
-using ::testing::Lt;
-using ::testing::Ne;
-using ::testing::UnorderedElementsAre;
-using namespace ::kaminpar::test;
 
-namespace kaminpar {
+namespace kaminpar::shm::testing {
 TEST(SubgraphExtractionTest, ExtractsIsolatedNodes) {
     Graph            graph{create_graph({0, 0, 0, 0, 0}, {})};
     PartitionedGraph p_graph{create_p_graph(graph, 4, {0, 1, 2, 3})};
@@ -22,14 +15,14 @@ TEST(SubgraphExtractionTest, ExtractsIsolatedNodes) {
     graph::SubgraphMemory memory{p_graph};
     auto                  result = extract_subgraphs(p_graph, memory);
 
-    EXPECT_THAT(result.subgraphs[0].n(), 1);
-    EXPECT_THAT(result.subgraphs[1].n(), 1);
-    EXPECT_THAT(result.subgraphs[2].n(), 1);
-    EXPECT_THAT(result.subgraphs[3].n(), 1);
-    EXPECT_THAT(result.subgraphs[0].m(), 0);
-    EXPECT_THAT(result.subgraphs[1].m(), 0);
-    EXPECT_THAT(result.subgraphs[2].m(), 0);
-    EXPECT_THAT(result.subgraphs[3].m(), 0);
+    EXPECT_EQ(result.subgraphs[0].n(), 1);
+    EXPECT_EQ(result.subgraphs[1].n(), 1);
+    EXPECT_EQ(result.subgraphs[2].n(), 1);
+    EXPECT_EQ(result.subgraphs[3].n(), 1);
+    EXPECT_EQ(result.subgraphs[0].m(), 0);
+    EXPECT_EQ(result.subgraphs[1].m(), 0);
+    EXPECT_EQ(result.subgraphs[2].m(), 0);
+    EXPECT_EQ(result.subgraphs[3].m(), 0);
 }
 
 TEST(SubgraphExtractionTest, ExtractsEdges) {
@@ -39,16 +32,16 @@ TEST(SubgraphExtractionTest, ExtractsEdges) {
     graph::SubgraphMemory memory{p_graph};
     auto                  result = extract_subgraphs(p_graph, memory);
 
-    EXPECT_THAT(result.subgraphs[0].n(), 2);
-    EXPECT_THAT(result.subgraphs[1].n(), 2);
-    EXPECT_THAT(result.subgraphs[0].m(), 2);
-    EXPECT_THAT(result.subgraphs[1].m(), 2);
+    EXPECT_EQ(result.subgraphs[0].n(), 2);
+    EXPECT_EQ(result.subgraphs[1].n(), 2);
+    EXPECT_EQ(result.subgraphs[0].m(), 2);
+    EXPECT_EQ(result.subgraphs[1].m(), 2);
     EXPECT_THAT(result.subgraphs[0].edge_target(0), AnyOf(0, 1));
     EXPECT_THAT(result.subgraphs[0].edge_target(1), AnyOf(1, 0));
-    EXPECT_THAT(result.subgraphs[0].edge_target(0), Ne(result.subgraphs[0].edge_target(1)));
+    EXPECT_NE(result.subgraphs[0].edge_target(0), result.subgraphs[0].edge_target(1));
     EXPECT_THAT(result.subgraphs[1].edge_target(0), AnyOf(0, 1));
     EXPECT_THAT(result.subgraphs[1].edge_target(1), AnyOf(1, 0));
-    EXPECT_THAT(result.subgraphs[1].edge_target(0), Ne(result.subgraphs[0].edge_target(1)));
+    EXPECT_NE(result.subgraphs[1].edge_target(0), result.subgraphs[0].edge_target(1));
 }
 
 TEST(SubgraphExtractionTest, ExtractsPathCutInTwo) {
@@ -58,16 +51,16 @@ TEST(SubgraphExtractionTest, ExtractsPathCutInTwo) {
     graph::SubgraphMemory memory{p_graph};
     auto                  result = extract_subgraphs(p_graph, memory);
 
-    EXPECT_THAT(result.subgraphs[0].n(), 2);
-    EXPECT_THAT(result.subgraphs[1].n(), 2);
-    EXPECT_THAT(result.subgraphs[0].m(), 2);
-    EXPECT_THAT(result.subgraphs[1].m(), 2);
+    EXPECT_EQ(result.subgraphs[0].n(), 2);
+    EXPECT_EQ(result.subgraphs[1].n(), 2);
+    EXPECT_EQ(result.subgraphs[0].m(), 2);
+    EXPECT_EQ(result.subgraphs[1].m(), 2);
     EXPECT_THAT(result.subgraphs[0].edge_target(0), AnyOf(0, 1));
     EXPECT_THAT(result.subgraphs[0].edge_target(1), AnyOf(1, 0));
-    EXPECT_THAT(result.subgraphs[0].edge_target(0), Ne(result.subgraphs[0].edge_target(1)));
+    EXPECT_NE(result.subgraphs[0].edge_target(0), result.subgraphs[0].edge_target(1));
     EXPECT_THAT(result.subgraphs[1].edge_target(0), AnyOf(0, 1));
     EXPECT_THAT(result.subgraphs[1].edge_target(1), AnyOf(1, 0));
-    EXPECT_THAT(result.subgraphs[1].edge_target(0), Ne(result.subgraphs[0].edge_target(1)));
+    EXPECT_NE(result.subgraphs[1].edge_target(0), result.subgraphs[0].edge_target(1));
 }
 
 TEST(SubgraphExtractionTest, ComplexTrianglesWeightedExampleWorks) {
@@ -92,17 +85,17 @@ TEST(SubgraphExtractionTest, ComplexTrianglesWeightedExampleWorks) {
         p_graph.n(), 15, p_graph.m(), p_graph.graph().is_node_weighted(), p_graph.graph().is_edge_weighted()};
     auto result = extract_subgraphs(p_graph, memory);
 
-    EXPECT_THAT(result.subgraphs[0].n(), 3);
-    EXPECT_THAT(result.subgraphs[1].n(), 3);
-    EXPECT_THAT(result.subgraphs[2].n(), 3);
-    EXPECT_THAT(result.subgraphs[0].m(), 6);
-    EXPECT_THAT(result.subgraphs[1].m(), 6);
-    EXPECT_THAT(result.subgraphs[2].m(), 6);
+    EXPECT_EQ(result.subgraphs[0].n(), 3);
+    EXPECT_EQ(result.subgraphs[1].n(), 3);
+    EXPECT_EQ(result.subgraphs[2].n(), 3);
+    EXPECT_EQ(result.subgraphs[0].m(), 6);
+    EXPECT_EQ(result.subgraphs[1].m(), 6);
+    EXPECT_EQ(result.subgraphs[2].m(), 6);
 
     EXPECT_THAT(result.subgraphs[0], HasEdgeWithWeightedEndpoints(1, 2));
     EXPECT_THAT(result.subgraphs[0], HasEdgeWithWeightedEndpoints(1, 5));
     EXPECT_THAT(result.subgraphs[0], HasEdgeWithWeightedEndpoints(2, 5));
-    EXPECT_THAT(result.subgraphs[0].total_edge_weight(), 32);
+    EXPECT_EQ(result.subgraphs[0].total_edge_weight(), 32);
 
     EXPECT_THAT(result.subgraphs[1], HasEdgeWithWeightedEndpoints(3, 4));
     EXPECT_THAT(result.subgraphs[1], HasEdgeWithWeightedEndpoints(3, 6));
@@ -112,4 +105,4 @@ TEST(SubgraphExtractionTest, ComplexTrianglesWeightedExampleWorks) {
     EXPECT_THAT(result.subgraphs[2], HasEdgeWithWeightedEndpoints(7, 9));
     EXPECT_THAT(result.subgraphs[2], HasEdgeWithWeightedEndpoints(8, 9));
 }
-} // namespace kaminpar
+} // namespace kaminpar::shm::testing
