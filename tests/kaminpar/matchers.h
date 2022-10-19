@@ -1,14 +1,14 @@
 #pragma once
 
-#include "gmock/gmock.h"
+#include <gmock/gmock.h>
 
 #include "kaminpar/datastructures/graph.h"
 
+namespace kaminpar::shm::testing {
 using ::testing::Matcher;
 using ::testing::MatcherInterface;
 using ::testing::MatchResultListener;
 
-namespace kaminpar::test {
 class HasEdgeMatcher : public MatcherInterface<const Graph&> {
 public:
     HasEdgeMatcher(const NodeID u, const NodeID v) : _u(u), _v(v) {}
@@ -47,7 +47,7 @@ private:
     NodeID _v;
 };
 
-Matcher<const Graph&> HasEdge(const NodeID u, const NodeID v) {
+inline Matcher<const Graph&> HasEdge(const NodeID u, const NodeID v) {
     return MakeMatcher(new HasEdgeMatcher(u, v));
 }
 
@@ -88,15 +88,15 @@ private:
     NodeWeight _v_weight;
 };
 
-// matcher that checks whether a graph contains an edge identified by the weights of its endpoints
-// this helps to test the structure of a graph without relying on the order of its nodes or edges, as long as all nodes
+// Matcher that checks whether a graph contains an edge identified by the weights of its endpoints
+// This helps to test the structure of a graph without relying on the order of its nodes or edges, as long as all nodes
 // have an unique weight
-Matcher<const Graph&> HasEdgeWithWeightedEndpoints(const NodeWeight u_weight, const NodeWeight v_weight) {
+inline Matcher<const Graph&> HasEdgeWithWeightedEndpoints(const NodeWeight u_weight, const NodeWeight v_weight) {
     return MakeMatcher(new HasWeightedEdgeWithWeightedEndpointsMatcher(u_weight, 0, v_weight));
 }
 
-Matcher<const Graph&>
+inline Matcher<const Graph&>
 HasWeightedEdgeWithWeightedEndpoints(const NodeWeight u_weight, const EdgeWeight e_weight, const NodeWeight v_weight) {
     return MakeMatcher(new HasWeightedEdgeWithWeightedEndpointsMatcher(u_weight, e_weight, v_weight));
 }
-} // namespace kaminpar::test
+} // namespace kaminpar::shm::testing

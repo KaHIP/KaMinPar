@@ -50,3 +50,4 @@ kaminpar_add_dist_test(test_dist_graph_topology
 # KaMinPar 
 kaminpar_add_shm_test(test_shm_io kaminpar/io_test.cc)
 kaminpar_add_shm_test(test_shm_metrics kaminpar/metrics_test.cc)
+kaminpar_add_shm_test(test_shm_graph kaminpar/graph_test.cc)

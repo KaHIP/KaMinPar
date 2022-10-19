@@ -5,9 +5,7 @@
 #include "kaminpar/datastructures/graph.h"
 #include "kaminpar/metrics.h"
 
-namespace kaminpar::shm {
-using namespace testing;
-
+namespace kaminpar::shm::testing {
 class MetricsTestFixture : public ::testing::Test {
 public:
     MetricsTestFixture()
@@ -98,4 +96,4 @@ TEST(MetricsTest, is_feasible_with_multiple_nodes) {
     p_graph.set_block(2, 0);
     EXPECT_FALSE(metrics::is_feasible(p_graph, ctx.partition));
 }
-} // namespace kaminpar::shm
+} // namespace kaminpar::shm::testing

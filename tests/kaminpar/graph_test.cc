@@ -1,15 +1,12 @@
-#include "matcher.h"
-#include "tests.h"
+#include "tests/kaminpar/graph_factories.h"
+#include "tests/kaminpar/graph_helpers.h"
+#include "tests/kaminpar/matchers.h"
+#include "tests/kaminpar/test_helpers.h"
 
 #include "kaminpar/graphutils/graph_extraction.h"
 
-using ::testing::Eq;
-using ::testing::IsEmpty;
-using ::testing::UnorderedElementsAre;
-using namespace ::kaminpar::test;
-
-namespace kaminpar {
-class AWeightedGridGraph : public Test {
+namespace kaminpar::shm::testing {
+class AWeightedGridGraph : public ::testing::Test {
 public:
     // 0|1--- 1|2--- 2|4--- 3|8
     // |    / |    / |    / |
@@ -36,10 +33,10 @@ TEST_F(AWeightedGridGraph, ExtractingBlockInducedSubgraphsWorkHorizontally) {
     const auto& s_graph0                            = subgraphs[0];
     const auto& s_graph1                            = subgraphs[1];
 
-    EXPECT_THAT(s_graph0.n(), Eq(4));
-    EXPECT_THAT(s_graph0.m(), Eq(6));
-    EXPECT_THAT(s_graph1.n(), Eq(4));
-    EXPECT_THAT(s_graph1.m(), Eq(6));
+    EXPECT_EQ(s_graph0.n(), 4);
+    EXPECT_EQ(s_graph0.m(), 6);
+    EXPECT_EQ(s_graph1.n(), 4);
+    EXPECT_EQ(s_graph1.m(), 6);
 
     EXPECT_THAT(s_graph0, HasEdgeWithWeightedEndpoints(1, 2));
     EXPECT_THAT(s_graph0, HasEdgeWithWeightedEndpoints(2, 4));
@@ -56,10 +53,10 @@ TEST_F(AWeightedGridGraph, ExtractingEmptyBlockInducedSubgraphWorks) {
     const auto& s_graph0                            = subgraphs[0];
     const auto& s_graph1                            = subgraphs[1];
 
-    EXPECT_THAT(s_graph0.n(), Eq(graph.n()));
-    EXPECT_THAT(s_graph0.m(), Eq(graph.m()));
-    EXPECT_THAT(s_graph1.n(), Eq(0));
-    EXPECT_THAT(s_graph1.m(), Eq(0));
+    EXPECT_EQ(s_graph0.n(), graph.n());
+    EXPECT_EQ(s_graph0.m(), graph.m());
+    EXPECT_EQ(s_graph1.n(), 0);
+    EXPECT_EQ(s_graph1.m(), 0);
 }
 
 //
@@ -68,22 +65,22 @@ TEST_F(AWeightedGridGraph, ExtractingEmptyBlockInducedSubgraphWorks) {
 
 TEST_F(AWeightedGridGraph, InitialNodeWeightingWorks) {
     for (const NodeID u: graph.nodes()) {
-        EXPECT_THAT(graph.node_weight(u), Eq(1 << u));
+        EXPECT_EQ(graph.node_weight(u), 1 << u);
     }
 }
 
 TEST_F(AWeightedGridGraph, InitialEdgeWeightingWorks) {
     for (const EdgeID e: graph.edges()) {
-        EXPECT_THAT(graph.edge_weight(e), Eq(1));
+        EXPECT_EQ(graph.edge_weight(e), 1);
     }
 }
 
 TEST_F(AWeightedGridGraph, InitialTotalNodeWeightWorks) {
-    EXPECT_THAT(graph.total_node_weight(), Eq((1 << graph.n()) - 1)); // graph has node weights 1, 2, 4, ...
+    EXPECT_EQ(graph.total_node_weight(), (1 << graph.n()) - 1); // graph has node weights 1, 2, 4, ...
 }
 
 TEST_F(AWeightedGridGraph, InitialTotalEdgeWeightWorks) {
-    EXPECT_THAT(graph.total_edge_weight(), Eq(graph.m())); // graph has edge weights 1, 1, 1, ...
+    EXPECT_EQ(graph.total_edge_weight(), graph.m()); // graph has edge weights 1, 1, 1, ...
 }
 
 //
@@ -91,24 +88,24 @@ TEST_F(AWeightedGridGraph, InitialTotalEdgeWeightWorks) {
 //
 
 TEST_F(AWeightedGridGraph, DegreeWorks) {
-    EXPECT_THAT(graph.degree(0), Eq(2));
-    EXPECT_THAT(graph.degree(1), Eq(4));
-    EXPECT_THAT(graph.degree(6), Eq(4));
-    EXPECT_THAT(graph.degree(7), Eq(2));
+    EXPECT_EQ(graph.degree(0), 2);
+    EXPECT_EQ(graph.degree(1), 4);
+    EXPECT_EQ(graph.degree(6), 4);
+    EXPECT_EQ(graph.degree(7), 2);
 }
 
 TEST(GraphTest, DegreeWorksForLeaves) {
     const Graph graph{create_graph({0, 1, 2}, {1, 0})};
-    EXPECT_THAT(graph.degree(0), Eq(1));
-    EXPECT_THAT(graph.degree(1), Eq(1));
+    EXPECT_EQ(graph.degree(0), 1);
+    EXPECT_EQ(graph.degree(1), 1);
 }
 
 TEST(GraphTest, DegreeWorksForGraphWithIsolatedNodes) {
     const Graph graph{create_graph({0, 1, 1, 1, 2}, {3, 0})};
-    EXPECT_THAT(graph.degree(0), Eq(1));
-    EXPECT_THAT(graph.degree(1), Eq(0));
-    EXPECT_THAT(graph.degree(2), Eq(0));
-    EXPECT_THAT(graph.degree(3), Eq(1));
+    EXPECT_EQ(graph.degree(0), 1);
+    EXPECT_EQ(graph.degree(1), 0);
+    EXPECT_EQ(graph.degree(2), 0);
+    EXPECT_EQ(graph.degree(3), 1);
 }
 
 //
@@ -117,17 +114,17 @@ TEST(GraphTest, DegreeWorksForGraphWithIsolatedNodes) {
 
 TEST_F(AWeightedGridGraph, InitialBlockWeightsAreCorrect) {
     PartitionedGraph p_graph{create_p_graph(graph, 4, {0, 0, 1, 1, 2, 2, 3, 3})};
-    EXPECT_THAT(p_graph.block_weight(0), Eq(3));
-    EXPECT_THAT(p_graph.block_weight(1), Eq(12));
-    EXPECT_THAT(p_graph.block_weight(2), Eq(48));
-    EXPECT_THAT(p_graph.block_weight(3), Eq(192));
+    EXPECT_EQ(p_graph.block_weight(0), 3);
+    EXPECT_EQ(p_graph.block_weight(1), 12);
+    EXPECT_EQ(p_graph.block_weight(2), 48);
+    EXPECT_EQ(p_graph.block_weight(3), 192);
 }
 
 TEST_F(AWeightedGridGraph, BlockWeightsAreUpdatedOnNodeMove) {
     PartitionedGraph p_graph{create_p_graph(graph, 4, {0, 0, 1, 1, 2, 2, 3, 3})};
     p_graph.set_block(0, 1);
-    EXPECT_THAT(p_graph.block_weight(0), Eq(2));
-    EXPECT_THAT(p_graph.block_weight(1), Eq(13));
+    EXPECT_EQ(p_graph.block_weight(0), 2);
+    EXPECT_EQ(p_graph.block_weight(1), 13);
 }
 
 //
@@ -137,14 +134,14 @@ TEST_F(AWeightedGridGraph, BlockWeightsAreUpdatedOnNodeMove) {
 TEST(GraphTest, PartitionedGraphReturnsCorrectNumberOfBlocks) {
     Graph                  graph{create_graph({0}, {})};
     const PartitionedGraph p_graph{create_p_graph(&graph, 4)};
-    EXPECT_THAT(p_graph.k(), Eq(4));
+    EXPECT_EQ(p_graph.k(), 4);
 }
 
 TEST(GraphTest, InitialBlocksAreCorrect) {
     Graph                  graph{create_graph({0, 0, 0, 0, 0}, {})};
     const PartitionedGraph p_graph{create_p_graph(&graph, 4, {0, 1, 2, 3})};
     for (const NodeID u: {0, 1, 2, 3}) {
-        EXPECT_THAT(p_graph.block(u), Eq(u));
+        EXPECT_EQ(p_graph.block(u), u);
     }
 }
 
@@ -152,7 +149,7 @@ TEST(GraphTest, ChangingBlocksWorks) {
     Graph            graph{create_graph({0, 0, 0, 0, 0}, {})};
     PartitionedGraph p_graph{create_p_graph(&graph, 4, {0, 1, 2, 3})};
     p_graph.set_block(0, 1);
-    EXPECT_THAT(p_graph.block(0), Eq(1));
+    EXPECT_EQ(p_graph.block(0), 1);
 }
 
 //
@@ -219,4 +216,4 @@ TEST(GraphTest, LowestDegreeInBucketWorks) {
     EXPECT_EQ(lowest_degree_in_bucket(2), 2);
     EXPECT_EQ(lowest_degree_in_bucket(3), 4);
 }
-} // namespace kaminpar
+} // namespace kaminpar::shm::testing
