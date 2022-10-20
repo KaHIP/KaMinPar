@@ -21,7 +21,7 @@
 #include "common/parallel/atomic.h"
 
 namespace kaminpar::dist::graph {
-SET_DEBUG(false);
+SET_DEBUG(true);
 
 shm::Graph allgather(const DistributedGraph& graph) {
     KASSERT(graph.global_n() < std::numeric_limits<NodeID>::max(), "number of nodes exceeds int size", assert::always);
@@ -110,7 +110,7 @@ shm::Graph allgather(const DistributedGraph& graph) {
     return {std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights)};
 }
 
-DistributedGraph allgather_replicated(const DistributedGraph& graph, const int num_replications) {
+DistributedGraph replicate(const DistributedGraph& graph, const int num_replications) {
     const PEID size     = mpi::get_comm_size(graph.communicator());
     const PEID rank     = mpi::get_comm_rank(graph.communicator());
     const PEID new_size = size / num_replications;
@@ -168,14 +168,15 @@ DistributedGraph allgather_replicated(const DistributedGraph& graph, const int n
     nodes.back() = edges_displs.back();
 
     // Create new node and edges distributions
-    scalable_vector<GlobalNodeID> node_distribution(new_size);
-    scalable_vector<GlobalEdgeID> edge_distribution(new_size);
+    scalable_vector<GlobalNodeID> node_distribution(new_size + 1);
+    scalable_vector<GlobalEdgeID> edge_distribution(new_size + 1);
     tbb::parallel_for<PEID>(0, new_size, [&](const PEID pe) {
-        for (PEID group_pe = group_size * pe; group_pe < (group_size + 1) * pe; ++group_pe) {
-            node_distribution[pe] += graph.node_distribution(group_pe);
-            edge_distribution[pe] += graph.edge_distribution(group_pe);
-        }
+        node_distribution[pe + 1] = graph.node_distribution(group_size * (pe + 1));
+        edge_distribution[pe + 1] = graph.edge_distribution(group_size * (pe + 1));
     });
+
+    DBG << V(graph.node_distribution()) << V(group_size);
+    DBG << V(node_distribution) << V(edge_distribution);
 
     // Remap edges to local nodes
     const GlobalEdgeID n0 = graph.node_distribution(rank) - nodes_displs[group_rank];
