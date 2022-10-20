@@ -341,6 +341,33 @@ inline Container<T> build_distribution_from_local_count(const T value, MPI_Comm 
 }
 
 template <typename T>
+inline NoinitVector<int> build_counts_from_value(const T original_value, MPI_Comm comm) {
+    const int value = asserting_cast<int>(original_value);
+
+    NoinitVector<int> counts(get_comm_size(comm));
+    allgather(&value, 1, counts.data(), 1, comm);
+    return counts;
+}
+
+template <typename T>
+inline NoinitVector<int> build_displs_from_value(const T original_value, MPI_Comm comm) {
+    const int value = asserting_cast<int>(original_value);
+
+    NoinitVector<int> displs(get_comm_size(comm) + 1);
+    allgather(&value, 1, displs.data() + 1, 1, comm);
+    parallel::prefix_sum(displs.begin(), displs.end(), displs.begin());
+    displs.front() = 0;
+    return displs;
+}
+
+inline NoinitVector<int> build_displs_from_counts(const NoinitVector<int>& counts) {
+    NoinitVector<int> displs(counts.size() + 1);
+    parallel::prefix_sum(counts.begin(), counts.end(), displs.begin() + 1);
+    displs.front() = 0;
+    return displs;
+}
+
+template <typename T>
 std::tuple<T, double, T, std::int64_t> gather_statistics(const T value, MPI_Comm comm) {
     const T      min = allreduce(value, MPI_MIN, comm);
     const T      max = allreduce(value, MPI_MAX, comm);

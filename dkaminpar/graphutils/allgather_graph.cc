@@ -5,9 +5,11 @@
  * @brief:  Allgather a distributed graph to each PE.
  ******************************************************************************/
 #include "dkaminpar/graphutils/allgather_graph.h"
+
 #include <mpi.h>
 
 #include "dkaminpar/datastructures/distributed_graph.h"
+#include "dkaminpar/datastructures/distributed_graph_builder.h"
 #include "dkaminpar/definitions.h"
 #include "dkaminpar/mpi/utils.h"
 #include "dkaminpar/mpi/wrapper.h"
@@ -108,22 +110,100 @@ shm::Graph allgather(const DistributedGraph& graph) {
     return {std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights)};
 }
 
-DistributedGraph allgather_on_groups(const DistributedGraph& graph, MPI_Comm group_comm) {
-    const PEID size       = mpi::get_comm_size(graph.communicator());
-    const PEID rank       = mpi::get_comm_rank(graph.communicator());
-    const PEID group_size = mpi::get_comm_size(group_comm);
-    const PEID group_rank = mpi::get_comm_rank(group_comm);
+DistributedGraph allgather_replicated(const DistributedGraph& graph, const int num_replications) {
+    const PEID size     = mpi::get_comm_size(graph.communicator());
+    const PEID rank     = mpi::get_comm_rank(graph.communicator());
+    const PEID new_size = size / num_replications;
+    const PEID new_rank = rank / num_replications;
 
-    // Duplicate graph within PEs with the same rank in their group
-    MPI_Comm dup_group;
-    MPI_Comm_split(graph.communicator(), group_rank, rank, &dup_group);
+    // Communicator with relevant PEs
+    MPI_Comm group;
+    MPI_Comm_split(graph.communicator(), new_rank, rank, &group);
+    const PEID group_size = num_replications;
+    const PEID group_rank = rank - new_rank * num_replications;
 
-    ((void) size);
-    ((void) group_size);
-    
-    MPI_Comm_free(&dup_group);
+    auto nodes_counts = mpi::build_counts_from_value<GlobalNodeID>(graph.n(), group);
+    auto nodes_displs = mpi::build_displs_from_counts(nodes_counts);
+    auto edges_counts = mpi::build_counts_from_value<GlobalEdgeID>(graph.m(), group);
+    auto edges_displs = mpi::build_displs_from_counts(edges_counts);
 
-    return {};
+    // Create edges array with global node IDs
+    const GlobalEdgeID         my_tmp_global_edges_offset = edges_displs[group_rank];
+    NoinitVector<GlobalNodeID> tmp_global_edges(graph.m());
+    graph.pfor_edges([&](const EdgeID e) {
+        tmp_global_edges[my_tmp_global_edges_offset + e] = graph.local_to_global_node(graph.edge_target(e));
+    });
+
+    const bool is_node_weighted = mpi::allreduce<std::uint8_t>(graph.is_node_weighted(), MPI_MAX, graph.communicator());
+    const bool is_edge_weighted = mpi::allreduce<std::uint8_t>(graph.is_edge_weighted(), MPI_MAX, graph.communicator());
+
+    // Allocate memory for new graph
+    scalable_vector<EdgeID>     nodes(nodes_displs.back() + 1);
+    scalable_vector<NodeWeight> node_weights(is_node_weighted ? nodes_displs.back() : 0);
+    scalable_vector<NodeID>     edges(edges_displs.back());
+    scalable_vector<EdgeWeight> edge_weights(is_edge_weighted ? edges_displs.back() : 0);
+
+    // Exchange data
+    mpi::allgatherv(graph.raw_nodes().data(), graph.n(), nodes.data(), nodes_counts.data(), nodes_displs.data(), group);
+    MPI_Allgatherv(
+        MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, tmp_global_edges.data(), edges_counts.data(), edges_displs.data(),
+        mpi::type::get<GlobalEdgeID>(), group
+    );
+    if (is_node_weighted) {
+        KASSERT((graph.is_node_weighted() || graph.n() == 0));
+        mpi::allgatherv(
+            graph.raw_node_weights().data(), graph.n(), node_weights.data(), nodes_counts.data(), nodes_displs.data(),
+            group
+        );
+    }
+    if (is_edge_weighted) {
+        KASSERT((graph.is_edge_weighted() || graph.m() == 0));
+        mpi::allgatherv(
+            graph.raw_edge_weights().data(), graph.m(), edge_weights.data(), edges_counts.data(), edges_displs.data(),
+            group
+        );
+    }
+
+    // Set nodes guard
+    nodes.back() = edges_displs.back();
+
+    // Create new node and edges distributions
+    scalable_vector<GlobalNodeID> node_distribution(new_size);
+    scalable_vector<GlobalEdgeID> edge_distribution(new_size);
+    tbb::parallel_for<PEID>(0, new_size, [&](const PEID pe) {
+        for (PEID group_pe = group_size * pe; group_pe < (group_size + 1) * pe; ++group_pe) {
+            node_distribution[pe] += graph.node_distribution(group_pe);
+            edge_distribution[pe] += graph.edge_distribution(group_pe);
+        }
+    });
+
+    // Remap edges to local nodes
+    const GlobalEdgeID n0 = graph.node_distribution(rank) - nodes_displs[group_rank];
+    const GlobalEdgeID nf = n0 + nodes_displs.back();
+    GhostNodeMapper    ghost_node_mapper(node_distribution, new_rank);
+
+    tbb::parallel_for<EdgeID>(0, tmp_global_edges.size(), [&](const EdgeID e) {
+        const GlobalNodeID v = tmp_global_edges[e];
+        if (v >= n0 && v < nf) {
+            tmp_global_edges[e] = v - n0;
+        } else {
+            tmp_global_edges[e] = ghost_node_mapper.new_ghost_node(v);
+        }
+    });
+
+    auto ghost_node_info = ghost_node_mapper.finalize();
+
+    // Create new communicator and graph
+    MPI_Comm new_comm;
+    MPI_Comm_split(graph.communicator(), new_rank, rank, &new_comm);
+    DistributedGraph new_graph(
+        std::move(node_distribution), std::move(edge_distribution), std::move(nodes), std::move(edges),
+        std::move(node_weights), std::move(edge_weights), std::move(ghost_node_info.ghost_owner),
+        std::move(ghost_node_info.ghost_to_global), std::move(ghost_node_info.global_to_ghost), false, new_comm
+    );
+
+    MPI_Comm_free(&group);
+    return new_graph;
 }
 
 DistributedPartitionedGraph reduce_scatter(const DistributedGraph& dist_graph, shm::PartitionedGraph shm_p_graph) {

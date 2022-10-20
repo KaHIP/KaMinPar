@@ -15,6 +15,6 @@
 
 namespace kaminpar::dist::graph {
 shm::Graph                  allgather(const DistributedGraph& graph);
-DistributedGraph            allgather_on_groups(const DistributedGraph& graph, MPI_Comm group_comm);
+DistributedGraph            allgather_replicated(const DistributedGraph& graph, int num_replications);
 DistributedPartitionedGraph reduce_scatter(const DistributedGraph& dist_graph, shm::PartitionedGraph shm_p_graph);
 } // namespace kaminpar::dist::graph

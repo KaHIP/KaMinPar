@@ -35,6 +35,12 @@ public:
         _next_ghost_node = _n;
     }
 
+    explicit GhostNodeMapper(const scalable_vector<GlobalNodeID>& node_distribution, const PEID rank)
+        : _node_distribution{node_distribution} {
+        _n               = static_cast<NodeID>(_node_distribution[rank + 1] - _node_distribution[rank]);
+        _next_ghost_node = _n;
+    }
+
     NodeID new_ghost_node(const GlobalNodeID global_node) {
         GhostNodeMap::accessor entry;
         if (_global_to_ghost.insert(entry, global_node)) {
@@ -48,7 +54,7 @@ public:
         return entry->second;
     }
 
-    Result finalize() {
+    [[nodiscard]] Result finalize() {
         const auto ghost_n = static_cast<NodeID>(_next_ghost_node - _n);
 
         growt::StaticGhostNodeMapping global_to_ghost(ghost_n);
