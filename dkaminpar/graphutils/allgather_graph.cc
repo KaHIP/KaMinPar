@@ -21,7 +21,7 @@
 #include "common/parallel/atomic.h"
 
 namespace kaminpar::dist::graph {
-SET_DEBUG(true);
+SET_DEBUG(false);
 
 shm::Graph allgather(const DistributedGraph& graph) {
     KASSERT(graph.global_n() < std::numeric_limits<NodeID>::max(), "number of nodes exceeds int size", assert::always);
@@ -129,7 +129,7 @@ DistributedGraph replicate(const DistributedGraph& graph, const int num_replicat
 
     // Create edges array with global node IDs
     const GlobalEdgeID         my_tmp_global_edges_offset = edges_displs[group_rank];
-    NoinitVector<GlobalNodeID> tmp_global_edges(graph.m());
+    NoinitVector<GlobalNodeID> tmp_global_edges(edges_displs.back());
     graph.pfor_edges([&](const EdgeID e) {
         tmp_global_edges[my_tmp_global_edges_offset + e] = graph.local_to_global_node(graph.edge_target(e));
     });
@@ -143,6 +143,7 @@ DistributedGraph replicate(const DistributedGraph& graph, const int num_replicat
     scalable_vector<NodeID>     edges(edges_displs.back());
     scalable_vector<EdgeWeight> edge_weights(is_edge_weighted ? edges_displs.back() : 0);
 
+    DBG << V(graph.n()) << V(nodes_counts) << V(nodes_displs);
     // Exchange data
     mpi::allgatherv(graph.raw_nodes().data(), graph.n(), nodes.data(), nodes_counts.data(), nodes_displs.data(), group);
     MPI_Allgatherv(
@@ -167,6 +168,14 @@ DistributedGraph replicate(const DistributedGraph& graph, const int num_replicat
     // Set nodes guard
     nodes.back() = edges_displs.back();
 
+    // Offset received nodes arrays
+    tbb::parallel_for<PEID>(0, group_size, [&](const PEID p) {
+        const NodeID offset = edges_displs[p];
+        tbb::parallel_for<NodeID>(nodes_displs[p], nodes_displs[p] + nodes_counts[p], [&](const NodeID u) {
+            nodes[u] += offset;
+        });
+    });
+
     // Create new node and edges distributions
     scalable_vector<GlobalNodeID> node_distribution(new_size + 1);
     scalable_vector<GlobalEdgeID> edge_distribution(new_size + 1);
@@ -186,17 +195,21 @@ DistributedGraph replicate(const DistributedGraph& graph, const int num_replicat
     tbb::parallel_for<EdgeID>(0, tmp_global_edges.size(), [&](const EdgeID e) {
         const GlobalNodeID v = tmp_global_edges[e];
         if (v >= n0 && v < nf) {
-            tmp_global_edges[e] = v - n0;
+            edges[e] = static_cast<NodeID>(v - n0);
         } else {
-            tmp_global_edges[e] = ghost_node_mapper.new_ghost_node(v);
+            edges[e] = ghost_node_mapper.new_ghost_node(v);
         }
     });
 
     auto ghost_node_info = ghost_node_mapper.finalize();
 
+    DBG << V(node_distribution) << V(edge_distribution) << V(nodes) << V(edges) << V(node_weights) << V(edge_weights) << V(tmp_global_edges);
+    DBG << V(new_rank);
+
     // Create new communicator and graph
     MPI_Comm new_comm;
-    MPI_Comm_split(graph.communicator(), new_rank, rank, &new_comm);
+    MPI_Comm_split(graph.communicator(), rank / (size / num_replications), rank, &new_comm);
+
     DistributedGraph new_graph(
         std::move(node_distribution), std::move(edge_distribution), std::move(nodes), std::move(edges),
         std::move(node_weights), std::move(edge_weights), std::move(ghost_node_info.ghost_owner),
