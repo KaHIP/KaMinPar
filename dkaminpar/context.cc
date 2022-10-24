@@ -22,6 +22,7 @@ using namespace std::string_literals;
 std::unordered_map<std::string, PartitioningMode> get_partitioning_modes() {
     return {
         {"deep", PartitioningMode::DEEP},
+        {"deeper", PartitioningMode::DEEPER},
         {"kway", PartitioningMode::KWAY},
     };
 }
@@ -30,6 +31,8 @@ std::ostream& operator<<(std::ostream& out, const PartitioningMode mode) {
     switch (mode) {
         case PartitioningMode::DEEP:
             return out << "deep";
+        case PartitioningMode::DEEPER:
+            return out << "deeper";
         case PartitioningMode::KWAY:
             return out << "kway";
     }
@@ -167,8 +170,8 @@ std::ostream& operator<<(std::ostream& out, const BalancingAlgorithm algorithm) 
 }
 
 //
-// Functions for compact, parsable context output 
-// 
+// Functions for compact, parsable context output
+//
 
 void LabelPropagationCoarseningContext::print(std::ostream& out, const std::string& prefix) const {
     out << prefix << "num_iterations=" << num_iterations << " "                                             //

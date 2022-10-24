@@ -6,7 +6,9 @@
  ******************************************************************************/
 #include "dkaminpar/partitioning/partitioning.h"
 
+#include "dkaminpar/context.h"
 #include "dkaminpar/partitioning/deep_partitioning_scheme.h"
+#include "dkaminpar/partitioning/deeper_partitioning_scheme.h"
 #include "dkaminpar/partitioning/kway_partitioning_scheme.h"
 
 namespace kaminpar::dist {
@@ -17,6 +19,9 @@ DistributedPartitionedGraph partition(const DistributedGraph& graph, const Conte
 
         case PartitioningMode::DEEP:
             return DeepPartitioningScheme(graph, ctx).partition();
+
+        case PartitioningMode::DEEPER:
+            return DeeperPartitioningScheme(graph, ctx).partition();
     }
 
     __builtin_unreachable();

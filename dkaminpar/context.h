@@ -16,6 +16,7 @@ namespace kaminpar::dist {
 enum class PartitioningMode {
     KWAY,
     DEEP,
+    DEEPER,
 };
 
 enum class GlobalClusteringAlgorithm {
