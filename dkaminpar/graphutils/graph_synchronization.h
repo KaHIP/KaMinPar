@@ -17,4 +17,6 @@ namespace kaminpar::dist::graph {
  * @param p_graph Graph partition to synchronize.
  */
 void synchronize_ghost_node_block_ids(DistributedPartitionedGraph& p_graph);
+
+void synchronize_ghost_node_weights(DistributedGraph& graph);
 } // namespace kaminpar::dist::graph

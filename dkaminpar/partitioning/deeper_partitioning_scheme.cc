@@ -60,6 +60,7 @@ void DeeperPartitioningScheme::print_coarsening_level(const GlobalNodeWeight max
     const int width = std::log10(max_value) + 1;
 
     LOG << "Coarsening -> Level " << coarsener->level() << ":";
+    LOG << "  Number of nodes: " << graph->global_n() << " | Number of edges: " << graph->global_m();
     LOG << "  Number of local nodes: [Min=" << std::setw(width) << n_min << " | Mean=" << std::setw(width)
         << static_cast<NodeID>(n_avg) << " | Max=" << std::setw(width) << n_max
         << " | Imbalance=" << std::setprecision(2) << std::setw(width) << n_imbalance << "]";
@@ -126,6 +127,11 @@ DistributedPartitionedGraph DeeperPartitioningScheme::partition() {
             _input_ctx.partition.k, math::ceil2(graph->global_n() / _input_ctx.coarsening.contraction_limit)
         );
         if (num_blocks_on_this_level < static_cast<BlockID>(current_num_pes)) {
+            KASSERT(
+                current_num_pes % num_blocks_on_this_level == 0, "Graph replication factor is not an integer.",
+                assert::always
+            );
+
             const PEID num_replications = current_num_pes / num_blocks_on_this_level;
             DBG << "Current graph (" << graph->global_n() << ") is too small for the available parallelism ("
                 << _input_ctx.parallel.num_mpis << "): replicating the graph " << num_replications << " times";

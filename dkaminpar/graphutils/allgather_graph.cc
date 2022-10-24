@@ -219,6 +219,9 @@ DistributedGraph replicate(const DistributedGraph& graph, const int num_replicat
         std::move(ghost_node_info.ghost_to_global), std::move(ghost_node_info.global_to_ghost), false, new_comm
     );
 
+    // Fix weights of ghost nodes
+    synchronize_ghost_node_weights(new_graph);
+
     MPI_Comm_free(&group);
     return new_graph;
 }
