@@ -57,10 +57,14 @@ Result contract_generic_clustering(const Graph& graph, const Clustering& cluster
     graph.pfor_nodes([&](const NodeID u) { mapping[u] = leader_mapping[clustering[u]]; });
     graph.pfor_nodes([&](const NodeID u) { --mapping[u]; });
 
+    STOP_TIMER();
+
     TIMED_SCOPE("Allocation") {
         buckets_index.clear();
         buckets_index.resize(c_n + 1);
     };
+
+    START_TIMER("Preprocessing");
 
     //
     // Sort nodes into buckets: place all nodes belonging to coarse node i into the i-th bucket

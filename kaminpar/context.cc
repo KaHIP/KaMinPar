@@ -402,6 +402,32 @@ void Context::print_compact(std::ostream& out, const std::string& prefix) const 
 // Functions to print important parameters in a readable format
 //
 
+void CoarseningContext::print(std::ostream& out) const {
+    out << "Contraction limit:            " << contraction_limit << "\n";
+    out << "Cluster weight limit:         " << cluster_weight_limit << " x " << cluster_weight_multiplier << "\n";
+    out << "Coarsening algorithm:         " << algorithm << "\n";
+    if (algorithm == ClusteringAlgorithm::LABEL_PROPAGATION) {
+        lp.print(out);
+    }
+}
+
+void LabelPropagationCoarseningContext::print(std::ostream& out) const {
+    out << "  Number of iterations:       " << num_iterations << "\n";
+    out << "  Neighborhood limit:         " << max_num_neighbors << "\n";
+    out << "  Active degree threshold:    " << large_degree_threshold << "\n";
+    out << "  2-hop clustering threshold: " << std::fixed << 100 * two_hop_clustering_threshold << "%\n";
+}
+
+void InitialPartitioningContext::print(std::ostream& out) const {
+    out << "Initial partitioning mode:    " << mode << "\n";
+    out << "Adaptive algorithm selection: " << (use_adaptive_bipartitioner_selection ? "yes" : "no") << "\n";
+}
+
+void RefinementContext::print(std::ostream& out) const {
+    out << "Refinement algorithm:         " << algorithm << "\n";
+    out << "Balancing algorithm:          " << balancer.algorithm << "\n";
+}
+
 void PartitionContext::print(std::ostream& out) const {
     const BlockWeight  max_block_weight = block_weights.max(0);
     const std::int64_t size             = std::max<std::int64_t>({n, m, max_block_weight});
@@ -428,7 +454,12 @@ void Context::print(std::ostream& out) const {
     out << "Seed:                         " << seed << "\n";
     out << "Graph:                        " << graph_filename << "\n";
     partition.print(out);
-    cio::print_delimiter();
-    // @todo
+    cio::print_delimiter(out);
+    coarsening.print(out);
+    cio::print_delimiter(out);
+    initial_partitioning.print(out);
+    cio::print_delimiter(out);
+    refinement.print(out);
+    cio::print_delimiter(out);
 }
 } // namespace kaminpar::shm

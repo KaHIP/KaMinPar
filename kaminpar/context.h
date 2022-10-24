@@ -123,6 +123,7 @@ struct LabelPropagationCoarseningContext {
     double      two_hop_clustering_threshold; //! Perform 2-hop clustering if graph shrunk by less than this factor.
 
     void print_compact(std::ostream& out, const std::string& prefix = "") const;
+    void print(std::ostream& out) const;
 
     [[nodiscard]] bool use_two_hop_clustering(const NodeID old_n, const NodeID new_n) const {
         return (1.0 - 1.0 * new_n / old_n) <= two_hop_clustering_threshold;
@@ -139,6 +140,7 @@ struct CoarseningContext {
     double             cluster_weight_multiplier; //! Multiplicative factor to the maximum cluster weight.
 
     void print_compact(std::ostream& out, const std::string& prefix = "") const;
+    void print(std::ostream& out) const;
 
     [[nodiscard]] inline bool coarsening_should_converge(const NodeID old_n, const NodeID new_n) const {
         return (1.0 - 1.0 * new_n / old_n) <= convergence_threshold;
@@ -177,6 +179,7 @@ struct RefinementContext {
     BalancerRefinementContext         balancer;  //! If a balancer is used: configuration for balancer.
 
     void print_compact(std::ostream& out, const std::string& prefix = "") const;
+    void print(std::ostream& out) const;
 };
 
 struct InitialPartitioningContext {
@@ -192,6 +195,7 @@ struct InitialPartitioningContext {
     std::size_t             multiplier_exponent;
 
     void print_compact(std::ostream& out, const std::string& prefix = "") const;
+    void print(std::ostream& out) const;
 };
 
 struct DebugContext {

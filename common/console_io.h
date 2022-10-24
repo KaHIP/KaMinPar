@@ -6,6 +6,7 @@
  ******************************************************************************/
 #pragma once
 
+#include <ostream>
 #include <string>
 
 #include <kassert/kassert.hpp>
@@ -14,7 +15,7 @@
 #include "common/logger.h"
 
 namespace kaminpar::cio {
-void print_delimiter();
+void print_delimiter(std::ostream& out = std::cout);
 void print_kaminpar_banner();
 void print_dkaminpar_banner();
 void print_banner(const std::string& title);
@@ -42,9 +43,9 @@ void print_build_identifier(const std::string& commit, const std::string& hostna
 #endif
     LOG << "Data type sizes:";
     LOG << "  Nodes IDs: " << sizeof(NodeID) << " bytes | Node weights (Local): " << sizeof(LocalNodeWeight)
-        << " bytes | Node weights (IP): " << sizeof(NodeWeight);
+        << " bytes | Node weights (IP): " << sizeof(NodeWeight) << " bytes";
     LOG << "  Edges IDs: " << sizeof(EdgeID) << " bytes | Edge weights (Local): " << sizeof(LocalEdgeWeight)
-        << " bytes | Edge weights (IP): " << sizeof(EdgeWeight);
+        << " bytes | Edge weights (IP): " << sizeof(EdgeWeight) << " bytes";
     LOG << "Built on:                     " << (hostname.empty() ? "<not available>" : hostname);
     LOG << "################################################################################";
 }
