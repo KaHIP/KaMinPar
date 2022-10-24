@@ -228,7 +228,7 @@ public:
     }
 
     [[nodiscard]] inline NodeID global_to_local_node(const GlobalNodeID global_u) const {
-        KASSERT(contains_global_node(global_u));
+        KASSERT(contains_global_node(global_u), V(global_u));
 
         if (offset_n() <= global_u && global_u < offset_n() + n()) {
             return global_u - offset_n();
@@ -241,7 +241,7 @@ public:
     // Access methods
     [[nodiscard]] inline NodeWeight node_weight(const NodeID u) const {
         KASSERT(u < total_n());
-        KASSERT((!is_node_weighted() || u < _node_weights.size()));
+        KASSERT(!is_node_weighted() || u < _node_weights.size());
         return is_node_weighted() ? _node_weights[u] : 1;
     }
 
@@ -258,7 +258,7 @@ public:
 
     [[nodiscard]] inline EdgeWeight edge_weight(const EdgeID e) const {
         KASSERT(e < m());
-        KASSERT((!is_edge_weighted() || e < _edge_weights.size()));
+        KASSERT(!is_edge_weighted() || e < _edge_weights.size());
         return is_edge_weighted() ? _edge_weights[e] : 1;
     }
 

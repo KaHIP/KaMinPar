@@ -23,7 +23,7 @@
 #include "common/parallel/atomic.h"
 
 namespace kaminpar::dist::graph {
-SET_DEBUG(false);
+SET_DEBUG(true);
 
 shm::Graph replicate_everywhere(const DistributedGraph& graph) {
     KASSERT(graph.global_n() < std::numeric_limits<NodeID>::max(), "number of nodes exceeds int size", assert::always);
@@ -141,26 +141,17 @@ DistributedGraph replicate(const DistributedGraph& graph, const int num_replicat
 
     // Allocate memory for new graph
     scalable_vector<EdgeID>     nodes(nodes_displs.back() + 1);
-    scalable_vector<NodeWeight> node_weights(is_node_weighted ? nodes_displs.back() : 0);
     scalable_vector<NodeID>     edges(edges_displs.back());
     scalable_vector<EdgeWeight> edge_weights(is_edge_weighted ? edges_displs.back() : 0);
 
-    DBG << V(graph.n()) << V(nodes_counts) << V(nodes_displs);
-    // Exchange data
+    // Exchange data -- except for node weights (must know the no. of ghost nodes to allocate the vector)
     mpi::allgatherv(graph.raw_nodes().data(), graph.n(), nodes.data(), nodes_counts.data(), nodes_displs.data(), group);
     MPI_Allgatherv(
         MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, tmp_global_edges.data(), edges_counts.data(), edges_displs.data(),
         mpi::type::get<GlobalEdgeID>(), group
     );
-    if (is_node_weighted) {
-        KASSERT((graph.is_node_weighted() || graph.n() == 0));
-        mpi::allgatherv(
-            graph.raw_node_weights().data(), graph.n(), node_weights.data(), nodes_counts.data(), nodes_displs.data(),
-            group
-        );
-    }
     if (is_edge_weighted) {
-        KASSERT((graph.is_edge_weighted() || graph.m() == 0));
+        KASSERT(graph.is_edge_weighted() || graph.m() == 0);
         mpi::allgatherv(
             graph.raw_edge_weights().data(), graph.m(), edge_weights.data(), edges_counts.data(), edges_displs.data(),
             group
@@ -186,9 +177,6 @@ DistributedGraph replicate(const DistributedGraph& graph, const int num_replicat
         edge_distribution[pe + 1] = graph.edge_distribution(group_size * (pe + 1));
     });
 
-    DBG << V(graph.node_distribution()) << V(group_size);
-    DBG << V(node_distribution) << V(edge_distribution);
-
     // Remap edges to local nodes
     const GlobalEdgeID n0 = graph.node_distribution(rank) - nodes_displs[group_rank];
     const GlobalEdgeID nf = n0 + nodes_displs.back();
@@ -205,13 +193,22 @@ DistributedGraph replicate(const DistributedGraph& graph, const int num_replicat
 
     auto ghost_node_info = ghost_node_mapper.finalize();
 
-    DBG << V(node_distribution) << V(edge_distribution) << V(nodes) << V(edges) << V(node_weights) << V(edge_weights)
-        << V(tmp_global_edges);
-    DBG << V(new_rank);
+    // Now that we know the number of ghost nodes: exchange node weights
+    // The weights of ghost nodes are synchronized once the distributed graph data structure was built
+    const NodeID                num_ghost_nodes = ghost_node_info.ghost_to_global.size();
+    scalable_vector<NodeWeight> node_weights(is_node_weighted ? nodes_displs.back() + num_ghost_nodes : 0);
+    if (is_node_weighted) {
+        KASSERT(graph.is_node_weighted() || graph.n() == 0);
+        mpi::allgatherv(
+            graph.raw_node_weights().data(), graph.n(), node_weights.data(), nodes_counts.data(), nodes_displs.data(),
+            group
+        );
+    }
 
     // Create new communicator and graph
     MPI_Comm new_comm;
-    MPI_Comm_split(graph.communicator(), rank / (size / num_replications), rank, &new_comm);
+    MPI_Comm_split(graph.communicator(), rank % num_replications, rank, &new_comm);
+    KASSERT(mpi::get_comm_size(new_comm) == new_size);
 
     DistributedGraph new_graph(
         std::move(node_distribution), std::move(edge_distribution), std::move(nodes), std::move(edges),
@@ -220,7 +217,15 @@ DistributedGraph replicate(const DistributedGraph& graph, const int num_replicat
     );
 
     // Fix weights of ghost nodes
-    synchronize_ghost_node_weights(new_graph);
+    if (is_node_weighted) {
+        synchronize_ghost_node_weights(new_graph);
+    } else {
+        tbb::parallel_for<NodeID>(new_graph.n(), new_graph.total_n(), [&](const NodeID u) {
+            new_graph.set_ghost_node_weight(u, 1);
+        });
+    }
+
+    KASSERT(debug::validate(new_graph), "", assert::heavy);
 
     MPI_Comm_free(&group);
     return new_graph;

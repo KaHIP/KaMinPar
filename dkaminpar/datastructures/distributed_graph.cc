@@ -13,10 +13,10 @@
 #include "dkaminpar/mpi/wrapper.h"
 
 #include "common/datastructures/marker.h"
+#include "common/math.h"
 #include "common/parallel/vector_ets.h"
 #include "common/scalable_vector.h"
 #include "common/timer.h"
-#include "common/math.h"
 
 namespace kaminpar::dist {
 void DistributedGraph::print() const {
@@ -288,7 +288,10 @@ bool validate(const DistributedGraph& graph, const int root) {
         );
         KASSERT(
             rank + 1 != pe || graph.edge_distribution(pe) - graph.edge_distribution(pe - 1) == graph.m(),
-            "bad entry in edge distribution array", assert::always
+            "bad entry in edge distribution array: expected edges "
+                << graph.edge_distribution(pe - 1) << ".." << graph.edge_distribution(pe) << ", but got " << graph.m()
+                << " edges",
+            assert::always
         );
     }
 

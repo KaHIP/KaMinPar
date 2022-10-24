@@ -18,11 +18,11 @@
 #include "dkaminpar/mpi/wrapper.h"
 
 #include "common/logger.h"
+#include "common/math.h"
 #include "common/noinit_vector.h"
 #include "common/parallel/algorithm.h"
 #include "common/preallocated_vector.h"
 #include "common/timer.h"
-#include "common/math.h"
 
 namespace kaminpar::mpi {
 namespace internal {
@@ -63,7 +63,7 @@ template <typename Message, typename Buffer, typename SendBuffer, typename Count
 void sparse_alltoall_grid(SendBuffer&& data, const CountsBuffer& counts, Receiver&& receiver, MPI_Comm comm) {
     using namespace internal;
 
-    static GridCommunicator grid_comm(comm);
+    /*static*/ GridCommunicator grid_comm(comm);
 
     const auto& row_comm      = grid_comm.row_comm();
     const PEID  row_comm_size = grid_comm.row_comm_size();
@@ -88,10 +88,10 @@ void sparse_alltoall_grid(SendBuffer&& data, const CountsBuffer& counts, Receive
      */
 
     START_TIMER("First hop allocation");
-    static std::vector<int> row_counts_send_counts;
-    static std::vector<int> row_counts_recv_counts;
-    static std::vector<int> row_counts_send_displs;
-    static std::vector<int> row_counts_recv_displs;
+    /*static*/ std::vector<int> row_counts_send_counts;
+    /*static*/ std::vector<int> row_counts_recv_counts;
+    /*static*/ std::vector<int> row_counts_send_displs;
+    /*static*/ std::vector<int> row_counts_recv_displs;
     if (row_counts_send_counts.empty()) {
         // Compute send counts
         row_counts_send_counts.resize(col_comm_size);
@@ -250,10 +250,10 @@ void sparse_alltoall_grid(SendBuffer&& data, const CountsBuffer& counts, Receive
     }
 
     START_TIMER("Second hop allocation");
-    static std::vector<int> col_subcounts_send_counts;
-    static std::vector<int> col_subcounts_send_displs;
-    static std::vector<int> col_subcounts_recv_counts;
-    static std::vector<int> col_subcounts_recv_displs;
+    /*static*/ std::vector<int> col_subcounts_send_counts;
+    /*static*/ std::vector<int> col_subcounts_send_displs;
+    /*static*/ std::vector<int> col_subcounts_recv_counts;
+    /*static*/ std::vector<int> col_subcounts_recv_displs;
     if (col_subcounts_send_counts.empty()) {
         col_subcounts_send_counts.resize(row_comm_size);
         if (topo.col(rank) == topo.virtual_col(rank)) {

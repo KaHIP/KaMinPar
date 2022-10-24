@@ -128,7 +128,7 @@ DistributedPartitionedGraph DeeperPartitioningScheme::partition() {
         );
         if (num_blocks_on_this_level < static_cast<BlockID>(current_num_pes)) {
             KASSERT(
-                current_num_pes % num_blocks_on_this_level == 0, "Graph replication factor is not an integer.",
+                current_num_pes % num_blocks_on_this_level == 0u, "Graph replication factor is not an integer.",
                 assert::always
             );
 
@@ -140,6 +140,8 @@ DistributedPartitionedGraph DeeperPartitioningScheme::partition() {
 
             graph     = &_replicated_graphs.back();
             coarsener = get_current_coarsener();
+
+            DBG << "Replicated graph, now " << graph->n() << " nodes and " << graph->m() << " edges on this PE";
         }
 
         // Coarsen graph
