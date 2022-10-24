@@ -79,7 +79,7 @@ struct ParallelContext {
     int         mpi_thread_support;
     bool        simulate_singlethread;
 
-    void print(std::ostream& out, const std::string& prefix = "") const;
+    void print_compact(std::ostream& out, const std::string& prefix = "") const;
 };
 
 struct LabelPropagationCoarseningContext {
@@ -109,7 +109,7 @@ struct LabelPropagationCoarseningContext {
         }
     }
 
-    void print(std::ostream& out, const std::string& prefix = "") const;
+    void print_compact(std::ostream& out, const std::string& prefix = "") const;
 };
 
 struct LabelPropagationRefinementContext {
@@ -130,7 +130,7 @@ struct LabelPropagationRefinementContext {
         }
     }
 
-    void print(std::ostream& out, const std::string& prefix = "") const;
+    void print_compact(std::ostream& out, const std::string& prefix = "") const;
 };
 
 struct FMRefinementContext {
@@ -144,7 +144,7 @@ struct FMRefinementContext {
     NodeID      bound_degree;
     bool        contract_border;
 
-    void print(std::ostream& out, const std::string& prefix = "") const;
+    void print_compact(std::ostream& out, const std::string& prefix = "") const;
 };
 
 struct CoarseningContext {
@@ -166,13 +166,13 @@ struct CoarseningContext {
         global_lp.setup(parallel);
     }
 
-    void print(std::ostream& out, const std::string& prefix = "") const;
+    void print_compact(std::ostream& out, const std::string& prefix = "") const;
 };
 
 struct MtKaHyParContext {
     std::string preset_filename;
 
-    void print(std::ostream& out, const std::string& prefix = "") const;
+    void print_compact(std::ostream& out, const std::string& prefix = "") const;
 };
 
 struct InitialPartitioningContext {
@@ -180,14 +180,14 @@ struct InitialPartitioningContext {
     MtKaHyParContext             mtkahypar;
     shm::Context                 kaminpar;
 
-    void print(std::ostream& out, const std::string& prefix = "") const;
+    void print_compact(std::ostream& out, const std::string& prefix = "") const;
 };
 
 struct BalancingContext {
     BalancingAlgorithm algorithm;
     NodeID             num_nodes_per_block;
 
-    void print(std::ostream& out, const std::string& prefix = "") const;
+    void print_compact(std::ostream& out, const std::string& prefix = "") const;
 };
 
 struct RefinementContext {
@@ -201,7 +201,7 @@ struct RefinementContext {
         lp.setup(parallel);
     }
 
-    void print(std::ostream& out, const std::string& prefix = "") const;
+    void print_compact(std::ostream& out, const std::string& prefix = "") const;
 };
 
 struct PartitionContext {
@@ -271,7 +271,7 @@ struct PartitionContext {
         return _max_block_weights;
     }
 
-    void print(std::ostream& out, const std::string& prefix = "") const;
+    void print_compact(std::ostream& out, const std::string& prefix = "") const;
 
 private:
     void setup_perfectly_balanced_block_weights();
@@ -296,7 +296,7 @@ struct DebugContext {
     bool save_coarsest_graph;
     bool save_clustering_hierarchy;
 
-    void print(std::ostream& out, const std::string& prefix = "") const;
+    void print_compact(std::ostream& out, const std::string& prefix = "") const;
 };
 
 struct Context {
@@ -322,8 +322,6 @@ struct Context {
         partition.setup(graph);
     }
 
-    void print(std::ostream& out, const std::string& prefix = "") const;
+    void print_compact(std::ostream& out, const std::string& prefix = "") const;
 };
-
-std::ostream& operator<<(std::ostream& out, const Context& context);
 } // namespace kaminpar::dist

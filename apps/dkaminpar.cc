@@ -13,8 +13,6 @@
 #include <mpi.h>
 #include <omp.h>
 
-#include "mpi/utils.h"
-
 #include "dkaminpar/arguments.h"
 #include "dkaminpar/context.h"
 #include "dkaminpar/definitions.h"
@@ -22,6 +20,7 @@
 #include "dkaminpar/io.h"
 #include "dkaminpar/logger.h"
 #include "dkaminpar/metrics.h"
+#include "dkaminpar/mpi/utils.h"
 #include "dkaminpar/partitioning/partitioning.h"
 #include "dkaminpar/presets.h"
 #include "dkaminpar/timer.h"
@@ -60,7 +59,7 @@ void print_result_statistics(const DistributedPartitionedGraph& p_graph, const C
     }
 
     const bool is_root = mpi::get_comm_rank(MPI_COMM_WORLD) == 0;
-    if (is_root && !ctx.quiet) {
+    if (is_root && !ctx.quiet && ctx.parsable_output) {
         std::cout << "TIME ";
         Timer::global().print_machine_readable(std::cout);
     }
@@ -253,14 +252,16 @@ int main(int argc, char* argv[]) {
     }
 
     ctx.parallel.num_mpis = static_cast<std::size_t>(mpi::get_comm_size(MPI_COMM_WORLD));
-    LOG << "MPI size=" << ctx.parallel.num_mpis;
-    LOG << "CONTEXT " << ctx;
+
+    if (ctx.parsable_output) {
+        LOG << "MPI size=" << ctx.parallel.num_mpis;
+        LLOG << "CONTEXT ";
+        ctx.print_compact(std::cout);
+    }
 
     // Initialize random number generator
     Random::seed = ctx.seed;
-#ifdef KAMINPAR_ENABLE_GRAPHGEN
-    g_ctx.seed = ctx.seed;
-#endif
+    g_ctx.seed   = ctx.seed;
 
     // Initialize parallelism
     auto gc = init_parallelism(ctx.parallel.num_threads);
@@ -276,7 +277,6 @@ int main(int argc, char* argv[]) {
 
     // Load graph
     auto graph = TIMED_SCOPE("IO") {
-#ifdef KAMINPAR_ENABLE_GRAPHGEN
         if (g_ctx.type != GeneratorType::NONE) {
             auto graph         = generate(g_ctx);
             ctx.graph_filename = generate_filename(g_ctx);
@@ -286,7 +286,6 @@ int main(int argc, char* argv[]) {
             }
             return graph;
         }
-#endif
 
         const auto type =
             ctx.load_edge_balanced ? io::DistributionType::EDGE_BALANCED : io::DistributionType::NODE_BALANCED;

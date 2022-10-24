@@ -173,7 +173,7 @@ std::ostream& operator<<(std::ostream& out, const BalancingAlgorithm algorithm) 
 // Functions for compact, parsable context output
 //
 
-void LabelPropagationCoarseningContext::print(std::ostream& out, const std::string& prefix) const {
+void LabelPropagationCoarseningContext::print_compact(std::ostream& out, const std::string& prefix) const {
     out << prefix << "num_iterations=" << num_iterations << " "                                             //
         << prefix << "active_high_degree_threshold=" << active_high_degree_threshold << " "                 //
         << prefix << "passive_high_degree_threshold=" << passive_high_degree_threshold << " "               //
@@ -187,7 +187,7 @@ void LabelPropagationCoarseningContext::print(std::ostream& out, const std::stri
         << prefix << "keep_ghost_clusters=" << keep_ghost_clusters << " ";                                  //
 }
 
-void LabelPropagationRefinementContext::print(std::ostream& out, const std::string& prefix) const {
+void LabelPropagationRefinementContext::print_compact(std::ostream& out, const std::string& prefix) const {
     out << prefix << "active_high_degree_threshold=" << active_high_degree_threshold << " " //
         << prefix << "num_iterations=" << num_iterations << " "                             //
         << prefix << "total_num_chunks=" << total_num_chunks << " "                         //
@@ -197,7 +197,7 @@ void LabelPropagationRefinementContext::print(std::ostream& out, const std::stri
         << prefix << "ignore_probabilities=" << ignore_probabilities << " ";                //
 }
 
-void FMRefinementContext::print(std::ostream& out, const std::string& prefix) const {
+void FMRefinementContext::print_compact(std::ostream& out, const std::string& prefix) const {
     out << prefix << "alpha=" << alpha << " "                      //
         << prefix << "distance=" << radius << " "                  //
         << prefix << "hops=" << pe_radius << " "                   //
@@ -209,7 +209,7 @@ void FMRefinementContext::print(std::ostream& out, const std::string& prefix) co
         << prefix << "contract_border=" << contract_border << " "; //
 }
 
-void CoarseningContext::print(std::ostream& out, const std::string& prefix) const {
+void CoarseningContext::print_compact(std::ostream& out, const std::string& prefix) const {
     out << prefix << "max_global_clustering_levels=" << max_global_clustering_levels << " " //
         << prefix << "global_clustering_algorithm=" << global_clustering_algorithm << " "   //
         << prefix << "global_contraction_algorithm=" << global_contraction_algorithm << " " //
@@ -218,33 +218,33 @@ void CoarseningContext::print(std::ostream& out, const std::string& prefix) cons
         << prefix << "contraction_limit=" << contraction_limit << " "                       //
         << prefix << "cluster_weight_limit=" << cluster_weight_limit << " "                 //
         << prefix << "cluster_weight_multiplier=" << cluster_weight_multiplier << " ";      //
-    local_lp.print(out, prefix + "local_lp.");
-    global_lp.print(out, prefix + "global_lp.");
+    local_lp.print_compact(out, prefix + "local_lp.");
+    global_lp.print_compact(out, prefix + "global_lp.");
 }
 
-void BalancingContext::print(std::ostream& out, const std::string& prefix) const {
+void BalancingContext::print_compact(std::ostream& out, const std::string& prefix) const {
     out << prefix << "algorithm=" << algorithm << " "                      //
         << prefix << "num_nodes_per_block=" << num_nodes_per_block << " "; //
 }
 
-void MtKaHyParContext::print(std::ostream& out, const std::string& prefix) const {
+void MtKaHyParContext::print_compact(std::ostream& out, const std::string& prefix) const {
     out << prefix << "preset_filename=" << preset_filename << " "; //
 }
 
-void InitialPartitioningContext::print(std::ostream& out, const std::string& prefix) const {
+void InitialPartitioningContext::print_compact(std::ostream& out, const std::string& prefix) const {
     out << prefix << "algorithm=" << algorithm << " ";
-    mtkahypar.print(out, prefix + "mtkahypar.");
+    mtkahypar.print_compact(out, prefix + "mtkahypar.");
     // kaminpar.print(out, prefix + "kaminpar.");
 }
 
-void RefinementContext::print(std::ostream& out, const std::string& prefix) const {
+void RefinementContext::print_compact(std::ostream& out, const std::string& prefix) const {
     out << prefix << "algorithm=" << algorithm << " ";
-    lp.print(out, prefix + "lp.");
-    fm.print(out, prefix + "fm.");
-    balancing.print(out, prefix + "balancing.");
+    lp.print_compact(out, prefix + "lp.");
+    fm.print_compact(out, prefix + "fm.");
+    balancing.print_compact(out, prefix + "balancing.");
 }
 
-void ParallelContext::print(std::ostream& out, const std::string& prefix) const {
+void ParallelContext::print_compact(std::ostream& out, const std::string& prefix) const {
     out << prefix << "num_threads=" << num_threads << " "                                         //
         << prefix << "num_mpis=" << num_mpis << " "                                               //
         << prefix << "use_interleaved_numa_allocation=" << use_interleaved_numa_allocation << " " //
@@ -306,21 +306,21 @@ void PartitionContext::setup_max_block_weights() {
     });
 }
 
-void PartitionContext::print(std::ostream& out, const std::string& prefix) const {
+void PartitionContext::print_compact(std::ostream& out, const std::string& prefix) const {
     out << prefix << "k=" << k << " "             //
         << prefix << "k_prime=" << k_prime << " " //
         << prefix << "epsilon=" << epsilon << " " //
         << prefix << "mode=" << mode << " ";      //
 }
 
-void DebugContext::print(std::ostream& out, const std::string& prefix) const {
+void DebugContext::print_compact(std::ostream& out, const std::string& prefix) const {
     out << prefix << "save_imbalanced_partitions=" << save_imbalanced_partitions << " " //
         << prefix << "save_graph_hierarchy=" << save_graph_hierarchy << " "             //
         << prefix << "save_coarsest_graph=" << save_coarsest_graph << " "               //
         << prefix << "save_clustering_hierarchy=" << save_clustering_hierarchy << " ";  //
 }
 
-void Context::print(std::ostream& out, const std::string& prefix) const {
+void Context::print_compact(std::ostream& out, const std::string& prefix) const {
     out << prefix << "graph_filename=" << graph_filename << " "         //
         << prefix << "load_edge_balanced=" << load_edge_balanced << " " //
         << prefix << "seed=" << seed << " "                             //
@@ -328,15 +328,10 @@ void Context::print(std::ostream& out, const std::string& prefix) const {
         << prefix << "num_repetitions=" << num_repetitions << " "       //
         << prefix << "sort_graph=" << sort_graph << " "                 //
         << prefix << "time_limit=" << time_limit << " ";                //
-    partition.print(out, prefix + "partition.");
-    parallel.print(out, prefix + "parallel.");
-    coarsening.print(out, prefix + "coarsening.");
-    initial_partitioning.print(out, prefix + "initial_partitioning.");
-    refinement.print(out, prefix + "refinement.");
-}
-
-std::ostream& operator<<(std::ostream& out, const Context& context) {
-    context.print(out);
-    return out;
+    partition.print_compact(out, prefix + "partition.");
+    parallel.print_compact(out, prefix + "parallel.");
+    coarsening.print_compact(out, prefix + "coarsening.");
+    initial_partitioning.print_compact(out, prefix + "initial_partitioning.");
+    refinement.print_compact(out, prefix + "refinement.");
 }
 } // namespace kaminpar::dist
