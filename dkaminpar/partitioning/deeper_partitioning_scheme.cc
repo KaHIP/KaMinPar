@@ -29,7 +29,7 @@
 #include "common/timer.h"
 
 namespace kaminpar::dist {
-SET_DEBUG(false);
+SET_DEBUG(true);
 
 DeeperPartitioningScheme::DeeperPartitioningScheme(const DistributedGraph& input_graph, const Context& input_ctx)
     : _input_graph(input_graph),
@@ -127,6 +127,8 @@ DistributedPartitionedGraph DeeperPartitioningScheme::partition() {
         );
         if (num_blocks_on_this_level < static_cast<BlockID>(current_num_pes)) {
             const PEID num_replications = current_num_pes / num_blocks_on_this_level;
+            DBG << "Current graph (" << graph->global_n() << ") is too small for the available parallelism ("
+                << _input_ctx.parallel.num_mpis << "): replicating the graph " << num_replications << " times";
             _replicated_graphs.push_back(graph::replicate(*graph, num_replications));
             _coarseners.emplace(_replicated_graphs.back(), _input_ctx);
 
@@ -223,7 +225,6 @@ DistributedPartitionedGraph DeeperPartitioningScheme::partition() {
             const auto& subgraphs               = block_extraction_result.subgraphs;
 
             // Partition block-induced subgraphs
-
             START_TIMER("Initial partitioning");
             std::vector<shm::PartitionedGraph> p_subgraphs;
             for (const auto& subgraph: subgraphs) {
@@ -276,7 +277,7 @@ DistributedPartitionedGraph DeeperPartitioningScheme::partition() {
     ref_p_ctx.setup(dist_p_graph.graph());
 
     // Uncoarsen, partition blocks and refine
-    while (_coarseners.size() > 0 || coarsener->level() > 0) {
+    while (_coarseners.size() > 1 || coarsener->level() > 0) {
         LOG;
         LOG << "Uncoarsening -> Level " << coarsener->level() << ":";
 
