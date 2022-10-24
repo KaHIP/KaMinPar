@@ -242,6 +242,7 @@ distribute_best_partition(const DistributedGraph& dist_graph, DistributedPartiti
 
     MPI_Comm inter_group_comm;
     MPI_Comm_split(dist_graph.communicator(), group_rank, rank, &inter_group_comm);
+    const PEID inter_group_rank = mpi::get_comm_rank(inter_group_comm);
 
     // Find best partition
     const GlobalEdgeWeight my_cut = metrics::edge_cut(p_graph);
@@ -249,7 +250,7 @@ distribute_best_partition(const DistributedGraph& dist_graph, DistributedPartiti
         long cut;
         int  rank;
     };
-    ReductionMessage best_cut_loc{my_cut, group_rank};
+    ReductionMessage best_cut_loc{my_cut, inter_group_rank};
     MPI_Allreduce(MPI_IN_PLACE, &best_cut_loc, 1, MPI_LONG_INT, MPI_MINLOC, inter_group_comm);
 
     // Compute partition distribution for p_graph --> dist_graph
@@ -275,6 +276,7 @@ distribute_best_partition(const DistributedGraph& dist_graph, DistributedPartiti
     // Synchronize ghost node assignment
     synchronize_ghost_node_block_ids(p_dist_graph);
 
+    MPI_Comm_free(&inter_group_comm);
     return p_dist_graph;
 }
 
