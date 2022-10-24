@@ -262,9 +262,7 @@ distribute_best_partition(const DistributedGraph& dist_graph, DistributedPartiti
     );
 
     // Create partitioned dist_graph
-    scalable_vector<parallel::Atomic<BlockID>> tmp_partition(dist_graph.total_n());
-    dist_graph.pfor_nodes([&](const NodeID u) { tmp_partition[u] = new_partition[u]; });
-    DistributedPartitionedGraph p_dist_graph(&dist_graph, p_graph.k(), std::move(tmp_partition));
+    DistributedPartitionedGraph p_dist_graph(&dist_graph, p_graph.k(), std::move(new_partition));
 
     // Synchronize ghost node assignment
     synchronize_ghost_node_block_ids(p_dist_graph);
@@ -298,17 +296,13 @@ distribute_best_partition(const DistributedGraph& dist_graph, shm::PartitionedGr
         partition.data(), static_cast<int>(dist_graph.global_n()), mpi::type::get<shm::BlockID>(), global.rank, comm
     );
 
-    // compute block weights
-    scalable_vector<parallel::Atomic<BlockWeight>> block_weights(shm_p_graph.k());
-    shm_p_graph.pfor_nodes([&](const shm::NodeID u) { block_weights[partition[u]] += shm_p_graph.node_weight(u); });
-
     // create distributed partition
-    scalable_vector<parallel::Atomic<BlockID>> dist_partition(dist_graph.total_n());
+    scalable_vector<BlockID> dist_partition(dist_graph.total_n());
     dist_graph.pfor_nodes(0, dist_graph.total_n(), [&](const NodeID u) {
         dist_partition[u] = partition[dist_graph.local_to_global_node(u)];
     });
 
     // create distributed partitioned graph
-    return {&dist_graph, shm_p_graph.k(), std::move(dist_partition), std::move(block_weights)};
+    return {&dist_graph, shm_p_graph.k(), std::move(dist_partition)};
 }
 } // namespace kaminpar::dist::graph

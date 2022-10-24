@@ -44,19 +44,16 @@ inline std::vector<GlobalNodeID> global_neighbors(const DistributedGraph& graph,
 
 inline DistributedPartitionedGraph
 make_partitioned_graph(const DistributedGraph& graph, const BlockID k, const std::vector<BlockID>& local_partition) {
-    scalable_vector<parallel::Atomic<BlockID>> partition(graph.total_n());
-    scalable_vector<BlockWeight>               local_block_weights(k);
+    scalable_vector<BlockID>     partition(graph.total_n());
+    scalable_vector<BlockWeight> local_block_weights(k);
 
     std::copy(local_partition.begin(), local_partition.end(), partition.begin());
     for (const NodeID u: graph.nodes()) {
         local_block_weights[partition[u]] += graph.node_weight(u);
     }
 
-    scalable_vector<BlockWeight> global_block_weights_nonatomic(k);
-    mpi::allreduce(local_block_weights.data(), global_block_weights_nonatomic.data(), k, MPI_SUM, MPI_COMM_WORLD);
-
-    scalable_vector<parallel::Atomic<BlockWeight>> block_weights(k);
-    std::copy(global_block_weights_nonatomic.begin(), global_block_weights_nonatomic.end(), block_weights.begin());
+    scalable_vector<BlockWeight> block_weights(k);
+    mpi::allreduce(local_block_weights.data(), block_weights.data(), k, MPI_SUM, MPI_COMM_WORLD);
 
     struct NodeBlock {
         GlobalNodeID global_node;

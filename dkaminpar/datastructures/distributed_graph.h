@@ -520,8 +520,8 @@ public:
     using BlockID          = ::kaminpar::dist::BlockID;
     using BlockWeight      = ::kaminpar::dist::BlockWeight;
 
-    using Partition    = scalable_vector<parallel::Atomic<BlockID>>;
-    using BlockWeights = scalable_vector<parallel::Atomic<BlockWeight>>;
+    using Partition    = scalable_vector<BlockID>;
+    using BlockWeights = scalable_vector<BlockWeight>;
 
     DistributedPartitionedGraph(const DistributedGraph* graph, const BlockID k, Partition partition)
         : DistributedPartitionedGraph(graph, k, std::move(partition), BlockWeights(k)) {
@@ -637,7 +637,7 @@ public:
 
     [[nodiscard]] BlockID block(const NodeID u) const {
         KASSERT(u < _partition.size());
-        return _partition[u].load(std::memory_order_relaxed);
+        return __atomic_load_n(&_partition[u], __ATOMIC_RELAXED);
     }
 
     template <bool update_block_weights = true>
@@ -646,22 +646,22 @@ public:
 
         if constexpr (update_block_weights) {
             const NodeWeight u_weight = _graph->node_weight(u);
-            _block_weights[_partition[u]] -= u_weight;
-            _block_weights[b] += u_weight;
+            __atomic_fetch_sub(&_block_weights[block(u)], u_weight, __ATOMIC_RELAXED);
+            __atomic_fetch_add(&_block_weights[b], u_weight, __ATOMIC_RELAXED);
         }
-        _partition[u].store(b, std::memory_order_relaxed);
+        __atomic_store_n(&_partition[u], b, __ATOMIC_RELAXED);
     }
 
     [[nodiscard]] inline BlockWeight block_weight(const BlockID b) const {
         KASSERT(b < k());
         KASSERT(b < _block_weights.size());
-        return _block_weights[b].load(std::memory_order_relaxed);
+        return __atomic_load_n(&_block_weights[b], __ATOMIC_RELAXED);
     }
 
     void set_block_weight(const BlockID b, const BlockWeight weight) {
         KASSERT(b < k());
         KASSERT(b < _block_weights.size());
-        _block_weights[b].store(weight, std::memory_order_relaxed);
+        __atomic_store_n(&_block_weights[b], weight, __ATOMIC_RELAXED);
     }
 
     [[nodiscard]] const auto& block_weights() const {

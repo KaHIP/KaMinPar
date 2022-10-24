@@ -596,7 +596,7 @@ DistributedPartitionedGraph project_global_contracted_graph(
 
     // assign block IDs to fine nodes
     START_TIMER("Allocation", TIMER_DETAIL);
-    scalable_vector<parallel::Atomic<BlockID>> fine_partition(fine_graph.total_n());
+    scalable_vector<BlockID> fine_partition(fine_graph.total_n());
     STOP_TIMER(TIMER_DETAIL);
 
     START_TIMER("Set blocks", TIMER_DETAIL);
