@@ -3,7 +3,9 @@
 #include "tests/dkaminpar/distributed_graph_factories.h"
 #include "tests/dkaminpar/distributed_graph_helpers.h"
 
+#include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/graphutils/allgather_graph.h"
+#include "dkaminpar/metrics.h"
 
 #include "common/assert.h"
 
@@ -40,7 +42,7 @@ TEST(GraphReplicationTest, isolated_graph_P_div_2) {
         KASSERT(size % 2 == 0, "unit tests only works if number of PEs is divisable by 2", assert::always);
         const auto rep = graph::replicate(graph, size / 2);
 
-        EXPECT_EQ(rep.n(), 2);
+        EXPECT_EQ(rep.n(), size / 2);
         EXPECT_EQ(rep.global_n(), size);
         EXPECT_EQ(rep.m(), 0);
     }
@@ -68,5 +70,28 @@ TEST(GraphReplicationTest, triangle_cycle_graph_P) {
     EXPECT_EQ(rep.n(), rep.global_n());
     EXPECT_EQ(rep.n(), size * 3);
     EXPECT_EQ(rep.m(), rep.global_m());
+}
+
+TEST(DistributeBestPartitionTest, triangle_cycle_graph_P) {
+    const auto graph = make_circle_clique_graph(3); // triangle on each PE
+    const PEID size  = mpi::get_comm_size(MPI_COMM_WORLD);
+    const PEID rank  = mpi::get_comm_rank(MPI_COMM_WORLD);
+    const auto rep   = graph::replicate(graph, size); // each PE gets a full copy
+
+    scalable_vector<BlockID> partition(rep.n());
+    // rank == 0: everything in block 0
+    // else: build a bad partition
+    if (rank > 0) {
+        for (const NodeID u: rep.nodes()) {
+            partition[u] = u % 2;
+        }
+    }
+
+    DistributedPartitionedGraph p_rep(&rep, 2, std::move(partition));
+
+    auto p_graph = graph::distribute_best_partition(graph, std::move(p_rep));
+
+    ASSERT_TRUE(graph::debug::validate_partition(p_graph));
+    EXPECT_EQ(metrics::edge_cut(p_graph), 0);
 }
 } // namespace kaminpar::dist
