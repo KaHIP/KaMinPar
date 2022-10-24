@@ -145,7 +145,7 @@ DistributedPartitionedGraph DeepPartitioningScheme::partition() {
         return factory::create_initial_partitioning_algorithm(_input_ctx);
     };
 
-    auto shm_graph = graph::allgather(*graph);
+    auto shm_graph = graph::replicate_everywhere(*graph);
     if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0 && _input_ctx.debug.save_coarsest_graph) {
         debug::save_graph(shm_graph, _input_ctx, coarsener->level());
     }
@@ -156,7 +156,7 @@ DistributedPartitionedGraph DeepPartitioningScheme::partition() {
     ip_p_ctx.setup(shm_graph);
     auto shm_p_graph = initial_partitioner->initial_partition(shm_graph, ip_p_ctx);
 
-    DistributedPartitionedGraph dist_p_graph = graph::reduce_scatter(*graph, std::move(shm_p_graph));
+    DistributedPartitionedGraph dist_p_graph = graph::distribute_best_partition(*graph, std::move(shm_p_graph));
 
     KASSERT(graph::debug::validate_partition(dist_p_graph), "", assert::heavy);
 

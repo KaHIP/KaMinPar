@@ -104,7 +104,7 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
     };
 
     START_TIMER("Initial Partitioning");
-    auto                  shm_graph = graph::allgather(*graph);
+    auto                  shm_graph = graph::replicate_everywhere(*graph);
     shm::PartitionedGraph shm_p_graph{};
     if (_ctx.parallel.simulate_singlethread) {
         shm_p_graph         = initial_partitioner->initial_partition(shm_graph, _ctx.partition);
@@ -121,7 +121,7 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
     } else {
         shm_p_graph = initial_partitioner->initial_partition(shm_graph, _ctx.partition);
     }
-    DistributedPartitionedGraph dist_p_graph = graph::reduce_scatter(*graph, std::move(shm_p_graph));
+    DistributedPartitionedGraph dist_p_graph = graph::distribute_best_partition(*graph, std::move(shm_p_graph));
     STOP_TIMER();
 
     KASSERT(graph::debug::validate_partition(dist_p_graph), "", assert::heavy);

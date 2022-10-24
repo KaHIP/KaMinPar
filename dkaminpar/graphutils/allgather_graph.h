@@ -14,7 +14,10 @@
 #include "kaminpar/datastructures/graph.h"
 
 namespace kaminpar::dist::graph {
-shm::Graph                  allgather(const DistributedGraph& graph);
-DistributedGraph            replicate(const DistributedGraph& graph, int num_replications);
-DistributedPartitionedGraph reduce_scatter(const DistributedGraph& dist_graph, shm::PartitionedGraph shm_p_graph);
+shm::Graph       replicate_everywhere(const DistributedGraph& graph);
+DistributedGraph replicate(const DistributedGraph& graph, int num_replications);
+DistributedPartitionedGraph
+distribute_best_partition(const DistributedGraph& dist_graph, DistributedPartitionedGraph p_graph);
+DistributedPartitionedGraph
+distribute_best_partition(const DistributedGraph& dist_graph, shm::PartitionedGraph shm_p_graph);
 } // namespace kaminpar::dist::graph

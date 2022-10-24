@@ -11,6 +11,8 @@
 #include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/datastructures/distributed_graph_builder.h"
 #include "dkaminpar/definitions.h"
+#include "dkaminpar/graphutils/graph_synchronization.h"
+#include "dkaminpar/metrics.h"
 #include "dkaminpar/mpi/utils.h"
 #include "dkaminpar/mpi/wrapper.h"
 
@@ -23,7 +25,7 @@
 namespace kaminpar::dist::graph {
 SET_DEBUG(false);
 
-shm::Graph allgather(const DistributedGraph& graph) {
+shm::Graph replicate_everywhere(const DistributedGraph& graph) {
     KASSERT(graph.global_n() < std::numeric_limits<NodeID>::max(), "number of nodes exceeds int size", assert::always);
     KASSERT(graph.global_m() < std::numeric_limits<EdgeID>::max(), "number of edges exceeds int size", assert::always);
     MPI_Comm comm = graph.communicator();
@@ -203,7 +205,8 @@ DistributedGraph replicate(const DistributedGraph& graph, const int num_replicat
 
     auto ghost_node_info = ghost_node_mapper.finalize();
 
-    DBG << V(node_distribution) << V(edge_distribution) << V(nodes) << V(edges) << V(node_weights) << V(edge_weights) << V(tmp_global_edges);
+    DBG << V(node_distribution) << V(edge_distribution) << V(nodes) << V(edges) << V(node_weights) << V(edge_weights)
+        << V(tmp_global_edges);
     DBG << V(new_rank);
 
     // Create new communicator and graph
@@ -220,7 +223,57 @@ DistributedGraph replicate(const DistributedGraph& graph, const int num_replicat
     return new_graph;
 }
 
-DistributedPartitionedGraph reduce_scatter(const DistributedGraph& dist_graph, shm::PartitionedGraph shm_p_graph) {
+DistributedPartitionedGraph
+distribute_best_partition(const DistributedGraph& dist_graph, DistributedPartitionedGraph p_graph) {
+    // Create group with one PE of each replication
+    const PEID group_size       = mpi::get_comm_size(p_graph.communicator());
+    const PEID group_rank       = mpi::get_comm_rank(p_graph.communicator());
+    const PEID size             = mpi::get_comm_size(dist_graph.communicator());
+    const PEID rank             = mpi::get_comm_rank(dist_graph.communicator());
+    const PEID num_replications = size / group_size;
+
+    MPI_Comm inter_group_comm;
+    MPI_Comm_split(dist_graph.communicator(), group_rank, rank, &inter_group_comm);
+
+    // Find best partition
+    const GlobalEdgeWeight my_cut = metrics::edge_cut(p_graph);
+    struct ReductionMessage {
+        long cut;
+        int  rank;
+    };
+    ReductionMessage best_cut_loc{my_cut, group_rank};
+    MPI_Allreduce(MPI_IN_PLACE, &best_cut_loc, 1, MPI_LONG_INT, MPI_MINLOC, inter_group_comm);
+
+    // Compute partition distribution for p_graph --> dist_graph
+    NoinitVector<int> send_counts(num_replications);
+    for (PEID pe = group_rank * num_replications; pe < (group_rank + 1) * num_replications; ++pe) {
+        const PEID first_pe        = group_rank * num_replications;
+        send_counts[pe - first_pe] = dist_graph.node_distribution(pe + 1) - dist_graph.node_distribution(pe);
+    }
+    NoinitVector<int> send_displs = mpi::build_displs_from_counts(send_counts);
+    int               recv_count  = asserting_cast<int>(dist_graph.n());
+
+    // Scatter best partition
+    auto                     partition = p_graph.take_partition();
+    scalable_vector<BlockID> new_partition(dist_graph.total_n());
+    MPI_Scatterv(
+        partition.data(), send_counts.data(), send_displs.data(), mpi::type::get<BlockID>(), new_partition.data(),
+        recv_count, mpi::type::get<BlockID>(), best_cut_loc.rank, inter_group_comm
+    );
+
+    // Create partitioned dist_graph
+    scalable_vector<parallel::Atomic<BlockID>> tmp_partition(dist_graph.total_n());
+    dist_graph.pfor_nodes([&](const NodeID u) { tmp_partition[u] = new_partition[u]; });
+    DistributedPartitionedGraph p_dist_graph(&dist_graph, p_graph.k(), std::move(tmp_partition));
+
+    // Synchronize ghost node assignment
+    synchronize_ghost_node_block_ids(p_dist_graph);
+
+    return p_dist_graph;
+}
+
+DistributedPartitionedGraph
+distribute_best_partition(const DistributedGraph& dist_graph, shm::PartitionedGraph shm_p_graph) {
     KASSERT(
         dist_graph.global_n() < static_cast<GlobalNodeID>(std::numeric_limits<NodeID>::max()),
         "partition size exceeds int size", assert::always
