@@ -39,7 +39,7 @@ std::unique_ptr<InitialPartitioner> create_initial_partitioning_algorithm(const 
             return std::make_unique<MtKaHyParInitialPartitioner>(ctx);
 
         case InitialPartitioningAlgorithm::RANDOM:
-            return std::make_unique<RandomInitialPartitioner>(ctx);
+            return std::make_unique<RandomInitialPartitioner>();
     }
     __builtin_unreachable();
 }

@@ -12,7 +12,7 @@
 namespace kaminpar::dist {
 class RandomInitialPartitioner : public InitialPartitioner {
 public:
-    RandomInitialPartitioner(const Context& ctx) : _ctx{ctx} {}
+    RandomInitialPartitioner() {}
 
     RandomInitialPartitioner(const RandomInitialPartitioner&)            = delete;
     RandomInitialPartitioner& operator=(const RandomInitialPartitioner&) = delete;
@@ -20,8 +20,5 @@ public:
     RandomInitialPartitioner& operator=(RandomInitialPartitioner&&)      = delete;
 
     shm::PartitionedGraph initial_partition(const shm::Graph& graph, const PartitionContext& p_ctx) override;
-
-private:
-    const Context& _ctx;
 };
 } // namespace kaminpar::dist
