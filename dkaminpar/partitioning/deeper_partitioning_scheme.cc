@@ -29,7 +29,7 @@
 #include "common/timer.h"
 
 namespace kaminpar::dist {
-SET_DEBUG(true);
+SET_DEBUG(false);
 
 DeeperPartitioningScheme::DeeperPartitioningScheme(const DistributedGraph& input_graph, const Context& input_ctx)
     : _input_graph(input_graph),
@@ -59,7 +59,7 @@ void DeeperPartitioningScheme::print_coarsening_level(const GlobalNodeWeight max
     );
     const int width = std::log10(max_value) + 1;
 
-    LOG << "Coarsening -> Level " << coarsener->level() << ":";
+    LOG << "Coarsening -> Level " << _coarseners.size() << "," << coarsener->level() << ":";
     LOG << "  Number of nodes: " << graph->global_n() << " | Number of edges: " << graph->global_m();
     LOG << "  Number of local nodes: [Min=" << std::setw(width) << n_min << " | Mean=" << std::setw(width)
         << static_cast<NodeID>(n_avg) << " | Max=" << std::setw(width) << n_max
@@ -140,8 +140,6 @@ DistributedPartitionedGraph DeeperPartitioningScheme::partition() {
 
             graph     = &_replicated_graphs.back();
             coarsener = get_current_coarsener();
-
-            DBG << "Replicated graph, now " << graph->n() << " nodes and " << graph->m() << " edges on this PE";
         }
 
         // Coarsen graph
@@ -287,7 +285,7 @@ DistributedPartitionedGraph DeeperPartitioningScheme::partition() {
     // Uncoarsen, partition blocks and refine
     while (_coarseners.size() > 1 || coarsener->level() > 0) {
         LOG;
-        LOG << "Uncoarsening -> Level " << coarsener->level() << ":";
+        LOG << "Uncoarsening -> Level " << _coarseners.size() << "," << coarsener->level() << ":";
 
         // Join split PE groups and use best partition
         if (coarsener->level() == 0) {
@@ -302,9 +300,12 @@ DistributedPartitionedGraph DeeperPartitioningScheme::partition() {
         }
 
         // Uncoarsen graph
-        START_TIMER("Uncontraction", std::string("Level ") + std::to_string(coarsener->level()));
-        dist_p_graph = coarsener->uncoarsen_once(std::move(dist_p_graph));
-        STOP_TIMER();
+        // If we replicated early, we might already be on the finest level
+        if (coarsener->level() > 0) {
+            START_TIMER("Uncontraction", std::string("Level ") + std::to_string(coarsener->level()));
+            dist_p_graph = coarsener->uncoarsen_once(std::move(dist_p_graph));
+            STOP_TIMER();
+        }
 
         // Extend partition
         extend_partition(dist_p_graph);
