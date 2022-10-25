@@ -123,16 +123,20 @@ DistributedPartitionedGraph DeeperPartitioningScheme::partition() {
         SCOPED_TIMER("Coarsening", std::string("Level ") + std::to_string(coarsener->level()));
 
         // Replicate graph and split PEs when the graph becomes too small
-        const BlockID num_blocks_on_this_level = std::min<BlockID>(
-            _input_ctx.partition.k, math::ceil2(graph->global_n() / _input_ctx.coarsening.contraction_limit)
-        );
-        if (num_blocks_on_this_level < static_cast<BlockID>(current_num_pes)) {
+        // const BlockID num_blocks_on_this_level = std::min<BlockID>(
+        //_input_ctx.partition.k, math::ceil2(graph->global_n() / _input_ctx.coarsening.contraction_limit)
+        //);
+        const BlockID num_blocks_on_this_level =
+            math::ceil2(graph->global_n() / _input_ctx.coarsening.contraction_limit);
+
+        if (current_num_pes > 1 && num_blocks_on_this_level < static_cast<BlockID>(current_num_pes)) {
             KASSERT(
                 current_num_pes % num_blocks_on_this_level == 0u, "Graph replication factor is not an integer.",
                 assert::always
             );
 
             const PEID num_replications = current_num_pes / num_blocks_on_this_level;
+            current_num_pes /= num_replications;
             LOG << "Current graph (" << graph->global_n() << " nodes) is too small for the available parallelism ("
                 << _input_ctx.parallel.num_mpis << "): replicating the graph " << num_replications << " times";
 

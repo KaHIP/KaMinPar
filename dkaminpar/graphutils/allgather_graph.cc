@@ -121,8 +121,9 @@ DistributedGraph replicate(const DistributedGraph& graph, const int num_replicat
     // Communicator with relevant PEs
     MPI_Comm group;
     MPI_Comm_split(graph.communicator(), new_rank, rank, &group);
-    const PEID group_size = num_replications;
-    const PEID group_rank = rank - new_rank * num_replications;
+
+    const PEID group_size = mpi::get_comm_size(group);
+    const PEID group_rank = mpi::get_comm_rank(group);
 
     auto nodes_counts = mpi::build_counts_from_value<GlobalNodeID>(graph.n(), group);
     auto nodes_displs = mpi::build_displs_from_counts(nodes_counts);
@@ -164,7 +165,10 @@ DistributedGraph replicate(const DistributedGraph& graph, const int num_replicat
     // Offset received nodes arrays
     tbb::parallel_for<PEID>(0, group_size, [&](const PEID p) {
         const NodeID offset = edges_displs[p];
-        tbb::parallel_for<NodeID>(nodes_displs[p], nodes_displs[p] + nodes_counts[p], [&](const NodeID u) {
+        KASSERT(p + 1 < nodes_displs.size());
+
+        tbb::parallel_for<NodeID>(nodes_displs[p], nodes_displs[p + 1], [&](const NodeID u) {
+            KASSERT(u < nodes.size(), V(p) << V(nodes_displs) << V(nodes.size()));
             nodes[u] += offset;
         });
     });
