@@ -292,7 +292,7 @@ DistributedPartitionedGraph DeeperPartitioningScheme::partition() {
 
         // Join split PE groups and use best partition
         if (coarsener->level() == 0) {
-            LOG << "Joining split PE groups";
+            LOG << "  Joining split PE groups";
 
             KASSERT(!_coarseners.empty());
             _coarseners.pop();
