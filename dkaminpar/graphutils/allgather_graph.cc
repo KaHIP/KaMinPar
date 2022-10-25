@@ -165,7 +165,7 @@ DistributedGraph replicate(const DistributedGraph& graph, const int num_replicat
     // Offset received nodes arrays
     tbb::parallel_for<PEID>(0, group_size, [&](const PEID p) {
         const NodeID offset = edges_displs[p];
-        KASSERT(p + 1 < nodes_displs.size());
+        KASSERT(static_cast<std::size_t>(p + 1) < nodes_displs.size());
 
         tbb::parallel_for<NodeID>(nodes_displs[p], nodes_displs[p + 1], [&](const NodeID u) {
             KASSERT(u < nodes.size(), V(p) << V(nodes_displs) << V(nodes.size()));
