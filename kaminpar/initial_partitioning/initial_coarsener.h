@@ -62,7 +62,7 @@ public:
 
     InitialCoarsener(const InitialCoarsener&)            = delete;
     InitialCoarsener& operator=(const InitialCoarsener&) = delete;
-    InitialCoarsener(InitialCoarsener&&) noexcept        = default;
+    InitialCoarsener(InitialCoarsener&&) noexcept        = delete;
     InitialCoarsener& operator=(InitialCoarsener&&)      = delete;
 
     [[nodiscard]] inline std::size_t size() const {

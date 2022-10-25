@@ -10,9 +10,9 @@
 #include "dkaminpar/mpi/graph_communication.h"
 #include "dkaminpar/mpi/wrapper.h"
 
+#include "common/math.h"
 #include "common/random.h"
 #include "common/timer.h"
-#include "common/math.h"
 
 namespace kaminpar::dist {
 DistributedBalancer::DistributedBalancer(const Context& ctx)
@@ -217,7 +217,7 @@ auto DistributedBalancer::reduce_move_candidates(std::vector<MoveCandidate>&& ca
         active_size /= 2;
     }
 
-    return candidates;
+    return std::move(candidates);
 }
 
 auto DistributedBalancer::reduce_move_candidates(std::vector<MoveCandidate>&& a, std::vector<MoveCandidate>&& b)
@@ -275,8 +275,8 @@ auto DistributedBalancer::reduce_move_candidates(std::vector<MoveCandidate>&& a,
             // only pick candidate if it does not overload the target block
             if (from != to
                 && _p_graph->block_weight(to) + target_block_weight_delta[to] + weight > _p_ctx->max_block_weight(to)) {
-                //DBG << "Not taking candidate for move " << from << " --> " << to
-                    //<< " because target would become overloaded";
+                // DBG << "Not taking candidate for move " << from << " --> " << to
+                //<< " because target would become overloaded";
                 continue;
             }
 

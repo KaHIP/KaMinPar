@@ -219,6 +219,7 @@ shm::PartitionedGraph MtKaHyParInitialPartitioner::initial_partition(
 
     return shm::PartitionedGraph(graph, static_cast<BlockID>(k), std::move(partition_cpy), std::move(final_ks));
 #else  // KAMINPAR_HAS_MTKAHYPAR_LIB
+    ((void)_ctx);
     KASSERT(false, "Mt-KaHyPar initial partitioner is not available.", assert::always);
     __builtin_unreachable();
 #endif // KAMINPAR_HAS_MTKAHYPAR_LIB
