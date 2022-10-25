@@ -133,7 +133,7 @@ DistributedPartitionedGraph DeeperPartitioningScheme::partition() {
             );
 
             const PEID num_replications = current_num_pes / num_blocks_on_this_level;
-            LOG << "Current graph (" << graph->global_n() << ") is too small for the available parallelism ("
+            LOG << "Current graph (" << graph->global_n() << " nodes) is too small for the available parallelism ("
                 << _input_ctx.parallel.num_mpis << "): replicating the graph " << num_replications << " times";
 
             _replicated_graphs.push_back(graph::replicate(*graph, num_replications));
@@ -197,7 +197,9 @@ DistributedPartitionedGraph DeeperPartitioningScheme::partition() {
     auto run_balancer = [&](DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx) {
         SCOPED_TIMER("Rebalancing");
         if (!metrics::is_feasible(p_graph, p_ctx)) {
-            DistributedBalancer balancer(_input_ctx);
+            Context balance_ctx = _input_ctx;
+            balance_ctx.setup(p_graph.graph());
+            DistributedBalancer balancer(balance_ctx);
             balancer.initialize(p_graph);
             balancer.balance(p_graph, p_ctx);
             KASSERT(graph::debug::validate_partition(p_graph), "", assert::heavy);
@@ -290,6 +292,8 @@ DistributedPartitionedGraph DeeperPartitioningScheme::partition() {
 
         // Join split PE groups and use best partition
         if (coarsener->level() == 0) {
+            LOG << "Joining split PE groups";
+
             KASSERT(!_coarseners.empty());
             _coarseners.pop();
             coarsener = get_current_coarsener();

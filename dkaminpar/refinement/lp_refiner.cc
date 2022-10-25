@@ -16,9 +16,9 @@
 
 #include "common/datastructures/marker.h"
 #include "common/datastructures/rating_map.h"
+#include "common/math.h"
 #include "common/parallel/vector_ets.h"
 #include "common/random.h"
-#include "common/math.h"
 
 namespace kaminpar::dist {
 struct LPRefinerConfig : public LabelPropagationConfig {
@@ -38,6 +38,10 @@ class LPRefinerImpl final : public ChunkRandomdLabelPropagation<LPRefinerImpl, L
     using Base = ChunkRandomdLabelPropagation<LPRefinerImpl, LPRefinerConfig>;
 
     struct Statistics {
+        Statistics(MPI_Comm comm = MPI_COMM_WORLD) : comm(comm) {}
+
+        MPI_Comm comm;
+
         EdgeWeight cut_before = 0;
         EdgeWeight cut_after  = 0;
 
@@ -75,15 +79,14 @@ class LPRefinerImpl final : public ChunkRandomdLabelPropagation<LPRefinerImpl, L
         }
 
         void print() {
-            auto expected_gain_reduced  = mpi::reduce_single<EdgeWeight>(expected_gain, MPI_SUM, 0, MPI_COMM_WORLD);
-            auto realized_gain_reduced  = mpi::reduce_single<EdgeWeight>(realized_gain, MPI_SUM, 0, MPI_COMM_WORLD);
-            auto rejected_gain_reduced  = mpi::reduce_single<EdgeWeight>(rejected_gain, MPI_SUM, 0, MPI_COMM_WORLD);
-            auto rollback_gain_reduced  = mpi::reduce_single<EdgeWeight>(rollback_gain, MPI_SUM, 0, MPI_COMM_WORLD);
-            auto expected_imbalance_str = mpi::gather_statistics_str(expected_imbalance, MPI_COMM_WORLD);
-            auto num_tentatively_moved_nodes_str =
-                mpi::gather_statistics_str(num_tentatively_moved_nodes.load(), MPI_COMM_WORLD);
+            auto expected_gain_reduced           = mpi::reduce_single<EdgeWeight>(expected_gain, MPI_SUM, 0, comm);
+            auto realized_gain_reduced           = mpi::reduce_single<EdgeWeight>(realized_gain, MPI_SUM, 0, comm);
+            auto rejected_gain_reduced           = mpi::reduce_single<EdgeWeight>(rejected_gain, MPI_SUM, 0, comm);
+            auto rollback_gain_reduced           = mpi::reduce_single<EdgeWeight>(rollback_gain, MPI_SUM, 0, comm);
+            auto expected_imbalance_str          = mpi::gather_statistics_str(expected_imbalance, comm);
+            auto num_tentatively_moved_nodes_str = mpi::gather_statistics_str(num_tentatively_moved_nodes.load(), comm);
             auto num_tentatively_rejected_nodes_str =
-                mpi::gather_statistics_str(num_tentatively_rejected_nodes.load(), MPI_COMM_WORLD);
+                mpi::gather_statistics_str(num_tentatively_rejected_nodes.load(), comm);
 
             STATS << "DistributedProbabilisticLabelPropagationRefiner:";
             STATS << "- Iterations: " << num_successful_moves << " ok, " << num_rollbacks << " failed";
@@ -133,7 +136,7 @@ public:
         _p_graph = &p_graph;
         Base::initialize(&p_graph.graph(), _p_ctx->k); // needs access to _p_graph
 
-        IFSTATS(_statistics.reset());
+        IFSTATS(_statistics = Statistics{_p_graph->communicator()});
         IFSTATS(_statistics.cut_before = metrics::edge_cut(*_p_graph));
 
         for (std::size_t iteration = 0; iteration < _lp_ctx.num_iterations; ++iteration) {

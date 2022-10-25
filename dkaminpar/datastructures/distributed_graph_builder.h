@@ -28,7 +28,7 @@ public:
         scalable_vector<PEID>         ghost_owner;
     };
 
-    explicit GhostNodeMapper(const scalable_vector<GlobalNodeID>& node_distribution, MPI_Comm comm = MPI_COMM_WORLD)
+    explicit GhostNodeMapper(const scalable_vector<GlobalNodeID>& node_distribution, MPI_Comm comm)
         : _node_distribution{node_distribution} {
         const PEID rank  = mpi::get_comm_rank(comm);
         _n               = static_cast<NodeID>(_node_distribution[rank + 1] - _node_distribution[rank]);
