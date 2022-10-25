@@ -279,7 +279,7 @@ DistributedGraph build_graph_sorted(EdgeList edge_list, scalable_vector<GlobalNo
     parallel::prefix_sum(nodes.begin(), nodes.end(), nodes.begin());
 
     // --> Edges
-    graph::GhostNodeMapper ghost_node_mapper(node_distribution);
+    graph::GhostNodeMapper ghost_node_mapper(node_distribution, MPI_COMM_WORLD);
     tbb::parallel_for<NodeID>(0, n, [&](const NodeID new_u) {
         const NodeID old_u = permutation_new_to_old[new_u];
 
@@ -348,7 +348,7 @@ DistributedGraph build_graph(const EdgeList& edge_list, scalable_vector<GlobalNo
     // build edges array
     START_TIMER("Build edges array");
     scalable_vector<EdgeID> edges(m);
-    graph::GhostNodeMapper  ghost_node_mapper(node_distribution);
+    graph::GhostNodeMapper  ghost_node_mapper(node_distribution, MPI_COMM_WORLD);
     tbb::parallel_for<EdgeID>(0, edge_list.size(), [&](const EdgeID e) {
         const auto [u, v] = edge_list[e];
         KASSERT(from <= u, "", assert::always);
