@@ -133,8 +133,9 @@ DistributedPartitionedGraph DeeperPartitioningScheme::partition() {
             );
 
             const PEID num_replications = current_num_pes / num_blocks_on_this_level;
-            DBG << "Current graph (" << graph->global_n() << ") is too small for the available parallelism ("
+            LOG << "Current graph (" << graph->global_n() << ") is too small for the available parallelism ("
                 << _input_ctx.parallel.num_mpis << "): replicating the graph " << num_replications << " times";
+
             _replicated_graphs.push_back(graph::replicate(*graph, num_replications));
             _coarseners.emplace(_replicated_graphs.back(), _input_ctx);
 
