@@ -28,7 +28,7 @@ inline auto outgoing_edge_weights(const Graph& G, const NodeID u) {
 }
 
 TEST(IOTest, unweighted_K3) {
-    const auto G = io::metis::read(test_instance("unweighted_K3.graph"));
+    const auto G = io::metis::read<false>(test_instance("unweighted_K3.graph"));
     assert_K3_structure(G);
 
     for (const NodeID& u: G.nodes()) {
@@ -40,7 +40,7 @@ TEST(IOTest, unweighted_K3) {
 }
 
 TEST(IOTest, node_weighted_K3) {
-    const auto G = io::metis::read(test_instance("node_weighted_K3.graph"));
+    const auto G = io::metis::read<false>(test_instance("node_weighted_K3.graph"));
     assert_K3_structure(G);
 
     EXPECT_EQ(G.node_weight(0), 1);
@@ -52,7 +52,7 @@ TEST(IOTest, node_weighted_K3) {
 }
 
 TEST(IOTest, edge_weighted_K3) {
-    const auto G = io::metis::read(test_instance("edge_weighted_K3.graph"));
+    const auto G = io::metis::read<false>(test_instance("edge_weighted_K3.graph"));
     assert_K3_structure(G);
 
     EXPECT_THAT(outgoing_edge_weights(G, 0), UnorderedElementsAre(1, 2));
@@ -61,7 +61,7 @@ TEST(IOTest, edge_weighted_K3) {
 }
 
 TEST(IOTest, weighted_K3) {
-    const auto G = io::metis::read(test_instance("weighted_K3.graph"));
+    const auto G = io::metis::read<false>(test_instance("weighted_K3.graph"));
     assert_K3_structure(G);
 
     EXPECT_EQ(G.node_weight(0), 10);
@@ -74,14 +74,14 @@ TEST(IOTest, weighted_K3) {
 }
 
 TEST(IOTest, large_weights) {
-    const auto G = io::metis::read(test_instance("large_weights.graph"));
+    const auto G = io::metis::read<false>(test_instance("large_weights.graph"));
 
     EXPECT_EQ(G.node_weight(0), 123456789);
     EXPECT_EQ(G.node_weight(1), 234567891);
 }
 
 TEST(IOTest, graph_with_comments) {
-    const auto G = io::metis::read(test_instance("with_comments.graph"));
+    const auto G = io::metis::read<false>(test_instance("with_comments.graph"));
 
     EXPECT_EQ(G.n(), 2);
     EXPECT_EQ(G.m(), 2);

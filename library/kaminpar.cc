@@ -56,7 +56,7 @@ PartitionerBuilder::~PartitionerBuilder() {
 
 PartitionerBuilder PartitionerBuilder::from_graph_file(const std::string& filename) {
     PartitionerBuilder builder;
-    shm::io::metis::read(
+    shm::io::metis::read<true>(
         filename, builder._pimpl->nodes, builder._pimpl->edges, builder._pimpl->node_weights,
         builder._pimpl->edge_weights
     );

@@ -99,9 +99,17 @@ void parse(
             next_edge_cb(edge_weight, v);
         }
 
-        if (toker.current() == '\n') {
-            toker.advance();
+        if (toker.valid_position()) {
+            toker.consume_char('\n');
         }
+    }
+
+    while (toker.current() == '%') {
+        toker.skip_line();
+    }
+
+    if (toker.valid_position()) {
+        LOG_WARNING << "ignorning extra lines in input file";
     }
 }
 

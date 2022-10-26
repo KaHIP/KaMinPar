@@ -32,11 +32,15 @@ struct Statistics {
     bool          has_isolated_nodes = false;
 };
 
-Graph      read(const std::string& filename, bool ignore_node_weights = false, bool ignore_edge_weights = false);
+template <bool checked>
+Graph read(const std::string& filename, bool ignore_node_weights = false, bool ignore_edge_weights = false);
+
+template <bool checked>
 Statistics read(
     const std::string& filename, StaticArray<EdgeID>& nodes, StaticArray<NodeID>& edges,
     StaticArray<NodeWeight>& node_weights, StaticArray<EdgeWeight>& edge_weights
 );
+
 void write(const std::string& filename, const Graph& graph, const std::string& comment = "");
 } // namespace metis
 

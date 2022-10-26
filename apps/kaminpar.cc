@@ -182,7 +182,7 @@ int main(int argc, char* argv[]) {
         StaticArray<EdgeWeight> edge_weights;
 
         START_TIMER("IO");
-        shm::io::metis::read(ctx.graph_filename, nodes, edges, node_weights, edge_weights);
+        shm::io::metis::read<true>(ctx.graph_filename, nodes, edges, node_weights, edge_weights);
         const NodeID n_before_preprocessing = nodes.size();
         STOP_TIMER();
 
