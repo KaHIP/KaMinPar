@@ -143,7 +143,15 @@ Statistics read(
                     std::exit(1);
                 }
                 if (weight <= 0) {
-                    LOG_ERROR << "zeor edge weights are not supported";
+                    LOG_ERROR << "zero edge weights are not supported";
+                    std::exit(1);
+                }
+                if (v + 1 >= nodes.size()) {
+                    LOG_ERROR << "neighbor " << v + 1 << " of nodes " << u + 1 << " is out of bounds";
+                    std::exit(1);
+                }
+                if (v + 1 == u) {
+                    LOG_ERROR << "detected self-loop on node " << v + 1 << ", which is not allowed";
                     std::exit(1);
                 }
             } else {
@@ -152,6 +160,8 @@ Statistics read(
                     "edge weight is too large for the edge weight type"
                 );
                 KASSERT(weight > 0u, "zero edge weights are not supported");
+                KASSERT(v + 1 < nodes.size(), "neighbor out of bounds");
+                KASSERT(u != v + 1, "detected illegal self-loop");
             }
 
             stats.total_edge_weight += weight;
