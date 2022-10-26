@@ -109,8 +109,8 @@ CLI::Option_group* create_initial_partitioning_options(CLI::App* app, Context& c
     ip->add_option("--i-mode", ctx.initial_partitioning.mode)
         ->transform(CLI::CheckedTransformer(get_initial_partitioning_modes()).description(""))
         ->description(R"(Chooses the initial partitioning mode:
-  - sequential:     do not diserify initial partitioning by replicating coarse graphs
-  - async-parallel: diserify initial partitioning by replicating coarse graphs each branch of the replication tree asynchronously
+  - sequential:     do not diversify initial partitioning by replicating coarse graphs
+  - async-parallel: diversify initial partitioning by replicating coarse graphs each branch of the replication tree asynchronously
   - sync-parallel:  same as async-parallel, but process branches synchronously)")
         ->capture_default_str();
     ip->add_option("--i-rep-exp", ctx.initial_partitioning.multiplier_exponent, "(Deprecated)")->capture_default_str();
