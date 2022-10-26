@@ -208,16 +208,21 @@ struct PartitionContext {
     PartitionContext() = default;
 
     // required for braces-initializer with private members
-    PartitionContext(const BlockID k, const BlockID k_prime, const double epsilon, const PartitioningMode mode)
-        : k{k},
-          k_prime{k_prime},
-          epsilon{epsilon},
-          mode{mode} {}
+    PartitionContext(
+        const BlockID k, const BlockID k_prime, const double epsilon, const PartitioningMode mode,
+        const bool enable_pe_splitting
+    )
+        : k(k),
+          k_prime(k_prime),
+          epsilon(epsilon),
+          mode(mode),
+          enable_pe_splitting(enable_pe_splitting) {}
 
     BlockID          k{};
     BlockID          k_prime{};
     double           epsilon{};
     PartitioningMode mode{};
+    bool             enable_pe_splitting;
 
     void setup(const DistributedGraph& graph);
     void setup(const shm::Graph& graph);

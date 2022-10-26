@@ -129,7 +129,8 @@ DistributedPartitionedGraph DeeperPartitioningScheme::partition() {
         const BlockID num_blocks_on_this_level =
             math::ceil2(graph->global_n() / _input_ctx.coarsening.contraction_limit);
 
-        if (current_num_pes > 1 && num_blocks_on_this_level < static_cast<BlockID>(current_num_pes)) {
+        if (_input_ctx.partition.enable_pe_splitting && current_num_pes > 1
+            && num_blocks_on_this_level < static_cast<BlockID>(current_num_pes)) {
             KASSERT(
                 current_num_pes % num_blocks_on_this_level == 0u, "Graph replication factor is not an integer.",
                 assert::always

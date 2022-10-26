@@ -23,7 +23,8 @@ Context create_default_context() {
                      /* .k = */ 0,
             /* .k_prime = */ 128,
             /* .epsilon = */ 0.03,
-            /* .mode = */ PartitioningMode::DEEP,
+            /* .mode = */ PartitioningMode::DEEPER,
+            /* .enable_pe_splitting = */ false,
         },
         .parallel =
             {
@@ -125,8 +126,8 @@ Context create_default_context() {
 }
 
 Context create_strong_context() {
-    Context ctx = create_default_context();
-    ctx.initial_partitioning.algorithm = InitialPartitioningAlgorithm::MTKAHYPAR;
+    Context ctx                             = create_default_context();
+    ctx.initial_partitioning.algorithm      = InitialPartitioningAlgorithm::MTKAHYPAR;
     ctx.coarsening.global_lp.num_iterations = 5;
     return ctx;
 }

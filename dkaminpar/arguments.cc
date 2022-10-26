@@ -43,8 +43,10 @@ CLI::Option_group* create_partitioning_options(CLI::App* app, Context& ctx) {
         ->transform(CLI::CheckedTransformer(get_partitioning_modes()).description(""))
         ->description(R"(Partitioning scheme, possible options are:
   - deep: distributed deep multilevel graph partitioning
-  - deeper: distributed deep multilevel graph partitioning with PE splitting and graph replication
+  - deeper: distributed deep multilevel graph partitioning with optional PE splitting and graph replication
   - kway: direct k-way multilevel graph partitioning)")
+        ->capture_default_str();
+    partitioning->add_flag("--enable-pe-splitting", ctx.partition.enable_pe_splitting, "Enable PE splitting and graph replication in deep MGP")
         ->capture_default_str();
 
     return partitioning;
