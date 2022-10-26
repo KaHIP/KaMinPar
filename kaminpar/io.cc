@@ -87,6 +87,10 @@ Statistics read(
                     LOG_ERROR << "number of edges is too large for the edge ID type";
                     std::exit(1);
                 }
+                if (format.number_of_edges > (format.number_of_nodes * (format.number_of_nodes - 1) / 2)) {
+                    LOG_ERROR << "specified number of edges is impossibly large";
+                    std::exit(1);
+                }
             } else {
                 KASSERT(
                     format.number_of_nodes <= static_cast<std::uint64_t>(std::numeric_limits<NodeID>::max()),
@@ -95,6 +99,10 @@ Statistics read(
                 KASSERT(
                     format.number_of_edges <= static_cast<std::uint64_t>(std::numeric_limits<EdgeID>::max()),
                     "number of edges is too large for the edge ID type"
+                );
+                KASSERT(
+                    format.number_of_edges <= (format.number_of_nodes * (format.number_of_nodes - 1)) / 2,
+                    "specified number of edges is impossibly large"
                 );
             }
 

@@ -218,6 +218,9 @@ struct Context {
     bool        quiet;
     bool        parsable_output;
 
+    bool unchecked_io;
+    bool validate_io;
+
     PartitionContext           partition;
     CoarseningContext          coarsening;
     InitialPartitioningContext initial_partitioning;

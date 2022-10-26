@@ -1,3 +1,9 @@
+/*******************************************************************************
+ * @file:   mmap_toker.h
+ * @author: Daniel Seemaier
+ * @date:   26.10.2022
+ * @brief:  Tokenizer for input files read with mmap.
+ ******************************************************************************/
 #pragma once
 
 #include <cctype>

@@ -70,10 +70,10 @@ public:
         reference operator[](const difference_type& n) const {
             return *_ptr[n];
         }
-        bool operator==(const StaticArrayIterator& other) {
+        bool operator==(const StaticArrayIterator& other) const {
             return _ptr == other._ptr;
         }
-        bool operator!=(const StaticArrayIterator& other) {
+        bool operator!=(const StaticArrayIterator& other) const {
             return _ptr != other._ptr;
         }
         bool operator>(const StaticArrayIterator& other) const {
@@ -95,9 +95,9 @@ public:
             return _ptr - other._ptr;
         }
 
-        friend bool operator==(const StaticArrayIterator& self, const StaticArrayIterator& sentinel) {
+        /*friend bool operator==(const StaticArrayIterator& self, const StaticArrayIterator& sentinel) {
             return self._ptr == sentinel._ptr;
-        }
+        }*/
 
     private:
         T* _ptr;

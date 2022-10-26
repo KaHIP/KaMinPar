@@ -1,3 +1,9 @@
+/*******************************************************************************
+ * @file:   metis_parser.h
+ * @author: Daniel Seemaier
+ * @date:   26.10.2022
+ * @brief:  Parser for the METIS graph format.
+ ******************************************************************************/
 #pragma once
 
 #include <kassert/kassert.hpp>
@@ -25,6 +31,11 @@ inline Format parse_header(MappedFileToker<throwing>& toker) {
     const std::uint64_t number_of_edges = toker.scan_uint();
     const std::uint64_t format          = (toker.current() != '\n') ? toker.scan_uint() : 0;
     toker.consume_char('\n');
+
+    if (format != 0 && format != 1 && format != 10 && format != 11 && format && format != 100 && format != 110
+        && format != 101 && format != 111) {
+        LOG_WARNING << "invalid or unsupported graph format";
+    }
 
     [[maybe_unused]] const bool has_node_sizes   = format / 100;        // == 1xx
     const bool                  has_node_weights = (format % 100) / 10; // == x1x

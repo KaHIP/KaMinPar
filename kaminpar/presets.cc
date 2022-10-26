@@ -13,6 +13,8 @@ Context create_default_context() {
         .partition_filename  = "", // generate filename
         .quiet               = false,
         .parsable_output     = false,
+        .unchecked_io        = false,
+        .validate_io         = false,
         .partition =
             {
                 // Context -> Partition

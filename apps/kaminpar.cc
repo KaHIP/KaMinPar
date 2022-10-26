@@ -17,6 +17,7 @@
 #include "kaminpar/datastructures/graph.h"
 #include "kaminpar/definitions.h"
 #include "kaminpar/graphutils/graph_rearrangement.h"
+#include "kaminpar/input_validator.h"
 #include "kaminpar/io.h"
 #include "kaminpar/metrics.h"
 #include "kaminpar/partitioning/partitioning.h"
@@ -128,6 +129,8 @@ The output should be stored in a file and can be used by the -C,--config option)
         ->check(CLI::NonNegativeNumber)
         ->default_val(ctx.parallel.num_threads);
     app.add_flag("-p,--parsable", ctx.parsable_output, "Use an output format that is easier to parse.");
+    app.add_flag("--unchecked-io", ctx.unchecked_io, "Run without format checks of the input graph (in Release mode).");
+    app.add_flag("--validate-io", ctx.validate_io, "Validate the format of the input graph extensively.");
 
     // Algorithmic options
     create_all_options(&app, ctx);
@@ -182,7 +185,14 @@ int main(int argc, char* argv[]) {
         StaticArray<EdgeWeight> edge_weights;
 
         START_TIMER("IO");
-        shm::io::metis::read<true>(ctx.graph_filename, nodes, edges, node_weights, edge_weights);
+        if (ctx.unchecked_io) {
+            shm::io::metis::read<false>(ctx.graph_filename, nodes, edges, node_weights, edge_weights);
+        } else {
+            shm::io::metis::read<true>(ctx.graph_filename, nodes, edges, node_weights, edge_weights);
+        }
+        if (ctx.validate_io) {
+            validate_undirected_graph(nodes, edges, node_weights, edge_weights);
+        }
         const NodeID n_before_preprocessing = nodes.size();
         STOP_TIMER();
 
