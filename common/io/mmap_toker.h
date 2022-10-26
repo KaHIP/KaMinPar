@@ -5,11 +5,25 @@
 #include <string>
 
 #include <fcntl.h>
+#include <kassert/kassert.hpp>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
 namespace kaminpar::io {
+class TokerException : public std::exception {
+public:
+    TokerException(std::string msg) : _msg(std::move(msg)) {}
+
+    const char* what() const noexcept override {
+        return _msg.c_str();
+    }
+
+private:
+    std::string _msg;
+};
+
+template <bool throwing = false>
 class MappedFileToker {
 public:
     explicit MappedFileToker(const std::string& filename) {
@@ -19,7 +33,11 @@ public:
         _contents = static_cast<char*>(mmap(nullptr, _length, PROT_READ, MAP_PRIVATE, _fd, 0));
         if (_contents == MAP_FAILED) {
             close(_fd);
-            throw std::runtime_error("mmap failed");
+            if constexpr (throwing) {
+                throw TokerException("mmap failed");
+            } else {
+                KASSERT(_contents != MAP_FAILED);
+            }
         }
     }
 
@@ -43,9 +61,10 @@ public:
         }
     }
 
-    template <typename Int>
-    inline Int scan_uint() {
-        Int number = 0;
+    inline std::uint64_t scan_uint() {
+        expect_uint_start();
+
+        std::uint64_t number = 0;
         while (valid_position() && std::isdigit(current())) {
             const int digit = current() - '0';
             number          = number * 10 + digit;
@@ -56,6 +75,8 @@ public:
     }
 
     void skip_uint() {
+        expect_uint_start();
+
         while (valid_position() && std::isdigit(current())) {
             advance();
         }
@@ -65,8 +86,15 @@ public:
     void consume_string(const char* str) {
         std::size_t i = 0;
         while (str[i] != '\0') {
-            if (!valid_position() || str[i] != current()) {
-                throw std::runtime_error("unexpected char");
+            if constexpr (throwing) {
+                if (!valid_position() || str[i] != current()) {
+                    throw TokerException("unexpected symbol");
+                }
+            } else {
+                KASSERT(
+                    valid_position() && str[i] == current(),
+                    "unexpected symbol: " << current() << ", but expected " << str[i]
+                );
             }
             advance();
             ++i;
@@ -74,8 +102,12 @@ public:
     }
 
     void consume_char(const char ch) {
-        if (!valid_position() || current() != ch) {
-            throw std::runtime_error("unexpected char");
+        if constexpr (throwing) {
+            if (!valid_position() || current() != ch) {
+                throw TokerException("unexpected char");
+            }
+        } else {
+            KASSERT(valid_position() && current() == ch, "unexpected symbol: " << current() << ", but expected " << ch);
         }
         advance();
     }
@@ -118,8 +150,12 @@ public:
 private:
     static int open_file(const std::string& filename) {
         const int file = open(filename.c_str(), O_RDONLY);
-        if (file < 0) {
-            throw std::runtime_error("cannot open input file");
+        if constexpr (throwing) {
+            if (file < 0) {
+                throw TokerException("could not open the input file");
+            }
+        } else {
+            KASSERT(file >= 0, "could not open the input file: " << filename);
         }
         return file;
     }
@@ -128,6 +164,19 @@ private:
         struct stat file_info {};
         fstat(fd, &file_info);
         return static_cast<std::size_t>(file_info.st_size);
+    }
+
+    void expect_uint_start() {
+        if constexpr (throwing) {
+            if (!valid_position()) {
+                throw TokerException("scan_uint() called on end of input stream");
+            }
+            if (!std::isdigit(current())) {
+                throw TokerException("expected start of unsigned integer");
+            }
+        } else {
+            KASSERT(valid_position() && std::isdigit(current()));
+        }
     }
 
     int         _fd;

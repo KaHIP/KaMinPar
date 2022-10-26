@@ -50,10 +50,10 @@ template <typename Container = std::vector<BlockID>>
 Container read(const std::string& filename) {
     using namespace kaminpar::io;
 
-    MappedFileToker      toker(filename);
+    MappedFileToker<>    toker(filename);
     std::vector<BlockID> partition;
     while (toker.valid_position()) {
-        partition.push_back(toker.scan_uint<std::uint64_t>());
+        partition.push_back(toker.scan_uint());
         toker.consume_char('\n');
     }
 

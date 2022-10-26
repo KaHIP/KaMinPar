@@ -49,7 +49,7 @@ DistributedGraph read_node_balanced(const std::string& filename, MPI_Comm comm) 
     GlobalNodeID from    = 0;
     GlobalNodeID to      = 0;
 
-    parse(
+    parse<false>(
         filename,
         [&](const auto& format) {
             const auto                  global_n = static_cast<GlobalNodeID>(format.number_of_nodes);
@@ -113,7 +113,7 @@ DistributedGraph read_edge_balanced(const std::string& filename, MPI_Comm comm) 
     scalable_vector<GlobalEdgeID> edge_distribution(size + 1);
 
     // read graph file
-    parse(
+    parse<false>(
         filename,
         [&](const auto& format) {
             const auto global_n         = static_cast<GlobalNodeID>(format.number_of_nodes);

@@ -56,9 +56,9 @@ Container read(const std::string& filename, const NodeID n, MPI_Comm comm = MPI_
         if (current >= offset + n) {
             break;
         } else if (current >= offset) {
-            partition.push_back(toker.scan_uint<std::uint64_t>());
+            partition.push_back(toker.scan_uint());
         } else {
-            toker.scan_uint<std::uint64_t>();
+            toker.scan_uint();
         }
         toker.consume_char('\n');
         ++current;

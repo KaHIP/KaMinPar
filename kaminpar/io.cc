@@ -74,7 +74,7 @@ Statistics read(
 
     Statistics stats;
 
-    parse(
+    parse<false>(
         filename,
         [&](const auto& format) {
             store_node_weights = format.has_node_weights;
