@@ -17,6 +17,8 @@
 
 #include "kaminpar/io.h"
 
+#include "common/io/mmap_toker.h"
+
 namespace kaminpar::dist::io {
 enum class DistributionType {
     NODE_BALANCED,
@@ -42,22 +44,23 @@ DistributedGraph read_edge_balanced(const std::string& filename, MPI_Comm comm =
 namespace partition {
 template <typename Container>
 Container read(const std::string& filename, const NodeID n, MPI_Comm comm = MPI_COMM_WORLD) {
-    using namespace shm::io::internal;
+    using namespace kaminpar::io;
 
-    const GlobalNodeID   offset      = mpi::exscan(static_cast<GlobalNodeID>(n), MPI_SUM, comm);
-    auto                 mapped_file = mmap_file_from_disk(filename);
-    GlobalNodeID         current     = 0;
+    const GlobalNodeID offset = mpi::exscan(static_cast<GlobalNodeID>(n), MPI_SUM, comm);
+
+    MappedFileToker      toker(filename);
+    GlobalNodeID         current = 0;
     std::vector<BlockID> partition;
 
-    while (mapped_file.valid_position()) {
+    while (toker.valid_position()) {
         if (current >= offset + n) {
             break;
         } else if (current >= offset) {
-            partition.push_back(scan_uint(mapped_file));
+            partition.push_back(toker.scan_uint<std::uint64_t>());
         } else {
-            scan_uint(mapped_file);
+            toker.scan_uint<std::uint64_t>();
         }
-        skip_nl(mapped_file);
+        toker.consume_char('\n');
         ++current;
     }
 

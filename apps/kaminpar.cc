@@ -182,7 +182,7 @@ int main(int argc, char* argv[]) {
         StaticArray<EdgeWeight> edge_weights;
 
         START_TIMER("IO");
-        io::metis::read(ctx.graph_filename, nodes, edges, node_weights, edge_weights);
+        shm::io::metis::read(ctx.graph_filename, nodes, edges, node_weights, edge_weights);
         const NodeID n_before_preprocessing = nodes.size();
         STOP_TIMER();
 
@@ -231,7 +231,7 @@ int main(int argc, char* argv[]) {
     // Store output partition (if requested)
     if (ctx.save_partition) {
         SCOPED_TIMER("IO");
-        io::partition::write(ctx.partition_file(), p_graph, permutations.old_to_new);
+        shm::io::partition::write(ctx.partition_file(), p_graph, permutations.old_to_new);
         LOG << "Wrote partition to: " << ctx.partition_file();
     }
 

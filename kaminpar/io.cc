@@ -60,33 +60,23 @@ void write_file(
 //
 
 namespace metis {
-GraphFormat read_format(const std::string& filename) {
-    auto              mapped_file = internal::mmap_file_from_disk(filename);
-    const GraphFormat header      = metis::read_graph_header(mapped_file);
-    internal::munmap_file_from_disk(mapped_file);
-    return header;
-}
-
-void read_format(const std::string& filename, NodeID& n, EdgeID& m, bool& has_node_weights, bool& has_edge_weights) {
-    const auto format = read_format(filename);
-    n                 = static_cast<NodeID>(format.number_of_nodes);
-    m                 = static_cast<EdgeID>(format.number_of_edges);
-    has_node_weights  = format.has_node_weights;
-    has_edge_weights  = format.has_edge_weights;
-}
-
-GraphInfo read(
+Statistics read(
     const std::string& filename, StaticArray<EdgeID>& nodes, StaticArray<NodeID>& edges,
     StaticArray<NodeWeight>& node_weights, StaticArray<EdgeWeight>& edge_weights
 ) {
+    using namespace kaminpar::io::metis;
+
     bool store_node_weights = false;
     bool store_edge_weights = false;
 
-    NodeID     u    = 0;
-    EdgeID     e    = 0;
-    const auto info = read_observable(
+    NodeID u = 0;
+    EdgeID e = 0;
+
+    Statistics stats;
+
+    parse(
         filename,
-        [&](const GraphFormat& format) {
+        [&](const auto& format) {
             store_node_weights = format.has_node_weights;
             store_edge_weights = format.has_edge_weights;
             nodes.resize(format.number_of_nodes + 1);
@@ -99,6 +89,9 @@ GraphInfo read(
             }
         },
         [&](const std::uint64_t& weight) {
+            stats.total_node_weight += weight;
+            stats.has_isolated_nodes |= (u > 0 && nodes[u - 1] == e);
+
             if (store_node_weights) {
                 node_weights[u] = static_cast<NodeWeight>(weight);
             }
@@ -106,6 +99,7 @@ GraphInfo read(
             ++u;
         },
         [&](const std::uint64_t& weight, const std::uint64_t& v) {
+            stats.total_edge_weight += weight;
             if (store_edge_weights) {
                 edge_weights[e] = static_cast<EdgeWeight>(weight);
             }
@@ -116,8 +110,8 @@ GraphInfo read(
     nodes[u] = e;
 
     // only keep weights if the graph is really weighted
-    const bool unit_node_weights = info.total_node_weight + 1 == nodes.size();
-    const bool unit_edge_weights = info.total_edge_weight == edges.size();
+    const bool unit_node_weights = stats.total_node_weight + 1 == nodes.size();
+    const bool unit_edge_weights = stats.total_edge_weight == edges.size();
     if (unit_node_weights) {
         node_weights.free();
     }
@@ -125,7 +119,7 @@ GraphInfo read(
         edge_weights.free();
     }
 
-    return info;
+    return stats;
 }
 
 Graph read(const std::string& filename, bool ignore_node_weights, bool ignore_edge_weights) {

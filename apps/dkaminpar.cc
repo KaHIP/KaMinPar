@@ -282,14 +282,14 @@ int main(int argc, char* argv[]) {
             ctx.graph_filename = generate_filename(g_ctx);
 
             if (g_ctx.save_graph) {
-                io::metis::write(ctx.graph_filename, graph, false, false);
+                dist::io::metis::write(ctx.graph_filename, graph, false, false);
             }
             return graph;
         }
 
-        const auto type =
-            ctx.load_edge_balanced ? io::DistributionType::EDGE_BALANCED : io::DistributionType::NODE_BALANCED;
-        return io::read_graph(ctx.graph_filename, type);
+        const auto type = ctx.load_edge_balanced ? dist::io::DistributionType::EDGE_BALANCED
+                                                 : dist::io::DistributionType::NODE_BALANCED;
+        return dist::io::read_graph(ctx.graph_filename, type);
     };
 
     // Print statistics

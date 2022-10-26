@@ -14,6 +14,7 @@
 
 #include "kaminpar/io.h"
 
+#include "common/io/metis_parser.h"
 #include "common/math.h"
 #include "common/strutils.h"
 
@@ -37,20 +38,18 @@ DistributedGraph read_graph(const std::string& filename, DistributionType type, 
 }
 
 namespace metis {
-namespace shm = kaminpar::shm::io::metis;
-
 DistributedGraph read_node_balanced(const std::string& filename, MPI_Comm comm) {
-    const auto comm_info = mpi::get_comm_info(comm);
-    const PEID size      = comm_info.first;
-    const PEID rank      = comm_info.second;
+    using namespace kaminpar::io::metis;
 
-    graph::Builder builder{comm};
+    const PEID     size = mpi::get_comm_size(comm);
+    const PEID     rank = mpi::get_comm_rank(comm);
+    graph::Builder builder(comm);
 
     GlobalNodeID current = 0;
     GlobalNodeID from    = 0;
     GlobalNodeID to      = 0;
 
-    shm::read_observable(
+    parse(
         filename,
         [&](const auto& format) {
             const auto                  global_n = static_cast<GlobalNodeID>(format.number_of_nodes);
@@ -92,9 +91,10 @@ DistributedGraph read_node_balanced(const std::string& filename, MPI_Comm comm) 
 }
 
 DistributedGraph read_edge_balanced(const std::string& filename, MPI_Comm comm) {
-    const auto comm_info = mpi::get_comm_info(comm);
-    const PEID size      = comm_info.first;
-    const PEID rank      = comm_info.second;
+    using namespace kaminpar::io::metis;
+
+    const PEID size = mpi::get_comm_size(comm);
+    const PEID rank = mpi::get_comm_rank(comm);
 
     PEID         current_pe   = 0;
     GlobalNodeID current_node = 0;
@@ -113,7 +113,7 @@ DistributedGraph read_edge_balanced(const std::string& filename, MPI_Comm comm) 
     scalable_vector<GlobalEdgeID> edge_distribution(size + 1);
 
     // read graph file
-    shm::read_observable(
+    parse(
         filename,
         [&](const auto& format) {
             const auto global_n         = static_cast<GlobalNodeID>(format.number_of_nodes);
