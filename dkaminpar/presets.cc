@@ -6,11 +6,27 @@
  ******************************************************************************/
 #include "dkaminpar/presets.h"
 
+#include <stdexcept>
+
 #include "dkaminpar/context.h"
 
 #include "kaminpar/presets.h"
 
 namespace kaminpar::dist {
+Context create_context_by_preset_name(const std::string& name) {
+    if (name == "default" || name == "fast") {
+        return create_default_context();
+    } else if (name == "strong") {
+        return create_strong_context();
+    } else if (name == "ipdps23-submission-default" || name == "ipdps23-submission-fast") {
+        return create_ipdps23_submission_default_context();
+    } else if (name == "ipdps23-submission-strong") {
+        return create_ipdps23_submission_strong_context();
+    }
+
+    throw std::runtime_error("invalid preset name");
+}
+
 Context create_default_context() {
     return {
         .graph_filename     = "",
@@ -129,8 +145,21 @@ Context create_default_context() {
         }};
 }
 
+Context create_ipdps23_submission_default_context() {
+    Context ctx        = create_default_context();
+    ctx.partition.mode = PartitioningMode::DEEP;
+    return ctx;
+}
+
 Context create_strong_context() {
     Context ctx                             = create_default_context();
+    ctx.initial_partitioning.algorithm      = InitialPartitioningAlgorithm::MTKAHYPAR;
+    ctx.coarsening.global_lp.num_iterations = 5;
+    return ctx;
+}
+
+Context create_ipdps23_submission_strong_context() {
+    Context ctx                             = create_ipdps23_submission_default_context();
     ctx.initial_partitioning.algorithm      = InitialPartitioningAlgorithm::MTKAHYPAR;
     ctx.coarsening.global_lp.num_iterations = 5;
     return ctx;

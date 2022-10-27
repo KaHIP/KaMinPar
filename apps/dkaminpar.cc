@@ -152,20 +152,14 @@ std::pair<Context, GeneratorContext> setup_context(CLI::App& app, int argc, char
 
     app.set_config("-C,--config", "", "Read parameters from a TOML configuration file.", false);
     app.add_option_function<std::string>(
-           "-P,--preset",
-           [&](const std::string preset) {
-               if (preset == "default" || preset == "fast") {
-                   ctx = create_default_context();
-               } else if (preset == "strong") {
-                   ctx = create_strong_context();
-               }
-           }
+           "-P,--preset", [&](const std::string preset) { ctx = create_context_by_preset_name(preset); }
     )
         ->check(CLI::IsMember({"default", "fast", "strong"}))
         ->description(R"(Use configuration preset:
-  - default: default parameters
-  - fast:    alias for default
-  - strong:  use Mt-KaHyPar for initial partitioning and more label propagation iterations)");
+  - default:                    default parameters
+  - strong:                     use Mt-KaHyPar for initial partitioning and more label propagation iterations
+  - ipdps23-submission-default: dDeepPar-Fast configuration used in the IPDPS'23 submission
+  - ipdps23-submission-strong:  dDeepPar-Strong configuration used in the IPDPS'23 submission)");
 
     // Mandatory
     auto* mandatory = app.add_option_group("Application")->require_option(1);
