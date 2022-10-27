@@ -22,12 +22,14 @@ Context create_default_context() {
         .sort_graph         = true,
         .parsable_output    = false,
         .partition =
-            {.k                   = 0,
-             .K                   = 128,
-             .epsilon             = 0.03,
-             .mode                = PartitioningMode::DEEPER,
-             .enable_pe_splitting = false,
-             .graph               = GraphContext()},
+            {
+                .k                   = 0,
+                .K                   = 128,
+                .epsilon             = 0.03,
+                .mode                = PartitioningMode::DEEPER,
+                .enable_pe_splitting = true,
+                .graph               = GraphContext(),
+            },
         .parallel =
             {
                 .num_threads                     = 1,
