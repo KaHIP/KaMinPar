@@ -114,7 +114,7 @@ DistributedPartitionedGraph DeeperPartitioningScheme::partition() {
     /*
      * Coarsening
      */
-    const BlockID      first_step_k = std::min<BlockID>(_input_ctx.partition.k, _input_ctx.partition.k_prime);
+    const BlockID      first_step_k = std::min<BlockID>(_input_ctx.partition.k, _input_ctx.partition.K);
     const GlobalNodeID desired_num_nodes =
         _input_ctx.parallel.num_threads * _input_ctx.coarsening.contraction_limit * first_step_k;
     PEID current_num_pes = mpi::get_comm_size(_input_graph.communicator());
@@ -228,7 +228,7 @@ DistributedPartitionedGraph DeeperPartitioningScheme::partition() {
             desired_k = _input_ctx.partition.k;
         }
         while (dist_p_graph.k() < desired_k) {
-            const BlockID next_k = std::min<BlockID>(desired_k, dist_p_graph.k() * _input_ctx.partition.k_prime);
+            const BlockID next_k = std::min<BlockID>(desired_k, dist_p_graph.k() * _input_ctx.partition.K);
             KASSERT(next_k % dist_p_graph.k() == 0u);
             const BlockID k_per_block = next_k / dist_p_graph.k();
 

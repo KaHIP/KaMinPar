@@ -35,7 +35,7 @@ CLI::Option_group* create_partitioning_options(CLI::App* app, Context& ctx) {
         ->capture_default_str();
     partitioning
         ->add_option(
-            "-K,--block-multiplier", ctx.partition.k_prime,
+            "-K,--block-multiplier", ctx.partition.K,
             "Maximum block count with which the initial partitioner is called."
         )
         ->capture_default_str();
