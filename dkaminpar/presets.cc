@@ -6,6 +6,8 @@
  ******************************************************************************/
 #include "dkaminpar/presets.h"
 
+#include "dkaminpar/context.h"
+
 #include "kaminpar/presets.h"
 
 namespace kaminpar::dist {
@@ -19,13 +21,13 @@ Context create_default_context() {
         .time_limit         = 0,
         .sort_graph         = true,
         .parsable_output    = false,
-        .partition          = {
-                     /* .k = */ 0,
-            /* .k_prime = */ 128,
-            /* .epsilon = */ 0.03,
-            /* .mode = */ PartitioningMode::DEEPER,
-            /* .enable_pe_splitting = */ false,
-        },
+        .partition =
+            {.k                   = 0,
+             .K                   = 128,
+             .epsilon             = 0.03,
+             .mode                = PartitioningMode::DEEPER,
+             .enable_pe_splitting = false,
+             .graph               = GraphContext()},
         .parallel =
             {
                 .num_threads                     = 1,

@@ -76,11 +76,11 @@ class DistributedActiveSetGlobalLabelPropagationClusteringImpl final
 
 public:
     explicit DistributedActiveSetGlobalLabelPropagationClusteringImpl(const Context& ctx)
-        : ClusterBase{ctx.partition.total_n()},
+        : ClusterBase{ctx.partition.graph.total_n()},
           _c_ctx{ctx.coarsening},
-          _changed_label(ctx.partition.local_n()),
-          _cluster_weights{ctx.partition.total_n() - ctx.partition.local_n()},
-          _local_cluster_weights(ctx.partition.local_n()),
+          _changed_label(ctx.partition.graph.n()),
+          _cluster_weights{ctx.partition.graph.total_n() - ctx.partition.graph.n()},
+          _local_cluster_weights(ctx.partition.graph.n()),
           _passive_high_degree_threshold(_c_ctx.global_lp.passive_high_degree_threshold) {
         set_max_num_iterations(_c_ctx.global_lp.num_iterations);
         set_max_degree(_c_ctx.global_lp.active_high_degree_threshold);

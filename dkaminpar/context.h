@@ -67,7 +67,7 @@ struct ParallelContext {
 struct LabelPropagationCoarseningContext {
     std::size_t num_iterations                       = 0;
     NodeID      passive_high_degree_threshold        = 0;
-    NodeID      active_high_degree_thresholdo        = 0;
+    NodeID      active_high_degree_threshold         = 0;
     NodeID      max_num_neighbors                    = 0;
     bool        merge_singleton_clusters             = 0;
     double      merge_nonadjacent_clusters_threshold = 0;
@@ -213,8 +213,8 @@ public:
     }
 
 private:
-    void setup_perfectly_balanced_block_weights();
-    void setup_max_block_weights();
+    void setup_perfectly_balanced_block_weights(const BlockID k);
+    void setup_max_block_weights(const BlockID k, const double epsilon);
 
     GlobalNodeID     _global_n                 = kInvalidGlobalNodeID;
     NodeID           _n                        = kInvalidNodeID;
@@ -237,6 +237,9 @@ struct PartitionContext {
     bool             enable_pe_splitting = false;
 
     GraphContext graph;
+
+    void setup(const DistributedGraph& graph);
+    void setup(const shm::Graph& graph);
 };
 
 struct DebugContext {

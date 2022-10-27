@@ -29,7 +29,7 @@ std::unordered_map<std::string, InitialPartitioningAlgorithm> get_initial_partit
 std::unordered_map<std::string, KWayRefinementAlgorithm>      get_kway_refinement_algorithms();
 std::unordered_map<std::string, BalancingAlgorithm>           get_balancing_algorithms();
 
-void print_compact(const Context& ctx, std::ostream& out, const std::string& prefix);
+void print_compact(const Context& ctx, std::ostream& out, const std::string& prefix = "");
 void print_compact(const DebugContext& ctx, std::ostream& out, const std::string& prefix);
 void print_compact(const PartitionContext& ctx, std::ostream& out, const std::string& prefix);
 void print_compact(const ParallelContext& ctx, std::ostream& out, const std::string& prefix);
@@ -42,4 +42,3 @@ void print_compact(const FMRefinementContext& ctx, std::ostream& out, const std:
 void print_compact(const LabelPropagationRefinementContext& ctx, std::ostream& out, const std::string& prefix);
 void print_compact(const LabelPropagationCoarseningContext& ctx, std::ostream& out, const std::string& prefix);
 } // namespace kaminpar::dist
-

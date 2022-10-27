@@ -107,11 +107,11 @@ class LPRefinerImpl final : public ChunkRandomdLabelPropagation<LPRefinerImpl, L
 public:
     explicit LPRefinerImpl(const Context& ctx)
         : _lp_ctx{ctx.refinement.lp},
-          _next_partition(ctx.partition.local_n()),
-          _gains(ctx.partition.local_n()),
+          _next_partition(ctx.partition.graph.n()),
+          _gains(ctx.partition.graph.n()),
           _block_weights(ctx.partition.k) {
         set_max_degree(_lp_ctx.active_high_degree_threshold);
-        allocate(ctx.partition.k, ctx.partition.local_n());
+        allocate(ctx.partition.k, ctx.partition.graph.n());
     }
 
     void initialize(const DistributedGraph& /* graph */, const PartitionContext& p_ctx) {
@@ -430,7 +430,7 @@ public:
     }
 
     [[nodiscard]] BlockWeight max_cluster_weight(const BlockID b) {
-        return _p_ctx->max_block_weight(b);
+        return _p_ctx->graph.max_block_weight(b);
     }
 
     [[nodiscard]] bool

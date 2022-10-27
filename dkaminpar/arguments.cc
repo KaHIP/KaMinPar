@@ -11,6 +11,7 @@
 #include "dkaminpar/arguments.h"
 
 #include "dkaminpar/context.h"
+#include "dkaminpar/context_io.h"
 
 namespace kaminpar::dist {
 void create_all_options(CLI::App* app, Context& ctx) {

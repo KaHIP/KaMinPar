@@ -15,6 +15,7 @@
 
 #include "dkaminpar/arguments.h"
 #include "dkaminpar/context.h"
+#include "dkaminpar/context_io.h"
 #include "dkaminpar/definitions.h"
 #include "dkaminpar/graphutils/graph_rearrangement.h"
 #include "dkaminpar/io.h"
@@ -256,7 +257,7 @@ int main(int argc, char* argv[]) {
     if (ctx.parsable_output) {
         LOG << "MPI size=" << ctx.parallel.num_mpis;
         LLOG << "CONTEXT ";
-        ctx.print_compact(std::cout);
+        print_compact(ctx, std::cout, "");
     }
 
     // Initialize random number generator

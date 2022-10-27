@@ -14,9 +14,9 @@
 
 #include "kaminpar/label_propagation.h"
 
+#include "common/math.h"
 #include "common/parallel/atomic.h"
 #include "common/parallel/loops.h"
-#include "common/math.h"
 
 namespace kaminpar::dist {
 namespace {
@@ -89,7 +89,7 @@ class LockingLabelPropagationClusteringImpl
 public:
     explicit LockingLabelPropagationClusteringImpl(const Context& ctx)
         : _c_ctx{ctx.coarsening},
-          _cluster_weights{ctx.partition.local_n()} {
+          _cluster_weights{ctx.partition.graph.n()} {
         set_max_degree(_c_ctx.global_lp.active_high_degree_threshold);
         set_max_num_neighbors(_c_ctx.global_lp.max_num_neighbors);
     }

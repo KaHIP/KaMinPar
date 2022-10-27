@@ -272,4 +272,3 @@ void print_compact(const Context& ctx, std::ostream& out, const std::string& pre
     print_compact(ctx.refinement, out, prefix + "refinement.");
 }
 } // namespace kaminpar::dist
-

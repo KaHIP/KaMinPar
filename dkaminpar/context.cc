@@ -14,40 +14,33 @@
 
 namespace kaminpar::dist {
 using namespace std::string_literals;
-//
-// Functions for compact, parsable context output
-//
-
-void PartitionContext::setup(const DistributedGraph& graph) {
-    _global_n = graph.global_n();
-    _global_m = graph.global_m();
-    _global_total_node_weight =
-        mpi::allreduce<GlobalNodeWeight>(graph.total_node_weight(), MPI_SUM, graph.communicator());
-    _local_n                = graph.n();
-    _total_n                = graph.total_n();
-    _local_m                = graph.m();
-    _total_node_weight      = graph.total_node_weight();
-    _global_max_node_weight = graph.global_max_node_weight();
-
-    setup_perfectly_balanced_block_weights();
-    setup_max_block_weights();
+GraphContext::GraphContext(const DistributedGraph& graph, const PartitionContext& p_ctx)
+    : _global_n(graph.global_n()),
+      _n(graph.n()),
+      _total_n(graph.total_n()),
+      _global_m(graph.global_m()),
+      _m(graph.m()),
+      _global_total_node_weight(graph.global_total_node_weight()),
+      _total_node_weight(graph.total_node_weight()),
+      _global_max_node_weight(graph.global_max_node_weight()) {
+    setup_perfectly_balanced_block_weights(p_ctx.k);
+    setup_max_block_weights(p_ctx.k, p_ctx.epsilon);
 }
 
-void PartitionContext::setup(const shm::Graph& graph) {
-    _global_n                 = graph.n();
-    _global_m                 = graph.m();
-    _global_total_node_weight = graph.total_node_weight();
-    _local_n                  = graph.n();
-    _total_n                  = graph.n();
-    _local_m                  = graph.m();
-    _total_node_weight        = graph.total_node_weight();
-    _global_max_node_weight   = graph.max_node_weight();
-
-    setup_perfectly_balanced_block_weights();
-    setup_max_block_weights();
+GraphContext::GraphContext(const shm::Graph& graph, const PartitionContext& p_ctx)
+    : _global_n(graph.n()),
+      _n(graph.n()),
+      _total_n(graph.n()),
+      _global_m(graph.m()),
+      _m(graph.m()),
+      _global_total_node_weight(graph.total_node_weight()),
+      _total_node_weight(graph.total_node_weight()),
+      _global_max_node_weight(graph.max_node_weight()) {
+    setup_perfectly_balanced_block_weights(p_ctx.k);
+    setup_max_block_weights(p_ctx.k, p_ctx.epsilon);
 }
 
-void PartitionContext::setup_perfectly_balanced_block_weights() {
+void GraphContext::setup_perfectly_balanced_block_weights(const BlockID k) {
     _perfectly_balanced_block_weights.resize(k);
 
     const BlockWeight perfectly_balanced_block_weight = std::ceil(static_cast<double>(global_total_node_weight()) / k);
@@ -56,7 +49,7 @@ void PartitionContext::setup_perfectly_balanced_block_weights() {
     });
 }
 
-void PartitionContext::setup_max_block_weights() {
+void GraphContext::setup_max_block_weights(const BlockID k, const double epsilon) {
     _max_block_weights.resize(k);
 
     tbb::parallel_for<BlockID>(0, k, [&](const BlockID b) {
@@ -73,6 +66,13 @@ void PartitionContext::setup_max_block_weights() {
     });
 }
 
+void PartitionContext::setup(const DistributedGraph& graph) {
+    this->graph = GraphContext(graph, *this);
+}
+
+void PartitionContext::setup(const shm::Graph& graph) {
+    this->graph = GraphContext(graph, *this);
+}
 [[nodiscard]] bool
 LabelPropagationCoarseningContext::should_merge_nonadjacent_clusters(const NodeID old_n, const NodeID new_n) const {
     return (1.0 - 1.0 * static_cast<double>(new_n) / static_cast<double>(old_n))
@@ -105,8 +105,8 @@ void RefinementContext::setup(const ParallelContext& parallel) {
 }
 
 void Context::setup(const DistributedGraph& graph) {
+    partition.setup(graph);
     coarsening.setup(parallel);
     refinement.setup(parallel);
-    partition.graph = GraphContext(graph, partition);
 }
 } // namespace kaminpar::dist
