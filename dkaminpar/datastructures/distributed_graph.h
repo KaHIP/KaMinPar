@@ -117,7 +117,7 @@ public:
         _global_n = _node_distribution.back();
         _global_m = _edge_distribution.back();
 
-        init_total_node_weight();
+        init_total_weights();
         init_communication_metrics();
         init_degree_buckets();
     }
@@ -188,6 +188,13 @@ public:
     }
     [[nodiscard]] inline NodeWeight global_max_node_weight() const {
         return _global_max_node_weight;
+    }
+
+    [[nodiscard]] inline EdgeWeight total_edge_weight() const {
+        return _total_edge_weight;
+    }
+    [[nodiscard]] inline GlobalEdgeWeight global_total_edge_weight() const {
+        return _global_total_edge_weight;
     }
 
     [[nodiscard]] inline bool is_owned_global_node(const GlobalNodeID global_u) const {
@@ -466,7 +473,7 @@ public:
 
 private:
     void init_degree_buckets();
-    void init_total_node_weight();
+    void init_total_weights();
     void init_communication_metrics();
 
     NodeID       _n;
@@ -481,6 +488,9 @@ private:
     GlobalNodeWeight _global_total_node_weight{};
     NodeWeight       _max_node_weight{};
     NodeWeight       _global_max_node_weight{};
+
+    EdgeWeight       _total_edge_weight{};
+    GlobalEdgeWeight _global_total_edge_weight{};
 
     scalable_vector<GlobalNodeID> _node_distribution{};
     scalable_vector<GlobalEdgeID> _edge_distribution{};

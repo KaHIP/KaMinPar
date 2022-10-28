@@ -7,6 +7,7 @@
  ******************************************************************************/
 #include "dkaminpar/context_io.h"
 
+#include <iomanip>
 #include <ostream>
 #include <unordered_map>
 
@@ -270,5 +271,44 @@ void print_compact(const Context& ctx, std::ostream& out, const std::string& pre
     print_compact(ctx.coarsening, out, prefix + "coarsening.");
     print_compact(ctx.initial_partitioning, out, prefix + "initial_partitioning.");
     print_compact(ctx.refinement, out, prefix + "refinement.");
+}
+
+void print(const Context& ctx, std::ostream& out) {
+    out << "Seed:                         " << ctx.seed << "\n";
+    if (!ctx.graph_filename.empty()) {
+        out << "Graph:                        " << ctx.graph_filename << "\n";
+    }
+    print(ctx.partition, out);
+}
+
+void print(const PartitionContext& ctx, std::ostream& out) {
+    // If the graph context has not been initialized with a graph, be silent
+    // (This should never happen)
+    if (!ctx.graph.initialized()) {
+        return;
+    }
+
+    const auto size  = std::max<std::uint64_t>({
+         static_cast<std::uint64_t>(ctx.graph.global_n()),
+         static_cast<std::uint64_t>(ctx.graph.global_m()),
+         static_cast<std::uint64_t>(ctx.graph.max_block_weight(0)),
+    });
+    const auto width = std::ceil(std::log10(size)) + 1;
+
+    out << "  Number of global nodes:     " << std::setw(width) << ctx.graph.global_n();
+    if (asserting_cast<NodeWeight>(ctx.graph.global_n()) == ctx.graph.global_total_node_weight()) {
+        out << " (unweighted)\n";
+    } else {
+        out << " (total weight: " << ctx.graph.global_total_node_weight() << ")\n";
+    }
+    out << "  Number of global edges:     " << std::setw(width) << ctx.graph.global_m();
+    if (asserting_cast<EdgeWeight>(ctx.graph.global_m()) == ctx.graph.global_total_edge_weight()) {
+        out << " (unweighted)\n";
+    } else {
+        out << " (total weight: " << ctx.graph.global_total_edge_weight() << ")\n";
+    }
+    out << "Number of blocks:             " << ctx.k << "\n";
+    out << "Maximum block weight:         " << ctx.graph.max_block_weight(0) << " ("
+        << ctx.graph.perfectly_balanced_block_weight(0) << " + " << 100 * ctx.epsilon << "%)\n";
 }
 } // namespace kaminpar::dist

@@ -9,6 +9,8 @@
 #include <iomanip>
 #include <numeric>
 
+#include "parallel/algorithm.h"
+
 #include "dkaminpar/mpi/graph_communication.h"
 #include "dkaminpar/mpi/wrapper.h"
 
@@ -102,7 +104,7 @@ void DistributedGraph::init_degree_buckets() {
     std::partial_sum(_buckets.begin(), _buckets.end(), _buckets.begin());
 }
 
-void DistributedGraph::init_total_node_weight() {
+void DistributedGraph::init_total_weights() {
     if (is_node_weighted()) {
         const auto begin_node_weights = _node_weights.begin();
         const auto end_node_weights   = begin_node_weights + static_cast<std::size_t>(n());
@@ -114,8 +116,15 @@ void DistributedGraph::init_total_node_weight() {
         _max_node_weight   = 1;
     }
 
+    if (is_edge_weighted()) {
+        _total_edge_weight = parallel::accumulate(_edge_weights.begin(), _edge_weights.end(), 0);
+    } else {
+        _total_edge_weight = m();
+    }
+
     _global_total_node_weight = mpi::allreduce<GlobalNodeWeight>(_total_node_weight, MPI_SUM, communicator());
     _global_max_node_weight   = mpi::allreduce<GlobalNodeWeight>(_max_node_weight, MPI_MAX, communicator());
+    _global_total_edge_weight = mpi::allreduce<GlobalEdgeWeight>(_total_edge_weight, MPI_SUM, communicator());
 }
 
 void DistributedGraph::init_communication_metrics() {

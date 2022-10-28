@@ -157,6 +157,10 @@ public:
     GraphContext(const DistributedGraph& graph, const PartitionContext& p_ctx);
     GraphContext(const shm::Graph& graph, const PartitionContext& p_ctx);
 
+    [[nodiscard]] bool initialized() const {
+        return _global_n != kInvalidGlobalNodeID;
+    }
+
     [[nodiscard]] GlobalNodeID global_n() const {
         KASSERT(_global_n != kInvalidGlobalNodeID);
         return _global_n;
@@ -182,14 +186,24 @@ public:
         return _m;
     }
 
+    [[nodiscard]] NodeWeight total_node_weight() const {
+        KASSERT(_total_node_weight != kInvalidNodeWeight);
+        return _total_node_weight;
+    }
+
     [[nodiscard]] GlobalNodeWeight global_total_node_weight() const {
         KASSERT(_global_total_node_weight != kInvalidGlobalNodeWeight);
         return _global_total_node_weight;
     }
 
-    [[nodiscard]] NodeWeight total_node_weight() const {
-        KASSERT(_total_node_weight != kInvalidNodeWeight);
-        return _total_node_weight;
+    [[nodiscard]] EdgeWeight total_edge_weight() const {
+        KASSERT(_total_edge_weight != kInvalidEdgeWeight);
+        return _total_edge_weight;
+    }
+
+    [[nodiscard]] GlobalEdgeWeight global_total_edge_weight() const {
+        KASSERT(_global_total_edge_weight != kInvalidEdgeWeight);
+        return _global_total_edge_weight;
     }
 
     [[nodiscard]] const auto& perfectly_balanced_block_weights() const {
@@ -223,7 +237,9 @@ private:
     EdgeID           _m                        = kInvalidEdgeID;
     GlobalNodeWeight _global_total_node_weight = kInvalidGlobalNodeID;
     NodeWeight       _total_node_weight        = kInvalidNodeWeight;
-    NodeWeight       _global_max_node_weight   = kInvalidNodeWeight;
+    GlobalNodeWeight _global_max_node_weight   = kInvalidNodeWeight;
+    GlobalEdgeWeight _global_total_edge_weight = kInvalidEdgeWeight;
+    EdgeWeight       _total_edge_weight        = kInvalidEdgeWeight;
 
     NoinitVector<BlockWeight> _perfectly_balanced_block_weights{};
     NoinitVector<BlockWeight> _max_block_weights{};

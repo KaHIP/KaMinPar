@@ -22,7 +22,9 @@ GraphContext::GraphContext(const DistributedGraph& graph, const PartitionContext
       _m(graph.m()),
       _global_total_node_weight(graph.global_total_node_weight()),
       _total_node_weight(graph.total_node_weight()),
-      _global_max_node_weight(graph.global_max_node_weight()) {
+      _global_max_node_weight(graph.global_max_node_weight()),
+      _global_total_edge_weight(graph.global_total_edge_weight()),
+      _total_edge_weight(graph.total_edge_weight()) {
     setup_perfectly_balanced_block_weights(p_ctx.k);
     setup_max_block_weights(p_ctx.k, p_ctx.epsilon);
 }
@@ -35,7 +37,9 @@ GraphContext::GraphContext(const shm::Graph& graph, const PartitionContext& p_ct
       _m(graph.m()),
       _global_total_node_weight(graph.total_node_weight()),
       _total_node_weight(graph.total_node_weight()),
-      _global_max_node_weight(graph.max_node_weight()) {
+      _global_max_node_weight(graph.max_node_weight()),
+      _global_total_edge_weight(graph.total_edge_weight()),
+      _total_edge_weight(graph.total_edge_weight()) {
     setup_perfectly_balanced_block_weights(p_ctx.k);
     setup_max_block_weights(p_ctx.k, p_ctx.epsilon);
 }
