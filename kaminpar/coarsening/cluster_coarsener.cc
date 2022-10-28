@@ -11,7 +11,7 @@
 namespace kaminpar::shm {
 std::pair<const Graph*, bool>
 ClusteringCoarsener::compute_coarse_graph(const NodeWeight max_cluster_weight, const NodeID to_size) {
-    SCOPED_TIMER("Level", std::to_string(_hierarchy.size()), TIMER_BENCHMARK);
+    SCOPED_TIMER("Level", std::to_string(_hierarchy.size()));
 
     _clustering_algorithm->set_max_cluster_weight(max_cluster_weight);
     _clustering_algorithm->set_desired_cluster_count(to_size);
@@ -37,7 +37,7 @@ ClusteringCoarsener::compute_coarse_graph(const NodeWeight max_cluster_weight, c
 PartitionedGraph ClusteringCoarsener::uncoarsen(PartitionedGraph&& p_graph) {
     KASSERT(&p_graph.graph() == _current_graph);
     KASSERT(!empty(), V(size()));
-    SCOPED_TIMER("Level", std::to_string(_hierarchy.size()), TIMER_BENCHMARK);
+    SCOPED_TIMER("Level", std::to_string(_hierarchy.size()));
 
     START_TIMER("Allocation");
     auto mapping{std::move(_mapping.back())};

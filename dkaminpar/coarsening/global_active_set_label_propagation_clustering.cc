@@ -98,12 +98,12 @@ public:
         }
 
         {
-            SCOPED_TIMER("Allocation", TIMER_DETAIL);
+            SCOPED_TIMER("Allocation");
             allocate(graph);
         }
 
         {
-            SCOPED_TIMER("Initialization", TIMER_DETAIL);
+            SCOPED_TIMER("Initialization");
 
             // clear hash map
             _cluster_weights_handles_ets.clear();
@@ -289,9 +289,9 @@ private:
     }
 
     GlobalNodeID process_chunk(const NodeID from, const NodeID to) {
-        START_TIMER("Chunk iteration", TIMER_DETAIL);
+        START_TIMER("Chunk iteration");
         const NodeID local_num_moved_nodes = perform_iteration(from, to);
-        STOP_TIMER(TIMER_DETAIL);
+        STOP_TIMER();
 
         const GlobalNodeID global_num_moved_nodes =
             mpi::allreduce(local_num_moved_nodes, MPI_SUM, _graph->communicator());
@@ -308,7 +308,7 @@ private:
     }
 
     void synchronize_ghost_node_clusters(const NodeID from, const NodeID to) {
-        SCOPED_TIMER("Synchronize ghost node clusters", TIMER_DETAIL);
+        SCOPED_TIMER("Synchronize ghost node clusters");
 
         struct ChangedLabelMessage {
             NodeID    local_node;
@@ -347,7 +347,7 @@ private:
      * @param to One-after the last node to consider.
      */
     void cluster_isolated_nodes(const NodeID from, const NodeID to) {
-        SCOPED_TIMER("Cluster isolated nodes", TIMER_DETAIL);
+        SCOPED_TIMER("Cluster isolated nodes");
 
         tbb::enumerable_thread_specific<GlobalNodeID> isolated_node_ets(kInvalidNodeID);
         tbb::parallel_for(tbb::blocked_range<NodeID>(from, to), [&](tbb::blocked_range<NodeID> r) {

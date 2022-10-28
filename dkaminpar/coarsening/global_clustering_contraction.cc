@@ -34,7 +34,7 @@ SET_DEBUG(false);
  */
 template <typename LabelMapping>
 void exchange_ghost_node_mapping(const DistributedGraph& graph, LabelMapping& label_mapping) {
-    SCOPED_TIMER("Exchange ghost node mapping", TIMER_DETAIL);
+    SCOPED_TIMER("Exchange ghost node mapping");
 
     struct Message {
         NodeID       local_node;
@@ -79,7 +79,7 @@ template <typename ResolveClusterCallback, typename Clustering>
 std::pair<std::vector<UsedClustersMap>, std::vector<UsedClustersVector>> find_used_cluster_ids_per_pe(
     const DistributedGraph& graph, const Clustering& clustering, ResolveClusterCallback&& resolve_cluster_callback
 ) {
-    SCOPED_TIMER("Find used cluster IDs per PE", TIMER_DETAIL);
+    SCOPED_TIMER("Find used cluster IDs per PE");
 
     const auto size = mpi::get_comm_size(graph.communicator());
 
@@ -132,7 +132,7 @@ MappingResult compute_mapping(
     const DistributedGraph& graph, const scalable_vector<parallel::Atomic<GlobalNodeID>>& clustering,
     const bool migrate_nodes = false
 ) {
-    SCOPED_TIMER("Compute coarse node mapping", TIMER_DETAIL);
+    SCOPED_TIMER("Compute coarse node mapping");
 
     const auto size = mpi::get_comm_size(graph.communicator());
     const auto rank = mpi::get_comm_rank(graph.communicator());
@@ -285,7 +285,7 @@ DistributedGraph build_coarse_graph(
     const DistributedGraph& graph, const Mapping& mapping, scalable_vector<GlobalNodeID> c_node_distribution,
     CoarseNodeOwnerCallback&& compute_coarse_node_owner
 ) {
-    SCOPED_TIMER("Build coarse graph", TIMER_DETAIL);
+    SCOPED_TIMER("Build coarse graph");
 
     const PEID size = mpi::get_comm_size(graph.communicator());
     const PEID rank = mpi::get_comm_rank(graph.communicator());
@@ -297,11 +297,11 @@ DistributedGraph build_coarse_graph(
     // create messages
     std::vector<NoinitVector<LocalToGlobalEdge>> out_msg(size); // declare outside scope
     {
-        SCOPED_TIMER("Create edge messages", TIMER_DETAIL);
+        SCOPED_TIMER("Create edge messages");
         const PEID                                num_threads = omp_get_max_threads();
         std::vector<cache_aligned_vector<EdgeID>> num_messages(num_threads, cache_aligned_vector<EdgeID>(size));
 
-        START_TIMER("Count messages", TIMER_DETAIL);
+        START_TIMER("Count messages");
 #pragma omp parallel for default(none) \
     shared(num_messages, graph, mapping, compute_coarse_node_owner, c_node_distribution)
         for (NodeID u = 0; u < graph.n(); ++u) {
@@ -319,14 +319,14 @@ DistributedGraph build_coarse_graph(
         }
 
         mpi::graph::internal::inclusive_col_prefix_sum(num_messages); // TODO move this utility function somewhere else
-        STOP_TIMER(TIMER_DETAIL);
+        STOP_TIMER();
 
         // allocate send buffers
-        START_TIMER("Allocation", TIMER_DETAIL);
+        START_TIMER("Allocation");
         tbb::parallel_for<PEID>(0, size, [&](const PEID pe) { out_msg[pe].resize(num_messages.back()[pe]); });
-        STOP_TIMER(TIMER_DETAIL);
+        STOP_TIMER();
 
-        START_TIMER("Create messages", TIMER_DETAIL);
+        START_TIMER("Create messages");
 #pragma omp parallel for default(none) \
     shared(num_messages, graph, mapping, compute_coarse_node_owner, c_node_distribution, out_msg)
         for (NodeID u = 0; u < graph.n(); ++u) {
@@ -344,11 +344,11 @@ DistributedGraph build_coarse_graph(
                 }
             }
         }
-        STOP_TIMER(TIMER_DETAIL);
+        STOP_TIMER();
     }
 
     // deduplicate edges
-    TIMED_SCOPE("Deduplicate edges before sending", TIMER_DETAIL) {
+    TIMED_SCOPE("Deduplicate edges before sending") {
         DeduplicateEdgeListMemoryContext deduplicate_m_ctx;
         for (PEID pe = 0; pe < size; ++pe) {
             auto result       = deduplicate_edge_list_parallel(std::move(out_msg[pe]), std::move(deduplicate_m_ctx));
@@ -358,19 +358,19 @@ DistributedGraph build_coarse_graph(
     };
 
     // exchange messages
-    START_TIMER("Exchange edges", TIMER_DETAIL);
+    START_TIMER("Exchange edges");
     auto in_msg = mpi::sparse_alltoall_get<LocalToGlobalEdge>(std::move(out_msg), graph.communicator());
-    STOP_TIMER(TIMER_DETAIL);
+    STOP_TIMER();
 
     // Copy edge lists to a single list and free old list
-    START_TIMER("Copy edge list", TIMER_DETAIL);
+    START_TIMER("Copy edge list");
     std::vector<std::size_t> in_msg_sizes(size);
     tbb::parallel_for<PEID>(0, size, [&](const PEID pe) { in_msg_sizes[pe] = in_msg[pe].size(); });
     parallel::prefix_sum(in_msg_sizes.begin(), in_msg_sizes.end(), in_msg_sizes.begin());
 
-    START_TIMER("Allocation", TIMER_DETAIL);
+    START_TIMER("Allocation");
     NoinitVector<LocalToGlobalEdge> edge_list(in_msg_sizes.back());
-    STOP_TIMER(TIMER_DETAIL);
+    STOP_TIMER();
 
     tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
         tbb::parallel_for<std::size_t>(0, in_msg[pe].size(), [&](const std::size_t i) {
@@ -378,7 +378,7 @@ DistributedGraph build_coarse_graph(
         });
         // std::copy(in_msg[pe].begin(), in_msg[pe].end(), edge_list.begin() + in_msg_sizes[pe] - in_msg[pe].size());
     });
-    STOP_TIMER(TIMER_DETAIL);
+    STOP_TIMER();
 
     // TODO since we do not know the number of coarse ghost nodes yet, allocate memory only for local nodes and
     // TODO resize in build_distributed_graph_from_edge_list
@@ -389,7 +389,7 @@ DistributedGraph build_coarse_graph(
         NodeWeight weight;
     };
 
-    START_TIMER("Exchange node weights", TIMER_DETAIL);
+    START_TIMER("Exchange node weights");
     mpi::graph::sparse_alltoall_custom<NodeWeightMessage>(
         graph, 0, graph.n(), SPARSE_ALLTOALL_NOFILTER,
         [&](const NodeID u) { return compute_coarse_node_owner(mapping[u], c_node_distribution); },
@@ -405,7 +405,7 @@ DistributedGraph build_coarse_graph(
             });
         }
     );
-    STOP_TIMER(TIMER_DETAIL);
+    STOP_TIMER();
 
     // now every PE has an edge list with all edges -- so we can build the graph from it
     return build_distributed_graph_from_edge_list(
@@ -444,7 +444,7 @@ DistributedGraph build_coarse_graph(
  * @param graph Distributed graph with invalid ghost node weights.
  */
 void update_ghost_node_weights(DistributedGraph& graph) {
-    SCOPED_TIMER("Update ghost node weights", TIMER_DETAIL);
+    SCOPED_TIMER("Update ghost node weights");
 
     struct Message {
         NodeID     local_node;
@@ -560,19 +560,19 @@ DistributedPartitionedGraph project_global_contracted_graph(
     const auto reqs = mpi::sparse_alltoall_get<NodeID>(used_coarse_nodes_vec, fine_graph.communicator());
 
     // build response messages
-    START_TIMER("Allocation", TIMER_DETAIL);
+    START_TIMER("Allocation");
     std::vector<scalable_vector<BlockID>> resps(size);
     tbb::parallel_for<PEID>(0, size, [&](const PEID pe) { resps[pe].resize(reqs[pe].size()); });
-    STOP_TIMER(TIMER_DETAIL);
+    STOP_TIMER();
 
-    START_TIMER("Build response messages", TIMER_DETAIL);
+    START_TIMER("Build response messages");
     tbb::parallel_for<std::size_t>(0, reqs.size(), [&](const std::size_t i) {
         tbb::parallel_for<std::size_t>(0, reqs[i].size(), [&](const std::size_t j) {
             KASSERT(coarse_graph.is_owned_node(reqs[i][j]));
             resps[i][j] = coarse_graph.block(reqs[i][j]);
         });
     });
-    STOP_TIMER(TIMER_DETAIL);
+    STOP_TIMER();
 
     // exchange messages and use used_coarse_nodes_map to store block IDs
     static_assert(std::numeric_limits<BlockID>::digits <= std::numeric_limits<NodeID>::digits);
@@ -595,11 +595,11 @@ DistributedPartitionedGraph project_global_contracted_graph(
     );
 
     // assign block IDs to fine nodes
-    START_TIMER("Allocation", TIMER_DETAIL);
+    START_TIMER("Allocation");
     scalable_vector<BlockID> fine_partition(fine_graph.total_n());
-    STOP_TIMER(TIMER_DETAIL);
+    STOP_TIMER();
 
-    START_TIMER("Set blocks", TIMER_DETAIL);
+    START_TIMER("Set blocks");
     fine_graph.pfor_nodes([&](const NodeID u) {
         const auto [owner, local] = resolve_coarse_node(fine_to_coarse[u]);
 
@@ -609,7 +609,7 @@ DistributedPartitionedGraph project_global_contracted_graph(
 
         fine_partition[u] = accessor->second;
     });
-    STOP_TIMER(TIMER_DETAIL);
+    STOP_TIMER();
 
     // exchange ghost node labels
     struct GhostNodeLabel {

@@ -330,7 +330,7 @@ private:
             mpi::barrier(_graph->communicator());
         }
 
-        const NodeID num_moved_nodes = TIMED_SCOPE("Label Propagation", TIMER_FINE) {
+        const NodeID num_moved_nodes = TIMED_SCOPE("Label Propagation") {
             return perform_iteration(from, to);
         };
 
@@ -363,7 +363,7 @@ private:
 
     void perform_distributed_moves(const NodeID from, const NodeID to) {
         SET_DEBUG(false);
-        SCOPED_TIMER("Distributed moves", TIMER_FINE);
+        SCOPED_TIMER("Distributed moves");
 
         if constexpr (kDebug) {
             mpi::barrier(_graph->communicator());
@@ -373,7 +373,7 @@ private:
             mpi::barrier(_graph->communicator());
         }
 
-        START_TIMER("Exchange join requests", TIMER_FINE);
+        START_TIMER("Exchange join requests");
         // exchange join requests and collect them in _gain_buffer
         auto requests = mpi::graph::sparse_alltoall_custom<JoinRequest>(
             *_graph, from, to,
@@ -400,7 +400,7 @@ private:
                     .global_requested = new_cluster};
             }
         );
-        STOP_TIMER(TIMER_FINE);
+        STOP_TIMER();
 
         if constexpr (kDebug) {
             mpi::barrier(_graph->communicator());
@@ -421,19 +421,19 @@ private:
         }
 
         // allocate memory for response messages
-        START_TIMER("Allocation", TIMER_FINE);
+        START_TIMER("Allocation");
         std::vector<scalable_vector<JoinResponse>> responses;
         for (const auto& requests_from_pe: requests) { // allocate memory for responses
             responses.emplace_back(requests_from_pe.size());
         }
         std::vector<parallel::Atomic<std::size_t>> next_message(requests.size());
-        STOP_TIMER(TIMER_FINE);
+        STOP_TIMER();
 
         // perform moves
         DBG << V(_gain_buffer_index);
         const PEID rank = mpi::get_comm_rank(_graph->communicator());
 
-        START_TIMER("Perform moves and create responses", TIMER_FINE);
+        START_TIMER("Perform moves and create responses");
         tbb::parallel_for<NodeID>(0, _graph->n(), [&](const NodeID u) {
             // TODO stop trying to insert nodes after the first insert operation failed?
 
@@ -491,9 +491,9 @@ private:
             std::memcpy(&u, &entry.new_weight, sizeof(NodeID));
             entry.new_weight = cluster_weight(cluster(u));
         });
-        STOP_TIMER(TIMER_FINE);
+        STOP_TIMER();
 
-        START_TIMER("Exchange join responses", TIMER_FINE);
+        START_TIMER("Exchange join responses");
         // exchange responses
         mpi::sparse_alltoall<JoinResponse>(
             std::move(responses),
@@ -520,13 +520,13 @@ private:
             },
             _graph->communicator()
         );
-        STOP_TIMER(TIMER_FINE);
+        STOP_TIMER();
     }
 
     template <typename JoinRequests>
     void build_gain_buffer(JoinRequests& join_requests_per_pe) {
         SET_DEBUG(false);
-        SCOPED_TIMER("Build gain buffer", TIMER_FINE);
+        SCOPED_TIMER("Build gain buffer");
 
         if constexpr (kDebug) {
             mpi::barrier(_graph->communicator());
@@ -542,13 +542,13 @@ private:
         );
 
         // reset _gain_buffer_index
-        TIMED_SCOPE("Reset gain buffer", TIMER_FINE) {
+        TIMED_SCOPE("Reset gain buffer") {
             _graph->pfor_nodes([&](const NodeID u) { _gain_buffer_index[u] = 0; });
             _gain_buffer_index[_graph->n()] = 0;
         };
 
         // build _gain_buffer_index and _gain_buffer arrays
-        START_TIMER("Build index buffer", TIMER_FINE);
+        START_TIMER("Build index buffer");
 
         parallel::chunked_for(join_requests_per_pe, [&](const JoinRequest& request) {
             const GlobalNodeID global_node = request.global_requested;
@@ -556,19 +556,19 @@ private:
             ++_gain_buffer_index[local_node];
         });
 
-        START_TIMER("Prefix sum", TIMER_FINE);
+        START_TIMER("Prefix sum");
         parallel::prefix_sum(
             _gain_buffer_index.begin(), _gain_buffer_index.begin() + _graph->n() + 1, _gain_buffer_index.begin()
         );
-        STOP_TIMER(TIMER_FINE);
-        STOP_TIMER(TIMER_FINE);
+        STOP_TIMER();
+        STOP_TIMER();
 
         // allocate buffer
-        TIMED_SCOPE("Allocation", TIMER_FINE) {
+        TIMED_SCOPE("Allocation") {
             _gain_buffer.resize(_gain_buffer_index[_graph->n() - 1]);
         };
 
-        START_TIMER("Build buffer", TIMER_FINE);
+        START_TIMER("Build buffer");
         parallel::chunked_for(join_requests_per_pe, [&](const JoinRequest& request) {
             KASSERT(_graph->is_owned_global_node(request.global_requested));
             const NodeID local_requested = _graph->global_to_local_node(request.global_requested);
@@ -579,7 +579,7 @@ private:
             _gain_buffer[--_gain_buffer_index[local_requested]] = {
                 global_requester, request.requester_weight, request.requester_gain};
         });
-        STOP_TIMER(TIMER_FINE);
+        STOP_TIMER();
 
         if constexpr (kDebug) {
             std::ostringstream gain_buffer_str;
@@ -591,7 +591,7 @@ private:
         }
 
         // sort buffer for each node by gain
-        START_TIMER("Sort buffer", TIMER_FINE);
+        START_TIMER("Sort buffer");
         tbb::parallel_for<NodeID>(0, _graph->n(), [&](const NodeID u) {
             KASSERT(u + 1 < _gain_buffer_index.size());
             if (_gain_buffer_index[u] < _gain_buffer_index[u + 1]) {
@@ -607,7 +607,7 @@ private:
                 );
             }
         });
-        STOP_TIMER(TIMER_FINE);
+        STOP_TIMER();
 
         if constexpr (kDebug) {
             std::ostringstream gain_buffer_str;

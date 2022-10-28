@@ -21,74 +21,46 @@
 
 #define GLOBAL_TIMER     (kaminpar::Timer::global())
 #define GLOBAL_TIMER_PTR &(GLOBAL_TIMER)
-#define TIMER_DEFAULT    kaminpar::timer::Type::DEFAULT
-#define TIMER_BENCHMARK  kaminpar::timer::Type::BENCHMARK
-#define TIMER_FINE       kaminpar::timer::Type::FINE
-#define TIMER_DETAIL     kaminpar::timer::Type::DETAIL
 
 //
 // Private helper macros
 //
-#define SCOPED_TIMER_IMPL2_3(name, description, line, type) \
-    auto __SCOPED_TIMER__##line = (GLOBAL_TIMER.start_scoped_timer(name, description, type))
-#define SCOPED_TIMER_IMPL1_3(name, description, line, type) SCOPED_TIMER_IMPL2_3(name, description, line, type)
-
-#define SCOPED_TIMER_IMPL2_2(name, description_or_type, line) \
-    auto __SCOPED_TIMER__##line = (GLOBAL_TIMER.start_scoped_timer(name, description_or_type))
-#define SCOPED_TIMER_IMPL1_2(name, description_or_type, line) SCOPED_TIMER_IMPL2_2(name, description_or_type, line)
+#define SCOPED_TIMER_IMPL2_2(name, description, line) \
+    auto __SCOPED_TIMER__##line = (GLOBAL_TIMER.start_scoped_timer(name, description))
+#define SCOPED_TIMER_IMPL1_2(name, description, line) SCOPED_TIMER_IMPL2_2(name, description, line)
 
 #ifdef KAMINPAR_ENABLE_TIMERS
-    #define SCOPED_TIMER_3(name, description, type)   SCOPED_TIMER_IMPL1_3(name, description, __LINE__, type)
-    #define START_TIMER_3(name, description, type)    (GLOBAL_TIMER.start_timer(name, description, type))
-    #define SCOPED_TIMER_2(name, description_or_type) SCOPED_TIMER_IMPL1_2(name, description_or_type, __LINE__)
-    #define START_TIMER_2(name, description_or_type)  (GLOBAL_TIMER.start_timer(name, description_or_type))
-    #define STOP_TIMER_1(type)                        (GLOBAL_TIMER.stop_timer(type))
+    #define SCOPED_TIMER_2(name, description) SCOPED_TIMER_IMPL1_2(name, description, __LINE__)
+    #define START_TIMER_2(name, description)  (GLOBAL_TIMER.start_timer(name, description))
 #else // KAMINPAR_ENABLE_TIMERS
-    #define SCOPED_TIMER_3(name, description, type)
-    #define START_TIMER_3(name, description, type)
-    #define SCOPED_TIMER_2(name, description_or_type)
-    #define START_TIMER_2(name, description_or_type)
-    #define STOP_TIMER_1(type)
+    #define SCOPED_TIMER_2(name, description)
+    #define START_TIMER_2(name, description)
 #endif // KAMINPAR_ENABLE_TIMERS
 
-#define SCOPED_TIMER_1(name) SCOPED_TIMER_2(name, TIMER_DEFAULT)
-#define START_TIMER_1(name)  START_TIMER_2(name, TIMER_DEFAULT)
-#define STOP_TIMER_0()       STOP_TIMER_1(TIMER_DEFAULT)
+#define SCOPED_TIMER_1(name) SCOPED_TIMER_2(name, "")
+#define START_TIMER_1(name)  START_TIMER_2(name, "")
 
-#define TIMED_SCOPE_3(name, description, type) \
-    kaminpar::timer::TimedScope<const std::string&>{GLOBAL_TIMER_PTR, name, description, type} + [&]
-#define TIMED_SCOPE_2(name, description_or_type)                                                                 \
-    kaminpar::timer::TimedScope<std::conditional_t<                                                              \
-        std::is_same_v<decltype(description_or_type), kaminpar::timer::Type>, const char*, const std::string&>>{ \
-        GLOBAL_TIMER_PTR, name, description_or_type}                                                             \
-        + [&]
-#define TIMED_SCOPE_1(name) TIMED_SCOPE_2(name, TIMER_DEFAULT)
+#define TIMED_SCOPE_2(name, description) \
+    kaminpar::timer::TimedScope<const std::string&>{GLOBAL_TIMER_PTR, name, description} + [&]
+#define TIMED_SCOPE_1(name) TIMED_SCOPE_2(name, "")
 
-#define VARARG_SELECT_HELPER3(X, Y, Z, W, FUNC, ...) FUNC
-#define VARARG_SELECT_HELPER1(X, Y, FUNC, ...)       FUNC
+#define VARARG_SELECT_HELPER2(X, Y, Z, FUNC, ...) FUNC
 
 //
 // Public macro interface
 //
-#define ENABLE_TIMERS()  (GLOBAL_TIMER.enable_all())
-#define DISABLE_TIMERS() (GLOBAL_TIMER.disable_all())
+#define ENABLE_TIMERS()  (GLOBAL_TIMER.enable())
+#define DISABLE_TIMERS() (GLOBAL_TIMER.disable())
 
-#define SCOPED_TIMER(...)                                                                                              \
-    VARARG_SELECT_HELPER3(                                                                                             \
-        , ##__VA_ARGS__, SCOPED_TIMER_3(__VA_ARGS__), SCOPED_TIMER_2(__VA_ARGS__), SCOPED_TIMER_1(__VA_ARGS__), ignore \
-    )
-#define START_TIMER(...)                                                                                            \
-    VARARG_SELECT_HELPER3(                                                                                          \
-        , ##__VA_ARGS__, START_TIMER_3(__VA_ARGS__), START_TIMER_2(__VA_ARGS__), START_TIMER_1(__VA_ARGS__), ignore \
-    )
-#define STOP_TIMER(...) \
-    VARARG_SELECT_HELPER1(, ##__VA_ARGS__, STOP_TIMER_1(__VA_ARGS__), STOP_TIMER_0(__VA_ARGS__), ignore)
+#define SCOPED_TIMER(...) \
+    VARARG_SELECT_HELPER2(, ##__VA_ARGS__, SCOPED_TIMER_2(__VA_ARGS__), SCOPED_TIMER_1(__VA_ARGS__), ignore)
+#define START_TIMER(...) \
+    VARARG_SELECT_HELPER2(, ##__VA_ARGS__, START_TIMER_2(__VA_ARGS__), START_TIMER_1(__VA_ARGS__), ignore)
+#define STOP_TIMER() (GLOBAL_TIMER.stop_timer())
 
 // must be followed by a lambda body that may or may not return some value
-#define TIMED_SCOPE(...)                                                                                            \
-    VARARG_SELECT_HELPER3(                                                                                          \
-        , ##__VA_ARGS__, TIMED_SCOPE_3(__VA_ARGS__), TIMED_SCOPE_2(__VA_ARGS__), TIMED_SCOPE_1(__VA_ARGS__), ignore \
-    )
+#define TIMED_SCOPE(...) \
+    VARARG_SELECT_HELPER2(, ##__VA_ARGS__, TIMED_SCOPE_2(__VA_ARGS__), TIMED_SCOPE_1(__VA_ARGS__), ignore)
 
 namespace kaminpar {
 class Timer;
@@ -98,17 +70,9 @@ inline std::chrono::time_point<std::chrono::high_resolution_clock> now() {
     return std::chrono::high_resolution_clock::now();
 }
 
-enum Type {
-    DEFAULT,
-    BENCHMARK,
-    FINE,
-    DETAIL,
-    NUM_TIMER_TYPES,
-};
-
 class ScopedTimer {
 public:
-    explicit ScopedTimer(Timer* timer, const Type type) : _timer{timer}, _type{type} {}
+    explicit ScopedTimer(Timer* timer) : _timer(timer) {}
     ScopedTimer(const ScopedTimer&)            = delete;
     ScopedTimer& operator=(const ScopedTimer&) = delete;
     ScopedTimer(ScopedTimer&& other) noexcept : _timer{other._timer} {
@@ -121,13 +85,10 @@ public:
 
 private:
     Timer* _timer;
-    Type   _type;
 };
 } // namespace timer
 
 class Timer {
-    using Type = timer::Type;
-
     static constexpr bool kDebug = false;
 
     static constexpr std::size_t      kSpaceBetweenTimeAndRestarts       = 1;
@@ -186,17 +147,17 @@ public:
 
     explicit Timer(std::string_view name);
 
-    void start_timer(std::string_view name, const Type type = Type::DEFAULT) {
-        start_timer<const char*>(name, "", type);
+    void start_timer(std::string_view name) {
+        start_timer<const char*>(name, "");
     }
 
     void start_timer(std::string_view name, const std::string& description) {
-        start_timer<const std::string&>(name, description, Type::DEFAULT);
+        start_timer<const std::string&>(name, description);
     }
 
     template <typename StrType>
-    void start_timer(std::string_view name, StrType description, const Type type) {
-        if (_disabled[type] > 0) {
+    void start_timer(std::string_view name, StrType description) {
+        if (_disabled > 0) {
             return;
         }
 
@@ -231,8 +192,8 @@ public:
         start_timer_impl();
     }
 
-    void stop_timer(const Type type = Type::DEFAULT) {
-        if (_disabled[type] > 0) {
+    void stop_timer() {
+        if (_disabled > 0) {
             return;
         }
 
@@ -243,44 +204,28 @@ public:
     }
 
     template <typename StrType>
-    auto start_scoped_timer(const std::string_view name, StrType description, const Type type) {
-        start_timer(name, description, type);
-        return timer::ScopedTimer{this, type};
+    auto start_scoped_timer(const std::string_view name, StrType description) {
+        start_timer(name, description);
+        return timer::ScopedTimer{this};
     }
 
     decltype(auto) start_scoped_timer(const std::string_view name, const std::string& description) {
-        return start_scoped_timer<const std::string&>(name, description, Type::DEFAULT);
+        return start_scoped_timer<const std::string&>(name, description);
     }
 
-    decltype(auto) start_scoped_timer(const std::string_view name, const Type type) {
-        return start_scoped_timer<const char*>(name, "", type);
+    decltype(auto) start_scoped_timer(const std::string_view name) {
+        return start_scoped_timer<const char*>(name, "");
     }
 
     void print_machine_readable(std::ostream& out);
     void print_human_readable(std::ostream& out);
 
-    void enable(Type type = Type::DEFAULT) {
-        if (_disabled[type] > 0) {
-            --_disabled[type];
-        }
+    void enable() {
+        _disabled = std::max(0, _disabled - 1);
     }
 
-    void disable(Type type = Type::DEFAULT) {
-        _disabled[type]++;
-    }
-
-    void enable_all() {
-        for (auto& enabled: _disabled) {
-            if (enabled > 0) {
-                --enabled;
-            }
-        }
-    }
-
-    void disable_all() {
-        for (auto& enabled: _disabled) {
-            ++enabled;
-        }
+    void disable() {
+        _disabled++;
     }
 
     void annotate(std::string annotation) {
@@ -315,11 +260,11 @@ private:
 
     void print_node_mr(std::ostream& out, const std::string& prefix, const TimerTreeNode* node);
 
-    std::string_view                                _name;
-    std::string                                     _annotation;
-    TimerTree                                       _tree{};
-    std::mutex                                      _mutex{};
-    std::array<std::uint8_t, Type::NUM_TIMER_TYPES> _disabled{};
+    std::string_view _name;
+    std::string      _annotation;
+    TimerTree        _tree{};
+    std::mutex       _mutex{};
+    int              _disabled{};
 
     std::size_t _hr_time_col;
     std::size_t _hr_max_time_len;
@@ -328,26 +273,22 @@ private:
 
 namespace timer {
 ScopedTimer::~ScopedTimer() {
-    _timer->stop_timer(_type);
+    _timer->stop_timer();
 }
 
 template <typename StrType>
 class TimedScope {
 public:
-    TimedScope(Timer* timer, std::string_view name, StrType description, Type type)
-        : _timer{timer},
-          _name{name},
-          _description{description},
-          _type{type} {}
+    TimedScope(Timer* timer, std::string_view name, StrType description)
+        : _timer(timer),
+          _name(name),
+          _description(description) {}
 
-    explicit TimedScope(Timer* timer, std::string_view name, StrType description)
-        : TimedScope{timer, name, description, Type::DEFAULT} {}
-
-    explicit TimedScope(Timer* timer, std::string_view name, Type type) : TimedScope{timer, name, "", type} {}
+    explicit TimedScope(Timer* timer, std::string_view name) : TimedScope(timer, name, "") {}
 
     template <typename F>
     decltype(auto) operator+(F&& f) {
-        const auto scope = _timer->start_scoped_timer<StrType>(_name, _description, _type);
+        const auto scope = _timer->start_scoped_timer<StrType>(_name, _description);
         return f();
     }
 
@@ -355,7 +296,6 @@ private:
     Timer*           _timer;
     std::string_view _name;
     StrType          _description;
-    Type             _type;
 };
 } // namespace timer
 } // namespace kaminpar

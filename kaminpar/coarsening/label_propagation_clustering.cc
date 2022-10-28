@@ -56,7 +56,7 @@ public:
         initialize(&graph, graph.n());
 
         for (std::size_t iteration = 0; iteration < _c_ctx.lp.num_iterations; ++iteration) {
-            SCOPED_TIMER("Iteration", std::to_string(iteration), TIMER_BENCHMARK);
+            SCOPED_TIMER("Iteration", std::to_string(iteration));
             if (perform_iteration() == 0) {
                 break;
             }

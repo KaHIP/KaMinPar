@@ -88,7 +88,7 @@ bool use_sparse_grid_alltoall(const SendBuffers& send_buffers, MPI_Comm comm) {
 
 template <typename Message, typename Buffer = NoinitVector<Message>, typename Receiver>
 void sparse_alltoall(const std::vector<Buffer>& send_buffers, Receiver&& receiver, MPI_Comm comm) {
-    SCOPED_TIMER("Sparse Alltoall", TIMER_DETAIL);
+    SCOPED_TIMER("Sparse Alltoall");
     if (internal::use_sparse_grid_alltoall(send_buffers, comm)) {
         sparse_alltoall<Message, Buffer>(tag::grid, send_buffers, std::forward<Receiver>(receiver), comm);
     } else {
@@ -100,7 +100,7 @@ void sparse_alltoall(const std::vector<Buffer>& send_buffers, Receiver&& receive
 
 template <typename Message, typename Buffer = NoinitVector<Message>, typename Receiver>
 void sparse_alltoall(std::vector<Buffer>&& send_buffers, Receiver&& receiver, MPI_Comm comm) {
-    SCOPED_TIMER("Sparse Alltoall", TIMER_DETAIL);
+    SCOPED_TIMER("Sparse Alltoall");
     if (internal::use_sparse_grid_alltoall(send_buffers, comm)) {
         sparse_alltoall<Message, Buffer>(tag::grid, std::move(send_buffers), std::forward<Receiver>(receiver), comm);
     } else {

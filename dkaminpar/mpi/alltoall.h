@@ -172,7 +172,7 @@ void sparse_alltoall_alltoallv(SendBuffers&& send_buffers, Receiver&& receiver, 
 
     // Exchange data
     Buffer common_recv_buffer(recv_displs.back() + recv_counts.back());
-    START_TIMER("MPI_Alltoallv", TIMER_DETAIL);
+    START_TIMER("MPI_Alltoallv");
     mpi::alltoallv(
         common_send_buffer.data(), send_counts.data(), send_displs.data(), common_recv_buffer.data(),
         recv_counts.data(), recv_displs.data(), comm
