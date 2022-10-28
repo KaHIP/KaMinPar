@@ -273,15 +273,17 @@ void print_compact(const Context& ctx, std::ostream& out, const std::string& pre
     print_compact(ctx.refinement, out, prefix + "refinement.");
 }
 
-void print(const Context& ctx, std::ostream& out) {
-    out << "Seed:                         " << ctx.seed << "\n";
-    if (!ctx.graph_filename.empty()) {
-        out << "Graph:                        " << ctx.graph_filename << "\n";
+void print(const Context& ctx, const bool root, std::ostream& out) {
+    if (root) {
+        out << "Seed:                         " << ctx.seed << "\n";
+        if (!ctx.graph_filename.empty()) {
+            out << "Graph:                        " << ctx.graph_filename << "\n";
+        }
     }
-    print(ctx.partition, out);
+    print(ctx.partition, root, out);
 }
 
-void print(const PartitionContext& ctx, std::ostream& out) {
+void print(const PartitionContext& ctx, const bool root, std::ostream& out) {
     // If the graph context has not been initialized with a graph, be silent
     // (This should never happen)
     if (!ctx.graph.initialized()) {
@@ -295,20 +297,22 @@ void print(const PartitionContext& ctx, std::ostream& out) {
     });
     const auto width = std::ceil(std::log10(size)) + 1;
 
-    out << "  Number of global nodes:     " << std::setw(width) << ctx.graph.global_n();
-    if (asserting_cast<NodeWeight>(ctx.graph.global_n()) == ctx.graph.global_total_node_weight()) {
-        out << " (unweighted)\n";
-    } else {
-        out << " (total weight: " << ctx.graph.global_total_node_weight() << ")\n";
+    if (root) {
+        out << "  Number of global nodes:    " << std::setw(width) << ctx.graph.global_n();
+        if (asserting_cast<NodeWeight>(ctx.graph.global_n()) == ctx.graph.global_total_node_weight()) {
+            out << " (unweighted)\n";
+        } else {
+            out << " (total weight: " << ctx.graph.global_total_node_weight() << ")\n";
+        }
+        out << "  Number of global edges:    " << std::setw(width) << ctx.graph.global_m();
+        if (asserting_cast<EdgeWeight>(ctx.graph.global_m()) == ctx.graph.global_total_edge_weight()) {
+            out << " (unweighted)\n";
+        } else {
+            out << " (total weight: " << ctx.graph.global_total_edge_weight() << ")\n";
+        }
+        out << "Number of blocks:             " << ctx.k << "\n";
+        out << "Maximum block weight:         " << ctx.graph.max_block_weight(0) << " ("
+            << ctx.graph.perfectly_balanced_block_weight(0) << " + " << 100 * ctx.epsilon << "%)\n";
     }
-    out << "  Number of global edges:     " << std::setw(width) << ctx.graph.global_m();
-    if (asserting_cast<EdgeWeight>(ctx.graph.global_m()) == ctx.graph.global_total_edge_weight()) {
-        out << " (unweighted)\n";
-    } else {
-        out << " (total weight: " << ctx.graph.global_total_edge_weight() << ")\n";
-    }
-    out << "Number of blocks:             " << ctx.k << "\n";
-    out << "Maximum block weight:         " << ctx.graph.max_block_weight(0) << " ("
-        << ctx.graph.perfectly_balanced_block_weight(0) << " + " << 100 * ctx.epsilon << "%)\n";
 }
 } // namespace kaminpar::dist

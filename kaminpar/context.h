@@ -9,6 +9,7 @@
 #include <cmath>
 #include <map>
 #include <string_view>
+#include <unordered_map>
 
 #include "kaminpar/datastructures/graph.h"
 #include "kaminpar/definitions.h"

@@ -42,6 +42,6 @@ void print_compact(const FMRefinementContext& ctx, std::ostream& out, const std:
 void print_compact(const LabelPropagationRefinementContext& ctx, std::ostream& out, const std::string& prefix);
 void print_compact(const LabelPropagationCoarseningContext& ctx, std::ostream& out, const std::string& prefix);
 
-void print(const Context& ctx, std::ostream& out);
-void print(const PartitionContext& ctx, std::ostream& out);
+void print(const Context& ctx, bool root, std::ostream& out);
+void print(const PartitionContext& ctx, bool root, std::ostream& out);
 } // namespace kaminpar::dist

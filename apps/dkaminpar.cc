@@ -248,12 +248,6 @@ int main(int argc, char* argv[]) {
 
     ctx.parallel.num_mpis = static_cast<std::size_t>(mpi::get_comm_size(MPI_COMM_WORLD));
 
-    if (ctx.parsable_output) {
-        LOG << "MPI size=" << ctx.parallel.num_mpis;
-        LLOG << "CONTEXT ";
-        print_compact(ctx, std::cout, "");
-    }
-
     // Initialize random number generator
     Random::seed = ctx.seed;
     g_ctx.seed   = ctx.seed;
@@ -264,10 +258,6 @@ int main(int argc, char* argv[]) {
     ctx.initial_partitioning.kaminpar.parallel.num_threads = ctx.parallel.num_threads;
     if (ctx.parallel.use_interleaved_numa_allocation) {
         init_numa();
-    }
-
-    if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
-        cio::print_delimiter();
     }
 
     // Load graph
@@ -287,12 +277,24 @@ int main(int argc, char* argv[]) {
         return dist::io::read_graph(ctx.graph_filename, type);
     };
 
-    // Print statistics
-    {
+    KASSERT(graph::debug::validate(graph), "", assert::heavy);
+    ctx.setup(graph);
+
+    if (rank == 0) {
+        cio::print_delimiter(std::cout);
+    }
+    print(ctx, rank == 0, std::cout);
+
+    if (ctx.parsable_output) {
+        LOG << "MPI size=" << ctx.parallel.num_mpis;
+        LLOG << "CONTEXT ";
+        if (rank == 0) {
+            print_compact(ctx, std::cout, "");
+        }
+
         const auto n_str       = mpi::gather_statistics_str<GlobalNodeID>(graph.n(), MPI_COMM_WORLD);
         const auto m_str       = mpi::gather_statistics_str<GlobalEdgeID>(graph.m(), MPI_COMM_WORLD);
         const auto ghost_n_str = mpi::gather_statistics_str<GlobalNodeID>(graph.ghost_n(), MPI_COMM_WORLD);
-
         LOG << "GRAPH "
             << "global_n=" << graph.global_n() << " "
             << "global_m=" << graph.global_m() << " "
@@ -304,9 +306,6 @@ int main(int argc, char* argv[]) {
     if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
         cio::print_delimiter();
     }
-
-    KASSERT(graph::debug::validate(graph), "", assert::heavy);
-    ctx.setup(graph);
 
     // Sort graph by degree buckets
     if (ctx.sort_graph) {
