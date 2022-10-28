@@ -13,11 +13,10 @@
 #include <mpi.h>
 #include <omp.h>
 
-#include "datastructures/distributed_graph.h"
-
 #include "dkaminpar/arguments.h"
 #include "dkaminpar/context.h"
 #include "dkaminpar/context_io.h"
+#include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/definitions.h"
 #include "dkaminpar/graphutils/graph_rearrangement.h"
 #include "dkaminpar/io.h"
@@ -58,11 +57,11 @@ void print_result_statistics(const DistributedPartitionedGraph& p_graph, const C
 
     LOG << "RESULT cut=" << edge_cut << " imbalance=" << imbalance << " feasible=" << feasible << " k=" << p_graph.k();
 
-    // Aggregate timers to display min, max, avg and sd across PEs 
-    // Disabled: this function requires the same timer hierarchy on all PEs; 
+    // Aggregate timers to display min, max, avg and sd across PEs
+    // Disabled: this function requires the same timer hierarchy on all PEs;
     // in deep MGP, this is not always the case
-    //if (!ctx.quiet) {
-        //finalize_distributed_timer(GLOBAL_TIMER);
+    // if (!ctx.quiet) {
+    // finalize_distributed_timer(GLOBAL_TIMER);
     //}
 
     const bool is_root = mpi::get_comm_rank(MPI_COMM_WORLD) == 0;
