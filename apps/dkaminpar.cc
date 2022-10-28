@@ -13,6 +13,8 @@
 #include <mpi.h>
 #include <omp.h>
 
+#include "datastructures/distributed_graph.h"
+
 #include "dkaminpar/arguments.h"
 #include "dkaminpar/context.h"
 #include "dkaminpar/context_io.h"
@@ -82,7 +84,6 @@ void print_result_statistics(const DistributedPartitionedGraph& p_graph, const C
         LOG_ERROR << "*** Partition is infeasible!";
     }
 }
-} // namespace
 
 template <typename Terminator>
 DistributedPartitionedGraph
@@ -222,23 +223,56 @@ The output should be stored in a file and can be used by the -C,--config option.
     return {ctx, g_ctx};
 }
 
+void print_parsable_summary(const Context& ctx, const DistributedGraph& graph, const bool root) {
+    if (root) {
+        cio::print_delimiter(std::cout);
+    }
+    LOG << "MPI size=" << ctx.parallel.num_mpis;
+    LLOG << "CONTEXT ";
+    if (root) {
+        print_compact(ctx, std::cout, "");
+    }
+
+    const auto n_str       = mpi::gather_statistics_str<GlobalNodeID>(graph.n(), MPI_COMM_WORLD);
+    const auto m_str       = mpi::gather_statistics_str<GlobalEdgeID>(graph.m(), MPI_COMM_WORLD);
+    const auto ghost_n_str = mpi::gather_statistics_str<GlobalNodeID>(graph.ghost_n(), MPI_COMM_WORLD);
+    LOG << "GRAPH "
+        << "global_n=" << graph.global_n() << " "
+        << "global_m=" << graph.global_m() << " "
+        << "n=[" << n_str << "] "
+        << "m=[" << m_str << "] "
+        << "ghost_n=[" << ghost_n_str << "]";
+}
+} // namespace
+
 int main(int argc, char* argv[]) {
     init_mpi(argc, argv);
 
+    const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
+    const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
+
+    //
+    // Parse command line arguments
+    //
     CLI::App         app("dKaMinPar: (Somewhat) Minimal Distributed Deep Multilevel Graph Partitioning");
     Context          ctx;
     GeneratorContext g_ctx;
 
     try {
-        std::tie(ctx, g_ctx) = setup_context(app, argc, argv);
+        std::tie(ctx, g_ctx)  = setup_context(app, argc, argv);
+        ctx.parallel.num_mpis = static_cast<std::size_t>(size);
     } catch (CLI::ParseError& e) {
         return app.exit(e);
     }
 
+    //
     // Disable console output if requested
+    //
     Logger::set_quiet_mode(ctx.quiet);
 
-    const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
+    //
+    // Print build summary
+    //
     if (rank == 0) {
         cio::print_dkaminpar_banner();
         cio::print_build_identifier<NodeID, EdgeID, shm::NodeWeight, shm::EdgeWeight, NodeWeight, EdgeWeight>(
@@ -246,13 +280,12 @@ int main(int argc, char* argv[]) {
         );
     }
 
-    ctx.parallel.num_mpis = static_cast<std::size_t>(mpi::get_comm_size(MPI_COMM_WORLD));
-
-    // Initialize random number generator
+    //
+    // Initialize RNG, setup TBB
+    //
     Random::seed = ctx.seed;
     g_ctx.seed   = ctx.seed;
 
-    // Initialize parallelism
     auto gc = init_parallelism(ctx.parallel.num_threads);
     omp_set_num_threads(static_cast<int>(ctx.parallel.num_threads));
     ctx.initial_partitioning.kaminpar.parallel.num_threads = ctx.parallel.num_threads;
@@ -260,7 +293,9 @@ int main(int argc, char* argv[]) {
         init_numa();
     }
 
+    //
     // Load graph
+    //
     auto graph = TIMED_SCOPE("IO") {
         if (g_ctx.type != GeneratorType::NONE) {
             auto graph         = generate(g_ctx);
@@ -280,40 +315,32 @@ int main(int argc, char* argv[]) {
     KASSERT(graph::debug::validate(graph), "", assert::heavy);
     ctx.setup(graph);
 
+    //
+    // Print input summary
+    //
     if (rank == 0) {
         cio::print_delimiter(std::cout);
     }
     print(ctx, rank == 0, std::cout);
-
     if (ctx.parsable_output) {
-        LOG << "MPI size=" << ctx.parallel.num_mpis;
-        LLOG << "CONTEXT ";
-        if (rank == 0) {
-            print_compact(ctx, std::cout, "");
-        }
-
-        const auto n_str       = mpi::gather_statistics_str<GlobalNodeID>(graph.n(), MPI_COMM_WORLD);
-        const auto m_str       = mpi::gather_statistics_str<GlobalEdgeID>(graph.m(), MPI_COMM_WORLD);
-        const auto ghost_n_str = mpi::gather_statistics_str<GlobalNodeID>(graph.ghost_n(), MPI_COMM_WORLD);
-        LOG << "GRAPH "
-            << "global_n=" << graph.global_n() << " "
-            << "global_m=" << graph.global_m() << " "
-            << "n=[" << n_str << "] "
-            << "m=[" << m_str << "] "
-            << "ghost_n=[" << ghost_n_str << "]";
+        print_parsable_summary(ctx, graph, rank == 0);
     }
-
-    if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
+    if (rank == 0) {
         cio::print_delimiter();
     }
 
-    // Sort graph by degree buckets
+    //
+    // Sort and rearrange graph by degree buckets
+    //
     if (ctx.sort_graph) {
         SCOPED_TIMER("Partitioning");
         graph = graph::sort_by_degree_buckets(std::move(graph));
         KASSERT(graph::debug::validate(graph), "", assert::heavy);
     }
 
+    //
+    // Partition graph
+    //
     auto p_graph = [&] {
         if (ctx.num_repetitions > 0 || ctx.time_limit > 0) {
             if (ctx.num_repetitions > 0) {
@@ -332,7 +359,7 @@ int main(int argc, char* argv[]) {
         } else {
             SCOPED_TIMER("Partitioning");
             auto p_graph = partition(graph, ctx);
-            if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
+            if (rank == 0) {
                 cio::print_delimiter();
             }
             return p_graph;
@@ -340,10 +367,11 @@ int main(int argc, char* argv[]) {
     }();
     KASSERT(graph::debug::validate_partition(p_graph), "", assert::heavy);
 
+    //
+    // Print statistics
+    //
     mpi::barrier(MPI_COMM_WORLD);
     STOP_TIMER(); // stop root timer
     print_result_statistics(p_graph, ctx);
-
-    MPI_Finalize();
-    return 0;
+    return MPI_Finalize();
 }
