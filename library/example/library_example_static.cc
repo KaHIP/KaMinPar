@@ -4,7 +4,7 @@
 #include <kaminpar.h>
 
 int main(int, char*[]) {
-    const int k = 2;
+    const int k = 16;
 
     // graph from the manual
     std::vector<libkaminpar::EdgeID> nodes{0, 2, 5, 7, 9, 12};
