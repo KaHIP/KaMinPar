@@ -57,9 +57,13 @@ void print_result_statistics(const DistributedPartitionedGraph& p_graph, const C
     const auto feasible  = metrics::is_feasible(p_graph, ctx.partition);
 
     LOG << "RESULT cut=" << edge_cut << " imbalance=" << imbalance << " feasible=" << feasible << " k=" << p_graph.k();
-    if (!ctx.quiet) {
-        finalize_distributed_timer(GLOBAL_TIMER);
-    }
+
+    // Aggregate timers to display min, max, avg and sd across PEs 
+    // Disabled: this function requires the same timer hierarchy on all PEs; 
+    // in deep MGP, this is not always the case
+    //if (!ctx.quiet) {
+        //finalize_distributed_timer(GLOBAL_TIMER);
+    //}
 
     const bool is_root = mpi::get_comm_rank(MPI_COMM_WORLD) == 0;
     if (is_root && !ctx.quiet && ctx.parsable_output) {
