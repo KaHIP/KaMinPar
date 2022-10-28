@@ -158,7 +158,7 @@ std::pair<Context, GeneratorContext> setup_context(CLI::App& app, int argc, char
     app.add_option_function<std::string>(
            "-P,--preset", [&](const std::string preset) { ctx = create_context_by_preset_name(preset); }
     )
-        ->check(CLI::IsMember({"default", "fast", "strong"}))
+        ->check(CLI::IsMember(get_preset_names()))
         ->description(R"(Use configuration preset:
   - default:                    default parameters
   - strong:                     use Mt-KaHyPar for initial partitioning and more label propagation iterations

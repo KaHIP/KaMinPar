@@ -27,6 +27,17 @@ Context create_context_by_preset_name(const std::string& name) {
     throw std::runtime_error("invalid preset name");
 }
 
+std::unordered_set<std::string> get_preset_names() {
+    return {
+        "default",
+        "fast",
+        "strong",
+        "ipdps23-submission-default",
+        "ipdps23-submission-fast",
+        "ipdps23-submission-strong",
+    };
+}
+
 Context create_default_context() {
     return {
         .graph_filename     = "",

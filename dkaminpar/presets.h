@@ -7,11 +7,13 @@
 #pragma once
 
 #include <string>
+#include <unordered_set>
 
 #include "dkaminpar/context.h"
 
 namespace kaminpar::dist {
-Context create_context_by_preset_name(const std::string& name);
+Context                         create_context_by_preset_name(const std::string& name);
+std::unordered_set<std::string> get_preset_names();
 
 Context create_default_context();
 Context create_strong_context();
