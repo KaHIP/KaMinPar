@@ -132,16 +132,6 @@ public:
         TimerTreeNode* current{&root};
     };
 
-    template <typename StrType>
-    bool is_empty_description(StrType description) {
-        if constexpr (std::is_same_v<StrType, const char*>) {
-            return *description == 0;
-        } else {
-            static_assert(std::is_same_v<std::decay_t<StrType>, std::string>);
-            return description.empty();
-        }
-    }
-
 public:
     static Timer& global();
 
@@ -155,8 +145,8 @@ public:
         start_timer<const std::string&>(name, description);
     }
 
-    template <typename StrType>
-    void start_timer(std::string_view name, StrType description) {
+    template <typename String>
+    void start_timer(std::string_view name, String description) {
         if (_disabled > 0) {
             return;
         }
@@ -203,8 +193,8 @@ public:
         _tree.current = _tree.current->parent;
     }
 
-    template <typename StrType>
-    auto start_scoped_timer(const std::string_view name, StrType description) {
+    template <typename String>
+    auto start_scoped_timer(const std::string_view name, String description) {
         start_timer(name, description);
         return timer::ScopedTimer{this};
     }
@@ -216,9 +206,6 @@ public:
     decltype(auto) start_scoped_timer(const std::string_view name) {
         return start_scoped_timer<const char*>(name, "");
     }
-
-    void print_machine_readable(std::ostream& out);
-    void print_human_readable(std::ostream& out);
 
     void enable() {
         _disabled = std::max(0, _disabled - 1);
@@ -244,21 +231,31 @@ public:
         return std::chrono::duration_cast<std::chrono::milliseconds>(timer::now() - _tree.root.start).count() / 1000.0;
     }
 
+    void print_machine_readable(std::ostream& out, int max_depth = std::numeric_limits<int>::max());
+
+    void print_human_readable(std::ostream& out, int max_depth = std::numeric_limits<int>::max());
+
 private:
+    template <typename String>
+    bool is_empty_description(String description) {
+        if constexpr (std::is_same_v<String, const char*>) {
+            return *description == 0;
+        } else {
+            return description.empty();
+        }
+    }
+
     void start_timer_impl();
     void stop_timer_impl();
 
-    void print_padded_timing(std::ostream& out, std::size_t start_col, const TimerTreeNode* node) const;
-
-    void print_children_hr(std::ostream& out, const std::string& base_prefix, const TimerTreeNode* node) const;
-
     [[nodiscard]] std::size_t compute_time_col(std::size_t parent_prefix_len, const TimerTreeNode* node) const;
-
     [[nodiscard]] std::size_t compute_time_len(const TimerTreeNode* node) const;
-
     [[nodiscard]] std::size_t compute_restarts_len(const TimerTreeNode* node) const;
 
-    void print_node_mr(std::ostream& out, const std::string& prefix, const TimerTreeNode* node);
+    void print_padded_timing(std::ostream& out, std::size_t start_col, const TimerTreeNode* node) const;
+    void print_children_hr(std::ostream& out, const std::string& base_prefix, const TimerTreeNode* node, int max_depth)
+        const;
+    void print_node_mr(std::ostream& out, const std::string& prefix, const TimerTreeNode* node, int max_depth) const;
 
     std::string_view _name;
     std::string      _annotation;
@@ -276,10 +273,10 @@ ScopedTimer::~ScopedTimer() {
     _timer->stop_timer();
 }
 
-template <typename StrType>
+template <typename String>
 class TimedScope {
 public:
-    TimedScope(Timer* timer, std::string_view name, StrType description)
+    TimedScope(Timer* timer, std::string_view name, String description)
         : _timer(timer),
           _name(name),
           _description(description) {}
@@ -288,14 +285,14 @@ public:
 
     template <typename F>
     decltype(auto) operator+(F&& f) {
-        const auto scope = _timer->start_scoped_timer<StrType>(_name, _description);
+        const auto scope = _timer->start_scoped_timer<String>(_name, _description);
         return f();
     }
 
 private:
     Timer*           _timer;
     std::string_view _name;
-    StrType          _description;
+    String           _description;
 };
 } // namespace timer
 } // namespace kaminpar

@@ -71,7 +71,7 @@ void print_result_statistics(const DistributedPartitionedGraph& p_graph, const C
     }
     LOG;
     if (is_root && !ctx.quiet) {
-        Timer::global().print_human_readable(std::cout);
+        Timer::global().print_human_readable(std::cout, ctx.timer_depth);
     }
     LOG;
     LOG << "-> k=" << p_graph.k();
@@ -205,11 +205,15 @@ The output should be stored in a file and can be used by the -C,--config option.
         ->capture_default_str();
     app.add_option("-R,--repetitions", ctx.num_repetitions, "Number of partitioning repetitions to perform.")
         ->capture_default_str();
-    app.add_option("-T,--time-limit", ctx.time_limit, "Time limit in seconds.")->capture_default_str();
+    app.add_option("--time-limit", ctx.time_limit, "Time limit in seconds.")->capture_default_str();
     app.add_flag("--sort-graph", ctx.sort_graph, "Rearrange graph by degree buckets after loading it.")
         ->capture_default_str();
     app.add_flag("--simulate-singlethreaded", ctx.parallel.simulate_singlethread, "")->capture_default_str();
     app.add_flag("-p,--parsable", ctx.parsable_output, "Use an output format that is easier to parse.");
+    app.add_option("--timer-depth", ctx.timer_depth, "Maximum timer depth.");
+    app.add_flag_function(
+        "-T,--all-timers", [&](auto) { ctx.timer_depth = std::numeric_limits<int>::max(); }, "Show all timers."
+    );
 
     // Algorithmic options
     create_all_options(&app, ctx);

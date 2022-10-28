@@ -274,6 +274,7 @@ struct Context {
     std::size_t time_limit         = 0;
     bool        sort_graph         = false;
     bool        parsable_output    = false;
+    int         timer_depth        = 3;
 
     PartitionContext           partition;
     ParallelContext            parallel;

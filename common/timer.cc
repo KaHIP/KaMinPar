@@ -67,23 +67,27 @@ void __attribute__((noinline)) Timer::stop_timer_impl() {
 // Machine-readable output
 //
 
-void Timer::print_machine_readable(std::ostream& out) {
+void Timer::print_machine_readable(std::ostream& out, const int max_depth) {
     for (const auto& node: _tree.root.children) {
-        print_node_mr(out, "", node.get());
+        print_node_mr(out, "", node.get(), max_depth);
     }
     out << "\n";
 }
 
-void Timer::print_node_mr(std::ostream& out, const std::string& prefix, const TimerTreeNode* node) {
-    const std::string display_name = prefix + node->build_display_name_mr();
+void Timer::print_node_mr(std::ostream& out, const std::string& prefix, const TimerTreeNode* node, const int max_depth)
+    const {
+    if (max_depth < 0) {
+        return;
+    }
 
-    // print this node
+    // Print this node
+    const std::string display_name = prefix + node->build_display_name_mr();
     out << display_name << "=" << node->seconds() << " ";
 
-    // print children
+    // Print children
     const std::string child_prefix = display_name + ".";
     for (const auto& child: node->children) {
-        print_node_mr(out, child_prefix, child.get());
+        print_node_mr(out, child_prefix, child.get(), max_depth - 1);
     }
 }
 
@@ -91,7 +95,11 @@ void Timer::print_node_mr(std::ostream& out, const std::string& prefix, const Ti
 // Human-readable output
 //
 
-void Timer::print_human_readable(std::ostream& out) {
+void Timer::print_human_readable(std::ostream& out, const int max_depth) {
+    if (max_depth < 0) {
+        return;
+    }
+
     _hr_time_col         = std::max(_name.size() + kNameDel.size(), compute_time_col(0, &_tree.root));
     _hr_max_time_len     = compute_time_len(&_tree.root);
     _hr_max_restarts_len = compute_restarts_len(&_tree.root);
@@ -101,10 +109,17 @@ void Timer::print_human_readable(std::ostream& out) {
         out << std::string(kSpaceBetweenRestartsAndAnnotation, ' ') << _annotation;
     }
     out << std::endl;
-    print_children_hr(out, "", &_tree.root);
+
+    print_children_hr(out, "", &_tree.root, max_depth - 1);
 }
 
-void Timer::print_children_hr(std::ostream& out, const std::string& base_prefix, const TimerTreeNode* node) const {
+void Timer::print_children_hr(
+    std::ostream& out, const std::string& base_prefix, const TimerTreeNode* node, const int max_depth
+) const {
+    if (max_depth < 0) {
+        return;
+    }
+
     const std::string prefix_mid       = base_prefix + std::string(kBranch);
     const std::string child_prefix_mid = base_prefix + std::string(kEdge);
     const std::string prefix_end       = base_prefix + std::string(kTailBranch);
@@ -122,7 +137,7 @@ void Timer::print_children_hr(std::ostream& out, const std::string& base_prefix,
             out << std::string(kSpaceBetweenRestartsAndAnnotation, ' ') << child->annotation;
         }
         out << std::endl;
-        print_children_hr(out, child_prefix, child.get());
+        print_children_hr(out, child_prefix, child.get(), max_depth - 1);
     }
 }
 
