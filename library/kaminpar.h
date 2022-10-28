@@ -1,6 +1,5 @@
 /*******************************************************************************
  * @file:   kaminpar.h
- *
  * @author: Daniel Seemaier
  * @date:   21.09.21
  * @brief:  KaMinPar library.
@@ -9,8 +8,6 @@
 
 #include <memory>
 #include <string_view>
-
-#include "kaminpar_export.h"
 
 namespace libkaminpar {
 #ifdef KAMINPAR_64BIT_NODE_IDS
@@ -37,7 +34,7 @@ using BlockID     = uint32_t;
 using BlockWeight = NodeWeight;
 using Degree      = EdgeID;
 
-class KAMINPAR_EXPORT Partitioner {
+class Partitioner {
     friend class PartitionerBuilder;
 
 public:
@@ -45,15 +42,23 @@ public:
     ~Partitioner();
 
     Partitioner&               set_option(const std::string& name, const std::string& value);
+    void                       set_quiet(bool quiet);
+    void                       set_num_threads(int num_threads);
+    void                       set_seed(int seed);
+    void                       set_preset(const std::string& name);
     std::unique_ptr<BlockID[]> partition(BlockID k) const;
     std::unique_ptr<BlockID[]> partition(BlockID k, EdgeWeight& edge_cut) const;
     std::size_t                partition_size() const;
 
 private:
-    struct PartitionerPrivate* _pimpl;
+    struct PartitionerPrivate* _pimpl = nullptr;
+
+    bool _quiet       = true;
+    int  _num_threads = 0;
+    int  _seed        = 0;
 };
 
-class KAMINPAR_EXPORT PartitionerBuilder {
+class PartitionerBuilder {
 public:
     PartitionerBuilder(const PartitionerBuilder&)                = delete;
     PartitionerBuilder& operator=(const PartitionerBuilder&)     = delete;

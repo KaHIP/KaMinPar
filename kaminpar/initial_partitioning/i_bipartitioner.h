@@ -11,7 +11,7 @@
 
 #include "kaminpar/context.h"
 
-#include "common/assert.h"
+#include "common/assertion_levels.h"
 
 namespace kaminpar::shm {
 class Bipartitioner {

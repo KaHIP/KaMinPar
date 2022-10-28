@@ -17,7 +17,7 @@
 #include "kaminpar/datastructures/graph.h"
 #include "kaminpar/definitions.h"
 
-#include "common/assert.h"
+#include "common/assertion_levels.h"
 #include "common/datastructures/rating_map.h"
 #include "common/parallel/atomic.h"
 #include "common/random.h"

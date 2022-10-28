@@ -10,9 +10,6 @@ set(PROJECT_CONTACT "daniel.seemaier@kit.edu")
 
 set(CMAKE_CXX_STANDARD 17)
 
-set(CMAKE_CXX_VISIBILITY_PRESET hidden)
-set(CMAKE_VISIBILITY_INLINES_HIDDEN 1)
-
 # Default to Release mode
 if (NOT CMAKE_BUILD_TYPE OR CMAKE_BUILD_TYPE STREQUAL "")
     set(CMAKE_BUILD_TYPE "Release" CACHE STRING "" FORCE)
@@ -33,6 +30,9 @@ option(KAMINPAR_64BIT_EDGE_IDS "Use 64 bits for edge IDs." OFF)
 option(KAMINPAR_64BIT_NODE_IDS "Use 64 bits for node IDs." OFF)
 option(KAMINPAR_64BIT_WEIGHTS "Use 64 bit for node and edge weights." OFF)
 option(KAMINPAR_64BIT_LOCAL_WEIGHTS "Use 64 bit for local node and edge weights." OFF)
+
+option(KAMINPAR_BUILD_PYTHON_MODULE "Build the Python binding." OFF)
+option(KAMINPAR_BUILD_METIS_INTERFACE OFF)
 
 set(KAMINPAR_ASSERTION_LEVEL "light" CACHE STRING "Assertion level.")
 set_property(CACHE KAMINPAR_ASSERTION_LEVEL PROPERTY STRINGS none light normal heavy)
@@ -144,6 +144,14 @@ else ()
     message(WARNING "Invalid assertion level: ${KAMINPAR_ASSERTION_LEVEL}")
 endif ()
 add_subdirectory(external/kassert)
+
+# Include pybind11 if we build the python module 
+if (KAMINPAR_BUILD_PYTHON_MODULE)
+    # Python module requires PIC
+    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
+    add_subdirectory(external/pybind11)
+endif ()
 
 # Start include paths on project root
 include_directories(${PROJECT_SOURCE_DIR})

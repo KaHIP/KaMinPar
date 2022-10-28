@@ -6,6 +6,7 @@
  ******************************************************************************/
 #include "kaminpar.h"
 
+#include <tbb/global_control.h>
 #include <tbb/parallel_for.h>
 
 #include "kaminpar/arguments.h"
@@ -19,6 +20,7 @@
 
 #include "common/CLI11.h"
 #include "common/parallel/algorithm.h"
+#include "common/random.h"
 
 namespace libkaminpar {
 using namespace kaminpar;
@@ -219,6 +221,15 @@ Partitioner& Partitioner::set_option(const std::string& name, const std::string&
 }
 
 std::unique_ptr<BlockID[]> Partitioner::partition(BlockID k, EdgeWeight& edge_cut) const {
+    Logger::set_quiet_mode(_quiet);
+
+    // Initialize
+    Random::seed = _seed;
+    auto gc      = tbb::global_control{
+        tbb::global_control::max_allowed_parallelism,
+        _num_threads > 0 ? _num_threads
+                              : tbb::global_control::active_value(tbb::global_control::max_allowed_parallelism)};
+
     _pimpl->context.partition.k       = k;
     _pimpl->context.partition.epsilon = _pimpl->epsilon;
     if (was_rearranged(_pimpl)) {
@@ -238,5 +249,23 @@ std::unique_ptr<BlockID[]> Partitioner::partition(BlockID k) const {
 
 std::size_t Partitioner::partition_size() const {
     return static_cast<std::size_t>(_pimpl->n);
+}
+
+void Partitioner::set_num_threads(const int num_threads) {
+    _num_threads = num_threads;
+}
+
+void Partitioner::set_quiet(const bool quiet) {
+    _quiet = quiet;
+}
+
+void Partitioner::set_seed(const int seed) {
+    _seed = seed;
+}
+
+void Partitioner::set_preset(const std::string& name) {
+    Context new_context   = create_context_by_preset_name(name);
+    new_context.partition = _pimpl->context.partition;
+    _pimpl->context       = new_context;
 }
 } // namespace libkaminpar

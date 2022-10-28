@@ -15,7 +15,7 @@
 #include "dkaminpar/mpi/sparse_alltoall.h"
 #include "dkaminpar/mpi/utils.h"
 
-#include "common/assert.h"
+#include "common/assertion_levels.h"
 #include "common/cache_aligned_vector.h"
 #include "common/datastructures/marker.h"
 #include "common/noinit_vector.h"

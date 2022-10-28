@@ -1,8 +1,28 @@
 #include "kaminpar/presets.h"
 
+#include <unordered_set>
+
 #include "kaminpar/context.h"
 
 namespace kaminpar::shm {
+Context create_context_by_preset_name(const std::string& name) {
+    if (name == "default" || name == "fast") {
+        return create_default_context();
+    } else if (name == "largek") {
+        return create_largek_context();
+    }
+
+    throw std::runtime_error("invalid preset name");
+}
+
+std::unordered_set<std::string> get_preset_names() {
+    return {
+        "default",
+        "fast",
+        "largek",
+    };
+}
+
 Context create_default_context() {
     return {
         // Context

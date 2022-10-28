@@ -7,7 +7,7 @@
 #include "dkaminpar/graphutils/allgather_graph.h"
 #include "dkaminpar/metrics.h"
 
-#include "common/assert.h"
+#include "common/assertion_levels.h"
 
 namespace kaminpar::dist {
 using namespace kaminpar::dist::testing;

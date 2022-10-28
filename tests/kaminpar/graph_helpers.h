@@ -7,6 +7,8 @@
 #include "kaminpar/context.h"
 #include "kaminpar/datastructures/graph.h"
 
+#include "common/assertion_levels.h"
+
 namespace kaminpar::shm::testing {
 //
 // Convenience functions to create Graph / PartitionedGraph from initializer lists

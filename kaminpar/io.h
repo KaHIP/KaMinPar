@@ -20,7 +20,7 @@
 #include "kaminpar/datastructures/graph.h"
 #include "kaminpar/definitions.h"
 
-#include "common/assert.h"
+#include "common/assertion_levels.h"
 #include "common/io/metis_parser.h"
 #include "common/io/mmap_toker.h"
 

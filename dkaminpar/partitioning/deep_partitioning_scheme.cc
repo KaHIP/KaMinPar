@@ -24,7 +24,7 @@
 
 #include "kaminpar/datastructures/graph.h"
 
-#include "common/assert.h"
+#include "common/assertion_levels.h"
 #include "common/math.h"
 #include "common/timer.h"
 

@@ -7,7 +7,7 @@
  ******************************************************************************/
 #include "kaminpar/initial_partitioning/initial_coarsener.h"
 
-#include "common/assert.h"
+#include "common/assertion_levels.h"
 #include "common/timer.h"
 
 namespace kaminpar::shm::ip {

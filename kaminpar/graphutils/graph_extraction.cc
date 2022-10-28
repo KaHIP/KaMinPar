@@ -14,7 +14,7 @@
 #include "kaminpar/datastructures/graph.h"
 #include "kaminpar/definitions.h"
 
-#include "common/assert.h"
+#include "common/assertion_levels.h"
 #include "common/datastructures/static_array.h"
 #include "common/parallel/algorithm.h"
 #include "common/parallel/atomic.h"

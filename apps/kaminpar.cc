@@ -23,7 +23,7 @@
 #include "kaminpar/partitioning/partitioning.h"
 #include "kaminpar/presets.h"
 
-#include "common/assert.h"
+#include "common/assertion_levels.h"
 #include "common/console_io.h"
 #include "common/logger.h"
 #include "common/random.h"

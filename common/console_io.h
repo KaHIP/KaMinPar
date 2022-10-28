@@ -11,7 +11,7 @@
 
 #include <kassert/kassert.hpp>
 
-#include "common/assert.h"
+#include "common/assertion_levels.h"
 #include "common/logger.h"
 
 namespace kaminpar::cio {

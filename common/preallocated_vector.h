@@ -13,7 +13,7 @@
 
 #include <kassert/kassert.hpp>
 
-#include "common/assert.h"
+#include "common/assertion_levels.h"
 
 namespace kaminpar {
 template <typename T>

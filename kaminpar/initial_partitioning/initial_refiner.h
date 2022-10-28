@@ -17,7 +17,7 @@
 #include "kaminpar/metrics.h"
 #include "kaminpar/refinement/i_refiner.h"
 
-#include "common/assert.h"
+#include "common/assertion_levels.h"
 #include "common/datastructures/binary_heap.h"
 #include "common/datastructures/marker.h"
 #include "common/random.h"

@@ -10,7 +10,7 @@
 #include <limits>
 #include <type_traits>
 
-#include "common/assert.h"
+#include "common/assertion_levels.h"
 
 namespace kaminpar {
 template <typename To, typename From>
