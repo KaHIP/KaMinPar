@@ -187,3 +187,4 @@ private:
     RandomPermutations<NodeID, kChunkSize, kNumberOfNodePermutations> _random_permutations{_rand};
 };
 } // namespace kaminpar::shm::ip
+

@@ -124,6 +124,7 @@ The output should be stored in a file and can be used by the -C,--config option)
            "--output-directory", ctx.partition_directory, "Directory in which the partition file should be placed."
     )
         ->capture_default_str();
+    app.add_flag("--degree-weights", ctx.degree_weights, "Use node degrees as node weights.");
     app.add_flag("-q,--quiet", ctx.quiet, "Suppress all console output.");
     app.add_option("-t,--threads", ctx.parallel.num_threads, "Number of threads to be used.")
         ->check(CLI::NonNegativeNumber)
@@ -190,9 +191,20 @@ int main(int argc, char* argv[]) {
         } else {
             shm::io::metis::read<true>(ctx.graph_filename, nodes, edges, node_weights, edge_weights);
         }
+
         if (ctx.validate_io) {
             validate_undirected_graph(nodes, edges, node_weights, edge_weights);
         }
+
+        if (ctx.degree_weights) {
+            if (node_weights.size() != nodes.size() - 1) {
+                node_weights.resize_without_init(nodes.size() - 1);
+            }
+            tbb::parallel_for<NodeID>(0, node_weights.size(), [&node_weights, &nodes](const NodeID u) {
+                node_weights[u] = nodes[u + 1] - nodes[u];
+            });
+        }
+
         const NodeID n_before_preprocessing = nodes.size();
         STOP_TIMER();
 

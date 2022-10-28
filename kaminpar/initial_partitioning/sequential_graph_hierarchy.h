@@ -45,3 +45,4 @@ private:
     std::vector<Graph>               _coarse_graphs;
 };
 } // namespace kaminpar::shm::ip
+

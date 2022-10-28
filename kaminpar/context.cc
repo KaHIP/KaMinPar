@@ -388,6 +388,7 @@ void Context::print_compact(std::ostream& out, const std::string& prefix) const 
         << prefix << "save_output_partition=" << save_partition << " "    //
         << prefix << "partition_filename=" << partition_filename << " "   //
         << prefix << "partition_directory=" << partition_directory << " " //
+        << prefix << "degree_weights=" << degree_weights << " "           //
         << prefix << "quiet=" << quiet << " ";                            //
                                                                           //
     partition.print_compact(out, prefix + "partition.");

@@ -283,3 +283,4 @@ void write(const std::string& filename, const PartitionedGraph& p_graph, const S
 }
 } // namespace partition
 } // namespace kaminpar::shm::io
+

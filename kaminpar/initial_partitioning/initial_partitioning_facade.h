@@ -129,3 +129,4 @@ private:
     std::size_t _num_bipartition_repetitions;
 };
 } // namespace kaminpar::shm::ip
+

@@ -114,6 +114,9 @@ if (CCACHE_FOUND)
     message(STATUS "Use ccache.")
     set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ccache)
 endif ()
+if (KAMINPAR_64BIT_EDGE_WEIGHTS)
+  add_definitions(-DKAMINPAR_64BIT_EDGE_WEIGHTS)
+endif ()
 
 # Look for MPI 
 if (KAMINPAR_BUILD_DISTRIBUTED AND COMPILER_SUPPORTS_MCX16) 

@@ -19,3 +19,4 @@ function(add_gmock_mpi_test target nproc)
     set(test_parameters -np ${nproc} --oversubscribe "./${target}")
     add_test(NAME ${target} COMMAND "mpirun" ${test_parameters})
 endfunction()
+

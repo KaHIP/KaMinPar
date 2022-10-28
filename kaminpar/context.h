@@ -216,6 +216,7 @@ struct Context {
     bool        save_partition;
     std::string partition_directory;
     std::string partition_filename;
+    bool        degree_weights;
     bool        quiet;
     bool        parsable_output;
 

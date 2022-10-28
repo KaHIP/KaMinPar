@@ -500,3 +500,4 @@ using InitialSimple2WayFM = InitialTwoWayFMRefiner<
 using InitialAdaptive2WayFM = InitialTwoWayFMRefiner<
     fm::MaxOverloadSelectionPolicy, fm::BalancedMinCutAcceptancePolicy, fm::AdaptiveStoppingPolicy>;
 } // namespace kaminpar::shm::ip
+

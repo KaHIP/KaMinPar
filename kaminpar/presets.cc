@@ -11,6 +11,7 @@ Context create_default_context() {
         .save_partition      = false,
         .partition_directory = "./",
         .partition_filename  = "", // generate filename
+        .degree_weights      = false,
         .quiet               = false,
         .parsable_output     = false,
         .unchecked_io        = false,
