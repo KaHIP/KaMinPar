@@ -27,19 +27,24 @@ namespace kaminpar::dist {
 SET_DEBUG(false);
 
 KWayPartitioningScheme::KWayPartitioningScheme(const DistributedGraph& graph, const Context& ctx)
-    : _graph{graph},
-      _ctx{ctx} {}
+    : _graph(graph),
+      _ctx(ctx) {}
 
 DistributedPartitionedGraph KWayPartitioningScheme::partition() {
     Coarsener coarsener(_graph, _ctx);
 
-    const DistributedGraph* graph = &_graph;
+    const DistributedGraph* graph   = &_graph;
+    const bool              is_root = mpi::get_comm_rank(_graph.communicator());
 
     ////////////////////////////////////////////////////////////////////////////////
     // Step 1: Coarsening
     ////////////////////////////////////////////////////////////////////////////////
-    if (mpi::get_comm_rank(_graph.communicator()) == 0) {
+    if (is_root) {
         cio::print_banner("Coarsening");
+    }
+
+    if (_ctx.debug.save_finest_graph) {
+        debug::save_graph(_graph, _ctx, 0);
     }
 
     {
@@ -124,14 +129,17 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
     DistributedPartitionedGraph dist_p_graph = graph::distribute_best_partition(*graph, std::move(shm_p_graph));
     STOP_TIMER();
 
-    KASSERT(graph::debug::validate_partition(dist_p_graph), "", assert::heavy);
+    KASSERT(
+        graph::debug::validate_partition(dist_p_graph),
+        "graph partition verification failed after initial partitioning", assert::heavy
+    );
 
     const auto initial_cut       = metrics::edge_cut(dist_p_graph);
     const auto initial_imbalance = metrics::imbalance(dist_p_graph);
 
     LOG << "Initial partition: cut=" << initial_cut << " imbalance=" << initial_imbalance;
 
-    if (_ctx.debug.save_imbalanced_partitions && initial_imbalance > _ctx.partition.epsilon) {
+    if (_ctx.debug.save_partition_hierarchy) {
         debug::save_partitioned_graph(dist_p_graph, _ctx, static_cast<int>(coarsener.level()));
     }
 
@@ -169,7 +177,10 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
                 LOG << "-> Refining partition ...";
                 refinement_algorithm->initialize(p_graph.graph(), _ctx.partition);
                 refinement_algorithm->refine(p_graph);
-                KASSERT(graph::debug::validate_partition(p_graph), "", assert::heavy);
+                KASSERT(
+                    graph::debug::validate_partition(p_graph), "graph partition verification failed after refinement",
+                    assert::heavy
+                );
             }
             {
                 SCOPED_TIMER("Balancing");
@@ -196,10 +207,6 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
             const auto current_imbalance = metrics::imbalance(dist_p_graph);
 
             LOG << "=> level=" << coarsener.level() << " cut=" << current_cut << " imbalance=" << current_imbalance;
-
-            if (_ctx.debug.save_imbalanced_partitions && current_imbalance > _ctx.partition.epsilon) {
-                debug::save_partitioned_graph(dist_p_graph, _ctx, static_cast<int>(coarsener.level()));
-            }
         }
 
         // Uncoarsen and refine
@@ -219,7 +226,7 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
 
             LOG << "=> level=" << coarsener.level() << " cut=" << current_cut << " imbalance=" << current_imbalance;
 
-            if (_ctx.debug.save_imbalanced_partitions && current_imbalance > _ctx.partition.epsilon) {
+            if (_ctx.debug.save_partition_hierarchy) {
                 debug::save_partitioned_graph(dist_p_graph, _ctx, static_cast<int>(coarsener.level()));
             }
         }

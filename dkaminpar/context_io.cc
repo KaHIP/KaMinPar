@@ -252,10 +252,11 @@ void print_compact(const PartitionContext& ctx, std::ostream& out, const std::st
 }
 
 void print_compact(const DebugContext& ctx, std::ostream& out, const std::string& prefix) {
-    out << prefix << "save_imbalanced_partitions=" << ctx.save_imbalanced_partitions << " " //
-        << prefix << "save_graph_hierarchy=" << ctx.save_graph_hierarchy << " "             //
-        << prefix << "save_coarsest_graph=" << ctx.save_coarsest_graph << " "               //
-        << prefix << "save_clustering_hierarchy=" << ctx.save_clustering_hierarchy << " ";  //
+    out << prefix << "save_finest_graph=" << ctx.save_finest_graph << " "                 //
+        << prefix << "save_coarsest_graph=" << ctx.save_coarsest_graph << " "             //
+        << prefix << "save_graph_hierarchy=" << ctx.save_graph_hierarchy << " "           //
+        << prefix << "save_clustering_hierarchy=" << ctx.save_clustering_hierarchy << " " //
+        << prefix << "save_partition_hierarchy=" << ctx.save_partition_hierarchy << " ";  //
 }
 
 void print_compact(const Context& ctx, std::ostream& out, const std::string& prefix) {

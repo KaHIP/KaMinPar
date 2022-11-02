@@ -307,19 +307,15 @@ int main(int argc, char* argv[]) {
         if (g_ctx.type != GeneratorType::NONE) {
             auto graph         = generate(g_ctx);
             ctx.graph_filename = generate_filename(g_ctx);
-
-            if (g_ctx.save_graph) {
-                dist::io::metis::write(ctx.graph_filename, graph, false, false);
-            }
             return graph;
+        } else {
+            const auto type = ctx.load_edge_balanced ? dist::io::DistributionType::EDGE_BALANCED
+                                                     : dist::io::DistributionType::NODE_BALANCED;
+            return dist::io::read_graph(ctx.graph_filename, type);
         }
-
-        const auto type = ctx.load_edge_balanced ? dist::io::DistributionType::EDGE_BALANCED
-                                                 : dist::io::DistributionType::NODE_BALANCED;
-        return dist::io::read_graph(ctx.graph_filename, type);
     };
+    KASSERT(graph::debug::validate(graph), "input graph failed graph verification", assert::heavy);
 
-    KASSERT(graph::debug::validate(graph), "", assert::heavy);
     ctx.setup(graph);
 
     //
@@ -342,7 +338,10 @@ int main(int argc, char* argv[]) {
     if (ctx.sort_graph) {
         SCOPED_TIMER("Partitioning");
         graph = graph::sort_by_degree_buckets(std::move(graph));
-        KASSERT(graph::debug::validate(graph), "", assert::heavy);
+        KASSERT(
+            graph::debug::validate(graph), "input graph verification failed after rearrange graph by degree buckets",
+            assert::heavy
+        );
     }
 
     //
@@ -372,7 +371,10 @@ int main(int argc, char* argv[]) {
             return p_graph;
         }
     }();
-    KASSERT(graph::debug::validate_partition(p_graph), "", assert::heavy);
+    KASSERT(
+        graph::debug::validate_partition(p_graph), "graph partition verification failed after partitioning",
+        assert::heavy
+    );
 
     //
     // Print statistics
