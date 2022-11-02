@@ -47,7 +47,5 @@ void print_build_identifier(const std::string& commit, const std::string& hostna
     LOG << "  Edges IDs: " << sizeof(EdgeID) << " bytes | Edge weights (Local): " << sizeof(LocalEdgeWeight)
         << " bytes | Edge weights (IP): " << sizeof(EdgeWeight) << " bytes";
     LOG << "Built on:                     " << (hostname.empty() ? "<not available>" : hostname);
-    LOG << "################################################################################";
 }
-
 } // namespace kaminpar::cio

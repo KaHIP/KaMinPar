@@ -53,7 +53,7 @@ Context create_default_context() {
                 .k                   = 0,
                 .K                   = 128,
                 .epsilon             = 0.03,
-                .mode                = PartitioningMode::DEEPER,
+                .mode                = PartitioningMode::DEEP,
                 .enable_pe_splitting = true,
                 .graph               = GraphContext(),
             },

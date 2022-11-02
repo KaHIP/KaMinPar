@@ -250,6 +250,13 @@ void print_parsable_summary(const Context& ctx, const DistributedGraph& graph, c
         << "m=[" << m_str << "] "
         << "ghost_n=[" << ghost_n_str << "]";
 }
+
+void print_execution_mode(const Context& ctx) {
+    LOG << "Execution mode:               " << ctx.parallel.num_mpis << " MPI process"
+        << (ctx.parallel.num_mpis > 1 ? "es" : "") << " a " << ctx.parallel.num_threads << " thread"
+        << (ctx.parallel.num_threads > 1 ? "s" : "");
+    cio::print_delimiter();
+}
 } // namespace
 
 int main(int argc, char* argv[]) {
@@ -280,11 +287,12 @@ int main(int argc, char* argv[]) {
     //
     // Print build summary
     //
-    if (rank == 0) {
+    if (!ctx.quiet && rank == 0) {
         cio::print_dkaminpar_banner();
         cio::print_build_identifier<NodeID, EdgeID, shm::NodeWeight, shm::EdgeWeight, NodeWeight, EdgeWeight>(
             Environment::GIT_SHA1, Environment::HOSTNAME
         );
+        print_execution_mode(ctx);
     }
 
     //
@@ -321,15 +329,17 @@ int main(int argc, char* argv[]) {
     //
     // Print input summary
     //
-    if (rank == 0) {
-        cio::print_delimiter(std::cout);
-    }
-    print(ctx, rank == 0, std::cout);
-    if (ctx.parsable_output) {
-        print_parsable_summary(ctx, graph, rank == 0);
-    }
-    if (rank == 0) {
-        cio::print_delimiter();
+    if (!ctx.quiet) {
+        if (rank == 0) {
+            cio::print_delimiter(std::cout);
+        }
+        print(ctx, rank == 0, std::cout);
+        if (ctx.parsable_output) {
+            print_parsable_summary(ctx, graph, rank == 0);
+        }
+        if (rank == 0) {
+            cio::print_delimiter();
+        }
     }
 
     //
@@ -365,7 +375,7 @@ int main(int argc, char* argv[]) {
         } else {
             SCOPED_TIMER("Partitioning");
             auto p_graph = partition(graph, ctx);
-            if (rank == 0) {
+            if (!ctx.quiet && rank == 0) {
                 cio::print_delimiter();
             }
             return p_graph;
