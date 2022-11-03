@@ -315,6 +315,9 @@ int main(int argc, char* argv[]) {
         if (g_ctx.type != GeneratorType::NONE) {
             auto graph         = generate(g_ctx);
             ctx.graph_filename = generate_filename(g_ctx);
+            if (!ctx.quiet && rank == 0) {
+                cio::print_delimiter(std::cout);
+            }
             return graph;
         } else {
             const auto type = ctx.load_edge_balanced ? dist::io::DistributionType::EDGE_BALANCED
@@ -330,9 +333,6 @@ int main(int argc, char* argv[]) {
     // Print input summary
     //
     if (!ctx.quiet) {
-        if (rank == 0) {
-            cio::print_delimiter(std::cout);
-        }
         print(ctx, rank == 0, std::cout);
         if (ctx.parsable_output) {
             print_parsable_summary(ctx, graph, rank == 0);

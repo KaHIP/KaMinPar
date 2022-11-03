@@ -281,6 +281,14 @@ void print(const Context& ctx, const bool root, std::ostream& out) {
         }
     }
     print(ctx.partition, root, out);
+    if (root) {
+        cio::print_delimiter(out);
+        print(ctx.coarsening, out);
+        cio::print_delimiter(out);
+        print(ctx.initial_partitioning, out);
+        cio::print_delimiter(out);
+        print(ctx.refinement, out);
+    }
 }
 
 void print(const PartitionContext& ctx, const bool root, std::ostream& out) {
@@ -321,6 +329,65 @@ void print(const PartitionContext& ctx, const bool root, std::ostream& out) {
     if (ctx.mode == PartitioningMode::DEEP) {
         out << "  Enable PE-splitting:        " << (ctx.enable_pe_splitting ? "yes" : "no") << "\n";
         out << "  Partition extension factor: " << ctx.K << "\n";
+    }
+}
+
+void print(const CoarseningContext& ctx, std::ostream& out) {
+    if (ctx.max_global_clustering_levels > 0 && ctx.max_local_clustering_levels > 0) {
+        out << "Coarsening mode:              local[" << ctx.max_local_clustering_levels << "]+global["
+            << ctx.max_global_clustering_levels << "]\n";
+    } else if (ctx.max_global_clustering_levels > 0) {
+        out << "Coarsening mode:              global[" << ctx.max_global_clustering_levels << "]\n";
+    } else if (ctx.max_local_clustering_levels > 0) {
+        out << "Coarsening mode:              local[" << ctx.max_local_clustering_levels << "]\n";
+    } else {
+        out << "Coarsening mode:              disabled\n";
+    }
+    if (ctx.max_local_clustering_levels > 0) {
+        out << "Local clustering algorithm:   " << ctx.local_clustering_algorithm << "\n";
+        out << "  Number of iterations:       " << ctx.local_lp.num_iterations << "\n";
+        out << "  High degree threshold:      " << ctx.local_lp.passive_high_degree_threshold << " (passive), "
+            << ctx.local_lp.active_high_degree_threshold << " (active)\n";
+        out << "  Max degree:                 " << ctx.local_lp.max_num_neighbors << "\n";
+        out << "  Ghost nodes:                " << (ctx.local_lp.ignore_ghost_nodes ? "ignore" : "consider") << "+"
+            << (ctx.local_lp.keep_ghost_clusters ? "keep" : "discard") << "\n";
+    }
+    if (ctx.max_global_clustering_levels > 0) {
+        out << "Global clustering algorithm:  " << ctx.global_clustering_algorithm << "\n";
+        out << "  Number of iterations:       " << ctx.global_lp.num_iterations << "\n";
+        out << "  High degree threshold:      " << ctx.global_lp.passive_high_degree_threshold << " (passive), "
+            << ctx.global_lp.active_high_degree_threshold << " (active)\n";
+        out << "  Max degree:                 " << ctx.global_lp.max_num_neighbors << "\n";
+        out << "  Number of chunks:           " << ctx.global_lp.num_chunks << " (min: " << ctx.global_lp.min_num_chunks
+            << ", total: " << ctx.global_lp.total_num_chunks << ")"
+            << (ctx.global_lp.scale_chunks_with_threads ? ", scaled" : "") << "\n";
+    }
+}
+
+void print(const InitialPartitioningContext& ctx, std::ostream& out) {
+    out << "IP algorithm:                 " << ctx.algorithm << "\n";
+    if (ctx.algorithm == InitialPartitioningAlgorithm::KAMINPAR) {
+        out << "  Configuration preset:       default\n";
+    } else if (ctx.algorithm == InitialPartitioningAlgorithm::MTKAHYPAR) {
+        out << "  Configuration file:         " << ctx.mtkahypar.preset_filename << "\n";
+    }
+}
+
+void print(const RefinementContext& ctx, std::ostream& out) {
+    out << "Refinement algorithm:         " << ctx.algorithm << "\n";
+    out << "Refine initial partition:     " << (ctx.refine_coarsest_level ? "yes" : "no") << "\n";
+    if (ctx.algorithm == KWayRefinementAlgorithm::LP || ctx.algorithm == KWayRefinementAlgorithm::LP_THEN_FM) {
+        out << "Label propagation:\n";
+        out << "  Number of iterations:       " << ctx.lp.num_iterations << "\n";
+        out << "  Number of chunks:           " << ctx.lp.num_chunks << " (min: " << ctx.lp.min_num_chunks
+            << ", total: " << ctx.lp.total_num_chunks << ")" << (ctx.lp.scale_chunks_with_threads ? ", scaled" : "")
+            << "\n";
+        out << "  Use probabilistic moves:    " << (ctx.lp.ignore_probabilities ? "no" : "yes") << "\n";
+        out << "  Number of retries:          " << ctx.lp.num_move_attempts << "\n";
+    }
+    out << "Balancing algorithm:          " << ctx.balancing.algorithm << "\n";
+    if (ctx.balancing.algorithm == BalancingAlgorithm::DISTRIBUTED) {
+        out << "  Number of nodes per block:  " << ctx.balancing.num_nodes_per_block << "\n";
     }
 }
 } // namespace kaminpar::dist
