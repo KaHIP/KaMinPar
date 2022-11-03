@@ -377,7 +377,6 @@ public:
     [[nodiscard]] inline bool accept_neighbor(const NodeID node) {
         return _passive_high_degree_threshold == 0 || !_graph->is_high_degree_node(node);
     }
-
     //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     //
     // Called from base class

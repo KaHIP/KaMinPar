@@ -214,6 +214,8 @@ CLI::Option_group *create_global_lp_coarsening_options(CLI::App *app, Context &c
         ->capture_default_str();
     lp->add_option("--c-glp-min-chunks", ctx.coarsening.global_lp.min_num_chunks, "Minimum number of synchronization rounds.")
         ->capture_default_str();
+    lp->add_option("--c-glp-num-chunks", ctx.coarsening.global_lp.num_chunks, "Set the number of chunks to a fixed number rather than deducing it from other parameters (0 = deduce).")
+        ->capture_default_str();
     lp->add_option("--c-glp-active-large-degree-threshold", ctx.coarsening.global_lp.active_high_degree_threshold, "Do not move nodes with degree larger than this.")
         ->capture_default_str();
     lp->add_option("--c-glp-passive-large-degree-threshold", ctx.coarsening.global_lp.passive_high_degree_threshold, "Do not look at nodes with a degree larger than this when moving other nodes.")
