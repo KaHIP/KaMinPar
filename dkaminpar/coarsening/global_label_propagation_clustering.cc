@@ -169,7 +169,7 @@ struct UnorderedRatingMap {
 
 struct DistributedGlobalLabelPropagationClusteringConfig : public LabelPropagationConfig {
     using Graph = DistributedGraph;
-    // using RatingMap = ::kaminpar::RatingMap<EdgeWeight, VectorHashRatingMap>;
+    // using RatingMap = ::kaminpar::RatingMap<EdgeWeight, GlobalNodeID, VectorHashRatingMap>;
     using RatingMap                             = ::kaminpar::RatingMap<EdgeWeight, GlobalNodeID, UnorderedRatingMap>;
     using ClusterID                             = GlobalNodeID;
     using ClusterWeight                         = GlobalNodeWeight;
