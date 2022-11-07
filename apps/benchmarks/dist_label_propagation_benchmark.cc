@@ -85,7 +85,7 @@ std::vector<GlobalNodeID> naive_label_propagation(
         const GlobalNodeID global_u               = graph.local_to_global_node(u);
         auto&              handle                 = cluster_weights_ets.local();
         [[maybe_unused]] const auto [it, success] = handle.insert(global_u + 1, graph.node_weight(u));
-        KASSERT(success, "could not initialize cluster for node " << u, assert::always);
+        KASSERT(success, "could not initialize cluster for node " << u);
     });
     STOP_TIMER();
 
@@ -120,10 +120,9 @@ std::vector<GlobalNodeID> naive_label_propagation(
 
                         auto it = handle.find(current_cluster + 1);
                         KASSERT(
-                            it != handle.end(),
-                            "uninitialized cluster " << current_cluster + 1 << " while assigning node " << u
-                                                     << " in cluster " << cluster_u,
-                            assert::always
+                            it != handle.end(), "uninitialized cluster " << current_cluster + 1
+                                                                         << " while assigning node " << u
+                                                                         << " in cluster " << cluster_u
                         );
                         const GlobalNodeWeight current_weight = (*it).second;
 
@@ -149,11 +148,11 @@ std::vector<GlobalNodeID> naive_label_propagation(
                     [[maybe_unused]] const auto [it1, success1] = handle.update(
                         cluster_u + 1, [](auto& lhs, const auto rhs) { return lhs += rhs; }, -weight_u
                     );
-                    KASSERT(success1, "", assert::always);
+                    KASSERT(success1);
                     [[maybe_unused]] const auto [it2, success2] = handle.update(
                         new_label + 1, [](auto& lhs, const auto rhs) { return lhs += rhs; }, weight_u
                     );
-                    KASSERT(success2, "", assert::always);
+                    KASSERT(success2);
                     __atomic_store_n(&clustering[u], new_label, __ATOMIC_RELAXED);
                     changed_label[u] = 1;
                 }
@@ -180,7 +179,7 @@ std::vector<GlobalNodeID> naive_label_propagation(
                         [[maybe_unused]] const auto [it1, success1] = handle.update(
                             old_label + 1, [](auto& lhs, const auto rhs) { return lhs += rhs; }, -local_node_weight
                         );
-                        KASSERT(success1, "", assert::always);
+                        KASSERT(success1);
                         handle.insert_or_update(
                             new_label + 1, local_node_weight, [](auto& lhs, const auto rhs) { return lhs += rhs; },
                             local_node_weight
