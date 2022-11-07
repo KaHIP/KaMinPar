@@ -237,17 +237,18 @@ void print_compact(const RefinementContext& ctx, std::ostream& out, const std::s
 }
 
 void print_compact(const ParallelContext& ctx, std::ostream& out, const std::string& prefix) {
-    out << prefix << "num_threads=" << ctx.num_threads << " "                                         //
-        << prefix << "num_mpis=" << ctx.num_mpis << " "                                               //
-        << prefix << "use_interleaved_numa_allocation=" << ctx.use_interleaved_numa_allocation << " " //
-        << prefix << "mpi_thread_support=" << ctx.mpi_thread_support << " ";                          //
+    out << prefix << "num_threads=" << ctx.num_threads << " "                                          //
+        << prefix << "num_mpis=" << ctx.num_mpis << " "                                                //
+        << prefix << "use_interleaved_numa_allocation=" << ctx.use_interleaved_numa_allocation << " "; //
 }
 
 void print_compact(const PartitionContext& ctx, std::ostream& out, const std::string& prefix) {
-    out << prefix << "k=" << ctx.k << " "             //
-        << prefix << "K=" << ctx.K << " "             //
-        << prefix << "epsilon=" << ctx.epsilon << " " //
-        << prefix << "mode=" << ctx.mode << " ";      //
+    out << prefix << "k=" << ctx.k << " "                                          //
+        << prefix << "K=" << ctx.K << " "                                          //
+        << prefix << "epsilon=" << ctx.epsilon << " "                              //
+        << prefix << "mode=" << ctx.mode << " "                                    //
+        << prefix << "enable_pe_splitting=" << ctx.enable_pe_splitting << " "      //
+        << prefix << "simulate_singlethread=" << ctx.simulate_singlethread << " "; //
 }
 
 void print_compact(const DebugContext& ctx, std::ostream& out, const std::string& prefix) {
@@ -282,11 +283,11 @@ void print(const Context& ctx, const bool root, std::ostream& out) {
     }
     print(ctx.partition, root, out);
     if (root) {
-        cio::print_delimiter(out);
+        cio::print_delimiter(out, '-');
         print(ctx.coarsening, out);
-        cio::print_delimiter(out);
+        cio::print_delimiter(out, '-');
         print(ctx.initial_partitioning, out);
-        cio::print_delimiter(out);
+        cio::print_delimiter(out, '-');
         print(ctx.refinement, out);
     }
 }
@@ -321,13 +322,14 @@ void print(const PartitionContext& ctx, const bool root, std::ostream& out) {
         out << "Number of blocks:             " << ctx.k << "\n";
         out << "Maximum block weight:         " << ctx.graph.max_block_weight(0) << " ("
             << ctx.graph.perfectly_balanced_block_weight(0) << " + " << 100 * ctx.epsilon << "%)\n";
-        
-        cio::print_delimiter(out);
+
+        cio::print_delimiter(out, '-');
 
         out << "Partitioning mode:            " << ctx.mode << "\n";
         if (ctx.mode == PartitioningMode::DEEP) {
             out << "  Enable PE-splitting:        " << (ctx.enable_pe_splitting ? "yes" : "no") << "\n";
             out << "  Partition extension factor: " << ctx.K << "\n";
+            out << "  Simulate seq. hybrid exe.:  " << (ctx.simulate_singlethread ? "yes" : "no") << "\n";
         }
     }
 }

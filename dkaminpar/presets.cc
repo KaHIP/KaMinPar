@@ -50,20 +50,19 @@ Context create_default_context() {
         .parsable_output    = false,
         .partition =
             {
-                .k                   = 0,
-                .K                   = 128,
-                .epsilon             = 0.03,
-                .mode                = PartitioningMode::DEEP,
-                .enable_pe_splitting = true,
-                .graph               = GraphContext(),
+                .k                     = 0,
+                .K                     = 128,
+                .epsilon               = 0.03,
+                .mode                  = PartitioningMode::DEEP,
+                .enable_pe_splitting   = true,
+                .simulate_singlethread = true,
+                .graph                 = GraphContext(),
             },
         .parallel =
             {
                 .num_threads                     = 1,
                 .num_mpis                        = 1,
                 .use_interleaved_numa_allocation = true,
-                .mpi_thread_support              = MPI_THREAD_FUNNELED,
-                .simulate_singlethread           = true,
             },
         .coarsening =
             {

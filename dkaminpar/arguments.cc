@@ -49,6 +49,7 @@ CLI::Option_group* create_partitioning_options(CLI::App* app, Context& ctx) {
         ->capture_default_str();
     partitioning->add_flag("--enable-pe-splitting", ctx.partition.enable_pe_splitting, "Enable PE splitting and graph replication in deep MGP")
         ->capture_default_str();
+    partitioning->add_flag("--simulate-singlethreaded", ctx.partition.simulate_singlethread, "Simulate single-threaded execution during a hybrid run")->capture_default_str();
 
     return partitioning;
 }
@@ -144,6 +145,8 @@ CLI::Option_group *create_lp_refinement_options(CLI::App *app, Context &ctx) {
     lp->add_option("--r-lp-total-chunks", ctx.refinement.lp.total_num_chunks, "Number of synchronization rounds times number of PEs.")
         ->capture_default_str();
     lp->add_option("--r-lp-min-chunks", ctx.refinement.lp.min_num_chunks, "Minimum number of synchronization rounds.")
+        ->capture_default_str();
+    lp->add_option("--r-lp-num-chunks", ctx.refinement.lp.num_chunks, "Set the number of chunks to a fixed number rather than deducing it from other parameters (0 = deduce).")
         ->capture_default_str();
     lp->add_option("--r-lp-active-large-degree-threshold", ctx.refinement.lp.active_high_degree_threshold, "Do not move nodes with degree larger than this.")
         ->capture_default_str();

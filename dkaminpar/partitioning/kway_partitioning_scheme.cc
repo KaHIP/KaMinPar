@@ -50,7 +50,7 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
     {
         SCOPED_TIMER("Coarsening");
 
-        const GlobalNodeID threshold = (_ctx.parallel.simulate_singlethread ? 1 : _ctx.parallel.num_threads)
+        const GlobalNodeID threshold = (_ctx.partition.simulate_singlethread ? 1 : _ctx.parallel.num_threads)
                                        * _ctx.partition.k * _ctx.coarsening.contraction_limit;
         while (graph->global_n() > threshold) {
             SCOPED_TIMER("Coarsening", std::string("Level ") + std::to_string(coarsener.level()));
@@ -111,7 +111,7 @@ DistributedPartitionedGraph KWayPartitioningScheme::partition() {
     START_TIMER("Initial Partitioning");
     auto                  shm_graph = graph::replicate_everywhere(*graph);
     shm::PartitionedGraph shm_p_graph{};
-    if (_ctx.parallel.simulate_singlethread) {
+    if (_ctx.partition.simulate_singlethread) {
         shm_p_graph         = initial_partitioner->initial_partition(shm_graph, _ctx.partition);
         EdgeWeight best_cut = shm::metrics::edge_cut(shm_p_graph);
 

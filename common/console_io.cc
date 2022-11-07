@@ -12,8 +12,8 @@
 #include "common/logger.h"
 
 namespace kaminpar::cio {
-void print_delimiter(std::ostream& out) {
-    out << "################################################################################\n";
+void print_delimiter(std::ostream& out, const char ch) {
+    out << std::string(80, ch) << "\n";
 }
 
 void print_kaminpar_banner() {

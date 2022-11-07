@@ -208,7 +208,6 @@ The output should be stored in a file and can be used by the -C,--config option.
     app.add_option("--time-limit", ctx.time_limit, "Time limit in seconds.")->capture_default_str();
     app.add_flag("--sort-graph", ctx.sort_graph, "Rearrange graph by degree buckets after loading it.")
         ->capture_default_str();
-    app.add_flag("--simulate-singlethreaded", ctx.parallel.simulate_singlethread, "")->capture_default_str();
     app.add_flag("-p,--parsable", ctx.parsable_output, "Use an output format that is easier to parse.");
     app.add_option("--timer-depth", ctx.timer_depth, "Maximum timer depth.");
     app.add_flag_function(

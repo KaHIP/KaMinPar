@@ -23,6 +23,7 @@
 #include "dkaminpar/refinement/balancer.h"
 
 #include "kaminpar/datastructures/graph.h"
+#include "kaminpar/metrics.h"
 
 #include "common/assertion_levels.h"
 #include "common/math.h"
@@ -116,7 +117,8 @@ DistributedPartitionedGraph DeeperPartitioningScheme::partition() {
      */
     const BlockID      first_step_k = std::min<BlockID>(_input_ctx.partition.k, _input_ctx.partition.K);
     const GlobalNodeID desired_num_nodes =
-        _input_ctx.parallel.num_threads * _input_ctx.coarsening.contraction_limit * first_step_k;
+        (_input_ctx.partition.simulate_singlethread ? 1 : _input_ctx.parallel.num_threads)
+        * _input_ctx.coarsening.contraction_limit * first_step_k;
     PEID current_num_pes = mpi::get_comm_size(_input_graph.communicator());
 
     while (!converged && graph->global_n() > desired_num_nodes) {
@@ -182,12 +184,28 @@ DistributedPartitionedGraph DeeperPartitioningScheme::partition() {
     ip_p_ctx.k                = first_step_k;
     ip_p_ctx.epsilon          = _input_ctx.partition.epsilon;
     ip_p_ctx.setup(shm_graph);
-    auto shm_p_graph = initial_partitioner->initial_partition(shm_graph, ip_p_ctx);
+
+    shm::PartitionedGraph shm_p_graph{};
+    if (_input_ctx.partition.simulate_singlethread) {
+        shm_p_graph         = initial_partitioner->initial_partition(shm_graph, ip_p_ctx);
+        EdgeWeight best_cut = shm::metrics::edge_cut(shm_p_graph);
+
+        for (std::size_t rep = 1; rep < _input_ctx.parallel.num_threads; ++rep) {
+            auto       partition = initial_partitioner->initial_partition(shm_graph, ip_p_ctx);
+            const auto cut       = shm::metrics::edge_cut(partition);
+            if (cut < best_cut) {
+                best_cut    = cut;
+                shm_p_graph = std::move(partition);
+            }
+        }
+    } else {
+        shm_p_graph = initial_partitioner->initial_partition(shm_graph, ip_p_ctx);
+    }
 
     DistributedPartitionedGraph dist_p_graph = graph::distribute_best_partition(*graph, std::move(shm_p_graph));
-
-    KASSERT(graph::debug::validate_partition(dist_p_graph), "", assert::heavy);
-
+    KASSERT(
+        graph::debug::validate_partition(dist_p_graph), "invalid partition after initial partitioning", assert::heavy
+    );
     print_initial_partitioning_result(dist_p_graph, ip_p_ctx);
     STOP_TIMER();
 

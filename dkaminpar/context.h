@@ -59,8 +59,6 @@ struct ParallelContext {
     std::size_t num_threads                     = 0;
     std::size_t num_mpis                        = 0;
     bool        use_interleaved_numa_allocation = false;
-    int         mpi_thread_support              = false;
-    bool        simulate_singlethread           = false;
 };
 
 struct LabelPropagationCoarseningContext {
@@ -245,11 +243,12 @@ private:
 };
 
 struct PartitionContext {
-    BlockID          k                   = kInvalidBlockID;
-    BlockID          K                   = kInvalidBlockID;
-    double           epsilon             = 0.0;
-    PartitioningMode mode                = PartitioningMode::DEEP;
-    bool             enable_pe_splitting = false;
+    BlockID          k                     = kInvalidBlockID;
+    BlockID          K                     = kInvalidBlockID;
+    double           epsilon               = 0.0;
+    PartitioningMode mode                  = PartitioningMode::DEEP;
+    bool             enable_pe_splitting   = false;
+    bool             simulate_singlethread = false;
 
     GraphContext graph;
 
