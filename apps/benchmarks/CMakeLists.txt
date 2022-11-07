@@ -20,13 +20,15 @@ function(add_distributed_benchmark target)
     endif ()
 endfunction()
 
-add_benchmark(coarsening_benchmark coarsening_benchmark.cc)
-add_benchmark(balancing_benchmark balancing_benchmark.cc)
+#add_benchmark(coarsening_benchmark coarsening_benchmark.cc)
+#add_benchmark(balancing_benchmark balancing_benchmark.cc)
 
-add_distributed_benchmark(dcoarsening_benchmark dcoarsening_benchmark.cc)
-add_distributed_benchmark(dbalancing_benchmark dbalancing_benchmark.cc)
-add_distributed_benchmark(dcontraction_benchmark dcontraction_benchmark.cc)
+#add_distributed_benchmark(dcoarsening_benchmark dcoarsening_benchmark.cc)
+#add_distributed_benchmark(dbalancing_benchmark dbalancing_benchmark.cc)
+#add_distributed_benchmark(dcontraction_benchmark dcontraction_benchmark.cc)
 
-if (KAMINPAR_ENABLE_GRAPHGEN)
-    add_distributed_benchmark(graphgen_benchmark graphgen_benchmark.cc)
-endif ()
+#if (KAMINPAR_ENABLE_GRAPHGEN)
+#    add_distributed_benchmark(graphgen_benchmark graphgen_benchmark.cc)
+#endif ()
+
+add_distributed_benchmark(dist_label_propagation_benchmark dist_label_propagation_benchmark.cc)

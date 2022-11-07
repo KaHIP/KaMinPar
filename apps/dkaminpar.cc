@@ -32,24 +32,12 @@
 
 #include "apps/apps.h"
 #include "apps/dkaminpar/graphgen.h"
+#include "apps/mpi_apps.h"
 
 using namespace kaminpar;
 using namespace kaminpar::dist;
 
 namespace {
-void init_mpi(int& argc, char**& argv) {
-    int provided_thread_support;
-    MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED, &provided_thread_support);
-    if (provided_thread_support != MPI_THREAD_FUNNELED) {
-        LOG_WARNING << "Desired MPI thread support unavailable: set to " << provided_thread_support;
-        if (provided_thread_support == MPI_THREAD_SINGLE) {
-            if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
-                LOG_ERROR << "Your MPI library does not support multithreading. This might cause malfunction.";
-            }
-        }
-    }
-}
-
 void print_result_statistics(const DistributedPartitionedGraph& p_graph, const Context& ctx) {
     const auto edge_cut  = metrics::edge_cut(p_graph);
     const auto imbalance = metrics::imbalance(p_graph);
@@ -260,7 +248,6 @@ void print_execution_mode(const Context& ctx) {
 
 int main(int argc, char* argv[]) {
     init_mpi(argc, argv);
-
     const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
     const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
 
