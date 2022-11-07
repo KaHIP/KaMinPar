@@ -74,6 +74,8 @@ void parse(
     const bool   read_edge_weights = format.has_edge_weights;
     format_cb(format);
 
+    bool has_exited_preemptively = false;
+
     for (std::uint64_t u = 0; u < format.number_of_nodes; ++u) {
         toker.skip_spaces();
         while (toker.current() == '%') {
@@ -91,6 +93,7 @@ void parse(
         }
         if constexpr (stoppable) {
             if (!next_node_cb(node_weight)) {
+                has_exited_preemptively = true;
                 break;
             }
         } else {
@@ -115,12 +118,14 @@ void parse(
         }
     }
 
-    while (toker.current() == '%') {
-        toker.skip_line();
-    }
+    if (!has_exited_preemptively) {
+        while (toker.current() == '%') {
+            toker.skip_line();
+        }
 
-    if (toker.valid_position()) {
-        LOG_WARNING << "ignorning extra lines in input file";
+        if (toker.valid_position()) {
+            LOG_WARNING << "ignorning extra lines in input file";
+        }
     }
 }
 

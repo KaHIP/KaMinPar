@@ -321,14 +321,14 @@ void print(const PartitionContext& ctx, const bool root, std::ostream& out) {
         out << "Number of blocks:             " << ctx.k << "\n";
         out << "Maximum block weight:         " << ctx.graph.max_block_weight(0) << " ("
             << ctx.graph.perfectly_balanced_block_weight(0) << " + " << 100 * ctx.epsilon << "%)\n";
-    }
+        
+        cio::print_delimiter(out);
 
-    cio::print_delimiter(out);
-
-    out << "Partitioning mode:            " << ctx.mode << "\n";
-    if (ctx.mode == PartitioningMode::DEEP) {
-        out << "  Enable PE-splitting:        " << (ctx.enable_pe_splitting ? "yes" : "no") << "\n";
-        out << "  Partition extension factor: " << ctx.K << "\n";
+        out << "Partitioning mode:            " << ctx.mode << "\n";
+        if (ctx.mode == PartitioningMode::DEEP) {
+            out << "  Enable PE-splitting:        " << (ctx.enable_pe_splitting ? "yes" : "no") << "\n";
+            out << "  Partition extension factor: " << ctx.K << "\n";
+        }
     }
 }
 
