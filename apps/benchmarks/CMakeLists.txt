@@ -2,18 +2,13 @@ function(add_benchmark target)
     add_executable(${target} ${ARGN} "${CMAKE_CURRENT_BINARY_DIR}/../environment.cc")
     target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(${target} PRIVATE common_base shm_partitioner_base)
-
     message(STATUS "Added benchmark ${target}.")
 endfunction()
 
 function(add_distributed_benchmark target)
     if (TARGET dist_partitioner_base)
-        add_benchmark(${target} ${ARGN} ${DKAMINPAR_SOURCE_FILES})
+        add_benchmark(${target} ${ARGN})
         target_link_libraries(${target} PRIVATE dist_partitioner_base)
-
-        if (KAMINPAR_ENABLE_GRAPHGEN)
-            target_link_libraries(${target} PUBLIC kagen)
-        endif ()
     else ()
         message(STATUS "Cannot add distributed app: distributed library is not available, presumably because MPI"
                 " could not be found.")
