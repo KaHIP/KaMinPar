@@ -50,8 +50,10 @@ struct UnorderedRatingMap {
     std::unordered_map<GlobalNodeID, EdgeWeight> map{};
 };
 
-std::vector<GlobalNodeID>
-naive_label_propagation(const DistributedGraph& graph, const GlobalNodeWeight max_cluster_weight) {
+std::vector<GlobalNodeID> naive_label_propagation(
+    const DistributedGraph& graph, const int num_iterations, const GlobalNodeWeight max_cluster_weight
+) {
+    SET_DEBUG(false);
     constexpr int kNumberOfChunks = 128;
 
     START_TIMER("Allocate clustering[]");
@@ -80,102 +82,119 @@ naive_label_propagation(const DistributedGraph& graph, const GlobalNodeWeight ma
     STOP_TIMER();
     START_TIMER("Initialize cluster_weights[]");
     tbb::parallel_for<NodeID>(0, graph.total_n(), [&](const NodeID u) {
-        const GlobalNodeID global_u = graph.local_to_global_node(u);
-        auto&              handle   = cluster_weights_ets.local();
-        handle.insert(global_u + 1, graph.node_weight(u));
+        const GlobalNodeID global_u               = graph.local_to_global_node(u);
+        auto&              handle                 = cluster_weights_ets.local();
+        [[maybe_unused]] const auto [it, success] = handle.insert(global_u + 1, graph.node_weight(u));
+        KASSERT(success, "could not initialize cluster for node " << u, assert::always);
     });
     STOP_TIMER();
 
-    for (int chunk = 0; chunk < kNumberOfChunks; ++chunk) {
-        const auto [from, to] = math::compute_local_range<NodeID>(graph.n(), kNumberOfChunks, chunk);
+    for (int iteration = 0; iteration < num_iterations; ++iteration) {
+        for (int chunk = 0; chunk < kNumberOfChunks; ++chunk) {
+            const auto [from, to] = math::compute_local_range<NodeID>(graph.n(), kNumberOfChunks, chunk);
+            DBG << "Chunk [" << from << ", " << to << ") ...";
 
-        // Perform label propagation
-        START_TIMER("Chunk iteration");
-        tbb::parallel_for<NodeID>(from, to, [&](const NodeID u) {
-            auto& rating_map = rating_maps_ets.local();
-            auto& handle     = cluster_weights_ets.local();
+            // Perform label propagation
+            START_TIMER("Chunk iteration");
+            DBG << " -> assign labels ...";
+            tbb::parallel_for<NodeID>(from, to, [&](const NodeID u) {
+                auto& rating_map = rating_maps_ets.local();
+                auto& handle     = cluster_weights_ets.local();
 
-            const GlobalNodeID     cluster_u = __atomic_load_n(&clustering[u], __ATOMIC_RELAXED);
-            const GlobalNodeWeight weight_u  = graph.node_weight(u);
+                const GlobalNodeID     cluster_u = __atomic_load_n(&clustering[u], __ATOMIC_RELAXED);
+                const GlobalNodeWeight weight_u  = graph.node_weight(u);
 
-            auto action = [&](auto& map) {
-                for (const auto [e, v]: graph.neighbors(u)) {
-                    const GlobalNodeID cluster_v = __atomic_load_n(&clustering[v], __ATOMIC_RELAXED);
-                    map[cluster_v] += graph.edge_weight(e);
-                }
-
-                GlobalNodeID     best_cluster = cluster_u;
-                GlobalEdgeWeight best_rating  = 0;
-
-                for (const auto [current_cluster, current_rating]: map.entries()) {
-                    if (current_rating <= best_rating) {
-                        continue;
+                auto action = [&](auto& map) {
+                    for (const auto [e, v]: graph.neighbors(u)) {
+                        const GlobalNodeID cluster_v = __atomic_load_n(&clustering[v], __ATOMIC_RELAXED);
+                        map[cluster_v] += graph.edge_weight(e);
                     }
 
-                    auto it = handle.find(current_cluster + 1);
-                    KASSERT(
-                        it != handle.end(), "uninitialized cluster " << current_cluster + 1 << " while assigning node "
-                                                                     << u << " in cluster " << cluster_u
-                    );
-                    const GlobalNodeWeight current_weight = (*it).second;
+                    GlobalNodeID     best_cluster = cluster_u;
+                    GlobalEdgeWeight best_rating  = 0;
 
-                    if (current_weight + weight_u <= max_cluster_weight) {
-                        best_cluster = current_cluster;
-                        best_rating  = current_rating;
+                    for (const auto [current_cluster, current_rating]: map.entries()) {
+                        if (current_rating <= best_rating) {
+                            continue;
+                        }
+
+                        auto it = handle.find(current_cluster + 1);
+                        KASSERT(
+                            it != handle.end(),
+                            "uninitialized cluster " << current_cluster + 1 << " while assigning node " << u
+                                                     << " in cluster " << cluster_u,
+                            assert::always
+                        );
+                        const GlobalNodeWeight current_weight = (*it).second;
+
+                        DBG << V(best_rating) << V(current_rating) << V(current_weight) << V(weight_u)
+                            << V(current_weight) << V(max_cluster_weight);
+
+                        if (current_weight + weight_u <= max_cluster_weight) {
+                            best_cluster = current_cluster;
+                            best_rating  = current_rating;
+                        }
                     }
+
+                    map.clear();
+                    return best_cluster;
+                };
+
+                rating_map.update_upper_bound_size(graph.degree(u));
+                const auto new_label = rating_map.run_with_map(action, action);
+
+                if (new_label != cluster_u) {
+                    DBG << "Move " << u << " from " << cluster_u << " to " << new_label;
+
+                    [[maybe_unused]] const auto [it1, success1] = handle.update(
+                        cluster_u + 1, [](auto& lhs, const auto rhs) { return lhs += rhs; }, -weight_u
+                    );
+                    KASSERT(success1, "", assert::always);
+                    [[maybe_unused]] const auto [it2, success2] = handle.update(
+                        new_label + 1, [](auto& lhs, const auto rhs) { return lhs += rhs; }, weight_u
+                    );
+                    KASSERT(success2, "", assert::always);
+                    __atomic_store_n(&clustering[u], new_label, __ATOMIC_RELAXED);
+                    changed_label[u] = 1;
                 }
+            });
+            STOP_TIMER();
 
-                return best_cluster;
-            };
+            // Synchronize labels
+            START_TIMER("Synchronize labels");
+            DBG << " -> synchronize labels ...";
+            mpi::graph::sparse_alltoall_interface_to_pe<ChangedLabelMessage>(
+                graph, from, to, [&](const NodeID u) { return changed_label[u]; },
+                [&](const NodeID u) -> ChangedLabelMessage {
+                    return {u, __atomic_load_n(&clustering[u], __ATOMIC_RELAXED)};
+                },
+                [&](const auto& buffer, const PEID pe) {
+                    tbb::parallel_for<std::size_t>(0, buffer.size(), [&](const std::size_t i) {
+                        const auto [local_node_on_pe, new_label] = buffer[i];
+                        const GlobalNodeID global_node           = graph.offset_n(pe) + local_node_on_pe;
+                        const NodeID       local_node            = graph.global_to_local_node(global_node);
+                        const NodeWeight   local_node_weight     = graph.node_weight(local_node);
+                        const GlobalNodeID old_label = __atomic_load_n(&clustering[local_node], __ATOMIC_RELAXED);
 
-            rating_map.update_upper_bound_size(graph.degree(u));
-            const auto new_label = rating_map.run_with_map(action, action);
+                        auto& handle                                = cluster_weights_ets.local();
+                        [[maybe_unused]] const auto [it1, success1] = handle.update(
+                            old_label + 1, [](auto& lhs, const auto rhs) { return lhs += rhs; }, -local_node_weight
+                        );
+                        KASSERT(success1, "", assert::always);
+                        handle.insert_or_update(
+                            new_label + 1, local_node_weight, [](auto& lhs, const auto rhs) { return lhs += rhs; },
+                            local_node_weight
+                        );
+                        __atomic_store_n(&clustering[local_node], new_label, __ATOMIC_RELAXED);
+                    });
+                }
+            );
+            STOP_TIMER();
 
-            if (new_label != cluster_u) {
-                handle.update(
-                    cluster_u + 1, [](auto& lhs, const auto rhs) { return lhs += rhs; }, -weight_u
-                );
-                handle.update(
-                    new_label + 1, [](auto& lhs, const auto rhs) { return lhs += rhs; }, weight_u
-                );
-                __atomic_store_n(&clustering[u], new_label, __ATOMIC_RELAXED);
-                changed_label[u] = 1;
-            }
-        });
-        STOP_TIMER();
-
-        // Synchronize labels
-        START_TIMER("Synchronize labels");
-        mpi::graph::sparse_alltoall_interface_to_pe<ChangedLabelMessage>(
-            graph, from, to, [&](const NodeID u) { return changed_label[u]; },
-            [&](const NodeID u) -> ChangedLabelMessage {
-                return {u, __atomic_load_n(&clustering[u], __ATOMIC_RELAXED)};
-            },
-            [&](const auto& buffer, const PEID pe) {
-                tbb::parallel_for<std::size_t>(0, buffer.size(), [&](const std::size_t i) {
-                    const auto [local_node_on_pe, new_label] = buffer[i];
-                    const GlobalNodeID global_node           = graph.offset_n(pe) + local_node_on_pe;
-                    const NodeID       local_node            = graph.global_to_local_node(global_node);
-                    const NodeWeight   local_node_weight     = graph.node_weight(local_node);
-                    const GlobalNodeID old_label = __atomic_load_n(&clustering[local_node], __ATOMIC_RELAXED);
-
-                    auto& handle = cluster_weights_ets.local();
-                    handle.update(
-                        old_label + 1, [](auto& lhs, const auto rhs) { return lhs += rhs; }, -local_node_weight
-                    );
-                    handle.insert_or_update(
-                        new_label + 1, local_node_weight, [](auto& lhs, const auto rhs) { return lhs += rhs; },
-                        local_node_weight
-                    );
-                    __atomic_store_n(&clustering[local_node], new_label, __ATOMIC_RELAXED);
-                });
-            }
-        );
-        STOP_TIMER();
-
-        START_TIMER("Reset changed_label[]");
-        tbb::parallel_for<NodeID>(from, to, [&](const NodeID u) { changed_label[u] = 0; });
-        STOP_TIMER();
+            START_TIMER("Reset changed_label[]");
+            tbb::parallel_for<NodeID>(from, to, [&](const NodeID u) { changed_label[u] = 0; });
+            STOP_TIMER();
+        }
     }
 
     return clustering;
@@ -190,11 +209,13 @@ int main(int argc, char* argv[]) {
     std::string graph_filename = "";
     std::string out_filename   = "";
     int         num_threads    = 1;
+    int         num_iterations = 5;
 
     CLI::App app("Distributed Label Propagation Benchmark");
     app.add_option("-G,--graph", graph_filename, "Input graph")->required();
     app.add_option("-o,--output", out_filename, "Name of the clustering file.");
     app.add_option("-t,--threads", num_threads, "Number of threads");
+    app.add_option("-n,--num-iterations", num_iterations, "Number of LP iterations");
     CLI11_PARSE(app, argc, argv);
 
     if (out_filename.empty()) {
@@ -206,19 +227,25 @@ int main(int argc, char* argv[]) {
     /*****
      * Load graph
      */
-    auto graph = TIMED_SCOPE("IO") {
-        return graph::sort_by_degree_buckets(
-            dist::io::read_graph(graph_filename, dist::io::DistributionType::NODE_BALANCED)
-        );
-    };
+    LOG << "Reading graph from " << graph_filename << " ...";
+    DISABLE_TIMERS();
+    auto graph =
+        graph::sort_by_degree_buckets(dist::io::read_graph(graph_filename, dist::io::DistributionType::NODE_BALANCED));
+    ENABLE_TIMERS();
+    LOG << "n=" << graph.global_n() << " m=" << graph.global_m();
 
     /****
      * Run label propagation
      */
-    auto clustering =
-        naive_label_propagation(graph, static_cast<GlobalNodeWeight>(0.03 * graph.total_node_weight() / 64));
+    const GlobalNodeWeight max_cluster_weight = 0.03 * graph.global_n() / 2;
+    LOG << "Running label propagation ...";
+    LOG << " -> iterations: " << num_iterations;
+    LOG << " -> max cluster weight: " << max_cluster_weight;
+
+    auto clustering = naive_label_propagation(graph, num_iterations, max_cluster_weight);
 
     // Write the clustering to a text file
+    LOG << "Writing clustering to " << out_filename << " ...";
     if (rank == 0) {
         std::ofstream tmp(out_filename);
     }
