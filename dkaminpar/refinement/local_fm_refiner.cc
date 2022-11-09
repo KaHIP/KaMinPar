@@ -320,14 +320,14 @@ private:
 
 LocalFMRefiner::LocalFMRefiner(const Context& ctx) : _fm_ctx(ctx.refinement.fm) {}
 
-void LocalFMRefiner::initialize(const DistributedGraph& graph, const PartitionContext& p_ctx) {
-    _p_ctx = &p_ctx;
+void LocalFMRefiner::initialize(const DistributedGraph& graph) {
     _locked.resize(graph.total_n());
 }
 
-void LocalFMRefiner::refine(DistributedPartitionedGraph& p_graph) {
+void LocalFMRefiner::refine(DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx) {
     SCOPED_TIMER("FM");
     _p_graph = &p_graph;
+    _p_ctx   = &p_ctx;
 
     if (_fm_ctx.contract_border) {
         START_TIMER("Initialize external degrees");

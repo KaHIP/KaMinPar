@@ -24,7 +24,7 @@ void create_all_options(CLI::App* app, Context& ctx) {
     create_refinement_options(app, ctx);
     create_fm_refinement_options(app, ctx);
     create_lp_refinement_options(app, ctx);
-    create_balancer_options(app, ctx);
+    create_greedy_balancer_options(app, ctx);
 }
 
 CLI::Option_group* create_partitioning_options(CLI::App* app, Context& ctx) {
@@ -96,15 +96,14 @@ CLI::Option_group *create_initial_partitioning_options(CLI::App *app, Context &c
 CLI::Option_group *create_refinement_options(CLI::App *app, Context &ctx) {
     auto *refinement = app->add_option_group("Refinement");
 
-    refinement->add_option("--r-algorithm", ctx.refinement.algorithm)
+    refinement->add_option("--r-algorithm,--r-algorithms", ctx.refinement.algorithms)
         ->transform(CLI::CheckedTransformer(get_kway_refinement_algorithms()).description(""))
-        ->description(R"(K-way refinement algorithm. Possible options are:
-  - noop:        disable k-way refinement
-  - lp:          distributed label propagation
-  - local-fm:    PE-local FM
-  - fm:          distributed FM
-  - lp+local-fm: distributed label propagation -> PE-local fm
-  - lp+fm:       distributed label propagation -> distributed fm)")
+        ->description(R"(K-way refinement algorithm(s). Possible options are (separated by space):
+  - noop:            disable k-way refinement
+  - lp:              distributed label propagation
+  - local-fm:        PE-local FM
+  - fm:              distributed FM
+  - greedy_balancer: greedy algorithm to force balance)")
         ->capture_default_str();
     refinement->add_flag("--r-refine-coarsest-graph", ctx.refinement.refine_coarsest_level, "Also run the refinement algorithms on the coarsest graph.")
         ->capture_default_str();
@@ -158,15 +157,10 @@ CLI::Option_group *create_lp_refinement_options(CLI::App *app, Context &ctx) {
     return lp;
 }
 
-CLI::Option_group *create_balancer_options(CLI::App *app, Context &ctx) {
+CLI::Option_group *create_greedy_balancer_options(CLI::App *app, Context &ctx) {
     auto *balancer = app->add_option_group("Refinement -> Balancer");
 
-    balancer->add_option("--r-b-algorithm", ctx.refinement.balancing.algorithm)
-        ->transform(CLI::CheckedTransformer(get_balancing_algorithms()).description(""))
-        ->description(R"(Balancing algorithm, options are:
-  - distributed: distributed balancing algorithm)")
-        ->capture_default_str();
-    balancer->add_option("--r-b-nodes-per-block", ctx.refinement.balancing.num_nodes_per_block, "Number of nodes selected for each overloaded block on each PE.")
+    balancer->add_option("--r-b-nodes-per-block", ctx.refinement.greedy_balancer.num_nodes_per_block, "Number of nodes selected for each overloaded block on each PE.")
         ->capture_default_str();
 
     return balancer;

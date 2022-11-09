@@ -22,8 +22,8 @@ public:
 
     ~LPRefiner();
 
-    void initialize(const DistributedGraph& graph, const PartitionContext& p_ctx) final;
-    void refine(DistributedPartitionedGraph& p_graph) final;
+    void initialize(const DistributedGraph& graph) final;
+    void refine(DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx) final;
 
 private:
     std::unique_ptr<class LPRefinerImpl> _impl;

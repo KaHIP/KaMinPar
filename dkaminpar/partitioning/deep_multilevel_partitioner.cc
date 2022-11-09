@@ -19,7 +19,6 @@
 #include "dkaminpar/graphutils/graph_extraction.h"
 #include "dkaminpar/metrics.h"
 #include "dkaminpar/mpi/wrapper.h"
-#include "dkaminpar/refinement/balancer.h"
 
 #include "kaminpar/datastructures/graph.h"
 #include "kaminpar/metrics.h"
@@ -216,22 +215,10 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
         return factory::create_refinement_algorithm(_input_ctx);
     };
 
-    auto run_balancer = [&](DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx) {
-        SCOPED_TIMER("Rebalancing");
-        if (!metrics::is_feasible(p_graph, p_ctx)) {
-            Context balance_ctx = _input_ctx;
-            balance_ctx.setup(p_graph.graph());
-            DistributedBalancer balancer(balance_ctx);
-            balancer.initialize(p_graph);
-            balancer.balance(p_graph, p_ctx);
-            KASSERT(graph::debug::validate_partition(p_graph), "", assert::heavy);
-        }
-    };
-
-    auto run_local_search = [&](DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx) {
+    auto run_refinement = [&](DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx) {
         SCOPED_TIMER("Local search");
-        refinement_algorithm->initialize(p_graph.graph(), p_ctx);
-        refinement_algorithm->refine(p_graph);
+        refinement_algorithm->initialize(p_graph.graph());
+        refinement_algorithm->refine(p_graph, p_ctx);
         KASSERT(graph::debug::validate_partition(p_graph), "", assert::heavy);
     };
 
@@ -296,12 +283,6 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
             STOP_TIMER();
         }
         STOP_TIMER();
-    };
-
-    auto run_refinement = [&](DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx) {
-        run_balancer(p_graph, p_ctx);
-        run_local_search(p_graph, p_ctx);
-        run_balancer(p_graph, p_ctx);
     };
 
     auto ref_p_ctx = _input_ctx.partition;

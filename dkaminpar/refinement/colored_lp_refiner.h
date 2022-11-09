@@ -20,7 +20,7 @@ public:
     ColoredLPRefiner(ColoredLPRefiner&&) noexcept        = default;
     ColoredLPRefiner& operator=(ColoredLPRefiner&&)      = delete;
 
-    void initialize(const DistributedGraph& graph, const PartitionContext& p_ctx) final;
-    void refine(DistributedPartitionedGraph& p_graph) final;
+    void initialize(const DistributedGraph& graph) final;
+    void refine(DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx) final;
 };
 } // namespace kaminpar::dist

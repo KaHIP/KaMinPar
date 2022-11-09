@@ -6,7 +6,10 @@
  ******************************************************************************/
 #include "dkaminpar/refinement/noop_refiner.h"
 
+#include "dkaminpar/context.h"
+#include "dkaminpar/datastructures/distributed_graph.h"
+
 namespace kaminpar::dist {
-void NoopRefiner::initialize(const DistributedGraph&, const PartitionContext&) {}
-void NoopRefiner::refine(DistributedPartitionedGraph&) {}
+void NoopRefiner::initialize(const DistributedGraph&) {}
+void NoopRefiner::refine(DistributedPartitionedGraph&, const PartitionContext&) {}
 } // namespace kaminpar::dist

@@ -6,6 +6,7 @@
  ******************************************************************************/
 #include "dkaminpar/context.h"
 
+#include <algorithm>
 #include <unordered_map>
 
 #include <tbb/parallel_for.h>
@@ -77,6 +78,7 @@ void PartitionContext::setup(const DistributedGraph& graph) {
 void PartitionContext::setup(const shm::Graph& graph) {
     this->graph = GraphContext(graph, *this);
 }
+
 [[nodiscard]] bool
 LabelPropagationCoarseningContext::should_merge_nonadjacent_clusters(const NodeID old_n, const NodeID new_n) const {
     return (1.0 - 1.0 * static_cast<double>(new_n) / static_cast<double>(old_n))
@@ -106,6 +108,10 @@ void CoarseningContext::setup(const ParallelContext& parallel) {
 
 void RefinementContext::setup(const ParallelContext& parallel) {
     lp.setup(parallel);
+}
+
+bool RefinementContext::includes_algorithm(const KWayRefinementAlgorithm algorithm) const {
+    return std::find(algorithms.begin(), algorithms.end(), algorithm) != algorithms.end();
 }
 
 void Context::setup(const DistributedGraph& graph) {

@@ -116,7 +116,7 @@ Context create_default_context() {
             },
         .refinement =
             {
-                .algorithm = KWayRefinementAlgorithm::LP,
+                .algorithms = {KWayRefinementAlgorithm::GREEDY_BALANCER, KWayRefinementAlgorithm::LP},
                 .lp =
                     {
                         .active_high_degree_threshold = 1'000'000,
@@ -140,9 +140,8 @@ Context create_default_context() {
                         .bound_degree    = 0,
                         .contract_border = false,
                     },
-                .balancing =
+                .greedy_balancer =
                     {
-                        .algorithm           = BalancingAlgorithm::DISTRIBUTED,
                         .num_nodes_per_block = 5,
                     },
                 .refine_coarsest_level = false,

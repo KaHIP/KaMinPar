@@ -6,6 +6,7 @@
  ******************************************************************************/
 #pragma once
 
+#include "dkaminpar/context.h"
 #include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/refinement/refiner.h"
 
@@ -15,12 +16,12 @@ public:
     MultiRefiner(std::vector<std::unique_ptr<Refiner>> refiners);
 
     MultiRefiner(const MultiRefiner&)            = delete;
-    MultiRefiner(MultiRefiner&&)                 = default;
     MultiRefiner& operator=(const MultiRefiner&) = delete;
+    MultiRefiner(MultiRefiner&&) noexcept        = default;
     MultiRefiner& operator=(MultiRefiner&&)      = delete;
 
-    void initialize(const DistributedGraph& graph, const PartitionContext& p_ctx);
-    void refine(DistributedPartitionedGraph& p_graph);
+    void initialize(const DistributedGraph& graph);
+    void refine(DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx);
 
 private:
     std::vector<std::unique_ptr<Refiner>> _refiners;

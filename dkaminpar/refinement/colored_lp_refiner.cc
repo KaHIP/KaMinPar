@@ -14,12 +14,12 @@ ColoredLPRefiner::ColoredLPRefiner(const Context& ctx) {
     ((void)ctx);
 }
 
-void ColoredLPRefiner::initialize(const DistributedGraph& graph, const PartitionContext& p_ctx) {
+void ColoredLPRefiner::initialize(const DistributedGraph& graph) {
     ((void)graph);
-    ((void)p_ctx);
 }
 
-void ColoredLPRefiner::refine(DistributedPartitionedGraph& p_graph) {
+void ColoredLPRefiner::refine(DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx) {
     ((void)p_graph);
+    ((void)p_ctx);
 }
 } // namespace kaminpar::dist

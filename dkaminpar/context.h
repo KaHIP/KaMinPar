@@ -47,13 +47,8 @@ enum class KWayRefinementAlgorithm {
     LP,
     LOCAL_FM,
     FM,
-    LP_THEN_LOCAL_FM,
-    LP_THEN_FM,
     COLORED_LP,
-};
-
-enum class BalancingAlgorithm {
-    DISTRIBUTED,
+    GREEDY_BALANCER,
 };
 
 struct ParallelContext {
@@ -132,19 +127,21 @@ struct InitialPartitioningContext {
     shm::Context                 kaminpar;
 };
 
-struct BalancingContext {
-    BalancingAlgorithm algorithm;
-    NodeID             num_nodes_per_block = 0;
+struct GreedyBalancerContext {
+    NodeID num_nodes_per_block = 0;
 };
 
 struct RefinementContext {
-    KWayRefinementAlgorithm           algorithm;
+    std::vector<KWayRefinementAlgorithm> algorithms;
+
     LabelPropagationRefinementContext lp;
     FMRefinementContext               fm;
-    BalancingContext                  balancing;
-    bool                              refine_coarsest_level = false;
+    GreedyBalancerContext             greedy_balancer;
+
+    bool refine_coarsest_level = false;
 
     void setup(const ParallelContext& parallel);
+    bool includes_algorithm(KWayRefinementAlgorithm algorithm) const;
 };
 
 struct PartitionContext;

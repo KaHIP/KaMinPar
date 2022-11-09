@@ -24,12 +24,12 @@ public:
     FMRefiner(const Context& ctx);
 
     FMRefiner(const FMRefiner&)            = delete;
-    FMRefiner(FMRefiner&&)                 = default;
     FMRefiner& operator=(const FMRefiner&) = delete;
+    FMRefiner(FMRefiner&&) noexcept        = default;
     FMRefiner& operator=(FMRefiner&&)      = delete;
 
-    void initialize(const DistributedGraph& graph, const PartitionContext& p_ctx);
-    void refine(DistributedPartitionedGraph& p_graph);
+    void initialize(const DistributedGraph& graph) final;
+    void refine(DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx) final;
 
 private:
     /*

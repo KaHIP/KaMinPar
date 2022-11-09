@@ -14,7 +14,6 @@
 #include "dkaminpar/graphutils/allgather_graph.h"
 #include "dkaminpar/io.h"
 #include "dkaminpar/metrics.h"
-#include "dkaminpar/refinement/balancer.h"
 
 #include "kaminpar/datastructures/graph.h"
 #include "kaminpar/metrics.h"
@@ -158,40 +157,14 @@ DistributedPartitionedGraph KWayPartitioner::partition() {
         };
 
         auto refine = [&](DistributedPartitionedGraph& p_graph) {
-            {
-                SCOPED_TIMER("Balancing");
-                const bool feasible = metrics::is_feasible(p_graph, _ctx.partition);
-                if (!feasible) {
-                    const double imbalance = metrics::imbalance(p_graph);
-                    LOG << "-> Balancing infeasible partition (imbalance=" << imbalance << ") ...";
-
-                    DistributedBalancer balancer(_ctx);
-                    balancer.initialize(p_graph);
-                    balancer.balance(p_graph, _ctx.partition);
-                }
-            }
-            {
-                SCOPED_TIMER("Refinement");
-                LOG << "-> Refining partition ...";
-                refinement_algorithm->initialize(p_graph.graph(), _ctx.partition);
-                refinement_algorithm->refine(p_graph);
-                KASSERT(
-                    graph::debug::validate_partition(p_graph), "graph partition verification failed after refinement",
-                    assert::heavy
-                );
-            }
-            {
-                SCOPED_TIMER("Balancing");
-                const bool feasible = metrics::is_feasible(p_graph, _ctx.partition);
-                if (!feasible) {
-                    const double imbalance = metrics::imbalance(p_graph);
-                    LOG << "-> Balancing infeasible partition (imbalance=" << imbalance << ") ...";
-
-                    DistributedBalancer balancer(_ctx);
-                    balancer.initialize(p_graph);
-                    balancer.balance(p_graph, _ctx.partition);
-                }
-            }
+            SCOPED_TIMER("Refinement");
+            LOG << "-> Refining partition ...";
+            refinement_algorithm->initialize(p_graph.graph());
+            refinement_algorithm->refine(p_graph, _ctx.partition);
+            KASSERT(
+                graph::debug::validate_partition(p_graph), "graph partition verification failed after refinement",
+                assert::heavy
+            );
         };
 
         // special case: graph too small for multilevel, still run refinement

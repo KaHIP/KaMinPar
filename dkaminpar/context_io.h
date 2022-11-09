@@ -19,7 +19,6 @@ std::ostream& operator<<(std::ostream& out, LocalClusteringAlgorithm algorithm);
 std::ostream& operator<<(std::ostream& out, GlobalContractionAlgorithm algorithm);
 std::ostream& operator<<(std::ostream& out, InitialPartitioningAlgorithm algorithm);
 std::ostream& operator<<(std::ostream& out, KWayRefinementAlgorithm algorithm);
-std::ostream& operator<<(std::ostream& out, BalancingAlgorithm algorithm);
 
 std::unordered_map<std::string, PartitioningMode>             get_partitioning_modes();
 std::unordered_map<std::string, GlobalClusteringAlgorithm>    get_global_clustering_algorithms();
@@ -27,7 +26,6 @@ std::unordered_map<std::string, LocalClusteringAlgorithm>     get_local_clusteri
 std::unordered_map<std::string, GlobalContractionAlgorithm>   get_global_contraction_algorithms();
 std::unordered_map<std::string, InitialPartitioningAlgorithm> get_initial_partitioning_algorithms();
 std::unordered_map<std::string, KWayRefinementAlgorithm>      get_kway_refinement_algorithms();
-std::unordered_map<std::string, BalancingAlgorithm>           get_balancing_algorithms();
 
 void print_compact(const Context& ctx, std::ostream& out, const std::string& prefix = "");
 void print_compact(const DebugContext& ctx, std::ostream& out, const std::string& prefix);
@@ -36,7 +34,7 @@ void print_compact(const ParallelContext& ctx, std::ostream& out, const std::str
 void print_compact(const RefinementContext& ctx, std::ostream& out, const std::string& prefix);
 void print_compact(const InitialPartitioningContext& ctx, std::ostream& out, const std::string& prefix);
 void print_compact(const MtKaHyParContext& ctx, std::ostream& out, const std::string& prefix);
-void print_compact(const BalancingContext& ctx, std::ostream& out, const std::string& prefix);
+void print_compact(const GreedyBalancerContext& ctx, std::ostream& out, const std::string& prefix);
 void print_compact(const CoarseningContext& ctx, std::ostream& out, const std::string& prefix);
 void print_compact(const FMRefinementContext& ctx, std::ostream& out, const std::string& prefix);
 void print_compact(const LabelPropagationRefinementContext& ctx, std::ostream& out, const std::string& prefix);

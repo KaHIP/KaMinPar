@@ -1,10 +1,10 @@
 /*******************************************************************************
- * @file:   distributed_balancer.cc
+ * @file:   greedy_balancer.cc
  * @author: Daniel Seemaier
  * @date:   12.04.2022
  * @brief:  Distributed balancing refinement algorithm.
  ******************************************************************************/
-#include "dkaminpar/refinement/balancer.h"
+#include "dkaminpar/refinement/greedy_balancer.h"
 
 #include "dkaminpar/metrics.h"
 #include "dkaminpar/mpi/graph_communication.h"
@@ -15,24 +15,29 @@
 #include "common/timer.h"
 
 namespace kaminpar::dist {
-DistributedBalancer::DistributedBalancer(const Context& ctx)
+GreedyBalancer::GreedyBalancer(const Context& ctx)
     : _ctx(ctx),
       _pq(ctx.partition.graph.n(), ctx.partition.k),
       _pq_weight(ctx.partition.k),
       _marker(ctx.partition.graph.n()) {}
 
-void DistributedBalancer::initialize(const DistributedPartitionedGraph&) {}
+void GreedyBalancer::initialize(const DistributedGraph&) {}
 
-void DistributedBalancer::balance(DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx) {
+void GreedyBalancer::refine(DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx) {
+    _p_graph = &p_graph;
+    _p_ctx   = &p_ctx;
+
+    // Only balance the partition if it is infeasible
+    if (metrics::is_feasible(*_p_graph, *_p_ctx)) {
+        return;
+    }
+
     IFSTATS(reset_statistics());
     IFSTATS(_stats.initial_feasible = metrics::is_feasible(p_graph, p_ctx));
     IFSTATS(_stats.initial_cut = metrics::edge_cut(p_graph));
     IFSTATS(_stats.initial_imbalance = metrics::imbalance(p_graph));
     IFSTATS(_stats.initial_num_imbalanced_blocks = metrics::num_imbalanced_blocks(p_graph, p_ctx));
     const int rank = mpi::get_comm_rank(p_graph.communicator());
-
-    _p_graph = &p_graph;
-    _p_ctx   = &p_ctx;
 
     START_TIMER("Initialize PQ");
     init_pq();
@@ -123,7 +128,7 @@ void DistributedBalancer::balance(DistributedPartitionedGraph& p_graph, const Pa
     IFSTATS(print_statistics());
 }
 
-void DistributedBalancer::print_candidates(const std::vector<MoveCandidate>& moves, const std::string& desc) const {
+void GreedyBalancer::print_candidates(const std::vector<MoveCandidate>& moves, const std::string& desc) const {
     std::stringstream ss;
     ss << desc << " [";
     for (const auto& [node, from, to, weight, rel_gain]: moves) {
@@ -134,19 +139,19 @@ void DistributedBalancer::print_candidates(const std::vector<MoveCandidate>& mov
     DLOG << "candidates=" << ss.str();
 }
 
-void DistributedBalancer::print_overloads() const {
+void GreedyBalancer::print_overloads() const {
     for (const BlockID b: _p_graph->blocks()) {
         LOG << V(b) << V(block_overload(b));
     }
 }
 
-void DistributedBalancer::perform_moves(const std::vector<MoveCandidate>& moves) {
+void GreedyBalancer::perform_moves(const std::vector<MoveCandidate>& moves) {
     for (const auto& move: moves) {
         perform_move(move);
     }
 }
 
-void DistributedBalancer::perform_move(const MoveCandidate& move) {
+void GreedyBalancer::perform_move(const MoveCandidate& move) {
     const auto& [node, from, to, weight, rel_gain] = move;
 
     if (from == to) { // should only happen on root
@@ -184,8 +189,7 @@ void DistributedBalancer::perform_move(const MoveCandidate& move) {
     }
 }
 
-auto DistributedBalancer::reduce_move_candidates(std::vector<MoveCandidate>&& candidates)
-    -> std::vector<MoveCandidate> {
+auto GreedyBalancer::reduce_move_candidates(std::vector<MoveCandidate>&& candidates) -> std::vector<MoveCandidate> {
     const int size = mpi::get_comm_size(_p_graph->communicator());
     const int rank = mpi::get_comm_rank(_p_graph->communicator());
     KASSERT(math::is_power_of_2(size), "#PE must be a power of two", assert::always);
@@ -220,7 +224,7 @@ auto DistributedBalancer::reduce_move_candidates(std::vector<MoveCandidate>&& ca
     return std::move(candidates);
 }
 
-auto DistributedBalancer::reduce_move_candidates(std::vector<MoveCandidate>&& a, std::vector<MoveCandidate>&& b)
+auto GreedyBalancer::reduce_move_candidates(std::vector<MoveCandidate>&& a, std::vector<MoveCandidate>&& b)
     -> std::vector<MoveCandidate> {
     std::vector<MoveCandidate> ans;
 
@@ -289,7 +293,8 @@ auto DistributedBalancer::reduce_move_candidates(std::vector<MoveCandidate>&& a,
             ++added_to_ans;
 
             // only pick candidates while we do not have enough weight to balance the block
-            if (total_weight >= block_overload(from) || added_to_ans >= _ctx.refinement.balancing.num_nodes_per_block) {
+            if (total_weight >= block_overload(from)
+                || added_to_ans >= _ctx.refinement.greedy_balancer.num_nodes_per_block) {
                 break;
             }
         }
@@ -336,7 +341,7 @@ auto DistributedBalancer::reduce_move_candidates(std::vector<MoveCandidate>&& a,
     return ans;
 }
 
-auto DistributedBalancer::pick_move_candidates() -> std::vector<MoveCandidate> {
+auto GreedyBalancer::pick_move_candidates() -> std::vector<MoveCandidate> {
     std::vector<MoveCandidate> candidates;
 
     for (const BlockID from: _p_graph->blocks()) {
@@ -347,7 +352,7 @@ auto DistributedBalancer::pick_move_candidates() -> std::vector<MoveCandidate> {
         // fetch up to num_nodes_per_block move candidates from the PQ
         // but keep them in the PQ, since they might not get moved
         NodeID num = 0;
-        for (num = 0; num < _ctx.refinement.balancing.num_nodes_per_block; ++num) {
+        for (num = 0; num < _ctx.refinement.greedy_balancer.num_nodes_per_block; ++num) {
             if (_pq.empty(from)) {
                 break;
             }
@@ -382,7 +387,7 @@ auto DistributedBalancer::pick_move_candidates() -> std::vector<MoveCandidate> {
     return candidates;
 }
 
-void DistributedBalancer::init_pq() {
+void GreedyBalancer::init_pq() {
     SCOPED_TIMER("Initialize PQ");
 
     const BlockID k = _p_graph->k();
@@ -441,7 +446,7 @@ void DistributedBalancer::init_pq() {
     STOP_TIMER();
 }
 
-std::pair<BlockID, double> DistributedBalancer::compute_gain(const NodeID u, const BlockID u_block) const {
+std::pair<BlockID, double> GreedyBalancer::compute_gain(const NodeID u, const BlockID u_block) const {
     const NodeWeight u_weight          = _p_graph->node_weight(u);
     BlockID          max_gainer        = u_block;
     EdgeWeight       max_external_gain = 0;
@@ -480,7 +485,7 @@ std::pair<BlockID, double> DistributedBalancer::compute_gain(const NodeID u, con
     return {max_gainer, relative_gain};
 }
 
-BlockWeight DistributedBalancer::block_overload(const BlockID b) const {
+BlockWeight GreedyBalancer::block_overload(const BlockID b) const {
     static_assert(
         std::numeric_limits<BlockWeight>::is_signed,
         "This must be changed when using an unsigned data type for block weights!"
@@ -488,7 +493,7 @@ BlockWeight DistributedBalancer::block_overload(const BlockID b) const {
     return std::max<BlockWeight>(0, _p_graph->block_weight(b) - _p_ctx->graph.max_block_weight(b));
 }
 
-double DistributedBalancer::compute_relative_gain(const EdgeWeight absolute_gain, const NodeWeight weight) const {
+double GreedyBalancer::compute_relative_gain(const EdgeWeight absolute_gain, const NodeWeight weight) const {
     if (absolute_gain >= 0) {
         return absolute_gain * weight;
     } else {
@@ -496,14 +501,14 @@ double DistributedBalancer::compute_relative_gain(const EdgeWeight absolute_gain
     }
 }
 
-bool DistributedBalancer::add_to_pq(const BlockID b, const NodeID u) {
+bool GreedyBalancer::add_to_pq(const BlockID b, const NodeID u) {
     KASSERT(b == _p_graph->block(u));
 
     const auto [to, rel_gain] = compute_gain(u, b);
     return add_to_pq(b, u, _p_graph->node_weight(u), rel_gain);
 }
 
-bool DistributedBalancer::add_to_pq(const BlockID b, const NodeID u, const NodeWeight u_weight, const double rel_gain) {
+bool GreedyBalancer::add_to_pq(const BlockID b, const NodeID u, const NodeWeight u_weight, const double rel_gain) {
     KASSERT(u_weight == _p_graph->node_weight(u));
     KASSERT(b == _p_graph->block(u));
 
@@ -526,17 +531,17 @@ bool DistributedBalancer::add_to_pq(const BlockID b, const NodeID u, const NodeW
     return false;
 }
 
-void DistributedBalancer::reset_statistics() {
+void GreedyBalancer::reset_statistics() {
     _stats = {};
 }
 
-void DistributedBalancer::print_statistics() const {
+void GreedyBalancer::print_statistics() const {
     const GlobalNodeID global_num_conflicts =
         mpi::allreduce(_stats.local_num_conflicts, MPI_SUM, _p_graph->communicator());
     const GlobalNodeID global_num_nonconflicts =
         mpi::allreduce(_stats.local_num_nonconflicts, MPI_SUM, _p_graph->communicator());
 
-    STATS << "DistributedBalancer:";
+    STATS << "GreedyBalancer:";
     STATS << "  * Feasible changed: " << C(_stats.initial_feasible, _stats.final_feasible);
     STATS << "  * Number of rounds: " << _stats.num_reduction_rounds;
     STATS << "  * Change in imbalance: " << C(_stats.initial_imbalance, _stats.final_imbalance);

@@ -16,6 +16,23 @@
 #include "common/console_io.h"
 
 namespace kaminpar::dist {
+namespace {
+template <typename T>
+std::ostream& operator<<(std::ostream& out, const std::vector<T>& vec) {
+    out << "[";
+    bool first = true;
+    for (const T& e: vec) {
+        if (first) {
+            first = false;
+        } else {
+            out << ", ";
+        }
+        out << e;
+    }
+    return out << "]";
+}
+} // namespace
+
 std::unordered_map<std::string, PartitioningMode> get_partitioning_modes() {
     return {
         {"deep", PartitioningMode::DEEP},
@@ -124,9 +141,8 @@ std::unordered_map<std::string, KWayRefinementAlgorithm> get_kway_refinement_alg
         {"lp", KWayRefinementAlgorithm::LP},
         {"local-fm", KWayRefinementAlgorithm::LOCAL_FM},
         {"fm", KWayRefinementAlgorithm::FM},
-        {"lp+local-fm", KWayRefinementAlgorithm::LP_THEN_LOCAL_FM},
-        {"lp+fm", KWayRefinementAlgorithm::LP_THEN_FM},
         {"colored-lp", KWayRefinementAlgorithm::COLORED_LP},
+        {"greedy-balancer", KWayRefinementAlgorithm::GREEDY_BALANCER},
     };
 }
 
@@ -140,27 +156,10 @@ std::ostream& operator<<(std::ostream& out, const KWayRefinementAlgorithm algori
             return out << "local-fm";
         case KWayRefinementAlgorithm::FM:
             return out << "fm";
-        case KWayRefinementAlgorithm::LP_THEN_LOCAL_FM:
-            return out << "lp+local-fm";
-        case KWayRefinementAlgorithm::LP_THEN_FM:
-            return out << "lp+fm";
         case KWayRefinementAlgorithm::COLORED_LP:
             return out << "colored-lp";
-    }
-
-    return out << "<invalid>";
-}
-
-std::unordered_map<std::string, BalancingAlgorithm> get_balancing_algorithms() {
-    return {
-        {"distributed", BalancingAlgorithm::DISTRIBUTED},
-    };
-}
-
-std::ostream& operator<<(std::ostream& out, const BalancingAlgorithm algorithm) {
-    switch (algorithm) {
-        case BalancingAlgorithm::DISTRIBUTED:
-            return out << "distributed";
+        case KWayRefinementAlgorithm::GREEDY_BALANCER:
+            return out << "greedy-balancer";
     }
 
     return out << "<invalid>";
@@ -215,9 +214,8 @@ void print_compact(const CoarseningContext& ctx, std::ostream& out, const std::s
     print_compact(ctx.global_lp, out, prefix + "global_lp.");
 }
 
-void print_compact(const BalancingContext& ctx, std::ostream& out, const std::string& prefix) {
-    out << prefix << "algorithm=" << ctx.algorithm << " "                      //
-        << prefix << "num_nodes_per_block=" << ctx.num_nodes_per_block << " "; //
+void print_compact(const GreedyBalancerContext& ctx, std::ostream& out, const std::string& prefix) {
+    out << prefix << "num_nodes_per_block=" << ctx.num_nodes_per_block << " "; //
 }
 
 void print_compact(const MtKaHyParContext& ctx, std::ostream& out, const std::string& prefix) {
@@ -233,10 +231,10 @@ void print_compact(const InitialPartitioningContext& ctx, std::ostream& out, con
 }
 
 void print_compact(const RefinementContext& ctx, std::ostream& out, const std::string& prefix) {
-    out << prefix << "algorithm=" << ctx.algorithm << " ";
+    out << prefix << "algorithms=" << ctx.algorithms << " ";
     print_compact(ctx.lp, out, prefix + "lp.");
     print_compact(ctx.fm, out, prefix + "fm.");
-    print_compact(ctx.balancing, out, prefix + "balancing.");
+    print_compact(ctx.greedy_balancer, out, prefix + "greedy_balancer.");
 }
 
 void print_compact(const ParallelContext& ctx, std::ostream& out, const std::string& prefix) {
@@ -379,9 +377,9 @@ void print(const InitialPartitioningContext& ctx, std::ostream& out) {
 }
 
 void print(const RefinementContext& ctx, std::ostream& out) {
-    out << "Refinement algorithm:         " << ctx.algorithm << "\n";
+    out << "Refinement algorithms:        " << ctx.algorithms << "\n";
     out << "Refine initial partition:     " << (ctx.refine_coarsest_level ? "yes" : "no") << "\n";
-    if (ctx.algorithm == KWayRefinementAlgorithm::LP || ctx.algorithm == KWayRefinementAlgorithm::LP_THEN_FM) {
+    if (ctx.includes_algorithm(KWayRefinementAlgorithm::LP)) {
         out << "Label propagation:\n";
         out << "  Number of iterations:       " << ctx.lp.num_iterations << "\n";
         out << "  Number of chunks:           " << ctx.lp.num_chunks << " (min: " << ctx.lp.min_num_chunks
@@ -390,9 +388,9 @@ void print(const RefinementContext& ctx, std::ostream& out) {
         out << "  Use probabilistic moves:    " << (ctx.lp.ignore_probabilities ? "no" : "yes") << "\n";
         out << "  Number of retries:          " << ctx.lp.num_move_attempts << "\n";
     }
-    out << "Balancing algorithm:          " << ctx.balancing.algorithm << "\n";
-    if (ctx.balancing.algorithm == BalancingAlgorithm::DISTRIBUTED) {
-        out << "  Number of nodes per block:  " << ctx.balancing.num_nodes_per_block << "\n";
+    if (ctx.includes_algorithm(KWayRefinementAlgorithm::GREEDY_BALANCER)) {
+        out << "Greedy balancer:\n";
+        out << "  Number of nodes per block:  " << ctx.greedy_balancer.num_nodes_per_block << "\n";
     }
 }
 } // namespace kaminpar::dist
