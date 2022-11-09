@@ -126,6 +126,7 @@ std::unordered_map<std::string, KWayRefinementAlgorithm> get_kway_refinement_alg
         {"fm", KWayRefinementAlgorithm::FM},
         {"lp+local-fm", KWayRefinementAlgorithm::LP_THEN_LOCAL_FM},
         {"lp+fm", KWayRefinementAlgorithm::LP_THEN_FM},
+        {"colored-lp", KWayRefinementAlgorithm::COLORED_LP},
     };
 }
 
@@ -143,6 +144,8 @@ std::ostream& operator<<(std::ostream& out, const KWayRefinementAlgorithm algori
             return out << "lp+local-fm";
         case KWayRefinementAlgorithm::LP_THEN_FM:
             return out << "lp+fm";
+        case KWayRefinementAlgorithm::COLORED_LP:
+            return out << "colored-lp";
     }
 
     return out << "<invalid>";

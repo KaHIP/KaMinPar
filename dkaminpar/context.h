@@ -49,6 +49,7 @@ enum class KWayRefinementAlgorithm {
     FM,
     LP_THEN_LOCAL_FM,
     LP_THEN_FM,
+    COLORED_LP,
 };
 
 enum class BalancingAlgorithm {

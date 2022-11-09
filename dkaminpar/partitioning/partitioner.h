@@ -11,6 +11,8 @@
 namespace kaminpar::dist {
 class Partitioner {
 public:
+    virtual ~Partitioner() = default;
+
     virtual DistributedPartitionedGraph partition() = 0;
 };
 } // namespace kaminpar::dist

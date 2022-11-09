@@ -22,6 +22,7 @@
 #include "dkaminpar/initial_partitioning/random_initial_partitioner.h"
 
 // Refinement
+#include "dkaminpar/refinement/colored_lp_refiner.h"
 #include "dkaminpar/refinement/fm_refiner.h"
 #include "dkaminpar/refinement/local_fm_refiner.h"
 #include "dkaminpar/refinement/lp_refiner.h"
@@ -90,6 +91,9 @@ std::unique_ptr<Refiner> create_refinement_algorithm(const Context& ctx) {
             refiners.push_back(std::make_unique<FMRefiner>(ctx));
             return std::make_unique<MultiRefiner>(std::move(refiners));
         }
+
+        case KWayRefinementAlgorithm::COLORED_LP:
+            return std::make_unique<ColoredLPRefiner>(ctx);
     }
 
     __builtin_unreachable();

@@ -23,6 +23,7 @@ SET_DEBUG(true);
 namespace {
 template <typename Generator, typename ScoreType = std::int64_t>
 ScoreType compute_score(Generator& generator, const GlobalNodeID node, const int seed) {
+    // @todo replace with something efficient / use communication
     generator.seed(seed + node);
     return std::uniform_int_distribution<ScoreType>(ScoreType(), std::numeric_limits<ScoreType>::max() - 1)(generator);
 }

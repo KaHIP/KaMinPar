@@ -14,10 +14,16 @@ namespace kaminpar::dist {
 class LPRefiner : public Refiner {
 public:
     LPRefiner(const Context& ctx);
+
+    LPRefiner(const LPRefiner&)            = delete;
+    LPRefiner& operator=(const LPRefiner&) = delete;
+    LPRefiner(LPRefiner&&) noexcept        = default;
+    LPRefiner& operator=(LPRefiner&&)      = delete;
+
     ~LPRefiner();
 
-    void initialize(const DistributedGraph& graph, const PartitionContext& p_ctx) override;
-    void refine(DistributedPartitionedGraph& p_graph) override;
+    void initialize(const DistributedGraph& graph, const PartitionContext& p_ctx) final;
+    void refine(DistributedPartitionedGraph& p_graph) final;
 
 private:
     std::unique_ptr<class LPRefinerImpl> _impl;
