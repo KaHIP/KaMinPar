@@ -1,10 +1,10 @@
 /*******************************************************************************
- * @file:   kway.cc
+ * @file:   kway_partitioner.cc
  * @author: Daniel Seemaier
  * @date:   25.10.2021
- * @brief:  Partitioning scheme using direct k-way partitioning.
+ * @brief:  Multilevel graph partitioning with direct k-way initial partitioning.
  ******************************************************************************/
-#include "dkaminpar/partitioning/kway_partitioning_scheme.h"
+#include "dkaminpar/partitioning/kway_partitioner.h"
 
 #include "dkaminpar/coarsening/coarsener.h"
 #include "dkaminpar/coarsening/global_clustering_contraction.h"
@@ -26,11 +26,9 @@
 namespace kaminpar::dist {
 SET_DEBUG(false);
 
-KWayPartitioningScheme::KWayPartitioningScheme(const DistributedGraph& graph, const Context& ctx)
-    : _graph(graph),
-      _ctx(ctx) {}
+KWayPartitioner::KWayPartitioner(const DistributedGraph& graph, const Context& ctx) : _graph(graph), _ctx(ctx) {}
 
-DistributedPartitionedGraph KWayPartitioningScheme::partition() {
+DistributedPartitionedGraph KWayPartitioner::partition() {
     Coarsener coarsener(_graph, _ctx);
 
     const DistributedGraph* graph   = &_graph;

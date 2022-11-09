@@ -8,7 +8,13 @@
 
 #include <memory>
 
+#include "dkaminpar/context.h"
+#include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/definitions.h"
+
+// Partitioning schemes
+#include "dkaminpar/partitioning/deep_multilevel_partitioner.h"
+#include "dkaminpar/partitioning/kway_partitioner.h"
 
 // Initial Partitioning
 #include "dkaminpar/initial_partitioning/kaminpar_initial_partitioner.h"
@@ -30,6 +36,18 @@
 #include "dkaminpar/coarsening/noop_clustering.h"
 
 namespace kaminpar::dist::factory {
+std::unique_ptr<Partitioner> create_partitioner(const Context& ctx, const DistributedGraph& graph) {
+    switch (ctx.partition.mode) {
+        case PartitioningMode::DEEP:
+            return std::make_unique<DeepMultilevelPartitioner>(graph, ctx);
+
+        case PartitioningMode::KWAY:
+            return std::make_unique<KWayPartitioner>(graph, ctx);
+    }
+
+    __builtin_unreachable();
+}
+
 std::unique_ptr<InitialPartitioner> create_initial_partitioning_algorithm(const Context& ctx) {
     switch (ctx.initial_partitioning.algorithm) {
         case InitialPartitioningAlgorithm::KAMINPAR:
@@ -41,6 +59,7 @@ std::unique_ptr<InitialPartitioner> create_initial_partitioning_algorithm(const 
         case InitialPartitioningAlgorithm::RANDOM:
             return std::make_unique<RandomInitialPartitioner>();
     }
+
     __builtin_unreachable();
 }
 
@@ -72,6 +91,7 @@ std::unique_ptr<Refiner> create_refinement_algorithm(const Context& ctx) {
             return std::make_unique<MultiRefiner>(std::move(refiners));
         }
     }
+
     __builtin_unreachable();
 }
 
@@ -89,6 +109,7 @@ std::unique_ptr<ClusteringAlgorithm<GlobalNodeID>> create_global_clustering_algo
         case GlobalClusteringAlgorithm::LOCKING_LP:
             return std::make_unique<LockingLabelPropagationClustering>(ctx);
     }
+
     __builtin_unreachable();
 }
 

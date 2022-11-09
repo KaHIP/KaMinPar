@@ -18,12 +18,13 @@
 #include "dkaminpar/context_io.h"
 #include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/definitions.h"
+#include "dkaminpar/factories.h"
 #include "dkaminpar/graphutils/graph_rearrangement.h"
 #include "dkaminpar/io.h"
 #include "dkaminpar/logger.h"
 #include "dkaminpar/metrics.h"
 #include "dkaminpar/mpi/utils.h"
-#include "dkaminpar/partitioning/partitioning.h"
+#include "dkaminpar/partitioning/partitioner.h"
 #include "dkaminpar/presets.h"
 #include "dkaminpar/timer.h"
 
@@ -105,7 +106,7 @@ partition_repeatedly(const DistributedGraph& graph, const Context& ctx, Terminat
         Timer repetition_timer("");
         START_TIMER("Partitioning", "Repetition " + std::to_string(repetition));
 
-        auto p_graph = partition(graph, ctx);
+        auto p_graph = factory::create_partitioner(ctx, graph)->partition();
         mpi::barrier(MPI_COMM_WORLD);
         STOP_TIMER();
         repetition_timer.stop_timer();
@@ -360,7 +361,7 @@ int main(int argc, char* argv[]) {
             }
         } else {
             SCOPED_TIMER("Partitioning");
-            auto p_graph = partition(graph, ctx);
+            auto p_graph = factory::create_partitioner(ctx, graph)->partition();
             if (!ctx.quiet && rank == 0) {
                 cio::print_delimiter();
             }
