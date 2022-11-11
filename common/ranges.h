@@ -87,6 +87,12 @@ public:
             return tmp;
         }
 
+        iterator operator+(const int step) const {
+            auto tmp = *this;
+            tmp._value += step;
+            return tmp;
+        }
+
         bool operator==(const iterator& other) const {
             return _value == other._value;
         }

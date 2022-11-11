@@ -10,9 +10,7 @@
 #include "dkaminpar/datastructures/distributed_graph.h"
 
 namespace kaminpar::dist {
-ColoredLPRefiner::ColoredLPRefiner(const Context& ctx) {
-    ((void)ctx);
-}
+ColoredLPRefiner::ColoredLPRefiner(const Context& ctx) : _input_ctx(ctx) {}
 
 void ColoredLPRefiner::initialize(const DistributedGraph& graph) {
     ((void)graph);

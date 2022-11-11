@@ -369,8 +369,11 @@ public:
     }
 
     // Iterators for nodes / edges
+    [[nodiscard]] inline auto nodes(const NodeID from, const NodeID to) const {
+        return IotaRange(from, to);
+    }
     [[nodiscard]] inline auto nodes() const {
-        return IotaRange(static_cast<NodeID>(0), n());
+        return nodes(0, n());
     }
     [[nodiscard]] inline auto ghost_nodes() const {
         return IotaRange(n(), total_n());
