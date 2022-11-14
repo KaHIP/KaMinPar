@@ -6,6 +6,7 @@
  **********************************************************************************************************************/
 #pragma once
 
+#include "dkaminpar/algorithms/greedy_node_coloring.h"
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/refinement/refiner.h"
@@ -24,6 +25,16 @@ public:
     void refine(DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx) final;
 
 private:
+    void handle_node(NodeID u);
+
+    void synchronize_state(ColorID c);
+
     const Context& _input_ctx;
+
+    const PartitionContext*      _p_ctx;
+    DistributedPartitionedGraph* _p_graph;
+
+    NoinitVector<ColorID> _color_sizes;
+    NoinitVector<NodeID>  _color_sorted_nodes;
 };
 } // namespace kaminpar::dist

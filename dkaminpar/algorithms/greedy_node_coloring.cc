@@ -17,12 +17,15 @@
 #include "common/math.h"
 #include "common/parallel/algorithm.h"
 #include "common/ranges.h"
+#include "common/timer.h"
 
 namespace kaminpar::dist {
 SET_DEBUG(false);
 
 NoinitVector<ColorID>
 compute_node_coloring_sequentially(const DistributedGraph& graph, const NodeID number_of_supersteps) {
+    SCOPED_TIMER("Compute greedy node coloring");
+
     // Initialize coloring to 0 == no color picked yet
     NoinitVector<ColorID> coloring(graph.total_n());
     graph.pfor_all_nodes([&](const NodeID u) { coloring[u] = 0; });
