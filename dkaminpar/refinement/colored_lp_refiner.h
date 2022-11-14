@@ -25,9 +25,12 @@ public:
     void refine(DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx) final;
 
 private:
-    void handle_node(NodeID u);
+    NodeID find_moves(ColorID c);
+    void   perform_moves(ColorID c);
+    bool   attempt_moves(ColorID c, const std::vector<EdgeWeight>& total_gains_to_block);
+    void   synchronize_state(ColorID c);
 
-    void synchronize_state(ColorID c);
+    void handle_node(NodeID u);
 
     const Context& _input_ctx;
 
@@ -36,5 +39,8 @@ private:
 
     NoinitVector<ColorID> _color_sizes;
     NoinitVector<NodeID>  _color_sorted_nodes;
+
+    NoinitVector<EdgeWeight> _gains;
+    NoinitVector<BlockID>    _next_partition;
 };
 } // namespace kaminpar::dist

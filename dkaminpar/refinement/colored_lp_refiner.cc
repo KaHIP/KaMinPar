@@ -13,6 +13,8 @@
 #include "dkaminpar/datastructures/distributed_graph.h"
 
 #include "common/parallel/algorithm.h"
+#include "common/parallel/vector_ets.h"
+#include "common/random.h"
 #include "common/timer.h"
 
 namespace kaminpar::dist {
@@ -59,131 +61,165 @@ void ColoredLPRefiner::refine(DistributedPartitionedGraph& p_graph, const Partit
     _p_ctx   = &p_ctx;
     _p_graph = &p_graph;
 
-    for (ColorID c = 0; c + 1 < _color_sizes.size(); ++c) {
-        const NodeID from = _color_sizes[c];
-        const NodeID to   = _color_sizes[c + 1];
+    [[maybe_unused]] NodeID local_num_moves = 0;
 
-        for (NodeID seq_u = from; seq_u < to; ++seq_u) {
-            const NodeID u = _color_sorted_nodes[seq_u];
-            handle_node(u);
-        }
+    for (ColorID c = 0; c + 1 < _color_sizes.size(); ++c) {
+        local_num_moves += find_moves(c);
+        perform_moves(c);
     }
 }
 
-bool ColoredLPRefiner::perform_moves(
-    const NodeID seq_from, const NodeID seq_to, const std::vector<BlockWeight>& residual_block_weights,
-    const std::vector<EdgeWeight>& total_gains_to_block
-) {
-    struct Move {
-        Move(const NodeID u, const BlockID from) : u(u), from(from) {}
-        NodeID  u;
-        BlockID from;
-    };
+void ColoredLPRefiner::perform_moves(const ColorID c) {
+    START_TIMER("Gather weight and gain values");
+    parallel::vector_ets<BlockWeight> weight_to_block_ets(_p_ctx->k);
+    parallel::vector_ets<EdgeWeight>  gain_to_block_ets(_p_ctx->k);
 
-    // perform probabilistic moves, but keep track of moves in case we need to roll back
-    std::vector<parallel::Atomic<NodeWeight>>      expected_moved_weight(_p_ctx->k);
-    scalable_vector<parallel::Atomic<BlockWeight>> block_weight_deltas(_p_ctx->k);
-    tbb::concurrent_vector<Move>                   moves;
-    _p_graph->pfor_nodes_range(from, to, [&](const auto& r) {
-        auto& rand = Random::instance();
+    const NodeID seq_from = _color_sizes[c];
+    const NodeID seq_to   = _color_sizes[c + 1];
 
-        for (NodeID u = r.begin(); u < r.end(); ++u) {
-            // only iterate over nodes that changed block
-            if (_next_partition[u] == _p_graph->block(u) || _next_partition[u] == kInvalidBlockID) {
-                continue;
-            }
+    _p_graph->pfor_nodes_range(seq_from, seq_to, [&](const auto r) {
+        auto& weight_to_block = weight_to_block_ets.local();
+        auto& gain_to_block   = gain_to_block_ets.local();
 
-            // compute move probability
-            const BlockID b = _next_partition[u];
-            const double  gain_prob =
-                _lp_ctx.ignore_probabilities
-                     ? 1.0
-                     : ((total_gains_to_block[b] == 0) ? 1.0 : 1.0 * _gains[u] / total_gains_to_block[b]);
-            const double probability =
-                _lp_ctx.ignore_probabilities
-                    ? 1.0
-                    : gain_prob * (static_cast<double>(residual_block_weights[b]) / _p_graph->node_weight(u));
-            IFSTATS(_statistics.expected_gain += probability * _gains[u]);
-            IFSTATS(expected_moved_weight[b] += probability * _p_graph->node_weight(u));
+        for (const NodeID seq_u: r) {
+            const NodeID u = _color_sorted_nodes[seq_u];
 
-            // perform move with probability
-            if (_lp_ctx.ignore_probabilities || rand.random_bool(probability)) {
-                IFSTATS(_statistics.num_tentatively_moved_nodes++);
-
-                const BlockID    from     = _p_graph->block(u);
-                const BlockID    to       = _next_partition[u];
-                const NodeWeight u_weight = _p_graph->node_weight(u);
-
-                moves.emplace_back(u, from);
-                block_weight_deltas[from].fetch_sub(u_weight, std::memory_order_relaxed);
-                block_weight_deltas[to].fetch_add(u_weight, std::memory_order_relaxed);
-                _p_graph->set_block<false>(u, to);
-
-                // temporary mark that this node was actually moved
-                // we will revert this during synchronization or on rollback
-                _next_partition[u] = kInvalidBlockID;
-
-                IFSTATS(_statistics.realized_gain += _gains[u]);
-            } else {
-                IFSTATS(_statistics.num_tentatively_rejected_nodes++);
-                IFSTATS(_statistics.rejected_gain += _gains[u]);
+            if (_p_graph->block(u) != _next_partition[seq_u]) {
+                weight_to_block[_next_partition[seq_u]] += _p_graph->node_weight(u);
+                gain_to_block[_next_partition[seq_u]] += _gains[seq_u];
             }
         }
     });
 
-    // compute global block weights after moves
-    scalable_vector<BlockWeight> global_block_weight_deltas(_p_ctx->k);
-    _p_graph->pfor_blocks([&](const BlockID b) { global_block_weight_deltas[b] = block_weight_deltas[b]; });
+    const auto weight_to_block = weight_to_block_ets.combine(std::plus{});
+    const auto gain_to_block   = gain_to_block_ets.combine(std::plus{});
+
+    // allreduce gain to block
+    std::vector<EdgeWeight> global_total_gains_to_block;
+    std::vector<EdgeWeight> global_gain_to(_p_ctx->k);
+
+    if (!_input_ctx.refinement.lp.ignore_probabilities) {
+        mpi::allreduce(
+            gain_to_block.data(), global_gain_to.data(), asserting_cast<int>(_p_ctx->k), MPI_SUM,
+            _p_graph->communicator()
+        );
+    }
+
+    for (const BlockID b: _p_graph->blocks()) {
+        global_total_gains_to_block.push_back(global_gain_to[b]);
+    }
+    STOP_TIMER();
+
+    // perform probabilistic moves
+    START_TIMER("Perform moves");
+    for (std::size_t i = 0; i < _input_ctx.refinement.lp.num_move_attempts; ++i) {
+        if (attempt_moves(c, global_total_gains_to_block)) {
+            break;
+        }
+    }
+    synchronize_state(c);
+
+    // Reset _next_partition for next round
+    _p_graph->pfor_nodes(seq_from, seq_to, [&](const NodeID seq_u) {
+        const NodeID u         = _color_sorted_nodes[seq_u];
+        _next_partition[seq_u] = _p_graph->block(u);
+    });
+    STOP_TIMER();
+}
+
+bool ColoredLPRefiner::attempt_moves(const ColorID c, const std::vector<EdgeWeight>& total_gains_to_block) {
+    struct Move {
+        Move(const NodeID seq_u, const NodeID u, const BlockID from) : seq_u(u), u(u), from(from) {}
+        NodeID  seq_u;
+        NodeID  u;
+        BlockID from;
+    };
+
+    // Keep track of the moves that we perform so that we can roll back in case the probabilistic moves made the
+    // partition imbalanced
+    tbb::concurrent_vector<Move> moves;
+
+    // Track change in block weights to determine whether the partition became imbalanced
+    NoinitVector<BlockWeight> block_weight_deltas(_p_ctx->k);
+    tbb::parallel_for<BlockID>(0, _p_ctx->k, [&](const BlockID b) { block_weight_deltas[b] = 0; });
+
+    const NodeID seq_from = _color_sizes[c];
+    const NodeID seq_to   = _color_sizes[c + 1];
+
+    _p_graph->pfor_nodes_range(seq_from, seq_to, [&](const auto& r) {
+        auto& rand = Random::instance();
+
+        for (const NodeID seq_u: r) {
+            const NodeID u = _color_sorted_nodes[seq_u];
+
+            // Only iterate over nodes that changed block
+            if (_next_partition[seq_u] == _p_graph->block(u) || _next_partition[seq_u] == kInvalidBlockID) {
+                continue;
+            }
+
+            // Compute move probability and perform it
+            // Or always perform the move if move probabilities are disabled
+            const BlockID to          = _next_partition[seq_u];
+            const double  probability = [&] {
+                if (_input_ctx.refinement.lp.ignore_probabilities) {
+                    return 1.0;
+                }
+
+                const double gain_prob =
+                    (total_gains_to_block[to] == 0) ? 1.0 : 1.0 * _gains[seq_u] / total_gains_to_block[to];
+                const BlockWeight residual_block_weight =
+                    _p_ctx->graph.max_block_weight(to) - _p_graph->block_weight(to);
+                return gain_prob * residual_block_weight / _p_graph->node_weight(u);
+            }();
+
+            if (_input_ctx.refinement.lp.ignore_probabilities || rand.random_bool(probability)) {
+                const BlockID    from     = _p_graph->block(u);
+                const NodeWeight u_weight = _p_graph->node_weight(u);
+
+                moves.emplace_back(seq_u, u, from);
+                __atomic_fetch_sub(&block_weight_deltas[from], u_weight, __ATOMIC_RELAXED);
+                __atomic_fetch_add(&block_weight_deltas[to], u_weight, __ATOMIC_RELAXED);
+                _p_graph->set_block<false>(u, to);
+
+                // Temporary mark that this node was actually moved
+                // We will revert this during synchronization or on rollback
+                _next_partition[seq_u] = kInvalidBlockID;
+            }
+        }
+    });
+
+    // Compute global block weights after moves
     MPI_Allreduce(
-        MPI_IN_PLACE, global_block_weight_deltas.data(), asserting_cast<int>(_p_ctx->k), mpi::type::get<BlockWeight>(),
+        MPI_IN_PLACE, block_weight_deltas.data(), asserting_cast<int>(_p_ctx->k), mpi::type::get<BlockWeight>(),
         MPI_SUM, _p_graph->communicator()
     );
 
-    // check for balance violations
+    // Check for balance violations
     parallel::Atomic<std::uint8_t> feasible = 1;
-    if (!_lp_ctx.ignore_probabilities) {
+    if (!_input_ctx.refinement.lp.ignore_probabilities) {
         _p_graph->pfor_blocks([&](const BlockID b) {
-            if (_p_graph->block_weight(b) + global_block_weight_deltas[b] > max_cluster_weight(b)
-                && global_block_weight_deltas[b] > 0) {
+            // If blocks were already overloaded before refinement, accept it as feasible if their weight did not
+            // increase (i.e., delta is <= 0) == first part of this if condition
+            if (block_weight_deltas[b] > 0
+                && _p_graph->block_weight(b) + block_weight_deltas[b] > _p_ctx->graph.max_block_weight(b)) {
                 feasible = 0;
             }
         });
     }
 
-    // record statistics
-    if constexpr (kStatistics) {
-        if (!feasible) {
-            _statistics.num_rollbacks += 1;
-        } else {
-            _statistics.num_successful_moves += 1;
-        }
-    }
-
-    // revert moves if resulting partition is infeasible
+    // Revert moves if resulting partition is infeasible
+    // Otherwise, update block weights cached in the graph data structure
     if (!feasible) {
         tbb::parallel_for(moves.range(), [&](const auto r) {
-            for (auto it = r.begin(); it != r.end(); ++it) {
-                const auto& move        = *it;
-                _next_partition[move.u] = _p_graph->block(move.u);
-                _p_graph->set_block<false>(move.u, move.from);
-
-                IFSTATS(_statistics.rollback_gain += _gains[move.u]);
+            for (const auto& [seq_u, u, from]: r) {
+                _next_partition[seq_u] = _p_graph->block(u);
+                _p_graph->set_block<false>(u, from);
             }
         });
-    } else { // otherwise, update block weights
+    } else {
         _p_graph->pfor_blocks([&](const BlockID b) {
-            _p_graph->set_block_weight(b, _p_graph->block_weight(b) + global_block_weight_deltas[b]);
+            _p_graph->set_block_weight(b, _p_graph->block_weight(b) + block_weight_deltas[b]);
         });
-    }
-
-    // update block weights used by LP
-    _p_graph->pfor_blocks([&](const BlockID b) { _block_weights[b] = _p_graph->block_weight(b); });
-
-    // check that feasible is the same on all PEs
-    if constexpr (kDebug) {
-        int feasible_nonatomic = feasible;
-        int root_feasible      = mpi::bcast(feasible_nonatomic, 0, _p_graph->communicator());
-        KASSERT(root_feasible == feasible_nonatomic);
     }
 
     return feasible;
