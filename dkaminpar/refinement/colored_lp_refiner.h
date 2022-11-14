@@ -11,6 +11,8 @@
 #include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/refinement/refiner.h"
 
+#include "common/parallel/vector_ets.h"
+
 namespace kaminpar::dist {
 class ColoredLPRefiner : public Refiner {
 public:
@@ -25,9 +27,11 @@ public:
     void refine(DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx) final;
 
 private:
+    using BlockGainsContainer = typename parallel::vector_ets<EdgeWeight>::Container;
+
     NodeID find_moves(ColorID c);
     void   perform_moves(ColorID c);
-    bool   attempt_moves(ColorID c, const std::vector<EdgeWeight>& total_gains_to_block);
+    bool   attempt_moves(ColorID c, const BlockGainsContainer& block_gains);
     void   synchronize_state(ColorID c);
 
     void handle_node(NodeID u);

@@ -6,6 +6,8 @@
  ******************************************************************************/
 #pragma once
 
+#include <vector>
+
 #include <tbb/cache_aligned_allocator.h>
 #include <tbb/combinable.h>
 
