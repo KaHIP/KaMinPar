@@ -6,10 +6,13 @@
  **********************************************************************************************************************/
 #include "dkaminpar/algorithms/greedy_node_coloring.h"
 
+#include <kassert/kassert.hpp>
+
 #include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/mpi/graph_communication.h"
 #include "dkaminpar/mpi/wrapper.h"
 
+#include "common/assertion_levels.h"
 #include "common/datastructures/marker.h"
 #include "common/math.h"
 #include "common/parallel/algorithm.h"
@@ -51,17 +54,17 @@ compute_node_coloring_sequentially(const DistributedGraph& graph, const NodeID n
 
                     // @todo replace v < u with random numbers r(v) < r(u)
                     if (coloring[v] != 0 && (coloring[u] == 0 || (coloring[v] == coloring[u] && v < u))) {
-                        incident_colors.set<true>(coloring[v]);
+                        incident_colors.set<true>(coloring[v] - 1);
                     }
                 }
 
                 if (coloring[u] == 0) {
-                    coloring[u] = incident_colors.first_unmarked_element();
+                    coloring[u] = incident_colors.first_unmarked_element() + 1;
                     if (!is_interface_node) {
                         active[u] = 0;
                     }
-                } else if (incident_colors.get(coloring[u])) {
-                    coloring[u] = incident_colors.first_unmarked_element();
+                } else if (incident_colors.get(coloring[u] - 1)) {
+                    coloring[u] = incident_colors.first_unmarked_element() + 1;
                 } else {
                     active[u] = 0;
                 }
@@ -95,6 +98,34 @@ compute_node_coloring_sequentially(const DistributedGraph& graph, const NodeID n
             converged = mpi::allreduce(we_converged, MPI_LAND, graph.communicator());
         }
     }
+
+    KASSERT(
+        [&] {
+            for (const NodeID u: graph.all_nodes()) {
+                if (coloring[u] == 0) {
+                    return false;
+                }
+            }
+            return true;
+        }(),
+        "node coloring is incomplete", assert::heavy
+    );
+    KASSERT(
+        [&] {
+            for (const NodeID u: graph.nodes()) {
+                for (const auto v: graph.adjacent_nodes(u)) {
+                    if (coloring[u] == coloring[v]) {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }(),
+        "node coloring is invalid", assert::heavy
+    );
+
+    // Make colors start at 0
+    tbb::parallel_for<NodeID>(0, graph.total_n(), [&](const NodeID u) { coloring[u] -= 1; });
 
     return coloring;
 }
