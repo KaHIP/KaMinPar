@@ -28,7 +28,9 @@ inline MPI_Datatype custom() {
 // Map to default MPI type
 template <typename T>
 inline MPI_Datatype get() {
-    if constexpr (std::is_same_v<T, std::uint8_t>) {
+    if constexpr (std::is_same_v<T, bool>) {
+        return MPI_CXX_BOOL;
+    } else if constexpr (std::is_same_v<T, std::uint8_t>) {
         return MPI_UINT8_T;
     } else if constexpr (std::is_same_v<T, std::int8_t>) {
         return MPI_INT8_T;
