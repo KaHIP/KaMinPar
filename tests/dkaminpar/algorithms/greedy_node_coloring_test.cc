@@ -62,55 +62,34 @@ TEST(GreedyNodeColoringTest, colors_isolated_edges_graph) {
     validate_node_coloring(graph, coloring, 2);
 }
 
-/*
-TEST(IndependentBorderSetTest, select_in_circle_graph) {
-    auto graph   = make_circle_graph();
-    auto p_graph = make_partitioned_graph_by_rank(graph);
-
-    auto is = find_independent_border_set(p_graph, 0);
-
-    const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
-    if (size == 1) { // No border on just one PE
-        ASSERT_TRUE(is.empty());
-    } else {
-        expect_nonempty_independent_set(p_graph, is);
-    }
+TEST(GreedyNodeColoringTest, colors_circle_graph) {
+    constexpr NodeID kNumberOfSupersteps = 1;
+    const auto       graph               = make_circle_graph();
+    const auto       coloring            = compute_node_coloring_sequentially(graph, kNumberOfSupersteps);
+    validate_node_coloring(graph, coloring, 3);
 }
 
-TEST(IndependentBorderSetTest, select_in_cut_edge_graph_10) {
-    for (const NodeID num_nodes_per_pe: {1, 2, 8, 16, 32, 64}) {
-        auto graph     = make_cut_edge_graph(num_nodes_per_pe);
-        auto p_graph   = make_partitioned_graph_by_rank(graph);
-        auto is        = find_independent_border_set(p_graph, 0);
-        auto global_is = allgather_independent_set(p_graph, is);
-
-        const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
-        if (size == 1) {
-            ASSERT_TRUE(global_is.empty());
-        } else {
-            ASSERT_EQ(global_is.size(), size * num_nodes_per_pe);
-            expect_nonempty_independent_set(p_graph, is);
-        }
-    }
+TEST(GreedyNodeColoringTest, colors_circle_clique_graph_2) {
+    constexpr NodeID kNumberOfNodesPerPE = 2;
+    constexpr NodeID kNumberOfSupersteps = 1;
+    const auto       graph               = make_circle_clique_graph(kNumberOfNodesPerPE);
+    const auto       coloring            = compute_node_coloring_sequentially(graph, kNumberOfSupersteps);
+    validate_node_coloring(graph, coloring);
 }
 
-TEST(IndependentBorderSetTest, randomization_works) {
-    auto graph   = make_cut_edge_graph(1000);
-    auto p_graph = make_partitioned_graph_by_rank(graph);
-
-    auto a_is        = find_independent_border_set(p_graph, 0);
-    auto a_global_is = allgather_independent_set(p_graph, a_is);
-
-    auto b_is        = find_independent_border_set(p_graph, 1);
-    auto b_global_is = allgather_independent_set(p_graph, b_is);
-
-    // prob. for same IS negetible
-    const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
-    if (size == 1) {
-        EXPECT_EQ(a_global_is, b_global_is);
-    } else {
-        EXPECT_NE(a_global_is, b_global_is);
-    }
+TEST(GreedyNodeColoringTest, colors_circle_clique_graph_5) {
+    constexpr NodeID kNumberOfNodesPerPE = 5;
+    constexpr NodeID kNumberOfSupersteps = 1;
+    const auto       graph               = make_circle_clique_graph(kNumberOfNodesPerPE);
+    const auto       coloring            = compute_node_coloring_sequentially(graph, kNumberOfSupersteps);
+    validate_node_coloring(graph, coloring);
 }
-*/
+
+TEST(GreedyNodeColoringTest, colors_circle_clique_graph_5_many_steps) {
+    constexpr NodeID kNumberOfNodesPerPE = 5;
+    constexpr NodeID kNumberOfSupersteps = 5;
+    const auto       graph               = make_circle_clique_graph(kNumberOfNodesPerPE);
+    const auto       coloring            = compute_node_coloring_sequentially(graph, kNumberOfSupersteps);
+    validate_node_coloring(graph, coloring);
+}
 } // namespace kaminpar::dist
