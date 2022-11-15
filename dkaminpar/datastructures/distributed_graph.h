@@ -335,37 +335,37 @@ public:
     // Parallel iteration
     template <typename Lambda>
     inline void pfor_nodes(const NodeID from, const NodeID to, Lambda&& l) const {
-        tbb::parallel_for(from, to, std::forward<Lambda&&>(l));
+        tbb::parallel_for(from, to, std::forward<Lambda>(l));
     }
 
     template <typename Lambda>
     inline void pfor_nodes_range(const NodeID from, const NodeID to, Lambda&& l) const {
-        tbb::parallel_for(tbb::blocked_range<NodeID>(from, to), std::forward<Lambda&&>(l));
+        tbb::parallel_for(tbb::blocked_range<NodeID>(from, to), std::forward<Lambda>(l));
     }
 
     template <typename Lambda>
     inline void pfor_nodes(Lambda&& l) const {
-        pfor_nodes(0, n(), std::forward<Lambda&&>(l));
+        pfor_nodes(0, n(), std::forward<Lambda>(l));
     }
 
     template <typename Lambda>
     inline void pfor_all_nodes(Lambda&& l) const {
-        pfor_nodes(0, total_n(), std::forward<Lambda&&>(l));
+        pfor_nodes(0, total_n(), std::forward<Lambda>(l));
     }
 
     template <typename Lambda>
     inline void pfor_nodes_range(Lambda&& l) const {
-        pfor_nodes_range(0, n(), std::forward<Lambda&&>(l));
+        pfor_nodes_range(0, n(), std::forward<Lambda>(l));
     }
 
     template <typename Lambda>
     inline void pfor_all_nodes_range(Lambda&& l) const {
-        pfor_nodes_range(0, total_n(), std::forward<Lambda&&>(l));
+        pfor_nodes_range(0, total_n(), std::forward<Lambda>(l));
     }
 
     template <typename Lambda>
     inline void pfor_edges(Lambda&& l) const {
-        tbb::parallel_for(static_cast<EdgeID>(0), m(), std::forward<Lambda&&>(l));
+        tbb::parallel_for(static_cast<EdgeID>(0), m(), std::forward<Lambda>(l));
     }
 
     // Iterators for nodes / edges
@@ -642,7 +642,7 @@ public:
 
     template <typename Lambda>
     inline void pfor_blocks(Lambda&& l) const {
-        tbb::parallel_for(static_cast<BlockID>(0), k(), std::forward<Lambda&&>(l));
+        tbb::parallel_for(static_cast<BlockID>(0), k(), std::forward<Lambda>(l));
     }
 
     [[nodiscard]] inline auto blocks() const {

@@ -187,7 +187,7 @@ void sparse_alltoall_interface_to_ghost(
     const DistributedGraph& graph, const NodeID from, const NodeID to, Filter&& filter, Builder&& builder,
     Receiver&& receiver
 ) {
-    sparse_alltoall_interface_to_ghost_custom_range(
+    sparse_alltoall_interface_to_ghost_custom_range<Message, Buffer>(
         graph, from, to, [](const NodeID u) { return u; }, std::forward<Filter>(filter), std::forward<Builder>(builder),
         std::forward<Receiver>(receiver)
     );
@@ -367,7 +367,7 @@ void sparse_alltoall_interface_to_pe(
     const DistributedGraph& graph, const NodeID from, const NodeID to, Filter&& filter, Builder&& builder,
     Receiver&& receiver
 ) {
-    sparse_alltoall_interface_to_pe_custom_range(
+    sparse_alltoall_interface_to_pe_custom_range<Message, Buffer>(
         graph, from, to, [](const NodeID u) { return u; }, std::forward<Filter>(filter), std::forward<Builder>(builder),
         std::forward<Receiver>(receiver)
     );

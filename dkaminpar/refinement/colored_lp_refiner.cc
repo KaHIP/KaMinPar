@@ -105,10 +105,10 @@ void ColoredLPRefiner::perform_moves(const ColorID c) {
         }
 
         parallel::vector_ets<EdgeWeight> block_gains_ets(_p_ctx->k);
-        _p_graph->pfor_nodes_range(seq_from, seq_to, [&](const auto r) {
+        _p_graph->pfor_nodes_range(seq_from, seq_to, [&](const auto& r) {
             auto& block_gains = block_gains_ets.local();
 
-            for (const NodeID seq_u: r) {
+            for (NodeID seq_u = r.begin(); seq_u != r.end(); ++seq_u) {
                 const NodeID u = _color_sorted_nodes[seq_u];
                 if (_p_graph->block(u) != _next_partition[seq_u]) {
                     block_gains[_next_partition[seq_u]] += _gains[seq_u];
@@ -166,7 +166,7 @@ bool ColoredLPRefiner::attempt_moves(const ColorID c, const BlockGainsContainer&
     _p_graph->pfor_nodes_range(seq_from, seq_to, [&](const auto& r) {
         auto& rand = Random::instance();
 
-        for (const NodeID seq_u: r) {
+        for (NodeID seq_u = r.begin(); seq_u != r.end(); ++seq_u) {
             const NodeID u = _color_sorted_nodes[seq_u];
 
             // Only iterate over nodes that changed block
@@ -298,7 +298,7 @@ NodeID ColoredLPRefiner::find_moves(const ColorID c) {
         auto& rating_map      = rating_maps_ets.local();
         auto& random          = Random::instance();
 
-        for (const NodeID seq_u: r) {
+        for (NodeID seq_u = r.begin(); seq_u != r.end(); ++seq_u) {
             const NodeID u = _color_sorted_nodes[seq_u];
 
             auto action = [&](auto& map) {
@@ -312,7 +312,7 @@ NodeID ColoredLPRefiner::find_moves(const ColorID c) {
                 const NodeWeight u_weight    = _p_graph->node_weight(u);
                 EdgeWeight       best_weight = std::numeric_limits<EdgeWeight>::min();
                 BlockID          best_block  = u_block;
-                for (const auto [block, weight]: map) {
+                for (const auto [block, weight]: map.entries()) {
                     if (_p_graph->block_weight(block) + u_weight > _p_ctx->graph.max_block_weight(block)) {
                         continue;
                     }
