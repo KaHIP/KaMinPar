@@ -350,7 +350,8 @@ NodeID ColoredLPRefiner::find_moves(const ColorID c) {
                 EdgeWeight       best_weight = std::numeric_limits<EdgeWeight>::min();
                 BlockID          best_block  = u_block;
                 for (const auto [block, weight]: map.entries()) {
-                    if (_p_graph->block_weight(block) + u_weight > _p_ctx->graph.max_block_weight(block)) {
+                    if (block != u_block
+                        && _p_graph->block_weight(block) + u_weight > _p_ctx->graph.max_block_weight(block)) {
                         continue;
                     }
 
@@ -361,7 +362,9 @@ NodeID ColoredLPRefiner::find_moves(const ColorID c) {
                 }
 
                 if (best_block != u_block) {
-                    _gains[seq_u]          = best_weight - map[u_block];
+                    _gains[seq_u] = best_weight - map[u_block];
+                    KASSERT(_gains[seq_u] >= 0);
+
                     _next_partition[seq_u] = best_block;
                     _block_weight_deltas[u_block] -= u_weight;
                     _block_weight_deltas[best_block] += u_weight;
