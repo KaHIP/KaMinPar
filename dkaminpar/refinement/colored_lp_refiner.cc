@@ -7,12 +7,14 @@
 #include "dkaminpar/refinement/colored_lp_refiner.h"
 
 #include <kassert/kassert.hpp>
+#include <tbb/enumerable_thread_specific.h>
 
 #include "dkaminpar/algorithms/greedy_node_coloring.h"
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/mpi/graph_communication.h"
 
+#include "common/datastructures/rating_map.h"
 #include "common/parallel/algorithm.h"
 #include "common/parallel/vector_ets.h"
 #include "common/random.h"
@@ -22,7 +24,7 @@ namespace kaminpar::dist {
 ColoredLPRefiner::ColoredLPRefiner(const Context& ctx) : _input_ctx(ctx) {}
 
 void ColoredLPRefiner::initialize(const DistributedGraph& graph) {
-    SCOPED_TIMER("Initialize colorized label propagation refiner");
+    SCOPED_TIMER("Color label propagation refinement", "Initialization");
 
     const auto    coloring   = compute_node_coloring_sequentially(graph, _input_ctx.refinement.lp.num_chunks);
     const ColorID num_colors = *std::max_element(coloring.begin(), coloring.end());
@@ -59,11 +61,32 @@ void ColoredLPRefiner::initialize(const DistributedGraph& graph) {
 }
 
 void ColoredLPRefiner::refine(DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx) {
+    SCOPED_TIMER("Colored label propagation refinement", "Refinement");
     _p_ctx   = &p_ctx;
     _p_graph = &p_graph;
 
-    [[maybe_unused]] NodeID local_num_moves = 0;
+    TIMED_SCOPE("Allocation") {
+        KASSERT(_next_partition.size() == _gains.size());
+        if (_next_partition.size() < _p_graph->total_n()) {
+            _next_partition.resize(_p_graph->total_n());
+            _gains.resize(_p_graph->total_n());
 
+            // Attribute first touch running time to allocation block
+            _p_graph->pfor_all_nodes([&](const NodeID u) {
+                _next_partition[u] = 0;
+                _gains[u]          = 0;
+            });
+        }
+    };
+
+    TIMED_SCOPE("Initialization") {
+        _p_graph->pfor_all_nodes([&](const NodeID u) {
+            _next_partition[u] = _p_graph->block(_color_sorted_nodes[u]);
+            _gains[u]          = 0;
+        });
+    };
+
+    [[maybe_unused]] NodeID local_num_moves = 0;
     for (ColorID c = 0; c + 1 < _color_sizes.size(); ++c) {
         local_num_moves += find_moves(c);
         perform_moves(c);
@@ -71,6 +94,8 @@ void ColoredLPRefiner::refine(DistributedPartitionedGraph& p_graph, const Partit
 }
 
 void ColoredLPRefiner::perform_moves(const ColorID c) {
+    SCOPED_TIMER("Perform moves");
+
     const NodeID seq_from = _color_sizes[c];
     const NodeID seq_to   = _color_sizes[c + 1];
 
@@ -257,5 +282,61 @@ void ColoredLPRefiner::synchronize_state(const ColorID c) {
     );
 }
 
-void ColoredLPRefiner::handle_node(const NodeID u) {}
+NodeID ColoredLPRefiner::find_moves(const ColorID c) {
+    SCOPED_TIMER("Find moves");
+
+    const NodeID seq_from = _color_sizes[c];
+    const NodeID seq_to   = _color_sizes[c + 1];
+
+    tbb::enumerable_thread_specific<NodeID>                         num_moved_nodes_ets;
+    tbb::enumerable_thread_specific<RatingMap<EdgeWeight, BlockID>> rating_maps_ets([&] {
+        return RatingMap<EdgeWeight, BlockID>(_p_ctx->k);
+    });
+
+    _p_graph->pfor_nodes_range(seq_from, seq_to, [&](const auto& r) {
+        auto& num_moved_nodes = num_moved_nodes_ets.local();
+        auto& rating_map      = rating_maps_ets.local();
+        auto& random          = Random::instance();
+
+        for (const NodeID seq_u: r) {
+            const NodeID u = _color_sorted_nodes[seq_u];
+
+            auto action = [&](auto& map) {
+                for (const auto [e, v]: _p_graph->neighbors(u)) {
+                    const BlockID    b      = _p_graph->block(v);
+                    const EdgeWeight weight = _p_graph->edge_weight(e);
+                    map[b] += weight;
+                }
+
+                const BlockID    u_block     = _p_graph->block(u);
+                const NodeWeight u_weight    = _p_graph->node_weight(u);
+                EdgeWeight       best_weight = std::numeric_limits<EdgeWeight>::min();
+                BlockID          best_block  = u_block;
+                for (const auto [block, weight]: map) {
+                    if (_p_graph->block_weight(block) + u_weight > _p_ctx->graph.max_block_weight(block)) {
+                        continue;
+                    }
+
+                    if (weight > best_weight || (weight == best_weight && random.random_bool())) {
+                        best_weight = weight;
+                        best_block  = block;
+                    }
+                }
+
+                if (best_block != u_block) {
+                    _gains[seq_u]          = best_weight - map[u_block];
+                    _next_partition[seq_u] = best_block;
+                    ++num_moved_nodes;
+                }
+
+                map.clear();
+            };
+
+            rating_map.update_upper_bound_size(std::min<BlockID>(_p_ctx->k, _p_graph->degree(u)));
+            rating_map.run_with_map(action, action);
+        }
+    });
+
+    return num_moved_nodes_ets.combine(std::plus{});
+}
 } // namespace kaminpar::dist

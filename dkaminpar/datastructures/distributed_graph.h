@@ -619,6 +619,7 @@ public:
   template<typename Lambda> inline void pfor_nodes_range(Lambda &&l) const { _graph->pfor_nodes_range(std::forward<Lambda>(l)); }
   template<typename Lambda> inline void pfor_edges(Lambda &&l) const { _graph->pfor_edges(std::forward<Lambda>(l)); }
   [[nodiscard]] inline auto nodes() const { return _graph->nodes(); }
+  [[nodiscard]] inline auto nodes(const NodeID from, const NodeID to) const { return _graph->nodes(from, to); }
   [[nodiscard]] inline auto ghost_nodes() const { return _graph->ghost_nodes(); }
   [[nodiscard]] inline auto all_nodes() const { return _graph->all_nodes(); }
   [[nodiscard]] inline auto edges() const { return _graph->edges(); }
