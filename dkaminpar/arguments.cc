@@ -100,6 +100,7 @@ CLI::Option_group *create_refinement_options(CLI::App *app, Context &ctx) {
         ->transform(CLI::CheckedTransformer(get_kway_refinement_algorithms()).description(""))
         ->description(R"(K-way refinement algorithm(s). Possible options are (separated by space):
   - noop:            disable k-way refinement
+  - colored-lp:      distributed label propagation based on node coloring
   - lp:              distributed label propagation
   - local-fm:        PE-local FM
   - fm:              distributed FM
