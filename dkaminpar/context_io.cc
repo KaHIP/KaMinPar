@@ -25,7 +25,7 @@ std::ostream& operator<<(std::ostream& out, const std::vector<T>& vec) {
         if (first) {
             first = false;
         } else {
-            out << ", ";
+            out << " -> ";
         }
         out << e;
     }

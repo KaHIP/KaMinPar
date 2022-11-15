@@ -116,7 +116,9 @@ Context create_default_context() {
             },
         .refinement =
             {
-                .algorithms = {KWayRefinementAlgorithm::GREEDY_BALANCER, KWayRefinementAlgorithm::LP},
+                .algorithms =
+                    {KWayRefinementAlgorithm::GREEDY_BALANCER, KWayRefinementAlgorithm::LP,
+                     KWayRefinementAlgorithm::GREEDY_BALANCER},
                 .lp =
                     {
                         .active_high_degree_threshold = 1'000'000,
