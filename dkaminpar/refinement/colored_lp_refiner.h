@@ -30,8 +30,8 @@ private:
     using BlockGainsContainer = typename parallel::vector_ets<EdgeWeight>::Container;
 
     NodeID find_moves(ColorID c);
-    void   perform_moves(ColorID c);
-    bool   attempt_moves(ColorID c, const BlockGainsContainer& block_gains);
+    NodeID perform_moves(ColorID c);
+    NodeID attempt_moves(ColorID c, const BlockGainsContainer& block_gains);
     void   synchronize_state(ColorID c);
 
     void handle_node(NodeID u);

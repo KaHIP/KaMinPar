@@ -97,27 +97,31 @@ void ColoredLPRefiner::refine(DistributedPartitionedGraph& p_graph, const Partit
     };
 
     for (std::size_t iter = 0; iter < _input_ctx.refinement.lp.num_iterations; ++iter) {
-        NodeID num_moves = 0;
+        NodeID num_found_moves     = 0;
+        NodeID num_performed_moves = 0;
         for (ColorID c = 0; c + 1 < _color_sizes.size(); ++c) {
-            num_moves += find_moves(c);
-            perform_moves(c);
+            num_found_moves += find_moves(c);
+            num_performed_moves += perform_moves(c);
         }
 
         // Abort early if there were no moves during a full pass
-        MPI_Allreduce(MPI_IN_PLACE, &num_moves, 1, mpi::type::get<NodeID>(), MPI_SUM, _p_graph->communicator());
+        MPI_Allreduce(MPI_IN_PLACE, &num_found_moves, 1, mpi::type::get<NodeID>(), MPI_SUM, _p_graph->communicator());
+        MPI_Allreduce(
+            MPI_IN_PLACE, &num_performed_moves, 1, mpi::type::get<NodeID>(), MPI_SUM, _p_graph->communicator()
+        );
 
         const EdgeWeight current_cut       = IFSTATS(metrics::edge_cut(*_p_graph));
         const double     current_imbalance = IFSTATS(metrics::imbalance(*_p_graph));
-        STATS << "Iteration " << iter << ": moved " << num_moves << " nodes, changed edge cut to " << current_cut
-              << ", changed imbalance to " << current_imbalance;
+        STATS << "Iteration " << iter << ": found " << num_found_moves << " moves, performed " << num_performed_moves
+              << " moves, changed edge cut to " << current_cut << ", changed imbalance to " << current_imbalance;
 
-        if (num_moves == 0) {
+        if (num_found_moves == 0) {
             break;
         }
     }
 }
 
-void ColoredLPRefiner::perform_moves(const ColorID c) {
+NodeID ColoredLPRefiner::perform_moves(const ColorID c) {
     SCOPED_TIMER("Perform moves");
 
     const NodeID seq_from = _color_sizes[c];
@@ -154,20 +158,23 @@ void ColoredLPRefiner::perform_moves(const ColorID c) {
         return block_gains;
     };
 
-    TIMED_SCOPE("Perform moves") {
+    const NodeID num_performed_moves = TIMED_SCOPE("Perform moves") {
         // Get global block weight deltas to decide if we can execute some moves right away
         MPI_Allreduce(
             MPI_IN_PLACE, _block_weight_deltas.data(), asserting_cast<int>(_p_ctx->k), mpi::type::get<BlockWeight>(),
             MPI_SUM, _p_graph->communicator()
         );
 
+        NodeID num_performed_moves = 0;
         for (std::size_t i = 0; i < _input_ctx.refinement.lp.num_move_attempts; ++i) {
-            if (attempt_moves(c, block_gains)) {
+            num_performed_moves = attempt_moves(c, block_gains);
+            if (num_performed_moves != kInvalidNodeID) {
                 break;
             }
         }
 
         synchronize_state(c);
+        return num_performed_moves;
     };
 
     // Reset _next_partition for next round
@@ -178,9 +185,11 @@ void ColoredLPRefiner::perform_moves(const ColorID c) {
         });
         _p_graph->pfor_blocks([&](const BlockID b) { _block_weight_deltas[b] = 0; });
     };
+
+    return num_performed_moves;
 }
 
-bool ColoredLPRefiner::attempt_moves(const ColorID c, const BlockGainsContainer& block_gains) {
+NodeID ColoredLPRefiner::attempt_moves(const ColorID c, const BlockGainsContainer& block_gains) {
     struct Move {
         Move(const NodeID seq_u, const NodeID u, const BlockID from) : seq_u(seq_u), u(u), from(from) {}
         NodeID  seq_u;
@@ -204,8 +213,10 @@ bool ColoredLPRefiner::attempt_moves(const ColorID c, const BlockGainsContainer&
     EdgeWeight             expected_total_gain = 0;
 #endif
 
+    tbb::enumerable_thread_specific<NodeID> num_performed_moves_ets;
     _p_graph->pfor_nodes_range(seq_from, seq_to, [&](const auto& r) {
-        auto& rand = Random::instance();
+        auto& rand                = Random::instance();
+        auto& num_performed_moves = num_performed_moves_ets.local();
 
         for (NodeID seq_u = r.begin(); seq_u != r.end(); ++seq_u) {
             const NodeID u = _color_sorted_nodes[seq_u];
@@ -219,8 +230,8 @@ bool ColoredLPRefiner::attempt_moves(const ColorID c, const BlockGainsContainer&
             // Or always perform the move if move probabilities are disabled
             const BlockID to          = _next_partition[seq_u];
             const double  probability = [&] {
-                if (_input_ctx.refinement.lp.ignore_probabilities
-                    || _p_graph->block_weight(to) + _block_weight_deltas[to] <= _p_ctx->graph.max_block_weight(to)) {
+                if (_input_ctx.refinement.lp.ignore_probabilities) {
+                    //|| _p_graph->block_weight(to) + _block_weight_deltas[to] <= _p_ctx->graph.max_block_weight(to)) {
                     return 1.0;
                 }
 
@@ -238,6 +249,7 @@ bool ColoredLPRefiner::attempt_moves(const ColorID c, const BlockGainsContainer&
                 __atomic_fetch_sub(&block_weight_deltas[from], u_weight, __ATOMIC_RELAXED);
                 __atomic_fetch_add(&block_weight_deltas[to], u_weight, __ATOMIC_RELAXED);
                 _p_graph->set_block<false>(u, to);
+                ++num_performed_moves;
 
                 // Temporary mark that this node was actually moved
                 // We will revert this during synchronization or on rollback
@@ -249,6 +261,8 @@ bool ColoredLPRefiner::attempt_moves(const ColorID c, const BlockGainsContainer&
             }
         }
     });
+
+    const NodeID num_performed_moves = num_performed_moves_ets.combine(std::plus{});
 
     // Compute global block weights after moves
     MPI_Allreduce(
@@ -295,7 +309,7 @@ bool ColoredLPRefiner::attempt_moves(const ColorID c, const BlockGainsContainer&
 #endif
     }
 
-    return feasible;
+    return feasible ? num_performed_moves : kInvalidNodeID;
 }
 
 void ColoredLPRefiner::synchronize_state(const ColorID c) {
@@ -371,7 +385,8 @@ NodeID ColoredLPRefiner::find_moves(const ColorID c) {
                 BlockID          best_block  = u_block;
                 for (const auto [block, weight]: map.entries()) {
                     if (block != u_block
-                        && _p_graph->block_weight(block) + u_weight > _p_ctx->graph.max_block_weight(block)) {
+                        && _p_graph->block_weight(block) + _block_weight_deltas[block] + u_weight
+                               > _p_ctx->graph.max_block_weight(block)) {
                         continue;
                     }
 
