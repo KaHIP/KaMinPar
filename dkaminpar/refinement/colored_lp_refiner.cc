@@ -199,6 +199,11 @@ bool ColoredLPRefiner::attempt_moves(const ColorID c, const BlockGainsContainer&
     const NodeID seq_from = _color_sizes[c];
     const NodeID seq_to   = _color_sizes[c + 1];
 
+#if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
+    const GlobalEdgeWeight edge_cut_before     = metrics::edge_cut(*_p_graph);
+    EdgeWeight             expected_total_gain = 0;
+#endif
+
     _p_graph->pfor_nodes_range(seq_from, seq_to, [&](const auto& r) {
         auto& rand = Random::instance();
 
@@ -237,6 +242,10 @@ bool ColoredLPRefiner::attempt_moves(const ColorID c, const BlockGainsContainer&
                 // Temporary mark that this node was actually moved
                 // We will revert this during synchronization or on rollback
                 _next_partition[seq_u] = kInvalidBlockID;
+
+#if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
+                expected_total_gain += _gains[seq_u];
+#endif
             }
         }
     });
@@ -273,6 +282,17 @@ bool ColoredLPRefiner::attempt_moves(const ColorID c, const BlockGainsContainer&
         _p_graph->pfor_blocks([&](const BlockID b) {
             _p_graph->set_block_weight(b, _p_graph->block_weight(b) + block_weight_deltas[b]);
         });
+
+        // Check that the partition improved as expected
+#if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
+        const GlobalEdgeWeight global_expected_total_gain =
+            mpi::allreduce<GlobalEdgeWeight>(expected_total_gain, MPI_SUM, _p_graph->communicator());
+        const GlobalEdgeWeight edge_cut_after = metrics::edge_cut(*_p_graph);
+        KASSERT(
+            edge_cut_before - edge_cut_after == global_expected_total_gain,
+            "sum of individual move gains does not equal the change in edge cut"
+        );
+#endif
     }
 
     return feasible;
