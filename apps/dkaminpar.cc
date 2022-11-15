@@ -33,6 +33,7 @@
 
 #include "apps/apps.h"
 #include "apps/dkaminpar/graphgen.h"
+#include "apps/environment.h"
 #include "apps/mpi_apps.h"
 
 using namespace kaminpar;
@@ -141,7 +142,8 @@ partition_repeatedly(const DistributedGraph& graph, const Context& ctx, Terminat
 std::pair<Context, GeneratorContext> setup_context(CLI::App& app, int argc, char* argv[]) {
     Context          ctx = create_default_context();
     GeneratorContext g_ctx;
-    bool             dump_config = false;
+    bool             dump_config  = false;
+    bool             show_version = false;
 
     app.set_config("-C,--config", "", "Read parameters from a TOML configuration file.", false);
     app.add_option_function<std::string>(
@@ -162,6 +164,7 @@ std::pair<Context, GeneratorContext> setup_context(CLI::App& app, int argc, char
         ->configurable(false)
         ->description(R"(Print the current configuration and exit.
 The output should be stored in a file and can be used by the -C,--config option.)");
+    mandatory->add_flag("-v,--version", show_version, "Show version and exit.");
 
     // Mandatory -> ... or partition a graph
     auto* gp_group = mandatory->add_option_group("Partitioning")->silent();
@@ -213,6 +216,11 @@ The output should be stored in a file and can be used by the -C,--config option.
         create_all_options(&dump, ctx);
         std::cout << dump.config_to_str(true, true);
         std::exit(1);
+    }
+
+    if (show_version) {
+        LOG << Environment::GIT_SHA1;
+        std::exit(0);
     }
 
     return {ctx, g_ctx};
