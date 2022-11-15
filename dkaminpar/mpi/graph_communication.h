@@ -232,11 +232,18 @@ void sparse_alltoall_interface_to_pe_custom_range(
 ) {
     SCOPED_TIMER("Sparse AllToAll InterfaceToPE");
 
-    static_assert(std::is_invocable_r_v<bool, Filter, NodeID>, "bad filter type");
-
-    constexpr bool builder_invocable_with_pe    = std::is_invocable_r_v<Message, Builder, NodeID, PEID>;
+    constexpr bool builder_invocable_with_pe = std::is_invocable_r_v<Message, Builder, NodeID, PEID>;
+    constexpr bool builder_invocable_with_pe_and_unmapped_node =
+        std::is_invocable_r_v<Message, Builder, NodeID, NodeID, PEID>;
     constexpr bool builder_invocable_without_pe = std::is_invocable_r_v<Message, Builder, NodeID>;
-    static_assert(builder_invocable_with_pe || builder_invocable_without_pe, "bad builder type");
+    static_assert(
+        builder_invocable_with_pe || builder_invocable_with_pe_and_unmapped_node || builder_invocable_without_pe,
+        "bad builder type"
+    );
+
+    constexpr bool filter_invocable_with_unmapped_node    = std::is_invocable_r_v<bool, Filter, NodeID, NodeID>;
+    constexpr bool filter_invocable_without_unmapped_node = std::is_invocable_r_v<bool, Filter, NodeID>;
+    static_assert(filter_invocable_with_unmapped_node || filter_invocable_without_unmapped_node);
 
     const PEID size = mpi::get_comm_size(graph.communicator());
 
@@ -264,8 +271,14 @@ void sparse_alltoall_interface_to_pe_custom_range(
         for (NodeID seq_u = from; seq_u < to; ++seq_u) {
             const NodeID u = mapper(seq_u);
 
-            if (!filter(u)) {
-                continue;
+            if constexpr (filter_invocable_with_unmapped_node) {
+                if (!filter(seq_u, u)) {
+                    continue;
+                }
+            } else {
+                if (!filter(u)) {
+                    continue;
+                }
             }
 
             for (const auto [e, v]: graph.neighbors(u)) {
@@ -318,8 +331,14 @@ void sparse_alltoall_interface_to_pe_custom_range(
         for (NodeID seq_u = from; seq_u < to; ++seq_u) {
             const NodeID u = mapper(seq_u);
 
-            if (!filter(u)) {
-                continue;
+            if constexpr (filter_invocable_with_unmapped_node) {
+                if (!filter(seq_u, u)) {
+                    continue;
+                }
+            } else {
+                if (!filter(u)) {
+                    continue;
+                }
             }
 
             for (const NodeID v: graph.adjacent_nodes(u)) {
@@ -338,6 +357,8 @@ void sparse_alltoall_interface_to_pe_custom_range(
 
                 if constexpr (builder_invocable_with_pe) {
                     send_buffers[pe][slot] = builder(u, pe);
+                } else if constexpr (builder_invocable_with_pe_and_unmapped_node) {
+                    send_buffers[pe][slot] = builder(seq_u, u, pe);
                 } else {
                     send_buffers[pe][slot] = builder(u);
                 }

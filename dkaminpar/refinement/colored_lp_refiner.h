@@ -44,7 +44,8 @@ private:
     NoinitVector<ColorID> _color_sizes;
     NoinitVector<NodeID>  _color_sorted_nodes;
 
-    NoinitVector<EdgeWeight> _gains;
-    NoinitVector<BlockID>    _next_partition;
+    NoinitVector<BlockWeight> _block_weight_deltas;
+    NoinitVector<EdgeWeight>  _gains;
+    NoinitVector<BlockID>     _next_partition;
 };
 } // namespace kaminpar::dist

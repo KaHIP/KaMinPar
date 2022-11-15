@@ -379,7 +379,8 @@ void print(const InitialPartitioningContext& ctx, std::ostream& out) {
 void print(const RefinementContext& ctx, std::ostream& out) {
     out << "Refinement algorithms:        " << ctx.algorithms << "\n";
     out << "Refine initial partition:     " << (ctx.refine_coarsest_level ? "yes" : "no") << "\n";
-    if (ctx.includes_algorithm(KWayRefinementAlgorithm::LP)) {
+    if (ctx.includes_algorithm(KWayRefinementAlgorithm::LP)
+        || ctx.includes_algorithm(KWayRefinementAlgorithm::COLORED_LP)) {
         out << "Label propagation:\n";
         out << "  Number of iterations:       " << ctx.lp.num_iterations << "\n";
         out << "  Number of chunks:           " << ctx.lp.num_chunks << " (min: " << ctx.lp.min_num_chunks
