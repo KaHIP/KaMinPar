@@ -86,10 +86,18 @@ void ColoredLPRefiner::refine(DistributedPartitionedGraph& p_graph, const Partit
         });
     };
 
-    [[maybe_unused]] NodeID local_num_moves = 0;
-    for (ColorID c = 0; c + 1 < _color_sizes.size(); ++c) {
-        local_num_moves += find_moves(c);
-        perform_moves(c);
+    for (std::size_t iter = 0; iter < _input_ctx.refinement.lp.num_iterations; ++iter) {
+        NodeID num_moves = 0;
+        for (ColorID c = 0; c + 1 < _color_sizes.size(); ++c) {
+            num_moves += find_moves(c);
+            perform_moves(c);
+        }
+
+        // Abort early if there were no moves during a full pass
+        MPI_Allreduce(MPI_IN_PLACE, &num_moves, 1, mpi::type::get<NodeID>(), MPI_SUM, _p_graph->communicator());
+        if (num_moves == 0) {
+            break;
+        }
     }
 }
 
