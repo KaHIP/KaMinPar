@@ -189,7 +189,7 @@ CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx) {
         ->description(R"(Global clustering algorithm, options are:
   - noop:           disable global clustering
   - lp:             parallel label propagation without active set strategy
-  - active--set-lp: parallel label propagation with active set strategy
+  - active-set-lp:  parallel label propagation with active set strategy
   - locking-lp:     parallel label propagation with cluster-join requests)")
         ->capture_default_str();
     coarsening->add_option("--c-global-contraction-algorithm", ctx.coarsening.global_contraction_algorithm)
