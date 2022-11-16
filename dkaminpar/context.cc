@@ -101,6 +101,14 @@ void LabelPropagationRefinementContext::setup(const ParallelContext& parallel) {
     }
 }
 
+void ColoredLabelPropagationRefinementContext::setup(const ParallelContext& parallel) {
+    if (num_coloring_chunks == 0) {
+        const int scale = scale_coloring_chunks_with_threads ? parallel.num_threads : 1;
+        num_coloring_chunks =
+            std::max<int>(min_num_coloring_chunks, max_num_coloring_chunks / (scale * parallel.num_mpis));
+    }
+}
+
 void CoarseningContext::setup(const ParallelContext& parallel) {
     local_lp.setup(parallel);
     global_lp.setup(parallel);

@@ -31,12 +31,16 @@ private:
 
     NodeID find_moves(ColorID c);
     NodeID perform_moves(ColorID c);
-    NodeID attempt_moves(ColorID c, const BlockGainsContainer& block_gains);
+    NodeID perform_best_moves(ColorID c);
+    NodeID perform_local_moves(ColorID c);
+    NodeID perform_probabilistic_moves(ColorID c);
+    NodeID try_probabilistic_moves(ColorID c, const BlockGainsContainer& block_gains);
     void   synchronize_state(ColorID c);
 
     void handle_node(NodeID u);
 
-    const Context& _input_ctx;
+    const Context&                                  _input_ctx;
+    const ColoredLabelPropagationRefinementContext& _ctx;
 
     const PartitionContext*      _p_ctx;
     DistributedPartitionedGraph* _p_graph;

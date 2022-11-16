@@ -19,6 +19,7 @@ std::ostream& operator<<(std::ostream& out, LocalClusteringAlgorithm algorithm);
 std::ostream& operator<<(std::ostream& out, GlobalContractionAlgorithm algorithm);
 std::ostream& operator<<(std::ostream& out, InitialPartitioningAlgorithm algorithm);
 std::ostream& operator<<(std::ostream& out, KWayRefinementAlgorithm algorithm);
+std::ostream& operator<<(std::ostream& out, LabelPropagationMoveExecutionStrategy strategy);
 
 std::unordered_map<std::string, PartitioningMode>             get_partitioning_modes();
 std::unordered_map<std::string, GlobalClusteringAlgorithm>    get_global_clustering_algorithms();
@@ -26,6 +27,8 @@ std::unordered_map<std::string, LocalClusteringAlgorithm>     get_local_clusteri
 std::unordered_map<std::string, GlobalContractionAlgorithm>   get_global_contraction_algorithms();
 std::unordered_map<std::string, InitialPartitioningAlgorithm> get_initial_partitioning_algorithms();
 std::unordered_map<std::string, KWayRefinementAlgorithm>      get_kway_refinement_algorithms();
+std::unordered_map<std::string, LabelPropagationMoveExecutionStrategy>
+get_label_propagation_move_execution_strategies();
 
 void print_compact(const Context& ctx, std::ostream& out, const std::string& prefix = "");
 void print_compact(const DebugContext& ctx, std::ostream& out, const std::string& prefix);

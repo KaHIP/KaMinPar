@@ -306,12 +306,14 @@ void sparse_alltoall_interface_to_pe_custom_range(
 
     // offset messages for each thread
     internal::inclusive_col_prefix_sum(num_messages);
+    mpi::barrier(graph.communicator());
     STOP_TIMER();
 
     // allocate send buffers
     START_TIMER("Allocation");
     std::vector<Buffer> send_buffers(size);
     tbb::parallel_for<PEID>(0, size, [&](const PEID pe) { send_buffers[pe].resize(num_messages.back()[pe]); });
+    mpi::barrier(graph.communicator());
     STOP_TIMER();
 
     // fill buffers
@@ -371,6 +373,7 @@ void sparse_alltoall_interface_to_pe_custom_range(
             created_message_for_pe.reset();
         }
     }
+    mpi::barrier(graph.communicator());
     STOP_TIMER();
 
 #if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)

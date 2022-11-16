@@ -26,7 +26,7 @@ namespace kaminpar::dist {
 SET_STATISTICS_FROM_GLOBAL();
 SET_DEBUG(false);
 
-ColoredLPRefiner::ColoredLPRefiner(const Context& ctx) : _input_ctx(ctx) {}
+ColoredLPRefiner::ColoredLPRefiner(const Context& ctx) : _input_ctx(ctx), _ctx(ctx.refinement.colored_lp) {}
 
 void ColoredLPRefiner::initialize(const DistributedGraph& graph) {
     SCOPED_TIMER("Color label propagation refinement", "Initialization");
@@ -34,7 +34,7 @@ void ColoredLPRefiner::initialize(const DistributedGraph& graph) {
         mpi::barrier(graph.communicator());
     };
 
-    const auto    coloring         = compute_node_coloring_sequentially(graph, _input_ctx.refinement.lp.num_chunks);
+    const auto    coloring         = compute_node_coloring_sequentially(graph, _ctx.num_coloring_chunks);
     const ColorID num_local_colors = *std::max_element(coloring.begin(), coloring.end()) + 1;
     const ColorID num_colors       = mpi::allreduce(num_local_colors, MPI_MAX, graph.communicator());
     STATS << "Number of colors: " << num_colors;
@@ -105,7 +105,7 @@ void ColoredLPRefiner::refine(DistributedPartitionedGraph& p_graph, const Partit
         });
     };
 
-    for (std::size_t iter = 0; iter < _input_ctx.refinement.lp.num_iterations; ++iter) {
+    for (int iter = 0; iter < _ctx.num_iterations; ++iter) {
         NodeID num_found_moves     = 0;
         NodeID num_performed_moves = 0;
         for (ColorID c = 0; c + 1 < _color_sizes.size(); ++c) {
@@ -133,16 +133,34 @@ void ColoredLPRefiner::refine(DistributedPartitionedGraph& p_graph, const Partit
 }
 
 NodeID ColoredLPRefiner::perform_moves(const ColorID c) {
+    switch (_ctx.move_execution_strategy) {
+        case LabelPropagationMoveExecutionStrategy::PROBABILISTIC:
+            return perform_probabilistic_moves(c);
+        case LabelPropagationMoveExecutionStrategy::BEST_MOVES:
+            return perform_best_moves(c);
+        case LabelPropagationMoveExecutionStrategy::LOCAL_MOVES:
+            return perform_local_moves(c);
+    }
+    __builtin_unreachable();
+}
+
+NodeID ColoredLPRefiner::perform_best_moves(const ColorID c) {
+    ((void)c);
+    return 0;
+}
+
+NodeID ColoredLPRefiner::perform_local_moves(const ColorID c) {
+    ((void)c);
+    return 0;
+}
+
+NodeID ColoredLPRefiner::perform_probabilistic_moves(const ColorID c) {
     SCOPED_TIMER("Perform moves");
 
     const NodeID seq_from = _color_sizes[c];
     const NodeID seq_to   = _color_sizes[c + 1];
 
     const auto block_gains = TIMED_SCOPE("Gather block gain and block weight gain values") {
-        if (_input_ctx.refinement.lp.ignore_probabilities) {
-            return BlockGainsContainer{};
-        }
-
         parallel::vector_ets<EdgeWeight>  block_gains_ets(_p_ctx->k);
         parallel::vector_ets<BlockWeight> block_weight_gains_ets(_p_ctx->k);
 
@@ -177,8 +195,8 @@ NodeID ColoredLPRefiner::perform_moves(const ColorID c) {
         );
 
         NodeID num_performed_moves = 0;
-        for (std::size_t i = 0; i < _input_ctx.refinement.lp.num_move_attempts; ++i) {
-            num_performed_moves = attempt_moves(c, block_gains);
+        for (int i = 0; i < _ctx.num_probabilistic_move_attempts; ++i) {
+            num_performed_moves = try_probabilistic_moves(c, block_gains);
             if (num_performed_moves == kInvalidNodeID) {
                 num_performed_moves = 0;
             } else {
@@ -202,7 +220,7 @@ NodeID ColoredLPRefiner::perform_moves(const ColorID c) {
     return num_performed_moves;
 }
 
-NodeID ColoredLPRefiner::attempt_moves(const ColorID c, const BlockGainsContainer& block_gains) {
+NodeID ColoredLPRefiner::try_probabilistic_moves(const ColorID c, const BlockGainsContainer& block_gains) {
     struct Move {
         Move(const NodeID seq_u, const NodeID u, const BlockID from) : seq_u(seq_u), u(u), from(from) {}
         NodeID  seq_u;
@@ -243,18 +261,13 @@ NodeID ColoredLPRefiner::attempt_moves(const ColorID c, const BlockGainsContaine
             // Or always perform the move if move probabilities are disabled
             const BlockID to          = _next_partition[seq_u];
             const double  probability = [&] {
-                if (_input_ctx.refinement.lp.ignore_probabilities) {
-                    //|| _p_graph->block_weight(to) + _block_weight_deltas[to] <= _p_ctx->graph.max_block_weight(to)) {
-                    return 1.0;
-                }
-
                 const double      gain_prob = (block_gains[to] == 0) ? 1.0 : 1.0 * _gains[seq_u] / block_gains[to];
                 const BlockWeight residual_block_weight =
                     _p_ctx->graph.max_block_weight(to) - _p_graph->block_weight(to);
                 return gain_prob * residual_block_weight / _p_graph->node_weight(u);
             }();
 
-            if (_input_ctx.refinement.lp.ignore_probabilities || rand.random_bool(probability)) {
+            if (rand.random_bool(probability)) {
                 const BlockID    from     = _p_graph->block(u);
                 const NodeWeight u_weight = _p_graph->node_weight(u);
 
@@ -285,16 +298,14 @@ NodeID ColoredLPRefiner::attempt_moves(const ColorID c, const BlockGainsContaine
 
     // Check for balance violations
     parallel::Atomic<std::uint8_t> feasible = 1;
-    if (!_input_ctx.refinement.lp.ignore_probabilities) {
-        _p_graph->pfor_blocks([&](const BlockID b) {
-            // If blocks were already overloaded before refinement, accept it as feasible if their weight did not
-            // increase (i.e., delta is <= 0) == first part of this if condition
-            if (block_weight_deltas[b] > 0
-                && _p_graph->block_weight(b) + block_weight_deltas[b] > _p_ctx->graph.max_block_weight(b)) {
-                feasible = 0;
-            }
-        });
-    }
+    _p_graph->pfor_blocks([&](const BlockID b) {
+        // If blocks were already overloaded before refinement, accept it as feasible if their weight did not
+        // increase (i.e., delta is <= 0) == first part of this if condition
+        if (block_weight_deltas[b] > 0
+            && _p_graph->block_weight(b) + block_weight_deltas[b] > _p_ctx->graph.max_block_weight(b)) {
+            feasible = 0;
+        }
+    });
 
     // Revert moves if resulting partition is infeasible
     // Otherwise, update block weights cached in the graph data structure

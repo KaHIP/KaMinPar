@@ -165,6 +165,28 @@ std::ostream& operator<<(std::ostream& out, const KWayRefinementAlgorithm algori
     return out << "<invalid>";
 }
 
+std::unordered_map<std::string, LabelPropagationMoveExecutionStrategy>
+get_label_propagation_move_execution_strategies() {
+    return {
+        {"probabilistic", LabelPropagationMoveExecutionStrategy::PROBABILISTIC},
+        {"best", LabelPropagationMoveExecutionStrategy::BEST_MOVES},
+        {"local", LabelPropagationMoveExecutionStrategy::LOCAL_MOVES},
+    };
+}
+
+std::ostream& operator<<(std::ostream& out, const LabelPropagationMoveExecutionStrategy strategy) {
+    switch (strategy) {
+        case LabelPropagationMoveExecutionStrategy::PROBABILISTIC:
+            return out << "probabilistic";
+        case LabelPropagationMoveExecutionStrategy::BEST_MOVES:
+            return out << "best";
+        case LabelPropagationMoveExecutionStrategy::LOCAL_MOVES:
+            return out << "local";
+    }
+
+    return out << "<invalid>";
+}
+
 void print_compact(const LabelPropagationCoarseningContext& ctx, std::ostream& out, const std::string& prefix) {
     out << prefix << "num_iterations=" << ctx.num_iterations << " "                                             //
         << prefix << "active_high_degree_threshold=" << ctx.active_high_degree_threshold << " "                 //
@@ -379,15 +401,21 @@ void print(const InitialPartitioningContext& ctx, std::ostream& out) {
 void print(const RefinementContext& ctx, std::ostream& out) {
     out << "Refinement algorithms:        " << ctx.algorithms << "\n";
     out << "Refine initial partition:     " << (ctx.refine_coarsest_level ? "yes" : "no") << "\n";
-    if (ctx.includes_algorithm(KWayRefinementAlgorithm::LP)
-        || ctx.includes_algorithm(KWayRefinementAlgorithm::COLORED_LP)) {
-        out << "Label propagation:\n";
+    if (ctx.includes_algorithm(KWayRefinementAlgorithm::LP)) {
+        out << "Naive Label propagation:\n";
         out << "  Number of iterations:       " << ctx.lp.num_iterations << "\n";
         out << "  Number of chunks:           " << ctx.lp.num_chunks << " (min: " << ctx.lp.min_num_chunks
             << ", total: " << ctx.lp.total_num_chunks << ")" << (ctx.lp.scale_chunks_with_threads ? ", scaled" : "")
             << "\n";
         out << "  Use probabilistic moves:    " << (ctx.lp.ignore_probabilities ? "no" : "yes") << "\n";
         out << "  Number of retries:          " << ctx.lp.num_move_attempts << "\n";
+    }
+    if (ctx.includes_algorithm(KWayRefinementAlgorithm::COLORED_LP)) {
+        out << "Colored Label Propagation:\n";
+        out << "  Number of iterations:       " << ctx.colored_lp.num_iterations << "\n";
+        out << "  Move execution strategy:    " << ctx.colored_lp.move_execution_strategy << "\n";
+        out << "  Number of move exe. iters:  " << ctx.colored_lp.num_move_execution_iterations << "\n";
+        out << "  Number of prob. exe. tries: " << ctx.colored_lp.num_probabilistic_move_attempts << "\n";
     }
     if (ctx.includes_algorithm(KWayRefinementAlgorithm::GREEDY_BALANCER)) {
         out << "Greedy balancer:\n";

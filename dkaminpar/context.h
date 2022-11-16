@@ -51,6 +51,12 @@ enum class KWayRefinementAlgorithm {
     GREEDY_BALANCER,
 };
 
+enum class LabelPropagationMoveExecutionStrategy {
+    PROBABILISTIC,
+    BEST_MOVES,
+    LOCAL_MOVES,
+};
+
 struct ParallelContext {
     std::size_t num_threads                     = 0;
     std::size_t num_mpis                        = 0;
@@ -73,6 +79,22 @@ struct LabelPropagationCoarseningContext {
 
     [[nodiscard]] bool should_merge_nonadjacent_clusters(NodeID old_n, NodeID new_n) const;
     void               setup(const ParallelContext& parallel);
+};
+
+struct ColoredLabelPropagationRefinementContext {
+    int num_iterations                  = 0;
+    int num_move_execution_iterations   = 0;
+    int num_probabilistic_move_attempts = 0;
+
+    int  num_coloring_chunks                = 0;
+    int  max_num_coloring_chunks            = 0;
+    int  min_num_coloring_chunks            = 0;
+    bool scale_coloring_chunks_with_threads = false;
+
+    LabelPropagationMoveExecutionStrategy move_execution_strategy =
+        LabelPropagationMoveExecutionStrategy::PROBABILISTIC;
+
+    void setup(const ParallelContext& parallel);
 };
 
 struct LabelPropagationRefinementContext {
@@ -134,9 +156,10 @@ struct GreedyBalancerContext {
 struct RefinementContext {
     std::vector<KWayRefinementAlgorithm> algorithms;
 
-    LabelPropagationRefinementContext lp;
-    FMRefinementContext               fm;
-    GreedyBalancerContext             greedy_balancer;
+    LabelPropagationRefinementContext        lp;
+    ColoredLabelPropagationRefinementContext colored_lp;
+    FMRefinementContext                      fm;
+    GreedyBalancerContext                    greedy_balancer;
 
     bool refine_coarsest_level = false;
 

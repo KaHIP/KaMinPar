@@ -130,6 +130,17 @@ Context create_default_context() {
                         .ignore_probabilities         = true,
                         .scale_chunks_with_threads    = false,
                     },
+                .colored_lp =
+                    {
+                        .num_iterations                     = 5,
+                        .num_move_execution_iterations      = 1,
+                        .num_probabilistic_move_attempts    = 2,
+                        .num_coloring_chunks                = 0,
+                        .max_num_coloring_chunks            = 128,
+                        .min_num_coloring_chunks            = 8,
+                        .scale_coloring_chunks_with_threads = false,
+                        .move_execution_strategy            = LabelPropagationMoveExecutionStrategy::PROBABILISTIC,
+                    },
                 .fm =
                     {
                         .alpha           = 1.0,
