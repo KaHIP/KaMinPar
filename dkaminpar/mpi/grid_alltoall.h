@@ -7,6 +7,7 @@
 #pragma once
 
 #include <type_traits>
+#include <unordered_map>
 
 #include <kassert/kassert.hpp>
 #include <mpi.h>
@@ -63,7 +64,9 @@ template <typename Message, typename Buffer, typename SendBuffer, typename Count
 void sparse_alltoall_grid(SendBuffer&& data, const CountsBuffer& counts, Receiver&& receiver, MPI_Comm comm) {
     using namespace internal;
 
-    /*static*/ GridCommunicator grid_comm(comm);
+    static std::unordered_map<MPI_Comm, GridCommunicator> grid_communicators;
+    auto [grid_comm_it, ignored] = grid_communicators.try_emplace(comm, comm);
+    GridCommunicator& grid_comm  = grid_comm_it->second;
 
     const auto& row_comm      = grid_comm.row_comm();
     const PEID  row_comm_size = grid_comm.row_comm_size();
