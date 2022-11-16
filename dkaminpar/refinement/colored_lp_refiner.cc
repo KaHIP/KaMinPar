@@ -92,7 +92,7 @@ void ColoredLPRefiner::refine(DistributedPartitionedGraph& p_graph, const Partit
             });
         }
 
-        if (_block_weight_deltas.size() < _p_ctx->k) {
+        if (_ctx.track_local_block_weights && _block_weight_deltas.size() < _p_ctx->k) {
             _block_weight_deltas.resize(_p_ctx->k);
             _p_graph->pfor_blocks([&](const BlockID b) { _block_weight_deltas[b] = 0; });
         }
@@ -136,12 +136,17 @@ NodeID ColoredLPRefiner::perform_moves(const ColorID c) {
     switch (_ctx.move_execution_strategy) {
         case LabelPropagationMoveExecutionStrategy::PROBABILISTIC:
             return perform_probabilistic_moves(c);
+
         case LabelPropagationMoveExecutionStrategy::BEST_MOVES:
             return perform_best_moves(c);
+
         case LabelPropagationMoveExecutionStrategy::LOCAL_MOVES:
             return perform_local_moves(c);
+
+        default:
+            KASSERT(false, "", assert::always);
+            return 0;
     }
-    __builtin_unreachable();
 }
 
 NodeID ColoredLPRefiner::perform_best_moves(const ColorID c) {
@@ -150,8 +155,40 @@ NodeID ColoredLPRefiner::perform_best_moves(const ColorID c) {
 }
 
 NodeID ColoredLPRefiner::perform_local_moves(const ColorID c) {
-    ((void)c);
-    return 0;
+    SCOPED_TIMER("Perform moves");
+
+    KASSERT(
+        _ctx.track_local_block_weights, "enable block weight tracking to use this move execution strategy",
+        assert::always
+    );
+
+    const NodeID seq_from = _color_sizes[c];
+    const NodeID seq_to   = _color_sizes[c + 1];
+
+    tbb::enumerable_thread_specific<NodeID> num_moved_nodes_ets;
+    _p_graph->pfor_nodes(seq_from, seq_to, [&](const NodeID seq_u) {
+        const NodeID  u  = _color_sorted_nodes[seq_u];
+        const BlockID to = _next_partition[seq_u];
+        if (to != _p_graph->block(u)) {
+            _next_partition[seq_u] = kInvalidNodeID; // Mark as moved
+            _p_graph->set_block<false>(u, to);
+            ++num_moved_nodes_ets.local();
+        }
+    });
+
+    synchronize_state(c);
+
+    TIMED_SCOPE("Update block weights") {
+        MPI_Allreduce(
+            MPI_IN_PLACE, _block_weight_deltas.data(), asserting_cast<int>(_p_ctx->k), mpi::type::get<BlockWeight>(),
+            MPI_SUM, _p_graph->communicator()
+        );
+        _p_graph->pfor_blocks([&](const BlockID b) {
+            _p_graph->set_block_weight(b, _p_graph->block_weight(b) + _block_weight_deltas[b]);
+        });
+    };
+
+    return num_moved_nodes_ets.combine(std::plus{});
 }
 
 NodeID ColoredLPRefiner::perform_probabilistic_moves(const ColorID c) {
@@ -188,12 +225,6 @@ NodeID ColoredLPRefiner::perform_probabilistic_moves(const ColorID c) {
     };
 
     const NodeID num_performed_moves = TIMED_SCOPE("Perform moves") {
-        // Get global block weight deltas to decide if we can execute some moves right away
-        MPI_Allreduce(
-            MPI_IN_PLACE, _block_weight_deltas.data(), asserting_cast<int>(_p_ctx->k), mpi::type::get<BlockWeight>(),
-            MPI_SUM, _p_graph->communicator()
-        );
-
         NodeID num_performed_moves = 0;
         for (int i = 0; i < _ctx.num_probabilistic_move_attempts; ++i) {
             num_performed_moves = try_probabilistic_moves(c, block_gains);
@@ -213,7 +244,9 @@ NodeID ColoredLPRefiner::perform_probabilistic_moves(const ColorID c) {
             const NodeID u         = _color_sorted_nodes[seq_u];
             _next_partition[seq_u] = _p_graph->block(u);
         });
-        _p_graph->pfor_blocks([&](const BlockID b) { _block_weight_deltas[b] = 0; });
+        if (_ctx.track_local_block_weights) {
+            _p_graph->pfor_blocks([&](const BlockID b) { _block_weight_deltas[b] = 0; });
+        }
     };
 
     mpi::barrier(_p_graph->communicator());
@@ -410,10 +443,14 @@ NodeID ColoredLPRefiner::find_moves(const ColorID c) {
                 EdgeWeight       best_weight = std::numeric_limits<EdgeWeight>::min();
                 BlockID          best_block  = u_block;
                 for (const auto [block, weight]: map.entries()) {
-                    if (block != u_block
-                        && _p_graph->block_weight(block) + _block_weight_deltas[block] + u_weight
-                               > _p_ctx->graph.max_block_weight(block)) {
-                        continue;
+                    if (block != u_block) {
+                        if ((_ctx.track_local_block_weights
+                             && _p_graph->block_weight(block) + _block_weight_deltas[block] + u_weight
+                                    > _p_ctx->graph.max_block_weight(block))
+                            || (!_ctx.track_local_block_weights
+                                && _p_graph->block_weight(block) + u_weight > _p_ctx->graph.max_block_weight(block))) {
+                            continue;
+                        }
                     }
 
                     if (weight > best_weight || (weight == best_weight && random.random_bool())) {
@@ -427,9 +464,12 @@ NodeID ColoredLPRefiner::find_moves(const ColorID c) {
                     KASSERT(_gains[seq_u] >= 0);
 
                     _next_partition[seq_u] = best_block;
-                    _block_weight_deltas[u_block] -= u_weight;
-                    _block_weight_deltas[best_block] += u_weight;
                     ++num_moved_nodes;
+
+                    if (_ctx.track_local_block_weights) {
+                        _block_weight_deltas[u_block] -= u_weight;
+                        _block_weight_deltas[best_block] += u_weight;
+                    }
                 }
 
                 map.clear();

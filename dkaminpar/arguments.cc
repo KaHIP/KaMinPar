@@ -181,6 +181,8 @@ CLI::Option_group *create_colored_lp_refinement_options(CLI::App *app, Context &
         ->capture_default_str();
     lp->add_option("--r-colored-lp-num-chunks", ctx.refinement.colored_lp.num_coloring_chunks, "Number of supersteps of the coloring algorithm. If set to 0, the value is derived from the min and max bounds.")
         ->capture_default_str();
+    lp->add_flag("--r-colored-lp-track-local-block-weights", ctx.refinement.colored_lp.track_local_block_weights)
+        ->capture_default_str();
     lp->add_flag("--r-colored-lp-scale-chunks-with-threads", ctx.refinement.colored_lp.scale_coloring_chunks_with_threads)
         ->capture_default_str();
 

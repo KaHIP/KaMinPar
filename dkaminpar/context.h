@@ -91,6 +91,8 @@ struct ColoredLabelPropagationRefinementContext {
     int  min_num_coloring_chunks            = 0;
     bool scale_coloring_chunks_with_threads = false;
 
+    bool track_local_block_weights = false;
+
     LabelPropagationMoveExecutionStrategy move_execution_strategy =
         LabelPropagationMoveExecutionStrategy::PROBABILISTIC;
 
