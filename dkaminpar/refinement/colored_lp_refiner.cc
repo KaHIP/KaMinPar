@@ -170,12 +170,13 @@ NodeID ColoredLPRefiner::perform_moves(const ColorID c) {
         NodeID num_performed_moves = 0;
         for (std::size_t i = 0; i < _input_ctx.refinement.lp.num_move_attempts; ++i) {
             num_performed_moves = attempt_moves(c, block_gains);
-            if (num_performed_moves != kInvalidNodeID) {
+            if (num_performed_moves == kInvalidNodeID) {
+                num_performed_moves = 0;
+            } else {
                 break;
             }
         }
 
-        synchronize_state(c);
         return num_performed_moves;
     };
 
@@ -295,6 +296,7 @@ NodeID ColoredLPRefiner::attempt_moves(const ColorID c, const BlockGainsContaine
             }
         });
     } else {
+        synchronize_state(c);
         _p_graph->pfor_blocks([&](const BlockID b) {
             _p_graph->set_block_weight(b, _p_graph->block_weight(b) + block_weight_deltas[b]);
         });

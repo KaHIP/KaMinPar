@@ -33,7 +33,7 @@ compute_node_coloring_sequentially(const DistributedGraph& graph, const NodeID n
     // Use max degree in the graph as an upper bound on the number of colors required
     TransformedIotaRange degrees(static_cast<NodeID>(0), graph.n(), [&](const NodeID u) { return graph.degree(u); });
     const EdgeID         max_degree = parallel::max_element(degrees.begin(), degrees.end());
-    const ColorID        max_colors = max_degree + 1;
+    const ColorID        max_colors = mpi::allreduce(max_degree, MPI_MAX, graph.communicator()) + 1;
 
     // Marker to keep track of the colors already incident to the current node
     Marker<> incident_colors(max_colors);
