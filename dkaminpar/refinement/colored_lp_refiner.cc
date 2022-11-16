@@ -30,6 +30,9 @@ ColoredLPRefiner::ColoredLPRefiner(const Context& ctx) : _input_ctx(ctx) {}
 
 void ColoredLPRefiner::initialize(const DistributedGraph& graph) {
     SCOPED_TIMER("Color label propagation refinement", "Initialization");
+    TIMED_SCOPE("Entry barrier") {
+        mpi::barrier(_p_graph->communicator());
+    };
 
     const auto    coloring         = compute_node_coloring_sequentially(graph, _input_ctx.refinement.lp.num_chunks);
     const ColorID num_local_colors = *std::max_element(coloring.begin(), coloring.end()) + 1;
@@ -69,6 +72,10 @@ void ColoredLPRefiner::initialize(const DistributedGraph& graph) {
 
 void ColoredLPRefiner::refine(DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx) {
     SCOPED_TIMER("Colored label propagation refinement", "Refinement");
+    TIMED_SCOPE("Entry barrier") {
+        mpi::barrier(_p_graph->communicator());
+    };
+
     _p_ctx   = &p_ctx;
     _p_graph = &p_graph;
 
@@ -121,6 +128,8 @@ void ColoredLPRefiner::refine(DistributedPartitionedGraph& p_graph, const Partit
             break;
         }
     }
+
+    mpi::barrier(_p_graph->communicator());
 }
 
 NodeID ColoredLPRefiner::perform_moves(const ColorID c) {
@@ -189,6 +198,7 @@ NodeID ColoredLPRefiner::perform_moves(const ColorID c) {
         _p_graph->pfor_blocks([&](const BlockID b) { _block_weight_deltas[b] = 0; });
     };
 
+    mpi::barrier(_p_graph->communicator());
     return num_performed_moves;
 }
 
@@ -313,6 +323,7 @@ NodeID ColoredLPRefiner::attempt_moves(const ColorID c, const BlockGainsContaine
 #endif
     }
 
+    mpi::barrier(_p_graph->communicator());
     return feasible ? num_performed_moves : kInvalidNodeID;
 }
 
@@ -418,6 +429,7 @@ NodeID ColoredLPRefiner::find_moves(const ColorID c) {
         }
     });
 
+    mpi::barrier(_p_graph->communicator());
     return num_moved_nodes_ets.combine(std::plus{});
 }
 } // namespace kaminpar::dist
