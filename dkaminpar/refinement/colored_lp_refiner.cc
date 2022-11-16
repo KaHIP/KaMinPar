@@ -31,7 +31,7 @@ ColoredLPRefiner::ColoredLPRefiner(const Context& ctx) : _input_ctx(ctx) {}
 void ColoredLPRefiner::initialize(const DistributedGraph& graph) {
     SCOPED_TIMER("Color label propagation refinement", "Initialization");
     TIMED_SCOPE("Entry barrier") {
-        mpi::barrier(_p_graph->communicator());
+        mpi::barrier(graph.communicator());
     };
 
     const auto    coloring         = compute_node_coloring_sequentially(graph, _input_ctx.refinement.lp.num_chunks);
@@ -73,7 +73,7 @@ void ColoredLPRefiner::initialize(const DistributedGraph& graph) {
 void ColoredLPRefiner::refine(DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx) {
     SCOPED_TIMER("Colored label propagation refinement", "Refinement");
     TIMED_SCOPE("Entry barrier") {
-        mpi::barrier(_p_graph->communicator());
+        mpi::barrier(p_graph.communicator());
     };
 
     _p_ctx   = &p_ctx;
