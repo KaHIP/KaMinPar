@@ -14,6 +14,7 @@
 #include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/metrics.h"
 #include "dkaminpar/mpi/graph_communication.h"
+#include "dkaminpar/mpi/wrapper.h"
 
 #include "common/datastructures/rating_map.h"
 #include "common/parallel/algorithm.h"
@@ -30,8 +31,9 @@ ColoredLPRefiner::ColoredLPRefiner(const Context& ctx) : _input_ctx(ctx) {}
 void ColoredLPRefiner::initialize(const DistributedGraph& graph) {
     SCOPED_TIMER("Color label propagation refinement", "Initialization");
 
-    const auto    coloring   = compute_node_coloring_sequentially(graph, _input_ctx.refinement.lp.num_chunks);
-    const ColorID num_colors = *std::max_element(coloring.begin(), coloring.end()) + 1;
+    const auto    coloring         = compute_node_coloring_sequentially(graph, _input_ctx.refinement.lp.num_chunks);
+    const ColorID num_local_colors = *std::max_element(coloring.begin(), coloring.end()) + 1;
+    const ColorID num_colors       = mpi::allreduce(num_local_colors, MPI_MAX, graph.communicator());
     STATS << "Number of colors: " << num_colors;
 
     TIMED_SCOPE("Allocation") {
