@@ -168,7 +168,7 @@ CLI::Option_group *create_colored_lp_refinement_options(CLI::App *app, Context &
         ->capture_default_str();
     lp->add_option("--r-colored-lp-num-prob-move-attempts", ctx.refinement.colored_lp.num_probabilistic_move_attempts, "Number of attempts to use the probabilistic move execution strategy before giving up.")
         ->capture_default_str();
-    lp->add_option("--r-colored-lp-move-exe-strategy", ctx.refinement.colored_lp.move_execution_strategy)
+    lp->add_option("--r-colored-lp-selection-strategy", ctx.refinement.colored_lp.move_execution_strategy)
         ->transform(CLI::CheckedTransformer(get_label_propagation_move_execution_strategies()).description(""))
         ->description(R"(Strategy to decide which moves to execute:
   - probabilistic: Assign each node a probability based on its gain and execute random moves accordingly 

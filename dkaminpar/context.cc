@@ -116,6 +116,7 @@ void CoarseningContext::setup(const ParallelContext& parallel) {
 
 void RefinementContext::setup(const ParallelContext& parallel) {
     lp.setup(parallel);
+    colored_lp.setup(parallel);
 }
 
 bool RefinementContext::includes_algorithm(const KWayRefinementAlgorithm algorithm) const {

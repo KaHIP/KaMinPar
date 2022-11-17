@@ -111,6 +111,17 @@ void ColoredLPRefiner::refine(DistributedPartitionedGraph& p_graph, const Partit
         for (ColorID c = 0; c + 1 < _color_sizes.size(); ++c) {
             num_found_moves += find_moves(c);
             num_performed_moves += perform_moves(c);
+
+            // Reset arrays for next round
+            const NodeID seq_from = _color_sizes[c];
+            const NodeID seq_to   = _color_sizes[c + 1];
+            _p_graph->pfor_nodes(seq_from, seq_to, [&](const NodeID seq_u) {
+                const NodeID u         = _color_sorted_nodes[seq_u];
+                _next_partition[seq_u] = _p_graph->block(u);
+            });
+            if (_ctx.track_local_block_weights) {
+                _p_graph->pfor_blocks([&](const BlockID b) { _block_weight_deltas[b] = 0; });
+            }
         }
 
         // Abort early if there were no moves during a full pass
@@ -180,7 +191,7 @@ NodeID ColoredLPRefiner::perform_best_moves(const ColorID c) {
 
     const std::size_t num_candidates = mpi::bcast(move_candidates.size(), 0, _p_graph->communicator());
     move_candidates.resize(num_candidates); // No effect on PE 0 == root
-    mpi::bcast(move_candidates.data(), asserting_cast<int>(num_candidates), _p_graph->communicator());
+    mpi::bcast(move_candidates.data(), asserting_cast<int>(num_candidates), 0, _p_graph->communicator());
 
     // Move nodes
     for (const MoveCandidate& candidate: move_candidates) {
@@ -374,32 +385,16 @@ NodeID ColoredLPRefiner::perform_probabilistic_moves(const ColorID c) {
         return block_gains;
     };
 
-    const NodeID num_performed_moves = TIMED_SCOPE("Perform moves") {
-        NodeID num_performed_moves = 0;
-        for (int i = 0; i < _ctx.num_probabilistic_move_attempts; ++i) {
-            num_performed_moves = try_probabilistic_moves(c, block_gains);
-            if (num_performed_moves == kInvalidNodeID) {
-                num_performed_moves = 0;
-            } else {
-                break;
-            }
+    NodeID num_performed_moves = 0;
+    for (int i = 0; i < _ctx.num_probabilistic_move_attempts; ++i) {
+        num_performed_moves = try_probabilistic_moves(c, block_gains);
+        if (num_performed_moves == kInvalidNodeID) {
+            num_performed_moves = 0;
+        } else {
+            break;
         }
+    }
 
-        return num_performed_moves;
-    };
-
-    // Reset _next_partition for next round
-    TIMED_SCOPE("Reset arrays") {
-        _p_graph->pfor_nodes(seq_from, seq_to, [&](const NodeID seq_u) {
-            const NodeID u         = _color_sorted_nodes[seq_u];
-            _next_partition[seq_u] = _p_graph->block(u);
-        });
-        if (_ctx.track_local_block_weights) {
-            _p_graph->pfor_blocks([&](const BlockID b) { _block_weight_deltas[b] = 0; });
-        }
-    };
-
-    mpi::barrier(_p_graph->communicator());
     return num_performed_moves;
 }
 
