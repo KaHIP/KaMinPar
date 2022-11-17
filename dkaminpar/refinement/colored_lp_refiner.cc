@@ -110,7 +110,9 @@ void ColoredLPRefiner::refine(DistributedPartitionedGraph& p_graph, const Partit
         NodeID num_performed_moves = 0;
         for (ColorID c = 0; c + 1 < _color_sizes.size(); ++c) {
             num_found_moves += find_moves(c);
-            num_performed_moves += perform_moves(c);
+            for (int attempt = 0; attempt < _ctx.num_probabilistic_move_attempts; ++attempt) {
+                num_performed_moves += perform_moves(c);
+            }
 
             // Reset arrays for next round
             const NodeID seq_from = _color_sizes[c];
@@ -369,7 +371,7 @@ NodeID ColoredLPRefiner::perform_probabilistic_moves(const ColorID c) {
                 const NodeID  u    = _color_sorted_nodes[seq_u];
                 const BlockID from = _p_graph->block(u);
                 const BlockID to   = _next_partition[seq_u];
-                if (from != to) {
+                if (to != from && to != kInvalidBlockID) {
                     block_gains[to] += _gains[seq_u];
                 }
             }
