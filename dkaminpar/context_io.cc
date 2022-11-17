@@ -412,15 +412,15 @@ void print(const RefinementContext& ctx, std::ostream& out) {
     }
     if (ctx.includes_algorithm(KWayRefinementAlgorithm::COLORED_LP)) {
         out << "Colored Label Propagation:\n";
-        out << "  Number of col. supersteps:  " << ctx.colored_lp.num_coloring_chunks
+        out << "  Number of coloring ssteps:  " << ctx.colored_lp.num_coloring_chunks
             << " (min: " << ctx.colored_lp.min_num_coloring_chunks
             << ", max: " << ctx.colored_lp.max_num_coloring_chunks << ")"
             << (ctx.colored_lp.scale_coloring_chunks_with_threads ? ", scaled with threads" : "") << "\n";
         out << "  Number of iterations:       " << ctx.colored_lp.num_iterations << "\n";
-        out << "  Move execution strategy:    " << ctx.colored_lp.move_execution_strategy << "\n";
-        out << "  Number of move exe. iters:  " << ctx.colored_lp.num_move_execution_iterations << "\n";
-        out << "  Number of prob. exe. tries: " << ctx.colored_lp.num_probabilistic_move_attempts << "\n";
-        out << "  Track local block weights:  " << (ctx.colored_lp.track_local_block_weights ? "yes" : "no") << "\n";
+        out << "  Commitment strategy:        " << ctx.colored_lp.move_execution_strategy << "\n";
+        out << "  Commitment rounds:          " << ctx.colored_lp.num_move_execution_iterations << "\n";
+        out << "  Max probabilistic attempts: " << ctx.colored_lp.num_probabilistic_move_attempts << "\n";
+        out << "  Track block weights:        " << (ctx.colored_lp.track_local_block_weights ? "yes" : "no") << "\n";
     }
     if (ctx.includes_algorithm(KWayRefinementAlgorithm::GREEDY_BALANCER)) {
         out << "Greedy balancer:\n";

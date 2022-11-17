@@ -82,9 +82,10 @@ struct LabelPropagationCoarseningContext {
 };
 
 struct ColoredLabelPropagationRefinementContext {
-    int num_iterations                  = 0;
-    int num_move_execution_iterations   = 0;
-    int num_probabilistic_move_attempts = 0;
+    int  num_iterations                  = 0;
+    int  num_move_execution_iterations   = 0;
+    int  num_probabilistic_move_attempts = 0;
+    bool sort_by_rel_gain                = false;
 
     int  num_coloring_chunks                = 0;
     int  max_num_coloring_chunks            = 0;

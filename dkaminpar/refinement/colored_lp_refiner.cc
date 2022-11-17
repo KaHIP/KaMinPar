@@ -291,11 +291,18 @@ auto ColoredLPRefiner::reduce_move_candidates(std::vector<MoveCandidate>&& a, st
         std::vector<MoveCandidate> candidates(num);
         std::copy(a.begin() + i, a.begin() + i_end, candidates.begin());
         std::copy(b.begin() + j, b.begin() + j_end, candidates.begin() + num_in_a);
-        std::sort(candidates.begin(), candidates.end(), [&](const auto& lhs, const auto& rhs) {
-            const double lhs_rel_gain = 1.0 * lhs.gain / lhs.weight;
-            const double rhs_rel_gain = 1.0 * rhs.gain / rhs.weight;
-            return lhs_rel_gain > rhs_rel_gain || (lhs_rel_gain == rhs_rel_gain && lhs.node > rhs.node);
-        });
+
+        if (_ctx.sort_by_rel_gain) {
+            std::sort(candidates.begin(), candidates.end(), [&](const auto& lhs, const auto& rhs) {
+                const double lhs_rel_gain = 1.0 * lhs.gain / lhs.weight;
+                const double rhs_rel_gain = 1.0 * rhs.gain / rhs.weight;
+                return lhs_rel_gain > rhs_rel_gain || (lhs_rel_gain == rhs_rel_gain && lhs.node > rhs.node);
+            });
+        } else {
+            std::sort(candidates.begin(), candidates.end(), [&](const auto& lhs, const auto& rhs) {
+                return lhs.gain > rhs.gain || (lhs.gain == rhs.gain && lhs.node > rhs.node);
+            });
+        }
 
         for (NodeID candidate = 0; candidate < candidates.size(); ++candidate) {
             try_add_candidate(ans, candidates[candidate]);

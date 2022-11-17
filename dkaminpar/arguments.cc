@@ -162,28 +162,32 @@ CLI::Option_group *create_lp_refinement_options(CLI::App *app, Context &ctx) {
 CLI::Option_group *create_colored_lp_refinement_options(CLI::App *app, Context &ctx) {
     auto *lp = app->add_option_group("Refinement -> Colored Label Propagation");
 
-    lp->add_option("--r-colored-lp-num-iterations", ctx.refinement.colored_lp.num_iterations, "Number of label propagation iterations.")
+    lp->add_option("--r-clp-num-iterations", ctx.refinement.colored_lp.num_iterations, "Number of label propagation iterations.")
         ->capture_default_str();
-    lp->add_option("--r-colored-lp-num-move-execution-iterations", ctx.refinement.colored_lp.num_move_execution_iterations, "Number of move execution iterations.")
-        ->capture_default_str();
-    lp->add_option("--r-colored-lp-num-prob-move-attempts", ctx.refinement.colored_lp.num_probabilistic_move_attempts, "Number of attempts to use the probabilistic move execution strategy before giving up.")
-        ->capture_default_str();
-    lp->add_option("--r-colored-lp-selection-strategy", ctx.refinement.colored_lp.move_execution_strategy)
+    lp->add_option("--r-clp-commit-strategy", ctx.refinement.colored_lp.move_execution_strategy)
         ->transform(CLI::CheckedTransformer(get_label_propagation_move_execution_strategies()).description(""))
         ->description(R"(Strategy to decide which moves to execute:
   - probabilistic: Assign each node a probability based on its gain and execute random moves accordingly 
   - best:          Identify the best global moves and execute them
   - local:         Execute all local moves, risking an imbalanced partition)")
         ->capture_default_str();
-    lp->add_option("--r-colored-lp-max-num-chunks", ctx.refinement.colored_lp.max_num_coloring_chunks)
+    lp->add_option("--r-clp-num-commit-rounds", ctx.refinement.colored_lp.num_move_execution_iterations, "Number of move commitment rounds.")
         ->capture_default_str();
-    lp->add_option("--r-colored-lp-min-num-chunks", ctx.refinement.colored_lp.min_num_coloring_chunks)
+    lp->add_option("--r-clp-num-attempts", ctx.refinement.colored_lp.num_probabilistic_move_attempts, "[commit-strategy=probabilistic] Number of attempts to use the probabilistic commitment strategy before giving up.")
         ->capture_default_str();
-    lp->add_option("--r-colored-lp-num-chunks", ctx.refinement.colored_lp.num_coloring_chunks, "Number of supersteps of the coloring algorithm. If set to 0, the value is derived from the min and max bounds.")
+    lp->add_flag("--r-clp-sort-by-rel-gain", ctx.refinement.colored_lp.sort_by_rel_gain, "[commit-strategy=best] Sort move candidates by their relative gain rather than their absolute gain.")
         ->capture_default_str();
-    lp->add_flag("--r-colored-lp-track-local-block-weights", ctx.refinement.colored_lp.track_local_block_weights)
+    lp->add_flag("--r-clp-track-block-weights", ctx.refinement.colored_lp.track_local_block_weights)
         ->capture_default_str();
-    lp->add_flag("--r-colored-lp-scale-chunks-with-threads", ctx.refinement.colored_lp.scale_coloring_chunks_with_threads)
+
+    // Control number of coloring supersteps
+    lp->add_option("--r-clp-max-num-chunks", ctx.refinement.colored_lp.max_num_coloring_chunks)
+        ->capture_default_str();
+    lp->add_option("--r-clp-min-num-chunks", ctx.refinement.colored_lp.min_num_coloring_chunks)
+        ->capture_default_str();
+    lp->add_option("--r-clp-num-chunks", ctx.refinement.colored_lp.num_coloring_chunks, "Number of supersteps of the coloring algorithm. If set to 0, the value is derived from the min and max bounds.")
+        ->capture_default_str();
+    lp->add_flag("--r-clp-scale-chunks-with-threads", ctx.refinement.colored_lp.scale_coloring_chunks_with_threads)
         ->capture_default_str();
 
     return lp;

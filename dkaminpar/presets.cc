@@ -135,6 +135,7 @@ Context create_default_context() {
                         .num_iterations                     = 5,
                         .num_move_execution_iterations      = 1,
                         .num_probabilistic_move_attempts    = 2,
+                        .sort_by_rel_gain                   = true,
                         .num_coloring_chunks                = 0,
                         .max_num_coloring_chunks            = 128,
                         .min_num_coloring_chunks            = 8,
