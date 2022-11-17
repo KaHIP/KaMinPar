@@ -15,6 +15,16 @@
 
 namespace kaminpar::dist {
 class ColoredLPRefiner : public Refiner {
+    using BlockGainsContainer = typename parallel::vector_ets<EdgeWeight>::Container;
+
+    struct MoveCandidate {
+        GlobalNodeID node;
+        BlockID      from;
+        BlockID      to;
+        EdgeWeight   gain;
+        NodeWeight   weight;
+    };
+
 public:
     ColoredLPRefiner(const Context& ctx);
 
@@ -27,8 +37,6 @@ public:
     void refine(DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx) final;
 
 private:
-    using BlockGainsContainer = typename parallel::vector_ets<EdgeWeight>::Container;
-
     NodeID find_moves(ColorID c);
     NodeID perform_moves(ColorID c);
     NodeID perform_best_moves(ColorID c);
@@ -36,6 +44,10 @@ private:
     NodeID perform_probabilistic_moves(ColorID c);
     NodeID try_probabilistic_moves(ColorID c, const BlockGainsContainer& block_gains);
     void   synchronize_state(ColorID c);
+
+    auto reduce_move_candidates(std::vector<MoveCandidate>&& candidates) -> std::vector<MoveCandidate>;
+    auto reduce_move_candidates(std::vector<MoveCandidate>&& a, std::vector<MoveCandidate>&& b)
+        -> std::vector<MoveCandidate>;
 
     void handle_node(NodeID u);
 

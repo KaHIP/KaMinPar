@@ -150,8 +150,158 @@ NodeID ColoredLPRefiner::perform_moves(const ColorID c) {
 }
 
 NodeID ColoredLPRefiner::perform_best_moves(const ColorID c) {
-    ((void)c);
-    return 0;
+    const NodeID seq_from = _color_sizes[c];
+    const NodeID seq_to   = _color_sizes[c + 1];
+
+    // Collect nodes that changed block
+    // @todo could be collected right away
+    // @todo parallelize
+    std::vector<MoveCandidate> move_candidates;
+    for (const NodeID seq_u: _p_graph->nodes(seq_from, seq_to)) {
+        const NodeID  u    = _color_sorted_nodes[seq_u];
+        const BlockID from = _p_graph->block(u);
+        const BlockID to   = _next_partition[seq_u];
+        if (to != from) {
+            const GlobalNodeID global_u = _p_graph->local_to_global_node(u);
+            const EdgeWeight   gain     = _gains[seq_u];
+            const NodeWeight   weight   = _p_graph->node_weight(u);
+
+            move_candidates.push_back({global_u, from, to, gain, weight});
+        }
+    }
+
+    // reduce_move_candidates requires candidates to be sorted by their `from` block
+    std::sort(move_candidates.begin(), move_candidates.end(), [](const auto& lhs, const auto& rhs) {
+        return lhs.from < rhs.from;
+    });
+
+    // Binary reduction tree to find the best candidates for each block, globally
+    move_candidates = reduce_move_candidates(std::move(move_candidates));
+
+    const std::size_t num_candidates = mpi::bcast(move_candidates.size(), 0, _p_graph->communicator());
+    move_candidates.resize(num_candidates); // No effect on PE 0 == root
+    mpi::bcast(move_candidates.data(), asserting_cast<int>(num_candidates), _p_graph->communicator());
+
+    // Move nodes
+    for (const MoveCandidate& candidate: move_candidates) {
+        if (_p_graph->contains_global_node(candidate.node)) {
+            const NodeID local_node = _p_graph->global_to_local_node(candidate.node);
+            _p_graph->set_block<false>(local_node, candidate.to);
+        }
+        _p_graph->set_block_weight(candidate.to, _p_graph->block_weight(candidate.to) + candidate.weight);
+        _p_graph->set_block_weight(candidate.from, _p_graph->block_weight(candidate.from) - candidate.weight);
+    }
+
+    return static_cast<NodeID>(num_candidates);
+}
+
+auto ColoredLPRefiner::reduce_move_candidates(std::vector<MoveCandidate>&& candidates) -> std::vector<MoveCandidate> {
+    const int size = mpi::get_comm_size(_p_graph->communicator());
+    const int rank = mpi::get_comm_rank(_p_graph->communicator());
+    KASSERT(math::is_power_of_2(size), "#PE must be a power of two", assert::always);
+
+    int active_size = size;
+    while (active_size > 1) {
+        if (rank >= active_size) {
+            continue;
+        }
+
+        // false = receiver
+        // true = sender
+        const bool role = (rank >= active_size / 2);
+
+        if (role) {
+            const PEID dest = rank - active_size / 2;
+            mpi::send(candidates.data(), candidates.size(), dest, 0, _p_graph->communicator());
+            break;
+        } else {
+            const PEID src = rank + active_size / 2;
+            auto       tmp_buffer =
+                mpi::probe_recv<MoveCandidate, std::vector<MoveCandidate>>(src, 0, _p_graph->communicator());
+            candidates = reduce_move_candidates(std::move(candidates), std::move(tmp_buffer));
+        }
+
+        active_size /= 2;
+    }
+
+    return std::move(candidates);
+}
+
+auto ColoredLPRefiner::reduce_move_candidates(std::vector<MoveCandidate>&& a, std::vector<MoveCandidate>&& b)
+    -> std::vector<MoveCandidate> {
+    std::vector<MoveCandidate> ans;
+
+    // precondition: candidates are sorted by from block
+    KASSERT([&] {
+        for (std::size_t i = 1; i < a.size(); ++i) {
+            KASSERT(a[i].from >= a[i - 1].from);
+        }
+        for (std::size_t i = 1; i < b.size(); ++i) {
+            KASSERT(b[i].from >= b[i - 1].from);
+        }
+        return true;
+    }());
+
+    std::size_t i = 0; // index in a
+    std::size_t j = 0; // index in b
+
+    // Reset _block_weight_deltas
+    tbb::parallel_for<BlockID>(0, _p_ctx->k, [&](const BlockID b) { _block_weight_deltas[b] = 0; });
+
+    auto try_add_candidate = [&](std::vector<MoveCandidate>& ans, const MoveCandidate& candidate) {
+        if (_p_graph->block_weight(candidate.to) + _block_weight_deltas[candidate.to] + candidate.weight
+            <= _p_ctx->graph.max_block_weight(candidate.to)) {
+            ans.push_back(candidate);
+            _block_weight_deltas[candidate.to] += candidate.weight;
+        }
+    };
+
+    // For each target block, find the highest gain prefix
+    for (i = 0, j = 0; i < a.size() && j < b.size();) {
+        const BlockID from = std::min<BlockID>(a[i].from, b[j].from);
+
+        // Find region in `a` and `b` with nodes from `from`
+        std::size_t i_end = i;
+        std::size_t j_end = j;
+        while (i_end < a.size() && a[i_end].from == from) {
+            ++i_end;
+        }
+        while (j_end < b.size() && b[j_end].from == from) {
+            ++j_end;
+        }
+
+        // Merge lists and sort by relative gain
+        const std::size_t num_in_a = i_end - i;
+        const std::size_t num_in_b = j_end - j;
+        const std::size_t num      = num_in_a + num_in_b;
+
+        std::vector<MoveCandidate> candidates(num);
+        std::copy(a.begin() + i, a.begin() + i_end, candidates.begin());
+        std::copy(b.begin() + j, b.begin() + j_end, candidates.begin() + num_in_a);
+        std::sort(candidates.begin(), candidates.end(), [&](const auto& lhs, const auto& rhs) {
+            const double lhs_rel_gain = 1.0 * lhs.gain / lhs.weight;
+            const double rhs_rel_gain = 1.0 * rhs.gain / rhs.weight;
+            return lhs_rel_gain > rhs_rel_gain || (lhs_rel_gain == rhs_rel_gain && lhs.node > rhs.node);
+        });
+
+        for (NodeID candidate = 0; candidate < candidates.size(); ++candidate) {
+            try_add_candidate(ans, candidates[candidate]);
+        }
+
+        // Move forward
+        i = i_end;
+        j = j_end;
+    }
+
+    // Keep remaining moves
+    for (; i < a.size(); ++i) {
+        try_add_candidate(ans, a[i]);
+    }
+    for (; j < b.size(); ++j) {
+        try_add_candidate(ans, b[j]);
+    }
+
+    return ans;
 }
 
 NodeID ColoredLPRefiner::perform_local_moves(const ColorID c) {
