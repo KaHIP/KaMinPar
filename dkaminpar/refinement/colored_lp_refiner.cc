@@ -29,10 +29,10 @@ SET_DEBUG(false);
 ColoredLPRefiner::ColoredLPRefiner(const Context& ctx) : _input_ctx(ctx), _ctx(ctx.refinement.colored_lp) {}
 
 void ColoredLPRefiner::initialize(const DistributedGraph& graph) {
-    SCOPED_TIMER("Color label propagation refinement", "Initialization");
-    TIMED_SCOPE("Entry barrier") {
-        mpi::barrier(graph.communicator());
-    };
+    mpi::barrier(graph.communicator());
+
+    SCOPED_TIMER("Colored LP refinement");
+    SCOPED_TIMER("Initialization");
 
     const auto    coloring         = compute_node_coloring_sequentially(graph, _ctx.num_coloring_chunks);
     const ColorID num_local_colors = *std::max_element(coloring.begin(), coloring.end()) + 1;
@@ -71,10 +71,10 @@ void ColoredLPRefiner::initialize(const DistributedGraph& graph) {
 }
 
 void ColoredLPRefiner::refine(DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx) {
-    SCOPED_TIMER("Colored label propagation refinement", "Refinement");
-    TIMED_SCOPE("Entry barrier") {
-        mpi::barrier(p_graph.communicator());
-    };
+    mpi::barrier(p_graph.communicator());
+
+    SCOPED_TIMER("Colored LP refinement");
+    SCOPED_TIMER("Refinement");
 
     _p_ctx   = &p_ctx;
     _p_graph = &p_graph;
@@ -163,6 +163,8 @@ NodeID ColoredLPRefiner::perform_moves(const ColorID c) {
 }
 
 NodeID ColoredLPRefiner::perform_best_moves(const ColorID c) {
+    SCOPED_TIMER("Perform moves");
+
     const NodeID seq_from = _color_sizes[c];
     const NodeID seq_to   = _color_sizes[c + 1];
 
@@ -196,16 +198,37 @@ NodeID ColoredLPRefiner::perform_best_moves(const ColorID c) {
     mpi::bcast(move_candidates.data(), asserting_cast<int>(num_candidates), 0, _p_graph->communicator());
 
     // Move nodes
+    NodeID num_local_moved_nodes = 0;
+#if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
+    EdgeWeight       expected_gain_improvement = 0;
+    const EdgeWeight edge_cut_before           = metrics::edge_cut(*_p_graph);
+#endif
+
     for (const MoveCandidate& candidate: move_candidates) {
         if (_p_graph->contains_global_node(candidate.node)) {
             const NodeID local_node = _p_graph->global_to_local_node(candidate.node);
             _p_graph->set_block<false>(local_node, candidate.to);
+            num_local_moved_nodes += local_node < _p_graph->n();
         }
         _p_graph->set_block_weight(candidate.to, _p_graph->block_weight(candidate.to) + candidate.weight);
         _p_graph->set_block_weight(candidate.from, _p_graph->block_weight(candidate.from) - candidate.weight);
+
+#if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
+        expected_gain_improvement += candidate.gain;
+#endif
     }
 
-    return static_cast<NodeID>(num_candidates);
+    KASSERT(
+        graph::debug::validate_partition(*_p_graph), "invalid partition state after executing node moves", assert::heavy
+    );
+#if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
+    const EdgeWeight edge_cut_after = metrics::edge_cut(*_p_graph);
+    KASSERT(
+        edge_cut_before - edge_cut_after == expected_gain_improvement, "edge cut change inconsistent with move gains"
+    );
+#endif
+
+    return num_local_moved_nodes;
 }
 
 auto ColoredLPRefiner::reduce_move_candidates(std::vector<MoveCandidate>&& candidates) -> std::vector<MoveCandidate> {
@@ -215,10 +238,6 @@ auto ColoredLPRefiner::reduce_move_candidates(std::vector<MoveCandidate>&& candi
 
     int active_size = size;
     while (active_size > 1) {
-        if (rank >= active_size) {
-            continue;
-        }
-
         // false = receiver
         // true = sender
         const bool role = (rank >= active_size / 2);

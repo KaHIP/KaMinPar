@@ -418,8 +418,13 @@ void print(const RefinementContext& ctx, std::ostream& out) {
             << (ctx.colored_lp.scale_coloring_chunks_with_threads ? ", scaled with threads" : "") << "\n";
         out << "  Number of iterations:       " << ctx.colored_lp.num_iterations << "\n";
         out << "  Commitment strategy:        " << ctx.colored_lp.move_execution_strategy << "\n";
+        if (ctx.colored_lp.move_execution_strategy == LabelPropagationMoveExecutionStrategy::PROBABILISTIC) {
+            out << "    Number of attempts:       " << ctx.colored_lp.num_probabilistic_move_attempts << "\n";
+        } else if (ctx.colored_lp.move_execution_strategy == LabelPropagationMoveExecutionStrategy::BEST_MOVES) {
+            out << "    Sort by:                  "
+                << (ctx.colored_lp.sort_by_rel_gain ? "relative gain" : "absolute gain") << "\n";
+        }
         out << "  Commitment rounds:          " << ctx.colored_lp.num_move_execution_iterations << "\n";
-        out << "  Max probabilistic attempts: " << ctx.colored_lp.num_probabilistic_move_attempts << "\n";
         out << "  Track block weights:        " << (ctx.colored_lp.track_local_block_weights ? "yes" : "no") << "\n";
     }
     if (ctx.includes_algorithm(KWayRefinementAlgorithm::GREEDY_BALANCER)) {
