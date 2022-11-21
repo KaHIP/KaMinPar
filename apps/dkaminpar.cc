@@ -139,11 +139,11 @@ partition_repeatedly(const DistributedGraph& graph, const Context& ctx, Terminat
     return best_partition;
 }
 
-std::pair<Context, GeneratorContext> setup_context(CLI::App& app, int argc, char* argv[]) {
-    Context          ctx = create_default_context();
-    GeneratorContext g_ctx;
-    bool             dump_config  = false;
-    bool             show_version = false;
+std::pair<Context, std::string> setup_context(CLI::App& app, int argc, char* argv[]) {
+    Context     ctx          = create_default_context();
+    bool        dump_config  = false;
+    bool        show_version = false;
+    std::string kagen_properties;
 
     app.set_config("-C,--config", "", "Read parameters from a TOML configuration file.", false);
     app.add_option_function<std::string>(
@@ -175,7 +175,8 @@ The output should be stored in a file and can be used by the -C,--config option.
     // Graph can come from KaGen or from disk
     auto* graph_source = gp_group->add_option_group("Graph source")->require_option(1)->silent();
 #ifdef KAMINPAR_ENABLE_GRAPHGEN
-    create_generator_options(graph_source, g_ctx);
+    graph_source->add_option("--generator", kagen_properties, "Generator properties for in-memory partitioning.")
+        ->configurable(false);
 #endif
     graph_source
         ->add_option(
@@ -223,7 +224,7 @@ The output should be stored in a file and can be used by the -C,--config option.
         std::exit(0);
     }
 
-    return {ctx, g_ctx};
+    return {ctx, kagen_properties};
 }
 
 void print_parsable_summary(const Context& ctx, const DistributedGraph& graph, const bool root) {
@@ -263,13 +264,13 @@ int main(int argc, char* argv[]) {
     //
     // Parse command line arguments
     //
-    CLI::App         app("dKaMinPar: (Somewhat) Minimal Distributed Deep Multilevel Graph Partitioning");
-    Context          ctx;
-    GeneratorContext g_ctx;
+    CLI::App    app("dKaMinPar: (Somewhat) Minimal Distributed Deep Multilevel Graph Partitioning");
+    Context     ctx;
+    std::string kagen_properties;
 
     try {
-        std::tie(ctx, g_ctx)  = setup_context(app, argc, argv);
-        ctx.parallel.num_mpis = static_cast<std::size_t>(size);
+        std::tie(ctx, kagen_properties) = setup_context(app, argc, argv);
+        ctx.parallel.num_mpis           = static_cast<std::size_t>(size);
     } catch (CLI::ParseError& e) {
         return app.exit(e);
     }
@@ -294,7 +295,6 @@ int main(int argc, char* argv[]) {
     // Initialize RNG, setup TBB
     //
     Random::seed = ctx.seed;
-    g_ctx.seed   = ctx.seed;
 
     auto gc = init_parallelism(ctx.parallel.num_threads);
     omp_set_num_threads(static_cast<int>(ctx.parallel.num_threads));
@@ -307,9 +307,9 @@ int main(int argc, char* argv[]) {
     // Load graph
     //
     auto graph = TIMED_SCOPE("IO") {
-        if (g_ctx.type != GeneratorType::NONE) {
-            auto graph         = generate(g_ctx);
-            ctx.graph_filename = generate_filename(g_ctx);
+        if (!kagen_properties.empty()) {
+            auto graph         = generate(kagen_properties);
+            ctx.graph_filename = generate_filename(kagen_properties);
             if (!ctx.quiet && rank == 0) {
                 cio::print_delimiter(std::cout);
             }
