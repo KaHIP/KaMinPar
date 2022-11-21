@@ -299,13 +299,13 @@ void print(const PartitionContext& ctx, const bool root, std::ostream& out) {
 
     if (root) {
         out << "  Number of global nodes:    " << std::setw(width) << ctx.graph.global_n();
-        if (asserting_cast<NodeWeight>(ctx.graph.global_n()) == ctx.graph.global_total_node_weight()) {
+        if (asserting_cast<GlobalNodeWeight>(ctx.graph.global_n()) == ctx.graph.global_total_node_weight()) {
             out << " (unweighted)\n";
         } else {
             out << " (total weight: " << ctx.graph.global_total_node_weight() << ")\n";
         }
         out << "  Number of global edges:    " << std::setw(width) << ctx.graph.global_m();
-        if (asserting_cast<EdgeWeight>(ctx.graph.global_m()) == ctx.graph.global_total_edge_weight()) {
+        if (asserting_cast<GlobalEdgeWeight>(ctx.graph.global_m()) == ctx.graph.global_total_edge_weight()) {
             out << " (unweighted)\n";
         } else {
             out << " (total weight: " << ctx.graph.global_total_edge_weight() << ")\n";
