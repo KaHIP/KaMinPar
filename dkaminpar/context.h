@@ -57,6 +57,12 @@ enum class LabelPropagationMoveExecutionStrategy {
     LOCAL_MOVES,
 };
 
+enum class GraphOrdering {
+    NATURAL,
+    DEGREE_BUCKETS,
+    COLORING,
+};
+
 struct ParallelContext {
     std::size_t num_threads                     = 0;
     std::size_t num_mpis                        = 0;
@@ -292,8 +298,8 @@ struct DebugContext {
 };
 
 struct Context {
-    int  seed            = 0;
-    bool rearrange_graph = false;
+    int           seed         = 0;
+    GraphOrdering rearrange_by = GraphOrdering::NATURAL;
 
     PartitionContext           partition;
     ParallelContext            parallel;

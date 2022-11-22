@@ -187,6 +187,27 @@ std::ostream& operator<<(std::ostream& out, const LabelPropagationMoveExecutionS
     return out << "<invalid>";
 }
 
+std::unordered_map<std::string, GraphOrdering> get_graph_orderings() {
+    return {
+        {"natural", GraphOrdering::NATURAL},
+        {"deg-buckets", GraphOrdering::DEGREE_BUCKETS},
+        {"coloring", GraphOrdering::COLORING},
+    };
+}
+
+std::ostream& operator<<(std::ostream& out, const GraphOrdering ordering) {
+    switch (ordering) {
+        case GraphOrdering::NATURAL:
+            return out << "natural";
+        case GraphOrdering::DEGREE_BUCKETS:
+            return out << "deg-buckets";
+        case GraphOrdering::COLORING:
+            return out << "coloring";
+    }
+
+    return out << "<invalid>";
+}
+
 void print_compact(const LabelPropagationCoarseningContext& ctx, std::ostream& out, const std::string& prefix) {
     out << prefix << "num_iterations=" << ctx.num_iterations << " "                                             //
         << prefix << "active_high_degree_threshold=" << ctx.active_high_degree_threshold << " "                 //
@@ -283,8 +304,8 @@ void print_compact(const DebugContext& ctx, std::ostream& out, const std::string
 }
 
 void print_compact(const Context& ctx, std::ostream& out, const std::string& prefix) {
-    out << prefix << "seed=" << ctx.seed << " "                        //
-        << prefix << "rearrange_graph=" << ctx.rearrange_graph << " "; //
+    out << prefix << "seed=" << ctx.seed << " "                  //
+        << prefix << "rearrange_by=" << ctx.rearrange_by << " "; //
     print_compact(ctx.partition, out, prefix + "partition.");
     print_compact(ctx.parallel, out, prefix + "parallel.");
     print_compact(ctx.coarsening, out, prefix + "coarsening.");
@@ -296,7 +317,7 @@ void print(const Context& ctx, const bool root, std::ostream& out) {
     if (root) {
         out << "Seed:                         " << ctx.seed << "\n";
         out << "Graph:                        " << ctx.debug.graph_filename << "\n";
-        out << "  Rearrange by deg-buckets:   " << (ctx.rearrange_graph ? "yes" : "no") << "\n";
+        out << "  Rearrange graph by:         " << ctx.rearrange_by << "\n";
     }
     print(ctx.partition, root, out);
     if (root) {

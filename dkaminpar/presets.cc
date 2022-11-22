@@ -40,8 +40,8 @@ std::unordered_set<std::string> get_preset_names() {
 
 Context create_default_context() {
     return {
-        .seed            = 0,
-        .rearrange_graph = true,
+        .seed         = 0,
+        .rearrange_by = GraphOrdering::DEGREE_BUCKETS,
         .partition =
             {
                 .k                     = 0,
