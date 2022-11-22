@@ -283,13 +283,8 @@ void print_compact(const DebugContext& ctx, std::ostream& out, const std::string
 }
 
 void print_compact(const Context& ctx, std::ostream& out, const std::string& prefix) {
-    out << prefix << "graph_filename=" << ctx.graph_filename << " "         //
-        << prefix << "load_edge_balanced=" << ctx.load_edge_balanced << " " //
-        << prefix << "seed=" << ctx.seed << " "                             //
-        << prefix << "quiet=" << ctx.quiet << " "                           //
-        << prefix << "num_repetitions=" << ctx.num_repetitions << " "       //
-        << prefix << "sort_graph=" << ctx.sort_graph << " "                 //
-        << prefix << "time_limit=" << ctx.time_limit << " ";                //
+    out << prefix << "seed=" << ctx.seed << " "                        //
+        << prefix << "rearrange_graph=" << ctx.rearrange_graph << " "; //
     print_compact(ctx.partition, out, prefix + "partition.");
     print_compact(ctx.parallel, out, prefix + "parallel.");
     print_compact(ctx.coarsening, out, prefix + "coarsening.");
@@ -300,9 +295,8 @@ void print_compact(const Context& ctx, std::ostream& out, const std::string& pre
 void print(const Context& ctx, const bool root, std::ostream& out) {
     if (root) {
         out << "Seed:                         " << ctx.seed << "\n";
-        if (!ctx.graph_filename.empty()) {
-            out << "Graph:                        " << ctx.graph_filename << "\n";
-        }
+        out << "Graph:                        " << ctx.debug.graph_filename << "\n";
+        out << "  Rearrange by deg-buckets:   " << (ctx.rearrange_graph ? "yes" : "no") << "\n";
     }
     print(ctx.partition, root, out);
     if (root) {

@@ -596,62 +596,71 @@ NodeID ColoredLPRefiner::find_moves(const ColorID c) {
         return RatingMap<EdgeWeight, BlockID>(_p_ctx->k);
     });
 
-    _p_graph->pfor_nodes_range(seq_from, seq_to, [&](const auto& r) {
-        auto& num_moved_nodes = num_moved_nodes_ets.local();
-        auto& rating_map      = rating_maps_ets.local();
-        auto& random          = Random::instance();
+    constexpr std::size_t kPrefetchDistance = 20;
 
-        for (NodeID seq_u = r.begin(); seq_u != r.end(); ++seq_u) {
-            const NodeID u = _color_sorted_nodes[seq_u];
+    //_p_graph->pfor_nodes_range(seq_from, seq_to, [&](const auto& r) {
+    auto& num_moved_nodes = num_moved_nodes_ets.local();
+    auto& rating_map      = rating_maps_ets.local();
+    auto& random          = Random::instance();
 
-            auto action = [&](auto& map) {
-                for (const auto [e, v]: _p_graph->neighbors(u)) {
-                    const BlockID    b      = _p_graph->block(v);
-                    const EdgeWeight weight = _p_graph->edge_weight(e);
-                    map[b] += weight;
-                }
-
-                const BlockID    u_block     = _p_graph->block(u);
-                const NodeWeight u_weight    = _p_graph->node_weight(u);
-                EdgeWeight       best_weight = std::numeric_limits<EdgeWeight>::min();
-                BlockID          best_block  = u_block;
-                for (const auto [block, weight]: map.entries()) {
-                    if (block != u_block) {
-                        if ((_ctx.track_local_block_weights
-                             && _p_graph->block_weight(block) + _block_weight_deltas[block] + u_weight
-                                    > _p_ctx->graph.max_block_weight(block))
-                            || (!_ctx.track_local_block_weights
-                                && _p_graph->block_weight(block) + u_weight > _p_ctx->graph.max_block_weight(block))) {
-                            continue;
-                        }
-                    }
-
-                    if (weight > best_weight || (weight == best_weight && random.random_bool())) {
-                        best_weight = weight;
-                        best_block  = block;
-                    }
-                }
-
-                if (best_block != u_block) {
-                    _gains[seq_u] = best_weight - map[u_block];
-                    KASSERT(_gains[seq_u] >= 0);
-
-                    _next_partition[seq_u] = best_block;
-                    ++num_moved_nodes;
-
-                    if (_ctx.track_local_block_weights) {
-                        _block_weight_deltas[u_block] -= u_weight;
-                        _block_weight_deltas[best_block] += u_weight;
-                    }
-                }
-
-                map.clear();
-            };
-
-            rating_map.update_upper_bound_size(std::min<BlockID>(_p_ctx->k, _p_graph->degree(u)));
-            rating_map.run_with_map(action, action);
+    // for (NodeID seq_u = r.begin(); seq_u != r.end(); ++seq_u) {
+    for (NodeID seq_u = seq_from; seq_u != seq_to; ++seq_u) {
+        const NodeID u = _color_sorted_nodes[seq_u];
+        if (seq_u + kPrefetchDistance < seq_to) {
+            const NodeID u_next = _color_sorted_nodes[seq_u + kPrefetchDistance];
+            //__builtin_prefetch(_p_graph->raw_nodes().data() + u_next, 1);
+            const EdgeID e_first = _p_graph->first_edge(u_next);
+            __builtin_prefetch(_p_graph->raw_edges().data() + e_first);
         }
-    });
+
+        auto action = [&](auto& map) {
+            for (const auto [e, v]: _p_graph->neighbors(u)) {
+                const BlockID    b      = _p_graph->block(v);
+                const EdgeWeight weight = _p_graph->edge_weight(e);
+                map[b] += weight;
+            }
+
+            const BlockID    u_block     = _p_graph->block(u);
+            const NodeWeight u_weight    = _p_graph->node_weight(u);
+            EdgeWeight       best_weight = std::numeric_limits<EdgeWeight>::min();
+            BlockID          best_block  = u_block;
+            for (const auto [block, weight]: map.entries()) {
+                if (block != u_block) {
+                    if ((_ctx.track_local_block_weights
+                         && _p_graph->block_weight(block) + _block_weight_deltas[block] + u_weight
+                                > _p_ctx->graph.max_block_weight(block))
+                        || (!_ctx.track_local_block_weights
+                            && _p_graph->block_weight(block) + u_weight > _p_ctx->graph.max_block_weight(block))) {
+                        continue;
+                    }
+                }
+
+                if (weight > best_weight || (weight == best_weight && random.random_bool())) {
+                    best_weight = weight;
+                    best_block  = block;
+                }
+            }
+
+            if (best_block != u_block) {
+                _gains[seq_u] = best_weight - map[u_block];
+                KASSERT(_gains[seq_u] >= 0);
+
+                _next_partition[seq_u] = best_block;
+                ++num_moved_nodes;
+
+                if (_ctx.track_local_block_weights) {
+                    _block_weight_deltas[u_block] -= u_weight;
+                    _block_weight_deltas[best_block] += u_weight;
+                }
+            }
+
+            map.clear();
+        };
+
+        rating_map.update_upper_bound_size(std::min<BlockID>(_p_ctx->k, _p_graph->degree(u)));
+        rating_map.run_with_map(action, action);
+    }
+    //});
 
     mpi::barrier(_p_graph->communicator());
     return num_moved_nodes_ets.combine(std::plus{});

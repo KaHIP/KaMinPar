@@ -40,14 +40,8 @@ std::unordered_set<std::string> get_preset_names() {
 
 Context create_default_context() {
     return {
-        .graph_filename     = "",
-        .load_edge_balanced = false,
-        .seed               = 0,
-        .quiet              = false,
-        .num_repetitions    = 0,
-        .time_limit         = 0,
-        .sort_graph         = true,
-        .parsable_output    = false,
+        .seed            = 0,
+        .rearrange_graph = true,
         .partition =
             {
                 .k                     = 0,

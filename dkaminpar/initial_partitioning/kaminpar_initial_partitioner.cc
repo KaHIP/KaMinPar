@@ -30,9 +30,10 @@ KaMinParInitialPartitioner::initial_partition(const shm::Graph& graph, const Par
     shm_ctx.setup(graph);
 
     DISABLE_TIMERS();
+    const bool was_quiet = Logger::is_quiet();
     Logger::set_quiet_mode(true);
     auto p_graph = shm::partitioning::partition(graph, shm_ctx);
-    Logger::set_quiet_mode(_ctx.quiet);
+    Logger::set_quiet_mode(was_quiet);
     ENABLE_TIMERS();
 
     return p_graph;

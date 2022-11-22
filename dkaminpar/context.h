@@ -281,6 +281,8 @@ struct PartitionContext {
 };
 
 struct DebugContext {
+    std::string graph_filename = "";
+
     bool save_finest_graph   = false;
     bool save_coarsest_graph = false;
 
@@ -290,15 +292,8 @@ struct DebugContext {
 };
 
 struct Context {
-    std::string graph_filename     = "";
-    bool        load_edge_balanced = false;
-    int         seed               = 0;
-    bool        quiet              = false;
-    std::size_t num_repetitions    = 1;
-    std::size_t time_limit         = 0;
-    bool        sort_graph         = false;
-    bool        parsable_output    = false;
-    int         timer_depth        = 3;
+    int  seed            = 0;
+    bool rearrange_graph = false;
 
     PartitionContext           partition;
     ParallelContext            parallel;

@@ -233,6 +233,7 @@ public:
     void flush();
 
     static void set_quiet_mode(bool quiet);
+    static bool is_quiet();
 
 private:
     static bool _quiet;

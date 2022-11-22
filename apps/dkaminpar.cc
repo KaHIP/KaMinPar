@@ -40,10 +40,27 @@ using namespace kaminpar;
 using namespace kaminpar::dist;
 
 namespace {
-void print_result_statistics(const DistributedPartitionedGraph& p_graph, const Context& ctx) {
+struct ApplicationContext {
+    // General application settings
+    bool quiet              = false;
+    int  timer_depth        = 3;
+    bool parsable_output    = false;
+    bool load_edge_balanced = false;
+
+    // Input
+    std::string graph_filename  = "";
+    std::string graph_generator = "";
+
+    // Algorithmic settings
+    int     num_repetitions = 1;
+    int     time_limit      = 0;
+    Context ctx             = create_default_context();
+};
+
+void print_result_statistics(const DistributedPartitionedGraph& p_graph, const ApplicationContext& app) {
     const auto edge_cut  = metrics::edge_cut(p_graph);
     const auto imbalance = metrics::imbalance(p_graph);
-    const auto feasible  = metrics::is_feasible(p_graph, ctx.partition);
+    const auto feasible  = metrics::is_feasible(p_graph, app.ctx.partition);
 
     LOG << "RESULT cut=" << edge_cut << " imbalance=" << imbalance << " feasible=" << feasible << " k=" << p_graph.k();
 
@@ -55,13 +72,13 @@ void print_result_statistics(const DistributedPartitionedGraph& p_graph, const C
     //}
 
     const bool is_root = mpi::get_comm_rank(MPI_COMM_WORLD) == 0;
-    if (is_root && !ctx.quiet && ctx.parsable_output) {
+    if (is_root && !app.quiet && app.parsable_output) {
         std::cout << "TIME ";
         Timer::global().print_machine_readable(std::cout);
     }
     LOG;
-    if (is_root && !ctx.quiet) {
-        Timer::global().print_human_readable(std::cout, ctx.timer_depth);
+    if (is_root && !app.quiet) {
+        Timer::global().print_human_readable(std::cout, app.timer_depth);
     }
     LOG;
     LOG << "-> k=" << p_graph.k();
@@ -73,7 +90,7 @@ void print_result_statistics(const DistributedPartitionedGraph& p_graph, const C
         LOG << logger::TABLE << p_graph.block_weights();
     }
 
-    if (is_root && (p_graph.k() != ctx.partition.k || !feasible)) {
+    if (is_root && (p_graph.k() != app.ctx.partition.k || !feasible)) {
         LOG_ERROR << "*** Partition is infeasible!";
     }
 }
@@ -139,15 +156,14 @@ partition_repeatedly(const DistributedGraph& graph, const Context& ctx, Terminat
     return best_partition;
 }
 
-std::pair<Context, std::string> setup_context(CLI::App& app, int argc, char* argv[]) {
-    Context     ctx          = create_default_context();
-    bool        dump_config  = false;
-    bool        show_version = false;
-    std::string kagen_properties;
+ApplicationContext setup_context(CLI::App& cli, int argc, char* argv[]) {
+    ApplicationContext app{};
+    bool               dump_config  = false;
+    bool               show_version = false;
 
-    app.set_config("-C,--config", "", "Read parameters from a TOML configuration file.", false);
-    app.add_option_function<std::string>(
-           "-P,--preset", [&](const std::string preset) { ctx = create_context_by_preset_name(preset); }
+    cli.set_config("-C,--config", "", "Read parameters from a TOML configuration file.", false);
+    cli.add_option_function<std::string>(
+           "-P,--preset", [&](const std::string preset) { app.ctx = create_context_by_preset_name(preset); }
     )
         ->check(CLI::IsMember(get_preset_names()))
         ->description(R"(Use configuration preset:
@@ -157,7 +173,7 @@ std::pair<Context, std::string> setup_context(CLI::App& app, int argc, char* arg
   - ipdps23-submission-strong:  dDeepPar-Strong configuration used in the IPDPS'23 submission)");
 
     // Mandatory
-    auto* mandatory = app.add_option_group("Application")->require_option(1);
+    auto* mandatory = cli.add_option_group("Application")->require_option(1);
 
     // Mandatory -> either dump config ...
     mandatory->add_flag("--dump-config", dump_config)
@@ -168,53 +184,53 @@ The output should be stored in a file and can be used by the -C,--config option.
 
     // Mandatory -> ... or partition a graph
     auto* gp_group = mandatory->add_option_group("Partitioning")->silent();
-    gp_group->add_option("-k,--k", ctx.partition.k, "Number of blocks in the partition.")
+    gp_group->add_option("-k,--k", app.ctx.partition.k, "Number of blocks in the partition.")
         ->configurable(false)
         ->required();
 
     // Graph can come from KaGen or from disk
     auto* graph_source = gp_group->add_option_group("Graph source")->require_option(1)->silent();
 #ifdef KAMINPAR_ENABLE_GRAPHGEN
-    graph_source->add_option("--generator", kagen_properties, "Generator properties for in-memory partitioning.")
+    graph_source->add_option("--generator", app.graph_generator, "Generator properties for in-memory partitioning.")
         ->configurable(false);
 #endif
     graph_source
         ->add_option(
-            "-G,--graph", ctx.graph_filename,
+            "-G,--graph", app.graph_filename,
             "Input graph in METIS (file extension *.graph or *.metis) or binary format (file extension *.bgf)."
         )
         ->configurable(false);
 
     // Application options
-    app.add_option("-s,--seed", ctx.seed, "Seed for random number generation.")->default_val(ctx.seed);
-    app.add_flag("-q,--quiet", ctx.quiet, "Suppress all console output.");
-    app.add_option("-t,--threads", ctx.parallel.num_threads, "Number of threads to be used.")
+    cli.add_option("-s,--seed", app.ctx.seed, "Seed for random number generation.")->default_val(app.ctx.seed);
+    cli.add_flag("-q,--quiet", app.quiet, "Suppress all console output.");
+    cli.add_option("-t,--threads", app.ctx.parallel.num_threads, "Number of threads to be used.")
         ->check(CLI::NonNegativeNumber)
-        ->default_val(ctx.parallel.num_threads);
-    app.add_flag(
-           "--edge-balanced", ctx.load_edge_balanced,
+        ->default_val(app.ctx.parallel.num_threads);
+    cli.add_flag(
+           "--edge-balanced", app.load_edge_balanced,
            "Load the input graph such that each PE has roughly the same number of edges."
     )
         ->capture_default_str();
-    app.add_option("-R,--repetitions", ctx.num_repetitions, "Number of partitioning repetitions to perform.")
+    cli.add_option("-R,--repetitions", app.num_repetitions, "Number of partitioning repetitions to perform.")
         ->capture_default_str();
-    app.add_option("--time-limit", ctx.time_limit, "Time limit in seconds.")->capture_default_str();
-    app.add_flag("--sort-graph", ctx.sort_graph, "Rearrange graph by degree buckets after loading it.")
+    cli.add_option("--time-limit", app.time_limit, "Time limit in seconds.")->capture_default_str();
+    cli.add_flag("--sort-graph", app.ctx.rearrange_graph, "Rearrange graph by degree buckets after loading it.")
         ->capture_default_str();
-    app.add_flag("-p,--parsable", ctx.parsable_output, "Use an output format that is easier to parse.");
-    app.add_option("--timer-depth", ctx.timer_depth, "Maximum timer depth.");
-    app.add_flag_function(
-        "-T,--all-timers", [&](auto) { ctx.timer_depth = std::numeric_limits<int>::max(); }, "Show all timers."
+    cli.add_flag("-p,--parsable", app.parsable_output, "Use an output format that is easier to parse.");
+    cli.add_option("--timer-depth", app.timer_depth, "Maximum timer depth.");
+    cli.add_flag_function(
+        "-T,--all-timers", [&](auto) { app.timer_depth = std::numeric_limits<int>::max(); }, "Show all timers."
     );
 
     // Algorithmic options
-    create_all_options(&app, ctx);
+    create_all_options(&cli, app.ctx);
 
-    app.parse(argc, argv);
+    cli.parse(argc, argv);
 
     if (dump_config) {
         CLI::App dump;
-        create_all_options(&dump, ctx);
+        create_all_options(&dump, app.ctx);
         std::cout << dump.config_to_str(true, true);
         std::exit(1);
     }
@@ -224,7 +240,7 @@ The output should be stored in a file and can be used by the -C,--config option.
         std::exit(0);
     }
 
-    return {ctx, kagen_properties};
+    return app;
 }
 
 void print_parsable_summary(const Context& ctx, const DistributedGraph& graph, const bool root) {
@@ -264,42 +280,41 @@ int main(int argc, char* argv[]) {
     //
     // Parse command line arguments
     //
-    CLI::App    app("dKaMinPar: (Somewhat) Minimal Distributed Deep Multilevel Graph Partitioning");
-    Context     ctx;
-    std::string kagen_properties;
+    CLI::App           cli("dKaMinPar: (Somewhat) Minimal Distributed Deep Multilevel Graph Partitioning");
+    ApplicationContext app;
 
     try {
-        std::tie(ctx, kagen_properties) = setup_context(app, argc, argv);
-        ctx.parallel.num_mpis           = static_cast<std::size_t>(size);
+        app                       = setup_context(cli, argc, argv);
+        app.ctx.parallel.num_mpis = static_cast<std::size_t>(size);
     } catch (CLI::ParseError& e) {
-        return app.exit(e);
+        return cli.exit(e);
     }
 
     //
     // Disable console output if requested
     //
-    Logger::set_quiet_mode(ctx.quiet);
+    Logger::set_quiet_mode(app.quiet);
 
     //
     // Print build summary
     //
-    if (!ctx.quiet && rank == 0) {
+    if (!app.quiet && rank == 0) {
         cio::print_dkaminpar_banner();
         cio::print_build_identifier<NodeID, EdgeID, shm::NodeWeight, shm::EdgeWeight, NodeWeight, EdgeWeight>(
             Environment::GIT_SHA1, Environment::HOSTNAME
         );
-        print_execution_mode(ctx);
+        print_execution_mode(app.ctx);
     }
 
     //
     // Initialize RNG, setup TBB
     //
-    Random::seed = ctx.seed;
+    Random::seed = app.ctx.seed;
 
-    auto gc = init_parallelism(ctx.parallel.num_threads);
-    omp_set_num_threads(static_cast<int>(ctx.parallel.num_threads));
-    ctx.initial_partitioning.kaminpar.parallel.num_threads = ctx.parallel.num_threads;
-    if (ctx.parallel.use_interleaved_numa_allocation) {
+    auto gc = init_parallelism(app.ctx.parallel.num_threads);
+    omp_set_num_threads(static_cast<int>(app.ctx.parallel.num_threads));
+    app.ctx.initial_partitioning.kaminpar.parallel.num_threads = app.ctx.parallel.num_threads;
+    if (app.ctx.parallel.use_interleaved_numa_allocation) {
         init_numa();
     }
 
@@ -307,30 +322,33 @@ int main(int argc, char* argv[]) {
     // Load graph
     //
     auto graph = TIMED_SCOPE("IO") {
-        if (!kagen_properties.empty()) {
-            auto graph         = generate(kagen_properties);
-            ctx.graph_filename = generate_filename(kagen_properties);
-            if (!ctx.quiet && rank == 0) {
+        // If configured, generate graph in-memory using KaGen ...
+        if (!app.graph_generator.empty()) {
+            auto graph         = generate(app.graph_generator);
+            app.graph_filename = generate_filename(app.graph_generator);
+            if (!app.quiet && rank == 0) {
                 cio::print_delimiter(std::cout);
             }
             return graph;
-        } else {
-            const auto type = ctx.load_edge_balanced ? dist::io::DistributionType::EDGE_BALANCED
-                                                     : dist::io::DistributionType::NODE_BALANCED;
-            return dist::io::read_graph(ctx.graph_filename, type);
         }
+
+        // ... otherwise, load graph from disk
+        const auto type = app.load_edge_balanced ? dist::io::DistributionType::EDGE_BALANCED
+                                                 : dist::io::DistributionType::NODE_BALANCED;
+        return dist::io::read_graph(app.graph_filename, type);
     };
     KASSERT(graph::debug::validate(graph), "input graph failed graph verification", assert::heavy);
 
-    ctx.setup(graph);
+    app.ctx.debug.graph_filename = app.graph_filename;
+    app.ctx.setup(graph);
 
     //
     // Print input summary
     //
-    if (!ctx.quiet) {
-        print(ctx, rank == 0, std::cout);
-        if (ctx.parsable_output) {
-            print_parsable_summary(ctx, graph, rank == 0);
+    if (!app.quiet) {
+        print(app.ctx, rank == 0, std::cout);
+        if (app.parsable_output) {
+            print_parsable_summary(app.ctx, graph, rank == 0);
         }
         if (rank == 0) {
             cio::print_delimiter();
@@ -340,7 +358,7 @@ int main(int argc, char* argv[]) {
     //
     // Sort and rearrange graph by degree buckets
     //
-    if (ctx.sort_graph) {
+    if (app.ctx.rearrange_graph) {
         SCOPED_TIMER("Partitioning");
         graph = graph::sort_by_degree_buckets(std::move(graph));
         KASSERT(
@@ -353,24 +371,24 @@ int main(int argc, char* argv[]) {
     // Partition graph
     //
     auto p_graph = [&] {
-        if (ctx.num_repetitions > 0 || ctx.time_limit > 0) {
-            if (ctx.num_repetitions > 0) {
+        if (app.num_repetitions > 0 || app.time_limit > 0) {
+            if (app.num_repetitions > 0) {
                 return partition_repeatedly(
-                    graph, ctx,
-                    [num_repetitions = ctx.num_repetitions](const std::size_t repetition) {
+                    graph, app.ctx,
+                    [num_repetitions = app.num_repetitions](const int repetition) {
                         return repetition == num_repetitions;
                     }
                 );
             } else { // time_limit > 0
                 Timer time_limit_timer("");
-                return partition_repeatedly(graph, ctx, [&time_limit_timer, time_limit = ctx.time_limit](std::size_t) {
+                return partition_repeatedly(graph, app.ctx, [&time_limit_timer, time_limit = app.time_limit](int) {
                     return time_limit_timer.elapsed_seconds() >= time_limit;
                 });
             }
         } else {
             SCOPED_TIMER("Partitioning");
-            auto p_graph = factory::create_partitioner(ctx, graph)->partition();
-            if (!ctx.quiet && rank == 0) {
+            auto p_graph = factory::create_partitioner(app.ctx, graph)->partition();
+            if (!app.quiet && rank == 0) {
                 cio::print_delimiter();
             }
             return p_graph;
@@ -386,6 +404,6 @@ int main(int argc, char* argv[]) {
     //
     mpi::barrier(MPI_COMM_WORLD);
     STOP_TIMER(); // stop root timer
-    print_result_statistics(p_graph, ctx);
+    print_result_statistics(p_graph, app);
     return MPI_Finalize();
 }
