@@ -110,7 +110,7 @@ void ColoredLPRefiner::refine(DistributedPartitionedGraph& p_graph, const Partit
         NodeID num_performed_moves = 0;
         for (ColorID c = 0; c + 1 < _color_sizes.size(); ++c) {
             num_found_moves += find_moves(c);
-            for (int attempt = 0; attempt < _ctx.num_probabilistic_move_attempts; ++attempt) {
+            for (int round = 0; round < _ctx.num_move_execution_iterations; ++round) {
                 num_performed_moves += perform_moves(c);
             }
 
@@ -176,12 +176,12 @@ NodeID ColoredLPRefiner::perform_best_moves(const ColorID c) {
         const NodeID  u    = _color_sorted_nodes[seq_u];
         const BlockID from = _p_graph->block(u);
         const BlockID to   = _next_partition[seq_u];
-        if (to != from) {
+        if (to != kInvalidBlockID && to != from) {
             const GlobalNodeID global_u = _p_graph->local_to_global_node(u);
             const EdgeWeight   gain     = _gains[seq_u];
             const NodeWeight   weight   = _p_graph->node_weight(u);
 
-            move_candidates.push_back({global_u, from, to, gain, weight});
+            move_candidates.push_back({seq_u, global_u, from, to, gain, weight});
         }
     }
 
@@ -208,7 +208,10 @@ NodeID ColoredLPRefiner::perform_best_moves(const ColorID c) {
         if (_p_graph->contains_global_node(candidate.node)) {
             const NodeID local_node = _p_graph->global_to_local_node(candidate.node);
             _p_graph->set_block<false>(local_node, candidate.to);
-            num_local_moved_nodes += local_node < _p_graph->n();
+            if (local_node < _p_graph->n()) {
+                ++num_local_moved_nodes;
+                _next_partition[candidate.local_seq] = kInvalidBlockID;
+            }
         }
         _p_graph->set_block_weight(candidate.to, _p_graph->block_weight(candidate.to) + candidate.weight);
         _p_graph->set_block_weight(candidate.from, _p_graph->block_weight(candidate.from) - candidate.weight);
@@ -358,6 +361,8 @@ NodeID ColoredLPRefiner::perform_local_moves(const ColorID c) {
     _p_graph->pfor_nodes(seq_from, seq_to, [&](const NodeID seq_u) {
         const NodeID  u  = _color_sorted_nodes[seq_u];
         const BlockID to = _next_partition[seq_u];
+        KASSERT(to != kInvalidBlockID);
+
         if (to != _p_graph->block(u)) {
             _next_partition[seq_u] = kInvalidNodeID; // Mark as moved
             _p_graph->set_block<false>(u, to);
@@ -366,6 +371,13 @@ NodeID ColoredLPRefiner::perform_local_moves(const ColorID c) {
     });
 
     synchronize_state(c);
+
+    // Reset _next_partition[.] state such that a second call to this function has no effect
+    // I.e., multiple commit rounds have no effects with this strategy
+    _p_graph->pfor_nodes(seq_from, seq_to, [&](const NodeID seq_u) {
+        const NodeID u         = _color_sorted_nodes[seq_u];
+        _next_partition[seq_u] = _p_graph->block(u);
+    });
 
     TIMED_SCOPE("Update block weights") {
         MPI_Allreduce(
@@ -526,6 +538,13 @@ NodeID ColoredLPRefiner::try_probabilistic_moves(const ColorID c, const BlockGai
         synchronize_state(c);
         _p_graph->pfor_blocks([&](const BlockID b) {
             _p_graph->set_block_weight(b, _p_graph->block_weight(b) + block_weight_deltas[b]);
+        });
+
+        // Revert mark in _next_partition[.] for next commit round
+        tbb::parallel_for(moves.range(), [&](const auto r) {
+            for (const auto& [seq_u, u, from]: r) {
+                _next_partition[seq_u] = _p_graph->block(u);
+            }
         });
 
         // Check that the partition improved as expected

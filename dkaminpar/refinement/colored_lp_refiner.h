@@ -18,6 +18,7 @@ class ColoredLPRefiner : public Refiner {
     using BlockGainsContainer = typename parallel::vector_ets<EdgeWeight>::Container;
 
     struct MoveCandidate {
+        NodeID       local_seq;
         GlobalNodeID node;
         BlockID      from;
         BlockID      to;
