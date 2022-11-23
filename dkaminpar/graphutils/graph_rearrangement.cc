@@ -6,8 +6,12 @@
  ******************************************************************************/
 #include "dkaminpar/graphutils/graph_rearrangement.h"
 
+#include "dkaminpar/algorithms/greedy_node_coloring.h"
+#include "dkaminpar/context.h"
+#include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/mpi/graph_communication.h"
 
+#include "kaminpar/graphutils/graph_permutation.h"
 #include "kaminpar/graphutils/graph_rearrangement.h"
 
 #include "common/datastructures/marker.h"
@@ -16,15 +20,57 @@
 #include "common/timer.h"
 
 namespace kaminpar::dist::graph {
-DistributedGraph sort_by_degree_buckets(DistributedGraph graph) {
-    SCOPED_TIMER("Sort and rearrange graph");
+DistributedGraph rearrange_by_degree_buckets(DistributedGraph graph) {
+    SCOPED_TIMER("Rearrange graph", "By degree buckets");
+    auto permutations = shm::graph::sort_by_degree_buckets<scalable_vector, false>(graph.raw_nodes());
+    return rearrange_by_permutation(
+        std::move(graph), std::move(permutations.old_to_new), std::move(permutations.new_to_old)
+    );
+}
+
+DistributedGraph rearrange_by_coloring(DistributedGraph graph, const Context& ctx) {
+    SCOPED_TIMER("Rearrange graph", "By coloring");
+
+    const auto    coloring = compute_node_coloring_sequentially(graph, ctx.refinement.colored_lp.num_coloring_chunks);
+    const ColorID num_local_colors = *std::max_element(coloring.begin(), coloring.end()) + 1;
+    const ColorID num_colors       = mpi::allreduce(num_local_colors, MPI_MAX, graph.communicator());
+
+    START_TIMER("Allocation");
+    scalable_vector<NodeID> old_to_new(graph.n());
+    scalable_vector<NodeID> new_to_old(graph.n());
+    scalable_vector<NodeID> color_sizes(num_colors);
+    STOP_TIMER();
+
+    TIMED_SCOPE("Count color sizes") {
+        graph.pfor_nodes([&](const NodeID u) {
+            const ColorID c = coloring[u];
+            KASSERT(c < num_colors);
+            __atomic_fetch_add(&color_sizes[c], 1, __ATOMIC_RELAXED);
+        });
+        parallel::prefix_sum(color_sizes.begin(), color_sizes.end(), color_sizes.begin());
+    };
+
+    TIMED_SCOPE("Sort nodes") {
+        graph.pfor_nodes([&](const NodeID u) {
+            const ColorID     c = coloring[u];
+            const std::size_t i = __atomic_sub_fetch(&color_sizes[c], 1, __ATOMIC_SEQ_CST);
+            old_to_new[u]       = i;
+            new_to_old[i]       = u;
+        });
+    };
+
+    return rearrange_by_permutation(std::move(graph), std::move(old_to_new), std::move(new_to_old));
+}
+
+DistributedGraph rearrange_by_permutation(
+    DistributedGraph graph, scalable_vector<NodeID> old_to_new, scalable_vector<NodeID> new_to_old
+) {
+    shm::graph::NodePermutations<scalable_vector> permutations{std::move(old_to_new), std::move(new_to_old)};
 
     const auto& old_nodes        = graph.raw_nodes();
     const auto& old_edges        = graph.raw_edges();
     const auto& old_node_weights = graph.raw_node_weights();
     const auto& old_edge_weights = graph.raw_edge_weights();
-
-    auto permutations = shm::graph::sort_by_degree_buckets<scalable_vector, false>(old_nodes);
 
     // rearrange nodes, edges, node weights and edge weights
     // ghost nodes are copied without remapping them to new IDs
@@ -34,6 +80,7 @@ DistributedGraph sort_by_degree_buckets(DistributedGraph graph) {
     scalable_vector<NodeWeight> new_node_weights(old_node_weights.size());
     scalable_vector<EdgeWeight> new_edge_weights(old_edge_weights.size());
     STOP_TIMER();
+
     shm::graph::build_permuted_graph<scalable_vector, true, NodeID, EdgeID, NodeWeight, EdgeWeight>(
         old_nodes, old_edges, old_node_weights, old_edge_weights, permutations, new_nodes, new_edges, new_node_weights,
         new_edge_weights

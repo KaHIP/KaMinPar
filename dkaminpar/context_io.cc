@@ -191,6 +191,7 @@ std::unordered_map<std::string, GraphOrdering> get_graph_orderings() {
     return {
         {"natural", GraphOrdering::NATURAL},
         {"deg-buckets", GraphOrdering::DEGREE_BUCKETS},
+        {"degree-buckets", GraphOrdering::DEGREE_BUCKETS},
         {"coloring", GraphOrdering::COLORING},
     };
 }

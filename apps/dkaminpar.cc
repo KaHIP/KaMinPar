@@ -215,8 +215,8 @@ The output should be stored in a file and can be used by the -C,--config option.
     cli.add_option("-R,--repetitions", app.num_repetitions, "Number of partitioning repetitions to perform.")
         ->capture_default_str();
     cli.add_option("--time-limit", app.time_limit, "Time limit in seconds.")->capture_default_str();
-    cli.add_flag("--rearrange-by", app.ctx.rearrange_by)
-        ->check(CLI::CheckedTransformer(get_graph_orderings()).description(""))
+    cli.add_option("--rearrange-by", app.ctx.rearrange_by)
+        ->transform(CLI::CheckedTransformer(get_graph_orderings()).description(""))
         ->description(R"(Criteria by which the graph is sorted and rearrange:
   - natural:     keep order of the graph (do not rearrange)
   - deg-buckets: sort nodes by degree bucket and rearrange accordingly
@@ -365,14 +365,14 @@ int main(int argc, char* argv[]) {
     //
     if (app.ctx.rearrange_by == GraphOrdering::DEGREE_BUCKETS) {
         SCOPED_TIMER("Partitioning");
-        graph = graph::sort_by_degree_buckets(std::move(graph));
+        graph = graph::rearrange_by_degree_buckets(std::move(graph));
         KASSERT(
             graph::debug::validate(graph), "input graph verification failed after rearrange graph by degree buckets",
             assert::heavy
         );
     } else if (app.ctx.rearrange_by == GraphOrdering::COLORING) {
         SCOPED_TIMER("Partitioning");
-        // @todo
+        graph = graph::rearrange_by_coloring(std::move(graph), app.ctx);
         KASSERT(
             graph::debug::validate(graph), "input graph verification failed after rearrange graph by degree buckets",
             assert::heavy
