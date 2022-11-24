@@ -644,6 +644,8 @@ NodeID ColoredLPRefiner::find_moves(const ColorID c) {
             EdgeWeight       best_weight = std::numeric_limits<EdgeWeight>::min();
             BlockID          best_block  = u_block;
             for (const auto [block, weight]: map.entries()) {
+                KASSERT(block < _p_graph->k());
+
                 if (block != u_block) {
                     if ((_ctx.track_local_block_weights
                          && _p_graph->block_weight(block) + _block_weight_deltas[block] + u_weight
