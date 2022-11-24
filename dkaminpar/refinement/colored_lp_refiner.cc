@@ -700,6 +700,9 @@ void ColoredLPRefiner::GainStatistics::record_gain(const EdgeWeight gain, const 
 }
 
 void ColoredLPRefiner::GainStatistics::summarize_by_size(const NoinitVector<NodeID>& color_sizes, MPI_Comm comm) const {
+    KASSERT(!_gain_per_color.empty(), "must call initialize() first");
+    KASSERT(_gain_per_color.size() <= color_sizes.size());
+
     std::vector<EdgeWeight> gain_per_color_global(_gain_per_color.begin(), _gain_per_color.end());
     MPI_Allreduce(
         MPI_IN_PLACE, gain_per_color_global.data(), asserting_cast<int>(gain_per_color_global.size()),
