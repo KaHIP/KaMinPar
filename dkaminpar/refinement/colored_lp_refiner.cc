@@ -81,7 +81,7 @@ void ColoredLPRefiner::initialize(const DistributedGraph& graph) {
 
     TIMED_SCOPE("Count color sizes") {
         if (graph.is_color_sorted()) {
-            const auto &color_sizes = graph.get_color_sizes();
+            const auto& color_sizes = graph.get_color_sizes();
             _color_sizes.assign(color_sizes.begin(), color_sizes.end());
         } else {
             graph.pfor_nodes([&](const NodeID u) {
@@ -108,7 +108,8 @@ void ColoredLPRefiner::initialize(const DistributedGraph& graph) {
     };
 
     TIMED_SCOPE("Compute color blacklist") {
-        if (_ctx.small_color_blacklist == 0) {
+        if (_ctx.small_color_blacklist == 0
+            || (_ctx.only_blacklist_input_level && graph.global_n() != _input_ctx.partition.graph.global_n())) {
             return;
         }
 

@@ -191,6 +191,8 @@ CLI::Option_group *create_colored_lp_refinement_options(CLI::App *app, Context &
         ->capture_default_str();
     lp->add_option("--r-clp-small-color-blacklist", ctx.refinement.colored_lp.small_color_blacklist, "Sort colors by their size, then exclude the smallest colors such that roughly <param>% of all nodes are excluded")
         ->capture_default_str();
+    lp->add_flag("--r-clp-only-blacklist-on-input-level", ctx.refinement.colored_lp.only_blacklist_input_level, "Only blacklist nodes when refining the input graph.")
+        ->capture_default_str();
 
     return lp;
 }
