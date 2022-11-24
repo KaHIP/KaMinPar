@@ -98,7 +98,7 @@ void ColoredLPRefiner::initialize(const DistributedGraph& graph) {
         });
 
         GlobalNodeID excluded_so_far = 0;
-        for (ColorID c = 0; c < num_colors; ++c) {
+        for (const ColorID c: sorted_by_size) {
             excluded_so_far += global_color_sizes[c];
             const double percentage = 1.0 * excluded_so_far / graph.global_n();
             if (percentage <= _ctx.small_color_blacklist) {
