@@ -752,16 +752,25 @@ void ColoredLPRefiner::GainStatistics::summarize_by_size(const NoinitVector<Node
     );
     const EdgeWeight total_gain = parallel::accumulate(gain_per_color_global.begin(), gain_per_color_global.end(), 0);
 
+    std::vector<GlobalNodeID> global_color_sizes(_gain_per_color.size());
+    for (ColorID c = 0; c < _gain_per_color.size(); ++c) {
+        global_color_sizes[c] = color_sizes[c + 1] - color_sizes[c];
+    }
+    MPI_Allreduce(
+        MPI_IN_PLACE, global_color_sizes.data(), asserting_cast<int>(global_color_sizes.size()),
+        mpi::type::get<GlobalNodeID>(), MPI_SUM, comm
+    );
+
     // Group by color size
-    std::unordered_map<NodeID, EdgeWeight> gain_by_color_size;
+    std::unordered_map<GlobalNodeID, EdgeWeight> gain_by_color_size;
     for (ColorID c = 0; c < gain_per_color_global.size(); ++c) {
-        const NodeID     size = color_sizes[c + 1] - color_sizes[c];
-        const EdgeWeight gain = gain_per_color_global[c];
+        const GlobalNodeID size = global_color_sizes[c];
+        const EdgeWeight   gain = gain_per_color_global[c];
         gain_by_color_size[size] += gain;
     }
 
     // Sort by color size
-    std::vector<std::pair<NodeID, EdgeWeight>> gain_by_color_size_sorted;
+    std::vector<std::pair<GlobalNodeID, EdgeWeight>> gain_by_color_size_sorted;
     for (const auto& [color_size, color_gain]: gain_by_color_size) {
         gain_by_color_size_sorted.emplace_back(color_size, color_gain);
     }
