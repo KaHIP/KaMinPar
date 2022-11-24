@@ -493,6 +493,10 @@ public:
         return _color_sizes[c + 1] - _color_sizes[c];
     }
 
+    const auto& get_color_sizes() const {
+        return _color_sizes;
+    }
+
 private:
     void init_degree_buckets();
     void init_total_weights();

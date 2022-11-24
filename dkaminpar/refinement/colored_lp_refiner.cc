@@ -80,21 +80,31 @@ void ColoredLPRefiner::initialize(const DistributedGraph& graph) {
     };
 
     TIMED_SCOPE("Count color sizes") {
-        graph.pfor_nodes([&](const NodeID u) {
-            const ColorID c = coloring[u];
-            KASSERT(c < num_colors);
-            __atomic_fetch_add(&_color_sizes[c], 1, __ATOMIC_RELAXED);
-        });
-        parallel::prefix_sum(_color_sizes.begin(), _color_sizes.end(), _color_sizes.begin());
+        if (graph.is_color_sorted()) {
+            const auto &color_sizes = graph.get_color_sizes();
+            _color_sizes.assign(color_sizes.begin(), color_sizes.end());
+        } else {
+            graph.pfor_nodes([&](const NodeID u) {
+                const ColorID c = coloring[u];
+                KASSERT(c < num_colors);
+                __atomic_fetch_add(&_color_sizes[c], 1, __ATOMIC_RELAXED);
+            });
+            parallel::prefix_sum(_color_sizes.begin(), _color_sizes.end(), _color_sizes.begin());
+        }
     };
 
     TIMED_SCOPE("Sort nodes") {
-        graph.pfor_nodes([&](const NodeID u) {
-            const ColorID     c = coloring[u];
-            const std::size_t i = __atomic_sub_fetch(&_color_sizes[c], 1, __ATOMIC_SEQ_CST);
-            KASSERT(i < _color_sorted_nodes.size());
-            _color_sorted_nodes[i] = u;
-        });
+        if (graph.is_color_sorted()) {
+            // @todo parallelize
+            std::iota(_color_sorted_nodes.begin(), _color_sorted_nodes.end(), 0);
+        } else {
+            graph.pfor_nodes([&](const NodeID u) {
+                const ColorID     c = coloring[u];
+                const std::size_t i = __atomic_sub_fetch(&_color_sizes[c], 1, __ATOMIC_SEQ_CST);
+                KASSERT(i < _color_sorted_nodes.size());
+                _color_sorted_nodes[i] = u;
+            });
+        }
     };
 
     TIMED_SCOPE("Compute color blacklist") {
