@@ -474,6 +474,25 @@ public:
         return is_ghost_node(node) ? _high_degree_ghost_node[node - n()] : degree(node) > _high_degree_threshold;
     }
 
+    bool is_color_sorted() const {
+        return !_color_sizes.empty();
+    }
+
+    void set_color_sorted(scalable_vector<NodeID> color_sizes) {
+        KASSERT(color_sizes.front() == 0u);
+        KASSERT(color_sizes.back() == n());
+        _color_sizes = std::move(color_sizes);
+    }
+
+    std::size_t number_of_colors() const {
+        return _color_sizes.size() - 1;
+    }
+
+    NodeID color_size(const std::size_t c) const {
+        KASSERT(c < number_of_colors());
+        return _color_sizes[c + 1] - _color_sizes[c];
+    }
+
 private:
     void init_degree_buckets();
     void init_total_weights();
@@ -516,6 +535,8 @@ private:
     bool                _sorted            = false;
     std::vector<NodeID> _buckets           = std::vector<NodeID>(shm::kNumberOfDegreeBuckets + 1);
     std::size_t         _number_of_buckets = 0;
+
+    scalable_vector<NodeID> _color_sizes{};
 
     MPI_Comm _communicator;
 };

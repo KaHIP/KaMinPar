@@ -31,14 +31,14 @@ DistributedGraph rearrange_by_degree_buckets(DistributedGraph graph) {
 DistributedGraph rearrange_by_coloring(DistributedGraph graph, const Context& ctx) {
     SCOPED_TIMER("Rearrange graph", "By coloring");
 
-    const auto    coloring = compute_node_coloring_sequentially(graph, ctx.refinement.colored_lp.num_coloring_chunks);
+    auto          coloring = compute_node_coloring_sequentially(graph, ctx.refinement.colored_lp.num_coloring_chunks);
     const ColorID num_local_colors = *std::max_element(coloring.begin(), coloring.end()) + 1;
     const ColorID num_colors       = mpi::allreduce(num_local_colors, MPI_MAX, graph.communicator());
 
     START_TIMER("Allocation");
     scalable_vector<NodeID> old_to_new(graph.n());
     scalable_vector<NodeID> new_to_old(graph.n());
-    scalable_vector<NodeID> color_sizes(num_colors);
+    scalable_vector<NodeID> color_sizes(num_colors + 1);
     STOP_TIMER();
 
     TIMED_SCOPE("Count color sizes") {
@@ -59,7 +59,9 @@ DistributedGraph rearrange_by_coloring(DistributedGraph graph, const Context& ct
         });
     };
 
-    return rearrange_by_permutation(std::move(graph), std::move(old_to_new), std::move(new_to_old));
+    graph = rearrange_by_permutation(std::move(graph), std::move(old_to_new), std::move(new_to_old));
+    graph.set_color_sorted(std::move(color_sizes));
+    return graph;
 }
 
 DistributedGraph rearrange_by_permutation(

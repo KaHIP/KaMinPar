@@ -6,6 +6,7 @@
  **********************************************************************************************************************/
 #include "dkaminpar/refinement/colored_lp_refiner.h"
 
+#include <algorithm>
 #include <unordered_map>
 
 #include <kassert/kassert.hpp>
@@ -40,7 +41,27 @@ void ColoredLPRefiner::initialize(const DistributedGraph& graph) {
     SCOPED_TIMER("Colored LP refinement");
     SCOPED_TIMER("Initialization");
 
-    const auto    coloring         = compute_node_coloring_sequentially(graph, _ctx.num_coloring_chunks);
+    const auto coloring = [&] {
+        // Graph is already sorted by a coloring -> reconstruct this coloring
+        // @todo if we always want to do this, optimize this refiner
+        if (graph.is_color_sorted()) {
+            NoinitVector<ColorID> coloring(graph.n()); // We do not actually need the colors for ghost nodes
+
+            // @todo parallelize
+            NodeID pos = 0;
+            for (ColorID c = 0; c < graph.number_of_colors(); ++c) {
+                const std::size_t size = graph.color_size(c);
+                std::fill(coloring.begin() + pos, coloring.begin() + pos + size, c);
+                pos += size;
+            }
+
+            return coloring;
+        }
+
+        // Otherwise, compute a coloring now
+        return compute_node_coloring_sequentially(graph, _ctx.num_coloring_chunks);
+    }();
+
     const ColorID num_local_colors = *std::max_element(coloring.begin(), coloring.end()) + 1;
     const ColorID num_colors       = mpi::allreduce(num_local_colors, MPI_MAX, graph.communicator());
     STATS << "Number of colors: " << num_colors;
