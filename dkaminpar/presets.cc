@@ -134,6 +134,7 @@ Context create_default_context() {
                         .max_num_coloring_chunks            = 128,
                         .min_num_coloring_chunks            = 8,
                         .scale_coloring_chunks_with_threads = false,
+                        .small_color_blacklist              = 0,
                         .track_local_block_weights          = true,
                         .move_execution_strategy            = LabelPropagationMoveExecutionStrategy::BEST_MOVES,
                     },

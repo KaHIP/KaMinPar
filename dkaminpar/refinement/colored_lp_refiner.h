@@ -68,8 +68,9 @@ private:
     const PartitionContext*      _p_ctx;
     DistributedPartitionedGraph* _p_graph;
 
-    NoinitVector<ColorID> _color_sizes;
-    NoinitVector<NodeID>  _color_sorted_nodes;
+    NoinitVector<std::uint8_t> _color_blacklist;
+    NoinitVector<ColorID>      _color_sizes;
+    NoinitVector<NodeID>       _color_sorted_nodes;
 
     NoinitVector<BlockWeight> _block_weight_deltas;
     NoinitVector<EdgeWeight>  _gains;

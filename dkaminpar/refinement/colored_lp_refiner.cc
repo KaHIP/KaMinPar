@@ -9,6 +9,7 @@
 #include <unordered_map>
 
 #include <kassert/kassert.hpp>
+#include <mpi.h>
 #include <tbb/enumerable_thread_specific.h>
 
 #include "dkaminpar/algorithms/greedy_node_coloring.h"
@@ -47,10 +48,14 @@ void ColoredLPRefiner::initialize(const DistributedGraph& graph) {
     TIMED_SCOPE("Allocation") {
         _color_sorted_nodes.resize(graph.n());
         _color_sizes.resize(num_colors + 1);
+        _color_blacklist.resize(num_colors);
         tbb::parallel_for<std::size_t>(0, _color_sorted_nodes.size(), [&](const std::size_t i) {
             _color_sorted_nodes[i] = 0;
         });
         tbb::parallel_for<std::size_t>(0, _color_sizes.size(), [&](const std::size_t i) { _color_sizes[i] = 0; });
+        tbb::parallel_for<std::size_t>(0, _color_blacklist.size(), [&](const std::size_t i) {
+            _color_blacklist[i] = 0;
+        });
     };
 
     TIMED_SCOPE("Count color sizes") {
@@ -69,6 +74,39 @@ void ColoredLPRefiner::initialize(const DistributedGraph& graph) {
             KASSERT(i < _color_sorted_nodes.size());
             _color_sorted_nodes[i] = u;
         });
+    };
+
+    TIMED_SCOPE("Compute color blacklist") {
+        if (_ctx.small_color_blacklist == 0) {
+            return;
+        }
+
+        NoinitVector<GlobalNodeID> global_color_sizes(num_colors);
+        tbb::parallel_for<ColorID>(0, num_colors, [&](const ColorID c) {
+            global_color_sizes[c] = _color_sizes[c + 1] - _color_sizes[c];
+        });
+        MPI_Allreduce(
+            MPI_IN_PLACE, global_color_sizes.data(), asserting_cast<int>(num_colors), mpi::type::get<GlobalNodeID>(),
+            MPI_SUM, graph.communicator()
+        );
+
+        // @todo parallelize the rest of this section
+        std::vector<ColorID> sorted_by_size(num_colors);
+        std::iota(sorted_by_size.begin(), sorted_by_size.end(), 0);
+        std::sort(sorted_by_size.begin(), sorted_by_size.end(), [&](const ColorID lhs, const ColorID rhs) {
+            return global_color_sizes[lhs] < global_color_sizes[rhs];
+        });
+
+        GlobalNodeID excluded_so_far = 0;
+        for (ColorID c = 0; c < num_colors; ++c) {
+            excluded_so_far += global_color_sizes[c];
+            const double percentage = 1.0 * excluded_so_far / graph.global_n();
+            if (percentage <= _ctx.small_color_blacklist) {
+                _color_blacklist[c] = 1;
+            } else {
+                break;
+            }
+        }
     };
 
     KASSERT(_color_sizes.front() == 0u);
@@ -116,6 +154,10 @@ void ColoredLPRefiner::refine(DistributedPartitionedGraph& p_graph, const Partit
         NodeID num_found_moves     = 0;
         NodeID num_performed_moves = 0;
         for (ColorID c = 0; c + 1 < _color_sizes.size(); ++c) {
+            if (_color_blacklist[c]) {
+                continue;
+            }
+
             num_found_moves += find_moves(c);
             for (int round = 0; round < _ctx.num_move_execution_iterations; ++round) {
                 num_performed_moves += perform_moves(c);

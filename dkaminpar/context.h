@@ -97,6 +97,7 @@ struct ColoredLabelPropagationRefinementContext {
     int  max_num_coloring_chunks            = 0;
     int  min_num_coloring_chunks            = 0;
     bool scale_coloring_chunks_with_threads = false;
+    double small_color_blacklist = 0;
 
     bool track_local_block_weights = false;
 
