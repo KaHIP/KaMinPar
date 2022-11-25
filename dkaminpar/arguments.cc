@@ -51,6 +51,13 @@ CLI::Option_group* create_partitioning_options(CLI::App* app, Context& ctx) {
     partitioning->add_flag("--enable-pe-splitting", ctx.partition.enable_pe_splitting, "Enable PE splitting and graph replication in deep MGP")
         ->capture_default_str();
     partitioning->add_flag("--simulate-singlethreaded", ctx.partition.simulate_singlethread, "Simulate single-threaded execution during a hybrid run")->capture_default_str();
+    partitioning->add_option("--rearrange-by", ctx.rearrange_by)
+        ->transform(CLI::CheckedTransformer(get_graph_orderings()).description(""))
+        ->description(R"(Criteria by which the graph is sorted and rearrange:
+  - natural:     keep order of the graph (do not rearrange)
+  - deg-buckets: sort nodes by degree bucket and rearrange accordingly
+  - coloring:    color the graph and rearrange accordingly)")
+        ->capture_default_str();
 
     return partitioning;
 }

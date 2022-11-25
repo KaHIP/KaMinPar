@@ -69,9 +69,6 @@ int main(int argc, char* argv[]) {
     /****
      * Run label propagation
      */
-    LOG << V(p_graph.block_weights());
-    LOG << V(ctx.partition.graph.max_block_weights());
-    LOG << V(ctx.partition.graph.perfectly_balanced_block_weights());
     auto refiner = factory::create_refinement_algorithm(ctx);
     refiner->initialize(graph);
     refiner->refine(p_graph, ctx.partition);

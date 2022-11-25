@@ -218,13 +218,6 @@ The output should be stored in a file and can be used by the -C,--config option.
     cli.add_option("-R,--repetitions", app.num_repetitions, "Number of partitioning repetitions to perform.")
         ->capture_default_str();
     cli.add_option("--time-limit", app.time_limit, "Time limit in seconds.")->capture_default_str();
-    cli.add_option("--rearrange-by", app.ctx.rearrange_by)
-        ->transform(CLI::CheckedTransformer(get_graph_orderings()).description(""))
-        ->description(R"(Criteria by which the graph is sorted and rearrange:
-  - natural:     keep order of the graph (do not rearrange)
-  - deg-buckets: sort nodes by degree bucket and rearrange accordingly
-  - coloring:    color the graph and rearrange accordingly)")
-        ->capture_default_str();
     cli.add_flag("-p,--parsable", app.parsable_output, "Use an output format that is easier to parse.");
     cli.add_option("--timer-depth", app.timer_depth, "Maximum timer depth.");
     cli.add_flag_function(
