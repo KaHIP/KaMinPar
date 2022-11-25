@@ -28,3 +28,4 @@ endfunction()
 
 add_distributed_benchmark(dist_label_propagation_benchmark dist_label_propagation_benchmark.cc)
 add_distributed_benchmark(dist_coloring_benchmark dist_coloring_benchmark.cc)
+add_distributed_benchmark(dist_flat_refinement_benchmark dist_flat_refinement_benchmark.cc)

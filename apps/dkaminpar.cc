@@ -368,21 +368,9 @@ int main(int argc, char* argv[]) {
     //
     // Sort and rearrange graph by degree buckets
     //
-    if (app.ctx.rearrange_by == GraphOrdering::DEGREE_BUCKETS) {
-        SCOPED_TIMER("Partitioning");
-        graph = graph::rearrange_by_degree_buckets(std::move(graph));
-        KASSERT(
-            graph::debug::validate(graph), "input graph verification failed after rearrange graph by degree buckets",
-            assert::heavy
-        );
-    } else if (app.ctx.rearrange_by == GraphOrdering::COLORING) {
-        SCOPED_TIMER("Partitioning");
-        graph = graph::rearrange_by_coloring(std::move(graph), app.ctx);
-        KASSERT(
-            graph::debug::validate(graph), "input graph verification failed after rearrange graph by degree buckets",
-            assert::heavy
-        );
-    }
+    START_TIMER("Partitioning");
+    graph = graph::rearrange(std::move(graph), app.ctx);
+    STOP_TIMER();
 
     //
     // Partition graph
@@ -411,6 +399,7 @@ int main(int argc, char* argv[]) {
             return p_graph;
         }
     }();
+
     KASSERT(
         graph::debug::validate_partition(p_graph), "graph partition verification failed after partitioning",
         assert::heavy

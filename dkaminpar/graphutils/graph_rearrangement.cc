@@ -20,6 +20,19 @@
 #include "common/timer.h"
 
 namespace kaminpar::dist::graph {
+DistributedGraph rearrange(DistributedGraph graph, const Context& ctx) {
+    if (ctx.rearrange_by == GraphOrdering::NATURAL) {
+        // nothing to do
+    } else if (ctx.rearrange_by == GraphOrdering::DEGREE_BUCKETS) {
+        graph = graph::rearrange_by_degree_buckets(std::move(graph));
+    } else if (ctx.rearrange_by == GraphOrdering::COLORING) {
+        graph = graph::rearrange_by_coloring(std::move(graph), ctx);
+    }
+
+    KASSERT(graph::debug::validate(graph), "input graph verification failed after rearranging graph", assert::heavy);
+    return graph;
+}
+
 DistributedGraph rearrange_by_degree_buckets(DistributedGraph graph) {
     SCOPED_TIMER("Rearrange graph", "By degree buckets");
     auto permutations = shm::graph::sort_by_degree_buckets<scalable_vector, false>(graph.raw_nodes());

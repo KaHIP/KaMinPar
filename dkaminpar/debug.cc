@@ -7,6 +7,8 @@
 #include "dkaminpar/debug.h"
 
 #include "dkaminpar/io.h"
+#include "dkaminpar/metrics.h"
+#include "dkaminpar/mpi/wrapper.h"
 
 #include "kaminpar/io.h"
 
@@ -19,7 +21,18 @@ std::string create_basename(const Context& ctx, const int level) {
 } // namespace
 
 void save_partition(const DistributedPartitionedGraph& p_graph, const Context& ctx, const int level) {
-    io::partition::write(create_basename(ctx, level) + ".part", p_graph);
+    const auto        cut       = metrics::edge_cut(p_graph);
+    const double      imbalance = metrics::imbalance(p_graph);
+    const std::string filename  = create_basename(ctx, level) + ".part";
+
+    if (mpi::get_comm_rank(p_graph.communicator()) == 0) {
+        LOG_WARNING << "Writing partition of graph with " << p_graph.global_n() << " nodes and " << p_graph.global_m()
+                    << " edges to " << filename;
+        LOG_WARNING << "  Cut: " << cut;
+        LOG_WARNING << "  Imbalance: " << imbalance;
+    }
+
+    io::partition::write(filename, p_graph);
 }
 
 void save_graph(const DistributedGraph& graph, const Context& ctx, const int level) {
