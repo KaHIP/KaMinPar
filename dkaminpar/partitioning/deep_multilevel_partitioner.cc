@@ -216,6 +216,11 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
     };
 
     auto run_refinement = [&](DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx) {
+        if (_input_ctx.debug.save_unrefined_finest_partition
+            && p_graph.global_n() == _input_ctx.partition.graph.global_n()) {
+            debug::save_partition(p_graph, _input_ctx, 0);
+        }
+
         SCOPED_TIMER("Local search");
         refinement_algorithm->initialize(p_graph.graph());
         refinement_algorithm->refine(p_graph, p_ctx);

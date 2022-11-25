@@ -130,10 +130,8 @@ void sparse_alltoall_interface_to_ghost_custom_range(
     STOP_TIMER();
 
     // allocate send buffers
-    START_TIMER("Allocation");
     std::vector<Buffer> send_buffers(size);
     tbb::parallel_for<PEID>(0, size, [&](const PEID pe) { send_buffers[pe].resize(num_messages.back()[pe]); });
-    STOP_TIMER();
 
     // fill buffers
     START_TIMER("Partition messages");
@@ -310,11 +308,9 @@ void sparse_alltoall_interface_to_pe_custom_range(
     STOP_TIMER();
 
     // allocate send buffers
-    START_TIMER("Allocation");
     std::vector<Buffer> send_buffers(size);
     tbb::parallel_for<PEID>(0, size, [&](const PEID pe) { send_buffers[pe].resize(num_messages.back()[pe]); });
     mpi::barrier(graph.communicator());
-    STOP_TIMER();
 
     // fill buffers
     START_TIMER("Partition messages");
@@ -466,10 +462,8 @@ void sparse_alltoall_custom(
     STOP_TIMER();
 
     // allocate send buffers
-    START_TIMER("Allocation");
     std::vector<Buffer> send_buffers(size);
     tbb::parallel_for<PEID>(0, size, [&](const PEID pe) { send_buffers[pe].resize(num_messages.back()[pe]); });
-    STOP_TIMER();
 
     // fill buffers
     START_TIMER("Partition messages");

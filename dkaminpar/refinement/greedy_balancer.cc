@@ -24,6 +24,8 @@ GreedyBalancer::GreedyBalancer(const Context& ctx)
 void GreedyBalancer::initialize(const DistributedGraph&) {}
 
 void GreedyBalancer::refine(DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx) {
+    SCOPED_TIMER("Balancer");
+
     _p_graph = &p_graph;
     _p_ctx   = &p_ctx;
 
@@ -39,9 +41,7 @@ void GreedyBalancer::refine(DistributedPartitionedGraph& p_graph, const Partitio
     IFSTATS(_stats.initial_num_imbalanced_blocks = metrics::num_imbalanced_blocks(p_graph, p_ctx));
     const int rank = mpi::get_comm_rank(p_graph.communicator());
 
-    START_TIMER("Initialize PQ");
     init_pq();
-    STOP_TIMER();
 
     for (std::size_t round = 0;; round++) {
         if (metrics::is_feasible(*_p_graph, *_p_ctx)) {
@@ -63,7 +63,7 @@ void GreedyBalancer::refine(DistributedPartitionedGraph& p_graph, const Partitio
         // DBG << V(candidates.size());
         STOP_TIMER();
 
-        START_TIMER("Reudce");
+        START_TIMER("Reduce");
         candidates = reduce_move_candidates(std::move(candidates));
         // DBG << V(candidates.size());
         STOP_TIMER();
@@ -404,7 +404,6 @@ void GreedyBalancer::init_pq() {
 
     // build thread-local PQs: one PQ for each thread and block, each PQ for block b has at most roughly
     // |overload[b]| weight
-    START_TIMER("Thread-local");
     tbb::parallel_for(static_cast<NodeID>(0), _p_graph->n(), [&](const NodeID u) {
         auto& pq        = local_pq_ets.local();
         auto& pq_weight = local_pq_weight_ets.local();
@@ -428,12 +427,10 @@ void GreedyBalancer::init_pq() {
             }
         }
     });
-    STOP_TIMER();
 
     // build global PQ: one PQ per block, block-level parallelism
     _pq.clear();
 
-    START_TIMER("Merge thread-local PQs");
     tbb::parallel_for(static_cast<BlockID>(0), k, [&](const BlockID b) {
         _pq_weight[b] = 0;
 
@@ -443,7 +440,6 @@ void GreedyBalancer::init_pq() {
             }
         }
     });
-    STOP_TIMER();
 }
 
 std::pair<BlockID, double> GreedyBalancer::compute_gain(const NodeID u, const BlockID u_block) const {

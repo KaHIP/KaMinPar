@@ -6,9 +6,12 @@
  ******************************************************************************/
 #include "dkaminpar/io.h"
 
+#include <algorithm>
+
 #include <tbb/concurrent_hash_map.h>
 #include <tbb/parallel_for.h>
 
+#include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/datastructures/distributed_graph_builder.h"
 #include "dkaminpar/mpi/wrapper.h"
 
@@ -406,4 +409,21 @@ DistributedGraph read_edge_balanced(const std::string& filename, MPI_Comm comm) 
     return read_distributed_graph(in, static_cast<GlobalNodeID>(from), static_cast<GlobalNodeID>(to), comm);
 }
 } // namespace binary
+
+namespace partition {
+void write(const std::string& filename, const DistributedPartitionedGraph& p_graph) {
+    const DistributedGraph& graph = p_graph.graph();
+
+    std::vector<BlockID> partition(p_graph.n());
+    if (graph.permuted()) {
+        tbb::parallel_for<NodeID>(0, p_graph.n(), [&](const NodeID u) {
+            partition[u] = p_graph.block(graph.map_original_node(u));
+        });
+    } else {
+        std::copy_n(p_graph.partition().begin(), p_graph.n(), partition.begin());
+    }
+
+    write(filename, partition);
+}
+} // namespace partition
 } // namespace kaminpar::dist::io

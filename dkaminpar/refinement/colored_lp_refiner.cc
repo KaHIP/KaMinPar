@@ -44,7 +44,7 @@ void ColoredLPRefiner::initialize(const DistributedGraph& graph) {
     const auto coloring = [&] {
         // Graph is already sorted by a coloring -> reconstruct this coloring
         // @todo if we always want to do this, optimize this refiner
-        if (graph.is_color_sorted()) {
+        if (graph.color_sorted()) {
             NoinitVector<ColorID> coloring(graph.n()); // We do not actually need the colors for ghost nodes
 
             // @todo parallelize
@@ -80,7 +80,7 @@ void ColoredLPRefiner::initialize(const DistributedGraph& graph) {
     };
 
     TIMED_SCOPE("Count color sizes") {
-        if (graph.is_color_sorted()) {
+        if (graph.color_sorted()) {
             const auto& color_sizes = graph.get_color_sizes();
             _color_sizes.assign(color_sizes.begin(), color_sizes.end());
         } else {
@@ -94,7 +94,7 @@ void ColoredLPRefiner::initialize(const DistributedGraph& graph) {
     };
 
     TIMED_SCOPE("Sort nodes") {
-        if (graph.is_color_sorted()) {
+        if (graph.color_sorted()) {
             // @todo parallelize
             std::iota(_color_sorted_nodes.begin(), _color_sorted_nodes.end(), 0);
         } else {

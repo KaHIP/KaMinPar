@@ -73,6 +73,9 @@ CLI::Option_group *create_debug_options(CLI::App *app, Context &ctx) {
     debug->add_flag("--d-save-partition-hierarchy", ctx.debug.save_partition_hierarchy)
         ->configurable(false)
         ->capture_default_str();
+    debug->add_flag("--d-save-unrefined-finest-partition", ctx.debug.save_unrefined_finest_partition)
+        ->configurable(false)
+        ->capture_default_str();
 
     return debug;
 }

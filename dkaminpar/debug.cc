@@ -19,9 +19,7 @@ std::string create_basename(const Context& ctx, const int level) {
 } // namespace
 
 void save_partition(const DistributedPartitionedGraph& p_graph, const Context& ctx, const int level) {
-    std::vector<BlockID> partition(p_graph.n());
-    std::copy_n(p_graph.partition().begin(), p_graph.n(), partition.begin());
-    io::partition::write(create_basename(ctx, level) + ".part", partition);
+    io::partition::write(create_basename(ctx, level) + ".part", p_graph);
 }
 
 void save_graph(const DistributedGraph& graph, const Context& ctx, const int level) {

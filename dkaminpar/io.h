@@ -90,5 +90,7 @@ void write(const std::string& filename, const Container& partition) {
         MPI_COMM_WORLD
     );
 }
+
+void write(const std::string& filename, const DistributedPartitionedGraph& p_graph);
 } // namespace partition
 } // namespace kaminpar::dist::io

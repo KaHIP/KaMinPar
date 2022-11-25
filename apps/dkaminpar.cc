@@ -51,6 +51,9 @@ struct ApplicationContext {
     std::string graph_filename  = "";
     std::string graph_generator = "";
 
+    // Output
+    std::string output_partition_filename = "";
+
     // Algorithmic settings
     int     num_repetitions = 1;
     int     time_limit      = 0;
@@ -227,6 +230,8 @@ The output should be stored in a file and can be used by the -C,--config option.
     cli.add_flag_function(
         "-T,--all-timers", [&](auto) { app.timer_depth = std::numeric_limits<int>::max(); }, "Show all timers."
     );
+    cli.add_option("-o,--output", app.output_partition_filename, "Output filename for the graph partition.")
+        ->capture_default_str();
 
     // Algorithmic options
     create_all_options(&cli, app.ctx);
@@ -410,6 +415,13 @@ int main(int argc, char* argv[]) {
         graph::debug::validate_partition(p_graph), "graph partition verification failed after partitioning",
         assert::heavy
     );
+
+    //
+    // Save partition
+    //
+    if (!app.output_partition_filename.empty()) {
+        dist::io::partition::write(app.output_partition_filename, p_graph);
+    }
 
     //
     // Print statistics

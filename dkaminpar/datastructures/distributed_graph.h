@@ -398,23 +398,6 @@ public:
         });
     }
 
-    // Degree buckets
-    [[nodiscard]] inline std::size_t bucket_size(const std::size_t bucket) const {
-        return _buckets[bucket + 1] - _buckets[bucket];
-    }
-    [[nodiscard]] inline NodeID first_node_in_bucket(const std::size_t bucket) const {
-        return _buckets[bucket];
-    }
-    [[nodiscard]] inline NodeID first_invalid_node_in_bucket(const std::size_t bucket) const {
-        return first_node_in_bucket(bucket + 1);
-    }
-    [[nodiscard]] inline std::size_t number_of_buckets() const {
-        return _number_of_buckets;
-    }
-    [[nodiscard]] inline bool sorted() const {
-        return _sorted;
-    }
-
     // Cached inter-PE metrics
     [[nodiscard]] inline EdgeID edge_cut_to_pe(const PEID pe) const {
         KASSERT(static_cast<std::size_t>(pe) < _edge_cut_to_pe.size());
@@ -474,14 +457,60 @@ public:
         return is_ghost_node(node) ? _high_degree_ghost_node[node - n()] : degree(node) > _high_degree_threshold;
     }
 
-    bool is_color_sorted() const {
-        return !_color_sizes.empty();
+    //
+    // Graph permutation
+    //
+
+    void set_permutation(scalable_vector<NodeID> permutation) {
+        _permutation = std::move(permutation);
     }
+
+    inline bool permuted() const {
+        return !_permutation.empty();
+    }
+
+    inline NodeID map_original_node(const NodeID u) const {
+        KASSERT(permuted());
+        KASSERT(u < _permutation.size());
+        return _permutation[u];
+    }
+
+    //
+    // Degree buckets
+    //
+
+    [[nodiscard]] inline bool sorted() const {
+        return _sorted;
+    }
+
+    [[nodiscard]] inline std::size_t bucket_size(const std::size_t bucket) const {
+        return _buckets[bucket + 1] - _buckets[bucket];
+    }
+
+    [[nodiscard]] inline NodeID first_node_in_bucket(const std::size_t bucket) const {
+        return _buckets[bucket];
+    }
+
+    [[nodiscard]] inline NodeID first_invalid_node_in_bucket(const std::size_t bucket) const {
+        return first_node_in_bucket(bucket + 1);
+    }
+
+    [[nodiscard]] inline std::size_t number_of_buckets() const {
+        return _number_of_buckets;
+    }
+
+    //
+    // Graph permutation by coloring
+    //
 
     void set_color_sorted(scalable_vector<NodeID> color_sizes) {
         KASSERT(color_sizes.front() == 0u);
         KASSERT(color_sizes.back() == n());
         _color_sizes = std::move(color_sizes);
+    }
+
+    inline bool color_sorted() const {
+        return !_color_sizes.empty();
     }
 
     std::size_t number_of_colors() const {
@@ -535,6 +564,8 @@ private:
 
     std::vector<EdgeID> _edge_cut_to_pe{};
     std::vector<EdgeID> _comm_vol_to_pe{};
+
+    scalable_vector<NodeID> _permutation;
 
     bool                _sorted            = false;
     std::vector<NodeID> _buckets           = std::vector<NodeID>(shm::kNumberOfDegreeBuckets + 1);

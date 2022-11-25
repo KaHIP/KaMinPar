@@ -24,7 +24,7 @@ DistributedGraph rearrange_by_degree_buckets(DistributedGraph graph) {
     SCOPED_TIMER("Rearrange graph", "By degree buckets");
     auto permutations = shm::graph::sort_by_degree_buckets<scalable_vector, false>(graph.raw_nodes());
     return rearrange_by_permutation(
-        std::move(graph), std::move(permutations.old_to_new), std::move(permutations.new_to_old)
+        std::move(graph), std::move(permutations.old_to_new), std::move(permutations.new_to_old), false
     );
 }
 
@@ -59,13 +59,14 @@ DistributedGraph rearrange_by_coloring(DistributedGraph graph, const Context& ct
         });
     };
 
-    graph = rearrange_by_permutation(std::move(graph), std::move(old_to_new), std::move(new_to_old));
+    graph = rearrange_by_permutation(std::move(graph), std::move(old_to_new), std::move(new_to_old), false);
     graph.set_color_sorted(std::move(color_sizes));
     return graph;
 }
 
 DistributedGraph rearrange_by_permutation(
-    DistributedGraph graph, scalable_vector<NodeID> old_to_new, scalable_vector<NodeID> new_to_old
+    DistributedGraph graph, scalable_vector<NodeID> old_to_new, scalable_vector<NodeID> new_to_old,
+    const bool degree_sorted
 ) {
     shm::graph::NodePermutations<scalable_vector> permutations{std::move(old_to_new), std::move(new_to_old)};
 
@@ -124,17 +125,12 @@ DistributedGraph rearrange_by_permutation(
         new_ghost_to_global[ghost_node - n] = new_node_global;
     });
 
-    return {
-        graph.take_node_distribution(),
-        graph.take_edge_distribution(),
-        std::move(new_nodes),
-        std::move(new_edges),
-        std::move(new_node_weights),
-        std::move(new_edge_weights),
-        graph.take_ghost_owner(),
-        std::move(new_ghost_to_global),
-        std::move(new_global_to_ghost),
-        true,
-        graph.communicator()};
+    DistributedGraph new_graph(
+        graph.take_node_distribution(), graph.take_edge_distribution(), std::move(new_nodes), std::move(new_edges),
+        std::move(new_node_weights), std::move(new_edge_weights), graph.take_ghost_owner(),
+        std::move(new_ghost_to_global), std::move(new_global_to_ghost), degree_sorted, graph.communicator()
+    );
+    new_graph.set_permutation(std::move(permutations.old_to_new));
+    return new_graph;
 }
 } // namespace kaminpar::dist::graph

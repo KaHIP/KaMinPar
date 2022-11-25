@@ -297,6 +297,8 @@ struct DebugContext {
     bool save_graph_hierarchy      = false;
     bool save_clustering_hierarchy = false;
     bool save_partition_hierarchy  = false;
+
+    bool save_unrefined_finest_partition = false;
 };
 
 struct Context {
