@@ -210,14 +210,19 @@ void ColoredLPRefiner::refine(DistributedPartitionedGraph& p_graph, const Partit
 
         // Abort early if there were no moves during a full pass
         MPI_Allreduce(MPI_IN_PLACE, &num_found_moves, 1, mpi::type::get<NodeID>(), MPI_SUM, _p_graph->communicator());
-        MPI_Allreduce(
+        IFSTATS(MPI_Allreduce(
             MPI_IN_PLACE, &num_performed_moves, 1, mpi::type::get<NodeID>(), MPI_SUM, _p_graph->communicator()
-        );
+        ));
 
+        STATS << "Iteration " << iter << ": found " << num_found_moves << " moves, performed " << num_performed_moves
+              << " moves";
+
+        /*
         const EdgeWeight current_cut       = IFSTATS(metrics::edge_cut(*_p_graph));
         const double     current_imbalance = IFSTATS(metrics::imbalance(*_p_graph));
         STATS << "Iteration " << iter << ": found " << num_found_moves << " moves, performed " << num_performed_moves
               << " moves, changed edge cut to " << current_cut << ", changed imbalance to " << current_imbalance;
+        */
 
         if (num_found_moves == 0) {
             break;
