@@ -45,6 +45,8 @@ void ColoredLPRefiner::initialize(const DistributedGraph& graph) {
         // Graph is already sorted by a coloring -> reconstruct this coloring
         // @todo if we always want to do this, optimize this refiner
         if (graph.color_sorted()) {
+            LOG << "Graph sorted by colors: using precomputed coloring";
+
             NoinitVector<ColorID> coloring(graph.n()); // We do not actually need the colors for ghost nodes
 
             // @todo parallelize
@@ -59,6 +61,7 @@ void ColoredLPRefiner::initialize(const DistributedGraph& graph) {
         }
 
         // Otherwise, compute a coloring now
+        LOG << "Computing new coloring";
         return compute_node_coloring_sequentially(graph, _ctx.num_coloring_chunks);
     }();
 

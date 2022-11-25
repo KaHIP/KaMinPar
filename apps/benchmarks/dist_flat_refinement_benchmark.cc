@@ -36,8 +36,8 @@ int main(int argc, char* argv[]) {
     std::string partition_filename = "";
     Context     ctx                = create_default_context();
     CLI::App    app("Distributed Flat Refinement Benchmark");
-    app.add_option("-G,--graph", graph_filename, "Input graph")->required();
-    app.add_option("-P,--partition", partition_filename, "Partition filename")->required();
+    app.add_option("-G,--graph", graph_filename, "Input graph")->check(CLI::ExistingFile)->required();
+    app.add_option("-P,--partition", partition_filename, "Partition filename")->check(CLI::ExistingFile)->required();
     app.add_option("-k,--k", ctx.partition.k, "Number of blocks")->required();
     create_all_options(&app, ctx);
     CLI11_PARSE(app, argc, argv);

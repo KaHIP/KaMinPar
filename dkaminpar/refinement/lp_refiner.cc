@@ -29,6 +29,7 @@ struct LPRefinerConfig : public LabelPropagationConfig {
     static constexpr bool kTrackClusterCount   = false;
     static constexpr bool kUseTwoHopClustering = false;
     static constexpr bool kUseActualGain       = true;
+    static constexpr bool kUseActiveSetStrategy = false;
 };
 
 class LPRefinerImpl final : public ChunkRandomdLabelPropagation<LPRefinerImpl, LPRefinerConfig> {

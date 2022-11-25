@@ -151,7 +151,7 @@ CLI::Option_group *create_fm_refinement_options(CLI::App *app, Context &ctx) {
 CLI::Option_group *create_lp_refinement_options(CLI::App *app, Context &ctx) {
     auto *lp = app->add_option_group("Refinement -> Chunked Label Propagation");
 
-    lp->add_option("--r-lp-iterations", ctx.refinement.lp.num_iterations, "Number of label propagation iterations.")
+    lp->add_option("--r-lp-num-iterations", ctx.refinement.lp.num_iterations, "Number of label propagation iterations.")
         ->capture_default_str();
     lp->add_option("--r-lp-total-chunks", ctx.refinement.lp.total_num_chunks, "Number of synchronization rounds times number of PEs.")
         ->capture_default_str();
