@@ -32,7 +32,7 @@ struct LPRefinerConfig : public LabelPropagationConfig {
 };
 
 class LPRefinerImpl final : public ChunkRandomdLabelPropagation<LPRefinerImpl, LPRefinerConfig> {
-    SET_STATISTICS_FROM_GLOBAL();
+    SET_STATISTICS(false);
     SET_DEBUG(false);
 
     using Base = ChunkRandomdLabelPropagation<LPRefinerImpl, LPRefinerConfig>;

@@ -27,7 +27,7 @@
 #include "common/timer.h"
 
 namespace kaminpar::dist {
-SET_STATISTICS(true);
+SET_STATISTICS(false);
 SET_DEBUG(false);
 
 ColoredLPRefiner::ColoredLPRefiner(const Context& ctx)
