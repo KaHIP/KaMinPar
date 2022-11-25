@@ -110,6 +110,7 @@ void ColoredLPRefiner::initialize(const DistributedGraph& graph) {
     TIMED_SCOPE("Compute color blacklist") {
         if (_ctx.small_color_blacklist == 0
             || (_ctx.only_blacklist_input_level && graph.global_n() != _input_ctx.partition.graph.global_n())) {
+            STATS << "Do not blacklist any colors";
             return;
         }
 
