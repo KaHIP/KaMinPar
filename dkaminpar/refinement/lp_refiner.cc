@@ -116,7 +116,7 @@ public:
           _gains(ctx.partition.graph.n()),
           _block_weights(ctx.partition.k) {
         set_max_degree(_lp_ctx.active_high_degree_threshold);
-        allocate(ctx.partition.k, ctx.partition.graph.n());
+        allocate(ctx.partition.graph.total_n(), ctx.partition.graph.n(), ctx.partition.k);
     }
 
     void refine(DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx) {
@@ -132,7 +132,7 @@ public:
         if (_gains.size() < p_graph.n()) {
             _gains.resize(p_graph.n());
         }
-        allocate(_block_weights.size(), p_graph.n());
+        allocate(p_graph.total_n(), p_graph.n(), _block_weights.size());
         STOP_TIMER();
 
         Base::initialize(&p_graph.graph(), _p_ctx->k); // needs access to _p_graph

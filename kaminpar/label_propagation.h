@@ -113,8 +113,8 @@ protected:
      * (Re)allocates memory to run label propagation on a graph with \c num_nodes nodes.
      * @param num_nodes Number of nodes in the graph.
      */
-    void allocate(const NodeID num_nodes) {
-        allocate(num_nodes, num_nodes);
+    void allocate(const NodeID num_nodes, const ClusterID num_clusters) {
+        allocate(num_nodes, num_nodes, num_clusters);
     }
 
     /*!
@@ -126,11 +126,14 @@ protected:
      * @param num_nodes Total number of nodes in the graph, i.e., neighbors of active nodes have an ID less than this.
      * @param num_active_nodes Number of nodes for which a cluster label is computed.
      */
-    void allocate(const NodeID num_nodes, const NodeID num_active_nodes) {
-        if (_num_nodes < num_nodes) {
+    void allocate(const NodeID num_nodes, const NodeID num_active_nodes, const NodeID num_clusters) {
+        if (_num_clusters < num_clusters) {
             for (auto& rating_map: _rating_map_ets) {
-                rating_map.change_max_size(num_nodes);
+                rating_map.change_max_size(num_clusters);
             }
+            _num_clusters = num_clusters;
+        }
+        if (_num_nodes < num_nodes) {
             if constexpr (Config::kUseLocalActiveSetStrategy) {
                 _active.resize(num_nodes);
             }
@@ -271,6 +274,9 @@ protected:
                 if (!is_interface_node) {
                     _active[u] = 0;
                 }
+            }
+            if constexpr (Config::kUseActiveSetStrategy) {
+                _active[u] = 0;
             }
 
             const EdgeID from = _graph->first_edge(u);
@@ -547,8 +553,9 @@ protected: // Members
     parallel::Atomic<EdgeWeight> _expected_total_gain;
 
 private:
-    NodeID _num_nodes{0};
-    NodeID _num_active_nodes{0};
+    NodeID    _num_nodes{0};
+    NodeID    _num_active_nodes{0};
+    ClusterID _num_clusters{0};
 };
 
 /*!
@@ -593,11 +600,10 @@ protected:
                     continue;
                 }
 
-                if constexpr (Config::kUseActiveSetStrategy) {
+                if constexpr (Config::kUseActiveSetStrategy || Config::kUseLocalActiveSetStrategy) {
                     if (!_active[u].load(std::memory_order_relaxed)) {
                         continue;
                     }
-                    _active[u].store(0, std::memory_order_relaxed);
                 }
 
                 if (work_since_update > Config::kMinChunkSize) {
@@ -721,10 +727,6 @@ protected:
                     if (u < chunk.end && _graph->degree(u) < _max_degree
                         && ((!Config::kUseActiveSetStrategy && !Config::kUseLocalActiveSetStrategy)
                             || _active[u].load(std::memory_order_relaxed))) {
-                        if constexpr (Config::kUseActiveSetStrategy) {
-                            _active[u].store(0, std::memory_order_relaxed);
-                        }
-
                         const auto [moved_node, emptied_cluster] = handle_node(u, local_rand, local_rating_map);
                         if (moved_node) {
                             ++local_num_moved_nodes;

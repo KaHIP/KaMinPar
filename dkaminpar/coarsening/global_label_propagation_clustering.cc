@@ -170,12 +170,14 @@ struct UnorderedRatingMap {
 struct DistributedGlobalLabelPropagationClusteringConfig : public LabelPropagationConfig {
     using Graph = DistributedGraph;
     // using RatingMap = ::kaminpar::RatingMap<EdgeWeight, GlobalNodeID, VectorHashRatingMap>;
-    using RatingMap                             = ::kaminpar::RatingMap<EdgeWeight, GlobalNodeID, UnorderedRatingMap>;
-    using ClusterID                             = GlobalNodeID;
-    using ClusterWeight                         = GlobalNodeWeight;
-    static constexpr bool kTrackClusterCount    = false;
-    static constexpr bool kUseTwoHopClustering  = false;
-    static constexpr bool kUseActiveSetStrategy = false;
+    using RatingMap                            = ::kaminpar::RatingMap<EdgeWeight, GlobalNodeID, UnorderedRatingMap>;
+    using ClusterID                            = GlobalNodeID;
+    using ClusterWeight                        = GlobalNodeWeight;
+    static constexpr bool kTrackClusterCount   = false;
+    static constexpr bool kUseTwoHopClustering = false;
+
+    static constexpr bool kUseActiveSetStrategy      = false;
+    static constexpr bool kUseLocalActiveSetStrategy = true;
 };
 } // namespace
 
@@ -394,7 +396,7 @@ private:
             _local_cluster_weights.resize(graph.n());
         }
 
-        Base::allocate(graph.total_n(), graph.n());
+        Base::allocate(graph.total_n(), graph.n(), graph.total_n());
     }
 
     void initialize_ghost_node_clusters() {

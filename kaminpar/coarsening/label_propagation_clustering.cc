@@ -1,4 +1,4 @@
-/*******************************************************************************
+/******************************************************************************
  * @file:   parallel_label_propagation_clustering.cc
  * @author: Daniel Seemaier
  * @date:   29.09.2021
@@ -43,7 +43,7 @@ public:
         : ClusterWeightBase{max_n},
           ClusterBase{max_n},
           _c_ctx{c_ctx} {
-        allocate(max_n);
+        allocate(max_n, max_n);
         set_max_degree(c_ctx.lp.large_degree_threshold);
         set_max_num_neighbors(c_ctx.lp.max_num_neighbors);
     }

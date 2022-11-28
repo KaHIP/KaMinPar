@@ -36,7 +36,7 @@ public:
           ClusterWeightBase{max_n},
           _ignore_ghost_nodes(c_ctx.local_lp.ignore_ghost_nodes),
           _keep_ghost_clusters(c_ctx.local_lp.keep_ghost_clusters) {
-        allocate(max_n);
+        allocate(max_n, max_n);
         set_max_num_iterations(c_ctx.local_lp.num_iterations);
         set_max_degree(c_ctx.local_lp.active_high_degree_threshold);
         set_max_num_neighbors(c_ctx.local_lp.max_num_neighbors);
