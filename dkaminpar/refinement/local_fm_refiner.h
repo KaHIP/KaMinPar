@@ -40,12 +40,12 @@ public:
     LocalFMRefiner(const Context& ctx);
 
     LocalFMRefiner(const LocalFMRefiner&)            = delete;
-    LocalFMRefiner(LocalFMRefiner&&)                 = default;
     LocalFMRefiner& operator=(const LocalFMRefiner&) = delete;
+    LocalFMRefiner(LocalFMRefiner&&)                 = default;
     LocalFMRefiner& operator=(LocalFMRefiner&&)      = delete;
 
-    void initialize(const DistributedGraph& graph, const PartitionContext& p_ctx);
-    void refine(DistributedPartitionedGraph& p_graph);
+    void initialize(const DistributedGraph& graph) final;
+    void refine(DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx) final;
 
 private:
     void                           refinement_round();

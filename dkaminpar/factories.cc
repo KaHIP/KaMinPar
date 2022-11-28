@@ -8,7 +8,13 @@
 
 #include <memory>
 
+#include "dkaminpar/context.h"
+#include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/definitions.h"
+
+// Partitioning schemes
+#include "dkaminpar/partitioning/deep_multilevel_partitioner.h"
+#include "dkaminpar/partitioning/kway_partitioner.h"
 
 // Initial Partitioning
 #include "dkaminpar/initial_partitioning/kaminpar_initial_partitioner.h"
@@ -16,7 +22,9 @@
 #include "dkaminpar/initial_partitioning/random_initial_partitioner.h"
 
 // Refinement
+#include "dkaminpar/refinement/colored_lp_refiner.h"
 #include "dkaminpar/refinement/fm_refiner.h"
+#include "dkaminpar/refinement/greedy_balancer.h"
 #include "dkaminpar/refinement/local_fm_refiner.h"
 #include "dkaminpar/refinement/lp_refiner.h"
 #include "dkaminpar/refinement/multi_refiner.h"
@@ -30,6 +38,18 @@
 #include "dkaminpar/coarsening/noop_clustering.h"
 
 namespace kaminpar::dist::factory {
+std::unique_ptr<Partitioner> create_partitioner(const Context& ctx, const DistributedGraph& graph) {
+    switch (ctx.partition.mode) {
+        case PartitioningMode::DEEP:
+            return std::make_unique<DeepMultilevelPartitioner>(graph, ctx);
+
+        case PartitioningMode::KWAY:
+            return std::make_unique<KWayPartitioner>(graph, ctx);
+    }
+
+    __builtin_unreachable();
+}
+
 std::unique_ptr<InitialPartitioner> create_initial_partitioning_algorithm(const Context& ctx) {
     switch (ctx.initial_partitioning.algorithm) {
         case InitialPartitioningAlgorithm::KAMINPAR:
@@ -41,11 +61,13 @@ std::unique_ptr<InitialPartitioner> create_initial_partitioning_algorithm(const 
         case InitialPartitioningAlgorithm::RANDOM:
             return std::make_unique<RandomInitialPartitioner>();
     }
+
     __builtin_unreachable();
 }
 
-std::unique_ptr<Refiner> create_refinement_algorithm(const Context& ctx) {
-    switch (ctx.refinement.algorithm) {
+namespace {
+std::unique_ptr<Refiner> create_refinement_algorithm(const Context& ctx, const KWayRefinementAlgorithm algorithm) {
+    switch (algorithm) {
         case KWayRefinementAlgorithm::NOOP:
             return std::make_unique<NoopRefiner>();
 
@@ -58,21 +80,27 @@ std::unique_ptr<Refiner> create_refinement_algorithm(const Context& ctx) {
         case KWayRefinementAlgorithm::FM:
             return std::make_unique<FMRefiner>(ctx);
 
-        case KWayRefinementAlgorithm::LP_THEN_LOCAL_FM: {
-            std::vector<std::unique_ptr<Refiner>> refiners;
-            refiners.push_back(std::make_unique<LPRefiner>(ctx));
-            refiners.push_back(std::make_unique<LocalFMRefiner>(ctx));
-            return std::make_unique<MultiRefiner>(std::move(refiners));
-        }
+        case KWayRefinementAlgorithm::COLORED_LP:
+            return std::make_unique<ColoredLPRefiner>(ctx);
 
-        case KWayRefinementAlgorithm::LP_THEN_FM: {
-            std::vector<std::unique_ptr<Refiner>> refiners;
-            refiners.push_back(std::make_unique<LPRefiner>(ctx));
-            refiners.push_back(std::make_unique<FMRefiner>(ctx));
-            return std::make_unique<MultiRefiner>(std::move(refiners));
-        }
+        case KWayRefinementAlgorithm::GREEDY_BALANCER:
+            return std::make_unique<GreedyBalancer>(ctx);
     }
+
     __builtin_unreachable();
+}
+} // namespace
+
+std::unique_ptr<Refiner> create_refinement_algorithm(const Context& ctx) {
+    if (ctx.refinement.algorithms.size() == 1) {
+        return create_refinement_algorithm(ctx, ctx.refinement.algorithms.front());
+    }
+
+    std::vector<std::unique_ptr<Refiner>> refiners;
+    for (const KWayRefinementAlgorithm algorithm: ctx.refinement.algorithms) {
+        refiners.push_back(create_refinement_algorithm(ctx, algorithm));
+    }
+    return std::make_unique<MultiRefiner>(std::move(refiners));
 }
 
 std::unique_ptr<ClusteringAlgorithm<GlobalNodeID>> create_global_clustering_algorithm(const Context& ctx) {
@@ -89,6 +117,7 @@ std::unique_ptr<ClusteringAlgorithm<GlobalNodeID>> create_global_clustering_algo
         case GlobalClusteringAlgorithm::LOCKING_LP:
             return std::make_unique<LockingLabelPropagationClustering>(ctx);
     }
+
     __builtin_unreachable();
 }
 

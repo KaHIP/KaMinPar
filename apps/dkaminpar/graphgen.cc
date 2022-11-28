@@ -29,85 +29,6 @@
 #include "common/timer.h"
 
 namespace kaminpar::dist {
-using namespace std::string_literals;
-
-std::unordered_map<std::string, GeneratorType> get_generator_types() {
-    return {
-        {"rgg2d", GeneratorType::RGG2D},   {"rgg3d", GeneratorType::RGG3D},   {"rdg2d", GeneratorType::RDG2D},
-        {"rdg3d", GeneratorType::RDG3D},   {"gnm", GeneratorType::GNM},       {"rhg", GeneratorType::RHG},
-        {"grid2d", GeneratorType::GRID2D}, {"grid3d", GeneratorType::GRID3D}, {"rmat", GeneratorType::RMAT},
-    };
-}
-
-std::ostream& operator<<(std::ostream& out, const GeneratorType generator) {
-    switch (generator) {
-        case GeneratorType::NONE:
-            return out << "none";
-        case GeneratorType::RGG2D:
-            return out << "rgg2d";
-        case GeneratorType::RGG3D:
-            return out << "rgg3d";
-        case GeneratorType::RDG2D:
-            return out << "rdg2d";
-        case GeneratorType::RDG3D:
-            return out << "rdg3d";
-        case GeneratorType::GNM:
-            return out << "gnm";
-        case GeneratorType::RHG:
-            return out << "rhg";
-        case GeneratorType::GRID2D:
-            return out << "grid2d";
-        case GeneratorType::GRID3D:
-            return out << "grid3d";
-        case GeneratorType::RMAT:
-            return out << "rmat";
-    }
-
-    return out << "<invalid>";
-}
-
-CLI::Option_group* create_generator_options(CLI::App* app, GeneratorContext& g_ctx) {
-    auto* generator = app->add_option_group("Graph Generator");
-
-    generator->add_option("--g-type", g_ctx.type)
-        ->transform(CLI::CheckedTransformer(get_generator_types()).description(""))
-        ->description(R"(Graph model, options are:
-  - rgg2d
-  - rgg3d
-  - rdg2d (if CGal is available)
-  - rdg3d (if CGal is available)
-  - gnm
-  - rhg
-  - grid2d
-  - grid3d
-  - rmat
-Please refer to the KaGen manual for a description of each graph model.)")
-        ->capture_default_str()
-        ->required();
-    generator->add_option("--g-n", g_ctx.n, "Number of nodes, as a power of two.")->required();
-    generator->add_option("--g-m", g_ctx.m, "Number of edges, as a power of two.")->required();
-    generator->add_option("--g-gamma", g_ctx.gamma, "Power law exponent for hyperbolic graphs.")->capture_default_str();
-    generator
-        ->add_option(
-            "--g-scale", g_ctx.scale,
-            "Scaling factor for the generated graph (scale number of nodes, keep average degree constant)."
-        )
-        ->capture_default_str();
-    generator->add_option("--g-prob-a", g_ctx.prob_a, "R-MAT probability A.")->capture_default_str();
-    generator->add_option("--g-prob-b", g_ctx.prob_b, "R-MAT probability B.")->capture_default_str();
-    generator->add_option("--g-prob-c", g_ctx.prob_c, "R-MAT probability C.")->capture_default_str();
-
-    generator
-        ->add_flag("--g-periodic", g_ctx.periodic, "Use periodic boundary condition for RDG and GRID{2D,3D} graphs.")
-        ->capture_default_str();
-    generator->add_flag("--g-validate", g_ctx.validate_graph, "Validate the generated graph (debug only).")
-        ->capture_default_str();
-    generator->add_flag("--g-stats", g_ctx.advanced_stats, "Print statistics on the generated graph.")
-        ->capture_default_str();
-
-    return generator;
-}
-
 #ifdef KAMINPAR_ENABLE_GRAPHGEN
 using namespace kagen;
 
@@ -398,182 +319,24 @@ scalable_vector<GlobalNodeID> build_node_distribution(const std::pair<SInt, SInt
     mpi::allgather(&to, 1, node_distribution.data() + 1, 1, MPI_COMM_WORLD);
     return node_distribution;
 }
-
-KaGen create_generator_object(const GeneratorContext ctx) {
-    KaGen gen(MPI_COMM_WORLD);
-    // gen.SetSeed(ctx.seed);
-    if (ctx.validate_graph) {
-        gen.EnableUndirectedGraphVerification();
-    }
-    gen.EnableOutput(false);
-    gen.EnableBasicStatistics();
-    if (ctx.advanced_stats) {
-        gen.EnableAdvancedStatistics();
-    }
-    return gen;
-}
-
-KaGenResult create_gnm(const GeneratorContext ctx) {
-    const GlobalNodeID n = (static_cast<GlobalNodeID>(1) << ctx.n) * ctx.scale;
-    const GlobalEdgeID m = (static_cast<GlobalEdgeID>(1) << ctx.m) * ctx.scale;
-
-    LOG << "Generating GNM(n=" << n << ", m=" << m << ")";
-    return create_generator_object(ctx).GenerateUndirectedGNM(n, m);
-}
-
-KaGenResult create_rgg2d(const GeneratorContext ctx) {
-    const GlobalNodeID n = (static_cast<GlobalNodeID>(1) << ctx.n) * ctx.scale;
-    const GlobalEdgeID m = (static_cast<GlobalEdgeID>(1) << ctx.m) * ctx.scale;
-
-    LOG << "Generating RGG2D(n=" << n << ", m=" << m << ")";
-    return create_generator_object(ctx).GenerateRGG2D_NM(n, m);
-}
-
-KaGenResult create_rgg3d(const GeneratorContext ctx) {
-    const GlobalNodeID n = (static_cast<GlobalNodeID>(1) << ctx.n) * ctx.scale;
-    const GlobalEdgeID m = (static_cast<GlobalEdgeID>(1) << ctx.m) * ctx.scale;
-
-    LOG << "Generating RGG3D(n=" << n << ", m=" << m << ")";
-    return create_generator_object(ctx).GenerateRGG3D_NM(n, m);
-}
-
-KaGenResult create_rdg2d(const GeneratorContext ctx) {
-    const GlobalEdgeID m = (static_cast<GlobalEdgeID>(1) << ctx.m) * ctx.scale;
-
-    LOG << "Generating RDG2D(m=" << m << ", periodic=" << ctx.periodic << ")";
-    return create_generator_object(ctx).GenerateRDG2D_M(m, ctx.periodic);
-}
-
-KaGenResult create_rdg3d(const GeneratorContext ctx) {
-    const GlobalEdgeID m = (static_cast<GlobalEdgeID>(1) << ctx.m) * ctx.scale;
-
-    LOG << "Generating RDG3D(m=" << m << ", periodic=" << ctx.periodic << ")";
-    return create_generator_object(ctx).GenerateRDG3D_M(m);
-}
-
-KaGenResult create_rhg(const GeneratorContext ctx) {
-    const GlobalNodeID n = (static_cast<GlobalNodeID>(1) << ctx.n) * ctx.scale;
-    const GlobalEdgeID m = (static_cast<GlobalNodeID>(1) << ctx.m) * ctx.scale;
-
-    LOG << "Generating RHG(gamma=" << ctx.gamma << ", n=" << n << ", m=" << m << ")";
-    return create_generator_object(ctx).GenerateRHG_NM(ctx.gamma, n, m);
-}
-
-KaGenResult create_grid2d(const GeneratorContext ctx) {
-    const GlobalNodeID n = (static_cast<GlobalNodeID>(1) << ctx.n) * ctx.scale;
-    const GlobalEdgeID m = (static_cast<GlobalNodeID>(1) << ctx.m) * ctx.scale;
-
-    LOG << "Generating Grid2D(n=" << n << ", m=" << m << ")";
-    return create_generator_object(ctx).GenerateGrid2D_NM(n, m);
-}
-
-KaGenResult create_grid3d(const GeneratorContext ctx) {
-    const GlobalNodeID n = (static_cast<GlobalNodeID>(1) << ctx.n) * ctx.scale;
-    const GlobalEdgeID m = (static_cast<GlobalNodeID>(1) << ctx.m) * ctx.scale;
-
-    LOG << "Generating Grid3D(n=" << n << ", m=" << m << ")";
-    return create_generator_object(ctx).GenerateGrid3D_NM(n, m);
-}
-
-KaGenResult create_rmat(const GeneratorContext ctx) {
-    const GlobalNodeID n = (static_cast<GlobalNodeID>(1) << ctx.n) * ctx.scale;
-    const GlobalEdgeID m = (static_cast<GlobalEdgeID>(1) << ctx.m) * ctx.scale;
-
-    LOG << "Generating R-MAT(n=" << n << ", m=" << m << ", a=" << ctx.prob_a << ", b=" << ctx.prob_b
-        << ", c=" << ctx.prob_c << ")";
-    return create_generator_object(ctx).GenerateRMAT(n, m, ctx.prob_a, ctx.prob_b, ctx.prob_c);
-}
 } // namespace
 #endif // KAMINPAR_ENABLE_GRAPHGEN
 
-DistributedGraph generate([[maybe_unused]] const GeneratorContext& ctx) {
+DistributedGraph generate([[maybe_unused]] const std::string& properties) {
 #ifdef KAMINPAR_ENABLE_GRAPHGEN
     auto [edges, local_range] = [&] {
-        switch (ctx.type) {
-            case GeneratorType::GNM:
-                return create_gnm(ctx);
-
-            case GeneratorType::RGG2D:
-                return create_rgg2d(ctx);
-
-            case GeneratorType::RGG3D:
-                return create_rgg3d(ctx);
-
-            case GeneratorType::RHG:
-                return create_rhg(ctx);
-
-            case GeneratorType::RDG2D:
-                return create_rdg2d(ctx);
-
-            case GeneratorType::GRID2D:
-                return create_grid2d(ctx);
-
-            case GeneratorType::GRID3D:
-                return create_grid3d(ctx);
-
-            case GeneratorType::RMAT:
-                return create_rmat(ctx);
-
-            default:
-                FATAL_ERROR << "selected graph generator is not implemented";
-        }
-
-        __builtin_unreachable();
+        KaGen kagen(MPI_COMM_WORLD);
+        kagen.EnableOutput(false);
+        kagen.EnableBasicStatistics();
+        return kagen.GenerateFromOptionString(properties);
     }();
-
     return build_graph(std::move(edges), build_node_distribution(local_range));
 #endif // KAMINPAR_ENABLE_GRAPHGEN
 
     throw std::runtime_error("graph generator not available");
 }
 
-std::string generate_filename(const GeneratorContext& ctx) {
-    std::stringstream filename;
-    filename << "kagen_";
-
-    switch (ctx.type) {
-        case GeneratorType::GNM:
-            filename << "gnm_n=" << ctx.n << "_m=" << ctx.m;
-            break;
-
-        case GeneratorType::RGG2D:
-            filename << "rgg2d_n=" << ctx.n << "_m=" << ctx.m;
-            break;
-
-        case GeneratorType::RGG3D:
-            filename << "rgg3d_n=" << ctx.n << "_m=" << ctx.m;
-            break;
-
-        case GeneratorType::RHG:
-            filename << "rhg_n=" << ctx.n << "_m=" << ctx.m << "_gamma=" << ctx.gamma;
-            break;
-
-        case GeneratorType::RDG2D:
-            filename << "rdg2d_n=" << ctx.n << "_m=" << ctx.m;
-            break;
-
-        case GeneratorType::RDG3D:
-            filename << "rdg3d_n=" << ctx.n << "_m=" << ctx.m;
-            break;
-
-        case GeneratorType::GRID2D:
-            filename << "grid2d_n=" << ctx.n << "_m=" << ctx.m;
-            break;
-
-        case GeneratorType::GRID3D:
-            filename << "grid3d_n=" << ctx.n << "_m=" << ctx.m;
-            break;
-
-        case GeneratorType::RMAT:
-            filename << "rmat_n=" << ctx.n << "_m=" << ctx.m << "_a=" << ctx.prob_a << "_b=" << ctx.prob_b
-                     << "_c=" << ctx.prob_c;
-            break;
-
-        default:
-            filename << "unknown_generator";
-            break;
-    }
-
-    return filename.str();
+std::string generate_filename(const std::string& properties) {
+    return std::string("kagen_") + properties;
 }
 } // namespace kaminpar::dist

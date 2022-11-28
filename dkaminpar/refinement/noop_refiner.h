@@ -6,12 +6,21 @@
  ******************************************************************************/
 #pragma once
 
+#include "dkaminpar/context.h"
+#include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/refinement/refiner.h"
 
 namespace kaminpar::dist {
 class NoopRefiner : public Refiner {
 public:
-    void initialize(const DistributedGraph&, const PartitionContext&) override;
-    void refine(DistributedPartitionedGraph&) override;
+    NoopRefiner() = default;
+
+    NoopRefiner(const NoopRefiner&)            = delete;
+    NoopRefiner& operator=(const NoopRefiner&) = delete;
+    NoopRefiner(NoopRefiner&&) noexcept        = default;
+    NoopRefiner& operator=(NoopRefiner&&)      = delete;
+
+    void initialize(const DistributedGraph& graph) final;
+    void refine(DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx) final;
 };
 } // namespace kaminpar::dist

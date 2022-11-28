@@ -167,6 +167,7 @@ int main(int argc, char* argv[]) {
 
     cio::print_kaminpar_banner();
     cio::print_build_identifier<NodeID, EdgeID, NodeWeight, EdgeWeight>(Environment::GIT_SHA1, Environment::HOSTNAME);
+    cio::print_delimiter();
 
     // Initialize
     Random::seed = ctx.seed;

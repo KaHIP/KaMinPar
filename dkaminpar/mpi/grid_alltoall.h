@@ -7,6 +7,7 @@
 #pragma once
 
 #include <type_traits>
+#include <unordered_map>
 
 #include <kassert/kassert.hpp>
 #include <mpi.h>
@@ -63,7 +64,9 @@ template <typename Message, typename Buffer, typename SendBuffer, typename Count
 void sparse_alltoall_grid(SendBuffer&& data, const CountsBuffer& counts, Receiver&& receiver, MPI_Comm comm) {
     using namespace internal;
 
-    /*static*/ GridCommunicator grid_comm(comm);
+    static std::unordered_map<MPI_Comm, GridCommunicator> grid_communicators;
+    auto [grid_comm_it, ignored] = grid_communicators.try_emplace(comm, comm);
+    GridCommunicator& grid_comm  = grid_comm_it->second;
 
     const auto& row_comm      = grid_comm.row_comm();
     const PEID  row_comm_size = grid_comm.row_comm_size();
@@ -87,7 +90,7 @@ void sparse_alltoall_grid(SendBuffer&& data, const CountsBuffer& counts, Receive
      * For each row, send counts for all PEs in that row to the PE in our column in that row
      */
 
-    START_TIMER("First hop allocation");
+    //START_TIMER("First hop allocation");
     /*static*/ std::vector<int> row_counts_send_counts;
     /*static*/ std::vector<int> row_counts_recv_counts;
     /*static*/ std::vector<int> row_counts_send_displs;
@@ -120,11 +123,11 @@ void sparse_alltoall_grid(SendBuffer&& data, const CountsBuffer& counts, Receive
     }
 
     std::vector<int> row_counts(row_comm_size * col_comm_size);
-    STOP_TIMER();
+    //STOP_TIMER();
 
     // Exchange counts within payload
     {
-        SCOPED_TIMER("First hop counts MPI_Alltoallv");
+        //SCOPED_TIMER("First hop counts MPI_Alltoallv");
 
         KASSERT(asserting_cast<int>(row_counts.size()) >= row_counts_recv_displs.back());
         KASSERT(asserting_cast<int>(row_counts_send_counts.size()) >= col_comm_size);
@@ -156,16 +159,16 @@ void sparse_alltoall_grid(SendBuffer&& data, const CountsBuffer& counts, Receive
      * Exchange data within our column: send PE in row 0 all data for row 0, ...
      */
 
-    START_TIMER("First hop allocation");
+    //START_TIMER("First hop allocation");
     std::vector<int> row_send_counts(col_comm_size);
     std::vector<int> row_recv_counts(col_comm_size);
     std::vector<int> row_send_displs(col_comm_size + 1);
     std::vector<int> row_recv_displs(col_comm_size + 1);
     std::vector<int> row_displs(row_comm_size * col_comm_size + 1);
-    STOP_TIMER();
+    //STOP_TIMER();
 
     {
-        SCOPED_TIMER("First hop counts summation");
+        //SCOPED_TIMER("First hop counts summation");
 
         for (PEID pe = 0; pe < size; ++pe) {
             row_send_counts[topo.row(pe)] += counts[pe];
@@ -182,12 +185,12 @@ void sparse_alltoall_grid(SendBuffer&& data, const CountsBuffer& counts, Receive
         parallel::prefix_sum(row_counts.begin(), row_counts.end(), row_displs.begin() + 1);
     }
 
-    START_TIMER("First hop allocation");
+    //START_TIMER("First hop allocation");
     std::vector<Message> row_recv_buf(row_recv_displs.back());
-    STOP_TIMER();
+    //STOP_TIMER();
 
     {
-        SCOPED_TIMER("First hop payload MPI_Alltoallv");
+        //SCOPED_TIMER("First hop payload MPI_Alltoallv");
 
         KASSERT(asserting_cast<PEID>(row_send_counts.size()) >= col_comm_size);
         KASSERT(asserting_cast<PEID>(row_send_displs.size()) >= col_comm_size);
@@ -224,17 +227,17 @@ void sparse_alltoall_grid(SendBuffer&& data, const CountsBuffer& counts, Receive
      * Send each column the data counts from each row
      */
 
-    START_TIMER("Second hop allocation");
+    //START_TIMER("Second hop allocation");
     std::vector<int> col_counts(row_comm_size);
     std::vector<int> col_subcounts(row_comm_size * col_comm_size);
     std::vector<int> subcounts(size);
     std::vector<int> col_recv_counts(row_comm_size);
     std::vector<int> col_recv_displs(row_comm_size + 1);
     std::vector<int> col_displs(row_comm_size + 1);
-    STOP_TIMER();
+    //STOP_TIMER();
 
     {
-        SCOPED_TIMER("Second hop counts summation");
+        //SCOPED_TIMER("Second hop counts summation");
 
         for (PEID col = 0; col < row_comm_size; ++col) {
             for (PEID from_row = 0; from_row < col_comm_size; ++from_row) {
@@ -249,7 +252,7 @@ void sparse_alltoall_grid(SendBuffer&& data, const CountsBuffer& counts, Receive
         }
     }
 
-    START_TIMER("Second hop allocation");
+    //START_TIMER("Second hop allocation");
     /*static*/ std::vector<int> col_subcounts_send_counts;
     /*static*/ std::vector<int> col_subcounts_send_displs;
     /*static*/ std::vector<int> col_subcounts_recv_counts;
@@ -275,11 +278,11 @@ void sparse_alltoall_grid(SendBuffer&& data, const CountsBuffer& counts, Receive
             col_subcounts_recv_counts.begin(), col_subcounts_recv_counts.end(), col_subcounts_recv_displs.begin() + 1
         );
     }
-    STOP_TIMER();
+    //STOP_TIMER();
 
     // Exchange counts
     {
-        SCOPED_TIMER("Second hop counts MPI_Alltoallv");
+        //SCOPED_TIMER("Second hop counts MPI_Alltoallv");
 
         KASSERT(asserting_cast<PEID>(col_subcounts_send_counts.size()) >= row_comm_size);
         KASSERT(asserting_cast<PEID>(col_subcounts_recv_counts.size()) >= row_comm_size);
@@ -295,7 +298,7 @@ void sparse_alltoall_grid(SendBuffer&& data, const CountsBuffer& counts, Receive
     }
 
     {
-        SCOPED_TIMER("Second hop counts summation");
+        //SCOPED_TIMER("Second hop counts summation");
 
         PEID pe = 0;
         for (PEID row = 0; row < topo.num_full_cols(); ++row) {
@@ -312,12 +315,12 @@ void sparse_alltoall_grid(SendBuffer&& data, const CountsBuffer& counts, Receive
     }
 
     // Transpose data buffer
-    START_TIMER("Second hop allocation");
+    //START_TIMER("Second hop allocation");
     std::vector<Message> col_data(row_recv_buf.size());
-    STOP_TIMER();
+    //STOP_TIMER();
 
     {
-        SCOPED_TIMER("Second hop data transposition");
+        //SCOPED_TIMER("Second hop data transposition");
 
         parallel::prefix_sum(col_recv_counts.begin(), col_recv_counts.end(), col_recv_displs.begin() + 1);
         parallel::prefix_sum(col_counts.begin(), col_counts.end(), col_displs.begin() + 1);
@@ -349,12 +352,12 @@ void sparse_alltoall_grid(SendBuffer&& data, const CountsBuffer& counts, Receive
     }
 
     // Exchange col payload
-    START_TIMER("Second hop allocation");
+    //START_TIMER("Second hop allocation");
     std::vector<Message> col_recv_buf(col_recv_displs.back());
-    STOP_TIMER();
+    //STOP_TIMER();
 
     {
-        SCOPED_TIMER("Second hop payload MPI_Alltoallv");
+        //SCOPED_TIMER("Second hop payload MPI_Alltoallv");
 
         KASSERT(asserting_cast<PEID>(col_counts.size()) >= row_comm_size);
         KASSERT(asserting_cast<PEID>(col_displs.size()) >= row_comm_size);
@@ -373,7 +376,7 @@ void sparse_alltoall_grid(SendBuffer&& data, const CountsBuffer& counts, Receive
     // col_recv_buf contains all data adressed to this PE:
     // data from 0x0, 1x0, 2x0, ..., 0x1, 0x2, ... ...
 
-    START_TIMER("Invoke receiver lambda");
+    //START_TIMER("Invoke receiver lambda");
     std::size_t displ = 0;
     std::size_t index = 0;
     for (PEID col = 0; col < topo.num_full_cols(); ++col) {
@@ -394,7 +397,7 @@ void sparse_alltoall_grid(SendBuffer&& data, const CountsBuffer& counts, Receive
             invoke_receiver(std::move(buffer), pe, receiver);
         }
     }
-    STOP_TIMER();
+    //STOP_TIMER();
 }
 
 template <typename Message, typename Buffer, typename SendBuffers, typename Receiver>

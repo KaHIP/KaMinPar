@@ -120,4 +120,8 @@ tbb::spin_mutex& Logger::flush_mutex() {
 void Logger::set_quiet_mode(const bool quiet) {
     _quiet = quiet;
 }
+
+bool Logger::is_quiet() {
+    return _quiet;
+}
 } // namespace kaminpar

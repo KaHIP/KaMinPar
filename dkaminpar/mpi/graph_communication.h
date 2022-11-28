@@ -68,10 +68,11 @@ void inclusive_col_prefix_sum(Data& data) {
 } // namespace internal
 
 template <
-    typename Message, typename Buffer = NoinitVector<Message>, typename Filter, typename Builder, typename Receiver>
-void sparse_alltoall_interface_to_ghost(
-    const DistributedGraph& graph, const NodeID from, const NodeID to, Filter&& filter, Builder&& builder,
-    Receiver&& receiver
+    typename Message, typename Buffer = NoinitVector<Message>, typename Mapper, typename Filter, typename Builder,
+    typename Receiver>
+void sparse_alltoall_interface_to_ghost_custom_range(
+    const DistributedGraph& graph, const NodeID from, const NodeID to, Mapper&& mapper, Filter&& filter,
+    Builder&& builder, Receiver&& receiver
 ) {
     SCOPED_TIMER("Sparse AllToAll InterfaceToGhost");
 
@@ -99,11 +100,13 @@ void sparse_alltoall_interface_to_ghost(
     // count messages to each PE for each thread
     START_TIMER("Count messages");
 #if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
-    #pragma omp parallel for default(none) shared(from, to, graph, num_messages, filter, total_num_messages)
+    #pragma omp parallel for default(none) shared(graph, from, to, mapper, num_messages, filter, total_num_messages)
 #else
-    #pragma omp parallel for default(none) shared(from, to, graph, num_messages, filter)
+    #pragma omp parallel for default(none) shared(graph, from, to, mapper, num_messages, filter)
 #endif
-    for (NodeID u = from; u < to; ++u) {
+    for (NodeID seq_u = from; seq_u < to; ++seq_u) {
+        const NodeID u = mapper(seq_u);
+
         if (!filter(u)) {
             continue;
         }
@@ -127,20 +130,20 @@ void sparse_alltoall_interface_to_ghost(
     STOP_TIMER();
 
     // allocate send buffers
-    START_TIMER("Allocation");
     std::vector<Buffer> send_buffers(size);
     tbb::parallel_for<PEID>(0, size, [&](const PEID pe) { send_buffers[pe].resize(num_messages.back()[pe]); });
-    STOP_TIMER();
 
     // fill buffers
     START_TIMER("Partition messages");
 #if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
     #pragma omp parallel for default(none) \
-        shared(send_buffers, from, to, filter, graph, builder, num_messages, total_num_messages)
+        shared(send_buffers, from, to, mapper, filter, graph, builder, num_messages, total_num_messages)
 #else
-    #pragma omp parallel for default(none) shared(send_buffers, from, to, filter, graph, builder, num_messages)
+    #pragma omp parallel for default(none) shared(send_buffers, from, to, mapper, filter, graph, builder, num_messages)
 #endif
-    for (NodeID u = from; u < to; ++u) {
+    for (NodeID seq_u = from; seq_u < to; ++seq_u) {
+        const NodeID u = mapper(seq_u);
+
         if (!filter(u)) {
             continue;
         }
@@ -176,6 +179,18 @@ void sparse_alltoall_interface_to_ghost(
     );
 }
 
+template <
+    typename Message, typename Buffer = NoinitVector<Message>, typename Filter, typename Builder, typename Receiver>
+void sparse_alltoall_interface_to_ghost(
+    const DistributedGraph& graph, const NodeID from, const NodeID to, Filter&& filter, Builder&& builder,
+    Receiver&& receiver
+) {
+    sparse_alltoall_interface_to_ghost_custom_range<Message, Buffer>(
+        graph, from, to, [](const NodeID u) { return u; }, std::forward<Filter>(filter), std::forward<Builder>(builder),
+        std::forward<Receiver>(receiver)
+    );
+}
+
 template <typename Message, typename Buffer = NoinitVector<Message>, typename Filter, typename Builder>
 std::vector<Buffer> sparse_alltoall_interface_to_ghost_get(
     const DistributedGraph& graph, const NodeID from, const NodeID to, Filter&& filter, Builder&& builder
@@ -207,18 +222,26 @@ void sparse_alltoall_interface_to_pe(
 }
 
 template <
-    typename Message, typename Buffer = NoinitVector<Message>, typename Filter, typename Builder, typename Receiver>
-void sparse_alltoall_interface_to_pe(
-    const DistributedGraph& graph, const NodeID from, const NodeID to, Filter&& filter, Builder&& builder,
-    Receiver&& receiver
+    typename Message, typename Buffer = NoinitVector<Message>, typename Mapper, typename Filter, typename Builder,
+    typename Receiver>
+void sparse_alltoall_interface_to_pe_custom_range(
+    const DistributedGraph& graph, const NodeID from, const NodeID to, Mapper&& mapper, Filter&& filter,
+    Builder&& builder, Receiver&& receiver
 ) {
     SCOPED_TIMER("Sparse AllToAll InterfaceToPE");
 
-    static_assert(std::is_invocable_r_v<bool, Filter, NodeID>, "bad filter type");
-
-    constexpr bool builder_invocable_with_pe    = std::is_invocable_r_v<Message, Builder, NodeID, PEID>;
+    constexpr bool builder_invocable_with_pe = std::is_invocable_r_v<Message, Builder, NodeID, PEID>;
+    constexpr bool builder_invocable_with_pe_and_unmapped_node =
+        std::is_invocable_r_v<Message, Builder, NodeID, NodeID, PEID>;
     constexpr bool builder_invocable_without_pe = std::is_invocable_r_v<Message, Builder, NodeID>;
-    static_assert(builder_invocable_with_pe || builder_invocable_without_pe, "bad builder type");
+    static_assert(
+        builder_invocable_with_pe || builder_invocable_with_pe_and_unmapped_node || builder_invocable_without_pe,
+        "bad builder type"
+    );
+
+    constexpr bool filter_invocable_with_unmapped_node    = std::is_invocable_r_v<bool, Filter, NodeID, NodeID>;
+    constexpr bool filter_invocable_without_unmapped_node = std::is_invocable_r_v<bool, Filter, NodeID>;
+    static_assert(filter_invocable_with_unmapped_node || filter_invocable_without_unmapped_node);
 
     const PEID size = mpi::get_comm_size(graph.communicator());
 
@@ -234,18 +257,26 @@ void sparse_alltoall_interface_to_pe(
     // count messages to each PE for each thread
     START_TIMER("Count messages");
 #if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
-    #pragma omp parallel default(none) shared(size, from, to, filter, graph, num_messages, total_num_messages)
+    #pragma omp parallel default(none) shared(size, from, to, mapper, filter, graph, num_messages, total_num_messages)
 #else
-    #pragma omp parallel default(none) shared(size, from, to, filter, graph, num_messages)
+    #pragma omp parallel default(none) shared(size, from, to, mapper, filter, graph, num_messages)
 #endif
     {
         Marker<>   created_message_for_pe(static_cast<std::size_t>(size));
         const PEID thread = omp_get_thread_num();
 
 #pragma omp for
-        for (NodeID u = from; u < to; ++u) {
-            if (!filter(u)) {
-                continue;
+        for (NodeID seq_u = from; seq_u < to; ++seq_u) {
+            const NodeID u = mapper(seq_u);
+
+            if constexpr (filter_invocable_with_unmapped_node) {
+                if (!filter(seq_u, u)) {
+                    continue;
+                }
+            } else {
+                if (!filter(u)) {
+                    continue;
+                }
             }
 
             for (const auto [e, v]: graph.neighbors(u)) {
@@ -273,30 +304,39 @@ void sparse_alltoall_interface_to_pe(
 
     // offset messages for each thread
     internal::inclusive_col_prefix_sum(num_messages);
+    mpi::barrier(graph.communicator());
     STOP_TIMER();
 
     // allocate send buffers
-    START_TIMER("Allocation");
     std::vector<Buffer> send_buffers(size);
     tbb::parallel_for<PEID>(0, size, [&](const PEID pe) { send_buffers[pe].resize(num_messages.back()[pe]); });
-    STOP_TIMER();
+    mpi::barrier(graph.communicator());
 
     // fill buffers
     START_TIMER("Partition messages");
 #if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
     #pragma omp parallel default(none) \
-        shared(send_buffers, size, from, to, builder, filter, graph, num_messages, total_num_messages)
+        shared(send_buffers, size, from, to, mapper, builder, filter, graph, num_messages, total_num_messages)
 #else
-    #pragma omp parallel default(none) shared(send_buffers, size, from, to, builder, filter, graph, num_messages)
+    #pragma omp parallel default(none) \
+        shared(send_buffers, size, from, to, mapper, builder, filter, graph, num_messages)
 #endif
     {
         Marker<>   created_message_for_pe(static_cast<std::size_t>(size));
         const PEID thread = omp_get_thread_num();
 
 #pragma omp for
-        for (NodeID u = from; u < to; ++u) {
-            if (!filter(u)) {
-                continue;
+        for (NodeID seq_u = from; seq_u < to; ++seq_u) {
+            const NodeID u = mapper(seq_u);
+
+            if constexpr (filter_invocable_with_unmapped_node) {
+                if (!filter(seq_u, u)) {
+                    continue;
+                }
+            } else {
+                if (!filter(u)) {
+                    continue;
+                }
             }
 
             for (const NodeID v: graph.adjacent_nodes(u)) {
@@ -315,6 +355,8 @@ void sparse_alltoall_interface_to_pe(
 
                 if constexpr (builder_invocable_with_pe) {
                     send_buffers[pe][slot] = builder(u, pe);
+                } else if constexpr (builder_invocable_with_pe_and_unmapped_node) {
+                    send_buffers[pe][slot] = builder(seq_u, u, pe);
                 } else {
                     send_buffers[pe][slot] = builder(u);
                 }
@@ -327,6 +369,7 @@ void sparse_alltoall_interface_to_pe(
             created_message_for_pe.reset();
         }
     }
+    mpi::barrier(graph.communicator());
     STOP_TIMER();
 
 #if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
@@ -337,6 +380,18 @@ void sparse_alltoall_interface_to_pe(
 
     sparse_alltoall<Message, Buffer>(std::move(send_buffers), std::forward<Receiver>(receiver), graph.communicator());
 } // namespace dkaminpar::mpi::graph
+
+template <
+    typename Message, typename Buffer = NoinitVector<Message>, typename Filter, typename Builder, typename Receiver>
+void sparse_alltoall_interface_to_pe(
+    const DistributedGraph& graph, const NodeID from, const NodeID to, Filter&& filter, Builder&& builder,
+    Receiver&& receiver
+) {
+    sparse_alltoall_interface_to_pe_custom_range<Message, Buffer>(
+        graph, from, to, [](const NodeID u) { return u; }, std::forward<Filter>(filter), std::forward<Builder>(builder),
+        std::forward<Receiver>(receiver)
+    );
+}
 
 template <typename Message, typename Buffer = NoinitVector<Message>, typename Filter, typename Builder>
 std::vector<Buffer> sparse_alltoall_interface_to_pe_get(
@@ -407,10 +462,8 @@ void sparse_alltoall_custom(
     STOP_TIMER();
 
     // allocate send buffers
-    START_TIMER("Allocation");
     std::vector<Buffer> send_buffers(size);
     tbb::parallel_for<PEID>(0, size, [&](const PEID pe) { send_buffers[pe].resize(num_messages.back()[pe]); });
-    STOP_TIMER();
 
     // fill buffers
     START_TIMER("Partition messages");

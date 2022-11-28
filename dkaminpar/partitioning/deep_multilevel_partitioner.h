@@ -1,8 +1,8 @@
 /*******************************************************************************
- * @file:   deep_partitioning.h
+ * @file:   deep_multilevel_partitioner.h
  * @author: Daniel Seemaier
  * @date:   28.04.2022
- * @brief:  Deep multilevel graph partitioning scheme.
+ * @brief:  Deep multilevel graph partitioning with direct k-way initial partitioning.
  ******************************************************************************/
 #pragma once
 
@@ -12,19 +12,19 @@
 #include "dkaminpar/coarsening/coarsener.h"
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructures/distributed_graph.h"
+#include "dkaminpar/partitioning/partitioner.h"
 
 namespace kaminpar::dist {
-class DeeperPartitioningScheme {
+class DeepMultilevelPartitioner : public Partitioner {
 public:
-    DeeperPartitioningScheme(const DistributedGraph& input_graph, const Context& input_ctx);
+    DeepMultilevelPartitioner(const DistributedGraph& input_graph, const Context& input_ctx);
 
-    DeeperPartitioningScheme(const DeeperPartitioningScheme&)            = delete;
-    DeeperPartitioningScheme& operator=(const DeeperPartitioningScheme&) = delete;
+    DeepMultilevelPartitioner(const DeepMultilevelPartitioner&)            = delete;
+    DeepMultilevelPartitioner& operator=(const DeepMultilevelPartitioner&) = delete;
+    DeepMultilevelPartitioner(DeepMultilevelPartitioner&&) noexcept        = default;
+    DeepMultilevelPartitioner& operator=(DeepMultilevelPartitioner&&)      = delete;
 
-    DeeperPartitioningScheme(DeeperPartitioningScheme&&) noexcept   = default;
-    DeeperPartitioningScheme& operator=(DeeperPartitioningScheme&&) = delete;
-
-    DistributedPartitionedGraph partition();
+    DistributedPartitionedGraph partition() final;
 
 private:
     void print_coarsening_level(GlobalNodeWeight max_cluster_weight) const;
@@ -33,8 +33,8 @@ private:
     void
     print_initial_partitioning_result(const DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx) const;
 
-    inline Coarsener* get_current_coarsener();
-    const Coarsener*  get_current_coarsener() const;
+    Coarsener*       get_current_coarsener();
+    const Coarsener* get_current_coarsener() const;
 
     const DistributedGraph& _input_graph;
     const Context&          _input_ctx;

@@ -68,18 +68,12 @@ void sparse_alltoall(tag::complete_send_recv_tag, SendBuffers&& send_buffers, Re
 namespace internal {
 template <typename SendBuffers>
 bool use_sparse_grid_alltoall(const SendBuffers& send_buffers, MPI_Comm comm) {
-    SCOPED_TIMER("Decide sparse Alltoall implementation");
-
-    START_TIMER("Prefix sum");
     const std::size_t local_num_elements =
         parallel::accumulate(send_buffers.begin(), send_buffers.end(), 0, [&](const auto& send_buffer) {
             return send_buffer.size();
         });
-    STOP_TIMER();
 
-    START_TIMER("Allreduce");
     const std::size_t global_num_elements = allreduce(local_num_elements, MPI_SUM, comm);
-    STOP_TIMER();
 
     const PEID size = get_comm_size(comm);
     return global_num_elements / size / size <= SPARSE_GRID_ALLTOALL_THRESHOLD;

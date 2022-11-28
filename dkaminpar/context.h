@@ -16,7 +16,6 @@ namespace kaminpar::dist {
 enum class PartitioningMode {
     KWAY,
     DEEP,
-    DEEPER,
 };
 
 enum class GlobalClusteringAlgorithm {
@@ -48,20 +47,26 @@ enum class KWayRefinementAlgorithm {
     LP,
     LOCAL_FM,
     FM,
-    LP_THEN_LOCAL_FM,
-    LP_THEN_FM,
+    COLORED_LP,
+    GREEDY_BALANCER,
 };
 
-enum class BalancingAlgorithm {
-    DISTRIBUTED,
+enum class LabelPropagationMoveExecutionStrategy {
+    PROBABILISTIC,
+    BEST_MOVES,
+    LOCAL_MOVES,
+};
+
+enum class GraphOrdering {
+    NATURAL,
+    DEGREE_BUCKETS,
+    COLORING,
 };
 
 struct ParallelContext {
     std::size_t num_threads                     = 0;
     std::size_t num_mpis                        = 0;
     bool        use_interleaved_numa_allocation = false;
-    int         mpi_thread_support              = false;
-    bool        simulate_singlethread           = false;
 };
 
 struct LabelPropagationCoarseningContext {
@@ -80,6 +85,27 @@ struct LabelPropagationCoarseningContext {
 
     [[nodiscard]] bool should_merge_nonadjacent_clusters(NodeID old_n, NodeID new_n) const;
     void               setup(const ParallelContext& parallel);
+};
+
+struct ColoredLabelPropagationRefinementContext {
+    int  num_iterations                  = 0;
+    int  num_move_execution_iterations   = 0;
+    int  num_probabilistic_move_attempts = 0;
+    bool sort_by_rel_gain                = false;
+
+    int    num_coloring_chunks                = 0;
+    int    max_num_coloring_chunks            = 0;
+    int    min_num_coloring_chunks            = 0;
+    bool   scale_coloring_chunks_with_threads = false;
+    double small_color_blacklist              = 0;
+    bool   only_blacklist_input_level         = false;
+
+    bool track_local_block_weights = false;
+
+    LabelPropagationMoveExecutionStrategy move_execution_strategy =
+        LabelPropagationMoveExecutionStrategy::PROBABILISTIC;
+
+    void setup(const ParallelContext& parallel);
 };
 
 struct LabelPropagationRefinementContext {
@@ -134,19 +160,22 @@ struct InitialPartitioningContext {
     shm::Context                 kaminpar;
 };
 
-struct BalancingContext {
-    BalancingAlgorithm algorithm;
-    NodeID             num_nodes_per_block = 0;
+struct GreedyBalancerContext {
+    NodeID num_nodes_per_block = 0;
 };
 
 struct RefinementContext {
-    KWayRefinementAlgorithm           algorithm;
-    LabelPropagationRefinementContext lp;
-    FMRefinementContext               fm;
-    BalancingContext                  balancing;
-    bool                              refine_coarsest_level = false;
+    std::vector<KWayRefinementAlgorithm> algorithms;
+
+    LabelPropagationRefinementContext        lp;
+    ColoredLabelPropagationRefinementContext colored_lp;
+    FMRefinementContext                      fm;
+    GreedyBalancerContext                    greedy_balancer;
+
+    bool refine_coarsest_level = false;
 
     void setup(const ParallelContext& parallel);
+    bool includes_algorithm(KWayRefinementAlgorithm algorithm) const;
 };
 
 struct PartitionContext;
@@ -246,11 +275,12 @@ private:
 };
 
 struct PartitionContext {
-    BlockID          k                   = kInvalidBlockID;
-    BlockID          K                   = kInvalidBlockID;
-    double           epsilon             = 0.0;
-    PartitioningMode mode                = PartitioningMode::DEEP;
-    bool             enable_pe_splitting = false;
+    BlockID          k                     = kInvalidBlockID;
+    BlockID          K                     = kInvalidBlockID;
+    double           epsilon               = 0.0;
+    PartitioningMode mode                  = PartitioningMode::DEEP;
+    bool             enable_pe_splitting   = false;
+    bool             simulate_singlethread = false;
 
     GraphContext graph;
 
@@ -259,22 +289,21 @@ struct PartitionContext {
 };
 
 struct DebugContext {
-    bool save_imbalanced_partitions = false;
-    bool save_graph_hierarchy       = false;
-    bool save_coarsest_graph        = false;
-    bool save_clustering_hierarchy  = false;
+    std::string graph_filename = "";
+
+    bool save_finest_graph   = false;
+    bool save_coarsest_graph = false;
+
+    bool save_graph_hierarchy      = false;
+    bool save_clustering_hierarchy = false;
+    bool save_partition_hierarchy  = false;
+
+    bool save_unrefined_finest_partition = false;
 };
 
 struct Context {
-    std::string graph_filename     = "";
-    bool        load_edge_balanced = false;
-    int         seed               = 0;
-    bool        quiet              = false;
-    std::size_t num_repetitions    = 1;
-    std::size_t time_limit         = 0;
-    bool        sort_graph         = false;
-    bool        parsable_output    = false;
-    int         timer_depth        = 3;
+    int           seed         = 0;
+    GraphOrdering rearrange_by = GraphOrdering::NATURAL;
 
     PartitionContext           partition;
     ParallelContext            parallel;

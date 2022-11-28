@@ -6,6 +6,7 @@
  ******************************************************************************/
 #include "dkaminpar/context.h"
 
+#include <algorithm>
 #include <unordered_map>
 
 #include <tbb/parallel_for.h>
@@ -77,6 +78,7 @@ void PartitionContext::setup(const DistributedGraph& graph) {
 void PartitionContext::setup(const shm::Graph& graph) {
     this->graph = GraphContext(graph, *this);
 }
+
 [[nodiscard]] bool
 LabelPropagationCoarseningContext::should_merge_nonadjacent_clusters(const NodeID old_n, const NodeID new_n) const {
     return (1.0 - 1.0 * static_cast<double>(new_n) / static_cast<double>(old_n))
@@ -99,6 +101,14 @@ void LabelPropagationRefinementContext::setup(const ParallelContext& parallel) {
     }
 }
 
+void ColoredLabelPropagationRefinementContext::setup(const ParallelContext& parallel) {
+    if (num_coloring_chunks == 0) {
+        const int scale = scale_coloring_chunks_with_threads ? parallel.num_threads : 1;
+        num_coloring_chunks =
+            std::max<int>(min_num_coloring_chunks, max_num_coloring_chunks / (scale * parallel.num_mpis));
+    }
+}
+
 void CoarseningContext::setup(const ParallelContext& parallel) {
     local_lp.setup(parallel);
     global_lp.setup(parallel);
@@ -106,6 +116,11 @@ void CoarseningContext::setup(const ParallelContext& parallel) {
 
 void RefinementContext::setup(const ParallelContext& parallel) {
     lp.setup(parallel);
+    colored_lp.setup(parallel);
+}
+
+bool RefinementContext::includes_algorithm(const KWayRefinementAlgorithm algorithm) const {
+    return std::find(algorithms.begin(), algorithms.end(), algorithm) != algorithms.end();
 }
 
 void Context::setup(const DistributedGraph& graph) {

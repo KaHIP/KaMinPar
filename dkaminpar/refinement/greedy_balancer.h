@@ -1,5 +1,5 @@
 /*******************************************************************************
- * @file:   distributed_balancer.h
+ * @file:   greedy_balancer.h
  * @author: Daniel Seemaier
  * @date:   12.04.2022
  * @brief:  Distributed balancing refinement algorithm.
@@ -9,13 +9,14 @@
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/definitions.h"
+#include "dkaminpar/refinement/refiner.h"
 
 #include "common/datastructures/binary_heap.h"
 #include "common/datastructures/marker.h"
 #include "common/datastructures/rating_map.h"
 
 namespace kaminpar::dist {
-class DistributedBalancer {
+class GreedyBalancer : public Refiner {
     SET_STATISTICS_FROM_GLOBAL();
     SET_DEBUG(false);
     constexpr static std::size_t kPrintStatsEveryNRounds = 100'000;
@@ -40,16 +41,15 @@ class DistributedBalancer {
     };
 
 public:
-    DistributedBalancer(const Context& ctx);
+    GreedyBalancer(const Context& ctx);
 
-    DistributedBalancer(const DistributedBalancer&)            = delete;
-    DistributedBalancer& operator=(const DistributedBalancer&) = delete;
+    GreedyBalancer(const GreedyBalancer&)            = delete;
+    GreedyBalancer& operator=(const GreedyBalancer&) = delete;
+    GreedyBalancer(GreedyBalancer&&) noexcept        = default;
+    GreedyBalancer& operator=(GreedyBalancer&&)      = delete;
 
-    DistributedBalancer(DistributedBalancer&&) noexcept   = default;
-    DistributedBalancer& operator=(DistributedBalancer&&) = delete;
-
-    void initialize(const DistributedPartitionedGraph& p_graph);
-    void balance(DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx);
+    void initialize(const DistributedGraph& graph) final;
+    void refine(DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx) final;
 
 private:
     struct MoveCandidate {

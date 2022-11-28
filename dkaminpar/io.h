@@ -46,30 +46,30 @@ template <typename Container>
 Container read(const std::string& filename, const NodeID n, MPI_Comm comm = MPI_COMM_WORLD) {
     using namespace kaminpar::io;
 
-    const GlobalNodeID offset = mpi::exscan(static_cast<GlobalNodeID>(n), MPI_SUM, comm);
+    Container partition(n);
+    read(filename, n, partition, comm);
+    return partition;
+}
 
-    MappedFileToker      toker(filename);
-    GlobalNodeID         current = 0;
-    std::vector<BlockID> partition;
+template <typename Container>
+void read(const std::string& filename, const NodeID n, Container& partition, MPI_Comm comm = MPI_COMM_WORLD) {
+    using namespace kaminpar::io;
+
+    const GlobalNodeID offset = mpi::exscan(static_cast<GlobalNodeID>(n), MPI_SUM, comm);
+    MappedFileToker    toker(filename);
+    GlobalNodeID       current = 0;
+    NodeID             u       = 0;
 
     while (toker.valid_position()) {
         if (current >= offset + n) {
             break;
         } else if (current >= offset) {
-            partition.push_back(toker.scan_uint());
+            partition[u++] = toker.scan_uint();
         } else {
             toker.scan_uint();
         }
         toker.consume_char('\n');
         ++current;
-    }
-
-    if constexpr (std::is_same_v<Container, std::vector<BlockID>>) {
-        return partition;
-    } else {
-        Container copy(partition.size());
-        std::copy(partition.begin(), partition.end(), copy.begin());
-        return copy;
     }
 }
 
@@ -90,5 +90,9 @@ void write(const std::string& filename, const Container& partition) {
         MPI_COMM_WORLD
     );
 }
+
+DistributedPartitionedGraph read(const std::string& filename, const DistributedGraph& graph, const BlockID k);
+
+void write(const std::string& filename, const DistributedPartitionedGraph& p_graph);
 } // namespace partition
 } // namespace kaminpar::dist::io

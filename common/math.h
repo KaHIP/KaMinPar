@@ -85,8 +85,8 @@ auto split_integral(const T value, const double ratio = 0.5) {
  * Computes the first (inclusive) and last (exclusive) element that should be processed on a PE.
  *
  * @param n Number of elements.
- * @param rank Rank of this PE.
  * @param size Number of PEs that process the elements.
+ * @param rank Rank of this PE.
  * @return First (inclusive) and last (exclusive) element that should be processed by PE `rank`.
  */
 template <typename Int>

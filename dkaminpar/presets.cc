@@ -40,30 +40,23 @@ std::unordered_set<std::string> get_preset_names() {
 
 Context create_default_context() {
     return {
-        .graph_filename     = "",
-        .load_edge_balanced = false,
-        .seed               = 0,
-        .quiet              = false,
-        .num_repetitions    = 0,
-        .time_limit         = 0,
-        .sort_graph         = true,
-        .parsable_output    = false,
+        .seed         = 0,
+        .rearrange_by = GraphOrdering::DEGREE_BUCKETS,
         .partition =
             {
-                .k                   = 0,
-                .K                   = 128,
-                .epsilon             = 0.03,
-                .mode                = PartitioningMode::DEEPER,
-                .enable_pe_splitting = true,
-                .graph               = GraphContext(),
+                .k                     = 0,
+                .K                     = 128,
+                .epsilon               = 0.03,
+                .mode                  = PartitioningMode::DEEP,
+                .enable_pe_splitting   = true,
+                .simulate_singlethread = true,
+                .graph                 = GraphContext(),
             },
         .parallel =
             {
                 .num_threads                     = 1,
                 .num_mpis                        = 1,
                 .use_interleaved_numa_allocation = true,
-                .mpi_thread_support              = MPI_THREAD_FUNNELED,
-                .simulate_singlethread           = true,
             },
         .coarsening =
             {
@@ -117,7 +110,9 @@ Context create_default_context() {
             },
         .refinement =
             {
-                .algorithm = KWayRefinementAlgorithm::LP,
+                .algorithms =
+                    {KWayRefinementAlgorithm::GREEDY_BALANCER, KWayRefinementAlgorithm::LP,
+                     KWayRefinementAlgorithm::GREEDY_BALANCER},
                 .lp =
                     {
                         .active_high_degree_threshold = 1'000'000,
@@ -128,6 +123,21 @@ Context create_default_context() {
                         .num_move_attempts            = 2,
                         .ignore_probabilities         = true,
                         .scale_chunks_with_threads    = false,
+                    },
+                .colored_lp =
+                    {
+                        .num_iterations                     = 5,
+                        .num_move_execution_iterations      = 1,
+                        .num_probabilistic_move_attempts    = 2,
+                        .sort_by_rel_gain                   = true,
+                        .num_coloring_chunks                = 0,
+                        .max_num_coloring_chunks            = 128,
+                        .min_num_coloring_chunks            = 8,
+                        .scale_coloring_chunks_with_threads = false,
+                        .small_color_blacklist              = 0,
+                        .only_blacklist_input_level         = false,
+                        .track_local_block_weights          = true,
+                        .move_execution_strategy            = LabelPropagationMoveExecutionStrategy::BEST_MOVES,
                     },
                 .fm =
                     {
@@ -141,18 +151,19 @@ Context create_default_context() {
                         .bound_degree    = 0,
                         .contract_border = false,
                     },
-                .balancing =
+                .greedy_balancer =
                     {
-                        .algorithm           = BalancingAlgorithm::DISTRIBUTED,
                         .num_nodes_per_block = 5,
                     },
                 .refine_coarsest_level = false,
             },
         .debug = {
-            .save_imbalanced_partitions = false,
-            .save_graph_hierarchy       = false,
-            .save_coarsest_graph        = false,
-            .save_clustering_hierarchy  = false,
+            .save_finest_graph               = false,
+            .save_coarsest_graph             = false,
+            .save_graph_hierarchy            = false,
+            .save_clustering_hierarchy       = false,
+            .save_partition_hierarchy        = false,
+            .save_unrefined_finest_partition = false,
         }};
 }
 

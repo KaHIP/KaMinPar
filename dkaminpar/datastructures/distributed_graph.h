@@ -335,42 +335,45 @@ public:
     // Parallel iteration
     template <typename Lambda>
     inline void pfor_nodes(const NodeID from, const NodeID to, Lambda&& l) const {
-        tbb::parallel_for(from, to, std::forward<Lambda&&>(l));
+        tbb::parallel_for(from, to, std::forward<Lambda>(l));
     }
 
     template <typename Lambda>
     inline void pfor_nodes_range(const NodeID from, const NodeID to, Lambda&& l) const {
-        tbb::parallel_for(tbb::blocked_range<NodeID>(from, to), std::forward<Lambda&&>(l));
+        tbb::parallel_for(tbb::blocked_range<NodeID>(from, to), std::forward<Lambda>(l));
     }
 
     template <typename Lambda>
     inline void pfor_nodes(Lambda&& l) const {
-        pfor_nodes(0, n(), std::forward<Lambda&&>(l));
+        pfor_nodes(0, n(), std::forward<Lambda>(l));
     }
 
     template <typename Lambda>
     inline void pfor_all_nodes(Lambda&& l) const {
-        pfor_nodes(0, total_n(), std::forward<Lambda&&>(l));
+        pfor_nodes(0, total_n(), std::forward<Lambda>(l));
     }
 
     template <typename Lambda>
     inline void pfor_nodes_range(Lambda&& l) const {
-        pfor_nodes_range(0, n(), std::forward<Lambda&&>(l));
+        pfor_nodes_range(0, n(), std::forward<Lambda>(l));
     }
 
     template <typename Lambda>
     inline void pfor_all_nodes_range(Lambda&& l) const {
-        pfor_nodes_range(0, total_n(), std::forward<Lambda&&>(l));
+        pfor_nodes_range(0, total_n(), std::forward<Lambda>(l));
     }
 
     template <typename Lambda>
     inline void pfor_edges(Lambda&& l) const {
-        tbb::parallel_for(static_cast<EdgeID>(0), m(), std::forward<Lambda&&>(l));
+        tbb::parallel_for(static_cast<EdgeID>(0), m(), std::forward<Lambda>(l));
     }
 
     // Iterators for nodes / edges
+    [[nodiscard]] inline auto nodes(const NodeID from, const NodeID to) const {
+        return IotaRange(from, to);
+    }
     [[nodiscard]] inline auto nodes() const {
-        return IotaRange(static_cast<NodeID>(0), n());
+        return nodes(0, n());
     }
     [[nodiscard]] inline auto ghost_nodes() const {
         return IotaRange(n(), total_n());
@@ -393,23 +396,6 @@ public:
         return TransformedIotaRange(_nodes[u], _nodes[u + 1], [this](const EdgeID e) {
             return std::make_pair(e, this->edge_target(e));
         });
-    }
-
-    // Degree buckets
-    [[nodiscard]] inline std::size_t bucket_size(const std::size_t bucket) const {
-        return _buckets[bucket + 1] - _buckets[bucket];
-    }
-    [[nodiscard]] inline NodeID first_node_in_bucket(const std::size_t bucket) const {
-        return _buckets[bucket];
-    }
-    [[nodiscard]] inline NodeID first_invalid_node_in_bucket(const std::size_t bucket) const {
-        return first_node_in_bucket(bucket + 1);
-    }
-    [[nodiscard]] inline std::size_t number_of_buckets() const {
-        return _number_of_buckets;
-    }
-    [[nodiscard]] inline bool sorted() const {
-        return _sorted;
     }
 
     // Cached inter-PE metrics
@@ -471,6 +457,75 @@ public:
         return is_ghost_node(node) ? _high_degree_ghost_node[node - n()] : degree(node) > _high_degree_threshold;
     }
 
+    //
+    // Graph permutation
+    //
+
+    void set_permutation(scalable_vector<NodeID> permutation) {
+        _permutation = std::move(permutation);
+    }
+
+    inline bool permuted() const {
+        return !_permutation.empty();
+    }
+
+    inline NodeID map_original_node(const NodeID u) const {
+        KASSERT(permuted());
+        KASSERT(u < _permutation.size());
+        return _permutation[u];
+    }
+
+    //
+    // Degree buckets
+    //
+
+    [[nodiscard]] inline bool sorted() const {
+        return _sorted;
+    }
+
+    [[nodiscard]] inline std::size_t bucket_size(const std::size_t bucket) const {
+        return _buckets[bucket + 1] - _buckets[bucket];
+    }
+
+    [[nodiscard]] inline NodeID first_node_in_bucket(const std::size_t bucket) const {
+        return _buckets[bucket];
+    }
+
+    [[nodiscard]] inline NodeID first_invalid_node_in_bucket(const std::size_t bucket) const {
+        return first_node_in_bucket(bucket + 1);
+    }
+
+    [[nodiscard]] inline std::size_t number_of_buckets() const {
+        return _number_of_buckets;
+    }
+
+    //
+    // Graph permutation by coloring
+    //
+
+    void set_color_sorted(scalable_vector<NodeID> color_sizes) {
+        KASSERT(color_sizes.front() == 0u);
+        KASSERT(color_sizes.back() == n());
+        _color_sizes = std::move(color_sizes);
+    }
+
+    inline bool color_sorted() const {
+        return !_color_sizes.empty();
+    }
+
+    std::size_t number_of_colors() const {
+        return _color_sizes.size() - 1;
+    }
+
+    NodeID color_size(const std::size_t c) const {
+        KASSERT(c < number_of_colors());
+        return _color_sizes[c + 1] - _color_sizes[c];
+    }
+
+    const auto& get_color_sizes() const {
+        return _color_sizes;
+    }
+
 private:
     void init_degree_buckets();
     void init_total_weights();
@@ -510,9 +565,13 @@ private:
     std::vector<EdgeID> _edge_cut_to_pe{};
     std::vector<EdgeID> _comm_vol_to_pe{};
 
+    scalable_vector<NodeID> _permutation;
+
     bool                _sorted            = false;
     std::vector<NodeID> _buckets           = std::vector<NodeID>(shm::kNumberOfDegreeBuckets + 1);
     std::size_t         _number_of_buckets = 0;
+
+    scalable_vector<NodeID> _color_sizes{};
 
     MPI_Comm _communicator;
 };
@@ -616,6 +675,7 @@ public:
   template<typename Lambda> inline void pfor_nodes_range(Lambda &&l) const { _graph->pfor_nodes_range(std::forward<Lambda>(l)); }
   template<typename Lambda> inline void pfor_edges(Lambda &&l) const { _graph->pfor_edges(std::forward<Lambda>(l)); }
   [[nodiscard]] inline auto nodes() const { return _graph->nodes(); }
+  [[nodiscard]] inline auto nodes(const NodeID from, const NodeID to) const { return _graph->nodes(from, to); }
   [[nodiscard]] inline auto ghost_nodes() const { return _graph->ghost_nodes(); }
   [[nodiscard]] inline auto all_nodes() const { return _graph->all_nodes(); }
   [[nodiscard]] inline auto edges() const { return _graph->edges(); }
@@ -638,7 +698,7 @@ public:
 
     template <typename Lambda>
     inline void pfor_blocks(Lambda&& l) const {
-        tbb::parallel_for(static_cast<BlockID>(0), k(), std::forward<Lambda&&>(l));
+        tbb::parallel_for(static_cast<BlockID>(0), k(), std::forward<Lambda>(l));
     }
 
     [[nodiscard]] inline auto blocks() const {

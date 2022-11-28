@@ -308,13 +308,12 @@ private:
 
 FMRefiner::FMRefiner(const Context& ctx) : _fm_ctx(ctx.refinement.fm) {}
 
-void FMRefiner::initialize(const DistributedGraph&, const PartitionContext& p_ctx) {
-    _p_ctx = &p_ctx;
-}
+void FMRefiner::initialize(const DistributedGraph&) {}
 
-void FMRefiner::refine(DistributedPartitionedGraph& p_graph) {
+void FMRefiner::refine(DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx) {
     SCOPED_TIMER("FM");
     _p_graph = &p_graph;
+    _p_ctx   = &p_ctx;
 
     for (std::size_t global_round = 0; global_round < 5; ++global_round) {
         // Find independent set of border nodes

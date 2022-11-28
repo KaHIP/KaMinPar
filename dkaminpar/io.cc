@@ -6,10 +6,14 @@
  ******************************************************************************/
 #include "dkaminpar/io.h"
 
+#include <algorithm>
+
 #include <tbb/concurrent_hash_map.h>
 #include <tbb/parallel_for.h>
 
+#include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/datastructures/distributed_graph_builder.h"
+#include "dkaminpar/graphutils/graph_synchronization.h"
 #include "dkaminpar/mpi/wrapper.h"
 
 #include "kaminpar/io.h"
@@ -406,4 +410,39 @@ DistributedGraph read_edge_balanced(const std::string& filename, MPI_Comm comm) 
     return read_distributed_graph(in, static_cast<GlobalNodeID>(from), static_cast<GlobalNodeID>(to), comm);
 }
 } // namespace binary
+
+namespace partition {
+DistributedPartitionedGraph read(const std::string& filename, const DistributedGraph& graph, const BlockID k) {
+    scalable_vector<BlockID> partition(graph.total_n());
+    read(filename, graph.n(), partition, graph.communicator());
+    if (graph.permuted()) {
+        scalable_vector<BlockID> rearranged_partition(graph.total_n());
+        for (NodeID u = 0; u < graph.n(); ++u) {
+            rearranged_partition[graph.map_original_node(u)] = partition[u];
+        }
+        std::swap(partition, rearranged_partition);
+    }
+
+    // Synchronize ghost node labels
+    DistributedPartitionedGraph p_graph(&graph, k, std::move(partition));
+    graph::synchronize_ghost_node_block_ids(p_graph);
+    p_graph.reinit_block_weights();
+    return p_graph;
+}
+
+void write(const std::string& filename, const DistributedPartitionedGraph& p_graph) {
+    const DistributedGraph& graph = p_graph.graph();
+
+    std::vector<BlockID> partition(p_graph.n());
+    if (graph.permuted()) {
+        tbb::parallel_for<NodeID>(0, p_graph.n(), [&](const NodeID u) {
+            partition[u] = p_graph.block(graph.map_original_node(u));
+        });
+    } else {
+        std::copy_n(p_graph.partition().begin(), p_graph.n(), partition.begin());
+    }
+
+    write(filename, partition);
+}
+} // namespace partition
 } // namespace kaminpar::dist::io

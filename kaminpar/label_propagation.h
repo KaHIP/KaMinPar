@@ -667,13 +667,15 @@ protected:
      * @return Number of nodes that where moved to new blocks / clusters.
      */
     NodeID perform_iteration(const NodeID from = 0, const NodeID to = std::numeric_limits<NodeID>::max()) {
-        if (from != 0 || to != std::numeric_limits<NodeID>::max()) {
-            _chunks.clear();
-        }
-        if (_chunks.empty()) {
-            init_chunks(from, to);
-        }
-        shuffle_chunks();
+        TIMED_SCOPE("Buckets") {
+            if (from != 0 || to != std::numeric_limits<NodeID>::max()) {
+                _chunks.clear();
+            }
+            if (_chunks.empty()) {
+                init_chunks(from, to);
+            }
+            shuffle_chunks();
+        };
 
         tbb::enumerable_thread_specific<NodeID> num_moved_nodes_ets;
         parallel::Atomic<std::size_t>           next_chunk = 0;
@@ -751,8 +753,6 @@ private:
         const auto   max_bucket     = std::min<std::size_t>(math::floor_log2(_max_degree), _graph->number_of_buckets());
         const EdgeID max_chunk_size = std::max<EdgeID>(Config::kMinChunkSize, std::sqrt(_graph->m()));
         const NodeID max_node_chunk_size = std::max<NodeID>(Config::kMinChunkSize, std::sqrt(_graph->n()));
-        DBG << "init_chunks(" << from << ", " << to << "): " << V(max_bucket) << V(max_chunk_size)
-            << V(max_node_chunk_size);
 
         NodeID position = 0;
         for (std::size_t bucket = 0; bucket < max_bucket; ++bucket) {
@@ -770,10 +770,6 @@ private:
             }
             const std::size_t bucket_size = std::min<NodeID>({remaining_bucket_size, to - position, to - from});
 
-            DBG << "Work on bucket " << bucket << " with params: " << V(remaining_bucket_size) << V(bucket_size);
-            DBG << "~~~~~~~~~~ fill chunks in bucket with " << tbb::this_task_arena::max_concurrency()
-                << " threads ~~~~~~~~~~";
-
             parallel::Atomic<NodeID>                            offset = 0;
             tbb::enumerable_thread_specific<std::size_t>        num_chunks_ets;
             tbb::enumerable_thread_specific<std::vector<Chunk>> chunks_ets;
@@ -790,7 +786,6 @@ private:
                         break;
                     }
                     const NodeID end = std::min<NodeID>(begin + max_node_chunk_size, bucket_size);
-                    DBG << "(fill next chunk: " << begin << " .. " << end << ")";
 
                     EdgeID current_chunk_size = 0;
                     NodeID chunk_start        = bucket_start + begin;
@@ -799,8 +794,6 @@ private:
                         const NodeID u = bucket_start + i;
                         current_chunk_size += _graph->degree(u);
                         if (current_chunk_size >= max_chunk_size) {
-                            DBG << "Commmit chunk " << chunk_start << " .. " << u + 1 << " with size "
-                                << current_chunk_size;
                             chunks.push_back({chunk_start, u + 1});
                             chunk_start        = u + 1;
                             current_chunk_size = 0;
@@ -809,11 +802,8 @@ private:
                     }
 
                     if (current_chunk_size > 0) {
-                        DBG << "Commmit last chunk " << chunk_start << " .. " << bucket_start + end;
                         chunks.push_back({static_cast<NodeID>(chunk_start), static_cast<NodeID>(bucket_start + end)});
                         ++num_chunks;
-                    } else {
-                        DBG << "Do not commit chunk " << chunk_start << " .. " << bucket_start + end;
                     }
                 }
             });
@@ -836,12 +826,6 @@ private:
         }
 
         // Make sure that we cover all nodes in [from, to)
-        DBG << "~~~~~~~~~~ done ~~~~~~~~~~";
-        DBG << "Got " << _chunks.size() << " chunks:";
-        for (const auto& [start, end]: _chunks) {
-            DBG << "  " << start << " .. " << end;
-        }
-
         KASSERT(
             [&] {
                 std::vector<bool> hit(to - from);

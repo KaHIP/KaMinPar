@@ -150,12 +150,12 @@ public:
   // Parallel iteration
   template<typename Lambda>
   inline void pfor_nodes(Lambda &&l) const {
-    tbb::parallel_for(static_cast<NodeID>(0), n(), std::forward<Lambda &&>(l));
+    tbb::parallel_for(static_cast<NodeID>(0), n(), std::forward<Lambda>(l));
   }
 
   template<typename Lambda>
   inline void pfor_edges(Lambda &&l) const {
-    tbb::parallel_for(static_cast<EdgeID>(0), m(), std::forward<Lambda &&>(l));
+    tbb::parallel_for(static_cast<EdgeID>(0), m(), std::forward<Lambda>(l));
   }
 
   // Iterators for nodes / edges
@@ -272,17 +272,17 @@ public:
 
     template <typename Lambda>
     inline void pfor_nodes(Lambda&& l) const {
-        _graph->pfor_nodes(std::forward<Lambda&&>(l));
+        _graph->pfor_nodes(std::forward<Lambda>(l));
     }
 
     template <typename Lambda>
     inline void pfor_edges(Lambda&& l) const {
-        _graph->pfor_edges(std::forward<Lambda&&>(l));
+        _graph->pfor_edges(std::forward<Lambda>(l));
     }
 
     template <typename Lambda>
     inline void pfor_blocks(Lambda&& l) const {
-        tbb::parallel_for(static_cast<BlockID>(0), k(), std::forward<Lambda&&>(l));
+        tbb::parallel_for(static_cast<BlockID>(0), k(), std::forward<Lambda>(l));
     }
 
     //

@@ -51,6 +51,11 @@ kaminpar_add_dist_test(test_dist_graph_allgather
     FILES dkaminpar/graphutils/allgather_graph_test.cc
     CORES 1 2 4 8)
 
+# dKaMinPar -> Algorithms 
+kaminpar_add_dist_test(test_dist_greedy_node_coloring
+    FILES dkaminpar/algorithms/greedy_node_coloring_test.cc
+    CORES 1)
+
 # KaMinPar 
 kaminpar_add_shm_test(test_shm_io kaminpar/io_test.cc)
 kaminpar_add_shm_test(test_shm_metrics kaminpar/metrics_test.cc)

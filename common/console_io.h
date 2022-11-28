@@ -15,7 +15,7 @@
 #include "common/logger.h"
 
 namespace kaminpar::cio {
-void print_delimiter(std::ostream& out = std::cout);
+void print_delimiter(std::ostream& out = std::cout, char ch = '#');
 void print_kaminpar_banner();
 void print_dkaminpar_banner();
 void print_banner(const std::string& title);
@@ -47,7 +47,5 @@ void print_build_identifier(const std::string& commit, const std::string& hostna
     LOG << "  Edges IDs: " << sizeof(EdgeID) << " bytes | Edge weights (Local): " << sizeof(LocalEdgeWeight)
         << " bytes | Edge weights (IP): " << sizeof(EdgeWeight) << " bytes";
     LOG << "Built on:                     " << (hostname.empty() ? "<not available>" : hostname);
-    LOG << "################################################################################";
 }
-
 } // namespace kaminpar::cio

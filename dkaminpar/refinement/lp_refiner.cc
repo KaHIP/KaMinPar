@@ -29,10 +29,11 @@ struct LPRefinerConfig : public LabelPropagationConfig {
     static constexpr bool kTrackClusterCount   = false;
     static constexpr bool kUseTwoHopClustering = false;
     static constexpr bool kUseActualGain       = true;
+    static constexpr bool kUseActiveSetStrategy = false;
 };
 
 class LPRefinerImpl final : public ChunkRandomdLabelPropagation<LPRefinerImpl, LPRefinerConfig> {
-    SET_STATISTICS_FROM_GLOBAL();
+    SET_STATISTICS(false);
     SET_DEBUG(false);
 
     using Base = ChunkRandomdLabelPropagation<LPRefinerImpl, LPRefinerConfig>;
@@ -114,13 +115,10 @@ public:
         allocate(ctx.partition.k, ctx.partition.graph.n());
     }
 
-    void initialize(const DistributedGraph& /* graph */, const PartitionContext& p_ctx) {
-        _p_ctx = &p_ctx;
-        IFSTATS(_statistics.reset());
-    }
-
-    void refine(DistributedPartitionedGraph& p_graph) {
+    void refine(DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx) {
         SCOPED_TIMER("Probabilistic label propagation");
+        _p_graph = &p_graph;
+        _p_ctx   = &p_ctx;
 
         // no of local nodes might increase on some PEs
         START_TIMER("Allocation");
@@ -133,7 +131,6 @@ public:
         allocate(_block_weights.size(), p_graph.n());
         STOP_TIMER();
 
-        _p_graph = &p_graph;
         Base::initialize(&p_graph.graph(), _p_ctx->k); // needs access to _p_graph
 
         IFSTATS(_statistics = Statistics{_p_graph->communicator()});
@@ -491,15 +488,13 @@ private:
  * Public interface
  */
 
-LPRefiner::LPRefiner(const Context& ctx) : _impl{std::make_unique<LPRefinerImpl>(ctx)} {}
+LPRefiner::LPRefiner(const Context& ctx) : _impl(std::make_unique<LPRefinerImpl>(ctx)) {}
 
 LPRefiner::~LPRefiner() = default;
 
-void LPRefiner::initialize(const DistributedGraph& graph, const PartitionContext& p_ctx) {
-    _impl->initialize(graph, p_ctx);
-}
+void LPRefiner::initialize(const DistributedGraph&) {}
 
-void LPRefiner::refine(DistributedPartitionedGraph& p_graph) {
-    _impl->refine(p_graph);
+void LPRefiner::refine(DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx) {
+    _impl->refine(p_graph, p_ctx);
 }
 } // namespace kaminpar::dist

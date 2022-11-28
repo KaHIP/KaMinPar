@@ -24,7 +24,8 @@ void create_all_options(CLI::App* app, Context& ctx) {
     create_refinement_options(app, ctx);
     create_fm_refinement_options(app, ctx);
     create_lp_refinement_options(app, ctx);
-    create_balancer_options(app, ctx);
+    create_colored_lp_refinement_options(app, ctx);
+    create_greedy_balancer_options(app, ctx);
 }
 
 CLI::Option_group* create_partitioning_options(CLI::App* app, Context& ctx) {
@@ -49,6 +50,14 @@ CLI::Option_group* create_partitioning_options(CLI::App* app, Context& ctx) {
         ->capture_default_str();
     partitioning->add_flag("--enable-pe-splitting", ctx.partition.enable_pe_splitting, "Enable PE splitting and graph replication in deep MGP")
         ->capture_default_str();
+    partitioning->add_flag("--simulate-singlethreaded", ctx.partition.simulate_singlethread, "Simulate single-threaded execution during a hybrid run")->capture_default_str();
+    partitioning->add_option("--rearrange-by", ctx.rearrange_by)
+        ->transform(CLI::CheckedTransformer(get_graph_orderings()).description(""))
+        ->description(R"(Criteria by which the graph is sorted and rearrange:
+  - natural:     keep order of the graph (do not rearrange)
+  - deg-buckets: sort nodes by degree bucket and rearrange accordingly
+  - coloring:    color the graph and rearrange accordingly)")
+        ->capture_default_str();
 
     return partitioning;
 }
@@ -56,16 +65,22 @@ CLI::Option_group* create_partitioning_options(CLI::App* app, Context& ctx) {
 CLI::Option_group *create_debug_options(CLI::App *app, Context &ctx) {
     auto *debug = app->add_option_group("Debug");
 
-    debug->add_flag("--d-save-imbalanced-partitions", ctx.debug.save_imbalanced_partitions)
-        ->configurable(false)
-        ->capture_default_str();
-    debug->add_flag("--d-save-graph-hierarchy", ctx.debug.save_graph_hierarchy)
+    debug->add_flag("--d-save-finest-graph", ctx.debug.save_finest_graph)
         ->configurable(false)
         ->capture_default_str();
     debug->add_flag("--d-save-coarsest-graph", ctx.debug.save_coarsest_graph)
         ->configurable(false)
         ->capture_default_str();
+    debug->add_flag("--d-save-graph-hierarchy", ctx.debug.save_graph_hierarchy)
+        ->configurable(false)
+        ->capture_default_str();
     debug->add_flag("--d-save-clustering-hierarchy", ctx.debug.save_clustering_hierarchy)
+        ->configurable(false)
+        ->capture_default_str();
+    debug->add_flag("--d-save-partition-hierarchy", ctx.debug.save_partition_hierarchy)
+        ->configurable(false)
+        ->capture_default_str();
+    debug->add_flag("--d-save-unrefined-finest-partition", ctx.debug.save_unrefined_finest_partition)
         ->configurable(false)
         ->capture_default_str();
 
@@ -92,15 +107,15 @@ CLI::Option_group *create_initial_partitioning_options(CLI::App *app, Context &c
 CLI::Option_group *create_refinement_options(CLI::App *app, Context &ctx) {
     auto *refinement = app->add_option_group("Refinement");
 
-    refinement->add_option("--r-algorithm", ctx.refinement.algorithm)
+    refinement->add_option("--r-algorithm,--r-algorithms", ctx.refinement.algorithms)
         ->transform(CLI::CheckedTransformer(get_kway_refinement_algorithms()).description(""))
-        ->description(R"(K-way refinement algorithm. Possible options are:
-  - noop:        disable k-way refinement
-  - lp:          distributed label propagation
-  - local-fm:    PE-local FM
-  - fm:          distributed FM
-  - lp+local-fm: distributed label propagation -> PE-local fm
-  - lp+fm:       distributed label propagation -> distributed fm)")
+        ->description(R"(K-way refinement algorithm(s). Possible options are (separated by space):
+  - noop:            disable k-way refinement
+  - colored-lp:      distributed label propagation based on node coloring
+  - lp:              distributed label propagation
+  - local-fm:        PE-local FM
+  - fm:              distributed FM
+  - greedy_balancer: greedy algorithm to force balance)")
         ->capture_default_str();
     refinement->add_flag("--r-refine-coarsest-graph", ctx.refinement.refine_coarsest_level, "Also run the refinement algorithms on the coarsest graph.")
         ->capture_default_str();
@@ -134,13 +149,15 @@ CLI::Option_group *create_fm_refinement_options(CLI::App *app, Context &ctx) {
 }
 
 CLI::Option_group *create_lp_refinement_options(CLI::App *app, Context &ctx) {
-    auto *lp = app->add_option_group("Refinement -> LP");
+    auto *lp = app->add_option_group("Refinement -> Chunked Label Propagation");
 
-    lp->add_option("--r-lp-iterations", ctx.refinement.lp.num_iterations, "Number of label propagation iterations.")
+    lp->add_option("--r-lp-num-iterations", ctx.refinement.lp.num_iterations, "Number of label propagation iterations.")
         ->capture_default_str();
     lp->add_option("--r-lp-total-chunks", ctx.refinement.lp.total_num_chunks, "Number of synchronization rounds times number of PEs.")
         ->capture_default_str();
     lp->add_option("--r-lp-min-chunks", ctx.refinement.lp.min_num_chunks, "Minimum number of synchronization rounds.")
+        ->capture_default_str();
+    lp->add_option("--r-lp-num-chunks", ctx.refinement.lp.num_chunks, "Set the number of chunks to a fixed number rather than deducing it from other parameters (0 = deduce).")
         ->capture_default_str();
     lp->add_option("--r-lp-active-large-degree-threshold", ctx.refinement.lp.active_high_degree_threshold, "Do not move nodes with degree larger than this.")
         ->capture_default_str();
@@ -152,15 +169,48 @@ CLI::Option_group *create_lp_refinement_options(CLI::App *app, Context &ctx) {
     return lp;
 }
 
-CLI::Option_group *create_balancer_options(CLI::App *app, Context &ctx) {
+CLI::Option_group *create_colored_lp_refinement_options(CLI::App *app, Context &ctx) {
+    auto *lp = app->add_option_group("Refinement -> Colored Label Propagation");
+
+    lp->add_option("--r-clp-num-iterations", ctx.refinement.colored_lp.num_iterations, "Number of label propagation iterations.")
+        ->capture_default_str();
+    lp->add_option("--r-clp-commit-strategy", ctx.refinement.colored_lp.move_execution_strategy)
+        ->transform(CLI::CheckedTransformer(get_label_propagation_move_execution_strategies()).description(""))
+        ->description(R"(Strategy to decide which moves to execute:
+  - probabilistic: Assign each node a probability based on its gain and execute random moves accordingly 
+  - best:          Identify the best global moves and execute them
+  - local:         Execute all local moves, risking an imbalanced partition)")
+        ->capture_default_str();
+    lp->add_option("--r-clp-num-commit-rounds", ctx.refinement.colored_lp.num_move_execution_iterations, "Number of move commitment rounds.")
+        ->capture_default_str();
+    lp->add_option("--r-clp-num-attempts", ctx.refinement.colored_lp.num_probabilistic_move_attempts, "[commit-strategy=probabilistic] Number of attempts to use the probabilistic commitment strategy before giving up.")
+        ->capture_default_str();
+    lp->add_flag("--r-clp-sort-by-rel-gain", ctx.refinement.colored_lp.sort_by_rel_gain, "[commit-strategy=best] Sort move candidates by their relative gain rather than their absolute gain.")
+        ->capture_default_str();
+    lp->add_flag("--r-clp-track-block-weights", ctx.refinement.colored_lp.track_local_block_weights)
+        ->capture_default_str();
+
+    // Control number of coloring supersteps
+    lp->add_option("--r-clp-max-num-chunks", ctx.refinement.colored_lp.max_num_coloring_chunks)
+        ->capture_default_str();
+    lp->add_option("--r-clp-min-num-chunks", ctx.refinement.colored_lp.min_num_coloring_chunks)
+        ->capture_default_str();
+    lp->add_option("--r-clp-num-chunks", ctx.refinement.colored_lp.num_coloring_chunks, "Number of supersteps of the coloring algorithm. If set to 0, the value is derived from the min and max bounds.")
+        ->capture_default_str();
+    lp->add_flag("--r-clp-scale-chunks-with-threads", ctx.refinement.colored_lp.scale_coloring_chunks_with_threads)
+        ->capture_default_str();
+    lp->add_option("--r-clp-small-color-blacklist", ctx.refinement.colored_lp.small_color_blacklist, "Sort colors by their size, then exclude the smallest colors such that roughly <param>% of all nodes are excluded")
+        ->capture_default_str();
+    lp->add_flag("--r-clp-only-blacklist-on-input-level", ctx.refinement.colored_lp.only_blacklist_input_level, "Only blacklist nodes when refining the input graph.")
+        ->capture_default_str();
+
+    return lp;
+}
+
+CLI::Option_group *create_greedy_balancer_options(CLI::App *app, Context &ctx) {
     auto *balancer = app->add_option_group("Refinement -> Balancer");
 
-    balancer->add_option("--r-b-algorithm", ctx.refinement.balancing.algorithm)
-        ->transform(CLI::CheckedTransformer(get_balancing_algorithms()).description(""))
-        ->description(R"(Balancing algorithm, options are:
-  - distributed: distributed balancing algorithm)")
-        ->capture_default_str();
-    balancer->add_option("--r-b-nodes-per-block", ctx.refinement.balancing.num_nodes_per_block, "Number of nodes selected for each overloaded block on each PE.")
+    balancer->add_option("--r-b-nodes-per-block", ctx.refinement.greedy_balancer.num_nodes_per_block, "Number of nodes selected for each overloaded block on each PE.")
         ->capture_default_str();
 
     return balancer;
@@ -188,7 +238,7 @@ CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx) {
         ->description(R"(Global clustering algorithm, options are:
   - noop:           disable global clustering
   - lp:             parallel label propagation without active set strategy
-  - active--set-lp: parallel label propagation with active set strategy
+  - active-set-lp:  parallel label propagation with active set strategy
   - locking-lp:     parallel label propagation with cluster-join requests)")
         ->capture_default_str();
     coarsening->add_option("--c-global-contraction-algorithm", ctx.coarsening.global_contraction_algorithm)
@@ -210,6 +260,8 @@ CLI::Option_group *create_global_lp_coarsening_options(CLI::App *app, Context &c
     lp->add_option("--c-glp-total-chunks", ctx.coarsening.global_lp.total_num_chunks, "Number of synchronization rounds times number of PEs.")
         ->capture_default_str();
     lp->add_option("--c-glp-min-chunks", ctx.coarsening.global_lp.min_num_chunks, "Minimum number of synchronization rounds.")
+        ->capture_default_str();
+    lp->add_option("--c-glp-num-chunks", ctx.coarsening.global_lp.num_chunks, "Set the number of chunks to a fixed number rather than deducing it from other parameters (0 = deduce).")
         ->capture_default_str();
     lp->add_option("--c-glp-active-large-degree-threshold", ctx.coarsening.global_lp.active_high_degree_threshold, "Do not move nodes with degree larger than this.")
         ->capture_default_str();
