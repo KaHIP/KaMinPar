@@ -80,6 +80,9 @@ void ColoredLPRefiner::initialize(const DistributedGraph& graph) {
         tbb::parallel_for<std::size_t>(0, _color_blacklist.size(), [&](const std::size_t i) {
             _color_blacklist[i] = 0;
         });
+
+        _is_active.resize(graph.total_n());
+        graph.pfor_all_nodes([&](const NodeID u) { _is_active[u] = 1; });
     };
 
     TIMED_SCOPE("Count color sizes") {
@@ -300,6 +303,7 @@ NodeID ColoredLPRefiner::perform_best_moves(const ColorID c) {
             const NodeID local_node = _p_graph->global_to_local_node(candidate.node);
             _p_graph->set_block<false>(local_node, candidate.to);
             if (local_node < _p_graph->n()) {
+                activate_neighbors(local_node);
                 ++num_local_moved_nodes;
                 _next_partition[candidate.local_seq] = kInvalidBlockID;
                 IFSTATS(_gain_statistics.record_gain(candidate.gain, c));
@@ -456,6 +460,7 @@ NodeID ColoredLPRefiner::perform_local_moves(const ColorID c) {
         KASSERT(to != kInvalidBlockID);
 
         if (to != _p_graph->block(u)) {
+            activate_neighbors(u);
             _next_partition[seq_u] = kInvalidNodeID; // Mark as moved
             _p_graph->set_block<false>(u, to);
             ++num_moved_nodes_ets.local();
@@ -636,6 +641,7 @@ NodeID ColoredLPRefiner::try_probabilistic_moves(const ColorID c, const BlockGai
         tbb::parallel_for(moves.range(), [&](const auto r) {
             for (const auto& [seq_u, u, from]: r) {
                 _next_partition[seq_u] = _p_graph->block(u);
+                activate_neighbors(u);
             }
         });
 
@@ -709,7 +715,8 @@ NodeID ColoredLPRefiner::find_moves(const ColorID c) {
         return RatingMap<EdgeWeight, BlockID>(_p_ctx->k);
     });
 
-    _p_graph->pfor_nodes_range(seq_from, seq_to, [&](const auto& r) {
+    auto& graph = _p_graph->graph();
+    graph.pfor_nodes_range(seq_from, seq_to, [&](const auto& r) {
         auto& num_moved_nodes = num_moved_nodes_ets.local();
         auto& rating_map      = rating_maps_ets.local();
         auto& random          = Random::instance();
@@ -717,15 +724,21 @@ NodeID ColoredLPRefiner::find_moves(const ColorID c) {
         for (NodeID seq_u = r.begin(); seq_u != r.end(); ++seq_u) {
             const NodeID u = _color_sorted_nodes[seq_u];
 
+            if (!_is_active[u]) {
+                continue;
+            }
+
             auto action = [&](auto& map) {
-                for (const auto [e, v]: _p_graph->neighbors(u)) {
+                bool is_interface_node = false;
+                for (const auto [e, v]: graph.neighbors(u)) {
                     const BlockID    b      = _p_graph->block(v);
-                    const EdgeWeight weight = _p_graph->edge_weight(e);
+                    const EdgeWeight weight = graph.edge_weight(e);
                     map[b] += weight;
+                    is_interface_node |= graph.is_ghost_node(v);
                 }
 
                 const BlockID    u_block     = _p_graph->block(u);
-                const NodeWeight u_weight    = _p_graph->node_weight(u);
+                const NodeWeight u_weight    = graph.node_weight(u);
                 EdgeWeight       best_weight = std::numeric_limits<EdgeWeight>::min();
                 BlockID          best_block  = u_block;
                 for (const auto [block, weight]: map.entries()) {
@@ -760,6 +773,10 @@ NodeID ColoredLPRefiner::find_moves(const ColorID c) {
                     }
                 }
 
+                if (!is_interface_node) {
+                    _is_active[u] = 0;
+                }
+
                 map.clear();
             };
 
@@ -770,6 +787,12 @@ NodeID ColoredLPRefiner::find_moves(const ColorID c) {
 
     mpi::barrier(_p_graph->communicator());
     return num_moved_nodes_ets.combine(std::plus{});
+}
+
+void ColoredLPRefiner::activate_neighbors(const NodeID u) {
+    for (const auto& [e, v]: _p_graph->neighbors(u)) {
+        _is_active[v] = 1;
+    }
 }
 
 void ColoredLPRefiner::GainStatistics::initialize(const ColorID c) {

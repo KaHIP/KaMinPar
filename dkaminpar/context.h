@@ -117,7 +117,6 @@ struct LabelPropagationRefinementContext {
     std::size_t num_move_attempts            = 0;
     bool        ignore_probabilities         = false;
     bool        scale_chunks_with_threads    = false;
-    bool        use_active_set               = false;
 
     void setup(const ParallelContext& parallel);
 };

@@ -22,7 +22,6 @@
 #include "common/random.h"
 
 namespace kaminpar::dist {
-template <bool use_active_set>
 struct LPRefinerConfig : public LabelPropagationConfig {
     using RatingMap                            = ::kaminpar::RatingMap<EdgeWeight, BlockID, FastResetArray<EdgeWeight>>;
     using Graph                                = DistributedGraph;
@@ -31,15 +30,14 @@ struct LPRefinerConfig : public LabelPropagationConfig {
     static constexpr bool kTrackClusterCount   = false;
     static constexpr bool kUseTwoHopClustering = false;
     static constexpr bool kUseActualGain       = true;
-    static constexpr bool kUseActiveSetStrategy = use_active_set;
+    static constexpr bool kUseActiveSetStrategy = false;
 };
 
-template <typename Config>
-class LPRefinerImpl final : public ChunkRandomdLabelPropagation<LPRefinerImpl<Config>, Config>, Refiner {
+class LPRefinerImpl final : public ChunkRandomdLabelPropagation<LPRefinerImpl, LPRefinerConfig> {
     SET_STATISTICS(false);
     SET_DEBUG(false);
 
-    using Base = ChunkRandomdLabelPropagation<LPRefinerImpl<Config>, Config>;
+    using Base = ChunkRandomdLabelPropagation<LPRefinerImpl, LPRefinerConfig>;
 
     struct Statistics {
         Statistics(MPI_Comm comm = MPI_COMM_WORLD) : comm(comm) {}
@@ -118,9 +116,7 @@ public:
         allocate(ctx.partition.k, ctx.partition.graph.n());
     }
 
-    void initialize(const DistributedGraph&) final {}
-
-    void refine(DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx) final {
+    void refine(DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx) {
         SCOPED_TIMER("Probabilistic label propagation");
         _p_graph = &p_graph;
         _p_ctx   = &p_ctx;
@@ -445,7 +441,7 @@ public:
         return false;
     }
 
-    [[nodiscard]] bool accept_cluster(const ClusterSelectionState& state) {
+    [[nodiscard]] bool accept_cluster(const typename Base::ClusterSelectionState& state) {
         const bool accept =
             (state.current_gain > state.best_gain
              || (state.current_gain == state.best_gain && state.local_rand.random_bool()))
@@ -493,17 +489,11 @@ private:
  * Public interface
  */
 
-LPRefiner::LPRefiner(const Context& ctx)
-    : _impl(
-        ctx.refinement.lp.use_active_set ? std::make_unique<LPRefinerImpl<LPRefinerConfig<true>>>(ctx)
-                                         : std::make_unique<LPRefinerImpl<LPRefinerConfig<false>>>(ctx)
-    ) {}
+LPRefiner::LPRefiner(const Context& ctx) : _impl(std::make_unique<LPRefinerImpl>(ctx)) {}
 
 LPRefiner::~LPRefiner() = default;
 
-void LPRefiner::initialize(const DistributedGraph& graph) {
-    _impl->initialize(graph);
-}
+void LPRefiner::initialize(const DistributedGraph&) {}
 
 void LPRefiner::refine(DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx) {
     _impl->refine(p_graph, p_ctx);

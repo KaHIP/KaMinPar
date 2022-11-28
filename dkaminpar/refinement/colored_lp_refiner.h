@@ -61,6 +61,7 @@ private:
         -> std::vector<MoveCandidate>;
 
     void handle_node(NodeID u);
+    void activate_neighbors(NodeID u);
 
     const Context&                                  _input_ctx;
     const ColoredLabelPropagationRefinementContext& _ctx;
@@ -75,6 +76,8 @@ private:
     NoinitVector<BlockWeight> _block_weight_deltas;
     NoinitVector<EdgeWeight>  _gains;
     NoinitVector<BlockID>     _next_partition;
+
+    NoinitVector<std::uint8_t> _is_active;
 
     GainStatistics _gain_statistics;
 };
