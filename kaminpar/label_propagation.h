@@ -274,7 +274,7 @@ protected:
                 if (!is_interface_node) {
                     _active[u] = 0;
                 }
-            }
+            } 
             if constexpr (Config::kUseActiveSetStrategy) {
                 _active[u] = 0;
             }

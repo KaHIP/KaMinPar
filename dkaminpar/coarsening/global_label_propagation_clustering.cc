@@ -235,6 +235,8 @@ public:
         }
 
         for (std::size_t iteration = 0; iteration < _max_num_iterations; ++iteration) {
+            LOG << "Iteration " << iteration;
+
             GlobalNodeID global_num_moved_nodes = 0;
             for (std::size_t chunk = 0; chunk < _c_ctx.global_lp.num_chunks; ++chunk) {
                 const auto [from, to] =
