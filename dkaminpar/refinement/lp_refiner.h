@@ -26,6 +26,6 @@ public:
     void refine(DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx) final;
 
 private:
-    std::unique_ptr<class LPRefinerImpl> _impl;
+    std::unique_ptr<Refiner> _impl;
 };
 } // namespace kaminpar::dist
