@@ -23,14 +23,17 @@
 
 namespace kaminpar::dist {
 struct LPRefinerConfig : public LabelPropagationConfig {
-    using RatingMap                            = ::kaminpar::RatingMap<EdgeWeight, BlockID, FastResetArray<EdgeWeight>>;
-    using Graph                                = DistributedGraph;
-    using ClusterID                            = BlockID;
-    using ClusterWeight                        = BlockWeight;
+    using RatingMap     = ::kaminpar::RatingMap<EdgeWeight, BlockID, FastResetArray<EdgeWeight>>;
+    using Graph         = DistributedGraph;
+    using ClusterID     = BlockID;
+    using ClusterWeight = BlockWeight;
+
     static constexpr bool kTrackClusterCount   = false;
     static constexpr bool kUseTwoHopClustering = false;
     static constexpr bool kUseActualGain       = true;
-    static constexpr bool kUseActiveSetStrategy = false;
+
+    static constexpr bool kUseActiveSetStrategy      = false;
+    static constexpr bool kUseLocalActiveSetStrategy = true;
 };
 
 class LPRefinerImpl final : public ChunkRandomdLabelPropagation<LPRefinerImpl, LPRefinerConfig> {
