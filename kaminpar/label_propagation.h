@@ -127,12 +127,6 @@ protected:
      * @param num_active_nodes Number of nodes for which a cluster label is computed.
      */
     void allocate(const NodeID num_nodes, const NodeID num_active_nodes, const NodeID num_clusters) {
-        if (_num_clusters < num_clusters) {
-            for (auto& rating_map: _rating_map_ets) {
-                rating_map.change_max_size(num_clusters);
-            }
-            _num_clusters = num_clusters;
-        }
         if (_num_nodes < num_nodes) {
             if constexpr (Config::kUseLocalActiveSetStrategy) {
                 _active.resize(num_nodes);
@@ -148,6 +142,12 @@ protected:
                 _favored_clusters.resize(num_active_nodes);
             }
             _num_active_nodes = num_active_nodes;
+        }
+        if (_num_clusters < num_clusters) {
+            for (auto& rating_map: _rating_map_ets) {
+                rating_map.change_max_size(num_clusters);
+            }
+            _num_clusters = num_clusters;
         }
     }
 
@@ -270,20 +270,21 @@ protected:
                 }
             };
 
-            if constexpr (Config::kUseLocalActiveSetStrategy) {
-                if (!is_interface_node) {
-                    _active[u] = 0;
-                }
-            } 
-            if constexpr (Config::kUseActiveSetStrategy) {
-                _active[u] = 0;
-            }
-
             const EdgeID from = _graph->first_edge(u);
             const EdgeID to   = from + std::min(_graph->degree(u), _max_num_neighbors);
             for (EdgeID e = from; e < to; ++e) {
                 add_to_rating_map(e, _graph->edge_target(e));
             }
+
+            if constexpr (Config::kUseLocalActiveSetStrategy) {
+                if (!is_interface_node) {
+                    _active[u] = 0;
+                }
+            }
+            if constexpr (Config::kUseActiveSetStrategy) {
+                _active[u] = 0;
+            }
+
 
             // after LP, we might want to use 2-hop clustering to merge nodes that could not find any cluster to join
             // for this, we store a favored cluster for each node u if:

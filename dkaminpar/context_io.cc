@@ -442,6 +442,7 @@ void print(const RefinementContext& ctx, std::ostream& out) {
         }
         out << "  Commitment rounds:          " << ctx.colored_lp.num_move_execution_iterations << "\n";
         out << "  Track block weights:        " << (ctx.colored_lp.track_local_block_weights ? "yes" : "no") << "\n";
+        out << "  Use active set:             " << (ctx.colored_lp.use_active_set ? "yes" : "no") << "\n";
         out << "  Small color blacklist:      " << 100 * ctx.colored_lp.small_color_blacklist << "%"
             << (ctx.colored_lp.only_blacklist_input_level ? " (input level only)" : "") << "\n";
     }

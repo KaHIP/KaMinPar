@@ -33,14 +33,15 @@ struct LPRefinerConfig : public LabelPropagationConfig {
     static constexpr bool kUseActualGain       = true;
 
     static constexpr bool kUseActiveSetStrategy      = false;
-    static constexpr bool kUseLocalActiveSetStrategy = true;
+    static constexpr bool kUseLocalActiveSetStrategy = false;
 };
 
 class LPRefinerImpl final : public ChunkRandomdLabelPropagation<LPRefinerImpl, LPRefinerConfig> {
     SET_STATISTICS(false);
     SET_DEBUG(false);
 
-    using Base = ChunkRandomdLabelPropagation<LPRefinerImpl, LPRefinerConfig>;
+    using Base   = ChunkRandomdLabelPropagation<LPRefinerImpl, LPRefinerConfig>;
+    using Config = LPRefinerConfig;
 
     struct Statistics {
         Statistics(MPI_Comm comm = MPI_COMM_WORLD) : comm(comm) {}

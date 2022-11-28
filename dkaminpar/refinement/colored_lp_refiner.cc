@@ -81,8 +81,10 @@ void ColoredLPRefiner::initialize(const DistributedGraph& graph) {
             _color_blacklist[i] = 0;
         });
 
-        _is_active.resize(graph.total_n());
-        graph.pfor_all_nodes([&](const NodeID u) { _is_active[u] = 1; });
+        if (_ctx.use_active_set) {
+            _is_active.resize(graph.total_n());
+            graph.pfor_all_nodes([&](const NodeID u) { _is_active[u] = 1; });
+        }
     };
 
     TIMED_SCOPE("Count color sizes") {
@@ -724,7 +726,7 @@ NodeID ColoredLPRefiner::find_moves(const ColorID c) {
         for (NodeID seq_u = r.begin(); seq_u != r.end(); ++seq_u) {
             const NodeID u = _color_sorted_nodes[seq_u];
 
-            if (!_is_active[u]) {
+            if (_ctx.use_active_set && !_is_active[u]) {
                 continue;
             }
 
@@ -773,7 +775,7 @@ NodeID ColoredLPRefiner::find_moves(const ColorID c) {
                     }
                 }
 
-                if (!is_interface_node) {
+                if (_ctx.use_active_set && !is_interface_node) {
                     _is_active[u] = 0;
                 }
 
@@ -790,6 +792,10 @@ NodeID ColoredLPRefiner::find_moves(const ColorID c) {
 }
 
 void ColoredLPRefiner::activate_neighbors(const NodeID u) {
+    if (!_ctx.use_active_set) {
+        return;
+    }
+
     for (const auto& [e, v]: _p_graph->neighbors(u)) {
         _is_active[v] = 1;
     }

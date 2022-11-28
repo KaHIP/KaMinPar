@@ -204,6 +204,8 @@ CLI::Option_group *create_colored_lp_refinement_options(CLI::App *app, Context &
     lp->add_flag("--r-clp-only-blacklist-on-input-level", ctx.refinement.colored_lp.only_blacklist_input_level, "Only blacklist nodes when refining the input graph.")
         ->capture_default_str();
 
+    lp->add_flag("--r-clp-active-set", ctx.refinement.colored_lp.use_active_set, "Enable active set strategy.");
+
     return lp;
 }
 

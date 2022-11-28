@@ -101,6 +101,7 @@ struct ColoredLabelPropagationRefinementContext {
     bool   only_blacklist_input_level         = false;
 
     bool track_local_block_weights = false;
+    bool use_active_set            = false;
 
     LabelPropagationMoveExecutionStrategy move_execution_strategy =
         LabelPropagationMoveExecutionStrategy::PROBABILISTIC;

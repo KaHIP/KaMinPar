@@ -137,6 +137,7 @@ Context create_default_context() {
                         .small_color_blacklist              = 0,
                         .only_blacklist_input_level         = false,
                         .track_local_block_weights          = true,
+                        .use_active_set                     = false,
                         .move_execution_strategy            = LabelPropagationMoveExecutionStrategy::BEST_MOVES,
                     },
                 .fm =
