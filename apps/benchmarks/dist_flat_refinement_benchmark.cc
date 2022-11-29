@@ -39,11 +39,12 @@ int main(int argc, char* argv[]) {
     app.add_option("-G,--graph", graph_filename, "Input graph")->check(CLI::ExistingFile)->required();
     app.add_option("-P,--partition", partition_filename, "Partition filename")->check(CLI::ExistingFile)->required();
     app.add_option("-k,--k", ctx.partition.k, "Number of blocks")->required();
+    app.add_option("-t,--threads", ctx.parallel.num_threads, "Number of threads per MPI process");
     create_all_options(&app, ctx);
     CLI11_PARSE(app, argc, argv);
 
-    auto gc = init_parallelism(1);
-    omp_set_num_threads(1);
+    auto gc = init_parallelism(ctx.parallel.num_threads);
+    omp_set_num_threads(ctx.parallel.num_threads);
     init_numa();
 
     /*****

@@ -33,7 +33,7 @@ struct LPRefinerConfig : public LabelPropagationConfig {
     static constexpr bool kUseActualGain       = true;
 
     static constexpr bool kUseActiveSetStrategy      = false;
-    static constexpr bool kUseLocalActiveSetStrategy = false;
+    static constexpr bool kUseLocalActiveSetStrategy = true;
 };
 
 class LPRefinerImpl final : public ChunkRandomdLabelPropagation<LPRefinerImpl, LPRefinerConfig> {

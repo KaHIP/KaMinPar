@@ -212,7 +212,6 @@ std::vector<GlobalNodeID> naive_label_propagation(
 
 int main(int argc, char* argv[]) {
     init_mpi(argc, argv);
-    const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
     const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
 
     std::string graph_filename = "";
@@ -227,9 +226,9 @@ int main(int argc, char* argv[]) {
     app.add_option("-n,--num-iterations", num_iterations, "Number of LP iterations");
     CLI11_PARSE(app, argc, argv);
 
-    if (out_filename.empty()) {
+    /*if (out_filename.empty()) {
         out_filename = graph_filename + ".clustering." + std::to_string(size) + "x" + std::to_string(num_threads);
-    }
+    }*/
 
     auto gc = init_parallelism(num_threads);
     omp_set_num_threads(num_threads);
@@ -257,19 +256,21 @@ int main(int argc, char* argv[]) {
     STOP_TIMER();
 
     // Write the clustering to a text file
-    LOG << "Writing clustering to " << out_filename << " ...";
-    if (rank == 0) {
-        std::ofstream tmp(out_filename);
+    if (!out_filename.empty()) {
+        LOG << "Writing clustering to " << out_filename << " ...";
+        if (rank == 0) {
+            std::ofstream tmp(out_filename);
+        }
+        mpi::sequentially(
+            [&](PEID) {
+                std::ofstream out(out_filename, std::ios_base::out | std::ios_base::app);
+                for (const NodeID u: graph.nodes()) {
+                    out << clustering[u] << "\n";
+                }
+            },
+            MPI_COMM_WORLD
+        );
     }
-    mpi::sequentially(
-        [&](PEID) {
-            std::ofstream out(out_filename, std::ios_base::out | std::ios_base::app);
-            for (const NodeID u: graph.nodes()) {
-                out << clustering[u] << "\n";
-            }
-        },
-        MPI_COMM_WORLD
-    );
 
     /*****
      * Clean up and print timer tree
