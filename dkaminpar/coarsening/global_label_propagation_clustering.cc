@@ -177,7 +177,7 @@ struct DistributedGlobalLabelPropagationClusteringConfig : public LabelPropagati
     static constexpr bool kUseTwoHopClustering = false;
 
     static constexpr bool kUseActiveSetStrategy      = false;
-    static constexpr bool kUseLocalActiveSetStrategy = false;
+    static constexpr bool kUseLocalActiveSetStrategy = true;
 };
 } // namespace
 
