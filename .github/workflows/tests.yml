@@ -14,7 +14,7 @@ jobs:
         build-mode: [Debug, Release]
     steps:
       - name: Install dependencies 
-        run: sudo apt-get install -y libtbb-dev libhwloc-dev mpi libopenmpi-dev libsparsehash-dev 
+        run: sudo apt-get install -y libtbb-dev libhwloc-dev mpi libopenmpi-dev libomp-dev libsparsehash-dev 
       - name: Checkout HEAD
         uses: actions/checkout@v2
         with:
