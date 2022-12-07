@@ -166,7 +166,8 @@ void sparse_alltoall_alltoallv(SendBuffers&& send_buffers, Receiver&& receiver, 
         }
 
         if (!std::is_lvalue_reference_v<SendBuffers>) {
-            std::move(send_buffers[pe]); // clear
+            // Free vector
+            [[maybe_unused]] auto clear = std::move(send_buffers[pe]); 
         }
     }
 
