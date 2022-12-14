@@ -41,7 +41,8 @@ double imbalance(const PartitionedGraph &p_graph) {
 
   double max_imbalance = 0.0;
   for (const BlockID b : p_graph.blocks()) {
-    max_imbalance = std::max(max_imbalance, p_graph.block_weight(b) / perfect_block_weight - 1.0);
+    max_imbalance = std::max(max_imbalance,
+                             std::abs(p_graph.block_weight(b) / perfect_block_weight - 1.0));
   }
 
   return max_imbalance;
