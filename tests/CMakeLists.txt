@@ -1,8 +1,5 @@
-FetchContent_Declare(
-    googletest
-    GIT_REPOSITORY https://github.com/google/googletest.git
-    GIT_TAG release-1.12.1)
 FetchContent_MakeAvailable(googletest)
+set_property(DIRECTORY "${googletest_SOURCE_DIR}" PROPERTY EXCLUDE_FROM_ALL YES)
 
 enable_testing()
 
@@ -40,8 +37,7 @@ function(kaminpar_add_dist_test KAMINPAR_TARGET_NAME)
     )
     katestrophe_add_test_executable(${KAMINPAR_TARGET_NAME} FILES ${KAMINPAR_FILES})
     target_link_libraries(${KAMINPAR_TARGET_NAME} PRIVATE 
-        GTest::gtest_main
-        GTest::gmock_main
+        mpi-gtest-main
         common_base 
         shm_partitioner_base 
         dist_partitioner_base)

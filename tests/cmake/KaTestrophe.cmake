@@ -1,12 +1,6 @@
 if (NOT DEFINED KATESTROPHE_INCLUDED)
     set(KATESTROPHE_INCLUDED TRUE)
 
-    # gtest-mpi-listener does not use modern CMake, therefore we need this fix
-    set(gtest-mpi-listener_SOURCE_DIR ${CMAKE_SOURCE_DIR}/external/gtest-mpi-listener)
-    add_library(gtest-mpi-listener INTERFACE)
-    target_include_directories(gtest-mpi-listener INTERFACE "${gtest-mpi-listener_SOURCE_DIR}")
-    target_link_libraries(gtest-mpi-listener INTERFACE MPI::MPI_CXX gtest gmock)
-
     # sets the provided output variable KAMPING_OVERSUBSCRIBE_FLAG to the flags required to run mpiexec with
     # more MPI ranks than cores available
     function(katestrophe_has_oversubscribe KATESTROPHE_OVERSUBSCRIBE_FLAG)
@@ -25,7 +19,7 @@ if (NOT DEFINED KATESTROPHE_INCLUDED)
 
     # register the test main class
     add_library(mpi-gtest-main EXCLUDE_FROM_ALL mpi_gtest_main.cc)
-    target_link_libraries(mpi-gtest-main PUBLIC gtest-mpi-listener)
+    target_link_libraries(mpi-gtest-main PUBLIC MPI::MPI_CXX GTest::gtest GTest::gmock)
 
     # keep the cache clean
     mark_as_advanced(
@@ -49,8 +43,7 @@ if (NOT DEFINED KATESTROPHE_INCLUDED)
                 ${ARGN}
         )
         add_executable(${KATESTROPHE_TARGET} "${KATESTROPHE_FILES}")
-        target_link_libraries(${KATESTROPHE_TARGET} PUBLIC gtest mpi-gtest-main)
-        target_compile_options(${KATESTROPHE_TARGET} PRIVATE ${KAMPING_WARNING_FLAGS})
+        target_link_libraries(${KATESTROPHE_TARGET} PUBLIC mpi-gtest-main)
     endfunction()
 
     # Registers an executable target KATESTROPHE_TEST_TARGET as a test to be executed with ctest

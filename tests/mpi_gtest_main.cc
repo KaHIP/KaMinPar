@@ -12,7 +12,7 @@
 #include <gtest/gtest.h>
 #include <mpi.h>
 
-#include "gtest-mpi-listener.h"
+#include "tests/gtest_mpi_listener.h"
 
 int main(int argc, char** argv) {
     // Filter out Google Test arguments
