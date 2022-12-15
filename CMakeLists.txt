@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.25)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake/modules)
 
 project(KaMinPar
@@ -102,7 +102,7 @@ endif ()
 
 if (KAMINPAR_BUILD_TESTS)
     add_definitions(-DKAMINPAR_BUILD_TESTS)
-    add_subdirectory("${PROJECT_SOURCE_DIR}/external/googletest" "external/googletest")
+    add_subdirectory("${PROJECT_SOURCE_DIR}/external/googletest" "external/googletest" EXCLUDE_FROM_ALL SYSTEM)
     include(gmock)
 
     message(STATUS "Build unit tests.")
@@ -114,6 +114,7 @@ if (CCACHE_FOUND)
     message(STATUS "Use ccache.")
     set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ccache)
 endif ()
+
 if (KAMINPAR_64BIT_EDGE_WEIGHTS)
   add_definitions(-DKAMINPAR_64BIT_EDGE_WEIGHTS)
 endif ()
@@ -127,7 +128,7 @@ if (KAMINPAR_BUILD_DISTRIBUTED AND COMPILER_SUPPORTS_MCX16)
         message(WARNING "Cannout build distributed partitioner: could not find MPI")
     else () # Include growt 
         add_library(growt INTERFACE)
-        target_include_directories(growt INTERFACE external/growt/)
+        target_include_directories(growt SYSTEM INTERFACE external/growt/)
     endif ()
 endif ()
 
@@ -143,7 +144,7 @@ elseif (KAMINPAR_ASSERTION_LEVEL STREQUAL "heavy")
 else ()
     message(WARNING "Invalid assertion level: ${KAMINPAR_ASSERTION_LEVEL}")
 endif ()
-add_subdirectory(external/kassert)
+add_subdirectory(external/kassert EXCLUDE_FROM_ALL SYSTEM)
 
 # Include pybind11 if we build the python module 
 if (KAMINPAR_BUILD_PYTHON_MODULE)
@@ -166,7 +167,7 @@ if (KAMINPAR_BUILD_DISTRIBUTED AND COMPILER_SUPPORTS_MCX16 AND MPI_FOUND)
     if (KAMINPAR_ENABLE_GRAPHGEN) # KaGen
         set(CMAKE_POLICY_DEFAULT_CMP0063 NEW)
         set(CGAL_DO_NOT_WARN_ABOUT_CMAKE_BUILD_TYPE TRUE)
-        add_subdirectory(external/KaGen/)
+        add_subdirectory(external/KaGen/ EXCLUDE_FROM_ALL SYSTEM)
         add_definitions(-DKAMINPAR_ENABLE_GRAPHGEN)
     endif ()
 

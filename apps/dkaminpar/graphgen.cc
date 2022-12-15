@@ -35,213 +35,10 @@ using namespace kagen;
 namespace {
 SET_DEBUG(false);
 
-PEID find_global_node_owner(const GlobalNodeID node, const scalable_vector<GlobalNodeID>& node_distribution) {
-    KASSERT(node < node_distribution.back());
-    auto it = std::upper_bound(node_distribution.begin() + 1, node_distribution.end(), node);
-    KASSERT(it != node_distribution.end());
-    return static_cast<PEID>(std::distance(node_distribution.begin(), it) - 1);
-}
-
-growt::StaticGhostNodeMapping remap_ghost_nodes(
-    const EdgeList& edge_list, const scalable_vector<NodeID>& local_old_to_new,
-    const scalable_vector<GlobalNodeID>& node_distribution
+DistributedGraph build_graph(
+    const EdgeList& edge_list, scalable_vector<GlobalNodeID> node_distribution,
+    const VertexWeights& original_vertex_weights, const EdgeWeights& original_edge_weights
 ) {
-    const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
-    const GlobalNodeID from = node_distribution[rank];
-    const GlobalNodeID to   = node_distribution[rank + 1];
-
-    std::vector<int> sendcounts(size);
-    std::vector<int> recvcounts(size);
-
-    // Count number of messages for each PE
-    Marker<>     counted_pe(size);
-    GlobalNodeID current_global_u = kInvalidGlobalNodeID;
-
-    for (const auto& [global_u, global_v]: edge_list) {
-        if (from <= global_v && global_v < to) {
-            continue; // Target is not a ghost node
-        }
-
-        // Start of new node
-        if (global_u != current_global_u) {
-            counted_pe.reset();
-            current_global_u = global_u;
-        }
-
-        // Count owner PE
-        const PEID owner = find_global_node_owner(global_v, node_distribution);
-        if (!counted_pe.get(owner)) {
-            ++sendcounts[owner];
-            counted_pe.set(owner);
-        }
-    }
-
-    // Exchange number of messages
-    DBG << V(sendcounts);
-    mpi::alltoall(sendcounts.data(), 1, recvcounts.data(), 1, MPI_COMM_WORLD);
-    DBG << V(recvcounts);
-
-    // Build send / receive displacements
-    std::vector<int> sdispls(size + 1);
-    std::partial_sum(sendcounts.begin(), sendcounts.end(), sdispls.begin() + 1);
-    std::vector<int> rdispls(size + 1);
-    std::partial_sum(recvcounts.begin(), recvcounts.end(), rdispls.begin() + 1);
-
-    // Build messages to send
-    struct RemapMessage {
-        GlobalNodeID old_global_label;
-        GlobalNodeID new_global_label;
-    };
-
-    const std::size_t         total_num_send_messages = std::accumulate(sendcounts.begin(), sendcounts.end(), 0u);
-    std::vector<RemapMessage> sendbuf(total_num_send_messages);
-    std::vector<int>          pos(size);
-
-    current_global_u = kInvalidGlobalNodeID;
-    for (const auto& [global_u, global_v]: edge_list) {
-        if (from <= global_v && global_v < to) {
-            continue; // Target is not a ghost node
-        }
-
-        // Start of new node
-        if (global_u != current_global_u) {
-            counted_pe.reset();
-            current_global_u = global_u;
-        }
-
-        // Count owner PE
-        const PEID owner = find_global_node_owner(global_v, node_distribution);
-        if (!counted_pe.get(owner)) {
-            const std::size_t index = sdispls[owner] + static_cast<std::size_t>(pos[owner]++);
-
-            KASSERT(from <= global_u);
-            KASSERT(global_u < to);
-            const NodeID local_u = static_cast<NodeID>(global_u - from);
-
-            sendbuf[index].old_global_label = global_u;
-            sendbuf[index].new_global_label = from + local_old_to_new[local_u];
-
-            counted_pe.set(owner);
-        }
-    }
-
-    // Exchange messages
-    const std::size_t         total_num_receive_messages = std::accumulate(recvcounts.begin(), recvcounts.end(), 0u);
-    std::vector<RemapMessage> recvbuf(total_num_receive_messages);
-
-    KASSERT(sendcounts.size() >= static_cast<std::size_t>(size));
-    KASSERT(sdispls.size() >= static_cast<std::size_t>(size));
-    KASSERT(recvcounts.size() >= static_cast<std::size_t>(size));
-    KASSERT(rdispls.size() >= static_cast<std::size_t>(size));
-
-    KASSERT(sendbuf.size() == static_cast<std::size_t>(sendcounts[size - 1] + sdispls[size - 1]));
-    KASSERT(recvbuf.size() == static_cast<std::size_t>(recvcounts[size - 1] + rdispls[size - 1]));
-
-    mpi::alltoallv(
-        sendbuf.data(), sendcounts.data(), sdispls.data(), recvbuf.data(), recvcounts.data(), rdispls.data(),
-        MPI_COMM_WORLD
-    );
-
-    // Build ghost node mapping
-    growt::StaticGhostNodeMapping old_to_new_mapping(rdispls.back() + 1);
-    for (const auto& [old_global_label, new_global_label]: recvbuf) {
-        // 0 cannot be used as key
-        old_to_new_mapping.insert(old_global_label + 1, new_global_label);
-    }
-
-    return old_to_new_mapping;
-}
-
-DistributedGraph build_graph_sorted(EdgeList edge_list, scalable_vector<GlobalNodeID> node_distribution) {
-    const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
-    const GlobalNodeID from = node_distribution[rank];
-    const GlobalNodeID to   = node_distribution[rank + 1];
-    KASSERT(from <= to, "invalid node range", assert::light);
-
-    const NodeID n = static_cast<NodeID>(to - from);
-    const EdgeID m = static_cast<EdgeID>(edge_list.size());
-
-    // Sort edges by source / target nodes
-    if (!std::is_sorted(edge_list.begin(), edge_list.end())) {
-        std::sort(edge_list.begin(), edge_list.end());
-    }
-
-    // Count node degrees
-    scalable_vector<EdgeID> degrees(n + 1);
-    for (const auto& [global_u, global_v]: edge_list) {
-        // u should be assigned to this PE
-        KASSERT(from <= global_u);
-        KASSERT(global_u < to);
-
-        const NodeID local_u = static_cast<NodeID>(global_u - from);
-        ++degrees[local_u + 1];
-    }
-
-    // Sort nodes by degree bucket
-    parallel::prefix_sum(
-        degrees.begin(), degrees.end(), degrees.begin()
-    ); // sort_by_degree_buckets expects the prefix sum
-    const auto  node_permutation       = shm::graph::sort_by_degree_buckets<scalable_vector, false>(degrees);
-    const auto& permutation_old_to_new = node_permutation.old_to_new;
-    const auto& permutation_new_to_old = node_permutation.new_to_old;
-
-    // Exchange new labels for ghost nodes
-    const auto permutation_ghost_old_to_new = remap_ghost_nodes(edge_list, permutation_old_to_new, node_distribution);
-
-    // Build graph data structure
-    scalable_vector<EdgeID> nodes(n + 1);
-    scalable_vector<NodeID> edges(m);
-
-    // --> Nodes
-    tbb::parallel_for<NodeID>(0, n, [&](const NodeID new_u) {
-        const NodeID old_u = permutation_new_to_old[new_u];
-        nodes[new_u + 1]   = degrees[old_u + 1] - degrees[old_u]; // Node degree
-    });
-    parallel::prefix_sum(nodes.begin(), nodes.end(), nodes.begin());
-
-    // --> Edges
-    graph::GhostNodeMapper ghost_node_mapper(node_distribution, MPI_COMM_WORLD);
-    tbb::parallel_for<NodeID>(0, n, [&](const NodeID new_u) {
-        const NodeID old_u = permutation_new_to_old[new_u];
-
-        for (EdgeID offset_e = 0; offset_e < nodes[new_u + 1] - nodes[new_u]; ++offset_e) {
-            const EdgeID new_e = offset_e + nodes[new_u];
-            const EdgeID old_e = offset_e + degrees[old_u];
-
-            const auto& [edge_u, edge_v] = edge_list[old_e];
-            KASSERT(edge_u - from == old_u, V(edge_u) << V(from));
-
-            if (from <= edge_v && edge_v < to) {
-                edges[new_e] = permutation_old_to_new[edge_v - from];
-            } else {
-                auto edge_v_it = permutation_ghost_old_to_new.find(edge_v + 1);
-                KASSERT(edge_v_it != permutation_ghost_old_to_new.end());
-                const GlobalNodeID remapped_edge_v = (*edge_v_it).second;
-                KASSERT(
-                    remapped_edge_v < from || remapped_edge_v >= to, V(from) << V(remapped_edge_v) << V(to) << V(edge_v)
-                );
-                edges[new_e] = ghost_node_mapper.new_ghost_node(remapped_edge_v);
-            }
-        }
-    });
-
-    auto mapped_ghost_nodes = ghost_node_mapper.finalize();
-
-    DistributedGraph graph{
-        std::move(node_distribution),
-        mpi::build_distribution_from_local_count<GlobalEdgeID, scalable_vector>(m, MPI_COMM_WORLD),
-        std::move(nodes),
-        std::move(edges),
-        std::move(mapped_ghost_nodes.ghost_owner),
-        std::move(mapped_ghost_nodes.ghost_to_global),
-        std::move(mapped_ghost_nodes.global_to_ghost),
-        true,
-        MPI_COMM_WORLD};
-    KASSERT(graph::debug::validate(graph), "", assert::heavy);
-    return graph;
-}
-
-DistributedGraph build_graph(const EdgeList& edge_list, scalable_vector<GlobalNodeID> node_distribution) {
     SCOPED_TIMER("Build graph from edge list");
 
     const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
@@ -251,7 +48,7 @@ DistributedGraph build_graph(const EdgeList& edge_list, scalable_vector<GlobalNo
 
     const auto n = static_cast<NodeID>(to - from);
 
-    // bucket sort nodes
+    // Bucket sort nodes
     START_TIMER("Bucket sort");
     scalable_vector<parallel::Atomic<NodeID>> buckets(n);
     tbb::parallel_for<EdgeID>(0, edge_list.size(), [&](const EdgeID e) {
@@ -264,12 +61,25 @@ DistributedGraph build_graph(const EdgeList& edge_list, scalable_vector<GlobalNo
     parallel::prefix_sum(buckets.begin(), buckets.end(), buckets.begin());
     STOP_TIMER();
 
-    const EdgeID m = buckets.back();
+    const EdgeID m                = buckets.back();
+    const bool   has_node_weights = !original_vertex_weights.empty();
+    const bool   has_edge_weights = !original_edge_weights.empty();
 
-    // build edges array
+    // Build vertex weights array
+    START_TIMER("Build node weights array");
+    scalable_vector<NodeWeight> node_weights(has_node_weights ? n : 0);
+    std::transform(
+        original_vertex_weights.begin(), original_vertex_weights.end(), node_weights.begin(),
+        [](const auto vertex_weight) { return static_cast<NodeWeight>(vertex_weight); }
+    );
+    STOP_TIMER();
+
+    // Build edges array
     START_TIMER("Build edges array");
-    scalable_vector<EdgeID> edges(m);
-    graph::GhostNodeMapper  ghost_node_mapper(node_distribution, MPI_COMM_WORLD);
+    scalable_vector<EdgeID>     edges(m);
+    scalable_vector<EdgeWeight> edge_weights(has_edge_weights ? m : 0);
+
+    graph::GhostNodeMapper ghost_node_mapper(node_distribution, MPI_COMM_WORLD);
     tbb::parallel_for<EdgeID>(0, edge_list.size(), [&](const EdgeID e) {
         const auto [u, v] = edge_list[e];
         KASSERT(from <= u, "", assert::always);
@@ -283,6 +93,10 @@ DistributedGraph build_graph(const EdgeList& edge_list, scalable_vector<GlobalNo
         } else {
             edges[pos] = ghost_node_mapper.new_ghost_node(v);
         }
+
+        if (has_edge_weights) {
+            edge_weights[pos] = static_cast<EdgeWeight>(original_edge_weights[e]);
+        }
     });
     STOP_TIMER();
 
@@ -290,7 +104,7 @@ DistributedGraph build_graph(const EdgeList& edge_list, scalable_vector<GlobalNo
         return ghost_node_mapper.finalize();
     };
 
-    // build nodes array
+    // Build nodes array
     START_TIMER("Build nodes array");
     scalable_vector<NodeID> nodes(n + 1);
     tbb::parallel_for<NodeID>(0, n, [&](const NodeID u) { nodes[u] = buckets[u]; });
@@ -302,6 +116,8 @@ DistributedGraph build_graph(const EdgeList& edge_list, scalable_vector<GlobalNo
         mpi::build_distribution_from_local_count<GlobalEdgeID, scalable_vector>(m, MPI_COMM_WORLD),
         std::move(nodes),
         std::move(edges),
+        std::move(node_weights),
+        std::move(edge_weights),
         std::move(mapped_ghost_nodes.ghost_owner),
         std::move(mapped_ghost_nodes.ghost_to_global),
         std::move(mapped_ghost_nodes.global_to_ghost),
@@ -324,16 +140,20 @@ scalable_vector<GlobalNodeID> build_node_distribution(const std::pair<SInt, SInt
 
 DistributedGraph generate([[maybe_unused]] const std::string& properties) {
 #ifdef KAMINPAR_ENABLE_GRAPHGEN
-    auto [edges, local_range] = [&] {
+    auto result = [&] {
         KaGen kagen(MPI_COMM_WORLD);
         kagen.EnableOutput(false);
         kagen.EnableBasicStatistics();
         return kagen.GenerateFromOptionString(properties);
     }();
-    return build_graph(std::move(edges), build_node_distribution(local_range));
+
+    return build_graph(
+        std::move(result.edges), build_node_distribution(result.vertex_range), std::move(result.vertex_weights),
+        std::move(result.edge_weights)
+    );
 #endif // KAMINPAR_ENABLE_GRAPHGEN
 
-    throw std::runtime_error("graph generator not available");
+    throw std::runtime_error("graph generators are unavailable");
 }
 
 std::string generate_filename(const std::string& properties) {
