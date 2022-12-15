@@ -157,9 +157,6 @@ if (KAMINPAR_DISTRIBUTED AND COMPILER_SUPPORTS_MCX16)
 endif ()
 
 # Setup kassert
-FetchContent_MakeAvailable(kassert)
-set_property(DIRECTORY "${kassert_SOURCE_DIR}" PROPERTY EXCLUDE_FROM_ALL YES)
-
 if (KAMINPAR_ASSERTION_LEVEL STREQUAL "none")
     set(KASSERT_ASSERTION_LEVEL 0)
 elseif (KAMINPAR_ASSERTION_LEVEL STREQUAL "light")
@@ -171,6 +168,9 @@ elseif (KAMINPAR_ASSERTION_LEVEL STREQUAL "heavy")
 else ()
     message(WARNING "Invalid assertion level: ${KAMINPAR_ASSERTION_LEVEL}")
 endif ()
+
+FetchContent_MakeAvailable(kassert)
+set_property(DIRECTORY "${kassert_SOURCE_DIR}" PROPERTY EXCLUDE_FROM_ALL YES)
 
 # Include pybind11 if we build the python module 
 if (KAMINPAR_PYTHON_MODULE)

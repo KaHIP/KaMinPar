@@ -193,10 +193,10 @@ The output should be stored in a file and can be used by the -C,--config option.
 
     // Graph can come from KaGen or from disk
     auto* graph_source = gp_group->add_option_group("Graph source")->require_option(1)->silent();
-#ifdef KAMINPAR_ENABLE_GRAPHGEN
+#ifdef KAMINPAR_GRAPHGEN
     graph_source->add_option("--generator", app.graph_generator, "Generator properties for in-memory partitioning.")
         ->configurable(false);
-#endif
+#endif // KAMINPAR_GRAPHGEN
     graph_source
         ->add_option(
             "-G,--graph", app.graph_filename,

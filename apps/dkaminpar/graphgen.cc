@@ -6,9 +6,9 @@
  ******************************************************************************/
 #include "apps/dkaminpar/graphgen.h"
 
-#ifdef KAMINPAR_ENABLE_GRAPHGEN
+#ifdef KAMINPAR_GRAPHGEN
     #include <kagen.h>
-#endif // KAMINPAR_ENABLE_GRAPHGEN
+#endif // KAMINPAR_GRAPHGEN
 
 #include <tbb/parallel_sort.h>
 
@@ -29,7 +29,7 @@
 #include "common/timer.h"
 
 namespace kaminpar::dist {
-#ifdef KAMINPAR_ENABLE_GRAPHGEN
+#ifdef KAMINPAR_GRAPHGEN
 using namespace kagen;
 
 namespace {
@@ -136,10 +136,10 @@ scalable_vector<GlobalNodeID> build_node_distribution(const std::pair<SInt, SInt
     return node_distribution;
 }
 } // namespace
-#endif // KAMINPAR_ENABLE_GRAPHGEN
+#endif // KAMINPAR_GRAPHGEN
 
 DistributedGraph generate([[maybe_unused]] const std::string& properties) {
-#ifdef KAMINPAR_ENABLE_GRAPHGEN
+#ifdef KAMINPAR_GRAPHGEN
     auto result = [&] {
         KaGen kagen(MPI_COMM_WORLD);
         kagen.EnableOutput(false);
@@ -151,7 +151,7 @@ DistributedGraph generate([[maybe_unused]] const std::string& properties) {
         std::move(result.edges), build_node_distribution(result.vertex_range), std::move(result.vertex_weights),
         std::move(result.edge_weights)
     );
-#endif // KAMINPAR_ENABLE_GRAPHGEN
+#endif // KAMINPAR_GRAPHGEN
 
     throw std::runtime_error("graph generators are unavailable");
 }

@@ -22,7 +22,7 @@ endfunction()
 #add_distributed_benchmark(dbalancing_benchmark dbalancing_benchmark.cc)
 #add_distributed_benchmark(dcontraction_benchmark dcontraction_benchmark.cc)
 
-#if (KAMINPAR_ENABLE_GRAPHGEN)
+#if (KAMINPAR_GRAPHGEN)
 #    add_distributed_benchmark(graphgen_benchmark graphgen_benchmark.cc)
 #endif ()
 

@@ -6,8 +6,8 @@ if [[ "$PWD" == */scripts ]]; then
 fi
 
 for directory in "apps" "common" "kaminpar" "dkaminpar" "tests" "library"; do
-    find "$directory"                           \
-        -type f                                 \
+    find "$directory"                        \
+        -type f                              \
         \( -name "*.cc" -or -name "*.h" \)   \
         -exec clang-format -i {} \;
 done

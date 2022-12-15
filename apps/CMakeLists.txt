@@ -39,7 +39,7 @@ add_distributed_app(dKaMinPar
     ${CMAKE_CURRENT_SOURCE_DIR}/dkaminpar/graphgen.cc 
     ${CMAKE_CURRENT_SOURCE_DIR}/dkaminpar/graphgen.h)
 
-if (KAMINPAR_ENABLE_GRAPHGEN)
+if (KAMINPAR_GRAPHGEN)
     target_link_libraries(dKaMinPar PRIVATE KaGen::KaGen) 
 endif ()
 

@@ -91,11 +91,11 @@
 #define IFSTATS(x)            (kStatistics ? (x) : std::decay_t<decltype(x)>())
 #define STATS                 kStatistics&& kaminpar::DisposableLogger<false>(std::cout) << kaminpar::logger::CYAN
 
-#ifdef KAMINPAR_ENABLE_STATISTICS
+#ifdef KAMINPAR_STATISTICS
     #define SET_STATISTICS_FROM_GLOBAL() SET_STATISTICS(true)
-#else // KAMINPAR_ENABLE_STATISTICS
+#else // KAMINPAR_STATISTICS
     #define SET_STATISTICS_FROM_GLOBAL() SET_STATISTICS(false)
-#endif // KAMINPAR_ENABLE_STATISTISC
+#endif // KAMINPAR_STATISTISC
 
 namespace kaminpar {
 namespace logger {

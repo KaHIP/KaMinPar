@@ -36,11 +36,11 @@ void print_build_identifier(const std::string& commit, const std::string& hostna
         assertion_level_name += "+heavy";
     }
     LOG << "Assertion level:              " << assertion_level_name;
-#ifdef KAMINPAR_ENABLE_STATISTICS
+#ifdef KAMINPAR_STATISTICS
     LOG << "Statistics:                   enabled";
-#else
+#else // KAMINPAR_STATISTICS
     LOG << "Statistics:                   disabled";
-#endif
+#endif // KAMINPAR_STATISTICS
     LOG << "Data type sizes:";
     LOG << "  Nodes IDs: " << sizeof(NodeID) << " bytes | Node weights (Local): " << sizeof(LocalNodeWeight)
         << " bytes | Node weights (IP): " << sizeof(NodeWeight) << " bytes";
