@@ -1,5 +1,53 @@
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
-include(TestHelper)
+FetchContent_Declare(
+    googletest
+    GIT_REPOSITORY https://github.com/google/googletest.git
+    GIT_TAG release-1.12.1)
+FetchContent_MakeAvailable(googletest)
+
+enable_testing()
+
+include(GoogleTest)
+include(cmake/KaTestrophe.cmake)
+
+function(kaminpar_add_shm_test target)
+    add_executable(${target} ${ARGN})
+    target_link_libraries(${target} PRIVATE 
+        GTest::gtest_main 
+        GTest::gmock_main
+        common_base 
+        shm_partitioner_base)
+    target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    gtest_discover_tests(${target})
+endfunction()
+
+function(kaminpar_add_common_test target)
+    add_executable(${target} ${ARGN})
+    target_link_libraries(${target} PRIVATE 
+        GTest::gtest_main
+        GTest::gmock_main
+        common_base)
+    target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    gtest_discover_tests(${target})
+endfunction()
+
+function(kaminpar_add_dist_test KAMINPAR_TARGET_NAME)
+    cmake_parse_arguments(
+            "KAMINPAR"
+            ""
+            ""
+            "FILES;CORES"
+            ${ARGN}
+    )
+    katestrophe_add_test_executable(${KAMINPAR_TARGET_NAME} FILES ${KAMINPAR_FILES})
+    target_link_libraries(${KAMINPAR_TARGET_NAME} PRIVATE 
+        GTest::gtest_main
+        GTest::gmock_main
+        common_base 
+        shm_partitioner_base 
+        dist_partitioner_base)
+    target_include_directories(${KAMINPAR_TARGET_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    katestrophe_add_mpi_test(${KAMINPAR_TARGET_NAME} CORES ${KAMINPAR_CORES})
+endfunction()
 
 # Copy test instances to binary directory
 file(COPY test_instances DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
@@ -19,37 +67,35 @@ kaminpar_add_common_test(test_common_parallel_algorithm common/parallel/algorith
 # dKaMinPar -> Graph Utils
 kaminpar_add_dist_test(test_dist_graph_extraction
     FILES dkaminpar/graphutils/graph_extraction_test.cc
-    CORES 1 2 4 16)
+    CORES 1 2 4)
 
 kaminpar_add_dist_test(test_dist_graph_rearrangement
     FILES dkaminpar/graphutils/graph_rearrangement_test.cc
-    CORES 1 2 3 4 16)
+    CORES 1 2 3 4)
 
 kaminpar_add_dist_test(test_dist_independent_set
     FILES dkaminpar/graphutils/independent_set_test.cc
-    CORES 1 2 3 4 16)
+    CORES 1 2 3 4)
 
 kaminpar_add_dist_test(test_dist_bfs_extractor
     FILES dkaminpar/graphutils/bfs_extractor_test.cc
-    CORES 1 2 4 16)
+    CORES 1 2 4)
 
 kaminpar_add_dist_test(test_dist_global_move_conflict_resolver
     FILES dkaminpar/refinement/move_conflict_resolver_test.cc
-    CORES 1 2 3 4 8)
+    CORES 1 2 3 4)
 
 kaminpar_add_dist_test(test_dist_sparse_alltoall
-    HEADER_ONLY
     FILES dkaminpar/sparse_alltoall_test.cc
-    CORES 1 2 3 4 5 6 7 8 20 21)
+    CORES 1 2 3 4 11)
 
 kaminpar_add_dist_test(test_dist_graph_topology
-    HEADER_ONLY
     FILES dkaminpar/mpi/grid_topology_test.cc
     CORES 1)
 
 kaminpar_add_dist_test(test_dist_graph_allgather
     FILES dkaminpar/graphutils/allgather_graph_test.cc
-    CORES 1 2 4 8)
+    CORES 1 2 4)
 
 # dKaMinPar -> Algorithms 
 kaminpar_add_dist_test(test_dist_greedy_node_coloring

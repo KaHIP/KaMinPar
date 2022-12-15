@@ -10,10 +10,14 @@ set(PROJECT_CONTACT "daniel.seemaier@kit.edu")
 
 set(CMAKE_CXX_STANDARD 17)
 
+include(FetchContent)
+
 # Default to Release mode
 if (NOT CMAKE_BUILD_TYPE OR CMAKE_BUILD_TYPE STREQUAL "")
     set(CMAKE_BUILD_TYPE "Release" CACHE STRING "" FORCE)
 endif ()
+
+option(KAMINPAR_TESTS "Build unit tests" OFF)
 
 option(KAMINPAR_ENABLE_STATISTICS "Generate and output detailed statistics." ON)
 option(KAMINPAR_ENABLE_GRAPHGEN "Build with support for in-memory graph generation (requires the KaGen submodule)." ON)
@@ -22,7 +26,6 @@ option(KAMINPAR_ENABLE_MTUNE_NATIVE "Build with -mtune=native." ON)
 
 option(KAMINPAR_ENABLE_MTKAHYPAR "Enable Mt-KaHyPar as initial partitioner for the distributed partitioner." OFF)
 
-option(KAMINPAR_BUILD_TESTS "Build unit tests (requires the GoogleTest submodule)." ON)
 option(KAMINPAR_BUILD_DISTRIBUTED "Enable or disable the distributed partitioner (requires the growt submodule)." ON)
 
 option(KAMINPAR_64BIT_IDS "Use 64 bits for node and edge IDs." OFF)
@@ -100,19 +103,19 @@ if (KAMINPAR_64BIT_LOCAL_WEIGHTS)
     message(STATUS "Use 64 bit local node and edge weights.")
 endif ()
 
-if (KAMINPAR_BUILD_TESTS)
-    add_definitions(-DKAMINPAR_BUILD_TESTS)
-    add_subdirectory("${PROJECT_SOURCE_DIR}/external/googletest" "external/googletest" EXCLUDE_FROM_ALL SYSTEM)
-    include(gmock)
-
-    message(STATUS "Build unit tests.")
-endif ()
+#if (KAMINPAR_BUILD_TESTS)
+#    add_definitions(-DKAMINPAR_BUILD_TESTS)
+#    add_subdirectory("${PROJECT_SOURCE_DIR}/external/googletest" "external/googletest" EXCLUDE_FROM_ALL SYSTEM)
+#    include(gmock)
+#
+#    message(STATUS "Build unit tests.")
+#endif ()
 
 # Use ccache is available 
-find_program(CCACHE_FOUND ccache)
-if (CCACHE_FOUND)
-    message(STATUS "Use ccache.")
-    set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ccache)
+find_program(CCACHE_PROGRAM ccache)
+if (CCACHE_PROGRAM)
+    message(STATUS "Using ccache.")
+    set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
 endif ()
 
 if (KAMINPAR_64BIT_EDGE_WEIGHTS)
@@ -178,8 +181,7 @@ endif ()
 add_subdirectory(apps)
 
 # Unit tests
-if (KAMINPAR_BUILD_TESTS)
-    enable_testing()
+if (KAMINPAR_TESTS)
     add_subdirectory(tests)
 endif ()
 

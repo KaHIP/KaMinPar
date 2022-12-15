@@ -1,9 +1,6 @@
 [submodule "extern/KaGen"]
 	path = external/KaGen
 	url = git@github.com:sebalamm/KaGen.git
-[submodule "extern/googletest"]
-	path = external/googletest
-	url = https://github.com/google/googletest.git
 [submodule "extern/growt"]
 	path = external/growt
 	url = https://github.com/TooBiased/growt.git

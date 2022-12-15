@@ -90,7 +90,6 @@ function(katestrophe_discover_tests TARGET)
     set_property(DIRECTORY
             APPEND PROPERTY TEST_INCLUDE_FILES "${ctest_include_file}"
             )
-
 endfunction()
 
 ###############################################################################
