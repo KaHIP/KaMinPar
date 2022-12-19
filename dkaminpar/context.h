@@ -23,6 +23,7 @@ enum class GlobalClusteringAlgorithm {
     ACTIVE_SET_LP,
     LP,
     LOCKING_LP,
+    HEM,
 };
 
 enum class LocalClusteringAlgorithm {

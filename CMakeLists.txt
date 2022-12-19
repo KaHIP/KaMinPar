@@ -54,7 +54,7 @@ option(KAMINPAR_MTUNE_NATIVE "Build with -mtune=native." ON)
 
 option(KAMINPAR_MTKAHYPAR "Enable Mt-KaHyPar as initial partitioner for the distributed partitioner." OFF)
 
-option(KAMINPAR_BUILD_DISTRIBUTED "Enable or disable the distributed partitioner (requires the growt submodule)." ON)
+option(KAMINPAR_DISTRIBUTED "Enable or disable the distributed partitioner (requires the growt submodule)." ON)
 
 option(KAMINPAR_64BIT_IDS "Use 64 bits for node and edge IDs." OFF)
 option(KAMINPAR_64BIT_EDGE_IDS "Use 64 bits for edge IDs." OFF)

@@ -1,7 +1,7 @@
 /*******************************************************************************
  * @file:   global_label_propagation_coarsener.h
  * @author: Daniel Seemaier
- * @date:   29.09.21
+ * @date:   29.09.2021
  * @brief:  Label propagation with clusters that span multiple PEs. Cluster
  * labels and weights are synchronized in rounds. Between communication rounds,
  * a cluster can grow beyond the maximum cluster weight limit if more than one

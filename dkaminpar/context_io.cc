@@ -57,6 +57,7 @@ std::unordered_map<std::string, GlobalClusteringAlgorithm> get_global_clustering
         {"lp", GlobalClusteringAlgorithm::LP},
         {"active-set-lp", GlobalClusteringAlgorithm::ACTIVE_SET_LP},
         {"locking-lp", GlobalClusteringAlgorithm::LOCKING_LP},
+        {"hem", GlobalClusteringAlgorithm::HEM},
     };
 }
 
@@ -70,6 +71,8 @@ std::ostream& operator<<(std::ostream& out, const GlobalClusteringAlgorithm algo
             return out << "active-set-lp";
         case GlobalClusteringAlgorithm::LOCKING_LP:
             return out << "locking-lp";
+        case GlobalClusteringAlgorithm::HEM:
+            return out << "hem";
     }
 
     return out << "<invalid>";
@@ -339,9 +342,9 @@ void print(const PartitionContext& ctx, const bool root, std::ostream& out) {
     }
 
     const auto size  = std::max<std::uint64_t>({
-         static_cast<std::uint64_t>(ctx.graph.global_n()),
-         static_cast<std::uint64_t>(ctx.graph.global_m()),
-         static_cast<std::uint64_t>(ctx.graph.max_block_weight(0)),
+        static_cast<std::uint64_t>(ctx.graph.global_n()),
+        static_cast<std::uint64_t>(ctx.graph.global_m()),
+        static_cast<std::uint64_t>(ctx.graph.max_block_weight(0)),
     });
     const auto width = std::ceil(std::log10(size)) + 1;
 
