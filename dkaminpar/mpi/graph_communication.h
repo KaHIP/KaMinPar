@@ -31,24 +31,6 @@ namespace kaminpar::mpi::graph {
 using namespace kaminpar::dist;
 SET_DEBUG(false);
 
-template <typename Message, typename Buffer = NoinitVector<Message>, typename Builder, typename Receiver>
-void sparse_alltoall_interface_to_ghost(const DistributedGraph& graph, Builder&& builder, Receiver&& receiver) {
-    sparse_alltoall_interface_to_ghost<Message, Buffer>(
-        graph, SPARSE_ALLTOALL_NOFILTER, std::forward<Builder>(builder), std::forward<Receiver>(receiver)
-    );
-}
-
-template <
-    typename Message, typename Buffer = NoinitVector<Message>, typename Filter, typename Builder, typename Receiver>
-void sparse_alltoall_interface_to_ghost(
-    const DistributedGraph& graph, Filter&& filter, Builder&& builder, Receiver&& receiver
-) {
-    sparse_alltoall_interface_to_ghost<Message, Buffer>(
-        graph, 0, graph.n(), std::forward<Filter>(filter), std::forward<Builder>(builder),
-        std::forward<Receiver>(receiver)
-    );
-}
-
 namespace internal {
 template <typename Data>
 void inclusive_col_prefix_sum(Data& data) {
@@ -206,6 +188,24 @@ void sparse_alltoall_interface_to_ghost(
     sparse_alltoall_interface_to_ghost_custom_range<Message, Buffer>(
         graph, from, to, [](const NodeID u) { return u; }, std::forward<Filter>(filter), std::forward<Builder>(builder),
         std::forward<Receiver>(receiver)
+    );
+}
+
+template <
+    typename Message, typename Buffer = NoinitVector<Message>, typename Filter, typename Builder, typename Receiver>
+void sparse_alltoall_interface_to_ghost(
+    const DistributedGraph& graph, Filter&& filter, Builder&& builder, Receiver&& receiver
+) {
+    sparse_alltoall_interface_to_ghost<Message, Buffer>(
+        graph, 0, graph.n(), std::forward<Filter>(filter), std::forward<Builder>(builder),
+        std::forward<Receiver>(receiver)
+    );
+}
+
+template <typename Message, typename Buffer = NoinitVector<Message>, typename Builder, typename Receiver>
+void sparse_alltoall_interface_to_ghost(const DistributedGraph& graph, Builder&& builder, Receiver&& receiver) {
+    sparse_alltoall_interface_to_ghost<Message, Buffer>(
+        graph, SPARSE_ALLTOALL_NOFILTER, std::forward<Builder>(builder), std::forward<Receiver>(receiver)
     );
 }
 

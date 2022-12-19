@@ -158,8 +158,10 @@ HEMClustering::compute_clustering(const DistributedGraph& graph, GlobalNodeWeigh
                     const NodeID       local_partner = _graph->global_to_local_node(u_partner);
                     const GlobalNodeID u_global      = _graph->local_to_global_node(u);
                     KASSERT(
-                        u == local_partner || _matching[local_partner] == u_global,
-                        "invalid clustering structure for node " << u << " matched to node " << local_partner
+                        u == local_partner || _matching[local_partner] == u_partner,
+                        "invalid clustering structure for node "
+                            << u << " (global " << u_global << ") matched to node " << local_partner
+                            << ", which is matched to global node " << _matching[local_partner]
                     );
                 }
             }
@@ -169,15 +171,18 @@ HEMClustering::compute_clustering(const DistributedGraph& graph, GlobalNodeWeigh
                 GlobalNodeID u;
                 GlobalNodeID v;
             };
-            mpi::graph::sparse_alltoall_interface_to_pe<MatchedEdge>(
-                *_graph, [&](const NodeID u) -> bool { return !_graph->is_owned_global_node(_matched[u]); },
-                [&](const NodeID u) -> MatchedEdge {
+            mpi::graph::sparse_alltoall_interface_to_ghost<MatchedEdge>(
+                *_graph,
+                [&](const NodeID u, EdgeID, const NodeID v) -> bool {
+                    return _matched[u] == _graph->local_to_global_node(v);
+                },
+                [&](const NodeID u, EdgeID, NodeID) -> MatchedEdge {
                     return {_graph->local_to_global_node(u), _matched[u]};
                 },
-                [&](const auto& r) {
+                [&](const auto& r, const PEID pe) {
                     for (const auto& [u, v]: r) {
                         KASSERT(_graph->contains_global_node(u));
-                        KASSERT(_graph->is_owned_global_node(v));
+                        KASSERT(_graph->is_owned_global_node(v), "PE " << pe << " thinks that this PE owns " << v);
                         const NodeID local_v = _graph->global_to_local_node(v);
                         KASSERT(
                             _matching[local_v] == v,
