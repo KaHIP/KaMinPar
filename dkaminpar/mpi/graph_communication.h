@@ -203,24 +203,6 @@ std::vector<Buffer> sparse_alltoall_interface_to_ghost_get(
     return recv_buffers;
 }
 
-template <typename Message, typename Buffer = NoinitVector<Message>, typename Builder, typename Receiver>
-void sparse_alltoall_interface_to_pe(const DistributedGraph& graph, Builder&& builder, Receiver&& receiver) {
-    sparse_alltoall_interface_to_pe<Message, Buffer>(
-        graph, SPARSE_ALLTOALL_NOFILTER, std::forward<Builder>(builder), std::forward<Receiver>(receiver)
-    );
-}
-
-template <
-    typename Message, typename Buffer = NoinitVector<Message>, typename Filter, typename Builder, typename Receiver>
-void sparse_alltoall_interface_to_pe(
-    const DistributedGraph& graph, Filter&& filter, Builder&& builder, Receiver&& receiver
-) {
-    sparse_alltoall_interface_to_pe<Message, Buffer>(
-        graph, 0, graph.n(), std::forward<Filter>(filter), std::forward<Builder>(builder),
-        std::forward<Receiver>(receiver)
-    );
-}
-
 template <
     typename Message, typename Buffer = NoinitVector<Message>, typename Mapper, typename Filter, typename Builder,
     typename Receiver>
@@ -390,6 +372,24 @@ void sparse_alltoall_interface_to_pe(
     sparse_alltoall_interface_to_pe_custom_range<Message, Buffer>(
         graph, from, to, [](const NodeID u) { return u; }, std::forward<Filter>(filter), std::forward<Builder>(builder),
         std::forward<Receiver>(receiver)
+    );
+}
+
+template <
+    typename Message, typename Buffer = NoinitVector<Message>, typename Filter, typename Builder, typename Receiver>
+void sparse_alltoall_interface_to_pe(
+    const DistributedGraph& graph, Filter&& filter, Builder&& builder, Receiver&& receiver
+) {
+    sparse_alltoall_interface_to_pe<Message, Buffer>(
+        graph, 0, graph.n(), std::forward<Filter>(filter), std::forward<Builder>(builder),
+        std::forward<Receiver>(receiver)
+    );
+}
+
+template <typename Message, typename Buffer = NoinitVector<Message>, typename Builder, typename Receiver>
+void sparse_alltoall_interface_to_pe(const DistributedGraph& graph, Builder&& builder, Receiver&& receiver) {
+    sparse_alltoall_interface_to_pe<Message, Buffer>(
+        graph, SPARSE_ALLTOALL_NOFILTER, std::forward<Builder>(builder), std::forward<Receiver>(receiver)
     );
 }
 

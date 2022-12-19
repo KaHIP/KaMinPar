@@ -138,7 +138,7 @@ HEMClustering::compute_clustering(const DistributedGraph& graph, GlobalNodeWeigh
         compute_local_matching(c, max_cluster_weight);
         resolve_global_conflicts(c);
 
-        // After the first two steps, _matching[u] holds the global node ID of u's matching partner 
+        // After the first two steps, _matching[u] holds the global node ID of u's matching partner
         // The next step replaces the _matching value of the smaller node ID with its own global node ID,
         // turning the _matching array into a cluster array
         turn_into_clustering(c);
@@ -150,6 +150,52 @@ HEMClustering::compute_clustering(const DistributedGraph& graph, GlobalNodeWeigh
             _matching[u] = _graph->local_to_global_node(u);
         }
     });
+
+    // Validate our matching
+    KASSERT(
+        [&] {
+            // Check local matching
+            for (const NodeID u: _graph->nodes()) {
+                const GlobalNodeID u_partner = _matching[u];
+
+                KASSERT(_graph->contains_global_node(u_partner), "invalid matching partner for node " << u);
+                if (_graph->is_owned_global_node(u_partner)) {
+                    const NodeID       local_partner = _graph->global_to_local_node(u_partner);
+                    const GlobalNodeID u_global      = _graph->local_to_global_node(u);
+                    KASSERT(
+                        u == local_partner || _matching[local_partner] == u_global,
+                        "invalid clustering structure for node " << u << " matched to node " << local_partner
+                    );
+                }
+            }
+
+            // Check matched edges between PEs
+            struct MatchedEdge {
+                GlobalNodeID u;
+                GlobalNodeID v;
+            };
+            mpi::graph::sparse_alltoall_interface_to_pe<MatchedEdge>(
+                *_graph, [&](const NodeID u) -> bool { return !_graph->is_owned_global_node(_matched[u]); },
+                [&](const NodeID u) -> MatchedEdge {
+                    return {_graph->local_to_global_node(u), _matched[u]};
+                },
+                [&](const auto& r) {
+                    for (const auto& [u, v]: r) {
+                        KASSERT(_graph->contains_global_node(u));
+                        KASSERT(_graph->is_owned_global_node(v));
+                        const NodeID local_v = _graph->global_to_local_node(v);
+                        KASSERT(
+                            _matching[local_v] == v,
+                            "invalid clustering structure for node " << local_v << " matched to global ghost node " << u
+                        );
+                    }
+                }
+            );
+
+            return true;
+        }(),
+        "matching validation failed", assert::heavy
+    );
 
     return _matching;
 }
@@ -260,8 +306,7 @@ void HEMClustering::resolve_global_conflicts(const ColorID c) {
 
     // Normalize our _matching array
     parallel::chunked_for(all_requests, [&](const MatchRequest& req) {
-        std::uint8_t one = 1;
-        if (_matched[req.mine].compare_exchange_strong(one, 0)) {
+        if (req.mine != kInvalidNodeID) { // Due to the previous step, this should only happen once per node
             _matching[req.mine] = _graph->local_to_global_node(_matched[req.mine] & 0xFFFF'FFFF);
         }
     });
