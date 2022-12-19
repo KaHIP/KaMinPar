@@ -76,8 +76,6 @@ void sparse_alltoall_interface_to_ghost_custom_range(
 ) {
     SCOPED_TIMER("Sparse AllToAll InterfaceToGhost");
 
-    static_assert(std::is_invocable_r_v<bool, Filter, NodeID>, "bad filter type");
-
     constexpr bool builder_invocable_with_pe    = std::is_invocable_r_v<Message, Builder, NodeID, EdgeID, NodeID, PEID>;
     constexpr bool builder_invocable_without_pe = std::is_invocable_r_v<Message, Builder, NodeID, EdgeID, NodeID>;
     static_assert(builder_invocable_with_pe || builder_invocable_without_pe, "bad builder type");
@@ -85,6 +83,10 @@ void sparse_alltoall_interface_to_ghost_custom_range(
     constexpr bool receiver_invocable_with_pe    = std::is_invocable_r_v<void, Receiver, const Buffer&, PEID>;
     constexpr bool receiver_invocable_without_pe = std::is_invocable_r_v<void, Receiver, const Buffer&>;
     static_assert(receiver_invocable_with_pe || receiver_invocable_without_pe, "bad receiver type");
+
+    constexpr bool filter_invocable_with_edge = std::is_invocable_r_v<bool, Filter, NodeID, EdgeID, NodeID>;
+    constexpr bool filter_invocable_with_node = std::is_invocable_r_v<bool, Filter, NodeID>;
+    static_assert(filter_invocable_with_edge || filter_invocable_with_node, "bad filter type");
 
     const auto [size, rank] = mpi::get_comm_info(graph.communicator());
 
@@ -107,14 +109,22 @@ void sparse_alltoall_interface_to_ghost_custom_range(
     for (NodeID seq_u = from; seq_u < to; ++seq_u) {
         const NodeID u = mapper(seq_u);
 
-        if (!filter(u)) {
-            continue;
+        if constexpr (filter_invocable_with_node) {
+            if (!filter(u)) {
+                continue;
+            }
         }
 
         const PEID thread = omp_get_thread_num();
 
         for (const auto [e, v]: graph.neighbors(u)) {
             if (graph.is_ghost_node(v)) {
+                if constexpr (filter_invocable_with_edge) {
+                    if (!filter(u, e, v)) {
+                        continue;
+                    }
+                }
+
                 const PEID owner = graph.ghost_owner(v);
                 ++num_messages[thread][owner];
 
@@ -144,14 +154,22 @@ void sparse_alltoall_interface_to_ghost_custom_range(
     for (NodeID seq_u = from; seq_u < to; ++seq_u) {
         const NodeID u = mapper(seq_u);
 
-        if (!filter(u)) {
-            continue;
+        if constexpr (filter_invocable_with_node) {
+            if (!filter(u)) {
+                continue;
+            }
         }
 
         const PEID thread = omp_get_thread_num();
 
         for (const auto [e, v]: graph.neighbors(u)) {
             if (graph.is_ghost_node(v)) {
+                if constexpr (filter_invocable_with_edge) {
+                    if (!filter(u, e, v)) {
+                        continue;
+                    }
+                }
+
                 const PEID        pe   = graph.ghost_owner(v);
                 const std::size_t slot = --num_messages[thread][pe];
                 if constexpr (builder_invocable_with_pe) {

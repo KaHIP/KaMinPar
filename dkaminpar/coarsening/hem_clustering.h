@@ -29,7 +29,6 @@ private:
 
     void compute_local_matching(ColorID c, GlobalNodeWeight max_cluster_weight);
     void resolve_global_conflicts(ColorID c);
-    void turn_into_clustering(ColorID c);
 
     const Context&              _input_ctx;
     const HEMCoarseningContext& _ctx;

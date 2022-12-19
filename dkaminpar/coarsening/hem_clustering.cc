@@ -137,11 +137,6 @@ HEMClustering::compute_clustering(const DistributedGraph& graph, GlobalNodeWeigh
     for (ColorID c = 0; c + 1 < _color_sizes.size(); ++c) {
         compute_local_matching(c, max_cluster_weight);
         resolve_global_conflicts(c);
-
-        // After the first two steps, _matching[u] holds the global node ID of u's matching partner
-        // The next step replaces the _matching value of the smaller node ID with its own global node ID,
-        // turning the _matching array into a cluster array
-        turn_into_clustering(c);
     }
 
     // Unmatched nodes become singleton clusters
@@ -240,15 +235,13 @@ void HEMClustering::compute_local_matching(const ColorID c, const GlobalNodeWeig
 
         // If we found a good neighbor, try to match with it
         if (best_weight > 0) {
-            const GlobalNodeID u_global  = _graph->local_to_global_node(u);
-            GlobalNodeID       unmatched = kInvalidGlobalNodeID;
-            if (!_matching[best_neighbor].compare_exchange_strong(unmatched, u_global)) {
-                return; // Matching failed due to a race condition
+            const GlobalNodeID neighbor_global = _graph->local_to_global_node(best_neighbor);
+            GlobalNodeID       unmatched       = kInvalidGlobalNodeID;
+            if (_matching[best_neighbor].compare_exchange_strong(unmatched, neighbor_global)) {
+                // @todo if we merge small colors, also use CAS to match our own node and revert matching of
+                // best_neighbor if our CAS failed
+                _matching[u] = neighbor_global;
             }
-
-            // @todo if we merge small colors, also use CAS to match our own node and revert matching of best_neighbor
-            // if our CAS failed
-            _matching[u] = _graph->local_to_global_node(best_neighbor);
         }
     });
 }
@@ -263,11 +256,12 @@ void HEMClustering::resolve_global_conflicts(const ColorID c) {
     const NodeID seq_from = _color_sizes[c];
     const NodeID seq_to   = _color_sizes[c + 1];
 
+    // @todo avoid O(m), use same "trick" as below?
     auto all_requests = mpi::graph::sparse_alltoall_interface_to_ghost_get<MatchRequest>(
         *_graph, seq_from, seq_to,
-        [&](const NodeID seq_u) {
+        [&](const NodeID seq_u, EdgeID, const NodeID v) {
             const NodeID u = _color_sorted_nodes[seq_u];
-            return _matching[u] != kInvalidGlobalNodeID && !_graph->is_owned_global_node(_matching[u]);
+            return _matching[u] == _graph->local_to_global_node(v);
         },
         [&](const NodeID u, const EdgeID e, const NodeID v, const PEID pe) -> MatchRequest {
             const GlobalNodeID v_global = _graph->local_to_global_node(v);
@@ -279,8 +273,6 @@ void HEMClustering::resolve_global_conflicts(const ColorID c) {
     parallel::chunked_for(all_requests, [&](MatchRequest& req, const PEID pe) {
         std::swap(req.theirs, req.mine);
         req.theirs = _graph->global_to_local_node(req.theirs + _graph->offset_n(pe));
-
-        _matched[req.mine] = 1;
 
         GlobalNodeID current_partner = _matching[req.mine];
         GlobalNodeID new_partner     = current_partner;
@@ -296,18 +288,18 @@ void HEMClustering::resolve_global_conflicts(const ColorID c) {
 
     // Create response messages
     parallel::chunked_for(all_requests, [&](MatchRequest& req, const PEID pe) {
-        req.theirs = static_cast<NodeID>(_graph->local_to_global_node(req.theirs) - _graph->offset_n(pe));
-
         const NodeID winner = _matching[req.mine] & 0xFFFF'FFFF;
         if (req.theirs != winner) {
             req.mine = kInvalidNodeID;
         }
+
+        req.theirs = static_cast<NodeID>(_graph->local_to_global_node(req.theirs) - _graph->offset_n(pe));
     });
 
     // Normalize our _matching array
     parallel::chunked_for(all_requests, [&](const MatchRequest& req) {
         if (req.mine != kInvalidNodeID) { // Due to the previous step, this should only happen once per node
-            _matching[req.mine] = _graph->local_to_global_node(_matched[req.mine] & 0xFFFF'FFFF);
+            _matching[req.mine] = _graph->local_to_global_node(req.mine); // We become the leader of this cluster
         }
     });
 
@@ -319,23 +311,6 @@ void HEMClustering::resolve_global_conflicts(const ColorID c) {
         if (rsp.theirs == kInvalidNodeID) {
             // We have to unmatch the ghost node
             _matching[rsp.mine] = kInvalidGlobalNodeID;
-        }
-    });
-}
-
-void HEMClustering::turn_into_clustering(const ColorID c) {
-    const NodeID seq_from = _color_sizes[c];
-    const NodeID seq_to   = _color_sizes[c + 1];
-    _graph->pfor_nodes(seq_from, seq_to, [&](const NodeID seq_u) {
-        const NodeID       u        = _color_sorted_nodes[seq_u];
-        const GlobalNodeID u_global = _graph->local_to_global_node(u);
-        const GlobalNodeID partner  = _matching[u];
-        if (partner == kInvalidGlobalNodeID || partner == u_global) {
-            return;
-        }
-
-        if (!_graph->is_owned_global_node(partner) || u_global < partner) {
-            _matching[u] = u_global;
         }
     });
 }
