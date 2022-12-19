@@ -6,6 +6,7 @@
  ******************************************************************************/
 #pragma once
 
+#include "dkaminpar/algorithms/greedy_node_coloring.h"
 #include "dkaminpar/coarsening/clustering_algorithm.h"
 #include "dkaminpar/context.h"
 #include "dkaminpar/definitions.h"
@@ -20,10 +21,19 @@ public:
     HEMClustering(HEMClustering&&) noexcept            = default;
     HEMClustering& operator=(HEMClustering&&) noexcept = default;
 
+    void initialize(const DistributedGraph& graph);
+
     const AtomicClusterArray&
     compute_clustering(const DistributedGraph& graph, GlobalNodeWeight max_cluster_weight) final;
 
 private:
+    const Context&              _input_ctx;
+    const HEMCoarseningContext& _ctx;
+
     AtomicClusterArray _matching;
+
+    NoinitVector<std::uint8_t> _color_blacklist;
+    NoinitVector<ColorID>      _color_sizes;
+    NoinitVector<NodeID>       _color_sorted_nodes;
 };
 } // namespace kaminpar::dist

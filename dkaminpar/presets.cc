@@ -78,6 +78,15 @@ Context create_default_context() {
                         .keep_ghost_clusters                  = false,
                         .scale_chunks_with_threads            = false,
                     },
+                .hem =
+                    {
+                        .num_coloring_chunks                = 0,
+                        .max_num_coloring_chunks            = 128,
+                        .min_num_coloring_chunks            = 8,
+                        .scale_coloring_chunks_with_threads = false,
+                        .small_color_blacklist              = 0,
+                        .only_blacklist_input_level         = false,
+                    },
                 .max_local_clustering_levels = 0,
                 .local_clustering_algorithm  = LocalClusteringAlgorithm::NOOP,
                 .local_lp =

@@ -88,6 +88,15 @@ struct LabelPropagationCoarseningContext {
     void               setup(const ParallelContext& parallel);
 };
 
+struct HEMCoarseningContext {
+    int    num_coloring_chunks                = 0;
+    int    max_num_coloring_chunks            = 0;
+    int    min_num_coloring_chunks            = 0;
+    bool   scale_coloring_chunks_with_threads = false;
+    double small_color_blacklist              = 0;
+    bool   only_blacklist_input_level         = false;
+};
+
 struct ColoredLabelPropagationRefinementContext {
     int  num_iterations                  = 0;
     int  num_move_execution_iterations   = 0;
@@ -140,6 +149,7 @@ struct CoarseningContext {
     GlobalClusteringAlgorithm         global_clustering_algorithm;
     GlobalContractionAlgorithm        global_contraction_algorithm;
     LabelPropagationCoarseningContext global_lp;
+    HEMCoarseningContext              hem;
 
     std::size_t                       max_local_clustering_levels = 0;
     LocalClusteringAlgorithm          local_clustering_algorithm;

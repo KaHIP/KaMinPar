@@ -20,6 +20,7 @@ void create_all_options(CLI::App* app, Context& ctx) {
     create_coarsening_options(app, ctx);
     create_global_lp_coarsening_options(app, ctx);
     create_local_lp_coarsening_options(app, ctx);
+    create_hem_coarsening_options(app, ctx);
     create_initial_partitioning_options(app, ctx);
     create_refinement_options(app, ctx);
     create_fm_refinement_options(app, ctx);
@@ -285,6 +286,26 @@ CLI::Option_group *create_local_lp_coarsening_options(CLI::App *app, Context &ct
     lp->add_flag("--c-llp-ignore-ghost-nodes", ctx.coarsening.local_lp.ignore_ghost_nodes, "Ignore ghost nodes for cluster rating.")
         ->capture_default_str();
     lp->add_flag("--c-llp-keep-ghost-clusters", ctx.coarsening.local_lp.keep_ghost_clusters, "Keep clusters of ghost clusters and remap them to local cluster IDs.")
+        ->capture_default_str();
+
+    return lp;
+}
+
+CLI::Option_group * create_hem_coarsening_options(CLI::App *app, Context &ctx) {
+    auto *lp = app->add_option_group("Coarsening -> Heavy Edge Matching");
+
+    // Control number of coloring supersteps
+    lp->add_option("--c-hem-max-num-chunks", ctx.coarsening.hem.max_num_coloring_chunks)
+        ->capture_default_str();
+    lp->add_option("--c-hem-min-num-chunks", ctx.coarsening.hem.min_num_coloring_chunks)
+        ->capture_default_str();
+    lp->add_option("--c-hem-num-chunks", ctx.coarsening.hem.num_coloring_chunks, "Number of supersteps of the coloring algorithm. If set to 0, the value is derived from the min and max bounds.")
+        ->capture_default_str();
+    lp->add_flag("--c-hem-scale-chunks-with-threads", ctx.coarsening.hem.scale_coloring_chunks_with_threads)
+        ->capture_default_str();
+    lp->add_option("--c-hem-small-color-blacklist", ctx.coarsening.hem.small_color_blacklist, "Sort colors by their size, then exclude the smallest colors such that roughly <param>% of all nodes are excluded")
+        ->capture_default_str();
+    lp->add_flag("--c-hem-only-blacklist-on-input-level", ctx.coarsening.hem.only_blacklist_input_level, "Only blacklist nodes when refining the input graph.")
         ->capture_default_str();
 
     return lp;

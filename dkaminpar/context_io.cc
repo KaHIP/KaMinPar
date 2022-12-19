@@ -398,13 +398,25 @@ void print(const CoarseningContext& ctx, std::ostream& out) {
     }
     if (ctx.max_global_clustering_levels > 0) {
         out << "Global clustering algorithm:  " << ctx.global_clustering_algorithm << "\n";
-        out << "  Number of iterations:       " << ctx.global_lp.num_iterations << "\n";
-        out << "  High degree threshold:      " << ctx.global_lp.passive_high_degree_threshold << " (passive), "
-            << ctx.global_lp.active_high_degree_threshold << " (active)\n";
-        out << "  Max degree:                 " << ctx.global_lp.max_num_neighbors << "\n";
-        out << "  Number of chunks:           " << ctx.global_lp.num_chunks << " (min: " << ctx.global_lp.min_num_chunks
-            << ", total: " << ctx.global_lp.total_num_chunks << ")"
-            << (ctx.global_lp.scale_chunks_with_threads ? ", scaled" : "") << "\n";
+        if (ctx.global_clustering_algorithm == GlobalClusteringAlgorithm::LP
+            || ctx.global_clustering_algorithm == GlobalClusteringAlgorithm::ACTIVE_SET_LP) {
+            out << "  Number of iterations:       " << ctx.global_lp.num_iterations << "\n";
+            out << "  High degree threshold:      " << ctx.global_lp.passive_high_degree_threshold << " (passive), "
+                << ctx.global_lp.active_high_degree_threshold << " (active)\n";
+            out << "  Max degree:                 " << ctx.global_lp.max_num_neighbors << "\n";
+            out << "  Number of chunks:           " << ctx.global_lp.num_chunks
+                << " (min: " << ctx.global_lp.min_num_chunks << ", total: " << ctx.global_lp.total_num_chunks << ")"
+                << (ctx.global_lp.scale_chunks_with_threads ? ", scaled" : "") << "\n";
+            out << "  Active set:                 "
+                << (ctx.global_clustering_algorithm == GlobalClusteringAlgorithm::LP ? "no" : "yes");
+        }
+        if (ctx.global_clustering_algorithm == GlobalClusteringAlgorithm::HEM) {
+            out << "  Number of coloring ssteps:  " << ctx.hem.num_coloring_chunks
+                << " (min: " << ctx.hem.min_num_coloring_chunks << ", max: " << ctx.hem.max_num_coloring_chunks << ")"
+                << (ctx.hem.scale_coloring_chunks_with_threads ? ", scaled with threads" : "") << "\n";
+            out << "  Small color blacklist:      " << 100 * ctx.hem.small_color_blacklist << "%"
+                << (ctx.hem.only_blacklist_input_level ? " (input level only)" : "") << "\n";
+        }
     }
 }
 
