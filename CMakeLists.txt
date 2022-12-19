@@ -15,8 +15,8 @@ if (NOT CMAKE_BUILD_TYPE OR CMAKE_BUILD_TYPE STREQUAL "")
     set(CMAKE_BUILD_TYPE "Release" CACHE STRING "" FORCE)
 endif ()
 
-# 3rd party dependencies
 include(FetchContent)
+include(CheckCXXCompilerFlag)
 
 FetchContent_Declare(KaGen
     GIT_REPOSITORY https://github.com/sebalamm/KaGen.git
@@ -63,11 +63,11 @@ option(KAMINPAR_64BIT_WEIGHTS "Use 64 bit for node and edge weights." OFF)
 option(KAMINPAR_64BIT_LOCAL_WEIGHTS "Use 64 bit for local node and edge weights." OFF)
 
 option(KAMINPAR_PYTHON_MODULE "Build the Python binding." OFF)
-option(KAMINPAR_METIS_INTERFACE OFF)
+option(KAMINPAR_METIS_INTERFACE "Build the METIS interface." OFF)
 
 set(KAMINPAR_ASSERTION_LEVEL "light" CACHE STRING "Assertion level.")
 set_property(CACHE KAMINPAR_ASSERTION_LEVEL PROPERTY STRINGS none light normal heavy)
-message(STATUS "Assertion level: ${KAMINPAR_ASSERTION_LEVEL}")
+message(STATUS "KAssertion level: ${KAMINPAR_ASSERTION_LEVEL}")
 
 # Export compile commands
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -83,17 +83,6 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wredundant-decls")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Winit-self")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-function")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -Og")
-
-# Growt requires -mcx16 (x86 only)
-if (KAMINPAR_DISTRIBUTED)
-    include(CheckCXXCompilerFlag)
-    check_cxx_compiler_flag(-mcx16 COMPILER_SUPPORTS_MCX16)
-    if (COMPILER_SUPPORTS_MCX16) 
-        add_compile_options(-mcx16)
-    else ()
-        message(WARNING "Cannot build distributed partitioner: compiler does not support the -mcx16 flag.")
-    endif()
-endif ()
 
 # Set compile flags 
 if (KAMINPAR_MTUNE_NATIVE) 
@@ -138,16 +127,28 @@ if (CCACHE_PROGRAM)
     set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
 endif ()
 
-# Look for dKaMinPar dependencies
-if (KAMINPAR_DISTRIBUTED AND COMPILER_SUPPORTS_MCX16) 
+if (KAMINPAR_DISTRIBUTED)
+    # MPI
     set(MPI_DETERMINE_LIBRARY_VERSION TRUE)
     find_package(MPI)
-
     if (NOT MPI_FOUND) 
-        message(WARNING "Cannout build distributed partitioner: could not find MPI")
+        message(WARNING "Cannout build distributed partitioner: could not find MPI.")
+        set(KAMINPAR_DISTRIBUTED OFF)
     endif ()
 
-    # Fetch growt
+    # Growt (needs -mcx16, i.e., does not work on ARM)
+    message("################################################################################")
+    message("## growt                                                                      ##")
+    message("################################################################################")
+
+    check_cxx_compiler_flag(-mcx16 COMPILER_SUPPORTS_MCX16)
+    if (COMPILER_SUPPORTS_MCX16) 
+        add_compile_options(-mcx16)
+    else ()
+        message(WARNING "Cannot build distributed partitioner: compiler does not support the -mcx16 flag.")
+        set(KAMINPAR_DISTRIBUTED OFF)
+    endif()
+
     FetchContent_MakeAvailable(growt)
     set_property(DIRECTORY "${growt_SOURCE_DIR}" PROPERTY EXCLUDE_FROM_ALL YES)
 
@@ -156,7 +157,10 @@ if (KAMINPAR_DISTRIBUTED AND COMPILER_SUPPORTS_MCX16)
     target_include_directories(growt SYSTEM INTERFACE "${growt_SOURCE_DIR}")
 endif ()
 
-# Setup kassert
+message("################################################################################")
+message("## KAssert                                                                    ##")
+message("################################################################################")
+
 if (KAMINPAR_ASSERTION_LEVEL STREQUAL "none")
     set(KASSERT_ASSERTION_LEVEL 0)
 elseif (KAMINPAR_ASSERTION_LEVEL STREQUAL "light")
@@ -172,12 +176,27 @@ endif ()
 FetchContent_MakeAvailable(kassert)
 set_property(DIRECTORY "${kassert_SOURCE_DIR}" PROPERTY EXCLUDE_FROM_ALL YES)
 
+
 # Include pybind11 if we build the python module 
 if (KAMINPAR_PYTHON_MODULE)
+    message("################################################################################")
+    message("## pybind11                                                                   ##")
+    message("################################################################################")
     FetchContent_MakeAvailable(pybind11)
     set_property(DIRECTORY "${pybind11_SOURCE_DIR}" PROPERTY EXCLUDE_FROM_ALL YES)
     set(CMAKE_POSITION_INDEPENDENT_CODE ON) # pybind11 requires PIC
 endif ()
+
+if (KAMINPAR_GRAPHGEN)
+    message("################################################################################")
+    message("## KaGen                                                                      ##")
+    message("################################################################################")
+    FetchContent_MakeAvailable(KaGen)
+    set_property(DIRECTORY "${KaGen_SOURCE_DIR}" PROPERTY EXCLUDE_FROM_ALL YES)
+    add_definitions(-DKAMINPAR_GRAPHGEN)
+endif ()
+
+message("--------------------------------------------------------------------------------")
 
 # Start include paths on project root
 include_directories(${PROJECT_SOURCE_DIR})
@@ -188,13 +207,7 @@ add_subdirectory(kaminpar)
 add_subdirectory(library)
 
 # Distributed components
-if (KAMINPAR_DISTRIBUTED AND COMPILER_SUPPORTS_MCX16 AND MPI_FOUND)
-    if (KAMINPAR_GRAPHGEN)
-        FetchContent_MakeAvailable(KaGen)
-        set_property(DIRECTORY "${KaGen_SOURCE_DIR}" PROPERTY EXCLUDE_FROM_ALL YES)
-        add_definitions(-DKAMINPAR_GRAPHGEN)
-    endif ()
-
+if (KAMINPAR_DISTRIBUTED)
     add_subdirectory(dkaminpar)
 endif ()
 
