@@ -1,22 +1,45 @@
 cmake_minimum_required(VERSION 3.25)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake/modules)
 
+include(FetchContent)
+include(CheckCXXCompilerFlag)
+
 project(KaMinPar
         DESCRIPTION "Shared-memory and distributed graph partitioner for large k partitioning."
-        LANGUAGES CXX)
+        LANGUAGES C CXX)
 
 set(PROJECT_VENDOR "Daniel Seemaier")
 set(PROJECT_CONTACT "daniel.seemaier@kit.edu")
-
 set(CMAKE_CXX_STANDARD 17)
 
-# Default to Release mode
-if (NOT CMAKE_BUILD_TYPE OR CMAKE_BUILD_TYPE STREQUAL "")
-    set(CMAKE_BUILD_TYPE "Release" CACHE STRING "" FORCE)
-endif ()
+################################################################################
+## Options                                                                    ##
+################################################################################
 
-include(FetchContent)
-include(CheckCXXCompilerFlag)
+# Control what to build
+option(KAMINPAR_TESTS "Build unit tests" OFF)
+option(KAMINPAR_DISTRIBUTED "Enable or disable the distributed partitioner (requires the growt submodule)." ON)
+option(KAMINPAR_GRAPHGEN "Build with support for in-memory graph generation (requires the KaGen submodule)." ON)
+option(KAMINPAR_MTKAHYPAR "Enable Mt-KaHyPar as initial partitioner for the distributed partitioner." OFF)
+option(KAMINPAR_PYTHON_MODULE "Build the Python binding." OFF)
+option(KAMINPAR_METIS_INTERFACE "Build the METIS interface." OFF)
+
+# Control how to build
+option(KAMINPAR_STATISTICS "Generate and output detailed statistics." ON)
+option(KAMINPAR_SANITIZER "Enable address sanitizer." OFF)
+option(KAMINPAR_MTUNE_NATIVE "Build with -mtune=native." ON)
+option(KAMINPAR_CCACHE "Use ccache to build." ON)
+
+# Control data type sizes
+option(KAMINPAR_64BIT_IDS "Use 64 bits for node and edge IDs." OFF)
+option(KAMINPAR_64BIT_EDGE_IDS "Use 64 bits for edge IDs." OFF)
+option(KAMINPAR_64BIT_NODE_IDS "Use 64 bits for node IDs." OFF)
+option(KAMINPAR_64BIT_WEIGHTS "Use 64 bit for node and edge weights." OFF)
+option(KAMINPAR_64BIT_LOCAL_WEIGHTS "Use 64 bit for local node and edge weights." OFF)
+
+################################################################################
+## Declare dependencies                                                       ##
+################################################################################
 
 FetchContent_Declare(KaGen
     GIT_REPOSITORY https://github.com/sebalamm/KaGen.git
@@ -44,26 +67,6 @@ FetchContent_Declare(
     SYSTEM
     GIT_REPOSITORY https://github.com/TooBiased/growt.git
     GIT_TAG ab1b61a)
-
-option(KAMINPAR_TESTS "Build unit tests" OFF)
-
-option(KAMINPAR_STATISTICS "Generate and output detailed statistics." ON)
-option(KAMINPAR_GRAPHGEN "Build with support for in-memory graph generation (requires the KaGen submodule)." ON)
-option(KAMINPAR_SANITIZER "Enable address sanitizer." OFF)
-option(KAMINPAR_MTUNE_NATIVE "Build with -mtune=native." ON)
-
-option(KAMINPAR_MTKAHYPAR "Enable Mt-KaHyPar as initial partitioner for the distributed partitioner." OFF)
-
-option(KAMINPAR_DISTRIBUTED "Enable or disable the distributed partitioner (requires the growt submodule)." ON)
-
-option(KAMINPAR_64BIT_IDS "Use 64 bits for node and edge IDs." OFF)
-option(KAMINPAR_64BIT_EDGE_IDS "Use 64 bits for edge IDs." OFF)
-option(KAMINPAR_64BIT_NODE_IDS "Use 64 bits for node IDs." OFF)
-option(KAMINPAR_64BIT_WEIGHTS "Use 64 bit for node and edge weights." OFF)
-option(KAMINPAR_64BIT_LOCAL_WEIGHTS "Use 64 bit for local node and edge weights." OFF)
-
-option(KAMINPAR_PYTHON_MODULE "Build the Python binding." OFF)
-option(KAMINPAR_METIS_INTERFACE "Build the METIS interface." OFF)
 
 set(KAMINPAR_ASSERTION_LEVEL "light" CACHE STRING "Assertion level.")
 set_property(CACHE KAMINPAR_ASSERTION_LEVEL PROPERTY STRINGS none light normal heavy)
@@ -120,11 +123,17 @@ if (KAMINPAR_64BIT_LOCAL_WEIGHTS)
     message(STATUS "Use 64 bit local node and edge weights.")
 endif ()
 
-# Use ccache is available 
-find_program(CCACHE_PROGRAM ccache)
-if (CCACHE_PROGRAM)
-    message(STATUS "Using ccache.")
-    set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+################################################################################
+## Search and fetch dependencies                                              ##
+################################################################################
+
+if (KAMINPAR_CCACHE)
+    find_program(CCACHE_PROGRAM ccache)
+    if (CCACHE_PROGRAM)
+        set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+    else ()
+        message(WARNING "Ccache was requests, but could not be found on the system.")
+    endif ()
 endif ()
 
 if (KAMINPAR_DISTRIBUTED)
@@ -197,6 +206,10 @@ if (KAMINPAR_GRAPHGEN)
 endif ()
 
 message("--------------------------------------------------------------------------------")
+
+################################################################################
+## Add targets in subdirectories                                              ##
+################################################################################
 
 # Start include paths on project root
 include_directories(${PROJECT_SOURCE_DIR})
