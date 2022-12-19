@@ -137,7 +137,19 @@ HEMClustering::compute_clustering(const DistributedGraph& graph, GlobalNodeWeigh
     for (ColorID c = 0; c + 1 < _color_sizes.size(); ++c) {
         compute_local_matching(c, max_cluster_weight);
         resolve_global_conflicts(c);
+
+        // After the first two steps, _matching[u] holds the global node ID of u's matching partner 
+        // The next step replaces the _matching value of the smaller node ID with its own global node ID,
+        // turning the _matching array into a cluster array
+        turn_into_clustering(c);
     }
+
+    // Unmatched nodes become singleton clusters
+    _graph->pfor_all_nodes([&](const NodeID u) {
+        if (_matching[u] == kInvalidGlobalNodeID) {
+            _matching[u] = _graph->local_to_global_node(u);
+        }
+    });
 
     return _matching;
 }
@@ -145,8 +157,12 @@ HEMClustering::compute_clustering(const DistributedGraph& graph, GlobalNodeWeigh
 void HEMClustering::compute_local_matching(const ColorID c, const GlobalNodeWeight max_cluster_weight) {
     const NodeID seq_from = _color_sizes[c];
     const NodeID seq_to   = _color_sizes[c + 1];
-    for (const NodeID seq_u: _graph->nodes(seq_from, seq_to)) {
-        const NodeID     u        = _color_sorted_nodes[seq_u];
+    _graph->pfor_nodes(seq_from, seq_to, [&](const NodeID seq_u) {
+        const NodeID u = _color_sorted_nodes[seq_u];
+        if (_matching[u] != kInvalidGlobalNodeID) {
+            return; // Node already matched
+        }
+
         const NodeWeight u_weight = _graph->node_weight(u);
 
         // @todo if matching fails due to a race condition, we could try again
@@ -181,14 +197,14 @@ void HEMClustering::compute_local_matching(const ColorID c, const GlobalNodeWeig
             const GlobalNodeID u_global  = _graph->local_to_global_node(u);
             GlobalNodeID       unmatched = kInvalidGlobalNodeID;
             if (!_matching[best_neighbor].compare_exchange_strong(unmatched, u_global)) {
-                continue; // Matching failed due to a race condition
+                return; // Matching failed due to a race condition
             }
 
             // @todo if we merge small colors, also use CAS to match our own node and revert matching of best_neighbor
             // if our CAS failed
             _matching[u] = _graph->local_to_global_node(best_neighbor);
         }
-    }
+    });
 }
 
 void HEMClustering::resolve_global_conflicts(const ColorID c) {
@@ -258,6 +274,23 @@ void HEMClustering::resolve_global_conflicts(const ColorID c) {
         if (rsp.theirs == kInvalidNodeID) {
             // We have to unmatch the ghost node
             _matching[rsp.mine] = kInvalidGlobalNodeID;
+        }
+    });
+}
+
+void HEMClustering::turn_into_clustering(const ColorID c) {
+    const NodeID seq_from = _color_sizes[c];
+    const NodeID seq_to   = _color_sizes[c + 1];
+    _graph->pfor_nodes(seq_from, seq_to, [&](const NodeID seq_u) {
+        const NodeID       u        = _color_sorted_nodes[seq_u];
+        const GlobalNodeID u_global = _graph->local_to_global_node(u);
+        const GlobalNodeID partner  = _matching[u];
+        if (partner == kInvalidGlobalNodeID || partner == u_global) {
+            return;
+        }
+
+        if (!_graph->is_owned_global_node(partner) || u_global < partner) {
+            _matching[u] = u_global;
         }
     });
 }

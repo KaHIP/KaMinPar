@@ -24,6 +24,7 @@ SET_DEBUG(false);
 
 NoinitVector<ColorID>
 compute_node_coloring_sequentially(const DistributedGraph& graph, const NodeID number_of_supersteps) {
+    KASSERT(number_of_supersteps > 0u, "bad parameter", assert::light);
     SCOPED_TIMER("Compute greedy node coloring");
 
     // Initialize coloring to 0 == no color picked yet
