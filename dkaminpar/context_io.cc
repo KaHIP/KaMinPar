@@ -58,6 +58,7 @@ std::unordered_map<std::string, GlobalClusteringAlgorithm> get_global_clustering
         {"active-set-lp", GlobalClusteringAlgorithm::ACTIVE_SET_LP},
         {"locking-lp", GlobalClusteringAlgorithm::LOCKING_LP},
         {"hem", GlobalClusteringAlgorithm::HEM},
+        {"hem-lp", GlobalClusteringAlgorithm::HEM_LP},
     };
 }
 
@@ -73,6 +74,8 @@ std::ostream& operator<<(std::ostream& out, const GlobalClusteringAlgorithm algo
             return out << "locking-lp";
         case GlobalClusteringAlgorithm::HEM:
             return out << "hem";
+        case GlobalClusteringAlgorithm::HEM_LP:
+            return out << "hem-lp";
     }
 
     return out << "<invalid>";
@@ -387,6 +390,7 @@ void print(const CoarseningContext& ctx, std::ostream& out) {
     } else {
         out << "Coarsening mode:              disabled\n";
     }
+
     if (ctx.max_local_clustering_levels > 0) {
         out << "Local clustering algorithm:   " << ctx.local_clustering_algorithm << "\n";
         out << "  Number of iterations:       " << ctx.local_lp.num_iterations << "\n";
@@ -396,10 +400,13 @@ void print(const CoarseningContext& ctx, std::ostream& out) {
         out << "  Ghost nodes:                " << (ctx.local_lp.ignore_ghost_nodes ? "ignore" : "consider") << "+"
             << (ctx.local_lp.keep_ghost_clusters ? "keep" : "discard") << "\n";
     }
+
     if (ctx.max_global_clustering_levels > 0) {
         out << "Global clustering algorithm:  " << ctx.global_clustering_algorithm << "\n";
+
         if (ctx.global_clustering_algorithm == GlobalClusteringAlgorithm::LP
-            || ctx.global_clustering_algorithm == GlobalClusteringAlgorithm::ACTIVE_SET_LP) {
+            || ctx.global_clustering_algorithm == GlobalClusteringAlgorithm::ACTIVE_SET_LP
+            || ctx.global_clustering_algorithm == GlobalClusteringAlgorithm::HEM_LP) {
             out << "  Number of iterations:       " << ctx.global_lp.num_iterations << "\n";
             out << "  High degree threshold:      " << ctx.global_lp.passive_high_degree_threshold << " (passive), "
                 << ctx.global_lp.active_high_degree_threshold << " (active)\n";
@@ -410,7 +417,9 @@ void print(const CoarseningContext& ctx, std::ostream& out) {
             out << "  Active set:                 "
                 << (ctx.global_clustering_algorithm == GlobalClusteringAlgorithm::LP ? "no" : "yes");
         }
-        if (ctx.global_clustering_algorithm == GlobalClusteringAlgorithm::HEM) {
+
+        if (ctx.global_clustering_algorithm == GlobalClusteringAlgorithm::HEM
+            || ctx.global_clustering_algorithm == GlobalClusteringAlgorithm::HEM_LP) {
             out << "  Number of coloring ssteps:  " << ctx.hem.num_coloring_chunks
                 << " (min: " << ctx.hem.min_num_coloring_chunks << ", max: " << ctx.hem.max_num_coloring_chunks << ")"
                 << (ctx.hem.scale_coloring_chunks_with_threads ? ", scaled with threads" : "") << "\n";

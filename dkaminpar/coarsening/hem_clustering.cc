@@ -123,8 +123,6 @@ void HEMClustering::initialize(const DistributedGraph& graph) {
     TIMED_SCOPE("Allocation") {
         _matching.clear();
         _matching.resize(graph.total_n(), kInvalidGlobalNodeID);
-        _matched.clear();
-        _matched.resize(graph.n());
     };
 }
 
@@ -174,10 +172,10 @@ HEMClustering::compute_clustering(const DistributedGraph& graph, GlobalNodeWeigh
             mpi::graph::sparse_alltoall_interface_to_ghost<MatchedEdge>(
                 *_graph,
                 [&](const NodeID u, EdgeID, const NodeID v) -> bool {
-                    return _matched[u] == _graph->local_to_global_node(v);
+                    return _matching[u] == _graph->local_to_global_node(v);
                 },
                 [&](const NodeID u, EdgeID, NodeID) -> MatchedEdge {
-                    return {_graph->local_to_global_node(u), _matched[u]};
+                    return {_graph->local_to_global_node(u), _matching[u]};
                 },
                 [&](const auto& r, const PEID pe) {
                     for (const auto& [u, v]: r) {

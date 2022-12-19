@@ -24,6 +24,7 @@ enum class GlobalClusteringAlgorithm {
     LP,
     LOCKING_LP,
     HEM,
+    HEM_LP,
 };
 
 enum class LocalClusteringAlgorithm {

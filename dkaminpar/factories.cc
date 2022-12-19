@@ -34,6 +34,7 @@
 #include "dkaminpar/coarsening/global_active_set_label_propagation_clustering.h"
 #include "dkaminpar/coarsening/global_label_propagation_clustering.h"
 #include "dkaminpar/coarsening/hem_clustering.h"
+#include "dkaminpar/coarsening/hem_lp_clustering.h"
 #include "dkaminpar/coarsening/local_label_propagation_clustering.h"
 #include "dkaminpar/coarsening/locking_label_propagation_clustering.h"
 #include "dkaminpar/coarsening/noop_clustering.h"
@@ -120,6 +121,9 @@ std::unique_ptr<ClusteringAlgorithm<GlobalNodeID>> create_global_clustering_algo
 
         case GlobalClusteringAlgorithm::HEM:
             return std::make_unique<HEMClustering>(ctx);
+
+        case GlobalClusteringAlgorithm::HEM_LP:
+            return std::make_unique<HEMLPClustering>(ctx);
     }
 
     __builtin_unreachable();

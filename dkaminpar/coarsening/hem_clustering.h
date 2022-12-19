@@ -40,7 +40,5 @@ private:
     NoinitVector<std::uint8_t> _color_blacklist;
     NoinitVector<ColorID>      _color_sizes;
     NoinitVector<NodeID>       _color_sorted_nodes;
-
-    std::vector<parallel::Atomic<std::uint8_t>> _matched;
 };
 } // namespace kaminpar::dist
