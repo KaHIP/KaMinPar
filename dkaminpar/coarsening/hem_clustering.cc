@@ -1,7 +1,9 @@
 #include "dkaminpar/coarsening/hem_clustering.h"
 
 #include "dkaminpar/algorithms/greedy_node_coloring.h"
+#include "dkaminpar/mpi/graph_communication.h"
 
+#include "common/parallel/loops.h"
 #include "common/timer.h"
 
 namespace kaminpar::dist {
@@ -118,8 +120,12 @@ void HEMClustering::initialize(const DistributedGraph& graph) {
     KASSERT(_color_sizes.front() == 0u);
     KASSERT(_color_sizes.back() == graph.n());
 
-    _matching.clear();
-    _matching.resize(graph.total_n(), kInvalidGlobalNodeID);
+    TIMED_SCOPE("Allocation") {
+        _matching.clear();
+        _matching.resize(graph.total_n(), kInvalidGlobalNodeID);
+        _matched.clear();
+        _matched.resize(graph.n());
+    };
 }
 
 const HEMClustering::AtomicClusterArray&
@@ -130,7 +136,7 @@ HEMClustering::compute_clustering(const DistributedGraph& graph, GlobalNodeWeigh
 
     for (ColorID c = 0; c + 1 < _color_sizes.size(); ++c) {
         compute_local_matching(c, max_cluster_weight);
-        resolve_global_conflicts(c, max_cluster_weight);
+        resolve_global_conflicts(c);
     }
 
     return _matching;
@@ -149,7 +155,7 @@ void HEMClustering::compute_local_matching(const ColorID c, const GlobalNodeWeig
         EdgeWeight best_weight   = 0;
         for (const auto [e, v]: _graph->neighbors(u)) {
             // v already matched?
-            if (_matching[v] != kInvalidNodeID) {
+            if (_matching[v] != kInvalidGlobalNodeID) {
                 continue;
             }
 
@@ -185,7 +191,74 @@ void HEMClustering::compute_local_matching(const ColorID c, const GlobalNodeWeig
     }
 }
 
-void HEMClustering::resolve_global_conflicts(const ColorID c, const GlobalNodeWeight max_cluster_weight) {
+void HEMClustering::resolve_global_conflicts(const ColorID c) {
+    struct MatchRequest {
+        NodeID     mine;
+        NodeID     theirs;
+        EdgeWeight weight;
+    };
 
+    const NodeID seq_from = _color_sizes[c];
+    const NodeID seq_to   = _color_sizes[c + 1];
+
+    auto all_requests = mpi::graph::sparse_alltoall_interface_to_ghost_get<MatchRequest>(
+        *_graph, seq_from, seq_to,
+        [&](const NodeID seq_u) {
+            const NodeID u = _color_sorted_nodes[seq_u];
+            return _matching[u] != kInvalidGlobalNodeID && !_graph->is_owned_global_node(_matching[u]);
+        },
+        [&](const NodeID u, const EdgeID e, const NodeID v, const PEID pe) -> MatchRequest {
+            const GlobalNodeID v_global = _graph->local_to_global_node(v);
+            const NodeID       their_v  = static_cast<NodeID>(v_global - _graph->offset_n(pe));
+            return {u, their_v, _graph->edge_weight(e)};
+        }
+    );
+
+    parallel::chunked_for(all_requests, [&](MatchRequest& req, const PEID pe) {
+        std::swap(req.theirs, req.mine);
+        req.theirs = _graph->global_to_local_node(req.theirs + _graph->offset_n(pe));
+
+        _matched[req.mine] = 1;
+
+        GlobalNodeID current_partner = _matching[req.mine];
+        GlobalNodeID new_partner     = current_partner;
+        do {
+            const EdgeWeight current_weight =
+                current_partner == kInvalidGlobalNodeID ? 0 : static_cast<EdgeWeight>(current_partner >> 32);
+            if (req.weight <= current_weight) {
+                break;
+            }
+            new_partner = (static_cast<GlobalNodeID>(req.weight) << 32) | req.theirs;
+        } while (_matching[req.mine].compare_exchange_strong(current_partner, new_partner));
+    });
+
+    // Create response messages
+    parallel::chunked_for(all_requests, [&](MatchRequest& req, const PEID pe) {
+        req.theirs = static_cast<NodeID>(_graph->local_to_global_node(req.theirs) - _graph->offset_n(pe));
+
+        const NodeID winner = _matching[req.mine] & 0xFFFF'FFFF;
+        if (req.theirs != winner) {
+            req.mine = kInvalidNodeID;
+        }
+    });
+
+    // Normalize our _matching array
+    parallel::chunked_for(all_requests, [&](const MatchRequest& req) {
+        std::uint8_t one = 1;
+        if (_matched[req.mine].compare_exchange_strong(one, 0)) {
+            _matching[req.mine] = _graph->local_to_global_node(_matched[req.mine] & 0xFFFF'FFFF);
+        }
+    });
+
+    // Exchange response messages
+    auto all_responses = mpi::sparse_alltoall_get<MatchRequest>(all_requests, _graph->communicator());
+
+    parallel::chunked_for(all_responses, [&](MatchRequest& rsp) {
+        std::swap(rsp.mine, rsp.theirs);
+        if (rsp.theirs == kInvalidNodeID) {
+            // We have to unmatch the ghost node
+            _matching[rsp.mine] = kInvalidGlobalNodeID;
+        }
+    });
 }
 } // namespace kaminpar::dist

@@ -28,7 +28,7 @@ private:
     void initialize(const DistributedGraph& graph);
 
     void compute_local_matching(ColorID c, GlobalNodeWeight max_cluster_weight);
-    void resolve_global_conflicts(ColorID c, GlobalNodeWeight max_cluster_weight);
+    void resolve_global_conflicts(ColorID c);
 
     const Context&              _input_ctx;
     const HEMCoarseningContext& _ctx;
@@ -40,5 +40,7 @@ private:
     NoinitVector<std::uint8_t> _color_blacklist;
     NoinitVector<ColorID>      _color_sizes;
     NoinitVector<NodeID>       _color_sorted_nodes;
+
+    std::vector<parallel::Atomic<std::uint8_t>> _matched;
 };
 } // namespace kaminpar::dist
