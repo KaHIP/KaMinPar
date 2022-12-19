@@ -16,19 +16,24 @@ class HEMClustering : public ClusteringAlgorithm<GlobalNodeID> {
 public:
     HEMClustering(const Context& ctx);
 
-    HEMClustering(const HEMClustering&)                = delete;
-    HEMClustering& operator=(const HEMClustering&)     = delete;
-    HEMClustering(HEMClustering&&) noexcept            = default;
-    HEMClustering& operator=(HEMClustering&&) noexcept = default;
-
-    void initialize(const DistributedGraph& graph);
+    HEMClustering(const HEMClustering&)            = delete;
+    HEMClustering& operator=(const HEMClustering&) = delete;
+    HEMClustering(HEMClustering&&) noexcept        = default;
+    HEMClustering& operator=(HEMClustering&&)      = delete;
 
     const AtomicClusterArray&
     compute_clustering(const DistributedGraph& graph, GlobalNodeWeight max_cluster_weight) final;
 
 private:
+    void initialize(const DistributedGraph& graph);
+
+    void compute_local_matching(ColorID c, GlobalNodeWeight max_cluster_weight);
+    void resolve_global_conflicts(ColorID c, GlobalNodeWeight max_cluster_weight);
+
     const Context&              _input_ctx;
     const HEMCoarseningContext& _ctx;
+
+    const DistributedGraph* _graph;
 
     AtomicClusterArray _matching;
 

@@ -117,14 +117,75 @@ void HEMClustering::initialize(const DistributedGraph& graph) {
 
     KASSERT(_color_sizes.front() == 0u);
     KASSERT(_color_sizes.back() == graph.n());
+
+    _matching.clear();
+    _matching.resize(graph.total_n(), kInvalidGlobalNodeID);
 }
 
 const HEMClustering::AtomicClusterArray&
 HEMClustering::compute_clustering(const DistributedGraph& graph, GlobalNodeWeight max_cluster_weight) {
-    // Compute graph coloring
+    _graph = &graph;
+
     initialize(graph);
 
-    ((void)max_cluster_weight);
+    for (ColorID c = 0; c + 1 < _color_sizes.size(); ++c) {
+        compute_local_matching(c, max_cluster_weight);
+        resolve_global_conflicts(c, max_cluster_weight);
+    }
+
     return _matching;
+}
+
+void HEMClustering::compute_local_matching(const ColorID c, const GlobalNodeWeight max_cluster_weight) {
+    const NodeID seq_from = _color_sizes[c];
+    const NodeID seq_to   = _color_sizes[c + 1];
+    for (const NodeID seq_u: _graph->nodes(seq_from, seq_to)) {
+        const NodeID     u        = _color_sorted_nodes[seq_u];
+        const NodeWeight u_weight = _graph->node_weight(u);
+
+        // @todo if matching fails due to a race condition, we could try again
+
+        NodeID     best_neighbor = 0;
+        EdgeWeight best_weight   = 0;
+        for (const auto [e, v]: _graph->neighbors(u)) {
+            // v already matched?
+            if (_matching[v] != kInvalidNodeID) {
+                continue;
+            }
+
+            // v too heavy?
+            const NodeWeight v_weight = _graph->node_weight(v);
+            if (u_weight + v_weight > max_cluster_weight) {
+                continue;
+            }
+
+            // Already found a better neighbor?
+            const EdgeWeight e_weight = _graph->edge_weight(e);
+            if (e_weight < best_weight) {
+                continue;
+            }
+
+            // Match with v
+            best_weight   = e_weight;
+            best_neighbor = v;
+        }
+
+        // If we found a good neighbor, try to match with it
+        if (best_weight > 0) {
+            const GlobalNodeID u_global  = _graph->local_to_global_node(u);
+            GlobalNodeID       unmatched = kInvalidGlobalNodeID;
+            if (!_matching[best_neighbor].compare_exchange_strong(unmatched, u_global)) {
+                continue; // Matching failed due to a race condition
+            }
+
+            // @todo if we merge small colors, also use CAS to match our own node and revert matching of best_neighbor
+            // if our CAS failed
+            _matching[u] = _graph->local_to_global_node(best_neighbor);
+        }
+    }
+}
+
+void HEMClustering::resolve_global_conflicts(const ColorID c, const GlobalNodeWeight max_cluster_weight) {
+
 }
 } // namespace kaminpar::dist
