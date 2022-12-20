@@ -86,6 +86,7 @@ Context create_default_context() {
                         .scale_coloring_chunks_with_threads = false,
                         .small_color_blacklist              = 0,
                         .only_blacklist_input_level         = false,
+                        .ignore_weight_limit                = false,
                     },
                 .max_local_clustering_levels = 0,
                 .local_clustering_algorithm  = LocalClusteringAlgorithm::NOOP,

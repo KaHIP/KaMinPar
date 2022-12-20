@@ -308,6 +308,7 @@ CLI::Option_group * create_hem_coarsening_options(CLI::App *app, Context &ctx) {
         ->capture_default_str();
     lp->add_flag("--c-hem-only-blacklist-on-input-level", ctx.coarsening.hem.only_blacklist_input_level, "Only blacklist nodes when refining the input graph.")
         ->capture_default_str();
+    lp->add_flag("--c-hem-ignore-weight-limit", ctx.coarsening.hem.ignore_weight_limit, "Ignore cluster weight limit.");
 
     return lp;
 }

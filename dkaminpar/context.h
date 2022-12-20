@@ -96,8 +96,9 @@ struct HEMCoarseningContext {
     bool   scale_coloring_chunks_with_threads = false;
     double small_color_blacklist              = 0;
     bool   only_blacklist_input_level         = false;
+    bool   ignore_weight_limit                = false;
 
-    void setup(const ParallelContext &parallel);
+    void setup(const ParallelContext& parallel);
 };
 
 struct ColoredLabelPropagationRefinementContext {

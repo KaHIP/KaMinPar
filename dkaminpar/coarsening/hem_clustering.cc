@@ -221,7 +221,7 @@ void HEMClustering::compute_local_matching(const ColorID c, const GlobalNodeWeig
 
             // v too heavy?
             const NodeWeight v_weight = _graph->node_weight(v);
-            if (u_weight + v_weight > max_cluster_weight) {
+            if (u_weight + v_weight > max_cluster_weight && !_ctx.ignore_weight_limit) {
                 continue;
             }
 
