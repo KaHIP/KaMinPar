@@ -7,6 +7,10 @@
 #include "common/timer.h"
 
 namespace kaminpar::dist {
+namespace {
+SET_DEBUG(true);
+}
+
 HEMClustering::HEMClustering(const Context& ctx) : _input_ctx(ctx), _ctx(ctx.coarsening.hem) {}
 
 void HEMClustering::initialize(const DistributedGraph& graph) {
@@ -181,10 +185,14 @@ HEMClustering::compute_clustering(const DistributedGraph& graph, GlobalNodeWeigh
                     for (const auto& [u, v]: r) {
                         KASSERT(_graph->contains_global_node(u));
                         KASSERT(_graph->is_owned_global_node(v), "PE " << pe << " thinks that this PE owns " << v);
+                        const NodeID local_u = _graph->global_to_local_node(u);
                         const NodeID local_v = _graph->global_to_local_node(v);
+
                         KASSERT(
-                            _matching[local_v] == v,
-                            "invalid clustering structure for node " << local_v << " matched to global ghost node " << u
+                            _matching[local_v] == v, "invalid clustering structure for edge "
+                                                         << u << " <-> " << v << " (local " << local_u << " <-> "
+                                                         << local_v << "): expected " << v << " to be the leader, but "
+                                                         << v << " is in cluster " << _matching[local_v]
                         );
                     }
                 }
@@ -260,10 +268,9 @@ void HEMClustering::resolve_global_conflicts(const ColorID c) {
     const NodeID seq_to   = _color_sizes[c + 1];
 
     // @todo avoid O(m), use same "trick" as below?
-    auto all_requests = mpi::graph::sparse_alltoall_interface_to_ghost_get<MatchRequest>(
-        *_graph, seq_from, seq_to,
-        [&](const NodeID seq_u, EdgeID, const NodeID v) {
-            const NodeID u = _color_sorted_nodes[seq_u];
+    auto all_requests = mpi::graph::sparse_alltoall_interface_to_ghost_custom_range_get<MatchRequest>(
+        *_graph, seq_from, seq_to, [&](const NodeID seq_u) { return _color_sorted_nodes[seq_u]; },
+        [&](const NodeID u, EdgeID, const NodeID v) {
             return _matching[u] == _graph->local_to_global_node(v);
         },
         [&](const NodeID u, const EdgeID e, const NodeID v, const PEID pe) -> MatchRequest {
@@ -273,9 +280,22 @@ void HEMClustering::resolve_global_conflicts(const ColorID c) {
         }
     );
 
+    parallel::chunked_for(all_requests, [&](MatchRequest& req, PEID) {
+        std::swap(req.theirs, req.mine); // Swap roles of theirs and mine
+
+        if (_matching[req.mine] != kInvalidGlobalNodeID) {
+            req.mine = kInvalidNodeID; // Reject: local node matched to node
+        }
+    });
+
     parallel::chunked_for(all_requests, [&](MatchRequest& req, const PEID pe) {
-        std::swap(req.theirs, req.mine);
+        if (req.mine == kInvalidNodeID) {
+            return;
+        }
+
+        KASSERT(_graph->contains_global_node(req.theirs + _graph->offset_n(pe)));
         req.theirs = _graph->global_to_local_node(req.theirs + _graph->offset_n(pe));
+        KASSERT(_graph->is_ghost_node(req.theirs));
 
         GlobalNodeID current_partner = _matching[req.mine];
         GlobalNodeID new_partner     = current_partner;
@@ -291,8 +311,13 @@ void HEMClustering::resolve_global_conflicts(const ColorID c) {
 
     // Create response messages
     parallel::chunked_for(all_requests, [&](MatchRequest& req, const PEID pe) {
+        if (req.mine == kInvalidNodeID) {
+            return;
+        }
+
         const NodeID winner = _matching[req.mine] & 0xFFFF'FFFF;
         if (req.theirs != winner) {
+            // Indicate that the matching failed
             req.mine = kInvalidNodeID;
         }
 
@@ -310,11 +335,76 @@ void HEMClustering::resolve_global_conflicts(const ColorID c) {
     auto all_responses = mpi::sparse_alltoall_get<MatchRequest>(all_requests, _graph->communicator());
 
     parallel::chunked_for(all_responses, [&](MatchRequest& rsp) {
-        std::swap(rsp.mine, rsp.theirs);
+        std::swap(rsp.mine, rsp.theirs); // Swap roles of theirs and mine
+
         if (rsp.theirs == kInvalidNodeID) {
             // We have to unmatch the ghost node
             _matching[rsp.mine] = kInvalidGlobalNodeID;
         }
     });
+
+    // Synchronize matching:
+    // - nodes that where active during this round
+    // - their matching partners
+    // - interface nodes that got matched by nodes on other PEs
+    struct MatchedMessage {
+        NodeID       node;
+        GlobalNodeID partner;
+    };
+
+    const PEID                               size = mpi::get_comm_size(_graph->communicator());
+    std::vector<std::vector<MatchedMessage>> sync_msgs(size);
+    Marker<>                                 marked(size);
+
+    auto add_node = [&](const NodeID u) {
+        marked.reset();
+        for (const auto& [e, v]: _graph->neighbors(u)) {
+            if (!_graph->is_ghost_node(v)) {
+                continue;
+            }
+
+            const PEID owner = _graph->ghost_owner(v);
+            if (!marked.get(owner)) {
+                sync_msgs[owner].push_back({u, _matching[u]});
+                marked.set(owner);
+            }
+        }
+    };
+
+    for (const NodeID seq_u: _graph->nodes(seq_from, seq_to)) {
+        const NodeID       u       = _color_sorted_nodes[seq_u];
+        const GlobalNodeID partner = _matching[u];
+        if (partner != kInvalidGlobalNodeID) {
+            add_node(u);
+
+            if (_graph->is_owned_global_node(partner)) {
+                const NodeID local_partner = _graph->global_to_local_node(partner);
+                if (u != local_partner) {
+                    add_node(local_partner);
+                }
+            }
+        }
+    }
+
+    for (const auto& pe_requests: all_requests) {
+        for (const auto& req: pe_requests) {
+            if (req.mine != kInvalidNodeID) {
+                add_node(req.mine);
+            }
+        }
+    }
+
+    mpi::sparse_alltoall<MatchedMessage>(
+        sync_msgs,
+        [&](const auto& r, const PEID pe) {
+            tbb::parallel_for<std::size_t>(0, r.size(), [&](const std::size_t i) {
+                const auto [local_node_on_pe, partner] = r[i];
+                const auto   global_node = static_cast<GlobalNodeID>(_graph->offset_n(pe) + local_node_on_pe);
+                const NodeID local_node  = _graph->global_to_local_node(global_node);
+                _matching[local_node] = partner;
+            });
+        },
+        _graph->communicator()
+    );
 }
 } // namespace kaminpar::dist

@@ -191,6 +191,19 @@ void sparse_alltoall_interface_to_ghost(
     );
 }
 
+template <typename Message, typename Buffer = NoinitVector<Message>, typename Mapper, typename Filter, typename Builder>
+std::vector<Buffer> sparse_alltoall_interface_to_ghost_custom_range_get(
+    const DistributedGraph& graph, const NodeID from, const NodeID to, Mapper&& mapper, Filter&& filter,
+    Builder&& builder
+) {
+    std::vector<Buffer> recv_buffers(mpi::get_comm_size(graph.communicator()));
+    sparse_alltoall_interface_to_ghost_custom_range<Message, Buffer>(
+        graph, from, to, std::forward<Mapper>(mapper), std::forward<Filter>(filter), std::forward<Builder>(builder),
+        [&](auto recv_buffer, const PEID pe) { recv_buffers[pe] = std::move(recv_buffer); }
+    );
+    return recv_buffers;
+}
+
 template <
     typename Message, typename Buffer = NoinitVector<Message>, typename Filter, typename Builder, typename Receiver>
 void sparse_alltoall_interface_to_ghost(
@@ -418,6 +431,19 @@ std::vector<Buffer> sparse_alltoall_interface_to_pe_get(
     std::vector<Buffer> recv_buffers(mpi::get_comm_size(graph.communicator()));
     sparse_alltoall_interface_to_pe<Message, Buffer>(
         graph, from, to, std::forward<Filter>(filter), std::forward<Builder>(builder),
+        [&](auto recv_buffer, const PEID pe) { recv_buffers[pe] = std::move(recv_buffer); }
+    );
+    return recv_buffers;
+}
+
+template <typename Message, typename Buffer = NoinitVector<Message>, typename Mapper, typename Filter, typename Builder>
+std::vector<Buffer> sparse_alltoall_interface_to_pe_custom_range_get(
+    const DistributedGraph& graph, const NodeID from, const NodeID to, Mapper&& mapper, Filter&& filter,
+    Builder&& builder
+) {
+    std::vector<Buffer> recv_buffers(mpi::get_comm_size(graph.communicator()));
+    sparse_alltoall_interface_to_pe_custom_range<Message, Buffer>(
+        graph, from, to, std::forward<Mapper>(mapper), std::forward<Filter>(filter), std::forward<Builder>(builder),
         [&](auto recv_buffer, const PEID pe) { recv_buffers[pe] = std::move(recv_buffer); }
     );
     return recv_buffers;
