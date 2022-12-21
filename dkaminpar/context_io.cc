@@ -415,7 +415,7 @@ void print(const CoarseningContext& ctx, std::ostream& out) {
                 << " (min: " << ctx.global_lp.min_num_chunks << ", total: " << ctx.global_lp.total_num_chunks << ")"
                 << (ctx.global_lp.scale_chunks_with_threads ? ", scaled" : "") << "\n";
             out << "  Active set:                 "
-                << (ctx.global_clustering_algorithm == GlobalClusteringAlgorithm::LP ? "no" : "yes");
+                << (ctx.global_clustering_algorithm == GlobalClusteringAlgorithm::LP ? "no" : "yes") << "\n";
         }
 
         if (ctx.global_clustering_algorithm == GlobalClusteringAlgorithm::HEM

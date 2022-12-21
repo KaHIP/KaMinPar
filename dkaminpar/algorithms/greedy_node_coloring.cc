@@ -20,7 +20,9 @@
 #include "common/timer.h"
 
 namespace kaminpar::dist {
+namespace {
 SET_DEBUG(false);
+}
 
 NoinitVector<ColorID>
 compute_node_coloring_sequentially(const DistributedGraph& graph, const NodeID number_of_supersteps) {
@@ -43,8 +45,10 @@ compute_node_coloring_sequentially(const DistributedGraph& graph, const NodeID n
     NoinitVector<std::uint8_t> active(graph.n());
     graph.pfor_nodes([&](const NodeID u) { active[u] = 1; });
 
-    bool converged = false;
-    while (!converged) {
+    bool converged;
+    do {
+        converged = true;
+
         for (NodeID superstep = 0; superstep < number_of_supersteps; ++superstep) {
             const auto [from, to] = math::compute_local_range(graph.n(), number_of_supersteps, superstep);
 
@@ -65,23 +69,21 @@ compute_node_coloring_sequentially(const DistributedGraph& graph, const NodeID n
                                 coloring[v] == coloring[u]
                                 && graph.local_to_global_node(u) < graph.local_to_global_node(v)
                             ))) {
-                        DBG << "M " << v << " --> " << coloring[v];
                         incident_colors.set<true>(coloring[v] - 1);
                     }
                 }
 
                 if (coloring[u] == 0) {
-                    DBG << "S " << u << " --> " << incident_colors.first_unmarked_element();
                     coloring[u] = incident_colors.first_unmarked_element() + 1;
+                    DBGC(u == 156543 || u == 262712) << "setting " << u << " to " << coloring[u] << " A";
                     if (!is_interface_node) {
-                        DBG << "DA " << u;
                         active[u] = 0;
                     }
                 } else if (incident_colors.get(coloring[u] - 1)) {
-                    DBG << "U " << u << " --> " << incident_colors.first_unmarked_element();
                     coloring[u] = incident_colors.first_unmarked_element() + 1;
+                    DBGC(u == 156543 || u == 262712 || graph.local_to_global_node(u) == 681015)
+                        << "setting " << u << " to " << coloring[u] << " B, global " << graph.local_to_global_node(u);
                 } else {
-                    DBG << "DL " << u;
                     active[u] = 0;
                 }
 
@@ -94,27 +96,28 @@ compute_node_coloring_sequentially(const DistributedGraph& graph, const NodeID n
                 ColorID color;
             };
 
-            bool we_converged = true;
             mpi::graph::sparse_alltoall_interface_to_pe<Message>(
                 graph, from, to, [&](const NodeID u) { return active[u]; },
-                [&](const NodeID u) -> Message { return {.node = u, .color = coloring[u]}; },
+                [&](const NodeID u) -> Message {
+                    DBGC(u == 156543) << "Sending " << u << " --> " << coloring[u];
+                    return {.node = u, .color = coloring[u]};
+                },
                 [&](const auto& recv_buffer, const PEID pe) {
-                    we_converged &= recv_buffer.empty();
+                    converged &= recv_buffer.empty();
                     tbb::parallel_for<std::size_t>(0, recv_buffer.size(), [&](const std::size_t i) {
                         const auto [local_node_on_pe, color] = recv_buffer[i];
                         const GlobalNodeID global_node =
                             static_cast<GlobalNodeID>(graph.offset_n(pe) + local_node_on_pe);
                         const NodeID local_node = graph.global_to_local_node(global_node);
-                        DBG << "GU " << local_node << " --> " << color;
-                        coloring[local_node] = color;
+                        coloring[local_node]    = color;
+                        DBGC(local_node == 156543 || local_node == 262712)
+                            << "setting " << local_node << " to " << coloring[local_node] << " C, global "
+                            << graph.local_to_global_node(local_node);
                     });
                 }
             );
-
-            converged = mpi::allreduce(we_converged, MPI_LAND, graph.communicator());
-            DBG << "Converged: " << we_converged << " -- " << converged;
         }
-    }
+    } while (!mpi::allreduce(converged, MPI_LAND, graph.communicator()));
 
     // Check that all nodes have a color assigned (i.e., coloring[u] >= 1)
     KASSERT(
@@ -135,6 +138,7 @@ compute_node_coloring_sequentially(const DistributedGraph& graph, const NodeID n
             for (const NodeID u: graph.nodes()) {
                 for (const auto v: graph.adjacent_nodes(u)) {
                     if (coloring[u] == coloring[v]) {
+                        LOG_WARNING << "bad color for node " << u << " with neighbor " << v << ": " << coloring[u];
                         return false;
                     }
                 }
