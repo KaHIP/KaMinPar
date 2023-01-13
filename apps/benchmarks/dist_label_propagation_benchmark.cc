@@ -46,10 +46,9 @@ struct UnorderedRatingMap {
 };
 
 std::vector<GlobalNodeID> naive_label_propagation(
-    const DistributedGraph& graph, const int num_iterations, const GlobalNodeWeight max_cluster_weight
+    const DistributedGraph& graph, const int num_iterations, const int num_chunks, const GlobalNodeWeight max_cluster_weight
 ) {
     SET_DEBUG(false);
-    constexpr int kNumberOfChunks = 128;
 
     START_TIMER("Allocate clustering[]");
     std::vector<GlobalNodeID> clustering(graph.total_n());
@@ -85,8 +84,8 @@ std::vector<GlobalNodeID> naive_label_propagation(
     STOP_TIMER();
 
     for (int iteration = 0; iteration < num_iterations; ++iteration) {
-        for (int chunk = 0; chunk < kNumberOfChunks; ++chunk) {
-            const auto [from, to] = math::compute_local_range<NodeID>(graph.n(), kNumberOfChunks, chunk);
+        for (int chunk = 0; chunk < num_chunks; ++chunk) {
+            const auto [from, to] = math::compute_local_range<NodeID>(graph.n(), num_chunks, chunk);
             // Perform label propagation
             START_TIMER("Chunk iteration");
             DBG << " -> assign labels [" << from << ", " << to << ") ...";
@@ -217,18 +216,16 @@ int main(int argc, char* argv[]) {
     std::string graph_filename = "";
     std::string out_filename   = "";
     int         num_threads    = 1;
-    int         num_iterations = 5;
+    int num_chunks = 1;
+    int         num_iterations = 1;
 
     CLI::App app("Distributed Label Propagation Benchmark");
     app.add_option("-G,--graph", graph_filename, "Input graph")->required();
     app.add_option("-o,--output", out_filename, "Name of the clustering file.");
     app.add_option("-t,--threads", num_threads, "Number of threads");
     app.add_option("-n,--num-iterations", num_iterations, "Number of LP iterations");
+    app.add_option("-c,--num-chunks", num_chunks, "Number of LP chunks");
     CLI11_PARSE(app, argc, argv);
-
-    /*if (out_filename.empty()) {
-        out_filename = graph_filename + ".clustering." + std::to_string(size) + "x" + std::to_string(num_threads);
-    }*/
 
     auto gc = init_parallelism(num_threads);
     omp_set_num_threads(num_threads);
@@ -252,7 +249,7 @@ int main(int argc, char* argv[]) {
     LOG << " -> max cluster weight: " << max_cluster_weight;
 
     START_TIMER("Label propagation");
-    auto clustering = naive_label_propagation(graph, num_iterations, max_cluster_weight);
+    auto clustering = naive_label_propagation(graph, num_iterations, num_chunks, max_cluster_weight);
     STOP_TIMER();
 
     // Write the clustering to a text file

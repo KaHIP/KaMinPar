@@ -43,15 +43,6 @@ DistributedGraph read_edge_balanced(const std::string& filename, MPI_Comm comm =
 
 namespace partition {
 template <typename Container>
-Container read(const std::string& filename, const NodeID n, MPI_Comm comm = MPI_COMM_WORLD) {
-    using namespace kaminpar::io;
-
-    Container partition(n);
-    read(filename, n, partition, comm);
-    return partition;
-}
-
-template <typename Container>
 void read(const std::string& filename, const NodeID n, Container& partition, MPI_Comm comm = MPI_COMM_WORLD) {
     using namespace kaminpar::io;
 
@@ -71,6 +62,15 @@ void read(const std::string& filename, const NodeID n, Container& partition, MPI
         toker.consume_char('\n');
         ++current;
     }
+}
+
+template <typename Container>
+Container read(const std::string& filename, const NodeID n, MPI_Comm comm = MPI_COMM_WORLD) {
+    using namespace kaminpar::io;
+
+    Container partition(n);
+    read(filename, n, partition, comm);
+    return partition;
 }
 
 template <typename Container>
