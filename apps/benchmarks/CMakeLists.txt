@@ -2,31 +2,25 @@ function(add_benchmark target)
     add_executable(${target} ${ARGN} "${CMAKE_CURRENT_BINARY_DIR}/../environment.cc")
     target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(${target} PRIVATE common_base shm_partitioner_base)
-    message(STATUS "Added benchmark ${target}.")
+
+    message(STATUS "Enabled benchmark: ${target}")
 endfunction()
 
 function(add_distributed_benchmark target)
     if (TARGET dist_partitioner_base)
-        add_benchmark(${target} ${ARGN})
+        add_benchmark(${target} ${ARGN} "${CMAKE_CURRENT_SOURCE_DIR}/dist_benchmarks_common.cc")
         target_link_libraries(${target} PRIVATE dist_partitioner_base)
     else ()
-        message(STATUS "Cannot add distributed app: distributed library is not available, presumably because MPI"
-                " could not be found.")
+        message(STATUS "Disabled benchmark: ${target}")
     endif ()
 endfunction()
 
-#add_benchmark(coarsening_benchmark coarsening_benchmark.cc)
-#add_benchmark(balancing_benchmark balancing_benchmark.cc)
-
-#add_distributed_benchmark(dcoarsening_benchmark dcoarsening_benchmark.cc)
-#add_distributed_benchmark(dbalancing_benchmark dbalancing_benchmark.cc)
-#add_distributed_benchmark(dcontraction_benchmark dcontraction_benchmark.cc)
-
-#if (KAMINPAR_GRAPHGEN)
-#    add_distributed_benchmark(graphgen_benchmark graphgen_benchmark.cc)
-#endif ()
+add_benchmark(balancing_benchmark balancing_benchmark.cc)
 
 add_distributed_benchmark(dist_label_propagation_benchmark dist_label_propagation_benchmark.cc)
 add_distributed_benchmark(dist_coloring_benchmark dist_coloring_benchmark.cc)
 add_distributed_benchmark(dist_flat_refinement_benchmark dist_flat_refinement_benchmark.cc)
 add_distributed_benchmark(dist_contraction_benchmark dist_contraction_benchmark.cc)
+add_distributed_benchmark(dist_balancing_benchmark dist_balancing_benchmark.cc)
+add_distributed_benchmark(dist_coarsening_benchmark dist_coarsening_benchmark.cc)
+

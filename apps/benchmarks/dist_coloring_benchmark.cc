@@ -1,3 +1,9 @@
+/*******************************************************************************
+ * @file:   dist_coloring_benchmark.cc
+ * @author: Daniel Seemaier
+ * @date:   25.01.2022
+ * @brief:  Benchmark for the distributed vertex coloring algorithm.
+ ******************************************************************************/
 // clang-format off
 #include "common/CLI11.h"
 // clang-format on

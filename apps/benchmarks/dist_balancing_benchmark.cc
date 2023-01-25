@@ -1,11 +1,11 @@
 /*******************************************************************************
- * @file:   dbalancing_benchmark.cc
+ * @file:   dist_balancing_benchmark.cc
  * @author: Daniel Seemaier
  * @date:   12.04.2022
- * @brief:  Benchmark for distributed graph partition balancing.
+ * @brief:  Benchmark for the distributed balancing algorithm.
  ******************************************************************************/
-// This must come first since it redefines output macros (LOG DBG etc)
 // clang-format off
+#include "common/CLI11.h"
 #include "dkaminpar/definitions.h"
 // clang-format on
 
@@ -13,162 +13,75 @@
 
 #include <mpi.h>
 
+#include "dkaminpar/arguments.h"
 #include "dkaminpar/coarsening/global_clustering_contraction.h"
 #include "dkaminpar/coarsening/locking_label_propagation_clustering.h"
 #include "dkaminpar/context.h"
+#include "dkaminpar/factories.h"
 #include "dkaminpar/io.h"
 #include "dkaminpar/metrics.h"
 #include "dkaminpar/mpi/graph_communication.h"
-#include "dkaminpar/refinement/balancer.h"
+#include "dkaminpar/presets.h"
 
-#include "kaminpar/application/arguments.h"
 #include "kaminpar/definitions.h"
 
 #include "common/logger.h"
 #include "common/random.h"
 #include "common/timer.h"
 
-#include "apps/apps.h"
-#include "apps/dkaminpar/arguments.h"
+#include "apps/benchmarks/dist_benchmarks_common.h"
+#include "apps/mpi_apps.h"
 
 using namespace kaminpar;
 using namespace kaminpar::dist;
 
 int main(int argc, char* argv[]) {
+    init_mpi(argc, argv);
+
     Context     ctx = create_default_context();
+    std::string graph_filename;
     std::string partition_filename;
 
-    { // init MPI
-        int provided_thread_support;
-        MPI_Init_thread(&argc, &argv, ctx.parallel.mpi_thread_support, &provided_thread_support);
-        if (provided_thread_support != ctx.parallel.mpi_thread_support) {
-            LOG_WARNING << "Desired MPI thread support unavailable: set to " << provided_thread_support;
-            if (provided_thread_support == MPI_THREAD_SINGLE) {
-                if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
-                    LOG_ERROR << "Your MPI library does not support multithreading. This might cause malfunction.";
-                }
-                provided_thread_support = MPI_THREAD_FUNNELED; // fake multithreading level for application
-            }
-            ctx.parallel.mpi_thread_support = provided_thread_support;
-        }
-    }
+    // Change default to only balancer, no other refiner
+    ctx.refinement.algorithms = {KWayRefinementAlgorithm::GREEDY_BALANCER};
 
-    Arguments args;
-    args.positional()
-        .argument("graph", "Input graph", &ctx.graph_filename)
-        .argument("partition", "Input partition", &partition_filename);
-    args.group("Partition").argument("epsilon", "Max. partition imbalance", &ctx.partition.epsilon, 'e');
-    args.group("Misc")
-        .argument("threads", "Number of threads", &ctx.parallel.num_threads, 't')
-        .argument("seed", "Seed for RNG", &ctx.seed, 's');
-    create_balancing_options(ctx.refinement.balancing, args, "", "b");
-    args.parse(argc, argv);
+    CLI::App app;
+    app.add_option("-G", graph_filename);
+    app.add_option("-P", partition_filename);
+    app.add_option("-e", ctx.partition.epsilon);
+    app.add_option("-t", ctx.parallel.num_threads);
+    create_greedy_balancer_options(&app, ctx);
+    CLI11_PARSE(app, argc, argv);
 
-    print_identifier(argc, argv);
-    LOG << "MPI size=" << mpi::get_comm_size(MPI_COMM_WORLD);
+    auto gc = init(ctx, argc, argv);
 
-    // Initialize random number generator
-    Random::seed = ctx.seed;
-
-    // Initialize TBB
-    init_numa();
-    auto gc = init_parallelism(ctx.parallel.num_threads);
-
-    // Load graph
-    const auto graph = TIMED_SCOPE("IO") {
-        auto graph = io::metis::read_node_balanced(ctx.graph_filename);
-        mpi::barrier(MPI_COMM_WORLD);
-        return graph;
-    };
-    LOG << "Loaded graph with n=" << graph.global_n() << " m=" << graph.global_m();
-    KASSERT(graph::debug::validate(graph));
-
-    // Load partition
-    auto partition = io::partition::read<scalable_vector<parallel::Atomic<BlockID>>>(partition_filename, graph.n());
-    KASSERT(partition.size() == graph.n(), "", assert::always);
-
-    // Communicate blocks of ghost nodes
-    for (NodeID u = graph.n(); u < graph.total_n(); ++u) {
-        partition.push_back(0);
-    }
-
-    struct Message {
-        NodeID  node;
-        BlockID block;
-    };
-
-    mpi::graph::sparse_alltoall_interface_to_pe<Message>(
-        graph,
-        [&](const NodeID u) -> Message {
-            return {u, partition[u]};
-        },
-        [&](const auto buffer, const PEID pe) {
-            tbb::parallel_for<std::size_t>(0, buffer.size(), [&](const std::size_t i) {
-                const auto& [local_node_on_other_pe, block] = buffer[i];
-                const NodeID local_node = graph.global_to_local_node(graph.offset_n(pe) + local_node_on_other_pe);
-                partition[local_node]   = block;
-            });
-        }
-    );
-
-    // Create partitioned graph object
-    const BlockID local_k = *std::max_element(partition.begin(), partition.end()) + 1;
-    const BlockID k       = mpi::allreduce(local_k, MPI_MAX, MPI_COMM_WORLD);
-
-    scalable_vector<BlockWeight> local_block_weights(k);
-    for (const NodeID u: graph.nodes()) {
-        local_block_weights[partition[u]] += graph.node_weight(u);
-    }
-
-    scalable_vector<BlockWeight> global_block_weight_nonatomic(k);
-    mpi::allreduce(
-        local_block_weights.data(), global_block_weight_nonatomic.data(), static_cast<int>(k), MPI_SUM, MPI_COMM_WORLD
-    );
-
-    scalable_vector<parallel::Atomic<BlockWeight>> block_weights(k);
-    std::copy(global_block_weight_nonatomic.begin(), global_block_weight_nonatomic.end(), block_weights.begin());
-
-    DistributedPartitionedGraph p_graph(&graph, k, std::move(partition), std::move(block_weights));
-
-    // Setup context
-    ctx.partition.k = k;
+    auto graph      = load_graph(graph_filename);
+    auto p_graph    = load_graph_partition(graph, partition_filename);
+    ctx.partition.k = p_graph.k();
     ctx.setup(graph);
 
-    // Output statistics
-    const auto cut_before       = metrics::edge_cut(p_graph);
-    const auto imbalance_before = metrics::imbalance(p_graph);
-    LOG << "PARTITION k=" << k << " cut=" << cut_before << " imbalance=" << imbalance_before;
+    auto balancer = factory::create_refinement_algorithm(ctx);
 
-    // Run balancer
-    START_TIMER("Balancer");
-    START_TIMER("Allocation");
-    DistributedBalancer balancer(ctx);
-    STOP_TIMER();
-    START_TIMER("Initialization");
-    balancer.initialize(p_graph);
-    STOP_TIMER();
-    START_TIMER("Balancing");
-    balancer.balance(p_graph, ctx.partition);
-    STOP_TIMER();
-    STOP_TIMER();
+    TIMED_SCOPE("Balancer") {
+        TIMED_SCOPE("Initialization") {
+            balancer->initialize(graph);
+        };
+        TIMED_SCOPE("Balancing") {
+            balancer->refine(p_graph, ctx.partition);
+        };
+    };
 
-    // Output statistics
     const auto cut_after       = metrics::edge_cut(p_graph);
     const auto imbalance_after = metrics::imbalance(p_graph);
     LOG << "RESULT cut=" << cut_after << " imbalance=" << imbalance_after;
     mpi::barrier(MPI_COMM_WORLD);
 
-    LOG << p_graph.block_weights();
-
-    if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0 && !ctx.quiet) {
+    if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
         Timer::global().print_machine_readable(std::cout);
     }
-    LOG;
-    if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0 && !ctx.quiet) {
+    if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
         Timer::global().print_human_readable(std::cout);
     }
-    LOG;
 
-    MPI_Finalize();
-    return 0;
+    return MPI_Finalize();
 }

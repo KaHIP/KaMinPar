@@ -2,17 +2,21 @@
  * @file:   balancing_benchmark.cc
  * @author: Daniel Seemaier
  * @date:   12.04.2022
- * @brief:  Performance benchmark for shared-memory balancing algorithms.
+ * @brief:  Benchmark for the shared-memory balancing algorithm.
  ******************************************************************************/
-#include "kaminpar/application/arguments.h"
+// clang-format off
+#include "common/CLI11.h"
+// clang-format on
+
+#include "kaminpar/arguments.h"
 #include "kaminpar/coarsening/cluster_coarsener.h"
 #include "kaminpar/coarsening/label_propagation_clustering.h"
 #include "kaminpar/context.h"
 #include "kaminpar/factories.h"
 #include "kaminpar/io.h"
 #include "kaminpar/metrics.h"
+#include "kaminpar/presets.h"
 
-#include "common/arguments_parser.h"
 #include "common/random.h"
 #include "common/timer.h"
 
@@ -25,17 +29,13 @@ int main(int argc, char* argv[]) {
     Context     ctx = create_default_context();
     std::string partition_filename;
 
-    // parse command line arguments
-    Arguments args;
-    args.positional()
-        .argument("graph", "Input graph", &ctx.graph_filename)
-        .argument("partition", "Input Partition", &partition_filename);
-    app::create_balancer_refinement_context_options(ctx.refinement.balancer, args, "Balancer", "b");
-    args.group("Partition").argument("epsilon", "Max. partition imbalance", &ctx.partition.epsilon, 'e');
-    args.group("Misc")
-        .argument("threads", "Number of threads", &ctx.parallel.num_threads, 't')
-        .argument("seed", "Seed for RNG", &ctx.seed, 's');
-    args.parse(argc, argv);
+    CLI::App app;
+    app.add_option("-G", ctx.graph_filename);
+    app.add_option("-P", partition_filename);
+    app.add_option("-t", ctx.parallel.num_threads);
+    app.add_option("-e", ctx.partition.epsilon);
+    create_balancer_options(&app, ctx);
+    CLI11_PARSE(app, argc, argv);
 
     if (!std::ifstream(ctx.graph_filename)) {
         FATAL_ERROR << "Graph file cannot be read. Ensure that the file exists and is readable.";
@@ -44,49 +44,48 @@ int main(int argc, char* argv[]) {
         FATAL_ERROR << "Partition file cannot be read. Ensure that the file exists and is readable.";
     }
 
-    // init components
     init_numa();
-    auto gc = init_parallelism(ctx.parallel.num_threads);
-    GLOBAL_TIMER.enable(TIMER_BENCHMARK);
+    auto gc      = init_parallelism(ctx.parallel.num_threads);
     Random::seed = ctx.seed;
 
-    // load graph
     START_TIMER("IO");
-    Graph graph = io::metis::read(ctx.graph_filename);
-    STOP_TIMER();
-    LOG << "GRAPH n=" << graph.n() << " m=" << graph.m();
-
-    // load partition
-    auto          partition = io::partition::read<StaticArray<BlockID>>(partition_filename);
+    Graph         graph     = shm::io::metis::read<true>(ctx.graph_filename);
+    auto          partition = shm::io::partition::read<StaticArray<BlockID>>(partition_filename);
     const BlockID k         = *std::max_element(partition.begin(), partition.end()) + 1;
-    KASSERT(partition.size() == graph.n(), "", assert::always);
+    KASSERT(partition.size() == graph.n(), "bad partition size", assert::always);
     PartitionedGraph p_graph(graph, k, std::move(partition));
+    STOP_TIMER();
+
+    const EdgeWeight cut_before       = metrics::edge_cut(p_graph);
+    const double     imbalance_before = metrics::imbalance(p_graph);
+
+    LOG << "Read partitioned graph with: "
+        << "n=" << graph.n() << " "
+        << "m=" << graph.m() << " "
+        << "k=" << k << " "
+        << "cut=" << cut_before << " "
+        << "imbalance=" << imbalance_before;
 
     ctx.partition.k = k;
     ctx.setup(graph);
 
-    // output statistics
-    const EdgeWeight cut_before       = metrics::edge_cut(p_graph);
-    const double     imbalance_before = metrics::imbalance(p_graph);
-    LOG << "PARTITION k=" << k << " cut=" << cut_before << " imbalance=" << imbalance_before;
-
-    // run balancer
-    START_TIMER("Balancer");
-    START_TIMER("Allocation");
     auto balancer = factory::create_balancer(graph, ctx.partition, ctx.refinement);
-    STOP_TIMER();
-    START_TIMER("Initialization");
-    balancer->initialize(p_graph);
-    STOP_TIMER();
-    START_TIMER("Balancing");
-    balancer->balance(p_graph, ctx.partition);
-    STOP_TIMER();
-    STOP_TIMER();
 
-    // output statistics
+    TIMED_SCOPE("Balancer") {
+        TIMED_SCOPE("Initialization") {
+            balancer->initialize(p_graph);
+        };
+        TIMED_SCOPE("Balancing") {
+            balancer->balance(p_graph, ctx.partition);
+        };
+    };
+
     const EdgeWeight cut_after       = metrics::edge_cut(p_graph);
     const double     imbalance_after = metrics::imbalance(p_graph);
-    LOG << "RESULT cut=" << cut_after << " imbalance=" << imbalance_after;
+
+    LOG << "Result: "
+        << "cut=" << cut_after << " "
+        << "imbalance=" << imbalance_after;
 
     Timer::global().print_machine_readable(std::cout);
     Timer::global().print_human_readable(std::cout);

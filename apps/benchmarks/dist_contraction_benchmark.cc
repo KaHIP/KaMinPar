@@ -8,7 +8,6 @@
 // This must come first since it redefines output macros (LOG DBG etc)
 // clang-format off
 #include "common/CLI11.h"
-
 #include "dkaminpar/definitions.h"
 // clang-format on
 
@@ -32,35 +31,11 @@
 #include "common/timer.h"
 
 #include "apps/apps.h"
+#include "apps/benchmarks/dist_benchmarks_common.h"
+#include "apps/mpi_apps.h"
 
 using namespace kaminpar;
 using namespace kaminpar::dist;
-
-void init_mpi(int& argc, char**& argv) {
-    int provided_thread_support;
-    MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED, &provided_thread_support);
-    if (provided_thread_support != MPI_THREAD_FUNNELED) {
-        LOG_WARNING << "Desired MPI thread support unavailable: set to " << provided_thread_support;
-        if (provided_thread_support == MPI_THREAD_SINGLE) {
-            if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
-                LOG_ERROR << "Your MPI library does not support multithreading. This might cause malfunction.";
-            }
-        }
-    }
-}
-
-DistributedGraph load_graph(const std::string& filename) {
-    auto graph = TIMED_SCOPE("IO") {
-        auto graph = dist::io::metis::read_node_balanced(filename);
-        KASSERT(graph::debug::validate(graph), "bad input graph", assert::heavy);
-        return graph;
-    };
-
-    LOG << "Input graph:";
-    graph::print_summary(graph);
-
-    return graph;
-}
 
 auto load_clustering(const std::string& filename, const NodeID local_n) {
     return dist::io::partition::read<scalable_vector<parallel::Atomic<GlobalNodeID>>>(filename, local_n);
@@ -80,18 +55,7 @@ int main(int argc, char* argv[]) {
     app.add_option("-t,--threads", ctx.parallel.num_threads, "Number of threads");
     CLI11_PARSE(app, argc, argv);
 
-    print_identifier(argc, argv);
-    LOG << "MPI size=" << mpi::get_comm_size(MPI_COMM_WORLD);
-
-    // Initialize random number generator
-    Random::seed = ctx.seed;
-
-    // Initialize TBB
-    auto gc = init_parallelism(ctx.parallel.num_threads);
-    omp_set_num_threads(static_cast<int>(ctx.parallel.num_threads));
-    if (ctx.parallel.use_interleaved_numa_allocation) {
-        init_numa();
-    }
+    auto gc = init(ctx, argc, argv);
 
     // Load data
     const auto graph = load_graph(graph_filename);

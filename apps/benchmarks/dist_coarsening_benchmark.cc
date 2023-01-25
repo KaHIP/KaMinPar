@@ -1,22 +1,22 @@
 /*******************************************************************************
- * @file:   dkaminpar.cc
+ * @file:   dist_coarsening_benchmark.cc
  * @author: Daniel Seemaier
  * @date:   21.09.21
- * @brief:  Distributed KaMinPar binary.
+ * @brief:  Benchmark for the distributed coarsening algorithm.
  ******************************************************************************/
-// This must come first since it redefines output macros (LOG DBG etc)
 // clang-format off
-#include "dkaminpar/definitions.h"
+#include "apps/benchmarks/dist_benchmarks_common.h"
 // clang-format on
 
 #include <fstream>
 
 #include <mpi.h>
 
+#include "dkaminpar/arguments.h"
 #include "dkaminpar/coarsening/global_clustering_contraction.h"
 #include "dkaminpar/coarsening/locking_label_propagation_clustering.h"
 #include "dkaminpar/context.h"
-#include "dkaminpar/io.h"
+#include "dkaminpar/presets.h"
 
 #include "kaminpar/definitions.h"
 
@@ -25,59 +25,26 @@
 #include "common/timer.h"
 
 #include "apps/apps.h"
-#include "apps/dkaminpar/arguments.h"
+#include "apps/mpi_apps.h"
 
 using namespace kaminpar;
 using namespace kaminpar::dist;
 
 int main(int argc, char* argv[]) {
-    Context ctx = dist::create_default_context();
+    init_mpi(argc, argv);
 
-    { // init MPI
-        int provided_thread_support;
-        MPI_Init_thread(&argc, &argv, ctx.parallel.mpi_thread_support, &provided_thread_support);
-        if (provided_thread_support != ctx.parallel.mpi_thread_support) {
-            LOG_WARNING << "Desired MPI thread support unavailable: set to " << provided_thread_support;
-            if (provided_thread_support == MPI_THREAD_SINGLE) {
-                if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
-                    LOG_ERROR << "Your MPI library does not support multithreading. This might cause malfunction.";
-                }
-                provided_thread_support = MPI_THREAD_FUNNELED; // fake multithreading level for application
-            }
-            ctx.parallel.mpi_thread_support = provided_thread_support;
-        }
-    }
+    Context     ctx = create_default_context();
+    std::string graph_filename;
 
-    // Parse command line arguments
-    try {
-        ctx = parse_options(argc, argv).ctx;
-    } catch (const std::runtime_error& e) {
-        std::cout << e.what() << std::endl;
-    }
-    Logger::set_quiet_mode(ctx.quiet);
+    CLI::App app;
+    app.add_option("-G", graph_filename);
+    app.add_option("-t", ctx.parallel.num_threads);
+    create_coarsening_options(&app, ctx);
+    CLI11_PARSE(app, argc, argv);
 
-    print_identifier(argc, argv);
-    LOG << "MPI size=" << mpi::get_comm_size(MPI_COMM_WORLD);
-    LOG << "CONTEXT " << ctx;
+    auto gc = init(ctx, argc, argv);
 
-    // Initialize random number generator
-    Random::seed = ctx.seed;
-
-    // Initialize TBB
-    auto gc = init_parallelism(ctx.parallel.num_threads);
-    if (ctx.parallel.use_interleaved_numa_allocation) {
-        init_numa();
-    }
-
-    // Load graph
-    const auto graph = TIMED_SCOPE("IO") {
-        auto graph = dist::io::metis::read_node_balanced(ctx.graph_filename);
-        mpi::barrier(MPI_COMM_WORLD);
-        return graph;
-    };
-    LOG << "Loaded graph with n=" << graph.global_n() << " m=" << graph.global_m();
-    SLOG << "n=" << graph.n() << " ghost_n=" << graph.ghost_n() << " total_n=" << graph.total_n() << " m=" << graph.m();
-    KASSERT(dist::graph::debug::validate(graph));
+    auto graph = load_graph(graph_filename);
     ctx.setup(graph);
 
     std::vector<dist::DistributedGraph> graph_hierarchy;
@@ -117,18 +84,13 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    // Output statistics
     mpi::barrier(MPI_COMM_WORLD);
-
-    if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0 && !ctx.quiet) {
+    if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
         Timer::global().print_machine_readable(std::cout);
     }
-    LOG;
-    if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0 && !ctx.quiet) {
+    if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
         Timer::global().print_human_readable(std::cout);
     }
-    LOG;
 
-    MPI_Finalize();
-    return 0;
+    return MPI_Finalize();
 }
