@@ -17,7 +17,7 @@ function(add_app target)
     target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(${target} PRIVATE common_base shm_partitioner_base)
     install(TARGETS ${target})
-    message(STATUS "App ${target}")
+    message(STATUS "Enabled app: ${target}")
 endfunction()
 
 function(add_distributed_app target)
@@ -25,8 +25,7 @@ function(add_distributed_app target)
         add_app(${target} ${ARGN})
         target_link_libraries(${target} PRIVATE dist_partitioner_base)
     else ()
-        message(STATUS "Cannot add distributed app: distributed library is not available, presumably because MPI"
-                " could not be found.")
+        message(STATUS "Disabled app: ${target}")
     endif ()
 endfunction()
 

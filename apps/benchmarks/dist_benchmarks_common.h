@@ -13,7 +13,7 @@
 
 #include <string>
 
-#include <oneapi/tbb/global_control.h>
+#include <tbb/global_control.h>
 
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructures/distributed_graph.h"
