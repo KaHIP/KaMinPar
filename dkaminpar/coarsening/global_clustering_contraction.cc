@@ -100,44 +100,37 @@ std::pair<std::vector<UsedClustersMap>, std::vector<UsedClustersVector>> find_us
         return handles;
     });
 
-    tbb::enumerable_thread_specific<std::vector<UsedClustersVector>> used_clusters_ets([&] {
-        return std::vector<UsedClustersVector>(size);
-    });
+    parallel::vector_ets<std::size_t> size_ets(size);
 
     graph.pfor_nodes_range([&](const auto r) {
-        auto& handles             = used_clusters_map_handles.local();
-        auto& local_used_clusters = used_clusters_ets.local();
+        auto& handles = used_clusters_map_handles.local();
+        auto& size    = size_ets.local();
 
         for (NodeID u = r.begin(); u != r.end(); ++u) {
             const GlobalNodeID u_cluster                  = clustering[u];
             const auto [u_cluster_owner, u_local_cluster] = resolve_cluster_callback(u_cluster);
 
-            auto [it, new_element] = handles[u_cluster_owner].insert(u_local_cluster, 0);
+            auto [it, new_element] = handles[u_cluster_owner].insert(u_local_cluster + 1, 1);
             if (new_element) {
-                (*it).second = next_slot_for_pe[u_cluster_owner]++;
-                local_used_clusters[u_cluster_owner].push_back(u_local_cluster);
+                handles[u_cluster_owner].update(u_local_cluster + 1, [&, u_cluster_owner = u_cluster_owner](auto& lhs) {
+                    return lhs = 1 + next_slot_for_pe[u_cluster_owner]++;
+                });
+                ++size[u_cluster_owner];
             }
         }
     });
 
-    // used_clusters_vec[pe] holds local node IDs of PE pe that are used as cluster IDs on this PE
-    std::vector<UsedClustersVector>            used_clusters(size);
-    std::vector<parallel::Atomic<std::size_t>> pos(size);
+    std::vector<UsedClustersVector> used_clusters(size);
 
+    auto sizes = size_ets.combine(std::plus{});
     tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
-        const std::size_t combined_capacity = std::accumulate(
-            used_clusters_ets.begin(), used_clusters_ets.end(), 0u,
-            [&](const std::size_t sum, const auto& vec) { return sum + vec[pe].size(); }
-        );
-        used_clusters[pe].resize(combined_capacity);
-
-        // tbb::parallel_for(used_clusters_ets.range(), [&](const auto& r) {
-        for (const auto& r: used_clusters_ets) {
-            const auto&       vec    = r[pe];
-            const std::size_t to_pos = pos[pe].fetch_add(vec.size());
-            std::copy(vec.begin(), vec.end(), used_clusters[pe].begin() + to_pos);
+        used_clusters[pe].resize(sizes[pe]);
+        auto handle = used_clusters_map[pe].get_handle();
+        auto it     = handle.range(0, handle.capacity());
+        while (it != handle.range_end()) {
+            used_clusters[pe][(*it).second - 1] = (*it).first - 1;
+            ++it;
         }
-        //});
     });
 
     return {std::move(used_clusters_map), std::move(used_clusters)};
@@ -281,10 +274,10 @@ MappingResult compute_mapping(
         }
 
         auto& handles = used_clusters_ets.local();
-        auto  it      = handles[u_cluster_owner].find(u_local_cluster);
+        auto  it      = handles[u_cluster_owner].find(u_local_cluster + 1);
         KASSERT(it != handles[u_cluster_owner].end());
 
-        const NodeID slot_in_msg = (*it).second;
+        const NodeID slot_in_msg = (*it).second - 1;
         const NodeID label       = label_remap[u_cluster_owner][slot_in_msg];
 
         if (migrate_nodes) {
@@ -650,7 +643,8 @@ DistributedPartitionedGraph project_global_contracted_graph(
                 KASSERT(i < used_coarse_nodes_vec[pe].size());
 
                 const auto [it, found] = handles[pe].update(
-                    used_coarse_nodes_vec[pe][i], [&](auto& lhs, const auto rhs) { return lhs = rhs; }, buffer[i]
+                    used_coarse_nodes_vec[pe][i] + 1, [&](auto& lhs, const auto rhs) { return lhs = rhs; },
+                    buffer[i] + 1
                 );
                 KASSERT(found);
             });
@@ -669,10 +663,10 @@ DistributedPartitionedGraph project_global_contracted_graph(
 
         auto& handles = used_coarse_nodes_ets.local();
 
-        auto it = handles[owner].find(local);
+        auto it = handles[owner].find(local + 1);
         KASSERT(it != handles[owner].end());
 
-        fine_partition[u] = (*it).second;
+        fine_partition[u] = (*it).second - 1;
     });
     STOP_TIMER();
 
