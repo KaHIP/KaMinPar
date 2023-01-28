@@ -93,6 +93,10 @@ kaminpar_add_dist_test(test_dist_graph_allgather
     FILES dkaminpar/graphutils/allgather_graph_test.cc
     CORES 1 2 4)
 
+kaminpar_add_dist_test(test_dist_cluster_contraction
+    FILES dkaminpar/graphutils/cluster_contraction_test.cc
+    CORES 1)
+
 # dKaMinPar -> Algorithms 
 kaminpar_add_dist_test(test_dist_greedy_node_coloring
     FILES dkaminpar/algorithms/greedy_node_coloring_test.cc

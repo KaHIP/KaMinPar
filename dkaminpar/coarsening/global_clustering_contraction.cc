@@ -706,7 +706,7 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
     //
     // Deduplicate the edges before sending them
     //
-    {
+    if (!nonlocal_edges.empty()) {
         // Primary sort by edge source = messages are sorted by destination PE
         // Secondary sort by edge target = duplicate edges are consecutive
         tbb::parallel_sort(nonlocal_edges.begin(), nonlocal_edges.end(), [&](const auto& lhs, const auto& rhs) {
@@ -861,7 +861,7 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
     parallel::prefix_sum(cluster_mapping.begin(), cluster_mapping.end(), cluster_mapping.begin());
 
     // Number of coarse nodes on this PE:
-    const NodeID c_n = cluster_mapping.back();
+    const NodeID c_n = cluster_mapping.empty() ? 0 : cluster_mapping.back();
 
     scalable_vector<GlobalNodeID> c_node_distribution(size + 1);
     MPI_Allgather(
@@ -877,7 +877,7 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
 
     // Build a list of global nodes for which we need their new coarse node ID
     using NonlocalClusterFilter = growt::GlobalNodeIDMap<GlobalNodeID>;
-    NonlocalClusterFilter nonlocal_cluster_filter(1.0 * graph.ghost_n() / graph.n() * c_n);
+    NonlocalClusterFilter nonlocal_cluster_filter(0); // graph.n() == 0 ? 0 : 1.0 * graph.ghost_n() / graph.n() * c_n);
     tbb::enumerable_thread_specific<NonlocalClusterFilter::handle_type> nonlocal_cluster_filter_handle_ets([&] {
         return nonlocal_cluster_filter.get_handle();
     });
@@ -1027,7 +1027,7 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
         buckets_position_buffer.begin(), buckets_position_buffer.end(), buckets_position_buffer.begin()
     );
 
-    NoinitVector<NodeID> buckets(buckets_position_buffer.back());
+    NoinitVector<NodeID> buckets(buckets_position_buffer.empty() ? 0 : buckets_position_buffer.back());
     tbb::parallel_invoke(
         [&] {
             graph.pfor_nodes([&](const NodeID u) {
