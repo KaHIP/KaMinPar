@@ -803,6 +803,11 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
         graph.communicator()
     );
 
+    // Sort edges
+    tbb::parallel_sort(local_edges.begin(), local_edges.end(), [&](const auto& lhs, const auto& rhs) {
+        return lhs.u < rhs.u;
+    });
+
     // Exchange nodes
     NoinitVector<Node> local_nodes;
     std::vector<int>   local_nodes_sendcounts(size);
@@ -893,6 +898,7 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
             graph.pfor_nodes([&](const NodeID u) {
                 const GlobalNodeID cluster_u = clustering[u];
                 if (!graph.is_owned_global_node(cluster_u)) {
+                    // request_nonlocal_mapping(cluster_u);
                     return;
                 }
 
@@ -973,14 +979,21 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
         }
     });
 
-    // Build a mapping array from fine nodes to coarse nodes -- skip node that migrated -- we keep the clustering to get
-    // their blocks later
-    NoinitVector<NodeID> mapping(graph.n());
+    // Build a mapping array from fine nodes to coarse nodes
+    NoinitVector<GlobalNodeID> mapping;
     graph.pfor_nodes([&](const NodeID u) {
         const GlobalNodeID cluster = clustering[u];
         if (graph.is_owned_global_node(cluster)) {
             const NodeID c_u = cluster_mapping[cluster - graph.offset_n()];
             mapping[u]       = cluster_mapping[c_u];
+        } else {
+            auto& handle = nonlocal_cluster_filter_handle_ets.local();
+            auto  it     = handle.find(cluster + 1);
+            if (it != handle.end()) {
+                const std::size_t index = (*it).second - 1;
+                const PEID        owner = graph.find_owner_of_global_node(cluster);
+                mapping[u]              = their_mapping_responses[owner][index];
+            }
         }
     });
 
@@ -989,42 +1002,74 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
     //
     NoinitVector<std::size_t> buckets_position_buffer(c_n);
     graph.pfor_nodes([&](const NodeID u) { buckets_position_buffer[u] = 0; });
-    graph.pfor_nodes([&](const NodeID u) {
-        const GlobalNodeID cluster = clustering[u];
-        if (graph.is_owned_global_node(cluster)) {
-            const NodeID local_cluster = static_cast<NodeID>(cluster - graph.offset_n());
-            const NodeID c_u           = cluster_mapping[local_cluster];
-            __atomic_fetch_add(&buckets_position_buffer[c_u], 1, __ATOMIC_RELAXED);
+    tbb::parallel_invoke(
+        [&] {
+            graph.pfor_nodes([&](const NodeID u) {
+                const GlobalNodeID cluster = clustering[u];
+                if (graph.is_owned_global_node(cluster)) {
+                    const NodeID local_cluster = static_cast<NodeID>(cluster - graph.offset_n());
+                    const NodeID c_u           = cluster_mapping[local_cluster];
+                    __atomic_fetch_add(&buckets_position_buffer[c_u], 1, __ATOMIC_RELAXED);
+                }
+            });
+        },
+        [&] {
+            tbb::parallel_for<std::size_t>(0, local_edges.size(), [&](const std::size_t i) {
+                if (i == 0 || local_edges[i].u != local_edges[i - 1].u) {
+                    const NodeID local_cluster = static_cast<NodeID>(local_edges[i].u - graph.offset_n());
+                    const NodeID c_u           = cluster_mapping[local_cluster];
+                    __atomic_fetch_add(&buckets_position_buffer[c_u], 1, __ATOMIC_RELAXED);
+                }
+            });
         }
-    });
+    );
     parallel::prefix_sum(
         buckets_position_buffer.begin(), buckets_position_buffer.end(), buckets_position_buffer.begin()
     );
 
     NoinitVector<NodeID> buckets(buckets_position_buffer.back());
-    graph.pfor_nodes([&](const NodeID u) {
-        const GlobalNodeID cluster = clustering[u];
-        if (graph.is_owned_global_node(cluster)) {
-            const NodeID      local_cluster = static_cast<NodeID>(cluster - graph.offset_n());
-            const NodeID      c_u           = cluster_mapping[local_cluster];
-            const std::size_t pos           = __atomic_fetch_sub(&buckets_position_buffer[c_u], 1, __ATOMIC_RELAXED);
-            buckets[pos - 1]                = u;
+    tbb::parallel_invoke(
+        [&] {
+            graph.pfor_nodes([&](const NodeID u) {
+                const GlobalNodeID cluster = clustering[u];
+                if (graph.is_owned_global_node(cluster)) {
+                    const NodeID local_cluster = static_cast<NodeID>(cluster - graph.offset_n());
+                    const NodeID c_u           = cluster_mapping[local_cluster];
+
+                    const std::size_t pos = __atomic_fetch_sub(&buckets_position_buffer[c_u], 1, __ATOMIC_RELAXED);
+                    buckets[pos - 1]      = u;
+                }
+            });
+        },
+        [&] {
+            tbb::parallel_for<std::size_t>(0, local_edges.size(), [&](const std::size_t i) {
+                if (i == 0 || local_edges[i].u != local_edges[i - 1].u) {
+                    const NodeID local_cluster = static_cast<NodeID>(local_edges[i].u - graph.offset_n());
+                    const NodeID c_u           = cluster_mapping[local_cluster];
+
+                    const std::size_t pos = __atomic_fetch_sub(&buckets_position_buffer[c_u], 1, __ATOMIC_RELAXED);
+                    buckets[pos - 1]      = graph.n() + i;
+                }
+            });
         }
-    });
+    );
 
     //
     // Construct the coarse edges
     //
     scalable_vector<EdgeID>     c_nodes(c_n + 1);
-    scalable_vector<NodeWeight> c_node_weights(c_n);
-    scalable_vector<NodeID>     c_edges;
-    scalable_vector<EdgeWeight> c_edge_weights;
+    scalable_vector<NodeWeight> c_node_weights(c_n + c_ghost_n);
 
     tbb::enumerable_thread_specific<RatingMap<EdgeWeight, NodeID>> collector_ets([&] {
-        return RatingMap<EdgeWeight, NodeID>(c_n);
+        return RatingMap<EdgeWeight, NodeID>(c_n + c_ghost_n);
     });
 
-    NavigableLinkedList<NodeID, EdgeID, scalable_vector> edge_buffer_ets;
+    struct LocalEdge {
+        NodeID     node;
+        EdgeWeight weight;
+    };
+
+    NavigableLinkedList<NodeID, LocalEdge, scalable_vector> edge_buffer_ets;
 
     tbb::parallel_for<NodeID>(0, c_n, [&](const NodeID c_u) {
         auto& collector   = collector_ets.local();
@@ -1040,38 +1085,98 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
             for (std::size_t i = first_pos; i < last_pos; ++i) {
                 const NodeID u = buckets[i];
 
-                c_u_weight += graph.node_weight(u);
-                for (const auto [e, v]: graph.neighbors(u)) {
-                    const GlobalNodeID c_v = clustering[v];
+                auto handle_edge = [&](const EdgeWeight weight, const GlobalNodeID cluster) {
+                    if (graph.is_owned_global_node(cluster)) {
+                        const NodeID c_local_node = cluster_mapping[cluster - graph.offset_n()];
+                        map[c_local_node] += weight;
+                    } else {
+                        auto& handle = nonlocal_cluster_filter_handle_ets.local();
+                        auto  it     = handle.find(cluster + 1);
+                        if (it != handle.end()) {
+                            const std::size_t  index           = (*it).second - 1;
+                            const PEID         owner           = graph.find_owner_of_global_node(cluster);
+                            const GlobalNodeID c_ghost_node    = their_mapping_responses[owner][index];
+                            auto               c_local_node_it = c_global_to_ghost.find(c_ghost_node + 1);
+                            const NodeID       c_local_node    = (*c_local_node_it).second;
+                            map[c_local_node] += weight;
+                        }
+                    }
+                };
+
+                if (u < graph.n()) {
+                    c_u_weight += graph.node_weight(u);
+                    for (const auto [e, v]: graph.neighbors(u)) {
+                        handle_edge(graph.edge_weight(e), clustering[v]);
+                    }
+                } else {
+                    // Fix node weight later
+
+                    for (std::size_t index = u - graph.n(); local_edges[index].u == c_u; ++index) {
+                        handle_edge(local_edges[index].weight, local_edges[index].v);
+                    }
                 }
+            }
+
+            c_node_weights[c_u] = c_u_weight;
+            c_nodes[c_u + 1]    = map.size();
+
+            for (const auto [c_v, weight]: map.entries()) {
+                edge_buffer.push_back({c_v, weight});
             }
 
             map.clear();
         };
 
-        collector.update_upper_bound_size(0); // @todo
+        EdgeID upper_bound_degree = 0;
+        for (std::size_t i = first_pos; i < last_pos; ++i) {
+            if (buckets[i] < graph.n()) {
+                upper_bound_degree += graph.degree(buckets[i]);
+            } else {
+                upper_bound_degree += c_ghost_n;
+            }
+        }
+        collector.update_upper_bound_size(upper_bound_degree);
         collector.run_with_map(collect_edges, collect_edges);
     });
 
-    // Reply to local_node
-    /*NoinitVector<Node> local_nodes_mapping(local_nodes.size());
-    tbb::parallel_for<std::size_t>(0, local_nodes.size(), [&](const std::size_t i) {
-        const NodeID local     = static_cast<NodeID>(local_nodes[i].u - graph.offset_n());
-        local_nodes_mapping[i] = {.u = local_nodes[i].u, .c_u = mapping[local]};
+    parallel::prefix_sum(c_nodes.begin(), c_nodes.end(), c_nodes.begin());
+
+    // Build edge distribution
+    const EdgeID                  c_m = c_nodes.back();
+    scalable_vector<GlobalNodeID> c_edge_distribution(size + 1);
+    MPI_Allgather(
+        &c_m, 1, mpi::type::get<NodeID>(), c_edge_distribution.data(), 1, mpi::type::get<NodeID>(), graph.communicator()
+    );
+    std::exclusive_scan(c_edge_distribution.begin(), c_edge_distribution.end(), c_edge_distribution.begin(), 0u);
+
+    // Finally, build coarse graph
+    auto all_buffered_nodes = ts_navigable_list::combine<NodeID, LocalEdge, scalable_vector>(edge_buffer_ets);
+
+    scalable_vector<NodeID>     c_edges;
+    scalable_vector<EdgeWeight> c_edge_weights;
+    tbb::parallel_for<NodeID>(0, c_n, [&](const NodeID i) {
+        const auto&  marker = all_buffered_nodes[i];
+        const auto*  list   = marker.local_list;
+        const NodeID c_u    = marker.key;
+
+        const EdgeID c_u_degree         = c_nodes[c_u + 1] - c_nodes[c_u];
+        const EdgeID first_target_index = c_nodes[c_u];
+        const EdgeID first_source_index = marker.position;
+
+        for (std::size_t j = 0; j < c_u_degree; ++j) {
+            const auto to            = first_target_index + j;
+            const auto [c_v, weight] = list->get(first_source_index + j);
+            c_edges[to]              = c_v;
+            c_edge_weights[to]       = weight;
+        }
     });
-    MPI_Alltoallv(
-        local_nodes_mapping.data(), local_nodes_recvcounts.data(), local_nodes_rdispls.data(), mpi::type::get<Node>(),
-        nonlocal_nodes.data(), local_nodes_sendcounts.data(), local_nodes_sdispls.data(), mpi::type::get<Node>(),
-        graph.communicator()
+
+    DistributedGraph c_graph(
+        std::move(c_node_distribution), std::move(c_edge_distribution), std::move(c_nodes), std::move(c_edges),
+        std::move(c_node_weights), std::move(c_edge_weights), std::move(c_ghost_owner), std::move(c_ghost_to_global),
+        std::move(c_global_to_ghost), false, graph.communicator()
     );
 
-    // Integrate mapping to nonlocal clusters into mapping[]
-    tbb::parallel_for<std::size_t>(0, nonlocal_nodes.size(), [&](const std::size_t i) {
-        const NodeID       local_u = static_cast<NodeID>(nonlocal_nodes[i].u - graph.offset_n());
-        const GlobalNodeID c_u     = nonlocal_nodes[i].c_u;
-        mapping[local_u]           = c_u;
-    });*/
-
-    return {};
+    return {std::move(c_graph), std::move(mapping)};
 }
 } // namespace kaminpar::dist
