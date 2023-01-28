@@ -1139,6 +1139,11 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
         collector.run_with_map(collect_edges, collect_edges);
     });
 
+    tbb::parallel_for<std::size_t>(0, local_nodes.size(), [&](const std::size_t i) {
+        const NodeID c_u = cluster_mapping[local_nodes[i].u - graph.offset_n()];
+        c_node_weights[c_u] += local_nodes[i].weight;
+    });
+
     parallel::prefix_sum(c_nodes.begin(), c_nodes.end(), c_nodes.begin());
 
     // Build edge distribution
@@ -1176,6 +1181,7 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
         std::move(c_node_weights), std::move(c_edge_weights), std::move(c_ghost_owner), std::move(c_ghost_to_global),
         std::move(c_global_to_ghost), false, graph.communicator()
     );
+    update_ghost_node_weights(c_graph);
 
     return {std::move(c_graph), std::move(mapping)};
 }
