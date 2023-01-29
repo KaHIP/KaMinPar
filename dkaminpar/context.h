@@ -85,6 +85,10 @@ struct LabelPropagationCoarseningContext {
     bool        keep_ghost_clusters                  = false;
     bool        scale_chunks_with_threads            = false;
 
+    bool sync_cluster_weights    = false;
+    bool enforce_cluster_weights = false;
+    bool cheap_toplevel          = false;
+
     [[nodiscard]] bool should_merge_nonadjacent_clusters(NodeID old_n, NodeID new_n) const;
     void               setup(const ParallelContext& parallel);
 };

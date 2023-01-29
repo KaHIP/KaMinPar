@@ -275,6 +275,9 @@ CLI::Option_group *create_global_lp_coarsening_options(CLI::App *app, Context &c
         ->capture_default_str();
     lp->add_flag("--c-glp-scale-batches-with-threads", ctx.coarsening.global_lp.scale_chunks_with_threads, "Scale the number of synchronization rounds with the number of threads.")
         ->capture_default_str();
+    lp->add_flag("--c-glp-sync-cluster-weights", ctx.coarsening.global_lp.sync_cluster_weights);
+    lp->add_flag("--c-glp-enforce-cluster-weights", ctx.coarsening.global_lp.enforce_cluster_weights);
+    lp->add_flag("--c-glp-cheap-toplevel", ctx.coarsening.global_lp.cheap_toplevel);
 
     return lp;
 }

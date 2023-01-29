@@ -194,6 +194,7 @@ class DistributedGlobalLabelPropagationClusteringImpl final
 public:
     explicit DistributedGlobalLabelPropagationClusteringImpl(const Context& ctx)
         : ClusterBase{ctx.partition.graph.total_n()},
+          _ctx(ctx),
           _c_ctx{ctx.coarsening},
           _changed_label(ctx.partition.graph.n()),
           _cluster_weights{ctx.partition.graph.total_n() - ctx.partition.graph.n()},
@@ -262,7 +263,7 @@ public:
     // VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV
     void reset_node_state(const NodeID u) {
         Base::reset_node_state(u);
-        _changed_label[u] = 0;
+        _changed_label[u] = kInvalidGlobalNodeID;
     }
 
     /*
@@ -355,8 +356,8 @@ public:
 
     void move_node(const NodeID node, const ClusterID cluster) {
         KASSERT(node < _changed_label.size());
+        _changed_label[node] = this->cluster(node);
         OwnedClusterVector::move_node(node, cluster);
-        _changed_label[node] = 1;
     }
 
     [[nodiscard]] ClusterID initial_cluster(const NodeID u) {
@@ -408,6 +409,111 @@ private:
         });
     }
 
+    void control_cluster_weights(const NodeID from, const NodeID to) {
+        if (!sync_cluster_weights()) {
+            return;
+        }
+
+        const PEID size = mpi::get_comm_size(_graph->communicator());
+
+        using WeightDeltaMap = growt::GlobalNodeIDMap<GlobalNodeWeight>;
+        WeightDeltaMap weight_deltas(0);
+
+        tbb::enumerable_thread_specific<WeightDeltaMap::handle_type> weight_deltas_handle_ets([&] {
+            return weight_deltas.get_handle();
+        });
+
+        std::vector<parallel::Atomic<std::size_t>> num_messages(size);
+
+        _graph->pfor_nodes(from, to, [&](const NodeID u) {
+            if (_changed_label[u] != kInvalidGlobalNodeID) {
+                auto&              handle    = weight_deltas_handle_ets.local();
+                const GlobalNodeID old_label = _changed_label[u];
+                const GlobalNodeID new_label = cluster(u);
+                const NodeWeight   weight    = _graph->node_weight(u);
+
+                auto [old_it, old_inserted] = handle.insert_or_update(
+                    old_label + 1, -weight, [&](auto& lhs, auto& rhs) { return lhs -= rhs; }, weight
+                );
+                auto [new_it, new_inserted] = handle.insert_or_update(
+                    new_label + 1, weight, [&](auto& lhs, auto& rhs) { return lhs += rhs; }, weight
+                );
+
+                if (old_inserted) {
+                    const PEID pe = _graph->find_owner_of_global_node(old_label);
+                    ++num_messages[pe];
+                }
+                if (new_inserted) {
+                    const PEID pe = _graph->find_owner_of_global_node(old_label);
+                    ++num_messages[pe];
+                }
+            }
+        });
+
+        struct Message {
+            GlobalNodeID     cluster;
+            GlobalNodeWeight delta;
+        };
+        std::vector<NoinitVector<Message>> out_msgs(size);
+        tbb::parallel_for<PEID>(0, size, [&](const PEID pe) { out_msgs[pe].resize(num_messages[pe]); });
+
+        static std::atomic_size_t counter;
+        counter = 0;
+
+#pragma omp parallel
+        {
+            auto& handle = weight_deltas_handle_ets.local();
+
+            const std::size_t capacity  = handle.capacity();
+            std::size_t       cur_block = counter.fetch_add(4096);
+
+            while (cur_block < capacity) {
+                auto it = handle.range(cur_block, cur_block + 4096);
+                for (; it != handle.range_end(); ++it) {
+                    const GlobalNodeID     cluster = (*it).first - 1;
+                    const PEID             owner   = _graph->find_owner_of_global_node(cluster);
+                    const GlobalNodeWeight weight  = (*it).second;
+                    const std::size_t      index   = num_messages[owner].fetch_sub(1) - 1;
+                    out_msgs[owner][index]         = {.cluster = cluster, .delta = weight};
+                }
+                cur_block = counter.fetch_add(4096);
+            }
+        }
+
+        auto in_msgs = mpi::sparse_alltoall_get<Message>(out_msgs, _graph->communicator());
+
+        tbb::parallel_for<NodeID>(_graph->n(), _graph->total_n(), [&](const NodeID ghost_u) {
+            change_cluster_weight(cluster(ghost_u), -_graph->node_weight(ghost_u), true);
+        });
+
+        tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
+            tbb::parallel_for<std::size_t>(0, in_msgs[pe].size(), [&](const std::size_t i) {
+                const auto [cluster, delta] = in_msgs[pe][i];
+                change_cluster_weight(cluster, delta, false);
+            });
+        });
+
+        tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
+            tbb::parallel_for<std::size_t>(0, in_msgs[pe].size(), [&](const std::size_t i) {
+                const auto [cluster, delta] = in_msgs[pe][i];
+                in_msgs[pe][i].delta        = cluster_weight(cluster);
+            });
+        });
+
+        auto in_resps = mpi::sparse_alltoall_get<Message>(in_msgs, _graph->communicator());
+
+        tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
+            tbb::parallel_for<std::size_t>(0, in_resps[pe].size(), [&](const std::size_t i) {
+                const auto [cluster, delta] = in_resps[pe][i];
+                change_cluster_weight(cluster, cluster_weight(cluster) + delta, true);
+            });
+        });
+
+        if (enforce_cluster_weights()) {
+            // Rollback...
+        }
+    }
+
     GlobalNodeID process_chunk(const NodeID from, const NodeID to) {
         START_TIMER("Chunk iteration");
         const NodeID local_num_moved_nodes = perform_iteration(from, to);
@@ -415,6 +521,8 @@ private:
 
         const GlobalNodeID global_num_moved_nodes =
             mpi::allreduce(local_num_moved_nodes, MPI_SUM, _graph->communicator());
+
+        control_cluster_weights(from, to);
 
         if (global_num_moved_nodes > 0) {
             synchronize_ghost_node_clusters(from, to);
@@ -436,7 +544,7 @@ private:
         };
 
         mpi::graph::sparse_alltoall_interface_to_pe<ChangedLabelMessage>(
-            *_graph, from, to, [&](const NodeID u) { return _changed_label[u]; },
+            *_graph, from, to, [&](const NodeID u) { return _changed_label[u] != kInvalidGlobalNodeID; },
             [&](const NodeID u) -> ChangedLabelMessage {
                 return {u, cluster(u)};
             },
@@ -457,7 +565,7 @@ private:
             }
         );
 
-        _graph->pfor_nodes(from, to, [&](const NodeID u) { _changed_label[u] = 0; });
+        _graph->pfor_nodes(from, to, [&](const NodeID u) { _changed_label[u] = kInvalidGlobalNodeID; });
     }
 
     /*!
@@ -497,13 +605,24 @@ private:
         });
     }
 
+    bool sync_cluster_weights() const {
+        return _ctx.coarsening.global_lp.sync_cluster_weights
+               && (!_ctx.coarsening.global_lp.cheap_toplevel || _graph->global_n() != _ctx.partition.graph.global_n());
+    }
+
+    bool enforce_cluster_weights() const {
+        return _ctx.coarsening.global_lp.enforce_cluster_weights
+               && (!_ctx.coarsening.global_lp.cheap_toplevel || _graph->global_n() != _ctx.partition.graph.global_n());
+    }
+
     using Base::_graph;
+    const Context&           _ctx;
     const CoarseningContext& _c_ctx;
     NodeWeight               _max_cluster_weight{std::numeric_limits<NodeWeight>::max()};
     std::size_t              _max_num_iterations{std::numeric_limits<std::size_t>::max()};
 
     //! \code{_changed_label[u] = 1} iff. node \c u changed its label in the current round
-    scalable_vector<uint8_t> _changed_label;
+    scalable_vector<GlobalNodeID> _changed_label;
 
     using ClusterWeightsMap = typename growt::GlobalNodeIDMap<GlobalNodeWeight>;
     ClusterWeightsMap                                                        _cluster_weights{0};

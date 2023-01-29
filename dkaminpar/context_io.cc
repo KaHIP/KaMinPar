@@ -345,9 +345,9 @@ void print(const PartitionContext& ctx, const bool root, std::ostream& out) {
     }
 
     const auto size  = std::max<std::uint64_t>({
-        static_cast<std::uint64_t>(ctx.graph.global_n()),
-        static_cast<std::uint64_t>(ctx.graph.global_m()),
-        static_cast<std::uint64_t>(ctx.graph.max_block_weight(0)),
+         static_cast<std::uint64_t>(ctx.graph.global_n()),
+         static_cast<std::uint64_t>(ctx.graph.global_m()),
+         static_cast<std::uint64_t>(ctx.graph.max_block_weight(0)),
     });
     const auto width = std::ceil(std::log10(size)) + 1;
 
@@ -416,6 +416,9 @@ void print(const CoarseningContext& ctx, std::ostream& out) {
                 << (ctx.global_lp.scale_chunks_with_threads ? ", scaled" : "") << "\n";
             out << "  Active set:                 "
                 << (ctx.global_clustering_algorithm == GlobalClusteringAlgorithm::LP ? "no" : "yes") << "\n";
+            out << "  Cluster weights:            " << (ctx.global_lp.sync_cluster_weights ? "sync" : "no-sync") << "+"
+                << (ctx.global_lp.enforce_cluster_weights ? "enforce" : "no-enforce") << " "
+                << (ctx.global_lp.cheap_toplevel ? "(on level > 1)" : "(always)") << "\n";
         }
 
         if (ctx.global_clustering_algorithm == GlobalClusteringAlgorithm::HEM
