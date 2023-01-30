@@ -414,10 +414,12 @@ private:
             return;
         }
 
+        START_TIMER("Synchronize cluster weights");
+
         const PEID size = mpi::get_comm_size(_graph->communicator());
 
         using WeightDeltaMap = growt::GlobalNodeIDMap<GlobalNodeWeight>;
-        WeightDeltaMap weight_deltas(0);
+        WeightDeltaMap weight_deltas(_graph->ghost_n()); // Estimate capacity as number of ghost nodes
 
         tbb::enumerable_thread_specific<WeightDeltaMap::handle_type> weight_deltas_handle_ets([&] {
             return weight_deltas.get_handle();
@@ -432,20 +434,24 @@ private:
                 const GlobalNodeID new_label = cluster(u);
                 const NodeWeight   weight    = _graph->node_weight(u);
 
-                auto [old_it, old_inserted] = handle.insert_or_update(
-                    old_label + 1, -weight, [&](auto& lhs, auto& rhs) { return lhs -= rhs; }, weight
-                );
-                auto [new_it, new_inserted] = handle.insert_or_update(
-                    new_label + 1, weight, [&](auto& lhs, auto& rhs) { return lhs += rhs; }, weight
-                );
-
-                if (old_inserted) {
-                    const PEID pe = _graph->find_owner_of_global_node(old_label);
-                    ++num_messages[pe];
+                if (!_graph->is_owned_global_node(old_label)) {
+                    auto [old_it, old_inserted] = handle.insert_or_update(
+                        old_label + 1, -weight, [&](auto& lhs, auto& rhs) { return lhs -= rhs; }, weight
+                    );
+                    if (old_inserted) {
+                        const PEID owner = _graph->find_owner_of_global_node(old_label);
+                        ++num_messages[owner];
+                    }
                 }
-                if (new_inserted) {
-                    const PEID pe = _graph->find_owner_of_global_node(old_label);
-                    ++num_messages[pe];
+
+                if (!_graph->is_owned_global_node(new_label)) {
+                    auto [new_it, new_inserted] = handle.insert_or_update(
+                        new_label + 1, weight, [&](auto& lhs, auto& rhs) { return lhs += rhs; }, weight
+                    );
+                    if (new_inserted) {
+                        const PEID owner = _graph->find_owner_of_global_node(new_label);
+                        ++num_messages[owner];
+                    }
                 }
             }
         });
@@ -482,9 +488,12 @@ private:
 
         auto in_msgs = mpi::sparse_alltoall_get<Message>(out_msgs, _graph->communicator());
 
-        tbb::parallel_for<NodeID>(_graph->n(), _graph->total_n(), [&](const NodeID ghost_u) {
-            change_cluster_weight(cluster(ghost_u), -_graph->node_weight(ghost_u), true);
-        });
+        /*tbb::parallel_for<NodeID>(_graph->n(), _graph->total_n(), [&](const NodeID ghost_u) {
+            const GlobalNodeID label = cluster(ghost_u);
+            if (_graph->is_owned_global_node(label)) {
+                change_cluster_weight(label, -_graph->node_weight(ghost_u), true);
+            }
+        });*/
 
         tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
             tbb::parallel_for<std::size_t>(0, in_msgs[pe].size(), [&](const std::size_t i) {
@@ -502,16 +511,43 @@ private:
 
         auto in_resps = mpi::sparse_alltoall_get<Message>(in_msgs, _graph->communicator());
 
+        parallel::Atomic<std::uint8_t> violation = 0;
         tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
             tbb::parallel_for<std::size_t>(0, in_resps[pe].size(), [&](const std::size_t i) {
-                const auto [cluster, delta] = in_resps[pe][i];
-                change_cluster_weight(cluster, cluster_weight(cluster) + delta, true);
+                const auto [cluster, delta]       = in_resps[pe][i];
+                GlobalNodeWeight       new_weight = delta;
+                const GlobalNodeWeight old_weight = cluster_weight(cluster);
+                if (delta > _max_cluster_weight) {
+                    violation = 1;
+                    new_weight =
+                        _max_cluster_weight + (1.0 * old_weight / new_weight) * (new_weight - _max_cluster_weight);
+                }
+                change_cluster_weight(cluster, -old_weight + new_weight, true);
             });
         });
+        STOP_TIMER();
 
-        if (enforce_cluster_weights()) {
-            // Rollback...
+        // If we detected a max cluster weight violation, remove node weight proportional to our chunk of the cluster
+        // weight
+        if (!enforce_cluster_weights() || !violation) {
+            return;
         }
+
+        START_TIMER("Enforce cluster weights");
+        _graph->pfor_nodes(from, to, [&](const NodeID u) {
+            const GlobalNodeID old_label = _changed_label[u];
+            if (old_label == kInvalidGlobalNodeID) {
+                return;
+            }
+
+            const GlobalNodeID     new_label        = cluster(u);
+            const GlobalNodeWeight new_label_weight = cluster_weight(new_label);
+            if (new_label_weight > _max_cluster_weight) {
+                move_node(u, old_label);
+                move_cluster_weight(old_label, new_label, _graph->node_weight(u), 2 * _max_cluster_weight);
+            }
+        });
+        STOP_TIMER();
     }
 
     GlobalNodeID process_chunk(const NodeID from, const NodeID to) {
