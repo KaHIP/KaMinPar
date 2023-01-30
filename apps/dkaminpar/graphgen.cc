@@ -79,7 +79,7 @@ DistributedGraph build_graph(
     scalable_vector<EdgeID>     edges(m);
     scalable_vector<EdgeWeight> edge_weights(has_edge_weights ? m : 0);
 
-    graph::GhostNodeMapper ghost_node_mapper(node_distribution, MPI_COMM_WORLD);
+    graph::GhostNodeMapper ghost_node_mapper(MPI_COMM_WORLD, node_distribution);
     tbb::parallel_for<EdgeID>(0, edge_list.size(), [&](const EdgeID e) {
         const auto [u, v] = edge_list[e];
         KASSERT(from <= u, "", assert::always);

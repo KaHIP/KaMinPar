@@ -290,7 +290,7 @@ read_distributed_graph(std::ifstream& in, const GlobalNodeID from, const GlobalN
     auto edge_distribution = mpi::build_distribution_from_local_count<GlobalEdgeID, scalable_vector>(m, comm);
 
     // map ghost nodes to local nodes
-    graph::GhostNodeMapper mapper(node_distribution, comm);
+    graph::GhostNodeMapper mapper(comm, node_distribution);
     tbb::parallel_for<std::size_t>(0, global_edges.size(), [&](const std::size_t i) {
         const GlobalNodeID edge_target = global_edges[i];
         if (edge_target < from || edge_target >= to) {

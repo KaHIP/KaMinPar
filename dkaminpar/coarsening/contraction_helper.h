@@ -17,10 +17,10 @@
 #include "dkaminpar/definitions.h"
 
 #include "common/datastructures/ts_navigable_linked_list.h"
+#include "common/math.h"
 #include "common/noinit_vector.h"
 #include "common/scalable_vector.h"
 #include "common/timer.h"
-#include "common/math.h"
 
 namespace kaminpar::dist::helper {
 namespace {
@@ -236,7 +236,7 @@ inline DistributedGraph build_distributed_graph_from_edge_list(
 
     // Now construct the coarse graph
     START_TIMER("Construct coarse graph");
-    graph::GhostNodeMapper mapper{node_distribution, comm};
+    graph::GhostNodeMapper mapper{comm, node_distribution};
 
     DBG << "Number of nodes n=" << n;
     EdgeID num_entries_used       = 0;
