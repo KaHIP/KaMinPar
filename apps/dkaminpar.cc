@@ -171,6 +171,7 @@ ApplicationContext setup_context(CLI::App& cli, int argc, char* argv[]) {
         ->check(CLI::IsMember(get_preset_names()))
         ->description(R"(Use configuration preset:
   - default:                    default parameters
+  - default-social:             default parameters tuned for social networks
   - strong:                     use Mt-KaHyPar for initial partitioning and more label propagation iterations
   - ipdps23-submission-default: dDeepPar-Fast configuration used in the IPDPS'23 submission
   - ipdps23-submission-strong:  dDeepPar-Strong configuration used in the IPDPS'23 submission)");

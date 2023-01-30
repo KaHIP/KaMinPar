@@ -17,6 +17,7 @@ std::unordered_set<std::string> get_preset_names();
 
 Context create_default_context();
 Context create_strong_context();
+Context create_default_social_context();
 
 // Configurations used in the IPDPS'23 submission
 Context create_ipdps23_submission_default_context();
