@@ -29,19 +29,5 @@ function(add_distributed_app target)
     endif ()
 endfunction()
 
-# KaMinPar
-add_app(KaMinPar kaminpar.cc)
-
-# dKaMinPar
-add_distributed_app(dKaMinPar 
-    dkaminpar.cc 
-    ${CMAKE_CURRENT_SOURCE_DIR}/dkaminpar/graphgen.cc 
-    ${CMAKE_CURRENT_SOURCE_DIR}/dkaminpar/graphgen.h)
-
-if (KAMINPAR_GRAPHGEN)
-    target_link_libraries(dKaMinPar PRIVATE KaGen::KaGen) 
-endif ()
-
-# Benchmarks
-add_subdirectory(benchmarks)
-
+add_app(KaMinPar KaMinPar.cc)
+add_distributed_app(dKaMinPar dKaMinPar.cc)

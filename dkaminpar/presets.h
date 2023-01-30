@@ -6,20 +6,5 @@
  ******************************************************************************/
 #pragma once
 
-#include <string>
-#include <unordered_set>
+#include "dkaminpar/dkaminpar.h"
 
-#include "dkaminpar/context.h"
-
-namespace kaminpar::dist {
-Context                         create_context_by_preset_name(const std::string& name);
-std::unordered_set<std::string> get_preset_names();
-
-Context create_default_context();
-Context create_strong_context();
-Context create_default_social_context();
-
-// Configurations used in the IPDPS'23 submission
-Context create_ipdps23_submission_default_context();
-Context create_ipdps23_submission_strong_context();
-} // namespace kaminpar::dist

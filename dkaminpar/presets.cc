@@ -18,10 +18,6 @@ Context create_context_by_preset_name(const std::string& name) {
         return create_default_context();
     } else if (name == "strong") {
         return create_strong_context();
-    } else if (name == "ipdps23-submission-default" || name == "ipdps23-submission-fast") {
-        return create_ipdps23_submission_default_context();
-    } else if (name == "ipdps23-submission-strong") {
-        return create_ipdps23_submission_strong_context();
     } else if (name == "default-social") {
         return create_default_social_context();
     }
@@ -34,9 +30,6 @@ std::unordered_set<std::string> get_preset_names() {
         "default",
         "default-social",
         "strong",
-        "ipdps23-submission-default",
-        "ipdps23-submission-fast",
-        "ipdps23-submission-strong",
     };
 }
 
@@ -52,7 +45,7 @@ Context create_default_context() {
                 .mode                  = PartitioningMode::DEEP,
                 .enable_pe_splitting   = true,
                 .simulate_singlethread = true,
-                .graph                 = GraphContext(),
+                .graph                 = nullptr,
             },
         .parallel =
             {
@@ -183,21 +176,8 @@ Context create_default_context() {
         }};
 }
 
-Context create_ipdps23_submission_default_context() {
-    Context ctx        = create_default_context();
-    ctx.partition.mode = PartitioningMode::DEEP;
-    return ctx;
-}
-
 Context create_strong_context() {
     Context ctx                             = create_default_context();
-    ctx.initial_partitioning.algorithm      = InitialPartitioningAlgorithm::MTKAHYPAR;
-    ctx.coarsening.global_lp.num_iterations = 5;
-    return ctx;
-}
-
-Context create_ipdps23_submission_strong_context() {
-    Context ctx                             = create_ipdps23_submission_default_context();
     ctx.initial_partitioning.algorithm      = InitialPartitioningAlgorithm::MTKAHYPAR;
     ctx.coarsening.global_lp.num_iterations = 5;
     return ctx;
