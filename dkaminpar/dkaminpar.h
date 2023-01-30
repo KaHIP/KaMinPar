@@ -117,32 +117,37 @@ struct ParallelContext {
 };
 
 struct LabelPropagationCoarseningContext {
-    std::size_t num_iterations                       = 0;
-    NodeID      passive_high_degree_threshold        = 0;
-    NodeID      active_high_degree_threshold         = 0;
-    NodeID      max_num_neighbors                    = 0;
-    bool        merge_singleton_clusters             = 0;
-    double      merge_nonadjacent_clusters_threshold = 0;
-    std::size_t total_num_chunks                     = 0;
-    std::size_t num_chunks                           = 0;
-    std::size_t min_num_chunks                       = 0;
-    bool        ignore_ghost_nodes                   = false;
-    bool        keep_ghost_clusters                  = false;
-    bool        scale_chunks_with_threads            = false;
+    int    num_iterations                       = 0;
+    NodeID passive_high_degree_threshold        = 0;
+    NodeID active_high_degree_threshold         = 0;
+    NodeID max_num_neighbors                    = 0;
+    bool   merge_singleton_clusters             = 0;
+    double merge_nonadjacent_clusters_threshold = 0;
+    int    total_num_chunks                     = 0;
+    int    fixed_num_chunks                     = 0;
+    int    min_num_chunks                       = 0;
+    bool   ignore_ghost_nodes                   = false;
+    bool   keep_ghost_clusters                  = false;
+    bool   scale_chunks_with_threads            = false;
 
     bool sync_cluster_weights    = false;
     bool enforce_cluster_weights = false;
     bool cheap_toplevel          = false;
+
+    bool should_merge_nonadjacent_clusters(NodeID old_n, NodeID new_n) const;
+    int  compute_num_chunks(const ParallelContext& parallel) const;
 };
 
 struct HEMCoarseningContext {
-    int    num_coloring_chunks                = 0;
     int    max_num_coloring_chunks            = 0;
+    int    fixed_num_coloring_chunks          = 0;
     int    min_num_coloring_chunks            = 0;
     bool   scale_coloring_chunks_with_threads = false;
     double small_color_blacklist              = 0;
     bool   only_blacklist_input_level         = false;
     bool   ignore_weight_limit                = false;
+
+    int compute_num_coloring_chunks(const ParallelContext& parallel) const;
 };
 
 struct ColoredLabelPropagationRefinementContext {
@@ -151,8 +156,8 @@ struct ColoredLabelPropagationRefinementContext {
     int  num_probabilistic_move_attempts = 0;
     bool sort_by_rel_gain                = false;
 
-    int    num_coloring_chunks                = 0;
     int    max_num_coloring_chunks            = 0;
+    int    fixed_num_coloring_chunks          = 0;
     int    min_num_coloring_chunks            = 0;
     bool   scale_coloring_chunks_with_threads = false;
     double small_color_blacklist              = 0;
@@ -163,17 +168,23 @@ struct ColoredLabelPropagationRefinementContext {
 
     LabelPropagationMoveExecutionStrategy move_execution_strategy =
         LabelPropagationMoveExecutionStrategy::PROBABILISTIC;
+
+    int compute_num_coloring_chunks(const ParallelContext& parallel) const;
 };
 
 struct LabelPropagationRefinementContext {
-    NodeID      active_high_degree_threshold = 0;
-    std::size_t num_iterations               = 0;
-    std::size_t total_num_chunks             = 0;
-    std::size_t num_chunks                   = 0;
-    std::size_t min_num_chunks               = 0;
-    std::size_t num_move_attempts            = 0;
-    bool        ignore_probabilities         = false;
-    bool        scale_chunks_with_threads    = false;
+    NodeID active_high_degree_threshold = 0;
+    int    num_iterations               = 0;
+
+    int total_num_chunks = 0;
+    int fixed_num_chunks = 0;
+    int min_num_chunks   = 0;
+
+    int  num_move_attempts         = 0;
+    bool ignore_probabilities      = false;
+    bool scale_chunks_with_threads = false;
+
+    int compute_num_chunks(const ParallelContext& parallel) const;
 };
 
 struct FMRefinementContext {
@@ -255,7 +266,6 @@ struct DebugContext {
 };
 
 struct Context {
-    int           seed         = 0;
     GraphOrdering rearrange_by = GraphOrdering::NATURAL;
 
     PartitionContext           partition;
@@ -273,6 +283,8 @@ Context create_context_by_preset_name(const std::string& name);
 Context create_default_context();
 Context create_strong_context();
 Context create_default_social_context();
+
+std::unordered_set<std::string> get_preset_names();
 
 struct GraphPtr {
     GraphPtr(std::unique_ptr<class DistributedGraph> graph);
@@ -297,6 +309,7 @@ enum class OutputLevel {
     SILENT,
     PARTITIONING,
     FULL,
+    EXPERIMENT,
 };
 
 std::vector<BlockID>

@@ -16,125 +16,103 @@
 namespace kaminpar::dist {
 using namespace std::string_literals;
 GraphContext::GraphContext(const DistributedGraph& graph, const PartitionContext& p_ctx)
-    : _global_n(graph.global_n()),
-      _n(graph.n()),
-      _total_n(graph.total_n()),
-      _global_m(graph.global_m()),
-      _m(graph.m()),
-      _global_total_node_weight(graph.global_total_node_weight()),
-      _total_node_weight(graph.total_node_weight()),
-      _global_max_node_weight(graph.global_max_node_weight()),
-      _global_total_edge_weight(graph.global_total_edge_weight()),
-      _total_edge_weight(graph.total_edge_weight()) {
+    : global_n(graph.global_n()),
+      n(graph.n()),
+      total_n(graph.total_n()),
+      global_m(graph.global_m()),
+      m(graph.m()),
+      global_total_node_weight(graph.global_total_node_weight()),
+      total_node_weight(graph.total_node_weight()),
+      global_max_node_weight(graph.global_max_node_weight()),
+      global_total_edge_weight(graph.global_total_edge_weight()),
+      total_edge_weight(graph.total_edge_weight()) {
     setup_perfectly_balanced_block_weights(p_ctx.k);
     setup_max_block_weights(p_ctx.k, p_ctx.epsilon);
 }
 
 GraphContext::GraphContext(const shm::Graph& graph, const PartitionContext& p_ctx)
-    : _global_n(graph.n()),
-      _n(graph.n()),
-      _total_n(graph.n()),
-      _global_m(graph.m()),
-      _m(graph.m()),
-      _global_total_node_weight(graph.total_node_weight()),
-      _total_node_weight(graph.total_node_weight()),
-      _global_max_node_weight(graph.max_node_weight()),
-      _global_total_edge_weight(graph.total_edge_weight()),
-      _total_edge_weight(graph.total_edge_weight()) {
+    : global_n(graph.n()),
+      n(graph.n()),
+      total_n(graph.n()),
+      global_m(graph.m()),
+      m(graph.m()),
+      global_total_node_weight(graph.total_node_weight()),
+      total_node_weight(graph.total_node_weight()),
+      global_max_node_weight(graph.max_node_weight()),
+      global_total_edge_weight(graph.total_edge_weight()),
+      total_edge_weight(graph.total_edge_weight()) {
     setup_perfectly_balanced_block_weights(p_ctx.k);
     setup_max_block_weights(p_ctx.k, p_ctx.epsilon);
 }
 
 void GraphContext::setup_perfectly_balanced_block_weights(const BlockID k) {
-    _perfectly_balanced_block_weights.resize(k);
+    perfectly_balanced_block_weights.resize(k);
 
-    const BlockWeight perfectly_balanced_block_weight = std::ceil(static_cast<double>(global_total_node_weight()) / k);
+    const BlockWeight perfectly_balanced_block_weight = std::ceil(1.0 * global_total_node_weight / k);
     tbb::parallel_for<BlockID>(0, k, [&](const BlockID b) {
-        _perfectly_balanced_block_weights[b] = perfectly_balanced_block_weight;
+        perfectly_balanced_block_weights[b] = perfectly_balanced_block_weight;
     });
 }
 
 void GraphContext::setup_max_block_weights(const BlockID k, const double epsilon) {
-    _max_block_weights.resize(k);
+    max_block_weights.resize(k);
 
     tbb::parallel_for<BlockID>(0, k, [&](const BlockID b) {
         const BlockWeight max_eps_weight =
-            static_cast<BlockWeight>((1.0 + epsilon) * static_cast<double>(perfectly_balanced_block_weight(b)));
-        const BlockWeight max_abs_weight = perfectly_balanced_block_weight(b) + _global_max_node_weight;
+            static_cast<BlockWeight>((1.0 + epsilon) * static_cast<double>(perfectly_balanced_block_weights[b]));
+        const BlockWeight max_abs_weight = perfectly_balanced_block_weights[b] + global_max_node_weight;
 
         // Only relax weight on coarse levels
-        if (static_cast<GlobalNodeWeight>(_global_n) == _global_total_node_weight) {
-            _max_block_weights[b] = max_eps_weight;
+        if (static_cast<GlobalNodeWeight>(global_n) == global_total_node_weight) {
+            max_block_weights[b] = max_eps_weight;
         } else {
-            _max_block_weights[b] = std::max(max_eps_weight, max_abs_weight);
+            max_block_weights[b] = std::max(max_eps_weight, max_abs_weight);
         }
     });
 }
 
-void PartitionContext::setup(const DistributedGraph& graph) {
-    this->graph = GraphContext(graph, *this);
+bool LabelPropagationCoarseningContext::should_merge_nonadjacent_clusters(const NodeID old_n, const NodeID new_n)
+    const {
+    return (1.0 - 1.0 * new_n / old_n) <= merge_nonadjacent_clusters_threshold;
 }
 
-void PartitionContext::setup(const shm::Graph& graph) {
-    this->graph = GraphContext(graph, *this);
-}
-
-[[nodiscard]] bool
-LabelPropagationCoarseningContext::should_merge_nonadjacent_clusters(const NodeID old_n, const NodeID new_n) const {
-    return (1.0 - 1.0 * static_cast<double>(new_n) / static_cast<double>(old_n))
-           <= merge_nonadjacent_clusters_threshold;
-}
-
-void LabelPropagationCoarseningContext::setup(const ParallelContext& parallel) {
-    if (num_chunks == 0) {
-        const std::size_t chunks =
-            scale_chunks_with_threads ? total_num_chunks / parallel.num_threads : total_num_chunks;
-        num_chunks = std::max<std::size_t>(8, chunks / parallel.num_mpis);
+int LabelPropagationCoarseningContext::compute_num_chunks(const ParallelContext& parallel) const {
+    if (fixed_num_chunks > 0) {
+        return fixed_num_chunks;
     }
+
+    const std::size_t chunks = scale_chunks_with_threads ? total_num_chunks / parallel.num_threads : total_num_chunks;
+    return std::max<std::size_t>(8, chunks / parallel.num_mpis);
 }
 
-void LabelPropagationRefinementContext::setup(const ParallelContext& parallel) {
-    if (num_chunks == 0) {
-        const std::size_t chunks =
-            scale_chunks_with_threads ? total_num_chunks / parallel.num_threads : total_num_chunks;
-        num_chunks = std::max<std::size_t>(8, chunks / parallel.num_mpis);
+int LabelPropagationRefinementContext::compute_num_chunks(const ParallelContext& parallel) const {
+    if (fixed_num_chunks > 0) {
+        return fixed_num_chunks;
     }
+
+    const std::size_t chunks = scale_chunks_with_threads ? total_num_chunks / parallel.num_threads : total_num_chunks;
+    return std::max<std::size_t>(8, chunks / parallel.num_mpis);
 }
 
-void ColoredLabelPropagationRefinementContext::setup(const ParallelContext& parallel) {
-    if (num_coloring_chunks == 0) {
-        const int scale = scale_coloring_chunks_with_threads ? parallel.num_threads : 1;
-        num_coloring_chunks =
-            std::max<int>(min_num_coloring_chunks, max_num_coloring_chunks / (scale * parallel.num_mpis));
+int ColoredLabelPropagationRefinementContext::compute_num_coloring_chunks(const ParallelContext& parallel) const {
+    if (fixed_num_coloring_chunks > 0) {
+        return fixed_num_coloring_chunks;
     }
+
+    const int scale = scale_coloring_chunks_with_threads ? parallel.num_threads : 1;
+    return std::max<int>(min_num_coloring_chunks, max_num_coloring_chunks / (scale * parallel.num_mpis));
 }
 
-void CoarseningContext::setup(const ParallelContext& parallel) {
-    local_lp.setup(parallel);
-    global_lp.setup(parallel);
-    hem.setup(parallel);
-}
-
-void HEMCoarseningContext::setup(const ParallelContext& parallel) {
-    if (num_coloring_chunks == 0) {
-        const int scale = scale_coloring_chunks_with_threads ? parallel.num_threads : 1;
-        num_coloring_chunks =
-            std::max<int>(min_num_coloring_chunks, max_num_coloring_chunks / (scale * parallel.num_mpis));
+int HEMCoarseningContext::compute_num_coloring_chunks(const ParallelContext& parallel) const {
+    if (fixed_num_coloring_chunks > 0) {
+        return fixed_num_coloring_chunks;
     }
-}
 
-void RefinementContext::setup(const ParallelContext& parallel) {
-    lp.setup(parallel);
-    colored_lp.setup(parallel);
+    const int scale = scale_coloring_chunks_with_threads ? parallel.num_threads : 1;
+    return std::max<int>(min_num_coloring_chunks, max_num_coloring_chunks / (scale * parallel.num_mpis));
 }
 
 bool RefinementContext::includes_algorithm(const KWayRefinementAlgorithm algorithm) const {
     return std::find(algorithms.begin(), algorithms.end(), algorithm) != algorithms.end();
-}
-
-void Context::setup(const DistributedGraph& graph) {
-    partition.setup(graph);
-    coarsening.setup(parallel);
-    refinement.setup(parallel);
 }
 } // namespace kaminpar::dist

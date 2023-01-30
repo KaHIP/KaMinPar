@@ -35,7 +35,6 @@ std::unordered_set<std::string> get_preset_names() {
 
 Context create_default_context() {
     return {
-        .seed         = 0,
         .rearrange_by = GraphOrdering::DEGREE_BUCKETS,
         .partition =
             {
@@ -49,9 +48,8 @@ Context create_default_context() {
             },
         .parallel =
             {
-                .num_threads                     = 1,
-                .num_mpis                        = 1,
-                .use_interleaved_numa_allocation = true,
+                .num_threads = 1,
+                .num_mpis    = 1,
             },
         .coarsening =
             {
@@ -67,7 +65,7 @@ Context create_default_context() {
                         .merge_singleton_clusters             = true,
                         .merge_nonadjacent_clusters_threshold = 0.5,
                         .total_num_chunks                     = 128,
-                        .num_chunks                           = 0,
+                        .fixed_num_chunks                     = 0,
                         .min_num_chunks                       = 8,
                         .ignore_ghost_nodes                   = false, // unused
                         .keep_ghost_clusters                  = false,
@@ -78,8 +76,8 @@ Context create_default_context() {
                     },
                 .hem =
                     {
-                        .num_coloring_chunks                = 0,
                         .max_num_coloring_chunks            = 128,
+                        .fixed_num_coloring_chunks          = 0,
                         .min_num_coloring_chunks            = 8,
                         .scale_coloring_chunks_with_threads = false,
                         .small_color_blacklist              = 0,
@@ -97,14 +95,14 @@ Context create_default_context() {
                         .merge_singleton_clusters             = true,
                         .merge_nonadjacent_clusters_threshold = 0.5,
                         .total_num_chunks                     = 0, // unused
-                        .num_chunks                           = 0, // unused
+                        .fixed_num_chunks                     = 0, // unused
                         .min_num_chunks                       = 0, // unused
                         .ignore_ghost_nodes                   = false,
                         .keep_ghost_clusters                  = false,
                         .scale_chunks_with_threads            = false, // unused
                     },
-                .contraction_limit         = 5000,
-                .cluster_weight_limit      = shm::ClusterWeightLimit::EPSILON_BLOCK_WEIGHT,
+                .contraction_limit = 5000,
+                //.cluster_weight_limit      = shm::ClusterWeightLimit::EPSILON_BLOCK_WEIGHT,
                 .cluster_weight_multiplier = 1.0,
             },
         .initial_partitioning =
@@ -114,19 +112,20 @@ Context create_default_context() {
                     {
                         .preset_filename = "",
                     },
-                .kaminpar = shm::create_default_context(),
+                .kaminpar = std::make_unique<shm::Context>(shm::create_default_context()),
             },
         .refinement =
             {
                 .algorithms =
                     {KWayRefinementAlgorithm::GREEDY_BALANCER, KWayRefinementAlgorithm::LP,
                      KWayRefinementAlgorithm::GREEDY_BALANCER},
+                .refine_coarsest_level = false,
                 .lp =
                     {
                         .active_high_degree_threshold = 1'000'000,
                         .num_iterations               = 5,
                         .total_num_chunks             = 128,
-                        .num_chunks                   = 0,
+                        .fixed_num_chunks             = 0,
                         .min_num_chunks               = 8,
                         .num_move_attempts            = 2,
                         .ignore_probabilities         = true,
@@ -138,8 +137,8 @@ Context create_default_context() {
                         .num_move_execution_iterations      = 1,
                         .num_probabilistic_move_attempts    = 2,
                         .sort_by_rel_gain                   = true,
-                        .num_coloring_chunks                = 0,
                         .max_num_coloring_chunks            = 128,
+                        .fixed_num_coloring_chunks          = 0,
                         .min_num_coloring_chunks            = 8,
                         .scale_coloring_chunks_with_threads = false,
                         .small_color_blacklist              = 0,
@@ -164,7 +163,6 @@ Context create_default_context() {
                     {
                         .num_nodes_per_block = 5,
                     },
-                .refine_coarsest_level = false,
             },
         .debug = {
             .save_finest_graph               = false,
