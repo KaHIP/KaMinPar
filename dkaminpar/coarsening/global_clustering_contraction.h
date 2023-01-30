@@ -23,6 +23,11 @@ struct GlobalContractionResult {
     GlobalMapping    mapping;
 };
 
+struct ContractionResult {
+    DistributedGraph graph; 
+    NoinitVector<GlobalNodeID> mapping;
+};
+
 GlobalContractionResult
 contract_global_clustering_no_migration(const DistributedGraph& graph, const GlobalClustering& clustering);
 GlobalContractionResult
@@ -37,4 +42,6 @@ GlobalContractionResult contract_global_clustering(
 DistributedPartitionedGraph project_global_contracted_graph(
     const DistributedGraph& fine_graph, DistributedPartitionedGraph coarse_graph, const GlobalMapping& fine_to_coarse
 );
+
+ContractionResult contract_clustering(const DistributedGraph &graph, const GlobalClustering &clustering);
 } // namespace kaminpar::dist

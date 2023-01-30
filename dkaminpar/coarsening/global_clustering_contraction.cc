@@ -7,14 +7,21 @@
  ******************************************************************************/
 #include "dkaminpar/coarsening/global_clustering_contraction.h"
 
+#include <numeric>
+
+#include <mpi.h>
+#include <oneapi/tbb/enumerable_thread_specific.h>
+#include <tbb/blocked_range2d.h>
 #include <tbb/concurrent_hash_map.h>
 #include <tbb/task_arena.h>
 
 #include "dkaminpar/coarsening/contraction_helper.h"
+#include "dkaminpar/datastructures/distributed_graph_builder.h"
 #include "dkaminpar/growt.h"
 #include "dkaminpar/mpi/graph_communication.h"
 #include "dkaminpar/mpi/wrapper.h"
 
+#include "common/datastructures/rating_map.h"
 #include "common/noinit_vector.h"
 #include "common/parallel/atomic.h"
 #include "common/parallel/loops.h"
@@ -79,11 +86,11 @@ template <typename ResolveClusterCallback, typename Clustering>
 std::pair<std::vector<UsedClustersMap>, std::vector<UsedClustersVector>> find_used_cluster_ids_per_pe(
     const DistributedGraph& graph, const Clustering& clustering, ResolveClusterCallback&& resolve_cluster_callback
 ) {
-    SCOPED_TIMER("Find used cluster IDs per PE");
+    SCOPED_TIMER("find_used_cluster_ids_per_pe()");
 
     const auto size = mpi::get_comm_size(graph.communicator());
 
-    // mark global node IDs that are used as cluster IDs
+    // Mark global node IDs that are used as cluster IDs
     std::vector<UsedClustersMap>          used_clusters_map(size);
     std::vector<parallel::Atomic<NodeID>> next_slot_for_pe(size);
 
@@ -633,5 +640,549 @@ DistributedPartitionedGraph project_global_contracted_graph(
     );
 
     return {&fine_graph, coarse_graph.k(), std::move(fine_partition), coarse_graph.take_block_weights()};
+}
+
+ContractionResult contract_clustering(const DistributedGraph& graph, const GlobalClustering& clustering) {
+    const PEID size = mpi::get_comm_size(graph.communicator());
+    const PEID rank = mpi::get_comm_rank(graph.communicator());
+
+    //
+    // Collect nodes and edges that must be migrated to another PE
+    //
+    NoinitVector<NodeID> edge_position_buffer(graph.n() + 1);
+    NoinitVector<NodeID> node_position_buffer(graph.n() + 1);
+    edge_position_buffer.front() = 0;
+    node_position_buffer.front() = 0;
+
+    graph.pfor_nodes([&](const NodeID u) {
+        const GlobalNodeID c_u = clustering[u];
+
+        if (graph.is_owned_global_node(c_u)) {
+            edge_position_buffer[u + 1] = 0;
+            node_position_buffer[u + 1] = 0;
+        } else {
+            edge_position_buffer[u + 1] = graph.degree(u);
+            node_position_buffer[u + 1] = 1;
+        }
+    });
+
+    parallel::prefix_sum(edge_position_buffer.begin(), edge_position_buffer.end(), edge_position_buffer.begin());
+    parallel::prefix_sum(node_position_buffer.begin(), node_position_buffer.end(), node_position_buffer.begin());
+
+    struct Edge {
+        GlobalNodeID u;
+        GlobalNodeID v;
+        EdgeWeight   weight;
+    };
+
+    struct Node {
+        GlobalNodeID u;
+        NodeWeight   weight;
+    };
+
+    NoinitVector<Edge> nonlocal_edges(edge_position_buffer.back());
+    NoinitVector<Node> nonlocal_nodes(node_position_buffer.back());
+
+    graph.pfor_nodes([&](const NodeID u) {
+        const GlobalNodeID c_u = clustering[u];
+
+        if (!graph.is_owned_global_node(c_u)) {
+            // Node
+            nonlocal_nodes[node_position_buffer[u]] = {.u = c_u, .weight = graph.node_weight(u)};
+
+            // Edge
+            std::size_t pos = edge_position_buffer[u];
+            for (const auto [e, v]: graph.neighbors(u)) {
+                nonlocal_edges[pos] = {
+                    .u      = c_u,
+                    .v      = clustering[v],
+                    .weight = graph.edge_weight(e),
+                };
+                ++pos;
+            }
+        }
+    });
+
+    //
+    // Deduplicate the edges before sending them
+    //
+    if (!nonlocal_edges.empty()) {
+        // Primary sort by edge source = messages are sorted by destination PE
+        // Secondary sort by edge target = duplicate edges are consecutive
+        tbb::parallel_sort(nonlocal_edges.begin(), nonlocal_edges.end(), [&](const auto& lhs, const auto& rhs) {
+            return lhs.u < rhs.u || (lhs.u == rhs.u && lhs.v < rhs.v);
+        });
+
+        // Mark the first edge in every block of duplicate edges
+        NoinitVector<EdgeID> edge_position_buffer(nonlocal_edges.size());
+        tbb::parallel_for<std::size_t>(0, nonlocal_edges.size(), [&](const std::size_t i) {
+            edge_position_buffer[i] = 0;
+        });
+        tbb::parallel_for<std::size_t>(1, nonlocal_edges.size(), [&](const std::size_t i) {
+            if (nonlocal_edges[i].u != nonlocal_edges[i - 1].u || nonlocal_edges[i].v != nonlocal_edges[i - 1].v) {
+                edge_position_buffer[i] = 1;
+            }
+        });
+
+        // Prefix sum to get the location of the deduplicated edge
+        parallel::prefix_sum(edge_position_buffer.begin(), edge_position_buffer.end(), edge_position_buffer.begin());
+
+        // Deduplicate edges in a separate buffer
+        NoinitVector<Edge> tmp_nonlocal_edges(edge_position_buffer.back() + 1);
+        tbb::parallel_for<std::size_t>(0, edge_position_buffer.back() + 1, [&](const std::size_t i) {
+            tmp_nonlocal_edges[i].weight = 0;
+        });
+        tbb::parallel_for<std::size_t>(0, nonlocal_edges.size(), [&](const std::size_t i) {
+            const std::size_t pos = edge_position_buffer[i];
+            __atomic_store_n(&(tmp_nonlocal_edges[pos].u), nonlocal_edges[i].u, __ATOMIC_RELAXED);
+            __atomic_store_n(&(tmp_nonlocal_edges[pos].v), nonlocal_edges[i].v, __ATOMIC_RELAXED);
+            __atomic_fetch_add(&(tmp_nonlocal_edges[pos].weight), nonlocal_edges[i].weight, __ATOMIC_RELAXED);
+        });
+        std::swap(tmp_nonlocal_edges, nonlocal_edges);
+    }
+
+    // Also sort the nodes so that we can count them efficiently in the next step
+    tbb::parallel_sort(nonlocal_nodes.begin(), nonlocal_nodes.end(), [&](const auto& lhs, const auto& rhs) {
+        return lhs.u < rhs.u;
+    });
+
+    //
+    // Exchange nodes and edges
+    //
+
+    // First, count them
+    parallel::vector_ets<EdgeID> num_edges_for_pe_ets(size);
+    parallel::vector_ets<NodeID> num_nodes_for_pe_ets(size);
+    tbb::parallel_invoke(
+        [&] {
+            tbb::parallel_for(
+                tbb::blocked_range<std::size_t>(0, nonlocal_edges.size()),
+                [&](const auto& r) {
+                    auto& num_edges_for_pe = num_edges_for_pe_ets.local();
+                    PEID  current_pe       = 0;
+                    for (std::size_t i = r.begin(); i != r.end(); ++i) {
+                        const GlobalNodeID u = nonlocal_edges[i].u;
+                        while (u >= graph.node_distribution(current_pe + 1)) {
+                            ++current_pe;
+                        }
+                        ++num_edges_for_pe[current_pe];
+                    }
+                },
+                tbb::static_partitioner{}
+            );
+        },
+        [&] {
+            tbb::parallel_for<std::size_t>(0, nonlocal_nodes.size(), [&](const std::size_t i) {
+                auto&      num_nodes_for_pe = num_nodes_for_pe_ets.local();
+                const PEID pe               = graph.find_owner_of_global_node(nonlocal_nodes[i].u);
+                ++num_nodes_for_pe[pe];
+            });
+        }
+    );
+    auto num_edges_for_pe = num_edges_for_pe_ets.combine(std::plus{});
+    auto num_nodes_for_pe = num_nodes_for_pe_ets.combine(std::plus{});
+
+    // Exchange edges
+    NoinitVector<Edge> local_edges;
+    std::vector<int>   local_edges_sendcounts(size);
+    std::vector<int>   local_edges_sdispls(size);
+    std::vector<int>   local_edges_recvcounts(size);
+    std::vector<int>   local_edges_rdispls(size);
+
+    std::copy(num_edges_for_pe.begin(), num_edges_for_pe.end(), local_edges_sendcounts.begin());
+    std::exclusive_scan(local_edges_sendcounts.begin(), local_edges_sendcounts.end(), local_edges_sdispls.begin(), 0);
+    MPI_Alltoall(
+        local_edges_sendcounts.data(), 1, MPI_INT, local_edges_recvcounts.data(), 1, MPI_INT, graph.communicator()
+    );
+    std::exclusive_scan(local_edges_recvcounts.begin(), local_edges_recvcounts.end(), local_edges_rdispls.begin(), 0);
+
+    local_edges.resize(local_edges_rdispls.back() + local_edges_recvcounts.back());
+    MPI_Alltoallv(
+        nonlocal_edges.data(), local_edges_sendcounts.data(), local_edges_sdispls.data(), mpi::type::get<Edge>(),
+        local_edges.data(), local_edges_recvcounts.data(), local_edges_rdispls.data(), mpi::type::get<Edge>(),
+        graph.communicator()
+    );
+
+    // Sort edges
+    tbb::parallel_sort(local_edges.begin(), local_edges.end(), [&](const auto& lhs, const auto& rhs) {
+        return lhs.u < rhs.u;
+    });
+
+    // Exchange nodes
+    NoinitVector<Node> local_nodes;
+    std::vector<int>   local_nodes_sendcounts(size);
+    std::vector<int>   local_nodes_sdispls(size);
+    std::vector<int>   local_nodes_recvcounts(size);
+    std::vector<int>   local_nodes_rdispls(size);
+
+    std::copy(num_nodes_for_pe.begin(), num_nodes_for_pe.end(), local_nodes_sendcounts.begin());
+    std::exclusive_scan(local_nodes_sendcounts.begin(), local_nodes_sendcounts.end(), local_nodes_sdispls.begin(), 0);
+    MPI_Alltoall(
+        local_nodes_sendcounts.data(), 1, MPI_INT, local_nodes_recvcounts.data(), 1, MPI_INT, graph.communicator()
+    );
+    std::exclusive_scan(local_nodes_recvcounts.begin(), local_nodes_recvcounts.end(), local_nodes_rdispls.begin(), 0);
+
+    local_nodes.resize(local_nodes_rdispls.back() + local_nodes_recvcounts.back());
+    MPI_Alltoallv(
+        nonlocal_nodes.data(), local_nodes_sendcounts.data(), local_nodes_sdispls.data(), mpi::type::get<Edge>(),
+        local_nodes.data(), local_nodes_recvcounts.data(), local_nodes_rdispls.data(), mpi::type::get<Edge>(),
+        graph.communicator()
+    );
+
+    //
+    // Next, build the coarse node distribution
+    //
+
+    // Map non-empty clusters belonging to this PE to a consecutive range of coarse node IDs:
+    // ```
+    // clustering_mapping[local node ID] = local coarse node ID
+    // ```
+    NoinitVector<NodeID> cluster_mapping(graph.n());
+    graph.pfor_nodes([&](const NodeID u) { cluster_mapping[u] = 0; });
+    tbb::parallel_invoke(
+        [&] {
+            graph.pfor_nodes([&](const NodeID u) {
+                const GlobalNodeID c_u = clustering[u];
+                if (graph.is_owned_global_node(c_u)) {
+                    const NodeID local_cluster = static_cast<NodeID>(c_u - graph.offset_n());
+                    __atomic_store_n(&cluster_mapping[local_cluster], 1, __ATOMIC_RELAXED);
+                }
+            });
+        },
+        [&] {
+            tbb::parallel_for<std::size_t>(0, local_nodes.size(), [&](const std::size_t i) {
+                const GlobalNodeID c_u = local_nodes[i].u;
+                KASSERT(graph.is_owned_global_node(c_u));
+                const NodeID local_cluster = static_cast<NodeID>(c_u - graph.offset_n());
+                __atomic_store_n(&cluster_mapping[local_cluster], 1, __ATOMIC_RELAXED);
+            });
+        }
+    );
+    parallel::prefix_sum(cluster_mapping.begin(), cluster_mapping.end(), cluster_mapping.begin());
+
+    // Number of coarse nodes on this PE:
+    const NodeID c_n = cluster_mapping.empty() ? 0 : cluster_mapping.back();
+
+    scalable_vector<GlobalNodeID> c_node_distribution(size + 1);
+    MPI_Allgather(
+        &c_n, 1, mpi::type::get<NodeID>(), c_node_distribution.data(), 1, mpi::type::get<NodeID>(), graph.communicator()
+    );
+    std::exclusive_scan(c_node_distribution.begin(), c_node_distribution.end(), c_node_distribution.begin(), 0u);
+
+    // We can now map fine nodes to coarse nodes if their respective cluster is owned by this PE
+    // For other nodes, we have to communicate to determine their coarse node ID
+    // There are two types of nodes that we need this mapping for:
+    // - Coarse ghost nodes
+    // X Local nodes that were migrated to another PE (to project the coarse partition onto the finer graph later)
+
+    // Build a list of global nodes for which we need their new coarse node ID
+    using NonlocalClusterFilter = growt::GlobalNodeIDMap<GlobalNodeID>;
+    NonlocalClusterFilter nonlocal_cluster_filter(0); // graph.n() == 0 ? 0 : 1.0 * graph.ghost_n() / graph.n() * c_n);
+    tbb::enumerable_thread_specific<NonlocalClusterFilter::handle_type> nonlocal_cluster_filter_handle_ets([&] {
+        return nonlocal_cluster_filter.get_handle();
+    });
+
+    std::vector<parallel::Atomic<NodeID>> next_index_for_pe(size + 1);
+
+    auto request_nonlocal_mapping = [&](const GlobalNodeID cluster) {
+        auto& handle          = nonlocal_cluster_filter_handle_ets.local();
+        const auto [it, mine] = handle.insert(cluster + 1, 1); // dummy value
+        if (mine) {
+            const PEID owner = graph.find_owner_of_global_node(cluster);
+            handle.update(cluster + 1, [&](auto& lhs) { return lhs = ++next_index_for_pe[owner]; });
+        }
+    };
+
+    tbb::parallel_invoke(
+        [&] {
+            graph.pfor_nodes([&](const NodeID u) {
+                const GlobalNodeID cluster_u = clustering[u];
+                if (!graph.is_owned_global_node(cluster_u)) {
+                    // request_nonlocal_mapping(cluster_u);
+                    return;
+                }
+
+                for (const auto [e, v]: graph.neighbors(u)) {
+                    const GlobalNodeID cluster_v = clustering[v];
+                    if (!graph.is_owned_global_node(cluster_v)) {
+                        request_nonlocal_mapping(cluster_v);
+                    }
+                }
+            });
+        },
+        [&] {
+            tbb::parallel_for<std::size_t>(0, local_edges.size(), [&](const std::size_t i) {
+                const GlobalNodeID cluster_v = local_edges[i].v;
+                if (!graph.is_owned_global_node(cluster_v)) {
+                    request_nonlocal_mapping(cluster_v);
+                }
+            });
+        }
+    );
+
+    std::vector<scalable_vector<GlobalNodeID>> my_mapping_requests(size);
+    tbb::parallel_for<PEID>(0, size, [&](const PEID pe) { my_mapping_requests[pe].resize(next_index_for_pe[pe]); });
+    static std::atomic_size_t counter;
+    counter = 0;
+
+#pragma omp parallel
+    {
+        auto& handle = nonlocal_cluster_filter_handle_ets.local();
+
+        const std::size_t capacity  = handle.capacity();
+        std::size_t       cur_block = counter.fetch_add(4096);
+
+        while (cur_block < capacity) {
+            auto it = handle.range(cur_block, cur_block + 4096);
+            for (; it != handle.range_end(); ++it) {
+                const GlobalNodeID cluster        = (*it).first - 1;
+                const PEID         owner          = graph.find_owner_of_global_node(cluster);
+                const std::size_t  index          = (*it).second - 1;
+                my_mapping_requests[owner][index] = cluster;
+            }
+            cur_block = counter.fetch_add(4096);
+        }
+    }
+
+    auto their_mapping_requests = mpi::sparse_alltoall_get<GlobalNodeID>(my_mapping_requests, graph.communicator());
+
+    std::vector<scalable_vector<GlobalNodeID>> my_mapping_responses(size);
+    tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
+        my_mapping_responses[pe].resize(their_mapping_requests[pe].size());
+
+        tbb::parallel_for<std::size_t>(0, their_mapping_requests[pe].size(), [&](const std::size_t i) {
+            const GlobalNodeID global        = their_mapping_requests[pe][i];
+            const NodeID       local         = static_cast<NodeID>(global - graph.offset_n());
+            const NodeID       coarse_local  = cluster_mapping[local];
+            const GlobalNodeID coarse_global = c_node_distribution[rank] + coarse_local;
+            my_mapping_responses[pe][i]      = coarse_global;
+        });
+    });
+
+    auto their_mapping_responses = mpi::sparse_alltoall_get<GlobalNodeID>(my_mapping_responses, graph.communicator());
+
+    // Now we can build the coarse ghost node mapping
+    std::exclusive_scan(next_index_for_pe.begin(), next_index_for_pe.end(), next_index_for_pe.begin(), 0);
+    const NodeID c_ghost_n = next_index_for_pe.back();
+
+    growt::StaticGhostNodeMapping c_global_to_ghost(c_ghost_n);
+    scalable_vector<GlobalNodeID> c_ghost_to_global(c_ghost_n);
+    scalable_vector<PEID>         c_ghost_owner(c_ghost_n);
+
+    tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
+        for (std::size_t i = 0; i < my_mapping_requests[pe].size(); ++i) {
+            const GlobalNodeID global = their_mapping_responses[pe][i];
+            const NodeID       local  = next_index_for_pe[pe] + i;
+            c_global_to_ghost.insert(global + 1, local);
+            c_ghost_to_global[local] = global;
+            c_ghost_owner[local]     = pe;
+        }
+    });
+
+    // Build a mapping array from fine nodes to coarse nodes
+    NoinitVector<GlobalNodeID> mapping;
+    graph.pfor_nodes([&](const NodeID u) {
+        const GlobalNodeID cluster = clustering[u];
+        if (graph.is_owned_global_node(cluster)) {
+            const NodeID c_u = cluster_mapping[cluster - graph.offset_n()];
+            mapping[u]       = cluster_mapping[c_u];
+        } else {
+            auto& handle = nonlocal_cluster_filter_handle_ets.local();
+            auto  it     = handle.find(cluster + 1);
+            if (it != handle.end()) {
+                const std::size_t index = (*it).second - 1;
+                const PEID        owner = graph.find_owner_of_global_node(cluster);
+                mapping[u]              = their_mapping_responses[owner][index];
+            }
+        }
+    });
+
+    //
+    // Sort local nodes by their cluster ID
+    //
+    NoinitVector<std::size_t> buckets_position_buffer(c_n);
+    graph.pfor_nodes([&](const NodeID u) { buckets_position_buffer[u] = 0; });
+    tbb::parallel_invoke(
+        [&] {
+            graph.pfor_nodes([&](const NodeID u) {
+                const GlobalNodeID cluster = clustering[u];
+                if (graph.is_owned_global_node(cluster)) {
+                    const NodeID local_cluster = static_cast<NodeID>(cluster - graph.offset_n());
+                    const NodeID c_u           = cluster_mapping[local_cluster];
+                    __atomic_fetch_add(&buckets_position_buffer[c_u], 1, __ATOMIC_RELAXED);
+                }
+            });
+        },
+        [&] {
+            tbb::parallel_for<std::size_t>(0, local_edges.size(), [&](const std::size_t i) {
+                if (i == 0 || local_edges[i].u != local_edges[i - 1].u) {
+                    const NodeID local_cluster = static_cast<NodeID>(local_edges[i].u - graph.offset_n());
+                    const NodeID c_u           = cluster_mapping[local_cluster];
+                    __atomic_fetch_add(&buckets_position_buffer[c_u], 1, __ATOMIC_RELAXED);
+                }
+            });
+        }
+    );
+    parallel::prefix_sum(
+        buckets_position_buffer.begin(), buckets_position_buffer.end(), buckets_position_buffer.begin()
+    );
+
+    NoinitVector<NodeID> buckets(buckets_position_buffer.empty() ? 0 : buckets_position_buffer.back());
+    tbb::parallel_invoke(
+        [&] {
+            graph.pfor_nodes([&](const NodeID u) {
+                const GlobalNodeID cluster = clustering[u];
+                if (graph.is_owned_global_node(cluster)) {
+                    const NodeID local_cluster = static_cast<NodeID>(cluster - graph.offset_n());
+                    const NodeID c_u           = cluster_mapping[local_cluster];
+
+                    const std::size_t pos = __atomic_fetch_sub(&buckets_position_buffer[c_u], 1, __ATOMIC_RELAXED);
+                    buckets[pos - 1]      = u;
+                }
+            });
+        },
+        [&] {
+            tbb::parallel_for<std::size_t>(0, local_edges.size(), [&](const std::size_t i) {
+                if (i == 0 || local_edges[i].u != local_edges[i - 1].u) {
+                    const NodeID local_cluster = static_cast<NodeID>(local_edges[i].u - graph.offset_n());
+                    const NodeID c_u           = cluster_mapping[local_cluster];
+
+                    const std::size_t pos = __atomic_fetch_sub(&buckets_position_buffer[c_u], 1, __ATOMIC_RELAXED);
+                    buckets[pos - 1]      = graph.n() + i;
+                }
+            });
+        }
+    );
+
+    //
+    // Construct the coarse edges
+    //
+    scalable_vector<EdgeID>     c_nodes(c_n + 1);
+    scalable_vector<NodeWeight> c_node_weights(c_n + c_ghost_n);
+
+    tbb::enumerable_thread_specific<RatingMap<EdgeWeight, NodeID>> collector_ets([&] {
+        return RatingMap<EdgeWeight, NodeID>(c_n + c_ghost_n);
+    });
+
+    struct LocalEdge {
+        NodeID     node;
+        EdgeWeight weight;
+    };
+
+    NavigableLinkedList<NodeID, LocalEdge, scalable_vector> edge_buffer_ets;
+
+    tbb::parallel_for<NodeID>(0, c_n, [&](const NodeID c_u) {
+        auto& collector   = collector_ets.local();
+        auto& edge_buffer = edge_buffer_ets.local();
+        edge_buffer.mark(c_u);
+
+        const std::size_t first_pos = buckets_position_buffer[c_u];
+        const std::size_t last_pos  = buckets_position_buffer[c_u];
+
+        auto collect_edges = [&](auto& map) {
+            NodeWeight c_u_weight = 0;
+
+            for (std::size_t i = first_pos; i < last_pos; ++i) {
+                const NodeID u = buckets[i];
+
+                auto handle_edge = [&](const EdgeWeight weight, const GlobalNodeID cluster) {
+                    if (graph.is_owned_global_node(cluster)) {
+                        const NodeID c_local_node = cluster_mapping[cluster - graph.offset_n()];
+                        map[c_local_node] += weight;
+                    } else {
+                        auto& handle = nonlocal_cluster_filter_handle_ets.local();
+                        auto  it     = handle.find(cluster + 1);
+                        if (it != handle.end()) {
+                            const std::size_t  index           = (*it).second - 1;
+                            const PEID         owner           = graph.find_owner_of_global_node(cluster);
+                            const GlobalNodeID c_ghost_node    = their_mapping_responses[owner][index];
+                            auto               c_local_node_it = c_global_to_ghost.find(c_ghost_node + 1);
+                            const NodeID       c_local_node    = (*c_local_node_it).second;
+                            map[c_local_node] += weight;
+                        }
+                    }
+                };
+
+                if (u < graph.n()) {
+                    c_u_weight += graph.node_weight(u);
+                    for (const auto [e, v]: graph.neighbors(u)) {
+                        handle_edge(graph.edge_weight(e), clustering[v]);
+                    }
+                } else {
+                    // Fix node weight later
+
+                    for (std::size_t index = u - graph.n(); local_edges[index].u == c_u; ++index) {
+                        handle_edge(local_edges[index].weight, local_edges[index].v);
+                    }
+                }
+            }
+
+            c_node_weights[c_u] = c_u_weight;
+            c_nodes[c_u + 1]    = map.size();
+
+            for (const auto [c_v, weight]: map.entries()) {
+                edge_buffer.push_back({c_v, weight});
+            }
+
+            map.clear();
+        };
+
+        EdgeID upper_bound_degree = 0;
+        for (std::size_t i = first_pos; i < last_pos; ++i) {
+            if (buckets[i] < graph.n()) {
+                upper_bound_degree += graph.degree(buckets[i]);
+            } else {
+                upper_bound_degree += c_ghost_n;
+            }
+        }
+        collector.update_upper_bound_size(upper_bound_degree);
+        collector.run_with_map(collect_edges, collect_edges);
+    });
+
+    tbb::parallel_for<std::size_t>(0, local_nodes.size(), [&](const std::size_t i) {
+        const NodeID c_u = cluster_mapping[local_nodes[i].u - graph.offset_n()];
+        c_node_weights[c_u] += local_nodes[i].weight;
+    });
+
+    parallel::prefix_sum(c_nodes.begin(), c_nodes.end(), c_nodes.begin());
+
+    // Build edge distribution
+    const EdgeID                  c_m = c_nodes.back();
+    scalable_vector<GlobalNodeID> c_edge_distribution(size + 1);
+    MPI_Allgather(
+        &c_m, 1, mpi::type::get<NodeID>(), c_edge_distribution.data(), 1, mpi::type::get<NodeID>(), graph.communicator()
+    );
+    std::exclusive_scan(c_edge_distribution.begin(), c_edge_distribution.end(), c_edge_distribution.begin(), 0u);
+
+    // Finally, build coarse graph
+    auto all_buffered_nodes = ts_navigable_list::combine<NodeID, LocalEdge, scalable_vector>(edge_buffer_ets);
+
+    scalable_vector<NodeID>     c_edges;
+    scalable_vector<EdgeWeight> c_edge_weights;
+    tbb::parallel_for<NodeID>(0, c_n, [&](const NodeID i) {
+        const auto&  marker = all_buffered_nodes[i];
+        const auto*  list   = marker.local_list;
+        const NodeID c_u    = marker.key;
+
+        const EdgeID c_u_degree         = c_nodes[c_u + 1] - c_nodes[c_u];
+        const EdgeID first_target_index = c_nodes[c_u];
+        const EdgeID first_source_index = marker.position;
+
+        for (std::size_t j = 0; j < c_u_degree; ++j) {
+            const auto to            = first_target_index + j;
+            const auto [c_v, weight] = list->get(first_source_index + j);
+            c_edges[to]              = c_v;
+            c_edge_weights[to]       = weight;
+        }
+    });
+
+    DistributedGraph c_graph(
+        std::move(c_node_distribution), std::move(c_edge_distribution), std::move(c_nodes), std::move(c_edges),
+        std::move(c_node_weights), std::move(c_edge_weights), std::move(c_ghost_owner), std::move(c_ghost_to_global),
+        std::move(c_global_to_ghost), false, graph.communicator()
+    );
+    update_ghost_node_weights(c_graph);
+
+    return {std::move(c_graph), std::move(mapping)};
 }
 } // namespace kaminpar::dist
