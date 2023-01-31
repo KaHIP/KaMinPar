@@ -25,19 +25,21 @@
 namespace kaminpar::dist::io {
 SET_DEBUG(false);
 
-DistributedGraph read_graph(const std::string& filename, DistributionType type, MPI_Comm comm) {
-    if (str::ends_with(filename, "bgf") || str::ends_with(filename, "bin")) {
-        if (type == DistributionType::NODE_BALANCED) {
+DistributedGraph
+read_graph(const std::string& filename, const IOFormat format, const IODistribution distribution, MPI_Comm comm) {
+    const bool binary_file_extension = str::ends_with(filename, "bgf") || str::ends_with(filename, "bin");
+    if (format == IOFormat::BINARY || (format == IOFormat::AUTO && binary_file_extension)) {
+        if (distribution == IODistribution::NODE_BALANCED) {
             return binary::read_node_balanced(filename, comm);
         } else {
             return binary::read_edge_balanced(filename, comm);
         }
-    }
-
-    if (type == DistributionType::NODE_BALANCED) {
-        return metis::read_node_balanced(filename, comm);
     } else {
-        return metis::read_edge_balanced(filename, comm);
+        if (distribution == IODistribution::NODE_BALANCED) {
+            return metis::read_node_balanced(filename, comm);
+        } else {
+            return metis::read_edge_balanced(filename, comm);
+        }
     }
 }
 

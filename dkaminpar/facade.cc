@@ -11,6 +11,7 @@
 #include "dkaminpar/dkaminpar.h"
 #include "dkaminpar/factories.h"
 #include "dkaminpar/graphutils/graph_rearrangement.h"
+#include "dkaminpar/io.h"
 #include "dkaminpar/metrics.h"
 
 #include "kaminpar/context.h"
@@ -19,6 +20,8 @@
 #include "common/random.h"
 
 namespace kaminpar::dist {
+GraphPtr::GraphPtr() : ptr(nullptr) {}
+
 GraphPtr::GraphPtr(std::unique_ptr<DistributedGraph> graph) : ptr(std::move(graph)) {}
 
 GraphPtr::GraphPtr(GraphPtr&&) noexcept            = default;
@@ -27,8 +30,8 @@ GraphPtr& GraphPtr::operator=(GraphPtr&&) noexcept = default;
 GraphPtr::~GraphPtr() = default;
 
 namespace {
-void print_result_statistics(
-    const Context& ctx, const DistributedPartitionedGraph& p_graph, const bool parseable, const bool root
+void print_partition_summary(
+    const Context& ctx, const DistributedPartitionedGraph& p_graph, const int max_timer_depth, const bool parseable, const bool root
 ) {
     const auto edge_cut  = metrics::edge_cut(p_graph);
     const auto imbalance = metrics::imbalance(p_graph);
@@ -39,6 +42,8 @@ void print_result_statistics(
         return;
     }
 
+    cio::print_delimiter();
+
     if (parseable) {
         LOG << "RESULT cut=" << edge_cut << " imbalance=" << imbalance << " feasible=" << feasible
             << " k=" << p_graph.k();
@@ -46,7 +51,7 @@ void print_result_statistics(
         Timer::global().print_machine_readable(std::cout);
     }
 
-    Timer::global().print_human_readable(std::cout);
+    Timer::global().print_human_readable(std::cout, max_timer_depth);
     LOG;
     LOG << "Partition summary:";
     if (p_graph.k() != ctx.partition.k) {
@@ -73,10 +78,6 @@ void print_input_summary(const Context& ctx, const DistributedGraph& graph, cons
         return;
     }
 
-    if (root) {
-        cio::print_delimiter(std::cout);
-    }
-
     if (parseable) {
         LOG << "EXECUTION_MODE num_mpis=" << ctx.parallel.num_mpis << " num_threads=" << ctx.parallel.num_threads;
         LOG << "INPUT_GRAPH "
@@ -88,37 +89,37 @@ void print_input_summary(const Context& ctx, const DistributedGraph& graph, cons
     }
 
     // Output
-    if (root && output_level >= OutputLevel::FULL) {
+    if (root) {
         cio::print_dkaminpar_banner();
-        print_execution_mode(ctx);
+        LOG << "Execution mode:               " << ctx.parallel.num_mpis << " MPI process"
+            << (ctx.parallel.num_mpis > 1 ? "es" : "") << " a " << ctx.parallel.num_threads << " thread"
+            << (ctx.parallel.num_threads > 1 ? "s" : "");
     }
     print(ctx, root, std::cout);
-    if (root && output_level >= OutputLevel::FULL) {
+    if (root) {
         cio::print_delimiter();
     }
 }
-
-void print_execution_mode(const Context& ctx) {
-    LOG << "Execution mode:               " << ctx.parallel.num_mpis << " MPI process"
-        << (ctx.parallel.num_mpis > 1 ? "es" : "") << " a " << ctx.parallel.num_threads << " thread"
-        << (ctx.parallel.num_threads > 1 ? "s" : "");
-}
 } // namespace
 
-DistributedGraphPartitioner::DistributedGraphPartitioner(MPI_Comm comm, const int num_threads)
+DistributedGraphPartitioner::DistributedGraphPartitioner(MPI_Comm comm, const int num_threads, const Context ctx)
     : _comm(comm),
       _num_threads(num_threads),
-      _ctx(create_default_context()),
+      _ctx(ctx),
       _gc(tbb::global_control::max_allowed_parallelism, num_threads) {
     omp_set_num_threads(num_threads);
     Random::seed = 0;
 }
 
-void DistributedPartitioner::set_output_level(const OutputLevel output_level) {
+void DistributedGraphPartitioner::set_output_level(const OutputLevel output_level) {
     _output_level = output_level;
 }
 
-Context& DistributedPartitioner::context() {
+void DistributedGraphPartitioner::set_max_timer_depth(const int max_timer_depth) {
+    _max_timer_depth = max_timer_depth;
+}
+
+Context& DistributedGraphPartitioner::context() {
     return _ctx;
 }
 
@@ -140,14 +141,14 @@ void DistributedGraphPartitioner::import_graph(
     edge_distribution[rank] = m;
     MPI_Allgather(
         MPI_IN_PLACE, 1, mpi::type::get<GlobalEdgeID>(), edge_distribution.data(), 1, mpi::type::get<GlobalEdgeID>(),
-        comm
+        _comm
     );
 
     scalable_vector<EdgeID>     nodes;
     scalable_vector<NodeID>     edges;
     scalable_vector<NodeWeight> node_weights;
     scalable_vector<EdgeWeight> edge_weights;
-    graph::GhostNodeMapper      mapper(comm, node_distribution);
+    graph::GhostNodeMapper      mapper(_comm, node_distribution);
 
     tbb::parallel_invoke(
         [&] {
@@ -183,7 +184,7 @@ void DistributedGraphPartitioner::import_graph(
 
     auto [global_to_ghost, ghost_to_global, ghost_owner] = mapper.finalize();
 
-    _graph_ptr.graph = std::make_unique<DistributedGraph>(
+    _graph_ptr.ptr = std::make_unique<DistributedGraph>(
         std::move(node_distribution), std::move(edge_distribution), std::move(nodes), std::move(edges),
         std::move(node_weights), std::move(edge_weights), std::move(ghost_owner), std::move(ghost_to_global),
         std::move(global_to_ghost), false, _comm
@@ -191,41 +192,43 @@ void DistributedGraphPartitioner::import_graph(
 }
 
 void DistributedGraphPartitioner::load_graph(
-    const std::string& filename, const IOFormat format, const IODistributionType distribution
+    const std::string& filename, const IOFormat format, const IODistribution distribution
 ) {
-    _graph_ptr.graph = std::make_unique(dist::io::read_graph(filename, format, distribution));
+    _graph_ptr.ptr = std::make_unique<DistributedGraph>(dist::io::read_graph(filename, format, distribution, _comm));
 }
 
-std::vector<BlockID>
-DistributedGraphPartitioner::compute_partition(const int seed, const BlockID k, const double epsilon) {
-    auto&      graph = *_graph_ptr.graph;
-    const PEID size  = mpi::get_comm_size(graph.communicator());
-    const PEID rank  = mpi::get_comm_rank(graph.communicator());
-    const bool root  = rank == 0;
+std::vector<BlockID> DistributedGraphPartitioner::compute_partition(const int seed, const BlockID k) {
+    auto& graph = *_graph_ptr.ptr;
+
+    const PEID size = mpi::get_comm_size(_comm);
+    const PEID rank = mpi::get_comm_rank(_comm);
+    const bool root = rank == 0;
 
     KASSERT(graph::debug::validate(graph), "input graph failed graph verification", assert::heavy);
 
     // Make number of processes and number of threads available via ParallelContext
-    ctx.parallel.num_mpis                                  = size;
-    ctx.parallel.num_threads                               = num_threads;
-    ctx.initial_partitioning.kaminpar.parallel.num_threads = ctx.parallel.num_threads;
-    ctx.partition.k                                        = k;
-    ctx.partition.epsilon                                  = epsilon;
-    ctx.partition.graph                                    = std::make_unique<GraphContext>(graph, ctx.partition);
-
-    // Initialize TBB and OMP
-    auto gc = tbb::global_control{tbb::global_control::max_allowed_parallelism, ctx.parallel.num_threads};
-    omp_set_num_threads(static_cast<int>(ctx.parallel.num_threads));
+    _ctx.parallel.num_mpis                                  = size;
+    _ctx.parallel.num_threads                               = _num_threads;
+    _ctx.initial_partitioning.kaminpar.parallel.num_threads = _ctx.parallel.num_threads;
+    _ctx.partition.k                                        = k;
+    _ctx.partition.graph                                    = std::make_unique<GraphContext>(graph, _ctx.partition);
 
     // Initialize PRNG
     Random::seed = seed;
 
     // Initialize console output
-    Logger::set_quiet_mode(output_level == OutputLevel::QUIET);
+    Logger::set_quiet_mode(_output_level == OutputLevel::QUIET);
+
+    if (_output_level >= OutputLevel::APPLICATION) {
+        print_input_summary(_ctx, graph, _output_level == OutputLevel::EXPERIMENT, root);
+    }
 
     START_TIMER("Partitioning");
-    graph        = graph::rearrange(std::move(graph), ctx);
-    auto p_graph = factory::create_partitioner(ctx, graph)->partition();
+    if (!_was_rearranged) {
+        graph           = graph::rearrange(std::move(graph), _ctx);
+        _was_rearranged = true;
+    }
+    auto p_graph = factory::create_partitioner(_ctx, graph)->partition();
     STOP_TIMER();
 
     KASSERT(
@@ -247,8 +250,8 @@ DistributedGraphPartitioner::compute_partition(const int seed, const BlockID k, 
     mpi::barrier(MPI_COMM_WORLD);
     STOP_TIMER(); // stop root timer
 
-    if (output_level >= OutputLevel::FULL) {
-        print_result_statistics(ctx, p_graph, output_level == OutputLevel::EXPERIMENT, root);
+    if (_output_level >= OutputLevel::APPLICATION) {
+        print_partition_summary(_ctx, p_graph, _max_timer_depth, _output_level == OutputLevel::EXPERIMENT, root);
     }
 
     return partition;

@@ -19,7 +19,6 @@ set(CMAKE_CXX_STANDARD 17)
 # Control what to build
 option(KAMINPAR_TESTS "Build unit tests" OFF)
 option(KAMINPAR_DISTRIBUTED "Enable or disable the distributed partitioner (requires the growt submodule)." ON)
-option(KAMINPAR_GRAPHGEN "Build with support for in-memory graph generation (requires the KaGen submodule)." ON)
 option(KAMINPAR_MTKAHYPAR "Enable Mt-KaHyPar as initial partitioner for the distributed partitioner." OFF)
 option(KAMINPAR_PYTHON_MODULE "Build the Python binding." OFF)
 option(KAMINPAR_METIS_INTERFACE "Build the METIS interface." OFF)
@@ -40,10 +39,6 @@ option(KAMINPAR_64BIT_LOCAL_WEIGHTS "Use 64 bit for local node and edge weights.
 ################################################################################
 ## Declare dependencies                                                       ##
 ################################################################################
-
-FetchContent_Declare(KaGen
-    GIT_REPOSITORY https://github.com/sebalamm/KaGen.git
-    GIT_TAG master)
 
 FetchContent_Declare(
     googletest
@@ -192,15 +187,6 @@ if (KAMINPAR_PYTHON_MODULE)
     FetchContent_MakeAvailable(pybind11)
     set_property(DIRECTORY "${pybind11_SOURCE_DIR}" PROPERTY EXCLUDE_FROM_ALL YES)
     set(CMAKE_POSITION_INDEPENDENT_CODE ON) # pybind11 requires PIC
-endif ()
-
-if (KAMINPAR_GRAPHGEN)
-    message("################################################################################")
-    message("## KaGen                                                                      ##")
-    message("################################################################################")
-    FetchContent_MakeAvailable(KaGen)
-    set_property(DIRECTORY "${KaGen_SOURCE_DIR}" PROPERTY EXCLUDE_FROM_ALL YES)
-    add_definitions(-DKAMINPAR_GRAPHGEN)
 endif ()
 
 message("--------------------------------------------------------------------------------")

@@ -61,7 +61,7 @@ constexpr BlockWeight      kInvalidBlockWeight      = std::numeric_limits<BlockW
 } // namespace kaminpar::dist
 
 namespace kaminpar::dist {
-enum class IODistributionType {
+enum class IODistribution {
     NODE_BALANCED,
     EDGE_BALANCED,
 };
@@ -315,6 +315,7 @@ Context create_default_social_context();
 std::unordered_set<std::string> get_preset_names();
 
 struct GraphPtr {
+    GraphPtr();
     GraphPtr(std::unique_ptr<class DistributedGraph> graph);
 
     GraphPtr(const GraphPtr&)            = delete;
@@ -330,9 +331,11 @@ struct GraphPtr {
 
 class DistributedGraphPartitioner {
 public:
-    DistributedGraphPartitioner(MPI_Comm comm, int num_threads);
+    DistributedGraphPartitioner(MPI_Comm comm, int num_threads, Context ctx);
 
     void set_output_level(OutputLevel output_level);
+
+    void set_max_timer_depth(int max_timer_depth);
 
     Context& context();
 
@@ -341,18 +344,21 @@ public:
         GlobalEdgeWeight* edge_weights
     );
 
-    void load_graph(const std::string& filename, IOFormat format, IODistributionType distribution);
+    void load_graph(const std::string& filename, IOFormat format, IODistribution distribution);
 
-    std::vector<BlockID> compute_partition(int seed, BlockID k, double epsilon = 0.03);
+    std::vector<BlockID> compute_partition(int seed, BlockID k);
 
 private:
     MPI_Comm _comm;
     int      _num_threads;
 
-    OutputLevel _output_level = OutputLevel::APPLICATION;
-    GraphPtr    _graph_ptr;
+    int         _max_timer_depth = std::numeric_limits<int>::max();
+    OutputLevel _output_level    = OutputLevel::APPLICATION;
     Context     _ctx;
 
+    GraphPtr            _graph_ptr;
     tbb::global_control _gc;
+
+    bool _was_rearranged = false;
 };
 } // namespace kaminpar::dist

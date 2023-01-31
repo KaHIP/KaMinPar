@@ -13,6 +13,7 @@
 #include <mpi.h>
 
 #include "dkaminpar/datastructures/distributed_graph.h"
+#include "dkaminpar/dkaminpar.h"
 #include "dkaminpar/mpi/wrapper.h"
 
 #include "kaminpar/io.h"
@@ -20,25 +21,26 @@
 #include "common/io/mmap_toker.h"
 
 namespace kaminpar::dist::io {
-DistributedGraph read_graph(const std::string& filename, DistributionType type, MPI_Comm comm = MPI_COMM_WORLD);
+DistributedGraph read_graph(const std::string& filename, IOFormat format, IODistribution distribution, MPI_Comm comm);
 
 namespace metis {
-DistributedGraph read_node_balanced(const std::string& filename, MPI_Comm comm = MPI_COMM_WORLD);
-DistributedGraph read_edge_balanced(const std::string& filename, MPI_Comm comm = MPI_COMM_WORLD);
-void             write(
-                const std::string& filename, const DistributedGraph& graph, bool write_node_weights = true,
-                bool write_edge_weights = true
-            );
+DistributedGraph read_node_balanced(const std::string& filename, MPI_Comm comm);
+DistributedGraph read_edge_balanced(const std::string& filename, MPI_Comm comm);
+
+void write(
+    const std::string& filename, const DistributedGraph& graph, bool write_node_weights = true,
+    bool write_edge_weights = true
+);
 } // namespace metis
 
 namespace binary {
-DistributedGraph read_node_balanced(const std::string& filename, MPI_Comm comm = MPI_COMM_WORLD);
-DistributedGraph read_edge_balanced(const std::string& filename, MPI_Comm comm = MPI_COMM_WORLD);
+DistributedGraph read_node_balanced(const std::string& filename, MPI_Comm comm);
+DistributedGraph read_edge_balanced(const std::string& filename, MPI_Comm comm);
 } // namespace binary
 
 namespace partition {
 template <typename Container>
-void read(const std::string& filename, const NodeID n, Container& partition, MPI_Comm comm = MPI_COMM_WORLD) {
+void read(const std::string& filename, const NodeID n, Container& partition, MPI_Comm comm) {
     using namespace kaminpar::io;
 
     const GlobalNodeID offset = mpi::exscan(static_cast<GlobalNodeID>(n), MPI_SUM, comm);
@@ -60,7 +62,7 @@ void read(const std::string& filename, const NodeID n, Container& partition, MPI
 }
 
 template <typename Container>
-Container read(const std::string& filename, const NodeID n, MPI_Comm comm = MPI_COMM_WORLD) {
+Container read(const std::string& filename, const NodeID n, MPI_Comm comm) {
     using namespace kaminpar::io;
 
     Container partition(n);

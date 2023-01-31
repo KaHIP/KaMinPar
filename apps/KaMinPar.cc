@@ -30,12 +30,25 @@
 #include "common/random.h"
 #include "common/timer.h"
 
-#include "apps/apps.h"
 #include "apps/environment.h"
+
+#if __has_include(<numa.h>)
+    #include <numa.h>
+#endif // __has_include(<numa.h>)
 
 using namespace kaminpar;
 using namespace kaminpar::shm;
 using namespace std::string_literals;
+
+inline void init_numa() {
+#if __has_include(<numa.h>)
+    if (numa_available() >= 0) {
+        numa_set_interleave_mask(numa_all_nodes_ptr);
+        return;
+    }
+#endif // __has_include(<numa.h>)
+    LOG << "NUMA not available";
+}
 
 void print_statistics(const PartitionedGraph& p_graph, const Context& ctx) {
     const EdgeWeight cut       = metrics::edge_cut(p_graph);
