@@ -211,6 +211,7 @@ void PartitionContext::setup_block_weights() {
 
 void BlockWeightsContext::setup(const PartitionContext& p_ctx) {
     KASSERT(p_ctx.k != kInvalidBlockID, "PartitionContext::k not initialized");
+    KASSERT(p_ctx.k != 0, "PartitionContext::k not initialized");
     KASSERT(p_ctx.total_node_weight != kInvalidNodeWeight, "PartitionContext::total_node_weight not initialized");
     KASSERT(p_ctx.max_node_weight != kInvalidNodeWeight, "PartitionContext::max_node_weight not initialized");
 
@@ -288,8 +289,8 @@ PartitionContext create_bipartition_context(
     const PartitionContext& k_p_ctx, const Graph& subgraph, const BlockID final_k1, const BlockID final_k2
 ) {
     PartitionContext two_p_ctx{};
-    two_p_ctx.setup(subgraph);
     two_p_ctx.k       = 2;
+    two_p_ctx.setup(subgraph);
     two_p_ctx.epsilon = compute_2way_adaptive_epsilon(k_p_ctx, subgraph.total_node_weight(), final_k1 + final_k2);
     two_p_ctx.block_weights.setup(two_p_ctx, {final_k1, final_k2});
     return two_p_ctx;
