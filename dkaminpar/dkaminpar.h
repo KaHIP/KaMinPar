@@ -14,6 +14,7 @@
 
 #include <mpi.h>
 
+#include "kaminpar/context.h"
 #include "kaminpar/definitions.h"
 
 namespace kaminpar::mpi {
@@ -133,7 +134,6 @@ struct LabelPropagationCoarseningContext {
     bool sync_cluster_weights    = false;
     bool enforce_cluster_weights = false;
     bool cheap_toplevel          = false;
-
     bool should_merge_nonadjacent_clusters(NodeID old_n, NodeID new_n) const;
     int  compute_num_chunks(const ParallelContext& parallel) const;
 };
@@ -221,9 +221,9 @@ struct MtKaHyParContext {
 };
 
 struct InitialPartitioningContext {
-    InitialPartitioningAlgorithm  algorithm;
-    MtKaHyParContext              mtkahypar;
-    std::unique_ptr<shm::Context> kaminpar;
+    InitialPartitioningAlgorithm algorithm;
+    MtKaHyParContext             mtkahypar;
+    shm::Context                 kaminpar;
 };
 
 struct GreedyBalancerContext {
@@ -243,14 +243,16 @@ struct RefinementContext {
 };
 
 struct PartitionContext {
+    PartitionContext(BlockID k, BlockID K, double epsilon);
+
+    PartitionContext(const PartitionContext& other);
+    PartitionContext& operator=(const PartitionContext& other);
+
+    ~PartitionContext();
+
     BlockID k       = kInvalidBlockID;
     BlockID K       = kInvalidBlockID;
     double  epsilon = 0.0;
-
-    PartitioningMode mode = PartitioningMode::DEEP;
-
-    bool enable_pe_splitting   = false;
-    bool simulate_singlethread = false;
 
     std::unique_ptr<struct GraphContext> graph;
 };
@@ -267,6 +269,11 @@ struct DebugContext {
 
 struct Context {
     GraphOrdering rearrange_by = GraphOrdering::NATURAL;
+
+    PartitioningMode mode = PartitioningMode::DEEP;
+
+    bool enable_pe_splitting   = false;
+    bool simulate_singlethread = false;
 
     PartitionContext           partition;
     ParallelContext            parallel;
@@ -306,12 +313,13 @@ GraphPtr import_graph(
 );
 
 enum class OutputLevel {
-    SILENT,
+    QUIET,
     PARTITIONING,
     FULL,
     EXPERIMENT,
 };
 
-std::vector<BlockID>
-partition(GraphPtr graph, Context ctx, int num_threads = 1, int seed = 0, OutputLevel output = OutputLevel::FULL);
+std::vector<BlockID> compute_graph_partition(
+    GraphPtr graph, Context ctx, int num_threads = 1, int seed = 0, OutputLevel output = OutputLevel::FULL
+);
 } // namespace kaminpar::dist

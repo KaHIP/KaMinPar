@@ -15,6 +15,27 @@
 
 namespace kaminpar::dist {
 using namespace std::string_literals;
+PartitionContext::PartitionContext(const BlockID k, const BlockID K, const double epsilon)
+    : k(k),
+      K(K),
+      epsilon(epsilon) {}
+
+PartitionContext::PartitionContext(const PartitionContext& other)
+    : k(other.k),
+      K(other.K),
+      epsilon(other.epsilon),
+      graph(std::make_unique<GraphContext>(*other.graph)) {}
+
+PartitionContext& PartitionContext::operator=(const PartitionContext& other) {
+    k       = other.k;
+    K       = other.K;
+    epsilon = other.epsilon;
+    graph   = std::make_unique<GraphContext>(*other.graph);
+    return *this;
+}
+
+PartitionContext::~PartitionContext() = default;
+
 GraphContext::GraphContext(const DistributedGraph& graph, const PartitionContext& p_ctx)
     : global_n(graph.global_n()),
       n(graph.n()),

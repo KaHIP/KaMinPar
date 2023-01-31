@@ -5,6 +5,7 @@
 #include <tbb/global_control.h>
 #include <tbb/parallel_invoke.h>
 
+#include "dkaminpar/context_io.h"
 #include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/datastructures/distributed_graph_builder.h"
 #include "dkaminpar/dkaminpar.h"
@@ -14,6 +15,7 @@
 
 #include "kaminpar/context.h"
 
+#include "common/console_io.h"
 #include "common/random.h"
 
 namespace kaminpar::dist {
@@ -162,16 +164,34 @@ void print_execution_mode(const Context& ctx) {
 }
 } // namespace
 
-std::vector<BlockID>
-partition(GraphPtr graph_ptr, Context ctx, const int num_threads, const int seed, const OutputLevel output_level) {
+std::vector<BlockID> compute_graph_partition(
+    GraphPtr graph_ptr, Context ctx, const int num_threads, const int seed, const OutputLevel output_level
+) {
     auto& graph = *graph_ptr.ptr;
 
-    Random::seed = seed;
+    const PEID size = mpi::get_comm_size(graph.communicator());
+    const PEID rank = mpi::get_comm_rank(graph.communicator());
 
-    ctx.parallel.num_threads = num_threads;
+    KASSERT(graph::debug::validate(graph), "input graph failed graph verification", assert::heavy);
+
+    // Make number of processes and number of threads available via ParallelContext
+    ctx.parallel.num_mpis                                  = size;
+    ctx.parallel.num_threads                               = num_threads;
+    ctx.initial_partitioning.kaminpar.parallel.num_threads = ctx.parallel.num_threads;
+
+    // Initialize TBB and OMP
     auto gc = tbb::global_control{tbb::global_control::max_allowed_parallelism, ctx.parallel.num_threads};
     omp_set_num_threads(static_cast<int>(ctx.parallel.num_threads));
-    ctx.initial_partitioning.kaminpar->parallel.num_threads = ctx.parallel.num_threads;
+
+    // Initialize PRNG
+    Random::seed = seed;
+
+    // Initialize console output
+    Logger::set_quiet_mode(output_level == OutputLevel::QUIET);
+
+    // Output
+    cio::print_dkaminpar_banner();
+    print_execution_mode(ctx);
 
     START_TIMER("Partitioning");
     graph        = graph::rearrange(std::move(graph), ctx);
@@ -196,10 +216,12 @@ partition(GraphPtr graph_ptr, Context ctx, const int num_threads, const int seed
 
     mpi::barrier(MPI_COMM_WORLD);
     STOP_TIMER(); // stop root timer
-    print_result_statistics(p_graph, app);
 
-    if (output_level == OutputLevel::SILENT || output_level == OutputLevel::FULL) {
+    if (output_level == OutputLevel::QUIET || output_level == OutputLevel::FULL) {
         print_result_statistics(p_graph, ctx, output_level == OutputLevel::EXPERIMENT);
+    }
+    if (output_level == OutputLevel::FULL && rank == 0) {
+        cio::print_delimiter();
     }
 
     return partition;

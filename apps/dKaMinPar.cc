@@ -10,24 +10,20 @@
 
 #include "dkaminpar/dkaminpar.h"
 
-#include <fstream>
-
 #include <mpi.h>
-#include <omp.h>
 
 #include "dkaminpar/arguments.h"
 #include "dkaminpar/io.h"
 
-#include "apps/apps.h"
 #include "apps/environment.h"
-#include "apps/mpi_apps.h"
 
 using namespace kaminpar;
 using namespace kaminpar::dist;
 
 namespace {
 struct ApplicationContext {
-    int         seed;
+    int         seed                      = 0;
+    int         num_threads               = 1;
     bool        quiet                     = false;
     bool        experiment                = false;
     bool        load_edge_balanced        = false;
@@ -110,85 +106,36 @@ The output should be stored in a file and can be used by the -C,--config option.
 
     return app;
 }
-
 } // namespace
 
 int main(int argc, char* argv[]) {
-    init_mpi(argc, argv);
+    MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED, nullptr);
 
-    const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
-    const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
-
-    //
-    // Parse command line arguments
-    //
     CLI::App           cli("dKaMinPar: (Somewhat) Minimal Distributed Deep Multilevel Graph Partitioning");
     ApplicationContext app;
 
     try {
-        app                       = setup_context(cli, argc, argv);
-        app.ctx.parallel.num_mpis = static_cast<std::size_t>(size);
+        app = setup_context(cli, argc, argv);
     } catch (CLI::ParseError& e) {
         return cli.exit(e);
     }
 
-    //
-    // Disable console output if requested
-    //
-    Logger::set_quiet_mode(app.quiet);
+    // cio::print_build_identifier<NodeID, EdgeID, shm::NodeWeight, shm::EdgeWeight, NodeWeight, EdgeWeight>(
+    //     Environment::GIT_SHA1, Environment::HOSTNAME
+    //);
 
-    //
-    // Print build summary
-    //
-    if (!app.quiet && rank == 0) {
-        cio::print_dkaminpar_banner();
-        cio::print_build_identifier<NodeID, EdgeID, shm::NodeWeight, shm::EdgeWeight, NodeWeight, EdgeWeight>(
-            Environment::GIT_SHA1, Environment::HOSTNAME
-        );
-        print_execution_mode(app.ctx);
-    }
-
-    //
-    // Load graph
-    //
-    auto graph = TIMED_SCOPE("IO") {
-        // If configured, generate graph in-memory using KaGen ...
-        if (!app.graph_generator.empty()) {
-            auto graph         = generate(app.graph_generator);
-            app.graph_filename = generate_filename(app.graph_generator);
-            if (!app.quiet && rank == 0) {
-                cio::print_delimiter(std::cout);
-            }
-            return graph;
-        }
-
-        // ... otherwise, load graph from disk
-        const auto type = app.load_edge_balanced ? dist::io::DistributionType::EDGE_BALANCED
-                                                 : dist::io::DistributionType::NODE_BALANCED;
-        return dist::io::read_graph(app.graph_filename, type);
-    };
-    KASSERT(graph::debug::validate(graph), "input graph failed graph verification", assert::heavy);
+    auto graph = dist::io::read_graph(
+        app.graph_filename,
+        app.load_edge_balanced ? dist::io::DistributionType::EDGE_BALANCED : dist::io::DistributionType::NODE_BALANCED
+    );
 
     app.ctx.debug.graph_filename = app.graph_filename;
 
-    //
-    // Print input summary
-    //
-    if (!app.quiet) {
-        print(app.ctx, rank == 0, std::cout);
-        if (app.parsable_output) {
-            print_parsable_summary(app.ctx, graph, rank == 0);
-        }
-        if (rank == 0) {
-            cio::print_delimiter();
-        }
-    }
+    GraphPtr ptr(std::make_unique<DistributedGraph>(std::move(graph)));
+    auto     part = compute_graph_partition(std::move(ptr), app.ctx, app.num_threads, app.seed, OutputLevel::FULL);
 
-    //
-    // Save partition
-    //
     if (!app.output_partition_filename.empty()) {
-        dist::io::partition::write(app.output_partition_filename, p_graph);
+        dist::io::partition::write(app.output_partition_filename, part);
     }
 
     return MPI_Finalize();
