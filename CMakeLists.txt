@@ -213,6 +213,7 @@ add_subdirectory(apps)
 
 # Unit tests
 if (KAMINPAR_TESTS)
+    enable_testing()
     add_subdirectory(tests)
 endif ()
 

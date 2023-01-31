@@ -1,8 +1,6 @@
 FetchContent_MakeAvailable(googletest)
 set_property(DIRECTORY "${googletest_SOURCE_DIR}" PROPERTY EXCLUDE_FROM_ALL YES)
 
-enable_testing()
-
 include(GoogleTest)
 include(cmake/KaTestrophe.cmake)
 
