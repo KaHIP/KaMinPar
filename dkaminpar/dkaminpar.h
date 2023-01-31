@@ -13,6 +13,7 @@
 #include <unordered_set>
 
 #include <mpi.h>
+#include <tbb/global_control.h>
 
 #include "kaminpar/context.h"
 #include "kaminpar/definitions.h"
@@ -60,6 +61,24 @@ constexpr BlockWeight      kInvalidBlockWeight      = std::numeric_limits<BlockW
 } // namespace kaminpar::dist
 
 namespace kaminpar::dist {
+enum class IODistributionType {
+    NODE_BALANCED,
+    EDGE_BALANCED,
+};
+
+enum class IOFormat {
+    AUTO,
+    TEXT,
+    BINARY,
+};
+
+enum class OutputLevel : std::uint8_t {
+    QUIET,
+    PROGRESS,
+    APPLICATION,
+    EXPERIMENT,
+};
+
 enum class PartitioningMode {
     KWAY,
     DEEP,
@@ -309,21 +328,31 @@ struct GraphPtr {
     std::unique_ptr<class DistributedGraph> ptr;
 };
 
-class DistributedGraphPartitioner {};
+class DistributedGraphPartitioner {
+public:
+    DistributedGraphPartitioner(MPI_Comm comm, int num_threads);
 
-GraphPtr import_graph(
-    GlobalNodeID* node_distribution, GlobalEdgeID* nodes, GlobalNodeID* edges, GlobalNodeWeight* node_weights,
-    GlobalEdgeWeight* edge_weights, MPI_Comm comm
-);
+    void set_output_level(OutputLevel output_level);
 
-enum class OutputLevel {
-    QUIET,
-    PARTITIONING,
-    FULL,
-    EXPERIMENT,
+    Context& context();
+
+    void import_graph(
+        GlobalNodeID* node_distribution, GlobalEdgeID* nodes, GlobalNodeID* edges, GlobalNodeWeight* node_weights,
+        GlobalEdgeWeight* edge_weights
+    );
+
+    void load_graph(const std::string& filename, IOFormat format, IODistributionType distribution);
+
+    std::vector<BlockID> compute_partition(int seed, BlockID k, double epsilon = 0.03);
+
+private:
+    MPI_Comm _comm;
+    int      _num_threads;
+
+    OutputLevel _output_level = OutputLevel::APPLICATION;
+    GraphPtr    _graph_ptr;
+    Context     _ctx;
+
+    tbb::global_control _gc;
 };
-
-std::vector<BlockID> compute_graph_partition(
-    GraphPtr graph, Context ctx, int num_threads = 1, int seed = 0, OutputLevel output = OutputLevel::FULL
-);
 } // namespace kaminpar::dist

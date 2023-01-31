@@ -32,19 +32,6 @@ std::unordered_map<std::string, LabelPropagationMoveExecutionStrategy>
                                                get_label_propagation_move_execution_strategies();
 std::unordered_map<std::string, GraphOrdering> get_graph_orderings();
 
-void print_compact(const Context& ctx, std::ostream& out, const std::string& prefix = "");
-void print_compact(const DebugContext& ctx, std::ostream& out, const std::string& prefix);
-void print_compact(const PartitionContext& ctx, std::ostream& out, const std::string& prefix);
-void print_compact(const ParallelContext& ctx, std::ostream& out, const std::string& prefix);
-void print_compact(const RefinementContext& ctx, std::ostream& out, const std::string& prefix);
-void print_compact(const InitialPartitioningContext& ctx, std::ostream& out, const std::string& prefix);
-void print_compact(const MtKaHyParContext& ctx, std::ostream& out, const std::string& prefix);
-void print_compact(const GreedyBalancerContext& ctx, std::ostream& out, const std::string& prefix);
-void print_compact(const CoarseningContext& ctx, std::ostream& out, const std::string& prefix);
-void print_compact(const FMRefinementContext& ctx, std::ostream& out, const std::string& prefix);
-void print_compact(const LabelPropagationRefinementContext& ctx, std::ostream& out, const std::string& prefix);
-void print_compact(const LabelPropagationCoarseningContext& ctx, std::ostream& out, const std::string& prefix);
-
 void print(const Context& ctx, bool root, std::ostream& out);
 void print(const PartitionContext& ctx, bool root, std::ostream& out);
 void print(const CoarseningContext& ctx, std::ostream& out);

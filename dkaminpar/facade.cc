@@ -26,14 +26,109 @@ GraphPtr& GraphPtr::operator=(GraphPtr&&) noexcept = default;
 
 GraphPtr::~GraphPtr() = default;
 
-GraphPtr import_graph(
-    MPI_Comm comm, GlobalNodeID* vtxdist, GlobalEdgeID* xadj, GlobalNodeID* adjncy, GlobalNodeWeight* vwgt,
-    GlobalEdgeWeight* adjwgt
+namespace {
+void print_result_statistics(
+    const Context& ctx, const DistributedPartitionedGraph& p_graph, const bool parseable, const bool root
+) {
+    const auto edge_cut  = metrics::edge_cut(p_graph);
+    const auto imbalance = metrics::imbalance(p_graph);
+    const auto feasible  = metrics::is_feasible(p_graph, ctx.partition) && p_graph.k() == ctx.partition.k;
+
+    if (!root) {
+        // Non-root PEs are only needed to compute the partition metrics
+        return;
+    }
+
+    if (parseable) {
+        LOG << "RESULT cut=" << edge_cut << " imbalance=" << imbalance << " feasible=" << feasible
+            << " k=" << p_graph.k();
+        std::cout << "TIME ";
+        Timer::global().print_machine_readable(std::cout);
+    }
+
+    Timer::global().print_human_readable(std::cout);
+    LOG;
+    LOG << "Partition summary:";
+    if (p_graph.k() != ctx.partition.k) {
+        LOG << logger::RED << "  Number of blocks: " << p_graph.k();
+    } else {
+        LOG << "  Number of blocks: " << p_graph.k();
+    }
+    LOG << "  Edge cut:         " << edge_cut;
+    LOG << "  Imbalance:        " << imbalance;
+    if (feasible) {
+        LOG << "  Feasible:         yes";
+    } else {
+        LOG << logger::RED << "  Feasible:         no";
+    }
+}
+
+void print_input_summary(const Context& ctx, const DistributedGraph& graph, const bool parseable, const bool root) {
+    const auto n_str       = mpi::gather_statistics_str<GlobalNodeID>(graph.n(), MPI_COMM_WORLD);
+    const auto m_str       = mpi::gather_statistics_str<GlobalEdgeID>(graph.m(), MPI_COMM_WORLD);
+    const auto ghost_n_str = mpi::gather_statistics_str<GlobalNodeID>(graph.ghost_n(), MPI_COMM_WORLD);
+
+    if (!root) {
+        // Non-root PEs are only needed to collect the graph metrics
+        return;
+    }
+
+    if (root) {
+        cio::print_delimiter(std::cout);
+    }
+
+    if (parseable) {
+        LOG << "EXECUTION_MODE num_mpis=" << ctx.parallel.num_mpis << " num_threads=" << ctx.parallel.num_threads;
+        LOG << "INPUT_GRAPH "
+            << "global_n=" << graph.global_n() << " "
+            << "global_m=" << graph.global_m() << " "
+            << "n=[" << n_str << "] "
+            << "m=[" << m_str << "] "
+            << "ghost_n=[" << ghost_n_str << "]";
+    }
+
+    // Output
+    if (root && output_level >= OutputLevel::FULL) {
+        cio::print_dkaminpar_banner();
+        print_execution_mode(ctx);
+    }
+    print(ctx, root, std::cout);
+    if (root && output_level >= OutputLevel::FULL) {
+        cio::print_delimiter();
+    }
+}
+
+void print_execution_mode(const Context& ctx) {
+    LOG << "Execution mode:               " << ctx.parallel.num_mpis << " MPI process"
+        << (ctx.parallel.num_mpis > 1 ? "es" : "") << " a " << ctx.parallel.num_threads << " thread"
+        << (ctx.parallel.num_threads > 1 ? "s" : "");
+}
+} // namespace
+
+DistributedGraphPartitioner::DistributedGraphPartitioner(MPI_Comm comm, const int num_threads)
+    : _comm(comm),
+      _num_threads(num_threads),
+      _ctx(create_default_context()),
+      _gc(tbb::global_control::max_allowed_parallelism, num_threads) {
+    omp_set_num_threads(num_threads);
+    Random::seed = 0;
+}
+
+void DistributedPartitioner::set_output_level(const OutputLevel output_level) {
+    _output_level = output_level;
+}
+
+Context& DistributedPartitioner::context() {
+    return _ctx;
+}
+
+void DistributedGraphPartitioner::import_graph(
+    GlobalNodeID* vtxdist, GlobalEdgeID* xadj, GlobalNodeID* adjncy, GlobalNodeWeight* vwgt, GlobalEdgeWeight* adjwgt
 ) {
     SCOPED_TIMER("IO");
 
-    const PEID size = mpi::get_comm_size(comm);
-    const PEID rank = mpi::get_comm_rank(comm);
+    const PEID size = mpi::get_comm_size(_comm);
+    const PEID rank = mpi::get_comm_rank(_comm);
 
     const NodeID       n    = static_cast<NodeID>(vtxdist[rank + 1] - vtxdist[rank]);
     const GlobalNodeID from = vtxdist[rank];
@@ -88,89 +183,25 @@ GraphPtr import_graph(
 
     auto [global_to_ghost, ghost_to_global, ghost_owner] = mapper.finalize();
 
-    return GraphPtr(std::make_unique<DistributedGraph>(
+    _graph_ptr.graph = std::make_unique<DistributedGraph>(
         std::move(node_distribution), std::move(edge_distribution), std::move(nodes), std::move(edges),
         std::move(node_weights), std::move(edge_weights), std::move(ghost_owner), std::move(ghost_to_global),
-        std::move(global_to_ghost), false, comm
-    ));
+        std::move(global_to_ghost), false, _comm
+    );
 }
 
-namespace {
-void print_result_statistics(const DistributedPartitionedGraph& p_graph, const Context& ctx, const bool parseable) {
-    // Aggregate timers to display min, max, avg and sd across PEs
-    // Disabled: this function requires the same timer hierarchy on all PEs;
-    // in deep MGP, this is not always the case
-    // if (!ctx.quiet) {
-    // finalize_distributed_timer(GLOBAL_TIMER);
-    //}
-
-    const bool root = mpi::get_comm_rank(MPI_COMM_WORLD) == 0;
-
-    const auto edge_cut  = metrics::edge_cut(p_graph);
-    const auto imbalance = metrics::imbalance(p_graph);
-    const auto feasible  = metrics::is_feasible(p_graph, ctx.partition);
-
-    if (root && parseable) {
-        LOG << "RESULT cut=" << edge_cut << " imbalance=" << imbalance << " feasible=" << feasible
-            << " k=" << p_graph.k();
-        std::cout << "TIME ";
-        Timer::global().print_machine_readable(std::cout);
-    }
-    LOG;
-
-    if (root) {
-        Timer::global().print_human_readable(std::cout);
-    }
-    LOG;
-    LOG << "-> k=" << p_graph.k();
-    LOG << "-> cut=" << edge_cut;
-    LOG << "-> imbalance=" << imbalance;
-    LOG << "-> feasible=" << feasible;
-    if (p_graph.k() <= 512) {
-        LOG << "-> block_weights:";
-        LOG << logger::TABLE << p_graph.block_weights();
-    }
-
-    if (root && (p_graph.k() != ctx.partition.k || !feasible)) {
-        LOG_ERROR << "*** Partition is infeasible!";
-    }
-}
-void print_parsable_summary(const Context& ctx, const DistributedGraph& graph, const bool root) {
-    if (root) {
-        cio::print_delimiter(std::cout);
-    }
-    LOG << "MPI size=" << ctx.parallel.num_mpis;
-    LLOG << "CONTEXT ";
-    if (root) {
-        print_compact(ctx, std::cout, "");
-    }
-
-    const auto n_str       = mpi::gather_statistics_str<GlobalNodeID>(graph.n(), MPI_COMM_WORLD);
-    const auto m_str       = mpi::gather_statistics_str<GlobalEdgeID>(graph.m(), MPI_COMM_WORLD);
-    const auto ghost_n_str = mpi::gather_statistics_str<GlobalNodeID>(graph.ghost_n(), MPI_COMM_WORLD);
-    LOG << "GRAPH "
-        << "global_n=" << graph.global_n() << " "
-        << "global_m=" << graph.global_m() << " "
-        << "n=[" << n_str << "] "
-        << "m=[" << m_str << "] "
-        << "ghost_n=[" << ghost_n_str << "]";
-}
-
-void print_execution_mode(const Context& ctx) {
-    LOG << "Execution mode:               " << ctx.parallel.num_mpis << " MPI process"
-        << (ctx.parallel.num_mpis > 1 ? "es" : "") << " a " << ctx.parallel.num_threads << " thread"
-        << (ctx.parallel.num_threads > 1 ? "s" : "");
-    cio::print_delimiter();
-}
-} // namespace
-
-std::vector<BlockID> compute_graph_partition(
-    GraphPtr graph_ptr, Context ctx, const int num_threads, const int seed, const OutputLevel output_level
+void DistributedGraphPartitioner::load_graph(
+    const std::string& filename, const IOFormat format, const IODistributionType distribution
 ) {
-    auto& graph = *graph_ptr.ptr;
+    _graph_ptr.graph = std::make_unique(dist::io::read_graph(filename, format, distribution));
+}
 
-    const PEID size = mpi::get_comm_size(graph.communicator());
-    const PEID rank = mpi::get_comm_rank(graph.communicator());
+std::vector<BlockID>
+DistributedGraphPartitioner::compute_partition(const int seed, const BlockID k, const double epsilon) {
+    auto&      graph = *_graph_ptr.graph;
+    const PEID size  = mpi::get_comm_size(graph.communicator());
+    const PEID rank  = mpi::get_comm_rank(graph.communicator());
+    const bool root  = rank == 0;
 
     KASSERT(graph::debug::validate(graph), "input graph failed graph verification", assert::heavy);
 
@@ -178,8 +209,9 @@ std::vector<BlockID> compute_graph_partition(
     ctx.parallel.num_mpis                                  = size;
     ctx.parallel.num_threads                               = num_threads;
     ctx.initial_partitioning.kaminpar.parallel.num_threads = ctx.parallel.num_threads;
-
-    ctx.partition.graph = std::make_unique<GraphContext>(graph, ctx.partition);
+    ctx.partition.k                                        = k;
+    ctx.partition.epsilon                                  = epsilon;
+    ctx.partition.graph                                    = std::make_unique<GraphContext>(graph, ctx.partition);
 
     // Initialize TBB and OMP
     auto gc = tbb::global_control{tbb::global_control::max_allowed_parallelism, ctx.parallel.num_threads};
@@ -190,10 +222,6 @@ std::vector<BlockID> compute_graph_partition(
 
     // Initialize console output
     Logger::set_quiet_mode(output_level == OutputLevel::QUIET);
-
-    // Output
-    cio::print_dkaminpar_banner();
-    print_execution_mode(ctx);
 
     START_TIMER("Partitioning");
     graph        = graph::rearrange(std::move(graph), ctx);
@@ -219,11 +247,8 @@ std::vector<BlockID> compute_graph_partition(
     mpi::barrier(MPI_COMM_WORLD);
     STOP_TIMER(); // stop root timer
 
-    if (output_level == OutputLevel::QUIET || output_level == OutputLevel::FULL) {
-        print_result_statistics(p_graph, ctx, output_level == OutputLevel::EXPERIMENT);
-    }
-    if (output_level == OutputLevel::FULL && rank == 0) {
-        cio::print_delimiter();
+    if (output_level >= OutputLevel::FULL) {
+        print_result_statistics(ctx, p_graph, output_level == OutputLevel::EXPERIMENT, root);
     }
 
     return partition;

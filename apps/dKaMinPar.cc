@@ -125,18 +125,12 @@ int main(int argc, char* argv[]) {
     //     Environment::GIT_SHA1, Environment::HOSTNAME
     //);
 
-    auto graph = dist::io::read_graph(
-        app.graph_filename,
-        app.load_edge_balanced ? dist::io::DistributionType::EDGE_BALANCED : dist::io::DistributionType::NODE_BALANCED
-    );
-
-    app.ctx.debug.graph_filename = app.graph_filename;
-
-    GraphPtr ptr(std::make_unique<DistributedGraph>(std::move(graph)));
-    auto     part = compute_graph_partition(std::move(ptr), app.ctx, app.num_threads, app.seed, OutputLevel::FULL);
+    DistributedGraphPartitioner partitioner(MPI_COMM_WORLD, app.num_threads);
+    partitioner.load_graph(app.graph_filename, IOFormat::AUTO, IODistributionType::NODE_BALANCED);
+    auto partition = partitioner.compute_partition(app.seed, app.ctx.partition.k, app.ctx.partition.epsilon);
 
     if (!app.output_partition_filename.empty()) {
-        dist::io::partition::write(app.output_partition_filename, part);
+        dist::io::partition::write(app.output_partition_filename, partition);
     }
 
     return MPI_Finalize();

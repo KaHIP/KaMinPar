@@ -20,11 +20,6 @@
 #include "common/io/mmap_toker.h"
 
 namespace kaminpar::dist::io {
-enum class DistributionType {
-    NODE_BALANCED,
-    EDGE_BALANCED,
-};
-
 DistributedGraph read_graph(const std::string& filename, DistributionType type, MPI_Comm comm = MPI_COMM_WORLD);
 
 namespace metis {
