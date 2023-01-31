@@ -209,7 +209,7 @@ InitialCoarsener::ContractionResult InitialCoarsener::contract_current_clusterin
         // _cluster_nodes[_cluster_sizes[0]].._cluster_nodes[_cluster_sizes[1] - 1], all nodes corresponding to coarse
         // node 1 in _cluster_nodes[_cluster_sizes[1]].._cluster_nodes[_cluster_sizes[2] - 1] and so on
         NodeID counter = 0;
-        for (unsigned int& _cluster_size: _cluster_sizes) {
+        for (NodeID& _cluster_size: _cluster_sizes) {
             counter += std::exchange(_cluster_size, counter);
         }
 

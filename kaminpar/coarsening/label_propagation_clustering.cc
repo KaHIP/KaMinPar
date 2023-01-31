@@ -21,7 +21,7 @@ namespace kaminpar::shm {
 //
 
 struct LabelPropagationClusteringConfig : public LabelPropagationConfig {
-    using ClusterID                            = BlockID;
+    using ClusterID                            = NodeID;
     using ClusterWeight                        = BlockWeight;
     static constexpr bool kTrackClusterCount   = true;
     static constexpr bool kUseTwoHopClustering = true;

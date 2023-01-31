@@ -285,7 +285,6 @@ protected:
                 _active[u] = 0;
             }
 
-
             // after LP, we might want to use 2-hop clustering to merge nodes that could not find any cluster to join
             // for this, we store a favored cluster for each node u if:
             // (1) we actually use 2-hop clustering
@@ -357,7 +356,7 @@ protected:
         // reset _favored_clusters entries for nodes that are not considered for 2-hop matching
         // == nodes that are already clustered with at least one other node or nodes that have more weight than
         // max_weight/2 set _favored_clusters to dummy entry _graph->n() for isolated nodes
-        tbb::parallel_for(from, std::min<ClusterID>(to, _graph->n()), [&](const NodeID u) {
+        tbb::parallel_for(from, std::min(to, _graph->n()), [&](const NodeID u) {
             if (u != derived_cluster(u)) {
                 _favored_clusters[u] = u;
             } else {
@@ -370,7 +369,7 @@ protected:
             }
         });
 
-        tbb::parallel_for(from, std::min<ClusterID>(to, _graph->n()), [&](const NodeID u) {
+        tbb::parallel_for(from, std::min(to, _graph->n()), [&](const NodeID u) {
             if (should_stop()) {
                 return;
             } // abort once we merged enough clusters
@@ -406,7 +405,7 @@ private:
     void reset_state() {
         tbb::parallel_invoke(
             [&] {
-                tbb::parallel_for(static_cast<ClusterID>(0), static_cast<ClusterID>(_graph->n()), [&](const auto u) {
+                tbb::parallel_for<NodeID>(0, _graph->n(), [&](const NodeID u) {
                     if constexpr (Config::kUseActiveSetStrategy || Config::kUseLocalActiveSetStrategy) {
                         _active[u] = 1;
                     }
@@ -421,7 +420,7 @@ private:
                 });
             },
             [&] {
-                tbb::parallel_for(static_cast<ClusterID>(0), _initial_num_clusters, [&](const auto cluster) {
+                tbb::parallel_for<ClusterID>(0, _initial_num_clusters, [&](const ClusterID cluster) {
                     derived_init_cluster_weight(cluster, derived_initial_cluster_weight(cluster));
                 });
             }
