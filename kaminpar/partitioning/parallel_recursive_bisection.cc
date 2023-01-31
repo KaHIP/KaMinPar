@@ -20,13 +20,13 @@ ParallelRecursiveBisection::ParallelRecursiveBisection(const Graph& input_graph,
       _subgraph_memory{input_graph.n(), input_ctx.partition.k, input_graph.m(), true, true} {}
 
 PartitionedGraph ParallelRecursiveBisection::partition() {
-    cio::print_banner("Coarsening");
+    cio::print_delimiter("Coarsening");
     const Graph* c_graph = coarsen();
 
-    cio::print_banner("Initial partitioning");
+    cio::print_delimiter("Initial Partitioning");
     PartitionedGraph p_graph = initial_partition(c_graph);
 
-    cio::print_banner("Uncoarsening");
+    cio::print_delimiter("Uncoarsening");
     bool refined;
     p_graph = uncoarsen(std::move(p_graph), refined);
     if (!refined) {

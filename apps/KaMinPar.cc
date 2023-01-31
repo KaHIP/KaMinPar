@@ -30,8 +30,6 @@
 #include "common/random.h"
 #include "common/timer.h"
 
-#include "apps/environment.h"
-
 #if __has_include(<numa.h>)
     #include <numa.h>
 #endif // __has_include(<numa.h>)
@@ -180,8 +178,9 @@ int main(int argc, char* argv[]) {
     Logger::set_quiet_mode(ctx.quiet);
 
     cio::print_kaminpar_banner();
-    cio::print_build_identifier<NodeID, EdgeID, NodeWeight, EdgeWeight>(Environment::GIT_SHA1, Environment::HOSTNAME);
-    cio::print_delimiter();
+    cio::print_build_identifier();
+    cio::print_build_datatypes<NodeID, EdgeID, NodeWeight, EdgeWeight>();
+    cio::print_delimiter("Input Summary", '-');
 
     // Initialize
     Random::seed = ctx.seed;
@@ -241,6 +240,8 @@ int main(int argc, char* argv[]) {
     ctx.print(std::cout);
 
     if (ctx.parsable_output) {
+        cio::print_delimiter();
+
         std::cout << "CONTEXT ";
         ctx.print_compact(std::cout);
         std::cout << "\n";
@@ -274,7 +275,7 @@ int main(int argc, char* argv[]) {
 
     // Print some statistics
     STOP_TIMER(); // stop root timer
-    cio::print_banner("Statistics");
+    cio::print_delimiter("Result Summary");
     print_statistics(p_graph, ctx);
     return 0;
 }

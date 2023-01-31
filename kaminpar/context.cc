@@ -455,12 +455,11 @@ void Context::print(std::ostream& out) const {
     out << "Seed:                         " << seed << "\n";
     out << "Graph:                        " << graph_filename << "\n";
     partition.print(out);
-    cio::print_delimiter(out);
+    cio::print_delimiter("Coarsening", '-');
     coarsening.print(out);
-    cio::print_delimiter(out);
+    cio::print_delimiter("Initial Partitioning", '-');
     initial_partitioning.print(out);
-    cio::print_delimiter(out);
+    cio::print_delimiter("Refinement", '-');
     refinement.print(out);
-    cio::print_delimiter(out);
 }
 } // namespace kaminpar::shm

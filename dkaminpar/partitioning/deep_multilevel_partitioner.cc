@@ -24,6 +24,7 @@
 #include "kaminpar/metrics.h"
 
 #include "common/assertion_levels.h"
+#include "common/console_io.h"
 #include "common/math.h"
 #include "common/timer.h"
 
@@ -118,6 +119,8 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
                                            * _input_ctx.coarsening.contraction_limit * first_step_k;
     PEID current_num_pes = mpi::get_comm_size(_input_graph.communicator());
 
+    START_TIMER("Coarsening");
+
     while (!converged && graph->global_n() > desired_num_nodes) {
         SCOPED_TIMER("Coarsening", std::string("Level ") + std::to_string(coarsener->level()));
 
@@ -163,6 +166,7 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
 
         graph = c_graph;
     }
+    STOP_TIMER();
 
     /*
      * Initial Partitioning
@@ -210,6 +214,7 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
      * Uncoarsening and Refinement
      */
     START_TIMER("Uncoarsening");
+
     auto refinement_algorithm = TIMED_SCOPE("Allocation") {
         return factory::create_refinement_algorithm(_input_ctx);
     };

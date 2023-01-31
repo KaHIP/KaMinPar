@@ -12,8 +12,12 @@
 #include "common/logger.h"
 
 namespace kaminpar::cio {
-void print_delimiter(std::ostream& out, const char ch) {
-    out << std::string(80, ch) << "\n";
+void print_delimiter(const std::string& caption, const char ch) {
+    if (caption.empty()) {
+        LOG << std::string(80, ch);
+    } else {
+        LOG << std::string(80 - caption.size() - 5, ch) << " " << caption << " " << std::string(3, ch);
+    }
 }
 
 void print_kaminpar_banner() {
@@ -54,5 +58,28 @@ void print_banner(const std::string& title) {
     LOG << "* " << title << std::string(80 - 4 - title.size(), ' ') << " *";
     LOG << std::string(80, '*');
     LOG;
+}
+
+void print_build_identifier() {
+    LOG << "Current commit hash:          "
+        << (Environment::GIT_SHA1.empty() ? "<not available>" : Environment::GIT_SHA1);
+    std::string assertion_level_name = "always";
+    if (KASSERT_ASSERTION_LEVEL >= ASSERTION_LEVEL_LIGHT) {
+        assertion_level_name += "+light";
+    }
+    if (KASSERT_ASSERTION_LEVEL >= ASSERTION_LEVEL_NORMAL) {
+        assertion_level_name += "+normal";
+    }
+    if (KASSERT_ASSERTION_LEVEL >= ASSERTION_LEVEL_HEAVY) {
+        assertion_level_name += "+heavy";
+    }
+    LOG << "Assertion level:              " << assertion_level_name;
+#ifdef KAMINPAR_STATISTICS
+    LOG << "Statistics:                   enabled";
+#else  // KAMINPAR_STATISTICS
+    LOG << "Statistics:                   disabled";
+#endif // KAMINPAR_STATISTICS
+    LOG << "Built on:                     "
+        << (Environment::HOSTNAME.empty() ? "<not available>" : Environment::HOSTNAME);
 }
 } // namespace kaminpar::cio

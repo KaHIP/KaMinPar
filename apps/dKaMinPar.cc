@@ -15,7 +15,7 @@
 #include "dkaminpar/arguments.h"
 #include "dkaminpar/io.h"
 
-#include "apps/environment.h"
+#include "common/environment.h"
 
 using namespace kaminpar;
 using namespace kaminpar::dist;

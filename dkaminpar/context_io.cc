@@ -224,7 +224,7 @@ void print(const Context& ctx, const bool root, std::ostream& out) {
     }
     print(ctx.partition, root, out);
     if (root) {
-        cio::print_delimiter(out, '-');
+        cio::print_delimiter("Partitioning Scheme", '-');
 
         out << "Partitioning mode:            " << ctx.mode << "\n";
         if (ctx.mode == PartitioningMode::DEEP) {
@@ -232,11 +232,11 @@ void print(const Context& ctx, const bool root, std::ostream& out) {
             out << "  Partition extension factor: " << ctx.partition.K << "\n";
             out << "  Simulate seq. hybrid exe.:  " << (ctx.simulate_singlethread ? "yes" : "no") << "\n";
         }
-        cio::print_delimiter(out, '-');
+        cio::print_delimiter("Coarsening", '-');
         print(ctx.coarsening, out);
-        cio::print_delimiter(out, '-');
+        cio::print_delimiter("Initial Partitioning", '-');
         print(ctx.initial_partitioning, out);
-        cio::print_delimiter(out, '-');
+        cio::print_delimiter("Refinement", '-');
         print(ctx.refinement, out);
     }
 }

@@ -17,6 +17,7 @@
 #include "kaminpar/context.h"
 
 #include "common/console_io.h"
+#include "common/environment.h"
 #include "common/random.h"
 
 namespace kaminpar::dist {
@@ -31,7 +32,8 @@ GraphPtr::~GraphPtr() = default;
 
 namespace {
 void print_partition_summary(
-    const Context& ctx, const DistributedPartitionedGraph& p_graph, const int max_timer_depth, const bool parseable, const bool root
+    const Context& ctx, const DistributedPartitionedGraph& p_graph, const int max_timer_depth, const bool parseable,
+    const bool root
 ) {
     const auto edge_cut  = metrics::edge_cut(p_graph);
     const auto imbalance = metrics::imbalance(p_graph);
@@ -42,7 +44,7 @@ void print_partition_summary(
         return;
     }
 
-    cio::print_delimiter();
+    cio::print_delimiter("Result Summary");
 
     if (parseable) {
         LOG << "RESULT cut=" << edge_cut << " imbalance=" << imbalance << " feasible=" << feasible
@@ -91,13 +93,16 @@ void print_input_summary(const Context& ctx, const DistributedGraph& graph, cons
     // Output
     if (root) {
         cio::print_dkaminpar_banner();
+        cio::print_build_identifier();
+        cio::print_build_datatypes<NodeID, EdgeID, NodeWeight, EdgeWeight, shm::NodeWeight, shm::EdgeWeight>();
+        cio::print_delimiter("Input Summary");
         LOG << "Execution mode:               " << ctx.parallel.num_mpis << " MPI process"
             << (ctx.parallel.num_mpis > 1 ? "es" : "") << " a " << ctx.parallel.num_threads << " thread"
             << (ctx.parallel.num_threads > 1 ? "s" : "");
     }
     print(ctx, root, std::cout);
     if (root) {
-        cio::print_delimiter();
+        cio::print_delimiter("Partitioning");
     }
 }
 } // namespace
