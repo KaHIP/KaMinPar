@@ -17,9 +17,9 @@
 namespace kaminpar::dist {
 GreedyBalancer::GreedyBalancer(const Context& ctx)
     : _ctx(ctx),
-      _pq(ctx.partition.graph.n(), ctx.partition.k),
+      _pq(ctx.partition.graph->n, ctx.partition.k),
       _pq_weight(ctx.partition.k),
-      _marker(ctx.partition.graph.n()) {}
+      _marker(ctx.partition.graph->n) {}
 
 void GreedyBalancer::initialize(const DistributedGraph&) {}
 
@@ -87,7 +87,7 @@ void GreedyBalancer::refine(DistributedPartitionedGraph& p_graph, const Partitio
 
                 if (from == to) {
                     // look for next block that can take node
-                    while (cur == from || _p_graph->block_weight(cur) + weight > _p_ctx->graph.max_block_weight(cur)) {
+                    while (cur == from || _p_graph->block_weight(cur) + weight > _p_ctx->graph->max_block_weight(cur)) {
                         ++cur;
                         if (cur >= _p_ctx->k) {
                             cur = 0;
@@ -279,7 +279,7 @@ auto GreedyBalancer::reduce_move_candidates(std::vector<MoveCandidate>&& a, std:
             // only pick candidate if it does not overload the target block
             if (from != to
                 && _p_graph->block_weight(to) + target_block_weight_delta[to] + weight
-                       > _p_ctx->graph.max_block_weight(to)) {
+                       > _p_ctx->graph->max_block_weight(to)) {
                 // DBG << "Not taking candidate for move " << from << " --> " << to
                 //<< " because target would become overloaded";
                 continue;
@@ -312,7 +312,7 @@ auto GreedyBalancer::reduce_move_candidates(std::vector<MoveCandidate>&& a, std:
 
         if (from == to
             || _p_graph->block_weight(to) + target_block_weight_delta[to] + weight
-                   <= _p_ctx->graph.max_block_weight(to)) {
+                   <= _p_ctx->graph->max_block_weight(to)) {
             ans.push_back(a[i]);
             if (from != to) {
                 target_block_weight_delta[to] += weight;
@@ -328,7 +328,7 @@ auto GreedyBalancer::reduce_move_candidates(std::vector<MoveCandidate>&& a, std:
 
         if (from == to
             || _p_graph->block_weight(to) + target_block_weight_delta[to] + weight
-                   <= _p_ctx->graph.max_block_weight(to)) {
+                   <= _p_ctx->graph->max_block_weight(to)) {
             ans.push_back(b[j]);
             if (from != to) {
                 target_block_weight_delta[to] += weight;
@@ -453,7 +453,7 @@ std::pair<BlockID, double> GreedyBalancer::compute_gain(const NodeID u, const Bl
         for (const auto [e, v]: _p_graph->neighbors(u)) {
             const BlockID v_block = _p_graph->block(v);
             if (u_block != v_block
-                && _p_graph->block_weight(v_block) + u_weight <= _p_ctx->graph.max_block_weight(v_block)) {
+                && _p_graph->block_weight(v_block) + u_weight <= _p_ctx->graph->max_block_weight(v_block)) {
                 map[v_block] += _p_graph->edge_weight(e);
             } else if (u_block == v_block) {
                 internal_degree += _p_graph->edge_weight(e);
@@ -486,7 +486,7 @@ BlockWeight GreedyBalancer::block_overload(const BlockID b) const {
         std::numeric_limits<BlockWeight>::is_signed,
         "This must be changed when using an unsigned data type for block weights!"
     );
-    return std::max<BlockWeight>(0, _p_graph->block_weight(b) - _p_ctx->graph.max_block_weight(b));
+    return std::max<BlockWeight>(0, _p_graph->block_weight(b) - _p_ctx->graph->max_block_weight(b));
 }
 
 double GreedyBalancer::compute_relative_gain(const EdgeWeight absolute_gain, const NodeWeight weight) const {

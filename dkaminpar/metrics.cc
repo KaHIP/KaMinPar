@@ -61,7 +61,7 @@ BlockID num_imbalanced_blocks(const DistributedPartitionedGraph& p_graph, const 
     BlockID num_imbalanced_blocks = 0;
 
     for (const BlockID b: p_graph.blocks()) {
-        if (p_graph.block_weight(b) > p_ctx.graph.max_block_weight(b)) {
+        if (p_graph.block_weight(b) > p_ctx.graph->max_block_weight(b)) {
             ++num_imbalanced_blocks;
         }
     }

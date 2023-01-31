@@ -76,11 +76,12 @@ class DistributedActiveSetGlobalLabelPropagationClusteringImpl final
 
 public:
     explicit DistributedActiveSetGlobalLabelPropagationClusteringImpl(const Context& ctx)
-        : ClusterBase{ctx.partition.graph.total_n()},
+        : ClusterBase{ctx.partition.graph->total_n},
           _c_ctx{ctx.coarsening},
-          _changed_label(ctx.partition.graph.n()),
-          _cluster_weights{ctx.partition.graph.total_n() - ctx.partition.graph.n()},
-          _local_cluster_weights(ctx.partition.graph.n()),
+          _par_ctx(ctx.parallel),
+          _changed_label(ctx.partition.graph->n),
+          _cluster_weights{ctx.partition.graph->total_n - ctx.partition.graph->n},
+          _local_cluster_weights(ctx.partition.graph->n),
           _passive_high_degree_threshold(_c_ctx.global_lp.passive_high_degree_threshold) {
         set_max_num_iterations(_c_ctx.global_lp.num_iterations);
         set_max_degree(_c_ctx.global_lp.active_high_degree_threshold);
@@ -116,11 +117,11 @@ public:
             _max_cluster_weight = max_cluster_weight;
         }
 
-        for (std::size_t iteration = 0; iteration < _max_num_iterations; ++iteration) {
+        const int num_chunks = _c_ctx.global_lp.compute_num_chunks(_par_ctx);
+        for (int iteration = 0; iteration < _max_num_iterations; ++iteration) {
             GlobalNodeID global_num_moved_nodes = 0;
-            for (std::size_t chunk = 0; chunk < _c_ctx.global_lp.num_chunks; ++chunk) {
-                const auto [from, to] =
-                    math::compute_local_range<NodeID>(_graph->n(), _c_ctx.global_lp.num_chunks, chunk);
+            for (int chunk = 0; chunk < num_chunks; ++chunk) {
+                const auto [from, to] = math::compute_local_range<NodeID>(_graph->n(), num_chunks, chunk);
                 global_num_moved_nodes += process_chunk(from, to);
             }
             if (global_num_moved_nodes == 0) {
@@ -131,8 +132,8 @@ public:
         return clusters();
     }
 
-    void set_max_num_iterations(const std::size_t max_num_iterations) {
-        _max_num_iterations = max_num_iterations == 0 ? std::numeric_limits<std::size_t>::max() : max_num_iterations;
+    void set_max_num_iterations(const int max_num_iterations) {
+        _max_num_iterations = max_num_iterations == 0 ? std::numeric_limits<int>::max() : max_num_iterations;
     }
 
     //--------------------------------------------------------------------------------
@@ -379,8 +380,9 @@ private:
 
     using Base::_graph;
     const CoarseningContext& _c_ctx;
+    const ParallelContext&   _par_ctx;
     NodeWeight               _max_cluster_weight{std::numeric_limits<NodeWeight>::max()};
-    std::size_t              _max_num_iterations{std::numeric_limits<std::size_t>::max()};
+    int                      _max_num_iterations{std::numeric_limits<int>::max()};
 
     //! \code{_changed_label[u] = 1} iff. node \c u changed its label in the current round
     scalable_vector<uint8_t> _changed_label;

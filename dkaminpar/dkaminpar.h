@@ -134,6 +134,7 @@ struct LabelPropagationCoarseningContext {
     bool sync_cluster_weights    = false;
     bool enforce_cluster_weights = false;
     bool cheap_toplevel          = false;
+
     bool should_merge_nonadjacent_clusters(NodeID old_n, NodeID new_n) const;
     int  compute_num_chunks(const ParallelContext& parallel) const;
 };
@@ -210,8 +211,9 @@ struct CoarseningContext {
     LocalClusteringAlgorithm          local_clustering_algorithm;
     LabelPropagationCoarseningContext local_lp;
 
-    NodeID contraction_limit         = 0;
-    double cluster_weight_multiplier = 0.0;
+    NodeID                  contraction_limit         = 0;
+    shm::ClusterWeightLimit cluster_weight_limit      = shm::ClusterWeightLimit::EPSILON_BLOCK_WEIGHT;
+    double                  cluster_weight_multiplier = 0.0;
 
     void setup(const ParallelContext& parallel);
 };
@@ -306,6 +308,8 @@ struct GraphPtr {
 
     std::unique_ptr<class DistributedGraph> ptr;
 };
+
+class DistributedGraphPartitioner {};
 
 GraphPtr import_graph(
     GlobalNodeID* node_distribution, GlobalEdgeID* nodes, GlobalNodeID* edges, GlobalNodeWeight* node_weights,

@@ -113,11 +113,12 @@ class LPRefinerImpl final : public ChunkRandomdLabelPropagation<LPRefinerImpl, L
 public:
     explicit LPRefinerImpl(const Context& ctx)
         : _lp_ctx{ctx.refinement.lp},
-          _next_partition(ctx.partition.graph.n()),
-          _gains(ctx.partition.graph.n()),
+          _par_ctx(ctx.parallel),
+          _next_partition(ctx.partition.graph->n),
+          _gains(ctx.partition.graph->n),
           _block_weights(ctx.partition.k) {
         set_max_degree(_lp_ctx.active_high_degree_threshold);
-        allocate(ctx.partition.graph.total_n(), ctx.partition.graph.n(), ctx.partition.k);
+        allocate(ctx.partition.graph->total_n, ctx.partition.graph->n, ctx.partition.k);
     }
 
     void refine(DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx) {
@@ -141,10 +142,12 @@ public:
         IFSTATS(_statistics = Statistics{_p_graph->communicator()});
         IFSTATS(_statistics.cut_before = metrics::edge_cut(*_p_graph));
 
-        for (std::size_t iteration = 0; iteration < _lp_ctx.num_iterations; ++iteration) {
+        const auto num_chunks = _lp_ctx.compute_num_chunks(_par_ctx);
+
+        for (int iteration = 0; iteration < _lp_ctx.num_iterations; ++iteration) {
             GlobalNodeID num_moved_nodes = 0;
-            for (std::size_t chunk = 0; chunk < _lp_ctx.num_chunks; ++chunk) {
-                const auto [from, to] = math::compute_local_range<NodeID>(_p_graph->n(), _lp_ctx.num_chunks, chunk);
+            for (int chunk = 0; chunk < num_chunks; ++chunk) {
+                const auto [from, to] = math::compute_local_range<NodeID>(_p_graph->n(), num_chunks, chunk);
                 num_moved_nodes += process_chunk(from, to);
             }
             if (num_moved_nodes == 0) {
@@ -216,7 +219,7 @@ private:
 
         // perform probabilistic moves
         START_TIMER("Perform moves");
-        for (std::size_t i = 0; i < _lp_ctx.num_move_attempts; ++i) {
+        for (int i = 0; i < _lp_ctx.num_move_attempts; ++i) {
             if (perform_moves(from, to, residual_cluster_weights, global_total_gains_to_block)) {
                 break;
             }
@@ -432,7 +435,7 @@ public:
     }
 
     [[nodiscard]] BlockWeight max_cluster_weight(const BlockID b) {
-        return _p_ctx->graph.max_block_weight(b);
+        return _p_ctx->graph->max_block_weight(b);
     }
 
     [[nodiscard]] bool
@@ -478,6 +481,7 @@ private:
 #endif
 
     const LabelPropagationRefinementContext& _lp_ctx;
+    const ParallelContext&                   _par_ctx;
 
     DistributedPartitionedGraph* _p_graph{nullptr};
     const PartitionContext*      _p_ctx{nullptr};

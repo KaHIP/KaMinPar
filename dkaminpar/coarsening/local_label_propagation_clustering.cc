@@ -145,7 +145,7 @@ public:
 
 DistributedLocalLabelPropagationClustering::DistributedLocalLabelPropagationClustering(const Context& ctx)
     : _impl{std::make_unique<DistributedLocalLabelPropagationClusteringImpl>(
-        ctx.coarsening.local_lp.ignore_ghost_nodes ? ctx.partition.graph.n() : ctx.partition.graph.total_n(),
+        ctx.coarsening.local_lp.ignore_ghost_nodes ? ctx.partition.graph->n : ctx.partition.graph->total_n,
         ctx.coarsening
     )} {}
 

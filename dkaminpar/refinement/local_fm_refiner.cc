@@ -113,7 +113,7 @@ public:
           _fm_ctx(fm_ctx),
           _p_ctx(p_ctx),
           _rating_map(_p_ctx.k),
-          _stopping_policy(p_ctx.graph.global_n()) {}
+          _stopping_policy(p_ctx.graph->global_n) {}
 
     std::vector<Move> refine(shm::PartitionedGraph& p_graph, const std::vector<bool>& fixed_nodes) {
         if (p_graph.n() == 0) {
@@ -139,7 +139,7 @@ public:
             // only perform move if target block can take u without becoming overloaded
             const bool feasible = to != from
                                   && _global_graph.block_weight(to) + _block_weight_deltas[to] + weight
-                                         <= _p_ctx.graph.max_block_weight(to);
+                                         <= _p_ctx.graph->max_block_weight(to);
 
             if (feasible) {
                 // move u to its target block
@@ -279,7 +279,7 @@ private:
                 if (!initialization) {
                     block_weight_prime += _block_weight_deltas[current_target_block];
                 }
-                const bool feasible = block_weight_prime <= _p_ctx.graph.max_block_weight(current_target_block);
+                const bool feasible = block_weight_prime <= _p_ctx.graph->max_block_weight(current_target_block);
 
                 // accept as better block if gain is larger
                 // if gain is equal, flip a coin

@@ -14,6 +14,7 @@
 #include "dkaminpar/context.h"
 
 #include "common/console_io.h"
+#include "common/random.h"
 
 namespace kaminpar::dist {
 namespace {
@@ -215,116 +216,20 @@ std::ostream& operator<<(std::ostream& out, const GraphOrdering ordering) {
     return out << "<invalid>";
 }
 
-void print_compact(const LabelPropagationCoarseningContext& ctx, std::ostream& out, const std::string& prefix) {
-    out << prefix << "num_iterations=" << ctx.num_iterations << " "                                             //
-        << prefix << "active_high_degree_threshold=" << ctx.active_high_degree_threshold << " "                 //
-        << prefix << "passive_high_degree_threshold=" << ctx.passive_high_degree_threshold << " "               //
-        << prefix << "max_num_neighbors=" << ctx.max_num_neighbors << " "                                       //
-        << prefix << "merge_singleton_clusters=" << ctx.merge_singleton_clusters << " "                         //
-        << prefix << "merge_nonadjacent_clusters_threshold=" << ctx.merge_nonadjacent_clusters_threshold << " " //
-        << prefix << "total_num_chunks=" << ctx.total_num_chunks << " "                                         //
-        << prefix << "num_chunks=" << ctx.num_chunks << " "                                                     //
-        << prefix << "min_num_chunks=" << ctx.min_num_chunks << " "                                             //
-        << prefix << "ignore_ghost_nodes=" << ctx.ignore_ghost_nodes << " "                                     //
-        << prefix << "keep_ghost_clusters=" << ctx.keep_ghost_clusters << " ";                                  //
-}
-
-void print_compact(const LabelPropagationRefinementContext& ctx, std::ostream& out, const std::string& prefix) {
-    out << prefix << "active_high_degree_threshold=" << ctx.active_high_degree_threshold << " " //
-        << prefix << "num_iterations=" << ctx.num_iterations << " "                             //
-        << prefix << "total_num_chunks=" << ctx.total_num_chunks << " "                         //
-        << prefix << "num_chunks=" << ctx.num_chunks << " "                                     //
-        << prefix << "min_num_chunks=" << ctx.min_num_chunks << " "                             //
-        << prefix << "num_move_attempts=" << ctx.num_move_attempts << " "                       //
-        << prefix << "ignore_probabilities=" << ctx.ignore_probabilities << " ";                //
-}
-
-void print_compact(const FMRefinementContext& ctx, std::ostream& out, const std::string& prefix) {
-    out << prefix << "alpha=" << ctx.alpha << " "                      //
-        << prefix << "distance=" << ctx.radius << " "                  //
-        << prefix << "hops=" << ctx.pe_radius << " "                   //
-        << prefix << "overlap_regions=" << ctx.overlap_regions << " "  //
-        << prefix << "num_iterations=" << ctx.num_iterations << " "    //
-        << prefix << "sequential=" << ctx.sequential << " "            //
-        << prefix << "premove_locally=" << ctx.premove_locally << " "  //
-        << prefix << "bound_degree=" << ctx.bound_degree << " "        //
-        << prefix << "contract_border=" << ctx.contract_border << " "; //
-}
-
-void print_compact(const CoarseningContext& ctx, std::ostream& out, const std::string& prefix) {
-    out << prefix << "max_global_clustering_levels=" << ctx.max_global_clustering_levels << " " //
-        << prefix << "global_clustering_algorithm=" << ctx.global_clustering_algorithm << " "   //
-        << prefix << "global_contraction_algorithm=" << ctx.global_contraction_algorithm << " " //
-        << prefix << "max_local_clustering_levels=" << ctx.max_local_clustering_levels << " "   //
-        << prefix << "local_clustering_algorithm=" << ctx.local_clustering_algorithm << " "     //
-        << prefix << "contraction_limit=" << ctx.contraction_limit << " "                       //
-        << prefix << "cluster_weight_limit=" << ctx.cluster_weight_limit << " "                 //
-        << prefix << "cluster_weight_multiplier=" << ctx.cluster_weight_multiplier << " ";      //
-    print_compact(ctx.local_lp, out, prefix + "local_lp.");
-    print_compact(ctx.global_lp, out, prefix + "global_lp.");
-}
-
-void print_compact(const GreedyBalancerContext& ctx, std::ostream& out, const std::string& prefix) {
-    out << prefix << "num_nodes_per_block=" << ctx.num_nodes_per_block << " "; //
-}
-
-void print_compact(const MtKaHyParContext& ctx, std::ostream& out, const std::string& prefix) {
-    out << prefix << "preset_filename=" << ctx.preset_filename << " "; //
-}
-
-void print_compact(const InitialPartitioningContext& ctx, std::ostream& out, const std::string& prefix) {
-    out << prefix << "algorithm=" << ctx.algorithm << " ";
-    print_compact(ctx.mtkahypar, out, prefix + "mtkahypar.");
-
-    // Currently disabled because it produces too much output:
-    // kaminpar.print(out, prefix + "kaminpar.");
-}
-
-void print_compact(const RefinementContext& ctx, std::ostream& out, const std::string& prefix) {
-    out << prefix << "algorithms=" << ctx.algorithms << " ";
-    print_compact(ctx.lp, out, prefix + "lp.");
-    print_compact(ctx.fm, out, prefix + "fm.");
-    print_compact(ctx.greedy_balancer, out, prefix + "greedy_balancer.");
-}
-
-void print_compact(const ParallelContext& ctx, std::ostream& out, const std::string& prefix) {
-    out << prefix << "num_threads=" << ctx.num_threads << " "                                          //
-        << prefix << "num_mpis=" << ctx.num_mpis << " "                                                //
-        << prefix << "use_interleaved_numa_allocation=" << ctx.use_interleaved_numa_allocation << " "; //
-}
-
-void print_compact(const PartitionContext& ctx, std::ostream& out, const std::string& prefix) {
-    out << prefix << "k=" << ctx.k << " "                                          //
-        << prefix << "K=" << ctx.K << " "                                          //
-        << prefix << "epsilon=" << ctx.epsilon << " "                              //
-        << prefix << "mode=" << ctx.mode << " "                                    //
-        << prefix << "enable_pe_splitting=" << ctx.enable_pe_splitting << " "      //
-        << prefix << "simulate_singlethread=" << ctx.simulate_singlethread << " "; //
-}
-
-void print_compact(const DebugContext& ctx, std::ostream& out, const std::string& prefix) {
-    out << prefix << "save_finest_graph=" << ctx.save_finest_graph << " "                 //
-        << prefix << "save_coarsest_graph=" << ctx.save_coarsest_graph << " "             //
-        << prefix << "save_graph_hierarchy=" << ctx.save_graph_hierarchy << " "           //
-        << prefix << "save_clustering_hierarchy=" << ctx.save_clustering_hierarchy << " " //
-        << prefix << "save_partition_hierarchy=" << ctx.save_partition_hierarchy << " ";  //
-}
-
-void print_compact(const Context& ctx, std::ostream& out, const std::string& prefix) {
-    out << prefix << "seed=" << ctx.seed << " "                  //
-        << prefix << "rearrange_by=" << ctx.rearrange_by << " "; //
-    print_compact(ctx.partition, out, prefix + "partition.");
-    print_compact(ctx.parallel, out, prefix + "parallel.");
-    print_compact(ctx.coarsening, out, prefix + "coarsening.");
-    print_compact(ctx.initial_partitioning, out, prefix + "initial_partitioning.");
-    print_compact(ctx.refinement, out, prefix + "refinement.");
-}
-
 void print(const Context& ctx, const bool root, std::ostream& out) {
     if (root) {
-        out << "Seed:                         " << ctx.seed << "\n";
+        out << "Seed:                         " << Random::seed << "\n";
         out << "Graph:                        " << ctx.debug.graph_filename << "\n";
         out << "  Rearrange graph by:         " << ctx.rearrange_by << "\n";
+
+        cio::print_delimiter(out, '-');
+
+        out << "Partitioning mode:            " << ctx.mode << "\n";
+        if (ctx.mode == PartitioningMode::DEEP) {
+            out << "  Enable PE-splitting:        " << (ctx.enable_pe_splitting ? "yes" : "no") << "\n";
+            out << "  Partition extension factor: " << ctx.partition.K << "\n";
+            out << "  Simulate seq. hybrid exe.:  " << (ctx.simulate_singlethread ? "yes" : "no") << "\n";
+        }
     }
     print(ctx.partition, root, out);
     if (root) {
@@ -340,42 +245,33 @@ void print(const Context& ctx, const bool root, std::ostream& out) {
 void print(const PartitionContext& ctx, const bool root, std::ostream& out) {
     // If the graph context has not been initialized with a graph, be silent
     // (This should never happen)
-    if (!ctx.graph.initialized()) {
+    if (ctx.graph == nullptr) {
         return;
     }
 
     const auto size  = std::max<std::uint64_t>({
-         static_cast<std::uint64_t>(ctx.graph.global_n()),
-         static_cast<std::uint64_t>(ctx.graph.global_m()),
-         static_cast<std::uint64_t>(ctx.graph.max_block_weight(0)),
+        static_cast<std::uint64_t>(ctx.graph->global_n),
+        static_cast<std::uint64_t>(ctx.graph->global_m),
+        static_cast<std::uint64_t>(ctx.graph->max_block_weight(0)),
     });
     const auto width = std::ceil(std::log10(size)) + 1;
 
     if (root) {
-        out << "  Number of global nodes:    " << std::setw(width) << ctx.graph.global_n();
-        if (asserting_cast<GlobalNodeWeight>(ctx.graph.global_n()) == ctx.graph.global_total_node_weight()) {
+        out << "  Number of global nodes:    " << std::setw(width) << ctx.graph->global_n;
+        if (asserting_cast<GlobalNodeWeight>(ctx.graph->global_n) == ctx.graph->global_total_node_weight) {
             out << " (unweighted)\n";
         } else {
-            out << " (total weight: " << ctx.graph.global_total_node_weight() << ")\n";
+            out << " (total weight: " << ctx.graph->global_total_node_weight << ")\n";
         }
-        out << "  Number of global edges:    " << std::setw(width) << ctx.graph.global_m();
-        if (asserting_cast<GlobalEdgeWeight>(ctx.graph.global_m()) == ctx.graph.global_total_edge_weight()) {
+        out << "  Number of global edges:    " << std::setw(width) << ctx.graph->global_m;
+        if (asserting_cast<GlobalEdgeWeight>(ctx.graph->global_m) == ctx.graph->global_total_edge_weight) {
             out << " (unweighted)\n";
         } else {
-            out << " (total weight: " << ctx.graph.global_total_edge_weight() << ")\n";
+            out << " (total weight: " << ctx.graph->global_total_edge_weight << ")\n";
         }
         out << "Number of blocks:             " << ctx.k << "\n";
-        out << "Maximum block weight:         " << ctx.graph.max_block_weight(0) << " ("
-            << ctx.graph.perfectly_balanced_block_weight(0) << " + " << 100 * ctx.epsilon << "%)\n";
-
-        cio::print_delimiter(out, '-');
-
-        out << "Partitioning mode:            " << ctx.mode << "\n";
-        if (ctx.mode == PartitioningMode::DEEP) {
-            out << "  Enable PE-splitting:        " << (ctx.enable_pe_splitting ? "yes" : "no") << "\n";
-            out << "  Partition extension factor: " << ctx.K << "\n";
-            out << "  Simulate seq. hybrid exe.:  " << (ctx.simulate_singlethread ? "yes" : "no") << "\n";
-        }
+        out << "Maximum block weight:         " << ctx.graph->max_block_weight(0) << " ("
+            << ctx.graph->perfectly_balanced_block_weight(0) << " + " << 100 * ctx.epsilon << "%)\n";
     }
 }
 
@@ -411,9 +307,9 @@ void print(const CoarseningContext& ctx, std::ostream& out) {
             out << "  High degree threshold:      " << ctx.global_lp.passive_high_degree_threshold << " (passive), "
                 << ctx.global_lp.active_high_degree_threshold << " (active)\n";
             out << "  Max degree:                 " << ctx.global_lp.max_num_neighbors << "\n";
-            out << "  Number of chunks:           " << ctx.global_lp.num_chunks
-                << " (min: " << ctx.global_lp.min_num_chunks << ", total: " << ctx.global_lp.total_num_chunks << ")"
-                << (ctx.global_lp.scale_chunks_with_threads ? ", scaled" : "") << "\n";
+            // out << "  Number of chunks:           " << ctx.global_lp.num_chunks
+            //<< " (min: " << ctx.global_lp.min_num_chunks << ", total: " << ctx.global_lp.total_num_chunks << ")"
+            //<< (ctx.global_lp.scale_chunks_with_threads ? ", scaled" : "") << "\n";
             out << "  Active set:                 "
                 << (ctx.global_clustering_algorithm == GlobalClusteringAlgorithm::LP ? "no" : "yes") << "\n";
             out << "  Cluster weights:            " << (ctx.global_lp.sync_cluster_weights ? "sync" : "no-sync") << "+"
@@ -423,9 +319,9 @@ void print(const CoarseningContext& ctx, std::ostream& out) {
 
         if (ctx.global_clustering_algorithm == GlobalClusteringAlgorithm::HEM
             || ctx.global_clustering_algorithm == GlobalClusteringAlgorithm::HEM_LP) {
-            out << "  Number of coloring ssteps:  " << ctx.hem.num_coloring_chunks
-                << " (min: " << ctx.hem.min_num_coloring_chunks << ", max: " << ctx.hem.max_num_coloring_chunks << ")"
-                << (ctx.hem.scale_coloring_chunks_with_threads ? ", scaled with threads" : "") << "\n";
+            // out << "  Number of coloring ssteps:  " << ctx.hem.num_coloring_chunks
+            //<< " (min: " << ctx.hem.min_num_coloring_chunks << ", max: " << ctx.hem.max_num_coloring_chunks << ")"
+            //<< (ctx.hem.scale_coloring_chunks_with_threads ? ", scaled with threads" : "") << "\n";
             out << "  Small color blacklist:      " << 100 * ctx.hem.small_color_blacklist << "%"
                 << (ctx.hem.only_blacklist_input_level ? " (input level only)" : "") << "\n";
         }
@@ -447,18 +343,18 @@ void print(const RefinementContext& ctx, std::ostream& out) {
     if (ctx.includes_algorithm(KWayRefinementAlgorithm::LP)) {
         out << "Naive Label propagation:\n";
         out << "  Number of iterations:       " << ctx.lp.num_iterations << "\n";
-        out << "  Number of chunks:           " << ctx.lp.num_chunks << " (min: " << ctx.lp.min_num_chunks
-            << ", total: " << ctx.lp.total_num_chunks << ")" << (ctx.lp.scale_chunks_with_threads ? ", scaled" : "")
-            << "\n";
+        //out << "  Number of chunks:           " << ctx.lp.num_chunks << " (min: " << ctx.lp.min_num_chunks
+            //<< ", total: " << ctx.lp.total_num_chunks << ")" << (ctx.lp.scale_chunks_with_threads ? ", scaled" : "")
+            //<< "\n";
         out << "  Use probabilistic moves:    " << (ctx.lp.ignore_probabilities ? "no" : "yes") << "\n";
         out << "  Number of retries:          " << ctx.lp.num_move_attempts << "\n";
     }
     if (ctx.includes_algorithm(KWayRefinementAlgorithm::COLORED_LP)) {
         out << "Colored Label Propagation:\n";
-        out << "  Number of coloring ssteps:  " << ctx.colored_lp.num_coloring_chunks
-            << " (min: " << ctx.colored_lp.min_num_coloring_chunks
-            << ", max: " << ctx.colored_lp.max_num_coloring_chunks << ")"
-            << (ctx.colored_lp.scale_coloring_chunks_with_threads ? ", scaled with threads" : "") << "\n";
+        //out << "  Number of coloring ssteps:  " << ctx.colored_lp.num_coloring_chunks
+            //<< " (min: " << ctx.colored_lp.min_num_coloring_chunks
+            //<< ", max: " << ctx.colored_lp.max_num_coloring_chunks << ")"
+            //<< (ctx.colored_lp.scale_coloring_chunks_with_threads ? ", scaled with threads" : "") << "\n";
         out << "  Number of iterations:       " << ctx.colored_lp.num_iterations << "\n";
         out << "  Commitment strategy:        " << ctx.colored_lp.move_execution_strategy << "\n";
         if (ctx.colored_lp.move_execution_strategy == LabelPropagationMoveExecutionStrategy::PROBABILISTIC) {

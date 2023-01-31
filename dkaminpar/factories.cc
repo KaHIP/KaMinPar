@@ -41,7 +41,7 @@
 
 namespace kaminpar::dist::factory {
 std::unique_ptr<Partitioner> create_partitioner(const Context& ctx, const DistributedGraph& graph) {
-    switch (ctx.partition.mode) {
+    switch (ctx.mode) {
         case PartitioningMode::DEEP:
             return std::make_unique<DeepMultilevelPartitioner>(graph, ctx);
 

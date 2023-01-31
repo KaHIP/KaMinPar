@@ -89,7 +89,8 @@ class LockingLabelPropagationClusteringImpl
 public:
     explicit LockingLabelPropagationClusteringImpl(const Context& ctx)
         : _c_ctx{ctx.coarsening},
-          _cluster_weights{ctx.partition.graph.n()} {
+          _par_ctx(ctx.parallel),
+          _cluster_weights{ctx.partition.graph->n} {
         set_max_degree(_c_ctx.global_lp.active_high_degree_threshold);
         set_max_num_neighbors(_c_ctx.global_lp.max_num_neighbors);
     }
@@ -108,11 +109,12 @@ public:
         KASSERT(VALIDATE_INIT_STATE(), "", assert::heavy);
 #endif
 
+        const int num_chunks = _c_ctx.global_lp.compute_num_chunks(_par_ctx);
+
         for (std::size_t iteration = 0; iteration < _c_ctx.global_lp.num_iterations; ++iteration) {
             NodeID num_moved_nodes = 0;
-            for (std::size_t chunk = 0; chunk < _c_ctx.global_lp.num_chunks; ++chunk) {
-                const auto [from, to] =
-                    math::compute_local_range<NodeID>(_graph->n(), _c_ctx.global_lp.num_chunks, chunk);
+            for (int chunk = 0; chunk < num_chunks; ++chunk) {
+                const auto [from, to] = math::compute_local_range<NodeID>(_graph->n(), num_chunks, chunk);
                 num_moved_nodes += process_chunk(from, to);
             }
 
@@ -699,6 +701,7 @@ private:
     using Base::_graph;
 
     const CoarseningContext& _c_ctx;
+    const ParallelContext&   _par_ctx;
 
     NodeWeight                  _max_cluster_weight{kInvalidNodeWeight};
     AtomicClusterArray          _current_clustering;

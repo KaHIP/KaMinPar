@@ -113,10 +113,9 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
     /*
      * Coarsening
      */
-    const BlockID      first_step_k = std::min<BlockID>(_input_ctx.partition.k, _input_ctx.partition.K);
-    const GlobalNodeID desired_num_nodes =
-        (_input_ctx.partition.simulate_singlethread ? 1 : _input_ctx.parallel.num_threads)
-        * _input_ctx.coarsening.contraction_limit * first_step_k;
+    const BlockID      first_step_k      = std::min<BlockID>(_input_ctx.partition.k, _input_ctx.partition.K);
+    const GlobalNodeID desired_num_nodes = (_input_ctx.simulate_singlethread ? 1 : _input_ctx.parallel.num_threads)
+                                           * _input_ctx.coarsening.contraction_limit * first_step_k;
     PEID current_num_pes = mpi::get_comm_size(_input_graph.communicator());
 
     while (!converged && graph->global_n() > desired_num_nodes) {
@@ -129,7 +128,7 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
         const BlockID num_blocks_on_this_level =
             math::ceil2(graph->global_n() / _input_ctx.coarsening.contraction_limit);
 
-        if (_input_ctx.partition.enable_pe_splitting && current_num_pes > 1
+        if (_input_ctx.enable_pe_splitting && current_num_pes > 1
             && num_blocks_on_this_level < static_cast<BlockID>(current_num_pes)) {
             KASSERT(
                 current_num_pes % num_blocks_on_this_level == 0u, "Graph replication factor is not an integer.",
@@ -181,10 +180,10 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
     PartitionContext ip_p_ctx = _input_ctx.partition;
     ip_p_ctx.k                = first_step_k;
     ip_p_ctx.epsilon          = _input_ctx.partition.epsilon;
-    ip_p_ctx.setup(shm_graph);
+    ip_p_ctx.graph            = std::make_unique<GraphContext>(shm_graph, ip_p_ctx);
 
     shm::PartitionedGraph shm_p_graph{};
-    if (_input_ctx.partition.simulate_singlethread) {
+    if (_input_ctx.simulate_singlethread) {
         shm_p_graph         = initial_partitioner->initial_partition(shm_graph, ip_p_ctx);
         EdgeWeight best_cut = shm::metrics::edge_cut(shm_p_graph);
 
@@ -217,7 +216,7 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
 
     auto run_refinement = [&](DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx) {
         if (_input_ctx.debug.save_unrefined_finest_partition
-            && p_graph.global_n() == _input_ctx.partition.graph.global_n()) {
+            && p_graph.global_n() == _input_ctx.partition.graph->global_n) {
             debug::save_partition(p_graph, _input_ctx, 0);
         }
 
@@ -257,8 +256,8 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
                     1.0 * target_max_block_weight / subgraph.total_node_weight() * k_per_block - 1.0;
                 ip_p_ctx.k       = k_per_block;
                 ip_p_ctx.epsilon = std::max(0.001, next_epsilon);
+                ip_p_ctx.graph   = std::make_unique<GraphContext>(subgraph, ip_p_ctx);
 
-                ip_p_ctx.setup(subgraph);
                 p_subgraphs.push_back(initial_partitioner->initial_partition(subgraph, ip_p_ctx));
 
                 DBG << "Next subgraph with epsilon=" << next_epsilon
@@ -279,7 +278,8 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
 
             ip_p_ctx.k       = next_k;
             ip_p_ctx.epsilon = _input_ctx.partition.epsilon;
-            ip_p_ctx.setup(dist_p_graph.graph());
+            ip_p_ctx.graph   = std::make_unique<GraphContext>(dist_p_graph.graph(), ip_p_ctx);
+
             const bool feasible = metrics::is_feasible(dist_p_graph, ip_p_ctx);
 
             LOG << "    Cut:       " << cut;
@@ -290,8 +290,8 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
         STOP_TIMER();
     };
 
-    auto ref_p_ctx = _input_ctx.partition;
-    ref_p_ctx.setup(dist_p_graph.graph());
+    auto ref_p_ctx  = _input_ctx.partition;
+    ref_p_ctx.graph = std::make_unique<GraphContext>(dist_p_graph.graph(), ref_p_ctx);
 
     // Uncoarsen, partition blocks and refine
     while (_coarseners.size() > 1 || coarsener->level() > 0) {
@@ -328,7 +328,8 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
         LOG << "  Running balancing and local search on " << dist_p_graph.k() << " blocks";
         ref_p_ctx.k       = dist_p_graph.k();
         ref_p_ctx.epsilon = _input_ctx.partition.epsilon;
-        ref_p_ctx.setup(dist_p_graph.graph());
+        ref_p_ctx.graph   = std::make_unique<GraphContext>(dist_p_graph.graph(), ref_p_ctx);
+
         run_refinement(dist_p_graph, ref_p_ctx);
 
         // Output statistics
@@ -358,7 +359,8 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
         LOG << "  Running balancing and local search on " << dist_p_graph.k() << " blocks";
         ref_p_ctx.k       = dist_p_graph.k();
         ref_p_ctx.epsilon = _input_ctx.partition.epsilon;
-        ref_p_ctx.setup(dist_p_graph.graph());
+        ref_p_ctx.graph   = std::make_unique<GraphContext>(dist_p_graph.graph(), ref_p_ctx);
+
         run_refinement(dist_p_graph, ref_p_ctx);
 
         // Output statistics

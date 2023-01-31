@@ -12,10 +12,12 @@
 
 #include "kaminpar/io.h"
 
+#include "common/random.h"
+
 namespace kaminpar::dist::debug {
 namespace {
 std::string create_basename(const Context& ctx, const int level) {
-    return str::extract_basename(ctx.debug.graph_filename) + ".seed" + std::to_string(ctx.seed) + ".k"
+    return str::extract_basename(ctx.debug.graph_filename) + ".seed" + std::to_string(Random::seed) + ".k"
            + std::to_string(ctx.partition.k) + ".level" + std::to_string(level);
 }
 } // namespace

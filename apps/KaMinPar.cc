@@ -9,6 +9,7 @@
 
 #include <iostream>
 
+#include <tbb/global_control.h>
 #include <tbb/parallel_for.h>
 
 #include "context.h"
@@ -171,7 +172,7 @@ int main(int argc, char* argv[]) {
 
     // Initialize
     Random::seed = ctx.seed;
-    auto gc      = init_parallelism(ctx.parallel.num_threads); // must stay alive
+    auto gc      = tbb::global_control{tbb::global_control::max_allowed_parallelism, ctx.parallel.num_threads};
     if (ctx.parallel.use_interleaved_numa_allocation) {
         init_numa();
     }

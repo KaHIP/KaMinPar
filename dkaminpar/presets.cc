@@ -35,16 +35,15 @@ std::unordered_set<std::string> get_preset_names() {
 
 Context create_default_context() {
     return {
-        .rearrange_by = GraphOrdering::DEGREE_BUCKETS,
+        .rearrange_by          = GraphOrdering::DEGREE_BUCKETS,
+        .mode                  = PartitioningMode::DEEP,
+        .enable_pe_splitting   = true,
+        .simulate_singlethread = true,
         .partition =
             {
-                .k                     = 0,
-                .K                     = 128,
-                .epsilon               = 0.03,
-                .mode                  = PartitioningMode::DEEP,
-                .enable_pe_splitting   = true,
-                .simulate_singlethread = true,
-                .graph                 = nullptr,
+                kInvalidBlockID, // k
+                128,             // K
+                0.03,            // epsilon
             },
         .parallel =
             {
@@ -101,8 +100,8 @@ Context create_default_context() {
                         .keep_ghost_clusters                  = false,
                         .scale_chunks_with_threads            = false, // unused
                     },
-                .contraction_limit = 5000,
-                //.cluster_weight_limit      = shm::ClusterWeightLimit::EPSILON_BLOCK_WEIGHT,
+                .contraction_limit         = 5000,
+                .cluster_weight_limit      = shm::ClusterWeightLimit::EPSILON_BLOCK_WEIGHT,
                 .cluster_weight_multiplier = 1.0,
             },
         .initial_partitioning =
@@ -112,7 +111,7 @@ Context create_default_context() {
                     {
                         .preset_filename = "",
                     },
-                .kaminpar = std::make_unique<shm::Context>(shm::create_default_context()),
+                .kaminpar = shm::create_default_context(),
             },
         .refinement =
             {

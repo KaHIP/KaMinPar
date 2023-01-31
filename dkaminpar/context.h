@@ -33,6 +33,14 @@ public:
     std::vector<BlockWeight> perfectly_balanced_block_weights;
     std::vector<BlockWeight> max_block_weights;
 
+    inline BlockWeight perfectly_balanced_block_weight(const BlockID b) const {
+        return perfectly_balanced_block_weights[b];
+    }
+
+    inline BlockWeight max_block_weight(const BlockID b) const {
+        return max_block_weights[b];
+    }
+
     void setup_perfectly_balanced_block_weights(BlockID k);
     void setup_max_block_weights(BlockID k, double epsilon);
 };

@@ -40,7 +40,7 @@ void HEMClustering::initialize(const DistributedGraph& graph) {
 
         // Otherwise, compute a coloring now
         LOG << "Computing new coloring";
-        return compute_node_coloring_sequentially(graph, _ctx.num_coloring_chunks);
+        return compute_node_coloring_sequentially(graph, _ctx.compute_num_coloring_chunks(_input_ctx.parallel));
     }();
 
     const ColorID num_local_colors = *std::max_element(coloring.begin(), coloring.end()) + 1;
@@ -89,7 +89,7 @@ void HEMClustering::initialize(const DistributedGraph& graph) {
 
     TIMED_SCOPE("Compute color blacklist") {
         if (_ctx.small_color_blacklist == 0
-            || (_ctx.only_blacklist_input_level && graph.global_n() != _input_ctx.partition.graph.global_n())) {
+            || (_ctx.only_blacklist_input_level && graph.global_n() != _input_ctx.partition.graph->global_n)) {
             return;
         }
 
@@ -270,9 +270,7 @@ void HEMClustering::resolve_global_conflicts(const ColorID c) {
     // @todo avoid O(m), use same "trick" as below?
     auto all_requests = mpi::graph::sparse_alltoall_interface_to_ghost_custom_range_get<MatchRequest>(
         *_graph, seq_from, seq_to, [&](const NodeID seq_u) { return _color_sorted_nodes[seq_u]; },
-        [&](const NodeID u, EdgeID, const NodeID v) {
-            return _matching[u] == _graph->local_to_global_node(v);
-        },
+        [&](const NodeID u, EdgeID, const NodeID v) { return _matching[u] == _graph->local_to_global_node(v); },
         [&](const NodeID u, const EdgeID e, const NodeID v, const PEID pe) -> MatchRequest {
             const GlobalNodeID v_global = _graph->local_to_global_node(v);
             const NodeID       their_v  = static_cast<NodeID>(v_global - _graph->offset_n(pe));
@@ -401,7 +399,7 @@ void HEMClustering::resolve_global_conflicts(const ColorID c) {
                 const auto [local_node_on_pe, partner] = r[i];
                 const auto   global_node = static_cast<GlobalNodeID>(_graph->offset_n(pe) + local_node_on_pe);
                 const NodeID local_node  = _graph->global_to_local_node(global_node);
-                _matching[local_node] = partner;
+                _matching[local_node]    = partner;
             });
         },
         _graph->communicator()

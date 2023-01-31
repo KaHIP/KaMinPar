@@ -62,7 +62,7 @@ void ColoredLPRefiner::initialize(const DistributedGraph& graph) {
 
         // Otherwise, compute a coloring now
         LOG << "Computing new coloring";
-        return compute_node_coloring_sequentially(graph, _ctx.num_coloring_chunks);
+        return compute_node_coloring_sequentially(graph, _ctx.compute_num_coloring_chunks(_input_ctx.parallel));
     }();
 
     const ColorID num_local_colors = *std::max_element(coloring.begin(), coloring.end()) + 1;
@@ -117,7 +117,7 @@ void ColoredLPRefiner::initialize(const DistributedGraph& graph) {
 
     TIMED_SCOPE("Compute color blacklist") {
         if (_ctx.small_color_blacklist == 0
-            || (_ctx.only_blacklist_input_level && graph.global_n() != _input_ctx.partition.graph.global_n())) {
+            || (_ctx.only_blacklist_input_level && graph.global_n() != _input_ctx.partition.graph->global_n)) {
             STATS << "Do not blacklist any colors";
             return;
         }
@@ -383,7 +383,7 @@ auto ColoredLPRefiner::reduce_move_candidates(std::vector<MoveCandidate>&& a, st
 
     auto try_add_candidate = [&](std::vector<MoveCandidate>& ans, const MoveCandidate& candidate) {
         if (_p_graph->block_weight(candidate.to) + _block_weight_deltas[candidate.to] + candidate.weight
-            <= _p_ctx->graph.max_block_weight(candidate.to)) {
+            <= _p_ctx->graph->max_block_weight(candidate.to)) {
             ans.push_back(candidate);
             _block_weight_deltas[candidate.to] += candidate.weight;
         }
@@ -581,7 +581,7 @@ NodeID ColoredLPRefiner::try_probabilistic_moves(const ColorID c, const BlockGai
             const double  probability = [&] {
                 const double      gain_prob = (block_gains[to] == 0) ? 1.0 : 1.0 * _gains[seq_u] / block_gains[to];
                 const BlockWeight residual_block_weight =
-                    _p_ctx->graph.max_block_weight(to) - _p_graph->block_weight(to);
+                    _p_ctx->graph->max_block_weight(to) - _p_graph->block_weight(to);
                 return gain_prob * residual_block_weight / _p_graph->node_weight(u);
             }();
 
@@ -619,7 +619,7 @@ NodeID ColoredLPRefiner::try_probabilistic_moves(const ColorID c, const BlockGai
         // If blocks were already overloaded before refinement, accept it as feasible if their weight did not
         // increase (i.e., delta is <= 0) == first part of this if condition
         if (block_weight_deltas[b] > 0
-            && _p_graph->block_weight(b) + block_weight_deltas[b] > _p_ctx->graph.max_block_weight(b)) {
+            && _p_graph->block_weight(b) + block_weight_deltas[b] > _p_ctx->graph->max_block_weight(b)) {
             feasible = 0;
         }
     });
@@ -749,9 +749,9 @@ NodeID ColoredLPRefiner::find_moves(const ColorID c) {
                     if (block != u_block) {
                         if ((_ctx.track_local_block_weights
                              && _p_graph->block_weight(block) + _block_weight_deltas[block] + u_weight
-                                    > _p_ctx->graph.max_block_weight(block))
+                                    > _p_ctx->graph->max_block_weight(block))
                             || (!_ctx.track_local_block_weights
-                                && _p_graph->block_weight(block) + u_weight > _p_ctx->graph.max_block_weight(block))) {
+                                && _p_graph->block_weight(block) + u_weight > _p_ctx->graph->max_block_weight(block))) {
                             continue;
                         }
                     }

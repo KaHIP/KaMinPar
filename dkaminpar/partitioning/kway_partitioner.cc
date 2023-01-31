@@ -47,8 +47,8 @@ DistributedPartitionedGraph KWayPartitioner::partition() {
     {
         SCOPED_TIMER("Coarsening");
 
-        const GlobalNodeID threshold = (_ctx.partition.simulate_singlethread ? 1 : _ctx.parallel.num_threads)
-                                       * _ctx.partition.k * _ctx.coarsening.contraction_limit;
+        const GlobalNodeID threshold = (_ctx.simulate_singlethread ? 1 : _ctx.parallel.num_threads) * _ctx.partition.k
+                                       * _ctx.coarsening.contraction_limit;
         while (graph->global_n() > threshold) {
             SCOPED_TIMER("Coarsening", std::string("Level ") + std::to_string(coarsener.level()));
             const GlobalNodeWeight max_cluster_weight = coarsener.max_cluster_weight();
@@ -108,7 +108,7 @@ DistributedPartitionedGraph KWayPartitioner::partition() {
     START_TIMER("Initial Partitioning");
     auto                  shm_graph = graph::replicate_everywhere(*graph);
     shm::PartitionedGraph shm_p_graph{};
-    if (_ctx.partition.simulate_singlethread) {
+    if (_ctx.simulate_singlethread) {
         shm_p_graph         = initial_partitioner->initial_partition(shm_graph, _ctx.partition);
         EdgeWeight best_cut = shm::metrics::edge_cut(shm_p_graph);
 
@@ -145,8 +145,8 @@ DistributedPartitionedGraph KWayPartitioner::partition() {
     ////////////////////////////////////////////////////////////////////////////////
     {
         SCOPED_TIMER("Uncoarsening");
-        auto ref_p_ctx = _ctx.partition;
-        ref_p_ctx.setup(dist_p_graph.graph());
+        auto ref_p_ctx  = _ctx.partition;
+        ref_p_ctx.graph = std::make_unique<GraphContext>(dist_p_graph.graph(), ref_p_ctx);
 
         if (mpi::get_comm_rank(_graph.communicator()) == 0) {
             cio::print_banner("Refinement");
@@ -170,7 +170,7 @@ DistributedPartitionedGraph KWayPartitioner::partition() {
         // special case: graph too small for multilevel, still run refinement
         if (_ctx.refinement.refine_coarsest_level) {
             SCOPED_TIMER("Uncoarsening", std::string("Level ") + std::to_string(coarsener.level()));
-            ref_p_ctx.setup(dist_p_graph.graph());
+            ref_p_ctx.graph = std::make_unique<GraphContext>(dist_p_graph.graph(), ref_p_ctx);
             refine(dist_p_graph);
 
             // Output refinement statistics
@@ -187,7 +187,7 @@ DistributedPartitionedGraph KWayPartitioner::partition() {
             dist_p_graph = TIMED_SCOPE("Uncontraction") {
                 return coarsener.uncoarsen_once(std::move(dist_p_graph));
             };
-            ref_p_ctx.setup(dist_p_graph.graph());
+            ref_p_ctx.graph = std::make_unique<GraphContext>(dist_p_graph.graph(), ref_p_ctx);
 
             refine(dist_p_graph);
 

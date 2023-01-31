@@ -42,16 +42,16 @@ CLI::Option_group* create_partitioning_options(CLI::App* app, Context& ctx) {
             "Maximum block count with which the initial partitioner is called."
         )
         ->capture_default_str();
-    partitioning->add_option("-m,--mode", ctx.partition.mode)
+    partitioning->add_option("-m,--mode", ctx.mode)
         ->transform(CLI::CheckedTransformer(get_partitioning_modes()).description(""))
         ->description(R"(Partitioning scheme, possible options are:
   - deep: distributed deep multilevel graph partitioning
   - deeper: distributed deep multilevel graph partitioning with optional PE splitting and graph replication
   - kway: direct k-way multilevel graph partitioning)")
         ->capture_default_str();
-    partitioning->add_flag("--enable-pe-splitting", ctx.partition.enable_pe_splitting, "Enable PE splitting and graph replication in deep MGP")
+    partitioning->add_flag("--enable-pe-splitting", ctx.enable_pe_splitting, "Enable PE splitting and graph replication in deep MGP")
         ->capture_default_str();
-    partitioning->add_flag("--simulate-singlethreaded", ctx.partition.simulate_singlethread, "Simulate single-threaded execution during a hybrid run")->capture_default_str();
+    partitioning->add_flag("--simulate-singlethreaded", ctx.simulate_singlethread, "Simulate single-threaded execution during a hybrid run")->capture_default_str();
     partitioning->add_option("--rearrange-by", ctx.rearrange_by)
         ->transform(CLI::CheckedTransformer(get_graph_orderings()).description(""))
         ->description(R"(Criteria by which the graph is sorted and rearrange:
@@ -158,7 +158,7 @@ CLI::Option_group *create_lp_refinement_options(CLI::App *app, Context &ctx) {
         ->capture_default_str();
     lp->add_option("--r-lp-min-chunks", ctx.refinement.lp.min_num_chunks, "Minimum number of synchronization rounds.")
         ->capture_default_str();
-    lp->add_option("--r-lp-num-chunks", ctx.refinement.lp.num_chunks, "Set the number of chunks to a fixed number rather than deducing it from other parameters (0 = deduce).")
+    lp->add_option("--r-lp-num-chunks", ctx.refinement.lp.fixed_num_chunks, "Set the number of chunks to a fixed number rather than deducing it from other parameters (0 = deduce).")
         ->capture_default_str();
     lp->add_option("--r-lp-active-large-degree-threshold", ctx.refinement.lp.active_high_degree_threshold, "Do not move nodes with degree larger than this.")
         ->capture_default_str();
@@ -196,7 +196,7 @@ CLI::Option_group *create_colored_lp_refinement_options(CLI::App *app, Context &
         ->capture_default_str();
     lp->add_option("--r-clp-min-num-chunks", ctx.refinement.colored_lp.min_num_coloring_chunks)
         ->capture_default_str();
-    lp->add_option("--r-clp-num-chunks", ctx.refinement.colored_lp.num_coloring_chunks, "Number of supersteps of the coloring algorithm. If set to 0, the value is derived from the min and max bounds.")
+    lp->add_option("--r-clp-num-chunks", ctx.refinement.colored_lp.fixed_num_coloring_chunks, "Number of supersteps of the coloring algorithm. If set to 0, the value is derived from the min and max bounds.")
         ->capture_default_str();
     lp->add_flag("--r-clp-scale-chunks-with-threads", ctx.refinement.colored_lp.scale_coloring_chunks_with_threads)
         ->capture_default_str();
@@ -267,7 +267,7 @@ CLI::Option_group *create_global_lp_coarsening_options(CLI::App *app, Context &c
         ->capture_default_str();
     lp->add_option("--c-glp-min-chunks", ctx.coarsening.global_lp.min_num_chunks, "Minimum number of synchronization rounds.")
         ->capture_default_str();
-    lp->add_option("--c-glp-num-chunks", ctx.coarsening.global_lp.num_chunks, "Set the number of chunks to a fixed number rather than deducing it from other parameters (0 = deduce).")
+    lp->add_option("--c-glp-num-chunks", ctx.coarsening.global_lp.fixed_num_chunks, "Set the number of chunks to a fixed number rather than deducing it from other parameters (0 = deduce).")
         ->capture_default_str();
     lp->add_option("--c-glp-active-large-degree-threshold", ctx.coarsening.global_lp.active_high_degree_threshold, "Do not move nodes with degree larger than this.")
         ->capture_default_str();
@@ -303,7 +303,7 @@ CLI::Option_group * create_hem_coarsening_options(CLI::App *app, Context &ctx) {
         ->capture_default_str();
     lp->add_option("--c-hem-min-num-chunks", ctx.coarsening.hem.min_num_coloring_chunks)
         ->capture_default_str();
-    lp->add_option("--c-hem-num-chunks", ctx.coarsening.hem.num_coloring_chunks, "Number of supersteps of the coloring algorithm. If set to 0, the value is derived from the min and max bounds.")
+    lp->add_option("--c-hem-num-chunks", ctx.coarsening.hem.fixed_num_coloring_chunks, "Number of supersteps of the coloring algorithm. If set to 0, the value is derived from the min and max bounds.")
         ->capture_default_str();
     lp->add_flag("--c-hem-scale-chunks-with-threads", ctx.coarsening.hem.scale_coloring_chunks_with_threads)
         ->capture_default_str();
