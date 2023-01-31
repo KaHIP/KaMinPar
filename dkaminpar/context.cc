@@ -24,13 +24,13 @@ PartitionContext::PartitionContext(const PartitionContext& other)
     : k(other.k),
       K(other.K),
       epsilon(other.epsilon),
-      graph(std::make_unique<GraphContext>(*other.graph)) {}
+      graph(other.graph == nullptr ? nullptr : std::make_unique<GraphContext>(*other.graph)) {}
 
 PartitionContext& PartitionContext::operator=(const PartitionContext& other) {
     k       = other.k;
     K       = other.K;
     epsilon = other.epsilon;
-    graph   = std::make_unique<GraphContext>(*other.graph);
+    graph   = other.graph == nullptr ? nullptr : std::make_unique<GraphContext>(*other.graph);
     return *this;
 }
 

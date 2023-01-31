@@ -109,7 +109,8 @@ The output should be stored in a file and can be used by the -C,--config option.
 } // namespace
 
 int main(int argc, char* argv[]) {
-    MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED, nullptr);
+    int provided;
+    MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED, &provided);
 
     CLI::App           cli("dKaMinPar: (Somewhat) Minimal Distributed Deep Multilevel Graph Partitioning");
     ApplicationContext app;

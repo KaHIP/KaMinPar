@@ -179,6 +179,8 @@ std::vector<BlockID> compute_graph_partition(
     ctx.parallel.num_threads                               = num_threads;
     ctx.initial_partitioning.kaminpar.parallel.num_threads = ctx.parallel.num_threads;
 
+    ctx.partition.graph = std::make_unique<GraphContext>(graph, ctx.partition);
+
     // Initialize TBB and OMP
     auto gc = tbb::global_control{tbb::global_control::max_allowed_parallelism, ctx.parallel.num_threads};
     omp_set_num_threads(static_cast<int>(ctx.parallel.num_threads));

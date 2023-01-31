@@ -111,7 +111,7 @@ public:
 
         const int num_chunks = _c_ctx.global_lp.compute_num_chunks(_par_ctx);
 
-        for (std::size_t iteration = 0; iteration < _c_ctx.global_lp.num_iterations; ++iteration) {
+        for (int iteration = 0; iteration < _c_ctx.global_lp.num_iterations; ++iteration) {
             NodeID num_moved_nodes = 0;
             for (int chunk = 0; chunk < num_chunks; ++chunk) {
                 const auto [from, to] = math::compute_local_range<NodeID>(_graph->n(), num_chunks, chunk);

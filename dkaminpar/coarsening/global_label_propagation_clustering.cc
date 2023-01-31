@@ -195,9 +195,9 @@ public:
     explicit DistributedGlobalLabelPropagationClusteringImpl(const Context& ctx)
         : ClusterBase{ctx.partition.graph->total_n},
           _ctx(ctx),
-          _c_ctx{ctx.coarsening},
+          _c_ctx(ctx.coarsening),
           _changed_label(ctx.partition.graph->n),
-          _cluster_weights{ctx.partition.graph->total_n - ctx.partition.graph->n},
+          _cluster_weights(ctx.partition.graph->total_n - ctx.partition.graph->n),
           _local_cluster_weights(ctx.partition.graph->n),
           _passive_high_degree_threshold(_c_ctx.global_lp.passive_high_degree_threshold) {
         set_max_num_iterations(_c_ctx.global_lp.num_iterations);
