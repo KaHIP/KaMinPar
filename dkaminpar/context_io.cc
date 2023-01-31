@@ -219,9 +219,11 @@ std::ostream& operator<<(std::ostream& out, const GraphOrdering ordering) {
 void print(const Context& ctx, const bool root, std::ostream& out) {
     if (root) {
         out << "Seed:                         " << Random::seed << "\n";
-        out << "Graph:                        " << ctx.debug.graph_filename << "\n";
+        out << "Graph:";
         out << "  Rearrange graph by:         " << ctx.rearrange_by << "\n";
-
+    }
+    print(ctx.partition, root, out);
+    if (root) {
         cio::print_delimiter(out, '-');
 
         out << "Partitioning mode:            " << ctx.mode << "\n";
@@ -230,9 +232,6 @@ void print(const Context& ctx, const bool root, std::ostream& out) {
             out << "  Partition extension factor: " << ctx.partition.K << "\n";
             out << "  Simulate seq. hybrid exe.:  " << (ctx.simulate_singlethread ? "yes" : "no") << "\n";
         }
-    }
-    print(ctx.partition, root, out);
-    if (root) {
         cio::print_delimiter(out, '-');
         print(ctx.coarsening, out);
         cio::print_delimiter(out, '-');
@@ -343,18 +342,18 @@ void print(const RefinementContext& ctx, std::ostream& out) {
     if (ctx.includes_algorithm(KWayRefinementAlgorithm::LP)) {
         out << "Naive Label propagation:\n";
         out << "  Number of iterations:       " << ctx.lp.num_iterations << "\n";
-        //out << "  Number of chunks:           " << ctx.lp.num_chunks << " (min: " << ctx.lp.min_num_chunks
-            //<< ", total: " << ctx.lp.total_num_chunks << ")" << (ctx.lp.scale_chunks_with_threads ? ", scaled" : "")
-            //<< "\n";
+        // out << "  Number of chunks:           " << ctx.lp.num_chunks << " (min: " << ctx.lp.min_num_chunks
+        //<< ", total: " << ctx.lp.total_num_chunks << ")" << (ctx.lp.scale_chunks_with_threads ? ", scaled" : "")
+        //<< "\n";
         out << "  Use probabilistic moves:    " << (ctx.lp.ignore_probabilities ? "no" : "yes") << "\n";
         out << "  Number of retries:          " << ctx.lp.num_move_attempts << "\n";
     }
     if (ctx.includes_algorithm(KWayRefinementAlgorithm::COLORED_LP)) {
         out << "Colored Label Propagation:\n";
-        //out << "  Number of coloring ssteps:  " << ctx.colored_lp.num_coloring_chunks
-            //<< " (min: " << ctx.colored_lp.min_num_coloring_chunks
-            //<< ", max: " << ctx.colored_lp.max_num_coloring_chunks << ")"
-            //<< (ctx.colored_lp.scale_coloring_chunks_with_threads ? ", scaled with threads" : "") << "\n";
+        // out << "  Number of coloring ssteps:  " << ctx.colored_lp.num_coloring_chunks
+        //<< " (min: " << ctx.colored_lp.min_num_coloring_chunks
+        //<< ", max: " << ctx.colored_lp.max_num_coloring_chunks << ")"
+        //<< (ctx.colored_lp.scale_coloring_chunks_with_threads ? ", scaled with threads" : "") << "\n";
         out << "  Number of iterations:       " << ctx.colored_lp.num_iterations << "\n";
         out << "  Commitment strategy:        " << ctx.colored_lp.move_execution_strategy << "\n";
         if (ctx.colored_lp.move_execution_strategy == LabelPropagationMoveExecutionStrategy::PROBABILISTIC) {

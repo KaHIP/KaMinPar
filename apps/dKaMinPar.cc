@@ -65,8 +65,6 @@ The output should be stored in a file and can be used by the -C,--config option.
     // Mandatory -> ... or partition a graph
     auto* gp_group = mandatory->add_option_group("Partitioning")->silent();
     gp_group->add_option("-k,--k", app.k, "Number of blocks in the partition.")->configurable(false)->required();
-
-    // Graph can come from KaGen or from disk
     gp_group
         ->add_option(
             "-G,--graph", app.graph_filename,
