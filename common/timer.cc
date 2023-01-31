@@ -29,7 +29,7 @@ template <typename Value>
 
 std::string Timer::TimerTreeNode::build_display_name_mr() const {
     std::stringstream ss;
-    ss << string_make_machine_readable(name.data());
+    ss << string_make_machine_readable(std::string(name.begin(), name.end()));
     if (!description.empty()) {
         ss << "[" << string_make_machine_readable(description) << "]";
     }
@@ -38,7 +38,7 @@ std::string Timer::TimerTreeNode::build_display_name_mr() const {
 
 std::string Timer::TimerTreeNode::build_display_name_hr() const {
     std::stringstream ss;
-    ss << name.data();
+    ss << name;
     if (!description.empty()) {
         ss << " (" << description << ")";
     }
