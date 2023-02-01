@@ -570,6 +570,8 @@ contract_global_clustering_full_migration(const DistributedGraph& graph, const G
 GlobalContractionResult contract_global_clustering(
     const DistributedGraph& graph, const GlobalClustering& clustering, const GlobalContractionAlgorithm algorithm
 ) {
+    SCOPED_TIMER("Contract clustering");
+
     switch (algorithm) {
         case GlobalContractionAlgorithm::NO_MIGRATION:
             return contract_global_clustering_no_migration(graph, clustering);
@@ -577,6 +579,12 @@ GlobalContractionResult contract_global_clustering(
             return contract_global_clustering_minimal_migration(graph, clustering);
         case GlobalContractionAlgorithm::FULL_MIGRATION:
             return contract_global_clustering_full_migration(graph, clustering);
+        case GlobalContractionAlgorithm::V2: {
+            auto [c_graph, c_mapping] = contract_clustering(graph, clustering);
+            GlobalMapping c_mapping2(c_mapping.size());
+            std::copy(c_mapping.begin(), c_mapping.end(), c_mapping2.begin());
+            return {std::move(c_graph), std::move(c_mapping2)};
+        }
     }
     __builtin_unreachable();
 }
@@ -700,7 +708,7 @@ DistributedPartitionedGraph project_global_contracted_graph(
 }
 
 ContractionResult contract_clustering(const DistributedGraph& graph, const GlobalClustering& clustering) {
-    SET_DEBUG(true);
+    SET_DEBUG(false);
 
     const PEID size = mpi::get_comm_size(graph.communicator());
     const PEID rank = mpi::get_comm_rank(graph.communicator());

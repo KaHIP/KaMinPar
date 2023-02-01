@@ -14,6 +14,7 @@
 
 namespace kaminpar::dist {
 using namespace kaminpar::dist::testing;
+using namespace ::testing;
 
 TEST(ClusterContractionTest, contract_empty_graph) {
     auto graph = make_empty_graph();
@@ -79,6 +80,30 @@ TEST(ClusterContractionTest, contract_local_complete_bipartite_graph_vertically)
         ASSERT_EQ(c_graph.m(), 2);
         EXPECT_EQ(c_graph.edge_weight(0), set_size * set_size);
         EXPECT_EQ(c_graph.edge_weight(1), set_size * set_size);
+    }
+}
+
+TEST(ClusterContractionTest, contract_local_complete_bipartite_graph_horizontally) {
+    const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
+
+    for (const NodeID set_size: {1, 5, 10}) {
+        const auto graph = make_local_complete_bipartite_graph(set_size);
+
+        GlobalClustering clustering(2 * set_size);
+        std::iota(clustering.begin(), clustering.end(), 0u);
+        std::transform(clustering.begin(), clustering.end(), clustering.begin(), [&](const GlobalNodeID value) {
+            return graph.offset_n() + value % set_size;
+        });
+        auto [c_graph, c_mapping] = contract_clustering(graph, clustering);
+
+        EXPECT_EQ(c_graph.global_n(), set_size * size) << "Set size: " << set_size;
+        EXPECT_EQ(c_graph.global_m(), set_size * (set_size - 1) * size) << "Set size: " << set_size;
+
+        ASSERT_EQ(c_graph.n(), set_size);
+        EXPECT_THAT(c_graph.node_weights(), Each(Eq(2)));
+
+        ASSERT_EQ(c_graph.m(), set_size * (set_size - 1));
+        EXPECT_THAT(c_graph.edge_weights(), Each(Eq(2)));
     }
 }
 } // namespace kaminpar::dist

@@ -102,6 +102,7 @@ enum class GlobalContractionAlgorithm {
     NO_MIGRATION,
     MINIMAL_MIGRATION,
     FULL_MIGRATION,
+    V2,
 };
 
 enum class InitialPartitioningAlgorithm {

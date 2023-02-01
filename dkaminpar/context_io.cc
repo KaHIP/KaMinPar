@@ -105,6 +105,7 @@ std::unordered_map<std::string, GlobalContractionAlgorithm> get_global_contracti
         {"no-migration", GlobalContractionAlgorithm::NO_MIGRATION},
         {"minimal-migration", GlobalContractionAlgorithm::MINIMAL_MIGRATION},
         {"full-migration", GlobalContractionAlgorithm::FULL_MIGRATION},
+        {"v2", GlobalContractionAlgorithm::V2},
     };
 }
 
@@ -116,6 +117,8 @@ std::ostream& operator<<(std::ostream& out, const GlobalContractionAlgorithm alg
             return out << "minimal-migration";
         case GlobalContractionAlgorithm::FULL_MIGRATION:
             return out << "full-migration";
+        case GlobalContractionAlgorithm::V2:
+            return out << "v2";
     }
 
     return out << "<invalid>";
