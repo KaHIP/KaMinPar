@@ -6,8 +6,9 @@
  ******************************************************************************/
 #pragma once
 
+#include "communication.h"
+
 #include "dkaminpar/datastructures/distributed_graph.h"
-#include "dkaminpar/mpi/graph_communication.h"
 
 namespace kaminpar::dist::graph {
 /*!

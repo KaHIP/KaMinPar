@@ -5,26 +5,27 @@
  * @brief:  Distributes block-induced subgraphs of a partitioned graph across
  * PEs.
  ******************************************************************************/
-#include "dkaminpar/graphutils/graph_extraction.h"
+#include "dkaminpar/graphutils/subgraph_extractor.h"
 
 #include <algorithm>
 #include <functional>
 
 #include <mpi.h>
 
+#include "communication.h"
+
 #include "dkaminpar/datastructures/distributed_graph.h"
-#include "dkaminpar/graphutils/graph_synchronization.h"
+#include "dkaminpar/graphutils/synchronization.h"
 #include "dkaminpar/mpi/alltoall.h"
-#include "dkaminpar/mpi/graph_communication.h"
 #include "dkaminpar/mpi/wrapper.h"
 
 #include "kaminpar/datastructures/graph.h"
 #include "kaminpar/metrics.h"
 
 #include "common/datastructures/static_array.h"
+#include "common/math.h"
 #include "common/parallel/algorithm.h"
 #include "common/parallel/vector_ets.h"
-#include "common/math.h"
 
 namespace kaminpar::dist::graph {
 SET_DEBUG(false);

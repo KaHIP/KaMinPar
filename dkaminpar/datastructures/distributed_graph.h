@@ -11,8 +11,9 @@
 
 #include <tbb/parallel_for.h>
 
+#include "growt.h"
+
 #include "dkaminpar/dkaminpar.h"
-#include "dkaminpar/growt.h"
 #include "dkaminpar/logger.h"
 #include "dkaminpar/mpi/wrapper.h"
 

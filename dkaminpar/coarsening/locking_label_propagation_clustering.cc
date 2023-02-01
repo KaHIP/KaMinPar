@@ -9,8 +9,8 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "dkaminpar/growt.h"
-#include "dkaminpar/mpi/graph_communication.h"
+#include "dkaminpar/datastructures/growt.h"
+#include "dkaminpar/graphutils/communication.h"
 
 #include "kaminpar/label_propagation.h"
 

@@ -1,7 +1,7 @@
 #include "dkaminpar/coarsening/hem_clustering.h"
 
 #include "dkaminpar/algorithms/greedy_node_coloring.h"
-#include "dkaminpar/mpi/graph_communication.h"
+#include "dkaminpar/graphutils/communication.h"
 
 #include "common/parallel/loops.h"
 #include "common/timer.h"

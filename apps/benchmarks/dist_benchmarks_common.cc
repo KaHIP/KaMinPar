@@ -9,10 +9,10 @@
 #include <kassert/kassert.hpp>
 #include <omp.h>
 
-#include "dkaminpar/graphutils/graph_synchronization.h"
+#include "dkaminpar/graphutils/communication.h"
+#include "dkaminpar/graphutils/synchronization.h"
 #include "dkaminpar/io.h"
 #include "dkaminpar/metrics.h"
-#include "dkaminpar/mpi/graph_communication.h"
 
 #include "common/assertion_levels.h"
 #include "common/logger.h"

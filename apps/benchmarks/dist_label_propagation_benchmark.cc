@@ -5,10 +5,10 @@
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_for.h>
 
-#include "dkaminpar/graphutils/graph_rearrangement.h"
-#include "dkaminpar/growt.h"
+#include "dkaminpar/datastructures/growt.h"
+#include "dkaminpar/graphutils/communication.h"
+#include "dkaminpar/graphutils/rearrangement.h"
 #include "dkaminpar/io.h"
-#include "dkaminpar/mpi/graph_communication.h"
 #include "dkaminpar/timer.h"
 
 #include "common/datastructures/rating_map.h"

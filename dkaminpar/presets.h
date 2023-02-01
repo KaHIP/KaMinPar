@@ -6,5 +6,6 @@
  ******************************************************************************/
 #pragma once
 
+// These functions are part of the public API
 #include "dkaminpar/dkaminpar.h"
 

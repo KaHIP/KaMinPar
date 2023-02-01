@@ -16,8 +16,8 @@
 #include "dkaminpar/algorithms/greedy_node_coloring.h"
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructures/distributed_graph.h"
+#include "dkaminpar/graphutils/communication.h"
 #include "dkaminpar/metrics.h"
-#include "dkaminpar/mpi/graph_communication.h"
 #include "dkaminpar/mpi/wrapper.h"
 
 #include "common/datastructures/rating_map.h"

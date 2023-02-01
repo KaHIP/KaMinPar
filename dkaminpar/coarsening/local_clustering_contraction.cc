@@ -10,7 +10,7 @@
 #include <tbb/parallel_invoke.h>
 
 #include "dkaminpar/definitions.h"
-#include "dkaminpar/mpi/graph_communication.h"
+#include "dkaminpar/graphutils/communication.h"
 #include "dkaminpar/mpi/wrapper.h"
 
 #include "common/datastructures/rating_map.h"

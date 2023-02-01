@@ -17,7 +17,7 @@ set(CMAKE_CXX_STANDARD 17)
 ################################################################################
 
 # Control what to build
-option(KAMINPAR_TESTS "Build unit tests" OFF)
+option(KAMINPAR_TESTS "Build unit tests" ON)
 option(KAMINPAR_DISTRIBUTED "Enable or disable the distributed partitioner (requires the growt submodule)." ON)
 option(KAMINPAR_MTKAHYPAR "Enable Mt-KaHyPar as initial partitioner for the distributed partitioner." OFF)
 option(KAMINPAR_PYTHON_MODULE "Build the Python binding." OFF)

@@ -9,9 +9,11 @@
 #include <vector>
 
 #include "dkaminpar/datastructures/distributed_graph.h"
-#include "dkaminpar/dkaminpar.h"
 
 #include "kaminpar/datastructures/graph.h"
+
+// Most of the functions are part of the public API
+#include "dkaminpar/dkaminpar.h"
 
 namespace kaminpar::dist {
 struct GraphContext {
@@ -33,11 +35,11 @@ public:
     std::vector<BlockWeight> perfectly_balanced_block_weights;
     std::vector<BlockWeight> max_block_weights;
 
-    inline BlockWeight perfectly_balanced_block_weight(const BlockID b) const {
+    [[nodiscard]] inline BlockWeight perfectly_balanced_block_weight(const BlockID b) const {
         return perfectly_balanced_block_weights[b];
     }
 
-    inline BlockWeight max_block_weight(const BlockID b) const {
+    [[nodiscard]] inline BlockWeight max_block_weight(const BlockID b) const {
         return max_block_weights[b];
     }
 

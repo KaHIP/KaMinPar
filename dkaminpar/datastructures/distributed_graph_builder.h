@@ -10,9 +10,10 @@
 
 #include <tbb/concurrent_hash_map.h>
 
+#include "growt.h"
+
 #include "dkaminpar/definitions.h"
-#include "dkaminpar/growt.h"
-#include "dkaminpar/mpi/graph_communication.h"
+#include "dkaminpar/graphutils/communication.h"
 
 #include "common/parallel/atomic.h"
 #include "common/scalable_vector.h"

@@ -11,7 +11,7 @@
 #include "mpi/utils.h"
 #include "tests/dkaminpar/distributed_graph_factories.h"
 
-#include "dkaminpar/graphutils/graph_rearrangement.h"
+#include "dkaminpar/graphutils/rearrangement.h"
 
 namespace kaminpar::dist {
 using namespace kaminpar::dist::testing;

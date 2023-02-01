@@ -11,7 +11,7 @@
 #include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/debug.h"
 #include "dkaminpar/factories.h"
-#include "dkaminpar/graphutils/allgather_graph.h"
+#include "dkaminpar/graphutils/replicator.h"
 #include "dkaminpar/io.h"
 #include "dkaminpar/metrics.h"
 

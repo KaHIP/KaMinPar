@@ -6,8 +6,8 @@
  ******************************************************************************/
 #include "dkaminpar/refinement/greedy_balancer.h"
 
+#include "dkaminpar/graphutils/communication.h"
 #include "dkaminpar/metrics.h"
-#include "dkaminpar/mpi/graph_communication.h"
 #include "dkaminpar/mpi/wrapper.h"
 
 #include "common/math.h"

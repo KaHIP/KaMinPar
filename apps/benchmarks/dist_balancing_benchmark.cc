@@ -18,9 +18,9 @@
 #include "dkaminpar/coarsening/locking_label_propagation_clustering.h"
 #include "dkaminpar/context.h"
 #include "dkaminpar/factories.h"
+#include "dkaminpar/graphutils/communication.h"
 #include "dkaminpar/io.h"
 #include "dkaminpar/metrics.h"
-#include "dkaminpar/mpi/graph_communication.h"
 #include "dkaminpar/presets.h"
 
 #include "kaminpar/definitions.h"

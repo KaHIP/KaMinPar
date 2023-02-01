@@ -15,8 +15,8 @@
 
 #include "dkaminpar/coarsening/contraction_helper.h"
 #include "dkaminpar/datastructures/distributed_graph_builder.h"
-#include "dkaminpar/growt.h"
-#include "dkaminpar/mpi/graph_communication.h"
+#include "dkaminpar/datastructures/growt.h"
+#include "dkaminpar/graphutils/communication.h"
 #include "dkaminpar/mpi/wrapper.h"
 
 #include "common/datastructures/rating_map.h"

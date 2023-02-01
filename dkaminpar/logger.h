@@ -42,7 +42,7 @@
 namespace kaminpar::dist {
 class SynchronizedLogger {
 public:
-    SynchronizedLogger(const int root = 0, MPI_Comm comm = MPI_COMM_WORLD)
+    explicit SynchronizedLogger(const int root = 0, MPI_Comm comm = MPI_COMM_WORLD)
         : _buf{},
           _logger{_buf},
           _root{root},

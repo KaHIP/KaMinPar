@@ -13,8 +13,8 @@
 #include "tests/dkaminpar/distributed_graph_factories.h"
 #include "tests/dkaminpar/distributed_graph_helpers.h"
 
+#include "dkaminpar/algorithms/independent_set.h"
 #include "dkaminpar/datastructures/distributed_graph.h"
-#include "dkaminpar/graphutils/independent_set.h"
 #include "dkaminpar/mpi/utils.h"
 #include "dkaminpar/mpi/wrapper.h"
 

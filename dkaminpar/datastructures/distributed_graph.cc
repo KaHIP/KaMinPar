@@ -11,7 +11,7 @@
 
 #include "parallel/algorithm.h"
 
-#include "dkaminpar/mpi/graph_communication.h"
+#include "dkaminpar/graphutils/communication.h"
 #include "dkaminpar/mpi/wrapper.h"
 
 #include "common/datastructures/marker.h"

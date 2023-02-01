@@ -4,12 +4,13 @@
  * @date:   18.11.2021
  * @brief:  Sort and rearrange a graph by degree buckets.
  ******************************************************************************/
-#include "dkaminpar/graphutils/graph_rearrangement.h"
+#include "dkaminpar/graphutils/rearrangement.h"
+
+#include "communication.h"
 
 #include "dkaminpar/algorithms/greedy_node_coloring.h"
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructures/distributed_graph.h"
-#include "dkaminpar/mpi/graph_communication.h"
 
 #include "kaminpar/graphutils/graph_permutation.h"
 #include "kaminpar/graphutils/graph_rearrangement.h"

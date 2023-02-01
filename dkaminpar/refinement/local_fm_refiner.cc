@@ -17,8 +17,8 @@
 #include <tbb/enumerable_thread_specific.h>
 
 #include "dkaminpar/context.h"
-#include "dkaminpar/graphutils/graph_synchronization.h"
-#include "dkaminpar/growt.h"
+#include "dkaminpar/datastructures/growt.h"
+#include "dkaminpar/graphutils/synchronization.h"
 #include "dkaminpar/metrics.h"
 #include "dkaminpar/mpi/alltoall.h"
 #include "dkaminpar/mpi/utils.h"

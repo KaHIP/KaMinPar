@@ -10,7 +10,7 @@
 #include "dkaminpar/datastructures/distributed_graph_builder.h"
 #include "dkaminpar/dkaminpar.h"
 #include "dkaminpar/factories.h"
-#include "dkaminpar/graphutils/graph_rearrangement.h"
+#include "dkaminpar/graphutils/rearrangement.h"
 #include "dkaminpar/io.h"
 #include "dkaminpar/metrics.h"
 

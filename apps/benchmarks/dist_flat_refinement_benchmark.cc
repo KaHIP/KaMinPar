@@ -10,7 +10,7 @@
 #include "dkaminpar/algorithms/greedy_node_coloring.h"
 #include "dkaminpar/arguments.h"
 #include "dkaminpar/factories.h"
-#include "dkaminpar/graphutils/graph_rearrangement.h"
+#include "dkaminpar/graphutils/rearrangement.h"
 #include "dkaminpar/io.h"
 #include "dkaminpar/metrics.h"
 #include "dkaminpar/presets.h"
