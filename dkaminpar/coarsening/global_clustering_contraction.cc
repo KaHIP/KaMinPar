@@ -29,7 +29,7 @@ namespace kaminpar::dist {
 using namespace helper;
 
 namespace {
-SET_DEBUG(false);
+SET_DEBUG(true);
 
 /*!
  * Sparse all-to-all to exchange coarse node IDs of ghost nodes.
@@ -921,6 +921,9 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
     // Number of coarse nodes on this PE:
     const NodeID c_n = cluster_mapping.empty() ? 0 : cluster_mapping.back();
 
+    // Make cluster IDs start at 0
+    tbb::parallel_for<std::size_t>(0, cluster_mapping.size(), [&](const std::size_t i) { cluster_mapping[i] -= 1; });
+
     scalable_vector<GlobalNodeID> c_node_distribution(size + 1);
     MPI_Allgather(
         &c_n, 1, mpi::type::get<NodeID>(), c_node_distribution.data(), 1, mpi::type::get<NodeID>(), graph.communicator()
@@ -1038,9 +1041,10 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
     });
 
     // Build a mapping array from fine nodes to coarse nodes
-    NoinitVector<GlobalNodeID> mapping;
+    NoinitVector<GlobalNodeID> mapping(graph.n());
     graph.pfor_nodes([&](const NodeID u) {
         const GlobalNodeID cluster = clustering[u];
+
         if (graph.is_owned_global_node(cluster)) {
             const NodeID c_u = cluster_mapping[cluster - graph.offset_n()];
             mapping[u]       = cluster_mapping[c_u];
@@ -1058,8 +1062,9 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
     //
     // Sort local nodes by their cluster ID
     //
-    NoinitVector<std::size_t> buckets_position_buffer(c_n);
-    graph.pfor_nodes([&](const NodeID u) { buckets_position_buffer[u] = 0; });
+    NoinitVector<NodeID> buckets_position_buffer(c_n + 1);
+    tbb::parallel_for<NodeID>(0, c_n + 1, [&](const NodeID c_u) { buckets_position_buffer[c_u] = 0; });
+
     tbb::parallel_invoke(
         [&] {
             graph.pfor_nodes([&](const NodeID u) {
@@ -1067,6 +1072,7 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
                 if (graph.is_owned_global_node(cluster)) {
                     const NodeID local_cluster = static_cast<NodeID>(cluster - graph.offset_n());
                     const NodeID c_u           = cluster_mapping[local_cluster];
+                    KASSERT(c_u < buckets_position_buffer.size());
                     __atomic_fetch_add(&buckets_position_buffer[c_u], 1, __ATOMIC_RELAXED);
                 }
             });
@@ -1091,9 +1097,8 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
             graph.pfor_nodes([&](const NodeID u) {
                 const GlobalNodeID cluster = clustering[u];
                 if (graph.is_owned_global_node(cluster)) {
-                    const NodeID local_cluster = static_cast<NodeID>(cluster - graph.offset_n());
-                    const NodeID c_u           = cluster_mapping[local_cluster];
-
+                    const NodeID      local_cluster = static_cast<NodeID>(cluster - graph.offset_n());
+                    const NodeID      c_u           = cluster_mapping[local_cluster];
                     const std::size_t pos = __atomic_fetch_sub(&buckets_position_buffer[c_u], 1, __ATOMIC_RELAXED);
                     buckets[pos - 1]      = u;
                 }
@@ -1129,13 +1134,13 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
 
     NavigableLinkedList<NodeID, LocalEdge, scalable_vector> edge_buffer_ets;
 
-    tbb::parallel_for<NodeID>(0, c_n, [&](const NodeID c_u) {
+    tbb::parallel_for<NodeID>(0, c_n, [&](const NodeID c_u) { 
         auto& collector   = collector_ets.local();
         auto& edge_buffer = edge_buffer_ets.local();
         edge_buffer.mark(c_u);
 
         const std::size_t first_pos = buckets_position_buffer[c_u];
-        const std::size_t last_pos  = buckets_position_buffer[c_u];
+        const std::size_t last_pos  = buckets_position_buffer[c_u + 1];
 
         auto collect_edges = [&](auto& map) {
             NodeWeight c_u_weight = 0;
@@ -1146,7 +1151,9 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
                 auto handle_edge = [&](const EdgeWeight weight, const GlobalNodeID cluster) {
                     if (graph.is_owned_global_node(cluster)) {
                         const NodeID c_local_node = cluster_mapping[cluster - graph.offset_n()];
-                        map[c_local_node] += weight;
+                        if (c_local_node != c_u) {
+                            map[c_local_node] += weight;
+                        }
                     } else {
                         auto& handle = nonlocal_cluster_filter_handle_ets.local();
                         auto  it     = handle.find(cluster + 1);
@@ -1156,7 +1163,9 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
                             const GlobalNodeID c_ghost_node    = their_mapping_responses[owner][index];
                             auto               c_local_node_it = c_global_to_ghost.find(c_ghost_node + 1);
                             const NodeID       c_local_node    = (*c_local_node_it).second;
-                            map[c_local_node] += weight;
+                            if (c_local_node != c_u) {
+                                map[c_local_node] += weight;
+                            }
                         }
                     }
                 };
@@ -1215,8 +1224,8 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
     // Finally, build coarse graph
     auto all_buffered_nodes = ts_navigable_list::combine<NodeID, LocalEdge, scalable_vector>(edge_buffer_ets);
 
-    scalable_vector<NodeID>     c_edges;
-    scalable_vector<EdgeWeight> c_edge_weights;
+    scalable_vector<NodeID>     c_edges(c_m);
+    scalable_vector<EdgeWeight> c_edge_weights(c_m);
     tbb::parallel_for<NodeID>(0, c_n, [&](const NodeID i) {
         const auto&  marker = all_buffered_nodes[i];
         const auto*  list   = marker.local_list;
