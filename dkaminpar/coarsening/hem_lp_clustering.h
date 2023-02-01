@@ -27,8 +27,6 @@ public:
 private:
     GlobalNodeID compute_size_after_matching_contraction(const AtomicClusterArray& clustering);
 
-    const Context& _input_ctx;
-
     const DistributedGraph *_graph;
     bool _fallback = false;
 

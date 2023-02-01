@@ -10,8 +10,7 @@
 
 namespace kaminpar::dist {
 HEMLPClustering::HEMLPClustering(const Context& ctx)
-    : _input_ctx(ctx),
-      _lp(std::make_unique<DistributedGlobalLabelPropagationClustering>(ctx)),
+    : _lp(std::make_unique<DistributedGlobalLabelPropagationClustering>(ctx)),
       _hem(std::make_unique<HEMClustering>(ctx)) {}
 
 const HEMLPClustering::AtomicClusterArray&
