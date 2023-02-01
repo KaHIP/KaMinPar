@@ -13,6 +13,8 @@ function(kaminpar_add_shm_test target)
         shm_partitioner_base)
     target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     gtest_discover_tests(${target})
+
+    message(STATUS "Enabled shared-memory test: ${target}")
 endfunction()
 
 function(kaminpar_add_common_test target)
@@ -23,6 +25,8 @@ function(kaminpar_add_common_test target)
         common_base)
     target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     gtest_discover_tests(${target})
+
+    message(STATUS "Enabled common test: ${target}")
 endfunction()
 
 function(kaminpar_add_dist_test KAMINPAR_TARGET_NAME)
@@ -41,6 +45,8 @@ function(kaminpar_add_dist_test KAMINPAR_TARGET_NAME)
         dist_partitioner_base)
     target_include_directories(${KAMINPAR_TARGET_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     katestrophe_add_mpi_test(${KAMINPAR_TARGET_NAME} CORES ${KAMINPAR_CORES})
+    
+    message(STATUS "Enabled distributed test: ${KAMINPAR_TARGET_NAME}, PEs: ${KAMINPAR_CORES}")
 endfunction()
 
 # Copy test instances to binary directory
@@ -58,46 +64,48 @@ kaminpar_add_common_test(test_common_math common/math_test.cc)
 kaminpar_add_common_test(test_common_string common/strutils_test.cc)
 kaminpar_add_common_test(test_common_parallel_algorithm common/parallel/algorithm_test.cc)
 
-# dKaMinPar -> Graph Utils
-kaminpar_add_dist_test(test_dist_graph_extraction
-    FILES dkaminpar/graphutils/graph_extraction_test.cc
+# dKaMinPar 
+kaminpar_add_dist_test(test_dist_global_move_conflict_resolver
+    FILES dkaminpar/refinement/move_conflict_resolver_test.cc
     CORES 1 2 4)
 
-kaminpar_add_dist_test(test_dist_graph_rearrangement
-    FILES dkaminpar/graphutils/graph_rearrangement_test.cc
-    CORES 1 2 3 4)
+# dKaMinPar -> Graph Utils
+kaminpar_add_dist_test(test_dist_graphutils_block_extractor
+    FILES dkaminpar/graphutils/block_extractor_test.cc
+    CORES 1 2 4)
 
-kaminpar_add_dist_test(test_dist_independent_set
-    FILES dkaminpar/graphutils/independent_set_test.cc
-    CORES 1 2 3 4)
+kaminpar_add_dist_test(test_dist_graphutils_rearrangement
+    FILES dkaminpar/graphutils/rearrangement_test.cc
+    CORES 1 2 4)
 
-kaminpar_add_dist_test(test_dist_bfs_extractor
+kaminpar_add_dist_test(test_dist_graphutils_bfs_extractor
     FILES dkaminpar/graphutils/bfs_extractor_test.cc
     CORES 1 2 4)
 
-kaminpar_add_dist_test(test_dist_global_move_conflict_resolver
-    FILES dkaminpar/refinement/move_conflict_resolver_test.cc
-    CORES 1 2 3 4)
-
-kaminpar_add_dist_test(test_dist_sparse_alltoall
-    FILES dkaminpar/sparse_alltoall_test.cc
-    CORES 1 2 3 4 11)
-
-kaminpar_add_dist_test(test_dist_graph_topology
-    FILES dkaminpar/mpi/grid_topology_test.cc
-    CORES 1)
-
-kaminpar_add_dist_test(test_dist_graph_allgather
-    FILES dkaminpar/graphutils/allgather_graph_test.cc
+kaminpar_add_dist_test(test_dist_graphutils_allgather
+    FILES dkaminpar/graphutils/allgather_test.cc
     CORES 1 2 4)
 
-kaminpar_add_dist_test(test_dist_cluster_contraction
+kaminpar_add_dist_test(test_dist_graphutils_cluster_contraction
     FILES dkaminpar/graphutils/cluster_contraction_test.cc
     CORES 1)
 
 # dKaMinPar -> Algorithms 
 kaminpar_add_dist_test(test_dist_greedy_node_coloring
     FILES dkaminpar/algorithms/greedy_node_coloring_test.cc
+    CORES 1 2 4)
+
+kaminpar_add_dist_test(test_dist_independent_set
+    FILES dkaminpar/algorithms/independent_set_test.cc
+    CORES 1 2 4)
+
+# dKaMinPar -> MPI
+kaminpar_add_dist_test(test_dist_sparse_alltoall
+    FILES dkaminpar/mpi/sparse_alltoall_test.cc
+    CORES 1 2 3 4 11)
+
+kaminpar_add_dist_test(test_dist_graph_topology
+    FILES dkaminpar/mpi/grid_topology_test.cc
     CORES 1)
 
 # KaMinPar 
