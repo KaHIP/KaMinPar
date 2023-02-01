@@ -114,6 +114,43 @@ inline DistributedGraph make_isolated_edges_graph(const NodeID num_edges_per_pe)
     return builder.finalize();
 }
 
+inline DistributedGraph make_local_clique_graph(const NodeID num_nodes_per_pe) {
+    const PEID         rank = mpi::get_comm_rank(MPI_COMM_WORLD);
+    const GlobalNodeID n0   = rank * num_nodes_per_pe;
+
+    graph::Builder builder(MPI_COMM_WORLD);
+    builder.initialize(num_nodes_per_pe);
+    for (NodeID u = 0; u < num_nodes_per_pe; ++u) {
+        builder.create_node(1);
+        for (NodeID v = 0; v < num_nodes_per_pe; ++v) {
+            if (u != v) {
+                builder.create_edge(1, n0 + v);
+            }
+        }
+    }
+    return builder.finalize();
+}
+
+inline DistributedGraph make_local_complete_bipartite_graph(const NodeID set_size_per_pe) {
+    const PEID         rank = mpi::get_comm_rank(MPI_COMM_WORLD);
+    const GlobalNodeID n0   = rank * set_size_per_pe * 2;
+
+    graph::Builder builder(MPI_COMM_WORLD);
+    builder.initialize(2 * set_size_per_pe);
+    for (NodeID u = 0; u < 2 * set_size_per_pe; ++u) {
+        builder.create_node(1);
+
+        for (NodeID v = 0; v < set_size_per_pe; ++v) {
+            if (u < set_size_per_pe) {
+                builder.create_edge(1, n0 + set_size_per_pe + v);
+            } else {
+                builder.create_edge(1, n0 + v);
+            }
+        }
+    }
+    return builder.finalize();
+}
+
 /*!
  * Creates a distributed graph with `num_nodes_per_pe` nodes on each PE.
  * The nodes on a single PE are connected to a clique.

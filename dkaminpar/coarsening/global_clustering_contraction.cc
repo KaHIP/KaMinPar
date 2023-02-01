@@ -29,8 +29,6 @@ namespace kaminpar::dist {
 using namespace helper;
 
 namespace {
-SET_DEBUG(true);
-
 /*!
  * Sparse all-to-all to exchange coarse node IDs of ghost nodes.
  * @param graph
@@ -204,6 +202,7 @@ MappingResult compute_mapping(
     parallel::prefix_sum(label_mapping.begin(), label_mapping.end(), label_mapping.begin());
 
     const NodeID c_n = label_mapping.empty() ? 0 : static_cast<NodeID>(label_mapping.back());
+    DBG << "Number of coarse nodes: " << c_n;
 
     // send mapping to other PEs that use cluster IDs from this PE -- i.e., answer in_msg
     std::vector<scalable_vector<NodeID>> out_msg(size);
@@ -701,6 +700,8 @@ DistributedPartitionedGraph project_global_contracted_graph(
 }
 
 ContractionResult contract_clustering(const DistributedGraph& graph, const GlobalClustering& clustering) {
+    SET_DEBUG(true);
+
     const PEID size = mpi::get_comm_size(graph.communicator());
     const PEID rank = mpi::get_comm_rank(graph.communicator());
 
@@ -920,15 +921,18 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
 
     // Number of coarse nodes on this PE:
     const NodeID c_n = cluster_mapping.empty() ? 0 : cluster_mapping.back();
+    DBG << "Number of coarse nodes: " << c_n;
 
     // Make cluster IDs start at 0
     tbb::parallel_for<std::size_t>(0, cluster_mapping.size(), [&](const std::size_t i) { cluster_mapping[i] -= 1; });
 
     scalable_vector<GlobalNodeID> c_node_distribution(size + 1);
     MPI_Allgather(
-        &c_n, 1, mpi::type::get<NodeID>(), c_node_distribution.data(), 1, mpi::type::get<NodeID>(), graph.communicator()
+        &c_n, 1, mpi::type::get<NodeID>(), c_node_distribution.data(), 1, mpi::type::get<GlobalNodeID>(),
+        graph.communicator()
     );
     std::exclusive_scan(c_node_distribution.begin(), c_node_distribution.end(), c_node_distribution.begin(), 0u);
+    DBG << "Coarse node distribution: [" << c_node_distribution << "]";
 
     // We can now map fine nodes to coarse nodes if their respective cluster is owned by this PE
     // For other nodes, we have to communicate to determine their coarse node ID
@@ -1134,7 +1138,7 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
 
     NavigableLinkedList<NodeID, LocalEdge, scalable_vector> edge_buffer_ets;
 
-    tbb::parallel_for<NodeID>(0, c_n, [&](const NodeID c_u) { 
+    tbb::parallel_for<NodeID>(0, c_n, [&](const NodeID c_u) {
         auto& collector   = collector_ets.local();
         auto& edge_buffer = edge_buffer_ets.local();
         edge_buffer.mark(c_u);
@@ -1214,12 +1218,16 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
     parallel::prefix_sum(c_nodes.begin(), c_nodes.end(), c_nodes.begin());
 
     // Build edge distribution
-    const EdgeID                  c_m = c_nodes.back();
-    scalable_vector<GlobalNodeID> c_edge_distribution(size + 1);
+    const EdgeID c_m = c_nodes.back();
+    DBG << "Number of coarse edges: " << c_m;
+
+    scalable_vector<GlobalEdgeID> c_edge_distribution(size + 1);
     MPI_Allgather(
-        &c_m, 1, mpi::type::get<NodeID>(), c_edge_distribution.data(), 1, mpi::type::get<NodeID>(), graph.communicator()
+        &c_m, 1, mpi::type::get<EdgeID>(), c_edge_distribution.data(), 1, mpi::type::get<GlobalEdgeID>(),
+        graph.communicator()
     );
     std::exclusive_scan(c_edge_distribution.begin(), c_edge_distribution.end(), c_edge_distribution.begin(), 0u);
+    DBG << "Coarse edge distribution: [" << c_edge_distribution << "]";
 
     // Finally, build coarse graph
     auto all_buffered_nodes = ts_navigable_list::combine<NodeID, LocalEdge, scalable_vector>(edge_buffer_ets);
