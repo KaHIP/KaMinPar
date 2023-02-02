@@ -220,7 +220,6 @@ endif ()
 ################################################################################
 
 add_library(KaMinPar::KaMinPar ALIAS shm_partitioner_base)
-
 if (KAMINPAR_DISTRIBUTED)
     add_library(KaMinPar::dKaMinPar ALIAS dist_partitioner_base)
 endif ()
