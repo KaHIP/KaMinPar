@@ -111,7 +111,7 @@ TEST(ClusterContractionTest, contract_global_complete_graph_to_single_node) {
     const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
     const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
 
-    for (const NodeID nodes_per_pe: {1}) {
+    for (const NodeID nodes_per_pe: {1, 5, 10}) {
         const auto       graph = make_global_complete_graph(nodes_per_pe);
         GlobalClustering clustering(graph.total_n(), 0);
         const auto [c_graph, c_mapping] = contract_clustering(graph, clustering);
@@ -133,14 +133,13 @@ TEST(ClusterContractionTest, contract_global_complete_graph_to_one_node_per_pe) 
     const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
     const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
 
-    for (const NodeID nodes_per_pe: {1}) {
+    for (const NodeID nodes_per_pe: {1, 5, 10}) {
         const auto       graph = make_global_complete_graph(nodes_per_pe);
         GlobalClustering clustering(graph.total_n());
         graph.pfor_all_nodes([&](const NodeID u) {
             const PEID pe = graph.is_owned_node(u) ? rank : graph.ghost_owner(u);
             clustering[u] = graph.offset_n(pe);
         });
-        DLOG << "Clustering: " << clustering;
         const auto [c_graph, c_mapping] = contract_clustering(graph, clustering);
 
         EXPECT_EQ(c_graph.global_n(), size);
@@ -151,6 +150,40 @@ TEST(ClusterContractionTest, contract_global_complete_graph_to_one_node_per_pe) 
 
         EXPECT_EQ(c_graph.node_weight(0), nodes_per_pe);
         EXPECT_THAT(c_graph.edge_weights(), Each(Eq(nodes_per_pe * nodes_per_pe)));
+    }
+}
+
+TEST(ClusterContractionTest, keep_global_complete_graph) {
+    for (const NodeID nodes_per_pe: {1, 5, 10}) {
+        const auto       graph = make_global_complete_graph(nodes_per_pe);
+        GlobalClustering clustering(graph.total_n());
+        graph.pfor_all_nodes([&](const NodeID u) { clustering[u] = graph.local_to_global_node(u); });
+        const auto [c_graph, c_mapping] = contract_clustering(graph, clustering);
+
+        EXPECT_EQ(c_graph.global_n(), graph.global_n());
+        EXPECT_EQ(c_graph.global_m(), graph.global_m());
+        EXPECT_EQ(c_graph.n(), graph.n());
+        EXPECT_EQ(c_graph.m(), graph.m());
+        EXPECT_EQ(c_graph.node_weights(), graph.node_weights());
+        EXPECT_EQ(c_graph.edge_weights(), graph.edge_weights());
+    }
+}
+
+TEST(ClusterContractionTest, rotate_global_complete_graph) {
+    for (const NodeID nodes_per_pe: {1, 5, 10}) {
+        const auto       graph = make_global_complete_graph(nodes_per_pe);
+        GlobalClustering clustering(graph.total_n());
+        graph.pfor_all_nodes([&](const NodeID u) {
+            clustering[u] = (graph.local_to_global_node(u) + 1) % graph.global_n();
+        });
+        const auto [c_graph, c_mapping] = contract_clustering(graph, clustering);
+
+        EXPECT_EQ(c_graph.global_n(), graph.global_n());
+        EXPECT_EQ(c_graph.global_m(), graph.global_m());
+        EXPECT_EQ(c_graph.n(), graph.n());
+        EXPECT_EQ(c_graph.m(), graph.m());
+        EXPECT_EQ(c_graph.node_weights(), graph.node_weights());
+        EXPECT_EQ(c_graph.edge_weights(), graph.edge_weights());
     }
 }
 } // namespace kaminpar::dist

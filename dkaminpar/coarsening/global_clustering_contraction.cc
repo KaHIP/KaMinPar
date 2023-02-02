@@ -875,7 +875,13 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
         return lhs.u < rhs.u;
     });
 
+    std::stringstream sse;
+    for (const auto& edge: local_edges)
+        sse << " {" << edge.u << ", " << edge.v << ", " << edge.weight << "}";
+    DBG << "Received edges: " << sse.str();
+
     // Exchange nodes
+
     NoinitVector<Node> local_nodes;
     std::vector<int>   local_nodes_sendcounts(size);
     std::vector<int>   local_nodes_sdispls(size);
@@ -889,12 +895,23 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
     );
     std::exclusive_scan(local_nodes_recvcounts.begin(), local_nodes_recvcounts.end(), local_nodes_rdispls.begin(), 0);
 
+    std::stringstream ssnn;
+    for (const auto& node: nonlocal_nodes)
+        ssnn << " {" << node.u << ", " << node.weight << "}";
+    DBG << "Sending nodes: " << ssnn.str() << " ::: sendcounts=[" << local_nodes_sendcounts << "], recvcounts=["
+        << local_nodes_recvcounts << "]";
+
     local_nodes.resize(local_nodes_rdispls.back() + local_nodes_recvcounts.back());
     MPI_Alltoallv(
         nonlocal_nodes.data(), local_nodes_sendcounts.data(), local_nodes_sdispls.data(), mpi::type::get<Node>(),
         local_nodes.data(), local_nodes_recvcounts.data(), local_nodes_rdispls.data(), mpi::type::get<Node>(),
         graph.communicator()
     );
+
+    std::stringstream ssn;
+    for (const auto& node: local_nodes)
+        ssn << " {" << node.u << ", " << node.weight << "}";
+    DBG << "Received nodes: " << ssn.str();
 
     //
     // Next, build the coarse node distribution
@@ -1091,9 +1108,11 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
         },
         [&] {
             tbb::parallel_for<std::size_t>(0, local_edges.size(), [&](const std::size_t i) {
+                const NodeID local_cluster = static_cast<NodeID>(local_edges[i].u - graph.offset_n());
+                const NodeID c_u           = cluster_mapping[local_cluster];
+                local_edges[i].u           = c_u;
+
                 if (i == 0 || local_edges[i].u != local_edges[i - 1].u) {
-                    const NodeID local_cluster = static_cast<NodeID>(local_edges[i].u - graph.offset_n());
-                    const NodeID c_u           = cluster_mapping[local_cluster];
                     __atomic_fetch_add(&buckets_position_buffer[c_u], 1, __ATOMIC_RELAXED);
                 }
             });
@@ -1119,9 +1138,7 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
         [&] {
             tbb::parallel_for<std::size_t>(0, local_edges.size(), [&](const std::size_t i) {
                 if (i == 0 || local_edges[i].u != local_edges[i - 1].u) {
-                    const NodeID local_cluster = static_cast<NodeID>(local_edges[i].u - graph.offset_n());
-                    const NodeID c_u           = cluster_mapping[local_cluster];
-
+                    const NodeID      c_u = local_edges[i].u;
                     const std::size_t pos = __atomic_fetch_sub(&buckets_position_buffer[c_u], 1, __ATOMIC_RELAXED);
                     buckets[pos - 1]      = graph.n() + i;
                 }
@@ -1227,7 +1244,7 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
 
     tbb::parallel_for<std::size_t>(0, local_nodes.size(), [&](const std::size_t i) {
         const NodeID c_u = cluster_mapping[local_nodes[i].u - graph.offset_n()];
-        c_node_weights[c_u] += local_nodes[i].weight;
+        __atomic_fetch_add(&c_node_weights[c_u], local_nodes[i].weight, __ATOMIC_RELAXED);
     });
 
     parallel::prefix_sum(c_nodes.begin(), c_nodes.end(), c_nodes.begin());
