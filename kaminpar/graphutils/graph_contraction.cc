@@ -111,7 +111,7 @@ Result contract_generic_clustering(const Graph& graph, const Clustering& cluster
     //
     NavigableLinkedList<NodeID, Edge, scalable_vector> edge_buffer_ets;
 
-    START_TIMER("Graph construction");
+    START_TIMER("Construct coarse edges");
     tbb::parallel_for(tbb::blocked_range<NodeID>(0, c_n), [&](const auto& r) {
         auto& local_collector   = collector.local();
         auto& local_edge_buffer = edge_buffer_ets.local();
@@ -183,7 +183,7 @@ Result contract_generic_clustering(const Graph& graph, const Clustering& cluster
     STOP_TIMER();
 
     // build coarse graph
-    START_TIMER("Graph construction");
+    START_TIMER("Construct coarse graph");
     tbb::parallel_for(static_cast<NodeID>(0), c_n, [&](const NodeID i) {
         const auto&  marker = all_buffered_nodes[i];
         const auto*  list   = marker.local_list;
