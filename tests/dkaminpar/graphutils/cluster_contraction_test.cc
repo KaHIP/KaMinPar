@@ -42,11 +42,11 @@ TEST(ClusterContractionTest, contract_local_edge) {
     EXPECT_EQ(c_graph.node_weight(0), 2);
 }
 
-TEST(ClusterContractionTest, contract_local_clique) {
+TEST(ClusterContractionTest, contract_local_complete_graph) {
     const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
 
     for (const NodeID clique_size: {1, 5, 10}) {
-        const auto graph = make_local_clique_graph(clique_size);
+        const auto graph = make_local_complete_graph(clique_size);
 
         GlobalClustering clustering(clique_size, graph.offset_n());
         auto [c_graph, c_mapping] = contract_clustering(graph, clustering);
@@ -104,6 +104,53 @@ TEST(ClusterContractionTest, contract_local_complete_bipartite_graph_horizontall
 
         ASSERT_EQ(c_graph.m(), set_size * (set_size - 1));
         EXPECT_THAT(c_graph.edge_weights(), Each(Eq(2)));
+    }
+}
+
+TEST(ClusterContractionTest, contract_global_complete_graph_to_single_node) {
+    const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
+    const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
+
+    for (const NodeID nodes_per_pe: {1}) {
+        const auto       graph = make_global_complete_graph(nodes_per_pe);
+        GlobalClustering clustering(graph.total_n(), 0);
+        const auto [c_graph, c_mapping] = contract_clustering(graph, clustering);
+
+        EXPECT_EQ(c_graph.global_n(), 1);
+        EXPECT_EQ(c_graph.global_m(), 0);
+        EXPECT_EQ(c_graph.m(), 0);
+
+        if (rank == 0) {
+            ASSERT_EQ(c_graph.n(), 1);
+            EXPECT_EQ(c_graph.node_weight(0), nodes_per_pe * size);
+        } else {
+            EXPECT_EQ(c_graph.n(), 0);
+        }
+    }
+}
+
+TEST(ClusterContractionTest, contract_global_complete_graph_to_one_node_per_pe) {
+    const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
+    const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
+
+    for (const NodeID nodes_per_pe: {1}) {
+        const auto       graph = make_global_complete_graph(nodes_per_pe);
+        GlobalClustering clustering(graph.total_n());
+        graph.pfor_all_nodes([&](const NodeID u) {
+            const PEID pe = graph.is_owned_node(u) ? rank : graph.ghost_owner(u);
+            clustering[u] = graph.offset_n(pe);
+        });
+        DLOG << "Clustering: " << clustering;
+        const auto [c_graph, c_mapping] = contract_clustering(graph, clustering);
+
+        EXPECT_EQ(c_graph.global_n(), size);
+        EXPECT_EQ(c_graph.global_m(), size * (size - 1));
+
+        ASSERT_EQ(c_graph.n(), 1);
+        ASSERT_EQ(c_graph.m(), size - 1);
+
+        EXPECT_EQ(c_graph.node_weight(0), nodes_per_pe);
+        EXPECT_THAT(c_graph.edge_weights(), Each(Eq(nodes_per_pe * nodes_per_pe)));
     }
 }
 } // namespace kaminpar::dist

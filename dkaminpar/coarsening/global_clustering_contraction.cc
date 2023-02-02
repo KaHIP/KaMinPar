@@ -708,7 +708,7 @@ DistributedPartitionedGraph project_global_contracted_graph(
 }
 
 ContractionResult contract_clustering(const DistributedGraph& graph, const GlobalClustering& clustering) {
-    SET_DEBUG(false);
+    SET_DEBUG(true);
 
     const PEID size = mpi::get_comm_size(graph.communicator());
     const PEID rank = mpi::get_comm_rank(graph.communicator());
@@ -891,8 +891,8 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
 
     local_nodes.resize(local_nodes_rdispls.back() + local_nodes_recvcounts.back());
     MPI_Alltoallv(
-        nonlocal_nodes.data(), local_nodes_sendcounts.data(), local_nodes_sdispls.data(), mpi::type::get<Edge>(),
-        local_nodes.data(), local_nodes_recvcounts.data(), local_nodes_rdispls.data(), mpi::type::get<Edge>(),
+        nonlocal_nodes.data(), local_nodes_sendcounts.data(), local_nodes_sdispls.data(), mpi::type::get<Node>(),
+        local_nodes.data(), local_nodes_recvcounts.data(), local_nodes_rdispls.data(), mpi::type::get<Node>(),
         graph.communicator()
     );
 
@@ -919,7 +919,7 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
         [&] {
             tbb::parallel_for<std::size_t>(0, local_nodes.size(), [&](const std::size_t i) {
                 const GlobalNodeID c_u = local_nodes[i].u;
-                KASSERT(graph.is_owned_global_node(c_u));
+                KASSERT(graph.is_owned_global_node(c_u), V(c_u));
                 const NodeID local_cluster = static_cast<NodeID>(c_u - graph.offset_n());
                 __atomic_store_n(&cluster_mapping[local_cluster], 1, __ATOMIC_RELAXED);
             });
@@ -1046,7 +1046,7 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
         for (std::size_t i = 0; i < my_mapping_requests[pe].size(); ++i) {
             const GlobalNodeID global = their_mapping_responses[pe][i];
             const NodeID       local  = next_index_for_pe[pe] + i;
-            c_global_to_ghost.insert(global + 1, local);
+            c_global_to_ghost.insert(global + 1, c_n + local);
             c_ghost_to_global[local] = global;
             c_ghost_owner[local]     = pe;
         }
@@ -1169,12 +1169,19 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
                     } else {
                         auto& handle = nonlocal_cluster_filter_handle_ets.local();
                         auto  it     = handle.find(cluster + 1);
+                        DBG << "Edge to ghost cluster " << cluster << ": "
+                            << (it != handle.end() ? "FOUND" : "NOT-FOUND");
                         if (it != handle.end()) {
                             const std::size_t  index           = (*it).second - 1;
                             const PEID         owner           = graph.find_owner_of_global_node(cluster);
                             const GlobalNodeID c_ghost_node    = their_mapping_responses[owner][index];
                             auto               c_local_node_it = c_global_to_ghost.find(c_ghost_node + 1);
                             const NodeID       c_local_node    = (*c_local_node_it).second;
+
+                            DBG << " --> index " << index << ", owner " << owner << ", ghost node " << c_ghost_node
+                                << " and local node " << c_local_node << " (from " << c_u << ") --> "
+                                << (c_local_node != c_u ? "ADD" : "REJECT-SELF-LOOP");
+
                             if (c_local_node != c_u) {
                                 map[c_local_node] += weight;
                             }

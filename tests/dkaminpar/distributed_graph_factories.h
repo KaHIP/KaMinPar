@@ -114,7 +114,7 @@ inline DistributedGraph make_isolated_edges_graph(const NodeID num_edges_per_pe)
     return builder.finalize();
 }
 
-inline DistributedGraph make_local_clique_graph(const NodeID num_nodes_per_pe) {
+inline DistributedGraph make_local_complete_graph(const NodeID num_nodes_per_pe) {
     const PEID         rank = mpi::get_comm_rank(MPI_COMM_WORLD);
     const GlobalNodeID n0   = rank * num_nodes_per_pe;
 
@@ -145,6 +145,25 @@ inline DistributedGraph make_local_complete_bipartite_graph(const NodeID set_siz
                 builder.create_edge(1, n0 + set_size_per_pe + v);
             } else {
                 builder.create_edge(1, n0 + v);
+            }
+        }
+    }
+    return builder.finalize();
+}
+
+inline DistributedGraph make_global_complete_graph(const NodeID nodes_per_pe) {
+    const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
+    const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
+    const GlobalNodeID n0 = rank * nodes_per_pe;
+
+    graph::Builder builder(MPI_COMM_WORLD);
+    builder.initialize(nodes_per_pe);
+    for (NodeID u = 0; u < nodes_per_pe; ++u) {
+        builder.create_node(1);
+
+        for (GlobalNodeID v = 0; v < static_cast<GlobalNodeID>(size * nodes_per_pe); ++v) {
+            if (n0 + u != v) {
+                builder.create_edge(1, v);
             }
         }
     }
