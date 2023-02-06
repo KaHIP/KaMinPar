@@ -147,6 +147,15 @@ void update_ghost_node_weights(DistributedGraph& graph) {
         }
     );
 }
+
+template <typename T>
+scalable_vector<T> build_distribution(const T count, MPI_Comm comm) {
+    const PEID         size = mpi::get_comm_size(comm);
+    scalable_vector<T> distribution(size + 1);
+    MPI_Allgather(&count, 1, mpi::type::get<NodeID>(), distribution.data(), 1, mpi::type::get<GlobalNodeID>(), comm);
+    std::exclusive_scan(distribution.begin(), distribution.end(), distribution.begin(), 0u);
+    return distribution;
+}
 } // namespace
 
 ContractionResult contract_clustering(const DistributedGraph& graph, const GlobalClustering& clustering) {
@@ -291,22 +300,14 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
     parallel::prefix_sum(cluster_mapping.begin(), cluster_mapping.end(), cluster_mapping.begin());
     STOP_TIMER();
 
-    // Number of coarse nodes on this PE:
-    const NodeID c_n = cluster_mapping.empty() ? 0 : cluster_mapping.back();
-    DBG << "Number of coarse nodes: " << c_n;
+    tbb::parallel_for<std::size_t>(0, cluster_mapping.size(), [&](const std::size_t i) { cluster_mapping[i] -= 1; });
 
     // Make cluster IDs start at 0
     START_TIMER("Build coarse node distribution");
-    tbb::parallel_for<std::size_t>(0, cluster_mapping.size(), [&](const std::size_t i) { cluster_mapping[i] -= 1; });
-
-    scalable_vector<GlobalNodeID> c_node_distribution(size + 1);
-    MPI_Allgather(
-        &c_n, 1, mpi::type::get<NodeID>(), c_node_distribution.data(), 1, mpi::type::get<GlobalNodeID>(),
-        graph.communicator()
-    );
-    std::exclusive_scan(c_node_distribution.begin(), c_node_distribution.end(), c_node_distribution.begin(), 0u);
-    STOP_TIMER();
+    const NodeID c_n                 = cluster_mapping.empty() ? 0 : cluster_mapping.back() + 1;
+    auto         c_node_distribution = build_distribution<GlobalNodeID>(c_n, graph.communicator());
     DBG << "Coarse node distribution: [" << c_node_distribution << "]";
+    STOP_TIMER();
 
     START_TIMER("Exchange mapping of migrated nodes");
     struct NodeMapping {
@@ -655,15 +656,8 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
 
     // Build edge distribution
     START_TIMER("Build coarse edge distribution");
-    const EdgeID c_m = c_nodes.back();
-    DBG << "Number of coarse edges: " << c_m;
-
-    scalable_vector<GlobalEdgeID> c_edge_distribution(size + 1);
-    MPI_Allgather(
-        &c_m, 1, mpi::type::get<EdgeID>(), c_edge_distribution.data(), 1, mpi::type::get<GlobalEdgeID>(),
-        graph.communicator()
-    );
-    std::exclusive_scan(c_edge_distribution.begin(), c_edge_distribution.end(), c_edge_distribution.begin(), 0u);
+    const EdgeID c_m                 = c_nodes.back();
+    auto         c_edge_distribution = build_distribution<GlobalEdgeID>(c_m, graph.communicator());
     DBG << "Coarse edge distribution: [" << c_edge_distribution << "]";
     STOP_TIMER();
 
