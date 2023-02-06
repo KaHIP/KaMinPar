@@ -28,8 +28,9 @@
 
 namespace kaminpar::dist {
 using namespace helper;
-
 namespace {
+SET_DEBUG(false);
+
 /*!
  * Sparse all-to-all to exchange coarse node IDs of ghost nodes.
  * @param graph
@@ -62,7 +63,7 @@ void exchange_ghost_node_mapping(const DistributedGraph& graph, LabelMapping& la
     );
 }
 
-using UsedClustersMap    = growt::GlobalNodeIDMap<GlobalNodeID>;
+using UsedClustersMap    = tbb::concurrent_hash_map<NodeID, NodeID>;
 using UsedClustersVector = scalable_vector<NodeID>;
 
 /*!
@@ -83,62 +84,39 @@ template <typename ResolveClusterCallback, typename Clustering>
 std::pair<std::vector<UsedClustersMap>, std::vector<UsedClustersVector>> find_used_cluster_ids_per_pe(
     const DistributedGraph& graph, const Clustering& clustering, ResolveClusterCallback&& resolve_cluster_callback
 ) {
-    SCOPED_TIMER("find_used_cluster_ids_per_pe()");
+    SCOPED_TIMER("Find used cluster IDs per PE");
 
     const auto size = mpi::get_comm_size(graph.communicator());
 
     // mark global node IDs that are used as cluster IDs
-    std::vector<UsedClustersMap> used_clusters_map;
-    used_clusters_map.reserve(size);
-    for (PEID pe = 0; pe < size; ++pe) {
-        used_clusters_map.emplace_back(0);
-    }
-
+    std::vector<UsedClustersMap>          used_clusters_map(size);
     std::vector<parallel::Atomic<NodeID>> next_slot_for_pe(size);
 
-    tbb::enumerable_thread_specific<std::vector<UsedClustersMap::handle_type>> used_clusters_map_handles([&] {
-        std::vector<UsedClustersMap::handle_type> handles;
-        handles.reserve(size);
-        for (PEID pe = 0; pe < size; ++pe) {
-            handles.push_back(used_clusters_map[pe].get_handle());
-        }
-        return handles;
-    });
-
-    parallel::vector_ets<std::size_t> size_ets(size);
-
     graph.pfor_nodes_range([&](const auto r) {
-        auto& handles = used_clusters_map_handles.local();
-        auto& size    = size_ets.local();
+        tbb::concurrent_hash_map<NodeID, NodeID>::accessor accessor;
 
         for (NodeID u = r.begin(); u != r.end(); ++u) {
             const GlobalNodeID u_cluster                  = clustering[u];
             const auto [u_cluster_owner, u_local_cluster] = resolve_cluster_callback(u_cluster);
 
-            auto [it, new_element] = handles[u_cluster_owner].insert(u_local_cluster + 1, 1);
-            if (new_element) {
-                handles[u_cluster_owner].update(u_local_cluster + 1, [&, u_cluster_owner = u_cluster_owner](auto& lhs) {
-                    return lhs = 1 + next_slot_for_pe[u_cluster_owner]++;
-                });
-                ++size[u_cluster_owner];
+            if (used_clusters_map[u_cluster_owner].insert(accessor, u_local_cluster)) {
+                accessor->second = next_slot_for_pe[u_cluster_owner]++;
             }
         }
     });
 
-    std::vector<UsedClustersVector> used_clusters(size);
-
-    auto sizes = size_ets.combine(std::plus{});
+    // used_clusters_vec[pe] holds local node IDs of PE pe that are used as cluster IDs on this PE
+    std::vector<UsedClustersVector> used_clusters_vec(size);
     tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
-        used_clusters[pe].resize(sizes[pe]);
-        auto handle = used_clusters_map[pe].get_handle();
-        auto it     = handle.range(0, handle.capacity());
-        while (it != handle.range_end()) {
-            used_clusters[pe][(*it).second - 1] = (*it).first - 1;
-            ++it;
-        }
+        used_clusters_vec[pe].resize(used_clusters_map[pe].size());
+        tbb::parallel_for(used_clusters_map[pe].range(), [&](const auto r) {
+            for (auto it = r.begin(); it != r.end(); ++it) {
+                used_clusters_vec[pe][it->second] = it->first;
+            }
+        });
     });
 
-    return {std::move(used_clusters_map), std::move(used_clusters)};
+    return {std::move(used_clusters_map), std::move(used_clusters_vec)};
 }
 
 // global mapping, global number of coarse nodes
@@ -164,9 +142,6 @@ MappingResult compute_mapping(
     const auto size = mpi::get_comm_size(graph.communicator());
     const auto rank = mpi::get_comm_rank(graph.communicator());
 
-    SCOPED_TIMER("first");
-
-    START_TIMER("find_used_cluster_ids_per_pe");
     auto used_clusters = find_used_cluster_ids_per_pe(graph, clustering, [&](const GlobalNodeID cluster) {
         if (graph.is_owned_global_node(cluster)) {
             return std::make_pair(rank, graph.global_to_local_node(cluster));
@@ -176,23 +151,12 @@ MappingResult compute_mapping(
             return std::make_pair(owner, local);
         }
     });
-    STOP_TIMER();
 
-    SCOPED_TIMER("second");
-
-    START_TIMER("bind references");
     auto& used_clusters_map = used_clusters.first;
     auto& used_clusters_vec = used_clusters.second;
-    STOP_TIMER();
-
-    SCOPED_TIMER("third");
 
     // send each PE its local node IDs that are used as cluster IDs somewhere
-    START_TIMER("sparse_alltoall_get");
     const auto in_msg = mpi::sparse_alltoall_get<NodeID>(std::move(used_clusters_vec), graph.communicator());
-    STOP_TIMER();
-
-    SCOPED_TIMER("rest of the function");
 
     // map local labels to consecutive coarse node IDs
     scalable_vector<parallel::Atomic<GlobalNodeID>> label_mapping(graph.total_n());
@@ -203,7 +167,6 @@ MappingResult compute_mapping(
     parallel::prefix_sum(label_mapping.begin(), label_mapping.end(), label_mapping.begin());
 
     const NodeID c_n = label_mapping.empty() ? 0 : static_cast<NodeID>(label_mapping.back());
-    DBG << "Number of coarse nodes: " << c_n;
 
     // send mapping to other PEs that use cluster IDs from this PE -- i.e., answer in_msg
     std::vector<scalable_vector<NodeID>> out_msg(size);
@@ -225,7 +188,6 @@ MappingResult compute_mapping(
     scalable_vector<GlobalNodeID> pe_overload{};
     scalable_vector<GlobalNodeID> pe_underload{};
 
-    SCOPED_TIMER("C");
     if (migrate_nodes) {
         const GlobalNodeID global_c_n = c_distribution.back();
         perfect_distribution          = create_perfect_distribution_from_global_count(global_c_n, graph.communicator());
@@ -254,15 +216,6 @@ MappingResult compute_mapping(
         parallel::prefix_sum(pe_underload_tmp.begin(), pe_underload_tmp.end(), pe_underload.begin() + 1);
     }
 
-    tbb::enumerable_thread_specific<std::vector<UsedClustersMap::handle_type>> used_clusters_ets([&] {
-        std::vector<UsedClustersMap::handle_type> handles;
-        handles.reserve(size);
-        for (PEID pe = 0; pe < size; ++pe) {
-            handles.push_back(used_clusters_map[pe].get_handle());
-        }
-        return handles;
-    });
-
     // now  we use label_mapping as a [fine node -> coarse node] mapping of local nodes on this PE -- and extend it
     // for ghost nodes in the next step
     // all cluster[.] labels are stored in label_remap, thus we can overwrite label_mapping
@@ -279,11 +232,11 @@ MappingResult compute_mapping(
             u_local_cluster = static_cast<NodeID>(u_cluster - graph.offset_n(u_cluster_owner));
         }
 
-        auto& handles = used_clusters_ets.local();
-        auto  it      = handles[u_cluster_owner].find(u_local_cluster + 1);
-        KASSERT(it != handles[u_cluster_owner].end());
+        tbb::concurrent_hash_map<NodeID, NodeID>::accessor accessor;
+        [[maybe_unused]] const bool found = used_clusters_map[u_cluster_owner].find(accessor, u_local_cluster);
+        KASSERT(found, V(u_local_cluster) << V(u_cluster_owner) << V(u) << V(u_cluster));
 
-        const NodeID slot_in_msg = (*it).second - 1;
+        const NodeID slot_in_msg = accessor->second;
         const NodeID label       = label_remap[u_cluster_owner][slot_in_msg];
 
         if (migrate_nodes) {
@@ -317,7 +270,6 @@ MappingResult compute_mapping(
         c_distribution = std::move(perfect_distribution);
     }
 
-    SCOPED_TIMER("end");
     return {std::move(label_mapping), std::move(c_distribution)};
 }
 
@@ -589,7 +541,6 @@ GlobalContractionResult contract_global_clustering(
     }
     __builtin_unreachable();
 }
-
 /*!
  * Projects the partition of the coarse graph onto the fine graph. Works for any graph contraction variations.
  * @param fine_graph The distributed fine graph.
@@ -636,31 +587,20 @@ DistributedPartitionedGraph project_global_contracted_graph(
     STOP_TIMER();
 
     // exchange messages and use used_coarse_nodes_map to store block IDs
-    tbb::enumerable_thread_specific<std::vector<UsedClustersMap::handle_type>> used_coarse_nodes_ets([&] {
-        std::vector<UsedClustersMap::handle_type> handles;
-        handles.reserve(size);
-        for (PEID pe = 0; pe < size; ++pe) {
-            handles.push_back(used_coarse_nodes_map[pe].get_handle());
-        }
-        return handles;
-    });
-
     static_assert(std::numeric_limits<BlockID>::digits <= std::numeric_limits<NodeID>::digits);
     mpi::sparse_alltoall<BlockID>(
         std::move(resps),
         [&](const auto buffer, const PEID pe) {
             tbb::parallel_for<std::size_t>(0, buffer.size(), [&](const std::size_t i) {
-                auto& handles = used_coarse_nodes_ets.local();
-
                 KASSERT(static_cast<std::size_t>(pe) < used_coarse_nodes_map.size());
                 KASSERT(static_cast<std::size_t>(pe) < reqs.size());
                 KASSERT(i < used_coarse_nodes_vec[pe].size());
 
-                const auto [it, found] = handles[pe].update(
-                    used_coarse_nodes_vec[pe][i] + 1, [&](auto& lhs, const auto rhs) { return lhs = rhs; },
-                    buffer[i] + 1
-                );
+                UsedClustersMap::accessor   accessor;
+                [[maybe_unused]] const bool found =
+                    used_coarse_nodes_map[pe].find(accessor, used_coarse_nodes_vec[pe][i]);
                 KASSERT(found);
+                accessor->second = buffer[i];
             });
         },
         fine_graph.communicator()
@@ -675,12 +615,11 @@ DistributedPartitionedGraph project_global_contracted_graph(
     fine_graph.pfor_nodes([&](const NodeID u) {
         const auto [owner, local] = resolve_coarse_node(fine_to_coarse[u]);
 
-        auto& handles = used_coarse_nodes_ets.local();
+        UsedClustersMap::accessor   accessor;
+        [[maybe_unused]] const bool found = used_coarse_nodes_map[owner].find(accessor, local);
+        KASSERT(found);
 
-        auto it = handles[owner].find(local + 1);
-        KASSERT(it != handles[owner].end());
-
-        fine_partition[u] = (*it).second - 1;
+        fine_partition[u] = accessor->second;
     });
     STOP_TIMER();
 
