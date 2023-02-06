@@ -69,17 +69,17 @@ const DistributedGraph* Coarsener::coarsen_once_global(const GlobalNodeWeight ma
         return graph;
     }
 
-    auto [c_graph, mapping] =
-        contract_global_clustering(*graph, clustering, _input_ctx.coarsening.global_contraction_algorithm);
-    KASSERT(graph::debug::validate(c_graph), "", assert::heavy);
-    DBG << "Reduced number of nodes from " << graph->global_n() << " to " << c_graph.global_n();
+    auto result = contract_global_clustering(*graph, clustering, _input_ctx.coarsening.global_contraction_algorithm);
+    KASSERT(graph::debug::validate(result.graph), "", assert::heavy);
+    DBG << "Reduced number of nodes from " << graph->global_n() << " to " << result.graph.global_n();
 
     // only keep graph if coarsening has not converged yet
-    if (!has_converged(*graph, c_graph)) {
+    if (!has_converged(*graph, result.graph)) {
         DBG << "... success";
 
-        _graph_hierarchy.push_back(std::move(c_graph));
-        _global_mapping_hierarchy.push_back(std::move(mapping));
+        _graph_hierarchy.push_back(std::move(result.graph));
+        _global_mapping_hierarchy.push_back(std::move(result.mapping));
+        _node_migration_history.push_back(std::move(result.migration));
 
         if (_input_ctx.debug.save_clustering_hierarchy) {
             debug::save_global_clustering(clustering, _input_ctx, static_cast<int>(level()));
@@ -145,11 +145,21 @@ DistributedPartitionedGraph Coarsener::uncoarsen_once_local(DistributedPartition
 DistributedPartitionedGraph Coarsener::uncoarsen_once_global(DistributedPartitionedGraph&& p_graph) {
     const DistributedGraph* new_coarsest = nth_coarsest(1);
 
-    p_graph = project_global_contracted_graph(*new_coarsest, std::move(p_graph), _global_mapping_hierarchy.back());
+    if (_input_ctx.coarsening.global_contraction_algorithm == GlobalContractionAlgorithm::V2) {
+        // @todo get rid of the copy
+        auto&                      mapping = _global_mapping_hierarchy.back();
+        NoinitVector<GlobalNodeID> mapping_cpy(mapping.size());
+        tbb::parallel_for<std::size_t>(0, mapping.size(), [&](const std::size_t i) { mapping_cpy[i] = mapping[i]; });
+
+        p_graph = project_partition(*new_coarsest, std::move(p_graph), mapping_cpy, _node_migration_history.back());
+    } else {
+        p_graph = project_global_contracted_graph(*new_coarsest, std::move(p_graph), _global_mapping_hierarchy.back());
+    }
     KASSERT(graph::debug::validate_partition(p_graph), "", assert::heavy);
 
     _graph_hierarchy.pop_back();
     _global_mapping_hierarchy.pop_back();
+    _node_migration_history.pop_back();
 
     // if pop_back() on _graph_hierarchy caused a reallocation, the graph pointer in p_graph dangles
     p_graph.UNSAFE_set_graph(coarsest());

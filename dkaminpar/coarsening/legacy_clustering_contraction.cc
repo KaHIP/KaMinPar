@@ -481,7 +481,7 @@ contract_global_clustering_no_migration(const DistributedGraph& graph, const Glo
     auto c_graph                 = build_coarse_graph(graph, mapping, std::move(distribution));
     update_ghost_node_weights(c_graph);
 
-    return {std::move(c_graph), std::move(mapping)};
+    return {std::move(c_graph), std::move(mapping), {}};
 }
 
 //! Contract a distributed graph such that *most* coarse nodes are owned by the PE which owned the respective cluster
@@ -494,7 +494,7 @@ contract_global_clustering_minimal_migration(const DistributedGraph& graph, cons
     auto c_graph                 = build_coarse_graph(graph, mapping, std::move(distribution));
     update_ghost_node_weights(c_graph);
 
-    return {std::move(c_graph), std::move(mapping)};
+    return {std::move(c_graph), std::move(mapping), {}};
 }
 
 //! Contract a distributed graph such that each PE owns the same number of coarse nodes by assigning coarse nodes
@@ -517,7 +517,7 @@ contract_global_clustering_full_migration(const DistributedGraph& graph, const G
 
     update_ghost_node_weights(c_graph);
 
-    return {std::move(c_graph), std::move(mapping)};
+    return {std::move(c_graph), std::move(mapping), {}};
 }
 
 GlobalContractionResult contract_global_clustering(
@@ -533,10 +533,10 @@ GlobalContractionResult contract_global_clustering(
         case GlobalContractionAlgorithm::FULL_MIGRATION:
             return contract_global_clustering_full_migration(graph, clustering);
         case GlobalContractionAlgorithm::V2: {
-            auto [c_graph, c_mapping] = contract_clustering(graph, clustering);
+            auto [c_graph, c_mapping, migration] = contract_clustering(graph, clustering);
             GlobalMapping c_mapping2(c_mapping.size());
             std::copy(c_mapping.begin(), c_mapping.end(), c_mapping2.begin());
-            return {std::move(c_graph), std::move(c_mapping2)};
+            return {std::move(c_graph), std::move(c_mapping2), std::move(migration)};
         }
     }
     __builtin_unreachable();

@@ -13,11 +13,22 @@
 namespace kaminpar::dist {
 using GlobalClustering = scalable_vector<parallel::Atomic<GlobalNodeID>>;
 
+struct MigratedNodes {
+    NoinitVector<NodeID> nodes;
+    NoinitVector<NodeID> partition;
+};
+
 struct ContractionResult {
     DistributedGraph           graph;
     NoinitVector<GlobalNodeID> mapping;
+    MigratedNodes              migration;
 };
 
 ContractionResult contract_clustering(const DistributedGraph& graph, const GlobalClustering& clustering);
+
+DistributedPartitionedGraph project_partition(
+    const DistributedGraph& graph, DistributedPartitionedGraph p_c_graph, const NoinitVector<GlobalNodeID>& c_mapping,
+    const MigratedNodes& migration
+);
 } // namespace kaminpar::dist
 

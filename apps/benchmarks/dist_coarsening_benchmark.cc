@@ -65,8 +65,7 @@ int main(int argc, char* argv[]) {
         LOG << "... contracting";
 
         START_TIMER("Contraction", "Level " + std::to_string(graph_hierarchy.size()));
-        auto [contracted_graph, mapping] =
-            contract_global_clustering(*c_graph, clustering, ctx.coarsening.global_contraction_algorithm);
+        auto result = contract_global_clustering(*c_graph, clustering, ctx.coarsening.global_contraction_algorithm);
         STOP_TIMER();
         dist::graph::debug::validate(contracted_graph);
 

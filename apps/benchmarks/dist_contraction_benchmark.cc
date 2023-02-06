@@ -64,8 +64,7 @@ int main(int argc, char* argv[]) {
 
     // Compute coarse graph
     START_TIMER("Contraction");
-    const auto [c_graph, c_mappuing] =
-        contract_global_clustering(graph, clustering, ctx.coarsening.global_contraction_algorithm);
+    const auto result = contract_global_clustering(graph, clustering, ctx.coarsening.global_contraction_algorithm);
     STOP_TIMER();
 
     LOG << "Coarse graph:";

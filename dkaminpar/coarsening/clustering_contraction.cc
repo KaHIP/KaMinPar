@@ -259,6 +259,7 @@ struct MigrationResult {
     NoinitVector<GlobalNode> local_nodes;
     NoinitVector<GlobalEdge> local_edges;
 
+    // Can be re-used for mapping exchange ...
     std::vector<int> node_sendcounts;
     std::vector<int> node_sdispls;
     std::vector<int> node_recvcounts;
@@ -647,7 +648,7 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
                     } else {
                         // Fix node weight later
                         for (std::size_t index = u - graph.n(); local_edges[index].u == c_u; ++index) {
-                            handle_edge(local_edges[index].weight, local_edges[index].v); 
+                            handle_edge(local_edges[index].weight, local_edges[index].v);
                         }
                     }
                 }
@@ -729,6 +730,16 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
     update_ghost_node_weights(c_graph);
     STOP_TIMER();
 
-    return {std::move(c_graph), std::move(lnode_to_gcnode)};
+    return {std::move(c_graph), std::move(lnode_to_gcnode), {}};
+}
+
+DistributedPartitionedGraph project_partition(
+    const DistributedGraph& graph, DistributedPartitionedGraph p_c_graph, const NoinitVector<GlobalNodeID>& c_mapping,
+    const MigratedNodes& migration
+) {
+    ((void)graph);
+    ((void)c_mapping);
+    ((void)migration);
+    return p_c_graph;
 }
 } // namespace kaminpar::dist

@@ -7,6 +7,7 @@
  ******************************************************************************/
 #pragma once
 
+#include "dkaminpar/coarsening/clustering_contraction.h"
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/definitions.h"
@@ -21,6 +22,7 @@ using GlobalClustering = scalable_vector<parallel::Atomic<GlobalNodeID>>;
 struct GlobalContractionResult {
     DistributedGraph graph;
     GlobalMapping    mapping;
+    MigratedNodes    migration;
 };
 
 GlobalContractionResult
