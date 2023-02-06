@@ -156,6 +156,36 @@ scalable_vector<T> build_distribution(const T count, MPI_Comm comm) {
     std::exclusive_scan(distribution.begin(), distribution.end(), distribution.begin(), 0u);
     return distribution;
 }
+
+NoinitVector<NodeID> build_lnode_to_lcnode_mapping(
+    const DistributedGraph& graph, const GlobalClustering& clustering, const NoinitVector<GlobalNode>& local_nodes
+) {
+    NoinitVector<NodeID> cluster_mapping(graph.n());
+    graph.pfor_nodes([&](const NodeID u) { cluster_mapping[u] = 0; });
+    tbb::parallel_invoke(
+        [&] {
+            graph.pfor_nodes([&](const NodeID u) {
+                const GlobalNodeID c_u = clustering[u];
+                if (graph.is_owned_global_node(c_u)) {
+                    const NodeID local_cluster = static_cast<NodeID>(c_u - graph.offset_n());
+                    __atomic_store_n(&cluster_mapping[local_cluster], 1, __ATOMIC_RELAXED);
+                }
+            });
+        },
+        [&] {
+            tbb::parallel_for<std::size_t>(0, local_nodes.size(), [&](const std::size_t i) {
+                const GlobalNodeID c_u = local_nodes[i].u;
+                KASSERT(graph.is_owned_global_node(c_u), V(c_u));
+                const NodeID local_cluster = static_cast<NodeID>(c_u - graph.offset_n());
+                __atomic_store_n(&cluster_mapping[local_cluster], 1, __ATOMIC_RELAXED);
+            });
+        }
+    );
+    parallel::prefix_sum(cluster_mapping.begin(), cluster_mapping.end(), cluster_mapping.begin());
+    tbb::parallel_for<std::size_t>(0, cluster_mapping.size(), [&](const std::size_t i) { cluster_mapping[i] -= 1; });
+
+    return cluster_mapping;
+}
 } // namespace
 
 ContractionResult contract_clustering(const DistributedGraph& graph, const GlobalClustering& clustering) {
@@ -276,31 +306,8 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
     // clustering_mapping[local node ID] = local coarse node ID
     // ```
     START_TIMER("Build mapping");
-    NoinitVector<NodeID> cluster_mapping(graph.n());
-    graph.pfor_nodes([&](const NodeID u) { cluster_mapping[u] = 0; });
-    tbb::parallel_invoke(
-        [&] {
-            graph.pfor_nodes([&](const NodeID u) {
-                const GlobalNodeID c_u = clustering[u];
-                if (graph.is_owned_global_node(c_u)) {
-                    const NodeID local_cluster = static_cast<NodeID>(c_u - graph.offset_n());
-                    __atomic_store_n(&cluster_mapping[local_cluster], 1, __ATOMIC_RELAXED);
-                }
-            });
-        },
-        [&] {
-            tbb::parallel_for<std::size_t>(0, local_nodes.size(), [&](const std::size_t i) {
-                const GlobalNodeID c_u = local_nodes[i].u;
-                KASSERT(graph.is_owned_global_node(c_u), V(c_u));
-                const NodeID local_cluster = static_cast<NodeID>(c_u - graph.offset_n());
-                __atomic_store_n(&cluster_mapping[local_cluster], 1, __ATOMIC_RELAXED);
-            });
-        }
-    );
-    parallel::prefix_sum(cluster_mapping.begin(), cluster_mapping.end(), cluster_mapping.begin());
+    auto cluster_mapping = build_lnode_to_lcnode_mapping(graph, clustering, local_nodes);
     STOP_TIMER();
-
-    tbb::parallel_for<std::size_t>(0, cluster_mapping.size(), [&](const std::size_t i) { cluster_mapping[i] -= 1; });
 
     // Make cluster IDs start at 0
     START_TIMER("Build coarse node distribution");
