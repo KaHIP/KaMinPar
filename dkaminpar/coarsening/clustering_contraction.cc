@@ -7,6 +7,7 @@
 #include "dkaminpar/coarsening/clustering_contraction.h"
 
 #include <tbb/enumerable_thread_specific.h>
+#include <tbb/global_control.h>
 #include <tbb/parallel_for.h>
 #include <tbb/parallel_invoke.h>
 #include <tbb/parallel_sort.h>
@@ -97,7 +98,6 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
         if (!graph.is_owned_global_node(c_u)) {
             // Node
             nonlocal_nodes[node_position_buffer[u]] = {.u = c_u, .weight = graph.node_weight(u)};
-            DBGC(u == 211959) << "Sending nonlocal node " << u << " with cluster " << c_u;
 
             // Edge
             std::size_t pos = edge_position_buffer[u];
@@ -221,14 +221,6 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
         return lhs.u < rhs.u;
     });
 
-    /*if constexpr (kDebug) {
-        std::stringstream ss;
-        for (const auto& edge: local_edges) {
-            ss << " {" << edge.u << ", " << edge.v << ", " << edge.weight << "}";
-        }
-        DBG << "Received edges: " << ss.str();
-    }*/
-
     // Exchange nodes
 
     NoinitVector<Node> local_nodes;
@@ -244,29 +236,12 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
     );
     std::exclusive_scan(local_nodes_recvcounts.begin(), local_nodes_recvcounts.end(), local_nodes_rdispls.begin(), 0);
 
-    /*if constexpr (kDebug) {
-        std::stringstream ss;
-        for (const auto& node: nonlocal_nodes) {
-            ss << " {" << node.u << ", " << node.weight << "}";
-        }
-        DBG << "Sending nodes: " << ss.str() << " ::: sendcounts=[" << local_nodes_sendcounts << "], recvcounts=["
-            << local_nodes_recvcounts << "]";
-    }*/
-
     local_nodes.resize(local_nodes_rdispls.back() + local_nodes_recvcounts.back());
     MPI_Alltoallv(
         nonlocal_nodes.data(), local_nodes_sendcounts.data(), local_nodes_sdispls.data(), mpi::type::get<Node>(),
         local_nodes.data(), local_nodes_recvcounts.data(), local_nodes_rdispls.data(), mpi::type::get<Node>(),
         graph.communicator()
     );
-
-    /*if constexpr (kDebug) {
-        std::stringstream ss;
-        for (const auto& node: local_nodes) {
-            ss << " {" << node.u << ", " << node.weight << "}";
-        }
-        DBG << "Received nodes: " << ss.str();
-    }*/
     STOP_TIMER();
 
     //
@@ -496,6 +471,12 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
     NoinitVector<NodeID> buckets_position_buffer(c_n + 1);
     tbb::parallel_for<NodeID>(0, c_n + 1, [&](const NodeID c_u) { buckets_position_buffer[c_u] = 0; });
 
+    tbb::parallel_for<std::size_t>(0, local_edges.size(), [&](const std::size_t i) {
+        const NodeID local_cluster = static_cast<NodeID>(local_edges[i].u - graph.offset_n());
+        const NodeID c_u           = cluster_mapping[local_cluster];
+        local_edges[i].u           = c_u;
+    });
+
     tbb::parallel_invoke(
         [&] {
             graph.pfor_nodes([&](const NodeID u) {
@@ -510,16 +491,13 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
         },
         [&] {
             tbb::parallel_for<std::size_t>(0, local_edges.size(), [&](const std::size_t i) {
-                const NodeID local_cluster = static_cast<NodeID>(local_edges[i].u - graph.offset_n());
-                const NodeID c_u           = cluster_mapping[local_cluster];
-                local_edges[i].u           = c_u;
-
                 if (i == 0 || local_edges[i].u != local_edges[i - 1].u) {
-                    __atomic_fetch_add(&buckets_position_buffer[c_u], 1, __ATOMIC_RELAXED);
+                    __atomic_fetch_add(&buckets_position_buffer[local_edges[i].u], 1, __ATOMIC_RELAXED);
                 }
             });
         }
     );
+
     parallel::prefix_sum(
         buckets_position_buffer.begin(), buckets_position_buffer.end(), buckets_position_buffer.begin()
     );
