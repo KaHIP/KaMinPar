@@ -15,7 +15,11 @@ using GlobalClustering = scalable_vector<parallel::Atomic<GlobalNodeID>>;
 
 struct MigratedNodes {
     NoinitVector<NodeID> nodes;
-    NoinitVector<NodeID> partition;
+
+    std::vector<int> sendcounts;
+    std::vector<int> sdispls;
+    std::vector<int> recvcounts;
+    std::vector<int> rdispls;
 };
 
 struct ContractionResult {

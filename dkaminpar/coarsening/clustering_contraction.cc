@@ -737,9 +737,63 @@ DistributedPartitionedGraph project_partition(
     const DistributedGraph& graph, DistributedPartitionedGraph p_c_graph, const NoinitVector<GlobalNodeID>& c_mapping,
     const MigratedNodes& migration
 ) {
-    ((void)graph);
-    ((void)c_mapping);
-    ((void)migration);
-    return p_c_graph;
+    struct MigratedNodeBlock {
+        GlobalNodeID gcnode;
+        BlockID      block;
+    };
+    NoinitVector<MigratedNodeBlock> migrated_nodes_sendbuf(migration.nodes.size());
+    NoinitVector<MigratedNodeBlock> migrated_nodes_recvbuf(migration.rdispls.back());
+
+    tbb::parallel_for<std::size_t>(0, migrated_nodes_sendbuf.size(), [&](const std::size_t i) {
+        const NodeID  lnode       = migration.nodes[i];
+        const BlockID block       = p_c_graph.block(lnode);
+        migrated_nodes_sendbuf[i] = {.gcnode = p_c_graph.local_to_global_node(lnode), .block = block};
+    });
+
+    MPI_Alltoallv(
+        migrated_nodes_sendbuf.data(), migration.sendcounts.data(), migration.sdispls.data(),
+        mpi::type::get<MigratedNodeBlock>(), migrated_nodes_recvbuf.data(), migration.recvcounts.data(),
+        migration.rdispls.data(), mpi::type::get<MigratedNodeBlock>(), graph.communicator()
+    );
+
+    scalable_vector<BlockID> partition(graph.total_n());
+
+    tbb::parallel_invoke(
+        [&] {
+            graph.pfor_nodes([&](const NodeID u) {
+                const GlobalNodeID gcnode = c_mapping[u];
+                if (p_c_graph.is_owned_global_node(gcnode)) {
+                    const NodeID lcnode = p_c_graph.global_to_local_node(gcnode);
+                    partition[u]        = p_c_graph.block(lcnode);
+                }
+            });
+        },
+        [&] {
+            // @todo
+        }
+    );
+
+    // Exchange ghost node labels
+    struct GhostNodeLabel {
+        NodeID  local_node_on_sender;
+        BlockID block;
+    };
+
+    mpi::graph::sparse_alltoall_interface_to_pe<GhostNodeLabel>(
+        graph,
+        [&](const NodeID u) -> GhostNodeLabel {
+            return {u, partition[u]};
+        },
+        [&](const auto buffer, const PEID pe) {
+            tbb::parallel_for<std::size_t>(0, buffer.size(), [&](const std::size_t i) {
+                const auto& [local_node_on_sender, block] = buffer[i];
+                const GlobalNodeID global_node            = graph.offset_n(pe) + local_node_on_sender;
+                const NodeID       local_node             = graph.global_to_local_node(global_node);
+                partition[local_node]                     = block;
+            });
+        }
+    );
+
+    return {&graph, p_c_graph.k(), std::move(partition), p_c_graph.take_block_weights()};
 }
 } // namespace kaminpar::dist
