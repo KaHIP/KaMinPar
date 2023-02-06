@@ -88,10 +88,15 @@ TEST(ClusterContractionTest, contract_local_complete_bipartite_graph_vertically)
         EXPECT_EQ(c_graph.edge_weight(1), set_size * set_size);
 
         ASSERT_EQ(c_mapping.size(), graph.n());
+
+        EXPECT_THAT(c_mapping[0], AnyOf(Eq(c_graph.offset_n()), Eq(c_graph.offset_n() + 1)));
         for (NodeID u = 0; u < set_size; ++u) {
             EXPECT_EQ(c_mapping[0], c_mapping[u]);
         }
+
         EXPECT_NE(c_mapping[0], c_mapping[set_size]);
+
+        EXPECT_THAT(c_mapping[set_size], AnyOf(Eq(c_graph.offset_n()), Eq(c_graph.offset_n() + 1)));
         for (NodeID u = set_size; u < 2 * set_size; ++u) {
             EXPECT_EQ(c_mapping[set_size], c_mapping[u]);
         }
@@ -119,6 +124,14 @@ TEST(ClusterContractionTest, contract_local_complete_bipartite_graph_horizontall
 
         ASSERT_EQ(c_graph.m(), set_size * (set_size - 1));
         EXPECT_THAT(c_graph.edge_weights(), Each(Eq(2)));
+
+        ASSERT_EQ(c_mapping.size(), graph.n());
+        EXPECT_THAT(c_mapping, Each(AllOf(Lt(c_graph.offset_n() + c_graph.n()), Ge(c_graph.offset_n()))));
+
+        for (NodeID u = 0; u < set_size; ++u) {
+            EXPECT_EQ(c_mapping[u], c_mapping[u + set_size]);
+            EXPECT_THAT(c_mapping, Contains(c_mapping[u]).Times(2));
+        }
     }
 }
 
@@ -141,6 +154,9 @@ TEST(ClusterContractionTest, contract_global_complete_graph_to_single_node) {
         } else {
             EXPECT_EQ(c_graph.n(), 0);
         }
+
+        EXPECT_EQ(c_mapping.size(), graph.n());
+        EXPECT_THAT(c_mapping, Each(Eq(0)));
     }
 }
 
@@ -165,6 +181,9 @@ TEST(ClusterContractionTest, contract_global_complete_graph_to_one_node_per_pe) 
 
         EXPECT_EQ(c_graph.node_weight(0), nodes_per_pe);
         EXPECT_THAT(c_graph.edge_weights(), Each(Eq(nodes_per_pe * nodes_per_pe)));
+
+        ASSERT_EQ(c_mapping.size(), graph.n());
+        EXPECT_THAT(c_mapping, Each(Eq(c_graph.offset_n())));
     }
 }
 
@@ -181,6 +200,12 @@ TEST(ClusterContractionTest, keep_global_complete_graph) {
         EXPECT_EQ(c_graph.m(), graph.m());
         EXPECT_EQ(c_graph.node_weights(), graph.node_weights());
         EXPECT_EQ(c_graph.edge_weights(), graph.edge_weights());
+
+        ASSERT_EQ(c_mapping.size(), graph.n());
+        for (NodeID u = 0; u < graph.n(); ++u) {
+            EXPECT_THAT(c_mapping[u], AllOf(Ge(c_graph.offset_n()), Lt(c_graph.offset_n() + c_graph.n())));
+            EXPECT_THAT(c_mapping, Contains(c_mapping[u]).Times(1));
+        }
     }
 }
 
