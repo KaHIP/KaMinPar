@@ -254,39 +254,26 @@ std::pair<NoinitVector<NodeID>, NoinitVector<NodeID>> build_node_buckets(
 
     return {std::move(buckets_position_buffer), std::move(buckets)};
 }
-} // namespace
 
-ContractionResult contract_clustering(const DistributedGraph& graph, const GlobalClustering& clustering) {
-    SET_DEBUG(true);
+struct MigrationResult {
+    NoinitVector<GlobalNode> local_nodes;
+    NoinitVector<GlobalEdge> local_edges;
 
+    std::vector<int> node_sendcounts;
+    std::vector<int> node_sdispls;
+    std::vector<int> node_recvcounts;
+    std::vector<int> node_rdispls;
+};
+
+MigrationResult exchange_nonlocal_nodes_and_edges(
+    const DistributedGraph& graph, const NoinitVector<GlobalNode>& nonlocal_nodes,
+    const NoinitVector<GlobalEdge>& nonlocal_edges
+) {
     const PEID size = mpi::get_comm_size(graph.communicator());
-    const PEID rank = mpi::get_comm_rank(graph.communicator());
 
-    //
-    // Collect nodes and edges that must be migrated to another PE
-    //
-    START_TIMER("Collect nodes and edges for other PEs");
-    auto  nonlocal_elements = find_nonlocal_nodes_and_edges(graph, clustering);
-    auto& nonlocal_nodes    = nonlocal_elements.first;
-    auto& nonlocal_edges    = nonlocal_elements.second;
-    STOP_TIMER();
-
-    //
-    // Deduplicate the edges before sending them
-    //
-    START_TIMER("Preprocessing nonlocal edges and nodes");
-    deduplicate_edge_list(nonlocal_edges);
-    sort_node_list(nonlocal_nodes);
-    STOP_TIMER();
-
-    //
-    // Exchange nodes and edges
-    //
-
-    // First, count them
-    START_TIMER("Migrate nodes and edges");
     parallel::vector_ets<EdgeID> num_edges_for_pe_ets(size);
     parallel::vector_ets<NodeID> num_nodes_for_pe_ets(size);
+
     tbb::parallel_invoke(
         [&] {
             tbb::parallel_for(
@@ -337,13 +324,7 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
         graph.communicator()
     );
 
-    // Sort edges
-    tbb::parallel_sort(local_edges.begin(), local_edges.end(), [&](const auto& lhs, const auto& rhs) {
-        return lhs.u < rhs.u;
-    });
-
     // Exchange nodes
-
     NoinitVector<GlobalNode> local_nodes;
     std::vector<int>         local_nodes_sendcounts(size);
     std::vector<int>         local_nodes_sdispls(size);
@@ -363,7 +344,55 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
         local_nodes.data(), local_nodes_recvcounts.data(), local_nodes_rdispls.data(), mpi::type::get<GlobalNode>(),
         graph.communicator()
     );
+
+    return {
+        .local_nodes     = std::move(local_nodes),
+        .local_edges     = std::move(local_edges),
+        .node_sendcounts = std::move(local_nodes_sendcounts),
+        .node_sdispls    = std::move(local_nodes_sdispls),
+        .node_recvcounts = std::move(local_nodes_recvcounts),
+        .node_rdispls    = std::move(local_nodes_rdispls)};
+}
+} // namespace
+
+ContractionResult contract_clustering(const DistributedGraph& graph, const GlobalClustering& lnode_to_gcluster) {
+    SET_DEBUG(true);
+
+    const PEID size = mpi::get_comm_size(graph.communicator());
+    const PEID rank = mpi::get_comm_rank(graph.communicator());
+
+    //
+    // Collect nodes and edges that must be migrated to another PE
+    //
+    START_TIMER("Collect nodes and edges for other PEs");
+    auto  nonlocal_elements = find_nonlocal_nodes_and_edges(graph, lnode_to_gcluster);
+    auto& nonlocal_nodes    = nonlocal_elements.first;
+    auto& nonlocal_edges    = nonlocal_elements.second;
     STOP_TIMER();
+
+    //
+    // Deduplicate the edges before sending them
+    //
+    START_TIMER("Preprocessing nonlocal edges and nodes");
+    deduplicate_edge_list(nonlocal_edges);
+    sort_node_list(nonlocal_nodes);
+    STOP_TIMER();
+
+    //
+    // Exchange nodes and edges
+    //
+
+    // First, count them
+    START_TIMER("Migrate nodes and edges");
+    auto  migration_result = exchange_nonlocal_nodes_and_edges(graph, nonlocal_nodes, nonlocal_edges);
+    auto& local_nodes      = migration_result.local_nodes;
+    auto& local_edges      = migration_result.local_edges;
+    STOP_TIMER();
+
+    // Sort edges
+    tbb::parallel_sort(local_edges.begin(), local_edges.end(), [&](const auto& lhs, const auto& rhs) {
+        return lhs.u < rhs.u;
+    });
 
     //
     // Next, build the coarse node distribution
@@ -374,12 +403,12 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
     // clustering_mapping[local node ID] = local coarse node ID
     // ```
     START_TIMER("Build mapping");
-    auto cluster_mapping = build_lnode_to_lcnode_mapping(graph, clustering, local_nodes);
+    auto lnode_to_lcnode = build_lnode_to_lcnode_mapping(graph, lnode_to_gcluster, local_nodes);
     STOP_TIMER();
 
     // Make cluster IDs start at 0
     START_TIMER("Build coarse node distribution");
-    const NodeID c_n                 = cluster_mapping.empty() ? 0 : cluster_mapping.back() + 1;
+    const NodeID c_n                 = lnode_to_lcnode.empty() ? 0 : lnode_to_lcnode.back() + 1;
     auto         c_node_distribution = build_distribution<GlobalNodeID>(c_n, graph.communicator());
     DBG << "Coarse node distribution: [" << c_node_distribution << "]";
     STOP_TIMER();
@@ -393,14 +422,14 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
     tbb::parallel_for<std::size_t>(0, local_nodes.size(), [&](const std::size_t i) {
         local_nodes_mapping[i] = {
             .u          = local_nodes[i].u,
-            .global_c_u = cluster_mapping[local_nodes[i].u - graph.offset_n()] + c_node_distribution[rank],
+            .global_c_u = lnode_to_lcnode[local_nodes[i].u - graph.offset_n()] + c_node_distribution[rank],
         };
     });
     NoinitVector<NodeMapping> local_nodes_mapping_rsps(nonlocal_nodes.size());
     MPI_Alltoallv(
-        local_nodes_mapping.data(), local_nodes_recvcounts.data(), local_nodes_rdispls.data(),
-        mpi::type::get<NodeMapping>(), local_nodes_mapping_rsps.data(), local_nodes_sendcounts.data(),
-        local_nodes_sdispls.data(), mpi::type::get<NodeMapping>(), graph.communicator()
+        local_nodes_mapping.data(), migration_result.node_recvcounts.data(), migration_result.node_rdispls.data(),
+        mpi::type::get<NodeMapping>(), local_nodes_mapping_rsps.data(), migration_result.node_sendcounts.data(),
+        migration_result.node_sdispls.data(), mpi::type::get<NodeMapping>(), graph.communicator()
     );
     STOP_TIMER();
 
@@ -432,13 +461,13 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
     tbb::parallel_invoke(
         [&] {
             graph.pfor_nodes([&](const NodeID u) {
-                const GlobalNodeID cluster_u = clustering[u];
+                const GlobalNodeID cluster_u = lnode_to_gcluster[u];
                 if (!graph.is_owned_global_node(cluster_u)) {
                     return;
                 }
 
                 for (const auto [e, v]: graph.neighbors(u)) {
-                    const GlobalNodeID cluster_v = clustering[v];
+                    const GlobalNodeID cluster_v = lnode_to_gcluster[v];
                     if (!graph.is_owned_global_node(cluster_v)) {
                         request_nonlocal_mapping(cluster_v);
                     }
@@ -488,7 +517,7 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
         tbb::parallel_for<std::size_t>(0, their_mapping_requests[pe].size(), [&](const std::size_t i) {
             const GlobalNodeID global        = their_mapping_requests[pe][i];
             const NodeID       local         = static_cast<NodeID>(global - graph.offset_n());
-            const NodeID       coarse_local  = cluster_mapping[local];
+            const NodeID       coarse_local  = lnode_to_lcnode[local];
             const GlobalNodeID coarse_global = c_node_distribution[rank] + coarse_local;
             my_mapping_responses[pe][i]      = coarse_global;
         });
@@ -528,10 +557,10 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
     // Build a mapping array from fine nodes to coarse nodes
     NoinitVector<GlobalNodeID> mapping(graph.n());
     graph.pfor_nodes([&](const NodeID u) {
-        const GlobalNodeID cluster = clustering[u];
+        const GlobalNodeID cluster = lnode_to_gcluster[u];
 
         if (graph.is_owned_global_node(cluster)) {
-            mapping[u] = cluster_mapping[cluster - graph.offset_n()] + c_node_distribution[rank];
+            mapping[u] = lnode_to_lcnode[cluster - graph.offset_n()] + c_node_distribution[rank];
         } else {
             auto& handle = nonlocal_cluster_filter_handle_ets.local();
             auto  it     = handle.find(cluster + 1);
@@ -553,10 +582,10 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
     //
     // Sort local nodes by their cluster ID
     //
-    localize_global_edge_list(local_edges, graph.offset_n(), cluster_mapping);
+    localize_global_edge_list(local_edges, graph.offset_n(), lnode_to_lcnode);
 
     START_TIMER("Bucket sort nodes by cluster");
-    auto  bucket_sort_result      = build_node_buckets(graph, cluster_mapping, c_n, local_edges, clustering);
+    auto  bucket_sort_result      = build_node_buckets(graph, lnode_to_lcnode, c_n, local_edges, lnode_to_gcluster);
     auto& buckets_position_buffer = bucket_sort_result.first;
     auto& buckets                 = bucket_sort_result.second;
     STOP_TIMER();
@@ -599,45 +628,32 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
 
                     auto handle_edge = [&](const EdgeWeight weight, const GlobalNodeID cluster) {
                         if (graph.is_owned_global_node(cluster)) {
-                            const NodeID c_local_node = cluster_mapping[cluster - graph.offset_n()];
+                            const NodeID c_local_node = lnode_to_lcnode[cluster - graph.offset_n()];
                             if (c_local_node != c_u) {
                                 map[c_local_node] += weight;
                             }
                         } else {
                             auto& handle = nonlocal_cluster_filter_handle_ets.local();
                             auto  it     = handle.find(cluster + 1);
-                            // DBG << "Edge to ghost cluster " << cluster << ": "
-                            //<< (it != handle.end() ? "FOUND" : "NOT-FOUND");
-                            if (it != handle.end() && (*it).second - 1 < graph.global_n()) {
-                                const std::size_t  index           = (*it).second - 1;
-                                const PEID         owner           = graph.find_owner_of_global_node(cluster);
-                                const GlobalNodeID c_ghost_node    = their_mapping_responses[owner][index];
-                                auto               c_local_node_it = c_global_to_ghost.find(c_ghost_node + 1);
-                                const NodeID       c_local_node    = (*c_local_node_it).second;
+                            KASSERT(it != handle.end() && (*it).second - 1 < graph.global_n());
 
-                                /*DBG << " --> index " << index << ", owner " << owner << ", ghost node " <<
-                                   c_ghost_node
-                                    << " and local node " << c_local_node << " (from " << c_u << ") --> "
-                                    << (c_local_node != c_u ? "ADD" : "REJECT-SELF-LOOP");*/
+                            const std::size_t  index           = (*it).second - 1;
+                            const PEID         owner           = graph.find_owner_of_global_node(cluster);
+                            const GlobalNodeID c_ghost_node    = their_mapping_responses[owner][index];
+                            auto               c_local_node_it = c_global_to_ghost.find(c_ghost_node + 1);
+                            const NodeID       c_local_node    = (*c_local_node_it).second;
 
-                                if (c_local_node != c_u) {
-                                    map[c_local_node] += weight;
-                                }
-                            } else {
-                                KASSERT(false, "UNMAPPED CLUSTER " << cluster);
+                            if (c_local_node != c_u) {
+                                map[c_local_node] += weight;
                             }
                         }
                     };
 
                     if (u < graph.n()) {
                         c_u_weight += graph.node_weight(u);
+
                         for (const auto [e, v]: graph.neighbors(u)) {
-                            handle_edge(graph.edge_weight(e), clustering[v]);
-                            /*const NodeID c_v = mapping[v];
-                            DBG << "Edge " << u << " (" << c_u << ") --> " << v << " (" << c_v << ")";
-                            if (c_v != c_u) {
-                                map[c_v] += graph.edge_weight(e);
-                            }*/
+                            handle_edge(graph.edge_weight(e), lnode_to_gcluster[v]);
                         }
                     } else {
                         // Fix node weight later
@@ -672,7 +688,7 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
     STOP_TIMER();
 
     tbb::parallel_for<std::size_t>(0, local_nodes.size(), [&](const std::size_t i) {
-        const NodeID c_u = cluster_mapping[local_nodes[i].u - graph.offset_n()];
+        const NodeID c_u = lnode_to_lcnode[local_nodes[i].u - graph.offset_n()];
         __atomic_fetch_add(&c_node_weights[c_u], local_nodes[i].weight, __ATOMIC_RELAXED);
     });
 
