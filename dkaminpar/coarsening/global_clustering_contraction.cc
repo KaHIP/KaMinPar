@@ -961,26 +961,6 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
     parallel::prefix_sum(cluster_mapping.begin(), cluster_mapping.end(), cluster_mapping.begin());
     STOP_TIMER();
 
-    START_TIMER("Exchange mapping of migrated nodes");
-    struct NodeMapping {
-        GlobalNodeID u;
-        GlobalNodeID global_c_u;
-    };
-    NoinitVector<NodeMapping> local_nodes_mapping(local_nodes.size());
-    tbb::parallel_for<std::size_t>(0, local_nodes.size(), [&](const std::size_t i) {
-        local_nodes_mapping[i] = {
-            .u          = local_nodes[i].u,
-            .global_c_u = cluster_mapping[local_nodes[i].u - graph.offset_n()],
-        };
-    });
-    NoinitVector<NodeMapping> local_nodes_mapping_rsps(nonlocal_nodes.size());
-    MPI_Alltoallv(
-        local_nodes_mapping.data(), local_nodes_recvcounts.data(), local_nodes_rdispls.data(),
-        mpi::type::get<NodeMapping>(), local_nodes_mapping_rsps.data(), local_nodes_sendcounts.data(),
-        local_nodes_sdispls.data(), mpi::type::get<NodeMapping>(), graph.communicator()
-    );
-    STOP_TIMER();
-
     // Number of coarse nodes on this PE:
     const NodeID c_n = cluster_mapping.empty() ? 0 : cluster_mapping.back();
     DBG << "Number of coarse nodes: " << c_n;
@@ -997,6 +977,26 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
     std::exclusive_scan(c_node_distribution.begin(), c_node_distribution.end(), c_node_distribution.begin(), 0u);
     STOP_TIMER();
     DBG << "Coarse node distribution: [" << c_node_distribution << "]";
+
+    START_TIMER("Exchange mapping of migrated nodes");
+    struct NodeMapping {
+        GlobalNodeID u;
+        GlobalNodeID global_c_u;
+    };
+    NoinitVector<NodeMapping> local_nodes_mapping(local_nodes.size());
+    tbb::parallel_for<std::size_t>(0, local_nodes.size(), [&](const std::size_t i) {
+        local_nodes_mapping[i] = {
+            .u          = local_nodes[i].u,
+            .global_c_u = cluster_mapping[local_nodes[i].u - graph.offset_n()] + c_node_distribution[rank],
+        };
+    });
+    NoinitVector<NodeMapping> local_nodes_mapping_rsps(nonlocal_nodes.size());
+    MPI_Alltoallv(
+        local_nodes_mapping.data(), local_nodes_recvcounts.data(), local_nodes_rdispls.data(),
+        mpi::type::get<NodeMapping>(), local_nodes_mapping_rsps.data(), local_nodes_sendcounts.data(),
+        local_nodes_sdispls.data(), mpi::type::get<NodeMapping>(), graph.communicator()
+    );
+    STOP_TIMER();
 
     // We can now map fine nodes to coarse nodes if their respective cluster is owned by this PE
     // For other nodes, we have to communicate to determine their coarse node ID
@@ -1115,17 +1115,19 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
         auto& handle = nonlocal_cluster_filter_handle_ets.local();
         for (std::size_t i = r.begin(); i != r.end(); ++i) {
             const auto& [local_cluster, global_coarse_node] = local_nodes_mapping_rsps[i];
+            DBG << "Insert " << local_cluster << " --> " << global_coarse_node;
             handle.insert(local_cluster + 1, graph.global_n() + global_coarse_node + 1);
         }
     });
 
     // Build a mapping array from fine nodes to coarse nodes
-    NoinitVector<GlobalNodeID> mapping(graph.n());
-    graph.pfor_nodes([&](const NodeID u) {
+    NoinitVector<GlobalNodeID> mapping(graph.total_n());
+    graph.pfor_all_nodes([&](const NodeID u) {
         const GlobalNodeID cluster = clustering[u];
 
         if (graph.is_owned_global_node(cluster)) {
-            mapping[u] = cluster_mapping[cluster - graph.offset_n()];
+            mapping[u] = cluster_mapping[cluster - graph.offset_n()] + c_node_distribution[rank];
+            DBG << "a " << u << " " << V(mapping[u]);
         } else {
             auto& handle = nonlocal_cluster_filter_handle_ets.local();
             auto  it     = handle.find(cluster + 1);
@@ -1134,8 +1136,11 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
                 if (index < graph.global_n()) {
                     const PEID owner = graph.find_owner_of_global_node(cluster);
                     mapping[u]       = their_mapping_responses[owner][index];
+                    DBG << "b " << u << " " << V(mapping[u]);
                 } else {
                     mapping[u] = static_cast<GlobalNodeID>(index - graph.global_n());
+                    // @todo local vs global mapping, create global mapping with this info
+                    DBG << "c " << u << " " << V(mapping[u]);
                 }
             }
         }
@@ -1272,10 +1277,12 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
                     if (u < graph.n()) {
                         c_u_weight += graph.node_weight(u);
                         for (const auto [e, v]: graph.neighbors(u)) {
-                            const NodeID c_v = mapping[v];
+                            handle_edge(graph.edge_weight(e), clustering[v]);
+                            /*const NodeID c_v = mapping[v];
+                            DBG << "Edge " << u << " (" << c_u << ") --> " << v << " (" << c_v << ")";
                             if (c_v != c_u) {
                                 map[c_v] += graph.edge_weight(e);
-                            }
+                            }*/
                         }
                     } else {
                         // Fix node weight later
@@ -1297,7 +1304,7 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
             EdgeID upper_bound_degree = 0;
             for (std::size_t i = first_pos; i < last_pos; ++i) {
                 const NodeID u = buckets[i];
-                if (true || u < graph.n()) {
+                if (u < graph.n()) {
                     upper_bound_degree += graph.degree(u);
                 } else {
                     upper_bound_degree += c_ghost_n; //@todo min max degree
