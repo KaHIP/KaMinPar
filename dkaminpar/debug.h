@@ -6,7 +6,6 @@
  ******************************************************************************/
 #pragma once
 
-#include "dkaminpar/coarsening/global_clustering_contraction.h"
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructures/distributed_graph.h"
 

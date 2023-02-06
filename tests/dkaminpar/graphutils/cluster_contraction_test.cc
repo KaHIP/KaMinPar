@@ -9,7 +9,7 @@
 #include "tests/dkaminpar/distributed_graph_factories.h"
 #include "tests/dkaminpar/distributed_graph_helpers.h"
 
-#include "dkaminpar/coarsening/global_clustering_contraction.h"
+#include "dkaminpar/coarsening/clustering_contraction.h"
 #include "dkaminpar/mpi/utils.h"
 
 namespace kaminpar::dist {
@@ -26,6 +26,8 @@ TEST(ClusterContractionTest, contract_empty_graph) {
     EXPECT_EQ(c_graph.global_n(), 0);
     EXPECT_EQ(c_graph.m(), 0);
     EXPECT_EQ(c_graph.global_m(), 0);
+
+    EXPECT_TRUE(c_mapping.empty());
 }
 
 TEST(ClusterContractionTest, contract_local_edge) {
@@ -40,6 +42,8 @@ TEST(ClusterContractionTest, contract_local_edge) {
     EXPECT_EQ(c_graph.global_m(), 0);
     ASSERT_EQ(c_graph.n(), 1);
     EXPECT_EQ(c_graph.node_weight(0), 2);
+
+    EXPECT_THAT(c_mapping, Each(Eq(c_graph.offset_n())));
 }
 
 TEST(ClusterContractionTest, contract_local_complete_graph) {
@@ -56,6 +60,8 @@ TEST(ClusterContractionTest, contract_local_complete_graph) {
         EXPECT_EQ(c_graph.m(), 0);
         ASSERT_EQ(c_graph.n(), 1);
         EXPECT_EQ(c_graph.node_weight(0), static_cast<NodeWeight>(clique_size));
+
+        EXPECT_THAT(c_mapping, Each(Eq(c_graph.offset_n())));
     }
 }
 
@@ -80,6 +86,15 @@ TEST(ClusterContractionTest, contract_local_complete_bipartite_graph_vertically)
         ASSERT_EQ(c_graph.m(), 2);
         EXPECT_EQ(c_graph.edge_weight(0), set_size * set_size);
         EXPECT_EQ(c_graph.edge_weight(1), set_size * set_size);
+
+        ASSERT_EQ(c_mapping.size(), graph.n());
+        for (NodeID u = 0; u < set_size; ++u) {
+            EXPECT_EQ(c_mapping[0], c_mapping[u]);
+        }
+        EXPECT_NE(c_mapping[0], c_mapping[set_size]);
+        for (NodeID u = set_size; u < 2 * set_size; ++u) {
+            EXPECT_EQ(c_mapping[set_size], c_mapping[u]);
+        }
     }
 }
 

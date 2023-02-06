@@ -7,7 +7,6 @@
 #include "dkaminpar/partitioning/kway_partitioner.h"
 
 #include "dkaminpar/coarsening/coarsener.h"
-#include "dkaminpar/coarsening/global_clustering_contraction.h"
 #include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/debug.h"
 #include "dkaminpar/factories.h"
