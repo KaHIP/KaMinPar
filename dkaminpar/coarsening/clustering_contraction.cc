@@ -23,6 +23,107 @@
 
 namespace kaminpar::dist {
 namespace {
+struct GlobalEdge {
+    GlobalNodeID u;
+    GlobalNodeID v;
+    EdgeWeight   weight;
+};
+
+struct GlobalNode {
+    GlobalNodeID u;
+    NodeWeight   weight;
+};
+
+std::pair<NoinitVector<GlobalNode>, NoinitVector<GlobalEdge>>
+find_nonlocal_nodes_and_edges(const DistributedGraph& graph, const GlobalClustering& clustering) {
+    NoinitVector<NodeID> edge_position_buffer(graph.n() + 1);
+    NoinitVector<NodeID> node_position_buffer(graph.n() + 1);
+    edge_position_buffer.front() = 0;
+    node_position_buffer.front() = 0;
+
+    graph.pfor_nodes([&](const NodeID u) {
+        const GlobalNodeID c_u = clustering[u];
+
+        if (graph.is_owned_global_node(c_u)) {
+            edge_position_buffer[u + 1] = 0;
+            node_position_buffer[u + 1] = 0;
+        } else {
+            edge_position_buffer[u + 1] = graph.degree(u);
+            node_position_buffer[u + 1] = 1;
+        }
+    });
+
+    parallel::prefix_sum(edge_position_buffer.begin(), edge_position_buffer.end(), edge_position_buffer.begin());
+    parallel::prefix_sum(node_position_buffer.begin(), node_position_buffer.end(), node_position_buffer.begin());
+
+    NoinitVector<GlobalEdge> nonlocal_edges(edge_position_buffer.back());
+    NoinitVector<GlobalNode> nonlocal_nodes(node_position_buffer.back());
+
+    graph.pfor_nodes([&](const NodeID u) {
+        const GlobalNodeID c_u = clustering[u];
+
+        if (!graph.is_owned_global_node(c_u)) {
+            // Node
+            nonlocal_nodes[node_position_buffer[u]] = {.u = c_u, .weight = graph.node_weight(u)};
+
+            // Edge
+            std::size_t pos = edge_position_buffer[u];
+            for (const auto [e, v]: graph.neighbors(u)) {
+                nonlocal_edges[pos] = {
+                    .u      = c_u,
+                    .v      = clustering[v],
+                    .weight = graph.edge_weight(e),
+                };
+                ++pos;
+            }
+        }
+    });
+
+    return {std::move(nonlocal_nodes), std::move(nonlocal_edges)};
+}
+
+void deduplicate_edge_list(NoinitVector<GlobalEdge>& edges) {
+    if (edges.empty()) {
+        return;
+    }
+
+    // Primary sort by edge source = messages are sorted by destination PE
+    // Secondary sort by edge target = duplicate edges are consecutive
+    tbb::parallel_sort(edges.begin(), edges.end(), [&](const auto& lhs, const auto& rhs) {
+        return lhs.u < rhs.u || (lhs.u == rhs.u && lhs.v < rhs.v);
+    });
+
+    // Mark the first edge in every block of duplicate edges
+    NoinitVector<EdgeID> edge_position_buffer(edges.size());
+    tbb::parallel_for<std::size_t>(0, edges.size(), [&](const std::size_t i) { edge_position_buffer[i] = 0; });
+    tbb::parallel_for<std::size_t>(1, edges.size(), [&](const std::size_t i) {
+        if (edges[i].u != edges[i - 1].u || edges[i].v != edges[i - 1].v) {
+            edge_position_buffer[i] = 1;
+        }
+    });
+
+    // Prefix sum to get the location of the deduplicated edge
+    parallel::prefix_sum(edge_position_buffer.begin(), edge_position_buffer.end(), edge_position_buffer.begin());
+
+    // Deduplicate edges in a separate buffer
+    NoinitVector<GlobalEdge> tmp_nonlocal_edges(edge_position_buffer.back() + 1);
+    tbb::parallel_for<std::size_t>(0, edge_position_buffer.back() + 1, [&](const std::size_t i) {
+        tmp_nonlocal_edges[i].weight = 0;
+    });
+    tbb::parallel_for<std::size_t>(0, edges.size(), [&](const std::size_t i) {
+        const std::size_t pos = edge_position_buffer[i];
+        __atomic_store_n(&(tmp_nonlocal_edges[pos].u), edges[i].u, __ATOMIC_RELAXED);
+        __atomic_store_n(&(tmp_nonlocal_edges[pos].v), edges[i].v, __ATOMIC_RELAXED);
+        __atomic_fetch_add(&(tmp_nonlocal_edges[pos].weight), edges[i].weight, __ATOMIC_RELAXED);
+    });
+    std::swap(tmp_nonlocal_edges, edges);
+}
+
+void sort_node_list(NoinitVector<GlobalNode>& nodes) {
+    tbb::parallel_sort(nodes.begin(), nodes.end(), [&](const GlobalNode& lhs, const GlobalNode& rhs) {
+        return lhs.u < rhs.u;
+    });
+}
 
 void update_ghost_node_weights(DistributedGraph& graph) {
     SCOPED_TIMER("Update ghost node weights");
@@ -58,104 +159,17 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
     // Collect nodes and edges that must be migrated to another PE
     //
     START_TIMER("Collect nodes and edges for other PEs");
-    NoinitVector<NodeID> edge_position_buffer(graph.n() + 1);
-    NoinitVector<NodeID> node_position_buffer(graph.n() + 1);
-    edge_position_buffer.front() = 0;
-    node_position_buffer.front() = 0;
-
-    graph.pfor_nodes([&](const NodeID u) {
-        const GlobalNodeID c_u = clustering[u];
-
-        if (graph.is_owned_global_node(c_u)) {
-            edge_position_buffer[u + 1] = 0;
-            node_position_buffer[u + 1] = 0;
-        } else {
-            edge_position_buffer[u + 1] = graph.degree(u);
-            node_position_buffer[u + 1] = 1;
-        }
-    });
-
-    parallel::prefix_sum(edge_position_buffer.begin(), edge_position_buffer.end(), edge_position_buffer.begin());
-    parallel::prefix_sum(node_position_buffer.begin(), node_position_buffer.end(), node_position_buffer.begin());
-
-    struct Edge {
-        GlobalNodeID u;
-        GlobalNodeID v;
-        EdgeWeight   weight;
-    };
-
-    struct Node {
-        GlobalNodeID u;
-        NodeWeight   weight;
-    };
-
-    NoinitVector<Edge> nonlocal_edges(edge_position_buffer.back());
-    NoinitVector<Node> nonlocal_nodes(node_position_buffer.back());
-
-    graph.pfor_nodes([&](const NodeID u) {
-        const GlobalNodeID c_u = clustering[u];
-
-        if (!graph.is_owned_global_node(c_u)) {
-            // Node
-            nonlocal_nodes[node_position_buffer[u]] = {.u = c_u, .weight = graph.node_weight(u)};
-
-            // Edge
-            std::size_t pos = edge_position_buffer[u];
-            for (const auto [e, v]: graph.neighbors(u)) {
-                nonlocal_edges[pos] = {
-                    .u      = c_u,
-                    .v      = clustering[v],
-                    .weight = graph.edge_weight(e),
-                };
-                ++pos;
-            }
-        }
-    });
+    auto  nonlocal_elements = find_nonlocal_nodes_and_edges(graph, clustering);
+    auto& nonlocal_nodes    = nonlocal_elements.first;
+    auto& nonlocal_edges    = nonlocal_elements.second;
     STOP_TIMER();
 
     //
     // Deduplicate the edges before sending them
     //
-    START_TIMER("Deduplicate edges before sending");
-    if (!nonlocal_edges.empty()) {
-        // Primary sort by edge source = messages are sorted by destination PE
-        // Secondary sort by edge target = duplicate edges are consecutive
-        tbb::parallel_sort(nonlocal_edges.begin(), nonlocal_edges.end(), [&](const auto& lhs, const auto& rhs) {
-            return lhs.u < rhs.u || (lhs.u == rhs.u && lhs.v < rhs.v);
-        });
-
-        // Mark the first edge in every block of duplicate edges
-        NoinitVector<EdgeID> edge_position_buffer(nonlocal_edges.size());
-        tbb::parallel_for<std::size_t>(0, nonlocal_edges.size(), [&](const std::size_t i) {
-            edge_position_buffer[i] = 0;
-        });
-        tbb::parallel_for<std::size_t>(1, nonlocal_edges.size(), [&](const std::size_t i) {
-            if (nonlocal_edges[i].u != nonlocal_edges[i - 1].u || nonlocal_edges[i].v != nonlocal_edges[i - 1].v) {
-                edge_position_buffer[i] = 1;
-            }
-        });
-
-        // Prefix sum to get the location of the deduplicated edge
-        parallel::prefix_sum(edge_position_buffer.begin(), edge_position_buffer.end(), edge_position_buffer.begin());
-
-        // Deduplicate edges in a separate buffer
-        NoinitVector<Edge> tmp_nonlocal_edges(edge_position_buffer.back() + 1);
-        tbb::parallel_for<std::size_t>(0, edge_position_buffer.back() + 1, [&](const std::size_t i) {
-            tmp_nonlocal_edges[i].weight = 0;
-        });
-        tbb::parallel_for<std::size_t>(0, nonlocal_edges.size(), [&](const std::size_t i) {
-            const std::size_t pos = edge_position_buffer[i];
-            __atomic_store_n(&(tmp_nonlocal_edges[pos].u), nonlocal_edges[i].u, __ATOMIC_RELAXED);
-            __atomic_store_n(&(tmp_nonlocal_edges[pos].v), nonlocal_edges[i].v, __ATOMIC_RELAXED);
-            __atomic_fetch_add(&(tmp_nonlocal_edges[pos].weight), nonlocal_edges[i].weight, __ATOMIC_RELAXED);
-        });
-        std::swap(tmp_nonlocal_edges, nonlocal_edges);
-    }
-
-    // Also sort the nodes so that we can count them efficiently in the next step
-    tbb::parallel_sort(nonlocal_nodes.begin(), nonlocal_nodes.end(), [&](const auto& lhs, const auto& rhs) {
-        return lhs.u < rhs.u;
-    });
+    START_TIMER("Preprocessing nonlocal edges and nodes");
+    deduplicate_edge_list(nonlocal_edges);
+    sort_node_list(nonlocal_nodes);
     STOP_TIMER();
 
     //
@@ -196,11 +210,11 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
     auto num_nodes_for_pe = num_nodes_for_pe_ets.combine(std::plus{});
 
     // Exchange edges
-    NoinitVector<Edge> local_edges;
-    std::vector<int>   local_edges_sendcounts(size);
-    std::vector<int>   local_edges_sdispls(size);
-    std::vector<int>   local_edges_recvcounts(size);
-    std::vector<int>   local_edges_rdispls(size);
+    NoinitVector<GlobalEdge> local_edges;
+    std::vector<int>         local_edges_sendcounts(size);
+    std::vector<int>         local_edges_sdispls(size);
+    std::vector<int>         local_edges_recvcounts(size);
+    std::vector<int>         local_edges_rdispls(size);
 
     std::copy(num_edges_for_pe.begin(), num_edges_for_pe.end(), local_edges_sendcounts.begin());
     std::exclusive_scan(local_edges_sendcounts.begin(), local_edges_sendcounts.end(), local_edges_sdispls.begin(), 0);
@@ -211,8 +225,8 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
 
     local_edges.resize(local_edges_rdispls.back() + local_edges_recvcounts.back());
     MPI_Alltoallv(
-        nonlocal_edges.data(), local_edges_sendcounts.data(), local_edges_sdispls.data(), mpi::type::get<Edge>(),
-        local_edges.data(), local_edges_recvcounts.data(), local_edges_rdispls.data(), mpi::type::get<Edge>(),
+        nonlocal_edges.data(), local_edges_sendcounts.data(), local_edges_sdispls.data(), mpi::type::get<GlobalEdge>(),
+        local_edges.data(), local_edges_recvcounts.data(), local_edges_rdispls.data(), mpi::type::get<GlobalEdge>(),
         graph.communicator()
     );
 
@@ -223,11 +237,11 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
 
     // Exchange nodes
 
-    NoinitVector<Node> local_nodes;
-    std::vector<int>   local_nodes_sendcounts(size);
-    std::vector<int>   local_nodes_sdispls(size);
-    std::vector<int>   local_nodes_recvcounts(size);
-    std::vector<int>   local_nodes_rdispls(size);
+    NoinitVector<GlobalNode> local_nodes;
+    std::vector<int>         local_nodes_sendcounts(size);
+    std::vector<int>         local_nodes_sdispls(size);
+    std::vector<int>         local_nodes_recvcounts(size);
+    std::vector<int>         local_nodes_rdispls(size);
 
     std::copy(num_nodes_for_pe.begin(), num_nodes_for_pe.end(), local_nodes_sendcounts.begin());
     std::exclusive_scan(local_nodes_sendcounts.begin(), local_nodes_sendcounts.end(), local_nodes_sdispls.begin(), 0);
@@ -238,8 +252,8 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
 
     local_nodes.resize(local_nodes_rdispls.back() + local_nodes_recvcounts.back());
     MPI_Alltoallv(
-        nonlocal_nodes.data(), local_nodes_sendcounts.data(), local_nodes_sdispls.data(), mpi::type::get<Node>(),
-        local_nodes.data(), local_nodes_recvcounts.data(), local_nodes_rdispls.data(), mpi::type::get<Node>(),
+        nonlocal_nodes.data(), local_nodes_sendcounts.data(), local_nodes_sdispls.data(), mpi::type::get<GlobalNode>(),
+        local_nodes.data(), local_nodes_recvcounts.data(), local_nodes_rdispls.data(), mpi::type::get<GlobalNode>(),
         graph.communicator()
     );
     STOP_TIMER();
@@ -301,9 +315,6 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
     };
     NoinitVector<NodeMapping> local_nodes_mapping(local_nodes.size());
     tbb::parallel_for<std::size_t>(0, local_nodes.size(), [&](const std::size_t i) {
-        DBGC(local_nodes[i].u == 389549) << "Sending mapping for cluster " << 389549 << " to cluster "
-                                         << cluster_mapping[local_nodes[i].u - graph.offset_n()]
-                                                + c_node_distribution[rank];
         local_nodes_mapping[i] = {
             .u          = local_nodes[i].u,
             .global_c_u = cluster_mapping[local_nodes[i].u - graph.offset_n()] + c_node_distribution[rank],
@@ -347,7 +358,6 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
             graph.pfor_nodes([&](const NodeID u) {
                 const GlobalNodeID cluster_u = clustering[u];
                 if (!graph.is_owned_global_node(cluster_u)) {
-                    // request_nonlocal_mapping(cluster_u);
                     return;
                 }
 
@@ -434,7 +444,6 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
         auto& handle = nonlocal_cluster_filter_handle_ets.local();
         for (std::size_t i = r.begin(); i != r.end(); ++i) {
             const auto& [local_cluster, global_coarse_node] = local_nodes_mapping_rsps[i];
-            DBGC(local_cluster == 389549) << "Insert " << local_cluster << " --> " << global_coarse_node;
             handle.insert(local_cluster + 1, graph.global_n() + global_coarse_node + 1);
         }
     });
