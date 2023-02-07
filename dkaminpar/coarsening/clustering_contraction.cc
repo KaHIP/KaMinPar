@@ -613,11 +613,11 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
         auto& collector   = collector_ets.local();
         auto& edge_buffer = edge_buffer_ets.local();
 
-        for (NodeID c_u = r.begin(); c_u != r.end(); ++c_u) {
-            edge_buffer.mark(c_u);
+        for (NodeID lcu = r.begin(); lcu != r.end(); ++lcu) {
+            edge_buffer.mark(lcu);
 
-            const std::size_t first_pos = buckets_position_buffer[c_u];
-            const std::size_t last_pos  = buckets_position_buffer[c_u + 1];
+            const std::size_t first_pos = buckets_position_buffer[lcu];
+            const std::size_t last_pos  = buckets_position_buffer[lcu + 1];
 
             auto collect_edges = [&](auto& map) {
                 NodeWeight c_u_weight = 0;
@@ -625,62 +625,69 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
                 for (std::size_t i = first_pos; i < last_pos; ++i) {
                     const NodeID u = buckets[i];
 
-                    auto handle_edge = [&](const EdgeWeight weight, const GlobalNodeID cluster) {
-                        if (graph.is_owned_global_node(cluster)) {
-                            const NodeID c_local_node = lnode_to_lcnode[cluster - graph.offset_n()];
-                            if (c_local_node != c_u) {
-                                map[c_local_node] += weight;
+                    auto handle_edge_to_gcluster = [&](const EdgeWeight weight, const GlobalNodeID gcluster) {
+                        if (graph.is_owned_global_node(gcluster)) {
+                            const NodeID lcluster = static_cast<NodeID>(gcluster - graph.offset_n());
+                            const NodeID lcnode   = lnode_to_lcnode[lcluster];
+                            if (lcnode != lcu) {
+                                map[lcnode] += weight;
                             }
                         } else {
                             auto& handle = nonlocal_gcluster_to_index_handle_ets.local();
-                            auto  it     = handle.find(cluster + 1);
+                            auto  it     = handle.find(gcluster + 1);
                             KASSERT(it != handle.end() && (*it).second - 1 < graph.global_n());
 
-                            const std::size_t  index           = (*it).second - 1;
-                            const PEID         owner           = graph.find_owner_of_global_node(cluster);
-                            const GlobalNodeID c_ghost_node    = their_mapping_responses[owner][index];
-                            auto               c_local_node_it = c_global_to_ghost.find(c_ghost_node + 1);
-                            const NodeID       c_local_node    = (*c_local_node_it).second;
+                            const std::size_t  index     = (*it).second - 1;
+                            const PEID         owner     = graph.find_owner_of_global_node(gcluster);
+                            const GlobalNodeID gcnode    = their_mapping_responses[owner][index];
+                            auto               lcnode_it = c_global_to_ghost.find(gcnode + 1);
+                            const NodeID       lcnode    = (*lcnode_it).second;
 
-                            if (c_local_node != c_u) {
-                                map[c_local_node] += weight;
+                            if (lcnode != lcu) {
+                                map[lcnode] += weight;
                             }
+                        }
+                    };
+
+                    auto handle_edge_to_lnode = [&](const EdgeWeight weight, const NodeID lnode) {
+                        if (graph.is_owned_node(lnode)) {
+                            const GlobalNodeID gcnode = lnode_to_gcnode[lnode];
+                            const bool         is_local_gcnode =
+                                (gcnode >= c_node_distribution[rank] && gcnode < c_node_distribution[rank + 1]);
+
+                            if (is_local_gcnode) {
+                                const NodeID lcnode = static_cast<NodeID>(gcnode - c_node_distribution[rank]);
+                                if (lcu != lcnode) {
+                                    map[lcnode] += weight;
+                                }
+                            } else {
+                                auto lcnode_it = c_global_to_ghost.find(gcnode + 1);
+                                KASSERT(lcnode_it != c_global_to_ghost.end());
+                                const NodeID lcnode = (*lcnode_it).second;
+                                if (lcu != lcnode) {
+                                    map[lcnode] += weight;
+                                }
+                            }
+                        } else {
+                            handle_edge_to_gcluster(weight, lnode_to_gcluster[lnode]);
                         }
                     };
 
                     if (u < graph.n()) {
                         c_u_weight += graph.node_weight(u);
-
                         for (const auto [e, v]: graph.neighbors(u)) {
-                            if (graph.is_owned_node(v)) {
-                                const GlobalNodeID gcv = lnode_to_gcnode[v];
-                                if (gcv >= c_node_distribution[rank] && gcv < c_node_distribution[rank + 1]) {
-                                    const NodeID lcv = static_cast<NodeID>(gcv - c_node_distribution[rank]);
-                                    if (c_u != lcv) {
-                                        map[lcv] += graph.edge_weight(e);
-                                    }
-                                } else {
-                                    auto lcv_it = c_global_to_ghost.find(gcv + 1);
-                                    KASSERT(lcv_it != c_global_to_ghost.end());
-                                    const NodeID lcv = (*lcv_it).second;
-                                    if (c_u != lcv) {
-                                        map[lcv] += graph.edge_weight(e);
-                                    }
-                                }
-                            } else {
-                                handle_edge(graph.edge_weight(e), lnode_to_gcluster[v]);
-                            }
+                            handle_edge_to_lnode(graph.edge_weight(e), v);
                         }
                     } else {
                         // Fix node weight later
-                        for (std::size_t index = u - graph.n(); local_edges[index].u == c_u; ++index) {
-                            handle_edge(local_edges[index].weight, local_edges[index].v);
+                        for (std::size_t index = u - graph.n(); local_edges[index].u == lcu; ++index) {
+                            handle_edge_to_gcluster(local_edges[index].weight, local_edges[index].v);
                         }
                     }
                 }
 
-                c_node_weights[c_u] = c_u_weight;
-                c_nodes[c_u + 1]    = map.size();
+                c_node_weights[lcu] = c_u_weight;
+                c_nodes[lcu + 1]    = map.size();
 
                 for (const auto [c_v, weight]: map.entries()) {
                     edge_buffer.push_back({c_v, weight});
