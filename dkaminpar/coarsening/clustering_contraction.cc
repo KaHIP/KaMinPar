@@ -35,14 +35,14 @@ struct GlobalNode {
 };
 
 std::pair<NoinitVector<GlobalNode>, NoinitVector<GlobalEdge>>
-find_nonlocal_nodes_and_edges(const DistributedGraph& graph, const GlobalClustering& clustering) {
+find_nonlocal_nodes_and_edges(const DistributedGraph& graph, const GlobalClustering& lnode_to_gcluster) {
     NoinitVector<NodeID> edge_position_buffer(graph.n() + 1);
     NoinitVector<NodeID> node_position_buffer(graph.n() + 1);
     edge_position_buffer.front() = 0;
     node_position_buffer.front() = 0;
 
     graph.pfor_nodes([&](const NodeID u) {
-        const GlobalNodeID c_u = clustering[u];
+        const GlobalNodeID c_u = lnode_to_gcluster[u];
 
         if (graph.is_owned_global_node(c_u)) {
             edge_position_buffer[u + 1] = 0;
@@ -60,18 +60,18 @@ find_nonlocal_nodes_and_edges(const DistributedGraph& graph, const GlobalCluster
     NoinitVector<GlobalNode> nonlocal_nodes(node_position_buffer.back());
 
     graph.pfor_nodes([&](const NodeID u) {
-        const GlobalNodeID c_u = clustering[u];
+        const GlobalNodeID gcluster = lnode_to_gcluster[u];
 
-        if (!graph.is_owned_global_node(c_u)) {
+        if (!graph.is_owned_global_node(gcluster)) {
             // Node
-            nonlocal_nodes[node_position_buffer[u]] = {.u = c_u, .weight = graph.node_weight(u)};
+            nonlocal_nodes[node_position_buffer[u]] = {.u = gcluster, .weight = graph.node_weight(u)};
 
             // Edge
             std::size_t pos = edge_position_buffer[u];
             for (const auto [e, v]: graph.neighbors(u)) {
                 nonlocal_edges[pos] = {
-                    .u      = c_u,
-                    .v      = clustering[v],
+                    .u      = gcluster,
+                    .v      = lnode_to_gcluster[v],
                     .weight = graph.edge_weight(e),
                 };
                 ++pos;
@@ -410,14 +410,17 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
     // node IDs: exchange these mappings here
     START_TIMER("Exchange node mapping for migrated nodes");
     struct NodeMapping {
-        GlobalNodeID u;
-        GlobalNodeID global_c_u;
+        GlobalNodeID gcluster;
+        GlobalNodeID gcnode;
     };
     NoinitVector<NodeMapping> local_nodes_mapping(local_nodes.size());
     tbb::parallel_for<std::size_t>(0, local_nodes.size(), [&](const std::size_t i) {
+        const GlobalNodeID gcluster = local_nodes[i].u;
+        const NodeID       lcluster = static_cast<NodeID>(gcluster - graph.offset_n());
+
         local_nodes_mapping[i] = {
-            .u          = local_nodes[i].u,
-            .global_c_u = lnode_to_lcnode[local_nodes[i].u - graph.offset_n()] + c_node_distribution[rank],
+            .gcluster = gcluster,
+            .gcnode   = lnode_to_lcnode[lcluster] + c_node_distribution[rank],
         };
     });
     NoinitVector<NodeMapping> local_nodes_mapping_rsps(nonlocal_nodes.size());
@@ -566,6 +569,13 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
         }
 
         KASSERT(lnode_to_gcnode[u] < c_node_distribution.back());
+    });
+    STOP_TIMER();
+
+    START_TIMER("Build migrated nodes arrays");
+    NoinitVector<NodeID> migrated_nodes(local_nodes_mapping.size()); // @todo join loops
+    tbb::parallel_for<std::size_t>(0, local_nodes_mapping.size(), [&](const std::size_t i) {
+        migrated_nodes[i] = static_cast<NodeID>(local_nodes_mapping[i].gcnode - c_node_distribution[rank]);
     });
     STOP_TIMER();
 
@@ -730,22 +740,15 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
     update_ghost_node_weights(c_graph);
     STOP_TIMER();
 
-    START_TIMER("Build migrated nodes arrays");
-    NoinitVector<NodeID> migrated_nodes(local_nodes.size());
-    tbb::parallel_for<std::size_t>(0, local_nodes.size(), [&](const std::size_t i) {
-        migrated_nodes[i] = static_cast<NodeID>(local_nodes_mapping[i].global_c_u - c_node_distribution[rank]);
-    });
-    STOP_TIMER();
-
     return {
         std::move(c_graph),
         std::move(lnode_to_gcnode),
         {
             .nodes      = std::move(migrated_nodes),
-            .sendcounts = std::move(migration_result.node_sendcounts),
-            .sdispls    = std::move(migration_result.node_sdispls),
-            .recvcounts = std::move(migration_result.node_recvcounts),
-            .rdispls    = std::move(migration_result.node_rdispls),
+            .sendcounts = std::move(migration_result.node_recvcounts),
+            .sdispls    = std::move(migration_result.node_rdispls),
+            .recvcounts = std::move(migration_result.node_sendcounts),
+            .rdispls    = std::move(migration_result.node_sdispls),
         },
     };
 }
@@ -758,14 +761,15 @@ DistributedPartitionedGraph project_partition(
         GlobalNodeID gcnode;
         BlockID      block;
     };
-    NoinitVector<MigratedNodeBlock> migrated_nodes_sendbuf(migration.nodes.size());
-    NoinitVector<MigratedNodeBlock> migrated_nodes_recvbuf(migration.rdispls.back());
+    NoinitVector<MigratedNodeBlock> migrated_nodes_sendbuf(migration.sdispls.back() + migration.sendcounts.back());
+    NoinitVector<MigratedNodeBlock> migrated_nodes_recvbuf(migration.rdispls.back() + migration.recvcounts.back());
 
     TIMED_SCOPE("Exchange migrated node blocks") {
         tbb::parallel_for<std::size_t>(0, migrated_nodes_sendbuf.size(), [&](const std::size_t i) {
-            const NodeID  lnode       = migration.nodes[i];
-            const BlockID block       = p_c_graph.block(lnode);
-            migrated_nodes_sendbuf[i] = {.gcnode = p_c_graph.local_to_global_node(lnode), .block = block};
+            const NodeID       lcnode = migration.nodes[i];
+            const BlockID      block  = p_c_graph.block(lcnode);
+            const GlobalNodeID gcnode = p_c_graph.local_to_global_node(lcnode);
+            migrated_nodes_sendbuf[i] = {.gcnode = gcnode, .block = block};
         });
 
         MPI_Alltoallv(
@@ -802,7 +806,7 @@ DistributedPartitionedGraph project_partition(
                     partition[u]        = p_c_graph.block(lcnode);
                 } else {
                     auto it = gcnode_to_block_handle.find(gcnode + 1);
-                    KASSERT(it != gcnode_to_block_handle.end());
+                    KASSERT(it != gcnode_to_block_handle.end(), V(gcnode));
                     partition[u] = (*it).second;
                 }
             }
