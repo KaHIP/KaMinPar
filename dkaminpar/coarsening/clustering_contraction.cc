@@ -413,16 +413,22 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
         GlobalNodeID gcluster;
         GlobalNodeID gcnode;
     };
+
     NoinitVector<NodeMapping> local_nodes_mapping(local_nodes.size());
+    NoinitVector<NodeID>      migrated_nodes(local_nodes_mapping.size());
+
     tbb::parallel_for<std::size_t>(0, local_nodes.size(), [&](const std::size_t i) {
         const GlobalNodeID gcluster = local_nodes[i].u;
         const NodeID       lcluster = static_cast<NodeID>(gcluster - graph.offset_n());
+        const NodeID       lcnode   = lnode_to_lcnode[lcluster];
 
         local_nodes_mapping[i] = {
             .gcluster = gcluster,
-            .gcnode   = lnode_to_lcnode[lcluster] + c_node_distribution[rank],
+            .gcnode   = lcnode + c_node_distribution[rank],
         };
+        migrated_nodes[i] = lcnode;
     });
+
     NoinitVector<NodeMapping> local_nodes_mapping_rsps(nonlocal_nodes.size());
     MPI_Alltoallv(
         local_nodes_mapping.data(), migration_result.node_recvcounts.data(), migration_result.node_rdispls.data(),
@@ -572,13 +578,6 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
     });
     STOP_TIMER();
 
-    START_TIMER("Build migrated nodes arrays");
-    NoinitVector<NodeID> migrated_nodes(local_nodes_mapping.size()); // @todo join loops
-    tbb::parallel_for<std::size_t>(0, local_nodes_mapping.size(), [&](const std::size_t i) {
-        migrated_nodes[i] = static_cast<NodeID>(local_nodes_mapping[i].gcnode - c_node_distribution[rank]);
-    });
-    STOP_TIMER();
-
     //
     // Sort local nodes by their cluster ID
     //
@@ -653,7 +652,24 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
                         c_u_weight += graph.node_weight(u);
 
                         for (const auto [e, v]: graph.neighbors(u)) {
-                            handle_edge(graph.edge_weight(e), lnode_to_gcluster[v]);
+                            if (graph.is_owned_node(v)) {
+                                const GlobalNodeID gcv = lnode_to_gcnode[v];
+                                if (gcv >= c_node_distribution[rank] && gcv < c_node_distribution[rank + 1]) {
+                                    const NodeID lcv = static_cast<NodeID>(gcv - c_node_distribution[rank]);
+                                    if (c_u != lcv) {
+                                        map[lcv] += graph.edge_weight(e);
+                                    }
+                                } else {
+                                    auto lcv_it = c_global_to_ghost.find(gcv + 1);
+                                    KASSERT(lcv_it != c_global_to_ghost.end());
+                                    const NodeID lcv = (*lcv_it).second;
+                                    if (c_u != lcv) {
+                                        map[lcv] += graph.edge_weight(e);
+                                    }
+                                }
+                            } else {
+                                handle_edge(graph.edge_weight(e), lnode_to_gcluster[v]);
+                            }
                         }
                     } else {
                         // Fix node weight later
