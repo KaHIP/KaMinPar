@@ -369,7 +369,8 @@ void FMRefiner::refine(DistributedPartitionedGraph& p_graph, const PartitionCont
                 for (const auto& [node, gain, to]: moves) {
                     KASSERT(node < node_mapping.size());
                     local_move_buffer.push_back(
-                        {node_mapping[node], group, p_graph->node_weight(node), gain, p_graph->block(node), to}
+                        {node_mapping[node], group, static_cast<NodeWeight>(p_graph->node_weight(node)), gain,
+                         p_graph->block(node), to}
                     );
                 }
             });
