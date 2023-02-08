@@ -1,3 +1,5 @@
+#include "dkaminpar/dkaminpar.h"
+
 #include <utility>
 
 #include <mpi.h>
@@ -8,7 +10,6 @@
 #include "dkaminpar/context_io.h"
 #include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/datastructures/distributed_graph_builder.h"
-#include "dkaminpar/dkaminpar.h"
 #include "dkaminpar/factories.h"
 #include "dkaminpar/graphutils/rearrangement.h"
 #include "dkaminpar/io.h"
@@ -143,7 +144,7 @@ void DistributedGraphPartitioner::import_graph(
 
     scalable_vector<GlobalNodeID> node_distribution(vtxdist, vtxdist + size + 1);
     scalable_vector<GlobalEdgeID> edge_distribution(size + 1);
-    edge_distribution[rank] = m;
+    edge_distribution[rank + 1] = m;
     MPI_Allgather(
         MPI_IN_PLACE, 1, mpi::type::get<GlobalEdgeID>(), edge_distribution.data(), 1, mpi::type::get<GlobalEdgeID>(),
         _comm
