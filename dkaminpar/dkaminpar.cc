@@ -144,11 +144,12 @@ void DistributedGraphPartitioner::import_graph(
 
     scalable_vector<GlobalNodeID> node_distribution(vtxdist, vtxdist + size + 1);
     scalable_vector<GlobalEdgeID> edge_distribution(size + 1);
-    edge_distribution[rank + 1] = m;
+    edge_distribution[rank] = m;
     MPI_Allgather(
         MPI_IN_PLACE, 1, mpi::type::get<GlobalEdgeID>(), edge_distribution.data(), 1, mpi::type::get<GlobalEdgeID>(),
         _comm
     );
+    std::exclusive_scan(edge_distribution.begin(), edge_distribution.end(), edge_distribution.begin(), 0);
 
     scalable_vector<EdgeID>     nodes;
     scalable_vector<NodeID>     edges;
@@ -204,7 +205,7 @@ NodeID DistributedGraphPartitioner::load_graph(
     return _graph_ptr.ptr->n();
 }
 
-GlobalEdgeWeight DistributedGraphPartitioner::compute_partition(const int seed, const BlockID k, BlockID *partition) {
+GlobalEdgeWeight DistributedGraphPartitioner::compute_partition(const int seed, const BlockID k, BlockID* partition) {
     auto& graph = *_graph_ptr.ptr;
 
     const PEID size = mpi::get_comm_size(_comm);
