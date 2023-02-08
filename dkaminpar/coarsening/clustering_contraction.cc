@@ -101,11 +101,9 @@ void deduplicate_edge_list(NoinitVector<GlobalEdge>& edges) {
 
     // Mark the first edge in every block of duplicate edges
     NoinitVector<EdgeID> edge_position_buffer(edges.size());
-    tbb::parallel_for<std::size_t>(0, edges.size(), [&](const std::size_t i) { edge_position_buffer[i] = 0; });
+    edge_position_buffer.front() = 0;
     tbb::parallel_for<std::size_t>(1, edges.size(), [&](const std::size_t i) {
-        if (edges[i].u != edges[i - 1].u || edges[i].v != edges[i - 1].v) {
-            edge_position_buffer[i] = 1;
-        }
+        edge_position_buffer[i] = (edges[i].u != edges[i - 1].u || edges[i].v != edges[i - 1].v);
     });
 
     // Prefix sum to get the location of the deduplicated edge
@@ -164,33 +162,36 @@ scalable_vector<T> build_distribution(const T count, MPI_Comm comm) {
 }
 
 NoinitVector<NodeID> build_lnode_to_lcnode_mapping(
-    const DistributedGraph& graph, const GlobalClustering& clustering, const NoinitVector<GlobalNode>& local_nodes
+    const DistributedGraph& graph, const GlobalClustering& lnode_to_gcluster,
+    const NoinitVector<GlobalNode>& local_nodes
 ) {
-    NoinitVector<NodeID> cluster_mapping(graph.n());
-    graph.pfor_nodes([&](const NodeID u) { cluster_mapping[u] = 0; });
+    NoinitVector<NodeID> lcluster_to_lcnode(graph.n());
+    graph.pfor_nodes([&](const NodeID u) { lcluster_to_lcnode[u] = 0; });
     tbb::parallel_invoke(
         [&] {
-            graph.pfor_nodes([&](const NodeID u) {
-                const GlobalNodeID c_u = clustering[u];
-                if (graph.is_owned_global_node(c_u)) {
-                    const NodeID local_cluster = static_cast<NodeID>(c_u - graph.offset_n());
-                    __atomic_store_n(&cluster_mapping[local_cluster], 1, __ATOMIC_RELAXED);
+            graph.pfor_nodes([&](const NodeID lnode) {
+                const GlobalNodeID gcluster = lnode_to_gcluster[lnode];
+                if (graph.is_owned_global_node(gcluster)) {
+                    const NodeID lcluster = static_cast<NodeID>(gcluster - graph.offset_n());
+                    __atomic_store_n(&lcluster_to_lcnode[lcluster], 1, __ATOMIC_RELAXED);
                 }
             });
         },
         [&] {
             tbb::parallel_for<std::size_t>(0, local_nodes.size(), [&](const std::size_t i) {
                 const GlobalNodeID gcluster = local_nodes[i].u;
-                KASSERT(graph.is_owned_global_node(gcluster), V(gcluster));
+                KASSERT(graph.is_owned_global_node(gcluster));
                 const NodeID lcluster = static_cast<NodeID>(gcluster - graph.offset_n());
-                __atomic_store_n(&cluster_mapping[lcluster], 1, __ATOMIC_RELAXED);
+                __atomic_store_n(&lcluster_to_lcnode[lcluster], 1, __ATOMIC_RELAXED);
             });
         }
     );
-    parallel::prefix_sum(cluster_mapping.begin(), cluster_mapping.end(), cluster_mapping.begin());
-    tbb::parallel_for<std::size_t>(0, cluster_mapping.size(), [&](const std::size_t i) { cluster_mapping[i] -= 1; });
+    parallel::prefix_sum(lcluster_to_lcnode.begin(), lcluster_to_lcnode.end(), lcluster_to_lcnode.begin());
+    tbb::parallel_for<std::size_t>(0, lcluster_to_lcnode.size(), [&](const std::size_t i) {
+        lcluster_to_lcnode[i] -= 1;
+    });
 
-    return cluster_mapping;
+    return lcluster_to_lcnode;
 }
 
 void localize_global_edge_list(
@@ -203,21 +204,21 @@ void localize_global_edge_list(
 }
 
 std::pair<NoinitVector<NodeID>, NoinitVector<NodeID>> build_node_buckets(
-    const DistributedGraph& graph, const NoinitVector<NodeID>& cluster_mapping, const GlobalNodeID c_n,
-    const NoinitVector<GlobalEdge>& local_edges, const GlobalClustering& clustering
+    const DistributedGraph& graph, const NoinitVector<NodeID>& lcluster_to_lcnode, const GlobalNodeID c_n,
+    const NoinitVector<GlobalEdge>& local_edges, const GlobalClustering& lnode_to_gcluster
 ) {
     NoinitVector<NodeID> buckets_position_buffer(c_n + 1);
-    tbb::parallel_for<NodeID>(0, c_n + 1, [&](const NodeID c_u) { buckets_position_buffer[c_u] = 0; });
+    tbb::parallel_for<NodeID>(0, c_n + 1, [&](const NodeID lcnode) { buckets_position_buffer[lcnode] = 0; });
 
     tbb::parallel_invoke(
         [&] {
-            graph.pfor_nodes([&](const NodeID u) {
-                const GlobalNodeID cluster = clustering[u];
-                if (graph.is_owned_global_node(cluster)) {
-                    const NodeID local_cluster = static_cast<NodeID>(cluster - graph.offset_n());
-                    const NodeID c_u           = cluster_mapping[local_cluster];
-                    KASSERT(c_u < buckets_position_buffer.size());
-                    __atomic_fetch_add(&buckets_position_buffer[c_u], 1, __ATOMIC_RELAXED);
+            graph.pfor_nodes([&](const NodeID lnode) {
+                const GlobalNodeID gcluster = lnode_to_gcluster[lnode];
+                if (graph.is_owned_global_node(gcluster)) {
+                    const NodeID lcluster = static_cast<NodeID>(gcluster - graph.offset_n());
+                    const NodeID lcnode   = lcluster_to_lcnode[lcluster];
+                    KASSERT(lcnode < buckets_position_buffer.size());
+                    __atomic_fetch_add(&buckets_position_buffer[lcnode], 1, __ATOMIC_RELAXED);
                 }
             });
         },
@@ -237,21 +238,21 @@ std::pair<NoinitVector<NodeID>, NoinitVector<NodeID>> build_node_buckets(
     NoinitVector<NodeID> buckets(buckets_position_buffer.empty() ? 0 : buckets_position_buffer.back());
     tbb::parallel_invoke(
         [&] {
-            graph.pfor_nodes([&](const NodeID u) {
-                const GlobalNodeID cluster = clustering[u];
-                if (graph.is_owned_global_node(cluster)) {
-                    const NodeID      local_cluster = static_cast<NodeID>(cluster - graph.offset_n());
-                    const NodeID      c_u           = cluster_mapping[local_cluster];
-                    const std::size_t pos = __atomic_fetch_sub(&buckets_position_buffer[c_u], 1, __ATOMIC_RELAXED);
-                    buckets[pos - 1]      = u;
+            graph.pfor_nodes([&](const NodeID lnode) {
+                const GlobalNodeID gcluster = lnode_to_gcluster[lnode];
+                if (graph.is_owned_global_node(gcluster)) {
+                    const NodeID      lcluster = static_cast<NodeID>(gcluster - graph.offset_n());
+                    const NodeID      lcnode   = lcluster_to_lcnode[lcluster];
+                    const std::size_t pos = __atomic_fetch_sub(&buckets_position_buffer[lcnode], 1, __ATOMIC_RELAXED);
+                    buckets[pos - 1]      = lnode;
                 }
             });
         },
         [&] {
             tbb::parallel_for<std::size_t>(0, local_edges.size(), [&](const std::size_t i) {
                 if (i == 0 || local_edges[i].u != local_edges[i - 1].u) {
-                    const NodeID      c_u = local_edges[i].u;
-                    const std::size_t pos = __atomic_fetch_sub(&buckets_position_buffer[c_u], 1, __ATOMIC_RELAXED);
+                    const NodeID      lcnode = local_edges[i].u;
+                    const std::size_t pos = __atomic_fetch_sub(&buckets_position_buffer[lcnode], 1, __ATOMIC_RELAXED);
                     buckets[pos - 1]      = graph.n() + i;
                 }
             });
