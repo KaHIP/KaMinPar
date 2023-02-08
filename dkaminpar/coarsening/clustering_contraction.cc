@@ -24,6 +24,7 @@
 #include "common/datastructures/ts_navigable_linked_list.h"
 #include "common/noinit_vector.h"
 #include "common/parallel/algorithm.h"
+#include "common/parallel/aligned_element.h"
 #include "common/parallel/vector_ets.h"
 #include "common/timer.h"
 
@@ -453,14 +454,14 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
         return nonlocal_gcluster_to_index.get_handle();
     });
 
-    std::vector<parallel::Atomic<NodeID>> next_index_for_pe(size + 1);
+    std::vector<parallel::Aligned<parallel::Atomic<NodeID>>> next_index_for_pe(size + 1);
 
     auto request_nonlocal_mapping = [&](const GlobalNodeID cluster) {
         auto& handle          = nonlocal_gcluster_to_index_handle_ets.local();
         const auto [it, mine] = handle.insert(cluster + 1, 1); // dummy value
         if (mine) {
             const PEID owner = graph.find_owner_of_global_node(cluster);
-            handle.update(cluster + 1, [&](auto& lhs) { return lhs = ++next_index_for_pe[owner]; });
+            handle.update(cluster + 1, [&](auto& lhs) { return lhs = ++(next_index_for_pe[owner].value); });
         }
     };
 
@@ -491,7 +492,9 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
     );
 
     std::vector<scalable_vector<GlobalNodeID>> my_mapping_requests(size);
-    tbb::parallel_for<PEID>(0, size, [&](const PEID pe) { my_mapping_requests[pe].resize(next_index_for_pe[pe]); });
+    tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
+        my_mapping_requests[pe].resize(next_index_for_pe[pe].value);
+    });
     static std::atomic_size_t counter;
     counter = 0;
 
@@ -534,9 +537,15 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
 
     // Build the coarse ghost node mapping: coarse ghost nodes to coarse global nodes
     START_TIMER("Build mapping");
-    std::exclusive_scan(next_index_for_pe.begin(), next_index_for_pe.end(), next_index_for_pe.begin(), 0);
+    std::exclusive_scan(
+        next_index_for_pe.begin(), next_index_for_pe.end(), next_index_for_pe.begin(),
+        parallel::Aligned<parallel::Atomic<NodeID>>(0),
+        [](const auto& init, const auto& op) {
+            return parallel::Aligned<parallel::Atomic<NodeID>>(init.value + op.value);
+        }
+    );
 
-    const NodeID c_ghost_n = next_index_for_pe.back();
+    const NodeID c_ghost_n = next_index_for_pe.back().value;
 
     growt::StaticGhostNodeMapping c_global_to_ghost(c_ghost_n);
     scalable_vector<GlobalNodeID> c_ghost_to_global(c_ghost_n);
@@ -545,7 +554,7 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
     tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
         for (std::size_t i = 0; i < my_mapping_requests[pe].size(); ++i) {
             const GlobalNodeID global = their_mapping_responses[pe][i];
-            const NodeID       local  = next_index_for_pe[pe] + i;
+            const NodeID       local  = next_index_for_pe[pe].value + i;
             c_global_to_ghost.insert(global + 1, c_n + local);
             c_ghost_to_global[local] = global;
             c_ghost_owner[local]     = pe;

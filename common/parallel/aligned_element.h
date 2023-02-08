@@ -9,27 +9,28 @@
 #include <type_traits>
 
 namespace kaminpar::parallel {
-template <typename ValueT>
+template <typename Value>
 struct alignas(64) Aligned {
-    ValueT value;
+    Value value;
 
-    template <std::enable_if_t<std::is_integral_v<ValueT>, int> = 0>
-    Aligned<ValueT>& operator++() {
+    Aligned() : value() {}
+    Aligned(Value value) : value(value) {}
+
+    Aligned<Value>& operator++() {
         ++value;
         return *this;
     }
 
-    template <std::enable_if_t<std::is_integral_v<ValueT>, int> = 0>
-    Aligned<ValueT>& operator--() {
+    Aligned<Value>& operator--() {
         --value;
         return *this;
     }
 
-    bool operator==(const ValueT& other) const {
+    bool operator==(const Value& other) const {
         return value == other;
     }
 
-    bool operator!=(const ValueT& other) const {
+    bool operator!=(const Value& other) const {
         return value != other;
     }
 };
