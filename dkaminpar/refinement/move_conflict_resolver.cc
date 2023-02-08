@@ -9,8 +9,7 @@
 
 #include <unordered_set>
 
-#include "definitions.h"
-
+#include "dkaminpar/definitions.h"
 #include "dkaminpar/mpi/wrapper.h"
 
 #include "common/asserting_cast.h"

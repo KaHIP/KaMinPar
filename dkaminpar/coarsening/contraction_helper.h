@@ -10,8 +10,6 @@
 
 #include <tbb/parallel_sort.h>
 
-#include "parallel/algorithm.h"
-
 #include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/datastructures/distributed_graph_builder.h"
 #include "dkaminpar/definitions.h"
@@ -19,6 +17,7 @@
 #include "common/datastructures/ts_navigable_linked_list.h"
 #include "common/math.h"
 #include "common/noinit_vector.h"
+#include "common/parallel/algorithm.h"
 #include "common/scalable_vector.h"
 #include "common/timer.h"
 

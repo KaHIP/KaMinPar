@@ -16,7 +16,7 @@ file(GLOB_RECURSE COMMON_SOURCE_FILES CONFIGURE_DEPENDS
 	*.cc *.h)
 
 add_library(common_base OBJECT ${COMMON_SOURCE_FILES} "${CMAKE_CURRENT_BINARY_DIR}/environment.cc")
-target_include_directories(common_base PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(common_base PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../")
 
 # Link libraries
 find_package(TBB REQUIRED) 

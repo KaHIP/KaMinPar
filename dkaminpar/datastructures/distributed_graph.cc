@@ -9,13 +9,12 @@
 #include <iomanip>
 #include <numeric>
 
-#include "parallel/algorithm.h"
-
 #include "dkaminpar/graphutils/communication.h"
 #include "dkaminpar/mpi/wrapper.h"
 
 #include "common/datastructures/marker.h"
 #include "common/math.h"
+#include "common/parallel/algorithm.h"
 #include "common/parallel/vector_ets.h"
 #include "common/scalable_vector.h"
 #include "common/timer.h"

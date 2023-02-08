@@ -12,8 +12,6 @@
 #include <tbb/concurrent_vector.h>
 #include <tbb/enumerable_thread_specific.h>
 
-#include "datastructures/fast_reset_array.h"
-
 #include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/definitions.h"
 

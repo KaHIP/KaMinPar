@@ -12,9 +12,8 @@
 #include <tbb/global_control.h>
 #include <tbb/parallel_for.h>
 
-#include "context.h"
-
 #include "kaminpar/arguments.h"
+#include "kaminpar/context.h"
 #include "kaminpar/datastructures/graph.h"
 #include "kaminpar/definitions.h"
 #include "kaminpar/graphutils/graph_rearrangement.h"
