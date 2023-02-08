@@ -345,9 +345,9 @@ public:
         GlobalEdgeWeight* edge_weights
     );
 
-    void load_graph(const std::string& filename, IOFormat format, IODistribution distribution);
+    NodeID load_graph(const std::string& filename, IOFormat format, IODistribution distribution);
 
-    std::vector<BlockID> compute_partition(int seed, BlockID k);
+    GlobalEdgeWeight compute_partition(int seed, BlockID k, BlockID *partition);
 
 private:
     MPI_Comm _comm;

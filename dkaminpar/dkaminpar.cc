@@ -197,13 +197,14 @@ void DistributedGraphPartitioner::import_graph(
     );
 }
 
-void DistributedGraphPartitioner::load_graph(
+NodeID DistributedGraphPartitioner::load_graph(
     const std::string& filename, const IOFormat format, const IODistribution distribution
 ) {
     _graph_ptr.ptr = std::make_unique<DistributedGraph>(dist::io::read_graph(filename, format, distribution, _comm));
+    return _graph_ptr.ptr->n();
 }
 
-std::vector<BlockID> DistributedGraphPartitioner::compute_partition(const int seed, const BlockID k) {
+GlobalEdgeWeight DistributedGraphPartitioner::compute_partition(const int seed, const BlockID k, BlockID *partition) {
     auto& graph = *_graph_ptr.ptr;
 
     const PEID size = mpi::get_comm_size(_comm);
@@ -243,7 +244,6 @@ std::vector<BlockID> DistributedGraphPartitioner::compute_partition(const int se
     );
 
     START_TIMER("IO");
-    std::vector<BlockID> partition(p_graph.n());
     if (graph.permuted()) {
         tbb::parallel_for<NodeID>(0, p_graph.n(), [&](const NodeID u) {
             partition[u] = p_graph.block(graph.map_original_node(u));
@@ -260,6 +260,6 @@ std::vector<BlockID> DistributedGraphPartitioner::compute_partition(const int se
         print_partition_summary(_ctx, p_graph, _max_timer_depth, _output_level == OutputLevel::EXPERIMENT, root);
     }
 
-    return partition;
+    return metrics::edge_cut(p_graph);
 }
 } // namespace kaminpar::dist

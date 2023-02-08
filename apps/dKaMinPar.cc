@@ -121,9 +121,12 @@ int main(int argc, char* argv[]) {
     //);
 
     DistributedGraphPartitioner partitioner(MPI_COMM_WORLD, app.num_threads, ctx);
-    partitioner.load_graph(app.graph_filename, IOFormat::AUTO, IODistribution::NODE_BALANCED);
+    const NodeID n = partitioner.load_graph(app.graph_filename, IOFormat::AUTO, IODistribution::NODE_BALANCED);
+
+    std::vector<BlockID> partition(n);
+
     partitioner.set_max_timer_depth(app.max_timer_depth);
-    auto partition = partitioner.compute_partition(app.seed, app.k);
+    partitioner.compute_partition(app.seed, app.k, partition.data());
 
     if (!app.partition_filename.empty()) {
         dist::io::partition::write(app.partition_filename, partition);
