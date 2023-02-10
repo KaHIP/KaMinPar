@@ -149,7 +149,9 @@ void DistributedGraphPartitioner::import_graph(
         MPI_IN_PLACE, 1, mpi::type::get<GlobalEdgeID>(), edge_distribution.data(), 1, mpi::type::get<GlobalEdgeID>(),
         _comm
     );
-    std::exclusive_scan(edge_distribution.begin(), edge_distribution.end(), edge_distribution.begin(), 0);
+    std::exclusive_scan(
+        edge_distribution.begin(), edge_distribution.end(), edge_distribution.begin(), static_cast<GlobalEdgeID>(0)
+    );
 
     scalable_vector<EdgeID>     nodes;
     scalable_vector<NodeID>     edges;

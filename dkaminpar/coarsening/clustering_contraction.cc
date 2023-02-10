@@ -158,7 +158,7 @@ scalable_vector<T> build_distribution(const T count, MPI_Comm comm) {
     const PEID         size = mpi::get_comm_size(comm);
     scalable_vector<T> distribution(size + 1);
     MPI_Allgather(&count, 1, mpi::type::get<NodeID>(), distribution.data(), 1, mpi::type::get<GlobalNodeID>(), comm);
-    std::exclusive_scan(distribution.begin(), distribution.end(), distribution.begin(), 0u);
+    std::exclusive_scan(distribution.begin(), distribution.end(), distribution.begin(), static_cast<T>(0));
     return distribution;
 }
 
