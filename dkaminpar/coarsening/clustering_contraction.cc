@@ -696,7 +696,7 @@ ContractionResult contract_clustering(const DistributedGraph& graph, const Globa
                         }
                     } else {
                         // Fix node weight later
-                        for (std::size_t index = u - graph.n(); local_edges[index].u == lcu; ++index) {
+                        for (std::size_t index = u - graph.n(); index < local_edges.size() && local_edges[index].u == lcu; ++index) {
                             handle_edge_to_gcluster(local_edges[index].weight, local_edges[index].v);
                         }
                     }
