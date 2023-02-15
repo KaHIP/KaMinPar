@@ -8,8 +8,8 @@
 
 #include <vector>
 
-#include "dkaminpar/coarsening/clustering_algorithm.h"
-#include "dkaminpar/coarsening/legacy_clustering_contraction.h"
+#include "dkaminpar/coarsening/clustering/clustering_algorithm.h"
+#include "dkaminpar/coarsening/contraction/legacy_cluster_contraction.h"
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructures/distributed_graph.h"
 

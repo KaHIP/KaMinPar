@@ -1,10 +1,11 @@
 /*******************************************************************************
- * @file:   local_clustering_contraction.cc
+ * @file:   local_cluster_contraction.cc
  * @author: Daniel Seemaier
  * @date:   27.10.2021
- * @brief:
+ * @brief:  Graph contraction for local clusters, i.e., clusters that do not
+ * contain nodes from than one PE.
  ******************************************************************************/
-#include "dkaminpar/coarsening/local_clustering_contraction.h"
+#include "dkaminpar/coarsening/contraction/local_cluster_contraction.h"
 
 #include <tbb/parallel_for.h>
 #include <tbb/parallel_invoke.h>

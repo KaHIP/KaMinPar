@@ -9,7 +9,7 @@
 #include "tests/dkaminpar/distributed_graph_factories.h"
 #include "tests/dkaminpar/distributed_graph_helpers.h"
 
-#include "dkaminpar/coarsening/clustering_contraction.h"
+#include "dkaminpar/coarsening/contraction/cluster_contraction.h"
 #include "dkaminpar/mpi/utils.h"
 
 namespace kaminpar::dist {

@@ -4,7 +4,7 @@
  * @date:   01.10.21
  * @brief:
  ******************************************************************************/
-#include "dkaminpar/coarsening/locking_label_propagation_clustering.h"
+#include "dkaminpar/coarsening/clustering/locking_label_propagation_clustering.h"
 
 #include <unordered_map>
 #include <unordered_set>

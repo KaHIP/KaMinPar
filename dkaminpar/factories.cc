@@ -31,13 +31,13 @@
 #include "dkaminpar/refinement/noop_refiner.h"
 
 // Clustering
-#include "dkaminpar/coarsening/global_active_set_label_propagation_clustering.h"
-#include "dkaminpar/coarsening/global_label_propagation_clustering.h"
-#include "dkaminpar/coarsening/hem_clustering.h"
-#include "dkaminpar/coarsening/hem_lp_clustering.h"
-#include "dkaminpar/coarsening/local_label_propagation_clustering.h"
-#include "dkaminpar/coarsening/locking_label_propagation_clustering.h"
-#include "dkaminpar/coarsening/noop_clustering.h"
+#include "dkaminpar/coarsening/clustering/global_active_set_label_propagation_clustering.h"
+#include "dkaminpar/coarsening/clustering/global_label_propagation_clustering.h"
+#include "dkaminpar/coarsening/clustering/hem_clustering.h"
+#include "dkaminpar/coarsening/clustering/hem_lp_clustering.h"
+#include "dkaminpar/coarsening/clustering/local_label_propagation_clustering.h"
+#include "dkaminpar/coarsening/clustering/locking_label_propagation_clustering.h"
+#include "dkaminpar/coarsening/clustering/noop_clustering.h"
 
 namespace kaminpar::dist::factory {
 std::unique_ptr<Partitioner> create_partitioner(const Context& ctx, const DistributedGraph& graph) {

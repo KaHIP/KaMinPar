@@ -6,7 +6,7 @@
  ******************************************************************************/
 #pragma once
 
-#include "dkaminpar/coarsening/clustering_algorithm.h"
+#include "dkaminpar/coarsening/clustering/clustering_algorithm.h"
 #include "dkaminpar/context.h"
 
 namespace kaminpar::dist {

@@ -2,7 +2,8 @@
  * @file:   local_clustering_contraction.h
  * @author: Daniel Seemaier
  * @date:   27.10.2021
- * @brief:
+ * @brief:  Graph contraction for local clusters, i.e., clusters that do not
+ * contain nodes from than one PE.
  ******************************************************************************/
 #pragma once
 

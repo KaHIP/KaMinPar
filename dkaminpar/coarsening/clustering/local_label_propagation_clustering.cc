@@ -1,11 +1,11 @@
 /*******************************************************************************
- * @file:   distributed_local_label_propagation_clustering.cc
+ * @file:   local_label_propagation_clustering.cc
  * @author: Daniel Seemaier
- * @date:   30.09.21
+ * @date:   30.09.2021
  * @brief:  Label propagation clustering that only clusters node within a PE
  * (i.e., not with ghost nodes).
  ******************************************************************************/
-#include "dkaminpar/coarsening/local_label_propagation_clustering.h"
+#include "dkaminpar/coarsening/clustering/local_label_propagation_clustering.h"
 
 #include "kaminpar/label_propagation.h"
 

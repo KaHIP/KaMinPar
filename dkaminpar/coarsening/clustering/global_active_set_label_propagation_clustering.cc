@@ -9,7 +9,7 @@
  * maximum cluster weight limit.
  * This implementation uses an active set strategy.
  ******************************************************************************/
-#include "dkaminpar/coarsening/global_active_set_label_propagation_clustering.h"
+#include "dkaminpar/coarsening/clustering/global_active_set_label_propagation_clustering.h"
 
 #include <unordered_map>
 

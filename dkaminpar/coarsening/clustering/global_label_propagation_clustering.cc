@@ -8,7 +8,7 @@
  * PE moves nodes to the cluster. Thus, the clustering might violate the
  * maximum cluster weight limit.
  ******************************************************************************/
-#include "dkaminpar/coarsening/global_label_propagation_clustering.h"
+#include "dkaminpar/coarsening/clustering/global_label_propagation_clustering.h"
 
 #include <unordered_map>
 

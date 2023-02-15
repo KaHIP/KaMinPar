@@ -7,7 +7,7 @@
 #pragma once
 
 #include "dkaminpar/algorithms/greedy_node_coloring.h"
-#include "dkaminpar/coarsening/clustering_algorithm.h"
+#include "dkaminpar/coarsening/clustering/clustering_algorithm.h"
 #include "dkaminpar/context.h"
 #include "dkaminpar/definitions.h"
 

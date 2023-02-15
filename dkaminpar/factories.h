@@ -8,7 +8,7 @@
 
 #include <memory>
 
-#include "dkaminpar/coarsening/clustering_algorithm.h"
+#include "dkaminpar/coarsening/clustering/clustering_algorithm.h"
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/initial_partitioning/initial_partitioner.h"

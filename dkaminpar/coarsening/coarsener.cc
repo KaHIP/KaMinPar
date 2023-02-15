@@ -6,8 +6,8 @@
  ******************************************************************************/
 #include "dkaminpar/coarsening/coarsener.h"
 
-#include "dkaminpar/coarsening/legacy_clustering_contraction.h"
-#include "dkaminpar/coarsening/local_clustering_contraction.h"
+#include "dkaminpar/coarsening/contraction/legacy_cluster_contraction.h"
+#include "dkaminpar/coarsening/contraction/local_cluster_contraction.h"
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/debug.h"

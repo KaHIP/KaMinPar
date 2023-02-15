@@ -1,5 +1,5 @@
 /*******************************************************************************
- * @file:   legacy_clustering_contraction_redistribution.h
+ * @file:   legacy_cluster_contraction_redistribution.h
  * @author: Daniel Seemaier
  * @date:   28.10.2021
  * @brief:  Shared-memory parallel contraction of global clustering without
@@ -7,7 +7,7 @@
  ******************************************************************************/
 #pragma once
 
-#include "dkaminpar/coarsening/clustering_contraction.h"
+#include "dkaminpar/coarsening/contraction/cluster_contraction.h"
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/definitions.h"
