@@ -28,7 +28,7 @@ struct ContractionResult {
     MigratedNodes              migration;
 };
 
-ContractionResult contract_clustering(const DistributedGraph& graph, const GlobalClustering& clustering);
+ContractionResult contract_clustering(const DistributedGraph& graph, GlobalClustering& clustering);
 
 DistributedPartitionedGraph project_partition(
     const DistributedGraph& graph, DistributedPartitionedGraph p_c_graph, const NoinitVector<GlobalNodeID>& c_mapping,

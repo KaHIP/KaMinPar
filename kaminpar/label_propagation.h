@@ -892,7 +892,7 @@ public:
         return std::move(_clusters);
     }
 
-    [[nodiscard]] const auto& clusters() {
+    [[nodiscard]] auto& clusters() {
         return _clusters;
     }
 
