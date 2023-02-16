@@ -435,7 +435,7 @@ std::pair<NodeID, PEID> remap_gcnode(
 
 void rebalance_cluster_placement(
     const DistributedGraph& graph, const scalable_vector<GlobalNodeID>& current_cnode_distribution,
-    const NoinitVector<NodeID>& lcluster_to_lcnode, const NoinitVector<NodeMapping>& nonlocal_gnode_to_gcnode,
+    const NoinitVector<NodeID>& lcluster_to_lcnode, const NoinitVector<NodeMapping>& nonlocal_gcluster_to_gcnode,
     GlobalClustering& lnode_to_gcluster
 ) {
     const PEID         size = mpi::get_comm_size(graph.communicator());
@@ -458,47 +458,75 @@ void rebalance_cluster_placement(
 
         if (expected_size > actual_size) {
             pe_underload[pe + 1] = expected_size - actual_size;
+            pe_overload[pe + 1]  = 0;
         } else {
-            pe_overload[pe + 1] = actual_size - expected_size;
+            pe_underload[pe + 1] = 0;
+            pe_overload[pe + 1]  = actual_size - expected_size;
         }
     }
     parallel::prefix_sum(pe_overload.begin(), pe_overload.end(), pe_overload.begin());
     parallel::prefix_sum(pe_underload.begin(), pe_underload.end(), pe_underload.begin());
 
-    growt::GlobalNodeIDMap<GlobalNodeID> nonlocal_gnode_to_gcnode_map(nonlocal_gnode_to_gcnode.size());
+    growt::GlobalNodeIDMap<GlobalNodeID> nonlocal_gcluster_to_gcnode_map(nonlocal_gcluster_to_gcnode.size());
     tbb::enumerable_thread_specific<growt::GlobalNodeIDMap<GlobalNodeID>::handle_type>
-        nonlocal_gcnode_to_gcnode_handle_ets([&] { return nonlocal_gnode_to_gcnode_map.get_handle(); });
+        nonlocal_gcluster_to_gcnode_handle_ets([&] { return nonlocal_gcluster_to_gcnode_map.get_handle(); });
 
-    tbb::parallel_for(tbb::blocked_range<std::size_t>(0, nonlocal_gnode_to_gcnode.size()), [&](const auto& r) {
-        auto& handle = nonlocal_gcnode_to_gcnode_handle_ets.local();
+    tbb::parallel_for(tbb::blocked_range<std::size_t>(0, nonlocal_gcluster_to_gcnode.size()), [&](const auto& r) {
+        auto& handle = nonlocal_gcluster_to_gcnode_handle_ets.local();
         for (std::size_t i = r.begin(); i != r.end(); ++i) {
-            const auto& [gnode, gcnode] = nonlocal_gnode_to_gcnode[i];
-            handle.insert(gnode + 1, gcnode);
+            const auto& [gcluster, gcnode] = nonlocal_gcluster_to_gcnode[i];
+            handle.insert(gcluster + 1, gcnode);
         }
     });
 
     graph.pfor_nodes_range([&](const auto& r) {
-        auto& handle = nonlocal_gcnode_to_gcnode_handle_ets.local();
+        auto& handle = nonlocal_gcluster_to_gcnode_handle_ets.local();
 
         for (NodeID lnode = r.begin(); lnode != r.end(); ++lnode) {
             const GlobalNodeID old_gcluster = lnode_to_gcluster[lnode];
 
             GlobalNodeID old_gcnode = 0;
+            PEID         old_owner  = 0;
             if (graph.is_owned_global_node(old_gcluster)) {
                 const NodeID old_lcluster = static_cast<NodeID>(old_gcluster - graph.offset_n());
                 old_gcnode                = lcluster_to_lcnode[old_lcluster] + current_cnode_distribution[rank];
+                old_owner                 = rank;
             } else {
-                auto it = handle.find(lnode + graph.offset_n() + 1);
+                auto it = handle.find(old_gcluster + 1);
                 KASSERT(it != handle.end());
                 old_gcnode = (*it).second;
+                old_owner  = graph.find_owner_of_global_node(old_gcluster);
             }
 
             const auto [new_lcnode, new_owner] = remap_gcnode(
-                old_gcnode, rank, current_cnode_distribution, desired_cnode_distribution, pe_overload, pe_underload
+                old_gcnode, old_owner, current_cnode_distribution, desired_cnode_distribution, pe_overload, pe_underload
             );
             lnode_to_gcluster[lnode] = graph.offset_n(new_owner) + new_lcnode;
+
+            KASSERT(lnode_to_gcluster[lnode] >= graph.offset_n(new_owner));
+            KASSERT(lnode_to_gcluster[lnode] < graph.offset_n(new_owner + 1));
         }
     });
+
+    // Synchronize the new labels of ghost nodes
+    struct Message {
+        NodeID       lnode;
+        GlobalNodeID gcluster;
+    };
+    mpi::graph::sparse_alltoall_interface_to_pe<Message>(
+        graph,
+        [&](const NodeID u) -> Message {
+            return {u, lnode_to_gcluster[u]};
+        },
+        [&](const auto buffer, const PEID pe) {
+            tbb::parallel_for<std::size_t>(0, buffer.size(), [&](const std::size_t i) {
+                const auto& [their_lnode, new_gcluster] = buffer[i];
+
+                const NodeID lnode       = graph.global_to_local_node(graph.offset_n(pe) + their_lnode);
+                lnode_to_gcluster[lnode] = new_gcluster;
+            });
+        }
+    );
 }
 } // namespace
 
