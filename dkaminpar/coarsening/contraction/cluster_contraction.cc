@@ -411,27 +411,31 @@ scalable_vector<T> create_perfect_distribution_from_global_count(const T global_
     return distribution;
 }
 
-GlobalNodeID remap_lcnode(
-    const GlobalNodeID lcnode, const PEID current_owner,
+std::pair<NodeID, PEID> remap_gcnode(
+    const GlobalNodeID gcnode, const PEID current_owner,
     const scalable_vector<GlobalNodeID>& current_cnode_distribution,
     const scalable_vector<GlobalNodeID>& desired_cnode_distribution, const NoinitVector<GlobalNodeID>& pe_overload,
     const NoinitVector<GlobalNodeID>& pe_underload
 ) {
-    const auto local_node_count =
+    const NodeID lcnode = static_cast<NodeID>(gcnode - current_cnode_distribution[current_owner]);
+    const auto   local_node_count =
         static_cast<NodeID>(desired_cnode_distribution[current_owner + 1] - desired_cnode_distribution[current_owner]);
     if (lcnode < local_node_count) {
-        return desired_cnode_distribution[current_owner] + lcnode;
+        return {lcnode, current_owner};
     } else {
         const GlobalNodeID position = pe_overload[current_owner] + lcnode - local_node_count;
-        const PEID new_owner = static_cast<PEID>(math::find_in_distribution<GlobalNodeID>(position, pe_underload));
-        return desired_cnode_distribution[new_owner] + current_cnode_distribution[new_owner + 1]
-               - current_cnode_distribution[new_owner] + position - pe_underload[new_owner];
+        const PEID   new_owner  = static_cast<PEID>(math::find_in_distribution<GlobalNodeID>(position, pe_underload));
+        const NodeID new_lcnode = static_cast<NodeID>(
+            current_cnode_distribution[new_owner + 1] - current_cnode_distribution[new_owner] + position
+            - pe_underload[new_owner]
+        );
+        return {new_lcnode, new_owner};
     }
 }
 
 void rebalance_cluster_placement(
     const DistributedGraph& graph, const scalable_vector<GlobalNodeID>& current_cnode_distribution,
-    const NoinitVector<NodeID>& lcluster_to_lcnode, const NoinitVector<NodeMapping>& my_nonlocal_gnode_to_gcluster,
+    const NoinitVector<NodeID>& lcluster_to_lcnode, const NoinitVector<NodeMapping>& nonlocal_gnode_to_gcnode,
     GlobalClustering& lnode_to_gcluster
 ) {
     const PEID         size = mpi::get_comm_size(graph.communicator());
@@ -461,43 +465,38 @@ void rebalance_cluster_placement(
     parallel::prefix_sum(pe_overload.begin(), pe_overload.end(), pe_overload.begin());
     parallel::prefix_sum(pe_underload.begin(), pe_underload.end(), pe_underload.begin());
 
-    growt::GlobalNodeIDMap<GlobalNodeID> nonlocal_gnode_to_gcluster_map(my_nonlocal_gnode_to_gcluster.size());
+    growt::GlobalNodeIDMap<GlobalNodeID> nonlocal_gnode_to_gcnode_map(nonlocal_gnode_to_gcnode.size());
     tbb::enumerable_thread_specific<growt::GlobalNodeIDMap<GlobalNodeID>::handle_type>
-        nonlocal_gcnode_to_gcluster_handle_ets([&] { return nonlocal_gnode_to_gcluster_map.get_handle(); });
+        nonlocal_gcnode_to_gcnode_handle_ets([&] { return nonlocal_gnode_to_gcnode_map.get_handle(); });
 
-    tbb::parallel_for(tbb::blocked_range<std::size_t>(0, my_nonlocal_gnode_to_gcluster.size()), [&](const auto& r) {
-        auto& handle = nonlocal_gcnode_to_gcluster_handle_ets.local();
+    tbb::parallel_for(tbb::blocked_range<std::size_t>(0, nonlocal_gnode_to_gcnode.size()), [&](const auto& r) {
+        auto& handle = nonlocal_gcnode_to_gcnode_handle_ets.local();
         for (std::size_t i = r.begin(); i != r.end(); ++i) {
-            const auto& [gnode, gcluster] = my_nonlocal_gnode_to_gcluster[i];
-            handle.insert(gnode + 1, gcluster);
+            const auto& [gnode, gcnode] = nonlocal_gnode_to_gcnode[i];
+            handle.insert(gnode + 1, gcnode);
         }
     });
 
     graph.pfor_nodes_range([&](const auto& r) {
-        auto& handle = nonlocal_gcnode_to_gcluster_handle_ets.local();
+        auto& handle = nonlocal_gcnode_to_gcnode_handle_ets.local();
 
         for (NodeID lnode = r.begin(); lnode != r.end(); ++lnode) {
             const GlobalNodeID old_gcluster = lnode_to_gcluster[lnode];
-            GlobalNodeID       old_gcnode   = 0;
-            PEID               new_owner    = 0;
 
+            GlobalNodeID old_gcnode = 0;
             if (graph.is_owned_global_node(old_gcluster)) {
                 const NodeID old_lcluster = static_cast<NodeID>(old_gcluster - graph.offset_n());
                 old_gcnode                = lcluster_to_lcnode[old_lcluster] + current_cnode_distribution[rank];
-                new_owner                 = rank;
             } else {
                 auto it = handle.find(lnode + graph.offset_n() + 1);
                 KASSERT(it != handle.end());
                 old_gcnode = (*it).second;
-                new_owner  = 0; // @todo
             }
 
-            const GlobalNodeID new_gcnode = remap_lcnode(
+            const auto [new_lcnode, new_owner] = remap_gcnode(
                 old_gcnode, rank, current_cnode_distribution, desired_cnode_distribution, pe_overload, pe_underload
             );
-            const GlobalNodeID new_gcluster =
-                graph.offset_n(new_owner) + new_gcnode - desired_cnode_distribution[new_owner];
-            lnode_to_gcluster[lnode] = new_gcluster;
+            lnode_to_gcluster[lnode] = graph.offset_n(new_owner) + new_lcnode;
         }
     });
 }
