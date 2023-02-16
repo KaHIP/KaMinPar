@@ -435,6 +435,7 @@ void rebalance_cluster_placement(
     GlobalClustering& lnode_to_gcluster
 ) {
     const PEID         size = mpi::get_comm_size(graph.communicator());
+    const PEID         rank = mpi::get_comm_rank(graph.communicator());
     const GlobalNodeID c_n  = current_cnode_distribution.back();
 
     const auto desired_cnode_distribution =
@@ -459,6 +460,46 @@ void rebalance_cluster_placement(
     }
     parallel::prefix_sum(pe_overload.begin(), pe_overload.end(), pe_overload.begin());
     parallel::prefix_sum(pe_underload.begin(), pe_underload.end(), pe_underload.begin());
+
+    growt::GlobalNodeIDMap<GlobalNodeID> nonlocal_gnode_to_gcluster_map(my_nonlocal_gnode_to_gcluster.size());
+    tbb::enumerable_thread_specific<growt::GlobalNodeIDMap<GlobalNodeID>::handle_type>
+        nonlocal_gcnode_to_gcluster_handle_ets([&] { return nonlocal_gnode_to_gcluster_map.get_handle(); });
+
+    tbb::parallel_for(tbb::blocked_range<std::size_t>(0, my_nonlocal_gnode_to_gcluster.size()), [&](const auto& r) {
+        auto& handle = nonlocal_gcnode_to_gcluster_handle_ets.local();
+        for (std::size_t i = r.begin(); i != r.end(); ++i) {
+            const auto& [gnode, gcluster] = my_nonlocal_gnode_to_gcluster[i];
+            handle.insert(gnode + 1, gcluster);
+        }
+    });
+
+    graph.pfor_nodes_range([&](const auto& r) {
+        auto& handle = nonlocal_gcnode_to_gcluster_handle_ets.local();
+
+        for (NodeID lnode = r.begin(); lnode != r.end(); ++lnode) {
+            const GlobalNodeID old_gcluster = lnode_to_gcluster[lnode];
+            GlobalNodeID       old_gcnode   = 0;
+            PEID               new_owner    = 0;
+
+            if (graph.is_owned_global_node(old_gcluster)) {
+                const NodeID old_lcluster = static_cast<NodeID>(old_gcluster - graph.offset_n());
+                old_gcnode                = lcluster_to_lcnode[old_lcluster] + current_cnode_distribution[rank];
+                new_owner                 = rank;
+            } else {
+                auto it = handle.find(lnode + graph.offset_n() + 1);
+                KASSERT(it != handle.end());
+                old_gcnode = (*it).second;
+                new_owner = 0; // @todo
+            }
+
+            const GlobalNodeID new_gcnode = remap_lcnode(
+                old_gcnode, rank, current_cnode_distribution, desired_cnode_distribution, pe_overload, pe_underload
+            );
+            const GlobalNodeID new_gcluster =
+                graph.offset_n(new_owner) + new_gcnode - desired_cnode_distribution[new_owner];
+            lnode_to_gcluster[lnode] = new_gcluster;
+        }
+    });
 }
 } // namespace
 
@@ -519,12 +560,13 @@ ContractionResult contract_clustering(const DistributedGraph& graph, GlobalClust
     auto& their_req_to_lcnode = mapping_exchange_result.their_req_to_lcnode;
     STOP_TIMER();
 
-    // Compute distribution imbalance to check whether we must re-balance the clustering
+    // If the "natural" assignment of coarse nodes to PEs has too much imbalance, we remap the cluster IDs to achieve
+    // perfect coarse node balance
     if (compute_distribution_imbalance(c_node_distribution) > 1.03) { // @todo make this configurable
         rebalance_cluster_placement(
             graph, c_node_distribution, lcluster_to_lcnode, my_nonlocal_to_gcnode, lnode_to_gcluster
         );
-        // @todo
+        return contract_clustering(graph, lnode_to_gcluster);
     }
 
     START_TIMER("Collect nonlocal edges");
