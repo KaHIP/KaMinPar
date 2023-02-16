@@ -69,7 +69,7 @@ const DistributedGraph* Coarsener::coarsen_once_global(const GlobalNodeWeight ma
         return graph;
     }
 
-    auto result = contract_global_clustering(*graph, clustering, _input_ctx.coarsening.global_contraction_algorithm);
+    auto result = contract_global_clustering(*graph, clustering, _input_ctx.coarsening);
     KASSERT(graph::debug::validate(result.graph), "", assert::heavy);
     DBG << "Reduced number of nodes from " << graph->global_n() << " to " << result.graph.global_n();
 

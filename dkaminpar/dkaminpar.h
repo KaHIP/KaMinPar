@@ -235,6 +235,8 @@ struct CoarseningContext {
     shm::ClusterWeightLimit cluster_weight_limit      = shm::ClusterWeightLimit::EPSILON_BLOCK_WEIGHT;
     double                  cluster_weight_multiplier = 0.0;
 
+    double max_cnode_imbalance = std::numeric_limits<double>::max();
+
     void setup(const ParallelContext& parallel);
 };
 
@@ -347,7 +349,7 @@ public:
 
     NodeID load_graph(const std::string& filename, IOFormat format, IODistribution distribution);
 
-    GlobalEdgeWeight compute_partition(int seed, BlockID k, BlockID *partition);
+    GlobalEdgeWeight compute_partition(int seed, BlockID k, BlockID* partition);
 
 private:
     MPI_Comm _comm;

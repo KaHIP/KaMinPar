@@ -33,7 +33,7 @@ GlobalContractionResult
 contract_global_clustering_full_migration(const DistributedGraph& graph, const GlobalClustering& clustering);
 
 GlobalContractionResult contract_global_clustering(
-    const DistributedGraph& graph, const GlobalClustering& clustering, GlobalContractionAlgorithm algorithm
+    const DistributedGraph& graph, const GlobalClustering& clustering, const CoarseningContext& c_ctx
 );
 
 DistributedPartitionedGraph project_global_contracted_graph(

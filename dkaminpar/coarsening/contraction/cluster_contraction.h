@@ -28,7 +28,10 @@ struct ContractionResult {
     MigratedNodes              migration;
 };
 
-ContractionResult contract_clustering(const DistributedGraph& graph, GlobalClustering& clustering);
+ContractionResult contract_clustering(
+    const DistributedGraph& graph, GlobalClustering& clustering,
+    double max_cnode_imbalance = std::numeric_limits<double>::max()
+);
 
 DistributedPartitionedGraph project_partition(
     const DistributedGraph& graph, DistributedPartitionedGraph p_c_graph, const NoinitVector<GlobalNodeID>& c_mapping,

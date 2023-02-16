@@ -301,6 +301,12 @@ void print(const CoarseningContext& ctx, std::ostream& out) {
 
     if (ctx.max_global_clustering_levels > 0) {
         out << "Global clustering algorithm:  " << ctx.global_clustering_algorithm << "\n";
+        out << "  Contraction algorithm:      " << ctx.global_contraction_algorithm;
+        if (ctx.global_contraction_algorithm == GlobalContractionAlgorithm::V2
+            && ctx.max_cnode_imbalance < std::numeric_limits<double>::max()) {
+            out << "[rebalance if > " << std::setprecision(2) << 100.0 * (ctx.max_cnode_imbalance - 1.0) << " %]";
+        }
+        out << "\n";
 
         if (ctx.global_clustering_algorithm == GlobalClusteringAlgorithm::LP
             || ctx.global_clustering_algorithm == GlobalClusteringAlgorithm::ACTIVE_SET_LP

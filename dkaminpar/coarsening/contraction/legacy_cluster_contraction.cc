@@ -790,11 +790,11 @@ contract_global_clustering_full_migration(const DistributedGraph& graph, const G
 }
 
 GlobalContractionResult contract_global_clustering(
-    const DistributedGraph& graph, const GlobalClustering& clustering, const GlobalContractionAlgorithm algorithm
+    const DistributedGraph& graph, const GlobalClustering& clustering, const CoarseningContext& c_ctx
 ) {
     SCOPED_TIMER("Contract clustering");
 
-    switch (algorithm) {
+    switch (c_ctx.global_contraction_algorithm) {
         case GlobalContractionAlgorithm::NO_MIGRATION:
             return contract_global_clustering_no_migration(graph, clustering);
         case GlobalContractionAlgorithm::MINIMAL_MIGRATION:
@@ -803,7 +803,7 @@ GlobalContractionResult contract_global_clustering(
             return contract_global_clustering_full_migration(graph, clustering);
         case GlobalContractionAlgorithm::V2: {
             GlobalClustering clustering2(clustering.begin(), clustering.end());
-            auto [c_graph, c_mapping, migration] = contract_clustering(graph, clustering2);
+            auto [c_graph, c_mapping, migration] = contract_clustering(graph, clustering2, c_ctx.max_cnode_imbalance);
             GlobalMapping c_mapping2(c_mapping.size());
             std::copy(c_mapping.begin(), c_mapping.end(), c_mapping2.begin());
             return {std::move(c_graph), std::move(c_mapping2), std::move(migration)};

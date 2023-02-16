@@ -489,7 +489,7 @@ void rebalance_cluster_placement(
                 auto it = handle.find(lnode + graph.offset_n() + 1);
                 KASSERT(it != handle.end());
                 old_gcnode = (*it).second;
-                new_owner = 0; // @todo
+                new_owner  = 0; // @todo
             }
 
             const GlobalNodeID new_gcnode = remap_lcnode(
@@ -503,7 +503,9 @@ void rebalance_cluster_placement(
 }
 } // namespace
 
-ContractionResult contract_clustering(const DistributedGraph& graph, GlobalClustering& lnode_to_gcluster) {
+ContractionResult contract_clustering(
+    const DistributedGraph& graph, GlobalClustering& lnode_to_gcluster, const double max_cnode_imbalance
+) {
     SET_DEBUG(false);
 
     const PEID size = mpi::get_comm_size(graph.communicator());
@@ -562,11 +564,11 @@ ContractionResult contract_clustering(const DistributedGraph& graph, GlobalClust
 
     // If the "natural" assignment of coarse nodes to PEs has too much imbalance, we remap the cluster IDs to achieve
     // perfect coarse node balance
-    if (compute_distribution_imbalance(c_node_distribution) > 1.03) { // @todo make this configurable
+    if (compute_distribution_imbalance(c_node_distribution) > max_cnode_imbalance) {
         rebalance_cluster_placement(
             graph, c_node_distribution, lcluster_to_lcnode, my_nonlocal_to_gcnode, lnode_to_gcluster
         );
-        return contract_clustering(graph, lnode_to_gcluster);
+        return contract_clustering(graph, lnode_to_gcluster, max_cnode_imbalance);
     }
 
     START_TIMER("Collect nonlocal edges");

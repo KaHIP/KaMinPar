@@ -249,11 +249,12 @@ CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx) {
         ->capture_default_str();
     coarsening->add_option("--c-global-contraction-algorithm", ctx.coarsening.global_contraction_algorithm)
         ->transform(CLI::CheckedTransformer(get_global_contraction_algorithms()).description(""))
-        ->description(R"(Algorithm to contract a global clustering, options are:
+        ->description(R"([Deprecated] Algorithm to contract a global clustering, options are:
   - no-migration:      do not redistribute any nodes
   - minimal-migration: only redistribute coarse nodes s.t. each PE has the same number of nodes
   - full-migration:    redistribute all coarse nodes round-robin)")
         ->capture_default_str();
+    coarsening->add_option("--c-max-cnode-imbalance", ctx.coarsening.max_cnode_imbalance, "Maximum coarse node imbalance before rebalancing cluster assignment.");
     
     return coarsening;
 }
