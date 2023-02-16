@@ -417,6 +417,7 @@ std::pair<NodeID, PEID> remap_gcnode(
     const scalable_vector<GlobalNodeID>& desired_cnode_distribution, const NoinitVector<GlobalNodeID>& pe_overload,
     const NoinitVector<GlobalNodeID>& pe_underload
 ) {
+    // @todo high degree nodes come at the end -- remap the first few nodes, not the last ones!
     const NodeID lcnode = static_cast<NodeID>(gcnode - current_cnode_distribution[current_owner]);
     const auto   local_node_count =
         static_cast<NodeID>(desired_cnode_distribution[current_owner + 1] - desired_cnode_distribution[current_owner]);
