@@ -42,15 +42,16 @@ shm::PartitionedGraph MtKaHyParInitialPartitioner::initial_partition(
     const mt_kahypar_hypernode_id_t num_vertices = graph.n();
     const mt_kahypar_hyperedge_id_t num_edges    = graph.m() / 2; // Only need one direction
 
-    NoinitVector<mt_kahypar_hypernode_id_t>     edges;
-    NoinitVector<mt_kahypar_hypernode_weight_t> edge_weights;
-    NoinitVector<mt_kahypar_hypernode_weight_t> vertex_weights;
+    NoinitVector<mt_kahypar_hypernode_id_t>     edges(2 * num_edges);
+    NoinitVector<mt_kahypar_hypernode_weight_t> edge_weights(num_edges);
+    NoinitVector<mt_kahypar_hypernode_weight_t> vertex_weights(num_vertices);
     edges.reserve(2 * num_edges);
     edge_weights.reserve(num_edges);
     vertex_weights.reserve(num_vertices);
 
-    graph.pfor_nodes([&](const NodeID u) {
-        vertex_weights.push_back(graph.node_weight(u));
+    // @todo parallelize
+    for (NodeID u: graph.nodes()) {
+        vertex_weights[u] = graph.node_weight(u);
         for (const auto [e, v]: graph.neighbors(u)) {
             if (v < u) { // Only need edges in one direction
                 continue;
@@ -60,7 +61,7 @@ shm::PartitionedGraph MtKaHyParInitialPartitioner::initial_partition(
             edges.push_back(v);
             edge_weights.push_back(graph.edge_weight(e));
         }
-    });
+    }
 
     mt_kahypar_graph_t* mt_kahypar_graph =
         mt_kahypar_create_graph(num_vertices, num_edges, edges.data(), edge_weights.data(), vertex_weights.data());
