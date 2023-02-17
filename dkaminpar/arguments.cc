@@ -92,7 +92,7 @@ CLI::Option_group *create_initial_partitioning_options(CLI::App *app, Context &c
     auto *ip = app->add_option_group("Initial Partitioning");
 
     ip->add_option("--i-algorithm", ctx.initial_partitioning.algorithm)
-        ->check(CLI::CheckedTransformer(get_initial_partitioning_algorithms()).description(""))
+        ->transform(CLI::CheckedTransformer(get_initial_partitioning_algorithms()).description(""))
         ->description(R"(Algorithm used for initial partitioning. Options are:
   - random:    assign nodes to blocks randomly
   - kaminpar:  use KaMinPar for initial partitioning
