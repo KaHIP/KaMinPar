@@ -36,6 +36,7 @@ shm::PartitionedGraph MtKaHyParInitialPartitioner::initial_partition(
     mt_kahypar_set_partitioning_parameters(
         mt_kahypar_ctx, static_cast<mt_kahypar_partition_id_t>(p_ctx.k), p_ctx.epsilon, KM1, Random::seed
     );
+    mt_kahypar_set_context_parameter(mt_kahypar_ctx, VERBOSE, "0");
 
     mt_kahypar_initialize_thread_pool(_ctx.parallel.num_threads, true);
 
