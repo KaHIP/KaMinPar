@@ -98,9 +98,6 @@ CLI::Option_group *create_initial_partitioning_options(CLI::App *app, Context &c
   - kaminpar:  use KaMinPar for initial partitioning
   - mtkahypar: use Mt-KaHyPar for inital partitioning)")
         ->capture_default_str();
-    ip->add_option("--i-mtkahypar-preset", ctx.initial_partitioning.mtkahypar.preset_filename, "Preset configuration file for Mt-KaHyPar when using it for initial partitioning.")
-        ->check(CLI::ExistingFile)
-        ->capture_default_str();
 
     return ip;
 }

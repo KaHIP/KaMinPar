@@ -340,8 +340,6 @@ void print(const InitialPartitioningContext& ctx, std::ostream& out) {
     out << "IP algorithm:                 " << ctx.algorithm << "\n";
     if (ctx.algorithm == InitialPartitioningAlgorithm::KAMINPAR) {
         out << "  Configuration preset:       default\n";
-    } else if (ctx.algorithm == InitialPartitioningAlgorithm::MTKAHYPAR) {
-        out << "  Configuration file:         " << ctx.mtkahypar.preset_filename << "\n";
     }
 }
 

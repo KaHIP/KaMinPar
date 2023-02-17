@@ -240,13 +240,8 @@ struct CoarseningContext {
     void setup(const ParallelContext& parallel);
 };
 
-struct MtKaHyParContext {
-    std::string preset_filename = "";
-};
-
 struct InitialPartitioningContext {
     InitialPartitioningAlgorithm algorithm;
-    MtKaHyParContext             mtkahypar;
     shm::Context                 kaminpar;
 };
 

@@ -108,11 +108,7 @@ Context create_default_context() {
         .initial_partitioning =
             {
                 .algorithm = InitialPartitioningAlgorithm::KAMINPAR,
-                .mtkahypar =
-                    {
-                        .preset_filename = "",
-                    },
-                .kaminpar = shm::create_default_context(),
+                .kaminpar  = shm::create_default_context(),
             },
         .refinement =
             {
