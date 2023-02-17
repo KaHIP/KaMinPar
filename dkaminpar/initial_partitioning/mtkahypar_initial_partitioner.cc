@@ -42,26 +42,34 @@ shm::PartitionedGraph MtKaHyParInitialPartitioner::initial_partition(
     const mt_kahypar_hypernode_id_t num_vertices = graph.n();
     const mt_kahypar_hyperedge_id_t num_edges    = graph.m() / 2; // Only need one direction
 
+    NoinitVector<EdgeID> edge_position(2 * num_edges);
+    graph.pfor_nodes([&](const NodeID u) {
+        for (const auto [e, v]: graph.neighbors(u)) {
+            edge_position[e] = u < v;
+        }
+    });
+    parallel::prefix_sum(edge_position.begin(), edge_position.end(), edge_position.begin());
+
     NoinitVector<mt_kahypar_hypernode_id_t>     edges(2 * num_edges);
     NoinitVector<mt_kahypar_hypernode_weight_t> edge_weights(num_edges);
     NoinitVector<mt_kahypar_hypernode_weight_t> vertex_weights(num_vertices);
     edges.reserve(2 * num_edges);
     edge_weights.reserve(num_edges);
-    vertex_weights.reserve(num_vertices);
 
-    // @todo parallelize
-    for (NodeID u: graph.nodes()) {
-        vertex_weights[u] = graph.node_weight(u);
+    graph.pfor_nodes([&](const NodeID u) {
+        vertex_weights[u] = static_cast<mt_kahypar_hypernode_weight_t>(graph.node_weight(u));
+
         for (const auto [e, v]: graph.neighbors(u)) {
             if (v < u) { // Only need edges in one direction
                 continue;
             }
 
-            edges.push_back(u);
-            edges.push_back(v);
-            edge_weights.push_back(graph.edge_weight(e));
+            EdgeID position         = edge_position[e] - 1;
+            edges[2 * position]     = static_cast<mt_kahypar_hypernode_id_t>(u);
+            edges[2 * position + 1] = static_cast<mt_kahypar_hypernode_id_t>(v);
+            edge_weights[position]  = static_cast<mt_kahypar_hypernode_weight_t>(graph.edge_weight(e));
         }
-    }
+    });
 
     mt_kahypar_graph_t* mt_kahypar_graph =
         mt_kahypar_create_graph(num_vertices, num_edges, edges.data(), edge_weights.data(), vertex_weights.data());
