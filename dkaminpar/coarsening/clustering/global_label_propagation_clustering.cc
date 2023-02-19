@@ -413,11 +413,16 @@ private:
             return;
         }
 
+        SCOPED_TIMER("A");
+
         START_TIMER("Synchronize cluster weights");
         START_TIMER("Barrier");
         MPI_Barrier(_graph->communicator());
         STOP_TIMER();
 
+        SCOPED_TIMER("B");
+
+        START_TIMER("Allocate data structures");
         const PEID size = mpi::get_comm_size(_graph->communicator());
 
         using WeightDeltaMap = growt::GlobalNodeIDMap<GlobalNodeWeight>;
@@ -428,6 +433,10 @@ private:
         });
 
         std::vector<parallel::Atomic<std::size_t>> num_messages(size);
+        MPI_Barrier(_graph->communicator());
+        STOP_TIMER();
+
+        SCOPED_TIMER("C");
 
         START_TIMER("Insert moved nodes into hash table");
         _graph->pfor_nodes(from, to, [&](const NodeID u) {
@@ -461,6 +470,9 @@ private:
         MPI_Barrier(_graph->communicator());
         STOP_TIMER();
 
+        SCOPED_TIMER("D");
+
+        START_TIMER("Allocation 2");
         struct Message {
             GlobalNodeID     cluster;
             GlobalNodeWeight delta;
@@ -470,6 +482,10 @@ private:
 
         static std::atomic_size_t counter;
         counter = 0;
+        MPI_Barrier(_graph->communicator());
+        STOP_TIMER();
+
+        SCOPED_TIMER("E");
 
         START_TIMER("Create messages");
 #pragma omp parallel
@@ -494,6 +510,8 @@ private:
         MPI_Barrier(_graph->communicator());
         STOP_TIMER();
 
+        SCOPED_TIMER("F");
+
         START_TIMER("Alltoall");
         auto in_msgs = mpi::sparse_alltoall_get<Message>(out_msgs, _graph->communicator());
         MPI_Barrier(_graph->communicator());
@@ -505,6 +523,8 @@ private:
                 change_cluster_weight(label, -_graph->node_weight(ghost_u), true);
             }
         });*/
+
+        SCOPED_TIMER("G");
 
         START_TIMER("Integrate messages");
         tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
@@ -523,10 +543,14 @@ private:
         MPI_Barrier(_graph->communicator());
         STOP_TIMER();
 
+        SCOPED_TIMER("H");
+
         START_TIMER("Alltoall 2");
         auto in_resps = mpi::sparse_alltoall_get<Message>(in_msgs, _graph->communicator());
         MPI_Barrier(_graph->communicator());
         STOP_TIMER();
+
+        SCOPED_TIMER("I");
 
         START_TIMER("Integrate 2");
         parallel::Atomic<std::uint8_t> violation = 0;

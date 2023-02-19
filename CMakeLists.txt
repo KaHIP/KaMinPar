@@ -60,8 +60,8 @@ FetchContent_Declare(
 FetchContent_Declare(
     growt
     SYSTEM
-    GIT_REPOSITORY https://github.com/TooBiased/growt.git
-    GIT_TAG ab1b61a)
+    GIT_REPOSITORY https://github.com/DanielSeemaier/growt.git
+    GIT_TAG kaminpar)
 
 set(KAMINPAR_ASSERTION_LEVEL "light" CACHE STRING "Assertion level.")
 set_property(CACHE KAMINPAR_ASSERTION_LEVEL PROPERTY STRINGS none light normal heavy)
