@@ -414,6 +414,9 @@ private:
         }
 
         START_TIMER("Synchronize cluster weights");
+        START_TIMER("Barrier");
+        MPI_Barrier(_graph->communicator());
+        STOP_TIMER();
 
         const PEID size = mpi::get_comm_size(_graph->communicator());
 
@@ -426,6 +429,7 @@ private:
 
         std::vector<parallel::Atomic<std::size_t>> num_messages(size);
 
+        START_TIMER("Insert moved nodes into hash table");
         _graph->pfor_nodes(from, to, [&](const NodeID u) {
             if (_changed_label[u] != kInvalidGlobalNodeID) {
                 auto&              handle    = weight_deltas_handle_ets.local();
@@ -454,6 +458,8 @@ private:
                 }
             }
         });
+        MPI_Barrier(_graph->communicator());
+        STOP_TIMER();
 
         struct Message {
             GlobalNodeID     cluster;
@@ -465,6 +471,7 @@ private:
         static std::atomic_size_t counter;
         counter = 0;
 
+        START_TIMER("Create messages");
 #pragma omp parallel
         {
             auto& handle = weight_deltas_handle_ets.local();
@@ -484,8 +491,13 @@ private:
                 cur_block = counter.fetch_add(4096);
             }
         }
+        MPI_Barrier(_graph->communicator());
+        STOP_TIMER();
 
+        START_TIMER("Alltoall");
         auto in_msgs = mpi::sparse_alltoall_get<Message>(out_msgs, _graph->communicator());
+        MPI_Barrier(_graph->communicator());
+        STOP_TIMER();
 
         /*tbb::parallel_for<NodeID>(_graph->n(), _graph->total_n(), [&](const NodeID ghost_u) {
             const GlobalNodeID label = cluster(ghost_u);
@@ -494,6 +506,7 @@ private:
             }
         });*/
 
+        START_TIMER("Integrate messages");
         tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
             tbb::parallel_for<std::size_t>(0, in_msgs[pe].size(), [&](const std::size_t i) {
                 const auto [cluster, delta] = in_msgs[pe][i];
@@ -507,9 +520,15 @@ private:
                 in_msgs[pe][i].delta        = cluster_weight(cluster);
             });
         });
+        MPI_Barrier(_graph->communicator());
+        STOP_TIMER();
 
+        START_TIMER("Alltoall 2");
         auto in_resps = mpi::sparse_alltoall_get<Message>(in_msgs, _graph->communicator());
+        MPI_Barrier(_graph->communicator());
+        STOP_TIMER();
 
+        START_TIMER("Integrate 2");
         parallel::Atomic<std::uint8_t> violation = 0;
         tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
             tbb::parallel_for<std::size_t>(0, in_resps[pe].size(), [&](const std::size_t i) {
@@ -524,6 +543,8 @@ private:
                 change_cluster_weight(cluster, -old_weight + new_weight, true);
             });
         });
+        MPI_Barrier(_graph->communicator());
+        STOP_TIMER();
         STOP_TIMER();
 
         // If we detected a max cluster weight violation, remove node weight proportional to our chunk of the cluster
