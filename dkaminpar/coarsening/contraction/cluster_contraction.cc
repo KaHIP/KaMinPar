@@ -621,7 +621,7 @@ ContractionResult contract_clustering(
     // Next, exchange the mapping of ghost nodes to coarse nodes
     START_TIMER("Communicate mapping for ghost nodes");
     using NonlocalClusterMap = growt::GlobalNodeIDMap<GlobalNodeID>;
-    NonlocalClusterMap nonlocal_gcluster_to_index(0);
+    NonlocalClusterMap nonlocal_gcluster_to_index(graph.ghost_n());
 
     tbb::enumerable_thread_specific<NonlocalClusterMap::handle_type> nonlocal_gcluster_to_index_handle_ets([&] {
         return nonlocal_gcluster_to_index.get_handle();
@@ -664,13 +664,15 @@ ContractionResult contract_clustering(
         }
     );
 
+    // @bug not all entries are used, why?
     std::vector<scalable_vector<GlobalNodeID>> my_mapping_requests(size);
     tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
-        my_mapping_requests[pe].resize(next_index_for_pe[pe].value);
+        my_mapping_requests[pe].resize(next_index_for_pe[pe].value, kInvalidGlobalNodeID);
     });
     static std::atomic_size_t counter;
     counter = 0;
 
+    //std::vector<parallel::Aligned<parallel::Atomic<NodeID>>> next_index_for_pe2(size + 1);
 #pragma omp parallel
     {
         auto& handle = nonlocal_gcluster_to_index_handle_ets.local();
@@ -684,11 +686,21 @@ ContractionResult contract_clustering(
                 const GlobalNodeID cluster        = (*it).first - 1;
                 const PEID         owner          = graph.find_owner_of_global_node(cluster);
                 const std::size_t  index          = (*it).second - 1;
+                //++next_index_for_pe2[owner].value;
+
+                KASSERT(owner < my_mapping_requests.size());
+                KASSERT(index < my_mapping_requests[owner].size());
+                KASSERT(cluster != 0 || owner == 0, V(cluster) << V(owner));
                 my_mapping_requests[owner][index] = cluster;
             }
             cur_block = counter.fetch_add(4096);
         }
     }
+
+    /*for (PEID pe = 0; pe < size; ++pe) {
+        std::cout << pe << ": " << next_index_for_pe[pe].value << " -- " << next_index_for_pe2[pe].value << std::endl;
+        KASSERT(next_index_for_pe[pe].value == next_index_for_pe2[pe].value);
+    }*/
 
     auto their_mapping_requests = mpi::sparse_alltoall_get<GlobalNodeID>(my_mapping_requests, graph.communicator());
 
@@ -697,10 +709,18 @@ ContractionResult contract_clustering(
         my_mapping_responses[pe].resize(their_mapping_requests[pe].size());
 
         tbb::parallel_for<std::size_t>(0, their_mapping_requests[pe].size(), [&](const std::size_t i) {
+            KASSERT(pe < their_mapping_requests.size());
+            KASSERT(i < their_mapping_requests[pe].size());
             const GlobalNodeID global        = their_mapping_requests[pe][i];
+            KASSERT(global != kInvalidGlobalNodeID);
+            KASSERT(global >= graph.offset_n(), V(rank));
             const NodeID       local         = static_cast<NodeID>(global - graph.offset_n());
+            KASSERT(local < lcluster_to_lcnode.size());
             const NodeID       coarse_local  = lcluster_to_lcnode[local];
+            KASSERT(rank < c_node_distribution.size());
             const GlobalNodeID coarse_global = c_node_distribution[rank] + coarse_local;
+            KASSERT(pe < my_mapping_responses.size());
+            KASSERT(i < my_mapping_responses[pe].size());
             my_mapping_responses[pe][i]      = coarse_global;
         });
     });
