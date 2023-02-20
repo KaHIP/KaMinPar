@@ -629,6 +629,7 @@ DistributedGraph build_coarse_graph(
             out_msg[pe]       = std::move(result.first);
             deduplicate_m_ctx = std::move(result.second);
         }
+        MPI_Barrier(MPI_COMM_WORLD);
     };
 
     // exchange messages
