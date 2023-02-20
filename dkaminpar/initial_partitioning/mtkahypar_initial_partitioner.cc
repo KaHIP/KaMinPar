@@ -32,7 +32,7 @@ shm::PartitionedGraph MtKaHyParInitialPartitioner::initial_partition(
 ) {
 #ifdef KAMINPAR_HAS_MTKAHYPAR_LIB
     mt_kahypar_context_t* mt_kahypar_ctx = mt_kahypar_context_new();
-    mt_kahypar_load_preset(mt_kahypar_ctx, HIGH_QUALITY);
+    mt_kahypar_load_preset(mt_kahypar_ctx, SPEED);
     mt_kahypar_set_partitioning_parameters(
         mt_kahypar_ctx, static_cast<mt_kahypar_partition_id_t>(p_ctx.k), p_ctx.epsilon, KM1, Random::seed
     );
