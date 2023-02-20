@@ -708,7 +708,6 @@ ContractionResult contract_clustering(
     static std::atomic_size_t counter;
     counter = 0;
 
-    std::vector<parallel::Aligned<parallel::Atomic<NodeID>>> next_index_for_pe2(size + 1);
 #pragma omp parallel
     {
         const std::size_t capacity  = nonlocal_gcluster_to_index.capacity();
@@ -720,7 +719,6 @@ ContractionResult contract_clustering(
                 const GlobalNodeID cluster = (*it).first - 1;
                 const PEID         owner   = graph.find_owner_of_global_node(cluster);
                 const std::size_t  index   = (*it).second - 1;
-                ++next_index_for_pe2[owner].value;
 
                 KASSERT(owner < my_mapping_requests.size());
                 KASSERT(index < my_mapping_requests[owner].size());
@@ -729,10 +727,6 @@ ContractionResult contract_clustering(
             }
             cur_block = counter.fetch_add(4096);
         }
-    }
-
-    for (PEID pe = 0; pe < size; ++pe) {
-        KASSERT(next_index_for_pe[pe].value == next_index_for_pe2[pe].value, "", assert::always);
     }
 
     auto their_mapping_requests = mpi::sparse_alltoall_get<GlobalNodeID>(my_mapping_requests, graph.communicator());
