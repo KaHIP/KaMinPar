@@ -413,32 +413,20 @@ private:
             return;
         }
 
-        SCOPED_TIMER("A");
-
-        START_TIMER("Synchronize cluster weights");
-        START_TIMER("Barrier");
-        MPI_Barrier(_graph->communicator());
-        STOP_TIMER();
-
-        SCOPED_TIMER("B");
-
-        START_TIMER("Allocate data structures");
         const PEID size = mpi::get_comm_size(_graph->communicator());
 
-        using WeightDeltaMap = growt::GlobalNodeIDMap<GlobalNodeWeight>;
-        WeightDeltaMap weight_deltas(_graph->ghost_n()); // Estimate capacity as number of ghost nodes
+        START_TIMER("Synchronize cluster weights");
 
+        START_TIMER("Allocation");
+        using WeightDeltaMap = growt::GlobalNodeIDMap<GlobalNodeWeight>;
+        WeightDeltaMap                                               weight_deltas(0);
         tbb::enumerable_thread_specific<WeightDeltaMap::handle_type> weight_deltas_handle_ets([&] {
             return weight_deltas.get_handle();
         });
-
-        std::vector<parallel::Atomic<std::size_t>> num_messages(size);
-        MPI_Barrier(_graph->communicator());
+        std::vector<parallel::Atomic<std::size_t>>                   num_messages(size);
         STOP_TIMER();
 
-        SCOPED_TIMER("C");
-
-        START_TIMER("Insert moved nodes into hash table");
+        START_TIMER("Fill hash table");
         _graph->pfor_nodes(from, to, [&](const NodeID u) {
             if (_changed_label[u] != kInvalidGlobalNodeID) {
                 auto&              handle    = weight_deltas_handle_ets.local();
@@ -467,25 +455,20 @@ private:
                 }
             }
         });
-        MPI_Barrier(_graph->communicator());
         STOP_TIMER();
 
-        SCOPED_TIMER("D");
-
-        START_TIMER("Allocation 2");
         struct Message {
             GlobalNodeID     cluster;
             GlobalNodeWeight delta;
         };
+
+        START_TIMER("Allocation");
         std::vector<NoinitVector<Message>> out_msgs(size);
         tbb::parallel_for<PEID>(0, size, [&](const PEID pe) { out_msgs[pe].resize(num_messages[pe]); });
+        STOP_TIMER();
 
         static std::atomic_size_t counter;
         counter = 0;
-        MPI_Barrier(_graph->communicator());
-        STOP_TIMER();
-
-        SCOPED_TIMER("E");
 
         START_TIMER("Create messages");
 #pragma omp parallel
@@ -507,24 +490,12 @@ private:
                 cur_block = counter.fetch_add(4096);
             }
         }
-        MPI_Barrier(_graph->communicator());
         STOP_TIMER();
 
-        SCOPED_TIMER("F");
-
-        START_TIMER("Alltoall");
+        START_TIMER("Exchange messages");
         auto in_msgs = mpi::sparse_alltoall_get<Message>(out_msgs, _graph->communicator());
         MPI_Barrier(_graph->communicator());
         STOP_TIMER();
-
-        /*tbb::parallel_for<NodeID>(_graph->n(), _graph->total_n(), [&](const NodeID ghost_u) {
-            const GlobalNodeID label = cluster(ghost_u);
-            if (_graph->is_owned_global_node(label)) {
-                change_cluster_weight(label, -_graph->node_weight(ghost_u), true);
-            }
-        });*/
-
-        SCOPED_TIMER("G");
 
         START_TIMER("Integrate messages");
         tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
@@ -543,16 +514,12 @@ private:
         MPI_Barrier(_graph->communicator());
         STOP_TIMER();
 
-        SCOPED_TIMER("H");
-
-        START_TIMER("Alltoall 2");
+        START_TIMER("Exchange messages");
         auto in_resps = mpi::sparse_alltoall_get<Message>(in_msgs, _graph->communicator());
         MPI_Barrier(_graph->communicator());
         STOP_TIMER();
 
-        SCOPED_TIMER("I");
-
-        START_TIMER("Integrate 2");
+        START_TIMER("Integrate messages");
         parallel::Atomic<std::uint8_t> violation = 0;
         tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
             tbb::parallel_for<std::size_t>(0, in_resps[pe].size(), [&](const std::size_t i) {
@@ -567,8 +534,8 @@ private:
                 change_cluster_weight(cluster, -old_weight + new_weight, true);
             });
         });
-        MPI_Barrier(_graph->communicator());
         STOP_TIMER();
+
         STOP_TIMER();
 
         // If we detected a max cluster weight violation, remove node weight proportional to our chunk of the cluster
@@ -619,33 +586,40 @@ private:
         SCOPED_TIMER("Synchronize ghost node clusters");
 
         struct ChangedLabelMessage {
-            NodeID    local_node;
-            ClusterID new_label;
+            NodeID    owner_lnode;
+            ClusterID new_gcluster;
         };
 
         mpi::graph::sparse_alltoall_interface_to_pe<ChangedLabelMessage>(
-            *_graph, from, to, [&](const NodeID u) { return _changed_label[u] != kInvalidGlobalNodeID; },
-            [&](const NodeID u) -> ChangedLabelMessage {
-                return {u, cluster(u)};
+            *_graph, from, to, [&](const NodeID lnode) { return _changed_label[lnode] != kInvalidGlobalNodeID; },
+            [&](const NodeID lnode) -> ChangedLabelMessage {
+                return {lnode, cluster(lnode)};
             },
-            [&](const auto& buffer, const PEID pe) {
+            [&](const auto& buffer, const PEID owner) {
                 tbb::parallel_for<std::size_t>(0, buffer.size(), [&](const std::size_t i) {
-                    const auto [local_node_on_pe, new_label] = buffer[i];
+                    const auto [owner_lnode, new_gcluster] = buffer[i];
 
-                    const GlobalNodeID global_node = _graph->offset_n(pe) + local_node_on_pe;
-                    KASSERT(!_graph->is_owned_global_node(global_node));
+                    const GlobalNodeID gnode = _graph->offset_n(owner) + owner_lnode;
+                    KASSERT(!_graph->is_owned_global_node(gnode));
 
-                    const NodeID     local_node        = _graph->global_to_local_node(global_node);
-                    const NodeWeight local_node_weight = _graph->node_weight(local_node);
+                    const NodeID     lnode  = _graph->global_to_local_node(gnode);
+                    const NodeWeight weight = _graph->node_weight(lnode);
 
-                    change_cluster_weight(cluster(local_node), -local_node_weight, true);
-                    OwnedClusterVector::move_node(local_node, new_label);
-                    change_cluster_weight(cluster(local_node), local_node_weight, false);
+                    // If we synchronize all cluster weights after each round, we do not have to update the weights when
+                    // synchronizing the ghost node assignements
+
+                    if (!sync_cluster_weights()) {
+                        change_cluster_weight(cluster(lnode), -weight, true);
+                    }
+                    OwnedClusterVector::move_node(lnode, new_gcluster);
+                    if (!sync_cluster_weights()) {
+                        change_cluster_weight(cluster(lnode), weight, false);
+                    }
                 });
             }
         );
 
-        _graph->pfor_nodes(from, to, [&](const NodeID u) { _changed_label[u] = kInvalidGlobalNodeID; });
+        _graph->pfor_nodes(from, to, [&](const NodeID lnode) { _changed_label[lnode] = kInvalidGlobalNodeID; });
     }
 
     /*!
