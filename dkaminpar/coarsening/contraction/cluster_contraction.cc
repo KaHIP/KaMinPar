@@ -720,9 +720,9 @@ ContractionResult contract_clustering(
                 const PEID         owner   = graph.find_owner_of_global_node(cluster);
                 const std::size_t  index   = (*it).second - 1;
 
-                KASSERT(owner < my_mapping_requests.size());
+                KASSERT(owner < static_cast<PEID>(my_mapping_requests.size()));
                 KASSERT(index < my_mapping_requests[owner].size());
-                KASSERT(cluster != 0 || owner == 0, V(cluster) << V(owner));
+                KASSERT(cluster != 0u || owner == 0, V(cluster) << V(owner));
                 my_mapping_requests[owner][index] = cluster;
             }
             cur_block = counter.fetch_add(4096);

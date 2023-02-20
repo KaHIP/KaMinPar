@@ -23,125 +23,6 @@
 
 namespace kaminpar::dist {
 namespace {
-inline const DistributedGraph* _global_graph;
-
-template <typename Iter1, typename Iter2>
-class CombinedRange {
-public:
-    class iterator {
-    public:
-        using iterator_category = std::input_iterator_tag;
-        using value_type        = typename Iter1::value_type;
-        using difference_type   = std::make_signed_t<std::size_t>;
-        using pointer           = value_type*;
-        using reference         = value_type&;
-
-        iterator(Iter1 begin1, std::size_t size1, Iter2 begin2, std::size_t size2, bool end)
-            : _begin1(begin1),
-              _size1(size1),
-              _begin2(begin2),
-              _size2(size2) {
-            if (end) {
-                _second = true;
-                _index  = _size2;
-            }
-        }
-
-        value_type operator*() const {
-            KASSERT((!_second && _index < _size1) || (_second && _index < _size2));
-            if (_second) {
-                return *_begin2;
-            } else {
-                const auto& [node, gain] = *_begin1;
-                return std::make_pair(_global_graph->local_to_global_node(node), gain);
-            }
-        }
-
-        iterator& operator++() {
-            ++_index;
-            if (!_second && _index < _size1) {
-                ++_begin1;
-            } else if (!_second && _index == _size1) {
-                _second = true;
-                _index  = 0;
-            } else {
-                ++_begin2;
-            }
-            return *this;
-        }
-
-        iterator operator++(int) {
-            auto tmp = *this;
-            ++*this;
-            return tmp;
-        }
-
-        bool operator==(const iterator& other) const {
-            return _index == other._index && _second == other._second;
-        }
-        bool operator!=(const iterator& other) const {
-            return _index != other._index || _second != other._second;
-        }
-
-    private:
-        Iter1       _begin1;
-        std::size_t _size1;
-        Iter2       _begin2;
-        std::size_t _size2;
-        bool        _second = false;
-        std::size_t _index  = 0;
-    };
-
-    CombinedRange(Iter1 begin1, std::size_t size1, Iter2 begin2, std::size_t size2)
-        : _begin(begin1, size1, begin2, size2, false),
-          _end(begin1, size1, begin2, size2, true) {}
-
-    iterator begin() const {
-        return _begin;
-    }
-    iterator end() const {
-        return _end;
-    }
-
-private:
-    iterator _begin;
-    iterator _end;
-};
-
-struct VectorHashRatingMap {
-    VectorHashRatingMap() {}
-
-    EdgeWeight& operator[](const GlobalNodeID key) {
-        KASSERT(_global_graph != nullptr);
-        if (_global_graph->is_owned_global_node(key)) {
-            KASSERT(_global_graph->global_to_local_node(key) < _local.capacity());
-            return _local[_global_graph->global_to_local_node(key)];
-        } else {
-            return _global[key];
-        }
-    }
-
-    [[nodiscard]] auto entries() {
-        return CombinedRange(_local.entries().begin(), _local.size(), _global.begin(), _global.size());
-    }
-
-    void clear() {
-        _local.clear();
-        _global.clear();
-    }
-
-    std::size_t capacity() const {
-        return _local.capacity();
-    }
-
-    void resize(const std::size_t capacity) {
-        _local.resize(capacity);
-    }
-
-    FastResetArray<EdgeWeight>                   _local{};
-    std::unordered_map<GlobalNodeID, EdgeWeight> _global{};
-};
-
 /*!
  * Large rating map based on a \c unordered_map. We need this since cluster IDs are global node IDs.
  */
@@ -177,7 +58,7 @@ struct DistributedGlobalLabelPropagationClusteringConfig : public LabelPropagati
     static constexpr bool kUseTwoHopClustering = false;
 
     static constexpr bool kUseActiveSetStrategy      = false;
-    static constexpr bool kUseLocalActiveSetStrategy = true;
+    static constexpr bool kUseLocalActiveSetStrategy = false;
 };
 } // namespace
 
@@ -208,7 +89,6 @@ public:
     const auto& compute_clustering(const DistributedGraph& graph, const GlobalNodeWeight max_cluster_weight) {
         SCOPED_TIMER("Label propagation");
 
-        _global_graph = &graph;
         {
             SCOPED_TIMER("High-degree computation");
             if (_passive_high_degree_threshold > 0) {
@@ -270,12 +150,12 @@ public:
      * Note: offset cluster IDs by 1 since growt cannot use 0 as key.
      */
 
-    void init_cluster_weight(const ClusterID local_cluster, const ClusterWeight weight) {
-        if (_graph->is_owned_node(local_cluster)) {
-            _local_cluster_weights[local_cluster] = weight;
+    void init_cluster_weight(const ClusterID lcluster, const ClusterWeight weight) {
+        if (_graph->is_owned_node(lcluster)) {
+            __atomic_store_n(&_local_cluster_weights[lcluster], weight, __ATOMIC_RELAXED);
         } else {
-            KASSERT(local_cluster < _graph->total_n());
-            const auto cluster = _graph->local_to_global_node(static_cast<NodeID>(local_cluster));
+            KASSERT(lcluster < _graph->total_n());
+            const auto cluster = _graph->local_to_global_node(static_cast<NodeID>(lcluster));
 
             auto& handle                              = _cluster_weights_handles_ets.local();
             [[maybe_unused]] const auto [it, success] = handle.insert(cluster + 1, weight);
@@ -283,60 +163,68 @@ public:
         }
     }
 
-    ClusterWeight cluster_weight(const ClusterID cluster) {
-        if (_graph->is_owned_global_node(cluster)) {
-            return _local_cluster_weights[_graph->global_to_local_node(cluster)];
+    ClusterWeight cluster_weight(const ClusterID gcluster) {
+        if (_graph->is_owned_global_node(gcluster)) {
+            const NodeID lcluster = _graph->global_to_local_node(gcluster);
+            return __atomic_load_n(&_local_cluster_weights[lcluster], __ATOMIC_RELAXED);
         } else {
             auto& handle = _cluster_weights_handles_ets.local();
-            auto  it     = handle.find(cluster + 1);
-            KASSERT(it != handle.end(), "Uninitialized cluster: " << cluster + 1);
+            auto  it     = handle.find(gcluster + 1);
+            KASSERT(it != handle.end(), "read weight of uninitialized cluster: " << gcluster);
             return (*it).second;
         }
     }
 
     bool move_cluster_weight(
-        const ClusterID old_cluster, const ClusterID new_cluster, const ClusterWeight delta,
+        const ClusterID old_gcluster, const ClusterID new_gcluster, const ClusterWeight weight_delta,
         const ClusterWeight max_weight
     ) {
         // reject move if it violates local weight constraint
-        if (cluster_weight(new_cluster) + delta > max_weight) {
+        if (cluster_weight(new_gcluster) + weight_delta > max_weight) {
             return false;
         }
 
         auto& handle = _cluster_weights_handles_ets.local();
 
-        if (_graph->is_owned_global_node(old_cluster)) {
-            _local_cluster_weights[_graph->global_to_local_node(old_cluster)] -= delta;
+        if (_graph->is_owned_global_node(old_gcluster)) {
+            const NodeID old_lcluster = _graph->global_to_local_node(old_gcluster);
+            __atomic_fetch_sub(&_local_cluster_weights[old_lcluster], weight_delta, __ATOMIC_RELAXED);
         } else {
             // otherwise, move node to new cluster
-            [[maybe_unused]] const auto [old_it, old_found] = handle.update(
-                old_cluster + 1, [](auto& lhs, const auto rhs) { return lhs -= rhs; }, delta
+            [[maybe_unused]] const auto [it, found] = handle.update(
+                old_gcluster + 1, [](auto& lhs, const auto rhs) { return lhs -= rhs; }, weight_delta
             );
-            KASSERT((old_it != handle.end() && old_found), "Uninitialized cluster: " << old_cluster + 1);
+            KASSERT(it != handle.end() && found, "moved weight from uninitialized cluster: " << old_gcluster);
         }
 
-        if (_graph->is_owned_global_node(new_cluster)) {
-            _local_cluster_weights[_graph->global_to_local_node(new_cluster)] += delta;
+        if (_graph->is_owned_global_node(new_gcluster)) {
+            const NodeID new_lcluster = _graph->global_to_local_node(new_gcluster);
+            __atomic_fetch_add(&_local_cluster_weights[new_lcluster], weight_delta, __ATOMIC_RELAXED);
         } else {
-            [[maybe_unused]] const auto [new_it, new_found] = handle.update(
-                new_cluster + 1, [](auto& lhs, const auto rhs) { return lhs += rhs; }, delta
+            [[maybe_unused]] const auto [it, found] = handle.update(
+                new_gcluster + 1, [](auto& lhs, const auto rhs) { return lhs += rhs; }, weight_delta
             );
-            KASSERT((new_it != handle.end() && new_found), "Uninitialized cluster: " << new_cluster + 1);
+            KASSERT(it != handle.end() && found, "moved weight to uninitialized cluster: " << new_gcluster);
         }
 
         return true;
     }
 
     void
-    change_cluster_weight(const ClusterID cluster, const ClusterWeight delta, [[maybe_unused]] const bool must_exist) {
-        if (_graph->is_owned_global_node(cluster)) {
-            _local_cluster_weights[_graph->global_to_local_node(cluster)] += delta;
+    change_cluster_weight(const ClusterID gcluster, const ClusterWeight delta, [[maybe_unused]] const bool must_exist) {
+        if (_graph->is_owned_global_node(gcluster)) {
+            const NodeID lcluster = _graph->global_to_local_node(gcluster);
+            __atomic_fetch_add(&_local_cluster_weights[lcluster], delta, __ATOMIC_RELAXED);
         } else {
-            auto& handle                                = _cluster_weights_handles_ets.local();
+            auto& handle = _cluster_weights_handles_ets.local();
+
             [[maybe_unused]] const auto [it, not_found] = handle.insert_or_update(
-                cluster + 1, delta, [](auto& lhs, const auto rhs) { return lhs += rhs; }, delta
+                gcluster + 1, delta, [](auto& lhs, const auto rhs) { return lhs += rhs; }, delta
             );
-            KASSERT((it != handle.end() && (!must_exist || !not_found)), "Could not update cluster: " << cluster);
+            KASSERT(
+                it != handle.end() && (!must_exist || !not_found),
+                "changed weight of uninitialized cluster: " << gcluster
+            );
         }
     }
 
