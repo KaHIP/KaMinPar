@@ -90,6 +90,7 @@
 // STATS: LOG for statistics output: only evaluate and output if statistics are enabled
 #define SET_STATISTICS(value) [[maybe_unused]] constexpr static bool kStatistics = value
 #define IFSTATS(x)            (kStatistics ? (x) : std::decay_t<decltype(x)>())
+#define IF_STATS              if constexpr (kStatistics)
 #define STATS                 kStatistics&& kaminpar::DisposableLogger<false>(std::cout) << kaminpar::logger::CYAN
 
 #ifdef KAMINPAR_STATISTICS

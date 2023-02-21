@@ -29,6 +29,12 @@
 #include "common/timer.h"
 
 namespace kaminpar::dist {
+SET_STATISTICS_FROM_GLOBAL();
+SET_DEBUG(true);
+
+// Control whether we migrate the first few or the last few coarse nodes of an overloaded PE
+constexpr static bool migrate_prefix = false;
+
 namespace {
 struct GlobalEdge {
     GlobalNodeID u;
@@ -444,61 +450,114 @@ scalable_vector<T> create_perfect_distribution_from_global_count(const T global_
 
 std::pair<NodeID, PEID> remap_gcnode(
     const GlobalNodeID gcnode, const PEID current_owner,
-    const scalable_vector<GlobalNodeID>& current_cnode_distribution,
-    const scalable_vector<GlobalNodeID>& desired_cnode_distribution, const NoinitVector<GlobalNodeID>& pe_overload,
+    const scalable_vector<GlobalNodeID>& current_cnode_distribution, const NoinitVector<GlobalNodeID>& pe_overload,
     const NoinitVector<GlobalNodeID>& pe_underload
 ) {
-    // @todo high degree nodes come at the end -- remap the first few nodes, not the last ones!
     const NodeID lcnode = static_cast<NodeID>(gcnode - current_cnode_distribution[current_owner]);
-    const auto   local_node_count =
-        static_cast<NodeID>(desired_cnode_distribution[current_owner + 1] - desired_cnode_distribution[current_owner]);
-    if (lcnode < local_node_count) {
-        return {lcnode, current_owner};
+
+    const NodeID old_current_owner_overload =
+        static_cast<NodeID>(pe_overload[current_owner + 1] - pe_overload[current_owner]);
+    const NodeID old_current_owner_count =
+        static_cast<NodeID>(current_cnode_distribution[current_owner + 1] - current_cnode_distribution[current_owner]);
+    const auto new_current_owner_count = old_current_owner_count - old_current_owner_overload;
+
+    if constexpr (!migrate_prefix) {
+        // Remap the last few nodes to other PEs
+        
+        if (lcnode < new_current_owner_count) {
+            return {lcnode, current_owner};
+        } else {
+            const GlobalNodeID position = pe_overload[current_owner] + lcnode - new_current_owner_count;
+            const PEID new_owner = static_cast<PEID>(math::find_in_distribution<GlobalNodeID>(position, pe_underload));
+            const NodeID new_lcnode = static_cast<NodeID>(old_current_owner_count + position - pe_underload[new_owner]);
+            return {new_lcnode, new_owner};
+        }
     } else {
-        const GlobalNodeID position = pe_overload[current_owner] + lcnode - local_node_count;
-        const PEID   new_owner  = static_cast<PEID>(math::find_in_distribution<GlobalNodeID>(position, pe_underload));
-        const NodeID new_lcnode = static_cast<NodeID>(
-            current_cnode_distribution[new_owner + 1] - current_cnode_distribution[new_owner] + position
-            - pe_underload[new_owner]
-        );
-        return {new_lcnode, new_owner};
+        // Remap the first few nodes to other PEs
+        
+        if (lcnode >= old_current_owner_overload) {
+            return {lcnode - old_current_owner_overload, current_owner};
+        } else {
+            const GlobalNodeID position = pe_overload[current_owner] + lcnode;
+            const PEID new_owner = static_cast<PEID>(math::find_in_distribution<GlobalNodeID>(position, pe_underload));
+            const NodeID new_lcnode =
+                static_cast<NodeID>(old_current_owner_count + position - pe_underload[new_owner]); // @todo
+            return {new_lcnode, new_owner};
+        }
     }
 }
 
 void rebalance_cluster_placement(
     const DistributedGraph& graph, const scalable_vector<GlobalNodeID>& current_cnode_distribution,
     const NoinitVector<NodeID>& lcluster_to_lcnode, const NoinitVector<NodeMapping>& nonlocal_gcluster_to_gcnode,
-    GlobalClustering& lnode_to_gcluster
+    GlobalClustering& lnode_to_gcluster, const double max_cnode_imbalance
 ) {
     const PEID         size = mpi::get_comm_size(graph.communicator());
     const PEID         rank = mpi::get_comm_rank(graph.communicator());
     const GlobalNodeID c_n  = current_cnode_distribution.back();
 
-    const auto desired_cnode_distribution =
-        create_perfect_distribution_from_global_count<GlobalNodeID>(c_n, graph.communicator());
+    struct PELoad {
+        PEID         pe;
+        GlobalNodeID count;
+    };
+    NoinitVector<PELoad> pe_load(size);
 
     NoinitVector<GlobalNodeID> pe_overload(size + 1);
     NoinitVector<GlobalNodeID> pe_underload(size + 1);
     pe_overload.front()  = 0;
     pe_underload.front() = 0;
 
-    for (PEID pe = 0; pe < size; ++pe) {
-        const auto [from, to]      = math::compute_local_range<GlobalNodeID>(c_n, size, pe);
-        const NodeID expected_size = static_cast<NodeID>(to - from);
-        const NodeID actual_size =
-            static_cast<NodeID>(current_cnode_distribution[pe + 1] - current_cnode_distribution[pe]);
+    const NodeID avg_cnode_count = static_cast<NodeID>(c_n / size);
+    const NodeID max_cnode_count = max_cnode_imbalance * avg_cnode_count;
 
-        if (expected_size > actual_size) {
-            pe_underload[pe + 1] = expected_size - actual_size;
-            pe_overload[pe + 1]  = 0;
+    // Determine overloaded PEs
+    tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
+        const NodeID cnode_count =
+            static_cast<NodeID>(current_cnode_distribution[pe + 1] - current_cnode_distribution[pe]);
+        pe_overload[pe + 1] = (cnode_count > max_cnode_count) ? cnode_count - max_cnode_count : 0;
+        pe_load[pe]         = {pe, cnode_count};
+    });
+    parallel::prefix_sum(pe_overload.begin(), pe_overload.end(), pe_overload.begin());
+    const GlobalNodeID total_overload = pe_overload.back();
+
+    // Sort PEs by load
+    tbb::parallel_sort(pe_load.begin(), pe_load.end(), [&](const auto& lhs, const auto& rhs) {
+        return lhs.count < rhs.count;
+    });
+
+    // Determine new load of light PEs
+    GlobalNodeID current_overload = total_overload;
+    GlobalNodeID min_load         = 0;
+    PEID         num_pes          = 0;
+    for (PEID pe = 0; pe < size; ++pe) {
+        KASSERT(pe + 1 < size);
+        ++num_pes;
+
+        const GlobalNodeID delta = pe_load[pe + 1].count - pe_load[pe].count;
+        if (current_overload > num_pes * delta) {
+            current_overload -= num_pes * delta;
         } else {
-            pe_underload[pe + 1] = 0;
-            pe_overload[pe + 1]  = actual_size - expected_size;
+            min_load = pe_load[pe].count + std::ceil(1.0 * current_overload / num_pes);
+            break;
         }
     }
-    parallel::prefix_sum(pe_overload.begin(), pe_overload.end(), pe_overload.begin());
+
+    // Determine underloaded PEs
+    tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
+        const NodeID cnode_count =
+            static_cast<NodeID>(current_cnode_distribution[pe + 1] - current_cnode_distribution[pe]);
+        pe_underload[pe + 1] = (cnode_count < min_load) ? min_load - cnode_count : 0;
+    });
     parallel::prefix_sum(pe_underload.begin(), pe_underload.end(), pe_underload.begin());
 
+    // If everything is correct, the total overload should match the total underload
+    KASSERT(
+        pe_underload.back() == pe_overload.back(), V(pe_underload)
+                                                       << V(pe_overload) << V(total_overload) << V(avg_cnode_count)
+                                                       << V(max_cnode_count) << V(min_load)
+    );
+
+    // Now remap the cluster IDs such that we respect pe_overload and pe_overload
     growt::GlobalNodeIDMap<GlobalNodeID> nonlocal_gcluster_to_gcnode_map(nonlocal_gcluster_to_gcnode.size());
     tbb::enumerable_thread_specific<growt::GlobalNodeIDMap<GlobalNodeID>::handle_type>
         nonlocal_gcluster_to_gcnode_handle_ets([&] { return nonlocal_gcluster_to_gcnode_map.get_handle(); });
@@ -530,9 +589,10 @@ void rebalance_cluster_placement(
                 old_owner  = graph.find_owner_of_global_node(old_gcluster);
             }
 
-            const auto [new_lcnode, new_owner] = remap_gcnode(
-                old_gcnode, old_owner, current_cnode_distribution, desired_cnode_distribution, pe_overload, pe_underload
-            );
+            const auto [new_lcnode, new_owner] =
+                remap_gcnode(old_gcnode, old_owner, current_cnode_distribution, pe_overload, pe_underload);
+            KASSERT(new_owner < size);
+
             lnode_to_gcluster[lnode] = graph.offset_n(new_owner) + new_lcnode;
 
             KASSERT(lnode_to_gcluster[lnode] >= graph.offset_n(new_owner));
@@ -547,8 +607,8 @@ void rebalance_cluster_placement(
     };
     mpi::graph::sparse_alltoall_interface_to_pe<Message>(
         graph,
-        [&](const NodeID u) -> Message {
-            return {u, lnode_to_gcluster[u]};
+        [&](const NodeID lnode) -> Message {
+            return {lnode, lnode_to_gcluster[lnode]};
         },
         [&](const auto buffer, const PEID pe) {
             tbb::parallel_for<std::size_t>(0, buffer.size(), [&](const std::size_t i) {
@@ -565,8 +625,6 @@ void rebalance_cluster_placement(
 ContractionResult contract_clustering(
     const DistributedGraph& graph, GlobalClustering& lnode_to_gcluster, const double max_cnode_imbalance
 ) {
-    SET_DEBUG(false);
-
     const PEID size = mpi::get_comm_size(graph.communicator());
     const PEID rank = mpi::get_comm_rank(graph.communicator());
 
@@ -577,6 +635,12 @@ ContractionResult contract_clustering(
     auto nonlocal_nodes = find_nonlocal_nodes(graph, lnode_to_gcluster);
     MPI_Barrier(graph.communicator());
     STOP_TIMER();
+
+    IF_STATS {
+        const GlobalNodeID total_num_nonlocal_nodes =
+            mpi::allreduce<GlobalNodeID>(nonlocal_nodes.size(), MPI_SUM, graph.communicator());
+        STATS << "Total number of nonlocal nodes: " << total_num_nonlocal_nodes;
+    }
 
     START_TIMER("Preprocess nonlocal nodes");
     sort_node_list(nonlocal_nodes);
@@ -629,10 +693,16 @@ ContractionResult contract_clustering(
 
     // If the "natural" assignment of coarse nodes to PEs has too much imbalance, we remap the cluster IDs to achieve
     // perfect coarse node balance
-    if (compute_distribution_imbalance(c_node_distribution) > max_cnode_imbalance) {
+    if (const double cnode_imbalance = compute_distribution_imbalance(c_node_distribution);
+        cnode_imbalance > max_cnode_imbalance) {
+        STATS << "Natural cluster assignment exceeds maximum coarse node imbalance: " << cnode_imbalance << " > "
+              << max_cnode_imbalance << " --> rebalancing cluster assignment";
+
         rebalance_cluster_placement(
-            graph, c_node_distribution, lcluster_to_lcnode, my_nonlocal_to_gcnode, lnode_to_gcluster
+            graph, c_node_distribution, lcluster_to_lcnode, my_nonlocal_to_gcnode, lnode_to_gcluster,
+            max_cnode_imbalance
         );
+
         return contract_clustering(graph, lnode_to_gcluster, max_cnode_imbalance);
     }
 
@@ -641,10 +711,30 @@ ContractionResult contract_clustering(
     MPI_Barrier(graph.communicator());
     STOP_TIMER();
 
+    IF_STATS {
+        const GlobalEdgeID total_num_nonlocal_edges =
+            mpi::allreduce<GlobalEdgeID>(nonlocal_edges.size(), MPI_SUM, graph.communicator());
+        const GlobalEdgeID max_num_nonlocal_edges =
+            mpi::allreduce<GlobalEdgeID>(nonlocal_edges.size(), MPI_MAX, graph.communicator());
+        STATS << "Total number of nonlocal edges before deduplication: " << total_num_nonlocal_edges
+              << "; max: " << max_num_nonlocal_edges
+              << "; imbalance: " << max_num_nonlocal_edges / (1.0 * total_num_nonlocal_edges / size);
+    }
+
     START_TIMER("Preprocess nonlocal edges");
     deduplicate_edge_list(nonlocal_edges);
     MPI_Barrier(graph.communicator());
     STOP_TIMER();
+
+    IF_STATS {
+        const GlobalEdgeID total_num_nonlocal_edges =
+            mpi::allreduce<GlobalEdgeID>(nonlocal_edges.size(), MPI_SUM, graph.communicator());
+        const GlobalEdgeID max_num_nonlocal_edges =
+            mpi::allreduce<GlobalEdgeID>(nonlocal_edges.size(), MPI_MAX, graph.communicator());
+        STATS << "Total number of nonlocal edges after deduplication: " << total_num_nonlocal_edges
+              << "; max: " << max_num_nonlocal_edges
+              << "; imbalance: " << max_num_nonlocal_edges / (1.0 * total_num_nonlocal_edges / size);
+    }
 
     START_TIMER("Migrate nonlocal edges");
     auto  migration_result_edges = migrate_edges(graph, nonlocal_edges);
@@ -736,7 +826,7 @@ ContractionResult contract_clustering(
         my_mapping_responses[pe].resize(their_mapping_requests[pe].size());
 
         tbb::parallel_for<std::size_t>(0, their_mapping_requests[pe].size(), [&](const std::size_t i) {
-            KASSERT(pe < their_mapping_requests.size());
+            KASSERT(static_cast<std::size_t>(pe) < their_mapping_requests.size());
             KASSERT(i < their_mapping_requests[pe].size());
             const GlobalNodeID global = their_mapping_requests[pe][i];
             KASSERT(global != kInvalidGlobalNodeID);
@@ -744,9 +834,9 @@ ContractionResult contract_clustering(
             const NodeID local = static_cast<NodeID>(global - graph.offset_n());
             KASSERT(local < lcluster_to_lcnode.size());
             const NodeID coarse_local = lcluster_to_lcnode[local];
-            KASSERT(rank < c_node_distribution.size());
+            KASSERT(static_cast<std::size_t>(rank) < c_node_distribution.size());
             const GlobalNodeID coarse_global = c_node_distribution[rank] + coarse_local;
-            KASSERT(pe < my_mapping_responses.size());
+            KASSERT(static_cast<std::size_t>(pe) < my_mapping_responses.size());
             KASSERT(i < my_mapping_responses[pe].size());
             my_mapping_responses[pe][i] = coarse_global;
         });
