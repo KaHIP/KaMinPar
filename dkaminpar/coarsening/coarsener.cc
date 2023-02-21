@@ -145,7 +145,7 @@ DistributedPartitionedGraph Coarsener::uncoarsen_once_local(DistributedPartition
 DistributedPartitionedGraph Coarsener::uncoarsen_once_global(DistributedPartitionedGraph&& p_graph) {
     const DistributedGraph* new_coarsest = nth_coarsest(1);
 
-    if (_input_ctx.coarsening.global_contraction_algorithm == GlobalContractionAlgorithm::V2) {
+    if (_input_ctx.coarsening.contraction_algorithm == ContractionAlgorithm::DEFAULT) {
         // @todo get rid of the copy
         auto&                      mapping = _global_mapping_hierarchy.back();
         NoinitVector<GlobalNodeID> mapping_cpy(mapping.size());

@@ -98,11 +98,11 @@ enum class LocalClusteringAlgorithm {
     LP,
 };
 
-enum class GlobalContractionAlgorithm {
-    NO_MIGRATION,
-    MINIMAL_MIGRATION,
-    FULL_MIGRATION,
-    V2,
+enum class ContractionAlgorithm {
+    LEGACY_NO_MIGRATION,
+    LEGACY_MINIMAL_MIGRATION,
+    LEGACY_FULL_MIGRATION,
+    DEFAULT,
 };
 
 enum class InitialPartitioningAlgorithm {
@@ -221,21 +221,27 @@ struct FMRefinementContext {
 };
 
 struct CoarseningContext {
+    // Global clustering
     std::size_t                       max_global_clustering_levels = 0;
     GlobalClusteringAlgorithm         global_clustering_algorithm;
-    GlobalContractionAlgorithm        global_contraction_algorithm;
     LabelPropagationCoarseningContext global_lp;
     HEMCoarseningContext              hem;
 
+    // Local clustering
     std::size_t                       max_local_clustering_levels = 0;
     LocalClusteringAlgorithm          local_clustering_algorithm;
     LabelPropagationCoarseningContext local_lp;
 
+    // Cluster weight limit
     NodeID                  contraction_limit         = 0;
     shm::ClusterWeightLimit cluster_weight_limit      = shm::ClusterWeightLimit::EPSILON_BLOCK_WEIGHT;
     double                  cluster_weight_multiplier = 0.0;
 
-    double max_cnode_imbalance = std::numeric_limits<double>::max();
+    // Graph contraction
+    ContractionAlgorithm contraction_algorithm;
+    double               max_cnode_imbalance         = std::numeric_limits<double>::max();
+    bool                 migrate_cnode_prefix        = true;
+    bool                 force_perfect_cnode_balance = false;
 
     void setup(const ParallelContext& parallel);
 };

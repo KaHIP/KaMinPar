@@ -795,16 +795,19 @@ GlobalContractionResult contract_global_clustering(
 ) {
     SCOPED_TIMER("Contract clustering");
 
-    switch (c_ctx.global_contraction_algorithm) {
-        case GlobalContractionAlgorithm::NO_MIGRATION:
+    switch (c_ctx.contraction_algorithm) {
+        case ContractionAlgorithm::LEGACY_NO_MIGRATION:
             return contract_global_clustering_no_migration(graph, clustering);
-        case GlobalContractionAlgorithm::MINIMAL_MIGRATION:
+        case ContractionAlgorithm::LEGACY_MINIMAL_MIGRATION:
             return contract_global_clustering_minimal_migration(graph, clustering);
-        case GlobalContractionAlgorithm::FULL_MIGRATION:
+        case ContractionAlgorithm::LEGACY_FULL_MIGRATION:
             return contract_global_clustering_full_migration(graph, clustering);
-        case GlobalContractionAlgorithm::V2: {
+        case ContractionAlgorithm::DEFAULT: {
             GlobalClustering clustering2(clustering.begin(), clustering.end());
-            auto [c_graph, c_mapping, migration] = contract_clustering(graph, clustering2, c_ctx.max_cnode_imbalance);
+            auto [c_graph, c_mapping, migration] = contract_clustering(
+                graph, clustering2, c_ctx.max_cnode_imbalance, c_ctx.migrate_cnode_prefix,
+                c_ctx.force_perfect_cnode_balance
+            );
             GlobalMapping c_mapping2(c_mapping.size());
             std::copy(c_mapping.begin(), c_mapping.end(), c_mapping2.begin());
             return {std::move(c_graph), std::move(c_mapping2), std::move(migration)};

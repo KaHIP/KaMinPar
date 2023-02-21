@@ -32,9 +32,6 @@ namespace kaminpar::dist {
 SET_STATISTICS_FROM_GLOBAL();
 SET_DEBUG(true);
 
-// Control whether we migrate the first few or the last few coarse nodes of an overloaded PE
-constexpr static bool migrate_prefix = false;
-
 namespace {
 struct GlobalEdge {
     GlobalNodeID u;
@@ -448,6 +445,7 @@ scalable_vector<T> create_perfect_distribution_from_global_count(const T global_
     return distribution;
 }
 
+template <bool migrate_prefix>
 std::pair<NodeID, PEID> remap_gcnode(
     const GlobalNodeID gcnode, const PEID current_owner,
     const scalable_vector<GlobalNodeID>& current_cnode_distribution, const NoinitVector<GlobalNodeID>& pe_overload,
@@ -461,27 +459,30 @@ std::pair<NodeID, PEID> remap_gcnode(
         static_cast<NodeID>(current_cnode_distribution[current_owner + 1] - current_cnode_distribution[current_owner]);
     const auto new_current_owner_count = old_current_owner_count - old_current_owner_overload;
 
-    if constexpr (!migrate_prefix) {
-        // Remap the last few nodes to other PEs
-        
-        if (lcnode < new_current_owner_count) {
-            return {lcnode, current_owner};
-        } else {
-            const GlobalNodeID position = pe_overload[current_owner] + lcnode - new_current_owner_count;
-            const PEID new_owner = static_cast<PEID>(math::find_in_distribution<GlobalNodeID>(position, pe_underload));
-            const NodeID new_lcnode = static_cast<NodeID>(old_current_owner_count + position - pe_underload[new_owner]);
-            return {new_lcnode, new_owner};
-        }
-    } else {
+    if constexpr (migrate_prefix) {
         // Remap the first few nodes to other PEs
-        
+
         if (lcnode >= old_current_owner_overload) {
             return {lcnode - old_current_owner_overload, current_owner};
         } else {
             const GlobalNodeID position = pe_overload[current_owner] + lcnode;
             const PEID new_owner = static_cast<PEID>(math::find_in_distribution<GlobalNodeID>(position, pe_underload));
-            const NodeID new_lcnode =
-                static_cast<NodeID>(old_current_owner_count + position - pe_underload[new_owner]); // @todo
+            const NodeID old_new_owner_count =
+                static_cast<NodeID>(current_cnode_distribution[new_owner + 1] - current_cnode_distribution[new_owner]);
+            const NodeID new_lcnode = static_cast<NodeID>(old_new_owner_count + position - pe_underload[new_owner]);
+            return {new_lcnode, new_owner};
+        }
+    } else {
+        // Remap the last few nodes to other PEs
+
+        if (lcnode < new_current_owner_count) {
+            return {lcnode, current_owner};
+        } else {
+            const GlobalNodeID position = pe_overload[current_owner] + lcnode - new_current_owner_count;
+            const PEID new_owner = static_cast<PEID>(math::find_in_distribution<GlobalNodeID>(position, pe_underload));
+            const NodeID old_new_owner_count =
+                static_cast<NodeID>(current_cnode_distribution[new_owner + 1] - current_cnode_distribution[new_owner]);
+            const NodeID new_lcnode = static_cast<NodeID>(old_new_owner_count + position - pe_underload[new_owner]);
             return {new_lcnode, new_owner};
         }
     }
@@ -490,7 +491,7 @@ std::pair<NodeID, PEID> remap_gcnode(
 void rebalance_cluster_placement(
     const DistributedGraph& graph, const scalable_vector<GlobalNodeID>& current_cnode_distribution,
     const NoinitVector<NodeID>& lcluster_to_lcnode, const NoinitVector<NodeMapping>& nonlocal_gcluster_to_gcnode,
-    GlobalClustering& lnode_to_gcluster, const double max_cnode_imbalance
+    GlobalClustering& lnode_to_gcluster, const double max_cnode_imbalance, const double migrate_cnode_prefix
 ) {
     const PEID         size = mpi::get_comm_size(graph.communicator());
     const PEID         rank = mpi::get_comm_rank(graph.communicator());
@@ -590,7 +591,9 @@ void rebalance_cluster_placement(
             }
 
             const auto [new_lcnode, new_owner] =
-                remap_gcnode(old_gcnode, old_owner, current_cnode_distribution, pe_overload, pe_underload);
+                migrate_cnode_prefix
+                    ? remap_gcnode<true>(old_gcnode, old_owner, current_cnode_distribution, pe_overload, pe_underload)
+                    : remap_gcnode<false>(old_gcnode, old_owner, current_cnode_distribution, pe_overload, pe_underload);
             KASSERT(new_owner < size);
 
             lnode_to_gcluster[lnode] = graph.offset_n(new_owner) + new_lcnode;
@@ -623,7 +626,8 @@ void rebalance_cluster_placement(
 } // namespace
 
 ContractionResult contract_clustering(
-    const DistributedGraph& graph, GlobalClustering& lnode_to_gcluster, const double max_cnode_imbalance
+    const DistributedGraph& graph, GlobalClustering& lnode_to_gcluster, const double max_cnode_imbalance,
+    const bool migrate_cnode_prefix, const bool force_perfect_cnode_balance
 ) {
     const PEID size = mpi::get_comm_size(graph.communicator());
     const PEID rank = mpi::get_comm_rank(graph.communicator());
@@ -698,9 +702,10 @@ ContractionResult contract_clustering(
         STATS << "Natural cluster assignment exceeds maximum coarse node imbalance: " << cnode_imbalance << " > "
               << max_cnode_imbalance << " --> rebalancing cluster assignment";
 
+        const double max_imbalance = force_perfect_cnode_balance ? 1.0 : max_cnode_imbalance;
         rebalance_cluster_placement(
-            graph, c_node_distribution, lcluster_to_lcnode, my_nonlocal_to_gcnode, lnode_to_gcluster,
-            max_cnode_imbalance
+            graph, c_node_distribution, lcluster_to_lcnode, my_nonlocal_to_gcnode, lnode_to_gcluster, max_imbalance,
+            migrate_cnode_prefix
         );
 
         return contract_clustering(graph, lnode_to_gcluster, max_cnode_imbalance);

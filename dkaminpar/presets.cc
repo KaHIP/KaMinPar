@@ -54,7 +54,6 @@ Context create_default_context() {
             {
                 .max_global_clustering_levels = std::numeric_limits<std::size_t>::max(),
                 .global_clustering_algorithm  = GlobalClusteringAlgorithm::LP,
-                .global_contraction_algorithm = GlobalContractionAlgorithm::V2,
                 .global_lp =
                     {
                         .num_iterations                       = 3,
@@ -100,10 +99,13 @@ Context create_default_context() {
                         .keep_ghost_clusters                  = false,
                         .scale_chunks_with_threads            = false, // unused
                     },
-                .contraction_limit         = 5000,
-                .cluster_weight_limit      = shm::ClusterWeightLimit::EPSILON_BLOCK_WEIGHT,
-                .cluster_weight_multiplier = 1.0,
-                .max_cnode_imbalance       = std::numeric_limits<double>::max(),
+                .contraction_limit           = 5000,
+                .cluster_weight_limit        = shm::ClusterWeightLimit::EPSILON_BLOCK_WEIGHT,
+                .cluster_weight_multiplier   = 1.0,
+                .contraction_algorithm       = ContractionAlgorithm::DEFAULT,
+                .max_cnode_imbalance         = std::numeric_limits<double>::max(),
+                .migrate_cnode_prefix        = true,
+                .force_perfect_cnode_balance = false,
             },
         .initial_partitioning =
             {

@@ -100,25 +100,25 @@ std::ostream& operator<<(std::ostream& out, const LocalClusteringAlgorithm algor
     return out << "<invalid>";
 }
 
-std::unordered_map<std::string, GlobalContractionAlgorithm> get_global_contraction_algorithms() {
+std::unordered_map<std::string, ContractionAlgorithm> get_contraction_algorithms() {
     return {
-        {"no-migration", GlobalContractionAlgorithm::NO_MIGRATION},
-        {"minimal-migration", GlobalContractionAlgorithm::MINIMAL_MIGRATION},
-        {"full-migration", GlobalContractionAlgorithm::FULL_MIGRATION},
-        {"v2", GlobalContractionAlgorithm::V2},
+        {"legacy-no-migration", ContractionAlgorithm::LEGACY_NO_MIGRATION},
+        {"legacy-minimal-migration", ContractionAlgorithm::LEGACY_MINIMAL_MIGRATION},
+        {"legacy-full-migration", ContractionAlgorithm::LEGACY_FULL_MIGRATION},
+        {"default", ContractionAlgorithm::DEFAULT},
     };
 }
 
-std::ostream& operator<<(std::ostream& out, const GlobalContractionAlgorithm algorithm) {
+std::ostream& operator<<(std::ostream& out, const ContractionAlgorithm algorithm) {
     switch (algorithm) {
-        case GlobalContractionAlgorithm::NO_MIGRATION:
+        case ContractionAlgorithm::LEGACY_NO_MIGRATION:
             return out << "no-migration";
-        case GlobalContractionAlgorithm::MINIMAL_MIGRATION:
+        case ContractionAlgorithm::LEGACY_MINIMAL_MIGRATION:
             return out << "minimal-migration";
-        case GlobalContractionAlgorithm::FULL_MIGRATION:
+        case ContractionAlgorithm::LEGACY_FULL_MIGRATION:
             return out << "full-migration";
-        case GlobalContractionAlgorithm::V2:
-            return out << "v2";
+        case ContractionAlgorithm::DEFAULT:
+            return out << "default";
     }
 
     return out << "<invalid>";
@@ -301,10 +301,21 @@ void print(const CoarseningContext& ctx, std::ostream& out) {
 
     if (ctx.max_global_clustering_levels > 0) {
         out << "Global clustering algorithm:  " << ctx.global_clustering_algorithm << "\n";
-        out << "  Contraction algorithm:      " << ctx.global_contraction_algorithm;
-        if (ctx.global_contraction_algorithm == GlobalContractionAlgorithm::V2
+        out << "  Contraction algorithm:      " << ctx.contraction_algorithm;
+        if (ctx.contraction_algorithm == ContractionAlgorithm::DEFAULT
             && ctx.max_cnode_imbalance < std::numeric_limits<double>::max()) {
-            out << "[rebalance if > " << std::setprecision(2) << 100.0 * (ctx.max_cnode_imbalance - 1.0) << " %]";
+            out << "[rebalance if >" << std::setprecision(2) << 100.0 * (ctx.max_cnode_imbalance - 1.0) << "%";
+            if (ctx.migrate_cnode_prefix) {
+                out << ", prefix";
+            } else {
+                out << ", suffix";
+            }
+            if (ctx.force_perfect_cnode_balance) {
+                out << ", strict";
+            } else {
+                out << ", relaxed";
+            }
+            out << "]";
         }
         out << "\n";
 

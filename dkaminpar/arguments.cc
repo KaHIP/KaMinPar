@@ -244,14 +244,12 @@ CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx) {
   - hem-lp:         heavy edge matching + label propagation)")
 
         ->capture_default_str();
-    coarsening->add_option("--c-global-contraction-algorithm", ctx.coarsening.global_contraction_algorithm)
-        ->transform(CLI::CheckedTransformer(get_global_contraction_algorithms()).description(""))
-        ->description(R"([Deprecated] Algorithm to contract a global clustering, options are:
-  - no-migration:      do not redistribute any nodes
-  - minimal-migration: only redistribute coarse nodes s.t. each PE has the same number of nodes
-  - full-migration:    redistribute all coarse nodes round-robin)")
+    coarsening->add_option("--c-contraction-algorithm", ctx.coarsening.contraction_algorithm)
+        ->transform(CLI::CheckedTransformer(get_contraction_algorithms()).description(""))
         ->capture_default_str();
     coarsening->add_option("--c-max-cnode-imbalance", ctx.coarsening.max_cnode_imbalance, "Maximum coarse node imbalance before rebalancing cluster assignment.");
+    coarsening->add_flag("--c-migrate-cnode-prefix", ctx.coarsening.migrate_cnode_prefix, "Migrate the first few nodes of overloaded PEs rather than the last few.");
+    coarsening->add_flag("--c-force-perfect-cnode-balance", ctx.coarsening.force_perfect_cnode_balance, "If imbalance threshold is exceeded, migrate nodes until perfectly balanced.");
     
     return coarsening;
 }
