@@ -30,7 +30,7 @@
 
 namespace kaminpar::dist {
 SET_STATISTICS_FROM_GLOBAL();
-SET_DEBUG(true);
+SET_DEBUG(false);
 
 namespace {
 struct GlobalEdge {
