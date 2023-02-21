@@ -316,6 +316,8 @@ void print(const CoarseningContext& ctx, std::ostream& out) {
                 out << ", relaxed";
             }
             out << "]";
+        } else if (ctx.contraction_algorithm == ContractionAlgorithm::DEFAULT) {
+            out << "[natural assignment]";
         }
         out << "\n";
 
