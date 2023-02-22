@@ -34,7 +34,7 @@ std::unordered_map<std::string, GraphOrdering> get_graph_orderings();
 
 void print(const Context& ctx, bool root, std::ostream& out);
 void print(const PartitionContext& ctx, bool root, std::ostream& out);
-void print(const CoarseningContext& ctx, std::ostream& out);
+void print(const CoarseningContext& ctx, const ParallelContext& parallel, std::ostream& out);
 void print(const InitialPartitioningContext& ctx, std::ostream& out);
 void print(const RefinementContext& ctx, std::ostream& out);
 } // namespace kaminpar::dist
