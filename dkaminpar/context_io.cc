@@ -236,7 +236,7 @@ void print(const Context& ctx, const bool root, std::ostream& out) {
             out << "  Simulate seq. hybrid exe.:  " << (ctx.simulate_singlethread ? "yes" : "no") << "\n";
         }
         cio::print_delimiter("Coarsening", '-');
-        print(ctx.coarsening, out);
+        print(ctx.coarsening, ctx.parallel, out);
         cio::print_delimiter("Initial Partitioning", '-');
         print(ctx.initial_partitioning, out);
         cio::print_delimiter("Refinement", '-');
@@ -277,7 +277,7 @@ void print(const PartitionContext& ctx, const bool root, std::ostream& out) {
     }
 }
 
-void print(const CoarseningContext& ctx, std::ostream& out) {
+void print(const CoarseningContext& ctx, const ParallelContext& parallel, std::ostream& out) {
     if (ctx.max_global_clustering_levels > 0 && ctx.max_local_clustering_levels > 0) {
         out << "Coarsening mode:              local[" << ctx.max_local_clustering_levels << "]+global["
             << ctx.max_global_clustering_levels << "]\n";
@@ -328,6 +328,17 @@ void print(const CoarseningContext& ctx, std::ostream& out) {
             out << "  High degree threshold:      " << ctx.global_lp.passive_high_degree_threshold << " (passive), "
                 << ctx.global_lp.active_high_degree_threshold << " (active)\n";
             out << "  Max degree:                 " << ctx.global_lp.max_num_neighbors << "\n";
+            if (ctx.global_lp.fixed_num_chunks == 0) {
+                out << "  Number of chunks:           " << ctx.global_lp.compute_num_chunks(parallel) << "[= max("
+                    << ctx.global_lp.min_num_chunks << ", " << ctx.global_lp.total_num_chunks << " / "
+                    << parallel.num_mpis
+                    << (ctx.global_lp.scale_chunks_with_threads
+                            ? std::string(" / ") + std::to_string(parallel.num_threads)
+                            : "")
+                    << "]\n";
+            } else {
+                out << "  Number of chunks:           " << ctx.global_lp.fixed_num_chunks << "\n";
+            }
             // out << "  Number of chunks:           " << ctx.global_lp.num_chunks
             //<< " (min: " << ctx.global_lp.min_num_chunks << ", total: " << ctx.global_lp.total_num_chunks << ")"
             //<< (ctx.global_lp.scale_chunks_with_threads ? ", scaled" : "") << "\n";

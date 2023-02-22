@@ -103,7 +103,7 @@ int LabelPropagationCoarseningContext::compute_num_chunks(const ParallelContext&
     }
 
     const std::size_t chunks = scale_chunks_with_threads ? total_num_chunks / parallel.num_threads : total_num_chunks;
-    return std::max<std::size_t>(8, chunks / parallel.num_mpis);
+    return std::max<std::size_t>(min_num_chunks, chunks / parallel.num_mpis);
 }
 
 int LabelPropagationRefinementContext::compute_num_chunks(const ParallelContext& parallel) const {
@@ -112,7 +112,7 @@ int LabelPropagationRefinementContext::compute_num_chunks(const ParallelContext&
     }
 
     const std::size_t chunks = scale_chunks_with_threads ? total_num_chunks / parallel.num_threads : total_num_chunks;
-    return std::max<std::size_t>(8, chunks / parallel.num_mpis);
+    return std::max<std::size_t>(min_num_chunks, chunks / parallel.num_mpis);
 }
 
 int ColoredLabelPropagationRefinementContext::compute_num_coloring_chunks(const ParallelContext& parallel) const {
