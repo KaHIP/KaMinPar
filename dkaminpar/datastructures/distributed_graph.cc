@@ -87,10 +87,16 @@ void DistributedGraph::init_degree_buckets() {
     KASSERT(std::all_of(_buckets.begin(), _buckets.end(), [](const auto n) { return n == 0; }));
 
     if (_sorted) {
-        // @todo parallelize
-        for (const NodeID u: nodes()) {
-            ++_buckets[degree_bucket(degree(u)) + 1];
-        }
+        parallel::vector_ets<NodeID> buckets_ets(_buckets.size());
+        tbb::parallel_for(tbb::blocked_range<NodeID>(0, n()), [&](const auto& r) {
+            auto& buckets = buckets_ets.local();
+            for (NodeID u = r.begin(); u != r.end(); ++u) {
+                auto bucket = degree_bucket(degree(u)) + 1;
+                ++buckets[bucket];
+            }
+        });
+        const auto buckets = buckets_ets.combine(std::plus{});
+        std::copy(buckets.begin(), buckets.end(), _buckets.begin());
 
         auto last_nonempty_bucket =
             std::find_if(_buckets.rbegin(), _buckets.rend(), [](const auto n) { return n > 0; });
