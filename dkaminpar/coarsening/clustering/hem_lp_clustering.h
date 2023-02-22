@@ -21,14 +21,13 @@ public:
     HEMLPClustering(HEMLPClustering&&) noexcept        = default;
     HEMLPClustering& operator=(HEMLPClustering&&)      = delete;
 
-    const AtomicClusterArray&
-    compute_clustering(const DistributedGraph& graph, GlobalNodeWeight max_cluster_weight) final;
+    ClusterArray& compute_clustering(const DistributedGraph& graph, GlobalNodeWeight max_cluster_weight) final;
 
 private:
-    GlobalNodeID compute_size_after_matching_contraction(const AtomicClusterArray& clustering);
+    GlobalNodeID compute_size_after_matching_contraction(const ClusterArray& clustering);
 
-    const DistributedGraph *_graph;
-    bool _fallback = false;
+    const DistributedGraph* _graph;
+    bool                    _fallback = false;
 
     std::unique_ptr<ClusteringAlgorithm<GlobalNodeID>> _lp;
     std::unique_ptr<ClusteringAlgorithm<GlobalNodeID>> _hem;

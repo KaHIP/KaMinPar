@@ -132,11 +132,12 @@ void HEMClustering::initialize(const DistributedGraph& graph) {
 
     TIMED_SCOPE("Allocation") {
         _matching.clear();
-        _matching.resize(graph.total_n(), kInvalidGlobalNodeID);
+        _matching.resize(graph.total_n());
+        tbb::parallel_for<NodeID>(0, graph.total_n(), [&](const NodeID u) { _matching[u] = kInvalidGlobalNodeID; });
     };
 }
 
-const HEMClustering::AtomicClusterArray&
+HEMClustering::ClusterArray&
 HEMClustering::compute_clustering(const DistributedGraph& graph, GlobalNodeWeight max_cluster_weight) {
     _graph = &graph;
 
@@ -254,10 +255,12 @@ void HEMClustering::compute_local_matching(const ColorID c, const GlobalNodeWeig
         if (best_weight > 0) {
             const GlobalNodeID neighbor_global = _graph->local_to_global_node(best_neighbor);
             GlobalNodeID       unmatched       = kInvalidGlobalNodeID;
-            if (_matching[best_neighbor].compare_exchange_strong(unmatched, neighbor_global)) {
+            if (__atomic_compare_exchange_n(
+                    &_matching[best_neighbor], &unmatched, neighbor_global, true, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST
+                )) {
                 // @todo if we merge small colors, also use CAS to match our own node and revert matching of
                 // best_neighbor if our CAS failed
-                _matching[u] = neighbor_global;
+                __atomic_store_n(&_matching[u], neighbor_global, __ATOMIC_RELAXED);
             }
         }
     });
@@ -310,7 +313,9 @@ void HEMClustering::resolve_global_conflicts(const ColorID c) {
                 break;
             }
             new_partner = (static_cast<GlobalNodeID>(req.weight) << 32) | req.theirs;
-        } while (_matching[req.mine].compare_exchange_strong(current_partner, new_partner));
+        } while (__atomic_compare_exchange_n(
+            &_matching[req.mine], &current_partner, new_partner, true, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST
+        ));
     });
 
     // Create response messages

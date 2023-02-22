@@ -390,7 +390,7 @@ std::pair<std::vector<UsedClustersMap>, std::vector<UsedClustersVector>> find_us
 
 // global mapping, global number of coarse nodes
 struct MappingResult {
-    GlobalMapping                 mapping;
+    LegacyGlobalMapping           mapping;
     scalable_vector<GlobalNodeID> distribution;
 };
 
@@ -744,7 +744,7 @@ void update_ghost_node_weights(DistributedGraph& graph) {
 
 //! Contract a distributed graph such that coarse nodes are owned by the PE which owned the respective cluster ID.
 GlobalContractionResult
-contract_global_clustering_no_migration(const DistributedGraph& graph, const GlobalClustering& clustering) {
+contract_global_clustering_no_migration(const DistributedGraph& graph, const LegacyGlobalClustering& clustering) {
     SCOPED_TIMER("Contract clustering");
 
     auto [mapping, distribution] = compute_mapping(graph, clustering);
@@ -757,7 +757,7 @@ contract_global_clustering_no_migration(const DistributedGraph& graph, const Glo
 //! Contract a distributed graph such that *most* coarse nodes are owned by the PE which owned the respective cluster
 //! ID, while migrating enough coarse nodes such that each PE ownes approx. the same number of coarse nodes.
 GlobalContractionResult
-contract_global_clustering_minimal_migration(const DistributedGraph& graph, const GlobalClustering& clustering) {
+contract_global_clustering_minimal_migration(const DistributedGraph& graph, const LegacyGlobalClustering& clustering) {
     SCOPED_TIMER("Contract clustering");
 
     auto [mapping, distribution] = compute_mapping(graph, clustering, true);
@@ -770,7 +770,7 @@ contract_global_clustering_minimal_migration(const DistributedGraph& graph, cons
 //! Contract a distributed graph such that each PE owns the same number of coarse nodes by assigning coarse nodes
 //! \code{p*n/s .. (p + 1)*n/s} to PE \c p, where \c n is the number of coarse nodes and \c s is the number of PEs.
 GlobalContractionResult
-contract_global_clustering_full_migration(const DistributedGraph& graph, const GlobalClustering& clustering) {
+contract_global_clustering_full_migration(const DistributedGraph& graph, const LegacyGlobalClustering& clustering) {
     SCOPED_TIMER("Contract clustering");
 
     auto [mapping, distribution] = compute_mapping(graph, clustering);
@@ -790,31 +790,36 @@ contract_global_clustering_full_migration(const DistributedGraph& graph, const G
     return {std::move(c_graph), std::move(mapping), {}};
 }
 
-GlobalContractionResult contract_global_clustering(
-    const DistributedGraph& graph, const GlobalClustering& clustering, const CoarseningContext& c_ctx
+ContractionResult contract_global_clustering(
+    const DistributedGraph& graph, GlobalClustering& clustering, const CoarseningContext& c_ctx
 ) {
     SCOPED_TIMER("Contract clustering");
 
-    switch (c_ctx.contraction_algorithm) {
-        case ContractionAlgorithm::LEGACY_NO_MIGRATION:
-            return contract_global_clustering_no_migration(graph, clustering);
-        case ContractionAlgorithm::LEGACY_MINIMAL_MIGRATION:
-            return contract_global_clustering_minimal_migration(graph, clustering);
-        case ContractionAlgorithm::LEGACY_FULL_MIGRATION:
-            return contract_global_clustering_full_migration(graph, clustering);
-        case ContractionAlgorithm::DEFAULT: {
-            GlobalClustering clustering2(clustering.begin(), clustering.end());
-            auto [c_graph, c_mapping, migration] = contract_clustering(
-                graph, clustering2, c_ctx.max_cnode_imbalance, c_ctx.migrate_cnode_prefix,
-                c_ctx.force_perfect_cnode_balance
-            );
-            GlobalMapping c_mapping2(c_mapping.size());
-            std::copy(c_mapping.begin(), c_mapping.end(), c_mapping2.begin());
-            return {std::move(c_graph), std::move(c_mapping2), std::move(migration)};
-        }
+    if (c_ctx.contraction_algorithm == ContractionAlgorithm::DEFAULT) {
+        return contract_clustering(
+            graph, clustering, c_ctx.max_cnode_imbalance, c_ctx.migrate_cnode_prefix, c_ctx.force_perfect_cnode_balance
+        );
     }
-    __builtin_unreachable();
+
+    LegacyGlobalClustering legacy_clustering(clustering.begin(), clustering.end());
+
+    auto [cgraph, legacy_cmapping, migration] = [&] {
+        switch (c_ctx.contraction_algorithm) {
+            case ContractionAlgorithm::LEGACY_NO_MIGRATION:
+                return contract_global_clustering_no_migration(graph, legacy_clustering);
+            case ContractionAlgorithm::LEGACY_MINIMAL_MIGRATION:
+                return contract_global_clustering_minimal_migration(graph, legacy_clustering);
+            case ContractionAlgorithm::LEGACY_FULL_MIGRATION:
+                return contract_global_clustering_full_migration(graph, legacy_clustering);
+            default:
+                __builtin_unreachable();
+        }
+    }();
+
+    GlobalMapping cmapping(legacy_cmapping.begin(), legacy_cmapping.end());
+    return {std::move(cgraph), std::move(cmapping), std::move(migration)};
 }
+
 /*!
  * Projects the partition of the coarse graph onto the fine graph. Works for any graph contraction variations.
  * @param fine_graph The distributed fine graph.
@@ -823,7 +828,8 @@ GlobalContractionResult contract_global_clustering(
  * @return Projected partition of the fine graph.
  */
 DistributedPartitionedGraph project_global_contracted_graph(
-    const DistributedGraph& fine_graph, DistributedPartitionedGraph coarse_graph, const GlobalMapping& fine_to_coarse
+    const DistributedGraph& fine_graph, DistributedPartitionedGraph coarse_graph,
+    const LegacyGlobalMapping& fine_to_coarse
 ) {
     SCOPED_TIMER("Project partition");
 

@@ -49,7 +49,6 @@ struct UnorderedRatingMap {
 
     void resize(const std::size_t /* capacity */) {}
 
-
     google::dense_hash_map<GlobalNodeID, EdgeWeight> map{};
 };
 
@@ -70,12 +69,12 @@ struct DistributedGlobalLabelPropagationClusteringConfig : public LabelPropagati
 class DistributedGlobalLabelPropagationClusteringImpl final
     : public ChunkRandomdLabelPropagation<
           DistributedGlobalLabelPropagationClusteringImpl, DistributedGlobalLabelPropagationClusteringConfig>,
-      public OwnedClusterVector<NodeID, GlobalNodeID> {
+      public NonatomicOwnedClusterVector<NodeID, GlobalNodeID> {
     SET_DEBUG(false);
 
     using Base = ChunkRandomdLabelPropagation<
         DistributedGlobalLabelPropagationClusteringImpl, DistributedGlobalLabelPropagationClusteringConfig>;
-    using ClusterBase = OwnedClusterVector<NodeID, GlobalNodeID>;
+    using ClusterBase = NonatomicOwnedClusterVector<NodeID, GlobalNodeID>;
 
 public:
     explicit DistributedGlobalLabelPropagationClusteringImpl(const Context& ctx)
@@ -91,7 +90,7 @@ public:
         set_max_num_neighbors(_c_ctx.global_lp.max_num_neighbors);
     }
 
-    const auto& compute_clustering(const DistributedGraph& graph, const GlobalNodeWeight max_cluster_weight) {
+    auto& compute_clustering(const DistributedGraph& graph, const GlobalNodeWeight max_cluster_weight) {
         SCOPED_TIMER("Label propagation");
 
         {
@@ -249,7 +248,7 @@ public:
     void move_node(const NodeID node, const ClusterID cluster) {
         KASSERT(node < _changed_label.size());
         _changed_label[node] = this->cluster(node);
-        OwnedClusterVector::move_node(node, cluster);
+        NonatomicOwnedClusterVector::move_node(node, cluster);
     }
 
     [[nodiscard]] ClusterID initial_cluster(const NodeID u) {
@@ -504,7 +503,7 @@ private:
                     if (!sync_cluster_weights()) {
                         change_cluster_weight(cluster(lnode), -weight, true);
                     }
-                    OwnedClusterVector::move_node(lnode, new_gcluster);
+                    NonatomicOwnedClusterVector::move_node(lnode, new_gcluster);
                     if (!sync_cluster_weights()) {
                         change_cluster_weight(cluster(lnode), weight, false);
                     }
@@ -538,7 +537,7 @@ private:
 
                     if (current != kInvalidNodeID && current_weight + u_weight <= max_cluster_weight(u_cluster)) {
                         change_cluster_weight(current_cluster, u_weight, true);
-                        OwnedClusterVector::move_node(u, current_cluster);
+                        NonatomicOwnedClusterVector::move_node(u, current_cluster);
                         current_weight += u_weight;
                     } else {
                         current         = u;
@@ -590,7 +589,7 @@ DistributedGlobalLabelPropagationClustering::DistributedGlobalLabelPropagationCl
 
 DistributedGlobalLabelPropagationClustering::~DistributedGlobalLabelPropagationClustering() = default;
 
-const DistributedGlobalLabelPropagationClustering::AtomicClusterArray&
+DistributedGlobalLabelPropagationClustering::ClusterArray&
 DistributedGlobalLabelPropagationClustering::compute_clustering(
     const DistributedGraph& graph, const GlobalNodeWeight max_cluster_weight
 ) {

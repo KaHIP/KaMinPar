@@ -21,18 +21,18 @@ struct DistributedLocalLabelPropagationClusteringConfig : public LabelPropagatio
 class DistributedLocalLabelPropagationClusteringImpl final
     : public ChunkRandomdLabelPropagation<
           DistributedLocalLabelPropagationClusteringImpl, DistributedLocalLabelPropagationClusteringConfig>,
-      public OwnedClusterVector<NodeID, NodeID>,
+      public NonatomicOwnedClusterVector<NodeID, NodeID>,
       public OwnedRelaxedClusterWeightVector<NodeID, NodeWeight> {
     SET_DEBUG(false);
 
     using Base = ChunkRandomdLabelPropagation<
         DistributedLocalLabelPropagationClusteringImpl, DistributedLocalLabelPropagationClusteringConfig>;
-    using ClusterBase       = OwnedClusterVector<NodeID, NodeID>;
+    using ClusterBase       = NonatomicOwnedClusterVector<NodeID, NodeID>;
     using ClusterWeightBase = OwnedRelaxedClusterWeightVector<NodeID, NodeWeight>;
 
 public:
     DistributedLocalLabelPropagationClusteringImpl(const NodeID max_n, const CoarseningContext& c_ctx)
-        : ClusterBase{max_n},
+        : ClusterBase(max_n),
           ClusterWeightBase{max_n},
           _ignore_ghost_nodes(c_ctx.local_lp.ignore_ghost_nodes),
           _keep_ghost_clusters(c_ctx.local_lp.keep_ghost_clusters) {
@@ -42,7 +42,7 @@ public:
         set_max_num_neighbors(c_ctx.local_lp.max_num_neighbors);
     }
 
-    const auto& compute_clustering(const DistributedGraph& graph, const GlobalNodeWeight max_cluster_weight) {
+    auto& compute_clustering(const DistributedGraph& graph, const GlobalNodeWeight max_cluster_weight) {
         initialize(&graph, graph.n());
         _max_cluster_weight = max_cluster_weight;
 
@@ -151,7 +151,7 @@ DistributedLocalLabelPropagationClustering::DistributedLocalLabelPropagationClus
 
 DistributedLocalLabelPropagationClustering::~DistributedLocalLabelPropagationClustering() = default;
 
-const DistributedLocalLabelPropagationClustering::AtomicClusterArray&
+DistributedLocalLabelPropagationClustering::ClusterArray&
 DistributedLocalLabelPropagationClustering::compute_clustering(
     const DistributedGraph& graph, const GlobalNodeWeight max_cluster_weight
 ) {

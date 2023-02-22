@@ -16,27 +16,27 @@
 #include "common/scalable_vector.h"
 
 namespace kaminpar::dist {
-using GlobalMapping    = scalable_vector<parallel::Atomic<GlobalNodeID>>;
-using GlobalClustering = scalable_vector<parallel::Atomic<GlobalNodeID>>;
+using LegacyGlobalMapping    = scalable_vector<parallel::Atomic<GlobalNodeID>>;
+using LegacyGlobalClustering = scalable_vector<parallel::Atomic<GlobalNodeID>>;
 
 struct GlobalContractionResult {
-    DistributedGraph graph;
-    GlobalMapping    mapping;
-    MigratedNodes    migration;
+    DistributedGraph    graph;
+    LegacyGlobalMapping mapping;
+    MigratedNodes       migration;
 };
 
 GlobalContractionResult
-contract_global_clustering_no_migration(const DistributedGraph& graph, const GlobalClustering& clustering);
+contract_global_clustering_no_migration(const DistributedGraph& graph, const LegacyGlobalClustering& clustering);
 GlobalContractionResult
-contract_global_clustering_minimal_migration(const DistributedGraph& graph, const GlobalClustering& clustering);
+contract_global_clustering_minimal_migration(const DistributedGraph& graph, const LegacyGlobalClustering& clustering);
 GlobalContractionResult
-contract_global_clustering_full_migration(const DistributedGraph& graph, const GlobalClustering& clustering);
+contract_global_clustering_full_migration(const DistributedGraph& graph, const LegacyGlobalClustering& clustering);
 
-GlobalContractionResult contract_global_clustering(
-    const DistributedGraph& graph, const GlobalClustering& clustering, const CoarseningContext& c_ctx
-);
+ContractionResult
+contract_global_clustering(const DistributedGraph& graph, GlobalClustering& clustering, const CoarseningContext& c_ctx);
 
 DistributedPartitionedGraph project_global_contracted_graph(
-    const DistributedGraph& fine_graph, DistributedPartitionedGraph coarse_graph, const GlobalMapping& fine_to_coarse
+    const DistributedGraph& fine_graph, DistributedPartitionedGraph coarse_graph,
+    const LegacyGlobalMapping& fine_to_coarse
 );
 } // namespace kaminpar::dist

@@ -884,6 +884,45 @@ protected:
 };
 
 template <typename NodeID, typename ClusterID>
+class NonatomicOwnedClusterVector {
+public:
+    explicit NonatomicOwnedClusterVector(const NodeID max_num_nodes) : _clusters(max_num_nodes) {
+        tbb::parallel_for<NodeID>(0, max_num_nodes, [&](const NodeID u) { _clusters[u] = 0; });
+    }
+
+    [[nodiscard]] auto&& take_clusters() {
+        return std::move(_clusters);
+    }
+
+    [[nodiscard]] auto& clusters() {
+        return _clusters;
+    }
+
+    void init_cluster(const NodeID node, const ClusterID cluster) {
+        move_node(node, cluster);
+    }
+
+    [[nodiscard]] ClusterID cluster(const NodeID node) {
+        KASSERT(node < _clusters.size());
+        return __atomic_load_n(&_clusters[node], __ATOMIC_RELAXED);
+    }
+
+    void move_node(const NodeID node, const ClusterID cluster) {
+        KASSERT(node < _clusters.size());
+        __atomic_store_n(&_clusters[node], cluster, __ATOMIC_RELAXED);
+    }
+
+    void ensure_cluster_size(const NodeID max_num_nodes) {
+        if (_clusters.size() < max_num_nodes) {
+            _clusters.resize(max_num_nodes);
+        }
+    }
+
+private:
+    NoinitVector<ClusterID> _clusters;
+};
+
+template <typename NodeID, typename ClusterID>
 class OwnedClusterVector {
 public:
     explicit OwnedClusterVector(const NodeID max_num_nodes) : _clusters(max_num_nodes) {}

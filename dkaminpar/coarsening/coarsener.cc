@@ -40,7 +40,8 @@ const DistributedGraph* Coarsener::coarsen_once_local(const GlobalNodeWeight max
         return graph;
     }
 
-    auto [c_graph, mapping, m_ctx] = contract_local_clustering(*graph, clustering);
+    scalable_vector<parallel::Atomic<NodeID>> legacy_clustering(clustering.begin(), clustering.end());
+    auto [c_graph, mapping, m_ctx] = contract_local_clustering(*graph, legacy_clustering);
     KASSERT(graph::debug::validate(c_graph), "", assert::heavy);
     DBG << "Reduced number of nodes from " << graph->global_n() << " to " << c_graph.global_n();
 
@@ -81,9 +82,9 @@ const DistributedGraph* Coarsener::coarsen_once_global(const GlobalNodeWeight ma
         _global_mapping_hierarchy.push_back(std::move(result.mapping));
         _node_migration_history.push_back(std::move(result.migration));
 
-        if (_input_ctx.debug.save_clustering_hierarchy) {
+        /*if (_input_ctx.debug.save_clustering_hierarchy) {
             debug::save_global_clustering(clustering, _input_ctx, static_cast<int>(level()));
-        }
+        }*/
 
         return coarsest();
     }
@@ -146,14 +147,13 @@ DistributedPartitionedGraph Coarsener::uncoarsen_once_global(DistributedPartitio
     const DistributedGraph* new_coarsest = nth_coarsest(1);
 
     if (_input_ctx.coarsening.contraction_algorithm == ContractionAlgorithm::DEFAULT) {
-        // @todo get rid of the copy
-        auto&                      mapping = _global_mapping_hierarchy.back();
-        NoinitVector<GlobalNodeID> mapping_cpy(mapping.size());
-        tbb::parallel_for<std::size_t>(0, mapping.size(), [&](const std::size_t i) { mapping_cpy[i] = mapping[i]; });
-
-        p_graph = project_partition(*new_coarsest, std::move(p_graph), mapping_cpy, _node_migration_history.back());
+        p_graph = project_partition(
+            *new_coarsest, std::move(p_graph), _global_mapping_hierarchy.back(), _node_migration_history.back()
+        );
     } else {
-        p_graph = project_global_contracted_graph(*new_coarsest, std::move(p_graph), _global_mapping_hierarchy.back());
+        auto&               mapping = _global_mapping_hierarchy.back();
+        LegacyGlobalMapping legacy_mapping(mapping.begin(), mapping.end());
+        p_graph = project_global_contracted_graph(*new_coarsest, std::move(p_graph), legacy_mapping);
     }
     KASSERT(graph::debug::validate_partition(p_graph), "", assert::heavy);
 

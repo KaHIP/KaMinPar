@@ -20,14 +20,14 @@ HEMLPClustering::HEMLPClustering(const Context& ctx)
     : _lp(std::make_unique<DistributedGlobalLabelPropagationClustering>(ctx)),
       _hem(std::make_unique<HEMClustering>(ctx)) {}
 
-const HEMLPClustering::AtomicClusterArray&
+HEMLPClustering::ClusterArray&
 HEMLPClustering::compute_clustering(const DistributedGraph& graph, const GlobalNodeWeight max_cluster_weight) {
     _graph = &graph;
 
     if (_fallback) {
         return _lp->compute_clustering(graph, max_cluster_weight);
     } else {
-        const auto&        matching = _hem->compute_clustering(graph, max_cluster_weight);
+        auto&              matching = _hem->compute_clustering(graph, max_cluster_weight);
         const GlobalNodeID new_size = compute_size_after_matching_contraction(matching);
 
         // @todo make this configurable
@@ -40,7 +40,7 @@ HEMLPClustering::compute_clustering(const DistributedGraph& graph, const GlobalN
     }
 }
 
-GlobalNodeID HEMLPClustering::compute_size_after_matching_contraction(const AtomicClusterArray& clustering) {
+GlobalNodeID HEMLPClustering::compute_size_after_matching_contraction(const ClusterArray& clustering) {
     tbb::enumerable_thread_specific<NodeID> num_matched_edges_ets;
     _graph->pfor_nodes([&](const NodeID u) {
         if (clustering[u] != _graph->local_to_global_node(u)) {

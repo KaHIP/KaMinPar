@@ -56,8 +56,6 @@ std::unordered_map<std::string, GlobalClusteringAlgorithm> get_global_clustering
     return {
         {"noop", GlobalClusteringAlgorithm::NOOP},
         {"lp", GlobalClusteringAlgorithm::LP},
-        {"active-set-lp", GlobalClusteringAlgorithm::ACTIVE_SET_LP},
-        {"locking-lp", GlobalClusteringAlgorithm::LOCKING_LP},
         {"hem", GlobalClusteringAlgorithm::HEM},
         {"hem-lp", GlobalClusteringAlgorithm::HEM_LP},
     };
@@ -69,10 +67,6 @@ std::ostream& operator<<(std::ostream& out, const GlobalClusteringAlgorithm algo
             return out << "noop";
         case GlobalClusteringAlgorithm::LP:
             return out << "lp";
-        case GlobalClusteringAlgorithm::ACTIVE_SET_LP:
-            return out << "active-set-lp";
-        case GlobalClusteringAlgorithm::LOCKING_LP:
-            return out << "locking-lp";
         case GlobalClusteringAlgorithm::HEM:
             return out << "hem";
         case GlobalClusteringAlgorithm::HEM_LP:
@@ -112,11 +106,11 @@ std::unordered_map<std::string, ContractionAlgorithm> get_contraction_algorithms
 std::ostream& operator<<(std::ostream& out, const ContractionAlgorithm algorithm) {
     switch (algorithm) {
         case ContractionAlgorithm::LEGACY_NO_MIGRATION:
-            return out << "no-migration";
+            return out << "legacy-no-migration";
         case ContractionAlgorithm::LEGACY_MINIMAL_MIGRATION:
-            return out << "minimal-migration";
+            return out << "legacy-minimal-migration";
         case ContractionAlgorithm::LEGACY_FULL_MIGRATION:
-            return out << "full-migration";
+            return out << "legacy-full-migration";
         case ContractionAlgorithm::DEFAULT:
             return out << "default";
     }
@@ -322,7 +316,6 @@ void print(const CoarseningContext& ctx, const ParallelContext& parallel, std::o
         out << "\n";
 
         if (ctx.global_clustering_algorithm == GlobalClusteringAlgorithm::LP
-            || ctx.global_clustering_algorithm == GlobalClusteringAlgorithm::ACTIVE_SET_LP
             || ctx.global_clustering_algorithm == GlobalClusteringAlgorithm::HEM_LP) {
             out << "  Number of iterations:       " << ctx.global_lp.num_iterations << "\n";
             out << "  High degree threshold:      " << ctx.global_lp.passive_high_degree_threshold << " (passive), "

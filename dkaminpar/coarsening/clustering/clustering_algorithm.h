@@ -15,11 +15,10 @@ namespace kaminpar::dist {
 template <typename ClusterID>
 class ClusteringAlgorithm {
 public:
-    using AtomicClusterArray = scalable_vector<parallel::Atomic<ClusterID>>;
+    using ClusterArray = NoinitVector<ClusterID>;
 
     virtual ~ClusteringAlgorithm() = default;
 
-    virtual const AtomicClusterArray&
-    compute_clustering(const DistributedGraph& graph, GlobalNodeWeight max_cluster_weight) = 0;
+    virtual ClusterArray& compute_clustering(const DistributedGraph& graph, GlobalNodeWeight max_cluster_weight) = 0;
 };
 } // namespace kaminpar::dist

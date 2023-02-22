@@ -21,8 +21,7 @@ public:
     HEMClustering(HEMClustering&&) noexcept        = default;
     HEMClustering& operator=(HEMClustering&&)      = delete;
 
-    const AtomicClusterArray&
-    compute_clustering(const DistributedGraph& graph, GlobalNodeWeight max_cluster_weight) final;
+    ClusterArray& compute_clustering(const DistributedGraph& graph, GlobalNodeWeight max_cluster_weight) final;
 
 private:
     void initialize(const DistributedGraph& graph);
@@ -35,7 +34,7 @@ private:
 
     const DistributedGraph* _graph;
 
-    AtomicClusterArray _matching;
+    ClusterArray _matching;
 
     NoinitVector<std::uint8_t> _color_blacklist;
     NoinitVector<ColorID>      _color_sizes;

@@ -11,7 +11,8 @@
 #include "common/parallel/atomic.h"
 
 namespace kaminpar::dist {
-using GlobalClustering = scalable_vector<parallel::Atomic<GlobalNodeID>>;
+using GlobalMapping    = NoinitVector<GlobalNodeID>;
+using GlobalClustering = NoinitVector<GlobalNodeID>;
 
 struct MigratedNodes {
     NoinitVector<NodeID> nodes;

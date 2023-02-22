@@ -31,12 +31,10 @@
 #include "dkaminpar/refinement/noop_refiner.h"
 
 // Clustering
-#include "dkaminpar/coarsening/clustering/global_active_set_label_propagation_clustering.h"
 #include "dkaminpar/coarsening/clustering/global_label_propagation_clustering.h"
 #include "dkaminpar/coarsening/clustering/hem_clustering.h"
 #include "dkaminpar/coarsening/clustering/hem_lp_clustering.h"
 #include "dkaminpar/coarsening/clustering/local_label_propagation_clustering.h"
-#include "dkaminpar/coarsening/clustering/locking_label_propagation_clustering.h"
 #include "dkaminpar/coarsening/clustering/noop_clustering.h"
 
 namespace kaminpar::dist::factory {
@@ -112,12 +110,6 @@ std::unique_ptr<ClusteringAlgorithm<GlobalNodeID>> create_global_clustering_algo
 
         case GlobalClusteringAlgorithm::LP:
             return std::make_unique<DistributedGlobalLabelPropagationClustering>(ctx);
-
-        case GlobalClusteringAlgorithm::ACTIVE_SET_LP:
-            return std::make_unique<DistributedActiveSetGlobalLabelPropagationClustering>(ctx);
-
-        case GlobalClusteringAlgorithm::LOCKING_LP:
-            return std::make_unique<LockingLabelPropagationClustering>(ctx);
 
         case GlobalClusteringAlgorithm::HEM:
             return std::make_unique<HEMClustering>(ctx);

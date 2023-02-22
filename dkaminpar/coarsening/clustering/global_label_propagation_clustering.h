@@ -27,8 +27,7 @@ public:
 
     ~DistributedGlobalLabelPropagationClustering();
 
-    const AtomicClusterArray&
-    compute_clustering(const DistributedGraph& graph, GlobalNodeWeight max_cluster_weight) final;
+    ClusterArray& compute_clustering(const DistributedGraph& graph, GlobalNodeWeight max_cluster_weight) final;
 
 private:
     std::unique_ptr<class DistributedGlobalLabelPropagationClusteringImpl> _impl;
