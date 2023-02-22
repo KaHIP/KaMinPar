@@ -10,7 +10,7 @@
  ******************************************************************************/
 #include "dkaminpar/coarsening/clustering/global_label_propagation_clustering.h"
 
-#include <unordered_map>
+#include <google/dense_hash_map>
 
 #include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/datastructures/growt.h"
@@ -45,7 +45,8 @@ struct UnorderedRatingMap {
 
     void resize(const std::size_t /* capacity */) {}
 
-    std::unordered_map<GlobalNodeID, EdgeWeight> map{};
+
+    google::dense_hash_map<GlobalNodeID, EdgeWeight> map{};
 };
 
 struct DistributedGlobalLabelPropagationClusteringConfig : public LabelPropagationConfig {

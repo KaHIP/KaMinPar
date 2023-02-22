@@ -169,6 +169,9 @@ if (KAMINPAR_DISTRIBUTED)
     # growt does not add a library target; we have to do that ourself
     add_library(growt INTERFACE)
     target_include_directories(growt SYSTEM INTERFACE "${growt_SOURCE_DIR}")
+
+    # Google Sparsehash 
+    find_package(Sparsehash REQUIRED)
 endif ()
 
 message("################################################################################")
