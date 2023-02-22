@@ -27,6 +27,10 @@ namespace {
  * Large rating map based on a \c unordered_map. We need this since cluster IDs are global node IDs.
  */
 struct UnorderedRatingMap {
+    UnorderedRatingMap() {
+        map.set_empty_key(kInvalidGlobalNodeID);
+    }
+
     EdgeWeight& operator[](const GlobalNodeID key) {
         return map[key];
     }
