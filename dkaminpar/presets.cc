@@ -68,8 +68,8 @@ Context create_default_context() {
                         .ignore_ghost_nodes                   = false, // unused
                         .keep_ghost_clusters                  = false,
                         .scale_chunks_with_threads            = false,
-                        .sync_cluster_weights                 = false,
-                        .enforce_cluster_weights              = false,
+                        .sync_cluster_weights                 = true,
+                        .enforce_cluster_weights              = true,
                         .cheap_toplevel                       = false,
                     },
                 .hem =
