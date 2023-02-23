@@ -159,11 +159,10 @@ public:
             __atomic_store_n(&_local_cluster_weights[lcluster], weight, __ATOMIC_RELAXED);
         } else {
             KASSERT(lcluster < _graph->total_n());
-            const auto cluster = _graph->local_to_global_node(static_cast<NodeID>(lcluster));
-
-            auto& handle                              = _cluster_weights_handles_ets.local();
-            [[maybe_unused]] const auto [it, success] = handle.insert(cluster + 1, weight);
-            KASSERT(success, "Cluster already initialized: " << cluster + 1);
+            const auto gcluster                       = _graph->local_to_global_node(static_cast<NodeID>(lcluster));
+            auto&      handle                         = _cluster_weights_handles_ets.local();
+            [[maybe_unused]] const auto [it, success] = handle.insert(gcluster + 1, weight);
+            KASSERT(success, "Cluster already initialized: " << gcluster + 1);
         }
     }
 
