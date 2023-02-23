@@ -76,6 +76,8 @@ class DistributedGlobalLabelPropagationClusteringImpl final
         DistributedGlobalLabelPropagationClusteringImpl, DistributedGlobalLabelPropagationClusteringConfig>;
     using ClusterBase = NonatomicOwnedClusterVector<NodeID, GlobalNodeID>;
 
+    using WeightDeltaMap = growt::GlobalNodeIDMap<GlobalNodeWeight>;
+
 public:
     explicit DistributedGlobalLabelPropagationClusteringImpl(const Context& ctx)
         : ClusterBase{ctx.partition.graph->total_n},
@@ -180,10 +182,10 @@ public:
 
     bool move_cluster_weight(
         const ClusterID old_gcluster, const ClusterID new_gcluster, const ClusterWeight weight_delta,
-        const ClusterWeight max_weight
+        const ClusterWeight max_weight, const bool check_weight_constraint = true
     ) {
         // reject move if it violates local weight constraint
-        if (cluster_weight(new_gcluster) + weight_delta > max_weight) {
+        if (check_weight_constraint && cluster_weight(new_gcluster) + weight_delta > max_weight) {
             return false;
         }
 
@@ -309,18 +311,15 @@ private:
         START_TIMER("Synchronize cluster weights");
 
         START_TIMER("Allocation");
-        using WeightDeltaMap = growt::GlobalNodeIDMap<GlobalNodeWeight>;
-        WeightDeltaMap                                               weight_deltas(0);
-        tbb::enumerable_thread_specific<WeightDeltaMap::handle_type> weight_deltas_handle_ets([&] {
-            return weight_deltas.get_handle();
-        });
-        std::vector<parallel::Atomic<std::size_t>>                   num_messages(size);
+        _weight_delta_handles_ets.clear();
+        _weight_deltas = WeightDeltaMap(0);
+        std::vector<parallel::Atomic<std::size_t>> num_messages(size);
         STOP_TIMER();
 
         START_TIMER("Fill hash table");
         _graph->pfor_nodes(from, to, [&](const NodeID u) {
             if (_changed_label[u] != kInvalidGlobalNodeID) {
-                auto&              handle    = weight_deltas_handle_ets.local();
+                auto&              handle    = _weight_delta_handles_ets.local();
                 const GlobalNodeID old_label = _changed_label[u];
                 const GlobalNodeID new_label = cluster(u);
                 const NodeWeight   weight    = _graph->node_weight(u);
@@ -364,7 +363,7 @@ private:
         START_TIMER("Create messages");
 #pragma omp parallel
         {
-            auto& handle = weight_deltas_handle_ets.local();
+            auto& handle = _weight_delta_handles_ets.local();
 
             const std::size_t capacity  = handle.capacity();
             std::size_t       cur_block = counter.fetch_add(4096);
@@ -446,7 +445,7 @@ private:
             const GlobalNodeWeight new_label_weight = cluster_weight(new_label);
             if (new_label_weight > _max_cluster_weight) {
                 move_node(u, old_label);
-                move_cluster_weight(old_label, new_label, _graph->node_weight(u), 2 * _max_cluster_weight);
+                move_cluster_weight(new_label, old_label, _graph->node_weight(u), 0, false);
             }
         });
         STOP_TIMER();
@@ -487,24 +486,32 @@ private:
                 return {lnode, cluster(lnode)};
             },
             [&](const auto& buffer, const PEID owner) {
-                tbb::parallel_for<std::size_t>(0, buffer.size(), [&](const std::size_t i) {
-                    const auto [owner_lnode, new_gcluster] = buffer[i];
+                tbb::parallel_for(tbb::blocked_range<std::size_t>(0, buffer.size()), [&](const auto& r) {
+                    auto& weight_delta_handle = _weight_delta_handles_ets.local();
 
-                    const GlobalNodeID gnode = _graph->offset_n(owner) + owner_lnode;
-                    KASSERT(!_graph->is_owned_global_node(gnode));
+                    for (std::size_t i = r.begin(); i != r.end(); ++i) {
+                        const auto [owner_lnode, new_gcluster] = buffer[i];
 
-                    const NodeID     lnode  = _graph->global_to_local_node(gnode);
-                    const NodeWeight weight = _graph->node_weight(lnode);
+                        const GlobalNodeID gnode = _graph->offset_n(owner) + owner_lnode;
+                        KASSERT(!_graph->is_owned_global_node(gnode));
 
-                    // If we synchronize all cluster weights after each round, we do not have to update the weights when
-                    // synchronizing the ghost node assignements
+                        const NodeID     lnode  = _graph->global_to_local_node(gnode);
+                        const NodeWeight weight = _graph->node_weight(lnode);
 
-                    if (!sync_cluster_weights()) {
-                        change_cluster_weight(cluster(lnode), -weight, true);
-                    }
-                    NonatomicOwnedClusterVector::move_node(lnode, new_gcluster);
-                    if (!sync_cluster_weights()) {
-                        change_cluster_weight(cluster(lnode), weight, false);
+                        const GlobalNodeID old_gcluster = cluster(lnode);
+
+                        // If we synchronize the weights of clusters with local changes, we already have the right
+                        // weight including ghost vertices --> only update weight if we did not get an update
+
+                        if (!sync_cluster_weights()
+                            || weight_delta_handle.find(old_gcluster + 1) == weight_delta_handle.end()) {
+                            change_cluster_weight(old_gcluster, -weight, true);
+                        }
+                        NonatomicOwnedClusterVector::move_node(lnode, new_gcluster);
+                        if (!sync_cluster_weights()
+                            || weight_delta_handle.find(new_gcluster + 1) == weight_delta_handle.end()) {
+                            change_cluster_weight(new_gcluster, weight, false);
+                        }
                     }
                 });
             }
@@ -577,6 +584,11 @@ private:
     scalable_vector<GlobalNodeWeight>                                        _local_cluster_weights;
 
     EdgeID _passive_high_degree_threshold{0};
+
+    WeightDeltaMap                                               _weight_deltas{0};
+    tbb::enumerable_thread_specific<WeightDeltaMap::handle_type> _weight_delta_handles_ets{[this] {
+        return _weight_deltas.get_handle();
+    }};
 };
 
 //
