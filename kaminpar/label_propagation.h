@@ -537,7 +537,7 @@ protected: // Members
 
     //! Thread-local map to compute gain values.
     tbb::enumerable_thread_specific<RatingMap> _rating_map_ets{[this] {
-        return RatingMap{_num_nodes};
+        return RatingMap{_num_clusters};
     }};
 
     //! Flags nodes with at least one node in its neighborhood that changed clusters during the last iteration.
