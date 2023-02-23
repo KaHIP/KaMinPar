@@ -526,9 +526,10 @@ void rebalance_cluster_placement(
         return lhs.count < rhs.count;
     });
 
-    // Determine new load of light PEs
+    // Determine new load of underloaded PEs
     GlobalNodeID current_overload = total_overload;
     GlobalNodeID min_load         = 0;
+    PEID         plus_ones        = 0;
     PEID         num_pes          = 0;
     for (PEID pe = 0; pe < size; ++pe) {
         KASSERT(pe + 1 < size);
@@ -538,17 +539,24 @@ void rebalance_cluster_placement(
         if (current_overload > num_pes * delta) {
             current_overload -= num_pes * delta;
         } else {
-            min_load = pe_load[pe].count + std::ceil(1.0 * current_overload / num_pes);
+            min_load  = pe_load[pe].count + std::floor(1.0 * current_overload / num_pes);
+            plus_ones = current_overload % num_pes;
             break;
         }
     }
 
     // Determine underloaded PEs
-    tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
+    PEID nth_underloaded = 0;
+    for (PEID pe = 0; pe < size; ++pe) {
         const NodeID cnode_count =
             static_cast<NodeID>(current_cnode_distribution[pe + 1] - current_cnode_distribution[pe]);
-        pe_underload[pe + 1] = (cnode_count < min_load) ? min_load - cnode_count : 0;
-    });
+        if (cnode_count <= min_load) {
+            pe_underload[pe + 1] = min_load - cnode_count + (nth_underloaded < plus_ones);
+            ++nth_underloaded;
+        } else {
+            pe_underload[pe + 1] = 0;
+        }
+    };
     parallel::prefix_sum(pe_underload.begin(), pe_underload.end(), pe_underload.begin());
 
     // If everything is correct, the total overload should match the total underload
