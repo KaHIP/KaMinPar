@@ -416,10 +416,18 @@ private:
                 const auto [cluster, delta]       = in_resps[pe][i];
                 GlobalNodeWeight       new_weight = delta;
                 const GlobalNodeWeight old_weight = cluster_weight(cluster);
+
                 if (delta > _max_cluster_weight) {
-                    violation = 1;
-                    new_weight =
-                        _max_cluster_weight + (1.0 * old_weight / new_weight) * (new_weight - _max_cluster_weight);
+                    const GlobalNodeWeight increase_by_others = new_weight - old_weight;
+
+                    auto& handle = _weight_delta_handles_ets.local();
+                    auto  it     = handle.find(cluster + 1);
+                    KASSERT(it != handle.end());
+                    const GlobalNodeWeight increase_by_me = (*it).second;
+
+                    violation  = 1;
+                    new_weight = _max_cluster_weight
+                                 + (1.0 * increase_by_me / increase_by_others) * (new_weight - _max_cluster_weight);
                 }
                 change_cluster_weight(cluster, -old_weight + new_weight, true);
             });
