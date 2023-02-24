@@ -1038,9 +1038,15 @@ ContractionResult contract_clustering(
                 if (u < graph.n()) {
                     upper_bound_degree += graph.degree(u);
                 } else {
-                    upper_bound_degree += c_ghost_n; //@todo min max degree
+                    for (std::size_t index = u - graph.n(); index < local_edges.size() && local_edges[index].u == lcu;
+                         ++index) {
+                        ++upper_bound_degree;
+                    }
                 }
             }
+            upper_bound_degree = static_cast<EdgeID>(
+                std::min<GlobalNodeID>(c_n + c_ghost_n, static_cast<GlobalNodeID>(upper_bound_degree)) 
+            );
             collector.update_upper_bound_size(upper_bound_degree);
             collector.run_with_map(collect_edges, collect_edges);
         }
