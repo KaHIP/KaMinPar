@@ -28,6 +28,8 @@ public:
     template <bool track_first_unmarked_element = false>
     void set(const std::size_t element, const std::size_t marker = 0) {
         KASSERT(marker < num_concurrent_markers);
+        KASSERT(element < _data.size());
+
         _data[element] = ((_data[element] & ~((1u << num_concurrent_markers) - 1u)) == _marker_id)
                              ? _data[element] | (1u << marker)
                              : _marker_id | (1u << marker);

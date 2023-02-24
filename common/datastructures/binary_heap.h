@@ -255,6 +255,10 @@ public:
     DynamicBinaryForest& operator=(const DynamicBinaryForest&)     = delete;
     DynamicBinaryForest& operator=(DynamicBinaryForest&&) noexcept = default;
 
+    std::size_t capacity() const {
+        return _id_pos.size();
+    }
+
     bool contains(const ID id) const {
         KASSERT(static_cast<std::size_t>(id) < _id_pos.size());
         return _id_pos[id] != kInvalidID;
@@ -419,6 +423,10 @@ public:
     DynamicBinaryMinMaxForest(DynamicBinaryMinMaxForest&&) noexcept            = default;
     DynamicBinaryMinMaxForest& operator=(const DynamicBinaryMinMaxForest&)     = delete;
     DynamicBinaryMinMaxForest& operator=(DynamicBinaryMinMaxForest&&) noexcept = default;
+
+    std::size_t capacity() const {
+        return _max_forest.capacity();
+    }
 
     void push(const std::size_t heap, const ID id, const Key key) {
         _max_forest.push(heap, id, key);

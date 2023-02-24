@@ -401,6 +401,9 @@ void GreedyBalancer::init_pq() {
     }};
 
     _marker.reset();
+    if (_marker.capacity() < _p_graph->n()) {
+        _marker.resize(_p_graph->n());
+    }
 
     // build thread-local PQs: one PQ for each thread and block, each PQ for block b has at most roughly
     // |overload[b]| weight
@@ -430,6 +433,9 @@ void GreedyBalancer::init_pq() {
 
     // build global PQ: one PQ per block, block-level parallelism
     _pq.clear();
+    if (_pq.capacity() < _p_graph->n()) {
+        _pq = DynamicBinaryMinMaxForest<NodeID, double>(_p_graph->n(), _ctx.partition.k);
+    }
 
     tbb::parallel_for(static_cast<BlockID>(0), k, [&](const BlockID b) {
         _pq_weight[b] = 0;
