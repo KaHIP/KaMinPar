@@ -216,7 +216,7 @@ std::ostream& operator<<(std::ostream& out, const GraphOrdering ordering) {
 void print(const Context& ctx, const bool root, std::ostream& out) {
     if (root) {
         out << "Seed:                         " << Random::seed << "\n";
-        out << "Graph:";
+        out << "Graph:\n";
         out << "  Rearrange graph by:         " << ctx.rearrange_by << "\n";
     }
     print(ctx.partition, root, out);
