@@ -216,7 +216,7 @@ std::ostream& operator<<(std::ostream& out, const GraphOrdering ordering) {
 void print(const Context& ctx, const bool root, std::ostream& out) {
     if (root) {
         out << "Seed:                         " << Random::seed << "\n";
-        out << "Graph:";
+        out << "Graph:\n";
         out << "  Rearrange graph by:         " << ctx.rearrange_by << "\n";
     }
     print(ctx.partition, root, out);
@@ -272,6 +272,7 @@ void print(const PartitionContext& ctx, const bool root, std::ostream& out) {
 }
 
 void print(const CoarseningContext& ctx, const ParallelContext& parallel, std::ostream& out) {
+    out << "Contraction limit:            " << ctx.contraction_limit << "\n";
     if (ctx.max_global_clustering_levels > 0 && ctx.max_local_clustering_levels > 0) {
         out << "Coarsening mode:              local[" << ctx.max_local_clustering_levels << "]+global["
             << ctx.max_global_clustering_levels << "]\n";
