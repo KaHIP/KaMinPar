@@ -21,28 +21,21 @@ To build the distributed graph partitioner, you also need:
 
 ### Building KaMinPar
 
-To build the software, clone this repository and type
-```shell
-./build.sh [DbgHeavy|Dbg|DbgLight|Rel]
-```
+1. Run CMake: `cmake -B build -DCMAKE_BUILD_TYPE=Release [-DKAMINPAR_ASSERTION_LEVEL=none|light|normal|heavy]`
+2. Build the software: `cmake --build build --parallel`
 
-Alternatively, you can use the standard CMake build process:
-
-1. Clone the repository including submodules: `git clone --depth=1 --recursive git@github.com:KaHIP/KaMinPar.git`
-2. Create a build directory: `mkdir build && cd build`
-3. Run CMake: `cmake .. -DCMAKE_BUILD_TYPE=Release [-DKAMINPAR_ASSERTION_LEVEL=none|light|normal|heavy]`
-4. Build the software: `make KaMinPar -j`
-5. (optional) Build the distributed partitioner: `make dKaMinPar -j`
-
-The resulting binary is located in `build/apps/`.
+The resulting binaries is located in `build/apps/`.
 
 ## Running KaMinPar
 
-To partition a graph in METIS format using KaMinPar, run
+To partition a graph in METIS format using (d)KaMinPar, run
 
 ```shell
-./build/apps/KaMinPar [--preset default|largek] -G <graph filename> -k <number of blocks> 
-mpirun -n <nproc> ./build/apps/dKaMinPar [--preset default|strong] -G <graph filename> -k <number of blocks>
+# KaMinPar: shared-memory partitioning
+./build/apps/KaMinPar [-P default|largek] -G <graph filename> -k <number of blocks> 
+
+# dKaMinPar: distributed partitioning
+mpirun -n <nproc> ./build/apps/dKaMinPar [-P default|strong] -G <graph filename> -k <number of blocks>
 ```
 
 Common command line options include:
@@ -51,13 +44,17 @@ Common command line options include:
 * `--threads=<int>` - maximum number of threads to be used
 * `--epsilon=<double>` - maximum allowed imbalance, e.g., `0.03` for 3%
 * `--seed=<int>` - seed for random number generation
-* `--parsable` - use output format that is easier to parse
 
-To setup algorithmic tuning parameters, (d)KaMinPar offers configuration presets that can be set using the `-P <preset>` option (view `--help` for a list of all presets).
+To setup algorithmic tuning parameters, (d)KaMinPar offers configuration presets that can be loaded using the `-P <preset>` option (view `--help` for a list of all presets).
 Presets can be viewed by using the `--dump-config` flag; to use a custom preset, load a configuration file using the `-C <filename>` option, e.g.,
 
 ```shell
+# Write the default preset to a file
 ./KaMinPar [-P default] --dump-config > my_preset.ini
+
+# ... modify the configuration by editing my_preset.ini ...
+
+# Use your modified preset
 ./KaMinPar -C my_preset.ini -G <...> -k <...> -t <...>
 ```
 
