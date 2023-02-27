@@ -312,7 +312,6 @@ Context create_context_by_preset_name(const std::string& name);
 
 Context create_default_context();
 Context create_strong_context();
-Context create_default_social_context();
 
 std::unordered_set<std::string> get_preset_names();
 

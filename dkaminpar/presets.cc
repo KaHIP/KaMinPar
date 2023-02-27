@@ -14,12 +14,14 @@
 
 namespace kaminpar::dist {
 Context create_context_by_preset_name(const std::string& name) {
-    if (name == "default" || name == "mesh-default" || name == "fast") {
+    if (name == "default" || name == "fast") {
         return create_default_context();
     } else if (name == "strong") {
         return create_strong_context();
-    } else if (name == "default-social") {
-        return create_default_social_context();
+    } else if (name == "tr-fast") {
+        return create_tr_fast_context();
+    } else if (name == "tr-strong") {
+        return create_tr_strong_context();
     }
 
     throw std::runtime_error("invalid preset name");
@@ -28,8 +30,9 @@ Context create_context_by_preset_name(const std::string& name) {
 std::unordered_set<std::string> get_preset_names() {
     return {
         "default",
-        "default-social",
         "strong",
+        "tr-fast",
+        "tr-strong",
     };
 }
 
@@ -99,7 +102,7 @@ Context create_default_context() {
                         .keep_ghost_clusters                  = false,
                         .scale_chunks_with_threads            = false, // unused
                     },
-                .contraction_limit           = 5000,
+                .contraction_limit           = 2000,
                 .cluster_weight_limit        = shm::ClusterWeightLimit::EPSILON_BLOCK_WEIGHT,
                 .cluster_weight_multiplier   = 1.0,
                 .contraction_algorithm       = ContractionAlgorithm::DEFAULT,
@@ -179,10 +182,11 @@ Context create_strong_context() {
     return ctx;
 }
 
-Context create_default_social_context() {
-    Context ctx                                      = create_default_context();
-    ctx.coarsening.global_lp.sync_cluster_weights    = true;
-    ctx.coarsening.global_lp.enforce_cluster_weights = true;
-    return ctx;
+Context create_tr_fast_context() {
+    return create_default_context();
+}
+
+Context create_tr_strong_context() {
+    return create_strong_context();
 }
 } // namespace kaminpar::dist

@@ -9,3 +9,7 @@
 // These functions are part of the public API
 #include "dkaminpar/dkaminpar.h"
 
+namespace kaminpar::dist {
+Context create_tr_fast_context();
+Context create_tr_strong_context();
+} // namespace kaminpar::dist

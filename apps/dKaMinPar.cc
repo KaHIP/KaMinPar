@@ -48,9 +48,10 @@ void setup_context(CLI::App& cli, ApplicationContext& app, Context& ctx) {
     )
         ->check(CLI::IsMember(get_preset_names()))
         ->description(R"(Use configuration preset:
-  - default:                    default parameters
-  - default-social:             default parameters tuned for social networks
-  - strong:                     use Mt-KaHyPar for initial partitioning and more label propagation iterations)");
+  - default, fast: default parameters
+  - strong:        use Mt-KaHyPar for initial partitioning and more label propagation iterations
+  - tr-fast:       dKaMinPar-Fast from the technical report
+  - tr-strong:     dKaMinPar-Strong from the technical report)");
 
     // Mandatory
     auto* mandatory = cli.add_option_group("Application")->require_option(1);
