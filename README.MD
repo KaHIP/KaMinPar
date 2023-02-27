@@ -14,14 +14,11 @@ Moreover, for large values of k, it is an order of magnitude faster than competi
 * C++17 compiler (GCC, Clang)
 * CMake 
 * Intel Thread Building Blocks library (TBB)
-
-To build the distributed graph partitioner, you also need:
-
-* MPI 
+* MPI (optional)
 
 ### Building KaMinPar
 
-1. Run CMake: `cmake -B build -DCMAKE_BUILD_TYPE=Release [-DKAMINPAR_ASSERTION_LEVEL=none|light|normal|heavy]`
+1. Run CMake: `cmake -B build -DCMAKE_BUILD_TYPE=Release`
 2. Build the software: `cmake --build build --parallel`
 
 The resulting binaries is located in `build/apps/`.
