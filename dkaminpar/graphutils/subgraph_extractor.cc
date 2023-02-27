@@ -12,11 +12,11 @@
 
 #include <mpi.h>
 
-#include "communication.h"
-
 #include "dkaminpar/datastructures/distributed_graph.h"
+#include "dkaminpar/graphutils/communication.h"
 #include "dkaminpar/graphutils/synchronization.h"
 #include "dkaminpar/mpi/alltoall.h"
+#include "dkaminpar/mpi/sparse_alltoall.h"
 #include "dkaminpar/mpi/wrapper.h"
 
 #include "kaminpar/datastructures/graph.h"
@@ -215,7 +215,7 @@ ExtractedLocalSubgraphs extract_local_block_induced_subgraphs(const DistributedP
 
 namespace {
 std::pair<std::vector<shm::Graph>, std::vector<std::vector<NodeID>>>
-gather_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph, const ExtractedLocalSubgraphs& memory) {
+gather_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph, ExtractedLocalSubgraphs& memory) {
     SCOPED_TIMER("Gathering block induced subgraphs");
 
     const PEID size = mpi::get_comm_size(p_graph.communicator());
@@ -263,11 +263,6 @@ gather_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph, const
     std::vector<GraphSize> recv_subgraph_displs(std::max<std::size_t>(p_graph.k(), size) + 1);
     parallel::prefix_sum(recv_subgraph_sizes.begin(), recv_subgraph_sizes.end(), recv_subgraph_displs.begin() + 1);
 
-    for (std::size_t i = 0; i < recv_subgraph_sizes.size(); ++i) {
-        DBG << V(i) << V(recv_subgraph_sizes[i].n) << V(recv_subgraph_sizes[i].m) << V(recv_subgraph_displs[i + 1].n)
-            << V(recv_subgraph_displs[i + 1].m);
-    }
-
     std::vector<EdgeID>     shared_nodes;
     std::vector<NodeWeight> shared_node_weights;
     std::vector<NodeID>     shared_edges;
@@ -311,35 +306,34 @@ gather_block_induced_subgraphs(const DistributedPartitionedGraph& p_graph, const
         });
         STOP_TIMER();
 
-        DBG << V(sendcounts_nodes) << V(sendcounts_edges) << V(recvcounts_nodes) << V(recvcounts_edges)
-            << V(sdispls_nodes) << V(sdispls_edges) << V(rdispls_nodes) << V(rdispls_edges);
-        DBG << V(memory.shared_nodes.size()) << V(memory.shared_edges.size());
+        START_TIMER("Allocation");
         shared_nodes.resize(rdispls_nodes.back());
         shared_node_weights.resize(rdispls_nodes.back());
         shared_edges.resize(rdispls_edges.back());
         shared_edge_weights.resize(rdispls_edges.back());
+        MPI_Barrier(p_graph.communicator());
+        STOP_TIMER();
 
         START_TIMER("MPI_Alltoallv");
-        mpi::alltoallv(
+        mpi::sparse_alltoallv(
             memory.shared_nodes.data(), sendcounts_nodes.data(), sdispls_nodes.data(), shared_nodes.data(),
             recvcounts_nodes.data(), rdispls_nodes.data(), p_graph.communicator()
         );
-        mpi::alltoallv(
+        mpi::sparse_alltoallv(
             memory.shared_node_weights.data(), sendcounts_nodes.data(), sdispls_nodes.data(),
             shared_node_weights.data(), recvcounts_nodes.data(), rdispls_nodes.data(), p_graph.communicator()
         );
-        mpi::alltoallv(
+        mpi::sparse_alltoallv(
             memory.shared_edges.data(), sendcounts_edges.data(), sdispls_edges.data(), shared_edges.data(),
             recvcounts_edges.data(), rdispls_edges.data(), p_graph.communicator()
         );
-        mpi::alltoallv(
+        mpi::sparse_alltoallv(
             memory.shared_edge_weights.data(), sendcounts_edges.data(), sdispls_edges.data(),
             shared_edge_weights.data(), recvcounts_edges.data(), rdispls_edges.data(), p_graph.communicator()
         );
         STOP_TIMER();
     }
 
-    DBG << V(shared_nodes) << V(shared_edges) << V(shared_node_weights) << V(shared_edge_weights);
     std::vector<shm::Graph>          subgraphs(blocks_per_pe);
     std::vector<std::vector<NodeID>> offsets(blocks_per_pe);
 
@@ -419,7 +413,7 @@ ExtractedSubgraphs extract_and_scatter_block_induced_subgraphs(const Distributed
 
 DistributedPartitionedGraph copy_subgraph_partitions(
     DistributedPartitionedGraph p_graph, const std::vector<shm::PartitionedGraph>& p_subgraphs,
-    const ExtractedSubgraphs& extracted_subgraphs
+    ExtractedSubgraphs& extracted_subgraphs
 ) {
     SCOPED_TIMER("Projecting subgraph partitions");
     const PEID size = mpi::get_comm_size(p_graph.communicator());
@@ -505,7 +499,7 @@ DistributedPartitionedGraph copy_subgraph_partitions(
 
 DistributedPartitionedGraph copy_duplicated_subgraph_partitions(
     DistributedPartitionedGraph p_graph, const std::vector<shm::PartitionedGraph>& p_subgraphs,
-    const ExtractedSubgraphs& extracted_subgraphs
+    ExtractedSubgraphs& extracted_subgraphs
 ) {
     SCOPED_TIMER("Projecting subgraph partitions");
 

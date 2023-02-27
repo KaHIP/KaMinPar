@@ -122,4 +122,22 @@ std::vector<Buffer> sparse_alltoall_get(const std::vector<Buffer>& send_buffers,
     );
     return recv_buffers;
 }
+
+template <typename T>
+void sparse_alltoallv(
+    T* sendbuf, const int* sendcounts, const int* sdispls, T* recvbuf, const int*, const int* rdispls, MPI_Comm comm
+) {
+    const PEID                         size = mpi::get_comm_size(comm);
+    std::vector<NoinitVector<T>> split_sendbuf;
+    for (PEID pe = 0; pe < size; ++pe) {
+        split_sendbuf.emplace_back(sendcounts[pe]);
+        std::copy(sendbuf + sdispls[pe], sendbuf + sdispls[pe] + sendcounts[pe], split_sendbuf.back().begin());
+    }
+
+    auto recv = sparse_alltoall_get<T, NoinitVector<T>>(split_sendbuf, comm);
+
+    for (PEID pe = 0; pe < size; ++pe) {
+        std::copy(recv[pe].begin(), recv[pe].end(), recvbuf + rdispls[pe]);
+    }
+}
 } // namespace kaminpar::mpi
