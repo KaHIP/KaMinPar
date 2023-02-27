@@ -31,19 +31,13 @@ To partition a graph in METIS format using (d)KaMinPar, run
 
 ```shell
 # KaMinPar: shared-memory partitioning
-./build/apps/KaMinPar [-P default|largek] -G <graph filename> -k <number of blocks> 
+./build/apps/KaMinPar [-P default|largek] -G <graph filename> -k <number of blocks> -t <nproc> [--epsilon=0.03] [--seed=0]
 
 # dKaMinPar: distributed partitioning
-mpirun -n <nproc> ./build/apps/dKaMinPar [-P default|strong] -G <graph filename> -k <number of blocks>
+mpirun -n <nproc> ./build/apps/dKaMinPar [-P default|strong] -G <graph filename> -k <number of blocks> [--epsilon=0.03] [--seed=0]
 ```
 
-Common command line options include:
-
-* `--help` - print a complete list of command line options
-* `--threads=<int>` - maximum number of threads to be used
-* `--epsilon=<double>` - maximum allowed imbalance, e.g., `0.03` for 3%
-* `--seed=<int>` - seed for random number generation
-
+Use the `--help` flag to see a list of all command line options.
 To setup algorithmic tuning parameters, (d)KaMinPar offers configuration presets that can be loaded using the `-P <preset>` option (view `--help` for a list of all presets).
 Presets can be viewed by using the `--dump-config` flag; to use a custom preset, load a configuration file using the `-C <filename>` option, e.g.,
 
