@@ -18,10 +18,12 @@ Moreover, for large values of k, it is an order of magnitude faster than competi
 
 ### Building KaMinPar
 
-1. Run CMake: `cmake -B build -DCMAKE_BUILD_TYPE=Release`
-2. Build the software: `cmake --build build --parallel`
+Build KaMinPar following the standard CMake steps:
 
-The resulting binaries is located in `build/apps/`.
+```shell
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel
+```
 
 ## Running KaMinPar
 
