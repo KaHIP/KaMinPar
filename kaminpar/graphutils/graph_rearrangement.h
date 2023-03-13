@@ -14,9 +14,7 @@
 #include "kaminpar/graphutils/graph_permutation.h"
 
 namespace kaminpar::shm::graph {
-std::pair<NodeID, NodeWeight>
-find_isolated_nodes_info(const StaticArray<EdgeID> &nodes,
-                         const StaticArray<NodeWeight> &node_weights);
+Graph rearrange_by_degree_buckets(Graph graph);
 
 NodePermutations<StaticArray>
 rearrange_graph(PartitionContext &p_ctx, StaticArray<EdgeID> &nodes,

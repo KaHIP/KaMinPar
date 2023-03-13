@@ -1,5 +1,7 @@
 #include "kaminpar/presets.h"
 
+#include <stdexcept>
+#include <string>
 #include <unordered_set>
 
 #include "kaminpar/context.h"
@@ -137,7 +139,6 @@ Context create_default_context() {
                       .timepoint = BalancingTimepoint::BEFORE_KWAY_REFINEMENT,
                   },
           },
-      .debug = {},
       .parallel =
           {
               // Context -> Parallel

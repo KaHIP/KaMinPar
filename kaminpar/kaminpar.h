@@ -106,6 +106,7 @@ enum class InitialPartitioningMode {
   SYNCHRONOUS_PARALLEL,
 };
 
+class Graph;
 struct PartitionContext;
 
 struct BlockWeightsContext {
@@ -135,6 +136,8 @@ struct PartitionContext {
   NodeWeight total_node_weight = kInvalidNodeWeight;
   EdgeWeight total_edge_weight = kInvalidEdgeWeight;
   NodeWeight max_node_weight = kInvalidNodeWeight;
+
+  void setup(const Graph &graph);
 };
 
 struct LabelPropagationCoarseningContext {
@@ -230,13 +233,16 @@ struct Context {
   [[nodiscard]] std::string partition_file() const {
     return partition_directory + "/" + partition_filename;
   }
+
+  void setup(const Graph &graph);
 };
 } // namespace kaminpar::shm
 
 namespace kaminpar::shm {
+std::unordered_set<std::string> get_preset_names();
 Context create_context_by_preset_name(const std::string &name);
 Context create_default_context();
-std::unordered_set<std::string> get_preset_names();
+Context create_largek_context();
 
 class KaMinPar {
 public:
@@ -248,8 +254,8 @@ public:
 
   Context &context();
 
-  void import_graph(EdgeID *nodes, NodeID *edges, NodeWeight *node_weights,
-                    EdgeWeight *edge_weights);
+  void import_graph(NodeID n, EdgeID *nodes, NodeID *edges,
+                    NodeWeight *node_weights, EdgeWeight *edge_weights);
 
   NodeID load_graph(const std::string &filename);
 
@@ -262,7 +268,7 @@ private:
   OutputLevel _output_level = OutputLevel::APPLICATION;
   Context _ctx;
 
-  std::unique_ptr<struct Graph> _graph_ptr;
+  std::unique_ptr<class Graph> _graph_ptr;
   tbb::global_control _gc;
 
   bool _was_rearranged = false;

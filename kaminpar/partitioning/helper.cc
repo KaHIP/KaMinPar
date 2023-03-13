@@ -6,6 +6,8 @@
  ******************************************************************************/
 #include "kaminpar/partitioning/helper.h"
 
+#include "kaminpar/utils.h"
+
 #include "common/math.h"
 
 namespace kaminpar::shm::partitioning::helper {

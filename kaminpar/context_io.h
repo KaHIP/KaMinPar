@@ -49,5 +49,12 @@ std::ostream &operator<<(std::ostream &out, InitialPartitioningMode mode);
 
 std::unordered_map<std::string, InitialPartitioningMode>
 get_initial_partitioning_modes();
+
+void print(const Context &ctx, std::ostream &out);
+void print(const PartitionContext &p_ctx, std::ostream &out);
+void print(const RefinementContext &r_ctx, std::ostream &out);
+void print(const CoarseningContext &c_ctx, std::ostream &out);
+void print(const LabelPropagationCoarseningContext &lp_ctx, std::ostream &out);
+void print(const InitialPartitioningContext &i_ctx, std::ostream &out);
 } // namespace kaminpar::shm
 

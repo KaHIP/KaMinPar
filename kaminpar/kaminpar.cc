@@ -8,6 +8,7 @@
 
 #include "kaminpar/arguments.h"
 #include "kaminpar/context.h"
+#include "kaminpar/context_io.h"
 #include "kaminpar/datastructures/graph.h"
 #include "kaminpar/definitions.h"
 #include "kaminpar/graphutils/graph_rearrangement.h"
@@ -172,127 +173,88 @@ void KaMinPar::set_max_timer_depth(const int max_timer_depth) {
 
 Context &KaMinPar::context() { return _ctx; }
 
-void KaMinPar::import_graph(EdgeID *xadj, NodeID *adjncy, NodeWeight *vwgt,
-                            EdgeWeight *adjwgt) {
+void KaMinPar::import_graph(const NodeID n, EdgeID *xadj, NodeID *adjncy,
+                            NodeWeight *vwgt, EdgeWeight *adjwgt) {
   SCOPED_TIMER("IO");
+
+  const EdgeID m = xadj[n];
+  const bool has_node_weights = vwgt != nullptr;
+  const bool has_edge_weights = adjwgt != nullptr;
+
+  StaticArray<EdgeID> nodes(n + 1);
+  StaticArray<NodeID> edges(m);
+  StaticArray<NodeWeight> node_weights(has_node_weights * n);
+  StaticArray<EdgeWeight> edge_weights(has_edge_weights * m);
+
+  nodes[n] = xadj[n];
+  tbb::parallel_for<NodeID>(0, n, [&](const NodeID u) {
+    nodes[u] = xadj[u];
+    if (has_node_weights) {
+      node_weights[u] = vwgt[u];
+    }
+  });
+  tbb::parallel_for<EdgeID>(0, m, [&](const EdgeID e) {
+    edges[e] = adjncy[e];
+    if (has_edge_weights) {
+      edge_weights[e] = adjwgt[e];
+    }
+  });
+
+  _graph_ptr = std::make_unique<Graph>(std::move(nodes), std::move(edges),
+                                       std::move(node_weights),
+                                       std::move(edge_weights), false);
 }
 
-NodeID KaMinPar::load_graph(const std::string &filename) { return 0; }
+NodeID KaMinPar::load_graph(const std::string &filename) {
+  SCOPED_TIMER("IO");
+  _graph_ptr = std::make_unique<Graph>(
+      shm::io::metis::read<false>(filename, false, false));
+  return _graph_ptr->n();
+}
 
 EdgeWeight KaMinPar::compute_partition(const int seed, const BlockID k,
                                        BlockID *partition) {
-  // Disable console output in quiet mode;
-  Logger::set_quiet_mode(ctx.quiet);
-
   cio::print_kaminpar_banner();
   cio::print_build_identifier();
   cio::print_build_datatypes<NodeID, EdgeID, NodeWeight, EdgeWeight>();
   cio::print_delimiter("Input Summary", '-');
 
-  // Initialize
-  Random::seed = ctx.seed;
-  auto gc = tbb::global_control{tbb::global_control::max_allowed_parallelism,
-                                ctx.parallel.num_threads};
-  if (ctx.parallel.use_interleaved_numa_allocation) {
-    init_numa();
-  }
+  const double original_epsilon = _ctx.partition.epsilon;
+  _ctx.parallel.num_threads = _num_threads;
+  _ctx.partition.k = k;
 
-  // Load input graph
-  const double original_epsilon = ctx.partition.epsilon;
-  bool need_postprocessing = false;
-
-  auto [graph, permutations] = [&] {
-    StaticArray<EdgeID> nodes;
-    StaticArray<NodeID> edges;
-    StaticArray<NodeWeight> node_weights;
-    StaticArray<EdgeWeight> edge_weights;
-
-    START_TIMER("IO");
-    if (ctx.unchecked_io) {
-      shm::io::metis::read<false>(ctx.graph_filename, nodes, edges,
-                                  node_weights, edge_weights);
-    } else {
-      shm::io::metis::read<true>(ctx.graph_filename, nodes, edges, node_weights,
-                                 edge_weights);
-    }
-
-    if (ctx.validate_io) {
-      validate_undirected_graph(nodes, edges, node_weights, edge_weights);
-    }
-
-    if (ctx.degree_weights) {
-      if (node_weights.size() != nodes.size() - 1) {
-        node_weights.resize_without_init(nodes.size() - 1);
-      }
-      tbb::parallel_for<NodeID>(0, node_weights.size(),
-                                [&node_weights, &nodes](const NodeID u) {
-                                  node_weights[u] = nodes[u + 1] - nodes[u];
-                                });
-    }
-
-    const NodeID n_before_preprocessing = nodes.size();
-    STOP_TIMER();
-
-    // sort nodes by degree bucket and rearrange graph, remove isolated nodes
-    START_TIMER("Partitioning");
-    START_TIMER("Preprocessing");
-    auto node_permutations = graph::rearrange_graph(ctx.partition, nodes, edges,
-                                                    node_weights, edge_weights);
-    need_postprocessing = nodes.size() < n_before_preprocessing;
-    STOP_TIMER();
-    STOP_TIMER();
-
-    return std::pair{Graph{std::move(nodes), std::move(edges),
-                           std::move(node_weights), std::move(edge_weights),
-                           true},
-                     std::move(node_permutations)};
-  }();
+  Random::seed = seed;
 
   // Setup graph dependent context parameters
-  ctx.setup(graph);
-  ctx.print(std::cout);
-
-  if (ctx.parsable_output) {
-    cio::print_delimiter();
-
-    std::cout << "CONTEXT ";
-    ctx.print_compact(std::cout);
-    std::cout << "\n";
-
-    LOG << "INPUT graph=" << ctx.graph_filename << " "
-        << "n=" << graph.n() << " "
-        << "m=" << graph.m() << " "
-        << "k=" << ctx.partition.k << " "
-        << "epsilon=" << ctx.partition.epsilon << " ";
-    LOG << "==> max_block_weight=" << ctx.partition.block_weights.max(0);
-  }
+  _ctx.setup(*_graph_ptr);
+  print(_ctx, std::cout);
 
   // Perform actual partitioning
-  PartitionedGraph p_graph = partitioning::partition(graph, ctx);
+  PartitionedGraph p_graph = partitioning::partition(*_graph_ptr, _ctx);
 
   // Re-integrate isolated nodes that were cut off during preprocessing
-  if (need_postprocessing) {
-    SCOPED_TIMER("Partitioning");
-    SCOPED_TIMER("Postprocessing");
-
+  if (_graph_ptr->permuted()) {
     const NodeID num_isolated_nodes =
-        graph::integrate_isolated_nodes(graph, original_epsilon, ctx);
+        graph::integrate_isolated_nodes(*_graph_ptr, original_epsilon, _ctx);
     p_graph = graph::assign_isolated_nodes(std::move(p_graph),
-                                           num_isolated_nodes, ctx.partition);
+                                           num_isolated_nodes, _ctx.partition);
   }
 
-  // Store output partition (if requested)
-  if (ctx.save_partition) {
-    SCOPED_TIMER("IO");
-    shm::io::partition::write(ctx.partition_file(), p_graph,
-                              permutations.old_to_new);
-    LOG << "Wrote partition to: " << ctx.partition_file();
+  START_TIMER("IO");
+  if (_graph_ptr->permuted()) {
+    tbb::parallel_for<NodeID>(0, p_graph.n(), [&](const NodeID u) {
+      partition[u] = p_graph.block(_graph_ptr->map_original_node(u));
+    });
+  } else {
+    tbb::parallel_for<NodeID>(0, p_graph.n(), [&](const NodeID u) {
+      partition[u] = p_graph.block(u);
+    });
   }
+  STOP_TIMER();
 
   // Print some statistics
   STOP_TIMER(); // stop root timer
   cio::print_delimiter("Result Summary");
-  print_statistics(p_graph, ctx);
   return 0;
 }
 } // namespace kaminpar::shm

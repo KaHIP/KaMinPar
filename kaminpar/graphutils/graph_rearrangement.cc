@@ -12,6 +12,7 @@
 #include "common/timer.h"
 
 namespace kaminpar::shm::graph {
+namespace {
 std::pair<NodeID, NodeWeight>
 find_isolated_nodes_info(const StaticArray<EdgeID> &nodes,
                          const StaticArray<NodeWeight> &node_weights) {
@@ -40,6 +41,7 @@ find_isolated_nodes_info(const StaticArray<EdgeID> &nodes,
   return {isolated_nodes.combine(std::plus{}),
           isolated_nodes_weights.combine(std::plus{})};
 }
+} // namespace
 
 NodePermutations<StaticArray>
 rearrange_graph(PartitionContext &p_ctx, StaticArray<EdgeID> &nodes,
@@ -139,5 +141,20 @@ PartitionedGraph assign_isolated_nodes(PartitionedGraph p_graph,
   }
 
   return {graph, k, std::move(partition)};
+}
+
+Graph rearrange_by_degree_buckets(Context &ctx, Graph old_graph) {
+  auto nodes = old_graph.take_raw_nodes();
+  auto edges = old_graph.take_raw_edges();
+  auto node_weights = old_graph.take_raw_node_weights();
+  auto edge_weights = old_graph.take_raw_edge_weights();
+
+  auto node_permutations = graph::rearrange_graph(ctx.partition, nodes, edges,
+                                                  node_weights, edge_weights);
+
+  Graph new_graph(std::move(nodes), std::move(edges), std::move(node_weights),
+                  std::move(edge_weights), true);
+  new_graph.set_permutation(std::move(node_permutations.new_to_old));
+  return new_graph;
 }
 } // namespace kaminpar::shm::graph

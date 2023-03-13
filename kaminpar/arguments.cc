@@ -5,6 +5,8 @@
  ******************************************************************************/
 #include "kaminpar/arguments.h"
 
+#include "kaminpar/context_io.h"
+
 #include "context.h"
 
 namespace kaminpar::shm {

@@ -166,6 +166,11 @@ public:
   [[nodiscard]] inline auto adjacent_nodes(const NodeID u) const { return TransformedIotaRange(_nodes[u], _nodes[u + 1], [this](const EdgeID e) { return this->edge_target(e); }); }
   [[nodiscard]] inline auto neighbors(const NodeID u) const { return TransformedIotaRange(_nodes[u], _nodes[u + 1], [this](const EdgeID e) { return std::make_pair(e, this->edge_target(e)); }); }
 
+  // Graph permutation
+  inline void set_permutation(StaticArray<NodeID> permutation) { _permutation = std::move(permutation); }
+  [[nodiscard]] inline bool permuted() const { return !_permutation.empty(); }
+  [[nodiscard]] inline NodeID map_original_node(const NodeID u) const { return _permutation[u]; }
+
   // Degree buckets
   [[nodiscard]] inline std::size_t bucket_size(const std::size_t bucket) const { return _buckets[bucket + 1] - _buckets[bucket]; }
   [[nodiscard]] inline NodeID first_node_in_bucket(const std::size_t bucket) const { return _buckets[bucket]; }
@@ -188,6 +193,8 @@ private:
   NodeWeight _total_node_weight = kInvalidNodeWeight;
   EdgeWeight _total_edge_weight = kInvalidEdgeWeight;
   NodeWeight _max_node_weight = kInvalidNodeWeight;
+
+  StaticArray<NodeID> _permutation;
   bool _sorted;
   std::vector<NodeID> _buckets =
       std::vector<NodeID>(kNumberOfDegreeBuckets + 1);
@@ -226,10 +233,10 @@ public:
 
   PartitionedGraph(const Graph &graph, BlockID k,
                    StaticArray<BlockID> partition = {},
-                   scalable_vector<BlockID> final_k = {});
+                   std::vector<BlockID> final_k = {});
   PartitionedGraph(tag::Sequential, const Graph &graph, BlockID k,
                    StaticArray<BlockID> partition = {},
-                   scalable_vector<BlockID> final_k = {});
+                   std::vector<BlockID> final_k = {});
   PartitionedGraph(NoBlockWeights, const Graph &graph, BlockID k,
                    StaticArray<BlockID> partition);
 
@@ -349,16 +356,16 @@ public:
   [[nodiscard]] inline BlockID final_k(const BlockID b) const {
     return _final_k[b];
   }
-  [[nodiscard]] inline const scalable_vector<BlockID> &final_ks() const {
+  [[nodiscard]] inline const std::vector<BlockID> &final_ks() const {
     return _final_k;
   }
-  [[nodiscard]] inline scalable_vector<BlockID> &&take_final_k() {
+  [[nodiscard]] inline std::vector<BlockID> &&take_final_k() {
     return std::move(_final_k);
   }
   inline void set_final_k(const BlockID b, const BlockID final_k) {
     _final_k[b] = final_k;
   }
-  inline void set_final_ks(scalable_vector<BlockID> final_ks) {
+  inline void set_final_ks(std::vector<BlockID> final_ks) {
     _final_k = std::move(final_ks);
   }
 
@@ -414,6 +421,6 @@ private:
   //! we want to split the block in the final partition. For instance, after the
   //! first bisection, this might be {_k / 2, _k / 2}, although other values are
   //! possible when using adaptive k's or if _k is not a power of 2.
-  scalable_vector<BlockID> _final_k; // O(k)
+  std::vector<BlockID> _final_k; // O(k)
 };
 } // namespace kaminpar::shm

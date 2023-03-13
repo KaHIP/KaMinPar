@@ -43,7 +43,7 @@ inline PartitionedGraph create_p_graph(const Graph &graph, const BlockID k,
 
 inline PartitionedGraph create_p_graph(const Graph &graph, const BlockID k,
                                        const std::vector<BlockID> &partition,
-                                       scalable_vector<BlockID> final_ks) {
+                                       std::vector<BlockID> final_ks) {
   return PartitionedGraph{graph, k, static_array::create_from(partition),
                           std::move(final_ks)};
 }

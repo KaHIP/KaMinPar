@@ -6,18 +6,11 @@
  ******************************************************************************/
 #pragma once
 
+#include "common/math.h"
 #include "kaminpar/datastructures/graph.h"
 #include "kaminpar/kaminpar.h"
 
 namespace kaminpar::shm {
-PartitionContext create_bipartition_context(const PartitionContext &k_p_ctx,
-                                            const Graph &subgraph,
-                                            BlockID final_k1, BlockID final_k2);
-
-double compute_2way_adaptive_epsilon(const PartitionContext &p_ctx,
-                                     NodeWeight subgraph_total_node_weight,
-                                     BlockID subgraph_final_k);
-
 template <typename NodeID_ = NodeID, typename NodeWeight_ = NodeWeight>
 NodeWeight_ compute_max_cluster_weight(const NodeID_ n,
                                        const NodeWeight_ total_node_weight,
@@ -56,5 +49,33 @@ NodeWeight_ compute_max_cluster_weight(const Graph_ &c_graph,
                                        const CoarseningContext &c_ctx) {
   return compute_max_cluster_weight(c_graph.n(), c_graph.total_node_weight(),
                                     input_p_ctx, c_ctx);
+}
+
+inline double
+compute_2way_adaptive_epsilon(const PartitionContext &p_ctx,
+                              const NodeWeight subgraph_total_node_weight,
+                              const BlockID subgraph_final_k) {
+  KASSERT(subgraph_final_k > 1u);
+
+  const double base = (1.0 + p_ctx.epsilon) * subgraph_final_k *
+                      p_ctx.total_node_weight / p_ctx.k /
+                      subgraph_total_node_weight;
+  const double exponent = 1.0 / math::ceil_log2(subgraph_final_k);
+  const double epsilon_prime = std::pow(base, exponent) - 1.0;
+  const double adaptive_epsilon = std::max(epsilon_prime, 0.0001);
+  return adaptive_epsilon;
+}
+
+inline PartitionContext
+create_bipartition_context(const PartitionContext &k_p_ctx,
+                           const Graph &subgraph, const BlockID final_k1,
+                           const BlockID final_k2) {
+  PartitionContext two_p_ctx{};
+  two_p_ctx.k = 2;
+  two_p_ctx.setup(subgraph);
+  two_p_ctx.epsilon = compute_2way_adaptive_epsilon(
+      k_p_ctx, subgraph.total_node_weight(), final_k1 + final_k2);
+  two_p_ctx.block_weights.setup(two_p_ctx, {final_k1, final_k2});
+  return two_p_ctx;
 }
 } // namespace kaminpar::shm

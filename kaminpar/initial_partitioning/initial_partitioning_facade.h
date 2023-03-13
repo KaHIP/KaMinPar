@@ -9,6 +9,7 @@
 #include "kaminpar/initial_partitioning/initial_coarsener.h"
 #include "kaminpar/initial_partitioning/initial_refiner.h"
 #include "kaminpar/initial_partitioning/pool_bipartitioner.h"
+#include "kaminpar/utils.h"
 
 namespace kaminpar::shm::ip {
 class InitialPartitioner {
