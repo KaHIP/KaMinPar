@@ -21,16 +21,8 @@
 #include "common/environment.h"
 #include "common/random.h"
 
-namespace kaminpar::dist {
-GraphPtr::GraphPtr() : ptr(nullptr) {}
-
-GraphPtr::GraphPtr(std::unique_ptr<DistributedGraph> graph)
-    : ptr(std::move(graph)) {}
-
-GraphPtr::GraphPtr(GraphPtr &&) noexcept = default;
-GraphPtr &GraphPtr::operator=(GraphPtr &&) noexcept = default;
-
-GraphPtr::~GraphPtr() = default;
+namespace kaminpar {
+using namespace dist;
 
 namespace {
 void print_partition_summary(const Context &ctx,
@@ -117,32 +109,26 @@ void print_input_summary(const Context &ctx, const DistributedGraph &graph,
 }
 } // namespace
 
-DistributedGraphPartitioner::DistributedGraphPartitioner(MPI_Comm comm,
-                                                         const int num_threads,
-                                                         const Context ctx)
+dKaMinPar::dKaMinPar(MPI_Comm comm, const int num_threads, const Context ctx)
     : _comm(comm), _num_threads(num_threads), _ctx(ctx),
       _gc(tbb::global_control::max_allowed_parallelism, num_threads) {
   omp_set_num_threads(num_threads);
   Random::seed = 0;
 }
 
-void DistributedGraphPartitioner::set_output_level(
-    const OutputLevel output_level) {
+void dKaMinPar::set_output_level(const OutputLevel output_level) {
   _output_level = output_level;
 }
 
-void DistributedGraphPartitioner::set_max_timer_depth(
-    const int max_timer_depth) {
+void dKaMinPar::set_max_timer_depth(const int max_timer_depth) {
   _max_timer_depth = max_timer_depth;
 }
 
-Context &DistributedGraphPartitioner::context() { return _ctx; }
+Context &dKaMinPar::context() { return _ctx; }
 
-void DistributedGraphPartitioner::import_graph(GlobalNodeID *vtxdist,
-                                               GlobalEdgeID *xadj,
-                                               GlobalNodeID *adjncy,
-                                               GlobalNodeWeight *vwgt,
-                                               GlobalEdgeWeight *adjwgt) {
+void dKaMinPar::import_graph(GlobalNodeID *vtxdist, GlobalEdgeID *xadj,
+                             GlobalNodeID *adjncy, GlobalNodeWeight *vwgt,
+                             GlobalEdgeWeight *adjwgt) {
   SCOPED_TIMER("IO");
 
   const PEID size = mpi::get_comm_size(_comm);
@@ -204,26 +190,23 @@ void DistributedGraphPartitioner::import_graph(GlobalNodeID *vtxdist,
 
   auto [global_to_ghost, ghost_to_global, ghost_owner] = mapper.finalize();
 
-  _graph_ptr.ptr = std::make_unique<DistributedGraph>(
+  _graph_ptr = std::make_unique<DistributedGraph>(
       std::move(node_distribution), std::move(edge_distribution),
       std::move(nodes), std::move(edges), std::move(node_weights),
       std::move(edge_weights), std::move(ghost_owner),
       std::move(ghost_to_global), std::move(global_to_ghost), false, _comm);
 }
 
-NodeID
-DistributedGraphPartitioner::load_graph(const std::string &filename,
-                                        const IOFormat format,
-                                        const IODistribution distribution) {
-  _graph_ptr.ptr = std::make_unique<DistributedGraph>(
+NodeID dKaMinPar::load_graph(const std::string &filename, const IOFormat format,
+                             const IODistribution distribution) {
+  _graph_ptr = std::make_unique<DistributedGraph>(
       dist::io::read_graph(filename, format, distribution, _comm));
-  return _graph_ptr.ptr->n();
+  return _graph_ptr->n();
 }
 
-GlobalEdgeWeight
-DistributedGraphPartitioner::compute_partition(const int seed, const BlockID k,
-                                               BlockID *partition) {
-  auto &graph = *_graph_ptr.ptr;
+GlobalEdgeWeight dKaMinPar::compute_partition(const int seed, const BlockID k,
+                                              BlockID *partition) {
+  auto &graph = *_graph_ptr;
 
   const PEID size = mpi::get_comm_size(_comm);
   const PEID rank = mpi::get_comm_rank(_comm);
@@ -284,4 +267,4 @@ DistributedGraphPartitioner::compute_partition(const int seed, const BlockID k,
 
   return metrics::edge_cut(p_graph);
 }
-} // namespace kaminpar::dist
+} // namespace kaminpar

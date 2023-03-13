@@ -24,7 +24,9 @@
 #include "common/random.h"
 #include "common/timer.h"
 
-namespace kaminpar::shm {
+namespace kaminpar {
+using namespace shm;
+
 namespace {
 void print_statistics(const Context &ctx, const PartitionedGraph &p_graph,
                       const int max_timer_depth, const bool parseable) {
@@ -58,105 +60,8 @@ void print_statistics(const Context &ctx, const PartitionedGraph &p_graph,
     LOG << logger::RED << "  Feasible:         no";
   }
 }
-
-std::string generate_partition_filename(const Context &ctx) {
-  std::stringstream filename;
-  filename << str::extract_basename(ctx.graph_filename);
-  filename << "__t" << ctx.parallel.num_threads;
-  filename << "__k" << ctx.partition.k;
-  filename << "__eps" << ctx.partition.epsilon;
-  filename << "__seed" << ctx.seed;
-  filename << ".partition";
-  return filename.str();
-}
-
-Context setup_context(CLI::App &app, int argc, char *argv[]) {
-  Context ctx = create_default_context();
-  bool dump_config = false;
-
-  app.set_config("-C,--config", "",
-                 "Read parameters from a TOML configuration file.", false);
-  app.add_option_function<std::string>("-P,--preset",
-                                       [&](const std::string preset) {
-                                         if (preset == "default") {
-                                           ctx = create_default_context();
-                                         } else if (preset == "largek") {
-                                           ctx = create_largek_context();
-                                         }
-                                       })
-      ->check(CLI::IsMember({"default", "largek"}))
-      ->description(R"(Use a configuration preset:
-  - default: default parameters
-  - largek:  reduce repetitions during initial partitioning (better performance if k is large))");
-
-  // Mandatory
-  auto *mandatory_group =
-      app.add_option_group("Application")->require_option(1);
-
-  // Mandatory -> either dump config ...
-  mandatory_group->add_flag("--dump-config", dump_config)
-      ->configurable(false)
-      ->description(R"(Print the current configuration and exit.
-The output should be stored in a file and can be used by the -C,--config option)");
-
-  // Mandatory -> ... or partition a graph
-  auto *gp_group =
-      mandatory_group->add_option_group("Partitioning")->silent(true);
-  gp_group
-      ->add_option("-G,--graph", ctx.graph_filename,
-                   "Input graph in METIS file format.")
-      ->configurable(false)
-      ->required();
-  gp_group
-      ->add_option("-k,--k", ctx.partition.k,
-                   "Number of blocks in the partition.")
-      ->configurable(false)
-      ->required();
-
-  // Application options
-  app.add_option("-s,--seed", ctx.seed, "Seed for random number generation.")
-      ->default_val(ctx.seed);
-  app.add_option("-o,--output", ctx.partition_filename,
-                 "Name of the partition file.")
-      ->configurable(false);
-  app.add_option("--output-directory", ctx.partition_directory,
-                 "Directory in which the partition file should be placed.")
-      ->capture_default_str();
-  app.add_flag("--degree-weights", ctx.degree_weights,
-               "Use node degrees as node weights.");
-  app.add_flag("-q,--quiet", ctx.quiet, "Suppress all console output.");
-  app.add_option("-t,--threads", ctx.parallel.num_threads,
-                 "Number of threads to be used.")
-      ->check(CLI::NonNegativeNumber)
-      ->default_val(ctx.parallel.num_threads);
-  app.add_flag("-p,--parsable", ctx.parsable_output,
-               "Use an output format that is easier to parse.");
-  app.add_flag(
-      "--unchecked-io", ctx.unchecked_io,
-      "Run without format checks of the input graph (in Release mode).");
-  app.add_flag("--validate-io", ctx.validate_io,
-               "Validate the format of the input graph extensively.");
-
-  // Algorithmic options
-  create_all_options(&app, ctx);
-
-  app.parse(argc, argv);
-
-  // Only dump config and exit
-  if (dump_config) {
-    CLI::App dump;
-    create_all_options(&dump, ctx);
-    std::cout << dump.config_to_str(true, true);
-    std::exit(0);
-  }
-
-  if (ctx.partition_filename.empty()) {
-    ctx.partition_filename = generate_partition_filename(ctx);
-  }
-
-  return ctx;
-}
 } // namespace
+
 KaMinPar::KaMinPar(const int num_threads, const Context ctx)
     : _num_threads(num_threads), _ctx(ctx),
       _gc(tbb::global_control::max_allowed_parallelism, num_threads) {
@@ -274,4 +179,4 @@ EdgeWeight KaMinPar::compute_partition(const int seed, const BlockID k,
 
   return metrics::edge_cut(p_graph);
 }
-} // namespace kaminpar::shm
+} // namespace kaminpar

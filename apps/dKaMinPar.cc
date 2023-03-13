@@ -129,7 +129,7 @@ int main(int argc, char *argv[]) {
     std::exit(0);
   }
 
-  DistributedGraphPartitioner partitioner(MPI_COMM_WORLD, app.num_threads, ctx);
+  dKaMinPar partitioner(MPI_COMM_WORLD, app.num_threads, ctx);
   const NodeID n = partitioner.load_graph(app.graph_filename, IOFormat::AUTO,
                                           IODistribution::NODE_BALANCED);
 

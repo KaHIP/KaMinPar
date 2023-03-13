@@ -72,13 +72,6 @@ enum class IOFormat {
   BINARY,
 };
 
-enum class OutputLevel : std::uint8_t {
-  QUIET,
-  PROGRESS,
-  APPLICATION,
-  EXPERIMENT,
-};
-
 enum class PartitioningMode {
   KWAY,
   DEEP,
@@ -306,9 +299,7 @@ struct Context {
   RefinementContext refinement;
   DebugContext debug;
 };
-} // namespace kaminpar::dist
 
-namespace kaminpar::dist {
 Context create_context_by_preset_name(const std::string &name);
 
 Context create_default_context();
@@ -316,39 +307,31 @@ Context create_strong_context();
 
 std::unordered_set<std::string> get_preset_names();
 
-struct GraphPtr {
-  GraphPtr();
-  GraphPtr(std::unique_ptr<class DistributedGraph> graph);
+class DistributedGraph;
+} // namespace kaminpar::dist
 
-  GraphPtr(const GraphPtr &) = delete;
-  GraphPtr &operator=(const GraphPtr &) = delete;
+namespace kaminpar {
 
-  GraphPtr(GraphPtr &&) noexcept;
-  GraphPtr &operator=(GraphPtr &&) noexcept;
-
-  ~GraphPtr();
-
-  std::unique_ptr<class DistributedGraph> ptr;
-};
-
-class DistributedGraphPartitioner {
+class dKaMinPar {
 public:
-  DistributedGraphPartitioner(MPI_Comm comm, int num_threads, Context ctx);
+  dKaMinPar(MPI_Comm comm, int num_threads, dist::Context ctx);
 
   void set_output_level(OutputLevel output_level);
 
   void set_max_timer_depth(int max_timer_depth);
 
-  Context &context();
+  dist::Context &context();
 
-  void import_graph(GlobalNodeID *node_distribution, GlobalEdgeID *nodes,
-                    GlobalNodeID *edges, GlobalNodeWeight *node_weights,
-                    GlobalEdgeWeight *edge_weights);
+  void import_graph(dist::GlobalNodeID *node_distribution,
+                    dist::GlobalEdgeID *nodes, dist::GlobalNodeID *edges,
+                    dist::GlobalNodeWeight *node_weights,
+                    dist::GlobalEdgeWeight *edge_weights);
 
-  NodeID load_graph(const std::string &filename, IOFormat format,
-                    IODistribution distribution);
+  dist::NodeID load_graph(const std::string &filename, dist::IOFormat format,
+                          dist::IODistribution distribution);
 
-  GlobalEdgeWeight compute_partition(int seed, BlockID k, BlockID *partition);
+  dist::GlobalEdgeWeight compute_partition(int seed, dist::BlockID k,
+                                           dist::BlockID *partition);
 
 private:
   MPI_Comm _comm;
@@ -356,11 +339,11 @@ private:
 
   int _max_timer_depth = std::numeric_limits<int>::max();
   OutputLevel _output_level = OutputLevel::APPLICATION;
-  Context _ctx;
+  dist::Context _ctx;
 
-  GraphPtr _graph_ptr;
+  std::unique_ptr<dist::DistributedGraph> _graph_ptr;
   tbb::global_control _gc;
 
   bool _was_rearranged = false;
 };
-} // namespace kaminpar::dist
+} // namespace kaminpar

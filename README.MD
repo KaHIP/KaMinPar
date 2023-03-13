@@ -25,7 +25,7 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --parallel
 ```
 
-## Running KaMinPar
+## Using the Binaries
 
 To partition a graph in METIS format using (d)KaMinPar, run
 
@@ -53,30 +53,51 @@ Presets can be viewed by using the `--dump-config` flag; to use a custom preset,
 
 For a description of the graph format, please have a look at the [KaHiP manual](https://github.com/KaHIP/KaHIP/raw/master/manual/kahip.pdf).
 
-### Using KaMinPar as a Library
+### Using the Libraries
 
-To use KaMinPar as a library, build the `kaminpar` target and follow the example given below.
+If you are using CMake, you can use the partitioners as libraries by adding this repository as a Git submodule to your project and including it in your CMake configuration:
 
-```c++
-// graph from the manual 
-std::vector<libkaminpar::EdgeID> nodes{0, 2, 5, 7, 9, 12};
-std::vector<libkaminpar::NodeID> edges{1, 4, 0, 2, 4, 1, 3, 2, 4, 0, 1, 3};
+```cmake
+add_subdirectory(external/KaMinPar)
 
-libkaminpar::Partitioner partitioner = 
-        libkaminpar::PartitionerBuilder
-        ::from_adjacency_array(nodes.data(), edges.data())
-        .create();
-
-partitioner.set_option("--threads", "6"); // use 6 cores
-partitioner.set_option("--epsilon", "0.04"); // allow 4% imbalance
-
-// compute 16-way partition
-std::unique_ptr<libkaminpar::BlockID[]> partition = partitioner.partition(16); 
+target_link_libraries(<your-target> PUBLIC KaMinPar::KaMinPar) # Shared-memory partitioning
+target_link_libraries(<your-target> PUBLIC KaMinPar::dKaMinPar) # Distributed partitioning
 ```
 
-If you are already using Metis and want to give KaMinPar a try, you can build an interface compatible to that of Metis 
-by passing `-DKAMINPAR_BUILD_METIS_INTERFACE=On` to CMake. 
-Then, simply link against our library (together with `libtbb` and `libtbbmalloc`) instead of Metis.
+Alternatively, you can use `FetchContent`:
+
+```cmake
+include(FetchContent)
+FetchContent_Declare(KaMinPar
+  GIT_REPOSITORY https://github.com/KaHIP/KaMinPar.git
+  GIT_TAG main)
+FetchContent_MakeAvailable(KaMinPar)
+set_property(DIRECTORY ${KaMinPar_SOURCE_DIR}" PROPERTY EXCLUDE_FROM_ALL YES) # optional
+
+target_link_libraries(<your-target> PUBLIC KaMinPar::KaMinPar) # Shared-memory partitioning
+target_link_libraries(<your-target> PUBLIC KaMinPar::dKaMinPar) # Distributed partitioning
+```
+
+Then, call the libraries as follows:
+
+```c++
+#include <kaminpar/kaminpar.h>
+#include <dkaminpar/dkaminpar.h>
+
+using namespace kaminpar;
+
+// Call the shared-memory partitioner:
+KaMinPar shm(int num_threads, shm::create_default_context());
+shm.import_graph(NodeID n, EdgeID *xadj, NodeID *adjncy, NodeWeight *vwgt = nullptr, EdgeWeight *adjwgt = nullptr);
+shm.compute_partition(int seed, BlockID number_of_blocks, BlockID *out_partition);
+
+// Call the distributed partitioner:
+dKaMinPar dist(MPI_Comm comm, int num_threads, dist::create_default_context());
+dist.import_graph(GlobalNodeID *vtxdist, GlobalEdgeID *xadj, GlobalNodeID *adjncy, GlobalNodeWeight *vwvgt = nullptr, GlobalEdgeWeight *adjwgt = nullptr);
+dist.compute_partition(int seed, BlockID number_of_blocks, BlockID *out_partition);
+```
+
+Please take a look at `apps/KaMinPar.cc` and `apps/dKaMinPar.cc` for a full example on how to call the libraries.
 
 ## Licensing
 

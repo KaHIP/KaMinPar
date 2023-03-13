@@ -15,6 +15,15 @@
 
 #include <tbb/global_control.h>
 
+namespace kaminpar {
+enum class OutputLevel : std::uint8_t {
+  QUIET,
+  PROGRESS,
+  APPLICATION,
+  EXPERIMENT,
+};
+}
+
 namespace kaminpar::shm {
 #ifdef KAMINPAR_64BIT_NODE_IDS
 using NodeID = std::uint64_t;
@@ -52,13 +61,6 @@ constexpr EdgeWeight kInvalidEdgeWeight =
 constexpr BlockWeight kInvalidBlockWeight =
     std::numeric_limits<BlockWeight>::max();
 constexpr Degree kMaxDegree = std::numeric_limits<Degree>::max();
-
-enum class OutputLevel : std::uint8_t {
-  QUIET,
-  PROGRESS,
-  APPLICATION,
-  EXPERIMENT,
-};
 
 enum class ClusteringAlgorithm {
   NOOP,
@@ -236,41 +238,43 @@ struct Context {
 
   void setup(const Graph &graph);
 };
-} // namespace kaminpar::shm
 
-namespace kaminpar::shm {
 std::unordered_set<std::string> get_preset_names();
 Context create_context_by_preset_name(const std::string &name);
 Context create_default_context();
 Context create_largek_context();
+} // namespace kaminpar::shm
 
+namespace kaminpar {
 class KaMinPar {
 public:
-  KaMinPar(int num_threads, Context ctx);
+  KaMinPar(int num_threads, shm::Context ctx);
 
   void set_output_level(OutputLevel output_level);
 
   void set_max_timer_depth(int max_timer_depth);
 
-  Context &context();
+  shm::Context &context();
 
-  void import_graph(NodeID n, EdgeID *nodes, NodeID *edges,
-                    NodeWeight *node_weights, EdgeWeight *edge_weights);
+  void import_graph(shm::NodeID n, shm::EdgeID *nodes, shm::NodeID *edges,
+                    shm::NodeWeight *node_weights,
+                    shm::EdgeWeight *edge_weights);
 
-  NodeID load_graph(const std::string &filename);
+  shm::NodeID load_graph(const std::string &filename);
 
-  EdgeWeight compute_partition(int seed, BlockID k, BlockID *partition);
+  shm::EdgeWeight compute_partition(int seed, shm::BlockID k,
+                                    shm::BlockID *partition);
 
 private:
   int _num_threads;
 
   int _max_timer_depth = std::numeric_limits<int>::max();
   OutputLevel _output_level = OutputLevel::APPLICATION;
-  Context _ctx;
+  shm::Context _ctx;
 
-  std::unique_ptr<class Graph> _graph_ptr;
+  std::unique_ptr<shm::Graph> _graph_ptr;
   tbb::global_control _gc;
 
   bool _was_rearranged = false;
 };
-} // namespace kaminpar::shm
+} // namespace kaminpar

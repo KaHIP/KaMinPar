@@ -10,8 +10,7 @@
 
 #include <tbb/concurrent_hash_map.h>
 
-#include "growt.h"
-
+#include "dkaminpar/datastructures/growt.h"
 #include "dkaminpar/definitions.h"
 #include "dkaminpar/graphutils/communication.h"
 
