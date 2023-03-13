@@ -9,11 +9,10 @@
 // clang-format on
 
 #include "dkaminpar/dkaminpar.h"
+#include "dkaminpar/arguments.h"
 
 #include <kagen.h>
 #include <mpi.h>
-
-#include "dkaminpar/arguments.h"
 
 #include "common/environment.h"
 #include "common/strutils.h"
@@ -146,16 +145,23 @@ int main(int argc, char *argv[]) {
       generator.EnableOutput(true);
     }
 
-    auto format = str::ends_with(app.graph_filename, "bgf")
-                      ? kagen::StaticGraphFormat::BINARY_PARHIP
-                      : kagen::StaticGraphFormat::METIS;
-
-    auto distribution = app.load_edge_balanced
-                            ? kagen::StaticGraphDistribution::BALANCE_EDGES
-                            : kagen::StaticGraphDistribution::BALANCE_VERTICES;
-
-    auto graph =
-        generator.ReadFromFile(app.graph_filename, format, distribution);
+    auto graph = [&] {
+      const bool filename_is_generator_string =
+          std::find(app.graph_filename.begin(), app.graph_filename.end(),
+                    ';') != app.graph_filename.end();
+      if (filename_is_generator_string) {
+        return generator.GenerateFromOptionString(app.graph_filename);
+      } else {
+        auto format = str::ends_with(app.graph_filename, "bgf")
+                          ? kagen::StaticGraphFormat::BINARY_PARHIP
+                          : kagen::StaticGraphFormat::METIS;
+        auto distribution =
+            app.load_edge_balanced
+                ? kagen::StaticGraphDistribution::BALANCE_EDGES
+                : kagen::StaticGraphDistribution::BALANCE_VERTICES;
+        return generator.ReadFromFile(app.graph_filename, format, distribution);
+      }
+    }();
     auto vtxdist = kagen::BuildVertexDistribution<unsigned long>(
         graph, MPI_UNSIGNED_LONG, MPI_COMM_WORLD);
 
