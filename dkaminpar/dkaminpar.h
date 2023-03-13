@@ -15,18 +15,11 @@
 #include <mpi.h>
 #include <tbb/global_control.h>
 
-#include "kaminpar/context.h"
-#include "kaminpar/definitions.h"
+#include "kaminpar/kaminpar.h"
 
 namespace kaminpar::mpi {
 using PEID = int;
 }
-
-// @todo once we build a similar interface for KaMinPar, we can get rid of this
-// forward-declaration
-namespace kaminpar::shm {
-struct Context;
-};
 
 namespace kaminpar::dist {
 using GlobalNodeID = std::uint64_t;
@@ -36,7 +29,6 @@ using GlobalEdgeWeight = std::int64_t;
 using BlockWeight = std::int64_t;
 
 using mpi::PEID;
-
 using shm::BlockID;
 using shm::EdgeID;
 using shm::NodeID;

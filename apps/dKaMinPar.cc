@@ -129,11 +129,6 @@ int main(int argc, char *argv[]) {
     std::exit(0);
   }
 
-  // cio::print_build_identifier<NodeID, EdgeID, shm::NodeWeight,
-  // shm::EdgeWeight, NodeWeight, EdgeWeight>(
-  //     Environment::GIT_SHA1, Environment::HOSTNAME
-  //);
-
   DistributedGraphPartitioner partitioner(MPI_COMM_WORLD, app.num_threads, ctx);
   const NodeID n = partitioner.load_graph(app.graph_filename, IOFormat::AUTO,
                                           IODistribution::NODE_BALANCED);
