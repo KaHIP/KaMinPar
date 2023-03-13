@@ -14,7 +14,6 @@
 
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructures/distributed_graph.h"
-#include "dkaminpar/debug.h"
 #include "dkaminpar/factories.h"
 #include "dkaminpar/graphutils/replicator.h"
 #include "dkaminpar/graphutils/subgraph_extractor.h"
@@ -198,10 +197,6 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
   };
 
   auto shm_graph = graph::replicate_everywhere(*graph);
-  if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0 &&
-      _input_ctx.debug.save_coarsest_graph) {
-    debug::save_graph(shm_graph, _input_ctx, coarsener->level());
-  }
 
   PartitionContext ip_p_ctx = _input_ctx.partition;
   ip_p_ctx.k = first_step_k;
@@ -244,11 +239,6 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
 
   auto run_refinement = [&](DistributedPartitionedGraph &p_graph,
                             const PartitionContext &p_ctx) {
-    if (_input_ctx.debug.save_unrefined_finest_partition &&
-        p_graph.global_n() == _input_ctx.partition.graph->global_n) {
-      debug::save_partition(p_graph, _input_ctx, 0);
-    }
-
     SCOPED_TIMER("Local search");
     refinement_algorithm->initialize(p_graph.graph());
     refinement_algorithm->refine(p_graph, p_ctx);

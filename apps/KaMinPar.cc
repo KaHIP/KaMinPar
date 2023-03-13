@@ -14,11 +14,13 @@
 #endif // __has_include(<numa.h>)
 
 #include "kaminpar/arguments.h"
-#include "kaminpar/io.h"
 #include "kaminpar/kaminpar.h"
+
+#include "apps/io/shm_io.h"
 
 #include "common/environment.h"
 #include "common/logger.h"
+#include "common/timer.h"
 
 using namespace kaminpar;
 using namespace kaminpar::shm;
@@ -129,7 +131,21 @@ int main(int argc, char *argv[]) {
   KaMinPar partitioner(app.num_threads, ctx);
   partitioner.set_max_timer_depth(app.max_timer_depth);
 
-  const NodeID n = partitioner.load_graph(app.graph_filename);
+  const NodeID n = [&] {
+    START_TIMER("IO");
+    StaticArray<EdgeID> xadj;
+    StaticArray<NodeID> adjncy;
+    StaticArray<NodeWeight> vwgt;
+    StaticArray<EdgeWeight> adjwgt;
+    shm::io::metis::read<false>(app.graph_filename, xadj, adjncy, vwgt, adjwgt);
+    STOP_TIMER();
+
+    partitioner.import_graph(xadj.size() - 1, xadj.data(), adjncy.data(),
+                             vwgt.data(), adjwgt.data());
+
+    return xadj.size() - 1;
+  }();
+
   std::vector<BlockID> partition(n);
   partitioner.compute_partition(app.seed, app.k, partition.data());
 

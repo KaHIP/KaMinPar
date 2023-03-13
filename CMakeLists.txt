@@ -19,9 +19,9 @@ set(CMAKE_CXX_STANDARD 17)
 # Control what to build
 option(KAMINPAR_TESTS "Build unit tests" ON)
 option(KAMINPAR_DISTRIBUTED "Enable or disable the distributed partitioner (requires the growt submodule)." ON)
+option(KAMINPAR_BINARIES "Build the binaries." ON)
+
 option(KAMINPAR_MTKAHYPAR "Enable Mt-KaHyPar as initial partitioner for the distributed partitioner." OFF)
-option(KAMINPAR_PYTHON_MODULE "Build the Python binding." OFF)
-option(KAMINPAR_METIS_INTERFACE "Build the METIS interface." OFF)
 
 # Control how to build
 option(KAMINPAR_STATISTICS "Generate and output detailed statistics." ON)
@@ -56,6 +56,10 @@ FetchContent_Declare(
     SYSTEM
     GIT_REPOSITORY https://github.com/DanielSeemaier/growt.git
     GIT_TAG kaminpar)
+
+FetchContent_Declare(KaGen
+    GIT_REPOSITORY https://github.com/sebalamm/KaGen.git
+    GIT_TAG master)
 
 set(KAMINPAR_ASSERTION_LEVEL "light" CACHE STRING "Assertion level.")
 set_property(CACHE KAMINPAR_ASSERTION_LEVEL PROPERTY STRINGS none light normal heavy)
@@ -166,6 +170,15 @@ if (KAMINPAR_DISTRIBUTED)
 
     # Google Sparsehash 
     find_package(Sparsehash REQUIRED)
+
+    # If we also build the binary, fetch KaGen for graph IO
+    if (KAMINPAR_BINARIES)
+        message("################################################################################")
+        message("## KaGen                                                                      ##")
+        message("################################################################################")
+        FetchContent_MakeAvailable(KaGen)
+        set_property(DIRECTORY "${KaGen_SOURCE_DIR}" PROPERTY EXCLUDE_FROM_ALL YES)
+    endif ()
 endif ()
 
 message("################################################################################")
@@ -206,7 +219,9 @@ if (KAMINPAR_DISTRIBUTED)
 endif ()
 
 # Binaries
-add_subdirectory(apps)
+if (KAMINPAR_BINARIES)
+    add_subdirectory(apps)
+endif ()
 
 # Unit tests
 if (KAMINPAR_TESTS)

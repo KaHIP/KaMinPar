@@ -49,9 +49,6 @@ function(kaminpar_add_dist_test KAMINPAR_TARGET_NAME)
     message(STATUS "Enabled distributed test: ${KAMINPAR_TARGET_NAME}, PEs: ${KAMINPAR_CORES}")
 endfunction()
 
-# Copy test instances to binary directory
-file(COPY test_instances DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
-
 # Common -> Datastructures
 kaminpar_add_common_test(test_common_preallocated_vector common/datastructures/preallocated_vector_test.cc)
 kaminpar_add_common_test(test_common_binary_heap common/datastructures/binary_heap_test.cc)
@@ -109,7 +106,6 @@ kaminpar_add_dist_test(test_dist_graph_topology
     CORES 1)
 
 # KaMinPar 
-kaminpar_add_shm_test(test_shm_io kaminpar/io_test.cc)
 kaminpar_add_shm_test(test_shm_metrics kaminpar/metrics_test.cc)
 kaminpar_add_shm_test(test_shm_graph kaminpar/graph_test.cc)
 kaminpar_add_shm_test(test_subgraph_extraction kaminpar/subgraph_extraction_test.cc)

@@ -10,7 +10,6 @@
 #include "dkaminpar/coarsening/contraction/local_cluster_contraction.h"
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructures/distributed_graph.h"
-#include "dkaminpar/debug.h"
 #include "dkaminpar/factories.h"
 
 #include "kaminpar/context.h"
@@ -91,11 +90,6 @@ Coarsener::coarsen_once_global(const GlobalNodeWeight max_cluster_weight) {
     _graph_hierarchy.push_back(std::move(result.graph));
     _global_mapping_hierarchy.push_back(std::move(result.mapping));
     _node_migration_history.push_back(std::move(result.migration));
-
-    /*if (_input_ctx.debug.save_clustering_hierarchy) {
-        debug::save_global_clustering(clustering, _input_ctx,
-    static_cast<int>(level()));
-    }*/
 
     return coarsest();
   }

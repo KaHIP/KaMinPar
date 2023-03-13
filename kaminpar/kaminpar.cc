@@ -12,8 +12,6 @@
 #include "kaminpar/datastructures/graph.h"
 #include "kaminpar/definitions.h"
 #include "kaminpar/graphutils/graph_rearrangement.h"
-#include "kaminpar/input_validator.h"
-#include "kaminpar/io.h"
 #include "kaminpar/metrics.h"
 #include "kaminpar/partitioning/partitioning.h"
 #include "kaminpar/presets.h"
@@ -110,13 +108,6 @@ void KaMinPar::import_graph(const NodeID n, EdgeID *xadj, NodeID *adjncy,
   _graph_ptr = std::make_unique<Graph>(std::move(nodes), std::move(edges),
                                        std::move(node_weights),
                                        std::move(edge_weights), false);
-}
-
-NodeID KaMinPar::load_graph(const std::string &filename) {
-  SCOPED_TIMER("IO");
-  _graph_ptr = std::make_unique<Graph>(
-      shm::io::metis::read<false>(filename, false, false));
-  return _graph_ptr->n();
 }
 
 EdgeWeight KaMinPar::compute_partition(const int seed, const BlockID k,

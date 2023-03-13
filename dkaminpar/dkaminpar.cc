@@ -12,7 +12,6 @@
 #include "dkaminpar/datastructures/distributed_graph_builder.h"
 #include "dkaminpar/factories.h"
 #include "dkaminpar/graphutils/rearrangement.h"
-#include "dkaminpar/io.h"
 #include "dkaminpar/metrics.h"
 
 #include "kaminpar/context.h"
@@ -197,13 +196,6 @@ void dKaMinPar::import_graph(GlobalNodeID *vtxdist, GlobalEdgeID *xadj,
       std::move(nodes), std::move(edges), std::move(node_weights),
       std::move(edge_weights), std::move(ghost_owner),
       std::move(ghost_to_global), std::move(global_to_ghost), false, _comm);
-}
-
-NodeID dKaMinPar::load_graph(const std::string &filename, const IOFormat format,
-                             const IODistribution distribution) {
-  _graph_ptr = std::make_unique<DistributedGraph>(
-      dist::io::read_graph(filename, format, distribution, _comm));
-  return _graph_ptr->n();
 }
 
 GlobalEdgeWeight dKaMinPar::compute_partition(const int seed, const BlockID k,

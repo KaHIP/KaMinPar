@@ -9,10 +9,8 @@
 
 #include "dkaminpar/coarsening/coarsener.h"
 #include "dkaminpar/datastructures/distributed_graph.h"
-#include "dkaminpar/debug.h"
 #include "dkaminpar/factories.h"
 #include "dkaminpar/graphutils/replicator.h"
-#include "dkaminpar/io.h"
 #include "dkaminpar/metrics.h"
 
 #include "kaminpar/datastructures/graph.h"
@@ -42,10 +40,6 @@ DistributedPartitionedGraph KWayPartitioner::partition() {
     cio::print_banner("Coarsening");
   }
 
-  if (_ctx.debug.save_finest_graph) {
-    debug::save_graph(_graph, _ctx, 0);
-  }
-
   {
     SCOPED_TIMER("Coarsening");
 
@@ -62,11 +56,6 @@ DistributedPartitionedGraph KWayPartitioner::partition() {
       const bool converged = (graph == c_graph);
 
       if (!converged) {
-        if (_ctx.debug.save_graph_hierarchy) {
-          debug::save_graph(*c_graph, _ctx,
-                            static_cast<int>(coarsener.level()));
-        }
-
         // Print statistics for coarse graph
         const std::string n_str =
             mpi::gather_statistics_str(c_graph->n(), c_graph->communicator());
@@ -98,10 +87,6 @@ DistributedPartitionedGraph KWayPartitioner::partition() {
         break;
       }
     }
-  }
-
-  if (!_ctx.debug.save_graph_hierarchy && _ctx.debug.save_coarsest_graph) {
-    debug::save_graph(*graph, _ctx, static_cast<int>(coarsener.level()));
   }
 
   ////////////////////////////////////////////////////////////////////////////////
@@ -149,11 +134,6 @@ DistributedPartitionedGraph KWayPartitioner::partition() {
 
   LOG << "Initial partition: cut=" << initial_cut
       << " imbalance=" << initial_imbalance;
-
-  if (_ctx.debug.save_partition_hierarchy) {
-    debug::save_partitioned_graph(dist_p_graph, _ctx,
-                                  static_cast<int>(coarsener.level()));
-  }
 
   ////////////////////////////////////////////////////////////////////////////////
   // Step 3: Refinement
@@ -217,11 +197,6 @@ DistributedPartitionedGraph KWayPartitioner::partition() {
 
       LOG << "=> level=" << coarsener.level() << " cut=" << current_cut
           << " imbalance=" << current_imbalance;
-
-      if (_ctx.debug.save_partition_hierarchy) {
-        debug::save_partitioned_graph(dist_p_graph, _ctx,
-                                      static_cast<int>(coarsener.level()));
-      }
     }
   }
 

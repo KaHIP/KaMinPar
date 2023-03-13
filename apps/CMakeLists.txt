@@ -16,5 +16,10 @@ function(add_dist_app target)
 endfunction()
 
 add_shm_app(KaMinPar KaMinPar.cc)
-add_dist_app(dKaMinPar dKaMinPar.cc)
+target_sources(KaMinPar PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/io/shm_io.cc)
+
+if (TARGET dist_partitioner_base)
+    add_dist_app(dKaMinPar dKaMinPar.cc)
+    target_link_libraries(dKaMinPar PRIVATE KaGen::KaGen)
+endif ()
 

@@ -261,8 +261,6 @@ public:
                     shm::NodeWeight *node_weights,
                     shm::EdgeWeight *edge_weights);
 
-  shm::NodeID load_graph(const std::string &filename);
-
   shm::EdgeWeight compute_partition(int seed, shm::BlockID k,
                                     shm::BlockID *partition);
 

@@ -10,12 +10,13 @@
 
 #include "dkaminpar/dkaminpar.h"
 
+#include <kagen.h>
 #include <mpi.h>
 
 #include "dkaminpar/arguments.h"
-#include "dkaminpar/io.h"
 
 #include "common/environment.h"
+#include "common/strutils.h"
 
 using namespace kaminpar;
 using namespace kaminpar::dist;
@@ -130,16 +131,64 @@ int main(int argc, char *argv[]) {
   }
 
   dKaMinPar partitioner(MPI_COMM_WORLD, app.num_threads, ctx);
-  const NodeID n = partitioner.load_graph(app.graph_filename, IOFormat::AUTO,
-                                          IODistribution::NODE_BALANCED);
+  if (app.quiet) {
+    partitioner.set_output_level(OutputLevel::QUIET);
+  } else if (app.experiment) {
+    partitioner.set_output_level(OutputLevel::EXPERIMENT);
+  }
+  partitioner.set_max_timer_depth(app.max_timer_depth);
+
+  const NodeID n = [&] {
+    kagen::KaGen generator(MPI_COMM_WORLD);
+    generator.UseCSRRepresentation();
+    if (app.experiment) {
+      generator.EnableBasicStatistics();
+      generator.EnableOutput(true);
+    }
+
+    auto format = str::ends_with(app.graph_filename, "bgf")
+                      ? kagen::StaticGraphFormat::BINARY_PARHIP
+                      : kagen::StaticGraphFormat::METIS;
+
+    auto distribution = app.load_edge_balanced
+                            ? kagen::StaticGraphDistribution::BALANCE_EDGES
+                            : kagen::StaticGraphDistribution::BALANCE_VERTICES;
+
+    auto graph =
+        generator.ReadFromFile(app.graph_filename, format, distribution);
+    auto vtxdist = kagen::BuildVertexDistribution<unsigned long>(
+        graph, MPI_UNSIGNED_LONG, MPI_COMM_WORLD);
+
+    auto xadj = graph.TakeXadj<>();
+    auto adjncy = graph.TakeAdjncy<>();
+    auto vwgt = graph.TakeVertexWeights<>();
+    auto adjwgt = graph.TakeEdgeWeights<>();
+
+    static_assert(sizeof(kagen::SInt) == sizeof(GlobalNodeID));
+    static_assert(sizeof(kagen::SInt) == sizeof(GlobalEdgeID));
+    static_assert(sizeof(kagen::SSInt) == sizeof(GlobalNodeWeight));
+    static_assert(sizeof(kagen::SSInt) == sizeof(GlobalEdgeWeight));
+
+    GlobalEdgeID *xadj_ptr = reinterpret_cast<GlobalNodeID *>(xadj.data());
+    GlobalNodeID *adjncy_ptr = reinterpret_cast<GlobalNodeID *>(adjncy.data());
+    GlobalNodeWeight *vwgt_ptr =
+        vwgt.empty() ? nullptr
+                     : reinterpret_cast<GlobalNodeWeight *>(vwgt.data());
+    GlobalEdgeWeight *adjwgt_ptr =
+        adjwgt.empty() ? nullptr
+                       : reinterpret_cast<GlobalEdgeWeight *>(adjwgt.data());
+
+    partitioner.import_graph(vtxdist.data(), xadj_ptr, adjncy_ptr, vwgt_ptr,
+                             adjwgt_ptr);
+
+    return graph.vertex_range.second - graph.vertex_range.first;
+  }();
 
   std::vector<BlockID> partition(n);
-
-  partitioner.set_max_timer_depth(app.max_timer_depth);
   partitioner.compute_partition(app.seed, app.k, partition.data());
 
   if (!app.partition_filename.empty()) {
-    dist::io::partition::write(app.partition_filename, partition);
+    // dist::io::partition::write(app.partition_filename, partition);
   }
 
   return MPI_Finalize();
