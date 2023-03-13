@@ -81,18 +81,17 @@ Then, simply link against our library (together with `libtbb` and `libtbbmalloc`
 ## Licensing
 
 KaMinPar is free software provided under the MIT License.
-If you publish results using our algorithms, please acknowledge our work by citing the following paper ([pdf](http://algo2.iti.kit.edu/seemaier/deep_mgp/)):
+If you publish results using our shared-memory partitioner, please acknowledge our work by citing the following paper ([resources](https://algo2.iti.kit.edu/seemaier/deep_mgp/)):
 
 ```
-@inproceedings{DBLP:conf/esa/GottesburenH00S21,
+@inproceedings{DeepMultilevel,
   author    = {Lars Gottesb{\"{u}}ren and
                Tobias Heuer and
                Peter Sanders and
                Christian Schulz and
                Daniel Seemaier},
   title     = {Deep Multilevel Graph Partitioning},
-  booktitle = {29th Annual European Symposium on Algorithms, {ESA} 2021, September
-               6-8, 2021, Lisbon, Portugal (Virtual Conference)},
+  booktitle = {29th Annual European Symposium on Algorithms, {ESA} 2021},
   series    = {LIPIcs},
   volume    = {204},
   pages     = {48:1--48:17},
@@ -103,5 +102,16 @@ If you publish results using our algorithms, please acknowledge our work by citi
 }
 ```
 
-Detailed experimental results published in our paper are available [here](http://algo2.iti.kit.edu/seemaier/deep_mgp/).
+If you publish results using out distributed-memory partitioner, please cite the following technical report ([resources](https://algo2.iti.kit.edu/seemaier/ddeep_mgp/)):
+
+```
+@misc{DistributedDeepMultilevel,
+  doi = {10.48550/ARXIV.2303.01417},
+  url = {https://arxiv.org/abs/2303.01417},
+  author = {Sanders, Peter and Seemaier, Daniel},
+  title = {Distributed Deep Multilevel Graph Partitioning},
+  publisher = {arXiv},
+  year = {2023}
+}
+```
 
