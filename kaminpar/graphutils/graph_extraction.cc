@@ -276,7 +276,7 @@ SubgraphExtractionResult extract_subgraphs(const PartitionedGraph &p_graph,
 }
 
 namespace {
-void fill_final_k(scalable_vector<BlockID> &data, const BlockID b0,
+void fill_final_k(std::vector<BlockID> &data, const BlockID b0,
                   const BlockID final_k, const BlockID k) {
   const auto [final_k1, final_k2] = math::split_integral(final_k);
   std::array<BlockID, 2> ks{
@@ -303,7 +303,7 @@ void copy_subgraph_partitions(
   scalable_vector<BlockID> k0(p_graph.k() + 1, k_prime / p_graph.k());
   k0[0] = 0;
 
-  scalable_vector<BlockID> final_ks(k_prime, 1);
+  std::vector<BlockID> final_ks(k_prime, 1);
 
   // we are done partitioning? --> use final_ks
   if (k_prime == input_k) {

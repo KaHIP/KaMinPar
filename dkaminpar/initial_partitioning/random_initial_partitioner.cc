@@ -20,7 +20,7 @@ shm::PartitionedGraph
 RandomInitialPartitioner::initial_partition(const shm::Graph &graph,
                                             const PartitionContext &p_ctx) {
   StaticArray<BlockID> partition(graph.n());
-  scalable_vector<BlockID> final_k(graph.n(), 1);
+  std::vector<BlockID> final_k(graph.n(), 1);
 
   tbb::parallel_for(tbb::blocked_range<NodeID>(0, graph.n()),
                     [&](const auto &r) {

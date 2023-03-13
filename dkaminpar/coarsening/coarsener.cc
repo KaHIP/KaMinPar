@@ -14,6 +14,7 @@
 #include "dkaminpar/factories.h"
 
 #include "kaminpar/context.h"
+#include "kaminpar/utils.h"
 
 namespace kaminpar::dist {
 SET_DEBUG(false);

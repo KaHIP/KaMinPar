@@ -512,7 +512,7 @@ TEST(GlobalGraphExtractionTest, project_circle_clique_partition) {
   }
   p_subgraphs.push_back({subgraph, static_cast<BlockID>(size),
                          std::move(partition),
-                         scalable_vector<BlockID>(size / 2, 1)});
+                         std::vector<BlockID>(size / 2, 1)});
 
   // Copy back to p_graph
   p_graph =

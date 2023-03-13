@@ -86,8 +86,8 @@ void DeepMultilevelPartitioner::print_coarsening_level(
   LOG << "  Maximum node weight:   [Min=" << std::setw(width)
       << max_node_weight_min << " | Mean=" << std::setw(width)
       << static_cast<NodeWeight>(max_node_weight_avg)
-      << " | Max=" << std::setw(width) << max_node_weight_max << "]";
-  LOG << "    Expected: " << max_cluster_weight;
+      << " | Max=" << std::setw(width) << max_node_weight_max
+      << "] <= " << max_cluster_weight;
   LOG;
 
   mpi::barrier(graph->communicator());
@@ -369,8 +369,7 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
     // Run refinement
     START_TIMER("Refinement",
                 std::string("Level ") + std::to_string(coarsener->level()));
-    LOG << "  Running balancing and local search on " << dist_p_graph.k()
-        << " blocks";
+    LOG << "  Running refinement on " << dist_p_graph.k() << " blocks";
     ref_p_ctx.k = dist_p_graph.k();
     ref_p_ctx.epsilon = _input_ctx.partition.epsilon;
     ref_p_ctx.graph =
@@ -383,9 +382,9 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
     const auto cut = metrics::edge_cut(dist_p_graph);
     const auto imbalance = metrics::imbalance(dist_p_graph);
     const bool feasible = metrics::is_feasible(dist_p_graph, ref_p_ctx);
-    LOG << "  Cut:       " << cut;
-    LOG << "  Imbalance: " << imbalance;
-    LOG << "  Feasible:  " << (feasible ? "yes" : "no");
+    LOG << "    Cut:       " << cut;
+    LOG << "    Imbalance: " << imbalance;
+    LOG << "    Feasible:  " << (feasible ? "yes" : "no");
     STOP_TIMER();
     STOP_TIMER();
   }

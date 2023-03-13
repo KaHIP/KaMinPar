@@ -241,10 +241,8 @@ DistributedGraphPartitioner::compute_partition(const int seed, const BlockID k,
   _ctx.partition.k = k;
   _ctx.partition.graph = std::make_unique<GraphContext>(graph, _ctx.partition);
 
-  // Initialize PRNG
+  // Initialize PRNG and console output
   Random::seed = seed;
-
-  // Initialize console output
   Logger::set_quiet_mode(_output_level == OutputLevel::QUIET);
 
   if (_output_level >= OutputLevel::APPLICATION) {

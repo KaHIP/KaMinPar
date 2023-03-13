@@ -22,13 +22,12 @@ ParallelRecursiveBisection::ParallelRecursiveBisection(const Graph &input_graph,
                        true, true} {}
 
 PartitionedGraph ParallelRecursiveBisection::partition() {
-  cio::print_delimiter("Coarsening");
+  cio::print_delimiter("Partitioning");
+
   const Graph *c_graph = coarsen();
 
-  cio::print_delimiter("Initial Partitioning");
   PartitionedGraph p_graph = initial_partition(c_graph);
 
-  cio::print_delimiter("Uncoarsening");
   bool refined;
   p_graph = uncoarsen(std::move(p_graph), refined);
   if (!refined) {
@@ -46,8 +45,36 @@ PartitionedGraph ParallelRecursiveBisection::partition() {
   return p_graph;
 }
 
+PartitionedGraph
+ParallelRecursiveBisection::uncoarsen_once(PartitionedGraph p_graph) {
+  return helper::uncoarsen_once(_coarsener.get(), std::move(p_graph),
+                                _current_p_ctx);
+}
+
+void ParallelRecursiveBisection::refine(PartitionedGraph &p_graph) {
+  LOG << "  Running refinement on " << p_graph.k() << " blocks";
+  helper::refine(_refiner.get(), _balancer.get(), p_graph, _current_p_ctx,
+                 _input_ctx.refinement);
+  LOG << "    Cut:       " << metrics::edge_cut(p_graph);
+  LOG << "    Imbalance: " << metrics::imbalance(p_graph);
+  LOG << "    Feasible:  " << metrics::is_feasible(p_graph, _current_p_ctx);
+}
+
+void ParallelRecursiveBisection::extend_partition(PartitionedGraph &p_graph,
+                                                  const BlockID k_prime) {
+  LOG << "  Extending partition from " << p_graph.k() << " blocks to "
+      << k_prime << " blocks";
+  helper::extend_partition(p_graph, k_prime, _input_ctx, _current_p_ctx,
+                           _subgraph_memory, _ip_extraction_pool,
+                           _ip_m_ctx_pool);
+  LOG << "    Cut:       " << metrics::edge_cut(p_graph);
+  LOG << "    Imbalance: " << metrics::imbalance(p_graph);
+}
+
 PartitionedGraph ParallelRecursiveBisection::uncoarsen(PartitionedGraph p_graph,
                                                        bool &refined) {
+  LOG << "Uncoarsening -> Level " << _coarsener.get()->size();
+
   while (!_coarsener->empty()) {
     p_graph = uncoarsen_once(std::move(p_graph));
     refine(p_graph);
@@ -67,16 +94,34 @@ const Graph *ParallelRecursiveBisection::coarsen() {
   const Graph *c_graph = &_input_graph;
   bool shrunk = true;
 
-  while (shrunk && c_graph->n() > initial_partition_threshold()) {
+  while (shrunk && c_graph->n() > initial_partitioning_threshold()) {
     shrunk = helper::coarsen_once(_coarsener.get(), c_graph, _input_ctx,
                                   _current_p_ctx);
     c_graph = _coarsener->coarsest_graph();
+
+    const NodeWeight max_cluster_weight = compute_max_cluster_weight(
+        *c_graph, _input_ctx.partition, _input_ctx.coarsening);
+    LOG << "Coarsening -> Level " << _coarsener.get()->size();
+    LOG << "  Number of nodes: " << c_graph->n()
+        << " | Number of edges: " << c_graph->m();
+    LOG << "  Maximum node weight: " << c_graph->max_node_weight()
+        << " <= " << max_cluster_weight;
+    LOG;
+  }
+
+  if (shrunk) {
+    LOG << "==> Coarsening terminated with less than "
+        << initial_partitioning_threshold() << " nodes.";
+    LOG;
+  } else {
+    LOG << "==> Coarsening converged.";
+    LOG;
   }
 
   return c_graph;
 }
 
-NodeID ParallelRecursiveBisection::initial_partition_threshold() {
+NodeID ParallelRecursiveBisection::initial_partitioning_threshold() {
   if (helper::parallel_ip_mode(_input_ctx.initial_partitioning.mode)) {
     return _input_ctx.parallel.num_threads *
            _input_ctx.coarsening.contraction_limit; // p * C
@@ -88,28 +133,26 @@ NodeID ParallelRecursiveBisection::initial_partition_threshold() {
 PartitionedGraph
 ParallelRecursiveBisection::initial_partition(const Graph *graph) {
   SCOPED_TIMER("Initial partitioning scheme");
+  LOG << "Initial partitioning:";
+
   PartitionedGraph p_graph =
       helper::parallel_ip_mode(_input_ctx.initial_partitioning.mode) //
           ? parallel_initial_partition(graph)                        //
           : sequential_initial_partition(graph);                     //
-
   helper::update_partition_context(_current_p_ctx, p_graph);
 
-  LOG << "-> Initial partition on a graph with n=" << graph->n() << " "       //
-      << "m=" << graph->m()                                                   //
-      << ": k=" << p_graph.k();                                               //
-  DBG << "-> "                                                                //
-      << "cut=" << metrics::edge_cut(p_graph) << " "                          //
-      << "imbalance=" << metrics::imbalance(p_graph) << " "                   //
-      << "feasible=" << metrics::is_feasible(p_graph, _current_p_ctx) << " "; //
+  LOG << "  Number of blocks: " << p_graph.k();
+  LOG << "  Cut:              " << metrics::edge_cut(p_graph);
+  LOG << "  Imbalance:        " << metrics::imbalance(p_graph);
+  LOG << "  Feasible:         "
+      << (metrics::is_feasible(p_graph, _current_p_ctx) ? "yes" : "no");
+  LOG;
 
   return p_graph;
 }
 
 PartitionedGraph ParallelRecursiveBisection::parallel_initial_partition(
     const Graph * /* use _coarsener */) {
-  LOG << "Performing parallel initial partitioning";
-
   // Timers are tricky during parallel initial partitioning
   // Hence, we only record its total time
   DISABLE_TIMERS();
@@ -135,8 +178,6 @@ PartitionedGraph ParallelRecursiveBisection::parallel_initial_partition(
 
 PartitionedGraph
 ParallelRecursiveBisection::sequential_initial_partition(const Graph *graph) {
-  LOG << "Performing sequential initial partitioning";
-
   // Timers work fine with sequential initial partitioning, but we disable them
   // to get a output similar to the parallel case
   DISABLE_TIMERS();

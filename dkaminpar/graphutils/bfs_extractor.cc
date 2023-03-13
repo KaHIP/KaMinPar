@@ -535,7 +535,7 @@ auto BfsExtractor::combine_fragments(
                                             std::move(edge_weights));
   auto p_graph = std::make_unique<shm::PartitionedGraph>(
       *graph, _p_graph->k(), std::move(partition),
-      scalable_vector<BlockID>(_p_graph->k(), 1));
+      std::vector<BlockID>(_p_graph->k(), 1));
   return {std::move(graph), std::move(p_graph), std::move(node_mapping)};
 }
 

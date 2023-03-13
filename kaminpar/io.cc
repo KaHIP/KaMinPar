@@ -276,6 +276,13 @@ void write(const std::string &filename, const Graph &graph,
 //
 
 namespace partition {
+void write(const std::string &filename, const std::vector<BlockID> &partition) {
+  std::ofstream out(filename);
+  for (const BlockID block : partition) {
+    out << block << "\n";
+  }
+}
+
 void write(const std::string &filename, const StaticArray<BlockID> &partition) {
   std::ofstream out(filename);
   for (const BlockID block : partition) {

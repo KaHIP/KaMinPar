@@ -47,12 +47,6 @@ FetchContent_Declare(
     GIT_TAG release-1.12.1)
 
 FetchContent_Declare(
-    pybind11
-    SYSTEM
-    GIT_REPOSITORY https://github.com:pybind/pybind11.git
-    GIT_TAG v2.10.1)
-
-FetchContent_Declare(
     kassert
     GIT_REPOSITORY https://github.com/kamping-site/kassert.git
     GIT_TAG main)
@@ -193,17 +187,6 @@ endif ()
 FetchContent_MakeAvailable(kassert)
 set_property(DIRECTORY "${kassert_SOURCE_DIR}" PROPERTY EXCLUDE_FROM_ALL YES)
 
-
-# Include pybind11 if we build the python module 
-if (KAMINPAR_PYTHON_MODULE)
-    message("################################################################################")
-    message("## pybind11                                                                   ##")
-    message("################################################################################")
-    FetchContent_MakeAvailable(pybind11)
-    set_property(DIRECTORY "${pybind11_SOURCE_DIR}" PROPERTY EXCLUDE_FROM_ALL YES)
-    set(CMAKE_POSITION_INDEPENDENT_CODE ON) # pybind11 requires PIC
-endif ()
-
 message("--------------------------------------------------------------------------------")
 
 ################################################################################
@@ -216,7 +199,6 @@ include_directories(${PROJECT_SOURCE_DIR})
 # Shared memory components
 add_subdirectory(common)
 add_subdirectory(kaminpar)
-add_subdirectory(library)
 
 # Distributed components
 if (KAMINPAR_DISTRIBUTED)

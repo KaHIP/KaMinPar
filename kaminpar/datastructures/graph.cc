@@ -171,7 +171,7 @@ bool validate_graph(const Graph &graph) {
 
 PartitionedGraph::PartitionedGraph(const Graph &graph, BlockID k,
                                    StaticArray<BlockID> partition,
-                                   scalable_vector<BlockID> final_k)
+                                   std::vector<BlockID> final_k)
     : _graph{&graph}, _k{k}, _partition{std::move(partition)},
       _block_weights{k}, _final_k{std::move(final_k)} {
   if (graph.n() > 0 && _partition.empty()) {
@@ -187,7 +187,7 @@ PartitionedGraph::PartitionedGraph(const Graph &graph, BlockID k,
 
 PartitionedGraph::PartitionedGraph(tag::Sequential, const Graph &graph,
                                    BlockID k, StaticArray<BlockID> partition,
-                                   scalable_vector<BlockID> final_k)
+                                   std::vector<BlockID> final_k)
     : _graph{&graph}, _k{k}, _partition{std::move(partition)},
       _block_weights{k}, _final_k{std::move(final_k)} {
   if (graph.n() > 0 && _partition.empty()) {

@@ -6,6 +6,8 @@
  ******************************************************************************/
 #include "kaminpar/partitioning/helper.h"
 
+#include "kaminpar/utils.h"
+
 #include "common/math.h"
 
 namespace kaminpar::shm::partitioning::helper {
@@ -27,19 +29,8 @@ void balance(IBalancer *balancer, PartitionedGraph &p_graph,
   SCOPED_TIMER("Balancing");
 
   if (should_balance(r_ctx.balancer.timepoint, tp)) {
-    LOG << "-> Balance graph with n=" << p_graph.n() << " m=" << p_graph.m()
-        << " k=" << p_graph.k();
-    const EdgeWeight cut_before = IFDBG(metrics::edge_cut(p_graph));
-    const double imbalance_before = IFDBG(metrics::imbalance(p_graph));
-    const bool feasible_before = IFDBG(metrics::is_feasible(p_graph, p_ctx));
-
     balancer->initialize(p_graph);
     balancer->balance(p_graph, p_ctx);
-
-    DBG << "-> cut=" << C(cut_before, metrics::edge_cut(p_graph))
-        << "imbalance=" << C(imbalance_before, metrics::imbalance(p_graph))
-        << "feasible="
-        << C(feasible_before, metrics::is_feasible(p_graph, p_ctx));
   }
 }
 } // namespace
@@ -56,15 +47,7 @@ PartitionedGraph uncoarsen_once(ICoarsener *coarsener, PartitionedGraph p_graph,
   SCOPED_TIMER("Uncoarsening");
 
   if (!coarsener->empty()) {
-    const NodeID n_before = p_graph.n();
-    const EdgeID m_before = p_graph.m();
     p_graph = coarsener->uncoarsen(std::move(p_graph));
-
-    LOG << "-> Uncoarsen graph: "           //
-        << "n=" << C(n_before, p_graph.n()) //
-        << "m=" << C(m_before, p_graph.m()) //
-        << "k=" << p_graph.k();             //
-
     update_partition_context(current_p_ctx, p_graph);
   }
 
@@ -79,16 +62,8 @@ void refine(IRefiner *refiner, IBalancer *balancer, PartitionedGraph &p_graph,
   balance(balancer, p_graph, BalancingTimepoint::BEFORE_KWAY_REFINEMENT,
           current_p_ctx, r_ctx);
 
-  LOG << "-> Refine graph with n=" << p_graph.n() << " m=" << p_graph.m()
-      << " k=" << p_graph.k();
-  const EdgeWeight cut_before = IFSTATS(metrics::edge_cut(p_graph));
   refiner->initialize(p_graph.graph());
   refiner->refine(p_graph, current_p_ctx);
-  const EdgeWeight cut_after = IFSTATS(metrics::edge_cut(p_graph));
-
-  STATS << "Edge cut changed by refinement: " << C(cut_before, cut_after)
-        << "= reduced by " << cut_before - cut_after
-        << "; expected cut reduction: " << refiner->expected_total_gain();
 
   balance(balancer, p_graph, BalancingTimepoint::AFTER_KWAY_REFINEMENT,
           current_p_ctx, r_ctx);
@@ -168,11 +143,6 @@ void extend_partition(PartitionedGraph &p_graph, const BlockID k_prime,
                       GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool) {
   SCOPED_TIMER("Initial partitioning");
 
-  LOG << "-> Extend from=" << p_graph.k() << " "    //
-      << "to=" << k_prime << " "                    //
-      << "on a graph with n=" << p_graph.n() << " " //
-      << "m=" << p_graph.m();                       //
-
   auto extraction = TIMED_SCOPE("Extract subgraphs") {
     return extract_subgraphs(p_graph, subgraph_memory);
   };
@@ -237,15 +207,10 @@ bool coarsen_once(ICoarsener *coarsener, const Graph *graph,
   const auto [c_graph, shrunk] =
       coarsener->compute_coarse_graph(max_cluster_weight, 0);
 
-  LOG << "-> "                                              //
-      << "n=" << c_graph->n() << " "                        //
-      << "m=" << c_graph->m() << " "                        //
-      << "max_cluster_weight=" << max_cluster_weight << " " //
-      << ((shrunk) ? "" : "==> converged");                 //
-
   if (shrunk) {
     current_p_ctx.setup(*c_graph);
-  } // update graph stats (max node weight)
+  }
+
   return shrunk;
 }
 

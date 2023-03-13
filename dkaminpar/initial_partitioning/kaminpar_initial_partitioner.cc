@@ -21,7 +21,7 @@ KaMinParInitialPartitioner::initial_partition(const shm::Graph &graph,
   if (graph.n() <= 1) {
     return shm::PartitionedGraph(graph, p_ctx.k,
                                  StaticArray<BlockID>(graph.n()),
-                                 scalable_vector<BlockID>(p_ctx.k, 1));
+                                 std::vector<BlockID>(p_ctx.k, 1));
   }
 
   auto shm_ctx = _ctx.initial_partitioning.kaminpar;
