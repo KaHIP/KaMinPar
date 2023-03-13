@@ -315,6 +315,7 @@ namespace kaminpar {
 class dKaMinPar {
 public:
   dKaMinPar(MPI_Comm comm, int num_threads, dist::Context ctx);
+  ~dKaMinPar();
 
   void set_output_level(OutputLevel output_level);
 

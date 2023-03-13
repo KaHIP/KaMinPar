@@ -249,6 +249,7 @@ namespace kaminpar {
 class KaMinPar {
 public:
   KaMinPar(int num_threads, shm::Context ctx);
+  ~KaMinPar();
 
   void set_output_level(OutputLevel output_level);
 

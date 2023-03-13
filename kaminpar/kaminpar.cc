@@ -68,6 +68,8 @@ KaMinPar::KaMinPar(const int num_threads, const Context ctx)
   Random::seed = 0;
 }
 
+KaMinPar::~KaMinPar() = default;
+
 void KaMinPar::set_output_level(const OutputLevel output_level) {
   _output_level = output_level;
 }

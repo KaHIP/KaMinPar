@@ -116,6 +116,8 @@ dKaMinPar::dKaMinPar(MPI_Comm comm, const int num_threads, const Context ctx)
   Random::seed = 0;
 }
 
+dKaMinPar::~dKaMinPar() = default;
+
 void dKaMinPar::set_output_level(const OutputLevel output_level) {
   _output_level = output_level;
 }
