@@ -53,7 +53,7 @@ Presets can be viewed by using the `--dump-config` flag; to use a custom preset,
 
 For a description of the graph format, please have a look at the [KaHiP manual](https://github.com/KaHIP/KaHIP/raw/master/manual/kahip.pdf).
 
-### Using the Libraries
+## Using the Libraries
 
 If you are using CMake, you can use the partitioners as libraries by adding this repository as a Git submodule to your project and including it in your CMake configuration:
 
