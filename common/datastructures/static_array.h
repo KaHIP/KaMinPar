@@ -98,6 +98,9 @@ public:
 
   struct no_init {};
 
+  StaticArray(T *storage, const std::size_t size)
+      : _size(size), _data(storage) {}
+
   StaticArray(const std::size_t start, const std::size_t size,
               StaticArray &data)
       : StaticArray(size, data._data + start) {

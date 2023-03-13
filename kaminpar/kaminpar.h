@@ -2,7 +2,7 @@
  * @file:   kaminpar.h
  * @author: Daniel Seemaier
  * @date:   13.03.2023
- * @brief:  Public symbols of the shared-memory partitioner
+ * @brief:  Public shared-memory partitioning interface.
  ******************************************************************************/
 #pragma once
 
@@ -238,7 +238,9 @@ struct Context {
 
   void setup(const Graph &graph);
 };
+} // namespace kaminpar::shm
 
+namespace kaminpar::shm {
 std::unordered_set<std::string> get_preset_names();
 Context create_context_by_preset_name(const std::string &name);
 Context create_default_context();
@@ -249,6 +251,7 @@ namespace kaminpar {
 class KaMinPar {
 public:
   KaMinPar(int num_threads, shm::Context ctx);
+
   ~KaMinPar();
 
   void set_output_level(OutputLevel output_level);
@@ -257,9 +260,11 @@ public:
 
   shm::Context &context();
 
-  void import_graph(shm::NodeID n, shm::EdgeID *nodes, shm::NodeID *edges,
-                    shm::NodeWeight *node_weights,
-                    shm::EdgeWeight *edge_weights);
+  void take_graph(shm::NodeID, shm::EdgeID *xadj, shm::NodeID *adjncy,
+                  shm::NodeWeight *vwgt, shm::EdgeWeight *adjwgt);
+
+  void copy_graph(shm::NodeID n, shm::EdgeID *xadj, shm::NodeID *adjncy,
+                  shm::NodeWeight *vwgt, shm::EdgeWeight *adjwgt);
 
   shm::EdgeWeight compute_partition(int seed, shm::BlockID k,
                                     shm::BlockID *partition);

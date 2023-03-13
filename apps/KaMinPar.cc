@@ -128,27 +128,24 @@ int main(int argc, char *argv[]) {
     std::exit(0);
   }
 
+  // Allocate graph data structures and read graph file
+  StaticArray<EdgeID> xadj;
+  StaticArray<NodeID> adjncy;
+  StaticArray<NodeWeight> vwgt;
+  StaticArray<EdgeWeight> adjwgt;
+  shm::io::metis::read<false>(app.graph_filename, xadj, adjncy, vwgt, adjwgt);
+
+  const NodeID n = static_cast<NodeID>(xadj.size() - 1);
+  std::vector<BlockID> partition(n);
+
+  // Compute graph partition
   KaMinPar partitioner(app.num_threads, ctx);
   partitioner.set_max_timer_depth(app.max_timer_depth);
-
-  const NodeID n = [&] {
-    START_TIMER("IO");
-    StaticArray<EdgeID> xadj;
-    StaticArray<NodeID> adjncy;
-    StaticArray<NodeWeight> vwgt;
-    StaticArray<EdgeWeight> adjwgt;
-    shm::io::metis::read<false>(app.graph_filename, xadj, adjncy, vwgt, adjwgt);
-    STOP_TIMER();
-
-    partitioner.import_graph(xadj.size() - 1, xadj.data(), adjncy.data(),
-                             vwgt.data(), adjwgt.data());
-
-    return xadj.size() - 1;
-  }();
-
-  std::vector<BlockID> partition(n);
+  partitioner.take_graph(n, xadj.data(), adjncy.data(), vwgt.data(),
+                         adjwgt.data());
   partitioner.compute_partition(app.seed, app.k, partition.data());
 
+  // Save graph partition
   if (!app.partition_filename.empty()) {
     shm::io::partition::write(app.partition_filename, partition);
   }

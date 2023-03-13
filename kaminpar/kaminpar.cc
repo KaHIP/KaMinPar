@@ -78,8 +78,26 @@ void KaMinPar::set_max_timer_depth(const int max_timer_depth) {
 
 Context &KaMinPar::context() { return _ctx; }
 
-void KaMinPar::import_graph(const NodeID n, EdgeID *xadj, NodeID *adjncy,
-                            NodeWeight *vwgt, EdgeWeight *adjwgt) {
+void KaMinPar::take_graph(const NodeID n, EdgeID *xadj, NodeID *adjncy,
+                          NodeWeight *vwgt, EdgeWeight *adjwgt) {
+  const EdgeID m = xadj[n];
+
+  StaticArray<EdgeID> nodes(xadj, n + 1);
+  StaticArray<NodeID> edges(adjncy, m);
+  StaticArray<NodeWeight> node_weights = (vwgt == nullptr)
+                                             ? StaticArray<NodeWeight>(0)
+                                             : StaticArray<NodeWeight>(vwgt, n);
+  StaticArray<EdgeWeight> edge_weights =
+      (adjwgt == nullptr) ? StaticArray<EdgeWeight>(0)
+                          : StaticArray<EdgeWeight>(adjwgt, m);
+
+  _graph_ptr = std::make_unique<Graph>(std::move(nodes), std::move(edges),
+                                       std::move(node_weights),
+                                       std::move(edge_weights), false);
+}
+
+void KaMinPar::copy_graph(const NodeID n, EdgeID *xadj, NodeID *adjncy,
+                          NodeWeight *vwgt, EdgeWeight *adjwgt) {
   SCOPED_TIMER("IO");
 
   const EdgeID m = xadj[n];
