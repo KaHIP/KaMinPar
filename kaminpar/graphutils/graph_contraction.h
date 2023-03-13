@@ -14,29 +14,31 @@
 namespace kaminpar::shm::graph {
 namespace contraction {
 struct Edge {
-    NodeID     target;
-    EdgeWeight weight;
+  NodeID target;
+  EdgeWeight weight;
 };
 
 struct MemoryContext {
-    scalable_vector<NodeID>                                          buckets;
-    scalable_vector<parallel::Atomic<NodeID>>                        buckets_index;
-    scalable_vector<parallel::Atomic<NodeID>>                        leader_mapping;
-    scalable_vector<NavigationMarker<NodeID, Edge, scalable_vector>> all_buffered_nodes;
+  scalable_vector<NodeID> buckets;
+  scalable_vector<parallel::Atomic<NodeID>> buckets_index;
+  scalable_vector<parallel::Atomic<NodeID>> leader_mapping;
+  scalable_vector<NavigationMarker<NodeID, Edge, scalable_vector>>
+      all_buffered_nodes;
 };
 
 struct Result {
-    Graph                   graph;
-    scalable_vector<NodeID> mapping;
-    MemoryContext           m_ctx;
+  Graph graph;
+  scalable_vector<NodeID> mapping;
+  MemoryContext m_ctx;
 };
 } // namespace contraction
 
-contraction::Result
-contract(const Graph& r, const scalable_vector<NodeID>& clustering, contraction::MemoryContext m_ctx = {});
+contraction::Result contract(const Graph &r,
+                             const scalable_vector<NodeID> &clustering,
+                             contraction::MemoryContext m_ctx = {});
 
-contraction::Result contract(
-    const Graph& graph, const scalable_vector<parallel::Atomic<NodeID>>& clustering,
-    contraction::MemoryContext m_ctx = {}
-);
+contraction::Result
+contract(const Graph &graph,
+         const scalable_vector<parallel::Atomic<NodeID>> &clustering,
+         contraction::MemoryContext m_ctx = {});
 } // namespace kaminpar::shm::graph

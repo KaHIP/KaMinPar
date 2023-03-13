@@ -14,27 +14,27 @@
 namespace kaminpar::shm {
 class ClusteringAlgorithm {
 public:
-    using AtomicClusterArray = scalable_vector<parallel::Atomic<NodeID>>;
+  using AtomicClusterArray = scalable_vector<parallel::Atomic<NodeID>>;
 
-    ClusteringAlgorithm()          = default;
-    virtual ~ClusteringAlgorithm() = default;
+  ClusteringAlgorithm() = default;
+  virtual ~ClusteringAlgorithm() = default;
 
-    ClusteringAlgorithm(const ClusteringAlgorithm&)                = delete;
-    ClusteringAlgorithm& operator=(const ClusteringAlgorithm&)     = delete;
-    ClusteringAlgorithm(ClusteringAlgorithm&&) noexcept            = default;
-    ClusteringAlgorithm& operator=(ClusteringAlgorithm&&) noexcept = default;
+  ClusteringAlgorithm(const ClusteringAlgorithm &) = delete;
+  ClusteringAlgorithm &operator=(const ClusteringAlgorithm &) = delete;
+  ClusteringAlgorithm(ClusteringAlgorithm &&) noexcept = default;
+  ClusteringAlgorithm &operator=(ClusteringAlgorithm &&) noexcept = default;
 
-    //
-    // Optional options
-    //
+  //
+  // Optional options
+  //
 
-    virtual void set_max_cluster_weight(const NodeWeight /* weight */) {}
-    virtual void set_desired_cluster_count(const NodeID /* count */) {}
+  virtual void set_max_cluster_weight(const NodeWeight /* weight */) {}
+  virtual void set_desired_cluster_count(const NodeID /* count */) {}
 
-    //
-    // Clustering function
-    //
+  //
+  // Clustering function
+  //
 
-    virtual const AtomicClusterArray& compute_clustering(const Graph& graph) = 0;
+  virtual const AtomicClusterArray &compute_clustering(const Graph &graph) = 0;
 };
 } // namespace kaminpar::shm

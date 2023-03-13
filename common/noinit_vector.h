@@ -14,24 +14,24 @@ namespace kaminpar {
 template <typename T, typename Allocator = std::allocator<T>>
 class NoinitAllocator : public Allocator {
 public:
-    template <typename U>
-    struct rebind {
-        using other = NoinitAllocator<U, typename std::allocator_traits<Allocator>::template rebind_alloc<U>>;
-    };
+  template <typename U> struct rebind {
+    using other = NoinitAllocator<
+        U, typename std::allocator_traits<Allocator>::template rebind_alloc<U>>;
+  };
 
-    using Allocator::Allocator;
+  using Allocator::Allocator;
 
-    template <typename U>
-    void construct(U* ptr) noexcept(std::is_nothrow_default_constructible_v<U>) {
-        ::new (static_cast<void*>(ptr)) U;
-    }
+  template <typename U>
+  void construct(U *ptr) noexcept(std::is_nothrow_default_constructible_v<U>) {
+    ::new (static_cast<void *>(ptr)) U;
+  }
 
-    template <typename U, typename... Args>
-    void construct(U* ptr, Args&&... args) {
-        std::allocator_traits<Allocator>::construct(static_cast<Allocator&>(*this), ptr, std::forward<Args>(args)...);
-    }
+  template <typename U, typename... Args>
+  void construct(U *ptr, Args &&...args) {
+    std::allocator_traits<Allocator>::construct(
+        static_cast<Allocator &>(*this), ptr, std::forward<Args>(args)...);
+  }
 };
 
-template <typename T>
-using NoinitVector = std::vector<T, NoinitAllocator<T>>;
+template <typename T> using NoinitVector = std::vector<T, NoinitAllocator<T>>;
 } // namespace kaminpar

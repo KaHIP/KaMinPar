@@ -11,8 +11,8 @@
 #include "common/datastructures/static_array.h"
 
 namespace kaminpar::shm {
-void validate_undirected_graph(
-    const StaticArray<EdgeID>& nodes, const StaticArray<NodeID>& edges, const StaticArray<NodeWeight>& node_weights,
-    const StaticArray<EdgeWeight>& edge_weights
-);
+void validate_undirected_graph(const StaticArray<EdgeID> &nodes,
+                               const StaticArray<NodeID> &edges,
+                               const StaticArray<NodeWeight> &node_weights,
+                               const StaticArray<EdgeWeight> &edge_weights);
 } // namespace kaminpar::shm

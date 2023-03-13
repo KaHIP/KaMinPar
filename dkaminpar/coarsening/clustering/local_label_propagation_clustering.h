@@ -12,21 +12,27 @@
 #include "dkaminpar/datastructures/distributed_graph.h"
 
 namespace kaminpar::dist {
-class DistributedLocalLabelPropagationClustering : public ClusteringAlgorithm<NodeID> {
+class DistributedLocalLabelPropagationClustering
+    : public ClusteringAlgorithm<NodeID> {
 public:
-    DistributedLocalLabelPropagationClustering(const Context& ctx);
+  DistributedLocalLabelPropagationClustering(const Context &ctx);
 
-    DistributedLocalLabelPropagationClustering(const DistributedLocalLabelPropagationClustering&)            = delete;
-    DistributedLocalLabelPropagationClustering& operator=(const DistributedLocalLabelPropagationClustering&) = delete;
+  DistributedLocalLabelPropagationClustering(
+      const DistributedLocalLabelPropagationClustering &) = delete;
+  DistributedLocalLabelPropagationClustering &
+  operator=(const DistributedLocalLabelPropagationClustering &) = delete;
 
-    DistributedLocalLabelPropagationClustering(DistributedLocalLabelPropagationClustering&&)            = default;
-    DistributedLocalLabelPropagationClustering& operator=(DistributedLocalLabelPropagationClustering&&) = default;
+  DistributedLocalLabelPropagationClustering(
+      DistributedLocalLabelPropagationClustering &&) = default;
+  DistributedLocalLabelPropagationClustering &
+  operator=(DistributedLocalLabelPropagationClustering &&) = default;
 
-    ~DistributedLocalLabelPropagationClustering();
+  ~DistributedLocalLabelPropagationClustering();
 
-    ClusterArray& compute_clustering(const DistributedGraph& graph, GlobalNodeWeight max_cluster_weight) final;
+  ClusterArray &compute_clustering(const DistributedGraph &graph,
+                                   GlobalNodeWeight max_cluster_weight) final;
 
 private:
-    std::unique_ptr<class DistributedLocalLabelPropagationClusteringImpl> _impl;
+  std::unique_ptr<class DistributedLocalLabelPropagationClusteringImpl> _impl;
 };
 } // namespace kaminpar::dist

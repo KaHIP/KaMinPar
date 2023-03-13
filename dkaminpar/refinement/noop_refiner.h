@@ -13,14 +13,15 @@
 namespace kaminpar::dist {
 class NoopRefiner : public Refiner {
 public:
-    NoopRefiner() = default;
+  NoopRefiner() = default;
 
-    NoopRefiner(const NoopRefiner&)            = delete;
-    NoopRefiner& operator=(const NoopRefiner&) = delete;
-    NoopRefiner(NoopRefiner&&) noexcept        = default;
-    NoopRefiner& operator=(NoopRefiner&&)      = delete;
+  NoopRefiner(const NoopRefiner &) = delete;
+  NoopRefiner &operator=(const NoopRefiner &) = delete;
+  NoopRefiner(NoopRefiner &&) noexcept = default;
+  NoopRefiner &operator=(NoopRefiner &&) = delete;
 
-    void initialize(const DistributedGraph& graph) final;
-    void refine(DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx) final;
+  void initialize(const DistributedGraph &graph) final;
+  void refine(DistributedPartitionedGraph &p_graph,
+              const PartitionContext &p_ctx) final;
 };
 } // namespace kaminpar::dist

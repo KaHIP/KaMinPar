@@ -12,38 +12,45 @@
 
 namespace kaminpar::dist::metrics {
 /*!
- * Computes the number of edges cut in the part of the graph owned by this PE. Includes edges to ghost nodes. Since the
- * graph is directed (there are no reverse edges from ghost nodes to interface nodes), undirected edges are counted
- * twice.
+ * Computes the number of edges cut in the part of the graph owned by this PE.
+ * Includes edges to ghost nodes. Since the graph is directed (there are no
+ * reverse edges from ghost nodes to interface nodes), undirected edges are
+ * counted twice.
  * @param p_graph Partitioned graph.
  * @return Weighted edge cut of @p p_graph with undirected edges counted twice.
  */
-GlobalEdgeWeight local_edge_cut(const DistributedPartitionedGraph& p_graph);
+GlobalEdgeWeight local_edge_cut(const DistributedPartitionedGraph &p_graph);
 
 /*!
- * Computes the number of edges cut in the whole graph, i.e., across all PEs. Undirected edges are only counted once.
+ * Computes the number of edges cut in the whole graph, i.e., across all PEs.
+ * Undirected edges are only counted once.
  * @param p_graph Partitioned graph.
- * @return Weighted edge cut across all PEs with undirected edges only counted once.
+ * @return Weighted edge cut across all PEs with undirected edges only counted
+ * once.
  */
-GlobalEdgeWeight edge_cut(const DistributedPartitionedGraph& p_graph);
+GlobalEdgeWeight edge_cut(const DistributedPartitionedGraph &p_graph);
 
 /*!
- * Computes the partition imbalance of the whole graph partition, i.e., across all PEs.
- * The imbalance of a graph partition is defined as `max_block_weight / avg_block_weight`. Thus, a value of 1.0
- * indicates that all blocks have the same weight, and a value of 2.0 means that the heaviest block has twice the
+ * Computes the partition imbalance of the whole graph partition, i.e., across
+ * all PEs. The imbalance of a graph partition is defined as `max_block_weight /
+ * avg_block_weight`. Thus, a value of 1.0 indicates that all blocks have the
+ * same weight, and a value of 2.0 means that the heaviest block has twice the
  * weight of the average block.
  * @param p_graph Partitioned graph.
  * @return Imbalance of the partition across all PEs.
  */
-double imbalance(const DistributedPartitionedGraph& p_graph);
+double imbalance(const DistributedPartitionedGraph &p_graph);
 
 /*!
- * Computes whether the blocks of the given partition satisfy the balance constraint given by @p p_ctx.
+ * Computes whether the blocks of the given partition satisfy the balance
+ * constraint given by @p p_ctx.
  * @param p_graph Partitioned graph.
  * @param ctx Partition context describing the balance constraint.
- * @return Whether @p p_graph satisfies the balance constraint given by @p p_ctx.
+ * @return Whether @p p_graph satisfies the balance constraint given by @p
+ * p_ctx.
  */
-bool is_feasible(const DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx);
+bool is_feasible(const DistributedPartitionedGraph &p_graph,
+                 const PartitionContext &p_ctx);
 
 /*!
  * Counts the number of imbalanced blocks.
@@ -51,5 +58,6 @@ bool is_feasible(const DistributedPartitionedGraph& p_graph, const PartitionCont
  * @param p_ctx Partition context describing the maximum block weights.
  * @return The number of imbalanced blocks in the graph.
  */
-BlockID num_imbalanced_blocks(const DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx);
+BlockID num_imbalanced_blocks(const DistributedPartitionedGraph &p_graph,
+                              const PartitionContext &p_ctx);
 } // namespace kaminpar::dist::metrics

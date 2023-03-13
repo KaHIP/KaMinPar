@@ -37,47 +37,50 @@
 using namespace kaminpar;
 using namespace kaminpar::dist;
 
-auto load_clustering(const std::string& filename, const NodeID local_n) {
-    return dist::io::partition::read<scalable_vector<parallel::Atomic<GlobalNodeID>>>(filename, local_n);
+auto load_clustering(const std::string &filename, const NodeID local_n) {
+  return dist::io::partition::read<
+      scalable_vector<parallel::Atomic<GlobalNodeID>>>(filename, local_n);
 }
 
-int main(int argc, char* argv[]) {
-    init_mpi(argc, argv);
+int main(int argc, char *argv[]) {
+  init_mpi(argc, argv);
 
-    Context ctx = create_default_context();
+  Context ctx = create_default_context();
 
-    std::string graph_filename      = "";
-    std::string clustering_filename = "";
+  std::string graph_filename = "";
+  std::string clustering_filename = "";
 
-    CLI::App app("Distributed Graph Contraction Benchmark");
-    app.add_option("-G,--graph", graph_filename, "Input graph")->required();
-    app.add_option("-C,--clustering", clustering_filename, "Name of the clustering file.");
-    app.add_option("-t,--threads", ctx.parallel.num_threads, "Number of threads");
-    CLI11_PARSE(app, argc, argv);
+  CLI::App app("Distributed Graph Contraction Benchmark");
+  app.add_option("-G,--graph", graph_filename, "Input graph")->required();
+  app.add_option("-C,--clustering", clustering_filename,
+                 "Name of the clustering file.");
+  app.add_option("-t,--threads", ctx.parallel.num_threads, "Number of threads");
+  CLI11_PARSE(app, argc, argv);
 
-    auto gc = init(ctx, argc, argv);
+  auto gc = init(ctx, argc, argv);
 
-    // Load data
-    const auto graph = load_graph(graph_filename);
-    ctx.setup(graph);
-    const auto clustering = load_clustering(clustering_filename, graph.n());
+  // Load data
+  const auto graph = load_graph(graph_filename);
+  ctx.setup(graph);
+  const auto clustering = load_clustering(clustering_filename, graph.n());
 
-    // Compute coarse graph
-    START_TIMER("Contraction");
-    const auto result = contract_global_clustering(graph, clustering, ctx.coarsening.global_contraction_algorithm);
-    STOP_TIMER();
+  // Compute coarse graph
+  START_TIMER("Contraction");
+  const auto result = contract_global_clustering(
+      graph, clustering, ctx.coarsening.global_contraction_algorithm);
+  STOP_TIMER();
 
-    LOG << "Coarse graph:";
-    graph::print_summary(c_graph);
+  LOG << "Coarse graph:";
+  graph::print_summary(c_graph);
 
-    // Output statistics
-    mpi::barrier(MPI_COMM_WORLD);
-    LOG;
-    if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
-        Timer::global().print_human_readable(std::cout);
-    }
-    LOG;
+  // Output statistics
+  mpi::barrier(MPI_COMM_WORLD);
+  LOG;
+  if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
+    Timer::global().print_human_readable(std::cout);
+  }
+  LOG;
 
-    MPI_Finalize();
-    return 0;
+  MPI_Finalize();
+  return 0;
 }

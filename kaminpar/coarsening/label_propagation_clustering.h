@@ -13,21 +13,26 @@
 namespace kaminpar::shm {
 class LabelPropagationClusteringAlgorithm : public IClustering {
 public:
-    LabelPropagationClusteringAlgorithm(NodeID max_n, const CoarseningContext& c_ctx);
-    ~LabelPropagationClusteringAlgorithm() override;
+  LabelPropagationClusteringAlgorithm(NodeID max_n,
+                                      const CoarseningContext &c_ctx);
+  ~LabelPropagationClusteringAlgorithm() override;
 
-    LabelPropagationClusteringAlgorithm(const LabelPropagationClusteringAlgorithm&)                = delete;
-    LabelPropagationClusteringAlgorithm& operator=(const LabelPropagationClusteringAlgorithm&)     = delete;
-    LabelPropagationClusteringAlgorithm(LabelPropagationClusteringAlgorithm&&) noexcept            = default;
-    LabelPropagationClusteringAlgorithm& operator=(LabelPropagationClusteringAlgorithm&&) noexcept = default;
+  LabelPropagationClusteringAlgorithm(
+      const LabelPropagationClusteringAlgorithm &) = delete;
+  LabelPropagationClusteringAlgorithm &
+  operator=(const LabelPropagationClusteringAlgorithm &) = delete;
+  LabelPropagationClusteringAlgorithm(
+      LabelPropagationClusteringAlgorithm &&) noexcept = default;
+  LabelPropagationClusteringAlgorithm &
+  operator=(LabelPropagationClusteringAlgorithm &&) noexcept = default;
 
-    void set_max_cluster_weight(NodeWeight max_cluster_weight) final;
-    void set_desired_cluster_count(NodeID count) final;
+  void set_max_cluster_weight(NodeWeight max_cluster_weight) final;
+  void set_desired_cluster_count(NodeID count) final;
 
-    const AtomicClusterArray& compute_clustering(const Graph& graph) final;
+  const AtomicClusterArray &compute_clustering(const Graph &graph) final;
 
 private:
-    std::unique_ptr<class LabelPropagationClusteringCore> _core;
+  std::unique_ptr<class LabelPropagationClusteringCore> _core;
 };
 
 } // namespace kaminpar::shm

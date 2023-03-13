@@ -17,82 +17,88 @@
 
 namespace kaminpar::dist {
 class GreedyBalancer : public Refiner {
-    SET_STATISTICS_FROM_GLOBAL();
-    SET_DEBUG(false);
-    constexpr static std::size_t kPrintStatsEveryNRounds = 100'000;
+  SET_STATISTICS_FROM_GLOBAL();
+  SET_DEBUG(false);
+  constexpr static std::size_t kPrintStatsEveryNRounds = 100'000;
 
-    struct Statistics {
-        bool         initial_feasible              = false;
-        bool         final_feasible                = false;
-        BlockID      initial_num_imbalanced_blocks = 0;
-        BlockID      final_num_imbalanced_blocks   = 0;
-        double       initial_imbalance             = 0;
-        double       final_imbalance               = 0;
-        BlockWeight  initial_total_overload        = 0;
-        BlockWeight  final_total_overload          = 0;
-        GlobalNodeID num_adjacent_moves            = 0;
-        GlobalNodeID num_nonadjacent_moves         = 0;
-        GlobalNodeID local_num_conflicts           = 0;
-        GlobalNodeID local_num_nonconflicts        = 0;
-        int          num_reduction_rounds          = 0;
+  struct Statistics {
+    bool initial_feasible = false;
+    bool final_feasible = false;
+    BlockID initial_num_imbalanced_blocks = 0;
+    BlockID final_num_imbalanced_blocks = 0;
+    double initial_imbalance = 0;
+    double final_imbalance = 0;
+    BlockWeight initial_total_overload = 0;
+    BlockWeight final_total_overload = 0;
+    GlobalNodeID num_adjacent_moves = 0;
+    GlobalNodeID num_nonadjacent_moves = 0;
+    GlobalNodeID local_num_conflicts = 0;
+    GlobalNodeID local_num_nonconflicts = 0;
+    int num_reduction_rounds = 0;
 
-        GlobalEdgeWeight initial_cut = 0;
-        GlobalEdgeWeight final_cut   = 0;
-    };
+    GlobalEdgeWeight initial_cut = 0;
+    GlobalEdgeWeight final_cut = 0;
+  };
 
 public:
-    GreedyBalancer(const Context& ctx);
+  GreedyBalancer(const Context &ctx);
 
-    GreedyBalancer(const GreedyBalancer&)            = delete;
-    GreedyBalancer& operator=(const GreedyBalancer&) = delete;
-    GreedyBalancer(GreedyBalancer&&) noexcept        = default;
-    GreedyBalancer& operator=(GreedyBalancer&&)      = delete;
+  GreedyBalancer(const GreedyBalancer &) = delete;
+  GreedyBalancer &operator=(const GreedyBalancer &) = delete;
+  GreedyBalancer(GreedyBalancer &&) noexcept = default;
+  GreedyBalancer &operator=(GreedyBalancer &&) = delete;
 
-    void initialize(const DistributedGraph& graph) final;
-    void refine(DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx) final;
+  void initialize(const DistributedGraph &graph) final;
+  void refine(DistributedPartitionedGraph &p_graph,
+              const PartitionContext &p_ctx) final;
 
 private:
-    struct MoveCandidate {
-        GlobalNodeID node;
-        BlockID      from;
-        BlockID      to;
-        NodeWeight   weight;
-        double       rel_gain;
-    };
+  struct MoveCandidate {
+    GlobalNodeID node;
+    BlockID from;
+    BlockID to;
+    NodeWeight weight;
+    double rel_gain;
+  };
 
-    std::vector<MoveCandidate> pick_move_candidates();
-    std::vector<MoveCandidate> reduce_move_candidates(std::vector<MoveCandidate>&& candidates);
-    std::vector<MoveCandidate> reduce_move_candidates(std::vector<MoveCandidate>&& a, std::vector<MoveCandidate>&& b);
-    void                       perform_moves(const std::vector<MoveCandidate>& moves);
-    void                       perform_move(const MoveCandidate& move);
+  std::vector<MoveCandidate> pick_move_candidates();
+  std::vector<MoveCandidate>
+  reduce_move_candidates(std::vector<MoveCandidate> &&candidates);
+  std::vector<MoveCandidate>
+  reduce_move_candidates(std::vector<MoveCandidate> &&a,
+                         std::vector<MoveCandidate> &&b);
+  void perform_moves(const std::vector<MoveCandidate> &moves);
+  void perform_move(const MoveCandidate &move);
 
-    void print_candidates(const std::vector<MoveCandidate>& moves, const std::string& desc = "") const;
-    void print_overloads() const;
+  void print_candidates(const std::vector<MoveCandidate> &moves,
+                        const std::string &desc = "") const;
+  void print_overloads() const;
 
-    void                       init_pq();
-    std::pair<BlockID, double> compute_gain(NodeID u, BlockID u_block) const;
+  void init_pq();
+  std::pair<BlockID, double> compute_gain(NodeID u, BlockID u_block) const;
 
-    BlockWeight block_overload(BlockID b) const;
-    double      compute_relative_gain(EdgeWeight absolute_gain, NodeWeight weight) const;
+  BlockWeight block_overload(BlockID b) const;
+  double compute_relative_gain(EdgeWeight absolute_gain,
+                               NodeWeight weight) const;
 
-    bool add_to_pq(BlockID b, NodeID u);
-    bool add_to_pq(BlockID b, NodeID u, NodeWeight u_weight, double rel_gain);
+  bool add_to_pq(BlockID b, NodeID u);
+  bool add_to_pq(BlockID b, NodeID u, NodeWeight u_weight, double rel_gain);
 
-    void reset_statistics();
-    void print_statistics() const;
+  void reset_statistics();
+  void print_statistics() const;
 
-    const Context& _ctx;
+  const Context &_ctx;
 
-    DistributedPartitionedGraph* _p_graph;
-    const PartitionContext*      _p_ctx;
+  DistributedPartitionedGraph *_p_graph;
+  const PartitionContext *_p_ctx;
 
-    DynamicBinaryMinMaxForest<NodeID, double>                               _pq;
-    mutable tbb::enumerable_thread_specific<RatingMap<EdgeWeight, BlockID>> _rating_map{[&] {
-        return RatingMap<EdgeWeight, BlockID>{_ctx.partition.k};
-    }};
-    std::vector<BlockWeight>                                                _pq_weight;
-    Marker<>                                                                _marker;
+  DynamicBinaryMinMaxForest<NodeID, double> _pq;
+  mutable tbb::enumerable_thread_specific<RatingMap<EdgeWeight, BlockID>>
+      _rating_map{
+          [&] { return RatingMap<EdgeWeight, BlockID>{_ctx.partition.k}; }};
+  std::vector<BlockWeight> _pq_weight;
+  Marker<> _marker;
 
-    Statistics _stats;
+  Statistics _stats;
 };
 }; // namespace kaminpar::dist

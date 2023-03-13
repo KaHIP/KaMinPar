@@ -17,34 +17,35 @@
 
 namespace kaminpar::dist {
 class FMRefiner : public Refiner {
-    SET_STATISTICS(true);
-    SET_DEBUG(false);
+  SET_STATISTICS(true);
+  SET_DEBUG(false);
 
 public:
-    FMRefiner(const Context& ctx);
+  FMRefiner(const Context &ctx);
 
-    FMRefiner(const FMRefiner&)            = delete;
-    FMRefiner& operator=(const FMRefiner&) = delete;
-    FMRefiner(FMRefiner&&) noexcept        = default;
-    FMRefiner& operator=(FMRefiner&&)      = delete;
+  FMRefiner(const FMRefiner &) = delete;
+  FMRefiner &operator=(const FMRefiner &) = delete;
+  FMRefiner(FMRefiner &&) noexcept = default;
+  FMRefiner &operator=(FMRefiner &&) = delete;
 
-    void initialize(const DistributedGraph& graph) final;
-    void refine(DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx) final;
+  void initialize(const DistributedGraph &graph) final;
+  void refine(DistributedPartitionedGraph &p_graph,
+              const PartitionContext &p_ctx) final;
 
 private:
-    /*
-     * Initialized by constructor
-     */
-    const FMRefinementContext& _fm_ctx;
+  /*
+   * Initialized by constructor
+   */
+  const FMRefinementContext &_fm_ctx;
 
-    /*
-     * Initialized by initialize()
-     */
-    const PartitionContext* _p_ctx;
+  /*
+   * Initialized by initialize()
+   */
+  const PartitionContext *_p_ctx;
 
-    /*
-     * Initialized by refine()
-     */
-    DistributedPartitionedGraph* _p_graph;
+  /*
+   * Initialized by refine()
+   */
+  DistributedPartitionedGraph *_p_graph;
 };
 } // namespace kaminpar::dist

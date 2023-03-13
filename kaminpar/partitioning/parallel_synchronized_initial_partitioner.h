@@ -20,21 +20,22 @@
 
 namespace kaminpar::shm::partitioning {
 class ParallelSynchronizedInitialPartitioner {
-    SET_DEBUG(false);
+  SET_DEBUG(false);
 
 public:
-    ParallelSynchronizedInitialPartitioner(
-        const Context& input_ctx, GlobalInitialPartitionerMemoryPool& ip_m_ctx_pool,
-        TemporaryGraphExtractionBufferPool& ip_extraction_pool
-    );
+  ParallelSynchronizedInitialPartitioner(
+      const Context &input_ctx,
+      GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool,
+      TemporaryGraphExtractionBufferPool &ip_extraction_pool);
 
-    PartitionedGraph partition(const ICoarsener* coarsener, const PartitionContext& p_ctx);
+  PartitionedGraph partition(const ICoarsener *coarsener,
+                             const PartitionContext &p_ctx);
 
 private:
-    std::unique_ptr<ICoarsener> duplicate_coarsener(const ICoarsener* coarsener);
+  std::unique_ptr<ICoarsener> duplicate_coarsener(const ICoarsener *coarsener);
 
-    const Context&                      _input_ctx;
-    GlobalInitialPartitionerMemoryPool& _ip_m_ctx_pool;
-    TemporaryGraphExtractionBufferPool& _ip_extraction_pool;
+  const Context &_input_ctx;
+  GlobalInitialPartitionerMemoryPool &_ip_m_ctx_pool;
+  TemporaryGraphExtractionBufferPool &_ip_extraction_pool;
 };
 } // namespace kaminpar::shm::partitioning

@@ -12,19 +12,20 @@
 namespace kaminpar::dist {
 template <typename ClusterID>
 class NoopClustering : public ClusteringAlgorithm<ClusterID> {
-    using ClusterArray = typename ClusteringAlgorithm<ClusterID>::ClusterArray;
+  using ClusterArray = typename ClusteringAlgorithm<ClusterID>::ClusterArray;
 
 public:
-    explicit NoopClustering(const Context&) {}
+  explicit NoopClustering(const Context &) {}
 
-    ClusterArray& compute_clustering(const DistributedGraph&, const GlobalNodeWeight) final {
-        return _empty_clustering;
-    }
+  ClusterArray &compute_clustering(const DistributedGraph &,
+                                   const GlobalNodeWeight) final {
+    return _empty_clustering;
+  }
 
 private:
-    ClusterArray _empty_clustering;
+  ClusterArray _empty_clustering;
 };
 
-using LocalNoopClustering  = NoopClustering<NodeID>;
+using LocalNoopClustering = NoopClustering<NodeID>;
 using GlobalNoopClustering = NoopClustering<GlobalNodeID>;
 } // namespace kaminpar::dist

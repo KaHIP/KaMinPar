@@ -12,13 +12,14 @@
 #include "common/parallel/atomic.h"
 
 namespace kaminpar::dist {
-template <typename ClusterID>
-class ClusteringAlgorithm {
+template <typename ClusterID> class ClusteringAlgorithm {
 public:
-    using ClusterArray = NoinitVector<ClusterID>;
+  using ClusterArray = NoinitVector<ClusterID>;
 
-    virtual ~ClusteringAlgorithm() = default;
+  virtual ~ClusteringAlgorithm() = default;
 
-    virtual ClusterArray& compute_clustering(const DistributedGraph& graph, GlobalNodeWeight max_cluster_weight) = 0;
+  virtual ClusterArray &
+  compute_clustering(const DistributedGraph &graph,
+                     GlobalNodeWeight max_cluster_weight) = 0;
 };
 } // namespace kaminpar::dist

@@ -14,30 +14,31 @@
 namespace kaminpar::dist {
 class HEMClustering : public ClusteringAlgorithm<GlobalNodeID> {
 public:
-    HEMClustering(const Context& ctx);
+  HEMClustering(const Context &ctx);
 
-    HEMClustering(const HEMClustering&)            = delete;
-    HEMClustering& operator=(const HEMClustering&) = delete;
-    HEMClustering(HEMClustering&&) noexcept        = default;
-    HEMClustering& operator=(HEMClustering&&)      = delete;
+  HEMClustering(const HEMClustering &) = delete;
+  HEMClustering &operator=(const HEMClustering &) = delete;
+  HEMClustering(HEMClustering &&) noexcept = default;
+  HEMClustering &operator=(HEMClustering &&) = delete;
 
-    ClusterArray& compute_clustering(const DistributedGraph& graph, GlobalNodeWeight max_cluster_weight) final;
+  ClusterArray &compute_clustering(const DistributedGraph &graph,
+                                   GlobalNodeWeight max_cluster_weight) final;
 
 private:
-    void initialize(const DistributedGraph& graph);
+  void initialize(const DistributedGraph &graph);
 
-    void compute_local_matching(ColorID c, GlobalNodeWeight max_cluster_weight);
-    void resolve_global_conflicts(ColorID c);
+  void compute_local_matching(ColorID c, GlobalNodeWeight max_cluster_weight);
+  void resolve_global_conflicts(ColorID c);
 
-    const Context&              _input_ctx;
-    const HEMCoarseningContext& _ctx;
+  const Context &_input_ctx;
+  const HEMCoarseningContext &_ctx;
 
-    const DistributedGraph* _graph;
+  const DistributedGraph *_graph;
 
-    ClusterArray _matching;
+  ClusterArray _matching;
 
-    NoinitVector<std::uint8_t> _color_blacklist;
-    NoinitVector<ColorID>      _color_sizes;
-    NoinitVector<NodeID>       _color_sorted_nodes;
+  NoinitVector<std::uint8_t> _color_blacklist;
+  NoinitVector<ColorID> _color_sizes;
+  NoinitVector<NodeID> _color_sorted_nodes;
 };
 } // namespace kaminpar::dist

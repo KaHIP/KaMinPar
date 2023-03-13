@@ -14,23 +14,24 @@
 namespace kaminpar::dist {
 class HEMLPClustering : public ClusteringAlgorithm<GlobalNodeID> {
 public:
-    HEMLPClustering(const Context& ctx);
+  HEMLPClustering(const Context &ctx);
 
-    HEMLPClustering(const HEMLPClustering&)            = delete;
-    HEMLPClustering& operator=(const HEMLPClustering&) = delete;
-    HEMLPClustering(HEMLPClustering&&) noexcept        = default;
-    HEMLPClustering& operator=(HEMLPClustering&&)      = delete;
+  HEMLPClustering(const HEMLPClustering &) = delete;
+  HEMLPClustering &operator=(const HEMLPClustering &) = delete;
+  HEMLPClustering(HEMLPClustering &&) noexcept = default;
+  HEMLPClustering &operator=(HEMLPClustering &&) = delete;
 
-    ClusterArray& compute_clustering(const DistributedGraph& graph, GlobalNodeWeight max_cluster_weight) final;
+  ClusterArray &compute_clustering(const DistributedGraph &graph,
+                                   GlobalNodeWeight max_cluster_weight) final;
 
 private:
-    GlobalNodeID compute_size_after_matching_contraction(const ClusterArray& clustering);
+  GlobalNodeID
+  compute_size_after_matching_contraction(const ClusterArray &clustering);
 
-    const DistributedGraph* _graph;
-    bool                    _fallback = false;
+  const DistributedGraph *_graph;
+  bool _fallback = false;
 
-    std::unique_ptr<ClusteringAlgorithm<GlobalNodeID>> _lp;
-    std::unique_ptr<ClusteringAlgorithm<GlobalNodeID>> _hem;
+  std::unique_ptr<ClusteringAlgorithm<GlobalNodeID>> _lp;
+  std::unique_ptr<ClusteringAlgorithm<GlobalNodeID>> _hem;
 };
 } // namespace kaminpar::dist
-

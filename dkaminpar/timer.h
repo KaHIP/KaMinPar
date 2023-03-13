@@ -14,5 +14,5 @@
 #include "common/timer.h"
 
 namespace kaminpar::dist {
-void finalize_distributed_timer(Timer& timer, MPI_Comm comm = MPI_COMM_WORLD);
+void finalize_distributed_timer(Timer &timer, MPI_Comm comm = MPI_COMM_WORLD);
 }

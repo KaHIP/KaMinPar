@@ -11,17 +11,19 @@
 #include "dkaminpar/refinement/refiner.h"
 
 namespace kaminpar::dist {
-MultiRefiner::MultiRefiner(std::vector<std::unique_ptr<Refiner>> refiners) : _refiners(std::move(refiners)) {}
+MultiRefiner::MultiRefiner(std::vector<std::unique_ptr<Refiner>> refiners)
+    : _refiners(std::move(refiners)) {}
 
-void MultiRefiner::initialize(const DistributedGraph& graph) {
-    for (const auto& refiner: _refiners) {
-        refiner->initialize(graph);
-    }
+void MultiRefiner::initialize(const DistributedGraph &graph) {
+  for (const auto &refiner : _refiners) {
+    refiner->initialize(graph);
+  }
 }
 
-void MultiRefiner::refine(DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx) {
-    for (const auto& refiner: _refiners) {
-        refiner->refine(p_graph, p_ctx);
-    }
+void MultiRefiner::refine(DistributedPartitionedGraph &p_graph,
+                          const PartitionContext &p_ctx) {
+  for (const auto &refiner : _refiners) {
+    refiner->refine(p_graph, p_ctx);
+  }
 }
 } // namespace kaminpar::dist

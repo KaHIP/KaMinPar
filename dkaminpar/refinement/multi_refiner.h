@@ -13,17 +13,18 @@
 namespace kaminpar::dist {
 class MultiRefiner : public Refiner {
 public:
-    MultiRefiner(std::vector<std::unique_ptr<Refiner>> refiners);
+  MultiRefiner(std::vector<std::unique_ptr<Refiner>> refiners);
 
-    MultiRefiner(const MultiRefiner&)            = delete;
-    MultiRefiner& operator=(const MultiRefiner&) = delete;
-    MultiRefiner(MultiRefiner&&) noexcept        = default;
-    MultiRefiner& operator=(MultiRefiner&&)      = delete;
+  MultiRefiner(const MultiRefiner &) = delete;
+  MultiRefiner &operator=(const MultiRefiner &) = delete;
+  MultiRefiner(MultiRefiner &&) noexcept = default;
+  MultiRefiner &operator=(MultiRefiner &&) = delete;
 
-    void initialize(const DistributedGraph& graph);
-    void refine(DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx);
+  void initialize(const DistributedGraph &graph);
+  void refine(DistributedPartitionedGraph &p_graph,
+              const PartitionContext &p_ctx);
 
 private:
-    std::vector<std::unique_ptr<Refiner>> _refiners;
+  std::vector<std::unique_ptr<Refiner>> _refiners;
 };
 } // namespace kaminpar::dist

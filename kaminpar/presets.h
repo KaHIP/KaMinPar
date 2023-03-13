@@ -6,7 +6,7 @@
 #include "kaminpar/context.h"
 
 namespace kaminpar::shm {
-Context                         create_context_by_preset_name(const std::string& name);
+Context create_context_by_preset_name(const std::string &name);
 std::unordered_set<std::string> get_preset_names();
 
 Context create_default_context();

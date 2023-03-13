@@ -16,26 +16,27 @@
 
 namespace kaminpar::dist {
 shm::PartitionedGraph
-KaMinParInitialPartitioner::initial_partition(const shm::Graph& graph, const PartitionContext& p_ctx) {
-    if (graph.n() <= 1) {
-        return shm::PartitionedGraph(
-            graph, p_ctx.k, StaticArray<BlockID>(graph.n()), scalable_vector<BlockID>(p_ctx.k, 1)
-        );
-    }
+KaMinParInitialPartitioner::initial_partition(const shm::Graph &graph,
+                                              const PartitionContext &p_ctx) {
+  if (graph.n() <= 1) {
+    return shm::PartitionedGraph(graph, p_ctx.k,
+                                 StaticArray<BlockID>(graph.n()),
+                                 scalable_vector<BlockID>(p_ctx.k, 1));
+  }
 
-    auto shm_ctx                         = _ctx.initial_partitioning.kaminpar;
-    shm_ctx.refinement.lp.num_iterations = 1;
-    shm_ctx.partition.k                  = p_ctx.k;
-    shm_ctx.partition.epsilon            = p_ctx.epsilon;
-    shm_ctx.setup(graph);
+  auto shm_ctx = _ctx.initial_partitioning.kaminpar;
+  shm_ctx.refinement.lp.num_iterations = 1;
+  shm_ctx.partition.k = p_ctx.k;
+  shm_ctx.partition.epsilon = p_ctx.epsilon;
+  shm_ctx.setup(graph);
 
-    DISABLE_TIMERS();
-    const bool was_quiet = Logger::is_quiet();
-    Logger::set_quiet_mode(true);
-    auto p_graph = shm::partitioning::partition(graph, shm_ctx);
-    Logger::set_quiet_mode(was_quiet);
-    ENABLE_TIMERS();
+  DISABLE_TIMERS();
+  const bool was_quiet = Logger::is_quiet();
+  Logger::set_quiet_mode(true);
+  auto p_graph = shm::partitioning::partition(graph, shm_ctx);
+  Logger::set_quiet_mode(was_quiet);
+  ENABLE_TIMERS();
 
-    return p_graph;
+  return p_graph;
 }
 } // namespace kaminpar::dist

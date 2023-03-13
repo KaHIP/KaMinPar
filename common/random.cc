@@ -7,9 +7,9 @@
 #include "common/random.h"
 
 namespace kaminpar {
-Random& Random::instance() {
-    thread_local static Random instance;
-    return instance;
+Random &Random::instance() {
+  thread_local static Random instance;
+  return instance;
 }
 
 int Random::seed = 0;

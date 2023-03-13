@@ -12,9 +12,10 @@
 namespace kaminpar::dist {
 class Refiner {
 public:
-    virtual ~Refiner() = default;
+  virtual ~Refiner() = default;
 
-    virtual void initialize(const DistributedGraph& graph)                                   = 0;
-    virtual void refine(DistributedPartitionedGraph& p_graph, const PartitionContext& p_ctx) = 0;
+  virtual void initialize(const DistributedGraph &graph) = 0;
+  virtual void refine(DistributedPartitionedGraph &p_graph,
+                      const PartitionContext &p_ctx) = 0;
 };
 } // namespace kaminpar::dist
