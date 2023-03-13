@@ -39,25 +39,14 @@ public:
 private:
   PartitionedGraph uncoarsen(PartitionedGraph p_graph, bool &refined);
 
-  inline PartitionedGraph uncoarsen_once(PartitionedGraph p_graph) {
-    return helper::uncoarsen_once(_coarsener.get(), std::move(p_graph),
-                                  _current_p_ctx);
-  }
+  inline PartitionedGraph uncoarsen_once(PartitionedGraph p_graph);
 
-  inline void refine(PartitionedGraph &p_graph) {
-    helper::refine(_refiner.get(), _balancer.get(), p_graph, _current_p_ctx,
-                   _input_ctx.refinement);
-  }
+  void refine(PartitionedGraph &p_graph);
 
-  inline void extend_partition(PartitionedGraph &p_graph,
-                               const BlockID k_prime) {
-    helper::extend_partition(p_graph, k_prime, _input_ctx, _current_p_ctx,
-                             _subgraph_memory, _ip_extraction_pool,
-                             _ip_m_ctx_pool);
-  }
+  inline void extend_partition(PartitionedGraph &p_graph, BlockID k_prime);
 
   const Graph *coarsen();
-  NodeID initial_partition_threshold();
+  NodeID initial_partitioning_threshold();
   PartitionedGraph initial_partition(const Graph *graph);
   PartitionedGraph
   parallel_initial_partition(const Graph * /* use _coarsener */);

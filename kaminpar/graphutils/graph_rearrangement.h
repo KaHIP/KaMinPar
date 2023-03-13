@@ -14,7 +14,7 @@
 #include "kaminpar/graphutils/graph_permutation.h"
 
 namespace kaminpar::shm::graph {
-Graph rearrange_by_degree_buckets(Graph graph);
+Graph rearrange_by_degree_buckets(Context &ctx, Graph graph);
 
 NodePermutations<StaticArray>
 rearrange_graph(PartitionContext &p_ctx, StaticArray<EdgeID> &nodes,

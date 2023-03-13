@@ -196,7 +196,7 @@ void print(const CoarseningContext &c_ctx, std::ostream &out) {
   out << "Contraction limit:            " << c_ctx.contraction_limit << "\n";
   out << "Cluster weight limit:         " << c_ctx.cluster_weight_limit << " x "
       << c_ctx.cluster_weight_multiplier << "\n";
-  out << "Coarsening algorithm:         " << c_ctx.algorithm << "\n";
+  out << "Clustering algorithm:         " << c_ctx.algorithm << "\n";
   if (c_ctx.algorithm == ClusteringAlgorithm::LABEL_PROPAGATION) {
     print(c_ctx.lp, out);
   }
@@ -204,9 +204,9 @@ void print(const CoarseningContext &c_ctx, std::ostream &out) {
 
 void print(const LabelPropagationCoarseningContext &lp_ctx, std::ostream &out) {
   out << "  Number of iterations:       " << lp_ctx.num_iterations << "\n";
-  out << "  Neighborhood limit:         " << lp_ctx.max_num_neighbors << "\n";
-  out << "  Active degree threshold:    " << lp_ctx.large_degree_threshold
+  out << "  High degree threshold:      " << lp_ctx.large_degree_threshold
       << "\n";
+  out << "  Max degree:                 " << lp_ctx.max_num_neighbors << "\n";
   out << "  2-hop clustering threshold: " << std::fixed
       << 100 * lp_ctx.two_hop_clustering_threshold << "%\n";
 }
@@ -244,9 +244,13 @@ void print(const PartitionContext &p_ctx, std::ostream &out) {
   out << "Maximum block weight:         " << p_ctx.block_weights.max(0) << " ("
       << p_ctx.block_weights.perfectly_balanced(0) << " + "
       << 100 * p_ctx.epsilon << "%)\n";
+
+  cio::print_delimiter("Partitioning Scheme", '-');
+  out << "Partitioning mode:            " << p_ctx.mode << "\n";
 }
 
 void print(const Context &ctx, std::ostream &out) {
+  out << "Execution mode:               " << ctx.parallel.num_threads << "\n";
   out << "Seed:                         " << ctx.seed << "\n";
   out << "Graph:                        " << ctx.graph_filename << "\n";
   print(ctx.partition, out);

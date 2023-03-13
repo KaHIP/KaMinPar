@@ -26,36 +26,36 @@
 
 namespace kaminpar::shm {
 namespace {
-void print_statistics(const PartitionedGraph &p_graph, const Context &ctx) {
+void print_statistics(const Context &ctx, const PartitionedGraph &p_graph,
+                      const int max_timer_depth, const bool parseable) {
   const EdgeWeight cut = metrics::edge_cut(p_graph);
   const double imbalance = metrics::imbalance(p_graph);
   const bool feasible = metrics::is_feasible(p_graph, ctx.partition);
 
+  cio::print_delimiter("Result Summary");
+
   // statistics output that is easy to parse
-  if (ctx.parsable_output) {
-    if (!ctx.quiet) {
-      Timer::global().print_machine_readable(std::cout);
-    }
+  if (parseable) {
     LOG << "RESULT cut=" << cut << " imbalance=" << imbalance
         << " feasible=" << feasible << " k=" << p_graph.k();
-    LOG;
+    std::cout << "TIME ";
+    Timer::global().print_machine_readable(std::cout);
   }
 
-  // statistics output that is easy to read
-  if (!ctx.quiet) {
-    Timer::global().print_human_readable(std::cout);
-  }
+  Timer::global().print_human_readable(std::cout, max_timer_depth);
   LOG;
-  LOG << "-> k=" << p_graph.k();
-  LOG << "-> cut=" << cut;
-  LOG << "-> imbalance=" << imbalance;
-  LOG << "-> feasible=" << feasible;
-  if (p_graph.k() <= 512) {
-    LOG << "-> block weights:";
-    LOG << logger::TABLE << p_graph.block_weights();
+  LOG << "Partition summary:";
+  if (p_graph.k() != ctx.partition.k) {
+    LOG << logger::RED << "  Number of blocks: " << p_graph.k();
+  } else {
+    LOG << "  Number of blocks: " << p_graph.k();
   }
-  if (p_graph.k() != ctx.partition.k || !feasible) {
-    LOG_ERROR << "*** Partition is infeasible!";
+  LOG << "  Edge cut:         " << cut;
+  LOG << "  Imbalance:        " << imbalance;
+  if (feasible) {
+    LOG << "  Feasible:         yes";
+  } else {
+    LOG << logger::RED << "  Feasible:         no";
   }
 }
 
@@ -217,17 +217,29 @@ EdgeWeight KaMinPar::compute_partition(const int seed, const BlockID k,
   cio::print_kaminpar_banner();
   cio::print_build_identifier();
   cio::print_build_datatypes<NodeID, EdgeID, NodeWeight, EdgeWeight>();
-  cio::print_delimiter("Input Summary", '-');
+  cio::print_delimiter("Input Summary", '#');
 
   const double original_epsilon = _ctx.partition.epsilon;
   _ctx.parallel.num_threads = _num_threads;
   _ctx.partition.k = k;
 
-  Random::seed = seed;
-
   // Setup graph dependent context parameters
   _ctx.setup(*_graph_ptr);
-  print(_ctx, std::cout);
+
+  // Initialize PRNG and console output
+  Random::seed = seed;
+  Logger::set_quiet_mode(_output_level == OutputLevel::QUIET);
+
+  if (_output_level >= OutputLevel::APPLICATION) {
+    print(_ctx, std::cout);
+  }
+
+  START_TIMER("Partitioning");
+  if (!_was_rearranged) {
+    _graph_ptr = std::make_unique<Graph>(
+        graph::rearrange_by_degree_buckets(_ctx, std::move(*_graph_ptr)));
+    _was_rearranged = true;
+  }
 
   // Perform actual partitioning
   PartitionedGraph p_graph = partitioning::partition(*_graph_ptr, _ctx);
@@ -254,7 +266,12 @@ EdgeWeight KaMinPar::compute_partition(const int seed, const BlockID k,
 
   // Print some statistics
   STOP_TIMER(); // stop root timer
-  cio::print_delimiter("Result Summary");
-  return 0;
+
+  if (_output_level >= OutputLevel::APPLICATION) {
+    print_statistics(_ctx, p_graph, _max_timer_depth,
+                     _output_level == OutputLevel::EXPERIMENT);
+  }
+
+  return metrics::edge_cut(p_graph);
 }
 } // namespace kaminpar::shm
