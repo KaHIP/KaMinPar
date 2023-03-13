@@ -81,6 +81,7 @@ Then, simply link against our library (together with `libtbb` and `libtbbmalloc`
 ## Licensing
 
 KaMinPar is free software provided under the MIT License.
+
 If you publish results using our shared-memory partitioner, please acknowledge our work by citing the following paper ([resources](https://algo2.iti.kit.edu/seemaier/deep_mgp/)):
 
 ```
