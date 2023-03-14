@@ -10,6 +10,9 @@
 #include "dkaminpar/context.h"
 #include "dkaminpar/initial_partitioning/initial_partitioner.h"
 
+#include "kaminpar/datastructures/graph.h"
+#include "kaminpar/datastructures/partitioned_graph.h"
+
 namespace kaminpar::dist {
 class MtKaHyParInitialPartitioner : public InitialPartitioner {
 public:

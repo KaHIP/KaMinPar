@@ -19,6 +19,7 @@
 #include "dkaminpar/refinement/move_conflict_resolver.h"
 
 #include "kaminpar/datastructures/graph.h"
+#include "kaminpar/datastructures/partitioned_graph.h"
 
 #include "common/datastructures/binary_heap.h"
 #include "common/datastructures/rating_map.h"

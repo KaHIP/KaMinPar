@@ -6,6 +6,7 @@
  ******************************************************************************/
 #include "kaminpar/metrics.h"
 
+#include <cmath>
 #include <functional>
 
 #include <tbb/enumerable_thread_specific.h>

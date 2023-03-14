@@ -10,8 +10,10 @@
 
 #include "kaminpar/definitions.h"
 
+#include "common/logger.h"
 #include "common/math.h"
 #include "common/parallel/algorithm.h"
+#include "common/strutils.h"
 #include "common/timer.h"
 
 namespace kaminpar::shm {
@@ -107,20 +109,20 @@ void Graph::update_total_node_weight() {
   }
 }
 
-void Graph::print() const {
-  for (const NodeID u : nodes()) {
-    LLOG << "L" << u << " NW" << node_weight(u) << " | ";
-    for (const auto [e, v] : neighbors(u)) {
-      LLOG << "EW" << edge_weight(e) << " L" << v << " NW" << node_weight(v)
-           << "  ";
+//
+// Utility debug functions
+//
+
+void print_graph(const Graph &graph) {
+  for (const NodeID u : graph.nodes()) {
+    LLOG << "L" << u << " NW" << graph.node_weight(u) << " | ";
+    for (const auto [e, v] : graph.neighbors(u)) {
+      LLOG << "EW" << graph.edge_weight(e) << " L" << v << " NW"
+           << graph.node_weight(v) << "  ";
     }
     LOG;
   }
 }
-
-//
-// Utility debug functions
-//
 
 bool validate_graph(const Graph &graph) {
   for (NodeID u = 0; u < graph.n(); ++u) {
@@ -163,59 +165,5 @@ bool validate_graph(const Graph &graph) {
     }
   }
   return true;
-}
-
-//
-// PartitionedGraph
-//
-
-PartitionedGraph::PartitionedGraph(const Graph &graph, BlockID k,
-                                   StaticArray<BlockID> partition,
-                                   std::vector<BlockID> final_k)
-    : _graph{&graph}, _k{k}, _partition{std::move(partition)},
-      _block_weights{k}, _final_k{std::move(final_k)} {
-  if (graph.n() > 0 && _partition.empty()) {
-    _partition.resize(_graph->n(), kInvalidBlockID);
-  }
-  if (_final_k.empty()) {
-    _final_k.resize(k, 1);
-  }
-  KASSERT(_partition.size() == graph.n());
-
-  init_block_weights();
-}
-
-PartitionedGraph::PartitionedGraph(tag::Sequential, const Graph &graph,
-                                   BlockID k, StaticArray<BlockID> partition,
-                                   std::vector<BlockID> final_k)
-    : _graph{&graph}, _k{k}, _partition{std::move(partition)},
-      _block_weights{k}, _final_k{std::move(final_k)} {
-  if (graph.n() > 0 && _partition.empty()) {
-    _partition.resize(_graph->n(), kInvalidBlockID);
-  }
-  if (_final_k.empty()) {
-    _final_k.resize(k, 1);
-  }
-  KASSERT(_partition.size() == graph.n());
-
-  init_block_weights_seq();
-}
-
-PartitionedGraph::PartitionedGraph(NoBlockWeights, const Graph &graph,
-                                   const BlockID k,
-                                   StaticArray<BlockID> partition)
-    : _graph(&graph), _k(k), _partition(std::move(partition)) {
-  if (graph.n() > 0 && _partition.empty()) {
-    _partition.resize(_graph->n(), kInvalidBlockID);
-  }
-  if (_final_k.empty()) {
-    _final_k.resize(k, 1);
-  }
-}
-
-void PartitionedGraph::change_k(const BlockID new_k) {
-  _block_weights = StaticArray<parallel::Atomic<BlockWeight>>{new_k};
-  _final_k.resize(new_k);
-  _k = new_k;
 }
 } // namespace kaminpar::shm

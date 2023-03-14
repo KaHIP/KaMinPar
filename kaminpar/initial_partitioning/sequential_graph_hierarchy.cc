@@ -6,6 +6,9 @@
  ******************************************************************************/
 #include "kaminpar/initial_partitioning/sequential_graph_hierarchy.h"
 
+#include "kaminpar/datastructures/graph.h"
+#include "kaminpar/datastructures/partitioned_graph.h"
+
 namespace kaminpar::shm::ip {
 SequentialGraphHierarchy::SequentialGraphHierarchy(const Graph *finest_graph)
     : _finest_graph(finest_graph) {}

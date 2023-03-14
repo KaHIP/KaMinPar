@@ -6,6 +6,7 @@
  ******************************************************************************/
 #include "kaminpar/coarsening/cluster_coarsener.h"
 
+#include "common/logger.h"
 #include "common/timer.h"
 
 namespace kaminpar::shm {

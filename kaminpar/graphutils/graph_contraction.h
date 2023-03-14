@@ -7,9 +7,11 @@
 #pragma once
 
 #include "kaminpar/datastructures/graph.h"
+#include "kaminpar/definitions.h"
 
 #include "common/datastructures/ts_navigable_linked_list.h"
 #include "common/parallel/atomic.h"
+#include "common/scalable_vector.h"
 
 namespace kaminpar::shm::graph {
 namespace contraction {

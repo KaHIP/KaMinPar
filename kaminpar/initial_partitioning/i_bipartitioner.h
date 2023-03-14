@@ -11,8 +11,10 @@
 
 #include "kaminpar/context.h"
 #include "kaminpar/datastructures/graph.h"
+#include "kaminpar/datastructures/partitioned_graph.h"
 
 #include "common/assertion_levels.h"
+#include "common/datastructures/static_array.h"
 
 namespace kaminpar::shm {
 class Bipartitioner {

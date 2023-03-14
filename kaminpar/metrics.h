@@ -10,6 +10,7 @@
 
 #include "kaminpar/context.h"
 #include "kaminpar/datastructures/graph.h"
+#include "kaminpar/datastructures/partitioned_graph.h"
 #include "kaminpar/definitions.h"
 
 namespace kaminpar::shm::metrics {

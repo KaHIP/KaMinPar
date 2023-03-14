@@ -13,6 +13,7 @@
 
 #include "kaminpar/context.h"
 #include "kaminpar/datastructures/graph.h"
+#include "kaminpar/datastructures/partitioned_graph.h"
 #include "kaminpar/definitions.h"
 #include "kaminpar/metrics.h"
 #include "kaminpar/refinement/i_refiner.h"
@@ -20,6 +21,7 @@
 #include "common/assertion_levels.h"
 #include "common/datastructures/binary_heap.h"
 #include "common/datastructures/marker.h"
+#include "common/logger.h"
 #include "common/random.h"
 #include "common/timer.h"
 

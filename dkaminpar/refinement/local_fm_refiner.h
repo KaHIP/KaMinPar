@@ -12,6 +12,9 @@
 #include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/refinement/refiner.h"
 
+#include "kaminpar/datastructures/graph.h"
+#include "kaminpar/datastructures/partitioned_graph.h"
+
 #include "common/logger.h"
 #include "common/parallel/atomic.h"
 

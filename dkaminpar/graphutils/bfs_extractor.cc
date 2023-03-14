@@ -20,6 +20,7 @@
 #include "dkaminpar/mpi/sparse_alltoall.h"
 
 #include "kaminpar/datastructures/graph.h"
+#include "kaminpar/datastructures/partitioned_graph.h"
 
 #include "common/datastructures/marker.h"
 #include "common/datastructures/static_array.h"

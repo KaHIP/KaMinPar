@@ -6,6 +6,8 @@
  ******************************************************************************/
 #pragma once
 
+#include "kaminpar/datastructures/graph.h"
+#include "kaminpar/datastructures/partitioned_graph.h"
 #include "kaminpar/refinement/i_refiner.h"
 
 namespace kaminpar::shm {

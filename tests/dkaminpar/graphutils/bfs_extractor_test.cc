@@ -13,6 +13,7 @@
 #include "dkaminpar/graphutils/bfs_extractor.h"
 
 #include "kaminpar/datastructures/graph.h"
+#include "kaminpar/datastructures/partitioned_graph.h"
 
 namespace kaminpar::dist::graph {
 using namespace kaminpar::dist::testing;

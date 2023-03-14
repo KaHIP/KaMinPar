@@ -10,6 +10,7 @@
 #include "kaminpar/context.h"
 #include "kaminpar/context_io.h"
 #include "kaminpar/datastructures/graph.h"
+#include "kaminpar/datastructures/partitioned_graph.h"
 #include "kaminpar/definitions.h"
 #include "kaminpar/graphutils/graph_rearrangement.h"
 #include "kaminpar/metrics.h"
