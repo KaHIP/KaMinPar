@@ -33,14 +33,6 @@ std::ostream &operator<<(std::ostream &out, FMStoppingRule rule);
 
 std::unordered_map<std::string, FMStoppingRule> get_fm_stopping_rules();
 
-std::ostream &operator<<(std::ostream &out, BalancingTimepoint timepoint);
-
-std::unordered_map<std::string, BalancingTimepoint> get_balancing_timepoints();
-
-std::ostream &operator<<(std::ostream &out, BalancingAlgorithm algorithm);
-
-std::unordered_map<std::string, BalancingAlgorithm> get_balancing_algorithms();
-
 std::ostream &operator<<(std::ostream &out, PartitioningMode mode);
 
 std::unordered_map<std::string, PartitioningMode> get_partitioning_modes();

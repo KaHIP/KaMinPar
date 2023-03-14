@@ -83,17 +83,13 @@ public:
 
     // refine
     auto refiner = factory::create_refiner(_input_ctx);
-    auto balancer =
-        factory::create_balancer(graph, p_ctx, _input_ctx.refinement);
 
     while (!coarsener->empty()) {
-      helper::refine(refiner.get(), balancer.get(), p_graph, p_ctx,
-                     _input_ctx.refinement);
+      helper::refine(refiner.get(), p_graph, p_ctx);
       p_graph =
           helper::uncoarsen_once(coarsener.get(), std::move(p_graph), p_ctx);
     }
-    helper::refine(refiner.get(), balancer.get(), p_graph, p_ctx,
-                   _input_ctx.refinement);
+    helper::refine(refiner.get(), p_graph, p_ctx);
 
     return p_graph;
   }

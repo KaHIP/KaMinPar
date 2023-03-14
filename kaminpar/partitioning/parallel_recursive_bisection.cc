@@ -16,8 +16,6 @@ ParallelRecursiveBisection::ParallelRecursiveBisection(const Graph &input_graph,
       _current_p_ctx{input_ctx.partition}, //
       _coarsener{factory::create_coarsener(input_graph, input_ctx.coarsening)},
       _refiner{factory::create_refiner(input_ctx)},
-      _balancer{factory::create_balancer(input_graph, input_ctx.partition,
-                                         input_ctx.refinement)},
       _subgraph_memory{input_graph.n(), input_ctx.partition.k, input_graph.m(),
                        true, true} {}
 
@@ -53,8 +51,7 @@ ParallelRecursiveBisection::uncoarsen_once(PartitionedGraph p_graph) {
 
 void ParallelRecursiveBisection::refine(PartitionedGraph &p_graph) {
   LOG << "  Running refinement on " << p_graph.k() << " blocks";
-  helper::refine(_refiner.get(), _balancer.get(), p_graph, _current_p_ctx,
-                 _input_ctx.refinement);
+  helper::refine(_refiner.get(), p_graph, _current_p_ctx);
   LOG << "    Cut:       " << metrics::edge_cut(p_graph);
   LOG << "    Imbalance: " << metrics::imbalance(p_graph);
   LOG << "    Feasible:  " << metrics::is_feasible(p_graph, _current_p_ctx);

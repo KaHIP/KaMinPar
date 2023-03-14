@@ -10,15 +10,19 @@
 #include <kassert/kassert.hpp>
 
 namespace kaminpar::shm {
-void GreedyBalancer::initialize(const PartitionedGraph &) {}
+EdgeWeight GreedyBalancer::expected_total_gain() const { return 0; }
 
-bool GreedyBalancer::balance(PartitionedGraph &p_graph,
-                             const PartitionContext &p_ctx) {
+void GreedyBalancer::initialize(const Graph &) {}
+
+bool GreedyBalancer::refine(PartitionedGraph &p_graph,
+                            const PartitionContext &p_ctx) {
   _p_graph = &p_graph;
   _p_ctx = &p_ctx;
-  _stats.reset();
+
   KASSERT(_marker.capacity() >= _p_graph->n());
+
   _marker.reset();
+  _stats.reset();
 
   const NodeWeight initial_overload =
       metrics::total_overload(*_p_graph, *_p_ctx);
@@ -32,8 +36,6 @@ bool GreedyBalancer::balance(PartitionedGraph &p_graph,
   const BlockWeight delta = perform_round();
   const NodeWeight new_overload = initial_overload - delta;
 
-  LOG << "-> Balancer: overload=[" << initial_overload << " --> "
-      << new_overload << "]";
   DBG << "-> Balancer: cut=" << C(initial_cut, metrics::edge_cut(*_p_graph));
   if (kStatistics) {
     _stats.print();

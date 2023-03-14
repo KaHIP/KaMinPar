@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -20,4 +21,18 @@ bool ends_with(const std::string &filename, const std::string &extension);
 std::string &rtrim(std::string &s, const char *t = " \t\n\r\f\v");
 std::string &ltrim(std::string &s, const char *t = " \t\n\r\f\v");
 std::string &trim(std::string &s, const char *t = " \t\n\r\f\v");
+
+template <typename Elements>
+std::string implode(const Elements &elements, const std::string &separator) {
+  if (elements.empty()) {
+    return "";
+  }
+
+  std::stringstream ss;
+  ss << elements.front();
+  for (std::size_t i = 1; i < elements.size(); ++i) {
+    ss << separator << elements[i];
+  }
+  return ss.str();
+}
 } // namespace kaminpar::str

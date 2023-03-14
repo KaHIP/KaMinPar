@@ -14,25 +14,6 @@ namespace kaminpar::shm::partitioning::helper {
 namespace {
 SET_DEBUG(false);
 SET_STATISTICS_FROM_GLOBAL();
-
-bool should_balance(const BalancingTimepoint configured,
-                    const BalancingTimepoint current) {
-  return configured == current ||
-         (configured == BalancingTimepoint::ALWAYS &&
-          (current == BalancingTimepoint::BEFORE_KWAY_REFINEMENT ||
-           current == BalancingTimepoint::AFTER_KWAY_REFINEMENT));
-}
-
-void balance(IBalancer *balancer, PartitionedGraph &p_graph,
-             const BalancingTimepoint tp, const PartitionContext &p_ctx,
-             const RefinementContext &r_ctx) {
-  SCOPED_TIMER("Balancing");
-
-  if (should_balance(r_ctx.balancer.timepoint, tp)) {
-    balancer->initialize(p_graph);
-    balancer->balance(p_graph, p_ctx);
-  }
-}
 } // namespace
 
 void update_partition_context(PartitionContext &current_p_ctx,
@@ -54,19 +35,11 @@ PartitionedGraph uncoarsen_once(ICoarsener *coarsener, PartitionedGraph p_graph,
   return p_graph;
 }
 
-void refine(IRefiner *refiner, IBalancer *balancer, PartitionedGraph &p_graph,
-            const PartitionContext &current_p_ctx,
-            const RefinementContext &r_ctx) {
+void refine(IRefiner *refiner, PartitionedGraph &p_graph,
+            const PartitionContext &current_p_ctx) {
   SCOPED_TIMER("Refinement");
-
-  balance(balancer, p_graph, BalancingTimepoint::BEFORE_KWAY_REFINEMENT,
-          current_p_ctx, r_ctx);
-
   refiner->initialize(p_graph.graph());
   refiner->refine(p_graph, current_p_ctx);
-
-  balance(balancer, p_graph, BalancingTimepoint::AFTER_KWAY_REFINEMENT,
-          current_p_ctx, r_ctx);
 }
 
 PartitionedGraph
@@ -76,8 +49,6 @@ bipartition(const Graph *graph, const BlockID final_k, const Context &input_ctx,
                                      ip_m_ctx_pool.local().get()};
   PartitionedGraph p_graph = partitioner.partition();
   ip_m_ctx_pool.local().put(partitioner.free());
-  //  DBG << "Bipartition result: " << V(p_graph.final_ks()) <<
-  //  V(p_graph.block_weights());
   return p_graph;
 }
 

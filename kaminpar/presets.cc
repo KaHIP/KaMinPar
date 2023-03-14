@@ -88,7 +88,7 @@ Context create_default_context() {
               .refinement =
                   {
                       // Context -> Initial Partitioning -> Refinement
-                      .algorithm = RefinementAlgorithm::TWO_WAY_FM,
+                      .algorithms = {RefinementAlgorithm::TWO_WAY_FM},
                       .lp = {},
                       .fm =
                           {
@@ -100,15 +100,7 @@ Context create_default_context() {
                               .num_iterations = 5,
                               .improvement_abortion_threshold = 0.0001,
                           },
-                      .balancer =
-                          {
-                              // Context -> Initial Partitioning -> Refinement
-                              // -> Balancer
-                              .algorithm = BalancingAlgorithm::
-                                  BLOCK_LEVEL_PARALLEL_BALANCER,
-                              .timepoint =
-                                  BalancingTimepoint::BEFORE_KWAY_REFINEMENT,
-                          },
+                      .balancer = {},
                   },
               .mode = InitialPartitioningMode::SYNCHRONOUS_PARALLEL,
               .repetition_multiplier = 1.0,
@@ -122,7 +114,8 @@ Context create_default_context() {
       .refinement =
           {
               // Context -> Refinement
-              .algorithm = RefinementAlgorithm::LABEL_PROPAGATION,
+              .algorithms = {RefinementAlgorithm::GREEDY_BALANCER,
+                             RefinementAlgorithm::LABEL_PROPAGATION},
               .lp =
                   {
                       // Context -> Refinement -> Label Propagation
@@ -131,13 +124,7 @@ Context create_default_context() {
                       .max_num_neighbors = std::numeric_limits<NodeID>::max(),
                   },
               .fm = {},
-              .balancer =
-                  {
-                      // Context -> Refinement -> Balancer
-                      .algorithm =
-                          BalancingAlgorithm::BLOCK_LEVEL_PARALLEL_BALANCER,
-                      .timepoint = BalancingTimepoint::BEFORE_KWAY_REFINEMENT,
-                  },
+              .balancer = {},
           },
       .parallel =
           {

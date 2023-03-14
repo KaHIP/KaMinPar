@@ -12,6 +12,7 @@
 
 #include "common/asserting_cast.h"
 #include "common/console_io.h"
+#include "common/strutils.h"
 
 namespace kaminpar::shm {
 using namespace std::string_literals;
@@ -72,6 +73,7 @@ get_kway_refinement_algorithms() {
   return {
       {"noop", RefinementAlgorithm::NOOP},
       {"lp", RefinementAlgorithm::LABEL_PROPAGATION},
+      {"greedy-balancer", RefinementAlgorithm::GREEDY_BALANCER},
   };
 }
 
@@ -84,6 +86,8 @@ std::ostream &operator<<(std::ostream &out,
     return out << "fm";
   case RefinementAlgorithm::LABEL_PROPAGATION:
     return out << "lp";
+  case RefinementAlgorithm::GREEDY_BALANCER:
+    return out << "greedy-balancer";
   }
 
   return out << "<invalid>";
@@ -102,50 +106,6 @@ std::ostream &operator<<(std::ostream &out, const FMStoppingRule rule) {
     return out << "simple";
   case FMStoppingRule::ADAPTIVE:
     return out << "adaptive";
-  }
-
-  return out << "<invalid>";
-}
-
-std::unordered_map<std::string, BalancingTimepoint> get_balancing_timepoints() {
-  return {
-      {"before-refinement", BalancingTimepoint::BEFORE_KWAY_REFINEMENT},
-      {"after-refinement", BalancingTimepoint::AFTER_KWAY_REFINEMENT},
-      {"always", BalancingTimepoint::ALWAYS},
-      {"never", BalancingTimepoint::NEVER},
-  };
-}
-
-std::ostream &operator<<(std::ostream &out,
-                         const BalancingTimepoint timepoint) {
-  switch (timepoint) {
-  case BalancingTimepoint::BEFORE_KWAY_REFINEMENT:
-    return out << "before-refinement";
-  case BalancingTimepoint::AFTER_KWAY_REFINEMENT:
-    return out << "after-refinement";
-  case BalancingTimepoint::ALWAYS:
-    return out << "aways";
-  case BalancingTimepoint::NEVER:
-    return out << "never";
-  }
-
-  return out << "<invalid>";
-}
-
-std::unordered_map<std::string, BalancingAlgorithm> get_balancing_algorithms() {
-  return {
-      {"noop", BalancingAlgorithm::NOOP},
-      {"greedy", BalancingAlgorithm::BLOCK_LEVEL_PARALLEL_BALANCER},
-  };
-}
-
-std::ostream &operator<<(std::ostream &out,
-                         const BalancingAlgorithm algorithm) {
-  switch (algorithm) {
-  case BalancingAlgorithm::NOOP:
-    return out << "noop";
-  case BalancingAlgorithm::BLOCK_LEVEL_PARALLEL_BALANCER:
-    return out << "greedy";
   }
 
   return out << "<invalid>";
@@ -218,8 +178,8 @@ void print(const InitialPartitioningContext &i_ctx, std::ostream &out) {
 }
 
 void print(const RefinementContext &r_ctx, std::ostream &out) {
-  out << "Refinement algorithm:         " << r_ctx.algorithm << "\n";
-  out << "Balancing algorithm:          " << r_ctx.balancer.algorithm << "\n";
+  out << "Refinement algorithms:        ["
+      << str::implode(r_ctx.algorithms, " -> ") << "]\n";
 }
 
 void print(const PartitionContext &p_ctx, std::ostream &out) {

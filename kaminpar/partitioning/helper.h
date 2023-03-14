@@ -14,8 +14,6 @@
 #include "kaminpar/definitions.h"
 #include "kaminpar/graphutils/graph_extraction.h"
 #include "kaminpar/initial_partitioning/initial_partitioning_facade.h"
-#include "kaminpar/refinement/i_balancer.h"
-#include "kaminpar/refinement/i_refiner.h"
 
 namespace kaminpar::shm::partitioning {
 struct InitialPartitionerMemoryPool {
@@ -56,13 +54,12 @@ void update_partition_context(PartitionContext &p_ctx,
 PartitionedGraph uncoarsen_once(ICoarsener *coarsener, PartitionedGraph p_graph,
                                 PartitionContext &current_p_ctx);
 
-void refine(IRefiner *refiner, IBalancer *balancer, PartitionedGraph &p_graph,
-            const PartitionContext &current_p_ctx,
-            const RefinementContext &r_ctx);
-
 PartitionedGraph bipartition(const Graph *graph, BlockID final_k,
                              const Context &input_ctx,
                              GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool);
+
+void refine(IRefiner *refiner, PartitionedGraph &p_graph,
+            const PartitionContext &current_p_ctx);
 
 void extend_partition_recursive(
     const Graph &graph, StaticArray<BlockID> &partition, BlockID b0, BlockID k,

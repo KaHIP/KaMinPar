@@ -77,24 +77,13 @@ enum class ClusterWeightLimit {
 enum class RefinementAlgorithm {
   LABEL_PROPAGATION,
   TWO_WAY_FM,
+  GREEDY_BALANCER,
   NOOP,
 };
 
 enum class FMStoppingRule {
   SIMPLE,
   ADAPTIVE,
-};
-
-enum class BalancingTimepoint {
-  BEFORE_KWAY_REFINEMENT,
-  AFTER_KWAY_REFINEMENT,
-  ALWAYS,
-  NEVER,
-};
-
-enum class BalancingAlgorithm {
-  NOOP,
-  BLOCK_LEVEL_PARALLEL_BALANCER,
 };
 
 enum class PartitioningMode {
@@ -183,13 +172,10 @@ struct FMRefinementContext {
   double improvement_abortion_threshold;
 };
 
-struct BalancerRefinementContext {
-  BalancingAlgorithm algorithm;
-  BalancingTimepoint timepoint;
-};
+struct BalancerRefinementContext {};
 
 struct RefinementContext {
-  RefinementAlgorithm algorithm;
+  std::vector<RefinementAlgorithm> algorithms;
   LabelPropagationRefinementContext lp;
   FMRefinementContext fm;
   BalancerRefinementContext balancer;

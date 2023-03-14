@@ -90,31 +90,28 @@ PartitionedGraph ParallelSynchronizedInitialPartitioner::partition(
     auto &current_coarseners = coarseners.back();
 
     // uncoarsen and refine
-    tbb::parallel_for(
-        static_cast<std::size_t>(0), num_current_copies,
-        [&](const std::size_t i) {
-          auto &p_graph = current_p_graphs[i];
-          auto &coarsener = current_coarseners[i];
-          auto &p_ctx = current_p_ctxs[i];
+    tbb::parallel_for(static_cast<std::size_t>(0), num_current_copies,
+                      [&](const std::size_t i) {
+                        auto &p_graph = current_p_graphs[i];
+                        auto &coarsener = current_coarseners[i];
+                        auto &p_ctx = current_p_ctxs[i];
 
-          // uncoarsen and refine
-          p_graph = helper::uncoarsen_once(coarsener.get(), std::move(p_graph),
-                                           p_ctx);
-          auto refiner = factory::create_refiner(_input_ctx);
-          auto balancer = factory::create_balancer(p_graph.graph(), p_ctx,
-                                                   _input_ctx.refinement);
-          helper::refine(refiner.get(), balancer.get(), p_graph, p_ctx,
-                         _input_ctx.refinement);
+                        // uncoarsen and refine
+                        p_graph = helper::uncoarsen_once(
+                            coarsener.get(), std::move(p_graph), p_ctx);
+                        auto refiner = factory::create_refiner(_input_ctx);
+                        helper::refine(refiner.get(), p_graph, p_ctx);
 
-          // extend partition
-          const BlockID k_prime =
-              helper::compute_k_for_n(p_graph.n(), _input_ctx);
-          if (p_graph.k() < k_prime) {
-            DBG << "Extend to " << k_prime << " ...";
-            helper::extend_partition(p_graph, k_prime, _input_ctx, p_ctx,
-                                     _ip_extraction_pool, _ip_m_ctx_pool);
-          }
-        });
+                        // extend partition
+                        const BlockID k_prime =
+                            helper::compute_k_for_n(p_graph.n(), _input_ctx);
+                        if (p_graph.k() < k_prime) {
+                          DBG << "Extend to " << k_prime << " ...";
+                          helper::extend_partition(p_graph, k_prime, _input_ctx,
+                                                   p_ctx, _ip_extraction_pool,
+                                                   _ip_m_ctx_pool);
+                        }
+                      });
 
     num_current_copies /= num_local_copies;
     num_current_threads *= num_local_copies;

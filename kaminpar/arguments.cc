@@ -19,7 +19,6 @@ void create_all_options(CLI::App *app, Context &ctx) {
   create_initial_fm_refinement_options(app, ctx);
   create_refinement_options(app, ctx);
   create_lp_refinement_options(app, ctx);
-  create_balancer_options(app, ctx);
 }
 
 CLI::Option_group *create_partitioning_options(CLI::App *app, Context &ctx) {
@@ -163,8 +162,8 @@ CLI::Option_group *create_initial_refinement_options(CLI::App *app,
       app->add_option_group("Initial Partitioning -> Refinement");
 
   refinement
-      ->add_option("--i-r-algorithm",
-                   ctx.initial_partitioning.refinement.algorithm)
+      ->add_option("--i-r-algorithms",
+                   ctx.initial_partitioning.refinement.algorithms)
       ->transform(CLI::CheckedTransformer(get_2way_refinement_algorithms())
                       .description(""))
       ->description(
@@ -213,7 +212,7 @@ CLI::Option_group *create_initial_fm_refinement_options(CLI::App *app,
 CLI::Option_group *create_refinement_options(CLI::App *app, Context &ctx) {
   auto *refinement = app->add_option_group("Refinement");
 
-  refinement->add_option("--r-algorithm", ctx.refinement.algorithm)
+  refinement->add_option("--r-algorithms", ctx.refinement.algorithms)
       ->transform(CLI::CheckedTransformer(get_kway_refinement_algorithms())
                       .description(""))
       ->description(R"(Algorithm for k-way refinement:
@@ -240,28 +239,5 @@ CLI::Option_group *create_lp_refinement_options(CLI::App *app, Context &ctx) {
       ->capture_default_str();
 
   return lp;
-}
-
-CLI::Option_group *create_balancer_options(CLI::App *app, Context &ctx) {
-  auto *balancer = app->add_option_group("Refinement -> Balancer");
-
-  balancer->add_option("--r-b-algorithm", ctx.refinement.balancer.algorithm)
-      ->transform(
-          CLI::CheckedTransformer(get_balancing_algorithms()).description(""))
-      ->description(R"(Algorithm to balance k-way partitions:
-  - noop:   disable balancing
-  - greedy: use the balancing algorithm as described in the ESA'21 publication)")
-      ->capture_default_str();
-  balancer->add_option("--r-b-timepoint", ctx.refinement.balancer.timepoint)
-      ->transform(
-          CLI::CheckedTransformer(get_balancing_timepoints()).description(""))
-      ->description(R"(When to run the balancing algorithm:
-  - before-refinement: before k-way refinement
-  - after-refinement:  after k-way refinement
-  - always:            before and after k-way refinement
-  - never:             never (disable balancing))")
-      ->capture_default_str();
-
-  return balancer;
 }
 } // namespace kaminpar::shm

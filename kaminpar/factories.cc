@@ -14,6 +14,7 @@
 #include "kaminpar/coarsening/noop_coarsener.h"
 #include "kaminpar/refinement/greedy_balancer.h"
 #include "kaminpar/refinement/label_propagation_refiner.h"
+#include "kaminpar/refinement/multi_refiner.h"
 
 namespace kaminpar::shm::factory {
 std::unique_ptr<ICoarsener> create_coarsener(const Graph &graph,
@@ -41,7 +42,11 @@ std::unique_ptr<ip::InitialRefiner>
 create_initial_refiner(const Graph &graph, const PartitionContext &p_ctx,
                        const RefinementContext &r_ctx,
                        ip::InitialRefiner::MemoryContext m_ctx) {
-  switch (r_ctx.algorithm) {
+  if (r_ctx.algorithms.empty()) {
+    return std::make_unique<ip::InitialNoopRefiner>(std::move(m_ctx));
+  }
+
+  switch (r_ctx.algorithms.front()) {
   case RefinementAlgorithm::NOOP: {
     return std::make_unique<ip::InitialNoopRefiner>(std::move(m_ctx));
   }
@@ -59,7 +64,8 @@ create_initial_refiner(const Graph &graph, const PartitionContext &p_ctx,
     __builtin_unreachable();
   }
 
-  case RefinementAlgorithm::LABEL_PROPAGATION: {
+  case RefinementAlgorithm::LABEL_PROPAGATION:
+  case RefinementAlgorithm::GREEDY_BALANCER: {
     FATAL_ERROR << "Not implemented";
     return nullptr;
   }
@@ -67,43 +73,44 @@ create_initial_refiner(const Graph &graph, const PartitionContext &p_ctx,
 
   __builtin_unreachable();
 }
+
+namespace {
+std::unique_ptr<IRefiner> create_refiner(const Context &ctx,
+                                         const RefinementAlgorithm algorithm) {
+
+  switch (algorithm) {
+  case RefinementAlgorithm::NOOP:
+    return std::make_unique<NoopRefiner>();
+
+  case RefinementAlgorithm::TWO_WAY_FM:
+    FATAL_ERROR << "Not implemented";
+    return nullptr;
+
+  case RefinementAlgorithm::LABEL_PROPAGATION:
+    return std::make_unique<LabelPropagationRefiner>(ctx);
+
+  case RefinementAlgorithm::GREEDY_BALANCER:
+    return std::make_unique<GreedyBalancer>(ctx);
+  }
+
+  __builtin_unreachable();
+}
+} // namespace
 
 std::unique_ptr<IRefiner> create_refiner(const Context &ctx) {
   SCOPED_TIMER("Allocation");
 
-  switch (ctx.refinement.algorithm) {
-  case RefinementAlgorithm::NOOP: {
+  if (ctx.refinement.algorithms.empty()) {
     return std::make_unique<NoopRefiner>();
   }
-
-  case RefinementAlgorithm::TWO_WAY_FM: {
-    FATAL_ERROR << "Not implemented";
-    return nullptr;
+  if (ctx.refinement.algorithms.size() == 1) {
+    return create_refiner(ctx, ctx.refinement.algorithms.front());
   }
 
-  case RefinementAlgorithm::LABEL_PROPAGATION: {
-    return std::make_unique<LabelPropagationRefiner>(ctx);
+  std::vector<std::unique_ptr<IRefiner>> refiners;
+  for (const RefinementAlgorithm algorithm : ctx.refinement.algorithms) {
+    refiners.push_back(create_refiner(ctx, algorithm));
   }
-  }
-
-  __builtin_unreachable();
-}
-
-std::unique_ptr<IBalancer> create_balancer(const Graph &graph,
-                                           const PartitionContext &p_ctx,
-                                           const RefinementContext &r_ctx) {
-  SCOPED_TIMER("Allocation");
-
-  switch (r_ctx.balancer.algorithm) {
-  case BalancingAlgorithm::NOOP: {
-    return std::make_unique<NoopBalancer>();
-  }
-
-  case BalancingAlgorithm::BLOCK_LEVEL_PARALLEL_BALANCER: {
-    return std::make_unique<GreedyBalancer>(graph, p_ctx.k, r_ctx);
-  }
-  }
-
-  __builtin_unreachable();
+  return std::make_unique<MultiRefiner>(std::move(refiners));
 }
 } // namespace kaminpar::shm::factory

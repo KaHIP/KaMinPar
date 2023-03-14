@@ -62,7 +62,6 @@ private:
 
   // Refinement
   std::unique_ptr<IRefiner> _refiner;
-  std::unique_ptr<IBalancer> _balancer;
 
   // Initial partitioning -> subgraph extraction
   graph::SubgraphMemory _subgraph_memory;

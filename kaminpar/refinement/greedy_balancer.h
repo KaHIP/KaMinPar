@@ -14,7 +14,7 @@
 #include "kaminpar/context.h"
 #include "kaminpar/datastructures/graph.h"
 #include "kaminpar/metrics.h"
-#include "kaminpar/refinement/i_balancer.h"
+#include "kaminpar/refinement/i_refiner.h"
 
 #include "common/datastructures/binary_heap.h"
 #include "common/datastructures/fast_reset_array.h"
@@ -24,7 +24,7 @@
 #include "common/timer.h"
 
 namespace kaminpar::shm {
-class GreedyBalancer : public IBalancer {
+class GreedyBalancer : public IRefiner {
   SET_DEBUG(false);
   SET_STATISTICS_FROM_GLOBAL();
 
@@ -92,18 +92,18 @@ public:
     }
   };
 
-  GreedyBalancer(const Graph &graph, const BlockID max_k,
-                 const RefinementContext &)
-      : _max_k{max_k}, _pq{graph.n(), max_k}, _marker{graph.n()},
-        _pq_weight(max_k) {}
+  GreedyBalancer(const Context &ctx)
+      : _max_k(ctx.partition.k), _pq(ctx.partition.n, ctx.partition.k),
+        _marker(ctx.partition.n), _pq_weight(ctx.partition.k) {}
 
-  GreedyBalancer(const PartitionedGraph &) = delete;
-  GreedyBalancer(GreedyBalancer &&) noexcept = default;
   GreedyBalancer &operator=(const GreedyBalancer &) = delete;
+  GreedyBalancer(const PartitionedGraph &) = delete;
   GreedyBalancer &operator=(GreedyBalancer &&) = delete;
+  GreedyBalancer(GreedyBalancer &&) noexcept = default;
 
-  void initialize(const PartitionedGraph &p_graph) final;
-  bool balance(PartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
+  void initialize(const Graph &graph) final;
+  bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
+  [[nodiscard]] EdgeWeight expected_total_gain() const final;
 
 private:
   BlockWeight perform_round();
