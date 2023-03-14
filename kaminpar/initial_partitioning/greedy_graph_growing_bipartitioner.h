@@ -6,7 +6,7 @@
  ******************************************************************************/
 #pragma once
 
-#include "kaminpar/initial_partitioning/i_bipartitioner.h"
+#include "kaminpar/initial_partitioning/bipartitioner.h"
 
 #include "common/datastructures/binary_heap.h"
 #include "common/datastructures/marker.h"

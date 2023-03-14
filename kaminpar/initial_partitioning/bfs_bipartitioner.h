@@ -9,7 +9,7 @@
 #include <array>
 
 #include "kaminpar/definitions.h"
-#include "kaminpar/initial_partitioning/i_bipartitioner.h"
+#include "kaminpar/initial_partitioning/bipartitioner.h"
 #include "kaminpar/initial_partitioning/seed_node_utils.h"
 
 #include "common/datastructures/marker.h"

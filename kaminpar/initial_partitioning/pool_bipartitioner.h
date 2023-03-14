@@ -15,8 +15,8 @@
 
 #include "kaminpar/factories.h"
 #include "kaminpar/initial_partitioning/bfs_bipartitioner.h"
+#include "kaminpar/initial_partitioning/bipartitioner.h"
 #include "kaminpar/initial_partitioning/greedy_graph_growing_bipartitioner.h"
-#include "kaminpar/initial_partitioning/i_bipartitioner.h"
 #include "kaminpar/initial_partitioning/initial_refiner.h"
 #include "kaminpar/initial_partitioning/random_bipartitioner.h"
 

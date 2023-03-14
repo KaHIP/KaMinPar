@@ -1,5 +1,5 @@
 /*******************************************************************************
- * @file:   i_bipartitioner.h
+ * @file:   bipartitioner.h
  * @author: Daniel Seemaier
  * @date:   21.09.2021
  * @brief:  Interface for initial partitioning algorithms.
