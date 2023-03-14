@@ -12,6 +12,7 @@
 #include "kaminpar/coarsening/cluster_coarsener.h"
 #include "kaminpar/coarsening/label_propagation_clustering.h"
 #include "kaminpar/coarsening/noop_coarsener.h"
+#include "kaminpar/refinement/fm_refiner.h"
 #include "kaminpar/refinement/greedy_balancer.h"
 #include "kaminpar/refinement/label_propagation_refiner.h"
 #include "kaminpar/refinement/multi_refiner.h"
@@ -45,6 +46,9 @@ create_initial_refiner(const Graph &graph, const PartitionContext &p_ctx,
   if (r_ctx.algorithms.empty()) {
     return std::make_unique<ip::InitialNoopRefiner>(std::move(m_ctx));
   }
+  KASSERT(r_ctx.algorithms.size() == 1u,
+          "multiple refinements during initial partitioning are not supported",
+          assert::always);
 
   switch (r_ctx.algorithms.front()) {
   case RefinementAlgorithm::NOOP: {
@@ -65,10 +69,10 @@ create_initial_refiner(const Graph &graph, const PartitionContext &p_ctx,
   }
 
   case RefinementAlgorithm::LABEL_PROPAGATION:
-  case RefinementAlgorithm::GREEDY_BALANCER: {
+  case RefinementAlgorithm::GREEDY_BALANCER:
+  case RefinementAlgorithm::KWAY_FM:
     FATAL_ERROR << "Not implemented";
     return nullptr;
-  }
   }
 
   __builtin_unreachable();
@@ -91,6 +95,9 @@ std::unique_ptr<Refiner> create_refiner(const Context &ctx,
 
   case RefinementAlgorithm::GREEDY_BALANCER:
     return std::make_unique<GreedyBalancer>(ctx);
+
+  case RefinementAlgorithm::KWAY_FM:
+    return std::make_unique<FMRefiner>(ctx);
   }
 
   __builtin_unreachable();

@@ -77,6 +77,7 @@ enum class ClusterWeightLimit {
 enum class RefinementAlgorithm {
   LABEL_PROPAGATION,
   TWO_WAY_FM,
+  KWAY_FM,
   GREEDY_BALANCER,
   NOOP,
 };

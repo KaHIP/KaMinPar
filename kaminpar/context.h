@@ -6,4 +6,7 @@
  ******************************************************************************/
 #pragma once
 
+// Part of this header is defined in the public library header:
+// clang-format off
 #include "kaminpar/kaminpar.h"
+// clang-format on
