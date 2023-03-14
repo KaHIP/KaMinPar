@@ -8,9 +8,9 @@
 
 #include <kassert/kassert.hpp>
 
-#include "apps/io/mmap_toker.h"
-
 #include "common/logger.h"
+
+#include "apps/io/mmap_toker.h"
 
 namespace kaminpar::io::metis {
 struct Format {

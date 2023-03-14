@@ -16,11 +16,11 @@
 #include "kaminpar/arguments.h"
 #include "kaminpar/kaminpar.h"
 
-#include "apps/io/shm_io.h"
-
 #include "common/environment.h"
 #include "common/logger.h"
 #include "common/timer.h"
+
+#include "apps/io/shm_io.h"
 
 using namespace kaminpar;
 using namespace kaminpar::shm;

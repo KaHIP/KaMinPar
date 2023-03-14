@@ -6,8 +6,9 @@
  ******************************************************************************/
 #include "kaminpar/graphutils/graph_rearrangement.h"
 
-#include <tbb/enumerable_thread_specific.h>
 #include <cmath>
+
+#include <tbb/enumerable_thread_specific.h>
 
 #include "common/parallel/algorithm.h"
 #include "common/timer.h"

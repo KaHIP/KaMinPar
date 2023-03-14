@@ -11,11 +11,11 @@
 
 #include <kassert/kassert.hpp>
 
+#include "kaminpar/datastructures/graph.h"
+
 #include "common/asserting_cast.h"
 #include "common/console_io.h"
 #include "common/math.h"
-
-#include "kaminpar/datastructures/graph.h"
 
 namespace kaminpar::shm {
 //

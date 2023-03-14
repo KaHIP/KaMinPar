@@ -5,9 +5,9 @@
  ******************************************************************************/
 #include "kaminpar/arguments.h"
 
-#include "kaminpar/context_io.h"
-
 #include "context.h"
+
+#include "kaminpar/context_io.h"
 
 namespace kaminpar::shm {
 void create_all_options(CLI::App *app, Context &ctx) {

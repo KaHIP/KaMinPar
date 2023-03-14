@@ -9,10 +9,10 @@
 #include "kaminpar/datastructures/graph.h"
 #include "kaminpar/definitions.h"
 
+#include "common/assertion_levels.h"
+
 #include "apps/io/metis_parser.h"
 #include "apps/io/mmap_toker.h"
-
-#include "common/assertion_levels.h"
 
 namespace kaminpar::shm::io {
 namespace metis {

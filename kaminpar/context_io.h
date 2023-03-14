@@ -6,10 +6,10 @@
  ******************************************************************************/
 #pragma once
 
-#include "kaminpar/kaminpar.h"
-
 #include <iostream>
 #include <unordered_map>
+
+#include "kaminpar/kaminpar.h"
 
 namespace kaminpar::shm {
 std::ostream &operator<<(std::ostream &out, ClusteringAlgorithm algorithm);
@@ -49,4 +49,3 @@ void print(const CoarseningContext &c_ctx, std::ostream &out);
 void print(const LabelPropagationCoarseningContext &lp_ctx, std::ostream &out);
 void print(const InitialPartitioningContext &i_ctx, std::ostream &out);
 } // namespace kaminpar::shm
-

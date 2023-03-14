@@ -46,12 +46,13 @@
 #ifndef GTEST_MPI_MINIMAL_LISTENER_H
 #define GTEST_MPI_MINIMAL_LISTENER_H
 
-#include "mpi.h"
-#include "gtest/gtest.h"
 #include <cassert>
 #include <sstream>
 #include <string>
 #include <vector>
+
+#include "gtest/gtest.h"
+#include "mpi.h"
 
 namespace GTestMPIListener {
 

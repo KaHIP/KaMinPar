@@ -222,4 +222,3 @@ void print(const Context &ctx, std::ostream &out) {
   print(ctx.refinement, out);
 }
 } // namespace kaminpar::shm
-

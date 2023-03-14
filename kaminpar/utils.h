@@ -6,9 +6,10 @@
  ******************************************************************************/
 #pragma once
 
-#include "common/math.h"
 #include "kaminpar/datastructures/graph.h"
 #include "kaminpar/kaminpar.h"
+
+#include "common/math.h"
 
 namespace kaminpar::shm {
 template <typename NodeID_ = NodeID, typename NodeWeight_ = NodeWeight>

@@ -151,4 +151,3 @@ private:
   std::vector<BlockID> _final_k;
 };
 } // namespace kaminpar::shm
-

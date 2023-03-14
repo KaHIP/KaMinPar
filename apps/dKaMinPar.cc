@@ -9,10 +9,11 @@
 // clang-format on
 
 #include "dkaminpar/dkaminpar.h"
-#include "dkaminpar/arguments.h"
 
 #include <kagen.h>
 #include <mpi.h>
+
+#include "dkaminpar/arguments.h"
 
 #include "common/environment.h"
 #include "common/strutils.h"

@@ -371,7 +371,7 @@ void print(const CoarseningContext &ctx, const ParallelContext &parallel,
       }
       // out << "  Number of chunks:           " << ctx.global_lp.num_chunks
       //<< " (min: " << ctx.global_lp.min_num_chunks << ", total: " <<
-      //ctx.global_lp.total_num_chunks << ")"
+      // ctx.global_lp.total_num_chunks << ")"
       //<< (ctx.global_lp.scale_chunks_with_threads ? ", scaled" : "") << "\n";
       out << "  Active set:                 "
           << (ctx.global_clustering_algorithm == GlobalClusteringAlgorithm::LP
@@ -390,7 +390,7 @@ void print(const CoarseningContext &ctx, const ParallelContext &parallel,
         ctx.global_clustering_algorithm == GlobalClusteringAlgorithm::HEM_LP) {
       // out << "  Number of coloring ssteps:  " << ctx.hem.num_coloring_chunks
       //<< " (min: " << ctx.hem.min_num_coloring_chunks << ", max: " <<
-      //ctx.hem.max_num_coloring_chunks << ")"
+      // ctx.hem.max_num_coloring_chunks << ")"
       //<< (ctx.hem.scale_coloring_chunks_with_threads ? ", scaled with threads"
       //: "") << "\n";
       out << "  Small color blacklist:      "
@@ -431,7 +431,7 @@ void print(const RefinementContext &ctx, std::ostream &out) {
     //<< " (min: " << ctx.colored_lp.min_num_coloring_chunks
     //<< ", max: " << ctx.colored_lp.max_num_coloring_chunks << ")"
     //<< (ctx.colored_lp.scale_coloring_chunks_with_threads ? ", scaled with
-    //threads" : "") << "\n";
+    // threads" : "") << "\n";
     out << "  Number of iterations:       " << ctx.colored_lp.num_iterations
         << "\n";
     out << "  Commitment strategy:        "
