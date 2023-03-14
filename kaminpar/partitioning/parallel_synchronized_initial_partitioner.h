@@ -28,11 +28,11 @@ public:
       GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool,
       TemporaryGraphExtractionBufferPool &ip_extraction_pool);
 
-  PartitionedGraph partition(const ICoarsener *coarsener,
+  PartitionedGraph partition(const Coarsener *coarsener,
                              const PartitionContext &p_ctx);
 
 private:
-  std::unique_ptr<ICoarsener> duplicate_coarsener(const ICoarsener *coarsener);
+  std::unique_ptr<Coarsener> duplicate_coarsener(const Coarsener *coarsener);
 
   const Context &_input_ctx;
   GlobalInitialPartitionerMemoryPool &_ip_m_ctx_pool;

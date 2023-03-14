@@ -14,7 +14,7 @@ ParallelInitialPartitioner::ParallelInitialPartitioner(
       _ip_extraction_pool{ip_extraction_pool} {}
 
 PartitionedGraph
-ParallelInitialPartitioner::partition(const ICoarsener *coarsener,
+ParallelInitialPartitioner::partition(const Coarsener *coarsener,
                                       const PartitionContext &p_ctx) {
   const std::size_t num_threads =
       helper::compute_num_threads_for_parallel_ip(_input_ctx);
@@ -22,7 +22,7 @@ ParallelInitialPartitioner::partition(const ICoarsener *coarsener,
 }
 
 PartitionedGraph ParallelInitialPartitioner::partition_recursive(
-    const ICoarsener *parent_coarsener, PartitionContext &p_ctx,
+    const Coarsener *parent_coarsener, PartitionContext &p_ctx,
     const std::size_t num_threads) {
   const Graph *graph = parent_coarsener->coarsest_graph();
 
@@ -57,7 +57,7 @@ PartitionedGraph ParallelInitialPartitioner::partition_recursive(
 }
 
 PartitionedGraph ParallelInitialPartitioner::split_and_join(
-    const ICoarsener *coarsener, const PartitionContext &p_ctx,
+    const Coarsener *coarsener, const PartitionContext &p_ctx,
     const bool converged, const std::size_t num_threads) {
   const Graph *graph = coarsener->coarsest_graph();
   const std::size_t num_copies = helper::compute_num_copies(

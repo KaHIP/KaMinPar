@@ -1,12 +1,12 @@
 /*******************************************************************************
- * @file:   i_coarsener.h
+ * @file:   coarsener.h
  * @author: Daniel Seemaier
  * @date:   21.09.2021
  * @brief:  Interface for coarsening algorithms.
  ******************************************************************************/
 #pragma once
 
-#include "kaminpar/coarsening/clustering_algorithm.h"
+#include "kaminpar/coarsening/clusterer.h"
 #include "kaminpar/datastructures/graph.h"
 #include "kaminpar/definitions.h"
 
@@ -21,12 +21,14 @@ namespace kaminpar::shm {
 class Coarsener {
 public:
   Coarsener() = default;
-  virtual ~Coarsener() = default;
 
   Coarsener(const Coarsener &) = delete;
   Coarsener &operator=(const Coarsener &) = delete;
+
   Coarsener(Coarsener &&) noexcept = default;
   Coarsener &operator=(Coarsener &&) noexcept = default;
+
+  virtual ~Coarsener() = default;
 
   /**
    * Coarsen the currently coarsest graph with a static maximum node weight.

@@ -28,15 +28,15 @@ public:
       GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool,
       TemporaryGraphExtractionBufferPool &ip_extraction_pool);
 
-  PartitionedGraph partition(const ICoarsener *coarsener,
+  PartitionedGraph partition(const Coarsener *coarsener,
                              const PartitionContext &p_ctx);
 
 private:
-  PartitionedGraph partition_recursive(const ICoarsener *parent_coarsener,
+  PartitionedGraph partition_recursive(const Coarsener *parent_coarsener,
                                        PartitionContext &p_ctx,
                                        std::size_t num_threads);
 
-  PartitionedGraph split_and_join(const ICoarsener *coarsener,
+  PartitionedGraph split_and_join(const Coarsener *coarsener,
                                   const PartitionContext &p_ctx, bool converged,
                                   std::size_t num_threads);
 

@@ -6,12 +6,13 @@
  ******************************************************************************/
 #pragma once
 
-#include "kaminpar/coarsening/i_coarsener.h"
+#include "kaminpar/coarsening/coarsener.h"
 #include "kaminpar/datastructures/graph.h"
+#include "kaminpar/datastructures/partitioned_graph.h"
 #include "kaminpar/definitions.h"
 
 namespace kaminpar::shm {
-class NoopCoarsener : public ICoarsener {
+class NoopCoarsener : public Coarsener {
 public:
   void initialize(const Graph *graph) final { _graph = graph; }
 

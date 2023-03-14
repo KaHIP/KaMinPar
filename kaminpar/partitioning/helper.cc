@@ -23,7 +23,7 @@ void update_partition_context(PartitionContext &current_p_ctx,
   current_p_ctx.block_weights.setup(current_p_ctx, p_graph.final_ks());
 }
 
-PartitionedGraph uncoarsen_once(ICoarsener *coarsener, PartitionedGraph p_graph,
+PartitionedGraph uncoarsen_once(Coarsener *coarsener, PartitionedGraph p_graph,
                                 PartitionContext &current_p_ctx) {
   SCOPED_TIMER("Uncoarsening");
 
@@ -169,7 +169,7 @@ void extend_partition(PartitionedGraph &p_graph, const BlockID k_prime,
                    extraction_pool, ip_m_ctx_pool);
 }
 
-bool coarsen_once(ICoarsener *coarsener, const Graph *graph,
+bool coarsen_once(Coarsener *coarsener, const Graph *graph,
                   const Context &input_ctx, PartitionContext &current_p_ctx) {
   SCOPED_TIMER("Coarsening");
 

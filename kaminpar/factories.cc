@@ -17,8 +17,8 @@
 #include "kaminpar/refinement/multi_refiner.h"
 
 namespace kaminpar::shm::factory {
-std::unique_ptr<ICoarsener> create_coarsener(const Graph &graph,
-                                             const CoarseningContext &c_ctx) {
+std::unique_ptr<Coarsener> create_coarsener(const Graph &graph,
+                                            const CoarseningContext &c_ctx) {
   SCOPED_TIMER("Allocation");
 
   switch (c_ctx.algorithm) {

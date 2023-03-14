@@ -8,7 +8,7 @@
 
 #include <memory>
 
-#include "kaminpar/coarsening/i_clustering.h"
+#include "kaminpar/coarsening/clusterer.h"
 #include "kaminpar/context.h"
 #include "kaminpar/datastructures/graph.h"
 #include "kaminpar/label_propagation.h"
@@ -32,7 +32,7 @@ class LabelPropagationClusteringCore final
                                           LabelPropagationClusteringConfig>,
       public OwnedRelaxedClusterWeightVector<NodeID, NodeWeight>,
       public OwnedClusterVector<NodeID, NodeID>,
-      public IClustering {
+      public Clusterer {
   SET_DEBUG(false);
 
   using Base = ChunkRandomdLabelPropagation<LabelPropagationClusteringCore,
@@ -121,7 +121,7 @@ void LabelPropagationClusteringAlgorithm::set_desired_cluster_count(
   _core->set_desired_num_clusters(count);
 }
 
-const IClustering::AtomicClusterArray &
+const Clusterer::AtomicClusterArray &
 LabelPropagationClusteringAlgorithm::compute_clustering(const Graph &graph) {
   return _core->compute_clustering(graph);
 }

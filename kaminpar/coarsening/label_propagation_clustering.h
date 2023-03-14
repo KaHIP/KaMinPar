@@ -6,12 +6,12 @@
  ******************************************************************************/
 #pragma once
 
-#include "kaminpar/coarsening/i_clustering.h"
+#include "kaminpar/coarsening/clusterer.h"
 #include "kaminpar/context.h"
 #include "kaminpar/datastructures/graph.h"
 
 namespace kaminpar::shm {
-class LabelPropagationClusteringAlgorithm : public IClustering {
+class LabelPropagationClusteringAlgorithm : public Clusterer {
 public:
   LabelPropagationClusteringAlgorithm(NodeID max_n,
                                       const CoarseningContext &c_ctx);

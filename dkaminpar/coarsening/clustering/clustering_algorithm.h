@@ -1,5 +1,5 @@
 /*******************************************************************************
- * @file:   i_clustering_algorithm.h
+ * @file:   clustering_algorithm.h
  * @author: Daniel Seemaier
  * @date:   29.09.21
  * @brief:  Interface for clustering algorithms.

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * @file:   i_clustering_algorithm.h
+ * @file:   clusterer.h
  * @author: Daniel Seemaier
  * @date:   29.09.2021
  * @brief:  Interface for clustering algorithms used for coarsening.
@@ -13,17 +13,19 @@
 #include "common/scalable_vector.h"
 
 namespace kaminpar::shm {
-class IClustering {
+class Clusterer {
 public:
   using AtomicClusterArray = scalable_vector<parallel::Atomic<NodeID>>;
 
-  IClustering() = default;
-  virtual ~IClustering() = default;
+  Clusterer() = default;
 
-  IClustering(const IClustering &) = delete;
-  IClustering &operator=(const IClustering &) = delete;
-  IClustering(IClustering &&) noexcept = default;
-  IClustering &operator=(IClustering &&) noexcept = default;
+  Clusterer(const Clusterer &) = delete;
+  Clusterer &operator=(const Clusterer &) = delete;
+
+  Clusterer(Clusterer &&) noexcept = default;
+  Clusterer &operator=(Clusterer &&) noexcept = default;
+
+  virtual ~Clusterer() = default;
 
   //
   // Optional options

@@ -9,7 +9,7 @@
 #include <kassert/kassert.hpp>
 #include <tbb/concurrent_vector.h>
 
-#include "kaminpar/coarsening/i_coarsener.h"
+#include "kaminpar/coarsening/coarsener.h"
 #include "kaminpar/datastructures/graph.h"
 #include "kaminpar/definitions.h"
 #include "kaminpar/graphutils/graph_extraction.h"
@@ -51,7 +51,7 @@ namespace helper {
 void update_partition_context(PartitionContext &p_ctx,
                               const PartitionedGraph &p_graph);
 
-PartitionedGraph uncoarsen_once(ICoarsener *coarsener, PartitionedGraph p_graph,
+PartitionedGraph uncoarsen_once(Coarsener *coarsener, PartitionedGraph p_graph,
                                 PartitionContext &current_p_ctx);
 
 PartitionedGraph bipartition(const Graph *graph, BlockID final_k,
@@ -84,7 +84,7 @@ void extend_partition(PartitionedGraph &p_graph, BlockID k_prime,
                       TemporaryGraphExtractionBufferPool &extraction_pool,
                       GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool);
 
-bool coarsen_once(ICoarsener *coarsener, const Graph *graph,
+bool coarsen_once(Coarsener *coarsener, const Graph *graph,
                   const Context &input_ctx, PartitionContext &current_p_ctx);
 
 // compute smallest k_prime such that it is a power of 2 and n / k_prime <= C

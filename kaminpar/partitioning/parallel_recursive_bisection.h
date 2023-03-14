@@ -58,7 +58,7 @@ private:
   PartitionContext _current_p_ctx;
 
   // Coarsening
-  std::unique_ptr<ICoarsener> _coarsener;
+  std::unique_ptr<Coarsener> _coarsener;
 
   // Refinement
   std::unique_ptr<Refiner> _refiner;

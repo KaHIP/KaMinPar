@@ -6,7 +6,8 @@
  ******************************************************************************/
 #pragma once
 
-#include "kaminpar/coarsening/i_coarsener.h"
+#include "kaminpar/coarsening/clusterer.h"
+#include "kaminpar/coarsening/coarsener.h"
 #include "kaminpar/context.h"
 #include "kaminpar/datastructures/graph.h"
 #include "kaminpar/datastructures/partitioned_graph.h"
@@ -14,9 +15,9 @@
 #include "kaminpar/graphutils/graph_contraction.h"
 
 namespace kaminpar::shm {
-class ClusteringCoarsener : public ICoarsener {
+class ClusteringCoarsener : public Coarsener {
 public:
-  ClusteringCoarsener(std::unique_ptr<IClustering> clustering_algorithm,
+  ClusteringCoarsener(std::unique_ptr<Clusterer> clustering_algorithm,
                       const Graph &input_graph, const CoarseningContext &c_ctx)
       : _input_graph{input_graph}, _current_graph{&input_graph},
         _clustering_algorithm{std::move(clustering_algorithm)}, _c_ctx{c_ctx} {}
@@ -43,7 +44,7 @@ private:
   std::vector<Graph> _hierarchy;
   std::vector<scalable_vector<NodeID>> _mapping;
 
-  std::unique_ptr<IClustering> _clustering_algorithm;
+  std::unique_ptr<Clusterer> _clustering_algorithm;
 
   const CoarseningContext &_c_ctx;
   graph::contraction::MemoryContext _contraction_m_ctx{};
