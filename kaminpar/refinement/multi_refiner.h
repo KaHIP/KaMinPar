@@ -7,15 +7,16 @@
 #pragma once
 
 #include "kaminpar/context.h"
-#include "kaminpar/refinement/i_refiner.h"
+#include "kaminpar/refinement/refiner.h"
 
 namespace kaminpar::shm {
-class MultiRefiner : public IRefiner {
+class MultiRefiner : public Refiner {
 public:
-  MultiRefiner(std::vector<std::unique_ptr<IRefiner>> refiners);
+  MultiRefiner(std::vector<std::unique_ptr<Refiner>> refiners);
 
   MultiRefiner(const MultiRefiner &) = delete;
   MultiRefiner &operator=(const MultiRefiner &) = delete;
+
   MultiRefiner(MultiRefiner &&) = delete;
   MultiRefiner &operator=(MultiRefiner &&) = delete;
 
@@ -24,6 +25,6 @@ public:
   [[nodiscard]] EdgeWeight expected_total_gain() const final;
 
 private:
-  std::vector<std::unique_ptr<IRefiner>> _refiners;
+  std::vector<std::unique_ptr<Refiner>> _refiners;
 };
 } // namespace kaminpar::shm

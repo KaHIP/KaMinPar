@@ -2,7 +2,7 @@
  * @file:   label_propagation_refiner.cc
  * @author: Daniel Seemaier
  * @date:   30.09.2021
- * @brief:  Label propagation refinement graphutils.
+ * @brief:  K-way label propagation refinement algorithm.
  ******************************************************************************/
 #include "kaminpar/refinement/label_propagation_refiner.h"
 

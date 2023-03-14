@@ -15,7 +15,7 @@
 #include "kaminpar/datastructures/graph.h"
 #include "kaminpar/datastructures/partitioned_graph.h"
 #include "kaminpar/metrics.h"
-#include "kaminpar/refinement/i_refiner.h"
+#include "kaminpar/refinement/refiner.h"
 
 #include "common/datastructures/binary_heap.h"
 #include "common/datastructures/fast_reset_array.h"
@@ -26,7 +26,7 @@
 #include "common/timer.h"
 
 namespace kaminpar::shm {
-class GreedyBalancer : public IRefiner {
+class GreedyBalancer : public Refiner {
   SET_DEBUG(false);
   SET_STATISTICS_FROM_GLOBAL();
 

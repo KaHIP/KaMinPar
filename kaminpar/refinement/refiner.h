@@ -1,24 +1,25 @@
 /*******************************************************************************
- * @file:   i_refiner.h
+ * @file:   refiner.h
  * @author: Daniel Seemaier
  * @date:   21.09.2021
- * @brief:
+ * @brief:  Interface for refinement algorithms.
  ******************************************************************************/
 #pragma once
 
 #include "kaminpar/context.h"
 #include "kaminpar/datastructures/graph.h"
+#include "kaminpar/datastructures/partitioned_graph.h"
 
 namespace kaminpar::shm {
-class IRefiner {
+class Refiner {
 public:
-  IRefiner(const IRefiner &) = delete;
-  IRefiner &operator=(const IRefiner &) = delete;
+  Refiner(const Refiner &) = delete;
+  Refiner &operator=(const Refiner &) = delete;
 
-  IRefiner(IRefiner &&) noexcept = default;
-  IRefiner &operator=(IRefiner &&) noexcept = default;
+  Refiner(Refiner &&) noexcept = default;
+  Refiner &operator=(Refiner &&) noexcept = default;
 
-  virtual ~IRefiner() = default;
+  virtual ~Refiner() = default;
 
   virtual void initialize(const Graph &graph) = 0;
   virtual bool refine(PartitionedGraph &p_graph,
@@ -26,10 +27,10 @@ public:
   [[nodiscard]] virtual EdgeWeight expected_total_gain() const = 0;
 
 protected:
-  IRefiner() = default;
+  Refiner() = default;
 };
 
-class NoopRefiner : public IRefiner {
+class NoopRefiner : public Refiner {
 public:
   void initialize(const Graph &) final {}
   bool refine(PartitionedGraph &, const PartitionContext &) final {

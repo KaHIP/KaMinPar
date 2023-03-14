@@ -75,8 +75,8 @@ create_initial_refiner(const Graph &graph, const PartitionContext &p_ctx,
 }
 
 namespace {
-std::unique_ptr<IRefiner> create_refiner(const Context &ctx,
-                                         const RefinementAlgorithm algorithm) {
+std::unique_ptr<Refiner> create_refiner(const Context &ctx,
+                                        const RefinementAlgorithm algorithm) {
 
   switch (algorithm) {
   case RefinementAlgorithm::NOOP:
@@ -97,7 +97,7 @@ std::unique_ptr<IRefiner> create_refiner(const Context &ctx,
 }
 } // namespace
 
-std::unique_ptr<IRefiner> create_refiner(const Context &ctx) {
+std::unique_ptr<Refiner> create_refiner(const Context &ctx) {
   SCOPED_TIMER("Allocation");
 
   if (ctx.refinement.algorithms.empty()) {
@@ -107,7 +107,7 @@ std::unique_ptr<IRefiner> create_refiner(const Context &ctx) {
     return create_refiner(ctx, ctx.refinement.algorithms.front());
   }
 
-  std::vector<std::unique_ptr<IRefiner>> refiners;
+  std::vector<std::unique_ptr<Refiner>> refiners;
   for (const RefinementAlgorithm algorithm : ctx.refinement.algorithms) {
     refiners.push_back(create_refiner(ctx, algorithm));
   }

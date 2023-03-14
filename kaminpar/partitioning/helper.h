@@ -58,7 +58,7 @@ PartitionedGraph bipartition(const Graph *graph, BlockID final_k,
                              const Context &input_ctx,
                              GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool);
 
-void refine(IRefiner *refiner, PartitionedGraph &p_graph,
+void refine(Refiner *refiner, PartitionedGraph &p_graph,
             const PartitionContext &current_p_ctx);
 
 void extend_partition_recursive(

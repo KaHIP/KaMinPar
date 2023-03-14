@@ -8,10 +8,10 @@
 
 #include "kaminpar/context.h"
 #include "kaminpar/datastructures/graph.h"
-#include "kaminpar/refinement/i_refiner.h"
+#include "kaminpar/refinement/refiner.h"
 
 namespace kaminpar::shm {
-MultiRefiner::MultiRefiner(std::vector<std::unique_ptr<IRefiner>> refiners)
+MultiRefiner::MultiRefiner(std::vector<std::unique_ptr<Refiner>> refiners)
     : _refiners(std::move(refiners)) {}
 
 void MultiRefiner::initialize(const Graph &graph) {

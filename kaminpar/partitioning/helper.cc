@@ -35,7 +35,7 @@ PartitionedGraph uncoarsen_once(ICoarsener *coarsener, PartitionedGraph p_graph,
   return p_graph;
 }
 
-void refine(IRefiner *refiner, PartitionedGraph &p_graph,
+void refine(Refiner *refiner, PartitionedGraph &p_graph,
             const PartitionContext &current_p_ctx) {
   SCOPED_TIMER("Refinement");
   refiner->initialize(p_graph.graph());

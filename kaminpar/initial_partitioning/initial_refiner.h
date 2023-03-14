@@ -16,7 +16,7 @@
 #include "kaminpar/datastructures/partitioned_graph.h"
 #include "kaminpar/definitions.h"
 #include "kaminpar/metrics.h"
-#include "kaminpar/refinement/i_refiner.h"
+#include "kaminpar/refinement/refiner.h"
 
 #include "common/assertion_levels.h"
 #include "common/datastructures/binary_heap.h"
@@ -28,7 +28,7 @@
 namespace kaminpar::shm::ip {
 using Queues = std::array<BinaryMinHeap<Gain>, 2>;
 
-class InitialRefiner : public IRefiner {
+class InitialRefiner : public Refiner {
 public:
   struct MemoryContext {
     Queues queues{BinaryMinHeap<Gain>{0}, BinaryMinHeap<Gain>{0}};
