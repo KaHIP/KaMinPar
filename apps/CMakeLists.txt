@@ -16,7 +16,9 @@ function(add_dist_app target)
 endfunction()
 
 add_shm_app(KaMinPar KaMinPar.cc)
-target_sources(KaMinPar PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/io/shm_io.cc)
+target_sources(KaMinPar PRIVATE 
+    ${CMAKE_CURRENT_SOURCE_DIR}/io/shm_io.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/io/shm_input_validator.cc)
 
 if (TARGET dist_partitioner_base)
     add_dist_app(dKaMinPar dKaMinPar.cc)

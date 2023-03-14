@@ -1,15 +1,14 @@
 /*******************************************************************************
- * @file:   input_validator.cc
+ * @file:   shm_input_validator.cc
  * @author: Daniel Seemaier
  * @date:   26.10.2022
  * @brief:  Validator for undirected input graphs.
  ******************************************************************************/
-#include "kaminpar/input_validator.h"
+#include "apps/io/shm_input_validator.h"
 
 #include <algorithm>
+#include <iostream>
 #include <tuple>
-
-#include "common/logger.h"
 
 namespace kaminpar::shm {
 namespace {
@@ -46,8 +45,8 @@ void validate_undirected_graph(const StaticArray<EdgeID> &nodes,
     // Check for multi edges
     for (EdgeID e = nodes[u] + 1; e < nodes[u + 1]; ++e) {
       if (edges[e - 1] == edges[e]) {
-        LOG_ERROR << "node " << u + 1 << " has multiple edges to neighbor "
-                  << edges[e];
+        std::cerr << "node " << u + 1 << " has multiple edges to neighbor "
+                  << edges[e] << "\n";
         std::exit(1);
       }
     }
@@ -64,10 +63,10 @@ void validate_undirected_graph(const StaticArray<EdgeID> &nodes,
           binary_find(it_begin, it_end, std::make_tuple(u, weight));
 
       if (rev == it_end) {
-        LOG_ERROR << "missing reverse edge: of edge " << u + 1 << " --> "
+        std::cerr << "missing reverse edge: of edge " << u + 1 << " --> "
                   << v + 1
                   << " (the reverse edge might exist but with an inconsistent "
-                     "weight)";
+                     "weight)\n";
         std::exit(1);
       }
     }

@@ -17,9 +17,8 @@
 #include "kaminpar/kaminpar.h"
 
 #include "common/environment.h"
-#include "common/logger.h"
-#include "common/timer.h"
 
+#include "apps/io/shm_input_validator.h"
 #include "apps/io/shm_io.h"
 
 using namespace kaminpar;
@@ -39,6 +38,7 @@ struct ApplicationContext {
 
   bool quiet = false;
   bool experiment = false;
+  bool validate = false;
 
   std::string graph_filename = "";
   std::string partition_filename = "";
@@ -96,6 +96,9 @@ The output should be stored in a file and can be used by the -C,--config option.
   cli.add_option("-o,--output", app.partition_filename,
                  "Output filename for the graph partition.")
       ->capture_default_str();
+  cli.add_flag("--validate", app.validate,
+               "Validate input parameters before partitioning (currently only "
+               "checks the graph format).");
 
   // Algorithmic options
   create_all_options(&cli, ctx);
@@ -124,7 +127,7 @@ int main(int argc, char *argv[]) {
   }
 
   if (app.show_version) {
-    LOG << Environment::GIT_SHA1;
+    std::cout << Environment::GIT_SHA1 << std::endl;
     std::exit(0);
   }
 
@@ -133,7 +136,13 @@ int main(int argc, char *argv[]) {
   StaticArray<NodeID> adjncy;
   StaticArray<NodeWeight> vwgt;
   StaticArray<EdgeWeight> adjwgt;
-  shm::io::metis::read<false>(app.graph_filename, xadj, adjncy, vwgt, adjwgt);
+
+  if (app.validate) {
+    shm::io::metis::read<true>(app.graph_filename, xadj, adjncy, vwgt, adjwgt);
+    shm::validate_undirected_graph(xadj, adjncy, vwgt, adjwgt);
+  } else {
+    shm::io::metis::read<false>(app.graph_filename, xadj, adjncy, vwgt, adjwgt);
+  }
 
   const NodeID n = static_cast<NodeID>(xadj.size() - 1);
   std::vector<BlockID> partition(n);
