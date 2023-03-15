@@ -44,6 +44,21 @@ public:
     return _p_graph->block(u);
   }
 
+  template <bool update_block_weight = true>
+  void set_block(const NodeID u, const BlockID new_b) {
+    KASSERT(u < n(), "invalid node id " << u);
+    KASSERT(new_b < k(), "invalid block id " << new_b << " for node " << u);
+
+    if constexpr (update_block_weight) {
+      if (block(u) != kInvalidBlockID) {
+        _block_weights_delta[block(u)] -= node_weight(u);
+      }
+      _block_weights_delta[new_b] += node_weight(u);
+    }
+
+    _partition_delta[u] = new_b;
+  }
+
   [[nodiscard]] inline NodeWeight block_weight(const BlockID b) const {
     NodeWeight delta = 0;
     const auto it = _block_weights_delta.find(b);
@@ -52,6 +67,13 @@ public:
     }
 
     return _p_graph->block_weight(b) + delta;
+  }
+
+  const auto &delta() const { return _partition_delta; }
+
+  void clear() {
+    _block_weights_delta.clear();
+    _partition_delta.clear();
   }
 
 private:
