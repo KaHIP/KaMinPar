@@ -11,6 +11,7 @@
 #include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/graphutils/communication.h"
 #include "dkaminpar/metrics.h"
+#include "dkaminpar/mpi/sparse_allreduce.h"
 #include "dkaminpar/mpi/wrapper.h"
 
 #include "kaminpar/label_propagation.h"
@@ -272,10 +273,12 @@ private:
 
     // perform probabilistic moves, but keep track of moves in case we need to
     // roll back
-    std::vector<parallel::Atomic<NodeWeight>> expected_moved_weight(_p_ctx->k);
-    scalable_vector<parallel::Atomic<BlockWeight>> block_weight_deltas(
-        _p_ctx->k);
+    NoinitVector<BlockWeight> block_weight_deltas(_p_ctx->k);
+    tbb::parallel_for<BlockID>(
+        0, _p_ctx->k, [&](const BlockID b) { block_weight_deltas[b] = 0; });
+
     tbb::concurrent_vector<Move> moves;
+
     _p_graph->pfor_nodes_range(from, to, [&](const auto &r) {
       auto &rand = Random::instance();
 
@@ -300,8 +303,6 @@ private:
                 : gain_prob * (static_cast<double>(residual_block_weights[b]) /
                                _p_graph->node_weight(u));
         IFSTATS(_statistics.expected_gain += probability * _gains[u]);
-        IFSTATS(expected_moved_weight[b] +=
-                probability * _p_graph->node_weight(u));
 
         // perform move with probability
         if (_lp_ctx.ignore_probabilities || rand.random_bool(probability)) {
@@ -312,10 +313,10 @@ private:
           const NodeWeight u_weight = _p_graph->node_weight(u);
 
           moves.emplace_back(u, from);
-          block_weight_deltas[from].fetch_sub(u_weight,
-                                              std::memory_order_relaxed);
-          block_weight_deltas[to].fetch_add(u_weight,
-                                            std::memory_order_relaxed);
+          __atomic_fetch_sub(&block_weight_deltas[from], u_weight,
+                             __ATOMIC_RELAXED);
+          __atomic_fetch_add(&block_weight_deltas[to], u_weight,
+                             __ATOMIC_RELAXED);
           _p_graph->set_block<false>(u, to);
 
           // temporary mark that this node was actually moved
@@ -331,21 +332,16 @@ private:
     });
 
     // compute global block weights after moves
-    scalable_vector<BlockWeight> global_block_weight_deltas(_p_ctx->k);
-    _p_graph->pfor_blocks([&](const BlockID b) {
-      global_block_weight_deltas[b] = block_weight_deltas[b];
-    });
-    MPI_Allreduce(MPI_IN_PLACE, global_block_weight_deltas.data(),
-                  asserting_cast<int>(_p_ctx->k), mpi::type::get<BlockWeight>(),
-                  MPI_SUM, _p_graph->communicator());
+    mpi::sparse_allreduce<BlockWeight>(block_weight_deltas, _p_ctx->k, MPI_SUM,
+                                       _p_graph->communicator());
 
     // check for balance violations
     parallel::Atomic<std::uint8_t> feasible = 1;
     if (!_lp_ctx.ignore_probabilities) {
       _p_graph->pfor_blocks([&](const BlockID b) {
-        if (_p_graph->block_weight(b) + global_block_weight_deltas[b] >
+        if (_p_graph->block_weight(b) + block_weight_deltas[b] >
                 max_cluster_weight(b) &&
-            global_block_weight_deltas[b] > 0) {
+            block_weight_deltas[b] > 0) {
           feasible = 0;
         }
       });
@@ -374,7 +370,7 @@ private:
     } else { // otherwise, update block weights
       _p_graph->pfor_blocks([&](const BlockID b) {
         _p_graph->set_block_weight(b, _p_graph->block_weight(b) +
-                                          global_block_weight_deltas[b]);
+                                          block_weight_deltas[b]);
       });
     }
 
@@ -382,14 +378,6 @@ private:
     _p_graph->pfor_blocks([&](const BlockID b) {
       _block_weights[b] = _p_graph->block_weight(b);
     });
-
-    // check that feasible is the same on all PEs
-    if constexpr (kDebug) {
-      int feasible_nonatomic = feasible;
-      int root_feasible =
-          mpi::bcast(feasible_nonatomic, 0, _p_graph->communicator());
-      KASSERT(root_feasible == feasible_nonatomic);
-    }
 
     return feasible;
   }

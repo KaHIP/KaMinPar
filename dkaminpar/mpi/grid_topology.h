@@ -2,20 +2,17 @@
  * @file:   grid_topology.h
  * @author: Daniel Seemaier
  * @date:   09.09.2022
- * @brief:
+ * @brief:  Computes a mapping of an arbitrary number of PEs to a 2D grid.
  ******************************************************************************/
 #pragma once
 
 #include <cmath>
 
 #include "dkaminpar/definitions.h"
-
-#include "common/logger.h"
+#include "dkaminpar/mpi/wrapper.h"
 
 namespace kaminpar::mpi {
 class GridTopology {
-  SET_DEBUG(true);
-
 public:
   GridTopology(const PEID size)
       : _size(size), _sqrt(static_cast<PEID>(std::sqrt(size))) {}
@@ -102,4 +99,29 @@ private:
   PEID _size;
   PEID _sqrt;
 };
+
+class GridCommunicator {
+public:
+  GridCommunicator(MPI_Comm comm) {
+    const auto [size, rank] = get_comm_info(comm);
+    GridTopology topo(size);
+    MPI_Comm_split(comm, topo.row(rank), rank, &_row_comm);
+    MPI_Comm_split(comm, topo.virtual_col(rank),
+                   topo.virtual_col(rank) == topo.col(rank) ? rank
+                                                            : size + rank,
+                   &_col_comm);
+  }
+
+  MPI_Comm row_comm() const { return _row_comm; }
+  MPI_Comm col_comm() const { return _col_comm; }
+
+  PEID row_comm_size() const { return get_comm_size(_row_comm); }
+  PEID col_comm_size() const { return get_comm_size(_col_comm); }
+
+private:
+  MPI_Comm _row_comm;
+  MPI_Comm _col_comm;
+};
+
+GridCommunicator &get_grid_communicator(MPI_Comm comm);
 } // namespace kaminpar::mpi
