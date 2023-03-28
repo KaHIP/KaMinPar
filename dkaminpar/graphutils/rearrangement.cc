@@ -12,8 +12,7 @@
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructures/distributed_graph.h"
 
-#include "kaminpar/graphutils/graph_permutation.h"
-#include "kaminpar/graphutils/graph_rearrangement.h"
+#include "kaminpar/graphutils/permutator.h"
 
 #include "common/datastructures/marker.h"
 #include "common/parallel/atomic.h"

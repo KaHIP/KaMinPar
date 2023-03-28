@@ -12,7 +12,7 @@
 #include "kaminpar/datastructures/graph.h"
 #include "kaminpar/datastructures/partitioned_graph.h"
 #include "kaminpar/definitions.h"
-#include "kaminpar/graphutils/graph_contraction.h"
+#include "kaminpar/graphutils/cluster_contraction.h"
 
 namespace kaminpar::shm {
 class ClusteringCoarsener : public Coarsener {

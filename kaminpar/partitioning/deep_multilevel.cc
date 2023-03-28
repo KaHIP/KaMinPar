@@ -4,13 +4,13 @@
  * @date:   21.09.2021
  * @brief:
  ******************************************************************************/
-#include "kaminpar/partitioning/parallel_recursive_bisection.h"
+#include "kaminpar/partitioning/deep_multilevel.h"
 
-#include "kaminpar/partitioning/parallel_initial_partitioner.h"
-#include "kaminpar/partitioning/parallel_synchronized_initial_partitioner.h"
+#include "kaminpar/partitioning/async_initial_partitioning.h"
+#include "kaminpar/partitioning/sync_initial_partitioning.h"
 
 namespace kaminpar::shm::partitioning {
-ParallelRecursiveBisection::ParallelRecursiveBisection(const Graph &input_graph,
+DeepMultilevelPartitioner::DeepMultilevelPartitioner(const Graph &input_graph,
                                                        const Context &input_ctx)
     : _input_graph{input_graph}, _input_ctx{input_ctx},
       _current_p_ctx{input_ctx.partition}, //
@@ -19,7 +19,7 @@ ParallelRecursiveBisection::ParallelRecursiveBisection(const Graph &input_graph,
       _subgraph_memory{input_graph.n(), input_ctx.partition.k, input_graph.m(),
                        true, true} {}
 
-PartitionedGraph ParallelRecursiveBisection::partition() {
+PartitionedGraph DeepMultilevelPartitioner::partition() {
   cio::print_delimiter("Partitioning");
 
   const Graph *c_graph = coarsen();
@@ -44,12 +44,12 @@ PartitionedGraph ParallelRecursiveBisection::partition() {
 }
 
 PartitionedGraph
-ParallelRecursiveBisection::uncoarsen_once(PartitionedGraph p_graph) {
+DeepMultilevelPartitioner::uncoarsen_once(PartitionedGraph p_graph) {
   return helper::uncoarsen_once(_coarsener.get(), std::move(p_graph),
                                 _current_p_ctx);
 }
 
-void ParallelRecursiveBisection::refine(PartitionedGraph &p_graph) {
+void DeepMultilevelPartitioner::refine(PartitionedGraph &p_graph) {
   LOG << "  Running refinement on " << p_graph.k() << " blocks";
   helper::refine(_refiner.get(), p_graph, _current_p_ctx);
   LOG << "    Cut:       " << metrics::edge_cut(p_graph);
@@ -57,7 +57,7 @@ void ParallelRecursiveBisection::refine(PartitionedGraph &p_graph) {
   LOG << "    Feasible:  " << metrics::is_feasible(p_graph, _current_p_ctx);
 }
 
-void ParallelRecursiveBisection::extend_partition(PartitionedGraph &p_graph,
+void DeepMultilevelPartitioner::extend_partition(PartitionedGraph &p_graph,
                                                   const BlockID k_prime) {
   LOG << "  Extending partition from " << p_graph.k() << " blocks to "
       << k_prime << " blocks";
@@ -68,7 +68,7 @@ void ParallelRecursiveBisection::extend_partition(PartitionedGraph &p_graph,
   LOG << "    Imbalance: " << metrics::imbalance(p_graph);
 }
 
-PartitionedGraph ParallelRecursiveBisection::uncoarsen(PartitionedGraph p_graph,
+PartitionedGraph DeepMultilevelPartitioner::uncoarsen(PartitionedGraph p_graph,
                                                        bool &refined) {
   LOG << "Uncoarsening -> Level " << _coarsener.get()->size();
 
@@ -87,7 +87,7 @@ PartitionedGraph ParallelRecursiveBisection::uncoarsen(PartitionedGraph p_graph,
   return p_graph;
 }
 
-const Graph *ParallelRecursiveBisection::coarsen() {
+const Graph *DeepMultilevelPartitioner::coarsen() {
   const Graph *c_graph = &_input_graph;
   bool shrunk = true;
 
@@ -118,7 +118,7 @@ const Graph *ParallelRecursiveBisection::coarsen() {
   return c_graph;
 }
 
-NodeID ParallelRecursiveBisection::initial_partitioning_threshold() {
+NodeID DeepMultilevelPartitioner::initial_partitioning_threshold() {
   if (helper::parallel_ip_mode(_input_ctx.initial_partitioning.mode)) {
     return _input_ctx.parallel.num_threads *
            _input_ctx.coarsening.contraction_limit; // p * C
@@ -128,7 +128,7 @@ NodeID ParallelRecursiveBisection::initial_partitioning_threshold() {
 }
 
 PartitionedGraph
-ParallelRecursiveBisection::initial_partition(const Graph *graph) {
+DeepMultilevelPartitioner::initial_partition(const Graph *graph) {
   SCOPED_TIMER("Initial partitioning scheme");
   LOG << "Initial partitioning:";
 
@@ -148,7 +148,7 @@ ParallelRecursiveBisection::initial_partition(const Graph *graph) {
   return p_graph;
 }
 
-PartitionedGraph ParallelRecursiveBisection::parallel_initial_partition(
+PartitionedGraph DeepMultilevelPartitioner::parallel_initial_partition(
     const Graph * /* use _coarsener */) {
   // Timers are tricky during parallel initial partitioning
   // Hence, we only record its total time
@@ -156,14 +156,14 @@ PartitionedGraph ParallelRecursiveBisection::parallel_initial_partition(
   PartitionedGraph p_graph = [&] {
     if (_input_ctx.initial_partitioning.mode ==
         InitialPartitioningMode::SYNCHRONOUS_PARALLEL) {
-      ParallelSynchronizedInitialPartitioner initial_partitioner{
+      SyncInitialPartitioner initial_partitioner{
           _input_ctx, _ip_m_ctx_pool, _ip_extraction_pool};
       return initial_partitioner.partition(_coarsener.get(), _current_p_ctx);
     } else {
       KASSERT(_input_ctx.initial_partitioning.mode ==
                   InitialPartitioningMode::ASYNCHRONOUS_PARALLEL,
               "", assert::light);
-      ParallelInitialPartitioner initial_partitioner{_input_ctx, _ip_m_ctx_pool,
+      AsyncInitialPartitioner initial_partitioner{_input_ctx, _ip_m_ctx_pool,
                                                      _ip_extraction_pool};
       return initial_partitioner.partition(_coarsener.get(), _current_p_ctx);
     }
@@ -174,7 +174,7 @@ PartitionedGraph ParallelRecursiveBisection::parallel_initial_partition(
 }
 
 PartitionedGraph
-ParallelRecursiveBisection::sequential_initial_partition(const Graph *graph) {
+DeepMultilevelPartitioner::sequential_initial_partition(const Graph *graph) {
   // Timers work fine with sequential initial partitioning, but we disable them
   // to get a output similar to the parallel case
   DISABLE_TIMERS();
@@ -185,7 +185,7 @@ ParallelRecursiveBisection::sequential_initial_partition(const Graph *graph) {
   return p_graph;
 }
 
-void ParallelRecursiveBisection::print_statistics() {
+void DeepMultilevelPartitioner::print_statistics() {
   std::size_t num_ip_m_ctx_objects = 0;
   std::size_t max_ip_m_ctx_objects = 0;
   std::size_t min_ip_m_ctx_objects = std::numeric_limits<std::size_t>::max();

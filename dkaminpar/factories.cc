@@ -13,8 +13,8 @@
 #include "dkaminpar/definitions.h"
 
 // Partitioning schemes
-#include "dkaminpar/partitioning/deep_multilevel_partitioner.h"
-#include "dkaminpar/partitioning/kway_partitioner.h"
+#include "dkaminpar/partitioning/deep_multilevel.h"
+#include "dkaminpar/partitioning/kway_multilevel.h"
 
 // Initial Partitioning
 #include "dkaminpar/initial_partitioning/kaminpar_initial_partitioner.h"

@@ -1,10 +1,10 @@
 /*******************************************************************************
- * @file:   graph_contraction.cc
+ * @file:   cluster_contraction.cc
  * @author: Daniel Seemaier
  * @date:   21.09.2021
  * @brief:  Contracts a clustering and constructs the coarse graph.
  ******************************************************************************/
-#include "kaminpar/graphutils/graph_contraction.h"
+#include "kaminpar/graphutils/cluster_contraction.h"
 
 #include <kassert/kassert.hpp>
 #include <tbb/parallel_for.h>

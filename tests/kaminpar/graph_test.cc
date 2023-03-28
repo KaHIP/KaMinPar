@@ -3,7 +3,7 @@
 #include "tests/kaminpar/matchers.h"
 #include "tests/kaminpar/test_helpers.h"
 
-#include "kaminpar/graphutils/graph_extraction.h"
+#include "kaminpar/graphutils/subgraph_extractor.h"
 
 namespace kaminpar::shm::testing {
 class AWeightedGridGraph : public ::testing::Test {

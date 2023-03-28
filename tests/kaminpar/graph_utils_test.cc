@@ -3,9 +3,9 @@
 #include "tests/kaminpar/matchers.h"
 #include "tests/kaminpar/test_helpers.h"
 
-#include "kaminpar/graphutils/graph_contraction.h"
-#include "kaminpar/graphutils/graph_extraction.h"
-#include "kaminpar/graphutils/graph_rearrangement.h"
+#include "kaminpar/graphutils/cluster_contraction.h"
+#include "kaminpar/graphutils/permutator.h"
+#include "kaminpar/graphutils/subgraph_extractor.h"
 
 using ::testing::AllOf;
 using ::testing::AnyOf;

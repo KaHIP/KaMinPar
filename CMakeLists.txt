@@ -170,15 +170,6 @@ if (KAMINPAR_DISTRIBUTED)
 
     # Google Sparsehash 
     find_package(Sparsehash REQUIRED)
-
-    # If we also build the binary, fetch KaGen for graph IO
-    if (KAMINPAR_BINARIES)
-        message("################################################################################")
-        message("## KaGen                                                                      ##")
-        message("################################################################################")
-        FetchContent_MakeAvailable(KaGen)
-        set_property(DIRECTORY "${KaGen_SOURCE_DIR}" PROPERTY EXCLUDE_FROM_ALL YES)
-    endif ()
 endif ()
 
 message("################################################################################")

@@ -10,14 +10,14 @@
 
 #include "kaminpar/context.h"
 #include "kaminpar/datastructures/graph.h"
-#include "kaminpar/graphutils/graph_extraction.h"
+#include "kaminpar/graphutils/subgraph_extractor.h"
 #include "kaminpar/initial_partitioning/initial_partitioning_facade.h"
 #include "kaminpar/partitioning/helper.h"
 
 namespace kaminpar::shm::partitioning {
-class ParallelSimpleRecursiveBisection {
+class RBMultilevelPartitioner {
 public:
-  ParallelSimpleRecursiveBisection(const Graph &input_graph,
+  RBMultilevelPartitioner(const Graph &input_graph,
                                    const Context &input_ctx)
       : _input_graph{input_graph}, _input_ctx{input_ctx} {}
 

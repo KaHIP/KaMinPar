@@ -12,7 +12,7 @@
 #include "kaminpar/context.h"
 #include "kaminpar/datastructures/graph.h"
 #include "kaminpar/factories.h"
-#include "kaminpar/graphutils/graph_extraction.h"
+#include "kaminpar/graphutils/subgraph_extractor.h"
 #include "kaminpar/initial_partitioning/initial_partitioning_facade.h"
 #include "kaminpar/initial_partitioning/pool_bipartitioner.h"
 #include "kaminpar/partitioning/helper.h"
@@ -20,19 +20,19 @@
 #include "common/console_io.h"
 
 namespace kaminpar::shm::partitioning {
-class ParallelRecursiveBisection {
+class DeepMultilevelPartitioner {
   SET_DEBUG(false);
   SET_STATISTICS(false);
 
 public:
-  ParallelRecursiveBisection(const Graph &input_graph,
+  DeepMultilevelPartitioner(const Graph &input_graph,
                              const Context &input_ctx);
 
-  ParallelRecursiveBisection(const ParallelRecursiveBisection &) = delete;
-  ParallelRecursiveBisection &
-  operator=(const ParallelRecursiveBisection &) = delete;
-  ParallelRecursiveBisection(ParallelRecursiveBisection &&) = delete;
-  ParallelRecursiveBisection &operator=(ParallelRecursiveBisection &&) = delete;
+  DeepMultilevelPartitioner(const DeepMultilevelPartitioner &) = delete;
+  DeepMultilevelPartitioner &
+  operator=(const DeepMultilevelPartitioner &) = delete;
+  DeepMultilevelPartitioner(DeepMultilevelPartitioner &&) = delete;
+  DeepMultilevelPartitioner &operator=(DeepMultilevelPartitioner &&) = delete;
 
   PartitionedGraph partition();
 

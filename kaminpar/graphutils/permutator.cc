@@ -4,7 +4,7 @@
  * @date:   17.11.2021
  * @brief:  Algorithms to rearrange graphs.
  ******************************************************************************/
-#include "kaminpar/graphutils/graph_rearrangement.h"
+#include "kaminpar/graphutils/permutator.h"
 
 #include <cmath>
 

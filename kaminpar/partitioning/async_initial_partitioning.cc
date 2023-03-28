@@ -4,24 +4,25 @@
  * @date:   21.09.2021
  * @brief:
  ******************************************************************************/
-#include "kaminpar/partitioning/parallel_initial_partitioner.h"
+#include "kaminpar/partitioning/async_initial_partitioning.h"
 
 namespace kaminpar::shm::partitioning {
-ParallelInitialPartitioner::ParallelInitialPartitioner(
+AsyncInitialPartitioner::AsyncInitialPartitioner(
     const Context &input_ctx, GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool,
     TemporaryGraphExtractionBufferPool &ip_extraction_pool)
     : _input_ctx{input_ctx}, _ip_m_ctx_pool{ip_m_ctx_pool},
       _ip_extraction_pool{ip_extraction_pool} {}
 
 PartitionedGraph
-ParallelInitialPartitioner::partition(const Coarsener *coarsener,
+AsyncInitialPartitioner::partition(const Coarsener *coarsener,
                                       const PartitionContext &p_ctx) {
   const std::size_t num_threads =
       helper::compute_num_threads_for_parallel_ip(_input_ctx);
   return split_and_join(coarsener, p_ctx, false, num_threads);
 }
 
-PartitionedGraph ParallelInitialPartitioner::partition_recursive(
+PartitionedGraph
+AsyncInitialPartitioner::partition_recursive(
     const Coarsener *parent_coarsener, PartitionContext &p_ctx,
     const std::size_t num_threads) {
   const Graph *graph = parent_coarsener->coarsest_graph();
@@ -56,7 +57,7 @@ PartitionedGraph ParallelInitialPartitioner::partition_recursive(
   }
 }
 
-PartitionedGraph ParallelInitialPartitioner::split_and_join(
+PartitionedGraph AsyncInitialPartitioner::split_and_join(
     const Coarsener *coarsener, const PartitionContext &p_ctx,
     const bool converged, const std::size_t num_threads) {
   const Graph *graph = coarsener->coarsest_graph();

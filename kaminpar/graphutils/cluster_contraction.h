@@ -1,5 +1,5 @@
 /*******************************************************************************
- * @file:   graph_contraction.h
+ * @file:   cluster_contraction.h
  * @author: Daniel Seemaier
  * @date:   21.09.2021
  * @brief:  Contracts a clustering and constructs the coarse graph.

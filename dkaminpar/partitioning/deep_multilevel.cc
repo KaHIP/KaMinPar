@@ -5,7 +5,7 @@
  * @brief:  Deep multilevel graph partitioning with direct k-way initial
  *partitioning.
  ******************************************************************************/
-#include "dkaminpar/partitioning/deep_multilevel_partitioner.h"
+#include "dkaminpar/partitioning/deep_multilevel.h"
 
 #include <cmath>
 #include <iomanip>

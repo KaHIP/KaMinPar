@@ -12,7 +12,7 @@
 #include "kaminpar/datastructures/graph.h"
 #include "kaminpar/datastructures/partitioned_graph.h"
 #include "kaminpar/definitions.h"
-#include "kaminpar/graphutils/graph_rearrangement.h"
+#include "kaminpar/graphutils/permutator.h"
 #include "kaminpar/metrics.h"
 #include "kaminpar/partitioning/partitioning.h"
 #include "kaminpar/presets.h"
