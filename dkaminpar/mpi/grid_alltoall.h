@@ -319,7 +319,7 @@ void sparse_alltoall_grid(SendBuffer &&data, const CountsBuffer &counts,
       displ += buf_size;
 
       KASSERT(pe < size);
-      invoke_receiver(std::move(buffer), pe, receiver);
+      internal::invoke_receiver(std::move(buffer), pe, receiver);
     }
   }
 }

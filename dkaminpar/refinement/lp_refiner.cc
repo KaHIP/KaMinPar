@@ -332,8 +332,8 @@ private:
     });
 
     // compute global block weights after moves
-    mpi::sparse_allreduce<BlockWeight>(block_weight_deltas, _p_ctx->k, MPI_SUM,
-                                       _p_graph->communicator());
+    mpi::inplace_sparse_allreduce(block_weight_deltas, _p_ctx->k, MPI_SUM,
+                                  _p_graph->communicator());
 
     // check for balance violations
     parallel::Atomic<std::uint8_t> feasible = 1;
