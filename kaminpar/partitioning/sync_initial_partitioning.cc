@@ -4,16 +4,17 @@
  * @date:   21.09.2021
  * @brief:
  ******************************************************************************/
-#include "kaminpar/partitioning/parallel_synchronized_initial_partitioner.h"
+#include "kaminpar/partitioning/sync_initial_partitioning.h"
 
 namespace kaminpar::shm::partitioning {
-ParallelSynchronizedInitialPartitioner::ParallelSynchronizedInitialPartitioner(
+SyncInitialPartitioner::SyncInitialPartitioner(
     const Context &input_ctx, GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool,
     TemporaryGraphExtractionBufferPool &ip_extraction_pool)
     : _input_ctx{input_ctx}, _ip_m_ctx_pool{ip_m_ctx_pool},
       _ip_extraction_pool{ip_extraction_pool} {}
 
-PartitionedGraph ParallelSynchronizedInitialPartitioner::partition(
+PartitionedGraph
+SyncInitialPartitioner::partition(
     const Coarsener *coarsener, const PartitionContext &p_ctx) {
   const std::size_t num_threads =
       helper::compute_num_threads_for_parallel_ip(_input_ctx);
@@ -147,7 +148,7 @@ PartitionedGraph ParallelSynchronizedInitialPartitioner::partition(
 }
 
 std::unique_ptr<Coarsener>
-ParallelSynchronizedInitialPartitioner::duplicate_coarsener(
+SyncInitialPartitioner::duplicate_coarsener(
     const Coarsener *coarsener) {
   return factory::create_coarsener(*coarsener->coarsest_graph(),
                                    _input_ctx.coarsening);

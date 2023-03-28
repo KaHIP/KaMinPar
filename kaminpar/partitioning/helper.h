@@ -12,7 +12,7 @@
 #include "kaminpar/coarsening/coarsener.h"
 #include "kaminpar/datastructures/graph.h"
 #include "kaminpar/definitions.h"
-#include "kaminpar/graphutils/graph_extraction.h"
+#include "kaminpar/graphutils/subgraph_extractor.h"
 #include "kaminpar/initial_partitioning/initial_partitioning_facade.h"
 
 namespace kaminpar::shm::partitioning {

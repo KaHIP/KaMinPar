@@ -6,8 +6,8 @@
  ******************************************************************************/
 #include "kaminpar/partitioning/partitioning.h"
 
-#include "kaminpar/partitioning/parallel_recursive_bisection.h"
-#include "kaminpar/partitioning/parallel_simple_recursive_bisection.h"
+#include "kaminpar/partitioning/deep_multilevel.h"
+#include "kaminpar/partitioning/rb_multilevel.h"
 
 #include "common/logger.h"
 #include "common/timer.h"
@@ -18,7 +18,7 @@ PartitionedGraph partition(const Graph &graph, const Context &ctx) {
   case PartitioningMode::DEEP: {
     START_TIMER("Partitioning");
     START_TIMER("Allocation");
-    ParallelRecursiveBisection rb{graph, ctx};
+    DeepMultilevelPartitioner rb{graph, ctx};
     STOP_TIMER();
     auto p_graph = rb.partition();
     STOP_TIMER();
@@ -28,7 +28,7 @@ PartitionedGraph partition(const Graph &graph, const Context &ctx) {
   case PartitioningMode::RB: {
     START_TIMER("Partitioning");
     START_TIMER("Allocation");
-    ParallelSimpleRecursiveBisection rb{graph, ctx};
+    RBMultilevelPartitioner rb{graph, ctx};
     STOP_TIMER();
     auto p_graph = rb.partition();
     STOP_TIMER();

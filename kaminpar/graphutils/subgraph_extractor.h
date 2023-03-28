@@ -1,5 +1,5 @@
 /*******************************************************************************
- * @file:   graph_extraction.h
+ * @file:   subgraph_extraction.h
  * @author: Daniel Seemaier
  * @date:   21.09.2021
  * @brief:  Extracts the subgraphs induced by each block of a partition.

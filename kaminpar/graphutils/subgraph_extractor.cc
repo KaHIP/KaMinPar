@@ -1,10 +1,10 @@
 /*******************************************************************************
- * @file:   graph_extraction.cc
+ * @file:   subgraph_extraction.cc
  * @author: Daniel Seemaier
  * @date:   21.09.2021
  * @brief:  Extracts the subgraphs induced by each block of a partition.
  ******************************************************************************/
-#include "kaminpar/graphutils/graph_extraction.h"
+#include "kaminpar/graphutils/subgraph_extractor.h"
 
 #include <mutex>
 

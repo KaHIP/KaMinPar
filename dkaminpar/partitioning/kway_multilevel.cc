@@ -5,7 +5,7 @@
  * @brief:  Multilevel graph partitioning with direct k-way initial
  *partitioning.
  ******************************************************************************/
-#include "dkaminpar/partitioning/kway_partitioner.h"
+#include "dkaminpar/partitioning/kway_multilevel.h"
 
 #include "dkaminpar/coarsening/coarsener.h"
 #include "dkaminpar/datastructures/distributed_graph.h"

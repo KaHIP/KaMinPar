@@ -1,5 +1,5 @@
 /*******************************************************************************
- * @file:   parallel_initial_partitioner.h
+ * @file:   parallel_synchronized_initial_partitioner.h
  * @author: Daniel Seemaier
  * @date:   21.09.2021
  * @brief:
@@ -19,11 +19,11 @@
 #include "kaminpar/refinement/label_propagation_refiner.h"
 
 namespace kaminpar::shm::partitioning {
-class ParallelInitialPartitioner {
-  static constexpr bool kDebug = false;
+class SyncInitialPartitioner {
+  SET_DEBUG(false);
 
 public:
-  ParallelInitialPartitioner(
+  SyncInitialPartitioner(
       const Context &input_ctx,
       GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool,
       TemporaryGraphExtractionBufferPool &ip_extraction_pool);
@@ -32,13 +32,7 @@ public:
                              const PartitionContext &p_ctx);
 
 private:
-  PartitionedGraph partition_recursive(const Coarsener *parent_coarsener,
-                                       PartitionContext &p_ctx,
-                                       std::size_t num_threads);
-
-  PartitionedGraph split_and_join(const Coarsener *coarsener,
-                                  const PartitionContext &p_ctx, bool converged,
-                                  std::size_t num_threads);
+  std::unique_ptr<Coarsener> duplicate_coarsener(const Coarsener *coarsener);
 
   const Context &_input_ctx;
   GlobalInitialPartitionerMemoryPool &_ip_m_ctx_pool;
