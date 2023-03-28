@@ -13,9 +13,9 @@
 
 #include <kassert/kassert.hpp>
 
-#ifdef KAMINPAR_HAS_MTKAHYPAR_LIB
+#ifdef KAMINPAR_HAVE_MTKAHYPAR_LIB
 #include <libmtkahypar.h>
-#endif // KAMINPAR_HAS_MTKAHYPAR_LIB
+#endif // KAMINPAR_HAVE_MTKAHYPAR_LIB
 
 #include "kaminpar/partitioning/partitioning.h"
 
@@ -31,7 +31,7 @@ shm::PartitionedGraph MtKaHyParInitialPartitioner::initial_partition(
     [[maybe_unused]] const shm::Graph &graph,
     [[maybe_unused]] const PartitionContext &p_ctx
 ) {
-#ifdef KAMINPAR_HAS_MTKAHYPAR_LIB
+#ifdef KAMINPAR_HAVE_MTKAHYPAR_LIB
   mt_kahypar_context_t *mt_kahypar_ctx = mt_kahypar_context_new();
   mt_kahypar_load_preset(mt_kahypar_ctx, SPEED);
   mt_kahypar_set_partitioning_parameters(
@@ -109,17 +109,14 @@ shm::PartitionedGraph MtKaHyParInitialPartitioner::initial_partition(
   mt_kahypar_free_context(mt_kahypar_ctx);
 
   return shm::PartitionedGraph(
-      graph,
-      p_ctx.k,
-      std::move(partition_cpy),
-      scalable_vector<BlockID>(p_ctx.k, 1)
+      graph, p_ctx.k, std::move(partition_cpy), std::vector<BlockID>(p_ctx.k, 1)
   );
-#else  // KAMINPAR_HAS_MTKAHYPAR_LIB
+#else  // KAMINPAR_HAVE_MTKAHYPAR_LIB
   ((void)_ctx);
   KASSERT(
       false, "Mt-KaHyPar initial partitioner is not available.", assert::always
   );
   __builtin_unreachable();
-#endif // KAMINPAR_HAS_MTKAHYPAR_LIB
+#endif // KAMINPAR_HAVE_MTKAHYPAR_LIB
 }
 } // namespace kaminpar::dist
