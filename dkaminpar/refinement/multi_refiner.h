@@ -21,8 +21,8 @@ public:
   MultiRefiner &operator=(MultiRefiner &&) = delete;
 
   void initialize(const DistributedGraph &graph);
-  void refine(DistributedPartitionedGraph &p_graph,
-              const PartitionContext &p_ctx);
+  void
+  refine(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx);
 
 private:
   std::vector<std::unique_ptr<Refiner>> _refiners;

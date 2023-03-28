@@ -38,8 +38,8 @@
 #include "dkaminpar/coarsening/clustering/noop_clustering.h"
 
 namespace kaminpar::dist::factory {
-std::unique_ptr<Partitioner> create_partitioner(const Context &ctx,
-                                                const DistributedGraph &graph) {
+std::unique_ptr<Partitioner>
+create_partitioner(const Context &ctx, const DistributedGraph &graph) {
   switch (ctx.mode) {
   case PartitioningMode::DEEP:
     return std::make_unique<DeepMultilevelPartitioner>(graph, ctx);
@@ -68,9 +68,9 @@ create_initial_partitioning_algorithm(const Context &ctx) {
 }
 
 namespace {
-std::unique_ptr<Refiner>
-create_refinement_algorithm(const Context &ctx,
-                            const KWayRefinementAlgorithm algorithm) {
+std::unique_ptr<Refiner> create_refinement_algorithm(
+    const Context &ctx, const KWayRefinementAlgorithm algorithm
+) {
   switch (algorithm) {
   case KWayRefinementAlgorithm::NOOP:
     return std::make_unique<NoopRefiner>();

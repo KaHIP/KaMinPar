@@ -17,9 +17,11 @@ template <typename T> struct AlltoallvImplementation {
   operator()(const std::vector<std::vector<T>> &sendbuf, MPI_Comm comm) {
     std::vector<std::vector<T>> recvbufs(mpi::get_comm_size(comm));
     mpi::sparse_alltoall<T, std::vector<T>>(
-        mpi::tag::alltoallv, sendbuf,
+        mpi::tag::alltoallv,
+        sendbuf,
         [&](auto recvbuf, const PEID pe) { recvbufs[pe] = std::move(recvbuf); },
-        comm);
+        comm
+    );
     return recvbufs;
   }
 };
@@ -31,9 +33,11 @@ template <typename T> struct GridImplementation {
 
     std::vector<std::vector<T>> recvbufs(size);
     mpi::sparse_alltoall<T, std::vector<T>>(
-        mpi::tag::grid, sendbuf,
+        mpi::tag::grid,
+        sendbuf,
         [&](auto recvbuf, const PEID pe) { recvbufs[pe] = std::move(recvbuf); },
-        comm);
+        comm
+    );
     return recvbufs;
   }
 };
@@ -43,9 +47,11 @@ template <typename T> struct CompleteSendRecvImplementation {
   operator()(const std::vector<std::vector<T>> &sendbuf, MPI_Comm comm) {
     std::vector<std::vector<T>> recvbufs(mpi::get_comm_size(comm));
     mpi::sparse_alltoall<T, std::vector<T>>(
-        mpi::tag::complete_send_recv, sendbuf,
+        mpi::tag::complete_send_recv,
+        sendbuf,
         [&](auto recvbuf, const PEID pe) { recvbufs[pe] = std::move(recvbuf); },
-        comm);
+        comm
+    );
     return recvbufs;
   }
 };
@@ -55,18 +61,21 @@ template <typename T> struct SparseImplementation {
   operator()(const std::vector<std::vector<T>> &sendbuf, MPI_Comm comm) {
     std::vector<std::vector<T>> recvbufs(mpi::get_comm_size(comm));
     mpi::sparse_alltoall<T, std::vector<T>>(
-        mpi::tag::sparse_isend_irecv, sendbuf,
+        mpi::tag::sparse_isend_irecv,
+        sendbuf,
         [&](auto recvbuf, const PEID pe) { recvbufs[pe] = std::move(recvbuf); },
-        comm);
+        comm
+    );
     return recvbufs;
   }
 };
 
 template <typename T>
-using SparseAlltoallImplementations =
-    ::testing::Types<CompleteSendRecvImplementation<T>,
-                     AlltoallvImplementation<T>, SparseImplementation<T>,
-                     GridImplementation<T>>;
+using SparseAlltoallImplementations = ::testing::Types<
+    CompleteSendRecvImplementation<T>,
+    AlltoallvImplementation<T>,
+    SparseImplementation<T>,
+    GridImplementation<T>>;
 TYPED_TEST_SUITE(SparseAlltoallTest, SparseAlltoallImplementations<int>);
 
 TYPED_TEST(SparseAlltoallTest, empty_alltoall) {
@@ -186,8 +195,11 @@ TYPED_TEST(SparseAlltoallTest, irregular_triangle_alltoall) {
   for (PEID from = 0; from < size; ++from) {
     if (from >= rank) {
       EXPECT_EQ(recvbufs[from].size(), rank);
-      EXPECT_TRUE(std::all_of(recvbufs[from].begin(), recvbufs[from].end(),
-                              [&](const int value) { return value == from; }));
+      EXPECT_TRUE(std::all_of(
+          recvbufs[from].begin(),
+          recvbufs[from].end(),
+          [&](const int value) { return value == from; }
+      ));
     } else {
       EXPECT_TRUE(recvbufs[from].empty());
     }
@@ -203,7 +215,8 @@ TEST(DefaultSparseAlltoallTest, does_not_move_lvalue_reference) {
   }
 
   mpi::sparse_alltoall<int>(
-      sendbufs, [&](auto) {}, MPI_COMM_WORLD);
+      sendbufs, [&](auto) {}, MPI_COMM_WORLD
+  );
 
   EXPECT_EQ(sendbufs.size(), size);
   for (PEID pe = 0; pe < size; ++pe) {

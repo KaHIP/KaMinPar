@@ -63,8 +63,12 @@ int main(int argc, char *argv[]) {
   auto balancer = factory::create_refinement_algorithm(ctx);
 
   TIMED_SCOPE("Balancer") {
-    TIMED_SCOPE("Initialization") { balancer->initialize(graph); };
-    TIMED_SCOPE("Balancing") { balancer->refine(p_graph, ctx.partition); };
+    TIMED_SCOPE("Initialization") {
+      balancer->initialize(graph);
+    };
+    TIMED_SCOPE("Balancing") {
+      balancer->refine(p_graph, ctx.partition);
+    };
   };
 
   const auto cut_after = metrics::edge_cut(p_graph);

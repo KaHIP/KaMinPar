@@ -23,27 +23,24 @@ using Queues = std::array<Queue<NodeID>, 2>;
 
 /*! Always selects the inactive block, i.e., switches blocks after each step. */
 struct alternating {
-  BlockID operator()(const BlockID active_block,
-                     const Bipartitioner::BlockWeights &,
-                     const PartitionContext &, const Queues &) {
+  BlockID
+  operator()(const BlockID active_block, const Bipartitioner::BlockWeights &, const PartitionContext &, const Queues &) {
     return 1 - active_block;
   }
 };
 
 /*! Always selects the block with the smaller weight. */
 struct lighter {
-  BlockID operator()(const BlockID,
-                     const Bipartitioner::BlockWeights &block_weights,
-                     const PartitionContext &, const Queues &) {
+  BlockID
+  operator()(const BlockID, const Bipartitioner::BlockWeights &block_weights, const PartitionContext &, const Queues &) {
     return (block_weights[0] < block_weights[1]) ? 0 : 1;
   }
 };
 
 /*! Selects the first block until it has more than half weight. */
 struct sequential {
-  BlockID operator()(const BlockID,
-                     const Bipartitioner::BlockWeights &block_weights,
-                     const PartitionContext &context, const Queues &) {
+  BlockID
+  operator()(const BlockID, const Bipartitioner::BlockWeights &block_weights, const PartitionContext &context, const Queues &) {
     return (block_weights[0] < context.block_weights.perfectly_balanced(0)) ? 0
                                                                             : 1;
   }
@@ -51,16 +48,24 @@ struct sequential {
 
 /*! Always selects the block with the longer queue. */
 struct longer_queue {
-  BlockID operator()(const BlockID, const Bipartitioner::BlockWeights &,
-                     const PartitionContext &, const Queues &queues) {
+  BlockID operator()(
+      const BlockID,
+      const Bipartitioner::BlockWeights &,
+      const PartitionContext &,
+      const Queues &queues
+  ) {
     return (queues[0].size() < queues[1].size()) ? 1 : 0;
   }
 };
 
 /*! Always selects the block with the shorter queue. */
 struct shorter_queue {
-  BlockID operator()(const BlockID, const Bipartitioner::BlockWeights &,
-                     const PartitionContext &, const Queues &queues) {
+  BlockID operator()(
+      const BlockID,
+      const Bipartitioner::BlockWeights &,
+      const PartitionContext &,
+      const Queues &queues
+  ) {
     return (queues[0].size() < queues[1].size()) ? 0 : 1;
   }
 };
@@ -77,8 +82,11 @@ public:
     }
   };
 
-  BfsBipartitionerBase(const Graph &graph, const PartitionContext &p_ctx,
-                       const InitialPartitioningContext &i_ctx)
+  BfsBipartitionerBase(
+      const Graph &graph,
+      const PartitionContext &p_ctx,
+      const InitialPartitioningContext &i_ctx
+  )
       : Bipartitioner(graph, p_ctx, i_ctx) {}
 };
 
@@ -100,11 +108,16 @@ class BfsBipartitioner : public BfsBipartitionerBase {
   using MemoryContext = BfsBipartitionerBase::MemoryContext;
 
 public:
-  BfsBipartitioner(const Graph &graph, const PartitionContext &p_ctx,
-                   const InitialPartitioningContext &i_ctx,
-                   MemoryContext &m_ctx)
-      : BfsBipartitionerBase(graph, p_ctx, i_ctx), _queues{m_ctx.queues},
-        _marker{m_ctx.marker}, _num_seed_iterations(i_ctx.num_seed_iterations) {
+  BfsBipartitioner(
+      const Graph &graph,
+      const PartitionContext &p_ctx,
+      const InitialPartitioningContext &i_ctx,
+      MemoryContext &m_ctx
+  )
+      : BfsBipartitionerBase(graph, p_ctx, i_ctx),
+        _queues{m_ctx.queues},
+        _marker{m_ctx.marker},
+        _num_seed_iterations(i_ctx.num_seed_iterations) {
     if (_marker.capacity() < _graph.n()) {
       _marker.resize(_graph.n());
     }
@@ -159,8 +172,9 @@ protected:
         //        }
         // than this version
         const NodeWeight weight = _block_weights[active];
-        const bool assignment_allowed = (weight + _graph.node_weight(u) <=
-                                         _p_ctx.block_weights.max(active));
+        const bool assignment_allowed =
+            (weight + _graph.node_weight(u) <= _p_ctx.block_weights.max(active)
+            );
         active = assignment_allowed * active +
                  (1 - assignment_allowed) * (1 - active);
 

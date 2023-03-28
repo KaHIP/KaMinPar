@@ -26,15 +26,22 @@ using namespace kaminpar::dist::testing;
 
 namespace {
 template <typename Container>
-std::vector<GlobalNodeID>
-allgather_independent_set(const DistributedPartitionedGraph &p_graph,
-                          const Container &is) {
+std::vector<GlobalNodeID> allgather_independent_set(
+    const DistributedPartitionedGraph &p_graph, const Container &is
+) {
   const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
 
   std::vector<int> recvcounts(size);
   recvcounts[rank] = asserting_cast<int>(is.size());
-  MPI_Allgather(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, recvcounts.data(), 1,
-                MPI_INT, MPI_COMM_WORLD);
+  MPI_Allgather(
+      MPI_IN_PLACE,
+      0,
+      MPI_DATATYPE_NULL,
+      recvcounts.data(),
+      1,
+      MPI_INT,
+      MPI_COMM_WORLD
+  );
 
   std::vector<int> displs(size + 1);
   std::partial_sum(recvcounts.begin(), recvcounts.end(), displs.begin() + 1);
@@ -45,16 +52,24 @@ allgather_independent_set(const DistributedPartitionedGraph &p_graph,
     global_is[offset + i] = p_graph.local_to_global_node(is[i]);
   }
 
-  MPI_Allgatherv(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, global_is.data(),
-                 recvcounts.data(), displs.data(),
-                 mpi::type::get<GlobalNodeID>(), MPI_COMM_WORLD);
+  MPI_Allgatherv(
+      MPI_IN_PLACE,
+      0,
+      MPI_DATATYPE_NULL,
+      global_is.data(),
+      recvcounts.data(),
+      displs.data(),
+      mpi::type::get<GlobalNodeID>(),
+      MPI_COMM_WORLD
+  );
 
   return global_is;
 }
 
 template <typename Container>
-void expect_nonempty_independent_set(const DistributedPartitionedGraph &p_graph,
-                                     const Container &is) {
+void expect_nonempty_independent_set(
+    const DistributedPartitionedGraph &p_graph, const Container &is
+) {
   const auto global_is = allgather_independent_set(p_graph, is);
   EXPECT_GE(global_is.size(), 0);
 

@@ -18,8 +18,8 @@ public:
 
   virtual ~ClusteringAlgorithm() = default;
 
-  virtual ClusterArray &
-  compute_clustering(const DistributedGraph &graph,
-                     GlobalNodeWeight max_cluster_weight) = 0;
+  virtual ClusterArray &compute_clustering(
+      const DistributedGraph &graph, GlobalNodeWeight max_cluster_weight
+  ) = 0;
 };
 } // namespace kaminpar::dist

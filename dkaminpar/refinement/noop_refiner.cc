@@ -11,6 +11,6 @@
 
 namespace kaminpar::dist {
 void NoopRefiner::initialize(const DistributedGraph &) {}
-void NoopRefiner::refine(DistributedPartitionedGraph &,
-                         const PartitionContext &) {}
+void NoopRefiner::
+    refine(DistributedPartitionedGraph &, const PartitionContext &) {}
 } // namespace kaminpar::dist

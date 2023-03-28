@@ -29,7 +29,9 @@ public:
   [[nodiscard]] inline std::size_t size() const {
     return _coarse_graphs.size();
   }
-  [[nodiscard]] inline bool empty() const { return _coarse_graphs.empty(); }
+  [[nodiscard]] inline bool empty() const {
+    return _coarse_graphs.empty();
+  }
   [[nodiscard]] inline const auto &coarse_mappings() const {
     return _coarse_mappings;
   }

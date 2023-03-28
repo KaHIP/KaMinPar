@@ -61,10 +61,17 @@ inline Format parse_header(const std::string &filename) {
   return parse_header(toker);
 }
 
-template <bool throwing, typename GraphFormatCB, typename NextNodeCB,
-          typename NextEdgeCB>
-void parse(MappedFileToker<throwing> &toker, GraphFormatCB &&format_cb,
-           NextNodeCB &&next_node_cb, NextEdgeCB &&next_edge_cb) {
+template <
+    bool throwing,
+    typename GraphFormatCB,
+    typename NextNodeCB,
+    typename NextEdgeCB>
+void parse(
+    MappedFileToker<throwing> &toker,
+    GraphFormatCB &&format_cb,
+    NextNodeCB &&next_node_cb,
+    NextEdgeCB &&next_edge_cb
+) {
   static_assert(std::is_invocable_v<GraphFormatCB, Format>);
   static_assert(std::is_invocable_v<NextNodeCB, std::uint64_t>);
   static_assert(std::is_invocable_v<NextEdgeCB, std::uint64_t, std::uint64_t>);
@@ -132,13 +139,23 @@ void parse(MappedFileToker<throwing> &toker, GraphFormatCB &&format_cb,
   }
 }
 
-template <bool throwing, typename GraphFormatCB, typename NextNodeCB,
-          typename NextEdgeCB>
-void parse(const std::string &filename, GraphFormatCB &&format_cb,
-           NextNodeCB &&next_node_cb, NextEdgeCB &&next_edge_cb) {
+template <
+    bool throwing,
+    typename GraphFormatCB,
+    typename NextNodeCB,
+    typename NextEdgeCB>
+void parse(
+    const std::string &filename,
+    GraphFormatCB &&format_cb,
+    NextNodeCB &&next_node_cb,
+    NextEdgeCB &&next_edge_cb
+) {
   MappedFileToker<throwing> toker(filename);
-  parse(toker, std::forward<GraphFormatCB>(format_cb),
-        std::forward<NextNodeCB>(next_node_cb),
-        std::forward<NextEdgeCB>(next_edge_cb));
+  parse(
+      toker,
+      std::forward<GraphFormatCB>(format_cb),
+      std::forward<NextNodeCB>(next_node_cb),
+      std::forward<NextEdgeCB>(next_edge_cb)
+  );
 }
 } // namespace kaminpar::io::metis

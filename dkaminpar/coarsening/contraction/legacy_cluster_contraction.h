@@ -26,18 +26,24 @@ struct GlobalContractionResult {
 };
 
 GlobalContractionResult contract_global_clustering_no_migration(
-    const DistributedGraph &graph, const LegacyGlobalClustering &clustering);
+    const DistributedGraph &graph, const LegacyGlobalClustering &clustering
+);
 GlobalContractionResult contract_global_clustering_minimal_migration(
-    const DistributedGraph &graph, const LegacyGlobalClustering &clustering);
+    const DistributedGraph &graph, const LegacyGlobalClustering &clustering
+);
 GlobalContractionResult contract_global_clustering_full_migration(
-    const DistributedGraph &graph, const LegacyGlobalClustering &clustering);
+    const DistributedGraph &graph, const LegacyGlobalClustering &clustering
+);
 
-ContractionResult contract_global_clustering(const DistributedGraph &graph,
-                                             GlobalClustering &clustering,
-                                             const CoarseningContext &c_ctx);
+ContractionResult contract_global_clustering(
+    const DistributedGraph &graph,
+    GlobalClustering &clustering,
+    const CoarseningContext &c_ctx
+);
 
-DistributedPartitionedGraph
-project_global_contracted_graph(const DistributedGraph &fine_graph,
-                                DistributedPartitionedGraph coarse_graph,
-                                const LegacyGlobalMapping &fine_to_coarse);
+DistributedPartitionedGraph project_global_contracted_graph(
+    const DistributedGraph &fine_graph,
+    DistributedPartitionedGraph coarse_graph,
+    const LegacyGlobalMapping &fine_to_coarse
+);
 } // namespace kaminpar::dist

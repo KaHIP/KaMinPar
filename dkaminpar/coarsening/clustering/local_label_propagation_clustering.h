@@ -17,20 +17,21 @@ class DistributedLocalLabelPropagationClustering
 public:
   DistributedLocalLabelPropagationClustering(const Context &ctx);
 
-  DistributedLocalLabelPropagationClustering(
-      const DistributedLocalLabelPropagationClustering &) = delete;
+  DistributedLocalLabelPropagationClustering(const DistributedLocalLabelPropagationClustering
+                                                 &) = delete;
   DistributedLocalLabelPropagationClustering &
   operator=(const DistributedLocalLabelPropagationClustering &) = delete;
 
-  DistributedLocalLabelPropagationClustering(
-      DistributedLocalLabelPropagationClustering &&) = default;
+  DistributedLocalLabelPropagationClustering(DistributedLocalLabelPropagationClustering
+                                                 &&) = default;
   DistributedLocalLabelPropagationClustering &
   operator=(DistributedLocalLabelPropagationClustering &&) = default;
 
   ~DistributedLocalLabelPropagationClustering();
 
-  ClusterArray &compute_clustering(const DistributedGraph &graph,
-                                   GlobalNodeWeight max_cluster_weight) final;
+  ClusterArray &compute_clustering(
+      const DistributedGraph &graph, GlobalNodeWeight max_cluster_weight
+  ) final;
 
 private:
   std::unique_ptr<class DistributedLocalLabelPropagationClusteringImpl> _impl;

@@ -17,9 +17,9 @@
 namespace kaminpar::shm::partitioning {
 class RBMultilevelPartitioner {
 public:
-  RBMultilevelPartitioner(const Graph &input_graph,
-                                   const Context &input_ctx)
-      : _input_graph{input_graph}, _input_ctx{input_ctx} {}
+  RBMultilevelPartitioner(const Graph &input_graph, const Context &input_ctx)
+      : _input_graph{input_graph},
+        _input_ctx{input_ctx} {}
 
   PartitionedGraph partition() {
     DISABLE_TIMERS();
@@ -33,9 +33,12 @@ public:
     auto p_graph = bipartition(graph, k);
 
     if (k > 2) {
-      graph::SubgraphMemory memory{p_graph.n(), k, p_graph.m(),
-                                   p_graph.graph().is_node_weighted(),
-                                   p_graph.graph().is_edge_weighted()};
+      graph::SubgraphMemory memory{
+          p_graph.n(),
+          k,
+          p_graph.m(),
+          p_graph.graph().is_node_weighted(),
+          p_graph.graph().is_edge_weighted()};
       const auto extraction = extract_subgraphs(p_graph, memory);
 
       const auto &subgraphs = extraction.subgraphs;
@@ -44,13 +47,15 @@ public:
       PartitionedGraph p_graph1, p_graph2;
       tbb::parallel_invoke(
           [&] { p_graph1 = partition_recursive(subgraphs[0], k / 2); },
-          [&] { p_graph2 = partition_recursive(subgraphs[1], k / 2); });
+          [&] { p_graph2 = partition_recursive(subgraphs[1], k / 2); }
+      );
       scalable_vector<StaticArray<BlockID>> subgraph_partitions(2);
       subgraph_partitions[0] = p_graph1.take_partition();
       subgraph_partitions[1] = p_graph2.take_partition();
 
-      graph::copy_subgraph_partitions(p_graph, subgraph_partitions, k,
-                                      _input_ctx.partition.k, mapping);
+      graph::copy_subgraph_partitions(
+          p_graph, subgraph_partitions, k, _input_ctx.partition.k, mapping
+      );
     }
 
     return p_graph;
@@ -67,12 +72,14 @@ public:
 
     // coarsening
     PartitionContext p_ctx = create_bipartition_context(
-        _input_ctx.partition, graph, final_k / 2, final_k / 2);
+        _input_ctx.partition, graph, final_k / 2, final_k / 2
+    );
     bool shrunk = true;
-    while (shrunk &&
-           c_graph->n() > 2 * _input_ctx.coarsening.contraction_limit) {
-      shrunk = helper::coarsen_once(coarsener.get(), c_graph, pseudo_input_ctx,
-                                    p_ctx);
+    while (shrunk && c_graph->n() > 2 * _input_ctx.coarsening.contraction_limit
+    ) {
+      shrunk = helper::coarsen_once(
+          coarsener.get(), c_graph, pseudo_input_ctx, p_ctx
+      );
       c_graph = coarsener->coarsest_graph();
     }
 

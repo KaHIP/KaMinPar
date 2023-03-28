@@ -12,7 +12,9 @@
 
 namespace kaminpar::parallel {
 template <typename T> struct tbb_deleter {
-  void operator()(T *p) { scalable_free(p); }
+  void operator()(T *p) {
+    scalable_free(p);
+  }
 };
 
 template <typename T> using tbb_unique_ptr = std::unique_ptr<T, tbb_deleter<T>>;

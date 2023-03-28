@@ -20,9 +20,9 @@ using namespace contraction;
 
 namespace {
 template <typename Clustering>
-Result contract_generic_clustering(const Graph &graph,
-                                   const Clustering &clustering,
-                                   MemoryContext m_ctx) {
+Result contract_generic_clustering(
+    const Graph &graph, const Clustering &clustering, MemoryContext m_ctx
+) {
   auto &buckets_index = m_ctx.buckets_index;
   auto &buckets = m_ctx.buckets;
   auto &leader_mapping = m_ctx.leader_mapping;
@@ -55,15 +55,18 @@ Result contract_generic_clustering(const Graph &graph,
   });
 
   // Compute prefix sum to get coarse node IDs (starting at 1!)
-  parallel::prefix_sum(leader_mapping.begin(),
-                       leader_mapping.begin() + graph.n(),
-                       leader_mapping.begin());
+  parallel::prefix_sum(
+      leader_mapping.begin(),
+      leader_mapping.begin() + graph.n(),
+      leader_mapping.begin()
+  );
   const NodeID c_n =
       leader_mapping[graph.n() - 1]; // number of nodes in the coarse graph
 
   // Assign coarse node ID to all nodes; this works due to (I)
-  graph.pfor_nodes(
-      [&](const NodeID u) { mapping[u] = leader_mapping[clustering[u]]; });
+  graph.pfor_nodes([&](const NodeID u) {
+    mapping[u] = leader_mapping[clustering[u]];
+  });
   graph.pfor_nodes([&](const NodeID u) { --mapping[u]; });
 
   STOP_TIMER();
@@ -86,8 +89,9 @@ Result contract_generic_clustering(const Graph &graph,
     buckets_index[mapping[u]].fetch_add(1, std::memory_order_relaxed);
   });
 
-  parallel::prefix_sum(buckets_index.begin(), buckets_index.end(),
-                       buckets_index.begin());
+  parallel::prefix_sum(
+      buckets_index.begin(), buckets_index.end(), buckets_index.begin()
+  );
   KASSERT(buckets_index.back() <= graph.n());
 
   // Sort nodes into   buckets, roughly 3/5-th of time on europe.osm
@@ -109,8 +113,9 @@ Result contract_generic_clustering(const Graph &graph,
   StaticArray<NodeWeight> c_node_weights{c_n};
   STOP_TIMER();
 
-  tbb::enumerable_thread_specific<RatingMap<EdgeWeight, NodeID>> collector{
-      [&] { return RatingMap<EdgeWeight, NodeID>(c_n); }};
+  tbb::enumerable_thread_specific<RatingMap<EdgeWeight, NodeID>> collector{[&] {
+    return RatingMap<EdgeWeight, NodeID>(c_n);
+  }};
 
   //
   // We build the coarse graph in multiple steps:
@@ -194,7 +199,8 @@ Result contract_generic_clustering(const Graph &graph,
 
   all_buffered_nodes =
       ts_navigable_list::combine<NodeID, Edge, scalable_vector>(
-          edge_buffer_ets, std::move(all_buffered_nodes));
+          edge_buffer_ets, std::move(all_buffered_nodes)
+      );
 
   START_TIMER("Allocation");
   StaticArray<NodeID> c_edges{c_m};
@@ -221,20 +227,30 @@ Result contract_generic_clustering(const Graph &graph,
   });
   STOP_TIMER();
 
-  return {Graph{std::move(c_nodes), std::move(c_edges),
-                std::move(c_node_weights), std::move(c_edge_weights)},
-          std::move(mapping), std::move(m_ctx)};
+  return {
+      Graph{
+          std::move(c_nodes),
+          std::move(c_edges),
+          std::move(c_node_weights),
+          std::move(c_edge_weights)},
+      std::move(mapping),
+      std::move(m_ctx)};
 }
 } // namespace
 
-Result contract(const Graph &graph, const scalable_vector<NodeID> &clustering,
-                MemoryContext m_ctx) {
+Result contract(
+    const Graph &graph,
+    const scalable_vector<NodeID> &clustering,
+    MemoryContext m_ctx
+) {
   return contract_generic_clustering(graph, clustering, std::move(m_ctx));
 }
 
-Result contract(const Graph &graph,
-                const scalable_vector<parallel::Atomic<NodeID>> &clustering,
-                MemoryContext m_ctx) {
+Result contract(
+    const Graph &graph,
+    const scalable_vector<parallel::Atomic<NodeID>> &clustering,
+    MemoryContext m_ctx
+) {
   return contract_generic_clustering(graph, clustering, std::move(m_ctx));
 }
 

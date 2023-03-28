@@ -28,22 +28,27 @@ struct LabelPropagationClusteringConfig : public LabelPropagationConfig {
 };
 
 class LabelPropagationClusteringCore final
-    : public ChunkRandomdLabelPropagation<LabelPropagationClusteringCore,
-                                          LabelPropagationClusteringConfig>,
+    : public ChunkRandomdLabelPropagation<
+          LabelPropagationClusteringCore,
+          LabelPropagationClusteringConfig>,
       public OwnedRelaxedClusterWeightVector<NodeID, NodeWeight>,
       public OwnedClusterVector<NodeID, NodeID>,
       public Clusterer {
   SET_DEBUG(false);
 
-  using Base = ChunkRandomdLabelPropagation<LabelPropagationClusteringCore,
-                                            LabelPropagationClusteringConfig>;
+  using Base = ChunkRandomdLabelPropagation<
+      LabelPropagationClusteringCore,
+      LabelPropagationClusteringConfig>;
   using ClusterWeightBase = OwnedRelaxedClusterWeightVector<NodeID, NodeWeight>;
   using ClusterBase = OwnedClusterVector<NodeID, NodeID>;
 
 public:
-  LabelPropagationClusteringCore(const NodeID max_n,
-                                 const CoarseningContext &c_ctx)
-      : ClusterWeightBase{max_n}, ClusterBase{max_n}, _c_ctx{c_ctx} {
+  LabelPropagationClusteringCore(
+      const NodeID max_n, const CoarseningContext &c_ctx
+  )
+      : ClusterWeightBase{max_n},
+        ClusterBase{max_n},
+        _c_ctx{c_ctx} {
     allocate(max_n, max_n);
     set_max_degree(c_ctx.lp.large_degree_threshold);
     set_max_num_neighbors(c_ctx.lp.max_num_neighbors);
@@ -65,14 +70,18 @@ public:
     }
 
     if (_c_ctx.lp.use_two_hop_clustering(_graph->n(), _current_num_clusters)) {
-      TIMED_SCOPE("2-hop Clustering") { perform_two_hop_clustering(); };
+      TIMED_SCOPE("2-hop Clustering") {
+        perform_two_hop_clustering();
+      };
     }
 
     return clusters();
   }
 
 public:
-  [[nodiscard]] NodeID initial_cluster(const NodeID u) { return u; }
+  [[nodiscard]] NodeID initial_cluster(const NodeID u) {
+    return u;
+  }
 
   [[nodiscard]] NodeWeight initial_cluster_weight(const NodeID cluster) {
     return _graph->node_weight(cluster);
@@ -103,7 +112,8 @@ public:
 //
 
 LabelPropagationClusteringAlgorithm::LabelPropagationClusteringAlgorithm(
-    const NodeID max_n, const CoarseningContext &c_ctx)
+    const NodeID max_n, const CoarseningContext &c_ctx
+)
     : _core{std::make_unique<LabelPropagationClusteringCore>(max_n, c_ctx)} {}
 
 // we must declare the destructor explicitly here, otherwise, it is implicitly
@@ -112,12 +122,14 @@ LabelPropagationClusteringAlgorithm::~LabelPropagationClusteringAlgorithm() =
     default;
 
 void LabelPropagationClusteringAlgorithm::set_max_cluster_weight(
-    const NodeWeight max_cluster_weight) {
+    const NodeWeight max_cluster_weight
+) {
   _core->set_max_cluster_weight(max_cluster_weight);
 }
 
 void LabelPropagationClusteringAlgorithm::set_desired_cluster_count(
-    const NodeID count) {
+    const NodeID count
+) {
   _core->set_desired_num_clusters(count);
 }
 

@@ -24,11 +24,12 @@ struct LabelPropagationRefinerConfig : public LabelPropagationConfig {
   static constexpr bool kReportEmptyClusters = false;
 };
 
-class LabelPropagationRefinerImpl final
-    : public ChunkRandomdLabelPropagation<LabelPropagationRefinerImpl,
-                                          LabelPropagationRefinerConfig> {
-  using Base = ChunkRandomdLabelPropagation<LabelPropagationRefinerImpl,
-                                            LabelPropagationRefinerConfig>;
+class LabelPropagationRefinerImpl final : public ChunkRandomdLabelPropagation<
+                                              LabelPropagationRefinerImpl,
+                                              LabelPropagationRefinerConfig> {
+  using Base = ChunkRandomdLabelPropagation<
+      LabelPropagationRefinerImpl,
+      LabelPropagationRefinerConfig>;
   friend Base;
 
   static constexpr std::size_t kInfiniteIterations =
@@ -41,7 +42,9 @@ public:
     set_max_num_neighbors(_r_ctx.lp.max_num_neighbors);
   }
 
-  void initialize(const Graph &graph) { _graph = &graph; }
+  void initialize(const Graph &graph) {
+    _graph = &graph;
+  }
 
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
     KASSERT(_graph == &p_graph.graph());
@@ -78,23 +81,31 @@ public:
     return _p_graph->block_weight(b);
   }
 
-  bool move_cluster_weight(const BlockID old_block, const BlockID new_block,
-                           const BlockWeight delta,
-                           const BlockWeight max_weight) {
-    return _p_graph->try_move_block_weight(old_block, new_block, delta,
-                                           max_weight);
+  bool move_cluster_weight(
+      const BlockID old_block,
+      const BlockID new_block,
+      const BlockWeight delta,
+      const BlockWeight max_weight
+  ) {
+    return _p_graph->try_move_block_weight(
+        old_block, new_block, delta, max_weight
+    );
   }
 
   void init_cluster(const NodeID /* u */, const BlockID /* b */) {}
 
-  void init_cluster_weight(const BlockID /* b */,
-                           const BlockWeight /* weight */) {}
+  void
+  init_cluster_weight(const BlockID /* b */, const BlockWeight /* weight */) {}
 
-  [[nodiscard]] BlockID cluster(const NodeID u) { return _p_graph->block(u); }
+  [[nodiscard]] BlockID cluster(const NodeID u) {
+    return _p_graph->block(u);
+  }
   void move_node(const NodeID u, const BlockID block) {
     _p_graph->set_block<false>(u, block);
   }
-  [[nodiscard]] BlockID num_clusters() { return _p_graph->k(); }
+  [[nodiscard]] BlockID num_clusters() {
+    return _p_graph->k();
+  }
   [[nodiscard]] BlockWeight max_cluster_weight(const BlockID block) {
     return _p_ctx->block_weights.max(block);
   }
@@ -136,14 +147,17 @@ public:
 LabelPropagationRefiner::LabelPropagationRefiner(const Context &ctx)
     : _impl{new LabelPropagationRefinerImpl(ctx)} {}
 
-LabelPropagationRefiner::~LabelPropagationRefiner() { delete _impl; }
+LabelPropagationRefiner::~LabelPropagationRefiner() {
+  delete _impl;
+}
 
 void LabelPropagationRefiner::initialize(const Graph &graph) {
   _impl->initialize(graph);
 }
 
-bool LabelPropagationRefiner::refine(PartitionedGraph &p_graph,
-                                     const PartitionContext &p_ctx) {
+bool LabelPropagationRefiner::refine(
+    PartitionedGraph &p_graph, const PartitionContext &p_ctx
+) {
   return _impl->refine(p_graph, p_ctx);
 }
 

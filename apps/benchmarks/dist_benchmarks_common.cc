@@ -45,8 +45,9 @@ DistributedGraph load_graph(const std::string &filename) {
   return graph;
 }
 
-DistributedPartitionedGraph load_graph_partition(const DistributedGraph &graph,
-                                                 const std::string &filename) {
+DistributedPartitionedGraph load_graph_partition(
+    const DistributedGraph &graph, const std::string &filename
+) {
   auto partition =
       dist::io::partition::read<scalable_vector<BlockID>>(filename, graph.n());
 
@@ -67,13 +68,18 @@ DistributedPartitionedGraph load_graph_partition(const DistributedGraph &graph,
       },
       [&](const auto buffer, const PEID pe) {
         tbb::parallel_for<std::size_t>(
-            0, buffer.size(), [&](const std::size_t i) {
+            0,
+            buffer.size(),
+            [&](const std::size_t i) {
               const auto &[local_node_on_other_pe, block] = buffer[i];
               const NodeID local_node = graph.global_to_local_node(
-                  graph.offset_n(pe) + local_node_on_other_pe);
+                  graph.offset_n(pe) + local_node_on_other_pe
+              );
               partition[local_node] = block;
-            });
-      });
+            }
+        );
+      }
+  );
 
   // Create partitioned graph object
   const BlockID local_k =
@@ -84,11 +90,18 @@ DistributedPartitionedGraph load_graph_partition(const DistributedGraph &graph,
   for (const NodeID u : graph.nodes()) {
     block_weights[partition[u]] += graph.node_weight(u);
   }
-  MPI_Allreduce(MPI_IN_PLACE, block_weights.data(), asserting_cast<int>(k),
-                mpi::type::get<BlockWeight>(), MPI_SUM, graph.communicator());
+  MPI_Allreduce(
+      MPI_IN_PLACE,
+      block_weights.data(),
+      asserting_cast<int>(k),
+      mpi::type::get<BlockWeight>(),
+      MPI_SUM,
+      graph.communicator()
+  );
 
-  DistributedPartitionedGraph p_graph(&graph, k, std::move(partition),
-                                      std::move(block_weights));
+  DistributedPartitionedGraph p_graph(
+      &graph, k, std::move(partition), std::move(block_weights)
+  );
 
   LOG << "Input partition:";
   LOG << "  Edge cut:  " << metrics::edge_cut(p_graph);

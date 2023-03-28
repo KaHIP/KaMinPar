@@ -14,15 +14,15 @@
 
 namespace kaminpar::dist {
 std::ostream &operator<<(std::ostream &out, PartitioningMode mode);
-std::ostream &operator<<(std::ostream &out,
-                         GlobalClusteringAlgorithm algorithm);
+std::ostream &
+operator<<(std::ostream &out, GlobalClusteringAlgorithm algorithm);
 std::ostream &operator<<(std::ostream &out, LocalClusteringAlgorithm algorithm);
 std::ostream &operator<<(std::ostream &out, ContractionAlgorithm algorithm);
-std::ostream &operator<<(std::ostream &out,
-                         InitialPartitioningAlgorithm algorithm);
+std::ostream &
+operator<<(std::ostream &out, InitialPartitioningAlgorithm algorithm);
 std::ostream &operator<<(std::ostream &out, KWayRefinementAlgorithm algorithm);
-std::ostream &operator<<(std::ostream &out,
-                         LabelPropagationMoveExecutionStrategy strategy);
+std::ostream &
+operator<<(std::ostream &out, LabelPropagationMoveExecutionStrategy strategy);
 std::ostream &operator<<(std::ostream &out, GraphOrdering ordering);
 
 std::unordered_map<std::string, PartitioningMode> get_partitioning_modes();
@@ -42,8 +42,11 @@ std::unordered_map<std::string, GraphOrdering> get_graph_orderings();
 
 void print(const Context &ctx, bool root, std::ostream &out);
 void print(const PartitionContext &ctx, bool root, std::ostream &out);
-void print(const CoarseningContext &ctx, const ParallelContext &parallel,
-           std::ostream &out);
+void print(
+    const CoarseningContext &ctx,
+    const ParallelContext &parallel,
+    std::ostream &out
+);
 void print(const InitialPartitioningContext &ctx, std::ostream &out);
 void print(const RefinementContext &ctx, std::ostream &out);
 } // namespace kaminpar::dist

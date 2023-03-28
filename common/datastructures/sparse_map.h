@@ -50,14 +50,22 @@ public:
   SparseMap(SparseMap &&) noexcept = default;
   SparseMap &operator=(SparseMap &&) noexcept = default;
 
-  std::size_t capacity() const { return _capacity; }
-  bool is_allocated() const { return capacity() > 0; }
-  std::size_t size() const { return _size; }
+  std::size_t capacity() const {
+    return _capacity;
+  }
+  bool is_allocated() const {
+    return capacity() > 0;
+  }
+  std::size_t size() const {
+    return _size;
+  }
 
   void shrink(const std::size_t capacity) {
     _dense = reinterpret_cast<Element *>(_sparse + capacity);
   }
-  void resize(const std::size_t capacity) { allocate_data(capacity); }
+  void resize(const std::size_t capacity) {
+    allocate_data(capacity);
+  }
 
   bool contains(const Key key) const {
     KASSERT(_data != nullptr);
@@ -82,14 +90,26 @@ public:
     }
   }
 
-  const Element *begin() const { return _dense; }
-  const Element *end() const { return _dense + _size; }
-  Element *begin() { return _dense; }
-  Element *end() { return _dense + _size; }
+  const Element *begin() const {
+    return _dense;
+  }
+  const Element *end() const {
+    return _dense + _size;
+  }
+  Element *begin() {
+    return _dense;
+  }
+  Element *end() {
+    return _dense + _size;
+  }
 
-  auto &entries() { return *this; }
+  auto &entries() {
+    return *this;
+  }
 
-  void clear() { _size = 0; }
+  void clear() {
+    _size = 0;
+  }
 
   Value &operator[](const Key key) {
     if (!contains(key)) {
@@ -110,10 +130,11 @@ private:
     _capacity = capacity;
 
     KASSERT(!_data);
-    const std::size_t total_memory{_capacity * sizeof(Element) +
-                                   _capacity * sizeof(std::size_t)};
+    const std::size_t total_memory{
+        _capacity * sizeof(Element) + _capacity * sizeof(std::size_t)};
     const std::size_t num_elements{static_cast<std::size_t>(
-        std::ceil(1.0 * total_memory / sizeof(std::size_t)))};
+        std::ceil(1.0 * total_memory / sizeof(std::size_t))
+    )};
     _data = std::make_unique<std::size_t[]>(num_elements);
     _sparse = reinterpret_cast<std::size_t *>(_data.get());
     _dense = reinterpret_cast<Element *>(_sparse + _capacity);

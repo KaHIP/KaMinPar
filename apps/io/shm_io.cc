@@ -19,9 +19,13 @@ namespace kaminpar::shm::io {
 //
 namespace metis {
 template <bool checked>
-void read(const std::string &filename, StaticArray<EdgeID> &nodes,
-          StaticArray<NodeID> &edges, StaticArray<NodeWeight> &node_weights,
-          StaticArray<EdgeWeight> &edge_weights) {
+void read(
+    const std::string &filename,
+    StaticArray<EdgeID> &nodes,
+    StaticArray<NodeID> &edges,
+    StaticArray<NodeWeight> &node_weights,
+    StaticArray<EdgeWeight> &edge_weights
+) {
   using namespace kaminpar::io::metis;
 
   bool store_node_weights = false;
@@ -52,18 +56,23 @@ void read(const std::string &filename, StaticArray<EdgeID> &nodes,
             std::exit(1);
           }
         } else {
-          KASSERT(format.number_of_nodes <=
-                      static_cast<std::uint64_t>(
-                          std::numeric_limits<NodeID>::max()),
-                  "number of nodes is too large for the node ID type");
-          KASSERT(format.number_of_edges <=
-                      static_cast<std::uint64_t>(
-                          std::numeric_limits<EdgeID>::max()),
-                  "number of edges is too large for the edge ID type");
-          KASSERT(format.number_of_edges <=
-                      (format.number_of_nodes * (format.number_of_nodes - 1)) /
-                          2,
-                  "specified number of edges is impossibly large");
+          KASSERT(
+              format.number_of_nodes <=
+                  static_cast<std::uint64_t>(std::numeric_limits<NodeID>::max()
+                  ),
+              "number of nodes is too large for the node ID type"
+          );
+          KASSERT(
+              format.number_of_edges <=
+                  static_cast<std::uint64_t>(std::numeric_limits<EdgeID>::max()
+                  ),
+              "number of edges is too large for the edge ID type"
+          );
+          KASSERT(
+              format.number_of_edges <=
+                  (format.number_of_nodes * (format.number_of_nodes - 1)) / 2,
+              "specified number of edges is impossibly large"
+          );
         }
 
         store_node_weights = format.has_node_weights;
@@ -79,8 +88,9 @@ void read(const std::string &filename, StaticArray<EdgeID> &nodes,
       },
       [&](const std::uint64_t weight) {
         if constexpr (checked) {
-          if (weight > static_cast<std::uint64_t>(
-                           std::numeric_limits<NodeWeight>::max())) {
+          if (weight >
+              static_cast<std::uint64_t>(std::numeric_limits<NodeWeight>::max()
+              )) {
             LOG_ERROR << "node weight is too large for the node weight type";
             std::exit(1);
           }
@@ -89,9 +99,12 @@ void read(const std::string &filename, StaticArray<EdgeID> &nodes,
             std::exit(1);
           }
         } else {
-          KASSERT(weight <= static_cast<std::uint64_t>(
-                                std::numeric_limits<NodeWeight>::max()),
-                  "node weight is too large for the node weight type");
+          KASSERT(
+              weight <= static_cast<std::uint64_t>(
+                            std::numeric_limits<NodeWeight>::max()
+                        ),
+              "node weight is too large for the node weight type"
+          );
           KASSERT(weight > 0u, "zero node weights are not supported");
         }
 
@@ -104,8 +117,9 @@ void read(const std::string &filename, StaticArray<EdgeID> &nodes,
       },
       [&](const std::uint64_t weight, const std::uint64_t v) {
         if constexpr (checked) {
-          if (weight > static_cast<std::uint64_t>(
-                           std::numeric_limits<EdgeWeight>::max())) {
+          if (weight >
+              static_cast<std::uint64_t>(std::numeric_limits<EdgeWeight>::max()
+              )) {
             LOG_ERROR << "edge weight is too large for the edge weight type";
             std::exit(1);
           }
@@ -124,9 +138,12 @@ void read(const std::string &filename, StaticArray<EdgeID> &nodes,
             std::exit(1);
           }
         } else {
-          KASSERT(weight <= static_cast<std::uint64_t>(
-                                std::numeric_limits<EdgeWeight>::max()),
-                  "edge weight is too large for the edge weight type");
+          KASSERT(
+              weight <= static_cast<std::uint64_t>(
+                            std::numeric_limits<EdgeWeight>::max()
+                        ),
+              "edge weight is too large for the edge weight type"
+          );
           KASSERT(weight > 0u, "zero edge weights are not supported");
           KASSERT(v + 1 < nodes.size(), "neighbor out of bounds");
           KASSERT(u != v + 1, "detected illegal self-loop");
@@ -138,7 +155,8 @@ void read(const std::string &filename, StaticArray<EdgeID> &nodes,
         edges[e] = static_cast<NodeID>(v);
         total_edge_weight += weight;
         ++e;
-      });
+      }
+  );
   nodes[u] = e;
 
   if constexpr (checked) {
@@ -153,12 +171,16 @@ void read(const std::string &filename, StaticArray<EdgeID> &nodes,
       std::exit(1);
     }
   } else {
-    KASSERT(total_node_weight <= static_cast<std::int64_t>(
-                                     std::numeric_limits<NodeWeight>::max()),
-            "total node weight does not fit into the node weight type");
-    KASSERT(total_edge_weight <= static_cast<std::int64_t>(
-                                     std::numeric_limits<EdgeWeight>::max()),
-            "total edge weight does not fit into the edge weight type");
+    KASSERT(
+        total_node_weight <=
+            static_cast<std::int64_t>(std::numeric_limits<NodeWeight>::max()),
+        "total node weight does not fit into the node weight type"
+    );
+    KASSERT(
+        total_edge_weight <=
+            static_cast<std::int64_t>(std::numeric_limits<EdgeWeight>::max()),
+        "total edge weight does not fit into the edge weight type"
+    );
   }
 
   // only keep weights if the graph is really weighted
@@ -175,20 +197,28 @@ void read(const std::string &filename, StaticArray<EdgeID> &nodes,
   }
 }
 
-template void read<false>(const std::string &filename,
-                          StaticArray<EdgeID> &nodes,
-                          StaticArray<NodeID> &edges,
-                          StaticArray<NodeWeight> &node_weights,
-                          StaticArray<EdgeWeight> &edge_weights);
+template void read<false>(
+    const std::string &filename,
+    StaticArray<EdgeID> &nodes,
+    StaticArray<NodeID> &edges,
+    StaticArray<NodeWeight> &node_weights,
+    StaticArray<EdgeWeight> &edge_weights
+);
 
-template void read<true>(const std::string &filename,
-                         StaticArray<EdgeID> &nodes, StaticArray<NodeID> &edges,
-                         StaticArray<NodeWeight> &node_weights,
-                         StaticArray<EdgeWeight> &edge_weights);
+template void read<true>(
+    const std::string &filename,
+    StaticArray<EdgeID> &nodes,
+    StaticArray<NodeID> &edges,
+    StaticArray<NodeWeight> &node_weights,
+    StaticArray<EdgeWeight> &edge_weights
+);
 
 template <bool checked>
-Graph read(const std::string &filename, bool ignore_node_weights,
-           bool ignore_edge_weights) {
+Graph read(
+    const std::string &filename,
+    bool ignore_node_weights,
+    bool ignore_edge_weights
+) {
   StaticArray<EdgeID> nodes;
   StaticArray<NodeID> edges;
   StaticArray<NodeWeight> node_weights;
@@ -203,15 +233,24 @@ Graph read(const std::string &filename, bool ignore_node_weights,
     edge_weights.free();
   }
 
-  return {std::move(nodes), std::move(edges), std::move(node_weights),
-          std::move(edge_weights)};
+  return {
+      std::move(nodes),
+      std::move(edges),
+      std::move(node_weights),
+      std::move(edge_weights)};
 }
 
-template Graph read<false>(const std::string &filename,
-                           bool ignore_node_weights, bool ignore_edge_weights);
+template Graph read<false>(
+    const std::string &filename,
+    bool ignore_node_weights,
+    bool ignore_edge_weights
+);
 
-template Graph read<true>(const std::string &filename, bool ignore_node_weights,
-                          bool ignore_edge_weights);
+template Graph read<true>(
+    const std::string &filename,
+    bool ignore_node_weights,
+    bool ignore_edge_weights
+);
 } // namespace metis
 
 //

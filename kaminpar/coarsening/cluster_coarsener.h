@@ -17,10 +17,15 @@
 namespace kaminpar::shm {
 class ClusteringCoarsener : public Coarsener {
 public:
-  ClusteringCoarsener(std::unique_ptr<Clusterer> clustering_algorithm,
-                      const Graph &input_graph, const CoarseningContext &c_ctx)
-      : _input_graph{input_graph}, _current_graph{&input_graph},
-        _clustering_algorithm{std::move(clustering_algorithm)}, _c_ctx{c_ctx} {}
+  ClusteringCoarsener(
+      std::unique_ptr<Clusterer> clustering_algorithm,
+      const Graph &input_graph,
+      const CoarseningContext &c_ctx
+  )
+      : _input_graph{input_graph},
+        _current_graph{&input_graph},
+        _clustering_algorithm{std::move(clustering_algorithm)},
+        _c_ctx{c_ctx} {}
 
   ClusteringCoarsener(const ClusteringCoarsener &) = delete;
   ClusteringCoarsener &operator=(const ClusteringCoarsener) = delete;
@@ -34,9 +39,13 @@ public:
   [[nodiscard]] const Graph *coarsest_graph() const final {
     return _current_graph;
   }
-  [[nodiscard]] std::size_t size() const final { return _hierarchy.size(); }
+  [[nodiscard]] std::size_t size() const final {
+    return _hierarchy.size();
+  }
   void initialize(const Graph *) final {}
-  [[nodiscard]] const CoarseningContext &context() const { return _c_ctx; }
+  [[nodiscard]] const CoarseningContext &context() const {
+    return _c_ctx;
+  }
 
 private:
   const Graph &_input_graph;

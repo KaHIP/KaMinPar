@@ -12,14 +12,20 @@
 #include "common/datastructures/sparse_map.h"
 
 namespace kaminpar {
-template <typename Value, typename Key,
-          typename LargeMap = FastResetArray<Value, Key>>
+template <
+    typename Value,
+    typename Key,
+    typename LargeMap = FastResetArray<Value, Key>>
 class RatingMap {
   using SuperSmallMap = FixedSizeSparseMap<Key, Value, 128>;
   using SmallMap = FixedSizeSparseMap<Key, Value>;
 
 public:
-  enum class MapType { SUPER_SMALL, SMALL, LARGE };
+  enum class MapType {
+    SUPER_SMALL,
+    SMALL,
+    LARGE
+  };
 
   explicit RatingMap(const std::size_t max_size) : _max_size{max_size} {}
 
@@ -51,17 +57,20 @@ public:
     return _large_map_counter;
   }
 
-  [[nodiscard]] std::size_t max_size() const { return _max_size; }
+  [[nodiscard]] std::size_t max_size() const {
+    return _max_size;
+  }
 
-  void change_max_size(const std::size_t max_size) { _max_size = max_size; }
+  void change_max_size(const std::size_t max_size) {
+    _max_size = max_size;
+  }
 
 private:
   void select_map(const std::size_t upper_bound_size) {
     if (upper_bound_size < SuperSmallMap::MAP_SIZE / 3) {
       _selected_map = MapType::SUPER_SMALL;
       ++_super_small_map_counter;
-    } else if (_max_size < SmallMap::MAP_SIZE ||
-               upper_bound_size > SmallMap::MAP_SIZE / 3) {
+    } else if (_max_size < SmallMap::MAP_SIZE || upper_bound_size > SmallMap::MAP_SIZE / 3) {
       _selected_map = MapType::LARGE;
       ++_large_map_counter;
     } else {

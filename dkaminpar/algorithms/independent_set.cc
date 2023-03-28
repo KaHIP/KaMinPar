@@ -22,18 +22,19 @@ SET_DEBUG(true);
 
 namespace {
 template <typename Generator, typename ScoreType = std::int64_t>
-ScoreType compute_score(Generator &generator, const GlobalNodeID node,
-                        const int seed) {
+ScoreType
+compute_score(Generator &generator, const GlobalNodeID node, const int seed) {
   // @todo replace with something efficient / use communication
   generator.seed(seed + node);
   return std::uniform_int_distribution<ScoreType>(
-      ScoreType(), std::numeric_limits<ScoreType>::max() - 1)(generator);
+      ScoreType(), std::numeric_limits<ScoreType>::max() - 1
+  )(generator);
 }
 } // namespace
 
-std::vector<NodeID>
-find_independent_border_set(const DistributedPartitionedGraph &p_graph,
-                            const int seed) {
+std::vector<NodeID> find_independent_border_set(
+    const DistributedPartitionedGraph &p_graph, const int seed
+) {
   SCOPED_TIMER("Find independent border node set");
 
   constexpr std::int64_t kNoBorderNode =
@@ -48,8 +49,9 @@ find_independent_border_set(const DistributedPartitionedGraph &p_graph,
       score[u] = -1;
     } else if (p_graph.check_border_node(u)) {
       // Compute score for owned border nodes
-      score[u] = compute_score(generator_ets.local(),
-                               p_graph.local_to_global_node(u), seed);
+      score[u] = compute_score(
+          generator_ets.local(), p_graph.local_to_global_node(u), seed
+      );
     } else {
       // Otherwise mark node as non-border node
       score[u] = kNoBorderNode;
@@ -66,17 +68,20 @@ find_independent_border_set(const DistributedPartitionedGraph &p_graph,
     }
 
     const bool is_seed_node = std::all_of(
-        p_graph.adjacent_nodes(u).begin(), p_graph.adjacent_nodes(u).end(),
+        p_graph.adjacent_nodes(u).begin(),
+        p_graph.adjacent_nodes(u).end(),
         [&](const NodeID v) {
           // Compute score for ghost nodes lazy
           if (score[v] < 0) {
             const auto v_score = compute_score(
-                generator_ets.local(), p_graph.local_to_global_node(v), seed);
+                generator_ets.local(), p_graph.local_to_global_node(v), seed
+            );
             __atomic_store_n(&score[v], v_score, __ATOMIC_RELAXED);
           }
 
           return score[u] < score[v];
-        });
+        }
+    );
 
     if (is_seed_node) {
       seed_nodes.push_back(u);

@@ -11,7 +11,7 @@
 namespace kaminpar::dist {
 using ColorID = EdgeID;
 
-NoinitVector<ColorID>
-compute_node_coloring_sequentially(const DistributedGraph &graph,
-                                   NodeID number_of_supersteps);
+NoinitVector<ColorID> compute_node_coloring_sequentially(
+    const DistributedGraph &graph, NodeID number_of_supersteps
+);
 } // namespace kaminpar::dist

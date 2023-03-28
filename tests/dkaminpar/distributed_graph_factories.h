@@ -77,8 +77,8 @@ inline DistributedGraph make_circle_graph() {
  * @param num_nodes_per_pe Number of nodes on each PE.
  * @return Distributed graph with `num_nodes_per_pe` nodes per PE.
  */
-inline DistributedGraph
-make_isolated_nodes_graph(const NodeID num_nodes_per_pe) {
+inline DistributedGraph make_isolated_nodes_graph(const NodeID num_nodes_per_pe
+) {
   graph::Builder builder(MPI_COMM_WORLD);
   builder.initialize(num_nodes_per_pe);
   for (NodeID u = 0; u < num_nodes_per_pe; ++u) {
@@ -104,8 +104,8 @@ inline DistributedGraph make_empty_graph() {
  * @return Distributed graph with `2 * num_edges_per_pe` nodes and
  * `num_edges_per_pe` edges per PE.
  */
-inline DistributedGraph
-make_isolated_edges_graph(const NodeID num_edges_per_pe) {
+inline DistributedGraph make_isolated_edges_graph(const NodeID num_edges_per_pe
+) {
   const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
   const NodeID n0 = rank * num_edges_per_pe * 2;
 
@@ -120,8 +120,8 @@ make_isolated_edges_graph(const NodeID num_edges_per_pe) {
   return builder.finalize();
 }
 
-inline DistributedGraph
-make_local_complete_graph(const NodeID num_nodes_per_pe) {
+inline DistributedGraph make_local_complete_graph(const NodeID num_nodes_per_pe
+) {
   const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
   const GlobalNodeID n0 = rank * num_nodes_per_pe;
 
@@ -188,8 +188,8 @@ inline DistributedGraph make_global_complete_graph(const NodeID nodes_per_pe) {
  * @return Distributed graph with a clique on `num_nodes_per_pe` nodes on each
  * PE and `num_nodes_per_pe` global circles.
  */
-inline DistributedGraph
-make_circle_clique_graph(const NodeID num_nodes_per_pe) {
+inline DistributedGraph make_circle_clique_graph(const NodeID num_nodes_per_pe
+) {
   const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
   const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
 
@@ -197,8 +197,9 @@ make_circle_clique_graph(const NodeID num_nodes_per_pe) {
   builder.initialize(num_nodes_per_pe);
 
   const GlobalNodeID my_n0 = rank * num_nodes_per_pe;
-  const GlobalNodeID prev_n0 = (rank > 0 ? (rank - 1) * num_nodes_per_pe
-                                         : (size - 1) * num_nodes_per_pe);
+  const GlobalNodeID prev_n0 =
+      (rank > 0 ? (rank - 1) * num_nodes_per_pe : (size - 1) * num_nodes_per_pe
+      );
   const GlobalNodeID next_n0 =
       (rank + 1 < size ? (rank + 1) * num_nodes_per_pe : 0);
 

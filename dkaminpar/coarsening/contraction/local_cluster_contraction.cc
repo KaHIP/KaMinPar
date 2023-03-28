@@ -25,7 +25,8 @@ SET_DEBUG(false);
 Result contract_local_clustering(
     const DistributedGraph &graph,
     const scalable_vector<parallel::Atomic<NodeID>> &clustering,
-    MemoryContext m_ctx) {
+    MemoryContext m_ctx
+) {
   KASSERT(clustering.size() >= graph.n());
 
   MPI_Comm comm = graph.communicator();
@@ -57,9 +58,11 @@ Result contract_local_clustering(
   });
 
   // Compute prefix sum to get coarse node IDs (starting at 1!)
-  parallel::prefix_sum(leader_mapping.begin(),
-                       leader_mapping.begin() + graph.n(),
-                       leader_mapping.begin());
+  parallel::prefix_sum(
+      leader_mapping.begin(),
+      leader_mapping.begin() + graph.n(),
+      leader_mapping.begin()
+  );
   const NodeID c_n =
       leader_mapping[graph.n() - 1]; // number of nodes in the coarse graph
 
@@ -70,12 +73,14 @@ Result contract_local_clustering(
 
   scalable_vector<GlobalNodeID> c_node_distribution(size + 1);
   c_node_distribution[rank + 1] = last_node;
-  mpi::allgather(&c_node_distribution[rank + 1], 1,
-                 c_node_distribution.data() + 1, 1, comm);
+  mpi::allgather(
+      &c_node_distribution[rank + 1], 1, c_node_distribution.data() + 1, 1, comm
+  );
 
   // Assign coarse node ID to all nodes
-  graph.pfor_nodes(
-      [&](const NodeID u) { mapping[u] = leader_mapping[clustering[u]]; });
+  graph.pfor_nodes([&](const NodeID u) {
+    mapping[u] = leader_mapping[clustering[u]];
+  });
   graph.pfor_nodes([&](const NodeID u) { --mapping[u]; });
 
   buckets_index.clear();
@@ -92,8 +97,9 @@ Result contract_local_clustering(
     buckets_index[mapping[u]].fetch_add(1, std::memory_order_relaxed);
   });
 
-  parallel::prefix_sum(buckets_index.begin(), buckets_index.end(),
-                       buckets_index.begin());
+  parallel::prefix_sum(
+      buckets_index.begin(), buckets_index.end(), buckets_index.begin()
+  );
   KASSERT(buckets_index.back() <= graph.n());
 
   // Sort nodes into   buckets, roughly 3/5-th of time on europe.osm
@@ -161,7 +167,8 @@ Result contract_local_clustering(
           }
           mapping[old_local_u] = c_global_to_ghost[new_global_u];
         }
-      });
+      }
+  );
 
   //
   // We build the coarse graph in multiple steps:
@@ -178,8 +185,9 @@ Result contract_local_clustering(
   // auxiliary arrays to c_edges and c_edge_weights
   //
   using Map = RatingMap<EdgeWeight, NodeID, FastResetArray<EdgeWeight, NodeID>>;
-  tbb::enumerable_thread_specific<Map> collector_ets{
-      [&] { return Map(c_next_ghost_node); }};
+  tbb::enumerable_thread_specific<Map> collector_ets{[&] {
+    return Map(c_next_ghost_node);
+  }};
   NavigableLinkedList<NodeID, Edge, scalable_vector> edge_buffer_ets;
 
   tbb::parallel_for(tbb::blocked_range<NodeID>(0, c_n), [&](const auto &r) {
@@ -241,7 +249,8 @@ Result contract_local_clustering(
   //
   all_buffered_nodes =
       ts_navigable_list::combine<NodeID, Edge, scalable_vector>(
-          edge_buffer_ets, std::move(all_buffered_nodes));
+          edge_buffer_ets, std::move(all_buffered_nodes)
+      );
 
   scalable_vector<NodeID> c_edges(c_m);
   scalable_vector<EdgeWeight> c_edge_weights(c_m);
@@ -269,20 +278,22 @@ Result contract_local_clustering(
       mpi::scan(static_cast<GlobalEdgeID>(c_m), MPI_SUM, comm);
   scalable_vector<GlobalEdgeID> c_edge_distribution(size + 1);
   c_edge_distribution[rank + 1] = last_edge;
-  mpi::allgather(&c_edge_distribution[rank + 1], 1,
-                 c_edge_distribution.data() + 1, 1, comm);
+  mpi::allgather(
+      &c_edge_distribution[rank + 1], 1, c_edge_distribution.data() + 1, 1, comm
+  );
 
-  DistributedGraph c_graph{std::move(c_node_distribution),
-                           std::move(c_edge_distribution),
-                           std::move(c_nodes),
-                           std::move(c_edges),
-                           std::move(c_node_weights),
-                           std::move(c_edge_weights),
-                           std::move(c_ghost_owner),
-                           std::move(c_ghost_to_global),
-                           std::move(c_global_to_ghost),
-                           false,
-                           graph.communicator()};
+  DistributedGraph c_graph{
+      std::move(c_node_distribution),
+      std::move(c_edge_distribution),
+      std::move(c_nodes),
+      std::move(c_edges),
+      std::move(c_node_weights),
+      std::move(c_edge_weights),
+      std::move(c_ghost_owner),
+      std::move(c_ghost_to_global),
+      std::move(c_global_to_ghost),
+      false,
+      graph.communicator()};
 
   DBG << V(c_graph.n()) << V(c_graph.m()) << V(c_graph.ghost_n())
       << V(c_graph.total_n()) << V(c_graph.global_n()) << V(c_graph.global_m());

@@ -8,29 +8,34 @@
 
 namespace kaminpar::shm::partitioning {
 AsyncInitialPartitioner::AsyncInitialPartitioner(
-    const Context &input_ctx, GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool,
-    TemporaryGraphExtractionBufferPool &ip_extraction_pool)
-    : _input_ctx{input_ctx}, _ip_m_ctx_pool{ip_m_ctx_pool},
+    const Context &input_ctx,
+    GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool,
+    TemporaryGraphExtractionBufferPool &ip_extraction_pool
+)
+    : _input_ctx{input_ctx},
+      _ip_m_ctx_pool{ip_m_ctx_pool},
       _ip_extraction_pool{ip_extraction_pool} {}
 
-PartitionedGraph
-AsyncInitialPartitioner::partition(const Coarsener *coarsener,
-                                      const PartitionContext &p_ctx) {
+PartitionedGraph AsyncInitialPartitioner::partition(
+    const Coarsener *coarsener, const PartitionContext &p_ctx
+) {
   const std::size_t num_threads =
       helper::compute_num_threads_for_parallel_ip(_input_ctx);
   return split_and_join(coarsener, p_ctx, false, num_threads);
 }
 
-PartitionedGraph
-AsyncInitialPartitioner::partition_recursive(
-    const Coarsener *parent_coarsener, PartitionContext &p_ctx,
-    const std::size_t num_threads) {
+PartitionedGraph AsyncInitialPartitioner::partition_recursive(
+    const Coarsener *parent_coarsener,
+    PartitionContext &p_ctx,
+    const std::size_t num_threads
+) {
   const Graph *graph = parent_coarsener->coarsest_graph();
 
   if (num_threads == 1) { // base case: compute bipartition
     DBG << "Sequential base case";
-    return helper::bipartition(graph, _input_ctx.partition.k, _input_ctx,
-                               _ip_m_ctx_pool);
+    return helper::bipartition(
+        graph, _input_ctx.partition.k, _input_ctx, _ip_m_ctx_pool
+    );
   } else { // recursive / parallel case
     auto coarsener = factory::create_coarsener(*graph, _input_ctx.coarsening);
     const bool shrunk =
@@ -49,8 +54,14 @@ AsyncInitialPartitioner::partition_recursive(
     const BlockID k_prime = helper::compute_k_for_n(p_graph.n(), _input_ctx);
     if (p_graph.k() < k_prime) {
       DBG << "Extend to " << k_prime << " ...";
-      helper::extend_partition(p_graph, k_prime, _input_ctx, p_ctx,
-                               _ip_extraction_pool, _ip_m_ctx_pool);
+      helper::extend_partition(
+          p_graph,
+          k_prime,
+          _input_ctx,
+          p_ctx,
+          _ip_extraction_pool,
+          _ip_m_ctx_pool
+      );
     }
 
     return p_graph;
@@ -58,11 +69,15 @@ AsyncInitialPartitioner::partition_recursive(
 }
 
 PartitionedGraph AsyncInitialPartitioner::split_and_join(
-    const Coarsener *coarsener, const PartitionContext &p_ctx,
-    const bool converged, const std::size_t num_threads) {
+    const Coarsener *coarsener,
+    const PartitionContext &p_ctx,
+    const bool converged,
+    const std::size_t num_threads
+) {
   const Graph *graph = coarsener->coarsest_graph();
   const std::size_t num_copies = helper::compute_num_copies(
-      _input_ctx, graph->n(), converged, num_threads);
+      _input_ctx, graph->n(), converged, num_threads
+  );
   const std::size_t threads_per_copy = num_threads / num_copies;
   DBG << V(num_copies) << V(threads_per_copy) << V(converged) << V(num_threads)
       << V(graph->n());
@@ -73,7 +88,11 @@ PartitionedGraph AsyncInitialPartitioner::split_and_join(
   scalable_vector<PartitionContext> p_ctx_copies(num_copies, p_ctx);
 
   for (std::size_t copy = 0; copy < num_copies; ++copy) {
-    tg.run([this, copy, coarsener, threads_per_copy, &p_graphs,
+    tg.run([this,
+            copy,
+            coarsener,
+            threads_per_copy,
+            &p_graphs,
             &p_ctx_copies] { // must capture copy by value!
       p_graphs[copy] =
           partition_recursive(coarsener, p_ctx_copies[copy], threads_per_copy);

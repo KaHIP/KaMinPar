@@ -15,13 +15,16 @@
 #include "common/timer.h"
 
 namespace kaminpar::dist {
-shm::PartitionedGraph
-KaMinParInitialPartitioner::initial_partition(const shm::Graph &graph,
-                                              const PartitionContext &p_ctx) {
+shm::PartitionedGraph KaMinParInitialPartitioner::initial_partition(
+    const shm::Graph &graph, const PartitionContext &p_ctx
+) {
   if (graph.n() <= 1) {
-    return shm::PartitionedGraph(graph, p_ctx.k,
-                                 StaticArray<BlockID>(graph.n()),
-                                 std::vector<BlockID>(p_ctx.k, 1));
+    return shm::PartitionedGraph(
+        graph,
+        p_ctx.k,
+        StaticArray<BlockID>(graph.n()),
+        std::vector<BlockID>(p_ctx.k, 1)
+    );
   }
 
   auto shm_ctx = _ctx.initial_partitioning.kaminpar;

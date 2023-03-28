@@ -76,8 +76,12 @@ int main(int argc, char *argv[]) {
       factory::create_balancer(graph, ctx.partition, ctx.refinement);
 
   TIMED_SCOPE("Balancer") {
-    TIMED_SCOPE("Initialization") { balancer->initialize(p_graph); };
-    TIMED_SCOPE("Balancing") { balancer->balance(p_graph, ctx.partition); };
+    TIMED_SCOPE("Initialization") {
+      balancer->initialize(p_graph);
+    };
+    TIMED_SCOPE("Balancing") {
+      balancer->balance(p_graph, ctx.partition);
+    };
   };
 
   const EdgeWeight cut_after = metrics::edge_cut(p_graph);

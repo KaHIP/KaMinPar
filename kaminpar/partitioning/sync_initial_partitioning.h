@@ -26,10 +26,11 @@ public:
   SyncInitialPartitioner(
       const Context &input_ctx,
       GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool,
-      TemporaryGraphExtractionBufferPool &ip_extraction_pool);
+      TemporaryGraphExtractionBufferPool &ip_extraction_pool
+  );
 
-  PartitionedGraph partition(const Coarsener *coarsener,
-                             const PartitionContext &p_ctx);
+  PartitionedGraph
+  partition(const Coarsener *coarsener, const PartitionContext &p_ctx);
 
 private:
   std::unique_ptr<Coarsener> duplicate_coarsener(const Coarsener *coarsener);

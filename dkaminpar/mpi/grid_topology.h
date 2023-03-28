@@ -15,7 +15,8 @@ namespace kaminpar::mpi {
 class GridTopology {
 public:
   GridTopology(const PEID size)
-      : _size(size), _sqrt(static_cast<PEID>(std::sqrt(size))) {}
+      : _size(size),
+        _sqrt(static_cast<PEID>(std::sqrt(size))) {}
 
   inline PEID row(const PEID pe) const {
     if (pe < num_pes_in_full_rectangle()) {
@@ -50,7 +51,9 @@ public:
     }
   }
 
-  inline PEID max_row_size() const { return num_cols(); }
+  inline PEID max_row_size() const {
+    return num_cols();
+  }
 
   inline PEID col_size(const PEID column) const {
     if (column < num_full_cols()) {
@@ -64,17 +67,25 @@ public:
     return _sqrt + (column < partial_column_size());
   }
 
-  inline PEID max_col_size() const { return _sqrt; }
+  inline PEID max_col_size() const {
+    return _sqrt;
+  }
 
-  inline PEID num_cols() const { return std::ceil(1.0 * _size / _sqrt); }
+  inline PEID num_cols() const {
+    return std::ceil(1.0 * _size / _sqrt);
+  }
 
-  inline PEID num_rows() const { return _sqrt; }
+  inline PEID num_rows() const {
+    return _sqrt;
+  }
 
   inline PEID num_cols_in_row(const PEID row) const {
     return num_full_cols() + (row < partial_column_size());
   }
 
-  inline PEID num_full_cols() const { return _size / _sqrt; }
+  inline PEID num_full_cols() const {
+    return _size / _sqrt;
+  }
 
   inline PEID virtual_element(const PEID row, const PEID virtual_col) const {
     if (row < partial_column_size()) {
@@ -106,17 +117,27 @@ public:
     const auto [size, rank] = get_comm_info(comm);
     GridTopology topo(size);
     MPI_Comm_split(comm, topo.row(rank), rank, &_row_comm);
-    MPI_Comm_split(comm, topo.virtual_col(rank),
-                   topo.virtual_col(rank) == topo.col(rank) ? rank
-                                                            : size + rank,
-                   &_col_comm);
+    MPI_Comm_split(
+        comm,
+        topo.virtual_col(rank),
+        topo.virtual_col(rank) == topo.col(rank) ? rank : size + rank,
+        &_col_comm
+    );
   }
 
-  MPI_Comm row_comm() const { return _row_comm; }
-  MPI_Comm col_comm() const { return _col_comm; }
+  MPI_Comm row_comm() const {
+    return _row_comm;
+  }
+  MPI_Comm col_comm() const {
+    return _col_comm;
+  }
 
-  PEID row_comm_size() const { return get_comm_size(_row_comm); }
-  PEID col_comm_size() const { return get_comm_size(_col_comm); }
+  PEID row_comm_size() const {
+    return get_comm_size(_row_comm);
+  }
+  PEID col_comm_size() const {
+    return get_comm_size(_col_comm);
+  }
 
 private:
   MPI_Comm _row_comm;

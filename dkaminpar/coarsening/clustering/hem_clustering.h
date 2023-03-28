@@ -21,8 +21,9 @@ public:
   HEMClustering(HEMClustering &&) noexcept = default;
   HEMClustering &operator=(HEMClustering &&) = delete;
 
-  ClusterArray &compute_clustering(const DistributedGraph &graph,
-                                   GlobalNodeWeight max_cluster_weight) final;
+  ClusterArray &compute_clustering(
+      const DistributedGraph &graph, GlobalNodeWeight max_cluster_weight
+  ) final;
 
 private:
   void initialize(const DistributedGraph &graph);

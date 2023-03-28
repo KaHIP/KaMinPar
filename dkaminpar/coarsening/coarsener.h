@@ -30,8 +30,8 @@ public:
   std::size_t level() const;
 
 private:
-  const DistributedGraph *
-  coarsen_once_local(GlobalNodeWeight max_cluster_weight);
+  const DistributedGraph *coarsen_once_local(GlobalNodeWeight max_cluster_weight
+  );
   const DistributedGraph *
   coarsen_once_global(GlobalNodeWeight max_cluster_weight);
 
@@ -42,8 +42,9 @@ private:
 
   const DistributedGraph *nth_coarsest(std::size_t n) const;
 
-  bool has_converged(const DistributedGraph &before,
-                     const DistributedGraph &after) const;
+  bool has_converged(
+      const DistributedGraph &before, const DistributedGraph &after
+  ) const;
 
   const DistributedGraph &_input_graph;
   const Context &_input_ctx;

@@ -14,8 +14,9 @@ using namespace std::literals;
 namespace kaminpar {
 namespace {
 [[nodiscard]] std::string string_make_machine_readable(std::string str) {
-  std::transform(str.begin(), str.end(), str.begin(),
-                 [](const auto &ch) { return std::tolower(ch); });
+  std::transform(str.begin(), str.end(), str.begin(), [](const auto &ch) {
+    return std::tolower(ch);
+  });
   std::replace(str.begin(), str.end(), ' ', '_');
   return str;
 }
@@ -77,9 +78,12 @@ void Timer::print_machine_readable(std::ostream &out, const int max_depth) {
   out << "\n";
 }
 
-void Timer::print_node_mr(std::ostream &out, const std::string &prefix,
-                          const TimerTreeNode *node,
-                          const int max_depth) const {
+void Timer::print_node_mr(
+    std::ostream &out,
+    const std::string &prefix,
+    const TimerTreeNode *node,
+    const int max_depth
+) const {
   if (max_depth < 0) {
     return;
   }
@@ -104,8 +108,9 @@ void Timer::print_human_readable(std::ostream &out, const int max_depth) {
     return;
   }
 
-  _hr_time_col = std::max(_name.size() + kNameDel.size(),
-                          compute_time_col(0, &_tree.root));
+  _hr_time_col = std::max(
+      _name.size() + kNameDel.size(), compute_time_col(0, &_tree.root)
+  );
   _hr_max_time_len = compute_time_len(&_tree.root);
   _hr_max_restarts_len = compute_restarts_len(&_tree.root);
   out << _name;
@@ -118,9 +123,12 @@ void Timer::print_human_readable(std::ostream &out, const int max_depth) {
   print_children_hr(out, "", &_tree.root, max_depth - 1);
 }
 
-void Timer::print_children_hr(std::ostream &out, const std::string &base_prefix,
-                              const TimerTreeNode *node,
-                              const int max_depth) const {
+void Timer::print_children_hr(
+    std::ostream &out,
+    const std::string &base_prefix,
+    const TimerTreeNode *node,
+    const int max_depth
+) const {
   if (max_depth < 0) {
     return;
   }
@@ -147,8 +155,9 @@ void Timer::print_children_hr(std::ostream &out, const std::string &base_prefix,
   }
 }
 
-void Timer::print_padded_timing(std::ostream &out, const std::size_t start_col,
-                                const TimerTreeNode *node) const {
+void Timer::print_padded_timing(
+    std::ostream &out, const std::size_t start_col, const TimerTreeNode *node
+) const {
   using namespace std::literals;
 
   // print this node
@@ -171,15 +180,15 @@ void Timer::print_padded_timing(std::ostream &out, const std::size_t start_col,
   if (node->restarts > 1) {
     out << "(" << node->restarts << ")"
         << std::string(tail_padding_length, ' ');
-  } else if (_hr_max_restarts_len >
-             0) { // otherwise, there are no restarts and we are already aligned
+  } else if (_hr_max_restarts_len > 0) { // otherwise, there are no restarts and
+                                         // we are already aligned
     out << std::string(2 + _hr_max_restarts_len, ' '); // +2 for (, )
   }
 }
 
-[[nodiscard]] std::size_t
-Timer::compute_time_col(const std::size_t parent_prefix_len,
-                        const TimerTreeNode *node) const {
+[[nodiscard]] std::size_t Timer::compute_time_col(
+    const std::size_t parent_prefix_len, const TimerTreeNode *node
+) const {
   using namespace std::literals;
   const std::size_t prefix_len =
       (node->parent == nullptr)
@@ -195,8 +204,8 @@ Timer::compute_time_col(const std::size_t parent_prefix_len,
   return col;
 }
 
-[[nodiscard]] std::size_t
-Timer::compute_time_len(const TimerTreeNode *node) const {
+[[nodiscard]] std::size_t Timer::compute_time_len(const TimerTreeNode *node
+) const {
   std::size_t space = get_printed_length(node->seconds());
   for (const auto &child : node->children) {
     space = std::max(space, compute_time_len(child.get()));
@@ -204,8 +213,8 @@ Timer::compute_time_len(const TimerTreeNode *node) const {
   return space;
 }
 
-[[nodiscard]] std::size_t
-Timer::compute_restarts_len(const TimerTreeNode *node) const {
+[[nodiscard]] std::size_t Timer::compute_restarts_len(const TimerTreeNode *node
+) const {
   std::size_t space =
       node->restarts > 1 ? get_printed_length(node->restarts) : 0;
   for (const auto &child : node->children) {

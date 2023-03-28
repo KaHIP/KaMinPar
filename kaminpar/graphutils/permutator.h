@@ -53,16 +53,20 @@ sort_by_degree_buckets(const Container<EdgeID> &nodes) {
   // local_buckets[cpu][bucket]: thread-local bucket sizes
   using Buckets = std::array<NodeID, kNumberOfDegreeBuckets + 1>;
   std::vector<Buckets, tbb::cache_aligned_allocator<Buckets>> local_buckets(
-      cpus + 1);
+      cpus + 1
+  );
 
   parallel::deterministic_for<NodeID>(
-      0, n, [&](const NodeID from, const NodeID to, const int cpu) {
+      0,
+      n,
+      [&](const NodeID from, const NodeID to, const int cpu) {
         KASSERT(cpu < cpus);
         for (NodeID u = from; u < to; ++u) {
           const auto bucket = find_bucket(nodes[u + 1] - nodes[u]);
           permutation[u] = local_buckets[cpu + 1][bucket]++;
         }
-      });
+      }
+  );
 
   // Build a table of prefix numbers to correct the position of each node in the
   // final permutation After the previous loop, permutation[u] contains the
@@ -75,8 +79,9 @@ sort_by_degree_buckets(const Container<EdgeID> &nodes) {
       global_buckets[i + 1] += local_buckets[id][i];
     }
   }
-  parallel::prefix_sum(global_buckets.begin(), global_buckets.end(),
-                       global_buckets.begin());
+  parallel::prefix_sum(
+      global_buckets.begin(), global_buckets.end(), global_buckets.begin()
+  );
   for (std::size_t i = 0; i < global_buckets.size(); ++i) {
     for (int id = 0; id + 1 < cpus; ++id) {
       local_buckets[id + 1][i] += local_buckets[id][i];
@@ -85,21 +90,27 @@ sort_by_degree_buckets(const Container<EdgeID> &nodes) {
 
   // Apply offsets to obtain global permutation
   parallel::deterministic_for<NodeID>(
-      0, n, [&](const NodeID from, const NodeID to, const int cpu) {
+      0,
+      n,
+      [&](const NodeID from, const NodeID to, const int cpu) {
         KASSERT(cpu < cpus);
 
         for (NodeID u = from; u < to; ++u) {
           const Degree bucket = find_bucket(nodes[u + 1] - nodes[u]);
           permutation[u] += global_buckets[bucket] + local_buckets[cpu][bucket];
         }
-      });
+      }
+  );
 
   // Compute inverse permutation
-  tbb::parallel_for(static_cast<std::size_t>(1), nodes.size(),
-                    [&](const NodeID u_plus_one) {
-                      const NodeID u = u_plus_one - 1;
-                      inverse_permutation[permutation[u]] = u;
-                    });
+  tbb::parallel_for(
+      static_cast<std::size_t>(1),
+      nodes.size(),
+      [&](const NodeID u_plus_one) {
+        const NodeID u = u_plus_one - 1;
+        inverse_permutation[permutation[u]] = u;
+      }
+  );
 
   return {std::move(permutation), std::move(inverse_permutation)};
 }
@@ -121,19 +132,25 @@ sort_by_degree_buckets(const Container<EdgeID> &nodes) {
  * @param new_edge_weights New edge weights, may be empty empty iff. the old
  * edge weights array is empty.
  */
-template <template <typename> typename Container, bool has_ghost_nodes = false,
-          typename GraphNodeID = NodeID, typename GraphEdgeID = EdgeID,
-          typename GraphNodeWeight = NodeWeight,
-          typename GraphEdgeWeight = EdgeWeight>
-void build_permuted_graph(const Container<GraphEdgeID> &old_nodes,
-                          const Container<GraphNodeID> &old_edges,
-                          const Container<GraphNodeWeight> &old_node_weights,
-                          const Container<GraphEdgeWeight> &old_edge_weights,
-                          const NodePermutations<Container> &permutations,
-                          Container<GraphEdgeID> &new_nodes,
-                          Container<GraphNodeID> &new_edges,
-                          Container<GraphNodeWeight> &new_node_weights,
-                          Container<GraphEdgeWeight> &new_edge_weights) {
+template <
+    template <typename>
+    typename Container,
+    bool has_ghost_nodes = false,
+    typename GraphNodeID = NodeID,
+    typename GraphEdgeID = EdgeID,
+    typename GraphNodeWeight = NodeWeight,
+    typename GraphEdgeWeight = EdgeWeight>
+void build_permuted_graph(
+    const Container<GraphEdgeID> &old_nodes,
+    const Container<GraphNodeID> &old_edges,
+    const Container<GraphNodeWeight> &old_node_weights,
+    const Container<GraphEdgeWeight> &old_edge_weights,
+    const NodePermutations<Container> &permutations,
+    Container<GraphEdgeID> &new_nodes,
+    Container<GraphNodeID> &new_edges,
+    Container<GraphNodeWeight> &new_node_weights,
+    Container<GraphEdgeWeight> &new_edge_weights
+) {
   // >= for ghost nodes in a distributed graph
   const bool is_node_weighted = old_node_weights.size() + 1 >= old_nodes.size();
   const bool is_edge_weighted = old_edge_weights.size() == old_edges.size();
@@ -170,15 +187,19 @@ void build_permuted_graph(const Container<GraphEdgeID> &old_nodes,
 
 Graph rearrange_by_degree_buckets(Context &ctx, Graph graph);
 
-NodePermutations<StaticArray>
-rearrange_graph(PartitionContext &p_ctx, StaticArray<EdgeID> &nodes,
-                StaticArray<NodeID> &edges,
-                StaticArray<NodeWeight> &node_weights,
-                StaticArray<EdgeWeight> &edge_weights);
+NodePermutations<StaticArray> rearrange_graph(
+    PartitionContext &p_ctx,
+    StaticArray<EdgeID> &nodes,
+    StaticArray<NodeID> &edges,
+    StaticArray<NodeWeight> &node_weights,
+    StaticArray<EdgeWeight> &edge_weights
+);
 
 NodeID integrate_isolated_nodes(Graph &graph, double epsilon, Context &ctx);
 
-PartitionedGraph assign_isolated_nodes(PartitionedGraph p_graph,
-                                       const NodeID num_isolated_nodes,
-                                       const PartitionContext &p_ctx);
+PartitionedGraph assign_isolated_nodes(
+    PartitionedGraph p_graph,
+    const NodeID num_isolated_nodes,
+    const PartitionContext &p_ctx
+);
 } // namespace kaminpar::shm::graph

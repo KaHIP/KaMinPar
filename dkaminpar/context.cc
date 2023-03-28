@@ -15,15 +15,21 @@
 
 namespace kaminpar::dist {
 using namespace std::string_literals;
-PartitionContext::PartitionContext(const BlockID k, const BlockID K,
-                                   const double epsilon)
-    : k(k), K(K), epsilon(epsilon) {}
+PartitionContext::PartitionContext(
+    const BlockID k, const BlockID K, const double epsilon
+)
+    : k(k),
+      K(K),
+      epsilon(epsilon) {}
 
 PartitionContext::PartitionContext(const PartitionContext &other)
-    : k(other.k), K(other.K), epsilon(other.epsilon),
-      graph(other.graph == nullptr
-                ? nullptr
-                : std::make_unique<GraphContext>(*other.graph)) {}
+    : k(other.k),
+      K(other.K),
+      epsilon(other.epsilon),
+      graph(
+          other.graph == nullptr ? nullptr
+                                 : std::make_unique<GraphContext>(*other.graph)
+      ) {}
 
 PartitionContext &PartitionContext::operator=(const PartitionContext &other) {
   k = other.k;
@@ -36,10 +42,14 @@ PartitionContext &PartitionContext::operator=(const PartitionContext &other) {
 
 PartitionContext::~PartitionContext() = default;
 
-GraphContext::GraphContext(const DistributedGraph &graph,
-                           const PartitionContext &p_ctx)
-    : global_n(graph.global_n()), n(graph.n()), total_n(graph.total_n()),
-      global_m(graph.global_m()), m(graph.m()),
+GraphContext::GraphContext(
+    const DistributedGraph &graph, const PartitionContext &p_ctx
+)
+    : global_n(graph.global_n()),
+      n(graph.n()),
+      total_n(graph.total_n()),
+      global_m(graph.global_m()),
+      m(graph.m()),
       global_total_node_weight(graph.global_total_node_weight()),
       total_node_weight(graph.total_node_weight()),
       global_max_node_weight(graph.global_max_node_weight()),
@@ -49,10 +59,14 @@ GraphContext::GraphContext(const DistributedGraph &graph,
   setup_max_block_weights(p_ctx.k, p_ctx.epsilon);
 }
 
-GraphContext::GraphContext(const shm::Graph &graph,
-                           const PartitionContext &p_ctx)
-    : global_n(graph.n()), n(graph.n()), total_n(graph.n()),
-      global_m(graph.m()), m(graph.m()),
+GraphContext::GraphContext(
+    const shm::Graph &graph, const PartitionContext &p_ctx
+)
+    : global_n(graph.n()),
+      n(graph.n()),
+      total_n(graph.n()),
+      global_m(graph.m()),
+      m(graph.m()),
       global_total_node_weight(graph.total_node_weight()),
       total_node_weight(graph.total_node_weight()),
       global_max_node_weight(graph.max_node_weight()),
@@ -72,14 +86,16 @@ void GraphContext::setup_perfectly_balanced_block_weights(const BlockID k) {
   });
 }
 
-void GraphContext::setup_max_block_weights(const BlockID k,
-                                           const double epsilon) {
+void GraphContext::setup_max_block_weights(
+    const BlockID k, const double epsilon
+) {
   max_block_weights.resize(k);
 
   tbb::parallel_for<BlockID>(0, k, [&](const BlockID b) {
     const BlockWeight max_eps_weight = static_cast<BlockWeight>(
         (1.0 + epsilon) *
-        static_cast<double>(perfectly_balanced_block_weights[b]));
+        static_cast<double>(perfectly_balanced_block_weights[b])
+    );
     const BlockWeight max_abs_weight =
         perfectly_balanced_block_weights[b] + global_max_node_weight;
 
@@ -93,12 +109,14 @@ void GraphContext::setup_max_block_weights(const BlockID k,
 }
 
 bool LabelPropagationCoarseningContext::should_merge_nonadjacent_clusters(
-    const NodeID old_n, const NodeID new_n) const {
+    const NodeID old_n, const NodeID new_n
+) const {
   return (1.0 - 1.0 * new_n / old_n) <= merge_nonadjacent_clusters_threshold;
 }
 
 int LabelPropagationCoarseningContext::compute_num_chunks(
-    const ParallelContext &parallel) const {
+    const ParallelContext &parallel
+) const {
   if (fixed_num_chunks > 0) {
     return fixed_num_chunks;
   }
@@ -109,7 +127,8 @@ int LabelPropagationCoarseningContext::compute_num_chunks(
 }
 
 int LabelPropagationRefinementContext::compute_num_chunks(
-    const ParallelContext &parallel) const {
+    const ParallelContext &parallel
+) const {
   if (fixed_num_chunks > 0) {
     return fixed_num_chunks;
   }
@@ -120,31 +139,38 @@ int LabelPropagationRefinementContext::compute_num_chunks(
 }
 
 int ColoredLabelPropagationRefinementContext::compute_num_coloring_chunks(
-    const ParallelContext &parallel) const {
+    const ParallelContext &parallel
+) const {
   if (fixed_num_coloring_chunks > 0) {
     return fixed_num_coloring_chunks;
   }
 
   const int scale =
       scale_coloring_chunks_with_threads ? parallel.num_threads : 1;
-  return std::max<int>(min_num_coloring_chunks,
-                       max_num_coloring_chunks / (scale * parallel.num_mpis));
+  return std::max<int>(
+      min_num_coloring_chunks,
+      max_num_coloring_chunks / (scale * parallel.num_mpis)
+  );
 }
 
 int HEMCoarseningContext::compute_num_coloring_chunks(
-    const ParallelContext &parallel) const {
+    const ParallelContext &parallel
+) const {
   if (fixed_num_coloring_chunks > 0) {
     return fixed_num_coloring_chunks;
   }
 
   const int scale =
       scale_coloring_chunks_with_threads ? parallel.num_threads : 1;
-  return std::max<int>(min_num_coloring_chunks,
-                       max_num_coloring_chunks / (scale * parallel.num_mpis));
+  return std::max<int>(
+      min_num_coloring_chunks,
+      max_num_coloring_chunks / (scale * parallel.num_mpis)
+  );
 }
 
 bool RefinementContext::includes_algorithm(
-    const KWayRefinementAlgorithm algorithm) const {
+    const KWayRefinementAlgorithm algorithm
+) const {
   return std::find(algorithms.begin(), algorithms.end(), algorithm) !=
          algorithms.end();
 }

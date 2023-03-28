@@ -43,13 +43,18 @@ struct ApplicationContext {
 };
 
 void setup_context(CLI::App &cli, ApplicationContext &app, Context &ctx) {
-  cli.set_config("-C,--config", "",
-                 "Read parameters from a TOML configuration file.", false);
-  cli.add_option_function<std::string>("-P,--preset",
-                                       [&](const std::string preset) {
-                                         ctx = create_context_by_preset_name(
-                                             preset);
-                                       })
+  cli.set_config(
+      "-C,--config",
+      "",
+      "Read parameters from a TOML configuration file.",
+      false
+  );
+  cli.add_option_function<std::string>(
+         "-P,--preset",
+         [&](const std::string preset) {
+           ctx = create_context_by_preset_name(preset);
+         }
+  )
       ->check(CLI::IsMember(get_preset_names()))
       ->description(R"(Use configuration preset:
   - default, fast: default parameters
@@ -64,9 +69,11 @@ void setup_context(CLI::App &cli, ApplicationContext &app, Context &ctx) {
   mandatory->add_flag("--dump-config", app.dump_config)
       ->configurable(false)
       ->description(R"(Print the current configuration and exit.
-The output should be stored in a file and can be used by the -C,--config option.)");
-  mandatory->add_flag("-v,--version", app.show_version,
-                      "Show version and exit.");
+The output should be stored in a file and can be used by the -C,--config option.)"
+      );
+  mandatory->add_flag(
+      "-v,--version", app.show_version, "Show version and exit."
+  );
 
   // Mandatory -> ... or partition a graph
   auto *gp_group = mandatory->add_option_group("Partitioning")->silent();
@@ -74,32 +81,48 @@ The output should be stored in a file and can be used by the -C,--config option.
       ->configurable(false)
       ->required();
   gp_group
-      ->add_option("-G,--graph", app.graph_filename,
-                   "Input graph in METIS (file extension *.graph or *.metis) "
-                   "or binary format (file extension *.bgf).")
+      ->add_option(
+          "-G,--graph",
+          app.graph_filename,
+          "Input graph in METIS (file extension *.graph or *.metis) "
+          "or binary format (file extension *.bgf)."
+      )
       ->configurable(false);
 
   // Application options
   cli.add_option("-s,--seed", app.seed, "Seed for random number generation.")
       ->default_val(app.seed);
   cli.add_flag("-q,--quiet", app.quiet, "Suppress all console output.");
-  cli.add_option("-t,--threads", app.num_threads,
-                 "Number of threads to be used.")
+  cli.add_option(
+         "-t,--threads", app.num_threads, "Number of threads to be used."
+  )
       ->check(CLI::NonNegativeNumber)
       ->default_val(app.num_threads);
-  cli.add_flag("--edge-balanced", app.load_edge_balanced,
-               "Load the input graph such that each PE has roughly the same "
-               "number of edges.")
+  cli.add_flag(
+         "--edge-balanced",
+         app.load_edge_balanced,
+         "Load the input graph such that each PE has roughly the same "
+         "number of edges."
+  )
       ->capture_default_str();
-  cli.add_flag("-E,--experiment", app.experiment,
-               "Use an output format that is easier to parse.");
-  cli.add_option("--max-timer-depth", app.max_timer_depth,
-                 "Set maximum timer depth shown in result summary.");
+  cli.add_flag(
+      "-E,--experiment",
+      app.experiment,
+      "Use an output format that is easier to parse."
+  );
+  cli.add_option(
+      "--max-timer-depth",
+      app.max_timer_depth,
+      "Set maximum timer depth shown in result summary."
+  );
   cli.add_flag_function("-T,--all-timers", [&](auto) {
     app.max_timer_depth = std::numeric_limits<int>::max();
   });
-  cli.add_option("-o,--output", app.partition_filename,
-                 "Output filename for the graph partition.")
+  cli.add_option(
+         "-o,--output",
+         app.partition_filename,
+         "Output filename for the graph partition."
+  )
       ->capture_default_str();
 
   // Algorithmic options
@@ -148,8 +171,9 @@ int main(int argc, char *argv[]) {
 
     auto graph = [&] {
       const bool filename_is_generator_string =
-          std::find(app.graph_filename.begin(), app.graph_filename.end(),
-                    ';') != app.graph_filename.end();
+          std::find(
+              app.graph_filename.begin(), app.graph_filename.end(), ';'
+          ) != app.graph_filename.end();
       if (filename_is_generator_string) {
         return generator.GenerateFromOptionString(app.graph_filename);
       } else {
@@ -164,7 +188,8 @@ int main(int argc, char *argv[]) {
       }
     }();
     auto vtxdist = kagen::BuildVertexDistribution<unsigned long>(
-        graph, MPI_UNSIGNED_LONG, MPI_COMM_WORLD);
+        graph, MPI_UNSIGNED_LONG, MPI_COMM_WORLD
+    );
 
     auto xadj = graph.TakeXadj<>();
     auto adjncy = graph.TakeAdjncy<>();
@@ -185,8 +210,9 @@ int main(int argc, char *argv[]) {
         adjwgt.empty() ? nullptr
                        : reinterpret_cast<GlobalEdgeWeight *>(adjwgt.data());
 
-    partitioner.import_graph(vtxdist.data(), xadj_ptr, adjncy_ptr, vwgt_ptr,
-                             adjwgt_ptr);
+    partitioner.import_graph(
+        vtxdist.data(), xadj_ptr, adjncy_ptr, vwgt_ptr, adjwgt_ptr
+    );
 
     return graph.vertex_range.second - graph.vertex_range.first;
   }();

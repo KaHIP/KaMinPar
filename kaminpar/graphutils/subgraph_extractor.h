@@ -22,10 +22,11 @@ struct SubgraphMemoryStartPosition {
   std::size_t edges_start_pos{0};
 
   // operator overloads for parallel::prefix_sum()
-  SubgraphMemoryStartPosition
-  operator+(const SubgraphMemoryStartPosition &other) const {
-    return {nodes_start_pos + other.nodes_start_pos,
-            edges_start_pos + other.edges_start_pos};
+  SubgraphMemoryStartPosition operator+(const SubgraphMemoryStartPosition &other
+  ) const {
+    return {
+        nodes_start_pos + other.nodes_start_pos,
+        edges_start_pos + other.edges_start_pos};
   }
 
   SubgraphMemoryStartPosition &
@@ -37,16 +38,26 @@ struct SubgraphMemoryStartPosition {
 };
 
 struct SubgraphMemory {
-  SubgraphMemory(const NodeID n, const BlockID k, const EdgeID m,
-                 const bool is_node_weighted = true,
-                 const bool is_edge_weighted = true)
-      : nodes(n + k), edges(m), node_weights(is_node_weighted * (n + k)),
+  SubgraphMemory(
+      const NodeID n,
+      const BlockID k,
+      const EdgeID m,
+      const bool is_node_weighted = true,
+      const bool is_edge_weighted = true
+  )
+      : nodes(n + k),
+        edges(m),
+        node_weights(is_node_weighted * (n + k)),
         edge_weights(is_edge_weighted * m) {}
 
   explicit SubgraphMemory(const PartitionedGraph &p_graph)
-      : SubgraphMemory(p_graph.n(), p_graph.k(), p_graph.m(),
-                       p_graph.graph().is_node_weighted(),
-                       p_graph.graph().is_edge_weighted()) {}
+      : SubgraphMemory(
+            p_graph.n(),
+            p_graph.k(),
+            p_graph.m(),
+            p_graph.graph().is_node_weighted(),
+            p_graph.graph().is_edge_weighted()
+        ) {}
 
   StaticArray<EdgeID> nodes;
   StaticArray<NodeID> edges;
@@ -109,17 +120,22 @@ struct TemporarySubgraphMemory {
   }
 };
 
-SubgraphExtractionResult extract_subgraphs(const PartitionedGraph &p_graph,
-                                           SubgraphMemory &subgraph_memory);
+SubgraphExtractionResult extract_subgraphs(
+    const PartitionedGraph &p_graph, SubgraphMemory &subgraph_memory
+);
 
-SequentialSubgraphExtractionResult
-extract_subgraphs_sequential(const PartitionedGraph &p_graph,
-                             SubgraphMemoryStartPosition memory_position,
-                             SubgraphMemory &subgraph_memory,
-                             TemporarySubgraphMemory &tmp_subgraph_memory);
+SequentialSubgraphExtractionResult extract_subgraphs_sequential(
+    const PartitionedGraph &p_graph,
+    SubgraphMemoryStartPosition memory_position,
+    SubgraphMemory &subgraph_memory,
+    TemporarySubgraphMemory &tmp_subgraph_memory
+);
 
 void copy_subgraph_partitions(
     PartitionedGraph &p_graph,
-    const scalable_vector<BlockArray> &p_subgraph_partitions, BlockID k_prime,
-    BlockID input_k, const scalable_vector<NodeID> &mapping);
+    const scalable_vector<BlockArray> &p_subgraph_partitions,
+    BlockID k_prime,
+    BlockID input_k,
+    const scalable_vector<NodeID> &mapping
+);
 } // namespace kaminpar::shm::graph

@@ -80,7 +80,8 @@
    << kaminpar::logger::RED << "[Fatal] ")
 #define FATAL_PERROR                                                           \
   (kaminpar::DisposableLogger<true>(                                           \
-       std::cout, std::string(": ") + std::strerror(errno) + "\n")             \
+       std::cout, std::string(": ") + std::strerror(errno) + "\n"              \
+   )                                                                           \
    << kaminpar::logger::RED << "[Fatal] ")
 
 #define LOG_STATS                                                              \
@@ -119,9 +120,11 @@ namespace logger {
 template <typename T, typename = void> struct is_iterable : std::false_type {};
 
 template <typename T>
-struct is_iterable<T, std::void_t<decltype(std::begin(std::declval<T>())),
-                                  decltype(std::end(std::declval<T>()))>>
-    : std::true_type {};
+struct is_iterable<
+    T,
+    std::void_t<
+        decltype(std::begin(std::declval<T>())),
+        decltype(std::end(std::declval<T>()))>> : std::true_type {};
 
 template <typename T>
 constexpr bool is_container_v =
@@ -133,16 +136,16 @@ constexpr bool is_container_v =
 class ContainerFormatter {
 public:
   virtual ~ContainerFormatter() = default;
-  virtual void print(const std::vector<std::string> &container,
-                     std::ostream &out) const = 0;
+  virtual void
+  print(const std::vector<std::string> &container, std::ostream &out) const = 0;
 };
 
 class CompactContainerFormatter : public ContainerFormatter {
 public:
   constexpr explicit CompactContainerFormatter(std::string_view sep) noexcept
       : _sep{sep} {}
-  void print(const std::vector<std::string> &container,
-             std::ostream &out) const final;
+  void print(const std::vector<std::string> &container, std::ostream &out)
+      const final;
 
 private:
   std::string_view _sep;
@@ -151,8 +154,8 @@ private:
 class Table : public ContainerFormatter {
 public:
   constexpr explicit Table(std::size_t width) noexcept : _width{width} {}
-  void print(const std::vector<std::string> &container,
-             std::ostream &out) const final;
+  void print(const std::vector<std::string> &container, std::ostream &out)
+      const final;
 
 private:
   std::size_t _width;
@@ -171,7 +174,14 @@ public:
 
 class Colorized : public TextFormatter {
 public:
-  enum class Color { RED, GREEN, MAGENTA, ORANGE, CYAN, RESET };
+  enum class Color {
+    RED,
+    GREEN,
+    MAGENTA,
+    ORANGE,
+    CYAN,
+    RESET
+  };
 
   constexpr explicit Colorized(Color color) noexcept : _color{color} {}
   void print(const std::string &text, std::ostream &out) const final;
@@ -214,10 +224,13 @@ public:
   Logger &operator=(const Logger &) = delete;
   Logger(Logger &&) noexcept = default;
   Logger &operator=(Logger &&) = delete;
-  virtual ~Logger() { flush(); };
+  virtual ~Logger() {
+    flush();
+  };
 
-  template <typename Arg,
-            std::enable_if_t<logger::is_default_log_arg_v<Arg>, bool> = true>
+  template <
+      typename Arg,
+      std::enable_if_t<logger::is_default_log_arg_v<Arg>, bool> = true>
   Logger &operator<<(Arg &&arg) {
     std::stringstream ss;
     ss << arg;
@@ -233,16 +246,18 @@ public:
     return *this;
   }
 
-  template <typename Formatter,
-            std::enable_if_t<logger::is_container_formatter_v<Formatter>,
-                             bool> = true>
+  template <
+      typename Formatter,
+      std::enable_if_t<logger::is_container_formatter_v<Formatter>, bool> =
+          true>
   Logger &operator<<(Formatter &&formatter) {
     _container_formatter = std::make_unique<std::decay_t<Formatter>>(formatter);
     return *this;
   }
 
-  template <typename T,
-            std::enable_if_t<logger::is_container_v<T>, bool> = true>
+  template <
+      typename T,
+      std::enable_if_t<logger::is_container_v<T>, bool> = true>
   Logger &operator<<(T &&container) {
     std::vector<std::string> str;
     for (const auto &element : container) {
@@ -272,10 +287,12 @@ private:
 
   std::unique_ptr<logger::TextFormatter> _text_formatter{
       std::make_unique<std::decay_t<decltype(logger::DEFAULT_TEXT)>>(
-          logger::DEFAULT_TEXT)};
+          logger::DEFAULT_TEXT
+      )};
   std::unique_ptr<logger::ContainerFormatter> _container_formatter{
       std::make_unique<std::decay_t<decltype(logger::DEFAULT_CONTAINER)>>(
-          logger::DEFAULT_CONTAINER)};
+          logger::DEFAULT_CONTAINER
+      )};
 
   std::ostringstream _buffer;
   std::ostream &_out;
@@ -306,7 +323,9 @@ public:
   // if the ASSERT or DBG macro is disabled, we use short circuit evaluation to
   // dispose this logger and all calls to it for do this, it must be implicitly
   // convertible to bool (the return value does not matter)
-  operator bool() { return false; } // NOLINT
+  operator bool() {
+    return false;
+  } // NOLINT
 
 private:
   Logger _logger;

@@ -14,8 +14,9 @@
 
 namespace kaminpar::dist {
 namespace {
-GlobalMove create_dummy_move(const GlobalNodeID node, const NodeID group,
-                             const EdgeWeight gain) {
+GlobalMove create_dummy_move(
+    const GlobalNodeID node, const NodeID group, const EdgeWeight gain
+) {
   return {node, group, 0, gain, 0, 0};
 }
 } // namespace

@@ -13,10 +13,12 @@
 
 namespace kaminpar::shm {
 template <typename NodeID_ = NodeID, typename NodeWeight_ = NodeWeight>
-NodeWeight_ compute_max_cluster_weight(const NodeID_ n,
-                                       const NodeWeight_ total_node_weight,
-                                       const PartitionContext &input_p_ctx,
-                                       const CoarseningContext &c_ctx) {
+NodeWeight_ compute_max_cluster_weight(
+    const NodeID_ n,
+    const NodeWeight_ total_node_weight,
+    const PartitionContext &input_p_ctx,
+    const CoarseningContext &c_ctx
+) {
   double max_cluster_weight = 0.0;
 
   switch (c_ctx.cluster_weight_limit) {
@@ -40,22 +42,27 @@ NodeWeight_ compute_max_cluster_weight(const NodeID_ n,
     break;
   }
 
-  return static_cast<NodeWeight_>(max_cluster_weight *
-                                  c_ctx.cluster_weight_multiplier);
+  return static_cast<NodeWeight_>(
+      max_cluster_weight * c_ctx.cluster_weight_multiplier
+  );
 }
 
 template <typename NodeWeight_ = NodeWeight, typename Graph_ = Graph>
-NodeWeight_ compute_max_cluster_weight(const Graph_ &c_graph,
-                                       const PartitionContext &input_p_ctx,
-                                       const CoarseningContext &c_ctx) {
-  return compute_max_cluster_weight(c_graph.n(), c_graph.total_node_weight(),
-                                    input_p_ctx, c_ctx);
+NodeWeight_ compute_max_cluster_weight(
+    const Graph_ &c_graph,
+    const PartitionContext &input_p_ctx,
+    const CoarseningContext &c_ctx
+) {
+  return compute_max_cluster_weight(
+      c_graph.n(), c_graph.total_node_weight(), input_p_ctx, c_ctx
+  );
 }
 
-inline double
-compute_2way_adaptive_epsilon(const PartitionContext &p_ctx,
-                              const NodeWeight subgraph_total_node_weight,
-                              const BlockID subgraph_final_k) {
+inline double compute_2way_adaptive_epsilon(
+    const PartitionContext &p_ctx,
+    const NodeWeight subgraph_total_node_weight,
+    const BlockID subgraph_final_k
+) {
   KASSERT(subgraph_final_k > 1u);
 
   const double base = (1.0 + p_ctx.epsilon) * subgraph_final_k *
@@ -67,15 +74,18 @@ compute_2way_adaptive_epsilon(const PartitionContext &p_ctx,
   return adaptive_epsilon;
 }
 
-inline PartitionContext
-create_bipartition_context(const PartitionContext &k_p_ctx,
-                           const Graph &subgraph, const BlockID final_k1,
-                           const BlockID final_k2) {
+inline PartitionContext create_bipartition_context(
+    const PartitionContext &k_p_ctx,
+    const Graph &subgraph,
+    const BlockID final_k1,
+    const BlockID final_k2
+) {
   PartitionContext two_p_ctx{};
   two_p_ctx.k = 2;
   two_p_ctx.setup(subgraph);
   two_p_ctx.epsilon = compute_2way_adaptive_epsilon(
-      k_p_ctx, subgraph.total_node_weight(), final_k1 + final_k2);
+      k_p_ctx, subgraph.total_node_weight(), final_k1 + final_k2
+  );
   two_p_ctx.block_weights.setup(two_p_ctx, {final_k1, final_k2});
   return two_p_ctx;
 }

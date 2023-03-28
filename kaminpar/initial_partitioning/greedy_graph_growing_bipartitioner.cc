@@ -50,8 +50,8 @@ void GreedyGraphGrowingBipartitioner::bipartition_impl() {
         KASSERT(_partition[v] == V1);
 
         if (_marker.get(v)) {
-          KASSERT(_queue.contains(
-              v)); // marked and not in V2: must already be queued
+          KASSERT(_queue.contains(v)
+          ); // marked and not in V2: must already be queued
           _queue.decrease_priority_by(v, 2 * _graph.edge_weight(e));
           KASSERT(_queue.key(v) == compute_negative_gain(v));
         } else {

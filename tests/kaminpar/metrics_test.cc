@@ -9,8 +9,12 @@ namespace kaminpar::shm::testing {
 class MetricsTestFixture : public ::testing::Test {
 public:
   MetricsTestFixture()
-      : graph(create_graph({0, 4, 5, 6, 7, 8}, {1, 2, 3, 4, 0, 0, 0, 0},
-                           {4, 1, 1, 1, 1}, {3, 3, 3, 3, 3, 3, 3, 3})) {}
+      : graph(create_graph(
+            {0, 4, 5, 6, 7, 8},
+            {1, 2, 3, 4, 0, 0, 0, 0},
+            {4, 1, 1, 1, 1},
+            {3, 3, 3, 3, 3, 3, 3, 3}
+        )) {}
 
   Graph graph;
 };
@@ -70,8 +74,9 @@ TEST_F(MetricsTestFixture, imbalanced_bipartition_balance) {
   EXPECT_DOUBLE_EQ(metrics::imbalance(p_graph), 0.5);
 }
 
-inline Context create_testing_context(const Graph &graph, const BlockID k = 2,
-                                      const double epsilon = 0.03) {
+inline Context create_testing_context(
+    const Graph &graph, const BlockID k = 2, const double epsilon = 0.03
+) {
   Context context;
   context.partition.k = k;
   context.partition.epsilon = epsilon;

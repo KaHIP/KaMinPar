@@ -22,7 +22,8 @@ TEST(ParallelContractionTest, ContractingToSingleNodeWorks) {
 
   for (const NodeID cluster : {0, 1, 2, 3}) {
     auto [c_graph, c_mapping, m_ctx] = graph::contract(
-        graph, scalable_vector<NodeID>{cluster, cluster, cluster, cluster});
+        graph, scalable_vector<NodeID>{cluster, cluster, cluster, cluster}
+    );
     EXPECT_THAT(c_graph.n(), 1);
     EXPECT_THAT(c_graph.m(), 0);
     EXPECT_THAT(c_graph.node_weight(0), graph.total_node_weight());
@@ -163,7 +164,8 @@ TEST(GraphPermutationTest, MovingIsolatedNodesToBackWorks) {
 
 TEST(
     PreprocessingTest,
-    PreprocessingFacadeRemovesIsolatedNodesAndAdaptsEpsilonFromUnweightedGraph) {
+    PreprocessingFacadeRemovesIsolatedNodesAndAdaptsEpsilonFromUnweightedGraph
+) {
   /* 0
    * 1--2--3        *--*--*
    * 4  5  6    --> *
@@ -201,8 +203,9 @@ TEST(SequentialGraphExtraction, SimpleSequentialBipartitionExtractionWorks) {
   // 0--1--2     block 0
   //-|--|--
   // 3--4--5     block 1
-  Graph graph{create_graph({0, 2, 5, 6, 8, 11, 12},
-                           {1, 3, 0, 4, 2, 1, 0, 4, 3, 1, 5, 4})};
+  Graph graph{create_graph(
+      {0, 2, 5, 6, 8, 11, 12}, {1, 3, 0, 4, 2, 1, 0, 4, 3, 1, 5, 4}
+  )};
   PartitionedGraph p_graph{create_p_graph(graph, 2, {0, 0, 0, 1, 1, 1})};
 
   graph::SubgraphMemory memory{p_graph};

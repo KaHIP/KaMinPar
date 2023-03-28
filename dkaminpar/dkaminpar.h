@@ -323,16 +323,22 @@ public:
 
   dist::Context &context();
 
-  void import_graph(dist::GlobalNodeID *node_distribution,
-                    dist::GlobalEdgeID *nodes, dist::GlobalNodeID *edges,
-                    dist::GlobalNodeWeight *node_weights,
-                    dist::GlobalEdgeWeight *edge_weights);
+  void import_graph(
+      dist::GlobalNodeID *node_distribution,
+      dist::GlobalEdgeID *nodes,
+      dist::GlobalNodeID *edges,
+      dist::GlobalNodeWeight *node_weights,
+      dist::GlobalEdgeWeight *edge_weights
+  );
 
-  dist::NodeID load_graph(const std::string &filename, dist::IOFormat format,
-                          dist::IODistribution distribution);
+  dist::NodeID load_graph(
+      const std::string &filename,
+      dist::IOFormat format,
+      dist::IODistribution distribution
+  );
 
-  dist::GlobalEdgeWeight compute_partition(int seed, dist::BlockID k,
-                                           dist::BlockID *partition);
+  dist::GlobalEdgeWeight
+  compute_partition(int seed, dist::BlockID k, dist::BlockID *partition);
 
 private:
   MPI_Comm _comm;

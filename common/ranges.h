@@ -18,7 +18,9 @@ public:
 
     explicit iterator(const Int value) : _value(value) {}
 
-    Int operator*() const { return _value; }
+    Int operator*() const {
+      return _value;
+    }
 
     iterator &operator++() {
       ++_value;
@@ -44,8 +46,12 @@ public:
 
   IotaRange(const Int begin, const Int end) : _begin(begin), _end(end) {}
 
-  iterator begin() const { return _begin; }
-  iterator end() const { return _end; }
+  iterator begin() const {
+    return _begin;
+  }
+  iterator end() const {
+    return _end;
+  }
 
 private:
   iterator _begin;
@@ -63,9 +69,12 @@ public:
     using reference = value_type &;
 
     explicit iterator(const Int value, const Function transformer)
-        : _value(value), _transformer(transformer) {}
+        : _value(value),
+          _transformer(transformer) {}
 
-    value_type operator*() const { return _transformer(_value); }
+    value_type operator*() const {
+      return _transformer(_value);
+    }
 
     iterator &operator++() {
       ++_value;
@@ -96,12 +105,18 @@ public:
     Function _transformer;
   };
 
-  TransformedIotaRange(const Int begin, const Int end,
-                       const Function transformer)
-      : _begin(begin, transformer), _end(end, transformer) {}
+  TransformedIotaRange(
+      const Int begin, const Int end, const Function transformer
+  )
+      : _begin(begin, transformer),
+        _end(end, transformer) {}
 
-  iterator begin() const { return _begin; }
-  iterator end() const { return _end; }
+  iterator begin() const {
+    return _begin;
+  }
+  iterator end() const {
+    return _end;
+  }
 
 private:
   iterator _begin;
@@ -120,9 +135,12 @@ public:
     using reference = value_type &;
 
     explicit iterator(Iterator iter, Function transformer)
-        : _iter(iter), _transformer(transformer) {}
+        : _iter(iter),
+          _transformer(transformer) {}
 
-    value_type operator*() const { return _transformer(*_iter); }
+    value_type operator*() const {
+      return _transformer(*_iter);
+    }
 
     iterator &operator++() {
       ++_iter;
@@ -148,10 +166,15 @@ public:
   };
 
   TransformedRange(Iterator begin, Iterator end, Function transformer)
-      : _begin(begin, transformer), _end(end, transformer) {}
+      : _begin(begin, transformer),
+        _end(end, transformer) {}
 
-  iterator begin() { return _begin; }
-  iterator end() { return _end; }
+  iterator begin() {
+    return _begin;
+  }
+  iterator end() {
+    return _end;
+  }
 
 private:
   iterator _begin;

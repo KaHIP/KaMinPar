@@ -28,7 +28,8 @@ void chunked_for(Buffer &buffers, Lambda &&lambda) {
       std::is_invocable_v<decltype(lambda), decltype(buffers[0][0]), int>;
 
   tbb::parallel_for(
-      tbb::blocked_range<std::size_t>(0, total_size), [&](const auto r) {
+      tbb::blocked_range<std::size_t>(0, total_size),
+      [&](const auto r) {
         std::size_t cur = r.begin();
         std::size_t offset = 0;
         std::size_t current_buf = 0;
@@ -59,7 +60,8 @@ void chunked_for(Buffer &buffers, Lambda &&lambda) {
           }
           ++cur;
         }
-      });
+      }
+  );
 }
 
 /*!

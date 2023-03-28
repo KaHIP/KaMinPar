@@ -33,8 +33,9 @@ struct ExtractedLocalSubgraphs {
  * @return For each block k, a data structure describing the graph induced by
  * all *local* nodes of p_graph in block k.
  */
-ExtractedLocalSubgraphs extract_local_block_induced_subgraphs(
-    const DistributedPartitionedGraph &p_graph);
+ExtractedLocalSubgraphs
+extract_local_block_induced_subgraphs(const DistributedPartitionedGraph &p_graph
+);
 
 struct ExtractedSubgraphs {
   /*!
@@ -65,15 +66,18 @@ struct ExtractedSubgraphs {
  * reverse operation.
  */
 ExtractedSubgraphs extract_and_scatter_block_induced_subgraphs(
-    const DistributedPartitionedGraph &p_graph);
+    const DistributedPartitionedGraph &p_graph
+);
 
-DistributedPartitionedGraph
-copy_subgraph_partitions(DistributedPartitionedGraph p_graph,
-                         const std::vector<shm::PartitionedGraph> &p_subgraphs,
-                         ExtractedSubgraphs &subgraphs);
+DistributedPartitionedGraph copy_subgraph_partitions(
+    DistributedPartitionedGraph p_graph,
+    const std::vector<shm::PartitionedGraph> &p_subgraphs,
+    ExtractedSubgraphs &subgraphs
+);
 
 DistributedPartitionedGraph copy_duplicated_subgraph_partitions(
     DistributedPartitionedGraph p_graph,
     const std::vector<shm::PartitionedGraph> &p_subgraphs,
-    ExtractedSubgraphs &extracted_subgraphs);
+    ExtractedSubgraphs &extracted_subgraphs
+);
 } // namespace kaminpar::dist::graph

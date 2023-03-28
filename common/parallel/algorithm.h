@@ -36,7 +36,9 @@ accumulate(const Container &r, typename Container::value_type initial) {
       _ans = ans;
     }
 
-    void join(const body &y) { _ans += y._ans; }
+    void join(const body &y) {
+      _ans += y._ans;
+    }
 
     body(body &x, tbb::split) : _r{x._r} {}
     body(const Container &r) : _r{r} {}
@@ -44,15 +46,18 @@ accumulate(const Container &r, typename Container::value_type initial) {
 
   body b{r};
   tbb::parallel_reduce(
-      tbb::blocked_range<size_t>(static_cast<size_t>(0), r.size()), b);
+      tbb::blocked_range<size_t>(static_cast<size_t>(0), r.size()), b
+  );
   return initial + b._ans;
 }
 
-template <typename InputIt, typename UnaryOperation,
-          typename ValueType = std::result_of_t<UnaryOperation(
-              typename std::iterator_traits<InputIt>::value_type)>>
-ValueType accumulate(InputIt begin, InputIt end, ValueType initial,
-                     UnaryOperation op) {
+template <
+    typename InputIt,
+    typename UnaryOperation,
+    typename ValueType = std::result_of_t<
+        UnaryOperation(typename std::iterator_traits<InputIt>::value_type)>>
+ValueType
+accumulate(InputIt begin, InputIt end, ValueType initial, UnaryOperation op) {
   using size_t = typename std::iterator_traits<InputIt>::difference_type;
   using value_t = ValueType;
 
@@ -73,25 +78,33 @@ ValueType accumulate(InputIt begin, InputIt end, ValueType initial,
       _ans = ans;
     }
 
-    void join(const body &y) { _ans += y._ans; }
+    void join(const body &y) {
+      _ans += y._ans;
+    }
 
     body(body &x, tbb::split) : _begin{x._begin}, _op{x._op} {}
     body(const InputIt begin, UnaryOperation op) : _begin{begin}, _op{op} {}
   };
 
   body b{begin, op};
-  tbb::parallel_reduce(tbb::blocked_range<size_t>(static_cast<size_t>(0),
-                                                  std::distance(begin, end)),
-                       b);
+  tbb::parallel_reduce(
+      tbb::blocked_range<size_t>(
+          static_cast<size_t>(0), std::distance(begin, end)
+      ),
+      b
+  );
   return initial + b._ans;
 }
 
 template <typename InputIt>
-typename std::iterator_traits<InputIt>::value_type
-accumulate(InputIt begin, InputIt end,
-           typename std::iterator_traits<InputIt>::value_type initial) {
-  return ::kaminpar::parallel::accumulate(begin, end, initial,
-                                          [](const auto &v) { return v; });
+typename std::iterator_traits<InputIt>::value_type accumulate(
+    InputIt begin,
+    InputIt end,
+    typename std::iterator_traits<InputIt>::value_type initial
+) {
+  return ::kaminpar::parallel::accumulate(
+      begin, end, initial, [](const auto &v) { return v; }
+  );
 }
 
 template <typename Container>
@@ -115,7 +128,9 @@ typename Container::value_type max_element(const Container &r) {
       _ans = ans;
     }
 
-    void join(const body &y) { _ans = std::max(_ans, y._ans); }
+    void join(const body &y) {
+      _ans = std::max(_ans, y._ans);
+    }
 
     body(body &x, tbb::split) : _r{x._r} {}
     body(const Container &r) : _r{r} {}
@@ -123,13 +138,14 @@ typename Container::value_type max_element(const Container &r) {
 
   body b{r};
   tbb::parallel_reduce(
-      tbb::blocked_range<size_t>(static_cast<size_t>(0), r.size()), b);
+      tbb::blocked_range<size_t>(static_cast<size_t>(0), r.size()), b
+  );
   return b._ans;
 }
 
 template <typename InputIt>
-typename std::iterator_traits<InputIt>::value_type max_element(InputIt begin,
-                                                               InputIt end) {
+typename std::iterator_traits<InputIt>::value_type
+max_element(InputIt begin, InputIt end) {
   using size_t = typename std::iterator_traits<InputIt>::difference_type;
   using value_t = typename std::iterator_traits<InputIt>::value_type;
 
@@ -150,31 +166,39 @@ typename std::iterator_traits<InputIt>::value_type max_element(InputIt begin,
       _ans = ans;
     }
 
-    void join(const body &y) { _ans = std::max(_ans, y._ans); }
+    void join(const body &y) {
+      _ans = std::max(_ans, y._ans);
+    }
 
     body(body &x, tbb::split) : _begin{x._begin} {}
     body(InputIt begin) : _begin{begin} {}
   };
 
   body b{begin};
-  tbb::parallel_reduce(tbb::blocked_range<size_t>(static_cast<size_t>(0),
-                                                  std::distance(begin, end)),
-                       b);
+  tbb::parallel_reduce(
+      tbb::blocked_range<size_t>(
+          static_cast<size_t>(0), std::distance(begin, end)
+      ),
+      b
+  );
   return b._ans;
 }
 
 template <typename InputIterator, typename OutputIterator>
-void prefix_sum(InputIterator first, InputIterator last,
-                OutputIterator result) {
+void prefix_sum(
+    InputIterator first, InputIterator last, OutputIterator result
+) {
   using size_t = std::size_t; // typename InputIterator::difference_type;
   using Value =
       std::decay_t<decltype(*first)>; // typename InputIterator::value_type;
 
   const size_t n = std::distance(first, last);
   tbb::parallel_scan(
-      tbb::blocked_range<size_t>(0, n), Value(),
-      [first, result](const tbb::blocked_range<size_t> &r, Value sum,
-                      bool is_final_scan) {
+      tbb::blocked_range<size_t>(0, n),
+      Value(),
+      [first, result](
+          const tbb::blocked_range<size_t> &r, Value sum, bool is_final_scan
+      ) {
         Value temp = sum;
         for (auto i = r.begin(); i < r.end(); ++i) {
           temp += *(first + i);
@@ -184,6 +208,7 @@ void prefix_sum(InputIterator first, InputIterator last,
         }
         return temp;
       },
-      [](Value left, Value right) { return left + right; });
+      [](Value left, Value right) { return left + right; }
+  );
 }
 } // namespace kaminpar::parallel

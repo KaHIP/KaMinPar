@@ -75,20 +75,28 @@ class ThreadLocalFMRefiner {
 public:
   struct Move {
     Move(const NodeID node, const EdgeWeight gain, const BlockID block)
-        : node(node), gain(gain), block(block) {}
+        : node(node),
+          gain(gain),
+          block(block) {}
 
     NodeID node;
     EdgeWeight gain;
     BlockID block;
   };
 
-  ThreadLocalFMRefiner(const DistributedPartitionedGraph &global_p_graph,
-                       const shm::PartitionedGraph &p_graph,
-                       const FMRefinementContext &fm_ctx,
-                       const PartitionContext &p_ctx)
-      : _global_p_graph(global_p_graph), _p_graph(p_graph), _fm_ctx(fm_ctx),
-        _p_ctx(p_ctx), _rating_map(_p_ctx.k),
-        _stopping_policy(_p_ctx.graph->global_n), _pq(_p_graph.n()),
+  ThreadLocalFMRefiner(
+      const DistributedPartitionedGraph &global_p_graph,
+      const shm::PartitionedGraph &p_graph,
+      const FMRefinementContext &fm_ctx,
+      const PartitionContext &p_ctx
+  )
+      : _global_p_graph(global_p_graph),
+        _p_graph(p_graph),
+        _fm_ctx(fm_ctx),
+        _p_ctx(p_ctx),
+        _rating_map(_p_ctx.k),
+        _stopping_policy(_p_ctx.graph->global_n),
+        _pq(_p_graph.n()),
         _marker(_p_graph.n()) {}
 
   std::vector<Move> refine(const NodeID start_node) {
@@ -185,8 +193,8 @@ private:
     }
   }
 
-  void update_pq_after_move(const NodeID u, const BlockID from,
-                            const BlockID to) {
+  void
+  update_pq_after_move(const NodeID u, const BlockID from, const BlockID to) {
     for (const auto [e, v] : _p_graph.neighbors(u)) {
       KASSERT(v < _p_graph.n());
 
@@ -274,7 +282,8 @@ private:
     };
 
     _rating_map.update_upper_bound_size(
-        std::min<BlockID>(_p_ctx.k, _p_graph.degree(u)));
+        std::min<BlockID>(_p_ctx.k, _p_graph.degree(u))
+    );
     return _rating_map.run_with_map(action, action);
   }
 
@@ -319,8 +328,9 @@ FMRefiner::FMRefiner(const Context &ctx) : _fm_ctx(ctx.refinement.fm) {}
 
 void FMRefiner::initialize(const DistributedGraph &) {}
 
-void FMRefiner::refine(DistributedPartitionedGraph &p_graph,
-                       const PartitionContext &p_ctx) {
+void FMRefiner::refine(
+    DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx
+) {
   SCOPED_TIMER("FM");
   _p_graph = &p_graph;
   _p_ctx = &p_ctx;
@@ -347,19 +357,24 @@ void FMRefiner::refine(DistributedPartitionedGraph &p_graph,
 
     START_TIMER("Build reverse node mapping");
     growt::StaticGhostNodeMapping reverse_node_mapping(
-        extraction_result.node_mapping.size());
+        extraction_result.node_mapping.size()
+    );
     tbb::parallel_for<std::size_t>(
-        0, extraction_result.node_mapping.size(), [&](const std::size_t i) {
+        0,
+        extraction_result.node_mapping.size(),
+        [&](const std::size_t i) {
           reverse_node_mapping.insert(extraction_result.node_mapping[i] + 1, i);
-        });
+        }
+    );
     STOP_TIMER();
 
     mpi::barrier(_p_graph->communicator());
 
     // Run FM
     tbb::enumerable_thread_specific<ThreadLocalFMRefiner> fm_refiner_ets{[&] {
-      return ThreadLocalFMRefiner(*_p_graph, *extraction_result.p_graph,
-                                  _fm_ctx, *_p_ctx);
+      return ThreadLocalFMRefiner(
+          *_p_graph, *extraction_result.p_graph, _fm_ctx, *_p_ctx
+      );
     }};
 
     for (std::size_t local_round = 0; local_round < 5; ++local_round) {
@@ -368,13 +383,17 @@ void FMRefiner::refine(DistributedPartitionedGraph &p_graph,
       START_TIMER("Local FM");
       tbb::concurrent_vector<GlobalMove> local_move_buffer;
       tbb::parallel_for<std::size_t>(
-          0, seed_nodes.size(), [&](const std::size_t i) {
+          0,
+          seed_nodes.size(),
+          [&](const std::size_t i) {
             const NodeID local_seed_node = seed_nodes[i];
             const GlobalNodeID global_seed_node =
                 _p_graph->local_to_global_node(local_seed_node);
 
-            KASSERT(reverse_node_mapping.find(global_seed_node + 1) !=
-                    reverse_node_mapping.end());
+            KASSERT(
+                reverse_node_mapping.find(global_seed_node + 1) !=
+                reverse_node_mapping.end()
+            );
             const NodeID seed_node =
                 (*reverse_node_mapping.find(global_seed_node + 1)).second;
 
@@ -387,21 +406,28 @@ void FMRefiner::refine(DistributedPartitionedGraph &p_graph,
             for (const auto &[node, gain, to] : moves) {
               KASSERT(node < node_mapping.size());
               local_move_buffer.push_back(
-                  {node_mapping[node], group,
-                   static_cast<NodeWeight>(p_graph->node_weight(node)), gain,
-                   p_graph->block(node), to});
+                  {node_mapping[node],
+                   group,
+                   static_cast<NodeWeight>(p_graph->node_weight(node)),
+                   gain,
+                   p_graph->block(node),
+                   to}
+              );
             }
-          });
+          }
+      );
       STOP_TIMER();
 
       mpi::barrier(_p_graph->communicator());
 
       // Resolve global move conflicts
       START_TIMER("Move conflict resolution");
-      std::vector<GlobalMove> local_move_buffer_cpy(local_move_buffer.begin(),
-                                                    local_move_buffer.end());
+      std::vector<GlobalMove> local_move_buffer_cpy(
+          local_move_buffer.begin(), local_move_buffer.end()
+      );
       auto global_move_buffer = broadcast_and_resolve_global_moves(
-          local_move_buffer_cpy, _p_graph->communicator());
+          local_move_buffer_cpy, _p_graph->communicator()
+      );
       // auto global_move_buffer = local_move_buffer_cpy;
       STOP_TIMER();
 
@@ -420,8 +446,9 @@ void FMRefiner::refine(DistributedPartitionedGraph &p_graph,
           const NodeID local_node = _p_graph->global_to_local_node(node);
           _p_graph->set_block(local_node, to);
         } else {
-          _p_graph->set_block_weight(from,
-                                     _p_graph->block_weight(from) - weight);
+          _p_graph->set_block_weight(
+              from, _p_graph->block_weight(from) - weight
+          );
           _p_graph->set_block_weight(to, _p_graph->block_weight(to) + weight);
         }
 

@@ -18,8 +18,9 @@
 namespace kaminpar::dist {
 class DeepMultilevelPartitioner : public Partitioner {
 public:
-  DeepMultilevelPartitioner(const DistributedGraph &input_graph,
-                            const Context &input_ctx);
+  DeepMultilevelPartitioner(
+      const DistributedGraph &input_graph, const Context &input_ctx
+  );
 
   DeepMultilevelPartitioner(const DeepMultilevelPartitioner &) = delete;
   DeepMultilevelPartitioner &
@@ -33,9 +34,9 @@ private:
   void print_coarsening_level(GlobalNodeWeight max_cluster_weight) const;
   void print_coarsening_converged() const;
   void print_coarsening_terminated(GlobalNodeID desired_num_nodes) const;
-  void
-  print_initial_partitioning_result(const DistributedPartitionedGraph &p_graph,
-                                    const PartitionContext &p_ctx) const;
+  void print_initial_partitioning_result(
+      const DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx
+  ) const;
 
   Coarsener *get_current_coarsener();
   const Coarsener *get_current_coarsener() const;

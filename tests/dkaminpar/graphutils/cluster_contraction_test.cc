@@ -66,18 +66,23 @@ TEST(ClusterContractionTest, contract_local_complete_graph) {
   }
 }
 
-TEST(ClusterContractionTest,
-     contract_local_complete_bipartite_graph_vertically) {
+TEST(
+    ClusterContractionTest, contract_local_complete_bipartite_graph_vertically
+) {
   const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
 
   for (const NodeID set_size : {1, 5, 10}) {
     const auto graph = make_local_complete_bipartite_graph(set_size);
 
     GlobalClustering clustering(2 * set_size);
-    std::fill(clustering.begin(), clustering.begin() + set_size,
-              graph.offset_n());
-    std::fill(clustering.begin() + set_size, clustering.end(),
-              graph.offset_n() + set_size);
+    std::fill(
+        clustering.begin(), clustering.begin() + set_size, graph.offset_n()
+    );
+    std::fill(
+        clustering.begin() + set_size,
+        clustering.end(),
+        graph.offset_n() + set_size
+    );
     auto [c_graph, c_mapping, migration] =
         contract_clustering(graph, clustering);
 
@@ -94,24 +99,28 @@ TEST(ClusterContractionTest,
 
     ASSERT_EQ(c_mapping.size(), graph.n());
 
-    EXPECT_THAT(c_mapping[0],
-                AnyOf(Eq(c_graph.offset_n()), Eq(c_graph.offset_n() + 1)));
+    EXPECT_THAT(
+        c_mapping[0], AnyOf(Eq(c_graph.offset_n()), Eq(c_graph.offset_n() + 1))
+    );
     for (NodeID u = 0; u < set_size; ++u) {
       EXPECT_EQ(c_mapping[0], c_mapping[u]);
     }
 
     EXPECT_NE(c_mapping[0], c_mapping[set_size]);
 
-    EXPECT_THAT(c_mapping[set_size],
-                AnyOf(Eq(c_graph.offset_n()), Eq(c_graph.offset_n() + 1)));
+    EXPECT_THAT(
+        c_mapping[set_size],
+        AnyOf(Eq(c_graph.offset_n()), Eq(c_graph.offset_n() + 1))
+    );
     for (NodeID u = set_size; u < 2 * set_size; ++u) {
       EXPECT_EQ(c_mapping[set_size], c_mapping[u]);
     }
   }
 }
 
-TEST(ClusterContractionTest,
-     contract_local_complete_bipartite_graph_horizontally) {
+TEST(
+    ClusterContractionTest, contract_local_complete_bipartite_graph_horizontally
+) {
   const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
 
   for (const NodeID set_size : {1, 5, 10}) {
@@ -119,10 +128,14 @@ TEST(ClusterContractionTest,
 
     GlobalClustering clustering(2 * set_size);
     std::iota(clustering.begin(), clustering.end(), 0u);
-    std::transform(clustering.begin(), clustering.end(), clustering.begin(),
-                   [&](const GlobalNodeID value) {
-                     return graph.offset_n() + value % set_size;
-                   });
+    std::transform(
+        clustering.begin(),
+        clustering.end(),
+        clustering.begin(),
+        [&](const GlobalNodeID value) {
+          return graph.offset_n() + value % set_size;
+        }
+    );
     auto [c_graph, c_mapping, migration] =
         contract_clustering(graph, clustering);
 
@@ -137,8 +150,11 @@ TEST(ClusterContractionTest,
     EXPECT_THAT(c_graph.edge_weights(), Each(Eq(2)));
 
     ASSERT_EQ(c_mapping.size(), graph.n());
-    EXPECT_THAT(c_mapping, Each(AllOf(Lt(c_graph.offset_n() + c_graph.n()),
-                                      Ge(c_graph.offset_n()))));
+    EXPECT_THAT(
+        c_mapping,
+        Each(AllOf(Lt(c_graph.offset_n() + c_graph.n()), Ge(c_graph.offset_n()))
+        )
+    );
 
     for (NodeID u = 0; u < set_size; ++u) {
       EXPECT_EQ(c_mapping[u], c_mapping[u + set_size]);
@@ -173,8 +189,9 @@ TEST(ClusterContractionTest, contract_global_complete_graph_to_single_node) {
   }
 }
 
-TEST(ClusterContractionTest,
-     contract_global_complete_graph_to_one_node_per_pe) {
+TEST(
+    ClusterContractionTest, contract_global_complete_graph_to_one_node_per_pe
+) {
   const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
   const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
 
@@ -206,8 +223,9 @@ TEST(ClusterContractionTest, keep_global_complete_graph) {
   for (const NodeID nodes_per_pe : {1, 5, 10}) {
     const auto graph = make_global_complete_graph(nodes_per_pe);
     GlobalClustering clustering(graph.total_n());
-    graph.pfor_all_nodes(
-        [&](const NodeID u) { clustering[u] = graph.local_to_global_node(u); });
+    graph.pfor_all_nodes([&](const NodeID u) {
+      clustering[u] = graph.local_to_global_node(u);
+    });
     const auto [c_graph, c_mapping, migration] =
         contract_clustering(graph, clustering);
 
@@ -220,8 +238,10 @@ TEST(ClusterContractionTest, keep_global_complete_graph) {
 
     ASSERT_EQ(c_mapping.size(), graph.n());
     for (NodeID u = 0; u < graph.n(); ++u) {
-      EXPECT_THAT(c_mapping[u], AllOf(Ge(c_graph.offset_n()),
-                                      Lt(c_graph.offset_n() + c_graph.n())));
+      EXPECT_THAT(
+          c_mapping[u],
+          AllOf(Ge(c_graph.offset_n()), Lt(c_graph.offset_n() + c_graph.n()))
+      );
       EXPECT_THAT(c_mapping, Contains(c_mapping[u]).Times(1));
     }
   }

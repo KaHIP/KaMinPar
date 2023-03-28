@@ -40,16 +40,27 @@ public:
   using BlockID = ::kaminpar::shm::BlockID;
   using BlockWeight = ::kaminpar::shm::BlockWeight;
 
-  PartitionedGraph(const Graph &graph, BlockID k,
-                   StaticArray<BlockID> partition = {},
-                   std::vector<BlockID> final_k = {});
+  PartitionedGraph(
+      const Graph &graph,
+      BlockID k,
+      StaticArray<BlockID> partition = {},
+      std::vector<BlockID> final_k = {}
+  );
 
-  PartitionedGraph(tag::Sequential, const Graph &graph, BlockID k,
-                   StaticArray<BlockID> partition = {},
-                   std::vector<BlockID> final_k = {});
+  PartitionedGraph(
+      tag::Sequential,
+      const Graph &graph,
+      BlockID k,
+      StaticArray<BlockID> partition = {},
+      std::vector<BlockID> final_k = {}
+  );
 
-  PartitionedGraph(NoBlockWeights, const Graph &graph, BlockID k,
-                   StaticArray<BlockID> partition);
+  PartitionedGraph(
+      NoBlockWeights,
+      const Graph &graph,
+      BlockID k,
+      StaticArray<BlockID> partition
+  );
 
   PartitionedGraph() : GraphDelegate(nullptr) {}
 
@@ -94,15 +105,19 @@ public:
    * @param max_weight Weight constraint for block `to`.
    * @return Whether the weight could be moved; if `false`, no change occurred.
    */
-  bool try_move_block_weight(const BlockID from, const BlockID to,
-                             const BlockWeight delta,
-                             const BlockWeight max_weight) {
+  bool try_move_block_weight(
+      const BlockID from,
+      const BlockID to,
+      const BlockWeight delta,
+      const BlockWeight max_weight
+  ) {
     BlockWeight new_weight = block_weight(to);
     bool success = false;
 
     while (new_weight + delta <= max_weight) {
       if (_block_weights[to].compare_exchange_weak(
-              new_weight, new_weight + delta, std::memory_order_relaxed)) {
+              new_weight, new_weight + delta, std::memory_order_relaxed
+          )) {
         success = true;
         break;
       }

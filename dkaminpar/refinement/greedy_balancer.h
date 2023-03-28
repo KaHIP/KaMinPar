@@ -49,8 +49,9 @@ public:
   GreedyBalancer &operator=(GreedyBalancer &&) = delete;
 
   void initialize(const DistributedGraph &graph) final;
-  void refine(DistributedPartitionedGraph &p_graph,
-              const PartitionContext &p_ctx) final;
+  void refine(
+      DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx
+  ) final;
 
 private:
   struct MoveCandidate {
@@ -64,22 +65,23 @@ private:
   std::vector<MoveCandidate> pick_move_candidates();
   std::vector<MoveCandidate>
   reduce_move_candidates(std::vector<MoveCandidate> &&candidates);
-  std::vector<MoveCandidate>
-  reduce_move_candidates(std::vector<MoveCandidate> &&a,
-                         std::vector<MoveCandidate> &&b);
+  std::vector<MoveCandidate> reduce_move_candidates(
+      std::vector<MoveCandidate> &&a, std::vector<MoveCandidate> &&b
+  );
   void perform_moves(const std::vector<MoveCandidate> &moves);
   void perform_move(const MoveCandidate &move);
 
-  void print_candidates(const std::vector<MoveCandidate> &moves,
-                        const std::string &desc = "") const;
+  void print_candidates(
+      const std::vector<MoveCandidate> &moves, const std::string &desc = ""
+  ) const;
   void print_overloads() const;
 
   void init_pq();
   std::pair<BlockID, double> compute_gain(NodeID u, BlockID u_block) const;
 
   BlockWeight block_overload(BlockID b) const;
-  double compute_relative_gain(EdgeWeight absolute_gain,
-                               NodeWeight weight) const;
+  double
+  compute_relative_gain(EdgeWeight absolute_gain, NodeWeight weight) const;
 
   bool add_to_pq(BlockID b, NodeID u);
   bool add_to_pq(BlockID b, NodeID u, NodeWeight u_weight, double rel_gain);
@@ -94,8 +96,9 @@ private:
 
   DynamicBinaryMinMaxForest<NodeID, double> _pq;
   mutable tbb::enumerable_thread_specific<RatingMap<EdgeWeight, BlockID>>
-      _rating_map{
-          [&] { return RatingMap<EdgeWeight, BlockID>{_ctx.partition.k}; }};
+      _rating_map{[&] {
+        return RatingMap<EdgeWeight, BlockID>{_ctx.partition.k};
+      }};
   std::vector<BlockWeight> _pq_weight;
   Marker<> _marker;
 

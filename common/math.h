@@ -35,15 +35,19 @@ template <typename T> T floor_log2(const T arg) {
   if constexpr (arg_width == std::numeric_limits<unsigned int>::digits) {
     log2 -= __builtin_clz(arg);
   } else {
-    static_assert(arg_width == std::numeric_limits<unsigned long>::digits,
-                  "unsupported data type width");
+    static_assert(
+        arg_width == std::numeric_limits<unsigned long>::digits,
+        "unsupported data type width"
+    );
     log2 -= __builtin_clzl(arg);
   }
 
   return log2 - 1;
 }
 
-template <typename T> T floor2(const T arg) { return 1 << floor_log2(arg); }
+template <typename T> T floor2(const T arg) {
+  return 1 << floor_log2(arg);
+}
 
 //! With `UInt = uint32_t`, same as
 //! `static_cast<uint32_t>(std::ceil(std::log2(arg)))`
@@ -51,11 +55,13 @@ template <typename T> T ceil_log2(const T arg) {
   return floor_log2<T>(arg) + 1 - ((arg & (arg - 1)) == 0);
 }
 
-template <typename T> T ceil2(const T arg) { return 1 << ceil_log2(arg); }
+template <typename T> T ceil2(const T arg) {
+  return 1 << ceil_log2(arg);
+}
 
 template <typename E>
-double percentile(const std::vector<E> &sorted_sequence,
-                  const double percentile) {
+double
+percentile(const std::vector<E> &sorted_sequence, const double percentile) {
   KASSERT([&] {
     for (std::size_t i = 1; i < sorted_sequence.size(); ++i) {
       if (sorted_sequence[i - 1] > sorted_sequence[i]) {
@@ -71,8 +77,9 @@ double percentile(const std::vector<E> &sorted_sequence,
 
 template <typename T>
 auto split_integral(const T value, const double ratio = 0.5) {
-  return std::pair{static_cast<T>(std::ceil(value * ratio)),
-                   static_cast<T>(std::floor(value * (1.0 - ratio)))};
+  return std::pair{
+      static_cast<T>(std::ceil(value * ratio)),
+      static_cast<T>(std::floor(value * (1.0 - ratio)))};
 }
 
 /**
@@ -86,8 +93,8 @@ auto split_integral(const T value, const double ratio = 0.5) {
  * processed by PE `rank`.
  */
 template <typename Int>
-std::pair<Int, Int> compute_local_range(const Int n, const Int size,
-                                        const Int rank) {
+std::pair<Int, Int>
+compute_local_range(const Int n, const Int size, const Int rank) {
   const Int chunk = n / size;
   const Int remainder = n % size;
   const Int from = rank * chunk + std::min<Int>(rank, remainder);
@@ -109,8 +116,8 @@ std::pair<Int, Int> compute_local_range(const Int n, const Int size,
  * element.
  */
 template <typename Int>
-std::size_t compute_local_range_rank(const Int n, const Int size,
-                                     const Int element) {
+std::size_t
+compute_local_range_rank(const Int n, const Int size, const Int element) {
   if (n <= size) {
     return element;
   } // special case if n is very small
@@ -122,8 +129,8 @@ std::size_t compute_local_range_rank(const Int n, const Int size,
 }
 
 template <typename Int, typename Distribution>
-std::size_t find_in_distribution(const Int value,
-                                 const Distribution &distribution) {
+std::size_t
+find_in_distribution(const Int value, const Distribution &distribution) {
   auto it =
       std::upper_bound(distribution.begin() + 1, distribution.end(), value);
   return std::distance(distribution.begin(), it) - 1;
@@ -159,8 +166,9 @@ std::pair<Int, Int> decode_grid_position(const Int pos, const Int num_columns) {
 }
 
 template <typename Int>
-Int encode_grid_position(const Int row, const Int column,
-                         const Int num_columns) {
+Int encode_grid_position(
+    const Int row, const Int column, const Int num_columns
+) {
   return row * num_columns + column;
 }
 
@@ -183,10 +191,12 @@ template <typename Container> double find_mean(const Container &container) {
 }
 
 template <typename Container>
-auto find_min_mean_max(const Container &container)
-    -> std::tuple<typename Container::value_type, double,
-                  typename Container::value_type> {
-  return std::make_tuple(find_min(container), find_mean(container),
-                         find_max(container));
+auto find_min_mean_max(const Container &container) -> std::tuple<
+    typename Container::value_type,
+    double,
+    typename Container::value_type> {
+  return std::make_tuple(
+      find_min(container), find_mean(container), find_max(container)
+  );
 }
 } // namespace kaminpar::math

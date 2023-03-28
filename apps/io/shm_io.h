@@ -17,9 +17,13 @@
 namespace kaminpar::shm::io {
 namespace metis {
 template <bool checked>
-void read(const std::string &filename, StaticArray<EdgeID> &nodes,
-          StaticArray<NodeID> &edges, StaticArray<NodeWeight> &node_weights,
-          StaticArray<EdgeWeight> &edge_weights);
+void read(
+    const std::string &filename,
+    StaticArray<EdgeID> &nodes,
+    StaticArray<NodeID> &edges,
+    StaticArray<NodeWeight> &node_weights,
+    StaticArray<EdgeWeight> &edge_weights
+);
 } // namespace metis
 
 namespace partition {

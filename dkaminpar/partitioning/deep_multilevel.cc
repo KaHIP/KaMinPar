@@ -32,13 +32,16 @@ namespace kaminpar::dist {
 SET_DEBUG(false);
 
 DeepMultilevelPartitioner::DeepMultilevelPartitioner(
-    const DistributedGraph &input_graph, const Context &input_ctx)
-    : _input_graph(input_graph), _input_ctx(input_ctx) {
+    const DistributedGraph &input_graph, const Context &input_ctx
+)
+    : _input_graph(input_graph),
+      _input_ctx(input_ctx) {
   _coarseners.emplace(_input_graph, _input_ctx);
 }
 
 void DeepMultilevelPartitioner::print_coarsening_level(
-    const GlobalNodeWeight max_cluster_weight) const {
+    const GlobalNodeWeight max_cluster_weight
+) const {
   const auto *coarsener = get_current_coarsener();
   const auto *graph = coarsener->coarsest();
   mpi::barrier(graph->communicator());
@@ -54,13 +57,20 @@ void DeepMultilevelPartitioner::print_coarsening_level(
   const auto [m_min, m_avg, m_max, m_sum] =
       mpi::gather_statistics(graph->m(), graph->communicator());
   const double m_imbalance = 1.0 * m_max / m_avg;
-  const auto [max_node_weight_min, max_node_weight_avg, max_node_weight_max,
-              max_node_weight_sum] =
-      mpi::gather_statistics(graph->max_node_weight(), graph->communicator());
+  const auto
+      [max_node_weight_min,
+       max_node_weight_avg,
+       max_node_weight_max,
+       max_node_weight_sum] =
+          mpi::gather_statistics(
+              graph->max_node_weight(), graph->communicator()
+          );
   const auto max_value = std::max(
-      {static_cast<GlobalNodeID>(n_max), static_cast<GlobalNodeID>(ghost_n_max),
+      {static_cast<GlobalNodeID>(n_max),
+       static_cast<GlobalNodeID>(ghost_n_max),
        static_cast<GlobalNodeID>(m_max),
-       static_cast<GlobalNodeID>(max_node_weight_max)});
+       static_cast<GlobalNodeID>(max_node_weight_max)}
+  );
   const int width = std::log10(max_value) + 1;
 
   LOG << "Coarsening -> Level " << _coarseners.size() << ","
@@ -98,15 +108,16 @@ void DeepMultilevelPartitioner::print_coarsening_converged() const {
 }
 
 void DeepMultilevelPartitioner::print_coarsening_terminated(
-    const GlobalNodeID desired_num_nodes) const {
+    const GlobalNodeID desired_num_nodes
+) const {
   LOG << "==> Coarsening terminated with less than " << desired_num_nodes
       << " nodes.";
   LOG;
 }
 
 void DeepMultilevelPartitioner::print_initial_partitioning_result(
-    const DistributedPartitionedGraph &p_graph,
-    const PartitionContext &p_ctx) const {
+    const DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx
+) const {
   mpi::barrier(p_graph.communicator());
 
   SCOPED_TIMER("Print partition statistics");
@@ -140,8 +151,9 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
   START_TIMER("Coarsening");
 
   while (!converged && graph->global_n() > desired_num_nodes) {
-    SCOPED_TIMER("Coarsening",
-                 std::string("Level ") + std::to_string(coarsener->level()));
+    SCOPED_TIMER(
+        "Coarsening", std::string("Level ") + std::to_string(coarsener->level())
+    );
 
     // Replicate graph and split PEs when the graph becomes too small
     // const BlockID num_blocks_on_this_level = std::min<BlockID>(
@@ -149,12 +161,16 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
     //_input_ctx.coarsening.contraction_limit)
     //);
     const BlockID num_blocks_on_this_level = math::ceil2(
-        graph->global_n() / _input_ctx.coarsening.contraction_limit);
+        graph->global_n() / _input_ctx.coarsening.contraction_limit
+    );
 
     if (_input_ctx.enable_pe_splitting && current_num_pes > 1 &&
         num_blocks_on_this_level < static_cast<BlockID>(current_num_pes)) {
-      KASSERT(current_num_pes % num_blocks_on_this_level == 0u,
-              "Graph replication factor is not an integer.", assert::always);
+      KASSERT(
+          current_num_pes % num_blocks_on_this_level == 0u,
+          "Graph replication factor is not an integer.",
+          assert::always
+      );
 
       const PEID num_replications = current_num_pes / num_blocks_on_this_level;
       current_num_pes /= num_replications;
@@ -223,8 +239,11 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
 
   DistributedPartitionedGraph dist_p_graph =
       graph::distribute_best_partition(*graph, std::move(shm_p_graph));
-  KASSERT(graph::debug::validate_partition(dist_p_graph),
-          "invalid partition after initial partitioning", assert::heavy);
+  KASSERT(
+      graph::debug::validate_partition(dist_p_graph),
+      "invalid partition after initial partitioning",
+      assert::heavy
+  );
   print_initial_partitioning_result(dist_p_graph, ip_p_ctx);
   STOP_TIMER();
 
@@ -246,19 +265,24 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
   };
 
   auto extend_partition = [&](DistributedPartitionedGraph &p_graph) {
-    START_TIMER("Extending partition",
-                std::string("Level ") + std::to_string(coarsener->level()));
-    BlockID desired_k =
-        std::min<BlockID>(_input_ctx.partition.k,
-                          math::ceil2(dist_p_graph.global_n() /
-                                      _input_ctx.coarsening.contraction_limit));
+    START_TIMER(
+        "Extending partition",
+        std::string("Level ") + std::to_string(coarsener->level())
+    );
+    BlockID desired_k = std::min<BlockID>(
+        _input_ctx.partition.k,
+        math::ceil2(
+            dist_p_graph.global_n() / _input_ctx.coarsening.contraction_limit
+        )
+    );
     if (_input_graph.global_n() == p_graph.global_n()) {
       // If we work on the input graph, extend to final number of blocks
       desired_k = _input_ctx.partition.k;
     }
     while (dist_p_graph.k() < desired_k) {
       const BlockID next_k = std::min<BlockID>(
-          desired_k, dist_p_graph.k() * _input_ctx.partition.K);
+          desired_k, dist_p_graph.k() * _input_ctx.partition.K
+      );
       KASSERT(next_k % dist_p_graph.k() == 0u);
       const BlockID k_per_block = next_k / dist_p_graph.k();
 
@@ -286,7 +310,8 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
         ip_p_ctx.graph = std::make_unique<GraphContext>(subgraph, ip_p_ctx);
 
         p_subgraphs.push_back(
-            initial_partitioner->initial_partition(subgraph, ip_p_ctx));
+            initial_partitioner->initial_partition(subgraph, ip_p_ctx)
+        );
 
         DBG << "Next subgraph with epsilon=" << next_epsilon
             << " and total_node_weight=" << subgraph.total_node_weight()
@@ -297,7 +322,8 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
 
       // Project subgraph partitions onto dist_p_graph
       dist_p_graph = graph::copy_subgraph_partitions(
-          std::move(dist_p_graph), p_subgraphs, block_extraction_result);
+          std::move(dist_p_graph), p_subgraphs, block_extraction_result
+      );
 
       // Print statistics
       START_TIMER("Print partition statistics");
@@ -347,8 +373,10 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
     // Uncoarsen graph
     // If we replicated early, we might already be on the finest level
     if (coarsener->level() > 0) {
-      START_TIMER("Uncontraction",
-                  std::string("Level ") + std::to_string(coarsener->level()));
+      START_TIMER(
+          "Uncontraction",
+          std::string("Level ") + std::to_string(coarsener->level())
+      );
       dist_p_graph = coarsener->uncoarsen_once(std::move(dist_p_graph));
       STOP_TIMER();
     }
@@ -357,8 +385,9 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
     extend_partition(dist_p_graph);
 
     // Run refinement
-    START_TIMER("Refinement",
-                std::string("Level ") + std::to_string(coarsener->level()));
+    START_TIMER(
+        "Refinement", std::string("Level ") + std::to_string(coarsener->level())
+    );
     LOG << "  Running refinement on " << dist_p_graph.k() << " blocks";
     ref_p_ctx.k = dist_p_graph.k();
     ref_p_ctx.epsilon = _input_ctx.partition.epsilon;
@@ -390,8 +419,9 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
     extend_partition(dist_p_graph);
 
     // Run refinement
-    START_TIMER("Refinement",
-                std::string("Level ") + std::to_string(coarsener->level()));
+    START_TIMER(
+        "Refinement", std::string("Level ") + std::to_string(coarsener->level())
+    );
 
     LOG << "  Running balancing and local search on " << dist_p_graph.k()
         << " blocks";

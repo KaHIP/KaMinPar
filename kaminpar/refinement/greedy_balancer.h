@@ -95,8 +95,10 @@ public:
   };
 
   GreedyBalancer(const Context &ctx)
-      : _max_k(ctx.partition.k), _pq(ctx.partition.n, ctx.partition.k),
-        _marker(ctx.partition.n), _pq_weight(ctx.partition.k) {}
+      : _max_k(ctx.partition.k),
+        _pq(ctx.partition.n, ctx.partition.k),
+        _marker(ctx.partition.n),
+        _pq_weight(ctx.partition.k) {}
 
   GreedyBalancer &operator=(const GreedyBalancer &) = delete;
   GreedyBalancer(const PartitionedGraph &) = delete;
@@ -120,14 +122,14 @@ private:
 
   bool add_to_pq(BlockID b, NodeID u, NodeWeight u_weight, double rel_gain);
 
-  [[nodiscard]] std::pair<BlockID, double> compute_gain(NodeID u,
-                                                        BlockID u_block) const;
+  [[nodiscard]] std::pair<BlockID, double>
+  compute_gain(NodeID u, BlockID u_block) const;
 
   void init_feasible_target_blocks();
 
-  [[nodiscard]] static inline double
-  compute_relative_gain(const EdgeWeight absolute_gain,
-                        const NodeWeight weight) {
+  [[nodiscard]] static inline double compute_relative_gain(
+      const EdgeWeight absolute_gain, const NodeWeight weight
+  ) {
     if (absolute_gain >= 0) {
       return absolute_gain * weight;
     } else {
@@ -136,11 +138,14 @@ private:
   }
 
   [[nodiscard]] inline BlockWeight block_overload(const BlockID b) const {
-    static_assert(std::numeric_limits<BlockWeight>::is_signed,
-                  "This must be changed when using an unsigned data type for "
-                  "block weights!");
-    return std::max<BlockWeight>(0, _p_graph->block_weight(b) -
-                                        _p_ctx->block_weights.max(b));
+    static_assert(
+        std::numeric_limits<BlockWeight>::is_signed,
+        "This must be changed when using an unsigned data type for "
+        "block weights!"
+    );
+    return std::max<BlockWeight>(
+        0, _p_graph->block_weight(b) - _p_ctx->block_weights.max(b)
+    );
   }
 
   const BlockID _max_k;
@@ -150,7 +155,9 @@ private:
 
   DynamicBinaryMinMaxForest<NodeID, double> _pq;
   mutable tbb::enumerable_thread_specific<RatingMap<EdgeWeight, NodeID>>
-      _rating_map{[&] { return RatingMap<EdgeWeight, NodeID>{_max_k}; }};
+      _rating_map{[&] {
+        return RatingMap<EdgeWeight, NodeID>{_max_k};
+      }};
   tbb::enumerable_thread_specific<std::vector<BlockID>> _feasible_target_blocks;
   Marker<> _marker;
   std::vector<BlockWeight> _pq_weight;

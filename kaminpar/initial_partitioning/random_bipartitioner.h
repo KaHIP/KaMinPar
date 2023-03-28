@@ -16,11 +16,12 @@ namespace kaminpar::shm {
 class RandomBipartitioner : public Bipartitioner {
 public:
   struct MemoryContext {
-    std::size_t memory_in_kb() const { return 0; }
+    std::size_t memory_in_kb() const {
+      return 0;
+    }
   };
 
-  RandomBipartitioner(const Graph &graph, const PartitionContext &p_ctx,
-                      const InitialPartitioningContext &i_ctx, MemoryContext &)
+  RandomBipartitioner(const Graph &graph, const PartitionContext &p_ctx, const InitialPartitioningContext &i_ctx, MemoryContext &)
       : Bipartitioner(graph, p_ctx, i_ctx) {}
 
 protected:
