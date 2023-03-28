@@ -105,6 +105,10 @@ kaminpar_add_dist_test(test_dist_graph_topology
     FILES dkaminpar/mpi/grid_topology_test.cc
     CORES 1)
 
+kaminpar_add_dist_test(test_dist_sparse_allreduce
+    FILES dkaminpar/mpi/sparse_allreduce_test.cc
+    CORES 1 4 11)
+
 # KaMinPar 
 kaminpar_add_shm_test(test_shm_metrics kaminpar/metrics_test.cc)
 kaminpar_add_shm_test(test_shm_graph kaminpar/graph_test.cc)

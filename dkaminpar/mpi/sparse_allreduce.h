@@ -3,7 +3,7 @@
  * @author: Daniel Seemaier
  * @date:   27.03.2023
  * @brief:  Allreduce for sparse key-value-pairs.
- ******************************************************************************/
+ ******************************************************************************/ \
 #pragma once
 
 #include <algorithm>
@@ -28,7 +28,7 @@ constexpr static mpi_allreduce_tag mpi_allreduce;
 constexpr static doubling_allreduce_tag doubling_allreduce;
 
 // Used if no other implementation has priority
-constexpr static auto default_sparse_allreduce = mpi_allreduce;
+constexpr static auto default_sparse_allreduce = doubling_allreduce;
 } // namespace tag
 
 template <typename Buffer>
@@ -56,7 +56,7 @@ void inplace_sparse_allreduce(tag::doubling_allreduce_tag, Buffer &buffer,
   std::vector<Dense> sendbuf;
   std::vector<Dense> recvbuf;
 
-  for (PEID iteration = 0; (2 << iteration) < size; ++iteration) {
+  for (PEID iteration = 0; (2 << iteration) < size + 1; ++iteration) {
     const PEID distance = 1 << iteration;
     const PEID subtree_size = 2 << iteration;
     PEID neighbor = rank;
@@ -85,6 +85,7 @@ void inplace_sparse_allreduce(tag::doubling_allreduce_tag, Buffer &buffer,
 
     int recv_size;
     MPI_Get_count(&probe, mpi_type, &recv_size);
+    recvbuf.resize(recv_size);
 
     MPI_Recv(recvbuf.data(), recv_size, mpi_type, neighbor, 0, comm,
              MPI_STATUS_IGNORE);
