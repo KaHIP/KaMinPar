@@ -92,11 +92,11 @@ void print_build_identifier() {
     assertion_level_name += "+heavy";
   }
   LOG << "Assertion level:              " << assertion_level_name;
-#ifdef KAMINPAR_STATISTICS
+#ifdef KAMINPAR_ENABLE_STATISTICS
   LOG << "Statistics:                   enabled";
-#else  // KAMINPAR_STATISTICS
+#else  // KAMINPAR_ENABLE_STATISTICS
   LOG << "Statistics:                   disabled";
-#endif // KAMINPAR_STATISTICS
+#endif // KAMINPAR_ENABLE_STATISTICS
   LOG << "Built on:                     "
       << (Environment::HOSTNAME.empty() ? "<not available>"
                                         : Environment::HOSTNAME);

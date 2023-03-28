@@ -109,11 +109,11 @@
   kStatistics &&kaminpar::DisposableLogger<false>(std::cout)                   \
       << kaminpar::logger::CYAN
 
-#ifdef KAMINPAR_STATISTICS
+#ifdef KAMINPAR_ENABLE_STATISTICS
 #define SET_STATISTICS_FROM_GLOBAL() SET_STATISTICS(true)
-#else // KAMINPAR_STATISTICS
+#else // KAMINPAR_ENABLE_STATISTICS
 #define SET_STATISTICS_FROM_GLOBAL() SET_STATISTICS(false)
-#endif // KAMINPAR_STATISTISC
+#endif // KAMINPAR_ENABLE_STATISTISC
 
 namespace kaminpar {
 namespace logger {
