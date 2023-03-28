@@ -21,7 +21,10 @@
 #include "common/datastructures/fast_reset_array.h"
 #include "common/random.h"
 
-#define STATIC_MAX_CLUSTER_WEIGHT(x) [&](const NodeID) { return x; }
+#define STATIC_MAX_CLUSTER_WEIGHT(x)                                           \
+  [&](const NodeID) {                                                          \
+    return x;                                                                  \
+  }
 
 namespace kaminpar::shm::ip {
 class InitialCoarsener {
@@ -37,8 +40,10 @@ public:
     NodeWeight weight : std::numeric_limits<NodeWeight>::digits - 1;
     NodeID leader;
   };
-  static_assert(sizeof(NodeWeight) != sizeof(NodeID) ||
-                sizeof(Cluster) == sizeof(NodeWeight) + sizeof(NodeID));
+  static_assert(
+      sizeof(NodeWeight) != sizeof(NodeID) ||
+      sizeof(Cluster) == sizeof(NodeWeight) + sizeof(NodeID)
+  );
 
   struct MemoryContext {
     std::vector<Cluster> clustering{};
@@ -58,8 +63,9 @@ public:
     }
   };
 
-  InitialCoarsener(const Graph *graph, const CoarseningContext &c_ctx,
-                   MemoryContext &&m_ctx);
+  InitialCoarsener(
+      const Graph *graph, const CoarseningContext &c_ctx, MemoryContext &&m_ctx
+  );
   InitialCoarsener(const Graph *graph, const CoarseningContext &c_ctx);
 
   InitialCoarsener(const InitialCoarsener &) = delete;
@@ -67,8 +73,12 @@ public:
   InitialCoarsener(InitialCoarsener &&) noexcept = delete;
   InitialCoarsener &operator=(InitialCoarsener &&) = delete;
 
-  [[nodiscard]] inline std::size_t size() const { return _hierarchy.size(); }
-  [[nodiscard]] inline bool empty() const { return size() == 0; }
+  [[nodiscard]] inline std::size_t size() const {
+    return _hierarchy.size();
+  }
+  [[nodiscard]] inline bool empty() const {
+    return size() == 0;
+  }
   [[nodiscard]] inline const Graph *coarsest_graph() const {
     return &_hierarchy.coarsest_graph();
   }
@@ -81,14 +91,16 @@ public:
   MemoryContext free();
   void reset_current_clustering() {
     if (_current_graph->is_node_weighted()) {
-      reset_current_clustering(_current_graph->n(),
-                               _current_graph->node_weights());
+      reset_current_clustering(
+          _current_graph->n(), _current_graph->node_weights()
+      );
     } else {
       // this is robust if _current_graph is empty (then we can't use
       // node_weight(0))
-      reset_current_clustering_unweighted(_current_graph->n(),
-                                          _current_graph->total_node_weight() /
-                                              _current_graph->n());
+      reset_current_clustering_unweighted(
+          _current_graph->n(),
+          _current_graph->total_node_weight() / _current_graph->n()
+      );
     }
   }
 
@@ -105,8 +117,9 @@ public:
     }
   }
 
-  void reset_current_clustering_unweighted(const NodeID n,
-                                           const NodeWeight unit_node_weight) {
+  void reset_current_clustering_unweighted(
+      const NodeID n, const NodeWeight unit_node_weight
+  ) {
     _current_num_moves = 0;
     for (NodeID u = 0; u < n; ++u) {
       _clustering[u].locked = false;
@@ -116,10 +129,11 @@ public:
   }
 
   void handle_node(NodeID u, NodeWeight max_cluster_weight);
-  NodeID pick_cluster(NodeID u, NodeWeight u_weight,
-                      NodeWeight max_cluster_weight);
-  NodeID pick_cluster_from_rating_map(NodeID u, NodeWeight u_weight,
-                                      NodeWeight max_cluster_weight);
+  NodeID
+  pick_cluster(NodeID u, NodeWeight u_weight, NodeWeight max_cluster_weight);
+  NodeID pick_cluster_from_rating_map(
+      NodeID u, NodeWeight u_weight, NodeWeight max_cluster_weight
+  );
 
 #ifdef TEST
   void TEST_mock_clustering(const std::vector<NodeID> &clustering) {
@@ -149,11 +163,12 @@ private:
   // Interleaved label propagation: compute for the next coarse graph while
   // constructing it
   //
-  inline void interleaved_handle_node(const NodeID c_u,
-                                      const NodeWeight c_u_weight) {
+  inline void
+  interleaved_handle_node(const NodeID c_u, const NodeWeight c_u_weight) {
     if (!_interleaved_locked) {
       const NodeID best_cluster{pick_cluster_from_rating_map(
-          c_u, c_u_weight, _interleaved_max_cluster_weight)};
+          c_u, c_u_weight, _interleaved_max_cluster_weight
+      )};
       const bool changed_cluster{best_cluster != c_u};
 
       if (changed_cluster) {
@@ -167,8 +182,9 @@ private:
     _interleaved_locked = _clustering[c_u + 1].locked;
   }
 
-  inline void interleaved_visit_neighbor(const NodeID, const NodeID c_v,
-                                         const EdgeWeight weight) {
+  inline void interleaved_visit_neighbor(
+      const NodeID, const NodeID c_v, const EdgeWeight weight
+  ) {
     if (!_interleaved_locked) {
       _rating_map[_clustering[c_v].leader] += weight;
     }

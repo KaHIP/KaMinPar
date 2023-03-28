@@ -13,16 +13,17 @@
 namespace kaminpar::shm {
 class LabelPropagationClusteringAlgorithm : public Clusterer {
 public:
-  LabelPropagationClusteringAlgorithm(NodeID max_n,
-                                      const CoarseningContext &c_ctx);
+  LabelPropagationClusteringAlgorithm(
+      NodeID max_n, const CoarseningContext &c_ctx
+  );
   ~LabelPropagationClusteringAlgorithm() override;
 
-  LabelPropagationClusteringAlgorithm(
-      const LabelPropagationClusteringAlgorithm &) = delete;
+  LabelPropagationClusteringAlgorithm(const LabelPropagationClusteringAlgorithm
+                                          &) = delete;
   LabelPropagationClusteringAlgorithm &
   operator=(const LabelPropagationClusteringAlgorithm &) = delete;
-  LabelPropagationClusteringAlgorithm(
-      LabelPropagationClusteringAlgorithm &&) noexcept = default;
+  LabelPropagationClusteringAlgorithm(LabelPropagationClusteringAlgorithm
+                                          &&) noexcept = default;
   LabelPropagationClusteringAlgorithm &
   operator=(LabelPropagationClusteringAlgorithm &&) noexcept = default;
 

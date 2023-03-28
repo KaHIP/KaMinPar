@@ -25,8 +25,12 @@ template <typename Value> struct alignas(64) Aligned {
     return *this;
   }
 
-  bool operator==(const Value &other) const { return value == other; }
+  bool operator==(const Value &other) const {
+    return value == other;
+  }
 
-  bool operator!=(const Value &other) const { return value != other; }
+  bool operator!=(const Value &other) const {
+    return value != other;
+  }
 };
 } // namespace kaminpar::parallel

@@ -36,9 +36,13 @@ public:
     }
     return _data[pos];
   }
-  const_reference operator[](const size_type pos) const { return _data[pos]; }
+  const_reference operator[](const size_type pos) const {
+    return _data[pos];
+  }
 
-  const_reference get(const size_type pos) const { return _data[pos]; }
+  const_reference get(const size_type pos) const {
+    return _data[pos];
+  }
   void set(const size_type pos, const_reference new_value) {
     (*this)[pos] = new_value;
   }
@@ -53,16 +57,20 @@ public:
 
   [[nodiscard]] auto used_entry_values() {
     return TransformedRange(
-        used_entry_ids().begin(), used_entry_ids().end(),
-        [this](const std::size_t entry) -> value_type { return _data[entry]; });
+        used_entry_ids().begin(),
+        used_entry_ids().end(),
+        [this](const std::size_t entry) -> value_type { return _data[entry]; }
+    );
   }
 
   [[nodiscard]] auto entries() {
     return TransformedRange(
-        used_entry_ids().begin(), used_entry_ids().end(),
+        used_entry_ids().begin(),
+        used_entry_ids().end(),
         [this](const std::size_t entry) -> std::pair<Size, value_type> {
           return std::make_pair(static_cast<Size>(entry), _data[entry]);
-        });
+        }
+    );
   }
 
   void clear() {
@@ -72,10 +80,18 @@ public:
     _used_entries.clear();
   }
 
-  [[nodiscard]] bool empty() const { return _used_entries.empty(); }
-  [[nodiscard]] std::size_t size() const { return _used_entries.size(); }
-  [[nodiscard]] std::size_t capacity() const { return _data.size(); }
-  void resize(const std::size_t capacity) { _data.resize(capacity); }
+  [[nodiscard]] bool empty() const {
+    return _used_entries.empty();
+  }
+  [[nodiscard]] std::size_t size() const {
+    return _used_entries.size();
+  }
+  [[nodiscard]] std::size_t capacity() const {
+    return _data.size();
+  }
+  void resize(const std::size_t capacity) {
+    _data.resize(capacity);
+  }
 
   [[nodiscard]] std::size_t memory_in_kb() const {
     return _data.size() * sizeof(value_type) / 1000;

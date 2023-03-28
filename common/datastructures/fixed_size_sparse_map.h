@@ -46,8 +46,10 @@ namespace kaminpar {
  * that no more than MAP_SIZE elements are inserted into the sparse map.
  * Otherwise, the behavior is undefined.
  */
-template <typename Key, typename Value,
-          std::size_t fixed_size = 32768> // Size of sparse map is approx. 1 MB
+template <
+    typename Key,
+    typename Value,
+    std::size_t fixed_size = 32768> // Size of sparse map is approx. 1 MB
 class FixedSizeSparseMap {
   struct Element {
     Key key;
@@ -61,19 +63,31 @@ class FixedSizeSparseMap {
 
 public:
   static constexpr std::size_t MAP_SIZE = fixed_size;
-  static_assert(math::is_power_of_2(MAP_SIZE),
-                "Size of map is not a power of two!");
+  static_assert(
+      math::is_power_of_2(MAP_SIZE), "Size of map is not a power of two!"
+  );
 
   explicit FixedSizeSparseMap(const Value initial_value = Value())
-      : _map_size(0), _initial_value(initial_value), _data(nullptr), _size(0),
-        _timestamp(1), _sparse(nullptr), _dense(nullptr) {
+      : _map_size(0),
+        _initial_value(initial_value),
+        _data(nullptr),
+        _size(0),
+        _timestamp(1),
+        _sparse(nullptr),
+        _dense(nullptr) {
     allocate(MAP_SIZE);
   }
 
-  explicit FixedSizeSparseMap(const std::size_t max_size,
-                              const Value initial_value = Value())
-      : _map_size(0), _initial_value(initial_value), _data(nullptr), _size(0),
-        _timestamp(1), _sparse(nullptr), _dense(nullptr) {
+  explicit FixedSizeSparseMap(
+      const std::size_t max_size, const Value initial_value = Value()
+  )
+      : _map_size(0),
+        _initial_value(initial_value),
+        _data(nullptr),
+        _size(0),
+        _timestamp(1),
+        _sparse(nullptr),
+        _dense(nullptr) {
     allocate(max_size);
   }
 
@@ -81,12 +95,24 @@ public:
   FixedSizeSparseMap &operator=(const FixedSizeSparseMap &other) = delete;
 
   // Query functions
-  [[nodiscard]] std::size_t capacity() const { return _map_size; }
-  [[nodiscard]] std::size_t size() const { return _size; }
-  [[nodiscard]] const Element *begin() const { return _dense; }
-  [[nodiscard]] const Element *end() const { return _dense + _size; }
-  [[nodiscard]] Element *begin() { return _dense; }
-  [[nodiscard]] Element *end() { return _dense + _size; }
+  [[nodiscard]] std::size_t capacity() const {
+    return _map_size;
+  }
+  [[nodiscard]] std::size_t size() const {
+    return _size;
+  }
+  [[nodiscard]] const Element *begin() const {
+    return _dense;
+  }
+  [[nodiscard]] const Element *end() const {
+    return _dense + _size;
+  }
+  [[nodiscard]] Element *begin() {
+    return _dense;
+  }
+  [[nodiscard]] Element *end() {
+    return _dense + _size;
+  }
   [[nodiscard]] bool contains(const Key key) const {
     return containsValidElement(key, find(key));
   }
@@ -94,7 +120,9 @@ public:
     return find(key)->element->value;
   }
 
-  auto &entries() { return *this; }
+  auto &entries() {
+    return *this;
+  }
 
   void set_max_size(const std::size_t max_size) {
     if (max_size > _map_size) {
@@ -140,16 +168,17 @@ private:
     return &_sparse[hash];
   }
 
-  inline bool containsValidElement([[maybe_unused]] const Key key,
-                                   const SparseElement *s) const {
+  inline bool containsValidElement(
+      [[maybe_unused]] const Key key, const SparseElement *s
+  ) const {
     KASSERT(s);
     const bool is_contained = s->timestamp == _timestamp;
     KASSERT((!is_contained || s->element->key == key));
     return is_contained;
   }
 
-  inline Element *addElement(const Key key, const Value value,
-                             SparseElement *s) {
+  inline Element *
+  addElement(const Key key, const Value value, SparseElement *s) {
     KASSERT(find(key) == s);
     _dense[_size] = Element{key, value};
     *s = SparseElement{&_dense[_size++], _timestamp};
@@ -159,20 +188,23 @@ private:
   void allocate(const std::size_t size) {
     if (_data == nullptr) {
       _map_size = align_to_next_power_of_two(size);
-      _data = std::make_unique<uint8_t[]>(_map_size * sizeof(Element) +
-                                          _map_size * sizeof(SparseElement));
+      _data = std::make_unique<uint8_t[]>(
+          _map_size * sizeof(Element) + _map_size * sizeof(SparseElement)
+      );
       _size = 0;
       _timestamp = 1;
       _sparse = reinterpret_cast<SparseElement *>(_data.get());
-      _dense = reinterpret_cast<Element *>(_data.get() +
-                                           +sizeof(SparseElement) * _map_size);
-      std::memset(_data.get(), 0,
-                  _map_size * (sizeof(Element) + sizeof(SparseElement)));
+      _dense = reinterpret_cast<Element *>(
+          _data.get() + +sizeof(SparseElement) * _map_size
+      );
+      std::memset(
+          _data.get(), 0, _map_size * (sizeof(Element) + sizeof(SparseElement))
+      );
     }
   }
 
-  [[nodiscard]] std::size_t
-  align_to_next_power_of_two(const std::size_t size) const {
+  [[nodiscard]] std::size_t align_to_next_power_of_two(const std::size_t size
+  ) const {
     return std::pow(2.0, std::ceil(std::log2(static_cast<double>(size))));
   }
 

@@ -31,9 +31,18 @@ public:
     NoinitVector<GlobalNodeID> node_mapping;
   };
 
-  enum HighDegreeStrategy { IGNORE, TAKE_ALL, SAMPLE, CUT };
+  enum HighDegreeStrategy {
+    IGNORE,
+    TAKE_ALL,
+    SAMPLE,
+    CUT
+  };
 
-  enum ExteriorStrategy { EXCLUDE, INCLUDE, CONTRACT };
+  enum ExteriorStrategy {
+    EXCLUDE,
+    INCLUDE,
+    CONTRACT
+  };
 
   BfsExtractor(const DistributedGraph &graph);
 
@@ -79,26 +88,34 @@ private:
     NoinitVector<BlockID> partition;
 
     GraphFragment build_fragment() {
-      return {std::move(nodes),        std::move(edges),
-              std::move(node_weights), std::move(edge_weights),
-              std::move(node_mapping), std::move(partition)};
+      return {
+          std::move(nodes),
+          std::move(edges),
+          std::move(node_weights),
+          std::move(edge_weights),
+          std::move(node_mapping),
+          std::move(partition)};
     }
   };
 
-  ExploredSubgraph bfs(PEID current_hop,
-                       NoinitVector<GhostSeedNode> &seed_nodes,
-                       const NoinitVector<NodeID> &ignored_nodes);
+  ExploredSubgraph
+  bfs(PEID current_hop,
+      NoinitVector<GhostSeedNode> &seed_nodes,
+      const NoinitVector<NodeID> &ignored_nodes);
 
   template <typename Lambda>
   void explore_outgoing_edges(NodeID node, Lambda &&action);
 
-  std::pair<std::vector<NoinitVector<GhostSeedNode>>,
-            std::vector<NoinitVector<NodeID>>>
+  std::pair<
+      std::vector<NoinitVector<GhostSeedNode>>,
+      std::vector<NoinitVector<NodeID>>>
   exchange_ghost_seed_nodes(
-      std::vector<NoinitVector<GhostSeedEdge>> &next_ghost_seed_nodes);
+      std::vector<NoinitVector<GhostSeedEdge>> &next_ghost_seed_nodes
+  );
 
   std::vector<GraphFragment> exchange_explored_subgraphs(
-      const std::vector<ExploredSubgraph> &explored_subgraphs);
+      const std::vector<ExploredSubgraph> &explored_subgraphs
+  );
 
   Result combine_fragments(tbb::concurrent_vector<GraphFragment> &fragments);
 
@@ -127,10 +144,12 @@ private:
   Marker<> _finished_pe_search{
       static_cast<std::size_t>(mpi::get_comm_size(_graph->communicator()))};
 
-  tbb::enumerable_thread_specific<Marker<>> _taken_ets{
-      [&] { return Marker<>(_graph->total_n()); }};
+  tbb::enumerable_thread_specific<Marker<>> _taken_ets{[&] {
+    return Marker<>(_graph->total_n());
+  }};
   tbb::enumerable_thread_specific<FastResetArray<EdgeWeight>>
-      _external_degrees_ets{
-          [&] { return FastResetArray<EdgeWeight>(_p_graph->k()); }};
+      _external_degrees_ets{[&] {
+        return FastResetArray<EdgeWeight>(_p_graph->k());
+      }};
 };
 } // namespace kaminpar::dist::graph

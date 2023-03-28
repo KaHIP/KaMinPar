@@ -22,7 +22,7 @@ enum class OutputLevel : std::uint8_t {
   APPLICATION,
   EXPERIMENT,
 };
-}
+} // namespace kaminpar
 
 namespace kaminpar::shm {
 #ifdef KAMINPAR_64BIT_NODE_IDS
@@ -138,8 +138,8 @@ struct LabelPropagationCoarseningContext {
   NodeID max_num_neighbors;
   double two_hop_clustering_threshold;
 
-  [[nodiscard]] bool use_two_hop_clustering(const NodeID old_n,
-                                            const NodeID new_n) const {
+  [[nodiscard]] bool
+  use_two_hop_clustering(const NodeID old_n, const NodeID new_n) const {
     return (1.0 - 1.0 * new_n / old_n) <= two_hop_clustering_threshold;
   }
 };
@@ -247,14 +247,24 @@ public:
 
   shm::Context &context();
 
-  void take_graph(shm::NodeID, shm::EdgeID *xadj, shm::NodeID *adjncy,
-                  shm::NodeWeight *vwgt, shm::EdgeWeight *adjwgt);
+  void take_graph(
+      shm::NodeID,
+      shm::EdgeID *xadj,
+      shm::NodeID *adjncy,
+      shm::NodeWeight *vwgt,
+      shm::EdgeWeight *adjwgt
+  );
 
-  void copy_graph(shm::NodeID n, shm::EdgeID *xadj, shm::NodeID *adjncy,
-                  shm::NodeWeight *vwgt, shm::EdgeWeight *adjwgt);
+  void copy_graph(
+      shm::NodeID n,
+      shm::EdgeID *xadj,
+      shm::NodeID *adjncy,
+      shm::NodeWeight *vwgt,
+      shm::EdgeWeight *adjwgt
+  );
 
-  shm::EdgeWeight compute_partition(int seed, shm::BlockID k,
-                                    shm::BlockID *partition);
+  shm::EdgeWeight
+  compute_partition(int seed, shm::BlockID k, shm::BlockID *partition);
 
 private:
   int _num_threads;

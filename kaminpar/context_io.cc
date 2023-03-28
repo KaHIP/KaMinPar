@@ -25,8 +25,8 @@ get_clustering_algorithms() {
   };
 }
 
-std::ostream &operator<<(std::ostream &out,
-                         const ClusteringAlgorithm algorithm) {
+std::ostream &
+operator<<(std::ostream &out, const ClusteringAlgorithm algorithm) {
   switch (algorithm) {
   case ClusteringAlgorithm::NOOP:
     return out << "noop";
@@ -78,8 +78,8 @@ get_kway_refinement_algorithms() {
   };
 }
 
-std::ostream &operator<<(std::ostream &out,
-                         const RefinementAlgorithm algorithm) {
+std::ostream &
+operator<<(std::ostream &out, const RefinementAlgorithm algorithm) {
   switch (algorithm) {
   case RefinementAlgorithm::NOOP:
     return out << "noop";
@@ -140,8 +140,8 @@ get_initial_partitioning_modes() {
   };
 }
 
-std::ostream &operator<<(std::ostream &out,
-                         const InitialPartitioningMode mode) {
+std::ostream &
+operator<<(std::ostream &out, const InitialPartitioningMode mode) {
   switch (mode) {
   case InitialPartitioningMode::SEQUENTIAL:
     return out << "sequential";

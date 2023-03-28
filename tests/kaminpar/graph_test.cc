@@ -12,12 +12,14 @@ public:
   // |    / |    / |    / |
   // 4|16---5|32---6|64---7|128
   AWeightedGridGraph()
-      : graph{create_graph({0, 2, 6, 10, 13, 16, 20, 24, 26},
-                           {1, 4, 0, 4, 5, 2, 1, 5, 6, 3, 2, 6, 7,
-                            0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3},
-                           {1, 2, 4, 8, 16, 32, 64, 128},
-                           {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-                            1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1})} {}
+      : graph{create_graph(
+            {0, 2, 6, 10, 13, 16, 20, 24, 26},
+            {1, 4, 0, 4, 5, 2, 1, 5, 6, 3, 2, 6, 7,
+             0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3},
+            {1, 2, 4, 8, 16, 32, 64, 128},
+            {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+             1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}
+        )} {}
 
   Graph graph;
 };
@@ -78,13 +80,17 @@ TEST_F(AWeightedGridGraph, InitialEdgeWeightingWorks) {
 }
 
 TEST_F(AWeightedGridGraph, InitialTotalNodeWeightWorks) {
-  EXPECT_EQ(graph.total_node_weight(),
-            (1 << graph.n()) - 1); // graph has node weights 1, 2, 4, ...
+  EXPECT_EQ(
+      graph.total_node_weight(),
+      (1 << graph.n()) - 1
+  ); // graph has node weights 1, 2, 4, ...
 }
 
 TEST_F(AWeightedGridGraph, InitialTotalEdgeWeightWorks) {
-  EXPECT_EQ(graph.total_edge_weight(),
-            graph.m()); // graph has edge weights 1, 1, 1, ...
+  EXPECT_EQ(
+      graph.total_edge_weight(),
+      graph.m()
+  ); // graph has edge weights 1, 1, 1, ...
 }
 
 //
@@ -199,8 +205,9 @@ TEST(GraphTest, PutsAxeInCorrectBuckets) {
    *     \ /
    *      x
    */
-  Graph graph{create_graph({0, 0, 1, 3, 5, 8, 12},
-                           {5, 4, 5, 4, 5, 2, 3, 5, 1, 2, 3, 4}, true)};
+  Graph graph{create_graph(
+      {0, 0, 1, 3, 5, 8, 12}, {5, 4, 5, 4, 5, 2, 3, 5, 1, 2, 3, 4}, true
+  )};
   EXPECT_EQ(1, graph.bucket_size(0)); // deg 0
   EXPECT_EQ(1, graph.bucket_size(1)); // deg 1
   EXPECT_EQ(3, graph.bucket_size(2)); // deg 2, 3

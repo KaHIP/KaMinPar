@@ -52,8 +52,9 @@ int main(int argc, char *argv[]) {
 
   CLI::App app("Distributed Graph Contraction Benchmark");
   app.add_option("-G,--graph", graph_filename, "Input graph")->required();
-  app.add_option("-C,--clustering", clustering_filename,
-                 "Name of the clustering file.");
+  app.add_option(
+      "-C,--clustering", clustering_filename, "Name of the clustering file."
+  );
   app.add_option("-t,--threads", ctx.parallel.num_threads, "Number of threads");
   CLI11_PARSE(app, argc, argv);
 
@@ -67,7 +68,8 @@ int main(int argc, char *argv[]) {
   // Compute coarse graph
   START_TIMER("Contraction");
   const auto result = contract_global_clustering(
-      graph, clustering, ctx.coarsening.global_contraction_algorithm);
+      graph, clustering, ctx.coarsening.global_contraction_algorithm
+  );
   STOP_TIMER();
 
   LOG << "Coarse graph:";

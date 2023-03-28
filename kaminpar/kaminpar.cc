@@ -27,8 +27,12 @@ namespace kaminpar {
 using namespace shm;
 
 namespace {
-void print_statistics(const Context &ctx, const PartitionedGraph &p_graph,
-                      const int max_timer_depth, const bool parseable) {
+void print_statistics(
+    const Context &ctx,
+    const PartitionedGraph &p_graph,
+    const int max_timer_depth,
+    const bool parseable
+) {
   const EdgeWeight cut = metrics::edge_cut(p_graph);
   const double imbalance = metrics::imbalance(p_graph);
   const bool feasible = metrics::is_feasible(p_graph, ctx.partition);
@@ -62,7 +66,8 @@ void print_statistics(const Context &ctx, const PartitionedGraph &p_graph,
 } // namespace
 
 KaMinPar::KaMinPar(const int num_threads, const Context ctx)
-    : _num_threads(num_threads), _ctx(ctx),
+    : _num_threads(num_threads),
+      _ctx(ctx),
       _gc(tbb::global_control::max_allowed_parallelism, num_threads) {
   Random::seed = 0;
 }
@@ -77,10 +82,17 @@ void KaMinPar::set_max_timer_depth(const int max_timer_depth) {
   _max_timer_depth = max_timer_depth;
 }
 
-Context &KaMinPar::context() { return _ctx; }
+Context &KaMinPar::context() {
+  return _ctx;
+}
 
-void KaMinPar::take_graph(const NodeID n, EdgeID *xadj, NodeID *adjncy,
-                          NodeWeight *vwgt, EdgeWeight *adjwgt) {
+void KaMinPar::take_graph(
+    const NodeID n,
+    EdgeID *xadj,
+    NodeID *adjncy,
+    NodeWeight *vwgt,
+    EdgeWeight *adjwgt
+) {
   const EdgeID m = xadj[n];
 
   StaticArray<EdgeID> nodes(xadj, n + 1);
@@ -92,13 +104,22 @@ void KaMinPar::take_graph(const NodeID n, EdgeID *xadj, NodeID *adjncy,
       (adjwgt == nullptr) ? StaticArray<EdgeWeight>(0)
                           : StaticArray<EdgeWeight>(adjwgt, m);
 
-  _graph_ptr = std::make_unique<Graph>(std::move(nodes), std::move(edges),
-                                       std::move(node_weights),
-                                       std::move(edge_weights), false);
+  _graph_ptr = std::make_unique<Graph>(
+      std::move(nodes),
+      std::move(edges),
+      std::move(node_weights),
+      std::move(edge_weights),
+      false
+  );
 }
 
-void KaMinPar::copy_graph(const NodeID n, EdgeID *xadj, NodeID *adjncy,
-                          NodeWeight *vwgt, EdgeWeight *adjwgt) {
+void KaMinPar::copy_graph(
+    const NodeID n,
+    EdgeID *xadj,
+    NodeID *adjncy,
+    NodeWeight *vwgt,
+    EdgeWeight *adjwgt
+) {
   SCOPED_TIMER("IO");
 
   const EdgeID m = xadj[n];
@@ -124,13 +145,18 @@ void KaMinPar::copy_graph(const NodeID n, EdgeID *xadj, NodeID *adjncy,
     }
   });
 
-  _graph_ptr = std::make_unique<Graph>(std::move(nodes), std::move(edges),
-                                       std::move(node_weights),
-                                       std::move(edge_weights), false);
+  _graph_ptr = std::make_unique<Graph>(
+      std::move(nodes),
+      std::move(edges),
+      std::move(node_weights),
+      std::move(edge_weights),
+      false
+  );
 }
 
-EdgeWeight KaMinPar::compute_partition(const int seed, const BlockID k,
-                                       BlockID *partition) {
+EdgeWeight KaMinPar::compute_partition(
+    const int seed, const BlockID k, BlockID *partition
+) {
   cio::print_kaminpar_banner();
   cio::print_build_identifier();
   cio::print_build_datatypes<NodeID, EdgeID, NodeWeight, EdgeWeight>();
@@ -154,7 +180,8 @@ EdgeWeight KaMinPar::compute_partition(const int seed, const BlockID k,
   START_TIMER("Partitioning");
   if (!_was_rearranged) {
     _graph_ptr = std::make_unique<Graph>(
-        graph::rearrange_by_degree_buckets(_ctx, std::move(*_graph_ptr)));
+        graph::rearrange_by_degree_buckets(_ctx, std::move(*_graph_ptr))
+    );
     _was_rearranged = true;
   }
 
@@ -165,8 +192,9 @@ EdgeWeight KaMinPar::compute_partition(const int seed, const BlockID k,
   if (_graph_ptr->permuted()) {
     const NodeID num_isolated_nodes =
         graph::integrate_isolated_nodes(*_graph_ptr, original_epsilon, _ctx);
-    p_graph = graph::assign_isolated_nodes(std::move(p_graph),
-                                           num_isolated_nodes, _ctx.partition);
+    p_graph = graph::assign_isolated_nodes(
+        std::move(p_graph), num_isolated_nodes, _ctx.partition
+    );
   }
 
   START_TIMER("IO");
@@ -185,8 +213,12 @@ EdgeWeight KaMinPar::compute_partition(const int seed, const BlockID k,
   STOP_TIMER(); // stop root timer
 
   if (_output_level >= OutputLevel::APPLICATION) {
-    print_statistics(_ctx, p_graph, _max_timer_depth,
-                     _output_level == OutputLevel::EXPERIMENT);
+    print_statistics(
+        _ctx,
+        p_graph,
+        _max_timer_depth,
+        _output_level == OutputLevel::EXPERIMENT
+    );
   }
 
   return metrics::edge_cut(p_graph);

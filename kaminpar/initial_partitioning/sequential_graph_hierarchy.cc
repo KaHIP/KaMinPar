@@ -14,7 +14,8 @@ SequentialGraphHierarchy::SequentialGraphHierarchy(const Graph *finest_graph)
     : _finest_graph(finest_graph) {}
 
 void SequentialGraphHierarchy::take_coarse_graph(
-    Graph &&c_graph, std::vector<NodeID> &&c_mapping) {
+    Graph &&c_graph, std::vector<NodeID> &&c_mapping
+) {
   KASSERT(coarsest_graph().n() == c_mapping.size());
   _coarse_mappings.push_back(std::move(c_mapping));
   _coarse_graphs.push_back(std::move(c_graph));
@@ -44,8 +45,12 @@ SequentialGraphHierarchy::pop_and_project(PartitionedGraph &&coarse_p_graph) {
   // this destroys underlying Graph wrapped in p_graph
   _coarse_graphs.pop_back();
 
-  return {tag::seq, graph, coarse_p_graph.k(), std::move(partition),
-          std::move(coarse_p_graph.take_final_k())};
+  return {
+      tag::seq,
+      graph,
+      coarse_p_graph.k(),
+      std::move(partition),
+      std::move(coarse_p_graph.take_final_k())};
 }
 
 const Graph &SequentialGraphHierarchy::get_second_coarsest_graph() const {

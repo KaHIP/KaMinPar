@@ -31,7 +31,7 @@ void sort_and_compress_move_groups(std::vector<GlobalMove> &global_moves);
 
 void resolve_move_conflicts_greedy(std::vector<GlobalMove> &global_moves);
 
-std::vector<GlobalMove>
-broadcast_and_resolve_global_moves(std::vector<GlobalMove> &my_global_moves,
-                                   MPI_Comm comm);
+std::vector<GlobalMove> broadcast_and_resolve_global_moves(
+    std::vector<GlobalMove> &my_global_moves, MPI_Comm comm
+);
 } // namespace kaminpar::dist

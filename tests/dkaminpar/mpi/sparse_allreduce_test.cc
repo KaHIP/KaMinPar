@@ -13,23 +13,24 @@ struct InplaceSparseAllreduceTest : public ::testing::Test {
 
 template <typename T> struct InplaceMPI {
   void operator()(std::vector<T> &buffer, MPI_Comm comm) {
-    mpi::inplace_sparse_allreduce(mpi::tag::mpi_allreduce, buffer,
-                                  buffer.size(), MPI_SUM, comm);
+    mpi::inplace_sparse_allreduce(
+        mpi::tag::mpi_allreduce, buffer, buffer.size(), MPI_SUM, comm
+    );
   }
 };
 
 template <typename T> struct InplaceDoubling {
   void operator()(std::vector<T> &buffer, MPI_Comm comm) {
-    mpi::inplace_sparse_allreduce(mpi::tag::doubling_allreduce, buffer,
-                                  buffer.size(), MPI_SUM, comm);
+    mpi::inplace_sparse_allreduce(
+        mpi::tag::doubling_allreduce, buffer, buffer.size(), MPI_SUM, comm
+    );
   }
 };
 
 template <typename T>
 using InplaceSparseAllreduceImplementations =
     ::testing::Types<InplaceMPI<T>, InplaceDoubling<T>>;
-TYPED_TEST_SUITE(InplaceSparseAllreduceTest,
-                 InplaceSparseAllreduceImplementations<int>);
+TYPED_TEST_SUITE(InplaceSparseAllreduceTest, InplaceSparseAllreduceImplementations<int>);
 
 TYPED_TEST(InplaceSparseAllreduceTest, empty_allreduce) {
   std::vector<int> buf;

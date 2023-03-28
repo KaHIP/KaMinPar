@@ -25,8 +25,10 @@ using namespace kaminpar::dist::testing;
 namespace {
 template <typename Coloring>
 void validate_node_coloring(
-    const DistributedGraph &graph, const Coloring &coloring,
-    const ColorID max_num_colors = std::numeric_limits<ColorID>::max()) {
+    const DistributedGraph &graph,
+    const Coloring &coloring,
+    const ColorID max_num_colors = std::numeric_limits<ColorID>::max()
+) {
   ASSERT_GE(coloring.size(), graph.total_n());
   for (const NodeID u : graph.nodes()) {
     EXPECT_LT(coloring[u], max_num_colors);

@@ -53,13 +53,17 @@ int main(int argc, char *argv[]) {
   while (c_graph->global_n() >
          ctx.partition.k * ctx.coarsening.contraction_limit) {
     const auto max_cluster_weight = shm::compute_max_cluster_weight(
-        c_graph->global_n(), c_graph->total_node_weight(),
+        c_graph->global_n(),
+        c_graph->total_node_weight(),
         ctx.initial_partitioning.kaminpar.partition,
-        ctx.initial_partitioning.kaminpar.coarsening);
+        ctx.initial_partitioning.kaminpar.coarsening
+    );
     LOG << "... computing clustering";
 
-    START_TIMER("Clustering Algorithm",
-                "Level " + std::to_string(graph_hierarchy.size()));
+    START_TIMER(
+        "Clustering Algorithm",
+        "Level " + std::to_string(graph_hierarchy.size())
+    );
     dist::LockingLabelPropagationClustering clustering_algorithm(ctx);
     auto &clustering =
         clustering_algorithm.compute_clustering(*c_graph, max_cluster_weight);
@@ -67,10 +71,12 @@ int main(int argc, char *argv[]) {
 
     LOG << "... contracting";
 
-    START_TIMER("Contraction",
-                "Level " + std::to_string(graph_hierarchy.size()));
+    START_TIMER(
+        "Contraction", "Level " + std::to_string(graph_hierarchy.size())
+    );
     auto result = contract_global_clustering(
-        *c_graph, clustering, ctx.coarsening.global_contraction_algorithm);
+        *c_graph, clustering, ctx.coarsening.global_contraction_algorithm
+    );
     STOP_TIMER();
     dist::graph::debug::validate(contracted_graph);
 

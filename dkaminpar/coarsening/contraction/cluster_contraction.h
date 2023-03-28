@@ -30,13 +30,17 @@ struct ContractionResult {
 };
 
 ContractionResult contract_clustering(
-    const DistributedGraph &graph, GlobalClustering &clustering,
+    const DistributedGraph &graph,
+    GlobalClustering &clustering,
     double max_cnode_imbalance = std::numeric_limits<double>::max(),
-    bool migrate_cnode_prefix = false, bool force_perfect_cnode_balance = true);
+    bool migrate_cnode_prefix = false,
+    bool force_perfect_cnode_balance = true
+);
 
-DistributedPartitionedGraph
-project_partition(const DistributedGraph &graph,
-                  DistributedPartitionedGraph p_c_graph,
-                  const NoinitVector<GlobalNodeID> &c_mapping,
-                  const MigratedNodes &migration);
+DistributedPartitionedGraph project_partition(
+    const DistributedGraph &graph,
+    DistributedPartitionedGraph p_c_graph,
+    const NoinitVector<GlobalNodeID> &c_mapping,
+    const MigratedNodes &migration
+);
 } // namespace kaminpar::dist

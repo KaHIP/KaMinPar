@@ -26,7 +26,9 @@ public:
     return _nodes.size() - 1;
   }
 
-  NodeWeight &last_node_weight() { return _node_weights.back(); }
+  NodeWeight &last_node_weight() {
+    return _node_weights.back();
+  }
 
   EdgeID new_edge(const NodeID v, const EdgeID weight = 1) {
     _edges.push_back(v);
@@ -34,14 +36,19 @@ public:
     return _edges.size() - 1;
   }
 
-  EdgeWeight &last_edge_weight() { return _edge_weights.back(); }
+  EdgeWeight &last_edge_weight() {
+    return _edge_weights.back();
+  }
 
   template <typename... Args> Graph build(Args &&...args) {
     _nodes.push_back(_edges.size());
     return Graph(
-        static_array::create_from(_nodes), static_array::create_from(_edges),
+        static_array::create_from(_nodes),
+        static_array::create_from(_edges),
         static_array::create_from(_node_weights),
-        static_array::create_from(_edge_weights), std::forward<Args>(args)...);
+        static_array::create_from(_edge_weights),
+        std::forward<Args>(args)...
+    );
   }
 
 private:
@@ -60,14 +67,21 @@ private:
  * disconnected.
  * @return A single graph containing all other graphs.
  */
-inline Graph merge_graphs(std::initializer_list<Graph *> graphs,
-                          const bool connect_graphs = false) {
+inline Graph merge_graphs(
+    std::initializer_list<Graph *> graphs, const bool connect_graphs = false
+) {
   const NodeID n = std::accumulate(
-      graphs.begin(), graphs.end(), 0,
-      [&](const NodeID acc, const Graph *graph) { return acc + graph->n(); });
+      graphs.begin(),
+      graphs.end(),
+      0,
+      [&](const NodeID acc, const Graph *graph) { return acc + graph->n(); }
+  );
   const EdgeID m = std::accumulate(
-      graphs.begin(), graphs.end(), 0,
-      [&](const EdgeID acc, const Graph *graph) { return acc + graph->m(); });
+      graphs.begin(),
+      graphs.end(),
+      0,
+      [&](const EdgeID acc, const Graph *graph) { return acc + graph->m(); }
+  );
   GraphBuilder builder(n, m);
 
   NodeID offset = 0;

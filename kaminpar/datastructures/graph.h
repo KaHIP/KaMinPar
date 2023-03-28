@@ -98,13 +98,22 @@ public:
 
   Graph() = default;
 
-  Graph(StaticArray<EdgeID> nodes, StaticArray<NodeID> edges,
-        StaticArray<NodeWeight> node_weights = {},
-        StaticArray<EdgeWeight> edge_weights = {}, bool sorted = false);
+  Graph(
+      StaticArray<EdgeID> nodes,
+      StaticArray<NodeID> edges,
+      StaticArray<NodeWeight> node_weights = {},
+      StaticArray<EdgeWeight> edge_weights = {},
+      bool sorted = false
+  );
 
-  Graph(tag::Sequential, StaticArray<EdgeID> nodes, StaticArray<NodeID> edges,
-        StaticArray<NodeWeight> node_weights = {},
-        StaticArray<EdgeWeight> edge_weights = {}, bool sorted = false);
+  Graph(
+      tag::Sequential,
+      StaticArray<EdgeID> nodes,
+      StaticArray<NodeID> edges,
+      StaticArray<NodeWeight> node_weights = {},
+      StaticArray<EdgeWeight> edge_weights = {},
+      bool sorted = false
+  );
 
   Graph(const Graph &) = delete;
   Graph &operator=(const Graph &) = delete;

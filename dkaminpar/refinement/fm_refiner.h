@@ -29,8 +29,9 @@ public:
   FMRefiner &operator=(FMRefiner &&) = delete;
 
   void initialize(const DistributedGraph &graph) final;
-  void refine(DistributedPartitionedGraph &p_graph,
-              const PartitionContext &p_ctx) final;
+  void refine(
+      DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx
+  ) final;
 
 private:
   /*

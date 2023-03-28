@@ -49,17 +49,21 @@ public:
   LocalFMRefiner &operator=(LocalFMRefiner &&) = delete;
 
   void initialize(const DistributedGraph &graph) final;
-  void refine(DistributedPartitionedGraph &p_graph,
-              const PartitionContext &p_ctx) final;
+  void refine(
+      DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx
+  ) final;
 
 private:
   void refinement_round();
   tbb::concurrent_vector<NodeID> find_seed_nodes();
 
-  void build_local_graph(const NodeID seed, shm::Graph &out_graph,
-                         shm::PartitionedGraph &out_p_graph,
-                         std::vector<GlobalNodeID> &mapping,
-                         std::vector<bool> &fixed);
+  void build_local_graph(
+      const NodeID seed,
+      shm::Graph &out_graph,
+      shm::PartitionedGraph &out_p_graph,
+      std::vector<GlobalNodeID> &mapping,
+      std::vector<bool> &fixed
+  );
 
   void init_external_degrees();
 

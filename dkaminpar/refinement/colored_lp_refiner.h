@@ -32,8 +32,9 @@ class ColoredLPRefiner : public Refiner {
   public:
     void initialize(ColorID num_colors);
     void record_gain(EdgeWeight gain, ColorID c);
-    void summarize_by_size(const NoinitVector<NodeID> &color_sizes,
-                           MPI_Comm comm) const;
+    void summarize_by_size(
+        const NoinitVector<NodeID> &color_sizes, MPI_Comm comm
+    ) const;
 
   private:
     std::vector<EdgeWeight> _gain_per_color;
@@ -48,8 +49,9 @@ public:
   ColoredLPRefiner &operator=(ColoredLPRefiner &&) = delete;
 
   void initialize(const DistributedGraph &graph) final;
-  void refine(DistributedPartitionedGraph &p_graph,
-              const PartitionContext &p_ctx) final;
+  void refine(
+      DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx
+  ) final;
 
 private:
   NodeID find_moves(ColorID c);
@@ -57,15 +59,15 @@ private:
   NodeID perform_best_moves(ColorID c);
   NodeID perform_local_moves(ColorID c);
   NodeID perform_probabilistic_moves(ColorID c);
-  NodeID try_probabilistic_moves(ColorID c,
-                                 const BlockGainsContainer &block_gains);
+  NodeID
+  try_probabilistic_moves(ColorID c, const BlockGainsContainer &block_gains);
   void synchronize_state(ColorID c);
 
   auto reduce_move_candidates(std::vector<MoveCandidate> &&candidates)
       -> std::vector<MoveCandidate>;
-  auto reduce_move_candidates(std::vector<MoveCandidate> &&a,
-                              std::vector<MoveCandidate> &&b)
-      -> std::vector<MoveCandidate>;
+  auto reduce_move_candidates(
+      std::vector<MoveCandidate> &&a, std::vector<MoveCandidate> &&b
+  ) -> std::vector<MoveCandidate>;
 
   void handle_node(NodeID u);
   void activate_neighbors(NodeID u);

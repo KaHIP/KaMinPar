@@ -25,8 +25,7 @@ class DeepMultilevelPartitioner {
   SET_STATISTICS(false);
 
 public:
-  DeepMultilevelPartitioner(const Graph &input_graph,
-                             const Context &input_ctx);
+  DeepMultilevelPartitioner(const Graph &input_graph, const Context &input_ctx);
 
   DeepMultilevelPartitioner(const DeepMultilevelPartitioner &) = delete;
   DeepMultilevelPartitioner &

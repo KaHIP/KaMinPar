@@ -21,8 +21,8 @@ public:
 
   void initialize(const Graph &graph) override;
 
-  bool refine(PartitionedGraph &p_graph,
-              const PartitionContext &p_ctx) override;
+  bool
+  refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) override;
 
   [[nodiscard]] EdgeWeight expected_total_gain() const override;
 

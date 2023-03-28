@@ -21,7 +21,9 @@ class TokerException : public std::exception {
 public:
   TokerException(std::string msg) : _msg(std::move(msg)) {}
 
-  const char *what() const noexcept override { return _msg.c_str(); }
+  const char *what() const noexcept override {
+    return _msg.c_str();
+  }
 
 private:
   std::string _msg;
@@ -34,7 +36,8 @@ public:
     _position = 0;
     _length = file_size(_fd);
     _contents = static_cast<char *>(
-        mmap(nullptr, _length, PROT_READ, MAP_PRIVATE, _fd, 0));
+        mmap(nullptr, _length, PROT_READ, MAP_PRIVATE, _fd, 0)
+    );
     if (_contents == MAP_FAILED) {
       close(_fd);
       if constexpr (throwing) {
@@ -95,9 +98,10 @@ public:
           throw TokerException("unexpected symbol");
         }
       } else {
-        KASSERT(valid_position() && str[i] == current(),
-                "unexpected symbol: " << current() << ", but expected "
-                                      << str[i]);
+        KASSERT(
+            valid_position() && str[i] == current(),
+            "unexpected symbol: " << current() << ", but expected " << str[i]
+        );
       }
       advance();
       ++i;
@@ -110,8 +114,10 @@ public:
         throw TokerException("unexpected char");
       }
     } else {
-      KASSERT(valid_position() && current() == ch,
-              "unexpected symbol: " << current() << ", but expected " << ch);
+      KASSERT(
+          valid_position() && current() == ch,
+          "unexpected symbol: " << current() << ", but expected " << ch
+      );
     }
     advance();
   }
@@ -134,12 +140,22 @@ public:
     return match;
   }
 
-  [[nodiscard]] bool valid_position() const { return _position < _length; }
-  [[nodiscard]] char current() const { return _contents[_position]; }
-  void advance() { ++_position; }
+  [[nodiscard]] bool valid_position() const {
+    return _position < _length;
+  }
+  [[nodiscard]] char current() const {
+    return _contents[_position];
+  }
+  void advance() {
+    ++_position;
+  }
 
-  [[nodiscard]] std::size_t position() const { return _position; }
-  [[nodiscard]] std::size_t length() const { return _length; }
+  [[nodiscard]] std::size_t position() const {
+    return _position;
+  }
+  [[nodiscard]] std::size_t length() const {
+    return _length;
+  }
 
 private:
   static int open_file(const std::string &filename) {

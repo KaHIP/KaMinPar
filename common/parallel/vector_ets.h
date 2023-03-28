@@ -17,7 +17,10 @@ public:
   using Container = std::vector<T, tbb::cache_aligned_allocator<T>>;
 
   explicit vector_ets(const std::size_t size)
-      : _size{size}, _ets{[size] { return Container(size); }} {}
+      : _size{size},
+        _ets{[size] {
+          return Container(size);
+        }} {}
 
   vector_ets(const vector_ets &) = delete;
   vector_ets(vector_ets &&) noexcept = default;
@@ -25,7 +28,9 @@ public:
   vector_ets &operator=(const vector_ets &) = delete;
   vector_ets &operator=(vector_ets &&) noexcept = delete;
 
-  auto &local() { return _ets.local(); }
+  auto &local() {
+    return _ets.local();
+  }
 
   template <typename BinaryOp> Container combine(BinaryOp &&op) {
     return _ets.combine([&](const Container &a, const Container &b) {

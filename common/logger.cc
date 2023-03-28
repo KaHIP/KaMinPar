@@ -8,8 +8,9 @@
 
 namespace kaminpar {
 namespace logger {
-void CompactContainerFormatter::print(const std::vector<std::string> &container,
-                                      std::ostream &out) const {
+void CompactContainerFormatter::print(
+    const std::vector<std::string> &container, std::ostream &out
+) const {
   bool first{true};
   for (const auto &element : container) {
     if (!first) {
@@ -20,8 +21,8 @@ void CompactContainerFormatter::print(const std::vector<std::string> &container,
   }
 }
 
-void Table::print(const std::vector<std::string> &container,
-                  std::ostream &out) const {
+void Table::print(const std::vector<std::string> &container, std::ostream &out)
+    const {
   using namespace std::literals;
 
   const std::size_t width =
@@ -58,8 +59,8 @@ void Table::print(const std::vector<std::string> &container,
   }
 }
 
-void DefaultTextFormatter::print(const std::string &text,
-                                 std::ostream &out) const {
+void DefaultTextFormatter::print(const std::string &text, std::ostream &out)
+    const {
   out << text;
 }
 
@@ -103,7 +104,9 @@ bool Logger::_quiet = false;
 
 Logger::Logger() : Logger(std::cout) {}
 Logger::Logger(std::ostream &out, std::string append)
-    : _buffer(), _out(out), _append(std::move(append)) {}
+    : _buffer(),
+      _out(out),
+      _append(std::move(append)) {}
 
 void Logger::flush() {
   if (_quiet) {
@@ -123,7 +126,11 @@ tbb::spin_mutex &Logger::flush_mutex() {
   return mutex;
 }
 
-void Logger::set_quiet_mode(const bool quiet) { _quiet = quiet; }
+void Logger::set_quiet_mode(const bool quiet) {
+  _quiet = quiet;
+}
 
-bool Logger::is_quiet() { return _quiet; }
+bool Logger::is_quiet() {
+  return _quiet;
+}
 } // namespace kaminpar

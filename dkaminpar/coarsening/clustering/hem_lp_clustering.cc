@@ -20,9 +20,9 @@ HEMLPClustering::HEMLPClustering(const Context &ctx)
     : _lp(std::make_unique<DistributedGlobalLabelPropagationClustering>(ctx)),
       _hem(std::make_unique<HEMClustering>(ctx)) {}
 
-HEMLPClustering::ClusterArray &
-HEMLPClustering::compute_clustering(const DistributedGraph &graph,
-                                    const GlobalNodeWeight max_cluster_weight) {
+HEMLPClustering::ClusterArray &HEMLPClustering::compute_clustering(
+    const DistributedGraph &graph, const GlobalNodeWeight max_cluster_weight
+) {
   _graph = &graph;
 
   if (_fallback) {
@@ -43,7 +43,8 @@ HEMLPClustering::compute_clustering(const DistributedGraph &graph,
 }
 
 GlobalNodeID HEMLPClustering::compute_size_after_matching_contraction(
-    const ClusterArray &clustering) {
+    const ClusterArray &clustering
+) {
   tbb::enumerable_thread_specific<NodeID> num_matched_edges_ets;
   _graph->pfor_nodes([&](const NodeID u) {
     if (clustering[u] != _graph->local_to_global_node(u)) {
@@ -53,7 +54,8 @@ GlobalNodeID HEMLPClustering::compute_size_after_matching_contraction(
   const NodeID num_matched_edges = num_matched_edges_ets.combine(std::plus{});
 
   const GlobalNodeID num_matched_edges_globally = mpi::allreduce<GlobalNodeID>(
-      num_matched_edges, MPI_SUM, _graph->communicator());
+      num_matched_edges, MPI_SUM, _graph->communicator()
+  );
 
   return _graph->global_n() - num_matched_edges_globally;
 }

@@ -42,29 +42,33 @@ GlobalEdgeWeight edge_cut(const DistributedPartitionedGraph &p_graph) {
 double imbalance(const DistributedPartitionedGraph &p_graph) {
   GlobalNodeWeight total_local_node_weight = p_graph.total_node_weight();
   const GlobalNodeWeight global_total_node_weight =
-      mpi::allreduce<GlobalNodeWeight>(total_local_node_weight, MPI_SUM,
-                                       p_graph.communicator());
+      mpi::allreduce<GlobalNodeWeight>(
+          total_local_node_weight, MPI_SUM, p_graph.communicator()
+      );
 
   const double perfect_block_weight =
       std::ceil(static_cast<double>(global_total_node_weight) / p_graph.k());
   double max_imbalance = 0.0;
   for (const BlockID b : p_graph.blocks()) {
-    max_imbalance =
-        std::max(max_imbalance, static_cast<double>(p_graph.block_weight(b)) /
-                                        perfect_block_weight -
-                                    1.0);
+    max_imbalance = std::max(
+        max_imbalance,
+        static_cast<double>(p_graph.block_weight(b)) / perfect_block_weight -
+            1.0
+    );
   }
 
   return max_imbalance;
 }
 
-bool is_feasible(const DistributedPartitionedGraph &p_graph,
-                 const PartitionContext &p_ctx) {
+bool is_feasible(
+    const DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx
+) {
   return num_imbalanced_blocks(p_graph, p_ctx) == 0;
 }
 
-BlockID num_imbalanced_blocks(const DistributedPartitionedGraph &p_graph,
-                              const PartitionContext &p_ctx) {
+BlockID num_imbalanced_blocks(
+    const DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx
+) {
   BlockID num_imbalanced_blocks = 0;
 
   for (const BlockID b : p_graph.blocks()) {

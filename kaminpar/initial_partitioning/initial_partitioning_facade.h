@@ -33,21 +33,28 @@ public:
     }
   };
 
-  InitialPartitioner(const Graph &graph, const Context &ctx,
-                     const BlockID final_k, MemoryContext m_ctx = {})
-      : _m_ctx{std::move(m_ctx)}, _graph{graph},
+  InitialPartitioner(
+      const Graph &graph,
+      const Context &ctx,
+      const BlockID final_k,
+      MemoryContext m_ctx = {}
+  )
+      : _m_ctx{std::move(m_ctx)},
+        _graph{graph},
         _i_ctx{ctx.initial_partitioning},
-        _coarsener{&_graph, _i_ctx.coarsening,
-                   std::move(_m_ctx.coarsener_m_ctx)} {
+        _coarsener{
+            &_graph, _i_ctx.coarsening, std::move(_m_ctx.coarsener_m_ctx)} {
     std::tie(_final_k1, _final_k2) = math::split_integral(final_k);
     _p_ctx =
         create_bipartition_context(ctx.partition, _graph, _final_k1, _final_k2);
     _refiner = factory::create_initial_refiner(
-        _graph, _p_ctx, _i_ctx.refinement, std::move(_m_ctx.refiner_m_ctx));
+        _graph, _p_ctx, _i_ctx.refinement, std::move(_m_ctx.refiner_m_ctx)
+    );
     // O(R * k) initial bisections -> O(n + R * C * k) for the whole graphutils
-    _num_bipartition_repetitions =
-        std::ceil(_i_ctx.repetition_multiplier * final_k /
-                  math::ceil_log2(ctx.partition.k));
+    _num_bipartition_repetitions = std::ceil(
+        _i_ctx.repetition_multiplier * final_k /
+        math::ceil_log2(ctx.partition.k)
+    );
   }
 
   MemoryContext free() {

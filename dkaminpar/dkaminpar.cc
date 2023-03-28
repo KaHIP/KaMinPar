@@ -24,10 +24,13 @@ namespace kaminpar {
 using namespace dist;
 
 namespace {
-void print_partition_summary(const Context &ctx,
-                             const DistributedPartitionedGraph &p_graph,
-                             const int max_timer_depth, const bool parseable,
-                             const bool root) {
+void print_partition_summary(
+    const Context &ctx,
+    const DistributedPartitionedGraph &p_graph,
+    const int max_timer_depth,
+    const bool parseable,
+    const bool root
+) {
   const auto edge_cut = metrics::edge_cut(p_graph);
   const auto imbalance = metrics::imbalance(p_graph);
   const auto feasible = metrics::is_feasible(p_graph, ctx.partition) &&
@@ -64,8 +67,12 @@ void print_partition_summary(const Context &ctx,
   }
 }
 
-void print_input_summary(const Context &ctx, const DistributedGraph &graph,
-                         const bool parseable, const bool root) {
+void print_input_summary(
+    const Context &ctx,
+    const DistributedGraph &graph,
+    const bool parseable,
+    const bool root
+) {
   const auto n_str =
       mpi::gather_statistics_str<GlobalNodeID>(graph.n(), MPI_COMM_WORLD);
   const auto m_str =
@@ -93,8 +100,13 @@ void print_input_summary(const Context &ctx, const DistributedGraph &graph,
   if (root) {
     cio::print_dkaminpar_banner();
     cio::print_build_identifier();
-    cio::print_build_datatypes<NodeID, EdgeID, NodeWeight, EdgeWeight,
-                               shm::NodeWeight, shm::EdgeWeight>();
+    cio::print_build_datatypes<
+        NodeID,
+        EdgeID,
+        NodeWeight,
+        EdgeWeight,
+        shm::NodeWeight,
+        shm::EdgeWeight>();
     cio::print_delimiter("Input Summary");
     LOG << "Execution mode:               " << ctx.parallel.num_mpis
         << " MPI process" << (ctx.parallel.num_mpis > 1 ? "es" : "") << " a "
@@ -109,7 +121,9 @@ void print_input_summary(const Context &ctx, const DistributedGraph &graph,
 } // namespace
 
 dKaMinPar::dKaMinPar(MPI_Comm comm, const int num_threads, const Context ctx)
-    : _comm(comm), _num_threads(num_threads), _ctx(ctx),
+    : _comm(comm),
+      _num_threads(num_threads),
+      _ctx(ctx),
       _gc(tbb::global_control::max_allowed_parallelism, num_threads) {
   omp_set_num_threads(num_threads);
   Random::seed = 0;
@@ -125,11 +139,17 @@ void dKaMinPar::set_max_timer_depth(const int max_timer_depth) {
   _max_timer_depth = max_timer_depth;
 }
 
-Context &dKaMinPar::context() { return _ctx; }
+Context &dKaMinPar::context() {
+  return _ctx;
+}
 
-void dKaMinPar::import_graph(GlobalNodeID *vtxdist, GlobalEdgeID *xadj,
-                             GlobalNodeID *adjncy, GlobalNodeWeight *vwgt,
-                             GlobalEdgeWeight *adjwgt) {
+void dKaMinPar::import_graph(
+    GlobalNodeID *vtxdist,
+    GlobalEdgeID *xadj,
+    GlobalNodeID *adjncy,
+    GlobalNodeWeight *vwgt,
+    GlobalEdgeWeight *adjwgt
+) {
   SCOPED_TIMER("IO");
 
   const PEID size = mpi::get_comm_size(_comm);
@@ -143,11 +163,21 @@ void dKaMinPar::import_graph(GlobalNodeID *vtxdist, GlobalEdgeID *xadj,
   scalable_vector<GlobalNodeID> node_distribution(vtxdist, vtxdist + size + 1);
   scalable_vector<GlobalEdgeID> edge_distribution(size + 1);
   edge_distribution[rank] = m;
-  MPI_Allgather(MPI_IN_PLACE, 1, mpi::type::get<GlobalEdgeID>(),
-                edge_distribution.data(), 1, mpi::type::get<GlobalEdgeID>(),
-                _comm);
-  std::exclusive_scan(edge_distribution.begin(), edge_distribution.end(),
-                      edge_distribution.begin(), static_cast<GlobalEdgeID>(0));
+  MPI_Allgather(
+      MPI_IN_PLACE,
+      1,
+      mpi::type::get<GlobalEdgeID>(),
+      edge_distribution.data(),
+      1,
+      mpi::type::get<GlobalEdgeID>(),
+      _comm
+  );
+  std::exclusive_scan(
+      edge_distribution.begin(),
+      edge_distribution.end(),
+      edge_distribution.begin(),
+      static_cast<GlobalEdgeID>(0)
+  );
 
   scalable_vector<EdgeID> nodes;
   scalable_vector<NodeID> edges;
@@ -158,8 +188,9 @@ void dKaMinPar::import_graph(GlobalNodeID *vtxdist, GlobalEdgeID *xadj,
   tbb::parallel_invoke(
       [&] {
         nodes.resize(n + 1);
-        tbb::parallel_for<NodeID>(0, n + 1,
-                                  [&](const NodeID u) { nodes[u] = xadj[u]; });
+        tbb::parallel_for<NodeID>(0, n + 1, [&](const NodeID u) {
+          nodes[u] = xadj[u];
+        });
       },
       [&] {
         edges.resize(m);
@@ -177,37 +208,52 @@ void dKaMinPar::import_graph(GlobalNodeID *vtxdist, GlobalEdgeID *xadj,
           return;
         }
         node_weights.resize(n);
-        tbb::parallel_for<NodeID>(
-            0, n, [&](const NodeID u) { node_weights[u] = vwgt[u]; });
+        tbb::parallel_for<NodeID>(0, n, [&](const NodeID u) {
+          node_weights[u] = vwgt[u];
+        });
       },
       [&] {
         if (adjwgt == nullptr) {
           return;
         }
         edge_weights.resize(m);
-        tbb::parallel_for<EdgeID>(
-            0, m, [&](const EdgeID e) { edge_weights[e] = adjwgt[e]; });
-      });
+        tbb::parallel_for<EdgeID>(0, m, [&](const EdgeID e) {
+          edge_weights[e] = adjwgt[e];
+        });
+      }
+  );
 
   auto [global_to_ghost, ghost_to_global, ghost_owner] = mapper.finalize();
 
   _graph_ptr = std::make_unique<DistributedGraph>(
-      std::move(node_distribution), std::move(edge_distribution),
-      std::move(nodes), std::move(edges), std::move(node_weights),
-      std::move(edge_weights), std::move(ghost_owner),
-      std::move(ghost_to_global), std::move(global_to_ghost), false, _comm);
+      std::move(node_distribution),
+      std::move(edge_distribution),
+      std::move(nodes),
+      std::move(edges),
+      std::move(node_weights),
+      std::move(edge_weights),
+      std::move(ghost_owner),
+      std::move(ghost_to_global),
+      std::move(global_to_ghost),
+      false,
+      _comm
+  );
 }
 
-GlobalEdgeWeight dKaMinPar::compute_partition(const int seed, const BlockID k,
-                                              BlockID *partition) {
+GlobalEdgeWeight dKaMinPar::compute_partition(
+    const int seed, const BlockID k, BlockID *partition
+) {
   auto &graph = *_graph_ptr;
 
   const PEID size = mpi::get_comm_size(_comm);
   const PEID rank = mpi::get_comm_rank(_comm);
   const bool root = rank == 0;
 
-  KASSERT(graph::debug::validate(graph),
-          "input graph failed graph verification", assert::heavy);
+  KASSERT(
+      graph::debug::validate(graph),
+      "input graph failed graph verification",
+      assert::heavy
+  );
 
   // Make number of processes and number of threads available via
   // ParallelContext
@@ -223,8 +269,9 @@ GlobalEdgeWeight dKaMinPar::compute_partition(const int seed, const BlockID k,
   Logger::set_quiet_mode(_output_level == OutputLevel::QUIET);
 
   if (_output_level >= OutputLevel::APPLICATION) {
-    print_input_summary(_ctx, graph, _output_level == OutputLevel::EXPERIMENT,
-                        root);
+    print_input_summary(
+        _ctx, graph, _output_level == OutputLevel::EXPERIMENT, root
+    );
   }
 
   START_TIMER("Partitioning");
@@ -235,9 +282,11 @@ GlobalEdgeWeight dKaMinPar::compute_partition(const int seed, const BlockID k,
   auto p_graph = factory::create_partitioner(_ctx, graph)->partition();
   STOP_TIMER();
 
-  KASSERT(graph::debug::validate_partition(p_graph),
-          "graph partition verification failed after partitioning",
-          assert::heavy);
+  KASSERT(
+      graph::debug::validate_partition(p_graph),
+      "graph partition verification failed after partitioning",
+      assert::heavy
+  );
 
   START_TIMER("IO");
   if (graph.permuted()) {
@@ -255,8 +304,13 @@ GlobalEdgeWeight dKaMinPar::compute_partition(const int seed, const BlockID k,
   STOP_TIMER(); // stop root timer
 
   if (_output_level >= OutputLevel::APPLICATION) {
-    print_partition_summary(_ctx, p_graph, _max_timer_depth,
-                            _output_level == OutputLevel::EXPERIMENT, root);
+    print_partition_summary(
+        _ctx,
+        p_graph,
+        _max_timer_depth,
+        _output_level == OutputLevel::EXPERIMENT,
+        root
+    );
   }
 
   return metrics::edge_cut(p_graph);

@@ -101,7 +101,8 @@ class LPRefinerImpl final
       auto num_tentatively_moved_nodes_str =
           mpi::gather_statistics_str(num_tentatively_moved_nodes.load(), comm);
       auto num_tentatively_rejected_nodes_str = mpi::gather_statistics_str(
-          num_tentatively_rejected_nodes.load(), comm);
+          num_tentatively_rejected_nodes.load(), comm
+      );
 
       STATS << "DistributedProbabilisticLabelPropagationRefiner:";
       STATS << "- Iterations: " << num_successful_moves << " ok, "
@@ -128,16 +129,19 @@ class LPRefinerImpl final
 
 public:
   explicit LPRefinerImpl(const Context &ctx)
-      : _lp_ctx{ctx.refinement.lp}, _par_ctx(ctx.parallel),
-        _next_partition(ctx.partition.graph->n), _gains(ctx.partition.graph->n),
+      : _lp_ctx{ctx.refinement.lp},
+        _par_ctx(ctx.parallel),
+        _next_partition(ctx.partition.graph->n),
+        _gains(ctx.partition.graph->n),
         _block_weights(ctx.partition.k) {
     set_max_degree(_lp_ctx.active_high_degree_threshold);
-    allocate(ctx.partition.graph->total_n, ctx.partition.graph->n,
-             ctx.partition.k);
+    allocate(
+        ctx.partition.graph->total_n, ctx.partition.graph->n, ctx.partition.k
+    );
   }
 
-  void refine(DistributedPartitionedGraph &p_graph,
-              const PartitionContext &p_ctx) {
+  void
+  refine(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) {
     SCOPED_TIMER("Probabilistic label propagation");
     _p_graph = &p_graph;
     _p_ctx = &p_ctx;
@@ -189,7 +193,8 @@ private:
     START_TIMER("Label propagation");
     const NodeID num_moved_nodes = perform_iteration(from, to);
     const auto global_num_moved_nodes = mpi::allreduce<GlobalNodeID>(
-        num_moved_nodes, MPI_SUM, _graph->communicator());
+        num_moved_nodes, MPI_SUM, _graph->communicator()
+    );
     STOP_TIMER();
 
     if (global_num_moved_nodes == 0) {
@@ -223,14 +228,19 @@ private:
     // gather statistics
     std::vector<EdgeWeight> global_gain_to(_p_ctx->k);
     if (!_lp_ctx.ignore_probabilities) {
-      mpi::allreduce(gain_to_block.data(), global_gain_to.data(),
-                     static_cast<int>(_p_ctx->k), MPI_SUM,
-                     _graph->communicator());
+      mpi::allreduce(
+          gain_to_block.data(),
+          global_gain_to.data(),
+          static_cast<int>(_p_ctx->k),
+          MPI_SUM,
+          _graph->communicator()
+      );
     }
 
     for (const BlockID b : _p_graph->blocks()) {
-      residual_cluster_weights.push_back(max_cluster_weight(b) -
-                                         _p_graph->block_weight(b));
+      residual_cluster_weights.push_back(
+          max_cluster_weight(b) - _p_graph->block_weight(b)
+      );
       global_total_gains_to_block.push_back(global_gain_to[b]);
     }
     STOP_TIMER();
@@ -238,8 +248,9 @@ private:
     // perform probabilistic moves
     START_TIMER("Perform moves");
     for (int i = 0; i < _lp_ctx.num_move_attempts; ++i) {
-      if (perform_moves(from, to, residual_cluster_weights,
-                        global_total_gains_to_block)) {
+      if (perform_moves(
+              from, to, residual_cluster_weights, global_total_gains_to_block
+          )) {
         break;
       }
     }
@@ -257,9 +268,12 @@ private:
     return global_num_moved_nodes;
   }
 
-  bool perform_moves(const NodeID from, const NodeID to,
-                     const std::vector<BlockWeight> &residual_block_weights,
-                     const std::vector<EdgeWeight> &total_gains_to_block) {
+  bool perform_moves(
+      const NodeID from,
+      const NodeID to,
+      const std::vector<BlockWeight> &residual_block_weights,
+      const std::vector<EdgeWeight> &total_gains_to_block
+  ) {
     mpi::barrier(_graph->communicator());
 #if KASSERT_ENABLED(ASSERTION_LEVEL_HEAVY)
     KASSERT(graph::debug::validate_partition(*_p_graph), "", assert::heavy);
@@ -274,8 +288,9 @@ private:
     // perform probabilistic moves, but keep track of moves in case we need to
     // roll back
     NoinitVector<BlockWeight> block_weight_deltas(_p_ctx->k);
-    tbb::parallel_for<BlockID>(
-        0, _p_ctx->k, [&](const BlockID b) { block_weight_deltas[b] = 0; });
+    tbb::parallel_for<BlockID>(0, _p_ctx->k, [&](const BlockID b) {
+      block_weight_deltas[b] = 0;
+    });
 
     tbb::concurrent_vector<Move> moves;
 
@@ -313,10 +328,12 @@ private:
           const NodeWeight u_weight = _p_graph->node_weight(u);
 
           moves.emplace_back(u, from);
-          __atomic_fetch_sub(&block_weight_deltas[from], u_weight,
-                             __ATOMIC_RELAXED);
-          __atomic_fetch_add(&block_weight_deltas[to], u_weight,
-                             __ATOMIC_RELAXED);
+          __atomic_fetch_sub(
+              &block_weight_deltas[from], u_weight, __ATOMIC_RELAXED
+          );
+          __atomic_fetch_add(
+              &block_weight_deltas[to], u_weight, __ATOMIC_RELAXED
+          );
           _p_graph->set_block<false>(u, to);
 
           // temporary mark that this node was actually moved
@@ -332,8 +349,9 @@ private:
     });
 
     // compute global block weights after moves
-    mpi::inplace_sparse_allreduce(block_weight_deltas, _p_ctx->k, MPI_SUM,
-                                  _p_graph->communicator());
+    mpi::inplace_sparse_allreduce(
+        block_weight_deltas, _p_ctx->k, MPI_SUM, _p_graph->communicator()
+    );
 
     // check for balance violations
     parallel::Atomic<std::uint8_t> feasible = 1;
@@ -369,8 +387,9 @@ private:
       });
     } else { // otherwise, update block weights
       _p_graph->pfor_blocks([&](const BlockID b) {
-        _p_graph->set_block_weight(b, _p_graph->block_weight(b) +
-                                          block_weight_deltas[b]);
+        _p_graph->set_block_weight(
+            b, _p_graph->block_weight(b) + block_weight_deltas[b]
+        );
       });
     }
 
@@ -389,7 +408,9 @@ private:
     };
 
     mpi::graph::sparse_alltoall_interface_to_pe<MoveMessage>(
-        *_graph, from, to,
+        *_graph,
+        from,
+        to,
 
         // we set _next_partition[] to kInvalidBlockID for nodes that were moved
         // during perform_moves()
@@ -409,21 +430,25 @@ private:
         // move ghost nodes
         [&](const auto recv_buffer, const PEID pe) {
           tbb::parallel_for(
-              static_cast<std::size_t>(0), recv_buffer.size(),
+              static_cast<std::size_t>(0),
+              recv_buffer.size(),
               [&](const std::size_t i) {
                 const auto [local_node_on_pe, new_block] = recv_buffer[i];
                 const auto global_node = static_cast<GlobalNodeID>(
-                    _p_graph->offset_n(pe) + local_node_on_pe);
+                    _p_graph->offset_n(pe) + local_node_on_pe
+                );
                 const NodeID local_node =
                     _p_graph->global_to_local_node(global_node);
                 KASSERT(
-                    new_block !=
-                    _p_graph->block(local_node)); // otherwise, we should not
-                                                  // have gotten this message
+                    new_block != _p_graph->block(local_node)
+                ); // otherwise, we should not
+                   // have gotten this message
 
                 _p_graph->set_block<false>(local_node, new_block);
-              });
-        });
+              }
+          );
+        }
+    );
   }
 
 public:
@@ -467,9 +492,12 @@ public:
     return _p_ctx->graph->max_block_weight(b);
   }
 
-  [[nodiscard]] bool move_cluster_weight(const BlockID from, const BlockID to,
-                                         const BlockWeight delta,
-                                         const BlockWeight max_weight) {
+  [[nodiscard]] bool move_cluster_weight(
+      const BlockID from,
+      const BlockID to,
+      const BlockWeight delta,
+      const BlockWeight max_weight
+  ) {
     if (_block_weights[to] + delta <= max_weight) {
       _block_weights[to] += delta;
       _block_weights[from] -= delta;
@@ -536,8 +564,9 @@ LPRefiner::~LPRefiner() = default;
 
 void LPRefiner::initialize(const DistributedGraph &) {}
 
-void LPRefiner::refine(DistributedPartitionedGraph &p_graph,
-                       const PartitionContext &p_ctx) {
+void LPRefiner::refine(
+    DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx
+) {
   _impl->refine(p_graph, p_ctx);
 }
 } // namespace kaminpar::dist

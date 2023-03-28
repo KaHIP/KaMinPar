@@ -29,19 +29,23 @@ public:
   };
 
   explicit GhostNodeMapper(
-      MPI_Comm comm, const scalable_vector<GlobalNodeID> &node_distribution)
+      MPI_Comm comm, const scalable_vector<GlobalNodeID> &node_distribution
+  )
       : _node_distribution{node_distribution} {
     const PEID rank = mpi::get_comm_rank(comm);
-    _n = static_cast<NodeID>(_node_distribution[rank + 1] -
-                             _node_distribution[rank]);
+    _n = static_cast<NodeID>(
+        _node_distribution[rank + 1] - _node_distribution[rank]
+    );
     _next_ghost_node = _n;
   }
 
   explicit GhostNodeMapper(
-      const scalable_vector<GlobalNodeID> &node_distribution, const PEID rank)
+      const scalable_vector<GlobalNodeID> &node_distribution, const PEID rank
+  )
       : _node_distribution{node_distribution} {
-    _n = static_cast<NodeID>(_node_distribution[rank + 1] -
-                             _node_distribution[rank]);
+    _n = static_cast<NodeID>(
+        _node_distribution[rank + 1] - _node_distribution[rank]
+    );
     _next_ghost_node = _n;
   }
 
@@ -72,22 +76,28 @@ public:
         const GlobalNodeID global_node = it->first;
         const NodeID local_node = it->second;
         const NodeID local_ghost = local_node - _n;
-        const auto owner_it =
-            std::upper_bound(_node_distribution.begin() + 1,
-                             _node_distribution.end(), global_node);
+        const auto owner_it = std::upper_bound(
+            _node_distribution.begin() + 1,
+            _node_distribution.end(),
+            global_node
+        );
         const PEID owner = static_cast<PEID>(
-            std::distance(_node_distribution.begin(), owner_it) - 1);
+            std::distance(_node_distribution.begin(), owner_it) - 1
+        );
 
         ghost_to_global[local_ghost] = global_node;
         ghost_owner[local_ghost] = owner;
-        global_to_ghost.insert(global_node + 1,
-                               local_node); // 0 cannot be used as a key
+        global_to_ghost.insert(
+            global_node + 1,
+            local_node
+        ); // 0 cannot be used as a key
       }
     });
 
-    return {.global_to_ghost = std::move(global_to_ghost),
-            .ghost_to_global = std::move(ghost_to_global),
-            .ghost_owner = std::move(ghost_owner)};
+    return {
+        .global_to_ghost = std::move(global_to_ghost),
+        .ghost_to_global = std::move(ghost_to_global),
+        .ghost_owner = std::move(ghost_owner)};
   }
 
 private:
@@ -106,7 +116,9 @@ public:
   Builder &initialize(const NodeID n) {
     return initialize(
         mpi::build_distribution_from_local_count<GlobalNodeID, scalable_vector>(
-            n, _comm));
+            n, _comm
+        )
+    );
   }
 
   Builder &initialize(scalable_vector<GlobalNodeID> node_distribution) {
@@ -127,8 +139,8 @@ public:
     return *this;
   }
 
-  Builder &change_local_node_weight(const NodeID node,
-                                    const NodeWeight weight) {
+  Builder &
+  change_local_node_weight(const NodeID node, const NodeWeight weight) {
     KASSERT(node < _node_weights.size());
     _node_weights[node] = weight;
     _unit_node_weights = _unit_node_weights && (weight == 1);
@@ -166,19 +178,21 @@ public:
     const EdgeID m = _edges.size();
     auto edge_distribution =
         mpi::build_distribution_from_local_count<GlobalEdgeID, scalable_vector>(
-            m, _comm);
+            m, _comm
+        );
 
-    DistributedGraph graph{std::move(_node_distribution),
-                           std::move(edge_distribution),
-                           std::move(_nodes),
-                           std::move(_edges),
-                           std::move(_node_weights),
-                           std::move(_edge_weights),
-                           std::move(_ghost_owner),
-                           std::move(_ghost_to_global),
-                           std::move(_global_to_ghost),
-                           false,
-                           _comm};
+    DistributedGraph graph{
+        std::move(_node_distribution),
+        std::move(edge_distribution),
+        std::move(_nodes),
+        std::move(_edges),
+        std::move(_node_weights),
+        std::move(_edge_weights),
+        std::move(_ghost_owner),
+        std::move(_ghost_to_global),
+        std::move(_global_to_ghost),
+        false,
+        _comm};
 
     // If the graph does not have unit node weights, exchange ghost node weights
     // now
@@ -195,13 +209,18 @@ public:
           },
           [&](const auto buffer, const PEID pe) {
             tbb::parallel_for<std::size_t>(
-                0, buffer.size(), [&](const std::size_t i) {
+                0,
+                buffer.size(),
+                [&](const std::size_t i) {
                   const auto &[local_node_on_other_pe, weight] = buffer[i];
                   const NodeID local_node = graph.global_to_local_node(
-                      graph.offset_n(pe) + local_node_on_other_pe);
+                      graph.offset_n(pe) + local_node_on_other_pe
+                  );
                   graph.set_ghost_node_weight(local_node, weight);
-                });
-          });
+                }
+            );
+          }
+      );
     }
 
     return graph;
@@ -224,8 +243,9 @@ private:
   }
 
   PEID find_ghost_owner(const GlobalNodeID global_u) const {
-    auto it = std::upper_bound(_node_distribution.begin() + 1,
-                               _node_distribution.end(), global_u);
+    auto it = std::upper_bound(
+        _node_distribution.begin() + 1, _node_distribution.end(), global_u
+    );
     KASSERT(it != _node_distribution.end());
     return static_cast<PEID>(std::distance(_node_distribution.begin(), it) - 1);
   }

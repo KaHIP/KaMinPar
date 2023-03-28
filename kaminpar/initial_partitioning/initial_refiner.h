@@ -57,7 +57,9 @@ public:
     }
   };
 
-  [[nodiscard]] NodeWeight expected_total_gain() const final { return 0; }
+  [[nodiscard]] NodeWeight expected_total_gain() const final {
+    return 0;
+  }
 
   virtual MemoryContext free() = 0;
 };
@@ -70,7 +72,9 @@ public:
   bool refine(PartitionedGraph &, const PartitionContext &) final {
     return false;
   }
-  MemoryContext free() override { return std::move(_m_ctx); }
+  MemoryContext free() override {
+    return std::move(_m_ctx);
+  }
 
 private:
   MemoryContext _m_ctx;
@@ -82,8 +86,12 @@ struct SimpleStoppingPolicy {
   [[nodiscard]] bool should_stop(const FMRefinementContext &fm_ctx) const {
     return _num_steps > fm_ctx.num_fruitless_moves;
   }
-  void reset() { _num_steps = 0; }
-  void update(const Gain) { ++_num_steps; }
+  void reset() {
+    _num_steps = 0;
+  }
+  void update(const Gain) {
+    ++_num_steps;
+  }
 
 private:
   std::size_t _num_steps{0};
@@ -93,7 +101,9 @@ private:
 // Implementation copied from: KaHyPar -> AdvancedRandomWalkModelStopsSearch,
 // Copyright (C) Sebastian Schlag
 struct AdaptiveStoppingPolicy {
-  void init(const Graph *graph) { _beta = std::sqrt(graph->n()); }
+  void init(const Graph *graph) {
+    _beta = std::sqrt(graph->n());
+  }
 
   [[nodiscard]] bool should_stop(const FMRefinementContext &fm_ctx) const {
     const double factor = (fm_ctx.alpha / 2.0) - 0.25;
@@ -138,9 +148,12 @@ private:
 //! Always move the next node from the heavier block. This should improve
 //! balance.
 struct MaxWeightSelectionPolicy {
-  std::size_t operator()(const PartitionedGraph &p_graph,
-                         const PartitionContext &context, const Queues &,
-                         Random &rand) {
+  std::size_t operator()(
+      const PartitionedGraph &p_graph,
+      const PartitionContext &context,
+      const Queues &,
+      Random &rand
+  ) {
     const auto weight0 =
         p_graph.block_weight(0) - context.block_weights.perfectly_balanced(0);
     const auto weight1 =
@@ -151,9 +164,12 @@ struct MaxWeightSelectionPolicy {
 
 //! Always select the node with the highest gain / lowest loss.
 struct MaxGainSelectionPolicy {
-  std::size_t operator()(const PartitionedGraph &p_graph,
-                         const PartitionContext &context, const Queues &queues,
-                         Random &rand) {
+  std::size_t operator()(
+      const PartitionedGraph &p_graph,
+      const PartitionContext &context,
+      const Queues &queues,
+      Random &rand
+  ) {
     const auto loss0 = queues[0].empty() ? std::numeric_limits<Gain>::max()
                                          : queues[0].peek_key();
     const auto loss1 = queues[1].empty() ? std::numeric_limits<Gain>::max()
@@ -166,13 +182,18 @@ struct MaxGainSelectionPolicy {
 };
 
 struct MaxOverloadSelectionPolicy {
-  std::size_t operator()(const PartitionedGraph &p_graph,
-                         const PartitionContext &context, const Queues &queues,
-                         Random &rand) {
+  std::size_t operator()(
+      const PartitionedGraph &p_graph,
+      const PartitionContext &context,
+      const Queues &queues,
+      Random &rand
+  ) {
     const NodeWeight overload0 = std::max<NodeWeight>(
-        0, p_graph.block_weight(0) - context.block_weights.max(0));
+        0, p_graph.block_weight(0) - context.block_weights.max(0)
+    );
     const NodeWeight overload1 = std::max<NodeWeight>(
-        0, p_graph.block_weight(1) - context.block_weights.max(1));
+        0, p_graph.block_weight(1) - context.block_weights.max(1)
+    );
     if (overload0 == 0 && overload1 == 0) {
       return MaxGainSelectionPolicy()(p_graph, context, queues, rand);
     }
@@ -184,10 +205,14 @@ struct MaxOverloadSelectionPolicy {
 //! Accept better cuts, or the first cut that is balanced in case the initial
 //! cut is not balanced.
 struct BalancedMinCutAcceptancePolicy {
-  bool operator()(const PartitionedGraph &, const PartitionContext &,
-                  const EdgeWeight accepted_overload,
-                  const EdgeWeight current_overload, const Gain accepted_delta,
-                  const Gain delta) {
+  bool operator()(
+      const PartitionedGraph &,
+      const PartitionContext &,
+      const EdgeWeight accepted_overload,
+      const EdgeWeight current_overload,
+      const Gain accepted_delta,
+      const Gain delta
+  ) {
     return current_overload <= accepted_overload && delta < accepted_delta;
   }
 };
@@ -203,8 +228,10 @@ struct BalancedMinCutAcceptancePolicy {
  * node.
  * @tparam CutAcceptancePolicy Decides whether we accept the current cut.
  */
-template <typename QueueSelectionPolicy, typename CutAcceptancePolicy,
-          typename StoppingPolicy>
+template <
+    typename QueueSelectionPolicy,
+    typename CutAcceptancePolicy,
+    typename StoppingPolicy>
 class InitialTwoWayFMRefiner : public InitialRefiner {
   static constexpr NodeID kChunkSize = 64;
   static constexpr std::size_t kNumberOfNodePermutations = 32;
@@ -212,14 +239,22 @@ class InitialTwoWayFMRefiner : public InitialRefiner {
   static constexpr bool kDebug = false;
 
 public:
-  InitialTwoWayFMRefiner(const NodeID n, const PartitionContext &p_ctx,
-                         const RefinementContext &r_ctx,
-                         MemoryContext m_ctx = {})
-      : _p_ctx{p_ctx}, _r_ctx{r_ctx}, _queues{std::move(m_ctx.queues)}, //
-        _marker{std::move(m_ctx.marker)}, _weighted_degrees{std::move(
-                                              m_ctx.weighted_degrees)} {
-    KASSERT(p_ctx.k == 2u, "2-way refiner cannot be used on a "
-                               << p_ctx.k << "-way partition" << assert::light);
+  InitialTwoWayFMRefiner(
+      const NodeID n,
+      const PartitionContext &p_ctx,
+      const RefinementContext &r_ctx,
+      MemoryContext m_ctx = {}
+  )
+      : _p_ctx{p_ctx},
+        _r_ctx{r_ctx},
+        _queues{std::move(m_ctx.queues)}, //
+        _marker{std::move(m_ctx.marker)},
+        _weighted_degrees{std::move(m_ctx.weighted_degrees)} {
+    KASSERT(
+        p_ctx.k == 2u,
+        "2-way refiner cannot be used on a " << p_ctx.k << "-way partition"
+                                             << assert::light
+    );
 
     if (_queues[0].capacity() < n) {
       _queues[0].resize(n);
@@ -246,12 +281,16 @@ public:
   }
 
   bool refine(PartitionedGraph &p_graph, const PartitionContext &) final {
-    KASSERT(&p_graph.graph() == _graph,
-            "must be initialized with the same graph", assert::light);
-    KASSERT(p_graph.k() == 2u,
-            "2-way refiner cannot be used on a " << p_graph.k()
-                                                 << "-way partition",
-            assert::light);
+    KASSERT(
+        &p_graph.graph() == _graph,
+        "must be initialized with the same graph",
+        assert::light
+    );
+    KASSERT(
+        p_graph.k() == 2u,
+        "2-way refiner cannot be used on a " << p_graph.k() << "-way partition",
+        assert::light
+    );
 
     const EdgeWeight initial_edge_cut = metrics::edge_cut(p_graph, tag::seq);
     if (initial_edge_cut == 0) {
@@ -274,14 +313,16 @@ public:
   }
 
   MemoryContext free() final {
-    return {.queues = std::move(_queues),
-            .marker = std::move(_marker),
-            .weighted_degrees = std::move(_weighted_degrees)};
+    return {
+        .queues = std::move(_queues),
+        .marker = std::move(_marker),
+        .weighted_degrees = std::move(_weighted_degrees)};
   }
 
 private:
-  [[nodiscard]] bool abort(const EdgeWeight prev_edge_weight,
-                           const EdgeWeight cur_edge_weight) const {
+  [[nodiscard]] bool abort(
+      const EdgeWeight prev_edge_weight, const EdgeWeight cur_edge_weight
+  ) const {
     return (1.0 - 1.0 * cur_edge_weight / prev_edge_weight) <
            _r_ctx.fm.improvement_abortion_threshold;
   }
@@ -294,8 +335,11 @@ private:
    * @return Whether we were able to improve the cut.
    */
   EdgeWeight round(PartitionedGraph &p_graph) {
-    KASSERT(p_graph.k() == 2u,
-            "2-way FM with " << p_graph.k() << "-way partition", assert::light);
+    KASSERT(
+        p_graph.k() == 2u,
+        "2-way FM with " << p_graph.k() << "-way partition",
+        assert::light
+    );
     DBG << "Initial refiner initialized with n=" << p_graph.n()
         << " m=" << p_graph.m();
 
@@ -348,9 +392,12 @@ private:
       current_delta += delta;
       moves.push_back(u);
 #if KASSERT_ENABLED(ASSERTION_LEVEL_HEAVY)
-      KASSERT(initial_edge_cut + current_delta ==
-                  metrics::edge_cut(p_graph, tag::seq),
-              "", assert::heavy);
+      KASSERT(
+          initial_edge_cut + current_delta ==
+              metrics::edge_cut(p_graph, tag::seq),
+          "",
+          assert::heavy
+      );
 #endif
       _stopping_policy.update(-delta); // assumes gain, not loss
       current_overload = metrics::total_overload(p_graph, _p_ctx);
@@ -383,9 +430,14 @@ private:
       }
 
       // accept move if it improves the best edge cut found so far
-      if (_cut_acceptance_policy(p_graph, _p_ctx, accepted_overload,
-                                 current_overload, accepted_delta,
-                                 current_delta)) {
+      if (_cut_acceptance_policy(
+              p_graph,
+              _p_ctx,
+              accepted_overload,
+              current_overload,
+              accepted_delta,
+              current_delta
+          )) {
         DBG << "Accepted new bipartition: delta=" << current_delta
             << " cut=" << metrics::edge_cut(p_graph, tag::seq);
         _stopping_policy.reset();
@@ -407,9 +459,8 @@ private:
     _marker.reset();
 
 #if KASSERT_ENABLED(ASSERTION_LEVEL_HEAVY)
-    KASSERT((!initially_feasible ||
-             accepted_delta <=
-                 0)); // only accept bad cuts when starting with bad balance
+    KASSERT((!initially_feasible || accepted_delta <= 0)
+    ); // only accept bad cuts when starting with bad balance
     KASSERT(metrics::edge_cut(p_graph) == initial_edge_cut + accepted_delta);
 #endif
 
@@ -424,8 +475,12 @@ private:
 
     std::vector<std::size_t> chunks(num_chunks);
     std::iota(chunks.begin(), chunks.end(), 0);
-    std::transform(chunks.begin(), chunks.end(), chunks.begin(),
-                   [](const std::size_t i) { return i * kChunkSize; });
+    std::transform(
+        chunks.begin(),
+        chunks.end(),
+        chunks.begin(),
+        [](const std::size_t i) { return i * kChunkSize; }
+    );
     _rand.shuffle(chunks);
 
     for (const std::size_t chunk : chunks) {
@@ -451,8 +506,8 @@ private:
     }
   }
 
-  EdgeWeight compute_gain_from_scratch(const PartitionedGraph &p_graph,
-                                       const NodeID u) {
+  EdgeWeight
+  compute_gain_from_scratch(const PartitionedGraph &p_graph, const NodeID u) {
     const BlockID u_block = p_graph.block(u);
     EdgeWeight weighted_external_degree = 0;
     for (const auto [e, v] : p_graph.neighbors(u)) {
@@ -492,8 +547,10 @@ private:
         } else {
           KASSERT(_queues[p_graph.block(u)].contains(u));
           KASSERT(!_queues[1 - p_graph.block(u)].contains(u));
-          KASSERT(_queues[p_graph.block(u)].key(u) ==
-                  compute_gain_from_scratch(p_graph, u));
+          KASSERT(
+              _queues[p_graph.block(u)].key(u) ==
+              compute_gain_from_scratch(p_graph, u)
+          );
         }
       } else {
         KASSERT(!_queues[0].contains(u));
@@ -517,19 +574,21 @@ private:
       _permutations;
 };
 
-extern template class InitialTwoWayFMRefiner<fm::MaxOverloadSelectionPolicy,
-                                             fm::BalancedMinCutAcceptancePolicy,
-                                             fm::SimpleStoppingPolicy>;
-extern template class InitialTwoWayFMRefiner<fm::MaxOverloadSelectionPolicy,
-                                             fm::BalancedMinCutAcceptancePolicy,
-                                             fm::AdaptiveStoppingPolicy>;
+extern template class InitialTwoWayFMRefiner<
+    fm::MaxOverloadSelectionPolicy,
+    fm::BalancedMinCutAcceptancePolicy,
+    fm::SimpleStoppingPolicy>;
+extern template class InitialTwoWayFMRefiner<
+    fm::MaxOverloadSelectionPolicy,
+    fm::BalancedMinCutAcceptancePolicy,
+    fm::AdaptiveStoppingPolicy>;
 
-using InitialSimple2WayFM =
-    InitialTwoWayFMRefiner<fm::MaxOverloadSelectionPolicy,
-                           fm::BalancedMinCutAcceptancePolicy,
-                           fm::SimpleStoppingPolicy>;
-using InitialAdaptive2WayFM =
-    InitialTwoWayFMRefiner<fm::MaxOverloadSelectionPolicy,
-                           fm::BalancedMinCutAcceptancePolicy,
-                           fm::AdaptiveStoppingPolicy>;
+using InitialSimple2WayFM = InitialTwoWayFMRefiner<
+    fm::MaxOverloadSelectionPolicy,
+    fm::BalancedMinCutAcceptancePolicy,
+    fm::SimpleStoppingPolicy>;
+using InitialAdaptive2WayFM = InitialTwoWayFMRefiner<
+    fm::MaxOverloadSelectionPolicy,
+    fm::BalancedMinCutAcceptancePolicy,
+    fm::AdaptiveStoppingPolicy>;
 } // namespace kaminpar::shm::ip

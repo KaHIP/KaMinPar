@@ -26,8 +26,10 @@ void invoke_receiver(Buffer buffer, const PEID pe, const Receiver &receiver) {
       std::is_invocable_r_v<void, Receiver, Buffer, PEID>;
   constexpr bool receiver_invocable_without_pe =
       std::is_invocable_r_v<void, Receiver, Buffer>;
-  static_assert(receiver_invocable_with_pe || receiver_invocable_without_pe,
-                "bad receiver type");
+  static_assert(
+      receiver_invocable_with_pe || receiver_invocable_without_pe,
+      "bad receiver type"
+  );
 
   if constexpr (receiver_invocable_with_pe) {
     receiver(std::move(buffer), pe);
@@ -37,14 +39,17 @@ void invoke_receiver(Buffer buffer, const PEID pe, const Receiver &receiver) {
 }
 
 template <typename SendBuffers, typename SendBuffer, typename Receiver>
-void forward_self_buffer(SendBuffer &self_buffer, const PEID rank,
-                         const Receiver &receiver) {
+void forward_self_buffer(
+    SendBuffer &self_buffer, const PEID rank, const Receiver &receiver
+) {
   constexpr bool receiver_invocable_with_pe =
       std::is_invocable_r_v<void, Receiver, SendBuffer, PEID>;
   constexpr bool receiver_invocable_without_pe =
       std::is_invocable_r_v<void, Receiver, SendBuffer>;
-  static_assert(receiver_invocable_with_pe || receiver_invocable_without_pe,
-                "bad receiver type");
+  static_assert(
+      receiver_invocable_with_pe || receiver_invocable_without_pe,
+      "bad receiver type"
+  );
 
   if constexpr (std::is_lvalue_reference_v<SendBuffers>) {
     if constexpr (receiver_invocable_with_pe) {
@@ -62,10 +67,14 @@ void forward_self_buffer(SendBuffer &self_buffer, const PEID rank,
 }
 } // namespace internal
 
-template <typename Message, typename Buffer, typename SendBuffers,
-          typename Receiver>
-void sparse_alltoall_sparse(SendBuffers &&send_buffers, Receiver &&receiver,
-                            MPI_Comm comm) {
+template <
+    typename Message,
+    typename Buffer,
+    typename SendBuffers,
+    typename Receiver>
+void sparse_alltoall_sparse(
+    SendBuffers &&send_buffers, Receiver &&receiver, MPI_Comm comm
+) {
   using namespace internal;
 
   thread_local static int tag_counter = 0;
@@ -86,14 +95,21 @@ void sparse_alltoall_sparse(SendBuffers &&send_buffers, Receiver &&receiver,
     sends_message_to[pe] = true;
     requests.emplace_back();
 
-    MPI_Issend(send_buffers[pe].data(),
-               static_cast<int>(send_buffers[pe].size()),
-               mpi::type::get<Message>(), pe, tag, comm, &requests.back());
+    MPI_Issend(
+        send_buffers[pe].data(),
+        static_cast<int>(send_buffers[pe].size()),
+        mpi::type::get<Message>(),
+        pe,
+        tag,
+        comm,
+        &requests.back()
+    );
   }
 
   if (!send_buffers[rank].empty()) {
-    forward_self_buffer<decltype(send_buffers)>(send_buffers[rank], rank,
-                                                receiver);
+    forward_self_buffer<decltype(send_buffers)>(
+        send_buffers[rank], rank, receiver
+    );
   }
 
   // Receive messages until MPI_Issend is completed
@@ -109,16 +125,26 @@ void sparse_alltoall_sparse(SendBuffers &&send_buffers, Receiver &&receiver,
         int count;
         MPI_Get_count(&status, mpi::type::get<Message>(), &count);
         Buffer recv_buffer(count);
-        mpi::recv(recv_buffer.data(), count, status.MPI_SOURCE, tag, comm,
-                  MPI_STATUS_IGNORE);
+        mpi::recv(
+            recv_buffer.data(),
+            count,
+            status.MPI_SOURCE,
+            tag,
+            comm,
+            MPI_STATUS_IGNORE
+        );
 
         invoke_receiver(std::move(recv_buffer), status.MPI_SOURCE, receiver);
       }
     }
 
     isend_done = 0;
-    MPI_Testall(asserting_cast<int>(requests.size()), requests.data(),
-                &isend_done, MPI_STATUSES_IGNORE);
+    MPI_Testall(
+        asserting_cast<int>(requests.size()),
+        requests.data(),
+        &isend_done,
+        MPI_STATUSES_IGNORE
+    );
   }
 
   MPI_Request barrier_request;
@@ -137,8 +163,14 @@ void sparse_alltoall_sparse(SendBuffers &&send_buffers, Receiver &&receiver,
         int count;
         MPI_Get_count(&status, mpi::type::get<Message>(), &count);
         Buffer recv_buffer(count);
-        mpi::recv(recv_buffer.data(), count, status.MPI_SOURCE, tag, comm,
-                  MPI_STATUS_IGNORE);
+        mpi::recv(
+            recv_buffer.data(),
+            count,
+            status.MPI_SOURCE,
+            tag,
+            comm,
+            MPI_STATUS_IGNORE
+        );
 
         invoke_receiver(std::move(recv_buffer), status.MPI_SOURCE, receiver);
       }
@@ -149,10 +181,14 @@ void sparse_alltoall_sparse(SendBuffers &&send_buffers, Receiver &&receiver,
   }
 }
 
-template <typename Message, typename Buffer, typename SendBuffers,
-          typename Receiver>
-void sparse_alltoall_alltoallv(SendBuffers &&send_buffers, Receiver &&receiver,
-                               MPI_Comm comm) {
+template <
+    typename Message,
+    typename Buffer,
+    typename SendBuffers,
+    typename Receiver>
+void sparse_alltoall_alltoallv(
+    SendBuffers &&send_buffers, Receiver &&receiver, MPI_Comm comm
+) {
   // Note: copies data twice which could be avoided
 
   const auto [size, rank] = mpi::get_comm_info(comm);
@@ -167,11 +203,13 @@ void sparse_alltoall_alltoallv(SendBuffers &&send_buffers, Receiver &&receiver,
   for (PEID pe = 0; pe < size; ++pe) {
     send_counts[pe] = asserting_cast<int>(send_buffers[pe].size());
   }
-  parallel::prefix_sum(send_counts.begin(), send_counts.end(),
-                       send_displs.begin() + 1);
+  parallel::prefix_sum(
+      send_counts.begin(), send_counts.end(), send_displs.begin() + 1
+  );
   mpi::alltoall(send_counts.data(), 1, recv_counts.data(), 1, comm);
-  parallel::prefix_sum(recv_counts.begin(), recv_counts.end(),
-                       recv_displs.begin() + 1);
+  parallel::prefix_sum(
+      recv_counts.begin(), recv_counts.end(), recv_displs.begin() + 1
+  );
 
   // Build shared send buffer
   Buffer common_send_buffer;
@@ -190,9 +228,15 @@ void sparse_alltoall_alltoallv(SendBuffers &&send_buffers, Receiver &&receiver,
   // Exchange data
   Buffer common_recv_buffer(recv_displs.back() + recv_counts.back());
   START_TIMER("MPI_Alltoallv");
-  mpi::alltoallv(common_send_buffer.data(), send_counts.data(),
-                 send_displs.data(), common_recv_buffer.data(),
-                 recv_counts.data(), recv_displs.data(), comm);
+  mpi::alltoallv(
+      common_send_buffer.data(),
+      send_counts.data(),
+      send_displs.data(),
+      common_recv_buffer.data(),
+      recv_counts.data(),
+      recv_displs.data(),
+      comm
+  );
   STOP_TIMER();
 
   // Call receiver
@@ -209,10 +253,14 @@ void sparse_alltoall_alltoallv(SendBuffers &&send_buffers, Receiver &&receiver,
   }
 }
 
-template <typename Message, typename Buffer, typename SendBuffers,
-          typename Receiver>
-void sparse_alltoall_complete(SendBuffers &&send_buffers, Receiver &&receiver,
-                              MPI_Comm comm) {
+template <
+    typename Message,
+    typename Buffer,
+    typename SendBuffers,
+    typename Receiver>
+void sparse_alltoall_complete(
+    SendBuffers &&send_buffers, Receiver &&receiver, MPI_Comm comm
+) {
   const auto [size, rank] = mpi::get_comm_info(comm);
   using namespace internal;
 
@@ -229,8 +277,9 @@ void sparse_alltoall_complete(SendBuffers &&send_buffers, Receiver &&receiver,
 
   for (PEID pe = 0; pe < size; ++pe) {
     if (pe == rank) {
-      forward_self_buffer<decltype(send_buffers)>(send_buffers[rank], rank,
-                                                  receiver);
+      forward_self_buffer<decltype(send_buffers)>(
+          send_buffers[rank], rank, receiver
+      );
     } else if (pe != rank) {
       auto recv_buffer =
           mpi::probe_recv<Message, Buffer>(pe, 0, comm, MPI_STATUS_IGNORE);

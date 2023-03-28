@@ -48,7 +48,9 @@ public:
   [[nodiscard]] virtual std::size_t size() const = 0;
 
   /** @return Whether we have not computed any coarse graphs so far. */
-  [[nodiscard]] bool empty() const { return size() == 0; }
+  [[nodiscard]] bool empty() const {
+    return size() == 0;
+  }
 
   /**
    * Projects a partition of the currently coarsest graph onto the next finer

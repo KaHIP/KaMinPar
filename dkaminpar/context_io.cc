@@ -62,8 +62,8 @@ get_global_clustering_algorithms() {
   };
 }
 
-std::ostream &operator<<(std::ostream &out,
-                         const GlobalClusteringAlgorithm algorithm) {
+std::ostream &
+operator<<(std::ostream &out, const GlobalClusteringAlgorithm algorithm) {
   switch (algorithm) {
   case GlobalClusteringAlgorithm::NOOP:
     return out << "noop";
@@ -86,8 +86,8 @@ get_local_clustering_algorithms() {
   };
 }
 
-std::ostream &operator<<(std::ostream &out,
-                         const LocalClusteringAlgorithm algorithm) {
+std::ostream &
+operator<<(std::ostream &out, const LocalClusteringAlgorithm algorithm) {
   switch (algorithm) {
   case LocalClusteringAlgorithm::NOOP:
     return out << "noop";
@@ -109,8 +109,8 @@ get_contraction_algorithms() {
   };
 }
 
-std::ostream &operator<<(std::ostream &out,
-                         const ContractionAlgorithm algorithm) {
+std::ostream &
+operator<<(std::ostream &out, const ContractionAlgorithm algorithm) {
   switch (algorithm) {
   case ContractionAlgorithm::LEGACY_NO_MIGRATION:
     return out << "legacy-no-migration";
@@ -134,8 +134,8 @@ get_initial_partitioning_algorithms() {
   };
 }
 
-std::ostream &operator<<(std::ostream &out,
-                         const InitialPartitioningAlgorithm algorithm) {
+std::ostream &
+operator<<(std::ostream &out, const InitialPartitioningAlgorithm algorithm) {
   switch (algorithm) {
   case InitialPartitioningAlgorithm::KAMINPAR:
     return out << "kaminpar";
@@ -160,8 +160,8 @@ get_kway_refinement_algorithms() {
   };
 }
 
-std::ostream &operator<<(std::ostream &out,
-                         const KWayRefinementAlgorithm algorithm) {
+std::ostream &
+operator<<(std::ostream &out, const KWayRefinementAlgorithm algorithm) {
   switch (algorithm) {
   case KWayRefinementAlgorithm::NOOP:
     return out << "noop";
@@ -189,8 +189,9 @@ get_label_propagation_move_execution_strategies() {
   };
 }
 
-std::ostream &operator<<(std::ostream &out,
-                         const LabelPropagationMoveExecutionStrategy strategy) {
+std::ostream &operator<<(
+    std::ostream &out, const LabelPropagationMoveExecutionStrategy strategy
+) {
   switch (strategy) {
   case LabelPropagationMoveExecutionStrategy::PROBABILISTIC:
     return out << "probabilistic";
@@ -290,8 +291,11 @@ void print(const PartitionContext &ctx, const bool root, std::ostream &out) {
   }
 }
 
-void print(const CoarseningContext &ctx, const ParallelContext &parallel,
-           std::ostream &out) {
+void print(
+    const CoarseningContext &ctx,
+    const ParallelContext &parallel,
+    std::ostream &out
+) {
   out << "Contraction limit:            " << ctx.contraction_limit << "\n";
   if (ctx.max_global_clustering_levels > 0 &&
       ctx.max_local_clustering_levels > 0) {
@@ -440,8 +444,7 @@ void print(const RefinementContext &ctx, std::ostream &out) {
         LabelPropagationMoveExecutionStrategy::PROBABILISTIC) {
       out << "    Number of attempts:       "
           << ctx.colored_lp.num_probabilistic_move_attempts << "\n";
-    } else if (ctx.colored_lp.move_execution_strategy ==
-               LabelPropagationMoveExecutionStrategy::BEST_MOVES) {
+    } else if (ctx.colored_lp.move_execution_strategy == LabelPropagationMoveExecutionStrategy::BEST_MOVES) {
       out << "    Sort by:                  "
           << (ctx.colored_lp.sort_by_rel_gain ? "relative gain"
                                               : "absolute gain")

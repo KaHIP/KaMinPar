@@ -41,7 +41,8 @@
    << LOG_RANK << " " << kaminpar::logger::RED << "[Fatal] ")
 #define FATAL_PERROR                                                           \
   (kaminpar::DisposableLogger<true>(                                           \
-       std::cout, std::string(": ") + std::strerror(errno) + "\n")             \
+       std::cout, std::string(": ") + std::strerror(errno) + "\n"              \
+   )                                                                           \
    << LOG_RANK << " " << kaminpar::logger::RED << "[Fatal] ")
 
 #define DLOG (kaminpar::Logger() << LOG_RANK << " ")
@@ -51,9 +52,13 @@
 namespace kaminpar::dist {
 class SynchronizedLogger {
 public:
-  explicit SynchronizedLogger(const int root = 0,
-                              MPI_Comm comm = MPI_COMM_WORLD)
-      : _buf{}, _logger{_buf}, _root{root}, _comm{comm} {}
+  explicit SynchronizedLogger(
+      const int root = 0, MPI_Comm comm = MPI_COMM_WORLD
+  )
+      : _buf{},
+        _logger{_buf},
+        _root{root},
+        _comm{comm} {}
 
   ~SynchronizedLogger() {
     _logger.flush();
@@ -64,8 +69,14 @@ public:
 
     if (rank != _root) {
       std::string str = _buf.str();
-      MPI_Send(str.data(), static_cast<int>(str.length()), MPI_CHAR, _root, 0,
-               MPI_COMM_WORLD);
+      MPI_Send(
+          str.data(),
+          static_cast<int>(str.length()),
+          MPI_CHAR,
+          _root,
+          0,
+          MPI_COMM_WORLD
+      );
     } else {
       kaminpar::Logger logger;
 
@@ -82,8 +93,9 @@ public:
           MPI_Get_count(&status, MPI_CHAR, &cnt);
 
           char *str = new char[cnt];
-          MPI_Recv(str, cnt, MPI_CHAR, pe, 0, MPI_COMM_WORLD,
-                   MPI_STATUS_IGNORE);
+          MPI_Recv(
+              str, cnt, MPI_CHAR, pe, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE
+          );
 
           logger << std::string(str, cnt);
 

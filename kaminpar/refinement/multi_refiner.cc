@@ -20,8 +20,9 @@ void MultiRefiner::initialize(const Graph &graph) {
   }
 }
 
-bool MultiRefiner::refine(PartitionedGraph &p_graph,
-                          const PartitionContext &p_ctx) {
+bool MultiRefiner::refine(
+    PartitionedGraph &p_graph, const PartitionContext &p_ctx
+) {
   bool found_improvement = false;
   for (const auto &refiner : _refiners) {
     found_improvement |= refiner->refine(p_graph, p_ctx);

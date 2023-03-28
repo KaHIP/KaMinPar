@@ -8,10 +8,12 @@
 #include "kaminpar/initial_partitioning/initial_refiner.h"
 
 namespace kaminpar::shm::ip {
-template class InitialTwoWayFMRefiner<fm::MaxOverloadSelectionPolicy,
-                                      fm::BalancedMinCutAcceptancePolicy,
-                                      fm::SimpleStoppingPolicy>;
-template class InitialTwoWayFMRefiner<fm::MaxOverloadSelectionPolicy,
-                                      fm::BalancedMinCutAcceptancePolicy,
-                                      fm::AdaptiveStoppingPolicy>;
+template class InitialTwoWayFMRefiner<
+    fm::MaxOverloadSelectionPolicy,
+    fm::BalancedMinCutAcceptancePolicy,
+    fm::SimpleStoppingPolicy>;
+template class InitialTwoWayFMRefiner<
+    fm::MaxOverloadSelectionPolicy,
+    fm::BalancedMinCutAcceptancePolicy,
+    fm::AdaptiveStoppingPolicy>;
 } // namespace kaminpar::shm::ip

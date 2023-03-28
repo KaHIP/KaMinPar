@@ -18,8 +18,8 @@
 #include "kaminpar/refinement/multi_refiner.h"
 
 namespace kaminpar::shm::factory {
-std::unique_ptr<Coarsener> create_coarsener(const Graph &graph,
-                                            const CoarseningContext &c_ctx) {
+std::unique_ptr<Coarsener>
+create_coarsener(const Graph &graph, const CoarseningContext &c_ctx) {
   SCOPED_TIMER("Allocation");
 
   switch (c_ctx.algorithm) {
@@ -31,7 +31,8 @@ std::unique_ptr<Coarsener> create_coarsener(const Graph &graph,
     auto clustering_algorithm =
         std::make_unique<LabelPropagationClusteringAlgorithm>(graph.n(), c_ctx);
     auto coarsener = std::make_unique<ClusteringCoarsener>(
-        std::move(clustering_algorithm), graph, c_ctx);
+        std::move(clustering_algorithm), graph, c_ctx
+    );
     return coarsener;
   }
   }
@@ -39,10 +40,12 @@ std::unique_ptr<Coarsener> create_coarsener(const Graph &graph,
   __builtin_unreachable();
 }
 
-std::unique_ptr<ip::InitialRefiner>
-create_initial_refiner(const Graph &graph, const PartitionContext &p_ctx,
-                       const RefinementContext &r_ctx,
-                       ip::InitialRefiner::MemoryContext m_ctx) {
+std::unique_ptr<ip::InitialRefiner> create_initial_refiner(
+    const Graph &graph,
+    const PartitionContext &p_ctx,
+    const RefinementContext &r_ctx,
+    ip::InitialRefiner::MemoryContext m_ctx
+) {
   if (r_ctx.algorithms.empty()) {
     return std::make_unique<ip::InitialNoopRefiner>(std::move(m_ctx));
   }
@@ -58,11 +61,13 @@ create_initial_refiner(const Graph &graph, const PartitionContext &p_ctx,
   case RefinementAlgorithm::TWO_WAY_FM: {
     switch (r_ctx.fm.stopping_rule) {
     case FMStoppingRule::SIMPLE:
-      return std::make_unique<ip::InitialSimple2WayFM>(graph.n(), p_ctx, r_ctx,
-                                                       std::move(m_ctx));
+      return std::make_unique<ip::InitialSimple2WayFM>(
+          graph.n(), p_ctx, r_ctx, std::move(m_ctx)
+      );
     case FMStoppingRule::ADAPTIVE:
       return std::make_unique<ip::InitialAdaptive2WayFM>(
-          graph.n(), p_ctx, r_ctx, std::move(m_ctx));
+          graph.n(), p_ctx, r_ctx, std::move(m_ctx)
+      );
     }
 
     __builtin_unreachable();
@@ -79,8 +84,8 @@ create_initial_refiner(const Graph &graph, const PartitionContext &p_ctx,
 }
 
 namespace {
-std::unique_ptr<Refiner> create_refiner(const Context &ctx,
-                                        const RefinementAlgorithm algorithm) {
+std::unique_ptr<Refiner>
+create_refiner(const Context &ctx, const RefinementAlgorithm algorithm) {
 
   switch (algorithm) {
   case RefinementAlgorithm::NOOP:

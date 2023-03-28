@@ -89,27 +89,37 @@ public:
     std::size_t num_imbalanced_partitions;
   };
 
-  PoolBipartitioner(const Graph &graph, const PartitionContext &p_ctx,
-                    const InitialPartitioningContext &i_ctx,
-                    MemoryContext m_ctx = {})
-      : _graph{graph}, _p_ctx{p_ctx}, _i_ctx{i_ctx},
+  PoolBipartitioner(
+      const Graph &graph,
+      const PartitionContext &p_ctx,
+      const InitialPartitioningContext &i_ctx,
+      MemoryContext m_ctx = {}
+  )
+      : _graph{graph},
+        _p_ctx{p_ctx},
+        _i_ctx{i_ctx},
         _min_num_repetitions{i_ctx.min_num_repetitions},
         _min_num_non_adaptive_repetitions{
             i_ctx.min_num_non_adaptive_repetitions},
         _max_num_repetitions{i_ctx.max_num_repetitions},
-        _m_ctx{std::move(m_ctx)}, _refiner{factory::create_initial_refiner(
-                                      _graph, _p_ctx, _i_ctx.refinement,
-                                      std::move(_m_ctx.ref_m_ctx))} {
+        _m_ctx{std::move(m_ctx)},
+        _refiner{factory::create_initial_refiner(
+            _graph, _p_ctx, _i_ctx.refinement, std::move(_m_ctx.ref_m_ctx)
+        )} {
     _refiner->initialize(_graph);
   }
 
   template <typename BipartitionerType, typename... BipartitionerArgs>
-  void register_bipartitioner(const std::string &name,
-                              BipartitionerArgs &&...args) {
-    KASSERT(std::find(_bipartitioner_names.begin(), _bipartitioner_names.end(),
-                      name) == _bipartitioner_names.end());
+  void
+  register_bipartitioner(const std::string &name, BipartitionerArgs &&...args) {
+    KASSERT(
+        std::find(
+            _bipartitioner_names.begin(), _bipartitioner_names.end(), name
+        ) == _bipartitioner_names.end()
+    );
     auto *instance = new BipartitionerType(
-        _graph, _p_ctx, _i_ctx, std::forward<BipartitionerArgs>(args)...);
+        _graph, _p_ctx, _i_ctx, std::forward<BipartitionerArgs>(args)...
+    );
     _bipartitioners.push_back(std::unique_ptr<BipartitionerType>(instance));
     _bipartitioner_names.push_back(name);
     _running_statistics.emplace_back();
@@ -119,7 +129,9 @@ public:
   const std::string &bipartitioner_name(const std::size_t i) {
     return _bipartitioner_names[i];
   }
-  const Statistics &statistics() { return _statistics; }
+  const Statistics &statistics() {
+    return _statistics;
+  }
 
   void reset() {
     const std::size_t n = _bipartitioners.size();
@@ -139,8 +151,9 @@ public:
 
     // only perform more repetitions with bipartitioners that are somewhat
     // likely to find a better partition than the current one
-    const auto repetitions = std::clamp(_num_repetitions, _min_num_repetitions,
-                                        _max_num_repetitions);
+    const auto repetitions = std::clamp(
+        _num_repetitions, _min_num_repetitions, _max_num_repetitions
+    );
     for (std::size_t rep = 0; rep < repetitions; ++rep) {
       for (std::size_t i = 0; i < _bipartitioners.size(); ++i) {
         if (rep < _min_num_non_adaptive_repetitions ||
@@ -211,9 +224,10 @@ private:
     LOG << logger::CYAN << " * cut=" << _best_cut
         << " imbalance=" << _best_imbalance << " feasible=" << _best_feasible;
     LOG << logger::CYAN << "# of runs: " << num_runs_total << " of "
-        << _bipartitioners.size() * std::clamp(_num_repetitions,
-                                               _min_num_repetitions,
-                                               _max_num_repetitions);
+        << _bipartitioners.size() *
+               std::clamp(
+                   _num_repetitions, _min_num_repetitions, _max_num_repetitions
+               );
   }
 
   void run_bipartitioner(const std::size_t i) {
@@ -286,26 +300,36 @@ private:
  */
 class PoolBipartitionerFactory {
 public:
-  std::unique_ptr<PoolBipartitioner>
-  create(const Graph &graph, const PartitionContext &p_ctx,
-         const InitialPartitioningContext &i_ctx,
-         PoolBipartitioner::MemoryContext m_ctx = {}) {
-    auto pool = std::make_unique<PoolBipartitioner>(graph, p_ctx, i_ctx,
-                                                    std::move(m_ctx));
+  std::unique_ptr<PoolBipartitioner> create(
+      const Graph &graph,
+      const PartitionContext &p_ctx,
+      const InitialPartitioningContext &i_ctx,
+      PoolBipartitioner::MemoryContext m_ctx = {}
+  ) {
+    auto pool = std::make_unique<PoolBipartitioner>(
+        graph, p_ctx, i_ctx, std::move(m_ctx)
+    );
     pool->register_bipartitioner<GreedyGraphGrowingBipartitioner>(
-        "greedy_graph_growing", pool->_m_ctx.ggg_m_ctx);
+        "greedy_graph_growing", pool->_m_ctx.ggg_m_ctx
+    );
     pool->register_bipartitioner<AlternatingBfsBipartitioner>(
-        "bfs_alternating", pool->_m_ctx.bfs_m_ctx);
+        "bfs_alternating", pool->_m_ctx.bfs_m_ctx
+    );
     pool->register_bipartitioner<LighterBlockBfsBipartitioner>(
-        "bfs_lighter_block", pool->_m_ctx.bfs_m_ctx);
+        "bfs_lighter_block", pool->_m_ctx.bfs_m_ctx
+    );
     pool->register_bipartitioner<LongerQueueBfsBipartitioner>(
-        "bfs_longer_queue", pool->_m_ctx.bfs_m_ctx);
+        "bfs_longer_queue", pool->_m_ctx.bfs_m_ctx
+    );
     pool->register_bipartitioner<ShorterQueueBfsBipartitioner>(
-        "bfs_shorter_queue", pool->_m_ctx.bfs_m_ctx);
+        "bfs_shorter_queue", pool->_m_ctx.bfs_m_ctx
+    );
     pool->register_bipartitioner<SequentialBfsBipartitioner>(
-        "bfs_sequential", pool->_m_ctx.bfs_m_ctx);
-    pool->register_bipartitioner<RandomBipartitioner>("random",
-                                                      pool->_m_ctx.rand_m_ctx);
+        "bfs_sequential", pool->_m_ctx.bfs_m_ctx
+    );
+    pool->register_bipartitioner<RandomBipartitioner>(
+        "random", pool->_m_ctx.rand_m_ctx
+    );
     return pool;
   }
 };

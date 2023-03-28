@@ -31,7 +31,9 @@ void PartitionContext::setup(const Graph &graph) {
   setup_block_weights();
 }
 
-void PartitionContext::setup_block_weights() { block_weights.setup(*this); }
+void PartitionContext::setup_block_weights() {
+  block_weights.setup(*this);
+}
 
 //
 // BlockWeightsContext
@@ -40,15 +42,21 @@ void PartitionContext::setup_block_weights() { block_weights.setup(*this); }
 void BlockWeightsContext::setup(const PartitionContext &p_ctx) {
   KASSERT(p_ctx.k != kInvalidBlockID, "PartitionContext::k not initialized");
   KASSERT(p_ctx.k != 0u, "PartitionContext::k not initialized");
-  KASSERT(p_ctx.total_node_weight != kInvalidNodeWeight,
-          "PartitionContext::total_node_weight not initialized");
-  KASSERT(p_ctx.max_node_weight != kInvalidNodeWeight,
-          "PartitionContext::max_node_weight not initialized");
+  KASSERT(
+      p_ctx.total_node_weight != kInvalidNodeWeight,
+      "PartitionContext::total_node_weight not initialized"
+  );
+  KASSERT(
+      p_ctx.max_node_weight != kInvalidNodeWeight,
+      "PartitionContext::max_node_weight not initialized"
+  );
 
-  const auto perfectly_balanced_block_weight = static_cast<NodeWeight>(
-      std::ceil(1.0 * p_ctx.total_node_weight / p_ctx.k));
+  const auto perfectly_balanced_block_weight =
+      static_cast<NodeWeight>(std::ceil(1.0 * p_ctx.total_node_weight / p_ctx.k)
+      );
   const auto max_block_weight = static_cast<NodeWeight>(
-      (1.0 + p_ctx.epsilon) * perfectly_balanced_block_weight);
+      (1.0 + p_ctx.epsilon) * perfectly_balanced_block_weight
+  );
 
   _max_block_weights.resize(p_ctx.k);
   _perfectly_balanced_block_weights.resize(p_ctx.k);
@@ -62,24 +70,33 @@ void BlockWeightsContext::setup(const PartitionContext &p_ctx) {
     } else {
       _max_block_weights[b] = std::max<NodeWeight>(
           max_block_weight,
-          perfectly_balanced_block_weight + p_ctx.max_node_weight);
+          perfectly_balanced_block_weight + p_ctx.max_node_weight
+      );
     }
   });
 }
 
-void BlockWeightsContext::setup(const PartitionContext &p_ctx,
-                                const std::vector<BlockID> &final_ks) {
+void BlockWeightsContext::setup(
+    const PartitionContext &p_ctx, const std::vector<BlockID> &final_ks
+) {
   KASSERT(p_ctx.k != kInvalidBlockID, "PartitionContext::k not initialized");
-  KASSERT(p_ctx.total_node_weight != kInvalidNodeWeight,
-          "PartitionContext::total_node_weight not initialized");
-  KASSERT(p_ctx.max_node_weight != kInvalidNodeWeight,
-          "PartitionContext::max_node_weight not initialized");
-  KASSERT(p_ctx.k == final_ks.size(), "bad number of blocks: got "
-                                          << final_ks.size() << ", expected "
-                                          << p_ctx.k);
+  KASSERT(
+      p_ctx.total_node_weight != kInvalidNodeWeight,
+      "PartitionContext::total_node_weight not initialized"
+  );
+  KASSERT(
+      p_ctx.max_node_weight != kInvalidNodeWeight,
+      "PartitionContext::max_node_weight not initialized"
+  );
+  KASSERT(
+      p_ctx.k == final_ks.size(),
+      "bad number of blocks: got " << final_ks.size() << ", expected "
+                                   << p_ctx.k
+  );
 
-  const BlockID final_k = std::accumulate(final_ks.begin(), final_ks.end(),
-                                          static_cast<BlockID>(0));
+  const BlockID final_k = std::accumulate(
+      final_ks.begin(), final_ks.end(), static_cast<BlockID>(0)
+  );
   const double block_weight = 1.0 * p_ctx.total_node_weight / final_k;
 
   _max_block_weights.resize(p_ctx.k);
@@ -90,7 +107,8 @@ void BlockWeightsContext::setup(const PartitionContext &p_ctx,
         std::ceil(final_ks[b] * block_weight);
 
     const auto max_block_weight = static_cast<BlockWeight>(
-        (1.0 + p_ctx.epsilon) * _perfectly_balanced_block_weights[b]);
+        (1.0 + p_ctx.epsilon) * _perfectly_balanced_block_weights[b]
+    );
 
     // relax balance constraint by max_node_weight on coarse levels only
     if (p_ctx.max_node_weight == 1) {
@@ -98,7 +116,8 @@ void BlockWeightsContext::setup(const PartitionContext &p_ctx,
     } else {
       _max_block_weights[b] = std::max<BlockWeight>(
           max_block_weight,
-          _perfectly_balanced_block_weights[b] + p_ctx.max_node_weight);
+          _perfectly_balanced_block_weights[b] + p_ctx.max_node_weight
+      );
     }
   });
 }
@@ -124,5 +143,7 @@ BlockWeightsContext::all_perfectly_balanced() const {
   return _perfectly_balanced_block_weights;
 }
 
-void Context::setup(const Graph &graph) { partition.setup(graph); }
+void Context::setup(const Graph &graph) {
+  partition.setup(graph);
+}
 } // namespace kaminpar::shm

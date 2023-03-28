@@ -17,8 +17,8 @@ class NoopClustering : public ClusteringAlgorithm<ClusterID> {
 public:
   explicit NoopClustering(const Context &) {}
 
-  ClusterArray &compute_clustering(const DistributedGraph &,
-                                   const GlobalNodeWeight) final {
+  ClusterArray &
+  compute_clustering(const DistributedGraph &, const GlobalNodeWeight) final {
     return _empty_clustering;
   }
 

@@ -37,5 +37,6 @@ struct Result {
 contraction::Result contract_local_clustering(
     const DistributedGraph &graph,
     const scalable_vector<parallel::Atomic<NodeID>> &clustering,
-    contraction::MemoryContext m_ctx = {});
+    contraction::MemoryContext m_ctx = {}
+);
 } // namespace kaminpar::dist

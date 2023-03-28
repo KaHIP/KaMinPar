@@ -48,8 +48,9 @@ int main(int argc, char *argv[]) {
    */
   LOG << "Reading graph from " << graph_filename << " ...";
   DISABLE_TIMERS();
-  auto graph = dist::io::read_graph(graph_filename,
-                                    dist::io::DistributionType::NODE_BALANCED);
+  auto graph = dist::io::read_graph(
+      graph_filename, dist::io::DistributionType::NODE_BALANCED
+  );
   ENABLE_TIMERS();
   LOG << "n=" << graph.global_n() << " m=" << graph.global_m();
 
@@ -69,12 +70,25 @@ int main(int argc, char *argv[]) {
     ++color_sizes[coloring[u]];
   }
   if (rank == 0) {
-    MPI_Reduce(MPI_IN_PLACE, color_sizes.data(),
-               asserting_cast<int>(num_colors), mpi::type::get<NodeID>(),
-               MPI_SUM, 0, MPI_COMM_WORLD);
+    MPI_Reduce(
+        MPI_IN_PLACE,
+        color_sizes.data(),
+        asserting_cast<int>(num_colors),
+        mpi::type::get<NodeID>(),
+        MPI_SUM,
+        0,
+        MPI_COMM_WORLD
+    );
   } else {
-    MPI_Reduce(color_sizes.data(), nullptr, asserting_cast<int>(num_colors),
-               mpi::type::get<NodeID>(), MPI_SUM, 0, MPI_COMM_WORLD);
+    MPI_Reduce(
+        color_sizes.data(),
+        nullptr,
+        asserting_cast<int>(num_colors),
+        mpi::type::get<NodeID>(),
+        MPI_SUM,
+        0,
+        MPI_COMM_WORLD
+    );
   }
   LOG << "color_sizes=" << color_sizes;
 

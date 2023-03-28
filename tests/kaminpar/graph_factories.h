@@ -40,8 +40,11 @@ Graph empty(const NodeID n, GraphArgs &&...graph_args) {
  * @return Grid graph on `u * v` nodes.
  */
 template <typename... GraphArgs>
-Graph grid(const NodeID u, const NodeID v,
-           GraphArgs &&...graph_args) { // u x v grid
+Graph grid(
+    const NodeID u,
+    const NodeID v,
+    GraphArgs &&...graph_args
+) { // u x v grid
   GraphBuilder builder;
   for (NodeID i = 0; i < u; ++i) {
     const bool first_row = (i == 0);
@@ -88,8 +91,9 @@ Graph path(const NodeID length, GraphArgs &&...graph_args) {
  * edges.
  */
 template <typename... GraphArgs>
-Graph complete_bipartite(const NodeID n, const NodeID m,
-                         GraphArgs &&...graph_args) {
+Graph complete_bipartite(
+    const NodeID n, const NodeID m, GraphArgs &&...graph_args
+) {
   GraphBuilder builder;
   for (NodeID u = 0; u < n; ++u) { // set A
     builder.new_node();

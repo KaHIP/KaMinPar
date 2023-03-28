@@ -26,10 +26,18 @@
 #include "common/timer.h"
 
 namespace kaminpar::mpi {
-template <typename Message, typename Buffer, typename SendBuffer,
-          typename CountsBuffer, typename Receiver>
-void sparse_alltoall_grid(SendBuffer &&data, const CountsBuffer &counts,
-                          Receiver &&receiver, MPI_Comm comm) {
+template <
+    typename Message,
+    typename Buffer,
+    typename SendBuffer,
+    typename CountsBuffer,
+    typename Receiver>
+void sparse_alltoall_grid(
+    SendBuffer &&data,
+    const CountsBuffer &counts,
+    Receiver &&receiver,
+    MPI_Comm comm
+) {
   const GridCommunicator &grid_comm = get_grid_communicator(comm);
   const MPI_Comm &row_comm = grid_comm.row_comm();
   const MPI_Comm &col_comm = grid_comm.col_comm();
@@ -69,33 +77,48 @@ void sparse_alltoall_grid(SendBuffer &&data, const CountsBuffer &counts,
   // Compute recv counts
   row_counts_recv_counts.resize(col_comm_size);
   if (my_col == my_virtual_col) {
-    std::fill(row_counts_recv_counts.begin(), row_counts_recv_counts.end(),
-              topo.row_size(my_row));
+    std::fill(
+        row_counts_recv_counts.begin(),
+        row_counts_recv_counts.end(),
+        topo.row_size(my_row)
+    );
   }
 
   // Compute buffer displacements
   row_counts_send_displs.resize(col_comm_size + 1);
   row_counts_recv_displs.resize(col_comm_size + 1);
-  std::partial_sum(row_counts_send_counts.begin(), row_counts_send_counts.end(),
-                   row_counts_send_displs.begin() + 1);
-  std::partial_sum(row_counts_recv_counts.begin(), row_counts_recv_counts.end(),
-                   row_counts_recv_displs.begin() + 1);
+  std::partial_sum(
+      row_counts_send_counts.begin(),
+      row_counts_send_counts.end(),
+      row_counts_send_displs.begin() + 1
+  );
+  std::partial_sum(
+      row_counts_recv_counts.begin(),
+      row_counts_recv_counts.end(),
+      row_counts_recv_displs.begin() + 1
+  );
 
   std::vector<int> row_counts(row_comm_size * col_comm_size);
 
   // Exchange counts within payload
-  KASSERT(asserting_cast<int>(row_counts.size()) >=
-          row_counts_recv_displs.back());
+  KASSERT(
+      asserting_cast<int>(row_counts.size()) >= row_counts_recv_displs.back()
+  );
   KASSERT(asserting_cast<int>(row_counts_send_counts.size()) >= col_comm_size);
   KASSERT(asserting_cast<int>(counts.size()) >= row_counts_send_displs.back());
   KASSERT(asserting_cast<int>(row_counts_recv_counts.size()) >= col_comm_size);
   KASSERT(asserting_cast<int>(row_counts_recv_displs.size()) >= col_comm_size);
   KASSERT(asserting_cast<int>(row_counts_send_displs.size()) >= col_comm_size);
 
-  mpi::alltoallv(counts.data(), row_counts_send_counts.data(),
-                 row_counts_send_displs.data(), row_counts.data(),
-                 row_counts_recv_counts.data(), row_counts_recv_displs.data(),
-                 col_comm);
+  mpi::alltoallv(
+      counts.data(),
+      row_counts_send_counts.data(),
+      row_counts_send_displs.data(),
+      row_counts.data(),
+      row_counts_recv_counts.data(),
+      row_counts_recv_displs.data(),
+      col_comm
+  );
 
   /*
    * After Step 1 (column)
@@ -126,17 +149,26 @@ void sparse_alltoall_grid(SendBuffer &&data, const CountsBuffer &counts,
   }
 
   tbb::parallel_for<PEID>(0, col_comm_size, [&](const PEID row) {
-    row_recv_counts[row] =
-        std::accumulate(row_counts.begin() + row * row_comm_size,
-                        row_counts.begin() + (row + 1) * row_comm_size, 0);
+    row_recv_counts[row] = std::accumulate(
+        row_counts.begin() + row * row_comm_size,
+        row_counts.begin() + (row + 1) * row_comm_size,
+        0
+    );
   });
 
-  parallel::prefix_sum(row_send_counts.begin(), row_send_counts.end(),
-                       row_send_displs.begin() + 1);
-  parallel::prefix_sum(row_recv_counts.begin(), row_recv_counts.end(),
-                       row_recv_displs.begin() + 1);
-  parallel::prefix_sum(row_counts.begin(), row_counts.end(),
-                       row_displs.begin() + 1);
+  parallel::prefix_sum(
+      row_send_counts.begin(),
+      row_send_counts.end(),
+      row_send_displs.begin() + 1
+  );
+  parallel::prefix_sum(
+      row_recv_counts.begin(),
+      row_recv_counts.end(),
+      row_recv_displs.begin() + 1
+  );
+  parallel::prefix_sum(
+      row_counts.begin(), row_counts.end(), row_displs.begin() + 1
+  );
 
   std::vector<Message> row_recv_buf(row_recv_displs.back());
 
@@ -147,9 +179,15 @@ void sparse_alltoall_grid(SendBuffer &&data, const CountsBuffer &counts,
   KASSERT(asserting_cast<PEID>(row_recv_displs.size()) >= col_comm_size);
   KASSERT(asserting_cast<int>(row_recv_buf.size()) >= row_recv_displs.back());
 
-  mpi::alltoallv(data.data(), row_send_counts.data(), row_send_displs.data(),
-                 row_recv_buf.data(), row_recv_counts.data(),
-                 row_recv_displs.data(), col_comm);
+  mpi::alltoallv(
+      data.data(),
+      row_send_counts.data(),
+      row_send_displs.data(),
+      row_recv_buf.data(),
+      row_recv_counts.data(),
+      row_recv_displs.data(),
+      col_comm
+  );
 
   /*
    * After step 2 (column)
@@ -185,8 +223,10 @@ void sparse_alltoall_grid(SendBuffer &&data, const CountsBuffer &counts,
       const PEID pe = col + from_row * row_comm_size;
       KASSERT(col < asserting_cast<PEID>(col_counts.size()));
       KASSERT(pe < asserting_cast<PEID>(row_counts.size()));
-      KASSERT(from_row + col * col_comm_size <
-              asserting_cast<PEID>(col_subcounts.size()));
+      KASSERT(
+          from_row + col * col_comm_size <
+          asserting_cast<PEID>(col_subcounts.size())
+      );
 
       col_counts[col] += row_counts[pe];
       col_subcounts[from_row + col * col_comm_size] = row_counts[pe];
@@ -199,8 +239,11 @@ void sparse_alltoall_grid(SendBuffer &&data, const CountsBuffer &counts,
   std::vector<int> col_subcounts_recv_displs;
   col_subcounts_send_counts.resize(row_comm_size);
   if (topo.col(rank) == topo.virtual_col(rank)) {
-    std::fill(col_subcounts_send_counts.begin(),
-              col_subcounts_send_counts.end(), col_comm_size);
+    std::fill(
+        col_subcounts_send_counts.begin(),
+        col_subcounts_send_counts.end(),
+        col_comm_size
+    );
   }
 
   col_subcounts_recv_counts.resize(row_comm_size);
@@ -211,31 +254,47 @@ void sparse_alltoall_grid(SendBuffer &&data, const CountsBuffer &counts,
 
   col_subcounts_send_displs.resize(row_comm_size + 1);
   col_subcounts_recv_displs.resize(row_comm_size + 1);
-  std::partial_sum(col_subcounts_send_counts.begin(),
-                   col_subcounts_send_counts.end(),
-                   col_subcounts_send_displs.begin() + 1);
-  std::partial_sum(col_subcounts_recv_counts.begin(),
-                   col_subcounts_recv_counts.end(),
-                   col_subcounts_recv_displs.begin() + 1);
+  std::partial_sum(
+      col_subcounts_send_counts.begin(),
+      col_subcounts_send_counts.end(),
+      col_subcounts_send_displs.begin() + 1
+  );
+  std::partial_sum(
+      col_subcounts_recv_counts.begin(),
+      col_subcounts_recv_counts.end(),
+      col_subcounts_recv_displs.begin() + 1
+  );
 
   // Exchange counts
-  KASSERT(asserting_cast<PEID>(col_subcounts_send_counts.size()) >=
-          row_comm_size);
-  KASSERT(asserting_cast<PEID>(col_subcounts_recv_counts.size()) >=
-          row_comm_size);
-  KASSERT(asserting_cast<int>(col_subcounts.size()) >=
-          col_subcounts_send_displs.back());
-  KASSERT(asserting_cast<PEID>(col_subcounts_recv_counts.size()) >=
-          row_comm_size);
-  KASSERT(asserting_cast<PEID>(col_subcounts_recv_displs.size()) >=
-          row_comm_size);
-  KASSERT(asserting_cast<int>(subcounts.size()) >=
-          col_subcounts_recv_displs.back());
+  KASSERT(
+      asserting_cast<PEID>(col_subcounts_send_counts.size()) >= row_comm_size
+  );
+  KASSERT(
+      asserting_cast<PEID>(col_subcounts_recv_counts.size()) >= row_comm_size
+  );
+  KASSERT(
+      asserting_cast<int>(col_subcounts.size()) >=
+      col_subcounts_send_displs.back()
+  );
+  KASSERT(
+      asserting_cast<PEID>(col_subcounts_recv_counts.size()) >= row_comm_size
+  );
+  KASSERT(
+      asserting_cast<PEID>(col_subcounts_recv_displs.size()) >= row_comm_size
+  );
+  KASSERT(
+      asserting_cast<int>(subcounts.size()) >= col_subcounts_recv_displs.back()
+  );
 
-  mpi::alltoallv(col_subcounts.data(), col_subcounts_send_counts.data(),
-                 col_subcounts_send_displs.data(), subcounts.data(),
-                 col_subcounts_recv_counts.data(),
-                 col_subcounts_recv_displs.data(), row_comm);
+  mpi::alltoallv(
+      col_subcounts.data(),
+      col_subcounts_send_counts.data(),
+      col_subcounts_send_displs.data(),
+      subcounts.data(),
+      col_subcounts_recv_counts.data(),
+      col_subcounts_recv_displs.data(),
+      row_comm
+  );
 
   for (PEID pe = 0, row = 0; row < topo.num_full_cols(); ++row) {
     int sum = 0;
@@ -252,10 +311,14 @@ void sparse_alltoall_grid(SendBuffer &&data, const CountsBuffer &counts,
   // Transpose data buffer
   std::vector<Message> col_data(row_recv_buf.size());
 
-  parallel::prefix_sum(col_recv_counts.begin(), col_recv_counts.end(),
-                       col_recv_displs.begin() + 1);
-  parallel::prefix_sum(col_counts.begin(), col_counts.end(),
-                       col_displs.begin() + 1);
+  parallel::prefix_sum(
+      col_recv_counts.begin(),
+      col_recv_counts.end(),
+      col_recv_displs.begin() + 1
+  );
+  parallel::prefix_sum(
+      col_counts.begin(), col_counts.end(), col_displs.begin() + 1
+  );
 
   for (PEID col = 0; col < row_comm_size; ++col) {
     KASSERT(col < asserting_cast<PEID>(col_displs.size()));
@@ -271,14 +334,17 @@ void sparse_alltoall_grid(SendBuffer &&data, const CountsBuffer &counts,
       const int row_count = row_counts[pe];
 
       KASSERT(row_displ <= asserting_cast<PEID>(row_recv_buf.size()));
-      KASSERT(row_displ + row_count <=
-              asserting_cast<PEID>(row_recv_buf.size()));
+      KASSERT(
+          row_displ + row_count <= asserting_cast<PEID>(row_recv_buf.size())
+      );
       KASSERT(i <= asserting_cast<int>(col_data.size()));
       KASSERT(i + row_count <= asserting_cast<int>(col_data.size()));
 
-      std::copy(row_recv_buf.begin() + row_displ,
-                row_recv_buf.begin() + row_displ + row_count,
-                col_data.begin() + i);
+      std::copy(
+          row_recv_buf.begin() + row_displ,
+          row_recv_buf.begin() + row_displ + row_count,
+          col_data.begin() + i
+      );
       i += row_count;
     }
   }
@@ -293,9 +359,15 @@ void sparse_alltoall_grid(SendBuffer &&data, const CountsBuffer &counts,
   KASSERT(asserting_cast<PEID>(col_recv_displs.size()) >= row_comm_size);
   KASSERT(asserting_cast<int>(col_recv_buf.size()) >= col_recv_displs.back());
 
-  mpi::alltoallv(col_data.data(), col_counts.data(), col_displs.data(),
-                 col_recv_buf.data(), col_recv_counts.data(),
-                 col_recv_displs.data(), row_comm);
+  mpi::alltoallv(
+      col_data.data(),
+      col_counts.data(),
+      col_displs.data(),
+      col_recv_buf.data(),
+      col_recv_counts.data(),
+      col_recv_displs.data(),
+      row_comm
+  );
 
   // Assertion:
   // col_recv_buf contains all data adressed to this PE:
@@ -326,10 +398,14 @@ void sparse_alltoall_grid(SendBuffer &&data, const CountsBuffer &counts,
 
 // @todo avoid using this variant since it requires a full copy of the send
 // buffers
-template <typename Message, typename Buffer, typename SendBuffers,
-          typename Receiver>
-void sparse_alltoall_grid(SendBuffers &&send_buffers, Receiver &&receiver,
-                          MPI_Comm comm) {
+template <
+    typename Message,
+    typename Buffer,
+    typename SendBuffers,
+    typename Receiver>
+void sparse_alltoall_grid(
+    SendBuffers &&send_buffers, Receiver &&receiver, MPI_Comm comm
+) {
   const auto [size, rank] = mpi::get_comm_info(comm);
   NoinitVector<int> counts(size);
 
@@ -342,11 +418,15 @@ void sparse_alltoall_grid(SendBuffers &&send_buffers, Receiver &&receiver,
 
   NoinitVector<Message> dense_buffer(displs.back());
   tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
-    std::copy(send_buffers[pe].begin(), send_buffers[pe].end(),
-              dense_buffer.begin() + displs[pe]);
+    std::copy(
+        send_buffers[pe].begin(),
+        send_buffers[pe].end(),
+        dense_buffer.begin() + displs[pe]
+    );
   });
 
-  sparse_alltoall_grid<Message, Buffer>(std::move(dense_buffer), counts,
-                                        std::forward<Receiver>(receiver), comm);
+  sparse_alltoall_grid<Message, Buffer>(
+      std::move(dense_buffer), counts, std::forward<Receiver>(receiver), comm
+  );
 }
 } // namespace kaminpar::mpi

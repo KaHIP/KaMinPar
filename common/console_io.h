@@ -22,8 +22,11 @@ void print_dkaminpar_banner();
 void print_banner(const std::string &title);
 void print_build_identifier();
 
-template <typename NodeID, typename EdgeID, typename NodeWeight,
-          typename EdgeWeight>
+template <
+    typename NodeID,
+    typename EdgeID,
+    typename NodeWeight,
+    typename EdgeWeight>
 void print_build_datatypes() {
   LOG << "Data type sizes:";
   LOG << "  Nodes IDs: " << sizeof(NodeID)
@@ -32,9 +35,13 @@ void print_build_datatypes() {
       << " bytes | Edge weights: " << sizeof(EdgeWeight) << " bytes";
 }
 
-template <typename NodeID, typename EdgeID, typename LocalNodeWeight,
-          typename LocalEdgeWeight, typename IPNodeWeight,
-          typename IPEdgeWeight>
+template <
+    typename NodeID,
+    typename EdgeID,
+    typename LocalNodeWeight,
+    typename LocalEdgeWeight,
+    typename IPNodeWeight,
+    typename IPEdgeWeight>
 void print_build_datatypes() {
   LOG << "Data type sizes:";
   LOG << "  Nodes IDs: " << sizeof(NodeID)

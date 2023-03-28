@@ -17,8 +17,9 @@ std::string extract_basename(const std::string &path) {
 }
 
 std::string to_lower(std::string arg) {
-  std::transform(arg.begin(), arg.end(), arg.begin(),
-                 [](const char c) { return std::tolower(c); });
+  std::transform(arg.begin(), arg.end(), arg.begin(), [](const char c) {
+    return std::tolower(c);
+  });
   return arg;
 }
 

@@ -16,8 +16,8 @@
 #include "dkaminpar/refinement/refiner.h"
 
 namespace kaminpar::dist::factory {
-std::unique_ptr<Partitioner> create_partitioner(const Context &ctx,
-                                                const DistributedGraph &graph);
+std::unique_ptr<Partitioner>
+create_partitioner(const Context &ctx, const DistributedGraph &graph);
 std::unique_ptr<InitialPartitioner>
 create_initial_partitioning_algorithm(const Context &ctx);
 std::unique_ptr<Refiner> create_refinement_algorithm(const Context &ctx);

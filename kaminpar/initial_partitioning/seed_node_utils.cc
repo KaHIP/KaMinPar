@@ -49,10 +49,12 @@ find_far_away_nodes(const Graph &graph, const std::size_t num_iterations) {
   return best_pair;
 }
 
-std::pair<NodeID, NodeID> find_furthest_away_node(const Graph &graph,
-                                                  const NodeID start_node,
-                                                  Queue<NodeID> &queue,
-                                                  Marker<> &marker) {
+std::pair<NodeID, NodeID> find_furthest_away_node(
+    const Graph &graph,
+    const NodeID start_node,
+    Queue<NodeID> &queue,
+    Marker<> &marker
+) {
   queue.push_tail(start_node);
   marker.set<true>(start_node);
 

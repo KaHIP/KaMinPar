@@ -13,17 +13,19 @@
 namespace kaminpar::shm {
 namespace {
 template <typename ForwardIterator, typename T>
-ForwardIterator binary_find(ForwardIterator begin, ForwardIterator end,
-                            const T &val) {
+ForwardIterator
+binary_find(ForwardIterator begin, ForwardIterator end, const T &val) {
   const auto i = std::lower_bound(begin, end, val);
   return (i != end && (*i <= val)) ? i : end;
 }
 } // namespace
 
-void validate_undirected_graph(const StaticArray<EdgeID> &nodes,
-                               const StaticArray<NodeID> &edges,
-                               const StaticArray<NodeWeight> &,
-                               const StaticArray<EdgeWeight> &edge_weights) {
+void validate_undirected_graph(
+    const StaticArray<EdgeID> &nodes,
+    const StaticArray<NodeID> &edges,
+    const StaticArray<NodeWeight> &,
+    const StaticArray<EdgeWeight> &edge_weights
+) {
   const NodeID n = nodes.size() - 1;
   const EdgeID m = edges.size();
 
@@ -36,11 +38,13 @@ void validate_undirected_graph(const StaticArray<EdgeID> &nodes,
 
   // Sort outgoing edges of each node
   tbb::parallel_for<NodeID>(0, n, [&](const NodeID u) {
-    std::sort(edges_with_weights.begin() + nodes[u],
-              edges_with_weights.begin() + nodes[u + 1],
-              [&](const auto &lhs, const auto &rhs) {
-                return std::get<0>(lhs) < std::get<0>(rhs);
-              });
+    std::sort(
+        edges_with_weights.begin() + nodes[u],
+        edges_with_weights.begin() + nodes[u + 1],
+        [&](const auto &lhs, const auto &rhs) {
+          return std::get<0>(lhs) < std::get<0>(rhs);
+        }
+    );
 
     // Check for multi edges
     for (EdgeID e = nodes[u] + 1; e < nodes[u + 1]; ++e) {

@@ -34,13 +34,25 @@ public:
     StaticArrayIterator(const StaticArrayIterator &other) = default;
     StaticArrayIterator &operator=(const StaticArrayIterator &other) = default;
 
-    reference operator*() const { return *_ptr; }
-    pointer operator->() const { return _ptr; }
+    reference operator*() const {
+      return *_ptr;
+    }
+    pointer operator->() const {
+      return _ptr;
+    }
 
-    StaticArrayIterator &operator++() { return ++_ptr, *this; }
-    StaticArrayIterator &operator--() { return --_ptr, *this; }
-    StaticArrayIterator operator++(int) { return {_ptr++}; }
-    StaticArrayIterator operator--(int) { return {_ptr--}; }
+    StaticArrayIterator &operator++() {
+      return ++_ptr, *this;
+    }
+    StaticArrayIterator &operator--() {
+      return --_ptr, *this;
+    }
+    StaticArrayIterator operator++(int) {
+      return {_ptr++};
+    }
+    StaticArrayIterator operator--(int) {
+      return {_ptr--};
+    }
     StaticArrayIterator operator+(const difference_type &n) const {
       return StaticArrayIterator{_ptr + n};
     }
@@ -54,7 +66,9 @@ public:
       return _ptr -= n, *this;
     }
 
-    reference operator[](const difference_type &n) const { return *_ptr[n]; }
+    reference operator[](const difference_type &n) const {
+      return *_ptr[n];
+    }
     bool operator==(const StaticArrayIterator &other) const {
       return _ptr == other._ptr;
     }
@@ -99,23 +113,29 @@ public:
   struct no_init {};
 
   StaticArray(T *storage, const std::size_t size)
-      : _size(size), _data(storage) {}
+      : _size(size),
+        _data(storage) {}
 
-  StaticArray(const std::size_t start, const std::size_t size,
-              StaticArray &data)
+  StaticArray(
+      const std::size_t start, const std::size_t size, StaticArray &data
+  )
       : StaticArray(size, data._data + start) {
     KASSERT(start + size <= data.size());
   }
 
   StaticArray(const std::size_t size, value_type *data)
-      : _size{size}, _data{data} {}
+      : _size{size},
+        _data{data} {}
 
-  StaticArray(const std::size_t size,
-              const value_type init_value = value_type()) {
+  StaticArray(
+      const std::size_t size, const value_type init_value = value_type()
+  ) {
     resize(size, init_value);
   }
 
-  StaticArray(const std::size_t size, no_init) { resize_without_init(size); }
+  StaticArray(const std::size_t size, no_init) {
+    resize_without_init(size);
+  }
 
   StaticArray() {}
 
@@ -133,7 +153,9 @@ public:
     return _data[pos];
   }
 
-  const_reference operator[](const size_type pos) const { return _data[pos]; }
+  const_reference operator[](const size_type pos) const {
+    return _data[pos];
+  }
 
   reference back() {
     KASSERT(_data);
@@ -183,47 +205,71 @@ public:
     return const_iterator(_data);
   }
 
-  iterator end() { return iterator{_data + _size}; }
+  iterator end() {
+    return iterator{_data + _size};
+  }
 
-  const_iterator cend() const { return const_iterator{_data + _size}; }
+  const_iterator cend() const {
+    return const_iterator{_data + _size};
+  }
 
-  const_iterator begin() const { return cbegin(); }
-  iterator end() const { return cend(); }
+  const_iterator begin() const {
+    return cbegin();
+  }
+  iterator end() const {
+    return cend();
+  }
 
   void restrict(const std::size_t new_size) {
-    KASSERT(new_size <= _size,
-            "restricted size " << new_size
-                               << " must be smaller than the unrestricted size "
-                               << _size);
+    KASSERT(
+        new_size <= _size,
+        "restricted size " << new_size
+                           << " must be smaller than the unrestricted size "
+                           << _size
+    );
     _unrestricted_size = _size;
     _size = new_size;
   }
 
-  void unrestrict() { _size = _unrestricted_size; }
+  void unrestrict() {
+    _size = _unrestricted_size;
+  }
 
   //
   // Capacity
   //
 
-  [[nodiscard]] bool empty() const { return _size == 0; }
-  [[nodiscard]] size_type size() const { return _size; }
+  [[nodiscard]] bool empty() const {
+    return _size == 0;
+  }
+  [[nodiscard]] size_type size() const {
+    return _size;
+  }
 
   void resize_without_init(const size_type size) {
     KASSERT(!_data);
     allocate_data(size);
   }
 
-  void resize(const std::size_t size, no_init) { resize_without_init(size); }
+  void resize(const std::size_t size, no_init) {
+    resize_without_init(size);
+  }
 
-  void resize(const size_type size, const value_type init_value = value_type(),
-              const bool assign_parallel = true) {
+  void resize(
+      const size_type size,
+      const value_type init_value = value_type(),
+      const bool assign_parallel = true
+  ) {
     KASSERT(_data == _owned_data.get());
     resize_without_init(size);
     assign(size, init_value, assign_parallel);
   }
 
-  void assign(const size_type count, const value_type value,
-              const bool assign_parallel = true) {
+  void assign(
+      const size_type count,
+      const value_type value,
+      const bool assign_parallel = true
+  ) {
     KASSERT(_data);
 
     if (assign_parallel) {

@@ -23,9 +23,11 @@
 namespace kaminpar::dist {
 SET_DEBUG(false);
 
-KWayPartitioner::KWayPartitioner(const DistributedGraph &graph,
-                                 const Context &ctx)
-    : _graph(graph), _ctx(ctx) {}
+KWayPartitioner::KWayPartitioner(
+    const DistributedGraph &graph, const Context &ctx
+)
+    : _graph(graph),
+      _ctx(ctx) {}
 
 DistributedPartitionedGraph KWayPartitioner::partition() {
   Coarsener coarsener(_graph, _ctx);
@@ -47,8 +49,10 @@ DistributedPartitionedGraph KWayPartitioner::partition() {
         (_ctx.simulate_singlethread ? 1 : _ctx.parallel.num_threads) *
         _ctx.partition.k * _ctx.coarsening.contraction_limit;
     while (graph->global_n() > threshold) {
-      SCOPED_TIMER("Coarsening",
-                   std::string("Level ") + std::to_string(coarsener.level()));
+      SCOPED_TIMER(
+          "Coarsening",
+          std::string("Level ") + std::to_string(coarsener.level())
+      );
       const GlobalNodeWeight max_cluster_weight =
           coarsener.max_cluster_weight();
 
@@ -60,12 +64,14 @@ DistributedPartitionedGraph KWayPartitioner::partition() {
         const std::string n_str =
             mpi::gather_statistics_str(c_graph->n(), c_graph->communicator());
         const std::string ghost_n_str = mpi::gather_statistics_str(
-            c_graph->ghost_n(), c_graph->communicator());
+            c_graph->ghost_n(), c_graph->communicator()
+        );
         const std::string m_str =
             mpi::gather_statistics_str(c_graph->m(), c_graph->communicator());
         const std::string max_node_weight_str =
             mpi::gather_statistics_str<GlobalNodeWeight>(
-                c_graph->max_node_weight(), c_graph->communicator());
+                c_graph->max_node_weight(), c_graph->communicator()
+            );
 
         // Machine readable
         LOG << "=> level=" << coarsener.level() << " "
@@ -125,9 +131,11 @@ DistributedPartitionedGraph KWayPartitioner::partition() {
       graph::distribute_best_partition(*graph, std::move(shm_p_graph));
   STOP_TIMER();
 
-  KASSERT(graph::debug::validate_partition(dist_p_graph),
-          "graph partition verification failed after initial partitioning",
-          assert::heavy);
+  KASSERT(
+      graph::debug::validate_partition(dist_p_graph),
+      "graph partition verification failed after initial partitioning",
+      assert::heavy
+  );
 
   const auto initial_cut = metrics::edge_cut(dist_p_graph);
   const auto initial_imbalance = metrics::imbalance(dist_p_graph);
@@ -157,15 +165,19 @@ DistributedPartitionedGraph KWayPartitioner::partition() {
       LOG << "-> Refining partition ...";
       refinement_algorithm->initialize(p_graph.graph());
       refinement_algorithm->refine(p_graph, _ctx.partition);
-      KASSERT(graph::debug::validate_partition(p_graph),
-              "graph partition verification failed after refinement",
-              assert::heavy);
+      KASSERT(
+          graph::debug::validate_partition(p_graph),
+          "graph partition verification failed after refinement",
+          assert::heavy
+      );
     };
 
     // special case: graph too small for multilevel, still run refinement
     if (_ctx.refinement.refine_coarsest_level) {
-      SCOPED_TIMER("Uncoarsening",
-                   std::string("Level ") + std::to_string(coarsener.level()));
+      SCOPED_TIMER(
+          "Uncoarsening",
+          std::string("Level ") + std::to_string(coarsener.level())
+      );
       ref_p_ctx.graph =
           std::make_unique<GraphContext>(dist_p_graph.graph(), ref_p_ctx);
       refine(dist_p_graph);
@@ -180,8 +192,10 @@ DistributedPartitionedGraph KWayPartitioner::partition() {
 
     // Uncoarsen and refine
     while (coarsener.level() > 0) {
-      SCOPED_TIMER("Uncoarsening",
-                   std::string("Level ") + std::to_string(coarsener.level()));
+      SCOPED_TIMER(
+          "Uncoarsening",
+          std::string("Level ") + std::to_string(coarsener.level())
+      );
 
       dist_p_graph = TIMED_SCOPE("Uncontraction") {
         return coarsener.uncoarsen_once(std::move(dist_p_graph));

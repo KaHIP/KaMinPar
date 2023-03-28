@@ -22,9 +22,9 @@ namespace {
 SET_DEBUG(true);
 }
 
-std::vector<GlobalMove>
-allgather_global_moves(std::vector<GlobalMove> &my_global_moves,
-                       MPI_Comm comm) {
+std::vector<GlobalMove> allgather_global_moves(
+    std::vector<GlobalMove> &my_global_moves, MPI_Comm comm
+) {
   SCOPED_TIMER("Allgather global moves");
 
   DBG << "Contributing " << my_global_moves.size() << " moves";
@@ -45,16 +45,22 @@ allgather_global_moves(std::vector<GlobalMove> &my_global_moves,
 
   START_TIMER("Compute move displs");
   std::vector<int> recv_displs(recv_counts.size() + 1);
-  parallel::prefix_sum(recv_counts.begin(), recv_counts.end(),
-                       recv_displs.begin() + 1);
+  parallel::prefix_sum(
+      recv_counts.begin(), recv_counts.end(), recv_displs.begin() + 1
+  );
   STOP_TIMER();
 
   // Allgather global moves
   START_TIMER("Allgathering moves");
   std::vector<GlobalMove> result(recv_displs.back());
   mpi::allgatherv<GlobalMove, GlobalMove>(
-      my_global_moves.data(), my_moves_count, result.data(), recv_counts.data(),
-      recv_displs.data(), comm);
+      my_global_moves.data(),
+      my_moves_count,
+      result.data(),
+      recv_counts.data(),
+      recv_displs.data(),
+      comm
+  );
   STOP_TIMER();
 
   return result;
@@ -65,8 +71,10 @@ void sort_and_compress_move_groups(std::vector<GlobalMove> &global_moves) {
 
   // Sort by move group
   std::sort(
-      global_moves.begin(), global_moves.end(),
-      [](const auto &lhs, const auto &rhs) { return lhs.group < rhs.group; });
+      global_moves.begin(),
+      global_moves.end(),
+      [](const auto &lhs, const auto &rhs) { return lhs.group < rhs.group; }
+  );
 
   // Compute group gains
   std::vector<EdgeWeight> group_gains;
@@ -84,10 +92,13 @@ void sort_and_compress_move_groups(std::vector<GlobalMove> &global_moves) {
   }
 
   // Sort by group gains
-  std::sort(global_moves.begin(), global_moves.end(),
-            [&group_gains](const auto &lhs, const auto &rhs) {
-              return group_gains[lhs.group] > group_gains[rhs.group];
-            });
+  std::sort(
+      global_moves.begin(),
+      global_moves.end(),
+      [&group_gains](const auto &lhs, const auto &rhs) {
+        return group_gains[lhs.group] > group_gains[rhs.group];
+      }
+  );
 }
 
 void resolve_move_conflicts_greedy(std::vector<GlobalMove> &global_moves) {
@@ -125,9 +136,9 @@ void resolve_move_conflicts_greedy(std::vector<GlobalMove> &global_moves) {
   }
 }
 
-std::vector<GlobalMove>
-broadcast_and_resolve_global_moves(std::vector<GlobalMove> &my_global_moves,
-                                   MPI_Comm comm) {
+std::vector<GlobalMove> broadcast_and_resolve_global_moves(
+    std::vector<GlobalMove> &my_global_moves, MPI_Comm comm
+) {
   DBG << "Got " << my_global_moves.size() << " global moves on this PE";
 
   // Resolve conflicts locally

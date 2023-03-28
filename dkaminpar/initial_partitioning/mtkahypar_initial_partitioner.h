@@ -26,9 +26,9 @@ public:
   MtKaHyParInitialPartitioner &
   operator=(MtKaHyParInitialPartitioner &&) = delete;
 
-  shm::PartitionedGraph
-  initial_partition(const shm::Graph &graph,
-                    const PartitionContext &p_ctx) override;
+  shm::PartitionedGraph initial_partition(
+      const shm::Graph &graph, const PartitionContext &p_ctx
+  ) override;
 
 private:
   const Context &_ctx;

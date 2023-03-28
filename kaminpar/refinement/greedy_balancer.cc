@@ -10,12 +10,15 @@
 #include <kassert/kassert.hpp>
 
 namespace kaminpar::shm {
-EdgeWeight GreedyBalancer::expected_total_gain() const { return 0; }
+EdgeWeight GreedyBalancer::expected_total_gain() const {
+  return 0;
+}
 
 void GreedyBalancer::initialize(const Graph &) {}
 
-bool GreedyBalancer::refine(PartitionedGraph &p_graph,
-                            const PartitionContext &p_ctx) {
+bool GreedyBalancer::refine(
+    PartitionedGraph &p_graph, const PartitionContext &p_ctx
+) {
   _p_graph = &p_graph;
   _p_ctx = &p_ctx;
 
@@ -59,7 +62,9 @@ BlockWeight GreedyBalancer::perform_round() {
 
   START_TIMER("Main loop");
   tbb::parallel_for(
-      static_cast<BlockID>(0), _p_graph->k(), [&](const BlockID from) {
+      static_cast<BlockID>(0),
+      _p_graph->k(),
+      [&](const BlockID from) {
         BlockWeight current_overload = block_overload(from);
 
         if (current_overload > 0 && _feasible_target_blocks.local().empty()) {
@@ -73,8 +78,11 @@ BlockWeight GreedyBalancer::perform_round() {
         while (current_overload > 0 && !_pq.empty(from)) {
           KASSERT(
               current_overload ==
-              std::max<BlockWeight>(0, _p_graph->block_weight(from) -
-                                           _p_ctx->block_weights.max(from)));
+              std::max<BlockWeight>(
+                  0,
+                  _p_graph->block_weight(from) - _p_ctx->block_weights.max(from)
+              )
+          );
 
           const NodeID u = _pq.peek_max_id(from);
           const NodeWeight u_weight = _p_graph->node_weight(u);
@@ -97,8 +105,10 @@ BlockWeight GreedyBalancer::perform_round() {
                 ++_stats.num_moved_internal_nodes;
               }
             } else if (move_node_if_possible(
-                           u, from,
-                           to)) { // border node -> move to promising block
+                           u,
+                           from,
+                           to
+                       )) { // border node -> move to promising block
               moved_node = true;
               if (kStatistics) {
                 ++_stats.num_moved_border_nodes;
@@ -134,10 +144,15 @@ BlockWeight GreedyBalancer::perform_round() {
           }
         }
 
-        KASSERT(current_overload ==
-                std::max<BlockWeight>(0, _p_graph->block_weight(from) -
-                                             _p_ctx->block_weights.max(from)));
-      });
+        KASSERT(
+            current_overload ==
+            std::max<BlockWeight>(
+                0,
+                _p_graph->block_weight(from) - _p_ctx->block_weights.max(from)
+            )
+        );
+      }
+  );
   STOP_TIMER();
 
   if (kStatistics) {
@@ -156,9 +171,12 @@ bool GreedyBalancer::add_to_pq(const BlockID b, const NodeID u) {
   return add_to_pq(b, u, _p_graph->node_weight(u), rel_gain);
 }
 
-bool GreedyBalancer::add_to_pq(const BlockID b, const NodeID u,
-                               const NodeWeight u_weight,
-                               const double rel_gain) {
+bool GreedyBalancer::add_to_pq(
+    const BlockID b,
+    const NodeID u,
+    const NodeWeight u_weight,
+    const double rel_gain
+) {
   KASSERT(u_weight == _p_graph->node_weight(u));
   KASSERT(b == _p_graph->block(u));
 
@@ -191,10 +209,12 @@ void GreedyBalancer::init_pq() {
 
   tbb::enumerable_thread_specific<
       std::vector<DynamicBinaryMinHeap<NodeID, double>>>
-      local_pq{
-          [&] { return std::vector<DynamicBinaryMinHeap<NodeID, double>>(k); }};
-  tbb::enumerable_thread_specific<std::vector<NodeWeight>> local_pq_weight{
-      [&] { return std::vector<NodeWeight>(k); }};
+      local_pq{[&] {
+        return std::vector<DynamicBinaryMinHeap<NodeID, double>>(k);
+      }};
+  tbb::enumerable_thread_specific<std::vector<NodeWeight>> local_pq_weight{[&] {
+    return std::vector<NodeWeight>(k);
+  }};
 
   _marker.reset();
 
@@ -296,17 +316,20 @@ GreedyBalancer::compute_gain(const NodeID u, const BlockID u_block) const {
   return {max_gainer, relative_gain};
 }
 
-bool GreedyBalancer::move_node_if_possible(const NodeID u, const BlockID from,
-                                           const BlockID to) {
+bool GreedyBalancer::move_node_if_possible(
+    const NodeID u, const BlockID from, const BlockID to
+) {
   const NodeWeight u_weight = _p_graph->node_weight(u);
   BlockWeight old_weight = _p_graph->block_weight(to);
 
   while (old_weight + u_weight <= _p_ctx->block_weights.max(to)) {
     if (_p_graph->_block_weights[to].compare_exchange_weak(
-            old_weight, old_weight + u_weight)) {
+            old_weight, old_weight + u_weight
+        )) {
       _p_graph->_block_weights[from] -= u_weight;
       _p_graph->set_block<false>(
-          u, to); // don't update block weight -- we already did that
+          u, to
+      ); // don't update block weight -- we already did that
       return true;
     }
   }

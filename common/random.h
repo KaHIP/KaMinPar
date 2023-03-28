@@ -22,8 +22,10 @@ class Random {
 public:
   Random()
       : _generator(Random::seed + tbb::this_task_arena::current_thread_index()),
-        _bool_dist(0, 1), _real_dist(0, 1),
-        _next_random_bool(0), _random_bools{} {
+        _bool_dist(0, 1),
+        _real_dist(0, 1),
+        _next_random_bool(0),
+        _random_bools{} {
     precompute_bools();
   }
 
@@ -37,16 +39,21 @@ public:
 
   using generator_type = std::mt19937;
 
-  std::size_t random_index(const std::size_t inclusive_lower_bound,
-                           const std::size_t exclusive_upper_bound) {
+  std::size_t random_index(
+      const std::size_t inclusive_lower_bound,
+      const std::size_t exclusive_upper_bound
+  ) {
     return std::uniform_int_distribution<std::size_t>(
-        inclusive_lower_bound, exclusive_upper_bound - 1)(_generator);
+        inclusive_lower_bound, exclusive_upper_bound - 1
+    )(_generator);
   }
 
   bool random_bool() {
     return _random_bools[_next_random_bool++ % kPrecomputedBools];
   }
-  bool random_bool(const double prob) { return _real_dist(_generator) <= prob; }
+  bool random_bool(const double prob) {
+    return _real_dist(_generator) <= prob;
+  }
 
   template <typename Container> void shuffle(Container &&vec) {
     std::shuffle(vec.begin(), vec.end(), _generator);
@@ -56,7 +63,9 @@ public:
     std::shuffle(begin, end, _generator);
   }
 
-  [[nodiscard]] auto &generator() { return _generator; }
+  [[nodiscard]] auto &generator() {
+    return _generator;
+  }
 
   static int seed;
 
@@ -78,9 +87,13 @@ private:
 template <typename ValueType, std::size_t size, std::size_t count>
 class RandomPermutations {
 public:
-  RandomPermutations(Random &rand) : _rand{rand} { init_permutations(); }
+  RandomPermutations(Random &rand) : _rand{rand} {
+    init_permutations();
+  }
 
-  RandomPermutations() : _rand{Random::instance()} { init_permutations(); }
+  RandomPermutations() : _rand{Random::instance()} {
+    init_permutations();
+  }
 
   RandomPermutations(const RandomPermutations &) = delete;
   RandomPermutations &operator=(const RandomPermutations &) = delete;
@@ -91,7 +104,9 @@ public:
     return _permutations[rand.random_index(0, _permutations.size())];
   }
 
-  const std::array<ValueType, size> &get() { return get(_rand); }
+  const std::array<ValueType, size> &get() {
+    return get(_rand);
+  }
 
 private:
   void init_permutations() {

@@ -32,18 +32,32 @@ constexpr static auto default_sparse_allreduce = doubling_allreduce;
 } // namespace tag
 
 template <typename Buffer>
-void inplace_sparse_allreduce(tag::mpi_allreduce_tag, Buffer &buffer,
-                              const std::size_t buffer_size, MPI_Op op,
-                              MPI_Comm comm) {
+void inplace_sparse_allreduce(
+    tag::mpi_allreduce_tag,
+    Buffer &buffer,
+    const std::size_t buffer_size,
+    MPI_Op op,
+    MPI_Comm comm
+) {
   using Value = typename Buffer::value_type;
-  MPI_Allreduce(MPI_IN_PLACE, buffer.data(), asserting_cast<int>(buffer_size),
-                type::get<Value>(), op, comm);
+  MPI_Allreduce(
+      MPI_IN_PLACE,
+      buffer.data(),
+      asserting_cast<int>(buffer_size),
+      type::get<Value>(),
+      op,
+      comm
+  );
 }
 
 template <typename Buffer>
-void inplace_sparse_allreduce(tag::doubling_allreduce_tag, Buffer &buffer,
-                              const std::size_t buffer_size, MPI_Op op,
-                              MPI_Comm comm) {
+void inplace_sparse_allreduce(
+    tag::doubling_allreduce_tag,
+    Buffer &buffer,
+    const std::size_t buffer_size,
+    MPI_Op op,
+    MPI_Comm comm
+) {
   const PEID size = mpi::get_comm_size(comm);
   const PEID rank = mpi::get_comm_rank(comm);
 
@@ -77,8 +91,15 @@ void inplace_sparse_allreduce(tag::doubling_allreduce_tag, Buffer &buffer,
     MPI_Datatype mpi_type = type::get<std::pair<std::size_t, Value>>();
 
     MPI_Request send_req;
-    MPI_Isend(sendbuf.data(), asserting_cast<int>(sendbuf.size()), mpi_type,
-              neighbor, 0, comm, &send_req);
+    MPI_Isend(
+        sendbuf.data(),
+        asserting_cast<int>(sendbuf.size()),
+        mpi_type,
+        neighbor,
+        0,
+        comm,
+        &send_req
+    );
 
     MPI_Status probe;
     MPI_Probe(neighbor, 0, comm, &probe);
@@ -87,8 +108,15 @@ void inplace_sparse_allreduce(tag::doubling_allreduce_tag, Buffer &buffer,
     MPI_Get_count(&probe, mpi_type, &recv_size);
     recvbuf.resize(recv_size);
 
-    MPI_Recv(recvbuf.data(), recv_size, mpi_type, neighbor, 0, comm,
-             MPI_STATUS_IGNORE);
+    MPI_Recv(
+        recvbuf.data(),
+        recv_size,
+        mpi_type,
+        neighbor,
+        0,
+        comm,
+        MPI_STATUS_IGNORE
+    );
 
     MPI_Wait(&send_req, MPI_STATUS_IGNORE);
 
@@ -99,10 +127,11 @@ void inplace_sparse_allreduce(tag::doubling_allreduce_tag, Buffer &buffer,
 }
 
 template <typename Buffer>
-void inplace_sparse_allreduce(Buffer &buffer, const std::size_t buffer_size,
-                              MPI_Op op, MPI_Comm comm) {
-  inplace_sparse_allreduce<Buffer>(tag::default_sparse_allreduce, buffer,
-                                   buffer_size, op, comm);
+void inplace_sparse_allreduce(
+    Buffer &buffer, const std::size_t buffer_size, MPI_Op op, MPI_Comm comm
+) {
+  inplace_sparse_allreduce<Buffer>(
+      tag::default_sparse_allreduce, buffer, buffer_size, op, comm
+  );
 }
 } // namespace kaminpar::mpi
-

@@ -34,9 +34,11 @@ class DistributedLocalLabelPropagationClusteringImpl final
   using ClusterWeightBase = OwnedRelaxedClusterWeightVector<NodeID, NodeWeight>;
 
 public:
-  DistributedLocalLabelPropagationClusteringImpl(const NodeID max_n,
-                                                 const CoarseningContext &c_ctx)
-      : ClusterBase(max_n), ClusterWeightBase{max_n},
+  DistributedLocalLabelPropagationClusteringImpl(
+      const NodeID max_n, const CoarseningContext &c_ctx
+  )
+      : ClusterBase(max_n),
+        ClusterWeightBase{max_n},
         _ignore_ghost_nodes(c_ctx.local_lp.ignore_ghost_nodes),
         _keep_ghost_clusters(c_ctx.local_lp.keep_ghost_clusters) {
     allocate(max_n, max_n);
@@ -45,8 +47,9 @@ public:
     set_max_num_neighbors(c_ctx.local_lp.max_num_neighbors);
   }
 
-  auto &compute_clustering(const DistributedGraph &graph,
-                           const GlobalNodeWeight max_cluster_weight) {
+  auto &compute_clustering(
+      const DistributedGraph &graph, const GlobalNodeWeight max_cluster_weight
+  ) {
     initialize(&graph, graph.n());
     _max_cluster_weight = max_cluster_weight;
 
@@ -112,7 +115,9 @@ public:
   // Called from base class
   //
 
-  [[nodiscard]] NodeID initial_cluster(const NodeID u) { return u; }
+  [[nodiscard]] NodeID initial_cluster(const NodeID u) {
+    return u;
+  }
 
   [[nodiscard]] NodeWeight initial_cluster_weight(const NodeID cluster) {
     return _graph->node_weight(cluster);
@@ -156,14 +161,16 @@ DistributedLocalLabelPropagationClustering::
           ctx.coarsening.local_lp.ignore_ghost_nodes
               ? ctx.partition.graph->n
               : ctx.partition.graph->total_n,
-          ctx.coarsening)} {}
+          ctx.coarsening
+      )} {}
 
 DistributedLocalLabelPropagationClustering::
     ~DistributedLocalLabelPropagationClustering() = default;
 
 DistributedLocalLabelPropagationClustering::ClusterArray &
 DistributedLocalLabelPropagationClustering::compute_clustering(
-    const DistributedGraph &graph, const GlobalNodeWeight max_cluster_weight) {
+    const DistributedGraph &graph, const GlobalNodeWeight max_cluster_weight
+) {
   return _impl->compute_clustering(graph, max_cluster_weight);
 }
 } // namespace kaminpar::dist

@@ -40,23 +40,31 @@ using DefaultAllocatorType = ::growt::AlignedAllocator<>;
 namespace internal {
 // workaround 32 bit value bug in growt
 template <typename Type>
-using Ensure64BitType = std::conditional_t<std::numeric_limits<Type>::is_signed,
-                                           GlobalNodeWeight, GlobalNodeID>;
+using Ensure64BitType = std::conditional_t<
+    std::numeric_limits<Type>::is_signed,
+    GlobalNodeWeight,
+    GlobalNodeID>;
 } // namespace internal
 
 template <typename Value>
 using GlobalNodeIDMap = typename ::growt::table_config<
-    GlobalNodeID, internal::Ensure64BitType<Value>, DefaultHasherType,
-    DefaultAllocatorType, hmod::growable, hmod::deletion>::table_type;
+    GlobalNodeID,
+    internal::Ensure64BitType<Value>,
+    DefaultHasherType,
+    DefaultAllocatorType,
+    hmod::growable,
+    hmod::deletion>::table_type;
 
-using StaticGhostNodeMapping =
-    typename ::growt::table_config<GlobalNodeID, GlobalNodeID,
-                                   DefaultHasherType,
-                                   DefaultAllocatorType>::table_type;
+using StaticGhostNodeMapping = typename ::growt::table_config<
+    GlobalNodeID,
+    GlobalNodeID,
+    DefaultHasherType,
+    DefaultAllocatorType>::table_type;
 
 template <typename Map> auto create_handle_ets(Map &map) {
   return tbb::enumerable_thread_specific<
-      growt::GlobalNodeIDMap<NodeID>::handle_type>{
-      [&] { return map.get_handle(); }};
+      growt::GlobalNodeIDMap<NodeID>::handle_type>{[&] {
+    return map.get_handle();
+  }};
 }
 } // namespace kaminpar::dist::growt

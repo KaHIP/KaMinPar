@@ -28,13 +28,14 @@ using namespace kaminpar::dist::testing;
 /// Extract local subgraphs
 ////////////////////////////////////////////////////////////////////////////////
 
-inline auto
-extract_local_subgraphs(const DistributedPartitionedGraph &p_graph) {
+inline auto extract_local_subgraphs(const DistributedPartitionedGraph &p_graph
+) {
   return graph::extract_local_block_induced_subgraphs(p_graph);
 }
 
-TEST(LocalGraphExtractionTest,
-     extract_local_nodes_from_isolated_nodes_graph_1) {
+TEST(
+    LocalGraphExtractionTest, extract_local_nodes_from_isolated_nodes_graph_1
+) {
   auto graph = make_isolated_nodes_graph(1);
   auto p_graph = make_partitioned_graph_by_rank(graph);
   auto result = extract_local_subgraphs(p_graph);
@@ -47,8 +48,9 @@ TEST(LocalGraphExtractionTest,
   EXPECT_EQ(result.shared_edge_weights.size(), 0);
 }
 
-TEST(LocalGraphExtractionTest,
-     extract_local_nodes_from_isolated_nodes_graph_2) {
+TEST(
+    LocalGraphExtractionTest, extract_local_nodes_from_isolated_nodes_graph_2
+) {
   auto graph = make_isolated_nodes_graph(2);
   auto p_graph = make_partitioned_graph_by_rank(graph);
   auto result = extract_local_subgraphs(p_graph);
@@ -119,14 +121,15 @@ TEST(LocalGraphExtractionTest, extract_local_triangles) {
 /// Extract global block induced subgraphs
 ////////////////////////////////////////////////////////////////////////////////
 
-inline auto
-extract_global_subgraphs(const DistributedPartitionedGraph &p_graph) {
+inline auto extract_global_subgraphs(const DistributedPartitionedGraph &p_graph
+) {
   return graph::extract_and_scatter_block_induced_subgraphs(p_graph).subgraphs;
 }
 
 // One isolated node on each PE, no edges at all
-TEST(GlobalGraphExtractionTest,
-     extract_local_node_from_isolated_nodes_graph_1) {
+TEST(
+    GlobalGraphExtractionTest, extract_local_node_from_isolated_nodes_graph_1
+) {
   auto graph = make_isolated_nodes_graph(1);
   auto p_graph = make_partitioned_graph_by_rank(graph);
   auto subgraphs = extract_global_subgraphs(p_graph);
@@ -143,8 +146,9 @@ TEST(GlobalGraphExtractionTest,
 }
 
 // Two isolated nodes on each PE, no edges at all
-TEST(GlobalGraphExtractionTest,
-     extract_local_nodes_from_isolated_nodes_graph_2) {
+TEST(
+    GlobalGraphExtractionTest, extract_local_nodes_from_isolated_nodes_graph_2
+) {
   auto graph = make_isolated_nodes_graph(2);
   auto p_graph = make_partitioned_graph_by_rank(graph);
   auto subgraphs = extract_global_subgraphs(p_graph);
@@ -316,8 +320,10 @@ TEST(GlobalGraphExtractionTest, extract_two_isolated_node_blocks_per_pe) {
 
   auto graph = make_isolated_nodes_graph(2);
   auto p_graph = make_partitioned_graph(
-      graph, 2 * size,
-      {static_cast<BlockID>(2 * rank), static_cast<BlockID>(2 * rank + 1)});
+      graph,
+      2 * size,
+      {static_cast<BlockID>(2 * rank), static_cast<BlockID>(2 * rank + 1)}
+  );
   auto subgraphs = extract_global_subgraphs(p_graph);
 
   // two blocks per PE
@@ -399,8 +405,9 @@ TEST(GlobalGraphExtractionTest, extract_node_weights_in_circle_clique_graph) {
 }
 
 // Test edge weights
-TEST(GlobalGraphExtractionTest,
-     extract_local_edge_weights_in_circle_clique_graph) {
+TEST(
+    GlobalGraphExtractionTest, extract_local_edge_weights_in_circle_clique_graph
+) {
   const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
 
   // create clique/circle graph with rank as node weight
@@ -510,9 +517,12 @@ TEST(GlobalGraphExtractionTest, project_circle_clique_partition) {
   for (const NodeID u : subgraph.nodes()) {
     partition[u] = u / 2;
   }
-  p_subgraphs.push_back({subgraph, static_cast<BlockID>(size),
-                         std::move(partition),
-                         std::vector<BlockID>(size / 2, 1)});
+  p_subgraphs.push_back(
+      {subgraph,
+       static_cast<BlockID>(size),
+       std::move(partition),
+       std::vector<BlockID>(size / 2, 1)}
+  );
 
   // Copy back to p_graph
   p_graph =
@@ -530,8 +540,10 @@ TEST(GlobalGraphExtractionTest, project_circle_clique_partition) {
 /// Extract global block induced subgraphs with less PEs than blocks
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(GlobalGraphExtractionTest,
-     extract_from_circle_clique_graph_less_pes_than_blocks) {
+TEST(
+    GlobalGraphExtractionTest,
+    extract_from_circle_clique_graph_less_pes_than_blocks
+) {
   const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
   if (size % 2 != 0) {
     return;
@@ -582,8 +594,10 @@ TEST(GlobalGraphExtractionTest,
   }
 }
 
-TEST(GlobalGraphExtractionTest,
-     project_from_circle_clique_graph_less_pes_than_blocks) {
+TEST(
+    GlobalGraphExtractionTest,
+    project_from_circle_clique_graph_less_pes_than_blocks
+) {
   const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
   if (size % 2 != 0) {
     return;

@@ -13,8 +13,12 @@
 
 namespace kaminpar {
 template <typename UInt, template <typename> typename Container>
-void write(const std::string &filename, const Container<UInt> &data,
-           const UInt max, const bool write_header) {
+void write(
+    const std::string &filename,
+    const Container<UInt> &data,
+    const UInt max,
+    const bool write_header
+) {
   const std::uint64_t max64 = static_cast<std::uint64_t>(max);
   const std::uint64_t bits_per_entry = ceil_log2(max + 1);
   const std::uint64_t size = data.size();
@@ -49,7 +53,9 @@ void write(const std::string &filename, const Container<UInt> &data,
     out.write(reinterpret_cast<const char *>(&max64), sizeof(std::uint64_t));
   }
   out.write(reinterpret_cast<const char *>(&size), sizeof(std::uint64_t));
-  out.write(reinterpret_cast<const char *>(compact_data.data()),
-            sizeof(std::uint64_t) * compact_size);
+  out.write(
+      reinterpret_cast<const char *>(compact_data.data()),
+      sizeof(std::uint64_t) * compact_size
+  );
 }
 } // namespace kaminpar

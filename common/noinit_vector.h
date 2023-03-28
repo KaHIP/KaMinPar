@@ -16,7 +16,8 @@ class NoinitAllocator : public Allocator {
 public:
   template <typename U> struct rebind {
     using other = NoinitAllocator<
-        U, typename std::allocator_traits<Allocator>::template rebind_alloc<U>>;
+        U,
+        typename std::allocator_traits<Allocator>::template rebind_alloc<U>>;
   };
 
   using Allocator::Allocator;
@@ -29,7 +30,8 @@ public:
   template <typename U, typename... Args>
   void construct(U *ptr, Args &&...args) {
     std::allocator_traits<Allocator>::construct(
-        static_cast<Allocator &>(*this), ptr, std::forward<Args>(args)...);
+        static_cast<Allocator &>(*this), ptr, std::forward<Args>(args)...
+    );
   }
 };
 

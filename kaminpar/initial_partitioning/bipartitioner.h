@@ -29,8 +29,9 @@ public:
 
   //! Compute bipartition and return as partitioned graph.
   virtual PartitionedGraph bipartition(StaticArray<BlockID> &&partition = {}) {
-    return PartitionedGraph(tag::seq, _graph, 2,
-                            bipartition_raw(std::move(partition)));
+    return PartitionedGraph(
+        tag::seq, _graph, 2, bipartition_raw(std::move(partition))
+    );
   }
 
   //! Compute bipartition and return as array.
@@ -57,9 +58,14 @@ protected:
   static constexpr BlockID V1 = 0;
   static constexpr BlockID V2 = 1;
 
-  Bipartitioner(const Graph &graph, const PartitionContext &p_ctx,
-                const InitialPartitioningContext &i_ctx)
-      : _graph{graph}, _p_ctx{p_ctx}, _i_ctx{i_ctx} {
+  Bipartitioner(
+      const Graph &graph,
+      const PartitionContext &p_ctx,
+      const InitialPartitioningContext &i_ctx
+  )
+      : _graph{graph},
+        _p_ctx{p_ctx},
+        _i_ctx{i_ctx} {
     KASSERT(_p_ctx.k == 2u, "not a bipartition context", assert::light);
   }
 
@@ -71,10 +77,10 @@ protected:
   //
 
   inline void add_to_smaller_block(const NodeID u) {
-    const NodeWeight delta1{_block_weights[0] -
-                            _p_ctx.block_weights.perfectly_balanced(0)};
-    const NodeWeight delta2{_block_weights[1] -
-                            _p_ctx.block_weights.perfectly_balanced(1)};
+    const NodeWeight delta1{
+        _block_weights[0] - _p_ctx.block_weights.perfectly_balanced(0)};
+    const NodeWeight delta2{
+        _block_weights[1] - _p_ctx.block_weights.perfectly_balanced(1)};
     const BlockID block{delta1 < delta2 ? V1 : V2};
     set_block(u, block);
   }
@@ -94,7 +100,9 @@ protected:
     _block_weights[other_block(b)] -= u_weight;
   }
 
-  inline BlockID other_block(const BlockID b) { return 1 - b; }
+  inline BlockID other_block(const BlockID b) {
+    return 1 - b;
+  }
 
   const Graph &_graph;
   const PartitionContext &_p_ctx;
