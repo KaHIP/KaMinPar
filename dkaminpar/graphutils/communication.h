@@ -302,6 +302,44 @@ std::vector<Buffer> sparse_alltoall_interface_to_ghost_get(
 template <
     typename Message,
     typename Buffer = NoinitVector<Message>,
+    typename Filter,
+    typename Builder>
+std::vector<Buffer> sparse_alltoall_interface_to_ghost_get(
+    const DistributedGraph &graph, Filter &&filter, Builder &&builder
+) {
+  std::vector<Buffer> recv_buffers(mpi::get_comm_size(graph.communicator()));
+  sparse_alltoall_interface_to_ghost<Message, Buffer>(
+      graph,
+      std::forward<Filter>(filter),
+      std::forward<Builder>(builder),
+      [&](auto recv_buffer, const PEID pe) {
+        recv_buffers[pe] = std::move(recv_buffer);
+      }
+  );
+  return recv_buffers;
+}
+
+template <
+    typename Message,
+    typename Buffer = NoinitVector<Message>,
+    typename Builder>
+std::vector<Buffer> sparse_alltoall_interface_to_ghost_get(
+    const DistributedGraph &graph, Builder &&builder
+) {
+  std::vector<Buffer> recv_buffers(mpi::get_comm_size(graph.communicator()));
+  sparse_alltoall_interface_to_ghost<Message, Buffer>(
+      graph,
+      std::forward<Builder>(builder),
+      [&](auto recv_buffer, const PEID pe) {
+        recv_buffers[pe] = std::move(recv_buffer);
+      }
+  );
+  return recv_buffers;
+}
+
+template <
+    typename Message,
+    typename Buffer = NoinitVector<Message>,
     typename Mapper,
     typename Filter,
     typename Builder,

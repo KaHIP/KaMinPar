@@ -18,95 +18,6 @@
 #include "common/scalable_vector.h"
 
 namespace kaminpar::dist::graph {
-class GhostNodeMapper {
-  using GhostNodeMap = tbb::concurrent_hash_map<GlobalNodeID, NodeID>;
-
-public:
-  struct Result {
-    growt::StaticGhostNodeMapping global_to_ghost;
-    scalable_vector<GlobalNodeID> ghost_to_global;
-    scalable_vector<PEID> ghost_owner;
-  };
-
-  explicit GhostNodeMapper(
-      MPI_Comm comm, const scalable_vector<GlobalNodeID> &node_distribution
-  )
-      : _node_distribution{node_distribution} {
-    const PEID rank = mpi::get_comm_rank(comm);
-    _n = static_cast<NodeID>(
-        _node_distribution[rank + 1] - _node_distribution[rank]
-    );
-    _next_ghost_node = _n;
-  }
-
-  explicit GhostNodeMapper(
-      const scalable_vector<GlobalNodeID> &node_distribution, const PEID rank
-  )
-      : _node_distribution{node_distribution} {
-    _n = static_cast<NodeID>(
-        _node_distribution[rank + 1] - _node_distribution[rank]
-    );
-    _next_ghost_node = _n;
-  }
-
-  NodeID new_ghost_node(const GlobalNodeID global_node) {
-    GhostNodeMap::accessor entry;
-    if (_global_to_ghost.insert(entry, global_node)) {
-      const NodeID ghost_node =
-          _next_ghost_node.fetch_add(1, std::memory_order_relaxed);
-      entry->second = ghost_node;
-    } else {
-      [[maybe_unused]] const bool found =
-          _global_to_ghost.find(entry, global_node);
-      KASSERT(found);
-    }
-
-    return entry->second;
-  }
-
-  [[nodiscard]] Result finalize() {
-    const auto ghost_n = static_cast<NodeID>(_next_ghost_node - _n);
-
-    growt::StaticGhostNodeMapping global_to_ghost(ghost_n);
-    scalable_vector<GlobalNodeID> ghost_to_global(ghost_n);
-    scalable_vector<PEID> ghost_owner(ghost_n);
-
-    tbb::parallel_for(_global_to_ghost.range(), [&](const auto r) {
-      for (auto it = r.begin(); it != r.end(); ++it) {
-        const GlobalNodeID global_node = it->first;
-        const NodeID local_node = it->second;
-        const NodeID local_ghost = local_node - _n;
-        const auto owner_it = std::upper_bound(
-            _node_distribution.begin() + 1,
-            _node_distribution.end(),
-            global_node
-        );
-        const PEID owner = static_cast<PEID>(
-            std::distance(_node_distribution.begin(), owner_it) - 1
-        );
-
-        ghost_to_global[local_ghost] = global_node;
-        ghost_owner[local_ghost] = owner;
-        global_to_ghost.insert(
-            global_node + 1,
-            local_node
-        ); // 0 cannot be used as a key
-      }
-    });
-
-    return {
-        .global_to_ghost = std::move(global_to_ghost),
-        .ghost_to_global = std::move(ghost_to_global),
-        .ghost_owner = std::move(ghost_owner)};
-  }
-
-private:
-  scalable_vector<GlobalNodeID> _node_distribution;
-  NodeID _n;
-  parallel::Atomic<NodeID> _next_ghost_node;
-  GhostNodeMap _global_to_ghost;
-};
-
 class Builder {
   SET_DEBUG(false);
 
@@ -115,13 +26,13 @@ public:
 
   Builder &initialize(const NodeID n) {
     return initialize(
-        mpi::build_distribution_from_local_count<GlobalNodeID, scalable_vector>(
+        mpi::build_distribution_from_local_count<GlobalNodeID, StaticArray>(
             n, _comm
         )
     );
   }
 
-  Builder &initialize(scalable_vector<GlobalNodeID> node_distribution) {
+  Builder &initialize(StaticArray<GlobalNodeID> node_distribution) {
     _node_distribution = std::move(node_distribution);
 
     const int rank = mpi::get_comm_rank(_comm);
@@ -177,7 +88,7 @@ public:
 
     const EdgeID m = _edges.size();
     auto edge_distribution =
-        mpi::build_distribution_from_local_count<GlobalEdgeID, scalable_vector>(
+        mpi::build_distribution_from_local_count<GlobalEdgeID, StaticArray>(
             m, _comm
         );
 
@@ -252,16 +163,16 @@ private:
 
   MPI_Comm _comm;
 
-  scalable_vector<GlobalNodeID> _node_distribution;
+  StaticArray<GlobalNodeID> _node_distribution;
   GlobalNodeID _offset_n{0};
   NodeID _local_n{0};
 
-  scalable_vector<EdgeID> _nodes{};
-  scalable_vector<NodeID> _edges{};
-  scalable_vector<NodeWeight> _node_weights{};
-  scalable_vector<EdgeWeight> _edge_weights{};
-  scalable_vector<PEID> _ghost_owner{};
-  scalable_vector<GlobalNodeID> _ghost_to_global{};
+  StaticArray<EdgeID> _nodes{};
+  StaticArray<NodeID> _edges{};
+  StaticArray<NodeWeight> _node_weights{};
+  StaticArray<EdgeWeight> _edge_weights{};
+  StaticArray<PEID> _ghost_owner{};
+  StaticArray<GlobalNodeID> _ghost_to_global{};
   std::unordered_map<GlobalNodeID, NodeID> _global_to_ghost{};
 
   bool _unit_node_weights{true};

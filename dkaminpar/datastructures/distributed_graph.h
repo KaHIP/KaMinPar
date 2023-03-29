@@ -20,9 +20,9 @@
 #include "kaminpar/datastructures/graph.h"
 
 #include "common/datastructures/marker.h"
+#include "common/datastructures/static_array.h"
 #include "common/parallel/algorithm.h"
 #include "common/ranges.h"
-#include "common/scalable_vector.h"
 
 namespace kaminpar::dist {
 namespace graph {
@@ -41,8 +41,6 @@ build_static_ghost_node_mapping(
 } // namespace graph
 
 class DistributedGraph {
-  SET_DEBUG(true);
-
 public:
   using NodeID = ::kaminpar::dist::NodeID;
   using GlobalNodeID = ::kaminpar::dist::GlobalNodeID;
@@ -56,43 +54,17 @@ public:
   DistributedGraph() = default;
 
   DistributedGraph(
-      scalable_vector<GlobalNodeID> node_distribution,
-      scalable_vector<GlobalEdgeID> edge_distribution,
-      scalable_vector<EdgeID> nodes,
-      scalable_vector<NodeID> edges,
-      scalable_vector<NodeWeight> node_weights,
-      scalable_vector<EdgeWeight> edge_weights,
-      scalable_vector<PEID> ghost_owner,
-      scalable_vector<GlobalNodeID> ghost_to_global,
-      std::unordered_map<GlobalNodeID, NodeID> global_to_ghost,
-      const bool sorted,
-      MPI_Comm comm
-  )
-      : DistributedGraph{
-            std::move(node_distribution),
-            std::move(edge_distribution),
-            std::move(nodes),
-            std::move(edges),
-            std::move(node_weights),
-            std::move(edge_weights),
-            std::move(ghost_owner),
-            std::move(ghost_to_global),
-            graph::build_static_ghost_node_mapping(std::move(global_to_ghost)),
-            sorted,
-            comm} {}
-
-  DistributedGraph(
-      scalable_vector<GlobalNodeID> node_distribution,
-      scalable_vector<GlobalEdgeID> edge_distribution,
-      scalable_vector<EdgeID> nodes,
-      scalable_vector<NodeID> edges,
-      scalable_vector<PEID> ghost_owner,
-      scalable_vector<GlobalNodeID> ghost_to_global,
+      StaticArray<GlobalNodeID> node_distribution,
+      StaticArray<GlobalEdgeID> edge_distribution,
+      StaticArray<EdgeID> nodes,
+      StaticArray<NodeID> edges,
+      StaticArray<PEID> ghost_owner,
+      StaticArray<GlobalNodeID> ghost_to_global,
       growt::StaticGhostNodeMapping global_to_ghost,
       const bool sorted,
       MPI_Comm comm
   )
-      : DistributedGraph{
+      : DistributedGraph(
             std::move(node_distribution),
             std::move(edge_distribution),
             std::move(nodes),
@@ -103,32 +75,33 @@ public:
             std::move(ghost_to_global),
             std::move(global_to_ghost),
             sorted,
-            comm} {}
+            comm
+        ) {}
 
   DistributedGraph(
-      scalable_vector<GlobalNodeID> node_distribution,
-      scalable_vector<GlobalEdgeID> edge_distribution,
-      scalable_vector<EdgeID> nodes,
-      scalable_vector<NodeID> edges,
-      scalable_vector<NodeWeight> node_weights,
-      scalable_vector<EdgeWeight> edge_weights,
-      scalable_vector<PEID> ghost_owner,
-      scalable_vector<GlobalNodeID> ghost_to_global,
+      StaticArray<GlobalNodeID> node_distribution,
+      StaticArray<GlobalEdgeID> edge_distribution,
+      StaticArray<EdgeID> nodes,
+      StaticArray<NodeID> edges,
+      StaticArray<NodeWeight> node_weights,
+      StaticArray<EdgeWeight> edge_weights,
+      StaticArray<PEID> ghost_owner,
+      StaticArray<GlobalNodeID> ghost_to_global,
       growt::StaticGhostNodeMapping global_to_ghost,
       const bool sorted,
       MPI_Comm comm
   )
-      : _node_distribution{std::move(node_distribution)},
-        _edge_distribution{std::move(edge_distribution)},
-        _nodes{std::move(nodes)},
-        _edges{std::move(edges)},
-        _node_weights{std::move(node_weights)},
-        _edge_weights{std::move(edge_weights)},
-        _ghost_owner{std::move(ghost_owner)},
-        _ghost_to_global{std::move(ghost_to_global)},
-        _global_to_ghost{std::move(global_to_ghost)},
-        _sorted{sorted},
-        _communicator{comm} {
+      : _node_distribution(std::move(node_distribution)),
+        _edge_distribution(std::move(edge_distribution)),
+        _nodes(std::move(nodes)),
+        _edges(std::move(edges)),
+        _node_weights(std::move(node_weights)),
+        _edge_weights(std::move(edge_weights)),
+        _ghost_owner(std::move(ghost_owner)),
+        _ghost_to_global(std::move(ghost_to_global)),
+        _global_to_ghost(std::move(global_to_ghost)),
+        _sorted(sorted),
+        _communicator(comm) {
     PEID rank;
     MPI_Comm_rank(communicator(), &rank);
 
@@ -502,7 +475,7 @@ public:
   // Graph permutation
   //
 
-  void set_permutation(scalable_vector<NodeID> permutation) {
+  void set_permutation(StaticArray<NodeID> permutation) {
     _permutation = std::move(permutation);
   }
 
@@ -546,7 +519,7 @@ public:
   // Graph permutation by coloring
   //
 
-  void set_color_sorted(scalable_vector<NodeID> color_sizes) {
+  void set_color_sorted(StaticArray<NodeID> color_sizes) {
     KASSERT(color_sizes.front() == 0u);
     KASSERT(color_sizes.back() == n());
     _color_sizes = std::move(color_sizes);
@@ -590,32 +563,32 @@ private:
   EdgeWeight _total_edge_weight{};
   GlobalEdgeWeight _global_total_edge_weight{};
 
-  scalable_vector<GlobalNodeID> _node_distribution{};
-  scalable_vector<GlobalEdgeID> _edge_distribution{};
+  StaticArray<GlobalNodeID> _node_distribution{};
+  StaticArray<GlobalEdgeID> _edge_distribution{};
 
-  scalable_vector<EdgeID> _nodes{};
-  scalable_vector<NodeID> _edges{};
-  scalable_vector<NodeWeight> _node_weights{};
-  scalable_vector<EdgeWeight> _edge_weights{};
+  StaticArray<EdgeID> _nodes{};
+  StaticArray<NodeID> _edges{};
+  StaticArray<NodeWeight> _node_weights{};
+  StaticArray<EdgeWeight> _edge_weights{};
 
-  scalable_vector<PEID> _ghost_owner{};
-  scalable_vector<GlobalNodeID> _ghost_to_global{};
+  StaticArray<PEID> _ghost_owner{};
+  StaticArray<GlobalNodeID> _ghost_to_global{};
   growt::StaticGhostNodeMapping _global_to_ghost{};
 
-  mutable scalable_vector<std::uint8_t> _high_degree_ghost_node{};
+  // mutable for lazy initialization
+  mutable StaticArray<std::uint8_t> _high_degree_ghost_node{};
   mutable EdgeID _high_degree_threshold = 0;
 
   std::vector<EdgeID> _edge_cut_to_pe{};
   std::vector<EdgeID> _comm_vol_to_pe{};
 
-  scalable_vector<NodeID> _permutation;
-
+  StaticArray<NodeID> _permutation;
   bool _sorted = false;
   std::vector<NodeID> _buckets =
       std::vector<NodeID>(shm::kNumberOfDegreeBuckets + 1);
   std::size_t _number_of_buckets = 0;
 
-  scalable_vector<NodeID> _color_sizes{};
+  StaticArray<NodeID> _color_sizes{};
 
   MPI_Comm _communicator;
 };
@@ -633,14 +606,13 @@ public:
   using BlockID = ::kaminpar::dist::BlockID;
   using BlockWeight = ::kaminpar::dist::BlockWeight;
 
-  using Partition = scalable_vector<BlockID>;
-  using BlockWeights = scalable_vector<BlockWeight>;
-
   DistributedPartitionedGraph(
-      const DistributedGraph *graph, const BlockID k, Partition partition
+      const DistributedGraph *graph,
+      const BlockID k,
+      StaticArray<BlockID> partition
   )
       : DistributedPartitionedGraph(
-            graph, k, std::move(partition), BlockWeights(k)
+            graph, k, std::move(partition), StaticArray<BlockWeight>(k)
         ) {
     init_block_weights();
   }
@@ -648,34 +620,44 @@ public:
   DistributedPartitionedGraph(
       const DistributedGraph *graph,
       const BlockID k,
-      Partition partition,
-      BlockWeights block_weights
+      StaticArray<BlockID> partition,
+      StaticArray<BlockWeight> block_weights
   )
-      : _graph{graph},
-        _k{k},
-        _partition{std::move(partition)},
-        _block_weights{std::move(block_weights)} {
-    KASSERT(_partition.size() == _graph->total_n());
-    KASSERT([&] {
-      for (const BlockID b : _partition) {
-        if (b >= _k) {
-          return false;
-        }
-      }
-      return true;
-    }());
+      : _graph(graph),
+        _k(k),
+        _partition(std::move(partition)),
+        _block_weights(std::move(block_weights)) {
+    KASSERT(
+        _partition.size() == _graph->total_n(),
+        "partition size does not match the number of nodes in the graph"
+    );
+    KASSERT(
+        [&] {
+          for (const BlockID b : _partition) {
+            if (b >= _k) {
+              return false;
+            }
+          }
+          return true;
+        }(),
+        "partition assignes out-of-bound labels to some nodes"
+    );
   }
 
   DistributedPartitionedGraph(const DistributedGraph *graph, const BlockID k)
       : DistributedPartitionedGraph(
-            graph, k, Partition(graph->total_n()), BlockWeights(k)
+            graph,
+            k,
+            StaticArray<BlockID>(graph->total_n()),
+            StaticArray<BlockWeight>(k)
         ) {}
 
-  DistributedPartitionedGraph() : _graph{nullptr}, _k{0}, _partition{} {}
+  DistributedPartitionedGraph() : _graph(nullptr), _k(0), _partition() {}
 
   DistributedPartitionedGraph(const DistributedPartitionedGraph &) = delete;
   DistributedPartitionedGraph &
   operator=(const DistributedPartitionedGraph &) = delete;
+
   DistributedPartitionedGraph(DistributedPartitionedGraph &&) noexcept =
       default;
   DistributedPartitionedGraph &
@@ -684,6 +666,7 @@ public:
   [[nodiscard]] const DistributedGraph &graph() const {
     return *_graph;
   }
+
   void UNSAFE_set_graph(const DistributedGraph *graph) {
     _graph = graph;
   }
@@ -793,12 +776,6 @@ public:
     return _block_weights;
   }
 
-  [[nodiscard]] scalable_vector<BlockWeight> block_weights_copy() const {
-    scalable_vector<BlockWeight> copy(k());
-    pfor_blocks([&](const BlockID b) { copy[b] = block_weight(b); });
-    return copy;
-  }
-
   [[nodiscard]] auto &&take_block_weights() {
     return std::move(_block_weights);
   }
@@ -808,12 +785,6 @@ public:
   }
   [[nodiscard]] auto &&take_partition() {
     return std::move(_partition);
-  }
-
-  [[nodiscard]] scalable_vector<BlockID> copy_partition() const {
-    scalable_vector<BlockID> copy(n());
-    pfor_nodes([&](const NodeID u) { copy[u] = block(u); });
-    return copy;
   }
 
   void reinit_block_weights() {
@@ -833,9 +804,10 @@ private:
   void init_block_weights();
 
   const DistributedGraph *_graph;
+
   BlockID _k;
-  Partition _partition;
-  BlockWeights _block_weights;
+  StaticArray<BlockID> _partition;
+  StaticArray<BlockWeight> _block_weights;
 };
 
 namespace graph {
@@ -849,10 +821,27 @@ void print_summary(const DistributedGraph &graph);
 } // namespace graph
 
 namespace graph::debug {
-// validate structure of a distributed graph
+/**
+ * Validates the distributed graph datastructure:
+ * - validate node and edge distributions
+ * - check that undirected edges have the same weight in both directions
+ * - check that the graph is actually undirected
+ * - check the weight of interface and ghost nodes
+ *
+ * @param graph the graph to check.
+ * @param root PE to use for sequential validation.
+ * @return whether the graph data structure is consistent.
+ */
 bool validate(const DistributedGraph &graph, int root = 0);
 
-// validate structure of a distributed graph partition
+/**
+ * Validates the distributed graph partition:
+ * - check the block assignment of interface and ghost nodes
+ * - check the block weights
+ *
+ * @param p_graph the graph partition to check.
+ * @return whether the graph partition is consistent.
+ */
 bool validate_partition(const DistributedPartitionedGraph &p_graph);
 } // namespace graph::debug
 } // namespace kaminpar::dist

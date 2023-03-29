@@ -9,10 +9,11 @@
 
 #include "dkaminpar/context_io.h"
 #include "dkaminpar/datastructures/distributed_graph.h"
-#include "dkaminpar/datastructures/distributed_graph_builder.h"
+#include "dkaminpar/datastructures/ghost_node_mapper.h"
 #include "dkaminpar/factories.h"
 #include "dkaminpar/graphutils/rearrangement.h"
 #include "dkaminpar/metrics.h"
+#include "dkaminpar/timer.h"
 
 #include "kaminpar/context.h"
 
@@ -160,8 +161,8 @@ void dKaMinPar::import_graph(
   const GlobalNodeID to = vtxdist[rank + 1];
   const EdgeID m = static_cast<EdgeID>(xadj[n]);
 
-  scalable_vector<GlobalNodeID> node_distribution(vtxdist, vtxdist + size + 1);
-  scalable_vector<GlobalEdgeID> edge_distribution(size + 1);
+  StaticArray<GlobalNodeID> node_distribution(vtxdist, vtxdist + size + 1);
+  StaticArray<GlobalEdgeID> edge_distribution(size + 1);
   edge_distribution[rank] = m;
   MPI_Allgather(
       MPI_IN_PLACE,
@@ -179,11 +180,11 @@ void dKaMinPar::import_graph(
       static_cast<GlobalEdgeID>(0)
   );
 
-  scalable_vector<EdgeID> nodes;
-  scalable_vector<NodeID> edges;
-  scalable_vector<NodeWeight> node_weights;
-  scalable_vector<EdgeWeight> edge_weights;
-  graph::GhostNodeMapper mapper(_comm, node_distribution);
+  StaticArray<EdgeID> nodes;
+  StaticArray<NodeID> edges;
+  StaticArray<NodeWeight> node_weights;
+  StaticArray<EdgeWeight> edge_weights;
+  graph::GhostNodeMapper mapper(rank, node_distribution);
 
   tbb::parallel_invoke(
       [&] {

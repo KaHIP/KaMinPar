@@ -1,9 +1,8 @@
 /*******************************************************************************
  * @file:   static_array.h
- *
  * @author: Daniel Seemaier
  * @date:   21.09.2021
- * @brief:  TODO deprecated
+ * @brief:  Combination of owning static array and a slice.
  ******************************************************************************/
 #pragma once
 
@@ -94,10 +93,6 @@ public:
       return _ptr - other._ptr;
     }
 
-    /*friend bool operator==(const StaticArrayIterator& self, const
-    StaticArrayIterator& sentinel) { return self._ptr == sentinel._ptr;
-    }*/
-
   private:
     T *_ptr;
   };
@@ -135,6 +130,14 @@ public:
 
   StaticArray(const std::size_t size, no_init) {
     resize_without_init(size);
+  }
+
+  template <typename Iterator>
+  StaticArray(Iterator first, Iterator last)
+      : StaticArray(std::distance(first, last)) {
+    tbb::parallel_for<std::size_t>(0, _size, [&](const std::size_t i) {
+      _data[i] = *(first + i);
+    });
   }
 
   StaticArray() {}

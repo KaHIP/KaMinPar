@@ -287,229 +287,236 @@ template <typename R> bool all_equal(const R &r) {
 }
 } // namespace
 
-bool validate(const DistributedGraph &graph, const int root) {
+bool validate(const DistributedGraph &graph) {
   MPI_Comm comm = graph.communicator();
+
+  const PEID size = mpi::get_comm_size(comm);
+  const PEID rank = mpi::get_comm_rank(comm);
+
+  {
+    DBG << "Checking global number of nodes and edges ...";
+
+    const GlobalNodeID root_global_n = mpi::bcast(graph.global_n(), 0, comm);
+    const GlobalEdgeID root_global_m = mpi::bcast(graph.global_m(), 0, comm);
+    if (root_global_n != graph.global_n()) {
+      LOG_ERROR << "on PE " << rank << ": inconsistent global number of nodes ("
+                << graph.global_n() << ") with root (" << root_global_n << ")";
+      return false;
+    }
+    if (root_global_m != graph.global_m()) {
+      LOG_ERROR << "on PE " << rank << ": inconsistent global number of edges ("
+                << graph.global_m() << ") with root (" << root_global_m << ")";
+      return false;
+    }
+  }
+
   mpi::barrier(comm);
 
-  const auto [size, rank] = mpi::get_comm_info(comm);
-
-  // check global n, global m
-  DBG << "Checking global n, m";
-  KASSERT(
-      mpi::bcast(graph.global_n(), root, comm) == graph.global_n(),
-      "inconsistent global number of nodes",
-      assert::always
-  );
-  KASSERT(
-      mpi::bcast(graph.global_m(), root, comm) == graph.global_m(),
-      "inconsistent global number of edges",
-      assert::always
-  );
-
-  // check global node distribution
-  DBG << "Checking node distribution";
-  KASSERT(
-      static_cast<int>(graph.node_distribution().size()) == size + 1,
-      "bad size of node distribution array",
-      assert::always
-  );
-  KASSERT(
-      graph.node_distribution().front() == 0u,
-      "bad first entry of node distribution array",
-      assert::always
-  );
-  KASSERT(
-      graph.node_distribution().back() == graph.global_n(),
-      "bad last entry of node distribution array",
-      assert::always
-  );
-  for (PEID pe = 1; pe < size + 1; ++pe) {
-    KASSERT(
-        mpi::bcast(graph.node_distribution(pe), root, comm) ==
-            graph.node_distribution(pe),
-        "inconsistent entry in node distribution array",
-        assert::always
-    );
-    KASSERT(
-        rank + 1 != pe ||
-            graph.node_distribution(pe) - graph.node_distribution(pe - 1) ==
-                graph.n(),
-        "bad entry in node distribution array",
-        assert::always
-    );
-  }
-
-  // check global edge distribution
-  DBG << "Checking edge distribution";
-  KASSERT(
-      static_cast<int>(graph.edge_distribution().size()) == size + 1,
-      "bad size of edge distribution array",
-      assert::always
-  );
-  KASSERT(
-      graph.edge_distribution().front() == 0u,
-      "bad first entry of edge distribution array",
-      assert::always
-  );
-  KASSERT(
-      graph.edge_distribution().back() == graph.global_m(),
-      "bad last entry of edge distribution array",
-      assert::always
-  );
-  for (PEID pe = 1; pe < size + 1; ++pe) {
-    KASSERT(
-        mpi::bcast(graph.edge_distribution(pe), root, comm) ==
-            graph.edge_distribution(pe),
-        "inconsistent entry in edge distribution array",
-        assert::always
-    );
-    KASSERT(
-        rank + 1 != pe ||
-            graph.edge_distribution(pe) - graph.edge_distribution(pe - 1) ==
-                graph.m(),
-        "bad entry in edge distribution array: expected edges "
-            << graph.edge_distribution(pe - 1) << ".."
-            << graph.edge_distribution(pe) << ", but got " << graph.m()
-            << " edges",
-        assert::always
-    );
-  }
-
-  // check that ghost nodes are actually ghost nodes
-  DBG << "Checking ghost nodes";
-  for (NodeID ghost_u : graph.ghost_nodes()) {
-    KASSERT(
-        graph.ghost_owner(ghost_u) != rank,
-        "owner of ghost node should not be the same PE",
-        assert::always
-    );
-  }
-
-  // check node weight of ghost nodes
-  DBG << "Checking node weights of ghost nodes";
   {
+    DBG << "Checking node distribution ...";
+
+    if (graph.node_distribution().size() != size + 1) {
+      LOG_ERROR << "on PE " << rank
+                << ": expected size of the node distribution array to be "
+                << size + 1 << ", but is " << graph.node_distribution().size();
+      return false;
+    }
+    if (graph.edge_distribution().size() != size + 1) {
+      LOG_ERROR << "on PE " << rank
+                << ": expected size of the edge distribution array to be "
+                << size + 1 << ", but is " << graph.edge_distribution().size();
+      return false;
+    }
+    if (graph.node_distribution().front() != 0u) {
+      LOG_ERROR << "on PE " << rank << ": node distribution starts at "
+                << graph.node_distribution().front();
+      return false;
+    }
+    if (graph.edge_distribution().front() != 0u) {
+      LOG_ERROR << "on PE " << rank << ": edge distribution starts at "
+                << graph.edge_distribution().front();
+      return false;
+    }
+    if (graph.edge_distribution().back() != graph.global_m()) {
+      LOG_ERROR << "on PE " << rank << ": edge distribution ends at "
+                << graph.edge_distribution().back() << ", but graph has "
+                << graph.global_m() << " edges";
+      return false;
+    }
+    if (graph.n() !=
+        graph.node_distribution(rank + 1) - graph.node_distribution(rank)) {
+      LOG_ERROR << "on PE " << rank << ": local graph has " << graph.n()
+                << " nodes, but node distribution array claims "
+                << graph.node_distribution(rank + 1) -
+                       graph.node_distribution(rank)
+                << " nodes";
+      return false;
+    }
+    if (graph.m() !=
+        graph.edge_distribution(rank + 1) - graph.edge_distribution(rank)) {
+      LOG_ERROR << "on PE " << rank << ": local graph has " << graph.m()
+                << " nodes, but edge distribution array claims "
+                << graph.edge_distribution(rank + 1) -
+                       graph.edge_distribution(rank)
+                << " nodes";
+      return false;
+    }
+
+    for (PEID pe = 1; pe < size + 1; ++pe) {
+      const GlobalNodeID nodes_entry_on_root =
+          mpi::bcast(graph.node_distribution(pe), 0, comm);
+      const GlobalEdgeID edges_entry_on_root =
+          mpi::bcast(graph.edge_distribution(pe), 0, comm);
+
+      if (graph.node_distribution(pe) != nodes_entry_on_root) {
+        LOG_ERROR << "on PE " << rank << ": inconsistent entry "
+                  << graph.node_distribution(pe)
+                  << " in the node distribution array, expected "
+                  << nodes_entry_on_root;
+        return false;
+      }
+      if (graph.edge_distribution(pe) != edges_entry_on_root) {
+        LOG_ERROR << "on PE " << rank << ": inconsistent entry "
+                  << graph.edge_distribution(pe)
+                  << " in the edge distribution array, expected "
+                  << edges_entry_on_root;
+        return false;
+      }
+    }
+  }
+
+  mpi::barrier(comm);
+
+  {
+    DBG << "Checking that owners of ghost nodes are not local ...";
+    for (const NodeID ghost : graph.ghost_nodes()) {
+      if (graph.ghost_owner(ghost) == rank) {
+        LOG_ERROR << "on PE " << rank << ": local owner of ghost node "
+                  << ghost;
+        return false;
+      }
+    }
+  }
+
+  mpi::barrier(comm);
+
+  {
+    DBG << "Checking node weights of ghost nodes ...";
+
     struct GhostNodeWeightMessage {
-      GlobalNodeID global_u;
+      GlobalNodeID node;
       NodeWeight weight;
     };
 
-    mpi::graph::sparse_alltoall_interface_to_pe<GhostNodeWeightMessage>(
-        graph,
-        [&](const NodeID u) -> GhostNodeWeightMessage {
-          return {
-              .global_u = graph.local_to_global_node(u),
-              .weight = graph.node_weight(u)};
-        },
-        [&](const auto buffer, PEID) {
-          for (const auto [global_u, weight] : buffer) {
-            KASSERT(
-                graph.contains_global_node(global_u),
-                "global node " << global_u
-                               << " has edge to this PE, but this PE does "
-                                  "not know the node",
-                assert::always
-            );
-            const NodeID local_u = graph.global_to_local_node(global_u);
-            KASSERT(
-                graph.node_weight(local_u) == weight,
-                "inconsistent weight for global node "
-                    << global_u << " / local node " << local_u,
-                assert::always
-            );
-          }
+    const auto recvbufs =
+        mpi::graph::sparse_alltoall_interface_to_pe_get<GhostNodeWeightMessage>(
+            graph,
+            [&](const NodeID u) -> GhostNodeWeightMessage {
+              return {
+                  .node = graph.local_to_global_node(u),
+                  .weight = graph.node_weight(u)};
+            }
+        );
+
+    for (PEID pe = 0; pe < size; ++pe) {
+      for (const auto &[node, weight] : recvbufs[pe]) {
+        if (!graph.contains_global_node(node)) {
+          LOG_ERROR << "on PE " << rank << ": invalid global node " << node
+                    << " with weight " << weight << " sent from PE " << pe;
+          return false;
         }
-    );
+      }
+    }
   }
 
-  // check that edges to ghost nodes exist in both directions
-  DBG << "Checking edges to ghost nodes";
+  mpi::barrier(comm);
+
   {
+    DBG << "Checking edges to ghost nodes ...";
+
     struct GhostNodeEdge {
       GlobalNodeID owned_node;
       GlobalNodeID ghost_node;
     };
 
-    mpi::graph::sparse_alltoall_interface_to_ghost<GhostNodeEdge>(
-        graph,
-        [&](const NodeID u, const EdgeID, const NodeID v) -> GhostNodeEdge {
-          return {
-              .owned_node = graph.local_to_global_node(u),
-              .ghost_node = graph.local_to_global_node(v)};
-        },
-        [&](const auto recv_buffer, const PEID pe) {
-          for (const auto [ghost_node, owned_node] :
-               recv_buffer) { // NOLINT: roles are swapped on receiving PE
-            KASSERT(
-                graph.contains_global_node(ghost_node),
-                "global node " << ghost_node
-                               << " has edge to this PE, but this PE does "
-                                  "not know the node",
-                assert::always
-            );
-            KASSERT(
-                graph.contains_global_node(owned_node),
-                "global node " << ghost_node << " has edge to global node "
-                               << owned_node
-                               << " which should be owned by this PE, but "
-                                  "this PE does not know that node",
-                assert::always
-            );
-
-            const NodeID local_owned_node =
-                graph.global_to_local_node(owned_node);
-            const NodeID local_ghost_node =
-                graph.global_to_local_node(ghost_node);
-
-            bool found = false;
-            for (const auto v : graph.adjacent_nodes(local_owned_node)) {
-              if (v == local_ghost_node) {
-                found = true;
-                break;
-              }
+    const auto recvbufs =
+        mpi::graph::sparse_alltoall_interface_to_ghost_get<GhostNodeEdge>(
+            graph,
+            [&](const NodeID u, const EdgeID, const NodeID v) -> GhostNodeEdge {
+              return {
+                  .owned_node = graph.local_to_global_node(u),
+                  .ghost_node = graph.local_to_global_node(v)};
             }
-            KASSERT(
-                found,
-                "local node " << local_owned_node << " (global node "
-                              << owned_node << ") "
-                              << "is expected to be adjacent to local node "
-                              << local_ghost_node << " (global node "
-                              << ghost_node << ") "
-                              << "due to an edge on PE " << pe
-                              << ", but is not",
-                assert::always
-            );
+        );
+
+    for (PEID pe = 0; pe < size; ++pe) {
+      for (const auto &[ghost, owned] : recvbufs[pe]) {
+        if (!graph.contains_global_node(owned)) {
+          LOG_ERROR << "on PE " << rank << ": PE " << pe
+                    << " has edge to global node " << owned
+                    << " with is not contained on this PE";
+          return false;
+        }
+        if (!graph.contains_global_node(ghost)) {
+          LOG_ERROR << "on PE " << rank << ": PE " << pe
+                    << " has edge from global node " << ghost
+                    << " with is not contained on this PE";
+          return false;
+        }
+
+        const NodeID local_owned_node = graph.global_to_local_node(owned);
+        const NodeID local_ghost_node = graph.global_to_local_node(ghost);
+
+        bool found = false;
+        for (const auto v : graph.adjacent_nodes(local_owned_node)) {
+          if (v == local_ghost_node) {
+            found = true;
+            break;
           }
         }
-    );
+        if (!found) {
+          LOG_ERROR << "on PE " << rank << ": PE " << pe
+                    << " expects our local node " << local_owned_node
+                    << " (global node " << owned
+                    << ") to be adjacent to our local ghost node "
+                    << local_ghost_node << " (global " << ghost
+                    << "), but it is not adjacent";
+          return false;
+        }
+      }
+    }
   }
 
-  // check that the graph is sorted if it claims that it is sorted
-  DBG << "Checking degree buckets";
+  mpi::barrier(comm);
+
   if (graph.sorted()) {
+    DBG << "Checking degree buckets ...";
+
     for (std::size_t bucket = 0; bucket < graph.number_of_buckets(); ++bucket) {
       if (graph.bucket_size(bucket) == 0) {
         continue;
       }
 
-      KASSERT(
-          graph.first_node_in_bucket(bucket) !=
-              graph.first_invalid_node_in_bucket(bucket),
-          "bucket is empty, but graph data structure claims that it has size "
-              << graph.bucket_size(bucket),
-          assert::always
-      );
+      if (graph.first_node_in_bucket(bucket) ==
+          graph.first_invalid_node_in_bucket(bucket)) {
+        LOG_ERROR
+            << "on PE " << rank
+            << ": bucket is empty, but graph data structure claims that it "
+               "has size "
+            << graph.bucket_size(bucket);
+        return false;
+      }
 
       for (NodeID u = graph.first_node_in_bucket(bucket);
            u < graph.first_invalid_node_in_bucket(bucket);
            ++u) {
         const auto expected_bucket = shm::degree_bucket(graph.degree(u));
-        KASSERT(
-            expected_bucket == bucket,
-            "node " << u << " with degree " << graph.degree(u)
-                    << " is expected to be in bucket " << expected_bucket
-                    << ", but is in bucket " << bucket,
-            assert::always
-        );
+        if (expected_bucket != bucket) {
+          LOG_ERROR << "on PE " << rank << ":node " << u << " with degree "
+                    << graph.degree(u) << " is expected to be in bucket "
+                    << expected_bucket << ", but is in bucket " << bucket;
+          return false;
+        }
       }
     }
   }
@@ -520,80 +527,60 @@ bool validate(const DistributedGraph &graph, const int root) {
 
 bool validate_partition(const DistributedPartitionedGraph &p_graph) {
   MPI_Comm comm = p_graph.communicator();
-  const auto [size, rank] = mpi::get_comm_info(comm);
+
+  const PEID size = mpi::get_comm_size(comm);
+  const PEID rank = mpi::get_comm_rank(comm);
 
   {
-    DBG << "Check that each PE knows the same block count";
-    const auto recv_k = mpi::allgather(p_graph.k(), p_graph.communicator());
-    KASSERT(all_equal(recv_k));
-    mpi::barrier(comm);
+    DBG << "Checking block counts ...";
+
+    const BlockID root_k = mpi::bcast(p_graph.k(), 0, comm);
+    if (root_k != p_graph.k()) {
+      LOG_ERROR << "on PE " << rank << ": number of blocks (" << p_graph.k()
+                << ") differs from number of blocks on the root PE (" << root_k
+                << ")";
+      return false;
+    }
   }
 
+  mpi::barrier(comm);
+
   {
-    DBG << "Check that block IDs are OK";
+    DBG << "Checking block IDs ...";
+
     for (const NodeID u : p_graph.all_nodes()) {
-      KASSERT(p_graph.block(u) < p_graph.k());
-    }
-  }
-
-  {
-    DBG << "Check that each PE has the same block weights";
-
-    scalable_vector<BlockWeight> recv_block_weights;
-    if (rank == 0) {
-      recv_block_weights.resize(size * p_graph.k());
-    }
-    const scalable_vector<BlockWeight> send_block_weights =
-        p_graph.block_weights_copy();
-    mpi::gather(
-        send_block_weights.data(),
-        static_cast<int>(p_graph.k()),
-        recv_block_weights.data(),
-        static_cast<int>(p_graph.k()),
-        0,
-        comm
-    );
-
-    if (rank == 0) {
-      for (const BlockID b : p_graph.blocks()) {
-        for (int pe = 0; pe < size; ++pe) {
-          const BlockWeight expected = recv_block_weights[b];
-          const BlockWeight actual = recv_block_weights[p_graph.k() * pe + b];
-          KASSERT(
-              expected == actual,
-              "for PE " << pe << ", block " << b << ": expected weight "
-                        << expected << " (weight on root), got weight "
-                        << actual
-          );
-        }
+      if (p_graph.block(u) >= p_graph.k()) {
+        LOG_ERROR << "on PE " << rank << ": node " << u
+                  << " assigned to invalid block " << p_graph.block(u);
+        return false;
       }
     }
-
-    mpi::barrier(comm);
   }
 
-  {
-    DBG << "Check that block weights are actually correct";
+  mpi::barrier(comm);
 
-    scalable_vector<BlockWeight> send_block_weights(p_graph.k());
+  {
+    DBG << "Checking block weights ...";
+
+    StaticArray<BlockWeight> recomputed_block_weights(p_graph.k());
     for (const NodeID u : p_graph.nodes()) {
-      send_block_weights[p_graph.block(u)] += p_graph.node_weight(u);
+      recomputed_block_weights[p_graph.block(u)] += p_graph.node_weight(u);
     }
-    scalable_vector<BlockWeight> recv_block_weights;
-    if (rank == 0) {
-      recv_block_weights.resize(p_graph.k());
-    }
-    mpi::reduce(
-        send_block_weights.data(),
-        recv_block_weights.data(),
-        static_cast<int>(p_graph.k()),
+    MPI_Allreduce(
+        MPI_IN_PLACE,
+        recomputed_block_weights.data(),
+        asserting_cast<int>(p_graph.k()),
+        mpi::type::get<BlockWeight>(),
         MPI_SUM,
-        0,
         comm
     );
-    if (rank == 0) {
-      for (const BlockID b : p_graph.blocks()) {
-        KASSERT(p_graph.block_weight(b) == recv_block_weights[b]);
+
+    for (const BlockID b : p_graph.blocks()) {
+      if (p_graph.block_weight(b) != recomputed_block_weights[b]) {
+        LOG_ERROR << "on PE " << rank << ": expected weight of block " << b
+                  << " is " << p_graph.block_weight(b)
+                  << ", but actual weight is " << recomputed_block_weights[b];
+        return false;
       }
     }
 
@@ -601,68 +588,75 @@ bool validate_partition(const DistributedPartitionedGraph &p_graph) {
   }
 
   {
-    DBG << "Check whether the assignment of ghost nodes is consistent";
+    DBG << "Checking ghost node block assignments ...";
 
-    // collect partition on root
-    scalable_vector<BlockID> recv_partition;
+    // Build a global partition array on the root PE
+    StaticArray<BlockID> global_partition;
     if (rank == 0) {
-      recv_partition.resize(p_graph.global_n());
+      global_partition.resize(p_graph.global_n());
     }
 
-    const auto recvcounts =
-        mpi::build_distribution_recvcounts(p_graph.node_distribution());
-    const auto displs =
-        mpi::build_distribution_displs(p_graph.node_distribution());
-    mpi::gatherv(
+    std::vector<int> displs(
+        p_graph.node_distribution().begin(), p_graph.node_distribution().end()
+    );
+    std::vector<int> counts(size);
+    for (PEID pe = 0; pe < size; ++pe) {
+      counts[pe] = displs[pe + 1] - displs[pe];
+    }
+
+    MPI_Gatherv(
         p_graph.partition().data(),
-        static_cast<int>(p_graph.n()),
-        recv_partition.data(),
-        recvcounts.data(),
+        asserting_cast<int>(p_graph.n()),
+        mpi::type::get<BlockID>(),
+        global_partition.data(),
+        counts.data(),
         displs.data(),
+        mpi::type::get<BlockID>(),
         0,
         comm
     );
 
-    // next, each PE validates the block of its ghost nodes by sending them to
-    // root
-    scalable_vector<std::uint64_t> send_buffer;
-    send_buffer.reserve(p_graph.ghost_n() * 2);
+    // Collect ghost node assignments on the root PE
+    struct NodeAssignment {
+      GlobalNodeID node;
+      BlockID block;
+    };
+    std::vector<NodeAssignment> sendbuf;
     for (const NodeID ghost_u : p_graph.ghost_nodes()) {
-      if (rank == 0) { // root can validate locally
-        KASSERT(
-            p_graph.block(ghost_u) ==
-            recv_partition[p_graph.local_to_global_node(ghost_u)]
-        );
+      const GlobalNodeID global = p_graph.local_to_global_node(ghost_u);
+      const BlockID block = p_graph.block(ghost_u);
+
+      if (rank == 0) {
+        if (global_partition[global] != block) {
+          LOG_ERROR << "inconsistent assignment of node " << global
+                    << " on PE 0: local assignment to block " << block
+                    << " inconsistent with actual assignment to block "
+                    << global_partition[global];
+          return false;
+        }
       } else {
-        send_buffer.push_back(p_graph.local_to_global_node(ghost_u));
-        send_buffer.push_back(p_graph.block(ghost_u));
+        sendbuf.push_back({global, block});
       }
     }
 
-    // exchange messages and validate
     if (rank == 0) {
-      for (int pe = 1; pe < size; ++pe) { // recv from all but root
-        const auto recv_buffer = mpi::probe_recv<std::uint64_t>(pe, 0, comm);
+      for (int pe = 1; pe < size; ++pe) {
+        const auto recvbuf = mpi::probe_recv<NodeAssignment>(pe, 0, comm);
 
-        // now validate received data
-        for (std::size_t i = 0; i < recv_buffer.size(); i += 2) {
-          const auto global_u = static_cast<GlobalNodeID>(recv_buffer[i]);
-          const auto b = static_cast<BlockID>(recv_buffer[i + 1]);
-          KASSERT(
-              recv_partition[global_u] == b,
-              "on PE " << pe << ": ghost node " << global_u
-                       << " is placed in block " << b
-                       << ", but on its owner PE, it is placed in block "
-                       << recv_partition[global_u]
-          );
+        for (const auto &[global, block] : recvbuf) {
+          LOG_ERROR << "inconsistent assignment of node " << global
+                    << " on PE 0: local assignment to block " << block
+                    << " inconsistent with actual assignment to block "
+                    << global_partition[global];
+          return false;
         }
       }
     } else {
-      mpi::send(send_buffer.data(), send_buffer.size(), 0, 0, comm);
+      mpi::send(sendbuf.data(), sendbuf.size(), 0, 0, comm);
     }
-
-    mpi::barrier(comm);
   }
+
+  mpi::barrier(comm);
 
   return true;
 }
