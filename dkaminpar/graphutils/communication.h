@@ -95,26 +95,17 @@ void sparse_alltoall_interface_to_ghost_custom_range(
 
   const auto [size, rank] = mpi::get_comm_info(graph.communicator());
 
-  // allocate message counters
+  START_TIMER("Message construction");
+
+  // Allocate message counters
   const PEID num_threads = omp_get_max_threads();
   std::vector<cache_aligned_vector<std::size_t>> num_messages(
       num_threads, cache_aligned_vector<std::size_t>(size)
   );
 
-  // ASSERT that we count the same number of messages that we create
-#if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
-  std::vector<parallel::Aligned<std::size_t>> total_num_messages(num_threads);
-#endif
-
-  // count messages to each PE for each thread
-  START_TIMER("Count messages");
-#if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
-#pragma omp parallel for default(none)                                         \
-    shared(graph, from, to, mapper, num_messages, filter, total_num_messages)
-#else
+  // Count messages to each PE for each thread
 #pragma omp parallel for default(none)                                         \
     shared(graph, from, to, mapper, num_messages, filter)
-#endif
   for (NodeID seq_u = from; seq_u < to; ++seq_u) {
     const NodeID u = mapper(seq_u);
 
@@ -136,42 +127,21 @@ void sparse_alltoall_interface_to_ghost_custom_range(
 
         const PEID owner = graph.ghost_owner(v);
         ++num_messages[thread][owner];
-
-#if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
-        ++total_num_messages[thread];
-#endif
       }
     }
   }
 
-  // offset messages for each thread
+  // Offset messages for each thread
   internal::inclusive_col_prefix_sum(num_messages);
-  STOP_TIMER();
 
-  // allocate send buffers
+  // Allocate send buffers
   std::vector<Buffer> send_buffers(size);
   tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
     send_buffers[pe].resize(num_messages.back()[pe]);
   });
 
-  // fill buffers
-  START_TIMER("Partition messages");
-#if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
-#pragma omp parallel for default(none) shared(                                 \
-    send_buffers,                                                              \
-    from,                                                                      \
-    to,                                                                        \
-    mapper,                                                                    \
-    filter,                                                                    \
-    graph,                                                                     \
-    builder,                                                                   \
-    num_messages,                                                              \
-    total_num_messages                                                         \
-)
-#else
 #pragma omp parallel for default(none                                          \
 ) shared(send_buffers, from, to, mapper, filter, graph, builder, num_messages)
-#endif
   for (NodeID seq_u = from; seq_u < to; ++seq_u) {
     const NodeID u = mapper(seq_u);
 
@@ -198,22 +168,11 @@ void sparse_alltoall_interface_to_ghost_custom_range(
         } else /* if (builder_invocable_without_pe) */ {
           send_buffers[pe][slot] = builder(u, e, v);
         }
-
-#if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
-        --total_num_messages[thread];
-#endif
       }
     }
   }
-  STOP_TIMER();
 
-#if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
-  KASSERT(std::all_of(
-      total_num_messages.begin(),
-      total_num_messages.end(),
-      [&](const auto &num_messages) { return num_messages == 0; }
-  ));
-#endif
+  STOP_TIMER();
 
   sparse_alltoall<Message, Buffer>(
       std::move(send_buffers),
@@ -382,27 +341,16 @@ void sparse_alltoall_interface_to_pe_custom_range(
 
   const PEID size = mpi::get_comm_size(graph.communicator());
 
-  // allocate message counters
+  START_TIMER("Message construction");
+
+  // Allocate message counters
   const PEID num_threads = omp_get_max_threads();
   std::vector<cache_aligned_vector<std::size_t>> num_messages(
       num_threads, cache_aligned_vector<std::size_t>(size)
   );
 
-  // ASSERT that we count the same number of messages that we create
-#if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
-  std::vector<parallel::Aligned<std::size_t>> total_num_messages(num_threads);
-#endif
-
-  // count messages to each PE for each thread
-  START_TIMER("Count messages");
-#if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
-#pragma omp parallel default(none) shared(                                     \
-    size, from, to, mapper, filter, graph, num_messages, total_num_messages    \
-)
-#else
 #pragma omp parallel default(none)                                             \
     shared(size, from, to, mapper, filter, graph, num_messages)
-#endif
   {
     Marker<> created_message_for_pe(static_cast<std::size_t>(size));
     const PEID thread = omp_get_thread_num();
@@ -434,48 +382,25 @@ void sparse_alltoall_interface_to_pe_custom_range(
         created_message_for_pe.set(pe);
 
         ++num_messages[thread][pe];
-
-#if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
-        ++total_num_messages[thread];
-#endif
       }
 
       created_message_for_pe.reset();
     }
   }
 
-  // offset messages for each thread
+  // Offset messages for each thread
   internal::inclusive_col_prefix_sum(num_messages);
-  mpi::barrier(graph.communicator());
-  STOP_TIMER();
 
-  // allocate send buffers
+  // Allocate send buffers
   std::vector<Buffer> send_buffers(size);
   tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
     send_buffers[pe].resize(num_messages.back()[pe]);
   });
-  mpi::barrier(graph.communicator());
 
-  // fill buffers
-  START_TIMER("Partition messages");
-#if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
-#pragma omp parallel default(none) shared(                                     \
-    send_buffers,                                                              \
-    size,                                                                      \
-    from,                                                                      \
-    to,                                                                        \
-    mapper,                                                                    \
-    builder,                                                                   \
-    filter,                                                                    \
-    graph,                                                                     \
-    num_messages,                                                              \
-    total_num_messages                                                         \
-)
-#else
+  // Fill buffers
 #pragma omp parallel default(none) shared(                                     \
     send_buffers, size, from, to, mapper, builder, filter, graph, num_messages \
 )
-#endif
   {
     Marker<> created_message_for_pe(static_cast<std::size_t>(size));
     const PEID thread = omp_get_thread_num();
@@ -515,25 +440,13 @@ void sparse_alltoall_interface_to_pe_custom_range(
         } else {
           send_buffers[pe][slot] = builder(u);
         }
-
-#if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
-        --total_num_messages[thread];
-#endif
       }
 
       created_message_for_pe.reset();
     }
   }
-  mpi::barrier(graph.communicator());
-  STOP_TIMER();
 
-#if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
-  KASSERT(std::all_of(
-      total_num_messages.begin(),
-      total_num_messages.end(),
-      [&](const auto &num_messages) { return num_messages == 0; }
-  ));
-#endif
+  STOP_TIMER();
 
   sparse_alltoall<Message, Buffer>(
       std::move(send_buffers),
@@ -730,14 +643,15 @@ void sparse_alltoall_custom(
   PEID size, rank;
   std::tie(size, rank) = mpi::get_comm_info(graph.communicator());
 
-  // allocate message counters
+  START_TIMER("Message construction");
+
+  // Allocate message counters
   const PEID num_threads = omp_get_max_threads();
   std::vector<cache_aligned_vector<std::size_t>> num_messages(
       num_threads, cache_aligned_vector<std::size_t>(size)
   );
 
-  // count messages to each PE for each thread
-  START_TIMER("Count messages");
+  // Count messages to each PE for each thread
 #pragma omp parallel default(none)                                             \
     shared(pe_getter, size, from, to, filter, graph, num_messages)
   {
@@ -750,18 +664,16 @@ void sparse_alltoall_custom(
     }
   }
 
-  // offset messages for each thread
+  // Offset messages for each thread
   internal::inclusive_col_prefix_sum(num_messages);
-  STOP_TIMER();
 
-  // allocate send buffers
+  // Allocate send buffers
   std::vector<Buffer> send_buffers(size);
   tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
     send_buffers[pe].resize(num_messages.back()[pe]);
   });
 
   // fill buffers
-  START_TIMER("Partition messages");
 #pragma omp parallel default(none) shared(                                     \
     pe_getter,                                                                 \
     send_buffers,                                                              \
@@ -784,6 +696,7 @@ void sparse_alltoall_custom(
       }
     }
   }
+
   STOP_TIMER();
 
   sparse_alltoall<Message, Buffer>(

@@ -15,12 +15,10 @@
 namespace kaminpar::mpi {
 namespace tag {
 struct complete_send_recv_tag {};
-struct sparse_isend_irecv_tag {};
 struct alltoallv_tag {};
 struct grid_tag {};
 
 constexpr static complete_send_recv_tag complete_send_recv;
-constexpr static sparse_isend_irecv_tag sparse_isend_irecv;
 constexpr static alltoallv_tag alltoallv;
 constexpr static grid_tag grid;
 
@@ -45,24 +43,6 @@ void sparse_alltoall(
     MPI_Comm comm
 ) {
   sparse_alltoall_grid<Message, Buffer>(
-      std::forward<SendBuffers>(send_buffers),
-      std::forward<Receiver>(receiver),
-      comm
-  );
-}
-
-template <
-    typename Message,
-    typename Buffer,
-    typename SendBuffers,
-    typename Receiver>
-void sparse_alltoall(
-    tag::sparse_isend_irecv_tag,
-    SendBuffers &&send_buffers,
-    Receiver &&receiver,
-    MPI_Comm comm
-) {
-  sparse_alltoall_sparse<Message, Buffer>(
       std::forward<SendBuffers>(send_buffers),
       std::forward<Receiver>(receiver),
       comm
@@ -134,7 +114,6 @@ template <
 void sparse_alltoall(
     const std::vector<Buffer> &send_buffers, Receiver &&receiver, MPI_Comm comm
 ) {
-  SCOPED_TIMER("Sparse Alltoall");
   if (internal::use_sparse_grid_alltoall(send_buffers, comm)) {
     sparse_alltoall<Message, Buffer>(
         tag::grid, send_buffers, std::forward<Receiver>(receiver), comm
@@ -156,7 +135,6 @@ template <
 void sparse_alltoall(
     std::vector<Buffer> &&send_buffers, Receiver &&receiver, MPI_Comm comm
 ) {
-  SCOPED_TIMER("Sparse Alltoall");
   if (internal::use_sparse_grid_alltoall(send_buffers, comm)) {
     sparse_alltoall<Message, Buffer>(
         tag::grid,

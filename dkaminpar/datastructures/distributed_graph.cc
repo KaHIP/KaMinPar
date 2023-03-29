@@ -59,7 +59,6 @@ void DistributedGraph::init_high_degree_info(const EdgeID high_degree_threshold
   if (_high_degree_threshold == high_degree_threshold) {
     return;
   }
-  SCOPED_TIMER("Init high degree info");
 
   _high_degree_threshold = high_degree_threshold;
   _high_degree_ghost_node.resize(ghost_n());

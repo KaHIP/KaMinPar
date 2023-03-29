@@ -56,25 +56,10 @@ template <typename T> struct CompleteSendRecvImplementation {
   }
 };
 
-template <typename T> struct SparseImplementation {
-  std::vector<std::vector<T>>
-  operator()(const std::vector<std::vector<T>> &sendbuf, MPI_Comm comm) {
-    std::vector<std::vector<T>> recvbufs(mpi::get_comm_size(comm));
-    mpi::sparse_alltoall<T, std::vector<T>>(
-        mpi::tag::sparse_isend_irecv,
-        sendbuf,
-        [&](auto recvbuf, const PEID pe) { recvbufs[pe] = std::move(recvbuf); },
-        comm
-    );
-    return recvbufs;
-  }
-};
-
 template <typename T>
 using SparseAlltoallImplementations = ::testing::Types<
     CompleteSendRecvImplementation<T>,
     AlltoallvImplementation<T>,
-    SparseImplementation<T>,
     GridImplementation<T>>;
 TYPED_TEST_SUITE(SparseAlltoallTest, SparseAlltoallImplementations<int>);
 

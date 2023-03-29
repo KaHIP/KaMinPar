@@ -38,6 +38,8 @@ void sparse_alltoall_grid(
     Receiver &&receiver,
     MPI_Comm comm
 ) {
+  START_TIMER("Alltoall construction");
+
   const GridCommunicator &grid_comm = get_grid_communicator(comm);
   const MPI_Comm &row_comm = grid_comm.row_comm();
   const MPI_Comm &col_comm = grid_comm.col_comm();
@@ -110,6 +112,9 @@ void sparse_alltoall_grid(
   KASSERT(asserting_cast<int>(row_counts_recv_displs.size()) >= col_comm_size);
   KASSERT(asserting_cast<int>(row_counts_send_displs.size()) >= col_comm_size);
 
+  STOP_TIMER();
+  START_TIMER("Alltoall MPI");
+
   mpi::alltoallv(
       counts.data(),
       row_counts_send_counts.data(),
@@ -119,6 +124,9 @@ void sparse_alltoall_grid(
       row_counts_recv_displs.data(),
       col_comm
   );
+
+  STOP_TIMER();
+  START_TIMER("Alltoall construction");
 
   /*
    * After Step 1 (column)
@@ -179,6 +187,9 @@ void sparse_alltoall_grid(
   KASSERT(asserting_cast<PEID>(row_recv_displs.size()) >= col_comm_size);
   KASSERT(asserting_cast<int>(row_recv_buf.size()) >= row_recv_displs.back());
 
+  STOP_TIMER();
+  START_TIMER("Alltoall MPI");
+
   mpi::alltoallv(
       data.data(),
       row_send_counts.data(),
@@ -188,6 +199,9 @@ void sparse_alltoall_grid(
       row_recv_displs.data(),
       col_comm
   );
+
+  STOP_TIMER();
+  START_TIMER("Alltoall construction");
 
   /*
    * After step 2 (column)
@@ -286,6 +300,9 @@ void sparse_alltoall_grid(
       asserting_cast<int>(subcounts.size()) >= col_subcounts_recv_displs.back()
   );
 
+  STOP_TIMER();
+  START_TIMER("Alltoall MPI");
+
   mpi::alltoallv(
       col_subcounts.data(),
       col_subcounts_send_counts.data(),
@@ -295,6 +312,9 @@ void sparse_alltoall_grid(
       col_subcounts_recv_displs.data(),
       row_comm
   );
+
+  STOP_TIMER();
+  START_TIMER("Alltoall construction");
 
   for (PEID pe = 0, row = 0; row < topo.num_full_cols(); ++row) {
     int sum = 0;
@@ -359,6 +379,9 @@ void sparse_alltoall_grid(
   KASSERT(asserting_cast<PEID>(col_recv_displs.size()) >= row_comm_size);
   KASSERT(asserting_cast<int>(col_recv_buf.size()) >= col_recv_displs.back());
 
+  STOP_TIMER();
+  START_TIMER("Alltoall MPI");
+
   mpi::alltoallv(
       col_data.data(),
       col_counts.data(),
@@ -369,9 +392,13 @@ void sparse_alltoall_grid(
       row_comm
   );
 
+  STOP_TIMER();
+
   // Assertion:
   // col_recv_buf contains all data adressed to this PE:
   // data from 0x0, 1x0, 2x0, ..., 0x1, 0x2, ... ...
+
+  START_TIMER("Alltoall processing");
 
   std::size_t displ = 0;
   std::size_t index = 0;
@@ -394,6 +421,8 @@ void sparse_alltoall_grid(
       internal::invoke_receiver(std::move(buffer), pe, receiver);
     }
   }
+
+  STOP_TIMER();
 }
 
 // @todo avoid using this variant since it requires a full copy of the send
@@ -406,6 +435,8 @@ template <
 void sparse_alltoall_grid(
     SendBuffers &&send_buffers, Receiver &&receiver, MPI_Comm comm
 ) {
+  START_TIMER("Alltoall construction");
+
   const auto [size, rank] = mpi::get_comm_info(comm);
   NoinitVector<int> counts(size);
 
@@ -424,6 +455,8 @@ void sparse_alltoall_grid(
         dense_buffer.begin() + displs[pe]
     );
   });
+
+  STOP_TIMER();
 
   sparse_alltoall_grid<Message, Buffer>(
       std::move(dense_buffer), counts, std::forward<Receiver>(receiver), comm
