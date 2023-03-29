@@ -9,7 +9,7 @@
 #include <mpi.h>
 
 #include "dkaminpar/datastructures/distributed_graph.h"
-#include "dkaminpar/datastructures/distributed_graph_builder.h"
+#include "dkaminpar/datastructures/ghost_node_mapper.h"
 #include "dkaminpar/definitions.h"
 #include "dkaminpar/graphutils/synchronization.h"
 #include "dkaminpar/metrics.h"
@@ -204,11 +204,12 @@ replicate(const DistributedGraph &graph, const int num_replications) {
   );
 
   // Allocate memory for new graph
-  scalable_vector<EdgeID> nodes(nodes_displs.back() + 1);
-  scalable_vector<NodeID> edges(edges_displs.back());
-  scalable_vector<EdgeWeight> edge_weights(
-      is_edge_weighted ? edges_displs.back() : 0
-  );
+  StaticArray<EdgeID> nodes(nodes_displs.back() + 1);
+  StaticArray<NodeID> edges(edges_displs.back());
+  StaticArray<EdgeWeight> edge_weights(0);
+  if (is_edge_weighted) {
+    edge_weights.resize(edges_displs.back());
+  }
 
   // Exchange data -- except for node weights (must know the no. of ghost nodes
   // to allocate the vector)
@@ -261,8 +262,8 @@ replicate(const DistributedGraph &graph, const int num_replications) {
   });
 
   // Create new node and edges distributions
-  scalable_vector<GlobalNodeID> node_distribution(new_size + 1);
-  scalable_vector<GlobalEdgeID> edge_distribution(new_size + 1);
+  StaticArray<GlobalNodeID> node_distribution(new_size + 1);
+  StaticArray<GlobalEdgeID> edge_distribution(new_size + 1);
   tbb::parallel_for<PEID>(0, new_size, [&](const PEID pe) {
     node_distribution[pe + 1] = graph.node_distribution(group_size * (pe + 1));
     edge_distribution[pe + 1] = graph.edge_distribution(group_size * (pe + 1));
@@ -272,7 +273,7 @@ replicate(const DistributedGraph &graph, const int num_replications) {
   const GlobalEdgeID n0 =
       graph.node_distribution(rank) - nodes_displs[group_rank];
   const GlobalEdgeID nf = n0 + nodes_displs.back();
-  GhostNodeMapper ghost_node_mapper(node_distribution, new_rank);
+  GhostNodeMapper ghost_node_mapper(new_rank, node_distribution);
 
   tbb::parallel_for<EdgeID>(0, tmp_global_edges.size(), [&](const EdgeID e) {
     const GlobalNodeID v = tmp_global_edges[e];
@@ -289,11 +290,12 @@ replicate(const DistributedGraph &graph, const int num_replications) {
   // The weights of ghost nodes are synchronized once the distributed graph data
   // structure was built
   const NodeID num_ghost_nodes = ghost_node_info.ghost_to_global.size();
-  scalable_vector<NodeWeight> node_weights(
-      is_node_weighted ? nodes_displs.back() + num_ghost_nodes : 0
-  );
+  StaticArray<NodeWeight> node_weights(0);
+
   if (is_node_weighted) {
     KASSERT(graph.is_node_weighted() || graph.n() == 0);
+
+    node_weights.resize(nodes_displs.back());
     mpi::allgatherv(
         graph.raw_node_weights().data(),
         graph.n(),
@@ -383,7 +385,7 @@ DistributedPartitionedGraph distribute_best_partition(
 
   // Scatter best partition
   auto partition = p_graph.take_partition();
-  scalable_vector<BlockID> new_partition(dist_graph.total_n());
+  StaticArray<BlockID> new_partition(dist_graph.total_n());
   MPI_Scatterv(
       partition.data(),
       send_counts.data(),
@@ -442,7 +444,7 @@ DistributedPartitionedGraph distribute_best_partition(
   );
 
   // create distributed partition
-  scalable_vector<BlockID> dist_partition(dist_graph.total_n());
+  StaticArray<BlockID> dist_partition(dist_graph.total_n());
   dist_graph.pfor_nodes(0, dist_graph.total_n(), [&](const NodeID u) {
     dist_partition[u] = partition[dist_graph.local_to_global_node(u)];
   });
