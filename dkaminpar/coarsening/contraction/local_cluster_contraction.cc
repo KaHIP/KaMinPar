@@ -10,6 +10,7 @@
 #include <tbb/parallel_for.h>
 #include <tbb/parallel_invoke.h>
 
+#include "dkaminpar/datastructures/ghost_node_mapper.h"
 #include "dkaminpar/definitions.h"
 #include "dkaminpar/graphutils/communication.h"
 #include "dkaminpar/mpi/wrapper.h"
@@ -17,6 +18,7 @@
 #include "common/datastructures/rating_map.h"
 #include "common/datastructures/ts_navigable_linked_list.h"
 #include "common/parallel/atomic.h"
+#include "common/scalable_vector.h"
 
 namespace kaminpar::dist {
 using namespace contraction;
@@ -71,7 +73,7 @@ Result contract_local_clustering(
       mpi::scan(static_cast<GlobalNodeID>(c_n), MPI_SUM, comm);
   const GlobalNodeID first_node = last_node - c_n;
 
-  scalable_vector<GlobalNodeID> c_node_distribution(size + 1);
+  StaticArray<GlobalNodeID> c_node_distribution(size + 1);
   c_node_distribution[rank + 1] = last_node;
   mpi::allgather(
       &c_node_distribution[rank + 1], 1, c_node_distribution.data() + 1, 1, comm
@@ -114,8 +116,8 @@ Result contract_local_clustering(
   // - firstly, we count the degree of each coarse node
   // - secondly, we obtain the nodes array using a prefix sum
   //
-  scalable_vector<EdgeID> c_nodes(c_n + 1);
-  scalable_vector<NodeWeight> c_node_weights(c_n);
+  StaticArray<EdgeID> c_nodes(c_n + 1);
+  StaticArray<NodeWeight> c_node_weights(c_n);
 
   // Build coarse node weights
   tbb::parallel_for<NodeID>(0, c_n, [&](const NodeID c_u) {
@@ -138,35 +140,31 @@ Result contract_local_clustering(
     NodeWeight coarse_weight;
   };
 
-  scalable_vector<PEID> c_ghost_owner;
-  scalable_vector<GlobalNodeID> c_ghost_to_global;
-  std::unordered_map<GlobalNodeID, NodeID> c_global_to_ghost;
-  NodeID c_next_ghost_node = c_n;
+  graph::GhostNodeMapper ghost_mapper(rank, c_node_distribution);
 
   mpi::graph::sparse_alltoall_interface_to_pe<CoarseGhostNode>(
       graph,
       [&](const NodeID u) -> CoarseGhostNode {
         KASSERT(u < mapping.size());
         KASSERT(mapping[u] < c_node_weights.size());
-
         return {
             .old_global_node = graph.local_to_global_node(u),
             .new_global_node = first_node + mapping[u],
             .coarse_weight = c_node_weights[mapping[u]],
         };
       },
-      [&](const auto recv_buffer, const PEID pe) { // TODO parallelize
-        for (const auto [old_global_u, new_global_u, new_weight] :
-             recv_buffer) {
-          const NodeID old_local_u = graph.global_to_local_node(old_global_u);
-          if (c_global_to_ghost.find(new_global_u) == c_global_to_ghost.end()) {
-            c_global_to_ghost[new_global_u] = c_next_ghost_node++;
-            c_node_weights.push_back(new_weight);
-            c_ghost_owner.push_back(pe);
-            c_ghost_to_global.push_back(new_global_u);
-          }
-          mapping[old_local_u] = c_global_to_ghost[new_global_u];
-        }
+      [&](const auto recv_buffer, const PEID pe) {
+        tbb::parallel_for<std::size_t>(
+            0,
+            recv_buffer.size(),
+            [&](const std::size_t i) {
+              const auto &[old_global_u, new_global_u, new_weight] =
+                  recv_buffer[i];
+              const NodeID old_local_u =
+                  graph.global_to_local_node(old_global_u);
+              mapping[old_local_u] = ghost_mapper.new_ghost_node(new_global_u);
+            }
+        );
       }
   );
 
@@ -186,7 +184,7 @@ Result contract_local_clustering(
   //
   using Map = RatingMap<EdgeWeight, NodeID, FastResetArray<EdgeWeight, NodeID>>;
   tbb::enumerable_thread_specific<Map> collector_ets{[&] {
-    return Map(c_next_ghost_node);
+    return Map(ghost_mapper.next_ghost_node());
   }};
   NavigableLinkedList<NodeID, Edge, scalable_vector> edge_buffer_ets;
 
@@ -252,8 +250,8 @@ Result contract_local_clustering(
           edge_buffer_ets, std::move(all_buffered_nodes)
       );
 
-  scalable_vector<NodeID> c_edges(c_m);
-  scalable_vector<EdgeWeight> c_edge_weights(c_m);
+  StaticArray<NodeID> c_edges(c_m);
+  StaticArray<EdgeWeight> c_edge_weights(c_m);
 
   // build coarse graph
   tbb::parallel_for(static_cast<NodeID>(0), c_n, [&](const NodeID i) {
@@ -276,11 +274,14 @@ Result contract_local_clustering(
   // compute edge distribution
   const GlobalEdgeID last_edge =
       mpi::scan(static_cast<GlobalEdgeID>(c_m), MPI_SUM, comm);
-  scalable_vector<GlobalEdgeID> c_edge_distribution(size + 1);
+  StaticArray<GlobalEdgeID> c_edge_distribution(size + 1);
   c_edge_distribution[rank + 1] = last_edge;
   mpi::allgather(
       &c_edge_distribution[rank + 1], 1, c_edge_distribution.data() + 1, 1, comm
   );
+
+  auto [c_global_to_ghost, c_ghost_to_global, c_ghost_owner] =
+      ghost_mapper.finalize();
 
   DistributedGraph c_graph{
       std::move(c_node_distribution),
@@ -294,9 +295,6 @@ Result contract_local_clustering(
       std::move(c_global_to_ghost),
       false,
       graph.communicator()};
-
-  DBG << V(c_graph.n()) << V(c_graph.m()) << V(c_graph.ghost_n())
-      << V(c_graph.total_n()) << V(c_graph.global_n()) << V(c_graph.global_m());
 
   return {std::move(c_graph), std::move(mapping), std::move(m_ctx)};
 }

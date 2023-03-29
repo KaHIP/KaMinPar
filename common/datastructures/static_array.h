@@ -28,7 +28,7 @@ public:
     using difference_type = std::ptrdiff_t;
 
     StaticArrayIterator() : _ptr(nullptr) {}
-    explicit StaticArrayIterator(T *ptr) : _ptr(ptr) {}
+    StaticArrayIterator(T *ptr) : _ptr(ptr) {}
 
     StaticArrayIterator(const StaticArrayIterator &other) = default;
     StaticArrayIterator &operator=(const StaticArrayIterator &other) = default;
@@ -312,6 +312,14 @@ private:
 };
 
 namespace static_array {
+template <typename T> StaticArray<T> copy(const StaticArray<T> &arr) {
+  StaticArray<T> cpy(arr.size());
+  tbb::parallel_for<std::size_t>(0, arr.size(), [&](const std::size_t i) {
+    cpy[i] = arr[i];
+  });
+  return cpy;
+}
+
 template <typename T> StaticArray<T> create_from(const std::vector<T> &vec) {
   StaticArray<T> arr(vec.size());
   std::copy(vec.begin(), vec.end(), arr.begin());

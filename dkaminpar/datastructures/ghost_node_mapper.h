@@ -57,6 +57,10 @@ public:
     return entry->second;
   }
 
+  [[nodiscard]] NodeID next_ghost_node() const {
+    return _next_ghost_node;
+  }
+
   [[nodiscard]] Result finalize() {
     const NodeID ghost_n = static_cast<NodeID>(_next_ghost_node - _n);
 

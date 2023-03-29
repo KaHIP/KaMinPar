@@ -40,9 +40,7 @@ DistributedGraph rearrange(DistributedGraph graph, const Context &ctx) {
 DistributedGraph rearrange_by_degree_buckets(DistributedGraph graph) {
   SCOPED_TIMER("Rearrange graph", "By degree buckets");
   auto permutations =
-      shm::graph::sort_by_degree_buckets<scalable_vector, false>(
-          graph.raw_nodes()
-      );
+      shm::graph::sort_by_degree_buckets<false>(graph.raw_nodes());
   return rearrange_by_permutation(
       std::move(graph),
       std::move(permutations.old_to_new),
@@ -64,9 +62,9 @@ rearrange_by_coloring(DistributedGraph graph, const Context &ctx) {
       mpi::allreduce(num_local_colors, MPI_MAX, graph.communicator());
 
   START_TIMER("Allocation");
-  scalable_vector<NodeID> old_to_new(graph.n());
-  scalable_vector<NodeID> new_to_old(graph.n());
-  scalable_vector<NodeID> color_sizes(num_colors + 1);
+  StaticArray<NodeID> old_to_new(graph.n());
+  StaticArray<NodeID> new_to_old(graph.n());
+  StaticArray<NodeID> color_sizes(num_colors + 1);
   STOP_TIMER();
 
   TIMED_SCOPE("Count color sizes") {
@@ -99,11 +97,11 @@ rearrange_by_coloring(DistributedGraph graph, const Context &ctx) {
 
 DistributedGraph rearrange_by_permutation(
     DistributedGraph graph,
-    scalable_vector<NodeID> old_to_new,
-    scalable_vector<NodeID> new_to_old,
+    StaticArray<NodeID> old_to_new,
+    StaticArray<NodeID> new_to_old,
     const bool degree_sorted
 ) {
-  shm::graph::NodePermutations<scalable_vector> permutations{
+  shm::graph::NodePermutations<StaticArray> permutations{
       std::move(old_to_new), std::move(new_to_old)};
 
   const auto &old_nodes = graph.raw_nodes();
@@ -114,14 +112,14 @@ DistributedGraph rearrange_by_permutation(
   // rearrange nodes, edges, node weights and edge weights
   // ghost nodes are copied without remapping them to new IDs
   START_TIMER("Allocation");
-  scalable_vector<EdgeID> new_nodes(old_nodes.size());
-  scalable_vector<NodeID> new_edges(old_edges.size());
-  scalable_vector<NodeWeight> new_node_weights(old_node_weights.size());
-  scalable_vector<EdgeWeight> new_edge_weights(old_edge_weights.size());
+  StaticArray<EdgeID> new_nodes(old_nodes.size());
+  StaticArray<NodeID> new_edges(old_edges.size());
+  StaticArray<NodeWeight> new_node_weights(old_node_weights.size());
+  StaticArray<EdgeWeight> new_edge_weights(old_edge_weights.size());
   STOP_TIMER();
 
   shm::graph::build_permuted_graph<
-      scalable_vector,
+      StaticArray,
       true,
       NodeID,
       EdgeID,
