@@ -27,9 +27,7 @@ public:
     StaticArray<PEID> ghost_owner;
   };
 
-  explicit GhostNodeMapper(
-      PEID rank, const StaticArray<GlobalNodeID> &node_distribution
-  )
+  GhostNodeMapper(PEID rank, const StaticArray<GlobalNodeID> &node_distribution)
       : _node_distribution(node_distribution.size()),
         _n(static_cast<NodeID>(
             _node_distribution[rank + 1] - _node_distribution[rank]

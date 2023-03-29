@@ -9,6 +9,7 @@
 #include <iterator>
 #include <thread>
 #include <vector>
+#include <cstring>
 
 #include <kassert/kassert.hpp>
 #include <tbb/parallel_for.h>
@@ -146,6 +147,13 @@ public:
   StaticArray &operator=(const StaticArray &) = delete;
   StaticArray(StaticArray &&) noexcept = default;
   StaticArray &operator=(StaticArray &&) noexcept = default;
+
+  bool operator==(const StaticArray<T> &other) const {
+    if (size() != other.size()) {
+      return false;
+    }
+    return std::memcmp(_data, other._data, size()) == 0;
+  }
 
   //
   // Data access members

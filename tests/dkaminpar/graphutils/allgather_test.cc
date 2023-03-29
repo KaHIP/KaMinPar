@@ -88,7 +88,7 @@ TEST(DistributeBestPartitionTest, triangle_cycle_graph_P) {
   const auto rep = graph::replicate(graph, size); // each PE gets a full copy
   ASSERT_TRUE(graph::debug::validate(rep));
 
-  scalable_vector<BlockID> partition(rep.n());
+  StaticArray<BlockID> partition(rep.n());
   // rank == 0: everything in block 0
   // else: build a bad partition
   if (rank > 0) {

@@ -50,15 +50,15 @@ inline DistributedPartitionedGraph make_partitioned_graph(
     const BlockID k,
     const std::vector<BlockID> &local_partition
 ) {
-  scalable_vector<BlockID> partition(graph.total_n());
-  scalable_vector<BlockWeight> local_block_weights(k);
+  StaticArray<BlockID> partition(graph.total_n());
+  StaticArray<BlockWeight> local_block_weights(k);
 
   std::copy(local_partition.begin(), local_partition.end(), partition.begin());
   for (const NodeID u : graph.nodes()) {
     local_block_weights[partition[u]] += graph.node_weight(u);
   }
 
-  scalable_vector<BlockWeight> block_weights(k);
+  StaticArray<BlockWeight> block_weights(k);
   mpi::allreduce(
       local_block_weights.data(),
       block_weights.data(),
