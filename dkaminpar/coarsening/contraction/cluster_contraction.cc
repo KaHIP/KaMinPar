@@ -26,6 +26,7 @@
 #include "common/parallel/algorithm.h"
 #include "common/parallel/aligned_element.h"
 #include "common/parallel/vector_ets.h"
+#include "common/scalable_vector.h"
 #include "common/timer.h"
 
 namespace kaminpar::dist {
@@ -220,9 +221,9 @@ void update_ghost_node_weights(DistributedGraph &graph) {
 }
 
 template <typename T>
-scalable_vector<T> build_distribution(const T count, MPI_Comm comm) {
+StaticArray<T> build_distribution(const T count, MPI_Comm comm) {
   const PEID size = mpi::get_comm_size(comm);
-  scalable_vector<T> distribution(size + 1);
+  StaticArray<T> distribution(size + 1);
   MPI_Allgather(
       &count,
       1,
@@ -242,7 +243,7 @@ scalable_vector<T> build_distribution(const T count, MPI_Comm comm) {
 }
 
 template <typename T>
-double compute_distribution_imbalance(const scalable_vector<T> &distribution) {
+double compute_distribution_imbalance(const StaticArray<T> &distribution) {
   T max = 0;
   for (std::size_t i = 0; i + 1 < distribution.size(); ++i) {
     max = std::max(max, distribution[i + 1] - distribution[i]);
@@ -531,7 +532,7 @@ MigratedNodesMapping exchange_migrated_nodes_mapping(
     const NoinitVector<GlobalNode> &nonlocal_nodes,
     const MigrationResult<GlobalNode> &local_nodes,
     const NoinitVector<NodeID> &lcluster_to_lcnode,
-    const scalable_vector<GlobalNodeID> &c_node_distribution
+    const StaticArray<GlobalNodeID> &c_node_distribution
 ) {
   const PEID rank = mpi::get_comm_rank(graph.communicator());
 
@@ -573,12 +574,12 @@ MigratedNodesMapping exchange_migrated_nodes_mapping(
 }
 
 template <typename T>
-scalable_vector<T> create_perfect_distribution_from_global_count(
+StaticArray<T> create_perfect_distribution_from_global_count(
     const T global_count, MPI_Comm comm
 ) {
   const auto size = mpi::get_comm_size(comm);
 
-  scalable_vector<T> distribution(size + 1);
+  StaticArray<T> distribution(size + 1);
   for (PEID pe = 0; pe < size; ++pe) {
     distribution[pe + 1] =
         math::compute_local_range<T>(global_count, size, pe).second;
@@ -591,7 +592,7 @@ template <bool migrate_prefix>
 std::pair<NodeID, PEID> remap_gcnode(
     const GlobalNodeID gcnode,
     const PEID current_owner,
-    const scalable_vector<GlobalNodeID> &current_cnode_distribution,
+    const StaticArray<GlobalNodeID> &current_cnode_distribution,
     const NoinitVector<GlobalNodeID> &pe_overload,
     const NoinitVector<GlobalNodeID> &pe_underload
 ) {
@@ -652,7 +653,7 @@ std::pair<NodeID, PEID> remap_gcnode(
 
 void rebalance_cluster_placement(
     const DistributedGraph &graph,
-    const scalable_vector<GlobalNodeID> &current_cnode_distribution,
+    const StaticArray<GlobalNodeID> &current_cnode_distribution,
     const NoinitVector<NodeID> &lcluster_to_lcnode,
     const NoinitVector<NodeMapping> &nonlocal_gcluster_to_gcnode,
     GlobalClustering &lnode_to_gcluster,
@@ -1168,8 +1169,8 @@ ContractionResult contract_clustering(
 
   const NodeID c_ghost_n = next_index_for_pe.back().value;
   growt::StaticGhostNodeMapping c_global_to_ghost(c_ghost_n);
-  scalable_vector<GlobalNodeID> c_ghost_to_global(c_ghost_n);
-  scalable_vector<PEID> c_ghost_owner(c_ghost_n);
+  StaticArray<GlobalNodeID> c_ghost_to_global(c_ghost_n);
+  StaticArray<PEID> c_ghost_owner(c_ghost_n);
 
   tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
     for (std::size_t i = 0; i < my_mapping_requests[pe].size(); ++i) {
@@ -1199,8 +1200,8 @@ ContractionResult contract_clustering(
   // Construct the coarse edges
   //
   START_TIMER("Allocation");
-  scalable_vector<EdgeID> c_nodes(c_n + 1);
-  scalable_vector<NodeWeight> c_node_weights(c_n + c_ghost_n);
+  StaticArray<EdgeID> c_nodes(c_n + 1);
+  StaticArray<NodeWeight> c_node_weights(c_n + c_ghost_n);
 
   tbb::enumerable_thread_specific<RatingMap<EdgeWeight, NodeID>> collector_ets(
       [&] { return RatingMap<EdgeWeight, NodeID>(c_n + c_ghost_n); }
@@ -1359,8 +1360,8 @@ ContractionResult contract_clustering(
   STOP_TIMER();
 
   START_TIMER("Allocation");
-  scalable_vector<NodeID> c_edges(c_m);
-  scalable_vector<EdgeWeight> c_edge_weights(c_m);
+  StaticArray<NodeID> c_edges(c_m);
+  StaticArray<EdgeWeight> c_edge_weights(c_m);
   STOP_TIMER();
 
   // Finally, build coarse graph
@@ -1462,7 +1463,7 @@ DistributedPartitionedGraph project_partition(
   };
 
   START_TIMER("Allocation");
-  scalable_vector<BlockID> partition(graph.total_n());
+  StaticArray<BlockID> partition(graph.total_n());
   STOP_TIMER();
 
   TIMED_SCOPE("Building projected partition array") {

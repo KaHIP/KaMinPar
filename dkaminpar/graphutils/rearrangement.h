@@ -13,13 +13,16 @@
 
 namespace kaminpar::dist::graph {
 DistributedGraph rearrange(DistributedGraph graph, const Context &ctx);
+
 DistributedGraph rearrange_by_degree_buckets(DistributedGraph graph);
+
 DistributedGraph
 rearrange_by_coloring(DistributedGraph graph, const Context &ctx);
+
 DistributedGraph rearrange_by_permutation(
     DistributedGraph graph,
-    scalable_vector<NodeID> old_to_new,
-    scalable_vector<NodeID> new_to_old,
+    StaticArray<NodeID> old_to_new,
+    StaticArray<NodeID> new_to_old,
     bool degree_sorted
 );
 } // namespace kaminpar::dist::graph

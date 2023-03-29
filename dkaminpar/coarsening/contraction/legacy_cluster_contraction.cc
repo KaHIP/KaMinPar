@@ -17,7 +17,7 @@
 
 #include "dkaminpar/coarsening/contraction/cluster_contraction.h"
 #include "dkaminpar/datastructures/distributed_graph.h"
-#include "dkaminpar/datastructures/distributed_graph_builder.h"
+#include "dkaminpar/datastructures/ghost_node_mapper.h"
 #include "dkaminpar/datastructures/growt.h"
 #include "dkaminpar/definitions.h"
 #include "dkaminpar/graphutils/communication.h"
@@ -139,12 +139,12 @@ deduplicate_edge_list_parallel(
 }
 
 template <typename T>
-inline scalable_vector<T> create_perfect_distribution_from_global_count(
+inline StaticArray<T> create_perfect_distribution_from_global_count(
     const T global_count, MPI_Comm comm
 ) {
   const auto size = mpi::get_comm_size(comm);
 
-  scalable_vector<T> distribution(size + 1);
+  StaticArray<T> distribution(size + 1);
   for (PEID pe = 0; pe < size; ++pe) {
     distribution[pe + 1] =
         math::compute_local_range<T>(global_count, size, pe).second;
@@ -154,11 +154,11 @@ inline scalable_vector<T> create_perfect_distribution_from_global_count(
 }
 
 template <typename T>
-inline scalable_vector<T>
+inline StaticArray<T>
 create_distribution_from_local_count(const T local_count, MPI_Comm comm) {
   const auto [size, rank] = mpi::get_comm_info(comm);
 
-  scalable_vector<T> distribution(size + 1);
+  StaticArray<T> distribution(size + 1);
   mpi::allgather(&local_count, 1, distribution.data() + 1, 1, comm);
   parallel::prefix_sum(
       distribution.begin(), distribution.end(), distribution.begin()
@@ -180,7 +180,7 @@ template <
     typename FindGhostNodeOwnerLambda>
 inline DistributedGraph build_distributed_graph_from_edge_list(
     const EdgeList &edge_list,
-    scalable_vector<GlobalNodeID> node_distribution,
+    StaticArray<GlobalNodeID> node_distribution,
     MPI_Comm comm,
     NodeWeightLambda &&node_weight_lambda,
     FindGhostNodeOwnerLambda && /* find_ghost_node_owner */
@@ -220,7 +220,7 @@ inline DistributedGraph build_distributed_graph_from_edge_list(
   NavigableLinkedList<NodeID, Edge, scalable_vector> edge_buffer_ets;
 
   START_TIMER("Allocation");
-  scalable_vector<EdgeID> nodes(n + 1);
+  StaticArray<EdgeID> nodes(n + 1);
   STOP_TIMER();
 
   START_TIMER("Build coarse edges");
@@ -282,8 +282,8 @@ inline DistributedGraph build_distributed_graph_from_edge_list(
 
   START_TIMER("Allocation");
   const EdgeID m = nodes.back();
-  scalable_vector<NodeID> edges(m);
-  scalable_vector<EdgeWeight> edge_weights(m);
+  StaticArray<NodeID> edges(m);
+  StaticArray<EdgeWeight> edge_weights(m);
   STOP_TIMER();
 
   const GlobalNodeID from = node_distribution[rank];
@@ -291,7 +291,7 @@ inline DistributedGraph build_distributed_graph_from_edge_list(
 
   // Now construct the coarse graph
   START_TIMER("Construct coarse graph");
-  graph::GhostNodeMapper mapper{comm, node_distribution};
+  graph::GhostNodeMapper mapper(rank, node_distribution);
 
   tbb::parallel_for<NodeID>(0, n, [&](const NodeID i) {
     const auto &marker = all_buffered_nodes[i];
@@ -326,7 +326,7 @@ inline DistributedGraph build_distributed_graph_from_edge_list(
 
   // node weights for ghost nodes must be computed afterwards
   START_TIMER("Construct coarse node weights");
-  scalable_vector<NodeWeight> node_weights(n + ghost_n);
+  StaticArray<NodeWeight> node_weights(n + ghost_n);
   tbb::parallel_for<NodeID>(0, n, [&](const NodeID u) {
     node_weights[u] = node_weight_lambda(u);
   });
@@ -457,7 +457,7 @@ find_used_cluster_ids_per_pe(
 // global mapping, global number of coarse nodes
 struct MappingResult {
   LegacyGlobalMapping mapping;
-  scalable_vector<GlobalNodeID> distribution;
+  StaticArray<GlobalNodeID> distribution;
 };
 
 /*!
@@ -538,13 +538,13 @@ MappingResult compute_mapping(
   );
 
   // migrate nodes from overloaded PEs
-  scalable_vector<GlobalNodeID> c_distribution =
+  StaticArray<GlobalNodeID> c_distribution =
       create_distribution_from_local_count<GlobalNodeID>(
           c_n, graph.communicator()
       );
-  scalable_vector<GlobalNodeID> perfect_distribution{};
-  scalable_vector<GlobalNodeID> pe_overload{};
-  scalable_vector<GlobalNodeID> pe_underload{};
+  StaticArray<GlobalNodeID> perfect_distribution{};
+  StaticArray<GlobalNodeID> pe_overload{};
+  StaticArray<GlobalNodeID> pe_underload{};
 
   if (migrate_nodes) {
     const GlobalNodeID global_c_n = c_distribution.back();
@@ -556,8 +556,8 @@ MappingResult compute_mapping(
     pe_overload.resize(size + 1);
     pe_underload.resize(size + 1);
 
-    scalable_vector<GlobalNodeID> pe_overload_tmp(size);
-    scalable_vector<GlobalNodeID> pe_underload_tmp(size);
+    StaticArray<GlobalNodeID> pe_overload_tmp(size);
+    StaticArray<GlobalNodeID> pe_underload_tmp(size);
 
     for (PEID pe = 0; pe < size; ++pe) {
       const auto [from, to] =
@@ -670,7 +670,7 @@ template <typename CoarseNodeOwnerCallback, typename Mapping>
 DistributedGraph build_coarse_graph(
     const DistributedGraph &graph,
     const Mapping &mapping,
-    scalable_vector<GlobalNodeID> c_node_distribution,
+    StaticArray<GlobalNodeID> c_node_distribution,
     CoarseNodeOwnerCallback &&compute_coarse_node_owner
 ) {
   SCOPED_TIMER("Build coarse graph");
@@ -808,7 +808,7 @@ DistributedGraph build_coarse_graph(
   // memory only for local nodes and
   // TODO resize in build_distributed_graph_from_edge_list
   KASSERT(from <= to);
-  scalable_vector<parallel::Atomic<NodeWeight>> node_weights(to - from);
+  StaticArray<parallel::Atomic<NodeWeight>> node_weights(to - from);
   struct NodeWeightMessage {
     NodeID node;
     NodeWeight weight;
@@ -866,12 +866,12 @@ template <typename Mapping>
 DistributedGraph build_coarse_graph(
     const DistributedGraph &graph,
     const Mapping &mapping,
-    scalable_vector<GlobalNodeID> c_node_distribution
+    StaticArray<GlobalNodeID> c_node_distribution
 ) {
   return build_coarse_graph(
       graph,
       mapping,
-      c_node_distribution,
+      static_array::copy(c_node_distribution),
       [](const GlobalNodeID node, const auto &node_distribution) {
         const auto it = std::upper_bound(
             node_distribution.begin() + 1, node_distribution.end(), node
@@ -1111,7 +1111,7 @@ DistributedPartitionedGraph project_global_contracted_graph(
 
   // assign block IDs to fine nodes
   START_TIMER("Allocation");
-  scalable_vector<BlockID> fine_partition(fine_graph.total_n());
+  StaticArray<BlockID> fine_partition(fine_graph.total_n());
   STOP_TIMER();
 
   START_TIMER("Set blocks");

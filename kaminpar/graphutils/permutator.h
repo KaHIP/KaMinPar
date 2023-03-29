@@ -36,9 +36,9 @@ template <template <typename> typename Container> struct NodePermutations {
  * @param nodes Nodes array of a static graph.
  * @return Bidirectional node permutation.
  */
-template <template <typename> typename Container, bool put_deg0_at_end = true>
-NodePermutations<Container>
-sort_by_degree_buckets(const Container<EdgeID> &nodes) {
+template <bool put_deg0_at_end = true>
+NodePermutations<StaticArray>
+sort_by_degree_buckets(const StaticArray<EdgeID> &nodes) {
   auto find_bucket = [&](const Degree deg) {
     return deg == 0 ? (put_deg0_at_end ? kNumberOfDegreeBuckets - 1 : 0)
                     : degree_bucket(deg);
@@ -47,8 +47,8 @@ sort_by_degree_buckets(const Container<EdgeID> &nodes) {
   const NodeID n = nodes.size() - 1;
   const int cpus = std::min<int>(tbb::this_task_arena::max_concurrency(), n);
 
-  Container<NodeID> permutation(n);
-  Container<NodeID> inverse_permutation(n);
+  StaticArray<NodeID> permutation(n);
+  StaticArray<NodeID> inverse_permutation(n);
 
   // local_buckets[cpu][bucket]: thread-local bucket sizes
   using Buckets = std::array<NodeID, kNumberOfDegreeBuckets + 1>;

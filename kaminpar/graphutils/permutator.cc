@@ -65,8 +65,7 @@ NodePermutations<StaticArray> rearrange_graph(
   // the graph data structure this way, we can just cut them off without doing
   // further work
   START_TIMER("Rearrange input graph");
-  NodePermutations<StaticArray> permutations =
-      sort_by_degree_buckets<StaticArray>(nodes);
+  NodePermutations<StaticArray> permutations = sort_by_degree_buckets<>(nodes);
   build_permuted_graph(
       nodes,
       edges,
