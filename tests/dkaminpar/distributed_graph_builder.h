@@ -10,6 +10,7 @@
 
 #include <tbb/concurrent_hash_map.h>
 
+#include "dkaminpar/datastructures/ghost_node_mapper.h"
 #include "dkaminpar/datastructures/growt.h"
 #include "dkaminpar/definitions.h"
 #include "dkaminpar/graphutils/communication.h"
@@ -18,21 +19,33 @@
 #include "common/scalable_vector.h"
 
 namespace kaminpar::dist::graph {
+[[nodiscard]] inline growt::StaticGhostNodeMapping
+build_static_ghost_node_mapping(
+    std::unordered_map<GlobalNodeID, NodeID> global_to_ghost
+) {
+  growt::StaticGhostNodeMapping static_mapping(global_to_ghost.size());
+  for (const auto &[key, value] : global_to_ghost) {
+    static_mapping.insert(
+        key + 1, value
+    ); // 0 cannot be used as a key in growt hash tables
+  }
+  return static_mapping;
+}
+
 class Builder {
   SET_DEBUG(false);
 
 public:
   Builder(MPI_Comm const comm) : _comm{comm} {}
 
+  template <typename T> using vec = std::vector<T>;
   Builder &initialize(const NodeID n) {
     return initialize(
-        mpi::build_distribution_from_local_count<GlobalNodeID, StaticArray>(
-            n, _comm
-        )
+        mpi::build_distribution_from_local_count<GlobalNodeID, vec>(n, _comm)
     );
   }
 
-  Builder &initialize(StaticArray<GlobalNodeID> node_distribution) {
+  Builder &initialize(std::vector<GlobalNodeID> node_distribution) {
     _node_distribution = std::move(node_distribution);
 
     const int rank = mpi::get_comm_rank(_comm);
@@ -88,20 +101,18 @@ public:
 
     const EdgeID m = _edges.size();
     auto edge_distribution =
-        mpi::build_distribution_from_local_count<GlobalEdgeID, StaticArray>(
-            m, _comm
-        );
+        mpi::build_distribution_from_local_count<GlobalEdgeID, vec>(m, _comm);
 
     DistributedGraph graph{
-        std::move(_node_distribution),
-        std::move(edge_distribution),
-        std::move(_nodes),
-        std::move(_edges),
-        std::move(_node_weights),
-        std::move(_edge_weights),
-        std::move(_ghost_owner),
-        std::move(_ghost_to_global),
-        std::move(_global_to_ghost),
+        static_array::create_from(_node_distribution),
+        static_array::create_from(edge_distribution),
+        static_array::create_from(_nodes),
+        static_array::create_from(_edges),
+        static_array::create_from(_node_weights),
+        static_array::create_from(_edge_weights),
+        static_array::create_from(_ghost_owner),
+        static_array::create_from(_ghost_to_global),
+        build_static_ghost_node_mapping(_global_to_ghost),
         false,
         _comm};
 
@@ -163,16 +174,16 @@ private:
 
   MPI_Comm _comm;
 
-  StaticArray<GlobalNodeID> _node_distribution;
+  std::vector<GlobalNodeID> _node_distribution;
   GlobalNodeID _offset_n{0};
   NodeID _local_n{0};
 
-  StaticArray<EdgeID> _nodes{};
-  StaticArray<NodeID> _edges{};
-  StaticArray<NodeWeight> _node_weights{};
-  StaticArray<EdgeWeight> _edge_weights{};
-  StaticArray<PEID> _ghost_owner{};
-  StaticArray<GlobalNodeID> _ghost_to_global{};
+  std::vector<EdgeID> _nodes{};
+  std::vector<NodeID> _edges{};
+  std::vector<NodeWeight> _node_weights{};
+  std::vector<EdgeWeight> _edge_weights{};
+  std::vector<PEID> _ghost_owner{};
+  std::vector<GlobalNodeID> _ghost_to_global{};
   std::unordered_map<GlobalNodeID, NodeID> _global_to_ghost{};
 
   bool _unit_node_weights{true};

@@ -25,21 +25,6 @@
 #include "common/ranges.h"
 
 namespace kaminpar::dist {
-namespace graph {
-[[nodiscard]] inline growt::StaticGhostNodeMapping
-build_static_ghost_node_mapping(
-    std::unordered_map<GlobalNodeID, NodeID> global_to_ghost
-) {
-  growt::StaticGhostNodeMapping static_mapping(global_to_ghost.size());
-  for (const auto &[key, value] : global_to_ghost) {
-    static_mapping.insert(
-        key + 1, value
-    ); // 0 cannot be used as a key in growt hash tables
-  }
-  return static_mapping;
-}
-} // namespace graph
-
 class DistributedGraph {
 public:
   using NodeID = ::kaminpar::dist::NodeID;
@@ -832,7 +817,7 @@ namespace graph::debug {
  * @param root PE to use for sequential validation.
  * @return whether the graph data structure is consistent.
  */
-bool validate(const DistributedGraph &graph, int root = 0);
+bool validate(const DistributedGraph &graph);
 
 /**
  * Validates the distributed graph partition:
