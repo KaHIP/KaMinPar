@@ -12,7 +12,7 @@
 #include <tbb/task_group.h>
 #include <tbb/task_scheduler_observer.h>
 
-#include "kaminpar/coarsening/label_propagation_clustering.h"
+#include "kaminpar/coarsening/lp_clustering.h"
 #include "kaminpar/datastructures/graph.h"
 #include "kaminpar/partitioning/helper.h"
 #include "kaminpar/refinement/greedy_balancer.h"

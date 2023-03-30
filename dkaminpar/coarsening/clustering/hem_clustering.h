@@ -18,6 +18,7 @@ public:
 
   HEMClustering(const HEMClustering &) = delete;
   HEMClustering &operator=(const HEMClustering &) = delete;
+
   HEMClustering(HEMClustering &&) noexcept = default;
   HEMClustering &operator=(HEMClustering &&) = delete;
 

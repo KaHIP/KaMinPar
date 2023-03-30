@@ -10,7 +10,7 @@
 
 #include "kaminpar/arguments.h"
 #include "kaminpar/coarsening/cluster_coarsener.h"
-#include "kaminpar/coarsening/label_propagation_clustering.h"
+#include "kaminpar/coarsening/lp_clustering.h"
 #include "kaminpar/context.h"
 #include "kaminpar/factories.h"
 #include "kaminpar/io.h"

@@ -11,13 +11,13 @@
 
 #include <tbb/enumerable_thread_specific.h>
 
-#include "dkaminpar/coarsening/clustering/global_label_propagation_clustering.h"
+#include "dkaminpar/coarsening/clustering/global_lp_clustering.h"
 #include "dkaminpar/coarsening/clustering/hem_clustering.h"
 #include "dkaminpar/mpi/wrapper.h"
 
 namespace kaminpar::dist {
 HEMLPClustering::HEMLPClustering(const Context &ctx)
-    : _lp(std::make_unique<DistributedGlobalLabelPropagationClustering>(ctx)),
+    : _lp(std::make_unique<GlobalLPClustering>(ctx)),
       _hem(std::make_unique<HEMClustering>(ctx)) {}
 
 HEMLPClustering::ClusterArray &HEMLPClustering::compute_clustering(

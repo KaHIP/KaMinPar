@@ -28,6 +28,7 @@ option(KAMINPAR_BUILD_WITH_ASAN "Enable address sanitizer." OFF)
 option(KAMINPAR_BUILD_WITH_MTUNE_NATIVE "Build with -mtune=native." ON)
 option(KAMINPAR_BUILD_WITH_CCACHE "Use ccache to build." ON)
 option(KAMINPAR_BUILD_WITH_DEBUG_SYMBOLS "Always build with debug symbols, even in Release mode." ON)
+option(KAMINPAR_BUILD_WITH_MTKAHYPAR "If Mt-KaHyPar can be found, build the Mt-KaHyPar initial partitioner." ON)
 
 # Control data type sizes
 option(KAMINPAR_64BIT_IDS "Use 64 bits for node and edge IDs." OFF)

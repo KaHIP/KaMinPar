@@ -11,21 +11,19 @@
 #include "kaminpar/datastructures/graph.h"
 
 namespace kaminpar::shm {
-class LabelPropagationClusteringAlgorithm : public Clusterer {
+class LPClustering : public Clusterer {
 public:
-  LabelPropagationClusteringAlgorithm(
+  LPClustering(
       NodeID max_n, const CoarseningContext &c_ctx
   );
-  ~LabelPropagationClusteringAlgorithm() override;
 
-  LabelPropagationClusteringAlgorithm(const LabelPropagationClusteringAlgorithm
-                                          &) = delete;
-  LabelPropagationClusteringAlgorithm &
-  operator=(const LabelPropagationClusteringAlgorithm &) = delete;
-  LabelPropagationClusteringAlgorithm(LabelPropagationClusteringAlgorithm
-                                          &&) noexcept = default;
-  LabelPropagationClusteringAlgorithm &
-  operator=(LabelPropagationClusteringAlgorithm &&) noexcept = default;
+  LPClustering(const LPClustering &) = delete;
+  LPClustering &operator=(const LPClustering &) = delete;
+
+  LPClustering(LPClustering &&) noexcept = default;
+  LPClustering &operator=(LPClustering &&) noexcept = default;
+
+  ~LPClustering() override;
 
   void set_max_cluster_weight(NodeWeight max_cluster_weight) final;
   void set_desired_cluster_count(NodeID count) final;
@@ -33,7 +31,7 @@ public:
   const AtomicClusterArray &compute_clustering(const Graph &graph) final;
 
 private:
-  std::unique_ptr<class LabelPropagationClusteringCore> _core;
+  std::unique_ptr<class LPClusteringImpl> _core;
 };
 
 } // namespace kaminpar::shm

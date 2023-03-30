@@ -10,7 +10,7 @@
 #include <memory>
 
 #include "kaminpar/coarsening/cluster_coarsener.h"
-#include "kaminpar/coarsening/label_propagation_clustering.h"
+#include "kaminpar/coarsening/lp_clustering.h"
 #include "kaminpar/coarsening/noop_coarsener.h"
 #include "kaminpar/refinement/fm_refiner.h"
 #include "kaminpar/refinement/greedy_balancer.h"
@@ -29,7 +29,7 @@ create_coarsener(const Graph &graph, const CoarseningContext &c_ctx) {
 
   case ClusteringAlgorithm::LABEL_PROPAGATION: {
     auto clustering_algorithm =
-        std::make_unique<LabelPropagationClusteringAlgorithm>(graph.n(), c_ctx);
+        std::make_unique<LPClustering>(graph.n(), c_ctx);
     auto coarsener = std::make_unique<ClusteringCoarsener>(
         std::move(clustering_algorithm), graph, c_ctx
     );

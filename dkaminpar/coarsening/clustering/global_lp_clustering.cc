@@ -8,7 +8,7 @@
  * PE moves nodes to the cluster. Thus, the clustering might violate the
  * maximum cluster weight limit.
  ******************************************************************************/
-#include "dkaminpar/coarsening/clustering/global_label_propagation_clustering.h"
+#include "dkaminpar/coarsening/clustering/global_lp_clustering.h"
 
 #include <google/dense_hash_map>
 
@@ -53,8 +53,7 @@ struct UnorderedRatingMap {
   google::dense_hash_map<GlobalNodeID, EdgeWeight> map{};
 };
 
-struct DistributedGlobalLabelPropagationClusteringConfig
-    : public LabelPropagationConfig {
+struct GlobalLPClusteringConfig : public LabelPropagationConfig {
   using Graph = DistributedGraph;
   // using RatingMap = ::kaminpar::RatingMap<EdgeWeight, GlobalNodeID,
   // VectorHashRatingMap>;
@@ -70,22 +69,22 @@ struct DistributedGlobalLabelPropagationClusteringConfig
 };
 } // namespace
 
-class DistributedGlobalLabelPropagationClusteringImpl final
+class GlobalLPClusteringImpl final
     : public ChunkRandomdLabelPropagation<
-          DistributedGlobalLabelPropagationClusteringImpl,
-          DistributedGlobalLabelPropagationClusteringConfig>,
+          GlobalLPClusteringImpl,
+          GlobalLPClusteringConfig>,
       public NonatomicOwnedClusterVector<NodeID, GlobalNodeID> {
   SET_DEBUG(false);
 
   using Base = ChunkRandomdLabelPropagation<
-      DistributedGlobalLabelPropagationClusteringImpl,
-      DistributedGlobalLabelPropagationClusteringConfig>;
+      GlobalLPClusteringImpl,
+      GlobalLPClusteringConfig>;
   using ClusterBase = NonatomicOwnedClusterVector<NodeID, GlobalNodeID>;
 
   using WeightDeltaMap = growt::GlobalNodeIDMap<GlobalNodeWeight>;
 
 public:
-  explicit DistributedGlobalLabelPropagationClusteringImpl(const Context &ctx)
+  explicit GlobalLPClusteringImpl(const Context &ctx)
       : ClusterBase{ctx.partition.graph->total_n},
         _ctx(ctx),
         _c_ctx(ctx.coarsening),
@@ -361,7 +360,7 @@ private:
   }
 
   void control_cluster_weights(const NodeID from, const NodeID to) {
-    if (!sync_cluster_weights()) {
+    if (!should_sync_cluster_weights()) {
       return;
     }
 
@@ -428,7 +427,8 @@ private:
     counter = 0;
 
     START_TIMER("Create messages");
-#pragma omp parallel
+#pragma omp parallel default(none)                                             \
+    shared(_weight_delta_handles_ets, counter, num_messages, out_msgs)
     {
       auto &handle = _weight_delta_handles_ets.local();
 
@@ -521,7 +521,7 @@ private:
 
     // If we detected a max cluster weight violation, remove node weight
     // proportional to our chunk of the cluster weight
-    if (!enforce_cluster_weights() || !violation) {
+    if (!should_enforce_cluster_weights() || !violation) {
       return;
     }
 
@@ -605,13 +605,13 @@ private:
                   // changes, we already have the right weight including ghost
                   // vertices --> only update weight if we did not get an update
 
-                  if (!sync_cluster_weights() ||
+                  if (!should_sync_cluster_weights() ||
                       weight_delta_handle.find(old_gcluster + 1) ==
                           weight_delta_handle.end()) {
                     change_cluster_weight(old_gcluster, -weight, true);
                   }
                   NonatomicOwnedClusterVector::move_node(lnode, new_gcluster);
-                  if (!sync_cluster_weights() ||
+                  if (!should_sync_cluster_weights() ||
                       weight_delta_handle.find(new_gcluster + 1) ==
                           weight_delta_handle.end()) {
                     change_cluster_weight(new_gcluster, weight, false);
@@ -674,13 +674,13 @@ private:
     );
   }
 
-  bool sync_cluster_weights() const {
+  [[nodiscard]] bool should_sync_cluster_weights() const {
     return _ctx.coarsening.global_lp.sync_cluster_weights &&
            (!_ctx.coarsening.global_lp.cheap_toplevel ||
             _graph->global_n() != _ctx.partition.graph->global_n);
   }
 
-  bool enforce_cluster_weights() const {
+  [[nodiscard]] bool should_enforce_cluster_weights() const {
     return _ctx.coarsening.global_lp.enforce_cluster_weights &&
            (!_ctx.coarsening.global_lp.cheap_toplevel ||
             _graph->global_n() != _ctx.partition.graph->global_n);
@@ -717,17 +717,12 @@ private:
 // Exposed wrapper
 //
 
-DistributedGlobalLabelPropagationClustering::
-    DistributedGlobalLabelPropagationClustering(const Context &ctx)
-    : _impl{
-          std::make_unique<DistributedGlobalLabelPropagationClusteringImpl>(ctx
-          )} {}
+GlobalLPClustering::GlobalLPClustering(const Context &ctx)
+    : _impl{std::make_unique<GlobalLPClusteringImpl>(ctx)} {}
 
-DistributedGlobalLabelPropagationClustering::
-    ~DistributedGlobalLabelPropagationClustering() = default;
+GlobalLPClustering::~GlobalLPClustering() = default;
 
-DistributedGlobalLabelPropagationClustering::ClusterArray &
-DistributedGlobalLabelPropagationClustering::compute_clustering(
+GlobalLPClustering::ClusterArray &GlobalLPClustering::compute_clustering(
     const DistributedGraph &graph, const GlobalNodeWeight max_cluster_weight
 ) {
   return _impl->compute_clustering(graph, max_cluster_weight);
