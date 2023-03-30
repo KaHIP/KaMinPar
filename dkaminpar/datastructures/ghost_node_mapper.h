@@ -11,12 +11,15 @@
 
 #include "dkaminpar/datastructures/growt.h"
 #include "dkaminpar/definitions.h"
+#include "dkaminpar/logger.h"
 #include "dkaminpar/mpi/wrapper.h"
 
 #include "common/datastructures/static_array.h"
 
 namespace kaminpar::dist::graph {
 class GhostNodeMapper {
+  SET_DEBUG(false);
+
   // @todo replace by growt hash table
   using GhostNodeMap = tbb::concurrent_hash_map<GlobalNodeID, NodeID>;
 
@@ -28,17 +31,11 @@ public:
   };
 
   GhostNodeMapper(PEID rank, const StaticArray<GlobalNodeID> &node_distribution)
-      : _node_distribution(node_distribution.size()),
+      : _node_distribution(node_distribution.begin(), node_distribution.end()),
         _n(static_cast<NodeID>(
             _node_distribution[rank + 1] - _node_distribution[rank]
         )),
-        _next_ghost_node(_n) {
-    std::copy(
-        node_distribution.begin(),
-        node_distribution.end(),
-        _node_distribution.begin()
-    );
-  }
+        _next_ghost_node(_n) {}
 
   NodeID new_ghost_node(const GlobalNodeID global_node) {
     GhostNodeMap::accessor entry;
@@ -52,6 +49,7 @@ public:
       KASSERT(found);
     }
 
+    DBG << "Mapping " << global_node << " to " << entry->second;
     return entry->second;
   }
 
@@ -71,6 +69,7 @@ public:
         const GlobalNodeID global_node = it->first;
         const NodeID local_node = it->second;
         const NodeID local_ghost = local_node - _n;
+
         const auto owner_it = std::upper_bound(
             _node_distribution.begin() + 1,
             _node_distribution.end(),
@@ -80,8 +79,14 @@ public:
             std::distance(_node_distribution.begin(), owner_it) - 1
         );
 
+        KASSERT(local_ghost < ghost_to_global.size());
+        KASSERT(local_ghost < ghost_owner.size());
+
         ghost_to_global[local_ghost] = global_node;
         ghost_owner[local_ghost] = owner;
+
+        DBG << "Map global node " << global_node << " to local ghost node "
+            << local_node;
         global_to_ghost.insert(global_node + 1, local_node);
       }
     });

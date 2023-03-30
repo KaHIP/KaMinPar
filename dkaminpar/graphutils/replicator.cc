@@ -23,7 +23,7 @@
 #include "common/parallel/atomic.h"
 
 namespace kaminpar::dist::graph {
-SET_DEBUG(true);
+SET_DEBUG(false);
 
 shm::Graph replicate_everywhere(const DistributedGraph &graph) {
   KASSERT(
@@ -211,7 +211,7 @@ replicate(const DistributedGraph &graph, const int num_replications) {
     edge_weights.resize(edges_displs.back());
   }
 
-  // Exchange data -- except for node weights (must know the no. of ghost nodes
+  // Exchange data -- except for node weights (need the number of ghost nodes
   // to allocate the vector)
   mpi::allgatherv(
       graph.raw_nodes().data(),
@@ -268,6 +268,7 @@ replicate(const DistributedGraph &graph, const int num_replications) {
     node_distribution[pe + 1] = graph.node_distribution(group_size * (pe + 1));
     edge_distribution[pe + 1] = graph.edge_distribution(group_size * (pe + 1));
   });
+  DBG << V(node_distribution);
 
   // Remap edges to local nodes
   const GlobalEdgeID n0 =
@@ -280,6 +281,7 @@ replicate(const DistributedGraph &graph, const int num_replications) {
     if (v >= n0 && v < nf) {
       edges[e] = static_cast<NodeID>(v - n0);
     } else {
+      DBG << "New edge to global node " << v;
       edges[e] = ghost_node_mapper.new_ghost_node(v);
     }
   });
@@ -295,7 +297,7 @@ replicate(const DistributedGraph &graph, const int num_replications) {
   if (is_node_weighted) {
     KASSERT(graph.is_node_weighted() || graph.n() == 0);
 
-    node_weights.resize(nodes_displs.back());
+    node_weights.resize(nodes_displs.back() + num_ghost_nodes);
     mpi::allgatherv(
         graph.raw_node_weights().data(),
         graph.n(),
@@ -313,6 +315,11 @@ replicate(const DistributedGraph &graph, const int num_replications) {
   );
   KASSERT(mpi::get_comm_size(new_comm) == new_size);
 
+  DBG << V(ghost_node_info.ghost_owner) << V(ghost_node_info.ghost_to_global);
+  for (const auto &[k, v] : ghost_node_info.global_to_ghost) {
+    DBG << "Have mapping " << k << " --> " << v;
+  }
+
   DistributedGraph new_graph(
       std::move(node_distribution),
       std::move(edge_distribution),
@@ -326,6 +333,8 @@ replicate(const DistributedGraph &graph, const int num_replications) {
       false,
       new_comm
   );
+
+  KASSERT(graph::debug::validate(new_graph));
 
   // Fix weights of ghost nodes
   if (is_node_weighted) {

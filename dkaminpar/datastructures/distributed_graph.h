@@ -105,6 +105,7 @@ public:
 
   DistributedGraph(const DistributedGraph &) = delete;
   DistributedGraph &operator=(const DistributedGraph &) = delete;
+
   DistributedGraph(DistributedGraph &&) noexcept = default;
   DistributedGraph &operator=(DistributedGraph &&) noexcept = default;
 
