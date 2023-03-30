@@ -233,6 +233,15 @@ public:
     }
   }
 
+  [[nodiscard]] inline NodeID
+  remote_to_local_node(const NodeID remote_node, const PEID owner) const {
+    KASSERT(remote_node < offset_n(owner + 1) - offset_n(owner));
+    const NodeID local_node =
+        global_to_local_node(offset_n(owner) + remote_node);
+    KASSERT(local_node >= n()); // must be a ghost node
+    return local_node;
+  }
+
   // Access methods
   [[nodiscard]] inline NodeWeight node_weight(const NodeID u) const {
     KASSERT(u < total_n());

@@ -23,9 +23,8 @@ HEMClustering::HEMClustering(const Context &ctx)
 
 void HEMClustering::initialize(const DistributedGraph &graph) {
   mpi::barrier(graph.communicator());
-
-  SCOPED_TIMER("Colored LP refinement");
-  SCOPED_TIMER("Initialization");
+  _graph = &graph;
+  SCOPED_TIMER("Initialize HEM clustering");
 
   const auto coloring = [&] {
     // Graph is already sorted by a coloring -> reconstruct this coloring
@@ -166,12 +165,15 @@ void HEMClustering::initialize(const DistributedGraph &graph) {
   };
 }
 
-HEMClustering::ClusterArray &HEMClustering::compute_clustering(
+HEMClustering::ClusterArray &HEMClustering::cluster(
     const DistributedGraph &graph, GlobalNodeWeight max_cluster_weight
 ) {
-  _graph = &graph;
-
-  initialize(graph);
+  KASSERT(
+      _graph == &graph,
+      "must call initialize() before cluster()",
+      assert::always
+  );
+  SCOPED_TIMER("Compute HEM clustering");
 
   for (ColorID c = 0; c + 1 < _color_sizes.size(); ++c) {
     compute_local_matching(c, max_cluster_weight);
@@ -187,71 +189,68 @@ HEMClustering::ClusterArray &HEMClustering::compute_clustering(
 
   // Validate our matching
   KASSERT(
-      [&] {
-        // Check local matching
-        for (const NodeID u : _graph->nodes()) {
-          const GlobalNodeID u_partner = _matching[u];
-
-          KASSERT(
-              _graph->contains_global_node(u_partner),
-              "invalid matching partner for node " << u
-          );
-          if (_graph->is_owned_global_node(u_partner)) {
-            const NodeID local_partner =
-                _graph->global_to_local_node(u_partner);
-            const GlobalNodeID u_global = _graph->local_to_global_node(u);
-            KASSERT(
-                u == local_partner || _matching[local_partner] == u_partner,
-                "invalid clustering structure for node "
-                    << u << " (global " << u_global << ") matched to node "
-                    << local_partner << ", which is matched to global node "
-                    << _matching[local_partner]
-            );
-          }
-        }
-
-        // Check matched edges between PEs
-        struct MatchedEdge {
-          GlobalNodeID u;
-          GlobalNodeID v;
-        };
-        mpi::graph::sparse_alltoall_interface_to_ghost<MatchedEdge>(
-            *_graph,
-            [&](const NodeID u, EdgeID, const NodeID v) -> bool {
-              return _matching[u] == _graph->local_to_global_node(v);
-            },
-            [&](const NodeID u, EdgeID, NodeID) -> MatchedEdge {
-              return {_graph->local_to_global_node(u), _matching[u]};
-            },
-            [&](const auto &r, const PEID pe) {
-              for (const auto &[u, v] : r) {
-                KASSERT(_graph->contains_global_node(u));
-                KASSERT(
-                    _graph->is_owned_global_node(v),
-                    "PE " << pe << " thinks that this PE owns " << v
-                );
-                const NodeID local_u = _graph->global_to_local_node(u);
-                const NodeID local_v = _graph->global_to_local_node(v);
-
-                KASSERT(
-                    _matching[local_v] == v,
-                    "invalid clustering structure for edge "
-                        << u << " <-> " << v << " (local " << local_u << " <-> "
-                        << local_v << "): expected " << v
-                        << " to be the leader, but " << v << " is in cluster "
-                        << _matching[local_v]
-                );
-              }
-            }
-        );
-
-        return true;
-      }(),
-      "matching validation failed",
-      assert::heavy
+      validate_matching(), "matching in inconsistent state", assert::always
   );
 
   return _matching;
+}
+
+bool HEMClustering::validate_matching() {
+  for (const NodeID u : _graph->nodes()) {
+    const GlobalNodeID u_partner = _matching[u];
+
+    KASSERT(
+        _graph->contains_global_node(u_partner),
+        "invalid matching partner for node " << u
+    );
+    if (_graph->is_owned_global_node(u_partner)) {
+      const NodeID local_partner = _graph->global_to_local_node(u_partner);
+      const GlobalNodeID u_global = _graph->local_to_global_node(u);
+      KASSERT(
+          u == local_partner || _matching[local_partner] == u_partner,
+          "invalid clustering structure for node "
+              << u << " (global " << u_global << ") matched to node "
+              << local_partner << ", which is matched to global node "
+              << _matching[local_partner]
+      );
+    }
+  }
+
+  // Check matched edges between PEs
+  struct MatchedEdge {
+    GlobalNodeID u;
+    GlobalNodeID v;
+  };
+  mpi::graph::sparse_alltoall_interface_to_ghost<MatchedEdge>(
+      *_graph,
+      [&](const NodeID u, EdgeID, const NodeID v) -> bool {
+        return _matching[u] == _graph->local_to_global_node(v);
+      },
+      [&](const NodeID u, EdgeID, NodeID) -> MatchedEdge {
+        return {_graph->local_to_global_node(u), _matching[u]};
+      },
+      [&](const auto &r, const PEID pe) {
+        for (const auto &[u, v] : r) {
+          KASSERT(_graph->contains_global_node(u));
+          KASSERT(
+              _graph->is_owned_global_node(v),
+              "PE " << pe << " thinks that this PE owns " << v
+          );
+          const NodeID local_u = _graph->global_to_local_node(u);
+          const NodeID local_v = _graph->global_to_local_node(v);
+
+          KASSERT(
+              _matching[local_v] == v,
+              "invalid clustering structure for edge "
+                  << u << " <-> " << v << " (local " << local_u << " <-> "
+                  << local_v << "): expected " << v << " to be the leader, but "
+                  << v << " is in cluster " << _matching[local_v]
+          );
+        }
+      }
+  );
+
+  return true;
 }
 
 void HEMClustering::compute_local_matching(
