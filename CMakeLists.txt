@@ -98,7 +98,7 @@ endif ()
 
 # Always enable Debug symbols (including in Release mode)
 if (KAMINPAR_BUILD_WITH_DEBUG_SYMBOLS)
-    list(APPEND CMAKE_CXX_FLAGS "-g -g3")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -g3")
 endif ()
 
 # Set compile flags 
