@@ -8,7 +8,7 @@
 
 #include <tbb/enumerable_thread_specific.h>
 
-#include "kaminpar/coarsening/label_propagation_clustering.h"
+#include "kaminpar/coarsening/lp_clustering.h"
 #include "kaminpar/context.h"
 #include "kaminpar/datastructures/graph.h"
 #include "kaminpar/factories.h"

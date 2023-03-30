@@ -5,13 +5,12 @@
  * @brief:  Label propagation clustering that only clusters node within a PE
  * (i.e., not with ghost nodes).
  ******************************************************************************/
-#include "dkaminpar/coarsening/clustering/local_label_propagation_clustering.h"
+#include "dkaminpar/coarsening/clustering/local_lp_clustering.h"
 
 #include "kaminpar/label_propagation.h"
 
 namespace kaminpar::dist {
-struct DistributedLocalLabelPropagationClusteringConfig
-    : public LabelPropagationConfig {
+struct LocalLPClusteringConfig : public LabelPropagationConfig {
   using Graph = DistributedGraph;
   using ClusterID = NodeID;
   using ClusterWeight = NodeWeight;
@@ -19,22 +18,22 @@ struct DistributedLocalLabelPropagationClusteringConfig
   static constexpr bool kUseTwoHopClustering = true;
 };
 
-class DistributedLocalLabelPropagationClusteringImpl final
+class LocalLPClusteringImpl final
     : public ChunkRandomdLabelPropagation<
-          DistributedLocalLabelPropagationClusteringImpl,
-          DistributedLocalLabelPropagationClusteringConfig>,
+          LocalLPClusteringImpl,
+          LocalLPClusteringConfig>,
       public NonatomicOwnedClusterVector<NodeID, NodeID>,
       public OwnedRelaxedClusterWeightVector<NodeID, NodeWeight> {
   SET_DEBUG(false);
 
   using Base = ChunkRandomdLabelPropagation<
-      DistributedLocalLabelPropagationClusteringImpl,
-      DistributedLocalLabelPropagationClusteringConfig>;
+      LocalLPClusteringImpl,
+      LocalLPClusteringConfig>;
   using ClusterBase = NonatomicOwnedClusterVector<NodeID, NodeID>;
   using ClusterWeightBase = OwnedRelaxedClusterWeightVector<NodeID, NodeWeight>;
 
 public:
-  DistributedLocalLabelPropagationClusteringImpl(
+  LocalLPClusteringImpl(
       const NodeID max_n, const CoarseningContext &c_ctx
   )
       : ClusterBase(max_n),
@@ -155,20 +154,18 @@ public:
 // Interface
 //
 
-DistributedLocalLabelPropagationClustering::
-    DistributedLocalLabelPropagationClustering(const Context &ctx)
-    : _impl{std::make_unique<DistributedLocalLabelPropagationClusteringImpl>(
+LocalLPClustering::LocalLPClustering(const Context &ctx)
+    : _impl{std::make_unique<LocalLPClusteringImpl>(
           ctx.coarsening.local_lp.ignore_ghost_nodes
               ? ctx.partition.graph->n
               : ctx.partition.graph->total_n,
           ctx.coarsening
       )} {}
 
-DistributedLocalLabelPropagationClustering::
-    ~DistributedLocalLabelPropagationClustering() = default;
+LocalLPClustering::
+    ~LocalLPClustering() = default;
 
-DistributedLocalLabelPropagationClustering::ClusterArray &
-DistributedLocalLabelPropagationClustering::compute_clustering(
+LocalLPClustering::ClusterArray &LocalLPClustering::compute_clustering(
     const DistributedGraph &graph, const GlobalNodeWeight max_cluster_weight
 ) {
   return _impl->compute_clustering(graph, max_cluster_weight);
