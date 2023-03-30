@@ -23,12 +23,10 @@ Coarsener::Coarsener(
 )
     : _input_graph(input_graph),
       _input_ctx(input_ctx),
-      _global_clustering_algorithm(
-          factory::create_global_clustering_algorithm(_input_ctx)
+      _global_clusterer(factory::create_global_clustering_algorithm(_input_ctx)
       ),
-      _local_clustering_algorithm(
-          factory::create_local_clustering_algorithm(_input_ctx)
-      ) {}
+      _local_clusterer(factory::create_local_clustering_algorithm(_input_ctx)) {
+}
 
 const DistributedGraph *Coarsener::coarsen_once() {
   return coarsen_once(max_cluster_weight());
@@ -37,10 +35,10 @@ const DistributedGraph *Coarsener::coarsen_once() {
 const DistributedGraph *
 Coarsener::coarsen_once_local(const GlobalNodeWeight max_cluster_weight) {
   DBG << "Coarsen graph using local clustering algorithm ...";
-
   const DistributedGraph *graph = coarsest();
 
-  auto &clustering = _local_clustering_algorithm->compute_clustering(
+  _local_clusterer->initialize(*graph);
+  auto &clustering = _local_clusterer->cluster(
       *graph, static_cast<NodeWeight>(max_cluster_weight)
   );
   if (clustering.empty()) {
@@ -75,22 +73,24 @@ Coarsener::coarsen_once_global(const GlobalNodeWeight max_cluster_weight) {
 
   const DistributedGraph *graph = coarsest();
 
-  // compute coarse graph
-  auto &clustering = _global_clustering_algorithm->compute_clustering(
+  // Call global clustering algorithm
+  _global_clusterer->initialize(*graph);
+  auto &clustering = _global_clusterer->cluster(
       *graph, static_cast<NodeWeight>(max_cluster_weight)
   );
-  if (clustering.empty()) { // empty --> converged
+  if (clustering.empty()) { // Empty --> converged
     DBG << "... converged with empty clustering";
     return graph;
   }
 
+  // Construct the coarse graph
   auto result =
       contract_global_clustering(*graph, clustering, _input_ctx.coarsening);
   KASSERT(graph::debug::validate(result.graph), "", assert::heavy);
   DBG << "Reduced number of nodes from " << graph->global_n() << " to "
       << result.graph.global_n();
 
-  // only keep graph if coarsening has not converged yet
+  // Only keep graph if coarsening has not converged yet
   if (!has_converged(*graph, result.graph)) {
     DBG << "... success";
 

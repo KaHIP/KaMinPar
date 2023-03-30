@@ -20,15 +20,20 @@ HEMLPClustering::HEMLPClustering(const Context &ctx)
     : _lp(std::make_unique<GlobalLPClustering>(ctx)),
       _hem(std::make_unique<HEMClustering>(ctx)) {}
 
-HEMLPClustering::ClusterArray &HEMLPClustering::compute_clustering(
+void HEMLPClustering::initialize(const DistributedGraph &graph) {
+  _lp->initialize(graph);
+  _hem->initialize(graph);
+}
+
+HEMLPClustering::ClusterArray &HEMLPClustering::cluster(
     const DistributedGraph &graph, const GlobalNodeWeight max_cluster_weight
 ) {
   _graph = &graph;
 
   if (_fallback) {
-    return _lp->compute_clustering(graph, max_cluster_weight);
+    return _lp->cluster(graph, max_cluster_weight);
   } else {
-    auto &matching = _hem->compute_clustering(graph, max_cluster_weight);
+    auto &matching = _hem->cluster(graph, max_cluster_weight);
     const GlobalNodeID new_size =
         compute_size_after_matching_contraction(matching);
 
@@ -38,7 +43,7 @@ HEMLPClustering::ClusterArray &HEMLPClustering::compute_clustering(
     }
 
     _fallback = true;
-    return compute_clustering(graph, max_cluster_weight);
+    return cluster(graph, max_cluster_weight);
   }
 }
 

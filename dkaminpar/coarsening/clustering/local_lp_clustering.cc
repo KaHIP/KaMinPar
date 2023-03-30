@@ -33,9 +33,7 @@ class LocalLPClusteringImpl final
   using ClusterWeightBase = OwnedRelaxedClusterWeightVector<NodeID, NodeWeight>;
 
 public:
-  LocalLPClusteringImpl(
-      const NodeID max_n, const CoarseningContext &c_ctx
-  )
+  LocalLPClusteringImpl(const NodeID max_n, const CoarseningContext &c_ctx)
       : ClusterBase(max_n),
         ClusterWeightBase{max_n},
         _ignore_ghost_nodes(c_ctx.local_lp.ignore_ghost_nodes),
@@ -46,10 +44,13 @@ public:
     set_max_num_neighbors(c_ctx.local_lp.max_num_neighbors);
   }
 
+  void initialize(const DistributedGraph &graph) {
+    Base::initialize(&graph, graph.n());
+  }
+
   auto &compute_clustering(
       const DistributedGraph &graph, const GlobalNodeWeight max_cluster_weight
   ) {
-    initialize(&graph, graph.n());
     _max_cluster_weight = max_cluster_weight;
 
     // initialize ghost nodes
@@ -162,10 +163,13 @@ LocalLPClustering::LocalLPClustering(const Context &ctx)
           ctx.coarsening
       )} {}
 
-LocalLPClustering::
-    ~LocalLPClustering() = default;
+LocalLPClustering::~LocalLPClustering() = default;
 
-LocalLPClustering::ClusterArray &LocalLPClustering::compute_clustering(
+void LocalLPClustering::initialize(const DistributedGraph &graph) {
+  _impl->initialize(graph);
+}
+
+LocalLPClustering::ClusterArray &LocalLPClustering::cluster(
     const DistributedGraph &graph, const GlobalNodeWeight max_cluster_weight
 ) {
   return _impl->compute_clustering(graph, max_cluster_weight);

@@ -24,7 +24,9 @@ public:
 
   ~GlobalLPClustering() override;
 
-  ClusterArray &compute_clustering(
+  void initialize(const DistributedGraph &graph) final;
+
+  ClusterArray &cluster(
       const DistributedGraph &graph, GlobalNodeWeight max_cluster_weight
   ) final;
 

@@ -78,10 +78,8 @@ void DistributedGraph::init_high_degree_info(const EdgeID high_degree_threshold
             0,
             recv_buffer.size(),
             [&](const std::size_t i) {
-              const auto [remote_node, high_degree] = recv_buffer[i];
-              const auto global_node =
-                  static_cast<GlobalNodeID>(offset_n(pe) + remote_node);
-              const NodeID local_node = global_to_local_node(global_node);
+              const auto &[remote_node, high_degree] = recv_buffer[i];
+              const NodeID local_node = remote_to_local_node(remote_node, pe);
               _high_degree_ghost_node[local_node - n()] = high_degree;
             }
         );
