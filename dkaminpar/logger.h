@@ -11,8 +11,8 @@
 #undef DBGC
 #define DBGC(cond)                                                             \
   (kDebug && (cond)) && kaminpar::DisposableLogger<false>(std::cout)           \
-                            << kaminpar::logger::MAGENTA << POSITION           \
-                            << LOG_RANK << CPU << " "                          \
+                            << kaminpar::logger::CYAN << LOG_RANK              \
+                            << kaminpar::logger::MAGENTA << POSITION << " "    \
                             << kaminpar::logger::DEFAULT_TEXT
 
 #undef LOG

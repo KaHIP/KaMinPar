@@ -315,13 +315,15 @@ bool validate(const DistributedGraph &graph) {
   {
     DBG << "Checking node distribution ...";
 
-    if (graph.node_distribution().size() != size + 1) {
+    if (graph.node_distribution().size() !=
+        static_cast<std::size_t>(size + 1)) {
       LOG_ERROR << "on PE " << rank
                 << ": expected size of the node distribution array to be "
                 << size + 1 << ", but is " << graph.node_distribution().size();
       return false;
     }
-    if (graph.edge_distribution().size() != size + 1) {
+    if (graph.edge_distribution().size() !=
+        static_cast<std::size_t>(size + 1)) {
       LOG_ERROR << "on PE " << rank
                 << ": expected size of the edge distribution array to be "
                 << size + 1 << ", but is " << graph.edge_distribution().size();
@@ -435,8 +437,8 @@ bool validate(const DistributedGraph &graph) {
     DBG << "Checking edges to ghost nodes ...";
 
     struct GhostNodeEdge {
-      GlobalNodeID owned_node;
-      GlobalNodeID ghost_node;
+      GlobalNodeID owned;
+      GlobalNodeID ghost;
     };
 
     const auto recvbufs =
@@ -444,28 +446,44 @@ bool validate(const DistributedGraph &graph) {
             graph,
             [&](const NodeID u, const EdgeID, const NodeID v) -> GhostNodeEdge {
               return {
-                  .owned_node = graph.local_to_global_node(u),
-                  .ghost_node = graph.local_to_global_node(v)};
+                  .owned = graph.local_to_global_node(u),
+                  .ghost = graph.local_to_global_node(v)};
             }
         );
 
     for (PEID pe = 0; pe < size; ++pe) {
       for (const auto &[ghost, owned] : recvbufs[pe]) {
-        if (!graph.contains_global_node(owned)) {
-          LOG_ERROR << "on PE " << rank << ": PE " << pe
-                    << " has edge to global node " << owned
-                    << " with is not contained on this PE";
+        if (!graph.contains_global_node(ghost)) {
+          LOG_ERROR
+              << "global node " << ghost
+              << " does not exist as ghost node on this PE (expected by PE "
+              << pe << ")";
           return false;
         }
-        if (!graph.contains_global_node(ghost)) {
-          LOG_ERROR << "on PE " << rank << ": PE " << pe
-                    << " has edge from global node " << ghost
-                    << " with is not contained on this PE";
+        if (!graph.contains_global_node(owned)) {
+          LOG_ERROR << "global node " << owned
+                    << " does not exist on this PE (expected to be owned by "
+                       "this PE by PE "
+                    << pe << ")";
           return false;
         }
 
         const NodeID local_owned_node = graph.global_to_local_node(owned);
         const NodeID local_ghost_node = graph.global_to_local_node(ghost);
+
+        if (local_owned_node >= graph.n()) {
+          LOG_ERROR << "global node " << owned << " (local " << local_owned_node
+                    << ") is expected to be owned by this PE (by PE " << pe
+                    << "), but it is not";
+          return false;
+        }
+        if (local_ghost_node < graph.n()) {
+          LOG_ERROR << "global node " << ghost << " (local " << local_ghost_node
+                    << ") is expected to be a ghost node on this PE, but it is "
+                       "a owned node (expected by PE "
+                    << pe << "); number of local nodes: " << graph.n();
+          return false;
+        }
 
         bool found = false;
         for (const auto v : graph.adjacent_nodes(local_owned_node)) {
@@ -475,12 +493,16 @@ bool validate(const DistributedGraph &graph) {
           }
         }
         if (!found) {
-          LOG_ERROR << "on PE " << rank << ": PE " << pe
-                    << " expects our local node " << local_owned_node
-                    << " (global node " << owned
-                    << ") to be adjacent to our local ghost node "
-                    << local_ghost_node << " (global " << ghost
-                    << "), but it is not adjacent";
+          LOG_ERROR << "PE " << pe << " expects a local edge "
+                    << local_owned_node << " (owned, global node " << owned
+                    << ") --> " << local_ghost_node << " (ghost, global node "
+                    << ghost << ") on this PE, but the edge does not exist";
+          LOG_ERROR << "Outgoing edges from local node " << local_owned_node
+                    << " are:";
+          for (const auto v : graph.adjacent_nodes(local_owned_node)) {
+            LOG_ERROR << "\t- " << v << " (global "
+                      << graph.local_to_global_node(v) << ")";
+          }
           return false;
         }
       }
@@ -591,7 +613,7 @@ bool validate_partition(const DistributedPartitionedGraph &p_graph) {
     DBG << "Checking ghost node block assignments ...";
 
     // Build a global partition array on the root PE
-    StaticArray<BlockID> global_partition;
+    StaticArray<BlockID> global_partition(0);
     if (rank == 0) {
       global_partition.resize(p_graph.global_n());
     }
@@ -628,6 +650,7 @@ bool validate_partition(const DistributedPartitionedGraph &p_graph) {
 
       if (rank == 0) {
         if (global_partition[global] != block) {
+          KASSERT(global < global_partition.size());
           LOG_ERROR << "inconsistent assignment of node " << global
                     << " on PE 0: local assignment to block " << block
                     << " inconsistent with actual assignment to block "
@@ -644,11 +667,13 @@ bool validate_partition(const DistributedPartitionedGraph &p_graph) {
         const auto recvbuf = mpi::probe_recv<NodeAssignment>(pe, 0, comm);
 
         for (const auto &[global, block] : recvbuf) {
-          LOG_ERROR << "inconsistent assignment of node " << global
-                    << " on PE 0: local assignment to block " << block
-                    << " inconsistent with actual assignment to block "
-                    << global_partition[global];
-          return false;
+          if (global_partition[global] != block) {
+            LOG_ERROR << "inconsistent assignment of node " << global
+                      << " on PE 0: local assignment to block " << block
+                      << " inconsistent with actual assignment to block "
+                      << global_partition[global];
+            return false;
+          }
         }
       }
     } else {

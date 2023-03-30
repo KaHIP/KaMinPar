@@ -2,18 +2,18 @@
  * @file:   static_array.h
  * @author: Daniel Seemaier
  * @date:   21.09.2021
- * @brief:  Combination of owning static array and a slice.
+ * @brief:  Combination of owning static array and a span.
  ******************************************************************************/
 #pragma once
 
+#include <cstring>
 #include <iterator>
 #include <thread>
 #include <vector>
-#include <cstring>
 
-#include <kassert/kassert.hpp>
 #include <tbb/parallel_for.h>
 
+#include "common/assertion_levels.h"
 #include "common/parallel/atomic.h"
 #include "common/parallel/tbb_malloc.h"
 
@@ -130,7 +130,7 @@ public:
   }
 
   StaticArray(const std::size_t size, no_init) {
-    resize_without_init(size);
+    resize(size, no_init{});
   }
 
   template <typename Iterator>
@@ -141,10 +141,11 @@ public:
     });
   }
 
-  StaticArray() {}
+  StaticArray() : StaticArray(0) {}
 
   StaticArray(const StaticArray &) = delete;
   StaticArray &operator=(const StaticArray &) = delete;
+
   StaticArray(StaticArray &&) noexcept = default;
   StaticArray &operator=(StaticArray &&) noexcept = default;
 
@@ -257,13 +258,9 @@ public:
     return _size;
   }
 
-  void resize_without_init(const size_type size) {
-    KASSERT(!_data);
-    allocate_data(size);
-  }
-
   void resize(const std::size_t size, no_init) {
-    resize_without_init(size);
+    KASSERT(_data == _owned_data.get(), "cannot resize span", assert::always);
+    allocate_data(size);
   }
 
   void resize(
@@ -271,8 +268,7 @@ public:
       const value_type init_value = value_type(),
       const bool assign_parallel = true
   ) {
-    KASSERT(_data == _owned_data.get());
-    resize_without_init(size);
+    resize(size, no_init{});
     assign(size, init_value, assign_parallel);
   }
 
