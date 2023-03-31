@@ -276,12 +276,8 @@ struct PartitionContext {
 
 struct DebugContext {
   std::string graph_filename = "";
-  bool save_finest_graph = false;
   bool save_coarsest_graph = false;
-  bool save_graph_hierarchy = false;
-  bool save_clustering_hierarchy = false;
-  bool save_partition_hierarchy = false;
-  bool save_unrefined_finest_partition = false;
+  bool save_coarsest_partition = false;
 };
 
 struct Context {

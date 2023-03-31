@@ -713,7 +713,9 @@ public:
   [[nodiscard]] inline bool sorted() const { return _graph->sorted(); }
   [[nodiscard]] inline EdgeID edge_cut_to_pe(const PEID pe) const { return _graph->edge_cut_to_pe(pe); }
   [[nodiscard]] inline EdgeID comm_vol_to_pe(const PEID pe) const { return _graph->comm_vol_to_pe(pe); }
-  [[nodiscard]] MPI_Comm communicator() const { return _graph->communicator(); }
+  [[nodiscard]] inline MPI_Comm communicator() const { return _graph->communicator(); }
+  [[nodiscard]] inline bool permuted() const { return _graph->permuted(); }
+  [[nodiscard]] inline NodeID map_original_node(const NodeID u) const { return _graph->map_original_node(u); }
   // clang-format on
 
   [[nodiscard]] BlockID k() const {

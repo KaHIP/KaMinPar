@@ -66,22 +66,10 @@ CLI::Option_group* create_partitioning_options(CLI::App* app, Context& ctx) {
 CLI::Option_group *create_debug_options(CLI::App *app, Context &ctx) {
     auto *debug = app->add_option_group("Debug");
 
-    debug->add_flag("--d-save-finest-graph", ctx.debug.save_finest_graph)
-        ->configurable(false)
-        ->capture_default_str();
     debug->add_flag("--d-save-coarsest-graph", ctx.debug.save_coarsest_graph)
         ->configurable(false)
         ->capture_default_str();
-    debug->add_flag("--d-save-graph-hierarchy", ctx.debug.save_graph_hierarchy)
-        ->configurable(false)
-        ->capture_default_str();
-    debug->add_flag("--d-save-clustering-hierarchy", ctx.debug.save_clustering_hierarchy)
-        ->configurable(false)
-        ->capture_default_str();
-    debug->add_flag("--d-save-partition-hierarchy", ctx.debug.save_partition_hierarchy)
-        ->configurable(false)
-        ->capture_default_str();
-    debug->add_flag("--d-save-unrefined-finest-partition", ctx.debug.save_unrefined_finest_partition)
+    debug->add_flag("--d-save-coarsest-partition", ctx.debug.save_coarsest_partition)
         ->configurable(false)
         ->capture_default_str();
 
