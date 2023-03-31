@@ -14,6 +14,7 @@
 
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructures/distributed_graph.h"
+#include "dkaminpar/debug.h"
 #include "dkaminpar/factories.h"
 #include "dkaminpar/graphutils/replicator.h"
 #include "dkaminpar/graphutils/subgraph_extractor.h"
@@ -146,7 +147,9 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
   const GlobalNodeID desired_num_nodes =
       (_input_ctx.simulate_singlethread ? 1 : _input_ctx.parallel.num_threads) *
       _input_ctx.coarsening.contraction_limit * first_step_k;
-  PEID current_num_pes = mpi::get_comm_size(_input_graph.communicator());
+  const PEID initial_rank = mpi::get_comm_rank(_input_graph.communicator());
+  const PEID initial_size = mpi::get_comm_size(_input_graph.communicator());
+  PEID current_num_pes = initial_size;
 
   START_TIMER("Coarsening");
 
@@ -156,10 +159,6 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
     );
 
     // Replicate graph and split PEs when the graph becomes too small
-    // const BlockID num_blocks_on_this_level = std::min<BlockID>(
-    //_input_ctx.partition.k, math::ceil2(graph->global_n() /
-    //_input_ctx.coarsening.contraction_limit)
-    //);
     const BlockID num_blocks_on_this_level = math::ceil2(
         graph->global_n() / _input_ctx.coarsening.contraction_limit
     );
@@ -176,7 +175,7 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
       current_num_pes /= num_replications;
       LOG << "Current graph (" << graph->global_n()
           << " nodes) is too small for the available parallelism ("
-          << _input_ctx.parallel.num_mpis << "): replicating the graph "
+          << _input_ctx.parallel.num_mpis << "): duplicating the graph "
           << num_replications << " times";
 
       _replicated_graphs.push_back(graph::replicate(*graph, num_replications));
@@ -246,6 +245,12 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
   );
   print_initial_partitioning_result(dist_p_graph, ip_p_ctx);
   STOP_TIMER();
+
+  // Only store coarsest graph + partition of PE group 0
+  if (initial_rank < current_num_pes) {
+    debug::write_coarsest_graph(*graph, _input_ctx.debug);
+    debug::write_coarsest_partition(dist_p_graph, _input_ctx.debug);
+  }
 
   /*
    * Uncoarsening and Refinement

@@ -160,6 +160,7 @@ int main(int argc, char *argv[]) {
     partitioner.set_output_level(OutputLevel::EXPERIMENT);
   }
   partitioner.set_max_timer_depth(app.max_timer_depth);
+  partitioner.context().debug.graph_filename = app.graph_filename;
 
   const NodeID n = [&] {
     kagen::KaGen generator(MPI_COMM_WORLD);

@@ -170,12 +170,8 @@ Context create_default_context() {
                   },
           },
       .debug = {
-          .save_finest_graph = false,
           .save_coarsest_graph = false,
-          .save_graph_hierarchy = false,
-          .save_clustering_hierarchy = false,
-          .save_partition_hierarchy = false,
-          .save_unrefined_finest_partition = false,
+          .save_coarsest_partition = false,
       }};
 }
 
