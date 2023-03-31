@@ -50,8 +50,8 @@ private:
   const Context &_input_ctx;
 
   std::unique_ptr<ClusteringAlgorithm<GlobalNodeID>>
-      _global_clustering_algorithm;
-  std::unique_ptr<ClusteringAlgorithm<NodeID>> _local_clustering_algorithm;
+      _global_clusterer;
+  std::unique_ptr<ClusteringAlgorithm<NodeID>> _local_clusterer;
 
   std::vector<DistributedGraph> _graph_hierarchy;
   std::vector<GlobalMapping>

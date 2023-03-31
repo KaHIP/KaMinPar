@@ -105,6 +105,7 @@ public:
 
   DistributedGraph(const DistributedGraph &) = delete;
   DistributedGraph &operator=(const DistributedGraph &) = delete;
+
   DistributedGraph(DistributedGraph &&) noexcept = default;
   DistributedGraph &operator=(DistributedGraph &&) noexcept = default;
 
@@ -230,6 +231,15 @@ public:
       KASSERT(_global_to_ghost.find(global_u + 1) != _global_to_ghost.end());
       return (*_global_to_ghost.find(global_u + 1)).second;
     }
+  }
+
+  [[nodiscard]] inline NodeID
+  remote_to_local_node(const NodeID remote_node, const PEID owner) const {
+    KASSERT(remote_node < offset_n(owner + 1) - offset_n(owner));
+    const NodeID local_node =
+        global_to_local_node(offset_n(owner) + remote_node);
+    KASSERT(local_node >= n()); // must be a ghost node
+    return local_node;
   }
 
   // Access methods

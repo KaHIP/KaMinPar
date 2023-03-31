@@ -142,7 +142,7 @@ public:
 
   void
   refine(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) {
-    SCOPED_TIMER("Probabilistic label propagation");
+    SCOPED_TIMER("LP Refinement");
     _p_graph = &p_graph;
     _p_ctx = &p_ctx;
 

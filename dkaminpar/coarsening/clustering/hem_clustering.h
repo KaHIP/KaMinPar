@@ -18,18 +18,21 @@ public:
 
   HEMClustering(const HEMClustering &) = delete;
   HEMClustering &operator=(const HEMClustering &) = delete;
+
   HEMClustering(HEMClustering &&) noexcept = default;
   HEMClustering &operator=(HEMClustering &&) = delete;
 
-  ClusterArray &compute_clustering(
+  void initialize(const DistributedGraph &graph) final;
+
+  ClusterArray &cluster(
       const DistributedGraph &graph, GlobalNodeWeight max_cluster_weight
   ) final;
 
 private:
-  void initialize(const DistributedGraph &graph);
-
   void compute_local_matching(ColorID c, GlobalNodeWeight max_cluster_weight);
   void resolve_global_conflicts(ColorID c);
+
+  bool validate_matching();
 
   const Context &_input_ctx;
   const HEMCoarseningContext &_ctx;

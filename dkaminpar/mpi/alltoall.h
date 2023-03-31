@@ -184,9 +184,13 @@ void sparse_alltoall_complete(
           send_buffers[rank], rank, receiver
       );
     } else if (pe != rank) {
+      START_TIMER("probe_recv");
       auto recv_buffer =
           mpi::probe_recv<Message, Buffer>(pe, 0, comm, MPI_STATUS_IGNORE);
+      STOP_TIMER();
+      START_TIMER("invoke_receiver");
       invoke_receiver(std::move(recv_buffer), pe, receiver);
+      STOP_TIMER();
     }
   }
 

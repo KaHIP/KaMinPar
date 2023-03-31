@@ -4,7 +4,7 @@
  * @date:   29.09.2021
  * @brief:  Parallel label propgation for clustering.
  ******************************************************************************/
-#include "kaminpar/coarsening/label_propagation_clustering.h"
+#include "kaminpar/coarsening/lp_clustering.h"
 
 #include <memory>
 
@@ -20,30 +20,28 @@ namespace kaminpar::shm {
 // Actual implementation -- not exposed in header
 //
 
-struct LabelPropagationClusteringConfig : public LabelPropagationConfig {
+struct LPClusteringConfig : public LabelPropagationConfig {
   using ClusterID = NodeID;
   using ClusterWeight = BlockWeight;
   static constexpr bool kTrackClusterCount = true;
   static constexpr bool kUseTwoHopClustering = true;
 };
 
-class LabelPropagationClusteringCore final
-    : public ChunkRandomdLabelPropagation<
-          LabelPropagationClusteringCore,
-          LabelPropagationClusteringConfig>,
+class LPClusteringImpl final
+    : public ChunkRandomdLabelPropagation<LPClusteringImpl,
+          LPClusteringConfig>,
       public OwnedRelaxedClusterWeightVector<NodeID, NodeWeight>,
       public OwnedClusterVector<NodeID, NodeID>,
       public Clusterer {
   SET_DEBUG(false);
 
-  using Base = ChunkRandomdLabelPropagation<
-      LabelPropagationClusteringCore,
-      LabelPropagationClusteringConfig>;
+  using Base = ChunkRandomdLabelPropagation<LPClusteringImpl,
+      LPClusteringConfig>;
   using ClusterWeightBase = OwnedRelaxedClusterWeightVector<NodeID, NodeWeight>;
   using ClusterBase = OwnedClusterVector<NodeID, NodeID>;
 
 public:
-  LabelPropagationClusteringCore(
+  LPClusteringImpl(
       const NodeID max_n, const CoarseningContext &c_ctx
   )
       : ClusterWeightBase{max_n},
@@ -111,30 +109,30 @@ public:
 // Exposed wrapper
 //
 
-LabelPropagationClusteringAlgorithm::LabelPropagationClusteringAlgorithm(
+LPClustering::LPClustering(
     const NodeID max_n, const CoarseningContext &c_ctx
 )
-    : _core{std::make_unique<LabelPropagationClusteringCore>(max_n, c_ctx)} {}
+    : _core{std::make_unique<LPClusteringImpl>(max_n, c_ctx)} {}
 
 // we must declare the destructor explicitly here, otherwise, it is implicitly
 // generated before LabelPropagationClusterCore is complete
-LabelPropagationClusteringAlgorithm::~LabelPropagationClusteringAlgorithm() =
+LPClustering::~LPClustering() =
     default;
 
-void LabelPropagationClusteringAlgorithm::set_max_cluster_weight(
+void LPClustering::set_max_cluster_weight(
     const NodeWeight max_cluster_weight
 ) {
   _core->set_max_cluster_weight(max_cluster_weight);
 }
 
-void LabelPropagationClusteringAlgorithm::set_desired_cluster_count(
+void LPClustering::set_desired_cluster_count(
     const NodeID count
 ) {
   _core->set_desired_num_clusters(count);
 }
 
 const Clusterer::AtomicClusterArray &
-LabelPropagationClusteringAlgorithm::compute_clustering(const Graph &graph) {
+LPClustering::compute_clustering(const Graph &graph) {
   return _core->compute_clustering(graph);
 }
 } // namespace kaminpar::shm
