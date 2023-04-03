@@ -427,7 +427,7 @@ private:
     };
 
     START_TIMER("Allocation");
-    std::vector<StaticArray<Message>> out_msgs(size);
+    std::vector<NoinitVector<Message>> out_msgs(size);
     tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
       out_msgs[pe].resize(num_messages[pe]);
     });
