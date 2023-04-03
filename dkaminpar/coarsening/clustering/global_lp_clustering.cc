@@ -2,11 +2,7 @@
  * @file:   global_label_propagation_coarsener.cc
  * @author: Daniel Seemaier
  * @date:   29.09.2021
- * @brief:  Label propagation with clusters that span multiple PEs. Cluster
- * labels and weights are synchronized in rounds. Between communication rounds,
- * a cluster can grow beyond the maximum cluster weight limit if more than one
- * PE moves nodes to the cluster. Thus, the clustering might violate the
- * maximum cluster weight limit.
+ * @brief:  Label propagation with clusters that can grow to multiple PEs.
  ******************************************************************************/
 #include "dkaminpar/coarsening/clustering/global_lp_clustering.h"
 
@@ -98,7 +94,9 @@ public:
 
   void initialize(const DistributedGraph &graph) {
     _graph = &graph;
+
     mpi::barrier(graph.communicator());
+
     SCOPED_TIMER("Initialize label propagation clustering");
 
     START_TIMER("High-degree computation");
@@ -116,12 +114,12 @@ public:
     mpi::barrier(graph.communicator());
 
     START_TIMER("Datastructures");
-    // clear hash map
+    // Clear hash map
     _cluster_weights_handles_ets.clear();
     _cluster_weights = ClusterWeightsMap{0};
     std::fill(_local_cluster_weights.begin(), _local_cluster_weights.end(), 0);
 
-    // initialize data structures
+    // Initialize data structures
     Base::initialize(&graph, graph.total_n());
     initialize_ghost_node_clusters();
     STOP_TIMER();
@@ -130,13 +128,16 @@ public:
   auto &compute_clustering(
       const DistributedGraph &graph, const GlobalNodeWeight max_cluster_weight
   ) {
+    _max_cluster_weight = max_cluster_weight;
+
+    mpi::barrier(graph.communicator());
+
     KASSERT(
         _graph == &graph,
         "must call initialize() before cluster()",
         assert::always
     );
-    _max_cluster_weight = max_cluster_weight;
-    mpi::barrier(graph.communicator());
+
     SCOPED_TIMER("Compute label propagation clustering");
 
     const int num_chunks = _c_ctx.global_lp.compute_num_chunks(_ctx.parallel);
@@ -156,7 +157,7 @@ public:
     return clusters();
   }
 
-  void set_max_num_iterations(const std::size_t max_num_iterations) {
+  void set_max_num_iterations(const int max_num_iterations) {
     _max_num_iterations = max_num_iterations == 0
                               ? std::numeric_limits<int>::max()
                               : max_num_iterations;
@@ -218,7 +219,7 @@ public:
       const ClusterWeight max_weight,
       const bool check_weight_constraint = true
   ) {
-    // reject move if it violates local weight constraint
+    // Reject move if it violates local weight constraint
     if (check_weight_constraint &&
         cluster_weight(new_gcluster) + weight_delta > max_weight) {
       return false;
@@ -232,7 +233,7 @@ public:
           &_local_cluster_weights[old_lcluster], weight_delta, __ATOMIC_RELAXED
       );
     } else {
-      // otherwise, move node to new cluster
+      // Otherwise, move node to new cluster
       [[maybe_unused]] const auto [it, found] = handle.update(
           old_gcluster + 1,
           [](auto &lhs, const auto rhs) { return lhs -= rhs; },
@@ -426,7 +427,7 @@ private:
     };
 
     START_TIMER("Allocation");
-    std::vector<NoinitVector<Message>> out_msgs(size);
+    std::vector<StaticArray<Message>> out_msgs(size);
     tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
       out_msgs[pe].resize(num_messages[pe]);
     });
@@ -629,17 +630,17 @@ private:
                   // changes, we already have the right weight including ghost
                   // vertices --> only update weight if we did not get an update
 
-                  /*if (!should_sync_cluster_weights() ||
+                  if (!should_sync_cluster_weights() ||
                       weight_delta_handle.find(old_gcluster + 1) ==
-                          weight_delta_handle.end()) {*/
-                  change_cluster_weight(old_gcluster, -weight, true);
-                  //}
+                          weight_delta_handle.end()) {
+                    change_cluster_weight(old_gcluster, -weight, true);
+                  }
                   NonatomicOwnedClusterVector::move_node(lnode, new_gcluster);
-                  /*if (!should_sync_cluster_weights() ||
+                  if (!should_sync_cluster_weights() ||
                       weight_delta_handle.find(new_gcluster + 1) ==
-                          weight_delta_handle.end()) {*/
-                  change_cluster_weight(new_gcluster, weight, false);
-                  //}
+                          weight_delta_handle.end()) {
+                    change_cluster_weight(new_gcluster, weight, false);
+                  }
                 }
               }
           );
@@ -717,22 +718,27 @@ private:
   using Base::_graph;
   const Context &_ctx;
   const CoarseningContext &_c_ctx;
-  NodeWeight _max_cluster_weight{std::numeric_limits<NodeWeight>::max()};
-  int _max_num_iterations{std::numeric_limits<int>::max()};
 
-  //! \code{_changed_label[u] = 1} iff. node \c u changed its label in the
-  //! current round
+  NodeWeight _max_cluster_weight = std::numeric_limits<NodeWeight>::max();
+  int _max_num_iterations = std::numeric_limits<int>::max();
+
+  // If a node was moved during the current iteration: its label before the move
   StaticArray<GlobalNodeID> _changed_label;
 
+  // Weights of non-local clusters (i.e., cluster ID is owned by another PE)
   using ClusterWeightsMap = typename growt::GlobalNodeIDMap<GlobalNodeWeight>;
   ClusterWeightsMap _cluster_weights{0};
   tbb::enumerable_thread_specific<typename ClusterWeightsMap::handle_type>
       _cluster_weights_handles_ets{[&] {
-        return ClusterWeightsMap::handle_type{_cluster_weights};
+        return _cluster_weights.get_handle();
       }};
+
+  // Weights of local clusters (i.e., cluster ID is owned by this PE)
   StaticArray<GlobalNodeWeight> _local_cluster_weights;
 
-  EdgeID _passive_high_degree_threshold{0};
+  // Skip neighbors if their degree is larger than this threshold, never skip
+  // neighbors if set to 0
+  EdgeID _passive_high_degree_threshold = 0;
 
   WeightDeltaMap _weight_deltas{0};
   tbb::enumerable_thread_specific<WeightDeltaMap::handle_type>
@@ -742,7 +748,7 @@ private:
 };
 
 //
-// Exposed wrapper
+// Public interface
 //
 
 GlobalLPClustering::GlobalLPClustering(const Context &ctx)
