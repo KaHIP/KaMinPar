@@ -435,30 +435,16 @@ private:
 
     mpi::barrier(_graph->communicator());
 
-    static std::atomic_size_t counter;
-    counter = 0;
-
     START_TIMER("Create messages");
-#pragma omp parallel default(none)                                             \
-    shared(_weight_delta_handles_ets, counter, num_messages, out_msgs)
-    {
-      auto &handle = _weight_delta_handles_ets.local();
-
-      const std::size_t capacity = handle.capacity();
-      std::size_t cur_block = counter.fetch_add(4096);
-
-      while (cur_block < capacity) {
-        auto it = handle.range(cur_block, cur_block + 4096);
-        for (; it != handle.range_end(); ++it) {
-          const GlobalNodeID cluster = (*it).first - 1;
-          const PEID owner = _graph->find_owner_of_global_node(cluster);
-          const GlobalNodeWeight weight = (*it).second;
+    growt::pfor_handles(
+        _weight_delta_handles_ets,
+        [&](const GlobalNodeID gcluster_p1, const GlobalNodeWeight weight) {
+          const GlobalNodeID gcluster = gcluster_p1 - 1;
+          const PEID owner = _graph->find_owner_of_global_node(gcluster);
           const std::size_t index = num_messages[owner].fetch_sub(1) - 1;
-          out_msgs[owner][index] = {.cluster = cluster, .delta = weight};
+          out_msgs[owner][index] = {.cluster = gcluster, .delta = weight};
         }
-        cur_block = counter.fetch_add(4096);
-      }
-    }
+    );
     STOP_TIMER();
 
     mpi::barrier(_graph->communicator());

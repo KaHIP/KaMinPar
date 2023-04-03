@@ -61,10 +61,46 @@ using StaticGhostNodeMapping = typename ::growt::table_config<
     DefaultHasherType,
     DefaultAllocatorType>::table_type;
 
-template <typename Map> auto create_handle_ets(Map &map) {
-  return tbb::enumerable_thread_specific<
-      growt::GlobalNodeIDMap<NodeID>::handle_type>{[&] {
-    return map.get_handle();
-  }};
+template <typename Map, typename Lambda>
+void pfor_map(Map &map, Lambda &&lambda) {
+  std::atomic_size_t counter = 0;
+
+#pragma omp parallel default(none) shared(map, counter, lambda)
+  {
+    const std::size_t capacity = map.capacity();
+    std::size_t cur_block = counter.fetch_add(4096);
+
+    while (cur_block < capacity) {
+      auto it = map.range(cur_block, cur_block + 4096);
+      for (; it != map.range_end(); ++it) {
+        const auto &key = (*it).first;
+        const auto &value = (*it).second;
+        lambda(key, value);
+      }
+      cur_block = counter.fetch_add(4096);
+    }
+  }
+}
+
+template <typename Handles, typename Lambda>
+void pfor_handles(Handles &handles, Lambda &&lambda) {
+  std::atomic_size_t counter = 0;
+
+#pragma omp parallel default(none) shared(handles, counter, lambda)
+  {
+    auto &handle = handles.local();
+    const std::size_t capacity = handle.capacity();
+    std::size_t cur_block = counter.fetch_add(4096);
+
+    while (cur_block < capacity) {
+      auto it = handle.range(cur_block, cur_block + 4096);
+      for (; it != handle.range_end(); ++it) {
+        const auto &key = (*it).first;
+        const auto &value = (*it).second;
+        lambda(key, value);
+      }
+      cur_block = counter.fetch_add(4096);
+    }
+  }
 }
 } // namespace kaminpar::dist::growt
