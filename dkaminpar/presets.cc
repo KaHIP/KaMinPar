@@ -75,6 +75,7 @@ Context create_default_context() {
                       .sync_cluster_weights = true,
                       .enforce_cluster_weights = true,
                       .cheap_toplevel = false,
+                      .prevent_cyclic_moves = false,
                   },
               .hem =
                   {

@@ -305,10 +305,37 @@ public:
    * Clusters
    */
 
-  void move_node(const NodeID node, const ClusterID cluster) {
-    KASSERT(node < _changed_label.size());
-    _changed_label[node] = this->cluster(node);
-    NonatomicOwnedClusterVector::move_node(node, cluster);
+  void move_node(const NodeID lu, const ClusterID gcluster) {
+    KASSERT(lu < _changed_label.size());
+    _changed_label[lu] = this->cluster(lu);
+    NonatomicOwnedClusterVector::move_node(lu, gcluster);
+
+    // Detect if a node was moved back to its original cluster
+    if (_c_ctx.global_lp.prevent_cyclic_moves &&
+        gcluster == initial_cluster(lu)) {
+      // If the node ID is the smallest among its non-local neighbors, lock the
+      // node to its original cluster
+      bool interface_node = false;
+      bool smallest = true;
+
+      for (const NodeID lv : _graph->adjacent_nodes(lu)) {
+        if (_graph->is_owned_node(lv)) {
+          continue;
+        }
+
+        interface_node = true;
+        const GlobalNodeID gu = _graph->local_to_global_node(lu);
+        const GlobalNodeID gv = _graph->local_to_global_node(lv);
+        if (gv < gu) {
+          smallest = false;
+          break;
+        }
+      }
+
+      if (interface_node && smallest) {
+        _locked[lu] = 1;
+      }
+    }
   }
 
   [[nodiscard]] ClusterID initial_cluster(const NodeID u) {
@@ -336,6 +363,11 @@ public:
     return _passive_high_degree_threshold == 0 ||
            !_graph->is_high_degree_node(node);
   }
+
+  [[nodiscard]] inline bool skip_node(const NodeID lnode) {
+    return !_c_ctx.global_lp.prevent_cyclic_moves || _locked[lnode] == 0;
+  }
+
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //
   // Called from base class
@@ -354,6 +386,10 @@ private:
     }
 
     Base::allocate(graph.total_n(), graph.n(), graph.total_n());
+
+    if (_c_ctx.global_lp.prevent_cyclic_moves) {
+      _locked.resize(graph.n());
+    }
   }
 
   void initialize_ghost_node_clusters() {
@@ -710,6 +746,9 @@ private:
 
   // If a node was moved during the current iteration: its label before the move
   StaticArray<GlobalNodeID> _changed_label;
+
+  // Used to lock nodes to prevent cyclic node moves
+  StaticArray<std::uint8_t> _locked;
 
   // Weights of non-local clusters (i.e., cluster ID is owned by another PE)
   using ClusterWeightsMap = typename growt::GlobalNodeIDMap<GlobalNodeWeight>;

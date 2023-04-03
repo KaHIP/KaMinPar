@@ -61,17 +61,6 @@ constexpr BlockWeight kInvalidBlockWeight =
 } // namespace kaminpar::dist
 
 namespace kaminpar::dist {
-enum class IODistribution {
-  NODE_BALANCED,
-  EDGE_BALANCED,
-};
-
-enum class IOFormat {
-  AUTO,
-  TEXT,
-  BINARY,
-};
-
 enum class PartitioningMode {
   KWAY,
   DEEP,
@@ -145,6 +134,8 @@ struct LabelPropagationCoarseningContext {
   bool sync_cluster_weights = false;
   bool enforce_cluster_weights = false;
   bool cheap_toplevel = false;
+
+  bool prevent_cyclic_moves = false;
 
   bool should_merge_nonadjacent_clusters(NodeID old_n, NodeID new_n) const;
   int compute_num_chunks(const ParallelContext &parallel) const;
@@ -325,12 +316,6 @@ public:
       dist::GlobalNodeID *edges,
       dist::GlobalNodeWeight *node_weights,
       dist::GlobalEdgeWeight *edge_weights
-  );
-
-  dist::NodeID load_graph(
-      const std::string &filename,
-      dist::IOFormat format,
-      dist::IODistribution distribution
   );
 
   dist::GlobalEdgeWeight
