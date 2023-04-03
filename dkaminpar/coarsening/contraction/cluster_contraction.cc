@@ -1054,29 +1054,21 @@ ContractionResult contract_clustering(
         next_index_for_pe[pe].value, kInvalidGlobalNodeID
     );
   });
-  static std::atomic_size_t counter;
-  counter = 0;
 
-#pragma omp parallel
-  {
-    const std::size_t capacity = nonlocal_gcluster_to_index.capacity();
-    std::size_t cur_block = counter.fetch_add(4096);
-
-    while (cur_block < capacity) {
-      auto it = nonlocal_gcluster_to_index.range(cur_block, cur_block + 4096);
-      for (; it != nonlocal_gcluster_to_index.range_end(); ++it) {
-        const GlobalNodeID cluster = (*it).first - 1;
-        const PEID owner = graph.find_owner_of_global_node(cluster);
-        const std::size_t index = (*it).second - 1;
+  growt::pfor_map(
+      nonlocal_gcluster_to_index,
+      [&](const GlobalNodeID gcluster_p1, const std::size_t index_p1) {
+        const GlobalNodeID gcluster = gcluster_p1 - 1;
+        const std::size_t index = index_p1 - 1;
+        const PEID owner = graph.find_owner_of_global_node(gcluster);
 
         KASSERT(owner < static_cast<PEID>(my_mapping_requests.size()));
         KASSERT(index < my_mapping_requests[owner].size());
-        KASSERT(cluster != 0u || owner == 0, V(cluster) << V(owner));
-        my_mapping_requests[owner][index] = cluster;
+        KASSERT(gcluster != 0u || owner == 0);
+
+        my_mapping_requests[owner][index] = gcluster;
       }
-      cur_block = counter.fetch_add(4096);
-    }
-  }
+  );
 
   auto their_mapping_requests = mpi::sparse_alltoall_get<GlobalNodeID>(
       my_mapping_requests, graph.communicator()
