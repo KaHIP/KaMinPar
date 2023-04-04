@@ -365,7 +365,7 @@ public:
   }
 
   [[nodiscard]] inline bool skip_node(const NodeID lnode) {
-    return !_c_ctx.global_lp.prevent_cyclic_moves || _locked[lnode] == 0;
+    return _c_ctx.global_lp.prevent_cyclic_moves && _locked[lnode];
   }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
