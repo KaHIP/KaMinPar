@@ -253,5 +253,4 @@ Result contract(
 ) {
   return contract_generic_clustering(graph, clustering, std::move(m_ctx));
 }
-
 } // namespace kaminpar::shm::graph

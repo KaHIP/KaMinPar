@@ -1054,7 +1054,7 @@ ContractionResult contract_clustering(
         next_index_for_pe[pe].value, kInvalidGlobalNodeID
     );
   });
-
+  
   growt::pfor_map(
       nonlocal_gcluster_to_index,
       [&](const GlobalNodeID gcluster_p1, const std::size_t index_p1) {
