@@ -547,8 +547,6 @@ private:
       }
     });
     STOP_TIMER();
-
-    mpi::barrier(_graph->communicator());
   }
 
   GlobalNodeID process_chunk(const NodeID from, const NodeID to) {
@@ -636,8 +634,6 @@ private:
     _graph->pfor_nodes(from, to, [&](const NodeID lnode) {
       _changed_label[lnode] = kInvalidGlobalNodeID;
     });
-
-    mpi::barrier(_graph->communicator());
   }
 
   /*!

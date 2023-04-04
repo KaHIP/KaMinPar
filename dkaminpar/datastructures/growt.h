@@ -73,9 +73,7 @@ void pfor_map(Map &map, Lambda &&lambda) {
     while (cur_block < capacity) {
       auto it = map.range(cur_block, cur_block + 4096);
       for (; it != map.range_end(); ++it) {
-        const auto &key = (*it).first;
-        const auto &value = (*it).second;
-        lambda(key, value);
+        lambda((*it).first, (*it).second);
       }
       cur_block = counter.fetch_add(4096);
     }
@@ -95,9 +93,7 @@ void pfor_handles(Handles &handles, Lambda &&lambda) {
     while (cur_block < capacity) {
       auto it = handle.range(cur_block, cur_block + 4096);
       for (; it != handle.range_end(); ++it) {
-        const auto &key = (*it).first;
-        const auto &value = (*it).second;
-        lambda(key, value);
+        lambda((*it).first, (*it).second);
       }
       cur_block = counter.fetch_add(4096);
     }
