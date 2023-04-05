@@ -209,6 +209,10 @@ protected:
   std::pair<bool, bool> handle_node(
       const NodeID u, Random &local_rand, LocalRatingMap &local_rating_map
   ) {
+    if (derived_skip_node(u)) {
+      return {false, false};
+    }
+
     const NodeWeight u_weight = _graph->node_weight(u);
     const ClusterID u_cluster = derived_cluster(u);
     const auto [new_cluster, new_gain] =
@@ -561,6 +565,10 @@ private: // CRTP calls
     return static_cast<Derived *>(this)->initial_cluster_weight(cluster);
   }
 
+  [[nodiscard]] bool derived_skip_node(const NodeID node) {
+    return static_cast<Derived *>(this)->skip_node(node);
+  }
+
 protected: // Default implementations
   void reset_node_state(const NodeID /* node */) {}
 
@@ -579,6 +587,10 @@ protected: // Default implementations
   [[nodiscard]] inline ClusterWeight
   initial_cluster_weight(const ClusterID cluster) {
     return derived_cluster_weight(cluster);
+  }
+
+  [[nodiscard]] inline bool skip_node(const NodeID /* node */) {
+    return false;
   }
 
 protected: // Members
