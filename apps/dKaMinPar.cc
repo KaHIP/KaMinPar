@@ -179,8 +179,8 @@ int main(int argc, char *argv[]) {
         return generator.GenerateFromOptionString(app.graph_filename);
       } else {
         auto format = str::ends_with(app.graph_filename, "bgf")
-                          ? kagen::InputFormat::PARHIP
-                          : kagen::InputFormat::METIS;
+                          ? kagen::FileFormat::PARHIP
+                          : kagen::FileFormat::METIS;
         auto distribution =
             app.load_edge_balanced
                 ? kagen::GraphDistribution::BALANCE_EDGES
