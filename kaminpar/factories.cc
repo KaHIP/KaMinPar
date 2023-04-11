@@ -58,8 +58,8 @@ std::unique_ptr<ip::InitialRefiner> create_initial_refiner(
     return std::make_unique<ip::InitialNoopRefiner>(std::move(m_ctx));
   }
 
-  case RefinementAlgorithm::TWO_WAY_FM: {
-    switch (r_ctx.fm.stopping_rule) {
+  case RefinementAlgorithm::TWOWAY_FM: {
+    switch (r_ctx.twoway_fm.stopping_rule) {
     case FMStoppingRule::SIMPLE:
       return std::make_unique<ip::InitialSimple2WayFM>(
           graph.n(), p_ctx, r_ctx, std::move(m_ctx)
@@ -91,7 +91,7 @@ create_refiner(const Context &ctx, const RefinementAlgorithm algorithm) {
   case RefinementAlgorithm::NOOP:
     return std::make_unique<NoopRefiner>();
 
-  case RefinementAlgorithm::TWO_WAY_FM:
+  case RefinementAlgorithm::TWOWAY_FM:
     FATAL_ERROR << "Not implemented";
     return nullptr;
 

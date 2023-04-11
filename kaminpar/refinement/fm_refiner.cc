@@ -6,6 +6,8 @@
  ******************************************************************************/
 #include "kaminpar/refinement/fm_refiner.h"
 
+#include <cmath>
+
 #include <tbb/concurrent_vector.h>
 #include <tbb/task_arena.h>
 
@@ -17,15 +19,136 @@
 #include "common/parallel/atomic.h"
 
 namespace kaminpar::shm {
+namespace {
+struct StoppingPolicy {
+  StoppingPolicy(const double alpha) : _factor(alpha / 2.0 - 0.25) {}
+
+  void init(const NodeID n) {
+    _beta = std::log(n);
+  }
+
+  [[nodiscard]] bool should_stop() const {
+    return (_num_steps > _beta) &&
+           ((_Mk == 0) || (_num_steps >= (_variance / (_Mk * _Mk)) * _factor));
+  }
+
+  void reset() {
+    _num_steps = 0;
+    _variance = 0.0;
+  }
+
+  void update(const EdgeWeight gain) {
+    ++_num_steps;
+
+    // See Knuth TAOCP vol 2, 3rd edition, page 232 or
+    // https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance
+    if (_num_steps == 1) {
+      _MkMinus1 = static_cast<double>(gain);
+      _Mk = _MkMinus1;
+      _SkMinus1 = 0.0;
+    } else {
+      _Mk = _MkMinus1 + (gain - _MkMinus1) / _num_steps;
+      _Sk = _SkMinus1 + (gain - _MkMinus1) * (gain - _Mk);
+      _variance = _Sk / (_num_steps - 1.0);
+
+      // Prepare for next iteration
+      _MkMinus1 = _Mk;
+      _SkMinus1 = _Sk;
+    }
+  }
+
+private:
+  double _factor;
+
+  double _beta = 0.0;
+  std::size_t _num_steps = 0;
+  double _variance = 0.0;
+  double _Mk = 0.0;
+  double _MkMinus1 = 0.0;
+  double _Sk = 0.0;
+  double _SkMinus1 = 0.0;
+};
+} // namespace
+
 FMRefiner::FMRefiner(const Context &ctx)
-    : _locked(ctx.partition.n),
+    : _fm_ctx(&ctx.refinement.kway_fm),
+      _locked(ctx.partition.n),
       _pq_ets([&] { return BinaryMinHeap<EdgeWeight>(ctx.partition.n); }),
       _target_blocks(ctx.partition.n) {}
 
-void FMRefiner::initialize(const Graph &graph) { ((void)graph); }
+void FMRefiner::initialize(const Graph &graph) {
+  ((void)graph);
+}
 
-bool FMRefiner::refine(PartitionedGraph &p_graph,
-                       const PartitionContext &p_ctx) {
+bool FMRefiner::run_localized_refinement() {
+  auto &pq = _pq_ets.local();
+  DeltaPartitionedGraph d_graph(_p_graph);
+  std::vector<NodeID> touched_nodes;
+
+  StoppingPolicy stopping_policy(_fm_ctx->alpha);
+  pq.clear();
+  d_graph.clear();
+
+  poll_border_nodes(_fm_ctx->num_seed_nodes, [&](const NodeID u) {
+    const auto [block, gain] = _gain_cache.best_gain(u, _p_ctx->block_weights);
+    pq.push(u, gain);
+    _target_blocks[u] = block;
+    touched_nodes.push_back(u);
+  });
+
+  EdgeWeight total_gain = 0;
+
+  while (!pq.empty() && !stopping_policy.should_stop()) {
+    const NodeID node = pq.peek_id();
+    const EdgeWeight gain = pq.peek_key();
+    const BlockID to = _target_blocks[node];
+    const NodeWeight node_weight = _p_graph->node_weight(node);
+    pq.pop();
+
+    // If gain is no longer valid, re-insert the node
+    if (gain != _gain_cache.gain_to(node, to)) {
+      const auto [block, gain] =
+          _gain_cache.best_gain(node, _p_ctx->block_weights);
+      pq.push(node, gain);
+      _target_blocks[node] = block;
+    }
+
+    if (d_graph.block_weight(to) + node_weight <=
+        _p_ctx->block_weights.max(to)) {
+      total_gain += gain;
+      d_graph.set_block(node, to);
+
+      if (total_gain > 0) {
+        for (const auto &[u, b] : d_graph.delta()) {
+          _gain_cache.move_node(u, _p_graph->block(u), b);
+          _p_graph->set_block(u, b);
+        }
+        touched_nodes.clear();
+      }
+
+      for (const auto &[e, v] : _p_graph->neighbors(node)) {
+        if (lock_node(v)) {
+
+          const auto [block, gain] =
+              _gain_cache.best_gain(v, _p_ctx->block_weights);
+          pq.push(v, gain);
+          _target_blocks[v] = block;
+          touched_nodes.push_back(v);
+        }
+      }
+    }
+  }
+
+  for (const NodeID u : touched_nodes) {
+    unlock_node(u);
+  }
+
+  return false;
+}
+
+bool FMRefiner::refine(
+    PartitionedGraph &p_graph, const PartitionContext &p_ctx
+) {
   _p_graph = &p_graph;
   _p_ctx = &p_ctx;
 
@@ -33,75 +156,14 @@ bool FMRefiner::refine(PartitionedGraph &p_graph,
   _gain_cache.reinit(_p_graph);
   init_border_nodes();
 
-  // @todo move to Context
-  const NodeID num_seed_nodes = 25;
+  std::atomic<std::uint8_t> found_improvement = 0;
+  tbb::parallel_for<int>(0, tbb::this_task_arena::max_concurrency(), [&](int) {
+    while (has_border_nodes()) {
+      found_improvement |= run_localized_refinement();
+    }
+  });
 
-  tbb::parallel_for<int>(
-      0, tbb::this_task_arena::max_concurrency(), [&, this](int) {
-        auto &pq = _pq_ets.local();
-        DeltaPartitionedGraph d_graph(_p_graph);
-        std::vector<NodeID> touched_nodes;
-
-        pq.clear();
-        d_graph.clear();
-
-        poll_border_nodes(num_seed_nodes, [&](const NodeID u) {
-          const auto [block, gain] =
-              _gain_cache.best_gain(u, _p_ctx->block_weights);
-          pq.push(u, gain);
-          _target_blocks[u] = block;
-          touched_nodes.push_back(u);
-        });
-
-        EdgeWeight total_gain = 0;
-
-        while (!pq.empty()) {
-          const NodeID node = pq.peek_id();
-          const EdgeWeight gain = pq.peek_key();
-          const BlockID to = _target_blocks[node];
-          const NodeWeight node_weight = _p_graph->node_weight(node);
-          pq.pop();
-
-          // If gain is no longer valid, re-insert the node
-          if (gain != _gain_cache.gain_to(node, to)) {
-            const auto [block, gain] =
-                _gain_cache.best_gain(node, _p_ctx->block_weights);
-            pq.push(node, gain);
-            _target_blocks[node] = block;
-          }
-
-          if (d_graph.block_weight(to) + node_weight <=
-              _p_ctx->block_weights.max(to)) {
-            total_gain += gain;
-            d_graph.set_block(node, to);
-
-            if (total_gain > 0) {
-              for (const auto &[u, b] : d_graph.delta()) {
-                _gain_cache.move_node(u, _p_graph->block(u), b);
-                _p_graph->set_block(u, b);
-              }
-              touched_nodes.clear();
-            }
-
-            for (const auto &[e, v] : _p_graph->neighbors(node)) {
-              if (lock_node(v)) {
-
-                const auto [block, gain] =
-                    _gain_cache.best_gain(v, _p_ctx->block_weights);
-                pq.push(v, gain);
-                _target_blocks[v] = block;
-                touched_nodes.push_back(v);
-              }
-            }
-          }
-        }
-
-        for (const NodeID u : touched_nodes) {
-          unlock_node(u);
-        }
-      });
-
-  return false;
+  return found_improvement;
 }
 
 void FMRefiner::init_border_nodes() {
@@ -114,10 +176,15 @@ void FMRefiner::init_border_nodes() {
   });
 }
 
+bool FMRefiner::has_border_nodes() const {
+  return _next_border_node < _border_nodes.size();
+}
+
 bool FMRefiner::lock_node(const NodeID u) {
   std::uint8_t free = 0;
-  return __atomic_compare_exchange_n(&_locked[u], &free, 1, false,
-                                     __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
+  return __atomic_compare_exchange_n(
+      &_locked[u], &free, 1, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST
+  );
 }
 
 void FMRefiner::unlock_node(const NodeID u) {

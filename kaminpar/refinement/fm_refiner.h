@@ -6,6 +6,8 @@
  ******************************************************************************/
 #pragma once
 
+#include <cmath>
+
 #include <tbb/concurrent_vector.h>
 #include <tbb/enumerable_thread_specific.h>
 
@@ -35,9 +37,13 @@ public:
 
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
 
-  [[nodiscard]] EdgeWeight expected_total_gain() const final { return 0; }
+  [[nodiscard]] EdgeWeight expected_total_gain() const final {
+    return 0;
+  }
 
 private:
+  bool run_localized_refinement();
+
   void init_border_nodes();
 
   template <typename Lambda>
@@ -52,8 +58,14 @@ private:
       for (NodeID current = from; current < to; ++current) {
         const NodeID node = _border_nodes[from];
         std::uint8_t free = 0;
-        if (__atomic_compare_exchange_n(&_locked[node], &free, 1, false,
-                                        __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)) {
+        if (__atomic_compare_exchange_n(
+                &_locked[node],
+                &free,
+                1,
+                false,
+                __ATOMIC_SEQ_CST,
+                __ATOMIC_SEQ_CST
+            )) {
           lambda(node);
           ++polled;
         }
@@ -63,11 +75,14 @@ private:
     return polled;
   }
 
+  bool has_border_nodes() const;
+
   bool lock_node(const NodeID u);
   void unlock_node(const NodeID u);
 
   PartitionedGraph *_p_graph;
   const PartitionContext *_p_ctx;
+  const KwayFMRefinementContext *_fm_ctx;
 
   parallel::Atomic<NodeID> _next_border_node;
   tbb::concurrent_vector<NodeID> _border_nodes;

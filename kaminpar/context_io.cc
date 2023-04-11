@@ -64,7 +64,7 @@ std::unordered_map<std::string, RefinementAlgorithm>
 get_2way_refinement_algorithms() {
   return {
       {"noop", RefinementAlgorithm::NOOP},
-      {"fm", RefinementAlgorithm::TWO_WAY_FM},
+      {"fm", RefinementAlgorithm::TWOWAY_FM},
   };
 }
 
@@ -83,7 +83,7 @@ operator<<(std::ostream &out, const RefinementAlgorithm algorithm) {
   switch (algorithm) {
   case RefinementAlgorithm::NOOP:
     return out << "noop";
-  case RefinementAlgorithm::TWO_WAY_FM:
+  case RefinementAlgorithm::TWOWAY_FM:
   case RefinementAlgorithm::KWAY_FM:
     return out << "fm";
   case RefinementAlgorithm::LABEL_PROPAGATION:

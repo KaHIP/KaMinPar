@@ -83,7 +83,7 @@ private:
 namespace fm {
 struct SimpleStoppingPolicy {
   void init(const Graph *) const {}
-  [[nodiscard]] bool should_stop(const FMRefinementContext &fm_ctx) const {
+  [[nodiscard]] bool should_stop(const TwoWayFMRefinementContext &fm_ctx) const {
     return _num_steps > fm_ctx.num_fruitless_moves;
   }
   void reset() {
@@ -105,7 +105,7 @@ struct AdaptiveStoppingPolicy {
     _beta = std::sqrt(graph->n());
   }
 
-  [[nodiscard]] bool should_stop(const FMRefinementContext &fm_ctx) const {
+  [[nodiscard]] bool should_stop(const TwoWayFMRefinementContext &fm_ctx) const {
     const double factor = (fm_ctx.alpha / 2.0) - 0.25;
     return (_num_steps > _beta) &&
            ((_Mk == 0) || (_num_steps >= (_variance / (_Mk * _Mk)) * factor));
@@ -302,7 +302,7 @@ public:
 
     cur_edge_cut += round(p_graph); // always do at least one round
     for (std::size_t it = 1;
-         0 < cur_edge_cut && it < _r_ctx.fm.num_iterations &&
+         0 < cur_edge_cut && it < _r_ctx.twoway_fm.num_iterations &&
          !abort(prev_edge_cut, cur_edge_cut);
          ++it) {
       prev_edge_cut = cur_edge_cut;
@@ -324,7 +324,7 @@ private:
       const EdgeWeight prev_edge_weight, const EdgeWeight cur_edge_weight
   ) const {
     return (1.0 - 1.0 * cur_edge_weight / prev_edge_weight) <
-           _r_ctx.fm.improvement_abortion_threshold;
+           _r_ctx.twoway_fm.improvement_abortion_threshold;
   }
 
   /*!
@@ -367,7 +367,7 @@ private:
         << " #_pq[1]=" << _queues[1].size();
 
     while ((!_queues[0].empty() || !_queues[1].empty()) &&
-           !_stopping_policy.should_stop(_r_ctx.fm)) {
+           !_stopping_policy.should_stop(_r_ctx.twoway_fm)) {
 #if KASSERT_ENABLED(ASSERTION_LEVEL_HEAVY)
       validate_pqs(p_graph);
 #endif

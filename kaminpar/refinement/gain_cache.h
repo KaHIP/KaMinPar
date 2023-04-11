@@ -10,6 +10,22 @@
 #include "kaminpar/datastructures/partitioned_graph.h"
 
 namespace kaminpar::shm {
+class OnTheFlyGainCache {
+public:
+    void insert(const PartitionedGraph &p_graph, const NodeID u) {
+    }
+
+    void update(const PartitionedGraph &p_graph, const NodeID u, const BlockID from, const BlockID to) {
+
+    }
+
+    bool next(const PartitionedGraph &p_graph) {
+        return false;
+    }
+
+    void clear() {}
+};
+
 class RecomputeGainCache {
 public:
   void reinit(const PartitionedGraph *p_graph) { _p_graph = p_graph; }

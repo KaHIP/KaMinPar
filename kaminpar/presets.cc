@@ -97,9 +97,9 @@ Context create_default_context() {
               .refinement =
                   {
                       // Context -> Initial Partitioning -> Refinement
-                      .algorithms = {RefinementAlgorithm::TWO_WAY_FM},
+                      .algorithms = {RefinementAlgorithm::TWOWAY_FM},
                       .lp = {},
-                      .fm =
+                      .twoway_fm =
                           {
                               // Context -> Initial Partitioning -> Refinement
                               // -> FM
@@ -109,6 +109,7 @@ Context create_default_context() {
                               .num_iterations = 5,
                               .improvement_abortion_threshold = 0.0001,
                           },
+                      .kway_fm = {},
                       .balancer = {},
                   },
               .mode = InitialPartitioningMode::SYNCHRONOUS_PARALLEL,
@@ -133,7 +134,14 @@ Context create_default_context() {
                       .large_degree_threshold = 1000000,
                       .max_num_neighbors = std::numeric_limits<NodeID>::max(),
                   },
-              .fm = {},
+              .twoway_fm = {},
+              .kway_fm =
+                  {
+                      .num_seed_nodes = 25,
+                      .alpha = 1.0,
+                      .num_iterations = 1,
+                      .improvement_abortion_threshold = 0.0001,
+                  },
               .balancer = {},
           },
       .parallel =
