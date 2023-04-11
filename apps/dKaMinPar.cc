@@ -179,12 +179,12 @@ int main(int argc, char *argv[]) {
         return generator.GenerateFromOptionString(app.graph_filename);
       } else {
         auto format = str::ends_with(app.graph_filename, "bgf")
-                          ? kagen::StaticGraphFormat::BINARY_PARHIP
-                          : kagen::StaticGraphFormat::METIS;
+                          ? kagen::FileFormat::PARHIP
+                          : kagen::FileFormat::METIS;
         auto distribution =
             app.load_edge_balanced
-                ? kagen::StaticGraphDistribution::BALANCE_EDGES
-                : kagen::StaticGraphDistribution::BALANCE_VERTICES;
+                ? kagen::GraphDistribution::BALANCE_EDGES
+                : kagen::GraphDistribution::BALANCE_VERTICES;
         return generator.ReadFromFile(app.graph_filename, format, distribution);
       }
     }();
