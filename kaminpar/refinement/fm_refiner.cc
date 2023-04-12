@@ -15,61 +15,13 @@
 #include "kaminpar/datastructures/graph.h"
 #include "kaminpar/datastructures/partitioned_graph.h"
 #include "kaminpar/definitions.h"
+#include "kaminpar/refinement/stopping_policies.h"
 
 #include "common/datastructures/marker.h"
 #include "common/parallel/atomic.h"
 
 namespace kaminpar::shm {
 namespace {
-struct StoppingPolicy {
-  StoppingPolicy(const double alpha) : _factor(alpha / 2.0 - 0.25) {}
-
-  void init(const NodeID n) {
-    _beta = std::log(n);
-  }
-
-  [[nodiscard]] bool should_stop() const {
-    return (_num_steps > _beta) &&
-           ((_Mk == 0) || (_num_steps >= (_variance / (_Mk * _Mk)) * _factor));
-  }
-
-  void reset() {
-    _num_steps = 0;
-    _variance = 0.0;
-  }
-
-  void update(const EdgeWeight gain) {
-    ++_num_steps;
-
-    // See Knuth TAOCP vol 2, 3rd edition, page 232 or
-    // https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance
-    if (_num_steps == 1) {
-      _MkMinus1 = static_cast<double>(gain);
-      _Mk = _MkMinus1;
-      _SkMinus1 = 0.0;
-    } else {
-      _Mk = _MkMinus1 + (gain - _MkMinus1) / _num_steps;
-      _Sk = _SkMinus1 + (gain - _MkMinus1) * (gain - _Mk);
-      _variance = _Sk / (_num_steps - 1.0);
-
-      // Prepare for next iteration
-      _MkMinus1 = _Mk;
-      _SkMinus1 = _Sk;
-    }
-  }
-
-private:
-  double _factor;
-
-  double _beta = 0.0;
-  std::size_t _num_steps = 0;
-  double _variance = 0.0;
-  double _Mk = 0.0;
-  double _MkMinus1 = 0.0;
-  double _Sk = 0.0;
-  double _SkMinus1 = 0.0;
-};
-
 struct Move {
   NodeID node;
   BlockID from;
@@ -80,7 +32,9 @@ struct Move {
 FMRefiner::FMRefiner(const Context &ctx)
     : _fm_ctx(&ctx.refinement.kway_fm),
       _locked(ctx.partition.n),
-      _pq_ets([&] { return BinaryMinHeap<EdgeWeight>(ctx.partition.n); }),
+      _gain_cache(ctx.partition.k, ctx.partition.n),
+      _shared_pq_id_pos(ctx.partition.n),
+      _pq_ets([&] { return BinaryMinHeap<EdgeWeight>(_shared_pq_id_pos); }),
       _marker_ets([&] { return Marker(ctx.partition.n); }),
       _target_blocks(ctx.partition.n) {}
 
@@ -95,7 +49,9 @@ bool FMRefiner::run_localized_refinement() {
   pq.clear();
 
   DeltaPartitionedGraph d_graph(_p_graph);
-  StoppingPolicy stopping_policy(_fm_ctx->alpha);
+  DeltaGainCache d_gain_cache(_gain_cache, d_graph);
+
+  AdaptiveStoppingPolicy stopping_policy(_fm_ctx->alpha);
   std::vector<NodeID> touched_nodes;
 
   poll_border_nodes(_fm_ctx->num_seed_nodes, [&](const NodeID u) {
@@ -175,7 +131,7 @@ bool FMRefiner::refine(
   _p_ctx = &p_ctx;
 
   p_graph.pfor_nodes([&](NodeID u) { _locked[u] = 0; });
-  _gain_cache.reinit(_p_graph);
+  _gain_cache.initialize(*_p_graph);
   init_border_nodes();
 
   std::atomic<std::uint8_t> found_improvement = 0;

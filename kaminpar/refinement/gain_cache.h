@@ -33,8 +33,8 @@ public:
     recompute_all(p_graph);
   }
 
-  EdgeWeight gain(NodeID node, BlockID from, BlockID to) const {
-    return weighted_degree(node, to) - weighted_degree(node, from);
+  EdgeWeight gain(NodeID node, BlockID block_From, BlockID to) const {
+    return weighted_degree(node, to) - weighted_degree(node, block_From);
   }
 
   void move(
@@ -91,15 +91,14 @@ private:
 
 template <typename GainCache> class DeltaGainCache {
 public:
-  DeltaGainCache(GainCache &gain_cache) : _gain_cache(gain_cache) {
+  DeltaGainCache(
+      const GainCache &gain_cache, const DeltaPartitionedGraph &d_graph
+  )
+      : _gain_cache(gain_cache) {
     _gain_cache_delta.set_empty_key(std::numeric_limits<std::size_t>::max());
     _gain_cache_delta.set_deleted_key(
         std::numeric_limits<std::size_t>::max() - 1
     );
-  }
-
-  void initialize(const DeltaPartitionedGraph &d_graph) {
-    _gain_cache.initialize(d_graph.p_graph());
   }
 
   EdgeWeight
@@ -114,23 +113,24 @@ public:
   }
 
   void move(
-      const PartitionedGraph &p_graph,
+      const DeltaPartitionedGraph &d_graph,
       const NodeID u,
       const BlockID from,
       const BlockID to
   ) {
-    for (const auto &[v, e] : p_graph.neighbors(u)) {
-      const EdgeWeight weight = p_graph.edge_weight(e);
-      if (p_graph.block(v) == from) {
+    for (const auto &[v, e] : d_graph.neighbors(u)) {
+      const EdgeWeight weight = d_graph.edge_weight(e);
+      if (d_graph.block(v) == from) {
         _gain_cache_delta[_gain_cache.index(v, from)] -= weight;
-      } else if (p_graph.block(v) == to) {
+      } else if (d_graph.block(v) == to) {
         _gain_cache_delta[_gain_cache.index(v, to)] += weight;
       }
     }
   }
 
 private:
-  GainCache &_gain_cache;
+  const GainCache &_gain_cache;
+
   google::dense_hash_map<std::size_t, EdgeWeight> _gain_cache_delta;
 };
 } // namespace kaminpar::shm

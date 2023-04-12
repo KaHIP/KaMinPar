@@ -11,6 +11,10 @@
 #include <vector>
 
 #include <kassert/kassert.hpp>
+#include <tbb/parallel_for.h>
+
+#include "common/noinit_vector.h"
+#include "common/preallocated_vector.h"
 
 namespace kaminpar {
 namespace binary_heap {
@@ -66,40 +70,56 @@ class BinaryHeap {
 
 public:
   explicit BinaryHeap(const std::size_t capacity)
-      : _id_pos(capacity, kInvalidID),
+      : _owned_id_pos(capacity, kInvalidID),
         _heap(capacity),
+        _id_pos(make_preallocated_vector(_owned_id_pos)),
+        _size(0) {}
+
+  template <typename UnderlayingContainer>
+  explicit BinaryHeap(UnderlayingContainer &id_pos)
+      : _owned_id_pos(0),
+        _heap(capacity),
+        _id_pos(make_preallocated_vector(id_pos)),
         _size(0) {}
 
   BinaryHeap(const BinaryHeap &) = delete;
   BinaryHeap &operator=(const BinaryHeap &) = delete;
+
   BinaryHeap(BinaryHeap &&) noexcept = default;
   BinaryHeap &operator=(BinaryHeap &&) noexcept = default;
 
   [[nodiscard]] bool empty() const {
     return _size == 0;
   }
+
   [[nodiscard]] std::size_t size() const {
     return _size;
   }
+
   [[nodiscard]] std::size_t capacity() const {
     return _heap.size();
   }
+
   [[nodiscard]] bool contains(const ID id) const {
     KASSERT(id < capacity());
     return _id_pos[id] != kInvalidID;
   }
+
   Key key(const ID id) const {
     KASSERT(contains(id));
     return _heap[_id_pos[id]].key;
   }
+
   [[nodiscard]] ID peek_id() const {
     KASSERT(!empty());
     return _heap.front().id;
   }
+
   Key peek_key() const {
     KASSERT(!empty());
     return _heap.front().key;
   }
+
   void remove(const ID id) {
     KASSERT(contains(id));
     decrease_priority(id, Comparator<Key>::kMinValue);
@@ -231,8 +251,9 @@ private:
     }
   }
 
-  std::vector<std::size_t> _id_pos;
+  std::vector<std::size_t> _owned_id_pos;
   std::vector<HeapElement> _heap;
+  PreallocatedVector<std::size_t> _id_pos;
   std::size_t _size;
   Comparator<Key> _comparator{};
 };
