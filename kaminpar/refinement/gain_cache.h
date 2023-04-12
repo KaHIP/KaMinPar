@@ -26,40 +26,46 @@ public:
   DenseGainCache(const BlockID k, const NodeID n)
       : _k(k),
         _n(n),
-        _gain_cache(_n * _k) {}
+        _gain_cache(_n * _k),
+        _weighted_degrees(_n) {}
 
   void initialize(const PartitionedGraph &p_graph) {
     reset();
     recompute_all(p_graph);
   }
 
-  EdgeWeight gain(NodeID node, BlockID block_From, BlockID to) const {
-    return weighted_degree(node, to) - weighted_degree(node, block_From);
+  EdgeWeight gain(NodeID node, BlockID block_from, BlockID block_to) const {
+    return weighted_degree_to(node, block_to) -
+           weighted_degree_to(node, block_from);
   }
 
   void move(
       const PartitionedGraph &p_graph,
-      const NodeID u,
-      const BlockID from,
-      const BlockID to
+      const NodeID node,
+      const BlockID block_from,
+      const BlockID block_to
   ) {
-    for (const auto &[v, e] : p_graph.neighbors(u)) {
+    for (const auto &[v, e] : p_graph.neighbors(node)) {
       const EdgeWeight weight = p_graph.edge_weight(e);
-      if (p_graph.block(v) == from) {
+      if (p_graph.block(v) == block_from) {
         __atomic_fetch_sub(
-            &_gain_cache[index(v, from)], weight, __ATOMIC_RELAXED
+            &_gain_cache[index(v, block_from)], weight, __ATOMIC_RELAXED
         );
-      } else if (p_graph.block(v) == to) {
+      } else if (p_graph.block(v) == block_to) {
         __atomic_fetch_add(
-            &_gain_cache[index(v, to)], weight, __ATOMIC_RELAXED
+            &_gain_cache[index(v, block_to)], weight, __ATOMIC_RELAXED
         );
       }
     }
   }
 
+  bool is_border_node(const NodeID node, const BlockID block) const {
+    return _weighted_degrees[node] != weighted_degree_to(node, block);
+  }
+
 private:
-  EdgeWeight weighted_degree(const NodeID node, const BlockID b) const {
-    return __atomic_load_n(&_gain_cache[index(node, b)], __ATOMIC_RELAXED);
+  EdgeWeight weighted_degree_to(const NodeID node, const BlockID block) const {
+    return __atomic_load_n(&_gain_cache[index(node, block)], __ATOMIC_RELAXED);
   }
 
   std::size_t index(const NodeID node, const BlockID b) const {
@@ -77,9 +83,15 @@ private:
   }
 
   void recompute_node(const PartitionedGraph &p_graph, const NodeID u) {
+    const BlockID block_u = p_graph.block(u);
+    _weighted_degrees[u] = 0;
+
     for (const auto &[v, e] : p_graph.neighbors(u)) {
+      const BlockID block_v = p_graph.block(v);
       const EdgeWeight weight = p_graph.edge_weight(e);
-      _gain_cache[index(u, p_graph.block(v))] += weight;
+
+      _gain_cache[index(u, block_v)] += weight;
+      _weighted_degrees[u] += weight;
     }
   }
 
@@ -87,14 +99,12 @@ private:
   NodeID _n;
 
   NoinitVector<EdgeWeight> _gain_cache;
+  NoinitVector<EdgeWeight> _weighted_degrees;
 };
 
 template <typename GainCache> class DeltaGainCache {
 public:
-  DeltaGainCache(
-      const GainCache &gain_cache, const DeltaPartitionedGraph &d_graph
-  )
-      : _gain_cache(gain_cache) {
+  DeltaGainCache(const GainCache &gain_cache) : _gain_cache(gain_cache) {
     _gain_cache_delta.set_empty_key(std::numeric_limits<std::size_t>::max());
     _gain_cache_delta.set_deleted_key(
         std::numeric_limits<std::size_t>::max() - 1
@@ -115,17 +125,21 @@ public:
   void move(
       const DeltaPartitionedGraph &d_graph,
       const NodeID u,
-      const BlockID from,
-      const BlockID to
+      const BlockID block_from,
+      const BlockID block_to
   ) {
     for (const auto &[v, e] : d_graph.neighbors(u)) {
       const EdgeWeight weight = d_graph.edge_weight(e);
-      if (d_graph.block(v) == from) {
-        _gain_cache_delta[_gain_cache.index(v, from)] -= weight;
-      } else if (d_graph.block(v) == to) {
-        _gain_cache_delta[_gain_cache.index(v, to)] += weight;
+      if (d_graph.block(v) == block_from) {
+        _gain_cache_delta[_gain_cache.index(v, block_from)] -= weight;
+      } else if (d_graph.block(v) == block_to) {
+        _gain_cache_delta[_gain_cache.index(v, block_to)] += weight;
       }
     }
+  }
+
+  void clear() {
+    _gain_cache_delta.clear();
   }
 
 private:

@@ -30,98 +30,22 @@ struct Move {
 } // namespace
 
 FMRefiner::FMRefiner(const Context &ctx)
-    : _fm_ctx(&ctx.refinement.kway_fm),
+    : _fm_ctx(ctx.refinement.kway_fm),
       _locked(ctx.partition.n),
       _gain_cache(ctx.partition.k, ctx.partition.n),
-      _shared_pq_id_pos(ctx.partition.n),
-      _pq_ets([&] { return BinaryMinHeap<EdgeWeight>(_shared_pq_id_pos); }),
-      _marker_ets([&] { return Marker(ctx.partition.n); }),
-      _target_blocks(ctx.partition.n) {}
+      _shared_pq_handles(ctx.partition.n),
+      _target_blocks(ctx.partition.n) {
+  tbb::parallel_for<std::size_t>(
+      0,
+      _shared_pq_handles.size(),
+      [&](std::size_t i) {
+        _shared_pq_handles[i] = SharedBinaryMaxHeap<EdgeWeight>::kInvalidID;
+      }
+  );
+}
 
 void FMRefiner::initialize(const Graph &graph) {
   ((void)graph);
-}
-
-bool FMRefiner::run_localized_refinement() {
-  auto &pq = _pq_ets.local();
-  auto &marker = _marker_ets.local();
-
-  pq.clear();
-
-  DeltaPartitionedGraph d_graph(_p_graph);
-  DeltaGainCache d_gain_cache(_gain_cache, d_graph);
-
-  AdaptiveStoppingPolicy stopping_policy(_fm_ctx->alpha);
-  std::vector<NodeID> touched_nodes;
-
-  poll_border_nodes(_fm_ctx->num_seed_nodes, [&](const NodeID u) {
-    const auto [block, gain] = _gain_cache.best_gain(u, _p_ctx->block_weights);
-    pq.push(u, gain);
-    _target_blocks[u] = block;
-    touched_nodes.push_back(u);
-  });
-
-  EdgeWeight total_gain = 0;
-  std::vector<Move> moves;
-
-  while (!pq.empty() && !stopping_policy.should_stop()) {
-    const NodeID node = pq.peek_id();
-    const EdgeWeight gain = pq.peek_key();
-    const BlockID to = _target_blocks[node];
-    const NodeWeight node_weight = _p_graph->node_weight(node);
-    pq.pop();
-
-    // If the actual gain is worse than the PQ gain, recompute
-    if (gain > _gain_cache.gain_to(node, to)) {
-      const auto [block, gain] =
-          _gain_cache.best_gain(node, _p_ctx->block_weights);
-      pq.push(node, gain);
-      _target_blocks[node] = block;
-
-      // ... and try again
-      continue;
-    }
-
-    // Otherwise, try to move the node
-    if (d_graph.block_weight(to) + node_weight <=
-        _p_ctx->block_weights.max(to)) {
-      total_gain += gain;
-      moves.push_back({node, d_graph.block(node), to});
-      d_graph.set_block(node, to);
-      stopping_policy.update(gain);
-
-      if (total_gain > 0) {
-        for (const auto &[u, b] : d_graph.delta()) {
-          _gain_cache.move_node(u, _p_graph->block(u), b);
-          _p_graph->set_block(u, b);
-        }
-        moves.clear();
-      }
-
-      for (const auto &[e, v] : _p_graph->neighbors(node)) {
-        if (!lock_node(v)) {
-          continue;
-        }
-
-        const auto [block, gain] =
-            _gain_cache.best_gain(v, _p_ctx->block_weights);
-        if (pq.contains(v)) {
-          pq.change_priority(v, gain);
-        } else {
-          touched_nodes.push_back(v);
-          pq.push(v, gain);
-        }
-        _target_blocks[v] = block;
-      }
-    } else {
-    }
-  }
-
-  for (const NodeID u : touched_nodes) {
-    unlock_node(u);
-  }
-
-  return total_gain > 0;
 }
 
 bool FMRefiner::refine(
@@ -134,20 +58,24 @@ bool FMRefiner::refine(
   _gain_cache.initialize(*_p_graph);
   init_border_nodes();
 
-  std::atomic<std::uint8_t> found_improvement = 0;
+  _expected_total_gain = 0;
+  std::atomic<int> next_id = 0;
+
   tbb::parallel_for<int>(0, tbb::this_task_arena::max_concurrency(), [&](int) {
+    LocalizedFMRefiner localized_fm(++next_id, p_ctx, _fm_ctx, p_graph, *this);
+
     while (has_border_nodes()) {
-      found_improvement |= run_localized_refinement();
+      _expected_total_gain += localized_fm.run();
     }
   });
 
-  return found_improvement;
+  return _expected_total_gain;
 }
 
 void FMRefiner::init_border_nodes() {
   _border_nodes.clear();
   _p_graph->pfor_nodes([&](const NodeID u) {
-    if (_gain_cache.is_border_node(u)) {
+    if (_gain_cache.is_border_node(u, _p_graph->block(u))) {
       _border_nodes.push_back(u);
     }
     _locked[u] = 0;
@@ -158,16 +86,20 @@ bool FMRefiner::has_border_nodes() const {
   return _next_border_node < _border_nodes.size();
 }
 
-bool FMRefiner::lock_node(const NodeID u) {
+bool FMRefiner::lock_node(const NodeID u, const int id) {
   std::uint8_t free = 0;
   return __atomic_compare_exchange_n(
-      &_locked[u], &free, 1, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST
+      &_locked[u], &free, id, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST
   );
 }
 
+int FMRefiner::owner(const NodeID u) {
+  return _locked[u];
+}
+
 void FMRefiner::unlock_node(const NodeID u) {
-  _locked[u] = 0;
-  if (_gain_cache.is_border_node(u)) {
+  __atomic_store_n(&_locked[u], 0, __ATOMIC_RELAXED);
+  if (_gain_cache.is_border_node(u, _p_graph->block(u))) {
     _border_nodes.push_back(u);
   }
 }

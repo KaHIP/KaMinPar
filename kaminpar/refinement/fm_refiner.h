@@ -42,7 +42,7 @@ public:
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
 
   [[nodiscard]] EdgeWeight expected_total_gain() const final {
-    return 0;
+    return _expected_total_gain;
   }
 
 private:
@@ -81,12 +81,13 @@ private:
 
   bool has_border_nodes() const;
 
-  bool lock_node(const NodeID u);
+  bool lock_node(const NodeID u, const int id);
+  int owner(const NodeID u);
   void unlock_node(const NodeID u);
 
   PartitionedGraph *_p_graph;
   const PartitionContext *_p_ctx;
-  const KwayFMRefinementContext *_fm_ctx;
+  const KwayFMRefinementContext &_fm_ctx;
 
   parallel::Atomic<NodeID> _next_border_node;
   tbb::concurrent_vector<NodeID> _border_nodes;
@@ -95,9 +96,9 @@ private:
   DenseGainCache _gain_cache;
 
   NoinitVector<std::size_t> _shared_pq_handles;
-  tbb::enumerable_thread_specific<BinaryMinHeap<EdgeWeight>> _pq_ets;
-  tbb::enumerable_thread_specific<Marker<>> _marker_ets;
   NoinitVector<BlockID> _target_blocks;
+
+  parallel::Atomic<EdgeWeight> _expected_total_gain = 0;
 };
 
 struct Move {
@@ -109,94 +110,100 @@ struct Move {
 class LocalizedFMRefiner {
 public:
   LocalizedFMRefiner(
-      const Context &ctx, PartitionedGraph &p_graph, FMRefiner &fm
+      const int id,
+      const PartitionContext &p_ctx,
+      const KwayFMRefinementContext &fm_ctx,
+      PartitionedGraph &p_graph,
+      FMRefiner &fm
   )
-      : _fm(fm),
-        _p_ctx(ctx.partition),
-        _fm_ctx(ctx.refinement.kway_fm),
+      : _id(id),
+        _fm(fm),
+        _p_ctx(p_ctx),
+        _fm_ctx(fm_ctx),
         _p_graph(p_graph),
-        _block_pq(ctx.partition.k),
-        _vertex_pqs(
-            ctx.partition.k, BinaryMaxHeap<EdgeWeight>(_fm._shared_pq_handles)
-        ),
+        _delta_gain_cache(_fm._gain_cache),
+        _block_pq(_p_ctx.k),
         _stopping_policy(_fm_ctx.alpha) {
     _stopping_policy.init(_p_graph.n());
+    for (const BlockID b : _p_graph.blocks()) {
+      _vertex_pqs.emplace_back(
+          _p_ctx.n, _p_ctx.n, _fm._shared_pq_handles.data()
+      );
+    }
   }
 
   EdgeWeight run() {
-    DeltaPartitionedGraph d_graph(&_p_graph);
-    DeltaGainCache d_gain_cache(_fm._gain_cache, d_graph);
-
-    std::vector<NodeID> touched_nodes;
-
+    // Pool seed nodes from the border node arrays
     _fm.poll_border_nodes(_fm_ctx.num_seed_nodes, [&](const NodeID u) {
       insert_into_pq(_p_graph, _fm._gain_cache, u);
-      touched_nodes.push_back(u);
     });
 
-    EdgeWeight total_gain = 0;
-    std::vector<Move> moves;
+    // Keep track of all nodes that we lock, so that we can unlock them
+    // afterwards; do not unlock seed nodes
+    std::vector<NodeID> touched_nodes;
 
+    DeltaPartitionedGraph d_graph(&_p_graph);
+    EdgeWeight total_gain = 0;
     _stopping_policy.reset();
 
-    while (!_block_pq.empty() && !_stopping_policy.should_stop()) {
-      const NodeID node = pq.peek_id();
-      const EdgeWeight gain = pq.peek_key();
-      const BlockID to = _target_blocks[node];
-      const NodeWeight node_weight = _p_graph->node_weight(node);
-      pq.pop();
+    while (update_block_pq() && !_stopping_policy.should_stop()) {
+      const BlockID block_from = _block_pq.peek_id();
+      const NodeID node = _vertex_pqs[block_from].peek_id();
+      const EdgeWeight expected_gain = _vertex_pqs[block_from].peek_key();
+      const auto [block_to, actual_gain] =
+          best_gain(d_graph, _delta_gain_cache, node);
 
-      // If the actual gain is worse than the PQ gain, recompute
-      if (gain > _gain_cache.gain_to(node, to)) {
-        const auto [block, gain] =
-            _gain_cache.best_gain(node, _p_ctx->block_weights);
-        pq.push(node, gain);
-        _target_blocks[node] = block;
-
-        // ... and try again
+      // If the gain got worse, reject the move and try again
+      if (actual_gain < expected_gain) {
+        _vertex_pqs[block_from].change_priority(node, actual_gain);
+        _fm._target_blocks[node] = block_to;
+        if (_vertex_pqs[block_from].peek_key() != _block_pq.key(block_from)) {
+          _block_pq.change_priority(
+              block_from, _vertex_pqs[block_from].peek_key()
+          );
+        }
         continue;
       }
 
-      // Otherwise, try to move the node
-      if (d_graph.block_weight(to) + node_weight <=
-          _p_ctx->block_weights.max(to)) {
-        total_gain += gain;
-        moves.push_back({node, d_graph.block(node), to});
-        d_graph.set_block(node, to);
-        stopping_policy.update(gain);
+      // Otherwise, we can remove the node from the PQ
+      _vertex_pqs[block_from].pop();
 
+      // Accept the move if the target block does not get overloaded
+      const NodeWeight node_weight = _p_graph.node_weight(node);
+      if (d_graph.block_weight(block_to) + node_weight <=
+          _p_ctx.block_weights.max(block_to)) {
+        d_graph.set_block(node, block_to);
+        _delta_gain_cache.move(d_graph, node, block_from, block_to);
+        _stopping_policy.update(actual_gain);
+        total_gain += actual_gain;
+
+        // If we found a new local minimum, apply the moves to the global
+        // partition
         if (total_gain > 0) {
           for (const auto &[u, b] : d_graph.delta()) {
-            _gain_cache.move_node(u, _p_graph->block(u), b);
-            _p_graph->set_block(u, b);
+            _fm._gain_cache.move(_p_graph, u, block_from, block_to);
+            _p_graph.set_block(u, b);
+            d_graph.clear();
+            _delta_gain_cache.clear();
           }
-          moves.clear();
         }
 
-        for (const auto &[e, v] : _p_graph->neighbors(node)) {
-          if (!lock_node(v)) {
-            continue;
-          }
-
-          const auto [block, gain] =
-              _gain_cache.best_gain(v, _p_ctx->block_weights);
-          if (pq.contains(v)) {
-            pq.change_priority(v, gain);
-          } else {
+        for (const auto &[e, v] : _p_graph.neighbors(node)) {
+          if (_fm.owner(v) == _id) {
+            update_after_move(d_graph, v, node, block_from, block_to);
+          } else if (_fm.owner(v) == 0 && _fm.lock_node(v, _id)) {
+            insert_into_pq(d_graph, _delta_gain_cache, v);
             touched_nodes.push_back(v);
-            pq.push(v, gain);
           }
-          _target_blocks[v] = block;
         }
-      } else {
       }
     }
 
     for (const NodeID u : touched_nodes) {
-      unlock_node(u);
+      _fm.unlock_node(u);
     }
 
-    return total_gain > 0;
+    return total_gain;
   }
 
 private:
@@ -212,19 +219,17 @@ private:
     _vertex_pqs[block_u].push(u, gain);
   }
 
-  template <typename PartitionedGraphVariant, typename GainCache>
   void update_after_move(
-      const PartitionedGraphVariant &p_graph,
-      const GainCache &gain_cache,
+      const DeltaPartitionedGraph &d_graph,
       const NodeID update_node,
       const NodeID moved_node,
       const BlockID block_from,
       const BlockID block_to
   ) {
-    const BlockID block_update_node = p_graph.block(update_node);
+    const BlockID block_update_node = d_graph.block(update_node);
     const BlockID old_block_to = _fm._target_blocks[update_node];
     const auto [new_block_to, gain] =
-        best_gain(p_graph, gain_cache, update_node);
+        best_gain(d_graph, _delta_gain_cache, update_node);
 
     _fm._target_blocks[update_node] = new_block_to;
     _vertex_pqs[block_update_node].change_priority(update_node, gain);
@@ -239,7 +244,7 @@ private:
     const BlockID block_u = p_graph.block(u);
     const NodeWeight weight_u = p_graph.node_weight(u);
 
-    EdgeWeight best_gain = 0;
+    EdgeWeight best_gain = std::numeric_limits<EdgeWeight>::min();
     BlockID best_target_block = block_u;
     NodeWeight best_target_block_weight_gap =
         _p_ctx.block_weights.max(block_u) - p_graph.block_weight(block_u);
@@ -273,24 +278,30 @@ private:
     return {best_target_block, best_gain};
   }
 
-  void update_block_pq() {
+  bool update_block_pq() {
+    bool have_more_nodes = false;
     for (const BlockID block : _p_graph.blocks()) {
       if (_vertex_pqs[block].empty()) {
         const EdgeWeight gain = _vertex_pqs[block].peek_key();
-        _block_pq.push_or_update(block, gain);
+        _block_pq.push_or_change_priority(block, gain);
+        have_more_nodes = true;
       } else {
         _block_pq.remove(block);
       }
     }
+    return have_more_nodes;
   }
+
+  int _id;
 
   FMRefiner &_fm;
   const PartitionContext &_p_ctx;
   const KwayFMRefinementContext &_fm_ctx;
   PartitionedGraph &_p_graph;
 
+  DeltaGainCache<DenseGainCache> _delta_gain_cache;
   BinaryMinHeap<EdgeWeight> _block_pq;
-  std::vector<BinaryMaxHeap<EdgeWeight>> _vertex_pqs;
+  std::vector<SharedBinaryMaxHeap<EdgeWeight>> _vertex_pqs;
 
   AdaptiveStoppingPolicy _stopping_policy;
 };
