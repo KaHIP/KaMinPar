@@ -20,8 +20,10 @@ public:
   MultiRefiner(MultiRefiner &&) = delete;
   MultiRefiner &operator=(MultiRefiner &&) = delete;
 
-  void initialize(const Graph &graph) final;
+  void initialize(const PartitionedGraph &p_graph) final;
+
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
+
   [[nodiscard]] EdgeWeight expected_total_gain() const final;
 
 private:

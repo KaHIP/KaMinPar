@@ -37,7 +37,7 @@ public:
   FMRefiner(FMRefiner &&) noexcept = default;
   FMRefiner &operator=(FMRefiner &&) = delete;
 
-  void initialize(const Graph &graph) final;
+  void initialize(const PartitionedGraph &p_graph) final;
 
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
 
@@ -121,7 +121,8 @@ public:
         _p_ctx(p_ctx),
         _fm_ctx(fm_ctx),
         _p_graph(p_graph),
-        _delta_gain_cache(_fm._gain_cache),
+        _d_graph(&_p_graph),
+        _d_gain_cache(_fm._gain_cache),
         _block_pq(_p_ctx.k),
         _stopping_policy(_fm_ctx.alpha) {
     _stopping_policy.init(_p_graph.n());
@@ -142,16 +143,16 @@ public:
     // afterwards; do not unlock seed nodes
     std::vector<NodeID> touched_nodes;
 
-    DeltaPartitionedGraph d_graph(&_p_graph);
+    // Keep track of the current (expected) gain to decide when to accept a
+    // delta partition
     EdgeWeight total_gain = 0;
-    _stopping_policy.reset();
 
     while (update_block_pq() && !_stopping_policy.should_stop()) {
       const BlockID block_from = _block_pq.peek_id();
       const NodeID node = _vertex_pqs[block_from].peek_id();
       const EdgeWeight expected_gain = _vertex_pqs[block_from].peek_key();
       const auto [block_to, actual_gain] =
-          best_gain(d_graph, _delta_gain_cache, node);
+          best_gain(_d_graph, _d_gain_cache, node);
 
       // If the gain got worse, reject the move and try again
       if (actual_gain < expected_gain) {
@@ -162,6 +163,7 @@ public:
               block_from, _vertex_pqs[block_from].peek_key()
           );
         }
+
         continue;
       }
 
@@ -170,38 +172,55 @@ public:
 
       // Accept the move if the target block does not get overloaded
       const NodeWeight node_weight = _p_graph.node_weight(node);
-      if (d_graph.block_weight(block_to) + node_weight <=
+      if (_d_graph.block_weight(block_to) + node_weight <=
           _p_ctx.block_weights.max(block_to)) {
-        d_graph.set_block(node, block_to);
-        _delta_gain_cache.move(d_graph, node, block_from, block_to);
+
+        // Perform local move
+        _d_graph.set_block(node, block_to);
+        _d_gain_cache.move(_d_graph, node, block_from, block_to);
         _stopping_policy.update(actual_gain);
         total_gain += actual_gain;
 
         // If we found a new local minimum, apply the moves to the global
         // partition
         if (total_gain > 0) {
-          for (const auto &[u, b] : d_graph.delta()) {
-            _fm._gain_cache.move(_p_graph, u, block_from, block_to);
+          for (const auto &[u, b] : _d_graph.delta()) {
+            // Update global graph and global gain cache
             _p_graph.set_block(u, b);
-            d_graph.clear();
-            _delta_gain_cache.clear();
+            _fm._gain_cache.move(_p_graph, u, block_from, block_to);
+
+            // Flush local delta
+            _d_graph.clear();
+            _d_gain_cache.clear();
           }
         }
 
         for (const auto &[e, v] : _p_graph.neighbors(node)) {
           if (_fm.owner(v) == _id) {
-            update_after_move(d_graph, v, node, block_from, block_to);
+            update_after_move(v, node, block_from, block_to);
           } else if (_fm.owner(v) == 0 && _fm.lock_node(v, _id)) {
-            insert_into_pq(d_graph, _delta_gain_cache, v);
+            insert_into_pq(_d_graph, _d_gain_cache, v);
             touched_nodes.push_back(v);
           }
         }
       }
     }
 
+    // Unlock all nodes that were touched during this search
+    // This does not include seed nodes
     for (const NodeID u : touched_nodes) {
       _fm.unlock_node(u);
     }
+
+    // Flush local state for the nex tround
+    for (auto &vertex_pq : _vertex_pqs) {
+      vertex_pq.clear();
+    }
+
+    _block_pq.clear();
+    _d_graph.clear();
+    _d_gain_cache.clear();
+    _stopping_policy.reset();
 
     return total_gain;
   }
@@ -220,16 +239,15 @@ private:
   }
 
   void update_after_move(
-      const DeltaPartitionedGraph &d_graph,
       const NodeID update_node,
       const NodeID moved_node,
       const BlockID block_from,
       const BlockID block_to
   ) {
-    const BlockID block_update_node = d_graph.block(update_node);
+    const BlockID block_update_node = _d_graph.block(update_node);
     const BlockID old_block_to = _fm._target_blocks[update_node];
     const auto [new_block_to, gain] =
-        best_gain(d_graph, _delta_gain_cache, update_node);
+        best_gain(_d_graph, _d_gain_cache, update_node);
 
     _fm._target_blocks[update_node] = new_block_to;
     _vertex_pqs[block_update_node].change_priority(update_node, gain);
@@ -281,7 +299,7 @@ private:
   bool update_block_pq() {
     bool have_more_nodes = false;
     for (const BlockID block : _p_graph.blocks()) {
-      if (_vertex_pqs[block].empty()) {
+      if (!_vertex_pqs[block].empty()) {
         const EdgeWeight gain = _vertex_pqs[block].peek_key();
         _block_pq.push_or_change_priority(block, gain);
         have_more_nodes = true;
@@ -292,14 +310,20 @@ private:
     return have_more_nodes;
   }
 
+  // Each worker has a unique ID to lock nodes for its current search
   int _id;
+
+  /* Shared data structures */
 
   FMRefiner &_fm;
   const PartitionContext &_p_ctx;
   const KwayFMRefinementContext &_fm_ctx;
   PartitionedGraph &_p_graph;
 
-  DeltaGainCache<DenseGainCache> _delta_gain_cache;
+  /* Thread-local data structures */
+
+  DeltaPartitionedGraph _d_graph;
+  DeltaGainCache<DenseGainCache> _d_gain_cache;
   BinaryMinHeap<EdgeWeight> _block_pq;
   std::vector<SharedBinaryMaxHeap<EdgeWeight>> _vertex_pqs;
 

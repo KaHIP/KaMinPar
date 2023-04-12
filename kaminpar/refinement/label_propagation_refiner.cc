@@ -42,8 +42,8 @@ public:
     set_max_num_neighbors(_r_ctx.lp.max_num_neighbors);
   }
 
-  void initialize(const Graph &graph) {
-    _graph = &graph;
+  void initialize(const PartitionedGraph &p_graph) {
+    _graph = &p_graph.graph();
   }
 
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
@@ -151,8 +151,8 @@ LabelPropagationRefiner::~LabelPropagationRefiner() {
   delete _impl;
 }
 
-void LabelPropagationRefiner::initialize(const Graph &graph) {
-  _impl->initialize(graph);
+void LabelPropagationRefiner::initialize(const PartitionedGraph &p_graph) {
+  _impl->initialize(p_graph);
 }
 
 bool LabelPropagationRefiner::refine(

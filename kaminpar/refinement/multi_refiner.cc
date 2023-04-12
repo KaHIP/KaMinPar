@@ -14,9 +14,9 @@ namespace kaminpar::shm {
 MultiRefiner::MultiRefiner(std::vector<std::unique_ptr<Refiner>> refiners)
     : _refiners(std::move(refiners)) {}
 
-void MultiRefiner::initialize(const Graph &graph) {
+void MultiRefiner::initialize(const PartitionedGraph &p_graph) {
   for (const auto &refiner : _refiners) {
-    refiner->initialize(graph);
+    refiner->initialize(p_graph);
   }
 }
 

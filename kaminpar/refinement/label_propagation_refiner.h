@@ -16,10 +16,9 @@ namespace kaminpar::shm {
 class LabelPropagationRefiner : public Refiner {
 public:
   LabelPropagationRefiner(const Context &ctx);
-
   ~LabelPropagationRefiner();
 
-  void initialize(const Graph &graph) override;
+  void initialize(const PartitionedGraph &p_graph) override;
 
   bool
   refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) override;
