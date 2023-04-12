@@ -19,6 +19,7 @@
 #include "kaminpar/refinement/refiner.h"
 
 #include "common/datastructures/binary_heap.h"
+#include "common/datastructures/marker.h"
 #include "common/noinit_vector.h"
 #include "common/parallel/atomic.h"
 
@@ -91,6 +92,7 @@ private:
   RecomputeGainCache _gain_cache;
 
   tbb::enumerable_thread_specific<BinaryMinHeap<EdgeWeight>> _pq_ets;
+  tbb::enumerable_thread_specific<Marker<>> _marker_ets;
   NoinitVector<BlockID> _target_blocks;
 };
 } // namespace kaminpar::shm

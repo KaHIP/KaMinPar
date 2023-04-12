@@ -18,14 +18,24 @@ namespace kaminpar::shm {
 class DeltaPartitionedGraph : public GraphDelegate {
 public:
   DeltaPartitionedGraph(const PartitionedGraph *p_graph)
-      : GraphDelegate(&p_graph->graph()), _p_graph(p_graph) {
+      : GraphDelegate(&p_graph->graph()),
+        _p_graph(p_graph) {
     _block_weights_delta.set_deleted_key(kInvalidBlockID);
     _block_weights_delta.set_empty_key(kInvalidBlockID - 1);
     _partition_delta.set_deleted_key(kInvalidNodeID);
     _partition_delta.set_empty_key(kInvalidNodeID - 1);
   }
 
-  [[nodiscard]] inline BlockID k() const { return _p_graph->k(); }
+  [[nodiscard]] const PartitionedGraph &p_graph() const {
+    return *_p_graph;
+  }
+
+  [[nodiscard]] inline NodeID n() const {
+    return _p_graph->n();
+  }
+  [[nodiscard]] inline BlockID k() const {
+    return _p_graph->k();
+  }
 
   [[nodiscard]] inline IotaRange<BlockID> blocks() const {
     return _p_graph->blocks();
@@ -69,7 +79,9 @@ public:
     return _p_graph->block_weight(b) + delta;
   }
 
-  const auto &delta() const { return _partition_delta; }
+  const auto &delta() const {
+    return _partition_delta;
+  }
 
   void clear() {
     _block_weights_delta.clear();
