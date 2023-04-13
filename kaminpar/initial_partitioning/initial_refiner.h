@@ -28,7 +28,7 @@
 namespace kaminpar::shm::ip {
 using Queues = std::array<BinaryMinHeap<Gain>, 2>;
 
-class InitialRefiner : public Refiner {
+class InitialRefiner {
 public:
   struct MemoryContext {
     Queues queues{BinaryMinHeap<Gain>{0}, BinaryMinHeap<Gain>{0}};
@@ -57,9 +57,12 @@ public:
     }
   };
 
-  [[nodiscard]] NodeWeight expected_total_gain() const final {
-    return 0;
-  }
+  virtual ~InitialRefiner() = default;
+
+  virtual void initialize(const Graph &graph) = 0;
+
+  virtual bool
+  refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) = 0;
 
   virtual MemoryContext free() = 0;
 };
@@ -69,9 +72,11 @@ public:
   explicit InitialNoopRefiner(MemoryContext m_ctx) : _m_ctx{std::move(m_ctx)} {}
 
   void initialize(const Graph &) final {}
+
   bool refine(PartitionedGraph &, const PartitionContext &) final {
     return false;
   }
+
   MemoryContext free() override {
     return std::move(_m_ctx);
   }
@@ -83,7 +88,8 @@ private:
 namespace fm {
 struct SimpleStoppingPolicy {
   void init(const Graph *) const {}
-  [[nodiscard]] bool should_stop(const FMRefinementContext &fm_ctx) const {
+  [[nodiscard]] bool should_stop(const TwoWayFMRefinementContext &fm_ctx
+  ) const {
     return _num_steps > fm_ctx.num_fruitless_moves;
   }
   void reset() {
@@ -105,7 +111,8 @@ struct AdaptiveStoppingPolicy {
     _beta = std::sqrt(graph->n());
   }
 
-  [[nodiscard]] bool should_stop(const FMRefinementContext &fm_ctx) const {
+  [[nodiscard]] bool should_stop(const TwoWayFMRefinementContext &fm_ctx
+  ) const {
     const double factor = (fm_ctx.alpha / 2.0) - 0.25;
     return (_num_steps > _beta) &&
            ((_Mk == 0) || (_num_steps >= (_variance / (_Mk * _Mk)) * factor));
@@ -275,8 +282,10 @@ public:
     KASSERT(_queues[1].capacity() >= graph.n());
     KASSERT(_marker.capacity() >= graph.n());
     KASSERT(_weighted_degrees.capacity() >= graph.n());
+
     _graph = &graph;
     _stopping_policy.init(_graph);
+
     init_weighted_degrees();
   }
 
@@ -302,7 +311,7 @@ public:
 
     cur_edge_cut += round(p_graph); // always do at least one round
     for (std::size_t it = 1;
-         0 < cur_edge_cut && it < _r_ctx.fm.num_iterations &&
+         0 < cur_edge_cut && it < _r_ctx.twoway_fm.num_iterations &&
          !abort(prev_edge_cut, cur_edge_cut);
          ++it) {
       prev_edge_cut = cur_edge_cut;
@@ -324,7 +333,7 @@ private:
       const EdgeWeight prev_edge_weight, const EdgeWeight cur_edge_weight
   ) const {
     return (1.0 - 1.0 * cur_edge_weight / prev_edge_weight) <
-           _r_ctx.fm.improvement_abortion_threshold;
+           _r_ctx.twoway_fm.improvement_abortion_threshold;
   }
 
   /*!
@@ -367,7 +376,7 @@ private:
         << " #_pq[1]=" << _queues[1].size();
 
     while ((!_queues[0].empty() || !_queues[1].empty()) &&
-           !_stopping_policy.should_stop(_r_ctx.fm)) {
+           !_stopping_policy.should_stop(_r_ctx.twoway_fm)) {
 #if KASSERT_ENABLED(ASSERTION_LEVEL_HEAVY)
       validate_pqs(p_graph);
 #endif

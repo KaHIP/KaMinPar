@@ -105,9 +105,8 @@ public:
   GreedyBalancer &operator=(GreedyBalancer &&) = delete;
   GreedyBalancer(GreedyBalancer &&) noexcept = default;
 
-  void initialize(const Graph &graph) final;
+  void initialize(const PartitionedGraph &p_graph) final;
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
-  [[nodiscard]] EdgeWeight expected_total_gain() const final;
 
 private:
   BlockWeight perform_round();

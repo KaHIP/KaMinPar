@@ -224,7 +224,7 @@ create_initial_fm_refinement_options(CLI::App *app, Context &ctx) {
 
   fm->add_option(
         "--i-r-fm-stopping-rule",
-        ctx.initial_partitioning.refinement.fm.stopping_rule
+        ctx.initial_partitioning.refinement.twoway_fm.stopping_rule
   )
       ->transform(
           CLI::CheckedTransformer(get_fm_stopping_rules()).description("")
@@ -235,26 +235,26 @@ create_initial_fm_refinement_options(CLI::App *app, Context &ctx) {
       ->capture_default_str();
   fm->add_option(
         "--i-r-fm-num-fruitless-moves",
-        ctx.initial_partitioning.refinement.fm.num_fruitless_moves,
+        ctx.initial_partitioning.refinement.twoway_fm.num_fruitless_moves,
         "Number of fruitless moves before aborting a FM search "
         "(simple stopping rule)."
   )
       ->capture_default_str();
   fm->add_option(
         "--i-r-fm-alpha",
-        ctx.initial_partitioning.refinement.fm.alpha,
+        ctx.initial_partitioning.refinement.twoway_fm.alpha,
         "Alpha factor (adaptive stopping rule)."
   )
       ->capture_default_str();
   fm->add_option(
         "--i-r-fm-num-iterations",
-        ctx.initial_partitioning.refinement.fm.num_iterations,
+        ctx.initial_partitioning.refinement.twoway_fm.num_iterations,
         "Number of iterations."
   )
       ->capture_default_str();
   fm->add_option(
         "--i-r-fm-abortion-threshold",
-        ctx.initial_partitioning.refinement.fm.improvement_abortion_threshold,
+        ctx.initial_partitioning.refinement.twoway_fm.improvement_abortion_threshold,
         "Stop FM iterations if the previous iteration improved the edge cut "
         "below this threshold."
   )

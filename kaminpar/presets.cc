@@ -1,3 +1,9 @@
+/*******************************************************************************
+ * @file:   presets.cc
+ * @author: Daniel Seemaier
+ * @date:   13.03.2023
+ * @brief:  Configuration presets for shared-memory partitioning.
+ ******************************************************************************/
 #include "kaminpar/presets.h"
 
 #include <stdexcept>
@@ -12,6 +18,8 @@ Context create_context_by_preset_name(const std::string &name) {
     return create_default_context();
   } else if (name == "largek") {
     return create_largek_context();
+  } else if (name == "fm") {
+    return create_fm_context();
   }
 
   throw std::runtime_error("invalid preset name");
@@ -22,6 +30,7 @@ std::unordered_set<std::string> get_preset_names() {
       "default",
       "fast",
       "largek",
+      "fm",
   };
 }
 
@@ -88,9 +97,9 @@ Context create_default_context() {
               .refinement =
                   {
                       // Context -> Initial Partitioning -> Refinement
-                      .algorithms = {RefinementAlgorithm::TWO_WAY_FM},
+                      .algorithms = {RefinementAlgorithm::TWOWAY_FM},
                       .lp = {},
-                      .fm =
+                      .twoway_fm =
                           {
                               // Context -> Initial Partitioning -> Refinement
                               // -> FM
@@ -100,6 +109,7 @@ Context create_default_context() {
                               .num_iterations = 5,
                               .improvement_abortion_threshold = 0.0001,
                           },
+                      .kway_fm = {},
                       .balancer = {},
                   },
               .mode = InitialPartitioningMode::SYNCHRONOUS_PARALLEL,
@@ -124,7 +134,14 @@ Context create_default_context() {
                       .large_degree_threshold = 1000000,
                       .max_num_neighbors = std::numeric_limits<NodeID>::max(),
                   },
-              .fm = {},
+              .twoway_fm = {},
+              .kway_fm =
+                  {
+                      .num_seed_nodes = 25,
+                      .alpha = 1.0,
+                      .num_iterations = 5,
+                      .improvement_abortion_threshold = 0.0001,
+                  },
               .balancer = {},
           },
       .parallel =
@@ -143,6 +160,16 @@ Context create_largek_context() {
   ctx.initial_partitioning.min_num_non_adaptive_repetitions = 2;
   ctx.initial_partitioning.max_num_repetitions = 4;
 
+  return ctx;
+}
+
+Context create_fm_context() {
+  Context ctx = create_default_context();
+  ctx.refinement.algorithms = {
+      RefinementAlgorithm::GREEDY_BALANCER,
+      RefinementAlgorithm::LABEL_PROPAGATION,
+      RefinementAlgorithm::KWAY_FM,
+  };
   return ctx;
 }
 } // namespace kaminpar::shm

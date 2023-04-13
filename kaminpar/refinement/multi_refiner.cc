@@ -14,9 +14,9 @@ namespace kaminpar::shm {
 MultiRefiner::MultiRefiner(std::vector<std::unique_ptr<Refiner>> refiners)
     : _refiners(std::move(refiners)) {}
 
-void MultiRefiner::initialize(const Graph &graph) {
+void MultiRefiner::initialize(const PartitionedGraph &p_graph) {
   for (const auto &refiner : _refiners) {
-    refiner->initialize(graph);
+    refiner->initialize(p_graph);
   }
 }
 
@@ -28,13 +28,5 @@ bool MultiRefiner::refine(
     found_improvement |= refiner->refine(p_graph, p_ctx);
   }
   return found_improvement;
-}
-
-EdgeWeight MultiRefiner::expected_total_gain() const {
-  EdgeWeight expected_gain = 0;
-  for (const auto &refiner : _refiners) {
-    expected_gain += refiner->expected_total_gain();
-  }
-  return expected_gain;
 }
 } // namespace kaminpar::shm

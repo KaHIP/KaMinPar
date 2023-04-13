@@ -45,7 +45,7 @@ void refine(
     const PartitionContext &current_p_ctx
 ) {
   SCOPED_TIMER("Refinement");
-  refiner->initialize(p_graph.graph());
+  refiner->initialize(p_graph);
   refiner->refine(p_graph, current_p_ctx);
 }
 

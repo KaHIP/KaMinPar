@@ -15,6 +15,33 @@
 #include "common/assertion_levels.h"
 
 namespace kaminpar::shm::metrics {
+EdgeWeight edge_cut(const DeltaPartitionedGraph &d_graph) {
+  tbb::enumerable_thread_specific<int64_t> cut_ets{0};
+  tbb::parallel_for(
+      tbb::blocked_range(static_cast<NodeID>(0), d_graph.n()),
+      [&](const auto &r) {
+        auto &cut = cut_ets.local();
+        for (NodeID u = r.begin(); u < r.end(); ++u) {
+          for (const auto &[e, v] : d_graph.neighbors(u)) {
+            cut += (d_graph.block(u) != d_graph.block(v))
+                       ? d_graph.edge_weight(e)
+                       : 0;
+          }
+        }
+      }
+  );
+
+  int64_t global_cut = cut_ets.combine(std::plus<>{});
+  KASSERT(global_cut % 2 == 0u);
+  global_cut /= 2;
+  KASSERT(
+      (0 <= global_cut && global_cut <= std::numeric_limits<EdgeWeight>::max()),
+      "edge cut overflows: " << global_cut,
+      assert::always
+  );
+  return static_cast<EdgeWeight>(global_cut);
+}
+
 EdgeWeight edge_cut(const PartitionedGraph &p_graph, tag::Parallel) {
   tbb::enumerable_thread_specific<int64_t> cut_ets{0};
   tbb::parallel_for(

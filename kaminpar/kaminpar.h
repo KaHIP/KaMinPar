@@ -76,7 +76,8 @@ enum class ClusterWeightLimit {
 
 enum class RefinementAlgorithm {
   LABEL_PROPAGATION,
-  TWO_WAY_FM,
+  TWOWAY_FM,
+  KWAY_FM,
   GREEDY_BALANCER,
   NOOP,
 };
@@ -164,11 +165,18 @@ struct LabelPropagationRefinementContext {
   NodeID max_num_neighbors;
 };
 
-struct FMRefinementContext {
+struct TwoWayFMRefinementContext {
   FMStoppingRule stopping_rule;
   NodeID num_fruitless_moves;
   double alpha;
   std::size_t num_iterations;
+  double improvement_abortion_threshold;
+};
+
+struct KwayFMRefinementContext {
+  NodeID num_seed_nodes;
+  double alpha;
+  int num_iterations;
   double improvement_abortion_threshold;
 };
 
@@ -177,7 +185,8 @@ struct BalancerRefinementContext {};
 struct RefinementContext {
   std::vector<RefinementAlgorithm> algorithms;
   LabelPropagationRefinementContext lp;
-  FMRefinementContext fm;
+  TwoWayFMRefinementContext twoway_fm;
+  KwayFMRefinementContext kway_fm;
   BalancerRefinementContext balancer;
 };
 
