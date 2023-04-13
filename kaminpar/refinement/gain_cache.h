@@ -8,12 +8,14 @@
 
 #include <sparsehash/dense_hash_map>
 
+#include <kassert/kassert.hpp>
 #include <tbb/parallel_for.h>
 
 #include "kaminpar/context.h"
 #include "kaminpar/datastructures/delta_partitioned_graph.h"
 #include "kaminpar/datastructures/partitioned_graph.h"
 
+#include "common/logger.h"
 #include "common/noinit_vector.h"
 
 namespace kaminpar::shm {
@@ -63,6 +65,17 @@ public:
     return _weighted_degrees[node] != weighted_degree_to(node, block);
   }
 
+  bool validate(const PartitionedGraph &p_graph) const {
+    bool valid = true;
+    p_graph.pfor_nodes([&](const NodeID u) {
+      if (!check_cached_gain_for_node(p_graph, u)) {
+        LOG_WARNING << "gain cache invalid for node" << u;
+        valid = false;
+      }
+    });
+    return valid;
+  }
+
 private:
   EdgeWeight weighted_degree_to(const NodeID node, const BlockID block) const {
     return __atomic_load_n(&_gain_cache[index(node, block)], __ATOMIC_RELAXED);
@@ -93,6 +106,34 @@ private:
       _gain_cache[index(u, block_v)] += weight;
       _weighted_degrees[u] += weight;
     }
+  }
+
+  bool check_cached_gain_for_node(
+      const PartitionedGraph &p_graph, const NodeID u
+  ) const {
+    const BlockID block_u = p_graph.block(u);
+    std::vector<EdgeWeight> actual_external_degrees(_k, 0);
+    EdgeWeight actual_weighted_degree = 0;
+
+    for (const auto &[v, e] : p_graph.neighbors(u)) {
+      const BlockID block_v = p_graph.block(v);
+      const EdgeWeight weight = p_graph.edge_weight(e);
+
+      actual_weighted_degree += weight;
+      actual_external_degrees[block_v] += weight;
+    }
+
+    for (BlockID b = 0; b < _k; ++b) {
+      if (actual_external_degrees[b] != weighted_degree_to(u, b)) {
+        return false;
+      }
+    }
+
+    if (actual_weighted_degree != _weighted_degrees[u]) {
+      return false;
+    }
+
+    return true;
   }
 
   BlockID _k;

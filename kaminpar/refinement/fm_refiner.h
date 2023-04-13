@@ -41,10 +41,6 @@ public:
 
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
 
-  [[nodiscard]] EdgeWeight expected_total_gain() const final {
-    return _expected_total_gain;
-  }
-
 private:
   bool run_localized_refinement();
 
@@ -97,8 +93,6 @@ private:
 
   NoinitVector<std::size_t> _shared_pq_handles;
   NoinitVector<BlockID> _target_blocks;
-
-  parallel::Atomic<EdgeWeight> _expected_total_gain = 0;
 };
 
 struct Move {

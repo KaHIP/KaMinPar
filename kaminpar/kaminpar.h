@@ -176,7 +176,7 @@ struct TwoWayFMRefinementContext {
 struct KwayFMRefinementContext {
   NodeID num_seed_nodes;
   double alpha;
-  std::size_t num_iterations;
+  int num_iterations;
   double improvement_abortion_threshold;
 };
 

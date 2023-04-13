@@ -23,8 +23,6 @@ public:
   bool
   refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) override;
 
-  [[nodiscard]] EdgeWeight expected_total_gain() const override;
-
 private:
   class LabelPropagationRefinerImpl *_impl;
 };

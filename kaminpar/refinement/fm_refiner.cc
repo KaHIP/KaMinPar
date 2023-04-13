@@ -15,6 +15,7 @@
 #include "kaminpar/datastructures/graph.h"
 #include "kaminpar/datastructures/partitioned_graph.h"
 #include "kaminpar/definitions.h"
+#include "kaminpar/metrics.h"
 #include "kaminpar/refinement/stopping_policies.h"
 
 #include "common/datastructures/marker.h"
@@ -54,24 +55,62 @@ bool FMRefiner::refine(
   _p_graph = &p_graph;
   _p_ctx = &p_ctx;
 
-  // Reset refiner state
-  p_graph.pfor_nodes([&](NodeID u) { _locked[u] = 0; });
-  init_border_nodes();
-  _expected_total_gain = 0;
+  const EdgeWeight initial_cut = metrics::edge_cut(*_p_graph);
 
-  // Start one worker per thread
-  std::atomic<int> next_id = 0;
-  tbb::parallel_for<int>(0, tbb::this_task_arena::max_concurrency(), [&](int) {
-    LocalizedFMRefiner localized_fm(++next_id, p_ctx, _fm_ctx, p_graph, *this);
+  // Total gain across all iterations
+  // This value is not accurate, but the sum of all gains achieved on local
+  // delta graphs
+  EdgeWeight total_expected_gain = 0;
 
-    // Workers try to pull seed nodes from the remaining border nodes, until
-    // there are no more border nodes left
-    while (has_border_nodes()) {
-      _expected_total_gain += localized_fm.run();
+  for (int iteration = 0; iteration < _fm_ctx.num_iterations; ++iteration) {
+    // Gains of the current iterations
+    tbb::enumerable_thread_specific<EdgeWeight> expected_gain_ets;
+
+    // Make sure that we work with correct gains
+    KASSERT(
+        _gain_cache.validate(*_p_graph),
+        "gain cache invalid before iteration " << iteration,
+        assert::heavy
+    );
+
+    // Find current border nodes
+    // This also initializes _locked[], or resets it after the first round
+    init_border_nodes();
+
+    // Start one worker per thread
+    std::atomic<int> next_id = 0;
+    tbb::parallel_for<int>(
+        0,
+        tbb::this_task_arena::max_concurrency(),
+        [&](int) {
+          EdgeWeight &expected_gain = expected_gain_ets.local();
+          LocalizedFMRefiner localized_fm(
+              ++next_id, p_ctx, _fm_ctx, p_graph, *this
+          );
+
+          // Workers try to pull seed nodes from the remaining border nodes,
+          // until there are no more border nodes left
+          while (has_border_nodes()) {
+            expected_gain += localized_fm.run();
+          }
+        }
+    );
+
+    // Abort early if the expected cut improvement falls below the abortion
+    // threshold
+    // @todo is it feasible to work with these "expected" values? Do we need
+    // accurate gains?
+    const EdgeWeight expected_gain = expected_gain_ets.combine(std::plus{});
+    total_expected_gain += expected_gain;
+    const EdgeWeight expected_current_cut = initial_cut - total_expected_gain;
+    const EdgeWeight abortion_threshold =
+        expected_current_cut * _fm_ctx.improvement_abortion_threshold;
+    if (expected_gain < abortion_threshold) {
+      break;
     }
-  });
+  }
 
-  return _expected_total_gain;
+  return total_expected_gain;
 }
 
 void FMRefiner::init_border_nodes() {

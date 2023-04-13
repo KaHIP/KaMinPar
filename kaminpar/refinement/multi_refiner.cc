@@ -29,12 +29,4 @@ bool MultiRefiner::refine(
   }
   return found_improvement;
 }
-
-EdgeWeight MultiRefiner::expected_total_gain() const {
-  EdgeWeight expected_gain = 0;
-  for (const auto &refiner : _refiners) {
-    expected_gain += refiner->expected_total_gain();
-  }
-  return expected_gain;
-}
 } // namespace kaminpar::shm

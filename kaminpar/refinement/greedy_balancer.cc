@@ -10,10 +10,6 @@
 #include <kassert/kassert.hpp>
 
 namespace kaminpar::shm {
-EdgeWeight GreedyBalancer::expected_total_gain() const {
-  return 0;
-}
-
 void GreedyBalancer::initialize(const PartitionedGraph &) {}
 
 bool GreedyBalancer::refine(

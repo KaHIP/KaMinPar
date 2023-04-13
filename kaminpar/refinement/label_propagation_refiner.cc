@@ -160,8 +160,4 @@ bool LabelPropagationRefiner::refine(
 ) {
   return _impl->refine(p_graph, p_ctx);
 }
-
-EdgeWeight LabelPropagationRefiner::expected_total_gain() const {
-  return _impl->expected_total_gain();
-}
 } // namespace kaminpar::shm

@@ -24,8 +24,6 @@ public:
 
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
 
-  [[nodiscard]] EdgeWeight expected_total_gain() const final;
-
 private:
   std::vector<std::unique_ptr<Refiner>> _refiners;
 };

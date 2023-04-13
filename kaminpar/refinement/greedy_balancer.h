@@ -107,7 +107,6 @@ public:
 
   void initialize(const PartitionedGraph &p_graph) final;
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
-  [[nodiscard]] EdgeWeight expected_total_gain() const final;
 
 private:
   BlockWeight perform_round();
