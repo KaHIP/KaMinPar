@@ -143,7 +143,11 @@ public:
 
     while (update_block_pq() && !_stopping_policy.should_stop()) {
       const BlockID block_from = _block_pq.peek_id();
+      KASSERT(block_from < _p_graph.k());
+
       const NodeID node = _node_pq[block_from].peek_id();
+      KASSERT(node < _p_graph.n());
+
       const EdgeWeight expected_gain = _node_pq[block_from].peek_key();
       const auto [block_to, actual_gain] =
           best_gain(_d_graph, _d_gain_cache, node);
@@ -179,15 +183,17 @@ public:
         // If we found a new local minimum, apply the moves to the global
         // partition
         if (total_gain > 0) {
-          for (const auto &[u, b] : _d_graph.delta()) {
-            // Update global graph and global gain cache
-            _p_graph.set_block(u, b);
-            _fm._gain_cache.move(_p_graph, u, block_from, block_to);
+          DBG << "Worker " << _id << " found improvement by " << total_gain;
 
-            // Flush local delta
-            _d_graph.clear();
-            _d_gain_cache.clear();
+          for (const auto &[delta_node, delta_block] : _d_graph.delta()) {
+            // Update global graph and global gain cache
+            _p_graph.set_block(delta_node, delta_block);
+            _fm._gain_cache.move(_p_graph, delta_node, block_from, block_to);
           }
+
+          // Flush local delta
+          _d_graph.clear();
+          _d_gain_cache.clear();
         }
 
         for (const auto &[e, v] : _p_graph.neighbors(node)) {
