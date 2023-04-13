@@ -20,8 +20,8 @@ public:
   DeltaPartitionedGraph(const PartitionedGraph *p_graph)
       : GraphDelegate(&p_graph->graph()),
         _p_graph(p_graph) {
-    //_block_weights_delta.set_empty_key(kInvalidBlockID);
-    //_partition_delta.set_empty_key(kInvalidNodeID);
+    _block_weights_delta.set_empty_key(kInvalidBlockID);
+    _partition_delta.set_empty_key(kInvalidNodeID);
   }
 
   [[nodiscard]] const PartitionedGraph &p_graph() const {
@@ -92,11 +92,8 @@ public:
 private:
   const PartitionedGraph *_p_graph;
 
-  // google::dense_hash_map<BlockID, NodeWeight> _block_weights_delta;
-  // google::dense_hash_map<NodeID, BlockID> _partition_delta;
-
-  std::unordered_map<BlockID, NodeWeight> _block_weights_delta;
-  std::unordered_map<NodeID, BlockID> _partition_delta;
+  google::dense_hash_map<BlockID, NodeWeight> _block_weights_delta;
+  google::dense_hash_map<NodeID, BlockID> _partition_delta;
 };
 } // namespace kaminpar::shm
 

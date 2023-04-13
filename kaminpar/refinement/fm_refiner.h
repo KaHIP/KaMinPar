@@ -15,6 +15,7 @@
 #include "kaminpar/datastructures/delta_partitioned_graph.h"
 #include "kaminpar/datastructures/graph.h"
 #include "kaminpar/datastructures/partitioned_graph.h"
+#include "kaminpar/metrics.h"
 #include "kaminpar/refinement/gain_cache.h"
 #include "kaminpar/refinement/refiner.h"
 #include "kaminpar/refinement/stopping_policies.h"
@@ -26,6 +27,8 @@
 
 namespace kaminpar::shm {
 class FMRefiner : public Refiner {
+  SET_DEBUG(false);
+
   friend class LocalizedFMRefiner;
 
 public:
@@ -37,7 +40,7 @@ public:
   FMRefiner(FMRefiner &&) noexcept = default;
   FMRefiner &operator=(FMRefiner &&) = delete;
 
-  void initialize(const PartitionedGraph &p_graph) final;
+  void initialize(const PartitionedGraph &) final {}
 
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
 
@@ -49,6 +52,7 @@ private:
   template <typename Lambda>
   NodeID poll_border_nodes(const NodeID count, int id, Lambda &&lambda) {
     NodeID polled = 0;
+
     while (polled < count && _next_border_node < _border_nodes.size()) {
       const NodeID remaining = count - polled;
       const NodeID from = _next_border_node.fetch_add(remaining);
@@ -56,7 +60,7 @@ private:
           std::min<NodeID>(from + remaining, _border_nodes.size());
 
       for (NodeID current = from; current < to; ++current) {
-        const NodeID node = _border_nodes[from];
+        const NodeID node = _border_nodes[current];
         if (lock_node(node, id)) {
           lambda(node);
           ++polled;
@@ -94,7 +98,7 @@ struct Move {
 };
 
 class LocalizedFMRefiner {
-  SET_DEBUG(true);
+  SET_DEBUG(FMRefiner::kDebug);
 
 public:
   LocalizedFMRefiner(
@@ -120,11 +124,9 @@ public:
   }
 
   EdgeWeight run() {
-    DBG << "Worker " << _id << " started next round";
-
     // Poll seed nodes from the border node arrays
     std::vector<NodeID> seed_nodes;
-    _fm.poll_border_nodes(
+    int polled = _fm.poll_border_nodes(
         _fm_ctx.num_seed_nodes,
         _id,
         [&](const NodeID seed_node) {
@@ -139,7 +141,8 @@ public:
 
     // Keep track of the current (expected) gain to decide when to accept a
     // delta partition
-    EdgeWeight total_gain = 0;
+    EdgeWeight current_total_gain = 0;
+    EdgeWeight best_total_gain = 0;
 
     while (update_block_pq() && !_stopping_policy.should_stop()) {
       const BlockID block_from = _block_pq.peek_id();
@@ -169,6 +172,11 @@ public:
       _node_pq[block_from].pop();
       _fm._locked[node] = -1; // Mark as moved, won't update PQs for this node
 
+      // Skip the move if there is no viable target block
+      if (block_to == block_from) {
+        continue;
+      }
+
       // Accept the move if the target block does not get overloaded
       const NodeWeight node_weight = _p_graph.node_weight(node);
       if (_d_graph.block_weight(block_to) + node_weight <=
@@ -178,22 +186,27 @@ public:
         _d_graph.set_block(node, block_to);
         _d_gain_cache.move(_d_graph, node, block_from, block_to);
         _stopping_policy.update(actual_gain);
-        total_gain += actual_gain;
+        current_total_gain += actual_gain;
 
         // If we found a new local minimum, apply the moves to the global
         // partition
-        if (total_gain > 0) {
-          DBG << "Worker " << _id << " found improvement by " << total_gain;
+        if (current_total_gain > best_total_gain) {
+          DBG << "Worker " << _id << " committed local improvement with gain "
+              << current_total_gain;
 
-          for (const auto &[delta_node, delta_block] : _d_graph.delta()) {
-            // Update global graph and global gain cache
-            _p_graph.set_block(delta_node, delta_block);
-            _fm._gain_cache.move(_p_graph, delta_node, block_from, block_to);
+          // Update global graph and global gain cache
+          for (const auto &[moved_node, moved_to] : _d_graph.delta()) {
+            _fm._gain_cache.move(
+                _p_graph, moved_node, _p_graph.block(moved_node), moved_to
+            );
+            _p_graph.set_block(moved_node, moved_to);
           }
 
           // Flush local delta
           _d_graph.clear();
           _d_gain_cache.clear();
+
+          best_total_gain = current_total_gain;
         }
 
         for (const auto &[e, v] : _p_graph.neighbors(node)) {
@@ -213,15 +226,6 @@ public:
       node_pq.clear();
     }
 
-    KASSERT(_fm._shared_pq_handles.size() >= _p_graph.n());
-    for (std::size_t i = 0; i < _p_graph.n(); ++i) {
-      KASSERT(
-          _fm._shared_pq_handles[i] ==
-              SharedBinaryMaxHeap<EdgeWeight>::kInvalidID,
-          V(i) << V(_p_graph.n())
-      );
-    }
-
     _block_pq.clear();
     _d_graph.clear();
     _d_gain_cache.clear();
@@ -238,7 +242,7 @@ public:
       _fm._locked[seed_node] = -1;
     }
 
-    return total_gain;
+    return best_total_gain;
   }
 
 private:
@@ -279,6 +283,7 @@ private:
     const BlockID block_u = p_graph.block(u);
     const NodeWeight weight_u = p_graph.node_weight(u);
 
+    // Since we use max heaps, we can insert this value into the PQ
     EdgeWeight best_gain = std::numeric_limits<EdgeWeight>::min();
     BlockID best_target_block = block_u;
     NodeWeight best_target_block_weight_gap =
@@ -346,5 +351,4 @@ private:
 
   AdaptiveStoppingPolicy _stopping_policy;
 };
-
 } // namespace kaminpar::shm

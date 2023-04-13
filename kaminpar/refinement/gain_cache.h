@@ -50,15 +50,12 @@ public:
   ) {
     for (const auto &[e, v] : p_graph.neighbors(node)) {
       const EdgeWeight weight = p_graph.edge_weight(e);
-      if (p_graph.block(v) == block_from) {
-        __atomic_fetch_sub(
-            &_gain_cache[index(v, block_from)], weight, __ATOMIC_RELAXED
-        );
-      } else if (p_graph.block(v) == block_to) {
-        __atomic_fetch_add(
-            &_gain_cache[index(v, block_to)], weight, __ATOMIC_RELAXED
-        );
-      }
+      __atomic_fetch_sub(
+          &_gain_cache[index(v, block_from)], weight, __ATOMIC_RELAXED
+      );
+      __atomic_fetch_add(
+          &_gain_cache[index(v, block_to)], weight, __ATOMIC_RELAXED
+      );
     }
   }
 
@@ -70,7 +67,7 @@ public:
     bool valid = true;
     p_graph.pfor_nodes([&](const NodeID u) {
       if (!check_cached_gain_for_node(p_graph, u)) {
-        LOG_WARNING << "gain cache invalid for node" << u;
+        LOG_WARNING << "gain cache invalid for node " << u;
         valid = false;
       }
     });
@@ -106,9 +103,8 @@ private:
     for (const auto &[e, v] : p_graph.neighbors(u)) {
       const BlockID block_v = p_graph.block(v);
       const EdgeWeight weight = p_graph.edge_weight(e);
-      const std::size_t slot = index(u, block_v);
 
-      _gain_cache[slot] += weight;
+      _gain_cache[index(u, block_v)] += weight;
       _weighted_degrees[u] += weight;
     }
   }
@@ -130,11 +126,17 @@ private:
 
     for (BlockID b = 0; b < _k; ++b) {
       if (actual_external_degrees[b] != weighted_degree_to(u, b)) {
+        LOG_WARNING << "For node " << u << ": cached weighted degree to block "
+                    << b << " is " << weighted_degree_to(u, b)
+                    << " but should be " << actual_external_degrees[b];
         return false;
       }
     }
 
     if (actual_weighted_degree != _weighted_degrees[u]) {
+      LOG_WARNING << "For node " << u << ": cached weighted degree is "
+                  << _weighted_degrees[u] << " but should be "
+                  << actual_weighted_degree;
       return false;
     }
 
@@ -152,9 +154,6 @@ template <typename GainCache> class DeltaGainCache {
 public:
   DeltaGainCache(const GainCache &gain_cache) : _gain_cache(gain_cache) {
     _gain_cache_delta.set_empty_key(std::numeric_limits<std::size_t>::max());
-    _gain_cache_delta.set_deleted_key(
-        std::numeric_limits<std::size_t>::max() - 1
-    );
   }
 
   EdgeWeight
@@ -176,11 +175,8 @@ public:
   ) {
     for (const auto &[e, v] : d_graph.neighbors(u)) {
       const EdgeWeight weight = d_graph.edge_weight(e);
-      if (d_graph.block(v) == block_from) {
-        _gain_cache_delta[_gain_cache.index(v, block_from)] -= weight;
-      } else if (d_graph.block(v) == block_to) {
-        _gain_cache_delta[_gain_cache.index(v, block_to)] += weight;
-      }
+      _gain_cache_delta[_gain_cache.index(v, block_from)] -= weight;
+      _gain_cache_delta[_gain_cache.index(v, block_to)] += weight;
     }
   }
 
@@ -190,7 +186,6 @@ public:
 
 private:
   const GainCache &_gain_cache;
-
   google::dense_hash_map<std::size_t, EdgeWeight> _gain_cache_delta;
 };
 } // namespace kaminpar::shm

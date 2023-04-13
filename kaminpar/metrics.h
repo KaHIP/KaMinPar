@@ -9,6 +9,7 @@
 #include <numeric>
 
 #include "kaminpar/context.h"
+#include "kaminpar/datastructures/delta_partitioned_graph.h"
 #include "kaminpar/datastructures/graph.h"
 #include "kaminpar/datastructures/partitioned_graph.h"
 #include "kaminpar/definitions.h"
@@ -19,6 +20,8 @@ EdgeWeight edge_cut(const PartitionedGraph &p_graph, tag::Sequential);
 inline EdgeWeight edge_cut(const PartitionedGraph &p_graph) {
   return edge_cut(p_graph, tag::par);
 }
+
+EdgeWeight edge_cut(const DeltaPartitionedGraph &p_graph);
 
 double imbalance(const PartitionedGraph &p_graph);
 

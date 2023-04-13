@@ -139,7 +139,7 @@ Context create_default_context() {
                   {
                       .num_seed_nodes = 25,
                       .alpha = 1.0,
-                      .num_iterations = 1,
+                      .num_iterations = 5,
                       .improvement_abortion_threshold = 0.0001,
                   },
               .balancer = {},
