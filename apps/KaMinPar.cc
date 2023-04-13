@@ -169,12 +169,15 @@ int main(int argc, char *argv[]) {
   const NodeID n = static_cast<NodeID>(xadj.size() - 1);
   std::vector<BlockID> partition(n);
 
+  EdgeID *xadj_ptr = xadj.data();
+  NodeID *adjncy_ptr = adjncy.data();
+  NodeWeight *vwgt_ptr = !vwgt.empty() ? vwgt.data() : nullptr;
+  EdgeWeight *adjwgt_ptr = !adjwgt.empty() ? adjwgt.data() : nullptr;
+
   // Compute graph partition
   KaMinPar partitioner(app.num_threads, ctx);
   partitioner.set_max_timer_depth(app.max_timer_depth);
-  partitioner.take_graph(
-      n, xadj.data(), adjncy.data(), vwgt.data(), adjwgt.data()
-  );
+  partitioner.take_graph(n, xadj_ptr, adjncy_ptr, vwgt_ptr, adjwgt_ptr);
   partitioner.compute_partition(app.seed, app.k, partition.data());
 
   // Save graph partition
