@@ -47,7 +47,7 @@ private:
   void init_border_nodes();
 
   template <typename Lambda>
-  NodeID poll_border_nodes(const NodeID count, Lambda &&lambda) {
+  NodeID poll_border_nodes(const NodeID count, int id, Lambda &&lambda) {
     NodeID polled = 0;
     while (polled < count && _next_border_node < _border_nodes.size()) {
       const NodeID remaining = count - polled;
@@ -57,15 +57,7 @@ private:
 
       for (NodeID current = from; current < to; ++current) {
         const NodeID node = _border_nodes[from];
-        std::uint8_t free = 0;
-        if (__atomic_compare_exchange_n(
-                &_locked[node],
-                &free,
-                1,
-                false,
-                __ATOMIC_SEQ_CST,
-                __ATOMIC_SEQ_CST
-            )) {
+        if (lock_node(node, id)) {
           lambda(node);
           ++polled;
         }
@@ -87,7 +79,7 @@ private:
 
   parallel::Atomic<NodeID> _next_border_node;
   tbb::concurrent_vector<NodeID> _border_nodes;
-  NoinitVector<std::uint8_t> _locked;
+  NoinitVector<int> _locked;
 
   DenseGainCache _gain_cache;
 
@@ -102,6 +94,8 @@ struct Move {
 };
 
 class LocalizedFMRefiner {
+  SET_DEBUG(true);
+
 public:
   LocalizedFMRefiner(
       const int id,
@@ -121,17 +115,23 @@ public:
         _stopping_policy(_fm_ctx.alpha) {
     _stopping_policy.init(_p_graph.n());
     for (const BlockID b : _p_graph.blocks()) {
-      _vertex_pqs.emplace_back(
-          _p_ctx.n, _p_ctx.n, _fm._shared_pq_handles.data()
-      );
+      _node_pq.emplace_back(_p_ctx.n, _p_ctx.n, _fm._shared_pq_handles.data());
     }
   }
 
   EdgeWeight run() {
-    // Pool seed nodes from the border node arrays
-    _fm.poll_border_nodes(_fm_ctx.num_seed_nodes, [&](const NodeID u) {
-      insert_into_pq(_p_graph, _fm._gain_cache, u);
-    });
+    DBG << "Worker " << _id << " started next round";
+
+    // Poll seed nodes from the border node arrays
+    std::vector<NodeID> seed_nodes;
+    _fm.poll_border_nodes(
+        _fm_ctx.num_seed_nodes,
+        _id,
+        [&](const NodeID seed_node) {
+          insert_into_node_pq(_p_graph, _fm._gain_cache, seed_node);
+          seed_nodes.push_back(seed_node);
+        }
+    );
 
     // Keep track of all nodes that we lock, so that we can unlock them
     // afterwards; do not unlock seed nodes
@@ -143,18 +143,18 @@ public:
 
     while (update_block_pq() && !_stopping_policy.should_stop()) {
       const BlockID block_from = _block_pq.peek_id();
-      const NodeID node = _vertex_pqs[block_from].peek_id();
-      const EdgeWeight expected_gain = _vertex_pqs[block_from].peek_key();
+      const NodeID node = _node_pq[block_from].peek_id();
+      const EdgeWeight expected_gain = _node_pq[block_from].peek_key();
       const auto [block_to, actual_gain] =
           best_gain(_d_graph, _d_gain_cache, node);
 
       // If the gain got worse, reject the move and try again
       if (actual_gain < expected_gain) {
-        _vertex_pqs[block_from].change_priority(node, actual_gain);
+        _node_pq[block_from].change_priority(node, actual_gain);
         _fm._target_blocks[node] = block_to;
-        if (_vertex_pqs[block_from].peek_key() != _block_pq.key(block_from)) {
+        if (_node_pq[block_from].peek_key() != _block_pq.key(block_from)) {
           _block_pq.change_priority(
-              block_from, _vertex_pqs[block_from].peek_key()
+              block_from, _node_pq[block_from].peek_key()
           );
         }
 
@@ -162,7 +162,8 @@ public:
       }
 
       // Otherwise, we can remove the node from the PQ
-      _vertex_pqs[block_from].pop();
+      _node_pq[block_from].pop();
+      _fm._locked[node] = -1; // Mark as moved, won't update PQs for this node
 
       // Accept the move if the target block does not get overloaded
       const NodeWeight node_weight = _p_graph.node_weight(node);
@@ -191,24 +192,28 @@ public:
 
         for (const auto &[e, v] : _p_graph.neighbors(node)) {
           if (_fm.owner(v) == _id) {
+            KASSERT(_node_pq[_p_graph.block(v)].contains(v), "node not in PQ");
             update_after_move(v, node, block_from, block_to);
           } else if (_fm.owner(v) == 0 && _fm.lock_node(v, _id)) {
-            insert_into_pq(_d_graph, _d_gain_cache, v);
+            insert_into_node_pq(_d_graph, _d_gain_cache, v);
             touched_nodes.push_back(v);
           }
         }
       }
     }
 
-    // Unlock all nodes that were touched during this search
-    // This does not include seed nodes
-    for (const NodeID u : touched_nodes) {
-      _fm.unlock_node(u);
+    // Flush local state for the nex tround
+    for (auto &node_pq : _node_pq) {
+      node_pq.clear();
     }
 
-    // Flush local state for the nex tround
-    for (auto &vertex_pq : _vertex_pqs) {
-      vertex_pq.clear();
+    KASSERT(_fm._shared_pq_handles.size() >= _p_graph.n());
+    for (std::size_t i = 0; i < _p_graph.n(); ++i) {
+      KASSERT(
+          _fm._shared_pq_handles[i] ==
+              SharedBinaryMaxHeap<EdgeWeight>::kInvalidID,
+          V(i) << V(_p_graph.n())
+      );
     }
 
     _block_pq.clear();
@@ -216,20 +221,32 @@ public:
     _d_gain_cache.clear();
     _stopping_policy.reset();
 
+    // Unlock all nodes that were touched during this search
+    // This does not include seed nodes
+    for (const NodeID touched_node : touched_nodes) {
+      _fm.unlock_node(touched_node);
+    }
+
+    // Keep seed nodes locked for subsequent rounds
+    for (const NodeID seed_node : seed_nodes) {
+      _fm._locked[seed_node] = -1;
+    }
+
     return total_gain;
   }
 
 private:
   template <typename PartitionedGraphVariant, typename GainCache>
-  void insert_into_pq(
+  void insert_into_node_pq(
       const PartitionedGraphVariant &p_graph,
       const GainCache &gain_cache,
       const NodeID u
   ) {
     const BlockID block_u = p_graph.block(u);
     const auto [block_to, gain] = best_gain(p_graph, gain_cache, u);
+    KASSERT(!_node_pq[block_u].contains(u), "gain must be non-negative");
     _fm._target_blocks[u] = block_to;
-    _vertex_pqs[block_u].push(u, gain);
+    _node_pq[block_u].push(u, gain);
   }
 
   void update_after_move(
@@ -244,7 +261,7 @@ private:
         best_gain(_d_graph, _d_gain_cache, update_node);
 
     _fm._target_blocks[update_node] = new_block_to;
-    _vertex_pqs[block_update_node].change_priority(update_node, gain);
+    _node_pq[block_update_node].change_priority(update_node, gain);
   }
 
   template <typename PartitionedGraphVariant, typename GainCache>
@@ -293,11 +310,11 @@ private:
   bool update_block_pq() {
     bool have_more_nodes = false;
     for (const BlockID block : _p_graph.blocks()) {
-      if (!_vertex_pqs[block].empty()) {
-        const EdgeWeight gain = _vertex_pqs[block].peek_key();
+      if (!_node_pq[block].empty()) {
+        const EdgeWeight gain = _node_pq[block].peek_key();
         _block_pq.push_or_change_priority(block, gain);
         have_more_nodes = true;
-      } else {
+      } else if (_block_pq.contains(block)) {
         _block_pq.remove(block);
       }
     }
@@ -318,8 +335,8 @@ private:
 
   DeltaPartitionedGraph _d_graph;
   DeltaGainCache<DenseGainCache> _d_gain_cache;
-  BinaryMinHeap<EdgeWeight> _block_pq;
-  std::vector<SharedBinaryMaxHeap<EdgeWeight>> _vertex_pqs;
+  BinaryMaxHeap<EdgeWeight> _block_pq;
+  std::vector<SharedBinaryMaxHeap<EdgeWeight>> _node_pq;
 
   AdaptiveStoppingPolicy _stopping_policy;
 };

@@ -36,6 +36,7 @@ FMRefiner::FMRefiner(const Context &ctx)
       _gain_cache(ctx.partition.k, ctx.partition.n),
       _shared_pq_handles(ctx.partition.n),
       _target_blocks(ctx.partition.n) {
+  // Initialize shared PQ handles -- @todo clean this up
   tbb::parallel_for<std::size_t>(
       0,
       _shared_pq_handles.size(),
@@ -128,7 +129,7 @@ bool FMRefiner::has_border_nodes() const {
 }
 
 bool FMRefiner::lock_node(const NodeID u, const int id) {
-  std::uint8_t free = 0;
+  int free = 0;
   return __atomic_compare_exchange_n(
       &_locked[u], &free, id, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST
   );

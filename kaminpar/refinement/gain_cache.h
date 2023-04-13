@@ -48,7 +48,7 @@ public:
       const BlockID block_from,
       const BlockID block_to
   ) {
-    for (const auto &[v, e] : p_graph.neighbors(node)) {
+    for (const auto &[e, v] : p_graph.neighbors(node)) {
       const EdgeWeight weight = p_graph.edge_weight(e);
       if (p_graph.block(v) == block_from) {
         __atomic_fetch_sub(
@@ -120,7 +120,7 @@ private:
     std::vector<EdgeWeight> actual_external_degrees(_k, 0);
     EdgeWeight actual_weighted_degree = 0;
 
-    for (const auto &[v, e] : p_graph.neighbors(u)) {
+    for (const auto &[e, v] : p_graph.neighbors(u)) {
       const BlockID block_v = p_graph.block(v);
       const EdgeWeight weight = p_graph.edge_weight(e);
 
@@ -174,7 +174,7 @@ public:
       const BlockID block_from,
       const BlockID block_to
   ) {
-    for (const auto &[v, e] : d_graph.neighbors(u)) {
+    for (const auto &[e, v] : d_graph.neighbors(u)) {
       const EdgeWeight weight = d_graph.edge_weight(e);
       if (d_graph.block(v) == block_from) {
         _gain_cache_delta[_gain_cache.index(v, block_from)] -= weight;
