@@ -46,7 +46,7 @@ FMRefiner::FMRefiner(const Context &ctx)
 }
 
 void FMRefiner::initialize(const PartitionedGraph &p_graph) {
-  _gain_cache.initialize(*_p_graph);
+  _gain_cache.initialize(p_graph);
 }
 
 bool FMRefiner::refine(
