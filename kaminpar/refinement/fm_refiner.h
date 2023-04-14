@@ -254,24 +254,68 @@ private:
   ) {
     const BlockID block_u = p_graph.block(u);
     const auto [block_to, gain] = best_gain(p_graph, gain_cache, u);
-    KASSERT(!_node_pq[block_u].contains(u), "gain must be non-negative");
+    KASSERT(!_node_pq[block_u].contains(u), "node already contained in PQ");
     _fm._target_blocks[u] = block_to;
     _node_pq[block_u].push(u, gain);
   }
 
   void update_after_move(
-      const NodeID update_node,
+      const NodeID node,
       const NodeID moved_node,
-      const BlockID block_from,
-      const BlockID block_to
+      const BlockID moved_from,
+      const BlockID moved_to
   ) {
-    const BlockID block_update_node = _d_graph.block(update_node);
-    const BlockID old_block_to = _fm._target_blocks[update_node];
-    const auto [new_block_to, gain] =
-        best_gain(_d_graph, _d_gain_cache, update_node);
+    KASSERT(_d_graph.block(node) == _p_graph.block(node));
+    const BlockID old_block = _p_graph.block(node);
+    const BlockID old_target_block = _fm._target_blocks[node];
 
-    _fm._target_blocks[update_node] = new_block_to;
-    _node_pq[block_update_node].change_priority(update_node, gain);
+    if (moved_from == old_block) {
+      if (moved_to == old_target_block) {
+        // old_target_block is best -- UNLESS old_target_block is full now
+        _node_pq[old_block].change_priority(
+            node, _d_gain_cache.gain(node, old_block, old_target_block)
+        );
+        // @todo
+      } else {
+        // old_target_block OR moved_to is best
+      }
+    } else if (moved_from == old_target_block) {
+      // every block might be best
+      const auto [new_target_block, new_gain] =
+          best_gain(_d_graph, _d_gain_cache, node);
+      _fm._target_blocks[node] = new_target_block;
+      _node_pq[old_block].change_priority(node, new_gain);
+    } else if (moved_to == old_block) {
+      // old_target_block is best
+      _node_pq[old_block].change_priority(
+          node, _d_gain_cache.gain(node, old_block, old_target_block)
+      );
+    } else if (moved_to == old_target_block) {
+      // old_target_block is best -- UNLESS old_target_block is full now
+      _node_pq[old_block].change_priority(
+          node, _d_gain_cache.gain(node, old_block, old_target_block)
+      );
+      // @todo
+    } else {
+      // old_target_block or moved_to is best
+    }
+
+    KASSERT(
+        [&] {
+          const auto actual = best_gain(_d_graph, _d_gain_cache, node);
+          if (_fm._target_blocks[node] != actual.first) {
+            LOG_WARNING << "node " << node << " has incorrect target block";
+            return false;
+          }
+          if (_node_pq[old_block].key(node) != actual.second) {
+            LOG_WARNING << "node " << node << " has incorrect gain";
+            return false;
+          }
+          return true;
+        }(),
+        "inconsistent PQ state after node move",
+        assert::heavy
+    );
   }
 
   template <typename PartitionedGraphVariant, typename GainCache>

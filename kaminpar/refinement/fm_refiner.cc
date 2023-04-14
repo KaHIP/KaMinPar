@@ -67,7 +67,7 @@ bool FMRefiner::refine(
   EdgeWeight total_expected_gain = 0;
 
   for (int iteration = 0; iteration < _fm_ctx.num_iterations; ++iteration) {
-    SCOPED_TIMER("Iteration");
+    SCOPED_TIMER("Iteration", std::to_string(iteration));
 
     // Gains of the current iterations
     tbb::enumerable_thread_specific<EdgeWeight> expected_gain_ets;
@@ -83,7 +83,7 @@ bool FMRefiner::refine(
     // This also initializes _locked[], or resets it after the first round
     init_border_nodes();
 
-    DBG << "Starting FM iteration " << iteration << " with "
+    LOG << "Starting FM iteration " << iteration << " with "
         << _border_nodes.size() << " border nodes and "
         << tbb::this_task_arena::max_concurrency() << " worker threads";
 
@@ -116,7 +116,7 @@ bool FMRefiner::refine(
     const EdgeWeight expected_current_cut = initial_cut - total_expected_gain;
     const EdgeWeight abortion_threshold =
         expected_current_cut * _fm_ctx.improvement_abortion_threshold;
-    DBG << "Expected total gain after iteration " << iteration << ": "
+    LOG << "Expected total gain after iteration " << iteration << ": "
         << total_expected_gain
         << ", actual gain: " << initial_cut - metrics::edge_cut(*_p_graph);
 
