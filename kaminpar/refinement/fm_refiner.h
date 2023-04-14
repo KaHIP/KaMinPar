@@ -124,19 +124,23 @@ public:
   }
 
   EdgeWeight run() {
+    // Keep track of nodes that we don't want to unlock afterwards
+    std::vector<NodeID> committed_moves;
+
     // Poll seed nodes from the border node arrays
-    std::vector<NodeID> seed_nodes;
-    int polled = _fm.poll_border_nodes(
+    _fm.poll_border_nodes(
         _fm_ctx.num_seed_nodes,
         _id,
         [&](const NodeID seed_node) {
           insert_into_node_pq(_p_graph, _fm._gain_cache, seed_node);
-          seed_nodes.push_back(seed_node);
+
+          // Never unlock seed nodes, even if no move gets committed
+          committed_moves.push_back(seed_node);
         }
     );
 
-    // Keep track of all nodes that we lock, so that we can unlock them
-    // afterwards; do not unlock seed nodes
+    // Keep track of all nodes that we touched, so that we can unlock those that
+    // have not been moved afterwards
     std::vector<NodeID> touched_nodes;
 
     // Keep track of the current (expected) gain to decide when to accept a
@@ -200,6 +204,7 @@ public:
                 _p_graph, moved_node, _p_graph.block(moved_node), moved_to
             );
             _p_graph.set_block(moved_node, moved_to);
+            committed_moves.push_back(moved_node);
           }
 
           // Flush local delta
@@ -232,17 +237,17 @@ public:
     _d_gain_cache.clear();
     _stopping_policy.reset();
 
-    // Unlock all nodes that were touched during this search
-    // This does not include seed nodes
+    // @todo should be optimized with timestamping 
+
+    // Unlock all nodes that were touched, lock the moved ones for good
+    // afterwards
     for (const NodeID touched_node : touched_nodes) {
-      // @todo discuss: actually unlock or keep them locked?
-      //_fm.unlock_node(touched_node);
-      _fm._locked[touched_node] = -1;
+      _fm._locked[touched_node] = 0;
     }
 
-    // Keep seed nodes locked for subsequent rounds
-    for (const NodeID seed_node : seed_nodes) {
-      _fm._locked[seed_node] = -1;
+    // ... but keep nodes that we actually moved locked
+    for (const NodeID moved_node : committed_moves) {
+      _fm._locked[moved_node] = -1;
     }
 
     return best_total_gain;
@@ -400,7 +405,6 @@ private:
     return have_more_nodes;
   }
 
-  // Each worker has a unique ID to lock nodes for its current search
   int _id;
 
   /* Shared data structures */
