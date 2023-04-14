@@ -269,35 +269,49 @@ private:
     const BlockID old_block = _p_graph.block(node);
     const BlockID old_target_block = _fm._target_blocks[node];
 
-    if (moved_from == old_block) {
-      if (moved_to == old_target_block) {
-        // old_target_block is best -- UNLESS old_target_block is full now
+    if (moved_to == old_target_block) {
+      // In this case, old_target_block got even better
+      // We only need to consider other blocks if old_target_block is full now
+      if (_d_graph.block_weight(old_target_block) +
+              _d_graph.node_weight(node) <=
+          _p_ctx.block_weights.max(old_target_block)) {
         _node_pq[old_block].change_priority(
             node, _d_gain_cache.gain(node, old_block, old_target_block)
         );
-        // @todo
       } else {
-        // old_target_block OR moved_to is best
+        const auto [new_target_block, new_gain] =
+            best_gain(_d_graph, _d_gain_cache, node);
+        _fm._target_blocks[node] = new_target_block;
+        _node_pq[old_block].change_priority(node, new_gain);
       }
     } else if (moved_from == old_target_block) {
-      // every block might be best
+      // old_target_block go worse, thus have to re-consider all other blocks
       const auto [new_target_block, new_gain] =
           best_gain(_d_graph, _d_gain_cache, node);
       _fm._target_blocks[node] = new_target_block;
       _node_pq[old_block].change_priority(node, new_gain);
     } else if (moved_to == old_block) {
-      // old_target_block is best
+      KASSERT(moved_from != old_target_block);
+      // Since we did not move from old_target_block, this block is still the
+      // best and we can still move to that block
       _node_pq[old_block].change_priority(
           node, _d_gain_cache.gain(node, old_block, old_target_block)
       );
-    } else if (moved_to == old_target_block) {
-      // old_target_block is best -- UNLESS old_target_block is full now
-      _node_pq[old_block].change_priority(
-          node, _d_gain_cache.gain(node, old_block, old_target_block)
-      );
-      // @todo
     } else {
-      // old_target_block or moved_to is best
+      // old_target_block OR moved_to is best
+      const EdgeWeight gain_old_target_block =
+          _d_gain_cache.gain(node, old_block, old_target_block);
+      const EdgeWeight gain_moved_to =
+          _d_gain_cache.gain(node, old_block, moved_to);
+
+      if (gain_moved_to > gain_old_target_block &&
+          _d_graph.block_weight(moved_to) + _d_graph.node_weight(node) <=
+              _p_ctx.block_weights.max(moved_to)) {
+        _fm._target_blocks[node] = moved_to;
+        _node_pq[old_block].change_priority(node, gain_moved_to);
+      } else {
+        _node_pq[old_block].change_priority(node, gain_old_target_block);
+      }
     }
 
     KASSERT(
