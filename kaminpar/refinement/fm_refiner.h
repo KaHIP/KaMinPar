@@ -314,15 +314,21 @@ private:
       }
     }
 
+    // Check that PQ state is as if we had reconsidered the gains to all blocks
+    // This check only works with one thread
+    /*
     KASSERT(
         [&] {
           const auto actual = best_gain(_d_graph, _d_gain_cache, node);
-          if (_fm._target_blocks[node] != actual.first) {
-            LOG_WARNING << "node " << node << " has incorrect target block";
+          if (_node_pq[old_block].key(node) != actual.second) {
+            LOG_WARNING << "node " << node << " has incorrect gain: expected "
+                        << actual.second << ", but got "
+                        << _node_pq[old_block].key(node);
             return false;
           }
-          if (_node_pq[old_block].key(node) != actual.second) {
-            LOG_WARNING << "node " << node << " has incorrect gain";
+          if (actual.second !=
+              _d_gain_cache.gain(node, old_block, _fm._target_blocks[node])) {
+            LOG_WARNING << "node " << node << " has incorrect target block";
             return false;
           }
           return true;
@@ -330,6 +336,7 @@ private:
         "inconsistent PQ state after node move",
         assert::heavy
     );
+    */
   }
 
   template <typename PartitionedGraphVariant, typename GainCache>
