@@ -158,8 +158,8 @@ int FMRefiner::owner(const NodeID u) {
 
 void FMRefiner::unlock_node(const NodeID u) {
   __atomic_store_n(&_locked[u], 0, __ATOMIC_RELAXED);
-  if (_gain_cache.is_border_node(u, _p_graph->block(u))) {
-    _border_nodes.push_back(u);
-  }
+  //if (_gain_cache.is_border_node(u, _p_graph->block(u))) {
+  //  _border_nodes.push_back(u);
+  //}
 }
 } // namespace kaminpar::shm

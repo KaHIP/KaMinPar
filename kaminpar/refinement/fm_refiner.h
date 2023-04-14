@@ -205,6 +205,7 @@ public:
           // Flush local delta
           _d_graph.clear();
           _d_gain_cache.clear();
+          _stopping_policy.reset();
 
           best_total_gain = current_total_gain;
         }
@@ -234,7 +235,9 @@ public:
     // Unlock all nodes that were touched during this search
     // This does not include seed nodes
     for (const NodeID touched_node : touched_nodes) {
-      _fm.unlock_node(touched_node);
+      // @todo discuss: actually unlock or keep them locked?
+      //_fm.unlock_node(touched_node);
+      _fm._locked[touched_node] = -1;
     }
 
     // Keep seed nodes locked for subsequent rounds
