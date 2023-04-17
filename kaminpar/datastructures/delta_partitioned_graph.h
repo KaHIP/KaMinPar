@@ -14,9 +14,12 @@
 #include "kaminpar/definitions.h"
 
 #include "common/ranges.h"
+#include "common/scalable_vector.h"
 
 namespace kaminpar::shm {
-template <bool allow_random_access = true>
+template <
+    bool allow_random_access = true,
+    bool compact_block_weight_delta = true>
 class DeltaPartitionedGraph : public GraphDelegate {
   struct DeltaEntry {
     NodeID node;
@@ -27,7 +30,11 @@ public:
   DeltaPartitionedGraph(const PartitionedGraph *p_graph)
       : GraphDelegate(&p_graph->graph()),
         _p_graph(p_graph) {
-    _block_weights_delta.set_empty_key(kInvalidBlockID);
+    if constexpr (compact_block_weight_delta) {
+      _block_weights_delta.set_empty_key(kInvalidBlockID);
+    } else {
+      _block_weights_delta.resize(_p_graph->n());
+    }
     if constexpr (allow_random_access) {
       _partition_delta.set_empty_key(kInvalidNodeID);
     }
@@ -69,6 +76,7 @@ public:
           "node " << node << " was moved, access illegal",
           assert::heavy
       );
+
       return _p_graph->block(node);
     }
   }
@@ -107,10 +115,15 @@ public:
   }
 
   [[nodiscard]] inline NodeWeight block_weight(const BlockID block) const {
-    NodeWeight delta = 0;
-    const auto it = _block_weights_delta.find(block);
-    if (it != _block_weights_delta.end()) {
-      delta = it->second;
+    BlockWeight delta = 0;
+
+    if constexpr (compact_block_weight_delta) {
+      const auto it = _block_weights_delta.find(block);
+      if (it != _block_weights_delta.end()) {
+        delta = it->second;
+      }
+    } else {
+      delta = _block_weights_delta[block];
     }
 
     return _p_graph->block_weight(block) + delta;
@@ -121,14 +134,28 @@ public:
   }
 
   void clear() {
-    _block_weights_delta.clear();
+    if constexpr (compact_block_weight_delta) {
+      _block_weights_delta.clear();
+    } else {
+      std::fill(_block_weights_delta.begin(), _block_weights_delta.end(), 0);
+    }
+
     _partition_delta.clear();
   }
 
 private:
   const PartitionedGraph *_p_graph;
 
-  google::dense_hash_map<BlockID, NodeWeight> _block_weights_delta;
+  // Depending on the configuration, use a hash map to be memory efficient,
+  // otherwise store the block weight deltas in vector (i.e., O(P * k) memory).
+  std::conditional_t<
+      compact_block_weight_delta,
+      google::dense_hash_map<BlockID, NodeWeight>,
+      scalable_vector<BlockWeight>>
+      _block_weights_delta;
+
+  // If we need random access to the partition delta, use a hash map. Otherwise,
+  // we can just store the moves in a vector.
   std::conditional_t<
       allow_random_access,
       google::dense_hash_map<NodeID, BlockID>,

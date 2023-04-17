@@ -323,7 +323,7 @@ private:
     }
 
     // Check that PQ state is as if we had reconsidered the gains to all blocks
-    // This check only works with one thread
+    // This is only a valid assertion if we only use one thread.
     /*
     KASSERT(
         [&] {
@@ -416,7 +416,7 @@ private:
 
   /* Thread-local data structures */
 
-  DeltaPartitionedGraph<false> _d_graph;
+  DeltaPartitionedGraph<true, true> _d_graph;
   DeltaGainCache<DenseGainCache> _d_gain_cache;
   BinaryMaxHeap<EdgeWeight> _block_pq;
   std::vector<SharedBinaryMaxHeap<EdgeWeight>> _node_pq;
