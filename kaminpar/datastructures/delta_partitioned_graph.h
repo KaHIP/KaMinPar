@@ -18,7 +18,10 @@
 
 namespace kaminpar::shm {
 template <
+    // If false, block(NodeID) may only be called on nodes that were not moved.
     bool allow_random_access = true,
+    // If false, store the block weight changes in a vector of size k, otherwise
+    // use a hash map.
     bool compact_block_weight_delta = true>
 class DeltaPartitionedGraph : public GraphDelegate {
   struct DeltaEntry {
