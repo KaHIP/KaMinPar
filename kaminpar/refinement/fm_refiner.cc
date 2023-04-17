@@ -30,14 +30,14 @@ SET_STATISTICS(true);
 
 namespace {
 struct Stats {
-  parallel::Atomic<NodeID> num_touched_nodes;
-  parallel::Atomic<NodeID> num_committed_moves;
-  parallel::Atomic<NodeID> num_discarded_moves;
-  parallel::Atomic<NodeID> num_recomputed_gains;
-  parallel::Atomic<NodeID> num_batches;
-  parallel::Atomic<NodeID> num_pq_inserts;
-  parallel::Atomic<NodeID> num_pq_updates;
-  parallel::Atomic<NodeID> num_pq_pops;
+  parallel::Atomic<NodeID> num_touched_nodes = 0;
+  parallel::Atomic<NodeID> num_committed_moves = 0;
+  parallel::Atomic<NodeID> num_discarded_moves = 0;
+  parallel::Atomic<NodeID> num_recomputed_gains = 0;
+  parallel::Atomic<NodeID> num_batches = 0;
+  parallel::Atomic<NodeID> num_pq_inserts = 0;
+  parallel::Atomic<NodeID> num_pq_updates = 0;
+  parallel::Atomic<NodeID> num_pq_pops = 0;
 
   Stats &operator+=(const Stats &other) {
     num_touched_nodes += other.num_touched_nodes;
@@ -76,12 +76,15 @@ struct GlobalStats {
     LOG_STATS << "FM Refinement:";
     for (std::size_t i = 0; i < iteration_stats.size(); ++i) {
       const Stats &stats = iteration_stats[i];
+      if (stats.num_batches == 0) {
+        continue;
+      }
 
-      LOG_STATS << "  * Iteration " << (i + 1) << " of "
-                << iteration_stats.size() << ":";
+      LOG_STATS << "  * Iteration " << (i + 1) << ":";
       LOG_STATS << "    + Number of batches: " << stats.num_batches;
       LOG_STATS << "    + Number of touched nodes: " << stats.num_touched_nodes
-                << " in total, " << stats.num_touched_nodes / stats.num_batches
+                << " in total, "
+                << 1.0 * stats.num_touched_nodes / stats.num_batches
                 << " per batch";
       LOG_STATS << "    + Number of moves: " << stats.num_committed_moves
                 << " committed, " << stats.num_discarded_moves
@@ -331,6 +334,7 @@ EdgeWeight LocalizedFMRefiner::run_batch() {
 
   // Statistics for this batch only, to be merged into the global stats
   Stats stats;
+  IFSTATS(stats.num_batches = 1);
 
   // Poll seed nodes from the border node arrays
   _shared.border_nodes
