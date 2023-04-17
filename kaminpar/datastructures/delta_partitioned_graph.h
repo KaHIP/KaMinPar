@@ -7,6 +7,7 @@
 #pragma once
 
 #include <google/dense_hash_map>
+#include <type_traits>
 
 #include "kaminpar/datastructures/graph.h"
 #include "kaminpar/datastructures/partitioned_graph.h"
@@ -15,13 +16,21 @@
 #include "common/ranges.h"
 
 namespace kaminpar::shm {
+template <bool allow_random_access = true>
 class DeltaPartitionedGraph : public GraphDelegate {
+  struct DeltaEntry {
+    NodeID node;
+    BlockID block;
+  };
+
 public:
   DeltaPartitionedGraph(const PartitionedGraph *p_graph)
       : GraphDelegate(&p_graph->graph()),
         _p_graph(p_graph) {
     _block_weights_delta.set_empty_key(kInvalidBlockID);
-    _partition_delta.set_empty_key(kInvalidNodeID);
+    if constexpr (allow_random_access) {
+      _partition_delta.set_empty_key(kInvalidNodeID);
+    }
   }
 
   [[nodiscard]] const PartitionedGraph &p_graph() const {
@@ -43,12 +52,25 @@ public:
   }
 
   [[nodiscard]] inline BlockID block(const NodeID node) const {
-    const auto it = _partition_delta.find(node);
-    if (it != _partition_delta.end()) {
-      return it->second;
-    }
+    if constexpr (allow_random_access) {
+      const auto it = _partition_delta.find(node);
+      if (it != _partition_delta.end()) {
+        return it->second;
+      }
 
-    return _p_graph->block(node);
+      return _p_graph->block(node);
+    } else {
+      KASSERT(
+          std::find_if(
+              _partition_delta.begin(),
+              _partition_delta.end(),
+              [&](const DeltaEntry &entry) { return entry.node == node; }
+          ) == _partition_delta.end(),
+          "node " << node << " was moved, access illegal",
+          assert::heavy
+      );
+      return _p_graph->block(node);
+    }
   }
 
   template <bool update_block_weight = true>
@@ -67,7 +89,21 @@ public:
       _block_weights_delta[new_block] += node_weight(node);
     }
 
-    _partition_delta[node] = new_block;
+    if constexpr (allow_random_access) {
+      _partition_delta[node] = new_block;
+    } else {
+      KASSERT(
+          std::find_if(
+              _partition_delta.begin(),
+              _partition_delta.end(),
+              [&](const DeltaEntry &entry) { return entry.node == node; }
+          ) == _partition_delta.end(),
+          "node " << node << " already in delta",
+          assert::heavy
+      );
+
+      _partition_delta.push_back({node, new_block});
+    }
   }
 
   [[nodiscard]] inline NodeWeight block_weight(const BlockID block) const {
@@ -93,7 +129,11 @@ private:
   const PartitionedGraph *_p_graph;
 
   google::dense_hash_map<BlockID, NodeWeight> _block_weights_delta;
-  google::dense_hash_map<NodeID, BlockID> _partition_delta;
+  std::conditional_t<
+      allow_random_access,
+      google::dense_hash_map<NodeID, BlockID>,
+      std::vector<DeltaEntry>>
+      _partition_delta;
 };
 } // namespace kaminpar::shm
 

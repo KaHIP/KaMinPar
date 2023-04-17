@@ -237,7 +237,7 @@ public:
     _d_gain_cache.clear();
     _stopping_policy.reset();
 
-    // @todo should be optimized with timestamping 
+    // @todo should be optimized with timestamping
 
     // Unlock all nodes that were touched, lock the moved ones for good
     // afterwards
@@ -273,7 +273,7 @@ private:
       const BlockID moved_from,
       const BlockID moved_to
   ) {
-    KASSERT(_d_graph.block(node) == _p_graph.block(node));
+    //KASSERT(_d_graph.block(node) == _p_graph.block(node));
     const BlockID old_block = _p_graph.block(node);
     const BlockID old_target_block = _fm._target_blocks[node];
 
@@ -416,7 +416,7 @@ private:
 
   /* Thread-local data structures */
 
-  DeltaPartitionedGraph _d_graph;
+  DeltaPartitionedGraph<false> _d_graph;
   DeltaGainCache<DenseGainCache> _d_gain_cache;
   BinaryMaxHeap<EdgeWeight> _block_pq;
   std::vector<SharedBinaryMaxHeap<EdgeWeight>> _node_pq;

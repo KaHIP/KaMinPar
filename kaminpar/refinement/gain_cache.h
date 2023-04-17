@@ -167,8 +167,9 @@ public:
     return _gain_cache.gain(node, from, to) + delta_to - delta_from;
   }
 
+  template <typename DeltaPartitionedGraphType>
   void move(
-      const DeltaPartitionedGraph &d_graph,
+      const DeltaPartitionedGraphType &d_graph,
       const NodeID u,
       const BlockID block_from,
       const BlockID block_to
