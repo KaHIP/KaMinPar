@@ -23,14 +23,14 @@ template <
     // If false, store the block weight changes in a vector of size k, otherwise
     // use a hash map.
     bool compact_block_weight_delta = true>
-class DeltaPartitionedGraph : public GraphDelegate {
+class GenericDeltaPartitionedGraph : public GraphDelegate {
   struct DeltaEntry {
     NodeID node;
     BlockID block;
   };
 
 public:
-  DeltaPartitionedGraph(const PartitionedGraph *p_graph)
+  GenericDeltaPartitionedGraph(const PartitionedGraph *p_graph)
       : GraphDelegate(&p_graph->graph()),
         _p_graph(p_graph) {
     if constexpr (compact_block_weight_delta) {
@@ -165,5 +165,7 @@ private:
       std::vector<DeltaEntry>>
       _partition_delta;
 };
+
+using DeltaPartitionedGraph = GenericDeltaPartitionedGraph<true, true>;
 } // namespace kaminpar::shm
 
