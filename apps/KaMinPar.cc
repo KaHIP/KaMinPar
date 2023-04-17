@@ -59,9 +59,9 @@ void setup_context(CLI::App &cli, ApplicationContext &app, Context &ctx) {
   )
       ->check(CLI::IsMember(get_preset_names()))
       ->description(R"(Use configuration preset:
-  - default, fast: default parameters
-  - largek:        use Mt-KaHyPar for initial partitioning and more label propagation iterations)"
-      );
+  - default, fast: fastest, but lower quality (LP only)
+  - strong:        slower, but higher quality (LP + FM)
+  - largek:        tuned for k > 1024-ish)");
 
   // Mandatory
   auto *mandatory = cli.add_option_group("Application")->require_option(1);

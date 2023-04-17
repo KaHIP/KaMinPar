@@ -18,8 +18,8 @@ Context create_context_by_preset_name(const std::string &name) {
     return create_default_context();
   } else if (name == "largek") {
     return create_largek_context();
-  } else if (name == "fm") {
-    return create_fm_context();
+  } else if (name == "strong") {
+    return create_strong_context();
   }
 
   throw std::runtime_error("invalid preset name");
@@ -30,7 +30,7 @@ std::unordered_set<std::string> get_preset_names() {
       "default",
       "fast",
       "largek",
-      "fm",
+      "strong",
   };
 }
 
@@ -163,7 +163,7 @@ Context create_largek_context() {
   return ctx;
 }
 
-Context create_fm_context() {
+Context create_strong_context() {
   Context ctx = create_default_context();
   ctx.refinement.algorithms = {
       RefinementAlgorithm::GREEDY_BALANCER,

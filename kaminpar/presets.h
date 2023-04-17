@@ -14,5 +14,5 @@
 #include "kaminpar/context.h"
 
 namespace kaminpar::shm {
-Context create_fm_context();
+Context create_strong_context();
 } // namespace kaminpar::shm

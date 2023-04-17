@@ -57,10 +57,10 @@ void setup_context(CLI::App &cli, ApplicationContext &app, Context &ctx) {
   )
       ->check(CLI::IsMember(get_preset_names()))
       ->description(R"(Use configuration preset:
-  - default, fast: default parameters
-  - strong:        use Mt-KaHyPar for initial partitioning and more label propagation iterations
-  - tr-fast:       dKaMinPar-Fast from the technical report
-  - tr-strong:     dKaMinPar-Strong from the technical report)");
+  - default, fast: fastest, but lower quality (LP + IP via KaMinPar)
+  - strong:        slower, but higher quality (LP + IP via Mt-KaHyPar)
+  - tr-fast:       dKaMinPar-Fast configuration evaluated in the TR
+  - tr-strong:     dKaMinPar-Strong configuration evaluated in the TR)");
 
   // Mandatory
   auto *mandatory = cli.add_option_group("Application")->require_option(1);
@@ -181,10 +181,9 @@ int main(int argc, char *argv[]) {
         auto format = str::ends_with(app.graph_filename, "bgf")
                           ? kagen::FileFormat::PARHIP
                           : kagen::FileFormat::METIS;
-        auto distribution =
-            app.load_edge_balanced
-                ? kagen::GraphDistribution::BALANCE_EDGES
-                : kagen::GraphDistribution::BALANCE_VERTICES;
+        auto distribution = app.load_edge_balanced
+                                ? kagen::GraphDistribution::BALANCE_EDGES
+                                : kagen::GraphDistribution::BALANCE_VERTICES;
         return generator.ReadFromFile(app.graph_filename, format, distribution);
       }
     }();
