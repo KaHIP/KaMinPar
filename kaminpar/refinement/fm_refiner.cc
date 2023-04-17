@@ -29,23 +29,38 @@ SET_STATISTICS(true);
 } // namespace
 
 namespace {
-static constexpr std::size_t kNumTouchedNodes = 0;
-static constexpr std::size_t kNumCommittedMoves = 1;
-static constexpr std::size_t kNumDiscardedMoves = 2;
-static constexpr std::size_t kNumRecomputedGains = 3;
-static constexpr std::size_t kNumBatches = 4;
-static constexpr std::size_t kNumPQInserts = 5;
-static constexpr std::size_t kNumPQPops = 7;
-static constexpr std::size_t kNumPQUpdates = 6;
+struct Stats {
+  parallel::Atomic<NodeID> num_touched_nodes;
+  parallel::Atomic<NodeID> num_committed_moves;
+  parallel::Atomic<NodeID> num_discarded_moves;
+  parallel::Atomic<NodeID> num_recomputed_gains;
+  parallel::Atomic<NodeID> num_batches;
+  parallel::Atomic<NodeID> num_pq_inserts;
+  parallel::Atomic<NodeID> num_pq_updates;
+  parallel::Atomic<NodeID> num_pq_pops;
 
-using FMStats =
-    std::tuple<NodeID, NodeID, NodeID, NodeID, NodeID, NodeID, NodeID>;
+  Stats &operator+=(const Stats &other) {
+    num_touched_nodes += other.num_touched_nodes;
+    num_committed_moves += other.num_committed_moves;
+    num_discarded_moves += other.num_discarded_moves;
+    num_recomputed_gains += other.num_recomputed_gains;
+    num_batches += other.num_batches;
+    num_pq_inserts += other.num_pq_inserts;
+    num_pq_updates += other.num_pq_updates;
+    num_pq_pops += other.num_pq_pops;
+    return *this;
+  }
+};
 
-struct GlobalFMStats {
-  std::vector<FMStats> iteration_stats;
+struct GlobalStats {
+  std::vector<Stats> iteration_stats;
 
-  GlobalFMStats() {
+  GlobalStats() {
     next_iteration();
+  }
+
+  void add(const Stats &stats) {
+    iteration_stats.back() += stats;
   }
 
   void next_iteration() {
@@ -55,6 +70,31 @@ struct GlobalFMStats {
   void reset() {
     iteration_stats.clear();
     next_iteration();
+  }
+
+  void summarize() {
+    LOG_STATS << "FM Refinement:";
+    for (std::size_t i = 0; i < iteration_stats.size(); ++i) {
+      const Stats &stats = iteration_stats[i];
+
+      LOG_STATS << "  * Iteration " << (i + 1) << " of "
+                << iteration_stats.size() << ":";
+      LOG_STATS << "    + Number of batches: " << stats.num_batches;
+      LOG_STATS << "    + Number of touched nodes: " << stats.num_touched_nodes
+                << " in total, " << stats.num_touched_nodes / stats.num_batches
+                << " per batch";
+      LOG_STATS << "    + Number of moves: " << stats.num_committed_moves
+                << " committed, " << stats.num_discarded_moves
+                << " discarded (= "
+                << 100.0 * stats.num_discarded_moves /
+                       (stats.num_committed_moves + stats.num_discarded_moves)
+                << "%)";
+      LOG_STATS << "    + Number of recomputed gains: "
+                << stats.num_recomputed_gains;
+      LOG_STATS << "    + Number of PQ operations: " << stats.num_pq_inserts
+                << " inserts, " << stats.num_pq_updates << " updates, "
+                << stats.num_pq_pops << " pops";
+    }
   }
 };
 } // namespace
@@ -169,6 +209,7 @@ struct SharedData {
   BorderNodes border_nodes;
   NoinitVector<std::size_t> shared_pq_handles;
   NoinitVector<BlockID> target_blocks;
+  GlobalStats stats;
 };
 } // namespace fm
 
@@ -210,7 +251,7 @@ bool FMRefiner::refine(
     // Find current border nodes
     _shared->border_nodes.init(p_graph);
 
-    LOG << "Starting FM iteration " << iteration << " with "
+    DBG << "Starting FM iteration " << iteration << " with "
         << _shared->border_nodes.size() << " border nodes and "
         << tbb::this_task_arena::max_concurrency() << " worker threads";
 
@@ -243,7 +284,7 @@ bool FMRefiner::refine(
     const EdgeWeight expected_current_cut = initial_cut - total_expected_gain;
     const EdgeWeight abortion_threshold =
         expected_current_cut * _fm_ctx->improvement_abortion_threshold;
-    LOG << "Expected total gain after iteration " << iteration << ": "
+    DBG << "Expected total gain after iteration " << iteration << ": "
         << total_expected_gain
         << ", actual gain: " << initial_cut - metrics::edge_cut(p_graph);
 
@@ -252,7 +293,12 @@ bool FMRefiner::refine(
           << abortion_threshold;
       break;
     }
+
+    IFSTATS(_shared->stats.next_iteration());
   }
+
+  IFSTATS(_shared->stats.summarize());
+  IFSTATS(_shared->stats.reset());
 
   return total_expected_gain;
 }
@@ -283,6 +329,9 @@ EdgeWeight LocalizedFMRefiner::run_batch() {
   // Keep track of nodes that we don't want to unlock afterwards
   std::vector<NodeID> committed_moves;
 
+  // Statistics for this batch only, to be merged into the global stats
+  Stats stats;
+
   // Poll seed nodes from the border node arrays
   _shared.border_nodes
       .poll(_fm_ctx.num_seed_nodes, _id, [&](const NodeID seed_node) {
@@ -290,6 +339,7 @@ EdgeWeight LocalizedFMRefiner::run_batch() {
 
         // Never unlock seed nodes, even if no move gets committed
         committed_moves.push_back(seed_node);
+        IFSTATS(++stats.num_touched_nodes);
       });
 
   // Keep track of all nodes that we touched, so that we can unlock those that
@@ -320,12 +370,14 @@ EdgeWeight LocalizedFMRefiner::run_batch() {
         _block_pq.change_priority(block_from, _node_pq[block_from].peek_key());
       }
 
+      IFSTATS(++stats.num_recomputed_gains);
       continue;
     }
 
     // Otherwise, we can remove the node from the PQ
     _node_pq[block_from].pop();
     _shared.node_tracker.set(node, -1);
+    IFSTATS(++stats.num_pq_pops);
 
     // Skip the move if there is no viable target block
     if (block_to == block_from) {
@@ -346,8 +398,8 @@ EdgeWeight LocalizedFMRefiner::run_batch() {
       // If we found a new local minimum, apply the moves to the global
       // partition
       if (current_total_gain > best_total_gain) {
-        DBG << "Worker " << _id << " committed local improvement with gain "
-            << current_total_gain;
+        // DBG << "Worker " << _id << " committed local improvement with gain "
+        //     << current_total_gain;
 
         // Update global graph and global gain cache
         for (const auto &[moved_node, moved_to] : _d_graph.delta()) {
@@ -356,6 +408,7 @@ EdgeWeight LocalizedFMRefiner::run_batch() {
           );
           _p_graph.set_block(moved_node, moved_to);
           committed_moves.push_back(moved_node);
+          IFSTATS(++stats.num_committed_moves);
         }
 
         // Flush local delta
@@ -370,13 +423,19 @@ EdgeWeight LocalizedFMRefiner::run_batch() {
         if (_shared.node_tracker.owner(v) == _id) {
           KASSERT(_node_pq[_p_graph.block(v)].contains(v), "node not in PQ");
           update_after_move(v, node, block_from, block_to);
+          IFSTATS(++stats.num_pq_updates);
         } else if (_shared.node_tracker.owner(v) == 0 && _shared.node_tracker.lock(v, _id)) {
           insert_into_node_pq(_d_graph, _d_gain_cache, v);
+          IFSTATS(++stats.num_pq_inserts);
+
           touched_nodes.push_back(v);
+          IFSTATS(++stats.num_touched_nodes);
         }
       }
     }
   }
+
+  IFSTATS(stats.num_discarded_moves += _d_graph.delta().size());
 
   // Flush local state for the nex tround
   for (auto &node_pq : _node_pq) {
@@ -401,6 +460,7 @@ EdgeWeight LocalizedFMRefiner::run_batch() {
     _shared.node_tracker.set(moved_node, -1);
   }
 
+  IFSTATS(_shared.stats.add(stats));
   return best_total_gain;
 }
 
