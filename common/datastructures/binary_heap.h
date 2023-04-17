@@ -15,6 +15,7 @@
 
 #include "common/noinit_vector.h"
 #include "common/preallocated_vector.h"
+#include "common/scalable_vector.h"
 
 namespace kaminpar {
 namespace binary_heap {
@@ -69,13 +70,10 @@ class SharedBinaryHeap {
 public:
   static constexpr ID kInvalidID = std::numeric_limits<ID>::max();
 
-  explicit SharedBinaryHeap(
-      const ID shared_capacity, const ID local_capacity, std::size_t *handles
-  )
+  explicit SharedBinaryHeap(const ID shared_capacity, std::size_t *handles)
       : _capacity(shared_capacity),
-        _heap(local_capacity),
-        _id_pos(handles),
-        _size(0) {}
+        _heap(),
+        _id_pos(handles) {}
 
   SharedBinaryHeap(const SharedBinaryHeap &) = delete;
   SharedBinaryHeap &operator=(const SharedBinaryHeap &) = delete;
@@ -84,19 +82,15 @@ public:
   SharedBinaryHeap &operator=(SharedBinaryHeap &&) noexcept = default;
 
   [[nodiscard]] bool empty() const {
-    return _size == 0;
+    return _heap.empty();
   }
 
   [[nodiscard]] std::size_t size() const {
-    return _size;
+    return _heap.size();
   }
 
   [[nodiscard]] std::size_t shared_capacity() const {
     return _capacity;
-  }
-
-  [[nodiscard]] std::size_t local_capacity() const {
-    return _heap.size();
   }
 
   [[nodiscard]] bool contains(const ID id) const {
@@ -128,19 +122,17 @@ public:
 
   void pop() {
     KASSERT(!empty());
-    --_size;
-    std::swap(_heap.front(), _heap[_size]);
-    _id_pos[_heap[0].id] = 0;
-    _id_pos[_heap[_size].id] = kInvalidID;
+    std::swap(_heap.front(), _heap.back());
+    _id_pos[_heap.front().id] = 0;
+    _id_pos[_heap.back().id] = kInvalidID;
+    _heap.pop_back();
     sift_down(0);
   }
 
   void push(const ID id, const Key &key) {
     KASSERT(!contains(id));
-    KASSERT(size() < _heap.size());
-    const std::size_t pos = _size;
-    ++_size;
-    _heap[pos] = {id, key};
+    const std::size_t pos = size();
+    _heap.emplace_back(id, key);
     _id_pos[id] = pos;
     sift_up(pos);
   }
@@ -163,10 +155,10 @@ public:
   }
 
   void clear() {
-    for (std::size_t i = 0; i < _size; ++i) {
-      _id_pos[_heap[i].id] = kInvalidID;
+    for (const auto &entry : _heap) {
+      _id_pos[entry.id] = kInvalidID;
     }
-    _size = 0;
+    _heap.clear();
   }
 
   // *NOTE*: "decrease" is in respect to the priority
@@ -195,7 +187,7 @@ public:
   }
 
   void resize(std::size_t) {
-    KASSERT(false, "cannot be resized", assert::always);
+    throw std::runtime_error("cannot be resized");
   }
 
 private:
@@ -220,12 +212,13 @@ private:
   void sift_down(std::size_t pos) {
     while (true) {
       const std::size_t first_child = kTreeArity * pos + 1;
-      if (first_child >= _size)
+      if (first_child >= size()) {
         return;
+      }
 
       std::size_t smallest_child = first_child;
       for (std::size_t c = first_child + 1;
-           c < std::min(kTreeArity * pos + kTreeArity + 1, _size);
+           c < std::min(kTreeArity * pos + kTreeArity + 1, size());
            ++c) {
         if (_comparator(_heap[smallest_child].key, _heap[c].key)) {
           smallest_child = c;
@@ -244,9 +237,8 @@ private:
   }
 
   ID _capacity;
-  std::vector<HeapElement> _heap;
+  scalable_vector<HeapElement> _heap;
   std::size_t *_id_pos;
-  std::size_t _size;
   Comparator<Key> _comparator{};
 };
 

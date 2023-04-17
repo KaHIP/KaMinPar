@@ -343,7 +343,7 @@ LocalizedFMRefiner::LocalizedFMRefiner(
       _stopping_policy(_fm_ctx.alpha) {
   _stopping_policy.init(_p_graph.n());
   for (const BlockID b : _p_graph.blocks()) {
-    _node_pq.emplace_back(_p_ctx.n, _p_ctx.n, _shared.shared_pq_handles.data());
+    _node_pq.emplace_back(_p_ctx.n, _shared.shared_pq_handles.data());
   }
 }
 

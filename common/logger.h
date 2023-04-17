@@ -85,7 +85,7 @@
    << kaminpar::logger::RED << "[Fatal] ")
 
 #define LOG_STATS                                                              \
-  (kaminpar::Logger(std::cout) << kaminpar::logger::CYAN << "[Statistics ]")
+  (kaminpar::Logger(std::cout) << kaminpar::logger::CYAN << "[Statistics] ")
 #define LOG_LSTATS (kaminpar::Logger(std::cout, "") << kaminpar::logger::CYAN)
 
 // V(x) prints x<space><value of x><space>, e.g., use LOG << V(a) << V(b) <<

@@ -92,7 +92,7 @@ private:
   DeltaPartitionedGraph _d_graph;                        // O(|Delta|) space
   DeltaGainCache<DenseGainCache> _d_gain_cache;          // O(|Delta|) space
   BinaryMaxHeap<EdgeWeight> _block_pq;                   // O(k) space
-  std::vector<SharedBinaryMaxHeap<EdgeWeight>> _node_pq; // O(kn) space
+  std::vector<SharedBinaryMaxHeap<EdgeWeight>> _node_pq; // O(k + |Touched|) space
 
   AdaptiveStoppingPolicy _stopping_policy;
 };
