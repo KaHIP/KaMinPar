@@ -8,22 +8,15 @@
 
 #include <cmath>
 
-#include <tbb/concurrent_vector.h>
-#include <tbb/enumerable_thread_specific.h>
-
 #include "kaminpar/context.h"
 #include "kaminpar/datastructures/delta_partitioned_graph.h"
 #include "kaminpar/datastructures/graph.h"
 #include "kaminpar/datastructures/partitioned_graph.h"
-#include "kaminpar/metrics.h"
 #include "kaminpar/refinement/gain_cache.h"
 #include "kaminpar/refinement/refiner.h"
 #include "kaminpar/refinement/stopping_policies.h"
 
 #include "common/datastructures/binary_heap.h"
-#include "common/datastructures/marker.h"
-#include "common/noinit_vector.h"
-#include "common/parallel/atomic.h"
 
 namespace kaminpar::shm {
 namespace fm {

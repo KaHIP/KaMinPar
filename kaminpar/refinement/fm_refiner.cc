@@ -24,7 +24,7 @@
 
 namespace kaminpar::shm {
 namespace {
-SET_DEBUG(true);
+SET_DEBUG(false);
 SET_STATISTICS(true);
 } // namespace
 
@@ -240,6 +240,18 @@ bool FMRefiner::refine(
   // delta graphs
   EdgeWeight total_expected_gain = 0;
 
+  // Create thread-local workers numbered 1..P
+  std::atomic<int> next_id = 0;
+  tbb::enumerable_thread_specific<LocalizedFMRefiner> localized_fm_refiner_ets(
+      [&] {
+        // It is important that worker IDs start at 1, otherwise the node
+        // tracker won't work
+        return LocalizedFMRefiner(
+            ++next_id, p_ctx, *_fm_ctx, p_graph, *_shared
+        );
+      }
+  );
+
   for (int iteration = 0; iteration < _fm_ctx->num_iterations; ++iteration) {
     // Gains of the current iterations
     tbb::enumerable_thread_specific<EdgeWeight> expected_gain_ets;
@@ -252,31 +264,38 @@ bool FMRefiner::refine(
     );
 
     // Find current border nodes
+    START_TIMER("Initialize border nodes");
     _shared->border_nodes.init(p_graph);
+    STOP_TIMER();
 
     DBG << "Starting FM iteration " << iteration << " with "
         << _shared->border_nodes.size() << " border nodes and "
         << tbb::this_task_arena::max_concurrency() << " worker threads";
 
     // Start one worker per thread
-    std::atomic<int> next_id = 0;
+    START_TIMER("Localized searches");
     tbb::parallel_for<int>(
         0,
         tbb::this_task_arena::max_concurrency(),
         [&](int) {
           EdgeWeight &expected_gain = expected_gain_ets.local();
-          LocalizedFMRefiner localized_fm(
-              ++next_id, p_ctx, *_fm_ctx, p_graph, *_shared
-          );
+          LocalizedFMRefiner &localized_refiner =
+              localized_fm_refiner_ets.local();
 
           // The workers attempt to extract seed nodes from the border nodes
           // that are still available, continuing this process until there are
           // no more border nodes
+          NodeID num_batches = 0;
           while (_shared->border_nodes.has_more()) {
-            expected_gain += localized_fm.run_batch();
+            IFDBG(++num_batches);
+            expected_gain += localized_refiner.run_batch();
           }
+
+          DBG << "CPU " << sched_getcpu() << " ran " << num_batches
+              << " batches";
         }
     );
+    STOP_TIMER();
 
     // Abort early if the expected cut improvement falls below the abortion
     // threshold
@@ -334,7 +353,7 @@ EdgeWeight LocalizedFMRefiner::run_batch() {
 
   // Statistics for this batch only, to be merged into the global stats
   Stats stats;
-  IFSTATS(stats.num_batches = 1);
+  IFSTATS(++stats.num_batches);
 
   // Poll seed nodes from the border node arrays
   _shared.border_nodes
