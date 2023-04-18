@@ -45,11 +45,11 @@ private:
   inline void extend_partition(PartitionedGraph &p_graph, BlockID k_prime);
 
   const Graph *coarsen();
+
   NodeID initial_partitioning_threshold();
+
   PartitionedGraph initial_partition(const Graph *graph);
-  PartitionedGraph
-  parallel_initial_partition(const Graph * /* use _coarsener */);
-  PartitionedGraph sequential_initial_partition(const Graph *graph);
+
   void print_statistics();
 
   const Graph &_input_graph;

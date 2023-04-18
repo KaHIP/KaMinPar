@@ -19,6 +19,7 @@ void create_all_options(CLI::App *app, Context &ctx) {
   create_initial_fm_refinement_options(app, ctx);
   create_refinement_options(app, ctx);
   create_lp_refinement_options(app, ctx);
+  create_debug_options(app, ctx);
 }
 
 CLI::Option_group *create_partitioning_options(CLI::App *app, Context &ctx) {
@@ -254,7 +255,8 @@ create_initial_fm_refinement_options(CLI::App *app, Context &ctx) {
       ->capture_default_str();
   fm->add_option(
         "--i-r-fm-abortion-threshold",
-        ctx.initial_partitioning.refinement.twoway_fm.improvement_abortion_threshold,
+        ctx.initial_partitioning.refinement.twoway_fm
+            .improvement_abortion_threshold,
         "Stop FM iterations if the previous iteration improved the edge cut "
         "below this threshold."
   )
@@ -301,4 +303,40 @@ CLI::Option_group *create_lp_refinement_options(CLI::App *app, Context &ctx) {
 
   return lp;
 }
+
+CLI::Option_group *create_debug_options(CLI::App *app, Context &ctx) {
+  auto *debug = app->add_option_group("Debug");
+
+  debug
+      ->add_flag(
+          "--d-dump-coarsest-graph",
+          ctx.debug.dump_coarsest_graph,
+          "Dump the coarsest graph to disk"
+      )
+      ->capture_default_str();
+  debug
+      ->add_flag(
+          "--d-dump-coarsest-partition",
+          ctx.debug.dump_coarsest_partition,
+          "Dump the coarsest partition to disk"
+      )
+      ->capture_default_str();
+  debug
+      ->add_flag(
+          "--d-dump-graph-hierarchy",
+          ctx.debug.dump_graph_hierarchy,
+          "Dump the graph hierarchy to disk"
+      )
+      ->capture_default_str();
+  debug
+      ->add_flag(
+          "--d-dump-partition-hierarchy",
+          ctx.debug.dump_partition_hierarchy,
+          "Dump the partition hierarchy to disk"
+      )
+      ->capture_default_str();
+
+  return debug;
+}
+
 } // namespace kaminpar::shm

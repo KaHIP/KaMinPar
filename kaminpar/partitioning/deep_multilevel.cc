@@ -6,6 +6,7 @@
  ******************************************************************************/
 #include "kaminpar/partitioning/deep_multilevel.h"
 
+#include "kaminpar/debug.h"
 #include "kaminpar/partitioning/async_initial_partitioning.h"
 #include "kaminpar/partitioning/sync_initial_partitioning.h"
 
@@ -54,11 +55,21 @@ DeepMultilevelPartitioner::uncoarsen_once(PartitionedGraph p_graph) {
 }
 
 void DeepMultilevelPartitioner::refine(PartitionedGraph &p_graph) {
+  // If requested, dump the current partition to disk before refinement ...
+  debug::dump_partition_hierarchy(
+      p_graph, _coarsener->size(), "pre-refinement", _input_ctx.debug
+  );
+
   LOG << "  Running refinement on " << p_graph.k() << " blocks";
   helper::refine(_refiner.get(), p_graph, _current_p_ctx);
   LOG << "    Cut:       " << metrics::edge_cut(p_graph);
   LOG << "    Imbalance: " << metrics::imbalance(p_graph);
   LOG << "    Feasible:  " << metrics::is_feasible(p_graph, _current_p_ctx);
+
+  // ... and dump it after refinement.
+  debug::dump_partition_hierarchy(
+      p_graph, _coarsener->size(), "post-refinement", _input_ctx.debug
+  );
 }
 
 void DeepMultilevelPartitioner::extend_partition(
@@ -108,6 +119,10 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
     );
     c_graph = _coarsener->coarsest_graph();
 
+    // If requested, dump all graphs of the graph hierarchy to disk
+    debug::dump_graph_hierarchy(*c_graph, _coarsener->size(), _input_ctx.debug);
+
+    // Print some metrics for the coarse graphs
     const NodeWeight max_cluster_weight = compute_max_cluster_weight(
         *c_graph, _input_ctx.partition, _input_ctx.coarsening
     );
@@ -145,12 +160,41 @@ PartitionedGraph DeepMultilevelPartitioner::initial_partition(const Graph *graph
   SCOPED_TIMER("Initial partitioning scheme");
   LOG << "Initial partitioning:";
 
-  PartitionedGraph p_graph =
-      helper::parallel_ip_mode(_input_ctx.initial_partitioning.mode) //
-          ? parallel_initial_partition(graph)                        //
-          : sequential_initial_partition(graph);                     //
+  // If requested, dump the coarsest graph to disk. Note that in the context of
+  // deep multilevel, this is not actually the coarsest graph, but rather the
+  // coarsest graph before splitting PEs and duplicating the graph.
+  // Disable worker splitting with --i-mode=sequential to obtain coarser graphs.
+  debug::dump_coarsest_graph(*graph, _input_ctx.debug);
+
+  // Since timers are not multi-threaded, we disable them during (parallel)
+  // initial partitioning.
+  DISABLE_TIMERS();
+  PartitionedGraph p_graph = [&] {
+    switch (_input_ctx.initial_partitioning.mode) {
+    case InitialPartitioningMode::SEQUENTIAL:
+      return helper::bipartition(
+          graph, _input_ctx.partition.k, _input_ctx, _ip_m_ctx_pool
+      );
+
+    case InitialPartitioningMode::SYNCHRONOUS_PARALLEL:
+      return SyncInitialPartitioner(
+                 _input_ctx, _ip_m_ctx_pool, _ip_extraction_pool
+      )
+          .partition(_coarsener.get(), _current_p_ctx);
+
+    case InitialPartitioningMode::ASYNCHRONOUS_PARALLEL:
+      return AsyncInitialPartitioner(
+                 _input_ctx, _ip_m_ctx_pool, _ip_extraction_pool
+      )
+          .partition(_coarsener.get(), _current_p_ctx);
+    }
+
+    __builtin_unreachable();
+  }();
+  ENABLE_TIMERS();
   helper::update_partition_context(_current_p_ctx, p_graph);
 
+  // Print some metrics for the initial partition.
   LOG << "  Number of blocks: " << p_graph.k();
   LOG << "  Cut:              " << metrics::edge_cut(p_graph);
   LOG << "  Imbalance:        " << metrics::imbalance(p_graph);
@@ -158,46 +202,9 @@ PartitionedGraph DeepMultilevelPartitioner::initial_partition(const Graph *graph
       << (metrics::is_feasible(p_graph, _current_p_ctx) ? "yes" : "no");
   LOG;
 
-  return p_graph;
-}
-
-PartitionedGraph DeepMultilevelPartitioner::
-    parallel_initial_partition(const Graph * /* use _coarsener */) {
-  // Timers are tricky during parallel initial partitioning
-  // Hence, we only record its total time
-  DISABLE_TIMERS();
-  PartitionedGraph p_graph = [&] {
-    if (_input_ctx.initial_partitioning.mode ==
-        InitialPartitioningMode::SYNCHRONOUS_PARALLEL) {
-      SyncInitialPartitioner initial_partitioner{
-          _input_ctx, _ip_m_ctx_pool, _ip_extraction_pool};
-      return initial_partitioner.partition(_coarsener.get(), _current_p_ctx);
-    } else {
-      KASSERT(
-          _input_ctx.initial_partitioning.mode ==
-              InitialPartitioningMode::ASYNCHRONOUS_PARALLEL,
-          "",
-          assert::light
-      );
-      AsyncInitialPartitioner initial_partitioner{
-          _input_ctx, _ip_m_ctx_pool, _ip_extraction_pool};
-      return initial_partitioner.partition(_coarsener.get(), _current_p_ctx);
-    }
-  }();
-  ENABLE_TIMERS();
-
-  return p_graph;
-}
-
-PartitionedGraph
-DeepMultilevelPartitioner::sequential_initial_partition(const Graph *graph) {
-  // Timers work fine with sequential initial partitioning, but we disable them
-  // to get a output similar to the parallel case
-  DISABLE_TIMERS();
-  PartitionedGraph p_graph = helper::bipartition(
-      graph, _input_ctx.partition.k, _input_ctx, _ip_m_ctx_pool
-  );
-  ENABLE_TIMERS();
+  // If requested, dump the coarsest partition -- as noted above, this is not
+  // actually the coarsest partition when using deep multilevel.
+  debug::dump_coarsest_partition(p_graph, _input_ctx.debug);
 
   return p_graph;
 }

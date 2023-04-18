@@ -208,8 +208,15 @@ struct ParallelContext {
   std::size_t num_threads;
 };
 
+struct DebugContext {
+  std::string graph_name;
+  bool dump_coarsest_graph;
+  bool dump_coarsest_partition;
+  bool dump_graph_hierarchy;
+  bool dump_partition_hierarchy;
+};
+
 struct Context {
-  std::string graph_filename;
   int seed;
   bool save_partition;
   std::string partition_directory;
@@ -226,6 +233,7 @@ struct Context {
   InitialPartitioningContext initial_partitioning;
   RefinementContext refinement;
   ParallelContext parallel;
+  DebugContext debug;
 
   [[nodiscard]] std::string partition_file() const {
     return partition_directory + "/" + partition_filename;

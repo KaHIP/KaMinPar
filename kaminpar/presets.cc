@@ -37,7 +37,6 @@ std::unordered_set<std::string> get_preset_names() {
 Context create_default_context() {
   return {
       // Context
-      .graph_filename = "",
       .seed = 0,
       .save_partition = false,
       .partition_directory = "./",
@@ -149,6 +148,14 @@ Context create_default_context() {
               // Context -> Parallel
               .use_interleaved_numa_allocation = true,
               .num_threads = 1,
+          },
+      .debug =
+          {
+              .graph_name = "",
+              .dump_coarsest_graph = false,
+              .dump_coarsest_partition = false,
+              .dump_graph_hierarchy = false,
+              .dump_partition_hierarchy = false,
           },
   };
 }

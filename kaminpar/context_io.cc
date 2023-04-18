@@ -214,7 +214,7 @@ void print(const PartitionContext &p_ctx, std::ostream &out) {
 void print(const Context &ctx, std::ostream &out) {
   out << "Execution mode:               " << ctx.parallel.num_threads << "\n";
   out << "Seed:                         " << ctx.seed << "\n";
-  out << "Graph:                        " << ctx.graph_filename << "\n";
+  out << "Graph:                        " << ctx.debug.graph_name << "\n";
   print(ctx.partition, out);
   cio::print_delimiter("Coarsening", '-');
   print(ctx.coarsening, out);
