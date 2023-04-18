@@ -176,6 +176,11 @@ int main(int argc, char *argv[]) {
 
   // Compute graph partition
   KaMinPar partitioner(app.num_threads, ctx);
+  if (app.quiet) {
+    partitioner.set_output_level(OutputLevel::QUIET);
+  } else if (app.experiment) {
+    partitioner.set_output_level(OutputLevel::EXPERIMENT);
+  }
   partitioner.set_max_timer_depth(app.max_timer_depth);
   partitioner.take_graph(n, xadj_ptr, adjncy_ptr, vwgt_ptr, adjwgt_ptr);
   partitioner.compute_partition(app.seed, app.k, partition.data());
