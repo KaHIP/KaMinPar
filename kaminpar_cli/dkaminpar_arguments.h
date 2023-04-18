@@ -7,7 +7,7 @@
 #pragma once
 
 // clang-format off
-#include "CLI11.h"
+#include "kaminpar_cli/CLI11.h"
 // clang-format on
 
 #include "dkaminpar/context.h"

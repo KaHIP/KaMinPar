@@ -5,7 +5,7 @@
  * @brief:  Binary for the shared-memory partitioner.
  ******************************************************************************/
 // clang-format off
-#include "kaminpar_arguments.h"
+#include "kaminpar_cli/kaminpar_arguments.h"
 #include "kaminpar/kaminpar.h"
 // clang-format on
 

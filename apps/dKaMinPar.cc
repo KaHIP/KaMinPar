@@ -5,7 +5,7 @@
  * @brief:  Distributed KaMinPar binary.
  ******************************************************************************/
 // clang-format off
-#include "dkaminpar_arguments.h"
+#include "kaminpar_cli/dkaminpar_arguments.h"
 #include "dkaminpar/dkaminpar.h"
 // clang-format on
 

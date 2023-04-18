@@ -4,9 +4,9 @@
  * @date:   15.10.2022
  * @brief:  Command line arguments for the distributed partitioner.
  ******************************************************************************/
-#include "dkaminpar_arguments.h"
+#include "kaminpar_cli/dkaminpar_arguments.h"
 
-#include "CLI11.h"
+#include "kaminpar_cli/CLI11.h"
 
 #include "dkaminpar/context.h"
 #include "dkaminpar/context_io.h"
