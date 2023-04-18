@@ -114,13 +114,17 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
   bool shrunk = true;
 
   while (shrunk && c_graph->n() > initial_partitioning_threshold()) {
+    // If requested, dump graph before each coarsening step + after coarsening
+    // converged. This way, we also have a dump of the (reordered) input graph,
+    // which makes it easier to use the final partition (before reordering it).
+    // We dump the coarsest graph in ::initial_partitioning().
+    debug::dump_graph_hierarchy(*c_graph, _coarsener->size(), _input_ctx.debug);
+
+    // Build next coarse graph
     shrunk = helper::coarsen_once(
         _coarsener.get(), c_graph, _input_ctx, _current_p_ctx
     );
     c_graph = _coarsener->coarsest_graph();
-
-    // If requested, dump all graphs of the graph hierarchy to disk
-    debug::dump_graph_hierarchy(*c_graph, _coarsener->size(), _input_ctx.debug);
 
     // Print some metrics for the coarse graphs
     const NodeWeight max_cluster_weight = compute_max_cluster_weight(
@@ -165,6 +169,7 @@ PartitionedGraph DeepMultilevelPartitioner::initial_partition(const Graph *graph
   // coarsest graph before splitting PEs and duplicating the graph.
   // Disable worker splitting with --i-mode=sequential to obtain coarser graphs.
   debug::dump_coarsest_graph(*graph, _input_ctx.debug);
+  debug::dump_graph_hierarchy(*graph, _coarsener->size(), _input_ctx.debug);
 
   // Since timers are not multi-threaded, we disable them during (parallel)
   // initial partitioning.
@@ -205,6 +210,9 @@ PartitionedGraph DeepMultilevelPartitioner::initial_partition(const Graph *graph
   // If requested, dump the coarsest partition -- as noted above, this is not
   // actually the coarsest partition when using deep multilevel.
   debug::dump_coarsest_partition(p_graph, _input_ctx.debug);
+  debug::dump_partition_hierarchy(
+      p_graph, _coarsener->size(), "post-refinement", _input_ctx.debug
+  );
 
   return p_graph;
 }

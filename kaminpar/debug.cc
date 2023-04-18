@@ -77,7 +77,7 @@ void dump_coarsest_partition(
 ) {
   if (d_ctx.dump_coarsest_partition) {
     dump_partition(
-        p_graph, generate_filename(p_graph.graph(), d_ctx, ".coarsest.part")
+        p_graph, generate_filename(p_graph.graph(), d_ctx, "coarsest.part")
     );
   }
 }
@@ -94,7 +94,7 @@ void dump_partition_hierarchy(
         generate_filename(
             p_graph.graph(),
             d_ctx,
-            "." + state + ".level" + std::to_string(level) + ".part"
+            "level" + std::to_string(level) + "." + state + ".part"
         )
     );
   }
