@@ -1,15 +1,15 @@
 function(add_shm_app target)
     add_executable(${target} ${ARGN})
     target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(${target} PRIVATE KaMinPar::KaMinPar)
+    target_link_libraries(${target} PRIVATE KaMinPar::KaMinPar KaMinPar::KaMinParCLI11)
     install(TARGETS ${target})
     message(STATUS "Enabled app: ${target}")
 endfunction()
 
 function(add_dist_app target)
-    if (TARGET dist_partitioner_base)
+    if (TARGET dkaminpar)
         add_shm_app(${target} ${ARGN})
-        target_link_libraries(${target} PRIVATE KaMinPar::dKaMinPar)
+        target_link_libraries(${target} PRIVATE KaMinPar::dKaMinPar KaMinPar::dKaMinParCLI11)
     else ()
         message(STATUS "Disabled app: ${target}")
     endif ()
@@ -20,7 +20,7 @@ target_sources(KaMinPar PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/io/shm_io.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/io/shm_input_validator.cc)
 
-if (TARGET dist_partitioner_base)
+if (TARGET dkaminpar)
     set(KAGEN_NODEPS ON)
     set(KAGEN_BUILD_APPS OFF)
     set(KAGEN_BUILD_EXAMPLES OFF)

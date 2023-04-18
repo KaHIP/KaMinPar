@@ -1,5 +1,5 @@
 /*******************************************************************************
- * @file:   arguments.h
+ * @file:   dkaminpar_arguments.h
  * @author: Daniel Seemaier
  * @date:   15.10.2022
  * @brief:  Command line arguments for the distributed partitioner.
@@ -7,7 +7,7 @@
 #pragma once
 
 // clang-format off
-#include "common/CLI11.h"
+#include "CLI11.h"
 // clang-format on
 
 #include "dkaminpar/context.h"

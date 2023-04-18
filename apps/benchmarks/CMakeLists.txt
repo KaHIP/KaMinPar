@@ -1,15 +1,15 @@
 function(add_benchmark target)
     add_executable(${target} ${ARGN} "${CMAKE_CURRENT_BINARY_DIR}/../environment.cc")
     target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(${target} PRIVATE common_base shm_partitioner_base)
+    target_link_libraries(${target} PRIVATE common kaminpar)
 
     message(STATUS "Enabled benchmark: ${target}")
 endfunction()
 
 function(add_distributed_benchmark target)
-    if (TARGET dist_partitioner_base)
+    if (TARGET dkaminpar)
         add_benchmark(${target} ${ARGN} "${CMAKE_CURRENT_SOURCE_DIR}/dist_benchmarks_common.cc")
-        target_link_libraries(${target} PRIVATE dist_partitioner_base)
+        target_link_libraries(${target} PRIVATE dkaminpar)
     else ()
         message(STATUS "Disabled benchmark: ${target}")
     endif ()

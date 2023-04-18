@@ -5,15 +5,12 @@
  * @brief:  Distributed KaMinPar binary.
  ******************************************************************************/
 // clang-format off
-#include "common/CLI11.h"
-// clang-format on
-
+#include "dkaminpar_arguments.h"
 #include "dkaminpar/dkaminpar.h"
+// clang-format on
 
 #include <kagen.h>
 #include <mpi.h>
-
-#include "dkaminpar/arguments.h"
 
 #include "common/environment.h"
 #include "common/strutils.h"

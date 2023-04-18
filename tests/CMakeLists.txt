@@ -9,8 +9,8 @@ function(kaminpar_add_shm_test target)
     target_link_libraries(${target} PRIVATE 
         GTest::gtest_main 
         GTest::gmock_main
-        common_base 
-        shm_partitioner_base)
+        common 
+        kaminpar)
     target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     gtest_discover_tests(${target})
 
@@ -22,7 +22,7 @@ function(kaminpar_add_common_test target)
     target_link_libraries(${target} PRIVATE 
         GTest::gtest_main
         GTest::gmock_main
-        common_base)
+        common)
     target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     gtest_discover_tests(${target})
 
@@ -40,9 +40,9 @@ function(kaminpar_add_dist_test KAMINPAR_TARGET_NAME)
     katestrophe_add_test_executable(${KAMINPAR_TARGET_NAME} FILES ${KAMINPAR_FILES})
     target_link_libraries(${KAMINPAR_TARGET_NAME} PRIVATE 
         mpi-gtest-main
-        common_base 
-        shm_partitioner_base 
-        dist_partitioner_base)
+        common 
+        kaminpar 
+        dkaminpar)
     target_include_directories(${KAMINPAR_TARGET_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     katestrophe_add_mpi_test(${KAMINPAR_TARGET_NAME} CORES ${KAMINPAR_CORES})
     

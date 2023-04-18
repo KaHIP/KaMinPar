@@ -4,6 +4,11 @@
  * @date:   21.09.2021
  * @brief:  Binary for the shared-memory partitioner.
  ******************************************************************************/
+// clang-format off
+#include "kaminpar_arguments.h"
+#include "kaminpar/kaminpar.h"
+// clang-format on
+
 #include <iostream>
 
 #include <tbb/global_control.h>
@@ -12,9 +17,6 @@
 #if __has_include(<numa.h>)
 #include <numa.h>
 #endif // __has_include(<numa.h>)
-
-#include "kaminpar/arguments.h"
-#include "kaminpar/kaminpar.h"
 
 #include "common/environment.h"
 #include "common/strutils.h"

@@ -17,7 +17,7 @@ function(dkaminpar_register_test KAMINPAR_TARGET_NAME)
             ${ARGN}
     )
     add_executable(${KAMINPAR_TARGET_NAME} ${KAMINPAR_FILES})
-    target_link_libraries(${KAMINPAR_TARGET_NAME} PRIVATE gtest gtest_main gmock shm_partitioner_base common_base dist_partitioner_base)
+    target_link_libraries(${KAMINPAR_TARGET_NAME} PRIVATE gtest gtest_main gmock kaminpar common dkaminpar)
     target_include_directories(${KAMINPAR_TARGET_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     gtest_discover_tests(${KAMINPAR_TARGET_NAME} WORKING_DIRECTORY ${PROJECT_DIR})
 endfunction()
@@ -39,7 +39,7 @@ function(dkaminpar_register_mpi_test KAMINPAR_TARGET_NAME)
             ${ARGN}
     )
     katestrophe_add_test_executable(${KAMINPAR_TARGET_NAME} FILES ${KAMINPAR_FILES})
-    target_link_libraries(${KAMINPAR_TARGET_NAME} PRIVATE common_base shm_partitioner_base dist_partitioner_base)
+    target_link_libraries(${KAMINPAR_TARGET_NAME} PRIVATE common kaminpar dkaminpar)
     target_include_directories(${KAMINPAR_TARGET_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     katestrophe_add_mpi_test(${KAMINPAR_TARGET_NAME} CORES ${KAMINPAR_CORES} DISCOVER_TESTS)
 endfunction()
@@ -62,6 +62,6 @@ function(dkaminpar_register_compilation_failure_test KAMINPAR_TARGET_NAME)
             TARGET ${KAMINPAR_TARGET_NAME}
             FILES ${KAMINPAR_FILES}
             SECTIONS ${KAMINPAR_SECTIONS}
-            LIBRARIES common_base shm_partitioner_base dist_partitioner_base
+            LIBRARIES common kaminpar dkaminpar
     )
 endfunction()

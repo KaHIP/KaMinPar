@@ -1,10 +1,12 @@
 /*******************************************************************************
- * @file:   arguments.h
+ * @file:   kaminpar_arguments.h
  * @author: Daniel Seemaier
  * @date:   14.10.2022
  ******************************************************************************/
+#pragma once 
+
 // clang-format off
-#include "common/CLI11.h"
+#include "CLI11.h"
 // clang-format on
 
 #include "kaminpar/context.h"

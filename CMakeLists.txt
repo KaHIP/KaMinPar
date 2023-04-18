@@ -232,10 +232,14 @@ if (KAMINPAR_BUILD_TESTS)
     add_subdirectory(tests)
 endif ()
 
+add_subdirectory(cli)
+
 ################################################################################
 
-add_library(KaMinPar::KaMinPar ALIAS shm_partitioner_base)
+add_library(KaMinPar::KaMinPar ALIAS kaminpar)
+add_library(KaMinPar::KaMinParCLI11 ALIAS kaminpar_cli11)
 if (KAMINPAR_BUILD_DISTRIBUTED)
-    add_library(KaMinPar::dKaMinPar ALIAS dist_partitioner_base)
+    add_library(KaMinPar::dKaMinPar ALIAS dkaminpar)
+    add_library(KaMinPar::dKaMinParCLI11 ALIAS dkaminpar_cli11)
 endif ()
 

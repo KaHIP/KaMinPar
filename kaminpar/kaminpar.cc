@@ -6,7 +6,6 @@
  ******************************************************************************/
 #include "kaminpar/kaminpar.h"
 
-#include "kaminpar/arguments.h"
 #include "kaminpar/context.h"
 #include "kaminpar/context_io.h"
 #include "kaminpar/datastructures/graph.h"
