@@ -123,13 +123,12 @@ public:
   }
 
   void unlock(const NodeID u) {
-    __atomic_store_n(&_state[u], 0, __ATOMIC_RELAXED);
+    set(u, 0);
   }
 
-  // Generic non-atomic setter.
   // @todo Build a better interface once the details are settled.
   void set(const NodeID node, const int value) {
-    _state[node] = value;
+    __atomic_store_n(&_state[node], value, __ATOMIC_RELAXED);
   }
 
 private:
