@@ -348,26 +348,21 @@ LocalizedFMRefiner::LocalizedFMRefiner(
 }
 
 EdgeWeight LocalizedFMRefiner::run_batch() {
-  // Keep track of nodes that we don't want to unlock afterwards
-  std::vector<NodeID> committed_moves;
-
   // Statistics for this batch only, to be merged into the global stats
   Stats stats;
   IFSTATS(++stats.num_batches);
+
+  // Keep track of all nodes that we touched, so that we can unlock those that
+  // have not been moved afterwards
+  std::vector<NodeID> touched_nodes;
 
   // Poll seed nodes from the border node arrays
   _shared.border_nodes
       .poll(_fm_ctx.num_seed_nodes, _id, [&](const NodeID seed_node) {
         insert_into_node_pq(_p_graph, _shared.gain_cache, seed_node);
-
-        // Never unlock seed nodes, even if no move gets committed
-        committed_moves.push_back(seed_node);
+        touched_nodes.push_back(seed_node);
         IFSTATS(++stats.num_touched_nodes);
       });
-
-  // Keep track of all nodes that we touched, so that we can unlock those that
-  // have not been moved afterwards
-  std::vector<NodeID> touched_nodes;
 
   // Keep track of the current (expected) gain to decide when to accept a
   // delta partition
@@ -430,7 +425,6 @@ EdgeWeight LocalizedFMRefiner::run_batch() {
               _p_graph, moved_node, _p_graph.block(moved_node), moved_to
           );
           _p_graph.set_block(moved_node, moved_to);
-          committed_moves.push_back(moved_node);
           IFSTATS(++stats.num_committed_moves);
         }
 
@@ -460,6 +454,19 @@ EdgeWeight LocalizedFMRefiner::run_batch() {
 
   IFSTATS(stats.num_discarded_moves += _d_graph.delta().size());
 
+  // Unlock all nodes that were touched but not moved (== still owned by this
+  // worker)
+  for (const NodeID touched_node : touched_nodes) {
+    if (_shared.node_tracker.owner(touched_node) == _id) {
+      _shared.node_tracker.unlock(touched_node);
+    }
+  }
+
+  // Unlock all nodes that were only locally moved (== still in the delta graph)
+  for (const auto &[moved_node, moved_to] : _d_graph.delta()) {
+    _shared.node_tracker.unlock(moved_node);
+  }
+
   // Flush local state for the nex tround
   for (auto &node_pq : _node_pq) {
     node_pq.clear();
@@ -469,19 +476,6 @@ EdgeWeight LocalizedFMRefiner::run_batch() {
   _d_graph.clear();
   _d_gain_cache.clear();
   _stopping_policy.reset();
-
-  // @todo should be optimized with timestamping
-
-  // Unlock all nodes that were touched, lock the moved ones for good
-  // afterwards
-  for (const NodeID touched_node : touched_nodes) {
-    _shared.node_tracker.set(touched_node, 0);
-  }
-
-  // ... but keep nodes that we actually moved locked
-  for (const NodeID moved_node : committed_moves) {
-    _shared.node_tracker.set(moved_node, -1);
-  }
 
   IFSTATS(_shared.stats.add(stats));
   return best_total_gain;
