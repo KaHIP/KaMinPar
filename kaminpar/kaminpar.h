@@ -6,6 +6,7 @@
  ******************************************************************************/
 #pragma once
 
+#include <algorithm>
 #include <cstdint>
 #include <limits>
 #include <memory>
@@ -188,6 +189,11 @@ struct RefinementContext {
   TwoWayFMRefinementContext twoway_fm;
   KwayFMRefinementContext kway_fm;
   BalancerRefinementContext balancer;
+
+  bool includes_algorithm(const RefinementAlgorithm algorithm) const {
+    return std::find(algorithms.begin(), algorithms.end(), algorithm) !=
+           algorithms.end();
+  }
 };
 
 struct InitialPartitioningContext {

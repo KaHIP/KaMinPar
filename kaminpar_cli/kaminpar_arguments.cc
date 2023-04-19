@@ -20,6 +20,7 @@ void create_all_options(CLI::App *app, Context &ctx) {
   create_initial_fm_refinement_options(app, ctx);
   create_refinement_options(app, ctx);
   create_lp_refinement_options(app, ctx);
+  create_kway_fm_refinement_options(app, ctx);
   create_debug_options(app, ctx);
 }
 
@@ -303,6 +304,33 @@ CLI::Option_group *create_lp_refinement_options(CLI::App *app, Context &ctx) {
       ->capture_default_str();
 
   return lp;
+}
+
+CLI::Option_group *
+create_kway_fm_refinement_options(CLI::App *app, Context &ctx) {
+  auto *fm = app->add_option_group("Refinement -> k-way FM");
+
+  fm->add_option(
+        "--r-fm-num-iterations",
+        ctx.refinement.kway_fm.num_iterations,
+        "Maximum number of k-way FM iterations"
+  )
+      ->capture_default_str();
+  fm->add_option(
+        "--r-fm-num-seed-nodes",
+        ctx.refinement.kway_fm.num_seed_nodes,
+        "Number of nodes used to initialize a localized search"
+  )
+      ->capture_default_str();
+  fm->add_option("--r-fm-alpha", ctx.refinement.kway_fm.alpha)
+      ->capture_default_str();
+  fm->add_option(
+        "--r-fm-abortion-threshold",
+        ctx.refinement.kway_fm.improvement_abortion_threshold
+  )
+      ->capture_default_str();
+
+  return fm;
 }
 
 CLI::Option_group *create_debug_options(CLI::App *app, Context &ctx) {

@@ -182,6 +182,18 @@ void print(const InitialPartitioningContext &i_ctx, std::ostream &out) {
 void print(const RefinementContext &r_ctx, std::ostream &out) {
   out << "Refinement algorithms:        ["
       << str::implode(r_ctx.algorithms, " -> ") << "]\n";
+  if (r_ctx.includes_algorithm(RefinementAlgorithm::LABEL_PROPAGATION)) {
+    out << "Label propagation:\n";
+    out << "  Number of iterations:       " << r_ctx.lp.num_iterations << "\n";
+  }
+  if (r_ctx.includes_algorithm(RefinementAlgorithm::KWAY_FM)) {
+    out << "k-way FM:\n";
+    out << "  Number of iterations:       " << r_ctx.kway_fm.num_iterations
+        << " [or improvement drops below < "
+        << 100.0 * r_ctx.kway_fm.improvement_abortion_threshold << "%]\n";
+    out << "  Number of seed nodes:       " << r_ctx.kway_fm.num_seed_nodes
+        << "\n";
+  }
 }
 
 void print(const PartitionContext &p_ctx, std::ostream &out) {

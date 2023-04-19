@@ -136,7 +136,7 @@ Context create_default_context() {
               .twoway_fm = {},
               .kway_fm =
                   {
-                      .num_seed_nodes = 25,
+                      .num_seed_nodes = 5,
                       .alpha = 1.0,
                       .num_iterations = 5,
                       .improvement_abortion_threshold = 0.0001,

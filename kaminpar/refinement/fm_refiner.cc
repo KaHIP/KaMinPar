@@ -306,10 +306,10 @@ bool FMRefiner::refine(
     const EdgeWeight abortion_threshold =
         expected_current_cut * _fm_ctx->improvement_abortion_threshold;
     DBG << "Expected total gain after iteration " << iteration << ": "
-        << total_expected_gain
+        << expected_gain
         << ", actual gain: " << initial_cut - metrics::edge_cut(p_graph);
 
-    if (expected_gain < abortion_threshold) {
+    if (expected_gain <= abortion_threshold) {
       DBG << "Aborting because expected gain is below threshold "
           << abortion_threshold;
       break;
@@ -451,8 +451,6 @@ EdgeWeight LocalizedFMRefiner::run_batch() {
     }
   }
 
-  IFSTATS(stats.num_discarded_moves += _d_graph.delta().size());
-
   // Unlock all nodes that were touched but not moved (== still owned by this
   // worker)
   for (const NodeID touched_node : touched_nodes) {
@@ -462,6 +460,7 @@ EdgeWeight LocalizedFMRefiner::run_batch() {
   }
 
   // Unlock all nodes that were only locally moved (== still in the delta graph)
+  IFSTATS(stats.num_discarded_moves += _d_graph.delta().size());
   for (const auto &[moved_node, moved_to] : _d_graph.delta()) {
     _shared.node_tracker.unlock(moved_node);
   }
