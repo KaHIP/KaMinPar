@@ -254,6 +254,7 @@ std::unordered_set<std::string> get_preset_names();
 Context create_context_by_preset_name(const std::string &name);
 Context create_default_context();
 Context create_largek_context();
+Context create_strong_context();
 } // namespace kaminpar::shm
 
 namespace kaminpar {

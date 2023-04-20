@@ -11,8 +11,3 @@
 #include "kaminpar/kaminpar.h"
 // clang-format on
 
-#include "kaminpar/context.h"
-
-namespace kaminpar::shm {
-Context create_strong_context();
-} // namespace kaminpar::shm

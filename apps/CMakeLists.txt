@@ -30,3 +30,7 @@ if (TARGET dkaminpar)
     target_link_libraries(dKaMinPar PRIVATE KaGen::KaGen)
 endif ()
 
+if (KAMINPAR_BUILD_BENCHMARKS)
+    add_subdirectory(benchmarks)
+endif ()
+
