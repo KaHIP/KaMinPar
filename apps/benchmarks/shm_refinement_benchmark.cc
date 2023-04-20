@@ -11,6 +11,7 @@
 #include <common/timer.h>
 #include <kaminpar/factories.h>
 #include <mpi.h>
+#include <tbb/global_control.h>
 
 #include "io.h"
 
@@ -27,10 +28,12 @@ int main(int argc, char *argv[]) {
   // Parse CLI arguments
   std::string graph_filename;
   std::string partition_filename;
+  int num_threads = 1;
 
   CLI::App app("Shared-memory FM benchmark");
   app.add_option("graph", graph_filename, "Graph file")->required();
   app.add_option("partition", partition_filename, "Partition file")->required();
+  app.add_option("-t,--threads", num_threads, "Number of threads");
   create_refinement_options(&app, ctx);
   create_partitioning_options(&app, ctx);
   create_kway_fm_refinement_options(&app, ctx);
@@ -44,8 +47,14 @@ int main(int argc, char *argv[]) {
     return MPI_Finalize();
   }
 
+  tbb::global_control gc(
+      tbb::global_control::max_allowed_parallelism, num_threads
+  );
+
   // Load input graph
   auto input = load_partitioned_shm_graph(graph_filename, partition_filename);
+  ctx.partition.k = input.p_graph->k();
+  ctx.parallel.num_threads = num_threads;
   ctx.setup(*input.graph);
 
   std::cout << "Running refinement algorithm ..." << std::endl;
