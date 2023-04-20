@@ -156,6 +156,8 @@ void KaMinPar::copy_graph(
 EdgeWeight KaMinPar::compute_partition(
     const int seed, const BlockID k, BlockID *partition
 ) {
+  Logger::set_quiet_mode(_output_level == OutputLevel::QUIET);
+
   cio::print_kaminpar_banner();
   cio::print_build_identifier();
   cio::print_build_datatypes<NodeID, EdgeID, NodeWeight, EdgeWeight>();
@@ -170,7 +172,6 @@ EdgeWeight KaMinPar::compute_partition(
 
   // Initialize PRNG and console output
   Random::seed = seed;
-  Logger::set_quiet_mode(_output_level == OutputLevel::QUIET);
 
   if (_output_level >= OutputLevel::APPLICATION) {
     print(_ctx, std::cout);

@@ -29,18 +29,21 @@ CLI::Option_group *create_partitioning_options(CLI::App *app, Context &ctx) {
 
   partitioning
       ->add_option(
-          "-e,--epsilon", ctx.partition.epsilon, "Maximum allowed imbalance."
+          "-e,--epsilon",
+          ctx.partition.epsilon,
+          "Maximum allowed imbalance, e.g. 0.03 for 3%. Must be strictly "
+          "positive."
       )
       ->check(CLI::NonNegativeNumber)
-      ->configurable(false)
       ->capture_default_str();
+
   partitioning->add_option("-m,--mode", ctx.partition.mode)
       ->transform(
           CLI::CheckedTransformer(get_partitioning_modes()).description("")
       )
-      ->description(R"(Chooses the partitioning scheme:
-  - deep: use deep multilevel graph partitioning
-  - rb:   use recursive bisection with plain multilevel graph partitioning)")
+      ->description(R"(Partitioning scheme:
+  - deep: deep multilevel
+  - rb:   recursive multilevel bipartitioning)")
       ->capture_default_str();
 
   return partitioning;
@@ -51,51 +54,50 @@ CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx) {
 
   coarsening
       ->add_option(
-          "-C,--contraction-limit",
+          "--c-contraction-limit",
           ctx.coarsening.contraction_limit,
-          "Coarse size of a block (parameter C in the ESA'21 publication)."
+          "Upper limit for the number of nodes per block in the coarsest graph."
       )
       ->capture_default_str();
-  coarsening
-      ->add_option(
-          "--clustering-algorithm",
-          ctx.coarsening.algorithm,
-          "Clustering algorithm"
-      )
+
+  coarsening->add_option("--c-clustering-algorithm", ctx.coarsening.algorithm)
       ->transform(
           CLI::CheckedTransformer(get_clustering_algorithms()).description("")
       )
       ->description(R"(One of the following options:
-  - noop: assign each node to its own cluster, effectively disabling coarsening
-  - lp:   use parallel label propagation)")
+  - noop: disable coarsening
+  - lp:   size-constrained label propagation)")
       ->capture_default_str();
+
   coarsening
       ->add_option(
-          "--cluster-weight-limit", ctx.coarsening.cluster_weight_limit
+          "--c-cluster-weight-limit", ctx.coarsening.cluster_weight_limit
       )
       ->transform(
           CLI::CheckedTransformer(get_cluster_weight_limits()).description("")
       )
       ->description(
-          R"(During coarsening, the weight of each cluster is limited by a maximum cluster weight.
-This weight is determined by multiplying some base value (set by this option) by some multiplier (set by another option).
-Ways to compute the base values are:
-  - epsilon-block-weight: Limit cluster weights as described in the ESA'21 publication (c_max = eps * min{n' / C, k})
-  - static-block-weight:  Set the cluster weight limit relative to the weight of a block (c_max = n / k)
-  - one:                  Set the cluster weight limit to 1 (c_max = 1)
-  - zero:                 Set the cluster weight limit to 0 (c_max = 0), effectively disabling coarsening)"
+          R"(This option selects the formula used to compute the weight limit for nodes in coarse graphs. 
+The weight limit can additionally be scaled by a constant multiplier set by the --c-cluster-weight-multiplier option.
+Options are:
+  - epsilon-block-weight: Cmax = eps * c(V) * min{n' / C, k}, where n' is the number of nodes in the current (coarse) graph
+  - static-block-weight:  Cmax = c(V) / k
+  - one:                  Cmax = 1
+  - zero:                 Cmax = 0 (disable coarsening))"
       )
       ->capture_default_str();
+
   coarsening
       ->add_option(
-          "--cluster-weight-multiplier",
+          "--c-cluster-weight-multiplier",
           ctx.coarsening.cluster_weight_multiplier,
           "Multiplicator of the maximum cluster weight base value."
       )
       ->capture_default_str();
+
   coarsening
       ->add_option(
-          "--coarsening-convergence-threshold",
+          "--c-coarsening-convergence-threshold",
           ctx.coarsening.convergence_threshold,
           "Coarsening converges once the size of the graph shrinks by "
           "less than this factor."
@@ -273,9 +275,14 @@ CLI::Option_group *create_refinement_options(CLI::App *app, Context &ctx) {
   refinement->add_option("--r-algorithms", ctx.refinement.algorithms)
       ->transform(CLI::CheckedTransformer(get_kway_refinement_algorithms())
                       .description(""))
-      ->description(R"(Algorithm for k-way refinement:
-  - noop: disable k-way refinement
-  - lp:   use parallel label propagation)")
+      ->description(
+          R"(This option can be used multiple times to define a sequence of refinement algorithms. 
+The following algorithms can be used:
+  - noop:            disable k-way refinement
+  - lp:              label propagation
+  - fm:              FM
+  - greedy-balancer: greedy balancer)"
+      )
       ->capture_default_str();
 
   return refinement;
@@ -287,19 +294,21 @@ CLI::Option_group *create_lp_refinement_options(CLI::App *app, Context &ctx) {
   lp->add_option(
         "--r-lp-num-iterations",
         ctx.refinement.lp.num_iterations,
-        "Maximum number of label propagation iterations"
+        "Number of label propagation iterations to perform"
   )
       ->capture_default_str();
+
   lp->add_option(
         "--r-lp-active-large-degree-threshold",
         ctx.refinement.lp.large_degree_threshold,
-        "Threshold for ignoring nodes with large degree"
+        "Ignore nodes that have a degree larger than this threshold"
   )
       ->capture_default_str();
+
   lp->add_option(
         "--r-lp-max-num-neighbors",
         ctx.refinement.lp.max_num_neighbors,
-        "Limit the neighborhood to this many nodes"
+        "Maximum number of neighbors to consider for each node"
   )
       ->capture_default_str();
 
@@ -313,20 +322,24 @@ create_kway_fm_refinement_options(CLI::App *app, Context &ctx) {
   fm->add_option(
         "--r-fm-num-iterations",
         ctx.refinement.kway_fm.num_iterations,
-        "Maximum number of k-way FM iterations"
+        "Number of FM iterations to perform."
   )
       ->capture_default_str();
+
   fm->add_option(
         "--r-fm-num-seed-nodes",
         ctx.refinement.kway_fm.num_seed_nodes,
-        "Number of nodes used to initialize a localized search"
+        "Number of seed nodes used to initialize a single localized search."
   )
       ->capture_default_str();
+
   fm->add_option("--r-fm-alpha", ctx.refinement.kway_fm.alpha)
       ->capture_default_str();
   fm->add_option(
         "--r-fm-abortion-threshold",
-        ctx.refinement.kway_fm.improvement_abortion_threshold
+        ctx.refinement.kway_fm.improvement_abortion_threshold,
+        "Stop FM iterations if the edge cut reduction of the previous "
+        "iteration falls below this threshold."
   )
       ->capture_default_str();
 
@@ -340,32 +353,47 @@ CLI::Option_group *create_debug_options(CLI::App *app, Context &ctx) {
       ->add_flag(
           "--d-dump-coarsest-graph",
           ctx.debug.dump_coarsest_graph,
-          "Dump the coarsest graph to disk"
+          "Write the coarsest graph to disk. Note that the definition of "
+          "'coarsest' depends on the partitioning scheme."
       )
       ->capture_default_str();
+
   debug
       ->add_flag(
           "--d-dump-coarsest-partition",
           ctx.debug.dump_coarsest_partition,
-          "Dump the coarsest partition to disk"
+          "Write partition of the coarsest graph to disk. Note that the "
+          "definition of 'coarsest' depends on the partitioning scheme."
       )
       ->capture_default_str();
+
   debug
       ->add_flag(
           "--d-dump-graph-hierarchy",
           ctx.debug.dump_graph_hierarchy,
-          "Dump the graph hierarchy to disk"
+          "Write the entire graph hierarchy to disk."
       )
       ->capture_default_str();
+
   debug
       ->add_flag(
           "--d-dump-partition-hierarchy",
           ctx.debug.dump_partition_hierarchy,
-          "Dump the partition hierarchy to disk"
+          "Write the entire partition hierarchy to disk."
       )
       ->capture_default_str();
 
+  debug->add_flag(
+      "--d-dump-everything",
+      [&](auto) {
+        ctx.debug.dump_coarsest_graph = true;
+        ctx.debug.dump_coarsest_partition = true;
+        ctx.debug.dump_graph_hierarchy = true;
+        ctx.debug.dump_partition_hierarchy = true;
+      },
+      "Active all --d-dump-* options."
+  );
+
   return debug;
 }
-
 } // namespace kaminpar::shm
