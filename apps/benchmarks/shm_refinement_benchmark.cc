@@ -72,7 +72,7 @@ int main(int argc, char *argv[]) {
   STOP_TIMER();
 
   std::cout << "RESULT cut=" << metrics::edge_cut(*input.p_graph)
-            << " imbalance=" << metrics::imbalance(*input.p_graph);
+            << " imbalance=" << metrics::imbalance(*input.p_graph) << std::endl;
 
   STOP_TIMER(); // Stop root timer
   Timer::global().print_human_readable(std::cout);
