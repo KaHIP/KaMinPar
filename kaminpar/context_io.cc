@@ -74,6 +74,7 @@ get_kway_refinement_algorithms() {
       {"noop", RefinementAlgorithm::NOOP},
       {"lp", RefinementAlgorithm::LABEL_PROPAGATION},
       {"fm", RefinementAlgorithm::KWAY_FM},
+      {"jet", RefinementAlgorithm::JET},
       {"greedy-balancer", RefinementAlgorithm::GREEDY_BALANCER},
   };
 }
@@ -90,6 +91,8 @@ operator<<(std::ostream &out, const RefinementAlgorithm algorithm) {
     return out << "lp";
   case RefinementAlgorithm::GREEDY_BALANCER:
     return out << "greedy-balancer";
+  case RefinementAlgorithm::JET:
+    return out << "jet";
   }
 
   return out << "<invalid>";

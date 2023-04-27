@@ -21,6 +21,7 @@ void create_all_options(CLI::App *app, Context &ctx) {
   create_refinement_options(app, ctx);
   create_lp_refinement_options(app, ctx);
   create_kway_fm_refinement_options(app, ctx);
+  create_jet_refinement_options(app, ctx);
   create_debug_options(app, ctx);
 }
 
@@ -344,6 +345,11 @@ create_kway_fm_refinement_options(CLI::App *app, Context &ctx) {
       ->capture_default_str();
 
   return fm;
+}
+
+CLI::Option_group *create_jet_refinement_options(CLI::App *app, Context &ctx) {
+  auto *jet = app->add_option_group("Refinement -> Jet");
+  return jet;
 }
 
 CLI::Option_group *create_debug_options(CLI::App *app, Context &ctx) {

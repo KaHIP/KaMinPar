@@ -20,6 +20,8 @@ Context create_context_by_preset_name(const std::string &name) {
     return create_largek_context();
   } else if (name == "strong") {
     return create_strong_context();
+  } else if (name == "jet") {
+    return create_jet_context();
   }
 
   throw std::runtime_error("invalid preset name");
@@ -31,6 +33,7 @@ std::unordered_set<std::string> get_preset_names() {
       "fast",
       "largek",
       "strong",
+      "jet",
   };
 }
 
@@ -176,6 +179,15 @@ Context create_strong_context() {
       RefinementAlgorithm::GREEDY_BALANCER,
       RefinementAlgorithm::LABEL_PROPAGATION,
       RefinementAlgorithm::KWAY_FM,
+  };
+  return ctx;
+}
+
+Context create_jet_context() {
+  Context ctx = create_default_context();
+  ctx.refinement.algorithms = {
+      RefinementAlgorithm::GREEDY_BALANCER,
+      RefinementAlgorithm::JET,
   };
   return ctx;
 }

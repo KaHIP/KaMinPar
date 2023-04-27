@@ -20,11 +20,12 @@
 
 #include "common/datastructures/marker.h"
 #include "common/parallel/atomic.h"
+#include "common/random.h"
 #include "common/timer.h"
 
 namespace kaminpar::shm {
 namespace {
-SET_DEBUG(false);
+SET_DEBUG(true);
 SET_STATISTICS(true);
 } // namespace
 
@@ -182,6 +183,10 @@ public:
     return _border_nodes.size();
   }
 
+  void shuffle() {
+    Random::instance().shuffle(_border_nodes.begin(), _border_nodes.end());
+  }
+
 private:
   DenseGainCache &_gain_cache;
   NodeTracker &_node_tracker;
@@ -265,6 +270,7 @@ bool FMRefiner::refine(
     // Find current border nodes
     START_TIMER("Initialize border nodes");
     _shared->border_nodes.init(p_graph);
+    _shared->border_nodes.shuffle();
     STOP_TIMER();
 
     DBG << "Starting FM iteration " << iteration << " with "
@@ -290,8 +296,8 @@ bool FMRefiner::refine(
             expected_gain += localized_refiner.run_batch();
           }
 
-          DBG << "CPU " << sched_getcpu() << " ran " << num_batches
-              << " batches";
+          // DBG << "CPU " << sched_getcpu() << " ran " << num_batches
+          //     << " batches";
         }
     );
     STOP_TIMER();
@@ -306,8 +312,9 @@ bool FMRefiner::refine(
     const EdgeWeight abortion_threshold =
         expected_current_cut * _fm_ctx->improvement_abortion_threshold;
     DBG << "Expected total gain after iteration " << iteration << ": "
-        << expected_gain
-        << ", actual gain: " << initial_cut - metrics::edge_cut(p_graph);
+        << expected_gain << ", total actual gain so far: "
+        << initial_cut - metrics::edge_cut(p_graph) << ": current gain is "
+        << metrics::edge_cut(p_graph);
 
     if (expected_gain <= abortion_threshold) {
       DBG << "Aborting because expected gain is below threshold "

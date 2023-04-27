@@ -36,5 +36,7 @@ CLI::Option_group *create_lp_refinement_options(CLI::App *app, Context &ctx);
 
 CLI::Option_group *create_kway_fm_refinement_options(CLI::App *app, Context &ctx);
 
+CLI::Option_group *create_jet_refinement_options(CLI::App *app, Context &ctx);
+
 CLI::Option_group *create_debug_options(CLI::App *app, Context &ctx);
 } // namespace kaminpar::shm
