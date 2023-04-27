@@ -148,6 +148,7 @@ Context create_default_context() {
               .jet =
                   {
                       .num_iterations = 1,
+                      .interpolate_c = false,
                       .min_c = 0.25,
                       .max_c = 0.75,
                   },

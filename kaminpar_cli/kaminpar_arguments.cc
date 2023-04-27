@@ -353,6 +353,9 @@ CLI::Option_group *create_jet_refinement_options(CLI::App *app, Context &ctx) {
   jet->add_option("--r-jet-num-iterations", ctx.refinement.jet.num_iterations)
       ->capture_default_str();
 
+  jet->add_flag("--r-jet-interpolate-c", ctx.refinement.jet.interpolate_c)
+      ->capture_default_str();
+
   jet->add_option("--r-jet-min-c", ctx.refinement.jet.min_c)
       ->capture_default_str();
 

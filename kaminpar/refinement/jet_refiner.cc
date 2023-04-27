@@ -55,8 +55,18 @@ bool JetRefiner::refine(
   const NodeID max_size = p_ctx.n;
   const double min_c = _ctx.refinement.jet.min_c;
   const double max_c = _ctx.refinement.jet.max_c;
-  const double c =
-      min_c + (max_c - min_c) * (cur_size - min_size) / (max_size - min_size);
+  const double c = [&] {
+    if (_ctx.refinement.jet.interpolate_c) {
+      return min_c +
+             (max_c - min_c) * (cur_size - min_size) / (max_size - min_size);
+    } else {
+      if (cur_size <= 2 * min_size) {
+        return min_c;
+      } else {
+        return max_c;
+      }
+    }
+  }();
 
   for (int i = 0; i < _ctx.refinement.jet.num_iterations; ++i) {
     perform_iteration(p_graph, p_ctx, c);

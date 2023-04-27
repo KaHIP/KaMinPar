@@ -184,6 +184,7 @@ struct KwayFMRefinementContext {
 
 struct JetRefinementContext {
   int num_iterations;
+  double interpolate_c;
   double min_c;
   double max_c;
 };
