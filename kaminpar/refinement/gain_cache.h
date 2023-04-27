@@ -66,6 +66,7 @@ public:
   }
 
   bool is_border_node(const NodeID node, const BlockID block) const {
+    KASSERT(node < _weighted_degrees.size());
     return _weighted_degrees[node] != weighted_degree_to(node, block);
   }
 
@@ -82,6 +83,7 @@ public:
 
 private:
   EdgeWeight weighted_degree_to(const NodeID node, const BlockID block) const {
+    KASSERT(index(node, block) < _gain_cache.size());
     return __atomic_load_n(&_gain_cache[index(node, block)], __ATOMIC_RELAXED);
   }
 

@@ -21,10 +21,10 @@ void perform_iteration(
     const double c,
     NoinitVector<std::uint8_t> &lock
 ) {
-  DenseGainCache gain_cache(p_ctx.k, p_ctx.n);
+  DenseGainCache gain_cache(p_ctx.k, p_graph.n());
   gain_cache.initialize(p_graph);
 
-  NoinitVector<BlockID> next_partition(p_ctx.k);
+  NoinitVector<BlockID> next_partition(p_graph.n());
   p_graph.pfor_nodes([&](const NodeID u) {
     const BlockID from = p_graph.block(u);
 
@@ -43,6 +43,7 @@ void perform_iteration(
       }
     }
 
+    KASSERT(u < lock.size());
     if (!lock[u] && -best_gain < std::floor(c * gain_cache.conn(u, from))) {
       next_partition[u] = best_block;
     } else {
@@ -60,7 +61,7 @@ void perform_iteration(
     }
 
     const EdgeWeight gain_u = gain_cache.gain(u, from, to);
-    EdgeWeight prefix_gain = 0;
+    EdgeWeight gain = 0;
 
     for (const auto &[e, v] : p_graph.neighbors(u)) {
       const EdgeWeight weight = p_graph.edge_weight(e);
@@ -77,13 +78,13 @@ void perform_iteration(
       const BlockID block_v = v_before_u ? next_partition[v] : p_graph.block(v);
 
       if (to == block_v) {
-        prefix_gain += weight;
+        gain += weight;
       } else {
-        prefix_gain -= weight;
+        gain -= weight;
       }
     }
 
-    if (prefix_gain > 0) {
+    if (gain > 0) {
       p_graph.set_block(u, next_partition[u]);
       lock[u] = 1;
     }
