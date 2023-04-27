@@ -9,14 +9,14 @@
 namespace kaminpar::shm {
 namespace {
 void perform_iteration(
-    const PartitionedGraph &p_graph,
+    PartitionedGraph &p_graph,
     const PartitionContext &p_ctx,
-    const double c
+    const double c,
+    NoinitVector<std::uint8_t> &lock
 ) {
   DenseGainCache gain_cache(p_ctx.k, p_ctx.n);
   gain_cache.initialize(p_graph);
 
-  // Compute P_d[.]
   NoinitVector<BlockID> next_partition(p_ctx.k);
   p_graph.pfor_nodes([&](const NodeID u) {
     const BlockID from = p_graph.block(u);
@@ -36,10 +36,49 @@ void perform_iteration(
       }
     }
 
-    if (-best_gain < std::floor(c * gain_cache.conn(u, from))) {
+    if (!lock[u] && -best_gain < std::floor(c * gain_cache.conn(u, from))) {
       next_partition[u] = best_block;
     } else {
       next_partition[u] = from;
+    }
+  });
+
+  p_graph.pfor_nodes([&](const NodeID u) { lock[u] = 0; });
+
+  p_graph.pfor_nodes([&](const NodeID u) {
+    const BlockID from = p_graph.block(u);
+    const BlockID to = next_partition[u];
+    if (from == to) {
+      return;
+    }
+
+    const EdgeWeight gain_u = gain_cache.gain(u, from, to);
+    EdgeWeight prefix_gain = 0;
+
+    for (const auto &[e, v] : p_graph.neighbors(u)) {
+      const EdgeWeight weight = p_graph.edge_weight(e);
+
+      const bool v_before_u = [&, v = v] {
+        const BlockID from_v = p_graph.block(v);
+        const BlockID to_v = next_partition[v];
+        if (from_v != to_v) {
+          const EdgeWeight gain_v = gain_cache.gain(v, from_v, to_v);
+          return gain_v > gain_u || (gain_v == gain_u && v < u);
+        }
+        return false;
+      }();
+      const BlockID block_v = v_before_u ? next_partition[v] : p_graph.block(v);
+
+      if (to == block_v) {
+        prefix_gain += weight;
+      } else {
+        prefix_gain -= weight;
+      }
+    }
+
+    if (prefix_gain > 0) {
+      p_graph.set_block(u, next_partition[u]);
+      lock[u] = 1;
     }
   });
 }
@@ -68,8 +107,11 @@ bool JetRefiner::refine(
     }
   }();
 
+  NoinitVector<std::uint8_t> lock(p_graph.n());
+  p_graph.pfor_nodes([&](const NodeID u) { lock[u] = 0; });
+
   for (int i = 0; i < _ctx.refinement.jet.num_iterations; ++i) {
-    perform_iteration(p_graph, p_ctx, c);
+    perform_iteration(p_graph, p_ctx, c, lock);
   }
 
   return false;
