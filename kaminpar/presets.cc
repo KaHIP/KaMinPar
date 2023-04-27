@@ -145,6 +145,12 @@ Context create_default_context() {
                       .improvement_abortion_threshold = 0.0001,
                   },
               .balancer = {},
+              .jet =
+                  {
+                      .num_iterations = 1,
+                      .min_c = 0.25,
+                      .max_c = 0.75,
+                  },
           },
       .parallel =
           {

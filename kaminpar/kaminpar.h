@@ -182,7 +182,11 @@ struct KwayFMRefinementContext {
   double improvement_abortion_threshold;
 };
 
-struct JetRefinementContext {};
+struct JetRefinementContext {
+  int num_iterations;
+  double min_c;
+  double max_c;
+};
 
 struct BalancerRefinementContext {};
 
@@ -192,6 +196,7 @@ struct RefinementContext {
   TwoWayFMRefinementContext twoway_fm;
   KwayFMRefinementContext kway_fm;
   BalancerRefinementContext balancer;
+  JetRefinementContext jet;
 
   bool includes_algorithm(const RefinementAlgorithm algorithm) const {
     return std::find(algorithms.begin(), algorithms.end(), algorithm) !=

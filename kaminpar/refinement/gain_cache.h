@@ -37,9 +37,15 @@ public:
     recompute_all(p_graph);
   }
 
-  EdgeWeight gain(NodeID node, BlockID block_from, BlockID block_to) const {
+  EdgeWeight gain(
+      const NodeID node, const BlockID block_from, const BlockID block_to
+  ) const {
     return weighted_degree_to(node, block_to) -
            weighted_degree_to(node, block_from);
+  }
+
+  EdgeWeight conn(const NodeID node, const BlockID block) const {
+    return weighted_degree_to(node, block);
   }
 
   void move(
