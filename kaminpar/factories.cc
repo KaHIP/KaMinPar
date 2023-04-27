@@ -16,6 +16,7 @@
 #include "kaminpar/refinement/greedy_balancer.h"
 #include "kaminpar/refinement/jet_refiner.h"
 #include "kaminpar/refinement/label_propagation_refiner.h"
+#include "kaminpar/refinement/mtkahypar_fm_refiner.h"
 #include "kaminpar/refinement/multi_refiner.h"
 
 namespace kaminpar::shm::factory {
@@ -80,6 +81,7 @@ std::unique_ptr<ip::InitialRefiner> create_initial_refiner(
   case RefinementAlgorithm::GREEDY_BALANCER:
   case RefinementAlgorithm::KWAY_FM:
   case RefinementAlgorithm::JET:
+  case RefinementAlgorithm::MTKAHYPAR_KWAY_FM:
     FATAL_ERROR << "Not implemented";
     return nullptr;
   }
@@ -110,6 +112,9 @@ create_refiner(const Context &ctx, const RefinementAlgorithm algorithm) {
 
   case RefinementAlgorithm::JET:
     return std::make_unique<JetRefiner>(ctx);
+
+  case RefinementAlgorithm::MTKAHYPAR_KWAY_FM:
+    return std::make_unique<MtKaHyParFMRefiner>(ctx);
   }
 
   __builtin_unreachable();

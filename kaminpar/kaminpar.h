@@ -81,6 +81,7 @@ enum class RefinementAlgorithm {
   KWAY_FM,
   GREEDY_BALANCER,
   JET,
+  MTKAHYPAR_KWAY_FM,
   NOOP,
 };
 
