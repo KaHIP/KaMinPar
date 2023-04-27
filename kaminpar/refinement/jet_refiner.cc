@@ -2,11 +2,18 @@
 
 #include "kaminpar/datastructures/delta_partitioned_graph.h"
 #include "kaminpar/datastructures/partitioned_graph.h"
+#include "kaminpar/metrics.h"
 #include "kaminpar/refinement/gain_cache.h"
+#include "kaminpar/refinement/greedy_balancer.h"
 
+#include "common/logger.h"
 #include "common/noinit_vector.h"
+#include "common/timer.h"
 
 namespace kaminpar::shm {
+SET_DEBUG(true);
+SET_STATISTICS(true);
+
 namespace {
 void perform_iteration(
     PartitionedGraph &p_graph,
@@ -89,6 +96,8 @@ JetRefiner::JetRefiner(const Context &ctx) : _ctx(ctx) {}
 bool JetRefiner::refine(
     PartitionedGraph &p_graph, const PartitionContext &p_ctx
 ) {
+  SCOPED_TIMER("JET");
+
   const NodeID min_size = p_ctx.k * _ctx.coarsening.contraction_limit;
   const NodeID cur_size = p_graph.n();
   const NodeID max_size = p_ctx.n;
@@ -106,12 +115,44 @@ bool JetRefiner::refine(
       }
     }
   }();
+  DBG << "Set c=" << c;
 
   NoinitVector<std::uint8_t> lock(p_graph.n());
   p_graph.pfor_nodes([&](const NodeID u) { lock[u] = 0; });
 
+  const EdgeWeight initial_cut = IFDBG(metrics::edge_cut(p_graph));
+  const double initial_balance = IFDBG(metrics::imbalance(p_graph));
+  const bool initial_feasible = IFDBG(metrics::is_feasible(p_graph, p_ctx));
+  DBG << "Initial cut=" << initial_cut << ", imbalance=" << initial_balance
+      << ", feasible=" << initial_feasible;
+
+  GreedyBalancer balancer(_ctx);
+
   for (int i = 0; i < _ctx.refinement.jet.num_iterations; ++i) {
     perform_iteration(p_graph, p_ctx, c, lock);
+
+    const EdgeWeight pre_rebalance_cut = IFDBG(metrics::edge_cut(p_graph));
+    const double pre_rebalance_balance = IFDBG(metrics::imbalance(p_graph));
+    const bool pre_rebalance_feasible =
+        IFDBG(metrics::is_feasible(p_graph, p_ctx));
+
+    DBG << "After iteration " << i
+        << ", pre-rebalance: cut=" << pre_rebalance_cut
+        << ", imbalance=" << pre_rebalance_balance
+        << ", feasible=" << pre_rebalance_feasible;
+
+    balancer.initialize(p_graph);
+    balancer.refine(p_graph, p_ctx);
+
+    const EdgeWeight post_rebalance_cut = IFDBG(metrics::edge_cut(p_graph));
+    const double post_rebalance_balance = IFDBG(metrics::imbalance(p_graph));
+    const bool post_rebalance_feasible =
+        IFDBG(metrics::is_feasible(p_graph, p_ctx));
+
+    DBG << "After iteration " << i
+        << ", post-rebalance: cut=" << post_rebalance_cut
+        << ", imbalance=" << post_rebalance_balance
+        << ", feasible=" << post_rebalance_feasible;
   }
 
   return false;

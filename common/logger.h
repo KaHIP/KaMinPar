@@ -46,7 +46,7 @@
                             << kaminpar::logger::MAGENTA << POSITION << CPU    \
                             << " " << kaminpar::logger::DEFAULT_TEXT
 #define DBG DBGC(true)
-#define IFDBG(x) (kStatistics ? (x) : std::decay_t<decltype(x)>())
+#define IFDBG(x) (kDebug ? (x) : std::decay_t<decltype(x)>())
 
 // Macros for general console output
 //
