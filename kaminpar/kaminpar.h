@@ -191,7 +191,7 @@ struct JetRefinementContext {
 };
 
 struct MtKaHyParRefinementContext {
-  bool enable_fm;
+    std::string config_filename;
 };
 
 struct BalancerRefinementContext {};

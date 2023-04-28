@@ -154,7 +154,7 @@ Context create_default_context() {
                   },
               .mtkahypar =
                   {
-                      .enable_fm = true,
+                      .config_filename = "",
                   },
           },
       .parallel =

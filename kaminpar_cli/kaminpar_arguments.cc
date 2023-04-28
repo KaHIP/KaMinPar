@@ -22,6 +22,7 @@ void create_all_options(CLI::App *app, Context &ctx) {
   create_lp_refinement_options(app, ctx);
   create_kway_fm_refinement_options(app, ctx);
   create_jet_refinement_options(app, ctx);
+  create_mtkahypar_refinement_options(app, ctx);
   create_debug_options(app, ctx);
 }
 
@@ -363,6 +364,19 @@ CLI::Option_group *create_jet_refinement_options(CLI::App *app, Context &ctx) {
       ->capture_default_str();
 
   return jet;
+}
+
+CLI::Option_group *
+create_mtkahypar_refinement_options(CLI::App *app, Context &ctx) {
+  auto *mtkahypar = app->add_option_group("Refinement -> Mt-KaHyPar");
+
+  mtkahypar
+      ->add_option(
+          "--config-filename", ctx.refinement.mtkahypar.config_filename
+      )
+      ->capture_default_str();
+
+  return mtkahypar;
 }
 
 CLI::Option_group *create_debug_options(CLI::App *app, Context &ctx) {

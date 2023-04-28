@@ -24,7 +24,13 @@ bool MtKaHyParRefiner::refine(
 ) {
 #ifdef KAMINPAR_HAVE_MTKAHYPAR_LIB
   mt_kahypar_context_t *mt_kahypar_ctx = mt_kahypar_context_new();
-  mt_kahypar_load_preset(mt_kahypar_ctx, DEFAULT);
+  if (_ctx.refinement.mtkahypar.config_filename.empty()) {
+    mt_kahypar_load_preset(mt_kahypar_ctx, DEFAULT);
+  } else {
+    mt_kahypar_configure_context_from_file(
+        mt_kahypar_ctx, _ctx.refinement.mtkahypar.config_filename.c_str()
+    );
+  }
   mt_kahypar_set_partitioning_parameters(
       mt_kahypar_ctx,
       static_cast<mt_kahypar_partition_id_t>(p_ctx.k),
@@ -32,8 +38,18 @@ bool MtKaHyParRefiner::refine(
       KM1,
       Random::seed
   );
-  mt_kahypar_set_context_parameter(mt_kahypar_ctx, VERBOSE, "0");
 
+  NoinitVector<mt_kahypar_hypernode_weight_t> block_weights(p_ctx.k);
+  p_graph.pfor_blocks([&](const BlockID b) {
+    block_weights[b] = p_graph.block_weight(b);
+  });
+  mt_kahypar_set_individual_target_block_weights(
+      mt_kahypar_ctx,
+      static_cast<mt_kahypar_partition_id_t>(p_ctx.k),
+      block_weights.data()
+  );
+
+  mt_kahypar_set_context_parameter(mt_kahypar_ctx, VERBOSE, "0");
   mt_kahypar_initialize_thread_pool(_ctx.parallel.num_threads, true);
 
   const mt_kahypar_hypernode_id_t num_vertices = p_graph.n();
