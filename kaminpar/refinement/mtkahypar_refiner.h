@@ -5,15 +5,15 @@
 #include "kaminpar/refinement/refiner.h"
 
 namespace kaminpar::shm {
-class MtKaHyParFMRefiner : public Refiner {
+class MtKaHyParRefiner : public Refiner {
 public:
-  MtKaHyParFMRefiner(const Context &ctx);
+  MtKaHyParRefiner(const Context &ctx);
 
-  MtKaHyParFMRefiner(const MtKaHyParFMRefiner &) = delete;
-  MtKaHyParFMRefiner &operator=(const MtKaHyParFMRefiner &) = delete;
+  MtKaHyParRefiner(const MtKaHyParRefiner &) = delete;
+  MtKaHyParRefiner &operator=(const MtKaHyParRefiner &) = delete;
 
-  MtKaHyParFMRefiner(MtKaHyParFMRefiner &&) noexcept = default;
-  MtKaHyParFMRefiner &operator=(MtKaHyParFMRefiner &&) = delete;
+  MtKaHyParRefiner(MtKaHyParRefiner &&) noexcept = default;
+  MtKaHyParRefiner &operator=(MtKaHyParRefiner &&) = delete;
 
   void initialize(const PartitionedGraph &) {}
 

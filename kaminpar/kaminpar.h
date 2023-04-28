@@ -81,7 +81,7 @@ enum class RefinementAlgorithm {
   KWAY_FM,
   GREEDY_BALANCER,
   JET,
-  MTKAHYPAR_KWAY_FM,
+  MTKAHYPAR,
   NOOP,
 };
 
@@ -190,6 +190,10 @@ struct JetRefinementContext {
   double max_c;
 };
 
+struct MtKaHyParRefinementContext {
+  bool enable_fm;
+};
+
 struct BalancerRefinementContext {};
 
 struct RefinementContext {
@@ -199,6 +203,7 @@ struct RefinementContext {
   KwayFMRefinementContext kway_fm;
   BalancerRefinementContext balancer;
   JetRefinementContext jet;
+  MtKaHyParRefinementContext mtkahypar;
 
   bool includes_algorithm(const RefinementAlgorithm algorithm) const {
     return std::find(algorithms.begin(), algorithms.end(), algorithm) !=

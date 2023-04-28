@@ -152,6 +152,10 @@ Context create_default_context() {
                       .min_c = 0.25,
                       .max_c = 0.75,
                   },
+              .mtkahypar =
+                  {
+                      .enable_fm = true,
+                  },
           },
       .parallel =
           {

@@ -204,6 +204,17 @@ endif ()
 FetchContent_MakeAvailable(kassert)
 set_property(DIRECTORY "${kassert_SOURCE_DIR}" PROPERTY EXCLUDE_FROM_ALL YES)
 
+# If we can find Mt-KaHyPar, make it available for initial partitioning and refinement
+if (KAMINPAR_BUILD_WITH_MTKAHYPAR)
+    find_library(LIB_MTKAHYPAR_GRAPH mtkahypargp)
+    if (NOT LIB_MTKAHYPAR_GRAPH)
+        message(STATUS "Mt-KaHyPar initial partitioning not available: library could not be found on this system")
+        set(KAMINPAR_BUILD_WITH_MTKAHYPAR OFF)
+    else ()
+        message(STATUS "Found Mt-KaHyPar at ${LIB_MTKAHYPAR_GRAPH}")
+    endif ()
+endif ()
+
 message("--------------------------------------------------------------------------------")
 
 ################################################################################

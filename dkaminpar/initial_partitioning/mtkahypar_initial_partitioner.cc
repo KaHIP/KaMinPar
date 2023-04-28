@@ -33,7 +33,7 @@ shm::PartitionedGraph MtKaHyParInitialPartitioner::initial_partition(
 ) {
 #ifdef KAMINPAR_HAVE_MTKAHYPAR_LIB
   mt_kahypar_context_t *mt_kahypar_ctx = mt_kahypar_context_new();
-  mt_kahypar_load_preset(mt_kahypar_ctx, SPEED);
+  mt_kahypar_load_preset(mt_kahypar_ctx, DEFAULT);
   mt_kahypar_set_partitioning_parameters(
       mt_kahypar_ctx,
       static_cast<mt_kahypar_partition_id_t>(p_ctx.k),
@@ -82,7 +82,8 @@ shm::PartitionedGraph MtKaHyParInitialPartitioner::initial_partition(
     }
   });
 
-  mt_kahypar_graph_t *mt_kahypar_graph = mt_kahypar_create_graph(
+  mt_kahypar_hypergraph_t mt_kahypar_graph = mt_kahypar_create_graph(
+      DEFAULT,
       num_vertices,
       num_edges,
       edges.data(),
@@ -90,13 +91,11 @@ shm::PartitionedGraph MtKaHyParInitialPartitioner::initial_partition(
       vertex_weights.data()
   );
 
-  mt_kahypar_partitioned_graph_t *mt_kahypar_partitioned_graph =
-      mt_kahypar_partition_graph(mt_kahypar_graph, mt_kahypar_ctx);
+  mt_kahypar_partitioned_hypergraph_t mt_kahypar_partitioned_graph =
+      mt_kahypar_partition(mt_kahypar_graph, mt_kahypar_ctx);
 
   NoinitVector<mt_kahypar_partition_id_t> partition(num_vertices);
-  mt_kahypar_get_graph_partition(
-      mt_kahypar_partitioned_graph, partition.data()
-  );
+  mt_kahypar_get_partition(mt_kahypar_partitioned_graph, partition.data());
 
   // Copy partition to BlockID vector
   StaticArray<BlockID> partition_cpy(num_vertices);
@@ -104,8 +103,8 @@ shm::PartitionedGraph MtKaHyParInitialPartitioner::initial_partition(
     partition_cpy[i] = static_cast<BlockID>(partition[i]);
   });
 
-  mt_kahypar_free_partitioned_graph(mt_kahypar_partitioned_graph);
-  mt_kahypar_free_graph(mt_kahypar_graph);
+  mt_kahypar_free_partitioned_hypergraph(mt_kahypar_partitioned_graph);
+  mt_kahypar_free_hypergraph(mt_kahypar_graph);
   mt_kahypar_free_context(mt_kahypar_ctx);
 
   return shm::PartitionedGraph(

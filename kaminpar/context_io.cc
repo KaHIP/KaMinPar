@@ -76,7 +76,7 @@ get_kway_refinement_algorithms() {
       {"fm", RefinementAlgorithm::KWAY_FM},
       {"jet", RefinementAlgorithm::JET},
       {"greedy-balancer", RefinementAlgorithm::GREEDY_BALANCER},
-      {"mtkahypar-fm", RefinementAlgorithm::MTKAHYPAR_KWAY_FM},
+      {"mtkahypar", RefinementAlgorithm::MTKAHYPAR},
   };
 }
 
@@ -94,8 +94,8 @@ operator<<(std::ostream &out, const RefinementAlgorithm algorithm) {
     return out << "greedy-balancer";
   case RefinementAlgorithm::JET:
     return out << "jet";
-  case RefinementAlgorithm::MTKAHYPAR_KWAY_FM:
-    return out << "mtkahypar-fm";
+  case RefinementAlgorithm::MTKAHYPAR:
+    return out << "mtkahypar";
   }
 
   return out << "<invalid>";
