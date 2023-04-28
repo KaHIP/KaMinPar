@@ -372,7 +372,8 @@ create_mtkahypar_refinement_options(CLI::App *app, Context &ctx) {
 
   mtkahypar
       ->add_option(
-          "--config-filename", ctx.refinement.mtkahypar.config_filename
+          "--r-mtkahypar-config-filename",
+          ctx.refinement.mtkahypar.config_filename
       )
       ->capture_default_str();
 

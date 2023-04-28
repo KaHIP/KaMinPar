@@ -41,7 +41,7 @@ bool MtKaHyParRefiner::refine(
 
   NoinitVector<mt_kahypar_hypernode_weight_t> block_weights(p_ctx.k);
   p_graph.pfor_blocks([&](const BlockID b) {
-    block_weights[b] = p_graph.block_weight(b);
+    block_weights[b] = p_ctx.block_weights.max(b);
   });
   mt_kahypar_set_individual_target_block_weights(
       mt_kahypar_ctx,
@@ -49,7 +49,7 @@ bool MtKaHyParRefiner::refine(
       block_weights.data()
   );
 
-  mt_kahypar_set_context_parameter(mt_kahypar_ctx, VERBOSE, "0");
+  mt_kahypar_set_context_parameter(mt_kahypar_ctx, VERBOSE, "1");
   mt_kahypar_initialize_thread_pool(_ctx.parallel.num_threads, true);
 
   const mt_kahypar_hypernode_id_t num_vertices = p_graph.n();
