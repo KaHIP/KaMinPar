@@ -9,7 +9,7 @@ target_link_libraries(dkaminpar PUBLIC kaminpar MPI::MPI_CXX OpenMP::OpenMP_CXX 
 
 # If we can find Mt-KaHyPar, make it available as an option for initial partitioning
 if (KAMINPAR_BUILD_WITH_MTKAHYPAR)
-    find_library(LIB_MTKAHYPAR_GRAPH mtkahypargraph)
+    find_library(LIB_MTKAHYPAR_GRAPH mtkahypar)
     if (NOT LIB_MTKAHYPAR_GRAPH)
         message(STATUS "Mt-KaHyPar initial partitioning not available: library could not be found on this system")
     else ()
