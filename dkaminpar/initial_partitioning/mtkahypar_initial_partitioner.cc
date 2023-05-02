@@ -119,3 +119,4 @@ shm::PartitionedGraph MtKaHyParInitialPartitioner::initial_partition(
 #endif // KAMINPAR_HAVE_MTKAHYPAR_LIB
 }
 } // namespace kaminpar::dist
+
