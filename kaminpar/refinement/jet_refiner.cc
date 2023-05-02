@@ -21,7 +21,7 @@ void perform_iteration(
     const double c,
     NoinitVector<std::uint8_t> &lock
 ) {
-  DenseGainCache gain_cache(p_ctx.k, p_graph.n());
+  DenseGainCache gain_cache(p_graph.k(), p_graph.n());
   gain_cache.initialize(p_graph);
 
   NoinitVector<BlockID> next_partition(p_graph.n());
@@ -79,13 +79,13 @@ void perform_iteration(
 
       if (to == block_v) {
         gain += weight;
-      } else {
+      } else if (from == block_v) {
         gain -= weight;
       }
     }
 
     if (gain > 0) {
-      p_graph.set_block(u, next_partition[u]);
+      p_graph.set_block(u, to);
       lock[u] = 1;
     }
   });
