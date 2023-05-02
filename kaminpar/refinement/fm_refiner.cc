@@ -356,10 +356,11 @@ EdgeWeight LocalizedFMRefiner::run_batch() {
   std::vector<NodeID> touched_nodes;
 
   // Poll seed nodes from the border node arrays
+  std::vector<NodeID> seed_nodes;
   _shared.border_nodes
       .poll(_fm_ctx.num_seed_nodes, _id, [&](const NodeID seed_node) {
         insert_into_node_pq(_p_graph, _shared.gain_cache, seed_node);
-        touched_nodes.push_back(seed_node);
+        seed_nodes.push_back(seed_node);
         IFSTATS(++stats.num_touched_nodes);
       });
 
@@ -449,6 +450,11 @@ EdgeWeight LocalizedFMRefiner::run_batch() {
         }
       }
     }
+  }
+
+  // Keep seed nodes locked for good
+  for (const NodeID &seed_node : seed_nodes) {
+    _shared.node_tracker.set(seed_node, -1);
   }
 
   // Flush local state for the nex tround
