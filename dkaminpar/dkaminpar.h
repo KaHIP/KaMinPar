@@ -98,6 +98,7 @@ enum class KWayRefinementAlgorithm {
   FM,
   COLORED_LP,
   GREEDY_BALANCER,
+  JET,
 };
 
 enum class LabelPropagationMoveExecutionStrategy {
@@ -238,6 +239,12 @@ struct GreedyBalancerContext {
   NodeID num_nodes_per_block = 0;
 };
 
+struct JetRefinementContext {
+  int num_iterations = 0;
+  double min_c = 0.0;
+  double max_c = 0.0;
+};
+
 struct RefinementContext {
   std::vector<KWayRefinementAlgorithm> algorithms;
   bool refine_coarsest_level = false;
@@ -246,6 +253,7 @@ struct RefinementContext {
   ColoredLabelPropagationRefinementContext colored_lp;
   FMRefinementContext fm;
   GreedyBalancerContext greedy_balancer;
+  JetRefinementContext jet;
 
   bool includes_algorithm(KWayRefinementAlgorithm algorithm) const;
 };

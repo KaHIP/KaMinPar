@@ -25,6 +25,7 @@
 #include "dkaminpar/refinement/colored_lp_refiner.h"
 #include "dkaminpar/refinement/fm_refiner.h"
 #include "dkaminpar/refinement/greedy_balancer.h"
+#include "dkaminpar/refinement/jet_refiner.h"
 #include "dkaminpar/refinement/local_fm_refiner.h"
 #include "dkaminpar/refinement/lp_refiner.h"
 #include "dkaminpar/refinement/multi_refiner.h"
@@ -89,6 +90,9 @@ std::unique_ptr<Refiner> create_refinement_algorithm(
 
   case KWayRefinementAlgorithm::GREEDY_BALANCER:
     return std::make_unique<GreedyBalancer>(ctx);
+
+  case KWayRefinementAlgorithm::JET:
+    return std::make_unique<JetRefiner>(ctx);
   }
 
   __builtin_unreachable();

@@ -12,4 +12,5 @@
 namespace kaminpar::dist {
 Context create_tr_fast_context();
 Context create_tr_strong_context();
+Context create_jet_context();
 } // namespace kaminpar::dist

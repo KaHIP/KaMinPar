@@ -22,6 +22,8 @@ Context create_context_by_preset_name(const std::string &name) {
     return create_tr_fast_context();
   } else if (name == "tr-strong") {
     return create_tr_strong_context();
+  } else if (name == "jet") {
+    return create_jet_context();
   }
 
   throw std::runtime_error("invalid preset name");
@@ -33,6 +35,7 @@ std::unordered_set<std::string> get_preset_names() {
       "strong",
       "tr-fast",
       "tr-strong",
+      "jet",
   };
 }
 
@@ -169,6 +172,12 @@ Context create_default_context() {
                   {
                       .num_nodes_per_block = 5,
                   },
+              .jet =
+                  {
+                      .num_iterations = 12,
+                      .min_c = 0.25,
+                      .max_c = 0.75,
+                  },
           },
       .debug = {
           .save_coarsest_graph = false,
@@ -189,5 +198,12 @@ Context create_tr_fast_context() {
 
 Context create_tr_strong_context() {
   return create_strong_context();
+}
+
+Context create_jet_context() {
+  Context ctx = create_default_context();
+  ctx.refinement.algorithms = {
+      KWayRefinementAlgorithm::GREEDY_BALANCER, KWayRefinementAlgorithm::JET};
+  return ctx;
 }
 } // namespace kaminpar::dist
