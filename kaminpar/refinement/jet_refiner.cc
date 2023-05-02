@@ -94,6 +94,8 @@ bool JetRefiner::refine(
     });
 
     p_graph.pfor_nodes([&](const NodeID u) {
+      lock[u] = 0;
+
       const BlockID from = p_graph.block(u);
       const BlockID to = next_partition[u];
       if (from == to) {
@@ -129,8 +131,6 @@ bool JetRefiner::refine(
         p_graph.set_block(u, to);
         gain_cache.move(p_graph, u, from, to);
         lock[u] = 1;
-      } else {
-        lock[u] = 0;
       }
     });
 
