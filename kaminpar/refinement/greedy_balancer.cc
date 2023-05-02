@@ -100,17 +100,17 @@ BlockWeight GreedyBalancer::perform_round() {
                 _stats.num_unsuccessful_random_moves += (1 - moved_node);
                 ++_stats.num_moved_internal_nodes;
               }
-            } else if (move_node_if_possible(
-                           u,
-                           from,
-                           to
-                       )) { // border node -> move to promising block
+
+              // border node -> move to promising block
+            } else if (move_node_if_possible(u, from, to)) {
               moved_node = true;
               if (kStatistics) {
                 ++_stats.num_moved_border_nodes;
                 ++_stats.num_successful_adjacent_moves;
               }
-            } else { // border node could not be moved -> try again
+
+              // border node could not be moved -> try again
+            } else {
               if (kStatistics) {
                 ++_stats.num_pq_reinserts;
                 ++_stats.num_unsuccessful_adjacent_moves;
@@ -323,9 +323,12 @@ bool GreedyBalancer::move_node_if_possible(
             old_weight, old_weight + u_weight
         )) {
       _p_graph->_block_weights[from] -= u_weight;
-      _p_graph->set_block<false>(
-          u, to
-      ); // don't update block weight -- we already did that
+
+      // Move without updating block weights -- we already did that
+      _p_graph->set_block<false>(u, to);
+      if (_gain_cache != nullptr) {
+        _gain_cache->move(*_p_graph, u, from, to);
+      }
       return true;
     }
   }

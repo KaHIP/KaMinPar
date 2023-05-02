@@ -15,6 +15,7 @@
 #include "kaminpar/datastructures/graph.h"
 #include "kaminpar/datastructures/partitioned_graph.h"
 #include "kaminpar/metrics.h"
+#include "kaminpar/refinement/gain_cache.h"
 #include "kaminpar/refinement/refiner.h"
 
 #include "common/datastructures/binary_heap.h"
@@ -108,6 +109,10 @@ public:
   void initialize(const PartitionedGraph &p_graph) final;
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
 
+  void track_moves(DenseGainCache *gain_cache) {
+    _gain_cache = gain_cache;
+  }
+
 private:
   BlockWeight perform_round();
 
@@ -162,5 +167,7 @@ private:
   std::vector<BlockWeight> _pq_weight;
 
   Statistics _stats;
+
+  DenseGainCache *_gain_cache = nullptr;
 };
 } // namespace kaminpar::shm

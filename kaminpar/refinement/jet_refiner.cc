@@ -49,8 +49,6 @@ bool JetRefiner::refine(
   };
 
   START_TIMER("Allocation");
-  GreedyBalancer balancer(_ctx);
-  balancer.initialize(p_graph);
 
   DenseGainCache gain_cache(p_graph.k(), p_graph.n());
   gain_cache.initialize(p_graph);
@@ -60,6 +58,10 @@ bool JetRefiner::refine(
 
   NoinitVector<std::uint8_t> lock(p_graph.n());
   p_graph.pfor_nodes([&](const NodeID u) { lock[u] = 0; });
+
+  GreedyBalancer balancer(_ctx);
+  balancer.initialize(p_graph);
+  balancer.track_moves(&gain_cache);
   STOP_TIMER();
 
   for (int i = 0; i < _ctx.refinement.jet.num_iterations; ++i) {
@@ -128,9 +130,16 @@ bool JetRefiner::refine(
       }
 
       if (gain > 0) {
-        p_graph.set_block(u, to);
-        gain_cache.move(p_graph, u, from, to);
         lock[u] = 1;
+      }
+    });
+
+    p_graph.pfor_nodes([&](const NodeID u) {
+      if (lock[u]) {
+        const BlockID from = p_graph.block(u);
+        const BlockID to = next_partition[u];
+        p_graph.set_block(u, to);
+        gain_cache.move(p_graph, u, from, p_graph.block(u));
       }
     });
 
