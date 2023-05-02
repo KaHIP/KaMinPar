@@ -451,6 +451,11 @@ EdgeWeight LocalizedFMRefiner::run_batch() {
     }
   }
 
+  // Flush local state for the nex tround
+  for (auto &node_pq : _node_pq) {
+    node_pq.clear();
+  }
+
   // Unlock all nodes that were touched but not moved (== still owned by this
   // worker)
   for (const NodeID touched_node : touched_nodes) {
@@ -463,11 +468,6 @@ EdgeWeight LocalizedFMRefiner::run_batch() {
   IFSTATS(stats.num_discarded_moves += _d_graph.delta().size());
   for (const auto &[moved_node, moved_to] : _d_graph.delta()) {
     _shared.node_tracker.unlock(moved_node);
-  }
-
-  // Flush local state for the nex tround
-  for (auto &node_pq : _node_pq) {
-    node_pq.clear();
   }
 
   _block_pq.clear();
