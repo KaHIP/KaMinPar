@@ -176,11 +176,11 @@ public:
 
   template <typename String>
   void start_timer(std::string_view name, String description) {
+    std::lock_guard<std::mutex> lg{_mutex};
+
     if (_disabled > 0) {
       return;
     }
-
-    std::lock_guard<std::mutex> lg{_mutex};
 
     // create new tree node if timer does not already exist
     auto tbl_contains = [&](std::string_view name) {
@@ -213,11 +213,11 @@ public:
   }
 
   void stop_timer() {
+    std::lock_guard<std::mutex> lg{_mutex};
+
     if (_disabled > 0) {
       return;
     }
-
-    std::lock_guard<std::mutex> lg{_mutex};
 
     stop_timer_impl();
     _tree.current = _tree.current->parent;
@@ -240,10 +240,12 @@ public:
   }
 
   void enable() {
+    std::lock_guard<std::mutex> lg{_mutex};
     _disabled = std::max(0, _disabled - 1);
   }
 
   void disable() {
+    std::lock_guard<std::mutex> lg{_mutex};
     _disabled++;
   }
 
