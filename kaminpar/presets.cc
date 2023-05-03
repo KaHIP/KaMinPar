@@ -147,7 +147,7 @@ Context create_default_context() {
               .balancer = {},
               .jet =
                   {
-                      .num_iterations = 1,
+                      .num_iterations = 12,
                       .interpolate_c = false,
                       .min_c = 0.25,
                       .max_c = 0.75,
