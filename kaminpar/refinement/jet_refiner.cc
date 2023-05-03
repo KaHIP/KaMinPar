@@ -87,6 +87,8 @@ bool JetRefiner::refine(
     parallel::Atomic<NodeID> num_backmoved_1 = 0;
     parallel::Atomic<NodeID> num_backmoved_50k = 0;
 
+    parallel::Atomic<NodeID> num_backmoved_org = 0;
+
     TIMED_SCOPE("Find moves") {
       p_graph.pfor_nodes([&](const NodeID u) {
         const BlockID from = p_graph.block(u);
@@ -238,6 +240,9 @@ bool JetRefiner::refine(
           if (p_graph.degree(u) >= 50'000) {
             IFDBG(++num_backmoved_50k);
           }
+          if (lock[u]) {
+            IFDBG(++num_backmoved_org);
+          }
         }
       });
     }
@@ -267,7 +272,8 @@ bool JetRefiner::refine(
           << ", num_backmoved=" << num_backmoved
           << ", num_backmoved_01=" << num_backmoved_01
           << ", num_backmoved_1=" << num_backmoved_1
-          << ", num_backmoved_50k=" << num_backmoved_50k;
+          << ", num_backmoved_50k=" << num_backmoved_50k
+          << ", num_backmoved_org=" << num_backmoved_org;
     };
   }
 
