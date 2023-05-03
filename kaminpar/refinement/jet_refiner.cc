@@ -71,6 +71,22 @@ bool JetRefiner::refine(
   STOP_TIMER();
 
   for (int i = 0; i < _ctx.refinement.jet.num_iterations; ++i) {
+    parallel::Atomic<EdgeWeight> sum_found_pos_moves = 0;
+    parallel::Atomic<EdgeWeight> sum_found_moves = 0;
+    parallel::Atomic<EdgeWeight> num_found_pos_moves = 0;
+    parallel::Atomic<EdgeWeight> sum_actual_moves = 0;
+    parallel::Atomic<EdgeWeight> num_actual_pos_moves = 0;
+
+    parallel::Atomic<NodeID> num_premoved = 0;
+    parallel::Atomic<NodeID> num_premoved_01 = 0;
+    parallel::Atomic<NodeID> num_premoved_1 = 0;
+    parallel::Atomic<NodeID> num_premoved_50k = 0;
+
+    parallel::Atomic<NodeID> num_backmoved = 0;
+    parallel::Atomic<NodeID> num_backmoved_01 = 0;
+    parallel::Atomic<NodeID> num_backmoved_1 = 0;
+    parallel::Atomic<NodeID> num_backmoved_50k = 0;
+
     TIMED_SCOPE("Find moves") {
       p_graph.pfor_nodes([&](const NodeID u) {
         const BlockID from = p_graph.block(u);
@@ -97,6 +113,12 @@ bool JetRefiner::refine(
 
         if (-best_gain < std::floor(c * gain_cache.conn(u, from))) {
           next_partition[u] = best_block;
+
+          IFDBG(sum_found_moves += best_gain);
+          if (best_gain >= 0) {
+            IFDBG(sum_found_pos_moves += best_gain);
+            IFDBG(++num_found_pos_moves);
+          }
         } else {
           next_partition[u] = from;
         }
@@ -149,8 +171,25 @@ bool JetRefiner::refine(
         if (lock[u]) {
           const BlockID from = p_graph.block(u);
           const BlockID to = next_partition[u];
+
+          if (IFDBG(gain_cache.gain(u, from, to) > 0)) {
+            IFDBG(++num_actual_pos_moves);
+            IFDBG(sum_actual_moves += gain_cache.gain(u, from, to));
+          }
+
           p_graph.set_block(u, to);
           gain_cache.move(p_graph, u, from, p_graph.block(u));
+
+          IFDBG(++num_premoved);
+          if (p_graph.degree(u) >= 0.001 * p_graph.n()) {
+            IFDBG(++num_premoved_01);
+          }
+          if (p_graph.degree(u) >= 0.01 * p_graph.n()) {
+            IFDBG(++num_premoved_1);
+          }
+          if (p_graph.degree(u) >= 50'000) {
+            IFDBG(++num_premoved_50k);
+          }
         }
       });
     };
@@ -163,12 +202,45 @@ bool JetRefiner::refine(
       DBG << "After iteration " << i
           << ", pre-rebalance: cut=" << pre_rebalance_cut
           << ", imbalance=" << pre_rebalance_balance
-          << ", feasible=" << pre_rebalance_feasible;
+          << ", feasible=" << pre_rebalance_feasible
+          << ", sum_found_pos_moves=" << sum_found_pos_moves
+          << ", sum_found_moves=" << sum_found_moves
+          << ", num_found_pos_moves=" << num_found_pos_moves
+          << ", sum_actual_moves=" << sum_actual_moves
+          << ", num_actual_pos_moves=" << num_actual_pos_moves
+          << ", num_premoved=" << num_premoved
+          << ", num_premoved_01=" << num_premoved_01
+          << ", num_premoved_1=" << num_premoved_1
+          << ", num_premoved_50k=" << num_premoved_50k;
     };
+
+    StaticArray<BlockID> imbalanced_partition(IFDBG(p_graph.n()));
+    if constexpr (kDebug) {
+      p_graph.pfor_nodes([&](const NodeID u) {
+        imbalanced_partition[u] = p_graph.block(u);
+      });
+    }
 
     TIMED_SCOPE("Rebalance") {
       balancer.refine(p_graph, p_ctx);
     };
+
+    if constexpr (kDebug) {
+      p_graph.pfor_nodes([&](const NodeID u) {
+        if (imbalanced_partition[u] != p_graph.block(u)) {
+          IFDBG(++num_backmoved);
+          if (p_graph.degree(u) >= 0.001 * p_graph.n()) {
+            IFDBG(++num_backmoved_01);
+          }
+          if (p_graph.degree(u) >= 0.01 * p_graph.n()) {
+            IFDBG(++num_backmoved_1);
+          }
+          if (p_graph.degree(u) >= 50'000) {
+            IFDBG(++num_backmoved_50k);
+          }
+        }
+      });
+    }
 
     TIMED_SCOPE("Update best partition") {
       const EdgeWeight current_cut = metrics::edge_cut(p_graph);
@@ -191,7 +263,11 @@ bool JetRefiner::refine(
       DBG << "After iteration " << i
           << ", post-rebalance: cut=" << post_rebalance_cut
           << ", imbalance=" << post_rebalance_balance
-          << ", feasible=" << post_rebalance_feasible;
+          << ", feasible=" << post_rebalance_feasible
+          << ", num_backmoved=" << num_backmoved
+          << ", num_backmoved_01=" << num_backmoved_01
+          << ", num_backmoved_1=" << num_backmoved_1
+          << ", num_backmoved_50k=" << num_backmoved_50k;
     };
   }
 
