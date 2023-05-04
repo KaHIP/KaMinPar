@@ -32,7 +32,9 @@ public:
         _weighted_degrees(_n) {}
 
   void initialize(const PartitionedGraph &p_graph) {
-    KASSERT(_n * _k >= p_graph.n() * p_graph.k(), "gain cache is too small");
+    KASSERT(p_graph.k() <= _k, "gain cache is too small");
+    KASSERT(p_graph.n() <= _n, "gain cache is too small");
+
     reset();
     recompute_all(p_graph);
   }
@@ -80,7 +82,11 @@ private:
   }
 
   std::size_t index(const NodeID node, const BlockID b) const {
-    return node * _k + b;
+    const std::size_t idx =
+        static_cast<std::size_t>(node) * static_cast<std::size_t>(_k) +
+        static_cast<std::size_t>(b);
+    KASSERT(idx < _gain_cache.size());
+    return idx;
   }
 
   void reset() {
