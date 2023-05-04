@@ -71,23 +71,34 @@ bool JetRefiner::refine(
   STOP_TIMER();
 
   for (int i = 0; i < _ctx.refinement.jet.num_iterations; ++i) {
-    parallel::Atomic<EdgeWeight> sum_found_pos_moves = 0;
-    parallel::Atomic<EdgeWeight> sum_found_moves = 0;
-    parallel::Atomic<EdgeWeight> num_found_pos_moves = 0;
-    parallel::Atomic<EdgeWeight> sum_actual_moves = 0;
-    parallel::Atomic<EdgeWeight> num_actual_pos_moves = 0;
+    parallel::Atomic<EdgeWeight> initial_pos_gain_sum = 0;
+    parallel::Atomic<EdgeWeight> initial_gain_sum = 0;
+    parallel::Atomic<NodeID> initial_num_pos_gain_moves = 0;
+    parallel::Atomic<NodeID> initial_num_moves = 0;
 
-    parallel::Atomic<NodeID> num_premoved = 0;
-    parallel::Atomic<NodeID> num_premoved_01 = 0;
-    parallel::Atomic<NodeID> num_premoved_1 = 0;
-    parallel::Atomic<NodeID> num_premoved_50k = 0;
+    parallel::Atomic<EdgeWeight> prefiltered_gain_sum = 0;
+    parallel::Atomic<NodeID> prefiltered_num_moves = 0;
 
-    parallel::Atomic<NodeID> num_backmoved = 0;
-    parallel::Atomic<NodeID> num_backmoved_01 = 0;
-    parallel::Atomic<NodeID> num_backmoved_1 = 0;
-    parallel::Atomic<NodeID> num_backmoved_50k = 0;
+    parallel::Atomic<EdgeWeight> filtered_expected_gain_sum = 0;
+    parallel::Atomic<EdgeWeight> filtered_actual_gain_sum = 0;
+    parallel::Atomic<NodeID> filtered_num_actual_pos_gain_moves = 0;
+    parallel::Atomic<NodeID> filtered_num_actual_zero_gain_moves = 0;
+    parallel::Atomic<NodeID> filtered_num_actual_neg_gain_moves = 0;
+    parallel::Atomic<NodeID> filtered_num_moves = 0;
 
-    parallel::Atomic<NodeID> num_backmoved_org = 0;
+    parallel::Atomic<NodeID> filtered_num_moves_deg01perc = 0;
+    parallel::Atomic<NodeID> filtered_num_moves_deg1perc = 0;
+    parallel::Atomic<NodeID> filtered_num_moves_deg50k = 0;
+
+    parallel::Atomic<NodeID> rebalance_num_moves = 0;
+    parallel::Atomic<NodeID> rebalance_num_moves_deg01perc = 0;
+    parallel::Atomic<NodeID> rebalance_num_moves_deg1perc = 0;
+    parallel::Atomic<NodeID> rebalance_num_moves_deg50k = 0;
+
+    parallel::Atomic<NodeID> final_num_doublemoved = 0;
+    parallel::Atomic<NodeID> final_num_doublemoved_deg01perc = 0;
+    parallel::Atomic<NodeID> final_num_doublemoved_deg1perc = 0;
+    parallel::Atomic<NodeID> final_num_doublemoved_deg50k = 0;
 
     TIMED_SCOPE("Find moves") {
       p_graph.pfor_nodes([&](const NodeID u) {
@@ -113,14 +124,17 @@ bool JetRefiner::refine(
           }
         }
 
+        IFDBG(++initial_num_moves);
+        IFDBG(initial_gain_sum += best_gain);
+        if (best_gain > 0) {
+          IFDBG(initial_pos_gain_sum += best_gain);
+        }
+
         if (-best_gain < std::floor(c * gain_cache.conn(u, from))) {
           next_partition[u] = best_block;
 
-          IFDBG(sum_found_moves += best_gain);
-          if (best_gain >= 0) {
-            IFDBG(sum_found_pos_moves += best_gain);
-            IFDBG(++num_found_pos_moves);
-          }
+          IFDBG(++prefiltered_num_moves);
+          IFDBG(prefiltered_gain_sum += best_gain);
         } else {
           next_partition[u] = from;
         }
@@ -163,6 +177,8 @@ bool JetRefiner::refine(
         }
 
         if (gain > 0) {
+          IFDBG(++filtered_num_moves);
+          IFDBG(filtered_expected_gain_sum += gain);
           lock[u] = 1;
         }
       });
@@ -174,47 +190,34 @@ bool JetRefiner::refine(
           const BlockID from = p_graph.block(u);
           const BlockID to = next_partition[u];
 
-          if (IFDBG(gain_cache.gain(u, from, to) > 0)) {
-            IFDBG(++num_actual_pos_moves);
-            IFDBG(sum_actual_moves += gain_cache.gain(u, from, to));
-          }
+          const EdgeWeight actual_gain = IFDBG(gain_cache.gain(u, from, to));
+          IFDBG(filtered_num_actual_pos_gain_moves += actual_gain > 0 ? 1 : 0);
+          IFDBG(
+              filtered_num_actual_zero_gain_moves += actual_gain == 0 ? 1 : 0
+          );
+          IFDBG(filtered_num_actual_neg_gain_moves += actual_gain < 0 ? 1 : 0);
+          IFDBG(filtered_actual_gain_sum += actual_gain);
 
           p_graph.set_block(u, to);
           gain_cache.move(p_graph, u, from, p_graph.block(u));
 
-          IFDBG(++num_premoved);
           if (p_graph.degree(u) >= 0.001 * p_graph.n()) {
-            IFDBG(++num_premoved_01);
+            IFDBG(++filtered_num_moves_deg01perc);
           }
           if (p_graph.degree(u) >= 0.01 * p_graph.n()) {
-            IFDBG(++num_premoved_1);
+            IFDBG(++filtered_num_moves_deg1perc);
           }
           if (p_graph.degree(u) >= 50'000) {
-            IFDBG(++num_premoved_50k);
+            IFDBG(++filtered_num_moves_deg50k);
           }
         }
       });
     };
 
-    TIMED_SCOPE("Statistics") {
-      const EdgeWeight pre_rebalance_cut = IFDBG(metrics::edge_cut(p_graph));
-      const double pre_rebalance_balance = IFDBG(metrics::imbalance(p_graph));
-      const bool pre_rebalance_feasible =
-          IFDBG(metrics::is_feasible(p_graph, p_ctx));
-      DBG << "After iteration " << i
-          << ", pre-rebalance: cut=" << pre_rebalance_cut
-          << ", imbalance=" << pre_rebalance_balance
-          << ", feasible=" << pre_rebalance_feasible
-          << ", sum_found_pos_moves=" << sum_found_pos_moves
-          << ", sum_found_moves=" << sum_found_moves
-          << ", num_found_pos_moves=" << num_found_pos_moves
-          << ", sum_actual_moves=" << sum_actual_moves
-          << ", num_actual_pos_moves=" << num_actual_pos_moves
-          << ", num_premoved=" << num_premoved
-          << ", num_premoved_01=" << num_premoved_01
-          << ", num_premoved_1=" << num_premoved_1
-          << ", num_premoved_50k=" << num_premoved_50k;
-    };
+    const EdgeWeight pre_rebalance_cut = IFDBG(metrics::edge_cut(p_graph));
+    const double pre_rebalance_balance = IFDBG(metrics::imbalance(p_graph));
+    const bool pre_rebalance_feasible =
+        IFDBG(metrics::is_feasible(p_graph, p_ctx));
 
     StaticArray<BlockID> imbalanced_partition(IFDBG(p_graph.n()));
     if constexpr (kDebug) {
@@ -230,18 +233,19 @@ bool JetRefiner::refine(
     if constexpr (kDebug) {
       p_graph.pfor_nodes([&](const NodeID u) {
         if (imbalanced_partition[u] != p_graph.block(u)) {
-          IFDBG(++num_backmoved);
+          IFDBG(++rebalance_num_moves);
+          IFDBG(final_num_doublemoved += lock[u]);
           if (p_graph.degree(u) >= 0.001 * p_graph.n()) {
-            IFDBG(++num_backmoved_01);
+            IFDBG(++rebalance_num_moves_deg01perc);
+            IFDBG(final_num_doublemoved_deg01perc += lock[u]);
           }
           if (p_graph.degree(u) >= 0.01 * p_graph.n()) {
-            IFDBG(++num_backmoved_1);
+            IFDBG(++rebalance_num_moves_deg1perc);
+            IFDBG(final_num_doublemoved_deg1perc += lock[u]);
           }
           if (p_graph.degree(u) >= 50'000) {
-            IFDBG(++num_backmoved_50k);
-          }
-          if (lock[u]) {
-            IFDBG(++num_backmoved_org);
+            IFDBG(++rebalance_num_moves_deg50k);
+            IFDBG(final_num_doublemoved_deg50k += lock[u]);
           }
         }
       });
@@ -260,21 +264,51 @@ bool JetRefiner::refine(
       }
     };
 
-    TIMED_SCOPE("Statistics") {
-      const EdgeWeight post_rebalance_cut = IFDBG(metrics::edge_cut(p_graph));
-      const double post_rebalance_balance = IFDBG(metrics::imbalance(p_graph));
-      const bool post_rebalance_feasible =
-          IFDBG(metrics::is_feasible(p_graph, p_ctx));
-      DBG << "After iteration " << i
-          << ", post-rebalance: cut=" << post_rebalance_cut
-          << ", imbalance=" << post_rebalance_balance
-          << ", feasible=" << post_rebalance_feasible
-          << ", num_backmoved=" << num_backmoved
-          << ", num_backmoved_01=" << num_backmoved_01
-          << ", num_backmoved_1=" << num_backmoved_1
-          << ", num_backmoved_50k=" << num_backmoved_50k
-          << ", num_backmoved_org=" << num_backmoved_org;
-    };
+    const EdgeWeight post_rebalance_cut = IFDBG(metrics::edge_cut(p_graph));
+    const double post_rebalance_balance = IFDBG(metrics::imbalance(p_graph));
+    const bool post_rebalance_feasible =
+        IFDBG(metrics::is_feasible(p_graph, p_ctx));
+
+    DBG << "iter=" << i << " "
+        << "pre_rebalance_cut=" << pre_rebalance_cut << " "
+        << "pre_rebalance_balance=" << pre_rebalance_balance << " "
+        << "pre_rebalance_feasible=" << pre_rebalance_feasible << " "
+        << "post_rebalance_cut=" << post_rebalance_cut << " "
+        << "post_rebalance_balance=" << post_rebalance_balance << " "
+        << "post_rebalance_feasible=" << post_rebalance_feasible << " "
+        << "initial_pos_gain_sum=" << initial_pos_gain_sum << " "
+        << "initial_gain_sum=" << initial_gain_sum << " "
+        << "initial_num_pos_gain_moves=" << initial_num_pos_gain_moves << " "
+        << "initial_num_moves=" << initial_num_moves << " "
+        << "prefiltered_gain_sum=" << prefiltered_gain_sum << " "
+        << "prefiltered_num_moves=" << prefiltered_num_moves << " "
+        << "filtered_expected_gain_sum=" << filtered_expected_gain_sum << " "
+        << "filtered_actual_gain_sum=" << filtered_actual_gain_sum << " "
+        << "filtered_num_actual_pos_gain_moves="
+        << filtered_num_actual_pos_gain_moves << " "
+        << "filtered_num_actual_zero_gain_moves="
+        << filtered_num_actual_zero_gain_moves << " "
+        << "filtered_num_actual_neg_gain_moves="
+        << filtered_num_actual_neg_gain_moves << " "
+        << "filtered_num_moves=" << filtered_num_moves << " "
+        << "filtered_num_moves_deg01perc=" << filtered_num_moves_deg01perc
+        << " "
+        << "filtered_num_moves_deg1perc=" << filtered_num_moves_deg1perc << " "
+        << "filtered_num_moves_deg50k=" << filtered_num_moves_deg50k << " "
+        << "rebalance_num_moves=" << rebalance_num_moves << " "
+        << "rebalance_num_moves_deg01perc=" << rebalance_num_moves_deg01perc
+        << " "
+        << "rebalance_num_moves_deg1perc=" << rebalance_num_moves_deg1perc
+        << " "
+        << "rebalance_num_moves_deg50k=" << rebalance_num_moves_deg50k << " "
+        << "final_num_doublemoved=" << final_num_doublemoved << " "
+        << "final_num_doublemoved_deg01perc=" << final_num_doublemoved_deg01perc
+        << " "
+        << "final_num_doublemoved_deg1perc=" << final_num_doublemoved_deg1perc
+        << " "
+        << "final_num_doublemoved_deg50k=" << final_num_doublemoved_deg50k
+        << " "
+        << "last_iteration_is_best=" << last_iteration_is_best;
   }
 
   TIMED_SCOPE("Rollback") {
