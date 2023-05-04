@@ -28,7 +28,9 @@ public:
   DenseGainCache(const BlockID k, const NodeID n)
       : _k(k),
         _n(n),
-        _gain_cache(_n * _k),
+        _gain_cache(
+            static_cast<std::size_t>(_n) * static_cast<std::size_t>(_k)
+        ),
         _weighted_degrees(_n) {}
 
   void initialize(const PartitionedGraph &p_graph) {
