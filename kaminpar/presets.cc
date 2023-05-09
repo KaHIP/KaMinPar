@@ -147,7 +147,7 @@ Context create_default_context() {
               .balancer = {},
               .jet =
                   {
-                      .num_iterations = 1,
+                      .num_iterations = 12,
                       .interpolate_c = false,
                       .min_c = 0.25,
                       .max_c = 0.75,
@@ -186,11 +186,17 @@ Context create_largek_context() {
 
 Context create_strong_context() {
   Context ctx = create_default_context();
+
   ctx.refinement.algorithms = {
       RefinementAlgorithm::GREEDY_BALANCER,
       RefinementAlgorithm::LABEL_PROPAGATION,
       RefinementAlgorithm::KWAY_FM,
+      RefinementAlgorithm::GREEDY_BALANCER,
   };
+
+  ctx.coarsening.cluster_weight_limit = ClusterWeightLimit::BLOCK_WEIGHT;
+  ctx.coarsening.cluster_weight_multiplier = 1.0 / 18.0;
+
   return ctx;
 }
 
