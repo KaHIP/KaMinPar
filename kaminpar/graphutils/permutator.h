@@ -40,7 +40,7 @@ template <bool put_deg0_at_end = true>
 NodePermutations<StaticArray>
 sort_by_degree_buckets(const StaticArray<EdgeID> &nodes) {
   auto find_bucket = [&](const Degree deg) {
-    return deg == 0 ? (put_deg0_at_end ? kNumberOfDegreeBuckets - 1 : 0)
+    return deg == 0 ? (put_deg0_at_end ? kNumberOfDegreeBuckets<NodeID> - 1 : 0)
                     : degree_bucket(deg);
   };
 
@@ -51,7 +51,7 @@ sort_by_degree_buckets(const StaticArray<EdgeID> &nodes) {
   StaticArray<NodeID> inverse_permutation(n);
 
   // local_buckets[cpu][bucket]: thread-local bucket sizes
-  using Buckets = std::array<NodeID, kNumberOfDegreeBuckets + 1>;
+  using Buckets = std::array<NodeID, kNumberOfDegreeBuckets<NodeID> + 1>;
   std::vector<Buckets, tbb::cache_aligned_allocator<Buckets>> local_buckets(
       cpus + 1
   );

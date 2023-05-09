@@ -223,9 +223,9 @@ TEST(GraphTest, PutsAxeInCorrectBuckets) {
 }
 
 TEST(GraphTest, LowestDegreeInBucketWorks) {
-  EXPECT_EQ(lowest_degree_in_bucket(0), 0);
-  EXPECT_EQ(lowest_degree_in_bucket(1), 1);
-  EXPECT_EQ(lowest_degree_in_bucket(2), 2);
-  EXPECT_EQ(lowest_degree_in_bucket(3), 4);
+  EXPECT_EQ(lowest_degree_in_bucket<NodeID>(0), 0);
+  EXPECT_EQ(lowest_degree_in_bucket<NodeID>(1), 1);
+  EXPECT_EQ(lowest_degree_in_bucket<NodeID>(2), 2);
+  EXPECT_EQ(lowest_degree_in_bucket<NodeID>(3), 4);
 }
 } // namespace kaminpar::shm::testing

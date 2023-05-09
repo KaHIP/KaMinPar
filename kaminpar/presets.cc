@@ -151,6 +151,8 @@ Context create_default_context() {
                       .interpolate_c = false,
                       .min_c = 0.25,
                       .max_c = 0.75,
+                      .use_abortion_threshold = false,
+                      .abortion_threshold = 0.999,
                   },
               .mtkahypar =
                   {

@@ -188,6 +188,8 @@ struct JetRefinementContext {
   double interpolate_c;
   double min_c;
   double max_c;
+  bool use_abortion_threshold;
+  double abortion_threshold;
 };
 
 struct MtKaHyParRefinementContext {

@@ -19,6 +19,7 @@
 #include "kaminpar/definitions.h"
 
 #include "common/datastructures/static_array.h"
+#include "common/degree_buckets.h"
 #include "common/ranges.h"
 #include "common/tags.h"
 
@@ -31,66 +32,9 @@ using EdgeWeightArray = StaticArray<EdgeWeight>;
 class Graph;
 class PartitionedGraph;
 
-static constexpr std::size_t kNumberOfDegreeBuckets =
-    std::numeric_limits<NodeID>::digits + 1;
-
-/*!
- * Returns the lowest degree that could occur in a given bucket id. This does
- * not imply that the bucket actually has a node with this degree.
- *
- * @param bucket A bucket id.
- * @return Lowest possible degree of a node placed in the given bucket.
- */
-Degree lowest_degree_in_bucket(std::size_t bucket);
-
-/*!
- * Returns the bucket id of a node of given degree. Note:
- * `lowest_degree_in_bucket(degree_bucket(degree)) <= degree` with equality iff.
- * degree is a power of 2 or zero.
- *
- * @param degree Degree of a node.
- * @return ID of the bucket that the node should be placed in.
- */
-Degree degree_bucket(Degree degree);
-
-/*!
- * Static weighted graph represented by an adjacency array.
- *
- * Common usage patterns are as follows:
- * ```
- * Graph graph(...);
- *
- * // iterate over all nodes in the graph
- * for (const NodeID u : graph.nodes()) {
- *     // iterate over incident edges *with* their endpoints
- *     for (const auto [e, v] : graph.neighbors(u)) {
- *         // edge e = (u, v)
- *     }
- *
- *     // iterate over adjacent nodes
- *     for (const NodeID v : graph.adjacent_nodes(u)) {
- *         // there is an edge (u, v)
- *     }
- *
- *     // iterate over incident edges *without* their endpoints
- *     for (const EdgeID e : graph.incident_edges(u)) {
- *         // edge e = (u, graph.edge_target(e))
- *     }
- * }
- *
- * // iterate over all edges in the graph *without* their endpoints
- * for (const EdgeID e : graph.edges()) {
- *     // ...
- * }
- * ```
- *
- * Note that this class does not contain a graph partition. To extend the graph
- * with a partition, wrap an object of this class in a
- * kaminpar::PartitionedGraph.
- */
 class Graph {
 public:
-  // data types used by this graph
+  // Data types used by this graph
   using NodeID = ::kaminpar::shm::NodeID;
   using NodeWeight = ::kaminpar::shm::NodeWeight;
   using EdgeID = ::kaminpar::shm::EdgeID;
@@ -192,6 +136,7 @@ private:
   StaticArray<NodeID> _edges;
   StaticArray<NodeWeight> _node_weights;
   StaticArray<EdgeWeight> _edge_weights;
+
   NodeWeight _total_node_weight = kInvalidNodeWeight;
   EdgeWeight _total_edge_weight = kInvalidEdgeWeight;
   NodeWeight _max_node_weight = kInvalidNodeWeight;
@@ -199,7 +144,7 @@ private:
   StaticArray<NodeID> _permutation;
   bool _sorted;
   std::vector<NodeID> _buckets =
-      std::vector<NodeID>(kNumberOfDegreeBuckets + 1);
+      std::vector<NodeID>(kNumberOfDegreeBuckets<NodeID> + 1);
   std::size_t _number_of_buckets = 0;
 };
 
