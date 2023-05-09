@@ -60,7 +60,7 @@ If you are using CMake, you can use the partitioners as libraries by adding this
 ```cmake
 add_subdirectory(external/KaMinPar)
 
-target_link_libraries(<your-target> PUBLIC KaMinPar::KaMinPar) # Shared-memory partitioning
+target_link_libraries(<your-target> PUBLIC KaMinPar::KaMinPar)  # Shared-memory partitioning
 target_link_libraries(<your-target> PUBLIC KaMinPar::dKaMinPar) # Distributed partitioning
 ```
 
@@ -74,7 +74,7 @@ FetchContent_Declare(KaMinPar
 FetchContent_MakeAvailable(KaMinPar)
 set_property(DIRECTORY ${KaMinPar_SOURCE_DIR}" PROPERTY EXCLUDE_FROM_ALL YES) # optional
 
-target_link_libraries(<your-target> PUBLIC KaMinPar::KaMinPar) # Shared-memory partitioning
+target_link_libraries(<your-target> PUBLIC KaMinPar::KaMinPar)  # Shared-memory partitioning
 target_link_libraries(<your-target> PUBLIC KaMinPar::dKaMinPar) # Distributed partitioning
 ```
 
