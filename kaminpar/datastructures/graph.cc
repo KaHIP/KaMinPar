@@ -17,17 +17,6 @@
 #include "common/timer.h"
 
 namespace kaminpar::shm {
-Degree lowest_degree_in_bucket(const std::size_t bucket) {
-  return (1u << bucket) >> 1u;
-}
-Degree degree_bucket(const Degree degree) {
-  return (degree == 0) ? 0 : math::floor_log2(degree) + 1;
-}
-
-//
-// Graph
-//
-
 Graph::Graph(
     StaticArray<EdgeID> nodes,
     StaticArray<NodeID> edges,

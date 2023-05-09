@@ -530,7 +530,7 @@ bool validate(const DistributedGraph &graph) {
       for (NodeID u = graph.first_node_in_bucket(bucket);
            u < graph.first_invalid_node_in_bucket(bucket);
            ++u) {
-        const auto expected_bucket = shm::degree_bucket(graph.degree(u));
+        const auto expected_bucket = degree_bucket(graph.degree(u));
         if (expected_bucket != bucket) {
           LOG_ERROR << "on PE " << rank << ":node " << u << " with degree "
                     << graph.degree(u) << " is expected to be in bucket "

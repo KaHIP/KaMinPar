@@ -6,13 +6,78 @@
 #include "kaminpar/refinement/gain_cache.h"
 #include "kaminpar/refinement/greedy_balancer.h"
 
+#include "common/degree_buckets.h"
 #include "common/logger.h"
 #include "common/noinit_vector.h"
 #include "common/timer.h"
 
 namespace kaminpar::shm {
+SET_STATISTICS_FROM_GLOBAL();
 SET_DEBUG(true);
-SET_STATISTICS(true);
+
+struct Statistics {
+  EdgeWeight pre_move_cut = 0;
+  double pre_move_imbalance = 0.0;
+  bool pre_move_feasible = false;
+
+  EdgeWeight pre_rebalance_cut = 0;
+  double pre_rebalance_imbalance = 0.0;
+  bool pre_rebalance_feasible = false;
+
+  EdgeWeight final_cut = 0;
+  double final_imbalance = 0.0;
+  bool final_feasible = false;
+
+  parallel::Atomic<EdgeWeight> initial_pos_gain_sum = 0;
+  parallel::Atomic<EdgeWeight> initial_gain_sum = 0;
+  parallel::Atomic<NodeID> initial_num_pos_gain_moves = 0;
+  parallel::Atomic<NodeID> initial_num_moves = 0;
+  parallel::Atomic<EdgeWeight> prefiltered_gain_sum = 0;
+  parallel::Atomic<NodeID> prefiltered_num_moves = 0;
+  parallel::Atomic<EdgeWeight> filtered_expected_gain_sum = 0;
+  parallel::Atomic<EdgeWeight> filtered_actual_gain_sum = 0;
+  parallel::Atomic<NodeID> filtered_num_actual_pos_gain_moves = 0;
+  parallel::Atomic<NodeID> filtered_num_actual_zero_gain_moves = 0;
+  parallel::Atomic<NodeID> filtered_num_actual_neg_gain_moves = 0;
+  parallel::Atomic<NodeID> filtered_num_moves = 0;
+
+  std::array<parallel::Atomic<NodeID>, kNumberOfDegreeBuckets<NodeID>>
+      filtered_num_moves_by_deg;
+  std::array<parallel::Atomic<NodeID>, kNumberOfDegreeBuckets<NodeID>>
+      rebalance_num_moves_by_deg;
+  std::array<parallel::Atomic<NodeID>, kNumberOfDegreeBuckets<NodeID>>
+      final_num_moves_by_deg;
+
+  bool last_iteration_is_best = false;
+
+  void print(const int iteration, const int max_iterations) {
+    STATS << "JET:ITER(" << iteration << " of " << max_iterations << ") "
+          << "pre_move_cut=" << pre_move_cut << " "
+          << "pre_move_imbalance=" << pre_move_imbalance << " "
+          << "pre_move_feasible=" << pre_move_feasible << " "
+          << "pre_rebalance_cut=" << pre_rebalance_cut << " "
+          << "pre_rebalance_imbalance=" << pre_rebalance_imbalance << " "
+          << "pre_rebalance_feasible=" << pre_rebalance_feasible << " "
+          << "final_cut=" << final_cut << " "
+          << "final_imbalance=" << final_imbalance << " "
+          << "final_feasible=" << final_feasible << " "
+          << "initial_pos_gain_sum=" << initial_pos_gain_sum << " "
+          << "initial_gain_sum=" << initial_gain_sum << " "
+          << "initial_num_pos_gain_moves=" << initial_num_pos_gain_moves << " "
+          << "initial_num_moves=" << initial_num_moves << " "
+          << "prefiltered_gain_sum=" << prefiltered_gain_sum << " "
+          << "prefiltered_num_moves=" << prefiltered_num_moves << " "
+          << "filtered_expected_gain_sum=" << filtered_expected_gain_sum << " "
+          << "filtered_actual_gain_sum=" << filtered_actual_gain_sum << " "
+          << "filtered_num_actual_pos_gain_moves="
+          << filtered_num_actual_pos_gain_moves << " "
+          << "filtered_num_actual_zero_gain_moves="
+          << filtered_num_actual_zero_gain_moves << " "
+          << "filtered_num_actual_neg_gain_moves="
+          << filtered_num_actual_neg_gain_moves << " "
+          << "last_iteration_is_best=" << last_iteration_is_best;
+  }
+};
 
 JetRefiner::JetRefiner(const Context &ctx) : _ctx(ctx) {}
 
@@ -38,15 +103,7 @@ bool JetRefiner::refine(
       }
     }
   }();
-  DBG << "Set c=" << c;
-
-  TIMED_SCOPE("Statistics") {
-    const EdgeWeight initial_cut = IFDBG(metrics::edge_cut(p_graph));
-    const double initial_balance = IFDBG(metrics::imbalance(p_graph));
-    const bool initial_feasible = IFDBG(metrics::is_feasible(p_graph, p_ctx));
-    DBG << "Initial cut=" << initial_cut << ", imbalance=" << initial_balance
-        << ", feasible=" << initial_feasible;
-  };
+  DBG << "Setting c=" << c;
 
   START_TIMER("Allocation");
   DenseGainCache gain_cache(p_graph.k(), p_graph.n());
@@ -71,34 +128,15 @@ bool JetRefiner::refine(
   STOP_TIMER();
 
   for (int i = 0; i < _ctx.refinement.jet.num_iterations; ++i) {
-    parallel::Atomic<EdgeWeight> initial_pos_gain_sum = 0;
-    parallel::Atomic<EdgeWeight> initial_gain_sum = 0;
-    parallel::Atomic<NodeID> initial_num_pos_gain_moves = 0;
-    parallel::Atomic<NodeID> initial_num_moves = 0;
+    Statistics stats;
 
-    parallel::Atomic<EdgeWeight> prefiltered_gain_sum = 0;
-    parallel::Atomic<NodeID> prefiltered_num_moves = 0;
+    const EdgeWeight initial_cut = _ctx.refinement.jet.use_abortion_threshold
+                                       ? metrics::edge_cut(p_graph)
+                                       : -1;
 
-    parallel::Atomic<EdgeWeight> filtered_expected_gain_sum = 0;
-    parallel::Atomic<EdgeWeight> filtered_actual_gain_sum = 0;
-    parallel::Atomic<NodeID> filtered_num_actual_pos_gain_moves = 0;
-    parallel::Atomic<NodeID> filtered_num_actual_zero_gain_moves = 0;
-    parallel::Atomic<NodeID> filtered_num_actual_neg_gain_moves = 0;
-    parallel::Atomic<NodeID> filtered_num_moves = 0;
-
-    parallel::Atomic<NodeID> filtered_num_moves_deg01perc = 0;
-    parallel::Atomic<NodeID> filtered_num_moves_deg1perc = 0;
-    parallel::Atomic<NodeID> filtered_num_moves_deg50k = 0;
-
-    parallel::Atomic<NodeID> rebalance_num_moves = 0;
-    parallel::Atomic<NodeID> rebalance_num_moves_deg01perc = 0;
-    parallel::Atomic<NodeID> rebalance_num_moves_deg1perc = 0;
-    parallel::Atomic<NodeID> rebalance_num_moves_deg50k = 0;
-
-    parallel::Atomic<NodeID> final_num_doublemoved = 0;
-    parallel::Atomic<NodeID> final_num_doublemoved_deg01perc = 0;
-    parallel::Atomic<NodeID> final_num_doublemoved_deg1perc = 0;
-    parallel::Atomic<NodeID> final_num_doublemoved_deg50k = 0;
+    stats.pre_move_cut = IFSTATS(metrics::edge_cut(p_graph));
+    stats.pre_move_imbalance = IFSTATS(metrics::imbalance(p_graph));
+    stats.pre_move_feasible = IFSTATS(metrics::is_balanced(p_graph, p_ctx));
 
     TIMED_SCOPE("Find moves") {
       p_graph.pfor_nodes([&](const NodeID u) {
@@ -124,17 +162,17 @@ bool JetRefiner::refine(
           }
         }
 
-        IFDBG(++initial_num_moves);
-        IFDBG(initial_gain_sum += best_gain);
+        IFSTATS(++stats.initial_num_moves);
+        IFSTATS(stats.initial_gain_sum += best_gain);
         if (best_gain > 0) {
-          IFDBG(initial_pos_gain_sum += best_gain);
+          IFSTATS(stats.initial_pos_gain_sum += best_gain);
         }
 
         if (-best_gain < std::floor(c * gain_cache.conn(u, from))) {
           next_partition[u] = best_block;
 
-          IFDBG(++prefiltered_num_moves);
-          IFDBG(prefiltered_gain_sum += best_gain);
+          IFSTATS(++stats.prefiltered_num_moves);
+          IFSTATS(stats.prefiltered_gain_sum += best_gain);
         } else {
           next_partition[u] = from;
         }
@@ -177,8 +215,8 @@ bool JetRefiner::refine(
         }
 
         if (gain > 0) {
-          IFDBG(++filtered_num_moves);
-          IFDBG(filtered_expected_gain_sum += gain);
+          IFSTATS(++stats.filtered_num_moves);
+          IFSTATS(stats.filtered_expected_gain_sum += gain);
           lock[u] = 1;
         }
       });
@@ -190,37 +228,37 @@ bool JetRefiner::refine(
           const BlockID from = p_graph.block(u);
           const BlockID to = next_partition[u];
 
-          const EdgeWeight actual_gain = IFDBG(gain_cache.gain(u, from, to));
-          IFDBG(filtered_num_actual_pos_gain_moves += actual_gain > 0 ? 1 : 0);
-          IFDBG(
-              filtered_num_actual_zero_gain_moves += actual_gain == 0 ? 1 : 0
+          IFSTATS(
+              stats.filtered_num_actual_pos_gain_moves +=
+              gain_cache.gain(u, from, to) > 0 ? 1 : 0
           );
-          IFDBG(filtered_num_actual_neg_gain_moves += actual_gain < 0 ? 1 : 0);
-          IFDBG(filtered_actual_gain_sum += actual_gain);
+          IFSTATS(
+              stats.filtered_num_actual_zero_gain_moves +=
+              gain_cache.gain(u, from, to) == 0 ? 1 : 0
+          );
+          IFSTATS(
+              stats.filtered_num_actual_neg_gain_moves +=
+              gain_cache.gain(u, from, to) < 0 ? 1 : 0
+          );
+          IFSTATS(
+              stats.filtered_actual_gain_sum += gain_cache.gain(u, from, to)
+          );
+          IFSTATS(stats.filtered_num_moves_by_deg[degree_bucket(p_graph.degree(u
+          ))]++);
 
           p_graph.set_block(u, to);
           gain_cache.move(p_graph, u, from, p_graph.block(u));
-
-          if (p_graph.degree(u) >= 0.001 * p_graph.n()) {
-            IFDBG(++filtered_num_moves_deg01perc);
-          }
-          if (p_graph.degree(u) >= 0.01 * p_graph.n()) {
-            IFDBG(++filtered_num_moves_deg1perc);
-          }
-          if (p_graph.degree(u) >= 50'000) {
-            IFDBG(++filtered_num_moves_deg50k);
-          }
         }
       });
     };
 
-    const EdgeWeight pre_rebalance_cut = IFDBG(metrics::edge_cut(p_graph));
-    const double pre_rebalance_balance = IFDBG(metrics::imbalance(p_graph));
-    const bool pre_rebalance_feasible =
-        IFDBG(metrics::is_feasible(p_graph, p_ctx));
+    stats.pre_rebalance_cut = IFSTATS(metrics::edge_cut(p_graph));
+    stats.pre_rebalance_imbalance = IFSTATS(metrics::imbalance(p_graph));
+    stats.pre_rebalance_feasible =
+        IFSTATS(metrics::is_balanced(p_graph, p_ctx));
 
-    StaticArray<BlockID> imbalanced_partition(IFDBG(p_graph.n()));
-    if constexpr (kDebug) {
+    StaticArray<BlockID> imbalanced_partition(IFSTATS(p_graph.n()));
+    IF_STATS {
       p_graph.pfor_nodes([&](const NodeID u) {
         imbalanced_partition[u] = p_graph.block(u);
       });
@@ -230,23 +268,13 @@ bool JetRefiner::refine(
       balancer.refine(p_graph, p_ctx);
     };
 
-    if constexpr (kDebug) {
+    IF_STATS {
       p_graph.pfor_nodes([&](const NodeID u) {
         if (imbalanced_partition[u] != p_graph.block(u)) {
-          IFDBG(++rebalance_num_moves);
-          IFDBG(final_num_doublemoved += lock[u]);
-          if (p_graph.degree(u) >= 0.001 * p_graph.n()) {
-            IFDBG(++rebalance_num_moves_deg01perc);
-            IFDBG(final_num_doublemoved_deg01perc += lock[u]);
-          }
-          if (p_graph.degree(u) >= 0.01 * p_graph.n()) {
-            IFDBG(++rebalance_num_moves_deg1perc);
-            IFDBG(final_num_doublemoved_deg1perc += lock[u]);
-          }
-          if (p_graph.degree(u) >= 50'000) {
-            IFDBG(++rebalance_num_moves_deg50k);
-            IFDBG(final_num_doublemoved_deg50k += lock[u]);
-          }
+          IFSTATS(
+              stats.rebalance_num_moves_by_deg[degree_bucket(p_graph.degree(u)
+              )]++
+          );
         }
       });
     }
@@ -264,51 +292,19 @@ bool JetRefiner::refine(
       }
     };
 
-    const EdgeWeight post_rebalance_cut = IFDBG(metrics::edge_cut(p_graph));
-    const double post_rebalance_balance = IFDBG(metrics::imbalance(p_graph));
-    const bool post_rebalance_feasible =
-        IFDBG(metrics::is_feasible(p_graph, p_ctx));
+    IFSTATS(stats.last_iteration_is_best = last_iteration_is_best);
+    IFSTATS(stats.final_cut = metrics::edge_cut(p_graph));
+    IFSTATS(stats.final_imbalance = metrics::imbalance(p_graph));
+    IFSTATS(stats.final_feasible = metrics::is_feasible(p_graph, p_ctx));
+    IFSTATS(stats.print(i, _ctx.refinement.jet.num_iterations));
 
-    DBG << "iter=" << i << " "
-        << "pre_rebalance_cut=" << pre_rebalance_cut << " "
-        << "pre_rebalance_balance=" << pre_rebalance_balance << " "
-        << "pre_rebalance_feasible=" << pre_rebalance_feasible << " "
-        << "post_rebalance_cut=" << post_rebalance_cut << " "
-        << "post_rebalance_balance=" << post_rebalance_balance << " "
-        << "post_rebalance_feasible=" << post_rebalance_feasible << " "
-        << "initial_pos_gain_sum=" << initial_pos_gain_sum << " "
-        << "initial_gain_sum=" << initial_gain_sum << " "
-        << "initial_num_pos_gain_moves=" << initial_num_pos_gain_moves << " "
-        << "initial_num_moves=" << initial_num_moves << " "
-        << "prefiltered_gain_sum=" << prefiltered_gain_sum << " "
-        << "prefiltered_num_moves=" << prefiltered_num_moves << " "
-        << "filtered_expected_gain_sum=" << filtered_expected_gain_sum << " "
-        << "filtered_actual_gain_sum=" << filtered_actual_gain_sum << " "
-        << "filtered_num_actual_pos_gain_moves="
-        << filtered_num_actual_pos_gain_moves << " "
-        << "filtered_num_actual_zero_gain_moves="
-        << filtered_num_actual_zero_gain_moves << " "
-        << "filtered_num_actual_neg_gain_moves="
-        << filtered_num_actual_neg_gain_moves << " "
-        << "filtered_num_moves=" << filtered_num_moves << " "
-        << "filtered_num_moves_deg01perc=" << filtered_num_moves_deg01perc
-        << " "
-        << "filtered_num_moves_deg1perc=" << filtered_num_moves_deg1perc << " "
-        << "filtered_num_moves_deg50k=" << filtered_num_moves_deg50k << " "
-        << "rebalance_num_moves=" << rebalance_num_moves << " "
-        << "rebalance_num_moves_deg01perc=" << rebalance_num_moves_deg01perc
-        << " "
-        << "rebalance_num_moves_deg1perc=" << rebalance_num_moves_deg1perc
-        << " "
-        << "rebalance_num_moves_deg50k=" << rebalance_num_moves_deg50k << " "
-        << "final_num_doublemoved=" << final_num_doublemoved << " "
-        << "final_num_doublemoved_deg01perc=" << final_num_doublemoved_deg01perc
-        << " "
-        << "final_num_doublemoved_deg1perc=" << final_num_doublemoved_deg1perc
-        << " "
-        << "final_num_doublemoved_deg50k=" << final_num_doublemoved_deg50k
-        << " "
-        << "last_iteration_is_best=" << last_iteration_is_best;
+    if (_ctx.refinement.jet.use_abortion_threshold) {
+      const EdgeWeight final_cut = metrics::edge_cut(p_graph);
+      const double improvement = 1.0 * (initial_cut - final_cut) / initial_cut;
+      if (1.0 - improvement > _ctx.refinement.jet.abortion_threshold) {
+        break;
+      }
+    }
   }
 
   TIMED_SCOPE("Rollback") {

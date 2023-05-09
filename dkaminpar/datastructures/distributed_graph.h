@@ -21,6 +21,7 @@
 
 #include "common/datastructures/marker.h"
 #include "common/datastructures/static_array.h"
+#include "common/degree_buckets.h"
 #include "common/parallel/algorithm.h"
 #include "common/ranges.h"
 
@@ -580,7 +581,7 @@ private:
   StaticArray<NodeID> _permutation;
   bool _sorted = false;
   std::vector<NodeID> _buckets =
-      std::vector<NodeID>(shm::kNumberOfDegreeBuckets + 1);
+      std::vector<NodeID>(kNumberOfDegreeBuckets<NodeID> + 1);
   std::size_t _number_of_buckets = 0;
 
   StaticArray<NodeID> _color_sizes{};

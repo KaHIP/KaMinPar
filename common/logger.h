@@ -47,6 +47,7 @@
                             << " " << kaminpar::logger::DEFAULT_TEXT
 #define DBG DBGC(true)
 #define IFDBG(x) (kDebug ? (x) : std::decay_t<decltype(x)>())
+#define IF_DBG if constexpr (kDebug)
 
 // Macros for general console output
 //
