@@ -235,6 +235,9 @@ struct JetRefinementContext {
   int num_iterations = 0;
   double min_c = 0.0;
   double max_c = 0.0;
+  bool interpolate_c = false;
+  bool use_abortion_threshold = false;
+  double abortion_threshold = 0;
 };
 
 struct RefinementContext {

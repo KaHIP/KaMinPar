@@ -174,6 +174,9 @@ Context create_default_context() {
                       .num_iterations = 12,
                       .min_c = 0.25,
                       .max_c = 0.75,
+                      .interpolate_c = false,
+                      .use_abortion_threshold = false,
+                      .abortion_threshold = 0.999,
                   },
           },
       .debug = {

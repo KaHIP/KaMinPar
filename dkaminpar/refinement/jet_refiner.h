@@ -12,9 +12,6 @@
 #include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/refinement/refiner.h"
 
-#include "common/logger.h"
-#include "common/parallel/atomic.h"
-
 namespace kaminpar::dist {
 class JetRefiner : public Refiner {
   SET_STATISTICS(true);
