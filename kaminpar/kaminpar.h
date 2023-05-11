@@ -231,27 +231,12 @@ struct DebugContext {
 };
 
 struct Context {
-  int seed;
-  bool save_partition;
-  std::string partition_directory;
-  std::string partition_filename;
-  bool degree_weights;
-  bool quiet;
-  bool parsable_output;
-
-  bool unchecked_io;
-  bool validate_io;
-
   PartitionContext partition;
   CoarseningContext coarsening;
   InitialPartitioningContext initial_partitioning;
   RefinementContext refinement;
   ParallelContext parallel;
   DebugContext debug;
-
-  [[nodiscard]] std::string partition_file() const {
-    return partition_directory + "/" + partition_filename;
-  }
 
   void setup(const Graph &graph);
 };

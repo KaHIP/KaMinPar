@@ -40,15 +40,6 @@ std::unordered_set<std::string> get_preset_names() {
 Context create_default_context() {
   return {
       // Context
-      .seed = 0,
-      .save_partition = false,
-      .partition_directory = "./",
-      .partition_filename = "", // generate filename
-      .degree_weights = false,
-      .quiet = false,
-      .parsable_output = false,
-      .unchecked_io = false,
-      .validate_io = false,
       .partition =
           {
               // Context -> Partition
