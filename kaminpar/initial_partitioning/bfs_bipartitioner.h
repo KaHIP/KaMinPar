@@ -16,10 +16,9 @@
 #include "common/datastructures/queue.h"
 #include "common/random.h"
 
-namespace kaminpar::shm::bfs {
-namespace {
+namespace kaminpar::shm::ip {
+namespace bfs {
 using Queues = std::array<Queue<NodeID>, 2>;
-}
 
 /*! Always selects the inactive block, i.e., switches blocks after each step. */
 struct alternating {
@@ -197,9 +196,8 @@ private:
   const std::size_t _num_seed_iterations;
   block_selection_strategy _block_selection_strategy{};
 };
-} // namespace kaminpar::shm::bfs
+} // namespace bfs
 
-namespace kaminpar::shm {
 extern template class bfs::BfsBipartitioner<bfs::alternating>;
 extern template class bfs::BfsBipartitioner<bfs::lighter>;
 extern template class bfs::BfsBipartitioner<bfs::sequential>;
@@ -211,4 +209,4 @@ using LighterBlockBfsBipartitioner = bfs::BfsBipartitioner<bfs::lighter>;
 using SequentialBfsBipartitioner = bfs::BfsBipartitioner<bfs::sequential>;
 using LongerQueueBfsBipartitioner = bfs::BfsBipartitioner<bfs::longer_queue>;
 using ShorterQueueBfsBipartitioner = bfs::BfsBipartitioner<bfs::shorter_queue>;
-} // namespace kaminpar::shm
+} // namespace kaminpar::shm::ip

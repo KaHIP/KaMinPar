@@ -22,8 +22,6 @@ std::unordered_map<std::string, ClusterWeightLimit> get_cluster_weight_limits();
 
 std::ostream &operator<<(std::ostream &out, RefinementAlgorithm algorithm);
 
-std::unordered_map<std::string, RefinementAlgorithm> get_2way_refinement_algorithms();
-
 std::unordered_map<std::string, RefinementAlgorithm> get_kway_refinement_algorithms();
 
 std::ostream &operator<<(std::ostream &out, FMStoppingRule rule);

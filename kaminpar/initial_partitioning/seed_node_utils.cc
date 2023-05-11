@@ -15,19 +15,6 @@
 #include "common/random.h"
 
 namespace kaminpar::shm::ip {
-/*!
- * Fast heuristic for finding two nodes with large distance: selects a random
- * node (if seed_node is not specified), performs a BFS and selects the last
- * node processed as pseudo peripheral node. If the graph is disconnected, we
- * select a node in another connected component.
- *
- * @tparam seed_node If specified, start from this node instead of a random one
- * (for unit tests).
- * @param graph
- * @param num_iterations Repeat the graphutils this many times for a chance of
- * finding a pair of nodes with even larger distance.
- * @return Pair of nodes with large distance between them.
- */
 std::pair<NodeID, NodeID>
 find_far_away_nodes(const Graph &graph, const std::size_t num_iterations) {
   Queue<NodeID> queue(graph.n());

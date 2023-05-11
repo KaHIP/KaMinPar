@@ -15,6 +15,7 @@ public:
 
   SequentialGraphHierarchy(const SequentialGraphHierarchy &) = delete;
   SequentialGraphHierarchy &operator=(const SequentialGraphHierarchy &) = delete;
+
   SequentialGraphHierarchy(SequentialGraphHierarchy &&) noexcept = default;
   SequentialGraphHierarchy &operator=(SequentialGraphHierarchy &&) noexcept = default;
 
@@ -27,12 +28,15 @@ public:
   [[nodiscard]] inline std::size_t size() const {
     return _coarse_graphs.size();
   }
+
   [[nodiscard]] inline bool empty() const {
     return _coarse_graphs.empty();
   }
+
   [[nodiscard]] inline const auto &coarse_mappings() const {
     return _coarse_mappings;
   }
+
   [[nodiscard]] inline const auto &coarse_graphs() const {
     return _coarse_graphs;
   }

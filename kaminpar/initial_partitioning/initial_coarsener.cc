@@ -13,20 +13,18 @@
 
 namespace kaminpar::shm::ip {
 InitialCoarsener::InitialCoarsener(
-    const Graph *graph,
-    const CoarseningContext &c_ctx,
-    MemoryContext &&m_ctx
-) //
-    : _input_graph{graph},
-      _current_graph{graph},
-      _hierarchy{graph},
-      _c_ctx{c_ctx}, //
-      _clustering{std::move(m_ctx.clustering)},
-      _rating_map{std::move(m_ctx.rating_map)}, //
-      _cluster_sizes{std::move(m_ctx.cluster_sizes)},
-      _leader_node_mapping{std::move(m_ctx.leader_node_mapping)}, //
-      _edge_weight_collector{std::move(m_ctx.edge_weight_collector)},
-      _cluster_nodes{std::move(m_ctx.cluster_nodes)} {
+    const Graph *graph, const InitialCoarseningContext &c_ctx, MemoryContext &&m_ctx
+)
+    : _input_graph(graph),
+      _current_graph(graph),
+      _hierarchy(graph),
+      _c_ctx(c_ctx),
+      _clustering(std::move(m_ctx.clustering)),
+      _rating_map(std::move(m_ctx.rating_map)),
+      _cluster_sizes(std::move(m_ctx.cluster_sizes)),
+      _leader_node_mapping(std::move(m_ctx.leader_node_mapping)),
+      _edge_weight_collector(std::move(m_ctx.edge_weight_collector)),
+      _cluster_nodes(std::move(m_ctx.cluster_nodes)) {
   if (_clustering.size() < _input_graph->n() + 1) {
     _clustering.resize(_input_graph->n() + 1);
   }
@@ -47,18 +45,18 @@ InitialCoarsener::InitialCoarsener(
   }
 }
 
-InitialCoarsener::InitialCoarsener(const Graph *graph, const CoarseningContext &c_ctx)
+InitialCoarsener::InitialCoarsener(const Graph *graph, const InitialCoarseningContext &c_ctx)
     : InitialCoarsener(graph, c_ctx, MemoryContext{}) {}
 
 const Graph *
 InitialCoarsener::coarsen(const std::function<NodeWeight(NodeID)> &cb_max_cluster_weight) {
-  const NodeWeight max_cluster_weight{cb_max_cluster_weight(_current_graph->n())};
+  const NodeWeight max_cluster_weight = cb_max_cluster_weight(_current_graph->n());
   if (!_precomputed_clustering) {
     perform_label_propagation(max_cluster_weight);
   }
 
-  const NodeID c_n{_current_graph->n() - _current_num_moves};
-  const bool converged = _c_ctx.coarsening_should_converge(_current_graph->n(), c_n);
+  const NodeID c_n = _current_graph->n() - _current_num_moves;
+  const bool converged = (1.0 - 1.0 * c_n / _current_graph->n()) <= _c_ctx.convergence_threshold;
 
   if (!converged) {
     _interleaved_max_cluster_weight = cb_max_cluster_weight(c_n);
@@ -83,7 +81,8 @@ InitialCoarsener::MemoryContext InitialCoarsener::free() {
       .leader_node_mapping = std::move(_leader_node_mapping),
       .rating_map = std::move(_rating_map),
       .edge_weight_collector = std::move(_edge_weight_collector),
-      .cluster_nodes = std::move(_cluster_nodes)};
+      .cluster_nodes = std::move(_cluster_nodes),
+  };
 }
 
 NodeID InitialCoarsener::pick_cluster(
@@ -123,17 +122,17 @@ NodeID InitialCoarsener::pick_cluster_from_rating_map(
 void InitialCoarsener::perform_label_propagation(const NodeWeight max_cluster_weight) {
   reset_current_clustering();
 
-  const auto max_bucket = math::floor_log2(_c_ctx.lp.large_degree_threshold);
+  const auto max_bucket = math::floor_log2(_c_ctx.large_degree_threshold);
   for (std::size_t bucket = 0;
        bucket < std::min<std::size_t>(max_bucket, _current_graph->number_of_buckets());
        ++bucket) {
-    const NodeID bucket_size{static_cast<NodeID>(_current_graph->bucket_size(bucket))};
+    const NodeID bucket_size = static_cast<NodeID>(_current_graph->bucket_size(bucket));
     if (bucket_size == 0) {
       continue;
     }
 
-    const NodeID first_node{_current_graph->first_node_in_bucket(bucket)};
-    const auto num_chunks{bucket_size / kChunkSize};
+    const NodeID first_node = _current_graph->first_node_in_bucket(bucket);
+    const auto num_chunks = bucket_size / kChunkSize;
 
     std::vector<std::size_t> chunks(num_chunks);
     std::iota(chunks.begin(), chunks.end(), 0);
@@ -180,7 +179,7 @@ InitialCoarsener::ContractionResult InitialCoarsener::contract_current_clusterin
   StaticArray<EdgeWeight> c_edge_weights{};
   std::vector<NodeID> node_mapping{};
 
-  const NodeID n{_current_graph->n()};
+  const NodeID n = _current_graph->n();
   NodeID c_n = n - _current_num_moves;
 
   node_mapping.resize(_current_graph->n());
@@ -255,8 +254,8 @@ InitialCoarsener::ContractionResult InitialCoarsener::contract_current_clusterin
 
   {
     // note: c_node_weights is already set
-    NodeID c_u{0};
-    NodeID c_m{0};
+    NodeID c_u = 0;
+    NodeID c_m = 0;
     c_nodes[0] = 0;
 
     for (std::size_t i = 0; i < n; ++i) { // n might be smaller than _cluster_nodes[]
@@ -314,22 +313,4 @@ InitialCoarsener::ContractionResult InitialCoarsener::contract_current_clusterin
 
   return {std::move(coarse_graph), std::move(node_mapping)};
 }
-
-#ifdef TEST
-void InitialCoarsener::TEST_mock_clustering(const std::vector<NodeID> &clustering) {
-  _current_num_moves = 0;
-  for (const NodeID u : _current_graph->nodes()) {
-    _clustering[u].leader = clustering[u];
-    _clustering[_clustering[u].leader].weight += _current_graph->node_weight(u);
-    if (u != clustering[u]) {
-      _clustering[_clustering[u].leader].locked = 1;
-      ++_current_num_moves;
-    }
-  }
-}
-
-InitialCoarsener::ContractionResult InitialCoarsener::TEST_contract_clustering() {
-  return contract_current_clustering();
-}
-#endif // TEST
 } // namespace kaminpar::shm::ip

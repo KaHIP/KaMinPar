@@ -57,13 +57,6 @@ std::ostream &operator<<(std::ostream &out, const ClusterWeightLimit limit) {
   return out << "<invalid>";
 }
 
-std::unordered_map<std::string, RefinementAlgorithm> get_2way_refinement_algorithms() {
-  return {
-      {"noop", RefinementAlgorithm::NOOP},
-      {"fm", RefinementAlgorithm::TWOWAY_FM},
-  };
-}
-
 std::unordered_map<std::string, RefinementAlgorithm> get_kway_refinement_algorithms() {
   return {
       {"noop", RefinementAlgorithm::NOOP},
@@ -79,7 +72,6 @@ std::ostream &operator<<(std::ostream &out, const RefinementAlgorithm algorithm)
   switch (algorithm) {
   case RefinementAlgorithm::NOOP:
     return out << "noop";
-  case RefinementAlgorithm::TWOWAY_FM:
   case RefinementAlgorithm::KWAY_FM:
     return out << "fm";
   case RefinementAlgorithm::LABEL_PROPAGATION:

@@ -12,7 +12,7 @@
 #include "common/datastructures/marker.h"
 #include "common/random.h"
 
-namespace kaminpar::shm {
+namespace kaminpar::shm::ip {
 class GreedyGraphGrowingBipartitioner : public Bipartitioner {
 public:
   struct MemoryContext {
@@ -50,4 +50,4 @@ private:
   BinaryMinHeap<EdgeWeight> &_queue;
   Marker<> &_marker;
 };
-} // namespace kaminpar::shm
+} // namespace kaminpar::shm::ip

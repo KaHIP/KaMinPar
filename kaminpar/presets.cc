@@ -67,45 +67,24 @@ Context create_default_context() {
           },
       .initial_partitioning =
           {
-              // Context -> Initial Partitioning
+              .mode = InitialPartitioningMode::SYNCHRONOUS_PARALLEL,
               .coarsening =
                   {
-                      // Context -> Initial Partitioning -> Coarsening
-                      .algorithm = ClusteringAlgorithm::LABEL_PROPAGATION,
-                      .lp =
-                          {
-                              // Context -> Initial Partitioning -> Coarsening
-                              // -> Label Propagation
-                              .num_iterations = 1,                 // no effect
-                              .large_degree_threshold = 1000000,   // no effect
-                              .max_num_neighbors = 200000,         // no effect
-                              .two_hop_clustering_threshold = 0.5, // no effect
-                          },
                       .contraction_limit = 20,
-                      .enforce_contraction_limit = false, // no effect
                       .convergence_threshold = 0.05,
+                      .large_degree_threshold = 1000000,
                       .cluster_weight_limit = ClusterWeightLimit::BLOCK_WEIGHT,
                       .cluster_weight_multiplier = 1.0 / 12.0,
                   },
               .refinement =
                   {
-                      // Context -> Initial Partitioning -> Refinement
-                      .algorithms = {RefinementAlgorithm::TWOWAY_FM},
-                      .lp = {},
-                      .twoway_fm =
-                          {
-                              // Context -> Initial Partitioning -> Refinement
-                              // -> FM
-                              .stopping_rule = FMStoppingRule::SIMPLE,
-                              .num_fruitless_moves = 100,
-                              .alpha = 1.0,
-                              .num_iterations = 5,
-                              .improvement_abortion_threshold = 0.0001,
-                          },
-                      .kway_fm = {},
-                      .balancer = {},
+                      .disabled = false,
+                      .stopping_rule = FMStoppingRule::SIMPLE,
+                      .num_fruitless_moves = 100,
+                      .alpha = 1.0,
+                      .num_iterations = 5,
+                      .improvement_abortion_threshold = 0.0001,
                   },
-              .mode = InitialPartitioningMode::SYNCHRONOUS_PARALLEL,
               .repetition_multiplier = 1.0,
               .min_num_repetitions = 10,
               .min_num_non_adaptive_repetitions = 5,
@@ -126,7 +105,6 @@ Context create_default_context() {
                       .large_degree_threshold = 1000000,
                       .max_num_neighbors = std::numeric_limits<NodeID>::max(),
                   },
-              .twoway_fm = {},
               .kway_fm =
                   {
                       .num_seed_nodes = 5,

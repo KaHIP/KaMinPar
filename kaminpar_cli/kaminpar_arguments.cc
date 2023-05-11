@@ -16,8 +16,6 @@ void create_all_options(CLI::App *app, Context &ctx) {
   create_coarsening_options(app, ctx);
   create_lp_coarsening_options(app, ctx);
   create_initial_partitioning_options(app, ctx);
-  create_initial_refinement_options(app, ctx);
-  create_initial_fm_refinement_options(app, ctx);
   create_refinement_options(app, ctx);
   create_lp_refinement_options(app, ctx);
   create_kway_fm_refinement_options(app, ctx);
@@ -142,105 +140,96 @@ CLI::Option_group *create_initial_partitioning_options(CLI::App *app, Context &c
   - async-parallel: diversify initial partitioning by replicating coarse graphs each branch of the replication tree asynchronously
   - sync-parallel:  same as async-parallel, but process branches synchronously)")
       ->capture_default_str();
-  ip->add_option("--i-rep-exp", ctx.initial_partitioning.multiplier_exponent, "(Deprecated)")
-      ->capture_default_str();
+
   ip->add_option(
-        "--i-rep-multiplier",
-        ctx.initial_partitioning.repetition_multiplier,
-        "Multiplier for the number of bipartitioning repetitions"
+        "--i-c-contraction-limit",
+        ctx.initial_partitioning.coarsening.contraction_limit,
+        "Upper limit for the number of nodes per block in the coarsest graph."
   )
       ->capture_default_str();
-  ip->add_option("--i-min-reps", ctx.initial_partitioning.min_num_repetitions)
+  ip->add_option(
+        "--i-c-cluster-weight-limit", ctx.initial_partitioning.coarsening.cluster_weight_limit
+  )
+      ->transform(CLI::CheckedTransformer(get_cluster_weight_limits()).description(""))
       ->description(
-          R"(Minimum number of adaptive bipartitioning repetitions per bipartitioning algorithm.
-Algorithms might perform less repetitions if they are unlikely to find a competitive bipartition.)"
+          R"(This option selects the formula used to compute the weight limit for nodes in coarse graphs. 
+The weight limit can additionally be scaled by a constant multiplier set by the --c-cluster-weight-multiplier option.
+Options are:
+  - epsilon-block-weight: Cmax = eps * c(V) * min{n' / C, k}, where n' is the number of nodes in the current (coarse) graph
+  - static-block-weight:  Cmax = c(V) / k
+  - one:                  Cmax = 1
+  - zero:                 Cmax = 0 (disable coarsening))"
       )
+      ->capture_default_str();
+  ip->add_option(
+        "--i-c-cluster-weight-multiplier",
+        ctx.initial_partitioning.coarsening.cluster_weight_multiplier,
+        "Multiplicator of the maximum cluster weight base value."
+  )
+      ->capture_default_str();
+  ip->add_option(
+        "--i-c-coarsening-convergence-threshold",
+        ctx.initial_partitioning.coarsening.convergence_threshold,
+        "Coarsening converges once the size of the graph shrinks by "
+        "less than this factor."
+  )
+      ->capture_default_str();
+
+  ip->add_option("--i-rep-exp", ctx.initial_partitioning.multiplier_exponent)
+      ->capture_default_str();
+  ip->add_option("--i-rep-multiplier", ctx.initial_partitioning.repetition_multiplier)
+      ->capture_default_str();
+  ip->add_option("--i-min-reps", ctx.initial_partitioning.min_num_repetitions)
       ->capture_default_str();
   ip->add_option(
         "--i-min-non-adaptive-reps", ctx.initial_partitioning.min_num_non_adaptive_repetitions
   )
-      ->description(
-          R"(Minimum number of adaptive bipartitioning repetitions per bipartitioning algorithm,
-before an algorithm is excluded if it is unlikely to find a competitive bipartition.)"
-      )
       ->capture_default_str();
-  ip->add_option(
-        "--i-max-reps",
-        ctx.initial_partitioning.max_num_repetitions,
-        "(Deprecated, but must be larger than the minimum number of "
-        "repetitions)"
-  )
-      ->capture_default_str();
-  ip->add_option(
-        "--i-num-seed-iterations",
-        ctx.initial_partitioning.num_seed_iterations,
-        "Number of attempts to find good seeds for BFS-based "
-        "bipartitioning algorithms."
-  )
+  ip->add_option("--i-max-reps", ctx.initial_partitioning.max_num_repetitions)
       ->capture_default_str();
   ip->add_flag(
-      "--i-use-adaptive-bipartitioner-selection",
-      ctx.initial_partitioning.use_adaptive_bipartitioner_selection,
-      "Enable adaptive selection of bipartitioning algorithms."
-  );
-
-  return ip;
-}
-
-CLI::Option_group *create_initial_refinement_options(CLI::App *app, Context &ctx) {
-  auto *refinement = app->add_option_group("Initial Partitioning -> Refinement");
-
-  refinement->add_option("--i-r-algorithms", ctx.initial_partitioning.refinement.algorithms)
-      ->transform(CLI::CheckedTransformer(get_2way_refinement_algorithms()).description(""))
-      ->description(
-          R"(Algorithm for 2-way refinement during initial bipartitioning:
-  - noop: disable 2-way refinement
-  - fm:   use sequential 2-way FM)"
-      )
+        "--i-use-adaptive-bipartitioner-selection",
+        ctx.initial_partitioning.use_adaptive_bipartitioner_selection
+  )
       ->capture_default_str();
 
-  return refinement;
-}
-
-CLI::Option_group *create_initial_fm_refinement_options(CLI::App *app, Context &ctx) {
-  auto *fm = app->add_option_group("Initial Partitioning -> Refinement -> FM");
-
-  fm->add_option(
-        "--i-r-fm-stopping-rule", ctx.initial_partitioning.refinement.twoway_fm.stopping_rule
+  ip->add_flag(
+        "--i-r-disable", ctx.initial_partitioning.refinement.disabled, "Disable initial refinement."
   )
+      ->capture_default_str();
+  ip->add_option("--i-r-stopping-rule", ctx.initial_partitioning.refinement.stopping_rule)
       ->transform(CLI::CheckedTransformer(get_fm_stopping_rules()).description(""))
-      ->description(R"(Stopping rule for 2-way FM:
+      ->description(R"(Stopping rule for the 2-way FM algorithm:
   - simple:   abort after a constant number of fruitless moves
   - adaptive: abort after it became unlikely to find a cut improvement)")
       ->capture_default_str();
-  fm->add_option(
-        "--i-r-fm-num-fruitless-moves",
-        ctx.initial_partitioning.refinement.twoway_fm.num_fruitless_moves,
-        "Number of fruitless moves before aborting a FM search "
-        "(simple stopping rule)."
+  ip->add_option(
+        "--i-r-num-fruitless-moves",
+        ctx.initial_partitioning.refinement.num_fruitless_moves,
+        "[--i-r-stopping-rule=simple] Number of fruitless moves before aborting a FM search."
   )
       ->capture_default_str();
-  fm->add_option(
-        "--i-r-fm-alpha",
-        ctx.initial_partitioning.refinement.twoway_fm.alpha,
-        "Alpha factor (adaptive stopping rule)."
+  ip->add_option(
+        "--i-r-alpha",
+        ctx.initial_partitioning.refinement.alpha,
+        "[--i-r-stopping-rule=adaptive] Parameter for the adaptive stopping rule."
   )
       ->capture_default_str();
-  fm->add_option(
-        "--i-r-fm-num-iterations",
-        ctx.initial_partitioning.refinement.twoway_fm.num_iterations,
+  ip->add_option(
+        "--i-r-num-iterations",
+        ctx.initial_partitioning.refinement.num_iterations,
         "Number of iterations."
   )
       ->capture_default_str();
-  fm->add_option(
-        "--i-r-fm-abortion-threshold",
-        ctx.initial_partitioning.refinement.twoway_fm.improvement_abortion_threshold,
+  ip->add_option(
+        "--i-r-abortion-threshold",
+        ctx.initial_partitioning.refinement.improvement_abortion_threshold,
         "Stop FM iterations if the previous iteration improved the edge cut "
         "below this threshold."
   )
       ->capture_default_str();
 
-  return fm;
+  return ip;
 }
 
 CLI::Option_group *create_refinement_options(CLI::App *app, Context &ctx) {

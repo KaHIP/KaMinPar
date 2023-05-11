@@ -62,20 +62,26 @@ public:
     }
   };
 
-  InitialCoarsener(const Graph *graph, const CoarseningContext &c_ctx, MemoryContext &&m_ctx);
-  InitialCoarsener(const Graph *graph, const CoarseningContext &c_ctx);
+  InitialCoarsener(
+      const Graph *graph, const InitialCoarseningContext &c_ctx, MemoryContext &&m_ctx
+  );
+
+  InitialCoarsener(const Graph *graph, const InitialCoarseningContext &c_ctx);
 
   InitialCoarsener(const InitialCoarsener &) = delete;
   InitialCoarsener &operator=(const InitialCoarsener &) = delete;
+
   InitialCoarsener(InitialCoarsener &&) noexcept = delete;
   InitialCoarsener &operator=(InitialCoarsener &&) = delete;
 
   [[nodiscard]] inline std::size_t size() const {
     return _hierarchy.size();
   }
+
   [[nodiscard]] inline bool empty() const {
     return size() == 0;
   }
+
   [[nodiscard]] inline const Graph *coarsest_graph() const {
     return &_hierarchy.coarsest_graph();
   }
@@ -85,6 +91,7 @@ public:
   PartitionedGraph uncoarsen(PartitionedGraph &&c_p_graph);
 
   MemoryContext free();
+
   void reset_current_clustering() {
     if (_current_graph->is_node_weighted()) {
       reset_current_clustering(_current_graph->n(), _current_graph->node_weights());
@@ -123,24 +130,6 @@ public:
   NodeID pick_cluster(NodeID u, NodeWeight u_weight, NodeWeight max_cluster_weight);
   NodeID pick_cluster_from_rating_map(NodeID u, NodeWeight u_weight, NodeWeight max_cluster_weight);
 
-#ifdef TEST
-  void TEST_mock_clustering(const std::vector<NodeID> &clustering) {
-    _current_num_moves = 0;
-    for (const NodeID u : _current_graph->nodes()) {
-      _clustering[u].leader = clustering[u];
-      _clustering[_clustering[u].leader].weight += _current_graph->node_weight(u);
-      if (u != clustering[u]) {
-        _clustering[_clustering[u].leader].locked = true;
-        ++_current_num_moves;
-      }
-    }
-  }
-
-  ContractionResult TEST_contract_clustering() {
-    return contract_current_clustering();
-  }
-#endif
-
 private:
   ContractionResult contract_current_clustering();
 
@@ -177,7 +166,7 @@ private:
   const Graph *_current_graph;
   SequentialGraphHierarchy _hierarchy;
 
-  const CoarseningContext &_c_ctx;
+  const InitialCoarseningContext &_c_ctx;
 
   std::vector<Cluster> _clustering{};
   FastResetArray<EdgeWeight> _rating_map{};
@@ -186,12 +175,12 @@ private:
   FastResetArray<EdgeWeight> _edge_weight_collector{};
   std::vector<NodeID> _cluster_nodes{};
 
-  NodeID _current_num_moves{0};
-  bool _precomputed_clustering{false};
-  NodeWeight _interleaved_max_cluster_weight{0};
-  bool _interleaved_locked{false};
+  NodeID _current_num_moves = 0;
+  bool _precomputed_clustering = false;
+  NodeWeight _interleaved_max_cluster_weight = 0;
+  bool _interleaved_locked = false;
 
-  Random &_rand{Random::instance()};
+  Random &_rand = Random::instance();
   RandomPermutations<NodeID, kChunkSize, kNumberOfNodePermutations> _random_permutations{_rand};
 };
 } // namespace kaminpar::shm::ip

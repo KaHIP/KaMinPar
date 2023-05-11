@@ -39,7 +39,7 @@ PartitionedGraph SequentialGraphHierarchy::pop_and_project(PartitionedGraph &&co
     partition[u] = coarse_p_graph.block(c_mapping[u]);
   }
 
-  // this destroys underlying Graph wrapped in p_graph
+  // This destroys underlying Graph wrapped in p_graph
   _coarse_graphs.pop_back();
 
   return {

@@ -70,7 +70,6 @@ enum class ClusterWeightLimit {
 
 enum class RefinementAlgorithm {
   LABEL_PROPAGATION,
-  TWOWAY_FM,
   KWAY_FM,
   GREEDY_BALANCER,
   JET,
@@ -160,14 +159,6 @@ struct LabelPropagationRefinementContext {
   NodeID max_num_neighbors;
 };
 
-struct TwoWayFMRefinementContext {
-  FMStoppingRule stopping_rule;
-  NodeID num_fruitless_moves;
-  double alpha;
-  std::size_t num_iterations;
-  double improvement_abortion_threshold;
-};
-
 struct KwayFMRefinementContext {
   NodeID num_seed_nodes;
   double alpha;
@@ -193,7 +184,6 @@ struct BalancerRefinementContext {};
 struct RefinementContext {
   std::vector<RefinementAlgorithm> algorithms;
   LabelPropagationRefinementContext lp;
-  TwoWayFMRefinementContext twoway_fm;
   KwayFMRefinementContext kway_fm;
   BalancerRefinementContext balancer;
   JetRefinementContext jet;
@@ -204,10 +194,32 @@ struct RefinementContext {
   }
 };
 
+struct InitialRefinementContext {
+  bool disabled;
+
+  FMStoppingRule stopping_rule;
+  NodeID num_fruitless_moves;
+  double alpha;
+
+  std::size_t num_iterations;
+  double improvement_abortion_threshold;
+};
+
+struct InitialCoarseningContext {
+  NodeID contraction_limit;
+  double convergence_threshold;
+  NodeID large_degree_threshold;
+
+  ClusterWeightLimit cluster_weight_limit;
+  double cluster_weight_multiplier;
+};
+
 struct InitialPartitioningContext {
-  CoarseningContext coarsening;
-  RefinementContext refinement;
   InitialPartitioningMode mode;
+
+  InitialCoarseningContext coarsening;
+  InitialRefinementContext refinement;
+
   double repetition_multiplier;
   std::size_t min_num_repetitions;
   std::size_t min_num_non_adaptive_repetitions;

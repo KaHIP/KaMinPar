@@ -12,7 +12,7 @@
 
 #include "common/random.h"
 
-namespace kaminpar::shm {
+namespace kaminpar::shm::ip {
 class RandomBipartitioner : public Bipartitioner {
 public:
   struct MemoryContext {
@@ -37,6 +37,6 @@ protected:
     }
   }
 
-  Random &_rand{Random::instance()};
+  Random &_rand = Random::instance();
 };
-} // namespace kaminpar::shm
+} // namespace kaminpar::shm::ip

@@ -8,7 +8,7 @@
 
 #include <kassert/kassert.hpp>
 
-namespace kaminpar::shm {
+namespace kaminpar::shm::ip {
 void GreedyGraphGrowingBipartitioner::bipartition_impl() {
   KASSERT(_graph.n() > 0u);
 
@@ -66,11 +66,12 @@ void GreedyGraphGrowingBipartitioner::bipartition_impl() {
   _queue.clear();
 }
 
-[[nodiscard]] EdgeWeight GreedyGraphGrowingBipartitioner::compute_negative_gain(const NodeID u) const {
+[[nodiscard]] EdgeWeight GreedyGraphGrowingBipartitioner::compute_negative_gain(const NodeID u
+) const {
   EdgeWeight gain = 0;
   for (const auto [e, v] : _graph.neighbors(u)) {
     gain += (_partition[u] == _partition[v]) ? _graph.edge_weight(e) : -_graph.edge_weight(e);
   }
   return gain;
 }
-} // namespace kaminpar::shm
+} // namespace kaminpar::shm::ip

@@ -17,9 +17,9 @@
 
 namespace kaminpar::shm::partitioning {
 struct InitialPartitionerMemoryPool {
-  std::vector<ip::InitialPartitioner::MemoryContext> pool;
+  std::vector<InitialPartitioner::MemoryContext> pool;
 
-  ip::InitialPartitioner::MemoryContext get() {
+  InitialPartitioner::MemoryContext get() {
     if (!pool.empty()) {
       auto m_ctx = std::move(pool.back());
       pool.pop_back();
@@ -37,7 +37,7 @@ struct InitialPartitionerMemoryPool {
     return memory;
   }
 
-  void put(ip::InitialPartitioner::MemoryContext m_ctx) {
+  void put(InitialPartitioner::MemoryContext m_ctx) {
     pool.push_back(std::move(m_ctx));
   }
 };

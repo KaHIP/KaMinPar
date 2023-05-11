@@ -16,7 +16,7 @@
 #include "common/assertion_levels.h"
 #include "common/datastructures/static_array.h"
 
-namespace kaminpar::shm {
+namespace kaminpar::shm::ip {
 class Bipartitioner {
 public:
   using BlockWeights = std::array<BlockWeight, 2>;
@@ -105,4 +105,4 @@ protected:
   StaticArray<BlockID> _partition;
   BlockWeights _block_weights;
 };
-} // namespace kaminpar::shm
+} // namespace kaminpar::shm::ip

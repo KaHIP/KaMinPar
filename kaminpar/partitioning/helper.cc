@@ -46,7 +46,7 @@ PartitionedGraph bipartition(
     const Context &input_ctx,
     GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool
 ) {
-  ip::InitialPartitioner partitioner{*graph, input_ctx, final_k, ip_m_ctx_pool.local().get()};
+  InitialPartitioner partitioner(*graph, input_ctx, final_k, ip_m_ctx_pool.local().get());
   PartitionedGraph p_graph = partitioner.partition();
   ip_m_ctx_pool.local().put(partitioner.free());
   return p_graph;

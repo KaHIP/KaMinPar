@@ -20,13 +20,12 @@
 #include "kaminpar/initial_partitioning/initial_refiner.h"
 #include "kaminpar/initial_partitioning/random_bipartitioner.h"
 
-namespace kaminpar::shm {
+namespace kaminpar::shm::ip {
 class PoolBipartitioner {
+  SET_DEBUG(false);
+
   friend class PoolBipartitionerFactory;
 
-  constexpr static auto kDebug = false;
-
-  // see
   // https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Welford's_online_algorithm
   struct RunningVariance {
     [[nodiscard]] std::pair<double, double> get() const {
@@ -63,7 +62,7 @@ public:
     GreedyGraphGrowingBipartitioner::MemoryContext ggg_m_ctx;
     bfs::BfsBipartitionerBase::MemoryContext bfs_m_ctx;
     RandomBipartitioner::MemoryContext rand_m_ctx;
-    ip::InitialRefiner::MemoryContext ref_m_ctx;
+    InitialRefiner::MemoryContext ref_m_ctx;
 
     std::size_t memory_in_kb() const {
       return ggg_m_ctx.memory_in_kb() + bfs_m_ctx.memory_in_kb() + rand_m_ctx.memory_in_kb() +
@@ -95,16 +94,16 @@ public:
       const InitialPartitioningContext &i_ctx,
       MemoryContext m_ctx = {}
   )
-      : _graph{graph},
-        _p_ctx{p_ctx},
-        _i_ctx{i_ctx},
-        _min_num_repetitions{i_ctx.min_num_repetitions},
-        _min_num_non_adaptive_repetitions{i_ctx.min_num_non_adaptive_repetitions},
-        _max_num_repetitions{i_ctx.max_num_repetitions},
-        _m_ctx{std::move(m_ctx)},
-        _refiner{factory::create_initial_refiner(
-            _graph, _p_ctx, _i_ctx.refinement, std::move(_m_ctx.ref_m_ctx)
-        )} {
+      : _graph(graph),
+        _p_ctx(p_ctx),
+        _i_ctx(i_ctx),
+        _min_num_repetitions(i_ctx.min_num_repetitions),
+        _min_num_non_adaptive_repetitions(i_ctx.min_num_non_adaptive_repetitions),
+        _max_num_repetitions(i_ctx.max_num_repetitions),
+        _m_ctx(std::move(m_ctx)),
+        _refiner(
+            create_initial_refiner(_graph, _p_ctx, _i_ctx.refinement, std::move(_m_ctx.ref_m_ctx))
+        ) {
     _refiner->initialize(_graph);
   }
 
@@ -272,7 +271,7 @@ private:
 
   std::vector<std::string> _bipartitioner_names{};
   std::vector<std::unique_ptr<Bipartitioner>> _bipartitioners{};
-  std::unique_ptr<ip::InitialRefiner> _refiner;
+  std::unique_ptr<InitialRefiner> _refiner;
 
   std::vector<RunningVariance> _running_statistics{};
   Statistics _statistics{};
@@ -315,4 +314,4 @@ public:
     return pool;
   }
 };
-} // namespace kaminpar::shm
+} // namespace kaminpar::shm::ip

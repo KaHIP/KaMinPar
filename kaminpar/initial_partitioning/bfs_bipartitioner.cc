@@ -6,10 +6,10 @@
  ******************************************************************************/
 #include "kaminpar/initial_partitioning/bfs_bipartitioner.h"
 
-namespace kaminpar::shm {
+namespace kaminpar::shm::ip {
 template class bfs::BfsBipartitioner<bfs::alternating>;
 template class bfs::BfsBipartitioner<bfs::lighter>;
 template class bfs::BfsBipartitioner<bfs::sequential>;
 template class bfs::BfsBipartitioner<bfs::longer_queue>;
 template class bfs::BfsBipartitioner<bfs::shorter_queue>;
-} // namespace kaminpar::shm
+} // namespace kaminpar::shm::ip

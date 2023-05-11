@@ -87,7 +87,7 @@ private:
 namespace fm {
 struct SimpleStoppingPolicy {
   void init(const Graph *) const {}
-  [[nodiscard]] bool should_stop(const TwoWayFMRefinementContext &fm_ctx) const {
+  [[nodiscard]] bool should_stop(const InitialRefinementContext &fm_ctx) const {
     return _num_steps > fm_ctx.num_fruitless_moves;
   }
   void reset() {
@@ -109,7 +109,7 @@ struct AdaptiveStoppingPolicy {
     _beta = std::sqrt(graph->n());
   }
 
-  [[nodiscard]] bool should_stop(const TwoWayFMRefinementContext &fm_ctx) const {
+  [[nodiscard]] bool should_stop(const InitialRefinementContext &fm_ctx) const {
     const double factor = (fm_ctx.alpha / 2.0) - 0.25;
     return (_num_steps > _beta) &&
            ((_Mk == 0) || (_num_steps >= (_variance / (_Mk * _Mk)) * factor));
@@ -169,8 +169,10 @@ struct MaxGainSelectionPolicy {
       const Queues &queues,
       Random &rand
   ) {
-    const auto loss0 = queues[0].empty() ? std::numeric_limits<EdgeWeight>::max() : queues[0].peek_key();
-    const auto loss1 = queues[1].empty() ? std::numeric_limits<EdgeWeight>::max() : queues[1].peek_key();
+    const auto loss0 =
+        queues[0].empty() ? std::numeric_limits<EdgeWeight>::max() : queues[0].peek_key();
+    const auto loss1 =
+        queues[1].empty() ? std::numeric_limits<EdgeWeight>::max() : queues[1].peek_key();
     if (loss0 == loss1) {
       return MaxWeightSelectionPolicy()(p_graph, context, queues, rand);
     }
@@ -233,14 +235,14 @@ public:
   InitialTwoWayFMRefiner(
       const NodeID n,
       const PartitionContext &p_ctx,
-      const RefinementContext &r_ctx,
+      const InitialRefinementContext &r_ctx,
       MemoryContext m_ctx = {}
   )
-      : _p_ctx{p_ctx},
-        _r_ctx{r_ctx},
-        _queues{std::move(m_ctx.queues)}, //
-        _marker{std::move(m_ctx.marker)},
-        _weighted_degrees{std::move(m_ctx.weighted_degrees)} {
+      : _p_ctx(p_ctx),
+        _r_ctx(r_ctx),
+        _queues(std::move(m_ctx.queues)), //
+        _marker(std::move(m_ctx.marker)),
+        _weighted_degrees(std::move(m_ctx.weighted_degrees)) {
     KASSERT(
         p_ctx.k == 2u,
         "2-way refiner cannot be used on a " << p_ctx.k << "-way partition" << assert::light
@@ -289,8 +291,8 @@ public:
     EdgeWeight cur_edge_cut = prev_edge_cut;
 
     cur_edge_cut += round(p_graph); // always do at least one round
-    for (std::size_t it = 1; 0 < cur_edge_cut && it < _r_ctx.twoway_fm.num_iterations &&
-                             !abort(prev_edge_cut, cur_edge_cut);
+    for (std::size_t it = 1;
+         0 < cur_edge_cut && it < _r_ctx.num_iterations && !abort(prev_edge_cut, cur_edge_cut);
          ++it) {
       prev_edge_cut = cur_edge_cut;
       cur_edge_cut += round(p_graph);
@@ -309,8 +311,7 @@ public:
 private:
   [[nodiscard]] bool
   abort(const EdgeWeight prev_edge_weight, const EdgeWeight cur_edge_weight) const {
-    return (1.0 - 1.0 * cur_edge_weight / prev_edge_weight) <
-           _r_ctx.twoway_fm.improvement_abortion_threshold;
+    return (1.0 - 1.0 * cur_edge_weight / prev_edge_weight) < _r_ctx.improvement_abortion_threshold;
   }
 
   /*!
@@ -347,8 +348,7 @@ private:
     DBG << "Starting main refinement loop with #_pq[0]=" << _queues[0].size()
         << " #_pq[1]=" << _queues[1].size();
 
-    while ((!_queues[0].empty() || !_queues[1].empty()) &&
-           !_stopping_policy.should_stop(_r_ctx.twoway_fm)) {
+    while ((!_queues[0].empty() || !_queues[1].empty()) && !_stopping_policy.should_stop(_r_ctx)) {
 #if KASSERT_ENABLED(ASSERTION_LEVEL_HEAVY)
       validate_pqs(p_graph);
 #endif
@@ -528,7 +528,7 @@ private:
   const Graph *_graph; //! Graph for refinement, partition to refine is passed
                        //! to #refine().
   const PartitionContext &_p_ctx;
-  const RefinementContext &_r_ctx;
+  const InitialRefinementContext &_r_ctx;
   Queues _queues{BinaryMinHeap<EdgeWeight>{0}, BinaryMinHeap<EdgeWeight>{0}};
   Marker<> _marker{0};
   std::vector<EdgeWeight> _weighted_degrees{};
@@ -556,4 +556,23 @@ using InitialAdaptive2WayFM = InitialTwoWayFMRefiner<
     fm::MaxOverloadSelectionPolicy,
     fm::BalancedMinCutAcceptancePolicy,
     fm::AdaptiveStoppingPolicy>;
+
+inline std::unique_ptr<InitialRefiner> create_initial_refiner(
+    const Graph &graph,
+    const PartitionContext &p_ctx,
+    const InitialRefinementContext &r_ctx,
+    InitialRefiner::MemoryContext m_ctx
+) {
+  if (!r_ctx.disabled) {
+    switch (r_ctx.stopping_rule) {
+    case FMStoppingRule::ADAPTIVE:
+      return std::make_unique<InitialSimple2WayFM>(graph.n(), p_ctx, r_ctx, std::move(m_ctx));
+
+    case FMStoppingRule::SIMPLE:
+      return std::make_unique<InitialAdaptive2WayFM>(graph.n(), p_ctx, r_ctx, std::move(m_ctx));
+    }
+  }
+
+  return std::make_unique<InitialNoopRefiner>(std::move(m_ctx));
+}
 } // namespace kaminpar::shm::ip

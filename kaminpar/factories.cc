@@ -39,59 +39,12 @@ std::unique_ptr<Coarsener> create_coarsener(const Graph &graph, const Coarsening
   __builtin_unreachable();
 }
 
-std::unique_ptr<ip::InitialRefiner> create_initial_refiner(
-    const Graph &graph,
-    const PartitionContext &p_ctx,
-    const RefinementContext &r_ctx,
-    ip::InitialRefiner::MemoryContext m_ctx
-) {
-  if (r_ctx.algorithms.empty()) {
-    return std::make_unique<ip::InitialNoopRefiner>(std::move(m_ctx));
-  }
-  KASSERT(
-      r_ctx.algorithms.size() == 1u,
-      "multiple refinements during initial partitioning are not supported",
-      assert::always
-  );
-
-  switch (r_ctx.algorithms.front()) {
-  case RefinementAlgorithm::NOOP: {
-    return std::make_unique<ip::InitialNoopRefiner>(std::move(m_ctx));
-  }
-
-  case RefinementAlgorithm::TWOWAY_FM: {
-    switch (r_ctx.twoway_fm.stopping_rule) {
-    case FMStoppingRule::SIMPLE:
-      return std::make_unique<ip::InitialSimple2WayFM>(graph.n(), p_ctx, r_ctx, std::move(m_ctx));
-    case FMStoppingRule::ADAPTIVE:
-      return std::make_unique<ip::InitialAdaptive2WayFM>(graph.n(), p_ctx, r_ctx, std::move(m_ctx));
-    }
-
-    __builtin_unreachable();
-  }
-
-  case RefinementAlgorithm::LABEL_PROPAGATION:
-  case RefinementAlgorithm::GREEDY_BALANCER:
-  case RefinementAlgorithm::KWAY_FM:
-  case RefinementAlgorithm::JET:
-  case RefinementAlgorithm::MTKAHYPAR:
-    FATAL_ERROR << "Not implemented";
-    return nullptr;
-  }
-
-  __builtin_unreachable();
-}
-
 namespace {
 std::unique_ptr<Refiner> create_refiner(const Context &ctx, const RefinementAlgorithm algorithm) {
 
   switch (algorithm) {
   case RefinementAlgorithm::NOOP:
     return std::make_unique<NoopRefiner>();
-
-  case RefinementAlgorithm::TWOWAY_FM:
-    FATAL_ERROR << "Not implemented";
-    return nullptr;
 
   case RefinementAlgorithm::LABEL_PROPAGATION:
     return std::make_unique<LabelPropagationRefiner>(ctx);
