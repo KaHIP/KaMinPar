@@ -506,15 +506,13 @@ CLI::Option_group *create_hem_coarsening_options(CLI::App *app, Context &ctx) {
 }
 
 CLI::Option_group *create_jet_refinement_options(CLI::App *app, Context &ctx) {
-    auto *jet = app->add_option_group("Refinement -> JET");    
+  auto *jet = app->add_option_group("Refinement -> JET");
 
-    jet->add_option("--r-jet-num-iterations", ctx.refinement.jet.num_iterations)
-        ->capture_default_str();
-    jet->add_option("--r-jet-min-c", ctx.refinement.jet.min_c)
-        ->capture_default_str();
-    jet->add_option("--r-jet-max-c", ctx.refinement.jet.max_c)
-        ->capture_default_str();
+  jet->add_option("--r-jet-num-iterations", ctx.refinement.jet.num_iterations)
+      ->capture_default_str();
+  jet->add_option("--r-jet-min-c", ctx.refinement.jet.min_c)->capture_default_str();
+  jet->add_option("--r-jet-max-c", ctx.refinement.jet.max_c)->capture_default_str();
 
-    return jet;
+  return jet;
 }
 } // namespace kaminpar::dist

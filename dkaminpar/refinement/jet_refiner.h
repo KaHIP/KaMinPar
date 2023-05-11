@@ -30,12 +30,9 @@ public:
 
   void initialize(const DistributedGraph &graph) final {}
 
-  void refine(
-      DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx
-  ) final;
+  void refine(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
 
 private:
   const Context &_ctx;
 };
 } // namespace kaminpar::dist
-
