@@ -66,8 +66,8 @@ void GreedyGraphGrowingBipartitioner::bipartition_impl() {
   _queue.clear();
 }
 
-[[nodiscard]] Gain GreedyGraphGrowingBipartitioner::compute_negative_gain(const NodeID u) const {
-  Gain gain = 0;
+[[nodiscard]] EdgeWeight GreedyGraphGrowingBipartitioner::compute_negative_gain(const NodeID u) const {
+  EdgeWeight gain = 0;
   for (const auto [e, v] : _graph.neighbors(u)) {
     gain += (_partition[u] == _partition[v]) ? _graph.edge_weight(e) : -_graph.edge_weight(e);
   }

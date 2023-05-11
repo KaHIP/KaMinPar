@@ -82,8 +82,8 @@ inline EdgeID find_edge_by_endpoints(const Graph &graph, const NodeID u, const N
   return kInvalidEdgeID;
 }
 
-inline std::vector<Degree> degrees(const Graph &graph) {
-  std::vector<Degree> degrees(graph.n());
+inline std::vector<NodeID> degrees(const Graph &graph) {
+  std::vector<NodeID> degrees(graph.n());
   for (const NodeID u : graph.nodes()) {
     degrees[u] = graph.degree(u);
   }

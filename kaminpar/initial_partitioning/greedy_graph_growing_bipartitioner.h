@@ -16,7 +16,7 @@ namespace kaminpar::shm {
 class GreedyGraphGrowingBipartitioner : public Bipartitioner {
 public:
   struct MemoryContext {
-    BinaryMinHeap<Gain> queue{0};
+    BinaryMinHeap<EdgeWeight> queue{0};
     Marker<> marker{0};
 
     std::size_t memory_in_kb() const {
@@ -45,9 +45,9 @@ protected:
   void bipartition_impl() override;
 
 private:
-  [[nodiscard]] Gain compute_negative_gain(NodeID u) const;
+  [[nodiscard]] EdgeWeight compute_negative_gain(NodeID u) const;
 
-  BinaryMinHeap<Gain> &_queue;
+  BinaryMinHeap<EdgeWeight> &_queue;
   Marker<> &_marker;
 };
 } // namespace kaminpar::shm

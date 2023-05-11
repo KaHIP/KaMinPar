@@ -168,7 +168,7 @@ contract_generic_clustering(const Graph &graph, const Clustering &clustering, Me
 
       // to select the right map, we compute a upper bound on the coarse node
       // degree by summing the degree of all fine nodes
-      Degree upper_bound_degree = 0;
+      NodeID upper_bound_degree = 0;
       for (std::size_t i = first; i < last; ++i) {
         const NodeID u = buckets[i];
         upper_bound_degree += graph.degree(u);
@@ -204,7 +204,7 @@ contract_generic_clustering(const Graph &graph, const Clustering &clustering, Me
     const auto *list = marker.local_list;
     const NodeID c_u = marker.key;
 
-    const Degree c_u_degree = c_nodes[c_u + 1] - c_nodes[c_u];
+    const NodeID c_u_degree = c_nodes[c_u + 1] - c_nodes[c_u];
     const EdgeID first_target_index = c_nodes[c_u];
     const EdgeID first_source_index = marker.position;
 

@@ -48,9 +48,6 @@ using EdgeWeight = std::int32_t;
 
 using BlockID = std::uint32_t;
 using BlockWeight = NodeWeight;
-using Gain = EdgeWeight;
-using Degree = EdgeID;
-using Clustering = std::vector<NodeID>;
 
 constexpr BlockID kInvalidBlockID = std::numeric_limits<BlockID>::max();
 constexpr NodeID kInvalidNodeID = std::numeric_limits<NodeID>::max();
@@ -58,7 +55,6 @@ constexpr EdgeID kInvalidEdgeID = std::numeric_limits<EdgeID>::max();
 constexpr NodeWeight kInvalidNodeWeight = std::numeric_limits<NodeWeight>::max();
 constexpr EdgeWeight kInvalidEdgeWeight = std::numeric_limits<EdgeWeight>::max();
 constexpr BlockWeight kInvalidBlockWeight = std::numeric_limits<BlockWeight>::max();
-constexpr Degree kMaxDegree = std::numeric_limits<Degree>::max();
 
 enum class ClusteringAlgorithm {
   NOOP,
@@ -134,7 +130,7 @@ struct PartitionContext {
 
 struct LabelPropagationCoarseningContext {
   std::size_t num_iterations;
-  Degree large_degree_threshold;
+  NodeID large_degree_threshold;
   NodeID max_num_neighbors;
   double two_hop_clustering_threshold;
 
@@ -160,7 +156,7 @@ struct CoarseningContext {
 
 struct LabelPropagationRefinementContext {
   std::size_t num_iterations;
-  Degree large_degree_threshold;
+  NodeID large_degree_threshold;
   NodeID max_num_neighbors;
 };
 

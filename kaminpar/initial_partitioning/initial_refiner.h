@@ -26,12 +26,12 @@
 #include "common/timer.h"
 
 namespace kaminpar::shm::ip {
-using Queues = std::array<BinaryMinHeap<Gain>, 2>;
+using Queues = std::array<BinaryMinHeap<EdgeWeight>, 2>;
 
 class InitialRefiner {
 public:
   struct MemoryContext {
-    Queues queues{BinaryMinHeap<Gain>{0}, BinaryMinHeap<Gain>{0}};
+    Queues queues{BinaryMinHeap<EdgeWeight>{0}, BinaryMinHeap<EdgeWeight>{0}};
     Marker<> marker{0};
     std::vector<EdgeWeight> weighted_degrees;
 
@@ -93,7 +93,7 @@ struct SimpleStoppingPolicy {
   void reset() {
     _num_steps = 0;
   }
-  void update(const Gain) {
+  void update(const EdgeWeight) {
     ++_num_steps;
   }
 
@@ -120,7 +120,7 @@ struct AdaptiveStoppingPolicy {
     _variance = 0.0;
   }
 
-  void update(const Gain gain) {
+  void update(const EdgeWeight gain) {
     ++_num_steps;
     // See Knuth TAOCP vol 2, 3rd edition, page 232 or
     // https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance
@@ -169,8 +169,8 @@ struct MaxGainSelectionPolicy {
       const Queues &queues,
       Random &rand
   ) {
-    const auto loss0 = queues[0].empty() ? std::numeric_limits<Gain>::max() : queues[0].peek_key();
-    const auto loss1 = queues[1].empty() ? std::numeric_limits<Gain>::max() : queues[1].peek_key();
+    const auto loss0 = queues[0].empty() ? std::numeric_limits<EdgeWeight>::max() : queues[0].peek_key();
+    const auto loss1 = queues[1].empty() ? std::numeric_limits<EdgeWeight>::max() : queues[1].peek_key();
     if (loss0 == loss1) {
       return MaxWeightSelectionPolicy()(p_graph, context, queues, rand);
     }
@@ -204,8 +204,8 @@ struct BalancedMinCutAcceptancePolicy {
       const PartitionContext &,
       const EdgeWeight accepted_overload,
       const EdgeWeight current_overload,
-      const Gain accepted_delta,
-      const Gain delta
+      const EdgeWeight accepted_delta,
+      const EdgeWeight delta
   ) {
     return current_overload <= accepted_overload && delta < accepted_delta;
   }
@@ -338,8 +338,8 @@ private:
     EdgeWeight current_overload = metrics::total_overload(p_graph, _p_ctx);
     EdgeWeight accepted_overload = current_overload;
 
-    Gain current_delta = 0;
-    Gain accepted_delta = 0;
+    EdgeWeight current_delta = 0;
+    EdgeWeight accepted_delta = 0;
 #if KASSERT_ENABLED(ASSERTION_LEVEL_HEAVY)
     const EdgeWeight initial_edge_cut = metrics::edge_cut(p_graph, tag::seq);
 #endif
@@ -357,10 +357,10 @@ private:
       if (_queues[active].empty()) {
         active = 1 - active;
       }
-      BinaryMinHeap<Gain> &queue = _queues[active];
+      BinaryMinHeap<EdgeWeight> &queue = _queues[active];
 
       const NodeID u = queue.peek_id();
-      const Gain delta = queue.peek_key();
+      const EdgeWeight delta = queue.peek_key();
       const BlockID from = active;
       const BlockID to = 1 - from;
       KASSERT(!_marker.get(u));
@@ -529,7 +529,7 @@ private:
                        //! to #refine().
   const PartitionContext &_p_ctx;
   const RefinementContext &_r_ctx;
-  Queues _queues{BinaryMinHeap<Gain>{0}, BinaryMinHeap<Gain>{0}};
+  Queues _queues{BinaryMinHeap<EdgeWeight>{0}, BinaryMinHeap<EdgeWeight>{0}};
   Marker<> _marker{0};
   std::vector<EdgeWeight> _weighted_degrees{};
   QueueSelectionPolicy _queue_selection_policy{};

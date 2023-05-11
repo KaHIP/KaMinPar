@@ -283,7 +283,7 @@ GreedyBalancer::compute_gain(const NodeID u, const BlockID u_block) const {
   rating_map.run_with_map(action, action);
 
   // compute absolute and relative gain based on internal degree / external gain
-  const Gain gain = max_external_gain - internal_degree;
+  const EdgeWeight gain = max_external_gain - internal_degree;
   const double relative_gain = compute_relative_gain(gain, u_weight);
   return {max_gainer, relative_gain};
 }
