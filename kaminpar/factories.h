@@ -14,8 +14,7 @@
 #include "kaminpar/refinement/refiner.h"
 
 namespace kaminpar::shm::factory {
-std::unique_ptr<Coarsener>
-create_coarsener(const Graph &graph, const CoarseningContext &c_ctx);
+std::unique_ptr<Coarsener> create_coarsener(const Graph &graph, const CoarseningContext &c_ctx);
 
 std::unique_ptr<ip::InitialRefiner> create_initial_refiner(
     const Graph &graph,

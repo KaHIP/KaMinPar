@@ -34,8 +34,8 @@ void print_partition_summary(
 ) {
   const auto edge_cut = metrics::edge_cut(p_graph);
   const auto imbalance = metrics::imbalance(p_graph);
-  const auto feasible = metrics::is_feasible(p_graph, ctx.partition) &&
-                        p_graph.k() == ctx.partition.k;
+  const auto feasible =
+      metrics::is_feasible(p_graph, ctx.partition) && p_graph.k() == ctx.partition.k;
 
   if (!root) {
     // Non-root PEs are only needed to compute the partition metrics
@@ -45,8 +45,8 @@ void print_partition_summary(
   cio::print_delimiter("Result Summary");
 
   if (parseable) {
-    LOG << "RESULT cut=" << edge_cut << " imbalance=" << imbalance
-        << " feasible=" << feasible << " k=" << p_graph.k();
+    LOG << "RESULT cut=" << edge_cut << " imbalance=" << imbalance << " feasible=" << feasible
+        << " k=" << p_graph.k();
     std::cout << "TIME ";
     Timer::global().print_machine_readable(std::cout);
   }
@@ -69,15 +69,10 @@ void print_partition_summary(
 }
 
 void print_input_summary(
-    const Context &ctx,
-    const DistributedGraph &graph,
-    const bool parseable,
-    const bool root
+    const Context &ctx, const DistributedGraph &graph, const bool parseable, const bool root
 ) {
-  const auto n_str =
-      mpi::gather_statistics_str<GlobalNodeID>(graph.n(), MPI_COMM_WORLD);
-  const auto m_str =
-      mpi::gather_statistics_str<GlobalEdgeID>(graph.m(), MPI_COMM_WORLD);
+  const auto n_str = mpi::gather_statistics_str<GlobalNodeID>(graph.n(), MPI_COMM_WORLD);
+  const auto m_str = mpi::gather_statistics_str<GlobalEdgeID>(graph.m(), MPI_COMM_WORLD);
   const auto ghost_n_str =
       mpi::gather_statistics_str<GlobalNodeID>(graph.ghost_n(), MPI_COMM_WORLD);
 
@@ -109,9 +104,8 @@ void print_input_summary(
         shm::NodeWeight,
         shm::EdgeWeight>();
     cio::print_delimiter("Input Summary");
-    LOG << "Execution mode:               " << ctx.parallel.num_mpis
-        << " MPI process" << (ctx.parallel.num_mpis > 1 ? "es" : "") << " a "
-        << ctx.parallel.num_threads << " thread"
+    LOG << "Execution mode:               " << ctx.parallel.num_mpis << " MPI process"
+        << (ctx.parallel.num_mpis > 1 ? "es" : "") << " a " << ctx.parallel.num_threads << " thread"
         << (ctx.parallel.num_threads > 1 ? "s" : "");
   }
   print(ctx, root, std::cout);
@@ -189,9 +183,7 @@ void dKaMinPar::import_graph(
   tbb::parallel_invoke(
       [&] {
         nodes.resize(n + 1);
-        tbb::parallel_for<NodeID>(0, n + 1, [&](const NodeID u) {
-          nodes[u] = xadj[u];
-        });
+        tbb::parallel_for<NodeID>(0, n + 1, [&](const NodeID u) { nodes[u] = xadj[u]; });
       },
       [&] {
         edges.resize(m);
@@ -209,18 +201,14 @@ void dKaMinPar::import_graph(
           return;
         }
         node_weights.resize(n);
-        tbb::parallel_for<NodeID>(0, n, [&](const NodeID u) {
-          node_weights[u] = vwgt[u];
-        });
+        tbb::parallel_for<NodeID>(0, n, [&](const NodeID u) { node_weights[u] = vwgt[u]; });
       },
       [&] {
         if (adjwgt == nullptr) {
           return;
         }
         edge_weights.resize(m);
-        tbb::parallel_for<EdgeID>(0, m, [&](const EdgeID e) {
-          edge_weights[e] = adjwgt[e];
-        });
+        tbb::parallel_for<EdgeID>(0, m, [&](const EdgeID e) { edge_weights[e] = adjwgt[e]; });
       }
   );
 
@@ -241,27 +229,20 @@ void dKaMinPar::import_graph(
   );
 }
 
-GlobalEdgeWeight dKaMinPar::compute_partition(
-    const int seed, const BlockID k, BlockID *partition
-) {
+GlobalEdgeWeight dKaMinPar::compute_partition(const int seed, const BlockID k, BlockID *partition) {
   auto &graph = *_graph_ptr;
 
   const PEID size = mpi::get_comm_size(_comm);
   const PEID rank = mpi::get_comm_rank(_comm);
   const bool root = rank == 0;
 
-  KASSERT(
-      graph::debug::validate(graph),
-      "input graph failed graph verification",
-      assert::heavy
-  );
+  KASSERT(graph::debug::validate(graph), "input graph failed graph verification", assert::heavy);
 
   // Make number of processes and number of threads available via
   // ParallelContext
   _ctx.parallel.num_mpis = size;
   _ctx.parallel.num_threads = _num_threads;
-  _ctx.initial_partitioning.kaminpar.parallel.num_threads =
-      _ctx.parallel.num_threads;
+  _ctx.initial_partitioning.kaminpar.parallel.num_threads = _ctx.parallel.num_threads;
   _ctx.partition.k = k;
   _ctx.partition.graph = std::make_unique<GraphContext>(graph, _ctx.partition);
 
@@ -270,9 +251,7 @@ GlobalEdgeWeight dKaMinPar::compute_partition(
   Logger::set_quiet_mode(_output_level == OutputLevel::QUIET);
 
   if (_output_level >= OutputLevel::APPLICATION) {
-    print_input_summary(
-        _ctx, graph, _output_level == OutputLevel::EXPERIMENT, root
-    );
+    print_input_summary(_ctx, graph, _output_level == OutputLevel::EXPERIMENT, root);
   }
 
   START_TIMER("Partitioning");
@@ -306,11 +285,7 @@ GlobalEdgeWeight dKaMinPar::compute_partition(
 
   if (_output_level >= OutputLevel::APPLICATION) {
     print_partition_summary(
-        _ctx,
-        p_graph,
-        _max_timer_depth,
-        _output_level == OutputLevel::EXPERIMENT,
-        root
+        _ctx, p_graph, _max_timer_depth, _output_level == OutputLevel::EXPERIMENT, root
     );
   }
 

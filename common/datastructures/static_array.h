@@ -108,24 +108,16 @@ public:
 
   struct no_init {};
 
-  StaticArray(T *storage, const std::size_t size)
-      : _size(size),
-        _data(storage) {}
+  StaticArray(T *storage, const std::size_t size) : _size(size), _data(storage) {}
 
-  StaticArray(
-      const std::size_t start, const std::size_t size, StaticArray &data
-  )
+  StaticArray(const std::size_t start, const std::size_t size, StaticArray &data)
       : StaticArray(size, data._data + start) {
     KASSERT(start + size <= data.size());
   }
 
-  StaticArray(const std::size_t size, value_type *data)
-      : _size{size},
-        _data{data} {}
+  StaticArray(const std::size_t size, value_type *data) : _size{size}, _data{data} {}
 
-  StaticArray(
-      const std::size_t size, const value_type init_value = value_type()
-  ) {
+  StaticArray(const std::size_t size, const value_type init_value = value_type()) {
     resize(size, init_value);
   }
 
@@ -134,11 +126,8 @@ public:
   }
 
   template <typename Iterator>
-  StaticArray(Iterator first, Iterator last)
-      : StaticArray(std::distance(first, last)) {
-    tbb::parallel_for<std::size_t>(0, _size, [&](const std::size_t i) {
-      _data[i] = *(first + i);
-    });
+  StaticArray(Iterator first, Iterator last) : StaticArray(std::distance(first, last)) {
+    tbb::parallel_for<std::size_t>(0, _size, [&](const std::size_t i) { _data[i] = *(first + i); });
   }
 
   StaticArray() : StaticArray(0) {}
@@ -235,9 +224,7 @@ public:
   void restrict(const std::size_t new_size) {
     KASSERT(
         new_size <= _size,
-        "restricted size " << new_size
-                           << " must be smaller than the unrestricted size "
-                           << _size
+        "restricted size " << new_size << " must be smaller than the unrestricted size " << _size
     );
     _unrestricted_size = _size;
     _size = new_size;
@@ -272,16 +259,11 @@ public:
     assign(size, init_value, assign_parallel);
   }
 
-  void assign(
-      const size_type count,
-      const value_type value,
-      const bool assign_parallel = true
-  ) {
+  void assign(const size_type count, const value_type value, const bool assign_parallel = true) {
     KASSERT(_data);
 
     if (assign_parallel) {
-      const std::size_t step{
-          std::max(count / std::thread::hardware_concurrency(), 1UL)};
+      const std::size_t step{std::max(count / std::thread::hardware_concurrency(), 1UL)};
       tbb::parallel_for(0UL, count, step, [&](const size_type i) {
         for (size_type j = i; j < std::min(i + step, count); ++j) {
           _data[j] = value;
@@ -318,9 +300,7 @@ private:
 namespace static_array {
 template <typename T> StaticArray<T> copy(const StaticArray<T> &arr) {
   StaticArray<T> cpy(arr.size());
-  tbb::parallel_for<std::size_t>(0, arr.size(), [&](const std::size_t i) {
-    cpy[i] = arr[i];
-  });
+  tbb::parallel_for<std::size_t>(0, arr.size(), [&](const std::size_t i) { cpy[i] = arr[i]; });
   return cpy;
 }
 

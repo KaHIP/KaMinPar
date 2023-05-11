@@ -41,8 +41,7 @@ struct lighter {
 struct sequential {
   BlockID
   operator()(const BlockID, const Bipartitioner::BlockWeights &block_weights, const PartitionContext &context, const Queues &) {
-    return (block_weights[0] < context.block_weights.perfectly_balanced(0)) ? 0
-                                                                            : 1;
+    return (block_weights[0] < context.block_weights.perfectly_balanced(0)) ? 0 : 1;
   }
 };
 
@@ -77,15 +76,12 @@ public:
     Marker<3> marker{0};
 
     [[nodiscard]] std::size_t memory_in_kb() const {
-      return queues[0].memory_in_kb() + queues[1].memory_in_kb() +
-             marker.memory_in_kb();
+      return queues[0].memory_in_kb() + queues[1].memory_in_kb() + marker.memory_in_kb();
     }
   };
 
   BfsBipartitionerBase(
-      const Graph &graph,
-      const PartitionContext &p_ctx,
-      const InitialPartitioningContext &i_ctx
+      const Graph &graph, const PartitionContext &p_ctx, const InitialPartitioningContext &i_ctx
   )
       : Bipartitioner(graph, p_ctx, i_ctx) {}
 };
@@ -131,8 +127,7 @@ public:
 
 protected:
   void bipartition_impl() override {
-    const auto [start_a, start_b] =
-        ip::find_far_away_nodes(_graph, _num_seed_iterations);
+    const auto [start_a, start_b] = ip::find_far_away_nodes(_graph, _num_seed_iterations);
 
     _queues[0].push_tail(start_a);
     _queues[1].push_tail(start_b);
@@ -173,10 +168,8 @@ protected:
         // than this version
         const NodeWeight weight = _block_weights[active];
         const bool assignment_allowed =
-            (weight + _graph.node_weight(u) <= _p_ctx.block_weights.max(active)
-            );
-        active = assignment_allowed * active +
-                 (1 - assignment_allowed) * (1 - active);
+            (weight + _graph.node_weight(u) <= _p_ctx.block_weights.max(active));
+        active = assignment_allowed * active + (1 - assignment_allowed) * (1 - active);
 
         set_block(u, active);
         _marker.set<true>(u, kMarkAssigned);
@@ -190,8 +183,7 @@ protected:
         }
       }
 
-      active =
-          _block_selection_strategy(active, _block_weights, _p_ctx, _queues);
+      active = _block_selection_strategy(active, _block_weights, _p_ctx, _queues);
     }
 
     _marker.reset();

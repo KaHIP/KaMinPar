@@ -26,22 +26,13 @@ using namespace kaminpar::dist::testing;
 
 namespace {
 template <typename Container>
-std::vector<GlobalNodeID> allgather_independent_set(
-    const DistributedPartitionedGraph &p_graph, const Container &is
-) {
+std::vector<GlobalNodeID>
+allgather_independent_set(const DistributedPartitionedGraph &p_graph, const Container &is) {
   const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
 
   std::vector<int> recvcounts(size);
   recvcounts[rank] = asserting_cast<int>(is.size());
-  MPI_Allgather(
-      MPI_IN_PLACE,
-      0,
-      MPI_DATATYPE_NULL,
-      recvcounts.data(),
-      1,
-      MPI_INT,
-      MPI_COMM_WORLD
-  );
+  MPI_Allgather(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, recvcounts.data(), 1, MPI_INT, MPI_COMM_WORLD);
 
   std::vector<int> displs(size + 1);
   std::partial_sum(recvcounts.begin(), recvcounts.end(), displs.begin() + 1);

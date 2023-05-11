@@ -180,16 +180,13 @@ public:
     return _global_total_edge_weight;
   }
 
-  [[nodiscard]] inline bool is_owned_global_node(const GlobalNodeID global_u
-  ) const {
+  [[nodiscard]] inline bool is_owned_global_node(const GlobalNodeID global_u) const {
     return (offset_n() <= global_u && global_u < offset_n() + n());
   }
 
-  [[nodiscard]] inline bool contains_global_node(const GlobalNodeID global_u
-  ) const {
-    return is_owned_global_node(global_u) // owned node
-           || (_global_to_ghost.find(global_u + 1) != _global_to_ghost.end()
-              ); // ghost node
+  [[nodiscard]] inline bool contains_global_node(const GlobalNodeID global_u) const {
+    return is_owned_global_node(global_u)                                      // owned node
+           || (_global_to_ghost.find(global_u + 1) != _global_to_ghost.end()); // ghost node
   }
 
   [[nodiscard]] inline bool contains_local_node(const NodeID local_u) const {
@@ -215,15 +212,12 @@ public:
     return _ghost_owner[u - n()];
   }
 
-  [[nodiscard]] inline GlobalNodeID local_to_global_node(const NodeID local_u
-  ) const {
+  [[nodiscard]] inline GlobalNodeID local_to_global_node(const NodeID local_u) const {
     KASSERT(contains_local_node(local_u));
-    return is_owned_node(local_u) ? _offset_n + local_u
-                                  : _ghost_to_global[local_u - n()];
+    return is_owned_node(local_u) ? _offset_n + local_u : _ghost_to_global[local_u - n()];
   }
 
-  [[nodiscard]] inline NodeID global_to_local_node(const GlobalNodeID global_u
-  ) const {
+  [[nodiscard]] inline NodeID global_to_local_node(const GlobalNodeID global_u) const {
     KASSERT(contains_global_node(global_u), V(global_u));
 
     if (offset_n() <= global_u && global_u < offset_n() + n()) {
@@ -237,8 +231,7 @@ public:
   [[nodiscard]] inline NodeID
   remote_to_local_node(const NodeID remote_node, const PEID owner) const {
     KASSERT(remote_node < offset_n(owner + 1) - offset_n(owner));
-    const NodeID local_node =
-        global_to_local_node(offset_n(owner) + remote_node);
+    const NodeID local_node = global_to_local_node(offset_n(owner) + remote_node);
     KASSERT(local_node >= n()); // must be a ghost node
     return local_node;
   }
@@ -303,9 +296,7 @@ public:
 
   PEID find_owner_of_global_node(const GlobalNodeID u) const {
     KASSERT(u < global_n());
-    auto it = std::upper_bound(
-        _node_distribution.begin() + 1, _node_distribution.end(), u
-    );
+    auto it = std::upper_bound(_node_distribution.begin() + 1, _node_distribution.end(), u);
     KASSERT(it != _node_distribution.end());
     return static_cast<PEID>(std::distance(_node_distribution.begin(), it) - 1);
   }
@@ -339,11 +330,8 @@ public:
   }
 
   template <typename Lambda>
-  inline void
-  pfor_nodes_range(const NodeID from, const NodeID to, Lambda &&l) const {
-    tbb::parallel_for(
-        tbb::blocked_range<NodeID>(from, to), std::forward<Lambda>(l)
-    );
+  inline void pfor_nodes_range(const NodeID from, const NodeID to, Lambda &&l) const {
+    tbb::parallel_for(tbb::blocked_range<NodeID>(from, to), std::forward<Lambda>(l));
   }
 
   template <typename Lambda> inline void pfor_nodes(Lambda &&l) const {
@@ -358,8 +346,7 @@ public:
     pfor_nodes_range(0, n(), std::forward<Lambda>(l));
   }
 
-  template <typename Lambda>
-  inline void pfor_all_nodes_range(Lambda &&l) const {
+  template <typename Lambda> inline void pfor_all_nodes_range(Lambda &&l) const {
     pfor_nodes_range(0, total_n(), std::forward<Lambda>(l));
   }
 
@@ -388,21 +375,15 @@ public:
   }
 
   [[nodiscard]] inline auto adjacent_nodes(const NodeID u) const {
-    return TransformedIotaRange(
-        _nodes[u],
-        _nodes[u + 1],
-        [this](const EdgeID e) { return this->edge_target(e); }
-    );
+    return TransformedIotaRange(_nodes[u], _nodes[u + 1], [this](const EdgeID e) {
+      return this->edge_target(e);
+    });
   }
 
   [[nodiscard]] inline auto neighbors(const NodeID u) const {
-    return TransformedIotaRange(
-        _nodes[u],
-        _nodes[u + 1],
-        [this](const EdgeID e) {
-          return std::make_pair(e, this->edge_target(e));
-        }
-    );
+    return TransformedIotaRange(_nodes[u], _nodes[u + 1], [this](const EdgeID e) {
+      return std::make_pair(e, this->edge_target(e));
+    });
   }
 
   // Cached inter-PE metrics
@@ -460,9 +441,7 @@ public:
 
   [[nodiscard]] bool is_high_degree_node(const NodeID node) const {
     KASSERT(_high_degree_ghost_node.size() == ghost_n());
-    KASSERT(
-        !is_ghost_node(node) || node - n() < _high_degree_ghost_node.size()
-    );
+    KASSERT(!is_ghost_node(node) || node - n() < _high_degree_ghost_node.size());
     return is_ghost_node(node) ? _high_degree_ghost_node[node - n()]
                                : degree(node) > _high_degree_threshold;
   }
@@ -497,13 +476,11 @@ public:
     return _buckets[bucket + 1] - _buckets[bucket];
   }
 
-  [[nodiscard]] inline NodeID first_node_in_bucket(const std::size_t bucket
-  ) const {
+  [[nodiscard]] inline NodeID first_node_in_bucket(const std::size_t bucket) const {
     return _buckets[bucket];
   }
 
-  [[nodiscard]] inline NodeID
-  first_invalid_node_in_bucket(const std::size_t bucket) const {
+  [[nodiscard]] inline NodeID first_invalid_node_in_bucket(const std::size_t bucket) const {
     return first_node_in_bucket(bucket + 1);
   }
 
@@ -580,8 +557,7 @@ private:
 
   StaticArray<NodeID> _permutation;
   bool _sorted = false;
-  std::vector<NodeID> _buckets =
-      std::vector<NodeID>(kNumberOfDegreeBuckets<NodeID> + 1);
+  std::vector<NodeID> _buckets = std::vector<NodeID>(kNumberOfDegreeBuckets<NodeID> + 1);
   std::size_t _number_of_buckets = 0;
 
   StaticArray<NodeID> _color_sizes{};
@@ -603,13 +579,9 @@ public:
   using BlockWeight = ::kaminpar::dist::BlockWeight;
 
   DistributedPartitionedGraph(
-      const DistributedGraph *graph,
-      const BlockID k,
-      StaticArray<BlockID> partition
+      const DistributedGraph *graph, const BlockID k, StaticArray<BlockID> partition
   )
-      : DistributedPartitionedGraph(
-            graph, k, std::move(partition), StaticArray<BlockWeight>(k)
-        ) {
+      : DistributedPartitionedGraph(graph, k, std::move(partition), StaticArray<BlockWeight>(k)) {
     init_block_weights();
   }
 
@@ -642,22 +614,16 @@ public:
 
   DistributedPartitionedGraph(const DistributedGraph *graph, const BlockID k)
       : DistributedPartitionedGraph(
-            graph,
-            k,
-            StaticArray<BlockID>(graph->total_n()),
-            StaticArray<BlockWeight>(k)
+            graph, k, StaticArray<BlockID>(graph->total_n()), StaticArray<BlockWeight>(k)
         ) {}
 
   DistributedPartitionedGraph() : _graph(nullptr), _k(0), _partition() {}
 
   DistributedPartitionedGraph(const DistributedPartitionedGraph &) = delete;
-  DistributedPartitionedGraph &
-  operator=(const DistributedPartitionedGraph &) = delete;
+  DistributedPartitionedGraph &operator=(const DistributedPartitionedGraph &) = delete;
 
-  DistributedPartitionedGraph(DistributedPartitionedGraph &&) noexcept =
-      default;
-  DistributedPartitionedGraph &
-  operator=(DistributedPartitionedGraph &&) noexcept = default;
+  DistributedPartitionedGraph(DistributedPartitionedGraph &&) noexcept = default;
+  DistributedPartitionedGraph &operator=(DistributedPartitionedGraph &&) noexcept = default;
 
   [[nodiscard]] const DistributedGraph &graph() const {
     return *_graph;
@@ -746,8 +712,7 @@ public:
     return __atomic_load_n(&_partition[u], __ATOMIC_RELAXED);
   }
 
-  template <bool update_block_weights = true>
-  void set_block(const NodeID u, const BlockID b) {
+  template <bool update_block_weights = true> void set_block(const NodeID u, const BlockID b) {
     KASSERT(u < _graph->total_n());
 
     if constexpr (update_block_weights) {
@@ -791,11 +756,9 @@ public:
 
   [[nodiscard]] inline bool check_border_node(const NodeID u) const {
     const BlockID u_block = block(u);
-    return std::any_of(
-        adjacent_nodes(u).begin(),
-        adjacent_nodes(u).end(),
-        [&](const NodeID v) { return u_block != block(v); }
-    );
+    return std::any_of(adjacent_nodes(u).begin(), adjacent_nodes(u).end(), [&](const NodeID v) {
+      return u_block != block(v);
+    });
   }
 
 private:

@@ -58,8 +58,7 @@ Context create_default_context() {
           },
       .coarsening =
           {
-              .max_global_clustering_levels =
-                  std::numeric_limits<std::size_t>::max(),
+              .max_global_clustering_levels = std::numeric_limits<std::size_t>::max(),
               .global_clustering_algorithm = GlobalClusteringAlgorithm::LP,
               .global_lp =
                   {
@@ -108,8 +107,7 @@ Context create_default_context() {
                       .scale_chunks_with_threads = false, // unused
                   },
               .contraction_limit = 2000,
-              .cluster_weight_limit =
-                  shm::ClusterWeightLimit::EPSILON_BLOCK_WEIGHT,
+              .cluster_weight_limit = shm::ClusterWeightLimit::EPSILON_BLOCK_WEIGHT,
               .cluster_weight_multiplier = 1.0,
               .contraction_algorithm = ContractionAlgorithm::DEFAULT,
               .max_cnode_imbalance = 1.1,
@@ -153,8 +151,7 @@ Context create_default_context() {
                       .only_blacklist_input_level = false,
                       .track_local_block_weights = true,
                       .use_active_set = false,
-                      .move_execution_strategy =
-                          LabelPropagationMoveExecutionStrategy::BEST_MOVES,
+                      .move_execution_strategy = LabelPropagationMoveExecutionStrategy::BEST_MOVES,
                   },
               .fm =
                   {

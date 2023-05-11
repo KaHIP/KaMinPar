@@ -23,7 +23,6 @@ tbb::global_control init(const Context &ctx, int &argc, char **&argv);
 
 DistributedGraph load_graph(const std::string &filename);
 
-DistributedPartitionedGraph load_graph_partition(
-    const DistributedGraph &graph, const std::string &filename
-);
+DistributedPartitionedGraph
+load_graph_partition(const DistributedGraph &graph, const std::string &filename);
 } // namespace kaminpar::dist

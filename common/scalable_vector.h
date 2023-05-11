@@ -6,13 +6,11 @@
 
 namespace kaminpar {
 // @deprecated
-template <typename T>
-using scalable_vector = std::vector<T, tbb::scalable_allocator<T>>;
+template <typename T> using scalable_vector = std::vector<T, tbb::scalable_allocator<T>>;
 
 // @deprecated
 template <typename T>
-using scalable_noinit_vector =
-    std::vector<T, NoinitAllocator<T, tbb::scalable_allocator<T>>>;
+using scalable_noinit_vector = std::vector<T, NoinitAllocator<T, tbb::scalable_allocator<T>>>;
 
 template <typename T> using ScalableVector = scalable_vector<T>;
 

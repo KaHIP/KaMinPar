@@ -67,21 +67,16 @@ private:
  * disconnected.
  * @return A single graph containing all other graphs.
  */
-inline Graph merge_graphs(
-    std::initializer_list<Graph *> graphs, const bool connect_graphs = false
-) {
-  const NodeID n = std::accumulate(
-      graphs.begin(),
-      graphs.end(),
-      0,
-      [&](const NodeID acc, const Graph *graph) { return acc + graph->n(); }
-  );
-  const EdgeID m = std::accumulate(
-      graphs.begin(),
-      graphs.end(),
-      0,
-      [&](const EdgeID acc, const Graph *graph) { return acc + graph->m(); }
-  );
+inline Graph
+merge_graphs(std::initializer_list<Graph *> graphs, const bool connect_graphs = false) {
+  const NodeID n =
+      std::accumulate(graphs.begin(), graphs.end(), 0, [&](const NodeID acc, const Graph *graph) {
+        return acc + graph->n();
+      });
+  const EdgeID m =
+      std::accumulate(graphs.begin(), graphs.end(), 0, [&](const EdgeID acc, const Graph *graph) {
+        return acc + graph->m();
+      });
   GraphBuilder builder(n, m);
 
   NodeID offset = 0;

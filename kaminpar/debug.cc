@@ -14,9 +14,8 @@
 
 namespace kaminpar::shm::debug {
 namespace {
-std::string generate_filename(
-    const Graph &graph, const DebugContext &d_ctx, const std::string &suffix
-) {
+std::string
+generate_filename(const Graph &graph, const DebugContext &d_ctx, const std::string &suffix) {
   std::stringstream filename_ss;
 
   if (d_ctx.graph_name.empty()) {
@@ -35,16 +34,9 @@ void dump_coarsest_graph(const Graph &graph, const DebugContext &d_ctx) {
   }
 }
 
-void dump_graph_hierarchy(
-    const Graph &graph, const int level, const DebugContext &d_ctx
-) {
+void dump_graph_hierarchy(const Graph &graph, const int level, const DebugContext &d_ctx) {
   if (d_ctx.dump_graph_hierarchy) {
-    dump_graph(
-        graph,
-        generate_filename(
-            graph, d_ctx, "level" + std::to_string(level) + ".metis"
-        )
-    );
+    dump_graph(graph, generate_filename(graph, d_ctx, "level" + std::to_string(level) + ".metis"));
   }
 }
 
@@ -72,13 +64,9 @@ void dump_graph(const Graph &graph, const std::string &filename) {
   }
 }
 
-void dump_coarsest_partition(
-    const PartitionedGraph &p_graph, const DebugContext &d_ctx
-) {
+void dump_coarsest_partition(const PartitionedGraph &p_graph, const DebugContext &d_ctx) {
   if (d_ctx.dump_coarsest_partition) {
-    dump_partition(
-        p_graph, generate_filename(p_graph.graph(), d_ctx, "coarsest.part")
-    );
+    dump_partition(p_graph, generate_filename(p_graph.graph(), d_ctx, "coarsest.part"));
   }
 }
 
@@ -92,21 +80,16 @@ void dump_partition_hierarchy(
     dump_partition(
         p_graph,
         generate_filename(
-            p_graph.graph(),
-            d_ctx,
-            "level" + std::to_string(level) + "." + state + ".part"
+            p_graph.graph(), d_ctx, "level" + std::to_string(level) + "." + state + ".part"
         )
     );
   }
 }
 
-void dump_partition(
-    const PartitionedGraph &p_graph, const std::string &filename
-) {
+void dump_partition(const PartitionedGraph &p_graph, const std::string &filename) {
   std::ofstream out(filename, std::ios::trunc);
   for (const NodeID u : p_graph.nodes()) {
     out << p_graph.block(u) << "\n";
   }
 }
 } // namespace kaminpar::shm::debug
-

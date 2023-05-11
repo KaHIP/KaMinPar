@@ -31,8 +31,8 @@ struct LabelPropagationConfig {
   using Graph = ::kaminpar::shm::Graph;
 
   // Data structure used to accumulate edge weights for gain value calculation
-  using RatingMap = ::kaminpar::
-      RatingMap<shm::EdgeWeight, shm::NodeID, FastResetArray<shm::EdgeWeight>>;
+  using RatingMap =
+      ::kaminpar::RatingMap<shm::EdgeWeight, shm::NodeID, FastResetArray<shm::EdgeWeight>>;
 
   // Data type for cluster IDs and weights
   using ClusterID = tag::Mandatory;
@@ -135,11 +135,7 @@ protected:
    * @param num_active_nodes Number of nodes for which a cluster label is
    * computed.
    */
-  void allocate(
-      const NodeID num_nodes,
-      const NodeID num_active_nodes,
-      const NodeID num_clusters
-  ) {
+  void allocate(const NodeID num_nodes, const NodeID num_active_nodes, const NodeID num_clusters) {
     if (_num_nodes < num_nodes) {
       if constexpr (Config::kUseLocalActiveSetStrategy) {
         _active.resize(num_nodes);
@@ -174,8 +170,7 @@ protected:
    */
   void initialize(const Graph *graph, const ClusterID num_clusters) {
     KASSERT(
-        (_num_nodes > 0u && _num_active_nodes > 0u),
-        "you must call allocate() before initialize()"
+        (_num_nodes > 0u && _num_active_nodes > 0u), "you must call allocate() before initialize()"
     );
 
     _graph = graph;
@@ -206,9 +201,8 @@ protected:
    * the previous cluster is now empty.
    */
   template <typename LocalRatingMap>
-  std::pair<bool, bool> handle_node(
-      const NodeID u, Random &local_rand, LocalRatingMap &local_rating_map
-  ) {
+  std::pair<bool, bool>
+  handle_node(const NodeID u, Random &local_rand, LocalRatingMap &local_rating_map) {
     if (derived_skip_node(u)) {
       return {false, false};
     }
@@ -220,18 +214,14 @@ protected:
 
     if (derived_cluster(u) != new_cluster) {
       if (derived_move_cluster_weight(
-              u_cluster,
-              new_cluster,
-              u_weight,
-              derived_max_cluster_weight(new_cluster)
+              u_cluster, new_cluster, u_weight, derived_max_cluster_weight(new_cluster)
           )) {
         derived_move_node(u, new_cluster);
         activate_neighbors(u);
         IFSTATS(_expected_total_gain += new_gain);
 
         const bool decrement_cluster_count =
-            Config::kTrackClusterCount &&
-            derived_cluster_weight(u_cluster) == 0;
+            Config::kTrackClusterCount && derived_cluster_weight(u_cluster) == 0;
         // do not update _current_num_clusters here to avoid fetch_add()
         return {true, decrement_cluster_count}; // did move, did reduce nonempty
                                                 // cluster count?
@@ -276,8 +266,7 @@ protected:
       LocalRatingMap &local_rating_map
   ) {
     auto action = [&](auto &map) {
-      const ClusterWeight initial_cluster_weight =
-          derived_cluster_weight(u_cluster);
+      const ClusterWeight initial_cluster_weight = derived_cluster_weight(u_cluster);
       ClusterSelectionState state{
           .local_rand = local_rand,
           .u = u,
@@ -330,8 +319,7 @@ protected:
           Config::kUseTwoHopClustering && u_weight == initial_cluster_weight &&
           initial_cluster_weight <= derived_max_cluster_weight(u_cluster) / 2;
 
-      const EdgeWeight gain_delta =
-          (Config::kUseActualGain) ? map[u_cluster] : 0;
+      const EdgeWeight gain_delta = (Config::kUseActualGain) ? map[u_cluster] : 0;
 
       for (const auto [cluster, rating] : map.entries()) {
         state.current_cluster = cluster;
@@ -350,13 +338,11 @@ protected:
       }
 
       // if we couldn't join any cluster, we store the favored cluster
-      if (store_favored_cluster &&
-          state.best_cluster == state.initial_cluster) {
+      if (store_favored_cluster && state.best_cluster == state.initial_cluster) {
         _favored_clusters[u] = favored_cluster;
       }
 
-      const EdgeWeight actual_gain =
-          IFSTATS(state.best_gain - map[state.initial_cluster]);
+      const EdgeWeight actual_gain = IFSTATS(state.best_gain - map[state.initial_cluster]);
       map.clear();
       return std::make_pair(state.best_cluster, actual_gain);
     };
@@ -364,8 +350,7 @@ protected:
     local_rating_map.update_upper_bound_size(
         std::min<ClusterID>(_graph->degree(u), _initial_num_clusters)
     );
-    const auto [best_cluster, gain] =
-        local_rating_map.run_with_map(action, action);
+    const auto [best_cluster, gain] = local_rating_map.run_with_map(action, action);
 
     return {best_cluster, gain};
   }
@@ -394,8 +379,7 @@ protected:
    * @param to
    */
   void perform_two_hop_clustering(
-      const NodeID from = 0,
-      const NodeID to = std::numeric_limits<ClusterID>::max()
+      const NodeID from = 0, const NodeID to = std::numeric_limits<ClusterID>::max()
   ) {
     static_assert(Config::kUseTwoHopClustering, "2-hop clustering is disabled");
 
@@ -411,8 +395,7 @@ protected:
         const auto initial_weight = derived_initial_cluster_weight(u);
         const auto current_weight = derived_cluster_weight(u);
         const auto max_weight = derived_max_cluster_weight(u);
-        if (current_weight != initial_weight ||
-            current_weight > max_weight / 2) {
+        if (current_weight != initial_weight || current_weight > max_weight / 2) {
           _favored_clusters[u] = u;
         }
       }
@@ -430,9 +413,7 @@ protected:
 
       do {
         NodeID expected_value = favored_leader;
-        if (_favored_clusters[favored_leader].compare_exchange_strong(
-                expected_value, u
-            )) {
+        if (_favored_clusters[favored_leader].compare_exchange_strong(expected_value, u)) {
           break; // if this worked, we replaced favored_leader with u
         }
 
@@ -443,10 +424,7 @@ protected:
                 expected_value, favored_leader
             )) {
           if (derived_move_cluster_weight(
-                  u,
-                  partner,
-                  derived_cluster_weight(u),
-                  derived_max_cluster_weight(partner)
+                  u, partner, derived_cluster_weight(u), derived_max_cluster_weight(partner)
               )) {
             derived_move_node(u, partner);
             --_current_num_clusters;
@@ -476,15 +454,9 @@ private:
           });
         },
         [&] {
-          tbb::parallel_for<ClusterID>(
-              0,
-              _initial_num_clusters,
-              [&](const ClusterID cluster) {
-                derived_init_cluster_weight(
-                    cluster, derived_initial_cluster_weight(cluster)
-                );
-              }
-          );
+          tbb::parallel_for<ClusterID>(0, _initial_num_clusters, [&](const ClusterID cluster) {
+            derived_init_cluster_weight(cluster, derived_initial_cluster_weight(cluster));
+          });
         }
     );
     IFSTATS(_expected_total_gain = 0);
@@ -513,9 +485,7 @@ private: // CRTP calls
   }
 
   //! Initially set weight of cluster \cluster to \c weight.
-  void derived_init_cluster_weight(
-      const ClusterID cluster, const ClusterWeight weight
-  ) {
+  void derived_init_cluster_weight(const ClusterID cluster, const ClusterWeight weight) {
     static_cast<Derived *>(this)->init_cluster_weight(cluster, weight);
   }
 
@@ -533,14 +503,12 @@ private: // CRTP calls
   }
 
   //! Return the maximum weight of cluster \c cluster.
-  [[nodiscard]] ClusterWeight derived_max_cluster_weight(const ClusterID cluster
-  ) {
+  [[nodiscard]] ClusterWeight derived_max_cluster_weight(const ClusterID cluster) {
     return static_cast<Derived *>(this)->max_cluster_weight(cluster);
   }
 
   //! Determine whether a node should be moved to a new cluster.
-  [[nodiscard]] bool derived_accept_cluster(const ClusterSelectionState &state
-  ) {
+  [[nodiscard]] bool derived_accept_cluster(const ClusterSelectionState &state) {
     return static_cast<Derived *>(this)->accept_cluster(state);
   }
 
@@ -560,8 +528,7 @@ private: // CRTP calls
     return static_cast<Derived *>(this)->initial_cluster(u);
   }
 
-  [[nodiscard]] ClusterWeight
-  derived_initial_cluster_weight(const ClusterID cluster) {
+  [[nodiscard]] ClusterWeight derived_initial_cluster_weight(const ClusterID cluster) {
     return static_cast<Derived *>(this)->initial_cluster_weight(cluster);
   }
 
@@ -584,8 +551,7 @@ protected: // Default implementations
     return derived_cluster(u);
   }
 
-  [[nodiscard]] inline ClusterWeight
-  initial_cluster_weight(const ClusterID cluster) {
+  [[nodiscard]] inline ClusterWeight initial_cluster_weight(const ClusterID cluster) {
     return derived_cluster_weight(cluster);
   }
 
@@ -618,9 +584,8 @@ protected: // Members
   //! When computing the gain values for a node, this is an upper limit on the
   //! number of neighbors of the nodes we consider. Any more neighbors are
   //! ignored.
-  NodeID _max_num_neighbors{
-      std::numeric_limits<NodeID>::max()}; //! Only consider this many neighbors
-                                           //! per node
+  NodeID _max_num_neighbors{std::numeric_limits<NodeID>::max()}; //! Only consider this many
+                                                                 //! neighbors per node
 
   //! Thread-local map to compute gain values.
   tbb::enumerable_thread_specific<RatingMap> _rating_map_ets{[this] {
@@ -675,10 +640,8 @@ protected:
   using Base::set_max_num_neighbors;
   using Base::should_stop;
 
-  NodeID perform_iteration(
-      const NodeID from = 0,
-      const NodeID to = std::numeric_limits<NodeID>::max()
-  ) {
+  NodeID
+  perform_iteration(const NodeID from = 0, const NodeID to = std::numeric_limits<NodeID>::max()) {
     tbb::enumerable_thread_specific<NodeID> num_moved_nodes_ets;
 
     tbb::parallel_for(
@@ -712,8 +675,7 @@ protected:
               num_removed_clusters = 0;
             }
 
-            const auto [moved_node, emptied_cluster] =
-                handle_node(u, rand, rating_map);
+            const auto [moved_node, emptied_cluster] = handle_node(u, rand, rating_map);
             work_since_update += _graph->degree(u);
             if (moved_node) {
               ++num_moved_nodes;
@@ -790,10 +752,8 @@ protected:
    * @param to First node that is not part of the iteration range.
    * @return Number of nodes that where moved to new blocks / clusters.
    */
-  NodeID perform_iteration(
-      const NodeID from = 0,
-      const NodeID to = std::numeric_limits<NodeID>::max()
-  ) {
+  NodeID
+  perform_iteration(const NodeID from = 0, const NodeID to = std::numeric_limits<NodeID>::max()) {
     TIMED_SCOPE("Buckets") {
       if (from != 0 || to != std::numeric_limits<NodeID>::max()) {
         _chunks.clear();
@@ -807,59 +767,47 @@ protected:
     tbb::enumerable_thread_specific<NodeID> num_moved_nodes_ets;
     parallel::Atomic<std::size_t> next_chunk = 0;
 
-    tbb::parallel_for(
-        static_cast<std::size_t>(0),
-        _chunks.size(),
-        [&](const std::size_t) {
-          if (should_stop()) {
-            return;
-          }
+    tbb::parallel_for(static_cast<std::size_t>(0), _chunks.size(), [&](const std::size_t) {
+      if (should_stop()) {
+        return;
+      }
 
-          auto &local_num_moved_nodes = num_moved_nodes_ets.local();
-          auto &local_rand = Random::instance();
-          auto &local_rating_map = _rating_map_ets.local();
-          NodeID num_removed_clusters = 0;
+      auto &local_num_moved_nodes = num_moved_nodes_ets.local();
+      auto &local_rand = Random::instance();
+      auto &local_rating_map = _rating_map_ets.local();
+      NodeID num_removed_clusters = 0;
 
-          const auto chunk_id =
-              next_chunk.fetch_add(1, std::memory_order_relaxed);
-          const auto &chunk = _chunks[chunk_id];
-          const auto &permutation = _random_permutations.get(local_rand);
+      const auto chunk_id = next_chunk.fetch_add(1, std::memory_order_relaxed);
+      const auto &chunk = _chunks[chunk_id];
+      const auto &permutation = _random_permutations.get(local_rand);
 
-          const std::size_t num_sub_chunks = std::ceil(
-              1.0 * (chunk.end - chunk.start) / Config::kPermutationSize
-          );
-          std::vector<NodeID> sub_chunk_permutation(num_sub_chunks);
-          std::iota(
-              sub_chunk_permutation.begin(), sub_chunk_permutation.end(), 0
-          );
-          local_rand.shuffle(sub_chunk_permutation);
+      const std::size_t num_sub_chunks =
+          std::ceil(1.0 * (chunk.end - chunk.start) / Config::kPermutationSize);
+      std::vector<NodeID> sub_chunk_permutation(num_sub_chunks);
+      std::iota(sub_chunk_permutation.begin(), sub_chunk_permutation.end(), 0);
+      local_rand.shuffle(sub_chunk_permutation);
 
-          for (std::size_t sub_chunk = 0; sub_chunk < num_sub_chunks;
-               ++sub_chunk) {
-            for (std::size_t i = 0; i < Config::kPermutationSize; ++i) {
-              const NodeID u =
-                  chunk.start +
-                  Config::kPermutationSize * sub_chunk_permutation[sub_chunk] +
-                  permutation[i % Config::kPermutationSize];
-              if (u < chunk.end && _graph->degree(u) < _max_degree &&
-                  ((!Config::kUseActiveSetStrategy &&
-                    !Config::kUseLocalActiveSetStrategy) ||
-                   _active[u].load(std::memory_order_relaxed))) {
-                const auto [moved_node, emptied_cluster] =
-                    handle_node(u, local_rand, local_rating_map);
-                if (moved_node) {
-                  ++local_num_moved_nodes;
-                }
-                if (emptied_cluster) {
-                  ++num_removed_clusters;
-                }
-              }
+      for (std::size_t sub_chunk = 0; sub_chunk < num_sub_chunks; ++sub_chunk) {
+        for (std::size_t i = 0; i < Config::kPermutationSize; ++i) {
+          const NodeID u = chunk.start +
+                           Config::kPermutationSize * sub_chunk_permutation[sub_chunk] +
+                           permutation[i % Config::kPermutationSize];
+          if (u < chunk.end && _graph->degree(u) < _max_degree &&
+              ((!Config::kUseActiveSetStrategy && !Config::kUseLocalActiveSetStrategy) ||
+               _active[u].load(std::memory_order_relaxed))) {
+            const auto [moved_node, emptied_cluster] = handle_node(u, local_rand, local_rating_map);
+            if (moved_node) {
+              ++local_num_moved_nodes;
+            }
+            if (emptied_cluster) {
+              ++num_removed_clusters;
             }
           }
-
-          _current_num_clusters -= num_removed_clusters;
         }
-    );
+      }
+
+      _current_num_clusters -= num_removed_clusters;
+    });
 
     return num_moved_nodes_ets.combine(std::plus{});
   }
@@ -876,16 +824,10 @@ private:
   };
 
   void shuffle_chunks() {
-    tbb::parallel_for<std::size_t>(
-        0,
-        _buckets.size(),
-        [&](const std::size_t i) {
-          const auto &bucket = _buckets[i];
-          Random::instance().shuffle(
-              _chunks.begin() + bucket.start, _chunks.begin() + bucket.end
-          );
-        }
-    );
+    tbb::parallel_for<std::size_t>(0, _buckets.size(), [&](const std::size_t i) {
+      const auto &bucket = _buckets[i];
+      Random::instance().shuffle(_chunks.begin() + bucket.start, _chunks.begin() + bucket.end);
+    });
   }
 
   void init_chunks(const NodeID from, NodeID to) {
@@ -894,18 +836,15 @@ private:
 
     to = std::min(to, _graph->n());
 
-    const auto max_bucket = std::min<std::size_t>(
-        math::floor_log2(_max_degree), _graph->number_of_buckets()
-    );
-    const EdgeID max_chunk_size =
-        std::max<EdgeID>(Config::kMinChunkSize, std::sqrt(_graph->m()));
+    const auto max_bucket =
+        std::min<std::size_t>(math::floor_log2(_max_degree), _graph->number_of_buckets());
+    const EdgeID max_chunk_size = std::max<EdgeID>(Config::kMinChunkSize, std::sqrt(_graph->m()));
     const NodeID max_node_chunk_size =
         std::max<NodeID>(Config::kMinChunkSize, std::sqrt(_graph->n()));
 
     NodeID position = 0;
     for (std::size_t bucket = 0; bucket < max_bucket; ++bucket) {
-      if (position + _graph->bucket_size(bucket) < from ||
-          _graph->bucket_size(bucket) == 0) {
+      if (position + _graph->bucket_size(bucket) < from || _graph->bucket_size(bucket) == 0) {
         position += _graph->bucket_size(bucket);
         continue;
       }
@@ -924,8 +863,7 @@ private:
       tbb::enumerable_thread_specific<std::size_t> num_chunks_ets;
       tbb::enumerable_thread_specific<std::vector<Chunk>> chunks_ets;
 
-      const std::size_t bucket_start =
-          std::max(_graph->first_node_in_bucket(bucket), from);
+      const std::size_t bucket_start = std::max(_graph->first_node_in_bucket(bucket), from);
 
       tbb::parallel_for(
           static_cast<int>(0),
@@ -939,8 +877,7 @@ private:
               if (begin >= bucket_size) {
                 break;
               }
-              const NodeID end =
-                  std::min<NodeID>(begin + max_node_chunk_size, bucket_size);
+              const NodeID end = std::min<NodeID>(begin + max_node_chunk_size, bucket_size);
 
               EdgeID current_chunk_size = 0;
               NodeID chunk_start = bucket_start + begin;
@@ -958,8 +895,7 @@ private:
 
               if (current_chunk_size > 0) {
                 chunks.push_back(
-                    {static_cast<NodeID>(chunk_start),
-                     static_cast<NodeID>(bucket_start + end)}
+                    {static_cast<NodeID>(chunk_start), static_cast<NodeID>(bucket_start + end)}
                 );
                 ++num_chunks;
               }
@@ -1023,23 +959,16 @@ protected:
   using Base::_max_degree;
   using Base::_rating_map_ets;
 
-  RandomPermutations<
-      NodeID,
-      Config::kPermutationSize,
-      Config::kNumberOfNodePermutations>
+  RandomPermutations<NodeID, Config::kPermutationSize, Config::kNumberOfNodePermutations>
       _random_permutations{};
   std::vector<Chunk> _chunks;
   std::vector<Bucket> _buckets;
 };
 
-template <typename NodeID, typename ClusterID>
-class NonatomicOwnedClusterVector {
+template <typename NodeID, typename ClusterID> class NonatomicOwnedClusterVector {
 public:
-  explicit NonatomicOwnedClusterVector(const NodeID max_num_nodes)
-      : _clusters(max_num_nodes) {
-    tbb::parallel_for<NodeID>(0, max_num_nodes, [&](const NodeID u) {
-      _clusters[u] = 0;
-    });
+  explicit NonatomicOwnedClusterVector(const NodeID max_num_nodes) : _clusters(max_num_nodes) {
+    tbb::parallel_for<NodeID>(0, max_num_nodes, [&](const NodeID u) { _clusters[u] = 0; });
   }
 
   [[nodiscard]] auto &&take_clusters() {
@@ -1076,8 +1005,7 @@ private:
 
 template <typename NodeID, typename ClusterID> class OwnedClusterVector {
 public:
-  explicit OwnedClusterVector(const NodeID max_num_nodes)
-      : _clusters(max_num_nodes) {}
+  explicit OwnedClusterVector(const NodeID max_num_nodes) : _clusters(max_num_nodes) {}
 
   [[nodiscard]] auto &&take_clusters() {
     return std::move(_clusters);
@@ -1111,8 +1039,7 @@ private:
   scalable_vector<parallel::Atomic<ClusterID>> _clusters;
 };
 
-template <typename ClusterID, typename ClusterWeight>
-class OwnedRelaxedClusterWeightVector {
+template <typename ClusterID, typename ClusterWeight> class OwnedRelaxedClusterWeightVector {
 public:
   explicit OwnedRelaxedClusterWeightVector(const ClusterID max_num_clusters)
       : _cluster_weights(max_num_clusters) {}
@@ -1121,8 +1048,7 @@ public:
     return std::move(_cluster_weights);
   }
 
-  void
-  init_cluster_weight(const ClusterID cluster, const ClusterWeight weight) {
+  void init_cluster_weight(const ClusterID cluster, const ClusterWeight weight) {
     _cluster_weights[cluster] = weight;
   }
 

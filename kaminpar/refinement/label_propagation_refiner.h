@@ -20,8 +20,7 @@ public:
 
   void initialize(const PartitionedGraph &p_graph) override;
 
-  bool
-  refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) override;
+  bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) override;
 
 private:
   class LabelPropagationRefinerImpl *_impl;

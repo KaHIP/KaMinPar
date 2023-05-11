@@ -28,8 +28,7 @@ public:
   DeepMultilevelPartitioner(const Graph &input_graph, const Context &input_ctx);
 
   DeepMultilevelPartitioner(const DeepMultilevelPartitioner &) = delete;
-  DeepMultilevelPartitioner &
-  operator=(const DeepMultilevelPartitioner &) = delete;
+  DeepMultilevelPartitioner &operator=(const DeepMultilevelPartitioner &) = delete;
   DeepMultilevelPartitioner(DeepMultilevelPartitioner &&) = delete;
   DeepMultilevelPartitioner &operator=(DeepMultilevelPartitioner &&) = delete;
 

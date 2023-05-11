@@ -36,9 +36,7 @@ GlobalContractionResult contract_global_clustering_full_migration(
 );
 
 ContractionResult contract_global_clustering(
-    const DistributedGraph &graph,
-    GlobalClustering &clustering,
-    const CoarseningContext &c_ctx
+    const DistributedGraph &graph, GlobalClustering &clustering, const CoarseningContext &c_ctx
 );
 
 DistributedPartitionedGraph project_global_contracted_graph(

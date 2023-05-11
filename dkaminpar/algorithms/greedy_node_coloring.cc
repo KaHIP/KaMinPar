@@ -36,15 +36,11 @@ NoinitVector<ColorID> compute_node_coloring_sequentially(
 
   // Use max degree in the graph as an upper bound on the number of colors
   // required
-  TransformedIotaRange degrees(
-      static_cast<NodeID>(0),
-      graph.n(),
-      [&](const NodeID u) { return graph.degree(u); }
-  );
-  const EdgeID max_degree =
-      parallel::max_element(degrees.begin(), degrees.end());
-  const ColorID max_colors =
-      mpi::allreduce(max_degree, MPI_MAX, graph.communicator()) + 1;
+  TransformedIotaRange degrees(static_cast<NodeID>(0), graph.n(), [&](const NodeID u) {
+    return graph.degree(u);
+  });
+  const EdgeID max_degree = parallel::max_element(degrees.begin(), degrees.end());
+  const ColorID max_colors = mpi::allreduce(max_degree, MPI_MAX, graph.communicator()) + 1;
 
   // Marker to keep track of the colors already incident to the current node
   Marker<> incident_colors(max_colors);
@@ -58,8 +54,7 @@ NoinitVector<ColorID> compute_node_coloring_sequentially(
     converged = true;
 
     for (NodeID superstep = 0; superstep < number_of_supersteps; ++superstep) {
-      const auto [from, to] =
-          math::compute_local_range(graph.n(), number_of_supersteps, superstep);
+      const auto [from, to] = math::compute_local_range(graph.n(), number_of_supersteps, superstep);
 
       // Color all nodes in [from, to)
       for (const NodeID u : graph.nodes(from, to)) {
@@ -72,29 +67,24 @@ NoinitVector<ColorID> compute_node_coloring_sequentially(
           is_interface_node = is_interface_node || graph.is_ghost_node(v);
 
           // @todo replace v < u with random numbers r(v) < r(u)
-          if (coloring[v] != 0 &&
-              (coloring[u] == 0 || !(coloring[v] == coloring[u] &&
-                                     graph.local_to_global_node(u) <
-                                         graph.local_to_global_node(v)))) {
+          if (coloring[v] != 0 && (coloring[u] == 0 || !(coloring[v] == coloring[u] &&
+                                                         graph.local_to_global_node(u) <
+                                                             graph.local_to_global_node(v)))) {
             incident_colors.set<true>(coloring[v] - 1);
           }
         }
 
         if (coloring[u] == 0) {
           coloring[u] = incident_colors.first_unmarked_element() + 1;
-          DBGC(u == 156543 || u == 262712)
-              << "setting " << u << " to " << coloring[u] << " A";
+          DBGC(u == 156543 || u == 262712) << "setting " << u << " to " << coloring[u] << " A";
           if (!is_interface_node) {
             active[u] = 0;
           }
         } else if (incident_colors.get(coloring[u] - 1)) {
           coloring[u] = incident_colors.first_unmarked_element() + 1;
-          DBGC(
-              u == 156543 || u == 262712 ||
-              graph.local_to_global_node(u) == 681015
-          ) << "setting "
-            << u << " to " << coloring[u] << " B, global "
-            << graph.local_to_global_node(u);
+          DBGC(u == 156543 || u == 262712 || graph.local_to_global_node(u) == 681015)
+              << "setting " << u << " to " << coloring[u] << " B, global "
+              << graph.local_to_global_node(u);
         } else {
           active[u] = 0;
         }
@@ -119,23 +109,16 @@ NoinitVector<ColorID> compute_node_coloring_sequentially(
           },
           [&](const auto &recv_buffer, const PEID pe) {
             converged &= recv_buffer.empty();
-            tbb::parallel_for<std::size_t>(
-                0,
-                recv_buffer.size(),
-                [&](const std::size_t i) {
-                  const auto [local_node_on_pe, color] = recv_buffer[i];
-                  const GlobalNodeID global_node = static_cast<GlobalNodeID>(
-                      graph.offset_n(pe) + local_node_on_pe
-                  );
-                  const NodeID local_node =
-                      graph.global_to_local_node(global_node);
-                  coloring[local_node] = color;
-                  DBGC(local_node == 156543 || local_node == 262712)
-                      << "setting " << local_node << " to "
-                      << coloring[local_node] << " C, global "
-                      << graph.local_to_global_node(local_node);
-                }
-            );
+            tbb::parallel_for<std::size_t>(0, recv_buffer.size(), [&](const std::size_t i) {
+              const auto [local_node_on_pe, color] = recv_buffer[i];
+              const GlobalNodeID global_node =
+                  static_cast<GlobalNodeID>(graph.offset_n(pe) + local_node_on_pe);
+              const NodeID local_node = graph.global_to_local_node(global_node);
+              coloring[local_node] = color;
+              DBGC(local_node == 156543 || local_node == 262712)
+                  << "setting " << local_node << " to " << coloring[local_node] << " C, global "
+                  << graph.local_to_global_node(local_node);
+            });
           }
       );
     }
@@ -161,8 +144,8 @@ NoinitVector<ColorID> compute_node_coloring_sequentially(
         for (const NodeID u : graph.nodes()) {
           for (const auto v : graph.adjacent_nodes(u)) {
             if (coloring[u] == coloring[v]) {
-              LOG_WARNING << "bad color for node " << u << " with neighbor "
-                          << v << ": " << coloring[u];
+              LOG_WARNING << "bad color for node " << u << " with neighbor " << v << ": "
+                          << coloring[u];
               return false;
             }
           }
@@ -184,21 +167,16 @@ NoinitVector<ColorID> compute_node_coloring_sequentially(
         mpi::graph::sparse_alltoall_interface_to_pe<Message>(
             graph,
             [&](const NodeID u) -> Message {
-              return {
-                  .node = graph.local_to_global_node(u), .color = coloring[u]};
+              return {.node = graph.local_to_global_node(u), .color = coloring[u]};
             },
             [&](const auto &recv_buffer) {
-              tbb::parallel_for<std::size_t>(
-                  0,
-                  recv_buffer.size(),
-                  [&](const std::size_t i) {
-                    const auto [node, color] = recv_buffer[i];
-                    const NodeID local_node = graph.global_to_local_node(node);
-                    if (coloring[local_node] != color) {
-                      inconsistent = true;
-                    }
-                  }
-              );
+              tbb::parallel_for<std::size_t>(0, recv_buffer.size(), [&](const std::size_t i) {
+                const auto [node, color] = recv_buffer[i];
+                const NodeID local_node = graph.global_to_local_node(node);
+                if (coloring[local_node] != color) {
+                  inconsistent = true;
+                }
+              });
             }
         );
         return !inconsistent;
@@ -208,9 +186,7 @@ NoinitVector<ColorID> compute_node_coloring_sequentially(
   );
 
   // Make colors start at 0
-  tbb::parallel_for<NodeID>(0, graph.total_n(), [&](const NodeID u) {
-    coloring[u] -= 1;
-  });
+  tbb::parallel_for<NodeID>(0, graph.total_n(), [&](const NodeID u) { coloring[u] -= 1; });
 
   return coloring;
 }

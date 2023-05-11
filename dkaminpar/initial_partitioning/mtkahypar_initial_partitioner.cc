@@ -28,8 +28,7 @@
 
 namespace kaminpar::dist {
 shm::PartitionedGraph MtKaHyParInitialPartitioner::initial_partition(
-    [[maybe_unused]] const shm::Graph &graph,
-    [[maybe_unused]] const PartitionContext &p_ctx
+    [[maybe_unused]] const shm::Graph &graph, [[maybe_unused]] const PartitionContext &p_ctx
 ) {
 #ifdef KAMINPAR_HAVE_MTKAHYPAR_LIB
   mt_kahypar_context_t *mt_kahypar_ctx = mt_kahypar_context_new();
@@ -46,8 +45,7 @@ shm::PartitionedGraph MtKaHyParInitialPartitioner::initial_partition(
   mt_kahypar_initialize_thread_pool(_ctx.parallel.num_threads, true);
 
   const mt_kahypar_hypernode_id_t num_vertices = graph.n();
-  const mt_kahypar_hyperedge_id_t num_edges =
-      graph.m() / 2; // Only need one direction
+  const mt_kahypar_hyperedge_id_t num_edges = graph.m() / 2; // Only need one direction
 
   NoinitVector<EdgeID> edge_position(2 * num_edges);
   graph.pfor_nodes([&](const NodeID u) {
@@ -55,9 +53,7 @@ shm::PartitionedGraph MtKaHyParInitialPartitioner::initial_partition(
       edge_position[e] = u < v;
     }
   });
-  parallel::prefix_sum(
-      edge_position.begin(), edge_position.end(), edge_position.begin()
-  );
+  parallel::prefix_sum(edge_position.begin(), edge_position.end(), edge_position.begin());
 
   NoinitVector<mt_kahypar_hypernode_id_t> edges(2 * num_edges);
   NoinitVector<mt_kahypar_hypernode_weight_t> edge_weights(num_edges);
@@ -66,8 +62,7 @@ shm::PartitionedGraph MtKaHyParInitialPartitioner::initial_partition(
   edge_weights.reserve(num_edges);
 
   graph.pfor_nodes([&](const NodeID u) {
-    vertex_weights[u] =
-        static_cast<mt_kahypar_hypernode_weight_t>(graph.node_weight(u));
+    vertex_weights[u] = static_cast<mt_kahypar_hypernode_weight_t>(graph.node_weight(u));
 
     for (const auto [e, v] : graph.neighbors(u)) {
       if (v < u) { // Only need edges in one direction
@@ -77,18 +72,12 @@ shm::PartitionedGraph MtKaHyParInitialPartitioner::initial_partition(
       EdgeID position = edge_position[e] - 1;
       edges[2 * position] = static_cast<mt_kahypar_hypernode_id_t>(u);
       edges[2 * position + 1] = static_cast<mt_kahypar_hypernode_id_t>(v);
-      edge_weights[position] =
-          static_cast<mt_kahypar_hypernode_weight_t>(graph.edge_weight(e));
+      edge_weights[position] = static_cast<mt_kahypar_hypernode_weight_t>(graph.edge_weight(e));
     }
   });
 
   mt_kahypar_hypergraph_t mt_kahypar_graph = mt_kahypar_create_graph(
-      DEFAULT,
-      num_vertices,
-      num_edges,
-      edges.data(),
-      edge_weights.data(),
-      vertex_weights.data()
+      DEFAULT, num_vertices, num_edges, edges.data(), edge_weights.data(), vertex_weights.data()
   );
 
   mt_kahypar_partitioned_hypergraph_t mt_kahypar_partitioned_graph =
@@ -112,11 +101,8 @@ shm::PartitionedGraph MtKaHyParInitialPartitioner::initial_partition(
   );
 #else  // KAMINPAR_HAVE_MTKAHYPAR_LIB
   ((void)_ctx);
-  KASSERT(
-      false, "Mt-KaHyPar initial partitioner is not available.", assert::always
-  );
+  KASSERT(false, "Mt-KaHyPar initial partitioner is not available.", assert::always);
   __builtin_unreachable();
 #endif // KAMINPAR_HAVE_MTKAHYPAR_LIB
 }
 } // namespace kaminpar::dist
-

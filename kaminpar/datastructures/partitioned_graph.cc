@@ -8,10 +8,7 @@
 
 namespace kaminpar::shm {
 PartitionedGraph::PartitionedGraph(
-    const Graph &graph,
-    BlockID k,
-    StaticArray<BlockID> partition,
-    std::vector<BlockID> final_k
+    const Graph &graph, BlockID k, StaticArray<BlockID> partition, std::vector<BlockID> final_k
 )
     : GraphDelegate(&graph),
       _k(k),
@@ -51,10 +48,7 @@ PartitionedGraph::PartitionedGraph(
 }
 
 PartitionedGraph::PartitionedGraph(
-    NoBlockWeights,
-    const Graph &graph,
-    const BlockID k,
-    StaticArray<BlockID> partition
+    NoBlockWeights, const Graph &graph, const BlockID k, StaticArray<BlockID> partition
 )
     : GraphDelegate(&graph),
       _k(k),
@@ -79,21 +73,17 @@ void PartitionedGraph::reinit_block_weights() {
 }
 
 void PartitionedGraph::init_block_weights_par() {
-  tbb::enumerable_thread_specific<std::vector<BlockWeight>> tl_block_weights{
-      [&] {
-        return std::vector<BlockWeight>(k());
-      }};
-  tbb::parallel_for(
-      tbb::blocked_range(static_cast<NodeID>(0), n()),
-      [&](auto &r) {
-        auto &local_block_weights = tl_block_weights.local();
-        for (NodeID u = r.begin(); u != r.end(); ++u) {
-          if (block(u) != kInvalidBlockID) {
-            local_block_weights[block(u)] += node_weight(u);
-          }
-        }
+  tbb::enumerable_thread_specific<std::vector<BlockWeight>> tl_block_weights{[&] {
+    return std::vector<BlockWeight>(k());
+  }};
+  tbb::parallel_for(tbb::blocked_range(static_cast<NodeID>(0), n()), [&](auto &r) {
+    auto &local_block_weights = tl_block_weights.local();
+    for (NodeID u = r.begin(); u != r.end(); ++u) {
+      if (block(u) != kInvalidBlockID) {
+        local_block_weights[block(u)] += node_weight(u);
       }
-  );
+    }
+  });
 
   tbb::parallel_for(static_cast<BlockID>(0), k(), [&](const BlockID b) {
     BlockWeight sum = 0;

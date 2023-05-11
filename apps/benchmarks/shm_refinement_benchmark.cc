@@ -47,9 +47,7 @@ int main(int argc, char *argv[]) {
     return MPI_Finalize();
   }
 
-  tbb::global_control gc(
-      tbb::global_control::max_allowed_parallelism, num_threads
-  );
+  tbb::global_control gc(tbb::global_control::max_allowed_parallelism, num_threads);
 
   // Load input graph
   auto input = load_partitioned_shm_graph(graph_filename, partition_filename);

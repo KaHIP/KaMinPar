@@ -20,8 +20,7 @@ public:
 
   virtual void initialize(const DistributedGraph &graph) = 0;
 
-  virtual ClusterArray &cluster(
-      const DistributedGraph &graph, GlobalNodeWeight max_cluster_weight
-  ) = 0;
+  virtual ClusterArray &
+  cluster(const DistributedGraph &graph, GlobalNodeWeight max_cluster_weight) = 0;
 };
 } // namespace kaminpar::dist

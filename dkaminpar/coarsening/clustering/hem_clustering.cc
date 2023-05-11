@@ -17,9 +17,7 @@ namespace {
 SET_DEBUG(true);
 }
 
-HEMClustering::HEMClustering(const Context &ctx)
-    : _input_ctx(ctx),
-      _ctx(ctx.coarsening.hem) {}
+HEMClustering::HEMClustering(const Context &ctx) : _input_ctx(ctx), _ctx(ctx.coarsening.hem) {}
 
 void HEMClustering::initialize(const DistributedGraph &graph) {
   mpi::barrier(graph.communicator());
@@ -53,30 +51,22 @@ void HEMClustering::initialize(const DistributedGraph &graph) {
     );
   }();
 
-  const ColorID num_local_colors =
-      *std::max_element(coloring.begin(), coloring.end()) + 1;
-  const ColorID num_colors =
-      mpi::allreduce(num_local_colors, MPI_MAX, graph.communicator());
+  const ColorID num_local_colors = *std::max_element(coloring.begin(), coloring.end()) + 1;
+  const ColorID num_colors = mpi::allreduce(num_local_colors, MPI_MAX, graph.communicator());
 
   TIMED_SCOPE("Allocation") {
     _color_sorted_nodes.resize(graph.n());
     _color_sizes.resize(num_colors + 1);
     _color_blacklist.resize(num_colors);
-    tbb::parallel_for<std::size_t>(
-        0,
-        _color_sorted_nodes.size(),
-        [&](const std::size_t i) { _color_sorted_nodes[i] = 0; }
-    );
-    tbb::parallel_for<std::size_t>(
-        0,
-        _color_sizes.size(),
-        [&](const std::size_t i) { _color_sizes[i] = 0; }
-    );
-    tbb::parallel_for<std::size_t>(
-        0,
-        _color_blacklist.size(),
-        [&](const std::size_t i) { _color_blacklist[i] = 0; }
-    );
+    tbb::parallel_for<std::size_t>(0, _color_sorted_nodes.size(), [&](const std::size_t i) {
+      _color_sorted_nodes[i] = 0;
+    });
+    tbb::parallel_for<std::size_t>(0, _color_sizes.size(), [&](const std::size_t i) {
+      _color_sizes[i] = 0;
+    });
+    tbb::parallel_for<std::size_t>(0, _color_blacklist.size(), [&](const std::size_t i) {
+      _color_blacklist[i] = 0;
+    });
   };
 
   TIMED_SCOPE("Count color sizes") {
@@ -89,9 +79,7 @@ void HEMClustering::initialize(const DistributedGraph &graph) {
         KASSERT(c < num_colors);
         __atomic_fetch_add(&_color_sizes[c], 1, __ATOMIC_RELAXED);
       });
-      parallel::prefix_sum(
-          _color_sizes.begin(), _color_sizes.end(), _color_sizes.begin()
-      );
+      parallel::prefix_sum(_color_sizes.begin(), _color_sizes.end(), _color_sizes.begin());
     }
   };
 
@@ -102,8 +90,7 @@ void HEMClustering::initialize(const DistributedGraph &graph) {
     } else {
       graph.pfor_nodes([&](const NodeID u) {
         const ColorID c = coloring[u];
-        const std::size_t i =
-            __atomic_sub_fetch(&_color_sizes[c], 1, __ATOMIC_SEQ_CST);
+        const std::size_t i = __atomic_sub_fetch(&_color_sizes[c], 1, __ATOMIC_SEQ_CST);
         KASSERT(i < _color_sorted_nodes.size());
         _color_sorted_nodes[i] = u;
       });
@@ -112,8 +99,8 @@ void HEMClustering::initialize(const DistributedGraph &graph) {
 
   TIMED_SCOPE("Compute color blacklist") {
     if (_ctx.small_color_blacklist == 0 ||
-        (_ctx.only_blacklist_input_level &&
-         graph.global_n() != _input_ctx.partition.graph->global_n)) {
+        (_ctx.only_blacklist_input_level && graph.global_n() != _input_ctx.partition.graph->global_n
+        )) {
       return;
     }
 
@@ -165,14 +152,9 @@ void HEMClustering::initialize(const DistributedGraph &graph) {
   };
 }
 
-HEMClustering::ClusterArray &HEMClustering::cluster(
-    const DistributedGraph &graph, GlobalNodeWeight max_cluster_weight
-) {
-  KASSERT(
-      _graph == &graph,
-      "must call initialize() before cluster()",
-      assert::always
-  );
+HEMClustering::ClusterArray &
+HEMClustering::cluster(const DistributedGraph &graph, GlobalNodeWeight max_cluster_weight) {
+  KASSERT(_graph == &graph, "must call initialize() before cluster()", assert::always);
   SCOPED_TIMER("Compute HEM clustering");
 
   for (ColorID c = 0; c + 1 < _color_sizes.size(); ++c) {
@@ -188,9 +170,7 @@ HEMClustering::ClusterArray &HEMClustering::cluster(
   });
 
   // Validate our matching
-  KASSERT(
-      validate_matching(), "matching in inconsistent state", assert::always
-  );
+  KASSERT(validate_matching(), "matching in inconsistent state", assert::always);
 
   return _matching;
 }
@@ -199,19 +179,15 @@ bool HEMClustering::validate_matching() {
   for (const NodeID u : _graph->nodes()) {
     const GlobalNodeID u_partner = _matching[u];
 
-    KASSERT(
-        _graph->contains_global_node(u_partner),
-        "invalid matching partner for node " << u
-    );
+    KASSERT(_graph->contains_global_node(u_partner), "invalid matching partner for node " << u);
     if (_graph->is_owned_global_node(u_partner)) {
       const NodeID local_partner = _graph->global_to_local_node(u_partner);
       const GlobalNodeID u_global = _graph->local_to_global_node(u);
       KASSERT(
           u == local_partner || _matching[local_partner] == u_partner,
           "invalid clustering structure for node "
-              << u << " (global " << u_global << ") matched to node "
-              << local_partner << ", which is matched to global node "
-              << _matching[local_partner]
+              << u << " (global " << u_global << ") matched to node " << local_partner
+              << ", which is matched to global node " << _matching[local_partner]
       );
     }
   }
@@ -233,8 +209,7 @@ bool HEMClustering::validate_matching() {
         for (const auto &[u, v] : r) {
           KASSERT(_graph->contains_global_node(u));
           KASSERT(
-              _graph->is_owned_global_node(v),
-              "PE " << pe << " thinks that this PE owns " << v
+              _graph->is_owned_global_node(v), "PE " << pe << " thinks that this PE owns " << v
           );
           const NodeID local_u = _graph->global_to_local_node(u);
           const NodeID local_v = _graph->global_to_local_node(v);
@@ -242,9 +217,9 @@ bool HEMClustering::validate_matching() {
           KASSERT(
               _matching[local_v] == v,
               "invalid clustering structure for edge "
-                  << u << " <-> " << v << " (local " << local_u << " <-> "
-                  << local_v << "): expected " << v << " to be the leader, but "
-                  << v << " is in cluster " << _matching[local_v]
+                  << u << " <-> " << v << " (local " << local_u << " <-> " << local_v
+                  << "): expected " << v << " to be the leader, but " << v << " is in cluster "
+                  << _matching[local_v]
           );
         }
       }
@@ -278,8 +253,7 @@ void HEMClustering::compute_local_matching(
 
       // v too heavy?
       const NodeWeight v_weight = _graph->node_weight(v);
-      if (u_weight + v_weight > max_cluster_weight &&
-          !_ctx.ignore_weight_limit) {
+      if (u_weight + v_weight > max_cluster_weight && !_ctx.ignore_weight_limit) {
         continue;
       }
 
@@ -296,8 +270,7 @@ void HEMClustering::compute_local_matching(
 
     // If we found a good neighbor, try to match with it
     if (best_weight > 0) {
-      const GlobalNodeID neighbor_global =
-          _graph->local_to_global_node(best_neighbor);
+      const GlobalNodeID neighbor_global = _graph->local_to_global_node(best_neighbor);
       GlobalNodeID unmatched = kInvalidGlobalNodeID;
       if (__atomic_compare_exchange_n(
               &_matching[best_neighbor],
@@ -326,24 +299,20 @@ void HEMClustering::resolve_global_conflicts(const ColorID c) {
   const NodeID seq_to = _color_sizes[c + 1];
 
   // @todo avoid O(m), use same "trick" as below?
-  auto all_requests =
-      mpi::graph::sparse_alltoall_interface_to_ghost_custom_range_get<
-          MatchRequest>(
-          *_graph,
-          seq_from,
-          seq_to,
-          [&](const NodeID seq_u) { return _color_sorted_nodes[seq_u]; },
-          [&](const NodeID u, EdgeID, const NodeID v) {
-            return _matching[u] == _graph->local_to_global_node(v);
-          },
-          [&](const NodeID u, const EdgeID e, const NodeID v, const PEID pe
-          ) -> MatchRequest {
-            const GlobalNodeID v_global = _graph->local_to_global_node(v);
-            const NodeID their_v =
-                static_cast<NodeID>(v_global - _graph->offset_n(pe));
-            return {u, their_v, _graph->edge_weight(e)};
-          }
-      );
+  auto all_requests = mpi::graph::sparse_alltoall_interface_to_ghost_custom_range_get<MatchRequest>(
+      *_graph,
+      seq_from,
+      seq_to,
+      [&](const NodeID seq_u) { return _color_sorted_nodes[seq_u]; },
+      [&](const NodeID u, EdgeID, const NodeID v) {
+        return _matching[u] == _graph->local_to_global_node(v);
+      },
+      [&](const NodeID u, const EdgeID e, const NodeID v, const PEID pe) -> MatchRequest {
+        const GlobalNodeID v_global = _graph->local_to_global_node(v);
+        const NodeID their_v = static_cast<NodeID>(v_global - _graph->offset_n(pe));
+        return {u, their_v, _graph->edge_weight(e)};
+      }
+  );
 
   parallel::chunked_for(all_requests, [&](MatchRequest &req, PEID) {
     std::swap(req.theirs, req.mine); // Swap roles of theirs and mine
@@ -359,17 +328,15 @@ void HEMClustering::resolve_global_conflicts(const ColorID c) {
     }
 
     KASSERT(_graph->contains_global_node(req.theirs + _graph->offset_n(pe)));
-    req.theirs =
-        _graph->global_to_local_node(req.theirs + _graph->offset_n(pe));
+    req.theirs = _graph->global_to_local_node(req.theirs + _graph->offset_n(pe));
     KASSERT(_graph->is_ghost_node(req.theirs));
 
     GlobalNodeID current_partner = _matching[req.mine];
     GlobalNodeID new_partner = current_partner;
     do {
-      const EdgeWeight current_weight =
-          current_partner == kInvalidGlobalNodeID
-              ? 0
-              : static_cast<EdgeWeight>(current_partner >> 32);
+      const EdgeWeight current_weight = current_partner == kInvalidGlobalNodeID
+                                            ? 0
+                                            : static_cast<EdgeWeight>(current_partner >> 32);
       if (req.weight <= current_weight) {
         break;
       }
@@ -396,24 +363,21 @@ void HEMClustering::resolve_global_conflicts(const ColorID c) {
       req.mine = kInvalidNodeID;
     }
 
-    req.theirs = static_cast<NodeID>(
-        _graph->local_to_global_node(req.theirs) - _graph->offset_n(pe)
-    );
+    req.theirs =
+        static_cast<NodeID>(_graph->local_to_global_node(req.theirs) - _graph->offset_n(pe));
   });
 
   // Normalize our _matching array
   parallel::chunked_for(all_requests, [&](const MatchRequest &req) {
     if (req.mine != kInvalidNodeID) { // Due to the previous step, this should
                                       // only happen once per node
-      _matching[req.mine] = _graph->local_to_global_node(req.mine
-      ); // We become the leader of this cluster
+      _matching[req.mine] =
+          _graph->local_to_global_node(req.mine); // We become the leader of this cluster
     }
   });
 
   // Exchange response messages
-  auto all_responses = mpi::sparse_alltoall_get<MatchRequest>(
-      all_requests, _graph->communicator()
-  );
+  auto all_responses = mpi::sparse_alltoall_get<MatchRequest>(all_requests, _graph->communicator());
 
   parallel::chunked_for(all_responses, [&](MatchRequest &rsp) {
     std::swap(rsp.mine, rsp.theirs); // Swap roles of theirs and mine
@@ -480,9 +444,8 @@ void HEMClustering::resolve_global_conflicts(const ColorID c) {
       [&](const auto &r, const PEID pe) {
         tbb::parallel_for<std::size_t>(0, r.size(), [&](const std::size_t i) {
           const auto [local_node_on_pe, partner] = r[i];
-          const auto global_node = static_cast<GlobalNodeID>(
-              _graph->offset_n(pe) + local_node_on_pe
-          );
+          const auto global_node =
+              static_cast<GlobalNodeID>(_graph->offset_n(pe) + local_node_on_pe);
           const NodeID local_node = _graph->global_to_local_node(global_node);
           _matching[local_node] = partner;
         });

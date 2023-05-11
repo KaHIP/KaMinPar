@@ -24,13 +24,10 @@ public:
 
   void initialize(const DistributedGraph &graph) final;
 
-  ClusterArray &cluster(
-      const DistributedGraph &graph, GlobalNodeWeight max_cluster_weight
-  ) final;
+  ClusterArray &cluster(const DistributedGraph &graph, GlobalNodeWeight max_cluster_weight) final;
 
 private:
-  GlobalNodeID
-  compute_size_after_matching_contraction(const ClusterArray &clustering);
+  GlobalNodeID compute_size_after_matching_contraction(const ClusterArray &clustering);
 
   const DistributedGraph *_graph;
   bool _fallback = false;

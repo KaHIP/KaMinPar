@@ -39,8 +39,7 @@
 #include "dkaminpar/coarsening/clustering/noop_clustering.h"
 
 namespace kaminpar::dist::factory {
-std::unique_ptr<Partitioner>
-create_partitioner(const Context &ctx, const DistributedGraph &graph) {
+std::unique_ptr<Partitioner> create_partitioner(const Context &ctx, const DistributedGraph &graph) {
   switch (ctx.mode) {
   case PartitioningMode::DEEP:
     return std::make_unique<DeepMultilevelPartitioner>(graph, ctx);
@@ -52,8 +51,7 @@ create_partitioner(const Context &ctx, const DistributedGraph &graph) {
   __builtin_unreachable();
 }
 
-std::unique_ptr<InitialPartitioner>
-create_initial_partitioning_algorithm(const Context &ctx) {
+std::unique_ptr<InitialPartitioner> create_initial_partitioning_algorithm(const Context &ctx) {
   switch (ctx.initial_partitioning.algorithm) {
   case InitialPartitioningAlgorithm::KAMINPAR:
     return std::make_unique<KaMinParInitialPartitioner>(ctx);
@@ -69,9 +67,8 @@ create_initial_partitioning_algorithm(const Context &ctx) {
 }
 
 namespace {
-std::unique_ptr<Refiner> create_refinement_algorithm(
-    const Context &ctx, const KWayRefinementAlgorithm algorithm
-) {
+std::unique_ptr<Refiner>
+create_refinement_algorithm(const Context &ctx, const KWayRefinementAlgorithm algorithm) {
   switch (algorithm) {
   case KWayRefinementAlgorithm::NOOP:
     return std::make_unique<NoopRefiner>();
@@ -130,8 +127,7 @@ create_global_clustering_algorithm(const Context &ctx) {
   __builtin_unreachable();
 }
 
-std::unique_ptr<ClusteringAlgorithm<NodeID>>
-create_local_clustering_algorithm(const Context &ctx) {
+std::unique_ptr<ClusteringAlgorithm<NodeID>> create_local_clustering_algorithm(const Context &ctx) {
   switch (ctx.coarsening.local_clustering_algorithm) {
   case LocalClusteringAlgorithm::NOOP:
     return std::make_unique<LocalNoopClustering>(ctx);

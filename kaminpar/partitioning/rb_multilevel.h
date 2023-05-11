@@ -23,8 +23,7 @@ public:
 
   PartitionedGraph partition() {
     DISABLE_TIMERS();
-    PartitionedGraph p_graph =
-        partition_recursive(_input_graph, _input_ctx.partition.k);
+    PartitionedGraph p_graph = partition_recursive(_input_graph, _input_ctx.partition.k);
     ENABLE_TIMERS();
     return p_graph;
   }
@@ -71,21 +70,16 @@ public:
     const Graph *c_graph = &graph;
 
     // coarsening
-    PartitionContext p_ctx = create_bipartition_context(
-        _input_ctx.partition, graph, final_k / 2, final_k / 2
-    );
+    PartitionContext p_ctx =
+        create_bipartition_context(_input_ctx.partition, graph, final_k / 2, final_k / 2);
     bool shrunk = true;
-    while (shrunk && c_graph->n() > 2 * _input_ctx.coarsening.contraction_limit
-    ) {
-      shrunk = helper::coarsen_once(
-          coarsener.get(), c_graph, pseudo_input_ctx, p_ctx
-      );
+    while (shrunk && c_graph->n() > 2 * _input_ctx.coarsening.contraction_limit) {
+      shrunk = helper::coarsen_once(coarsener.get(), c_graph, pseudo_input_ctx, p_ctx);
       c_graph = coarsener->coarsest_graph();
     }
 
     // initial bipartitioning
-    PartitionedGraph p_graph =
-        helper::bipartition(c_graph, final_k, _input_ctx, ip_m_ctx_pool);
+    PartitionedGraph p_graph = helper::bipartition(c_graph, final_k, _input_ctx, ip_m_ctx_pool);
     helper::update_partition_context(p_ctx, p_graph);
 
     // refine
@@ -93,8 +87,7 @@ public:
 
     while (!coarsener->empty()) {
       helper::refine(refiner.get(), p_graph, p_ctx);
-      p_graph =
-          helper::uncoarsen_once(coarsener.get(), std::move(p_graph), p_ctx);
+      p_graph = helper::uncoarsen_once(coarsener.get(), std::move(p_graph), p_ctx);
     }
     helper::refine(refiner.get(), p_graph, p_ctx);
 

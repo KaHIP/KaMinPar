@@ -61,8 +61,7 @@ public:
 
   virtual void initialize(const Graph &graph) = 0;
 
-  virtual bool
-  refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) = 0;
+  virtual bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) = 0;
 
   virtual MemoryContext free() = 0;
 };
@@ -88,8 +87,7 @@ private:
 namespace fm {
 struct SimpleStoppingPolicy {
   void init(const Graph *) const {}
-  [[nodiscard]] bool should_stop(const TwoWayFMRefinementContext &fm_ctx
-  ) const {
+  [[nodiscard]] bool should_stop(const TwoWayFMRefinementContext &fm_ctx) const {
     return _num_steps > fm_ctx.num_fruitless_moves;
   }
   void reset() {
@@ -111,8 +109,7 @@ struct AdaptiveStoppingPolicy {
     _beta = std::sqrt(graph->n());
   }
 
-  [[nodiscard]] bool should_stop(const TwoWayFMRefinementContext &fm_ctx
-  ) const {
+  [[nodiscard]] bool should_stop(const TwoWayFMRefinementContext &fm_ctx) const {
     const double factor = (fm_ctx.alpha / 2.0) - 0.25;
     return (_num_steps > _beta) &&
            ((_Mk == 0) || (_num_steps >= (_variance / (_Mk * _Mk)) * factor));
@@ -156,15 +153,10 @@ private:
 //! balance.
 struct MaxWeightSelectionPolicy {
   std::size_t operator()(
-      const PartitionedGraph &p_graph,
-      const PartitionContext &context,
-      const Queues &,
-      Random &rand
+      const PartitionedGraph &p_graph, const PartitionContext &context, const Queues &, Random &rand
   ) {
-    const auto weight0 =
-        p_graph.block_weight(0) - context.block_weights.perfectly_balanced(0);
-    const auto weight1 =
-        p_graph.block_weight(1) - context.block_weights.perfectly_balanced(1);
+    const auto weight0 = p_graph.block_weight(0) - context.block_weights.perfectly_balanced(0);
+    const auto weight1 = p_graph.block_weight(1) - context.block_weights.perfectly_balanced(1);
     return weight1 > weight0 || (weight0 == weight1 && rand.random_bool());
   }
 };
@@ -177,10 +169,8 @@ struct MaxGainSelectionPolicy {
       const Queues &queues,
       Random &rand
   ) {
-    const auto loss0 = queues[0].empty() ? std::numeric_limits<Gain>::max()
-                                         : queues[0].peek_key();
-    const auto loss1 = queues[1].empty() ? std::numeric_limits<Gain>::max()
-                                         : queues[1].peek_key();
+    const auto loss0 = queues[0].empty() ? std::numeric_limits<Gain>::max() : queues[0].peek_key();
+    const auto loss1 = queues[1].empty() ? std::numeric_limits<Gain>::max() : queues[1].peek_key();
     if (loss0 == loss1) {
       return MaxWeightSelectionPolicy()(p_graph, context, queues, rand);
     }
@@ -195,17 +185,14 @@ struct MaxOverloadSelectionPolicy {
       const Queues &queues,
       Random &rand
   ) {
-    const NodeWeight overload0 = std::max<NodeWeight>(
-        0, p_graph.block_weight(0) - context.block_weights.max(0)
-    );
-    const NodeWeight overload1 = std::max<NodeWeight>(
-        0, p_graph.block_weight(1) - context.block_weights.max(1)
-    );
+    const NodeWeight overload0 =
+        std::max<NodeWeight>(0, p_graph.block_weight(0) - context.block_weights.max(0));
+    const NodeWeight overload1 =
+        std::max<NodeWeight>(0, p_graph.block_weight(1) - context.block_weights.max(1));
     if (overload0 == 0 && overload1 == 0) {
       return MaxGainSelectionPolicy()(p_graph, context, queues, rand);
     }
-    return overload1 > overload0 ||
-           (overload1 == overload0 && rand.random_bool());
+    return overload1 > overload0 || (overload1 == overload0 && rand.random_bool());
   }
 };
 
@@ -235,10 +222,7 @@ struct BalancedMinCutAcceptancePolicy {
  * node.
  * @tparam CutAcceptancePolicy Decides whether we accept the current cut.
  */
-template <
-    typename QueueSelectionPolicy,
-    typename CutAcceptancePolicy,
-    typename StoppingPolicy>
+template <typename QueueSelectionPolicy, typename CutAcceptancePolicy, typename StoppingPolicy>
 class InitialTwoWayFMRefiner : public InitialRefiner {
   static constexpr NodeID kChunkSize = 64;
   static constexpr std::size_t kNumberOfNodePermutations = 32;
@@ -259,8 +243,7 @@ public:
         _weighted_degrees{std::move(m_ctx.weighted_degrees)} {
     KASSERT(
         p_ctx.k == 2u,
-        "2-way refiner cannot be used on a " << p_ctx.k << "-way partition"
-                                             << assert::light
+        "2-way refiner cannot be used on a " << p_ctx.k << "-way partition" << assert::light
     );
 
     if (_queues[0].capacity() < n) {
@@ -290,11 +273,7 @@ public:
   }
 
   bool refine(PartitionedGraph &p_graph, const PartitionContext &) final {
-    KASSERT(
-        &p_graph.graph() == _graph,
-        "must be initialized with the same graph",
-        assert::light
-    );
+    KASSERT(&p_graph.graph() == _graph, "must be initialized with the same graph", assert::light);
     KASSERT(
         p_graph.k() == 2u,
         "2-way refiner cannot be used on a " << p_graph.k() << "-way partition",
@@ -310,9 +289,8 @@ public:
     EdgeWeight cur_edge_cut = prev_edge_cut;
 
     cur_edge_cut += round(p_graph); // always do at least one round
-    for (std::size_t it = 1;
-         0 < cur_edge_cut && it < _r_ctx.twoway_fm.num_iterations &&
-         !abort(prev_edge_cut, cur_edge_cut);
+    for (std::size_t it = 1; 0 < cur_edge_cut && it < _r_ctx.twoway_fm.num_iterations &&
+                             !abort(prev_edge_cut, cur_edge_cut);
          ++it) {
       prev_edge_cut = cur_edge_cut;
       cur_edge_cut += round(p_graph);
@@ -329,9 +307,8 @@ public:
   }
 
 private:
-  [[nodiscard]] bool abort(
-      const EdgeWeight prev_edge_weight, const EdgeWeight cur_edge_weight
-  ) const {
+  [[nodiscard]] bool
+  abort(const EdgeWeight prev_edge_weight, const EdgeWeight cur_edge_weight) const {
     return (1.0 - 1.0 * cur_edge_weight / prev_edge_weight) <
            _r_ctx.twoway_fm.improvement_abortion_threshold;
   }
@@ -344,13 +321,8 @@ private:
    * @return Whether we were able to improve the cut.
    */
   EdgeWeight round(PartitionedGraph &p_graph) {
-    KASSERT(
-        p_graph.k() == 2u,
-        "2-way FM with " << p_graph.k() << "-way partition",
-        assert::light
-    );
-    DBG << "Initial refiner initialized with n=" << p_graph.n()
-        << " m=" << p_graph.m();
+    KASSERT(p_graph.k() == 2u, "2-way FM with " << p_graph.k() << "-way partition", assert::light);
+    DBG << "Initial refiner initialized with n=" << p_graph.n() << " m=" << p_graph.m();
 
 #if KASSERT_ENABLED(ASSERTION_LEVEL_HEAVY)
     const bool initially_feasible = metrics::is_feasible(p_graph, _p_ctx);
@@ -402,8 +374,7 @@ private:
       moves.push_back(u);
 #if KASSERT_ENABLED(ASSERTION_LEVEL_HEAVY)
       KASSERT(
-          initial_edge_cut + current_delta ==
-              metrics::edge_cut(p_graph, tag::seq),
+          initial_edge_cut + current_delta == metrics::edge_cut(p_graph, tag::seq),
           "",
           assert::heavy
       );
@@ -440,12 +411,7 @@ private:
 
       // accept move if it improves the best edge cut found so far
       if (_cut_acceptance_policy(
-              p_graph,
-              _p_ctx,
-              accepted_overload,
-              current_overload,
-              accepted_delta,
-              current_delta
+              p_graph, _p_ctx, accepted_overload, current_overload, accepted_delta, current_delta
           )) {
         DBG << "Accepted new bipartition: delta=" << current_delta
             << " cut=" << metrics::edge_cut(p_graph, tag::seq);
@@ -484,12 +450,9 @@ private:
 
     std::vector<std::size_t> chunks(num_chunks);
     std::iota(chunks.begin(), chunks.end(), 0);
-    std::transform(
-        chunks.begin(),
-        chunks.end(),
-        chunks.begin(),
-        [](const std::size_t i) { return i * kChunkSize; }
-    );
+    std::transform(chunks.begin(), chunks.end(), chunks.begin(), [](const std::size_t i) {
+      return i * kChunkSize;
+    });
     _rand.shuffle(chunks);
 
     for (const std::size_t chunk : chunks) {
@@ -515,16 +478,13 @@ private:
     }
   }
 
-  EdgeWeight
-  compute_gain_from_scratch(const PartitionedGraph &p_graph, const NodeID u) {
+  EdgeWeight compute_gain_from_scratch(const PartitionedGraph &p_graph, const NodeID u) {
     const BlockID u_block = p_graph.block(u);
     EdgeWeight weighted_external_degree = 0;
     for (const auto [e, v] : p_graph.neighbors(u)) {
-      weighted_external_degree +=
-          (p_graph.block(v) != u_block) * p_graph.edge_weight(e);
+      weighted_external_degree += (p_graph.block(v) != u_block) * p_graph.edge_weight(e);
     }
-    const EdgeWeight weighted_internal_degree =
-        _weighted_degrees[u] - weighted_external_degree;
+    const EdgeWeight weighted_internal_degree = _weighted_degrees[u] - weighted_external_degree;
     return weighted_internal_degree - weighted_external_degree;
   }
 
@@ -556,10 +516,7 @@ private:
         } else {
           KASSERT(_queues[p_graph.block(u)].contains(u));
           KASSERT(!_queues[1 - p_graph.block(u)].contains(u));
-          KASSERT(
-              _queues[p_graph.block(u)].key(u) ==
-              compute_gain_from_scratch(p_graph, u)
-          );
+          KASSERT(_queues[p_graph.block(u)].key(u) == compute_gain_from_scratch(p_graph, u));
         }
       } else {
         KASSERT(!_queues[0].contains(u));
@@ -579,8 +536,7 @@ private:
   CutAcceptancePolicy _cut_acceptance_policy{};
   StoppingPolicy _stopping_policy{};
   Random &_rand{Random::instance()};
-  RandomPermutations<NodeID, kChunkSize, kNumberOfNodePermutations>
-      _permutations;
+  RandomPermutations<NodeID, kChunkSize, kNumberOfNodePermutations> _permutations;
 };
 
 extern template class InitialTwoWayFMRefiner<

@@ -38,14 +38,10 @@ TEST(SubgraphExtractionTest, ExtractsEdges) {
   EXPECT_EQ(result.subgraphs[1].m(), 2);
   EXPECT_THAT(result.subgraphs[0].edge_target(0), AnyOf(0, 1));
   EXPECT_THAT(result.subgraphs[0].edge_target(1), AnyOf(1, 0));
-  EXPECT_NE(
-      result.subgraphs[0].edge_target(0), result.subgraphs[0].edge_target(1)
-  );
+  EXPECT_NE(result.subgraphs[0].edge_target(0), result.subgraphs[0].edge_target(1));
   EXPECT_THAT(result.subgraphs[1].edge_target(0), AnyOf(0, 1));
   EXPECT_THAT(result.subgraphs[1].edge_target(1), AnyOf(1, 0));
-  EXPECT_NE(
-      result.subgraphs[1].edge_target(0), result.subgraphs[0].edge_target(1)
-  );
+  EXPECT_NE(result.subgraphs[1].edge_target(0), result.subgraphs[0].edge_target(1));
 }
 
 TEST(SubgraphExtractionTest, ExtractsPathCutInTwo) {
@@ -61,14 +57,10 @@ TEST(SubgraphExtractionTest, ExtractsPathCutInTwo) {
   EXPECT_EQ(result.subgraphs[1].m(), 2);
   EXPECT_THAT(result.subgraphs[0].edge_target(0), AnyOf(0, 1));
   EXPECT_THAT(result.subgraphs[0].edge_target(1), AnyOf(1, 0));
-  EXPECT_NE(
-      result.subgraphs[0].edge_target(0), result.subgraphs[0].edge_target(1)
-  );
+  EXPECT_NE(result.subgraphs[0].edge_target(0), result.subgraphs[0].edge_target(1));
   EXPECT_THAT(result.subgraphs[1].edge_target(0), AnyOf(0, 1));
   EXPECT_THAT(result.subgraphs[1].edge_target(1), AnyOf(1, 0));
-  EXPECT_NE(
-      result.subgraphs[1].edge_target(0), result.subgraphs[0].edge_target(1)
-  );
+  EXPECT_NE(result.subgraphs[1].edge_target(0), result.subgraphs[0].edge_target(1));
 }
 
 TEST(SubgraphExtractionTest, ComplexTrianglesWeightedExampleWorks) {
@@ -84,14 +76,11 @@ TEST(SubgraphExtractionTest, ComplexTrianglesWeightedExampleWorks) {
   // each triangle in one block
   Graph graph{create_graph(
       {0, 2, 5, 8, 10, 14, 18, 21, 24, 26},
-      {1, 4, 0, 2, 4, 1, 3, 5, 2, 5, 0, 1, 5,
-       6, 2, 3, 4, 7, 4, 7, 8, 5, 6, 8, 6, 7},
+      {1, 4, 0, 2, 4, 1, 3, 5, 2, 5, 0, 1, 5, 6, 2, 3, 4, 7, 4, 7, 8, 5, 6, 8, 6, 7},
       {1, 2, 3, 4, 5, 6, 7, 8, 9},
-      {3,  6, 3,  5,  7,  5,  7,  9,  7,  10, 6,  7,  11,
-       12, 9, 10, 11, 14, 12, 15, 16, 14, 15, 17, 16, 17}
+      {3, 6, 3, 5, 7, 5, 7, 9, 7, 10, 6, 7, 11, 12, 9, 10, 11, 14, 12, 15, 16, 14, 15, 17, 16, 17}
   )};
-  PartitionedGraph p_graph{
-      create_p_graph(graph, 3, {0, 0, 1, 1, 0, 1, 2, 2, 2}, {4, 5, 6})};
+  PartitionedGraph p_graph{create_p_graph(graph, 3, {0, 0, 1, 1, 0, 1, 2, 2, 2}, {4, 5, 6})};
 
   graph::SubgraphMemory memory{
       p_graph.n(),

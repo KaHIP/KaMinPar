@@ -105,9 +105,7 @@ public:
     Function _transformer;
   };
 
-  TransformedIotaRange(
-      const Int begin, const Int end, const Function transformer
-  )
+  TransformedIotaRange(const Int begin, const Int end, const Function transformer)
       : _begin(begin, transformer),
         _end(end, transformer) {}
 
@@ -128,8 +126,7 @@ public:
   class iterator {
   public:
     using iterator_category = typename Iterator::iterator_category;
-    using value_type =
-        std::result_of_t<Function(typename Iterator::value_type)>;
+    using value_type = std::result_of_t<Function(typename Iterator::value_type)>;
     using difference_type = typename Iterator::difference_type;
     using pointer = value_type *;
     using reference = value_type &;

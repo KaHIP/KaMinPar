@@ -35,8 +35,7 @@ int main(int argc, char *argv[]) {
 
   CLI::App app("Distributed Label Propagation Benchmark");
   app.add_option("-G,--graph", graph_filename, "Input graph")->required();
-  app.add_option("-S,--num-supersteps", num_supersteps, "Number of supersteps")
-      ->required();
+  app.add_option("-S,--num-supersteps", num_supersteps, "Number of supersteps")->required();
   CLI11_PARSE(app, argc, argv);
 
   auto gc = init_parallelism(1);
@@ -48,21 +47,16 @@ int main(int argc, char *argv[]) {
    */
   LOG << "Reading graph from " << graph_filename << " ...";
   DISABLE_TIMERS();
-  auto graph = dist::io::read_graph(
-      graph_filename, dist::io::DistributionType::NODE_BALANCED
-  );
+  auto graph = dist::io::read_graph(graph_filename, dist::io::DistributionType::NODE_BALANCED);
   ENABLE_TIMERS();
   LOG << "n=" << graph.global_n() << " m=" << graph.global_m();
 
   /****
    * Run label propagation
    */
-  const auto coloring =
-      compute_node_coloring_sequentially(graph, num_supersteps);
-  const ColorID num_local_colors =
-      *std::max_element(coloring.begin(), coloring.end()) + 1;
-  const ColorID num_colors =
-      mpi::allreduce(num_local_colors, MPI_MAX, graph.communicator());
+  const auto coloring = compute_node_coloring_sequentially(graph, num_supersteps);
+  const ColorID num_local_colors = *std::max_element(coloring.begin(), coloring.end()) + 1;
+  const ColorID num_colors = mpi::allreduce(num_local_colors, MPI_MAX, graph.communicator());
   LOG << "num_colors=" << num_colors;
 
   std::vector<NodeID> color_sizes(num_colors);

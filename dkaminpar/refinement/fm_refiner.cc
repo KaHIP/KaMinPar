@@ -118,8 +118,7 @@ public:
       // Only perform move if target block can take u without becoming
       // overloaded
       const bool feasible =
-          to != from && _global_p_graph.block_weight(to) +
-                                _block_weight_deltas[to] + weight <=
+          to != from && _global_p_graph.block_weight(to) + _block_weight_deltas[to] + weight <=
                             _p_ctx.graph->max_block_weight(to);
 
       if (feasible) {
@@ -193,8 +192,7 @@ private:
     }
   }
 
-  void
-  update_pq_after_move(const NodeID u, const BlockID from, const BlockID to) {
+  void update_pq_after_move(const NodeID u, const BlockID from, const BlockID to) {
     for (const auto [e, v] : _p_graph.neighbors(u)) {
       KASSERT(v < _p_graph.n());
 
@@ -204,8 +202,7 @@ private:
 
       const BlockID v_block = block(v);
       if (v_block == from || v_block == to) {
-        const auto [best_gain, best_target_block] =
-            find_best_target_block<false>(v);
+        const auto [best_gain, best_target_block] = find_best_target_block<false>(v);
         if (_pq.contains(v)) {
           _pq.change_priority(v, best_gain);
         } else if (!_marker.get(v)) {
@@ -219,8 +216,7 @@ private:
   template <bool initialization> void insert_node_into_pq(const NodeID u) {
     KASSERT(u < _p_graph.n());
 
-    const auto [best_gain, best_target_block] =
-        find_best_target_block<initialization>(u);
+    const auto [best_gain, best_target_block] = find_best_target_block<initialization>(u);
     if (block(u) != best_target_block) {
       _pq.push(u, best_gain);
       if (initialization) {
@@ -261,29 +257,25 @@ private:
           block_weight_prime += _block_weight_deltas[current_target_block];
         }
         const bool feasible =
-            block_weight_prime <=
-            _p_ctx.graph->max_block_weight(current_target_block);
+            block_weight_prime <= _p_ctx.graph->max_block_weight(current_target_block);
 
         // accept as better block if gain is larger
         // if gain is equal, flip a coin
-        if (feasible && (current_gain > best_gain ||
-                         (current_gain == best_gain && _rand.random_bool()))) {
+        if (feasible &&
+            (current_gain > best_gain || (current_gain == best_gain && _rand.random_bool()))) {
           best_gain = current_gain;
           best_target_block = current_target_block;
         }
       }
 
       // subtract internal degree to get the actual gain value of this move
-      best_gain -=
-          internal_degree; // overflow OK, value unused if still set to min
+      best_gain -= internal_degree; // overflow OK, value unused if still set to min
 
       map.clear(); // clear for next node
       return std::make_pair(best_gain, best_target_block);
     };
 
-    _rating_map.update_upper_bound_size(
-        std::min<BlockID>(_p_ctx.k, _p_graph.degree(u))
-    );
+    _rating_map.update_upper_bound_size(std::min<BlockID>(_p_ctx.k, _p_graph.degree(u)));
     return _rating_map.run_with_map(action, action);
   }
 
@@ -328,9 +320,7 @@ FMRefiner::FMRefiner(const Context &ctx) : _fm_ctx(ctx.refinement.fm) {}
 
 void FMRefiner::initialize(const DistributedGraph &) {}
 
-void FMRefiner::refine(
-    DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx
-) {
+void FMRefiner::refine(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) {
   SCOPED_TIMER("FM");
   _p_graph = &p_graph;
   _p_ctx = &p_ctx;
@@ -338,8 +328,7 @@ void FMRefiner::refine(
   for (std::size_t global_round = 0; global_round < 5; ++global_round) {
     // Find independent set of border nodes
     START_TIMER("Call find_independent_border_set");
-    const auto seed_nodes =
-        graph::find_independent_border_set(*_p_graph, global_round);
+    const auto seed_nodes = graph::find_independent_border_set(*_p_graph, global_round);
     STOP_TIMER();
 
     mpi::barrier(_p_graph->communicator());
@@ -356,9 +345,7 @@ void FMRefiner::refine(
     mpi::barrier(_p_graph->communicator());
 
     START_TIMER("Build reverse node mapping");
-    growt::StaticGhostNodeMapping reverse_node_mapping(
-        extraction_result.node_mapping.size()
-    );
+    growt::StaticGhostNodeMapping reverse_node_mapping(extraction_result.node_mapping.size());
     tbb::parallel_for<std::size_t>(
         0,
         extraction_result.node_mapping.size(),
@@ -372,9 +359,7 @@ void FMRefiner::refine(
 
     // Run FM
     tbb::enumerable_thread_specific<ThreadLocalFMRefiner> fm_refiner_ets{[&] {
-      return ThreadLocalFMRefiner(
-          *_p_graph, *extraction_result.p_graph, _fm_ctx, *_p_ctx
-      );
+      return ThreadLocalFMRefiner(*_p_graph, *extraction_result.p_graph, _fm_ctx, *_p_ctx);
     }};
 
     for (std::size_t local_round = 0; local_round < 5; ++local_round) {
@@ -382,40 +367,31 @@ void FMRefiner::refine(
 
       START_TIMER("Local FM");
       tbb::concurrent_vector<GlobalMove> local_move_buffer;
-      tbb::parallel_for<std::size_t>(
-          0,
-          seed_nodes.size(),
-          [&](const std::size_t i) {
-            const NodeID local_seed_node = seed_nodes[i];
-            const GlobalNodeID global_seed_node =
-                _p_graph->local_to_global_node(local_seed_node);
+      tbb::parallel_for<std::size_t>(0, seed_nodes.size(), [&](const std::size_t i) {
+        const NodeID local_seed_node = seed_nodes[i];
+        const GlobalNodeID global_seed_node = _p_graph->local_to_global_node(local_seed_node);
 
-            KASSERT(
-                reverse_node_mapping.find(global_seed_node + 1) !=
-                reverse_node_mapping.end()
-            );
-            const NodeID seed_node =
-                (*reverse_node_mapping.find(global_seed_node + 1)).second;
+        KASSERT(reverse_node_mapping.find(global_seed_node + 1) != reverse_node_mapping.end());
+        const NodeID seed_node = (*reverse_node_mapping.find(global_seed_node + 1)).second;
 
-            auto &fm_refiner = fm_refiner_ets.local();
-            auto moves = fm_refiner.refine(seed_node);
+        auto &fm_refiner = fm_refiner_ets.local();
+        auto moves = fm_refiner.refine(seed_node);
 
-            const NodeID group = local_seed_node;
-            const auto &p_graph = extraction_result.p_graph;
-            const auto &node_mapping = extraction_result.node_mapping;
-            for (const auto &[node, gain, to] : moves) {
-              KASSERT(node < node_mapping.size());
-              local_move_buffer.push_back(
-                  {node_mapping[node],
-                   group,
-                   static_cast<NodeWeight>(p_graph->node_weight(node)),
-                   gain,
-                   p_graph->block(node),
-                   to}
-              );
-            }
-          }
-      );
+        const NodeID group = local_seed_node;
+        const auto &p_graph = extraction_result.p_graph;
+        const auto &node_mapping = extraction_result.node_mapping;
+        for (const auto &[node, gain, to] : moves) {
+          KASSERT(node < node_mapping.size());
+          local_move_buffer.push_back(
+              {node_mapping[node],
+               group,
+               static_cast<NodeWeight>(p_graph->node_weight(node)),
+               gain,
+               p_graph->block(node),
+               to}
+          );
+        }
+      });
       STOP_TIMER();
 
       mpi::barrier(_p_graph->communicator());
@@ -425,9 +401,8 @@ void FMRefiner::refine(
       std::vector<GlobalMove> local_move_buffer_cpy(
           local_move_buffer.begin(), local_move_buffer.end()
       );
-      auto global_move_buffer = broadcast_and_resolve_global_moves(
-          local_move_buffer_cpy, _p_graph->communicator()
-      );
+      auto global_move_buffer =
+          broadcast_and_resolve_global_moves(local_move_buffer_cpy, _p_graph->communicator());
       // auto global_move_buffer = local_move_buffer_cpy;
       STOP_TIMER();
 
@@ -435,8 +410,7 @@ void FMRefiner::refine(
 
       // Apply moves to global partition and extract graph
       START_TIMER("Apply moves");
-      for (const auto &[node, group, weight, gain, from, to] :
-           global_move_buffer) {
+      for (const auto &[node, group, weight, gain, from, to] : global_move_buffer) {
         if (node == kInvalidGlobalNodeID) {
           continue; // Move conflicts with a better move
         }
@@ -446,9 +420,7 @@ void FMRefiner::refine(
           const NodeID local_node = _p_graph->global_to_local_node(node);
           _p_graph->set_block(local_node, to);
         } else {
-          _p_graph->set_block_weight(
-              from, _p_graph->block_weight(from) - weight
-          );
+          _p_graph->set_block_weight(from, _p_graph->block_weight(from) - weight);
           _p_graph->set_block_weight(to, _p_graph->block_weight(to) + weight);
         }
 

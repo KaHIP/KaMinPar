@@ -100,8 +100,7 @@ TEST(InitialCoarsenerTest, ContractingGridHorizontallyWorks) {
 }
 
 TEST(InitialCoarsenerTest, ContractingGridVerticallyWorks) {
-  Graph graph{
-      graphs::grid(4, 2)}; // four columns, two rows, organized row by row
+  Graph graph{graphs::grid(4, 2)}; // four columns, two rows, organized row by row
   graph = change_node_weight(std::move(graph), 0, 1);
   graph = change_node_weight(std::move(graph), 1, 10);
   graph = change_node_weight(std::move(graph), 2, 2);

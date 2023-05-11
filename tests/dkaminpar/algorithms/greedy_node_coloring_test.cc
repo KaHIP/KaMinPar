@@ -50,8 +50,7 @@ TEST(GreedyNodeColoringTest, colors_isolated_nodes_graph) {
   constexpr NodeID kNumberOfSupersteps = 1;
 
   const auto graph = make_isolated_nodes_graph(kNodesPerPE);
-  const auto coloring =
-      compute_node_coloring_sequentially(graph, kNumberOfSupersteps);
+  const auto coloring = compute_node_coloring_sequentially(graph, kNumberOfSupersteps);
   validate_node_coloring(graph, coloring, 1);
 }
 
@@ -60,16 +59,14 @@ TEST(GreedyNodeColoringTest, colors_isolated_edges_graph) {
   constexpr NodeID kNumberOfSupersteps = 1;
 
   const auto graph = make_isolated_edges_graph(kNodesPerPE);
-  const auto coloring =
-      compute_node_coloring_sequentially(graph, kNumberOfSupersteps);
+  const auto coloring = compute_node_coloring_sequentially(graph, kNumberOfSupersteps);
   validate_node_coloring(graph, coloring, 2);
 }
 
 TEST(GreedyNodeColoringTest, colors_circle_graph) {
   constexpr NodeID kNumberOfSupersteps = 1;
   const auto graph = make_circle_graph();
-  const auto coloring =
-      compute_node_coloring_sequentially(graph, kNumberOfSupersteps);
+  const auto coloring = compute_node_coloring_sequentially(graph, kNumberOfSupersteps);
   validate_node_coloring(graph, coloring, 3);
 }
 
@@ -77,8 +74,7 @@ TEST(GreedyNodeColoringTest, colors_circle_clique_graph_2) {
   constexpr NodeID kNumberOfNodesPerPE = 2;
   constexpr NodeID kNumberOfSupersteps = 1;
   const auto graph = make_circle_clique_graph(kNumberOfNodesPerPE);
-  const auto coloring =
-      compute_node_coloring_sequentially(graph, kNumberOfSupersteps);
+  const auto coloring = compute_node_coloring_sequentially(graph, kNumberOfSupersteps);
   validate_node_coloring(graph, coloring);
 }
 
@@ -86,8 +82,7 @@ TEST(GreedyNodeColoringTest, colors_circle_clique_graph_5) {
   constexpr NodeID kNumberOfNodesPerPE = 5;
   constexpr NodeID kNumberOfSupersteps = 1;
   const auto graph = make_circle_clique_graph(kNumberOfNodesPerPE);
-  const auto coloring =
-      compute_node_coloring_sequentially(graph, kNumberOfSupersteps);
+  const auto coloring = compute_node_coloring_sequentially(graph, kNumberOfSupersteps);
   validate_node_coloring(graph, coloring);
 }
 
@@ -95,8 +90,7 @@ TEST(GreedyNodeColoringTest, colors_circle_clique_graph_5_many_steps) {
   constexpr NodeID kNumberOfNodesPerPE = 5;
   constexpr NodeID kNumberOfSupersteps = 5;
   const auto graph = make_circle_clique_graph(kNumberOfNodesPerPE);
-  const auto coloring =
-      compute_node_coloring_sequentially(graph, kNumberOfSupersteps);
+  const auto coloring = compute_node_coloring_sequentially(graph, kNumberOfSupersteps);
   validate_node_coloring(graph, coloring);
 }
 } // namespace kaminpar::dist

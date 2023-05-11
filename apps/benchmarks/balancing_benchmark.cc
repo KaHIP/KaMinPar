@@ -52,8 +52,7 @@ int main(int argc, char *argv[]) {
 
   START_TIMER("IO");
   Graph graph = shm::io::metis::read<true>(ctx.graph_filename);
-  auto partition =
-      shm::io::partition::read<StaticArray<BlockID>>(partition_filename);
+  auto partition = shm::io::partition::read<StaticArray<BlockID>>(partition_filename);
   const BlockID k = *std::max_element(partition.begin(), partition.end()) + 1;
   KASSERT(partition.size() == graph.n(), "bad partition size", assert::always);
   PartitionedGraph p_graph(graph, k, std::move(partition));
@@ -72,8 +71,7 @@ int main(int argc, char *argv[]) {
   ctx.partition.k = k;
   ctx.setup(graph);
 
-  auto balancer =
-      factory::create_balancer(graph, ctx.partition, ctx.refinement);
+  auto balancer = factory::create_balancer(graph, ctx.partition, ctx.refinement);
 
   TIMED_SCOPE("Balancer") {
     TIMED_SCOPE("Initialization") {

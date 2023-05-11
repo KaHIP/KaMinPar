@@ -40,9 +40,7 @@ CLI::Option_group *create_partitioning_options(CLI::App *app, Context &ctx) {
       ->capture_default_str();
 
   partitioning->add_option("-m,--mode", ctx.partition.mode)
-      ->transform(
-          CLI::CheckedTransformer(get_partitioning_modes()).description("")
-      )
+      ->transform(CLI::CheckedTransformer(get_partitioning_modes()).description(""))
       ->description(R"(Partitioning scheme:
   - deep: deep multilevel
   - rb:   recursive multilevel bipartitioning)")
@@ -63,21 +61,14 @@ CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx) {
       ->capture_default_str();
 
   coarsening->add_option("--c-clustering-algorithm", ctx.coarsening.algorithm)
-      ->transform(
-          CLI::CheckedTransformer(get_clustering_algorithms()).description("")
-      )
+      ->transform(CLI::CheckedTransformer(get_clustering_algorithms()).description(""))
       ->description(R"(One of the following options:
   - noop: disable coarsening
   - lp:   size-constrained label propagation)")
       ->capture_default_str();
 
-  coarsening
-      ->add_option(
-          "--c-cluster-weight-limit", ctx.coarsening.cluster_weight_limit
-      )
-      ->transform(
-          CLI::CheckedTransformer(get_cluster_weight_limits()).description("")
-      )
+  coarsening->add_option("--c-cluster-weight-limit", ctx.coarsening.cluster_weight_limit)
+      ->transform(CLI::CheckedTransformer(get_cluster_weight_limits()).description(""))
       ->description(
           R"(This option selects the formula used to compute the weight limit for nodes in coarse graphs. 
 The weight limit can additionally be scaled by a constant multiplier set by the --c-cluster-weight-multiplier option.
@@ -141,24 +132,17 @@ CLI::Option_group *create_lp_coarsening_options(CLI::App *app, Context &ctx) {
   return lp;
 }
 
-CLI::Option_group *
-create_initial_partitioning_options(CLI::App *app, Context &ctx) {
+CLI::Option_group *create_initial_partitioning_options(CLI::App *app, Context &ctx) {
   auto *ip = app->add_option_group("Initial Partitioning");
 
   ip->add_option("--i-mode", ctx.initial_partitioning.mode)
-      ->transform(CLI::CheckedTransformer(get_initial_partitioning_modes())
-                      .description(""))
+      ->transform(CLI::CheckedTransformer(get_initial_partitioning_modes()).description(""))
       ->description(R"(Chooses the initial partitioning mode:
   - sequential:     do not diversify initial partitioning by replicating coarse graphs
   - async-parallel: diversify initial partitioning by replicating coarse graphs each branch of the replication tree asynchronously
-  - sync-parallel:  same as async-parallel, but process branches synchronously)"
-      )
+  - sync-parallel:  same as async-parallel, but process branches synchronously)")
       ->capture_default_str();
-  ip->add_option(
-        "--i-rep-exp",
-        ctx.initial_partitioning.multiplier_exponent,
-        "(Deprecated)"
-  )
+  ip->add_option("--i-rep-exp", ctx.initial_partitioning.multiplier_exponent, "(Deprecated)")
       ->capture_default_str();
   ip->add_option(
         "--i-rep-multiplier",
@@ -173,8 +157,7 @@ Algorithms might perform less repetitions if they are unlikely to find a competi
       )
       ->capture_default_str();
   ip->add_option(
-        "--i-min-non-adaptive-reps",
-        ctx.initial_partitioning.min_num_non_adaptive_repetitions
+        "--i-min-non-adaptive-reps", ctx.initial_partitioning.min_num_non_adaptive_repetitions
   )
       ->description(
           R"(Minimum number of adaptive bipartitioning repetitions per bipartitioning algorithm,
@@ -204,17 +187,11 @@ before an algorithm is excluded if it is unlikely to find a competitive bipartit
   return ip;
 }
 
-CLI::Option_group *
-create_initial_refinement_options(CLI::App *app, Context &ctx) {
-  auto *refinement =
-      app->add_option_group("Initial Partitioning -> Refinement");
+CLI::Option_group *create_initial_refinement_options(CLI::App *app, Context &ctx) {
+  auto *refinement = app->add_option_group("Initial Partitioning -> Refinement");
 
-  refinement
-      ->add_option(
-          "--i-r-algorithms", ctx.initial_partitioning.refinement.algorithms
-      )
-      ->transform(CLI::CheckedTransformer(get_2way_refinement_algorithms())
-                      .description(""))
+  refinement->add_option("--i-r-algorithms", ctx.initial_partitioning.refinement.algorithms)
+      ->transform(CLI::CheckedTransformer(get_2way_refinement_algorithms()).description(""))
       ->description(
           R"(Algorithm for 2-way refinement during initial bipartitioning:
   - noop: disable 2-way refinement
@@ -225,17 +202,13 @@ create_initial_refinement_options(CLI::App *app, Context &ctx) {
   return refinement;
 }
 
-CLI::Option_group *
-create_initial_fm_refinement_options(CLI::App *app, Context &ctx) {
+CLI::Option_group *create_initial_fm_refinement_options(CLI::App *app, Context &ctx) {
   auto *fm = app->add_option_group("Initial Partitioning -> Refinement -> FM");
 
   fm->add_option(
-        "--i-r-fm-stopping-rule",
-        ctx.initial_partitioning.refinement.twoway_fm.stopping_rule
+        "--i-r-fm-stopping-rule", ctx.initial_partitioning.refinement.twoway_fm.stopping_rule
   )
-      ->transform(
-          CLI::CheckedTransformer(get_fm_stopping_rules()).description("")
-      )
+      ->transform(CLI::CheckedTransformer(get_fm_stopping_rules()).description(""))
       ->description(R"(Stopping rule for 2-way FM:
   - simple:   abort after a constant number of fruitless moves
   - adaptive: abort after it became unlikely to find a cut improvement)")
@@ -261,8 +234,7 @@ create_initial_fm_refinement_options(CLI::App *app, Context &ctx) {
       ->capture_default_str();
   fm->add_option(
         "--i-r-fm-abortion-threshold",
-        ctx.initial_partitioning.refinement.twoway_fm
-            .improvement_abortion_threshold,
+        ctx.initial_partitioning.refinement.twoway_fm.improvement_abortion_threshold,
         "Stop FM iterations if the previous iteration improved the edge cut "
         "below this threshold."
   )
@@ -275,8 +247,7 @@ CLI::Option_group *create_refinement_options(CLI::App *app, Context &ctx) {
   auto *refinement = app->add_option_group("Refinement");
 
   refinement->add_option("--r-algorithms", ctx.refinement.algorithms)
-      ->transform(CLI::CheckedTransformer(get_kway_refinement_algorithms())
-                      .description(""))
+      ->transform(CLI::CheckedTransformer(get_kway_refinement_algorithms()).description(""))
       ->description(
           R"(This option can be used multiple times to define a sequence of refinement algorithms. 
 The following algorithms can be used:
@@ -317,8 +288,7 @@ CLI::Option_group *create_lp_refinement_options(CLI::App *app, Context &ctx) {
   return lp;
 }
 
-CLI::Option_group *
-create_kway_fm_refinement_options(CLI::App *app, Context &ctx) {
+CLI::Option_group *create_kway_fm_refinement_options(CLI::App *app, Context &ctx) {
   auto *fm = app->add_option_group("Refinement -> k-way FM");
 
   fm->add_option(
@@ -335,8 +305,7 @@ create_kway_fm_refinement_options(CLI::App *app, Context &ctx) {
   )
       ->capture_default_str();
 
-  fm->add_option("--r-fm-alpha", ctx.refinement.kway_fm.alpha)
-      ->capture_default_str();
+  fm->add_option("--r-fm-alpha", ctx.refinement.kway_fm.alpha)->capture_default_str();
   fm->add_option(
         "--r-fm-abortion-threshold",
         ctx.refinement.kway_fm.improvement_abortion_threshold,
@@ -353,34 +322,21 @@ CLI::Option_group *create_jet_refinement_options(CLI::App *app, Context &ctx) {
 
   jet->add_option("--r-jet-num-iterations", ctx.refinement.jet.num_iterations)
       ->capture_default_str();
-  jet->add_flag("--r-jet-interpolate-c", ctx.refinement.jet.interpolate_c)
+  jet->add_flag("--r-jet-interpolate-c", ctx.refinement.jet.interpolate_c)->capture_default_str();
+  jet->add_option("--r-jet-min-c", ctx.refinement.jet.min_c)->capture_default_str();
+  jet->add_option("--r-jet-max-c", ctx.refinement.jet.max_c)->capture_default_str();
+  jet->add_flag("--r-jet-use-abortion-threshold", ctx.refinement.jet.use_abortion_threshold)
       ->capture_default_str();
-  jet->add_option("--r-jet-min-c", ctx.refinement.jet.min_c)
-      ->capture_default_str();
-  jet->add_option("--r-jet-max-c", ctx.refinement.jet.max_c)
-      ->capture_default_str();
-  jet->add_flag(
-         "--r-jet-use-abortion-threshold",
-         ctx.refinement.jet.use_abortion_threshold
-  )
-      ->capture_default_str();
-  jet->add_option(
-         "--r-jet-abortion-threshold", ctx.refinement.jet.abortion_threshold
-  )
+  jet->add_option("--r-jet-abortion-threshold", ctx.refinement.jet.abortion_threshold)
       ->capture_default_str();
 
   return jet;
 }
 
-CLI::Option_group *
-create_mtkahypar_refinement_options(CLI::App *app, Context &ctx) {
+CLI::Option_group *create_mtkahypar_refinement_options(CLI::App *app, Context &ctx) {
   auto *mtkahypar = app->add_option_group("Refinement -> Mt-KaHyPar");
 
-  mtkahypar
-      ->add_option(
-          "--r-mtkahypar-config-filename",
-          ctx.refinement.mtkahypar.config_filename
-      )
+  mtkahypar->add_option("--r-mtkahypar-config-filename", ctx.refinement.mtkahypar.config_filename)
       ->capture_default_str();
 
   return mtkahypar;

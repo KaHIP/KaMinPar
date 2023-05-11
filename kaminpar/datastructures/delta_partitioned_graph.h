@@ -56,9 +56,7 @@ public:
   }
 
   template <typename Lambda> inline void pfor_blocks(Lambda &&lambda) const {
-    tbb::parallel_for(
-        static_cast<BlockID>(0), k(), std::forward<Lambda>(lambda)
-    );
+    tbb::parallel_for(static_cast<BlockID>(0), k(), std::forward<Lambda>(lambda));
   }
 
   [[nodiscard]] inline BlockID block(const NodeID node) const {
@@ -87,10 +85,7 @@ public:
   template <bool update_block_weight = true>
   void set_block(const NodeID node, const BlockID new_block) {
     KASSERT(node < n(), "invalid node id " << node);
-    KASSERT(
-        new_block < k(),
-        "invalid block id " << new_block << " for node " << node
-    );
+    KASSERT(new_block < k(), "invalid block id " << new_block << " for node " << node);
 
     if constexpr (update_block_weight) {
       const BlockID old_block = block(node);
@@ -168,4 +163,3 @@ private:
 
 using DeltaPartitionedGraph = GenericDeltaPartitionedGraph<true, true>;
 } // namespace kaminpar::shm
-

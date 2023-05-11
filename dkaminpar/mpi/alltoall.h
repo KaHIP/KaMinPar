@@ -22,14 +22,9 @@ namespace kaminpar::mpi {
 namespace internal {
 template <typename Buffer, typename Receiver>
 void invoke_receiver(Buffer buffer, const PEID pe, const Receiver &receiver) {
-  constexpr bool receiver_invocable_with_pe =
-      std::is_invocable_r_v<void, Receiver, Buffer, PEID>;
-  constexpr bool receiver_invocable_without_pe =
-      std::is_invocable_r_v<void, Receiver, Buffer>;
-  static_assert(
-      receiver_invocable_with_pe || receiver_invocable_without_pe,
-      "bad receiver type"
-  );
+  constexpr bool receiver_invocable_with_pe = std::is_invocable_r_v<void, Receiver, Buffer, PEID>;
+  constexpr bool receiver_invocable_without_pe = std::is_invocable_r_v<void, Receiver, Buffer>;
+  static_assert(receiver_invocable_with_pe || receiver_invocable_without_pe, "bad receiver type");
 
   if constexpr (receiver_invocable_with_pe) {
     receiver(std::move(buffer), pe);
@@ -39,17 +34,11 @@ void invoke_receiver(Buffer buffer, const PEID pe, const Receiver &receiver) {
 }
 
 template <typename SendBuffers, typename SendBuffer, typename Receiver>
-void forward_self_buffer(
-    SendBuffer &self_buffer, const PEID rank, const Receiver &receiver
-) {
+void forward_self_buffer(SendBuffer &self_buffer, const PEID rank, const Receiver &receiver) {
   constexpr bool receiver_invocable_with_pe =
       std::is_invocable_r_v<void, Receiver, SendBuffer, PEID>;
-  constexpr bool receiver_invocable_without_pe =
-      std::is_invocable_r_v<void, Receiver, SendBuffer>;
-  static_assert(
-      receiver_invocable_with_pe || receiver_invocable_without_pe,
-      "bad receiver type"
-  );
+  constexpr bool receiver_invocable_without_pe = std::is_invocable_r_v<void, Receiver, SendBuffer>;
+  static_assert(receiver_invocable_with_pe || receiver_invocable_without_pe, "bad receiver type");
 
   if constexpr (std::is_lvalue_reference_v<SendBuffers>) {
     if constexpr (receiver_invocable_with_pe) {
@@ -67,14 +56,8 @@ void forward_self_buffer(
 }
 } // namespace internal
 
-template <
-    typename Message,
-    typename Buffer,
-    typename SendBuffers,
-    typename Receiver>
-void sparse_alltoall_alltoallv(
-    SendBuffers &&send_buffers, Receiver &&receiver, MPI_Comm comm
-) {
+template <typename Message, typename Buffer, typename SendBuffers, typename Receiver>
+void sparse_alltoall_alltoallv(SendBuffers &&send_buffers, Receiver &&receiver, MPI_Comm comm) {
   // Note: copies data twice which could be avoided
   using namespace internal;
 
@@ -91,13 +74,9 @@ void sparse_alltoall_alltoallv(
   for (PEID pe = 0; pe < size; ++pe) {
     send_counts[pe] = asserting_cast<int>(send_buffers[pe].size());
   }
-  parallel::prefix_sum(
-      send_counts.begin(), send_counts.end(), send_displs.begin() + 1
-  );
+  parallel::prefix_sum(send_counts.begin(), send_counts.end(), send_displs.begin() + 1);
   mpi::alltoall(send_counts.data(), 1, recv_counts.data(), 1, comm);
-  parallel::prefix_sum(
-      recv_counts.begin(), recv_counts.end(), recv_displs.begin() + 1
-  );
+  parallel::prefix_sum(recv_counts.begin(), recv_counts.end(), recv_displs.begin() + 1);
 
   // Build shared send buffer
   Buffer common_send_buffer;
@@ -151,14 +130,8 @@ void sparse_alltoall_alltoallv(
   STOP_TIMER();
 }
 
-template <
-    typename Message,
-    typename Buffer,
-    typename SendBuffers,
-    typename Receiver>
-void sparse_alltoall_complete(
-    SendBuffers &&send_buffers, Receiver &&receiver, MPI_Comm comm
-) {
+template <typename Message, typename Buffer, typename SendBuffers, typename Receiver>
+void sparse_alltoall_complete(SendBuffers &&send_buffers, Receiver &&receiver, MPI_Comm comm) {
   const auto [size, rank] = mpi::get_comm_info(comm);
   using namespace internal;
 
@@ -180,13 +153,10 @@ void sparse_alltoall_complete(
 
   for (PEID pe = 0; pe < size; ++pe) {
     if (pe == rank) {
-      forward_self_buffer<decltype(send_buffers)>(
-          send_buffers[rank], rank, receiver
-      );
+      forward_self_buffer<decltype(send_buffers)>(send_buffers[rank], rank, receiver);
     } else if (pe != rank) {
       START_TIMER("probe_recv");
-      auto recv_buffer =
-          mpi::probe_recv<Message, Buffer>(pe, 0, comm, MPI_STATUS_IGNORE);
+      auto recv_buffer = mpi::probe_recv<Message, Buffer>(pe, 0, comm, MPI_STATUS_IGNORE);
       STOP_TIMER();
       START_TIMER("invoke_receiver");
       invoke_receiver(std::move(recv_buffer), pe, receiver);

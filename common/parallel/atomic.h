@@ -37,9 +37,7 @@ public:
     return *this;
   }
 
-  void store(
-      T desired, std::memory_order order = std::memory_order_seq_cst
-  ) noexcept {
+  void store(T desired, std::memory_order order = std::memory_order_seq_cst) noexcept {
     _value.store(desired, order);
   }
 
@@ -52,55 +50,39 @@ public:
     return _value.load(std::memory_order_relaxed);
   }
 
-  T exchange(
-      T desired, std::memory_order order = std::memory_order_seq_cst
-  ) noexcept {
+  T exchange(T desired, std::memory_order order = std::memory_order_seq_cst) noexcept {
     return _value.exchange(desired, order);
   }
 
   bool compare_exchange_weak(
-      T &expected,
-      T desired,
-      std::memory_order order = std::memory_order_seq_cst
+      T &expected, T desired, std::memory_order order = std::memory_order_seq_cst
   ) noexcept {
     return _value.compare_exchange_weak(expected, desired, order);
   }
 
   bool compare_exchange_strong(
-      T &expected,
-      T desired,
-      std::memory_order order = std::memory_order_seq_cst
+      T &expected, T desired, std::memory_order order = std::memory_order_seq_cst
   ) noexcept {
     return _value.compare_exchange_strong(expected, desired, order);
   }
 
-  T fetch_add(
-      T arg, std::memory_order order = std::memory_order_seq_cst
-  ) noexcept {
+  T fetch_add(T arg, std::memory_order order = std::memory_order_seq_cst) noexcept {
     return _value.fetch_add(arg, order);
   }
 
-  T fetch_sub(
-      T arg, std::memory_order order = std::memory_order_seq_cst
-  ) noexcept {
+  T fetch_sub(T arg, std::memory_order order = std::memory_order_seq_cst) noexcept {
     return _value.fetch_sub(arg, order);
   }
 
-  T fetch_and(
-      T arg, std::memory_order order = std::memory_order_seq_cst
-  ) noexcept {
+  T fetch_and(T arg, std::memory_order order = std::memory_order_seq_cst) noexcept {
     return _value.fetch_and(arg, order);
   }
 
-  T fetch_or(
-      T arg, std::memory_order order = std::memory_order_seq_cst
-  ) noexcept {
+  T fetch_or(T arg, std::memory_order order = std::memory_order_seq_cst) noexcept {
     return _value.fetch_or(arg, order);
   }
 
-  T fetch_xor(
-      T arg, std::memory_order order = std::memory_order_seq_cst
-  ) noexcept {
+  T fetch_xor(T arg, std::memory_order order = std::memory_order_seq_cst) noexcept {
     return _value.fetch_xor(arg, order);
   }
 

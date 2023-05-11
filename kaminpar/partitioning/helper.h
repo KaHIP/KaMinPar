@@ -48,15 +48,10 @@ using TemporaryGraphExtractionBufferPool =
     tbb::enumerable_thread_specific<graph::TemporarySubgraphMemory>;
 
 namespace helper {
-void update_partition_context(
-    PartitionContext &p_ctx, const PartitionedGraph &p_graph
-);
+void update_partition_context(PartitionContext &p_ctx, const PartitionedGraph &p_graph);
 
-PartitionedGraph uncoarsen_once(
-    Coarsener *coarsener,
-    PartitionedGraph p_graph,
-    PartitionContext &current_p_ctx
-);
+PartitionedGraph
+uncoarsen_once(Coarsener *coarsener, PartitionedGraph p_graph, PartitionContext &current_p_ctx);
 
 PartitionedGraph bipartition(
     const Graph *graph,
@@ -65,11 +60,7 @@ PartitionedGraph bipartition(
     GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool
 );
 
-void refine(
-    Refiner *refiner,
-    PartitionedGraph &p_graph,
-    const PartitionContext &current_p_ctx
-);
+void refine(Refiner *refiner, PartitionedGraph &p_graph, const PartitionContext &current_p_ctx);
 
 void extend_partition_recursive(
     const Graph &graph,
@@ -121,29 +112,20 @@ bool coarsen_once(
 // compute smallest k_prime such that it is a power of 2 and n / k_prime <= C
 BlockID compute_k_for_n(NodeID n, const Context &input_ctx);
 
-std::size_t compute_num_copies(
-    const Context &input_ctx, NodeID n, bool converged, std::size_t num_threads
-);
+std::size_t
+compute_num_copies(const Context &input_ctx, NodeID n, bool converged, std::size_t num_threads);
 
-std::size_t select_best(
-    const scalable_vector<PartitionedGraph> &p_graphs,
-    const PartitionContext &p_ctx
-);
+std::size_t
+select_best(const scalable_vector<PartitionedGraph> &p_graphs, const PartitionContext &p_ctx);
 
 template <typename Iterator>
 std::size_t select_best(
-    const Iterator p_graphs_begin,
-    const Iterator p_graphs_end,
-    const PartitionContext &p_ctx
+    const Iterator p_graphs_begin, const Iterator p_graphs_end, const PartitionContext &p_ctx
 ) {
   SET_DEBUG(false);
 
-  KASSERT(
-      p_graphs_begin < p_graphs_end,
-      "cannot select best result from an empty range"
-  );
-  DBG << "Select best result from "
-      << std::distance(p_graphs_begin, p_graphs_end) << " "
+  KASSERT(p_graphs_begin < p_graphs_end, "cannot select best result from an empty range");
+  DBG << "Select best result from " << std::distance(p_graphs_begin, p_graphs_end) << " "
       << (*p_graphs_begin).k() << "-way partitions";
 
   std::size_t best_index = 0;

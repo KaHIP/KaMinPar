@@ -24,8 +24,7 @@ public:
     if (_current_column >= _column_len.size()) {
       _column_len.push_back(len);
     } else {
-      _column_len[_current_column] =
-          std::max(len, _column_len[_current_column]);
+      _column_len[_current_column] = std::max(len, _column_len[_current_column]);
     }
     ++_current_column;
   }
@@ -36,8 +35,7 @@ public:
   }
 
   template <typename T> std::string to_str_padded(const T &val) {
-    const std::size_t padding_len =
-        _column_len[_current_column] - arg_to_len(val);
+    const std::size_t padding_len = _column_len[_current_column] - arg_to_len(val);
     if (++_current_column == _column_len.size()) {
       _current_column = 0;
     }
@@ -60,8 +58,7 @@ private:
 };
 
 template <typename Container> double compute_mean(const Container &vec) {
-  const auto sum =
-      static_cast<double>(std::accumulate(vec.begin(), vec.end(), 0.0));
+  const auto sum = static_cast<double>(std::accumulate(vec.begin(), vec.end(), 0.0));
   return sum / static_cast<double>(vec.size());
 }
 
@@ -85,8 +82,7 @@ struct NodeStatistics {
 };
 
 template <std::size_t trunc_to = 1024, typename String>
-std::vector<std::string>
-gather_trunc_string(const String &str, const PEID root, MPI_Comm comm) {
+std::vector<std::string> gather_trunc_string(const String &str, const PEID root, MPI_Comm comm) {
   // copy str to char array
   char trunc[trunc_to];
   const std::size_t len = std::min(trunc_to - 1, str.length());
@@ -110,9 +106,7 @@ gather_trunc_string(const String &str, const PEID root, MPI_Comm comm) {
 }
 
 void generate_statistics(
-    const Timer::TimerTreeNode &node,
-    std::vector<NodeStatistics> &result,
-    MPI_Comm comm
+    const Timer::TimerTreeNode &node, std::vector<NodeStatistics> &result, MPI_Comm comm
 ) {
   const PEID root = 0;
 
@@ -129,9 +123,7 @@ void generate_statistics(
             (rank != root || std::all_of(
                                  num_children.begin(),
                                  num_children.end(),
-                                 [&](const std::size_t num) {
-                                   return num == node.children.size();
-                                 }
+                                 [&](const std::size_t num) { return num == node.children.size(); }
                              )),
             "timers have diverged: number of children for node "
                 << node.name << "/" << node.description << ": " << num_children,
@@ -152,21 +144,18 @@ void generate_statistics(
             assert::always
         );
 
-        auto descriptions =
-            gather_trunc_string<check_chars>(node.description, root, comm);
+        auto descriptions = gather_trunc_string<check_chars>(node.description, root, comm);
         KASSERT(
-            (rank != root ||
-             std::all_of(
-                 descriptions.begin(),
-                 descriptions.end(),
-                 [&](const std::string &description) {
-                   return description.substr(0, check_chars) ==
-                          node.description.substr(0, check_chars);
-                 }
-             )),
-            "timers have diverged at node " << node.name << " with description "
-                                            << node.description << ": "
-                                            << descriptions,
+            (rank != root || std::all_of(
+                                 descriptions.begin(),
+                                 descriptions.end(),
+                                 [&](const std::string &description) {
+                                   return description.substr(0, check_chars) ==
+                                          node.description.substr(0, check_chars);
+                                 }
+                             )),
+            "timers have diverged at node " << node.name << " with description " << node.description
+                                            << ": " << descriptions,
             assert::always
         );
 
@@ -176,8 +165,7 @@ void generate_statistics(
       assert::always
   );
 
-  auto times =
-      mpi::gather<double, std::vector<double>>(node.seconds(), 0, comm);
+  auto times = mpi::gather<double, std::vector<double>>(node.seconds(), 0, comm);
   const double mean = compute_mean(times);
   const double sd = compute_sd(times);
 
@@ -219,10 +207,9 @@ void annotate_timer_tree(
   const auto &entry = statistics[pos++];
 
   std::stringstream ss;
-  ss << "[" << table.to_str_padded(entry.min) << " s | "
-     << table.to_str_padded(entry.mean) << " s | "
-     << table.to_str_padded(entry.max) << " s | "
-     << table.to_str_padded(entry.sd) << " s] ";
+  ss << "[" << table.to_str_padded(entry.min) << " s | " << table.to_str_padded(entry.mean)
+     << " s | " << table.to_str_padded(entry.max) << " s | " << table.to_str_padded(entry.sd)
+     << " s] ";
 
   // Also print running times that deviate by more than 3 SDs
   // Disable: produces too much output on large PE counts
@@ -255,9 +242,8 @@ void finalize_distributed_timer(Timer &timer, MPI_Comm comm) {
 
     // add captions
     std::stringstream ss;
-    ss << " " << table.to_str_padded("min") << "     "
-       << table.to_str_padded("avg") << "     " << table.to_str_padded("max")
-       << "     " << table.to_str_padded("sd") << "  ";
+    ss << " " << table.to_str_padded("min") << "     " << table.to_str_padded("avg") << "     "
+       << table.to_str_padded("max") << "     " << table.to_str_padded("sd") << "  ";
     timer.annotate(ss.str());
 
     std::size_t pos = 0;

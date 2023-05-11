@@ -205,11 +205,9 @@ TEST(MathTest, Reg_TestLocalRangeComputation_ParHIPCrash) {
   const std::uint32_t n = 1382867;
   const std::uint32_t size = 2048;
 
-  const std::uint32_t chunk =
-      n / size; // each range should have size chunk or chunk + 1
+  const std::uint32_t chunk = n / size; // each range should have size chunk or chunk + 1
   for (std::uint32_t pe = 0; pe < size; ++pe) {
-    const auto [from, to] =
-        math::compute_local_range<std::uint32_t>(n, size, pe);
+    const auto [from, to] = math::compute_local_range<std::uint32_t>(n, size, pe);
     EXPECT_LE(to, n);
     EXPECT_LT(from, to);
     if (pe == 0) {

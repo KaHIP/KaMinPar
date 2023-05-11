@@ -15,9 +15,7 @@
 #include <kassert/kassert.hpp>
 
 namespace kaminpar {
-template <
-    std::size_t num_concurrent_markers = 1,
-    typename element_type = std::size_t>
+template <std::size_t num_concurrent_markers = 1, typename element_type = std::size_t>
 class Marker {
 public:
   explicit Marker(const std::size_t capacity)
@@ -35,8 +33,7 @@ public:
     KASSERT(marker < num_concurrent_markers);
     KASSERT(element < _data.size());
 
-    _data[element] = ((_data[element] & ~((1u << num_concurrent_markers) - 1u)
-                      ) == _marker_id)
+    _data[element] = ((_data[element] & ~((1u << num_concurrent_markers) - 1u)) == _marker_id)
                          ? _data[element] | (1u << marker)
                          : _marker_id | (1u << marker);
     if constexpr (track_first_unmarked_element) {
@@ -47,17 +44,14 @@ public:
     }
   }
 
-  [[nodiscard]] inline std::size_t
-  first_unmarked_element(const std::size_t marker = 0) const {
+  [[nodiscard]] inline std::size_t first_unmarked_element(const std::size_t marker = 0) const {
     KASSERT(marker < num_concurrent_markers);
     return _first_unmarked_element[marker];
   }
 
-  [[nodiscard]] bool
-  get(const std::size_t element, const std::size_t marker = 0) const {
+  [[nodiscard]] bool get(const std::size_t element, const std::size_t marker = 0) const {
     KASSERT(marker < num_concurrent_markers);
-    return ((_data[element] & ~((1u << num_concurrent_markers) - 1u)) ==
-            _marker_id) &&
+    return ((_data[element] & ~((1u << num_concurrent_markers) - 1u)) == _marker_id) &&
            ((_data[element] & (1u << marker)) != 0);
   }
 

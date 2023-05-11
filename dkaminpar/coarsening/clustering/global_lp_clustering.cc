@@ -49,8 +49,7 @@ struct UnorderedRatingMap {
 
 struct GlobalLPClusteringConfig : public LabelPropagationConfig {
   using Graph = DistributedGraph;
-  using RatingMap =
-      ::kaminpar::RatingMap<EdgeWeight, GlobalNodeID, UnorderedRatingMap>;
+  using RatingMap = ::kaminpar::RatingMap<EdgeWeight, GlobalNodeID, UnorderedRatingMap>;
   using ClusterID = GlobalNodeID;
   using ClusterWeight = GlobalNodeWeight;
 
@@ -62,15 +61,11 @@ struct GlobalLPClusteringConfig : public LabelPropagationConfig {
 } // namespace
 
 class GlobalLPClusteringImpl final
-    : public ChunkRandomdLabelPropagation<
-          GlobalLPClusteringImpl,
-          GlobalLPClusteringConfig>,
+    : public ChunkRandomdLabelPropagation<GlobalLPClusteringImpl, GlobalLPClusteringConfig>,
       public NonatomicOwnedClusterVector<NodeID, GlobalNodeID> {
   SET_DEBUG(false);
 
-  using Base = ChunkRandomdLabelPropagation<
-      GlobalLPClusteringImpl,
-      GlobalLPClusteringConfig>;
+  using Base = ChunkRandomdLabelPropagation<GlobalLPClusteringImpl, GlobalLPClusteringConfig>;
   using ClusterBase = NonatomicOwnedClusterVector<NodeID, GlobalNodeID>;
   using WeightDeltaMap = growt::GlobalNodeIDMap<GlobalNodeWeight>;
 
@@ -84,9 +79,7 @@ public:
         _changed_label(ctx.partition.graph->n),
         _cluster_weights(ctx.partition.graph->total_n - ctx.partition.graph->n),
         _local_cluster_weights(ctx.partition.graph->n),
-        _passive_high_degree_threshold(
-            _c_ctx.global_lp.passive_high_degree_threshold
-        ) {
+        _passive_high_degree_threshold(_c_ctx.global_lp.passive_high_degree_threshold) {
     set_max_num_iterations(_c_ctx.global_lp.num_iterations);
     set_max_degree(_c_ctx.global_lp.active_high_degree_threshold);
     set_max_num_neighbors(_c_ctx.global_lp.max_num_neighbors);
@@ -125,18 +118,13 @@ public:
     STOP_TIMER();
   }
 
-  auto &compute_clustering(
-      const DistributedGraph &graph, const GlobalNodeWeight max_cluster_weight
-  ) {
+  auto &
+  compute_clustering(const DistributedGraph &graph, const GlobalNodeWeight max_cluster_weight) {
     _max_cluster_weight = max_cluster_weight;
 
     mpi::barrier(graph.communicator());
 
-    KASSERT(
-        _graph == &graph,
-        "must call initialize() before cluster()",
-        assert::always
-    );
+    KASSERT(_graph == &graph, "must call initialize() before cluster()", assert::always);
 
     SCOPED_TIMER("Compute label propagation clustering");
 
@@ -145,8 +133,7 @@ public:
     for (int iteration = 0; iteration < _max_num_iterations; ++iteration) {
       GlobalNodeID global_num_moved_nodes = 0;
       for (int chunk = 0; chunk < num_chunks; ++chunk) {
-        const auto [from, to] =
-            math::compute_local_range<NodeID>(_graph->n(), num_chunks, chunk);
+        const auto [from, to] = math::compute_local_range<NodeID>(_graph->n(), num_chunks, chunk);
         global_num_moved_nodes += process_chunk(from, to);
       }
       if (global_num_moved_nodes == 0) {
@@ -158,9 +145,8 @@ public:
   }
 
   void set_max_num_iterations(const int max_num_iterations) {
-    _max_num_iterations = max_num_iterations == 0
-                              ? std::numeric_limits<int>::max()
-                              : max_num_iterations;
+    _max_num_iterations =
+        max_num_iterations == 0 ? std::numeric_limits<int>::max() : max_num_iterations;
   }
 
   //--------------------------------------------------------------------------------
@@ -178,19 +164,14 @@ public:
    * Note: offset cluster IDs by 1 since growt cannot use 0 as key.
    */
 
-  void
-  init_cluster_weight(const ClusterID lcluster, const ClusterWeight weight) {
+  void init_cluster_weight(const ClusterID lcluster, const ClusterWeight weight) {
     if (_graph->is_owned_node(lcluster)) {
-      __atomic_store_n(
-          &_local_cluster_weights[lcluster], weight, __ATOMIC_RELAXED
-      );
+      __atomic_store_n(&_local_cluster_weights[lcluster], weight, __ATOMIC_RELAXED);
     } else {
       KASSERT(lcluster < _graph->total_n());
-      const auto gcluster =
-          _graph->local_to_global_node(static_cast<NodeID>(lcluster));
+      const auto gcluster = _graph->local_to_global_node(static_cast<NodeID>(lcluster));
       auto &handle = _cluster_weights_handles_ets.local();
-      [[maybe_unused]] const auto [it, success] =
-          handle.insert(gcluster + 1, weight);
+      [[maybe_unused]] const auto [it, success] = handle.insert(gcluster + 1, weight);
       KASSERT(success, "Cluster already initialized: " << gcluster + 1);
     }
   }
@@ -198,16 +179,11 @@ public:
   ClusterWeight cluster_weight(const ClusterID gcluster) {
     if (_graph->is_owned_global_node(gcluster)) {
       const NodeID lcluster = _graph->global_to_local_node(gcluster);
-      return __atomic_load_n(
-          &_local_cluster_weights[lcluster], __ATOMIC_RELAXED
-      );
+      return __atomic_load_n(&_local_cluster_weights[lcluster], __ATOMIC_RELAXED);
     } else {
       auto &handle = _cluster_weights_handles_ets.local();
       auto it = handle.find(gcluster + 1);
-      KASSERT(
-          it != handle.end(),
-          "read weight of uninitialized cluster: " << gcluster
-      );
+      KASSERT(it != handle.end(), "read weight of uninitialized cluster: " << gcluster);
       return (*it).second;
     }
   }
@@ -220,8 +196,7 @@ public:
       const bool check_weight_constraint = true
   ) {
     // Reject move if it violates local weight constraint
-    if (check_weight_constraint &&
-        cluster_weight(new_gcluster) + weight_delta > max_weight) {
+    if (check_weight_constraint && cluster_weight(new_gcluster) + weight_delta > max_weight) {
       return false;
     }
 
@@ -229,36 +204,26 @@ public:
 
     if (_graph->is_owned_global_node(old_gcluster)) {
       const NodeID old_lcluster = _graph->global_to_local_node(old_gcluster);
-      __atomic_fetch_sub(
-          &_local_cluster_weights[old_lcluster], weight_delta, __ATOMIC_RELAXED
-      );
+      __atomic_fetch_sub(&_local_cluster_weights[old_lcluster], weight_delta, __ATOMIC_RELAXED);
     } else {
       // Otherwise, move node to new cluster
       [[maybe_unused]] const auto [it, found] = handle.update(
-          old_gcluster + 1,
-          [](auto &lhs, const auto rhs) { return lhs -= rhs; },
-          weight_delta
+          old_gcluster + 1, [](auto &lhs, const auto rhs) { return lhs -= rhs; }, weight_delta
       );
       KASSERT(
-          it != handle.end() && found,
-          "moved weight from uninitialized cluster: " << old_gcluster
+          it != handle.end() && found, "moved weight from uninitialized cluster: " << old_gcluster
       );
     }
 
     if (_graph->is_owned_global_node(new_gcluster)) {
       const NodeID new_lcluster = _graph->global_to_local_node(new_gcluster);
-      __atomic_fetch_add(
-          &_local_cluster_weights[new_lcluster], weight_delta, __ATOMIC_RELAXED
-      );
+      __atomic_fetch_add(&_local_cluster_weights[new_lcluster], weight_delta, __ATOMIC_RELAXED);
     } else {
       [[maybe_unused]] const auto [it, found] = handle.update(
-          new_gcluster + 1,
-          [](auto &lhs, const auto rhs) { return lhs += rhs; },
-          weight_delta
+          new_gcluster + 1, [](auto &lhs, const auto rhs) { return lhs += rhs; }, weight_delta
       );
       KASSERT(
-          it != handle.end() && found,
-          "moved weight to uninitialized cluster: " << new_gcluster
+          it != handle.end() && found, "moved weight to uninitialized cluster: " << new_gcluster
       );
     }
 
@@ -266,23 +231,16 @@ public:
   }
 
   void change_cluster_weight(
-      const ClusterID gcluster,
-      const ClusterWeight delta,
-      [[maybe_unused]] const bool must_exist
+      const ClusterID gcluster, const ClusterWeight delta, [[maybe_unused]] const bool must_exist
   ) {
     if (_graph->is_owned_global_node(gcluster)) {
       const NodeID lcluster = _graph->global_to_local_node(gcluster);
-      __atomic_fetch_add(
-          &_local_cluster_weights[lcluster], delta, __ATOMIC_RELAXED
-      );
+      __atomic_fetch_add(&_local_cluster_weights[lcluster], delta, __ATOMIC_RELAXED);
     } else {
       auto &handle = _cluster_weights_handles_ets.local();
 
       [[maybe_unused]] const auto [it, not_found] = handle.insert_or_update(
-          gcluster + 1,
-          delta,
-          [](auto &lhs, const auto rhs) { return lhs += rhs; },
-          delta
+          gcluster + 1, delta, [](auto &lhs, const auto rhs) { return lhs += rhs; }, delta
       );
       KASSERT(
           it != handle.end() && (!must_exist || !not_found),
@@ -296,8 +254,7 @@ public:
     return _graph->node_weight(static_cast<NodeID>(u));
   }
 
-  [[nodiscard]] ClusterWeight
-  max_cluster_weight(const GlobalNodeID /* cluster */) {
+  [[nodiscard]] ClusterWeight max_cluster_weight(const GlobalNodeID /* cluster */) {
     return _max_cluster_weight;
   }
 
@@ -311,8 +268,7 @@ public:
     NonatomicOwnedClusterVector::move_node(lu, gcluster);
 
     // Detect if a node was moved back to its original cluster
-    if (_c_ctx.global_lp.prevent_cyclic_moves &&
-        gcluster == initial_cluster(lu)) {
+    if (_c_ctx.global_lp.prevent_cyclic_moves && gcluster == initial_cluster(lu)) {
       // If the node ID is the smallest among its non-local neighbors, lock the
       // node to its original cluster
       bool interface_node = false;
@@ -348,8 +304,7 @@ public:
 
   [[nodiscard]] bool accept_cluster(const Base::ClusterSelectionState &state) {
     return (state.current_gain > state.best_gain ||
-            (state.current_gain == state.best_gain &&
-             state.local_rand.random_bool())) &&
+            (state.current_gain == state.best_gain && state.local_rand.random_bool())) &&
            (state.current_cluster_weight + state.u_weight <=
                 max_cluster_weight(state.current_cluster) ||
             state.current_cluster == state.initial_cluster);
@@ -360,8 +315,7 @@ public:
   }
 
   [[nodiscard]] inline bool accept_neighbor(const NodeID node) {
-    return _passive_high_degree_threshold == 0 ||
-           !_graph->is_high_degree_node(node);
+    return _passive_high_degree_threshold == 0 || !_graph->is_high_degree_node(node);
   }
 
   [[nodiscard]] inline bool skip_node(const NodeID lnode) {
@@ -393,14 +347,10 @@ private:
   }
 
   void initialize_ghost_node_clusters() {
-    tbb::parallel_for(
-        _graph->n(),
-        _graph->total_n(),
-        [&](const NodeID local_u) {
-          const GlobalNodeID label = _graph->local_to_global_node(local_u);
-          init_cluster(local_u, label);
-        }
-    );
+    tbb::parallel_for(_graph->n(), _graph->total_n(), [&](const NodeID local_u) {
+      const GlobalNodeID label = _graph->local_to_global_node(local_u);
+      init_cluster(local_u, label);
+    });
   }
 
   void control_cluster_weights(const NodeID from, const NodeID to) {
@@ -428,10 +378,7 @@ private:
 
         if (!_graph->is_owned_global_node(old_label)) {
           auto [old_it, old_inserted] = handle.insert_or_update(
-              old_label + 1,
-              -weight,
-              [&](auto &lhs, auto &rhs) { return lhs -= rhs; },
-              weight
+              old_label + 1, -weight, [&](auto &lhs, auto &rhs) { return lhs -= rhs; }, weight
           );
           if (old_inserted) {
             const PEID owner = _graph->find_owner_of_global_node(old_label);
@@ -441,10 +388,7 @@ private:
 
         if (!_graph->is_owned_global_node(new_label)) {
           auto [new_it, new_inserted] = handle.insert_or_update(
-              new_label + 1,
-              weight,
-              [&](auto &lhs, auto &rhs) { return lhs += rhs; },
-              weight
+              new_label + 1, weight, [&](auto &lhs, auto &rhs) { return lhs += rhs; }, weight
           );
           if (new_inserted) {
             const PEID owner = _graph->find_owner_of_global_node(new_label);
@@ -464,9 +408,7 @@ private:
 
     START_TIMER("Allocation");
     std::vector<NoinitVector<Message>> out_msgs(size);
-    tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
-      out_msgs[pe].resize(num_messages[pe]);
-    });
+    tbb::parallel_for<PEID>(0, size, [&](const PEID pe) { out_msgs[pe].resize(num_messages[pe]); });
     STOP_TIMER();
 
     mpi::barrier(_graph->communicator());
@@ -486,41 +428,31 @@ private:
     mpi::barrier(_graph->communicator());
 
     START_TIMER("Exchange messages");
-    auto in_msgs =
-        mpi::sparse_alltoall_get<Message>(out_msgs, _graph->communicator());
+    auto in_msgs = mpi::sparse_alltoall_get<Message>(out_msgs, _graph->communicator());
     STOP_TIMER();
 
     mpi::barrier(_graph->communicator());
 
     START_TIMER("Integrate messages");
     tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
-      tbb::parallel_for<std::size_t>(
-          0,
-          in_msgs[pe].size(),
-          [&](const std::size_t i) {
-            const auto [cluster, delta] = in_msgs[pe][i];
-            change_cluster_weight(cluster, delta, false);
-          }
-      );
+      tbb::parallel_for<std::size_t>(0, in_msgs[pe].size(), [&](const std::size_t i) {
+        const auto [cluster, delta] = in_msgs[pe][i];
+        change_cluster_weight(cluster, delta, false);
+      });
     });
 
     tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
-      tbb::parallel_for<std::size_t>(
-          0,
-          in_msgs[pe].size(),
-          [&](const std::size_t i) {
-            const auto [cluster, delta] = in_msgs[pe][i];
-            in_msgs[pe][i].delta = cluster_weight(cluster);
-          }
-      );
+      tbb::parallel_for<std::size_t>(0, in_msgs[pe].size(), [&](const std::size_t i) {
+        const auto [cluster, delta] = in_msgs[pe][i];
+        in_msgs[pe][i].delta = cluster_weight(cluster);
+      });
     });
     STOP_TIMER();
 
     mpi::barrier(_graph->communicator());
 
     START_TIMER("Exchange messages");
-    auto in_resps =
-        mpi::sparse_alltoall_get<Message>(in_msgs, _graph->communicator());
+    auto in_resps = mpi::sparse_alltoall_get<Message>(in_msgs, _graph->communicator());
     STOP_TIMER();
 
     mpi::barrier(_graph->communicator());
@@ -528,31 +460,25 @@ private:
     START_TIMER("Integrate messages");
     parallel::Atomic<std::uint8_t> violation = 0;
     tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
-      tbb::parallel_for<std::size_t>(
-          0,
-          in_resps[pe].size(),
-          [&](const std::size_t i) {
-            const auto [cluster, delta] = in_resps[pe][i];
-            GlobalNodeWeight new_weight = delta;
-            const GlobalNodeWeight old_weight = cluster_weight(cluster);
+      tbb::parallel_for<std::size_t>(0, in_resps[pe].size(), [&](const std::size_t i) {
+        const auto [cluster, delta] = in_resps[pe][i];
+        GlobalNodeWeight new_weight = delta;
+        const GlobalNodeWeight old_weight = cluster_weight(cluster);
 
-            if (delta > _max_cluster_weight) {
-              const GlobalNodeWeight increase_by_others =
-                  new_weight - old_weight;
+        if (delta > _max_cluster_weight) {
+          const GlobalNodeWeight increase_by_others = new_weight - old_weight;
 
-              auto &handle = _weight_delta_handles_ets.local();
-              auto it = handle.find(cluster + 1);
-              KASSERT(it != handle.end());
-              const GlobalNodeWeight increase_by_me = (*it).second;
+          auto &handle = _weight_delta_handles_ets.local();
+          auto it = handle.find(cluster + 1);
+          KASSERT(it != handle.end());
+          const GlobalNodeWeight increase_by_me = (*it).second;
 
-              violation = 1;
-              new_weight = _max_cluster_weight +
-                           (1.0 * increase_by_me / increase_by_others) *
-                               (new_weight - _max_cluster_weight);
-            }
-            change_cluster_weight(cluster, -old_weight + new_weight, true);
-          }
-      );
+          violation = 1;
+          new_weight = _max_cluster_weight + (1.0 * increase_by_me / increase_by_others) *
+                                                 (new_weight - _max_cluster_weight);
+        }
+        change_cluster_weight(cluster, -old_weight + new_weight, true);
+      });
     });
     STOP_TIMER();
 
@@ -577,9 +503,7 @@ private:
       const GlobalNodeWeight new_label_weight = cluster_weight(new_label);
       if (new_label_weight > _max_cluster_weight) {
         move_node(u, old_label);
-        move_cluster_weight(
-            new_label, old_label, _graph->node_weight(u), 0, false
-        );
+        move_cluster_weight(new_label, old_label, _graph->node_weight(u), 0, false);
       }
     });
     STOP_TIMER();
@@ -622,48 +546,40 @@ private:
         *_graph,
         from,
         to,
-        [&](const NodeID lnode) {
-          return _changed_label[lnode] != kInvalidGlobalNodeID;
-        },
+        [&](const NodeID lnode) { return _changed_label[lnode] != kInvalidGlobalNodeID; },
         [&](const NodeID lnode) -> ChangedLabelMessage {
           return {lnode, cluster(lnode)};
         },
         [&](const auto &buffer, const PEID owner) {
-          tbb::parallel_for(
-              tbb::blocked_range<std::size_t>(0, buffer.size()),
-              [&](const auto &r) {
-                auto &weight_delta_handle = _weight_delta_handles_ets.local();
+          tbb::parallel_for(tbb::blocked_range<std::size_t>(0, buffer.size()), [&](const auto &r) {
+            auto &weight_delta_handle = _weight_delta_handles_ets.local();
 
-                for (std::size_t i = r.begin(); i != r.end(); ++i) {
-                  const auto [owner_lnode, new_gcluster] = buffer[i];
+            for (std::size_t i = r.begin(); i != r.end(); ++i) {
+              const auto [owner_lnode, new_gcluster] = buffer[i];
 
-                  const GlobalNodeID gnode =
-                      _graph->offset_n(owner) + owner_lnode;
-                  KASSERT(!_graph->is_owned_global_node(gnode));
+              const GlobalNodeID gnode = _graph->offset_n(owner) + owner_lnode;
+              KASSERT(!_graph->is_owned_global_node(gnode));
 
-                  const NodeID lnode = _graph->global_to_local_node(gnode);
-                  const NodeWeight weight = _graph->node_weight(lnode);
+              const NodeID lnode = _graph->global_to_local_node(gnode);
+              const NodeWeight weight = _graph->node_weight(lnode);
 
-                  const GlobalNodeID old_gcluster = cluster(lnode);
+              const GlobalNodeID old_gcluster = cluster(lnode);
 
-                  // If we synchronize the weights of clusters with local
-                  // changes, we already have the right weight including ghost
-                  // vertices --> only update weight if we did not get an update
+              // If we synchronize the weights of clusters with local
+              // changes, we already have the right weight including ghost
+              // vertices --> only update weight if we did not get an update
 
-                  if (!should_sync_cluster_weights() ||
-                      weight_delta_handle.find(old_gcluster + 1) ==
-                          weight_delta_handle.end()) {
-                    change_cluster_weight(old_gcluster, -weight, true);
-                  }
-                  NonatomicOwnedClusterVector::move_node(lnode, new_gcluster);
-                  if (!should_sync_cluster_weights() ||
-                      weight_delta_handle.find(new_gcluster + 1) ==
-                          weight_delta_handle.end()) {
-                    change_cluster_weight(new_gcluster, weight, false);
-                  }
-                }
+              if (!should_sync_cluster_weights() ||
+                  weight_delta_handle.find(old_gcluster + 1) == weight_delta_handle.end()) {
+                change_cluster_weight(old_gcluster, -weight, true);
               }
-          );
+              NonatomicOwnedClusterVector::move_node(lnode, new_gcluster);
+              if (!should_sync_cluster_weights() ||
+                  weight_delta_handle.find(new_gcluster + 1) == weight_delta_handle.end()) {
+                change_cluster_weight(new_gcluster, weight, false);
+              }
+            }
+          });
         }
     );
 
@@ -682,41 +598,34 @@ private:
   void cluster_isolated_nodes(const NodeID from, const NodeID to) {
     SCOPED_TIMER("Cluster isolated nodes");
 
-    tbb::enumerable_thread_specific<GlobalNodeID> isolated_node_ets(
-        kInvalidNodeID
-    );
-    tbb::parallel_for(
-        tbb::blocked_range<NodeID>(from, to),
-        [&](tbb::blocked_range<NodeID> r) {
-          NodeID current = isolated_node_ets.local();
-          ClusterID current_cluster = current == kInvalidNodeID
-                                          ? kInvalidGlobalNodeID
-                                          : cluster(current);
-          ClusterWeight current_weight = current == kInvalidNodeID
-                                             ? kInvalidNodeWeight
-                                             : cluster_weight(current_cluster);
+    tbb::enumerable_thread_specific<GlobalNodeID> isolated_node_ets(kInvalidNodeID);
+    tbb::parallel_for(tbb::blocked_range<NodeID>(from, to), [&](tbb::blocked_range<NodeID> r) {
+      NodeID current = isolated_node_ets.local();
+      ClusterID current_cluster =
+          current == kInvalidNodeID ? kInvalidGlobalNodeID : cluster(current);
+      ClusterWeight current_weight =
+          current == kInvalidNodeID ? kInvalidNodeWeight : cluster_weight(current_cluster);
 
-          for (NodeID u = r.begin(); u != r.end(); ++u) {
-            if (_graph->degree(u) == 0) {
-              const auto u_cluster = cluster(u);
-              const auto u_weight = cluster_weight(u_cluster);
+      for (NodeID u = r.begin(); u != r.end(); ++u) {
+        if (_graph->degree(u) == 0) {
+          const auto u_cluster = cluster(u);
+          const auto u_weight = cluster_weight(u_cluster);
 
-              if (current != kInvalidNodeID &&
-                  current_weight + u_weight <= max_cluster_weight(u_cluster)) {
-                change_cluster_weight(current_cluster, u_weight, true);
-                NonatomicOwnedClusterVector::move_node(u, current_cluster);
-                current_weight += u_weight;
-              } else {
-                current = u;
-                current_cluster = u_cluster;
-                current_weight = u_weight;
-              }
-            }
+          if (current != kInvalidNodeID &&
+              current_weight + u_weight <= max_cluster_weight(u_cluster)) {
+            change_cluster_weight(current_cluster, u_weight, true);
+            NonatomicOwnedClusterVector::move_node(u, current_cluster);
+            current_weight += u_weight;
+          } else {
+            current = u;
+            current_cluster = u_cluster;
+            current_weight = u_weight;
           }
-
-          isolated_node_ets.local() = current;
         }
-    );
+      }
+
+      isolated_node_ets.local() = current;
+    });
 
     mpi::barrier(_graph->communicator());
   }
@@ -762,10 +671,9 @@ private:
   EdgeID _passive_high_degree_threshold = 0;
 
   WeightDeltaMap _weight_deltas{0};
-  tbb::enumerable_thread_specific<WeightDeltaMap::handle_type>
-      _weight_delta_handles_ets{[this] {
-        return _weight_deltas.get_handle();
-      }};
+  tbb::enumerable_thread_specific<WeightDeltaMap::handle_type> _weight_delta_handles_ets{[this] {
+    return _weight_deltas.get_handle();
+  }};
 };
 
 //

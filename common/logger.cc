@@ -8,9 +8,8 @@
 
 namespace kaminpar {
 namespace logger {
-void CompactContainerFormatter::print(
-    const std::vector<std::string> &container, std::ostream &out
-) const {
+void CompactContainerFormatter::print(const std::vector<std::string> &container, std::ostream &out)
+    const {
   bool first{true};
   for (const auto &element : container) {
     if (!first) {
@@ -21,12 +20,10 @@ void CompactContainerFormatter::print(
   }
 }
 
-void Table::print(const std::vector<std::string> &container, std::ostream &out)
-    const {
+void Table::print(const std::vector<std::string> &container, std::ostream &out) const {
   using namespace std::literals;
 
-  const std::size_t width =
-      (_width == 0) ? std::sqrt(container.size()) : _width;
+  const std::size_t width = (_width == 0) ? std::sqrt(container.size()) : _width;
   std::size_t max_width = 0;
   for (const auto &element : container) {
     max_width = std::max(max_width, element.length());
@@ -42,8 +39,7 @@ void Table::print(const std::vector<std::string> &container, std::ostream &out)
   out << h_del << "\n";
   std::size_t column = 0;
   for (const auto &element : container) {
-    out << "| " << element
-        << std::string(max_width + 1 - element.length(), ' ');
+    out << "| " << element << std::string(max_width + 1 - element.length(), ' ');
     if (++column == width) {
       out << "|\n" << h_del << "\n";
       column = 0;
@@ -59,8 +55,7 @@ void Table::print(const std::vector<std::string> &container, std::ostream &out)
   }
 }
 
-void DefaultTextFormatter::print(const std::string &text, std::ostream &out)
-    const {
+void DefaultTextFormatter::print(const std::string &text, std::ostream &out) const {
   out << text;
 }
 

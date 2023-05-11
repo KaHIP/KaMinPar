@@ -22,8 +22,7 @@ SET_DEBUG(true);
 
 namespace {
 template <typename Generator, typename ScoreType = std::int64_t>
-ScoreType
-compute_score(Generator &generator, const GlobalNodeID node, const int seed) {
+ScoreType compute_score(Generator &generator, const GlobalNodeID node, const int seed) {
   // @todo replace with something efficient / use communication
   generator.seed(seed + node);
   return std::uniform_int_distribution<ScoreType>(
@@ -32,13 +31,11 @@ compute_score(Generator &generator, const GlobalNodeID node, const int seed) {
 }
 } // namespace
 
-std::vector<NodeID> find_independent_border_set(
-    const DistributedPartitionedGraph &p_graph, const int seed
-) {
+std::vector<NodeID>
+find_independent_border_set(const DistributedPartitionedGraph &p_graph, const int seed) {
   SCOPED_TIMER("Find independent border node set");
 
-  constexpr std::int64_t kNoBorderNode =
-      std::numeric_limits<std::int64_t>::max();
+  constexpr std::int64_t kNoBorderNode = std::numeric_limits<std::int64_t>::max();
 
   NoinitVector<std::int64_t> score(p_graph.total_n());
   tbb::enumerable_thread_specific<std::mt19937> generator_ets;
@@ -49,9 +46,7 @@ std::vector<NodeID> find_independent_border_set(
       score[u] = -1;
     } else if (p_graph.check_border_node(u)) {
       // Compute score for owned border nodes
-      score[u] = compute_score(
-          generator_ets.local(), p_graph.local_to_global_node(u), seed
-      );
+      score[u] = compute_score(generator_ets.local(), p_graph.local_to_global_node(u), seed);
     } else {
       // Otherwise mark node as non-border node
       score[u] = kNoBorderNode;
@@ -73,9 +68,8 @@ std::vector<NodeID> find_independent_border_set(
         [&](const NodeID v) {
           // Compute score for ghost nodes lazy
           if (score[v] < 0) {
-            const auto v_score = compute_score(
-                generator_ets.local(), p_graph.local_to_global_node(v), seed
-            );
+            const auto v_score =
+                compute_score(generator_ets.local(), p_graph.local_to_global_node(v), seed);
             __atomic_store_n(&score[v], v_score, __ATOMIC_RELAXED);
           }
 

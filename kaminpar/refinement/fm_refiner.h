@@ -58,21 +58,14 @@ public:
 private:
   template <typename PartitionedGraphType, typename GainCacheType>
   void insert_into_node_pq(
-      const PartitionedGraphType &p_graph,
-      const GainCacheType &gain_cache,
-      NodeID u
+      const PartitionedGraphType &p_graph, const GainCacheType &gain_cache, NodeID u
   );
 
-  void update_after_move(
-      NodeID node, NodeID moved_node, BlockID moved_from, BlockID moved_to
-  );
+  void update_after_move(NodeID node, NodeID moved_node, BlockID moved_from, BlockID moved_to);
 
   template <typename PartitionedGraphType, typename GainCacheType>
-  std::pair<BlockID, EdgeWeight> best_gain(
-      const PartitionedGraphType &p_graph,
-      const GainCacheType &gain_cache,
-      NodeID u
-  );
+  std::pair<BlockID, EdgeWeight>
+  best_gain(const PartitionedGraphType &p_graph, const GainCacheType &gain_cache, NodeID u);
 
   bool update_block_pq();
 
@@ -97,4 +90,3 @@ private:
   AdaptiveStoppingPolicy _stopping_policy;
 };
 } // namespace kaminpar::shm
-

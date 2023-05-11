@@ -24,8 +24,7 @@ template <typename T> tbb_unique_ptr<T> make_unique(const std::size_t size) {
   return tbb_unique_ptr<T>(ptr, tbb_deleter<T>{});
 }
 
-template <typename T, typename... Args>
-tbb_unique_ptr<T> make_unique(Args &&...args) {
+template <typename T, typename... Args> tbb_unique_ptr<T> make_unique(Args &&...args) {
   void *memory = static_cast<T *>(scalable_malloc(sizeof(T)));
   T *ptr = new (memory) T(std::forward<Args...>(args)...);
   return tbb_unique_ptr<T>(ptr, tbb_deleter<T>{});

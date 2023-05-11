@@ -6,16 +6,13 @@
 using namespace ::testing;
 
 namespace kaminpar::dist {
-template <typename Implementation>
-struct InplaceSparseAllreduceTest : public ::testing::Test {
+template <typename Implementation> struct InplaceSparseAllreduceTest : public ::testing::Test {
   Implementation impl;
 };
 
 template <typename T> struct InplaceMPI {
   void operator()(std::vector<T> &buffer, MPI_Comm comm) {
-    mpi::inplace_sparse_allreduce(
-        mpi::tag::mpi_allreduce, buffer, buffer.size(), MPI_SUM, comm
-    );
+    mpi::inplace_sparse_allreduce(mpi::tag::mpi_allreduce, buffer, buffer.size(), MPI_SUM, comm);
   }
 };
 
@@ -28,8 +25,7 @@ template <typename T> struct InplaceDoubling {
 };
 
 template <typename T>
-using InplaceSparseAllreduceImplementations =
-    ::testing::Types<InplaceMPI<T>, InplaceDoubling<T>>;
+using InplaceSparseAllreduceImplementations = ::testing::Types<InplaceMPI<T>, InplaceDoubling<T>>;
 TYPED_TEST_SUITE(InplaceSparseAllreduceTest, InplaceSparseAllreduceImplementations<int>);
 
 TYPED_TEST(InplaceSparseAllreduceTest, empty_allreduce) {

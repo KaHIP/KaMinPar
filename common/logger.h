@@ -31,8 +31,7 @@
 // DBGC(cond) only produces output if the given condition evaluates to true
 // IFDBG(expr) evaluates the expression and returns its result iff kDebug is set
 // to true, otherwise returns the default value for its result data type
-#define FILENAME                                                               \
-  (std::strrchr(__FILE__, '/') ? std::strrchr(__FILE__, '/') + 1 : __FILE__)
+#define FILENAME (std::strrchr(__FILE__, '/') ? std::strrchr(__FILE__, '/') + 1 : __FILE__)
 #define POSITION "[" << FILENAME << ":" << __LINE__ << "][" << __func__ << "]"
 #ifdef HAS_SCHED_GETCPU
 #define CPU "[CPU" << sched_getcpu() << "]"
@@ -41,10 +40,10 @@
 #endif // HAS_SCHED_GETCPU
 
 #define SET_DEBUG(value) [[maybe_unused]] static constexpr bool kDebug = value
-#define DBGC(cond)                                                             \
-  (kDebug && (cond)) && kaminpar::DisposableLogger<false>(std::cout)           \
-                            << kaminpar::logger::MAGENTA << POSITION << CPU    \
-                            << " " << kaminpar::logger::DEFAULT_TEXT
+#define DBGC(cond)                                                                                 \
+  (kDebug && (cond)) && kaminpar::DisposableLogger<false>(std::cout)                               \
+                            << kaminpar::logger::MAGENTA << POSITION << CPU << " "                 \
+                            << kaminpar::logger::DEFAULT_TEXT
 #define DBG DBGC(true)
 #define IFDBG(x) (kDebug ? (x) : std::decay_t<decltype(x)>())
 #define IF_DBG if constexpr (kDebug)
@@ -65,28 +64,19 @@
 #define LOG (kaminpar::Logger())
 #define LLOG (kaminpar::Logger(std::cout, ""))
 
-#define LOG_ERROR                                                              \
-  (kaminpar::Logger(std::cout) << kaminpar::logger::RED << "[Error] ")
+#define LOG_ERROR (kaminpar::Logger(std::cout) << kaminpar::logger::RED << "[Error] ")
 #define LOG_LERROR (kaminpar::Logger(std::cout, "") << kaminpar::logger::RED)
-#define LOG_SUCCESS                                                            \
-  (kaminpar::Logger(std::cout) << kaminpar::logger::GREEN << "[Success] ")
-#define LOG_LSUCCESS                                                           \
-  (kaminpar::Logger(std::cout, "") << kaminpar::logger::GREEN)
-#define LOG_WARNING                                                            \
-  (kaminpar::Logger(std::cout) << kaminpar::logger::ORANGE << "[Warning] ")
-#define LOG_LWARNING                                                           \
-  (kaminpar::Logger(std::cout, "") << kaminpar::logger::ORANGE)
-#define FATAL_ERROR                                                            \
-  (kaminpar::DisposableLogger<true>(std::cout)                                 \
-   << kaminpar::logger::RED << "[Fatal] ")
-#define FATAL_PERROR                                                           \
-  (kaminpar::DisposableLogger<true>(                                           \
-       std::cout, std::string(": ") + std::strerror(errno) + "\n"              \
-   )                                                                           \
+#define LOG_SUCCESS (kaminpar::Logger(std::cout) << kaminpar::logger::GREEN << "[Success] ")
+#define LOG_LSUCCESS (kaminpar::Logger(std::cout, "") << kaminpar::logger::GREEN)
+#define LOG_WARNING (kaminpar::Logger(std::cout) << kaminpar::logger::ORANGE << "[Warning] ")
+#define LOG_LWARNING (kaminpar::Logger(std::cout, "") << kaminpar::logger::ORANGE)
+#define FATAL_ERROR                                                                                \
+  (kaminpar::DisposableLogger<true>(std::cout) << kaminpar::logger::RED << "[Fatal] ")
+#define FATAL_PERROR                                                                               \
+  (kaminpar::DisposableLogger<true>(std::cout, std::string(": ") + std::strerror(errno) + "\n")    \
    << kaminpar::logger::RED << "[Fatal] ")
 
-#define LOG_STATS                                                              \
-  (kaminpar::Logger(std::cout) << kaminpar::logger::CYAN << "[Statistics] ")
+#define LOG_STATS (kaminpar::Logger(std::cout) << kaminpar::logger::CYAN << "[Statistics] ")
 #define LOG_LSTATS (kaminpar::Logger(std::cout, "") << kaminpar::logger::CYAN)
 
 // V(x) prints x<space><value of x><space>, e.g., use LOG << V(a) << V(b) <<
@@ -102,13 +92,10 @@
 // -DKAMINPAR_ENABLE_STATISTICS for this module IFSTATS(x): only evaluate this
 // expression if statistics are enabled STATS: LOG for statistics output: only
 // evaluate and output if statistics are enabled
-#define SET_STATISTICS(value)                                                  \
-  [[maybe_unused]] constexpr static bool kStatistics = value
+#define SET_STATISTICS(value) [[maybe_unused]] constexpr static bool kStatistics = value
 #define IFSTATS(x) (kStatistics ? (x) : std::decay_t<decltype(x)>())
 #define IF_STATS if constexpr (kStatistics)
-#define STATS                                                                  \
-  kStatistics &&kaminpar::DisposableLogger<false>(std::cout)                   \
-      << kaminpar::logger::CYAN
+#define STATS kStatistics &&kaminpar::DisposableLogger<false>(std::cout) << kaminpar::logger::CYAN
 
 #ifdef KAMINPAR_ENABLE_STATISTICS
 #define SET_STATISTICS_FROM_GLOBAL() SET_STATISTICS(true)
@@ -123,30 +110,25 @@ template <typename T, typename = void> struct is_iterable : std::false_type {};
 template <typename T>
 struct is_iterable<
     T,
-    std::void_t<
-        decltype(std::begin(std::declval<T>())),
-        decltype(std::end(std::declval<T>()))>> : std::true_type {};
+    std::void_t<decltype(std::begin(std::declval<T>())), decltype(std::end(std::declval<T>()))>>
+    : std::true_type {};
 
 template <typename T>
-constexpr bool is_container_v =
-    !std::is_same_v<std::decay_t<T>, std::string> &&  //
-    !std::is_same_v<std::decay_t<T>, char *> &&       //
-    !std::is_same_v<std::decay_t<T>, const char *> && //
-    is_iterable<T>::value;
+constexpr bool is_container_v = !std::is_same_v<std::decay_t<T>, std::string> &&  //
+                                !std::is_same_v<std::decay_t<T>, char *> &&       //
+                                !std::is_same_v<std::decay_t<T>, const char *> && //
+                                is_iterable<T>::value;
 
 class ContainerFormatter {
 public:
   virtual ~ContainerFormatter() = default;
-  virtual void
-  print(const std::vector<std::string> &container, std::ostream &out) const = 0;
+  virtual void print(const std::vector<std::string> &container, std::ostream &out) const = 0;
 };
 
 class CompactContainerFormatter : public ContainerFormatter {
 public:
-  constexpr explicit CompactContainerFormatter(std::string_view sep) noexcept
-      : _sep{sep} {}
-  void print(const std::vector<std::string> &container, std::ostream &out)
-      const final;
+  constexpr explicit CompactContainerFormatter(std::string_view sep) noexcept : _sep{sep} {}
+  void print(const std::vector<std::string> &container, std::ostream &out) const final;
 
 private:
   std::string_view _sep;
@@ -155,8 +137,7 @@ private:
 class Table : public ContainerFormatter {
 public:
   constexpr explicit Table(std::size_t width) noexcept : _width{width} {}
-  void print(const std::vector<std::string> &container, std::ostream &out)
-      const final;
+  void print(const std::vector<std::string> &container, std::ostream &out) const final;
 
 private:
   std::size_t _width;
@@ -192,17 +173,14 @@ private:
 };
 
 template <typename T>
-constexpr bool is_text_formatter_v =
-    std::is_base_of_v<TextFormatter, std::decay_t<T>>;
+constexpr bool is_text_formatter_v = std::is_base_of_v<TextFormatter, std::decay_t<T>>;
 
 template <typename T>
-constexpr bool is_container_formatter_v =
-    std::is_base_of_v<ContainerFormatter, std::decay_t<T>>;
+constexpr bool is_container_formatter_v = std::is_base_of_v<ContainerFormatter, std::decay_t<T>>;
 
 template <typename T>
 constexpr bool is_default_log_arg_v =
-    !is_container_v<T> && !is_text_formatter_v<T> &&
-    !is_container_formatter_v<T>;
+    !is_container_v<T> && !is_text_formatter_v<T> && !is_container_formatter_v<T>;
 
 extern DefaultTextFormatter DEFAULT_TEXT;
 extern Colorized RED;
@@ -229,9 +207,7 @@ public:
     flush();
   };
 
-  template <
-      typename Arg,
-      std::enable_if_t<logger::is_default_log_arg_v<Arg>, bool> = true>
+  template <typename Arg, std::enable_if_t<logger::is_default_log_arg_v<Arg>, bool> = true>
   Logger &operator<<(Arg &&arg) {
     std::stringstream ss;
     ss << arg;
@@ -249,16 +225,13 @@ public:
 
   template <
       typename Formatter,
-      std::enable_if_t<logger::is_container_formatter_v<Formatter>, bool> =
-          true>
+      std::enable_if_t<logger::is_container_formatter_v<Formatter>, bool> = true>
   Logger &operator<<(Formatter &&formatter) {
     _container_formatter = std::make_unique<std::decay_t<Formatter>>(formatter);
     return *this;
   }
 
-  template <
-      typename T,
-      std::enable_if_t<logger::is_container_v<T>, bool> = true>
+  template <typename T, std::enable_if_t<logger::is_container_v<T>, bool> = true>
   Logger &operator<<(T &&container) {
     std::vector<std::string> str;
     for (const auto &element : container) {
@@ -270,8 +243,7 @@ public:
     return *this;
   }
 
-  template <typename K, typename V>
-  Logger &operator<<(const std::pair<K, V> &&pair) {
+  template <typename K, typename V> Logger &operator<<(const std::pair<K, V> &&pair) {
     (*this) << "<" << pair.first << ", " << pair.second << ">";
     return *this;
   }
@@ -287,12 +259,9 @@ private:
   static tbb::spin_mutex &flush_mutex();
 
   std::unique_ptr<logger::TextFormatter> _text_formatter{
-      std::make_unique<std::decay_t<decltype(logger::DEFAULT_TEXT)>>(
-          logger::DEFAULT_TEXT
-      )};
+      std::make_unique<std::decay_t<decltype(logger::DEFAULT_TEXT)>>(logger::DEFAULT_TEXT)};
   std::unique_ptr<logger::ContainerFormatter> _container_formatter{
-      std::make_unique<std::decay_t<decltype(logger::DEFAULT_CONTAINER)>>(
-          logger::DEFAULT_CONTAINER
+      std::make_unique<std::decay_t<decltype(logger::DEFAULT_CONTAINER)>>(logger::DEFAULT_CONTAINER
       )};
 
   std::ostringstream _buffer;
@@ -305,8 +274,7 @@ private:
 template <bool abort_on_destruction> class DisposableLogger {
 public:
   template <typename... Args>
-  explicit DisposableLogger(Args &&...args)
-      : _logger(std::forward<Args>(args)...) {}
+  explicit DisposableLogger(Args &&...args) : _logger(std::forward<Args>(args)...) {}
 
   ~DisposableLogger() {
     _logger << logger::RESET;

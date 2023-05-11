@@ -40,8 +40,7 @@ auto BfsExtractor::extract(const std::vector<NodeID> &seed_nodes) -> Result {
   SCOPED_TIMER("BFS extraction");
 
   // Initialize external degrees if needed
-  if (_exterior_strategy == ExteriorStrategy::CONTRACT &&
-      _external_degrees.empty()) {
+  if (_exterior_strategy == ExteriorStrategy::CONTRACT && _external_degrees.empty()) {
     init_external_degrees();
   }
 
@@ -70,8 +69,7 @@ auto BfsExtractor::extract(const std::vector<NodeID> &seed_nodes) -> Result {
 
   for (PEID hop = 0; hop < _max_hops; ++hop) {
     START_TIMER("Exchange ghost seed nodes");
-    auto ghost_exchange_result =
-        exchange_ghost_seed_nodes(cur_ghost_seed_edges);
+    auto ghost_exchange_result = exchange_ghost_seed_nodes(cur_ghost_seed_edges);
     STOP_TIMER();
 
     auto &next_ghost_seed_nodes = ghost_exchange_result.first;
@@ -79,10 +77,8 @@ auto BfsExtractor::extract(const std::vector<NodeID> &seed_nodes) -> Result {
 
     START_TIMER("Continued BFS");
     tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
-      local_bfs_results[pe] =
-          bfs(hop + 1, next_ghost_seed_nodes[pe], next_ignored_nodes[pe]);
-      cur_ghost_seed_edges[pe] =
-          std::move(local_bfs_results[pe].explored_ghosts);
+      local_bfs_results[pe] = bfs(hop + 1, next_ghost_seed_nodes[pe], next_ignored_nodes[pe]);
+      cur_ghost_seed_edges[pe] = std::move(local_bfs_results[pe].explored_ghosts);
     });
     STOP_TIMER();
 
@@ -101,10 +97,7 @@ auto BfsExtractor::extract(const std::vector<NodeID> &seed_nodes) -> Result {
 
 auto BfsExtractor::exchange_ghost_seed_nodes(
     std::vector<NoinitVector<GhostSeedEdge>> &outgoing_ghost_seed_edges
-)
-    -> std::pair<
-        std::vector<NoinitVector<GhostSeedNode>>,
-        std::vector<NoinitVector<NodeID>>> {
+) -> std::pair<std::vector<NoinitVector<GhostSeedNode>>, std::vector<NoinitVector<NodeID>>> {
   const PEID size = mpi::get_comm_size(_graph->communicator());
 
   DBG << "Building sendbufs ...";
@@ -115,16 +108,13 @@ auto BfsExtractor::exchange_ghost_seed_nodes(
     // Ghost seed nodes to continue the BFS search initiated on PE `pe`
     const auto &ghost_seed_edges = outgoing_ghost_seed_edges[pe];
 
-    for (const auto &[local_interface_node, local_ghost_node, distance] :
-         ghost_seed_edges) {
+    for (const auto &[local_interface_node, local_ghost_node, distance] : ghost_seed_edges) {
       KASSERT(_graph->is_ghost_node(local_ghost_node));
 
       const auto ghost_owner = _graph->ghost_owner(local_ghost_node);
-      const auto global_ghost_node =
-          _graph->local_to_global_node(local_ghost_node);
-      const auto remote_ghost_node = asserting_cast<NodeID>(
-          global_ghost_node - _graph->node_distribution(ghost_owner)
-      );
+      const auto global_ghost_node = _graph->local_to_global_node(local_ghost_node);
+      const auto remote_ghost_node =
+          asserting_cast<NodeID>(global_ghost_node - _graph->node_distribution(ghost_owner));
 
       sendbufs[ghost_owner].push_back(static_cast<NodeID>(pe));
       sendbufs[ghost_owner].push_back(local_interface_node);
@@ -144,10 +134,8 @@ auto BfsExtractor::exchange_ghost_seed_nodes(
           const NodeID local_interface_node = recvbuf[i++];
           const NodeID distance = recvbuf[i++];
 
-          const auto global_ghost_node =
-              _graph->node_distribution(pe) + remote_ghost_node;
-          const auto local_ghost_node =
-              _graph->global_to_local_node(global_ghost_node);
+          const auto global_ghost_node = _graph->node_distribution(pe) + remote_ghost_node;
+          const auto local_ghost_node = _graph->global_to_local_node(global_ghost_node);
 
           incoming_ghost_seed_edges[initiating_pe].emplace_back(
               local_ghost_node, local_interface_node, distance
@@ -170,10 +158,8 @@ auto BfsExtractor::exchange_ghost_seed_nodes(
     std::sort(incoming_edges.begin(), incoming_edges.end());
 
     // std::size_t outgoing_pos  = 0;
-    for (std::size_t incoming_pos = 0; incoming_pos < incoming_edges.size();
-         ++incoming_pos) {
-      const auto &[cur_ghost_node, cur_interface_node, distance] =
-          incoming_edges[incoming_pos];
+    for (std::size_t incoming_pos = 0; incoming_pos < incoming_edges.size(); ++incoming_pos) {
+      const auto &[cur_ghost_node, cur_interface_node, distance] = incoming_edges[incoming_pos];
 
       // @todo filter
       // Only use this as a ghost node
@@ -208,21 +194,18 @@ auto BfsExtractor::exchange_explored_subgraphs(
     node_mapping_sendbufs[pe] = std::move(explored_subgraphs[pe].node_mapping);
   });
 
-  auto nodes_recvbufs = mpi::sparse_alltoall_get<EdgeID>(
-      std::move(nodes_sendbufs), _graph->communicator()
-  );
-  auto edges_recvbufs = mpi::sparse_alltoall_get<GlobalNodeID>(
-      std::move(edges_sendbufs), _graph->communicator()
-  );
+  auto nodes_recvbufs =
+      mpi::sparse_alltoall_get<EdgeID>(std::move(nodes_sendbufs), _graph->communicator());
+  auto edges_recvbufs =
+      mpi::sparse_alltoall_get<GlobalNodeID>(std::move(edges_sendbufs), _graph->communicator());
   auto node_weights_recvbufs = mpi::sparse_alltoall_get<NodeWeight>(
       std::move(node_weights_sendbufs), _graph->communicator()
   );
   auto edge_weights_recvbufs = mpi::sparse_alltoall_get<EdgeWeight>(
       std::move(edge_weights_sendbufs), _graph->communicator()
   );
-  auto partition_recvbufs = mpi::sparse_alltoall_get<BlockID>(
-      std::move(partition_sendbufs), _graph->communicator()
-  );
+  auto partition_recvbufs =
+      mpi::sparse_alltoall_get<BlockID>(std::move(partition_sendbufs), _graph->communicator());
   auto node_mapping_recvbufs = mpi::sparse_alltoall_get<GlobalNodeID>(
       std::move(node_mapping_sendbufs), _graph->communicator()
   );
@@ -259,17 +242,12 @@ auto BfsExtractor::bfs(
   external_degrees_map.clear();
 
   // Sort ghost seed nodes by distance
-  std::sort(
-      ghost_seed_nodes.begin(),
-      ghost_seed_nodes.end(),
-      [](const auto &lhs, const auto &rhs) {
-        return std::get<0>(lhs) < std::get<0>(rhs);
-      }
-  );
+  std::sort(ghost_seed_nodes.begin(), ghost_seed_nodes.end(), [](const auto &lhs, const auto &rhs) {
+    return std::get<0>(lhs) < std::get<0>(rhs);
+  });
 
   // Initialize search from closest ghost seed nodes
-  NodeID current_distance =
-      (!ghost_seed_nodes.empty() ? std::get<0>(ghost_seed_nodes.front()) : 0);
+  NodeID current_distance = (!ghost_seed_nodes.empty() ? std::get<0>(ghost_seed_nodes.front()) : 0);
   std::stack<NodeID> front;
   NoinitVector<ExploredNode> visited_nodes;
   NoinitVector<GhostSeedEdge> next_ghost_seed_edges;
@@ -294,8 +272,7 @@ auto BfsExtractor::bfs(
   NoinitVector<GlobalNodeID> edges;
   NoinitVector<NodeWeight> node_weights;
   NoinitVector<EdgeWeight> edge_weights;
-  NoinitVector<GlobalNodeID>
-      node_mapping; // @todo makes explored_nodes redundant?
+  NoinitVector<GlobalNodeID> node_mapping; // @todo makes explored_nodes redundant?
   NoinitVector<BlockID> partition;
 
   // Perform BFS
@@ -314,8 +291,8 @@ auto BfsExtractor::bfs(
     const bool is_hop_border_node = current_hop == _max_hops;
     const bool is_border_node = is_distance_border_node || is_hop_border_node;
 
-    DBG << "Exploring node " << node << ": " << V(is_distance_border_node)
-        << V(is_hop_border_node) << V(is_border_node);
+    DBG << "Exploring node " << node << ": " << V(is_distance_border_node) << V(is_hop_border_node)
+        << V(is_border_node);
 
     if (is_border_node) {
       for (const auto [edge, neighbor] : _graph->neighbors(node)) {
@@ -338,38 +315,33 @@ auto BfsExtractor::bfs(
       external_degrees_map.clear();
     } else {
       // Explore neighbors of owned nodes
-      explore_outgoing_edges(
-          node,
-          [&](const EdgeID edge, const NodeID neighbor) {
-            edges.push_back(_graph->local_to_global_node(neighbor));
-            edge_weights.push_back(_graph->edge_weight(edge));
+      explore_outgoing_edges(node, [&](const EdgeID edge, const NodeID neighbor) {
+        edges.push_back(_graph->local_to_global_node(neighbor));
+        edge_weights.push_back(_graph->edge_weight(edge));
 
-            // Record ghost seeds for the next hop
-            if (!_graph->is_owned_node(neighbor)) {
-              next_ghost_seed_edges.emplace_back(
-                  node, neighbor, current_distance + 1
-              );
-              if (!taken.get(neighbor)) {
-                taken.set(neighbor);
-              }
-              return true;
-            }
-
-            // Skip non-ghost nodes already discovered
-            if (taken.get(neighbor)) {
-              return true;
-            }
-
-            // Add to stack for the next search layer
-            front.push(neighbor);
-
-            // Record node as discovered
-            visited_nodes.emplace_back(neighbor, is_border_node);
+        // Record ghost seeds for the next hop
+        if (!_graph->is_owned_node(neighbor)) {
+          next_ghost_seed_edges.emplace_back(node, neighbor, current_distance + 1);
+          if (!taken.get(neighbor)) {
             taken.set(neighbor);
-
-            return true;
           }
-      );
+          return true;
+        }
+
+        // Skip non-ghost nodes already discovered
+        if (taken.get(neighbor)) {
+          return true;
+        }
+
+        // Add to stack for the next search layer
+        front.push(neighbor);
+
+        // Record node as discovered
+        visited_nodes.emplace_back(neighbor, is_border_node);
+        taken.set(neighbor);
+
+        return true;
+      });
     }
 
     if (front_size == 0) {
@@ -395,31 +367,26 @@ auto BfsExtractor::bfs(
 
 template <typename Lambda>
 void BfsExtractor::explore_outgoing_edges(const NodeID node, Lambda &&lambda) {
-  const bool is_high_degree_node =
-      _graph->degree(node) >= _high_degree_threshold;
+  const bool is_high_degree_node = _graph->degree(node) >= _high_degree_threshold;
 
-  if (!is_high_degree_node ||
-      _high_degree_strategy == HighDegreeStrategy::TAKE_ALL) {
+  if (!is_high_degree_node || _high_degree_strategy == HighDegreeStrategy::TAKE_ALL) {
     for (const auto [e, v] : _graph->neighbors(node)) {
       if (!lambda(e, v)) {
         break;
       }
     }
   } else if (_high_degree_strategy == HighDegreeStrategy::CUT) {
-    for (EdgeID e = _graph->first_edge(node);
-         e < _graph->first_edge(node) + _high_degree_threshold;
+    for (EdgeID e = _graph->first_edge(node); e < _graph->first_edge(node) + _high_degree_threshold;
          ++e) {
       if (!lambda(e, _graph->edge_target(e))) {
         break;
       }
     }
   } else if (_high_degree_strategy == HighDegreeStrategy::SAMPLE) {
-    const double skip_prob =
-        1.0 * _high_degree_threshold / _graph->degree(node);
+    const double skip_prob = 1.0 * _high_degree_threshold / _graph->degree(node);
     std::geometric_distribution<EdgeID> skip_dist(skip_prob);
 
-    for (EdgeID e = _graph->first_edge(node);
-         e < _graph->first_invalid_edge(node);
+    for (EdgeID e = _graph->first_edge(node); e < _graph->first_invalid_edge(node);
          ++e) { // e += skip_dist(gen)) { // @todo
       if (!lambda(e, _graph->edge_target(e))) {
         break;
@@ -430,30 +397,22 @@ void BfsExtractor::explore_outgoing_edges(const NodeID node, Lambda &&lambda) {
   }
 }
 
-auto BfsExtractor::combine_fragments(
-    tbb::concurrent_vector<GraphFragment> &fragments
-) -> Result {
-  DBG << "Combining " << fragments.size()
-      << " fragments to the resulting BFS search graph ...";
+auto BfsExtractor::combine_fragments(tbb::concurrent_vector<GraphFragment> &fragments) -> Result {
+  DBG << "Combining " << fragments.size() << " fragments to the resulting BFS search graph ...";
   for (const auto &fragment : fragments) {
     DBG << "  Fragment: n=" << fragment.nodes << ", edges=" << fragment.edges;
   }
 
   // Compute size of combined graph
-  const NodeID real_n = parallel::accumulate(
-      fragments.begin(),
-      fragments.end(),
-      0,
-      [&](const auto &fragment) { return fragment.nodes.size() - 1; }
-  );
-  const NodeID pseudo_n =
-      real_n + _p_graph->k(); // Include pseudo-nodes for contracted neighbors
-  const EdgeID m = parallel::accumulate(
-      fragments.begin(),
-      fragments.end(),
-      0,
-      [&](const auto &fragment) { return fragment.edges.size(); }
-  );
+  const NodeID real_n =
+      parallel::accumulate(fragments.begin(), fragments.end(), 0, [&](const auto &fragment) {
+        return fragment.nodes.size() - 1;
+      });
+  const NodeID pseudo_n = real_n + _p_graph->k(); // Include pseudo-nodes for contracted neighbors
+  const EdgeID m =
+      parallel::accumulate(fragments.begin(), fragments.end(), 0, [&](const auto &fragment) {
+        return fragment.edges.size();
+      });
 
   DBG << "Graph size: " << V(real_n) << V(pseudo_n) << V(m);
 
@@ -496,9 +455,7 @@ auto BfsExtractor::combine_fragments(
   static_cast<std::size_t>(pair & 0xffffffffu); return {node, fragment};
   };*/
 
-  growt::StaticGhostNodeMapping global_to_graph_mapping(
-      first_node_id_for_fragment.back() + 1
-  );
+  growt::StaticGhostNodeMapping global_to_graph_mapping(first_node_id_for_fragment.back() + 1);
   tbb::parallel_for<std::size_t>(0, fragments.size(), [&](const std::size_t i) {
     for (std::size_t j = 0; j < fragments[i].node_mapping.size(); ++j) {
       const GlobalNodeID global_node = fragments[i].node_mapping[j];
@@ -530,9 +487,7 @@ auto BfsExtractor::combine_fragments(
       node_weights[new_u] = fragment_node_weights[frag_u];
       partition[new_u] = fragment_partition[frag_u];
 
-      for (EdgeID frag_e = fragment_nodes[frag_u];
-           frag_e < fragment_nodes[frag_u + 1];
-           ++frag_e) {
+      for (EdgeID frag_e = fragment_nodes[frag_u]; frag_e < fragment_nodes[frag_u + 1]; ++frag_e) {
         const EdgeID new_e = next_edge_id++;
         edge_weights[new_e] = fragment_edge_weights[frag_e];
 
@@ -542,18 +497,14 @@ auto BfsExtractor::combine_fragments(
           edges[new_e] = real_n + block;
         } else {
           auto it = global_to_graph_mapping.find(global_v + 1);
-          KASSERT(
-              it != global_to_graph_mapping.end(),
-              "Could not find a mapping for " << global_v
-          );
+          KASSERT(it != global_to_graph_mapping.end(), "Could not find a mapping for " << global_v);
           edges[new_e] = (*it).second;
         }
       }
     }
 
     if (i + 1 == fragments.size()) { // last fragment
-      const NodeID last_u =
-          first_node_id_for_fragment[i] + fragment_nodes.size() - 1;
+      const NodeID last_u = first_node_id_for_fragment[i] + fragment_nodes.size() - 1;
       nodes[last_u] = next_edge_id;
     }
   });
@@ -569,16 +520,10 @@ auto BfsExtractor::combine_fragments(
 
   // Construct shared-memory graph
   auto graph = std::make_unique<shm::Graph>(
-      std::move(nodes),
-      std::move(edges),
-      std::move(node_weights),
-      std::move(edge_weights)
+      std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights)
   );
   auto p_graph = std::make_unique<shm::PartitionedGraph>(
-      *graph,
-      _p_graph->k(),
-      std::move(partition),
-      std::vector<BlockID>(_p_graph->k(), 1)
+      *graph, _p_graph->k(), std::move(partition), std::vector<BlockID>(_p_graph->k(), 1)
   );
   return {std::move(graph), std::move(p_graph), std::move(node_mapping)};
 }
@@ -591,25 +536,19 @@ void BfsExtractor::set_max_radius(const GlobalNodeID max_radius) {
   _max_radius = max_radius;
 }
 
-void BfsExtractor::set_high_degree_threshold(
-    const GlobalEdgeID high_degree_threshold
-) {
+void BfsExtractor::set_high_degree_threshold(const GlobalEdgeID high_degree_threshold) {
   _high_degree_threshold = high_degree_threshold;
 }
 
-void BfsExtractor::set_high_degree_strategy(
-    const HighDegreeStrategy high_degree_strategy
-) {
+void BfsExtractor::set_high_degree_strategy(const HighDegreeStrategy high_degree_strategy) {
   _high_degree_strategy = high_degree_strategy;
 }
 
 void BfsExtractor::init_external_degrees() {
   _external_degrees.resize(_graph->n() * _p_graph->k());
-  tbb::parallel_for<std::size_t>(
-      0,
-      _external_degrees.size(),
-      [&](const std::size_t i) { _external_degrees[i] = 0; }
-  );
+  tbb::parallel_for<std::size_t>(0, _external_degrees.size(), [&](const std::size_t i) {
+    _external_degrees[i] = 0;
+  });
 
   _graph->pfor_nodes([&](const NodeID u) {
     for (const auto [e, v] : _graph->neighbors(u)) {

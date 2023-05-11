@@ -22,40 +22,31 @@ public:
 
   const DistributedGraph *coarsen_once(GlobalNodeWeight max_cluster_weight);
 
-  DistributedPartitionedGraph
-  uncoarsen_once(DistributedPartitionedGraph &&p_graph);
+  DistributedPartitionedGraph uncoarsen_once(DistributedPartitionedGraph &&p_graph);
 
   GlobalNodeWeight max_cluster_weight() const;
   const DistributedGraph *coarsest() const;
   std::size_t level() const;
 
 private:
-  const DistributedGraph *coarsen_once_local(GlobalNodeWeight max_cluster_weight
-  );
-  const DistributedGraph *
-  coarsen_once_global(GlobalNodeWeight max_cluster_weight);
+  const DistributedGraph *coarsen_once_local(GlobalNodeWeight max_cluster_weight);
+  const DistributedGraph *coarsen_once_global(GlobalNodeWeight max_cluster_weight);
 
-  DistributedPartitionedGraph
-  uncoarsen_once_local(DistributedPartitionedGraph &&p_graph);
-  DistributedPartitionedGraph
-  uncoarsen_once_global(DistributedPartitionedGraph &&p_graph);
+  DistributedPartitionedGraph uncoarsen_once_local(DistributedPartitionedGraph &&p_graph);
+  DistributedPartitionedGraph uncoarsen_once_global(DistributedPartitionedGraph &&p_graph);
 
   const DistributedGraph *nth_coarsest(std::size_t n) const;
 
-  bool has_converged(
-      const DistributedGraph &before, const DistributedGraph &after
-  ) const;
+  bool has_converged(const DistributedGraph &before, const DistributedGraph &after) const;
 
   const DistributedGraph &_input_graph;
   const Context &_input_ctx;
 
-  std::unique_ptr<ClusteringAlgorithm<GlobalNodeID>>
-      _global_clusterer;
+  std::unique_ptr<ClusteringAlgorithm<GlobalNodeID>> _global_clusterer;
   std::unique_ptr<ClusteringAlgorithm<NodeID>> _local_clusterer;
 
   std::vector<DistributedGraph> _graph_hierarchy;
-  std::vector<GlobalMapping>
-      _global_mapping_hierarchy; //< produced by global clustering algorithm
+  std::vector<GlobalMapping> _global_mapping_hierarchy; //< produced by global clustering algorithm
   std::vector<MigratedNodes> _node_migration_history;
   std::vector<scalable_vector<NodeID>>
       _local_mapping_hierarchy; //< produced by local clustering_algorithm

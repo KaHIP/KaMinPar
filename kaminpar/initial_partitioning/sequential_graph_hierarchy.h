@@ -14,11 +14,9 @@ public:
   explicit SequentialGraphHierarchy(const Graph *finest_graph);
 
   SequentialGraphHierarchy(const SequentialGraphHierarchy &) = delete;
-  SequentialGraphHierarchy &
-  operator=(const SequentialGraphHierarchy &) = delete;
+  SequentialGraphHierarchy &operator=(const SequentialGraphHierarchy &) = delete;
   SequentialGraphHierarchy(SequentialGraphHierarchy &&) noexcept = default;
-  SequentialGraphHierarchy &
-  operator=(SequentialGraphHierarchy &&) noexcept = default;
+  SequentialGraphHierarchy &operator=(SequentialGraphHierarchy &&) noexcept = default;
 
   void take_coarse_graph(Graph &&c_graph, std::vector<NodeID> &&c_mapping);
 

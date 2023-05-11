@@ -16,8 +16,7 @@
 namespace kaminpar::shm::graph {
 namespace {
 std::pair<NodeID, NodeWeight> find_isolated_nodes_info(
-    const StaticArray<EdgeID> &nodes,
-    const StaticArray<NodeWeight> &node_weights
+    const StaticArray<EdgeID> &nodes, const StaticArray<NodeWeight> &node_weights
 ) {
   KASSERT((node_weights.empty() || node_weights.size() + 1 == nodes.size()));
 
@@ -26,24 +25,19 @@ std::pair<NodeID, NodeWeight> find_isolated_nodes_info(
   const bool is_weighted = !node_weights.empty();
 
   const NodeID n = nodes.size() - 1;
-  tbb::parallel_for(
-      tbb::blocked_range<NodeID>(0, n),
-      [&](const tbb::blocked_range<NodeID> &r) {
-        NodeID &local_isolated_nodes = isolated_nodes.local();
-        NodeWeight &local_isolated_weights = isolated_nodes_weights.local();
+  tbb::parallel_for(tbb::blocked_range<NodeID>(0, n), [&](const tbb::blocked_range<NodeID> &r) {
+    NodeID &local_isolated_nodes = isolated_nodes.local();
+    NodeWeight &local_isolated_weights = isolated_nodes_weights.local();
 
-        for (NodeID u = r.begin(); u != r.end(); ++u) {
-          if (nodes[u] == nodes[u + 1]) {
-            ++local_isolated_nodes;
-            local_isolated_weights += is_weighted ? node_weights[u] : 1;
-          }
-        }
+    for (NodeID u = r.begin(); u != r.end(); ++u) {
+      if (nodes[u] == nodes[u + 1]) {
+        ++local_isolated_nodes;
+        local_isolated_weights += is_weighted ? node_weights[u] : 1;
       }
-  );
+    }
+  });
 
-  return {
-      isolated_nodes.combine(std::plus{}),
-      isolated_nodes_weights.combine(std::plus{})};
+  return {isolated_nodes.combine(std::plus{}), isolated_nodes_weights.combine(std::plus{})};
 }
 } // namespace
 
@@ -84,8 +78,7 @@ NodePermutations<StaticArray> rearrange_graph(
   STOP_TIMER();
 
   const NodeWeight total_node_weight =
-      node_weights.empty() ? nodes.size() - 1
-                           : parallel::accumulate(node_weights, 0);
+      node_weights.empty() ? nodes.size() - 1 : parallel::accumulate(node_weights, 0);
   const auto [isolated_nodes, isolated_nodes_weight] =
       find_isolated_nodes_info(nodes, node_weights);
 
@@ -94,10 +87,8 @@ NodePermutations<StaticArray> rearrange_graph(
   const NodeWeight new_weight = total_node_weight - isolated_nodes_weight;
 
   const BlockID k = p_ctx.k;
-  const double old_max_block_weight =
-      (1 + p_ctx.epsilon) * std::ceil(1.0 * total_node_weight / k);
-  const double new_epsilon =
-      old_max_block_weight / std::ceil(1.0 * new_weight / k) - 1;
+  const double old_max_block_weight = (1 + p_ctx.epsilon) * std::ceil(1.0 * total_node_weight / k);
+  const double new_epsilon = old_max_block_weight / std::ceil(1.0 * new_weight / k) - 1;
   p_ctx.epsilon = new_epsilon;
 
   nodes.restrict(new_n + 1);
@@ -108,10 +99,8 @@ NodePermutations<StaticArray> rearrange_graph(
   return permutations;
 }
 
-NodeID
-integrate_isolated_nodes(Graph &graph, const double epsilon, Context &ctx) {
-  const NodeID num_nonisolated_nodes =
-      graph.n(); // this becomes the first isolated node
+NodeID integrate_isolated_nodes(Graph &graph, const double epsilon, Context &ctx) {
+  const NodeID num_nonisolated_nodes = graph.n(); // this becomes the first isolated node
   graph.raw_nodes().unrestrict();
   graph.raw_node_weights().unrestrict();
   graph.update_total_node_weight();
@@ -125,15 +114,12 @@ integrate_isolated_nodes(Graph &graph, const double epsilon, Context &ctx) {
 }
 
 PartitionedGraph assign_isolated_nodes(
-    PartitionedGraph p_graph,
-    const NodeID num_isolated_nodes,
-    const PartitionContext &p_ctx
+    PartitionedGraph p_graph, const NodeID num_isolated_nodes, const PartitionContext &p_ctx
 ) {
   const Graph &graph = p_graph.graph();
   const NodeID num_nonisolated_nodes = graph.n() - num_isolated_nodes;
 
-  StaticArray<BlockID> partition(graph.n()
-  ); // n() should include isolated nodes now
+  StaticArray<BlockID> partition(graph.n()); // n() should include isolated nodes now
   // copy partition of non-isolated nodes
   tbb::parallel_for(
       static_cast<NodeID>(0),
@@ -147,11 +133,8 @@ PartitionedGraph assign_isolated_nodes(
   BlockID b = 0;
 
   // TODO parallelize this
-  for (NodeID u = num_nonisolated_nodes;
-       u < num_nonisolated_nodes + num_isolated_nodes;
-       ++u) {
-    while (b + 1 < k && block_weights[b] + graph.node_weight(u) >
-                            p_ctx.block_weights.max(b)) {
+  for (NodeID u = num_nonisolated_nodes; u < num_nonisolated_nodes + num_isolated_nodes; ++u) {
+    while (b + 1 < k && block_weights[b] + graph.node_weight(u) > p_ctx.block_weights.max(b)) {
       ++b;
     }
     partition[u] = b;
@@ -167,16 +150,11 @@ Graph rearrange_by_degree_buckets(Context &ctx, Graph old_graph) {
   auto node_weights = old_graph.take_raw_node_weights();
   auto edge_weights = old_graph.take_raw_edge_weights();
 
-  auto node_permutations = graph::rearrange_graph(
-      ctx.partition, nodes, edges, node_weights, edge_weights
-  );
+  auto node_permutations =
+      graph::rearrange_graph(ctx.partition, nodes, edges, node_weights, edge_weights);
 
   Graph new_graph(
-      std::move(nodes),
-      std::move(edges),
-      std::move(node_weights),
-      std::move(edge_weights),
-      true
+      std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights), true
   );
   new_graph.set_permutation(std::move(node_permutations.new_to_old));
   return new_graph;

@@ -10,8 +10,7 @@
 #include "dkaminpar/context.h"
 
 namespace kaminpar::dist {
-template <typename ClusterID>
-class NoopClustering : public ClusteringAlgorithm<ClusterID> {
+template <typename ClusterID> class NoopClustering : public ClusteringAlgorithm<ClusterID> {
   using ClusterArray = typename ClusteringAlgorithm<ClusterID>::ClusterArray;
 
 public:

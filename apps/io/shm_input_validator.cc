@@ -13,8 +13,7 @@
 namespace kaminpar::shm {
 namespace {
 template <typename ForwardIterator, typename T>
-ForwardIterator
-binary_find(ForwardIterator begin, ForwardIterator end, const T &val) {
+ForwardIterator binary_find(ForwardIterator begin, ForwardIterator end, const T &val) {
   const auto i = std::lower_bound(begin, end, val);
   return (i != end && (*i <= val)) ? i : end;
 }
@@ -41,16 +40,13 @@ void validate_undirected_graph(
     std::sort(
         edges_with_weights.begin() + nodes[u],
         edges_with_weights.begin() + nodes[u + 1],
-        [&](const auto &lhs, const auto &rhs) {
-          return std::get<0>(lhs) < std::get<0>(rhs);
-        }
+        [&](const auto &lhs, const auto &rhs) { return std::get<0>(lhs) < std::get<0>(rhs); }
     );
 
     // Check for multi edges
     for (EdgeID e = nodes[u] + 1; e < nodes[u + 1]; ++e) {
       if (edges[e - 1] == edges[e]) {
-        std::cerr << "node " << u + 1 << " has multiple edges to neighbor "
-                  << edges[e] << "\n";
+        std::cerr << "node " << u + 1 << " has multiple edges to neighbor " << edges[e] << "\n";
         std::exit(1);
       }
     }
@@ -63,12 +59,10 @@ void validate_undirected_graph(
 
       const auto it_begin = edges_with_weights.begin() + nodes[v];
       const auto it_end = edges_with_weights.begin() + nodes[v + 1];
-      const auto rev =
-          binary_find(it_begin, it_end, std::make_tuple(u, weight));
+      const auto rev = binary_find(it_begin, it_end, std::make_tuple(u, weight));
 
       if (rev == it_end) {
-        std::cerr << "missing reverse edge: of edge " << u + 1 << " --> "
-                  << v + 1
+        std::cerr << "missing reverse edge: of edge " << u + 1 << " --> " << v + 1
                   << " (the reverse edge might exist but with an inconsistent "
                      "weight)\n";
         std::exit(1);

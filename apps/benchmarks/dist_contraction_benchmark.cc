@@ -38,8 +38,9 @@ using namespace kaminpar;
 using namespace kaminpar::dist;
 
 auto load_clustering(const std::string &filename, const NodeID local_n) {
-  return dist::io::partition::read<
-      scalable_vector<parallel::Atomic<GlobalNodeID>>>(filename, local_n);
+  return dist::io::partition::read<scalable_vector<parallel::Atomic<GlobalNodeID>>>(
+      filename, local_n
+  );
 }
 
 int main(int argc, char *argv[]) {
@@ -52,9 +53,7 @@ int main(int argc, char *argv[]) {
 
   CLI::App app("Distributed Graph Contraction Benchmark");
   app.add_option("-G,--graph", graph_filename, "Input graph")->required();
-  app.add_option(
-      "-C,--clustering", clustering_filename, "Name of the clustering file."
-  );
+  app.add_option("-C,--clustering", clustering_filename, "Name of the clustering file.");
   app.add_option("-t,--threads", ctx.parallel.num_threads, "Number of threads");
   CLI11_PARSE(app, argc, argv);
 
@@ -67,9 +66,8 @@ int main(int argc, char *argv[]) {
 
   // Compute coarse graph
   START_TIMER("Contraction");
-  const auto result = contract_global_clustering(
-      graph, clustering, ctx.coarsening.global_contraction_algorithm
-  );
+  const auto result =
+      contract_global_clustering(graph, clustering, ctx.coarsening.global_contraction_algorithm);
   STOP_TIMER();
 
   LOG << "Coarse graph:";

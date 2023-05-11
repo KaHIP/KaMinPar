@@ -12,13 +12,9 @@
 #include "dkaminpar/datastructures/distributed_graph.h"
 
 namespace kaminpar::dist::debug {
-void write_coarsest_graph(
-    const DistributedGraph &graph, const DebugContext &d_ctx
-);
+void write_coarsest_graph(const DistributedGraph &graph, const DebugContext &d_ctx);
 
-void write_metis_graph(
-    const std::string &filename, const DistributedGraph &graph
-);
+void write_metis_graph(const std::string &filename, const DistributedGraph &graph);
 
 void write_coarsest_partition(
     const DistributedPartitionedGraph &p_graph, const DebugContext &d_ctx
@@ -29,5 +25,4 @@ void write_partition(
     const DistributedPartitionedGraph &p_graph,
     const bool use_original_node_order = true
 );
-} // namespace kaminpar::dist
-
+} // namespace kaminpar::dist::debug
