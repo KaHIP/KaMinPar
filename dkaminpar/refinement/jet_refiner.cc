@@ -198,3 +198,4 @@ void JetRefiner::refine(DistributedPartitionedGraph &p_graph, const PartitionCon
   };
 }
 } // namespace kaminpar::dist
+
