@@ -47,23 +47,18 @@ InitialCoarsener::InitialCoarsener(
   }
 }
 
-InitialCoarsener::InitialCoarsener(
-    const Graph *graph, const CoarseningContext &c_ctx
-)
+InitialCoarsener::InitialCoarsener(const Graph *graph, const CoarseningContext &c_ctx)
     : InitialCoarsener(graph, c_ctx, MemoryContext{}) {}
 
-const Graph *InitialCoarsener::coarsen(
-    const std::function<NodeWeight(NodeID)> &cb_max_cluster_weight
-) {
-  const NodeWeight max_cluster_weight{
-      cb_max_cluster_weight(_current_graph->n())};
+const Graph *
+InitialCoarsener::coarsen(const std::function<NodeWeight(NodeID)> &cb_max_cluster_weight) {
+  const NodeWeight max_cluster_weight{cb_max_cluster_weight(_current_graph->n())};
   if (!_precomputed_clustering) {
     perform_label_propagation(max_cluster_weight);
   }
 
   const NodeID c_n{_current_graph->n() - _current_num_moves};
-  const bool converged =
-      _c_ctx.coarsening_should_converge(_current_graph->n(), c_n);
+  const bool converged = _c_ctx.coarsening_should_converge(_current_graph->n(), c_n);
 
   if (!converged) {
     _interleaved_max_cluster_weight = cb_max_cluster_weight(c_n);
@@ -92,9 +87,7 @@ InitialCoarsener::MemoryContext InitialCoarsener::free() {
 }
 
 NodeID InitialCoarsener::pick_cluster(
-    const NodeID u,
-    const NodeWeight u_weight,
-    const NodeWeight max_cluster_weight
+    const NodeID u, const NodeWeight u_weight, const NodeWeight max_cluster_weight
 ) {
   KASSERT(_rating_map.empty());
   for (const auto [e, v] : _current_graph->neighbors(u)) {
@@ -116,8 +109,7 @@ NodeID InitialCoarsener::pick_cluster_from_rating_map(
 
     const NodeWeight weight = _clustering[cluster].weight;
 
-    if ((gain > best_cluster_gain ||
-         (gain == best_cluster_gain && _rand.random_bool())) &&
+    if ((gain > best_cluster_gain || (gain == best_cluster_gain && _rand.random_bool())) &&
         (weight + u_weight <= max_cluster_weight)) {
       best_cluster = cluster;
       best_cluster_gain = gain;
@@ -128,18 +120,14 @@ NodeID InitialCoarsener::pick_cluster_from_rating_map(
   return best_cluster;
 }
 
-void InitialCoarsener::perform_label_propagation(
-    const NodeWeight max_cluster_weight
-) {
+void InitialCoarsener::perform_label_propagation(const NodeWeight max_cluster_weight) {
   reset_current_clustering();
 
   const auto max_bucket = math::floor_log2(_c_ctx.lp.large_degree_threshold);
   for (std::size_t bucket = 0;
-       bucket <
-       std::min<std::size_t>(max_bucket, _current_graph->number_of_buckets());
+       bucket < std::min<std::size_t>(max_bucket, _current_graph->number_of_buckets());
        ++bucket) {
-    const NodeID bucket_size{
-        static_cast<NodeID>(_current_graph->bucket_size(bucket))};
+    const NodeID bucket_size{static_cast<NodeID>(_current_graph->bucket_size(bucket))};
     if (bucket_size == 0) {
       continue;
     }
@@ -149,14 +137,9 @@ void InitialCoarsener::perform_label_propagation(
 
     std::vector<std::size_t> chunks(num_chunks);
     std::iota(chunks.begin(), chunks.end(), 0);
-    std::transform(
-        chunks.begin(),
-        chunks.end(),
-        chunks.begin(),
-        [first_node](const std::size_t i) {
-          return first_node + i * kChunkSize;
-        }
-    );
+    std::transform(chunks.begin(), chunks.end(), chunks.begin(), [first_node](const std::size_t i) {
+      return first_node + i * kChunkSize;
+    });
     Random::instance().shuffle(chunks);
 
     for (const NodeID chunk_offset : chunks) {
@@ -176,9 +159,7 @@ void InitialCoarsener::perform_label_propagation(
   _precomputed_clustering = true;
 }
 
-void InitialCoarsener::handle_node(
-    const NodeID u, const NodeWeight max_cluster_weight
-) {
+void InitialCoarsener::handle_node(const NodeID u, const NodeWeight max_cluster_weight) {
   if (!_clustering[u].locked) {
     const NodeWeight u_weight{_current_graph->node_weight(u)};
     const NodeID best_cluster{pick_cluster(u, u_weight, max_cluster_weight)};
@@ -192,8 +173,7 @@ void InitialCoarsener::handle_node(
   }
 }
 
-InitialCoarsener::ContractionResult
-InitialCoarsener::contract_current_clustering() {
+InitialCoarsener::ContractionResult InitialCoarsener::contract_current_clustering() {
   StaticArray<EdgeID> c_nodes{};
   StaticArray<NodeID> c_edges{};
   StaticArray<NodeWeight> c_node_weights{};
@@ -206,12 +186,8 @@ InitialCoarsener::contract_current_clustering() {
   node_mapping.resize(_current_graph->n());
   c_nodes.resize(c_n + 1);
   c_node_weights.resize(c_n);
-  c_edges.resize(
-      _current_graph->m(), StaticArray<NodeID>::no_init{}
-  ); // overestimate
-  c_edge_weights.resize(
-      _current_graph->m(), StaticArray<EdgeWeight>::no_init{}
-  ); // overestimate
+  c_edges.resize(_current_graph->m(), StaticArray<NodeID>::no_init{});            // overestimate
+  c_edge_weights.resize(_current_graph->m(), StaticArray<EdgeWeight>::no_init{}); // overestimate
 
   std::fill(_cluster_sizes.begin(), _cluster_sizes.end(), 0);
   std::fill(_leader_node_mapping.begin(), _leader_node_mapping.end(), 0);
@@ -236,8 +212,7 @@ InitialCoarsener::contract_current_clustering() {
         _leader_node_mapping[leader] = ++current_node;             // 1-based
       }
 
-      const NodeID cluster{
-          _leader_node_mapping[leader] - 1}; // leader_node_mapping is 1-based
+      const NodeID cluster{_leader_node_mapping[leader] - 1}; // leader_node_mapping is 1-based
       node_mapping[u] = cluster;
       ++_cluster_sizes[cluster];
     }
@@ -284,16 +259,13 @@ InitialCoarsener::contract_current_clustering() {
     NodeID c_m{0};
     c_nodes[0] = 0;
 
-    for (std::size_t i = 0; i < n;
-         ++i) { // n might be smaller than _cluster_nodes[]
+    for (std::size_t i = 0; i < n; ++i) { // n might be smaller than _cluster_nodes[]
       const NodeID u = _cluster_nodes[i];
 
       // node mapping points to the next coarse graph, hence we've seen all
       // nodes in the last cluster we now add it to the coarse graph
       if (node_mapping[u] != c_u) {
-        KASSERT(
-            node_mapping[u] == c_u + 1, V(u) << V(node_mapping[u]) << V(c_u)
-        );
+        KASSERT(node_mapping[u] == c_u + 1, V(u) << V(node_mapping[u]) << V(c_u));
 
         interleaved_handle_node(c_u, c_node_weights[c_u]);
         for (const auto c_v : _edge_weight_collector.used_entry_ids()) {
@@ -344,9 +316,7 @@ InitialCoarsener::contract_current_clustering() {
 }
 
 #ifdef TEST
-void InitialCoarsener::TEST_mock_clustering(
-    const std::vector<NodeID> &clustering
-) {
+void InitialCoarsener::TEST_mock_clustering(const std::vector<NodeID> &clustering) {
   _current_num_moves = 0;
   for (const NodeID u : _current_graph->nodes()) {
     _clustering[u].leader = clustering[u];
@@ -358,8 +328,7 @@ void InitialCoarsener::TEST_mock_clustering(
   }
 }
 
-InitialCoarsener::ContractionResult
-InitialCoarsener::TEST_contract_clustering() {
+InitialCoarsener::ContractionResult InitialCoarsener::TEST_contract_clustering() {
   return contract_current_clustering();
 }
 #endif // TEST

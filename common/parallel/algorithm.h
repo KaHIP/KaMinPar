@@ -45,19 +45,16 @@ accumulate(const Container &r, typename Container::value_type initial) {
   };
 
   body b{r};
-  tbb::parallel_reduce(
-      tbb::blocked_range<size_t>(static_cast<size_t>(0), r.size()), b
-  );
+  tbb::parallel_reduce(tbb::blocked_range<size_t>(static_cast<size_t>(0), r.size()), b);
   return initial + b._ans;
 }
 
 template <
     typename InputIt,
     typename UnaryOperation,
-    typename ValueType = std::result_of_t<
-        UnaryOperation(typename std::iterator_traits<InputIt>::value_type)>>
-ValueType
-accumulate(InputIt begin, InputIt end, ValueType initial, UnaryOperation op) {
+    typename ValueType =
+        std::result_of_t<UnaryOperation(typename std::iterator_traits<InputIt>::value_type)>>
+ValueType accumulate(InputIt begin, InputIt end, ValueType initial, UnaryOperation op) {
   using size_t = typename std::iterator_traits<InputIt>::difference_type;
   using value_t = ValueType;
 
@@ -88,27 +85,18 @@ accumulate(InputIt begin, InputIt end, ValueType initial, UnaryOperation op) {
 
   body b{begin, op};
   tbb::parallel_reduce(
-      tbb::blocked_range<size_t>(
-          static_cast<size_t>(0), std::distance(begin, end)
-      ),
-      b
+      tbb::blocked_range<size_t>(static_cast<size_t>(0), std::distance(begin, end)), b
   );
   return initial + b._ans;
 }
 
 template <typename InputIt>
-typename std::iterator_traits<InputIt>::value_type accumulate(
-    InputIt begin,
-    InputIt end,
-    typename std::iterator_traits<InputIt>::value_type initial
-) {
-  return ::kaminpar::parallel::accumulate(
-      begin, end, initial, [](const auto &v) { return v; }
-  );
+typename std::iterator_traits<InputIt>::value_type
+accumulate(InputIt begin, InputIt end, typename std::iterator_traits<InputIt>::value_type initial) {
+  return ::kaminpar::parallel::accumulate(begin, end, initial, [](const auto &v) { return v; });
 }
 
-template <typename Container>
-typename Container::value_type max_element(const Container &r) {
+template <typename Container> typename Container::value_type max_element(const Container &r) {
   using size_t = typename Container::size_type;
   using value_t = typename Container::value_type;
 
@@ -137,15 +125,12 @@ typename Container::value_type max_element(const Container &r) {
   };
 
   body b{r};
-  tbb::parallel_reduce(
-      tbb::blocked_range<size_t>(static_cast<size_t>(0), r.size()), b
-  );
+  tbb::parallel_reduce(tbb::blocked_range<size_t>(static_cast<size_t>(0), r.size()), b);
   return b._ans;
 }
 
 template <typename InputIt>
-typename std::iterator_traits<InputIt>::value_type
-max_element(InputIt begin, InputIt end) {
+typename std::iterator_traits<InputIt>::value_type max_element(InputIt begin, InputIt end) {
   using size_t = typename std::iterator_traits<InputIt>::difference_type;
   using value_t = typename std::iterator_traits<InputIt>::value_type;
 
@@ -176,29 +161,21 @@ max_element(InputIt begin, InputIt end) {
 
   body b{begin};
   tbb::parallel_reduce(
-      tbb::blocked_range<size_t>(
-          static_cast<size_t>(0), std::distance(begin, end)
-      ),
-      b
+      tbb::blocked_range<size_t>(static_cast<size_t>(0), std::distance(begin, end)), b
   );
   return b._ans;
 }
 
 template <typename InputIterator, typename OutputIterator>
-void prefix_sum(
-    InputIterator first, InputIterator last, OutputIterator result
-) {
-  using size_t = std::size_t; // typename InputIterator::difference_type;
-  using Value =
-      std::decay_t<decltype(*first)>; // typename InputIterator::value_type;
+void prefix_sum(InputIterator first, InputIterator last, OutputIterator result) {
+  using size_t = std::size_t;                   // typename InputIterator::difference_type;
+  using Value = std::decay_t<decltype(*first)>; // typename InputIterator::value_type;
 
   const size_t n = std::distance(first, last);
   tbb::parallel_scan(
       tbb::blocked_range<size_t>(0, n),
       Value(),
-      [first, result](
-          const tbb::blocked_range<size_t> &r, Value sum, bool is_final_scan
-      ) {
+      [first, result](const tbb::blocked_range<size_t> &r, Value sum, bool is_final_scan) {
         Value temp = sum;
         for (auto i = r.begin(); i < r.end(); ++i) {
           temp += *(first + i);

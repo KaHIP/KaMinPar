@@ -34,27 +34,20 @@ public:
   };
 
   InitialPartitioner(
-      const Graph &graph,
-      const Context &ctx,
-      const BlockID final_k,
-      MemoryContext m_ctx = {}
+      const Graph &graph, const Context &ctx, const BlockID final_k, MemoryContext m_ctx = {}
   )
       : _m_ctx{std::move(m_ctx)},
         _graph{graph},
         _i_ctx{ctx.initial_partitioning},
-        _coarsener{
-            &_graph, _i_ctx.coarsening, std::move(_m_ctx.coarsener_m_ctx)} {
+        _coarsener{&_graph, _i_ctx.coarsening, std::move(_m_ctx.coarsener_m_ctx)} {
     std::tie(_final_k1, _final_k2) = math::split_integral(final_k);
-    _p_ctx =
-        create_bipartition_context(ctx.partition, _graph, _final_k1, _final_k2);
+    _p_ctx = create_bipartition_context(ctx.partition, _graph, _final_k1, _final_k2);
     _refiner = factory::create_initial_refiner(
         _graph, _p_ctx, _i_ctx.refinement, std::move(_m_ctx.refiner_m_ctx)
     );
     // O(R * k) initial bisections -> O(n + R * C * k) for the whole graphutils
-    _num_bipartition_repetitions = std::ceil(
-        _i_ctx.repetition_multiplier * final_k /
-        math::ceil_log2(ctx.partition.k)
-    );
+    _num_bipartition_repetitions =
+        std::ceil(_i_ctx.repetition_multiplier * final_k / math::ceil_log2(ctx.partition.k));
   }
 
   MemoryContext free() {
@@ -69,8 +62,7 @@ public:
     DBG << "Calling bipartitioner on coarsest graph with n=" << c_graph->n()
         << " m=" << c_graph->m();
     PoolBipartitionerFactory factory;
-    auto bipartitioner =
-        factory.create(*c_graph, _p_ctx, _i_ctx, std::move(_m_ctx.pool_m_ctx));
+    auto bipartitioner = factory.create(*c_graph, _p_ctx, _i_ctx, std::move(_m_ctx.pool_m_ctx));
     bipartitioner->set_num_repetitions(_num_bipartition_repetitions);
     PartitionedGraph p_graph = bipartitioner->bipartition();
     _m_ctx.pool_m_ctx = bipartitioner->free();
@@ -98,8 +90,7 @@ private:
     DBG << "Coarsen: n=" << c_graph->n() << " m=" << c_graph->m();
 
     while (shrunk && c_graph->n() > c_ctx.contraction_limit) {
-      auto new_c_graph =
-          _coarsener.coarsen(STATIC_MAX_CLUSTER_WEIGHT(max_cluster_weight));
+      auto new_c_graph = _coarsener.coarsen(STATIC_MAX_CLUSTER_WEIGHT(max_cluster_weight));
       shrunk = new_c_graph != c_graph;
 
       DBG << "-> "                                              //

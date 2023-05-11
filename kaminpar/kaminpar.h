@@ -55,12 +55,9 @@ using Clustering = std::vector<NodeID>;
 constexpr BlockID kInvalidBlockID = std::numeric_limits<BlockID>::max();
 constexpr NodeID kInvalidNodeID = std::numeric_limits<NodeID>::max();
 constexpr EdgeID kInvalidEdgeID = std::numeric_limits<EdgeID>::max();
-constexpr NodeWeight kInvalidNodeWeight =
-    std::numeric_limits<NodeWeight>::max();
-constexpr EdgeWeight kInvalidEdgeWeight =
-    std::numeric_limits<EdgeWeight>::max();
-constexpr BlockWeight kInvalidBlockWeight =
-    std::numeric_limits<BlockWeight>::max();
+constexpr NodeWeight kInvalidNodeWeight = std::numeric_limits<NodeWeight>::max();
+constexpr EdgeWeight kInvalidEdgeWeight = std::numeric_limits<EdgeWeight>::max();
+constexpr BlockWeight kInvalidBlockWeight = std::numeric_limits<BlockWeight>::max();
 constexpr Degree kMaxDegree = std::numeric_limits<Degree>::max();
 
 enum class ClusteringAlgorithm {
@@ -141,8 +138,7 @@ struct LabelPropagationCoarseningContext {
   NodeID max_num_neighbors;
   double two_hop_clustering_threshold;
 
-  [[nodiscard]] bool
-  use_two_hop_clustering(const NodeID old_n, const NodeID new_n) const {
+  [[nodiscard]] bool use_two_hop_clustering(const NodeID old_n, const NodeID new_n) const {
     return (1.0 - 1.0 * new_n / old_n) <= two_hop_clustering_threshold;
   }
 };
@@ -193,7 +189,7 @@ struct JetRefinementContext {
 };
 
 struct MtKaHyParRefinementContext {
-    std::string config_filename;
+  std::string config_filename;
 };
 
 struct BalancerRefinementContext {};
@@ -208,8 +204,7 @@ struct RefinementContext {
   MtKaHyParRefinementContext mtkahypar;
 
   bool includes_algorithm(const RefinementAlgorithm algorithm) const {
-    return std::find(algorithms.begin(), algorithms.end(), algorithm) !=
-           algorithms.end();
+    return std::find(algorithms.begin(), algorithms.end(), algorithm) != algorithms.end();
   }
 };
 
@@ -304,8 +299,7 @@ public:
       shm::EdgeWeight *adjwgt
   );
 
-  shm::EdgeWeight
-  compute_partition(int seed, shm::BlockID k, shm::BlockID *partition);
+  shm::EdgeWeight compute_partition(int seed, shm::BlockID k, shm::BlockID *partition);
 
 private:
   int _num_threads;

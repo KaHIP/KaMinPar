@@ -47,15 +47,10 @@ struct DeduplicateEdgeListMemoryContext {
   NoinitVector<LocalToGlobalEdge> buffer;
 };
 
-template <typename Container>
-inline Container deduplicate_edge_list2(Container edge_list) {
-  tbb::parallel_sort(
-      edge_list.begin(),
-      edge_list.end(),
-      [&](const auto &lhs, const auto &rhs) {
-        return lhs.u < rhs.u || (lhs.u == rhs.u && lhs.v < rhs.v);
-      }
-  );
+template <typename Container> inline Container deduplicate_edge_list2(Container edge_list) {
+  tbb::parallel_sort(edge_list.begin(), edge_list.end(), [&](const auto &lhs, const auto &rhs) {
+    return lhs.u < rhs.u || (lhs.u == rhs.u && lhs.v < rhs.v);
+  });
 
   std::size_t free = 0; // @todo parallelize
   for (std::size_t i = 0; i < edge_list.size();) {
@@ -78,9 +73,7 @@ inline Container deduplicate_edge_list2(Container edge_list) {
 
 template <typename Container>
 inline std::pair<Container, DeduplicateEdgeListMemoryContext>
-deduplicate_edge_list_parallel(
-    Container edge_list, DeduplicateEdgeListMemoryContext m_ctx
-) {
+deduplicate_edge_list_parallel(Container edge_list, DeduplicateEdgeListMemoryContext m_ctx) {
   if (edge_list.empty()) {
     return {std::move(edge_list), std::move(m_ctx)};
   }
@@ -90,79 +83,61 @@ deduplicate_edge_list_parallel(
 
   edge_positions.resize(edge_list.size());
 
-  tbb::parallel_sort(
-      edge_list.begin(),
-      edge_list.end(),
-      [&](const auto &lhs, const auto &rhs) {
-        return lhs.u < rhs.u || (lhs.u == rhs.u && lhs.v < rhs.v);
-      }
-  );
+  tbb::parallel_sort(edge_list.begin(), edge_list.end(), [&](const auto &lhs, const auto &rhs) {
+    return lhs.u < rhs.u || (lhs.u == rhs.u && lhs.v < rhs.v);
+  });
 
   tbb::parallel_for<std::size_t>(0, edge_list.size(), [&](const std::size_t i) {
     edge_positions[i] = 0;
   });
   tbb::parallel_for<std::size_t>(1, edge_list.size(), [&](const std::size_t i) {
-    if (edge_list[i].u != edge_list[i - 1].u ||
-        edge_list[i].v != edge_list[i - 1].v) {
+    if (edge_list[i].u != edge_list[i - 1].u || edge_list[i].v != edge_list[i - 1].v) {
       edge_positions[i] = 1;
     }
   });
-  parallel::prefix_sum(
-      edge_positions.begin(), edge_positions.end(), edge_positions.begin()
-  );
+  parallel::prefix_sum(edge_positions.begin(), edge_positions.end(), edge_positions.begin());
 
   if (buffer.size() < edge_positions.back() + 1) {
     buffer.resize(edge_positions.back() + 1);
   }
 
-  tbb::parallel_for<std::size_t>(
-      0,
-      edge_positions.back() + 1,
-      [&](const std::size_t i) { buffer[i].weight = 0; }
-  );
+  tbb::parallel_for<std::size_t>(0, edge_positions.back() + 1, [&](const std::size_t i) {
+    buffer[i].weight = 0;
+  });
   tbb::parallel_for<std::size_t>(0, edge_list.size(), [&](const std::size_t i) {
     const std::size_t pos = edge_positions[i];
     __atomic_store_n(&(buffer[pos].u), edge_list[i].u, __ATOMIC_RELAXED);
     __atomic_store_n(&(buffer[pos].v), edge_list[i].v, __ATOMIC_RELAXED);
-    __atomic_fetch_add(
-        &(buffer[pos].weight), edge_list[i].weight, __ATOMIC_RELAXED
-    );
+    __atomic_fetch_add(&(buffer[pos].weight), edge_list[i].weight, __ATOMIC_RELAXED);
   });
-  tbb::parallel_for<std::size_t>(
-      0,
-      edge_positions.back() + 1,
-      [&](const std::size_t i) { edge_list[i] = buffer[i]; }
-  );
+  tbb::parallel_for<std::size_t>(0, edge_positions.back() + 1, [&](const std::size_t i) {
+    edge_list[i] = buffer[i];
+  });
   edge_list.resize(edge_positions.back() + 1);
 
   return {std::move(edge_list), std::move(m_ctx)};
 }
 
 template <typename T>
-inline StaticArray<T> create_perfect_distribution_from_global_count(
-    const T global_count, MPI_Comm comm
-) {
+inline StaticArray<T>
+create_perfect_distribution_from_global_count(const T global_count, MPI_Comm comm) {
   const auto size = mpi::get_comm_size(comm);
 
   StaticArray<T> distribution(size + 1);
   for (PEID pe = 0; pe < size; ++pe) {
-    distribution[pe + 1] =
-        math::compute_local_range<T>(global_count, size, pe).second;
+    distribution[pe + 1] = math::compute_local_range<T>(global_count, size, pe).second;
   }
 
   return distribution;
 }
 
 template <typename T>
-inline StaticArray<T>
-create_distribution_from_local_count(const T local_count, MPI_Comm comm) {
+inline StaticArray<T> create_distribution_from_local_count(const T local_count, MPI_Comm comm) {
   const auto [size, rank] = mpi::get_comm_info(comm);
 
   StaticArray<T> distribution(size + 1);
   mpi::allgather(&local_count, 1, distribution.data() + 1, 1, comm);
-  parallel::prefix_sum(
-      distribution.begin(), distribution.end(), distribution.begin()
-  );
+  parallel::prefix_sum(distribution.begin(), distribution.end(), distribution.begin());
   distribution.front() = 0;
 
   return distribution;
@@ -174,10 +149,7 @@ create_distribution_from_local_count(const T local_count, MPI_Comm comm) {
  * weight, where \c u is a local node ID and \c v is a global node ID.
  * @return Distributed graph built from the edge list.
  */
-template <
-    typename EdgeList,
-    typename NodeWeightLambda,
-    typename FindGhostNodeOwnerLambda>
+template <typename EdgeList, typename NodeWeightLambda, typename FindGhostNodeOwnerLambda>
 inline DistributedGraph build_distributed_graph_from_edge_list(
     const EdgeList &edge_list,
     StaticArray<GlobalNodeID> node_distribution,
@@ -196,14 +168,10 @@ inline DistributedGraph build_distributed_graph_from_edge_list(
   tbb::parallel_for<std::size_t>(0, edge_list.size(), [&](const std::size_t i) {
     bucket_index[edge_list[i].u].fetch_add(1, std::memory_order_relaxed);
   });
-  parallel::prefix_sum(
-      bucket_index.begin(), bucket_index.end(), bucket_index.begin()
-  );
+  parallel::prefix_sum(bucket_index.begin(), bucket_index.end(), bucket_index.begin());
   scalable_vector<std::size_t> buckets(edge_list.size());
   tbb::parallel_for<std::size_t>(0, edge_list.size(), [&](const std::size_t i) {
-    buckets
-        [bucket_index[edge_list[i].u].fetch_sub(1, std::memory_order_relaxed) -
-         1] = i;
+    buckets[bucket_index[edge_list[i].u].fetch_sub(1, std::memory_order_relaxed) - 1] = i;
   });
   STOP_TIMER();
 
@@ -237,9 +205,7 @@ inline DistributedGraph build_distributed_graph_from_edge_list(
       std::sort(
           buckets.begin() + u_bucket_start,
           buckets.begin() + u_bucket_end,
-          [&](const auto &lhs, const auto &rhs) {
-            return edge_list[lhs].v < edge_list[rhs].v;
-          }
+          [&](const auto &lhs, const auto &rhs) { return edge_list[lhs].v < edge_list[rhs].v; }
       );
 
       // Construct outgoing edges
@@ -276,8 +242,7 @@ inline DistributedGraph build_distributed_graph_from_edge_list(
 
   parallel::prefix_sum(nodes.begin(), nodes.end(), nodes.begin());
   const auto all_buffered_nodes =
-      ts_navigable_list::combine<NodeID, Edge, scalable_vector>(edge_buffer_ets
-      );
+      ts_navigable_list::combine<NodeID, Edge, scalable_vector>(edge_buffer_ets);
   STOP_TIMER();
 
   START_TIMER("Allocation");
@@ -327,9 +292,7 @@ inline DistributedGraph build_distributed_graph_from_edge_list(
   // node weights for ghost nodes must be computed afterwards
   START_TIMER("Construct coarse node weights");
   StaticArray<NodeWeight> node_weights(n + ghost_n);
-  tbb::parallel_for<NodeID>(0, n, [&](const NodeID u) {
-    node_weights[u] = node_weight_lambda(u);
-  });
+  tbb::parallel_for<NodeID>(0, n, [&](const NodeID u) { node_weights[u] = node_weight_lambda(u); });
   STOP_TIMER();
 
   return {
@@ -356,9 +319,7 @@ SET_DEBUG(false);
  * nodes and ghost nodes.
  */
 template <typename LabelMapping>
-void exchange_ghost_node_mapping(
-    const DistributedGraph &graph, LabelMapping &label_mapping
-) {
+void exchange_ghost_node_mapping(const DistributedGraph &graph, LabelMapping &label_mapping) {
   SCOPED_TIMER("Exchange ghost node mapping");
 
   struct Message {
@@ -372,18 +333,13 @@ void exchange_ghost_node_mapping(
         return {u, label_mapping[u]};
       },
       [&](const auto buffer, const PEID pe) {
-        tbb::parallel_for<std::size_t>(
-            0,
-            buffer.size(),
-            [&](const std::size_t i) {
-              const auto &[local_node_on_pe, coarse_global_node] = buffer[i];
-              const GlobalNodeID global_node =
-                  graph.offset_n(pe) + local_node_on_pe;
-              const auto local_node = graph.global_to_local_node(global_node);
+        tbb::parallel_for<std::size_t>(0, buffer.size(), [&](const std::size_t i) {
+          const auto &[local_node_on_pe, coarse_global_node] = buffer[i];
+          const GlobalNodeID global_node = graph.offset_n(pe) + local_node_on_pe;
+          const auto local_node = graph.global_to_local_node(global_node);
 
-              label_mapping[local_node] = coarse_global_node;
-            }
-        );
+          label_mapping[local_node] = coarse_global_node;
+        });
       }
   );
 }
@@ -428,12 +384,9 @@ find_used_cluster_ids_per_pe(
 
     for (NodeID u = r.begin(); u != r.end(); ++u) {
       const GlobalNodeID u_cluster = clustering[u];
-      const auto [u_cluster_owner, u_local_cluster] =
-          resolve_cluster_callback(u_cluster);
+      const auto [u_cluster_owner, u_local_cluster] = resolve_cluster_callback(u_cluster);
 
-      if (used_clusters_map[u_cluster_owner].insert(
-              accessor, u_local_cluster
-          )) {
+      if (used_clusters_map[u_cluster_owner].insert(accessor, u_local_cluster)) {
         accessor->second = next_slot_for_pe[u_cluster_owner]++;
       }
     }
@@ -479,78 +432,60 @@ MappingResult compute_mapping(
   const auto size = mpi::get_comm_size(graph.communicator());
   const auto rank = mpi::get_comm_rank(graph.communicator());
 
-  auto used_clusters = find_used_cluster_ids_per_pe(
-      graph,
-      clustering,
-      [&](const GlobalNodeID cluster) {
+  auto used_clusters =
+      find_used_cluster_ids_per_pe(graph, clustering, [&](const GlobalNodeID cluster) {
         if (graph.is_owned_global_node(cluster)) {
           return std::make_pair(rank, graph.global_to_local_node(cluster));
         } else {
           const PEID owner = graph.find_owner_of_global_node(cluster);
-          const auto local =
-              static_cast<NodeID>(cluster - graph.offset_n(owner));
+          const auto local = static_cast<NodeID>(cluster - graph.offset_n(owner));
           return std::make_pair(owner, local);
         }
-      }
-  );
+      });
 
   auto &used_clusters_map = used_clusters.first;
   auto &used_clusters_vec = used_clusters.second;
 
   // send each PE its local node IDs that are used as cluster IDs somewhere
-  const auto in_msg = mpi::sparse_alltoall_get<NodeID>(
-      std::move(used_clusters_vec), graph.communicator()
-  );
+  const auto in_msg =
+      mpi::sparse_alltoall_get<NodeID>(std::move(used_clusters_vec), graph.communicator());
 
   // map local labels to consecutive coarse node IDs
-  scalable_vector<parallel::Atomic<GlobalNodeID>> label_mapping(graph.total_n()
-  );
+  scalable_vector<parallel::Atomic<GlobalNodeID>> label_mapping(graph.total_n());
   parallel::chunked_for(in_msg, [&](const NodeID local_label) {
     KASSERT(local_label < graph.n());
     label_mapping[local_label].store(1, std::memory_order_relaxed);
   });
-  parallel::prefix_sum(
-      label_mapping.begin(), label_mapping.end(), label_mapping.begin()
-  );
+  parallel::prefix_sum(label_mapping.begin(), label_mapping.end(), label_mapping.begin());
 
-  const NodeID c_n =
-      label_mapping.empty() ? 0 : static_cast<NodeID>(label_mapping.back());
+  const NodeID c_n = label_mapping.empty() ? 0 : static_cast<NodeID>(label_mapping.back());
 
   // send mapping to other PEs that use cluster IDs from this PE -- i.e., answer
   // in_msg
   std::vector<scalable_vector<NodeID>> out_msg(size);
   tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
     out_msg[pe].resize(in_msg[pe].size());
-    tbb::parallel_for<std::size_t>(
-        0,
-        in_msg[pe].size(),
-        [&](const std::size_t i) {
-          KASSERT(in_msg[pe][i] < label_mapping.size());
-          out_msg[pe][i] =
-              label_mapping[in_msg[pe][i]] -
-              1; // label_mapping is 1-based due to the prefix sum operation
-        }
-    );
+    tbb::parallel_for<std::size_t>(0, in_msg[pe].size(), [&](const std::size_t i) {
+      KASSERT(in_msg[pe][i] < label_mapping.size());
+      out_msg[pe][i] = label_mapping[in_msg[pe][i]] -
+                       1; // label_mapping is 1-based due to the prefix sum operation
+    });
   });
 
-  const auto label_remap = mpi::sparse_alltoall_get<NodeID>(
-      std::move(out_msg), graph.communicator()
-  );
+  const auto label_remap =
+      mpi::sparse_alltoall_get<NodeID>(std::move(out_msg), graph.communicator());
 
   // migrate nodes from overloaded PEs
   StaticArray<GlobalNodeID> c_distribution =
-      create_distribution_from_local_count<GlobalNodeID>(
-          c_n, graph.communicator()
-      );
+      create_distribution_from_local_count<GlobalNodeID>(c_n, graph.communicator());
   StaticArray<GlobalNodeID> perfect_distribution{};
   StaticArray<GlobalNodeID> pe_overload{};
   StaticArray<GlobalNodeID> pe_underload{};
 
   if (migrate_nodes) {
     const GlobalNodeID global_c_n = c_distribution.back();
-    perfect_distribution = create_perfect_distribution_from_global_count(
-        global_c_n, graph.communicator()
-    );
+    perfect_distribution =
+        create_perfect_distribution_from_global_count(global_c_n, graph.communicator());
 
     // compute diff between perfect distribution and current distribution
     pe_overload.resize(size + 1);
@@ -560,11 +495,9 @@ MappingResult compute_mapping(
     StaticArray<GlobalNodeID> pe_underload_tmp(size);
 
     for (PEID pe = 0; pe < size; ++pe) {
-      const auto [from, to] =
-          math::compute_local_range<GlobalNodeID>(global_c_n, size, pe);
+      const auto [from, to] = math::compute_local_range<GlobalNodeID>(global_c_n, size, pe);
       const auto balanced_count = static_cast<NodeID>(to - from);
-      const auto actual_count =
-          static_cast<NodeID>(c_distribution[pe + 1] - c_distribution[pe]);
+      const auto actual_count = static_cast<NodeID>(c_distribution[pe + 1] - c_distribution[pe]);
 
       if (balanced_count > actual_count) {
         pe_underload_tmp[pe] = balanced_count - actual_count;
@@ -575,13 +508,9 @@ MappingResult compute_mapping(
 
     // prefix sums allow us to find the new owner of a migrating node in log
     // time using binary search
+    parallel::prefix_sum(pe_overload_tmp.begin(), pe_overload_tmp.end(), pe_overload.begin() + 1);
     parallel::prefix_sum(
-        pe_overload_tmp.begin(), pe_overload_tmp.end(), pe_overload.begin() + 1
-    );
-    parallel::prefix_sum(
-        pe_underload_tmp.begin(),
-        pe_underload_tmp.end(),
-        pe_underload.begin() + 1
+        pe_underload_tmp.begin(), pe_underload_tmp.end(), pe_underload.begin() + 1
     );
   }
 
@@ -599,44 +528,36 @@ MappingResult compute_mapping(
       u_local_cluster = graph.global_to_local_node(u_cluster);
     } else {
       u_cluster_owner = graph.find_owner_of_global_node(u_cluster);
-      u_local_cluster =
-          static_cast<NodeID>(u_cluster - graph.offset_n(u_cluster_owner));
+      u_local_cluster = static_cast<NodeID>(u_cluster - graph.offset_n(u_cluster_owner));
     }
 
     tbb::concurrent_hash_map<NodeID, NodeID>::accessor accessor;
     [[maybe_unused]] const bool found =
         used_clusters_map[u_cluster_owner].find(accessor, u_local_cluster);
-    KASSERT(
-        found, V(u_local_cluster) << V(u_cluster_owner) << V(u) << V(u_cluster)
-    );
+    KASSERT(found, V(u_local_cluster) << V(u_cluster_owner) << V(u) << V(u_cluster));
 
     const NodeID slot_in_msg = accessor->second;
     const NodeID label = label_remap[u_cluster_owner][slot_in_msg];
 
     if (migrate_nodes) {
       const auto count = static_cast<NodeID>(
-          perfect_distribution[u_cluster_owner + 1] -
-          perfect_distribution[u_cluster_owner]
+          perfect_distribution[u_cluster_owner + 1] - perfect_distribution[u_cluster_owner]
       );
       if (label < count) { // node can stay on PE
         label_mapping[u] = perfect_distribution[u_cluster_owner] + label;
       } else { // move node to another PE
-        const GlobalNodeID position =
-            pe_overload[u_cluster_owner] + label - count;
-        const PEID new_owner = static_cast<PEID>(
-            math::find_in_distribution<GlobalNodeID>(position, pe_underload)
-        );
+        const GlobalNodeID position = pe_overload[u_cluster_owner] + label - count;
+        const PEID new_owner =
+            static_cast<PEID>(math::find_in_distribution<GlobalNodeID>(position, pe_underload));
 
         KASSERT(position >= pe_underload[new_owner]);
         KASSERT(
-            perfect_distribution[new_owner + 1] -
-                perfect_distribution[new_owner] >
+            perfect_distribution[new_owner + 1] - perfect_distribution[new_owner] >
             c_distribution[new_owner + 1] - c_distribution[new_owner]
         );
 
-        label_mapping[u] =
-            perfect_distribution[new_owner] + c_distribution[new_owner + 1] -
-            c_distribution[new_owner] + position - pe_underload[new_owner];
+        label_mapping[u] = perfect_distribution[new_owner] + c_distribution[new_owner + 1] -
+                           c_distribution[new_owner] + position - pe_underload[new_owner];
       }
     } else {
       label_mapping[u] = c_distribution[u_cluster_owner] + label;
@@ -683,8 +604,7 @@ DistributedGraph build_coarse_graph(
   const auto to = c_node_distribution[rank + 1];
 
   // create messages
-  std::vector<NoinitVector<LocalToGlobalEdge>> out_msg(size
-  ); // declare outside scope
+  std::vector<NoinitVector<LocalToGlobalEdge>> out_msg(size); // declare outside scope
   {
     SCOPED_TIMER("Create edge messages");
     const PEID num_threads = omp_get_max_threads();
@@ -693,18 +613,12 @@ DistributedGraph build_coarse_graph(
     );
 
     START_TIMER("Count messages");
-#pragma omp parallel for default(none) shared(                                 \
-    num_messages,                                                              \
-    graph,                                                                     \
-    mapping,                                                                   \
-    compute_coarse_node_owner,                                                 \
-    c_node_distribution                                                        \
-)
+#pragma omp parallel for default(none)                                                             \
+    shared(num_messages, graph, mapping, compute_coarse_node_owner, c_node_distribution)
     for (NodeID u = 0; u < graph.n(); ++u) {
       const PEID thread = omp_get_thread_num();
       const auto c_u = mapping[u];
-      const auto c_u_owner =
-          compute_coarse_node_owner(c_u, c_node_distribution);
+      const auto c_u_owner = compute_coarse_node_owner(c_u, c_node_distribution);
 
       // for (EdgeID e = graph.first_edge(u); e < graph.first_invalid_edge(u);
       // ++e) {
@@ -728,29 +642,20 @@ DistributedGraph build_coarse_graph(
     STOP_TIMER();
 
     START_TIMER("Create messages");
-#pragma omp parallel for default(none) shared(                                 \
-    num_messages,                                                              \
-    graph,                                                                     \
-    mapping,                                                                   \
-    compute_coarse_node_owner,                                                 \
-    c_node_distribution,                                                       \
-    out_msg                                                                    \
-)
+#pragma omp parallel for default(none)                                                             \
+    shared(num_messages, graph, mapping, compute_coarse_node_owner, c_node_distribution, out_msg)
     for (NodeID u = 0; u < graph.n(); ++u) {
       const PEID thread = omp_get_thread_num();
       const auto c_u = mapping[u];
-      const auto c_u_owner =
-          compute_coarse_node_owner(c_u, c_node_distribution);
-      const auto local_c_u =
-          static_cast<NodeID>(c_u - c_node_distribution[c_u_owner]);
+      const auto c_u_owner = compute_coarse_node_owner(c_u, c_node_distribution);
+      const auto local_c_u = static_cast<NodeID>(c_u - c_node_distribution[c_u_owner]);
 
       for (const auto [e, v] : graph.neighbors(u)) {
         const auto c_v = mapping[v];
 
         if (c_u != c_v) { // ignore self loops
           const std::size_t slot = --num_messages[thread][c_u_owner];
-          out_msg[c_u_owner][slot] = {
-              .u = local_c_u, .weight = graph.edge_weight(e), .v = c_v};
+          out_msg[c_u_owner][slot] = {.u = local_c_u, .weight = graph.edge_weight(e), .v = c_v};
         }
       }
     }
@@ -761,9 +666,8 @@ DistributedGraph build_coarse_graph(
   TIMED_SCOPE("Deduplicate edges before sending") {
     DeduplicateEdgeListMemoryContext deduplicate_m_ctx;
     for (PEID pe = 0; pe < size; ++pe) {
-      auto result = deduplicate_edge_list_parallel(
-          std::move(out_msg[pe]), std::move(deduplicate_m_ctx)
-      );
+      auto result =
+          deduplicate_edge_list_parallel(std::move(out_msg[pe]), std::move(deduplicate_m_ctx));
       out_msg[pe] = std::move(result.first);
       deduplicate_m_ctx = std::move(result.second);
     }
@@ -772,33 +676,24 @@ DistributedGraph build_coarse_graph(
 
   // exchange messages
   START_TIMER("Exchange edges");
-  auto in_msg = mpi::sparse_alltoall_get<LocalToGlobalEdge>(
-      std::move(out_msg), graph.communicator()
-  );
+  auto in_msg =
+      mpi::sparse_alltoall_get<LocalToGlobalEdge>(std::move(out_msg), graph.communicator());
   STOP_TIMER();
 
   // Copy edge lists to a single list and free old list
   START_TIMER("Copy edge list");
   std::vector<std::size_t> in_msg_sizes(size);
-  tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
-    in_msg_sizes[pe] = in_msg[pe].size();
-  });
-  parallel::prefix_sum(
-      in_msg_sizes.begin(), in_msg_sizes.end(), in_msg_sizes.begin()
-  );
+  tbb::parallel_for<PEID>(0, size, [&](const PEID pe) { in_msg_sizes[pe] = in_msg[pe].size(); });
+  parallel::prefix_sum(in_msg_sizes.begin(), in_msg_sizes.end(), in_msg_sizes.begin());
 
   START_TIMER("Allocation");
   NoinitVector<LocalToGlobalEdge> edge_list(in_msg_sizes.back());
   STOP_TIMER();
 
   tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
-    tbb::parallel_for<std::size_t>(
-        0,
-        in_msg[pe].size(),
-        [&](const std::size_t i) {
-          edge_list[in_msg_sizes[pe] - in_msg[pe].size() + i] = in_msg[pe][i];
-        }
-    );
+    tbb::parallel_for<std::size_t>(0, in_msg[pe].size(), [&](const std::size_t i) {
+      edge_list[in_msg_sizes[pe] - in_msg[pe].size() + i] = in_msg[pe][i];
+    });
     // std::copy(in_msg[pe].begin(), in_msg[pe].end(), edge_list.begin() +
     // in_msg_sizes[pe] - in_msg[pe].size());
   });
@@ -820,21 +715,16 @@ DistributedGraph build_coarse_graph(
       0,
       graph.n(),
       SPARSE_ALLTOALL_NOFILTER,
-      [&](const NodeID u) {
-        return compute_coarse_node_owner(mapping[u], c_node_distribution);
-      },
+      [&](const NodeID u) { return compute_coarse_node_owner(mapping[u], c_node_distribution); },
       [&](const NodeID u) -> NodeWeightMessage {
         const auto c_u = mapping[u];
-        const PEID c_u_owner =
-            compute_coarse_node_owner(c_u, c_node_distribution);
+        const PEID c_u_owner = compute_coarse_node_owner(c_u, c_node_distribution);
         const NodeID c_u_local = c_u - c_node_distribution[c_u_owner];
         return {c_u_local, graph.node_weight(u)};
       },
       [&](const auto r) {
         tbb::parallel_for<std::size_t>(0, r.size(), [&](const std::size_t i) {
-          node_weights[r[i].node].fetch_add(
-              r[i].weight, std::memory_order_relaxed
-          );
+          node_weights[r[i].node].fetch_add(r[i].weight, std::memory_order_relaxed);
         });
       }
   );
@@ -873,12 +763,9 @@ DistributedGraph build_coarse_graph(
       mapping,
       static_array::copy(c_node_distribution),
       [](const GlobalNodeID node, const auto &node_distribution) {
-        const auto it = std::upper_bound(
-            node_distribution.begin() + 1, node_distribution.end(), node
-        );
-        return static_cast<PEID>(
-            std::distance(node_distribution.begin(), it) - 1
-        );
+        const auto it =
+            std::upper_bound(node_distribution.begin() + 1, node_distribution.end(), node);
+        return static_cast<PEID>(std::distance(node_distribution.begin(), it) - 1);
       }
   );
 }
@@ -902,17 +789,12 @@ void update_ghost_node_weights(DistributedGraph &graph) {
         return {u, graph.node_weight(u)};
       },
       [&](const auto buffer, const PEID pe) {
-        tbb::parallel_for<std::size_t>(
-            0,
-            buffer.size(),
-            [&](const std::size_t i) {
-              const auto &[local_node_on_other_pe, weight] = buffer[i];
-              const NodeID local_node = graph.global_to_local_node(
-                  graph.offset_n(pe) + local_node_on_other_pe
-              );
-              graph.set_ghost_node_weight(local_node, weight);
-            }
-        );
+        tbb::parallel_for<std::size_t>(0, buffer.size(), [&](const std::size_t i) {
+          const auto &[local_node_on_other_pe, weight] = buffer[i];
+          const NodeID local_node =
+              graph.global_to_local_node(graph.offset_n(pe) + local_node_on_other_pe);
+          graph.set_ghost_node_weight(local_node, weight);
+        });
       }
   );
 }
@@ -964,16 +846,10 @@ GlobalContractionResult contract_global_clustering_full_migration(
   auto c_graph = build_coarse_graph(
       graph,
       mapping,
-      create_perfect_distribution_from_global_count<GlobalNodeID>(
-          c_global_n, graph.communicator()
-      ),
+      create_perfect_distribution_from_global_count<GlobalNodeID>(c_global_n, graph.communicator()),
       [size, c_global_n](
           const GlobalNodeID node, const auto & /* node_distribution */
-      ) {
-        return math::compute_local_range_rank<GlobalNodeID>(
-            c_global_n, size, node
-        );
-      }
+      ) { return math::compute_local_range_rank<GlobalNodeID>(c_global_n, size, node); }
   );
 
   update_ghost_node_weights(c_graph);
@@ -982,9 +858,7 @@ GlobalContractionResult contract_global_clustering_full_migration(
 }
 
 ContractionResult contract_global_clustering(
-    const DistributedGraph &graph,
-    GlobalClustering &clustering,
-    const CoarseningContext &c_ctx
+    const DistributedGraph &graph, GlobalClustering &clustering, const CoarseningContext &c_ctx
 ) {
   SCOPED_TIMER("Contract clustering");
 
@@ -998,22 +872,16 @@ ContractionResult contract_global_clustering(
     );
   }
 
-  LegacyGlobalClustering legacy_clustering(
-      clustering.begin(), clustering.end()
-  );
+  LegacyGlobalClustering legacy_clustering(clustering.begin(), clustering.end());
 
   auto [cgraph, legacy_cmapping, migration] = [&] {
     switch (c_ctx.contraction_algorithm) {
     case ContractionAlgorithm::LEGACY_NO_MIGRATION:
       return contract_global_clustering_no_migration(graph, legacy_clustering);
     case ContractionAlgorithm::LEGACY_MINIMAL_MIGRATION:
-      return contract_global_clustering_minimal_migration(
-          graph, legacy_clustering
-      );
+      return contract_global_clustering_minimal_migration(graph, legacy_clustering);
     case ContractionAlgorithm::LEGACY_FULL_MIGRATION:
-      return contract_global_clustering_full_migration(
-          graph, legacy_clustering
-      );
+      return contract_global_clustering_full_migration(graph, legacy_clustering);
     default:
       __builtin_unreachable();
     }
@@ -1044,29 +912,24 @@ DistributedPartitionedGraph project_global_contracted_graph(
   auto resolve_coarse_node = [&](const GlobalNodeID coarse_node) {
     KASSERT(coarse_node < coarse_graph.global_n());
     const PEID owner = coarse_graph.find_owner_of_global_node(coarse_node);
-    const auto local =
-        static_cast<NodeID>(coarse_node - coarse_graph.offset_n(owner));
+    const auto local = static_cast<NodeID>(coarse_node - coarse_graph.offset_n(owner));
     return std::make_pair(owner, local);
   };
 
-  auto used_coarse_nodes = find_used_cluster_ids_per_pe(
-      fine_graph, fine_to_coarse, resolve_coarse_node
-  );
+  auto used_coarse_nodes =
+      find_used_cluster_ids_per_pe(fine_graph, fine_to_coarse, resolve_coarse_node);
 
   auto &used_coarse_nodes_map = used_coarse_nodes.first;
   auto &used_coarse_nodes_vec = used_coarse_nodes.second;
 
   // send requests for block IDs
-  const auto reqs = mpi::sparse_alltoall_get<NodeID>(
-      used_coarse_nodes_vec, fine_graph.communicator()
-  );
+  const auto reqs =
+      mpi::sparse_alltoall_get<NodeID>(used_coarse_nodes_vec, fine_graph.communicator());
 
   // build response messages
   START_TIMER("Allocation");
   std::vector<scalable_vector<BlockID>> resps(size);
-  tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
-    resps[pe].resize(reqs[pe].size());
-  });
+  tbb::parallel_for<PEID>(0, size, [&](const PEID pe) { resps[pe].resize(reqs[pe].size()); });
   STOP_TIMER();
 
   START_TIMER("Build response messages");
@@ -1079,32 +942,21 @@ DistributedPartitionedGraph project_global_contracted_graph(
   STOP_TIMER();
 
   // exchange messages and use used_coarse_nodes_map to store block IDs
-  static_assert(
-      std::numeric_limits<BlockID>::digits <=
-      std::numeric_limits<NodeID>::digits
-  );
+  static_assert(std::numeric_limits<BlockID>::digits <= std::numeric_limits<NodeID>::digits);
   mpi::sparse_alltoall<BlockID>(
       std::move(resps),
       [&](const auto buffer, const PEID pe) {
-        tbb::parallel_for<std::size_t>(
-            0,
-            buffer.size(),
-            [&](const std::size_t i) {
-              KASSERT(
-                  static_cast<std::size_t>(pe) < used_coarse_nodes_map.size()
-              );
-              KASSERT(static_cast<std::size_t>(pe) < reqs.size());
-              KASSERT(i < used_coarse_nodes_vec[pe].size());
+        tbb::parallel_for<std::size_t>(0, buffer.size(), [&](const std::size_t i) {
+          KASSERT(static_cast<std::size_t>(pe) < used_coarse_nodes_map.size());
+          KASSERT(static_cast<std::size_t>(pe) < reqs.size());
+          KASSERT(i < used_coarse_nodes_vec[pe].size());
 
-              UsedClustersMap::accessor accessor;
-              [[maybe_unused]] const bool found =
-                  used_coarse_nodes_map[pe].find(
-                      accessor, used_coarse_nodes_vec[pe][i]
-                  );
-              KASSERT(found);
-              accessor->second = buffer[i];
-            }
-        );
+          UsedClustersMap::accessor accessor;
+          [[maybe_unused]] const bool found =
+              used_coarse_nodes_map[pe].find(accessor, used_coarse_nodes_vec[pe][i]);
+          KASSERT(found);
+          accessor->second = buffer[i];
+        });
       },
       fine_graph.communicator()
   );
@@ -1119,8 +971,7 @@ DistributedPartitionedGraph project_global_contracted_graph(
     const auto [owner, local] = resolve_coarse_node(fine_to_coarse[u]);
 
     UsedClustersMap::accessor accessor;
-    [[maybe_unused]] const bool found =
-        used_coarse_nodes_map[owner].find(accessor, local);
+    [[maybe_unused]] const bool found = used_coarse_nodes_map[owner].find(accessor, local);
     KASSERT(found);
 
     fine_partition[u] = accessor->second;
@@ -1139,25 +990,16 @@ DistributedPartitionedGraph project_global_contracted_graph(
         return {u, fine_partition[u]};
       },
       [&](const auto buffer, const PEID pe) {
-        tbb::parallel_for<std::size_t>(
-            0,
-            buffer.size(),
-            [&](const std::size_t i) {
-              const auto &[local_node_on_sender, block] = buffer[i];
-              const GlobalNodeID global_node =
-                  fine_graph.offset_n(pe) + local_node_on_sender;
-              const NodeID local_node =
-                  fine_graph.global_to_local_node(global_node);
-              fine_partition[local_node] = block;
-            }
-        );
+        tbb::parallel_for<std::size_t>(0, buffer.size(), [&](const std::size_t i) {
+          const auto &[local_node_on_sender, block] = buffer[i];
+          const GlobalNodeID global_node = fine_graph.offset_n(pe) + local_node_on_sender;
+          const NodeID local_node = fine_graph.global_to_local_node(global_node);
+          fine_partition[local_node] = block;
+        });
       }
   );
 
   return {
-      &fine_graph,
-      coarse_graph.k(),
-      std::move(fine_partition),
-      coarse_graph.take_block_weights()};
+      &fine_graph, coarse_graph.k(), std::move(fine_partition), coarse_graph.take_block_weights()};
 }
 } // namespace kaminpar::dist

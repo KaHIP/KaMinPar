@@ -56,8 +56,7 @@ inline DistributedGraph make_circle_graph() {
   graph::Builder builder(MPI_COMM_WORLD);
   builder.initialize(1);
 
-  const GlobalNodeID prev =
-      static_cast<GlobalNodeID>(rank > 0 ? rank - 1 : size - 1);
+  const GlobalNodeID prev = static_cast<GlobalNodeID>(rank > 0 ? rank - 1 : size - 1);
   const GlobalNodeID next = static_cast<GlobalNodeID>((rank + 1) % size);
 
   builder.create_node(1);
@@ -78,8 +77,7 @@ inline DistributedGraph make_circle_graph() {
  * @param num_nodes_per_pe Number of nodes on each PE.
  * @return Distributed graph with `num_nodes_per_pe` nodes per PE.
  */
-inline DistributedGraph make_isolated_nodes_graph(const NodeID num_nodes_per_pe
-) {
+inline DistributedGraph make_isolated_nodes_graph(const NodeID num_nodes_per_pe) {
   graph::Builder builder(MPI_COMM_WORLD);
   builder.initialize(num_nodes_per_pe);
   for (NodeID u = 0; u < num_nodes_per_pe; ++u) {
@@ -105,8 +103,7 @@ inline DistributedGraph make_empty_graph() {
  * @return Distributed graph with `2 * num_edges_per_pe` nodes and
  * `num_edges_per_pe` edges per PE.
  */
-inline DistributedGraph make_isolated_edges_graph(const NodeID num_edges_per_pe
-) {
+inline DistributedGraph make_isolated_edges_graph(const NodeID num_edges_per_pe) {
   const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
   const NodeID n0 = rank * num_edges_per_pe * 2;
 
@@ -121,8 +118,7 @@ inline DistributedGraph make_isolated_edges_graph(const NodeID num_edges_per_pe
   return builder.finalize();
 }
 
-inline DistributedGraph make_local_complete_graph(const NodeID num_nodes_per_pe
-) {
+inline DistributedGraph make_local_complete_graph(const NodeID num_nodes_per_pe) {
   const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
   const GlobalNodeID n0 = rank * num_nodes_per_pe;
 
@@ -139,8 +135,7 @@ inline DistributedGraph make_local_complete_graph(const NodeID num_nodes_per_pe
   return builder.finalize();
 }
 
-inline DistributedGraph
-make_local_complete_bipartite_graph(const NodeID set_size_per_pe) {
+inline DistributedGraph make_local_complete_bipartite_graph(const NodeID set_size_per_pe) {
   const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
   const GlobalNodeID n0 = rank * set_size_per_pe * 2;
 
@@ -170,8 +165,7 @@ inline DistributedGraph make_global_complete_graph(const NodeID nodes_per_pe) {
   for (NodeID u = 0; u < nodes_per_pe; ++u) {
     builder.create_node(1);
 
-    for (GlobalNodeID v = 0; v < static_cast<GlobalNodeID>(size * nodes_per_pe);
-         ++v) {
+    for (GlobalNodeID v = 0; v < static_cast<GlobalNodeID>(size * nodes_per_pe); ++v) {
       if (n0 + u != v) {
         builder.create_edge(1, v);
       }
@@ -189,8 +183,7 @@ inline DistributedGraph make_global_complete_graph(const NodeID nodes_per_pe) {
  * @return Distributed graph with a clique on `num_nodes_per_pe` nodes on each
  * PE and `num_nodes_per_pe` global circles.
  */
-inline DistributedGraph make_circle_clique_graph(const NodeID num_nodes_per_pe
-) {
+inline DistributedGraph make_circle_clique_graph(const NodeID num_nodes_per_pe) {
   const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
   const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
 
@@ -199,10 +192,8 @@ inline DistributedGraph make_circle_clique_graph(const NodeID num_nodes_per_pe
 
   const GlobalNodeID my_n0 = rank * num_nodes_per_pe;
   const GlobalNodeID prev_n0 =
-      (rank > 0 ? (rank - 1) * num_nodes_per_pe : (size - 1) * num_nodes_per_pe
-      );
-  const GlobalNodeID next_n0 =
-      (rank + 1 < size ? (rank + 1) * num_nodes_per_pe : 0);
+      (rank > 0 ? (rank - 1) * num_nodes_per_pe : (size - 1) * num_nodes_per_pe);
+  const GlobalNodeID next_n0 = (rank + 1 < size ? (rank + 1) * num_nodes_per_pe : 0);
 
   for (NodeID u = 0; u < num_nodes_per_pe; ++u) {
     builder.create_node(1);
@@ -246,8 +237,7 @@ inline DistributedGraph make_cut_edge_graph(const NodeID num_nodes_per_pe) {
   builder.initialize(2 * num_nodes_per_pe);
 
   const GlobalNodeID my_n0_to_prev = 2 * num_nodes_per_pe * rank;
-  const GlobalNodeID my_n0_to_next =
-      2 * num_nodes_per_pe * rank + num_nodes_per_pe;
+  const GlobalNodeID my_n0_to_next = 2 * num_nodes_per_pe * rank + num_nodes_per_pe;
 
   // connect to prev PE
   for (NodeID u = 0; u < num_nodes_per_pe; ++u) {
@@ -255,8 +245,7 @@ inline DistributedGraph make_cut_edge_graph(const NodeID num_nodes_per_pe) {
 
     GlobalNodeID neighbor;
     if (rank == 0) {
-      neighbor =
-          2 * size * num_nodes_per_pe + my_n0_to_prev + u - num_nodes_per_pe;
+      neighbor = 2 * size * num_nodes_per_pe + my_n0_to_prev + u - num_nodes_per_pe;
     } else {
       neighbor = my_n0_to_prev + u - num_nodes_per_pe;
     }
@@ -268,8 +257,7 @@ inline DistributedGraph make_cut_edge_graph(const NodeID num_nodes_per_pe) {
 
     GlobalNodeID neighbor;
     if (rank + 1 == size) {
-      neighbor =
-          my_n0_to_next + u + num_nodes_per_pe - 2 * size * num_nodes_per_pe;
+      neighbor = my_n0_to_next + u + num_nodes_per_pe - 2 * size * num_nodes_per_pe;
     } else {
       neighbor = my_n0_to_next + u + num_nodes_per_pe;
     }

@@ -17,16 +17,14 @@
 namespace kaminpar::shm {
 using namespace std::string_literals;
 
-std::unordered_map<std::string, ClusteringAlgorithm>
-get_clustering_algorithms() {
+std::unordered_map<std::string, ClusteringAlgorithm> get_clustering_algorithms() {
   return {
       {"noop", ClusteringAlgorithm::NOOP},
       {"lp", ClusteringAlgorithm::LABEL_PROPAGATION},
   };
 }
 
-std::ostream &
-operator<<(std::ostream &out, const ClusteringAlgorithm algorithm) {
+std::ostream &operator<<(std::ostream &out, const ClusteringAlgorithm algorithm) {
   switch (algorithm) {
   case ClusteringAlgorithm::NOOP:
     return out << "noop";
@@ -36,8 +34,7 @@ operator<<(std::ostream &out, const ClusteringAlgorithm algorithm) {
   return out << "<invalid>";
 }
 
-std::unordered_map<std::string, ClusterWeightLimit>
-get_cluster_weight_limits() {
+std::unordered_map<std::string, ClusterWeightLimit> get_cluster_weight_limits() {
   return {
       {"epsilon-block-weight", ClusterWeightLimit::EPSILON_BLOCK_WEIGHT},
       {"static-block-weight", ClusterWeightLimit::BLOCK_WEIGHT},
@@ -60,16 +57,14 @@ std::ostream &operator<<(std::ostream &out, const ClusterWeightLimit limit) {
   return out << "<invalid>";
 }
 
-std::unordered_map<std::string, RefinementAlgorithm>
-get_2way_refinement_algorithms() {
+std::unordered_map<std::string, RefinementAlgorithm> get_2way_refinement_algorithms() {
   return {
       {"noop", RefinementAlgorithm::NOOP},
       {"fm", RefinementAlgorithm::TWOWAY_FM},
   };
 }
 
-std::unordered_map<std::string, RefinementAlgorithm>
-get_kway_refinement_algorithms() {
+std::unordered_map<std::string, RefinementAlgorithm> get_kway_refinement_algorithms() {
   return {
       {"noop", RefinementAlgorithm::NOOP},
       {"lp", RefinementAlgorithm::LABEL_PROPAGATION},
@@ -80,8 +75,7 @@ get_kway_refinement_algorithms() {
   };
 }
 
-std::ostream &
-operator<<(std::ostream &out, const RefinementAlgorithm algorithm) {
+std::ostream &operator<<(std::ostream &out, const RefinementAlgorithm algorithm) {
   switch (algorithm) {
   case RefinementAlgorithm::NOOP:
     return out << "noop";
@@ -137,8 +131,7 @@ std::ostream &operator<<(std::ostream &out, const PartitioningMode mode) {
   return out << "<invalid>";
 }
 
-std::unordered_map<std::string, InitialPartitioningMode>
-get_initial_partitioning_modes() {
+std::unordered_map<std::string, InitialPartitioningMode> get_initial_partitioning_modes() {
   return {
       {"sequential", InitialPartitioningMode::SEQUENTIAL},
       {"async-parallel", InitialPartitioningMode::ASYNCHRONOUS_PARALLEL},
@@ -146,8 +139,7 @@ get_initial_partitioning_modes() {
   };
 }
 
-std::ostream &
-operator<<(std::ostream &out, const InitialPartitioningMode mode) {
+std::ostream &operator<<(std::ostream &out, const InitialPartitioningMode mode) {
   switch (mode) {
   case InitialPartitioningMode::SEQUENTIAL:
     return out << "sequential";
@@ -172,11 +164,10 @@ void print(const CoarseningContext &c_ctx, std::ostream &out) {
 
 void print(const LabelPropagationCoarseningContext &lp_ctx, std::ostream &out) {
   out << "  Number of iterations:       " << lp_ctx.num_iterations << "\n";
-  out << "  High degree threshold:      " << lp_ctx.large_degree_threshold
-      << "\n";
+  out << "  High degree threshold:      " << lp_ctx.large_degree_threshold << "\n";
   out << "  Max degree:                 " << lp_ctx.max_num_neighbors << "\n";
-  out << "  2-hop clustering threshold: " << std::fixed
-      << 100 * lp_ctx.two_hop_clustering_threshold << "%\n";
+  out << "  2-hop clustering threshold: " << std::fixed << 100 * lp_ctx.two_hop_clustering_threshold
+      << "%\n";
 }
 
 void print(const InitialPartitioningContext &i_ctx, std::ostream &out) {
@@ -186,8 +177,7 @@ void print(const InitialPartitioningContext &i_ctx, std::ostream &out) {
 }
 
 void print(const RefinementContext &r_ctx, std::ostream &out) {
-  out << "Refinement algorithms:        ["
-      << str::implode(r_ctx.algorithms, " -> ") << "]\n";
+  out << "Refinement algorithms:        [" << str::implode(r_ctx.algorithms, " -> ") << "]\n";
   if (r_ctx.includes_algorithm(RefinementAlgorithm::LABEL_PROPAGATION)) {
     out << "Label propagation:\n";
     out << "  Number of iterations:       " << r_ctx.lp.num_iterations << "\n";
@@ -195,17 +185,15 @@ void print(const RefinementContext &r_ctx, std::ostream &out) {
   if (r_ctx.includes_algorithm(RefinementAlgorithm::KWAY_FM)) {
     out << "k-way FM:\n";
     out << "  Number of iterations:       " << r_ctx.kway_fm.num_iterations
-        << " [or improvement drops below < "
-        << 100.0 * r_ctx.kway_fm.improvement_abortion_threshold << "%]\n";
-    out << "  Number of seed nodes:       " << r_ctx.kway_fm.num_seed_nodes
-        << "\n";
+        << " [or improvement drops below < " << 100.0 * r_ctx.kway_fm.improvement_abortion_threshold
+        << "%]\n";
+    out << "  Number of seed nodes:       " << r_ctx.kway_fm.num_seed_nodes << "\n";
   }
 }
 
 void print(const PartitionContext &p_ctx, std::ostream &out) {
   const std::int64_t max_block_weight = p_ctx.block_weights.max(0);
-  const std::int64_t size =
-      std::max<std::int64_t>({p_ctx.n, p_ctx.m, max_block_weight});
+  const std::int64_t size = std::max<std::int64_t>({p_ctx.n, p_ctx.m, max_block_weight});
   const std::size_t width = std::ceil(std::log10(size));
 
   out << "  Number of nodes:            " << std::setw(width) << p_ctx.n;
@@ -222,8 +210,7 @@ void print(const PartitionContext &p_ctx, std::ostream &out) {
   }
   out << "Number of blocks:             " << p_ctx.k << "\n";
   out << "Maximum block weight:         " << p_ctx.block_weights.max(0) << " ("
-      << p_ctx.block_weights.perfectly_balanced(0) << " + "
-      << 100 * p_ctx.epsilon << "%)\n";
+      << p_ctx.block_weights.perfectly_balanced(0) << " + " << 100 * p_ctx.epsilon << "%)\n";
 
   cio::print_delimiter("Partitioning Scheme", '-');
   out << "Partitioning mode:            " << p_ctx.mode << "\n";

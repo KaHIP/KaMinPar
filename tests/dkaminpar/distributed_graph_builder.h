@@ -20,14 +20,10 @@
 
 namespace kaminpar::dist::graph {
 [[nodiscard]] inline growt::StaticGhostNodeMapping
-build_static_ghost_node_mapping(
-    std::unordered_map<GlobalNodeID, NodeID> global_to_ghost
-) {
+build_static_ghost_node_mapping(std::unordered_map<GlobalNodeID, NodeID> global_to_ghost) {
   growt::StaticGhostNodeMapping static_mapping(global_to_ghost.size());
   for (const auto &[key, value] : global_to_ghost) {
-    static_mapping.insert(
-        key + 1, value
-    ); // 0 cannot be used as a key in growt hash tables
+    static_mapping.insert(key + 1, value); // 0 cannot be used as a key in growt hash tables
   }
   return static_mapping;
 }
@@ -40,9 +36,7 @@ public:
 
   template <typename T> using vec = std::vector<T>;
   Builder &initialize(const NodeID n) {
-    return initialize(
-        mpi::build_distribution_from_local_count<GlobalNodeID, vec>(n, _comm)
-    );
+    return initialize(mpi::build_distribution_from_local_count<GlobalNodeID, vec>(n, _comm));
   }
 
   Builder &initialize(std::vector<GlobalNodeID> node_distribution) {
@@ -63,8 +57,7 @@ public:
     return *this;
   }
 
-  Builder &
-  change_local_node_weight(const NodeID node, const NodeWeight weight) {
+  Builder &change_local_node_weight(const NodeID node, const NodeWeight weight) {
     KASSERT(node < _node_weights.size());
     _node_weights[node] = weight;
     _unit_node_weights = _unit_node_weights && (weight == 1);
@@ -81,8 +74,7 @@ public:
   }
 
   Builder &create_edge(const EdgeWeight weight, const GlobalNodeID global_v) {
-    NodeID local_v = is_local_node(global_v) ? global_v - _offset_n
-                                             : create_ghost_node(global_v);
+    NodeID local_v = is_local_node(global_v) ? global_v - _offset_n : create_ghost_node(global_v);
     _edges.push_back(local_v);
     _edge_weights.push_back(weight);
 
@@ -100,8 +92,7 @@ public:
     }
 
     const EdgeID m = _edges.size();
-    auto edge_distribution =
-        mpi::build_distribution_from_local_count<GlobalEdgeID, vec>(m, _comm);
+    auto edge_distribution = mpi::build_distribution_from_local_count<GlobalEdgeID, vec>(m, _comm);
 
     DistributedGraph graph{
         static_array::create_from(_node_distribution),
@@ -130,17 +121,12 @@ public:
             return {u, graph.node_weight(u)};
           },
           [&](const auto buffer, const PEID pe) {
-            tbb::parallel_for<std::size_t>(
-                0,
-                buffer.size(),
-                [&](const std::size_t i) {
-                  const auto &[local_node_on_other_pe, weight] = buffer[i];
-                  const NodeID local_node = graph.global_to_local_node(
-                      graph.offset_n(pe) + local_node_on_other_pe
-                  );
-                  graph.set_ghost_node_weight(local_node, weight);
-                }
-            );
+            tbb::parallel_for<std::size_t>(0, buffer.size(), [&](const std::size_t i) {
+              const auto &[local_node_on_other_pe, weight] = buffer[i];
+              const NodeID local_node =
+                  graph.global_to_local_node(graph.offset_n(pe) + local_node_on_other_pe);
+              graph.set_ghost_node_weight(local_node, weight);
+            });
           }
       );
     }
@@ -165,9 +151,7 @@ private:
   }
 
   PEID find_ghost_owner(const GlobalNodeID global_u) const {
-    auto it = std::upper_bound(
-        _node_distribution.begin() + 1, _node_distribution.end(), global_u
-    );
+    auto it = std::upper_bound(_node_distribution.begin() + 1, _node_distribution.end(), global_u);
     KASSERT(it != _node_distribution.end());
     return static_cast<PEID>(std::distance(_node_distribution.begin(), it) - 1);
   }

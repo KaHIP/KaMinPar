@@ -35,8 +35,7 @@ public:
   std::vector<BlockWeight> perfectly_balanced_block_weights;
   std::vector<BlockWeight> max_block_weights;
 
-  [[nodiscard]] inline BlockWeight
-  perfectly_balanced_block_weight(const BlockID b) const {
+  [[nodiscard]] inline BlockWeight perfectly_balanced_block_weight(const BlockID b) const {
     return perfectly_balanced_block_weights[b];
   }
 

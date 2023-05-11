@@ -83,21 +83,16 @@ struct GlobalStats {
 
       LOG_STATS << "  * Iteration " << (i + 1) << ":";
       LOG_STATS << "    + Number of batches: " << stats.num_batches;
-      LOG_STATS << "    + Number of touched nodes: " << stats.num_touched_nodes
-                << " in total, "
-                << 1.0 * stats.num_touched_nodes / stats.num_batches
-                << " per batch";
-      LOG_STATS << "    + Number of moves: " << stats.num_committed_moves
-                << " committed, " << stats.num_discarded_moves
-                << " discarded (= "
+      LOG_STATS << "    + Number of touched nodes: " << stats.num_touched_nodes << " in total, "
+                << 1.0 * stats.num_touched_nodes / stats.num_batches << " per batch";
+      LOG_STATS << "    + Number of moves: " << stats.num_committed_moves << " committed, "
+                << stats.num_discarded_moves << " discarded (= "
                 << 100.0 * stats.num_discarded_moves /
                        (stats.num_committed_moves + stats.num_discarded_moves)
                 << "%)";
-      LOG_STATS << "    + Number of recomputed gains: "
-                << stats.num_recomputed_gains;
-      LOG_STATS << "    + Number of PQ operations: " << stats.num_pq_inserts
-                << " inserts, " << stats.num_pq_updates << " updates, "
-                << stats.num_pq_pops << " pops";
+      LOG_STATS << "    + Number of recomputed gains: " << stats.num_recomputed_gains;
+      LOG_STATS << "    + Number of PQ operations: " << stats.num_pq_inserts << " inserts, "
+                << stats.num_pq_updates << " updates, " << stats.num_pq_pops << " pops";
     }
   }
 };
@@ -107,9 +102,7 @@ namespace fm {
 class NodeTracker {
 public:
   NodeTracker(const NodeID max_n) : _state(max_n) {
-    tbb::parallel_for<std::size_t>(0, max_n, [&](const std::size_t i) {
-      _state[i] = 0;
-    });
+    tbb::parallel_for<std::size_t>(0, max_n, [&](const std::size_t i) { _state[i] = 0; });
   }
 
   bool lock(const NodeID u, const int id) {
@@ -153,15 +146,13 @@ public:
     _next_border_node = 0;
   }
 
-  template <typename Lambda>
-  NodeID poll(const NodeID count, int id, Lambda &&lambda) {
+  template <typename Lambda> NodeID poll(const NodeID count, int id, Lambda &&lambda) {
     NodeID polled = 0;
 
     while (polled < count && _next_border_node < _border_nodes.size()) {
       const NodeID remaining = count - polled;
       const NodeID from = _next_border_node.fetch_add(remaining);
-      const NodeID to =
-          std::min<NodeID>(from + remaining, _border_nodes.size());
+      const NodeID to = std::min<NodeID>(from + remaining, _border_nodes.size());
 
       for (NodeID current = from; current < to; ++current) {
         const NodeID node = _border_nodes[current];
@@ -202,13 +193,9 @@ struct SharedData {
         border_nodes(gain_cache, node_tracker),
         shared_pq_handles(max_n),
         target_blocks(max_n) {
-    tbb::parallel_for<std::size_t>(
-        0,
-        shared_pq_handles.size(),
-        [&](std::size_t i) {
-          shared_pq_handles[i] = SharedBinaryMaxHeap<EdgeWeight>::kInvalidID;
-        }
-    );
+    tbb::parallel_for<std::size_t>(0, shared_pq_handles.size(), [&](std::size_t i) {
+      shared_pq_handles[i] = SharedBinaryMaxHeap<EdgeWeight>::kInvalidID;
+    });
   }
 
   NodeTracker node_tracker;
@@ -222,15 +209,11 @@ struct SharedData {
 
 FMRefiner::FMRefiner(const Context &input_ctx)
     : _fm_ctx(&input_ctx.refinement.kway_fm),
-      _shared(std::make_unique<fm::SharedData>(
-          input_ctx.partition.n, input_ctx.partition.k
-      )) {}
+      _shared(std::make_unique<fm::SharedData>(input_ctx.partition.n, input_ctx.partition.k)) {}
 
 FMRefiner::~FMRefiner() = default;
 
-bool FMRefiner::refine(
-    PartitionedGraph &p_graph, const PartitionContext &p_ctx
-) {
+bool FMRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
   SCOPED_TIMER("FM");
 
   START_TIMER("Initialize gain cache");
@@ -246,15 +229,11 @@ bool FMRefiner::refine(
 
   // Create thread-local workers numbered 1..P
   std::atomic<int> next_id = 0;
-  tbb::enumerable_thread_specific<LocalizedFMRefiner> localized_fm_refiner_ets(
-      [&] {
-        // It is important that worker IDs start at 1, otherwise the node
-        // tracker won't work
-        return LocalizedFMRefiner(
-            ++next_id, p_ctx, *_fm_ctx, p_graph, *_shared
-        );
-      }
-  );
+  tbb::enumerable_thread_specific<LocalizedFMRefiner> localized_fm_refiner_ets([&] {
+    // It is important that worker IDs start at 1, otherwise the node
+    // tracker won't work
+    return LocalizedFMRefiner(++next_id, p_ctx, *_fm_ctx, p_graph, *_shared);
+  });
 
   for (int iteration = 0; iteration < _fm_ctx->num_iterations; ++iteration) {
     // Gains of the current iterations
@@ -273,33 +252,27 @@ bool FMRefiner::refine(
     _shared->border_nodes.shuffle();
     STOP_TIMER();
 
-    DBG << "Starting FM iteration " << iteration << " with "
-        << _shared->border_nodes.size() << " border nodes and "
-        << tbb::this_task_arena::max_concurrency() << " worker threads";
+    DBG << "Starting FM iteration " << iteration << " with " << _shared->border_nodes.size()
+        << " border nodes and " << tbb::this_task_arena::max_concurrency() << " worker threads";
 
     // Start one worker per thread
     START_TIMER("Localized searches");
-    tbb::parallel_for<int>(
-        0,
-        tbb::this_task_arena::max_concurrency(),
-        [&](int) {
-          EdgeWeight &expected_gain = expected_gain_ets.local();
-          LocalizedFMRefiner &localized_refiner =
-              localized_fm_refiner_ets.local();
+    tbb::parallel_for<int>(0, tbb::this_task_arena::max_concurrency(), [&](int) {
+      EdgeWeight &expected_gain = expected_gain_ets.local();
+      LocalizedFMRefiner &localized_refiner = localized_fm_refiner_ets.local();
 
-          // The workers attempt to extract seed nodes from the border nodes
-          // that are still available, continuing this process until there are
-          // no more border nodes
-          NodeID num_batches = 0;
-          while (_shared->border_nodes.has_more()) {
-            IFDBG(++num_batches);
-            expected_gain += localized_refiner.run_batch();
-          }
+      // The workers attempt to extract seed nodes from the border nodes
+      // that are still available, continuing this process until there are
+      // no more border nodes
+      NodeID num_batches = 0;
+      while (_shared->border_nodes.has_more()) {
+        IFDBG(++num_batches);
+        expected_gain += localized_refiner.run_batch();
+      }
 
-          // DBG << "CPU " << sched_getcpu() << " ran " << num_batches
-          //     << " batches";
-        }
-    );
+      // DBG << "CPU " << sched_getcpu() << " ran " << num_batches
+      //     << " batches";
+    });
     STOP_TIMER();
 
     // Abort early if the expected cut improvement falls below the abortion
@@ -311,14 +284,12 @@ bool FMRefiner::refine(
     const EdgeWeight expected_current_cut = initial_cut - total_expected_gain;
     const EdgeWeight abortion_threshold =
         expected_current_cut * _fm_ctx->improvement_abortion_threshold;
-    DBG << "Expected total gain after iteration " << iteration << ": "
-        << expected_gain << ", total actual gain so far: "
-        << initial_cut - metrics::edge_cut(p_graph) << ": current gain is "
-        << metrics::edge_cut(p_graph);
+    DBG << "Expected total gain after iteration " << iteration << ": " << expected_gain
+        << ", total actual gain so far: " << initial_cut - metrics::edge_cut(p_graph)
+        << ": current gain is " << metrics::edge_cut(p_graph);
 
     if (expected_gain <= abortion_threshold) {
-      DBG << "Aborting because expected gain is below threshold "
-          << abortion_threshold;
+      DBG << "Aborting because expected gain is below threshold " << abortion_threshold;
       break;
     }
 
@@ -364,12 +335,11 @@ EdgeWeight LocalizedFMRefiner::run_batch() {
 
   // Poll seed nodes from the border node arrays
   std::vector<NodeID> seed_nodes;
-  _shared.border_nodes
-      .poll(_fm_ctx.num_seed_nodes, _id, [&](const NodeID seed_node) {
-        insert_into_node_pq(_p_graph, _shared.gain_cache, seed_node);
-        seed_nodes.push_back(seed_node);
-        IFSTATS(++stats.num_touched_nodes);
-      });
+  _shared.border_nodes.poll(_fm_ctx.num_seed_nodes, _id, [&](const NodeID seed_node) {
+    insert_into_node_pq(_p_graph, _shared.gain_cache, seed_node);
+    seed_nodes.push_back(seed_node);
+    IFSTATS(++stats.num_touched_nodes);
+  });
 
   // Keep track of the current (expected) gain to decide when to accept a
   // delta partition
@@ -384,8 +354,7 @@ EdgeWeight LocalizedFMRefiner::run_batch() {
     KASSERT(node < _p_graph.n());
 
     const EdgeWeight expected_gain = _node_pq[block_from].peek_key();
-    const auto [block_to, actual_gain] =
-        best_gain(_d_graph, _d_gain_cache, node);
+    const auto [block_to, actual_gain] = best_gain(_d_graph, _d_gain_cache, node);
 
     // If the gain got worse, reject the move and try again
     if (actual_gain < expected_gain) {
@@ -411,8 +380,7 @@ EdgeWeight LocalizedFMRefiner::run_batch() {
 
     // Accept the move if the target block does not get overloaded
     const NodeWeight node_weight = _p_graph.node_weight(node);
-    if (_d_graph.block_weight(block_to) + node_weight <=
-        _p_ctx.block_weights.max(block_to)) {
+    if (_d_graph.block_weight(block_to) + node_weight <= _p_ctx.block_weights.max(block_to)) {
 
       // Perform local move
       _d_graph.set_block(node, block_to);
@@ -428,9 +396,7 @@ EdgeWeight LocalizedFMRefiner::run_batch() {
 
         // Update global graph and global gain cache
         for (const auto &[moved_node, moved_to] : _d_graph.delta()) {
-          _shared.gain_cache.move(
-              _p_graph, moved_node, _p_graph.block(moved_node), moved_to
-          );
+          _shared.gain_cache.move(_p_graph, moved_node, _p_graph.block(moved_node), moved_to);
           _p_graph.set_block(moved_node, moved_to);
           IFSTATS(++stats.num_committed_moves);
         }
@@ -493,10 +459,7 @@ EdgeWeight LocalizedFMRefiner::run_batch() {
 }
 
 void LocalizedFMRefiner::update_after_move(
-    const NodeID node,
-    const NodeID moved_node,
-    const BlockID moved_from,
-    const BlockID moved_to
+    const NodeID node, const NodeID moved_node, const BlockID moved_from, const BlockID moved_to
 ) {
   // KASSERT(_d_graph.block(node) == _p_graph.block(node));
   const BlockID old_block = _p_graph.block(node);
@@ -511,15 +474,13 @@ void LocalizedFMRefiner::update_after_move(
           node, _d_gain_cache.gain(node, old_block, old_target_block)
       );
     } else {
-      const auto [new_target_block, new_gain] =
-          best_gain(_d_graph, _d_gain_cache, node);
+      const auto [new_target_block, new_gain] = best_gain(_d_graph, _d_gain_cache, node);
       _shared.target_blocks[node] = new_target_block;
       _node_pq[old_block].change_priority(node, new_gain);
     }
   } else if (moved_from == old_target_block) {
     // old_target_block go worse, thus have to re-consider all other blocks
-    const auto [new_target_block, new_gain] =
-        best_gain(_d_graph, _d_gain_cache, node);
+    const auto [new_target_block, new_gain] = best_gain(_d_graph, _d_gain_cache, node);
     _shared.target_blocks[node] = new_target_block;
     _node_pq[old_block].change_priority(node, new_gain);
   } else if (moved_to == old_block) {
@@ -531,10 +492,8 @@ void LocalizedFMRefiner::update_after_move(
     );
   } else {
     // old_target_block OR moved_to is best
-    const EdgeWeight gain_old_target_block =
-        _d_gain_cache.gain(node, old_block, old_target_block);
-    const EdgeWeight gain_moved_to =
-        _d_gain_cache.gain(node, old_block, moved_to);
+    const EdgeWeight gain_old_target_block = _d_gain_cache.gain(node, old_block, old_target_block);
+    const EdgeWeight gain_moved_to = _d_gain_cache.gain(node, old_block, moved_to);
 
     if (gain_moved_to > gain_old_target_block &&
         _d_graph.block_weight(moved_to) + _d_graph.node_weight(node) <=
@@ -587,9 +546,7 @@ bool LocalizedFMRefiner::update_block_pq() {
 
 template <typename PartitionedGraphType, typename GainCacheType>
 void LocalizedFMRefiner::insert_into_node_pq(
-    const PartitionedGraphType &p_graph,
-    const GainCacheType &gain_cache,
-    const NodeID u
+    const PartitionedGraphType &p_graph, const GainCacheType &gain_cache, const NodeID u
 ) {
   const BlockID block_u = p_graph.block(u);
   const auto [block_to, gain] = best_gain(p_graph, gain_cache, u);
@@ -600,9 +557,7 @@ void LocalizedFMRefiner::insert_into_node_pq(
 
 template <typename PartitionedGraphType, typename GainCacheType>
 std::pair<BlockID, EdgeWeight> LocalizedFMRefiner::best_gain(
-    const PartitionedGraphType &p_graph,
-    const GainCacheType &gain_cache,
-    const NodeID u
+    const PartitionedGraphType &p_graph, const GainCacheType &gain_cache, const NodeID u
 ) {
   const BlockID block_u = p_graph.block(u);
   const NodeWeight weight_u = p_graph.node_weight(u);
@@ -618,19 +573,17 @@ std::pair<BlockID, EdgeWeight> LocalizedFMRefiner::best_gain(
       continue;
     }
 
-    const NodeWeight target_block_weight =
-        p_graph.block_weight(block) + weight_u;
+    const NodeWeight target_block_weight = p_graph.block_weight(block) + weight_u;
     const NodeWeight max_block_weight = _p_ctx.block_weights.max(block);
     const NodeWeight block_weight_gap = max_block_weight - target_block_weight;
 
-    if (block_weight_gap < best_target_block_weight_gap &&
-        block_weight_gap < 0) {
+    if (block_weight_gap < best_target_block_weight_gap && block_weight_gap < 0) {
       continue;
     }
 
     const EdgeWeight gain = gain_cache.gain(u, block_u, block);
-    if (gain > best_gain || (gain == best_gain &&
-                             block_weight_gap > best_target_block_weight_gap)) {
+    if (gain > best_gain ||
+        (gain == best_gain && block_weight_gap > best_target_block_weight_gap)) {
       best_gain = gain;
       best_target_block = block;
       best_target_block_weight_gap = block_weight_gap;
@@ -640,4 +593,3 @@ std::pair<BlockID, EdgeWeight> LocalizedFMRefiner::best_gain(
   return {best_target_block, best_gain};
 }
 } // namespace kaminpar::shm
-

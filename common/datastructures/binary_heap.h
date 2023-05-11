@@ -62,8 +62,7 @@ template <typename Key> struct min_heap_comparator {
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-template <typename Key, template <typename> typename Comparator>
-class SharedBinaryHeap {
+template <typename Key, template <typename> typename Comparator> class SharedBinaryHeap {
   using ID = std::size_t;
   static constexpr std::size_t kTreeArity = 4;
 
@@ -217,8 +216,7 @@ private:
       }
 
       std::size_t smallest_child = first_child;
-      for (std::size_t c = first_child + 1;
-           c < std::min(kTreeArity * pos + kTreeArity + 1, size());
+      for (std::size_t c = first_child + 1; c < std::min(kTreeArity * pos + kTreeArity + 1, size());
            ++c) {
         if (_comparator(_heap[smallest_child].key, _heap[c].key)) {
           smallest_child = c;
@@ -243,12 +241,10 @@ private:
 };
 
 template <typename Key>
-using SharedBinaryMaxHeap =
-    SharedBinaryHeap<Key, binary_heap::max_heap_comparator>;
+using SharedBinaryMaxHeap = SharedBinaryHeap<Key, binary_heap::max_heap_comparator>;
 
 template <typename Key>
-using SharedBinaryMinHeap =
-    SharedBinaryHeap<Key, binary_heap::min_heap_comparator>;
+using SharedBinaryMinHeap = SharedBinaryHeap<Key, binary_heap::min_heap_comparator>;
 
 //! Addressable binary heap with fixed capacity.
 /*
@@ -278,8 +274,7 @@ using SharedBinaryMinHeap =
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-template <typename Key, template <typename> typename Comparator>
-class BinaryHeap {
+template <typename Key, template <typename> typename Comparator> class BinaryHeap {
   using ID = std::size_t;
 
   static constexpr ID kInvalidID = std::numeric_limits<ID>::max();
@@ -411,8 +406,7 @@ public:
   }
 
   [[nodiscard]] std::size_t memory_in_kb() const {
-    return _id_pos.size() * sizeof(std::size_t) / 1000 +
-           _heap.size() * sizeof(HeapElement) / 1000;
+    return _id_pos.size() * sizeof(std::size_t) / 1000 + _heap.size() * sizeof(HeapElement) / 1000;
   }
 
 private:
@@ -441,8 +435,7 @@ private:
         return;
 
       std::size_t smallest_child = first_child;
-      for (std::size_t c = first_child + 1;
-           c < std::min(kTreeArity * pos + kTreeArity + 1, _size);
+      for (std::size_t c = first_child + 1; c < std::min(kTreeArity * pos + kTreeArity + 1, _size);
            ++c) {
         if (_comparator(_heap[smallest_child].key, _heap[c].key)) {
           smallest_child = c;
@@ -466,11 +459,9 @@ private:
   Comparator<Key> _comparator{};
 };
 
-template <typename Key>
-using BinaryMaxHeap = BinaryHeap<Key, binary_heap::max_heap_comparator>;
+template <typename Key> using BinaryMaxHeap = BinaryHeap<Key, binary_heap::max_heap_comparator>;
 
-template <typename Key>
-using BinaryMinHeap = BinaryHeap<Key, binary_heap::min_heap_comparator>;
+template <typename Key> using BinaryMinHeap = BinaryHeap<Key, binary_heap::min_heap_comparator>;
 
 template <typename ID, typename Key, template <typename> typename Comparator>
 class DynamicBinaryForest {
@@ -483,9 +474,7 @@ public:
     Key key;
   };
 
-  explicit DynamicBinaryForest(
-      const std::size_t capacity, const std::size_t heaps
-  )
+  explicit DynamicBinaryForest(const std::size_t capacity, const std::size_t heaps)
       : _id_pos(capacity, kInvalidID),
         _heaps(heaps) {}
   DynamicBinaryForest(const DynamicBinaryForest &) = delete;
@@ -531,9 +520,7 @@ public:
     sift_down(heap, 0);
   }
 
-  void push_or_change_priority(
-      const std::size_t heap, const ID id, const Key &new_key
-  ) {
+  void push_or_change_priority(const std::size_t heap, const ID id, const Key &new_key) {
     if (contains(heap, id)) {
       change_priority(heap, id, new_key);
     } else {
@@ -541,8 +528,7 @@ public:
     }
   }
 
-  void
-  change_priority(const std::size_t heap, const ID id, const Key &new_key) {
+  void change_priority(const std::size_t heap, const ID id, const Key &new_key) {
     const Key &old_key = key(heap, id);
     if (_comparator(new_key, old_key)) {
       increase_priority(heap, id, new_key);
@@ -555,16 +541,14 @@ public:
   // e.g., decreasing an integral key in a BinaryMinHeap *increases* its
   // priority hence, *increase_priority* must be called instead of
   // decrease_priority
-  void
-  decrease_priority(const std::size_t heap, const ID id, const Key &new_key) {
+  void decrease_priority(const std::size_t heap, const ID id, const Key &new_key) {
     KASSERT(contains(id));
     KASSERT(_comparator(key(heap, id), new_key));
     _heaps[heap][_id_pos[id]].key = new_key;
     sift_up(heap, _id_pos[id]);
   }
 
-  void
-  increase_priority(const std::size_t heap, const ID id, const Key &new_key) {
+  void increase_priority(const std::size_t heap, const ID id, const Key &new_key) {
     KASSERT(contains(id));
     KASSERT(_comparator(new_key, key(heap, id)));
     _heaps[heap][_id_pos[id]].key = new_key;
@@ -627,16 +611,12 @@ private:
       for (std::size_t c = first_child + 1;
            c < std::min(kTreeArity * pos + kTreeArity + 1, size(heap));
            ++c) {
-        if (_comparator(
-                _heaps[heap][smallest_child].key, _heaps[heap][c].key
-            )) {
+        if (_comparator(_heaps[heap][smallest_child].key, _heaps[heap][c].key)) {
           smallest_child = c;
         }
       }
 
-      if (_comparator(
-              _heaps[heap][smallest_child].key, _heaps[heap][pos].key
-          ) ||
+      if (_comparator(_heaps[heap][smallest_child].key, _heaps[heap][pos].key) ||
           _heaps[heap][smallest_child].key == _heaps[heap][pos].key) {
         return;
       }
@@ -657,12 +637,10 @@ private:
 };
 
 template <typename ID, typename Key>
-using DynamicBinaryMaxForest =
-    DynamicBinaryForest<ID, Key, binary_heap::max_heap_comparator>;
+using DynamicBinaryMaxForest = DynamicBinaryForest<ID, Key, binary_heap::max_heap_comparator>;
 
 template <typename ID, typename Key>
-using DynamicBinaryMinForest =
-    DynamicBinaryForest<ID, Key, binary_heap::min_heap_comparator>;
+using DynamicBinaryMinForest = DynamicBinaryForest<ID, Key, binary_heap::min_heap_comparator>;
 
 template <typename ID, typename Key> class DynamicBinaryMinMaxForest {
 public:
@@ -672,10 +650,8 @@ public:
 
   DynamicBinaryMinMaxForest(const DynamicBinaryMinMaxForest &) = delete;
   DynamicBinaryMinMaxForest(DynamicBinaryMinMaxForest &&) noexcept = default;
-  DynamicBinaryMinMaxForest &
-  operator=(const DynamicBinaryMinMaxForest &) = delete;
-  DynamicBinaryMinMaxForest &
-  operator=(DynamicBinaryMinMaxForest &&) noexcept = default;
+  DynamicBinaryMinMaxForest &operator=(const DynamicBinaryMinMaxForest &) = delete;
+  DynamicBinaryMinMaxForest &operator=(DynamicBinaryMinMaxForest &&) noexcept = default;
 
   std::size_t capacity() const {
     return _max_forest.capacity();
@@ -825,8 +801,7 @@ private:
         return;
 
       std::size_t smallest_child = first_child;
-      for (std::size_t c = first_child + 1;
-           c < std::min(kTreeArity * pos + kTreeArity + 1, size());
+      for (std::size_t c = first_child + 1; c < std::min(kTreeArity * pos + kTreeArity + 1, size());
            ++c) {
         if (_comparator(_heap[smallest_child].key, _heap[c].key)) {
           smallest_child = c;
@@ -848,10 +823,8 @@ private:
 };
 
 template <typename ID, typename Key>
-using DynamicBinaryMaxHeap =
-    DynamicBinaryHeap<ID, Key, binary_heap::max_heap_comparator>;
+using DynamicBinaryMaxHeap = DynamicBinaryHeap<ID, Key, binary_heap::max_heap_comparator>;
 
 template <typename ID, typename Key>
-using DynamicBinaryMinHeap =
-    DynamicBinaryHeap<ID, Key, binary_heap::min_heap_comparator>;
+using DynamicBinaryMinHeap = DynamicBinaryHeap<ID, Key, binary_heap::min_heap_comparator>;
 } // namespace kaminpar

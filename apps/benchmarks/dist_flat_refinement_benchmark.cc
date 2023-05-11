@@ -36,18 +36,12 @@ int main(int argc, char *argv[]) {
   std::string partition_filename = "";
   Context ctx = create_default_context();
   CLI::App app("Distributed Flat Refinement Benchmark");
-  app.add_option("-G,--graph", graph_filename, "Input graph")
-      ->check(CLI::ExistingFile)
-      ->required();
+  app.add_option("-G,--graph", graph_filename, "Input graph")->check(CLI::ExistingFile)->required();
   app.add_option("-P,--partition", partition_filename, "Partition filename")
       ->check(CLI::ExistingFile)
       ->required();
   app.add_option("-k,--k", ctx.partition.k, "Number of blocks")->required();
-  app.add_option(
-      "-t,--threads",
-      ctx.parallel.num_threads,
-      "Number of threads per MPI process"
-  );
+  app.add_option("-t,--threads", ctx.parallel.num_threads, "Number of threads per MPI process");
   create_all_options(&app, ctx);
   CLI11_PARSE(app, argc, argv);
 
@@ -59,12 +53,9 @@ int main(int argc, char *argv[]) {
    * Load graph and rearrange graph
    */
   LOG << "Reading graph from " << graph_filename << " ...";
-  auto graph = dist::io::read_graph(
-      graph_filename, dist::io::DistributionType::NODE_BALANCED
-  );
+  auto graph = dist::io::read_graph(graph_filename, dist::io::DistributionType::NODE_BALANCED);
   ctx.setup(graph);
-  LOG << "Loaded graph with " << graph.global_n() << " nodes and "
-      << graph.global_m() << " edges";
+  LOG << "Loaded graph with " << graph.global_n() << " nodes and " << graph.global_m() << " edges";
   graph = graph::rearrange(std::move(graph), ctx);
 
   LOG << "Reading partition from " << partition_filename << " ...";

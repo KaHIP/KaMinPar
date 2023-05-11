@@ -21,9 +21,8 @@ TEST(ParallelContractionTest, ContractingToSingleNodeWorks) {
   Graph graph{graphs::grid(GRID_LENGTH, GRID_LENGTH)};
 
   for (const NodeID cluster : {0, 1, 2, 3}) {
-    auto [c_graph, c_mapping, m_ctx] = graph::contract(
-        graph, scalable_vector<NodeID>{cluster, cluster, cluster, cluster}
-    );
+    auto [c_graph, c_mapping, m_ctx] =
+        graph::contract(graph, scalable_vector<NodeID>{cluster, cluster, cluster, cluster});
     EXPECT_THAT(c_graph.n(), 1);
     EXPECT_THAT(c_graph.m(), 0);
     EXPECT_THAT(c_graph.node_weight(0), graph.total_node_weight());
@@ -38,8 +37,7 @@ TEST(ParallelContractionTest, ContractingToSingletonsWorks) {
   graph = change_node_weight(std::move(graph), 2, 3);
   graph = change_node_weight(std::move(graph), 3, 4);
 
-  auto [c_graph, c_mapping, m_ctx] =
-      graph::contract(graph, scalable_vector<NodeID>{0, 1, 2, 3});
+  auto [c_graph, c_mapping, m_ctx] = graph::contract(graph, scalable_vector<NodeID>{0, 1, 2, 3});
   EXPECT_THAT(c_graph.n(), graph.n());
   EXPECT_THAT(c_graph.m(), graph.m());
   EXPECT_THAT(c_graph.total_node_weight(), graph.total_node_weight());
@@ -58,8 +56,7 @@ TEST(ParallelContractionTest, ContractingAllNodesButOneWorks) {
   // 0--1
   // |  |
   // 2--3
-  auto [c_graph, c_mapping, m_ctx] =
-      graph::contract(graph, scalable_vector<NodeID>{0, 1, 1, 1});
+  auto [c_graph, c_mapping, m_ctx] = graph::contract(graph, scalable_vector<NodeID>{0, 1, 1, 1});
   EXPECT_THAT(c_graph.n(), 2);
   EXPECT_THAT(c_graph.m(), 2); // one undirected edge
   EXPECT_THAT(c_graph.total_node_weight(), graph.total_node_weight());
@@ -91,8 +88,7 @@ TEST(ParallelContractionTest, ContractingGridHorizontallyWorks) {
 }
 
 TEST(ParallelContractionTest, ContractingGridVerticallyWorks) {
-  Graph graph{
-      graphs::grid(4, 2)}; // four columns, two rows, organized row by row
+  Graph graph{graphs::grid(4, 2)}; // four columns, two rows, organized row by row
   graph = change_node_weight(std::move(graph), 0, 1);
   graph = change_node_weight(std::move(graph), 1, 10);
   graph = change_node_weight(std::move(graph), 2, 2);
@@ -124,8 +120,7 @@ TEST(GraphPermutationTest, PermutationByNodeDegreeIsCorrect) {
   // 1-2-0
   //   |/
   //   4
-  const StaticArray<EdgeID> nodes =
-      create_static_array<EdgeID>({0, 2, 3, 7, 8, 10, 10});
+  const StaticArray<EdgeID> nodes = create_static_array<EdgeID>({0, 2, 3, 7, 8, 10, 10});
 
   const auto permutations = graph::sort_by_degree_buckets(nodes);
   const auto &permutation = permutations.old_to_new;
@@ -163,8 +158,7 @@ TEST(GraphPermutationTest, MovingIsolatedNodesToBackWorks) {
 //
 
 TEST(
-    PreprocessingTest,
-    PreprocessingFacadeRemovesIsolatedNodesAndAdaptsEpsilonFromUnweightedGraph
+    PreprocessingTest, PreprocessingFacadeRemovesIsolatedNodesAndAdaptsEpsilonFromUnweightedGraph
 ) {
   /* 0
    * 1--2--3        *--*--*
@@ -173,8 +167,7 @@ TEST(
    * 7--8  9        *--*--*
    * 10    11
    */
-  auto nodes =
-      create_static_array<EdgeID>({0, 0, 1, 3, 4, 5, 5, 5, 7, 8, 8, 8, 8});
+  auto nodes = create_static_array<EdgeID>({0, 0, 1, 3, 4, 5, 5, 5, 7, 8, 8, 8, 8});
   auto edges = create_static_array<NodeID>({2, 1, 3, 2, 7, 4, 8, 7});
   auto node_weights = create_static_array<NodeWeight>({});
   auto edge_weights = create_static_array<EdgeWeight>({});
@@ -203,9 +196,7 @@ TEST(SequentialGraphExtraction, SimpleSequentialBipartitionExtractionWorks) {
   // 0--1--2     block 0
   //-|--|--
   // 3--4--5     block 1
-  Graph graph{create_graph(
-      {0, 2, 5, 6, 8, 11, 12}, {1, 3, 0, 4, 2, 1, 0, 4, 3, 1, 5, 4}
-  )};
+  Graph graph{create_graph({0, 2, 5, 6, 8, 11, 12}, {1, 3, 0, 4, 2, 1, 0, 4, 3, 1, 5, 4})};
   PartitionedGraph p_graph{create_p_graph(graph, 2, {0, 0, 0, 1, 1, 1})};
 
   graph::SubgraphMemory memory{p_graph};

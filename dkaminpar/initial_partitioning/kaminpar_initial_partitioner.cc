@@ -20,10 +20,7 @@ shm::PartitionedGraph KaMinParInitialPartitioner::initial_partition(
 ) {
   if (graph.n() <= 1) {
     return shm::PartitionedGraph(
-        graph,
-        p_ctx.k,
-        StaticArray<BlockID>(graph.n()),
-        std::vector<BlockID>(p_ctx.k, 1)
+        graph, p_ctx.k, StaticArray<BlockID>(graph.n()), std::vector<BlockID>(p_ctx.k, 1)
     );
   }
 

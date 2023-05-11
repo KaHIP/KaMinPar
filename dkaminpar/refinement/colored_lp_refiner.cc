@@ -69,31 +69,23 @@ void ColoredLPRefiner::initialize(const DistributedGraph &graph) {
     );
   }();
 
-  const ColorID num_local_colors =
-      *std::max_element(coloring.begin(), coloring.end()) + 1;
-  const ColorID num_colors =
-      mpi::allreduce(num_local_colors, MPI_MAX, graph.communicator());
+  const ColorID num_local_colors = *std::max_element(coloring.begin(), coloring.end()) + 1;
+  const ColorID num_colors = mpi::allreduce(num_local_colors, MPI_MAX, graph.communicator());
   STATS << "Number of colors: " << num_colors;
 
   TIMED_SCOPE("Allocation") {
     _color_sorted_nodes.resize(graph.n());
     _color_sizes.resize(num_colors + 1);
     _color_blacklist.resize(num_colors);
-    tbb::parallel_for<std::size_t>(
-        0,
-        _color_sorted_nodes.size(),
-        [&](const std::size_t i) { _color_sorted_nodes[i] = 0; }
-    );
-    tbb::parallel_for<std::size_t>(
-        0,
-        _color_sizes.size(),
-        [&](const std::size_t i) { _color_sizes[i] = 0; }
-    );
-    tbb::parallel_for<std::size_t>(
-        0,
-        _color_blacklist.size(),
-        [&](const std::size_t i) { _color_blacklist[i] = 0; }
-    );
+    tbb::parallel_for<std::size_t>(0, _color_sorted_nodes.size(), [&](const std::size_t i) {
+      _color_sorted_nodes[i] = 0;
+    });
+    tbb::parallel_for<std::size_t>(0, _color_sizes.size(), [&](const std::size_t i) {
+      _color_sizes[i] = 0;
+    });
+    tbb::parallel_for<std::size_t>(0, _color_blacklist.size(), [&](const std::size_t i) {
+      _color_blacklist[i] = 0;
+    });
 
     if (_ctx.use_active_set) {
       _is_active.resize(graph.total_n());
@@ -111,9 +103,7 @@ void ColoredLPRefiner::initialize(const DistributedGraph &graph) {
         KASSERT(c < num_colors);
         __atomic_fetch_add(&_color_sizes[c], 1, __ATOMIC_RELAXED);
       });
-      parallel::prefix_sum(
-          _color_sizes.begin(), _color_sizes.end(), _color_sizes.begin()
-      );
+      parallel::prefix_sum(_color_sizes.begin(), _color_sizes.end(), _color_sizes.begin());
     }
   };
 
@@ -124,8 +114,7 @@ void ColoredLPRefiner::initialize(const DistributedGraph &graph) {
     } else {
       graph.pfor_nodes([&](const NodeID u) {
         const ColorID c = coloring[u];
-        const std::size_t i =
-            __atomic_sub_fetch(&_color_sizes[c], 1, __ATOMIC_SEQ_CST);
+        const std::size_t i = __atomic_sub_fetch(&_color_sizes[c], 1, __ATOMIC_SEQ_CST);
         KASSERT(i < _color_sorted_nodes.size());
         _color_sorted_nodes[i] = u;
       });
@@ -134,8 +123,8 @@ void ColoredLPRefiner::initialize(const DistributedGraph &graph) {
 
   TIMED_SCOPE("Compute color blacklist") {
     if (_ctx.small_color_blacklist == 0 ||
-        (_ctx.only_blacklist_input_level &&
-         graph.global_n() != _input_ctx.partition.graph->global_n)) {
+        (_ctx.only_blacklist_input_level && graph.global_n() != _input_ctx.partition.graph->global_n
+        )) {
       STATS << "Do not blacklist any colors";
       return;
     }
@@ -182,9 +171,7 @@ void ColoredLPRefiner::initialize(const DistributedGraph &graph) {
   IFSTATS(_gain_statistics.initialize(num_colors));
 }
 
-void ColoredLPRefiner::refine(
-    DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx
-) {
+void ColoredLPRefiner::refine(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) {
   mpi::barrier(p_graph.communicator());
 
   SCOPED_TIMER("Colored LP refinement");
@@ -206,12 +193,9 @@ void ColoredLPRefiner::refine(
       });
     }
 
-    if (_ctx.track_local_block_weights &&
-        _block_weight_deltas.size() < _p_ctx->k) {
+    if (_ctx.track_local_block_weights && _block_weight_deltas.size() < _p_ctx->k) {
       _block_weight_deltas.resize(_p_ctx->k);
-      _p_graph->pfor_blocks([&](const BlockID b) {
-        _block_weight_deltas[b] = 0;
-      });
+      _p_graph->pfor_blocks([&](const BlockID b) { _block_weight_deltas[b] = 0; });
     }
   };
 
@@ -243,9 +227,7 @@ void ColoredLPRefiner::refine(
         _next_partition[seq_u] = _p_graph->block(u);
       });
       if (_ctx.track_local_block_weights) {
-        _p_graph->pfor_blocks([&](const BlockID b) {
-          _block_weight_deltas[b] = 0;
-        });
+        _p_graph->pfor_blocks([&](const BlockID b) { _block_weight_deltas[b] = 0; });
       }
     }
 
@@ -267,8 +249,8 @@ void ColoredLPRefiner::refine(
         _p_graph->communicator()
     ));
 
-    STATS << "Iteration " << iter << ": found " << num_found_moves
-          << " moves, performed " << num_performed_moves << " moves";
+    STATS << "Iteration " << iter << ": found " << num_found_moves << " moves, performed "
+          << num_performed_moves << " moves";
 
     /*
     const EdgeWeight current_cut       = IFSTATS(metrics::edge_cut(*_p_graph));
@@ -284,9 +266,7 @@ void ColoredLPRefiner::refine(
     }
   }
 
-  IFSTATS(
-      _gain_statistics.summarize_by_size(_color_sizes, _p_graph->communicator())
-  );
+  IFSTATS(_gain_statistics.summarize_by_size(_color_sizes, _p_graph->communicator()));
   mpi::barrier(_p_graph->communicator());
 }
 
@@ -332,11 +312,9 @@ NodeID ColoredLPRefiner::perform_best_moves(const ColorID c) {
 
   // reduce_move_candidates requires candidates to be sorted by their `from`
   // block
-  std::sort(
-      move_candidates.begin(),
-      move_candidates.end(),
-      [](const auto &lhs, const auto &rhs) { return lhs.from < rhs.from; }
-  );
+  std::sort(move_candidates.begin(), move_candidates.end(), [](const auto &lhs, const auto &rhs) {
+    return lhs.from < rhs.from;
+  });
 
   // Binary reduction tree to find the best candidates for each block, globally
   move_candidates = reduce_move_candidates(std::move(move_candidates));
@@ -345,10 +323,7 @@ NodeID ColoredLPRefiner::perform_best_moves(const ColorID c) {
       mpi::bcast(move_candidates.size(), 0, _p_graph->communicator());
   move_candidates.resize(num_candidates); // No effect on PE 0 == root
   mpi::bcast(
-      move_candidates.data(),
-      asserting_cast<int>(num_candidates),
-      0,
-      _p_graph->communicator()
+      move_candidates.data(), asserting_cast<int>(num_candidates), 0, _p_graph->communicator()
   );
 
   // Move nodes
@@ -373,8 +348,7 @@ NodeID ColoredLPRefiner::perform_best_moves(const ColorID c) {
         candidate.to, _p_graph->block_weight(candidate.to) + candidate.weight
     );
     _p_graph->set_block_weight(
-        candidate.from,
-        _p_graph->block_weight(candidate.from) - candidate.weight
+        candidate.from, _p_graph->block_weight(candidate.from) - candidate.weight
     );
 
 #if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
@@ -398,14 +372,11 @@ NodeID ColoredLPRefiner::perform_best_moves(const ColorID c) {
   return num_local_moved_nodes;
 }
 
-auto ColoredLPRefiner::reduce_move_candidates(
-    std::vector<MoveCandidate> &&candidates
-) -> std::vector<MoveCandidate> {
+auto ColoredLPRefiner::reduce_move_candidates(std::vector<MoveCandidate> &&candidates)
+    -> std::vector<MoveCandidate> {
   const int size = mpi::get_comm_size(_p_graph->communicator());
   const int rank = mpi::get_comm_rank(_p_graph->communicator());
-  KASSERT(
-      math::is_power_of_2(size), "#PE must be a power of two", assert::always
-  );
+  KASSERT(math::is_power_of_2(size), "#PE must be a power of two", assert::always);
 
   int active_size = size;
   while (active_size > 1) {
@@ -415,22 +386,14 @@ auto ColoredLPRefiner::reduce_move_candidates(
 
     if (role) {
       const PEID dest = rank - active_size / 2;
-      mpi::send(
-          candidates.data(),
-          candidates.size(),
-          dest,
-          0,
-          _p_graph->communicator()
-      );
+      mpi::send(candidates.data(), candidates.size(), dest, 0, _p_graph->communicator());
       break;
     } else {
       const PEID src = rank + active_size / 2;
-      auto tmp_buffer =
-          mpi::probe_recv<MoveCandidate, std::vector<MoveCandidate>>(
-              src, 0, _p_graph->communicator()
-          );
-      candidates =
-          reduce_move_candidates(std::move(candidates), std::move(tmp_buffer));
+      auto tmp_buffer = mpi::probe_recv<MoveCandidate, std::vector<MoveCandidate>>(
+          src, 0, _p_graph->communicator()
+      );
+      candidates = reduce_move_candidates(std::move(candidates), std::move(tmp_buffer));
     }
 
     active_size /= 2;
@@ -459,14 +422,11 @@ auto ColoredLPRefiner::reduce_move_candidates(
   std::size_t j = 0; // index in b
 
   // Reset _block_weight_deltas
-  tbb::parallel_for<BlockID>(0, _p_ctx->k, [&](const BlockID b) {
-    _block_weight_deltas[b] = 0;
-  });
+  tbb::parallel_for<BlockID>(0, _p_ctx->k, [&](const BlockID b) { _block_weight_deltas[b] = 0; });
 
-  auto try_add_candidate = [&](std::vector<MoveCandidate> &ans,
-                               const MoveCandidate &candidate) {
-    if (_p_graph->block_weight(candidate.to) +
-            _block_weight_deltas[candidate.to] + candidate.weight <=
+  auto try_add_candidate = [&](std::vector<MoveCandidate> &ans, const MoveCandidate &candidate) {
+    if (_p_graph->block_weight(candidate.to) + _block_weight_deltas[candidate.to] +
+            candidate.weight <=
         _p_ctx->graph->max_block_weight(candidate.to)) {
       ans.push_back(candidate);
       _block_weight_deltas[candidate.to] += candidate.weight;
@@ -497,25 +457,15 @@ auto ColoredLPRefiner::reduce_move_candidates(
     std::copy(b.begin() + j, b.begin() + j_end, candidates.begin() + num_in_a);
 
     if (_ctx.sort_by_rel_gain) {
-      std::sort(
-          candidates.begin(),
-          candidates.end(),
-          [&](const auto &lhs, const auto &rhs) {
-            const double lhs_rel_gain = 1.0 * lhs.gain / lhs.weight;
-            const double rhs_rel_gain = 1.0 * rhs.gain / rhs.weight;
-            return lhs_rel_gain > rhs_rel_gain ||
-                   (lhs_rel_gain == rhs_rel_gain && lhs.node > rhs.node);
-          }
-      );
+      std::sort(candidates.begin(), candidates.end(), [&](const auto &lhs, const auto &rhs) {
+        const double lhs_rel_gain = 1.0 * lhs.gain / lhs.weight;
+        const double rhs_rel_gain = 1.0 * rhs.gain / rhs.weight;
+        return lhs_rel_gain > rhs_rel_gain || (lhs_rel_gain == rhs_rel_gain && lhs.node > rhs.node);
+      });
     } else {
-      std::sort(
-          candidates.begin(),
-          candidates.end(),
-          [&](const auto &lhs, const auto &rhs) {
-            return lhs.gain > rhs.gain ||
-                   (lhs.gain == rhs.gain && lhs.node > rhs.node);
-          }
-      );
+      std::sort(candidates.begin(), candidates.end(), [&](const auto &lhs, const auto &rhs) {
+        return lhs.gain > rhs.gain || (lhs.gain == rhs.gain && lhs.node > rhs.node);
+      });
     }
 
     for (NodeID candidate = 0; candidate < candidates.size(); ++candidate) {
@@ -584,9 +534,7 @@ NodeID ColoredLPRefiner::perform_local_moves(const ColorID c) {
         _p_graph->communicator()
     );
     _p_graph->pfor_blocks([&](const BlockID b) {
-      _p_graph->set_block_weight(
-          b, _p_graph->block_weight(b) + _block_weight_deltas[b]
-      );
+      _p_graph->set_block_weight(b, _p_graph->block_weight(b) + _block_weight_deltas[b]);
     });
   };
 
@@ -599,8 +547,7 @@ NodeID ColoredLPRefiner::perform_probabilistic_moves(const ColorID c) {
   const NodeID seq_from = _color_sizes[c];
   const NodeID seq_to = _color_sizes[c + 1];
 
-  const auto block_gains =
-      TIMED_SCOPE("Gather block gain and block weight gain values") {
+  const auto block_gains = TIMED_SCOPE("Gather block gain and block weight gain values") {
     parallel::vector_ets<EdgeWeight> block_gains_ets(_p_ctx->k);
     parallel::vector_ets<BlockWeight> block_weight_gains_ets(_p_ctx->k);
 
@@ -644,14 +591,10 @@ NodeID ColoredLPRefiner::perform_probabilistic_moves(const ColorID c) {
   return num_performed_moves;
 }
 
-NodeID ColoredLPRefiner::try_probabilistic_moves(
-    const ColorID c, const BlockGainsContainer &block_gains
-) {
+NodeID
+ColoredLPRefiner::try_probabilistic_moves(const ColorID c, const BlockGainsContainer &block_gains) {
   struct Move {
-    Move(const NodeID seq_u, const NodeID u, const BlockID from)
-        : seq_u(seq_u),
-          u(u),
-          from(from) {}
+    Move(const NodeID seq_u, const NodeID u, const BlockID from) : seq_u(seq_u), u(u), from(from) {}
     NodeID seq_u;
     NodeID u;
     BlockID from;
@@ -664,9 +607,7 @@ NodeID ColoredLPRefiner::try_probabilistic_moves(
   // Track change in block weights to determine whether the partition became
   // imbalanced
   NoinitVector<BlockWeight> block_weight_deltas(_p_ctx->k);
-  tbb::parallel_for<BlockID>(0, _p_ctx->k, [&](const BlockID b) {
-    block_weight_deltas[b] = 0;
-  });
+  tbb::parallel_for<BlockID>(0, _p_ctx->k, [&](const BlockID b) { block_weight_deltas[b] = 0; });
 
   const NodeID seq_from = _color_sizes[c];
   const NodeID seq_to = _color_sizes[c + 1];
@@ -694,9 +635,8 @@ NodeID ColoredLPRefiner::try_probabilistic_moves(
       // Or always perform the move if move probabilities are disabled
       const BlockID to = _next_partition[seq_u];
       const double probability = [&] {
-        const double gain_prob = (block_gains[to] == 0)
-                                     ? 1.0
-                                     : 1.0 * _gains[seq_u] / block_gains[to];
+        const double gain_prob =
+            (block_gains[to] == 0) ? 1.0 : 1.0 * _gains[seq_u] / block_gains[to];
         const BlockWeight residual_block_weight =
             _p_ctx->graph->max_block_weight(to) - _p_graph->block_weight(to);
         return gain_prob * residual_block_weight / _p_graph->node_weight(u);
@@ -707,12 +647,8 @@ NodeID ColoredLPRefiner::try_probabilistic_moves(
         const NodeWeight u_weight = _p_graph->node_weight(u);
 
         moves.emplace_back(seq_u, u, from);
-        __atomic_fetch_sub(
-            &block_weight_deltas[from], u_weight, __ATOMIC_RELAXED
-        );
-        __atomic_fetch_add(
-            &block_weight_deltas[to], u_weight, __ATOMIC_RELAXED
-        );
+        __atomic_fetch_sub(&block_weight_deltas[from], u_weight, __ATOMIC_RELAXED);
+        __atomic_fetch_add(&block_weight_deltas[to], u_weight, __ATOMIC_RELAXED);
         _p_graph->set_block<false>(u, to);
         ++num_performed_moves;
 
@@ -726,8 +662,7 @@ NodeID ColoredLPRefiner::try_probabilistic_moves(
     }
   });
 
-  const NodeID num_performed_moves =
-      num_performed_moves_ets.combine(std::plus{});
+  const NodeID num_performed_moves = num_performed_moves_ets.combine(std::plus{});
 
   // Compute global block weights after moves
   MPI_Allreduce(
@@ -746,8 +681,7 @@ NodeID ColoredLPRefiner::try_probabilistic_moves(
     // feasible if their weight did not increase (i.e., delta is <= 0) == first
     // part of this if condition
     if (block_weight_deltas[b] > 0 &&
-        _p_graph->block_weight(b) + block_weight_deltas[b] >
-            _p_ctx->graph->max_block_weight(b)) {
+        _p_graph->block_weight(b) + block_weight_deltas[b] > _p_ctx->graph->max_block_weight(b)) {
       feasible = 0;
     }
   });
@@ -764,9 +698,7 @@ NodeID ColoredLPRefiner::try_probabilistic_moves(
   } else {
     synchronize_state(c);
     _p_graph->pfor_blocks([&](const BlockID b) {
-      _p_graph->set_block_weight(
-          b, _p_graph->block_weight(b) + block_weight_deltas[b]
-      );
+      _p_graph->set_block_weight(b, _p_graph->block_weight(b) + block_weight_deltas[b]);
     });
 
     // Revert mark in _next_partition[.] for next commit round
@@ -780,9 +712,7 @@ NodeID ColoredLPRefiner::try_probabilistic_moves(
     // Check that the partition improved as expected
 #if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
     const GlobalEdgeWeight global_expected_total_gain =
-        mpi::allreduce<GlobalEdgeWeight>(
-            total_gain, MPI_SUM, _p_graph->communicator()
-        );
+        mpi::allreduce<GlobalEdgeWeight>(total_gain, MPI_SUM, _p_graph->communicator());
     const GlobalEdgeWeight edge_cut_after = metrics::edge_cut(*_p_graph);
     KASSERT(
         edge_cut_before - edge_cut_after == global_expected_total_gain,
@@ -816,9 +746,7 @@ void ColoredLPRefiner::synchronize_state(const ColorID c) {
 
       // We set _next_partition[] to kInvalidBlockID for nodes that were moved
       // during perform_moves()
-      [&](const NodeID seq_u, NodeID) -> bool {
-        return _next_partition[seq_u] == kInvalidBlockID;
-      },
+      [&](const NodeID seq_u, NodeID) -> bool { return _next_partition[seq_u] == kInvalidBlockID; },
 
       // Send move to each ghost node adjacent to u
       [&](const NodeID seq_u, const NodeID u, PEID) -> MoveMessage {
@@ -836,14 +764,10 @@ void ColoredLPRefiner::synchronize_state(const ColorID c) {
             recv_buffer.size(),
             [&](const std::size_t i) {
               const auto [local_node_on_pe, new_block] = recv_buffer[i];
-              const GlobalNodeID global_node =
-                  _p_graph->offset_n(pe) + local_node_on_pe;
-              const NodeID local_node =
-                  _p_graph->global_to_local_node(global_node);
-              KASSERT(
-                  new_block != _p_graph->block(local_node)
-              ); // Otherwise, we should not
-                 // have gotten this message
+              const GlobalNodeID global_node = _p_graph->offset_n(pe) + local_node_on_pe;
+              const NodeID local_node = _p_graph->global_to_local_node(global_node);
+              KASSERT(new_block != _p_graph->block(local_node)); // Otherwise, we should not
+                                                                 // have gotten this message
 
               _p_graph->set_block<false>(local_node, new_block);
             }
@@ -859,9 +783,9 @@ NodeID ColoredLPRefiner::find_moves(const ColorID c) {
   const NodeID seq_to = _color_sizes[c + 1];
 
   tbb::enumerable_thread_specific<NodeID> num_moved_nodes_ets;
-  tbb::enumerable_thread_specific<RatingMap<EdgeWeight, BlockID>>
-      rating_maps_ets([&] { return RatingMap<EdgeWeight, BlockID>(_p_ctx->k); }
-      );
+  tbb::enumerable_thread_specific<RatingMap<EdgeWeight, BlockID>> rating_maps_ets([&] {
+    return RatingMap<EdgeWeight, BlockID>(_p_ctx->k);
+  });
 
   auto &graph = _p_graph->graph();
   graph.pfor_nodes_range(seq_from, seq_to, [&](const auto &r) {
@@ -894,18 +818,15 @@ NodeID ColoredLPRefiner::find_moves(const ColorID c) {
 
           if (block != u_block) {
             if ((_ctx.track_local_block_weights &&
-                 _p_graph->block_weight(block) + _block_weight_deltas[block] +
-                         u_weight >
+                 _p_graph->block_weight(block) + _block_weight_deltas[block] + u_weight >
                      _p_ctx->graph->max_block_weight(block)) ||
-                (!_ctx.track_local_block_weights &&
-                 _p_graph->block_weight(block) + u_weight >
-                     _p_ctx->graph->max_block_weight(block))) {
+                (!_ctx.track_local_block_weights && _p_graph->block_weight(block) + u_weight >
+                                                        _p_ctx->graph->max_block_weight(block))) {
               continue;
             }
           }
 
-          if (weight > best_weight ||
-              (weight == best_weight && random.random_bool())) {
+          if (weight > best_weight || (weight == best_weight && random.random_bool())) {
             best_weight = weight;
             best_block = block;
           }
@@ -931,9 +852,7 @@ NodeID ColoredLPRefiner::find_moves(const ColorID c) {
         map.clear();
       };
 
-      rating_map.update_upper_bound_size(
-          std::min<BlockID>(_p_ctx->k, _p_graph->degree(u))
-      );
+      rating_map.update_upper_bound_size(std::min<BlockID>(_p_ctx->k, _p_graph->degree(u)));
       rating_map.run_with_map(action, action);
     }
   });
@@ -956,9 +875,7 @@ void ColoredLPRefiner::GainStatistics::initialize(const ColorID c) {
   _gain_per_color.resize(c);
 }
 
-void ColoredLPRefiner::GainStatistics::record_gain(
-    const EdgeWeight gain, const ColorID c
-) {
+void ColoredLPRefiner::GainStatistics::record_gain(const EdgeWeight gain, const ColorID c) {
   KASSERT(!_gain_per_color.empty(), "must call initialize() first");
   KASSERT(c < _gain_per_color.size());
   _gain_per_color[c] += gain;
@@ -970,9 +887,7 @@ void ColoredLPRefiner::GainStatistics::summarize_by_size(
   KASSERT(!_gain_per_color.empty(), "must call initialize() first");
   KASSERT(_gain_per_color.size() <= color_sizes.size());
 
-  std::vector<EdgeWeight> gain_per_color_global(
-      _gain_per_color.begin(), _gain_per_color.end()
-  );
+  std::vector<EdgeWeight> gain_per_color_global(_gain_per_color.begin(), _gain_per_color.end());
   MPI_Allreduce(
       MPI_IN_PLACE,
       gain_per_color_global.data(),
@@ -981,9 +896,8 @@ void ColoredLPRefiner::GainStatistics::summarize_by_size(
       MPI_SUM,
       comm
   );
-  const EdgeWeight total_gain = parallel::accumulate(
-      gain_per_color_global.begin(), gain_per_color_global.end(), 0
-  );
+  const EdgeWeight total_gain =
+      parallel::accumulate(gain_per_color_global.begin(), gain_per_color_global.end(), 0);
 
   std::vector<GlobalNodeID> global_color_sizes(_gain_per_color.size());
   for (ColorID c = 0; c < _gain_per_color.size(); ++c) {
@@ -1011,11 +925,7 @@ void ColoredLPRefiner::GainStatistics::summarize_by_size(
   for (const auto &[color_size, color_gain] : gain_by_color_size) {
     gain_by_color_size_sorted.emplace_back(color_size, color_gain);
   }
-  std::sort(
-      gain_by_color_size_sorted.begin(),
-      gain_by_color_size_sorted.end(),
-      std::greater{}
-  );
+  std::sort(gain_by_color_size_sorted.begin(), gain_by_color_size_sorted.end(), std::greater{});
 
   EdgeWeight gain_so_far = 0;
 
@@ -1026,8 +936,7 @@ void ColoredLPRefiner::GainStatistics::summarize_by_size(
     const double gain_percentage = 1.0 * color_gain / total_gain;
 
     STATS << "  STATS size=" << color_size << " gain=" << color_gain
-          << " percentage=" << gain_percentage
-          << " percentage_so_far=" << gain_so_far_percentage;
+          << " percentage=" << gain_percentage << " percentage_so_far=" << gain_so_far_percentage;
   }
 }
 } // namespace kaminpar::dist

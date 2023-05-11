@@ -143,8 +143,7 @@ private:
 
   StaticArray<NodeID> _permutation;
   bool _sorted;
-  std::vector<NodeID> _buckets =
-      std::vector<NodeID>(kNumberOfDegreeBuckets<NodeID> + 1);
+  std::vector<NodeID> _buckets = std::vector<NodeID>(kNumberOfDegreeBuckets<NodeID> + 1);
   std::size_t _number_of_buckets = 0;
 };
 

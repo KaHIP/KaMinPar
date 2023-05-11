@@ -7,8 +7,7 @@
 #include "common/math.h"
 
 namespace kaminpar::dist {
-template <typename Implementation>
-struct SparseAlltoallTest : public ::testing::Test {
+template <typename Implementation> struct SparseAlltoallTest : public ::testing::Test {
   Implementation impl;
 };
 
@@ -57,10 +56,8 @@ template <typename T> struct CompleteSendRecvImplementation {
 };
 
 template <typename T>
-using SparseAlltoallImplementations = ::testing::Types<
-    CompleteSendRecvImplementation<T>,
-    AlltoallvImplementation<T>,
-    GridImplementation<T>>;
+using SparseAlltoallImplementations = ::testing::
+    Types<CompleteSendRecvImplementation<T>, AlltoallvImplementation<T>, GridImplementation<T>>;
 TYPED_TEST_SUITE(SparseAlltoallTest, SparseAlltoallImplementations<int>);
 
 TYPED_TEST(SparseAlltoallTest, empty_alltoall) {
@@ -180,11 +177,9 @@ TYPED_TEST(SparseAlltoallTest, irregular_triangle_alltoall) {
   for (PEID from = 0; from < size; ++from) {
     if (from >= rank) {
       EXPECT_EQ(recvbufs[from].size(), rank);
-      EXPECT_TRUE(std::all_of(
-          recvbufs[from].begin(),
-          recvbufs[from].end(),
-          [&](const int value) { return value == from; }
-      ));
+      EXPECT_TRUE(std::all_of(recvbufs[from].begin(), recvbufs[from].end(), [&](const int value) {
+        return value == from;
+      }));
     } else {
       EXPECT_TRUE(recvbufs[from].empty());
     }

@@ -26,17 +26,13 @@
 //
 // Private helper macros
 //
-#define SCOPED_TIMER_IMPL2_2(name, description, line)                          \
-  auto __SCOPED_TIMER__##line =                                                \
-      (GLOBAL_TIMER.start_scoped_timer(name, description))
-#define SCOPED_TIMER_IMPL1_2(name, description, line)                          \
-  SCOPED_TIMER_IMPL2_2(name, description, line)
+#define SCOPED_TIMER_IMPL2_2(name, description, line)                                              \
+  auto __SCOPED_TIMER__##line = (GLOBAL_TIMER.start_scoped_timer(name, description))
+#define SCOPED_TIMER_IMPL1_2(name, description, line) SCOPED_TIMER_IMPL2_2(name, description, line)
 
 #ifdef KAMINPAR_ENABLE_TIMERS
-#define SCOPED_TIMER_2(name, description)                                      \
-  SCOPED_TIMER_IMPL1_2(name, description, __LINE__)
-#define START_TIMER_2(name, description)                                       \
-  (GLOBAL_TIMER.start_timer(name, description))
+#define SCOPED_TIMER_2(name, description) SCOPED_TIMER_IMPL1_2(name, description, __LINE__)
+#define START_TIMER_2(name, description) (GLOBAL_TIMER.start_timer(name, description))
 #else // KAMINPAR_ENABLE_TIMERS
 #define SCOPED_TIMER_2(name, description)
 #define START_TIMER_2(name, description)
@@ -45,10 +41,8 @@
 #define SCOPED_TIMER_1(name) SCOPED_TIMER_2(name, "")
 #define START_TIMER_1(name) START_TIMER_2(name, "")
 
-#define TIMED_SCOPE_2(name, description)                                       \
-  kaminpar::timer::TimedScope<const std::string &>{                            \
-      GLOBAL_TIMER_PTR, name, description} +                                   \
-      [&]
+#define TIMED_SCOPE_2(name, description)                                                           \
+  kaminpar::timer::TimedScope<const std::string &>{GLOBAL_TIMER_PTR, name, description} + [&]
 #define TIMED_SCOPE_1(name) TIMED_SCOPE_2(name, "")
 
 #define VARARG_SELECT_HELPER2(X, Y, Z, FUNC, ...) FUNC
@@ -59,32 +53,20 @@
 #define ENABLE_TIMERS() (GLOBAL_TIMER.enable())
 #define DISABLE_TIMERS() (GLOBAL_TIMER.disable())
 
-#define SCOPED_TIMER(...)                                                      \
-  VARARG_SELECT_HELPER2(                                                       \
-      ,                                                                        \
-      ##__VA_ARGS__,                                                           \
-      SCOPED_TIMER_2(__VA_ARGS__),                                             \
-      SCOPED_TIMER_1(__VA_ARGS__),                                             \
-      ignore                                                                   \
+#define SCOPED_TIMER(...)                                                                          \
+  VARARG_SELECT_HELPER2(                                                                           \
+      , ##__VA_ARGS__, SCOPED_TIMER_2(__VA_ARGS__), SCOPED_TIMER_1(__VA_ARGS__), ignore            \
   )
-#define START_TIMER(...)                                                       \
-  VARARG_SELECT_HELPER2(                                                       \
-      ,                                                                        \
-      ##__VA_ARGS__,                                                           \
-      START_TIMER_2(__VA_ARGS__),                                              \
-      START_TIMER_1(__VA_ARGS__),                                              \
-      ignore                                                                   \
+#define START_TIMER(...)                                                                           \
+  VARARG_SELECT_HELPER2(                                                                           \
+      , ##__VA_ARGS__, START_TIMER_2(__VA_ARGS__), START_TIMER_1(__VA_ARGS__), ignore              \
   )
 #define STOP_TIMER() (GLOBAL_TIMER.stop_timer())
 
 // must be followed by a lambda body that may or may not return some value
-#define TIMED_SCOPE(...)                                                       \
-  VARARG_SELECT_HELPER2(                                                       \
-      ,                                                                        \
-      ##__VA_ARGS__,                                                           \
-      TIMED_SCOPE_2(__VA_ARGS__),                                              \
-      TIMED_SCOPE_1(__VA_ARGS__),                                              \
-      ignore                                                                   \
+#define TIMED_SCOPE(...)                                                                           \
+  VARARG_SELECT_HELPER2(                                                                           \
+      , ##__VA_ARGS__, TIMED_SCOPE_2(__VA_ARGS__), TIMED_SCOPE_1(__VA_ARGS__), ignore              \
   )
 
 namespace kaminpar {
@@ -149,8 +131,7 @@ public:
 
     [[nodiscard]] inline double seconds() const {
       return static_cast<double>(
-                 std::chrono::duration_cast<std::chrono::milliseconds>(elapsed)
-                     .count()
+                 std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count()
              ) /
              1000.0;
     }
@@ -174,8 +155,7 @@ public:
     start_timer<const std::string &>(name, description);
   }
 
-  template <typename String>
-  void start_timer(std::string_view name, String description) {
+  template <typename String> void start_timer(std::string_view name, String description) {
     std::lock_guard<std::mutex> lg{_mutex};
 
     if (_disabled > 0) {
@@ -184,8 +164,7 @@ public:
 
     // create new tree node if timer does not already exist
     auto tbl_contains = [&](std::string_view name) {
-      return _tree.current->children_tbl.find(name) !=
-             _tree.current->children_tbl.end();
+      return _tree.current->children_tbl.find(name) != _tree.current->children_tbl.end();
     };
     const bool empty_description = is_empty_description(description);
     if (!empty_description || !tbl_contains(name)) {
@@ -229,9 +208,7 @@ public:
     return timer::ScopedTimer{this};
   }
 
-  decltype(auto) start_scoped_timer(
-      const std::string_view name, const std::string &description
-  ) {
+  decltype(auto) start_scoped_timer(const std::string_view name, const std::string &description) {
     return start_scoped_timer<const std::string &>(name, description);
   }
 
@@ -262,20 +239,14 @@ public:
   }
 
   [[nodiscard]] inline double elapsed_seconds() const {
-    return std::chrono::duration_cast<std::chrono::milliseconds>(
-               timer::now() - _tree.root.start
-           )
+    return std::chrono::duration_cast<std::chrono::milliseconds>(timer::now() - _tree.root.start)
                .count() /
            1000.0;
   }
 
-  void print_machine_readable(
-      std::ostream &out, int max_depth = std::numeric_limits<int>::max()
-  );
+  void print_machine_readable(std::ostream &out, int max_depth = std::numeric_limits<int>::max());
 
-  void print_human_readable(
-      std::ostream &out, int max_depth = std::numeric_limits<int>::max()
-  );
+  void print_human_readable(std::ostream &out, int max_depth = std::numeric_limits<int>::max());
 
 private:
   template <typename String> bool is_empty_description(String description) {
@@ -289,27 +260,18 @@ private:
   void start_timer_impl();
   void stop_timer_impl();
 
-  [[nodiscard]] std::size_t compute_time_col(
-      std::size_t parent_prefix_len, const TimerTreeNode *node
-  ) const;
+  [[nodiscard]] std::size_t
+  compute_time_col(std::size_t parent_prefix_len, const TimerTreeNode *node) const;
   [[nodiscard]] std::size_t compute_time_len(const TimerTreeNode *node) const;
-  [[nodiscard]] std::size_t compute_restarts_len(const TimerTreeNode *node
-  ) const;
+  [[nodiscard]] std::size_t compute_restarts_len(const TimerTreeNode *node) const;
 
-  void print_padded_timing(
-      std::ostream &out, std::size_t start_col, const TimerTreeNode *node
-  ) const;
+  void
+  print_padded_timing(std::ostream &out, std::size_t start_col, const TimerTreeNode *node) const;
   void print_children_hr(
-      std::ostream &out,
-      const std::string &base_prefix,
-      const TimerTreeNode *node,
-      int max_depth
+      std::ostream &out, const std::string &base_prefix, const TimerTreeNode *node, int max_depth
   ) const;
   void print_node_mr(
-      std::ostream &out,
-      const std::string &prefix,
-      const TimerTreeNode *node,
-      int max_depth
+      std::ostream &out, const std::string &prefix, const TimerTreeNode *node, int max_depth
   ) const;
 
   std::string_view _name;
@@ -335,8 +297,7 @@ public:
         _name(name),
         _description(description) {}
 
-  explicit TimedScope(Timer *timer, std::string_view name)
-      : TimedScope(timer, name, "") {}
+  explicit TimedScope(Timer *timer, std::string_view name) : TimedScope(timer, name, "") {}
 
   template <typename F> decltype(auto) operator+(F &&f) {
     const auto scope = _timer->start_scoped_timer<String>(_name, _description);

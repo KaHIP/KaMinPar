@@ -23,16 +23,13 @@ inline auto invoke_kagen(const std::string &options) {
   generator.EnableBasicStatistics();
   generator.EnableOutput(true);
 
-  const bool generate =
-      std::find(options.begin(), options.end(), ';') != options.end();
+  const bool generate = std::find(options.begin(), options.end(), ';') != options.end();
 
   if (generate) {
     return generator.GenerateFromOptionString(options);
   } else {
     return generator.ReadFromFile(
-        options,
-        kagen::FileFormat::EXTENSION,
-        kagen::GraphDistribution::BALANCE_VERTICES
+        options, kagen::FileFormat::EXTENSION, kagen::GraphDistribution::BALANCE_VERTICES
     );
   }
 }
@@ -66,14 +63,13 @@ inline ShmGraphWrapper load_shm_graph(const std::string &graph_name) {
       StaticArray<EdgeWeight>(wrapper.adjvwgt.data(), wrapper.adjvwgt.size())
   );
 
-  std::cout << "Loaded graph with n=" << wrapper.graph->n()
-            << ", m=" << wrapper.graph->m() << std::endl;
+  std::cout << "Loaded graph with n=" << wrapper.graph->n() << ", m=" << wrapper.graph->m()
+            << std::endl;
   return wrapper;
 }
 
-inline ShmPartitionedGraphWrapper load_partitioned_shm_graph(
-    const std::string &graph_name, const std::string &partition_name
-) {
+inline ShmPartitionedGraphWrapper
+load_partitioned_shm_graph(const std::string &graph_name, const std::string &partition_name) {
   using namespace kaminpar::shm;
 
   ShmGraphWrapper graph_wrapper = load_shm_graph(graph_name);
@@ -96,16 +92,11 @@ inline ShmPartitionedGraphWrapper load_partitioned_shm_graph(
   }
 
   const BlockID k = *std::max_element(partition.begin(), partition.end()) + 1;
-  wrapper.p_graph = std::make_unique<PartitionedGraph>(
-      *wrapper.graph, k, std::move(partition)
-  );
+  wrapper.p_graph = std::make_unique<PartitionedGraph>(*wrapper.graph, k, std::move(partition));
 
-  std::cout << "Loaded partitioned graph with cut="
-            << metrics::edge_cut(*wrapper.p_graph)
-            << ", imbalance=" << metrics::imbalance(*wrapper.p_graph)
-            << std::endl;
+  std::cout << "Loaded partitioned graph with cut=" << metrics::edge_cut(*wrapper.p_graph)
+            << ", imbalance=" << metrics::imbalance(*wrapper.p_graph) << std::endl;
 
   return wrapper;
 }
 } // namespace kaminpar
-

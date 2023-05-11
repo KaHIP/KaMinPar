@@ -23,8 +23,7 @@ public:
 
   virtual void initialize(const PartitionedGraph &p_graph) = 0;
 
-  virtual bool
-  refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) = 0;
+  virtual bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) = 0;
 
 protected:
   Refiner() = default;

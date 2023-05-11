@@ -62,10 +62,9 @@ public:
   void set_exterior_strategy(ExteriorStrategy exterior_strategy);
 
 private:
-  using GhostSeedNode = std::tuple<NodeID, NodeID>; // distance, node
-  using GhostSeedEdge =
-      std::tuple<NodeID, NodeID, NodeID>;       // distance, from, to
-  using ExploredNode = std::pair<NodeID, bool>; // is border node, node
+  using GhostSeedNode = std::tuple<NodeID, NodeID>;         // distance, node
+  using GhostSeedEdge = std::tuple<NodeID, NodeID, NodeID>; // distance, from, to
+  using ExploredNode = std::pair<NodeID, bool>;             // is border node, node
 
   struct GraphFragment {
     NoinitVector<EdgeID> nodes;
@@ -103,19 +102,13 @@ private:
       NoinitVector<GhostSeedNode> &seed_nodes,
       const NoinitVector<NodeID> &ignored_nodes);
 
-  template <typename Lambda>
-  void explore_outgoing_edges(NodeID node, Lambda &&action);
+  template <typename Lambda> void explore_outgoing_edges(NodeID node, Lambda &&action);
 
-  std::pair<
-      std::vector<NoinitVector<GhostSeedNode>>,
-      std::vector<NoinitVector<NodeID>>>
-  exchange_ghost_seed_nodes(
-      std::vector<NoinitVector<GhostSeedEdge>> &next_ghost_seed_nodes
-  );
+  std::pair<std::vector<NoinitVector<GhostSeedNode>>, std::vector<NoinitVector<NodeID>>>
+  exchange_ghost_seed_nodes(std::vector<NoinitVector<GhostSeedEdge>> &next_ghost_seed_nodes);
 
-  std::vector<GraphFragment> exchange_explored_subgraphs(
-      const std::vector<ExploredSubgraph> &explored_subgraphs
-  );
+  std::vector<GraphFragment>
+  exchange_explored_subgraphs(const std::vector<ExploredSubgraph> &explored_subgraphs);
 
   Result combine_fragments(tbb::concurrent_vector<GraphFragment> &fragments);
 
@@ -147,9 +140,8 @@ private:
   tbb::enumerable_thread_specific<Marker<>> _taken_ets{[&] {
     return Marker<>(_graph->total_n());
   }};
-  tbb::enumerable_thread_specific<FastResetArray<EdgeWeight>>
-      _external_degrees_ets{[&] {
-        return FastResetArray<EdgeWeight>(_p_graph->k());
-      }};
+  tbb::enumerable_thread_specific<FastResetArray<EdgeWeight>> _external_degrees_ets{[&] {
+    return FastResetArray<EdgeWeight>(_p_graph->k());
+  }};
 };
 } // namespace kaminpar::dist::graph

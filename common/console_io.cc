@@ -16,8 +16,7 @@ void print_delimiter(const std::string &caption, const char ch) {
   if (caption.empty()) {
     LOG << std::string(80, ch);
   } else {
-    LOG << std::string(80 - caption.size() - 5, ch) << " " << caption << " "
-        << std::string(3, ch);
+    LOG << std::string(80 - caption.size() - 5, ch) << " " << caption << " " << std::string(3, ch);
   }
 }
 
@@ -79,8 +78,7 @@ void print_banner(const std::string &title) {
 
 void print_build_identifier() {
   LOG << "Current commit hash:          "
-      << (Environment::GIT_SHA1.empty() ? "<not available>"
-                                        : Environment::GIT_SHA1);
+      << (Environment::GIT_SHA1.empty() ? "<not available>" : Environment::GIT_SHA1);
   std::string assertion_level_name = "always";
   if (KASSERT_ASSERTION_LEVEL >= ASSERTION_LEVEL_LIGHT) {
     assertion_level_name += "+light";
@@ -98,7 +96,6 @@ void print_build_identifier() {
   LOG << "Statistics:                   disabled";
 #endif // KAMINPAR_ENABLE_STATISTICS
   LOG << "Built on:                     "
-      << (Environment::HOSTNAME.empty() ? "<not available>"
-                                        : Environment::HOSTNAME);
+      << (Environment::HOSTNAME.empty() ? "<not available>" : Environment::HOSTNAME);
 }
 } // namespace kaminpar::cio

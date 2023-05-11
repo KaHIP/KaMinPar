@@ -16,8 +16,7 @@ DistributedGraph rearrange(DistributedGraph graph, const Context &ctx);
 
 DistributedGraph rearrange_by_degree_buckets(DistributedGraph graph);
 
-DistributedGraph
-rearrange_by_coloring(DistributedGraph graph, const Context &ctx);
+DistributedGraph rearrange_by_coloring(DistributedGraph graph, const Context &ctx);
 
 DistributedGraph rearrange_by_permutation(
     DistributedGraph graph,

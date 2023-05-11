@@ -130,11 +130,9 @@ private:
     _capacity = capacity;
 
     KASSERT(!_data);
-    const std::size_t total_memory{
-        _capacity * sizeof(Element) + _capacity * sizeof(std::size_t)};
-    const std::size_t num_elements{static_cast<std::size_t>(
-        std::ceil(1.0 * total_memory / sizeof(std::size_t))
-    )};
+    const std::size_t total_memory{_capacity * sizeof(Element) + _capacity * sizeof(std::size_t)};
+    const std::size_t num_elements{
+        static_cast<std::size_t>(std::ceil(1.0 * total_memory / sizeof(std::size_t)))};
     _data = std::make_unique<std::size_t[]>(num_elements);
     _sparse = reinterpret_cast<std::size_t *>(_data.get());
     _dense = reinterpret_cast<Element *>(_sparse + _capacity);

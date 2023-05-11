@@ -39,8 +39,7 @@ DistributedGraph rearrange(DistributedGraph graph, const Context &ctx) {
 
 DistributedGraph rearrange_by_degree_buckets(DistributedGraph graph) {
   SCOPED_TIMER("Rearrange graph", "By degree buckets");
-  auto permutations =
-      shm::graph::sort_by_degree_buckets<false>(graph.raw_nodes());
+  auto permutations = shm::graph::sort_by_degree_buckets<false>(graph.raw_nodes());
   return rearrange_by_permutation(
       std::move(graph),
       std::move(permutations.old_to_new),
@@ -49,17 +48,14 @@ DistributedGraph rearrange_by_degree_buckets(DistributedGraph graph) {
   );
 }
 
-DistributedGraph
-rearrange_by_coloring(DistributedGraph graph, const Context &ctx) {
+DistributedGraph rearrange_by_coloring(DistributedGraph graph, const Context &ctx) {
   SCOPED_TIMER("Rearrange graph", "By coloring");
 
   auto coloring = compute_node_coloring_sequentially(
       graph, ctx.refinement.colored_lp.compute_num_coloring_chunks(ctx.parallel)
   );
-  const ColorID num_local_colors =
-      *std::max_element(coloring.begin(), coloring.end()) + 1;
-  const ColorID num_colors =
-      mpi::allreduce(num_local_colors, MPI_MAX, graph.communicator());
+  const ColorID num_local_colors = *std::max_element(coloring.begin(), coloring.end()) + 1;
+  const ColorID num_colors = mpi::allreduce(num_local_colors, MPI_MAX, graph.communicator());
 
   START_TIMER("Allocation");
   StaticArray<NodeID> old_to_new(graph.n());
@@ -73,16 +69,13 @@ rearrange_by_coloring(DistributedGraph graph, const Context &ctx) {
       KASSERT(c < num_colors);
       __atomic_fetch_add(&color_sizes[c], 1, __ATOMIC_RELAXED);
     });
-    parallel::prefix_sum(
-        color_sizes.begin(), color_sizes.end(), color_sizes.begin()
-    );
+    parallel::prefix_sum(color_sizes.begin(), color_sizes.end(), color_sizes.begin());
   };
 
   TIMED_SCOPE("Sort nodes") {
     graph.pfor_nodes([&](const NodeID u) {
       const ColorID c = coloring[u];
-      const std::size_t i =
-          __atomic_sub_fetch(&color_sizes[c], 1, __ATOMIC_SEQ_CST);
+      const std::size_t i = __atomic_sub_fetch(&color_sizes[c], 1, __ATOMIC_SEQ_CST);
       old_to_new[u] = i;
       new_to_old[i] = u;
     });
@@ -118,13 +111,7 @@ DistributedGraph rearrange_by_permutation(
   StaticArray<EdgeWeight> new_edge_weights(old_edge_weights.size());
   STOP_TIMER();
 
-  shm::graph::build_permuted_graph<
-      StaticArray,
-      true,
-      NodeID,
-      EdgeID,
-      NodeWeight,
-      EdgeWeight>(
+  shm::graph::build_permuted_graph<StaticArray, true, NodeID, EdgeID, NodeWeight, EdgeWeight>(
       old_nodes,
       old_edges,
       old_node_weights,
@@ -149,43 +136,28 @@ DistributedGraph rearrange_by_permutation(
     NodeID new_node_local;
   };
 
-  auto received =
-      mpi::graph::sparse_alltoall_interface_to_pe_get<ChangedNodeLabel>(
-          graph,
-          [&](const NodeID u) -> ChangedNodeLabel {
-            return {
-                .old_node_local = u,
-                .new_node_local = permutations.old_to_new[u]};
-          }
-      );
-
-  const NodeID n = graph.n();
-  auto old_global_to_ghost =
-      graph.take_global_to_ghost(); // TODO cannot be cleared?
-  growt::StaticGhostNodeMapping new_global_to_ghost(
-      old_global_to_ghost.capacity()
-  );
-  auto new_ghost_to_global = graph.take_ghost_to_global(); // can be reused
-
-  parallel::chunked_for(
-      received,
-      [&](const ChangedNodeLabel &message, const PEID pe) {
-        const auto &[old_node_local, new_node_local] = message;
-        const GlobalNodeID old_node_global =
-            graph.offset_n(pe) + old_node_local;
-        const GlobalNodeID new_node_global =
-            graph.offset_n(pe) + new_node_local;
-
-        KASSERT(
-            old_global_to_ghost.find(old_node_global + 1) !=
-            old_global_to_ghost.end()
-        );
-        const NodeID ghost_node =
-            (*old_global_to_ghost.find(old_node_global + 1)).second;
-        new_global_to_ghost.insert(new_node_global + 1, ghost_node);
-        new_ghost_to_global[ghost_node - n] = new_node_global;
+  auto received = mpi::graph::sparse_alltoall_interface_to_pe_get<ChangedNodeLabel>(
+      graph,
+      [&](const NodeID u) -> ChangedNodeLabel {
+        return {.old_node_local = u, .new_node_local = permutations.old_to_new[u]};
       }
   );
+
+  const NodeID n = graph.n();
+  auto old_global_to_ghost = graph.take_global_to_ghost(); // TODO cannot be cleared?
+  growt::StaticGhostNodeMapping new_global_to_ghost(old_global_to_ghost.capacity());
+  auto new_ghost_to_global = graph.take_ghost_to_global(); // can be reused
+
+  parallel::chunked_for(received, [&](const ChangedNodeLabel &message, const PEID pe) {
+    const auto &[old_node_local, new_node_local] = message;
+    const GlobalNodeID old_node_global = graph.offset_n(pe) + old_node_local;
+    const GlobalNodeID new_node_global = graph.offset_n(pe) + new_node_local;
+
+    KASSERT(old_global_to_ghost.find(old_node_global + 1) != old_global_to_ghost.end());
+    const NodeID ghost_node = (*old_global_to_ghost.find(old_node_global + 1)).second;
+    new_global_to_ghost.insert(new_node_global + 1, ghost_node);
+    new_ghost_to_global[ghost_node - n] = new_node_global;
+  });
 
   DistributedGraph new_graph(
       graph.take_node_distribution(),

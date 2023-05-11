@@ -22,9 +22,8 @@ namespace {
 SET_DEBUG(true);
 }
 
-std::vector<GlobalMove> allgather_global_moves(
-    std::vector<GlobalMove> &my_global_moves, MPI_Comm comm
-) {
+std::vector<GlobalMove>
+allgather_global_moves(std::vector<GlobalMove> &my_global_moves, MPI_Comm comm) {
   SCOPED_TIMER("Allgather global moves");
 
   DBG << "Contributing " << my_global_moves.size() << " moves";
@@ -45,9 +44,7 @@ std::vector<GlobalMove> allgather_global_moves(
 
   START_TIMER("Compute move displs");
   std::vector<int> recv_displs(recv_counts.size() + 1);
-  parallel::prefix_sum(
-      recv_counts.begin(), recv_counts.end(), recv_displs.begin() + 1
-  );
+  parallel::prefix_sum(recv_counts.begin(), recv_counts.end(), recv_displs.begin() + 1);
   STOP_TIMER();
 
   // Allgather global moves
@@ -70,11 +67,9 @@ void sort_and_compress_move_groups(std::vector<GlobalMove> &global_moves) {
   SCOPED_TIMER("Sort and compress move groups");
 
   // Sort by move group
-  std::sort(
-      global_moves.begin(),
-      global_moves.end(),
-      [](const auto &lhs, const auto &rhs) { return lhs.group < rhs.group; }
-  );
+  std::sort(global_moves.begin(), global_moves.end(), [](const auto &lhs, const auto &rhs) {
+    return lhs.group < rhs.group;
+  });
 
   // Compute group gains
   std::vector<EdgeWeight> group_gains;
@@ -112,8 +107,7 @@ void resolve_move_conflicts_greedy(std::vector<GlobalMove> &global_moves) {
 
     // First pass: check that no node has been moved before
     for (std::size_t j = i;
-         j < global_moves.size() && global_moves[j].group == current_group &&
-         !found_conflict;
+         j < global_moves.size() && global_moves[j].group == current_group && !found_conflict;
          ++j) {
       const GlobalNodeID current_node = global_moves[j].node;
       found_conflict = moved_nodes.find(current_node) != moved_nodes.end();
@@ -121,8 +115,7 @@ void resolve_move_conflicts_greedy(std::vector<GlobalMove> &global_moves) {
 
     // Second pass: mark all moves in this group as invalid or add them to the
     // moved nodes
-    for (std::size_t j = i;
-         j < global_moves.size() && global_moves[j].group == current_group;
+    for (std::size_t j = i; j < global_moves.size() && global_moves[j].group == current_group;
          ++j) {
       if (found_conflict) {
         global_moves[j].node = kInvalidGlobalNodeID; // mark move as do not take
@@ -136,9 +129,8 @@ void resolve_move_conflicts_greedy(std::vector<GlobalMove> &global_moves) {
   }
 }
 
-std::vector<GlobalMove> broadcast_and_resolve_global_moves(
-    std::vector<GlobalMove> &my_global_moves, MPI_Comm comm
-) {
+std::vector<GlobalMove>
+broadcast_and_resolve_global_moves(std::vector<GlobalMove> &my_global_moves, MPI_Comm comm) {
   DBG << "Got " << my_global_moves.size() << " global moves on this PE";
 
   // Resolve conflicts locally

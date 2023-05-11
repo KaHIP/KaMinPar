@@ -23,4 +23,3 @@ private:
   const Context &_ctx;
 };
 } // namespace kaminpar::shm
-

@@ -28,10 +28,7 @@ public:
   using iterator = typename std::vector<T>::iterator;
   using const_iterator = typename std::vector<T>::const_iterator;
 
-  explicit Queue(const std::size_t capacity)
-      : _data(capacity),
-        _head(0),
-        _tail(0) {}
+  explicit Queue(const std::size_t capacity) : _data(capacity), _head(0), _tail(0) {}
 
   Queue(const Queue &) = delete;
   Queue &operator=(const Queue &) = delete;

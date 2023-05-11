@@ -20,8 +20,7 @@ struct Format {
   bool has_edge_weights = false;
 };
 
-template <bool throwing>
-inline Format parse_header(MappedFileToker<throwing> &toker) {
+template <bool throwing> inline Format parse_header(MappedFileToker<throwing> &toker) {
   toker.skip_spaces();
   while (toker.current() == '%') {
     toker.skip_line();
@@ -30,12 +29,11 @@ inline Format parse_header(MappedFileToker<throwing> &toker) {
 
   const std::uint64_t number_of_nodes = toker.scan_uint();
   const std::uint64_t number_of_edges = toker.scan_uint();
-  const std::uint64_t format =
-      (toker.current() != '\n') ? toker.scan_uint() : 0;
+  const std::uint64_t format = (toker.current() != '\n') ? toker.scan_uint() : 0;
   toker.consume_char('\n');
 
-  if (format != 0 && format != 1 && format != 10 && format != 11 && format &&
-      format != 100 && format != 110 && format != 101 && format != 111) {
+  if (format != 0 && format != 1 && format != 10 && format != 11 && format && format != 100 &&
+      format != 110 && format != 101 && format != 111) {
     LOG_WARNING << "invalid or unsupported graph format";
   }
 
@@ -55,17 +53,12 @@ inline Format parse_header(MappedFileToker<throwing> &toker) {
   };
 }
 
-template <bool throwing>
-inline Format parse_header(const std::string &filename) {
+template <bool throwing> inline Format parse_header(const std::string &filename) {
   MappedFileToker<throwing> toker(filename);
   return parse_header(toker);
 }
 
-template <
-    bool throwing,
-    typename GraphFormatCB,
-    typename NextNodeCB,
-    typename NextEdgeCB>
+template <bool throwing, typename GraphFormatCB, typename NextNodeCB, typename NextEdgeCB>
 void parse(
     MappedFileToker<throwing> &toker,
     GraphFormatCB &&format_cb,
@@ -76,8 +69,7 @@ void parse(
   static_assert(std::is_invocable_v<NextNodeCB, std::uint64_t>);
   static_assert(std::is_invocable_v<NextEdgeCB, std::uint64_t, std::uint64_t>);
 
-  constexpr bool stoppable =
-      std::is_invocable_r_v<bool, NextNodeCB, std::uint64_t>;
+  constexpr bool stoppable = std::is_invocable_r_v<bool, NextNodeCB, std::uint64_t>;
 
   const Format format = parse_header(toker);
   const bool read_node_weights = format.has_node_weights;
@@ -139,11 +131,7 @@ void parse(
   }
 }
 
-template <
-    bool throwing,
-    typename GraphFormatCB,
-    typename NextNodeCB,
-    typename NextEdgeCB>
+template <bool throwing, typename GraphFormatCB, typename NextNodeCB, typename NextEdgeCB>
 void parse(
     const std::string &filename,
     GraphFormatCB &&format_cb,

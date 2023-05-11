@@ -20,8 +20,7 @@
 #include "kaminpar/refinement/multi_refiner.h"
 
 namespace kaminpar::shm::factory {
-std::unique_ptr<Coarsener>
-create_coarsener(const Graph &graph, const CoarseningContext &c_ctx) {
+std::unique_ptr<Coarsener> create_coarsener(const Graph &graph, const CoarseningContext &c_ctx) {
   SCOPED_TIMER("Allocation");
 
   switch (c_ctx.algorithm) {
@@ -30,11 +29,9 @@ create_coarsener(const Graph &graph, const CoarseningContext &c_ctx) {
   }
 
   case ClusteringAlgorithm::LABEL_PROPAGATION: {
-    auto clustering_algorithm =
-        std::make_unique<LPClustering>(graph.n(), c_ctx);
-    auto coarsener = std::make_unique<ClusteringCoarsener>(
-        std::move(clustering_algorithm), graph, c_ctx
-    );
+    auto clustering_algorithm = std::make_unique<LPClustering>(graph.n(), c_ctx);
+    auto coarsener =
+        std::make_unique<ClusteringCoarsener>(std::move(clustering_algorithm), graph, c_ctx);
     return coarsener;
   }
   }
@@ -65,13 +62,9 @@ std::unique_ptr<ip::InitialRefiner> create_initial_refiner(
   case RefinementAlgorithm::TWOWAY_FM: {
     switch (r_ctx.twoway_fm.stopping_rule) {
     case FMStoppingRule::SIMPLE:
-      return std::make_unique<ip::InitialSimple2WayFM>(
-          graph.n(), p_ctx, r_ctx, std::move(m_ctx)
-      );
+      return std::make_unique<ip::InitialSimple2WayFM>(graph.n(), p_ctx, r_ctx, std::move(m_ctx));
     case FMStoppingRule::ADAPTIVE:
-      return std::make_unique<ip::InitialAdaptive2WayFM>(
-          graph.n(), p_ctx, r_ctx, std::move(m_ctx)
-      );
+      return std::make_unique<ip::InitialAdaptive2WayFM>(graph.n(), p_ctx, r_ctx, std::move(m_ctx));
     }
 
     __builtin_unreachable();
@@ -90,8 +83,7 @@ std::unique_ptr<ip::InitialRefiner> create_initial_refiner(
 }
 
 namespace {
-std::unique_ptr<Refiner>
-create_refiner(const Context &ctx, const RefinementAlgorithm algorithm) {
+std::unique_ptr<Refiner> create_refiner(const Context &ctx, const RefinementAlgorithm algorithm) {
 
   switch (algorithm) {
   case RefinementAlgorithm::NOOP:

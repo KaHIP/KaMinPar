@@ -14,8 +14,7 @@ constexpr int always = ASSERTION_LEVEL_ALWAYS;
 #define ASSERTION_LEVEL_LIGHT 10
 constexpr int light = ASSERTION_LEVEL_LIGHT;
 #define ASSERTION_LEVEL_NORMAL 30
-constexpr int normal =
-    ASSERTION_LEVEL_NORMAL; // same value as defined in KASSERT
+constexpr int normal = ASSERTION_LEVEL_NORMAL; // same value as defined in KASSERT
 #define ASSERTION_LEVEL_HEAVY 40
 constexpr int heavy = ASSERTION_LEVEL_HEAVY;
 } // namespace kaminpar::assert

@@ -11,8 +11,7 @@ namespace kaminpar::shm::testing::graphs {
  * @param n Number of nodes in the graph.
  * @return Graph on `n` nodes and zero edges.
  */
-template <typename... GraphArgs>
-Graph empty(const NodeID n, GraphArgs &&...graph_args) {
+template <typename... GraphArgs> Graph empty(const NodeID n, GraphArgs &&...graph_args) {
   GraphBuilder builder(n, 0);
   for (NodeID u = 0; u < n; ++u) {
     builder.new_node();
@@ -77,8 +76,7 @@ Graph grid(
  * @param length Length of the path.
  * @return Path on `length` nodes.
  */
-template <typename... GraphArgs>
-Graph path(const NodeID length, GraphArgs &&...graph_args) {
+template <typename... GraphArgs> Graph path(const NodeID length, GraphArgs &&...graph_args) {
   return grid(length, 1, std::forward<GraphArgs...>(graph_args)...);
 }
 
@@ -91,9 +89,7 @@ Graph path(const NodeID length, GraphArgs &&...graph_args) {
  * edges.
  */
 template <typename... GraphArgs>
-Graph complete_bipartite(
-    const NodeID n, const NodeID m, GraphArgs &&...graph_args
-) {
+Graph complete_bipartite(const NodeID n, const NodeID m, GraphArgs &&...graph_args) {
   GraphBuilder builder;
   for (NodeID u = 0; u < n; ++u) { // set A
     builder.new_node();
@@ -117,8 +113,7 @@ Graph complete_bipartite(
  * @param edge_weight Weight used for all edges.
  * @return Complete graph with `n` nodes and `n * (n - 1)` undirected edges.
  */
-template <typename... GraphArgs>
-Graph complete(const NodeID n, GraphArgs &&...graph_args) {
+template <typename... GraphArgs> Graph complete(const NodeID n, GraphArgs &&...graph_args) {
   GraphBuilder builder;
   for (NodeID u = 0; u < n; ++u) {
     builder.new_node();
@@ -139,13 +134,11 @@ Graph complete(const NodeID n, GraphArgs &&...graph_args) {
  * @param n Number of leaves.
  * @return Star graph with `n` leaves and one center.
  */
-template <typename... GraphArgs>
-Graph star(const NodeID n, GraphArgs &&...graph_args) {
+template <typename... GraphArgs> Graph star(const NodeID n, GraphArgs &&...graph_args) {
   return complete_bipartite(1, n, std::forward<GraphArgs...>(graph_args)...);
 }
 
-template <typename... GraphArgs>
-Graph matching(const NodeID m, GraphArgs &&...graph_args) {
+template <typename... GraphArgs> Graph matching(const NodeID m, GraphArgs &&...graph_args) {
   GraphBuilder builder;
   for (NodeID u = 0; u < 2 * m; u += 2) {
     builder.new_node();

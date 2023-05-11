@@ -22,15 +22,11 @@ struct SubgraphMemoryStartPosition {
   std::size_t edges_start_pos{0};
 
   // operator overloads for parallel::prefix_sum()
-  SubgraphMemoryStartPosition operator+(const SubgraphMemoryStartPosition &other
-  ) const {
-    return {
-        nodes_start_pos + other.nodes_start_pos,
-        edges_start_pos + other.edges_start_pos};
+  SubgraphMemoryStartPosition operator+(const SubgraphMemoryStartPosition &other) const {
+    return {nodes_start_pos + other.nodes_start_pos, edges_start_pos + other.edges_start_pos};
   }
 
-  SubgraphMemoryStartPosition &
-  operator+=(const SubgraphMemoryStartPosition &other) {
+  SubgraphMemoryStartPosition &operator+=(const SubgraphMemoryStartPosition &other) {
     nodes_start_pos += other.nodes_start_pos;
     edges_start_pos += other.edges_start_pos;
     return *this;
@@ -120,9 +116,8 @@ struct TemporarySubgraphMemory {
   }
 };
 
-SubgraphExtractionResult extract_subgraphs(
-    const PartitionedGraph &p_graph, SubgraphMemory &subgraph_memory
-);
+SubgraphExtractionResult
+extract_subgraphs(const PartitionedGraph &p_graph, SubgraphMemory &subgraph_memory);
 
 SequentialSubgraphExtractionResult extract_subgraphs_sequential(
     const PartitionedGraph &p_graph,

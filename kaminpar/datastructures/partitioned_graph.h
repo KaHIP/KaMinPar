@@ -55,12 +55,7 @@ public:
       std::vector<BlockID> final_k = {}
   );
 
-  PartitionedGraph(
-      NoBlockWeights,
-      const Graph &graph,
-      BlockID k,
-      StaticArray<BlockID> partition
-  );
+  PartitionedGraph(NoBlockWeights, const Graph &graph, BlockID k, StaticArray<BlockID> partition);
 
   PartitionedGraph() : GraphDelegate(nullptr) {}
 
@@ -79,8 +74,7 @@ public:
    * @param u Node to be moved.
    * @param new_b Block the node is moved to.
    */
-  template <bool update_block_weight = true>
-  void set_block(const NodeID u, const BlockID new_b) {
+  template <bool update_block_weight = true> void set_block(const NodeID u, const BlockID new_b) {
     KASSERT(u < n(), "invalid node id " << u);
     KASSERT(new_b < k(), "invalid block id " << new_b << " for node " << u);
 
@@ -106,10 +100,7 @@ public:
    * @return Whether the weight could be moved; if `false`, no change occurred.
    */
   bool try_move_block_weight(
-      const BlockID from,
-      const BlockID to,
-      const BlockWeight delta,
-      const BlockWeight max_weight
+      const BlockID from, const BlockID to, const BlockWeight delta, const BlockWeight max_weight
   ) {
     BlockWeight new_weight = block_weight(to);
     bool success = false;

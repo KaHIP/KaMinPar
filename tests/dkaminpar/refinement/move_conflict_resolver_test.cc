@@ -14,9 +14,7 @@
 
 namespace kaminpar::dist {
 namespace {
-GlobalMove create_dummy_move(
-    const GlobalNodeID node, const NodeID group, const EdgeWeight gain
-) {
+GlobalMove create_dummy_move(const GlobalNodeID node, const NodeID group, const EdgeWeight gain) {
   return {node, group, 0, gain, 0, 0};
 }
 } // namespace
@@ -24,8 +22,7 @@ GlobalMove create_dummy_move(
 TEST(GlobalMoveConflictResolver, empty_move_set) {
   std::vector<GlobalMove> my_global_moves;
 
-  auto resolved_moved =
-      broadcast_and_resolve_global_moves(my_global_moves, MPI_COMM_WORLD);
+  auto resolved_moved = broadcast_and_resolve_global_moves(my_global_moves, MPI_COMM_WORLD);
   EXPECT_TRUE(resolved_moved.empty());
 }
 
@@ -38,8 +35,7 @@ TEST(GlobalMoveConflictResolver, single_node_groups_with_rank_gain) {
   my_global_moves.push_back(create_dummy_move(0, 0, rank));
   my_global_moves.push_back(create_dummy_move(1, 1, rank));
 
-  auto resolved =
-      broadcast_and_resolve_global_moves(my_global_moves, MPI_COMM_WORLD);
+  auto resolved = broadcast_and_resolve_global_moves(my_global_moves, MPI_COMM_WORLD);
 
   // The winner should be the moves by the PE with the highest rank
   ASSERT_EQ(resolved.size(), 2 * size);

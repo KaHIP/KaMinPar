@@ -14,16 +14,13 @@
 namespace kaminpar::mpi {
 class GridTopology {
 public:
-  GridTopology(const PEID size)
-      : _size(size),
-        _sqrt(static_cast<PEID>(std::sqrt(size))) {}
+  GridTopology(const PEID size) : _size(size), _sqrt(static_cast<PEID>(std::sqrt(size))) {}
 
   inline PEID row(const PEID pe) const {
     if (pe < num_pes_in_full_rectangle()) {
       return pe / num_cols();
     } else {
-      return (pe - num_pes_in_full_rectangle()) / num_full_cols() +
-             partial_column_size();
+      return (pe - num_pes_in_full_rectangle()) / num_full_cols() + partial_column_size();
     }
   }
 
@@ -103,8 +100,7 @@ private:
   }
 
   inline PEID num_pes_in_full_rectangle() const {
-    return partial_column_size() == 0 ? _size
-                                      : num_cols() * partial_column_size();
+    return partial_column_size() == 0 ? _size : num_cols() * partial_column_size();
   }
 
   PEID _size;

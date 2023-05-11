@@ -239,10 +239,7 @@ TEST(NonaddressableBinaryHeapTest, SortingWithHeapWorks) {
   }
 
   EXPECT_THAT(
-      sorted,
-      ElementsAre(
-          -123, -23, -12, -5, -1, 0, 4, 12, 13, 13, 21, 123, 129, 434, 3451
-      )
+      sorted, ElementsAre(-123, -23, -12, -5, -1, 0, 4, 12, 13, 13, 21, 123, 129, 434, 3451)
   );
 }
 

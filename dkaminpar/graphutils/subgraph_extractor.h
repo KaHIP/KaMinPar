@@ -34,8 +34,7 @@ struct ExtractedLocalSubgraphs {
  * all *local* nodes of p_graph in block k.
  */
 ExtractedLocalSubgraphs
-extract_local_block_induced_subgraphs(const DistributedPartitionedGraph &p_graph
-);
+extract_local_block_induced_subgraphs(const DistributedPartitionedGraph &p_graph);
 
 struct ExtractedSubgraphs {
   /*!
@@ -65,9 +64,8 @@ struct ExtractedSubgraphs {
  * @return Block induced subgraphs with meta data required to implement the
  * reverse operation.
  */
-ExtractedSubgraphs extract_and_scatter_block_induced_subgraphs(
-    const DistributedPartitionedGraph &p_graph
-);
+ExtractedSubgraphs
+extract_and_scatter_block_induced_subgraphs(const DistributedPartitionedGraph &p_graph);
 
 DistributedPartitionedGraph copy_subgraph_partitions(
     DistributedPartitionedGraph p_graph,

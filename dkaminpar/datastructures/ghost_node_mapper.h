@@ -32,20 +32,16 @@ public:
 
   GhostNodeMapper(PEID rank, const StaticArray<GlobalNodeID> &node_distribution)
       : _node_distribution(node_distribution.begin(), node_distribution.end()),
-        _n(static_cast<NodeID>(
-            _node_distribution[rank + 1] - _node_distribution[rank]
-        )),
+        _n(static_cast<NodeID>(_node_distribution[rank + 1] - _node_distribution[rank])),
         _next_ghost_node(_n) {}
 
   NodeID new_ghost_node(const GlobalNodeID global_node) {
     GhostNodeMap::accessor entry;
     if (_global_to_ghost.insert(entry, global_node)) {
-      const NodeID ghost_node =
-          _next_ghost_node.fetch_add(1, std::memory_order_relaxed);
+      const NodeID ghost_node = _next_ghost_node.fetch_add(1, std::memory_order_relaxed);
       entry->second = ghost_node;
     } else {
-      [[maybe_unused]] const bool found =
-          _global_to_ghost.find(entry, global_node);
+      [[maybe_unused]] const bool found = _global_to_ghost.find(entry, global_node);
       KASSERT(found);
     }
 
@@ -70,14 +66,10 @@ public:
         const NodeID local_node = it->second;
         const NodeID local_ghost = local_node - _n;
 
-        const auto owner_it = std::upper_bound(
-            _node_distribution.begin() + 1,
-            _node_distribution.end(),
-            global_node
-        );
-        const PEID owner = static_cast<PEID>(
-            std::distance(_node_distribution.begin(), owner_it) - 1
-        );
+        const auto owner_it =
+            std::upper_bound(_node_distribution.begin() + 1, _node_distribution.end(), global_node);
+        const PEID owner =
+            static_cast<PEID>(std::distance(_node_distribution.begin(), owner_it) - 1);
 
         KASSERT(local_ghost < ghost_to_global.size());
         KASSERT(local_ghost < ghost_owner.size());
@@ -85,8 +77,7 @@ public:
         ghost_to_global[local_ghost] = global_node;
         ghost_owner[local_ghost] = owner;
 
-        DBG << "Map global node " << global_node << " to local ghost node "
-            << local_node;
+        DBG << "Map global node " << global_node << " to local ghost node " << local_node;
         global_to_ghost.insert(global_node + 1, local_node);
       }
     });

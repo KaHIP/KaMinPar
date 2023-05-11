@@ -39,10 +39,8 @@ public:
 
   using generator_type = std::mt19937;
 
-  std::size_t random_index(
-      const std::size_t inclusive_lower_bound,
-      const std::size_t exclusive_upper_bound
-  ) {
+  std::size_t
+  random_index(const std::size_t inclusive_lower_bound, const std::size_t exclusive_upper_bound) {
     return std::uniform_int_distribution<std::size_t>(
         inclusive_lower_bound, exclusive_upper_bound - 1
     )(_generator);
@@ -84,8 +82,7 @@ private:
   std::array<bool, kPrecomputedBools> _random_bools;
 };
 
-template <typename ValueType, std::size_t size, std::size_t count>
-class RandomPermutations {
+template <typename ValueType, std::size_t size, std::size_t count> class RandomPermutations {
 public:
   RandomPermutations(Random &rand) : _rand{rand} {
     init_permutations();

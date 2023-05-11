@@ -13,9 +13,7 @@
 namespace kaminpar::shm {
 class LPClustering : public Clusterer {
 public:
-  LPClustering(
-      NodeID max_n, const CoarseningContext &c_ctx
-  );
+  LPClustering(NodeID max_n, const CoarseningContext &c_ctx);
 
   LPClustering(const LPClustering &) = delete;
   LPClustering &operator=(const LPClustering &) = delete;

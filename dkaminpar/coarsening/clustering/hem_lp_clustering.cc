@@ -25,17 +25,15 @@ void HEMLPClustering::initialize(const DistributedGraph &graph) {
   _hem->initialize(graph);
 }
 
-HEMLPClustering::ClusterArray &HEMLPClustering::cluster(
-    const DistributedGraph &graph, const GlobalNodeWeight max_cluster_weight
-) {
+HEMLPClustering::ClusterArray &
+HEMLPClustering::cluster(const DistributedGraph &graph, const GlobalNodeWeight max_cluster_weight) {
   _graph = &graph;
 
   if (_fallback) {
     return _lp->cluster(graph, max_cluster_weight);
   } else {
     auto &matching = _hem->cluster(graph, max_cluster_weight);
-    const GlobalNodeID new_size =
-        compute_size_after_matching_contraction(matching);
+    const GlobalNodeID new_size = compute_size_after_matching_contraction(matching);
 
     // @todo make this configurable
     if (1.0 * new_size / graph.global_n() <= 0.9) { // Shrink by at least 10%
@@ -47,8 +45,7 @@ HEMLPClustering::ClusterArray &HEMLPClustering::cluster(
   }
 }
 
-GlobalNodeID HEMLPClustering::compute_size_after_matching_contraction(
-    const ClusterArray &clustering
+GlobalNodeID HEMLPClustering::compute_size_after_matching_contraction(const ClusterArray &clustering
 ) {
   tbb::enumerable_thread_specific<NodeID> num_matched_edges_ets;
   _graph->pfor_nodes([&](const NodeID u) {
@@ -58,9 +55,8 @@ GlobalNodeID HEMLPClustering::compute_size_after_matching_contraction(
   });
   const NodeID num_matched_edges = num_matched_edges_ets.combine(std::plus{});
 
-  const GlobalNodeID num_matched_edges_globally = mpi::allreduce<GlobalNodeID>(
-      num_matched_edges, MPI_SUM, _graph->communicator()
-  );
+  const GlobalNodeID num_matched_edges_globally =
+      mpi::allreduce<GlobalNodeID>(num_matched_edges, MPI_SUM, _graph->communicator());
 
   return _graph->global_n() - num_matched_edges_globally;
 }

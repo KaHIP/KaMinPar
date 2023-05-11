@@ -13,11 +13,9 @@
 
 namespace kaminpar {
 template <typename NodeID>
-static constexpr std::size_t kNumberOfDegreeBuckets =
-    std::numeric_limits<NodeID>::digits + 1;
+static constexpr std::size_t kNumberOfDegreeBuckets = std::numeric_limits<NodeID>::digits + 1;
 
-template <typename NodeID>
-inline NodeID lowest_degree_in_bucket(const std::size_t bucket) {
+template <typename NodeID> inline NodeID lowest_degree_in_bucket(const std::size_t bucket) {
   return (1u << bucket) >> 1u;
 }
 

@@ -28,9 +28,7 @@ public:
   DenseGainCache(const BlockID k, const NodeID n)
       : _k(k),
         _n(n),
-        _gain_cache(
-            static_cast<std::size_t>(_n) * static_cast<std::size_t>(_k)
-        ),
+        _gain_cache(static_cast<std::size_t>(_n) * static_cast<std::size_t>(_k)),
         _weighted_degrees(_n) {}
 
   void initialize(const PartitionedGraph &p_graph) {
@@ -41,11 +39,8 @@ public:
     recompute_all(p_graph);
   }
 
-  EdgeWeight gain(
-      const NodeID node, const BlockID block_from, const BlockID block_to
-  ) const {
-    return weighted_degree_to(node, block_to) -
-           weighted_degree_to(node, block_from);
+  EdgeWeight gain(const NodeID node, const BlockID block_from, const BlockID block_to) const {
+    return weighted_degree_to(node, block_to) - weighted_degree_to(node, block_from);
   }
 
   EdgeWeight conn(const NodeID node, const BlockID block) const {
@@ -60,12 +55,8 @@ public:
   ) {
     for (const auto &[e, v] : p_graph.neighbors(node)) {
       const EdgeWeight weight = p_graph.edge_weight(e);
-      __atomic_fetch_sub(
-          &_gain_cache[index(v, block_from)], weight, __ATOMIC_RELAXED
-      );
-      __atomic_fetch_add(
-          &_gain_cache[index(v, block_to)], weight, __ATOMIC_RELAXED
-      );
+      __atomic_fetch_sub(&_gain_cache[index(v, block_from)], weight, __ATOMIC_RELAXED);
+      __atomic_fetch_add(&_gain_cache[index(v, block_to)], weight, __ATOMIC_RELAXED);
     }
   }
 
@@ -93,16 +84,15 @@ private:
 
   std::size_t index(const NodeID node, const BlockID b) const {
     const std::size_t idx =
-        static_cast<std::size_t>(node) * static_cast<std::size_t>(_k) +
-        static_cast<std::size_t>(b);
+        static_cast<std::size_t>(node) * static_cast<std::size_t>(_k) + static_cast<std::size_t>(b);
     KASSERT(idx < _gain_cache.size());
     return idx;
   }
 
   void reset() {
-    tbb::parallel_for<std::size_t>(
-        0, _gain_cache.size(), [&](const std::size_t i) { _gain_cache[i] = 0; }
-    );
+    tbb::parallel_for<std::size_t>(0, _gain_cache.size(), [&](const std::size_t i) {
+      _gain_cache[i] = 0;
+    });
   }
 
   void recompute_all(const PartitionedGraph &p_graph) {
@@ -125,9 +115,7 @@ private:
     }
   }
 
-  bool check_cached_gain_for_node(
-      const PartitionedGraph &p_graph, const NodeID u
-  ) const {
+  bool check_cached_gain_for_node(const PartitionedGraph &p_graph, const NodeID u) const {
     const BlockID block_u = p_graph.block(u);
     std::vector<EdgeWeight> actual_external_degrees(_k, 0);
     EdgeWeight actual_weighted_degree = 0;
@@ -142,17 +130,15 @@ private:
 
     for (BlockID b = 0; b < _k; ++b) {
       if (actual_external_degrees[b] != weighted_degree_to(u, b)) {
-        LOG_WARNING << "For node " << u << ": cached weighted degree to block "
-                    << b << " is " << weighted_degree_to(u, b)
-                    << " but should be " << actual_external_degrees[b];
+        LOG_WARNING << "For node " << u << ": cached weighted degree to block " << b << " is "
+                    << weighted_degree_to(u, b) << " but should be " << actual_external_degrees[b];
         return false;
       }
     }
 
     if (actual_weighted_degree != _weighted_degrees[u]) {
-      LOG_WARNING << "For node " << u << ": cached weighted degree is "
-                  << _weighted_degrees[u] << " but should be "
-                  << actual_weighted_degree;
+      LOG_WARNING << "For node " << u << ": cached weighted degree is " << _weighted_degrees[u]
+                  << " but should be " << actual_weighted_degree;
       return false;
     }
 
@@ -172,14 +158,11 @@ public:
     _gain_cache_delta.set_empty_key(std::numeric_limits<std::size_t>::max());
   }
 
-  EdgeWeight
-  gain(const NodeID node, const BlockID from, const BlockID to) const {
+  EdgeWeight gain(const NodeID node, const BlockID from, const BlockID to) const {
     const auto it_to = _gain_cache_delta.find(_gain_cache.index(node, to));
-    const EdgeWeight delta_to =
-        it_to != _gain_cache_delta.end() ? it_to->second : 0;
+    const EdgeWeight delta_to = it_to != _gain_cache_delta.end() ? it_to->second : 0;
     const auto it_from = _gain_cache_delta.find(_gain_cache.index(node, from));
-    const EdgeWeight delta_from =
-        it_from != _gain_cache_delta.end() ? it_from->second : 0;
+    const EdgeWeight delta_from = it_from != _gain_cache_delta.end() ? it_from->second : 0;
     return _gain_cache.gain(node, from, to) + delta_to - delta_from;
   }
 

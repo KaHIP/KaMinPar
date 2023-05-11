@@ -19,16 +19,12 @@ public:
   MtKaHyParInitialPartitioner(const Context &ctx) : _ctx{ctx} {}
 
   MtKaHyParInitialPartitioner(const MtKaHyParInitialPartitioner &) = delete;
-  MtKaHyParInitialPartitioner &
-  operator=(const MtKaHyParInitialPartitioner &) = delete;
-  MtKaHyParInitialPartitioner(MtKaHyParInitialPartitioner &&) noexcept =
-      default;
-  MtKaHyParInitialPartitioner &
-  operator=(MtKaHyParInitialPartitioner &&) = delete;
+  MtKaHyParInitialPartitioner &operator=(const MtKaHyParInitialPartitioner &) = delete;
+  MtKaHyParInitialPartitioner(MtKaHyParInitialPartitioner &&) noexcept = default;
+  MtKaHyParInitialPartitioner &operator=(MtKaHyParInitialPartitioner &&) = delete;
 
-  shm::PartitionedGraph initial_partition(
-      const shm::Graph &graph, const PartitionContext &p_ctx
-  ) override;
+  shm::PartitionedGraph
+  initial_partition(const shm::Graph &graph, const PartitionContext &p_ctx) override;
 
 private:
   const Context &_ctx;

@@ -18,11 +18,8 @@
 namespace kaminpar::dist::graph {
 using namespace kaminpar::dist::testing;
 
-std::pair<std::unique_ptr<shm::Graph>, std::unique_ptr<shm::PartitionedGraph>>
-extract_bfs_subgraph(
-    DistributedPartitionedGraph &p_graph,
-    const PEID hops,
-    const std::vector<NodeID> &seed_nodes
+std::pair<std::unique_ptr<shm::Graph>, std::unique_ptr<shm::PartitionedGraph>> extract_bfs_subgraph(
+    DistributedPartitionedGraph &p_graph, const PEID hops, const std::vector<NodeID> &seed_nodes
 ) {
   BfsExtractor extractor(p_graph.graph());
   extractor.initialize(p_graph);
@@ -140,15 +137,9 @@ TEST(BfsExtractor, one_hop_in_circle_graph) {
     ASSERT_EQ(bfs_graph->degree(0), 2);
     ASSERT_EQ(bfs_graph->degree(1), 2);
     ASSERT_EQ(bfs_graph->degree(2), 2);
-    EXPECT_THAT(
-        local_neighbors(*bfs_graph, 0), ::testing::UnorderedElementsAre(1, 2)
-    );
-    EXPECT_THAT(
-        local_neighbors(*bfs_graph, 1), ::testing::UnorderedElementsAre(0, 2)
-    );
-    EXPECT_THAT(
-        local_neighbors(*bfs_graph, 2), ::testing::UnorderedElementsAre(0, 1)
-    );
+    EXPECT_THAT(local_neighbors(*bfs_graph, 0), ::testing::UnorderedElementsAre(1, 2));
+    EXPECT_THAT(local_neighbors(*bfs_graph, 1), ::testing::UnorderedElementsAre(0, 2));
+    EXPECT_THAT(local_neighbors(*bfs_graph, 2), ::testing::UnorderedElementsAre(0, 1));
   } else if (size > 3) {
     const BlockID prev = static_cast<BlockID>(rank > 0 ? rank - 1 : size - 1);
     const BlockID next = static_cast<BlockID>((rank + 1) % size);

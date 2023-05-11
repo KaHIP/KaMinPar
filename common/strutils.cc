@@ -11,15 +11,12 @@
 namespace kaminpar::str {
 std::string extract_basename(const std::string &path) {
   const std::size_t slash = path.find_last_of('/');
-  const std::string name =
-      path.substr(slash == std::string::npos ? 0 : slash + 1);
+  const std::string name = path.substr(slash == std::string::npos ? 0 : slash + 1);
   return name.substr(0, name.find_last_of('.'));
 }
 
 std::string to_lower(std::string arg) {
-  std::transform(arg.begin(), arg.end(), arg.begin(), [](const char c) {
-    return std::tolower(c);
-  });
+  std::transform(arg.begin(), arg.end(), arg.begin(), [](const char c) { return std::tolower(c); });
   return arg;
 }
 

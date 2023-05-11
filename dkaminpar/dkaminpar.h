@@ -42,22 +42,15 @@ using EdgeWeight = std::int32_t;
 #endif
 
 constexpr NodeID kInvalidNodeID = std::numeric_limits<NodeID>::max();
-constexpr GlobalNodeID kInvalidGlobalNodeID =
-    std::numeric_limits<GlobalNodeID>::max();
-constexpr NodeWeight kInvalidNodeWeight =
-    std::numeric_limits<NodeWeight>::max();
-constexpr GlobalNodeWeight kInvalidGlobalNodeWeight =
-    std::numeric_limits<GlobalNodeWeight>::max();
+constexpr GlobalNodeID kInvalidGlobalNodeID = std::numeric_limits<GlobalNodeID>::max();
+constexpr NodeWeight kInvalidNodeWeight = std::numeric_limits<NodeWeight>::max();
+constexpr GlobalNodeWeight kInvalidGlobalNodeWeight = std::numeric_limits<GlobalNodeWeight>::max();
 constexpr EdgeID kInvalidEdgeID = std::numeric_limits<EdgeID>::max();
-constexpr GlobalEdgeID kInvalidGlobalEdgeID =
-    std::numeric_limits<GlobalEdgeID>::max();
-constexpr EdgeWeight kInvalidEdgeWeight =
-    std::numeric_limits<EdgeWeight>::max();
-constexpr GlobalEdgeWeight kInvalidGlobalEdgeWeight =
-    std::numeric_limits<GlobalEdgeWeight>::max();
+constexpr GlobalEdgeID kInvalidGlobalEdgeID = std::numeric_limits<GlobalEdgeID>::max();
+constexpr EdgeWeight kInvalidEdgeWeight = std::numeric_limits<EdgeWeight>::max();
+constexpr GlobalEdgeWeight kInvalidGlobalEdgeWeight = std::numeric_limits<GlobalEdgeWeight>::max();
 constexpr BlockID kInvalidBlockID = std::numeric_limits<BlockID>::max();
-constexpr BlockWeight kInvalidBlockWeight =
-    std::numeric_limits<BlockWeight>::max();
+constexpr BlockWeight kInvalidBlockWeight = std::numeric_limits<BlockWeight>::max();
 } // namespace kaminpar::dist
 
 namespace kaminpar::dist {
@@ -216,8 +209,7 @@ struct CoarseningContext {
 
   // Cluster weight limit
   NodeID contraction_limit = 0;
-  shm::ClusterWeightLimit cluster_weight_limit =
-      shm::ClusterWeightLimit::EPSILON_BLOCK_WEIGHT;
+  shm::ClusterWeightLimit cluster_weight_limit = shm::ClusterWeightLimit::EPSILON_BLOCK_WEIGHT;
   double cluster_weight_multiplier = 0.0;
 
   // Graph contraction
@@ -318,8 +310,7 @@ public:
       dist::GlobalEdgeWeight *edge_weights
   );
 
-  dist::GlobalEdgeWeight
-  compute_partition(int seed, dist::BlockID k, dist::BlockID *partition);
+  dist::GlobalEdgeWeight compute_partition(int seed, dist::BlockID k, dist::BlockID *partition);
 
 private:
   MPI_Comm _comm;

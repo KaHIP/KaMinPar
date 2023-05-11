@@ -31,16 +31,13 @@ public:
       : _storage(rhs._storage),
         _size(rhs._size) {}
 
-  template <typename U>
-  bool operator==(const PreallocatedAllocator<U> &other) noexcept {
+  template <typename U> bool operator==(const PreallocatedAllocator<U> &other) noexcept {
     return _storage == other._storage && _size == other._size;
   }
 
   pointer allocate(const size_type n) {
     KASSERT(
-        n == _size,
-        "allocation request does not match the preallocated storage",
-        assert::light
+        n == _size, "allocation request does not match the preallocated storage", assert::light
     );
     _size = 0;
     return _storage;
@@ -57,28 +54,22 @@ private:
   size_type _size;
 };
 
-template <typename T>
-using PreallocatedVector = std::vector<T, PreallocatedAllocator<T>>;
-
-template <typename T>
-PreallocatedVector<T> make_preallocated_vector(
-    T *storage, const std::size_t start, const std::size_t size
-) {
-  return PreallocatedVector<T>(
-      size, PreallocatedAllocator<T>(storage + start, size)
-  );
-}
+template <typename T> using PreallocatedVector = std::vector<T, PreallocatedAllocator<T>>;
 
 template <typename T>
 PreallocatedVector<T>
-make_preallocated_vector(T *storage, const std::size_t size) {
+make_preallocated_vector(T *storage, const std::size_t start, const std::size_t size) {
+  return PreallocatedVector<T>(size, PreallocatedAllocator<T>(storage + start, size));
+}
+
+template <typename T>
+PreallocatedVector<T> make_preallocated_vector(T *storage, const std::size_t size) {
   return make_preallocated_vector(storage, 0u, size);
 }
 
 template <typename Container>
-auto make_preallocated_vector(
-    Container &storage, const std::size_t start, const std::size_t size
-) -> PreallocatedVector<typename Container::value_type> {
+auto make_preallocated_vector(Container &storage, const std::size_t start, const std::size_t size)
+    -> PreallocatedVector<typename Container::value_type> {
   return make_preallocated_vector(std::data(storage), start, size);
 }
 

@@ -40,10 +40,8 @@ using DefaultAllocatorType = ::growt::AlignedAllocator<>;
 namespace internal {
 // workaround 32 bit value bug in growt
 template <typename Type>
-using Ensure64BitType = std::conditional_t<
-    std::numeric_limits<Type>::is_signed,
-    GlobalNodeWeight,
-    GlobalNodeID>;
+using Ensure64BitType =
+    std::conditional_t<std::numeric_limits<Type>::is_signed, GlobalNodeWeight, GlobalNodeID>;
 } // namespace internal
 
 template <typename Value>
@@ -55,14 +53,10 @@ using GlobalNodeIDMap = typename ::growt::table_config<
     hmod::growable,
     hmod::deletion>::table_type;
 
-using StaticGhostNodeMapping = typename ::growt::table_config<
-    GlobalNodeID,
-    GlobalNodeID,
-    DefaultHasherType,
-    DefaultAllocatorType>::table_type;
+using StaticGhostNodeMapping = typename ::growt::
+    table_config<GlobalNodeID, GlobalNodeID, DefaultHasherType, DefaultAllocatorType>::table_type;
 
-template <typename Map, typename Lambda>
-void pfor_map(Map &map, Lambda &&lambda) {
+template <typename Map, typename Lambda> void pfor_map(Map &map, Lambda &&lambda) {
   std::atomic_size_t counter = 0;
 
 #pragma omp parallel default(none) shared(map, counter, lambda)
@@ -80,8 +74,7 @@ void pfor_map(Map &map, Lambda &&lambda) {
   }
 }
 
-template <typename Handles, typename Lambda>
-void pfor_handles(Handles &handles, Lambda &&lambda) {
+template <typename Handles, typename Lambda> void pfor_handles(Handles &handles, Lambda &&lambda) {
   std::atomic_size_t counter = 0;
 
 #pragma omp parallel default(none) shared(handles, counter, lambda)

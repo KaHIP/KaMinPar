@@ -32,53 +32,44 @@ SET_DEBUG(false);
 
 namespace {
 PEID compute_block_owner(const BlockID b, const BlockID k, const PEID num_pes) {
-  return static_cast<PEID>(math::compute_local_range_rank<BlockID>(
-      k, static_cast<BlockID>(num_pes), b
-  ));
+  return static_cast<PEID>(
+      math::compute_local_range_rank<BlockID>(k, static_cast<BlockID>(num_pes), b)
+  );
 }
 
-auto count_block_induced_subgraph_sizes(
-    const DistributedPartitionedGraph &p_graph
-) {
+auto count_block_induced_subgraph_sizes(const DistributedPartitionedGraph &p_graph) {
   parallel::vector_ets<NodeID> num_nodes_per_block_ets(p_graph.k());
   parallel::vector_ets<EdgeID> num_edges_per_block_ets(p_graph.k());
 
-  tbb::parallel_for(
-      tbb::blocked_range<NodeID>(0, p_graph.n()),
-      [&](const auto r) {
-        auto &num_nodes_per_block = num_nodes_per_block_ets.local();
-        auto &num_edges_per_block = num_edges_per_block_ets.local();
-        for (NodeID u = r.begin(); u != r.end(); ++u) {
-          const BlockID u_block = p_graph.block(u);
-          ++num_nodes_per_block[u_block];
-          for (const auto [e, v] : p_graph.neighbors(u)) {
-            if (u_block == p_graph.block(v)) {
-              ++num_edges_per_block[u_block];
-            }
-          }
+  tbb::parallel_for(tbb::blocked_range<NodeID>(0, p_graph.n()), [&](const auto r) {
+    auto &num_nodes_per_block = num_nodes_per_block_ets.local();
+    auto &num_edges_per_block = num_edges_per_block_ets.local();
+    for (NodeID u = r.begin(); u != r.end(); ++u) {
+      const BlockID u_block = p_graph.block(u);
+      ++num_nodes_per_block[u_block];
+      for (const auto [e, v] : p_graph.neighbors(u)) {
+        if (u_block == p_graph.block(v)) {
+          ++num_edges_per_block[u_block];
         }
       }
-  );
+    }
+  });
 
   return std::make_pair(
-      num_nodes_per_block_ets.combine(std::plus{}),
-      num_edges_per_block_ets.combine(std::plus{})
+      num_nodes_per_block_ets.combine(std::plus{}), num_edges_per_block_ets.combine(std::plus{})
   );
 }
 } // namespace
 
 // Build a local block-induced subgraph for each block of the graph partition.
 ExtractedLocalSubgraphs
-extract_local_block_induced_subgraphs(const DistributedPartitionedGraph &p_graph
-) {
+extract_local_block_induced_subgraphs(const DistributedPartitionedGraph &p_graph) {
   mpi::barrier(p_graph.communicator());
   SCOPED_TIMER("Extracting local block induced subgraphs");
 
-  auto [num_nodes_per_block, num_edges_per_block] =
-      count_block_induced_subgraph_sizes(p_graph);
-  const EdgeID num_internal_edges = std::accumulate(
-      num_edges_per_block.begin(), num_edges_per_block.end(), 0
-  );
+  auto [num_nodes_per_block, num_edges_per_block] = count_block_induced_subgraph_sizes(p_graph);
+  const EdgeID num_internal_edges =
+      std::accumulate(num_edges_per_block.begin(), num_edges_per_block.end(), 0);
 
   ExtractedLocalSubgraphs memory;
   auto &shared_nodes = memory.shared_nodes;
@@ -129,14 +120,10 @@ extract_local_block_induced_subgraphs(const DistributedPartitionedGraph &p_graph
     SCOPED_TIMER("Compute subgraph offsets");
 
     parallel::prefix_sum(
-        num_nodes_per_block.begin(),
-        num_nodes_per_block.end(),
-        nodes_offset.begin() + 1
+        num_nodes_per_block.begin(), num_nodes_per_block.end(), nodes_offset.begin() + 1
     );
     parallel::prefix_sum(
-        num_edges_per_block.begin(),
-        num_edges_per_block.end(),
-        edges_offset.begin() + 1
+        num_edges_per_block.begin(), num_edges_per_block.end(), edges_offset.begin() + 1
     );
 
     mpi::barrier(p_graph.communicator());
@@ -193,16 +180,11 @@ extract_local_block_induced_subgraphs(const DistributedPartitionedGraph &p_graph
           return NodeToMappedNode{p_graph.local_to_global_node(u), mapping[u]};
         },
         [&](const auto buffer) {
-          tbb::parallel_for<std::size_t>(
-              0,
-              buffer.size(),
-              [&](const std::size_t i) {
-                const auto &[global_node, mapped_node] = buffer[i];
-                const NodeID local_node =
-                    p_graph.global_to_local_node(global_node);
-                mapping[local_node] = mapped_node;
-              }
-          );
+          tbb::parallel_for<std::size_t>(0, buffer.size(), [&](const std::size_t i) {
+            const auto &[global_node, mapped_node] = buffer[i];
+            const NodeID local_node = p_graph.global_to_local_node(global_node);
+            mapping[local_node] = mapped_node;
+          });
         }
     );
     mpi::barrier(p_graph.communicator());
@@ -250,16 +232,13 @@ extract_local_block_induced_subgraphs(const DistributedPartitionedGraph &p_graph
 }
 
 namespace {
-std::pair<std::vector<shm::Graph>, std::vector<std::vector<NodeID>>>
-gather_block_induced_subgraphs(
+std::pair<std::vector<shm::Graph>, std::vector<std::vector<NodeID>>> gather_block_induced_subgraphs(
     const DistributedPartitionedGraph &p_graph, ExtractedLocalSubgraphs &memory
 ) {
   SCOPED_TIMER("Gathering block induced subgraphs");
 
   const PEID size = mpi::get_comm_size(p_graph.communicator());
-  KASSERT(
-      p_graph.k() % size == 0u || size % p_graph.k() == 0, "", assert::always
-  );
+  KASSERT(p_graph.k() % size == 0u || size % p_graph.k() == 0, "", assert::always);
 
   const BlockID blocks_per_pe = std::max<BlockID>(1, p_graph.k() / size);
   const BlockID pes_per_block = std::max<BlockID>(1, size / p_graph.k());
@@ -280,22 +259,16 @@ gather_block_induced_subgraphs(
     }
   };
 
-  std::vector<GraphSize> recv_subgraph_sizes(
-      std::max<std::size_t>(p_graph.k(), size)
-  );
+  std::vector<GraphSize> recv_subgraph_sizes(std::max<std::size_t>(p_graph.k(), size));
   {
     SCOPED_TIMER("Alltoall recvcounts");
 
     START_TIMER("Compute counts");
-    std::vector<GraphSize> send_subgraph_sizes(
-        std::max<std::size_t>(p_graph.k(), size)
-    );
+    std::vector<GraphSize> send_subgraph_sizes(std::max<std::size_t>(p_graph.k(), size));
     p_graph.pfor_blocks([&](const BlockID b) {
       for (BlockID to = pes_per_block * b; to < pes_per_block * (b + 1); ++to) {
-        send_subgraph_sizes[to].n =
-            memory.nodes_offset[b + 1] - memory.nodes_offset[b];
-        send_subgraph_sizes[to].m =
-            memory.edges_offset[b + 1] - memory.edges_offset[b];
+        send_subgraph_sizes[to].n = memory.nodes_offset[b + 1] - memory.nodes_offset[b];
+        send_subgraph_sizes[to].m = memory.edges_offset[b + 1] - memory.edges_offset[b];
       }
     });
     STOP_TIMER();
@@ -310,13 +283,9 @@ gather_block_induced_subgraphs(
     );
     STOP_TIMER();
   }
-  std::vector<GraphSize> recv_subgraph_displs(
-      std::max<std::size_t>(p_graph.k(), size) + 1
-  );
+  std::vector<GraphSize> recv_subgraph_displs(std::max<std::size_t>(p_graph.k(), size) + 1);
   parallel::prefix_sum(
-      recv_subgraph_sizes.begin(),
-      recv_subgraph_sizes.end(),
-      recv_subgraph_displs.begin() + 1
+      recv_subgraph_sizes.begin(), recv_subgraph_sizes.end(), recv_subgraph_displs.begin() + 1
   );
 
   std::vector<EdgeID> shared_nodes;
@@ -340,21 +309,17 @@ gather_block_induced_subgraphs(
 
     START_TIMER("Compute counts and displs");
     tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
-      const BlockID first_block_on_pe = pe * blocks_per_pe; // 1
-      const BlockID first_block_on_pe2 =
-          (pe / pes_per_block) * blocks_per_pe;                           // 1
-      const BlockID first_invalid_block_on_pe = (pe + 1) * blocks_per_pe; // 2
-      const BlockID first_invalid_block_on_pe2 =
-          (pe / pes_per_block + 1) * blocks_per_pe; // 2
+      const BlockID first_block_on_pe = pe * blocks_per_pe;                                // 1
+      const BlockID first_block_on_pe2 = (pe / pes_per_block) * blocks_per_pe;             // 1
+      const BlockID first_invalid_block_on_pe = (pe + 1) * blocks_per_pe;                  // 2
+      const BlockID first_invalid_block_on_pe2 = (pe / pes_per_block + 1) * blocks_per_pe; // 2
 
       sendcounts_nodes[pe] = memory.nodes_offset[first_invalid_block_on_pe2] -
                              memory.nodes_offset[first_block_on_pe2]; //
-      sdispls_nodes[pe + 1] =
-          memory.nodes_offset[(pe + 1) / pes_per_block * blocks_per_pe];
-      sendcounts_edges[pe] = memory.edges_offset[first_invalid_block_on_pe2] -
-                             memory.edges_offset[first_block_on_pe2];
-      sdispls_edges[pe + 1] =
-          memory.edges_offset[(pe + 1) / pes_per_block * blocks_per_pe];
+      sdispls_nodes[pe + 1] = memory.nodes_offset[(pe + 1) / pes_per_block * blocks_per_pe];
+      sendcounts_edges[pe] =
+          memory.edges_offset[first_invalid_block_on_pe2] - memory.edges_offset[first_block_on_pe2];
+      sdispls_edges[pe + 1] = memory.edges_offset[(pe + 1) / pes_per_block * blocks_per_pe];
 
       recvcounts_nodes[pe] = recv_subgraph_displs[first_invalid_block_on_pe].n -
                              recv_subgraph_displs[first_block_on_pe].n;
@@ -493,11 +458,9 @@ gather_block_induced_subgraphs(
 }
 } // namespace
 
-ExtractedSubgraphs extract_and_scatter_block_induced_subgraphs(
-    const DistributedPartitionedGraph &p_graph
-) {
-  auto extracted_local_subgraphs =
-      extract_local_block_induced_subgraphs(p_graph);
+ExtractedSubgraphs
+extract_and_scatter_block_induced_subgraphs(const DistributedPartitionedGraph &p_graph) {
+  auto extracted_local_subgraphs = extract_local_block_induced_subgraphs(p_graph);
   auto [gathered_subgraphs, offsets] =
       gather_block_induced_subgraphs(p_graph, extracted_local_subgraphs);
 
@@ -546,29 +509,23 @@ DistributedPartitionedGraph copy_subgraph_partitions(
     });
   }
 
-  const auto partition_recvbufs = mpi::sparse_alltoall_get<BlockID>(
-      partition_sendbufs, p_graph.communicator()
-  );
+  const auto partition_recvbufs =
+      mpi::sparse_alltoall_get<BlockID>(partition_sendbufs, p_graph.communicator());
 
   // To index partition_recvbufs, we need the number of nodes *on our PE* in
   // each block
   // -> Compute this now
   parallel::vector_ets<NodeID> block_sizes_ets(p_graph.k());
-  tbb::parallel_for(
-      tbb::blocked_range<NodeID>(0, p_graph.n()),
-      [&](const auto &r) {
-        auto &block_sizes = block_sizes_ets.local();
-        for (NodeID u = r.begin(); u != r.end(); ++u) {
-          ++block_sizes[p_graph.block(u)];
-        }
-      }
-  );
+  tbb::parallel_for(tbb::blocked_range<NodeID>(0, p_graph.n()), [&](const auto &r) {
+    auto &block_sizes = block_sizes_ets.local();
+    for (NodeID u = r.begin(); u != r.end(); ++u) {
+      ++block_sizes[p_graph.block(u)];
+    }
+  });
   const auto block_sizes = block_sizes_ets.combine(std::plus{});
 
   std::vector<NodeID> block_offsets(p_graph.k() + 1);
-  parallel::prefix_sum(
-      block_sizes.begin(), block_sizes.end(), block_offsets.begin() + 1
-  );
+  parallel::prefix_sum(block_sizes.begin(), block_sizes.end(), block_offsets.begin() + 1);
 
   // Assign nodes in p_graph to new blocks
   const BlockID num_blocks_per_pe = p_graph.k() / size;
@@ -577,15 +534,13 @@ DistributedPartitionedGraph copy_subgraph_partitions(
     return static_cast<PEID>(b / num_blocks_per_pe);
   };
 
-  auto partition =
-      p_graph.take_partition(); // NOTE: do not use p_graph after this
+  auto partition = p_graph.take_partition(); // NOTE: do not use p_graph after this
 
   p_graph.pfor_nodes([&](const NodeID u) {
     const BlockID b = partition[u];
     const PEID owner = compute_block_owner(b);
     const BlockID first_block_on_owner = owner * num_blocks_per_pe;
-    const BlockID block_offset =
-        block_offsets[b] - block_offsets[first_block_on_owner];
+    const BlockID block_offset = block_offsets[b] - block_offsets[first_block_on_owner];
     const NodeID mapped_u = mapping[u]; // ID of u in its block-induced subgraph
 
     KASSERT(static_cast<BlockID>(owner) < partition_recvbufs.size());
@@ -593,15 +548,12 @@ DistributedPartitionedGraph copy_subgraph_partitions(
         mapped_u + block_offset < partition_recvbufs[owner].size(),
         V(mapped_u) << V(block_offset) << V(b) << V(block_offsets)
     );
-    const BlockID new_b =
-        b * k_multiplier + partition_recvbufs[owner][mapped_u + block_offset];
+    const BlockID new_b = b * k_multiplier + partition_recvbufs[owner][mapped_u + block_offset];
     partition[u] = new_b;
   });
 
   // Create partitioned graph with the new partition
-  DistributedPartitionedGraph new_p_graph(
-      &p_graph.graph(), new_k, std::move(partition)
-  );
+  DistributedPartitionedGraph new_p_graph(&p_graph.graph(), new_k, std::move(partition));
 
   // Synchronize block assignment of ghost nodes
   synchronize_ghost_node_block_ids(new_p_graph);
@@ -621,9 +573,7 @@ DistributedPartitionedGraph copy_duplicated_subgraph_partitions(
 ) {
   SCOPED_TIMER("Projecting subgraph partitions");
 
-  KASSERT(
-      p_subgraphs.size() == 1u, "use copy_subgraph_partitions()", assert::always
-  );
+  KASSERT(p_subgraphs.size() == 1u, "use copy_subgraph_partitions()", assert::always);
   const shm::PartitionedGraph &p_subgraph = p_subgraphs.front();
 
   const PEID size = mpi::get_comm_size(p_graph.communicator());
@@ -635,16 +585,13 @@ DistributedPartitionedGraph copy_duplicated_subgraph_partitions(
 
   // Allgather edge cuts
   const GlobalEdgeWeight my_cut = shm::metrics::edge_cut(p_subgraph);
-  const auto cuts =
-      mpi::allgather<GlobalEdgeWeight>(my_cut, p_graph.communicator());
+  const auto cuts = mpi::allgather<GlobalEdgeWeight>(my_cut, p_graph.communicator());
 
   // Decides whether we use the partition from a certain PE
   auto use_cut_from_pe = [&](const PEID pe) {
     const BlockID pe_block = pe / pes_per_block;
     PEID min_cut_pe = pe_block * pes_per_block;
-    for (BlockID b = pe_block * pes_per_block;
-         b < (pe_block + 1) * pes_per_block;
-         ++b) {
+    for (BlockID b = pe_block * pes_per_block; b < (pe_block + 1) * pes_per_block; ++b) {
       if (cuts[b] < cuts[min_cut_pe]) {
         min_cut_pe = b;
       }
@@ -668,37 +615,29 @@ DistributedPartitionedGraph copy_duplicated_subgraph_partitions(
       }
     });
   }
-  const auto partition_recvbufs = mpi::sparse_alltoall_get<BlockID>(
-      partition_sendbufs, p_graph.communicator()
-  );
+  const auto partition_recvbufs =
+      mpi::sparse_alltoall_get<BlockID>(partition_sendbufs, p_graph.communicator());
 
   // To index partition_recvbufs, we need the number of nodes *on our PE* in
   // each block
   // -> Compute this now
   parallel::vector_ets<NodeID> block_sizes_ets(p_graph.k());
-  tbb::parallel_for(
-      tbb::blocked_range<NodeID>(0, p_graph.n()),
-      [&](const auto &r) {
-        auto &block_sizes = block_sizes_ets.local();
-        for (NodeID u = r.begin(); u != r.end(); ++u) {
-          ++block_sizes[p_graph.block(u)];
-        }
-      }
-  );
+  tbb::parallel_for(tbb::blocked_range<NodeID>(0, p_graph.n()), [&](const auto &r) {
+    auto &block_sizes = block_sizes_ets.local();
+    for (NodeID u = r.begin(); u != r.end(); ++u) {
+      ++block_sizes[p_graph.block(u)];
+    }
+  });
   const auto block_sizes = block_sizes_ets.combine(std::plus{});
 
   std::vector<NodeID> block_offsets(p_graph.k() + 1);
-  parallel::prefix_sum(
-      block_sizes.begin(), block_sizes.end(), block_offsets.begin() + 1
-  );
+  parallel::prefix_sum(block_sizes.begin(), block_sizes.end(), block_offsets.begin() + 1);
 
   // Map blocks to the PE from which we use the partition
   NoinitVector<PEID> block_owner(p_graph.k());
   tbb::parallel_for<BlockID>(0, p_graph.k(), [&](const BlockID b) {
     PEID min_cut_pe = b * pes_per_block;
-    for (PEID pe = b * pes_per_block;
-         pe < static_cast<PEID>((b + 1) * pes_per_block);
-         ++pe) {
+    for (PEID pe = b * pes_per_block; pe < static_cast<PEID>((b + 1) * pes_per_block); ++pe) {
       if (cuts[pe] < cuts[min_cut_pe]) {
         min_cut_pe = pe;
       }
@@ -707,15 +646,13 @@ DistributedPartitionedGraph copy_duplicated_subgraph_partitions(
   });
 
   // Assign nodes in p_graph to new blocks
-  auto partition =
-      p_graph.take_partition(); // NOTE: do not use p_graph after this
+  auto partition = p_graph.take_partition(); // NOTE: do not use p_graph after this
 
   p_graph.pfor_nodes([&](const NodeID u) {
     const BlockID b = partition[u];
     const PEID owner = block_owner[b];
     const BlockID first_block_on_owner = owner / pes_per_block;
-    const BlockID block_offset =
-        block_offsets[b] - block_offsets[first_block_on_owner];
+    const BlockID block_offset = block_offsets[b] - block_offsets[first_block_on_owner];
     const NodeID mapped_u = mapping[u]; // ID of u in its block-induced subgraph
 
     KASSERT(static_cast<BlockID>(owner) < partition_recvbufs.size());
@@ -723,15 +660,12 @@ DistributedPartitionedGraph copy_duplicated_subgraph_partitions(
         mapped_u + block_offset < partition_recvbufs[owner].size(),
         V(mapped_u) << V(block_offset) << V(b) << V(block_offsets)
     );
-    const BlockID new_b =
-        b * k_multiplier + partition_recvbufs[owner][mapped_u + block_offset];
+    const BlockID new_b = b * k_multiplier + partition_recvbufs[owner][mapped_u + block_offset];
     partition[u] = new_b;
   });
 
   // Create partitioned graph with the new partition
-  DistributedPartitionedGraph new_p_graph(
-      &p_graph.graph(), new_k, std::move(partition)
-  );
+  DistributedPartitionedGraph new_p_graph(&p_graph.graph(), new_k, std::move(partition));
 
   // Synchronize block assignment of ghost nodes
   synchronize_ghost_node_block_ids(new_p_graph);

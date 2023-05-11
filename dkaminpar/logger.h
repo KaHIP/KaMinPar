@@ -9,40 +9,35 @@
 #define LOG_RANK "[PE" << kaminpar::mpi::get_comm_rank(MPI_COMM_WORLD) << "]"
 
 #undef DBGC
-#define DBGC(cond)                                                             \
-  (kDebug && (cond)) && kaminpar::DisposableLogger<false>(std::cout)           \
-                            << kaminpar::logger::CYAN << LOG_RANK              \
-                            << kaminpar::logger::MAGENTA << POSITION << " "    \
-                            << kaminpar::logger::DEFAULT_TEXT
+#define DBGC(cond)                                                                                 \
+  (kDebug && (cond)) && kaminpar::DisposableLogger<false>(std::cout)                               \
+                            << kaminpar::logger::CYAN << LOG_RANK << kaminpar::logger::MAGENTA     \
+                            << POSITION << " " << kaminpar::logger::DEFAULT_TEXT
 
 #undef LOG
 #undef LLOG
-#define LOG                                                                    \
-  (kaminpar::mpi::get_comm_rank(MPI_COMM_WORLD) == 0) &&                       \
+#define LOG                                                                                        \
+  (kaminpar::mpi::get_comm_rank(MPI_COMM_WORLD) == 0) &&                                           \
       kaminpar::DisposableLogger<false>(std::cout)
-#define LLOG                                                                   \
-  (kaminpar::mpi::get_comm_rank(MPI_COMM_WORLD) == 0) &&                       \
+#define LLOG                                                                                       \
+  (kaminpar::mpi::get_comm_rank(MPI_COMM_WORLD) == 0) &&                                           \
       kaminpar::DisposableLogger<false>(std::cout, "")
 
 #undef STATS
-#define STATS                                                                  \
-  kStatistics && (kaminpar::mpi::get_comm_rank(MPI_COMM_WORLD) == 0) &&        \
+#define STATS                                                                                      \
+  kStatistics && (kaminpar::mpi::get_comm_rank(MPI_COMM_WORLD) == 0) &&                            \
       kaminpar::DisposableLogger<false>(std::cout) << kaminpar::logger::CYAN
 
 #undef LOG_ERROR
-#define LOG_ERROR                                                              \
-  (kaminpar::Logger(std::cout)                                                 \
-   << LOG_RANK << kaminpar::logger::RED << "[Error] ")
+#define LOG_ERROR (kaminpar::Logger(std::cout) << LOG_RANK << kaminpar::logger::RED << "[Error] ")
 
 #undef FATAL_ERROR
 #undef FATAL_PERROR
-#define FATAL_ERROR                                                            \
-  (kaminpar::DisposableLogger<true>(std::cout)                                 \
+#define FATAL_ERROR                                                                                \
+  (kaminpar::DisposableLogger<true>(std::cout)                                                     \
    << LOG_RANK << " " << kaminpar::logger::RED << "[Fatal] ")
-#define FATAL_PERROR                                                           \
-  (kaminpar::DisposableLogger<true>(                                           \
-       std::cout, std::string(": ") + std::strerror(errno) + "\n"              \
-   )                                                                           \
+#define FATAL_PERROR                                                                               \
+  (kaminpar::DisposableLogger<true>(std::cout, std::string(": ") + std::strerror(errno) + "\n")    \
    << LOG_RANK << " " << kaminpar::logger::RED << "[Fatal] ")
 
 #define DLOG (kaminpar::Logger() << LOG_RANK << " ")
@@ -52,9 +47,7 @@
 namespace kaminpar::dist {
 class SynchronizedLogger {
 public:
-  explicit SynchronizedLogger(
-      const int root = 0, MPI_Comm comm = MPI_COMM_WORLD
-  )
+  explicit SynchronizedLogger(const int root = 0, MPI_Comm comm = MPI_COMM_WORLD)
       : _buf{},
         _logger{_buf},
         _root{root},
@@ -69,14 +62,7 @@ public:
 
     if (rank != _root) {
       std::string str = _buf.str();
-      MPI_Send(
-          str.data(),
-          static_cast<int>(str.length()),
-          MPI_CHAR,
-          _root,
-          0,
-          MPI_COMM_WORLD
-      );
+      MPI_Send(str.data(), static_cast<int>(str.length()), MPI_CHAR, _root, 0, MPI_COMM_WORLD);
     } else {
       kaminpar::Logger logger;
 
@@ -93,9 +79,7 @@ public:
           MPI_Get_count(&status, MPI_CHAR, &cnt);
 
           char *str = new char[cnt];
-          MPI_Recv(
-              str, cnt, MPI_CHAR, pe, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE
-          );
+          MPI_Recv(str, cnt, MPI_CHAR, pe, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
           logger << std::string(str, cnt);
 

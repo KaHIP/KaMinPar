@@ -40,17 +40,10 @@ struct ApplicationContext {
 };
 
 void setup_context(CLI::App &cli, ApplicationContext &app, Context &ctx) {
-  cli.set_config(
-      "-C,--config",
-      "",
-      "Read parameters from a TOML configuration file.",
-      false
-  );
+  cli.set_config("-C,--config", "", "Read parameters from a TOML configuration file.", false);
   cli.add_option_function<std::string>(
          "-P,--preset",
-         [&](const std::string preset) {
-           ctx = create_context_by_preset_name(preset);
-         }
+         [&](const std::string preset) { ctx = create_context_by_preset_name(preset); }
   )
       ->check(CLI::IsMember(get_preset_names()))
       ->description(R"(Use configuration preset:
@@ -66,11 +59,8 @@ void setup_context(CLI::App &cli, ApplicationContext &app, Context &ctx) {
   mandatory->add_flag("--dump-config", app.dump_config)
       ->configurable(false)
       ->description(R"(Print the current configuration and exit.
-The output should be stored in a file and can be used by the -C,--config option.)"
-      );
-  mandatory->add_flag(
-      "-v,--version", app.show_version, "Show version and exit."
-  );
+The output should be stored in a file and can be used by the -C,--config option.)");
+  mandatory->add_flag("-v,--version", app.show_version, "Show version and exit.");
 
   // Mandatory -> ... or partition a graph
   auto *gp_group = mandatory->add_option_group("Partitioning")->silent();
@@ -90,9 +80,7 @@ The output should be stored in a file and can be used by the -C,--config option.
   cli.add_option("-s,--seed", app.seed, "Seed for random number generation.")
       ->default_val(app.seed);
   cli.add_flag("-q,--quiet", app.quiet, "Suppress all console output.");
-  cli.add_option(
-         "-t,--threads", app.num_threads, "Number of threads to be used."
-  )
+  cli.add_option("-t,--threads", app.num_threads, "Number of threads to be used.")
       ->check(CLI::NonNegativeNumber)
       ->default_val(app.num_threads);
   cli.add_flag(
@@ -102,24 +90,14 @@ The output should be stored in a file and can be used by the -C,--config option.
          "number of edges."
   )
       ->capture_default_str();
-  cli.add_flag(
-      "-E,--experiment",
-      app.experiment,
-      "Use an output format that is easier to parse."
-  );
+  cli.add_flag("-E,--experiment", app.experiment, "Use an output format that is easier to parse.");
   cli.add_option(
-      "--max-timer-depth",
-      app.max_timer_depth,
-      "Set maximum timer depth shown in result summary."
+      "--max-timer-depth", app.max_timer_depth, "Set maximum timer depth shown in result summary."
   );
   cli.add_flag_function("-T,--all-timers", [&](auto) {
     app.max_timer_depth = std::numeric_limits<int>::max();
   });
-  cli.add_option(
-         "-o,--output",
-         app.partition_filename,
-         "Output filename for the graph partition."
-  )
+  cli.add_option("-o,--output", app.partition_filename, "Output filename for the graph partition.")
       ->capture_default_str();
 
   // Algorithmic options
@@ -169,24 +147,20 @@ int main(int argc, char *argv[]) {
 
     auto graph = [&] {
       const bool filename_is_generator_string =
-          std::find(
-              app.graph_filename.begin(), app.graph_filename.end(), ';'
-          ) != app.graph_filename.end();
+          std::find(app.graph_filename.begin(), app.graph_filename.end(), ';') !=
+          app.graph_filename.end();
       if (filename_is_generator_string) {
         return generator.GenerateFromOptionString(app.graph_filename);
       } else {
-        auto format = str::ends_with(app.graph_filename, "bgf")
-                          ? kagen::FileFormat::PARHIP
-                          : kagen::FileFormat::METIS;
-        auto distribution = app.load_edge_balanced
-                                ? kagen::GraphDistribution::BALANCE_EDGES
-                                : kagen::GraphDistribution::BALANCE_VERTICES;
+        auto format = str::ends_with(app.graph_filename, "bgf") ? kagen::FileFormat::PARHIP
+                                                                : kagen::FileFormat::METIS;
+        auto distribution = app.load_edge_balanced ? kagen::GraphDistribution::BALANCE_EDGES
+                                                   : kagen::GraphDistribution::BALANCE_VERTICES;
         return generator.ReadFromFile(app.graph_filename, format, distribution);
       }
     }();
-    auto vtxdist = kagen::BuildVertexDistribution<unsigned long>(
-        graph, MPI_UNSIGNED_LONG, MPI_COMM_WORLD
-    );
+    auto vtxdist =
+        kagen::BuildVertexDistribution<unsigned long>(graph, MPI_UNSIGNED_LONG, MPI_COMM_WORLD);
 
     auto xadj = graph.TakeXadj<>();
     auto adjncy = graph.TakeAdjncy<>();
@@ -201,15 +175,11 @@ int main(int argc, char *argv[]) {
     GlobalEdgeID *xadj_ptr = reinterpret_cast<GlobalNodeID *>(xadj.data());
     GlobalNodeID *adjncy_ptr = reinterpret_cast<GlobalNodeID *>(adjncy.data());
     GlobalNodeWeight *vwgt_ptr =
-        vwgt.empty() ? nullptr
-                     : reinterpret_cast<GlobalNodeWeight *>(vwgt.data());
+        vwgt.empty() ? nullptr : reinterpret_cast<GlobalNodeWeight *>(vwgt.data());
     GlobalEdgeWeight *adjwgt_ptr =
-        adjwgt.empty() ? nullptr
-                       : reinterpret_cast<GlobalEdgeWeight *>(adjwgt.data());
+        adjwgt.empty() ? nullptr : reinterpret_cast<GlobalEdgeWeight *>(adjwgt.data());
 
-    partitioner.import_graph(
-        vtxdist.data(), xadj_ptr, adjncy_ptr, vwgt_ptr, adjwgt_ptr
-    );
+    partitioner.import_graph(vtxdist.data(), xadj_ptr, adjncy_ptr, vwgt_ptr, adjwgt_ptr);
 
     return graph.vertex_range.second - graph.vertex_range.first;
   }();

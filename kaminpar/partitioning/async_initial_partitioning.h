@@ -29,14 +29,11 @@ public:
       TemporaryGraphExtractionBufferPool &ip_extraction_pool
   );
 
-  PartitionedGraph
-  partition(const Coarsener *coarsener, const PartitionContext &p_ctx);
+  PartitionedGraph partition(const Coarsener *coarsener, const PartitionContext &p_ctx);
 
 private:
   PartitionedGraph partition_recursive(
-      const Coarsener *parent_coarsener,
-      PartitionContext &p_ctx,
-      std::size_t num_threads
+      const Coarsener *parent_coarsener, PartitionContext &p_ctx, std::size_t num_threads
   );
 
   PartitionedGraph split_and_join(

@@ -45,11 +45,9 @@ DistributedGraph load_graph(const std::string &filename) {
   return graph;
 }
 
-DistributedPartitionedGraph load_graph_partition(
-    const DistributedGraph &graph, const std::string &filename
-) {
-  auto partition =
-      dist::io::partition::read<scalable_vector<BlockID>>(filename, graph.n());
+DistributedPartitionedGraph
+load_graph_partition(const DistributedGraph &graph, const std::string &filename) {
+  auto partition = dist::io::partition::read<scalable_vector<BlockID>>(filename, graph.n());
 
   // Communicate blocks of ghost nodes
   for (NodeID u = graph.n(); u < graph.total_n(); ++u) {
@@ -67,23 +65,17 @@ DistributedPartitionedGraph load_graph_partition(
         return {u, partition[u]};
       },
       [&](const auto buffer, const PEID pe) {
-        tbb::parallel_for<std::size_t>(
-            0,
-            buffer.size(),
-            [&](const std::size_t i) {
-              const auto &[local_node_on_other_pe, block] = buffer[i];
-              const NodeID local_node = graph.global_to_local_node(
-                  graph.offset_n(pe) + local_node_on_other_pe
-              );
-              partition[local_node] = block;
-            }
-        );
+        tbb::parallel_for<std::size_t>(0, buffer.size(), [&](const std::size_t i) {
+          const auto &[local_node_on_other_pe, block] = buffer[i];
+          const NodeID local_node =
+              graph.global_to_local_node(graph.offset_n(pe) + local_node_on_other_pe);
+          partition[local_node] = block;
+        });
       }
   );
 
   // Create partitioned graph object
-  const BlockID local_k =
-      *std::max_element(partition.begin(), partition.end()) + 1;
+  const BlockID local_k = *std::max_element(partition.begin(), partition.end()) + 1;
   const BlockID k = mpi::allreduce(local_k, MPI_MAX, MPI_COMM_WORLD);
 
   scalable_vector<BlockWeight> block_weights(k);
@@ -99,9 +91,7 @@ DistributedPartitionedGraph load_graph_partition(
       graph.communicator()
   );
 
-  DistributedPartitionedGraph p_graph(
-      &graph, k, std::move(partition), std::move(block_weights)
-  );
+  DistributedPartitionedGraph p_graph(&graph, k, std::move(partition), std::move(block_weights));
 
   LOG << "Input partition:";
   LOG << "  Edge cut:  " << metrics::edge_cut(p_graph);

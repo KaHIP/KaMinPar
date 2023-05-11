@@ -19,16 +19,12 @@ struct LocalLPClusteringConfig : public LabelPropagationConfig {
 };
 
 class LocalLPClusteringImpl final
-    : public ChunkRandomdLabelPropagation<
-          LocalLPClusteringImpl,
-          LocalLPClusteringConfig>,
+    : public ChunkRandomdLabelPropagation<LocalLPClusteringImpl, LocalLPClusteringConfig>,
       public NonatomicOwnedClusterVector<NodeID, NodeID>,
       public OwnedRelaxedClusterWeightVector<NodeID, NodeWeight> {
   SET_DEBUG(false);
 
-  using Base = ChunkRandomdLabelPropagation<
-      LocalLPClusteringImpl,
-      LocalLPClusteringConfig>;
+  using Base = ChunkRandomdLabelPropagation<LocalLPClusteringImpl, LocalLPClusteringConfig>;
   using ClusterBase = NonatomicOwnedClusterVector<NodeID, NodeID>;
   using ClusterWeightBase = OwnedRelaxedClusterWeightVector<NodeID, NodeWeight>;
 
@@ -48,9 +44,8 @@ public:
     Base::initialize(&graph, graph.n());
   }
 
-  auto &compute_clustering(
-      const DistributedGraph &graph, const GlobalNodeWeight max_cluster_weight
-  ) {
+  auto &
+  compute_clustering(const DistributedGraph &graph, const GlobalNodeWeight max_cluster_weight) {
     _max_cluster_weight = max_cluster_weight;
 
     // initialize ghost nodes
@@ -98,9 +93,8 @@ public:
   }
 
   void set_max_num_iterations(const std::size_t max_num_iterations) {
-    _max_num_iterations = (max_num_iterations == 0)
-                              ? std::numeric_limits<std::size_t>::max()
-                              : max_num_iterations;
+    _max_num_iterations =
+        (max_num_iterations == 0) ? std::numeric_limits<std::size_t>::max() : max_num_iterations;
   }
 
   void init_ghost_nodes() {
@@ -129,8 +123,7 @@ public:
 
   [[nodiscard]] bool accept_cluster(const Base::ClusterSelectionState &state) {
     return (state.current_gain > state.best_gain ||
-            (state.current_gain == state.best_gain &&
-             state.local_rand.random_bool())) &&
+            (state.current_gain == state.best_gain && state.local_rand.random_bool())) &&
            (state.current_cluster_weight + state.u_weight <=
                 max_cluster_weight(state.current_cluster) ||
             state.current_cluster == state.initial_cluster);
@@ -157,9 +150,8 @@ public:
 
 LocalLPClustering::LocalLPClustering(const Context &ctx)
     : _impl{std::make_unique<LocalLPClusteringImpl>(
-          ctx.coarsening.local_lp.ignore_ghost_nodes
-              ? ctx.partition.graph->n
-              : ctx.partition.graph->total_n,
+          ctx.coarsening.local_lp.ignore_ghost_nodes ? ctx.partition.graph->n
+                                                     : ctx.partition.graph->total_n,
           ctx.coarsening
       )} {}
 

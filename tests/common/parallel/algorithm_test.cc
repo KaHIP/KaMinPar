@@ -89,8 +89,7 @@ TEST(ParallelAlgorithmTest, accumulate_with_many_elements) {
 
 TEST(ParallelAlgorithmTest, accumulate_empty_subset_with_initial_value) {
   std::vector<int> data{1, 2, 3};
-  const int result =
-      parallel::accumulate(data.begin() + 1, data.begin() + 1, 42);
+  const int result = parallel::accumulate(data.begin() + 1, data.begin() + 1, 42);
   EXPECT_EQ(result, 42);
 }
 

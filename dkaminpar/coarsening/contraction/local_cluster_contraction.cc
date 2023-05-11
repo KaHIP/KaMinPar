@@ -61,28 +61,20 @@ Result contract_local_clustering(
 
   // Compute prefix sum to get coarse node IDs (starting at 1!)
   parallel::prefix_sum(
-      leader_mapping.begin(),
-      leader_mapping.begin() + graph.n(),
-      leader_mapping.begin()
+      leader_mapping.begin(), leader_mapping.begin() + graph.n(), leader_mapping.begin()
   );
-  const NodeID c_n =
-      leader_mapping[graph.n() - 1]; // number of nodes in the coarse graph
+  const NodeID c_n = leader_mapping[graph.n() - 1]; // number of nodes in the coarse graph
 
   // Compute new node distribution, total number of coarse nodes
-  const GlobalNodeID last_node =
-      mpi::scan(static_cast<GlobalNodeID>(c_n), MPI_SUM, comm);
+  const GlobalNodeID last_node = mpi::scan(static_cast<GlobalNodeID>(c_n), MPI_SUM, comm);
   const GlobalNodeID first_node = last_node - c_n;
 
   StaticArray<GlobalNodeID> c_node_distribution(size + 1);
   c_node_distribution[rank + 1] = last_node;
-  mpi::allgather(
-      &c_node_distribution[rank + 1], 1, c_node_distribution.data() + 1, 1, comm
-  );
+  mpi::allgather(&c_node_distribution[rank + 1], 1, c_node_distribution.data() + 1, 1, comm);
 
   // Assign coarse node ID to all nodes
-  graph.pfor_nodes([&](const NodeID u) {
-    mapping[u] = leader_mapping[clustering[u]];
-  });
+  graph.pfor_nodes([&](const NodeID u) { mapping[u] = leader_mapping[clustering[u]]; });
   graph.pfor_nodes([&](const NodeID u) { --mapping[u]; });
 
   buckets_index.clear();
@@ -99,15 +91,12 @@ Result contract_local_clustering(
     buckets_index[mapping[u]].fetch_add(1, std::memory_order_relaxed);
   });
 
-  parallel::prefix_sum(
-      buckets_index.begin(), buckets_index.end(), buckets_index.begin()
-  );
+  parallel::prefix_sum(buckets_index.begin(), buckets_index.end(), buckets_index.begin());
   KASSERT(buckets_index.back() <= graph.n());
 
   // Sort nodes into   buckets, roughly 3/5-th of time on europe.osm
   graph.pfor_nodes([&](const NodeID u) {
-    const std::size_t pos =
-        buckets_index[mapping[u]].fetch_sub(1, std::memory_order_relaxed) - 1;
+    const std::size_t pos = buckets_index[mapping[u]].fetch_sub(1, std::memory_order_relaxed) - 1;
     buckets[pos] = u;
   });
 
@@ -154,17 +143,11 @@ Result contract_local_clustering(
         };
       },
       [&](const auto recv_buffer, const PEID pe) {
-        tbb::parallel_for<std::size_t>(
-            0,
-            recv_buffer.size(),
-            [&](const std::size_t i) {
-              const auto &[old_global_u, new_global_u, new_weight] =
-                  recv_buffer[i];
-              const NodeID old_local_u =
-                  graph.global_to_local_node(old_global_u);
-              mapping[old_local_u] = ghost_mapper.new_ghost_node(new_global_u);
-            }
-        );
+        tbb::parallel_for<std::size_t>(0, recv_buffer.size(), [&](const std::size_t i) {
+          const auto &[old_global_u, new_global_u, new_weight] = recv_buffer[i];
+          const NodeID old_local_u = graph.global_to_local_node(old_global_u);
+          mapping[old_local_u] = ghost_mapper.new_ghost_node(new_global_u);
+        });
       }
   );
 
@@ -245,10 +228,9 @@ Result contract_local_clustering(
   //
   // Construct rest of the coarse graph: edges, edge weights
   //
-  all_buffered_nodes =
-      ts_navigable_list::combine<NodeID, Edge, scalable_vector>(
-          edge_buffer_ets, std::move(all_buffered_nodes)
-      );
+  all_buffered_nodes = ts_navigable_list::combine<NodeID, Edge, scalable_vector>(
+      edge_buffer_ets, std::move(all_buffered_nodes)
+  );
 
   StaticArray<NodeID> c_edges(c_m);
   StaticArray<EdgeWeight> c_edge_weights(c_m);
@@ -272,16 +254,12 @@ Result contract_local_clustering(
   });
 
   // compute edge distribution
-  const GlobalEdgeID last_edge =
-      mpi::scan(static_cast<GlobalEdgeID>(c_m), MPI_SUM, comm);
+  const GlobalEdgeID last_edge = mpi::scan(static_cast<GlobalEdgeID>(c_m), MPI_SUM, comm);
   StaticArray<GlobalEdgeID> c_edge_distribution(size + 1);
   c_edge_distribution[rank + 1] = last_edge;
-  mpi::allgather(
-      &c_edge_distribution[rank + 1], 1, c_edge_distribution.data() + 1, 1, comm
-  );
+  mpi::allgather(&c_edge_distribution[rank + 1], 1, c_edge_distribution.data() + 1, 1, comm);
 
-  auto [c_global_to_ghost, c_ghost_to_global, c_ghost_owner] =
-      ghost_mapper.finalize();
+  auto [c_global_to_ghost, c_ghost_to_global, c_ghost_owner] = ghost_mapper.finalize();
 
   DistributedGraph c_graph{
       std::move(c_node_distribution),

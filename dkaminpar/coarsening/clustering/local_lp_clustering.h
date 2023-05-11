@@ -26,9 +26,7 @@ public:
 
   void initialize(const DistributedGraph &graph) final;
 
-  ClusterArray &cluster(
-      const DistributedGraph &graph, GlobalNodeWeight max_cluster_weight
-  ) final;
+  ClusterArray &cluster(const DistributedGraph &graph, GlobalNodeWeight max_cluster_weight) final;
 
 private:
   std::unique_ptr<class LocalLPClusteringImpl> _impl;

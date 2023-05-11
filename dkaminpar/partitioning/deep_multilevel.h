@@ -18,13 +18,10 @@
 namespace kaminpar::dist {
 class DeepMultilevelPartitioner : public Partitioner {
 public:
-  DeepMultilevelPartitioner(
-      const DistributedGraph &input_graph, const Context &input_ctx
-  );
+  DeepMultilevelPartitioner(const DistributedGraph &input_graph, const Context &input_ctx);
 
   DeepMultilevelPartitioner(const DeepMultilevelPartitioner &) = delete;
-  DeepMultilevelPartitioner &
-  operator=(const DeepMultilevelPartitioner &) = delete;
+  DeepMultilevelPartitioner &operator=(const DeepMultilevelPartitioner &) = delete;
   DeepMultilevelPartitioner(DeepMultilevelPartitioner &&) noexcept = default;
   DeepMultilevelPartitioner &operator=(DeepMultilevelPartitioner &&) = delete;
 

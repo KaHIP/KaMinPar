@@ -42,9 +42,7 @@ TEST(GraphReplicationTest, isolated_graph_P_div_2) {
 
   if (size > 2) {
     KASSERT(
-        size % 2 == 0,
-        "unit tests only works if number of PEs is divisable by 2",
-        assert::always
+        size % 2 == 0, "unit tests only works if number of PEs is divisable by 2", assert::always
     );
     const auto rep = graph::replicate(graph, size / 2);
     ASSERT_TRUE(graph::debug::validate(rep));
@@ -57,7 +55,7 @@ TEST(GraphReplicationTest, isolated_graph_P_div_2) {
 
 TEST(GraphReplicationTest, triangle_cycle_graph_1) {
   const auto graph = make_circle_clique_graph(3); // triangle on each PE
-  const auto rep = graph::replicate(graph, 1); // replicate 1 == nothing changes
+  const auto rep = graph::replicate(graph, 1);    // replicate 1 == nothing changes
   ASSERT_TRUE(graph::debug::validate(rep));
 
   EXPECT_EQ(rep.n(), graph.n());

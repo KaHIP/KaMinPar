@@ -50,8 +50,7 @@ void GreedyGraphGrowingBipartitioner::bipartition_impl() {
         KASSERT(_partition[v] == V1);
 
         if (_marker.get(v)) {
-          KASSERT(_queue.contains(v)
-          ); // marked and not in V2: must already be queued
+          KASSERT(_queue.contains(v)); // marked and not in V2: must already be queued
           _queue.decrease_priority_by(v, 2 * _graph.edge_weight(e));
           KASSERT(_queue.key(v) == compute_negative_gain(v));
         } else {
@@ -67,12 +66,10 @@ void GreedyGraphGrowingBipartitioner::bipartition_impl() {
   _queue.clear();
 }
 
-[[nodiscard]] Gain
-GreedyGraphGrowingBipartitioner::compute_negative_gain(const NodeID u) const {
+[[nodiscard]] Gain GreedyGraphGrowingBipartitioner::compute_negative_gain(const NodeID u) const {
   Gain gain = 0;
   for (const auto [e, v] : _graph.neighbors(u)) {
-    gain += (_partition[u] == _partition[v]) ? _graph.edge_weight(e)
-                                             : -_graph.edge_weight(e);
+    gain += (_partition[u] == _partition[v]) ? _graph.edge_weight(e) : -_graph.edge_weight(e);
   }
   return gain;
 }

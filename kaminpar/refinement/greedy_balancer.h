@@ -69,29 +69,24 @@ public:
       LOG << logger::CYAN << "Balancer Statistics:";
       LOG << logger::CYAN << "* Changed cut: " << C(initial_cut, final_cut);
       LOG << logger::CYAN << "* # overloaded blocks: " << num_overloaded_blocks;
+      LOG << logger::CYAN << "* # overload change: " << C(initial_overload, final_overload);
       LOG << logger::CYAN
-          << "* # overload change: " << C(initial_overload, final_overload);
-      LOG << logger::CYAN << "* # moved nodes: "
-          << num_moved_border_nodes + num_moved_internal_nodes << " "
+          << "* # moved nodes: " << num_moved_border_nodes + num_moved_internal_nodes << " "
           << "(border nodes: " << num_moved_border_nodes
           << ", internal nodes: " << num_moved_internal_nodes << ")";
-      LOG << logger::CYAN << "* # successful border node moves: "
-          << num_successful_adjacent_moves << ", "
-          << "# unsuccessful border node moves: "
-          << num_unsuccessful_adjacent_moves;
-      LOG << logger::CYAN
-          << "* # successful random node moves: " << num_successful_random_moves
+      LOG << logger::CYAN << "* # successful border node moves: " << num_successful_adjacent_moves
           << ", "
-          << "# unsuccessful random node moves: "
-          << num_unsuccessful_random_moves;
-      LOG << logger::CYAN
-          << "* failed moves due to gain changes: " << num_pq_reinserts;
+          << "# unsuccessful border node moves: " << num_unsuccessful_adjacent_moves;
+      LOG << logger::CYAN << "* # successful random node moves: " << num_successful_random_moves
+          << ", "
+          << "# unsuccessful random node moves: " << num_unsuccessful_random_moves;
+      LOG << logger::CYAN << "* failed moves due to gain changes: " << num_pq_reinserts;
       if (num_overloaded_blocks > 0) {
-        LOG << logger::CYAN << "* total initial PQ sizes: " << total_pq_sizes
-            << ", avg " << total_pq_sizes / num_overloaded_blocks;
+        LOG << logger::CYAN << "* total initial PQ sizes: " << total_pq_sizes << ", avg "
+            << total_pq_sizes / num_overloaded_blocks;
       }
-      LOG << logger::CYAN << "* feasible target blocks initialized: "
-          << num_feasible_target_block_inits;
+      LOG << logger::CYAN
+          << "* feasible target blocks initialized: " << num_feasible_target_block_inits;
     }
   };
 
@@ -126,14 +121,12 @@ private:
 
   bool add_to_pq(BlockID b, NodeID u, NodeWeight u_weight, double rel_gain);
 
-  [[nodiscard]] std::pair<BlockID, double>
-  compute_gain(NodeID u, BlockID u_block) const;
+  [[nodiscard]] std::pair<BlockID, double> compute_gain(NodeID u, BlockID u_block) const;
 
   void init_feasible_target_blocks();
 
-  [[nodiscard]] static inline double compute_relative_gain(
-      const EdgeWeight absolute_gain, const NodeWeight weight
-  ) {
+  [[nodiscard]] static inline double
+  compute_relative_gain(const EdgeWeight absolute_gain, const NodeWeight weight) {
     if (absolute_gain >= 0) {
       return absolute_gain * weight;
     } else {
@@ -147,9 +140,7 @@ private:
         "This must be changed when using an unsigned data type for "
         "block weights!"
     );
-    return std::max<BlockWeight>(
-        0, _p_graph->block_weight(b) - _p_ctx->block_weights.max(b)
-    );
+    return std::max<BlockWeight>(0, _p_graph->block_weight(b) - _p_ctx->block_weights.max(b));
   }
 
   const BlockID _max_k;
@@ -158,10 +149,9 @@ private:
   const PartitionContext *_p_ctx;
 
   DynamicBinaryMinMaxForest<NodeID, double> _pq;
-  mutable tbb::enumerable_thread_specific<RatingMap<EdgeWeight, NodeID>>
-      _rating_map{[&] {
-        return RatingMap<EdgeWeight, NodeID>{_max_k};
-      }};
+  mutable tbb::enumerable_thread_specific<RatingMap<EdgeWeight, NodeID>> _rating_map{[&] {
+    return RatingMap<EdgeWeight, NodeID>{_max_k};
+  }};
   tbb::enumerable_thread_specific<std::vector<BlockID>> _feasible_target_blocks;
   Marker<> _marker;
   std::vector<BlockWeight> _pq_weight;

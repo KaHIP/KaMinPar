@@ -22,17 +22,13 @@ void print_dkaminpar_banner();
 void print_banner(const std::string &title);
 void print_build_identifier();
 
-template <
-    typename NodeID,
-    typename EdgeID,
-    typename NodeWeight,
-    typename EdgeWeight>
+template <typename NodeID, typename EdgeID, typename NodeWeight, typename EdgeWeight>
 void print_build_datatypes() {
   LOG << "Data type sizes:";
-  LOG << "  Nodes IDs: " << sizeof(NodeID)
-      << " bytes | Node weights: " << sizeof(NodeWeight) << " bytes";
-  LOG << "  Edges IDs: " << sizeof(EdgeID)
-      << " bytes | Edge weights: " << sizeof(EdgeWeight) << " bytes";
+  LOG << "  Nodes IDs: " << sizeof(NodeID) << " bytes | Node weights: " << sizeof(NodeWeight)
+      << " bytes";
+  LOG << "  Edges IDs: " << sizeof(EdgeID) << " bytes | Edge weights: " << sizeof(EdgeWeight)
+      << " bytes";
 }
 
 template <

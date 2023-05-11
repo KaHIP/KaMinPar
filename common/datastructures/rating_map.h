@@ -12,10 +12,7 @@
 #include "common/datastructures/sparse_map.h"
 
 namespace kaminpar {
-template <
-    typename Value,
-    typename Key,
-    typename LargeMap = FastResetArray<Value, Key>>
+template <typename Value, typename Key, typename LargeMap = FastResetArray<Value, Key>>
 class RatingMap {
   using SuperSmallMap = FixedSizeSparseMap<Key, Value, 128>;
   using SmallMap = FixedSizeSparseMap<Key, Value>;
@@ -34,8 +31,7 @@ public:
     return _selected_map;
   }
 
-  template <typename F1, typename F2>
-  decltype(auto) run_with_map(F1 &&f1, F2 &&f2) {
+  template <typename F1, typename F2> decltype(auto) run_with_map(F1 &&f1, F2 &&f2) {
     switch (_selected_map) {
     case MapType::SUPER_SMALL:
       return f1(_super_small_map);

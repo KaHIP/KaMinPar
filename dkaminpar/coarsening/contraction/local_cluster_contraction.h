@@ -24,8 +24,7 @@ struct MemoryContext {
   scalable_vector<NodeID> buckets;
   scalable_vector<parallel::Atomic<NodeID>> buckets_index;
   scalable_vector<parallel::Atomic<NodeID>> leader_mapping;
-  scalable_vector<NavigationMarker<NodeID, Edge, scalable_vector>>
-      all_buffered_nodes;
+  scalable_vector<NavigationMarker<NodeID, Edge, scalable_vector>> all_buffered_nodes;
 };
 
 struct Result {

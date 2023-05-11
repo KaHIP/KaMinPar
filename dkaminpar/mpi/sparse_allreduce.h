@@ -3,7 +3,7 @@
  * @author: Daniel Seemaier
  * @date:   27.03.2023
  * @brief:  Allreduce for sparse key-value-pairs.
- ******************************************************************************/ \
+ ******************************************************************************/                   \
 #pragma once
 
 #include <algorithm>
@@ -33,20 +33,11 @@ constexpr static auto default_sparse_allreduce = doubling_allreduce;
 
 template <typename Buffer>
 void inplace_sparse_allreduce(
-    tag::mpi_allreduce_tag,
-    Buffer &buffer,
-    const std::size_t buffer_size,
-    MPI_Op op,
-    MPI_Comm comm
+    tag::mpi_allreduce_tag, Buffer &buffer, const std::size_t buffer_size, MPI_Op op, MPI_Comm comm
 ) {
   using Value = typename Buffer::value_type;
   MPI_Allreduce(
-      MPI_IN_PLACE,
-      buffer.data(),
-      asserting_cast<int>(buffer_size),
-      type::get<Value>(),
-      op,
-      comm
+      MPI_IN_PLACE, buffer.data(), asserting_cast<int>(buffer_size), type::get<Value>(), op, comm
   );
 }
 
@@ -92,13 +83,7 @@ void inplace_sparse_allreduce(
 
     MPI_Request send_req;
     MPI_Isend(
-        sendbuf.data(),
-        asserting_cast<int>(sendbuf.size()),
-        mpi_type,
-        neighbor,
-        0,
-        comm,
-        &send_req
+        sendbuf.data(), asserting_cast<int>(sendbuf.size()), mpi_type, neighbor, 0, comm, &send_req
     );
 
     MPI_Status probe;
@@ -108,15 +93,7 @@ void inplace_sparse_allreduce(
     MPI_Get_count(&probe, mpi_type, &recv_size);
     recvbuf.resize(recv_size);
 
-    MPI_Recv(
-        recvbuf.data(),
-        recv_size,
-        mpi_type,
-        neighbor,
-        0,
-        comm,
-        MPI_STATUS_IGNORE
-    );
+    MPI_Recv(recvbuf.data(), recv_size, mpi_type, neighbor, 0, comm, MPI_STATUS_IGNORE);
 
     MPI_Wait(&send_req, MPI_STATUS_IGNORE);
 
@@ -130,8 +107,6 @@ template <typename Buffer>
 void inplace_sparse_allreduce(
     Buffer &buffer, const std::size_t buffer_size, MPI_Op op, MPI_Comm comm
 ) {
-  inplace_sparse_allreduce<Buffer>(
-      tag::default_sparse_allreduce, buffer, buffer_size, op, comm
-  );
+  inplace_sparse_allreduce<Buffer>(tag::default_sparse_allreduce, buffer, buffer_size, op, comm);
 }
 } // namespace kaminpar::mpi

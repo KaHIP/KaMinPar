@@ -32,8 +32,7 @@ inline int get_comm_rank(MPI_Comm comm) {
   return rank;
 }
 
-template <typename Lambda>
-inline void sequentially(Lambda &&lambda, MPI_Comm comm) {
+template <typename Lambda> inline void sequentially(Lambda &&lambda, MPI_Comm comm) {
   const auto [size, rank] = get_comm_info(comm);
   for (int p = 0; p < size; ++p) {
     if (p == rank) {

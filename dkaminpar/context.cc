@@ -15,9 +15,7 @@
 
 namespace kaminpar::dist {
 using namespace std::string_literals;
-PartitionContext::PartitionContext(
-    const BlockID k, const BlockID K, const double epsilon
-)
+PartitionContext::PartitionContext(const BlockID k, const BlockID K, const double epsilon)
     : k(k),
       K(K),
       epsilon(epsilon) {}
@@ -26,25 +24,19 @@ PartitionContext::PartitionContext(const PartitionContext &other)
     : k(other.k),
       K(other.K),
       epsilon(other.epsilon),
-      graph(
-          other.graph == nullptr ? nullptr
-                                 : std::make_unique<GraphContext>(*other.graph)
-      ) {}
+      graph(other.graph == nullptr ? nullptr : std::make_unique<GraphContext>(*other.graph)) {}
 
 PartitionContext &PartitionContext::operator=(const PartitionContext &other) {
   k = other.k;
   K = other.K;
   epsilon = other.epsilon;
-  graph = other.graph == nullptr ? nullptr
-                                 : std::make_unique<GraphContext>(*other.graph);
+  graph = other.graph == nullptr ? nullptr : std::make_unique<GraphContext>(*other.graph);
   return *this;
 }
 
 PartitionContext::~PartitionContext() = default;
 
-GraphContext::GraphContext(
-    const DistributedGraph &graph, const PartitionContext &p_ctx
-)
+GraphContext::GraphContext(const DistributedGraph &graph, const PartitionContext &p_ctx)
     : global_n(graph.global_n()),
       n(graph.n()),
       total_n(graph.total_n()),
@@ -59,9 +51,7 @@ GraphContext::GraphContext(
   setup_max_block_weights(p_ctx.k, p_ctx.epsilon);
 }
 
-GraphContext::GraphContext(
-    const shm::Graph &graph, const PartitionContext &p_ctx
-)
+GraphContext::GraphContext(const shm::Graph &graph, const PartitionContext &p_ctx)
     : global_n(graph.n()),
       n(graph.n()),
       total_n(graph.n()),
@@ -79,25 +69,20 @@ GraphContext::GraphContext(
 void GraphContext::setup_perfectly_balanced_block_weights(const BlockID k) {
   perfectly_balanced_block_weights.resize(k);
 
-  const BlockWeight perfectly_balanced_block_weight =
-      std::ceil(1.0 * global_total_node_weight / k);
+  const BlockWeight perfectly_balanced_block_weight = std::ceil(1.0 * global_total_node_weight / k);
   tbb::parallel_for<BlockID>(0, k, [&](const BlockID b) {
     perfectly_balanced_block_weights[b] = perfectly_balanced_block_weight;
   });
 }
 
-void GraphContext::setup_max_block_weights(
-    const BlockID k, const double epsilon
-) {
+void GraphContext::setup_max_block_weights(const BlockID k, const double epsilon) {
   max_block_weights.resize(k);
 
   tbb::parallel_for<BlockID>(0, k, [&](const BlockID b) {
     const BlockWeight max_eps_weight = static_cast<BlockWeight>(
-        (1.0 + epsilon) *
-        static_cast<double>(perfectly_balanced_block_weights[b])
+        (1.0 + epsilon) * static_cast<double>(perfectly_balanced_block_weights[b])
     );
-    const BlockWeight max_abs_weight =
-        perfectly_balanced_block_weights[b] + global_max_node_weight;
+    const BlockWeight max_abs_weight = perfectly_balanced_block_weights[b] + global_max_node_weight;
 
     // Only relax weight on coarse levels
     if (static_cast<GlobalNodeWeight>(global_n) == global_total_node_weight) {
@@ -114,27 +99,21 @@ bool LabelPropagationCoarseningContext::should_merge_nonadjacent_clusters(
   return (1.0 - 1.0 * new_n / old_n) <= merge_nonadjacent_clusters_threshold;
 }
 
-int LabelPropagationCoarseningContext::compute_num_chunks(
-    const ParallelContext &parallel
-) const {
+int LabelPropagationCoarseningContext::compute_num_chunks(const ParallelContext &parallel) const {
   if (fixed_num_chunks > 0) {
     return fixed_num_chunks;
   }
-  const PEID num_pes = scale_chunks_with_threads
-                           ? parallel.num_threads * parallel.num_mpis
-                           : parallel.num_mpis;
+  const PEID num_pes =
+      scale_chunks_with_threads ? parallel.num_threads * parallel.num_mpis : parallel.num_mpis;
   return std::max<std::size_t>(8, total_num_chunks / num_pes);
 }
 
-int LabelPropagationRefinementContext::compute_num_chunks(
-    const ParallelContext &parallel
-) const {
+int LabelPropagationRefinementContext::compute_num_chunks(const ParallelContext &parallel) const {
   if (fixed_num_chunks > 0) {
     return fixed_num_chunks;
   }
-  const PEID num_pes = scale_chunks_with_threads
-                           ? parallel.num_threads * parallel.num_mpis
-                           : parallel.num_mpis;
+  const PEID num_pes =
+      scale_chunks_with_threads ? parallel.num_threads * parallel.num_mpis : parallel.num_mpis;
   return std::max<std::size_t>(8, total_num_chunks / num_pes);
 }
 
@@ -145,33 +124,24 @@ int ColoredLabelPropagationRefinementContext::compute_num_coloring_chunks(
     return fixed_num_coloring_chunks;
   }
 
-  const int scale =
-      scale_coloring_chunks_with_threads ? parallel.num_threads : 1;
+  const int scale = scale_coloring_chunks_with_threads ? parallel.num_threads : 1;
   return std::max<int>(
-      min_num_coloring_chunks,
-      max_num_coloring_chunks / (scale * parallel.num_mpis)
+      min_num_coloring_chunks, max_num_coloring_chunks / (scale * parallel.num_mpis)
   );
 }
 
-int HEMCoarseningContext::compute_num_coloring_chunks(
-    const ParallelContext &parallel
-) const {
+int HEMCoarseningContext::compute_num_coloring_chunks(const ParallelContext &parallel) const {
   if (fixed_num_coloring_chunks > 0) {
     return fixed_num_coloring_chunks;
   }
 
-  const int scale =
-      scale_coloring_chunks_with_threads ? parallel.num_threads : 1;
+  const int scale = scale_coloring_chunks_with_threads ? parallel.num_threads : 1;
   return std::max<int>(
-      min_num_coloring_chunks,
-      max_num_coloring_chunks / (scale * parallel.num_mpis)
+      min_num_coloring_chunks, max_num_coloring_chunks / (scale * parallel.num_mpis)
   );
 }
 
-bool RefinementContext::includes_algorithm(
-    const KWayRefinementAlgorithm algorithm
-) const {
-  return std::find(algorithms.begin(), algorithms.end(), algorithm) !=
-         algorithms.end();
+bool RefinementContext::includes_algorithm(const KWayRefinementAlgorithm algorithm) const {
+  return std::find(algorithms.begin(), algorithms.end(), algorithm) != algorithms.end();
 }
 } // namespace kaminpar::dist

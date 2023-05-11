@@ -10,4 +10,3 @@
 // clang-format off
 #include "kaminpar/kaminpar.h"
 // clang-format on
-

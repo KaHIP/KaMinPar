@@ -20,9 +20,7 @@ void MultiRefiner::initialize(const DistributedGraph &graph) {
   }
 }
 
-void MultiRefiner::refine(
-    DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx
-) {
+void MultiRefiner::refine(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) {
   for (const auto &refiner : _refiners) {
     refiner->refine(p_graph, p_ctx);
   }

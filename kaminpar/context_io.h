@@ -14,8 +14,7 @@
 namespace kaminpar::shm {
 std::ostream &operator<<(std::ostream &out, ClusteringAlgorithm algorithm);
 
-std::unordered_map<std::string, ClusteringAlgorithm>
-get_clustering_algorithms();
+std::unordered_map<std::string, ClusteringAlgorithm> get_clustering_algorithms();
 
 std::ostream &operator<<(std::ostream &out, ClusterWeightLimit limit);
 
@@ -23,11 +22,9 @@ std::unordered_map<std::string, ClusterWeightLimit> get_cluster_weight_limits();
 
 std::ostream &operator<<(std::ostream &out, RefinementAlgorithm algorithm);
 
-std::unordered_map<std::string, RefinementAlgorithm>
-get_2way_refinement_algorithms();
+std::unordered_map<std::string, RefinementAlgorithm> get_2way_refinement_algorithms();
 
-std::unordered_map<std::string, RefinementAlgorithm>
-get_kway_refinement_algorithms();
+std::unordered_map<std::string, RefinementAlgorithm> get_kway_refinement_algorithms();
 
 std::ostream &operator<<(std::ostream &out, FMStoppingRule rule);
 
@@ -39,8 +36,7 @@ std::unordered_map<std::string, PartitioningMode> get_partitioning_modes();
 
 std::ostream &operator<<(std::ostream &out, InitialPartitioningMode mode);
 
-std::unordered_map<std::string, InitialPartitioningMode>
-get_initial_partitioning_modes();
+std::unordered_map<std::string, InitialPartitioningMode> get_initial_partitioning_modes();
 
 void print(const Context &ctx, std::ostream &out);
 void print(const PartitionContext &p_ctx, std::ostream &out);

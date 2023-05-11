@@ -20,9 +20,8 @@ using namespace contraction;
 
 namespace {
 template <typename Clustering>
-Result contract_generic_clustering(
-    const Graph &graph, const Clustering &clustering, MemoryContext m_ctx
-) {
+Result
+contract_generic_clustering(const Graph &graph, const Clustering &clustering, MemoryContext m_ctx) {
   auto &buckets_index = m_ctx.buckets_index;
   auto &buckets = m_ctx.buckets;
   auto &leader_mapping = m_ctx.leader_mapping;
@@ -56,17 +55,12 @@ Result contract_generic_clustering(
 
   // Compute prefix sum to get coarse node IDs (starting at 1!)
   parallel::prefix_sum(
-      leader_mapping.begin(),
-      leader_mapping.begin() + graph.n(),
-      leader_mapping.begin()
+      leader_mapping.begin(), leader_mapping.begin() + graph.n(), leader_mapping.begin()
   );
-  const NodeID c_n =
-      leader_mapping[graph.n() - 1]; // number of nodes in the coarse graph
+  const NodeID c_n = leader_mapping[graph.n() - 1]; // number of nodes in the coarse graph
 
   // Assign coarse node ID to all nodes; this works due to (I)
-  graph.pfor_nodes([&](const NodeID u) {
-    mapping[u] = leader_mapping[clustering[u]];
-  });
+  graph.pfor_nodes([&](const NodeID u) { mapping[u] = leader_mapping[clustering[u]]; });
   graph.pfor_nodes([&](const NodeID u) { --mapping[u]; });
 
   STOP_TIMER();
@@ -89,15 +83,12 @@ Result contract_generic_clustering(
     buckets_index[mapping[u]].fetch_add(1, std::memory_order_relaxed);
   });
 
-  parallel::prefix_sum(
-      buckets_index.begin(), buckets_index.end(), buckets_index.begin()
-  );
+  parallel::prefix_sum(buckets_index.begin(), buckets_index.end(), buckets_index.begin());
   KASSERT(buckets_index.back() <= graph.n());
 
   // Sort nodes into   buckets, roughly 3/5-th of time on europe.osm
   tbb::parallel_for(static_cast<NodeID>(0), graph.n(), [&](const NodeID u) {
-    const std::size_t pos =
-        buckets_index[mapping[u]].fetch_sub(1, std::memory_order_relaxed) - 1;
+    const std::size_t pos = buckets_index[mapping[u]].fetch_sub(1, std::memory_order_relaxed) - 1;
     buckets[pos] = u;
   });
 
@@ -197,10 +188,9 @@ Result contract_generic_clustering(
   // Construct rest of the coarse graph: edges, edge weights
   //
 
-  all_buffered_nodes =
-      ts_navigable_list::combine<NodeID, Edge, scalable_vector>(
-          edge_buffer_ets, std::move(all_buffered_nodes)
-      );
+  all_buffered_nodes = ts_navigable_list::combine<NodeID, Edge, scalable_vector>(
+      edge_buffer_ets, std::move(all_buffered_nodes)
+  );
 
   START_TIMER("Allocation");
   StaticArray<NodeID> c_edges{c_m};
@@ -238,11 +228,8 @@ Result contract_generic_clustering(
 }
 } // namespace
 
-Result contract(
-    const Graph &graph,
-    const scalable_vector<NodeID> &clustering,
-    MemoryContext m_ctx
-) {
+Result
+contract(const Graph &graph, const scalable_vector<NodeID> &clustering, MemoryContext m_ctx) {
   return contract_generic_clustering(graph, clustering, std::move(m_ctx));
 }
 
