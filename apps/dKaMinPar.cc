@@ -32,6 +32,7 @@ struct ApplicationContext {
 
   bool quiet = false;
   bool experiment = false;
+  bool check_input_graph = false;
 
   bool load_edge_balanced = false;
 
@@ -99,6 +100,7 @@ The output should be stored in a file and can be used by the -C,--config option.
   });
   cli.add_option("-o,--output", app.partition_filename, "Output filename for the graph partition.")
       ->capture_default_str();
+  cli.add_flag("--check-input-graph", app.check_input_graph, "Check input graph for errors.");
 
   // Algorithmic options
   create_all_options(&cli, ctx);
@@ -140,6 +142,9 @@ int main(int argc, char *argv[]) {
   const NodeID n = [&] {
     kagen::KaGen generator(MPI_COMM_WORLD);
     generator.UseCSRRepresentation();
+    if (app.check_input_graph) {
+      generator.EnableUndirectedGraphVerification();
+    }
     if (app.experiment) {
       generator.EnableBasicStatistics();
       generator.EnableOutput(true);
