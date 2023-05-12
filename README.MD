@@ -31,7 +31,7 @@ To partition a graph in METIS format using (d)KaMinPar, run
 
 ```shell
 # KaMinPar: shared-memory partitioning
-./build/apps/KaMinPar [-P default|strong|largek] -G <graph filename> -k <number of blocks> -t <nproc> [--epsilon=0.03] [--seed=0]
+./build/apps/KaMinPar [-P fast|default|strong|largek] -G <graph filename> -k <number of blocks> -t <nproc> [--epsilon=0.03] [--seed=0]
 
 # dKaMinPar: distributed partitioning
 mpirun -n <nproc> ./build/apps/dKaMinPar [-P default|strong] -G <graph filename> -k <number of blocks> [--epsilon=0.03] [--seed=0]
@@ -51,7 +51,7 @@ Presets can be viewed by using the `--dump-config` flag; to use a custom preset,
 ./KaMinPar -C my_preset.ini -G <...> -k <...> -t <...>
 ```
 
-For a description of the graph format, please have a look at the [KaHiP manual](https://github.com/KaHIP/KaHIP/raw/master/manual/kahip.pdf).
+For a description of the graph format, please refer to the [KaHiP manual](https://github.com/KaHIP/KaHIP/raw/master/manual/kahip.pdf).
 
 ## Using the Libraries
 

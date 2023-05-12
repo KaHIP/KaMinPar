@@ -260,7 +260,7 @@ select_best(const scalable_vector<PartitionedGraph> &p_graphs, const PartitionCo
 }
 
 std::size_t compute_num_threads_for_parallel_ip(const Context &input_ctx) {
-  return math::floor2(input_ctx.parallel.num_threads) *
+  return math::floor2(static_cast<unsigned int>(input_ctx.parallel.num_threads)) *
          (1 << input_ctx.initial_partitioning.multiplier_exponent);
 }
 } // namespace kaminpar::shm::partitioning::helper

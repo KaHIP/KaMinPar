@@ -37,7 +37,7 @@ CLI::Option_group *create_partitioning_options(CLI::App *app, Context &ctx) {
       ->check(CLI::NonNegativeNumber)
       ->capture_default_str();
 
-  partitioning->add_option("-m,--mode", ctx.partition.mode)
+  partitioning->add_option("-m,--mode", ctx.mode)
       ->transform(CLI::CheckedTransformer(get_partitioning_modes()).description(""))
       ->description(R"(Partitioning scheme:
   - deep: deep multilevel

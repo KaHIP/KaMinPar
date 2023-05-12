@@ -291,17 +291,16 @@ struct Context {
 };
 
 Context create_context_by_preset_name(const std::string &name);
-
 Context create_default_context();
 Context create_strong_context();
-
 std::unordered_set<std::string> get_preset_names();
-
-class DistributedGraph;
 } // namespace kaminpar::dist
 
-namespace kaminpar {
+namespace kaminpar::dist {
+class DistributedGraph;
+}
 
+namespace kaminpar {
 class dKaMinPar {
 public:
   dKaMinPar(MPI_Comm comm, int num_threads, dist::Context ctx);

@@ -203,15 +203,14 @@ void print(const PartitionContext &p_ctx, std::ostream &out) {
   out << "Number of blocks:             " << p_ctx.k << "\n";
   out << "Maximum block weight:         " << p_ctx.block_weights.max(0) << " ("
       << p_ctx.block_weights.perfectly_balanced(0) << " + " << 100 * p_ctx.epsilon << "%)\n";
-
-  cio::print_delimiter("Partitioning Scheme", '-');
-  out << "Partitioning mode:            " << p_ctx.mode << "\n";
 }
 
 void print(const Context &ctx, std::ostream &out) {
   out << "Execution mode:               " << ctx.parallel.num_threads << "\n";
   out << "Graph:                        " << ctx.debug.graph_name << "\n";
   print(ctx.partition, out);
+  cio::print_delimiter("Partitioning Scheme", '-');
+  out << "Partitioning mode:            " << ctx.mode << "\n";
   cio::print_delimiter("Coarsening", '-');
   print(ctx.coarsening, out);
   cio::print_delimiter("Initial Partitioning", '-');

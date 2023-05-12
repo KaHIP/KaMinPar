@@ -29,9 +29,8 @@ tbb::global_control init(const Context &ctx, int &argc, char **&argv) {
   LOG << "MPI size=" << mpi::get_comm_size(MPI_COMM_WORLD);
 
   omp_set_num_threads(static_cast<int>(ctx.parallel.num_threads));
-  if (ctx.parallel.use_interleaved_numa_allocation) {
-    init_numa();
-  }
+  init_numa();
+
   return init_parallelism(ctx.parallel.num_threads);
 }
 

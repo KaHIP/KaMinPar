@@ -14,7 +14,7 @@
 
 namespace kaminpar::shm::partitioning {
 PartitionedGraph partition(const Graph &graph, const Context &ctx) {
-  switch (ctx.partition.mode) {
+  switch (ctx.mode) {
   case PartitioningMode::DEEP: {
     START_TIMER("Partitioning");
     START_TIMER("Allocation");

@@ -14,8 +14,10 @@
 
 namespace kaminpar::shm {
 Context create_context_by_preset_name(const std::string &name) {
-  if (name == "default" || name == "fast") {
+  if (name == "default") {
     return create_default_context();
+  } else if (name == "fast") {
+    return create_fast_context();
   } else if (name == "largek") {
     return create_largek_context();
   } else if (name == "strong") {
@@ -39,11 +41,11 @@ std::unordered_set<std::string> get_preset_names() {
 
 Context create_default_context() {
   return {
+      .mode = PartitioningMode::DEEP,
       // Context
       .partition =
           {
               // Context -> Partition
-              .mode = PartitioningMode::DEEP,
               .epsilon = 0.03,
               .k = kInvalidBlockID /* must be set */,
           },
@@ -130,7 +132,6 @@ Context create_default_context() {
       .parallel =
           {
               // Context -> Parallel
-              .use_interleaved_numa_allocation = true,
               .num_threads = 1,
           },
       .debug =
@@ -142,6 +143,16 @@ Context create_default_context() {
               .dump_partition_hierarchy = false,
           },
   };
+}
+
+Context create_fast_context() {
+  Context ctx = create_default_context();
+  ctx.coarsening.lp.num_iterations = 1;
+  ctx.initial_partitioning.min_num_repetitions = 1;
+  ctx.initial_partitioning.min_num_non_adaptive_repetitions = 1;
+  ctx.initial_partitioning.max_num_repetitions = 1;
+  ctx.initial_partitioning.mode = InitialPartitioningMode::SEQUENTIAL;
+  return ctx;
 }
 
 Context create_largek_context() {
@@ -163,8 +174,8 @@ Context create_strong_context() {
       RefinementAlgorithm::KWAY_FM,
       RefinementAlgorithm::GREEDY_BALANCER,
   };
-  //ctx.coarsening.cluster_weight_limit = ClusterWeightLimit::BLOCK_WEIGHT;
-  //ctx.coarsening.cluster_weight_multiplier = 1.0 / 18.0;
+  // ctx.coarsening.cluster_weight_limit = ClusterWeightLimit::BLOCK_WEIGHT;
+  // ctx.coarsening.cluster_weight_multiplier = 1.0 / 18.0;
 
   return ctx;
 }

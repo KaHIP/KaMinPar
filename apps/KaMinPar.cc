@@ -55,9 +55,10 @@ void setup_context(CLI::App &cli, ApplicationContext &app, Context &ctx) {
   )
       ->check(CLI::IsMember(get_preset_names()))
       ->description(R"(Use configuration preset:
-  - default, fast: fastest, but lower quality (LP only)
-  - strong:        slower, but higher quality (LP + FM)
-  - largek:        tuned for k > 1024-ish)");
+  - fast:    fastest (especially for small graphs), but lowest quality
+  - default: in-between
+  - strong:  slower, but higher quality (LP + FM)
+  - largek:  tuned for k > 1024-ish)");
 
   // Mandatory
   auto *mandatory = cli.add_option_group("Application")->require_option(1);
