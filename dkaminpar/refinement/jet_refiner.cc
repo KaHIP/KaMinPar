@@ -78,18 +78,20 @@ void JetRefiner::refine(DistributedPartitionedGraph &p_graph, const PartitionCon
         }
 
         BlockID max_gainer = from;
-        EdgeWeight max_external_gain = 0;
+        EdgeWeight max_external_gain = std::numeric_limits<EdgeWeight>::min();
         EdgeWeight internal_degree = 0;
 
         auto compute_gain = [&](auto &map) {
           for (const auto [e, v] : p_graph.neighbors(u)) {
             const BlockID v_block = p_graph.block(v);
+            const EdgeWeight weight = p_graph.edge_weight(e);
             if (from != v_block) {
-              map[v_block] += p_graph.edge_weight(e);
+              map[v_block] += weight;
+            } else {
+              internal_degree += weight;
             }
           }
 
-          // select neighbor that maximizes gain
           auto &rand = Random::instance();
           for (const auto [block, gain] : map.entries()) {
             if (gain > max_external_gain || (gain == max_external_gain && rand.random_bool())) {
@@ -104,13 +106,22 @@ void JetRefiner::refine(DistributedPartitionedGraph &p_graph, const PartitionCon
         rating_map.update_upper_bound_size(std::min<NodeID>(p_ctx.k, p_graph.degree(u)));
         rating_map.run_with_map(compute_gain, compute_gain);
 
-        if (-max_external_gain < std::floor(c * internal_degree)) {
-          next_partition[u] = max_gainer;
-          gains[u] = max_external_gain;
-        } else {
+        // Filter internal nodes
+        if (max_gainer == from) {
           next_partition[u] = from;
-          gains[u] = std::numeric_limits<EdgeWeight>::min();
+          return;
         }
+
+        // Filter moves below negative gain threshold
+        const EdgeWeight best_gain = max_external_gain - internal_degree;
+        if (-best_gain >= std::floor(c * internal_degree)) {
+          next_partition[u] = from;
+          return;
+        }
+
+        // Accept move
+        next_partition[u] = max_gainer;
+        gains[u] = best_gain;
       });
     };
 
