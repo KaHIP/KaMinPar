@@ -163,9 +163,8 @@ Context create_strong_context() {
       RefinementAlgorithm::KWAY_FM,
       RefinementAlgorithm::GREEDY_BALANCER,
   };
-
-  ctx.coarsening.cluster_weight_limit = ClusterWeightLimit::BLOCK_WEIGHT;
-  ctx.coarsening.cluster_weight_multiplier = 1.0 / 18.0;
+  //ctx.coarsening.cluster_weight_limit = ClusterWeightLimit::BLOCK_WEIGHT;
+  //ctx.coarsening.cluster_weight_multiplier = 1.0 / 18.0;
 
   return ctx;
 }
