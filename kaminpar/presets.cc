@@ -113,6 +113,7 @@ Context create_default_context() {
                       .alpha = 1.0,
                       .num_iterations = 5,
                       .improvement_abortion_threshold = 0.0001,
+                      .unlock_seed_nodes = false,
                   },
               .balancer = {},
               .jet =

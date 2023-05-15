@@ -85,8 +85,11 @@ private:
   DeltaPartitionedGraph _d_graph;                        // O(|Delta|) space
   DeltaGainCache<DenseGainCache> _d_gain_cache;          // O(|Delta|) space
   BinaryMaxHeap<EdgeWeight> _block_pq;                   // O(k) space
-  std::vector<SharedBinaryMaxHeap<EdgeWeight>> _node_pq; // O(k + |Touched|) space
+  std::vector<SharedBinaryMaxHeap<EdgeWeight>> _node_pqs; // O(k + |Touched|) space
 
   AdaptiveStoppingPolicy _stopping_policy;
+
+  std::vector<NodeID> _touched_nodes;
+  std::vector<NodeID> _seed_nodes;
 };
 } // namespace kaminpar::shm

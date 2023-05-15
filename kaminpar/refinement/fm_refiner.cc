@@ -101,6 +101,10 @@ struct GlobalStats {
 namespace fm {
 class NodeTracker {
 public:
+  static constexpr int UNLOCKED = 0;
+  static constexpr int MOVED_LOCALLY = -1;
+  static constexpr int MOVED_GLOBALLY = -2;
+
   NodeTracker(const NodeID max_n) : _state(max_n) {
     tbb::parallel_for<std::size_t>(0, max_n, [&](const std::size_t i) { _state[i] = 0; });
   }
@@ -114,10 +118,6 @@ public:
 
   int owner(const NodeID u) const {
     return __atomic_load_n(&_state[u], __ATOMIC_RELAXED);
-  }
-
-  void unlock(const NodeID u) {
-    set(u, 0);
   }
 
   // @todo Build a better interface once the details are settled.
@@ -156,7 +156,7 @@ public:
 
       for (NodeID current = from; current < to; ++current) {
         const NodeID node = _border_nodes[current];
-        if (_node_tracker.lock(node, id)) {
+        if (_node_tracker.owner(node) == NodeTracker::UNLOCKED && _node_tracker.lock(node, id)) {
           lambda(node);
           ++polled;
         }
@@ -248,7 +248,7 @@ bool FMRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx)
 
     // Find current border nodes
     START_TIMER("Initialize border nodes");
-    _shared->border_nodes.init(p_graph);
+    _shared->border_nodes.init(p_graph); // also resets the NodeTracker
     _shared->border_nodes.shuffle();
     STOP_TIMER();
 
@@ -269,9 +269,6 @@ bool FMRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx)
         IFDBG(++num_batches);
         expected_gain += localized_refiner.run_batch();
       }
-
-      // DBG << "CPU " << sched_getcpu() << " ran " << num_batches
-      //     << " batches";
     });
     STOP_TIMER();
 
@@ -320,24 +317,21 @@ LocalizedFMRefiner::LocalizedFMRefiner(
       _stopping_policy(_fm_ctx.alpha) {
   _stopping_policy.init(_p_graph.n());
   for (const BlockID b : _p_graph.blocks()) {
-    _node_pq.emplace_back(_p_ctx.n, _shared.shared_pq_handles.data());
+    _node_pqs.emplace_back(_p_ctx.n, _shared.shared_pq_handles.data());
   }
 }
 
 EdgeWeight LocalizedFMRefiner::run_batch() {
+  using fm::NodeTracker;
+
   // Statistics for this batch only, to be merged into the global stats
   Stats stats;
   IFSTATS(++stats.num_batches);
 
-  // Keep track of all nodes that we touched, so that we can unlock those that
-  // have not been moved afterwards
-  std::vector<NodeID> touched_nodes;
-
   // Poll seed nodes from the border node arrays
-  std::vector<NodeID> seed_nodes;
   _shared.border_nodes.poll(_fm_ctx.num_seed_nodes, _id, [&](const NodeID seed_node) {
     insert_into_node_pq(_p_graph, _shared.gain_cache, seed_node);
-    seed_nodes.push_back(seed_node);
+    _seed_nodes.push_back(seed_node);
     IFSTATS(++stats.num_touched_nodes);
   });
 
@@ -350,18 +344,18 @@ EdgeWeight LocalizedFMRefiner::run_batch() {
     const BlockID block_from = _block_pq.peek_id();
     KASSERT(block_from < _p_graph.k());
 
-    const NodeID node = _node_pq[block_from].peek_id();
+    const NodeID node = _node_pqs[block_from].peek_id();
     KASSERT(node < _p_graph.n());
 
-    const EdgeWeight expected_gain = _node_pq[block_from].peek_key();
+    const EdgeWeight expected_gain = _node_pqs[block_from].peek_key();
     const auto [block_to, actual_gain] = best_gain(_d_graph, _d_gain_cache, node);
 
     // If the gain got worse, reject the move and try again
     if (actual_gain < expected_gain) {
-      _node_pq[block_from].change_priority(node, actual_gain);
+      _node_pqs[block_from].change_priority(node, actual_gain);
       _shared.target_blocks[node] = block_to;
-      if (_node_pq[block_from].peek_key() != _block_pq.key(block_from)) {
-        _block_pq.change_priority(block_from, _node_pq[block_from].peek_key());
+      if (_node_pqs[block_from].peek_key() != _block_pq.key(block_from)) {
+        _block_pq.change_priority(block_from, _node_pqs[block_from].peek_key());
       }
 
       IFSTATS(++stats.num_recomputed_gains);
@@ -369,8 +363,8 @@ EdgeWeight LocalizedFMRefiner::run_batch() {
     }
 
     // Otherwise, we can remove the node from the PQ
-    _node_pq[block_from].pop();
-    _shared.node_tracker.set(node, -1);
+    _node_pqs[block_from].pop();
+    _shared.node_tracker.set(node, NodeTracker::MOVED_LOCALLY);
     IFSTATS(++stats.num_pq_pops);
 
     // Skip the move if there is no viable target block
@@ -391,12 +385,10 @@ EdgeWeight LocalizedFMRefiner::run_batch() {
       // If we found a new local minimum, apply the moves to the global
       // partition
       if (current_total_gain > best_total_gain) {
-        // DBG << "Worker " << _id << " committed local improvement with gain "
-        //     << current_total_gain;
-
         // Update global graph and global gain cache
         for (const auto &[moved_node, moved_to] : _d_graph.delta()) {
           _shared.gain_cache.move(_p_graph, moved_node, _p_graph.block(moved_node), moved_to);
+          _shared.node_tracker.set(moved_node, NodeTracker::MOVED_GLOBALLY);
           _p_graph.set_block(moved_node, moved_to);
           IFSTATS(++stats.num_committed_moves);
         }
@@ -410,49 +402,50 @@ EdgeWeight LocalizedFMRefiner::run_batch() {
       }
 
       for (const auto &[e, v] : _p_graph.neighbors(node)) {
-        if (_shared.node_tracker.owner(v) == _id) {
-          KASSERT(_node_pq[_p_graph.block(v)].contains(v), "node not in PQ");
+        const int owner = _shared.node_tracker.owner(v);
+        if (owner == _id) {
+          KASSERT(_node_pqs[_p_graph.block(v)].contains(v), "owned node not in PQ");
           update_after_move(v, node, block_from, block_to);
           IFSTATS(++stats.num_pq_updates);
-        } else if (_shared.node_tracker.owner(v) == 0 && _shared.node_tracker.lock(v, _id)) {
+        } else if (owner == NodeTracker::UNLOCKED && _shared.node_tracker.lock(v, _id)) {
           insert_into_node_pq(_d_graph, _d_gain_cache, v);
           IFSTATS(++stats.num_pq_inserts);
 
-          touched_nodes.push_back(v);
+          _touched_nodes.push_back(v);
           IFSTATS(++stats.num_touched_nodes);
         }
       }
     }
   }
 
-  // Keep seed nodes locked for good
-  for (const NodeID &seed_node : seed_nodes) {
-    _shared.node_tracker.set(seed_node, -1);
-  }
-
-  // Flush local state for the nex tround
-  for (auto &node_pq : _node_pq) {
-    node_pq.clear();
-  }
-
-  // Unlock all nodes that were touched but not moved (== still owned by this
-  // worker)
-  for (const NodeID touched_node : touched_nodes) {
-    if (_shared.node_tracker.owner(touched_node) == _id) {
-      _shared.node_tracker.unlock(touched_node);
+  // If we do not wish to unlock seed nodes, mark them as globally moved == locked for good
+  if (!_fm_ctx.unlock_seed_nodes) {
+    for (const NodeID &seed_node : _seed_nodes) {
+      _shared.node_tracker.set(seed_node, NodeTracker::MOVED_GLOBALLY);
     }
   }
 
-  // Unlock all nodes that were only locally moved (== still in the delta graph)
+  // Unlock all nodes that were touched but not moved, or nodes that were only moved in the
+  // thread-local delta graph
   IFSTATS(stats.num_discarded_moves += _d_graph.delta().size());
-  for (const auto &[moved_node, moved_to] : _d_graph.delta()) {
-    _shared.node_tracker.unlock(moved_node);
+  for (const NodeID touched_node : _touched_nodes) {
+    const int owner = _shared.node_tracker.owner(touched_node);
+    if (owner == _id || owner == NodeTracker::MOVED_LOCALLY) {
+      _shared.node_tracker.set(touched_node, NodeTracker::UNLOCKED);
+    }
+  }
+
+  // Flush local state for the nex tround
+  for (auto &node_pq : _node_pqs) {
+    node_pq.clear();
   }
 
   _block_pq.clear();
   _d_graph.clear();
   _d_gain_cache.clear();
   _stopping_policy.reset();
+  _seed_nodes.clear();
+  _touched_nodes.clear();
 
   IFSTATS(_shared.stats.add(stats));
   return best_total_gain;
@@ -470,24 +463,24 @@ void LocalizedFMRefiner::update_after_move(
     // We only need to consider other blocks if old_target_block is full now
     if (_d_graph.block_weight(old_target_block) + _d_graph.node_weight(node) <=
         _p_ctx.block_weights.max(old_target_block)) {
-      _node_pq[old_block].change_priority(
+      _node_pqs[old_block].change_priority(
           node, _d_gain_cache.gain(node, old_block, old_target_block)
       );
     } else {
       const auto [new_target_block, new_gain] = best_gain(_d_graph, _d_gain_cache, node);
       _shared.target_blocks[node] = new_target_block;
-      _node_pq[old_block].change_priority(node, new_gain);
+      _node_pqs[old_block].change_priority(node, new_gain);
     }
   } else if (moved_from == old_target_block) {
     // old_target_block go worse, thus have to re-consider all other blocks
     const auto [new_target_block, new_gain] = best_gain(_d_graph, _d_gain_cache, node);
     _shared.target_blocks[node] = new_target_block;
-    _node_pq[old_block].change_priority(node, new_gain);
+    _node_pqs[old_block].change_priority(node, new_gain);
   } else if (moved_to == old_block) {
     KASSERT(moved_from != old_target_block);
     // Since we did not move from old_target_block, this block is still the
     // best and we can still move to that block
-    _node_pq[old_block].change_priority(
+    _node_pqs[old_block].change_priority(
         node, _d_gain_cache.gain(node, old_block, old_target_block)
     );
   } else {
@@ -499,9 +492,9 @@ void LocalizedFMRefiner::update_after_move(
         _d_graph.block_weight(moved_to) + _d_graph.node_weight(node) <=
             _p_ctx.block_weights.max(moved_to)) {
       _shared.target_blocks[node] = moved_to;
-      _node_pq[old_block].change_priority(node, gain_moved_to);
+      _node_pqs[old_block].change_priority(node, gain_moved_to);
     } else {
-      _node_pq[old_block].change_priority(node, gain_old_target_block);
+      _node_pqs[old_block].change_priority(node, gain_old_target_block);
     }
   }
 
@@ -533,8 +526,8 @@ void LocalizedFMRefiner::update_after_move(
 bool LocalizedFMRefiner::update_block_pq() {
   bool have_more_nodes = false;
   for (const BlockID block : _p_graph.blocks()) {
-    if (!_node_pq[block].empty()) {
-      const EdgeWeight gain = _node_pq[block].peek_key();
+    if (!_node_pqs[block].empty()) {
+      const EdgeWeight gain = _node_pqs[block].peek_key();
       _block_pq.push_or_change_priority(block, gain);
       have_more_nodes = true;
     } else if (_block_pq.contains(block)) {
@@ -550,9 +543,9 @@ void LocalizedFMRefiner::insert_into_node_pq(
 ) {
   const BlockID block_u = p_graph.block(u);
   const auto [block_to, gain] = best_gain(p_graph, gain_cache, u);
-  KASSERT(!_node_pq[block_u].contains(u), "node already contained in PQ");
+  KASSERT(!_node_pqs[block_u].contains(u), "node already contained in PQ");
   _shared.target_blocks[u] = block_to;
-  _node_pq[block_u].push(u, gain);
+  _node_pqs[block_u].push(u, gain);
 }
 
 template <typename PartitionedGraphType, typename GainCacheType>

@@ -12,16 +12,23 @@
 
 namespace kaminpar::shm {
 void create_all_options(CLI::App *app, Context &ctx) {
+  // General
   create_partitioning_options(app, ctx);
+  create_debug_options(app, ctx);
+
+  // Coarsening
   create_coarsening_options(app, ctx);
   create_lp_coarsening_options(app, ctx);
+
+  // Initial partitioning
   create_initial_partitioning_options(app, ctx);
+
+  // Refinement
   create_refinement_options(app, ctx);
   create_lp_refinement_options(app, ctx);
   create_kway_fm_refinement_options(app, ctx);
   create_jet_refinement_options(app, ctx);
   create_mtkahypar_refinement_options(app, ctx);
-  create_debug_options(app, ctx);
 }
 
 CLI::Option_group *create_partitioning_options(CLI::App *app, Context &ctx) {
@@ -286,14 +293,12 @@ CLI::Option_group *create_kway_fm_refinement_options(CLI::App *app, Context &ctx
         "Number of FM iterations to perform."
   )
       ->capture_default_str();
-
   fm->add_option(
         "--r-fm-num-seed-nodes",
         ctx.refinement.kway_fm.num_seed_nodes,
         "Number of seed nodes used to initialize a single localized search."
   )
       ->capture_default_str();
-
   fm->add_option("--r-fm-alpha", ctx.refinement.kway_fm.alpha)->capture_default_str();
   fm->add_option(
         "--r-fm-abortion-threshold",
@@ -301,6 +306,8 @@ CLI::Option_group *create_kway_fm_refinement_options(CLI::App *app, Context &ctx
         "Stop FM iterations if the edge cut reduction of the previous "
         "iteration falls below this threshold."
   )
+      ->capture_default_str();
+  fm->add_flag("--r-fm-unlock-seed-nodes", ctx.refinement.kway_fm.unlock_seed_nodes)
       ->capture_default_str();
 
   return fm;

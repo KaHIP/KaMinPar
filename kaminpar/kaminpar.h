@@ -127,6 +127,8 @@ struct KwayFMRefinementContext {
   double alpha;
   int num_iterations;
   double improvement_abortion_threshold;
+
+  bool unlock_seed_nodes;
 };
 
 struct JetRefinementContext {
