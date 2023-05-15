@@ -6,6 +6,8 @@
  ******************************************************************************/
 #include "dkaminpar/refinement/jet_refiner.h"
 
+#include <tbb/parallel_invoke.h>
+
 #include "dkaminpar/context.h"
 #include "dkaminpar/graphutils/synchronization.h"
 #include "dkaminpar/metrics.h"
@@ -61,6 +63,11 @@ void JetRefiner::refine(DistributedPartitionedGraph &p_graph, const PartitionCon
   tbb::enumerable_thread_specific<RatingMap<EdgeWeight, BlockID>> rating_map_ets{[&] {
     return RatingMap<EdgeWeight, BlockID>(_ctx.partition.k);
   }};
+
+  NoinitVector<NodeWeight> block_weight_deltas(p_graph.k());
+  NoinitVector<NodeWeight> best_block_weights(p_graph.k());
+  p_graph.pfor_blocks([&](const BlockID b) { block_weight_deltas[b] = 0; });
+  p_graph.pfor_blocks([&](const BlockID b) { best_block_weights[b] = p_graph.block_weight(b); });
   STOP_TIMER();
 
   for (int i = 0; i < _ctx.refinement.jet.num_iterations; ++i) {
@@ -169,13 +176,52 @@ void JetRefiner::refine(DistributedPartitionedGraph &p_graph, const PartitionCon
         if (lock[u]) {
           const BlockID from = p_graph.block(u);
           const BlockID to = next_partition[u];
-          p_graph.set_block(u, to);
+          p_graph.set_block<false>(u, to);
+
+          // @todo if k is small, use thread-local vectors
+          __atomic_fetch_sub(&block_weight_deltas[from], p_graph.node_weight(u), __ATOMIC_RELAXED);
+          __atomic_fetch_add(&block_weight_deltas[to], p_graph.node_weight(u), __ATOMIC_RELAXED);
         }
       });
     };
 
     TIMED_SCOPE("Synchronize blocks") {
-      graph::synchronize_ghost_node_block_ids(p_graph);
+      // Synchronize block IDs of ghost nodes
+      struct Message {
+        NodeID node;
+        BlockID block;
+      };
+
+      mpi::graph::sparse_alltoall_interface_to_pe<Message>(
+          p_graph.graph(),
+          [&](const NodeID u) { return lock[u]; }, // only look at nodes that were moved
+          [&](const NodeID u) -> Message { return {.node = u, .block = p_graph.block(u)}; },
+          [&](const auto &recv_buffer, const PEID pe) {
+            tbb::parallel_for<std::size_t>(0, recv_buffer.size(), [&](const std::size_t i) {
+              const auto [local_node_on_pe, block] = recv_buffer[i];
+              const auto global_node =
+                  static_cast<GlobalNodeID>(p_graph.offset_n(pe) + local_node_on_pe);
+              const NodeID local_node = p_graph.global_to_local_node(global_node);
+              p_graph.set_block<false>(local_node, block);
+            });
+          }
+      );
+
+      // Update block weights
+      MPI_Allreduce(
+          MPI_IN_PLACE,
+          block_weight_deltas.data(),
+          p_graph.k(),
+          mpi::type::get<NodeWeight>(),
+          MPI_SUM,
+          p_graph.communicator()
+      );
+      p_graph.pfor_blocks([&](const BlockID b) {
+        p_graph.set_block_weight(b, p_graph.block_weight(b) + block_weight_deltas[b]);
+        block_weight_deltas[b] = 0;
+      });
+
+      KASSERT(graph::debug::validate_partition(p_graph), "", assert::heavy);
     };
 
     TIMED_SCOPE("Rebalance") {
@@ -185,7 +231,16 @@ void JetRefiner::refine(DistributedPartitionedGraph &p_graph, const PartitionCon
     TIMED_SCOPE("Update best partition") {
       const EdgeWeight current_cut = metrics::edge_cut(p_graph);
       if (current_cut <= best_cut) {
-        p_graph.pfor_all_nodes([&](const NodeID u) { best_partition[u] = p_graph.block(u); });
+        tbb::parallel_invoke(
+            [&] {
+              p_graph.pfor_all_nodes([&](const NodeID u) { best_partition[u] = p_graph.block(u); });
+            },
+            [&] {
+              p_graph.pfor_blocks([&](const BlockID b) {
+                best_block_weights[b] = p_graph.block_weight(b);
+              });
+            }
+        );
         best_cut = current_cut;
         last_iteration_is_best = true;
       } else {
@@ -204,7 +259,17 @@ void JetRefiner::refine(DistributedPartitionedGraph &p_graph, const PartitionCon
 
   TIMED_SCOPE("Rollback") {
     if (!last_iteration_is_best) {
-      p_graph.pfor_all_nodes([&](const NodeID u) { p_graph.set_block(u, best_partition[u]); });
+      tbb::parallel_invoke(
+          [&] {
+            p_graph.pfor_all_nodes([&](const NodeID u) { p_graph.set_block(u, best_partition[u]); }
+            );
+          },
+          [&] {
+            p_graph.pfor_blocks([&](const BlockID b) {
+              p_graph.set_block_weight(b, best_block_weights[b]);
+            });
+          }
+      );
     }
   };
 }

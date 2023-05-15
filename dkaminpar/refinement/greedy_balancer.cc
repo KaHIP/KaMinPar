@@ -211,10 +211,11 @@ auto GreedyBalancer::reduce_move_candidates(std::vector<MoveCandidate> &&candida
     // false = receiver
     // true = sender
     const bool role = (rank >= active_size / 2);
+    DBG << "Role: " << role;
 
     if (role) {
       const int dest = rank - active_size / 2;
-      // print_candidates(candidates, "before send");
+      DBG << "Send " << candidates.size();
       mpi::send(candidates.data(), candidates.size(), dest, 0, _p_graph->communicator());
       return {};
     } else {
@@ -224,7 +225,6 @@ auto GreedyBalancer::reduce_move_candidates(std::vector<MoveCandidate> &&candida
               src, 0, _p_graph->communicator()
           );
 
-      // print_candidates(tmp_buffer, "after recv");
       candidates = reduce_move_candidates(std::move(candidates), std::move(tmp_buffer));
     }
 
