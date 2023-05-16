@@ -55,7 +55,7 @@ void JetRefiner::refine(DistributedPartitionedGraph &p_graph, const PartitionCon
     best_partition[u] = b;
   });
 
-  NoinitVector<EdgeWeight> gains(p_graph.n());
+  NoinitVector<EdgeWeight> gains(p_graph.total_n());
 
   EdgeWeight best_cut = metrics::edge_cut(p_graph);
   bool last_iteration_is_best = true;
@@ -132,6 +132,39 @@ void JetRefiner::refine(DistributedPartitionedGraph &p_graph, const PartitionCon
       });
     };
 
+    TIMED_SCOPE("Exchange moves") {
+      tbb::parallel_for<NodeID>(p_graph.n(), p_graph.total_n(), [&](const NodeID ghost) {
+        next_partition[ghost] = p_graph.block(ghost);
+      });
+
+      struct Message {
+        NodeID node;
+        BlockID block;
+        EdgeWeight gain;
+      };
+
+      mpi::graph::sparse_alltoall_interface_to_pe<Message>(
+          p_graph.graph(),
+          [&](const NodeID u) { return next_partition[u] != p_graph.block(u); },
+          [&](const NodeID u) -> Message {
+            return {
+                .node = u,
+                .block = next_partition[u],
+                .gain = gains[u],
+            };
+          },
+          [&](const auto &recv_buffer, const PEID pe) {
+            tbb::parallel_for<std::size_t>(0, recv_buffer.size(), [&](const std::size_t i) {
+              const auto [their_lnode, block, gain] = recv_buffer[i];
+              const auto gnode = static_cast<GlobalNodeID>(p_graph.offset_n(pe) + their_lnode);
+              const NodeID lnode = p_graph.global_to_local_node(gnode);
+              next_partition[lnode] = block;
+              gains[lnode] = gain;
+            });
+          }
+      );
+    };
+
     TIMED_SCOPE("Filter moves") {
       p_graph.pfor_nodes([&](const NodeID u) {
         lock[u] = 0;
@@ -149,12 +182,12 @@ void JetRefiner::refine(DistributedPartitionedGraph &p_graph, const PartitionCon
           const EdgeWeight weight = p_graph.edge_weight(e);
 
           const bool v_before_u = [&, v = v] {
-            const EdgeWeight gain_v = gains[v];
-            if (gain_v != std::numeric_limits<EdgeWeight>::min()) {
-              const EdgeWeight gain_v = gains[v];
-              return gain_v > gain_u || (gain_v == gain_u && v < u);
+            if (next_partition[v] == p_graph.block(v)) {
+              return false;
             }
-            return false;
+
+            const EdgeWeight gain_v = gains[v];
+            return gain_v > gain_u || (gain_v == gain_u && v < u);
           }();
           const BlockID block_v = v_before_u ? next_partition[v] : p_graph.block(v);
 
@@ -221,7 +254,7 @@ void JetRefiner::refine(DistributedPartitionedGraph &p_graph, const PartitionCon
         block_weight_deltas[b] = 0;
       });
 
-      KASSERT(graph::debug::validate_partition(p_graph), "", assert::heavy);
+      KASSERT(graph::debug::validate_partition(p_graph), "", assert::normal);
     };
 
     TIMED_SCOPE("Rebalance") {
@@ -261,8 +294,9 @@ void JetRefiner::refine(DistributedPartitionedGraph &p_graph, const PartitionCon
     if (!last_iteration_is_best) {
       tbb::parallel_invoke(
           [&] {
-            p_graph.pfor_all_nodes([&](const NodeID u) { p_graph.set_block(u, best_partition[u]); }
-            );
+            p_graph.pfor_all_nodes([&](const NodeID u) {
+              p_graph.set_block<false>(u, best_partition[u]);
+            });
           },
           [&] {
             p_graph.pfor_blocks([&](const BlockID b) {
@@ -272,6 +306,8 @@ void JetRefiner::refine(DistributedPartitionedGraph &p_graph, const PartitionCon
       );
     }
   };
+
+  KASSERT(graph::debug::validate_partition(p_graph), "", assert::normal);
 }
 } // namespace kaminpar::dist
 
