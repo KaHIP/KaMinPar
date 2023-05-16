@@ -512,6 +512,11 @@ CLI::Option_group *create_jet_refinement_options(CLI::App *app, Context &ctx) {
       ->capture_default_str();
   jet->add_option("--r-jet-min-c", ctx.refinement.jet.min_c)->capture_default_str();
   jet->add_option("--r-jet-max-c", ctx.refinement.jet.max_c)->capture_default_str();
+  jet->add_flag("--r-jet-interpolate-c", ctx.refinement.jet.interpolate_c)->capture_default_str();
+  jet->add_flag("--r-jet-use-abortion-threshold", ctx.refinement.jet.use_abortion_threshold)
+      ->capture_default_str();
+  jet->add_option("--r-jet-abortion-threshold", ctx.refinement.jet.abortion_threshold)
+      ->capture_default_str();
 
   return jet;
 }
