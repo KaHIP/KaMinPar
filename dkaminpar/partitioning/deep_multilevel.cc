@@ -246,7 +246,7 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
     KASSERT(graph::debug::validate_partition(p_graph), "", assert::heavy);
   };
 
-  auto extend_partition = [&](DistributedPartitionedGraph &p_graph) {
+  auto extend_partition = [&](DistributedPartitionedGraph &p_graph, PartitionContext &ref_p_ctx) {
     START_TIMER("Extending partition", std::string("Level ") + std::to_string(coarsener->level()));
     BlockID desired_k = std::min<BlockID>(
         _input_ctx.partition.k,
@@ -311,6 +311,26 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
       LOG << "    Imbalance: " << std::setprecision(3) << imbalance;
       LOG << "    Feasible:  " << (feasible ? "yes" : "no");
       STOP_TIMER();
+
+      if (dist_p_graph.k() < desired_k) {
+        START_TIMER("Refinement", std::string("Level ") + std::to_string(coarsener->level()));
+        LOG << "  Running refinement on " << dist_p_graph.k() << " blocks";
+        ref_p_ctx.k = dist_p_graph.k();
+        ref_p_ctx.epsilon = _input_ctx.partition.epsilon;
+        ref_p_ctx.graph = std::make_unique<GraphContext>(dist_p_graph.graph(), ref_p_ctx);
+
+        run_refinement(dist_p_graph, ref_p_ctx);
+
+        START_TIMER("Print partition statistics");
+        const auto cut = metrics::edge_cut(dist_p_graph);
+        const auto imbalance = metrics::imbalance(dist_p_graph);
+        const bool feasible = metrics::is_feasible(dist_p_graph, ref_p_ctx);
+        LOG << "    Cut:       " << cut;
+        LOG << "    Imbalance: " << imbalance;
+        LOG << "    Feasible:  " << (feasible ? "yes" : "no");
+        STOP_TIMER();
+        STOP_TIMER();
+      }
     }
     STOP_TIMER();
   };
@@ -346,7 +366,7 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
     }
 
     // Extend partition
-    extend_partition(dist_p_graph);
+    extend_partition(dist_p_graph, ref_p_ctx);
 
     // Run refinement
     START_TIMER("Refinement", std::string("Level ") + std::to_string(coarsener->level()));
@@ -377,7 +397,7 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
     LOG << "Flat partitioning:";
 
     // Extend partition
-    extend_partition(dist_p_graph);
+    extend_partition(dist_p_graph, ref_p_ctx);
 
     // Run refinement
     START_TIMER("Refinement", std::string("Level ") + std::to_string(coarsener->level()));
