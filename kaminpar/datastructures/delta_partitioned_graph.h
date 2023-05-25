@@ -36,7 +36,7 @@ public:
     if constexpr (compact_block_weight_delta) {
       _block_weights_delta.set_empty_key(kInvalidBlockID);
     } else {
-      _block_weights_delta.resize(_p_graph->n());
+      _block_weights_delta.resize(_p_graph->k());
     }
     if constexpr (allow_random_access) {
       _partition_delta.set_empty_key(kInvalidNodeID);
@@ -161,5 +161,5 @@ private:
       _partition_delta;
 };
 
-using DeltaPartitionedGraph = GenericDeltaPartitionedGraph<true, true>;
+using DeltaPartitionedGraph = GenericDeltaPartitionedGraph<false, false>;
 } // namespace kaminpar::shm
