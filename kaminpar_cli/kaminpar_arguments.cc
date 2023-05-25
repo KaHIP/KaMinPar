@@ -12,23 +12,11 @@
 
 namespace kaminpar::shm {
 void create_all_options(CLI::App *app, Context &ctx) {
-  // General
   create_partitioning_options(app, ctx);
   create_debug_options(app, ctx);
-
-  // Coarsening
   create_coarsening_options(app, ctx);
-  create_lp_coarsening_options(app, ctx);
-
-  // Initial partitioning
   create_initial_partitioning_options(app, ctx);
-
-  // Refinement
   create_refinement_options(app, ctx);
-  create_lp_refinement_options(app, ctx);
-  create_kway_fm_refinement_options(app, ctx);
-  create_jet_refinement_options(app, ctx);
-  create_mtkahypar_refinement_options(app, ctx);
 }
 
 CLI::Option_group *create_partitioning_options(CLI::App *app, Context &ctx) {
@@ -101,6 +89,8 @@ Options are:
           "less than this factor."
       )
       ->capture_default_str();
+
+  create_lp_coarsening_options(app, ctx);
 
   return coarsening;
 }
@@ -253,6 +243,11 @@ The following algorithms can be used:
   - greedy-balancer: greedy balancer)"
       )
       ->capture_default_str();
+
+  create_lp_refinement_options(app, ctx);
+  create_kway_fm_refinement_options(app, ctx);
+  create_jet_refinement_options(app, ctx);
+  create_mtkahypar_refinement_options(app, ctx);
 
   return refinement;
 }

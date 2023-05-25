@@ -8,12 +8,15 @@
 #include <kaminpar_cli/kaminpar_arguments.h>
 // clang-format on
 
-#include <common/timer.h>
-#include <kaminpar/factories.h>
 #include <mpi.h>
 #include <tbb/global_control.h>
 
-#include "io.h"
+#include "shm_io.h"
+
+#include "kaminpar/factories.h"
+#include "kaminpar/metrics.h"
+
+#include "common/timer.h"
 
 using namespace kaminpar;
 using namespace kaminpar::shm;
@@ -35,9 +38,6 @@ int main(int argc, char *argv[]) {
   app.add_option("partition", partition_filename, "Partition file")->required();
   app.add_option("-t,--threads", num_threads, "Number of threads");
   create_refinement_options(&app, ctx);
-  create_partitioning_options(&app, ctx);
-  create_kway_fm_refinement_options(&app, ctx);
-  create_lp_refinement_options(&app, ctx);
   CLI11_PARSE(app, argc, argv);
 
   if (ctx.refinement.algorithms.empty()) {

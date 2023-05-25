@@ -1,5 +1,5 @@
 /*******************************************************************************
- * @file:   io.h
+ * @file:   shm_io.h
  * @author: Daniel Seemaier
  * @date:   20.04.2023
  * @brief:  Common KaGen-based IO code for benchmarks.
@@ -9,7 +9,6 @@
 #include <fstream>
 #include <iostream>
 
-#include <dkaminpar/datastructures/distributed_graph.h>
 #include <kagen.h>
 #include <kaminpar/datastructures/graph.h>
 #include <kaminpar/datastructures/partitioned_graph.h>
