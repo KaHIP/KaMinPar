@@ -20,7 +20,7 @@
 #include "common/noinit_vector.h"
 
 namespace kaminpar::shm {
-template <typename GainCache> class DeltaGainCache;
+template <typename GainCache, bool use_sparsehash = false> class DeltaGainCache;
 
 class DenseGainCache {
   friend class DeltaGainCache<DenseGainCache>;
@@ -153,30 +153,41 @@ private:
   NoinitVector<EdgeWeight> _weighted_degrees;
 };
 
-template <typename GainCache> class DeltaGainCache {
+template <typename GainCache, bool use_sparsehash> class DeltaGainCache {
 public:
   DeltaGainCache(const GainCache &gain_cache) : _gain_cache(gain_cache) {
-    //_gain_cache_delta.set_empty_key(std::numeric_limits<std::size_t>::max());
+    if constexpr (use_sparsehash) {
+      _gain_cache_delta.set_empty_key(std::numeric_limits<std::size_t>::max());
+    }
   }
 
   EdgeWeight conn(const NodeID node, const BlockID block) const {
-    const auto it = _gain_cache_delta.get_if_contained(_gain_cache.index(node, block));
-    const EdgeWeight delta = it != _gain_cache_delta.end() ? *it : 0;
-    // const auto it = _gain_cache_delta.find(_gain_cache.index(node, block));
-    // const EdgeWeight delta = it != _gain_cache_delta.end() ? it->second : 0;
+    EdgeWeight delta = 0;
+    if constexpr (use_sparsehash) {
+      const auto it = _gain_cache_delta.find(_gain_cache.index(node, block));
+      delta = it != _gain_cache_delta.end() ? it->second : 0;
+    } else {
+      const auto it = _gain_cache_delta.get_if_contained(_gain_cache.index(node, block));
+      delta = it != _gain_cache_delta.end() ? *it : 0;
+    }
     return _gain_cache.conn(node, block) + delta;
   }
 
   EdgeWeight gain(const NodeID node, const BlockID from, const BlockID to) const {
-    const auto it_to = _gain_cache_delta.get_if_contained(_gain_cache.index(node, to));
-    const EdgeWeight delta_to = it_to != _gain_cache_delta.end() ? *it_to : 0;
-    const auto it_from = _gain_cache_delta.get_if_contained(_gain_cache.index(node, from));
-    const EdgeWeight delta_from = it_from != _gain_cache_delta.end() ? *it_from : 0;
+    EdgeWeight delta_to = 0;
+    EdgeWeight delta_from = 0;
 
-    // const auto it_to = _gain_cache_delta.find(_gain_cache.index(node, to));
-    // const EdgeWeight delta_to = it_to != _gain_cache_delta.end() ? it_to->second : 0;
-    // const auto it_from = _gain_cache_delta.find(_gain_cache.index(node, from));
-    // const EdgeWeight delta_from = it_from != _gain_cache_delta.end() ? it_from->second : 0;
+    if constexpr (use_sparsehash) {
+      const auto it_to = _gain_cache_delta.find(_gain_cache.index(node, to));
+      const auto it_from = _gain_cache_delta.find(_gain_cache.index(node, from));
+      delta_to = it_to != _gain_cache_delta.end() ? it_to->second : 0;
+      delta_from = it_from != _gain_cache_delta.end() ? it_from->second : 0;
+    } else {
+      const auto it_to = _gain_cache_delta.get_if_contained(_gain_cache.index(node, to));
+      const auto it_from = _gain_cache_delta.get_if_contained(_gain_cache.index(node, from));
+      delta_to = it_to != _gain_cache_delta.end() ? *it_to : 0;
+      delta_from = it_from != _gain_cache_delta.end() ? *it_from : 0;
+    }
 
     return _gain_cache.gain(node, from, to) + delta_to - delta_from;
   }
@@ -202,7 +213,10 @@ public:
 private:
   const GainCache &_gain_cache;
 
-  DynamicFlatMap<std::size_t, EdgeWeight> _gain_cache_delta;
-  // google::dense_hash_map<std::size_t, EdgeWeight> _gain_cache_delta;
+  std::conditional_t<
+      use_sparsehash,
+      google::dense_hash_map<std::size_t, EdgeWeight>,
+      DynamicFlatMap<std::size_t, EdgeWeight>>
+      _gain_cache_delta;
 };
 } // namespace kaminpar::shm
