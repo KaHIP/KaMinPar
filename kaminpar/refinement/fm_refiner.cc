@@ -527,7 +527,7 @@ std::pair<BlockID, EdgeWeight> LocalizedFMRefiner::best_gain(
   const NodeWeight weight_u = p_graph.node_weight(u);
 
   // Since we use max heaps, it is OK to insert this value into the PQ
-  EdgeWeight best_gain = std::numeric_limits<EdgeWeight>::min();
+  EdgeWeight best_conn = std::numeric_limits<EdgeWeight>::min();
   BlockID best_target_block = block_u;
   NodeWeight best_target_block_weight_gap =
       _p_ctx.block_weights.max(block_u) - p_graph.block_weight(block_u);
@@ -545,15 +545,18 @@ std::pair<BlockID, EdgeWeight> LocalizedFMRefiner::best_gain(
       continue;
     }
 
-    const EdgeWeight gain = gain_cache.gain(u, block_u, block);
-    if (gain > best_gain ||
-        (gain == best_gain && block_weight_gap > best_target_block_weight_gap)) {
-      best_gain = gain;
+    const EdgeWeight conn = gain_cache.conn(u, block);
+    if (conn > best_conn ||
+        (conn == best_conn && block_weight_gap > best_target_block_weight_gap)) {
+      best_conn = conn;
       best_target_block = block;
       best_target_block_weight_gap = block_weight_gap;
     }
   }
 
+  const EdgeWeight best_gain = best_target_block != block_u
+                                   ? gain_cache.gain(u, block_u, best_target_block)
+                                   : std::numeric_limits<EdgeWeight>::min();
   return {best_target_block, best_gain};
 }
 } // namespace kaminpar::shm

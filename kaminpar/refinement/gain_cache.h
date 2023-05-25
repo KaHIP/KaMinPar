@@ -158,6 +158,12 @@ public:
     _gain_cache_delta.set_empty_key(std::numeric_limits<std::size_t>::max());
   }
 
+  EdgeWeight conn(const NodeID node, const BlockID block) const {
+    const auto it = _gain_cache_delta.find(_gain_cache.index(node, block));
+    const EdgeWeight delta = it != _gain_cache_delta.end() ? it->second : 0;
+    return _gain_cache.conn(node, block) + delta;
+  }
+
   EdgeWeight gain(const NodeID node, const BlockID from, const BlockID to) const {
     const auto it_to = _gain_cache_delta.find(_gain_cache.index(node, to));
     const EdgeWeight delta_to = it_to != _gain_cache_delta.end() ? it_to->second : 0;
