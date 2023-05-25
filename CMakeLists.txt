@@ -21,7 +21,7 @@ set(CMAKE_CXX_STANDARD 17)
 option(KAMINPAR_BUILD_TESTS "Build unit tests" ON)
 option(KAMINPAR_BUILD_DISTRIBUTED "Build distributed partitioner." OFF)
 option(KAMINPAR_BUILD_APPS "Build binaries." ON)
-option(KAMINPAR_BUILD_BENCHMARKS "Build benchmark binaries." ON)
+option(KAMINPAR_BUILD_BENCHMARKS "Build benchmark binaries." OFF)
 
 # Control how to build
 ######################

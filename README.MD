@@ -72,7 +72,7 @@ FetchContent_Declare(KaMinPar
   GIT_REPOSITORY https://github.com/KaHIP/KaMinPar.git
   GIT_TAG main)
 FetchContent_MakeAvailable(KaMinPar)
-set_property(DIRECTORY ${KaMinPar_SOURCE_DIR}" PROPERTY EXCLUDE_FROM_ALL YES) # optional
+set_property(DIRECTORY "${KaMinPar_SOURCE_DIR}" PROPERTY EXCLUDE_FROM_ALL YES) # optional
 
 target_link_libraries(<your-target> PUBLIC KaMinPar::KaMinPar)  # Shared-memory partitioning
 target_link_libraries(<your-target> PUBLIC KaMinPar::dKaMinPar) # Distributed partitioning

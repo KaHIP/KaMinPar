@@ -1,3 +1,10 @@
+/*******************************************************************************
+ * @file:   jet_refiner.cc
+ * @author: Daniel Seemaier
+ * @date:   02.05.2023
+ * @brief:  Shared-memory JET refiner due to: 
+ * "Jet: Multilevel Graph Partitioning on GPUs" by Gilbert et al.
+ ******************************************************************************/
 #include "kaminpar/refinement/jet_refiner.h"
 
 #include "kaminpar/datastructures/delta_partitioned_graph.h"
