@@ -221,10 +221,7 @@ bool FMRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx)
   STOP_TIMER();
 
   const EdgeWeight initial_cut = metrics::edge_cut(p_graph);
-
-  // Total gain across all iterations
-  // This value is not accurate, but the sum of all gains achieved on local
-  // delta graphs
+  EdgeWeight cut_before_current_iteration = initial_cut;
   EdgeWeight total_expected_gain = 0;
 
   // Create thread-local workers numbered 1..P
@@ -272,31 +269,33 @@ bool FMRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx)
     });
     STOP_TIMER();
 
-    // Abort early if the expected cut improvement falls below the abortion
-    // threshold
-    // @todo is it feasible to work with these "expected" values? Do we need
-    // accurate gains?
-    const EdgeWeight expected_gain = expected_gain_ets.combine(std::plus{});
-    total_expected_gain += expected_gain;
-    const EdgeWeight expected_current_cut = initial_cut - total_expected_gain;
-    const EdgeWeight abortion_threshold =
-        expected_current_cut * _fm_ctx->improvement_abortion_threshold;
-    DBG << "Expected total gain after iteration " << iteration << ": " << expected_gain
-        << ", total actual gain so far: " << initial_cut - metrics::edge_cut(p_graph)
-        << ": current gain is " << metrics::edge_cut(p_graph);
+    const EdgeWeight expected_gain_of_this_iteration = expected_gain_ets.combine(std::plus{});
+    total_expected_gain += expected_gain_of_this_iteration;
 
-    if (expected_gain <= abortion_threshold) {
-      DBG << "Aborting because expected gain is below threshold " << abortion_threshold;
+    const EdgeWeight current_cut =
+        _fm_ctx->use_exact_abortion_threshold
+            ? metrics::edge_cut(p_graph)
+            : cut_before_current_iteration - expected_gain_of_this_iteration;
+
+    const EdgeWeight abs_improvement_of_this_iteration = cut_before_current_iteration - current_cut;
+    const double improvement_of_this_iteration =
+        1.0 * abs_improvement_of_this_iteration / cut_before_current_iteration;
+    if (1.0 - improvement_of_this_iteration > _fm_ctx->abortion_threshold) {
       break;
     }
 
+    cut_before_current_iteration = current_cut;
+    DBG << "Expected gain of iteration " << iteration << ": " << expected_gain_of_this_iteration
+        << ", total expected gain so far: " << total_expected_gain
+        << ", total actual gain so far: " << initial_cut - metrics::edge_cut(p_graph)
+        << ", current edge cut: " << metrics::edge_cut(p_graph);
     IFSTATS(_shared->stats.next_iteration());
   }
 
   IFSTATS(_shared->stats.summarize());
   IFSTATS(_shared->stats.reset());
 
-  return total_expected_gain;
+  return false;
 }
 
 LocalizedFMRefiner::LocalizedFMRefiner(
@@ -454,7 +453,6 @@ EdgeWeight LocalizedFMRefiner::run_batch() {
 void LocalizedFMRefiner::update_after_move(
     const NodeID node, const NodeID moved_node, const BlockID moved_from, const BlockID moved_to
 ) {
-  // KASSERT(_d_graph.block(node) == _p_graph.block(node));
   const BlockID old_block = _p_graph.block(node);
   const BlockID old_target_block = _shared.target_blocks[node];
 
@@ -497,30 +495,6 @@ void LocalizedFMRefiner::update_after_move(
       _node_pqs[old_block].change_priority(node, gain_old_target_block);
     }
   }
-
-  // Check that PQ state is as if we had reconsidered the gains to all blocks
-  // This is only a valid assertion if we only use one thread.
-  /*
-  KASSERT(
-      [&] {
-        const auto actual = best_gain(_d_graph, _d_gain_cache, node);
-        if (_node_pq[old_block].key(node) != actual.second) {
-          LOG_WARNING << "node " << node << " has incorrect gain: expected "
-                      << actual.second << ", but got "
-                      << _node_pq[old_block].key(node);
-          return false;
-        }
-        if (actual.second !=
-            _d_gain_cache.gain(node, old_block, _fm._target_blocks[node])) {
-          LOG_WARNING << "node " << node << " has incorrect target block";
-          return false;
-        }
-        return true;
-      }(),
-      "inconsistent PQ state after node move",
-      assert::heavy
-  );
-  */
 }
 
 bool LocalizedFMRefiner::update_block_pq() {

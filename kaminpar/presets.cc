@@ -109,11 +109,12 @@ Context create_default_context() {
                   },
               .kway_fm =
                   {
-                      .num_seed_nodes = 5,
+                      .num_seed_nodes = 25,
                       .alpha = 1.0,
-                      .num_iterations = 5,
-                      .improvement_abortion_threshold = 0.0001,
+                      .num_iterations = 10,
                       .unlock_seed_nodes = false,
+                      .use_exact_abortion_threshold = false,
+                      .abortion_threshold = 0.999,
                   },
               .balancer = {},
               .jet =
@@ -122,7 +123,6 @@ Context create_default_context() {
                       .interpolate_c = false,
                       .min_c = 0.25,
                       .max_c = 0.75,
-                      .use_abortion_threshold = true,
                       .abortion_threshold = 0.999,
                   },
               .mtkahypar =

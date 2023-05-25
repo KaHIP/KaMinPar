@@ -2,7 +2,7 @@
  * @file:   jet_refiner.cc
  * @author: Daniel Seemaier
  * @date:   02.05.2023
- * @brief:  Shared-memory JET refiner due to: 
+ * @brief:  Shared-memory JET refiner due to:
  * "Jet: Multilevel Graph Partitioning on GPUs" by Gilbert et al.
  ******************************************************************************/
 #include "kaminpar/refinement/jet_refiner.h"
@@ -126,8 +126,7 @@ bool JetRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx
   for (int i = 0; i < _ctx.refinement.jet.num_iterations; ++i) {
     Statistics stats;
 
-    const EdgeWeight initial_cut =
-        _ctx.refinement.jet.use_abortion_threshold ? metrics::edge_cut(p_graph) : -1;
+    const EdgeWeight initial_cut = metrics::edge_cut(p_graph);
 
     stats.pre_move_cut = IFSTATS(metrics::edge_cut(p_graph));
     stats.pre_move_imbalance = IFSTATS(metrics::imbalance(p_graph));
@@ -278,12 +277,10 @@ bool JetRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx
     IFSTATS(stats.final_feasible = metrics::is_feasible(p_graph, p_ctx));
     IFSTATS(stats.print(i, _ctx.refinement.jet.num_iterations));
 
-    if (_ctx.refinement.jet.use_abortion_threshold) {
-      const EdgeWeight final_cut = metrics::edge_cut(p_graph);
-      const double improvement = 1.0 * (initial_cut - final_cut) / initial_cut;
-      if (1.0 - improvement > _ctx.refinement.jet.abortion_threshold) {
-        break;
-      }
+    const EdgeWeight final_cut = metrics::edge_cut(p_graph);
+    const double improvement = 1.0 * (initial_cut - final_cut) / initial_cut;
+    if (1.0 - improvement > _ctx.refinement.jet.abortion_threshold) {
+      break;
     }
   }
 

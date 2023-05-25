@@ -126,9 +126,9 @@ struct KwayFMRefinementContext {
   NodeID num_seed_nodes;
   double alpha;
   int num_iterations;
-  double improvement_abortion_threshold;
-
   bool unlock_seed_nodes;
+  bool use_exact_abortion_threshold;
+  double abortion_threshold;
 };
 
 struct JetRefinementContext {
@@ -136,7 +136,6 @@ struct JetRefinementContext {
   double interpolate_c;
   double min_c;
   double max_c;
-  bool use_abortion_threshold;
   double abortion_threshold;
 };
 

@@ -295,9 +295,16 @@ CLI::Option_group *create_kway_fm_refinement_options(CLI::App *app, Context &ctx
   )
       ->capture_default_str();
   fm->add_option("--r-fm-alpha", ctx.refinement.kway_fm.alpha)->capture_default_str();
+  fm->add_flag(
+        "--r-fm-use-exact-abortion-threshold",
+        ctx.refinement.kway_fm.use_exact_abortion_threshold,
+        "Use the exact edge cut metric to decide when to abort FM refinement (more precise, but "
+        "slower)."
+  )
+      ->capture_default_str();
   fm->add_option(
         "--r-fm-abortion-threshold",
-        ctx.refinement.kway_fm.improvement_abortion_threshold,
+        ctx.refinement.kway_fm.abortion_threshold,
         "Stop FM iterations if the edge cut reduction of the previous "
         "iteration falls below this threshold."
   )
@@ -316,8 +323,6 @@ CLI::Option_group *create_jet_refinement_options(CLI::App *app, Context &ctx) {
   jet->add_flag("--r-jet-interpolate-c", ctx.refinement.jet.interpolate_c)->capture_default_str();
   jet->add_option("--r-jet-min-c", ctx.refinement.jet.min_c)->capture_default_str();
   jet->add_option("--r-jet-max-c", ctx.refinement.jet.max_c)->capture_default_str();
-  jet->add_flag("--r-jet-use-abortion-threshold", ctx.refinement.jet.use_abortion_threshold)
-      ->capture_default_str();
   jet->add_option("--r-jet-abortion-threshold", ctx.refinement.jet.abortion_threshold)
       ->capture_default_str();
 
