@@ -16,16 +16,8 @@ void create_all_options(CLI::App *app, Context &ctx) {
   create_partitioning_options(app, ctx);
   create_debug_options(app, ctx);
   create_coarsening_options(app, ctx);
-  create_global_lp_coarsening_options(app, ctx);
-  create_local_lp_coarsening_options(app, ctx);
-  create_hem_coarsening_options(app, ctx);
   create_initial_partitioning_options(app, ctx);
   create_refinement_options(app, ctx);
-  create_fm_refinement_options(app, ctx);
-  create_lp_refinement_options(app, ctx);
-  create_colored_lp_refinement_options(app, ctx);
-  create_jet_refinement_options(app, ctx);
-  create_greedy_balancer_options(app, ctx);
 }
 
 CLI::Option_group *create_partitioning_options(CLI::App *app, Context &ctx) {
@@ -124,6 +116,12 @@ CLI::Option_group *create_refinement_options(CLI::App *app, Context &ctx) {
           "Also run the refinement algorithms on the coarsest graph."
       )
       ->capture_default_str();
+
+  create_fm_refinement_options(app, ctx);
+  create_lp_refinement_options(app, ctx);
+  create_colored_lp_refinement_options(app, ctx);
+  create_jet_refinement_options(app, ctx);
+  create_greedy_balancer_options(app, ctx);
 
   return refinement;
 }
@@ -384,6 +382,10 @@ CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx) {
       "If imbalance threshold is exceeded, migrate nodes until perfectly "
       "balanced."
   );
+
+  create_global_lp_coarsening_options(app, ctx);
+  create_local_lp_coarsening_options(app, ctx);
+  create_hem_coarsening_options(app, ctx);
 
   return coarsening;
 }
