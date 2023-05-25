@@ -377,6 +377,10 @@ EdgeWeight LocalizedFMRefiner::run_batch() {
       // partition
       if (current_total_gain > best_total_gain) {
         // Update global graph and global gain cache
+        _p_graph.set_block(node, block_to);
+        _shared.gain_cache.move(_p_graph, node, block_from, block_to);
+        _shared.node_tracker.set(node, NodeTracker::MOVED_GLOBALLY);
+
         for (const auto &[moved_node, moved_to] : _d_graph.delta()) {
           _shared.gain_cache.move(_p_graph, moved_node, _p_graph.block(moved_node), moved_to);
           _shared.node_tracker.set(moved_node, NodeTracker::MOVED_GLOBALLY);
