@@ -418,6 +418,11 @@ EdgeWeight LocalizedFMRefiner::run_batch() {
     }
   }
 
+  // Flush local state for the nex tround
+  for (auto &node_pq : _node_pqs) {
+    node_pq.clear();
+  }
+
   // If we do not wish to unlock seed nodes, mark them as globally moved == locked for good
   if (!_fm_ctx.unlock_seed_nodes) {
     for (const NodeID &seed_node : _seed_nodes) {
@@ -433,11 +438,6 @@ EdgeWeight LocalizedFMRefiner::run_batch() {
     if (owner == _id || owner == NodeTracker::MOVED_LOCALLY) {
       _shared.node_tracker.set(touched_node, NodeTracker::UNLOCKED);
     }
-  }
-
-  // Flush local state for the nex tround
-  for (auto &node_pq : _node_pqs) {
-    node_pq.clear();
   }
 
   _block_pq.clear();
