@@ -19,7 +19,7 @@ namespace kaminpar {
 inline auto invoke_kagen(const std::string &options) {
   kagen::KaGen generator(MPI_COMM_WORLD);
   generator.UseCSRRepresentation();
-  generator.EnableBasicStatistics();
+  generator.EnableAdvancedStatistics();
   generator.EnableOutput(true);
 
   const bool generate = std::find(options.begin(), options.end(), ';') != options.end();
