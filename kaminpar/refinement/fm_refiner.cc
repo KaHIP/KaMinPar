@@ -371,11 +371,6 @@ EdgeWeight LocalizedFMRefiner::run_batch() {
     // Accept the move if the target block does not get overloaded
     const NodeWeight node_weight = _p_graph.node_weight(node);
     if (_d_graph.block_weight(block_to) + node_weight <= _p_ctx.block_weights.max(block_to)) {
-
-      // Perform local move
-      _d_graph.set_block(node, block_to);
-      _d_gain_cache.move(_d_graph, node, block_from, block_to);
-      _stopping_policy.update(actual_gain);
       current_total_gain += actual_gain;
 
       // If we found a new local minimum, apply the moves to the global
@@ -395,6 +390,11 @@ EdgeWeight LocalizedFMRefiner::run_batch() {
         _stopping_policy.reset();
 
         best_total_gain = current_total_gain;
+      } else {
+        // Perform local move
+        _d_graph.set_block(node, block_to);
+        _d_gain_cache.move(_d_graph, node, block_from, block_to);
+        _stopping_policy.update(actual_gain);
       }
 
       for (const auto &[e, v] : _p_graph.neighbors(node)) {
