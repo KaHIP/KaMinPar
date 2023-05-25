@@ -208,7 +208,8 @@ struct SharedData {
 } // namespace fm
 
 FMRefiner::FMRefiner(const Context &input_ctx)
-    : _fm_ctx(&input_ctx.refinement.kway_fm),
+    : _ctx(input_ctx),
+      _fm_ctx(input_ctx.refinement.kway_fm),
       _shared(std::make_unique<fm::SharedData>(input_ctx.partition.n, input_ctx.partition.k)) {}
 
 FMRefiner::~FMRefiner() = default;
@@ -229,10 +230,10 @@ bool FMRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx)
   tbb::enumerable_thread_specific<LocalizedFMRefiner> localized_fm_refiner_ets([&] {
     // It is important that worker IDs start at 1, otherwise the node
     // tracker won't work
-    return LocalizedFMRefiner(++next_id, p_ctx, *_fm_ctx, p_graph, *_shared);
+    return LocalizedFMRefiner(++next_id, p_ctx, _fm_ctx, p_graph, *_shared);
   });
 
-  for (int iteration = 0; iteration < _fm_ctx->num_iterations; ++iteration) {
+  for (int iteration = 0; iteration < _fm_ctx.num_iterations; ++iteration) {
     // Gains of the current iterations
     tbb::enumerable_thread_specific<EdgeWeight> expected_gain_ets;
 
@@ -250,20 +251,18 @@ bool FMRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx)
     STOP_TIMER();
 
     DBG << "Starting FM iteration " << iteration << " with " << _shared->border_nodes.size()
-        << " border nodes and " << tbb::this_task_arena::max_concurrency() << " worker threads";
+        << " border nodes and " << _ctx.parallel.num_threads << " worker threads";
 
     // Start one worker per thread
     START_TIMER("Localized searches");
-    tbb::parallel_for<int>(0, tbb::this_task_arena::max_concurrency(), [&](int) {
+    tbb::parallel_for<int>(0, _ctx.parallel.num_threads, [&](int) {
       EdgeWeight &expected_gain = expected_gain_ets.local();
       LocalizedFMRefiner &localized_refiner = localized_fm_refiner_ets.local();
 
       // The workers attempt to extract seed nodes from the border nodes
       // that are still available, continuing this process until there are
       // no more border nodes
-      NodeID num_batches = 0;
       while (_shared->border_nodes.has_more()) {
-        IFDBG(++num_batches);
         expected_gain += localized_refiner.run_batch();
       }
     });
@@ -273,22 +272,20 @@ bool FMRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx)
     total_expected_gain += expected_gain_of_this_iteration;
 
     const EdgeWeight current_cut =
-        _fm_ctx->use_exact_abortion_threshold
+        _fm_ctx.use_exact_abortion_threshold
             ? metrics::edge_cut(p_graph)
             : cut_before_current_iteration - expected_gain_of_this_iteration;
 
     const EdgeWeight abs_improvement_of_this_iteration = cut_before_current_iteration - current_cut;
     const double improvement_of_this_iteration =
         1.0 * abs_improvement_of_this_iteration / cut_before_current_iteration;
-    if (1.0 - improvement_of_this_iteration > _fm_ctx->abortion_threshold) {
+    if (1.0 - improvement_of_this_iteration > _fm_ctx.abortion_threshold) {
       break;
     }
 
     cut_before_current_iteration = current_cut;
     DBG << "Expected gain of iteration " << iteration << ": " << expected_gain_of_this_iteration
-        << ", total expected gain so far: " << total_expected_gain
-        << ", total actual gain so far: " << initial_cut - metrics::edge_cut(p_graph)
-        << ", current edge cut: " << metrics::edge_cut(p_graph);
+        << ", total expected gain so far: " << total_expected_gain;
     IFSTATS(_shared->stats.next_iteration());
   }
 

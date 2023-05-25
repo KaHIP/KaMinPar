@@ -39,7 +39,9 @@ public:
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
 
 private:
-  const KwayFMRefinementContext *_fm_ctx;
+  const Context &_ctx;
+  const KwayFMRefinementContext &_fm_ctx;
+
   std::unique_ptr<fm::SharedData> _shared;
 };
 
