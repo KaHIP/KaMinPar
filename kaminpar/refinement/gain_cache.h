@@ -15,6 +15,7 @@
 #include "kaminpar/datastructures/delta_partitioned_graph.h"
 #include "kaminpar/datastructures/partitioned_graph.h"
 
+#include "common/datastructures/dynamic_map.h"
 #include "common/logger.h"
 #include "common/noinit_vector.h"
 
@@ -155,20 +156,28 @@ private:
 template <typename GainCache> class DeltaGainCache {
 public:
   DeltaGainCache(const GainCache &gain_cache) : _gain_cache(gain_cache) {
-    _gain_cache_delta.set_empty_key(std::numeric_limits<std::size_t>::max());
+    //_gain_cache_delta.set_empty_key(std::numeric_limits<std::size_t>::max());
   }
 
   EdgeWeight conn(const NodeID node, const BlockID block) const {
-    const auto it = _gain_cache_delta.find(_gain_cache.index(node, block));
-    const EdgeWeight delta = it != _gain_cache_delta.end() ? it->second : 0;
+    const auto it = _gain_cache_delta.get_if_contained(_gain_cache.index(node, block));
+    const EdgeWeight delta = it != _gain_cache_delta.end() ? *it : 0;
+    // const auto it = _gain_cache_delta.find(_gain_cache.index(node, block));
+    // const EdgeWeight delta = it != _gain_cache_delta.end() ? it->second : 0;
     return _gain_cache.conn(node, block) + delta;
   }
 
   EdgeWeight gain(const NodeID node, const BlockID from, const BlockID to) const {
-    const auto it_to = _gain_cache_delta.find(_gain_cache.index(node, to));
-    const EdgeWeight delta_to = it_to != _gain_cache_delta.end() ? it_to->second : 0;
-    const auto it_from = _gain_cache_delta.find(_gain_cache.index(node, from));
-    const EdgeWeight delta_from = it_from != _gain_cache_delta.end() ? it_from->second : 0;
+    const auto it_to = _gain_cache_delta.get_if_contained(_gain_cache.index(node, to));
+    const EdgeWeight delta_to = it_to != _gain_cache_delta.end() ? *it_to : 0;
+    const auto it_from = _gain_cache_delta.get_if_contained(_gain_cache.index(node, from));
+    const EdgeWeight delta_from = it_from != _gain_cache_delta.end() ? *it_from : 0;
+
+    // const auto it_to = _gain_cache_delta.find(_gain_cache.index(node, to));
+    // const EdgeWeight delta_to = it_to != _gain_cache_delta.end() ? it_to->second : 0;
+    // const auto it_from = _gain_cache_delta.find(_gain_cache.index(node, from));
+    // const EdgeWeight delta_from = it_from != _gain_cache_delta.end() ? it_from->second : 0;
+
     return _gain_cache.gain(node, from, to) + delta_to - delta_from;
   }
 
@@ -192,6 +201,8 @@ public:
 
 private:
   const GainCache &_gain_cache;
-  google::dense_hash_map<std::size_t, EdgeWeight> _gain_cache_delta;
+
+  DynamicFlatMap<std::size_t, EdgeWeight> _gain_cache_delta;
+  // google::dense_hash_map<std::size_t, EdgeWeight> _gain_cache_delta;
 };
 } // namespace kaminpar::shm
