@@ -428,6 +428,13 @@ EdgeWeight LocalizedFMRefiner::run_batch() {
     for (const NodeID &seed_node : _seed_nodes) {
       _shared.node_tracker.set(seed_node, NodeTracker::MOVED_GLOBALLY);
     }
+  } else {
+    for (const NodeID seed_node : _seed_nodes) {
+      const int owner = _shared.node_tracker.owner(seed_node);
+      if (owner == _id || owner == NodeTracker::MOVED_LOCALLY) {
+        _shared.node_tracker.set(seed_node, NodeTracker::UNLOCKED);
+      }
+    }
   }
 
   // Unlock all nodes that were touched but not moved, or nodes that were only moved in the
