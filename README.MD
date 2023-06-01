@@ -21,7 +21,7 @@ Moreover, for large values of k, it is an order of magnitude faster than competi
 Build KaMinPar following the standard CMake steps:
 
 ```shell
-cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake -B build -DCMAKE_BUILD_TYPE=Release -DKAMINPAR_BUILD_DISTRIBURED=On
 cmake --build build --parallel
 ```
 
