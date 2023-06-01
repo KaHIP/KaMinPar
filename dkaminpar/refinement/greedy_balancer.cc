@@ -200,7 +200,12 @@ auto GreedyBalancer::reduce_move_candidates(std::vector<MoveCandidate> &&candida
     -> std::vector<MoveCandidate> {
   const int size = mpi::get_comm_size(_p_graph->communicator());
   const int rank = mpi::get_comm_rank(_p_graph->communicator());
-  KASSERT(math::is_power_of_2(size), "#PE must be a power of two", assert::always);
+
+  enum class Role {
+    SENDER,
+    RECEIVER,
+    PAUSE
+  };
 
   int active_size = size;
   while (active_size > 1) {
@@ -210,15 +215,31 @@ auto GreedyBalancer::reduce_move_candidates(std::vector<MoveCandidate> &&candida
 
     // false = receiver
     // true = sender
-    const bool role = (rank >= active_size / 2);
-    DBG << "Role: " << role;
+    const Role role = [&] {
+      if (active_size % 2 == 0) {
+        if (rank < active_size / 2) {
+          return Role::RECEIVER;
+        } else {
+          return Role::SENDER;
+        }
+      } else {
+        if (rank == 0) {
+          return Role::PAUSE;
+        }
+        if (rank <= active_size / 2) {
+          return Role::RECEIVER;
+        } else {
+          return Role::SENDER;
+        }
+      }
+    }();
 
-    if (role) {
+    if (role == Role::SENDER) {
       const int dest = rank - active_size / 2;
       DBG << "Send " << candidates.size();
       mpi::send(candidates.data(), candidates.size(), dest, 0, _p_graph->communicator());
       return {};
-    } else {
+    } else if (role == Role::RECEIVER) {
       const int src = rank + active_size / 2;
       std::vector<MoveCandidate> tmp_buffer =
           mpi::probe_recv<MoveCandidate, std::vector<MoveCandidate>>(
@@ -228,7 +249,7 @@ auto GreedyBalancer::reduce_move_candidates(std::vector<MoveCandidate> &&candida
       candidates = reduce_move_candidates(std::move(candidates), std::move(tmp_buffer));
     }
 
-    active_size /= 2;
+    active_size = active_size / 2 + active_size % 2;
   }
 
   return std::move(candidates);
