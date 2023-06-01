@@ -48,10 +48,11 @@ void setup_context(CLI::App &cli, ApplicationContext &app, Context &ctx) {
   )
       ->check(CLI::IsMember(get_preset_names()))
       ->description(R"(Use configuration preset:
-  - default, fast: fastest, but lower quality (LP + IP via KaMinPar)
-  - strong:        slower, but higher quality (LP + IP via Mt-KaHyPar)
-  - tr-fast:       dKaMinPar-Fast configuration evaluated in the TR
-  - tr-strong:     dKaMinPar-Strong configuration evaluated in the TR)");
+  - default, fast:    fastest, but lower quality
+  - strong:           slower, but higher quality
+  - europar23-fast:   dKaMinPar-Fast configuration evaluated in the TR / Euro-Par'23 paper
+  - europar23-strong: dKaMinPar-Strong configuration evaluated in the TR / Euro-Par'23 paper; requires MtKaHyPar)"
+      );
 
   // Mandatory
   auto *mandatory = cli.add_option_group("Application")->require_option(1);

@@ -18,12 +18,10 @@ Context create_context_by_preset_name(const std::string &name) {
     return create_default_context();
   } else if (name == "strong") {
     return create_strong_context();
-  } else if (name == "tr-fast") {
-    return create_tr_fast_context();
-  } else if (name == "tr-strong") {
-    return create_tr_strong_context();
-  } else if (name == "jet") {
-    return create_jet_context();
+  } else if (name == "europar23-fast") {
+    return create_europar23_fast_context();
+  } else if (name == "europar23-strong") {
+    return create_europar23_strong_context();
   }
 
   throw std::runtime_error("invalid preset name");
@@ -33,9 +31,8 @@ std::unordered_set<std::string> get_preset_names() {
   return {
       "default",
       "strong",
-      "tr-fast",
-      "tr-strong",
-      "jet",
+      "europar23-fast",
+      "europar23-strong",
   };
 }
 
@@ -187,23 +184,23 @@ Context create_default_context() {
 
 Context create_strong_context() {
   Context ctx = create_default_context();
-  ctx.initial_partitioning.algorithm = InitialPartitioningAlgorithm::MTKAHYPAR;
+  ctx.initial_partitioning.kaminpar = shm::create_strong_context();
   ctx.coarsening.global_lp.num_iterations = 5;
+  ctx.refinement.algorithms = {
+      KWayRefinementAlgorithm::GREEDY_BALANCER,
+      KWayRefinementAlgorithm::LP,
+      KWayRefinementAlgorithm::JET};
   return ctx;
 }
 
-Context create_tr_fast_context() {
+Context create_europar23_fast_context() {
   return create_default_context();
 }
 
-Context create_tr_strong_context() {
-  return create_strong_context();
-}
-
-Context create_jet_context() {
+Context create_europar23_strong_context() {
   Context ctx = create_default_context();
-  ctx.refinement.algorithms = {
-      KWayRefinementAlgorithm::GREEDY_BALANCER, KWayRefinementAlgorithm::JET};
+  ctx.initial_partitioning.algorithm = InitialPartitioningAlgorithm::MTKAHYPAR;
+  ctx.coarsening.global_lp.num_iterations = 5;
   return ctx;
 }
 } // namespace kaminpar::dist
