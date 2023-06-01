@@ -474,8 +474,9 @@ private:
           const GlobalNodeWeight increase_by_me = (*it).second;
 
           violation = 1;
-          new_weight = _max_cluster_weight + (1.0 * increase_by_me / increase_by_others) *
-                                                 (new_weight - _max_cluster_weight);
+          new_weight =
+              _max_cluster_weight + (1.0 * increase_by_me / (increase_by_others + increase_by_me)) *
+                                        (new_weight - _max_cluster_weight);
         }
         change_cluster_weight(cluster, -old_weight + new_weight, true);
       });
