@@ -152,9 +152,10 @@ DistributedGraph replicate(const DistributedGraph &graph, const int num_replicat
   const PEID size = mpi::get_comm_size(graph.communicator());
   const PEID rank = mpi::get_comm_rank(graph.communicator());
 
-  const PEID new_size =
-      size / num_replications + (rank % num_replications < size % num_replications);
-  const PEID new_rank = rank / num_replications;
+  MPI_Comm new_comm;
+  MPI_Comm_split(graph.communicator(), rank % num_replications, rank, &new_comm);
+  const PEID new_size = mpi::get_comm_size(new_comm);
+  const PEID new_rank = mpi::get_comm_rank(new_comm);
 
   // This communicator is used to mirror data between included PEs
   MPI_Comm primary_comm;
@@ -162,17 +163,25 @@ DistributedGraph replicate(const DistributedGraph &graph, const int num_replicat
   const PEID primary_size = mpi::get_comm_size(primary_comm);
   const PEID primary_rank = mpi::get_comm_rank(primary_comm);
 
-  const bool need_secondary_comm = size % num_replications == 0;
-  const int is_secondary_participant = (rank == size / num_replications || false);
+  const bool need_secondary_comm = (size % num_replications != 0);
+  const int is_secondary_participant =
+      need_secondary_comm &&
+      (rank + 1 == size || (new_size == size / num_replications && new_rank + 1 == new_size));
   MPI_Comm secondary_comm = MPI_COMM_NULL;
   NodeID secondary_num_nodes = 0;
   EdgeID secondary_num_edges = 0;
+  PEID secondary_size = 0;
   PEID secondary_rank = 0;
+  DBG << V(need_secondary_comm) << V(is_secondary_participant) << V(secondary_num_nodes)
+      << V(secondary_num_edges) << V(secondary_rank) << V(primary_size) << V(primary_rank)
+      << V(new_size) << V(new_rank);
 
   if (need_secondary_comm) {
     MPI_Comm_split(graph.communicator(), is_secondary_participant, rank, &secondary_comm);
+    secondary_size = mpi::get_comm_size(secondary_comm);
     secondary_rank = mpi::get_comm_rank(secondary_comm);
   }
+  const PEID secondary_root = secondary_size - 1;
 
   auto nodes_counts = mpi::build_counts_from_value<GlobalNodeID>(graph.n(), primary_comm);
   auto nodes_displs = mpi::build_displs_from_counts(nodes_counts);
@@ -180,11 +189,13 @@ DistributedGraph replicate(const DistributedGraph &graph, const int num_replicat
   auto edges_displs = mpi::build_displs_from_counts(edges_counts);
 
   if (is_secondary_participant) {
+    DBG << "Participating";
     secondary_num_nodes = static_cast<NodeID>(nodes_displs.back());
     secondary_num_edges = static_cast<EdgeID>(edges_displs.back());
-    MPI_Bcast(&secondary_num_nodes, 1, mpi::type::get<NodeID>(), 0, secondary_comm);
-    MPI_Bcast(&secondary_num_edges, 1, mpi::type::get<EdgeID>(), 0, secondary_comm);
-    if (secondary_rank == 0) {
+    MPI_Bcast(&secondary_num_nodes, 1, mpi::type::get<NodeID>(), secondary_root, secondary_comm);
+    MPI_Bcast(&secondary_num_edges, 1, mpi::type::get<EdgeID>(), secondary_root, secondary_comm);
+    DBG << "Recv " << V(secondary_num_nodes) << V(secondary_num_edges);
+    if (secondary_rank == secondary_root) {
       secondary_num_nodes = 0;
       secondary_num_edges = 0;
     }
@@ -258,38 +269,47 @@ DistributedGraph replicate(const DistributedGraph &graph, const int num_replicat
   });
 
   if (is_secondary_participant) {
-    if (secondary_rank == 0) {
-      MPI_Bcast(nodes.data(), nodes.size() - 1, mpi::type::get<EdgeID>(), 0, secondary_comm);
+    if (secondary_rank == secondary_root) {
+      DBG << "Sending " << V(nodes.size() - 1) << V(tmp_global_edges.size())
+          << V(edge_weights.size());
+      MPI_Bcast(
+          nodes.data(), nodes.size() - 1, mpi::type::get<EdgeID>(), secondary_root, secondary_comm
+      );
       MPI_Bcast(
           tmp_global_edges.data(),
           tmp_global_edges.size(),
           mpi::type::get<GlobalNodeID>(),
-          0,
+          secondary_root,
           secondary_comm
       );
       MPI_Bcast(
-          edge_weights.data(), edge_weights.size(), mpi::type::get<EdgeWeight>(), 0, secondary_comm
+          edge_weights.data(),
+          edge_weights.size(),
+          mpi::type::get<EdgeWeight>(),
+          secondary_root,
+          secondary_comm
       );
     } else {
+      DBG << "Recv " << V(secondary_num_nodes) << V(secondary_num_edges);
       MPI_Bcast(
           nodes.data() + nodes_displs.back(),
           secondary_num_nodes,
           mpi::type::get<EdgeID>(),
-          0,
+          secondary_root,
           secondary_comm
       );
       MPI_Bcast(
           tmp_global_edges.data() + edges_displs.back(),
           secondary_num_edges,
           mpi::type::get<NodeID>(),
-          0,
+          secondary_root,
           secondary_comm
       );
       MPI_Bcast(
           edge_weights.data() + edges_displs.back(),
           secondary_num_edges,
           mpi::type::get<EdgeWeight>(),
-          0,
+          secondary_root,
           secondary_comm
       );
 
@@ -304,17 +324,14 @@ DistributedGraph replicate(const DistributedGraph &graph, const int num_replicat
   // Create new node and edges distributions
   StaticArray<GlobalNodeID> node_distribution(new_size + 1);
   StaticArray<GlobalEdgeID> edge_distribution(new_size + 1);
-  tbb::parallel_for<PEID>(0, new_size, [&](const PEID pe) {
-    node_distribution[pe + 1] = graph.node_distribution(primary_size * (pe + 1));
-    edge_distribution[pe + 1] = graph.edge_distribution(primary_size * (pe + 1));
+  tbb::parallel_for<PEID>(0, new_size, [&](const PEID pe) { // no longer true
+    const PEID of = std::min<PEID>(size, num_replications * (pe + 1));
+    node_distribution[pe + 1] = graph.node_distribution(of);
+    edge_distribution[pe + 1] = graph.edge_distribution(of);
   });
-  if (need_secondary_comm) {
-    node_distribution.back() = graph.node_distribution().back();
-    edge_distribution.back() = graph.edge_distribution().back();
-  } else {
-    KASSERT(node_distribution.back() == graph.node_distribution().back());
-    KASSERT(edge_distribution.back() == graph.edge_distribution().back());
-  }
+  node_distribution.back() = graph.node_distribution().back();
+  edge_distribution.back() = graph.edge_distribution().back();
+
   DBG << "Node distribution: " << V(node_distribution);
   DBG << "Edge distribution: " << V(edge_distribution);
 
@@ -354,11 +371,6 @@ DistributedGraph replicate(const DistributedGraph &graph, const int num_replicat
         primary_comm
     );
   }
-
-  // Create new communicator and graph
-  MPI_Comm new_comm;
-  MPI_Comm_split(graph.communicator(), rank % num_replications, rank, &new_comm);
-  KASSERT(mpi::get_comm_size(new_comm) == new_size);
 
   DBG << V(ghost_node_info.ghost_owner) << V(ghost_node_info.ghost_to_global);
   for (const auto &[k, v] : ghost_node_info.global_to_ghost) {
@@ -400,9 +412,8 @@ DistributedGraph replicate(const DistributedGraph &graph, const int num_replicat
   return new_graph;
 }
 
-DistributedPartitionedGraph distribute_best_partition(
-    const DistributedGraph &dist_graph, DistributedPartitionedGraph p_graph
-) {
+DistributedPartitionedGraph
+distribute_best_partition(const DistributedGraph &dist_graph, DistributedPartitionedGraph p_graph) {
   // Create group with one PE of each replication
   const PEID group_size = mpi::get_comm_size(p_graph.communicator());
   const PEID group_rank = mpi::get_comm_rank(p_graph.communicator());
