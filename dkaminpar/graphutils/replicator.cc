@@ -151,24 +151,48 @@ shm::Graph replicate_everywhere(const DistributedGraph &graph) {
 DistributedGraph replicate(const DistributedGraph &graph, const int num_replications) {
   const PEID size = mpi::get_comm_size(graph.communicator());
   const PEID rank = mpi::get_comm_rank(graph.communicator());
-  const PEID new_size = size / num_replications;
+
+  const PEID new_size =
+      size / num_replications + (rank % num_replications < size % num_replications);
   const PEID new_rank = rank / num_replications;
 
-  // Communicator with relevant PEs
-  MPI_Comm group;
-  MPI_Comm_split(graph.communicator(), new_rank, rank, &group);
+  // This communicator is used to mirror data between included PEs
+  MPI_Comm primary_comm;
+  MPI_Comm_split(graph.communicator(), new_rank, rank, &primary_comm);
+  const PEID primary_size = mpi::get_comm_size(primary_comm);
+  const PEID primary_rank = mpi::get_comm_rank(primary_comm);
 
-  const PEID group_size = mpi::get_comm_size(group);
-  const PEID group_rank = mpi::get_comm_rank(group);
+  const bool need_secondary_comm = size % num_replications == 0;
+  const int is_secondary_participant = (rank == size / num_replications || false);
+  MPI_Comm secondary_comm = MPI_COMM_NULL;
+  NodeID secondary_num_nodes = 0;
+  EdgeID secondary_num_edges = 0;
+  PEID secondary_rank = 0;
 
-  auto nodes_counts = mpi::build_counts_from_value<GlobalNodeID>(graph.n(), group);
+  if (need_secondary_comm) {
+    MPI_Comm_split(graph.communicator(), is_secondary_participant, rank, &secondary_comm);
+    secondary_rank = mpi::get_comm_rank(secondary_comm);
+  }
+
+  auto nodes_counts = mpi::build_counts_from_value<GlobalNodeID>(graph.n(), primary_comm);
   auto nodes_displs = mpi::build_displs_from_counts(nodes_counts);
-  auto edges_counts = mpi::build_counts_from_value<GlobalEdgeID>(graph.m(), group);
+  auto edges_counts = mpi::build_counts_from_value<GlobalEdgeID>(graph.m(), primary_comm);
   auto edges_displs = mpi::build_displs_from_counts(edges_counts);
 
+  if (is_secondary_participant) {
+    secondary_num_nodes = static_cast<NodeID>(nodes_displs.back());
+    secondary_num_edges = static_cast<EdgeID>(edges_displs.back());
+    MPI_Bcast(&secondary_num_nodes, 1, mpi::type::get<NodeID>(), 0, secondary_comm);
+    MPI_Bcast(&secondary_num_edges, 1, mpi::type::get<EdgeID>(), 0, secondary_comm);
+    if (secondary_rank == 0) {
+      secondary_num_nodes = 0;
+      secondary_num_edges = 0;
+    }
+  }
+
   // Create edges array with global node IDs
-  const GlobalEdgeID my_tmp_global_edges_offset = edges_displs[group_rank];
-  NoinitVector<GlobalNodeID> tmp_global_edges(edges_displs.back());
+  const GlobalEdgeID my_tmp_global_edges_offset = edges_displs[primary_rank];
+  NoinitVector<GlobalNodeID> tmp_global_edges(edges_displs.back() + secondary_num_edges);
   graph.pfor_edges([&](const EdgeID e) {
     tmp_global_edges[my_tmp_global_edges_offset + e] =
         graph.local_to_global_node(graph.edge_target(e));
@@ -180,11 +204,11 @@ DistributedGraph replicate(const DistributedGraph &graph, const int num_replicat
       mpi::allreduce<std::uint8_t>(graph.is_edge_weighted(), MPI_MAX, graph.communicator());
 
   // Allocate memory for new graph
-  StaticArray<EdgeID> nodes(nodes_displs.back() + 1);
-  StaticArray<NodeID> edges(edges_displs.back());
-  StaticArray<EdgeWeight> edge_weights(0);
+  StaticArray<EdgeID> nodes(nodes_displs.back() + secondary_num_nodes + 1);
+  StaticArray<NodeID> edges(edges_displs.back() + secondary_num_edges);
+  StaticArray<EdgeWeight> edge_weights;
   if (is_edge_weighted) {
-    edge_weights.resize(edges_displs.back());
+    edge_weights.resize(edges.size());
   }
 
   // Exchange data -- except for node weights (need the number of ghost nodes
@@ -195,7 +219,7 @@ DistributedGraph replicate(const DistributedGraph &graph, const int num_replicat
       nodes.data(),
       nodes_counts.data(),
       nodes_displs.data(),
-      group
+      primary_comm
   );
   MPI_Allgatherv(
       MPI_IN_PLACE,
@@ -204,8 +228,8 @@ DistributedGraph replicate(const DistributedGraph &graph, const int num_replicat
       tmp_global_edges.data(),
       edges_counts.data(),
       edges_displs.data(),
-      mpi::type::get<GlobalEdgeID>(),
-      group
+      mpi::type::get<GlobalNodeID>(),
+      primary_comm
   );
   if (is_edge_weighted) {
     KASSERT(graph.is_edge_weighted() || graph.m() == 0);
@@ -215,15 +239,15 @@ DistributedGraph replicate(const DistributedGraph &graph, const int num_replicat
         edge_weights.data(),
         edges_counts.data(),
         edges_displs.data(),
-        group
+        primary_comm
     );
   }
 
   // Set nodes guard
-  nodes.back() = edges_displs.back();
+  nodes.back() = edges.size();
 
   // Offset received nodes arrays
-  tbb::parallel_for<PEID>(0, group_size, [&](const PEID p) {
+  tbb::parallel_for<PEID>(0, primary_size, [&](const PEID p) {
     const NodeID offset = edges_displs[p];
     KASSERT(static_cast<std::size_t>(p + 1) < nodes_displs.size());
 
@@ -233,18 +257,70 @@ DistributedGraph replicate(const DistributedGraph &graph, const int num_replicat
     });
   });
 
+  if (is_secondary_participant) {
+    if (secondary_rank == 0) {
+      MPI_Bcast(nodes.data(), nodes.size() - 1, mpi::type::get<EdgeID>(), 0, secondary_comm);
+      MPI_Bcast(
+          tmp_global_edges.data(),
+          tmp_global_edges.size(),
+          mpi::type::get<GlobalNodeID>(),
+          0,
+          secondary_comm
+      );
+      MPI_Bcast(
+          edge_weights.data(), edge_weights.size(), mpi::type::get<EdgeWeight>(), 0, secondary_comm
+      );
+    } else {
+      MPI_Bcast(
+          nodes.data() + nodes_displs.back(),
+          secondary_num_nodes,
+          mpi::type::get<EdgeID>(),
+          0,
+          secondary_comm
+      );
+      MPI_Bcast(
+          tmp_global_edges.data() + edges_displs.back(),
+          secondary_num_edges,
+          mpi::type::get<NodeID>(),
+          0,
+          secondary_comm
+      );
+      MPI_Bcast(
+          edge_weights.data() + edges_displs.back(),
+          secondary_num_edges,
+          mpi::type::get<EdgeWeight>(),
+          0,
+          secondary_comm
+      );
+
+      tbb::parallel_for<NodeID>(
+          nodes_displs.back(),
+          nodes_displs.back() + secondary_num_nodes,
+          [&](const NodeID u) { nodes[u] += edges_displs.back(); }
+      );
+    }
+  }
+
   // Create new node and edges distributions
   StaticArray<GlobalNodeID> node_distribution(new_size + 1);
   StaticArray<GlobalEdgeID> edge_distribution(new_size + 1);
   tbb::parallel_for<PEID>(0, new_size, [&](const PEID pe) {
-    node_distribution[pe + 1] = graph.node_distribution(group_size * (pe + 1));
-    edge_distribution[pe + 1] = graph.edge_distribution(group_size * (pe + 1));
+    node_distribution[pe + 1] = graph.node_distribution(primary_size * (pe + 1));
+    edge_distribution[pe + 1] = graph.edge_distribution(primary_size * (pe + 1));
   });
-  DBG << V(node_distribution);
+  if (need_secondary_comm) {
+    node_distribution.back() = graph.node_distribution().back();
+    edge_distribution.back() = graph.edge_distribution().back();
+  } else {
+    KASSERT(node_distribution.back() == graph.node_distribution().back());
+    KASSERT(edge_distribution.back() == graph.edge_distribution().back());
+  }
+  DBG << "Node distribution: " << V(node_distribution);
+  DBG << "Edge distribution: " << V(edge_distribution);
 
   // Remap edges to local nodes
-  const GlobalEdgeID n0 = graph.node_distribution(rank) - nodes_displs[group_rank];
-  const GlobalEdgeID nf = n0 + nodes_displs.back();
+  const GlobalEdgeID n0 = graph.node_distribution(rank) - nodes_displs[primary_rank];
+  const GlobalEdgeID nf = n0 + nodes_displs.back() + secondary_num_nodes;
   GhostNodeMapper ghost_node_mapper(new_rank, node_distribution);
 
   tbb::parallel_for<EdgeID>(0, tmp_global_edges.size(), [&](const EdgeID e) {
@@ -275,7 +351,7 @@ DistributedGraph replicate(const DistributedGraph &graph, const int num_replicat
         node_weights.data(),
         nodes_counts.data(),
         nodes_displs.data(),
-        group
+        primary_comm
     );
   }
 
@@ -316,12 +392,17 @@ DistributedGraph replicate(const DistributedGraph &graph, const int num_replicat
 
   KASSERT(debug::validate(new_graph), "", assert::heavy);
 
-  MPI_Comm_free(&group);
+  MPI_Comm_free(&primary_comm);
+  if (need_secondary_comm) {
+    MPI_Comm_free(&secondary_comm);
+  }
+
   return new_graph;
 }
 
-DistributedPartitionedGraph
-distribute_best_partition(const DistributedGraph &dist_graph, DistributedPartitionedGraph p_graph) {
+DistributedPartitionedGraph distribute_best_partition(
+    const DistributedGraph &dist_graph, DistributedPartitionedGraph p_graph
+) {
   // Create group with one PE of each replication
   const PEID group_size = mpi::get_comm_size(p_graph.communicator());
   const PEID group_rank = mpi::get_comm_rank(p_graph.communicator());
@@ -386,19 +467,24 @@ distribute_best_partition(const DistributedGraph &dist_graph, shm::PartitionedGr
   );
   MPI_Comm comm = dist_graph.communicator();
 
-  const int rank = mpi::get_comm_rank(comm);
+  const PEID rank = mpi::get_comm_rank(comm);
   const EdgeWeight shm_cut = shm::metrics::edge_cut(shm_p_graph);
 
-  // find PE with best partition
+  // Find PE with best partition
   struct ReductionMessage {
     long cut;
     int rank;
   };
-  ReductionMessage local{shm_cut, rank};
-  ReductionMessage global{};
+
+  ReductionMessage local = {
+      .cut = shm_cut,
+      .rank = rank,
+  };
+  ReductionMessage global;
+
   MPI_Allreduce(&local, &global, 1, MPI_LONG_INT, MPI_MINLOC, comm);
 
-  // broadcast best partition
+  // Broadcast best partition
   auto partition = shm_p_graph.take_partition();
   MPI_Bcast(
       partition.data(),
@@ -408,13 +494,13 @@ distribute_best_partition(const DistributedGraph &dist_graph, shm::PartitionedGr
       comm
   );
 
-  // create distributed partition
+  // Create distributed partition
   StaticArray<BlockID> dist_partition(dist_graph.total_n());
   dist_graph.pfor_nodes(0, dist_graph.total_n(), [&](const NodeID u) {
     dist_partition[u] = partition[dist_graph.local_to_global_node(u)];
   });
 
-  // create distributed partitioned graph
+  // Create distributed partitioned graph
   return {&dist_graph, shm_p_graph.k(), std::move(dist_partition)};
 }
 } // namespace kaminpar::dist::graph
