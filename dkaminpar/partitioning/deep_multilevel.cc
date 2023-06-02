@@ -145,14 +145,9 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
 
     if (_input_ctx.enable_pe_splitting && current_num_pes > 1 &&
         num_blocks_on_this_level < static_cast<BlockID>(current_num_pes)) {
-      KASSERT(
-          current_num_pes % num_blocks_on_this_level == 0u,
-          "Graph replication factor is not an integer.",
-          assert::always
-      );
-
       const PEID num_replications = current_num_pes / num_blocks_on_this_level;
-      current_num_pes /= num_replications;
+      const PEID remaining_pes = current_num_pes % num_blocks_on_this_level;
+
       LOG << "Current graph (" << graph->global_n()
           << " nodes) is too small for the available parallelism (" << _input_ctx.parallel.num_mpis
           << "): duplicating the graph " << num_replications << " times";
@@ -162,6 +157,8 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
 
       graph = &_replicated_graphs.back();
       coarsener = get_current_coarsener();
+
+      current_num_pes = mpi::get_comm_size(graph->communicator());
     }
 
     // Coarsen graph
