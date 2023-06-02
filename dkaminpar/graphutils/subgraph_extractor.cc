@@ -238,10 +238,35 @@ std::pair<std::vector<shm::Graph>, std::vector<std::vector<NodeID>>> gather_bloc
   SCOPED_TIMER("Gathering block induced subgraphs");
 
   const PEID size = mpi::get_comm_size(p_graph.communicator());
-  KASSERT(p_graph.k() % size == 0u || size % p_graph.k() == 0, "", assert::always);
+  const PEID rank = mpi::get_comm_rank(p_graph.communicator());
 
-  const BlockID blocks_per_pe = std::max<BlockID>(1, p_graph.k() / size);
-  const BlockID pes_per_block = std::max<BlockID>(1, size / p_graph.k());
+  const BlockID dbg_blocks_per_pe = std::max<BlockID>(1, p_graph.k() / size);
+  const BlockID dbg_pes_per_block = std::max<BlockID>(1, size / p_graph.k());
+  const bool dbg_nice_case = (p_graph.k() % size == 0) || (size % p_graph.k() == 0);
+
+  const BlockID min_blocks_per_pe = p_graph.k() / size;
+  const BlockID rem_blocks = p_graph.k() % size;
+  auto num_blocks_on_pe = [&](const PEID pe) {
+    return std::max<BlockID>(1, min_blocks_per_pe + (pe < rem_blocks));
+  };
+  auto num_blocks_before_pe = [&](const PEID pe) {
+    return std::max<BlockID>(pe, pe * min_blocks_per_pe + std::min<BlockID>(pe, rem_blocks));
+  };
+  auto num_blocks_including_pe = [&](const PEID pe) {
+    return num_blocks_before_pe(pe) + num_blocks_on_pe(pe);
+  };
+
+  const BlockID min_pes_per_block = size / p_graph.k();
+  const BlockID rem_pes = size % p_graph.k();
+  auto num_pes_for_block = [&](const BlockID b) {
+    return std::max<BlockID>(1, min_pes_per_block + (b < rem_pes));
+  };
+  auto num_pes_before_block = [&](const BlockID b) {
+    return std::max<BlockID>(b, b * min_pes_per_block + std::min<BlockID>(b, rem_pes));
+  };
+  auto num_pes_including_block = [&](const BlockID b) {
+    return num_pes_before_block(b) + num_pes_for_block(b);
+  };
 
   // Communicate recvcounts
   struct GraphSize {
@@ -259,34 +284,56 @@ std::pair<std::vector<shm::Graph>, std::vector<std::vector<NodeID>>> gather_bloc
     }
   };
 
-  std::vector<GraphSize> recv_subgraph_sizes(std::max<std::size_t>(p_graph.k(), size));
-  {
-    SCOPED_TIMER("Alltoall recvcounts");
-
-    START_TIMER("Compute counts");
-    std::vector<GraphSize> send_subgraph_sizes(std::max<std::size_t>(p_graph.k(), size));
+  NoinitVector<GraphSize> recv_subgraph_sizes(std::max<BlockID>(p_graph.k(), size));
+  NoinitVector<GraphSize> recv_subgraph_displs(recv_subgraph_sizes.size() + 1);
+  TIMED_SCOPE("Exchange subgraph sizes") {
+    NoinitVector<GraphSize> send_subgraph_sizes(recv_subgraph_sizes.size());
     p_graph.pfor_blocks([&](const BlockID b) {
-      for (BlockID to = pes_per_block * b; to < pes_per_block * (b + 1); ++to) {
+      KASSERT(!dbg_nice_case || dbg_pes_per_block * b == num_pes_before_block(b));
+      KASSERT(!dbg_nice_case || dbg_pes_per_block * (b + 1) == num_pes_including_block(b));
+
+      for (BlockID to = num_pes_before_block(b); to < num_pes_including_block(b); ++to) {
         send_subgraph_sizes[to].n = memory.nodes_offset[b + 1] - memory.nodes_offset[b];
         send_subgraph_sizes[to].m = memory.edges_offset[b + 1] - memory.edges_offset[b];
       }
     });
-    STOP_TIMER();
 
-    START_TIMER("MPI_Alltoall");
-    mpi::alltoall(
+    std::vector<int> sendcounts(size);
+    std::vector<int> recvcounts(size);
+    std::vector<int> sdispls(size);
+    std::vector<int> rdispls(size);
+
+    for (int pe = 0; pe < size; ++pe) {
+      sendcounts[pe] = num_blocks_on_pe(pe);
+    }
+    std::fill(recvcounts.begin(), recvcounts.end(), num_blocks_on_pe(rank));
+    std::exclusive_scan(sendcounts.begin(), sendcounts.end(), sdispls.begin(), 0);
+    std::exclusive_scan(recvcounts.begin(), recvcounts.end(), rdispls.begin(), 0);
+
+    KASSERT(!dbg_nice_case || std::all_of(sendcounts.begin(), sendcounts.end(), [&](const int c) {
+      return c == dbg_blocks_per_pe;
+    }));
+    KASSERT(!dbg_nice_case || std::all_of(recvcounts.begin(), recvcounts.end(), [&](const int c) {
+      return c == dbg_blocks_per_pe;
+    }));
+
+    MPI_Alltoallv(
         send_subgraph_sizes.data(),
-        blocks_per_pe,
+        sendcounts.data(),
+        sdispls.data(),
+        mpi::type::get<GraphSize>(),
         recv_subgraph_sizes.data(),
-        blocks_per_pe,
+        recvcounts.data(),
+        rdispls.data(),
+        mpi::type::get<GraphSize>(),
         p_graph.communicator()
     );
-    STOP_TIMER();
-  }
-  std::vector<GraphSize> recv_subgraph_displs(std::max<std::size_t>(p_graph.k(), size) + 1);
-  parallel::prefix_sum(
-      recv_subgraph_sizes.begin(), recv_subgraph_sizes.end(), recv_subgraph_displs.begin() + 1
-  );
+
+    recv_subgraph_displs.front() = {0, 0};
+    parallel::prefix_sum(
+        recv_subgraph_sizes.begin(), recv_subgraph_sizes.end(), recv_subgraph_displs.begin() + 1
+    );
+  };
 
   std::vector<EdgeID> shared_nodes;
   std::vector<NodeWeight> shared_node_weights;
@@ -309,25 +356,50 @@ std::pair<std::vector<shm::Graph>, std::vector<std::vector<NodeID>>> gather_bloc
 
     START_TIMER("Compute counts and displs");
     tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
-      const BlockID first_block_on_pe = pe * blocks_per_pe;                                // 1
-      const BlockID first_block_on_pe2 = (pe / pes_per_block) * blocks_per_pe;             // 1
-      const BlockID first_invalid_block_on_pe = (pe + 1) * blocks_per_pe;                  // 2
-      const BlockID first_invalid_block_on_pe2 = (pe / pes_per_block + 1) * blocks_per_pe; // 2
+      { // Compute sendcounts + sdispls
+        const BlockID first_block_on_pe2 = num_blocks_before_pe(pe);
+        const BlockID first_invalid_block_on_pe2 = num_blocks_including_pe(pe);
+        // const BlockID first_block_on_pe2 = (pe / pes_per_block) * blocks_per_pe;
+        // const BlockID first_invalid_block_on_pe2 = (pe / pes_per_block + 1) * blocks_per_pe;
 
-      sendcounts_nodes[pe] = memory.nodes_offset[first_invalid_block_on_pe2] -
-                             memory.nodes_offset[first_block_on_pe2]; //
-      sdispls_nodes[pe + 1] = memory.nodes_offset[(pe + 1) / pes_per_block * blocks_per_pe];
-      sendcounts_edges[pe] =
-          memory.edges_offset[first_invalid_block_on_pe2] - memory.edges_offset[first_block_on_pe2];
-      sdispls_edges[pe + 1] = memory.edges_offset[(pe + 1) / pes_per_block * blocks_per_pe];
+        KASSERT(
+            !dbg_nice_case || first_block_on_pe2 == (pe / dbg_pes_per_block) * dbg_blocks_per_pe
+        );
+        KASSERT(
+            !dbg_nice_case ||
+            first_invalid_block_on_pe2 == (pe / dbg_pes_per_block + 1) * dbg_blocks_per_pe
+        );
+        sendcounts_nodes[pe] = memory.nodes_offset[first_invalid_block_on_pe2] -
+                               memory.nodes_offset[first_block_on_pe2];
+        sendcounts_edges[pe] = memory.edges_offset[first_invalid_block_on_pe2] -
+                               memory.edges_offset[first_block_on_pe2];
 
-      recvcounts_nodes[pe] = recv_subgraph_displs[first_invalid_block_on_pe].n -
-                             recv_subgraph_displs[first_block_on_pe].n;
-      recvcounts_edges[pe] = recv_subgraph_displs[first_invalid_block_on_pe].m -
-                             recv_subgraph_displs[first_block_on_pe].m;
+        // @todo double check
+        KASSERT(
+            !dbg_nice_case ||
+            num_blocks_before_pe(pe + 1) == (pe + 1) / dbg_pes_per_block * dbg_blocks_per_pe
+        );
+        sdispls_nodes[pe + 1] = memory.nodes_offset[num_blocks_before_pe(pe + 1)];
+        sdispls_edges[pe + 1] = memory.edges_offset[num_blocks_before_pe(pe + 1)];
+      }
 
-      rdispls_nodes[pe + 1] = recv_subgraph_displs[first_invalid_block_on_pe].n;
-      rdispls_edges[pe + 1] = recv_subgraph_displs[first_invalid_block_on_pe].m;
+      { // Compute recvcounts + rdispls
+        const BlockID first_block_on_pe = num_blocks_before_pe(pe);
+        const BlockID first_invalid_block_on_pe = num_blocks_including_pe(pe);
+        // const BlockID first_block_on_pe = pe * blocks_per_pe;
+        // const BlockID first_invalid_block_on_pe = (pe + 1) * blocks_per_pe;
+
+        KASSERT(!dbg_nice_case || first_block_on_pe == pe * dbg_blocks_per_pe);
+        KASSERT(!dbg_nice_case || first_invalid_block_on_pe == (pe + 1) * dbg_blocks_per_pe);
+
+        recvcounts_nodes[pe] = recv_subgraph_displs[first_invalid_block_on_pe].n -
+                               recv_subgraph_displs[first_block_on_pe].n;
+        recvcounts_edges[pe] = recv_subgraph_displs[first_invalid_block_on_pe].m -
+                               recv_subgraph_displs[first_block_on_pe].m;
+
+        rdispls_nodes[pe + 1] = recv_subgraph_displs[first_invalid_block_on_pe].n;
+        rdispls_edges[pe + 1] = recv_subgraph_displs[first_invalid_block_on_pe].m;
+      }
     });
     STOP_TIMER();
 
@@ -379,17 +451,19 @@ std::pair<std::vector<shm::Graph>, std::vector<std::vector<NodeID>>> gather_bloc
     STOP_TIMER();
   }
 
-  std::vector<shm::Graph> subgraphs(blocks_per_pe);
-  std::vector<std::vector<NodeID>> offsets(blocks_per_pe);
+  std::vector<shm::Graph> subgraphs(num_blocks_on_pe(rank));
+  std::vector<std::vector<NodeID>> offsets(num_blocks_on_pe(rank));
 
   {
     SCOPED_TIMER("Construct subgraphs");
 
-    tbb::parallel_for<BlockID>(0, blocks_per_pe, [&](const BlockID b) {
+    tbb::parallel_for<BlockID>(0, num_blocks_on_pe(rank), [&](const BlockID b) {
       NodeID n = 0;
       EdgeID m = 0;
       for (PEID pe = 0; pe < size; ++pe) {
-        const std::size_t i = b + pe * blocks_per_pe;
+        const std::size_t i = b + pe * num_blocks_on_pe(rank);
+        KASSERT(!dbg_nice_case || i == b + pe * dbg_blocks_per_pe);
+
         n += recv_subgraph_sizes[i].n;
         m += recv_subgraph_sizes[i].m;
       }
@@ -407,7 +481,9 @@ std::pair<std::vector<shm::Graph>, std::vector<std::vector<NodeID>>> gather_bloc
       EdgeID pos_m = 0;
 
       for (PEID pe = 0; pe < size; ++pe) {
-        const std::size_t id = pe * blocks_per_pe + b;
+        const std::size_t id = b + pe * num_blocks_on_pe(rank);
+        KASSERT(!dbg_nice_case || id == b + pe * dbg_blocks_per_pe);
+
         const auto [num_nodes, num_edges] = recv_subgraph_sizes[id];
         const auto [offset_nodes, offset_edges] = recv_subgraph_displs[id];
         offsets[b].push_back(pos_n);
