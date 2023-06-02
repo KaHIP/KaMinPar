@@ -78,4 +78,7 @@ DistributedPartitionedGraph copy_duplicated_subgraph_partitions(
     const std::vector<shm::PartitionedGraph> &p_subgraphs,
     ExtractedSubgraphs &extracted_subgraphs
 );
+
+BlockID compute_first_block_on_pe(PEID pe, PEID size, BlockID k);
+BlockID compute_first_invalid_block_on_pe(PEID pe, PEID size, BlockID k);
 } // namespace kaminpar::dist::graph

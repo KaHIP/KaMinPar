@@ -231,6 +231,27 @@ extract_local_block_induced_subgraphs(const DistributedPartitionedGraph &p_graph
   return memory;
 }
 
+BlockID compute_first_block_on_pe(PEID pe, PEID size, BlockID k) {
+  const BlockID min_blocks_per_pe = k / size;
+  const BlockID rem_blocks = k % size;
+  const PEID min_pes_per_block = size / k;
+  const PEID rem_pes = size % k;
+
+  if (size <= k) {
+    return pe * min_blocks_per_pe + std::min<BlockID>(pe, rem_blocks);
+  } else {
+    if (pe <= rem_pes * min_pes_per_block) {
+      return pe / (min_pes_per_block + 1);
+    } else {
+      return rem_pes + (pe - rem_pes * (min_pes_per_block + 1)) / min_pes_per_block;
+    }
+  }
+}
+
+BlockID compute_first_invalid_block_on_pe(PEID pe, PEID size, BlockID k) {
+  return compute_first_block_on_pe(pe + 1, size, k);
+}
+
 namespace {
 std::pair<std::vector<shm::Graph>, std::vector<std::vector<NodeID>>> gather_block_induced_subgraphs(
     const DistributedPartitionedGraph &p_graph, ExtractedLocalSubgraphs &memory
@@ -375,12 +396,10 @@ std::pair<std::vector<shm::Graph>, std::vector<std::vector<NodeID>>> gather_bloc
                                memory.edges_offset[first_block_on_pe2];
 
         // @todo double check
-        KASSERT(
-            !dbg_nice_case ||
-            num_blocks_before_pe(pe + 1) == (pe + 1) / dbg_pes_per_block * dbg_blocks_per_pe
-        );
-        sdispls_nodes[pe + 1] = memory.nodes_offset[num_blocks_before_pe(pe + 1)];
-        sdispls_edges[pe + 1] = memory.edges_offset[num_blocks_before_pe(pe + 1)];
+        const BlockID displs = graph::compute_first_invalid_block_on_pe(pe, size, p_graph.k());
+        KASSERT(!dbg_nice_case || displs == (pe + 1) / dbg_pes_per_block * dbg_blocks_per_pe);
+        sdispls_nodes[pe + 1] = memory.nodes_offset[displs];
+        sdispls_edges[pe + 1] = memory.edges_offset[displs];
       }
 
       { // Compute recvcounts + rdispls

@@ -515,10 +515,50 @@ TEST(GlobalGraphExtractionTest, project_circle_clique_partition) {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-/// Extract global block induced subgraphs with less PEs than blocks
+/// Extract global block induced subgraphs with fewer blocks than PEs
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(GlobalGraphExtractionTest, extract_from_circle_clique_graph_less_pes_than_blocks) {
+TEST(GlobalGraphExtractionBlockAssignment, test_first_block_computation_P1_k1) {
+  EXPECT_EQ(graph::compute_first_block_on_pe(0, 1, 1), 0);
+}
+
+TEST(GlobalGraphExtractionBlockAssignment, test_first_block_computation_P2_k1) {
+  EXPECT_EQ(graph::compute_first_block_on_pe(0, 2, 1), 0);
+  EXPECT_EQ(graph::compute_first_block_on_pe(1, 2, 1), 0);
+}
+
+TEST(GlobalGraphExtractionBlockAssignment, test_first_block_computation_P2_k2) {
+  EXPECT_EQ(graph::compute_first_block_on_pe(0, 2, 2), 0);
+  EXPECT_EQ(graph::compute_first_block_on_pe(1, 2, 2), 1);
+}
+
+TEST(GlobalGraphExtractionBlockAssignment, test_first_block_computation_P3_k2) {
+  EXPECT_EQ(graph::compute_first_block_on_pe(0, 3, 2), 0);
+  EXPECT_EQ(graph::compute_first_block_on_pe(1, 3, 2), 0);
+  EXPECT_EQ(graph::compute_first_block_on_pe(2, 3, 2), 1);
+}
+
+TEST(GlobalGraphExtractionBlockAssignment, test_first_block_computation_P7_k2) {
+  EXPECT_EQ(graph::compute_first_block_on_pe(0, 7, 2), 0);
+  EXPECT_EQ(graph::compute_first_block_on_pe(1, 7, 2), 0);
+  EXPECT_EQ(graph::compute_first_block_on_pe(2, 7, 2), 0);
+  EXPECT_EQ(graph::compute_first_block_on_pe(3, 7, 2), 0);
+  EXPECT_EQ(graph::compute_first_block_on_pe(4, 7, 2), 1);
+  EXPECT_EQ(graph::compute_first_block_on_pe(5, 7, 2), 1);
+  EXPECT_EQ(graph::compute_first_block_on_pe(6, 7, 2), 1);
+}
+
+TEST(GlobalGraphExtractionBlockAssignment, test_first_block_computation_P7_k3) {
+  EXPECT_EQ(graph::compute_first_block_on_pe(0, 7, 3), 0);
+  EXPECT_EQ(graph::compute_first_block_on_pe(1, 7, 3), 0);
+  EXPECT_EQ(graph::compute_first_block_on_pe(2, 7, 3), 0);
+  EXPECT_EQ(graph::compute_first_block_on_pe(3, 7, 3), 1);
+  EXPECT_EQ(graph::compute_first_block_on_pe(4, 7, 3), 1);
+  EXPECT_EQ(graph::compute_first_block_on_pe(5, 7, 3), 2);
+  EXPECT_EQ(graph::compute_first_block_on_pe(6, 7, 3), 2);
+}
+
+TEST(GlobalGraphExtractionTest, extract_from_circle_clique_graph_fewer_blocks_than_pes) {
   const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
   if (size % 2 != 0) {
     return;
