@@ -248,8 +248,21 @@ BlockID compute_first_block_on_pe(PEID pe, PEID size, BlockID k) {
   }
 }
 
+BlockID compute_num_blocks_on_pe(PEID pe, PEID size, BlockID k) {
+  const BlockID min_blocks_per_pe = k / size;
+  const BlockID rem_blocks = k % size;
+  const PEID min_pes_per_block = size / k;
+  const PEID rem_pes = size % k;
+
+  if (size <= k) {
+    return min_blocks_per_pe + (pe < rem_blocks);
+  } else {
+    return 1 + (pe < rem_pes * min_pes_per_block);
+  }
+}
+
 BlockID compute_first_invalid_block_on_pe(PEID pe, PEID size, BlockID k) {
-  return compute_first_block_on_pe(pe + 1, size, k);
+  return compute_first_block_on_pe(pe, size, k) + compute_num_blocks_on_pe(pe, size, k);
 }
 
 namespace {
@@ -378,8 +391,9 @@ std::pair<std::vector<shm::Graph>, std::vector<std::vector<NodeID>>> gather_bloc
     START_TIMER("Compute counts and displs");
     tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
       { // Compute sendcounts + sdispls
-        const BlockID first_block_on_pe2 = num_blocks_before_pe(pe);
-        const BlockID first_invalid_block_on_pe2 = num_blocks_including_pe(pe);
+        const BlockID first_block_on_pe2 = graph::compute_first_block_on_pe(pe, size, p_graph.k());
+        const BlockID first_invalid_block_on_pe2 =
+            first_block_on_pe2 + graph::compute_num_blocks_on_pe(pe, size, p_graph.k());
         // const BlockID first_block_on_pe2 = (pe / pes_per_block) * blocks_per_pe;
         // const BlockID first_invalid_block_on_pe2 = (pe / pes_per_block + 1) * blocks_per_pe;
 
@@ -388,7 +402,8 @@ std::pair<std::vector<shm::Graph>, std::vector<std::vector<NodeID>>> gather_bloc
         );
         KASSERT(
             !dbg_nice_case ||
-            first_invalid_block_on_pe2 == (pe / dbg_pes_per_block + 1) * dbg_blocks_per_pe
+                first_invalid_block_on_pe2 == (pe / dbg_pes_per_block + 1) * dbg_blocks_per_pe,
+            V(first_invalid_block_on_pe2) << V((pe / dbg_pes_per_block + 1) * dbg_blocks_per_pe)
         );
         sendcounts_nodes[pe] = memory.nodes_offset[first_invalid_block_on_pe2] -
                                memory.nodes_offset[first_block_on_pe2];
@@ -396,7 +411,7 @@ std::pair<std::vector<shm::Graph>, std::vector<std::vector<NodeID>>> gather_bloc
                                memory.edges_offset[first_block_on_pe2];
 
         // @todo double check
-        const BlockID displs = graph::compute_first_invalid_block_on_pe(pe, size, p_graph.k());
+        const BlockID displs = graph::compute_first_block_on_pe(pe + 1, size, p_graph.k());
         KASSERT(!dbg_nice_case || displs == (pe + 1) / dbg_pes_per_block * dbg_blocks_per_pe);
         sdispls_nodes[pe + 1] = memory.nodes_offset[displs];
         sdispls_edges[pe + 1] = memory.edges_offset[displs];
@@ -404,7 +419,7 @@ std::pair<std::vector<shm::Graph>, std::vector<std::vector<NodeID>>> gather_bloc
 
       { // Compute recvcounts + rdispls
         const BlockID first_block_on_pe = num_blocks_before_pe(pe);
-        const BlockID first_invalid_block_on_pe = num_blocks_including_pe(pe);
+        const BlockID first_invalid_block_on_pe = num_blocks_before_pe(pe + 1);
         // const BlockID first_block_on_pe = pe * blocks_per_pe;
         // const BlockID first_invalid_block_on_pe = (pe + 1) * blocks_per_pe;
 

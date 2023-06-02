@@ -80,5 +80,6 @@ DistributedPartitionedGraph copy_duplicated_subgraph_partitions(
 );
 
 BlockID compute_first_block_on_pe(PEID pe, PEID size, BlockID k);
+BlockID compute_num_blocks_on_pe(PEID pe, PEID size, BlockID k);
 BlockID compute_first_invalid_block_on_pe(PEID pe, PEID size, BlockID k);
 } // namespace kaminpar::dist::graph
