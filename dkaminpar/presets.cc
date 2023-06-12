@@ -165,6 +165,7 @@ Context create_default_context() {
               .greedy_balancer =
                   {
                       .num_nodes_per_block = 5,
+                      .fast_balancing_threshold = 0.0,
                   },
               .jet =
                   {

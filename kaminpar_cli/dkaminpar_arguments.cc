@@ -311,6 +311,14 @@ CLI::Option_group *create_greedy_balancer_options(CLI::App *app, Context &ctx) {
           "Number of nodes selected for each overloaded block on each PE."
       )
       ->capture_default_str();
+  balancer
+      ->add_option(
+          "--r-b-fast-balancing-threshold",
+          ctx.refinement.greedy_balancer.fast_balancing_threshold,
+          "Perform a fast balancing round if strong balancing improved the imbalance by less than "
+          "this value, e.g., 0.01 for 1%."
+      )
+      ->capture_default_str();
 
   return balancer;
 }

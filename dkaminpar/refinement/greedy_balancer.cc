@@ -39,8 +39,12 @@ void GreedyBalancer::refine(DistributedPartitionedGraph &p_graph, const Partitio
   IFSTATS(_stats.initial_cut = metrics::edge_cut(p_graph));
   IFSTATS(_stats.initial_imbalance = metrics::imbalance(p_graph));
   IFSTATS(_stats.initial_num_imbalanced_blocks = metrics::num_imbalanced_blocks(p_graph, p_ctx));
-  const int rank = mpi::get_comm_rank(p_graph.communicator());
 
+  const PEID rank = mpi::get_comm_rank(p_graph.communicator());
+
+  if (fast_balancing_enabled()) {
+    init_buckets(p_graph);
+  }
   init_pq();
 
   for (std::size_t round = 0;; round++) {
@@ -48,7 +52,7 @@ void GreedyBalancer::refine(DistributedPartitionedGraph &p_graph, const Partitio
       break;
     }
 
-    // if balancing takes a very long time, we print statistics periodically
+    // If balancing takes a very long time, print statistics periodically
     IFSTATS(++_stats.num_reduction_rounds);
     if constexpr (kStatistics) {
       if (round == kPrintStatsEveryNRounds) {
@@ -57,20 +61,18 @@ void GreedyBalancer::refine(DistributedPartitionedGraph &p_graph, const Partitio
       }
     }
 
-    // pick best move candidates for each block
-    START_TIMER("Pick candidates");
+    // Pick best move candidates for each block
+    START_TIMER("Pick move candidates");
     auto candidates = pick_move_candidates();
-    // DBG << V(candidates.size());
     STOP_TIMER();
 
-    START_TIMER("Reduce");
-    candidates = reduce_move_candidates(std::move(candidates));
-    // DBG << V(candidates.size());
+    START_TIMER("Reduce move candidates");
+    candidates = reduce_buckets_or_move_candidates<MoveCandidate>(std::move(candidates));
     STOP_TIMER();
 
-    START_TIMER("Perform moves on root");
+    START_TIMER("Perform moves on root PE");
     if (rank == 0) {
-      // move nodes that already have a target block
+      // Move nodes that already have a target block
       for (const auto &move : candidates) {
         if (move.from != move.to) {
           IFSTATS(++_stats.num_adjacent_moves);
@@ -80,13 +82,13 @@ void GreedyBalancer::refine(DistributedPartitionedGraph &p_graph, const Partitio
         }
       }
 
-      // move nodes that do not have a target block
+      // Move nodes that do not have a target block
       BlockID cur = 0;
       for (auto &candidate : candidates) {
         auto &[node, from, to, weight, rel_gain] = candidate;
 
         if (from == to) {
-          // look for next block that can take node
+          // Look for next block that can take node
           while (cur == from ||
                  _p_graph->block_weight(cur) + weight > _p_ctx->graph->max_block_weight(cur)) {
             ++cur;
@@ -102,7 +104,7 @@ void GreedyBalancer::refine(DistributedPartitionedGraph &p_graph, const Partitio
     }
     STOP_TIMER();
 
-    // broadcast winners
+    // Broadcast winners
     START_TIMER("Broadcast reduction result");
     const std::size_t num_winners = mpi::bcast(candidates.size(), 0, _p_graph->communicator());
     candidates.resize(num_winners);
@@ -161,7 +163,7 @@ void GreedyBalancer::perform_moves(const std::vector<MoveCandidate> &moves) {
 void GreedyBalancer::perform_move(const MoveCandidate &move) {
   const auto &[node, from, to, weight, rel_gain] = move;
 
-  if (from == to) { // should only happen on root
+  if (from == to) { // Should only happen on root
     KASSERT(mpi::get_comm_rank(_p_graph->communicator()) == 0);
     return;
   }
@@ -169,14 +171,14 @@ void GreedyBalancer::perform_move(const MoveCandidate &move) {
   if (_p_graph->contains_global_node(node)) {
     const NodeID u = _p_graph->global_to_local_node(node);
 
-    if (_p_graph->graph().is_owned_global_node(node)) { // move node on this PE
+    if (_p_graph->graph().is_owned_global_node(node)) { // Move node on this PE
       KASSERT(u < _p_graph->n());
       KASSERT(_pq.contains(u));
 
       _pq.remove(from, u);
       _pq_weight[from] -= weight;
 
-      // activate neighbors
+      // Activate neighbors
       for (const NodeID v : _p_graph->adjacent_nodes(u)) {
         if (!_p_graph->is_owned_node(v)) {
           continue;
@@ -190,14 +192,14 @@ void GreedyBalancer::perform_move(const MoveCandidate &move) {
     }
 
     _p_graph->set_block(u, to);
-  } else { // only update block weight
+  } else { // Only update block weight
     _p_graph->set_block_weight(from, _p_graph->block_weight(from) - weight);
     _p_graph->set_block_weight(to, _p_graph->block_weight(to) + weight);
   }
 }
 
-auto GreedyBalancer::reduce_move_candidates(std::vector<MoveCandidate> &&candidates)
-    -> std::vector<MoveCandidate> {
+template <typename T>
+std::vector<T> GreedyBalancer::reduce_buckets_or_move_candidates(std::vector<T> &&elements) {
   const int size = mpi::get_comm_size(_p_graph->communicator());
   const int rank = mpi::get_comm_rank(_p_graph->communicator());
 
@@ -236,23 +238,25 @@ auto GreedyBalancer::reduce_move_candidates(std::vector<MoveCandidate> &&candida
 
     if (role == Role::SENDER) {
       const int dest = rank - active_size / 2;
-      DBG << "Send " << candidates.size();
-      mpi::send(candidates.data(), candidates.size(), dest, 0, _p_graph->communicator());
+      mpi::send(elements.data(), elements.size(), dest, 0, _p_graph->communicator());
       return {};
     } else if (role == Role::RECEIVER) {
       const int src = rank + active_size / 2;
-      std::vector<MoveCandidate> tmp_buffer =
-          mpi::probe_recv<MoveCandidate, std::vector<MoveCandidate>>(
-              src, 0, _p_graph->communicator()
-          );
+      std::vector<T> tmp_buffer =
+          mpi::probe_recv<T, std::vector<T>>(src, 0, _p_graph->communicator());
 
-      candidates = reduce_move_candidates(std::move(candidates), std::move(tmp_buffer));
+      if constexpr (std::is_same_v<T, MoveCandidate>) {
+        elements = reduce_move_candidates(std::move(elements), std::move(tmp_buffer));
+      }
+      if constexpr (std::is_same_v<T, NodeWeight>) {
+        elements = reduce_buckets(std::move(elements), std::move(tmp_buffer));
+      }
     }
 
     active_size = active_size / 2 + active_size % 2;
   }
 
-  return std::move(candidates);
+  return std::move(elements);
 }
 
 auto GreedyBalancer::reduce_move_candidates(
@@ -260,7 +264,7 @@ auto GreedyBalancer::reduce_move_candidates(
 ) -> std::vector<MoveCandidate> {
   std::vector<MoveCandidate> ans;
 
-  // precondition: candidates are sorted by from block
+  // Precondition: candidates are sorted by from block
   KASSERT([&] {
     for (std::size_t i = 1; i < a.size(); ++i) {
       KASSERT(a[i].from >= a[i - 1].from);
@@ -279,7 +283,7 @@ auto GreedyBalancer::reduce_move_candidates(
   for (i = 0, j = 0; i < a.size() && j < b.size();) {
     const BlockID from = std::min<BlockID>(a[i].from, b[j].from);
 
-    // find region in `a` and `b` with nodes from `from`
+    // Find region in `a` and `b` with nodes from `from`
     std::size_t i_end = i;
     std::size_t j_end = j;
     while (i_end < a.size() && a[i_end].from == from) {
@@ -289,7 +293,7 @@ auto GreedyBalancer::reduce_move_candidates(
       ++j_end;
     }
 
-    // pick best set of nodes
+    // Pick best set of nodes
     const std::size_t num_in_a = i_end - i;
     const std::size_t num_in_b = j_end - j;
     const std::size_t num = num_in_a + num_in_b;
@@ -300,7 +304,6 @@ auto GreedyBalancer::reduce_move_candidates(
     std::sort(candidates.begin(), candidates.end(), [&](const auto &lhs, const auto &rhs) {
       return lhs.rel_gain > rhs.rel_gain || (lhs.rel_gain == rhs.rel_gain && lhs.node > rhs.node);
     });
-    // print_candidates(candidates);
 
     NodeWeight total_weight = 0;
     NodeID added_to_ans = 0;
@@ -308,11 +311,9 @@ auto GreedyBalancer::reduce_move_candidates(
       const BlockID to = candidates[candidate].to;
       const NodeWeight weight = candidates[candidate].weight;
 
-      // only pick candidate if it does not overload the target block
+      // Only pick candidate if it does not overload the target block
       if (from != to && _p_graph->block_weight(to) + target_block_weight_delta[to] + weight >
                             _p_ctx->graph->max_block_weight(to)) {
-        // DBG << "Not taking candidate for move " << from << " --> " << to
-        //<< " because target would become overloaded";
         continue;
       }
 
@@ -323,7 +324,7 @@ auto GreedyBalancer::reduce_move_candidates(
       }
       ++added_to_ans;
 
-      // only pick candidates while we do not have enough weight to balance the
+      // Only pick candidates while we do not have enough weight to balance the
       // block
       if (total_weight >= block_overload(from) ||
           added_to_ans >= _ctx.refinement.greedy_balancer.num_nodes_per_block) {
@@ -331,12 +332,12 @@ auto GreedyBalancer::reduce_move_candidates(
       }
     }
 
-    // move forward
+    // Move forward
     i = i_end;
     j = j_end;
   }
 
-  // keep remaining moves
+  // Keep remaining moves
   while (i < a.size()) {
     const BlockID from = a[i].from;
     const BlockID to = a[i].to;
@@ -371,6 +372,12 @@ auto GreedyBalancer::reduce_move_candidates(
   return ans;
 }
 
+std::vector<NodeWeight>
+GreedyBalancer::reduce_buckets(std::vector<NodeWeight> &&a, std::vector<NodeWeight> &&b) {
+  tbb::parallel_for<std::size_t>(0, a.size(), [&](std::size_t i) { a[i] += b[i]; });
+  return std::move(a);
+}
+
 auto GreedyBalancer::pick_move_candidates() -> std::vector<MoveCandidate> {
   std::vector<MoveCandidate> candidates;
 
@@ -379,7 +386,7 @@ auto GreedyBalancer::pick_move_candidates() -> std::vector<MoveCandidate> {
       continue;
     }
 
-    // fetch up to num_nodes_per_block move candidates from the PQ
+    // Fetch up to `num_nodes_per_block` move candidates from the PQ,
     // but keep them in the PQ, since they might not get moved
     NodeID num = 0;
     for (num = 0; num < _ctx.refinement.greedy_balancer.num_nodes_per_block; ++num) {
@@ -402,7 +409,7 @@ auto GreedyBalancer::pick_move_candidates() -> std::vector<MoveCandidate> {
         IFSTATS(++_stats.local_num_nonconflicts);
       } else {
         add_to_pq(from, u, u_weight, actual_relative_gain);
-        --num; // retry
+        --num; // Retry
         IFSTATS(++_stats.local_num_conflicts);
       }
     }
@@ -437,7 +444,7 @@ void GreedyBalancer::init_pq() {
     _marker.resize(_p_graph->n());
   }
 
-  // build thread-local PQs: one PQ for each thread and block, each PQ for block
+  // Build thread-local PQs: one PQ for each thread and block, each PQ for block
   // b has at most roughly |overload[b]| weight
   tbb::parallel_for(static_cast<NodeID>(0), _p_graph->n(), [&](const NodeID u) {
     auto &pq = local_pq_ets.local();
@@ -446,9 +453,13 @@ void GreedyBalancer::init_pq() {
     const BlockID b = _p_graph->block(u);
     const BlockWeight overload = block_overload(b);
 
-    if (overload > 0) { // node in overloaded block
+    if (overload > 0) { // Node in overloaded block
       const auto [max_gainer, rel_gain] = compute_gain(u, b);
       const bool need_more_nodes = (pq_weight[b] < overload);
+      if (fast_balancing_enabled()) {
+        const int b = rel_gain < 0 ? std::ceil(std::log2(rel_gain)) : 0;
+        bucket(u, b) += _p_graph->node_weight(u);
+      }
       if (need_more_nodes || pq[b].empty() || rel_gain > pq[b].peek_key()) {
         if (!need_more_nodes) {
           const NodeWeight u_weight = _p_graph->node_weight(u);
@@ -463,7 +474,7 @@ void GreedyBalancer::init_pq() {
     }
   });
 
-  // build global PQ: one PQ per block, block-level parallelism
+  // Build global PQ: one PQ per block, block-level parallelism
   _pq.clear();
   if (_pq.capacity() < _p_graph->n()) {
     _pq = DynamicBinaryMinMaxForest<NodeID, double>(_p_graph->n(), _ctx.partition.k);
@@ -488,7 +499,7 @@ GreedyBalancer::compute_gain(const NodeID u, const BlockID u_block) const {
   EdgeWeight internal_degree = 0;
 
   auto action = [&](auto &map) {
-    // compute external degree to each adjacent block that can take u without
+    // Compute external degree to each adjacent block that can take u without
     // becoming overloaded
     for (const auto [e, v] : _p_graph->neighbors(u)) {
       const BlockID v_block = _p_graph->block(v);
@@ -500,7 +511,7 @@ GreedyBalancer::compute_gain(const NodeID u, const BlockID u_block) const {
       }
     }
 
-    // select neighbor that maximizes gain
+    // Select neighbor that maximizes gain
     auto &rand = Random::instance();
     for (const auto [block, gain] : map.entries()) {
       if (gain > max_external_gain || (gain == max_external_gain && rand.random_bool())) {
@@ -515,7 +526,7 @@ GreedyBalancer::compute_gain(const NodeID u, const BlockID u_block) const {
   rating_map.update_upper_bound_size(_p_graph->degree(u));
   rating_map.run_with_map(action, action);
 
-  // compute absolute and relative gain based on internal degree / external gain
+  // Compute absolute and relative gain based on internal degree / external gain
   const EdgeWeight gain = max_external_gain - internal_degree;
   const double relative_gain = compute_relative_gain(gain, u_weight);
   return {max_gainer, relative_gain};
@@ -591,9 +602,6 @@ void GreedyBalancer::print_statistics() const {
         << _stats.initial_num_imbalanced_blocks - _stats.final_num_imbalanced_blocks;
   STATS << "  * Change in edge cut: " << C(_stats.initial_cut, _stats.final_cut) << " = by "
         << _stats.initial_cut - _stats.final_cut;
-  // STATS << "  * Change in total overload: " <<
-  // C(_stats.initial_total_overload, _stats.final_total_overload)
-  //<< " = by " << _stats.initial_total_overload - _stats.final_total_overload;
   STATS << "  * Number of moved nodes: "
         << _stats.num_adjacent_moves + _stats.num_nonadjacent_moves;
   STATS << "    # of moves to adjacent blocks: " << _stats.num_adjacent_moves;

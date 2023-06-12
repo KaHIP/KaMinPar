@@ -20,6 +20,7 @@ class GreedyBalancer : public Refiner {
   SET_STATISTICS_FROM_GLOBAL();
   SET_DEBUG(false);
   constexpr static std::size_t kPrintStatsEveryNRounds = 100'000;
+  constexpr static std::size_t kBucketsPerBlock = 32;
 
   struct Statistics {
     bool initial_feasible = false;
@@ -52,6 +53,22 @@ public:
   void refine(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
 
 private:
+  inline void init_buckets(const DistributedPartitionedGraph &p_graph) {
+    _buckets.resize(kBucketsPerBlock * p_graph.k());
+    tbb::parallel_for<std::size_t>(0, _buckets.size(), [&](const std::size_t i) {
+      _buckets[i] = 0;
+    });
+  }
+
+  inline NodeWeight &bucket(const NodeID u, const int b) {
+    KASSERT(u * kBucketsPerBlock + b < _buckets.size());
+    return _buckets[u * kBucketsPerBlock + b];
+  }
+
+  inline bool fast_balancing_enabled() const {
+    return _ctx.refinement.greedy_balancer.fast_balancing_threshold > 0;
+  }
+
   struct MoveCandidate {
     GlobalNodeID node;
     BlockID from;
@@ -61,9 +78,14 @@ private:
   };
 
   std::vector<MoveCandidate> pick_move_candidates();
-  std::vector<MoveCandidate> reduce_move_candidates(std::vector<MoveCandidate> &&candidates);
+
+  template <typename T> std::vector<T> reduce_buckets_or_move_candidates(std::vector<T> &&elements);
+
   std::vector<MoveCandidate>
   reduce_move_candidates(std::vector<MoveCandidate> &&a, std::vector<MoveCandidate> &&b);
+
+  std::vector<NodeWeight> reduce_buckets(std::vector<NodeWeight> &&a, std::vector<NodeWeight> &&b);
+
   void perform_moves(const std::vector<MoveCandidate> &moves);
   void perform_move(const MoveCandidate &move);
 
@@ -96,5 +118,7 @@ private:
   Marker<> _marker;
 
   Statistics _stats;
+
+  NoinitVector<NodeWeight> _buckets;
 };
 }; // namespace kaminpar::dist

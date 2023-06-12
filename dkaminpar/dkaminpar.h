@@ -229,6 +229,7 @@ struct InitialPartitioningContext {
 
 struct GreedyBalancerContext {
   NodeID num_nodes_per_block = 0;
+  double fast_balancing_threshold = 0.0;
 };
 
 struct JetRefinementContext {
