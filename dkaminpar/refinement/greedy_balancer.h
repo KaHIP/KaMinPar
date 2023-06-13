@@ -18,7 +18,8 @@
 namespace kaminpar::dist {
 class GreedyBalancer : public Refiner {
   SET_STATISTICS_FROM_GLOBAL();
-  SET_DEBUG(false);
+  SET_DEBUG(true);
+
   constexpr static std::size_t kPrintStatsEveryNRounds = 100'000;
   constexpr static std::size_t kBucketsPerBlock = 32;
 
@@ -95,22 +96,27 @@ private:
   reduce_buckets(NoinitVector<NodeWeight> &&a, NoinitVector<NodeWeight> &&b);
 
   void perform_moves(const std::vector<MoveCandidate> &moves);
+
   void perform_move(const MoveCandidate &move);
 
   void
   print_candidates(const std::vector<MoveCandidate> &moves, const std::string &desc = "") const;
+
   void print_overloads() const;
 
   void init_pq();
   std::pair<BlockID, double> compute_gain(NodeID u, BlockID u_block) const;
 
   BlockWeight block_overload(BlockID b) const;
+
   double compute_relative_gain(EdgeWeight absolute_gain, NodeWeight weight) const;
 
   bool add_to_pq(BlockID b, NodeID u);
+
   bool add_to_pq(BlockID b, NodeID u, NodeWeight u_weight, double rel_gain);
 
   void reset_statistics();
+
   void print_statistics() const;
 
   NoinitVector<NodeWeight> compactify_buckets() const;
