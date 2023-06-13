@@ -41,6 +41,7 @@ void GreedyBalancer::refine(DistributedPartitionedGraph &p_graph, const Partitio
   IFSTATS(_stats.initial_imbalance = metrics::imbalance(p_graph));
   IFSTATS(_stats.initial_num_imbalanced_blocks = metrics::num_imbalanced_blocks(p_graph, p_ctx));
 
+  const PEID size = mpi::get_comm_size(p_graph.communicator());
   const PEID rank = mpi::get_comm_rank(p_graph.communicator());
 
   init_pq();
@@ -198,8 +199,17 @@ void GreedyBalancer::refine(DistributedPartitionedGraph &p_graph, const Partitio
         }
 
         // Find move candidates
+        std::vector<BlockID> target_blocks;
+        for (const BlockID b : _p_graph->blocks()) {
+          if (_p_graph->block_weight(b) < _p_ctx->graph->max_block_weight(b)) {
+            target_blocks.push_back(b);
+          }
+        }
+        std::size_t next_target_block_index = rank % target_blocks.size();
+
+        std::vector<std::pair<NodeID, BlockID>> move_candidates;
         std::vector<NodeWeight> weight_to_block(p_graph.k());
-        tbb::parallel_for(static_cast<NodeID>(0), _p_graph->n(), [&](const NodeID u) {
+        for (const NodeID u : _p_graph->nodes()) {
           const BlockID b = _p_graph->block(u);
           const BlockWeight overload = block_overload(b);
 
@@ -207,10 +217,26 @@ void GreedyBalancer::refine(DistributedPartitionedGraph &p_graph, const Partitio
             const auto [max_gainer, rel_gain] = compute_gain(u, b);
             const auto bucket = get_bucket(rel_gain);
             if (bucket < cut_off_buckets[to_overloaded_map[b]]) {
-              weight_to_block[max_gainer] += _p_graph->node_weight(u);
+              if (max_gainer != b) { // Node must be moved to its max gainer
+                weight_to_block[max_gainer] += _p_graph->node_weight(u);
+                move_candidates.emplace_back(u, max_gainer);
+              } else { // Node can be moved to any block -> pick target blocks round-robin
+                BlockID new_to = 0;
+                do {
+                  ++next_target_block_index;
+                  if (next_target_block_index >= target_blocks.size()) {
+                    next_target_block_index = 0;
+                  }
+                  new_to = target_blocks[next_target_block_index];
+                } while (_p_graph->block_weight(new_to) + _p_graph->node_weight(u) >
+                         _p_ctx->graph->max_block_weight(new_to));
+
+                weight_to_block[new_to] += _p_graph->node_weight(u);
+                move_candidates.emplace_back(u, new_to);
+              }
             }
           }
-        });
+        }
 
         // Compute total weight to each block
         MPI_Allreduce(
@@ -224,26 +250,23 @@ void GreedyBalancer::refine(DistributedPartitionedGraph &p_graph, const Partitio
 
         // Perform moves
         std::vector<BlockWeight> block_weight_deltas(_p_graph->k());
-        tbb::parallel_for(static_cast<NodeID>(0), _p_graph->n(), [&](const NodeID u) {
-          const BlockID b = _p_graph->block(u);
-          const BlockWeight overload = block_overload(b);
+        for (const auto [node, to] : move_candidates) {
+          const BlockID from = _p_graph->block(node);
+          const double prob = 1.0 *
+                              (_p_ctx->graph->max_block_weight(to) - _p_graph->block_weight(to)) /
+                              weight_to_block[to];
+          if (Random::instance().random_bool(prob)) {
+            DBG << "Move " << node << " with prob " << prob << " from " << from << " to " << to
+                << ": OK";
 
-          if (overload > 0) { // Node in overloaded block
-            const auto [max_gainer, rel_gain] = compute_gain(u, b);
-            const auto bucket = get_bucket(rel_gain);
-            if (bucket < cut_off_buckets[to_overloaded_map[b]]) {
-              const double prob = 1.0 *
-                                  (_p_ctx->graph->max_block_weight(max_gainer) -
-                                   _p_graph->block_weight(max_gainer)) /
-                                  weight_to_block[max_gainer];
-              if (Random::instance().random_bool(prob)) {
-                _p_graph->set_block<false>(u, max_gainer);
-                block_weight_deltas[b] -= _p_graph->node_weight(u);
-                block_weight_deltas[max_gainer] += _p_graph->node_weight(u);
-              }
-            }
+            _p_graph->set_block<false>(node, to);
+            block_weight_deltas[from] -= _p_graph->node_weight(node);
+            block_weight_deltas[to] += _p_graph->node_weight(node);
+          } else {
+            DBG << "Move " << node << " with prob " << prob << " from " << from << " to " << to
+                << ": REJECT";
           }
-        });
+        }
 
         graph::synchronize_ghost_node_block_ids(*_p_graph);
 
