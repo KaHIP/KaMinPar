@@ -164,8 +164,11 @@ Context create_default_context() {
                   },
               .greedy_balancer =
                   {
+                      .max_num_rounds = std::numeric_limits<int>::max(),
+                      .enable_strong_balancing = true,
                       .num_nodes_per_block = 5,
-                      .fast_balancing_threshold = 0.0,
+                      .enable_fast_balancing = true,
+                      .fast_balancing_threshold = 0.1,
                   },
               .jet =
                   {

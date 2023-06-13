@@ -228,7 +228,10 @@ struct InitialPartitioningContext {
 };
 
 struct GreedyBalancerContext {
+  int max_num_rounds = 0;
+  bool enable_strong_balancing = false;
   NodeID num_nodes_per_block = 0;
+  bool enable_fast_balancing = false;
   double fast_balancing_threshold = 0.0;
 };
 

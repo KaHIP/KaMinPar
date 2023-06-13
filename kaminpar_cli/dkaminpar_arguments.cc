@@ -304,11 +304,23 @@ CLI::Option_group *create_colored_lp_refinement_options(CLI::App *app, Context &
 CLI::Option_group *create_greedy_balancer_options(CLI::App *app, Context &ctx) {
   auto *balancer = app->add_option_group("Refinement -> Balancer");
 
+  balancer->add_option("--r-b-max-num-rounds", ctx.refinement.greedy_balancer.max_num_rounds)
+      ->capture_default_str();
+  balancer
+      ->add_flag(
+          "--r-b-enable-strong-balancing", ctx.refinement.greedy_balancer.enable_strong_balancing
+      )
+      ->capture_default_str();
   balancer
       ->add_option(
           "--r-b-nodes-per-block",
           ctx.refinement.greedy_balancer.num_nodes_per_block,
           "Number of nodes selected for each overloaded block on each PE."
+      )
+      ->capture_default_str();
+  balancer
+      ->add_flag(
+          "--r-b-enable-fast-balancing", ctx.refinement.greedy_balancer.enable_fast_balancing
       )
       ->capture_default_str();
   balancer

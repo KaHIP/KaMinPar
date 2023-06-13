@@ -48,7 +48,7 @@ void GreedyBalancer::refine(DistributedPartitionedGraph &p_graph, const Partitio
   double previous_imbalance_distance =
       fast_balancing_enabled() ? metrics::imbalance_l2(p_graph, p_ctx) : 0.0;
 
-  for (std::size_t round = 0;; round++) {
+  for (int round = 0; round < _ctx.refinement.greedy_balancer.max_num_rounds; round++) {
     if (metrics::is_feasible(*_p_graph, *_p_ctx)) {
       break;
     }
@@ -62,78 +62,81 @@ void GreedyBalancer::refine(DistributedPartitionedGraph &p_graph, const Partitio
       }
     }
 
-    // Pick best move candidates for each block
-    START_TIMER("Pick move candidates");
-    auto candidates = pick_move_candidates();
-    STOP_TIMER();
+    if (strong_balancing_enabled()) {
+      // Pick best move candidates for each block
+      START_TIMER("Pick move candidates");
+      auto candidates = pick_move_candidates();
+      STOP_TIMER();
 
-    START_TIMER("Reduce move candidates");
-    candidates = reduce_buckets_or_move_candidates(std::move(candidates));
-    STOP_TIMER();
+      START_TIMER("Reduce move candidates");
+      candidates = reduce_buckets_or_move_candidates(std::move(candidates));
+      STOP_TIMER();
 
-    START_TIMER("Perform moves on root PE");
-    if (rank == 0) {
-      // Move nodes that already have a target block
-      for (const auto &move : candidates) {
-        if (move.from != move.to) {
-          IFSTATS(++_stats.num_adjacent_moves);
-          perform_move(move);
-        } else {
-          IFSTATS(++_stats.num_nonadjacent_moves);
-        }
-      }
-
-      // Move nodes that do not have a target block
-      BlockID cur = 0;
-      for (auto &candidate : candidates) {
-        auto &[node, from, to, weight, rel_gain] = candidate;
-
-        if (from == to) {
-          // Look for next block that can take node
-          while (cur == from ||
-                 _p_graph->block_weight(cur) + weight > _p_ctx->graph->max_block_weight(cur)) {
-            ++cur;
-            if (cur >= _p_ctx->k) {
-              cur = 0;
-            }
+      START_TIMER("Perform moves on root PE");
+      if (rank == 0) {
+        // Move nodes that already have a target block
+        for (const auto &move : candidates) {
+          if (move.from != move.to) {
+            IFSTATS(++_stats.num_adjacent_moves);
+            perform_move(move);
+          } else {
+            IFSTATS(++_stats.num_nonadjacent_moves);
           }
+        }
 
-          to = cur;
-          perform_move(candidate);
+        // Move nodes that do not have a target block
+        BlockID cur = 0;
+        for (auto &candidate : candidates) {
+          auto &[node, from, to, weight, rel_gain] = candidate;
+
+          if (from == to) {
+            // Look for next block that can take node
+            while (cur == from ||
+                   _p_graph->block_weight(cur) + weight > _p_ctx->graph->max_block_weight(cur)) {
+              ++cur;
+              if (cur >= _p_ctx->k) {
+                cur = 0;
+              }
+            }
+
+            to = cur;
+            perform_move(candidate);
+          }
         }
       }
-    }
-    STOP_TIMER();
+      STOP_TIMER();
 
-    // Broadcast winners
-    START_TIMER("Broadcast reduction result");
-    const std::size_t num_winners = mpi::bcast(candidates.size(), 0, _p_graph->communicator());
-    candidates.resize(num_winners);
-    mpi::bcast(candidates.data(), num_winners, 0, _p_graph->communicator());
-    STOP_TIMER();
+      // Broadcast winners
+      START_TIMER("Broadcast reduction result");
+      const std::size_t num_winners = mpi::bcast(candidates.size(), 0, _p_graph->communicator());
+      candidates.resize(num_winners);
+      mpi::bcast(candidates.data(), num_winners, 0, _p_graph->communicator());
+      STOP_TIMER();
 
-    START_TIMER("Perform moves");
-    if (rank != 0) {
-      perform_moves(candidates);
-    }
-    STOP_TIMER();
+      START_TIMER("Perform moves");
+      if (rank != 0) {
+        perform_moves(candidates);
+      }
+      STOP_TIMER();
 
-    KASSERT(
-        graph::debug::validate_partition(*_p_graph),
-        "balancer produced invalid partition",
-        assert::heavy
-    );
+      KASSERT(
+          graph::debug::validate_partition(*_p_graph),
+          "balancer produced invalid partition",
+          assert::heavy
+      );
 
-    if (num_winners == 0) {
-      break;
+      if (num_winners == 0) {
+        break;
+      }
     }
 
     if (fast_balancing_enabled()) {
       const double current_imbalance_distance = metrics::imbalance_l2(p_graph, p_ctx);
       if ((previous_imbalance_distance - current_imbalance_distance) / previous_imbalance_distance <
-          _ctx.refinement.greedy_balancer.fast_balancing_threshold) {
+              _ctx.refinement.greedy_balancer.fast_balancing_threshold ||
+          !strong_balancing_enabled()) {
         DBG << "Performing fast balancing round";
-        init_buckets(p_graph); // @todo only do once, then keep up to date?
+        init_buckets(); // @todo only do once, then keep up to date?
         auto compact_buckets = compactify_buckets();
         compact_buckets = reduce_buckets_or_move_candidates(std::move(compact_buckets));
 
@@ -148,10 +151,10 @@ void GreedyBalancer::refine(DistributedPartitionedGraph &p_graph, const Partitio
             const BlockWeight max_weight = p_ctx.graph->max_block_weight(block);
             if (current_weight > max_weight) {
               int cut_off_bucket = 0;
-              while (current_weight > max_weight) {
+              for (; cut_off_bucket < kBucketsPerBlock && current_weight > max_weight;
+                   ++cut_off_bucket) {
                 current_weight -=
                     compact_buckets[current_overloaded_block * kBucketsPerBlock + cut_off_bucket];
-                ++cut_off_bucket;
               }
               cut_off_buckets[current_overloaded_block] = cut_off_bucket;
               to_overloaded_map[block] = current_overloaded_block;
@@ -164,6 +167,22 @@ void GreedyBalancer::refine(DistributedPartitionedGraph &p_graph, const Partitio
         MPI_Bcast(
             cut_off_buckets.data(), num_overloaded_blocks, MPI_INT, 0, p_graph.communicator()
         );
+
+        IF_DBG0 {
+          for (const BlockID block : p_graph.blocks()) {
+            if (p_graph.block_weight(block) > p_ctx.graph->max_block_weight(block)) {
+              DBG0 << "Overloaded block " << block << " with weight " << p_graph.block_weight(block)
+                   << " > " << p_ctx.graph->max_block_weight(block) << " has cut-off bucket "
+                   << cut_off_buckets[to_overloaded_map[block]];
+
+              std::stringstream ss;
+              for (int bucket = 0; bucket < kBucketsPerBlock; ++bucket) {
+                ss << compact_buckets[to_overloaded_map[block] * kBucketsPerBlock + bucket] << " ";
+              }
+              DBG0 << "  -> buckets: " << ss.str();
+            }
+          }
+        }
 
         // Find move candidates
         std::vector<NodeWeight> weight_to_block(p_graph.k());
@@ -230,7 +249,11 @@ void GreedyBalancer::refine(DistributedPartitionedGraph &p_graph, const Partitio
         });
       }
 
-      previous_imbalance_distance = current_imbalance_distance;
+      previous_imbalance_distance = metrics::imbalance_l2(p_graph, p_ctx);
+
+      // Variable names sound wronng, but are right
+      DBG0 << "Fast balancing round improved L2 imbalance from " << current_imbalance_distance
+           << " to " << previous_imbalance_distance;
     }
   }
 
@@ -561,10 +584,10 @@ void GreedyBalancer::init_pq() {
     if (overload > 0) { // Node in overloaded block
       const auto [max_gainer, rel_gain] = compute_gain(u, b);
       const bool need_more_nodes = (pq_weight[b] < overload);
-      if (fast_balancing_enabled()) {
+      /*if (fast_balancing_enabled()) {
         const auto bucket = get_bucket(rel_gain);
         get_bucket_value(b, bucket) += _p_graph->node_weight(u);
-      }
+      }*/
       if (need_more_nodes || pq[b].empty() || rel_gain > pq[b].peek_key()) {
         if (!need_more_nodes) {
           const NodeWeight u_weight = _p_graph->node_weight(u);
@@ -592,6 +615,24 @@ void GreedyBalancer::init_pq() {
       for (const auto &[u, rel_gain] : pq[b].elements()) {
         add_to_pq(b, u, _p_graph->node_weight(u), rel_gain);
       }
+    }
+  });
+}
+
+void GreedyBalancer::init_buckets() {
+  SCOPED_TIMER("Initialize buckets");
+
+  _buckets.resize(kBucketsPerBlock * _p_graph->k());
+  tbb::parallel_for<std::size_t>(0, _buckets.size(), [&](const std::size_t index) {
+    _buckets[index] = 0;
+  });
+
+  tbb::parallel_for(static_cast<NodeID>(0), _p_graph->n(), [&](const NodeID u) {
+    const BlockID block = _p_graph->block(u);
+    if (block_overload(block) > 0) { // Node in overloaded block
+      const auto [max_gainer, rel_gain] = compute_gain(u, block);
+      const auto bucket = get_bucket(rel_gain);
+      get_bucket_value(block, bucket) += _p_graph->node_weight(u);
     }
   });
 }

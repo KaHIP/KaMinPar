@@ -54,12 +54,7 @@ public:
   void refine(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
 
 private:
-  inline void init_buckets(const DistributedPartitionedGraph &p_graph) {
-    _buckets.resize(kBucketsPerBlock * p_graph.k());
-    tbb::parallel_for<std::size_t>(0, _buckets.size(), [&](const std::size_t index) {
-      _buckets[index] = 0;
-    });
-  }
+  void init_buckets();
 
   inline NodeWeight &get_bucket_value(const BlockID block, const std::size_t bucket) {
     return _buckets[block * kBucketsPerBlock + bucket];
@@ -73,8 +68,13 @@ private:
     return rel_gain < 0 ? std::ceil(std::log2(rel_gain)) : 0;
   }
 
+  inline bool strong_balancing_enabled() const {
+    return _ctx.refinement.greedy_balancer.enable_strong_balancing;
+  }
+
   inline bool fast_balancing_enabled() const {
-    return _ctx.refinement.greedy_balancer.fast_balancing_threshold > 0;
+    return _ctx.refinement.greedy_balancer.enable_fast_balancing &&
+           _ctx.refinement.greedy_balancer.fast_balancing_threshold > 0;
   }
 
   struct MoveCandidate {
