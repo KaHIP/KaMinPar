@@ -133,6 +133,8 @@ void GreedyBalancer::refine(DistributedPartitionedGraph &p_graph, const Partitio
     }
 
     if (fast_balancing_enabled()) {
+      SCOPED_TIMER("Fast rebalancing");
+
       const double current_imbalance_distance = metrics::imbalance_l1(p_graph, p_ctx);
       DBG0 << "Strong rebalancing improved imbalance from " << previous_imbalance_distance << " to "
            << current_imbalance_distance << " by "
@@ -143,6 +145,8 @@ void GreedyBalancer::refine(DistributedPartitionedGraph &p_graph, const Partitio
       if ((previous_imbalance_distance - current_imbalance_distance) / previous_imbalance_distance <
               _ctx.refinement.greedy_balancer.fast_balancing_threshold ||
           !strong_balancing_enabled()) {
+        mpi::barrier(_p_graph->communicator());
+
         DBG0 << " --> performing fast balancing round";
 
         START_TIMER("Build buckets");
@@ -269,8 +273,8 @@ void GreedyBalancer::refine(DistributedPartitionedGraph &p_graph, const Partitio
                               (_p_ctx->graph->max_block_weight(to) - _p_graph->block_weight(to)) /
                               weight_to_block[to];
           if (Random::instance().random_bool(prob)) {
-            DBG << "Move " << node << " with prob " << prob << " from " << from << " to " << to
-                << ": OK";
+            // DBG << "Move " << node << " with prob " << prob << " from " << from << " to " << to
+            //<< ": OK";
 
             _p_graph->set_block<false>(node, to);
 
@@ -297,11 +301,12 @@ void GreedyBalancer::refine(DistributedPartitionedGraph &p_graph, const Partitio
               }
             }
             */
-          } else {
-            DBG << "Move " << node << " with prob " << prob << " from " << from << " to " << to
-                << ": REJECT";
-          }
+          } // else {
+            // DBG << "Move " << node << " with prob " << prob << " from " << from << " to " << to
+            //<< ": REJECT";
+          //}
         }
+        mpi::barrier(_p_graph->communicator());
         STOP_TIMER();
 
         TIMED_SCOPE("Synchronize partition state after fast rebalance round") {
@@ -319,6 +324,8 @@ void GreedyBalancer::refine(DistributedPartitionedGraph &p_graph, const Partitio
           _p_graph->pfor_blocks([&](const BlockID b) {
             _p_graph->set_block_weight(b, _p_graph->block_weight(b) + block_weight_deltas[b]);
           });
+
+          mpi::barrier(_p_graph->communicator());
         };
 
         // Variable names sound wronng, but are right
@@ -328,6 +335,7 @@ void GreedyBalancer::refine(DistributedPartitionedGraph &p_graph, const Partitio
         // Reinit PQs @todo try to maintain valid PQ state
         TIMED_SCOPE("Reinit PQs") {
           init_pq();
+          mpi::barrier(_p_graph->communicator());
         };
       }
 
