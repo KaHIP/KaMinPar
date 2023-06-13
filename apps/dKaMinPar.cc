@@ -15,6 +15,8 @@
 #include "common/environment.h"
 #include "common/strutils.h"
 
+#include "apps/io/dist_io.h"
+
 using namespace kaminpar;
 using namespace kaminpar::dist;
 
@@ -194,7 +196,7 @@ int main(int argc, char *argv[]) {
   partitioner.compute_partition(app.seed, app.k, partition.data());
 
   if (!app.partition_filename.empty()) {
-    // dist::io::partition::write(app.partition_filename, partition);
+    dist::io::partition::write(app.partition_filename, partition);
   }
 
   return MPI_Finalize();

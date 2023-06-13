@@ -28,7 +28,6 @@ void read(
 
 namespace partition {
 std::vector<BlockID> read(const std::string &filename);
-
 void write(const std::string &filename, const std::vector<BlockID> &partition);
 } // namespace partition
 } // namespace kaminpar::shm::io
