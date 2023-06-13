@@ -9,6 +9,7 @@
 #include <dkaminpar/datastructures/distributed_graph.h>
 #include <dkaminpar/datastructures/ghost_node_mapper.h>
 #include <dkaminpar/metrics.h>
+#include <dkaminpar/graphutils/synchronization.h>
 #include <mpi.h>
 #include <tbb/parallel_invoke.h>
 
@@ -128,7 +129,7 @@ load_partitioned_graph(const std::string &graph_name, const std::string &partiti
   const GlobalNodeID first_node = graph->offset_n();
   const GlobalNodeID first_invalid_node = graph->offset_n() + graph->n();
 
-  StaticArray<BlockID> partition(graph->n());
+  StaticArray<BlockID> partition(graph->total_n());
   std::ifstream partition_file(partition_name);
 
   for (GlobalNodeID u = 0; u < first_invalid_node; ++u) {
@@ -155,6 +156,7 @@ load_partitioned_graph(const std::string &graph_name, const std::string &partiti
   wrapper.p_graph = std::make_unique<DistributedPartitionedGraph>(
       wrapper.graph.get(), k, std::move(partition), std::move(block_weights)
   );
+  graph::synchronize_ghost_node_block_ids(*wrapper.p_graph);
 
   std::cout << "Loaded partitioned graph with cut=" << metrics::edge_cut(*wrapper.p_graph)
             << ", imbalance=" << metrics::imbalance(*wrapper.p_graph) << std::endl;
