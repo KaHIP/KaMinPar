@@ -83,4 +83,14 @@ double imbalance_l2(const DistributedPartitionedGraph &p_graph, const PartitionC
   }
   return std::sqrt(distance);
 }
+
+double imbalance_l1(const DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) {
+  double distance = 0.0;
+  for (const BlockID b : p_graph.blocks()) {
+    if (p_graph.block_weight(b) > p_ctx.graph->max_block_weight(b)) {
+      distance += p_graph.block_weight(b) - p_ctx.graph->max_block_weight(b);
+    }
+  }
+  return distance;
+}
 } // namespace kaminpar::dist::metrics

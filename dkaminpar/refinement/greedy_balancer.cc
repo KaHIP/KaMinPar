@@ -47,7 +47,7 @@ void GreedyBalancer::refine(DistributedPartitionedGraph &p_graph, const Partitio
   init_pq();
 
   double previous_imbalance_distance =
-      fast_balancing_enabled() ? metrics::imbalance_l2(p_graph, p_ctx) : 0.0;
+      fast_balancing_enabled() ? metrics::imbalance_l1(p_graph, p_ctx) : 0.0;
 
   for (int round = 0; round < _ctx.refinement.greedy_balancer.max_num_rounds; round++) {
     if (metrics::is_feasible(*_p_graph, *_p_ctx)) {
@@ -127,16 +127,25 @@ void GreedyBalancer::refine(DistributedPartitionedGraph &p_graph, const Partitio
       );
 
       if (num_winners == 0) {
+        DBG0 << "No winners in round " << round << " of strong balancing --> TERMINATE";
         break;
       }
     }
 
     if (fast_balancing_enabled()) {
-      const double current_imbalance_distance = metrics::imbalance_l2(p_graph, p_ctx);
+      const double current_imbalance_distance = metrics::imbalance_l1(p_graph, p_ctx);
+      DBG0 << "Strong rebalancing improved imbalance from " << previous_imbalance_distance << " to "
+           << current_imbalance_distance << " by "
+           << (previous_imbalance_distance - current_imbalance_distance) /
+                  previous_imbalance_distance
+           << " vs " << _ctx.refinement.greedy_balancer.fast_balancing_threshold;
+
       if ((previous_imbalance_distance - current_imbalance_distance) / previous_imbalance_distance <
               _ctx.refinement.greedy_balancer.fast_balancing_threshold ||
           !strong_balancing_enabled()) {
-        DBG << "Performing fast balancing round";
+        DBG0 << " --> performing fast balancing round";
+
+        START_TIMER("Build buckets");
         init_buckets(); // @todo only do once, then keep up to date?
         auto compact_buckets = compactify_buckets();
         compact_buckets = reduce_buckets_or_move_candidates(std::move(compact_buckets));
@@ -181,6 +190,7 @@ void GreedyBalancer::refine(DistributedPartitionedGraph &p_graph, const Partitio
         MPI_Bcast(
             cut_off_buckets.data(), num_overloaded_blocks, MPI_INT, 0, p_graph.communicator()
         );
+        STOP_TIMER();
 
         IF_DBG0 {
           for (const BlockID block : p_graph.blocks()) {
@@ -199,6 +209,7 @@ void GreedyBalancer::refine(DistributedPartitionedGraph &p_graph, const Partitio
         }
 
         // Find move candidates
+        START_TIMER("Find move candidates");
         std::vector<BlockID> target_blocks;
         for (const BlockID b : _p_graph->blocks()) {
           if (_p_graph->block_weight(b) < _p_ctx->graph->max_block_weight(b)) {
@@ -247,8 +258,10 @@ void GreedyBalancer::refine(DistributedPartitionedGraph &p_graph, const Partitio
             MPI_SUM,
             p_graph.communicator()
         );
+        STOP_TIMER();
 
         // Perform moves
+        START_TIMER("Attempt to move candidates");
         std::vector<BlockWeight> block_weight_deltas(_p_graph->k());
         for (const auto [node, to] : move_candidates) {
           const BlockID from = _p_graph->block(node);
@@ -260,36 +273,65 @@ void GreedyBalancer::refine(DistributedPartitionedGraph &p_graph, const Partitio
                 << ": OK";
 
             _p_graph->set_block<false>(node, to);
-            block_weight_deltas[from] -= _p_graph->node_weight(node);
-            block_weight_deltas[to] += _p_graph->node_weight(node);
+
+            const NodeWeight weight = _p_graph->node_weight(node);
+            block_weight_deltas[from] -= weight;
+            block_weight_deltas[to] += weight;
+
+            /*
+            // Update PQ state after move
+            if (_pq.contains(node)) {
+              _pq.remove(from, node);
+              _pq_weight[from] -= weight;
+            }
+
+            // Activate neighbors
+            for (const NodeID v : _p_graph->adjacent_nodes(node)) {
+              if (!_p_graph->is_owned_node(v)) {
+                continue;
+              }
+
+              if (!_marker.get(v) && _p_graph->block(v) == from) {
+                add_to_pq(from, v);
+                _marker.set(v);
+              }
+            }
+            */
           } else {
             DBG << "Move " << node << " with prob " << prob << " from " << from << " to " << to
                 << ": REJECT";
           }
         }
+        STOP_TIMER();
 
-        graph::synchronize_ghost_node_block_ids(*_p_graph);
+        TIMED_SCOPE("Synchronize partition state after fast rebalance round") {
+          graph::synchronize_ghost_node_block_ids(*_p_graph);
 
-        // Update global block weights
-        MPI_Allreduce(
-            MPI_IN_PLACE,
-            block_weight_deltas.data(),
-            p_graph.k(),
-            mpi::type::get<BlockWeight>(),
-            MPI_SUM,
-            p_graph.communicator()
-        );
+          MPI_Allreduce(
+              MPI_IN_PLACE,
+              block_weight_deltas.data(),
+              p_graph.k(),
+              mpi::type::get<BlockWeight>(),
+              MPI_SUM,
+              p_graph.communicator()
+          );
 
-        _p_graph->pfor_blocks([&](const BlockID b) {
-          _p_graph->set_block_weight(b, _p_graph->block_weight(b) + block_weight_deltas[b]);
-        });
+          _p_graph->pfor_blocks([&](const BlockID b) {
+            _p_graph->set_block_weight(b, _p_graph->block_weight(b) + block_weight_deltas[b]);
+          });
+        };
+
+        // Variable names sound wronng, but are right
+        DBG0 << "Fast balancing round improved L1 imbalance from " << current_imbalance_distance
+             << " to " << metrics::imbalance_l1(p_graph, p_ctx);
+
+        // Reinit PQs @todo try to maintain valid PQ state
+        TIMED_SCOPE("Reinit PQs") {
+          init_pq();
+        };
       }
 
-      previous_imbalance_distance = metrics::imbalance_l2(p_graph, p_ctx);
-
-      // Variable names sound wronng, but are right
-      DBG0 << "Fast balancing round improved L2 imbalance from " << current_imbalance_distance
-           << " to " << previous_imbalance_distance;
+      previous_imbalance_distance = metrics::imbalance_l1(p_graph, p_ctx);
     }
   }
 
@@ -656,8 +698,6 @@ void GreedyBalancer::init_pq() {
 }
 
 void GreedyBalancer::init_buckets() {
-  SCOPED_TIMER("Initialize buckets");
-
   _buckets.resize(kBucketsPerBlock * _p_graph->k());
   tbb::parallel_for<std::size_t>(0, _buckets.size(), [&](const std::size_t index) {
     _buckets[index] = 0;

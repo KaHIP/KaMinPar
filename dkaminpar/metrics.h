@@ -61,4 +61,5 @@ BlockID
 num_imbalanced_blocks(const DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx);
 
 double imbalance_l2(const DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx);
+double imbalance_l1(const DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx);
 } // namespace kaminpar::dist::metrics
