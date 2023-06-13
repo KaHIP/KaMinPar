@@ -18,7 +18,7 @@
 namespace kaminpar::dist {
 class GreedyBalancer : public Refiner {
   SET_STATISTICS_FROM_GLOBAL();
-  SET_DEBUG(false);
+  SET_DEBUG(true);
 
   constexpr static std::size_t kPrintStatsEveryNRounds = 100'000;
   constexpr static std::size_t kBucketsPerBlock = 32;
@@ -57,15 +57,21 @@ private:
   void init_buckets();
 
   inline NodeWeight &get_bucket_value(const BlockID block, const std::size_t bucket) {
-    return _buckets[block * kBucketsPerBlock + bucket];
+    const std::size_t index = block * kBucketsPerBlock + bucket;
+    KASSERT(index < _buckets.size());
+    return _buckets[index];
   }
 
   inline const NodeWeight &get_bucket_value(const BlockID block, const std::size_t bucket) const {
-    return _buckets[block * kBucketsPerBlock + bucket];
+    const std::size_t index = block * kBucketsPerBlock + bucket;
+    KASSERT(index < _buckets.size());
+    return _buckets[index];
   }
 
   inline int get_bucket(const double rel_gain) const {
-    return rel_gain < 0 ? std::ceil(std::log2(-rel_gain)) : 0;
+    const int bucket = rel_gain < 0 ? std::ceil(std::log2(1 - rel_gain)) : 0;
+    KASSERT(bucket >= 0 && bucket < kBucketsPerBlock);
+    return bucket;
   }
 
   inline bool strong_balancing_enabled() const {
@@ -105,6 +111,7 @@ private:
   void print_overloads() const;
 
   void init_pq();
+
   std::pair<BlockID, double> compute_gain(NodeID u, BlockID u_block) const;
 
   BlockWeight block_overload(BlockID b) const;
