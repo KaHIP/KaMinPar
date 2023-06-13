@@ -135,6 +135,9 @@ void GreedyBalancer::refine(DistributedPartitionedGraph &p_graph, const Partitio
     if (fast_balancing_enabled()) {
       SCOPED_TIMER("Fast rebalancing");
 
+      // Since we re-init the PQs anyways, we can use the marker to keep track of moved nodes
+      _marker.reset();
+
       const double current_imbalance_distance = metrics::imbalance_l1(p_graph, p_ctx);
       DBG0 << "Strong rebalancing improved imbalance from " << previous_imbalance_distance << " to "
            << current_imbalance_distance << " by "
@@ -273,44 +276,37 @@ void GreedyBalancer::refine(DistributedPartitionedGraph &p_graph, const Partitio
                               (_p_ctx->graph->max_block_weight(to) - _p_graph->block_weight(to)) /
                               weight_to_block[to];
           if (Random::instance().random_bool(prob)) {
-            // DBG << "Move " << node << " with prob " << prob << " from " << from << " to " << to
-            //<< ": OK";
-
             _p_graph->set_block<false>(node, to);
+            _marker.set(node);
 
             const NodeWeight weight = _p_graph->node_weight(node);
             block_weight_deltas[from] -= weight;
             block_weight_deltas[to] += weight;
-
-            /*
-            // Update PQ state after move
-            if (_pq.contains(node)) {
-              _pq.remove(from, node);
-              _pq_weight[from] -= weight;
-            }
-
-            // Activate neighbors
-            for (const NodeID v : _p_graph->adjacent_nodes(node)) {
-              if (!_p_graph->is_owned_node(v)) {
-                continue;
-              }
-
-              if (!_marker.get(v) && _p_graph->block(v) == from) {
-                add_to_pq(from, v);
-                _marker.set(v);
-              }
-            }
-            */
-          } // else {
-            // DBG << "Move " << node << " with prob " << prob << " from " << from << " to " << to
-            //<< ": REJECT";
-          //}
+          }
         }
         mpi::barrier(_p_graph->communicator());
         STOP_TIMER();
 
         TIMED_SCOPE("Synchronize partition state after fast rebalance round") {
-          graph::synchronize_ghost_node_block_ids(*_p_graph);
+          struct Message {
+            NodeID node;
+            BlockID block;
+          };
+
+          mpi::graph::sparse_alltoall_interface_to_pe<Message>(
+              p_graph.graph(),
+              [&](const NodeID u) -> bool { return _marker.get(u); },
+              [&](const NodeID u) -> Message { return {.node = u, .block = p_graph.block(u)}; },
+              [&](const auto &recv_buffer, const PEID pe) {
+                tbb::parallel_for<std::size_t>(0, recv_buffer.size(), [&](const std::size_t i) {
+                  const auto [local_node_on_pe, block] = recv_buffer[i];
+                  const auto global_node =
+                      static_cast<GlobalNodeID>(p_graph.offset_n(pe) + local_node_on_pe);
+                  const NodeID local_node = p_graph.global_to_local_node(global_node);
+                  p_graph.set_block<false>(local_node, block);
+                });
+              }
+          );
 
           MPI_Allreduce(
               MPI_IN_PLACE,
