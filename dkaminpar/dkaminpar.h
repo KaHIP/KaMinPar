@@ -130,6 +130,7 @@ struct LabelPropagationCoarseningContext {
   bool cheap_toplevel = false;
 
   bool prevent_cyclic_moves = false;
+  bool enforce_legacy_weight = false;
 
   bool should_merge_nonadjacent_clusters(NodeID old_n, NodeID new_n) const;
   int compute_num_chunks(const ParallelContext &parallel) const;
