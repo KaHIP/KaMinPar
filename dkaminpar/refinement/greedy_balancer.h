@@ -64,8 +64,8 @@ private:
     return _buckets[block * kBucketsPerBlock + bucket];
   }
 
-  inline std::size_t get_bucket(const double rel_gain) const {
-    return rel_gain < 0 ? std::ceil(std::log2(rel_gain)) : 0;
+  inline int get_bucket(const double rel_gain) const {
+    return rel_gain < 0 ? std::ceil(std::log2(-rel_gain)) : 0;
   }
 
   inline bool strong_balancing_enabled() const {

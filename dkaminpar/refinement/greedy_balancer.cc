@@ -140,6 +140,19 @@ void GreedyBalancer::refine(DistributedPartitionedGraph &p_graph, const Partitio
         auto compact_buckets = compactify_buckets();
         compact_buckets = reduce_buckets_or_move_candidates(std::move(compact_buckets));
 
+        IF_DBG0 {
+          DBG0 << "Buckets on root after initialization:";
+          for (const BlockID block : p_graph.blocks()) {
+            std::stringstream ss;
+            for (int bucket = 0; bucket < kBucketsPerBlock; ++bucket) {
+              ss << get_bucket_value(block, bucket) << " ";
+            }
+            const char symb =
+                p_graph.block_weight(block) > p_ctx.graph->max_block_weight(block) ? '>' : '=';
+            DBG0 << "  Block " << block << symb << ": " << ss.str();
+          }
+        }
+
         // Determine cut-off buckets on root
         const BlockID num_overloaded_blocks = metrics::num_imbalanced_blocks(p_graph, p_ctx);
         std::vector<int> cut_off_buckets(num_overloaded_blocks);
