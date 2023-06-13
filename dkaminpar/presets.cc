@@ -176,7 +176,7 @@ Context create_default_context() {
                       .min_c = 0.25,
                       .max_c = 0.75,
                       .interpolate_c = false,
-                      .use_abortion_threshold = false,
+                      .use_abortion_threshold = true,
                       .abortion_threshold = 0.999,
                   },
           },
