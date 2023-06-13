@@ -55,14 +55,21 @@ public:
 private:
   inline void init_buckets(const DistributedPartitionedGraph &p_graph) {
     _buckets.resize(kBucketsPerBlock * p_graph.k());
-    tbb::parallel_for<std::size_t>(0, _buckets.size(), [&](const std::size_t i) {
-      _buckets[i] = 0;
+    tbb::parallel_for<std::size_t>(0, _buckets.size(), [&](const std::size_t index) {
+      _buckets[index] = 0;
     });
   }
 
-  inline NodeWeight &bucket(const NodeID u, const int b) {
-    KASSERT(u * kBucketsPerBlock + b < _buckets.size());
-    return _buckets[u * kBucketsPerBlock + b];
+  inline NodeWeight &get_bucket_value(const BlockID block, const std::size_t bucket) {
+    return _buckets[block * kBucketsPerBlock + bucket];
+  }
+
+  inline const NodeWeight &get_bucket_value(const BlockID block, const std::size_t bucket) const {
+    return _buckets[block * kBucketsPerBlock + bucket];
+  }
+
+  inline std::size_t get_bucket(const double rel_gain) const {
+    return rel_gain < 0 ? std::ceil(std::log2(rel_gain)) : 0;
   }
 
   inline bool fast_balancing_enabled() const {
@@ -79,12 +86,13 @@ private:
 
   std::vector<MoveCandidate> pick_move_candidates();
 
-  template <typename T> std::vector<T> reduce_buckets_or_move_candidates(std::vector<T> &&elements);
+  template <typename Elements> Elements reduce_buckets_or_move_candidates(Elements &&elements);
 
   std::vector<MoveCandidate>
   reduce_move_candidates(std::vector<MoveCandidate> &&a, std::vector<MoveCandidate> &&b);
 
-  std::vector<NodeWeight> reduce_buckets(std::vector<NodeWeight> &&a, std::vector<NodeWeight> &&b);
+  NoinitVector<NodeWeight>
+  reduce_buckets(NoinitVector<NodeWeight> &&a, NoinitVector<NodeWeight> &&b);
 
   void perform_moves(const std::vector<MoveCandidate> &moves);
   void perform_move(const MoveCandidate &move);
@@ -104,6 +112,8 @@ private:
 
   void reset_statistics();
   void print_statistics() const;
+
+  NoinitVector<NodeWeight> compactify_buckets() const;
 
   const Context &_ctx;
 

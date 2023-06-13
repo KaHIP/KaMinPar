@@ -59,4 +59,6 @@ bool is_feasible(const DistributedPartitionedGraph &p_graph, const PartitionCont
  */
 BlockID
 num_imbalanced_blocks(const DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx);
+
+double imbalance_l2(const DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx);
 } // namespace kaminpar::dist::metrics

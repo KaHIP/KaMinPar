@@ -7,6 +7,7 @@
 #include "dkaminpar/refinement/greedy_balancer.h"
 
 #include "dkaminpar/graphutils/communication.h"
+#include "dkaminpar/graphutils/synchronization.h"
 #include "dkaminpar/metrics.h"
 #include "dkaminpar/mpi/wrapper.h"
 
@@ -42,10 +43,10 @@ void GreedyBalancer::refine(DistributedPartitionedGraph &p_graph, const Partitio
 
   const PEID rank = mpi::get_comm_rank(p_graph.communicator());
 
-  if (fast_balancing_enabled()) {
-    init_buckets(p_graph);
-  }
   init_pq();
+
+  double previous_imbalance_distance =
+      fast_balancing_enabled() ? metrics::imbalance_l2(p_graph, p_ctx) : 0.0;
 
   for (std::size_t round = 0;; round++) {
     if (metrics::is_feasible(*_p_graph, *_p_ctx)) {
@@ -67,7 +68,7 @@ void GreedyBalancer::refine(DistributedPartitionedGraph &p_graph, const Partitio
     STOP_TIMER();
 
     START_TIMER("Reduce move candidates");
-    candidates = reduce_buckets_or_move_candidates<MoveCandidate>(std::move(candidates));
+    candidates = reduce_buckets_or_move_candidates(std::move(candidates));
     STOP_TIMER();
 
     START_TIMER("Perform moves on root PE");
@@ -125,6 +126,111 @@ void GreedyBalancer::refine(DistributedPartitionedGraph &p_graph, const Partitio
 
     if (num_winners == 0) {
       break;
+    }
+
+    if (fast_balancing_enabled()) {
+      const double current_imbalance_distance = metrics::imbalance_l2(p_graph, p_ctx);
+      if ((previous_imbalance_distance - current_imbalance_distance) / previous_imbalance_distance <
+          _ctx.refinement.greedy_balancer.fast_balancing_threshold) {
+        DBG << "Performing fast balancing round";
+        init_buckets(p_graph); // @todo only do once, then keep up to date?
+        auto compact_buckets = compactify_buckets();
+        compact_buckets = reduce_buckets_or_move_candidates(std::move(compact_buckets));
+
+        // Determine cut-off buckets on root
+        const BlockID num_overloaded_blocks = metrics::num_imbalanced_blocks(p_graph, p_ctx);
+        std::vector<int> cut_off_buckets(num_overloaded_blocks);
+        std::vector<BlockID> to_overloaded_map(p_graph.k());
+        if (rank == 0) {
+          BlockID current_overloaded_block = 0;
+          for (const BlockID block : p_graph.blocks()) {
+            BlockWeight current_weight = p_graph.block_weight(block);
+            const BlockWeight max_weight = p_ctx.graph->max_block_weight(block);
+            if (current_weight > max_weight) {
+              int cut_off_bucket = 0;
+              while (current_weight > max_weight) {
+                current_weight -=
+                    compact_buckets[current_overloaded_block * kBucketsPerBlock + cut_off_bucket];
+                ++cut_off_bucket;
+              }
+              cut_off_buckets[current_overloaded_block] = cut_off_bucket;
+              to_overloaded_map[block] = current_overloaded_block;
+              ++current_overloaded_block;
+            }
+          }
+        }
+
+        // Broadcast to other PEs
+        MPI_Bcast(
+            cut_off_buckets.data(), num_overloaded_blocks, MPI_INT, 0, p_graph.communicator()
+        );
+
+        // Find move candidates
+        std::vector<NodeWeight> weight_to_block(p_graph.k());
+        tbb::parallel_for(static_cast<NodeID>(0), _p_graph->n(), [&](const NodeID u) {
+          const BlockID b = _p_graph->block(u);
+          const BlockWeight overload = block_overload(b);
+
+          if (overload > 0) { // Node in overloaded block
+            const auto [max_gainer, rel_gain] = compute_gain(u, b);
+            const auto bucket = get_bucket(rel_gain);
+            if (bucket < cut_off_buckets[to_overloaded_map[b]]) {
+              weight_to_block[max_gainer] += _p_graph->node_weight(u);
+            }
+          }
+        });
+
+        // Compute total weight to each block
+        MPI_Allreduce(
+            MPI_IN_PLACE,
+            weight_to_block.data(),
+            p_graph.k(),
+            mpi::type::get<BlockID>(),
+            MPI_SUM,
+            p_graph.communicator()
+        );
+
+        // Perform moves
+        std::vector<BlockWeight> block_weight_deltas(_p_graph->k());
+        tbb::parallel_for(static_cast<NodeID>(0), _p_graph->n(), [&](const NodeID u) {
+          const BlockID b = _p_graph->block(u);
+          const BlockWeight overload = block_overload(b);
+
+          if (overload > 0) { // Node in overloaded block
+            const auto [max_gainer, rel_gain] = compute_gain(u, b);
+            const auto bucket = get_bucket(rel_gain);
+            if (bucket < cut_off_buckets[to_overloaded_map[b]]) {
+              const double prob = 1.0 *
+                                  (_p_ctx->graph->max_block_weight(max_gainer) -
+                                   _p_graph->block_weight(max_gainer)) /
+                                  weight_to_block[max_gainer];
+              if (Random::instance().random_bool(prob)) {
+                _p_graph->set_block<false>(u, max_gainer);
+                block_weight_deltas[b] -= _p_graph->node_weight(u);
+                block_weight_deltas[max_gainer] += _p_graph->node_weight(u);
+              }
+            }
+          }
+        });
+
+        graph::synchronize_ghost_node_block_ids(*_p_graph);
+
+        // Update global block weights
+        MPI_Allreduce(
+            MPI_IN_PLACE,
+            block_weight_deltas.data(),
+            p_graph.k(),
+            mpi::type::get<BlockWeight>(),
+            MPI_SUM,
+            p_graph.communicator()
+        );
+
+        _p_graph->pfor_blocks([&](const BlockID b) {
+          _p_graph->set_block_weight(b, _p_graph->block_weight(b) + block_weight_deltas[b]);
+        });
+      }
+
+      previous_imbalance_distance = current_imbalance_distance;
     }
   }
 
@@ -198,8 +304,8 @@ void GreedyBalancer::perform_move(const MoveCandidate &move) {
   }
 }
 
-template <typename T>
-std::vector<T> GreedyBalancer::reduce_buckets_or_move_candidates(std::vector<T> &&elements) {
+template <typename Elements>
+Elements GreedyBalancer::reduce_buckets_or_move_candidates(Elements &&elements) {
   const int size = mpi::get_comm_size(_p_graph->communicator());
   const int rank = mpi::get_comm_rank(_p_graph->communicator());
 
@@ -241,14 +347,13 @@ std::vector<T> GreedyBalancer::reduce_buckets_or_move_candidates(std::vector<T> 
       mpi::send(elements.data(), elements.size(), dest, 0, _p_graph->communicator());
       return {};
     } else if (role == Role::RECEIVER) {
+      using Value = typename Elements::value_type;
       const int src = rank + active_size / 2;
-      std::vector<T> tmp_buffer =
-          mpi::probe_recv<T, std::vector<T>>(src, 0, _p_graph->communicator());
-
-      if constexpr (std::is_same_v<T, MoveCandidate>) {
+      Elements tmp_buffer = mpi::probe_recv<Value, Elements>(src, 0, _p_graph->communicator());
+      if constexpr (std::is_same_v<Value, MoveCandidate>) {
         elements = reduce_move_candidates(std::move(elements), std::move(tmp_buffer));
       }
-      if constexpr (std::is_same_v<T, NodeWeight>) {
+      if constexpr (std::is_same_v<Value, NodeWeight>) {
         elements = reduce_buckets(std::move(elements), std::move(tmp_buffer));
       }
     }
@@ -372,8 +477,8 @@ auto GreedyBalancer::reduce_move_candidates(
   return ans;
 }
 
-std::vector<NodeWeight>
-GreedyBalancer::reduce_buckets(std::vector<NodeWeight> &&a, std::vector<NodeWeight> &&b) {
+NoinitVector<NodeWeight>
+GreedyBalancer::reduce_buckets(NoinitVector<NodeWeight> &&a, NoinitVector<NodeWeight> &&b) {
   tbb::parallel_for<std::size_t>(0, a.size(), [&](std::size_t i) { a[i] += b[i]; });
   return std::move(a);
 }
@@ -457,8 +562,8 @@ void GreedyBalancer::init_pq() {
       const auto [max_gainer, rel_gain] = compute_gain(u, b);
       const bool need_more_nodes = (pq_weight[b] < overload);
       if (fast_balancing_enabled()) {
-        const int b = rel_gain < 0 ? std::ceil(std::log2(rel_gain)) : 0;
-        bucket(u, b) += _p_graph->node_weight(u);
+        const auto bucket = get_bucket(rel_gain);
+        get_bucket_value(b, bucket) += _p_graph->node_weight(u);
       }
       if (need_more_nodes || pq[b].empty() || rel_gain > pq[b].peek_key()) {
         if (!need_more_nodes) {
@@ -609,5 +714,23 @@ void GreedyBalancer::print_statistics() const {
   STATS << "    # of conflicts: " << global_num_conflicts
         << " (= " << 100.0 * global_num_conflicts / (global_num_conflicts + global_num_nonconflicts)
         << "% of selected nodes)";
+}
+
+NoinitVector<NodeWeight> GreedyBalancer::compactify_buckets() const {
+  const BlockID num_overloaded_blocks = metrics::num_imbalanced_blocks(*_p_graph, *_p_ctx);
+  NoinitVector<NodeWeight> compact(kBucketsPerBlock * num_overloaded_blocks);
+
+  BlockID current_overloaded_block = 0;
+  for (const BlockID block : _p_graph->blocks()) {
+    if (_p_graph->block_weight(block) > _p_ctx->graph->max_block_weight(block)) {
+      for (std::size_t bucket = 0; bucket < kBucketsPerBlock; ++bucket) {
+        compact[current_overloaded_block * kBucketsPerBlock + bucket] =
+            get_bucket_value(block, bucket);
+      }
+      current_overloaded_block++;
+    }
+  }
+
+  return compact;
 }
 } // namespace kaminpar::dist
