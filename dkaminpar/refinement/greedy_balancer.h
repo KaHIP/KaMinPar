@@ -18,7 +18,7 @@
 namespace kaminpar::dist {
 class GreedyBalancer : public Refiner {
   SET_STATISTICS_FROM_GLOBAL();
-  SET_DEBUG(true);
+  SET_DEBUG(false);
 
   constexpr static std::size_t kPrintStatsEveryNRounds = 100'000;
   constexpr static std::size_t kBucketsPerBlock = 32;
