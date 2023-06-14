@@ -709,6 +709,49 @@ void rebalance_cluster_placement(
 }
 } // namespace
 
+bool validate_clustering(const DistributedGraph &graph, const GlobalClustering &lnode_to_gcluster) {
+  for (const NodeID lnode : graph.all_nodes()) {
+    const GlobalNodeID gcluster = lnode_to_gcluster[lnode];
+    if (gcluster > graph.global_n()) {
+      LOG_WARNING << "Invalid clustering for local node " << lnode << ": " << gcluster
+                  << "; aborting";
+      return false;
+    }
+  }
+
+  struct Message {
+    NodeID lnode;
+    GlobalNodeID gcluster;
+  };
+
+  std::atomic<std::uint8_t> failed = false;
+  mpi::graph::sparse_alltoall_interface_to_pe<Message>(
+      graph,
+      [&](const NodeID u) -> Message { return {.lnode = u, .gcluster = lnode_to_gcluster[u]}; },
+      [&](const auto &recv_buffer, const PEID pe) {
+        tbb::parallel_for<std::size_t>(0, recv_buffer.size(), [&](const std::size_t i) {
+          if (failed) {
+            return;
+          }
+
+          const auto [their_lnode, gcluster] = recv_buffer[i];
+          const auto gnode = static_cast<GlobalNodeID>(graph.offset_n(pe) + their_lnode);
+          const NodeID lnode = graph.global_to_local_node(gnode);
+          if (lnode_to_gcluster[lnode] != gcluster) {
+            LOG_WARNING << "Inconsistent cluster for local node " << lnode
+                        << " (ghost node, global node ID " << gnode << "): "
+                        << "the node is owned by PE " << pe
+                        << ", which assigned the node to cluster " << gcluster
+                        << ", but our ghost node is assigned to cluster "
+                        << lnode_to_gcluster[lnode] << "; aborting";
+            failed = 1;
+          }
+        });
+      }
+  );
+  return failed == 0;
+}
+
 ContractionResult contract_clustering(
     const DistributedGraph &graph,
     GlobalClustering &lnode_to_gcluster,
@@ -716,6 +759,10 @@ ContractionResult contract_clustering(
     const bool migrate_cnode_prefix,
     const bool force_perfect_cnode_balance
 ) {
+  KASSERT(
+      validate_clustering(graph, lnode_to_gcluster), "input clustering is invalid", assert::heavy
+  );
+
   const PEID size = mpi::get_comm_size(graph.communicator());
   const PEID rank = mpi::get_comm_rank(graph.communicator());
 
