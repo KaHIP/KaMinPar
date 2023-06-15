@@ -375,8 +375,8 @@ std::pair<std::vector<shm::Graph>, std::vector<std::vector<NodeID>>> gather_bloc
     START_TIMER("Compute counts and displs");
     tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
       { // Compute sendcounts + sdispls
-        const BlockID first_block_on_pe = offsets.num_blocks_on_pe(pe);
-        const BlockID first_invalid_block_on_pe = first_block_on_pe + offsets.num_blocks_on_pe(pe);
+        const BlockID first_block_on_pe = offsets.first_block_on_pe(pe);
+        const BlockID first_invalid_block_on_pe = offsets.first_invalid_block_on_pe(pe);
         sendcounts_nodes[pe] =
             memory.nodes_offset[first_invalid_block_on_pe] - memory.nodes_offset[first_block_on_pe];
         sendcounts_edges[pe] =
@@ -462,7 +462,7 @@ std::pair<std::vector<shm::Graph>, std::vector<std::vector<NodeID>>> gather_bloc
   {
     SCOPED_TIMER("Construct subgraphs");
 
-    tbb::parallel_for<BlockID>(0, offsets.first_block_on_pe(rank), [&](const BlockID b) {
+    tbb::parallel_for<BlockID>(0, offsets.num_blocks_on_pe(rank), [&](const BlockID b) {
       NodeID n = 0;
       EdgeID m = 0;
       for (PEID pe = 0; pe < size; ++pe) {
