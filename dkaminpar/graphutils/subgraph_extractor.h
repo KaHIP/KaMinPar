@@ -2,8 +2,14 @@
  * @file:   graph_extraction.h
  * @author: Daniel Seemaier
  * @date:   28.04.2022
- * @brief:  Distributes block-induced subgraphs of a partitioned graph across
- * PEs.
+ * @brief:  Utility functions to extract and distribute block-induced subgraphs
+ * of a partitioned distributed graph.
+ *
+ * These functions build an in-memory subgraph graph for each block of a
+ * partitioned distributed graph. The blocks are assigned to PEs. If there are
+ * fewer PEs than blocks, each PE gets multiple subgraphs, otherwise each
+ * subgraph is duplicated and copied to multiple PEs.
+ * The functions aim to distribute the subgraphs as evenly as possible.
  ******************************************************************************/
 #pragma once
 
@@ -79,7 +85,24 @@ DistributedPartitionedGraph copy_duplicated_subgraph_partitions(
     ExtractedSubgraphs &extracted_subgraphs
 );
 
-BlockID compute_first_block_on_pe(PEID pe, PEID size, BlockID k);
-BlockID compute_num_blocks_on_pe(PEID pe, PEID size, BlockID k);
-BlockID compute_first_invalid_block_on_pe(PEID pe, PEID size, BlockID k);
+class BlockExtractionOffsets {
+public:
+  BlockExtractionOffsets(PEID size, BlockID k);
+
+  BlockID first_block_on_pe(PEID pe) const;
+  BlockID first_invalid_block_on_pe(PEID pe) const;
+  BlockID num_blocks_on_pe(PEID pe) const;
+
+  PEID first_pe_with_block(BlockID block) const;
+  PEID first_invalid_pe_with_block(BlockID block) const;
+  PEID num_pes_with_block(BlockID block) const;
+
+private:
+  PEID _size;
+  BlockID _k;
+  BlockID _min_blocks_per_pe;
+  BlockID _rem_blocks;
+  PEID _min_pes_per_block;
+  PEID _rem_pes;
+};
 } // namespace kaminpar::dist::graph
