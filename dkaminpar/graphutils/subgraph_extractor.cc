@@ -271,6 +271,71 @@ PEID BlockExtractionOffsets::num_pes_with_block(BlockID block) const {
 }
 
 namespace {
+struct GraphSize {
+  NodeID n;
+  EdgeID m;
+
+  GraphSize operator+(const GraphSize other) {
+    return {n + other.n, m + other.m};
+  }
+
+  GraphSize &operator+=(const GraphSize other) {
+    n += other.n;
+    m += other.m;
+    return *this;
+  }
+};
+
+NoinitVector<GraphSize> exchange_subgraph_sizes(
+    const DistributedPartitionedGraph &p_graph,
+    const ExtractedLocalSubgraphs &memory,
+    const BlockExtractionOffsets &offsets
+) {
+  SCOPED_TIMER("Exchange subgraph sizes");
+
+  const PEID size = mpi::get_comm_size(p_graph.communicator());
+  const PEID rank = mpi::get_comm_rank(p_graph.communicator());
+
+  const std::size_t buffer_size = std::max<std::size_t>(p_graph.k(), size);
+  NoinitVector<GraphSize> recv_subgraph_sizes(buffer_size);
+
+  NoinitVector<GraphSize> send_subgraph_sizes(recv_subgraph_sizes.size());
+  p_graph.pfor_blocks([&](const BlockID block) {
+    const PEID first_pe = offsets.first_pe_with_block(block);
+    const PEID first_invalid_pe = offsets.first_invalid_pe_with_block(block);
+    for (PEID to = first_pe; to < first_invalid_pe; ++to) {
+      send_subgraph_sizes[to].n = memory.nodes_offset[block + 1] - memory.nodes_offset[block];
+      send_subgraph_sizes[to].m = memory.edges_offset[block + 1] - memory.edges_offset[block];
+    }
+  });
+
+  std::vector<int> sendcounts(size);
+  std::vector<int> recvcounts(size);
+  std::vector<int> sdispls(size);
+  std::vector<int> rdispls(size);
+
+  for (PEID pe = 0; pe < size; ++pe) {
+    sendcounts[pe] = offsets.num_blocks_on_pe(pe);
+  }
+  std::fill(recvcounts.begin(), recvcounts.end(), offsets.num_blocks_on_pe(rank));
+  std::exclusive_scan(sendcounts.begin(), sendcounts.end(), sdispls.begin(), 0);
+  std::exclusive_scan(recvcounts.begin(), recvcounts.end(), rdispls.begin(), 0);
+
+  MPI_Alltoallv(
+      send_subgraph_sizes.data(),
+      sendcounts.data(),
+      sdispls.data(),
+      mpi::type::get<GraphSize>(),
+      recv_subgraph_sizes.data(),
+      recvcounts.data(),
+      rdispls.data(),
+      mpi::type::get<GraphSize>(),
+      p_graph.communicator()
+  );
+
+  return recv_subgraph_sizes;
+}
+
 std::pair<std::vector<shm::Graph>, std::vector<std::vector<NodeID>>> gather_block_induced_subgraphs(
     const DistributedPartitionedGraph &p_graph, ExtractedLocalSubgraphs &memory
 ) {
@@ -295,63 +360,13 @@ std::pair<std::vector<shm::Graph>, std::vector<std::vector<NodeID>>> gather_bloc
     }
   }
 
-  // Communicate recvcounts
-  struct GraphSize {
-    NodeID n;
-    EdgeID m;
-
-    GraphSize operator+(const GraphSize other) {
-      return {n + other.n, m + other.m};
-    }
-
-    GraphSize &operator+=(const GraphSize other) {
-      n += other.n;
-      m += other.m;
-      return *this;
-    }
-  };
-
-  NoinitVector<GraphSize> recv_subgraph_sizes(std::max<BlockID>(p_graph.k(), size));
+  // @todo explain
+  NoinitVector<GraphSize> recv_subgraph_sizes = exchange_subgraph_sizes(p_graph, memory, offsets);
   NoinitVector<GraphSize> recv_subgraph_displs(recv_subgraph_sizes.size() + 1);
-  TIMED_SCOPE("Exchange subgraph sizes") {
-    NoinitVector<GraphSize> send_subgraph_sizes(recv_subgraph_sizes.size());
-    p_graph.pfor_blocks([&](const BlockID b) {
-      for (BlockID to = offsets.first_pe_with_block(b); to < offsets.first_invalid_pe_with_block(b);
-           ++to) {
-        send_subgraph_sizes[to].n = memory.nodes_offset[b + 1] - memory.nodes_offset[b];
-        send_subgraph_sizes[to].m = memory.edges_offset[b + 1] - memory.edges_offset[b];
-      }
-    });
-
-    std::vector<int> sendcounts(size);
-    std::vector<int> recvcounts(size);
-    std::vector<int> sdispls(size);
-    std::vector<int> rdispls(size);
-
-    for (int pe = 0; pe < size; ++pe) {
-      sendcounts[pe] = offsets.num_blocks_on_pe(pe);
-    }
-    std::fill(recvcounts.begin(), recvcounts.end(), offsets.num_blocks_on_pe(rank));
-    std::exclusive_scan(sendcounts.begin(), sendcounts.end(), sdispls.begin(), 0);
-    std::exclusive_scan(recvcounts.begin(), recvcounts.end(), rdispls.begin(), 0);
-
-    MPI_Alltoallv(
-        send_subgraph_sizes.data(),
-        sendcounts.data(),
-        sdispls.data(),
-        mpi::type::get<GraphSize>(),
-        recv_subgraph_sizes.data(),
-        recvcounts.data(),
-        rdispls.data(),
-        mpi::type::get<GraphSize>(),
-        p_graph.communicator()
-    );
-
-    recv_subgraph_displs.front() = {0, 0};
-    parallel::prefix_sum(
-        recv_subgraph_sizes.begin(), recv_subgraph_sizes.end(), recv_subgraph_displs.begin() + 1
-    );
-  };
+  recv_subgraph_displs.front() = {0, 0};
+  parallel::prefix_sum(
+      recv_subgraph_sizes.begin(), recv_subgraph_sizes.end(), recv_subgraph_displs.begin() + 1
+  );
 
   std::vector<EdgeID> shared_nodes;
   std::vector<NodeWeight> shared_node_weights;
