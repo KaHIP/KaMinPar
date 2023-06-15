@@ -257,7 +257,7 @@ BlockID compute_num_blocks_on_pe(PEID pe, PEID size, BlockID k) {
   if (size <= k) {
     return min_blocks_per_pe + (pe < rem_blocks);
   } else {
-    return 1 + (pe < rem_pes * min_pes_per_block);
+    return 1; // + (pe < rem_pes * min_pes_per_block);
   }
 }
 
@@ -270,7 +270,6 @@ std::pair<std::vector<shm::Graph>, std::vector<std::vector<NodeID>>> gather_bloc
     const DistributedPartitionedGraph &p_graph, ExtractedLocalSubgraphs &memory
 ) {
   SCOPED_TIMER("Gathering block induced subgraphs");
-
   const PEID size = mpi::get_comm_size(p_graph.communicator());
   const PEID rank = mpi::get_comm_rank(p_graph.communicator());
 
@@ -301,6 +300,20 @@ std::pair<std::vector<shm::Graph>, std::vector<std::vector<NodeID>>> gather_bloc
   auto num_pes_including_block = [&](const BlockID b) {
     return num_pes_before_block(b) + num_pes_for_block(b);
   };
+
+  IF_DBG0 {
+    DBG0 << "PE summary:";
+    for (PEID pe = 0; pe < size; ++pe) {
+      DBG0 << "- PE " << pe << ": " << compute_num_blocks_on_pe(pe, size, p_graph.k())
+           << " blocks: " << compute_first_block_on_pe(pe, size, p_graph.k())
+           << " <= * < " << compute_first_invalid_block_on_pe(pe, size, p_graph.k());
+    }
+    DBG0 << "Block summary:";
+    for (const BlockID block : p_graph.blocks()) {
+      DBG0 << "- Block " << block << ": assigned to " << num_pes_for_block(block) << " PEs "
+           << num_pes_before_block(block) << " < * <= " << num_pes_including_block(block);
+    }
+  }
 
   // Communicate recvcounts
   struct GraphSize {

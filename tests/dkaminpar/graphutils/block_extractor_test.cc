@@ -248,6 +248,15 @@ TEST(GlobalGraphExtractionTest, extract_distributed_isolated_nodes) {
 }
 
 void expect_circle(const shm::Graph &graph) {
+  // Catch special case with just 2 nodes: expect a single edge between the two nodes
+  if (graph.n() == 2) {
+    EXPECT_EQ(graph.degree(0), 1);
+    EXPECT_EQ(graph.degree(1), 1);
+    EXPECT_EQ(graph.edge_target(graph.first_edge(0)), 1);
+    EXPECT_EQ(graph.edge_target(graph.first_edge(1)), 0);
+    return;
+  }
+
   NodeID num_nodes_in_circle = 1;
   NodeID start = 0;
   NodeID prev = start;
@@ -520,49 +529,68 @@ TEST(GlobalGraphExtractionTest, project_circle_clique_partition) {
 
 TEST(GlobalGraphExtractionBlockAssignment, test_first_block_computation_P1_k1) {
   EXPECT_EQ(graph::compute_first_block_on_pe(0, 1, 1), 0);
+  EXPECT_EQ(graph::compute_num_blocks_on_pe(0, 1, 1), 1);
 }
 
 TEST(GlobalGraphExtractionBlockAssignment, test_first_block_computation_P2_k1) {
   EXPECT_EQ(graph::compute_first_block_on_pe(0, 2, 1), 0);
+  EXPECT_EQ(graph::compute_num_blocks_on_pe(0, 2, 1), 1);
   EXPECT_EQ(graph::compute_first_block_on_pe(1, 2, 1), 0);
+  EXPECT_EQ(graph::compute_num_blocks_on_pe(1, 2, 1), 1);
 }
 
 TEST(GlobalGraphExtractionBlockAssignment, test_first_block_computation_P2_k2) {
   EXPECT_EQ(graph::compute_first_block_on_pe(0, 2, 2), 0);
+  EXPECT_EQ(graph::compute_num_blocks_on_pe(0, 2, 1), 1);
   EXPECT_EQ(graph::compute_first_block_on_pe(1, 2, 2), 1);
+  EXPECT_EQ(graph::compute_num_blocks_on_pe(1, 2, 1), 1);
 }
 
 TEST(GlobalGraphExtractionBlockAssignment, test_first_block_computation_P3_k2) {
   EXPECT_EQ(graph::compute_first_block_on_pe(0, 3, 2), 0);
+  EXPECT_EQ(graph::compute_num_blocks_on_pe(0, 3, 1), 1);
   EXPECT_EQ(graph::compute_first_block_on_pe(1, 3, 2), 0);
+  EXPECT_EQ(graph::compute_num_blocks_on_pe(1, 3, 1), 1);
   EXPECT_EQ(graph::compute_first_block_on_pe(2, 3, 2), 1);
+  EXPECT_EQ(graph::compute_num_blocks_on_pe(2, 3, 1), 1);
 }
 
 TEST(GlobalGraphExtractionBlockAssignment, test_first_block_computation_P7_k2) {
   EXPECT_EQ(graph::compute_first_block_on_pe(0, 7, 2), 0);
+  EXPECT_EQ(graph::compute_num_blocks_on_pe(0, 7, 1), 1);
   EXPECT_EQ(graph::compute_first_block_on_pe(1, 7, 2), 0);
+  EXPECT_EQ(graph::compute_num_blocks_on_pe(1, 7, 1), 1);
   EXPECT_EQ(graph::compute_first_block_on_pe(2, 7, 2), 0);
+  EXPECT_EQ(graph::compute_num_blocks_on_pe(2, 7, 1), 1);
   EXPECT_EQ(graph::compute_first_block_on_pe(3, 7, 2), 0);
+  EXPECT_EQ(graph::compute_num_blocks_on_pe(3, 7, 1), 1);
   EXPECT_EQ(graph::compute_first_block_on_pe(4, 7, 2), 1);
+  EXPECT_EQ(graph::compute_num_blocks_on_pe(4, 7, 1), 1);
   EXPECT_EQ(graph::compute_first_block_on_pe(5, 7, 2), 1);
+  EXPECT_EQ(graph::compute_num_blocks_on_pe(5, 7, 1), 1);
   EXPECT_EQ(graph::compute_first_block_on_pe(6, 7, 2), 1);
+  EXPECT_EQ(graph::compute_num_blocks_on_pe(6, 7, 1), 1);
 }
 
 TEST(GlobalGraphExtractionBlockAssignment, test_first_block_computation_P7_k3) {
   EXPECT_EQ(graph::compute_first_block_on_pe(0, 7, 3), 0);
+  EXPECT_EQ(graph::compute_num_blocks_on_pe(0, 7, 1), 1);
   EXPECT_EQ(graph::compute_first_block_on_pe(1, 7, 3), 0);
+  EXPECT_EQ(graph::compute_num_blocks_on_pe(1, 7, 1), 1);
   EXPECT_EQ(graph::compute_first_block_on_pe(2, 7, 3), 0);
+  EXPECT_EQ(graph::compute_num_blocks_on_pe(2, 7, 1), 1);
   EXPECT_EQ(graph::compute_first_block_on_pe(3, 7, 3), 1);
+  EXPECT_EQ(graph::compute_num_blocks_on_pe(3, 7, 1), 1);
   EXPECT_EQ(graph::compute_first_block_on_pe(4, 7, 3), 1);
+  EXPECT_EQ(graph::compute_num_blocks_on_pe(4, 7, 1), 1);
   EXPECT_EQ(graph::compute_first_block_on_pe(5, 7, 3), 2);
+  EXPECT_EQ(graph::compute_num_blocks_on_pe(5, 7, 1), 1);
   EXPECT_EQ(graph::compute_first_block_on_pe(6, 7, 3), 2);
+  EXPECT_EQ(graph::compute_num_blocks_on_pe(6, 7, 1), 1);
 }
 
 TEST(GlobalGraphExtractionTest, extract_from_circle_clique_graph_fewer_blocks_than_pes) {
   const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
-  if (size % 2 != 0) {
-    return;
-  }
 
   auto graph = make_circle_clique_graph(size / 2);
 
@@ -582,7 +610,7 @@ TEST(GlobalGraphExtractionTest, extract_from_circle_clique_graph_fewer_blocks_th
   auto &subgraph = subgraphs.front();
 
   // Check node weights
-  const BlockID my_block = rank / 2;
+  const BlockID my_block = graph::compute_first_block_on_pe(rank, size, p_graph.k());
   std::vector<bool> seen_weight(graph.global_n());
   NodeID seen_weights = 0;
   for (const NodeID u : subgraph.nodes()) {
@@ -657,5 +685,19 @@ TEST(GlobalGraphExtractionTest, project_from_circle_clique_graph_less_pes_than_b
   for (const NodeID u : p_graph.nodes()) {
     EXPECT_TRUE(p_graph.block(u) % 2 == 0) << V(u) << V(p_graph.block(u));
   }
+}
+
+// Test extracting one block with many PEs = each PE gets a copy of the block
+TEST(GlobalGraphExtractionTest, extract_one_block_with_many_pes) {
+  const PEID rank = mpi::get_comm_size(MPI_COMM_WORLD);
+
+  auto graph = make_circle_graph();
+  auto p_graph = make_partitioned_graph(graph, 1, {0});
+
+  auto result = graph::extract_and_scatter_block_induced_subgraphs(p_graph);
+  auto &subgraphs = result.subgraphs;
+
+  ASSERT_EQ(subgraphs.size(), 1);
+  expect_circle(subgraphs.front());
 }
 } // namespace kaminpar::dist
