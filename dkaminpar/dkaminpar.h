@@ -130,6 +130,7 @@ struct LabelPropagationCoarseningContext {
   bool cheap_toplevel = false;
 
   bool prevent_cyclic_moves = false;
+  bool enforce_legacy_weight = false;
 
   bool should_merge_nonadjacent_clusters(NodeID old_n, NodeID new_n) const;
   int compute_num_chunks(const ParallelContext &parallel) const;
@@ -228,7 +229,11 @@ struct InitialPartitioningContext {
 };
 
 struct GreedyBalancerContext {
+  int max_num_rounds = 0;
+  bool enable_strong_balancing = false;
   NodeID num_nodes_per_block = 0;
+  bool enable_fast_balancing = false;
+  double fast_balancing_threshold = 0.0;
 };
 
 struct JetRefinementContext {

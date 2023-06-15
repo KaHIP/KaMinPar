@@ -1,0 +1,166 @@
+/*******************************************************************************
+ * @file:   dist_io.h
+ * @author: Daniel Seemaier
+ * @date:   13.06.2023
+ * @brief:  Common KaGen-based IO code for benchmarks.
+ ******************************************************************************/
+#pragma once
+
+#include <dkaminpar/datastructures/distributed_graph.h>
+#include <dkaminpar/datastructures/ghost_node_mapper.h>
+#include <dkaminpar/metrics.h>
+#include <dkaminpar/graphutils/synchronization.h>
+#include <mpi.h>
+#include <tbb/parallel_invoke.h>
+
+#include "shm_io.h"
+
+namespace kaminpar::dist {
+struct DistributedGraphWrapper {
+  std::unique_ptr<DistributedGraph> graph;
+};
+
+struct DistributedPartitionedGraphWrapper : public DistributedGraphWrapper {
+  std::unique_ptr<DistributedPartitionedGraph> p_graph;
+};
+
+inline DistributedGraphWrapper load_graph(const std::string &graph_name) {
+  const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
+  const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
+
+  kagen::Graph kagen_graph = invoke_kagen(graph_name);
+  auto xadj = kagen_graph.TakeXadj<>();
+  auto adjncy = kagen_graph.TakeAdjncy<>();
+  auto vwgt = kagen_graph.TakeVertexWeights<>();
+  auto adjwgt = kagen_graph.TakeEdgeWeights<>();
+
+  auto vtxdist =
+      kagen::BuildVertexDistribution<unsigned long>(kagen_graph, MPI_UNSIGNED_LONG, MPI_COMM_WORLD);
+
+  const NodeID n = static_cast<NodeID>(vtxdist[rank + 1] - vtxdist[rank]);
+  const GlobalNodeID from = vtxdist[rank];
+  const GlobalNodeID to = vtxdist[rank + 1];
+  const EdgeID m = static_cast<EdgeID>(xadj[n]);
+
+  StaticArray<GlobalNodeID> node_distribution(vtxdist.begin(), vtxdist.end());
+  StaticArray<GlobalEdgeID> edge_distribution(size + 1);
+  edge_distribution[rank] = m;
+  MPI_Allgather(
+      MPI_IN_PLACE,
+      1,
+      mpi::type::get<GlobalEdgeID>(),
+      edge_distribution.data(),
+      1,
+      mpi::type::get<GlobalEdgeID>(),
+      MPI_COMM_WORLD
+  );
+  std::exclusive_scan(
+      edge_distribution.begin(),
+      edge_distribution.end(),
+      edge_distribution.begin(),
+      static_cast<GlobalEdgeID>(0)
+  );
+
+  StaticArray<EdgeID> nodes;
+  StaticArray<NodeID> edges;
+  StaticArray<NodeWeight> node_weights;
+  StaticArray<EdgeWeight> edge_weights;
+  graph::GhostNodeMapper mapper(rank, node_distribution);
+
+  tbb::parallel_invoke(
+      [&] {
+        nodes.resize(n + 1);
+        tbb::parallel_for<NodeID>(0, n + 1, [&](const NodeID u) { nodes[u] = xadj[u]; });
+      },
+      [&] {
+        edges.resize(m);
+        tbb::parallel_for<EdgeID>(0, m, [&](const EdgeID e) {
+          const GlobalNodeID v = adjncy[e];
+          if (v >= from && v < to) {
+            edges[e] = static_cast<NodeID>(v - from);
+          } else {
+            edges[e] = mapper.new_ghost_node(v);
+          }
+        });
+      },
+      [&] {
+        if (vwgt.empty()) {
+          return;
+        }
+        node_weights.resize(n);
+        tbb::parallel_for<NodeID>(0, n, [&](const NodeID u) { node_weights[u] = vwgt[u]; });
+      },
+      [&] {
+        if (adjwgt.empty()) {
+          return;
+        }
+        edge_weights.resize(m);
+        tbb::parallel_for<EdgeID>(0, m, [&](const EdgeID e) { edge_weights[e] = adjwgt[e]; });
+      }
+  );
+
+  auto [global_to_ghost, ghost_to_global, ghost_owner] = mapper.finalize();
+
+  DistributedGraphWrapper wrapper;
+  wrapper.graph = std::make_unique<DistributedGraph>(
+      std::move(node_distribution),
+      std::move(edge_distribution),
+      std::move(nodes),
+      std::move(edges),
+      std::move(node_weights),
+      std::move(edge_weights),
+      std::move(ghost_owner),
+      std::move(ghost_to_global),
+      std::move(global_to_ghost),
+      false,
+      MPI_COMM_WORLD
+  );
+  return wrapper;
+}
+
+inline DistributedPartitionedGraphWrapper
+load_partitioned_graph(const std::string &graph_name, const std::string &partition_name) {
+  DistributedGraphWrapper graph_wrapper = load_graph(graph_name);
+
+  DistributedPartitionedGraphWrapper wrapper;
+  wrapper.graph = std::move(graph_wrapper.graph);
+  auto &graph = wrapper.graph;
+
+  const GlobalNodeID first_node = graph->offset_n();
+  const GlobalNodeID first_invalid_node = graph->offset_n() + graph->n();
+
+  StaticArray<BlockID> partition(graph->total_n());
+  std::ifstream partition_file(partition_name);
+
+  for (GlobalNodeID u = 0; u < first_invalid_node; ++u) {
+    BlockID b;
+    if (!(partition_file >> b)) {
+      throw std::runtime_error("partition size does not match graph size");
+    }
+    if (u >= first_node) {
+      partition[u - first_node] = b;
+    }
+  }
+
+  BlockID k = *std::max_element(partition.begin(), partition.end()) + 1;
+  MPI_Allreduce(MPI_IN_PLACE, &k, 1, mpi::type::get<BlockID>(), MPI_MAX, MPI_COMM_WORLD);
+
+  StaticArray<BlockWeight> block_weights(k);
+  for (const NodeID u : graph->nodes()) {
+    block_weights[partition[u]] += graph->node_weight(u);
+  }
+  MPI_Allreduce(
+      MPI_IN_PLACE, block_weights.data(), k, mpi::type::get<BlockWeight>(), MPI_SUM, MPI_COMM_WORLD
+  );
+
+  wrapper.p_graph = std::make_unique<DistributedPartitionedGraph>(
+      wrapper.graph.get(), k, std::move(partition), std::move(block_weights)
+  );
+  graph::synchronize_ghost_node_block_ids(*wrapper.p_graph);
+
+  std::cout << "Loaded partitioned graph with cut=" << metrics::edge_cut(*wrapper.p_graph)
+            << ", imbalance=" << metrics::imbalance(*wrapper.p_graph) << std::endl;
+
+  return wrapper;
+}
+} // namespace kaminpar::dist

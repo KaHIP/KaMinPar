@@ -27,6 +27,8 @@ if (TARGET dkaminpar)
     FetchContent_MakeAvailable(KaGen)
 
     add_dist_app(dKaMinPar dKaMinPar.cc)
+    target_sources(dKaMinPar PRIVATE 
+        ${CMAKE_CURRENT_SOURCE_DIR}/io/dist_io.cc)
     target_link_libraries(dKaMinPar PRIVATE KaGen::KaGen)
 endif ()
 

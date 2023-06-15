@@ -16,7 +16,7 @@
 namespace kaminpar::dist {
 class JetRefiner : public Refiner {
   SET_STATISTICS(true);
-  SET_DEBUG(false);
+  SET_DEBUG(true);
 
 public:
   JetRefiner(const Context &ctx);

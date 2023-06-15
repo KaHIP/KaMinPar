@@ -50,7 +50,7 @@ int main(int argc, char *argv[]) {
   tbb::global_control gc(tbb::global_control::max_allowed_parallelism, num_threads);
 
   // Load input graph
-  auto input = load_partitioned_shm_graph(graph_filename, partition_filename);
+  auto input = load_partitioned_graph(graph_filename, partition_filename);
   ctx.partition.k = input.p_graph->k();
   ctx.parallel.num_threads = num_threads;
   ctx.setup(*input.graph);

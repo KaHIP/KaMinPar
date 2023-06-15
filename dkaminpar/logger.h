@@ -14,6 +14,14 @@
                             << kaminpar::logger::CYAN << LOG_RANK << kaminpar::logger::MAGENTA     \
                             << POSITION << " " << kaminpar::logger::DEFAULT_TEXT
 
+#define DBG0                                                                                       \
+  (kDebug && kaminpar::mpi::get_comm_rank(MPI_COMM_WORLD) == 0) &&                                 \
+      kaminpar::DisposableLogger<false>(std::cout)                                                 \
+          << kaminpar::logger::CYAN << LOG_RANK << kaminpar::logger::MAGENTA << POSITION << " "    \
+          << kaminpar::logger::DEFAULT_TEXT
+
+#define IF_DBG0 if (kDebug && kaminpar::mpi::get_comm_rank(MPI_COMM_WORLD) == 0)
+
 #undef LOG
 #undef LLOG
 #define LOG                                                                                        \

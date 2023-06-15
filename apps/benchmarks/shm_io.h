@@ -8,6 +8,7 @@
 
 #include <fstream>
 #include <iostream>
+#include <memory>
 
 #include <kagen.h>
 #include <kaminpar/datastructures/graph.h>
@@ -32,25 +33,25 @@ inline auto invoke_kagen(const std::string &options) {
     );
   }
 }
+} // namespace kaminpar
 
-struct ShmGraphWrapper {
-  std::vector<shm::EdgeID> xadj;
-  std::vector<shm::NodeID> adjncy;
-  std::vector<shm::NodeWeight> vwgt;
-  std::vector<shm::EdgeWeight> adjvwgt;
-  std::unique_ptr<shm::Graph> graph;
+namespace kaminpar::shm {
+struct GraphWrapper {
+  std::vector<EdgeID> xadj;
+  std::vector<NodeID> adjncy;
+  std::vector<NodeWeight> vwgt;
+  std::vector<EdgeWeight> adjvwgt;
+  std::unique_ptr<Graph> graph;
 };
 
-struct ShmPartitionedGraphWrapper : public ShmGraphWrapper {
-  std::unique_ptr<shm::PartitionedGraph> p_graph;
+struct PartitionedGraphWrapper : public GraphWrapper {
+  std::unique_ptr<PartitionedGraph> p_graph;
 };
 
-inline ShmGraphWrapper load_shm_graph(const std::string &graph_name) {
-  using namespace kaminpar::shm;
-
+inline GraphWrapper load_graph(const std::string &graph_name) {
   kagen::Graph kagen_graph = invoke_kagen(graph_name);
 
-  ShmGraphWrapper wrapper;
+  GraphWrapper wrapper;
   wrapper.xadj = kagen_graph.TakeXadj<EdgeID>();
   wrapper.adjncy = kagen_graph.TakeAdjncy<NodeID>();
   wrapper.vwgt = kagen_graph.TakeVertexWeights<NodeWeight>();
@@ -67,12 +68,10 @@ inline ShmGraphWrapper load_shm_graph(const std::string &graph_name) {
   return wrapper;
 }
 
-inline ShmPartitionedGraphWrapper
-load_partitioned_shm_graph(const std::string &graph_name, const std::string &partition_name) {
-  using namespace kaminpar::shm;
-
-  ShmGraphWrapper graph_wrapper = load_shm_graph(graph_name);
-  ShmPartitionedGraphWrapper wrapper;
+inline PartitionedGraphWrapper
+load_partitioned_graph(const std::string &graph_name, const std::string &partition_name) {
+  GraphWrapper graph_wrapper = load_graph(graph_name);
+  PartitionedGraphWrapper wrapper;
   wrapper.xadj = std::move(graph_wrapper.xadj);
   wrapper.adjncy = std::move(graph_wrapper.adjncy);
   wrapper.vwgt = std::move(graph_wrapper.vwgt);
@@ -98,4 +97,5 @@ load_partitioned_shm_graph(const std::string &graph_name, const std::string &par
 
   return wrapper;
 }
-} // namespace kaminpar
+} // namespace kaminpar::shm
+

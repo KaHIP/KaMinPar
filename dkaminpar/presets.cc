@@ -75,6 +75,7 @@ Context create_default_context() {
                       .enforce_cluster_weights = true,
                       .cheap_toplevel = false,
                       .prevent_cyclic_moves = false,
+                      .enforce_legacy_weight = false,
                   },
               .hem =
                   {
@@ -164,7 +165,11 @@ Context create_default_context() {
                   },
               .greedy_balancer =
                   {
+                      .max_num_rounds = std::numeric_limits<int>::max(),
+                      .enable_strong_balancing = true,
                       .num_nodes_per_block = 5,
+                      .enable_fast_balancing = false,
+                      .fast_balancing_threshold = 0.1,
                   },
               .jet =
                   {
@@ -172,7 +177,7 @@ Context create_default_context() {
                       .min_c = 0.25,
                       .max_c = 0.75,
                       .interpolate_c = false,
-                      .use_abortion_threshold = false,
+                      .use_abortion_threshold = true,
                       .abortion_threshold = 0.999,
                   },
           },

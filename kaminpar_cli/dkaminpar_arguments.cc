@@ -304,11 +304,31 @@ CLI::Option_group *create_colored_lp_refinement_options(CLI::App *app, Context &
 CLI::Option_group *create_greedy_balancer_options(CLI::App *app, Context &ctx) {
   auto *balancer = app->add_option_group("Refinement -> Balancer");
 
+  balancer->add_option("--r-b-max-num-rounds", ctx.refinement.greedy_balancer.max_num_rounds)
+      ->capture_default_str();
+  balancer
+      ->add_flag(
+          "--r-b-enable-strong-balancing", ctx.refinement.greedy_balancer.enable_strong_balancing
+      )
+      ->capture_default_str();
   balancer
       ->add_option(
           "--r-b-nodes-per-block",
           ctx.refinement.greedy_balancer.num_nodes_per_block,
           "Number of nodes selected for each overloaded block on each PE."
+      )
+      ->capture_default_str();
+  balancer
+      ->add_flag(
+          "--r-b-enable-fast-balancing", ctx.refinement.greedy_balancer.enable_fast_balancing
+      )
+      ->capture_default_str();
+  balancer
+      ->add_option(
+          "--r-b-fast-balancing-threshold",
+          ctx.refinement.greedy_balancer.fast_balancing_threshold,
+          "Perform a fast balancing round if strong balancing improved the imbalance by less than "
+          "this value, e.g., 0.01 for 1%."
       )
       ->capture_default_str();
 
@@ -439,6 +459,7 @@ CLI::Option_group *create_global_lp_coarsening_options(CLI::App *app, Context &c
   lp->add_flag("--c-glp-enforce-cluster-weights", ctx.coarsening.global_lp.enforce_cluster_weights);
   lp->add_flag("--c-glp-cheap-toplevel", ctx.coarsening.global_lp.cheap_toplevel);
   lp->add_flag("--c-glp-prevent-cyclic-moves", ctx.coarsening.global_lp.prevent_cyclic_moves);
+  lp->add_flag("--c-glp-enforce-legacy-weight", ctx.coarsening.global_lp.enforce_legacy_weight);
 
   return lp;
 }

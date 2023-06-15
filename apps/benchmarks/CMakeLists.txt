@@ -16,7 +16,6 @@ endfunction()
 # Shared-memory benchmarks
 add_shm_benchmark(shm_refinement_benchmark shm_refinement_benchmark.cc)
 
-# @todo update these benchmarks as we need them
 if (KAMINPAR_BUILD_DISTRIBUTED)
     function(add_dist_benchmark target)
         add_shm_benchmark(${target} ${ARGN})
@@ -29,6 +28,6 @@ if (KAMINPAR_BUILD_DISTRIBUTED)
     #add_distributed_benchmark(dist_coloring_benchmark dist_coloring_benchmark.cc)
     #add_distributed_benchmark(dist_flat_refinement_benchmark dist_flat_refinement_benchmark.cc)
     #add_distributed_benchmark(dist_contraction_benchmark dist_contraction_benchmark.cc)
-    #add_distributed_benchmark(dist_balancing_benchmark dist_balancing_benchmark.cc)
+    add_dist_benchmark(dist_refinement_benchmark dist_refinement_benchmark.cc)
     #add_distributed_benchmark(dist_coarsening_benchmark dist_coarsening_benchmark.cc)
 endif ()
