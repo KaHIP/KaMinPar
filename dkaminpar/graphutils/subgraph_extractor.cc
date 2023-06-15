@@ -28,7 +28,7 @@
 #include "common/parallel/vector_ets.h"
 
 namespace kaminpar::dist::graph {
-SET_DEBUG(true);
+SET_DEBUG(false);
 
 namespace {
 PEID compute_block_owner(const BlockID b, const BlockID k, const PEID num_pes) {
@@ -607,32 +607,36 @@ DistributedPartitionedGraph copy_subgraph_partitions(
     const std::vector<shm::PartitionedGraph> &p_subgraphs,
     ExtractedSubgraphs &extracted_subgraphs
 ) {
+  KASSERT(!p_subgraphs.empty());
+
   SCOPED_TIMER("Projecting subgraph partitions");
   const PEID size = mpi::get_comm_size(p_graph.communicator());
+  const BlockExtractionOffsets offsets(size, p_graph.k());
 
-  // Catch case where we have more PEs than blocks == blocks are duplicated
-  // across PEs
+  // If there are more PEs than blocks, multiple PEs can hold a copy of the same block-induced
+  // subgraph. In this case, we have to dedice which partition to use. Handle this as a special
+  // case.
   if (static_cast<BlockID>(size) > p_graph.k()) {
     return copy_duplicated_subgraph_partitions(
         std::move(p_graph), p_subgraphs, extracted_subgraphs
     );
   }
 
-  const auto &offsets = extracted_subgraphs.subgraph_offsets;
+  const auto &subgraph_offsets = extracted_subgraphs.subgraph_offsets;
   const auto &mapping = extracted_subgraphs.mapping;
 
   // Assume that all subgraph partitions have the same number of blocks
-  KASSERT(!p_subgraphs.empty());
+  // @todo
   const PEID k_multiplier = p_subgraphs.front().k();
   const PEID new_k = p_graph.k() * k_multiplier;
 
   // Send new block IDs to the right PE
   std::vector<std::vector<BlockID>> partition_sendbufs(size);
-  for (BlockID b = 0; b < p_subgraphs.size(); ++b) {
-    const auto &p_subgraph = p_subgraphs[b];
+  for (BlockID block = 0; block < p_subgraphs.size(); ++block) {
+    const auto &p_subgraph = p_subgraphs[block];
     tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
-      const NodeID from = offsets[b][pe];
-      const NodeID to = offsets[b][pe + 1];
+      const NodeID from = subgraph_offsets[block][pe];
+      const NodeID to = subgraph_offsets[block][pe + 1];
       for (NodeID u = from; u < to; ++u) {
         partition_sendbufs[pe].push_back(p_subgraph.block(u));
       }
@@ -644,7 +648,6 @@ DistributedPartitionedGraph copy_subgraph_partitions(
 
   // To index partition_recvbufs, we need the number of nodes *on our PE* in
   // each block
-  // -> Compute this now
   parallel::vector_ets<NodeID> block_sizes_ets(p_graph.k());
   tbb::parallel_for(tbb::blocked_range<NodeID>(0, p_graph.n()), [&](const auto &r) {
     auto &block_sizes = block_sizes_ets.local();
@@ -658,21 +661,14 @@ DistributedPartitionedGraph copy_subgraph_partitions(
   parallel::prefix_sum(block_sizes.begin(), block_sizes.end(), block_offsets.begin() + 1);
 
   // Assign nodes in p_graph to new blocks
-  const BlockID num_blocks_per_pe = p_graph.k() / size;
-
-  auto compute_block_owner = [&](const BlockID b) {
-    return static_cast<PEID>(b / num_blocks_per_pe);
-  };
-
   auto partition = p_graph.take_partition(); // NOTE: do not use p_graph after this
-
   p_graph.pfor_nodes([&](const NodeID u) {
-    const BlockID b = partition[u];
-    const PEID owner = compute_block_owner(b);
-    const BlockID first_block_on_owner = owner * num_blocks_per_pe;
-    const BlockID block_offset = block_offsets[b] - block_offsets[first_block_on_owner];
+    const BlockID block = partition[u];
+    const PEID owner = offsets.first_pe_with_block(block);
+    const BlockID first_block_on_owner = offsets.first_block_on_pe(owner);
+    const BlockID block_offset = block_offsets[block] - block_offsets[first_block_on_owner];
     const NodeID mapped_u = mapping[u]; // ID of u in its block-induced subgraph
-    const BlockID new_b = b * k_multiplier + partition_recvbufs[owner][mapped_u + block_offset];
+    const BlockID new_b = block * k_multiplier + partition_recvbufs[owner][mapped_u + block_offset];
     partition[u] = new_b;
   });
 
@@ -695,47 +691,47 @@ DistributedPartitionedGraph copy_duplicated_subgraph_partitions(
     const std::vector<shm::PartitionedGraph> &p_subgraphs,
     ExtractedSubgraphs &extracted_subgraphs
 ) {
-  if (p_subgraphs.size() == 1u) {
+  KASSERT(!p_subgraphs.empty());
+
+  if (p_subgraphs.size() > 1) {
     return copy_subgraph_partitions(std::move(p_graph), p_subgraphs, extracted_subgraphs);
   }
 
   SCOPED_TIMER("Projecting subgraph partitions");
   const shm::PartitionedGraph &p_subgraph = p_subgraphs.front();
-
   const PEID size = mpi::get_comm_size(p_graph.communicator());
   const PEID rank = mpi::get_comm_rank(p_graph.communicator());
-  const BlockID pes_per_block = std::max<BlockID>(1, size / p_graph.k());
 
-  const auto &offsets = extracted_subgraphs.subgraph_offsets;
+  const BlockExtractionOffsets offsets(size, p_graph.k());
+
+  const auto &subgraph_offsets = extracted_subgraphs.subgraph_offsets;
   const auto &mapping = extracted_subgraphs.mapping;
 
-  // Allgather edge cuts
+  const PEID k_multiplier = p_subgraph.k();
+  const PEID new_k = p_graph.k() * k_multiplier;
+
+  // Let all PEs know all cuts
   const GlobalEdgeWeight my_cut = shm::metrics::edge_cut(p_subgraph);
   const auto cuts = mpi::allgather<GlobalEdgeWeight>(my_cut, p_graph.communicator());
 
-  // Decides whether we use the partition from a certain PE
-  auto use_cut_from_pe = [&](const PEID pe) {
-    const BlockID pe_block = pe / pes_per_block;
-    PEID min_cut_pe = pe_block * pes_per_block;
-    for (BlockID b = pe_block * pes_per_block; b < (pe_block + 1) * pes_per_block; ++b) {
-      if (cuts[b] < cuts[min_cut_pe]) {
-        min_cut_pe = b;
+  // Decide whether pick the partition computed by a certain PE
+  auto find_winner = [&](const BlockID block) {
+    PEID min_cut_pe = offsets.first_pe_with_block(block);
+    for (PEID cur = min_cut_pe; cur < offsets.first_invalid_pe_with_block(block); ++cur) {
+      if (cuts[cur] < cuts[min_cut_pe]) {
+        min_cut_pe = cur;
       }
     }
-    return min_cut_pe == pe;
+    return min_cut_pe;
   };
 
-  // Assume that all subgraph partitions have the same number of blocks
-  const PEID k_multiplier = p_subgraphs.front().k();
-  const PEID new_k = p_graph.k() * k_multiplier;
-
-  // Build our sendbuffers -- only send the partition if our partition is the
-  // best
+  // Only send our partition if our partition is the best:
   std::vector<std::vector<BlockID>> partition_sendbufs(size);
-  if (use_cut_from_pe(rank)) {
+  const BlockID our_block = offsets.first_block_on_pe(rank);
+  if (find_winner(our_block) == rank) {
     tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
-      const NodeID from = offsets[0][pe];
-      const NodeID to = offsets[0][pe + 1];
+      const NodeID from = subgraph_offsets[0][pe];
+      const NodeID to = subgraph_offsets[0][pe + 1];
       for (NodeID u = from; u < to; ++u) {
         partition_sendbufs[pe].push_back(p_subgraph.block(u));
       }
@@ -746,7 +742,6 @@ DistributedPartitionedGraph copy_duplicated_subgraph_partitions(
 
   // To index partition_recvbufs, we need the number of nodes *on our PE* in
   // each block
-  // -> Compute this now
   parallel::vector_ets<NodeID> block_sizes_ets(p_graph.k());
   tbb::parallel_for(tbb::blocked_range<NodeID>(0, p_graph.n()), [&](const auto &r) {
     auto &block_sizes = block_sizes_ets.local();
@@ -762,25 +757,19 @@ DistributedPartitionedGraph copy_duplicated_subgraph_partitions(
   // Map blocks to the PE from which we use the partition
   NoinitVector<PEID> block_owner(p_graph.k());
   tbb::parallel_for<BlockID>(0, p_graph.k(), [&](const BlockID b) {
-    PEID min_cut_pe = b * pes_per_block;
-    for (PEID pe = b * pes_per_block; pe < static_cast<PEID>((b + 1) * pes_per_block); ++pe) {
-      if (cuts[pe] < cuts[min_cut_pe]) {
-        min_cut_pe = pe;
-      }
-    }
-    block_owner[b] = min_cut_pe;
+    block_owner[b] = find_winner(b);
   });
 
   // Assign nodes in p_graph to new blocks
   auto partition = p_graph.take_partition(); // NOTE: do not use p_graph after this
 
   p_graph.pfor_nodes([&](const NodeID u) {
-    const BlockID b = partition[u];
-    const PEID owner = block_owner[b];
-    const BlockID first_block_on_owner = owner / pes_per_block;
-    const BlockID block_offset = block_offsets[b] - block_offsets[first_block_on_owner];
+    const BlockID block = partition[u];
+    const PEID owner = block_owner[block];
+    const BlockID first_block_on_owner = offsets.first_block_on_pe(owner);
+    const BlockID block_offset = block_offsets[block] - block_offsets[first_block_on_owner];
     const NodeID mapped_u = mapping[u]; // ID of u in its block-induced subgraph
-    const BlockID new_b = b * k_multiplier + partition_recvbufs[owner][mapped_u + block_offset];
+    const BlockID new_b = block * k_multiplier + partition_recvbufs[owner][mapped_u + block_offset];
     partition[u] = new_b;
   });
 
