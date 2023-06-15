@@ -592,6 +592,12 @@ std::pair<std::vector<shm::Graph>, std::vector<std::vector<NodeID>>> gather_bloc
 
 ExtractedSubgraphs
 extract_and_scatter_block_induced_subgraphs(const DistributedPartitionedGraph &p_graph) {
+  // Catch special case: if there are no blocks, return nothing
+  // (This is only meaningful if the graph is empty.)
+  if (p_graph.k() == 0) {
+    return {};
+  }
+
   auto extracted_local_subgraphs = extract_local_block_induced_subgraphs(p_graph);
   auto [gathered_subgraphs, offsets] =
       gather_block_induced_subgraphs(p_graph, extracted_local_subgraphs);
