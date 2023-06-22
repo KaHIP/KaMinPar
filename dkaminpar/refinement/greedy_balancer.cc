@@ -153,12 +153,23 @@ void GreedyBalancer::refine(DistributedPartitionedGraph &p_graph, const Partitio
         // Since we re-init the PQs anyways, we can use the marker to keep track of moved nodes
         _marker.reset();
 
-        START_TIMER("Build buckets");
+        START_TIMER("Init buckets");
         init_buckets(); // @todo only do once, then keep up to date?
+        MPI_Barrier(_p_graph->communicator());
+        STOP_TIMER();
+
+        START_TIMER("Compactify buckets");
         auto compact_buckets = compactify_buckets();
+        MPI_Barrier(_p_graph->communicator());
+        STOP_TIMER();
+
+        START_TIMER("Reduce buckets");
         compact_buckets = reduce_buckets_or_move_candidates(std::move(compact_buckets));
+        MPI_Barrier(_p_graph->communicator());
+        STOP_TIMER();
 
         // Determine cut-off buckets on root
+        START_TIMER("Finding cut-off buckets");
         const BlockID num_overloaded_blocks = metrics::num_imbalanced_blocks(p_graph, p_ctx);
         std::vector<int> cut_off_buckets(num_overloaded_blocks);
         std::vector<BlockID> to_overloaded_map(p_graph.k());
@@ -198,7 +209,6 @@ void GreedyBalancer::refine(DistributedPartitionedGraph &p_graph, const Partitio
         STOP_TIMER();
 
         // Find move candidates
-        START_TIMER("Find move candidates");
         std::vector<BlockID> target_blocks;
         for (const BlockID b : _p_graph->blocks()) {
           if (_p_graph->block_weight(b) < _p_ctx->graph->max_block_weight(b)) {
@@ -212,6 +222,7 @@ void GreedyBalancer::refine(DistributedPartitionedGraph &p_graph, const Partitio
         std::vector<std::pair<NodeID, BlockID>> move_candidates;
         std::vector<BlockWeight> weight_to_block(p_graph.k());
 
+        START_TIMER("Find move candidates");
         for (const NodeID node : _p_graph->nodes()) {
           const BlockID from = _p_graph->block(node);
           const BlockWeight overload = block_overload(from);
@@ -248,8 +259,11 @@ void GreedyBalancer::refine(DistributedPartitionedGraph &p_graph, const Partitio
             }
           }
         }
+        MPI_Barrier(_p_graph->communicator());
+        STOP_TIMER();
 
         // Compute total weight to each block
+        START_TIMER("Allreduce weight to block");
         MPI_Allreduce(
             MPI_IN_PLACE,
             weight_to_block.data(),
@@ -639,8 +653,6 @@ auto GreedyBalancer::pick_move_candidates() -> std::vector<MoveCandidate> {
 }
 
 void GreedyBalancer::init_pq() {
-  SCOPED_TIMER("Initialize PQ");
-
   const BlockID k = _p_graph->k();
 
   tbb::enumerable_thread_specific<std::vector<DynamicBinaryMinHeap<NodeID, double>>> local_pq_ets{
