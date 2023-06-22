@@ -10,6 +10,8 @@
 #include <tbb/parallel_invoke.h>
 
 #include "dkaminpar/context.h"
+#include "dkaminpar/datastructures/distributed_graph.h"
+#include "dkaminpar/datastructures/distributed_partitioned_graph.h"
 #include "dkaminpar/graphutils/synchronization.h"
 #include "dkaminpar/metrics.h"
 #include "dkaminpar/refinement/greedy_balancer.h"

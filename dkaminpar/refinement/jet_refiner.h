@@ -2,7 +2,7 @@
  * @file:   jet_refiner.h
  * @author: Daniel Seemaier
  * @date:   02.05.2023
- * @brief:  Distributed JET refiner due to: 
+ * @brief:  Distributed JET refiner due to:
  * "Jet: Multilevel Graph Partitioning on GPUs" by Gilbert et al.
  ******************************************************************************/
 #pragma once
@@ -11,6 +11,7 @@
 
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructures/distributed_graph.h"
+#include "dkaminpar/datastructures/distributed_partitioned_graph.h"
 #include "dkaminpar/refinement/refiner.h"
 
 namespace kaminpar::dist {

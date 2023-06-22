@@ -9,6 +9,7 @@
 
 #include "dkaminpar/coarsening/coarsener.h"
 #include "dkaminpar/datastructures/distributed_graph.h"
+#include "dkaminpar/datastructures/distributed_partitioned_graph.h"
 #include "dkaminpar/factories.h"
 #include "dkaminpar/graphutils/replicator.h"
 #include "dkaminpar/metrics.h"

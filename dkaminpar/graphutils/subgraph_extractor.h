@@ -16,6 +16,7 @@
 #include <vector>
 
 #include "dkaminpar/datastructures/distributed_graph.h"
+#include "dkaminpar/datastructures/distributed_partitioned_graph.h"
 
 #include "kaminpar/datastructures/graph.h"
 #include "kaminpar/datastructures/partitioned_graph.h"

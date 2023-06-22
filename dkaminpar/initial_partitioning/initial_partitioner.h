@@ -10,6 +10,7 @@
 #include "dkaminpar/definitions.h"
 
 #include "kaminpar/datastructures/graph.h"
+#include "kaminpar/datastructures/partitioned_graph.h"
 
 namespace kaminpar::dist {
 class InitialPartitioner {

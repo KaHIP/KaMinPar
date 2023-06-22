@@ -10,6 +10,7 @@
 
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructures/distributed_graph.h"
+#include "dkaminpar/datastructures/distributed_partitioned_graph.h"
 
 namespace kaminpar::dist::debug {
 void write_coarsest_graph(const DistributedGraph &graph, const DebugContext &d_ctx);

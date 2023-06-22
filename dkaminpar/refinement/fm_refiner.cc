@@ -13,6 +13,7 @@
 #include "dkaminpar/algorithms/independent_set.h"
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructures/distributed_graph.h"
+#include "dkaminpar/datastructures/distributed_partitioned_graph.h"
 #include "dkaminpar/datastructures/growt.h"
 #include "dkaminpar/graphutils/bfs_extractor.h"
 #include "dkaminpar/metrics.h"

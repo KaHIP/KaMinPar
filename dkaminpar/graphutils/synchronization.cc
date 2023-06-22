@@ -6,6 +6,9 @@
  ******************************************************************************/
 #include "dkaminpar/graphutils/synchronization.h"
 
+#include "dkaminpar/datastructures/distributed_graph.h"
+#include "dkaminpar/datastructures/distributed_partitioned_graph.h"
+
 namespace kaminpar::dist::graph {
 void synchronize_ghost_node_block_ids(DistributedPartitionedGraph &p_graph) {
   struct Message {

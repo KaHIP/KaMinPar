@@ -12,6 +12,7 @@
 #include "dkaminpar/coarsening/contraction/legacy_cluster_contraction.h"
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructures/distributed_graph.h"
+#include "dkaminpar/datastructures/distributed_partitioned_graph.h"
 
 namespace kaminpar::dist {
 class Coarsener {

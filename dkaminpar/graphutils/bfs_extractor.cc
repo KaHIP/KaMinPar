@@ -16,6 +16,7 @@
 #include <tbb/parallel_for.h>
 
 #include "dkaminpar/datastructures/distributed_graph.h"
+#include "dkaminpar/datastructures/distributed_partitioned_graph.h"
 #include "dkaminpar/datastructures/growt.h"
 #include "dkaminpar/mpi/sparse_alltoall.h"
 

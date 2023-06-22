@@ -9,6 +9,7 @@
 #include <mpi.h>
 
 #include "dkaminpar/datastructures/distributed_graph.h"
+#include "dkaminpar/datastructures/distributed_partitioned_graph.h"
 #include "dkaminpar/datastructures/ghost_node_mapper.h"
 #include "dkaminpar/definitions.h"
 #include "dkaminpar/graphutils/synchronization.h"

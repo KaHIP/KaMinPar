@@ -1,3 +1,9 @@
+/*******************************************************************************
+ * @file:   dkaminpar.cc
+ * @author: Daniel Seemaier
+ * @date:   13.03.2023
+ * @brief:  Public definitions of the distributed-memory partitioner.
+ ******************************************************************************/
 #include "dkaminpar/dkaminpar.h"
 
 #include <utility>

@@ -10,7 +10,7 @@
 
 #include "dkaminpar/coarsening/clustering/clustering_algorithm.h"
 #include "dkaminpar/context.h"
-#include "dkaminpar/datastructures/distributed_graph.h"
+#include "dkaminpar/datastructures/distributed_partitioned_graph.h"
 #include "dkaminpar/initial_partitioning/initial_partitioner.h"
 #include "dkaminpar/partitioning/partitioner.h"
 #include "dkaminpar/refinement/refiner.h"

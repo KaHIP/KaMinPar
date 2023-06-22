@@ -4,7 +4,7 @@
  * @date:   22.08.2022
  * @brief:  Algorithm to find a independent set on distributed graphs.
  ******************************************************************************/
-#include "independent_set.h"
+#include "dkaminpar/algorithms/independent_set.h"
 
 #include <algorithm>
 #include <limits>

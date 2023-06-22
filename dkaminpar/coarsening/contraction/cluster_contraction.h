@@ -7,6 +7,7 @@
 #pragma once
 
 #include "dkaminpar/datastructures/distributed_graph.h"
+#include "dkaminpar/datastructures/distributed_partitioned_graph.h"
 
 #include "common/parallel/atomic.h"
 

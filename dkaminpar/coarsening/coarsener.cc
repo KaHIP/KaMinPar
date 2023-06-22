@@ -10,6 +10,7 @@
 #include "dkaminpar/coarsening/contraction/local_cluster_contraction.h"
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructures/distributed_graph.h"
+#include "dkaminpar/datastructures/distributed_partitioned_graph.h"
 #include "dkaminpar/factories.h"
 
 #include "kaminpar/context.h"

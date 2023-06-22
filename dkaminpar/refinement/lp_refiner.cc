@@ -9,6 +9,7 @@
 #include <mpi.h>
 
 #include "dkaminpar/datastructures/distributed_graph.h"
+#include "dkaminpar/datastructures/distributed_partitioned_graph.h"
 #include "dkaminpar/graphutils/communication.h"
 #include "dkaminpar/metrics.h"
 #include "dkaminpar/mpi/sparse_allreduce.h"
