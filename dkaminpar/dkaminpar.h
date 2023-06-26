@@ -92,6 +92,7 @@ enum class KWayRefinementAlgorithm {
   COLORED_LP,
   GREEDY_BALANCER,
   JET,
+  MOVE_SET_BALANCER,
 };
 
 enum class LabelPropagationMoveExecutionStrategy {

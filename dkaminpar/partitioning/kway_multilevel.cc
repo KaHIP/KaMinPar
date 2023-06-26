@@ -141,15 +141,16 @@ DistributedPartitionedGraph KWayPartitioner::partition() {
       cio::print_banner("Refinement");
     }
 
-    auto refinement_algorithm = TIMED_SCOPE("Allocation") {
+    auto refiner_factory = TIMED_SCOPE("Allocation") {
       return factory::create_refinement_algorithm(_ctx);
     };
 
     auto refine = [&](DistributedPartitionedGraph &p_graph) {
       SCOPED_TIMER("Refinement");
       LOG << "-> Refining partition ...";
-      refinement_algorithm->initialize(p_graph.graph());
-      refinement_algorithm->refine(p_graph, _ctx.partition);
+      auto refiner = refiner_factory->create(p_graph, _ctx.partition);
+      refiner->initialize();
+      refiner->refine();
       KASSERT(
           graph::debug::validate_partition(p_graph),
           "graph partition verification failed after refinement",

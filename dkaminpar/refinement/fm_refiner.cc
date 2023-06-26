@@ -28,6 +28,13 @@
 #include "common/timer.h"
 
 namespace kaminpar::dist {
+FMRefinerFactory::FMRefinerFactory(const Context &ctx) : _ctx(ctx) {}
+
+std::unique_ptr<GlobalRefiner>
+FMRefinerFactory::create(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) {
+  return std::make_unique<FMRefiner>(_ctx, p_graph, p_ctx);
+}
+
 namespace {
 struct AdaptiveStoppingPolicy {
   AdaptiveStoppingPolicy(const GlobalNodeID n) : _beta(std::log(n)) {}
@@ -317,33 +324,36 @@ private:
 };
 } // namespace
 
-FMRefiner::FMRefiner(const Context &ctx) : _fm_ctx(ctx.refinement.fm) {}
+FMRefiner::FMRefiner(
+    const Context &ctx, DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx
+)
+    : _fm_ctx(ctx.refinement.fm),
+      _p_graph(p_graph),
+      _p_ctx(p_ctx) {}
 
-void FMRefiner::initialize(const DistributedGraph &) {}
+void FMRefiner::initialize() {}
 
-void FMRefiner::refine(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) {
+bool FMRefiner::refine() {
   SCOPED_TIMER("FM");
-  _p_graph = &p_graph;
-  _p_ctx = &p_ctx;
 
   for (std::size_t global_round = 0; global_round < 5; ++global_round) {
     // Find independent set of border nodes
     START_TIMER("Call find_independent_border_set");
-    const auto seed_nodes = graph::find_independent_border_set(*_p_graph, global_round);
+    const auto seed_nodes = graph::find_independent_border_set(_p_graph, global_round);
     STOP_TIMER();
 
-    mpi::barrier(_p_graph->communicator());
+    mpi::barrier(_p_graph.communicator());
 
     // Run BFS
     START_TIMER("Call BfsExtractor");
-    graph::BfsExtractor bfs_extractor(_p_graph->graph());
-    bfs_extractor.initialize(*_p_graph);
+    graph::BfsExtractor bfs_extractor(_p_graph.graph());
+    bfs_extractor.initialize(_p_graph);
     bfs_extractor.set_max_hops(1);
     bfs_extractor.set_max_radius(2);
     auto extraction_result = bfs_extractor.extract(seed_nodes);
     STOP_TIMER();
 
-    mpi::barrier(_p_graph->communicator());
+    mpi::barrier(_p_graph.communicator());
 
     START_TIMER("Build reverse node mapping");
     growt::StaticGhostNodeMapping reverse_node_mapping(extraction_result.node_mapping.size());
@@ -356,11 +366,11 @@ void FMRefiner::refine(DistributedPartitionedGraph &p_graph, const PartitionCont
     );
     STOP_TIMER();
 
-    mpi::barrier(_p_graph->communicator());
+    mpi::barrier(_p_graph.communicator());
 
     // Run FM
     tbb::enumerable_thread_specific<ThreadLocalFMRefiner> fm_refiner_ets{[&] {
-      return ThreadLocalFMRefiner(*_p_graph, *extraction_result.p_graph, _fm_ctx, *_p_ctx);
+      return ThreadLocalFMRefiner(_p_graph, *extraction_result.p_graph, _fm_ctx, _p_ctx);
     }};
 
     for (std::size_t local_round = 0; local_round < 5; ++local_round) {
@@ -370,7 +380,7 @@ void FMRefiner::refine(DistributedPartitionedGraph &p_graph, const PartitionCont
       tbb::concurrent_vector<GlobalMove> local_move_buffer;
       tbb::parallel_for<std::size_t>(0, seed_nodes.size(), [&](const std::size_t i) {
         const NodeID local_seed_node = seed_nodes[i];
-        const GlobalNodeID global_seed_node = _p_graph->local_to_global_node(local_seed_node);
+        const GlobalNodeID global_seed_node = _p_graph.local_to_global_node(local_seed_node);
 
         KASSERT(reverse_node_mapping.find(global_seed_node + 1) != reverse_node_mapping.end());
         const NodeID seed_node = (*reverse_node_mapping.find(global_seed_node + 1)).second;
@@ -395,7 +405,7 @@ void FMRefiner::refine(DistributedPartitionedGraph &p_graph, const PartitionCont
       });
       STOP_TIMER();
 
-      mpi::barrier(_p_graph->communicator());
+      mpi::barrier(_p_graph.communicator());
 
       // Resolve global move conflicts
       START_TIMER("Move conflict resolution");
@@ -403,11 +413,11 @@ void FMRefiner::refine(DistributedPartitionedGraph &p_graph, const PartitionCont
           local_move_buffer.begin(), local_move_buffer.end()
       );
       auto global_move_buffer =
-          broadcast_and_resolve_global_moves(local_move_buffer_cpy, _p_graph->communicator());
+          broadcast_and_resolve_global_moves(local_move_buffer_cpy, _p_graph.communicator());
       // auto global_move_buffer = local_move_buffer_cpy;
       STOP_TIMER();
 
-      mpi::barrier(_p_graph->communicator());
+      mpi::barrier(_p_graph.communicator());
 
       // Apply moves to global partition and extract graph
       START_TIMER("Apply moves");
@@ -417,12 +427,12 @@ void FMRefiner::refine(DistributedPartitionedGraph &p_graph, const PartitionCont
         }
 
         // Apply move to distributed graph
-        if (_p_graph->contains_global_node(node)) {
-          const NodeID local_node = _p_graph->global_to_local_node(node);
-          _p_graph->set_block(local_node, to);
+        if (_p_graph.contains_global_node(node)) {
+          const NodeID local_node = _p_graph.global_to_local_node(node);
+          _p_graph.set_block(local_node, to);
         } else {
-          _p_graph->set_block_weight(from, _p_graph->block_weight(from) - weight);
-          _p_graph->set_block_weight(to, _p_graph->block_weight(to) + weight);
+          _p_graph.set_block_weight(from, _p_graph.block_weight(from) - weight);
+          _p_graph.set_block_weight(to, _p_graph.block_weight(to) + weight);
         }
 
         // Apply move to local graph (if contained in local graph)
@@ -434,8 +444,10 @@ void FMRefiner::refine(DistributedPartitionedGraph &p_graph, const PartitionCont
       }
       STOP_TIMER();
 
-      mpi::barrier(_p_graph->communicator());
+      mpi::barrier(_p_graph.communicator());
     }
   }
+
+  return false;
 }
 } // namespace kaminpar::dist

@@ -7,21 +7,35 @@
 #pragma once
 
 #include "dkaminpar/context.h"
-#include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/datastructures/distributed_partitioned_graph.h"
 #include "dkaminpar/refinement/refiner.h"
 
 namespace kaminpar::dist {
-class NoopRefiner : public Refiner {
+class NoopRefinerFactory : public GlobalRefinerFactory {
+public:
+  NoopRefinerFactory() = default;
+
+  NoopRefinerFactory(const NoopRefinerFactory &) = delete;
+  NoopRefinerFactory &operator=(const NoopRefinerFactory &) = delete;
+
+  NoopRefinerFactory(NoopRefinerFactory &&) noexcept = default;
+  NoopRefinerFactory &operator=(NoopRefinerFactory &&) = default;
+
+  std::unique_ptr<GlobalRefiner>
+  create(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
+};
+
+class NoopRefiner : public GlobalRefiner {
 public:
   NoopRefiner() = default;
 
   NoopRefiner(const NoopRefiner &) = delete;
   NoopRefiner &operator=(const NoopRefiner &) = delete;
-  NoopRefiner(NoopRefiner &&) noexcept = default;
-  NoopRefiner &operator=(NoopRefiner &&) = delete;
 
-  void initialize(const DistributedGraph &graph) final;
-  void refine(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
+  NoopRefiner(NoopRefiner &&) noexcept = default;
+  NoopRefiner &operator=(NoopRefiner &&) = default;
+
+  void initialize() final;
+  bool refine() final;
 };
 } // namespace kaminpar::dist

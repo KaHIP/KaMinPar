@@ -39,6 +39,12 @@
 
 namespace kaminpar::dist {
 SET_DEBUG(true);
+LocalFMRefinerFactory::LocalFMRefinerFactory(const Context &ctx) : _ctx(ctx) {}
+
+std::unique_ptr<GlobalRefiner>
+LocalFMRefinerFactory::create(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) {
+  return std::make_unique<LocalFMRefiner>(_ctx, p_graph, p_ctx);
+}
 
 void LocalFMRefiner::Statistics::print() const {
   const auto [n_min, n_mean, n_max] = math::find_min_mean_max(graphs_n);
@@ -330,16 +336,19 @@ private:
 };
 } // namespace
 
-LocalFMRefiner::LocalFMRefiner(const Context &ctx) : _fm_ctx(ctx.refinement.fm) {}
+LocalFMRefiner::LocalFMRefiner(
+    const Context &ctx, DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx
+)
+    : _fm_ctx(ctx.refinement.fm),
+      _p_graph(p_graph),
+      _p_ctx(p_ctx) {}
 
-void LocalFMRefiner::initialize(const DistributedGraph &graph) {
-  _locked.resize(graph.total_n());
+void LocalFMRefiner::initialize() {
+  _locked.resize(_p_graph.total_n());
 }
 
-void LocalFMRefiner::refine(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) {
+bool LocalFMRefiner::refine() {
   SCOPED_TIMER("FM");
-  _p_graph = &p_graph;
-  _p_ctx = &p_ctx;
 
   if (_fm_ctx.contract_border) {
     START_TIMER("Initialize external degrees");
@@ -349,7 +358,7 @@ void LocalFMRefiner::refine(DistributedPartitionedGraph &p_graph, const Partitio
 
   if (kStatistics) {
     _stats = Statistics{};
-    _stats.initial_cut = metrics::edge_cut(*_p_graph);
+    _stats.initial_cut = metrics::edge_cut(_p_graph);
   }
 
   for (_round = 0; _round < _fm_ctx.num_iterations; ++_round) {
@@ -357,9 +366,11 @@ void LocalFMRefiner::refine(DistributedPartitionedGraph &p_graph, const Partitio
   }
 
   if (kStatistics) {
-    _stats.final_cut = metrics::edge_cut(*_p_graph);
+    _stats.final_cut = metrics::edge_cut(_p_graph);
     _stats.print();
   }
+
+  return false;
 }
 
 void LocalFMRefiner::refinement_round() {
@@ -384,7 +395,7 @@ void LocalFMRefiner::refinement_round() {
   });
 
   tbb::enumerable_thread_specific<LocalLocalFMRefiner> local_refiner_ets([&] {
-    return LocalLocalFMRefiner(*_p_graph, _fm_ctx, *_p_ctx);
+    return LocalLocalFMRefiner(_p_graph, _fm_ctx, _p_ctx);
   });
 
   auto do_refine_local_graph = [&](const std::size_t i) {
@@ -392,7 +403,7 @@ void LocalFMRefiner::refinement_round() {
     const auto &local_fixed_nodes = fixed_nodes[i];
     auto &refiner = local_refiner_ets.local();
     const auto moves = refiner.refine(p_local_graph, local_fixed_nodes);
-    refiner.commit_block_weight_deltas(*_p_graph);
+    refiner.commit_block_weight_deltas(_p_graph);
     auto &global_moves_handle = global_moves_handle_ets.local();
     const auto &mapping = local_graph_mappings[i];
 
@@ -404,16 +415,15 @@ void LocalFMRefiner::refinement_round() {
       const GlobalNodeID global_u = mapping[u];
 
       // move nodes owned by this PE right away
-      if (_fm_ctx.premove_locally && _p_graph->is_owned_global_node(global_u)) {
-        const NodeID local_u = _p_graph->global_to_local_node(global_u);
-        const BlockID from = _p_graph->block(local_u);
-        _p_graph->set_block<false>(local_u,
-                                   to); // block weights already updated
+      if (_fm_ctx.premove_locally && _p_graph.is_owned_global_node(global_u)) {
+        const NodeID local_u = _p_graph.global_to_local_node(global_u);
+        const BlockID from = _p_graph.block(local_u);
+        _p_graph.set_block<false>(local_u, to);
 
         // update external degrees
         if (_fm_ctx.contract_border) {
-          for (const auto [e, v] : _p_graph->neighbors(local_u)) {
-            const EdgeWeight weight = _p_graph->edge_weight(e);
+          for (const auto [e, v] : _p_graph.neighbors(local_u)) {
+            const EdgeWeight weight = _p_graph.edge_weight(e);
             external_degree(v, from) -= weight;
             external_degree(v, to) += weight;
           }
@@ -460,23 +470,22 @@ void LocalFMRefiner::refinement_round() {
   };
 
   START_TIMER("Build send buffer");
-  std::vector<std::vector<MoveMessage>> sendbuf(mpi::get_comm_size(_p_graph->communicator()));
+  std::vector<std::vector<MoveMessage>> sendbuf(mpi::get_comm_size(_p_graph.communicator()));
   for (const auto [to, global_u_prime] : global_moves_handle_ets.local()) { // @todo parallelize
     KASSERT(global_u_prime != 0u);
     const GlobalNodeID global_u = global_u_prime - 1;
-    KASSERT(global_u < _p_graph->global_n());
+    KASSERT(global_u < _p_graph.global_n());
 
     // If we move nodes between global synchronization steps, the global move
     // buffer should not contain any moves for owned nodes
-    KASSERT(!_p_graph->is_owned_global_node(global_u) || !_fm_ctx.premove_locally);
+    KASSERT(!_p_graph.is_owned_global_node(global_u) || !_fm_ctx.premove_locally);
 
-    if (!_fm_ctx.premove_locally && _p_graph->is_owned_global_node(global_u)) {
-      const NodeID local_u = _p_graph->global_to_local_node(global_u);
-      _p_graph->set_block<false>(local_u,
-                                 to); // block weights are already up to date
+    if (!_fm_ctx.premove_locally && _p_graph.is_owned_global_node(global_u)) {
+      const NodeID local_u = _p_graph.global_to_local_node(global_u);
+      _p_graph.set_block<false>(local_u, to);
     } else {
-      const PEID owner = _p_graph->find_owner_of_global_node(global_u);
-      sendbuf[owner].emplace_back(static_cast<NodeID>(global_u - _p_graph->offset_n(owner)), to);
+      const PEID owner = _p_graph.find_owner_of_global_node(global_u);
+      sendbuf[owner].emplace_back(static_cast<NodeID>(global_u - _p_graph.offset_n(owner)), to);
     }
   }
   STOP_TIMER();
@@ -486,16 +495,16 @@ void LocalFMRefiner::refinement_round() {
       [&](const auto &recvbuf) {
         tbb::parallel_for<std::size_t>(0, recvbuf.size(), [&](const std::size_t i) {
           const auto [node, block] = recvbuf[i];
-          _p_graph->set_block(node, block);
+          _p_graph.set_block(node, block);
         });
       },
-      _p_graph->communicator()
+      _p_graph.communicator()
   );
   STOP_TIMER();
 
   START_TIMER("Synchronize ghost node labels");
-  graph::synchronize_ghost_node_block_ids(*_p_graph);
-  _p_graph->reinit_block_weights();
+  graph::synchronize_ghost_node_block_ids(_p_graph);
+  _p_graph.reinit_block_weights();
   STOP_TIMER();
 
   // free all locked nodes
@@ -506,23 +515,23 @@ tbb::concurrent_vector<NodeID> LocalFMRefiner::find_seed_nodes() {
   SCOPED_TIMER("Select seed nodes");
 
   // compute indepentent set
-  NoinitVector<double> score(_p_graph->n());
-  std::uniform_real_distribution<> dist(0.0, 1.0 * _p_graph->total_n());
+  NoinitVector<double> score(_p_graph.n());
+  std::uniform_real_distribution<> dist(0.0, 1.0 * _p_graph.total_n());
   tbb::enumerable_thread_specific<std::mt19937> generator_ets;
 
-  _p_graph->pfor_nodes([&](const NodeID u) {
+  _p_graph.pfor_nodes([&](const NodeID u) {
     // score for ghost nodes is computed lazy
-    if (!_p_graph->is_owned_node(u)) {
+    if (!_p_graph.is_owned_node(u)) {
       score[u] = -1.0;
       return;
     }
 
     // check if u is a bordert node
     bool is_border_node = false;
-    const BlockID u_block = _p_graph->block(u);
+    const BlockID u_block = _p_graph.block(u);
 
-    for (const auto [e, v] : _p_graph->neighbors(u)) {
-      if (_p_graph->block(v) != u_block) {
+    for (const auto [e, v] : _p_graph.neighbors(u)) {
+      if (_p_graph.block(v) != u_block) {
         is_border_node = true;
         break;
       }
@@ -530,7 +539,7 @@ tbb::concurrent_vector<NodeID> LocalFMRefiner::find_seed_nodes() {
 
     if (is_border_node) {
       auto &generator = generator_ets.local();
-      generator.seed(_round + _p_graph->local_to_global_node(u));
+      generator.seed(_round + _p_graph.local_to_global_node(u));
       score[u] = dist(generator);
     } else {
       score[u] = std::numeric_limits<double>::max();
@@ -539,16 +548,16 @@ tbb::concurrent_vector<NodeID> LocalFMRefiner::find_seed_nodes() {
 
   // find seed nodes
   tbb::concurrent_vector<NodeID> seed_nodes;
-  _p_graph->pfor_nodes([&](const NodeID u) {
+  _p_graph.pfor_nodes([&](const NodeID u) {
     if (score[u] == std::numeric_limits<double>::max()) {
       return; // not a border node
     }
 
     bool is_seed_node = true;
-    for (const auto [e, v] : _p_graph->neighbors(u)) {
+    for (const auto [e, v] : _p_graph.neighbors(u)) {
       if (score[v] < 0) { // ghost node, compute score lazy
         auto &generator = generator_ets.local();
-        generator.seed(_round + _p_graph->local_to_global_node(v));
+        generator.seed(_round + _p_graph.local_to_global_node(v));
         score[v] = dist(generator);
       }
 
@@ -602,16 +611,16 @@ void LocalFMRefiner::build_local_graph(
     --current_front_size;
 
     // try to take this node
-    if (_p_graph->is_owned_node(current)) {
+    if (_p_graph.is_owned_node(current)) {
       discovered_owned_nodes.emplace_back(current, current_distance, false);
 
       const bool sample_neighbors =
-          _fm_ctx.bound_degree > 0 && _p_graph->degree(current) > _fm_ctx.bound_degree;
+          _fm_ctx.bound_degree > 0 && _p_graph.degree(current) > _fm_ctx.bound_degree;
       const double prob =
-          sample_neighbors ? 1.0 * _fm_ctx.bound_degree / _p_graph->degree(current) : 1.0;
+          sample_neighbors ? 1.0 * _fm_ctx.bound_degree / _p_graph.degree(current) : 1.0;
 
       // grow to neighbors
-      for (const auto [e, v] : _p_graph->neighbors(current)) {
+      for (const auto [e, v] : _p_graph.neighbors(current)) {
         const bool take = sample_neighbors ? rand.random_bool(prob) : true;
         std::uint8_t free = 0;
 
@@ -642,16 +651,16 @@ void LocalFMRefiner::build_local_graph(
 
   // build local graphs
   const NodeID real_n = discovered_owned_nodes.size();
-  const NodeID n = _fm_ctx.contract_border ? real_n + _p_graph->k() : real_n;
+  const NodeID n = _fm_ctx.contract_border ? real_n + _p_graph.k() : real_n;
 
   // build local_graph_mappings[i]
   for (const auto [u, d, b] : discovered_owned_nodes) {
-    mapping.push_back(_p_graph->local_to_global_node(u));
+    mapping.push_back(_p_graph.local_to_global_node(u));
     fixed.push_back(b);
   }
   if (_fm_ctx.contract_border) {
     KASSERT(std::none_of(fixed.begin(), fixed.end(), [](const bool v) { return v; }));
-    for (BlockID b = 0; b < _p_graph->k(); ++b) {
+    for (BlockID b = 0; b < _p_graph.k(); ++b) {
       fixed.push_back(true);
     }
   }
@@ -669,38 +678,38 @@ void LocalFMRefiner::build_local_graph(
   std::vector<shm::EdgeWeight> local_edge_weights;
   NodeID next_node = 0;
   NodeID border_size = 0;
-  std::vector<shm::EdgeWeight> covered_external_degrees(_p_graph->k());
+  std::vector<shm::EdgeWeight> covered_external_degrees(_p_graph.k());
 
   if (_fm_ctx.contract_border) {
-    border_size = _p_graph->k();
+    border_size = _p_graph.k();
   }
 
   for (const auto [u, d, b] : discovered_owned_nodes) {
     local_nodes[next_node] = local_edges.size();
-    local_node_weights[next_node] = _p_graph->node_weight(u);
+    local_node_weights[next_node] = _p_graph.node_weight(u);
     ++next_node;
 
     if (!b) {
       const bool last_hop = _fm_ctx.contract_border && d + 1 == _fm_ctx.radius;
 
-      for (const auto [e, v] : _p_graph->neighbors(u)) {
-        const GlobalNodeID global_v = _p_graph->local_to_global_node(v);
+      for (const auto [e, v] : _p_graph.neighbors(u)) {
+        const GlobalNodeID global_v = _p_graph.local_to_global_node(v);
         if (to_local_map.find(global_v) != to_local_map.end()) {
           KASSERT(to_local_map[global_v] < real_n);
 
           local_edges.push_back(to_local_map[global_v]);
-          local_edge_weights.push_back(_p_graph->edge_weight(e));
+          local_edge_weights.push_back(_p_graph.edge_weight(e));
 
           if (last_hop) {
-            covered_external_degrees[_p_graph->block(v)] += _p_graph->edge_weight(e);
+            covered_external_degrees[_p_graph.block(v)] += _p_graph.edge_weight(e);
           }
         } else {
-          KASSERT(_fm_ctx.contract_border || mpi::get_comm_rank(_p_graph->communicator()) > 0);
+          KASSERT(_fm_ctx.contract_border || mpi::get_comm_rank(_p_graph.communicator()) > 0);
         }
       }
 
       if (last_hop) { // connect to pseudo-nodes
-        for (BlockID b = 0; b < _p_graph->k(); ++b) {
+        for (BlockID b = 0; b < _p_graph.k(); ++b) {
           local_edges.push_back(real_n + b);
           local_edge_weights.push_back(external_degree(u, b) - covered_external_degrees[b]);
         }
@@ -738,11 +747,11 @@ void LocalFMRefiner::build_local_graph(
   // build partition
   StaticArray<BlockID> partition(n);
   for (std::size_t i = 0; i < discovered_owned_nodes.size(); ++i) {
-    partition[i] = _p_graph->block(discovered_owned_nodes[i].node);
+    partition[i] = _p_graph.block(discovered_owned_nodes[i].node);
   }
 
   if (_fm_ctx.contract_border) {
-    for (BlockID b = 0; b < _p_graph->k(); ++b) {
+    for (BlockID b = 0; b < _p_graph.k(); ++b) {
       partition[real_n + b] = b;
       local_node_weights[real_n + b] = 1; // should not matter
     }
@@ -761,21 +770,21 @@ void LocalFMRefiner::build_local_graph(
       std::move(local_edge_weights_prime)
   );
   out_p_graph =
-      shm::PartitionedGraph(shm::no_block_weights, out_graph, _p_ctx->k, std::move(partition));
+      shm::PartitionedGraph(shm::no_block_weights, out_graph, _p_ctx.k, std::move(partition));
 }
 
 void LocalFMRefiner::init_external_degrees() {
-  _external_degrees.resize(_p_graph->n() * _p_graph->k());
+  _external_degrees.resize(_p_graph.n() * _p_graph.k());
 
-  const BlockID k = _p_graph->k();
-  _p_graph->pfor_nodes([&](const NodeID u) {
+  const BlockID k = _p_graph.k();
+  _p_graph.pfor_nodes([&](const NodeID u) {
     auto begin = _external_degrees.begin() + u * k;
     auto end = begin + k;
     std::fill(begin, end, 0u);
 
-    for (const auto [e, v] : _p_graph->neighbors(u)) {
-      const BlockID v_block = _p_graph->block(v);
-      const EdgeWeight e_weight = _p_graph->edge_weight(e);
+    for (const auto [e, v] : _p_graph.neighbors(u)) {
+      const BlockID v_block = _p_graph.block(v);
+      const EdgeWeight e_weight = _p_graph.edge_weight(e);
       *(begin + v_block) += e_weight;
     }
   });

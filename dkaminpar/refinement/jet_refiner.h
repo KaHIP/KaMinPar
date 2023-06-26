@@ -12,26 +12,51 @@
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/datastructures/distributed_partitioned_graph.h"
+#include "dkaminpar/refinement/greedy_balancer.h"
 #include "dkaminpar/refinement/refiner.h"
 
 namespace kaminpar::dist {
-class JetRefiner : public Refiner {
-  SET_STATISTICS(true);
-  SET_DEBUG(true);
-
+class JetRefinerFactory : public GlobalRefinerFactory {
 public:
-  JetRefiner(const Context &ctx);
+  JetRefinerFactory(const Context &ctx);
 
-  JetRefiner(const JetRefiner &) = delete;
-  JetRefiner &operator=(const JetRefiner &) = delete;
-  JetRefiner(JetRefiner &&) noexcept = default;
-  JetRefiner &operator=(JetRefiner &&) = delete;
+  JetRefinerFactory(const JetRefinerFactory &) = delete;
+  JetRefinerFactory &operator=(const JetRefinerFactory &) = delete;
 
-  void initialize(const DistributedGraph &graph) final {}
+  JetRefinerFactory(JetRefinerFactory &&) noexcept = default;
+  JetRefinerFactory &operator=(JetRefinerFactory &&) = delete;
 
-  void refine(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
+  std::unique_ptr<GlobalRefiner>
+  create(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
 
 private:
   const Context &_ctx;
+};
+
+class JetRefiner : public GlobalRefiner {
+  SET_STATISTICS_FROM_GLOBAL();
+  SET_DEBUG(true);
+
+public:
+  JetRefiner(
+      const Context &ctx, DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx
+  );
+
+  JetRefiner(const JetRefiner &) = delete;
+  JetRefiner &operator=(const JetRefiner &) = delete;
+
+  JetRefiner(JetRefiner &&) noexcept = default;
+  JetRefiner &operator=(JetRefiner &&) = delete;
+
+  void initialize() final;
+  bool refine() final;
+
+private:
+  const Context &_ctx;
+
+  DistributedPartitionedGraph &_p_graph;
+  const PartitionContext &_p_ctx;
+
+  GreedyBalancerFactory _balancer_factory;
 };
 } // namespace kaminpar::dist

@@ -513,13 +513,26 @@ private:
  * Public interface
  */
 
-LPRefiner::LPRefiner(const Context &ctx) : _impl(std::make_unique<LPRefinerImpl>(ctx)) {}
+LPRefinerFactory::LPRefinerFactory(const Context &ctx) : _ctx(ctx) {}
+
+std::unique_ptr<GlobalRefiner>
+LPRefinerFactory::create(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) {
+  return std::make_unique<LPRefiner>(_ctx, p_graph, p_ctx);
+}
+
+LPRefiner::LPRefiner(
+    const Context &ctx, DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx
+)
+    : _impl(std::make_unique<LPRefinerImpl>(ctx)),
+      _p_graph(p_graph),
+      _p_ctx(p_ctx) {}
 
 LPRefiner::~LPRefiner() = default;
 
-void LPRefiner::initialize(const DistributedGraph &) {}
+void LPRefiner::initialize() {}
 
-void LPRefiner::refine(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) {
-  _impl->refine(p_graph, p_ctx);
+bool LPRefiner::refine() {
+  _impl->refine(_p_graph, _p_ctx);
+  return false;
 }
 } // namespace kaminpar::dist

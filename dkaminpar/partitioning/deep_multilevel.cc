@@ -233,14 +233,15 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
    */
   START_TIMER("Uncoarsening");
 
-  auto refinement_algorithm = TIMED_SCOPE("Allocation") {
+  auto refiner_factory = TIMED_SCOPE("Allocation") {
     return factory::create_refinement_algorithm(_input_ctx);
   };
 
   auto run_refinement = [&](DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) {
     SCOPED_TIMER("Local search");
-    refinement_algorithm->initialize(p_graph.graph());
-    refinement_algorithm->refine(p_graph, p_ctx);
+    auto refiner = refiner_factory->create(p_graph, p_ctx);
+    refiner->initialize();
+    refiner->refine();
     KASSERT(graph::debug::validate_partition(p_graph), "", assert::heavy);
   };
 

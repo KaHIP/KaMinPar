@@ -20,7 +20,24 @@
 #include "common/parallel/atomic.h"
 
 namespace kaminpar::dist {
-class LocalFMRefiner : public Refiner {
+class LocalFMRefinerFactory : public GlobalRefinerFactory {
+public:
+  LocalFMRefinerFactory(const Context &ctx);
+
+  LocalFMRefinerFactory(const LocalFMRefinerFactory &) = delete;
+  LocalFMRefinerFactory &operator=(const LocalFMRefinerFactory &) = delete;
+
+  LocalFMRefinerFactory(LocalFMRefinerFactory &&) noexcept = default;
+  LocalFMRefinerFactory &operator=(LocalFMRefinerFactory &&) = delete;
+
+  std::unique_ptr<GlobalRefiner>
+  create(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
+
+private:
+  const Context &_ctx;
+};
+
+class LocalFMRefiner : public GlobalRefiner {
   SET_STATISTICS(true);
 
   struct Statistics {
@@ -42,15 +59,17 @@ class LocalFMRefiner : public Refiner {
   };
 
 public:
-  LocalFMRefiner(const Context &ctx);
+  LocalFMRefiner(
+      const Context &ctx, DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx
+  );
 
   LocalFMRefiner(const LocalFMRefiner &) = delete;
   LocalFMRefiner &operator=(const LocalFMRefiner &) = delete;
   LocalFMRefiner(LocalFMRefiner &&) = default;
   LocalFMRefiner &operator=(LocalFMRefiner &&) = delete;
 
-  void initialize(const DistributedGraph &graph) final;
-  void refine(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
+  void initialize() final;
+  bool refine() final;
 
 private:
   void refinement_round();
@@ -67,16 +86,17 @@ private:
   void init_external_degrees();
 
   EdgeWeight &external_degree(const NodeID u, const BlockID b) {
-    KASSERT(_external_degrees.size() >= _p_graph->n() * _p_graph->k());
-    return _external_degrees[u * _p_graph->k() + b];
+    KASSERT(_external_degrees.size() >= _p_graph.n() * _p_graph.k());
+    return _external_degrees[u * _p_graph.k() + b];
   }
+
+  DistributedPartitionedGraph &_p_graph;
+  const PartitionContext &_p_ctx;
 
   // initialized by ctor
   const FMRefinementContext &_fm_ctx;
 
   // initalized by refine()
-  const PartitionContext *_p_ctx;
-  DistributedPartitionedGraph *_p_graph;
   std::vector<EdgeWeight> _external_degrees;
 
   // initialized here

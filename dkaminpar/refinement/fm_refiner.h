@@ -17,35 +17,44 @@
 #include "common/parallel/atomic.h"
 
 namespace kaminpar::dist {
-class FMRefiner : public Refiner {
+class FMRefinerFactory : public GlobalRefinerFactory {
+public:
+  FMRefinerFactory(const Context &ctx);
+
+  FMRefinerFactory(const FMRefinerFactory &) = delete;
+  FMRefinerFactory &operator=(const FMRefinerFactory &) = delete;
+
+  FMRefinerFactory(FMRefinerFactory &&) noexcept = default;
+  FMRefinerFactory &operator=(FMRefinerFactory &&) = delete;
+
+  std::unique_ptr<GlobalRefiner>
+  create(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
+
+private:
+  const Context &_ctx;
+};
+
+class FMRefiner : public GlobalRefiner {
   SET_STATISTICS(true);
   SET_DEBUG(false);
 
 public:
-  FMRefiner(const Context &ctx);
+  FMRefiner(
+      const Context &ctx, DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx
+  );
 
   FMRefiner(const FMRefiner &) = delete;
   FMRefiner &operator=(const FMRefiner &) = delete;
   FMRefiner(FMRefiner &&) noexcept = default;
   FMRefiner &operator=(FMRefiner &&) = delete;
 
-  void initialize(const DistributedGraph &graph) final;
-  void refine(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
+  void initialize() final;
+  bool refine() final;
 
 private:
-  /*
-   * Initialized by constructor
-   */
   const FMRefinementContext &_fm_ctx;
 
-  /*
-   * Initialized by initialize()
-   */
-  const PartitionContext *_p_ctx;
-
-  /*
-   * Initialized by refine()
-   */
-  DistributedPartitionedGraph *_p_graph;
+  DistributedPartitionedGraph &_p_graph;
+  const PartitionContext &_p_ctx;
 };
 } // namespace kaminpar::dist

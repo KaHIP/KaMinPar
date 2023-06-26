@@ -16,7 +16,27 @@
 #include "common/parallel/vector_ets.h"
 
 namespace kaminpar::dist {
-class ColoredLPRefiner : public Refiner {
+class ColoredLPRefinerFactory : public GlobalRefinerFactory {
+public:
+  ColoredLPRefinerFactory(const Context &ctx);
+
+  ColoredLPRefinerFactory(const ColoredLPRefinerFactory &) = delete;
+  ColoredLPRefinerFactory &operator=(const ColoredLPRefinerFactory &) = delete;
+
+  ColoredLPRefinerFactory(ColoredLPRefinerFactory &&) noexcept = default;
+  ColoredLPRefinerFactory &operator=(ColoredLPRefinerFactory &&) = delete;
+
+  std::unique_ptr<GlobalRefiner>
+  create(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
+
+private:
+  const Context &_ctx;
+};
+
+class ColoredLPRefiner : public GlobalRefiner {
+  SET_STATISTICS_FROM_GLOBAL();
+  SET_DEBUG(false);
+
   using BlockGainsContainer = typename parallel::vector_ets<EdgeWeight>::Container;
 
   struct MoveCandidate {
@@ -39,15 +59,18 @@ class ColoredLPRefiner : public Refiner {
   };
 
 public:
-  ColoredLPRefiner(const Context &ctx);
+  ColoredLPRefiner(
+      const Context &ctx, DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx
+  );
 
   ColoredLPRefiner(const ColoredLPRefiner &) = delete;
   ColoredLPRefiner &operator=(const ColoredLPRefiner &) = delete;
+
   ColoredLPRefiner(ColoredLPRefiner &&) noexcept = default;
   ColoredLPRefiner &operator=(ColoredLPRefiner &&) = delete;
 
-  void initialize(const DistributedGraph &graph) final;
-  void refine(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
+  void initialize() final;
+  bool refine() final;
 
 private:
   NodeID find_moves(ColorID c);
@@ -69,8 +92,8 @@ private:
   const Context &_input_ctx;
   const ColoredLabelPropagationRefinementContext &_ctx;
 
-  const PartitionContext *_p_ctx;
-  DistributedPartitionedGraph *_p_graph;
+  const PartitionContext &_p_ctx;
+  DistributedPartitionedGraph &_p_graph;
 
   NoinitVector<std::uint8_t> _color_blacklist;
   NoinitVector<ColorID> _color_sizes;

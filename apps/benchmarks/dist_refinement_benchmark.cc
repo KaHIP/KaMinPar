@@ -57,14 +57,15 @@ int main(int argc, char *argv[]) {
   ctx.partition.k = p_graph.k();
   ctx.partition.graph = std::make_unique<GraphContext>(graph, ctx.partition);
 
-  auto refiner = factory::create_refinement_algorithm(ctx);
+  auto refiner_factory = factory::create_refinement_algorithm(ctx);
+  auto refiner = refiner_factory->create(p_graph, ctx.partition);
 
   TIMED_SCOPE("Refiner") {
     TIMED_SCOPE("Initialization") {
-      refiner->initialize(graph);
+      refiner->initialize();
     };
     TIMED_SCOPE("Refinement") {
-      refiner->refine(p_graph, ctx.partition);
+      refiner->refine();
     };
   };
 
