@@ -48,6 +48,63 @@ template <typename Data> void inclusive_col_prefix_sum(Data &data) {
 }
 } // namespace internal
 
+/**
+ * All-to-all communication between interface vertices and their ghost neighbors.
+ *
+ * This function exchanges a message for each pair of (a) interface node and (b) a ghost node
+ * neighbor of the interface vertex. In other words, this exchanges one message for each cut edge of
+ * the distributed graph.
+ *
+ * This function is farely generic:
+ *
+ * - The `from` and `to` parameters can be used to specify a range of interface nodes. This can
+ * be useful to exchange messages after batch-wise computation.
+ *
+ * - The `mapper` parameter can be used to change the iteration order of nodes.
+ *
+ * - The `filter` parameter can be used to ignore some interface nodes, e.g., ignore interface
+ * nodes for which no property has changed.
+ *
+ * - The `builder` and `receiver` parameters are used to construct and receive the messages.
+ *
+ * There are several overloads which default some of the parameters. The related functions with
+ * `_get` suffix can be used to obtain the received message as return value rather than having them
+ * passed to a lambda.
+ *
+ * @tparam Message The type of the message to be exchanged.
+ * @tparam Buffer The vector type to be used for receiving the messages.
+ *
+ * @param graph The distributed graph.
+ *
+ * @param from Only consider interface nodes with ID >= `from`.
+ *
+ * @param to Only consider interface nodes with ID < `to`.
+ *
+ * @param mapper A function to map node ID from range `[from, to)` to any other ID. This allows
+ * batch-wise communication when iterating over the graph in a different order. The expected
+ * signature of the lambda is as follows:
+ * ```
+ * NodeID mapper(const NodeID seq_u);
+ * ```
+ *
+ * @param filter A function to filter interface nodes for which no message should be exchanged
+ * (return `false`). The expected signature of the lambda is as follows:
+ * ```
+ * bool filter(const NodeID u [, const EdgeID e, const NodeID v]);
+ * ```
+ *
+ * @param builder A function to construct the message send for some interface node. The expected
+ * signature of the lambda is as follows:
+ * ```
+ * Message builder(const NodeID u, const EdgeID e, const NodeID v [, const PEID to_pe]);
+ * ```
+ *
+ * @param receiver A function invoked for each other PE, passing the received messages from that PE.
+ * The expected signature of the lambda is as follows:
+ * ```
+ * void receiver(Buffer recv_buffer [, const PEID from_pe]);
+ * ```
+ */
 template <
     typename Message,
     typename Buffer = NoinitVector<Message>,
@@ -309,6 +366,64 @@ sparse_alltoall_interface_to_ghost_get(const DistributedGraph &graph, Builder &&
   return recv_buffers;
 }
 
+/**
+ * All-to-all communication between interface vertices and PEs containing a ghost replicate of the
+ * interface vertex.
+ *
+ * This function exchanges a message for each pair of (a) interface vertex and (b) PE containing a
+ * ghost replicate of the interface vertex. Typically, this is used to update ghost vertices after
+ * changing some property of the interface vertex.
+ *
+ * This function is farely generic:
+ *
+ * - The `from` and `to` parameters can be used to specify a range of interface vertices. This can
+ * be useful to exchange messages after batch-wise computation.
+ *
+ * - The `mapper` parameter can be used to change the iteration order of vertices.
+ *
+ * - The `filter` parameter can be used to ignore some interface vertices, e.g., ignore interface
+ * vertices for which no property has changed.
+ *
+ * - The `builder` and `receiver` parameters are used to construct and receive the messages.
+ *
+ * There are several overloads which default some of the parameters. The related functions with
+ * `_get` suffix can be used to obtain the received message as return value rather than having them
+ * passed to a lambda.
+ *
+ * @tparam Message The type of the message to be exchanged.
+ * @tparam Buffer The vector type to be used for receiving the messages.
+ *
+ * @param graph The distributed graph.
+ *
+ * @param from Only consider interface vertices with ID >= `from`.
+ *
+ * @param to Only consider interface vertices with ID < `to`.
+ *
+ * @param mapper A function to map vertex ID from range `[from, to)` to any other ID. This allows
+ * batch-wise communication when iterating over the graph in a different order. The expected
+ * signature of the lambda is as follows:
+ * ```
+ * NodeID mapper(const NodeID seq_u);
+ * ```
+ *
+ * @param filter A function to filter interface vertices for which no message should be exchanged
+ * (return `false`). The expected signature of the lambda is as follows:
+ * ```
+ * bool filter(const NodeID u);
+ * ```
+ *
+ * @param builder A function to construct the message send for some interface vertex. The expected
+ * signature of the lambda is as follows:
+ * ```
+ * Message builder(const NodeID u, [, const PEID to_pe]);
+ * ```
+ *
+ * @param receiver A function invoked for each other PE, passing the received messages from that PE.
+ * The expected signature of the lambda is as follows:
+ * ```
+ * void receiver(Buffer recv_buffer [, const PEID from_pe]);
+ * ```
+ */
 template <
     typename Message,
     typename Buffer = NoinitVector<Message>,
