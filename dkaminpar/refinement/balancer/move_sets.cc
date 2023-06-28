@@ -42,6 +42,7 @@ public:
         _move_sets(p_graph.n()),
         _move_set_indices(p_graph.n() + 1),
         _conns(p_graph.n() * p_graph.k()),
+        _frontier(p_graph.n()),
         _cur_conns(p_graph.k()) {
     _p_graph.pfor_nodes([&](const NodeID u) {
       _node_to_move_set[u] = kInvalidNodeID;
@@ -50,7 +51,42 @@ public:
     _move_set_indices.front() = 0;
   }
 
-  void grow_move_set(const NodeID u) {
+  void build(const NodeWeight max_move_set_weight) {
+    for (const NodeID u : _p_graph.nodes()) {
+      const BlockID bu = _p_graph.block(u);
+
+      if (_p_graph.block_weight(bu) > _p_ctx.graph->max_block_weight(bu) &&
+          _node_to_move_set[u] == kInvalidNodeID) {
+        grow_move_set(u, max_move_set_weight);
+      }
+    }
+  }
+
+  void grow_move_set(const NodeID seed, const NodeWeight max_weight) {
+    _frontier.push(seed, 0);
+    while (!_frontier.empty() && _cur_weight < max_weight) {
+      const NodeID u = _frontier.peek_id();
+      const BlockID bu = _p_graph.block(u);
+      _frontier.pop();
+
+      add_to_move_set(u);
+
+      for (const auto [e, v] : _p_graph.neighbors(u)) {
+        const BlockID bv = _p_graph.block(v);
+        if (bv == bu) {
+          if (_frontier.contains(v)) {
+            _frontier.decrease_priority_by(v, _p_graph.edge_weight(e));
+          } else {
+            _frontier.push(v, _p_graph.edge_weight(e));
+          }
+        }
+      }
+    }
+
+    finish_move_set();
+  }
+
+  void add_to_move_set(const NodeID u) {
     KASSERT(_cur_block == kInvalidBlockID || _cur_block == _p_graph.block(u));
 
     if (_cur_block == kInvalidBlockID) {
@@ -74,15 +110,26 @@ public:
         }
       }
     }
+
+    if (_cur_conns.peek_key() >= _best_prefix_conn) {
+      _best_prefix_block = _cur_conns.peek_id();
+      _best_prefix_conn = _cur_conns.peek_key();
+      _best_prefix_pos = _cur_pos;
+    }
   }
 
   void finish_move_set() {
+    for (NodeID pos = _best_prefix_pos; pos < _cur_pos; ++pos) {
+      _node_to_move_set[_move_sets[pos]] = kInvalidNodeID;
+    }
+
+    _move_set_indices[_cur_move_set + 1] = _move_set_indices[_cur_move_set] + _best_prefix_pos;
+    ++_cur_move_set;
+
     reset_cur_conns();
     _cur_block = kInvalidBlockID;
     _cur_block_conn = 0;
-
-    _move_set_indices[_cur_move_set + 1] = _cur_pos;
-    ++_cur_move_set;
+    _cur_pos = _best_prefix_pos;
   }
 
   MoveSets finalize() {
@@ -95,6 +142,10 @@ public:
         std::move(_move_sets),
         std::move(_move_set_indices),
     };
+  }
+
+  NodeWeight current_weight() {
+    return _cur_weight;
   }
 
 private:
@@ -114,6 +165,8 @@ private:
 
   NoinitVector<EdgeWeight> _conns;
 
+  BinaryMaxHeap<EdgeWeight> _frontier;
+
   NodeID _cur_pos = 0;
   NodeID _cur_move_set = 0;
   EdgeWeight _cur_block_conn = 0;
@@ -123,7 +176,7 @@ private:
 
   NodeID _best_prefix_pos = 0;
   BlockID _best_prefix_block = kInvalidBlockID;
-  EdgeWeight _best_prefix_gain = 0;
+  EdgeWeight _best_prefix_conn = 0;
 };
 } // namespace
 
@@ -133,66 +186,7 @@ MoveSets build_greedy_move_sets(
     const NodeWeight max_move_set_weight
 ) {
   MoveSetBuilder builder(p_graph, p_ctx);
-
-  for (const NodeID u : p_graph.nodes()) {
-    const BlockID bu = p_graph.block(u);
-    if (p_graph.block_weight(bu) <= p_ctx.graph->max_block_weight(bu)) {
-      continue;
-    }
-  }
-
-  NoinitVector<NodeID> move_sets(p_graph.n());
-  std::vector<NodeID> move_set_indices;
-  std::vector<EdgeWeight> move_set_gains(p_graph.n() * p_graph.k());
-  Marker marker(p_graph.n());
-
-  NodeWeight current_move_set_weight = 0;
-  std::size_t current_position = 0;
-  std::size_t best_position = 0;
-  move_set_indices.push_back(0);
-
-  BinaryMinHeap<EdgeWeight> gains(p_graph.k());
-  BinaryMaxHeap<EdgeWeight> frontier(p_graph.n());
-
-  for (const NodeID u : p_graph.nodes()) {
-    const BlockID bu = p_graph.block(u);
-
-    // Only consider nodes in overloaded blocks
-    if (p_graph.block_weight(bu) <= p_ctx.graph->max_block_weight(bu)) {
-      continue;
-    }
-
-    // Don't consider nodes twice
-    if (marker.get(u)) {
-      continue;
-    }
-
-    move_sets[current_position] = u;
-    current_move_set_weight += p_graph.node_weight(u);
-    marker.set(u);
-
-    for (const auto [e, v] : p_graph.neighbors(u)) {
-      const BlockID bv = p_graph.block(v);
-
-      if (gains.contains(bv)) {
-        gains.decrease_priority_by(bv, p_graph.edge_weight(e));
-      } else {
-        gains.push(bv, p_graph.edge_weight(e));
-      }
-
-      if (p_graph.is_owned_node(v) && bv == bu && !marker.get(v)) {
-        if (frontier.contains(v)) {
-          frontier.decrease_priority_by(v, p_graph.edge_weight(e));
-        } else {
-          frontier.push(v, p_graph.edge_weight(e));
-        }
-      }
-    }
-
-    if (current_move_set_weight >= max_move_set_weight) {
-    }
-  }
-
+  builder.build(max_move_set_weight);
   return builder.finalize();
 }
 } // namespace kaminpar::dist
