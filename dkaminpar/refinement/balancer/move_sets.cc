@@ -63,6 +63,8 @@ public:
   }
 
   void grow_move_set(const NodeID seed, const NodeWeight max_weight) {
+    KASSERT(_node_to_move_set[seed] == kInvalidNodeID);
+
     _frontier.push(seed, 0);
     while (!_frontier.empty() && _cur_weight < max_weight) {
       const NodeID u = _frontier.peek_id();
@@ -75,7 +77,7 @@ public:
         const BlockID bv = _p_graph.block(v);
         if (bv == bu) {
           if (_frontier.contains(v)) {
-            _frontier.decrease_priority_by(v, _p_graph.edge_weight(e));
+            _frontier.decrease_priority(v, _frontier.key(v) + _p_graph.edge_weight(e));
           } else {
             _frontier.push(v, _p_graph.edge_weight(e));
           }
@@ -84,6 +86,8 @@ public:
     }
 
     finish_move_set();
+
+    KASSERT(_node_to_move_set[seed] != kInvalidBlockID);
   }
 
   void add_to_move_set(const NodeID u) {
