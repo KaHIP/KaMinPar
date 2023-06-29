@@ -149,6 +149,7 @@ std::unordered_map<std::string, KWayRefinementAlgorithm> get_kway_refinement_alg
       {"greedy-balancer", KWayRefinementAlgorithm::GREEDY_BALANCER},
       {"jet", KWayRefinementAlgorithm::JET},
       {"move-set-balancer", KWayRefinementAlgorithm::MOVE_SET_BALANCER},
+      {"jet-balancer", KWayRefinementAlgorithm::JET_BALANCER},
   };
 }
 
@@ -170,6 +171,8 @@ std::ostream &operator<<(std::ostream &out, const KWayRefinementAlgorithm algori
     return out << "jet";
   case KWayRefinementAlgorithm::MOVE_SET_BALANCER:
     return out << "move-set-balancer";
+  case KWayRefinementAlgorithm::JET_BALANCER:
+    return out << "jet-balancer";
   }
 
   return out << "<invalid>";

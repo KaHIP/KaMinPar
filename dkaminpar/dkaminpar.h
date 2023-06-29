@@ -93,6 +93,7 @@ enum class KWayRefinementAlgorithm {
   GREEDY_BALANCER,
   JET,
   MOVE_SET_BALANCER,
+  JET_BALANCER,
 };
 
 enum class LabelPropagationMoveExecutionStrategy {

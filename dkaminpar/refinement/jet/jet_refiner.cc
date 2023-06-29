@@ -5,7 +5,7 @@
  * @brief:  Distributed JET refiner due to:
  * "Jet: Multilevel Graph Partitioning on GPUs" by Gilbert et al.
  ******************************************************************************/
-#include "dkaminpar/refinement/jet_refiner.h"
+#include "dkaminpar/refinement/jet/jet_refiner.h"
 
 #include <tbb/parallel_invoke.h>
 
