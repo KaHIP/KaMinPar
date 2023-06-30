@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Partition metrics for distributed graphs.
+ *
  * @file:   metrics.cc
  * @author: Daniel Seemaier
  * @date:   27.10.2021
- * @brief:  Partition metrics for distributed graphs.
  ******************************************************************************/
 #include "dkaminpar/metrics.h"
 
@@ -11,7 +12,7 @@
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/datastructures/distributed_partitioned_graph.h"
-#include "dkaminpar/definitions.h"
+#include "dkaminpar/dkaminpar.h"
 #include "dkaminpar/mpi/wrapper.h"
 
 namespace kaminpar::dist::metrics {

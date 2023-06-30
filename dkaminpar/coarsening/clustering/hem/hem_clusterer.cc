@@ -1,10 +1,11 @@
 /*******************************************************************************
- * @file:   hem_clustering.cc
+ * Clusterer via heavy edge matching.
+ *
+ * @file:   hem_clusterer.cc
  * @author: Daniel Seemaier
  * @date:   19.12.2022
- * @brief:  Clustering using heavy edge matching.
  ******************************************************************************/
-#include "dkaminpar/coarsening/clustering/hem_clustering.h"
+#include "dkaminpar/coarsening/clustering/hem/hem_clusterer.h"
 
 #include "dkaminpar/algorithms/greedy_node_coloring.h"
 #include "dkaminpar/graphutils/communication.h"

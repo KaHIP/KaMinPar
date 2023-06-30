@@ -1,10 +1,11 @@
 /*******************************************************************************
- * @file:   global_label_propagation_coarsener.cc
+ * Label propagation with clusters that can grow to multiple PEs.
+ *
+ * @file:   global_lp_clusterer.cc
  * @author: Daniel Seemaier
  * @date:   29.09.2021
- * @brief:  Label propagation with clusters that can grow to multiple PEs.
  ******************************************************************************/
-#include "dkaminpar/coarsening/clustering/global_lp_clustering.h"
+#include "dkaminpar/coarsening/clustering/lp/global_lp_clusterer.h"
 
 #include <google/dense_hash_map>
 

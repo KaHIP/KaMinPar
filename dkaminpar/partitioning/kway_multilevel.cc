@@ -1,9 +1,9 @@
 /*******************************************************************************
+ * Multilevel graph partitioning with direct k-way initial partitioning.
+ *
  * @file:   kway_partitioner.cc
  * @author: Daniel Seemaier
  * @date:   25.10.2021
- * @brief:  Multilevel graph partitioning with direct k-way initial
- *partitioning.
  ******************************************************************************/
 #include "dkaminpar/partitioning/kway_multilevel.h"
 
@@ -93,7 +93,7 @@ DistributedPartitionedGraph KWayPartitioner::partition() {
   }
 
   auto initial_partitioner = TIMED_SCOPE("Allocation") {
-    return factory::create_initial_partitioning_algorithm(_ctx);
+    return factory::create_initial_partitioner(_ctx);
   };
 
   START_TIMER("Initial Partitioning");
@@ -142,7 +142,7 @@ DistributedPartitionedGraph KWayPartitioner::partition() {
     }
 
     auto refiner_factory = TIMED_SCOPE("Allocation") {
-      return factory::create_refinement_algorithm(_ctx);
+      return factory::create_refiner(_ctx);
     };
 
     auto refine = [&](DistributedPartitionedGraph &p_graph) {

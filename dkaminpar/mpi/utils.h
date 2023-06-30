@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Utility functions for MPI.
+ *
  * @file:   utils.h
  * @author: Daniel Seemaier
  * @date:   08.08.20202
- * @brief:  Utility functions for MPI.
  ******************************************************************************/
 #pragma once
 

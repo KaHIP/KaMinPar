@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Public interface of the distributed partitioner.
+ *
  * @file:   dkaminpar.h
  * @author: Daniel Seemaier
  * @date:   30.01.2023
- * @brief:  Public symbols of the distributed partitioner
  ******************************************************************************/
 #pragma once
 

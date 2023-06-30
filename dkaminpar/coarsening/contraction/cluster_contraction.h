@@ -1,4 +1,6 @@
 /*******************************************************************************
+ * Graph contraction for arbitrary clusterings.
+ *
  * @file:   cluster_contraction.h
  * @author: Daniel Seemaier
  * @date:   06.02.2023

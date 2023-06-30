@@ -1,18 +1,18 @@
 /*******************************************************************************
- * @file:   global_lp_clustering.h
+ * Label propagation with clusters that can grow to multiple PEs.
+ *
+ * @file:   global_lp_clusterer.h
  * @author: Daniel Seemaier
  * @date:   29.09.2021
- * @brief   Label propagation clustering without restrictions, i.e., clusters
- * can span across multiple PEs.
  ******************************************************************************/
 #pragma once
 
-#include "dkaminpar/coarsening/clustering/clustering_algorithm.h"
+#include "dkaminpar/coarsening/clustering/clusterer.h"
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructures/distributed_graph.h"
 
 namespace kaminpar::dist {
-class GlobalLPClustering : public ClusteringAlgorithm<GlobalNodeID> {
+class GlobalLPClustering : public Clusterer<GlobalNodeID> {
 public:
   explicit GlobalLPClustering(const Context &ctx);
 

@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Algorithm to extract a region of the graph using a BFS search.
+ *
  * @file:   bfs_extractor.cc
  * @author: Daniel Seemaier
  * @date:   23.08.2022
- * @brief:  Algorithm to extract a region of the graph using a BFS search.
  ******************************************************************************/
 #include "dkaminpar/graphutils/bfs_extractor.h"
 

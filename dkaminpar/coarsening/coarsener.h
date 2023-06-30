@@ -1,14 +1,15 @@
 /*******************************************************************************
+ * Builds and manages a hierarchy of coarse graphs.
+ *
  * @file:   coarsener.h
  * @author: Daniel Seemaier
  * @date:   28.04.2022
- * @brief:  Builds and manages a hierarchy of coarse graphs.
  ******************************************************************************/
 #pragma once
 
 #include <vector>
 
-#include "dkaminpar/coarsening/clustering/clustering_algorithm.h"
+#include "dkaminpar/coarsening/clustering/clusterer.h"
 #include "dkaminpar/coarsening/contraction/legacy_cluster_contraction.h"
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructures/distributed_graph.h"
@@ -43,8 +44,8 @@ private:
   const DistributedGraph &_input_graph;
   const Context &_input_ctx;
 
-  std::unique_ptr<ClusteringAlgorithm<GlobalNodeID>> _global_clusterer;
-  std::unique_ptr<ClusteringAlgorithm<NodeID>> _local_clusterer;
+  std::unique_ptr<GlobalClusterer> _global_clusterer;
+  std::unique_ptr<LocalClusterer> _local_clusterer;
 
   std::vector<DistributedGraph> _graph_hierarchy;
   std::vector<GlobalMapping> _global_mapping_hierarchy; //< produced by global clustering algorithm

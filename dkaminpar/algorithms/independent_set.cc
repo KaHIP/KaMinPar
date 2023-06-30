@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Basic independent set algorithm for distributed graphs.
+ *
  * @file:   independent_set.cc
  * @author: Daniel Seemaier
  * @date:   22.08.2022
- * @brief:  Algorithm to find a independent set on distributed graphs.
  ******************************************************************************/
 #include "dkaminpar/algorithms/independent_set.h"
 

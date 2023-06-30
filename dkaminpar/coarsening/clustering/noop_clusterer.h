@@ -1,17 +1,18 @@
 /*******************************************************************************
- * @file:   noop_clustering.h
+ * Pseudo-clusterer that assigns each node to its own cluster.
+ *
+ * @file:   noop_clusterer.h
  * @author: Daniel Seemaier
  * @date:   13.05.2022
- * @brief:  Clustering algorithm that assigns each node to its own cluster.
  ******************************************************************************/
 #pragma once
 
-#include "dkaminpar/coarsening/clustering/clustering_algorithm.h"
+#include "dkaminpar/coarsening/clustering/clusterer.h"
 #include "dkaminpar/context.h"
 
 namespace kaminpar::dist {
-template <typename ClusterID> class NoopClustering : public ClusteringAlgorithm<ClusterID> {
-  using ClusterArray = typename ClusteringAlgorithm<ClusterID>::ClusterArray;
+template <typename ClusterID> class NoopClustering : public Clusterer<ClusterID> {
+  using ClusterArray = typename Clusterer<ClusterID>::ClusterArray;
 
 public:
   explicit NoopClustering(const Context &) {}

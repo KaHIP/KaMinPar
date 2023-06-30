@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Static distributed graph data structure.
+ *
  * @file:   distributed_graph.h
  * @author: Daniel Seemaier
  * @date:   27.10.2021
- * @brief:  Static distributed graph data structure.
  ******************************************************************************/
 #pragma once
 

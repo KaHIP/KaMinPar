@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Facade for sparse alltoall operations.
+ *
  * @file:   sparse_alltoall.h
  * @author: Daniel Seemaier
  * @date:   11.09.2022
- * @brief:  Facade for sparse alltoall operations.
  ******************************************************************************/
 #pragma once
 

@@ -1,9 +1,9 @@
 /*******************************************************************************
+ * Graph contraction for arbitrary clusterings (old implementation).
+ *
  * @file:   legacy_cluster_contraction_redistribution.cc
  * @author: Daniel Seemaier
  * @date:   28.10.2021
- * @brief:  Shared-memory parallel contraction of global clustering without
- * any restrictions.
  ******************************************************************************/
 #include "dkaminpar/coarsening/contraction/legacy_cluster_contraction.h"
 
@@ -19,7 +19,7 @@
 #include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/datastructures/ghost_node_mapper.h"
 #include "dkaminpar/datastructures/growt.h"
-#include "dkaminpar/definitions.h"
+#include "dkaminpar/dkaminpar.h"
 #include "dkaminpar/graphutils/communication.h"
 #include "dkaminpar/mpi/wrapper.h"
 

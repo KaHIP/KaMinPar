@@ -13,7 +13,7 @@
 
 #include <mpi.h>
 
-#include "dkaminpar/definitions.h"
+#include "dkaminpar/dkaminpar.h"
 
 namespace kaminpar::dist {
 struct GlobalMove {

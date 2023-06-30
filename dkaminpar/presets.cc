@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Configuration presets.
+ *
  * @file:   presets.cc
  * @author: Daniel Seemaier
  * @date:   15.10.2022
- * @brief:  Configuration presets.
  ******************************************************************************/
 #include "dkaminpar/presets.h"
 
@@ -199,11 +200,13 @@ Context create_strong_context() {
 }
 
 Context create_europar23_fast_context() {
-  return create_default_context();
+  Context ctx = create_default_context();
+  ctx.coarsening.global_lp.enforce_legacy_weight = true;
+  return ctx;
 }
 
 Context create_europar23_strong_context() {
-  Context ctx = create_default_context();
+  Context ctx = create_europar23_fast_context();
   ctx.initial_partitioning.algorithm = InitialPartitioningAlgorithm::MTKAHYPAR;
   ctx.coarsening.global_lp.num_iterations = 5;
   return ctx;

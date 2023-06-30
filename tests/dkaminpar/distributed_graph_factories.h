@@ -13,7 +13,7 @@
 #include "tests/dkaminpar/distributed_graph_builder.h"
 
 #include "dkaminpar/datastructures/distributed_graph.h"
-#include "dkaminpar/definitions.h"
+#include "dkaminpar/dkaminpar.h"
 #include "dkaminpar/mpi/wrapper.h"
 
 namespace kaminpar::dist::testing {

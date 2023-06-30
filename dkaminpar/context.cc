@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Context struct for the distributed graph partitioner.
+ *
  * @file:   context.cc
  * @author: Daniel Seemaier
  * @date:   27.10.2021
- * @brief:  Context struct for the distributed graph partitioner.
  ******************************************************************************/
 #include "dkaminpar/context.h"
 

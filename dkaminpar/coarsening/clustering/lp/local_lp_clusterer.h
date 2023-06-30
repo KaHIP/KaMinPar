@@ -1,18 +1,19 @@
 /*******************************************************************************
- * @file:   local_label_propagation_clustering.h
+ * Label propagation clustering that only clusters node within a PE (i.e., 
+ * ignores ghost nodes).
+ *
+ * @file:   local_lp_clusterer.h
  * @author: Daniel Seemaier
  * @date:   30.09.2021
- * @brief:  Label propagation clustering that only clusters node within a PE
- * (i.e., not with ghost nodes).
  ******************************************************************************/
 #pragma once
 
-#include "dkaminpar/coarsening/clustering/clustering_algorithm.h"
+#include "dkaminpar/coarsening/clustering/clusterer.h"
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructures/distributed_graph.h"
 
 namespace kaminpar::dist {
-class LocalLPClustering : public ClusteringAlgorithm<NodeID> {
+class LocalLPClustering : public LocalClusterer {
 public:
   explicit LocalLPClustering(const Context &ctx);
 

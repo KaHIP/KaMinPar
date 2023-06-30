@@ -1,12 +1,14 @@
-/***********************************************************************************************************************
+/*******************************************************************************
+ * Basic implementation of a distributed vertex coloring algorithm.
+ *
  * @file:   greedy_node_coloring.h
  * @author: Daniel Seemaier
  * @date:   11.11.2022
- * @brief:  Distributed greedy node (vertex) coloring.
- **********************************************************************************************************************/
+ ******************************************************************************/
 #pragma once
 
 #include "dkaminpar/datastructures/distributed_graph.h"
+#include "dkaminpar/dkaminpar.h"
 
 namespace kaminpar::dist {
 using ColorID = EdgeID;

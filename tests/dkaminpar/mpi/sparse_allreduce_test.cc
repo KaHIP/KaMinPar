@@ -1,6 +1,6 @@
 #include <gmock/gmock.h>
 
-#include "dkaminpar/definitions.h"
+#include "dkaminpar/dkaminpar.h"
 #include "dkaminpar/mpi/sparse_allreduce.h"
 
 using namespace ::testing;

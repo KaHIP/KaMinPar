@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Static distributed graph data structure.
+ *
  * @file:   distributed_graph.cc
  * @author: Daniel Seemaier
  * @date:   27.10.2021
- * @brief:  Static distributed graph data structure.
  ******************************************************************************/
 #include "dkaminpar/datastructures/distributed_graph.h"
 

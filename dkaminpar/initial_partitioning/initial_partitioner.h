@@ -1,13 +1,14 @@
 /*******************************************************************************
- * @file:   i_initial_partitioner.h
+ * Interface for initial partitionign algorithms.
+ *
+ * @file:   initial_partitioner.h
  * @author: Daniel Seemaier
  * @date:   30.09.21
- * @brief:
  ******************************************************************************/
 #pragma once
 
 #include "dkaminpar/context.h"
-#include "dkaminpar/definitions.h"
+#include "dkaminpar/dkaminpar.h"
 
 #include "kaminpar/datastructures/graph.h"
 #include "kaminpar/datastructures/partitioned_graph.h"

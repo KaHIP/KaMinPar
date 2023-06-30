@@ -1,18 +1,19 @@
 /*******************************************************************************
+ * Partition metrics for distributed graphs. 
+ *
  * @file:   metrics.h
  * @author: Daniel Seemaier
  * @date:   27.10.2021
- * @brief:  Partition metrics for distributed graphs.
  ******************************************************************************/
 #pragma once
 
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/datastructures/distributed_partitioned_graph.h"
-#include "dkaminpar/definitions.h"
+#include "dkaminpar/dkaminpar.h"
 
 namespace kaminpar::dist::metrics {
-/*!
+/**
  * Computes the number of edges cut in the part of the graph owned by this PE.
  * Includes edges to ghost nodes. Since the graph is directed (there are no
  * reverse edges from ghost nodes to interface nodes), undirected edges are
@@ -22,7 +23,7 @@ namespace kaminpar::dist::metrics {
  */
 GlobalEdgeWeight local_edge_cut(const DistributedPartitionedGraph &p_graph);
 
-/*!
+/**
  * Computes the number of edges cut in the whole graph, i.e., across all PEs.
  * Undirected edges are only counted once.
  * @param p_graph Partitioned graph.
@@ -31,7 +32,7 @@ GlobalEdgeWeight local_edge_cut(const DistributedPartitionedGraph &p_graph);
  */
 GlobalEdgeWeight edge_cut(const DistributedPartitionedGraph &p_graph);
 
-/*!
+/**
  * Computes the partition imbalance of the whole graph partition, i.e., across
  * all PEs. The imbalance of a graph partition is defined as `max_block_weight /
  * avg_block_weight`. Thus, a value of 1.0 indicates that all blocks have the
@@ -42,7 +43,7 @@ GlobalEdgeWeight edge_cut(const DistributedPartitionedGraph &p_graph);
  */
 double imbalance(const DistributedPartitionedGraph &p_graph);
 
-/*!
+/**
  * Computes whether the blocks of the given partition satisfy the balance
  * constraint given by @p p_ctx.
  * @param p_graph Partitioned graph.
@@ -52,7 +53,7 @@ double imbalance(const DistributedPartitionedGraph &p_graph);
  */
 bool is_feasible(const DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx);
 
-/*!
+/**
  * Counts the number of imbalanced blocks.
  * @param p_graph Partitioned graph.
  * @param p_ctx Partition context describing the maximum block weights.
@@ -61,6 +62,17 @@ bool is_feasible(const DistributedPartitionedGraph &p_graph, const PartitionCont
 BlockID
 num_imbalanced_blocks(const DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx);
 
+/**
+ * Computes the L1 distance between the current overloaded block weights and the max block weights.
+ * @param p_graph Partitioned graph.
+ * @param p_ctx Partition context describing the maximum block weights.
+ */
 double imbalance_l2(const DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx);
+
+/**
+ * Computes the L2 distance between the current overloaded block weights and the max block weights.
+ * @param p_graph Partitioned graph.
+ * @param p_ctx Partition context describing the maximum block weights.
+ */
 double imbalance_l1(const DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx);
 } // namespace kaminpar::dist::metrics

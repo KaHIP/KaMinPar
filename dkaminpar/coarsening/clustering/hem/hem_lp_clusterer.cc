@@ -1,18 +1,18 @@
 /*******************************************************************************
- * @file:   hem_lp_clustering.cc
+ * Clustering via heavy edge matching with label propagation fallback.
+ *
+ * @file:   hem_lp_clusterer.cc
  * @author: Daniel Seemaier
  * @date:   19.12.2022
- * @brief:  Clustering using a combination of label propagation and heavy edge
- * matching.
  ******************************************************************************/
-#include "dkaminpar/coarsening/clustering/hem_lp_clustering.h"
+#include "dkaminpar/coarsening/clustering/hem/hem_lp_clusterer.h"
 
 #include <functional>
 
 #include <tbb/enumerable_thread_specific.h>
 
-#include "dkaminpar/coarsening/clustering/global_lp_clustering.h"
-#include "dkaminpar/coarsening/clustering/hem_clustering.h"
+#include "dkaminpar/coarsening/clustering/hem/hem_clusterer.h"
+#include "dkaminpar/coarsening/clustering/lp/global_lp_clusterer.h"
 #include "dkaminpar/mpi/wrapper.h"
 
 namespace kaminpar::dist {

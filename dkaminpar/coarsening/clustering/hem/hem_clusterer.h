@@ -1,18 +1,19 @@
 /*******************************************************************************
- * @file:   hem_clustering.h
+ * Clusterer via heavy edge matching.
+ *
+ * @file:   hem_clusterer.h
  * @author: Daniel Seemaier
  * @date:   19.12.2022
- * @brief:  Clustering using heavy edge matching.
  ******************************************************************************/
 #pragma once
 
 #include "dkaminpar/algorithms/greedy_node_coloring.h"
-#include "dkaminpar/coarsening/clustering/clustering_algorithm.h"
+#include "dkaminpar/coarsening/clustering/clusterer.h"
 #include "dkaminpar/context.h"
-#include "dkaminpar/definitions.h"
+#include "dkaminpar/dkaminpar.h"
 
 namespace kaminpar::dist {
-class HEMClustering : public ClusteringAlgorithm<GlobalNodeID> {
+class HEMClustering : public GlobalClusterer {
 public:
   HEMClustering(const Context &ctx);
 

@@ -1,9 +1,10 @@
-/***********************************************************************************************************************
+/*******************************************************************************
+ * Basic implementation of a distributed vertex coloring algorithm.
+ *
  * @file:   greedy_node_coloring.cc
  * @author: Daniel Seemaier
  * @date:   11.11.2022
- * @brief:  Distributed greedy node (vertex) coloring.
- **********************************************************************************************************************/
+ ******************************************************************************/
 #include "dkaminpar/algorithms/greedy_node_coloring.h"
 
 #include <kassert/kassert.hpp>

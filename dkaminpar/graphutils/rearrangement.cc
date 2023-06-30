@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Sort and rearrange a graph by degree buckets.
+ *
  * @file:   graph_rearrangement.cc
  * @author: Daniel Seemaier
  * @date:   18.11.2021
- * @brief:  Sort and rearrange a graph by degree buckets.
  ******************************************************************************/
 #include "dkaminpar/graphutils/rearrangement.h"
 

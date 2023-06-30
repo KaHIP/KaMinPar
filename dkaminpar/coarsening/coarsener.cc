@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Builds and manages a hierarchy of coarse graphs.
+ *
  * @file:   coarsener.cc
  * @author: Daniel Seemaier
  * @date:   28.04.2022
- * @brief:  Builds and manages a hierarchy of coarse graphs.
  ******************************************************************************/
 #include "dkaminpar/coarsening/coarsener.h"
 
@@ -22,8 +23,8 @@ SET_DEBUG(false);
 Coarsener::Coarsener(const DistributedGraph &input_graph, const Context &input_ctx)
     : _input_graph(input_graph),
       _input_ctx(input_ctx),
-      _global_clusterer(factory::create_global_clustering_algorithm(_input_ctx)),
-      _local_clusterer(factory::create_local_clustering_algorithm(_input_ctx)) {}
+      _global_clusterer(factory::create_global_clusterer(_input_ctx)),
+      _local_clusterer(factory::create_local_clusterer(_input_ctx)) {}
 
 const DistributedGraph *Coarsener::coarsen_once() {
   return coarsen_once(max_cluster_weight());

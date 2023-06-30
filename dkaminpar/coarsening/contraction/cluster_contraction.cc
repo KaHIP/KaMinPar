@@ -1,14 +1,16 @@
 /*******************************************************************************
- * @file:   cluster_contraction.cc
- * @author: Daniel Seemaier
- * @date:   06.02.2023
- * @brief:  Graph contraction for arbitrary clusterings.
+ * Graph contraction for arbitrary clusterings.
  *
  * In this file, we use the following naming sheme for node and cluster IDs:
  * - {g,l}[c]{node,cluster}
  *    ^ global or local ID
  *         ^ ID in [c]oarse graph or in fine graph
  *            ^ node or cluster ID
+ *
+ * @file:   cluster_contraction.cc
+ * @author: Daniel Seemaier
+ * @date:   06.02.2023
+ * @brief:  Graph contraction for arbitrary clusterings.
  ******************************************************************************/
 #include "dkaminpar/coarsening/contraction/cluster_contraction.h"
 

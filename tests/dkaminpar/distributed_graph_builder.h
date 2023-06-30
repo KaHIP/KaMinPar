@@ -12,7 +12,7 @@
 
 #include "dkaminpar/datastructures/ghost_node_mapper.h"
 #include "dkaminpar/datastructures/growt.h"
-#include "dkaminpar/definitions.h"
+#include "dkaminpar/dkaminpar.h"
 #include "dkaminpar/graphutils/communication.h"
 
 #include "common/parallel/atomic.h"

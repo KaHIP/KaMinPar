@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Utility data structure to construct the ghost node mapping.
+ *
  * @file:   ghost_node_mapper.h
  * @author: Daniel Seemaier
  * @date:   27.10.2021
- * @brief:  Utility data structure to construct the ghost node mapping.
  ******************************************************************************/
 #pragma once
 
@@ -10,7 +11,7 @@
 #include <tbb/concurrent_hash_map.h>
 
 #include "dkaminpar/datastructures/growt.h"
-#include "dkaminpar/definitions.h"
+#include "dkaminpar/dkaminpar.h"
 #include "dkaminpar/logger.h"
 #include "dkaminpar/mpi/wrapper.h"
 

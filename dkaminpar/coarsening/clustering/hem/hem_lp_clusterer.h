@@ -1,18 +1,19 @@
 /*******************************************************************************
- * @file:   hem_lp_clustering.h
+ * Clustering via heavy edge matching with label propagation fallback.
+ *
+ * @file:   hem_lp_clusterer.h
  * @author: Daniel Seemaier
  * @date:   19.12.2022
- * @brief:  Clustering using heavy edge matching and label propagation.
  ******************************************************************************/
 #pragma once
 
 #include "dkaminpar/algorithms/greedy_node_coloring.h"
-#include "dkaminpar/coarsening/clustering/clustering_algorithm.h"
+#include "dkaminpar/coarsening/clustering/clusterer.h"
 #include "dkaminpar/context.h"
-#include "dkaminpar/definitions.h"
+#include "dkaminpar/dkaminpar.h"
 
 namespace kaminpar::dist {
-class HEMLPClustering : public ClusteringAlgorithm<GlobalNodeID> {
+class HEMLPClustering : public GlobalClusterer {
 public:
   HEMLPClustering(const Context &ctx);
 
@@ -32,7 +33,7 @@ private:
   const DistributedGraph *_graph;
   bool _fallback = false;
 
-  std::unique_ptr<ClusteringAlgorithm<GlobalNodeID>> _lp;
-  std::unique_ptr<ClusteringAlgorithm<GlobalNodeID>> _hem;
+  std::unique_ptr<GlobalClusterer> _lp;
+  std::unique_ptr<GlobalClusterer> _hem;
 };
 } // namespace kaminpar::dist

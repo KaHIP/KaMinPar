@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Interface for graph partitioning schemes.
+ *
  * @file:   partitioner.h
  * @author: Daniel Seemaier
  * @date:   27.10.2021
- * @brief:  Interface for graph partitioning schemes.
  ******************************************************************************/
 #pragma once
 

@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Initial partitioner that assigns nodes to blocks randomly.
+ *
  * @file:   random_initial_partitioner.h
  * @author: Daniel Seemaier
  * @date:   06.11.2021
- * @brief:  Initial partitioner that assigns nodes to blocks randomly.
  ******************************************************************************/
 #pragma once
 

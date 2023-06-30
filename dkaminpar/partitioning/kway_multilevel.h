@@ -1,9 +1,9 @@
 /*******************************************************************************
+ * Multilevel graph partitioning with direct k-way initial partitioning.
+ *
  * @file:   kway_partitioner.h
  * @author: Daniel Seemaier
  * @date:   25.10.2021
- * @brief:  Multilevel graph partitioning with direct k-way initial
- *partitioning.
  ******************************************************************************/
 #pragma once
 

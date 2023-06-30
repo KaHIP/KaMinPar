@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Basic C++ wrapper for MPI calls.
+ *
  * @file:   wrapper.h
  * @author: Daniel Seemaier
  * @date:   27.10.2021
- * @brief:  C++ wrapper for MPI calls.
  ******************************************************************************/
 #pragma once
 
@@ -11,7 +12,7 @@
 #include <kassert/kassert.hpp>
 #include <mpi.h>
 
-#include "dkaminpar/definitions.h"
+#include "dkaminpar/dkaminpar.h"
 #include "dkaminpar/mpi/datatype.h"
 #include "dkaminpar/mpi/utils.h"
 

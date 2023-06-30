@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Initial partitioner that assigns nodes to blocks randomly.
+ *
  * @file:   random_initial_partitioner.cc
  * @author: Daniel Seemaier
  * @date:   06.11.2021
- * @brief:  Initial partitioner that assigns nodes to blocks randomly.
  ******************************************************************************/
 #include "dkaminpar/initial_partitioning/random_initial_partitioner.h"
 
@@ -10,7 +11,7 @@
 #include <tbb/parallel_for.h>
 
 #include "dkaminpar/context.h"
-#include "dkaminpar/definitions.h"
+#include "dkaminpar/dkaminpar.h"
 
 #include "common/datastructures/static_array.h"
 #include "common/random.h"

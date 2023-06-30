@@ -1,9 +1,10 @@
 /*******************************************************************************
+ * Utility functions to read/write parts of the partitioner context from/to 
+ * strings.
+ *
  * @file:   context_io.h
  * @author: Daniel Seemaier
  * @date:   27.10.2022
- * @brief:  Utility functions to read/write parts of the partitioner context
- * from/to strings.
  ******************************************************************************/
 #pragma once
 

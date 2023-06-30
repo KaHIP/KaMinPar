@@ -15,7 +15,7 @@
 #include "dist_io.h"
 
 #include "dkaminpar/context.h"
-#include "dkaminpar/definitions.h"
+#include "dkaminpar/dkaminpar.h"
 #include "dkaminpar/factories.h"
 #include "dkaminpar/graphutils/communication.h"
 #include "dkaminpar/metrics.h"
@@ -57,7 +57,7 @@ int main(int argc, char *argv[]) {
   ctx.partition.k = p_graph.k();
   ctx.partition.graph = std::make_unique<GraphContext>(graph, ctx.partition);
 
-  auto refiner_factory = factory::create_refinement_algorithm(ctx);
+  auto refiner_factory = factory::create_refiner(ctx);
   auto refiner = refiner_factory->create(p_graph, ctx.partition);
 
   TIMED_SCOPE("Refiner") {

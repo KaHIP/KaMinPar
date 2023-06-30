@@ -9,7 +9,7 @@
 
 #include <memory>
 
-#include "dkaminpar/coarsening/clustering/clustering_algorithm.h"
+#include "dkaminpar/coarsening/clustering/clusterer.h"
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructures/distributed_partitioned_graph.h"
 #include "dkaminpar/initial_partitioning/initial_partitioner.h"
@@ -19,12 +19,11 @@
 namespace kaminpar::dist::factory {
 std::unique_ptr<Partitioner> create_partitioner(const Context &ctx, const DistributedGraph &graph);
 
-std::unique_ptr<InitialPartitioner> create_initial_partitioning_algorithm(const Context &ctx);
+std::unique_ptr<InitialPartitioner> create_initial_partitioner(const Context &ctx);
 
-std::unique_ptr<GlobalRefinerFactory> create_refinement_algorithm(const Context &ctx);
+std::unique_ptr<GlobalRefinerFactory> create_refiner(const Context &ctx);
 
-std::unique_ptr<ClusteringAlgorithm<GlobalNodeID>>
-create_global_clustering_algorithm(const Context &ctx);
+std::unique_ptr<GlobalClusterer> create_global_clusterer(const Context &ctx);
 
-std::unique_ptr<ClusteringAlgorithm<NodeID>> create_local_clustering_algorithm(const Context &ctx);
+std::unique_ptr<LocalClusterer> create_local_clusterer(const Context &ctx);
 } // namespace kaminpar::dist::factory

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Resolve conflicts between move sequences by accepting moves from the best 
+ * Resolve conflicts between move sequences by accepting moves from the best
  * group.
  *
  * @file:   move_conflict_resolver.cc
@@ -10,7 +10,7 @@
 
 #include <unordered_set>
 
-#include "dkaminpar/definitions.h"
+#include "dkaminpar/dkaminpar.h"
 #include "dkaminpar/mpi/wrapper.h"
 
 #include "common/asserting_cast.h"

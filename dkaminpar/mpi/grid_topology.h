@@ -1,14 +1,15 @@
 /*******************************************************************************
+ * Computes a mapping of an arbitrary number of PEs to a 2D grid.
+ *
  * @file:   grid_topology.h
  * @author: Daniel Seemaier
  * @date:   09.09.2022
- * @brief:  Computes a mapping of an arbitrary number of PEs to a 2D grid.
  ******************************************************************************/
 #pragma once
 
 #include <cmath>
 
-#include "dkaminpar/definitions.h"
+#include "dkaminpar/dkaminpar.h"
 #include "dkaminpar/mpi/wrapper.h"
 
 namespace kaminpar::mpi {
