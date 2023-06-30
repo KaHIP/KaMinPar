@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Pseudo-refiner that does nothing.
+ *
  * @file:   noop_refiner.h
  * @author: Daniel Seemaier
  * @date:   06.11.2021
- * @brief:  Refiner that does nothing.
  ******************************************************************************/
 #pragma once
 

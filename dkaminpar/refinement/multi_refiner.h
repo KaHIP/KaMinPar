@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Pseudo-refiner that runs multiple refiners in sequence.
+ *
  * @file:   multi_refiner.h
  * @author: Daniel Seemaier
  * @date:   08.08.2022
- * @brief:  Pseudo-refiner that runs multiple refiners in sequence.
  ******************************************************************************/
 #pragma once
 

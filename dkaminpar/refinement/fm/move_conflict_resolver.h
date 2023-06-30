@@ -1,9 +1,10 @@
 /*******************************************************************************
+ * Resolve conflicts between move sequences by accepting moves from the best
+ * group.
+ *
  * @file:   move_conflict_resolver.h
  * @author: Daniel Seemaier
  * @date:   11.09.2022
- * @brief:  Resolve conflicts between move sequences by accepting moves from
- * the best group.
  ******************************************************************************/
 #pragma once
 

@@ -1,10 +1,11 @@
 /*******************************************************************************
+ * Distributed FM refiner.
+ *
  * @file:   local_fm_refiner.cc
  * @author: Daniel Seemaier
  * @date:   02.08.2022
- * @brief:  Distributed FM refiner.
  ******************************************************************************/
-#include "dkaminpar/refinement/local_fm_refiner.h"
+#include "dkaminpar/refinement/fm/local_fm_refiner.h"
 
 #include <algorithm>
 #include <cstdint>

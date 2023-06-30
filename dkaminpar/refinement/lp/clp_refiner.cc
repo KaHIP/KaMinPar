@@ -1,11 +1,12 @@
-/***********************************************************************************************************************
- * @file:   colored_lp_refiner.cc
+/*******************************************************************************
+ * Distributed label propagation refiner that uses a graph coloring to avoid
+ * move conflicts.
+ *
+ * @file:   clp_refiner.cc
  * @author: Daniel Seemaier
  * @date:   09.11.2022
- * @brief:  Distributed label propagation refiner that moves nodes in rounds
- *determined by a graph coloring.
- **********************************************************************************************************************/
-#include "dkaminpar/refinement/colored_lp_refiner.h"
+ ******************************************************************************/
+#include "dkaminpar/refinement/lp/clp_refiner.h"
 
 #include <algorithm>
 #include <unordered_map>

@@ -1,10 +1,11 @@
 /*******************************************************************************
+ * Distributed label propagation refiner.
+ *
  * @file:   lp_refiner.cc
  * @author: Daniel Seemaier
  * @date:   30.09.2021
- * @brief:  Refiner based on label propagation.
- ******************************************************************************/
-#include "dkaminpar/refinement/lp_refiner.h"
+******************************************************************************/
+#include "dkaminpar/refinement/lp/lp_refiner.h"
 
 #include <mpi.h>
 

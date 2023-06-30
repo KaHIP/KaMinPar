@@ -1,10 +1,11 @@
 /*******************************************************************************
+ * Distributed FM refiner.
+ *
  * @file:   fm_refiner.cc
  * @author: Daniel Seemaier
  * @date:   11.09.2022
- * @brief:  Distributed FM refiner.
  ******************************************************************************/
-#include "dkaminpar/refinement/fm_refiner.h"
+#include "dkaminpar/refinement/fm/fm_refiner.h"
 
 #include <tbb/concurrent_vector.h>
 #include <tbb/enumerable_thread_specific.h>
@@ -17,7 +18,7 @@
 #include "dkaminpar/datastructures/growt.h"
 #include "dkaminpar/graphutils/bfs_extractor.h"
 #include "dkaminpar/metrics.h"
-#include "dkaminpar/refinement/move_conflict_resolver.h"
+#include "dkaminpar/refinement/fm/move_conflict_resolver.h"
 
 #include "kaminpar/datastructures/graph.h"
 #include "kaminpar/datastructures/partitioned_graph.h"

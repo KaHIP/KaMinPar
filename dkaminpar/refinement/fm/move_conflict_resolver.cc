@@ -1,11 +1,12 @@
 /*******************************************************************************
+ * Resolve conflicts between move sequences by accepting moves from the best 
+ * group.
+ *
  * @file:   move_conflict_resolver.cc
  * @author: Daniel Seemaier
  * @date:   11.09.2022
- * @brief:  Resolve conflicts between move sequences by accepting moves from
- * the best group.
  ******************************************************************************/
-#include "dkaminpar/refinement/move_conflict_resolver.h"
+#include "dkaminpar/refinement/fm/move_conflict_resolver.h"
 
 #include <unordered_set>
 

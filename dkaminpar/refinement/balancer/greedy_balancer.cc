@@ -4,7 +4,7 @@
  * @date:   12.04.2022
  * @brief:  Distributed balancing refinement algorithm.
  ******************************************************************************/
-#include "dkaminpar/refinement/greedy_balancer.h"
+#include "dkaminpar/refinement/balancer/greedy_balancer.h"
 
 #include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/datastructures/distributed_partitioned_graph.h"

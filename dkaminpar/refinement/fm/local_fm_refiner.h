@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Distributed FM refiner.
+ *
  * @file:   local_fm_refiner.h
  * @author: Daniel Seemaier
  * @date:   02.08.2022
- * @brief:  Distributed FM refiner.
  ******************************************************************************/
 #pragma once
 

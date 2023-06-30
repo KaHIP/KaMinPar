@@ -1,26 +1,32 @@
 /*******************************************************************************
- * @file:   lp_refiner.h
+ * Distributed FM refiner.
+ *
+ * @file:   fm_refiner.h
  * @author: Daniel Seemaier
- * @date:   30.09.2021
- * @brief:  Refiner based on label propagation.
+ * @date:   11.09.2022
  ******************************************************************************/
 #pragma once
+
+#include <tbb/concurrent_vector.h>
 
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/datastructures/distributed_partitioned_graph.h"
 #include "dkaminpar/refinement/refiner.h"
 
+#include "common/logger.h"
+#include "common/parallel/atomic.h"
+
 namespace kaminpar::dist {
-class LPRefinerFactory : public GlobalRefinerFactory {
+class FMRefinerFactory : public GlobalRefinerFactory {
 public:
-  LPRefinerFactory(const Context &ctx);
+  FMRefinerFactory(const Context &ctx);
 
-  LPRefinerFactory(const LPRefinerFactory &) = delete;
-  LPRefinerFactory &operator=(const LPRefinerFactory &) = delete;
+  FMRefinerFactory(const FMRefinerFactory &) = delete;
+  FMRefinerFactory &operator=(const FMRefinerFactory &) = delete;
 
-  LPRefinerFactory(LPRefinerFactory &&) noexcept = default;
-  LPRefinerFactory &operator=(LPRefinerFactory &&) = delete;
+  FMRefinerFactory(FMRefinerFactory &&) noexcept = default;
+  FMRefinerFactory &operator=(FMRefinerFactory &&) = delete;
 
   std::unique_ptr<GlobalRefiner>
   create(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
@@ -29,25 +35,25 @@ private:
   const Context &_ctx;
 };
 
-class LPRefiner : public GlobalRefiner {
+class FMRefiner : public GlobalRefiner {
+  SET_STATISTICS_FROM_GLOBAL();
+  SET_DEBUG(false);
+
 public:
-  LPRefiner(
+  FMRefiner(
       const Context &ctx, DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx
   );
 
-  LPRefiner(const LPRefiner &) = delete;
-  LPRefiner &operator=(const LPRefiner &) = delete;
-
-  LPRefiner(LPRefiner &&) noexcept = default;
-  LPRefiner &operator=(LPRefiner &&) = delete;
-
-  ~LPRefiner();
+  FMRefiner(const FMRefiner &) = delete;
+  FMRefiner &operator=(const FMRefiner &) = delete;
+  FMRefiner(FMRefiner &&) noexcept = default;
+  FMRefiner &operator=(FMRefiner &&) = delete;
 
   void initialize() final;
   bool refine() final;
 
 private:
-  std::unique_ptr<class LPRefinerImpl> _impl;
+  const FMRefinementContext &_fm_ctx;
 
   DistributedPartitionedGraph &_p_graph;
   const PartitionContext &_p_ctx;

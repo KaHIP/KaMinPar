@@ -1,9 +1,10 @@
 /*******************************************************************************
+ * Distributed JET balancer due to: "Jet: Multilevel Graph Partitioning on GPUs" 
+ * by Gilbert et al.
+ *
  * @file:   jet_balancer.h
  * @author: Daniel Seemaier
  * @date:   29.06.2023
- * @brief:  Distributed JET balancer due to:
- * "Jet: Multilevel Graph Partitioning on GPUs" by Gilbert et al.
  ******************************************************************************/
 #pragma once
 

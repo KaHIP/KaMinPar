@@ -1,9 +1,10 @@
 /*******************************************************************************
- * @file:   jet_refiner.h
+ * Distributed JET refiner due to: "Jet: Multilevel Graph Partitioning on GPUs"
+ * by Gilbert et al.
+ *
+ * @file:   jet_refiner.cc
  * @author: Daniel Seemaier
  * @date:   02.05.2023
- * @brief:  Distributed JET refiner due to:
- * "Jet: Multilevel Graph Partitioning on GPUs" by Gilbert et al.
  ******************************************************************************/
 #include "dkaminpar/refinement/jet/jet_refiner.h"
 
@@ -14,7 +15,7 @@
 #include "dkaminpar/datastructures/distributed_partitioned_graph.h"
 #include "dkaminpar/graphutils/synchronization.h"
 #include "dkaminpar/metrics.h"
-#include "dkaminpar/refinement/greedy_balancer.h"
+#include "dkaminpar/refinement/balancer/greedy_balancer.h"
 
 #include "common/random.h"
 #include "common/timer.h"

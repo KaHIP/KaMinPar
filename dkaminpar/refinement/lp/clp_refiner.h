@@ -1,10 +1,11 @@
-/***********************************************************************************************************************
- * @file:   colored_lp_refiner.h
+/*******************************************************************************
+ * Distributed label propagation refiner that uses a graph coloring to avoid
+ * move conflicts.
+ *
+ * @file:   clp_refiner.h
  * @author: Daniel Seemaier
  * @date:   09.11.2022
- * @brief:  Distributed label propagation refiner that moves nodes in rounds
- *determined by a graph coloring.
- **********************************************************************************************************************/
+ ******************************************************************************/
 #pragma once
 
 #include "dkaminpar/algorithms/greedy_node_coloring.h"

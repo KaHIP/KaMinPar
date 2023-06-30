@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Instanties partitioning components specified by the Context struct.
+ *
  * @file:   factories.cc
  * @author: Daniel Seemaier
  * @date:   06.11.2021
- * @brief:  Instantiates the configured partitioning components.
  ******************************************************************************/
 #include "dkaminpar/factories.h"
 
@@ -23,14 +24,14 @@
 #include "dkaminpar/initial_partitioning/random_initial_partitioner.h"
 
 // Refinement
+#include "dkaminpar/refinement/balancer/greedy_balancer.h"
 #include "dkaminpar/refinement/balancer/move_set_balancer.h"
-#include "dkaminpar/refinement/colored_lp_refiner.h"
-#include "dkaminpar/refinement/fm_refiner.h"
-#include "dkaminpar/refinement/greedy_balancer.h"
+#include "dkaminpar/refinement/fm/fm_refiner.h"
+#include "dkaminpar/refinement/fm/local_fm_refiner.h"
 #include "dkaminpar/refinement/jet/jet_balancer.h"
 #include "dkaminpar/refinement/jet/jet_refiner.h"
-#include "dkaminpar/refinement/local_fm_refiner.h"
-#include "dkaminpar/refinement/lp_refiner.h"
+#include "dkaminpar/refinement/lp/clp_refiner.h"
+#include "dkaminpar/refinement/lp/lp_refiner.h"
 #include "dkaminpar/refinement/multi_refiner.h"
 #include "dkaminpar/refinement/noop_refiner.h"
 

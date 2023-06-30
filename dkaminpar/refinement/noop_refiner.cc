@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Pseudo-refiner that does nothing.
+ *
  * @file:   noop_refiner.cc
  * @author: Daniel Seemaier
  * @date:   06.11.2021
- * @brief:  Refiner that does nothing.
  ******************************************************************************/
 #include "dkaminpar/refinement/noop_refiner.h"
 
