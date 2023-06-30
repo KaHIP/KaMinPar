@@ -124,13 +124,13 @@ std::unique_ptr<GlobalClusterer> create_global_clusterer(const Context &ctx) {
     return std::make_unique<GlobalNoopClustering>(ctx);
 
   case GlobalClusteringAlgorithm::LP:
-    return std::make_unique<GlobalLPClustering>(ctx);
+    return std::make_unique<GlobalLPClusterer>(ctx);
 
   case GlobalClusteringAlgorithm::HEM:
-    return std::make_unique<HEMClustering>(ctx);
+    return std::make_unique<HEMClusterer>(ctx);
 
   case GlobalClusteringAlgorithm::HEM_LP:
-    return std::make_unique<HEMLPClustering>(ctx);
+    return std::make_unique<HEMLPClusterer>(ctx);
   }
 
   __builtin_unreachable();
@@ -142,7 +142,7 @@ std::unique_ptr<LocalClusterer> create_local_clusterer(const Context &ctx) {
     return std::make_unique<LocalNoopClustering>(ctx);
 
   case LocalClusteringAlgorithm::LP:
-    return std::make_unique<LocalLPClustering>(ctx);
+    return std::make_unique<LocalLPClusterer>(ctx);
   }
 
   __builtin_unreachable();

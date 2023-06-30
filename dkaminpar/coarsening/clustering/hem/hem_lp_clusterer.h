@@ -13,15 +13,15 @@
 #include "dkaminpar/dkaminpar.h"
 
 namespace kaminpar::dist {
-class HEMLPClustering : public GlobalClusterer {
+class HEMLPClusterer : public GlobalClusterer {
 public:
-  HEMLPClustering(const Context &ctx);
+  HEMLPClusterer(const Context &ctx);
 
-  HEMLPClustering(const HEMLPClustering &) = delete;
-  HEMLPClustering &operator=(const HEMLPClustering &) = delete;
+  HEMLPClusterer(const HEMLPClusterer &) = delete;
+  HEMLPClusterer &operator=(const HEMLPClusterer &) = delete;
 
-  HEMLPClustering(HEMLPClustering &&) noexcept = default;
-  HEMLPClustering &operator=(HEMLPClustering &&) = delete;
+  HEMLPClusterer(HEMLPClusterer &&) noexcept = default;
+  HEMLPClusterer &operator=(HEMLPClusterer &&) = delete;
 
   void initialize(const DistributedGraph &graph) final;
 

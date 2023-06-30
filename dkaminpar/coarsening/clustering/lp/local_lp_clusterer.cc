@@ -149,20 +149,20 @@ public:
 // Interface
 //
 
-LocalLPClustering::LocalLPClustering(const Context &ctx)
+LocalLPClusterer::LocalLPClusterer(const Context &ctx)
     : _impl{std::make_unique<LocalLPClusteringImpl>(
           ctx.coarsening.local_lp.ignore_ghost_nodes ? ctx.partition.graph->n
                                                      : ctx.partition.graph->total_n,
           ctx.coarsening
       )} {}
 
-LocalLPClustering::~LocalLPClustering() = default;
+LocalLPClusterer::~LocalLPClusterer() = default;
 
-void LocalLPClustering::initialize(const DistributedGraph &graph) {
+void LocalLPClusterer::initialize(const DistributedGraph &graph) {
   _impl->initialize(graph);
 }
 
-LocalLPClustering::ClusterArray &LocalLPClustering::cluster(
+LocalLPClusterer::ClusterArray &LocalLPClusterer::cluster(
     const DistributedGraph &graph, const GlobalNodeWeight max_cluster_weight
 ) {
   return _impl->compute_clustering(graph, max_cluster_weight);

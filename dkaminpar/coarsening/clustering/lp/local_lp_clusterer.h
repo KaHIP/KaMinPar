@@ -13,17 +13,17 @@
 #include "dkaminpar/datastructures/distributed_graph.h"
 
 namespace kaminpar::dist {
-class LocalLPClustering : public LocalClusterer {
+class LocalLPClusterer : public LocalClusterer {
 public:
-  explicit LocalLPClustering(const Context &ctx);
+  explicit LocalLPClusterer(const Context &ctx);
 
-  LocalLPClustering(const LocalLPClustering &) = delete;
-  LocalLPClustering &operator=(const LocalLPClustering &) = delete;
+  LocalLPClusterer(const LocalLPClusterer &) = delete;
+  LocalLPClusterer &operator=(const LocalLPClusterer &) = delete;
 
-  LocalLPClustering(LocalLPClustering &&) = default;
-  LocalLPClustering &operator=(LocalLPClustering &&) = default;
+  LocalLPClusterer(LocalLPClusterer &&) = default;
+  LocalLPClusterer &operator=(LocalLPClusterer &&) = default;
 
-  ~LocalLPClustering() override;
+  ~LocalLPClusterer() override;
 
   void initialize(const DistributedGraph &graph) final;
 

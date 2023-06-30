@@ -18,9 +18,9 @@ namespace {
 SET_DEBUG(true);
 }
 
-HEMClustering::HEMClustering(const Context &ctx) : _input_ctx(ctx), _ctx(ctx.coarsening.hem) {}
+HEMClusterer::HEMClusterer(const Context &ctx) : _input_ctx(ctx), _ctx(ctx.coarsening.hem) {}
 
-void HEMClustering::initialize(const DistributedGraph &graph) {
+void HEMClusterer::initialize(const DistributedGraph &graph) {
   mpi::barrier(graph.communicator());
   _graph = &graph;
   SCOPED_TIMER("Initialize HEM clustering");
@@ -153,8 +153,8 @@ void HEMClustering::initialize(const DistributedGraph &graph) {
   };
 }
 
-HEMClustering::ClusterArray &
-HEMClustering::cluster(const DistributedGraph &graph, GlobalNodeWeight max_cluster_weight) {
+HEMClusterer::ClusterArray &
+HEMClusterer::cluster(const DistributedGraph &graph, GlobalNodeWeight max_cluster_weight) {
   KASSERT(_graph == &graph, "must call initialize() before cluster()", assert::always);
   SCOPED_TIMER("Compute HEM clustering");
 
@@ -176,7 +176,7 @@ HEMClustering::cluster(const DistributedGraph &graph, GlobalNodeWeight max_clust
   return _matching;
 }
 
-bool HEMClustering::validate_matching() {
+bool HEMClusterer::validate_matching() {
   for (const NodeID u : _graph->nodes()) {
     const GlobalNodeID u_partner = _matching[u];
 
@@ -229,7 +229,7 @@ bool HEMClustering::validate_matching() {
   return true;
 }
 
-void HEMClustering::compute_local_matching(
+void HEMClusterer::compute_local_matching(
     const ColorID c, const GlobalNodeWeight max_cluster_weight
 ) {
   const NodeID seq_from = _color_sizes[c];
@@ -289,7 +289,7 @@ void HEMClustering::compute_local_matching(
   });
 }
 
-void HEMClustering::resolve_global_conflicts(const ColorID c) {
+void HEMClusterer::resolve_global_conflicts(const ColorID c) {
   struct MatchRequest {
     NodeID mine;
     NodeID theirs;

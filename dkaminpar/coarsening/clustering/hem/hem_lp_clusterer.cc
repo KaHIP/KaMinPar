@@ -16,17 +16,17 @@
 #include "dkaminpar/mpi/wrapper.h"
 
 namespace kaminpar::dist {
-HEMLPClustering::HEMLPClustering(const Context &ctx)
-    : _lp(std::make_unique<GlobalLPClustering>(ctx)),
-      _hem(std::make_unique<HEMClustering>(ctx)) {}
+HEMLPClusterer::HEMLPClusterer(const Context &ctx)
+    : _lp(std::make_unique<GlobalLPClusterer>(ctx)),
+      _hem(std::make_unique<HEMClusterer>(ctx)) {}
 
-void HEMLPClustering::initialize(const DistributedGraph &graph) {
+void HEMLPClusterer::initialize(const DistributedGraph &graph) {
   _lp->initialize(graph);
   _hem->initialize(graph);
 }
 
-HEMLPClustering::ClusterArray &
-HEMLPClustering::cluster(const DistributedGraph &graph, const GlobalNodeWeight max_cluster_weight) {
+HEMLPClusterer::ClusterArray &
+HEMLPClusterer::cluster(const DistributedGraph &graph, const GlobalNodeWeight max_cluster_weight) {
   _graph = &graph;
 
   if (_fallback) {
@@ -45,7 +45,7 @@ HEMLPClustering::cluster(const DistributedGraph &graph, const GlobalNodeWeight m
   }
 }
 
-GlobalNodeID HEMLPClustering::compute_size_after_matching_contraction(const ClusterArray &clustering
+GlobalNodeID HEMLPClusterer::compute_size_after_matching_contraction(const ClusterArray &clustering
 ) {
   tbb::enumerable_thread_specific<NodeID> num_matched_edges_ets;
   _graph->pfor_nodes([&](const NodeID u) {

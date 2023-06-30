@@ -12,17 +12,17 @@
 #include "dkaminpar/datastructures/distributed_graph.h"
 
 namespace kaminpar::dist {
-class GlobalLPClustering : public Clusterer<GlobalNodeID> {
+class GlobalLPClusterer : public Clusterer<GlobalNodeID> {
 public:
-  explicit GlobalLPClustering(const Context &ctx);
+  explicit GlobalLPClusterer(const Context &ctx);
 
-  GlobalLPClustering(const GlobalLPClustering &) = delete;
-  GlobalLPClustering &operator=(const GlobalLPClustering &) = delete;
+  GlobalLPClusterer(const GlobalLPClusterer &) = delete;
+  GlobalLPClusterer &operator=(const GlobalLPClusterer &) = delete;
 
-  GlobalLPClustering(GlobalLPClustering &&) = default;
-  GlobalLPClustering &operator=(GlobalLPClustering &&) = default;
+  GlobalLPClusterer(GlobalLPClusterer &&) = default;
+  GlobalLPClusterer &operator=(GlobalLPClusterer &&) = default;
 
-  ~GlobalLPClustering() override;
+  ~GlobalLPClusterer() override;
 
   void initialize(const DistributedGraph &graph) final;
 

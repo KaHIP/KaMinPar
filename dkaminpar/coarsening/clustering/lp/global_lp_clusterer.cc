@@ -687,16 +687,16 @@ private:
 // Public interface
 //
 
-GlobalLPClustering::GlobalLPClustering(const Context &ctx)
+GlobalLPClusterer::GlobalLPClusterer(const Context &ctx)
     : _impl{std::make_unique<GlobalLPClusteringImpl>(ctx)} {}
 
-GlobalLPClustering::~GlobalLPClustering() = default;
+GlobalLPClusterer::~GlobalLPClusterer() = default;
 
-void GlobalLPClustering::initialize(const DistributedGraph &graph) {
+void GlobalLPClusterer::initialize(const DistributedGraph &graph) {
   _impl->initialize(graph);
 }
 
-GlobalLPClustering::ClusterArray &GlobalLPClustering::cluster(
+GlobalLPClusterer::ClusterArray &GlobalLPClusterer::cluster(
     const DistributedGraph &graph, const GlobalNodeWeight max_cluster_weight
 ) {
   return _impl->compute_clustering(graph, max_cluster_weight);
