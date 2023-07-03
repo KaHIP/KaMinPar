@@ -181,6 +181,11 @@ Context create_default_context() {
                       .use_abortion_threshold = true,
                       .abortion_threshold = 0.999,
                   },
+              .jet_balancer =
+                  {
+                      .num_weak_iterations = 2,
+                      .num_strong_iterations = 1,
+                  },
           },
       .debug = {
           .save_coarsest_graph = false,

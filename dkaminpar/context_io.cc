@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Utility functions to read/write parts of the partitioner context from/to 
+ * Utility functions to read/write parts of the partitioner context from/to
  * strings.
  *
  * @file:   context_io.cc
@@ -384,7 +384,7 @@ void print(const RefinementContext &ctx, std::ostream &out) {
   out << "Refinement algorithms:        " << ctx.algorithms << "\n";
   out << "Refine initial partition:     " << (ctx.refine_coarsest_level ? "yes" : "no") << "\n";
   if (ctx.includes_algorithm(KWayRefinementAlgorithm::LP)) {
-    out << "Naive Label propagation:\n";
+    out << "Label propagation:\n";
     out << "  Number of iterations:       " << ctx.lp.num_iterations << "\n";
     // out << "  Number of chunks:           " << ctx.lp.num_chunks << " (min: "
     // << ctx.lp.min_num_chunks
@@ -423,6 +423,21 @@ void print(const RefinementContext &ctx, std::ostream &out) {
   if (ctx.includes_algorithm(KWayRefinementAlgorithm::GREEDY_BALANCER)) {
     out << "Greedy balancer:\n";
     out << "  Number of nodes per block:  " << ctx.greedy_balancer.num_nodes_per_block << "\n";
+  }
+  if (ctx.includes_algorithm(KWayRefinementAlgorithm::JET)) {
+    out << "Jet refinement:\n";
+    out << "  Number of iterations:       " << ctx.jet.num_iterations << "\n";
+    out << "  C:                          [" << ctx.jet.min_c << ".." << ctx.jet.max_c << "] "
+        << (ctx.jet.interpolate_c ? "interpolate" : "switch") << "\n";
+    out << "  Abortion threshold          "
+        << (ctx.jet.use_abortion_threshold ? std::to_string(ctx.jet.abortion_threshold) : "disabled"
+           )
+        << "\n";
+  }
+  if (ctx.includes_algorithm(KWayRefinementAlgorithm::JET_BALANCER)) {
+    out << "Jet balancer:\n";
+    out << "  Number of iterations:       " << ctx.jet_balancer.num_weak_iterations << " weak -> "
+        << ctx.jet_balancer.num_strong_iterations << " strong\n";
   }
 }
 } // namespace kaminpar::dist

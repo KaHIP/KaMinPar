@@ -239,6 +239,11 @@ struct GreedyBalancerContext {
   double fast_balancing_threshold = 0.0;
 };
 
+struct JetBalancerContext {
+  int num_weak_iterations = 0;
+  int num_strong_iterations = 0;
+};
+
 struct JetRefinementContext {
   int num_iterations = 0;
   double min_c = 0.0;
@@ -256,7 +261,9 @@ struct RefinementContext {
   ColoredLabelPropagationRefinementContext colored_lp;
   FMRefinementContext fm;
   GreedyBalancerContext greedy_balancer;
+
   JetRefinementContext jet;
+  JetBalancerContext jet_balancer;
 
   bool includes_algorithm(KWayRefinementAlgorithm algorithm) const;
 };
