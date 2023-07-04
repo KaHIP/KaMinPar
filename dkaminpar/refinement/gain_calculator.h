@@ -30,7 +30,7 @@ public:
   };
 
   template <bool randomize = true>
-  MaxGainer compute_max_gainer(const NodeID u, const PartitionContext &p_ctx) {
+  MaxGainer compute_max_gainer(const NodeID u, const PartitionContext &p_ctx) const {
     const NodeWeight u_weight = _p_graph.node_weight(u);
     const BlockID u_block = _p_graph.block(u);
 
@@ -84,7 +84,8 @@ public:
   }
 
   template <bool randomize = true>
-  std::pair<double, BlockID> compute_relative_gain(const NodeID u, const PartitionContext &p_ctx) {
+  std::pair<double, BlockID>
+  compute_relative_gain(const NodeID u, const PartitionContext &p_ctx) const {
     const auto [absolute_gain, max_gainer] = compute_absolute_gain<randomize>(u, p_ctx);
     const NodeWeight weight = _p_graph.node_weight(u);
     if (absolute_gain >= 0) {

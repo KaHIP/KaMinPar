@@ -126,11 +126,11 @@ void Buckets::clear() {
   std::fill(_bucket_sizes.begin(), _bucket_sizes.end(), 0);
 }
 
-NodeWeight &Buckets::size(const BlockID block, const std::size_t bucket) {
+GlobalNodeWeight &Buckets::size(const BlockID block, const std::size_t bucket) {
   return _bucket_sizes[block * kNumBuckets + bucket];
 }
 
-NodeWeight Buckets::size(const BlockID block, const std::size_t bucket) const {
+GlobalNodeWeight Buckets::size(const BlockID block, const std::size_t bucket) const {
   return _bucket_sizes[block * kNumBuckets + bucket];
 }
 

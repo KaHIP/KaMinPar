@@ -46,8 +46,8 @@ public:
   void init(const GainCalculator &gain_calculator);
   void clear();
 
-  NodeWeight &size(BlockID block, std::size_t bucket);
-  NodeWeight size(BlockID block, std::size_t bucket) const;
+  GlobalNodeWeight &size(BlockID block, std::size_t bucket);
+  GlobalNodeWeight size(BlockID block, std::size_t bucket) const;
 
   StaticArray<GlobalNodeWeight> compactify() const;
 
