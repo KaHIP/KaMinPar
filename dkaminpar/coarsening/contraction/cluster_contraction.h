@@ -8,10 +8,13 @@
  ******************************************************************************/
 #pragma once
 
+#include <limits>
+#include <vector>
+
 #include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/datastructures/distributed_partitioned_graph.h"
 
-#include "common/parallel/atomic.h"
+#include "common/noinit_vector.h"
 
 namespace kaminpar::dist {
 using GlobalMapping = NoinitVector<GlobalNodeID>;
@@ -31,6 +34,10 @@ struct ContractionResult {
   NoinitVector<GlobalNodeID> mapping;
   MigratedNodes migration;
 };
+
+ContractionResult contract_clustering(
+    const DistributedGraph &graph, GlobalClustering &clustering, const CoarseningContext &c_ctx
+);
 
 ContractionResult contract_clustering(
     const DistributedGraph &graph,

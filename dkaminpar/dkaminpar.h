@@ -72,13 +72,6 @@ enum class LocalClusteringAlgorithm {
   LP,
 };
 
-enum class ContractionAlgorithm {
-  LEGACY_NO_MIGRATION,
-  LEGACY_MINIMAL_MIGRATION,
-  LEGACY_FULL_MIGRATION,
-  DEFAULT,
-};
-
 enum class InitialPartitioningAlgorithm {
   KAMINPAR,
   MTKAHYPAR,
@@ -218,7 +211,6 @@ struct CoarseningContext {
   double cluster_weight_multiplier = 0.0;
 
   // Graph contraction
-  ContractionAlgorithm contraction_algorithm;
   double max_cnode_imbalance = std::numeric_limits<double>::max();
   bool migrate_cnode_prefix = true;
   bool force_perfect_cnode_balance = false;

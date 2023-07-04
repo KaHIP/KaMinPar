@@ -10,10 +10,13 @@
 #include <vector>
 
 #include "dkaminpar/coarsening/clustering/clusterer.h"
-#include "dkaminpar/coarsening/contraction/legacy_cluster_contraction.h"
+#include "dkaminpar/coarsening/contraction/cluster_contraction.h"
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/datastructures/distributed_partitioned_graph.h"
+#include "dkaminpar/dkaminpar.h"
+
+#include "common/scalable_vector.h"
 
 namespace kaminpar::dist {
 class Coarsener {

@@ -24,11 +24,11 @@
 namespace kaminpar::dist {
 SET_DEBUG(false);
 
-KWayPartitioner::KWayPartitioner(const DistributedGraph &graph, const Context &ctx)
+KWayMultilevelPartitioner::KWayMultilevelPartitioner(const DistributedGraph &graph, const Context &ctx)
     : _graph(graph),
       _ctx(ctx) {}
 
-DistributedPartitionedGraph KWayPartitioner::partition() {
+DistributedPartitionedGraph KWayMultilevelPartitioner::partition() {
   Coarsener coarsener(_graph, _ctx);
 
   const DistributedGraph *graph = &_graph;

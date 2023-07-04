@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Utility functions to read/write parts of the partitioner context from/to 
+ * Utility functions to read/write parts of the partitioner context from/to
  * strings.
  *
  * @file:   context_io.cc
@@ -89,30 +89,6 @@ std::ostream &operator<<(std::ostream &out, const LocalClusteringAlgorithm algor
     return out << "noop";
   case LocalClusteringAlgorithm::LP:
     return out << "lp";
-  }
-
-  return out << "<invalid>";
-}
-
-std::unordered_map<std::string, ContractionAlgorithm> get_contraction_algorithms() {
-  return {
-      {"legacy-no-migration", ContractionAlgorithm::LEGACY_NO_MIGRATION},
-      {"legacy-minimal-migration", ContractionAlgorithm::LEGACY_MINIMAL_MIGRATION},
-      {"legacy-full-migration", ContractionAlgorithm::LEGACY_FULL_MIGRATION},
-      {"default", ContractionAlgorithm::DEFAULT},
-  };
-}
-
-std::ostream &operator<<(std::ostream &out, const ContractionAlgorithm algorithm) {
-  switch (algorithm) {
-  case ContractionAlgorithm::LEGACY_NO_MIGRATION:
-    return out << "legacy-no-migration";
-  case ContractionAlgorithm::LEGACY_MINIMAL_MIGRATION:
-    return out << "legacy-minimal-migration";
-  case ContractionAlgorithm::LEGACY_FULL_MIGRATION:
-    return out << "legacy-full-migration";
-  case ContractionAlgorithm::DEFAULT:
-    return out << "default";
   }
 
   return out << "<invalid>";
@@ -309,9 +285,7 @@ void print(const CoarseningContext &ctx, const ParallelContext &parallel, std::o
 
   if (ctx.max_global_clustering_levels > 0) {
     out << "Global clustering algorithm:  " << ctx.global_clustering_algorithm << "\n";
-    out << "  Contraction algorithm:      " << ctx.contraction_algorithm;
-    if (ctx.contraction_algorithm == ContractionAlgorithm::DEFAULT &&
-        ctx.max_cnode_imbalance < std::numeric_limits<double>::max()) {
+    if (ctx.max_cnode_imbalance < std::numeric_limits<double>::max()) {
       out << "[rebalance if >" << std::setprecision(2) << 100.0 * (ctx.max_cnode_imbalance - 1.0)
           << "%";
       if (ctx.migrate_cnode_prefix) {
@@ -325,7 +299,7 @@ void print(const CoarseningContext &ctx, const ParallelContext &parallel, std::o
         out << ", relaxed";
       }
       out << "]";
-    } else if (ctx.contraction_algorithm == ContractionAlgorithm::DEFAULT) {
+    } else {
       out << "[natural assignment]";
     }
     out << "\n";

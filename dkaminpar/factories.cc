@@ -49,7 +49,7 @@ std::unique_ptr<Partitioner> create_partitioner(const Context &ctx, const Distri
     return std::make_unique<DeepMultilevelPartitioner>(graph, ctx);
 
   case PartitioningMode::KWAY:
-    return std::make_unique<KWayPartitioner>(graph, ctx);
+    return std::make_unique<KWayMultilevelPartitioner>(graph, ctx);
   }
 
   __builtin_unreachable();

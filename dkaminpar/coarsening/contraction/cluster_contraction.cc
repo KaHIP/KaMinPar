@@ -35,6 +35,18 @@ namespace kaminpar::dist {
 SET_STATISTICS_FROM_GLOBAL();
 SET_DEBUG(false);
 
+ContractionResult contract_clustering(
+    const DistributedGraph &graph, GlobalClustering &clustering, const CoarseningContext &c_ctx
+) {
+  return contract_clustering(
+      graph,
+      clustering,
+      c_ctx.max_cnode_imbalance,
+      c_ctx.migrate_cnode_prefix,
+      c_ctx.force_perfect_cnode_balance
+  );
+}
+
 namespace {
 struct GlobalEdge {
   GlobalNodeID u;

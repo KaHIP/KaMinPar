@@ -108,7 +108,6 @@ Context create_default_context() {
               .contraction_limit = 2000,
               .cluster_weight_limit = shm::ClusterWeightLimit::EPSILON_BLOCK_WEIGHT,
               .cluster_weight_multiplier = 1.0,
-              .contraction_algorithm = ContractionAlgorithm::DEFAULT,
               .max_cnode_imbalance = 1.1,
               .migrate_cnode_prefix = true,
               .force_perfect_cnode_balance = false,

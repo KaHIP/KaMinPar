@@ -1,9 +1,9 @@
 /*******************************************************************************
- * Generic refinement benchmark for the distributed algorithm.
+ * Benchmark for the move sets construction.
  *
- * @file:   dist_balancing_benchmark.cc
+ * @file:   dist_move_sets_benchmark.cc
  * @author: Daniel Seemaier
- * @date:   12.04.2022
+ * @date:   04.07.2023
  ******************************************************************************/
 // clang-format off
 #include <kaminpar_cli/dkaminpar_arguments.h>
@@ -58,23 +58,7 @@ int main(int argc, char *argv[]) {
   ctx.partition.k = p_graph.k();
   ctx.partition.graph = std::make_unique<GraphContext>(graph, ctx.partition);
 
-  auto refiner_factory = factory::create_refiner(ctx);
-  auto refiner = refiner_factory->create(p_graph, ctx.partition);
-
-  TIMED_SCOPE("Refiner") {
-    TIMED_SCOPE("Initialization") {
-      refiner->initialize();
-    };
-    TIMED_SCOPE("Refinement") {
-      refiner->refine();
-    };
-  };
-
-  const auto cut_after = metrics::edge_cut(p_graph);
-  const auto imbalance_after = metrics::imbalance(p_graph);
-  LOG << "RESULT cut=" << cut_after << " imbalance=" << imbalance_after;
   mpi::barrier(MPI_COMM_WORLD);
-
   if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
     Timer::global().print_machine_readable(std::cout);
   }
@@ -84,3 +68,4 @@ int main(int argc, char *argv[]) {
 
   return MPI_Finalize();
 }
+
