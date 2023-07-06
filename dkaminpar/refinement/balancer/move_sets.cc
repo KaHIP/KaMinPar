@@ -31,7 +31,6 @@ MoveSets::MoveSets(
       _move_sets(std::move(move_sets)),
       _move_set_indices(std::move(move_set_indices)) {
   KASSERT(_move_set_indices.front() == 0u);
-  KASSERT(_move_set_indices.back() == _move_sets.size());
 }
 
 NodeID MoveSets::size(const NodeID set) const {
@@ -65,7 +64,6 @@ public:
 
     for (const NodeID u : _p_graph.nodes()) {
       const BlockID bu = _p_graph.block(u);
-
       if (_p_graph.block_weight(bu) > _p_ctx.graph->max_block_weight(bu) &&
           _node_to_move_set[u] == kInvalidNodeID) {
         grow_move_set(u, max_move_set_weight);
@@ -143,6 +141,7 @@ public:
     }
 
     _move_set_indices[++_cur_move_set] = _best_prefix_pos;
+    KASSERT(_move_set_indices[_cur_move_set] - _move_set_indices[_cur_move_set - 1] <= 64);
 
     reset_cur_conns();
     _cur_block = kInvalidBlockID;
@@ -160,10 +159,11 @@ public:
 
   MoveSets finalize() {
     _move_set_indices.resize(_cur_move_set + 1);
-    _move_set_indices.back() = _p_graph.n();
+    LOG << "last size: "
+        << _move_set_indices.back() - _move_set_indices[_move_set_indices.size() - 2];
 
     KASSERT(_move_set_indices.front() == 0);
-    KASSERT(_move_set_indices.back() == _p_graph.n());
+
     KASSERT([&] {
       for (NodeID set = 1; set < _move_set_indices.size(); ++set) {
         if (_move_set_indices[set] < _move_set_indices[set - 1]) {
