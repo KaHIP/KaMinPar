@@ -28,7 +28,7 @@ create_initial_partitioner(const Context &ctx, InitialPartitioningAlgorithm algo
 std::unique_ptr<InitialPartitioner> create_initial_partitioner(const Context &ctx);
 
 std::unique_ptr<GlobalRefinerFactory>
-create_refiner(const Context &ctx, KWayRefinementAlgorithm algorithm);
+create_refiner(const Context &ctx, RefinementAlgorithm algorithm);
 
 std::unique_ptr<GlobalRefinerFactory> create_refiner(const Context &ctx);
 

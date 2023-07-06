@@ -78,16 +78,16 @@ enum class InitialPartitioningAlgorithm {
   RANDOM,
 };
 
-enum class KWayRefinementAlgorithm {
+enum class RefinementAlgorithm {
   NOOP,
-  LP,
-  LOCAL_FM,
-  FM,
+  BATCHED_LP,
   COLORED_LP,
-  GREEDY_BALANCER,
-  JET,
-  MOVE_SET_BALANCER,
+  LOCAL_FM,
+  GLOBAL_FM,
+  JET_REFINER,
   JET_BALANCER,
+  GREEDY_SINGLETONS_BALANCER,
+  GREEDY_MOVE_SETS_BALANCER,
 };
 
 enum class LabelPropagationMoveExecutionStrategy {
@@ -242,11 +242,11 @@ struct JetRefinementContext {
   bool interpolate_c = false;
   bool use_abortion_threshold = false;
   double abortion_threshold = 0;
-  KWayRefinementAlgorithm balancing_algorithm;
+  RefinementAlgorithm balancing_algorithm;
 };
 
 struct RefinementContext {
-  std::vector<KWayRefinementAlgorithm> algorithms;
+  std::vector<RefinementAlgorithm> algorithms;
   bool refine_coarsest_level = false;
 
   LabelPropagationRefinementContext lp;
@@ -257,7 +257,7 @@ struct RefinementContext {
   JetRefinementContext jet;
   JetBalancerContext jet_balancer;
 
-  bool includes_algorithm(KWayRefinementAlgorithm algorithm) const;
+  bool includes_algorithm(RefinementAlgorithm algorithm) const;
 };
 
 struct PartitionContext {

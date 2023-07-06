@@ -120,9 +120,9 @@ Context create_default_context() {
       .refinement =
           {
               .algorithms =
-                  {KWayRefinementAlgorithm::GREEDY_BALANCER,
-                   KWayRefinementAlgorithm::LP,
-                   KWayRefinementAlgorithm::GREEDY_BALANCER},
+                  {RefinementAlgorithm::GREEDY_SINGLETONS_BALANCER,
+                   RefinementAlgorithm::BATCHED_LP,
+                   RefinementAlgorithm::GREEDY_SINGLETONS_BALANCER},
               .refine_coarsest_level = false,
               .lp =
                   {
@@ -179,7 +179,7 @@ Context create_default_context() {
                       .interpolate_c = false,
                       .use_abortion_threshold = true,
                       .abortion_threshold = 0.999,
-                      .balancing_algorithm = KWayRefinementAlgorithm::JET_BALANCER,
+                      .balancing_algorithm = RefinementAlgorithm::JET_BALANCER,
                   },
               .jet_balancer =
                   {
@@ -198,9 +198,9 @@ Context create_strong_context() {
   ctx.initial_partitioning.kaminpar = shm::create_strong_context();
   ctx.coarsening.global_lp.num_iterations = 5;
   ctx.refinement.algorithms = {
-      KWayRefinementAlgorithm::GREEDY_BALANCER,
-      KWayRefinementAlgorithm::LP,
-      KWayRefinementAlgorithm::JET};
+      RefinementAlgorithm::GREEDY_SINGLETONS_BALANCER,
+      RefinementAlgorithm::BATCHED_LP,
+      RefinementAlgorithm::JET_REFINER};
   return ctx;
 }
 

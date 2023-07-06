@@ -81,34 +81,34 @@ std::unique_ptr<InitialPartitioner> create_initial_partitioner(const Context &ct
 }
 
 std::unique_ptr<GlobalRefinerFactory>
-create_refiner(const Context &ctx, const KWayRefinementAlgorithm algorithm) {
+create_refiner(const Context &ctx, const RefinementAlgorithm algorithm) {
   switch (algorithm) {
-  case KWayRefinementAlgorithm::NOOP:
+  case RefinementAlgorithm::NOOP:
     return std::make_unique<NoopRefinerFactory>();
 
-  case KWayRefinementAlgorithm::LP:
+  case RefinementAlgorithm::BATCHED_LP:
     return std::make_unique<LPRefinerFactory>(ctx);
 
-  case KWayRefinementAlgorithm::LOCAL_FM:
-    return std::make_unique<LocalFMRefinerFactory>(ctx);
-
-  case KWayRefinementAlgorithm::FM:
-    return std::make_unique<FMRefinerFactory>(ctx);
-
-  case KWayRefinementAlgorithm::COLORED_LP:
+  case RefinementAlgorithm::COLORED_LP:
     return std::make_unique<ColoredLPRefinerFactory>(ctx);
 
-  case KWayRefinementAlgorithm::GREEDY_BALANCER:
-    return std::make_unique<GreedyBalancerFactory>(ctx);
+  case RefinementAlgorithm::LOCAL_FM:
+    return std::make_unique<LocalFMRefinerFactory>(ctx);
 
-  case KWayRefinementAlgorithm::JET:
+  case RefinementAlgorithm::GLOBAL_FM:
+    return std::make_unique<FMRefinerFactory>(ctx);
+
+  case RefinementAlgorithm::JET_REFINER:
     return std::make_unique<JetRefinerFactory>(ctx);
 
-  case KWayRefinementAlgorithm::MOVE_SET_BALANCER:
-    return std::make_unique<MoveSetBalancerFactory>(ctx);
-
-  case KWayRefinementAlgorithm::JET_BALANCER:
+  case RefinementAlgorithm::JET_BALANCER:
     return std::make_unique<JetBalancerFactory>(ctx);
+
+  case RefinementAlgorithm::GREEDY_SINGLETONS_BALANCER:
+    return std::make_unique<GreedyBalancerFactory>(ctx);
+
+  case RefinementAlgorithm::GREEDY_MOVE_SETS_BALANCER:
+    return std::make_unique<MoveSetBalancerFactory>(ctx);
   }
 
   __builtin_unreachable();
@@ -120,7 +120,7 @@ std::unique_ptr<GlobalRefinerFactory> create_refiner(const Context &ctx) {
   }
 
   std::vector<std::unique_ptr<GlobalRefinerFactory>> factories;
-  for (const KWayRefinementAlgorithm algorithm : ctx.refinement.algorithms) {
+  for (const RefinementAlgorithm algorithm : ctx.refinement.algorithms) {
     factories.push_back(create_refiner(ctx, algorithm));
   }
   return std::make_unique<MultiRefinerFactory>(std::move(factories));

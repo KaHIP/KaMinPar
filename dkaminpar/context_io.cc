@@ -116,48 +116,48 @@ std::ostream &operator<<(std::ostream &out, const InitialPartitioningAlgorithm a
   return out << "<invalid>";
 }
 
-std::unordered_map<std::string, KWayRefinementAlgorithm> get_kway_refinement_algorithms() {
+std::unordered_map<std::string, RefinementAlgorithm> get_kway_refinement_algorithms() {
   return {
-      {"noop", KWayRefinementAlgorithm::NOOP},
-      {"lp/batches", KWayRefinementAlgorithm::LP},
-      {"lp/colors", KWayRefinementAlgorithm::COLORED_LP},
-      {"fm/global", KWayRefinementAlgorithm::FM},
-      {"fm/local", KWayRefinementAlgorithm::LOCAL_FM},
-      {"greedy-balancer/singletons", KWayRefinementAlgorithm::GREEDY_BALANCER},
-      {"greedy-balancer/movesets", KWayRefinementAlgorithm::MOVE_SET_BALANCER},
-      {"jet/refiner", KWayRefinementAlgorithm::JET},
-      {"jet/balancer", KWayRefinementAlgorithm::JET_BALANCER},
+      {"noop", RefinementAlgorithm::NOOP},
+      {"lp/batches", RefinementAlgorithm::BATCHED_LP},
+      {"lp/colors", RefinementAlgorithm::COLORED_LP},
+      {"fm/global", RefinementAlgorithm::GLOBAL_FM},
+      {"fm/local", RefinementAlgorithm::LOCAL_FM},
+      {"greedy-balancer/singletons", RefinementAlgorithm::GREEDY_SINGLETONS_BALANCER},
+      {"greedy-balancer/movesets", RefinementAlgorithm::GREEDY_MOVE_SETS_BALANCER},
+      {"jet/refiner", RefinementAlgorithm::JET_REFINER},
+      {"jet/balancer", RefinementAlgorithm::JET_BALANCER},
   };
 }
 
-std::unordered_map<std::string, KWayRefinementAlgorithm> get_balancing_algorithms() {
+std::unordered_map<std::string, RefinementAlgorithm> get_balancing_algorithms() {
   return {
-      {"noop", KWayRefinementAlgorithm::NOOP},
-      {"greedy-balancer/singletons", KWayRefinementAlgorithm::GREEDY_BALANCER},
-      {"greedy-balancer/movesets", KWayRefinementAlgorithm::MOVE_SET_BALANCER},
-      {"jet/balancer", KWayRefinementAlgorithm::JET_BALANCER},
+      {"noop", RefinementAlgorithm::NOOP},
+      {"greedy-balancer/singletons", RefinementAlgorithm::GREEDY_SINGLETONS_BALANCER},
+      {"greedy-balancer/movesets", RefinementAlgorithm::GREEDY_MOVE_SETS_BALANCER},
+      {"jet/balancer", RefinementAlgorithm::JET_BALANCER},
   };
 };
 
-std::ostream &operator<<(std::ostream &out, const KWayRefinementAlgorithm algorithm) {
+std::ostream &operator<<(std::ostream &out, const RefinementAlgorithm algorithm) {
   switch (algorithm) {
-  case KWayRefinementAlgorithm::NOOP:
+  case RefinementAlgorithm::NOOP:
     return out << "noop";
-  case KWayRefinementAlgorithm::LP:
+  case RefinementAlgorithm::BATCHED_LP:
     return out << "lp/batches";
-  case KWayRefinementAlgorithm::COLORED_LP:
+  case RefinementAlgorithm::COLORED_LP:
     return out << "lp/colors";
-  case KWayRefinementAlgorithm::LOCAL_FM:
+  case RefinementAlgorithm::LOCAL_FM:
     return out << "fm/local";
-  case KWayRefinementAlgorithm::FM:
+  case RefinementAlgorithm::GLOBAL_FM:
     return out << "fm/global";
-  case KWayRefinementAlgorithm::GREEDY_BALANCER:
+  case RefinementAlgorithm::GREEDY_SINGLETONS_BALANCER:
     return out << "greedy-balancer/singletons";
-  case KWayRefinementAlgorithm::MOVE_SET_BALANCER:
+  case RefinementAlgorithm::GREEDY_MOVE_SETS_BALANCER:
     return out << "greedy-balancer/movesets";
-  case KWayRefinementAlgorithm::JET:
+  case RefinementAlgorithm::JET_REFINER:
     return out << "jet/refiner";
-  case KWayRefinementAlgorithm::JET_BALANCER:
+  case RefinementAlgorithm::JET_BALANCER:
     return out << "jet/balancer";
   }
 
@@ -386,7 +386,7 @@ void print(const InitialPartitioningContext &ctx, std::ostream &out) {
 void print(const RefinementContext &ctx, std::ostream &out) {
   out << "Refinement algorithms:        " << ctx.algorithms << "\n";
   out << "Refine initial partition:     " << (ctx.refine_coarsest_level ? "yes" : "no") << "\n";
-  if (ctx.includes_algorithm(KWayRefinementAlgorithm::LP)) {
+  if (ctx.includes_algorithm(RefinementAlgorithm::BATCHED_LP)) {
     out << "Label propagation:\n";
     out << "  Number of iterations:       " << ctx.lp.num_iterations << "\n";
     // out << "  Number of chunks:           " << ctx.lp.num_chunks << " (min: "
@@ -397,7 +397,7 @@ void print(const RefinementContext &ctx, std::ostream &out) {
     out << "  Use probabilistic moves:    " << (ctx.lp.ignore_probabilities ? "no" : "yes") << "\n";
     out << "  Number of retries:          " << ctx.lp.num_move_attempts << "\n";
   }
-  if (ctx.includes_algorithm(KWayRefinementAlgorithm::COLORED_LP)) {
+  if (ctx.includes_algorithm(RefinementAlgorithm::COLORED_LP)) {
     out << "Colored Label Propagation:\n";
     // out << "  Number of coloring ssteps:  " <<
     // ctx.colored_lp.num_coloring_chunks
@@ -423,7 +423,7 @@ void print(const RefinementContext &ctx, std::ostream &out) {
     out << "  Small color blacklist:      " << 100 * ctx.colored_lp.small_color_blacklist << "%"
         << (ctx.colored_lp.only_blacklist_input_level ? " (input level only)" : "") << "\n";
   }
-  if (ctx.includes_algorithm(KWayRefinementAlgorithm::JET)) {
+  if (ctx.includes_algorithm(RefinementAlgorithm::JET_REFINER)) {
     out << "Jet refinement:\n";
     out << "  Number of iterations:       " << ctx.jet.num_iterations << "\n";
     out << "  C:                          [" << ctx.jet.min_c << ".." << ctx.jet.max_c << "] "
@@ -434,15 +434,15 @@ void print(const RefinementContext &ctx, std::ostream &out) {
         << "\n";
     out << "  Balancing algorithm:        " << ctx.jet.balancing_algorithm << "\n";
   }
-  if (ctx.includes_algorithm(KWayRefinementAlgorithm::GREEDY_BALANCER) ||
-      (ctx.includes_algorithm(KWayRefinementAlgorithm::JET) &&
-       ctx.jet.balancing_algorithm == KWayRefinementAlgorithm::GREEDY_BALANCER)) {
+  if (ctx.includes_algorithm(RefinementAlgorithm::GREEDY_SINGLETONS_BALANCER) ||
+      (ctx.includes_algorithm(RefinementAlgorithm::JET_REFINER) &&
+       ctx.jet.balancing_algorithm == RefinementAlgorithm::GREEDY_SINGLETONS_BALANCER)) {
     out << "Greedy balancer:\n";
     out << "  Number of nodes per block:  " << ctx.greedy_balancer.num_nodes_per_block << "\n";
   }
-  if (ctx.includes_algorithm(KWayRefinementAlgorithm::JET_BALANCER) ||
-      (ctx.includes_algorithm(KWayRefinementAlgorithm::JET) &&
-       ctx.jet.balancing_algorithm == KWayRefinementAlgorithm::JET_BALANCER)) {
+  if (ctx.includes_algorithm(RefinementAlgorithm::JET_BALANCER) ||
+      (ctx.includes_algorithm(RefinementAlgorithm::JET_REFINER) &&
+       ctx.jet.balancing_algorithm == RefinementAlgorithm::JET_BALANCER)) {
     out << "Jet balancer:\n";
     out << "  Number of iterations:       " << ctx.jet_balancer.num_weak_iterations << " weak + "
         << ctx.jet_balancer.num_strong_iterations << " strong\n";
