@@ -14,9 +14,12 @@ public:
       NoinitVector<NodeID> move_set_indices
   );
 
-  [[nodiscard]] NodeID size(const NodeID set) const;
+  [[nodiscard]] inline NodeID size(const NodeID set) const {
+    KASSERT(set + 1 < _move_set_indices.size());
+    return _move_set_indices[set + 1] - _move_set_indices[set];
+  }
 
-  [[nodiscard]] inline auto set(const NodeID set) const {
+  [[nodiscard]] inline auto elements(const NodeID set) const {
     return TransformedIotaRange(
         _move_set_indices[set],
         _move_set_indices[set + 1],
@@ -36,8 +39,56 @@ public:
     return _p_graph.block(_move_sets[_move_set_indices[set]]);
   }
 
-  NodeID num_move_sets() const {
+  [[nodiscard]] inline NodeID num_move_sets() const {
     return _move_set_indices.size() - 1;
+  }
+
+  inline void move(const NodeID set, const BlockID from, const BlockID to) {
+    for (const NodeID u : elements(set)) {
+      for (const auto [e, v] : _p_graph.neighbors(u)) {
+        if (!_p_graph.contains_local_node(v)) {
+          continue;
+        }
+
+        const NodeID set_v = _node_to_move_set[v];
+        if (set_v == kInvalidNodeID || set_v == set) {
+          continue;
+        }
+
+        const EdgeWeight delta = _p_graph.edge_weight(e);
+        _move_set_conns[set_v * _p_graph.k() + from] -= delta;
+        _move_set_conns[set_v * _p_graph.k() + to] += delta;
+      }
+    }
+  }
+
+  [[nodiscard]] inline BlockID owner(const NodeID set) const {
+    return block(_move_sets[_move_set_indices[set]]);
+  }
+
+  inline std::pair<EdgeWeight, BlockID> find_max_conn(const NodeID set) const {
+    KASSERT(size(set) > 0);
+
+    EdgeWeight max_conn = std::numeric_limits<EdgeWeight>::min();
+    BlockID max_gainer = kInvalidBlockID;
+
+    const BlockID set_b = owner(set);
+    for (const BlockID b : _p_graph.blocks()) {
+      if (b != set_b && conn(set, b) > max_conn) {
+        max_conn = conn(set, b);
+        max_gainer = b;
+      }
+    }
+
+    KASSERT(max_conn >= 0);
+    KASSERT(max_gainer != kInvalidBlockID);
+
+    return {max_conn, max_gainer};
+  }
+
+  inline std::pair<EdgeWeight, BlockID> find_max_gain(const NodeID set) const {
+    const auto [max_conn, max_gainer] = find_max_conn(set);
+    return {max_conn - conn(set, owner(set)), max_gainer};
   }
 
 private:

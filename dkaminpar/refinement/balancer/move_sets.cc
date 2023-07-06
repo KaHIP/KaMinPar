@@ -33,11 +33,6 @@ MoveSets::MoveSets(
   KASSERT(_move_set_indices.front() == 0u);
 }
 
-NodeID MoveSets::size(const NodeID set) const {
-  KASSERT(set + 1 < _move_set_indices.size());
-  return _move_set_indices[set + 1] - _move_set_indices[set];
-}
-
 namespace {
 class MoveSetBuilder {
 public:
