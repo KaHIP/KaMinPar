@@ -14,7 +14,7 @@ public:
       NoinitVector<NodeID> move_set_indices
   );
 
-  [[nodiscard]] inline NodeID size(const NodeID set) const;
+  [[nodiscard]] NodeID size(const NodeID set) const;
 
   [[nodiscard]] inline auto set(const NodeID set) const {
     return TransformedIotaRange(
@@ -34,6 +34,10 @@ public:
 
   [[nodiscard]] inline BlockID block(const NodeID set) const {
     return _p_graph.block(_move_sets[_move_set_indices[set]]);
+  }
+
+  NodeID num_move_sets() const {
+    return _move_set_indices.size();
   }
 
 private:

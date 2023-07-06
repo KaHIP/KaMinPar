@@ -20,6 +20,7 @@
 #include "dkaminpar/graphutils/communication.h"
 #include "dkaminpar/metrics.h"
 #include "dkaminpar/presets.h"
+#include "dkaminpar/refinement/balancer/move_sets.h"
 
 #include "common/logger.h"
 #include "common/random.h"
@@ -36,6 +37,7 @@ int main(int argc, char *argv[]) {
   Context ctx = create_default_context();
   std::string graph_filename;
   std::string partition_filename;
+  NodeWeight max_move_set_size = 64;
 
   // Remove default refiners
   ctx.refinement.algorithms.clear();
@@ -45,6 +47,7 @@ int main(int argc, char *argv[]) {
   app.add_option("-P", partition_filename);
   app.add_option("-e", ctx.partition.epsilon);
   app.add_option("-t", ctx.parallel.num_threads);
+  app.add_option("--max-size", max_move_set_size);
   create_refinement_options(&app, ctx);
   CLI11_PARSE(app, argc, argv);
 
@@ -55,8 +58,25 @@ int main(int argc, char *argv[]) {
   auto &graph = *wrapper.graph;
   auto &p_graph = *wrapper.p_graph;
 
+  LOG << "Number of nodes: " << graph.global_n();
+  LOG << "Number of edges: " << graph.global_m();
+
   ctx.partition.k = p_graph.k();
   ctx.partition.graph = std::make_unique<GraphContext>(graph, ctx.partition);
+
+  const MoveSets sets = build_greedy_move_sets(p_graph, ctx.partition, max_move_set_size);
+
+  LOG << "Number of move sets: " << sets.num_move_sets();
+
+  NodeID max_size = 0;
+  NodeID min_size = graph.global_n();
+  for (NodeID set = 0; set < sets.num_move_sets(); ++set) {
+    max_size = std::max(max_size, sets.size(set));
+    min_size = std::min(min_size, sets.size(set));
+  }
+
+  LOG << "Max: " << max_size << ", avg: " << graph.global_n() / sets.num_move_sets()
+      << ", min: " << min_size;
 
   mpi::barrier(MPI_COMM_WORLD);
   if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
