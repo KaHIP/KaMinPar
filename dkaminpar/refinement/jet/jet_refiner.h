@@ -58,6 +58,6 @@ private:
   DistributedPartitionedGraph &_p_graph;
   const PartitionContext &_p_ctx;
 
-  GreedyBalancerFactory _balancer_factory;
+  std::unique_ptr<GlobalRefinerFactory> _balancer_factory;
 };
 } // namespace kaminpar::dist

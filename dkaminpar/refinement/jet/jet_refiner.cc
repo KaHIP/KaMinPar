@@ -13,9 +13,9 @@
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/datastructures/distributed_partitioned_graph.h"
+#include "dkaminpar/factories.h"
 #include "dkaminpar/graphutils/synchronization.h"
 #include "dkaminpar/metrics.h"
-#include "dkaminpar/refinement/balancer/greedy_balancer.h"
 
 #include "common/random.h"
 #include "common/timer.h"
@@ -34,7 +34,7 @@ JetRefiner::JetRefiner(
     : _ctx(ctx),
       _p_graph(p_graph),
       _p_ctx(p_ctx),
-      _balancer_factory(ctx) {}
+      _balancer_factory(factory::create_refiner(_ctx, _ctx.refinement.jet.balancing_algorithm)) {}
 
 void JetRefiner::initialize() {}
 
@@ -63,7 +63,7 @@ bool JetRefiner::refine() {
   NoinitVector<std::uint8_t> lock(_p_graph.n());
   _p_graph.pfor_nodes([&](const NodeID u) { lock[u] = 0; });
 
-  auto balancer = _balancer_factory.create(_p_graph, _p_ctx);
+  auto balancer = _balancer_factory->create(_p_graph, _p_ctx);
   balancer->initialize();
 
   NoinitVector<BlockID> next_partition(_p_graph.total_n());

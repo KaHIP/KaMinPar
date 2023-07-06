@@ -179,6 +179,7 @@ Context create_default_context() {
                       .interpolate_c = false,
                       .use_abortion_threshold = true,
                       .abortion_threshold = 0.999,
+                      .balancing_algorithm = KWayRefinementAlgorithm::JET_BALANCER,
                   },
               .jet_balancer =
                   {

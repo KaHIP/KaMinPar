@@ -36,17 +36,17 @@ template <typename T> std::ostream &operator<<(std::ostream &out, const std::vec
 
 std::unordered_map<std::string, PartitioningMode> get_partitioning_modes() {
   return {
-      {"deep", PartitioningMode::DEEP},
-      {"kway", PartitioningMode::KWAY},
+      {"multilevel/deep", PartitioningMode::DEEP},
+      {"multilevel/kway", PartitioningMode::KWAY},
   };
 }
 
 std::ostream &operator<<(std::ostream &out, const PartitioningMode mode) {
   switch (mode) {
   case PartitioningMode::DEEP:
-    return out << "deep";
+    return out << "multilevel/deep";
   case PartitioningMode::KWAY:
-    return out << "kway";
+    return out << "multilevel/kway";
   }
 
   return out << "<invalid>";
@@ -119,40 +119,69 @@ std::ostream &operator<<(std::ostream &out, const InitialPartitioningAlgorithm a
 std::unordered_map<std::string, KWayRefinementAlgorithm> get_kway_refinement_algorithms() {
   return {
       {"noop", KWayRefinementAlgorithm::NOOP},
-      {"lp", KWayRefinementAlgorithm::LP},
-      {"local-fm", KWayRefinementAlgorithm::LOCAL_FM},
-      {"fm", KWayRefinementAlgorithm::FM},
-      {"colored-lp", KWayRefinementAlgorithm::COLORED_LP},
-      {"greedy-balancer", KWayRefinementAlgorithm::GREEDY_BALANCER},
-      {"jet", KWayRefinementAlgorithm::JET},
-      {"move-set-balancer", KWayRefinementAlgorithm::MOVE_SET_BALANCER},
-      {"jet-balancer", KWayRefinementAlgorithm::JET_BALANCER},
+      {"lp/batches", KWayRefinementAlgorithm::LP},
+      {"lp/colors", KWayRefinementAlgorithm::COLORED_LP},
+      {"fm/global", KWayRefinementAlgorithm::FM},
+      {"fm/local", KWayRefinementAlgorithm::LOCAL_FM},
+      {"greedy-balancer/singletons", KWayRefinementAlgorithm::GREEDY_BALANCER},
+      {"greedy-balancer/movesets", KWayRefinementAlgorithm::MOVE_SET_BALANCER},
+      {"jet/refiner", KWayRefinementAlgorithm::JET},
+      {"jet/balancer", KWayRefinementAlgorithm::JET_BALANCER},
   };
 }
+
+std::unordered_map<std::string, KWayRefinementAlgorithm> get_balancing_algorithms() {
+  return {
+      {"noop", KWayRefinementAlgorithm::NOOP},
+      {"greedy-balancer/singletons", KWayRefinementAlgorithm::GREEDY_BALANCER},
+      {"greedy-balancer/movesets", KWayRefinementAlgorithm::MOVE_SET_BALANCER},
+      {"jet/balancer", KWayRefinementAlgorithm::JET_BALANCER},
+  };
+};
 
 std::ostream &operator<<(std::ostream &out, const KWayRefinementAlgorithm algorithm) {
   switch (algorithm) {
   case KWayRefinementAlgorithm::NOOP:
     return out << "noop";
   case KWayRefinementAlgorithm::LP:
-    return out << "lp";
-  case KWayRefinementAlgorithm::LOCAL_FM:
-    return out << "local-fm";
-  case KWayRefinementAlgorithm::FM:
-    return out << "fm";
+    return out << "lp/batches";
   case KWayRefinementAlgorithm::COLORED_LP:
-    return out << "colored-lp";
+    return out << "lp/colors";
+  case KWayRefinementAlgorithm::LOCAL_FM:
+    return out << "fm/local";
+  case KWayRefinementAlgorithm::FM:
+    return out << "fm/global";
   case KWayRefinementAlgorithm::GREEDY_BALANCER:
-    return out << "greedy-balancer";
-  case KWayRefinementAlgorithm::JET:
-    return out << "jet";
+    return out << "greedy-balancer/singletons";
   case KWayRefinementAlgorithm::MOVE_SET_BALANCER:
-    return out << "move-set-balancer";
+    return out << "greedy-balancer/movesets";
+  case KWayRefinementAlgorithm::JET:
+    return out << "jet/refiner";
   case KWayRefinementAlgorithm::JET_BALANCER:
-    return out << "jet-balancer";
+    return out << "jet/balancer";
   }
 
   return out << "<invalid>";
+}
+
+std::string get_refinement_algorithms_description() {
+  return std::string(R"(
+- noop:                       do nothing
+- lp/batches:                 LP where batches are nodes with subsequent IDs
+- lp/colors:                  LP where batches are color classes
+- fm/local:                   local FM
+- fm/global:                  global FM
+- jet/refiner:                reimplementation of JET's refinement algorithm)")
+             .substr(1) +
+         "\n" + get_balancing_algorithms_description();
+}
+
+std::string get_balancing_algorithms_description() {
+  return std::string(R"(
+- jet/balancer:               reimplementation of JET's balancing algorithm
+- greedy-balancer/singletons: greedy, move individual nodes
+- greedy-balancer/movesets:   greedy, move sets of nodes)")
+      .substr(1);
 }
 
 std::unordered_map<std::string, LabelPropagationMoveExecutionStrategy>
@@ -394,10 +423,6 @@ void print(const RefinementContext &ctx, std::ostream &out) {
     out << "  Small color blacklist:      " << 100 * ctx.colored_lp.small_color_blacklist << "%"
         << (ctx.colored_lp.only_blacklist_input_level ? " (input level only)" : "") << "\n";
   }
-  if (ctx.includes_algorithm(KWayRefinementAlgorithm::GREEDY_BALANCER)) {
-    out << "Greedy balancer:\n";
-    out << "  Number of nodes per block:  " << ctx.greedy_balancer.num_nodes_per_block << "\n";
-  }
   if (ctx.includes_algorithm(KWayRefinementAlgorithm::JET)) {
     out << "Jet refinement:\n";
     out << "  Number of iterations:       " << ctx.jet.num_iterations << "\n";
@@ -407,10 +432,19 @@ void print(const RefinementContext &ctx, std::ostream &out) {
         << (ctx.jet.use_abortion_threshold ? std::to_string(ctx.jet.abortion_threshold) : "disabled"
            )
         << "\n";
+    out << "  Balancing algorithm:        " << ctx.jet.balancing_algorithm << "\n";
   }
-  if (ctx.includes_algorithm(KWayRefinementAlgorithm::JET_BALANCER)) {
+  if (ctx.includes_algorithm(KWayRefinementAlgorithm::GREEDY_BALANCER) ||
+      (ctx.includes_algorithm(KWayRefinementAlgorithm::JET) &&
+       ctx.jet.balancing_algorithm == KWayRefinementAlgorithm::GREEDY_BALANCER)) {
+    out << "Greedy balancer:\n";
+    out << "  Number of nodes per block:  " << ctx.greedy_balancer.num_nodes_per_block << "\n";
+  }
+  if (ctx.includes_algorithm(KWayRefinementAlgorithm::JET_BALANCER) ||
+      (ctx.includes_algorithm(KWayRefinementAlgorithm::JET) &&
+       ctx.jet.balancing_algorithm == KWayRefinementAlgorithm::JET_BALANCER)) {
     out << "Jet balancer:\n";
-    out << "  Number of iterations:       " << ctx.jet_balancer.num_weak_iterations << " weak -> "
+    out << "  Number of iterations:       " << ctx.jet_balancer.num_weak_iterations << " weak + "
         << ctx.jet_balancer.num_strong_iterations << " strong\n";
   }
 }

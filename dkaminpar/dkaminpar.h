@@ -143,7 +143,6 @@ struct HEMCoarseningContext {
 
   int compute_num_coloring_chunks(const ParallelContext &parallel) const;
 };
-
 struct ColoredLabelPropagationRefinementContext {
   int num_iterations = 0;
   int num_move_execution_iterations = 0;
@@ -243,6 +242,7 @@ struct JetRefinementContext {
   bool interpolate_c = false;
   bool use_abortion_threshold = false;
   double abortion_threshold = 0;
+  KWayRefinementAlgorithm balancing_algorithm;
 };
 
 struct RefinementContext {

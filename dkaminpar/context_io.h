@@ -27,9 +27,13 @@ std::unordered_map<std::string, GlobalClusteringAlgorithm> get_global_clustering
 std::unordered_map<std::string, LocalClusteringAlgorithm> get_local_clustering_algorithms();
 std::unordered_map<std::string, InitialPartitioningAlgorithm> get_initial_partitioning_algorithms();
 std::unordered_map<std::string, KWayRefinementAlgorithm> get_kway_refinement_algorithms();
+std::unordered_map<std::string, KWayRefinementAlgorithm> get_balancing_algorithms();
 std::unordered_map<std::string, LabelPropagationMoveExecutionStrategy>
 get_label_propagation_move_execution_strategies();
 std::unordered_map<std::string, GraphOrdering> get_graph_orderings();
+
+std::string get_refinement_algorithms_description();
+std::string get_balancing_algorithms_description();
 
 void print(const Context &ctx, bool root, std::ostream &out);
 void print(const PartitionContext &ctx, bool root, std::ostream &out);

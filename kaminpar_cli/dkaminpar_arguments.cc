@@ -101,13 +101,8 @@ CLI::Option_group *create_refinement_options(CLI::App *app, Context &ctx) {
   refinement->add_option("--r-algorithm,--r-algorithms", ctx.refinement.algorithms)
       ->transform(CLI::CheckedTransformer(get_kway_refinement_algorithms()).description(""))
       ->description(
-          R"(K-way refinement algorithm(s). Possible options are (separated by space):
-  - noop:            disable k-way refinement
-  - colored-lp:      distributed label propagation based on node coloring
-  - lp:              distributed label propagation
-  - local-fm:        PE-local FM
-  - fm:              distributed FM
-  - greedy_balancer: greedy algorithm to force balance)"
+          std::string("Refinement algorithm(s). Possible options are:\n") +
+          get_refinement_algorithms_description()
       )
       ->capture_default_str();
   refinement
@@ -537,6 +532,13 @@ CLI::Option_group *create_jet_refinement_options(CLI::App *app, Context &ctx) {
   jet->add_flag("--r-jet-use-abortion-threshold", ctx.refinement.jet.use_abortion_threshold)
       ->capture_default_str();
   jet->add_option("--r-jet-abortion-threshold", ctx.refinement.jet.abortion_threshold)
+      ->capture_default_str();
+  jet->add_option("--r-jet-balancing-algorithm", ctx.refinement.jet.balancing_algorithm)
+      ->transform(CLI::CheckedTransformer(get_balancing_algorithms()).description(""))
+      ->description(
+          std::string("Balancing algorithm(s). Possible options are:\n") +
+          get_balancing_algorithms_description()
+      )
       ->capture_default_str();
 
   return jet;
