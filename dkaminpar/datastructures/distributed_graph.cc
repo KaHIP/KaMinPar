@@ -17,7 +17,7 @@
 #include "common/math.h"
 #include "common/parallel/algorithm.h"
 #include "common/parallel/vector_ets.h"
-#include "common/scalable_vector.h"
+#include "common/datastructures/scalable_vector.h"
 #include "common/timer.h"
 
 namespace kaminpar::dist {

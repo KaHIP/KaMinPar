@@ -16,7 +16,7 @@
 #include "dkaminpar/dkaminpar.h"
 #include "dkaminpar/mpi/wrapper.h"
 
-#include "common/noinit_vector.h"
+#include "common/datastructures/noinit_vector.h"
 #include "common/timer.h"
 
 namespace kaminpar::mpi {

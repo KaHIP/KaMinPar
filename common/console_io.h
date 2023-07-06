@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Helper functions for console IO.
+ *
  * @file:   console_io.h
  * @author: Daniel Seemaier
  * @date:   21.09.2021
- * @brief:  Helper functions for console IO.
  ******************************************************************************/
 #pragma once
 

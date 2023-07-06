@@ -9,7 +9,7 @@
 #include "kaminpar/datastructures/partitioned_graph.h"
 
 #include "common/assertion_levels.h"
-#include "common/scalable_vector.h"
+#include "common/datastructures/scalable_vector.h"
 
 namespace kaminpar::shm::testing {
 //

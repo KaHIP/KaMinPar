@@ -25,11 +25,11 @@
 #include "common/datastructures/binary_heap.h"
 #include "common/datastructures/rating_map.h"
 #include "common/datastructures/ts_navigable_linked_list.h"
-#include "common/noinit_vector.h"
+#include "common/datastructures/noinit_vector.h"
 #include "common/parallel/algorithm.h"
 #include "common/parallel/aligned_element.h"
 #include "common/parallel/vector_ets.h"
-#include "common/scalable_vector.h"
+#include "common/datastructures/scalable_vector.h"
 #include "common/timer.h"
 
 namespace kaminpar::dist {

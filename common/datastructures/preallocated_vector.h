@@ -1,9 +1,9 @@
 /*******************************************************************************
- * @file:   preallocated_vector.h
+ * Partial instantiation of `std::vector` using preallocated memory.
  *
+ * @file:   preallocated_vector.h
  * @author: Daniel Seemaier
  * @date:   31.05.2022
- * @brief:  Partial instantiation of `std::vector` using preallocated memory.
  ******************************************************************************/
 #pragma once
 

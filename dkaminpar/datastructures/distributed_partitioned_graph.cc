@@ -12,7 +12,7 @@
 #include "dkaminpar/logger.h"
 
 #include "common/parallel/vector_ets.h"
-#include "common/scalable_vector.h"
+#include "common/datastructures/scalable_vector.h"
 
 namespace kaminpar::dist {
 void DistributedPartitionedGraph::init_block_weights() {

@@ -21,9 +21,9 @@
 
 #include "common/logger.h"
 #include "common/math.h"
-#include "common/noinit_vector.h"
+#include "common/datastructures/noinit_vector.h"
 #include "common/parallel/algorithm.h"
-#include "common/preallocated_vector.h"
+#include "common/datastructures/preallocated_vector.h"
 #include "common/timer.h"
 
 namespace kaminpar::mpi {

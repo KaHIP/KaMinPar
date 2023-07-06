@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Helper class for console logging.
+ *
  * @file:   logger.h
  * @author: Daniel Seemaier
  * @date:   21.09.2021
- * @brief:  Helper for console output.
  ******************************************************************************/
 #pragma once
 

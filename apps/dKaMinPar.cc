@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Standalone binary for the distributed partitioner.
+ *
  * @file:   dkaminpar.cc
  * @author: Daniel Seemaier
  * @date:   21.09.2021
- * @brief:  Distributed KaMinPar binary.
  ******************************************************************************/
 // clang-format off
 #include "kaminpar_cli/dkaminpar_arguments.h"

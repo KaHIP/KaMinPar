@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Standalone binary for the shared-memory partitioner.
+ *
  * @file:   KaMinPar.cc
  * @author: Daniel Seemaier
  * @date:   21.09.2021
- * @brief:  Binary for the shared-memory partitioner.
  ******************************************************************************/
 // clang-format off
 #include "kaminpar_cli/kaminpar_arguments.h"

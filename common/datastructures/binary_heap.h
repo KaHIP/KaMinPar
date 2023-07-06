@@ -13,9 +13,9 @@
 #include <kassert/kassert.hpp>
 #include <tbb/parallel_for.h>
 
-#include "common/noinit_vector.h"
-#include "common/preallocated_vector.h"
-#include "common/scalable_vector.h"
+#include "common/datastructures/noinit_vector.h"
+#include "common/datastructures/preallocated_vector.h"
+#include "common/datastructures/scalable_vector.h"
 
 namespace kaminpar {
 namespace binary_heap {

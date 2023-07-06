@@ -17,9 +17,9 @@
 #include "dkaminpar/mpi/utils.h"
 
 #include "common/assertion_levels.h"
-#include "common/cache_aligned_vector.h"
+#include "common/datastructures/cache_aligned_vector.h"
 #include "common/datastructures/marker.h"
-#include "common/noinit_vector.h"
+#include "common/datastructures/noinit_vector.h"
 #include "common/parallel/aligned_element.h"
 #include "common/timer.h"
 

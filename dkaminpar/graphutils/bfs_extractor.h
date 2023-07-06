@@ -21,8 +21,8 @@
 
 #include "common/datastructures/fast_reset_array.h"
 #include "common/datastructures/marker.h"
-#include "common/noinit_vector.h"
-#include "common/preallocated_vector.h"
+#include "common/datastructures/noinit_vector.h"
+#include "common/datastructures/preallocated_vector.h"
 
 namespace kaminpar::dist::graph {
 class BfsExtractor {

@@ -18,7 +18,7 @@
 #include "dkaminpar/mpi/wrapper.h"
 
 #include "common/math.h"
-#include "common/noinit_vector.h"
+#include "common/datastructures/noinit_vector.h"
 
 namespace kaminpar::mpi {
 namespace tag {

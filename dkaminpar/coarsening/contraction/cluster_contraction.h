@@ -14,7 +14,7 @@
 #include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/datastructures/distributed_partitioned_graph.h"
 
-#include "common/noinit_vector.h"
+#include "common/datastructures/noinit_vector.h"
 
 namespace kaminpar::dist {
 using GlobalMapping = NoinitVector<GlobalNodeID>;

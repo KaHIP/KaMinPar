@@ -10,7 +10,7 @@
 #include "kaminpar/definitions.h"
 
 #include "common/parallel/atomic.h"
-#include "common/scalable_vector.h"
+#include "common/datastructures/scalable_vector.h"
 
 namespace kaminpar::shm {
 class Clusterer {

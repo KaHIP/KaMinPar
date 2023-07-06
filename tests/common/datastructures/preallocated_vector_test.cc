@@ -3,7 +3,7 @@
 
 #include <gtest/gtest.h>
 
-#include "common/preallocated_vector.h"
+#include "common/datastructures/preallocated_vector.h"
 
 using namespace kaminpar;
 

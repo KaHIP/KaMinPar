@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Utility functions to map integers to bit buckets.
+ *
  * @file:   degree_buckets.h
  * @author: Daniel Seemaier
  * @date:   09.05.2023
- * @brief:  Mapping of degrees to buckets.
  ******************************************************************************/
 #pragma once
 

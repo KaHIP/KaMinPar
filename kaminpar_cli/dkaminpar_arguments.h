@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Command line arguments for the distributed partitioner.
+ *
  * @file:   dkaminpar_arguments.h
  * @author: Daniel Seemaier
  * @date:   15.10.2022
- * @brief:  Command line arguments for the distributed partitioner.
  ******************************************************************************/
 #pragma once
 

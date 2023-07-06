@@ -2,7 +2,7 @@
 
 #include <tbb/scalable_allocator.h>
 
-#include "common/noinit_vector.h"
+#include "common/datastructures/noinit_vector.h"
 
 namespace kaminpar {
 // @deprecated

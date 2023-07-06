@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Partial instantiation of `std::vector` that avoids value initialization.
+ *
  * @file:   noinit_vector.h
  * @author: Daniel Seemaier
  * @date:   31.05.2022
- * @brief:  `std::vector` without initialization.
  ******************************************************************************/
 #pragma once
 

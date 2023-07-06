@@ -10,7 +10,7 @@
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructures/distributed_graph.h"
 
-#include "common/scalable_vector.h"
+#include "common/datastructures/scalable_vector.h"
 
 namespace kaminpar::dist::graph {
 DistributedGraph rearrange(DistributedGraph graph, const Context &ctx);

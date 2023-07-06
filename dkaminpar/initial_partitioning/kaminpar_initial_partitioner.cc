@@ -12,7 +12,7 @@
 
 #include "common/datastructures/static_array.h"
 #include "common/logger.h"
-#include "common/scalable_vector.h"
+#include "common/datastructures/scalable_vector.h"
 #include "common/timer.h"
 
 namespace kaminpar::dist {

@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Thread-local singleton for PRNG.
+ *
  * @file:   random.cc
  * @author: Daniel Seemaier
  * @date:   21.09.2021
- * @brief:  Helper class for PRNG.
  ******************************************************************************/
 #include "common/random.h"
 
