@@ -70,13 +70,18 @@ int main(int argc, char *argv[]) {
 
   NodeID max_size = 0;
   NodeID min_size = graph.global_n();
+  NodeID sum = 0;
   for (NodeID set = 0; set < sets.num_move_sets(); ++set) {
-    max_size = std::max(max_size, sets.size(set));
-    min_size = std::min(min_size, sets.size(set));
+    max_size = std::max<NodeID>(max_size, sets.size(set));
+    min_size = std::min<NodeID>(min_size, sets.size(set));
+    sum += sets.size(set);
+    if (sum > graph.global_n()) {
+      LOG << "Sum is larger than the number of nodes!" << sum;
+    }
   }
 
-  LOG << "Max: " << max_size << ", avg: " << graph.global_n() / sets.num_move_sets()
-      << ", min: " << min_size;
+  LOG << "Max: " << max_size << ", avg: " << 1.0 * graph.global_n() / sets.num_move_sets()
+      << ", min: " << min_size << ", sum: " << sum;
 
   mpi::barrier(MPI_COMM_WORLD);
   if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {

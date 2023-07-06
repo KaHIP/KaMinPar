@@ -15,6 +15,7 @@
 #include "common/datastructures/marker.h"
 #include "common/datastructures/rating_map.h"
 #include "common/noinit_vector.h"
+#include "common/timer.h"
 
 namespace kaminpar::dist {
 SET_DEBUG(true);
@@ -119,8 +120,10 @@ public:
         const BlockID bv = _p_graph.block(v);
         if (bv == _cur_block) {
           _cur_block_conn += _p_graph.edge_weight(e);
-        } else {
-          _cur_conns.decrease_priority(bv, _cur_conns.key(bv) + _p_graph.edge_weight(e));
+        } else if (_p_graph.block_weight(bv) + _cur_weight <= _p_ctx.graph->max_block_weight(bv)) {
+          _cur_conns.change_priority(bv, _cur_conns.key(bv) + _p_graph.edge_weight(e));
+        } else if (_cur_conns.key(bv) > 0) { // no longer a viable target
+          _cur_conns.change_priority(bv, -1);
         }
       }
     }
@@ -155,6 +158,19 @@ public:
   MoveSets finalize() {
     _move_set_indices.resize(_cur_move_set + 1);
     _move_set_indices.back() = _p_graph.n();
+
+    KASSERT(_move_set_indices.front() == 0);
+    KASSERT(_move_set_indices.back() == _p_graph.n());
+    KASSERT([&] {
+      for (NodeID set = 1; set < _move_set_indices.size(); ++set) {
+        if (_move_set_indices[set] < _move_set_indices[set - 1]) {
+          LOG_WARNING << "bad set " << set - 1 << ": spans from " << _move_set_indices[set - 1]
+                      << " to " << _move_set_indices[set];
+          return false;
+        }
+      }
+      return true;
+    }());
 
     return {
         _p_graph,
@@ -207,6 +223,8 @@ MoveSets build_greedy_move_sets(
     const PartitionContext &p_ctx,
     const NodeWeight max_move_set_weight
 ) {
+  SCOPED_TIMER("Build move sets");
+
   MoveSetBuilder builder(p_graph, p_ctx);
   builder.build(max_move_set_weight);
   return builder.finalize();

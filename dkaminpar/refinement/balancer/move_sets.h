@@ -37,7 +37,7 @@ public:
   }
 
   NodeID num_move_sets() const {
-    return _move_set_indices.size();
+    return _move_set_indices.size() - 1;
   }
 
 private:
