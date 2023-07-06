@@ -142,14 +142,17 @@ public:
       _node_to_move_set[_move_sets[pos]] = kInvalidNodeID;
     }
 
-    _move_set_indices[_cur_move_set + 1] = _move_set_indices[_cur_move_set] + _best_prefix_pos;
-    ++_cur_move_set;
+    _move_set_indices[++_cur_move_set] = _best_prefix_pos;
 
     reset_cur_conns();
     _cur_block = kInvalidBlockID;
     _cur_block_conn = 0;
     _cur_pos = _best_prefix_pos;
     _cur_weight = 0;
+
+    _best_prefix_block = kInvalidBlockID;
+    _best_prefix_conn = 0;
+    // _best_prefix_pos = _cur_pos;
 
     _frontier.clear();
     _stopping_policy.reset();
