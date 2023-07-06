@@ -1,9 +1,13 @@
 #include "dkaminpar/refinement/balancer/move_sets.h"
 
+#include <csignal>
+
 #include <tbb/parallel_for.h>
 #include <tbb/parallel_invoke.h>
 
 #include "dkaminpar/context.h"
+
+#include "kaminpar/refinement/stopping_policies.h"
 
 #include "common/assertion_levels.h"
 #include "common/datastructures/binary_heap.h"
@@ -13,6 +17,8 @@
 #include "common/noinit_vector.h"
 
 namespace kaminpar::dist {
+SET_DEBUG(true);
+
 MoveSets::MoveSets(
     const DistributedPartitionedGraph &p_graph,
     NoinitVector<NodeID> node_to_move_set,
@@ -43,15 +49,19 @@ public:
         _move_set_indices(p_graph.n() + 1),
         _conns(p_graph.n() * p_graph.k()),
         _frontier(p_graph.n()),
-        _cur_conns(p_graph.k()) {
+        _cur_conns(p_graph.k()),
+        _stopping_policy(1.0) {
     _p_graph.pfor_nodes([&](const NodeID u) {
       _node_to_move_set[u] = kInvalidNodeID;
       _move_sets[u] = kInvalidNodeID;
     });
     _move_set_indices.front() = 0;
+    _stopping_policy.init(_p_graph.n());
   }
 
   void build(const NodeWeight max_move_set_weight) {
+    reset_cur_conns();
+
     for (const NodeID u : _p_graph.nodes()) {
       const BlockID bu = _p_graph.block(u);
 
@@ -66,7 +76,7 @@ public:
     KASSERT(_node_to_move_set[seed] == kInvalidNodeID);
 
     _frontier.push(seed, 0);
-    while (!_frontier.empty() && _cur_weight < max_weight) {
+    while (!_frontier.empty() && _cur_weight < max_weight && !_stopping_policy.should_stop()) {
       const NodeID u = _frontier.peek_id();
       const BlockID bu = _p_graph.block(u);
       _frontier.pop();
@@ -74,8 +84,8 @@ public:
       add_to_move_set(u);
 
       for (const auto [e, v] : _p_graph.neighbors(u)) {
-        const BlockID bv = _p_graph.block(v);
-        if (bv == bu) {
+        if (_p_graph.contains_local_node(v) && _node_to_move_set[v] == kInvalidBlockID &&
+            _p_graph.block(v) == bu) {
           if (_frontier.contains(v)) {
             _frontier.decrease_priority(v, _frontier.key(v) + _p_graph.edge_weight(e));
           } else {
@@ -87,7 +97,7 @@ public:
 
     finish_move_set();
 
-    KASSERT(_node_to_move_set[seed] != kInvalidBlockID);
+    KASSERT(_node_to_move_set[seed] != kInvalidBlockID, "unassigned seed node " << seed);
   }
 
   void add_to_move_set(const NodeID u) {
@@ -110,10 +120,12 @@ public:
         if (bv == _cur_block) {
           _cur_block_conn += _p_graph.edge_weight(e);
         } else {
-          _cur_conns.decrease_priority_by(bv, _p_graph.edge_weight(e));
+          _cur_conns.decrease_priority(bv, _cur_conns.key(bv) + _p_graph.edge_weight(e));
         }
       }
     }
+
+    _stopping_policy.update(_cur_conns.peek_key() - _cur_block_conn);
 
     if (_cur_conns.peek_key() >= _best_prefix_conn) {
       _best_prefix_block = _cur_conns.peek_id();
@@ -123,7 +135,7 @@ public:
   }
 
   void finish_move_set() {
-    for (NodeID pos = _best_prefix_pos; pos < _cur_pos; ++pos) {
+    for (NodeID pos = _best_prefix_pos + 1; pos < _cur_pos; ++pos) {
       _node_to_move_set[_move_sets[pos]] = kInvalidNodeID;
     }
 
@@ -134,6 +146,10 @@ public:
     _cur_block = kInvalidBlockID;
     _cur_block_conn = 0;
     _cur_pos = _best_prefix_pos;
+    _cur_weight = 0;
+
+    _frontier.clear();
+    _stopping_policy.reset();
   }
 
   MoveSets finalize() {
@@ -181,6 +197,8 @@ private:
   NodeID _best_prefix_pos = 0;
   BlockID _best_prefix_block = kInvalidBlockID;
   EdgeWeight _best_prefix_conn = 0;
+
+  shm::AdaptiveStoppingPolicy _stopping_policy;
 };
 } // namespace
 
