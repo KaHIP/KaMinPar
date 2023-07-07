@@ -154,9 +154,6 @@ public:
 
   MoveSets finalize() {
     _move_set_indices.resize(_cur_move_set + 1);
-    LOG << "last size: "
-        << _move_set_indices.back() - _move_set_indices[_move_set_indices.size() - 2];
-
     KASSERT(_move_set_indices.front() == 0);
 
     KASSERT([&] {
