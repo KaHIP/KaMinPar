@@ -25,7 +25,7 @@ jobs:
           echo CXX=${{matrix.compiler.cxx}} >> $GITHUB_ENV 
           echo CC=${{matrix.compiler.cc}} >> $GITHUB_ENV 
       - name: CMake
-        run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{matrix.build-mode}} -DCMAKE_C_COMPILER=${{matrix.compiler.cc}} -DCMAKE_CXX_COMPILER=${{matrix.compiler.cxx}} -DKAMINPAR_ASSERTION_LEVEL=normal -DKAMINPAR_BUILD_TESTS=On -DKAMINPAR_BUILD_APPS=Off
+        run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{matrix.build-mode}} -DCMAKE_C_COMPILER=${{matrix.compiler.cc}} -DCMAKE_CXX_COMPILER=${{matrix.compiler.cxx}} -DKAMINPAR_ASSERTION_LEVEL=normal -DKAMINPAR_BUILD_TESTS=On -DKAMINPAR_BUILD_DISTRIBUTED=On -DKAMINPAR_BUILD_APPS=On
       - name: Build
         run: cmake --build ${{github.workspace}}/build --config ${{matrix.build-mode}} --parallel 2
         env:
