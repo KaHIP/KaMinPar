@@ -84,6 +84,10 @@ public:
     }
   }
 
+  inline NodeID set_of(const NodeID node) const {
+    return _node_to_move_set[node];
+  }
+
   inline void move_set(const NodeID set, const BlockID from, const BlockID to) {
     for (const NodeID u : elements(set)) {
       for (const auto [e, v] : _p_graph.neighbors(u)) {

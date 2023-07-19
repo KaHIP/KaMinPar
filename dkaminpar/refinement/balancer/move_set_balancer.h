@@ -63,9 +63,12 @@ public:
   bool refine() final;
 
 private:
+  void try_pq_insertion(NodeID set);
+
   void perform_parallel_round();
 
-  struct SequentialMoveCandidate {
+  struct MoveCandidate {
+    PEID owner;
     NodeID set;
     NodeWeight weight;
     double gain;
@@ -74,13 +77,15 @@ private:
   };
 
   void perform_sequential_round();
-  std::vector<SequentialMoveCandidate> pick_sequential_candidates();
-  std::vector<SequentialMoveCandidate>
-  reduce_sequential_candidates(std::vector<SequentialMoveCandidate> candidates);
-  void perform_sequential_move(const SequentialMoveCandidate &candidate);
+  std::vector<MoveCandidate> pick_sequential_candidates();
+  std::vector<MoveCandidate>
+  reduce_sequential_candidates(std::vector<MoveCandidate> candidates);
+  void perform_moves(const std::vector<MoveCandidate> &candidates);
 
   BlockWeight overload(BlockID block) const;
   bool is_overloaded(BlockID block) const;
+
+  Random &_rand = Random::instance();
 
   MoveSetBalancerFactory &_factory;
   const Context &_ctx;

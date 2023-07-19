@@ -7,6 +7,7 @@
  ******************************************************************************/
 #include "dkaminpar/refinement/balancer/move_set_balancer.h"
 
+#include "dkaminpar/mpi/sparse_alltoall.h"
 #include "dkaminpar/mpi/wrapper.h"
 #include "dkaminpar/refinement/balancer/move_sets.h"
 
@@ -61,40 +62,42 @@ MoveSetBalancer::operator MoveSetBalancerMemoryContext() && {
 }
 
 void MoveSetBalancer::initialize() {
-  Random &rand = Random::instance();
 
   for (const NodeID set : _move_sets.sets()) {
     if (!is_overloaded(_move_sets.block(set))) {
       continue;
     }
+    try_pq_insertion(set);
+  }
+}
 
-    const BlockID from_block = _move_sets.block(set);
-    const auto [relative_gain, to_block] = _move_sets.find_max_relative_gain(set);
+void MoveSetBalancer::try_pq_insertion(const NodeID set) {
+  const BlockID from_block = _move_sets.block(set);
+  const auto [relative_gain, to_block] = _move_sets.find_max_relative_gain(set);
 
-    // Add weight to the correct weight bucket
-    _weight_buckets.add(from_block, relative_gain);
+  // Add weight to the correct weight bucket
+  _weight_buckets.add(from_block, relative_gain);
 
-    // Add this move set to the PQ if:
-    // - we do not have enough move sets yet to remove all excess weight from the block
-    bool accept = _pq_weights[from_block] < overload(from_block);
-    bool replace_min = false;
-    // - or its relative gain is better than the worst relative gain in the PQ
-    if (!accept) {
-      const double min_key = _pqs.peek_min_key(from_block);
-      accept = relative_gain > min_key || (relative_gain == min_key && rand.random_bool());
-      replace_min = true; // no effect if accept == false
+  // Add this move set to the PQ if:
+  // - we do not have enough move sets yet to remove all excess weight from the block
+  bool accept = _pq_weights[from_block] < overload(from_block);
+  bool replace_min = false;
+  // - or its relative gain is better than the worst relative gain in the PQ
+  if (!accept) {
+    const double min_key = _pqs.peek_min_key(from_block);
+    accept = relative_gain > min_key || (relative_gain == min_key && _rand.random_bool());
+    replace_min = true; // no effect if accept == false
+  }
+
+  if (accept) {
+    if (replace_min) {
+      NodeID replaced_set = _pqs.peek_min_id(from_block);
+      _pqs.pop_min(from_block);
+      _pq_weights[from_block] -= _move_sets.weight(replaced_set);
+      _pq_weights[to_block] += _move_sets.weight(set);
     }
 
-    if (accept) {
-      if (replace_min) {
-        NodeID replaced_set = _pqs.peek_min_id(from_block);
-        _pqs.pop_min(from_block);
-        _pq_weights[from_block] -= _move_sets.weight(replaced_set);
-        _pq_weights[to_block] += _move_sets.weight(set);
-      }
-
-      _pqs.push(from_block, set, relative_gain);
-    }
+    _pqs.push(from_block, set, relative_gain);
   }
 }
 
@@ -145,11 +148,14 @@ void MoveSetBalancer::perform_sequential_round() {
   auto candidates = reduce_sequential_candidates(pick_sequential_candidates());
 
   // Step 2: let ROOT decide which candidates to pick
+  std::vector<BlockWeight> tmp_block_weight_deltas(_p_graph.k());
+
   for (const auto &candidate : candidates) { // empty on non-ROOT
     if (candidate.from == candidate.to) {
       continue;
     }
-    perform_sequential_move(candidate);
+    tmp_block_weight_deltas[candidate.from] -= candidate.weight;
+    tmp_block_weight_deltas[candidate.to] += candidate.weight;
   }
   BlockID to = 0;
   for (auto &candidate : candidates) {
@@ -157,7 +163,7 @@ void MoveSetBalancer::perform_sequential_round() {
       continue;
     }
 
-    while (candidate.from == to || overload(to) < candidate.weight) {
+    while (candidate.from == to || overload(to) < candidate.weight + tmp_block_weight_deltas[to]) {
       ++to;
       if (to >= _p_ctx.k) {
         to = 0;
@@ -165,19 +171,85 @@ void MoveSetBalancer::perform_sequential_round() {
     }
 
     candidate.to = to;
-    perform_sequential_move(candidate);
+    tmp_block_weight_deltas[candidate.from] -= candidate.weight;
+    tmp_block_weight_deltas[candidate.to] += candidate.weight;
   }
 
   // Step 3: broadcast winners
+  const std::size_t num_candidates = mpi::bcast(candidates.size(), 0, _p_graph.communicator());
+  candidates.resize(num_candidates);
+  mpi::bcast(candidates.data(), num_candidates, 0, _p_graph.communicator());
+
+  // Step 4: apply changes
+  perform_moves(candidates);
 }
 
-void MoveSetBalancer::perform_sequential_move(const SequentialMoveCandidate &candidate) {
+void MoveSetBalancer::perform_moves(
+    const std::vector<MoveCandidate> &candidates
+) {
+  const PEID rank = mpi::get_comm_rank(_p_graph.communicator());
+  const PEID size = mpi::get_comm_size(_p_graph.communicator());
 
+  struct MoveMessage {
+    NodeID node;
+    BlockID to;
+  };
+  Marker<> created_message_for_pe(size);
+  std::vector<std::vector<MoveMessage>> move_sendbufs(size);
+
+  for (const auto &candidate : candidates) {
+    if (rank == candidate.owner) {
+      _move_sets.move_set(candidate.set, candidate.from, candidate.to);
+      for (NodeID u : _move_sets.elements(candidate.set)) {
+        _p_graph.set_block<false>(u, candidate.to);
+
+        for (const auto &[e, v] : _p_graph.neighbors(u)) {
+          if (_p_graph.is_ghost_node(v)) {
+            const PEID pe = _p_graph.ghost_owner(v);
+            if (!created_message_for_pe.get(pe)) {
+              move_sendbufs[pe].emplace_back(u, candidate.to);
+              created_message_for_pe.set(pe);
+            }
+            continue;
+          }
+
+          if (!is_overloaded(_p_graph.block(v))) {
+            continue;
+          }
+
+          const NodeID set = _move_sets.set_of(v);
+          if (!_pqs.contains(set)) {
+            // @todo update _pqs
+            try_pq_insertion(set);
+          }
+        }
+      }
+    }
+
+    // Update block weights
+    _p_graph.set_block_weight(
+        candidate.from, _p_graph.block_weight(candidate.from) - candidate.weight
+    );
+    _p_graph.set_block_weight(candidate.to, _p_graph.block_weight(candidate.to) + candidate.weight);
+  }
+
+  mpi::sparse_alltoall<MoveMessage>(
+      move_sendbufs,
+      [&](const auto recvbuf, const PEID pe) {
+        for (const auto &[their_lnode, to] : recvbuf) {
+          const GlobalNodeID gnode = their_lnode + _p_graph.offset_n(pe);
+          const NodeID lnode = _p_graph.global_to_local_node(gnode);
+          _move_sets.move_ghost_node(lnode, _p_graph.block(lnode), to);
+          _p_graph.set_block<false>(lnode, to);
+        }
+      },
+      _p_graph.communicator()
+  );
 }
 
-std::vector<MoveSetBalancer::SequentialMoveCandidate>
+std::vector<MoveSetBalancer::MoveCandidate>
 MoveSetBalancer::pick_sequential_candidates() {
-  std::vector<SequentialMoveCandidate> candidates;
+  std::vector<MoveCandidate> candidates;
 
   for (const BlockID from : _p_graph.blocks()) {
     if (!is_overloaded(from)) {
@@ -200,7 +272,7 @@ MoveSetBalancer::pick_sequential_candidates() {
       auto [actual_relative_gain, to] = _move_sets.find_max_relative_gain(set);
       KASSERT(actual_relative_gain == relative_gain);
 
-      candidates.push_back(SequentialMoveCandidate{
+      candidates.push_back(MoveCandidate{
           .set = set,
           .weight = weight,
           .gain = actual_relative_gain,
@@ -217,8 +289,8 @@ MoveSetBalancer::pick_sequential_candidates() {
   return candidates;
 }
 
-std::vector<MoveSetBalancer::SequentialMoveCandidate>
-MoveSetBalancer::reduce_sequential_candidates(std::vector<SequentialMoveCandidate> candidates) {
+std::vector<MoveSetBalancer::MoveCandidate>
+MoveSetBalancer::reduce_sequential_candidates(std::vector<MoveCandidate> candidates) {
   return std::move(candidates);
 }
 
