@@ -118,6 +118,7 @@ CLI::Option_group *create_refinement_options(CLI::App *app, Context &ctx) {
   create_colored_lp_refinement_options(app, ctx);
   create_jet_refinement_options(app, ctx);
   create_greedy_balancer_options(app, ctx);
+  create_move_set_balancer_options(app, ctx);
 
   return refinement;
 }
@@ -298,7 +299,7 @@ CLI::Option_group *create_colored_lp_refinement_options(CLI::App *app, Context &
 }
 
 CLI::Option_group *create_greedy_balancer_options(CLI::App *app, Context &ctx) {
-  auto *balancer = app->add_option_group("Refinement -> Balancer");
+  auto *balancer = app->add_option_group("Refinement -> Node balancer");
 
   balancer->add_option("--r-b-max-num-rounds", ctx.refinement.greedy_balancer.max_num_rounds)
       ->capture_default_str();
@@ -323,6 +324,42 @@ CLI::Option_group *create_greedy_balancer_options(CLI::App *app, Context &ctx) {
       ->add_option(
           "--r-b-fast-balancing-threshold",
           ctx.refinement.greedy_balancer.fast_balancing_threshold,
+          "Perform a fast balancing round if strong balancing improved the imbalance by less than "
+          "this value, e.g., 0.01 for 1%."
+      )
+      ->capture_default_str();
+
+  return balancer;
+}
+
+CLI::Option_group *create_move_set_balancer_options(CLI::App *app, Context &ctx) {
+  auto *balancer = app->add_option_group("Refinement -> Move set balancer");
+
+  balancer->add_option("--r-bms-max-num-rounds", ctx.refinement.move_set_balancer.max_num_rounds)
+      ->capture_default_str();
+  balancer
+      ->add_flag(
+          "--r-bms-enable-sequential-balancing",
+          ctx.refinement.move_set_balancer.enable_sequential_balancing
+      )
+      ->capture_default_str();
+  balancer
+      ->add_option(
+          "--r-bms-seq-nodes-per-block",
+          ctx.refinement.move_set_balancer.seq_num_nodes_per_block,
+          "Number of nodes selected for each overloaded block on each PE."
+      )
+      ->capture_default_str();
+  balancer
+      ->add_flag(
+          "--r-bms-enable-parallel-balancing",
+          ctx.refinement.move_set_balancer.enable_parallel_balancing
+      )
+      ->capture_default_str();
+  balancer
+      ->add_option(
+          "--r-bms-parallel-threshold",
+          ctx.refinement.move_set_balancer.parallel_threshold,
           "Perform a fast balancing round if strong balancing improved the imbalance by less than "
           "this value, e.g., 0.01 for 1%."
       )

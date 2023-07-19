@@ -104,10 +104,10 @@ create_refiner(const Context &ctx, const RefinementAlgorithm algorithm) {
   case RefinementAlgorithm::JET_BALANCER:
     return std::make_unique<JetBalancerFactory>(ctx);
 
-  case RefinementAlgorithm::GREEDY_SINGLETONS_BALANCER:
+  case RefinementAlgorithm::GREEDY_NODE_BALANCER:
     return std::make_unique<GreedyBalancerFactory>(ctx);
 
-  case RefinementAlgorithm::GREEDY_MOVE_SETS_BALANCER:
+  case RefinementAlgorithm::GREEDY_MOVE_SET_BALANCER:
     return std::make_unique<MoveSetBalancerFactory>(ctx);
   }
 

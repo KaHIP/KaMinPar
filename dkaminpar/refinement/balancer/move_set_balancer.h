@@ -63,7 +63,21 @@ public:
   bool refine() final;
 
 private:
-  
+  void perform_parallel_round();
+
+  struct SequentialMoveCandidate {
+    NodeID set;
+    NodeWeight weight;
+    double gain;
+    BlockID from;
+    BlockID to;
+  };
+
+  void perform_sequential_round();
+  std::vector<SequentialMoveCandidate> pick_sequential_candidates();
+  std::vector<SequentialMoveCandidate>
+  reduce_sequential_candidates(std::vector<SequentialMoveCandidate> candidates);
+  void perform_sequential_move(const SequentialMoveCandidate &candidate);
 
   BlockWeight overload(BlockID block) const;
   bool is_overloaded(BlockID block) const;

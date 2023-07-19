@@ -123,8 +123,8 @@ std::unordered_map<std::string, RefinementAlgorithm> get_kway_refinement_algorit
       {"lp/colors", RefinementAlgorithm::COLORED_LP},
       {"fm/global", RefinementAlgorithm::GLOBAL_FM},
       {"fm/local", RefinementAlgorithm::LOCAL_FM},
-      {"greedy-balancer/singletons", RefinementAlgorithm::GREEDY_SINGLETONS_BALANCER},
-      {"greedy-balancer/movesets", RefinementAlgorithm::GREEDY_MOVE_SETS_BALANCER},
+      {"greedy-balancer/node", RefinementAlgorithm::GREEDY_NODE_BALANCER},
+      {"greedy-balancer/moveset", RefinementAlgorithm::GREEDY_MOVE_SET_BALANCER},
       {"jet/refiner", RefinementAlgorithm::JET_REFINER},
       {"jet/balancer", RefinementAlgorithm::JET_BALANCER},
   };
@@ -133,8 +133,8 @@ std::unordered_map<std::string, RefinementAlgorithm> get_kway_refinement_algorit
 std::unordered_map<std::string, RefinementAlgorithm> get_balancing_algorithms() {
   return {
       {"noop", RefinementAlgorithm::NOOP},
-      {"greedy-balancer/singletons", RefinementAlgorithm::GREEDY_SINGLETONS_BALANCER},
-      {"greedy-balancer/movesets", RefinementAlgorithm::GREEDY_MOVE_SETS_BALANCER},
+      {"greedy-balancer/node", RefinementAlgorithm::GREEDY_NODE_BALANCER},
+      {"greedy-balancer/moveset", RefinementAlgorithm::GREEDY_MOVE_SET_BALANCER},
       {"jet/balancer", RefinementAlgorithm::JET_BALANCER},
   };
 };
@@ -151,10 +151,10 @@ std::ostream &operator<<(std::ostream &out, const RefinementAlgorithm algorithm)
     return out << "fm/local";
   case RefinementAlgorithm::GLOBAL_FM:
     return out << "fm/global";
-  case RefinementAlgorithm::GREEDY_SINGLETONS_BALANCER:
-    return out << "greedy-balancer/singletons";
-  case RefinementAlgorithm::GREEDY_MOVE_SETS_BALANCER:
-    return out << "greedy-balancer/movesets";
+  case RefinementAlgorithm::GREEDY_NODE_BALANCER:
+    return out << "greedy-balancer/singleton";
+  case RefinementAlgorithm::GREEDY_MOVE_SET_BALANCER:
+    return out << "greedy-balancer/moveset";
   case RefinementAlgorithm::JET_REFINER:
     return out << "jet/refiner";
   case RefinementAlgorithm::JET_BALANCER:
@@ -434,9 +434,9 @@ void print(const RefinementContext &ctx, std::ostream &out) {
         << "\n";
     out << "  Balancing algorithm:        " << ctx.jet.balancing_algorithm << "\n";
   }
-  if (ctx.includes_algorithm(RefinementAlgorithm::GREEDY_SINGLETONS_BALANCER) ||
+  if (ctx.includes_algorithm(RefinementAlgorithm::GREEDY_NODE_BALANCER) ||
       (ctx.includes_algorithm(RefinementAlgorithm::JET_REFINER) &&
-       ctx.jet.balancing_algorithm == RefinementAlgorithm::GREEDY_SINGLETONS_BALANCER)) {
+       ctx.jet.balancing_algorithm == RefinementAlgorithm::GREEDY_NODE_BALANCER)) {
     out << "Greedy balancer:\n";
     out << "  Number of nodes per block:  " << ctx.greedy_balancer.num_nodes_per_block << "\n";
   }

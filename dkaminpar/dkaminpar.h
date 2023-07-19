@@ -86,8 +86,8 @@ enum class RefinementAlgorithm {
   GLOBAL_FM,
   JET_REFINER,
   JET_BALANCER,
-  GREEDY_SINGLETONS_BALANCER,
-  GREEDY_MOVE_SETS_BALANCER,
+  GREEDY_NODE_BALANCER,
+  GREEDY_MOVE_SET_BALANCER,
 };
 
 enum class LabelPropagationMoveExecutionStrategy {
@@ -230,6 +230,16 @@ struct GreedyBalancerContext {
   double fast_balancing_threshold = 0.0;
 };
 
+struct MoveSetBalancerContext {
+  int max_num_rounds = 0;
+
+  bool enable_sequential_balancing = false;
+  NodeID seq_num_nodes_per_block = 0;
+
+  bool enable_parallel_balancing = false;
+  double parallel_threshold = 0.0;
+};
+
 struct JetBalancerContext {
   int num_weak_iterations = 0;
   int num_strong_iterations = 0;
@@ -253,6 +263,7 @@ struct RefinementContext {
   ColoredLabelPropagationRefinementContext colored_lp;
   FMRefinementContext fm;
   GreedyBalancerContext greedy_balancer;
+  MoveSetBalancerContext move_set_balancer;
 
   JetRefinementContext jet;
   JetBalancerContext jet_balancer;

@@ -120,9 +120,9 @@ Context create_default_context() {
       .refinement =
           {
               .algorithms =
-                  {RefinementAlgorithm::GREEDY_SINGLETONS_BALANCER,
+                  {RefinementAlgorithm::GREEDY_NODE_BALANCER,
                    RefinementAlgorithm::BATCHED_LP,
-                   RefinementAlgorithm::GREEDY_SINGLETONS_BALANCER},
+                   RefinementAlgorithm::GREEDY_NODE_BALANCER},
               .refine_coarsest_level = false,
               .lp =
                   {
@@ -171,6 +171,14 @@ Context create_default_context() {
                       .enable_fast_balancing = false,
                       .fast_balancing_threshold = 0.1,
                   },
+              .move_set_balancer =
+                  {
+                      .max_num_rounds = std::numeric_limits<int>::max(),
+                      .enable_sequential_balancing = true,
+                      .seq_num_nodes_per_block = 5,
+                      .enable_parallel_balancing = true,
+                      .parallel_threshold = 0.1,
+                  },
               .jet =
                   {
                       .num_iterations = 12,
@@ -198,7 +206,7 @@ Context create_strong_context() {
   ctx.initial_partitioning.kaminpar = shm::create_strong_context();
   ctx.coarsening.global_lp.num_iterations = 5;
   ctx.refinement.algorithms = {
-      RefinementAlgorithm::GREEDY_SINGLETONS_BALANCER,
+      RefinementAlgorithm::GREEDY_NODE_BALANCER,
       RefinementAlgorithm::BATCHED_LP,
       RefinementAlgorithm::JET_REFINER};
   return ctx;
