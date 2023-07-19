@@ -43,6 +43,7 @@ MoveSets::MoveSets(
       _move_set_indices(std::move(move_set_indices)),
       _move_set_conns(std::move(move_set_conns)) {
   KASSERT(_move_set_indices.front() == 0u);
+  init_ghost_node_adjacency();
 }
 
 MoveSets::operator MoveSetsMemoryContext() && {
@@ -52,6 +53,47 @@ MoveSets::operator MoveSetsMemoryContext() && {
       std::move(_move_set_indices),
       std::move(_move_set_conns),
   };
+}
+
+void MoveSets::init_ghost_node_adjacency() {
+  std::vector<std::tuple<NodeID, EdgeWeight, NodeID>> ghost_to_set;
+  FastResetArray<EdgeWeight> weight_to_ghost(_p_graph.ghost_n());
+
+  for (const NodeID set : sets()) {
+    for (const NodeID u : elements(set)) {
+      for (const auto [e, v] : _p_graph.neighbors(u)) {
+        if (!_p_graph.is_ghost_node(v)) {
+          continue;
+        }
+
+        weight_to_ghost[v - _p_graph.n()] += _p_graph.edge_weight(e);
+      }
+    }
+
+    for (const auto &[ghost, weight] : weight_to_ghost.entries()) {
+      ghost_to_set.emplace_back(ghost, weight, set);
+    }
+    weight_to_ghost.clear();
+  }
+
+  std::sort(ghost_to_set.begin(), ghost_to_set.end(), [](const auto &a, const auto &b) {
+    return std::get<0>(a) < std::get<0>(b);
+  });
+
+  _ghost_node_indices.resize(_p_graph.ghost_n() + 1);
+  _ghost_node_edges.resize(ghost_to_set.size());
+
+  NodeID prev_ghost = 0;
+  for (std::size_t i = 0; i < ghost_to_set.size(); ++i) {
+    const auto [ghost, weight, set] = ghost_to_set[i];
+    for (; prev_ghost < ghost; ++prev_ghost) {
+      _ghost_node_indices[prev_ghost] = _ghost_node_indices[prev_ghost];
+    }
+    _ghost_node_edges.emplace_back(weight, set);
+  }
+  for (; prev_ghost < _p_graph.ghost_n() + 1; ++prev_ghost) {
+    _ghost_node_indices[prev_ghost] = _ghost_node_indices[prev_ghost];
+  }
 }
 
 namespace {

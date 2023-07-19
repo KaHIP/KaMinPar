@@ -10,7 +10,14 @@
 #include <memory>
 
 #include "dkaminpar/refinement/balancer/move_sets.h"
+#include "dkaminpar/refinement/balancer/weight_buckets.h"
 #include "dkaminpar/refinement/refiner.h"
+
+#include "common/datastructures/binary_heap.h"
+#include "common/datastructures/marker.h"
+#include "common/logger.h"
+#include "common/random.h"
+#include "common/timer.h"
 
 namespace kaminpar::dist {
 struct MoveSetBalancerMemoryContext;
@@ -56,11 +63,21 @@ public:
   bool refine() final;
 
 private:
+  
+
+  BlockWeight overload(BlockID block) const;
+  bool is_overloaded(BlockID block) const;
+
   MoveSetBalancerFactory &_factory;
   const Context &_ctx;
   DistributedPartitionedGraph &_p_graph;
   const PartitionContext &_p_ctx;
 
+  DynamicBinaryMinMaxForest<NodeID, double> _pqs;
+  NoinitVector<BlockWeight> _pq_weights;
+  Marker<> _moved_marker;
+
+  Buckets _weight_buckets;
   MoveSets _move_sets;
 };
 } // namespace kaminpar::dist
