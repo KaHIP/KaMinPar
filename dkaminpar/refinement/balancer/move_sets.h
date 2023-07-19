@@ -5,14 +5,26 @@
 #include "common/ranges.h"
 
 namespace kaminpar::dist {
+struct MoveSetsMemoryContext {
+  NoinitVector<NodeID> node_to_move_set;
+  NoinitVector<NodeID> move_sets;
+  NoinitVector<NodeID> move_set_indices;
+  NoinitVector<EdgeWeight> move_set_conns;
+};
+
 class MoveSets {
 public:
+  MoveSets(const DistributedPartitionedGraph &p_graph, MoveSetsMemoryContext m_ctx);
+
   MoveSets(
       const DistributedPartitionedGraph &p_graph,
       NoinitVector<NodeID> node_to_move_set,
       NoinitVector<NodeID> move_sets,
-      NoinitVector<NodeID> move_set_indices
+      NoinitVector<NodeID> move_set_indices,
+      NoinitVector<EdgeWeight> move_set_conns
   );
+
+  operator MoveSetsMemoryContext() &&;
 
   [[nodiscard]] inline NodeID size(const NodeID set) const {
     KASSERT(set + 1 < _move_set_indices.size());
@@ -103,6 +115,7 @@ private:
 MoveSets build_greedy_move_sets(
     const DistributedPartitionedGraph &p_graph,
     const PartitionContext &p_ctx,
-    NodeWeight max_move_set_size
+    NodeWeight max_move_set_size,
+    MoveSetsMemoryContext m_ctx
 );
 } // namespace kaminpar::dist

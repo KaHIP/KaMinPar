@@ -1,44 +1,41 @@
+/*******************************************************************************
+ * Greedy balancing algorithm that moves sets of nodes at a time.
+ *
+ * @file:   move_set_balancer.h
+ * @author: Daniel Seemaier
+ * @date:   19.07.2023
+ ******************************************************************************/
 #pragma once
 
+#include <memory>
+
+#include "dkaminpar/refinement/balancer/move_sets.h"
 #include "dkaminpar/refinement/refiner.h"
 
 namespace kaminpar::dist {
-class MoveSetBalancerMemoryContext {
-public:
-  MoveSetBalancerMemoryContext(class MoveSetBalancerFactory *factory);
-
-  MoveSetBalancerMemoryContext(const MoveSetBalancerMemoryContext &) = delete;
-  MoveSetBalancerMemoryContext &operator=(const MoveSetBalancerMemoryContext &) = delete;
-
-  MoveSetBalancerMemoryContext(MoveSetBalancerMemoryContext &&) = default;
-  MoveSetBalancerMemoryContext &operator=(MoveSetBalancerMemoryContext &&) = default;
-
-  void free();
-
-private:
-  class MoveSetBalancerFactory *_factory = nullptr;
-};
+struct MoveSetBalancerMemoryContext;
 
 class MoveSetBalancerFactory : public GlobalRefinerFactory {
-  friend MoveSetBalancerMemoryContext;
-
 public:
   MoveSetBalancerFactory(const Context &ctx);
+
+  ~MoveSetBalancerFactory();
 
   std::unique_ptr<GlobalRefiner>
   create(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
 
-private:
-  void reclaim_m_ctx(MoveSetBalancerMemoryContext m_ctx);
+  void take_m_ctx(MoveSetBalancerMemoryContext m_ctx);
 
+private:
   const Context &_ctx;
 
-  MoveSetBalancerMemoryContext _m_ctx;
+  std::unique_ptr<MoveSetBalancerMemoryContext> _m_ctx;
 };
 
 class MoveSetBalancer : public GlobalRefiner {
 public:
   MoveSetBalancer(
+      MoveSetBalancerFactory &factory,
       const Context &ctx,
       DistributedPartitionedGraph &p_graph,
       const PartitionContext &p_ctx,
@@ -53,14 +50,17 @@ public:
 
   ~MoveSetBalancer();
 
+  operator MoveSetBalancerMemoryContext() &&;
+
   void initialize() final;
   bool refine() final;
 
 private:
+  MoveSetBalancerFactory &_factory;
   const Context &_ctx;
   DistributedPartitionedGraph &_p_graph;
   const PartitionContext &_p_ctx;
 
-  MoveSetBalancerMemoryContext _m_ctx;
+  MoveSets _move_sets;
 };
 } // namespace kaminpar::dist

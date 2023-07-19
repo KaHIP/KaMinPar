@@ -13,45 +13,93 @@
 #include "common/datastructures/binary_heap.h"
 #include "common/datastructures/fast_reset_array.h"
 #include "common/datastructures/marker.h"
-#include "common/datastructures/rating_map.h"
 #include "common/datastructures/noinit_vector.h"
+#include "common/datastructures/rating_map.h"
 #include "common/timer.h"
 
 namespace kaminpar::dist {
 SET_DEBUG(true);
 
+MoveSets::MoveSets(const DistributedPartitionedGraph &p_graph, MoveSetsMemoryContext m_ctx)
+    : MoveSets(
+          p_graph,
+          std::move(m_ctx.node_to_move_set),
+          std::move(m_ctx.move_sets),
+          std::move(m_ctx.move_set_indices),
+          std::move(m_ctx.move_set_conns)
+      ) {}
+
 MoveSets::MoveSets(
     const DistributedPartitionedGraph &p_graph,
     NoinitVector<NodeID> node_to_move_set,
     NoinitVector<NodeID> move_sets,
-    NoinitVector<NodeID> move_set_indices
+    NoinitVector<NodeID> move_set_indices,
+    NoinitVector<EdgeWeight> move_set_conns
+
 )
     : _p_graph(p_graph),
       _node_to_move_set(std::move(node_to_move_set)),
       _move_sets(std::move(move_sets)),
-      _move_set_indices(std::move(move_set_indices)) {
+      _move_set_indices(std::move(move_set_indices)),
+      _move_set_conns(std::move(move_set_conns)) {
   KASSERT(_move_set_indices.front() == 0u);
+}
+
+MoveSets::operator MoveSetsMemoryContext() && {
+  return {
+      std::move(_node_to_move_set),
+      std::move(_move_sets),
+      std::move(_move_set_indices),
+      std::move(_move_set_conns),
+  };
 }
 
 namespace {
 class MoveSetBuilder {
 public:
-  MoveSetBuilder(const DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx)
+  MoveSetBuilder(
+      const DistributedPartitionedGraph &p_graph,
+      const PartitionContext &p_ctx,
+      MoveSetsMemoryContext m_ctx
+  )
       : _p_graph(p_graph),
         _p_ctx(p_ctx),
-        _node_to_move_set(p_graph.n()),
-        _move_sets(p_graph.n()),
-        _move_set_indices(p_graph.n() + 1),
-        _conns(p_graph.n() * p_graph.k()),
-        _frontier(p_graph.n()),
-        _cur_conns(p_graph.k()),
+        _node_to_move_set(std::move(m_ctx.node_to_move_set)),
+        _move_sets(std::move(m_ctx.move_sets)),
+        _move_set_indices(std::move(m_ctx.move_set_indices)),
+        _conns(std::move(m_ctx.move_set_conns)),
+        _frontier(0),
+        _cur_conns(0),
         _stopping_policy(1.0) {
+    _stopping_policy.init(_p_graph.n());
+    allocate();
+  }
+
+  void allocate() {
+    if (_node_to_move_set.size() < _p_graph.n()) {
+      _node_to_move_set.resize(_p_graph.n());
+    }
+    if (_move_sets.size() < _p_graph.n()) {
+      _move_sets.resize(_p_graph.n());
+    }
+    if (_move_set_indices.size() < _p_graph.n() + 1) {
+      _move_set_indices.resize(_p_graph.n() + 1);
+    }
+    if (_conns.size() < _p_graph.n() * _p_graph.k()) {
+      _conns.resize(_p_graph.n() * _p_graph.k());
+    }
+    if (_frontier.size() < _p_graph.n()) {
+      _frontier.resize(_p_graph.n());
+    }
+    if (_cur_conns.size() < _p_graph.k()) {
+      _cur_conns.resize(_p_graph.k());
+    }
+
     _p_graph.pfor_nodes([&](const NodeID u) {
       _node_to_move_set[u] = kInvalidNodeID;
       _move_sets[u] = kInvalidNodeID;
     });
     _move_set_indices.front() = 0;
-    _stopping_policy.init(_p_graph.n());
   }
 
   void build(const NodeWeight max_move_set_weight) {
@@ -172,6 +220,7 @@ public:
         std::move(_node_to_move_set),
         std::move(_move_sets),
         std::move(_move_set_indices),
+        std::move(_conns),
     };
   }
 
@@ -216,11 +265,13 @@ private:
 MoveSets build_greedy_move_sets(
     const DistributedPartitionedGraph &p_graph,
     const PartitionContext &p_ctx,
-    const NodeWeight max_move_set_weight
+    const NodeWeight max_move_set_weight,
+    MoveSetsMemoryContext m_ctx
+
 ) {
   SCOPED_TIMER("Build move sets");
 
-  MoveSetBuilder builder(p_graph, p_ctx);
+  MoveSetBuilder builder(p_graph, p_ctx, std::move(m_ctx));
   builder.build(max_move_set_weight);
   return builder.finalize();
 }
