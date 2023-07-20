@@ -352,7 +352,7 @@ MoveSetBalancer::reduce_sequential_candidates(std::vector<MoveCandidate> candida
 
         std::size_t idx_lhs = 0;
         std::size_t idx_rhs = 0;
-        std::vector<BlockWeight> target_block_weight_deltas(_p_graph.k());
+        std::vector<BlockWeight> block_weight_deltas(_p_graph.k());
 
         while (idx_lhs < lhs.size() && idx_rhs < rhs.size()) {
           const BlockID from = std::min(lhs[idx_lhs].from, rhs[idx_rhs].from);
@@ -383,10 +383,63 @@ MoveSetBalancer::reduce_sequential_candidates(std::vector<MoveCandidate> candida
 
           // Pick feasible prefix
           NodeWeight total_weight = 0;
-          NodeID added_to_ans = 0;
+          std::size_t num_rejected_candidates = 0;
+          std::size_t num_accepted_candidates = 0;
+
+          for (std::size_t i = 0; i < count; ++i) {
+            const BlockID to = candidates[i].to;
+            const NodeWeight weight = candidates[i].weight;
+
+            // Reject the move set candidate if it would overload the target block
+            if (from != to && _p_graph.block_weight(to) + block_weight_deltas[to] + weight >
+                                  _p_ctx.graph->max_block_weight(to)) {
+              candidates[i].set = kInvalidNodeID;
+              ++num_rejected_candidates;
+            } else {
+              block_weight_deltas[to] += weight;
+              total_weight += weight;
+              ++num_accepted_candidates;
+
+              if (total_weight >= overload(from) ||
+                  num_accepted_candidates >=
+                      _ctx.refinement.move_set_balancer.seq_num_nodes_per_block) {
+                break;
+              }
+            }
+          }
+
+          // Remove rejected candidates
+          for (std::size_t i = 0; i < num_accepted_candidates; ++i) {
+            while (candidates[i].set == kInvalidNodeID) {
+              std::swap(
+                  candidates[i], candidates[num_accepted_candidates + num_rejected_candidates - 1]
+              );
+              --num_rejected_candidates;
+            }
+          }
+          candidates.resize(num_accepted_candidates);
         }
 
         // Keep remaining nodes
+        auto add_remaining_candidates = [&](const auto &vec, std::size_t i) {
+          for (; i < vec.size(); ++i) {
+            const BlockID from = vec[i].from;
+            const BlockID to = vec[i].to;
+            const NodeWeight weight = vec[i].weight;
+
+            if (from == to && _p_graph.block_weight(to) + block_weight_deltas[to] + weight <=
+                                  _p_ctx.graph->max_block_weight(to)) {
+              candidates.push_back(vec[i]);
+              if (from != to) {
+                block_weight_deltas[to] += weight;
+              }
+            }
+          }
+        };
+        add_remaining_candidates(lhs, idx_lhs);
+        add_remaining_candidates(rhs, idx_rhs);
+
+        return candidates;
       },
       _p_graph.communicator()
   );
