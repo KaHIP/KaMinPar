@@ -14,6 +14,51 @@
 namespace kaminpar::dist {
 SET_DEBUG(true);
 
+namespace {
+template <typename Buffer, typename Combiner>
+Buffer perform_binary_reduction(Buffer sendbuf, Combiner &&combiner, MPI_Comm comm) {
+  enum class Role {
+    SENDER,
+    RECEIVER,
+    NOOP
+  };
+
+  const PEID rank = mpi::get_comm_rank(comm);
+  const PEID size = mpi::get_comm_size(comm);
+  PEID active = size;
+
+  while (active > 1) {
+    if (rank >= active) {
+      continue;
+    }
+
+    const Role role = [&] {
+      if (rank == 0 && active % 2 == 1) {
+        return Role::NOOP;
+      } else if (rank < std::ceil(active / 2.0)) {
+        return Role::RECEIVER;
+      } else {
+        return Role::SENDER;
+      }
+    }();
+
+    if (role == Role::SENDER) {
+      const PEID to = rank - active / 2;
+      mpi::send(sendbuf.data(), sendbuf.size(), to, 0, comm);
+      return {};
+    } else if (role == Role::RECEIVER) {
+      const PEID from = rank + active / 2;
+      Buffer recvbuf = mpi::probe_recv<typename Buffer::value_type, Buffer>(from, 0, comm);
+      sendbuf = combiner(std::move(sendbuf), std::move(recvbuf));
+    }
+
+    active = active / 2 + active % 2;
+  }
+
+  return sendbuf;
+}
+} // namespace
+
 struct MoveSetBalancerMemoryContext {
   MoveSetsMemoryContext move_sets_m_ctx;
 };
@@ -184,9 +229,7 @@ void MoveSetBalancer::perform_sequential_round() {
   perform_moves(candidates);
 }
 
-void MoveSetBalancer::perform_moves(
-    const std::vector<MoveCandidate> &candidates
-) {
+void MoveSetBalancer::perform_moves(const std::vector<MoveCandidate> &candidates) {
   const PEID rank = mpi::get_comm_rank(_p_graph.communicator());
   const PEID size = mpi::get_comm_size(_p_graph.communicator());
 
@@ -247,8 +290,7 @@ void MoveSetBalancer::perform_moves(
   );
 }
 
-std::vector<MoveSetBalancer::MoveCandidate>
-MoveSetBalancer::pick_sequential_candidates() {
+std::vector<MoveSetBalancer::MoveCandidate> MoveSetBalancer::pick_sequential_candidates() {
   std::vector<MoveCandidate> candidates;
 
   for (const BlockID from : _p_graph.blocks()) {
@@ -291,7 +333,63 @@ MoveSetBalancer::pick_sequential_candidates() {
 
 std::vector<MoveSetBalancer::MoveCandidate>
 MoveSetBalancer::reduce_sequential_candidates(std::vector<MoveCandidate> candidates) {
-  return std::move(candidates);
+  return perform_binary_reduction(
+      candidates,
+      [&](std::vector<MoveCandidate> lhs, std::vector<MoveCandidate> rhs) {
+        // Precondition: candidates must be sorted by their from blocks
+        auto check_sorted_by_from = [](const auto &candidates) {
+          for (std::size_t i = 1; i < candidates.size(); ++i) {
+            if (candidates[i].from < candidates[i - 1].from) {
+              return false;
+            }
+          }
+          return true;
+        };
+        KASSERT(
+            check_sorted_by_from(rhs) && check_sorted_by_from(lhs),
+            "rhs or lhs candidates are not sorted by their .from property"
+        );
+
+        std::size_t idx_lhs = 0;
+        std::size_t idx_rhs = 0;
+        std::vector<BlockWeight> target_block_weight_deltas(_p_graph.k());
+
+        while (idx_lhs < lhs.size() && idx_rhs < rhs.size()) {
+          const BlockID from = std::min(lhs[idx_lhs].from, rhs[idx_rhs].from);
+
+          // Find regions in `rhs` and `lhs` with move sets in block `from`
+          std::size_t idx_lhs_end = idx_lhs;
+          std::size_t idx_rhs_end = idx_rhs;
+          while (idx_lhs_end < lhs.size() && lhs[idx_lhs_end].from == from) {
+            ++idx_lhs_end;
+          }
+          while (idx_rhs_end < rhs.size() && rhs[idx_rhs_end].from == from) {
+            ++idx_rhs_end;
+          }
+
+          // Merge regions
+          const std::size_t lhs_count = idx_lhs_end - idx_lhs;
+          const std::size_t rhs_count = idx_rhs_end - idx_rhs;
+          const std::size_t count = lhs_count + rhs_count;
+
+          std::vector<MoveCandidate> candidates(count);
+          std::copy(lhs.begin() + idx_lhs, lhs.begin() + idx_lhs_end, candidates.begin());
+          std::copy(
+              rhs.begin() + idx_rhs, rhs.begin() + idx_rhs_end, candidates.begin() + lhs_count
+          );
+          std::sort(candidates.begin(), candidates.end(), [](const auto &a, const auto &b) {
+            return a.gain > b.gain;
+          });
+
+          // Pick feasible prefix
+          NodeWeight total_weight = 0;
+          NodeID added_to_ans = 0;
+        }
+
+        // Keep remaining nodes
+      },
+      _p_graph.communicator()
+  );
 }
 
 BlockWeight MoveSetBalancer::overload(const BlockID block) const {
