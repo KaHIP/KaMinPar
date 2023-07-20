@@ -662,6 +662,11 @@ public:
     _min_forest.push(heap, id, key);
   }
 
+  void change_priority(const std::size_t heap, const ID id, const Key key) {
+    _max_forest.change_priority(heap, id, key);
+    _min_forest.change_priority(heap, id, key);
+  }
+
   bool contains(const ID id) const {
     KASSERT(_max_forest.contains(id) == _min_forest.contains(id));
     return _max_forest.contains(id);

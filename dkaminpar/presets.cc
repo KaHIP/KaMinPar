@@ -176,6 +176,7 @@ Context create_default_context() {
                       .max_num_rounds = std::numeric_limits<int>::max(),
                       .enable_sequential_balancing = true,
                       .seq_num_nodes_per_block = 5,
+                      .seq_full_pq = true,
                       .enable_parallel_balancing = true,
                       .parallel_threshold = 0.1,
                   },

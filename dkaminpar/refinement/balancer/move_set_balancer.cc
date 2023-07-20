@@ -117,6 +117,8 @@ void MoveSetBalancer::initialize() {
 }
 
 void MoveSetBalancer::try_pq_insertion(const NodeID set) {
+  KASSERT(!_pqs.contains(set));
+
   const BlockID from_block = _move_sets.block(set);
   const auto [relative_gain, to_block] = _move_sets.find_max_relative_gain(set);
 
@@ -124,9 +126,14 @@ void MoveSetBalancer::try_pq_insertion(const NodeID set) {
   _weight_buckets.add(from_block, relative_gain);
 
   // Add this move set to the PQ if:
-  // - we do not have enough move sets yet to remove all excess weight from the block
-  bool accept = _pq_weights[from_block] < overload(from_block);
+  bool accept = _ctx.refinement.move_set_balancer.seq_full_pq;
   bool replace_min = false;
+
+  // - we do not have enough move sets yet to remove all excess weight from the block
+  if (!accept) {
+    accept = _pq_weights[from_block] < overload(from_block);
+  }
+
   // - or its relative gain is better than the worst relative gain in the PQ
   if (!accept) {
     const double min_key = _pqs.peek_min_key(from_block);
@@ -144,6 +151,14 @@ void MoveSetBalancer::try_pq_insertion(const NodeID set) {
 
     _pqs.push(from_block, set, relative_gain);
   }
+}
+
+void MoveSetBalancer::try_pq_update(const NodeID set) {
+  KASSERT(_pqs.contains(set));
+
+  const BlockID from_block = _move_sets.block(set);
+  const auto [relative_gain, to_block] = _move_sets.find_max_relative_gain(set);
+  _pqs.change_priority(from_block, set, relative_gain);
 }
 
 bool MoveSetBalancer::refine() {
@@ -262,8 +277,9 @@ void MoveSetBalancer::perform_moves(const std::vector<MoveCandidate> &candidates
 
           const NodeID set = _move_sets.set_of(v);
           if (!_pqs.contains(set)) {
-            // @todo update _pqs
             try_pq_insertion(set);
+          } else {
+            try_pq_update(set);
           }
         }
       }

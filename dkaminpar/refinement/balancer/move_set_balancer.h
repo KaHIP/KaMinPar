@@ -64,6 +64,7 @@ public:
 
 private:
   void try_pq_insertion(NodeID set);
+  void try_pq_update(NodeID set);
 
   void perform_parallel_round();
 
@@ -78,8 +79,7 @@ private:
 
   void perform_sequential_round();
   std::vector<MoveCandidate> pick_sequential_candidates();
-  std::vector<MoveCandidate>
-  reduce_sequential_candidates(std::vector<MoveCandidate> candidates);
+  std::vector<MoveCandidate> reduce_sequential_candidates(std::vector<MoveCandidate> candidates);
   void perform_moves(const std::vector<MoveCandidate> &candidates);
 
   BlockWeight overload(BlockID block) const;

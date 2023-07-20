@@ -235,6 +235,7 @@ struct MoveSetBalancerContext {
 
   bool enable_sequential_balancing = false;
   NodeID seq_num_nodes_per_block = 0;
+  bool seq_full_pq = false;
 
   bool enable_parallel_balancing = false;
   double parallel_threshold = 0.0;
