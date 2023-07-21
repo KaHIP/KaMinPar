@@ -415,7 +415,10 @@ void MoveSetBalancer::perform_moves(
           if (_p_graph.is_ghost_node(v)) {
             const PEID pe = _p_graph.ghost_owner(v);
             if (!created_message_for_pe.get(pe)) {
-              move_sendbufs[pe].emplace_back(u, candidate.to);
+              move_sendbufs[pe].push_back({
+                  .node = u,
+                  .to = candidate.to,
+              });
               created_message_for_pe.set(pe);
             }
             continue;
