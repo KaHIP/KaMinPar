@@ -16,9 +16,9 @@
 
 namespace kaminpar::dist {
 class Buckets {
-  constexpr static std::size_t kNumBuckets = 16;
-
 public:
+  constexpr static int kNumBuckets = 16;
+
   static std::size_t compute_bucket(const double gain) {
     if (gain > 0) {
       return 0;

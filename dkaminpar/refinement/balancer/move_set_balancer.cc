@@ -199,7 +199,83 @@ bool MoveSetBalancer::refine() {
   return prev_imbalance_distance > 0;
 }
 
-void MoveSetBalancer::perform_parallel_round() {}
+void MoveSetBalancer::perform_parallel_round() {
+  constexpr static bool kUseBinaryReductionTree = true;
+
+  const PEID rank = mpi::get_comm_rank(_p_graph.communicator());
+
+  auto buckets = [&] {
+    if constexpr (kUseBinaryReductionTree) {
+      return perform_binary_reduction(
+          _weight_buckets.compactify(),
+          [&](auto lhs, auto rhs) {
+            for (std::size_t i = 0; i < lhs.size(); ++i) {
+              lhs[i] += rhs[i];
+            }
+            return std::move(lhs);
+          },
+          _p_graph.communicator()
+      );
+    } else {
+      auto buckets = _weight_buckets.compactify();
+      if (rank == 0) {
+        MPI_Reduce(
+            MPI_IN_PLACE,
+            buckets.data(),
+            buckets.size(),
+            mpi::type::get<GlobalNodeWeight>(),
+            MPI_SUM,
+            0,
+            _p_graph.communicator()
+        );
+      } else {
+        MPI_Reduce(
+            buckets.data(),
+            nullptr,
+            buckets.size(),
+            mpi::type::get<GlobalNodeWeight>(),
+            MPI_SUM,
+            0,
+            _p_graph.communicator()
+        );
+      }
+    }
+  }();
+
+  // Determine cut-off buckets and broadcast them to all PEs
+  const BlockID num_overloaded_blocks = count_overloaded_blocks();
+  std::vector<int> cut_off_buckets(num_overloaded_blocks);
+  std::vector<BlockID> to_overloaded_map(_p_graph.k());
+  BlockID current_overloaded_block = 0;
+
+  for (const BlockID block : _p_graph.blocks()) {
+    BlockWeight current_weight = _p_graph.block_weight(block);
+    const BlockWeight max_weight = _p_ctx.graph->max_block_weight(block);
+    if (current_weight > max_weight) {
+      if (rank == 0) {
+        int cut_off_bucket = 0;
+        for (; cut_off_bucket < Buckets::kNumBuckets && current_weight > max_weight;
+             ++cut_off_bucket) {
+          KASSERT(
+              current_overloaded_block * Buckets::kNumBuckets + cut_off_bucket < buckets.size()
+          );
+          current_weight -=
+              buckets[current_overloaded_block * Buckets::kNumBuckets + cut_off_bucket];
+        }
+
+        KASSERT(current_overloaded_block < cut_off_buckets.size());
+        cut_off_buckets[current_overloaded_block] = cut_off_bucket;
+      }
+
+      KASSERT(block < to_overloaded_map.size());
+
+      to_overloaded_map[block] = current_overloaded_block;
+      ++current_overloaded_block;
+    }
+  }
+
+  MPI_Bcast(cut_off_buckets.data(), num_overloaded_blocks, MPI_INT, 0, _p_graph.communicator());
+}
 
 void MoveSetBalancer::perform_sequential_round() {
   const PEID rank = mpi::get_comm_rank(_p_graph.communicator());
@@ -282,6 +358,8 @@ void MoveSetBalancer::perform_moves(const std::vector<MoveCandidate> &candidates
             try_pq_update(set);
           }
         }
+
+        created_message_for_pe.reset();
       }
     }
 
@@ -470,5 +548,9 @@ BlockWeight MoveSetBalancer::overload(const BlockID block) const {
 
 bool MoveSetBalancer::is_overloaded(const BlockID block) const {
   return overload(block) > 0;
+}
+
+BlockID MoveSetBalancer::count_overloaded_blocks() const {
+  return metrics::num_imbalanced_blocks(_p_graph, _p_ctx);
 }
 } // namespace kaminpar::dist

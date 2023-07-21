@@ -84,6 +84,7 @@ private:
 
   BlockWeight overload(BlockID block) const;
   bool is_overloaded(BlockID block) const;
+  BlockID count_overloaded_blocks() const;
 
   Random &_rand = Random::instance();
 

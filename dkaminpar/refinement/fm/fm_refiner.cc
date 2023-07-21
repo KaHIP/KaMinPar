@@ -346,7 +346,7 @@ bool FMRefiner::refine() {
     mpi::barrier(_p_graph.communicator());
 
     // Run BFS
-    START_TIMER("Call BfsExtractor");
+    START_TIMER("Find and extract BFS subgraphs");
     graph::BfsExtractor bfs_extractor(_p_graph.graph());
     bfs_extractor.initialize(_p_graph);
     bfs_extractor.set_max_hops(1);
