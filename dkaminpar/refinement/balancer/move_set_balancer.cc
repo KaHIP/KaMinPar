@@ -275,6 +275,82 @@ void MoveSetBalancer::perform_parallel_round() {
   }
 
   MPI_Bcast(cut_off_buckets.data(), num_overloaded_blocks, MPI_INT, 0, _p_graph.communicator());
+
+  std::vector<MoveCandidate> candidates;
+  std::vector<BlockWeight> block_weight_deltas(_p_graph.k());
+
+  for (const NodeID set : _move_sets.sets()) {
+    const BlockID from = _move_sets.block(set);
+
+    if (is_overloaded(from)) {
+      auto [gain, to] = _move_sets.find_max_relative_gain(set);
+      const auto bucket = Buckets::compute_bucket(gain);
+
+      if (bucket < cut_off_buckets[to_overloaded_map[from]]) {
+        const NodeWeight weight = _move_sets.weight(set);
+
+        MoveCandidate candidate = {
+            .owner = rank,
+            .set = set,
+            .weight = weight,
+            .gain = gain,
+            .from = from,
+            .to = to,
+        };
+
+        if (to == from) {
+          [[maybe_unused]] const bool reassigned =
+              assign_feasible_target_block(candidate, block_weight_deltas);
+          KASSERT(reassigned);
+        }
+
+        block_weight_deltas[to] += weight;
+        candidates.push_back(candidate);
+      }
+    }
+  }
+
+  MPI_Allreduce(
+      MPI_IN_PLACE,
+      block_weight_deltas.data(),
+      asserting_cast<int>(block_weight_deltas.size()),
+      mpi::type::get<BlockWeight>(),
+      MPI_SUM,
+      _p_graph.communicator()
+  );
+
+  Random &rand = Random::instance();
+  std::size_t num_rejected_candidates = 0;
+  std::vector<BlockWeight> actual_block_weight_deltas(_p_graph.k());
+  for (std::size_t i = 0; i < candidates.size(); ++i) {
+    const auto &candidate = candidates[i];
+    const double probability = 1.0 * underload(candidate.to) / block_weight_deltas[candidate.to];
+    if (rand.random_bool(probability)) {
+      actual_block_weight_deltas[candidate.to] += candidate.weight;
+      actual_block_weight_deltas[candidate.from] -= candidate.weight;
+    } else {
+      ++num_rejected_candidates;
+      std::swap(candidates[i], candidates[candidates.size() - num_rejected_candidates]);
+      block_weight_deltas[candidate.to] -= candidate.weight;
+    }
+  }
+
+  MPI_Allreduce(
+      MPI_IN_PLACE,
+      actual_block_weight_deltas.data(),
+      asserting_cast<int>(actual_block_weight_deltas.size()),
+      mpi::type::get<BlockWeight>(),
+      MPI_SUM,
+      _p_graph.communicator()
+  );
+  for (const BlockID block : _p_graph.blocks()) {
+    _p_graph.set_block_weight(
+        block, _p_graph.block_weight(block) + actual_block_weight_deltas[block]
+    );
+  }
+
+  candidates.resize(candidates.size() - num_rejected_candidates);
+  perform_moves(candidates, false);
 }
 
 void MoveSetBalancer::perform_sequential_round() {
@@ -299,14 +375,10 @@ void MoveSetBalancer::perform_sequential_round() {
       continue;
     }
 
-    while (candidate.from == to || overload(to) < candidate.weight + tmp_block_weight_deltas[to]) {
-      ++to;
-      if (to >= _p_ctx.k) {
-        to = 0;
-      }
-    }
+    [[maybe_unused]] const bool reassigned =
+        assign_feasible_target_block(candidate, tmp_block_weight_deltas);
+    KASSERT(reassigned);
 
-    candidate.to = to;
     tmp_block_weight_deltas[candidate.from] -= candidate.weight;
     tmp_block_weight_deltas[candidate.to] += candidate.weight;
   }
@@ -317,10 +389,12 @@ void MoveSetBalancer::perform_sequential_round() {
   mpi::bcast(candidates.data(), num_candidates, 0, _p_graph.communicator());
 
   // Step 4: apply changes
-  perform_moves(candidates);
+  perform_moves(candidates, true);
 }
 
-void MoveSetBalancer::perform_moves(const std::vector<MoveCandidate> &candidates) {
+void MoveSetBalancer::perform_moves(
+    const std::vector<MoveCandidate> &candidates, const bool update_block_weights
+) {
   const PEID rank = mpi::get_comm_rank(_p_graph.communicator());
   const PEID size = mpi::get_comm_size(_p_graph.communicator());
 
@@ -364,10 +438,14 @@ void MoveSetBalancer::perform_moves(const std::vector<MoveCandidate> &candidates
     }
 
     // Update block weights
-    _p_graph.set_block_weight(
-        candidate.from, _p_graph.block_weight(candidate.from) - candidate.weight
-    );
-    _p_graph.set_block_weight(candidate.to, _p_graph.block_weight(candidate.to) + candidate.weight);
+    if (update_block_weights) {
+      _p_graph.set_block_weight(
+          candidate.from, _p_graph.block_weight(candidate.from) - candidate.weight
+      );
+      _p_graph.set_block_weight(
+          candidate.to, _p_graph.block_weight(candidate.to) + candidate.weight
+      );
+    }
   }
 
   mpi::sparse_alltoall<MoveMessage>(
@@ -546,11 +624,32 @@ BlockWeight MoveSetBalancer::overload(const BlockID block) const {
   );
 }
 
+BlockWeight MoveSetBalancer::underload(const BlockID block) const {
+  static_assert(std::is_signed_v<BlockWeight>);
+  return std::max<BlockWeight>(
+      0, _p_graph.block_weight(block) - _p_ctx.graph->max_block_weight(block)
+  );
+}
+
 bool MoveSetBalancer::is_overloaded(const BlockID block) const {
   return overload(block) > 0;
 }
 
 BlockID MoveSetBalancer::count_overloaded_blocks() const {
   return metrics::num_imbalanced_blocks(_p_graph, _p_ctx);
+}
+
+bool MoveSetBalancer::assign_feasible_target_block(
+    MoveCandidate &candidate, const std::vector<BlockWeight> &deltas
+) const {
+  do {
+    ++candidate.to;
+    if (candidate.to >= _p_ctx.k) {
+      candidate.to = 0;
+    }
+  } while (candidate.from != candidate.to &&
+           underload(candidate.to) < candidate.weight + deltas[candidate.to]);
+
+  return candidate.from != candidate.to;
 }
 } // namespace kaminpar::dist
