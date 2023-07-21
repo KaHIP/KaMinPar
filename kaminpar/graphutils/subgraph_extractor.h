@@ -14,7 +14,7 @@
 #include "kaminpar/datastructures/partitioned_graph.h"
 #include "kaminpar/definitions.h"
 
-#include "common/scalable_vector.h"
+#include "common/datastructures/scalable_vector.h"
 
 namespace kaminpar::shm::graph {
 struct SubgraphMemoryStartPosition {

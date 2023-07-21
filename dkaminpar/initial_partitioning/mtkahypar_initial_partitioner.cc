@@ -1,9 +1,10 @@
 /*******************************************************************************
+ * Initial partitioner that uses Mt-KaHypar. Only available if the Mt-KaHyPar 
+ * library is installed on the system.
+ *
  * @file:   mtkahypar_initial_partitioner.cc
  * @author: Daniel Seemaier
  * @date:   15.09.2022
- * @brief:  Initial partitioner that uses Mt-KaHypar. Only available if the
- * Mt-KaHyPar library is installed on the system.
  ******************************************************************************/
 #include "dkaminpar/initial_partitioning/mtkahypar_initial_partitioner.h"
 
@@ -21,7 +22,7 @@
 
 #include "common/assertion_levels.h"
 #include "common/logger.h"
-#include "common/noinit_vector.h"
+#include "common/datastructures/noinit_vector.h"
 #include "common/parallel/algorithm.h"
 #include "common/random.h"
 #include "common/timer.h"

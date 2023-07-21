@@ -1,9 +1,9 @@
 /*******************************************************************************
+ * Deep multilevel graph partitioning with direct k-way initial partitioning.
+ *
  * @file:   deep_multilevel_partitioner.cc
  * @author: Daniel Seemaier
  * @date:   28.04.2022
- * @brief:  Deep multilevel graph partitioning with direct k-way initial
- *partitioning.
  ******************************************************************************/
 #include "dkaminpar/partitioning/deep_multilevel.h"
 
@@ -185,7 +185,7 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
    */
   START_TIMER("Initial partitioning");
   auto initial_partitioner = TIMED_SCOPE("Allocation") {
-    return factory::create_initial_partitioning_algorithm(_input_ctx);
+    return factory::create_initial_partitioner(_input_ctx);
   };
 
   auto shm_graph = graph::replicate_everywhere(*graph);
@@ -233,14 +233,15 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
    */
   START_TIMER("Uncoarsening");
 
-  auto refinement_algorithm = TIMED_SCOPE("Allocation") {
-    return factory::create_refinement_algorithm(_input_ctx);
+  auto refiner_factory = TIMED_SCOPE("Allocation") {
+    return factory::create_refiner(_input_ctx);
   };
 
   auto run_refinement = [&](DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) {
     SCOPED_TIMER("Local search");
-    refinement_algorithm->initialize(p_graph.graph());
-    refinement_algorithm->refine(p_graph, p_ctx);
+    auto refiner = refiner_factory->create(p_graph, p_ctx);
+    refiner->initialize();
+    refiner->refine();
     KASSERT(graph::debug::validate_partition(p_graph), "", assert::heavy);
   };
 

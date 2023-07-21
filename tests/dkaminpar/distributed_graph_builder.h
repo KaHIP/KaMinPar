@@ -12,11 +12,11 @@
 
 #include "dkaminpar/datastructures/ghost_node_mapper.h"
 #include "dkaminpar/datastructures/growt.h"
-#include "dkaminpar/definitions.h"
+#include "dkaminpar/dkaminpar.h"
 #include "dkaminpar/graphutils/communication.h"
 
 #include "common/parallel/atomic.h"
-#include "common/scalable_vector.h"
+#include "common/datastructures/scalable_vector.h"
 
 namespace kaminpar::dist::graph {
 [[nodiscard]] inline growt::StaticGhostNodeMapping

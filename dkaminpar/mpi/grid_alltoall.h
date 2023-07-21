@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Sparse all-to-all based on a 2D communication grid.
+ *
  * @file:   grid_alltoall.h
  * @author: Daniel Seemaier
  * @date:   17.06.2022
- * @brief:  Algorithms to perform (sparse) all-to-all communication.
  ******************************************************************************/
 #pragma once
 
@@ -13,16 +14,16 @@
 #include <mpi.h>
 #include <tbb/parallel_for.h>
 
-#include "dkaminpar/definitions.h"
+#include "dkaminpar/dkaminpar.h"
 #include "dkaminpar/mpi/alltoall.h"
 #include "dkaminpar/mpi/grid_topology.h"
 #include "dkaminpar/mpi/wrapper.h"
 
 #include "common/logger.h"
 #include "common/math.h"
-#include "common/noinit_vector.h"
+#include "common/datastructures/noinit_vector.h"
 #include "common/parallel/algorithm.h"
-#include "common/preallocated_vector.h"
+#include "common/datastructures/preallocated_vector.h"
 #include "common/timer.h"
 
 namespace kaminpar::mpi {

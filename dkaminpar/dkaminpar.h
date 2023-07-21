@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Public interface of the distributed partitioner.
+ *
  * @file:   dkaminpar.h
  * @author: Daniel Seemaier
  * @date:   30.01.2023
- * @brief:  Public symbols of the distributed partitioner
  ******************************************************************************/
 #pragma once
 
@@ -71,27 +72,22 @@ enum class LocalClusteringAlgorithm {
   LP,
 };
 
-enum class ContractionAlgorithm {
-  LEGACY_NO_MIGRATION,
-  LEGACY_MINIMAL_MIGRATION,
-  LEGACY_FULL_MIGRATION,
-  DEFAULT,
-};
-
 enum class InitialPartitioningAlgorithm {
   KAMINPAR,
   MTKAHYPAR,
   RANDOM,
 };
 
-enum class KWayRefinementAlgorithm {
+enum class RefinementAlgorithm {
   NOOP,
-  LP,
-  LOCAL_FM,
-  FM,
+  BATCHED_LP,
   COLORED_LP,
-  GREEDY_BALANCER,
-  JET,
+  LOCAL_FM,
+  GLOBAL_FM,
+  JET_REFINER,
+  JET_BALANCER,
+  GREEDY_NODE_BALANCER,
+  GREEDY_MOVE_SET_BALANCER,
 };
 
 enum class LabelPropagationMoveExecutionStrategy {
@@ -147,7 +143,6 @@ struct HEMCoarseningContext {
 
   int compute_num_coloring_chunks(const ParallelContext &parallel) const;
 };
-
 struct ColoredLabelPropagationRefinementContext {
   int num_iterations = 0;
   int num_move_execution_iterations = 0;
@@ -215,7 +210,6 @@ struct CoarseningContext {
   double cluster_weight_multiplier = 0.0;
 
   // Graph contraction
-  ContractionAlgorithm contraction_algorithm;
   double max_cnode_imbalance = std::numeric_limits<double>::max();
   bool migrate_cnode_prefix = true;
   bool force_perfect_cnode_balance = false;
@@ -236,6 +230,22 @@ struct GreedyBalancerContext {
   double fast_balancing_threshold = 0.0;
 };
 
+struct MoveSetBalancerContext {
+  int max_num_rounds = 0;
+
+  bool enable_sequential_balancing = false;
+  NodeID seq_num_nodes_per_block = 0;
+  bool seq_full_pq = false;
+
+  bool enable_parallel_balancing = false;
+  double parallel_threshold = 0.0;
+};
+
+struct JetBalancerContext {
+  int num_weak_iterations = 0;
+  int num_strong_iterations = 0;
+};
+
 struct JetRefinementContext {
   int num_iterations = 0;
   double min_c = 0.0;
@@ -243,19 +253,23 @@ struct JetRefinementContext {
   bool interpolate_c = false;
   bool use_abortion_threshold = false;
   double abortion_threshold = 0;
+  RefinementAlgorithm balancing_algorithm;
 };
 
 struct RefinementContext {
-  std::vector<KWayRefinementAlgorithm> algorithms;
+  std::vector<RefinementAlgorithm> algorithms;
   bool refine_coarsest_level = false;
 
   LabelPropagationRefinementContext lp;
   ColoredLabelPropagationRefinementContext colored_lp;
   FMRefinementContext fm;
   GreedyBalancerContext greedy_balancer;
-  JetRefinementContext jet;
+  MoveSetBalancerContext move_set_balancer;
 
-  bool includes_algorithm(KWayRefinementAlgorithm algorithm) const;
+  JetRefinementContext jet;
+  JetBalancerContext jet_balancer;
+
+  bool includes_algorithm(RefinementAlgorithm algorithm) const;
 };
 
 struct PartitionContext {

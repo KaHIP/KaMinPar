@@ -1,9 +1,10 @@
 /*******************************************************************************
+ * Allreduce for sparse key-value-pairs.
+ *
  * @file:   sparse_allreduce.h
  * @author: Daniel Seemaier
  * @date:   27.03.2023
- * @brief:  Allreduce for sparse key-value-pairs.
- ******************************************************************************/                   \
+ ******************************************************************************/                   
 #pragma once
 
 #include <algorithm>
@@ -13,11 +14,11 @@
 #include <mpi.h>
 #include <tbb/parallel_for.h>
 
-#include "dkaminpar/definitions.h"
+#include "dkaminpar/dkaminpar.h"
 #include "dkaminpar/mpi/wrapper.h"
 
 #include "common/math.h"
-#include "common/noinit_vector.h"
+#include "common/datastructures/noinit_vector.h"
 
 namespace kaminpar::mpi {
 namespace tag {

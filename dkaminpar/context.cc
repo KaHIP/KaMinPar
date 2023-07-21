@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Context struct for the distributed graph partitioner.
+ *
  * @file:   context.cc
  * @author: Daniel Seemaier
  * @date:   27.10.2021
- * @brief:  Context struct for the distributed graph partitioner.
  ******************************************************************************/
 #include "dkaminpar/context.h"
 
@@ -141,7 +142,7 @@ int HEMCoarseningContext::compute_num_coloring_chunks(const ParallelContext &par
   );
 }
 
-bool RefinementContext::includes_algorithm(const KWayRefinementAlgorithm algorithm) const {
+bool RefinementContext::includes_algorithm(const RefinementAlgorithm algorithm) const {
   return std::find(algorithms.begin(), algorithms.end(), algorithm) != algorithms.end();
 }
 } // namespace kaminpar::dist

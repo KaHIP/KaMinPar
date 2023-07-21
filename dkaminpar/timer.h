@@ -1,18 +1,19 @@
 /*******************************************************************************
- * @file:   timer.h
+ * Functions to annotate the timer tree with aggregate timer information from
+ * all PEs.
+ *
+ * @file:   timer.cc
  * @author: Daniel Seemaier
  * @date:   27.10.2021
- * @brief:  Functions to annotate the timer on the root PE with min/max/mean/sd
- * timings of other PEs.
  ******************************************************************************/
 #pragma once
 
 #include <mpi.h>
 
-#include "dkaminpar/definitions.h"
+#include "dkaminpar/dkaminpar.h"
 
 #include "common/timer.h"
 
 namespace kaminpar::dist {
-void finalize_distributed_timer(Timer &timer, MPI_Comm comm = MPI_COMM_WORLD);
-}
+void finalize_distributed_timer(Timer &timer, MPI_Comm comm);
+} // namespace kaminpar::dist

@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Algorithm to extract a region of the graph using a BFS search.
+ *
  * @file:   bfs_extractor.h
  * @author: Daniel Seemaier
  * @date:   23.08.2022
- * @brief:  Algorithm to extract a region of the graph using a BFS search.
  ******************************************************************************/
 #pragma once
 
@@ -14,14 +15,14 @@
 
 #include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/datastructures/distributed_partitioned_graph.h"
-#include "dkaminpar/definitions.h"
+#include "dkaminpar/dkaminpar.h"
 
 #include "kaminpar/datastructures/graph.h"
 
 #include "common/datastructures/fast_reset_array.h"
 #include "common/datastructures/marker.h"
-#include "common/noinit_vector.h"
-#include "common/preallocated_vector.h"
+#include "common/datastructures/noinit_vector.h"
+#include "common/datastructures/preallocated_vector.h"
 
 namespace kaminpar::dist::graph {
 class BfsExtractor {

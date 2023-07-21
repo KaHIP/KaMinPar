@@ -15,7 +15,7 @@
 
 #include "common/degree_buckets.h"
 #include "common/logger.h"
-#include "common/noinit_vector.h"
+#include "common/datastructures/noinit_vector.h"
 #include "common/timer.h"
 
 namespace kaminpar::shm {

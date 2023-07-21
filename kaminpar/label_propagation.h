@@ -22,7 +22,7 @@
 #include "common/logger.h"
 #include "common/parallel/atomic.h"
 #include "common/random.h"
-#include "common/scalable_vector.h"
+#include "common/datastructures/scalable_vector.h"
 #include "common/tags.h"
 #include "common/timer.h"
 

@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Generic refinement benchmark for the shared-memory algorithm.
+ *
  * @file:   shm_refinement_benchmark.cc
  * @author: Daniel Seemaier
  * @date:   20.04.2023
- * @brief:  Isolated benchmark for refinement algorithms.
  ******************************************************************************/
 // clang-format off
 #include <kaminpar_cli/kaminpar_arguments.h>
@@ -11,12 +12,12 @@
 #include <mpi.h>
 #include <tbb/global_control.h>
 
-#include "shm_io.h"
-
 #include "kaminpar/factories.h"
 #include "kaminpar/metrics.h"
 
 #include "common/timer.h"
+
+#include "apps/benchmarks/shm_io.h"
 
 using namespace kaminpar;
 using namespace kaminpar::shm;

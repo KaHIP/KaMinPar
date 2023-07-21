@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Wrapper with a dynamic partition for a static distributed graph.
+ *
  * @file:   distributed_partitioned_graph.cc
  * @author: Daniel Seemaier
  * @date:   21.06.2023
- * @brief:  Static distributed graph partition data structure.
  ******************************************************************************/
 #include "dkaminpar/datastructures/distributed_partitioned_graph.h"
 
@@ -11,7 +12,7 @@
 #include "dkaminpar/logger.h"
 
 #include "common/parallel/vector_ets.h"
-#include "common/scalable_vector.h"
+#include "common/datastructures/scalable_vector.h"
 
 namespace kaminpar::dist {
 void DistributedPartitionedGraph::init_block_weights() {

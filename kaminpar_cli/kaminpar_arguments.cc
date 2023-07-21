@@ -1,4 +1,6 @@
 /*******************************************************************************
+ * Command line arguments for the shared-memory partitioner.
+ *
  * @file:   kaminpar_arguments.cc
  * @author: Daniel Seemaier
  * @date:   14.10.2022

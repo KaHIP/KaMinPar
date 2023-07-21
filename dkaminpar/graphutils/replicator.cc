@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Allgather a distributed graph to each PE.
+ *
  * @file:   allgather_graph.cc
  * @author: Daniel Seemaier
  * @date:   27.10.2021
- * @brief:  Allgather a distributed graph to each PE.
  ******************************************************************************/
 #include "dkaminpar/graphutils/replicator.h"
 
@@ -11,7 +12,6 @@
 #include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/datastructures/distributed_partitioned_graph.h"
 #include "dkaminpar/datastructures/ghost_node_mapper.h"
-#include "dkaminpar/definitions.h"
 #include "dkaminpar/graphutils/synchronization.h"
 #include "dkaminpar/metrics.h"
 #include "dkaminpar/mpi/utils.h"

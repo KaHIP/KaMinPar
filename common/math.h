@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Utility functions for common computations.
+ *
  * @file:   math.h
  * @author: Daniel Seemaier
  * @date:   17.06.2022
- * @brief:  Simple math utility functions
  ******************************************************************************/
 #pragma once
 

@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Initial partitioner invoking KaMinPar.
+ *
  * @file:   kaminpar_initial_partitioner.h
  * @author: Daniel Seemaier
  * @date:   06.11.2021
- * @brief:  Initial partitioner invoking KaMinPar.
  ******************************************************************************/
 #pragma once
 

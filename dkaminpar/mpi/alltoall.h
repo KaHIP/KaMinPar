@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Implements sparse all-to-all communication.
+ *
  * @file:   alltoall.h
  * @author: Daniel Seemaier
  * @date:   10.06.2022
- * @brief:  Algorithms to perform (sparse) all-to-all communications.
  ******************************************************************************/
 #pragma once
 
@@ -12,10 +13,10 @@
 #include <mpi.h>
 #include <tbb/parallel_for.h>
 
-#include "dkaminpar/definitions.h"
+#include "dkaminpar/dkaminpar.h"
 #include "dkaminpar/mpi/wrapper.h"
 
-#include "common/noinit_vector.h"
+#include "common/datastructures/noinit_vector.h"
 #include "common/timer.h"
 
 namespace kaminpar::mpi {

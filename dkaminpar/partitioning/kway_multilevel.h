@@ -1,9 +1,9 @@
 /*******************************************************************************
+ * Multilevel graph partitioning with direct k-way initial partitioning.
+ *
  * @file:   kway_partitioner.h
  * @author: Daniel Seemaier
  * @date:   25.10.2021
- * @brief:  Multilevel graph partitioning with direct k-way initial
- *partitioning.
  ******************************************************************************/
 #pragma once
 
@@ -13,14 +13,14 @@
 #include "dkaminpar/partitioning/partitioner.h"
 
 namespace kaminpar::dist {
-class KWayPartitioner : public Partitioner {
+class KWayMultilevelPartitioner : public Partitioner {
 public:
-  KWayPartitioner(const DistributedGraph &graph, const Context &ctx);
+  KWayMultilevelPartitioner(const DistributedGraph &graph, const Context &ctx);
 
-  KWayPartitioner(const KWayPartitioner &) = delete;
-  KWayPartitioner &operator=(const KWayPartitioner &) = delete;
-  KWayPartitioner(KWayPartitioner &&) noexcept = default;
-  KWayPartitioner &operator=(KWayPartitioner &&) = delete;
+  KWayMultilevelPartitioner(const KWayMultilevelPartitioner &) = delete;
+  KWayMultilevelPartitioner &operator=(const KWayMultilevelPartitioner &) = delete;
+  KWayMultilevelPartitioner(KWayMultilevelPartitioner &&) noexcept = default;
+  KWayMultilevelPartitioner &operator=(KWayMultilevelPartitioner &&) = delete;
 
   DistributedPartitionedGraph partition() final;
 

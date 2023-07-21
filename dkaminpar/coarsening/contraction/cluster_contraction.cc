@@ -1,14 +1,16 @@
 /*******************************************************************************
- * @file:   cluster_contraction.cc
- * @author: Daniel Seemaier
- * @date:   06.02.2023
- * @brief:  Graph contraction for arbitrary clusterings.
+ * Graph contraction for arbitrary clusterings.
  *
  * In this file, we use the following naming sheme for node and cluster IDs:
  * - {g,l}[c]{node,cluster}
  *    ^ global or local ID
  *         ^ ID in [c]oarse graph or in fine graph
  *            ^ node or cluster ID
+ *
+ * @file:   cluster_contraction.cc
+ * @author: Daniel Seemaier
+ * @date:   06.02.2023
+ * @brief:  Graph contraction for arbitrary clusterings.
  ******************************************************************************/
 #include "dkaminpar/coarsening/contraction/cluster_contraction.h"
 
@@ -20,18 +22,31 @@
 
 #include "dkaminpar/graphutils/communication.h"
 
+#include "common/datastructures/binary_heap.h"
 #include "common/datastructures/rating_map.h"
 #include "common/datastructures/ts_navigable_linked_list.h"
-#include "common/noinit_vector.h"
+#include "common/datastructures/noinit_vector.h"
 #include "common/parallel/algorithm.h"
 #include "common/parallel/aligned_element.h"
 #include "common/parallel/vector_ets.h"
-#include "common/scalable_vector.h"
+#include "common/datastructures/scalable_vector.h"
 #include "common/timer.h"
 
 namespace kaminpar::dist {
 SET_STATISTICS_FROM_GLOBAL();
 SET_DEBUG(false);
+
+ContractionResult contract_clustering(
+    const DistributedGraph &graph, GlobalClustering &clustering, const CoarseningContext &c_ctx
+) {
+  return contract_clustering(
+      graph,
+      clustering,
+      c_ctx.max_cnode_imbalance,
+      c_ctx.migrate_cnode_prefix,
+      c_ctx.force_perfect_cnode_balance
+  );
+}
 
 namespace {
 struct GlobalEdge {
@@ -547,15 +562,12 @@ std::pair<NodeID, PEID> remap_gcnode(
     }
   }
 }
+} // namespace
 
-void rebalance_cluster_placement(
+AssignmentShifts compute_assignment_shifts(
     const DistributedGraph &graph,
     const StaticArray<GlobalNodeID> &current_cnode_distribution,
-    const NoinitVector<NodeID> &lcluster_to_lcnode,
-    const NoinitVector<NodeMapping> &nonlocal_gcluster_to_gcnode,
-    GlobalClustering &lnode_to_gcluster,
-    const double max_cnode_imbalance,
-    const double migrate_cnode_prefix
+    const double max_cnode_imbalance
 ) {
   const PEID size = mpi::get_comm_size(graph.communicator());
   const PEID rank = mpi::get_comm_rank(graph.communicator());
@@ -565,10 +577,11 @@ void rebalance_cluster_placement(
     PEID pe;
     GlobalNodeID count;
   };
-  NoinitVector<PELoad> pe_load(size);
 
+  NoinitVector<PELoad> pe_load(size);
   NoinitVector<GlobalNodeID> pe_overload(size + 1);
   NoinitVector<GlobalNodeID> pe_underload(size + 1);
+
   pe_overload.front() = 0;
   pe_underload.front() = 0;
 
@@ -595,11 +608,31 @@ void rebalance_cluster_placement(
   GlobalNodeID min_load = 0;
   PEID plus_ones = 0;
   PEID num_pes = 0;
+  BinaryMinHeap<GlobalNodeID> maxes(size);
+
   for (PEID pe = 0; pe < size; ++pe) {
-    KASSERT(pe + 1 < size);
+    KASSERT(pe + 1 < size || size == 1);
+    maxes.push(pe, graph.offset_n(pe + 1) - graph.offset_n(pe));
     ++num_pes;
 
-    const GlobalNodeID delta = pe_load[pe + 1].count - pe_load[pe].count;
+    GlobalNodeID inc_from = pe_load[pe].count;
+    const GlobalNodeID inc_to = pe_load[pe + 1].count;
+
+    while (!maxes.empty() && inc_to > maxes.peek_key()) {
+      GlobalNodeID inc_to_prime = maxes.peek_key();
+      GlobalNodeID delta = inc_to_prime - inc_from;
+      maxes.pop();
+
+      if (current_overload > num_pes * delta) {
+        current_overload -= num_pes * delta;
+        inc_from = inc_to_prime;
+        --num_pes;
+      } else {
+        break;
+      }
+    }
+
+    GlobalNodeID delta = inc_to - inc_from;
     if (current_overload > num_pes * delta) {
       current_overload -= num_pes * delta;
     } else {
@@ -615,7 +648,10 @@ void rebalance_cluster_placement(
     const NodeID cnode_count =
         static_cast<NodeID>(current_cnode_distribution[pe + 1] - current_cnode_distribution[pe]);
     if (cnode_count <= min_load) {
-      pe_underload[pe + 1] = min_load - cnode_count + (nth_underloaded < plus_ones);
+      pe_underload[pe + 1] = std::min(
+          min_load - cnode_count + (nth_underloaded < plus_ones),
+          graph.offset_n(pe + 1) - graph.offset_n(pe)
+      );
       ++nth_underloaded;
     } else {
       pe_underload[pe + 1] = 0;
@@ -630,6 +666,25 @@ void rebalance_cluster_placement(
       V(pe_underload) << V(pe_overload) << V(total_overload) << V(avg_cnode_count)
                       << V(max_cnode_count) << V(min_load)
   );
+
+  return {
+      .overload = std::move(pe_overload),
+      .underload = std::move(pe_underload),
+  };
+}
+
+namespace {
+void rebalance_cluster_placement(
+    const DistributedGraph &graph,
+    const StaticArray<GlobalNodeID> &current_cnode_distribution,
+    const NoinitVector<NodeID> &lcluster_to_lcnode,
+    const NoinitVector<NodeMapping> &nonlocal_gcluster_to_gcnode,
+    GlobalClustering &lnode_to_gcluster,
+    const double max_cnode_imbalance,
+    const double migrate_cnode_prefix
+) {
+  const auto shifts =
+      compute_assignment_shifts(graph, current_cnode_distribution, max_cnode_imbalance);
 
   // Now remap the cluster IDs such that we respect pe_overload and pe_overload
   growt::GlobalNodeIDMap<GlobalNodeID> nonlocal_gcluster_to_gcnode_map(
@@ -651,6 +706,9 @@ void rebalance_cluster_placement(
       }
   );
 
+  const PEID size = mpi::get_comm_size(graph.communicator());
+  const PEID rank = mpi::get_comm_rank(graph.communicator());
+
   graph.pfor_nodes_range([&](const auto &r) {
     auto &handle = nonlocal_gcluster_to_gcnode_handle_ets.local();
 
@@ -670,18 +728,24 @@ void rebalance_cluster_placement(
         old_owner = graph.find_owner_of_global_node(old_gcluster);
       }
 
-      const auto [new_lcnode, new_owner] =
-          migrate_cnode_prefix
-              ? remap_gcnode<true>(
-                    old_gcnode, old_owner, current_cnode_distribution, pe_overload, pe_underload
-                )
-              : remap_gcnode<false>(
-                    old_gcnode, old_owner, current_cnode_distribution, pe_overload, pe_underload
-                );
+      const auto [new_lcnode, new_owner] = [&] {
+        if (migrate_cnode_prefix) {
+          return remap_gcnode<true>(
+              old_gcnode, old_owner, current_cnode_distribution, shifts.overload, shifts.underload
+          );
+        } else {
+          return remap_gcnode<false>(
+              old_gcnode, old_owner, current_cnode_distribution, shifts.overload, shifts.underload
+          );
+        }
+      }();
       KASSERT(new_owner < size);
 
       lnode_to_gcluster[lnode] = graph.offset_n(new_owner) + new_lcnode;
 
+      // We have to ensure that coarse node IDs assigned to this PE are still within the range of
+      // the fine node IDs assigned to this PEs, otherwise many implicit assertions that follow
+      // are violated
       KASSERT(lnode_to_gcluster[lnode] >= graph.offset_n(new_owner));
       KASSERT(lnode_to_gcluster[lnode] < graph.offset_n(new_owner + 1));
     }

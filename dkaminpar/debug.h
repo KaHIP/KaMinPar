@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Debug utilities.
+ *
  * @file:   debug.h
  * @author: Daniel Seemaier
  * @date:   31.03.2023
- * @brief:  Collection of debug utilities.
  ******************************************************************************/
 #pragma once
 

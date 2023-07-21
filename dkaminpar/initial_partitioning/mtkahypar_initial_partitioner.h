@@ -1,9 +1,10 @@
 /*******************************************************************************
+ * Initial partitioner that uses Mt-KaHypar. Only available if the Mt-KaHyPar 
+ * library is installed on the system.
+ *
  * @file:   mtkahypar_initial_partitioner.h
  * @author: Daniel Seemaier
  * @date:   15.09.2022
- * @brief:  Initial partitioner that uses Mt-KaHypar. Only available if the
- * Mt-KaHyPar library is installed on the system.
  ******************************************************************************/
 #pragma once
 

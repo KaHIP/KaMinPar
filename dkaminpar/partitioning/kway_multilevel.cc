@@ -1,9 +1,9 @@
 /*******************************************************************************
+ * Multilevel graph partitioning with direct k-way initial partitioning.
+ *
  * @file:   kway_partitioner.cc
  * @author: Daniel Seemaier
  * @date:   25.10.2021
- * @brief:  Multilevel graph partitioning with direct k-way initial
- *partitioning.
  ******************************************************************************/
 #include "dkaminpar/partitioning/kway_multilevel.h"
 
@@ -24,11 +24,11 @@
 namespace kaminpar::dist {
 SET_DEBUG(false);
 
-KWayPartitioner::KWayPartitioner(const DistributedGraph &graph, const Context &ctx)
+KWayMultilevelPartitioner::KWayMultilevelPartitioner(const DistributedGraph &graph, const Context &ctx)
     : _graph(graph),
       _ctx(ctx) {}
 
-DistributedPartitionedGraph KWayPartitioner::partition() {
+DistributedPartitionedGraph KWayMultilevelPartitioner::partition() {
   Coarsener coarsener(_graph, _ctx);
 
   const DistributedGraph *graph = &_graph;
@@ -93,7 +93,7 @@ DistributedPartitionedGraph KWayPartitioner::partition() {
   }
 
   auto initial_partitioner = TIMED_SCOPE("Allocation") {
-    return factory::create_initial_partitioning_algorithm(_ctx);
+    return factory::create_initial_partitioner(_ctx);
   };
 
   START_TIMER("Initial Partitioning");
@@ -141,15 +141,16 @@ DistributedPartitionedGraph KWayPartitioner::partition() {
       cio::print_banner("Refinement");
     }
 
-    auto refinement_algorithm = TIMED_SCOPE("Allocation") {
-      return factory::create_refinement_algorithm(_ctx);
+    auto refiner_factory = TIMED_SCOPE("Allocation") {
+      return factory::create_refiner(_ctx);
     };
 
     auto refine = [&](DistributedPartitionedGraph &p_graph) {
       SCOPED_TIMER("Refinement");
       LOG << "-> Refining partition ...";
-      refinement_algorithm->initialize(p_graph.graph());
-      refinement_algorithm->refine(p_graph, _ctx.partition);
+      auto refiner = refiner_factory->create(p_graph, _ctx.partition);
+      refiner->initialize();
+      refiner->refine();
       KASSERT(
           graph::debug::validate_partition(p_graph),
           "graph partition verification failed after refinement",

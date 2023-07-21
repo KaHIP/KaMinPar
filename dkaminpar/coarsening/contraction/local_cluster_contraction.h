@@ -1,9 +1,9 @@
 /*******************************************************************************
- * @file:   local_clustering_contraction.h
+ * Graph contraction for local clusterings.
+ *
+ * @file:   local_cluster_contraction.h
  * @author: Daniel Seemaier
  * @date:   27.10.2021
- * @brief:  Graph contraction for local clusters, i.e., clusters that do not
- * contain nodes from than one PE.
  ******************************************************************************/
 #pragma once
 
@@ -11,7 +11,7 @@
 
 #include "common/datastructures/ts_navigable_linked_list.h"
 #include "common/parallel/atomic.h"
-#include "common/scalable_vector.h"
+#include "common/datastructures/scalable_vector.h"
 
 namespace kaminpar::dist {
 namespace contraction {

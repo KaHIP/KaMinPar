@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Command line arguments for the distributed partitioner.
+ *
  * @file:   dkaminpar_arguments.h
  * @author: Daniel Seemaier
  * @date:   15.10.2022
- * @brief:  Command line arguments for the distributed partitioner.
  ******************************************************************************/
 #pragma once
 
@@ -30,6 +31,8 @@ CLI::Option_group *create_lp_refinement_options(CLI::App *app, Context &ctx);
 CLI::Option_group *create_colored_lp_refinement_options(CLI::App *app, Context &ctx);
 
 CLI::Option_group *create_greedy_balancer_options(CLI::App *app, Context &ctx);
+
+CLI::Option_group *create_move_set_balancer_options(CLI::App *app, Context &ctx);
 
 CLI::Option_group *create_jet_refinement_options(CLI::App *app, Context &ctx);
 

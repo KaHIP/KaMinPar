@@ -10,7 +10,7 @@
 
 #include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/datastructures/distributed_partitioned_graph.h"
-#include "dkaminpar/definitions.h"
+#include "dkaminpar/dkaminpar.h"
 #include "dkaminpar/graphutils/communication.h"
 #include "dkaminpar/mpi/wrapper.h"
 
@@ -109,6 +109,7 @@ get_edge_by_endpoints(const DistributedGraph &graph, const NodeID u, const NodeI
     }
   }
 
+#include "tests/dkaminpar/distributed_graph_helpers.h"
   // one of those edges might now exist due to ghost nodes
   return {forward_edge, backward_edge};
 }

@@ -1,9 +1,8 @@
 /*******************************************************************************
+ * Deep multilevel graph partitioning with direct k-way initial partitioning.
  * @file:   deep_multilevel_partitioner.h
  * @author: Daniel Seemaier
  * @date:   28.04.2022
- * @brief:  Deep multilevel graph partitioning with direct k-way initial
- *partitioning.
  ******************************************************************************/
 #pragma once
 

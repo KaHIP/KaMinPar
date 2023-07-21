@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Initial partitioner that invokes KaMinPar.
+ *
  * @file:   kaminpar_initial_partitioner.cc
  * @author: Daniel Seemaier
  * @date:   06.11.2021
- * @brief:  Initial partitioner that invokes KaMinPar.
  ******************************************************************************/
 #include "dkaminpar/initial_partitioning/kaminpar_initial_partitioner.h"
 
@@ -11,7 +12,7 @@
 
 #include "common/datastructures/static_array.h"
 #include "common/logger.h"
-#include "common/scalable_vector.h"
+#include "common/datastructures/scalable_vector.h"
 #include "common/timer.h"
 
 namespace kaminpar::dist {

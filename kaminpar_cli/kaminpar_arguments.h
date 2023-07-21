@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Command line arguments for the shared-memory partitioner.
+ *
  * @file:   kaminpar_arguments.h
  * @author: Daniel Seemaier
  * @date:   14.10.2022
- * @brief:  Defines the command line arguments for KaMinPar.
  ******************************************************************************/
 #pragma once
 

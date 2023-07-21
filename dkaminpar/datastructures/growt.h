@@ -1,9 +1,9 @@
 /*******************************************************************************
- * @file:   growt.h
+ * Include growt and suppress -Wpedantic warnings.
  *
+ * @file:   growt.h
  * @author: Daniel Seemaier
  * @date:   30.09.21
- * @brief:  Include growt and suppress -Wpedantic warnings.
  ******************************************************************************/
 #pragma once
 
@@ -11,7 +11,7 @@
 
 #include <tbb/enumerable_thread_specific.h>
 
-#include "dkaminpar/definitions.h"
+#include "dkaminpar/dkaminpar.h"
 
 #if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC diagnostic push

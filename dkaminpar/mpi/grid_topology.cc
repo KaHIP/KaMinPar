@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Computes a mapping of an arbitrary number of PEs to a 2D grid.
+ *
  * @file:   grid_topology.cc
  * @author: Daniel Seemaier
  * @date:   27.03.2023
- * @brief:  Computes a mapping of an arbitrary number of PEs to a 2D grid.
  ******************************************************************************/
 #include "dkaminpar/mpi/grid_topology.h"
 

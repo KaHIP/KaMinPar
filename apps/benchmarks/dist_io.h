@@ -8,8 +8,8 @@
 
 #include <dkaminpar/datastructures/distributed_graph.h>
 #include <dkaminpar/datastructures/ghost_node_mapper.h>
-#include <dkaminpar/metrics.h>
 #include <dkaminpar/graphutils/synchronization.h>
+#include <dkaminpar/metrics.h>
 #include <mpi.h>
 #include <tbb/parallel_invoke.h>
 
@@ -118,6 +118,60 @@ inline DistributedGraphWrapper load_graph(const std::string &graph_name) {
   return wrapper;
 }
 
+template <typename Container>
+Container load_vector(
+    const std::string &filename,
+    const GlobalNodeID from,
+    const GlobalNodeID to,
+    const GlobalNodeID size
+) {
+  Container vec(size);
+
+  std::ifstream in(filename);
+  if (!in) {
+    throw std::runtime_error("could not open file " + filename);
+  }
+
+  for (GlobalNodeID u = 0; u < to; ++u) {
+    std::uint64_t value;
+    if (!(in >> value)) {
+      throw std::runtime_error("file " + filename + " does not contain enough values");
+    }
+    if (u >= from) {
+      vec[u - from] = static_cast<typename Container::value_type>(value);
+    }
+  }
+
+  return vec;
+}
+
+template <typename Container>
+Container load_node_property_vector(const DistributedGraph &graph, const std::string &filename) {
+  Container vec = load_vector<Container>(
+      filename, graph.offset_n(), graph.offset_n() + graph.n(), graph.total_n()
+  );
+
+  struct Message {
+    NodeID node;
+    typename Container::value_type value;
+  };
+
+  mpi::graph::sparse_alltoall_interface_to_pe<Message>(
+      graph,
+      [&](const NodeID u) -> Message { return {.node = u, .value = vec[u]}; },
+      [&](const auto &recv_buffer, const PEID pe) {
+        tbb::parallel_for<std::size_t>(0, recv_buffer.size(), [&](const std::size_t i) {
+          const auto [their_lnode, value] = recv_buffer[i];
+          const auto gnode = static_cast<GlobalNodeID>(graph.offset_n(pe) + their_lnode);
+          const NodeID lnode = graph.global_to_local_node(gnode);
+          vec[lnode] = value;
+        });
+      }
+  );
+
+  return vec;
+}
+
 inline DistributedPartitionedGraphWrapper
 load_partitioned_graph(const std::string &graph_name, const std::string &partition_name) {
   DistributedGraphWrapper graph_wrapper = load_graph(graph_name);
@@ -129,18 +183,7 @@ load_partitioned_graph(const std::string &graph_name, const std::string &partiti
   const GlobalNodeID first_node = graph->offset_n();
   const GlobalNodeID first_invalid_node = graph->offset_n() + graph->n();
 
-  StaticArray<BlockID> partition(graph->total_n());
-  std::ifstream partition_file(partition_name);
-
-  for (GlobalNodeID u = 0; u < first_invalid_node; ++u) {
-    BlockID b;
-    if (!(partition_file >> b)) {
-      throw std::runtime_error("partition size does not match graph size");
-    }
-    if (u >= first_node) {
-      partition[u - first_node] = b;
-    }
-  }
+  auto partition = load_node_property_vector<StaticArray<BlockID>>(*graph, partition_name);
 
   BlockID k = *std::max_element(partition.begin(), partition.end()) + 1;
   MPI_Allreduce(MPI_IN_PLACE, &k, 1, mpi::type::get<BlockID>(), MPI_MAX, MPI_COMM_WORLD);
@@ -156,7 +199,6 @@ load_partitioned_graph(const std::string &graph_name, const std::string &partiti
   wrapper.p_graph = std::make_unique<DistributedPartitionedGraph>(
       wrapper.graph.get(), k, std::move(partition), std::move(block_weights)
   );
-  graph::synchronize_ghost_node_block_ids(*wrapper.p_graph);
 
   std::cout << "Loaded partitioned graph with cut=" << metrics::edge_cut(*wrapper.p_graph)
             << ", imbalance=" << metrics::imbalance(*wrapper.p_graph) << std::endl;

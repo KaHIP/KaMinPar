@@ -13,9 +13,9 @@
 #include <kassert/kassert.hpp>
 #include <tbb/parallel_for.h>
 
-#include "common/noinit_vector.h"
-#include "common/preallocated_vector.h"
-#include "common/scalable_vector.h"
+#include "common/datastructures/noinit_vector.h"
+#include "common/datastructures/preallocated_vector.h"
+#include "common/datastructures/scalable_vector.h"
 
 namespace kaminpar {
 namespace binary_heap {
@@ -660,6 +660,11 @@ public:
   void push(const std::size_t heap, const ID id, const Key key) {
     _max_forest.push(heap, id, key);
     _min_forest.push(heap, id, key);
+  }
+
+  void change_priority(const std::size_t heap, const ID id, const Key key) {
+    _max_forest.change_priority(heap, id, key);
+    _min_forest.change_priority(heap, id, key);
   }
 
   bool contains(const ID id) const {

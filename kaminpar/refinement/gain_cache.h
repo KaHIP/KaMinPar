@@ -17,7 +17,7 @@
 
 #include "common/datastructures/dynamic_map.h"
 #include "common/logger.h"
-#include "common/noinit_vector.h"
+#include "common/datastructures/noinit_vector.h"
 
 namespace kaminpar::shm {
 template <typename GainCache, bool use_sparsehash = false> class DeltaGainCache;

@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Generic refinement benchmark for the distributed algorithm.
+ *
  * @file:   dist_balancing_benchmark.cc
  * @author: Daniel Seemaier
  * @date:   12.04.2022
- * @brief:  Benchmark for the distributed balancing algorithm.
  ******************************************************************************/
 // clang-format off
 #include <kaminpar_cli/dkaminpar_arguments.h>
@@ -11,21 +12,20 @@
 #include <fstream>
 
 #include <mpi.h>
-
-#include "dist_io.h"
+#include <omp.h>
 
 #include "dkaminpar/context.h"
-#include "dkaminpar/definitions.h"
+#include "dkaminpar/dkaminpar.h"
 #include "dkaminpar/factories.h"
 #include "dkaminpar/graphutils/communication.h"
 #include "dkaminpar/metrics.h"
 #include "dkaminpar/presets.h"
 
-#include "kaminpar/definitions.h"
-
 #include "common/logger.h"
 #include "common/random.h"
 #include "common/timer.h"
+
+#include "apps/benchmarks/dist_io.h"
 
 using namespace kaminpar;
 using namespace kaminpar::dist;
@@ -49,6 +49,7 @@ int main(int argc, char *argv[]) {
   CLI11_PARSE(app, argc, argv);
 
   tbb::global_control gc(tbb::global_control::max_allowed_parallelism, ctx.parallel.num_threads);
+  omp_set_num_threads(ctx.parallel.num_threads);
 
   auto wrapper = load_partitioned_graph(graph_filename, partition_filename);
   auto &graph = *wrapper.graph;
@@ -57,14 +58,15 @@ int main(int argc, char *argv[]) {
   ctx.partition.k = p_graph.k();
   ctx.partition.graph = std::make_unique<GraphContext>(graph, ctx.partition);
 
-  auto refiner = factory::create_refinement_algorithm(ctx);
+  auto refiner_factory = factory::create_refiner(ctx);
+  auto refiner = refiner_factory->create(p_graph, ctx.partition);
 
   TIMED_SCOPE("Refiner") {
     TIMED_SCOPE("Initialization") {
-      refiner->initialize(graph);
+      refiner->initialize();
     };
     TIMED_SCOPE("Refinement") {
-      refiner->refine(p_graph, ctx.partition);
+      refiner->refine();
     };
   };
 

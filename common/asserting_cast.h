@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Like `static_cast()`, but asserts that no (un)signed overlow occurs.
+ *
  * @file:   asserting_cast.h
  * @author: Daniel Seemaier
  * @date:   08.08.2022
- * @brief:  A `static_cast()` asserting that no (un)signed overlow occurs.
  ******************************************************************************/
 #pragma once
 

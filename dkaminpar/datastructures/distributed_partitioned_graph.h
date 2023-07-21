@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Wrapper with a dynamic partition for a static distributed graph.
+ *
  * @file:   distributed_partitioned_graph.h
  * @author: Daniel Seemaier
  * @date:   21.06.2023
- * @brief:  Static distributed graph partition data structure.
  ******************************************************************************/
 #pragma once
 

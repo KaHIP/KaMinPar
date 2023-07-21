@@ -1,9 +1,10 @@
 /*******************************************************************************
+ * Utility functions to read/write parts of the partitioner context from/to
+ * strings.
+ *
  * @file:   context_io.cc
  * @author: Daniel Seemaier
  * @date:   27.10.2022
- * @brief:  Utility functions to read/write parts of the partitioner context
- * from/to strings.
  ******************************************************************************/
 #include "dkaminpar/context_io.h"
 
@@ -35,17 +36,17 @@ template <typename T> std::ostream &operator<<(std::ostream &out, const std::vec
 
 std::unordered_map<std::string, PartitioningMode> get_partitioning_modes() {
   return {
-      {"deep", PartitioningMode::DEEP},
-      {"kway", PartitioningMode::KWAY},
+      {"multilevel/deep", PartitioningMode::DEEP},
+      {"multilevel/kway", PartitioningMode::KWAY},
   };
 }
 
 std::ostream &operator<<(std::ostream &out, const PartitioningMode mode) {
   switch (mode) {
   case PartitioningMode::DEEP:
-    return out << "deep";
+    return out << "multilevel/deep";
   case PartitioningMode::KWAY:
-    return out << "kway";
+    return out << "multilevel/kway";
   }
 
   return out << "<invalid>";
@@ -93,30 +94,6 @@ std::ostream &operator<<(std::ostream &out, const LocalClusteringAlgorithm algor
   return out << "<invalid>";
 }
 
-std::unordered_map<std::string, ContractionAlgorithm> get_contraction_algorithms() {
-  return {
-      {"legacy-no-migration", ContractionAlgorithm::LEGACY_NO_MIGRATION},
-      {"legacy-minimal-migration", ContractionAlgorithm::LEGACY_MINIMAL_MIGRATION},
-      {"legacy-full-migration", ContractionAlgorithm::LEGACY_FULL_MIGRATION},
-      {"default", ContractionAlgorithm::DEFAULT},
-  };
-}
-
-std::ostream &operator<<(std::ostream &out, const ContractionAlgorithm algorithm) {
-  switch (algorithm) {
-  case ContractionAlgorithm::LEGACY_NO_MIGRATION:
-    return out << "legacy-no-migration";
-  case ContractionAlgorithm::LEGACY_MINIMAL_MIGRATION:
-    return out << "legacy-minimal-migration";
-  case ContractionAlgorithm::LEGACY_FULL_MIGRATION:
-    return out << "legacy-full-migration";
-  case ContractionAlgorithm::DEFAULT:
-    return out << "default";
-  }
-
-  return out << "<invalid>";
-}
-
 std::unordered_map<std::string, InitialPartitioningAlgorithm>
 get_initial_partitioning_algorithms() {
   return {
@@ -139,37 +116,72 @@ std::ostream &operator<<(std::ostream &out, const InitialPartitioningAlgorithm a
   return out << "<invalid>";
 }
 
-std::unordered_map<std::string, KWayRefinementAlgorithm> get_kway_refinement_algorithms() {
+std::unordered_map<std::string, RefinementAlgorithm> get_kway_refinement_algorithms() {
   return {
-      {"noop", KWayRefinementAlgorithm::NOOP},
-      {"lp", KWayRefinementAlgorithm::LP},
-      {"local-fm", KWayRefinementAlgorithm::LOCAL_FM},
-      {"fm", KWayRefinementAlgorithm::FM},
-      {"colored-lp", KWayRefinementAlgorithm::COLORED_LP},
-      {"greedy-balancer", KWayRefinementAlgorithm::GREEDY_BALANCER},
-      {"jet", KWayRefinementAlgorithm::JET},
+      {"noop", RefinementAlgorithm::NOOP},
+      {"lp/batches", RefinementAlgorithm::BATCHED_LP},
+      {"lp/colors", RefinementAlgorithm::COLORED_LP},
+      {"fm/global", RefinementAlgorithm::GLOBAL_FM},
+      {"fm/local", RefinementAlgorithm::LOCAL_FM},
+      {"greedy-balancer/node", RefinementAlgorithm::GREEDY_NODE_BALANCER},
+      {"greedy-balancer/moveset", RefinementAlgorithm::GREEDY_MOVE_SET_BALANCER},
+      {"jet/refiner", RefinementAlgorithm::JET_REFINER},
+      {"jet/balancer", RefinementAlgorithm::JET_BALANCER},
   };
 }
 
-std::ostream &operator<<(std::ostream &out, const KWayRefinementAlgorithm algorithm) {
+std::unordered_map<std::string, RefinementAlgorithm> get_balancing_algorithms() {
+  return {
+      {"noop", RefinementAlgorithm::NOOP},
+      {"greedy-balancer/node", RefinementAlgorithm::GREEDY_NODE_BALANCER},
+      {"greedy-balancer/moveset", RefinementAlgorithm::GREEDY_MOVE_SET_BALANCER},
+      {"jet/balancer", RefinementAlgorithm::JET_BALANCER},
+  };
+};
+
+std::ostream &operator<<(std::ostream &out, const RefinementAlgorithm algorithm) {
   switch (algorithm) {
-  case KWayRefinementAlgorithm::NOOP:
+  case RefinementAlgorithm::NOOP:
     return out << "noop";
-  case KWayRefinementAlgorithm::LP:
-    return out << "lp";
-  case KWayRefinementAlgorithm::LOCAL_FM:
-    return out << "local-fm";
-  case KWayRefinementAlgorithm::FM:
-    return out << "fm";
-  case KWayRefinementAlgorithm::COLORED_LP:
-    return out << "colored-lp";
-  case KWayRefinementAlgorithm::GREEDY_BALANCER:
-    return out << "greedy-balancer";
-  case KWayRefinementAlgorithm::JET:
-    return out << "jet";
+  case RefinementAlgorithm::BATCHED_LP:
+    return out << "lp/batches";
+  case RefinementAlgorithm::COLORED_LP:
+    return out << "lp/colors";
+  case RefinementAlgorithm::LOCAL_FM:
+    return out << "fm/local";
+  case RefinementAlgorithm::GLOBAL_FM:
+    return out << "fm/global";
+  case RefinementAlgorithm::GREEDY_NODE_BALANCER:
+    return out << "greedy-balancer/singleton";
+  case RefinementAlgorithm::GREEDY_MOVE_SET_BALANCER:
+    return out << "greedy-balancer/moveset";
+  case RefinementAlgorithm::JET_REFINER:
+    return out << "jet/refiner";
+  case RefinementAlgorithm::JET_BALANCER:
+    return out << "jet/balancer";
   }
 
   return out << "<invalid>";
+}
+
+std::string get_refinement_algorithms_description() {
+  return std::string(R"(
+- noop:                       do nothing
+- lp/batches:                 LP where batches are nodes with subsequent IDs
+- lp/colors:                  LP where batches are color classes
+- fm/local:                   local FM
+- fm/global:                  global FM
+- jet/refiner:                reimplementation of JET's refinement algorithm)")
+             .substr(1) +
+         "\n" + get_balancing_algorithms_description();
+}
+
+std::string get_balancing_algorithms_description() {
+  return std::string(R"(
+- jet/balancer:               reimplementation of JET's balancing algorithm
+- greedy-balancer/singletons: greedy, move individual nodes
+- greedy-balancer/movesets:   greedy, move sets of nodes)")
+      .substr(1);
 }
 
 std::unordered_map<std::string, LabelPropagationMoveExecutionStrategy>
@@ -302,9 +314,7 @@ void print(const CoarseningContext &ctx, const ParallelContext &parallel, std::o
 
   if (ctx.max_global_clustering_levels > 0) {
     out << "Global clustering algorithm:  " << ctx.global_clustering_algorithm << "\n";
-    out << "  Contraction algorithm:      " << ctx.contraction_algorithm;
-    if (ctx.contraction_algorithm == ContractionAlgorithm::DEFAULT &&
-        ctx.max_cnode_imbalance < std::numeric_limits<double>::max()) {
+    if (ctx.max_cnode_imbalance < std::numeric_limits<double>::max()) {
       out << "[rebalance if >" << std::setprecision(2) << 100.0 * (ctx.max_cnode_imbalance - 1.0)
           << "%";
       if (ctx.migrate_cnode_prefix) {
@@ -318,7 +328,7 @@ void print(const CoarseningContext &ctx, const ParallelContext &parallel, std::o
         out << ", relaxed";
       }
       out << "]";
-    } else if (ctx.contraction_algorithm == ContractionAlgorithm::DEFAULT) {
+    } else {
       out << "[natural assignment]";
     }
     out << "\n";
@@ -376,8 +386,8 @@ void print(const InitialPartitioningContext &ctx, std::ostream &out) {
 void print(const RefinementContext &ctx, std::ostream &out) {
   out << "Refinement algorithms:        " << ctx.algorithms << "\n";
   out << "Refine initial partition:     " << (ctx.refine_coarsest_level ? "yes" : "no") << "\n";
-  if (ctx.includes_algorithm(KWayRefinementAlgorithm::LP)) {
-    out << "Naive Label propagation:\n";
+  if (ctx.includes_algorithm(RefinementAlgorithm::BATCHED_LP)) {
+    out << "Label propagation:\n";
     out << "  Number of iterations:       " << ctx.lp.num_iterations << "\n";
     // out << "  Number of chunks:           " << ctx.lp.num_chunks << " (min: "
     // << ctx.lp.min_num_chunks
@@ -387,7 +397,7 @@ void print(const RefinementContext &ctx, std::ostream &out) {
     out << "  Use probabilistic moves:    " << (ctx.lp.ignore_probabilities ? "no" : "yes") << "\n";
     out << "  Number of retries:          " << ctx.lp.num_move_attempts << "\n";
   }
-  if (ctx.includes_algorithm(KWayRefinementAlgorithm::COLORED_LP)) {
+  if (ctx.includes_algorithm(RefinementAlgorithm::COLORED_LP)) {
     out << "Colored Label Propagation:\n";
     // out << "  Number of coloring ssteps:  " <<
     // ctx.colored_lp.num_coloring_chunks
@@ -413,9 +423,29 @@ void print(const RefinementContext &ctx, std::ostream &out) {
     out << "  Small color blacklist:      " << 100 * ctx.colored_lp.small_color_blacklist << "%"
         << (ctx.colored_lp.only_blacklist_input_level ? " (input level only)" : "") << "\n";
   }
-  if (ctx.includes_algorithm(KWayRefinementAlgorithm::GREEDY_BALANCER)) {
+  if (ctx.includes_algorithm(RefinementAlgorithm::JET_REFINER)) {
+    out << "Jet refinement:\n";
+    out << "  Number of iterations:       " << ctx.jet.num_iterations << "\n";
+    out << "  C:                          [" << ctx.jet.min_c << ".." << ctx.jet.max_c << "] "
+        << (ctx.jet.interpolate_c ? "interpolate" : "switch") << "\n";
+    out << "  Abortion threshold          "
+        << (ctx.jet.use_abortion_threshold ? std::to_string(ctx.jet.abortion_threshold) : "disabled"
+           )
+        << "\n";
+    out << "  Balancing algorithm:        " << ctx.jet.balancing_algorithm << "\n";
+  }
+  if (ctx.includes_algorithm(RefinementAlgorithm::GREEDY_NODE_BALANCER) ||
+      (ctx.includes_algorithm(RefinementAlgorithm::JET_REFINER) &&
+       ctx.jet.balancing_algorithm == RefinementAlgorithm::GREEDY_NODE_BALANCER)) {
     out << "Greedy balancer:\n";
     out << "  Number of nodes per block:  " << ctx.greedy_balancer.num_nodes_per_block << "\n";
+  }
+  if (ctx.includes_algorithm(RefinementAlgorithm::JET_BALANCER) ||
+      (ctx.includes_algorithm(RefinementAlgorithm::JET_REFINER) &&
+       ctx.jet.balancing_algorithm == RefinementAlgorithm::JET_BALANCER)) {
+    out << "Jet balancer:\n";
+    out << "  Number of iterations:       " << ctx.jet_balancer.num_weak_iterations << " weak + "
+        << ctx.jet_balancer.num_strong_iterations << " strong\n";
   }
 }
 } // namespace kaminpar::dist

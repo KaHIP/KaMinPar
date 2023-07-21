@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Collection of debug utilities.
+ *
  * @file:   debug.cc
  * @author: Daniel Seemaier
  * @date:   31.03.2023
- * @brief:  Collection of debug utilities.
  ******************************************************************************/
 #include "dkaminpar/debug.h"
 

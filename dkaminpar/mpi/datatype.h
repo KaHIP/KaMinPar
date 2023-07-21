@@ -1,10 +1,11 @@
 /*******************************************************************************
+ * Utility functions to automatically select the right MPI type.
+ * If a type does not map to any of the predefined MPI data types, a new
+ * contiguous MPI type is created.
+ *
  * @file:   datatype.h
  * @author: Daniel Seemaier
  * @date:   10.06.2022
- * @brief:  Utility functions to automatically select the right MPI type.
- * If a type does not map to any of the predefined MPI data types, a new
- * contiguous MPI type is created.
  ******************************************************************************/
 #pragma once
 

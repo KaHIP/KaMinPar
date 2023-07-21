@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Collective MPI operations for graphs.
+ *
  * @file:   graph_communication.h
  * @author: Daniel Seemaier
  * @date:   27.10.2021
- * @brief:  Collective MPI operations for graphs.
  ******************************************************************************/
 #pragma once
 
@@ -11,14 +12,14 @@
 #include <omp.h>
 
 #include "dkaminpar/datastructures/distributed_graph.h"
-#include "dkaminpar/definitions.h"
+#include "dkaminpar/dkaminpar.h"
 #include "dkaminpar/mpi/sparse_alltoall.h"
 #include "dkaminpar/mpi/utils.h"
 
 #include "common/assertion_levels.h"
-#include "common/cache_aligned_vector.h"
+#include "common/datastructures/cache_aligned_vector.h"
 #include "common/datastructures/marker.h"
-#include "common/noinit_vector.h"
+#include "common/datastructures/noinit_vector.h"
 #include "common/parallel/aligned_element.h"
 #include "common/timer.h"
 

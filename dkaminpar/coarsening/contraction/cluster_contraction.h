@@ -1,4 +1,6 @@
 /*******************************************************************************
+ * Graph contraction for arbitrary clusterings.
+ *
  * @file:   cluster_contraction.h
  * @author: Daniel Seemaier
  * @date:   06.02.2023
@@ -6,10 +8,13 @@
  ******************************************************************************/
 #pragma once
 
+#include <limits>
+#include <vector>
+
 #include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/datastructures/distributed_partitioned_graph.h"
 
-#include "common/parallel/atomic.h"
+#include "common/datastructures/noinit_vector.h"
 
 namespace kaminpar::dist {
 using GlobalMapping = NoinitVector<GlobalNodeID>;
@@ -31,6 +36,10 @@ struct ContractionResult {
 };
 
 ContractionResult contract_clustering(
+    const DistributedGraph &graph, GlobalClustering &clustering, const CoarseningContext &c_ctx
+);
+
+ContractionResult contract_clustering(
     const DistributedGraph &graph,
     GlobalClustering &clustering,
     double max_cnode_imbalance = std::numeric_limits<double>::max(),
@@ -43,5 +52,16 @@ DistributedPartitionedGraph project_partition(
     DistributedPartitionedGraph p_c_graph,
     const NoinitVector<GlobalNodeID> &c_mapping,
     const MigratedNodes &migration
+);
+
+struct AssignmentShifts {
+  NoinitVector<GlobalNodeID> overload;
+  NoinitVector<GlobalNodeID> underload;
+};
+
+AssignmentShifts compute_assignment_shifts(
+    const DistributedGraph &graph,
+    const StaticArray<GlobalNodeID> &current_cnode_distribution,
+    const double max_cnode_imbalance
 );
 } // namespace kaminpar::dist

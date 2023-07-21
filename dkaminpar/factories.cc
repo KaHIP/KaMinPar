@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Instanties partitioning components specified by the Context struct.
+ *
  * @file:   factories.cc
  * @author: Daniel Seemaier
  * @date:   06.11.2021
- * @brief:  Instantiates the configured partitioning components.
  ******************************************************************************/
 #include "dkaminpar/factories.h"
 
@@ -11,7 +12,7 @@
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/datastructures/distributed_partitioned_graph.h"
-#include "dkaminpar/definitions.h"
+#include "dkaminpar/dkaminpar.h"
 
 // Partitioning schemes
 #include "dkaminpar/partitioning/deep_multilevel.h"
@@ -23,37 +24,45 @@
 #include "dkaminpar/initial_partitioning/random_initial_partitioner.h"
 
 // Refinement
-#include "dkaminpar/refinement/colored_lp_refiner.h"
-#include "dkaminpar/refinement/fm_refiner.h"
-#include "dkaminpar/refinement/greedy_balancer.h"
-#include "dkaminpar/refinement/jet_refiner.h"
-#include "dkaminpar/refinement/local_fm_refiner.h"
-#include "dkaminpar/refinement/lp_refiner.h"
+#include "dkaminpar/refinement/balancer/greedy_balancer.h"
+#include "dkaminpar/refinement/balancer/move_set_balancer.h"
+#include "dkaminpar/refinement/fm/fm_refiner.h"
+#include "dkaminpar/refinement/fm/local_fm_refiner.h"
+#include "dkaminpar/refinement/jet/jet_balancer.h"
+#include "dkaminpar/refinement/jet/jet_refiner.h"
+#include "dkaminpar/refinement/lp/clp_refiner.h"
+#include "dkaminpar/refinement/lp/lp_refiner.h"
 #include "dkaminpar/refinement/multi_refiner.h"
 #include "dkaminpar/refinement/noop_refiner.h"
 
 // Clustering
-#include "dkaminpar/coarsening/clustering/global_lp_clustering.h"
-#include "dkaminpar/coarsening/clustering/hem_clustering.h"
-#include "dkaminpar/coarsening/clustering/hem_lp_clustering.h"
-#include "dkaminpar/coarsening/clustering/local_lp_clustering.h"
-#include "dkaminpar/coarsening/clustering/noop_clustering.h"
+#include "dkaminpar/coarsening/clustering/hem/hem_clusterer.h"
+#include "dkaminpar/coarsening/clustering/hem/hem_lp_clusterer.h"
+#include "dkaminpar/coarsening/clustering/lp/global_lp_clusterer.h"
+#include "dkaminpar/coarsening/clustering/lp/local_lp_clusterer.h"
+#include "dkaminpar/coarsening/clustering/noop_clusterer.h"
 
 namespace kaminpar::dist::factory {
-std::unique_ptr<Partitioner> create_partitioner(const Context &ctx, const DistributedGraph &graph) {
-  switch (ctx.mode) {
+std::unique_ptr<Partitioner>
+create_partitioner(const Context &ctx, const DistributedGraph &graph, const PartitioningMode mode) {
+  switch (mode) {
   case PartitioningMode::DEEP:
     return std::make_unique<DeepMultilevelPartitioner>(graph, ctx);
 
   case PartitioningMode::KWAY:
-    return std::make_unique<KWayPartitioner>(graph, ctx);
+    return std::make_unique<KWayMultilevelPartitioner>(graph, ctx);
   }
 
   __builtin_unreachable();
 }
 
-std::unique_ptr<InitialPartitioner> create_initial_partitioning_algorithm(const Context &ctx) {
-  switch (ctx.initial_partitioning.algorithm) {
+std::unique_ptr<Partitioner> create_partitioner(const Context &ctx, const DistributedGraph &graph) {
+  return create_partitioner(ctx, graph, ctx.mode);
+}
+
+std::unique_ptr<InitialPartitioner>
+create_initial_partitioner(const Context &ctx, const InitialPartitioningAlgorithm algorithm) {
+  switch (algorithm) {
   case InitialPartitioningAlgorithm::KAMINPAR:
     return std::make_unique<KaMinParInitialPartitioner>(ctx);
 
@@ -67,76 +76,93 @@ std::unique_ptr<InitialPartitioner> create_initial_partitioning_algorithm(const 
   __builtin_unreachable();
 }
 
-namespace {
-std::unique_ptr<Refiner>
-create_refinement_algorithm(const Context &ctx, const KWayRefinementAlgorithm algorithm) {
+std::unique_ptr<InitialPartitioner> create_initial_partitioner(const Context &ctx) {
+  return create_initial_partitioner(ctx, ctx.initial_partitioning.algorithm);
+}
+
+std::unique_ptr<GlobalRefinerFactory>
+create_refiner(const Context &ctx, const RefinementAlgorithm algorithm) {
   switch (algorithm) {
-  case KWayRefinementAlgorithm::NOOP:
-    return std::make_unique<NoopRefiner>();
+  case RefinementAlgorithm::NOOP:
+    return std::make_unique<NoopRefinerFactory>();
 
-  case KWayRefinementAlgorithm::LP:
-    return std::make_unique<LPRefiner>(ctx);
+  case RefinementAlgorithm::BATCHED_LP:
+    return std::make_unique<LPRefinerFactory>(ctx);
 
-  case KWayRefinementAlgorithm::LOCAL_FM:
-    return std::make_unique<LocalFMRefiner>(ctx);
+  case RefinementAlgorithm::COLORED_LP:
+    return std::make_unique<ColoredLPRefinerFactory>(ctx);
 
-  case KWayRefinementAlgorithm::FM:
-    return std::make_unique<FMRefiner>(ctx);
+  case RefinementAlgorithm::LOCAL_FM:
+    return std::make_unique<LocalFMRefinerFactory>(ctx);
 
-  case KWayRefinementAlgorithm::COLORED_LP:
-    return std::make_unique<ColoredLPRefiner>(ctx);
+  case RefinementAlgorithm::GLOBAL_FM:
+    return std::make_unique<FMRefinerFactory>(ctx);
 
-  case KWayRefinementAlgorithm::GREEDY_BALANCER:
-    return std::make_unique<GreedyBalancer>(ctx);
+  case RefinementAlgorithm::JET_REFINER:
+    return std::make_unique<JetRefinerFactory>(ctx);
 
-  case KWayRefinementAlgorithm::JET:
-    return std::make_unique<JetRefiner>(ctx);
+  case RefinementAlgorithm::JET_BALANCER:
+    return std::make_unique<JetBalancerFactory>(ctx);
+
+  case RefinementAlgorithm::GREEDY_NODE_BALANCER:
+    return std::make_unique<GreedyBalancerFactory>(ctx);
+
+  case RefinementAlgorithm::GREEDY_MOVE_SET_BALANCER:
+    return std::make_unique<MoveSetBalancerFactory>(ctx);
   }
 
   __builtin_unreachable();
 }
-} // namespace
 
-std::unique_ptr<Refiner> create_refinement_algorithm(const Context &ctx) {
+std::unique_ptr<GlobalRefinerFactory> create_refiner(const Context &ctx) {
   if (ctx.refinement.algorithms.size() == 1) {
-    return create_refinement_algorithm(ctx, ctx.refinement.algorithms.front());
+    return create_refiner(ctx, ctx.refinement.algorithms.front());
   }
 
-  std::vector<std::unique_ptr<Refiner>> refiners;
-  for (const KWayRefinementAlgorithm algorithm : ctx.refinement.algorithms) {
-    refiners.push_back(create_refinement_algorithm(ctx, algorithm));
+  std::vector<std::unique_ptr<GlobalRefinerFactory>> factories;
+  for (const RefinementAlgorithm algorithm : ctx.refinement.algorithms) {
+    factories.push_back(create_refiner(ctx, algorithm));
   }
-  return std::make_unique<MultiRefiner>(std::move(refiners));
+  return std::make_unique<MultiRefinerFactory>(std::move(factories));
 }
 
-std::unique_ptr<ClusteringAlgorithm<GlobalNodeID>>
-create_global_clustering_algorithm(const Context &ctx) {
-  switch (ctx.coarsening.global_clustering_algorithm) {
+std::unique_ptr<GlobalClusterer>
+create_global_clusterer(const Context &ctx, const GlobalClusteringAlgorithm algorithm) {
+  switch (algorithm) {
   case GlobalClusteringAlgorithm::NOOP:
     return std::make_unique<GlobalNoopClustering>(ctx);
 
   case GlobalClusteringAlgorithm::LP:
-    return std::make_unique<GlobalLPClustering>(ctx);
+    return std::make_unique<GlobalLPClusterer>(ctx);
 
   case GlobalClusteringAlgorithm::HEM:
-    return std::make_unique<HEMClustering>(ctx);
+    return std::make_unique<HEMClusterer>(ctx);
 
   case GlobalClusteringAlgorithm::HEM_LP:
-    return std::make_unique<HEMLPClustering>(ctx);
+    return std::make_unique<HEMLPClusterer>(ctx);
   }
 
   __builtin_unreachable();
 }
 
-std::unique_ptr<ClusteringAlgorithm<NodeID>> create_local_clustering_algorithm(const Context &ctx) {
-  switch (ctx.coarsening.local_clustering_algorithm) {
+std::unique_ptr<GlobalClusterer> create_global_clusterer(const Context &ctx) {
+  return create_global_clusterer(ctx, ctx.coarsening.global_clustering_algorithm);
+}
+
+std::unique_ptr<LocalClusterer>
+create_local_clusterer(const Context &ctx, const LocalClusteringAlgorithm algorithm) {
+  switch (algorithm) {
   case LocalClusteringAlgorithm::NOOP:
     return std::make_unique<LocalNoopClustering>(ctx);
 
   case LocalClusteringAlgorithm::LP:
-    return std::make_unique<LocalLPClustering>(ctx);
+    return std::make_unique<LocalLPClusterer>(ctx);
   }
 
   __builtin_unreachable();
+}
+
+std::unique_ptr<LocalClusterer> create_local_clusterer(const Context &ctx) {
+  return create_local_clusterer(ctx, ctx.coarsening.local_clustering_algorithm);
 }
 } // namespace kaminpar::dist::factory

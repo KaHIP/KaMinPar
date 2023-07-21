@@ -1,20 +1,20 @@
 /*******************************************************************************
+ * Generic benchmark for the coarsening phase of the distributed algorithm.
+ *
  * @file:   dist_coarsening_benchmark.cc
  * @author: Daniel Seemaier
  * @date:   21.09.21
- * @brief:  Benchmark for the distributed coarsening algorithm.
  ******************************************************************************/
 // clang-format off
-#include "apps/benchmarks/dist_benchmarks_common.h"
+#include <kaminpar_cli/dkaminpar_arguments.h>
 // clang-format on
 
 #include <fstream>
 
 #include <mpi.h>
+#include <omp.h>
 
-#include "dkaminpar/arguments.h"
-#include "dkaminpar/coarsening/global_clustering_contraction.h"
-#include "dkaminpar/coarsening/locking_label_propagation_clustering.h"
+#include "dkaminpar/coarsening/coarsener.h"
 #include "dkaminpar/context.h"
 #include "dkaminpar/presets.h"
 
@@ -24,14 +24,13 @@
 #include "common/random.h"
 #include "common/timer.h"
 
-#include "apps/apps.h"
-#include "apps/mpi_apps.h"
+#include "apps/benchmarks/dist_io.h"
 
 using namespace kaminpar;
 using namespace kaminpar::dist;
 
 int main(int argc, char *argv[]) {
-  init_mpi(argc, argv);
+  MPI_Init(&argc, &argv);
 
   Context ctx = create_default_context();
   std::string graph_filename;
@@ -42,59 +41,34 @@ int main(int argc, char *argv[]) {
   create_coarsening_options(&app, ctx);
   CLI11_PARSE(app, argc, argv);
 
-  auto gc = init(ctx, argc, argv);
+  tbb::global_control gc(tbb::global_control::max_allowed_parallelism, ctx.parallel.num_threads);
+  omp_set_num_threads(ctx.parallel.num_threads);
 
-  auto graph = load_graph(graph_filename);
-  ctx.setup(graph);
+  auto wrapper = load_graph(graph_filename);
+  auto &graph = *wrapper.graph;
+  ctx.partition.graph = std::make_unique<GraphContext>(graph, ctx.partition);
 
-  std::vector<dist::DistributedGraph> graph_hierarchy;
+  Coarsener coarsener(graph, ctx);
+  const DistributedGraph *c_graph = &graph;
 
-  const dist::DistributedGraph *c_graph = &graph;
   while (c_graph->global_n() > ctx.partition.k * ctx.coarsening.contraction_limit) {
-    const auto max_cluster_weight = shm::compute_max_cluster_weight(
-        c_graph->global_n(),
-        c_graph->total_node_weight(),
-        ctx.initial_partitioning.kaminpar.partition,
-        ctx.initial_partitioning.kaminpar.coarsening
-    );
-    LOG << "... computing clustering";
-
-    START_TIMER("Clustering Algorithm", "Level " + std::to_string(graph_hierarchy.size()));
-    dist::LockingLabelPropagationClustering clustering_algorithm(ctx);
-    auto &clustering = clustering_algorithm.compute_clustering(*c_graph, max_cluster_weight);
-    STOP_TIMER();
-
-    LOG << "... contracting";
-
-    START_TIMER("Contraction", "Level " + std::to_string(graph_hierarchy.size()));
-    auto result = contract_global_clustering(
-        *c_graph, clustering, ctx.coarsening.global_contraction_algorithm
-    );
-    STOP_TIMER();
-    dist::graph::debug::validate(contracted_graph);
-
-    const bool converged = contracted_graph.global_n() == c_graph->global_n();
-    graph_hierarchy.push_back(std::move(contracted_graph));
-    c_graph = &graph_hierarchy.back();
-
-    LOG << "=> n=" << c_graph->global_n() << " m=" << c_graph->global_m()
-        << " max_node_weight=" << c_graph->max_node_weight()
-        << " max_cluster_weight=" << max_cluster_weight;
-    SLOG << "n=" << c_graph->n() << " total_n=" << c_graph->total_n()
-         << " ghost_n=" << c_graph->ghost_n() << " m=" << c_graph->m();
-    if (converged) {
-      LOG << "==> Coarsening converged";
+    const DistributedGraph *new_c_graph = coarsener.coarsen_once();
+    if (new_c_graph == c_graph) {
       break;
     }
+    c_graph = new_c_graph;
+
+    LOG << "=> n=" << c_graph->global_n() << " m=" << c_graph->global_m()
+        << " max_node_weight=" << c_graph->max_node_weight();
   }
 
+  // Output statistics
   mpi::barrier(MPI_COMM_WORLD);
-  if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
-    Timer::global().print_machine_readable(std::cout);
-  }
+  LOG;
   if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
     Timer::global().print_human_readable(std::cout);
   }
+  LOG;
 
   return MPI_Finalize();
 }

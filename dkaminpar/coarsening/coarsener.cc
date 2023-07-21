@@ -1,12 +1,13 @@
 /*******************************************************************************
+ * Builds and manages a hierarchy of coarse graphs.
+ *
  * @file:   coarsener.cc
  * @author: Daniel Seemaier
  * @date:   28.04.2022
- * @brief:  Builds and manages a hierarchy of coarse graphs.
  ******************************************************************************/
 #include "dkaminpar/coarsening/coarsener.h"
 
-#include "dkaminpar/coarsening/contraction/legacy_cluster_contraction.h"
+#include "dkaminpar/coarsening/contraction/cluster_contraction.h"
 #include "dkaminpar/coarsening/contraction/local_cluster_contraction.h"
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructures/distributed_graph.h"
@@ -22,8 +23,8 @@ SET_DEBUG(false);
 Coarsener::Coarsener(const DistributedGraph &input_graph, const Context &input_ctx)
     : _input_graph(input_graph),
       _input_ctx(input_ctx),
-      _global_clusterer(factory::create_global_clustering_algorithm(_input_ctx)),
-      _local_clusterer(factory::create_local_clustering_algorithm(_input_ctx)) {}
+      _global_clusterer(factory::create_global_clusterer(_input_ctx)),
+      _local_clusterer(factory::create_local_clusterer(_input_ctx)) {}
 
 const DistributedGraph *Coarsener::coarsen_once() {
   return coarsen_once(max_cluster_weight());
@@ -72,7 +73,12 @@ const DistributedGraph *Coarsener::coarsen_once_global(const GlobalNodeWeight ma
   }
 
   // Construct the coarse graph
-  auto result = contract_global_clustering(*graph, clustering, _input_ctx.coarsening);
+  auto result = contract_clustering(
+      *graph,
+      clustering,
+      _input_ctx.coarsening
+  );
+
   KASSERT(graph::debug::validate(result.graph), "", assert::heavy);
   DBG << "Reduced number of nodes from " << graph->global_n() << " to " << result.graph.global_n();
 
@@ -145,18 +151,13 @@ DistributedPartitionedGraph Coarsener::uncoarsen_once_global(DistributedPartitio
 ) {
   const DistributedGraph *new_coarsest = nth_coarsest(1);
 
-  if (_input_ctx.coarsening.contraction_algorithm == ContractionAlgorithm::DEFAULT) {
-    p_graph = project_partition(
-        *new_coarsest,
-        std::move(p_graph),
-        _global_mapping_hierarchy.back(),
-        _node_migration_history.back()
-    );
-  } else {
-    auto &mapping = _global_mapping_hierarchy.back();
-    LegacyGlobalMapping legacy_mapping(mapping.begin(), mapping.end());
-    p_graph = project_global_contracted_graph(*new_coarsest, std::move(p_graph), legacy_mapping);
-  }
+  p_graph = project_partition(
+      *new_coarsest,
+      std::move(p_graph),
+      _global_mapping_hierarchy.back(),
+      _node_migration_history.back()
+  );
+
   KASSERT(graph::debug::validate_partition(p_graph), "", assert::heavy);
 
   _graph_hierarchy.pop_back();

@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Hierarchical timer for easy time measurements.
+ *
  * @file:   timer.cc
  * @author: Daniel Seemaier
  * @date:   21.09.2021
- * @brief:  Helper class for time measurement.
  ******************************************************************************/
 #include "common/timer.h"
 

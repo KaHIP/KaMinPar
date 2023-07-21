@@ -1,3 +1,15 @@
+/*******************************************************************************
+ * Redefines the logging macros for the distributed setting:
+ *
+ * - DBG(C) also print the PE rank
+ * - (L)LOG(_*) only print on PE 0
+ * - DLOG prints the output from all PEs in undefined order, possibly interleaved
+ * - SLOG collects the output from all PEs and prints it on PE 0
+ *
+ * @file:   logger.h
+ * @author: Daniel Seemaier
+ * @date:   27.10.2021
+ ******************************************************************************/
 #pragma once
 
 #include <mpi.h>

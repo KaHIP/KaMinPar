@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Utility functions for common string operations.
+ *
  * @file:   strings.cc
  * @author: Daniel Seemaier
  * @date:   21.09.2021
- * @brief:  Helper functions for string operations.
  ******************************************************************************/
 #include "common/strutils.h"
 

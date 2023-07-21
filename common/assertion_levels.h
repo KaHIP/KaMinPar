@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Assertion levels to be used with KASSERT().
+ *
  * @file:   assertion_levels.h
  * @author: Daniel Seemaier
  * @date:   14.06.2022
- * @brief:  Assertion levels to be used with KASSERT().
  ******************************************************************************/
 #pragma once
 

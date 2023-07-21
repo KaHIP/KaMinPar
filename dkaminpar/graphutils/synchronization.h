@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Implements common synchronization operations for distributed graphs.
+ *
  * @file:   graph_synchronization.h
  * @author: Daniel Seemaier
  * @date:   15.07.2022
- * @brief:  Implements common synchronization operations for distributed graphs.
  ******************************************************************************/
 #pragma once
 

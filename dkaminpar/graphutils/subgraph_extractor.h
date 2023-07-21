@@ -1,8 +1,5 @@
 /*******************************************************************************
- * @file:   graph_extraction.h
- * @author: Daniel Seemaier
- * @date:   28.04.2022
- * @brief:  Utility functions to extract and distribute block-induced subgraphs
+ * Utility functions to extract and distribute block-induced subgraphs
  * of a partitioned distributed graph.
  *
  * These functions build an in-memory subgraph graph for each block of a
@@ -10,6 +7,10 @@
  * fewer PEs than blocks, each PE gets multiple subgraphs, otherwise each
  * subgraph is duplicated and copied to multiple PEs.
  * The functions aim to distribute the subgraphs as evenly as possible.
+ *
+ * @file:   graph_extraction.h
+ * @author: Daniel Seemaier
+ * @date:   28.04.2022
  ******************************************************************************/
 #pragma once
 

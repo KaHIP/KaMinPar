@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Command line arguments for the distributed partitioner.
+ *
  * @file:   dkaminpar_arguments.cc
  * @author: Daniel Seemaier
  * @date:   15.10.2022
- * @brief:  Command line arguments for the distributed partitioner.
  ******************************************************************************/
 #include "kaminpar_cli/dkaminpar_arguments.h"
 
@@ -100,13 +101,8 @@ CLI::Option_group *create_refinement_options(CLI::App *app, Context &ctx) {
   refinement->add_option("--r-algorithm,--r-algorithms", ctx.refinement.algorithms)
       ->transform(CLI::CheckedTransformer(get_kway_refinement_algorithms()).description(""))
       ->description(
-          R"(K-way refinement algorithm(s). Possible options are (separated by space):
-  - noop:            disable k-way refinement
-  - colored-lp:      distributed label propagation based on node coloring
-  - lp:              distributed label propagation
-  - local-fm:        PE-local FM
-  - fm:              distributed FM
-  - greedy_balancer: greedy algorithm to force balance)"
+          std::string("Refinement algorithm(s). Possible options are:\n") +
+          get_refinement_algorithms_description()
       )
       ->capture_default_str();
   refinement
@@ -122,6 +118,7 @@ CLI::Option_group *create_refinement_options(CLI::App *app, Context &ctx) {
   create_colored_lp_refinement_options(app, ctx);
   create_jet_refinement_options(app, ctx);
   create_greedy_balancer_options(app, ctx);
+  create_move_set_balancer_options(app, ctx);
 
   return refinement;
 }
@@ -302,7 +299,7 @@ CLI::Option_group *create_colored_lp_refinement_options(CLI::App *app, Context &
 }
 
 CLI::Option_group *create_greedy_balancer_options(CLI::App *app, Context &ctx) {
-  auto *balancer = app->add_option_group("Refinement -> Balancer");
+  auto *balancer = app->add_option_group("Refinement -> Node balancer");
 
   balancer->add_option("--r-b-max-num-rounds", ctx.refinement.greedy_balancer.max_num_rounds)
       ->capture_default_str();
@@ -327,6 +324,42 @@ CLI::Option_group *create_greedy_balancer_options(CLI::App *app, Context &ctx) {
       ->add_option(
           "--r-b-fast-balancing-threshold",
           ctx.refinement.greedy_balancer.fast_balancing_threshold,
+          "Perform a fast balancing round if strong balancing improved the imbalance by less than "
+          "this value, e.g., 0.01 for 1%."
+      )
+      ->capture_default_str();
+
+  return balancer;
+}
+
+CLI::Option_group *create_move_set_balancer_options(CLI::App *app, Context &ctx) {
+  auto *balancer = app->add_option_group("Refinement -> Move set balancer");
+
+  balancer->add_option("--r-bms-max-num-rounds", ctx.refinement.move_set_balancer.max_num_rounds)
+      ->capture_default_str();
+  balancer
+      ->add_flag(
+          "--r-bms-enable-sequential-balancing",
+          ctx.refinement.move_set_balancer.enable_sequential_balancing
+      )
+      ->capture_default_str();
+  balancer
+      ->add_option(
+          "--r-bms-seq-nodes-per-block",
+          ctx.refinement.move_set_balancer.seq_num_nodes_per_block,
+          "Number of nodes selected for each overloaded block on each PE."
+      )
+      ->capture_default_str();
+  balancer
+      ->add_flag(
+          "--r-bms-enable-parallel-balancing",
+          ctx.refinement.move_set_balancer.enable_parallel_balancing
+      )
+      ->capture_default_str();
+  balancer
+      ->add_option(
+          "--r-bms-parallel-threshold",
+          ctx.refinement.move_set_balancer.parallel_threshold,
           "Perform a fast balancing round if strong balancing improved the imbalance by less than "
           "this value, e.g., 0.01 for 1%."
       )
@@ -382,9 +415,6 @@ CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx) {
   - hem:            heavy edge matching
   - hem-lp:         heavy edge matching + label propagation)")
 
-      ->capture_default_str();
-  coarsening->add_option("--c-contraction-algorithm", ctx.coarsening.contraction_algorithm)
-      ->transform(CLI::CheckedTransformer(get_contraction_algorithms()).description(""))
       ->capture_default_str();
   coarsening->add_option(
       "--c-max-cnode-imbalance",
@@ -539,6 +569,13 @@ CLI::Option_group *create_jet_refinement_options(CLI::App *app, Context &ctx) {
   jet->add_flag("--r-jet-use-abortion-threshold", ctx.refinement.jet.use_abortion_threshold)
       ->capture_default_str();
   jet->add_option("--r-jet-abortion-threshold", ctx.refinement.jet.abortion_threshold)
+      ->capture_default_str();
+  jet->add_option("--r-jet-balancing-algorithm", ctx.refinement.jet.balancing_algorithm)
+      ->transform(CLI::CheckedTransformer(get_balancing_algorithms()).description(""))
+      ->description(
+          std::string("Balancing algorithm(s). Possible options are:\n") +
+          get_balancing_algorithms_description()
+      )
       ->capture_default_str();
 
   return jet;
