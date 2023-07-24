@@ -123,8 +123,8 @@ std::unordered_map<std::string, RefinementAlgorithm> get_kway_refinement_algorit
       {"lp/colors", RefinementAlgorithm::COLORED_LP},
       {"fm/global", RefinementAlgorithm::GLOBAL_FM},
       {"fm/local", RefinementAlgorithm::LOCAL_FM},
-      {"greedy-balancer/node", RefinementAlgorithm::GREEDY_NODE_BALANCER},
-      {"greedy-balancer/moveset", RefinementAlgorithm::GREEDY_MOVE_SET_BALANCER},
+      {"greedy-balancer/nodes", RefinementAlgorithm::GREEDY_NODE_BALANCER},
+      {"greedy-balancer/movesets", RefinementAlgorithm::GREEDY_MOVE_SET_BALANCER},
       {"jet/refiner", RefinementAlgorithm::JET_REFINER},
       {"jet/balancer", RefinementAlgorithm::JET_BALANCER},
   };
@@ -133,8 +133,8 @@ std::unordered_map<std::string, RefinementAlgorithm> get_kway_refinement_algorit
 std::unordered_map<std::string, RefinementAlgorithm> get_balancing_algorithms() {
   return {
       {"noop", RefinementAlgorithm::NOOP},
-      {"greedy-balancer/node", RefinementAlgorithm::GREEDY_NODE_BALANCER},
-      {"greedy-balancer/moveset", RefinementAlgorithm::GREEDY_MOVE_SET_BALANCER},
+      {"greedy-balancer/nodes", RefinementAlgorithm::GREEDY_NODE_BALANCER},
+      {"greedy-balancer/movesets", RefinementAlgorithm::GREEDY_MOVE_SET_BALANCER},
       {"jet/balancer", RefinementAlgorithm::JET_BALANCER},
   };
 };
