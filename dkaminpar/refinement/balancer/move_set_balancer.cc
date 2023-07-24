@@ -200,10 +200,12 @@ void MoveSetBalancer::try_pq_insertion(const NodeID set) {
 }
 
 void MoveSetBalancer::try_pq_update(const NodeID set) {
-  KASSERT(_pqs.contains(set));
-
   const BlockID from_block = _move_sets.block(set);
   const auto [relative_gain, to_block] = _move_sets.find_max_relative_gain(set);
+
+  KASSERT(_pqs.contains(set), "set " << set << " not contained in the PQ");
+  KASSERT(relative_gain != std::numeric_limits<double>::min(), "illegal relative gain");
+  KASSERT(relative_gain != std::numeric_limits<double>::max(), "illegal relative gain");
   _pqs.change_priority(from_block, set, relative_gain);
 }
 
@@ -481,6 +483,7 @@ void MoveSetBalancer::perform_moves(
   for (const auto &candidate : candidates) {
     if (rank == candidate.owner) {
       _move_sets.move_set(candidate.set, candidate.from, candidate.to);
+
       for (NodeID u : _move_sets.elements(candidate.set)) {
         _p_graph.set_block<false>(u, candidate.to);
 
@@ -502,6 +505,11 @@ void MoveSetBalancer::perform_moves(
           }
 
           const NodeID set = _move_sets.set_of(v);
+          if (set == candidate.set) {
+            continue;
+          }
+
+          // @todo use Marker to avoid unnecessary updates
           if (!_pqs.contains(set)) {
             try_pq_insertion(set);
           } else {
@@ -550,7 +558,7 @@ std::vector<MoveSetBalancer::MoveCandidate> MoveSetBalancer::pick_sequential_can
     const std::size_t start = candidates.size();
 
     for (NodeID num = 0; num < _ctx.refinement.move_set_balancer.seq_num_nodes_per_block; ++num) {
-      if (_pqs.empty(from)) { 
+      if (_pqs.empty(from)) {
         break;
       }
 
@@ -745,7 +753,7 @@ std::string MoveSetBalancer::dbg_get_pq_state_str() const {
   std::stringstream ss;
   ss << "PQ size: " << _pqs.size() << " -> ";
   for (const BlockID block : _p_graph.blocks()) {
-    ss << std::setw(3) << _pqs.size(block) << " ";
+    ss << "[" << std::setw(3) << block << ":" << std::setw(5) << _pqs.size(block) << "] ";
   }
   return ss.str();
 }

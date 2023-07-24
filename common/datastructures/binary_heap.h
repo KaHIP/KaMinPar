@@ -591,6 +591,10 @@ public:
   }
 
   Key key(const std::size_t heap, const std::size_t pos) const {
+    KASSERT(heap < _heaps.size());
+    KASSERT(pos < _id_pos.size());
+    KASSERT(_id_pos[pos] < _heaps[heap].size());
+
     return _heaps[heap][_id_pos[pos]].key;
   }
 
