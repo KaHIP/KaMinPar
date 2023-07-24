@@ -116,7 +116,7 @@ endif ()
 
 # Always enable Debug symbols (including in Release mode)
 if (KAMINPAR_BUILD_WITH_DEBUG_SYMBOLS)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -g3")
+    add_compile_options(-g -g3)
 endif ()
 
 # Set compile flags 
@@ -155,7 +155,7 @@ if (KAMINPAR_64BIT_WEIGHTS)
     list(APPEND KAMINPAR_DEFINITIONS "-DKAMINPAR_64BIT_WEIGHTS")
     set(KAMINPAR_SHM_NODE_WEIGHT_STR "std::int64_t")
     set(KAMINPAR_SHM_EDGE_WEIGHT_STR "std::int64_t")
-else ()
+else () 
     set(KAMINPAR_SHM_NODE_WEIGHT_STR "std::int32_t")
     set(KAMINPAR_SHM_EDGE_WEIGHT_STR "std::int32_t")
 endif ()

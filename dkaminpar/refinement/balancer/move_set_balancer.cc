@@ -161,8 +161,6 @@ void MoveSetBalancer::clear() {
 }
 
 void MoveSetBalancer::try_pq_insertion(const NodeID set) {
-  DBG << "Insert " << set << " into the PQ";
-
   KASSERT(!_pqs.contains(set));
 
   const BlockID from_block = _move_sets.block(set);
@@ -182,6 +180,7 @@ void MoveSetBalancer::try_pq_insertion(const NodeID set) {
 
   // - or its relative gain is better than the worst relative gain in the PQ
   if (!accept) {
+    KASSERT(!_pqs.empty(from_block));
     const double min_key = _pqs.peek_min_key(from_block);
     accept = relative_gain > min_key || (relative_gain == min_key && _rand.random_bool());
     replace_min = true; // no effect if accept == false
@@ -189,6 +188,7 @@ void MoveSetBalancer::try_pq_insertion(const NodeID set) {
 
   if (accept) {
     if (replace_min) {
+      KASSERT(!_pqs.empty(from_block));
       NodeID replaced_set = _pqs.peek_min_id(from_block);
       _pqs.pop_min(from_block);
       _pq_weights[from_block] -= _move_sets.weight(replaced_set);
@@ -550,7 +550,7 @@ std::vector<MoveSetBalancer::MoveCandidate> MoveSetBalancer::pick_sequential_can
     const std::size_t start = candidates.size();
 
     for (NodeID num = 0; num < _ctx.refinement.move_set_balancer.seq_num_nodes_per_block; ++num) {
-      if (_pqs.empty(from)) {
+      if (_pqs.empty(from)) { 
         break;
       }
 
