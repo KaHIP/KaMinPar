@@ -228,6 +228,24 @@ std::ostream &operator<<(std::ostream &out, const GraphOrdering ordering) {
   return out << "<invalid>";
 }
 
+std::ostream &operator<<(std::ostream &out, const MoveSetStrategy strategy) {
+  switch (strategy) {
+  case MoveSetStrategy::SINGLETONS:
+    return out << "singletons";
+  case MoveSetStrategy::GREEDY_BATCH_PREFIX:
+    return out << "greedy-batch-prefix";
+  }
+
+  return out << "<invalid>";
+}
+
+std::unordered_map<std::string, MoveSetStrategy> get_move_set_strategies() {
+  return {
+      {"singletons", MoveSetStrategy::SINGLETONS},
+      {"greedy-batch-prefix", MoveSetStrategy::GREEDY_BATCH_PREFIX},
+  };
+}
+
 void print(const Context &ctx, const bool root, std::ostream &out) {
   if (root) {
     out << "Seed:                         " << Random::seed << "\n";
@@ -439,6 +457,27 @@ void print(const RefinementContext &ctx, std::ostream &out) {
        ctx.jet.balancing_algorithm == RefinementAlgorithm::GREEDY_NODE_BALANCER)) {
     out << "Greedy balancer:\n";
     out << "  Number of nodes per block:  " << ctx.greedy_balancer.num_nodes_per_block << "\n";
+  }
+  if (ctx.includes_algorithm(RefinementAlgorithm::GREEDY_MOVE_SET_BALANCER) ||
+      (ctx.includes_algorithm(RefinementAlgorithm::JET_REFINER) &&
+       ctx.jet.balancing_algorithm == RefinementAlgorithm::GREEDY_MOVE_SET_BALANCER)) {
+    out << "Greedy move set balancer:\n";
+    out << "  Maximum number of rounds:   " << ctx.move_set_balancer.max_num_rounds << "\n";
+    out << "  Sequential balancing:       "
+        << (ctx.move_set_balancer.enable_sequential_balancing ? "enabled" : "disabled") << "\n";
+    out << "    No. of nodes per block:   " << ctx.move_set_balancer.seq_num_nodes_per_block
+        << "\n";
+    out << "    Keep all nodes in PQ:     " << (ctx.move_set_balancer.seq_full_pq ? "yes" : "no")
+        << "\n";
+    out << "  Parallel balancing:         "
+        << (ctx.move_set_balancer.enable_parallel_balancing ? "enabled" : "disabled") << "\n";
+    out << "    Trigger threshold:        " << ctx.move_set_balancer.parallel_threshold << "\n";
+    out << "  Move set rebuild interval:  "
+        << (ctx.move_set_balancer.move_set_rebuild_interval == 0
+                ? "never"
+                : std::string("every ") +
+                      std::to_string(ctx.move_set_balancer.move_set_rebuild_interval) + " round(s)")
+        << "\n";
   }
   if (ctx.includes_algorithm(RefinementAlgorithm::JET_BALANCER) ||
       (ctx.includes_algorithm(RefinementAlgorithm::JET_REFINER) &&

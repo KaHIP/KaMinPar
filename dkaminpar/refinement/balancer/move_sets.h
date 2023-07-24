@@ -25,6 +25,12 @@ public:
       NoinitVector<EdgeWeight> move_set_conns
   );
 
+  MoveSets(const MoveSets &) = delete;
+  MoveSets &operator=(const MoveSets &) = delete;
+
+  MoveSets(MoveSets &&) noexcept = default;
+  MoveSets &operator=(MoveSets &&) noexcept = default;
+
   operator MoveSetsMemoryContext() &&;
 
   [[nodiscard]] inline NodeID size(const NodeID set) const {
@@ -53,17 +59,17 @@ public:
   }
 
   [[nodiscard]] inline EdgeWeight conn(const NodeID set, const BlockID to_block) const {
-    return _move_set_conns[set * _p_graph.k() + to_block];
+    return _move_set_conns[set * _p_graph->k() + to_block];
   }
 
   [[nodiscard]] inline BlockID block(const NodeID set) const {
-    return _p_graph.block(_move_sets[_move_set_indices[set]]);
+    return _p_graph->block(_move_sets[_move_set_indices[set]]);
   }
 
   [[nodiscard]] inline NodeWeight weight(const NodeID set) const {
     NodeWeight weight = 0;
     for (const NodeID u : elements(set)) {
-      weight += _p_graph.node_weight(u);
+      weight += _p_graph->node_weight(u);
     }
     return weight;
   }
@@ -73,14 +79,14 @@ public:
   }
 
   inline void move_ghost_node(const NodeID ghost, const BlockID from, const BlockID to) {
-    KASSERT(_p_graph.is_ghost_node(ghost));
-    const NodeID nth_ghost = ghost - _p_graph.ghost_n();
+    KASSERT(_p_graph->is_ghost_node(ghost));
+    const NodeID nth_ghost = ghost - _p_graph->ghost_n();
 
     for (EdgeID edge = _ghost_node_indices[nth_ghost]; edge < _ghost_node_indices[nth_ghost + 1];
          ++edge) {
       const auto [weight, set] = _ghost_node_edges[edge];
-      _move_set_conns[set * _p_graph.k() + from] -= weight;
-      _move_set_conns[set * _p_graph.k() + to] += weight;
+      _move_set_conns[set * _p_graph->k() + from] -= weight;
+      _move_set_conns[set * _p_graph->k() + to] += weight;
     }
   }
 
@@ -90,8 +96,8 @@ public:
 
   inline void move_set(const NodeID set, const BlockID from, const BlockID to) {
     for (const NodeID u : elements(set)) {
-      for (const auto [e, v] : _p_graph.neighbors(u)) {
-        if (!_p_graph.contains_local_node(v)) {
+      for (const auto [e, v] : _p_graph->neighbors(u)) {
+        if (!_p_graph->contains_local_node(v)) {
           continue;
         }
 
@@ -100,9 +106,9 @@ public:
           continue;
         }
 
-        const EdgeWeight delta = _p_graph.edge_weight(e);
-        _move_set_conns[set_v * _p_graph.k() + from] -= delta;
-        _move_set_conns[set_v * _p_graph.k() + to] += delta;
+        const EdgeWeight delta = _p_graph->edge_weight(e);
+        _move_set_conns[set_v * _p_graph->k() + from] -= delta;
+        _move_set_conns[set_v * _p_graph->k() + to] += delta;
       }
     }
   }
@@ -118,7 +124,7 @@ public:
     BlockID max_gainer = kInvalidBlockID;
 
     const BlockID set_b = owner(set);
-    for (const BlockID b : _p_graph.blocks()) {
+    for (const BlockID b : _p_graph->blocks()) {
       if (b != set_b && conn(set, b) > max_conn) {
         max_conn = conn(set, b);
         max_gainer = b;
@@ -152,7 +158,7 @@ private:
 
   void init_ghost_node_adjacency();
 
-  const DistributedPartitionedGraph &_p_graph;
+  const DistributedPartitionedGraph *_p_graph;
 
   NoinitVector<NodeID> _node_to_move_set;
   NoinitVector<NodeID> _move_sets;
@@ -164,6 +170,7 @@ private:
 };
 
 MoveSets build_greedy_move_sets(
+    MoveSetStrategy strategy,
     const DistributedPartitionedGraph &p_graph,
     const PartitionContext &p_ctx,
     NodeWeight max_move_set_size,

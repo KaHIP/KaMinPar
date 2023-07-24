@@ -94,7 +94,13 @@ MoveSetBalancer::MoveSetBalancer(
       _pq_weights(_p_graph.k()),
       _moved_marker(_p_graph.n()),
       _weight_buckets(_p_graph, _p_ctx),
-      _move_sets(build_greedy_move_sets(_p_graph, _p_ctx, 5, std::move(m_ctx.move_sets_m_ctx))) {}
+      _move_sets(build_greedy_move_sets(
+          _ctx.refinement.move_set_balancer.move_set_strategy,
+          _p_graph,
+          _p_ctx,
+          5,
+          std::move(m_ctx.move_sets_m_ctx)
+      )) {}
 
 MoveSetBalancer::~MoveSetBalancer() {
   _factory.take_m_ctx(std::move(*this));
@@ -107,13 +113,31 @@ MoveSetBalancer::operator MoveSetBalancerMemoryContext() && {
 }
 
 void MoveSetBalancer::initialize() {
-
   for (const NodeID set : _move_sets.sets()) {
     if (!is_overloaded(_move_sets.block(set))) {
       continue;
     }
     try_pq_insertion(set);
   }
+}
+
+void MoveSetBalancer::rebuild_move_sets() {
+  _move_sets = build_greedy_move_sets(
+      _ctx.refinement.move_set_balancer.move_set_strategy,
+      _p_graph,
+      _p_ctx,
+      5,
+      std::move(_move_sets)
+  );
+  clear();
+  initialize();
+}
+
+void MoveSetBalancer::clear() {
+  _pqs.clear();
+  std::fill(_pq_weights.begin(), _pq_weights.end(), 0);
+  _moved_marker.reset();
+  _weight_buckets.clear();
 }
 
 void MoveSetBalancer::try_pq_insertion(const NodeID set) {
@@ -166,6 +190,11 @@ bool MoveSetBalancer::refine() {
   double prev_imbalance_distance = initial_imbalance_distance;
 
   for (int round = 0; round < _ctx.refinement.move_set_balancer.max_num_rounds; ++round) {
+    if (round > 0 && _ctx.refinement.move_set_balancer.move_set_rebuild_interval > 0 &&
+        (round % _ctx.refinement.move_set_balancer.move_set_rebuild_interval) == 0) {
+      rebuild_move_sets();
+    }
+
     if (_ctx.refinement.move_set_balancer.enable_sequential_balancing) {
       perform_sequential_round();
       DBG << "Round " << round << ": seq. balancing: " << prev_imbalance_distance << " --> "

@@ -230,6 +230,11 @@ struct GreedyBalancerContext {
   double fast_balancing_threshold = 0.0;
 };
 
+enum class MoveSetStrategy {
+  SINGLETONS,
+  GREEDY_BATCH_PREFIX,
+};
+
 struct MoveSetBalancerContext {
   int max_num_rounds = 0;
 
@@ -239,6 +244,9 @@ struct MoveSetBalancerContext {
 
   bool enable_parallel_balancing = false;
   double parallel_threshold = 0.0;
+
+  MoveSetStrategy move_set_strategy = MoveSetStrategy::SINGLETONS;
+  int move_set_rebuild_interval = 0;
 };
 
 struct JetBalancerContext {

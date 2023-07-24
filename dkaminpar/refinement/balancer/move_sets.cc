@@ -37,7 +37,7 @@ MoveSets::MoveSets(
     NoinitVector<EdgeWeight> move_set_conns
 
 )
-    : _p_graph(p_graph),
+    : _p_graph(&p_graph),
       _node_to_move_set(std::move(node_to_move_set)),
       _move_sets(std::move(move_sets)),
       _move_set_indices(std::move(move_set_indices)),
@@ -57,16 +57,16 @@ MoveSets::operator MoveSetsMemoryContext() && {
 
 void MoveSets::init_ghost_node_adjacency() {
   std::vector<std::tuple<NodeID, EdgeWeight, NodeID>> ghost_to_set;
-  FastResetArray<EdgeWeight> weight_to_ghost(_p_graph.ghost_n());
+  FastResetArray<EdgeWeight> weight_to_ghost(_p_graph->ghost_n());
 
   for (const NodeID set : sets()) {
     for (const NodeID u : elements(set)) {
-      for (const auto [e, v] : _p_graph.neighbors(u)) {
-        if (!_p_graph.is_ghost_node(v)) {
+      for (const auto [e, v] : _p_graph->neighbors(u)) {
+        if (!_p_graph->is_ghost_node(v)) {
           continue;
         }
 
-        weight_to_ghost[v - _p_graph.n()] += _p_graph.edge_weight(e);
+        weight_to_ghost[v - _p_graph->n()] += _p_graph->edge_weight(e);
       }
     }
 
@@ -80,7 +80,7 @@ void MoveSets::init_ghost_node_adjacency() {
     return std::get<0>(a) < std::get<0>(b);
   });
 
-  _ghost_node_indices.resize(_p_graph.ghost_n() + 1);
+  _ghost_node_indices.resize(_p_graph->ghost_n() + 1);
   _ghost_node_edges.resize(ghost_to_set.size());
 
   NodeID prev_ghost = 0;
@@ -91,7 +91,7 @@ void MoveSets::init_ghost_node_adjacency() {
     }
     _ghost_node_edges.emplace_back(weight, set);
   }
-  for (; prev_ghost < _p_graph.ghost_n() + 1; ++prev_ghost) {
+  for (; prev_ghost < _p_graph->ghost_n() + 1; ++prev_ghost) {
     _ghost_node_indices[prev_ghost] = _ghost_node_indices[prev_ghost];
   }
 }
@@ -305,6 +305,7 @@ private:
 } // namespace
 
 MoveSets build_greedy_move_sets(
+    const MoveSetStrategy strategy,
     const DistributedPartitionedGraph &p_graph,
     const PartitionContext &p_ctx,
     const NodeWeight max_move_set_weight,
@@ -313,9 +314,17 @@ MoveSets build_greedy_move_sets(
 ) {
   SCOPED_TIMER("Build move sets");
 
-  MoveSetBuilder builder(p_graph, p_ctx, std::move(m_ctx));
-  builder.build(max_move_set_weight);
-  return builder.finalize();
+  switch (strategy) {
+  case MoveSetStrategy::SINGLETONS:
+    // @todo
+
+  case MoveSetStrategy::GREEDY_BATCH_PREFIX:
+    MoveSetBuilder builder(p_graph, p_ctx, std::move(m_ctx));
+    builder.build(max_move_set_weight);
+    return builder.finalize();
+  }
+
+  __builtin_unreachable();
 }
 } // namespace kaminpar::dist
 

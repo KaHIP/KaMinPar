@@ -364,6 +364,18 @@ CLI::Option_group *create_move_set_balancer_options(CLI::App *app, Context &ctx)
           "this value, e.g., 0.01 for 1%."
       )
       ->capture_default_str();
+  balancer->add_option("--r-bms-strategy", ctx.refinement.move_set_balancer.move_set_strategy)
+      ->transform(CLI::CheckedTransformer(get_move_set_strategies()).description(""))
+      ->description(R"(Strategy for constructing move sets:
+  - singletons:          put each node into its own set
+  - greedy-batch-prefix: grow batches around nodes in the same block, use the prefix that maximizes the gain when moving the set to a non-overloaded block)"
+      )
+      ->capture_default_str();
+  balancer
+      ->add_option(
+          "--r-bms-rebuild-interval", ctx.refinement.move_set_balancer.move_set_rebuild_interval
+      )
+      ->capture_default_str();
 
   return balancer;
 }

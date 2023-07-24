@@ -64,7 +64,9 @@ int main(int argc, char *argv[]) {
   ctx.partition.k = p_graph.k();
   ctx.partition.graph = std::make_unique<GraphContext>(graph, ctx.partition);
 
-  const MoveSets sets = build_greedy_move_sets(p_graph, ctx.partition, max_move_set_size, {});
+  const MoveSets sets = build_greedy_move_sets(
+      MoveSetStrategy::GREEDY_BATCH_PREFIX, p_graph, ctx.partition, max_move_set_size, {}
+  );
 
   LOG << "Number of move sets: " << sets.num_move_sets();
 

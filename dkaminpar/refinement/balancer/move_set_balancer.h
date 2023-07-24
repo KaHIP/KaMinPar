@@ -63,6 +63,9 @@ public:
   bool refine() final;
 
 private:
+  void rebuild_move_sets();
+  void clear();
+
   void try_pq_insertion(NodeID set);
   void try_pq_update(NodeID set);
 
