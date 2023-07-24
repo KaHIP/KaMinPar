@@ -158,6 +158,8 @@ private:
 
   void init_ghost_node_adjacency();
 
+  bool dbg_check_all_nodes_covered() const;
+
   const DistributedPartitionedGraph *_p_graph;
 
   NoinitVector<NodeID> _node_to_move_set;

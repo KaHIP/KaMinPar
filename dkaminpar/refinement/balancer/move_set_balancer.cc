@@ -116,6 +116,23 @@ MoveSetBalancer::operator MoveSetBalancerMemoryContext() && {
 }
 
 void MoveSetBalancer::initialize() {
+  KASSERT(
+      [&] {
+        for (const NodeID node : _p_graph.nodes()) {
+          if (is_overloaded(_p_graph.block(node)) && _move_sets.set_of(node) == kInvalidNodeID) {
+            LOG_ERROR << "node " << node << " is in block " << _p_graph.block(node)
+                      << " with weight " << _p_graph.block_weight(_p_graph.block(node)) << " > "
+                      << _p_ctx.graph->max_block_weight(_p_graph.block(node))
+                      << ", but the node is not contained in any move set";
+            return false;
+          }
+        }
+        return true;
+      }(),
+      "move sets do not cover all nodes in overloaded blocks",
+      assert::heavy
+  );
+
   for (const NodeID set : _move_sets.sets()) {
     if (!is_overloaded(_move_sets.block(set))) {
       continue;
@@ -680,14 +697,14 @@ MoveSetBalancer::reduce_sequential_candidates(std::vector<MoveCandidate> candida
 BlockWeight MoveSetBalancer::overload(const BlockID block) const {
   static_assert(std::is_signed_v<BlockWeight>);
   return std::max<BlockWeight>(
-      0, _p_ctx.graph->max_block_weight(block) - _p_graph.block_weight(block)
+      0, _p_graph.block_weight(block) - _p_ctx.graph->max_block_weight(block)
   );
 }
 
 BlockWeight MoveSetBalancer::underload(const BlockID block) const {
   static_assert(std::is_signed_v<BlockWeight>);
   return std::max<BlockWeight>(
-      0, _p_graph.block_weight(block) - _p_ctx.graph->max_block_weight(block)
+      0, _p_ctx.graph->max_block_weight(block) - _p_graph.block_weight(block)
   );
 }
 

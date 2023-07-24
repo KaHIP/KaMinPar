@@ -27,7 +27,13 @@ MoveSets::MoveSets(const DistributedPartitionedGraph &p_graph, MoveSetsMemoryCon
           std::move(m_ctx.move_sets),
           std::move(m_ctx.move_set_indices),
           std::move(m_ctx.move_set_conns)
-      ) {}
+      ) {
+  KASSERT(
+      dbg_check_all_nodes_covered(),
+      "not all nodes in overloaded blocks are covered by move sets",
+      assert::heavy
+  );
+}
 
 MoveSets::MoveSets(
     const DistributedPartitionedGraph &p_graph,
@@ -44,6 +50,12 @@ MoveSets::MoveSets(
       _move_set_conns(std::move(move_set_conns)) {
   KASSERT(_move_set_indices.front() == 0u);
   init_ghost_node_adjacency();
+
+  KASSERT(
+      dbg_check_all_nodes_covered(),
+      "not all nodes in overloaded blocks are covered by move sets",
+      assert::heavy
+  );
 }
 
 MoveSets::operator MoveSetsMemoryContext() && {
@@ -94,6 +106,49 @@ void MoveSets::init_ghost_node_adjacency() {
   for (; prev_ghost < _p_graph->ghost_n() + 1; ++prev_ghost) {
     _ghost_node_indices[prev_ghost] = _ghost_node_indices[prev_ghost];
   }
+}
+
+bool MoveSets::dbg_check_all_nodes_covered() const {
+  std::vector<bool> covered(_p_graph->n());
+  BlockWeight min_block_weight_covered = std::numeric_limits<BlockWeight>::max();
+
+  for (const NodeID set : sets()) {
+    for (const NodeID node : elements(set)) {
+      if (block(set) != _p_graph->block(node)) {
+        LOG_ERROR << "block of node " << node << " = " << _p_graph->block(node)
+                  << " is inconsistent with the move set block " << block(set);
+        return false;
+      }
+
+      covered[node] = true;
+      min_block_weight_covered =
+          std::min(min_block_weight_covered, _p_graph->block_weight(_p_graph->block(node)));
+    }
+  }
+
+  for (const NodeID node : _p_graph->nodes()) {
+    if (_p_graph->block_weight(_p_graph->block(node)) < min_block_weight_covered) {
+      // Since we don't have the partition context here, we cannot conclude whether this node should
+      // be covered or not -- thus skip it
+      continue;
+    }
+
+    if (!covered[node]) {
+      LOG_ERROR << "node " << node << " should be covered by a move set, but is not";
+      return false;
+    }
+
+    if (set_of(node) == kInvalidNodeID) {
+      LOG_ERROR << "node " << node
+                << " is covered by some move set, but set_of() returns an invalid value";
+      return false;
+    }
+  }
+
+  LOG_SUCCESS << "All nodes in blocks with weight up to " << min_block_weight_covered
+              << " are covered by move sets";
+
+  return true;
 }
 
 namespace {
