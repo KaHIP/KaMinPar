@@ -657,6 +657,14 @@ public:
     return _max_forest.capacity();
   }
 
+  std::size_t size() const {
+    return _max_forest.size();
+  }
+
+  std::size_t size(const std::size_t heap) const {
+    return _max_forest.size(heap);
+  }
+
   void push(const std::size_t heap, const ID id, const Key key) {
     _max_forest.push(heap, id, key);
     _min_forest.push(heap, id, key);

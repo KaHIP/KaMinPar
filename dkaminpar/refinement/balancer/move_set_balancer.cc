@@ -7,6 +7,9 @@
  ******************************************************************************/
 #include "dkaminpar/refinement/balancer/move_set_balancer.h"
 
+#include <iomanip>
+#include <sstream>
+
 #include "dkaminpar/mpi/sparse_alltoall.h"
 #include "dkaminpar/mpi/wrapper.h"
 #include "dkaminpar/refinement/balancer/move_sets.h"
@@ -141,6 +144,8 @@ void MoveSetBalancer::clear() {
 }
 
 void MoveSetBalancer::try_pq_insertion(const NodeID set) {
+  DBG << "Insert " << set << " into the PQ";
+
   KASSERT(!_pqs.contains(set));
 
   const BlockID from_block = _move_sets.block(set);
@@ -186,18 +191,30 @@ void MoveSetBalancer::try_pq_update(const NodeID set) {
 }
 
 bool MoveSetBalancer::refine() {
+  KASSERT(
+      graph::debug::validate_partition(_p_graph),
+      "input partition for the move set balancer is in an inconsistent state",
+      assert::heavy
+  );
+  DBG0 << dbg_get_partition_state_str();
+
   const double initial_imbalance_distance = metrics::imbalance_l1(_p_graph, _p_ctx);
   double prev_imbalance_distance = initial_imbalance_distance;
 
   for (int round = 0; round < _ctx.refinement.move_set_balancer.max_num_rounds; ++round) {
+    DBG << "Starting round " << round;
+
     if (round > 0 && _ctx.refinement.move_set_balancer.move_set_rebuild_interval > 0 &&
         (round % _ctx.refinement.move_set_balancer.move_set_rebuild_interval) == 0) {
+      DBG << "  --> rebuild move sets after every "
+          << _ctx.refinement.move_set_balancer.move_set_rebuild_interval;
+
       rebuild_move_sets();
     }
 
     if (_ctx.refinement.move_set_balancer.enable_sequential_balancing) {
       perform_sequential_round();
-      DBG << "Round " << round << ": seq. balancing: " << prev_imbalance_distance << " --> "
+      DBG << "  --> Round " << round << ": seq. balancing: " << prev_imbalance_distance << " --> "
           << metrics::imbalance_l1(_p_graph, _p_ctx);
     }
 
@@ -208,7 +225,7 @@ bool MoveSetBalancer::refine() {
               prev_imbalance_distance <
           _ctx.refinement.move_set_balancer.parallel_threshold) {
         perform_parallel_round();
-        DBG << "Round " << round
+        DBG << "  --> Round " << round
             << ": par. balancing: " << imbalance_distance_after_sequential_balancing << " --> "
             << metrics::imbalance_l1(_p_graph, _p_ctx);
       }
@@ -223,6 +240,12 @@ bool MoveSetBalancer::refine() {
     } else {
       prev_imbalance_distance = metrics::imbalance_l1(_p_graph, _p_ctx);
     }
+
+    KASSERT(
+        graph::debug::validate_partition(_p_graph),
+        "partition is in an inconsistent state after round " << round,
+        assert::heavy
+    );
   }
 
   return prev_imbalance_distance > 0;
@@ -386,7 +409,11 @@ void MoveSetBalancer::perform_sequential_round() {
   const PEID rank = mpi::get_comm_rank(_p_graph.communicator());
 
   // Step 1: identify the best move set candidates globally
-  auto candidates = reduce_sequential_candidates(pick_sequential_candidates());
+  auto candidates = pick_sequential_candidates();
+  DBG << "Picked " << candidates.size() << " candidates";
+
+  candidates = reduce_sequential_candidates(pick_sequential_candidates());
+  DBGC(rank == 0) << "Reduced to " << candidates.size() << " candidates";
 
   // Step 2: let ROOT decide which candidates to pick
   std::vector<BlockWeight> tmp_block_weight_deltas(_p_graph.k());
@@ -495,8 +522,9 @@ void MoveSetBalancer::perform_moves(
 }
 
 std::vector<MoveSetBalancer::MoveCandidate> MoveSetBalancer::pick_sequential_candidates() {
-  std::vector<MoveCandidate> candidates;
+  DBG0 << dbg_get_pq_state_str();
 
+  std::vector<MoveCandidate> candidates;
   for (const BlockID from : _p_graph.blocks()) {
     if (!is_overloaded(from)) {
       continue;
@@ -683,5 +711,25 @@ bool MoveSetBalancer::assign_feasible_target_block(
            underload(candidate.to) < candidate.weight + deltas[candidate.to]);
 
   return candidate.from != candidate.to;
+}
+
+std::string MoveSetBalancer::dbg_get_partition_state_str() const {
+  std::stringstream ss;
+  ss << "Overloaded blocks: ";
+  for (const BlockID block : _p_graph.blocks()) {
+    if (is_overloaded(block)) {
+      ss << "[" << std::setw(3) << block << ":" << std::setw(5) << overload(block) << "] ";
+    }
+  }
+  return ss.str();
+}
+
+std::string MoveSetBalancer::dbg_get_pq_state_str() const {
+  std::stringstream ss;
+  ss << "PQ size: " << _pqs.size() << " -> ";
+  for (const BlockID block : _p_graph.blocks()) {
+    ss << std::setw(3) << _pqs.size(block) << " ";
+  }
+  return ss.str();
 }
 } // namespace kaminpar::dist

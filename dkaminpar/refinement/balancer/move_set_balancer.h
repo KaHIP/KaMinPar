@@ -94,6 +94,9 @@ private:
       MoveCandidate &candidate, const std::vector<BlockWeight> &deltas
   ) const;
 
+  std::string dbg_get_partition_state_str() const;
+  std::string dbg_get_pq_state_str() const;
+
   Random &_rand = Random::instance();
 
   MoveSetBalancerFactory &_factory;
