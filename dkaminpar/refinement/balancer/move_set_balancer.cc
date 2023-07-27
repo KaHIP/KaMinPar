@@ -470,6 +470,8 @@ void MoveSetBalancer::perform_sequential_round() {
 void MoveSetBalancer::perform_moves(
     const std::vector<MoveCandidate> &candidates, const bool update_block_weights
 ) {
+  DBG << "Perform " << candidates.size() << " moves, update block weights=" << update_block_weights;
+
   const PEID rank = mpi::get_comm_rank(_p_graph.communicator());
   const PEID size = mpi::get_comm_size(_p_graph.communicator());
 
@@ -483,6 +485,15 @@ void MoveSetBalancer::perform_moves(
   for (const auto &candidate : candidates) {
     if (rank == candidate.owner) {
       _move_sets.move_set(candidate.set, candidate.from, candidate.to);
+
+      // We track moved sets to exclude them from further rounds
+      _moved_marker.set(candidate.set);
+
+      // If we perform a parallel round, the set might still be in the PQ --> remove it
+      if (_pqs.contains(candidate.set)) {
+        _pq_weights[candidate.from] -= candidate.weight;
+        _pqs.remove(candidate.from, candidate.set);
+      }
 
       for (NodeID u : _move_sets.elements(candidate.set)) {
         _p_graph.set_block<false>(u, candidate.to);
@@ -500,20 +511,18 @@ void MoveSetBalancer::perform_moves(
             continue;
           }
 
-          if (!is_overloaded(_p_graph.block(v))) {
-            continue;
-          }
+          // !is_overloaded(.) is not a sufficient condition, since parallel moves might overload
+          // new blocks that have not been overloaded when the move sets where created
+          // --> also ignore sets that are not assigned to any move sets
 
-          const NodeID set = _move_sets.set_of(v);
-          if (set == candidate.set) {
-            continue;
-          }
-
-          // @todo use Marker to avoid unnecessary updates
-          if (!_pqs.contains(set)) {
-            try_pq_insertion(set);
-          } else {
-            try_pq_update(set);
+          if (const NodeID set = _move_sets.set_of(v);
+              is_overloaded(_p_graph.block(v)) && _move_sets.contains(v) && set != candidate.set &&
+              !_moved_marker.get(set)) {
+            if (!_pqs.contains(set)) {
+              try_pq_insertion(set);
+            } else {
+              try_pq_update(set);
+            }
           }
         }
 

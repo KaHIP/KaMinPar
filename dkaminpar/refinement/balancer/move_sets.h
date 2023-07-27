@@ -91,7 +91,12 @@ public:
   }
 
   inline NodeID set_of(const NodeID node) const {
+    KASSERT(node < _node_to_move_set.size());
     return _node_to_move_set[node];
+  }
+
+  inline bool contains(const NodeID node) const {
+    return set_of(node) != kInvalidNodeID;
   }
 
   inline void move_set(const NodeID set, const BlockID from, const BlockID to) {
