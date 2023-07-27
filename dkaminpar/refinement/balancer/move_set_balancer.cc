@@ -195,6 +195,7 @@ void MoveSetBalancer::try_pq_insertion(const NodeID set) {
       _pq_weights[to_block] += _move_sets.weight(set);
     }
 
+    _pq_weights[from_block] += _move_sets.weight(set);
     _pqs.push(from_block, set, relative_gain);
   }
 }
@@ -215,6 +216,10 @@ bool MoveSetBalancer::refine() {
       "input partition for the move set balancer is in an inconsistent state",
       assert::heavy
   );
+  KASSERT(
+      dbg_validate_pq_weights(), "PQ weights are inaccurate after initialization", assert::heavy
+  );
+
   DBG0 << dbg_get_partition_state_str();
 
   const double initial_imbalance_distance = metrics::imbalance_l1(_p_graph, _p_ctx);
@@ -264,6 +269,9 @@ bool MoveSetBalancer::refine() {
         graph::debug::validate_partition(_p_graph),
         "partition is in an inconsistent state after round " << round,
         assert::heavy
+    );
+    KASSERT(
+        dbg_validate_pq_weights(), "PQ weights are inaccurate after round " << round, assert::heavy
     );
   }
 
@@ -771,5 +779,45 @@ std::string MoveSetBalancer::dbg_get_pq_state_str() const {
     ss << "[" << std::setw(3) << block << ":" << std::setw(5) << _pqs.size(block) << "] ";
   }
   return ss.str();
+}
+
+bool MoveSetBalancer::dbg_validate_pq_weights() const {
+  if (!_ctx.refinement.move_set_balancer.enable_sequential_balancing) {
+    return true;
+  }
+
+  for (const BlockID block : _p_graph.blocks()) {
+    if (is_overloaded(block)) {
+      if (_pq_weights[block] == 0) {
+        LOG_WARNING << "Block " << block
+                    << " is overloaded, but its PQ is empty -- this might happen if parallel "
+                       "rebalance overloaded some block";
+        continue;
+      }
+
+      const BlockWeight expected_min_weight = overload(block);
+      if (expected_min_weight > _pq_weights[block]) {
+        LOG_ERROR << "Block " << block << " has overload " << overload(block)
+                  << ", but there is only " << _pq_weights[block] << " weight in its PQ";
+        return false;
+      }
+    }
+  }
+
+  std::vector<BlockWeight> actual_weights(_p_graph.k());
+  for (const NodeID node : _p_graph.nodes()) {
+    if (_move_sets.contains(node) && _pqs.contains(_move_sets.set_of(node))) {
+      actual_weights[_p_graph.block(node)] += _p_graph.node_weight(node);
+    }
+  }
+  for (const BlockID block : _p_graph.blocks()) {
+    if (actual_weights[block] != _pq_weights[block]) {
+      LOG_ERROR << "Block " << block << " has " << actual_weights[block]
+                << " weight in its PQ, but its PQ weight is " << _pq_weights[block];
+      return false;
+    }
+  }
+
+  return true;
 }
 } // namespace kaminpar::dist
