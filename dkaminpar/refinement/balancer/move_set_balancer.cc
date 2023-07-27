@@ -393,7 +393,7 @@ void MoveSetBalancer::perform_parallel_round() {
   Random &rand = Random::instance();
   std::size_t num_rejected_candidates = 0;
   std::vector<BlockWeight> actual_block_weight_deltas(_p_graph.k());
-  for (std::size_t i = 0; i < candidates.size(); ++i) {
+  for (std::size_t i = 0; i < candidates.size() - num_rejected_candidates; ++i) {
     const auto &candidate = candidates[i];
     const double probability = 1.0 * underload(candidate.to) / block_weight_deltas[candidate.to];
     if (rand.random_bool(probability)) {
@@ -402,7 +402,7 @@ void MoveSetBalancer::perform_parallel_round() {
     } else {
       ++num_rejected_candidates;
       std::swap(candidates[i], candidates[candidates.size() - num_rejected_candidates]);
-      block_weight_deltas[candidate.to] -= candidate.weight;
+      --i;
     }
   }
 
@@ -552,6 +552,12 @@ void MoveSetBalancer::perform_moves(
         }
       },
       _p_graph.communicator()
+  );
+
+  KASSERT(
+      graph::debug::validate_partition(_p_graph),
+      "graph partition in invalid state after executing moves",
+      assert::heavy
   );
 }
 
