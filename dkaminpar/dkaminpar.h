@@ -233,6 +233,9 @@ struct GreedyBalancerContext {
 enum class MoveSetSizeStrategy {
   ZERO,
   ONE,
+  MAX_OVERLOAD,
+  MIN_OVERLOAD,
+  AVG_OVERLOAD,
 };
 
 enum class MoveSetStrategy {

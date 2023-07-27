@@ -234,6 +234,12 @@ std::ostream &operator<<(std::ostream &out, const MoveSetSizeStrategy strategy) 
     return out << "zero";
   case MoveSetSizeStrategy::ONE:
     return out << "one";
+  case MoveSetSizeStrategy::MAX_OVERLOAD:
+    return out << "max-overload";
+  case MoveSetSizeStrategy::AVG_OVERLOAD:
+    return out << "avg-overload";
+  case MoveSetSizeStrategy::MIN_OVERLOAD:
+    return out << "min-overload";
   }
 
   return out << "<invalid>";
@@ -243,6 +249,9 @@ std::unordered_map<std::string, MoveSetSizeStrategy> get_move_set_size_strategie
   return {
       {"zero", MoveSetSizeStrategy::ZERO},
       {"one", MoveSetSizeStrategy::ONE},
+      {"max-overload", MoveSetSizeStrategy::MAX_OVERLOAD},
+      {"avg-overload", MoveSetSizeStrategy::AVG_OVERLOAD},
+      {"min-overload", MoveSetSizeStrategy::MIN_OVERLOAD},
   };
 }
 

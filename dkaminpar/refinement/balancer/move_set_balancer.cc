@@ -771,7 +771,27 @@ NodeWeight MoveSetBalancer::compute_move_set_weight_limit() const {
   case MoveSetSizeStrategy::ONE:
     limit = 1;
     break;
+
+  case MoveSetSizeStrategy::MAX_OVERLOAD:
+    for (const BlockID block : _p_graph.blocks()) {
+      limit = std::max<NodeWeight>(limit, overload(block));
+    }
+    break;
+
+  case MoveSetSizeStrategy::AVG_OVERLOAD:
+    for (const BlockID block : _p_graph.blocks()) {
+      limit += overload(block);
+    }
+    limit /= metrics::num_imbalanced_blocks(_p_graph, _p_ctx);
+    break;
+
+  case MoveSetSizeStrategy::MIN_OVERLOAD:
+    for (const BlockID block : _p_graph.blocks()) {
+      limit = std::min<NodeWeight>(limit, overload(block));
+    }
+    break;
   }
+
   return limit * _ctx.refinement.move_set_balancer.move_set_size_multiplier;
 }
 
