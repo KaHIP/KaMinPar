@@ -101,7 +101,7 @@ MoveSetBalancer::MoveSetBalancer(
           _ctx.refinement.move_set_balancer.move_set_strategy,
           _p_graph,
           _p_ctx,
-          5,
+          compute_move_set_weight_limit(),
           std::move(m_ctx.move_sets_m_ctx)
       )) {}
 
@@ -146,7 +146,7 @@ void MoveSetBalancer::rebuild_move_sets() {
       _ctx.refinement.move_set_balancer.move_set_strategy,
       _p_graph,
       _p_ctx,
-      5,
+      compute_move_set_weight_limit(),
       std::move(_move_sets)
   );
   clear();
@@ -759,6 +759,20 @@ bool MoveSetBalancer::assign_feasible_target_block(
            underload(candidate.to) < candidate.weight + deltas[candidate.to]);
 
   return candidate.from != candidate.to;
+}
+
+NodeWeight MoveSetBalancer::compute_move_set_weight_limit() const {
+  NodeWeight limit = 0;
+  switch (_ctx.refinement.move_set_balancer.move_set_size_strategy) {
+  case MoveSetSizeStrategy::ZERO:
+    limit = 0;
+    break;
+
+  case MoveSetSizeStrategy::ONE:
+    limit = 1;
+    break;
+  }
+  return limit * _ctx.refinement.move_set_balancer.move_set_size_multiplier;
 }
 
 std::string MoveSetBalancer::dbg_get_partition_state_str() const {

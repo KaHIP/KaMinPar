@@ -94,6 +94,8 @@ private:
       MoveCandidate &candidate, const std::vector<BlockWeight> &deltas
   ) const;
 
+  NodeWeight compute_move_set_weight_limit() const;
+
   std::string dbg_get_partition_state_str() const;
   std::string dbg_get_pq_state_str() const;
   bool dbg_validate_pq_weights() const;

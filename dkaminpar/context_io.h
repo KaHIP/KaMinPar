@@ -21,6 +21,7 @@ std::ostream &operator<<(std::ostream &out, InitialPartitioningAlgorithm algorit
 std::ostream &operator<<(std::ostream &out, RefinementAlgorithm algorithm);
 std::ostream &operator<<(std::ostream &out, LabelPropagationMoveExecutionStrategy strategy);
 std::ostream &operator<<(std::ostream &out, GraphOrdering ordering);
+std::ostream &operator<<(std::ostream &out, MoveSetSizeStrategy strategy);
 std::ostream &operator<<(std::ostream &out, MoveSetStrategy strategy);
 
 std::unordered_map<std::string, PartitioningMode> get_partitioning_modes();
@@ -32,6 +33,7 @@ std::unordered_map<std::string, RefinementAlgorithm> get_balancing_algorithms();
 std::unordered_map<std::string, LabelPropagationMoveExecutionStrategy>
 get_label_propagation_move_execution_strategies();
 std::unordered_map<std::string, GraphOrdering> get_graph_orderings();
+std::unordered_map<std::string, MoveSetSizeStrategy> get_move_set_size_strategies();
 std::unordered_map<std::string, MoveSetStrategy> get_move_set_strategies();
 
 std::string get_refinement_algorithms_description();

@@ -364,6 +364,20 @@ CLI::Option_group *create_move_set_balancer_options(CLI::App *app, Context &ctx)
           "this value, e.g., 0.01 for 1%."
       )
       ->capture_default_str();
+  balancer
+      ->add_option("--r-bms-size-strategy", ctx.refinement.move_set_balancer.move_set_size_strategy)
+      ->transform(CLI::CheckedTransformer(get_move_set_size_strategies()).description(""))
+      ->description(R"(Strategy for limiting the size of move sets:
+  - zero: set limit to 0
+  - one:  set limit to 1 (times the multiplier))")
+      ->capture_default_str();
+  balancer
+      ->add_option(
+          "--r-bms-size-multiplier",
+          ctx.refinement.move_set_balancer.move_set_size_multiplier,
+          "Multiplier for the maximum size of move sets."
+      )
+      ->capture_default_str();
   balancer->add_option("--r-bms-strategy", ctx.refinement.move_set_balancer.move_set_strategy)
       ->transform(CLI::CheckedTransformer(get_move_set_strategies()).description(""))
       ->description(R"(Strategy for constructing move sets:

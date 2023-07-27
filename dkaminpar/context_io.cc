@@ -228,6 +228,24 @@ std::ostream &operator<<(std::ostream &out, const GraphOrdering ordering) {
   return out << "<invalid>";
 }
 
+std::ostream &operator<<(std::ostream &out, const MoveSetSizeStrategy strategy) {
+  switch (strategy) {
+  case MoveSetSizeStrategy::ZERO:
+    return out << "zero";
+  case MoveSetSizeStrategy::ONE:
+    return out << "one";
+  }
+
+  return out << "<invalid>";
+}
+
+std::unordered_map<std::string, MoveSetSizeStrategy> get_move_set_size_strategies() {
+  return {
+      {"zero", MoveSetSizeStrategy::ZERO},
+      {"one", MoveSetSizeStrategy::ONE},
+  };
+}
+
 std::ostream &operator<<(std::ostream &out, const MoveSetStrategy strategy) {
   switch (strategy) {
   case MoveSetStrategy::SINGLETONS:

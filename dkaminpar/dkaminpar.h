@@ -230,6 +230,11 @@ struct GreedyBalancerContext {
   double fast_balancing_threshold = 0.0;
 };
 
+enum class MoveSetSizeStrategy {
+  ZERO,
+  ONE,
+};
+
 enum class MoveSetStrategy {
   SINGLETONS,
   GREEDY_BATCH_PREFIX,
@@ -244,6 +249,9 @@ struct MoveSetBalancerContext {
 
   bool enable_parallel_balancing = false;
   double parallel_threshold = 0.0;
+
+  MoveSetSizeStrategy move_set_size_strategy = MoveSetSizeStrategy::ZERO;
+  double move_set_size_multiplier = 0.0;
 
   MoveSetStrategy move_set_strategy = MoveSetStrategy::SINGLETONS;
   int move_set_rebuild_interval = 0;
