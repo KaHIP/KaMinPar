@@ -152,9 +152,9 @@ std::ostream &operator<<(std::ostream &out, const RefinementAlgorithm algorithm)
   case RefinementAlgorithm::GLOBAL_FM:
     return out << "fm/global";
   case RefinementAlgorithm::GREEDY_NODE_BALANCER:
-    return out << "greedy-balancer/singleton";
+    return out << "greedy-balancer/nodes";
   case RefinementAlgorithm::GREEDY_MOVE_SET_BALANCER:
-    return out << "greedy-balancer/moveset";
+    return out << "greedy-balancer/movesets";
   case RefinementAlgorithm::JET_REFINER:
     return out << "jet/refiner";
   case RefinementAlgorithm::JET_BALANCER:

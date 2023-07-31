@@ -71,6 +71,11 @@ int main(int argc, char *argv[]) {
   ctx.partition.k = p_graph.k();
   ctx.partition.graph = std::make_unique<GraphContext>(graph, ctx.partition);
 
+  if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
+    LOG << "Block weights of the input partition:";
+    LOG << logger::Table{8} << p_graph.block_weights();
+  }
+
   auto refiner_factory = factory::create_refiner(ctx);
   auto refiner = refiner_factory->create(p_graph, ctx.partition);
 
@@ -85,7 +90,13 @@ int main(int argc, char *argv[]) {
 
   const auto cut_after = metrics::edge_cut(p_graph);
   const auto imbalance_after = metrics::imbalance(p_graph);
-  LOG << "RESULT cut=" << cut_after << " imbalance=" << imbalance_after;
+
+  if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
+    LOG << "RESULT cut=" << cut_after << " imbalance=" << imbalance_after;
+    LOG << "Block weights of the resulting partition:";
+    LOG << logger::Table{8} << p_graph.block_weights();
+  }
+
   mpi::barrier(MPI_COMM_WORLD);
 
   if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
