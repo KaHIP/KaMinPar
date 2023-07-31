@@ -403,6 +403,40 @@ MoveSets build_clustered_move_sets(
 ) {
   clusterer->initialize(p_graph.graph());
   auto &clustering = clusterer->cluster(p_graph, max_weight);
+
+  std::vector<NodeID> cluster_to_move_set(p_graph.n());
+  std::vector<NodeID> cluster_sizes(p_graph.n());
+  for (const NodeID u : p_graph.nodes()) {
+    const BlockID bu = p_graph.block(u);
+    if (p_graph.block_weight(bu) > p_ctx.graph->max_block_weight(bu)) {
+      cluster_to_move_set[clustering[u]] = 1;
+      cluster_sizes[clustering[u]]++;
+    }
+  }
+  parallel::prefix_sum(cluster_to_move_set.begin(), cluster_to_move_set.end(), cluster_to_move_set.begin());
+  parallel::prefix_sum(cluster_sizes.begin(), cluster_sizes.end(), cluster_sizes.begin());
+
+  m_ctx.resize(p_graph);
+  m_ctx.move_set_indices[0] = 0;
+  std::fill(m_ctx.move_set_conns.begin(), m_ctx.move_set_conns.end(), 0);
+
+  for (const NodeID u : p_graph.nodes()) {
+    const BlockID bu = p_graph.block(u);
+    if (p_graph.block_weight(bu) > p_ctx.graph->max_block_weight(bu)) {
+      const NodeID ms = cluster_to_move_set[clustering[u]] - 1;
+
+      m_ctx.node_to_move_set[u] = ms;
+      m_ctx.move_sets[cluster_sizes[clustering[u]]++] = u;
+      m_ctx.move_set_indices[ms + 1] = cluster_sizes[clustering[u]];
+
+      for (const auto [e, v] : p_graph.neighbors(u)) {
+        const BlockID bv = p_graph.block(v);
+        m_ctx.move_set_conns[ms * p_graph.k() + bv] += p_graph.edge_weight(e);
+      }
+    }
+  }
+
+  return {p_graph, std::move(m_ctx)};
 }
 } // namespace
 

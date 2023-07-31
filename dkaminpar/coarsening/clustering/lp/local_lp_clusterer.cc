@@ -177,4 +177,10 @@ LocalLPClusterer::ClusterArray &LocalLPClusterer::cluster(
 ) {
   return _impl->compute_clustering(graph, max_cluster_weight);
 }
+
+LocalLPClusterer::ClusterArray &LocalLPClusterer::cluster(
+    const DistributedPartitionedGraph &p_graph, const GlobalNodeWeight max_cluster_weight
+) {
+  return _impl->compute_clustering(p_graph, max_cluster_weight);
+}
 } // namespace kaminpar::dist

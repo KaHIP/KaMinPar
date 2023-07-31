@@ -272,7 +272,6 @@ std::unordered_map<std::string, MoveSetStrategy> get_move_set_strategies() {
   return {
       {"singletons", MoveSetStrategy::SINGLETONS},
       {"lp", MoveSetStrategy::LP},
-      {"hem", MoveSetStrategy::HEM},
       {"greedy-batch-prefix", MoveSetStrategy::GREEDY_BATCH_PREFIX},
   };
 }

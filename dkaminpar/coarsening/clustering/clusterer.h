@@ -31,6 +31,9 @@ using GlobalClusterer = Clusterer<GlobalNodeID>;
 class LocalClusterer : public Clusterer<NodeID> {
 public:
   virtual ClusterArray &
+  cluster(const DistributedGraph &graph, GlobalNodeWeight max_cluster_weight) = 0;
+
+  virtual ClusterArray &
   cluster(const DistributedPartitionedGraph &p_graph, GlobalNodeWeight max_cluster_weight) = 0;
 };
 } // namespace kaminpar::dist

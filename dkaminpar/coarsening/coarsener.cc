@@ -35,7 +35,7 @@ const DistributedGraph *Coarsener::coarsen_once_local(const GlobalNodeWeight max
   const DistributedGraph *graph = coarsest();
 
   _local_clusterer->initialize(*graph);
-  auto &clustering = _local_clusterer->cluster(*graph, static_cast<NodeWeight>(max_cluster_weight));
+  auto &clustering = _local_clusterer->cluster(*graph, max_cluster_weight);
   if (clustering.empty()) {
     DBG << "... converged with empty clustering";
     return graph;

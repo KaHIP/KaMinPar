@@ -315,8 +315,8 @@ public:
     return _graph->is_owned_node(u);
   }
 
-  [[nodiscard]] inline bool accept_neighbor(const NodeID node) {
-    return _passive_high_degree_threshold == 0 || !_graph->is_high_degree_node(node);
+  [[nodiscard]] inline bool accept_neighbor(NodeID /* u */, const NodeID v) {
+    return _passive_high_degree_threshold == 0 || !_graph->is_high_degree_node(v);
   }
 
   [[nodiscard]] inline bool skip_node(const NodeID lnode) {
