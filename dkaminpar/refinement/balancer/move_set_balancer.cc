@@ -26,8 +26,14 @@ Buffer perform_binary_reduction(Buffer sendbuf, Combiner &&combiner, MPI_Comm co
     NOOP
   };
 
-  const PEID rank = mpi::get_comm_rank(comm);
+  // Special case: if we only have one PE, combine with an empty buffer -- this ensures that we
+  // remove moves that would overload blocks in the sequential case
   const PEID size = mpi::get_comm_size(comm);
+  if (size == 1) {
+    return combiner(std::move(sendbuf), Buffer{});
+  }
+
+  const PEID rank = mpi::get_comm_rank(comm);
   PEID active = size;
 
   while (active > 1) {
@@ -458,7 +464,7 @@ void MoveSetBalancer::perform_sequential_round() {
     tmp_block_weight_deltas[candidate.from] -= candidate.weight;
     tmp_block_weight_deltas[candidate.to] += candidate.weight;
   }
-  BlockID to = 0;
+
   for (auto &candidate : candidates) {
     if (candidate.from != candidate.to) {
       continue;
@@ -471,6 +477,24 @@ void MoveSetBalancer::perform_sequential_round() {
     tmp_block_weight_deltas[candidate.from] -= candidate.weight;
     tmp_block_weight_deltas[candidate.to] += candidate.weight;
   }
+
+  KASSERT(
+      [&] {
+        for (const BlockID block : _p_graph.blocks()) {
+          if (_p_graph.block_weight(block) <= _p_ctx.graph->max_block_weight(block) &&
+              _p_graph.block_weight(block) + tmp_block_weight_deltas[block] >
+                  _p_ctx.graph->max_block_weight(block)) {
+            LOG_WARNING << "block " << block
+                        << " was not overloaded before picking move candidates, but after adding "
+                        << tmp_block_weight_deltas[block] << " weight to it, it is overloaded";
+            return false;
+          }
+        }
+        return true;
+      }(),
+      "picked candidates overload at least one block",
+      assert::heavy
+  );
 
   // Step 3: broadcast winners
   const std::size_t num_candidates = mpi::bcast(candidates.size(), 0, _p_graph.communicator());
@@ -707,7 +731,7 @@ MoveSetBalancer::reduce_sequential_candidates(std::vector<MoveCandidate> candida
             const BlockID to = vec[i].to;
             const NodeWeight weight = vec[i].weight;
 
-            if (from == to && _p_graph.block_weight(to) + block_weight_deltas[to] + weight <=
+            if (from == to || _p_graph.block_weight(to) + block_weight_deltas[to] + weight <=
                                   _p_ctx.graph->max_block_weight(to)) {
               candidates.push_back(vec[i]);
               if (from != to) {
