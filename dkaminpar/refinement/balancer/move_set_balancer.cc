@@ -97,9 +97,10 @@ MoveSetBalancer::MoveSetBalancer(
       _pq_weights(_p_graph.k()),
       _moved_marker(_p_graph.n()),
       _weight_buckets(_p_graph, _p_ctx),
-      _move_sets(build_greedy_move_sets(
+      _move_sets(build_move_sets(
           _ctx.refinement.move_set_balancer.move_set_strategy,
           _p_graph,
+          _ctx,
           _p_ctx,
           compute_move_set_weight_limit(),
           std::move(m_ctx.move_sets_m_ctx)
@@ -142,9 +143,10 @@ void MoveSetBalancer::initialize() {
 }
 
 void MoveSetBalancer::rebuild_move_sets() {
-  _move_sets = build_greedy_move_sets(
+  _move_sets = build_move_sets(
       _ctx.refinement.move_set_balancer.move_set_strategy,
       _p_graph,
+      _ctx,
       _p_ctx,
       compute_move_set_weight_limit(),
       std::move(_move_sets)

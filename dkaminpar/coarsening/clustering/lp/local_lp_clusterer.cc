@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Label propagation clustering that only clusters node within a PE (i.e., 
+ * Label propagation clustering that only clusters node within a PE (i.e.,
  * ignores ghost nodes).
  *
  * @file:   local_lp_clusterer.cc
@@ -93,6 +93,13 @@ public:
     return clusters();
   }
 
+  auto &compute_clustering(
+      const DistributedPartitionedGraph &p_graph, const GlobalNodeWeight max_cluster_weight
+  ) {
+    _partition = p_graph.partition().data();
+    return compute_clustering(p_graph.graph(), max_cluster_weight);
+  }
+
   void set_max_num_iterations(const std::size_t max_num_iterations) {
     _max_num_iterations =
         (max_num_iterations == 0) ? std::numeric_limits<std::size_t>::max() : max_num_iterations;
@@ -130,8 +137,9 @@ public:
             state.current_cluster == state.initial_cluster);
   }
 
-  [[nodiscard]] bool accept_neighbor(const NodeID u) {
-    return _ignore_ghost_nodes ? _graph->is_owned_node(u) : true;
+  [[nodiscard]] bool accept_neighbor(const NodeID u, const NodeID v) {
+    return (_partition == nullptr || _partition[u] == _partition[v]) &&
+           (_ignore_ghost_nodes == false || _graph->is_owned_node(v));
   }
 
   [[nodiscard]] bool activate_neighbor(const NodeID u) {
@@ -143,6 +151,8 @@ public:
   std::size_t _max_num_iterations;
   bool _ignore_ghost_nodes;
   bool _keep_ghost_clusters;
+
+  const BlockID *_partition = nullptr;
 };
 
 //

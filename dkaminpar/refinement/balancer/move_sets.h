@@ -7,10 +7,41 @@
 
 namespace kaminpar::dist {
 struct MoveSetsMemoryContext {
+  //! Maps a node ID to its move set ID.
   NoinitVector<NodeID> node_to_move_set;
+
   NoinitVector<NodeID> move_sets;
   NoinitVector<NodeID> move_set_indices;
+
+  //! Weight of move sets to adjacent blocks.
   NoinitVector<EdgeWeight> move_set_conns;
+
+  void clear() {
+    node_to_move_set.clear();
+    move_sets.clear();
+    move_set_indices.clear();
+    move_set_conns.clear();
+  }
+
+  void resize(const DistributedPartitionedGraph &p_graph) {
+    resize(p_graph.n(), p_graph.k());
+  }
+
+private:
+  void resize(const NodeID n, const BlockID k) {
+    if (node_to_move_set.size() < n) {
+      node_to_move_set.resize(n);
+    }
+    if (move_sets.size() < n) {
+      move_sets.resize(n);
+    }
+    if (move_set_indices.size() < n + 1) {
+      move_set_indices.resize(n + 1);
+    }
+    if (move_set_conns.size() < n * k) {
+      move_set_conns.resize(n * k);
+    }
+  }
 };
 
 class MoveSets {
@@ -176,9 +207,10 @@ private:
   NoinitVector<std::pair<NodeID, EdgeWeight>> _ghost_node_edges;
 };
 
-MoveSets build_greedy_move_sets(
+MoveSets build_move_sets(
     MoveSetStrategy strategy,
     const DistributedPartitionedGraph &p_graph,
+    const Context &ctx,
     const PartitionContext &p_ctx,
     NodeWeight max_move_set_size,
     MoveSetsMemoryContext m_ctx

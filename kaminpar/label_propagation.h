@@ -284,7 +284,7 @@ protected:
       bool is_interface_node = false;
 
       auto add_to_rating_map = [&](const EdgeID e, const NodeID v) {
-        if (derived_accept_neighbor(v)) {
+        if (derived_accept_neighbor(u, v)) {
           const ClusterID v_cluster = derived_cluster(v);
           const EdgeWeight rating = _graph->edge_weight(e);
           map[v_cluster] += rating;
@@ -516,8 +516,8 @@ private: // CRTP calls
     static_cast<Derived *>(this)->reset_node_state(u);
   }
 
-  [[nodiscard]] inline bool derived_accept_neighbor(const NodeID u) {
-    return static_cast<Derived *>(this)->accept_neighbor(u);
+  [[nodiscard]] inline bool derived_accept_neighbor(const NodeID u, const NodeID v) {
+    return static_cast<Derived *>(this)->accept_neighbor(u, v);
   }
 
   [[nodiscard]] inline bool derived_activate_neighbor(const NodeID u) {
@@ -539,7 +539,7 @@ private: // CRTP calls
 protected: // Default implementations
   void reset_node_state(const NodeID /* node */) {}
 
-  [[nodiscard]] inline bool accept_neighbor(const NodeID /* node */) {
+  [[nodiscard]] inline bool accept_neighbor(const NodeID /* u */, const NodeID /* v */) {
     return true;
   }
 

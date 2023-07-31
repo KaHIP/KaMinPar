@@ -102,6 +102,20 @@ enum class GraphOrdering {
   COLORING,
 };
 
+enum class MoveSetSizeStrategy {
+  ZERO,
+  ONE,
+  MAX_OVERLOAD,
+  AVG_OVERLOAD,
+  MIN_OVERLOAD,
+};
+
+enum class MoveSetStrategy {
+  SINGLETONS,
+  LP,
+  GREEDY_BATCH_PREFIX,
+};
+
 struct ParallelContext {
   std::size_t num_threads;
   std::size_t num_mpis;
@@ -143,6 +157,7 @@ struct HEMCoarseningContext {
 
   int compute_num_coloring_chunks(const ParallelContext &parallel) const;
 };
+
 struct ColoredLabelPropagationRefinementContext {
   int num_iterations;
   int num_move_execution_iterations;
@@ -227,19 +242,6 @@ struct GreedyBalancerContext {
   NodeID num_nodes_per_block;
   bool enable_fast_balancing;
   double fast_balancing_threshold;
-};
-
-enum class MoveSetSizeStrategy {
-  ZERO,
-  ONE,
-  MAX_OVERLOAD,
-  AVG_OVERLOAD,
-  MIN_OVERLOAD,
-};
-
-enum class MoveSetStrategy {
-  SINGLETONS,
-  GREEDY_BATCH_PREFIX,
 };
 
 struct MoveSetBalancerContext {

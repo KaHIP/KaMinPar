@@ -5,7 +5,9 @@
 #include <tbb/parallel_for.h>
 #include <tbb/parallel_invoke.h>
 
+#include "dkaminpar/coarsening/clustering/clusterer.h"
 #include "dkaminpar/context.h"
+#include "dkaminpar/factories.h"
 
 #include "kaminpar/refinement/stopping_policies.h"
 
@@ -357,11 +359,57 @@ private:
 
   shm::AdaptiveStoppingPolicy _stopping_policy;
 };
+
+MoveSets build_singleton_move_sets(
+    const DistributedPartitionedGraph &p_graph,
+    const PartitionContext &p_ctx,
+    const NodeWeight max_weight,
+    MoveSetsMemoryContext m_ctx
+) {
+  m_ctx.clear();
+
+  NodeID cur_move_set = 0;
+  for (const NodeID u : p_graph.nodes()) {
+    const BlockID bu = p_graph.block(u);
+
+    if (p_graph.block_weight(bu) > p_ctx.graph->max_block_weight(bu)) {
+      m_ctx.node_to_move_set.push_back(cur_move_set);
+      m_ctx.move_set_indices.push_back(cur_move_set);
+      m_ctx.move_set_conns.resize((cur_move_set + 1) * p_graph.k());
+      m_ctx.move_sets.push_back(u);
+
+      for (const BlockID k : p_graph.blocks()) {
+        m_ctx.move_set_conns[cur_move_set * p_graph.k() + k] = 0;
+      }
+      for (const auto [e, v] : p_graph.neighbors(u)) {
+        const BlockID bv = p_graph.block(v);
+        m_ctx.move_set_conns[cur_move_set * p_graph.k() + bv] += p_graph.edge_weight(e);
+      }
+
+      ++cur_move_set;
+    }
+  }
+  m_ctx.move_set_conns.push_back(cur_move_set);
+
+  return {p_graph, std::move(m_ctx)};
+}
+
+MoveSets build_clustered_move_sets(
+    const DistributedPartitionedGraph &p_graph,
+    const PartitionContext &p_ctx,
+    const NodeWeight max_weight,
+    std::unique_ptr<LocalClusterer> clusterer,
+    MoveSetsMemoryContext m_ctx
+) {
+  clusterer->initialize(p_graph.graph());
+  auto &clustering = clusterer->cluster(p_graph, max_weight);
+}
 } // namespace
 
-MoveSets build_greedy_move_sets(
+MoveSets build_move_sets(
     const MoveSetStrategy strategy,
     const DistributedPartitionedGraph &p_graph,
+    const Context &ctx,
     const PartitionContext &p_ctx,
     const NodeWeight max_move_set_weight,
     MoveSetsMemoryContext m_ctx
@@ -371,7 +419,16 @@ MoveSets build_greedy_move_sets(
 
   switch (strategy) {
   case MoveSetStrategy::SINGLETONS:
-    // @todo
+    return build_singleton_move_sets(p_graph, p_ctx, max_move_set_weight, std::move(m_ctx));
+
+  case MoveSetStrategy::LP:
+    return build_clustered_move_sets(
+        p_graph,
+        p_ctx,
+        max_move_set_weight,
+        factory::create_local_clusterer(ctx, LocalClusteringAlgorithm::LP),
+        std::move(m_ctx)
+    );
 
   case MoveSetStrategy::GREEDY_BATCH_PREFIX:
     MoveSetBuilder builder(p_graph, p_ctx, std::move(m_ctx));

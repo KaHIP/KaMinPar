@@ -11,11 +11,11 @@
 #include "dkaminpar/context.h"
 
 namespace kaminpar::dist {
-template <typename ClusterID> class NoopClustering : public Clusterer<ClusterID> {
-  using ClusterArray = typename Clusterer<ClusterID>::ClusterArray;
+class GlobalNoopClustering : public Clusterer<GlobalNodeID> {
+  using ClusterArray = typename Clusterer<GlobalNodeID>::ClusterArray;
 
 public:
-  explicit NoopClustering(const Context &) {}
+  explicit GlobalNoopClustering(const Context &) {}
 
   void initialize(const DistributedGraph &) final {}
 
@@ -23,10 +23,27 @@ public:
     return _empty_clustering;
   }
 
-private:
+protected:
   ClusterArray _empty_clustering;
 };
 
-using LocalNoopClustering = NoopClustering<NodeID>;
-using GlobalNoopClustering = NoopClustering<GlobalNodeID>;
+class LocalNoopClustering : public LocalClusterer {
+  using ClusterArray = typename Clusterer<NodeID>::ClusterArray;
+
+public:
+  explicit LocalNoopClustering(const Context &) {}
+
+  void initialize(const DistributedGraph &) final {}
+
+  ClusterArray &cluster(const DistributedGraph &, GlobalNodeWeight) final {
+    return _empty_clustering;
+  }
+
+  ClusterArray &cluster(const DistributedPartitionedGraph &, GlobalNodeWeight) final {
+    return _empty_clustering;
+  }
+
+private:
+  ClusterArray _empty_clustering;
+};
 } // namespace kaminpar::dist

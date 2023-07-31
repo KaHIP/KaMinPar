@@ -259,6 +259,8 @@ std::ostream &operator<<(std::ostream &out, const MoveSetStrategy strategy) {
   switch (strategy) {
   case MoveSetStrategy::SINGLETONS:
     return out << "singletons";
+  case MoveSetStrategy::LP:
+    return out << "lp";
   case MoveSetStrategy::GREEDY_BATCH_PREFIX:
     return out << "greedy-batch-prefix";
   }
@@ -269,6 +271,8 @@ std::ostream &operator<<(std::ostream &out, const MoveSetStrategy strategy) {
 std::unordered_map<std::string, MoveSetStrategy> get_move_set_strategies() {
   return {
       {"singletons", MoveSetStrategy::SINGLETONS},
+      {"lp", MoveSetStrategy::LP},
+      {"hem", MoveSetStrategy::HEM},
       {"greedy-batch-prefix", MoveSetStrategy::GREEDY_BATCH_PREFIX},
   };
 }

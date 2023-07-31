@@ -8,6 +8,7 @@
 #pragma once
 
 #include "dkaminpar/datastructures/distributed_graph.h"
+#include "dkaminpar/datastructures/distributed_partitioned_graph.h"
 #include "dkaminpar/dkaminpar.h"
 
 #include "common/parallel/atomic.h"
@@ -26,5 +27,10 @@ public:
 };
 
 using GlobalClusterer = Clusterer<GlobalNodeID>;
-using LocalClusterer = Clusterer<NodeID>;
+
+class LocalClusterer : public Clusterer<NodeID> {
+public:
+  virtual ClusterArray &
+  cluster(const DistributedPartitionedGraph &p_graph, GlobalNodeWeight max_cluster_weight) = 0;
+};
 } // namespace kaminpar::dist
