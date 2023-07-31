@@ -1,6 +1,3 @@
-FetchContent_MakeAvailable(googletest)
-set_property(DIRECTORY "${googletest_SOURCE_DIR}" PROPERTY EXCLUDE_FROM_ALL YES)
-
 include(GoogleTest)
 
 function(kaminpar_add_shm_test target)

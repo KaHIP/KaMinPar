@@ -21,11 +21,6 @@ target_sources(KaMinPar PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/io/shm_input_validator.cc)
 
 if (TARGET dkaminpar)
-    set(KAGEN_NODEPS ON)
-    set(KAGEN_BUILD_APPS OFF)
-    set(KAGEN_BUILD_EXAMPLES OFF)
-    FetchContent_MakeAvailable(KaGen)
-
     add_dist_app(dKaMinPar dKaMinPar.cc)
     target_sources(dKaMinPar PRIVATE 
         ${CMAKE_CURRENT_SOURCE_DIR}/io/dist_io.cc)

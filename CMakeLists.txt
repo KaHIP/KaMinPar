@@ -58,27 +58,6 @@ endif ()
 ## Declare dependencies                                                       ##
 ################################################################################
 
-FetchContent_Declare(
-    googletest
-    SYSTEM
-    GIT_REPOSITORY https://github.com/google/googletest.git
-    GIT_TAG release-1.12.1)
-
-FetchContent_Declare(
-    kassert
-    GIT_REPOSITORY https://github.com/kamping-site/kassert.git
-    GIT_TAG main)
-
-FetchContent_Declare(
-    growt
-    SYSTEM
-    GIT_REPOSITORY https://github.com/DanielSeemaier/growt.git
-    GIT_TAG kaminpar)
-
-FetchContent_Declare(KaGen
-    GIT_REPOSITORY https://github.com/sebalamm/KaGen.git
-    GIT_TAG master)
-
 set(KAMINPAR_ASSERTION_LEVEL "light" CACHE STRING "Assertion level.")
 set_property(CACHE KAMINPAR_ASSERTION_LEVEL PROPERTY STRINGS none light normal heavy)
 message(STATUS "KAssertion level: ${KAMINPAR_ASSERTION_LEVEL}")
@@ -208,12 +187,9 @@ if (KAMINPAR_BUILD_DISTRIBUTED)
         set(KAMINPAR_BUILD_DISTRIBUTED OFF)
     endif()
 
-    FetchContent_MakeAvailable(growt)
-    set_property(DIRECTORY "${growt_SOURCE_DIR}" PROPERTY EXCLUDE_FROM_ALL YES)
-
-    # growt does not add a library target; we have to do that ourself
+    add_subdirectory(external/growt EXCLUDE_FROM_ALL)
     add_library(growt INTERFACE)
-    target_include_directories(growt SYSTEM INTERFACE "${growt_SOURCE_DIR}")
+    target_include_directories(growt SYSTEM INTERFACE "external/growt")
 
     # Google Sparsehash 
     find_package(Sparsehash REQUIRED)
@@ -231,8 +207,8 @@ else ()
     message(WARNING "Invalid assertion level: ${KAMINPAR_ASSERTION_LEVEL}")
 endif ()
 
-FetchContent_MakeAvailable(kassert)
-set_property(DIRECTORY "${kassert_SOURCE_DIR}" PROPERTY EXCLUDE_FROM_ALL YES)
+# Add KAssert
+add_subdirectory(external/kassert EXCLUDE_FROM_ALL)
 
 # If we can find Mt-KaHyPar, make it available for initial partitioning and refinement
 if (KAMINPAR_BUILD_WITH_MTKAHYPAR)
@@ -243,6 +219,14 @@ if (KAMINPAR_BUILD_WITH_MTKAHYPAR)
     else ()
         message(STATUS "Found Mt-KaHyPar at ${LIB_MTKAHYPAR_GRAPH}")
     endif ()
+endif ()
+
+# Fetch minimal KaGen for graph IO
+if (KAMINPAR_BUILD_DISTRIBUTED OR KAMINPAR_BUILD_BENCHMARKS)
+    set(KAGEN_NODEPS ON)
+    set(KAGEN_BUILD_APPS OFF)
+    set(KAGEN_BUILD_EXAMPLES OFF)
+    add_subdirectory(external/KaGen EXCLUDE_FROM_ALL)
 endif ()
 
 message("--------------------------------------------------------------------------------")
@@ -270,6 +254,8 @@ endif ()
 
 # Unit tests
 if (KAMINPAR_BUILD_TESTS)
+    add_subdirectory(external/googletest EXCLUDE_FROM_ALL)
+
     enable_testing()
     add_subdirectory(tests)
 endif ()

@@ -1,9 +1,3 @@
-# Fetch minimal KaGen for graph IO
-set(KAGEN_NODEPS ON)
-set(KAGEN_BUILD_APPS OFF)
-set(KAGEN_BUILD_EXAMPLES OFF)
-FetchContent_MakeAvailable(KaGen)
-
 function(add_shm_benchmark target)
     add_executable(${target} ${ARGN})
     target_link_libraries(${target} PRIVATE 

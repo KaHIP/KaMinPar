@@ -1,0 +1,9 @@
+[submodule "external/googletest"]
+	path = external/googletest
+	url = https://github.com/google/googletest.git
+[submodule "external/kassert"]
+	path = external/kassert
+	url = https://github.com/kamping-site/kassert.git
+[submodule "external/KaGen"]
+	path = external/KaGen
+	url = https://github.com/KarlsruheGraphGeneration/KaGen.git
