@@ -149,17 +149,13 @@ public:
     }
   }
 
-  [[nodiscard]] inline BlockID owner(const NodeID set) const {
-    return block(_move_sets[_move_set_indices[set]]);
-  }
-
   inline std::pair<EdgeWeight, BlockID> find_max_conn(const NodeID set) const {
     KASSERT(size(set) > 0);
 
     EdgeWeight max_conn = std::numeric_limits<EdgeWeight>::min();
     BlockID max_gainer = kInvalidBlockID;
 
-    const BlockID set_b = owner(set);
+    const BlockID set_b = block(set);
     for (const BlockID b : _p_graph->blocks()) {
       if (b != set_b && conn(set, b) > max_conn) {
         max_conn = conn(set, b);
@@ -175,7 +171,7 @@ public:
 
   inline std::pair<EdgeWeight, BlockID> find_max_gain(const NodeID set) const {
     const auto [max_conn, max_gainer] = find_max_conn(set);
-    return {max_conn - conn(set, owner(set)), max_gainer};
+    return {max_conn - conn(set, block(set)), max_gainer};
   }
 
   inline std::pair<double, BlockID> find_max_relative_gain(const NodeID set) const {

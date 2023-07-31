@@ -492,6 +492,15 @@ void print(const RefinementContext &ctx, std::ostream &out) {
       (ctx.includes_algorithm(RefinementAlgorithm::JET_REFINER) &&
        ctx.jet.balancing_algorithm == RefinementAlgorithm::GREEDY_MOVE_SET_BALANCER)) {
     out << "Greedy move set balancer:\n";
+    out << "  Move sets:                  " << ctx.move_set_balancer.move_set_strategy << "\n";
+    out << "    Max weight:               " << ctx.move_set_balancer.move_set_size_strategy << " x "
+        << ctx.move_set_balancer.move_set_size_multiplier << "\n";
+    out << "    Rebuild interval:         "
+        << (ctx.move_set_balancer.move_set_rebuild_interval == 0
+                ? "never"
+                : std::string("every ") +
+                      std::to_string(ctx.move_set_balancer.move_set_rebuild_interval) + " round(s)")
+        << "\n";
     out << "  Maximum number of rounds:   " << ctx.move_set_balancer.max_num_rounds << "\n";
     out << "  Sequential balancing:       "
         << (ctx.move_set_balancer.enable_sequential_balancing ? "enabled" : "disabled") << "\n";
@@ -502,12 +511,6 @@ void print(const RefinementContext &ctx, std::ostream &out) {
     out << "  Parallel balancing:         "
         << (ctx.move_set_balancer.enable_parallel_balancing ? "enabled" : "disabled") << "\n";
     out << "    Trigger threshold:        " << ctx.move_set_balancer.parallel_threshold << "\n";
-    out << "  Move set rebuild interval:  "
-        << (ctx.move_set_balancer.move_set_rebuild_interval == 0
-                ? "never"
-                : std::string("every ") +
-                      std::to_string(ctx.move_set_balancer.move_set_rebuild_interval) + " round(s)")
-        << "\n";
   }
   if (ctx.includes_algorithm(RefinementAlgorithm::JET_BALANCER) ||
       (ctx.includes_algorithm(RefinementAlgorithm::JET_REFINER) &&

@@ -15,12 +15,14 @@
 #include <omp.h>
 
 #include "dkaminpar/context.h"
+#include "dkaminpar/context_io.h"
 #include "dkaminpar/dkaminpar.h"
 #include "dkaminpar/factories.h"
 #include "dkaminpar/graphutils/communication.h"
 #include "dkaminpar/metrics.h"
 #include "dkaminpar/presets.h"
 
+#include "common/console_io.h"
 #include "common/logger.h"
 #include "common/random.h"
 #include "common/timer.h"
@@ -32,6 +34,10 @@ using namespace kaminpar::dist;
 
 int main(int argc, char *argv[]) {
   MPI_Init(&argc, &argv);
+
+  if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
+    cio::print_dkaminpar_banner();
+  }
 
   Context ctx = create_default_context();
   std::string graph_filename;
@@ -47,6 +53,13 @@ int main(int argc, char *argv[]) {
   app.add_option("-t", ctx.parallel.num_threads);
   create_refinement_options(&app, ctx);
   CLI11_PARSE(app, argc, argv);
+
+  if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
+    cio::print_build_identifier();
+    cio::print_delimiter("Configuration", '-');
+    print(ctx.refinement, std::cout);
+    cio::print_delimiter();
+  }
 
   tbb::global_control gc(tbb::global_control::max_allowed_parallelism, ctx.parallel.num_threads);
   omp_set_num_threads(ctx.parallel.num_threads);
