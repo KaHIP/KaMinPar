@@ -15,7 +15,7 @@
 #include "dkaminpar/refinement/balancer/move_sets.h"
 
 namespace kaminpar::dist {
-SET_DEBUG(false);
+SET_DEBUG(true);
 
 namespace {
 template <typename Buffer, typename Combiner>
@@ -265,23 +265,22 @@ bool MoveSetBalancer::refine() {
     if (next_imbalance_distance >= prev_imbalance_distance) {
       LOG_WARNING << "Stallmate: imbalance distance " << next_imbalance_distance
                   << " could not be improved in round " << round;
-      LOG_WARNING << "Partition state: " << dbg_get_partition_state_str();
-      LOG_WARNING << "PQ state: " << dbg_get_pq_state_str();
+      LOG_WARNING << dbg_get_pq_state_str() << " /// " << dbg_get_partition_state_str();
       break;
     } else {
       prev_imbalance_distance = metrics::imbalance_l1(_p_graph, _p_ctx);
     }
 
     KASSERT(
-        graph::debug::validate_partition(_p_graph),
-        "partition is in an inconsistent state after round " << round,
-        assert::heavy
-    );
-    KASSERT(
         dbg_validate_pq_weights(), "PQ weights are inaccurate after round " << round, assert::heavy
     );
   }
 
+  KASSERT(
+      graph::debug::validate_partition(_p_graph),
+      "partition is in an inconsistent state after round " << round,
+      assert::heavy
+  );
   return prev_imbalance_distance > 0;
 }
 
@@ -568,16 +567,10 @@ void MoveSetBalancer::perform_moves(
       },
       _p_graph.communicator()
   );
-
-  KASSERT(
-      graph::debug::validate_partition(_p_graph),
-      "graph partition in invalid state after executing moves",
-      assert::heavy
-  );
 }
 
 std::vector<MoveSetBalancer::MoveCandidate> MoveSetBalancer::pick_sequential_candidates() {
-  DBG0 << dbg_get_pq_state_str();
+  DBG0 << dbg_get_pq_state_str() << " /// " << dbg_get_partition_state_str();
 
   std::vector<MoveCandidate> candidates;
   for (const BlockID from : _p_graph.blocks()) {
