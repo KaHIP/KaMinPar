@@ -19,7 +19,7 @@ SET_DEBUG(true);
 
 namespace {
 template <typename Buffer, typename Combiner>
-Buffer perform_binary_reduction(Buffer sendbuf, Combiner &&combiner, MPI_Comm comm) {
+Buffer perform_binary_reduction(Buffer sendbuf, Buffer empty, Combiner &&combiner, MPI_Comm comm) {
   enum class Role {
     SENDER,
     RECEIVER,
@@ -30,7 +30,7 @@ Buffer perform_binary_reduction(Buffer sendbuf, Combiner &&combiner, MPI_Comm co
   // remove moves that would overload blocks in the sequential case
   const PEID size = mpi::get_comm_size(comm);
   if (size == 1) {
-    return combiner(std::move(sendbuf), Buffer{});
+    return combiner(std::move(sendbuf), std::move(empty));
   }
 
   const PEID rank = mpi::get_comm_rank(comm);
@@ -297,8 +297,12 @@ void MoveSetBalancer::perform_parallel_round() {
 
   auto buckets = [&] {
     if constexpr (kUseBinaryReductionTree) {
+      auto compactified = _weight_buckets.compactify();
+      StaticArray<GlobalNodeWeight> empty(compactified.size());
+
       return perform_binary_reduction(
-          _weight_buckets.compactify(),
+          std::move(compactified),
+          std::move(empty),
           [&](auto lhs, auto rhs) {
             for (std::size_t i = 0; i < lhs.size(); ++i) {
               lhs[i] += rhs[i];
@@ -641,6 +645,7 @@ std::vector<MoveSetBalancer::MoveCandidate>
 MoveSetBalancer::reduce_sequential_candidates(std::vector<MoveCandidate> sendbuf) {
   return perform_binary_reduction(
       std::move(sendbuf),
+      std::vector<MoveCandidate>{},
       [&](std::vector<MoveCandidate> lhs, std::vector<MoveCandidate> rhs) {
         // Precondition: candidates must be sorted by their from blocks
         auto check_sorted_by_from = [](const auto &candidates) {
@@ -725,7 +730,9 @@ MoveSetBalancer::reduce_sequential_candidates(std::vector<MoveCandidate> sendbuf
             }
           }
 
-          winners.insert(winners.end(), candidates.begin(), candidates.begin() + num_accepted_candidates);
+          winners.insert(
+              winners.end(), candidates.begin(), candidates.begin() + num_accepted_candidates
+          );
         }
 
         // Keep remaining nodes
