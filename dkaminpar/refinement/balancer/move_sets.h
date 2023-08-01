@@ -118,11 +118,15 @@ public:
 
   inline void move_ghost_node(const NodeID ghost, const BlockID from, const BlockID to) {
     KASSERT(_p_graph->is_ghost_node(ghost));
-    const NodeID nth_ghost = ghost - _p_graph->ghost_n();
+    const NodeID nth_ghost = ghost - _p_graph->n();
 
+    KASSERT(nth_ghost + 1 < _ghost_node_indices.size());
     for (EdgeID edge = _ghost_node_indices[nth_ghost]; edge < _ghost_node_indices[nth_ghost + 1];
          ++edge) {
+      KASSERT(edge < _ghost_node_edges.size());
       const auto [weight, set] = _ghost_node_edges[edge];
+
+      KASSERT((set + 1) * _p_graph->k() <= _move_set_conns.size());
       _move_set_conns[set * _p_graph->k() + from] -= weight;
       _move_set_conns[set * _p_graph->k() + to] += weight;
     }

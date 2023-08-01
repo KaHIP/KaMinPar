@@ -108,13 +108,36 @@ void MoveSets::init_ghost_node_adjacency() {
   for (std::size_t i = 0; i < ghost_to_set.size(); ++i) {
     const auto [ghost, weight, set] = ghost_to_set[i];
     for (; prev_ghost < ghost; ++prev_ghost) {
-      _ghost_node_indices[prev_ghost] = _ghost_node_indices[prev_ghost];
+      _ghost_node_indices[prev_ghost + 1] = _ghost_node_indices[prev_ghost];
     }
     _ghost_node_edges.emplace_back(weight, set);
+    _ghost_node_indices[ghost + 1] = _ghost_node_edges.size();
   }
-  for (; prev_ghost < _p_graph->ghost_n() + 1; ++prev_ghost) {
-    _ghost_node_indices[prev_ghost] = _ghost_node_indices[prev_ghost];
+  for (; prev_ghost < _p_graph->ghost_n(); ++prev_ghost) {
+    _ghost_node_indices[prev_ghost + 1] = _ghost_node_indices[prev_ghost];
   }
+
+  KASSERT(
+      [&] {
+        if (_p_graph->ghost_n() + 1 < _ghost_node_indices.size()) {
+          LOG_WARNING << "ghost node indices is too small";
+          return false;
+        }
+        for (std::size_t i = 0; i + 1 < _ghost_node_indices.size(); ++i) {
+          if (_ghost_node_indices[i] > _ghost_node_indices[i + 1]) {
+            LOG_WARNING << "ghost node indices is not a prefix sum";
+            return false;
+          }
+        }
+        if (_ghost_node_indices[_p_graph->ghost_n()] >= _ghost_node_edges.size()) {
+          LOG_WARNING << "end position of last ghost node is too large";
+          return false;
+        }
+        return true;
+      }(),
+      "ghost node adjacency array is inconsistent",
+      assert::heavy
+  );
 }
 
 bool MoveSets::dbg_check_all_nodes_covered() const {
