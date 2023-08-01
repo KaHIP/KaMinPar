@@ -10,6 +10,8 @@
 
 #include <tbb/enumerable_thread_specific.h>
 
+#include "common/assertion_levels.h"
+#include "common/logger.h"
 #include "common/parallel/algorithm.h"
 #include "common/timer.h"
 
@@ -90,6 +92,8 @@ NodePermutations<StaticArray> rearrange_graph(
   const double old_max_block_weight = (1 + p_ctx.epsilon) * std::ceil(1.0 * total_node_weight / k);
   const double new_epsilon = old_max_block_weight / std::ceil(1.0 * new_weight / k) - 1;
   p_ctx.epsilon = new_epsilon;
+  p_ctx.n = new_n;
+  p_ctx.total_node_weight = new_weight;
 
   nodes.restrict(new_n + 1);
   if (!node_weights.empty()) {
@@ -152,6 +156,35 @@ Graph rearrange_by_degree_buckets(Context &ctx, Graph old_graph) {
 
   auto node_permutations =
       graph::rearrange_graph(ctx.partition, nodes, edges, node_weights, edge_weights);
+
+  KASSERT(
+      [&] {
+        if (!node_weights.empty() && node_weights.size() + 1 < nodes.size()) {
+          LOG_WARNING << "node weights array is not empty, but smaller than the number of nodes";
+          return false;
+        }
+        if (!edge_weights.empty() && edge_weights.size() < edges.size()) {
+          LOG_WARNING << "edge weights array is not empty, but smaller than the number of edges";
+          return false;
+        }
+        for (NodeID u = 0; u + 1 < nodes.size(); ++u) {
+          if (nodes[u] > nodes[u + 1] || nodes[u + 1] > edges.size()) {
+            LOG_WARNING << "invalid nodes[] entry for node " << u;
+            return false;
+          }
+          for (EdgeID e = nodes[u]; e < nodes[u + 1]; ++e) {
+            const NodeID v = edges[e];
+            if (v + 1 > nodes.size()) {
+              LOG_WARNING << "neighbor " << v << " of node " << u << " is out of range";
+              return false;
+            }
+          }
+        }
+        return true;
+      }(),
+      "graph permutation produced invalid CSR graph",
+      assert::heavy
+  );
 
   Graph new_graph(
       std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights), true
