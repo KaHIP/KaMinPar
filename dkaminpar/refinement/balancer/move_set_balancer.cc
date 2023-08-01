@@ -614,17 +614,19 @@ std::vector<MoveSetBalancer::MoveCandidate> MoveSetBalancer::pick_sequential_can
       const NodeWeight weight = _move_sets.weight(set);
       _pqs.pop_max(from);
 
-      // @todo we can avoid this recalculation in the sequential case
       auto [actual_relative_gain, to] = _move_sets.find_max_relative_gain(set);
-      KASSERT(actual_relative_gain == relative_gain);
-
-      candidates.push_back(MoveCandidate{
-          .set = set,
-          .weight = weight,
-          .gain = actual_relative_gain,
-          .from = from,
-          .to = to,
-      });
+      if (actual_relative_gain >= relative_gain) {
+        candidates.push_back(MoveCandidate{
+            .set = set,
+            .weight = weight,
+            .gain = actual_relative_gain,
+            .from = from,
+            .to = to,
+        });
+      } else {
+        _pqs.push(from, set, actual_relative_gain);
+        --num;
+      }
     }
 
     for (auto candidate = candidates.begin() + start; candidate != candidates.end(); ++candidate) {
@@ -636,9 +638,9 @@ std::vector<MoveSetBalancer::MoveCandidate> MoveSetBalancer::pick_sequential_can
 }
 
 std::vector<MoveSetBalancer::MoveCandidate>
-MoveSetBalancer::reduce_sequential_candidates(std::vector<MoveCandidate> candidates) {
+MoveSetBalancer::reduce_sequential_candidates(std::vector<MoveCandidate> sendbuf) {
   return perform_binary_reduction(
-      candidates,
+      std::move(sendbuf),
       [&](std::vector<MoveCandidate> lhs, std::vector<MoveCandidate> rhs) {
         // Precondition: candidates must be sorted by their from blocks
         auto check_sorted_by_from = [](const auto &candidates) {
@@ -657,6 +659,7 @@ MoveSetBalancer::reduce_sequential_candidates(std::vector<MoveCandidate> candida
         std::size_t idx_lhs = 0;
         std::size_t idx_rhs = 0;
         std::vector<BlockWeight> block_weight_deltas(_p_graph.k());
+        std::vector<MoveCandidate> winners;
 
         while (idx_lhs < lhs.size() && idx_rhs < rhs.size()) {
           const BlockID from = std::min(lhs[idx_lhs].from, rhs[idx_rhs].from);
@@ -721,7 +724,8 @@ MoveSetBalancer::reduce_sequential_candidates(std::vector<MoveCandidate> candida
               --num_rejected_candidates;
             }
           }
-          candidates.resize(num_accepted_candidates);
+
+          winners.insert(winners.end(), candidates.begin(), candidates.begin() + num_accepted_candidates);
         }
 
         // Keep remaining nodes
@@ -733,17 +737,18 @@ MoveSetBalancer::reduce_sequential_candidates(std::vector<MoveCandidate> candida
 
             if (from == to || _p_graph.block_weight(to) + block_weight_deltas[to] + weight <=
                                   _p_ctx.graph->max_block_weight(to)) {
-              candidates.push_back(vec[i]);
+              winners.push_back(vec[i]);
               if (from != to) {
                 block_weight_deltas[to] += weight;
               }
             }
           }
         };
+
         add_remaining_candidates(lhs, idx_lhs);
         add_remaining_candidates(rhs, idx_rhs);
 
-        return candidates;
+        return winners;
       },
       _p_graph.communicator()
   );
