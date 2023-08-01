@@ -206,6 +206,7 @@ void MoveSetBalancer::try_pq_insertion(const NodeID set) {
 
     _pq_weights[from_block] += _move_sets.weight(set);
     _pqs.push(from_block, set, relative_gain);
+    DBGC(set == 166322) << "pushed " << set << " to " << from_block;
   }
 }
 
@@ -531,9 +532,9 @@ void MoveSetBalancer::perform_moves(
       // We track moved sets to exclude them from further rounds
       _moved_marker.set(candidate.set);
 
-      // If we perform a parallel round, the set might still be in the PQ --> remove it
       if (_pqs.contains(candidate.set)) {
         _pq_weights[candidate.from] -= candidate.weight;
+        DBGC(candidate.set == 166322) << "Remove " << candidate.set << " from PQ " << candidate.from;
         _pqs.remove(candidate.from, candidate.set);
       }
 
@@ -600,6 +601,8 @@ void MoveSetBalancer::perform_moves(
 std::vector<MoveSetBalancer::MoveCandidate> MoveSetBalancer::pick_sequential_candidates() {
   DBG0 << dbg_get_pq_state_str() << " /// " << dbg_get_partition_state_str();
 
+  const PEID rank = mpi::get_comm_rank(_p_graph.communicator());
+
   std::vector<MoveCandidate> candidates;
   for (const BlockID from : _p_graph.blocks()) {
     if (!is_overloaded(from)) {
@@ -617,10 +620,12 @@ std::vector<MoveSetBalancer::MoveCandidate> MoveSetBalancer::pick_sequential_can
       const double relative_gain = _pqs.peek_max_key(from);
       const NodeWeight weight = _move_sets.weight(set);
       _pqs.pop_max(from);
+      DBGC(set == 166322) << "popped " << set << " from " << from;
 
       auto [actual_relative_gain, to] = _move_sets.find_max_relative_gain(set);
       if (actual_relative_gain >= relative_gain) {
         candidates.push_back(MoveCandidate{
+            .owner = rank,
             .set = set,
             .weight = weight,
             .gain = actual_relative_gain,
@@ -634,6 +639,7 @@ std::vector<MoveSetBalancer::MoveCandidate> MoveSetBalancer::pick_sequential_can
     }
 
     for (auto candidate = candidates.begin() + start; candidate != candidates.end(); ++candidate) {
+      DBGC(candidate->set == 166322) << "pushed " << candidate->set << " to " << from;
       _pqs.push(from, candidate->set, candidate->gain);
     }
   }
