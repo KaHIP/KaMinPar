@@ -22,9 +22,14 @@
 namespace kaminpar::dist {
 SET_DEBUG(true);
 
-MoveSets::MoveSets(const DistributedPartitionedGraph &p_graph, MoveSetsMemoryContext m_ctx)
+MoveSets::MoveSets(
+    const DistributedPartitionedGraph &p_graph,
+    const PartitionContext &p_ctx,
+    MoveSetsMemoryContext m_ctx
+)
     : MoveSets(
           p_graph,
+          p_ctx,
           std::move(m_ctx.node_to_move_set),
           std::move(m_ctx.move_sets),
           std::move(m_ctx.move_set_indices),
@@ -39,6 +44,7 @@ MoveSets::MoveSets(const DistributedPartitionedGraph &p_graph, MoveSetsMemoryCon
 
 MoveSets::MoveSets(
     const DistributedPartitionedGraph &p_graph,
+    const PartitionContext &p_ctx,
     NoinitVector<NodeID> node_to_move_set,
     NoinitVector<NodeID> move_sets,
     NoinitVector<NodeID> move_set_indices,
@@ -46,6 +52,7 @@ MoveSets::MoveSets(
 
 )
     : _p_graph(&p_graph),
+      _p_ctx(&p_ctx),
       _node_to_move_set(std::move(node_to_move_set)),
       _move_sets(std::move(move_sets)),
       _move_set_indices(std::move(move_set_indices)),
@@ -316,6 +323,7 @@ public:
 
     return {
         _p_graph,
+        _p_ctx,
         std::move(_node_to_move_set),
         std::move(_move_sets),
         std::move(_move_set_indices),
@@ -391,7 +399,7 @@ MoveSets build_singleton_move_sets(
   }
   m_ctx.move_set_conns.push_back(cur_move_set);
 
-  return {p_graph, std::move(m_ctx)};
+  return {p_graph, p_ctx, std::move(m_ctx)};
 }
 
 MoveSets build_clustered_move_sets(
@@ -413,7 +421,9 @@ MoveSets build_clustered_move_sets(
       cluster_sizes[clustering[u]]++;
     }
   }
-  parallel::prefix_sum(cluster_to_move_set.begin(), cluster_to_move_set.end(), cluster_to_move_set.begin());
+  parallel::prefix_sum(
+      cluster_to_move_set.begin(), cluster_to_move_set.end(), cluster_to_move_set.begin()
+  );
   parallel::prefix_sum(cluster_sizes.begin(), cluster_sizes.end(), cluster_sizes.begin());
 
   m_ctx.resize(p_graph);
@@ -436,7 +446,7 @@ MoveSets build_clustered_move_sets(
     }
   }
 
-  return {p_graph, std::move(m_ctx)};
+  return {p_graph, p_ctx, std::move(m_ctx)};
 }
 } // namespace
 

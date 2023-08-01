@@ -1,5 +1,6 @@
 #pragma once
 
+#include "dkaminpar/context.h"
 #include "dkaminpar/datastructures/distributed_partitioned_graph.h"
 
 #include "common/datastructures/fast_reset_array.h"
@@ -46,10 +47,15 @@ private:
 
 class MoveSets {
 public:
-  MoveSets(const DistributedPartitionedGraph &p_graph, MoveSetsMemoryContext m_ctx);
+  MoveSets(
+      const DistributedPartitionedGraph &p_graph,
+      const PartitionContext &p_ctx,
+      MoveSetsMemoryContext m_ctx
+  );
 
   MoveSets(
       const DistributedPartitionedGraph &p_graph,
+      const PartitionContext &p_ctx,
       NoinitVector<NodeID> node_to_move_set,
       NoinitVector<NodeID> move_sets,
       NoinitVector<NodeID> move_set_indices,
@@ -157,7 +163,8 @@ public:
 
     const BlockID set_b = block(set);
     for (const BlockID b : _p_graph->blocks()) {
-      if (b != set_b && conn(set, b) > max_conn) {
+      if (b != set_b && conn(set, b) > max_conn &&
+          _p_graph->block_weight(b) + weight(set) <= _p_ctx->graph->max_block_weight(b)) {
         max_conn = conn(set, b);
         max_gainer = b;
       }
@@ -193,6 +200,7 @@ private:
   bool dbg_check_all_nodes_covered() const;
 
   const DistributedPartitionedGraph *_p_graph;
+  const PartitionContext *_p_ctx;
 
   NoinitVector<NodeID> _node_to_move_set;
   NoinitVector<NodeID> _move_sets;
