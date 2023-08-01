@@ -102,6 +102,7 @@ void MoveSets::init_ghost_node_adjacency() {
   });
 
   _ghost_node_indices.resize(_p_graph->ghost_n() + 1);
+  _ghost_node_indices.front() = 0;
   _ghost_node_edges.resize(ghost_to_set.size());
 
   NodeID prev_ghost = 0;
@@ -129,7 +130,7 @@ void MoveSets::init_ghost_node_adjacency() {
             return false;
           }
         }
-        if (_ghost_node_indices[_p_graph->ghost_n()] >= _ghost_node_edges.size()) {
+        if (_ghost_node_indices[_p_graph->ghost_n()] > _ghost_node_edges.size()) {
           LOG_WARNING << "end position of last ghost node is too large";
           return false;
         }
