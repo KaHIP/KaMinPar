@@ -79,7 +79,8 @@ public:
     return IotaRange<NodeID>(0, num_move_sets());
   }
 
-  [[nodiscard]] inline auto elements(const NodeID set) const {
+  [[nodiscard]] inline auto nodes(const NodeID set) const {
+    KASSERT(set < num_move_sets());
     return TransformedIotaRange(
         _move_set_indices[set],
         _move_set_indices[set + 1],
@@ -105,7 +106,7 @@ public:
 
   [[nodiscard]] inline NodeWeight weight(const NodeID set) const {
     NodeWeight weight = 0;
-    for (const NodeID u : elements(set)) {
+    for (const NodeID u : nodes(set)) {
       weight += _p_graph->node_weight(u);
     }
     return weight;
@@ -137,9 +138,11 @@ public:
   }
 
   inline void move_set(const NodeID set, const BlockID from, const BlockID to) {
-    for (const NodeID u : elements(set)) {
+    for (const NodeID u : nodes(set)) {
+      KASSERT(_p_graph->is_owned_node(u));
+
       for (const auto [e, v] : _p_graph->neighbors(u)) {
-        if (!_p_graph->contains_local_node(v)) {
+        if (!_p_graph->is_owned_node(v)) {
           continue;
         }
 

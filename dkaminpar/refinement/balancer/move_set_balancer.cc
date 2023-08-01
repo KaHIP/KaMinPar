@@ -537,7 +537,7 @@ void MoveSetBalancer::perform_moves(
         _pqs.remove(candidate.from, candidate.set);
       }
 
-      for (NodeID u : _move_sets.elements(candidate.set)) {
+      for (NodeID u : _move_sets.nodes(candidate.set)) {
         _p_graph.set_block<false>(u, candidate.to);
 
         for (const auto &[e, v] : _p_graph.neighbors(u)) {
@@ -733,6 +733,9 @@ MoveSetBalancer::reduce_sequential_candidates(std::vector<MoveCandidate> sendbuf
           winners.insert(
               winners.end(), candidates.begin(), candidates.begin() + num_accepted_candidates
           );
+
+          idx_lhs = idx_lhs_end;
+          idx_rhs = idx_rhs_end;
         }
 
         // Keep remaining nodes
@@ -856,6 +859,11 @@ bool MoveSetBalancer::dbg_validate_pq_weights() const {
     return true;
   }
 
+  std::vector<BlockWeight> local_block_weights(_p_graph.k());
+  for (const NodeID u : _p_graph.nodes()) {
+    local_block_weights[_p_graph.block(u)] += _p_graph.node_weight(u);
+  }
+
   for (const BlockID block : _p_graph.blocks()) {
     if (is_overloaded(block)) {
       if (_pq_weights[block] == 0) {
@@ -866,7 +874,8 @@ bool MoveSetBalancer::dbg_validate_pq_weights() const {
       }
 
       const BlockWeight expected_min_weight = overload(block);
-      if (expected_min_weight > _pq_weights[block]) {
+      if (expected_min_weight > _pq_weights[block] &&
+          _pq_weights[block] < local_block_weights[block]) {
         LOG_ERROR << "Block " << block << " has overload " << overload(block)
                   << ", but there is only " << _pq_weights[block] << " weight in its PQ";
         return false;

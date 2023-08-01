@@ -81,7 +81,7 @@ void MoveSets::init_ghost_node_adjacency() {
   FastResetArray<EdgeWeight> weight_to_ghost(_p_graph->ghost_n());
 
   for (const NodeID set : sets()) {
-    for (const NodeID u : elements(set)) {
+    for (const NodeID u : nodes(set)) {
       for (const auto [e, v] : _p_graph->neighbors(u)) {
         if (!_p_graph->is_ghost_node(v)) {
           continue;
@@ -122,7 +122,7 @@ bool MoveSets::dbg_check_all_nodes_covered() const {
   BlockWeight min_block_weight_covered = std::numeric_limits<BlockWeight>::max();
 
   for (const NodeID set : sets()) {
-    for (const NodeID node : elements(set)) {
+    for (const NodeID node : nodes(set)) {
       if (block(set) != _p_graph->block(node)) {
         LOG_ERROR << "block of node " << node << " = " << _p_graph->block(node)
                   << " is inconsistent with the move set block " << block(set);
@@ -232,7 +232,7 @@ public:
       add_to_move_set(u);
 
       for (const auto [e, v] : _p_graph.neighbors(u)) {
-        if (_p_graph.contains_local_node(v) && _node_to_move_set[v] == kInvalidBlockID &&
+        if (_p_graph.is_owned_node(v) && _node_to_move_set[v] == kInvalidBlockID &&
             _p_graph.block(v) == bu) {
           if (_frontier.contains(v)) {
             _frontier.decrease_priority(v, _frontier.key(v) + _p_graph.edge_weight(e));
