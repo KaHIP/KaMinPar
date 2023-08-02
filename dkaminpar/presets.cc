@@ -179,6 +179,8 @@ Context create_default_context() {
                       .seq_full_pq = true,
                       .enable_parallel_balancing = true,
                       .parallel_threshold = 0.1,
+                      .par_num_dicing_attempts = 0,
+                      .par_accept_imbalanced = true,
                       .move_set_size_strategy = MoveSetSizeStrategy::ONE,
                       .move_set_size_multiplier = 1.0,
                       .move_set_strategy = MoveSetStrategy::GREEDY_BATCH_PREFIX,

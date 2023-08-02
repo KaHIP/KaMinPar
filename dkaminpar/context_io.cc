@@ -511,6 +511,8 @@ void print(const RefinementContext &ctx, std::ostream &out) {
     out << "  Parallel balancing:         "
         << (ctx.move_set_balancer.enable_parallel_balancing ? "enabled" : "disabled") << "\n";
     out << "    Trigger threshold:        " << ctx.move_set_balancer.parallel_threshold << "\n";
+    out << "    # of dicing attempts:     " << ctx.move_set_balancer.par_num_dicing_attempts
+        << " --> " << (ctx.move_set_balancer.par_accept_imbalanced ? "accept" : "reject") << "\n";
   }
   if (ctx.includes_algorithm(RefinementAlgorithm::JET_BALANCER) ||
       (ctx.includes_algorithm(RefinementAlgorithm::JET_REFINER) &&

@@ -253,6 +253,8 @@ struct MoveSetBalancerContext {
 
   bool enable_parallel_balancing;
   double parallel_threshold;
+  int par_num_dicing_attempts;
+  bool par_accept_imbalanced;
 
   MoveSetSizeStrategy move_set_size_strategy;
   double move_set_size_multiplier;

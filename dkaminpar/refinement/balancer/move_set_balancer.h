@@ -60,6 +60,8 @@ class MoveSetBalancer : public GlobalRefiner {
     int num_par_rounds = 0;
     int num_par_set_moves = 0;
     int num_par_node_moves = 0;
+    int num_par_dicing_attempts = 0;
+    int num_par_balanced_moves = 0;
     double par_imbalance_reduction = 0.0;
     EdgeWeight par_cut_increase = 0;
 
@@ -91,7 +93,7 @@ public:
 
 private:
   void rebuild_move_sets();
-  MoveSets build_move_sets();
+  void init_move_sets();
   void clear();
 
   void try_pq_insertion(NodeID set);

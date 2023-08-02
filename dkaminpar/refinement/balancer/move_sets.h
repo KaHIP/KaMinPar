@@ -47,6 +47,8 @@ private:
 
 class MoveSets {
 public:
+  MoveSets() = default;
+
   MoveSets(
       const DistributedPartitionedGraph &p_graph,
       const PartitionContext &p_ctx,

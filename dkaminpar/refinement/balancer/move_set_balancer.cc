@@ -31,6 +31,8 @@ void MoveSetBalancer::Statistics::reset() {
   num_par_rounds = 0;
   num_par_set_moves = 0;
   num_par_node_moves = 0;
+  num_par_dicing_attempts = 0;
+  num_par_balanced_moves = 0;
   par_imbalance_reduction = 0.0;
   par_cut_increase = 0;
 }
@@ -48,6 +50,9 @@ void MoveSetBalancer::Statistics::print() {
   STATS << "    Cut reduction:        " << seq_cut_increase << " = "
         << 1.0 * seq_cut_increase / num_seq_set_moves << " per set, "
         << 1.0 * seq_cut_increase / num_seq_node_moves << " per node";
+  STATS << "    # of dicing attempts: " << num_par_dicing_attempts << " = "
+        << 1.0 * num_par_dicing_attempts / num_par_rounds << " per round";
+  STATS << "    # of balanced moves:  " << num_par_balanced_moves;
   STATS << "  Number of set rebuilds: " << move_set_stats.size();
   for (const auto &stats : move_set_stats) {
     STATS << "    # of sets:      " << stats.set_count << " with " << stats.node_count << " nodes";
@@ -142,8 +147,7 @@ MoveSetBalancer::MoveSetBalancer(
       _pqs(_p_graph.n(), _p_graph.k()),
       _pq_weights(_p_graph.k()),
       _moved_marker(_p_graph.n()),
-      _weight_buckets(_p_graph, _p_ctx),
-      _move_sets(build_move_sets()) {}
+      _weight_buckets(_p_graph, _p_ctx) {}
 
 MoveSetBalancer::~MoveSetBalancer() {
   _factory.take_m_ctx(std::move(*this));
@@ -156,6 +160,68 @@ MoveSetBalancer::operator MoveSetBalancerMemoryContext() && {
 }
 
 void MoveSetBalancer::initialize() {
+  IFSTATS(_stats.reset());
+  rebuild_move_sets();
+}
+
+void MoveSetBalancer::rebuild_move_sets() {
+  init_move_sets();
+  clear();
+  for (const NodeID set : _move_sets.sets()) {
+    if (!is_overloaded(_move_sets.block(set))) {
+      continue;
+    }
+    try_pq_insertion(set);
+  }
+}
+
+void MoveSetBalancer::init_move_sets() {
+  _move_sets = build_move_sets(
+      _ctx.refinement.move_set_balancer.move_set_strategy,
+      _p_graph,
+      _ctx,
+      _p_ctx,
+      compute_move_set_weight_limit(),
+      std::move(_move_sets)
+  );
+
+  IF_STATS {
+    NodeID set_count = _move_sets.num_move_sets();
+    MPI_Allreduce(
+        MPI_IN_PLACE, &set_count, 1, mpi::type::get<NodeID>(), MPI_SUM, _p_graph.communicator()
+    );
+
+    NodeID node_count = std::accumulate(
+        _move_sets.sets().begin(),
+        _move_sets.sets().end(),
+        0u,
+        [&](const NodeID sum, const NodeID set) { return sum + _move_sets.size(set); }
+    );
+    MPI_Allreduce(
+        MPI_IN_PLACE, &node_count, 1, mpi::type::get<NodeID>(), MPI_SUM, _p_graph.communicator()
+    );
+
+    NodeID min = std::numeric_limits<NodeID>::max();
+    NodeID max = std::numeric_limits<NodeID>::min();
+    for (const NodeID set : _move_sets.sets()) {
+      min = std::min<NodeID>(min, _move_sets.size(set));
+      max = std::max<NodeID>(max, _move_sets.size(set));
+    }
+    MPI_Allreduce(
+        MPI_IN_PLACE, &min, 1, mpi::type::get<NodeID>(), MPI_MIN, _p_graph.communicator()
+    );
+    MPI_Allreduce(
+        MPI_IN_PLACE, &max, 1, mpi::type::get<NodeID>(), MPI_MAX, _p_graph.communicator()
+    );
+
+    _stats.move_set_stats.push_back(MoveSetStatistics{
+        .set_count = _move_sets.num_move_sets(),
+        .node_count = node_count,
+        .min_set_size = min,
+        .max_set_size = max,
+    });
+  }
+
   KASSERT(
       [&] {
         for (const NodeID node : _p_graph.nodes()) {
@@ -172,70 +238,6 @@ void MoveSetBalancer::initialize() {
       "move sets do not cover all nodes in overloaded blocks",
       assert::heavy
   );
-
-  clear();
-  for (const NodeID set : _move_sets.sets()) {
-    if (!is_overloaded(_move_sets.block(set))) {
-      continue;
-    }
-    try_pq_insertion(set);
-  }
-}
-
-void MoveSetBalancer::rebuild_move_sets() {
-  _move_sets = build_move_sets();
-  clear();
-  initialize();
-}
-
-MoveSets MoveSetBalancer::build_move_sets() {
-  MoveSets sets = dist::build_move_sets(
-      _ctx.refinement.move_set_balancer.move_set_strategy,
-      _p_graph,
-      _ctx,
-      _p_ctx,
-      compute_move_set_weight_limit(),
-      std::move(_move_sets)
-  );
-
-  IF_STATS {
-    NodeID set_count = sets.num_move_sets();
-    MPI_Allreduce(
-        MPI_IN_PLACE, &set_count, 1, mpi::type::get<NodeID>(), MPI_SUM, _p_graph.communicator()
-    );
-
-    NodeID node_count = std::accumulate(
-        sets.sets().begin(),
-        sets.sets().end(),
-        0u,
-        [&](const NodeID sum, const NodeID set) { return sum + sets.size(set); }
-    );
-    MPI_Allreduce(
-        MPI_IN_PLACE, &node_count, 1, mpi::type::get<NodeID>(), MPI_SUM, _p_graph.communicator()
-    );
-
-    NodeID min = std::numeric_limits<NodeID>::max();
-    NodeID max = std::numeric_limits<NodeID>::min();
-    for (const NodeID set : sets.sets()) {
-      min = std::min<NodeID>(min, sets.size(set));
-      max = std::max<NodeID>(max, sets.size(set));
-    }
-    MPI_Allreduce(
-        MPI_IN_PLACE, &min, 1, mpi::type::get<NodeID>(), MPI_MIN, _p_graph.communicator()
-    );
-    MPI_Allreduce(
-        MPI_IN_PLACE, &max, 1, mpi::type::get<NodeID>(), MPI_MAX, _p_graph.communicator()
-    );
-
-    _stats.move_set_stats.push_back(MoveSetStatistics{
-        .set_count = sets.num_move_sets(),
-        .node_count = node_count,
-        .min_set_size = min,
-        .max_set_size = max,
-    });
-  }
-
-  return sets;
 }
 
 void MoveSetBalancer::clear() {
@@ -306,8 +308,6 @@ bool MoveSetBalancer::refine() {
       dbg_validate_pq_weights(), "PQ weights are inaccurate after initialization", assert::heavy
   );
 
-  DBG0 << dbg_get_partition_state_str();
-
   const double initial_imbalance_distance = metrics::imbalance_l1(_p_graph, _p_ctx);
   double prev_imbalance_distance = initial_imbalance_distance;
 
@@ -376,6 +376,7 @@ bool MoveSetBalancer::refine() {
       "partition is in an inconsistent state after round " << round,
       assert::heavy
   );
+  IFSTATS(_stats.print());
   return prev_imbalance_distance > 0;
 }
 
@@ -505,40 +506,67 @@ void MoveSetBalancer::perform_parallel_round() {
   );
 
   Random &rand = Random::instance();
-  std::size_t num_rejected_candidates = 0;
-  std::vector<BlockWeight> actual_block_weight_deltas(_p_graph.k());
-  for (std::size_t i = 0; i < candidates.size() - num_rejected_candidates; ++i) {
-    const auto &candidate = candidates[i];
-    const double probability = 1.0 * underload(candidate.to) / block_weight_deltas[candidate.to];
-    if (rand.random_bool(probability)) {
-      actual_block_weight_deltas[candidate.to] += candidate.weight;
-      actual_block_weight_deltas[candidate.from] -= candidate.weight;
-    } else {
-      ++num_rejected_candidates;
-      std::swap(candidates[i], candidates[candidates.size() - num_rejected_candidates]);
-      --i;
+  std::size_t num_rejected_candidates;
+  std::vector<BlockWeight> actual_block_weight_deltas;
+  bool balanced_moves = false;
+
+  for (int attempt = 0;
+       !balanced_moves &&
+       attempt < std::max<int>(1, _ctx.refinement.move_set_balancer.par_num_dicing_attempts);
+       ++attempt) {
+    IFSTATS(++_stats.num_par_dicing_attempts);
+
+    num_rejected_candidates = 0;
+    actual_block_weight_deltas.clear();
+    actual_block_weight_deltas.resize(_p_graph.k());
+
+    for (std::size_t i = 0; i < candidates.size() - num_rejected_candidates; ++i) {
+      const auto &candidate = candidates[i];
+      const double probability = 1.0 * underload(candidate.to) / block_weight_deltas[candidate.to];
+      if (rand.random_bool(probability)) {
+        actual_block_weight_deltas[candidate.to] += candidate.weight;
+        actual_block_weight_deltas[candidate.from] -= candidate.weight;
+      } else {
+        ++num_rejected_candidates;
+        std::swap(candidates[i], candidates[candidates.size() - num_rejected_candidates]);
+        --i;
+      }
+    }
+
+    MPI_Allreduce(
+        MPI_IN_PLACE,
+        actual_block_weight_deltas.data(),
+        asserting_cast<int>(actual_block_weight_deltas.size()),
+        mpi::type::get<BlockWeight>(),
+        MPI_SUM,
+        _p_graph.communicator()
+    );
+
+    // Check that the moves do not overload a previously non-overloaded block
+    balanced_moves = true;
+    for (const BlockID block : _p_graph.blocks()) {
+      if (overload(block) == 0 && underload(block) < actual_block_weight_deltas[block]) {
+        balanced_moves = false;
+        break;
+      }
     }
   }
 
-  MPI_Allreduce(
-      MPI_IN_PLACE,
-      actual_block_weight_deltas.data(),
-      asserting_cast<int>(actual_block_weight_deltas.size()),
-      mpi::type::get<BlockWeight>(),
-      MPI_SUM,
-      _p_graph.communicator()
-  );
-  for (const BlockID block : _p_graph.blocks()) {
-    _p_graph.set_block_weight(
-        block, _p_graph.block_weight(block) + actual_block_weight_deltas[block]
-    );
+  IFSTATS(_stats.num_par_balanced_moves += balanced_moves);
+
+  if (balanced_moves || _ctx.refinement.move_set_balancer.par_accept_imbalanced) {
+    for (const BlockID block : _p_graph.blocks()) {
+      _p_graph.set_block_weight(
+          block, _p_graph.block_weight(block) + actual_block_weight_deltas[block]
+      );
+    }
+
+    candidates.resize(candidates.size() - num_rejected_candidates);
+    perform_moves(candidates, false);
+
+    IFSTATS(_stats.num_par_set_moves += candidates.size());
+    IFSTATS(_stats.num_par_node_moves += count_nodes_in_sets(candidates));
   }
-
-  candidates.resize(candidates.size() - num_rejected_candidates);
-  perform_moves(candidates, false);
-
-  IFSTATS(_stats.num_par_set_moves += candidates.size());
-  IFSTATS(_stats.num_par_node_moves += count_nodes_in_sets(candidates));
 }
 
 void MoveSetBalancer::perform_sequential_round() {
@@ -968,12 +996,12 @@ bool MoveSetBalancer::dbg_validate_pq_weights() const {
 
   for (const BlockID block : _p_graph.blocks()) {
     if (is_overloaded(block)) {
-      if (_pq_weights[block] == 0) {
+      /*if (_pq_weights[block] == 0) {
         LOG_WARNING << "Block " << block
                     << " is overloaded, but its PQ is empty -- this might happen if parallel "
                        "rebalance overloaded some block";
         continue;
-      }
+      }*/
 
       const BlockWeight expected_min_weight = overload(block);
       if (expected_min_weight > _pq_weights[block] &&

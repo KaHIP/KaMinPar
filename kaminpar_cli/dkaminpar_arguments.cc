@@ -364,6 +364,12 @@ CLI::Option_group *create_move_set_balancer_options(CLI::App *app, Context &ctx)
           "this value, e.g., 0.01 for 1%."
       )
       ->capture_default_str();
+  balancer->add_option(
+      "--r-bms-par-num-dicing-attempts", ctx.refinement.move_set_balancer.par_num_dicing_attempts
+  );
+  balancer->add_flag(
+      "--r-bms-par-accept-imbalanced", ctx.refinement.move_set_balancer.par_accept_imbalanced
+  );
   balancer
       ->add_option("--r-bms-size-strategy", ctx.refinement.move_set_balancer.move_set_size_strategy)
       ->transform(CLI::CheckedTransformer(get_move_set_size_strategies()).description(""))
