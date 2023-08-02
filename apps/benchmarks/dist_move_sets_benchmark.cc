@@ -76,26 +76,46 @@ int main(int argc, char *argv[]) {
   NodeID max_size = 0;
   NodeID min_size = graph.global_n();
   NodeID sum = 0;
+  NodeID count = sets.num_move_sets();
   std::vector<NodeID> set_sizes;
   for (NodeID set = 0; set < sets.num_move_sets(); ++set) {
     set_sizes.push_back(sets.size(set));
     max_size = std::max<NodeID>(max_size, sets.size(set));
     min_size = std::min<NodeID>(min_size, sets.size(set));
     sum += sets.size(set);
-    if (sum > graph.global_n()) {
-      LOG << "Sum is larger than the number of nodes!" << sum;
-    }
   }
 
-  std::sort(set_sizes.begin(), set_sizes.end());
+  const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
+  std::vector<int> counts(size);
+  MPI_Allgather(&count, 1, mpi::type::get<NodeID>(), counts.data(), 1, MPI_INT, MPI_COMM_WORLD);
+  std::vector<int> displs(size + 1);
+  std::partial_sum(counts.begin(), counts.end(), displs.begin() + 1);
 
-  LOG << "Max: " << max_size << ", avg: " << 1.0 * graph.global_n() / sets.num_move_sets()
-      << ", min: " << min_size << ", sum: " << sum;
-  LOG << "0.1-quantile: " << set_sizes[set_sizes.size() / 10]
-      << ", 0.25-quantile: " << set_sizes[set_sizes.size() / 4]
-      << ", median: " << set_sizes[set_sizes.size() / 2]
-      << ", 0.75-quantile: " << set_sizes[3.0 * set_sizes.size() / 4]
-      << ", 0.9-quantile: " << set_sizes[9.0 * set_sizes.size() / 10];
+  MPI_Allreduce(MPI_IN_PLACE, &max_size, 1, mpi::type::get<NodeID>(), MPI_MAX, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, &min_size, 1, mpi::type::get<NodeID>(), MPI_MIN, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, &sum, 1, mpi::type::get<NodeID>(), MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, &count, 1, mpi::type::get<NodeID>(), MPI_SUM, MPI_COMM_WORLD);
+
+  std::vector<NodeID> global_set_sizes(count);
+  MPI_Allgatherv(
+      set_sizes.data(),
+      set_sizes.size(),
+      mpi::type::get<NodeID>(),
+      global_set_sizes.data(),
+      counts.data(),
+      displs.data(),
+      mpi::type::get<NodeID>(),
+      MPI_COMM_WORLD
+  );
+  std::sort(global_set_sizes.begin(), global_set_sizes.end());
+
+  LOG << "Max: " << max_size << ", avg: " << 1.0 * sum / count << ", min: " << min_size
+      << ", sum: " << sum;
+  LOG << "0.1-quantile: " << global_set_sizes[global_set_sizes.size() / 10]
+      << ", 0.25-quantile: " << global_set_sizes[global_set_sizes.size() / 4]
+      << ", median: " << global_set_sizes[global_set_sizes.size() / 2]
+      << ", 0.75-quantile: " << global_set_sizes[3.0 * global_set_sizes.size() / 4]
+      << ", 0.9-quantile: " << global_set_sizes[9.0 * global_set_sizes.size() / 10];
 
   mpi::barrier(MPI_COMM_WORLD);
   if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {

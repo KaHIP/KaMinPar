@@ -407,21 +407,24 @@ MoveSets build_singleton_move_sets(
     if (p_graph.block_weight(bu) > p_ctx.graph->max_block_weight(bu)) {
       m_ctx.node_to_move_set.push_back(cur_move_set);
       m_ctx.move_set_indices.push_back(cur_move_set);
-      m_ctx.move_set_conns.resize((cur_move_set + 1) * p_graph.k());
       m_ctx.move_sets.push_back(u);
 
       for (const BlockID k : p_graph.blocks()) {
-        m_ctx.move_set_conns[cur_move_set * p_graph.k() + k] = 0;
+        m_ctx.move_set_conns.push_back(0);
       }
       for (const auto [e, v] : p_graph.neighbors(u)) {
         const BlockID bv = p_graph.block(v);
-        m_ctx.move_set_conns[cur_move_set * p_graph.k() + bv] += p_graph.edge_weight(e);
+        const std::size_t idx = cur_move_set * p_graph.k() + bv;
+        KASSERT(idx < m_ctx.move_set_conns.size());
+        m_ctx.move_set_conns[idx] += p_graph.edge_weight(e);
       }
 
       ++cur_move_set;
+    } else {
+      m_ctx.node_to_move_set.push_back(kInvalidNodeID);
     }
   }
-  m_ctx.move_set_conns.push_back(cur_move_set);
+  m_ctx.move_set_indices.push_back(cur_move_set);
 
   return {p_graph, p_ctx, std::move(m_ctx)};
 }
@@ -441,6 +444,7 @@ MoveSets build_clustered_move_sets(
   for (const NodeID u : p_graph.nodes()) {
     const BlockID bu = p_graph.block(u);
     if (p_graph.block_weight(bu) > p_ctx.graph->max_block_weight(bu)) {
+      KASSERT(clustering[u] < p_graph.n());
       cluster_to_move_set[clustering[u]] = 1;
       cluster_sizes[clustering[u]]++;
     }
@@ -448,10 +452,11 @@ MoveSets build_clustered_move_sets(
   parallel::prefix_sum(
       cluster_to_move_set.begin(), cluster_to_move_set.end(), cluster_to_move_set.begin()
   );
-  parallel::prefix_sum(cluster_sizes.begin(), cluster_sizes.end(), cluster_sizes.begin());
+  std::exclusive_scan(cluster_sizes.begin(), cluster_sizes.end(), cluster_sizes.begin(), 0);
 
+  m_ctx.clear();
   m_ctx.resize(p_graph);
-  m_ctx.move_set_indices[0] = 0;
+  m_ctx.move_set_indices.front() = 0;
   std::fill(m_ctx.move_set_conns.begin(), m_ctx.move_set_conns.end(), 0);
 
   for (const NodeID u : p_graph.nodes()) {
@@ -469,6 +474,7 @@ MoveSets build_clustered_move_sets(
       }
     }
   }
+  m_ctx.move_set_indices.resize(cluster_to_move_set.back() + 1);
 
   return {p_graph, p_ctx, std::move(m_ctx)};
 }
