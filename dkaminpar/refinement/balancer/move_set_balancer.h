@@ -40,6 +40,33 @@ private:
 };
 
 class MoveSetBalancer : public GlobalRefiner {
+  struct MoveSetStatistics {
+    NodeID set_count = 0;
+    NodeID node_count = 0;
+    NodeID min_set_size = 0;
+    NodeID max_set_size = 0;
+  };
+
+  struct Statistics {
+    int num_rounds = 0;
+    std::vector<MoveSetStatistics> move_set_stats;
+
+    int num_seq_rounds = 0;
+    int num_seq_set_moves = 0;
+    int num_seq_node_moves = 0;
+    double seq_imbalance_reduction = 0.0;
+    EdgeWeight seq_cut_increase = 0;
+
+    int num_par_rounds = 0;
+    int num_par_set_moves = 0;
+    int num_par_node_moves = 0;
+    double par_imbalance_reduction = 0.0;
+    EdgeWeight par_cut_increase = 0;
+
+    void reset();
+    void print();
+  };
+
 public:
   MoveSetBalancer(
       MoveSetBalancerFactory &factory,
@@ -64,6 +91,7 @@ public:
 
 private:
   void rebuild_move_sets();
+  MoveSets build_move_sets();
   void clear();
 
   void try_pq_insertion(NodeID set);
@@ -113,5 +141,7 @@ private:
 
   Buckets _weight_buckets;
   MoveSets _move_sets;
+
+  Statistics _stats;
 };
 } // namespace kaminpar::dist

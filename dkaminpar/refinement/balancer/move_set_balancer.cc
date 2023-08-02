@@ -15,7 +15,47 @@
 #include "dkaminpar/refinement/balancer/move_sets.h"
 
 namespace kaminpar::dist {
+SET_STATISTICS_FROM_GLOBAL();
 SET_DEBUG(false);
+
+void MoveSetBalancer::Statistics::reset() {
+  num_rounds = 0;
+  move_set_stats.clear();
+
+  num_seq_rounds = 0;
+  num_seq_set_moves = 0;
+  num_seq_node_moves = 0;
+  seq_imbalance_reduction = 0.0;
+  seq_cut_increase = 0;
+
+  num_par_rounds = 0;
+  num_par_set_moves = 0;
+  num_par_node_moves = 0;
+  par_imbalance_reduction = 0.0;
+  par_cut_increase = 0;
+}
+
+void MoveSetBalancer::Statistics::print() {
+  STATS << "Move Set Balancer:";
+  STATS << "  Number of rounds:       " << num_rounds << " (" << num_seq_rounds << " sequential, "
+        << num_par_rounds << " parallel)";
+  STATS << "  Sequential rounds:";
+  STATS << "    Number of sets moved: " << num_seq_set_moves << " with " << num_seq_node_moves
+        << " nodes = " << 1.0 * num_seq_node_moves / num_seq_set_moves << " nodes per set";
+  STATS << "    Imbalance reduction:  " << seq_imbalance_reduction << " = "
+        << 1.0 * seq_imbalance_reduction / num_seq_set_moves << " per set, "
+        << 1.0 * seq_imbalance_reduction / num_seq_node_moves << " per node";
+  STATS << "    Cut reduction:        " << seq_cut_increase << " = "
+        << 1.0 * seq_cut_increase / num_seq_set_moves << " per set, "
+        << 1.0 * seq_cut_increase / num_seq_node_moves << " per node";
+  STATS << "  Number of set rebuilds: " << move_set_stats.size();
+  for (const auto &stats : move_set_stats) {
+    STATS << "    # of sets:      " << stats.set_count << " with " << stats.node_count << " nodes";
+    STATS << "                    ... min: " << stats.min_set_size
+          << ", avg: " << 1.0 * stats.node_count / stats.set_count
+          << ", max: " << stats.max_set_size;
+  }
+}
 
 namespace {
 template <typename Buffer, typename Combiner>
@@ -103,14 +143,7 @@ MoveSetBalancer::MoveSetBalancer(
       _pq_weights(_p_graph.k()),
       _moved_marker(_p_graph.n()),
       _weight_buckets(_p_graph, _p_ctx),
-      _move_sets(build_move_sets(
-          _ctx.refinement.move_set_balancer.move_set_strategy,
-          _p_graph,
-          _ctx,
-          _p_ctx,
-          compute_move_set_weight_limit(),
-          std::move(m_ctx.move_sets_m_ctx)
-      )) {}
+      _move_sets(build_move_sets()) {}
 
 MoveSetBalancer::~MoveSetBalancer() {
   _factory.take_m_ctx(std::move(*this));
@@ -150,7 +183,13 @@ void MoveSetBalancer::initialize() {
 }
 
 void MoveSetBalancer::rebuild_move_sets() {
-  _move_sets = build_move_sets(
+  _move_sets = build_move_sets();
+  clear();
+  initialize();
+}
+
+MoveSets MoveSetBalancer::build_move_sets() {
+  MoveSets sets = dist::build_move_sets(
       _ctx.refinement.move_set_balancer.move_set_strategy,
       _p_graph,
       _ctx,
@@ -158,8 +197,31 @@ void MoveSetBalancer::rebuild_move_sets() {
       compute_move_set_weight_limit(),
       std::move(_move_sets)
   );
-  clear();
-  initialize();
+
+  IF_STATS {
+    const NodeID node_count = std::accumulate(
+        sets.sets().begin(),
+        sets.sets().end(),
+        0u,
+        [&](const NodeID sum, const NodeID set) { return sum + sets.size(set); }
+    );
+
+    NodeID min = std::numeric_limits<NodeID>::max();
+    NodeID max = std::numeric_limits<NodeID>::min();
+    for (const NodeID set : sets.sets()) {
+      min = std::min<NodeID>(min, sets.size(set));
+      max = std::max<NodeID>(max, sets.size(set));
+    }
+
+    _stats.move_set_stats.push_back(MoveSetStatistics{
+        .set_count = sets.num_move_sets(),
+        .node_count = node_count,
+        .min_set_size = min,
+        .max_set_size = max,
+    });
+  }
+
+  return sets;
 }
 
 void MoveSetBalancer::clear() {
@@ -235,9 +297,13 @@ bool MoveSetBalancer::refine() {
   const double initial_imbalance_distance = metrics::imbalance_l1(_p_graph, _p_ctx);
   double prev_imbalance_distance = initial_imbalance_distance;
 
+  EdgeWeight prev_edge_cut = 0;
+  IFSTATS(prev_edge_cut = metrics::edge_cut(_p_graph));
+
   for (int round = 0;
        prev_imbalance_distance > 0 && round < _ctx.refinement.move_set_balancer.max_num_rounds;
        ++round) {
+    IFSTATS(++_stats.num_rounds);
     DBG << "Starting round " << round;
 
     if (round > 0 && _ctx.refinement.move_set_balancer.move_set_rebuild_interval > 0 &&
@@ -252,18 +318,26 @@ bool MoveSetBalancer::refine() {
       perform_sequential_round();
       DBG << "  --> Round " << round << ": seq. balancing: " << prev_imbalance_distance << " --> "
           << metrics::imbalance_l1(_p_graph, _p_ctx);
+      IFSTATS(
+          _stats.seq_imbalance_reduction +=
+          (prev_imbalance_distance - metrics::imbalance_l1(_p_graph, _p_ctx))
+      );
+      IFSTATS(_stats.seq_cut_increase += metrics::edge_cut(_p_graph) - prev_edge_cut);
+      IFSTATS(prev_edge_cut = metrics::edge_cut(_p_graph));
     }
 
     if (_ctx.refinement.move_set_balancer.enable_parallel_balancing) {
-      const double imbalance_distance_after_sequential_balancing =
-          metrics::imbalance_l1(_p_graph, _p_ctx);
-      if ((prev_imbalance_distance - imbalance_distance_after_sequential_balancing) /
-              prev_imbalance_distance <
+      const double imbalance_after_seq_balancing = metrics::imbalance_l1(_p_graph, _p_ctx);
+      if ((prev_imbalance_distance - imbalance_after_seq_balancing) / prev_imbalance_distance <
           _ctx.refinement.move_set_balancer.parallel_threshold) {
         perform_parallel_round();
-        DBG << "  --> Round " << round
-            << ": par. balancing: " << imbalance_distance_after_sequential_balancing << " --> "
-            << metrics::imbalance_l1(_p_graph, _p_ctx);
+        DBG << "  --> Round " << round << ": par. balancing: " << imbalance_after_seq_balancing
+            << " --> " << metrics::imbalance_l1(_p_graph, _p_ctx);
+        IFSTATS(
+            _stats.par_imbalance_reduction +=
+            (imbalance_after_seq_balancing - metrics::imbalance_l1(_p_graph, _p_ctx))
+        );
+        IFSTATS(_stats.par_cut_increase += metrics::edge_cut(_p_graph) - prev_edge_cut);
       }
     }
 
@@ -292,8 +366,9 @@ bool MoveSetBalancer::refine() {
 }
 
 void MoveSetBalancer::perform_parallel_round() {
-  constexpr static bool kUseBinaryReductionTree = true;
+  IFSTATS(++_stats.num_par_rounds);
 
+  constexpr static bool kUseBinaryReductionTree = true;
   const PEID rank = mpi::get_comm_rank(_p_graph.communicator());
 
   auto buckets = [&] {
@@ -447,9 +522,23 @@ void MoveSetBalancer::perform_parallel_round() {
 
   candidates.resize(candidates.size() - num_rejected_candidates);
   perform_moves(candidates, false);
+
+  IF_STATS {
+    _stats.num_par_set_moves += candidates.size();
+    _stats.num_par_node_moves += std::accumulate(
+        candidates.begin(),
+        candidates.end(),
+        0u,
+        [&](const NodeID sum, const MoveCandidate &candidate) {
+          return sum + _move_sets.size(candidate.set);
+        }
+    );
+  }
 }
 
 void MoveSetBalancer::perform_sequential_round() {
+  IFSTATS(++_stats.num_seq_rounds);
+
   const PEID rank = mpi::get_comm_rank(_p_graph.communicator());
 
   // Step 1: identify the best move set candidates globally
@@ -508,6 +597,18 @@ void MoveSetBalancer::perform_sequential_round() {
 
   // Step 4: apply changes
   perform_moves(candidates, true);
+
+  IF_STATS {
+    _stats.num_seq_set_moves += candidates.size();
+    _stats.num_seq_node_moves += std::accumulate(
+        candidates.begin(),
+        candidates.end(),
+        0u,
+        [&](const NodeID sum, const MoveCandidate &candidate) {
+          return sum + _move_sets.size(candidate.set);
+        }
+    );
+  }
 }
 
 void MoveSetBalancer::perform_moves(
@@ -534,7 +635,6 @@ void MoveSetBalancer::perform_moves(
 
       if (_pqs.contains(candidate.set)) {
         _pq_weights[candidate.from] -= candidate.weight;
-        DBGC(candidate.set == 166322) << "Remove " << candidate.set << " from PQ " << candidate.from;
         _pqs.remove(candidate.from, candidate.set);
       }
 
