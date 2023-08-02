@@ -34,13 +34,7 @@ MoveSets::MoveSets(
           std::move(m_ctx.move_sets),
           std::move(m_ctx.move_set_indices),
           std::move(m_ctx.move_set_conns)
-      ) {
-  KASSERT(
-      dbg_check_all_nodes_covered(),
-      "not all nodes in overloaded blocks are covered by move sets",
-      assert::heavy
-  );
-}
+      ) {}
 
 MoveSets::MoveSets(
     const DistributedPartitionedGraph &p_graph,
@@ -63,6 +57,11 @@ MoveSets::MoveSets(
   KASSERT(
       dbg_check_all_nodes_covered(),
       "not all nodes in overloaded blocks are covered by move sets",
+      assert::heavy
+  );
+  KASSERT(
+      dbg_check_sets_contained_in_blocks(),
+      "sets span multiple blocks, which is not allowed",
       assert::heavy
   );
 }
@@ -181,6 +180,19 @@ bool MoveSets::dbg_check_all_nodes_covered() const {
   LOG_SUCCESS << "All nodes in blocks with weight up to " << min_block_weight_covered
               << " are covered by move sets";
 
+  return true;
+}
+
+bool MoveSets::dbg_check_sets_contained_in_blocks() const {
+  for (const NodeID set : sets()) {
+    for (const NodeID node : nodes(set)) {
+      if (_p_graph->block(node) != block(set)) {
+        LOG_WARNING << "node " << node << " in set " << set << " is assigned to block "
+                    << _p_graph->block(node) << ", but the set is assigned to block " << block(set);
+        return false;
+      }
+    }
+  }
   return true;
 }
 
@@ -426,6 +438,23 @@ MoveSets build_singleton_move_sets(
   }
   m_ctx.move_set_indices.push_back(cur_move_set);
 
+  KASSERT(
+      [&] {
+        for (const NodeID u : p_graph.nodes()) {
+          const BlockID bu = p_graph.block(u);
+          if (p_graph.block_weight(bu) <= p_ctx.graph->max_block_weight(bu) &&
+              m_ctx.node_to_move_set[u] != kInvalidNodeID) {
+            LOG_ERROR << "node " << u << " is in block " << bu
+                      << ", which is not overloaded, yet assigned to a move set";
+            return false;
+          }
+        }
+        return true;
+      }(),
+      "some sets contain nodes in non-overloaded blocks",
+      assert::heavy
+  );
+
   return {p_graph, p_ctx, std::move(m_ctx)};
 }
 
@@ -472,9 +501,28 @@ MoveSets build_clustered_move_sets(
         const BlockID bv = p_graph.block(v);
         m_ctx.move_set_conns[ms * p_graph.k() + bv] += p_graph.edge_weight(e);
       }
+    } else {
+      m_ctx.node_to_move_set[u] = kInvalidNodeID;
     }
   }
   m_ctx.move_set_indices.resize(cluster_to_move_set.back() + 1);
+
+  KASSERT(
+      [&] {
+        for (const NodeID u : p_graph.nodes()) {
+          const BlockID bu = p_graph.block(u);
+          if (p_graph.block_weight(bu) <= p_ctx.graph->max_block_weight(bu) &&
+              m_ctx.node_to_move_set[u] != kInvalidNodeID) {
+            LOG_ERROR << "node " << u << " is in block " << bu
+                      << ", which is not overloaded, yet assigned to a move set";
+            return false;
+          }
+        }
+        return true;
+      }(),
+      "some sets contain nodes in non-overloaded blocks",
+      assert::heavy
+  );
 
   return {p_graph, p_ctx, std::move(m_ctx)};
 }

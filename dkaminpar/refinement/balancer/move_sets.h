@@ -207,6 +207,7 @@ private:
   void init_ghost_node_adjacency();
 
   bool dbg_check_all_nodes_covered() const;
+  bool dbg_check_sets_contained_in_blocks() const;
 
   const DistributedPartitionedGraph *_p_graph;
   const PartitionContext *_p_ctx;
