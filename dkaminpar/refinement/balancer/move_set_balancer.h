@@ -128,6 +128,8 @@ private:
   std::string dbg_get_pq_state_str() const;
   bool dbg_validate_pq_weights() const;
 
+  NodeID count_nodes_in_sets(const std::vector<MoveCandidate> &candidates) const;
+
   Random &_rand = Random::instance();
 
   MoveSetBalancerFactory &_factory;

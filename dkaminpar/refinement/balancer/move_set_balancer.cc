@@ -199,11 +199,19 @@ MoveSets MoveSetBalancer::build_move_sets() {
   );
 
   IF_STATS {
-    const NodeID node_count = std::accumulate(
+    NodeID set_count = sets.num_move_sets();
+    MPI_Allreduce(
+        MPI_IN_PLACE, &set_count, 1, mpi::type::get<NodeID>(), MPI_SUM, _p_graph.communicator()
+    );
+
+    NodeID node_count = std::accumulate(
         sets.sets().begin(),
         sets.sets().end(),
         0u,
         [&](const NodeID sum, const NodeID set) { return sum + sets.size(set); }
+    );
+    MPI_Allreduce(
+        MPI_IN_PLACE, &node_count, 1, mpi::type::get<NodeID>(), MPI_SUM, _p_graph.communicator()
     );
 
     NodeID min = std::numeric_limits<NodeID>::max();
@@ -212,6 +220,12 @@ MoveSets MoveSetBalancer::build_move_sets() {
       min = std::min<NodeID>(min, sets.size(set));
       max = std::max<NodeID>(max, sets.size(set));
     }
+    MPI_Allreduce(
+        MPI_IN_PLACE, &min, 1, mpi::type::get<NodeID>(), MPI_MIN, _p_graph.communicator()
+    );
+    MPI_Allreduce(
+        MPI_IN_PLACE, &max, 1, mpi::type::get<NodeID>(), MPI_MAX, _p_graph.communicator()
+    );
 
     _stats.move_set_stats.push_back(MoveSetStatistics{
         .set_count = sets.num_move_sets(),
@@ -523,17 +537,8 @@ void MoveSetBalancer::perform_parallel_round() {
   candidates.resize(candidates.size() - num_rejected_candidates);
   perform_moves(candidates, false);
 
-  IF_STATS {
-    _stats.num_par_set_moves += candidates.size();
-    _stats.num_par_node_moves += std::accumulate(
-        candidates.begin(),
-        candidates.end(),
-        0u,
-        [&](const NodeID sum, const MoveCandidate &candidate) {
-          return sum + _move_sets.size(candidate.set);
-        }
-    );
-  }
+  IFSTATS(_stats.num_par_set_moves += candidates.size());
+  IFSTATS(_stats.num_par_node_moves += count_nodes_in_sets(candidates));
 }
 
 void MoveSetBalancer::perform_sequential_round() {
@@ -598,17 +603,8 @@ void MoveSetBalancer::perform_sequential_round() {
   // Step 4: apply changes
   perform_moves(candidates, true);
 
-  IF_STATS {
-    _stats.num_seq_set_moves += candidates.size();
-    _stats.num_seq_node_moves += std::accumulate(
-        candidates.begin(),
-        candidates.end(),
-        0u,
-        [&](const NodeID sum, const MoveCandidate &candidate) {
-          return sum + _move_sets.size(candidate.set);
-        }
-    );
-  }
+  IFSTATS(_stats.num_seq_set_moves += candidates.size());
+  IFSTATS(_stats.num_seq_node_moves += count_nodes_in_sets(candidates));
 }
 
 void MoveSetBalancer::perform_moves(
@@ -1004,5 +1000,19 @@ bool MoveSetBalancer::dbg_validate_pq_weights() const {
   }
 
   return true;
+}
+
+NodeID MoveSetBalancer::count_nodes_in_sets(const std::vector<MoveCandidate> &candidates) const {
+  const PEID rank = mpi::get_comm_rank(_p_graph.communicator());
+  NodeID num_nodes = 0;
+  for (const auto &candidate : candidates) {
+    if (candidate.owner == rank) {
+      num_nodes += _move_sets.size(candidate.set);
+    }
+  }
+  MPI_Allreduce(
+      MPI_IN_PLACE, &num_nodes, 1, mpi::type::get<NodeID>(), MPI_SUM, _p_graph.communicator()
+  );
+  return num_nodes;
 }
 } // namespace kaminpar::dist
