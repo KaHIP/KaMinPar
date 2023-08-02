@@ -50,13 +50,24 @@ void MoveSetBalancer::Statistics::print() {
   STATS << "    Cut reduction:        " << seq_cut_increase << " = "
         << 1.0 * seq_cut_increase / num_seq_set_moves << " per set, "
         << 1.0 * seq_cut_increase / num_seq_node_moves << " per node";
+  STATS << "  Parallel rounds:";
+  STATS << "    Number of sets moved: " << num_par_set_moves << " with " << num_par_node_moves
+        << " nodes = " << 1.0 * num_par_node_moves / num_par_set_moves << " nodes per set";
+  STATS << "    Imbalance reduction:  " << par_imbalance_reduction << " = "
+        << 1.0 * par_imbalance_reduction / num_par_set_moves << " per set, "
+        << 1.0 * par_imbalance_reduction / num_par_node_moves << " per node";
+  STATS << "    Cut reduction:        " << par_cut_increase << " = "
+        << 1.0 * par_cut_increase / num_par_set_moves << " per set, "
+        << 1.0 * par_cut_increase / num_par_node_moves << " per node";
   STATS << "    # of dicing attempts: " << num_par_dicing_attempts << " = "
         << 1.0 * num_par_dicing_attempts / num_par_rounds << " per round";
   STATS << "    # of balanced moves:  " << num_par_balanced_moves;
   STATS << "  Number of set rebuilds: " << move_set_stats.size();
-  for (const auto &stats : move_set_stats) {
-    STATS << "    # of sets:      " << stats.set_count << " with " << stats.node_count << " nodes";
-    STATS << "                    ... min: " << stats.min_set_size
+  for (std::size_t i = 0; i < move_set_stats.size(); ++i) {
+    const auto &stats = move_set_stats[i];
+    STATS << "    [" << i << "] # of sets:   " << stats.set_count << " with " << stats.node_count
+          << " nodes";
+    STATS << "    [" << i << "]             ... min: " << stats.min_set_size
           << ", avg: " << 1.0 * stats.node_count / stats.set_count
           << ", max: " << stats.max_set_size;
   }
@@ -215,7 +226,7 @@ void MoveSetBalancer::init_move_sets() {
     );
 
     _stats.move_set_stats.push_back(MoveSetStatistics{
-        .set_count = _move_sets.num_move_sets(),
+        .set_count = set_count,
         .node_count = node_count,
         .min_set_size = min,
         .max_set_size = max,
