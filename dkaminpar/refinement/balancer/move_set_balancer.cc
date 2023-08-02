@@ -1007,12 +1007,14 @@ bool MoveSetBalancer::dbg_validate_pq_weights() const {
 
   for (const BlockID block : _p_graph.blocks()) {
     if (is_overloaded(block)) {
-      /*if (_pq_weights[block] == 0) {
+      if (_pq_weights[block] == 0) {
+        /*
         LOG_WARNING << "Block " << block
                     << " is overloaded, but its PQ is empty -- this might happen if parallel "
                        "rebalance overloaded some block";
+        */
         continue;
-      }*/
+      }
 
       const BlockWeight expected_min_weight = overload(block);
       if (expected_min_weight > _pq_weights[block] &&
