@@ -20,7 +20,7 @@
 #include "common/timer.h"
 
 namespace kaminpar::dist {
-SET_DEBUG(true);
+SET_DEBUG(false);
 
 MoveSets::MoveSets(
     const DistributedPartitionedGraph &p_graph,

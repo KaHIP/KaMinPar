@@ -15,7 +15,7 @@
 #include "dkaminpar/refinement/balancer/move_sets.h"
 
 namespace kaminpar::dist {
-SET_DEBUG(true);
+SET_DEBUG(false);
 
 namespace {
 template <typename Buffer, typename Combiner>
