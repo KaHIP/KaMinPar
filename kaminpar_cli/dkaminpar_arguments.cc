@@ -178,6 +178,20 @@ CLI::Option_group *create_fm_refinement_options(CLI::App *app, Context &ctx) {
         "--r-fm-revert-local-moves-after-batch", ctx.refinement.fm.revert_local_moves_after_batch
   )
       ->capture_default_str();
+  fm->add_flag(
+        "--r-fm-rebalance-after-each-global-iteration",
+        ctx.refinement.fm.rebalance_after_each_global_iteration
+  )
+      ->capture_default_str();
+  fm->add_flag("--r-fm-rebalance-after-refinement", ctx.refinement.fm.rebalance_after_refinement)
+      ->capture_default_str();
+  fm->add_option("--r-fm-balancing-algorithm", ctx.refinement.fm.balancing_algorithm)
+      ->transform(CLI::CheckedTransformer(get_balancing_algorithms()).description(""))
+      ->description(
+          std::string("Balancing algorithm(s). Possible options are:\n") +
+          get_balancing_algorithms_description()
+      )
+      ->capture_default_str();
 
   return fm;
 }

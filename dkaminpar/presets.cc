@@ -170,6 +170,9 @@ Context create_default_context() {
                       .num_local_iterations = 1,
 
                       .revert_local_moves_after_batch = true,
+                      .rebalance_after_each_global_iteration = true,
+                      .rebalance_after_refinement = false,
+                      .balancing_algorithm = RefinementAlgorithm::GREEDY_NODE_BALANCER,
                   },
               .greedy_balancer =
                   {

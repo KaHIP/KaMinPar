@@ -16,6 +16,7 @@
 #include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/datastructures/distributed_partitioned_graph.h"
 #include "dkaminpar/datastructures/growt.h"
+#include "dkaminpar/factories.h"
 #include "dkaminpar/graphutils/bfs_extractor.h"
 #include "dkaminpar/metrics.h"
 #include "dkaminpar/refinement/fm/move_conflict_resolver.h"
@@ -41,14 +42,19 @@ FMRefinerFactory::create(DistributedPartitionedGraph &p_graph, const PartitionCo
 FMRefiner::FMRefiner(
     const Context &ctx, DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx
 )
-    : _fm_ctx(ctx.refinement.fm),
+    : _ctx(ctx),
+      _fm_ctx(ctx.refinement.fm),
       _p_graph(p_graph),
-      _p_ctx(p_ctx) {}
+      _p_ctx(p_ctx),
+      _balancer_factory(factory::create_refiner(_ctx, _fm_ctx.balancing_algorithm)) {}
 
 void FMRefiner::initialize() {}
 
 bool FMRefiner::refine() {
   SCOPED_TIMER("FM");
+
+  auto balancer = _balancer_factory->create(_p_graph, _p_ctx);
+  balancer->initialize();
 
   for (std::size_t global_round = 0; global_round < _fm_ctx.num_global_iterations; ++global_round) {
     const auto seed_nodes = graph::find_independent_border_set(_p_graph, global_round);
@@ -62,6 +68,11 @@ bool FMRefiner::refine() {
     shm::Graph *b_graph = extraction_result.graph.get();
     shm::PartitionedGraph *bp_graph = extraction_result.p_graph.get();
     auto &node_mapping = extraction_result.node_mapping;
+
+    // Overwrite the block weights in the batch graphs with block weights of the global graph
+    for (const BlockID block : _p_graph.blocks()) {
+      bp_graph->set_block_weight(block, _p_graph.block_weight(block));
+    }
 
     START_TIMER("Build reverse node mapping");
     growt::StaticGhostNodeMapping reverse_node_mapping(extraction_result.node_mapping.size());
@@ -129,6 +140,8 @@ bool FMRefiner::refine() {
       shm::LocalizedFMRefiner &worker = worker_ets.local();
       while (shared.border_nodes.has_more()) {
         const NodeID seed_node = shared.border_nodes.get();
+        DBG << "Running with seed_node=" << seed_node;
+
         const EdgeWeight gain = worker.run_batch();
 
         auto moves = worker.take_applied_moves();
@@ -165,31 +178,70 @@ bool FMRefiner::refine() {
 
       mpi::barrier(_p_graph.communicator());
 
+      // @todo optimize this
+      for (const auto &moved_node : move_sets) {
+        if (is_invalid_id(moved_node.node)) {
+          global_move_buffer.push_back(moved_node);
+        }
+      }
+
       // Apply moves to global partition and extract graph
       START_TIMER("Apply moves");
       for (const auto &[node, group, weight, gain, from, to] : global_move_buffer) {
-        if (node == kInvalidGlobalNodeID) {
-          continue; // Move conflicts with a better move
-        }
-
         // Apply move to distributed graph
-        if (_p_graph.contains_global_node(node)) {
-          const NodeID local_node = _p_graph.global_to_local_node(node);
-          _p_graph.set_block(local_node, to);
-        } else {
-          _p_graph.set_block_weight(from, _p_graph.block_weight(from) - weight);
-          _p_graph.set_block_weight(to, _p_graph.block_weight(to) + weight);
+        if (is_valid_id(node)) {
+          if (_p_graph.contains_global_node(node)) {
+            const NodeID lnode = _p_graph.global_to_local_node(node);
+            KASSERT(_p_graph.block(lnode) == from);
+            _p_graph.set_block(lnode, to);
+          } else {
+            _p_graph.set_block_weight(from, _p_graph.block_weight(from) - weight);
+            _p_graph.set_block_weight(to, _p_graph.block_weight(to) + weight);
+          }
         }
 
         // Apply move to local graph (if contained in local graph)
-        auto it = reverse_node_mapping.find(node + 1);
-        if (it != reverse_node_mapping.end()) {
-          const NodeID b_node = (*it).second;
-          bp_graph->set_block(b_node, to);
-          shared.gain_cache.move(*bp_graph, b_node, from, to);
+        if (_fm_ctx.revert_local_moves_after_batch && is_valid_id(node)) {
+          if (auto it = reverse_node_mapping.find(node + 1); it != reverse_node_mapping.end()) {
+            const NodeID b_node = (*it).second;
+            bp_graph->set_block(b_node, to);
+            shared.gain_cache.move(*bp_graph, b_node, from, to);
+          }
+        } else if (!_fm_ctx.revert_local_moves_after_batch && is_invalid_id(node)) {
+          if (auto it = reverse_node_mapping.find(extract_id(node) + 1);
+              it != reverse_node_mapping.end()) {
+            const NodeID b_node = (*it).second;
+            bp_graph->set_block(b_node, to);
+            shared.gain_cache.move(*bp_graph, b_node, from, to);
+          }
         }
       }
+
+      // Block weightgs in the batch graph are no longer valid, so we must copy them from the
+      // global graph again
+      for (const BlockID block : _p_graph.blocks()) {
+        bp_graph->set_block_weight(block, _p_graph.block_weight(block));
+      }
+
+      KASSERT(
+          graph::debug::validate_partition(_p_graph),
+          "global partition in inconsistent state after round " << global_round << "/"
+                                                                << local_round,
+          assert::heavy
+      );
     }
+
+    if (_fm_ctx.rebalance_after_each_global_iteration) {
+      TIMED_SCOPE("Rebalance") {
+        balancer->refine();
+      };
+    }
+  }
+
+  if (!_fm_ctx.rebalance_after_each_global_iteration && _fm_ctx.rebalance_after_refinement) {
+    TIMED_SCOPE("Rebalance") {
+      balancer->refine();
+    };
   }
 
   return false;

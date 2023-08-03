@@ -212,6 +212,10 @@ struct FMRefinementContext {
   int num_local_iterations;
 
   bool revert_local_moves_after_batch;
+
+  bool rebalance_after_each_global_iteration;
+  bool rebalance_after_refinement;
+  RefinementAlgorithm balancing_algorithm;
 };
 
 struct CoarseningContext {

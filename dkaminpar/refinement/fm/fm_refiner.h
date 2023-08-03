@@ -37,7 +37,7 @@ private:
 
 class FMRefiner : public GlobalRefiner {
   SET_STATISTICS_FROM_GLOBAL();
-  SET_DEBUG(false);
+  SET_DEBUG(true);
 
 public:
   FMRefiner(
@@ -53,9 +53,12 @@ public:
   bool refine() final;
 
 private:
+  const Context &_ctx;
   const FMRefinementContext &_fm_ctx;
 
   DistributedPartitionedGraph &_p_graph;
   const PartitionContext &_p_ctx;
+
+  std::unique_ptr<GlobalRefinerFactory> _balancer_factory;
 };
 } // namespace kaminpar::dist

@@ -128,6 +128,7 @@ public:
   [[nodiscard]] inline BlockID block(const NodeID u) const { return __atomic_load_n(&_partition[u], __ATOMIC_RELAXED); }
   template <typename Lambda> inline void pfor_blocks(Lambda &&l) const { tbb::parallel_for(static_cast<BlockID>(0), k(), std::forward<Lambda>(l)); }
   [[nodiscard]] inline NodeWeight block_weight(const BlockID b) const { return _block_weights[b]; }
+  void set_block_weight(const BlockID b, const BlockWeight weight) { _block_weights[b] = weight; }
   [[nodiscard]] inline const auto &block_weights() const { return _block_weights; }
   [[nodiscard]] inline auto &&take_block_weights() { return std::move(_block_weights); }
   [[nodiscard]] inline BlockID heaviest_block() const { return std::max_element(_block_weights.begin(), _block_weights.end()) - _block_weights.begin(); }

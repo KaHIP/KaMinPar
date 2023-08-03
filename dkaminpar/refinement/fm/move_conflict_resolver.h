@@ -25,6 +25,22 @@ struct GlobalMove {
   BlockID to;
 };
 
+inline GlobalNodeID invalidate_id(const GlobalNodeID node) {
+  return node | (1ul << 63);
+}
+
+inline bool is_invalid_id(const GlobalNodeID node) {
+  return node & (1ul << 63);
+}
+
+inline bool is_valid_id(const GlobalNodeID node) {
+  return !is_invalid_id(node);
+}
+
+inline GlobalNodeID extract_id(const GlobalNodeID node) {
+  return is_invalid_id(node) ? node & ~(1ul << 63) : node;
+}
+
 std::vector<GlobalMove>
 allgather_global_moves(std::vector<GlobalMove> &my_global_moves, MPI_Comm comm);
 

@@ -482,15 +482,33 @@ void print(const RefinementContext &ctx, std::ostream &out) {
         << "\n";
     out << "  Balancing algorithm:        " << ctx.jet.balancing_algorithm << "\n";
   }
+  if (ctx.includes_algorithm(RefinementAlgorithm::GLOBAL_FM)) {
+    out << "Global FM refinement:\n";
+    out << "  Number of iterations:       " << ctx.fm.num_global_iterations << " x "
+        << ctx.fm.num_local_iterations << "\n";
+    out << "  Search radius:              " << ctx.fm.max_radius << " via " << ctx.fm.max_hops
+        << " hop(s)\n";
+    out << "  Revert batch-local moves:   "
+        << (ctx.fm.revert_local_moves_after_batch ? "yes" : "no") << "\n";
+    out << "  Rebalance algorithm:        " << ctx.fm.balancing_algorithm << "\n";
+    out << "    Rebalance after iter.:    "
+        << (ctx.fm.rebalance_after_each_global_iteration ? "yes" : "no") << "\n";
+    out << "    Rebalance after ref.:     " << (ctx.fm.rebalance_after_refinement ? "yes" : "no")
+        << "\n";
+  }
   if (ctx.includes_algorithm(RefinementAlgorithm::GREEDY_NODE_BALANCER) ||
       (ctx.includes_algorithm(RefinementAlgorithm::JET_REFINER) &&
-       ctx.jet.balancing_algorithm == RefinementAlgorithm::GREEDY_NODE_BALANCER)) {
+       ctx.jet.balancing_algorithm == RefinementAlgorithm::GREEDY_NODE_BALANCER) ||
+      (ctx.includes_algorithm(RefinementAlgorithm::GLOBAL_FM) &&
+       ctx.fm.balancing_algorithm == RefinementAlgorithm::GREEDY_NODE_BALANCER)) {
     out << "Greedy balancer:\n";
     out << "  Number of nodes per block:  " << ctx.greedy_balancer.num_nodes_per_block << "\n";
   }
   if (ctx.includes_algorithm(RefinementAlgorithm::GREEDY_CLUSTER_BALANCER) ||
       (ctx.includes_algorithm(RefinementAlgorithm::JET_REFINER) &&
-       ctx.jet.balancing_algorithm == RefinementAlgorithm::GREEDY_CLUSTER_BALANCER)) {
+       ctx.jet.balancing_algorithm == RefinementAlgorithm::GREEDY_CLUSTER_BALANCER) ||
+      (ctx.includes_algorithm(RefinementAlgorithm::GLOBAL_FM) &&
+       ctx.fm.balancing_algorithm == RefinementAlgorithm::GREEDY_CLUSTER_BALANCER)) {
     out << "Greedy cluster balancer:\n";
     out << "  Clusters:                   " << ctx.cluster_balancer.cluster_strategy << "\n";
     out << "    Max weight:               " << ctx.cluster_balancer.cluster_size_strategy << " x "
@@ -504,8 +522,7 @@ void print(const RefinementContext &ctx, std::ostream &out) {
     out << "  Maximum number of rounds:   " << ctx.cluster_balancer.max_num_rounds << "\n";
     out << "  Sequential balancing:       "
         << (ctx.cluster_balancer.enable_sequential_balancing ? "enabled" : "disabled") << "\n";
-    out << "    No. of nodes per block:   " << ctx.cluster_balancer.seq_num_nodes_per_block
-        << "\n";
+    out << "    No. of nodes per block:   " << ctx.cluster_balancer.seq_num_nodes_per_block << "\n";
     out << "    Keep all nodes in PQ:     " << (ctx.cluster_balancer.seq_full_pq ? "yes" : "no")
         << "\n";
     out << "  Parallel balancing:         "
@@ -516,7 +533,9 @@ void print(const RefinementContext &ctx, std::ostream &out) {
   }
   if (ctx.includes_algorithm(RefinementAlgorithm::JET_BALANCER) ||
       (ctx.includes_algorithm(RefinementAlgorithm::JET_REFINER) &&
-       ctx.jet.balancing_algorithm == RefinementAlgorithm::JET_BALANCER)) {
+       ctx.jet.balancing_algorithm == RefinementAlgorithm::JET_BALANCER) ||
+      (ctx.includes_algorithm(RefinementAlgorithm::GLOBAL_FM) &&
+       ctx.fm.balancing_algorithm == RefinementAlgorithm::JET_BALANCER)) {
     out << "Jet balancer:\n";
     out << "  Number of iterations:       " << ctx.jet_balancer.num_weak_iterations << " weak + "
         << ctx.jet_balancer.num_strong_iterations << " strong\n";

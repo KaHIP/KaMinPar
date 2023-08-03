@@ -64,6 +64,13 @@ allgather_global_moves(std::vector<GlobalMove> &my_global_moves, MPI_Comm comm) 
   return result;
 }
 
+void sort_move_groups(std::vector<GlobalMove> &global_moves) {
+  SCOPED_TIMER("Sort move groups");
+  std::sort(global_moves.begin(), global_moves.end(), [](const auto &lhs, const auto &rhs) {
+    return lhs.gain > rhs.gain || (lhs.gain == rhs.gain && lhs.group < rhs.group);
+  });
+}
+
 void sort_and_compress_move_groups(std::vector<GlobalMove> &global_moves) {
   SCOPED_TIMER("Sort and compress move groups");
 
@@ -119,7 +126,7 @@ void resolve_move_conflicts_greedy(std::vector<GlobalMove> &global_moves) {
     for (std::size_t j = i; j < global_moves.size() && global_moves[j].group == current_group;
          ++j) {
       if (found_conflict) {
-        global_moves[j].node = kInvalidGlobalNodeID; // mark move as do not take
+        global_moves[j].node = invalidate_id(global_moves[j].node);
       } else {
         const GlobalNodeID current_node = global_moves[j].node;
         moved_nodes.insert(current_node);
@@ -136,14 +143,14 @@ broadcast_and_resolve_global_moves(std::vector<GlobalMove> &my_global_moves, MPI
 
   // Resolve conflicts locally
   START_TIMER("Local conflict resolution");
-  sort_and_compress_move_groups(my_global_moves);
+  sort_move_groups(my_global_moves);
   resolve_move_conflicts_greedy(my_global_moves);
   STOP_TIMER();
 
   // Filter
   std::vector<GlobalMove> my_filtered_global_moves;
   for (const auto &move : my_global_moves) {
-    if (move.node != kInvalidGlobalNodeID) {
+    if (is_valid_id(move.node)) {
       my_filtered_global_moves.push_back(move);
     }
   }
@@ -156,9 +163,10 @@ broadcast_and_resolve_global_moves(std::vector<GlobalMove> &my_global_moves, MPI
   DBG << "After allgathering: " << global_moves.size() << " global moves";
 
   START_TIMER("Global conflict resolution");
-  sort_and_compress_move_groups(global_moves);
+  sort_move_groups(global_moves);
   resolve_move_conflicts_greedy(global_moves);
   STOP_TIMER();
+
   return global_moves;
 }
 } // namespace kaminpar::dist
