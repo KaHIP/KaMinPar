@@ -37,7 +37,7 @@ private:
 
 class FMRefiner : public GlobalRefiner {
   SET_STATISTICS_FROM_GLOBAL();
-  SET_DEBUG(true);
+  SET_DEBUG(false);
 
 public:
   FMRefiner(
