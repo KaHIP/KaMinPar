@@ -173,6 +173,8 @@ Context create_default_context() {
                       .rebalance_after_each_global_iteration = true,
                       .rebalance_after_refinement = false,
                       .balancing_algorithm = RefinementAlgorithm::GREEDY_NODE_BALANCER,
+
+                      .rollback_deterioration = false,
                   },
               .greedy_balancer =
                   {

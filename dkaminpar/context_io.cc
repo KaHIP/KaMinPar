@@ -361,9 +361,9 @@ void print(const CoarseningContext &ctx, const ParallelContext &parallel, std::o
   }
 
   if (ctx.max_global_clustering_levels > 0) {
-    out << "Global clustering algorithm:  " << ctx.global_clustering_algorithm << "\n";
+    out << "Global clustering algorithm:  " << ctx.global_clustering_algorithm;
     if (ctx.max_cnode_imbalance < std::numeric_limits<double>::max()) {
-      out << "[rebalance if >" << std::setprecision(2) << 100.0 * (ctx.max_cnode_imbalance - 1.0)
+      out << " [rebalance if >" << std::setprecision(2) << 100.0 * (ctx.max_cnode_imbalance - 1.0)
           << "%";
       if (ctx.migrate_cnode_prefix) {
         out << ", prefix";

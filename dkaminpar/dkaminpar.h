@@ -216,6 +216,8 @@ struct FMRefinementContext {
   bool rebalance_after_each_global_iteration;
   bool rebalance_after_refinement;
   RefinementAlgorithm balancing_algorithm;
+
+  bool rollback_deterioration;
 };
 
 struct CoarseningContext {

@@ -192,6 +192,7 @@ CLI::Option_group *create_fm_refinement_options(CLI::App *app, Context &ctx) {
           get_balancing_algorithms_description()
       )
       ->capture_default_str();
+  fm->add_flag("--r-fm-rollback", ctx.refinement.fm.rollback_deterioration)->capture_default_str();
 
   return fm;
 }

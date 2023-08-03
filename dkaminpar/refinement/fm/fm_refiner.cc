@@ -10,6 +10,7 @@
 #include <tbb/concurrent_vector.h>
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_for.h>
+#include <tbb/parallel_invoke.h>
 
 #include "dkaminpar/algorithms/independent_set.h"
 #include "dkaminpar/context.h"
@@ -56,6 +57,19 @@ bool FMRefiner::refine() {
   auto balancer = _balancer_factory->create(_p_graph, _p_ctx);
   balancer->initialize();
 
+  bool last_iteration_is_best = true;
+  EdgeWeight best_cut;
+  NoinitVector<BlockID> best_partition;
+  NoinitVector<NodeWeight> best_block_weights;
+  if (_fm_ctx.rollback_deterioration) {
+    best_cut = metrics::edge_cut(_p_graph);
+    best_partition.resize(_p_graph.total_n());
+    best_block_weights.resize(_p_graph.k());
+    _p_graph.pfor_all_nodes([&](const NodeID u) { best_partition[u] = _p_graph.block(u); });
+    _p_graph.pfor_blocks([&](const BlockID b) { best_block_weights[b] = _p_graph.block_weight(b); }
+    );
+  }
+
   for (std::size_t global_round = 0; global_round < _fm_ctx.num_global_iterations; ++global_round) {
     const auto seed_nodes = graph::find_independent_border_set(_p_graph, global_round);
 
@@ -95,6 +109,7 @@ bool FMRefiner::refine() {
     mpi::barrier(_p_graph.communicator());
     STOP_TIMER();
 
+    START_TIMER("Prepare thread-local workers");
     shm::PartitionContext shm_p_ctx;
     shm_p_ctx.epsilon = _p_ctx.epsilon;
     shm_p_ctx.k = _p_ctx.k;
@@ -147,12 +162,14 @@ bool FMRefiner::refine() {
 
       return worker;
     });
+    STOP_TIMER();
 
     std::vector<GlobalMove> move_sets;
 
     for (std::size_t local_round = 0; local_round < _fm_ctx.num_local_iterations; ++local_round) {
       DBG << "Starting FM round " << global_round << "/" << local_round;
 
+      START_TIMER("Thread-local FM");
       shm::LocalizedFMRefiner &worker = worker_ets.local();
       while (shared.border_nodes.has_more()) {
         const NodeID seed_node = shared.border_nodes.get();
@@ -183,11 +200,12 @@ bool FMRefiner::refine() {
           }
         }
       }
+      STOP_TIMER();
 
       mpi::barrier(_p_graph.communicator());
 
       // Resolve global move conflicts
-      START_TIMER("Move conflict resolution");
+      START_TIMER("Resolve move conflicts");
       auto global_move_buffer =
           broadcast_and_resolve_global_moves(move_sets, _p_graph.communicator());
       STOP_TIMER();
@@ -238,6 +256,7 @@ bool FMRefiner::refine() {
       for (const BlockID block : _p_graph.blocks()) {
         bp_graph->set_block_weight(block, _p_graph.block_weight(block));
       }
+      STOP_TIMER();
 
       KASSERT(
           graph::debug::validate_partition(_p_graph),
@@ -252,12 +271,48 @@ bool FMRefiner::refine() {
         balancer->refine();
       };
     }
+
+    if (_fm_ctx.rollback_deterioration) {
+      const EdgeWeight current_cut = metrics::edge_cut(_p_graph);
+      if (current_cut <= best_cut) {
+        tbb::parallel_invoke(
+            [&] {
+              _p_graph.pfor_all_nodes([&](const NodeID u) { best_partition[u] = _p_graph.block(u); }
+              );
+            },
+            [&] {
+              _p_graph.pfor_blocks([&](const BlockID b) {
+                best_block_weights[b] = _p_graph.block_weight(b);
+              });
+            }
+        );
+        best_cut = current_cut;
+        last_iteration_is_best = true;
+      } else {
+        last_iteration_is_best = false;
+      }
+    }
   }
 
   if (!_fm_ctx.rebalance_after_each_global_iteration && _fm_ctx.rebalance_after_refinement) {
     TIMED_SCOPE("Rebalance") {
       balancer->refine();
     };
+  }
+
+  if (_fm_ctx.rollback_deterioration && !last_iteration_is_best) {
+    tbb::parallel_invoke(
+        [&] {
+          _p_graph.pfor_all_nodes([&](const NodeID u) {
+            _p_graph.set_block<false>(u, best_partition[u]);
+          });
+        },
+        [&] {
+          _p_graph.pfor_blocks([&](const BlockID b) {
+            _p_graph.set_block_weight(b, best_block_weights[b]);
+          });
+        }
+    );
   }
 
   return false;
