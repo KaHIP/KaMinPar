@@ -370,6 +370,7 @@ void LocalizedFMRefiner::insert_into_node_pq(
 ) {
   const BlockID block_u = p_graph.block(u);
   const auto [block_to, gain] = best_gain(p_graph, gain_cache, u);
+  KASSERT(block_u < _node_pqs.size(), "block_u out of bounds");
   KASSERT(!_node_pqs[block_u].contains(u), "node already contained in PQ");
   _shared.target_blocks[u] = block_to;
   _node_pqs[block_u].push(u, gain);

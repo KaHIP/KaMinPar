@@ -71,7 +71,9 @@ bool FMRefiner::refine() {
 
     DBG << "BFS extraction result: n=" << b_graph->n() << ", m=" << b_graph->m();
     KASSERT(
-        shm::validate_graph(*b_graph, false, _p_graph.k()), // @todo why is the graph (outside the fixed vertices) not undirected?
+        shm::validate_graph(
+            *b_graph, false, _p_graph.k()
+        ), // @todo why is the graph (outside the fixed vertices) not undirected?
         "BFS extractor returned invalid graph data structure",
         assert::heavy
     );
@@ -96,8 +98,8 @@ bool FMRefiner::refine() {
     shm::PartitionContext shm_p_ctx;
     shm_p_ctx.epsilon = _p_ctx.epsilon;
     shm_p_ctx.k = _p_ctx.k;
-    shm_p_ctx.n = asserting_cast<NodeID>(_p_graph.global_n());
-    shm_p_ctx.m = asserting_cast<EdgeID>(_p_graph.global_m());
+    shm_p_ctx.n = asserting_cast<NodeID>(b_graph->n());
+    shm_p_ctx.m = asserting_cast<EdgeID>(b_graph->m());
     shm_p_ctx.total_node_weight =
         asserting_cast<NodeWeight>(_p_ctx.graph->global_total_node_weight);
     shm_p_ctx.total_edge_weight =
