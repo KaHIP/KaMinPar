@@ -119,7 +119,9 @@ void print_graph(const Graph &graph) {
   }
 }
 
-bool validate_graph(const Graph &graph) {
+bool validate_graph(
+    const Graph &graph, const bool check_undirected, const NodeID num_pseudo_nodes
+) {
   for (NodeID u = 0; u < graph.n(); ++u) {
     if (graph.raw_nodes()[u] > graph.raw_nodes()[u + 1]) {
       LOG_WARNING << "Bad node array at position " << u;
@@ -152,7 +154,7 @@ bool validate_graph(const Graph &graph) {
         found_reverse = true;
         break;
       }
-      if (!found_reverse) {
+      if (check_undirected && v < graph.n() - num_pseudo_nodes && !found_reverse) {
         LOG_WARNING << "Edge " << u << " --> " << v << " exists with edge " << e
                     << ", but the reverse edges does not exist";
         return false;

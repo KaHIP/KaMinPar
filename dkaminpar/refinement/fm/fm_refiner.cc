@@ -69,6 +69,13 @@ bool FMRefiner::refine() {
     shm::PartitionedGraph *bp_graph = extraction_result.p_graph.get();
     auto &node_mapping = extraction_result.node_mapping;
 
+    DBG << "BFS extraction result: n=" << b_graph->n() << ", m=" << b_graph->m();
+    KASSERT(
+        shm::validate_graph(*b_graph, false, _p_graph.k()), // @todo why is the graph (outside the fixed vertices) not undirected?
+        "BFS extractor returned invalid graph data structure",
+        assert::heavy
+    );
+
     // Overwrite the block weights in the batch graphs with block weights of the global graph
     for (const BlockID block : _p_graph.blocks()) {
       bp_graph->set_block_weight(block, _p_graph.block_weight(block));
@@ -106,9 +113,16 @@ bool FMRefiner::refine() {
       KASSERT(reverse_node_mapping.find(global_seed_node + 1) != reverse_node_mapping.end());
       b_seed_nodes.push_back((*reverse_node_mapping.find(global_seed_node + 1)).second);
     });
+
     shared.border_nodes.init_precomputed(*bp_graph, b_seed_nodes);
     shared.border_nodes.shuffle();
+
     shared.gain_cache.initialize(*bp_graph);
+
+    // Mark pseudo-block nodes as already moved
+    for (const BlockID block : _p_graph.blocks()) {
+      shared.node_tracker.set(bp_graph->n() - block - 1, shm::fm::NodeTracker::MOVED_GLOBALLY);
+    }
 
     shm::KwayFMRefinementContext shm_fm_ctx{
         .num_seed_nodes = 1,
@@ -170,6 +184,11 @@ bool FMRefiner::refine() {
 
       mpi::barrier(_p_graph.communicator());
 
+      for (const auto &move : move_sets) {
+        DBG << "Move: " << move.node << " " << move.group << " " << move.weight << " " << move.gain
+            << " " << move.from << " " << move.to;
+      }
+
       // Resolve global move conflicts
       START_TIMER("Move conflict resolution");
       auto global_move_buffer =
@@ -192,7 +211,7 @@ bool FMRefiner::refine() {
         if (is_valid_id(node)) {
           if (_p_graph.contains_global_node(node)) {
             const NodeID lnode = _p_graph.global_to_local_node(node);
-            KASSERT(_p_graph.block(lnode) == from);
+            KASSERT(_p_graph.block(lnode) == from, V(lnode) << V(from));
             _p_graph.set_block(lnode, to);
           } else {
             _p_graph.set_block_weight(from, _p_graph.block_weight(from) - weight);

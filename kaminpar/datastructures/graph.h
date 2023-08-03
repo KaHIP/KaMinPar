@@ -147,7 +147,7 @@ private:
   std::size_t _number_of_buckets = 0;
 };
 
-bool validate_graph(const Graph &graph);
+bool validate_graph(const Graph &graph, bool check_undirected = true, NodeID num_pseudo_nodes = 0);
 
 void print_graph(const Graph &graph);
 
