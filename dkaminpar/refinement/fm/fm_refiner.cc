@@ -186,11 +186,6 @@ bool FMRefiner::refine() {
 
       mpi::barrier(_p_graph.communicator());
 
-      for (const auto &move : move_sets) {
-        DBG << "Move: " << move.node << " " << move.group << " " << move.weight << " " << move.gain
-            << " " << move.from << " " << move.to;
-      }
-
       // Resolve global move conflicts
       START_TIMER("Move conflict resolution");
       auto global_move_buffer =
