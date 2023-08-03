@@ -22,6 +22,7 @@
 
 #include "kaminpar/datastructures/graph.h"
 #include "kaminpar/datastructures/partitioned_graph.h"
+#include "kaminpar/refinement/stopping_policies.h"
 
 #include "common/datastructures/binary_heap.h"
 #include "common/datastructures/rating_map.h"
@@ -37,47 +38,6 @@ FMRefinerFactory::create(DistributedPartitionedGraph &p_graph, const PartitionCo
 }
 
 namespace {
-struct AdaptiveStoppingPolicy {
-  AdaptiveStoppingPolicy(const GlobalNodeID n) : _beta(std::log(n)) {}
-
-  [[nodiscard]] bool should_stop(const double alpha) const {
-    const double factor = alpha / 2.0 - 0.25;
-    return (_num_steps > _beta) &&
-           ((_mk == 0.0) || (_num_steps >= (_variance / (_mk * _mk)) * factor));
-  }
-
-  void reset() {
-    _num_steps = 0;
-    _variance = 0.0;
-  }
-
-  void update(const EdgeWeight gain) {
-    ++_num_steps;
-
-    // see https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance
-    if (_num_steps == 1) {
-      _mk_minus_one = 1.0 * gain;
-      _mk = _mk_minus_one;
-      _sk_minus_one = 0.0;
-    } else {
-      _mk = _mk_minus_one + (gain - _mk_minus_one) / _num_steps;
-      _sk = _sk_minus_one + (gain - _mk_minus_one) * (gain - _mk);
-      _variance = _sk / (_num_steps - 1.0);
-      _mk_minus_one = _mk;
-      _sk_minus_one = _sk;
-    }
-  }
-
-private:
-  double _beta{0.0};
-  std::size_t _num_steps{0};
-  double _variance{0.0};
-  double _mk{0.0};
-  double _mk_minus_one{0.0};
-  double _sk{0.0};
-  double _sk_minus_one{0.0};
-};
-
 class ThreadLocalFMRefiner {
   SET_DEBUG(false);
 
@@ -104,9 +64,11 @@ public:
         _fm_ctx(fm_ctx),
         _p_ctx(p_ctx),
         _rating_map(_p_ctx.k),
-        _stopping_policy(_p_ctx.graph->global_n),
+        _stopping_policy(_fm_ctx.alpha),
         _pq(_p_graph.n()),
-        _marker(_p_graph.n()) {}
+        _marker(_p_graph.n()) {
+    _stopping_policy.init(_p_ctx.graph->global_n);
+  }
 
   std::vector<Move> refine(const NodeID start_node) {
     initialize(start_node);
@@ -116,7 +78,7 @@ public:
     std::size_t rollback_index = 0;
     std::vector<Move> moves;
 
-    while (!_pq.empty() && !_stopping_policy.should_stop(_fm_ctx.alpha)) {
+    while (!_pq.empty() && !_stopping_policy.should_stop()) {
       // Retrieve next node from PQ
       const NodeID u = _pq.peek_id();
       const NodeWeight weight = _p_graph.node_weight(u);
@@ -131,14 +93,6 @@ public:
                             _p_ctx.graph->max_block_weight(to);
 
       if (feasible) {
-        /*DBG << "Feasible move with gain " << gain << ": " << u << " > " <<
-        from << " --> " << to; if (u == 226) { DBG << "Neighbors: (n= " <<
-        _p_graph.n() << ")"; for (const auto& [e, v]: _p_graph.neighbors(u)) {
-                DBG << V(v) << " with edge weight " << _p_graph.edge_weight(e)
-        << " block " << block(v);
-            }
-        }*/
-
         // Move u to its target block
         set_block(u, to);
         _block_weight_deltas[from] -= weight;
@@ -312,7 +266,7 @@ private:
   const FMRefinementContext &_fm_ctx;
   const PartitionContext &_p_ctx;
   RatingMap<EdgeWeight, NodeID> _rating_map;
-  AdaptiveStoppingPolicy _stopping_policy;
+  shm::AdaptiveStoppingPolicy _stopping_policy;
   BinaryMaxHeap<EdgeWeight> _pq;
   Marker<> _marker;
 
@@ -349,8 +303,8 @@ bool FMRefiner::refine() {
     START_TIMER("Find and extract BFS subgraphs");
     graph::BfsExtractor bfs_extractor(_p_graph.graph());
     bfs_extractor.initialize(_p_graph);
-    bfs_extractor.set_max_hops(1);
-    bfs_extractor.set_max_radius(2);
+    bfs_extractor.set_max_hops(_fm_ctx.max_hops);
+    bfs_extractor.set_max_radius(_fm_ctx.max_radius);
     auto extraction_result = bfs_extractor.extract(seed_nodes);
     STOP_TIMER();
 
@@ -370,9 +324,9 @@ bool FMRefiner::refine() {
     mpi::barrier(_p_graph.communicator());
 
     // Run FM
-    tbb::enumerable_thread_specific<ThreadLocalFMRefiner> fm_refiner_ets{[&] {
+    tbb::enumerable_thread_specific<ThreadLocalFMRefiner> fm_refiner_ets([&] {
       return ThreadLocalFMRefiner(_p_graph, *extraction_result.p_graph, _fm_ctx, _p_ctx);
-    }};
+    });
 
     for (std::size_t local_round = 0; local_round < 5; ++local_round) {
       DBG << "Starting FM round " << local_round;
@@ -415,7 +369,6 @@ bool FMRefiner::refine() {
       );
       auto global_move_buffer =
           broadcast_and_resolve_global_moves(local_move_buffer_cpy, _p_graph.communicator());
-      // auto global_move_buffer = local_move_buffer_cpy;
       STOP_TIMER();
 
       mpi::barrier(_p_graph.communicator());

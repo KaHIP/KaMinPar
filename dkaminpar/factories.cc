@@ -24,8 +24,8 @@
 #include "dkaminpar/initial_partitioning/random_initial_partitioner.h"
 
 // Refinement
+#include "dkaminpar/refinement/balancer/cluster_balancer.h"
 #include "dkaminpar/refinement/balancer/greedy_balancer.h"
-#include "dkaminpar/refinement/balancer/move_set_balancer.h"
 #include "dkaminpar/refinement/fm/fm_refiner.h"
 #include "dkaminpar/refinement/fm/local_fm_refiner.h"
 #include "dkaminpar/refinement/jet/jet_balancer.h"
@@ -107,8 +107,8 @@ create_refiner(const Context &ctx, const RefinementAlgorithm algorithm) {
   case RefinementAlgorithm::GREEDY_NODE_BALANCER:
     return std::make_unique<GreedyBalancerFactory>(ctx);
 
-  case RefinementAlgorithm::GREEDY_MOVE_SET_BALANCER:
-    return std::make_unique<MoveSetBalancerFactory>(ctx);
+  case RefinementAlgorithm::GREEDY_CLUSTER_BALANCER:
+    return std::make_unique<ClusterBalancerFactory>(ctx);
   }
 
   __builtin_unreachable();

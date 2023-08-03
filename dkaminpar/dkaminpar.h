@@ -87,7 +87,7 @@ enum class RefinementAlgorithm {
   JET_REFINER,
   JET_BALANCER,
   GREEDY_NODE_BALANCER,
-  GREEDY_MOVE_SET_BALANCER,
+  GREEDY_CLUSTER_BALANCER,
 };
 
 enum class LabelPropagationMoveExecutionStrategy {
@@ -102,7 +102,7 @@ enum class GraphOrdering {
   COLORING,
 };
 
-enum class MoveSetSizeStrategy {
+enum class ClusterSizeStrategy {
   ZERO,
   ONE,
   MAX_OVERLOAD,
@@ -110,7 +110,7 @@ enum class MoveSetSizeStrategy {
   MIN_OVERLOAD,
 };
 
-enum class MoveSetStrategy {
+enum class ClusterStrategy {
   SINGLETONS,
   LP,
   GREEDY_BATCH_PREFIX,
@@ -204,6 +204,9 @@ struct FMRefinementContext {
   bool premove_locally;
   NodeID bound_degree;
   bool contract_border;
+
+  int max_hops;
+  int max_radius;
 };
 
 struct CoarseningContext {
@@ -244,7 +247,7 @@ struct GreedyBalancerContext {
   double fast_balancing_threshold;
 };
 
-struct MoveSetBalancerContext {
+struct ClusterBalancerContext {
   int max_num_rounds;
 
   bool enable_sequential_balancing;
@@ -256,11 +259,11 @@ struct MoveSetBalancerContext {
   int par_num_dicing_attempts;
   bool par_accept_imbalanced;
 
-  MoveSetSizeStrategy move_set_size_strategy;
-  double move_set_size_multiplier;
+  ClusterSizeStrategy cluster_size_strategy;
+  double cluster_size_multiplier;
 
-  MoveSetStrategy move_set_strategy;
-  int move_set_rebuild_interval;
+  ClusterStrategy cluster_strategy;
+  int cluster_rebuild_interval;
 };
 
 struct JetBalancerContext {
@@ -286,7 +289,7 @@ struct RefinementContext {
   ColoredLabelPropagationRefinementContext colored_lp;
   FMRefinementContext fm;
   GreedyBalancerContext greedy_balancer;
-  MoveSetBalancerContext move_set_balancer;
+  ClusterBalancerContext move_set_balancer;
 
   JetRefinementContext jet;
   JetBalancerContext jet_balancer;

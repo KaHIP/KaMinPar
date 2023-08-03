@@ -162,6 +162,9 @@ Context create_default_context() {
                       .premove_locally = true,
                       .bound_degree = 0,
                       .contract_border = false,
+
+                      .max_hops = 1,
+                      .max_radius = 3,
                   },
               .greedy_balancer =
                   {
@@ -181,10 +184,10 @@ Context create_default_context() {
                       .parallel_threshold = 0.1,
                       .par_num_dicing_attempts = 0,
                       .par_accept_imbalanced = true,
-                      .move_set_size_strategy = MoveSetSizeStrategy::ONE,
-                      .move_set_size_multiplier = 1.0,
-                      .move_set_strategy = MoveSetStrategy::GREEDY_BATCH_PREFIX,
-                      .move_set_rebuild_interval = 0,
+                      .cluster_size_strategy = ClusterSizeStrategy::ONE,
+                      .cluster_size_multiplier = 1.0,
+                      .cluster_strategy = ClusterStrategy::GREEDY_BATCH_PREFIX,
+                      .cluster_rebuild_interval = 0,
                   },
               .jet =
                   {

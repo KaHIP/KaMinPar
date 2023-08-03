@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Greedy balancing algorithm that moves sets of nodes at a time.
+ * Greedy balancing algorithm that moves clusters of nodes at a time.
  *
  * @file:   move_set_balancer.h
  * @author: Daniel Seemaier
@@ -9,7 +9,7 @@
 
 #include <memory>
 
-#include "dkaminpar/refinement/balancer/move_sets.h"
+#include "dkaminpar/refinement/balancer/clusters.h"
 #include "dkaminpar/refinement/balancer/weight_buckets.h"
 #include "dkaminpar/refinement/refiner.h"
 
@@ -20,36 +20,36 @@
 #include "common/timer.h"
 
 namespace kaminpar::dist {
-struct MoveSetBalancerMemoryContext;
+struct ClusterBalancerMemoryContext;
 
-class MoveSetBalancerFactory : public GlobalRefinerFactory {
+class ClusterBalancerFactory : public GlobalRefinerFactory {
 public:
-  MoveSetBalancerFactory(const Context &ctx);
+  ClusterBalancerFactory(const Context &ctx);
 
-  ~MoveSetBalancerFactory();
+  ~ClusterBalancerFactory();
 
   std::unique_ptr<GlobalRefiner>
   create(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
 
-  void take_m_ctx(MoveSetBalancerMemoryContext m_ctx);
+  void take_m_ctx(ClusterBalancerMemoryContext m_ctx);
 
 private:
   const Context &_ctx;
 
-  std::unique_ptr<MoveSetBalancerMemoryContext> _m_ctx;
+  std::unique_ptr<ClusterBalancerMemoryContext> _m_ctx;
 };
 
-class MoveSetBalancer : public GlobalRefiner {
-  struct MoveSetStatistics {
-    NodeID set_count = 0;
+class ClusterBalancer : public GlobalRefiner {
+  struct ClusterStatistics {
+    NodeID cluster_count = 0;
     NodeID node_count = 0;
     NodeID min_set_size = 0;
-    NodeID max_set_size = 0;
+    NodeID max_cluster_size = 0;
   };
 
   struct Statistics {
     int num_rounds = 0;
-    std::vector<MoveSetStatistics> move_set_stats;
+    std::vector<ClusterStatistics> cluster_stats;
 
     int num_seq_rounds = 0;
     int num_seq_set_moves = 0;
@@ -70,30 +70,30 @@ class MoveSetBalancer : public GlobalRefiner {
   };
 
 public:
-  MoveSetBalancer(
-      MoveSetBalancerFactory &factory,
+  ClusterBalancer(
+      ClusterBalancerFactory &factory,
       const Context &ctx,
       DistributedPartitionedGraph &p_graph,
       const PartitionContext &p_ctx,
-      MoveSetBalancerMemoryContext m_ctx
+      ClusterBalancerMemoryContext m_ctx
   );
 
-  MoveSetBalancer(const MoveSetBalancer &) = delete;
-  MoveSetBalancer &operator=(const MoveSetBalancer &) = delete;
+  ClusterBalancer(const ClusterBalancer &) = delete;
+  ClusterBalancer &operator=(const ClusterBalancer &) = delete;
 
-  MoveSetBalancer(MoveSetBalancer &&) = delete;
-  MoveSetBalancer &operator=(MoveSetBalancer &&) = delete;
+  ClusterBalancer(ClusterBalancer &&) = delete;
+  ClusterBalancer &operator=(ClusterBalancer &&) = delete;
 
-  ~MoveSetBalancer();
+  ~ClusterBalancer();
 
-  operator MoveSetBalancerMemoryContext() &&;
+  operator ClusterBalancerMemoryContext() &&;
 
   void initialize() final;
   bool refine() final;
 
 private:
-  void rebuild_move_sets();
-  void init_move_sets();
+  void rebuild_clusters();
+  void init_clusters();
   void clear();
 
   void try_pq_insertion(NodeID set);
@@ -124,17 +124,16 @@ private:
       MoveCandidate &candidate, const std::vector<BlockWeight> &deltas
   ) const;
 
-  NodeWeight compute_move_set_weight_limit() const;
+  NodeWeight compute_cluster_weight_limit() const;
 
   std::string dbg_get_partition_state_str() const;
   std::string dbg_get_pq_state_str() const;
   bool dbg_validate_pq_weights() const;
-
-  NodeID count_nodes_in_sets(const std::vector<MoveCandidate> &candidates) const;
+  NodeID dbg_count_nodes_in_clusters(const std::vector<MoveCandidate> &candidates) const;
 
   Random &_rand = Random::instance();
 
-  MoveSetBalancerFactory &_factory;
+  ClusterBalancerFactory &_factory;
   const Context &_ctx;
   DistributedPartitionedGraph &_p_graph;
   const PartitionContext &_p_ctx;
@@ -144,7 +143,7 @@ private:
   Marker<> _moved_marker;
 
   Buckets _weight_buckets;
-  MoveSets _move_sets;
+  Clusters _clusters;
 
   Statistics _stats;
 };

@@ -124,7 +124,7 @@ std::unordered_map<std::string, RefinementAlgorithm> get_kway_refinement_algorit
       {"fm/global", RefinementAlgorithm::GLOBAL_FM},
       {"fm/local", RefinementAlgorithm::LOCAL_FM},
       {"greedy-balancer/nodes", RefinementAlgorithm::GREEDY_NODE_BALANCER},
-      {"greedy-balancer/movesets", RefinementAlgorithm::GREEDY_MOVE_SET_BALANCER},
+      {"greedy-balancer/clusters", RefinementAlgorithm::GREEDY_CLUSTER_BALANCER},
       {"jet/refiner", RefinementAlgorithm::JET_REFINER},
       {"jet/balancer", RefinementAlgorithm::JET_BALANCER},
   };
@@ -134,7 +134,7 @@ std::unordered_map<std::string, RefinementAlgorithm> get_balancing_algorithms() 
   return {
       {"noop", RefinementAlgorithm::NOOP},
       {"greedy-balancer/nodes", RefinementAlgorithm::GREEDY_NODE_BALANCER},
-      {"greedy-balancer/movesets", RefinementAlgorithm::GREEDY_MOVE_SET_BALANCER},
+      {"greedy-balancer/clusters", RefinementAlgorithm::GREEDY_CLUSTER_BALANCER},
       {"jet/balancer", RefinementAlgorithm::JET_BALANCER},
   };
 };
@@ -153,8 +153,8 @@ std::ostream &operator<<(std::ostream &out, const RefinementAlgorithm algorithm)
     return out << "fm/global";
   case RefinementAlgorithm::GREEDY_NODE_BALANCER:
     return out << "greedy-balancer/nodes";
-  case RefinementAlgorithm::GREEDY_MOVE_SET_BALANCER:
-    return out << "greedy-balancer/movesets";
+  case RefinementAlgorithm::GREEDY_CLUSTER_BALANCER:
+    return out << "greedy-balancer/clusters";
   case RefinementAlgorithm::JET_REFINER:
     return out << "jet/refiner";
   case RefinementAlgorithm::JET_BALANCER:
@@ -228,51 +228,51 @@ std::ostream &operator<<(std::ostream &out, const GraphOrdering ordering) {
   return out << "<invalid>";
 }
 
-std::ostream &operator<<(std::ostream &out, const MoveSetSizeStrategy strategy) {
+std::ostream &operator<<(std::ostream &out, const ClusterSizeStrategy strategy) {
   switch (strategy) {
-  case MoveSetSizeStrategy::ZERO:
+  case ClusterSizeStrategy::ZERO:
     return out << "zero";
-  case MoveSetSizeStrategy::ONE:
+  case ClusterSizeStrategy::ONE:
     return out << "one";
-  case MoveSetSizeStrategy::MAX_OVERLOAD:
+  case ClusterSizeStrategy::MAX_OVERLOAD:
     return out << "max-overload";
-  case MoveSetSizeStrategy::AVG_OVERLOAD:
+  case ClusterSizeStrategy::AVG_OVERLOAD:
     return out << "avg-overload";
-  case MoveSetSizeStrategy::MIN_OVERLOAD:
+  case ClusterSizeStrategy::MIN_OVERLOAD:
     return out << "min-overload";
   }
 
   return out << "<invalid>";
 }
 
-std::unordered_map<std::string, MoveSetSizeStrategy> get_move_set_size_strategies() {
+std::unordered_map<std::string, ClusterSizeStrategy> get_move_set_size_strategies() {
   return {
-      {"zero", MoveSetSizeStrategy::ZERO},
-      {"one", MoveSetSizeStrategy::ONE},
-      {"max-overload", MoveSetSizeStrategy::MAX_OVERLOAD},
-      {"avg-overload", MoveSetSizeStrategy::AVG_OVERLOAD},
-      {"min-overload", MoveSetSizeStrategy::MIN_OVERLOAD},
+      {"zero", ClusterSizeStrategy::ZERO},
+      {"one", ClusterSizeStrategy::ONE},
+      {"max-overload", ClusterSizeStrategy::MAX_OVERLOAD},
+      {"avg-overload", ClusterSizeStrategy::AVG_OVERLOAD},
+      {"min-overload", ClusterSizeStrategy::MIN_OVERLOAD},
   };
 }
 
-std::ostream &operator<<(std::ostream &out, const MoveSetStrategy strategy) {
+std::ostream &operator<<(std::ostream &out, const ClusterStrategy strategy) {
   switch (strategy) {
-  case MoveSetStrategy::SINGLETONS:
+  case ClusterStrategy::SINGLETONS:
     return out << "singletons";
-  case MoveSetStrategy::LP:
+  case ClusterStrategy::LP:
     return out << "lp";
-  case MoveSetStrategy::GREEDY_BATCH_PREFIX:
+  case ClusterStrategy::GREEDY_BATCH_PREFIX:
     return out << "greedy-batch-prefix";
   }
 
   return out << "<invalid>";
 }
 
-std::unordered_map<std::string, MoveSetStrategy> get_move_set_strategies() {
+std::unordered_map<std::string, ClusterStrategy> get_move_set_strategies() {
   return {
-      {"singletons", MoveSetStrategy::SINGLETONS},
-      {"lp", MoveSetStrategy::LP},
-      {"greedy-batch-prefix", MoveSetStrategy::GREEDY_BATCH_PREFIX},
+      {"singletons", ClusterStrategy::SINGLETONS},
+      {"lp", ClusterStrategy::LP},
+      {"greedy-batch-prefix", ClusterStrategy::GREEDY_BATCH_PREFIX},
   };
 }
 
@@ -488,18 +488,18 @@ void print(const RefinementContext &ctx, std::ostream &out) {
     out << "Greedy balancer:\n";
     out << "  Number of nodes per block:  " << ctx.greedy_balancer.num_nodes_per_block << "\n";
   }
-  if (ctx.includes_algorithm(RefinementAlgorithm::GREEDY_MOVE_SET_BALANCER) ||
+  if (ctx.includes_algorithm(RefinementAlgorithm::GREEDY_CLUSTER_BALANCER) ||
       (ctx.includes_algorithm(RefinementAlgorithm::JET_REFINER) &&
-       ctx.jet.balancing_algorithm == RefinementAlgorithm::GREEDY_MOVE_SET_BALANCER)) {
-    out << "Greedy move set balancer:\n";
-    out << "  Move sets:                  " << ctx.move_set_balancer.move_set_strategy << "\n";
-    out << "    Max weight:               " << ctx.move_set_balancer.move_set_size_strategy << " x "
-        << ctx.move_set_balancer.move_set_size_multiplier << "\n";
+       ctx.jet.balancing_algorithm == RefinementAlgorithm::GREEDY_CLUSTER_BALANCER)) {
+    out << "Greedy cluster balancer:\n";
+    out << "  Clusters:                   " << ctx.move_set_balancer.cluster_strategy << "\n";
+    out << "    Max weight:               " << ctx.move_set_balancer.cluster_size_strategy << " x "
+        << ctx.move_set_balancer.cluster_size_multiplier << "\n";
     out << "    Rebuild interval:         "
-        << (ctx.move_set_balancer.move_set_rebuild_interval == 0
+        << (ctx.move_set_balancer.cluster_rebuild_interval == 0
                 ? "never"
                 : std::string("every ") +
-                      std::to_string(ctx.move_set_balancer.move_set_rebuild_interval) + " round(s)")
+                      std::to_string(ctx.move_set_balancer.cluster_rebuild_interval) + " round(s)")
         << "\n";
     out << "  Maximum number of rounds:   " << ctx.move_set_balancer.max_num_rounds << "\n";
     out << "  Sequential balancing:       "

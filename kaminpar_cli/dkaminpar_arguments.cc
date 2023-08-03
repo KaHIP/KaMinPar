@@ -168,6 +168,9 @@ CLI::Option_group *create_fm_refinement_options(CLI::App *app, Context &ctx) {
   )
       ->capture_default_str();
 
+  fm->add_option("--r-fm-max-hops", ctx.refinement.fm.max_hops);
+  fm->add_option("--r-fm-max-radius", ctx.refinement.fm.max_radius);
+
   return fm;
 }
 
@@ -371,7 +374,7 @@ CLI::Option_group *create_move_set_balancer_options(CLI::App *app, Context &ctx)
       "--r-bms-par-accept-imbalanced", ctx.refinement.move_set_balancer.par_accept_imbalanced
   );
   balancer
-      ->add_option("--r-bms-size-strategy", ctx.refinement.move_set_balancer.move_set_size_strategy)
+      ->add_option("--r-bms-size-strategy", ctx.refinement.move_set_balancer.cluster_size_strategy)
       ->transform(CLI::CheckedTransformer(get_move_set_size_strategies()).description(""))
       ->description(R"(Strategy for limiting the size of move sets:
   - zero: set limit to 0
@@ -380,11 +383,11 @@ CLI::Option_group *create_move_set_balancer_options(CLI::App *app, Context &ctx)
   balancer
       ->add_option(
           "--r-bms-size-multiplier",
-          ctx.refinement.move_set_balancer.move_set_size_multiplier,
+          ctx.refinement.move_set_balancer.cluster_size_multiplier,
           "Multiplier for the maximum size of move sets."
       )
       ->capture_default_str();
-  balancer->add_option("--r-bms-strategy", ctx.refinement.move_set_balancer.move_set_strategy)
+  balancer->add_option("--r-bms-strategy", ctx.refinement.move_set_balancer.cluster_strategy)
       ->transform(CLI::CheckedTransformer(get_move_set_strategies()).description(""))
       ->description(R"(Strategy for constructing move sets:
   - singletons:          put each node into its own set
@@ -393,7 +396,7 @@ CLI::Option_group *create_move_set_balancer_options(CLI::App *app, Context &ctx)
       ->capture_default_str();
   balancer
       ->add_option(
-          "--r-bms-rebuild-interval", ctx.refinement.move_set_balancer.move_set_rebuild_interval
+          "--r-bms-rebuild-interval", ctx.refinement.move_set_balancer.cluster_rebuild_interval
       )
       ->capture_default_str();
 

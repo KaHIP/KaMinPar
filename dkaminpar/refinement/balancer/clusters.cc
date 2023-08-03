@@ -1,4 +1,4 @@
-#include "dkaminpar/refinement/balancer/move_sets.h"
+#include "dkaminpar/refinement/balancer/clusters.h"
 
 #include <csignal>
 
@@ -22,64 +22,64 @@
 namespace kaminpar::dist {
 SET_DEBUG(false);
 
-MoveSets::MoveSets(
+Clusters::Clusters(
     const DistributedPartitionedGraph &p_graph,
     const PartitionContext &p_ctx,
-    MoveSetsMemoryContext m_ctx
+    ClustersMemoryContext m_ctx
 )
-    : MoveSets(
+    : Clusters(
           p_graph,
           p_ctx,
-          std::move(m_ctx.node_to_move_set),
-          std::move(m_ctx.move_sets),
-          std::move(m_ctx.move_set_indices),
-          std::move(m_ctx.move_set_conns)
+          std::move(m_ctx.node_to_cluster),
+          std::move(m_ctx.clusters),
+          std::move(m_ctx.cluster_indices),
+          std::move(m_ctx.cluster_conns)
       ) {}
 
-MoveSets::MoveSets(
+Clusters::Clusters(
     const DistributedPartitionedGraph &p_graph,
     const PartitionContext &p_ctx,
-    NoinitVector<NodeID> node_to_move_set,
-    NoinitVector<NodeID> move_sets,
-    NoinitVector<NodeID> move_set_indices,
-    NoinitVector<EdgeWeight> move_set_conns
+    NoinitVector<NodeID> node_to_cluster,
+    NoinitVector<NodeID> clusters,
+    NoinitVector<NodeID> cluster_indices,
+    NoinitVector<EdgeWeight> cluster_conns
 
 )
     : _p_graph(&p_graph),
       _p_ctx(&p_ctx),
-      _node_to_move_set(std::move(node_to_move_set)),
-      _move_sets(std::move(move_sets)),
-      _move_set_indices(std::move(move_set_indices)),
-      _move_set_conns(std::move(move_set_conns)) {
-  KASSERT(_move_set_indices.front() == 0u);
+      _node_to_cluster(std::move(node_to_cluster)),
+      _clusters(std::move(clusters)),
+      _cluster_indices(std::move(cluster_indices)),
+      _cluster_conns(std::move(cluster_conns)) {
+  KASSERT(_cluster_indices.front() == 0u);
   init_ghost_node_adjacency();
 
   KASSERT(
       dbg_check_all_nodes_covered(),
-      "not all nodes in overloaded blocks are covered by move sets",
+      "not all nodes in overloaded blocks are covered by clusters",
       assert::heavy
   );
   KASSERT(
-      dbg_check_sets_contained_in_blocks(),
-      "sets span multiple blocks, which is not allowed",
+      dbg_check_clusters_contained_in_blocks(),
+      "clusters span multiple blocks, which is not allowed",
       assert::heavy
   );
 }
 
-MoveSets::operator MoveSetsMemoryContext() && {
+Clusters::operator ClustersMemoryContext() && {
   return {
-      std::move(_node_to_move_set),
-      std::move(_move_sets),
-      std::move(_move_set_indices),
-      std::move(_move_set_conns),
+      std::move(_node_to_cluster),
+      std::move(_clusters),
+      std::move(_cluster_indices),
+      std::move(_cluster_conns),
   };
 }
 
-void MoveSets::init_ghost_node_adjacency() {
-  std::vector<std::tuple<NodeID, EdgeWeight, NodeID>> ghost_to_set;
+void Clusters::init_ghost_node_adjacency() {
+  std::vector<std::tuple<NodeID, EdgeWeight, NodeID>> ghost_to_cluster;
   FastResetArray<EdgeWeight> weight_to_ghost(_p_graph->ghost_n());
 
-  for (const NodeID set : sets()) {
+  for (const NodeID set : clusters()) {
     for (const NodeID u : nodes(set)) {
       for (const auto [e, v] : _p_graph->neighbors(u)) {
         if (!_p_graph->is_ghost_node(v)) {
@@ -91,26 +91,26 @@ void MoveSets::init_ghost_node_adjacency() {
     }
 
     for (const auto &[ghost, weight] : weight_to_ghost.entries()) {
-      ghost_to_set.emplace_back(ghost, weight, set);
+      ghost_to_cluster.emplace_back(ghost, weight, set);
     }
     weight_to_ghost.clear();
   }
 
-  std::sort(ghost_to_set.begin(), ghost_to_set.end(), [](const auto &a, const auto &b) {
+  std::sort(ghost_to_cluster.begin(), ghost_to_cluster.end(), [](const auto &a, const auto &b) {
     return std::get<0>(a) < std::get<0>(b);
   });
 
   _ghost_node_indices.resize(_p_graph->ghost_n() + 1);
   _ghost_node_indices.front() = 0;
-  _ghost_node_edges.resize(ghost_to_set.size());
+  _ghost_node_edges.resize(ghost_to_cluster.size());
 
   NodeID prev_ghost = 0;
-  for (std::size_t i = 0; i < ghost_to_set.size(); ++i) {
-    const auto [ghost, weight, set] = ghost_to_set[i];
+  for (std::size_t i = 0; i < ghost_to_cluster.size(); ++i) {
+    const auto [ghost, weight, cluster] = ghost_to_cluster[i];
     for (; prev_ghost < ghost; ++prev_ghost) {
       _ghost_node_indices[prev_ghost + 1] = _ghost_node_indices[prev_ghost];
     }
-    _ghost_node_edges.emplace_back(weight, set);
+    _ghost_node_edges.emplace_back(weight, cluster);
     _ghost_node_indices[ghost + 1] = _ghost_node_edges.size();
   }
   for (; prev_ghost < _p_graph->ghost_n(); ++prev_ghost) {
@@ -140,15 +140,15 @@ void MoveSets::init_ghost_node_adjacency() {
   );
 }
 
-bool MoveSets::dbg_check_all_nodes_covered() const {
+bool Clusters::dbg_check_all_nodes_covered() const {
   std::vector<bool> covered(_p_graph->n());
   BlockWeight min_block_weight_covered = std::numeric_limits<BlockWeight>::max();
 
-  for (const NodeID set : sets()) {
-    for (const NodeID node : nodes(set)) {
-      if (block(set) != _p_graph->block(node)) {
+  for (const NodeID cluster : clusters()) {
+    for (const NodeID node : nodes(cluster)) {
+      if (block(cluster) != _p_graph->block(node)) {
         LOG_ERROR << "block of node " << node << " = " << _p_graph->block(node)
-                  << " is inconsistent with the move set block " << block(set);
+                  << " is inconsistent with the cluster block " << block(cluster);
         return false;
       }
 
@@ -166,29 +166,30 @@ bool MoveSets::dbg_check_all_nodes_covered() const {
     }
 
     if (!covered[node]) {
-      LOG_ERROR << "node " << node << " should be covered by a move set, but is not";
+      LOG_ERROR << "node " << node << " should be covered by a cluster, but is not";
       return false;
     }
 
-    if (set_of(node) == kInvalidNodeID) {
+    if (cluster_of(node) == kInvalidNodeID) {
       LOG_ERROR << "node " << node
-                << " is covered by some move set, but set_of() returns an invalid value";
+                << " is covered by some cluster, but cluster_of() returns an invalid value";
       return false;
     }
   }
 
   LOG_SUCCESS << "All nodes in blocks with weight up to " << min_block_weight_covered
-              << " are covered by move sets";
+              << " are covered by clusters";
 
   return true;
 }
 
-bool MoveSets::dbg_check_sets_contained_in_blocks() const {
-  for (const NodeID set : sets()) {
-    for (const NodeID node : nodes(set)) {
-      if (_p_graph->block(node) != block(set)) {
-        LOG_WARNING << "node " << node << " in set " << set << " is assigned to block "
-                    << _p_graph->block(node) << ", but the set is assigned to block " << block(set);
+bool Clusters::dbg_check_clusters_contained_in_blocks() const {
+  for (const NodeID cluster : clusters()) {
+    for (const NodeID node : nodes(cluster)) {
+      if (_p_graph->block(node) != block(cluster)) {
+        LOG_WARNING << "node " << node << " in cluster " << cluster << " is assigned to block "
+                    << _p_graph->block(node) << ", but the cluster is assigned to block "
+                    << block(cluster);
         return false;
       }
     }
@@ -197,19 +198,19 @@ bool MoveSets::dbg_check_sets_contained_in_blocks() const {
 }
 
 namespace {
-class MoveSetBuilder {
+class BatchedClusterBuilder {
 public:
-  MoveSetBuilder(
+  BatchedClusterBuilder(
       const DistributedPartitionedGraph &p_graph,
       const PartitionContext &p_ctx,
-      MoveSetsMemoryContext m_ctx
+      ClustersMemoryContext m_ctx
   )
       : _p_graph(p_graph),
         _p_ctx(p_ctx),
-        _node_to_move_set(std::move(m_ctx.node_to_move_set)),
-        _move_sets(std::move(m_ctx.move_sets)),
-        _move_set_indices(std::move(m_ctx.move_set_indices)),
-        _conns(std::move(m_ctx.move_set_conns)),
+        _node_to_cluster(std::move(m_ctx.node_to_cluster)),
+        _clusters(std::move(m_ctx.clusters)),
+        _cluster_indices(std::move(m_ctx.cluster_indices)),
+        _conns(std::move(m_ctx.cluster_conns)),
         _frontier(0),
         _cur_conns(0),
         _stopping_policy(1.0) {
@@ -218,14 +219,14 @@ public:
   }
 
   void allocate() {
-    if (_node_to_move_set.size() < _p_graph.n()) {
-      _node_to_move_set.resize(_p_graph.n());
+    if (_node_to_cluster.size() < _p_graph.n()) {
+      _node_to_cluster.resize(_p_graph.n());
     }
-    if (_move_sets.size() < _p_graph.n()) {
-      _move_sets.resize(_p_graph.n());
+    if (_clusters.size() < _p_graph.n()) {
+      _clusters.resize(_p_graph.n());
     }
-    if (_move_set_indices.size() < _p_graph.n() + 1) {
-      _move_set_indices.resize(_p_graph.n() + 1);
+    if (_cluster_indices.size() < _p_graph.n() + 1) {
+      _cluster_indices.resize(_p_graph.n() + 1);
     }
     if (_conns.size() < _p_graph.n() * _p_graph.k()) {
       _conns.resize(_p_graph.n() * _p_graph.k());
@@ -238,26 +239,26 @@ public:
     }
 
     _p_graph.pfor_nodes([&](const NodeID u) {
-      _node_to_move_set[u] = kInvalidNodeID;
-      _move_sets[u] = kInvalidNodeID;
+      _node_to_cluster[u] = kInvalidNodeID;
+      _clusters[u] = kInvalidNodeID;
     });
-    _move_set_indices.front() = 0;
+    _cluster_indices.front() = 0;
   }
 
-  void build(const NodeWeight max_move_set_weight) {
+  void build(const NodeWeight max_cluster_weight) {
     reset_cur_conns();
 
     for (const NodeID u : _p_graph.nodes()) {
       const BlockID bu = _p_graph.block(u);
       if (_p_graph.block_weight(bu) > _p_ctx.graph->max_block_weight(bu) &&
-          _node_to_move_set[u] == kInvalidNodeID) {
-        grow_move_set(u, max_move_set_weight);
+          _node_to_cluster[u] == kInvalidNodeID) {
+        grow_cluster(u, max_cluster_weight);
       }
     }
   }
 
-  void grow_move_set(const NodeID seed, const NodeWeight max_weight) {
-    KASSERT(_node_to_move_set[seed] == kInvalidNodeID);
+  void grow_cluster(const NodeID seed, const NodeWeight max_weight) {
+    KASSERT(_node_to_cluster[seed] == kInvalidNodeID);
 
     _frontier.push(seed, 0);
     while (!_frontier.empty() && _cur_weight < max_weight && !_stopping_policy.should_stop()) {
@@ -265,10 +266,10 @@ public:
       const BlockID bu = _p_graph.block(u);
       _frontier.pop();
 
-      add_to_move_set(u);
+      add_to_cluster(u);
 
       for (const auto [e, v] : _p_graph.neighbors(u)) {
-        if (_p_graph.is_owned_node(v) && _node_to_move_set[v] == kInvalidBlockID &&
+        if (_p_graph.is_owned_node(v) && _node_to_cluster[v] == kInvalidBlockID &&
             _p_graph.block(v) == bu) {
           if (_frontier.contains(v)) {
             _frontier.decrease_priority(v, _frontier.key(v) + _p_graph.edge_weight(e));
@@ -279,12 +280,12 @@ public:
       }
     }
 
-    finish_move_set();
+    finish_cluster();
 
-    KASSERT(_node_to_move_set[seed] != kInvalidBlockID, "unassigned seed node " << seed);
+    KASSERT(_node_to_cluster[seed] != kInvalidBlockID, "unassigned seed node " << seed);
   }
 
-  void add_to_move_set(const NodeID u) {
+  void add_to_cluster(const NodeID u) {
     KASSERT(_cur_block == kInvalidBlockID || _cur_block == _p_graph.block(u));
 
     if (_cur_block == kInvalidBlockID) {
@@ -292,12 +293,12 @@ public:
     }
 
     _cur_weight += _p_graph.node_weight(u);
-    _node_to_move_set[u] = _cur_move_set;
-    _move_sets[_cur_pos] = u;
+    _node_to_cluster[u] = _cur_move_set;
+    _clusters[_cur_pos] = u;
     ++_cur_pos;
 
     for (const auto [e, v] : _p_graph.neighbors(u)) {
-      if (_p_graph.is_owned_node(v) && _node_to_move_set[v] == _cur_move_set) {
+      if (_p_graph.is_owned_node(v) && _node_to_cluster[v] == _cur_move_set) {
         _cur_block_conn -= _p_graph.edge_weight(e);
       } else {
         const BlockID bv = _p_graph.block(v);
@@ -320,13 +321,13 @@ public:
     }
   }
 
-  void finish_move_set() {
+  void finish_cluster() {
     for (NodeID pos = _best_prefix_pos + 1; pos < _cur_pos; ++pos) {
-      _node_to_move_set[_move_sets[pos]] = kInvalidNodeID;
+      _node_to_cluster[_clusters[pos]] = kInvalidNodeID;
     }
 
-    _move_set_indices[++_cur_move_set] = _best_prefix_pos;
-    KASSERT(_move_set_indices[_cur_move_set] - _move_set_indices[_cur_move_set - 1] <= 64);
+    _cluster_indices[++_cur_move_set] = _best_prefix_pos;
+    KASSERT(_cluster_indices[_cur_move_set] - _cluster_indices[_cur_move_set - 1] <= 64);
 
     reset_cur_conns();
     _cur_block = kInvalidBlockID;
@@ -342,15 +343,15 @@ public:
     _stopping_policy.reset();
   }
 
-  MoveSets finalize() {
-    _move_set_indices.resize(_cur_move_set + 1);
-    KASSERT(_move_set_indices.front() == 0);
+  Clusters finalize() {
+    _cluster_indices.resize(_cur_move_set + 1);
+    KASSERT(_cluster_indices.front() == 0);
 
     KASSERT([&] {
-      for (NodeID set = 1; set < _move_set_indices.size(); ++set) {
-        if (_move_set_indices[set] < _move_set_indices[set - 1]) {
-          LOG_WARNING << "bad set " << set - 1 << ": spans from " << _move_set_indices[set - 1]
-                      << " to " << _move_set_indices[set];
+      for (NodeID cluster = 1; cluster < _cluster_indices.size(); ++cluster) {
+        if (_cluster_indices[cluster] < _cluster_indices[cluster - 1]) {
+          LOG_WARNING << "bad cluster " << cluster - 1 << ": spans from "
+                      << _cluster_indices[cluster - 1] << " to " << _cluster_indices[cluster];
           return false;
         }
       }
@@ -360,9 +361,9 @@ public:
     return {
         _p_graph,
         _p_ctx,
-        std::move(_node_to_move_set),
-        std::move(_move_sets),
-        std::move(_move_set_indices),
+        std::move(_node_to_cluster),
+        std::move(_clusters),
+        std::move(_cluster_indices),
         std::move(_conns),
     };
   }
@@ -382,9 +383,9 @@ private:
   const DistributedPartitionedGraph &_p_graph;
   const PartitionContext &_p_ctx;
 
-  NoinitVector<NodeID> _node_to_move_set;
-  NoinitVector<NodeID> _move_sets;
-  NoinitVector<NodeID> _move_set_indices;
+  NoinitVector<NodeID> _node_to_cluster;
+  NoinitVector<NodeID> _clusters;
+  NoinitVector<NodeID> _cluster_indices;
 
   NoinitVector<EdgeWeight> _conns;
 
@@ -404,11 +405,11 @@ private:
   shm::AdaptiveStoppingPolicy _stopping_policy;
 };
 
-MoveSets build_singleton_move_sets(
+Clusters build_singleton_clusters(
     const DistributedPartitionedGraph &p_graph,
     const PartitionContext &p_ctx,
     const NodeWeight max_weight,
-    MoveSetsMemoryContext m_ctx
+    ClustersMemoryContext m_ctx
 ) {
   m_ctx.clear();
 
@@ -417,33 +418,33 @@ MoveSets build_singleton_move_sets(
     const BlockID bu = p_graph.block(u);
 
     if (p_graph.block_weight(bu) > p_ctx.graph->max_block_weight(bu)) {
-      m_ctx.node_to_move_set.push_back(cur_move_set);
-      m_ctx.move_set_indices.push_back(cur_move_set);
-      m_ctx.move_sets.push_back(u);
+      m_ctx.node_to_cluster.push_back(cur_move_set);
+      m_ctx.cluster_indices.push_back(cur_move_set);
+      m_ctx.clusters.push_back(u);
 
       for (const BlockID k : p_graph.blocks()) {
-        m_ctx.move_set_conns.push_back(0);
+        m_ctx.cluster_conns.push_back(0);
       }
       for (const auto [e, v] : p_graph.neighbors(u)) {
         const BlockID bv = p_graph.block(v);
         const std::size_t idx = cur_move_set * p_graph.k() + bv;
-        KASSERT(idx < m_ctx.move_set_conns.size());
-        m_ctx.move_set_conns[idx] += p_graph.edge_weight(e);
+        KASSERT(idx < m_ctx.cluster_conns.size());
+        m_ctx.cluster_conns[idx] += p_graph.edge_weight(e);
       }
 
       ++cur_move_set;
     } else {
-      m_ctx.node_to_move_set.push_back(kInvalidNodeID);
+      m_ctx.node_to_cluster.push_back(kInvalidNodeID);
     }
   }
-  m_ctx.move_set_indices.push_back(cur_move_set);
+  m_ctx.cluster_indices.push_back(cur_move_set);
 
   KASSERT(
       [&] {
         for (const NodeID u : p_graph.nodes()) {
           const BlockID bu = p_graph.block(u);
           if (p_graph.block_weight(bu) <= p_ctx.graph->max_block_weight(bu) &&
-              m_ctx.node_to_move_set[u] != kInvalidNodeID) {
+              m_ctx.node_to_cluster[u] != kInvalidNodeID) {
             LOG_ERROR << "node " << u << " is in block " << bu
                       << ", which is not overloaded, yet assigned to a move set";
             return false;
@@ -458,12 +459,12 @@ MoveSets build_singleton_move_sets(
   return {p_graph, p_ctx, std::move(m_ctx)};
 }
 
-MoveSets build_clustered_move_sets(
+Clusters build_local_clusters(
     const DistributedPartitionedGraph &p_graph,
     const PartitionContext &p_ctx,
     const NodeWeight max_weight,
     std::unique_ptr<LocalClusterer> clusterer,
-    MoveSetsMemoryContext m_ctx
+    ClustersMemoryContext m_ctx
 ) {
   clusterer->initialize(p_graph.graph());
   auto &clustering = clusterer->cluster(p_graph, max_weight);
@@ -485,34 +486,34 @@ MoveSets build_clustered_move_sets(
 
   m_ctx.clear();
   m_ctx.resize(p_graph);
-  m_ctx.move_set_indices.front() = 0;
-  std::fill(m_ctx.move_set_conns.begin(), m_ctx.move_set_conns.end(), 0);
+  m_ctx.cluster_indices.front() = 0;
+  std::fill(m_ctx.cluster_conns.begin(), m_ctx.cluster_conns.end(), 0);
 
   for (const NodeID u : p_graph.nodes()) {
     const BlockID bu = p_graph.block(u);
     if (p_graph.block_weight(bu) > p_ctx.graph->max_block_weight(bu)) {
       const NodeID ms = cluster_to_move_set[clustering[u]] - 1;
 
-      m_ctx.node_to_move_set[u] = ms;
-      m_ctx.move_sets[cluster_sizes[clustering[u]]++] = u;
-      m_ctx.move_set_indices[ms + 1] = cluster_sizes[clustering[u]];
+      m_ctx.node_to_cluster[u] = ms;
+      m_ctx.clusters[cluster_sizes[clustering[u]]++] = u;
+      m_ctx.cluster_indices[ms + 1] = cluster_sizes[clustering[u]];
 
       for (const auto [e, v] : p_graph.neighbors(u)) {
         const BlockID bv = p_graph.block(v);
-        m_ctx.move_set_conns[ms * p_graph.k() + bv] += p_graph.edge_weight(e);
+        m_ctx.cluster_conns[ms * p_graph.k() + bv] += p_graph.edge_weight(e);
       }
     } else {
-      m_ctx.node_to_move_set[u] = kInvalidNodeID;
+      m_ctx.node_to_cluster[u] = kInvalidNodeID;
     }
   }
-  m_ctx.move_set_indices.resize(cluster_to_move_set.back() + 1);
+  m_ctx.cluster_indices.resize(cluster_to_move_set.back() + 1);
 
   KASSERT(
       [&] {
         for (const NodeID u : p_graph.nodes()) {
           const BlockID bu = p_graph.block(u);
           if (p_graph.block_weight(bu) <= p_ctx.graph->max_block_weight(bu) &&
-              m_ctx.node_to_move_set[u] != kInvalidNodeID) {
+              m_ctx.node_to_cluster[u] != kInvalidNodeID) {
             LOG_ERROR << "node " << u << " is in block " << bu
                       << ", which is not overloaded, yet assigned to a move set";
             return false;
@@ -528,23 +529,23 @@ MoveSets build_clustered_move_sets(
 }
 } // namespace
 
-MoveSets build_move_sets(
-    const MoveSetStrategy strategy,
+Clusters build_clusters(
+    const ClusterStrategy strategy,
     const DistributedPartitionedGraph &p_graph,
     const Context &ctx,
     const PartitionContext &p_ctx,
     const NodeWeight max_move_set_weight,
-    MoveSetsMemoryContext m_ctx
+    ClustersMemoryContext m_ctx
 
 ) {
   SCOPED_TIMER("Build move sets");
 
   switch (strategy) {
-  case MoveSetStrategy::SINGLETONS:
-    return build_singleton_move_sets(p_graph, p_ctx, max_move_set_weight, std::move(m_ctx));
+  case ClusterStrategy::SINGLETONS:
+    return build_singleton_clusters(p_graph, p_ctx, max_move_set_weight, std::move(m_ctx));
 
-  case MoveSetStrategy::LP:
-    return build_clustered_move_sets(
+  case ClusterStrategy::LP:
+    return build_local_clusters(
         p_graph,
         p_ctx,
         max_move_set_weight,
@@ -552,8 +553,8 @@ MoveSets build_move_sets(
         std::move(m_ctx)
     );
 
-  case MoveSetStrategy::GREEDY_BATCH_PREFIX:
-    MoveSetBuilder builder(p_graph, p_ctx, std::move(m_ctx));
+  case ClusterStrategy::GREEDY_BATCH_PREFIX:
+    BatchedClusterBuilder builder(p_graph, p_ctx, std::move(m_ctx));
     builder.build(max_move_set_weight);
     return builder.finalize();
   }

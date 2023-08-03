@@ -21,7 +21,7 @@
 #include "dkaminpar/graphutils/communication.h"
 #include "dkaminpar/metrics.h"
 #include "dkaminpar/presets.h"
-#include "dkaminpar/refinement/balancer/move_sets.h"
+#include "dkaminpar/refinement/balancer/clusters.h"
 
 #include "common/logger.h"
 #include "common/random.h"
@@ -39,7 +39,7 @@ int main(int argc, char *argv[]) {
   std::string graph_filename;
   std::string partition_filename;
   NodeWeight max_move_set_size = 64;
-  MoveSetStrategy strategy = MoveSetStrategy::GREEDY_BATCH_PREFIX;
+  ClusterStrategy strategy = ClusterStrategy::GREEDY_BATCH_PREFIX;
 
   // Remove default refiners
   ctx.refinement.algorithms.clear();
@@ -68,17 +68,17 @@ int main(int argc, char *argv[]) {
   ctx.partition.k = p_graph.k();
   ctx.partition.graph = std::make_unique<GraphContext>(graph, ctx.partition);
 
-  const MoveSets sets =
-      build_move_sets(strategy, p_graph, ctx, ctx.partition, max_move_set_size, {});
+  const Clusters sets =
+      build_clusters(strategy, p_graph, ctx, ctx.partition, max_move_set_size, {});
 
-  LOG << "Number of move sets: " << sets.num_move_sets();
+  LOG << "Number of move sets: " << sets.num_clusters();
 
   NodeID max_size = 0;
   NodeID min_size = graph.global_n();
   NodeID sum = 0;
-  NodeID count = sets.num_move_sets();
+  NodeID count = sets.num_clusters();
   std::vector<NodeID> set_sizes;
-  for (NodeID set = 0; set < sets.num_move_sets(); ++set) {
+  for (NodeID set = 0; set < sets.num_clusters(); ++set) {
     set_sizes.push_back(sets.size(set));
     max_size = std::max<NodeID>(max_size, sets.size(set));
     min_size = std::min<NodeID>(min_size, sets.size(set));
