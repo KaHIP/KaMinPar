@@ -527,6 +527,8 @@ auto BfsExtractor::combine_fragments(tbb::concurrent_vector<GraphFragment> &frag
   auto p_graph = std::make_unique<shm::PartitionedGraph>(
       *graph, _p_graph->k(), std::move(partition), std::vector<BlockID>(_p_graph->k(), 1)
   );
+
+  mpi::barrier(_p_graph->communicator());
   return {std::move(graph), std::move(p_graph), std::move(node_mapping)};
 }
 

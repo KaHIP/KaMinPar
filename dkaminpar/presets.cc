@@ -165,6 +165,11 @@ Context create_default_context() {
 
                       .max_hops = 1,
                       .max_radius = 3,
+
+                      .num_global_iterations = 10,
+                      .num_local_iterations = 1,
+
+                      .revert_local_moves_after_batch = true,
                   },
               .greedy_balancer =
                   {
@@ -174,7 +179,7 @@ Context create_default_context() {
                       .enable_fast_balancing = false,
                       .fast_balancing_threshold = 0.1,
                   },
-              .move_set_balancer =
+              .cluster_balancer =
                   {
                       .max_num_rounds = std::numeric_limits<int>::max(),
                       .enable_sequential_balancing = true,

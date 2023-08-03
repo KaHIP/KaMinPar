@@ -168,8 +168,16 @@ CLI::Option_group *create_fm_refinement_options(CLI::App *app, Context &ctx) {
   )
       ->capture_default_str();
 
-  fm->add_option("--r-fm-max-hops", ctx.refinement.fm.max_hops);
-  fm->add_option("--r-fm-max-radius", ctx.refinement.fm.max_radius);
+  fm->add_option("--r-fm-max-hops", ctx.refinement.fm.max_hops)->capture_default_str();
+  fm->add_option("--r-fm-max-radius", ctx.refinement.fm.max_radius)->capture_default_str();
+  fm->add_option("--r-fm-num-global-iterations", ctx.refinement.fm.num_global_iterations)
+      ->capture_default_str();
+  fm->add_option("--r-fm-num-local-iterations", ctx.refinement.fm.num_local_iterations)
+      ->capture_default_str();
+  fm->add_flag(
+        "--r-fm-revert-local-moves-after-batch", ctx.refinement.fm.revert_local_moves_after_batch
+  )
+      ->capture_default_str();
 
   return fm;
 }
@@ -338,43 +346,43 @@ CLI::Option_group *create_greedy_balancer_options(CLI::App *app, Context &ctx) {
 CLI::Option_group *create_move_set_balancer_options(CLI::App *app, Context &ctx) {
   auto *balancer = app->add_option_group("Refinement -> Move set balancer");
 
-  balancer->add_option("--r-bms-max-num-rounds", ctx.refinement.move_set_balancer.max_num_rounds)
+  balancer->add_option("--r-bms-max-num-rounds", ctx.refinement.cluster_balancer.max_num_rounds)
       ->capture_default_str();
   balancer
       ->add_flag(
           "--r-bms-enable-sequential-balancing",
-          ctx.refinement.move_set_balancer.enable_sequential_balancing
+          ctx.refinement.cluster_balancer.enable_sequential_balancing
       )
       ->capture_default_str();
   balancer
       ->add_option(
           "--r-bms-seq-nodes-per-block",
-          ctx.refinement.move_set_balancer.seq_num_nodes_per_block,
+          ctx.refinement.cluster_balancer.seq_num_nodes_per_block,
           "Number of nodes selected for each overloaded block on each PE."
       )
       ->capture_default_str();
   balancer
       ->add_flag(
           "--r-bms-enable-parallel-balancing",
-          ctx.refinement.move_set_balancer.enable_parallel_balancing
+          ctx.refinement.cluster_balancer.enable_parallel_balancing
       )
       ->capture_default_str();
   balancer
       ->add_option(
           "--r-bms-parallel-threshold",
-          ctx.refinement.move_set_balancer.parallel_threshold,
+          ctx.refinement.cluster_balancer.parallel_threshold,
           "Perform a fast balancing round if strong balancing improved the imbalance by less than "
           "this value, e.g., 0.01 for 1%."
       )
       ->capture_default_str();
   balancer->add_option(
-      "--r-bms-par-num-dicing-attempts", ctx.refinement.move_set_balancer.par_num_dicing_attempts
+      "--r-bms-par-num-dicing-attempts", ctx.refinement.cluster_balancer.par_num_dicing_attempts
   );
   balancer->add_flag(
-      "--r-bms-par-accept-imbalanced", ctx.refinement.move_set_balancer.par_accept_imbalanced
+      "--r-bms-par-accept-imbalanced", ctx.refinement.cluster_balancer.par_accept_imbalanced
   );
   balancer
-      ->add_option("--r-bms-size-strategy", ctx.refinement.move_set_balancer.cluster_size_strategy)
+      ->add_option("--r-bms-size-strategy", ctx.refinement.cluster_balancer.cluster_size_strategy)
       ->transform(CLI::CheckedTransformer(get_move_set_size_strategies()).description(""))
       ->description(R"(Strategy for limiting the size of move sets:
   - zero: set limit to 0
@@ -383,11 +391,11 @@ CLI::Option_group *create_move_set_balancer_options(CLI::App *app, Context &ctx)
   balancer
       ->add_option(
           "--r-bms-size-multiplier",
-          ctx.refinement.move_set_balancer.cluster_size_multiplier,
+          ctx.refinement.cluster_balancer.cluster_size_multiplier,
           "Multiplier for the maximum size of move sets."
       )
       ->capture_default_str();
-  balancer->add_option("--r-bms-strategy", ctx.refinement.move_set_balancer.cluster_strategy)
+  balancer->add_option("--r-bms-strategy", ctx.refinement.cluster_balancer.cluster_strategy)
       ->transform(CLI::CheckedTransformer(get_move_set_strategies()).description(""))
       ->description(R"(Strategy for constructing move sets:
   - singletons:          put each node into its own set
@@ -396,7 +404,7 @@ CLI::Option_group *create_move_set_balancer_options(CLI::App *app, Context &ctx)
       ->capture_default_str();
   balancer
       ->add_option(
-          "--r-bms-rebuild-interval", ctx.refinement.move_set_balancer.cluster_rebuild_interval
+          "--r-bms-rebuild-interval", ctx.refinement.cluster_balancer.cluster_rebuild_interval
       )
       ->capture_default_str();
 

@@ -207,6 +207,11 @@ struct FMRefinementContext {
 
   int max_hops;
   int max_radius;
+
+  int num_global_iterations;
+  int num_local_iterations;
+
+  bool revert_local_moves_after_batch;
 };
 
 struct CoarseningContext {
@@ -289,7 +294,7 @@ struct RefinementContext {
   ColoredLabelPropagationRefinementContext colored_lp;
   FMRefinementContext fm;
   GreedyBalancerContext greedy_balancer;
-  ClusterBalancerContext move_set_balancer;
+  ClusterBalancerContext cluster_balancer;
 
   JetRefinementContext jet;
   JetBalancerContext jet_balancer;

@@ -188,7 +188,7 @@ void ClusterBalancer::rebuild_clusters() {
 
 void ClusterBalancer::init_clusters() {
   _clusters = build_clusters(
-      _ctx.refinement.move_set_balancer.cluster_strategy,
+      _ctx.refinement.cluster_balancer.cluster_strategy,
       _p_graph,
       _ctx,
       _p_ctx,
@@ -268,7 +268,7 @@ void ClusterBalancer::try_pq_insertion(const NodeID set) {
   _weight_buckets.add(from_block, relative_gain);
 
   // Add this move set to the PQ if:
-  bool accept = _ctx.refinement.move_set_balancer.seq_full_pq;
+  bool accept = _ctx.refinement.cluster_balancer.seq_full_pq;
   bool replace_min = false;
 
   // - we do not have enough move sets yet to remove all excess weight from the block
@@ -326,20 +326,20 @@ bool ClusterBalancer::refine() {
   IFSTATS(prev_edge_cut = metrics::edge_cut(_p_graph));
 
   for (int round = 0;
-       prev_imbalance_distance > 0 && round < _ctx.refinement.move_set_balancer.max_num_rounds;
+       prev_imbalance_distance > 0 && round < _ctx.refinement.cluster_balancer.max_num_rounds;
        ++round) {
     IFSTATS(++_stats.num_rounds);
     DBG << "Starting round " << round;
 
-    if (round > 0 && _ctx.refinement.move_set_balancer.cluster_rebuild_interval > 0 &&
-        (round % _ctx.refinement.move_set_balancer.cluster_rebuild_interval) == 0) {
+    if (round > 0 && _ctx.refinement.cluster_balancer.cluster_rebuild_interval > 0 &&
+        (round % _ctx.refinement.cluster_balancer.cluster_rebuild_interval) == 0) {
       DBG << "  --> rebuild move sets after every "
-          << _ctx.refinement.move_set_balancer.cluster_rebuild_interval;
+          << _ctx.refinement.cluster_balancer.cluster_rebuild_interval;
 
       rebuild_clusters();
     }
 
-    if (_ctx.refinement.move_set_balancer.enable_sequential_balancing) {
+    if (_ctx.refinement.cluster_balancer.enable_sequential_balancing) {
       perform_sequential_round();
       DBG << "  --> Round " << round << ": seq. balancing: " << prev_imbalance_distance << " --> "
           << metrics::imbalance_l1(_p_graph, _p_ctx);
@@ -351,10 +351,10 @@ bool ClusterBalancer::refine() {
       IFSTATS(prev_edge_cut = metrics::edge_cut(_p_graph));
     }
 
-    if (_ctx.refinement.move_set_balancer.enable_parallel_balancing) {
+    if (_ctx.refinement.cluster_balancer.enable_parallel_balancing) {
       const double imbalance_after_seq_balancing = metrics::imbalance_l1(_p_graph, _p_ctx);
       if ((prev_imbalance_distance - imbalance_after_seq_balancing) / prev_imbalance_distance <
-          _ctx.refinement.move_set_balancer.parallel_threshold) {
+          _ctx.refinement.cluster_balancer.parallel_threshold) {
         perform_parallel_round();
         DBG << "  --> Round " << round << ": par. balancing: " << imbalance_after_seq_balancing
             << " --> " << metrics::imbalance_l1(_p_graph, _p_ctx);
@@ -523,7 +523,7 @@ void ClusterBalancer::perform_parallel_round() {
 
   for (int attempt = 0;
        !balanced_moves &&
-       attempt < std::max<int>(1, _ctx.refinement.move_set_balancer.par_num_dicing_attempts);
+       attempt < std::max<int>(1, _ctx.refinement.cluster_balancer.par_num_dicing_attempts);
        ++attempt) {
     IFSTATS(++_stats.num_par_dicing_attempts);
 
@@ -565,7 +565,7 @@ void ClusterBalancer::perform_parallel_round() {
 
   IFSTATS(_stats.num_par_balanced_moves += balanced_moves);
 
-  if (balanced_moves || _ctx.refinement.move_set_balancer.par_accept_imbalanced) {
+  if (balanced_moves || _ctx.refinement.cluster_balancer.par_accept_imbalanced) {
     for (const BlockID block : _p_graph.blocks()) {
       _p_graph.set_block_weight(
           block, _p_graph.block_weight(block) + actual_block_weight_deltas[block]
@@ -746,7 +746,7 @@ std::vector<ClusterBalancer::MoveCandidate> ClusterBalancer::pick_sequential_can
 
     const std::size_t start = candidates.size();
 
-    for (NodeID num = 0; num < _ctx.refinement.move_set_balancer.seq_num_nodes_per_block; ++num) {
+    for (NodeID num = 0; num < _ctx.refinement.cluster_balancer.seq_num_nodes_per_block; ++num) {
       if (_pqs.empty(from)) {
         break;
       }
@@ -855,7 +855,7 @@ ClusterBalancer::reduce_sequential_candidates(std::vector<MoveCandidate> sendbuf
 
               if (total_weight >= overload(from) ||
                   num_accepted_candidates >=
-                      _ctx.refinement.move_set_balancer.seq_num_nodes_per_block) {
+                      _ctx.refinement.cluster_balancer.seq_num_nodes_per_block) {
                 break;
               }
             }
@@ -943,7 +943,7 @@ bool ClusterBalancer::assign_feasible_target_block(
 
 NodeWeight ClusterBalancer::compute_cluster_weight_limit() const {
   NodeWeight limit = 0;
-  switch (_ctx.refinement.move_set_balancer.cluster_size_strategy) {
+  switch (_ctx.refinement.cluster_balancer.cluster_size_strategy) {
   case ClusterSizeStrategy::ZERO:
     limit = 0;
     break;
@@ -972,7 +972,7 @@ NodeWeight ClusterBalancer::compute_cluster_weight_limit() const {
     break;
   }
 
-  return limit * _ctx.refinement.move_set_balancer.cluster_size_multiplier;
+  return limit * _ctx.refinement.cluster_balancer.cluster_size_multiplier;
 }
 
 std::string ClusterBalancer::dbg_get_partition_state_str() const {
@@ -996,7 +996,7 @@ std::string ClusterBalancer::dbg_get_pq_state_str() const {
 }
 
 bool ClusterBalancer::dbg_validate_pq_weights() const {
-  if (!_ctx.refinement.move_set_balancer.enable_sequential_balancing) {
+  if (!_ctx.refinement.cluster_balancer.enable_sequential_balancing) {
     return true;
   }
 

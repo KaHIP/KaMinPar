@@ -83,6 +83,7 @@ find_independent_border_set(const DistributedPartitionedGraph &p_graph, const in
     }
   });
 
+  mpi::barrier(p_graph.communicator());
   return std::vector<NodeID>(seed_nodes.begin(), seed_nodes.end());
 }
 } // namespace kaminpar::dist::graph
