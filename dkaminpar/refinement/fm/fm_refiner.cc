@@ -33,6 +33,83 @@
 #include "common/timer.h"
 
 namespace kaminpar::dist {
+namespace {
+SET_STATISTICS_FROM_GLOBAL();
+SET_DEBUG(true);
+} // namespace
+
+namespace fm {
+NodeMapper::NodeMapper(NoinitVector<GlobalNodeID> batch_to_graph)
+    : _batch_to_graph(std::move(batch_to_graph)) {
+  construct();
+}
+
+inline GlobalNodeID NodeMapper::to_graph(NodeID bnode) const {
+  KASSERT(bnode < _batch_to_graph.size());
+  return _batch_to_graph[bnode];
+}
+
+inline NodeID NodeMapper::to_batch(GlobalNodeID gnode) const {
+  auto it = _graph_to_batch.find(gnode + 1);
+  return it != _graph_to_batch.end() ? (*it).second : kInvalidNodeID;
+}
+
+void NodeMapper::construct() {
+  tbb::parallel_for<std::size_t>(0, _batch_to_graph.size(), [&](const std::size_t i) {
+    _graph_to_batch.insert(_batch_to_graph[i] + 1, i);
+  });
+}
+
+EnabledPartitionRollbacker::EnabledPartitionRollbacker(DistributedPartitionedGraph &p_graph)
+    : _p_graph(p_graph),
+      _best_cut(metrics::edge_cut(_p_graph)),
+      _best_partition(_p_graph.total_n()),
+      _best_block_weights(_p_graph.k()) {
+  copy_partition();
+}
+
+void EnabledPartitionRollbacker::rollback() {
+  if (!_last_is_best) {
+    tbb::parallel_invoke(
+        [&] {
+          _p_graph.pfor_all_nodes([&](const NodeID u) {
+            _p_graph.set_block<false>(u, _best_partition[u]);
+          });
+        },
+        [&] {
+          _p_graph.pfor_blocks([&](const BlockID b) {
+            _p_graph.set_block_weight(b, _best_block_weights[b]);
+          });
+        }
+    );
+  }
+}
+
+void EnabledPartitionRollbacker::update() {
+  const EdgeWeight current_cut = metrics::edge_cut(_p_graph);
+  if (current_cut <= _best_cut) {
+    copy_partition();
+    _best_cut = current_cut;
+    _last_is_best = true;
+  } else {
+    _last_is_best = false;
+  }
+}
+
+void EnabledPartitionRollbacker::copy_partition() {
+  tbb::parallel_invoke(
+      [&] {
+        _p_graph.pfor_all_nodes([&](const NodeID u) { _best_partition[u] = _p_graph.block(u); });
+      },
+      [&] {
+        _p_graph.pfor_blocks([&](const BlockID b) {
+          _best_block_weights[b] = _p_graph.block_weight(b);
+        });
+      }
+  );
+}
+} // namespace fm
+
 FMRefinerFactory::FMRefinerFactory(const Context &ctx) : _ctx(ctx) {}
 
 std::unique_ptr<GlobalRefiner>
@@ -57,18 +134,15 @@ bool FMRefiner::refine() {
   auto balancer = _balancer_factory->create(_p_graph, _p_ctx);
   balancer->initialize();
 
-  bool last_iteration_is_best = true;
-  EdgeWeight best_cut;
-  NoinitVector<BlockID> best_partition;
-  NoinitVector<NodeWeight> best_block_weights;
-  if (_fm_ctx.rollback_deterioration) {
-    best_cut = metrics::edge_cut(_p_graph);
-    best_partition.resize(_p_graph.total_n());
-    best_block_weights.resize(_p_graph.k());
-    _p_graph.pfor_all_nodes([&](const NodeID u) { best_partition[u] = _p_graph.block(u); });
-    _p_graph.pfor_blocks([&](const BlockID b) { best_block_weights[b] = _p_graph.block_weight(b); }
-    );
-  }
+  // Track the best partition that we see during FM refinement
+  std::unique_ptr<fm::PartitionRollbacker> rollbacker =
+      [&]() -> std::unique_ptr<fm::PartitionRollbacker> {
+    if (_fm_ctx.rollback_deterioration) {
+      return std::make_unique<fm::EnabledPartitionRollbacker>(_p_graph);
+    } else {
+      return std::make_unique<fm::DisabledPartitionRollbacker>();
+    }
+  }();
 
   for (std::size_t global_round = 0; global_round < _fm_ctx.num_global_iterations; ++global_round) {
     const auto seed_nodes = graph::find_independent_border_set(_p_graph, global_round);
@@ -81,7 +155,6 @@ bool FMRefiner::refine() {
 
     shm::Graph *b_graph = extraction_result.graph.get();
     shm::PartitionedGraph *bp_graph = extraction_result.p_graph.get();
-    auto &node_mapping = extraction_result.node_mapping;
 
     DBG << "BFS extraction result: n=" << b_graph->n() << ", m=" << b_graph->m();
     KASSERT(
@@ -92,63 +165,17 @@ bool FMRefiner::refine() {
         assert::heavy
     );
 
-    // Overwrite the block weights in the batch graphs with block weights of the global graph
+    // Overwrite the block weights in the batch graph with block weights of the global graph
     for (const BlockID block : _p_graph.blocks()) {
       bp_graph->set_block_weight(block, _p_graph.block_weight(block));
     }
 
-    START_TIMER("Build reverse node mapping");
-    growt::StaticGhostNodeMapping reverse_node_mapping(extraction_result.node_mapping.size());
-    tbb::parallel_for<std::size_t>(
-        0,
-        extraction_result.node_mapping.size(),
-        [&](const std::size_t i) {
-          reverse_node_mapping.insert(extraction_result.node_mapping[i] + 1, i);
-        }
-    );
-    mpi::barrier(_p_graph.communicator());
-    STOP_TIMER();
-
     START_TIMER("Prepare thread-local workers");
-    shm::PartitionContext shm_p_ctx;
-    shm_p_ctx.epsilon = _p_ctx.epsilon;
-    shm_p_ctx.k = _p_ctx.k;
-    shm_p_ctx.n = asserting_cast<NodeID>(b_graph->n());
-    shm_p_ctx.m = asserting_cast<EdgeID>(b_graph->m());
-    shm_p_ctx.total_node_weight =
-        asserting_cast<NodeWeight>(_p_ctx.graph->global_total_node_weight);
-    shm_p_ctx.total_edge_weight =
-        asserting_cast<EdgeWeight>(_p_ctx.graph->global_total_edge_weight);
-    shm_p_ctx.max_node_weight = asserting_cast<NodeWeight>(_p_ctx.graph->global_max_node_weight);
-    shm_p_ctx.setup_block_weights();
+    const shm::PartitionContext shm_p_ctx = setup_shm_p_ctx(*b_graph);
+    const fm::NodeMapper node_mapper(extraction_result.node_mapping);
+    const shm::KwayFMRefinementContext shm_fm_ctx = setup_fm_ctx();
 
-    shm::fm::SharedData shared(b_graph->n(), _p_ctx.k);
-    tbb::concurrent_vector<NodeID> b_seed_nodes;
-    tbb::parallel_for<std::size_t>(0, seed_nodes.size(), [&](const std::size_t i) {
-      const NodeID local_seed_node = seed_nodes[i];
-      const GlobalNodeID global_seed_node = _p_graph.local_to_global_node(local_seed_node);
-      KASSERT(reverse_node_mapping.find(global_seed_node + 1) != reverse_node_mapping.end());
-      b_seed_nodes.push_back((*reverse_node_mapping.find(global_seed_node + 1)).second);
-    });
-
-    shared.border_nodes.init_precomputed(*bp_graph, b_seed_nodes);
-    shared.border_nodes.shuffle();
-
-    shared.gain_cache.initialize(*bp_graph);
-
-    // Mark pseudo-block nodes as already moved
-    for (const BlockID block : _p_graph.blocks()) {
-      shared.node_tracker.set(bp_graph->n() - block - 1, shm::fm::NodeTracker::MOVED_GLOBALLY);
-    }
-
-    shm::KwayFMRefinementContext shm_fm_ctx{
-        .num_seed_nodes = 1,
-        .alpha = _fm_ctx.alpha,
-        .num_iterations = 1,
-        .unlock_seed_nodes = false,
-        .use_exact_abortion_threshold = false,
-        .abortion_threshold = 0.999,
-    };
+    shm::fm::SharedData shared = setup_fm_data(*bp_graph, seed_nodes, node_mapper);
 
     // Create thread-local workers numbered 1..P
     std::atomic<int> next_id = 0;
@@ -179,10 +206,10 @@ bool FMRefiner::refine() {
 
         auto moves = worker.take_applied_moves();
         if (!moves.empty()) {
-          const NodeID group = node_mapping[seed_node];
+          const NodeID group = node_mapper.to_graph(seed_node);
           for (const auto &[node, from] : moves) {
             move_sets.push_back(GlobalMove{
-                .node = node_mapping[node],
+                .node = node_mapper.to_graph(node),
                 .group = seed_node,
                 .weight = static_cast<NodeWeight>(bp_graph->node_weight(node)),
                 .gain = gain,
@@ -236,17 +263,15 @@ bool FMRefiner::refine() {
 
         // Apply move to local graph (if contained in local graph)
         if (_fm_ctx.revert_local_moves_after_batch && is_valid_id(node)) {
-          if (auto it = reverse_node_mapping.find(node + 1); it != reverse_node_mapping.end()) {
-            const NodeID b_node = (*it).second;
-            bp_graph->set_block(b_node, to);
-            shared.gain_cache.move(*bp_graph, b_node, from, to);
+          if (const NodeID bnode = node_mapper.to_batch(node); bnode != kInvalidNodeID) {
+            bp_graph->set_block(bnode, to);
+            shared.gain_cache.move(*bp_graph, bnode, from, to);
           }
         } else if (!_fm_ctx.revert_local_moves_after_batch && is_invalid_id(node)) {
-          if (auto it = reverse_node_mapping.find(extract_id(node) + 1);
-              it != reverse_node_mapping.end()) {
-            const NodeID b_node = (*it).second;
-            bp_graph->set_block(b_node, to);
-            shared.gain_cache.move(*bp_graph, b_node, from, to);
+          if (const NodeID bnode = node_mapper.to_batch(extract_id(node));
+              bnode != kInvalidNodeID) {
+            bp_graph->set_block(bnode, to);
+            shared.gain_cache.move(*bp_graph, bnode, from, to);
           }
         }
       }
@@ -273,24 +298,7 @@ bool FMRefiner::refine() {
     }
 
     if (_fm_ctx.rollback_deterioration) {
-      const EdgeWeight current_cut = metrics::edge_cut(_p_graph);
-      if (current_cut <= best_cut) {
-        tbb::parallel_invoke(
-            [&] {
-              _p_graph.pfor_all_nodes([&](const NodeID u) { best_partition[u] = _p_graph.block(u); }
-              );
-            },
-            [&] {
-              _p_graph.pfor_blocks([&](const BlockID b) {
-                best_block_weights[b] = _p_graph.block_weight(b);
-              });
-            }
-        );
-        best_cut = current_cut;
-        last_iteration_is_best = true;
-      } else {
-        last_iteration_is_best = false;
-      }
+      rollbacker->update();
     }
   }
 
@@ -300,21 +308,61 @@ bool FMRefiner::refine() {
     };
   }
 
-  if (_fm_ctx.rollback_deterioration && !last_iteration_is_best) {
-    tbb::parallel_invoke(
-        [&] {
-          _p_graph.pfor_all_nodes([&](const NodeID u) {
-            _p_graph.set_block<false>(u, best_partition[u]);
-          });
-        },
-        [&] {
-          _p_graph.pfor_blocks([&](const BlockID b) {
-            _p_graph.set_block_weight(b, best_block_weights[b]);
-          });
-        }
-    );
+  if (_fm_ctx.rollback_deterioration) {
+    rollbacker->rollback();
   }
 
   return false;
+}
+
+shm::PartitionContext FMRefiner::setup_shm_p_ctx(const shm::Graph &b_graph) const {
+  shm::PartitionContext shm_p_ctx;
+  shm_p_ctx.epsilon = _p_ctx.epsilon;
+  shm_p_ctx.k = _p_ctx.k;
+  shm_p_ctx.n = asserting_cast<NodeID>(b_graph.n());
+  shm_p_ctx.m = asserting_cast<EdgeID>(b_graph.m());
+  shm_p_ctx.total_node_weight = asserting_cast<NodeWeight>(_p_ctx.graph->global_total_node_weight);
+  shm_p_ctx.total_edge_weight = asserting_cast<EdgeWeight>(_p_ctx.graph->global_total_edge_weight);
+  shm_p_ctx.max_node_weight = asserting_cast<NodeWeight>(_p_ctx.graph->global_max_node_weight);
+  shm_p_ctx.setup_block_weights();
+  return shm_p_ctx;
+}
+
+shm::fm::SharedData FMRefiner::setup_fm_data(
+    const shm::PartitionedGraph &bp_graph,
+    const std::vector<NodeID> &lseeds,
+    const fm::NodeMapper &mapper
+) const {
+  shm::fm::SharedData shared(bp_graph.n(), _p_ctx.k);
+
+  tbb::concurrent_vector<NodeID> bseeds;
+  tbb::parallel_for<std::size_t>(0, lseeds.size(), [&](const std::size_t i) {
+    const NodeID lseed = lseeds[i];
+    const GlobalNodeID gseed = _p_graph.local_to_global_node(lseed);
+    bseeds.push_back(mapper.to_batch(gseed));
+  });
+  KASSERT(std::find(bseeds.begin(), bseeds.end(), kInvalidNodeID) == bseeds.end());
+
+  shared.border_nodes.init_precomputed(bp_graph, bseeds);
+  shared.border_nodes.shuffle();
+  shared.gain_cache.initialize(bp_graph);
+
+  // Mark pseudo-block nodes as already moved
+  for (const BlockID block : _p_graph.blocks()) {
+    shared.node_tracker.set(bp_graph.n() - block - 1, shm::fm::NodeTracker::MOVED_GLOBALLY);
+  }
+
+  return shared;
+}
+
+shm::KwayFMRefinementContext FMRefiner::setup_fm_ctx() const {
+  return shm::KwayFMRefinementContext{
+      .num_seed_nodes = 1,
+      .alpha = _fm_ctx.alpha,
+      .num_iterations = 1,
+      .unlock_seed_nodes = false,
+      .use_exact_abortion_threshold = false,
+      .abortion_threshold = 0.999,
+  };
 }
 } // namespace kaminpar::dist
