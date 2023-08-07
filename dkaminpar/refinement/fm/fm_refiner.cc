@@ -200,8 +200,6 @@ bool FMRefiner::refine() {
       shm::LocalizedFMRefiner &worker = worker_ets.local();
       while (shared.border_nodes.has_more()) {
         const NodeID seed_node = shared.border_nodes.get();
-        DBG << "Running with seed_node=" << seed_node;
-
         const EdgeWeight gain = worker.run_batch();
 
         auto moves = worker.take_applied_moves();
