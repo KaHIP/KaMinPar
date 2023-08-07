@@ -361,7 +361,6 @@ DistributedGraph replicate(const DistributedGraph &graph, const int num_replicat
 
   if (is_node_weighted) {
     KASSERT(graph.is_node_weighted() || graph.n() == 0);
-
     node_weights.resize(nodes_displs.back() + num_ghost_nodes);
     mpi::allgatherv(
         graph.raw_node_weights().data(),
@@ -397,10 +396,6 @@ DistributedGraph replicate(const DistributedGraph &graph, const int num_replicat
   // Fix weights of ghost nodes
   if (is_node_weighted) {
     synchronize_ghost_node_weights(new_graph);
-  } else {
-    tbb::parallel_for<NodeID>(new_graph.n(), new_graph.total_n(), [&](const NodeID u) {
-      new_graph.set_ghost_node_weight(u, 1);
-    });
   }
 
   KASSERT(debug::validate(new_graph), "", assert::heavy);
