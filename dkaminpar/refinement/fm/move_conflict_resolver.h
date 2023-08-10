@@ -18,7 +18,7 @@
 namespace kaminpar::dist {
 struct GlobalMove {
   GlobalNodeID node;
-  std::int64_t group;
+  GlobalNodeID group;
   NodeWeight weight;
   EdgeWeight gain;
   BlockID from;

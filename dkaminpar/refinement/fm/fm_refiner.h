@@ -52,7 +52,7 @@ public:
 
 class EnabledPartitionRollbacker : public PartitionRollbacker {
 public:
-  EnabledPartitionRollbacker(DistributedPartitionedGraph &p_graph);
+  EnabledPartitionRollbacker(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx);
 
   void update() final;
   void rollback() final;
@@ -61,9 +61,11 @@ private:
   void copy_partition();
 
   DistributedPartitionedGraph &_p_graph;
+  const PartitionContext &_p_ctx;
 
   bool _last_is_best = true;
   EdgeWeight _best_cut;
+  double _best_l1 = 0.0;
   NoinitVector<BlockID> _best_partition;
   NoinitVector<NodeWeight> _best_block_weights;
 };

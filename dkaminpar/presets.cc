@@ -174,7 +174,7 @@ Context create_default_context() {
                       .rebalance_after_refinement = false,
                       .balancing_algorithm = RefinementAlgorithm::GREEDY_NODE_BALANCER,
 
-                      .rollback_deterioration = false,
+                      .rollback_deterioration = true,
                   },
               .greedy_balancer =
                   {

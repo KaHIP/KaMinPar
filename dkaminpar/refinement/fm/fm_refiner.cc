@@ -60,8 +60,11 @@ void NodeMapper::construct() {
   });
 }
 
-EnabledPartitionRollbacker::EnabledPartitionRollbacker(DistributedPartitionedGraph &p_graph)
+EnabledPartitionRollbacker::EnabledPartitionRollbacker(
+    DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx
+)
     : _p_graph(p_graph),
+      _p_ctx(p_ctx),
       _best_cut(metrics::edge_cut(_p_graph)),
       _best_partition(_p_graph.total_n()),
       _best_block_weights(_p_graph.k()) {
@@ -87,9 +90,14 @@ void EnabledPartitionRollbacker::rollback() {
 
 void EnabledPartitionRollbacker::update() {
   const EdgeWeight current_cut = metrics::edge_cut(_p_graph);
-  if (current_cut <= _best_cut) {
+  const double current_l1 = metrics::imbalance_l1(_p_graph, _p_ctx);
+
+  // Accept if the previous best partition is imbalanced and we improved its balance
+  // OR if we are balanced and got a better cut than before
+  if ((_best_l1 > 0 && current_l1 < _best_l1) || (current_l1 == 0 && current_cut <= _best_cut)) {
     copy_partition();
     _best_cut = current_cut;
+    _best_l1 = current_l1;
     _last_is_best = true;
   } else {
     _last_is_best = false;
@@ -174,7 +182,6 @@ bool FMRefiner::refine() {
     const shm::PartitionContext shm_p_ctx = setup_shm_p_ctx(*b_graph);
     const fm::NodeMapper node_mapper(extraction_result.node_mapping);
     const shm::KwayFMRefinementContext shm_fm_ctx = setup_fm_ctx();
-
     shm::fm::SharedData shared = setup_fm_data(*bp_graph, seed_nodes, node_mapper);
 
     // Create thread-local workers numbered 1..P
@@ -204,7 +211,7 @@ bool FMRefiner::refine() {
 
         auto moves = worker.take_applied_moves();
         if (!moves.empty()) {
-          const NodeID group = node_mapper.to_graph(seed_node);
+          const GlobalNodeID group = node_mapper.to_graph(seed_node);
           for (const auto &[node, from] : moves) {
             move_sets.push_back(GlobalMove{
                 .node = node_mapper.to_graph(node),
@@ -290,25 +297,16 @@ bool FMRefiner::refine() {
     }
 
     if (_fm_ctx.rebalance_after_each_global_iteration) {
-      TIMED_SCOPE("Rebalance") {
-        balancer->refine();
-      };
+      balancer->refine();
     }
-
-    if (_fm_ctx.rollback_deterioration) {
-      rollbacker->update();
-    }
+    rollbacker->update();
   }
 
   if (!_fm_ctx.rebalance_after_each_global_iteration && _fm_ctx.rebalance_after_refinement) {
-    TIMED_SCOPE("Rebalance") {
-      balancer->refine();
-    };
+    balancer->refine();
+    rollbacker->update();
   }
-
-  if (_fm_ctx.rollback_deterioration) {
-    rollbacker->rollback();
-  }
+  rollbacker->rollback();
 
   return false;
 }
