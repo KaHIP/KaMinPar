@@ -146,7 +146,7 @@ bool FMRefiner::refine() {
   std::unique_ptr<fm::PartitionRollbacker> rollbacker =
       [&]() -> std::unique_ptr<fm::PartitionRollbacker> {
     if (_fm_ctx.rollback_deterioration) {
-      return std::make_unique<fm::EnabledPartitionRollbacker>(_p_graph);
+      return std::make_unique<fm::EnabledPartitionRollbacker>(_p_graph, _p_ctx);
     } else {
       return std::make_unique<fm::DisabledPartitionRollbacker>();
     }
