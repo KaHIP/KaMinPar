@@ -490,6 +490,8 @@ void print(const RefinementContext &ctx, std::ostream &out) {
         << " hop(s)\n";
     out << "  Revert batch-local moves:   "
         << (ctx.fm.revert_local_moves_after_batch ? "yes" : "no") << "\n";
+    out << "  Rollback to best partition: " << (ctx.fm.rollback_deterioration ? "yes" : "no")
+        << "\n";
     out << "  Rebalance algorithm:        " << ctx.fm.balancing_algorithm << "\n";
     out << "    Rebalance after iter.:    "
         << (ctx.fm.rebalance_after_each_global_iteration ? "yes" : "no") << "\n";

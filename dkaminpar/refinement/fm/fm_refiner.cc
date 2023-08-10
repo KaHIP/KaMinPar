@@ -297,13 +297,18 @@ bool FMRefiner::refine() {
     }
 
     if (_fm_ctx.rebalance_after_each_global_iteration) {
+      // Since we have changed the partition, re-initialize the balancer
+      balancer->initialize();
       balancer->refine();
     }
     rollbacker->update();
   }
 
   if (!_fm_ctx.rebalance_after_each_global_iteration && _fm_ctx.rebalance_after_refinement) {
+    // Since we have changed the partition, re-initialize the balancer
+    balancer->initialize();
     balancer->refine();
+
     rollbacker->update();
   }
   rollbacker->rollback();

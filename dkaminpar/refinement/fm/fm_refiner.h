@@ -44,7 +44,7 @@ private:
 
 class PartitionRollbacker {
 public:
-  ~PartitionRollbacker() = default;
+  virtual ~PartitionRollbacker() = default;
 
   virtual void update() = 0;
   virtual void rollback() = 0;
