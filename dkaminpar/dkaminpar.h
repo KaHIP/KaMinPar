@@ -218,6 +218,9 @@ struct FMRefinementContext {
   RefinementAlgorithm balancing_algorithm;
 
   bool rollback_deterioration;
+
+  bool use_abortion_threshold;
+  double abortion_threshold;
 };
 
 struct CoarseningContext {

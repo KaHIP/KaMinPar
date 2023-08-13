@@ -128,13 +128,13 @@ private:
   const DistributedGraph *_graph = nullptr;
   const DistributedPartitionedGraph *_p_graph = nullptr;
 
-  PEID _max_hops{std::numeric_limits<PEID>::max()};
-  GlobalNodeID _max_radius{std::numeric_limits<GlobalNodeID>::max()};
-  GlobalEdgeID _high_degree_threshold{std::numeric_limits<GlobalEdgeID>::max()};
-  HighDegreeStrategy _high_degree_strategy{HighDegreeStrategy::TAKE_ALL};
-  ExteriorStrategy _exterior_strategy{ExteriorStrategy::EXCLUDE};
+  PEID _max_hops = std::numeric_limits<PEID>::max();
+  GlobalNodeID _max_radius = std::numeric_limits<GlobalNodeID>::max();
+  GlobalEdgeID _high_degree_threshold = std::numeric_limits<GlobalEdgeID>::max();
+  HighDegreeStrategy _high_degree_strategy = HighDegreeStrategy::TAKE_ALL;
+  ExteriorStrategy _exterior_strategy = ExteriorStrategy::EXCLUDE;
 
-  NoinitVector<EdgeWeight> _external_degrees{};
+  NoinitVector<EdgeWeight> _external_degrees;
 
   Marker<> _finished_pe_search{
       static_cast<std::size_t>(mpi::get_comm_size(_graph->communicator()))};

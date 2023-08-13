@@ -154,6 +154,8 @@ Context create_default_context() {
               .fm =
                   {
                       .alpha = 1.0,
+
+                      // -- @todo remove --
                       .radius = 3,
                       .pe_radius = 2,
                       .overlap_regions = false,
@@ -163,8 +165,9 @@ Context create_default_context() {
                       .bound_degree = 0,
                       .contract_border = false,
 
+                      // -- new parameters --
                       .max_hops = 1,
-                      .max_radius = 3,
+                      .max_radius = 2,
 
                       .num_global_iterations = 10,
                       .num_local_iterations = 1,
@@ -175,6 +178,9 @@ Context create_default_context() {
                       .balancing_algorithm = RefinementAlgorithm::GREEDY_NODE_BALANCER,
 
                       .rollback_deterioration = true,
+
+                      .use_abortion_threshold = true,
+                      .abortion_threshold = 0.999,
                   },
               .greedy_balancer =
                   {

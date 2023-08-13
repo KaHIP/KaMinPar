@@ -153,6 +153,9 @@ bool FMRefiner::refine() {
   }();
 
   for (std::size_t global_round = 0; global_round < _fm_ctx.num_global_iterations; ++global_round) {
+    const EdgeWeight initial_cut =
+        _ctx.refinement.fm.use_abortion_threshold ? metrics::edge_cut(_p_graph) : -1;
+
     const auto seed_nodes = graph::find_independent_border_set(_p_graph, global_round);
 
     graph::BfsExtractor bfs_extractor(_p_graph.graph());
@@ -167,7 +170,7 @@ bool FMRefiner::refine() {
     DBG << "BFS extraction result: n=" << b_graph->n() << ", m=" << b_graph->m();
     KASSERT(
         shm::validate_graph(
-            *b_graph, false, _p_graph.k()
+            *b_graph, true, _p_graph.k()
         ), // @todo why is the graph (outside the fixed vertices) not undirected?
         "BFS extractor returned invalid graph data structure",
         assert::heavy
@@ -302,6 +305,14 @@ bool FMRefiner::refine() {
       balancer->refine();
     }
     rollbacker->update();
+
+    if (_ctx.refinement.fm.use_abortion_threshold) {
+      const EdgeWeight final_cut = metrics::edge_cut(_p_graph);
+      const double improvement = 1.0 * (initial_cut - final_cut) / initial_cut;
+      if (1.0 - improvement > _ctx.refinement.fm.abortion_threshold) {
+        break;
+      }
+    }
   }
 
   if (!_fm_ctx.rebalance_after_each_global_iteration && _fm_ctx.rebalance_after_refinement) {
