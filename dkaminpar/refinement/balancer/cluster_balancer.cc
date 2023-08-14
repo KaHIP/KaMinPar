@@ -16,7 +16,7 @@
 
 namespace kaminpar::dist {
 SET_STATISTICS_FROM_GLOBAL();
-SET_DEBUG(false);
+SET_DEBUG(true);
 
 void ClusterBalancer::Statistics::reset() {
   num_rounds = 0;
@@ -43,21 +43,21 @@ void ClusterBalancer::Statistics::print() {
         << num_par_rounds << " parallel)";
   STATS << "  Sequential rounds:";
   STATS << "    Number of clusters moved: " << num_seq_set_moves << " with " << num_seq_node_moves
-        << " nodes = " << 1.0 * num_seq_node_moves / num_seq_set_moves << " nodes per set";
+        << " nodes = " << 1.0 * num_seq_node_moves / num_seq_set_moves << " nodes per cluster";
   STATS << "    Imbalance reduction:      " << seq_imbalance_reduction << " = "
-        << 1.0 * seq_imbalance_reduction / num_seq_set_moves << " per set, "
+        << 1.0 * seq_imbalance_reduction / num_seq_set_moves << " per cluster, "
         << 1.0 * seq_imbalance_reduction / num_seq_node_moves << " per node";
   STATS << "    Cut reduction:            " << seq_cut_increase << " = "
-        << 1.0 * seq_cut_increase / num_seq_set_moves << " per set, "
+        << 1.0 * seq_cut_increase / num_seq_set_moves << " per cluster, "
         << 1.0 * seq_cut_increase / num_seq_node_moves << " per node";
   STATS << "  Parallel rounds:";
   STATS << "    Number of clusters moved: " << num_par_set_moves << " with " << num_par_node_moves
-        << " nodes = " << 1.0 * num_par_node_moves / num_par_set_moves << " nodes per set";
+        << " nodes = " << 1.0 * num_par_node_moves / num_par_set_moves << " nodes per cluster";
   STATS << "    Imbalance reduction:      " << par_imbalance_reduction << " = "
-        << 1.0 * par_imbalance_reduction / num_par_set_moves << " per set, "
+        << 1.0 * par_imbalance_reduction / num_par_set_moves << " per cluster, "
         << 1.0 * par_imbalance_reduction / num_par_node_moves << " per node";
   STATS << "    Cut reduction:            " << par_cut_increase << " = "
-        << 1.0 * par_cut_increase / num_par_set_moves << " per set, "
+        << 1.0 * par_cut_increase / num_par_set_moves << " per cluster, "
         << 1.0 * par_cut_increase / num_par_node_moves << " per node";
   STATS << "    # of dicing attempts:     " << num_par_dicing_attempts << " = "
         << 1.0 * num_par_dicing_attempts / num_par_rounds << " per round";

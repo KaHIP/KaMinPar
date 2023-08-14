@@ -57,14 +57,12 @@ bool JetRefiner::refine() {
       }
     }
   }();
-  DBG << "Setting c=" << c;
 
   START_TIMER("Allocation");
   NoinitVector<std::uint8_t> lock(_p_graph.n());
   _p_graph.pfor_nodes([&](const NodeID u) { lock[u] = 0; });
 
   auto balancer = _balancer_factory->create(_p_graph, _p_ctx);
-  balancer->initialize();
 
   NoinitVector<BlockID> next_partition(_p_graph.total_n());
   NoinitVector<BlockID> best_partition(_p_graph.total_n());
@@ -277,6 +275,7 @@ bool JetRefiner::refine() {
     };
 
     TIMED_SCOPE("Rebalance") {
+      balancer->initialize();
       balancer->refine();
     };
 
