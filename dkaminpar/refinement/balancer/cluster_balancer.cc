@@ -16,7 +16,7 @@
 
 namespace kaminpar::dist {
 SET_STATISTICS_FROM_GLOBAL();
-SET_DEBUG(true);
+SET_DEBUG(false);
 
 void ClusterBalancer::Statistics::reset() {
   num_rounds = 0;
@@ -575,8 +575,20 @@ void ClusterBalancer::perform_parallel_round() {
     candidates.resize(candidates.size() - num_rejected_candidates);
     perform_moves(candidates, false);
 
-    IFSTATS(_stats.num_par_set_moves += candidates.size());
-    IFSTATS(_stats.num_par_node_moves += dbg_count_nodes_in_clusters(candidates));
+    IF_STATS {
+      std::size_t global_candidates_count = candidates.size();
+      MPI_Allreduce(
+          MPI_IN_PLACE,
+          &global_candidates_count,
+          1,
+          mpi::type::get<std::size_t>(),
+          MPI_SUM,
+          _p_graph.communicator()
+      );
+
+      _stats.num_par_set_moves += global_candidates_count;
+      _stats.num_par_node_moves += dbg_count_nodes_in_clusters(candidates);
+    }
   }
 }
 

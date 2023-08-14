@@ -208,6 +208,7 @@ private:
 
   bool dbg_check_all_nodes_covered() const;
   bool dbg_check_clusters_contained_in_blocks() const;
+  bool dbg_check_conns() const;
 
   const DistributedPartitionedGraph *_p_graph;
   const PartitionContext *_p_ctx;

@@ -54,16 +54,18 @@ Clusters::Clusters(
   KASSERT(_cluster_indices.front() == 0u);
   init_ghost_node_adjacency();
 
+  const int dbg_alvl = assert::normal;
   KASSERT(
       dbg_check_all_nodes_covered(),
       "not all nodes in overloaded blocks are covered by clusters",
-      assert::heavy
+      dbg_alvl
   );
   KASSERT(
       dbg_check_clusters_contained_in_blocks(),
       "clusters span multiple blocks, which is not allowed",
-      assert::heavy
+      dbg_alvl
   );
+  KASSERT(dbg_check_conns(), "invalid cluster connections", dbg_alvl);
 }
 
 Clusters::operator ClustersMemoryContext() && {
@@ -194,6 +196,32 @@ bool Clusters::dbg_check_clusters_contained_in_blocks() const {
       }
     }
   }
+  return true;
+}
+
+bool Clusters::dbg_check_conns() const {
+  std::vector<EdgeWeight> actual;
+  for (const NodeID cluster : clusters()) {
+    actual.clear();
+    actual.resize(_p_graph->k());
+
+    for (const NodeID u : nodes(cluster)) {
+      for (const auto &[e, v] : _p_graph->neighbors(u)) {
+        if (!_p_graph->is_owned_node(v) || cluster_of(v) != cluster_of(u)) {
+          actual[_p_graph->block(v)] += _p_graph->edge_weight(e);
+        }
+      }
+    }
+
+    for (const BlockID b : _p_graph->blocks()) {
+      if (actual[b] != conn(cluster, b)) {
+        LOG_WARNING << "cluster " << cluster << " has conn to block " << b << " = "
+                    << conn(cluster, b) << ", but the actual conn is " << actual[b];
+        return false;
+      }
+    }
+  }
+
   return true;
 }
 
