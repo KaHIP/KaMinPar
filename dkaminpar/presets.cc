@@ -69,7 +69,6 @@ Context create_default_context() {
                       .total_num_chunks = 128,
                       .fixed_num_chunks = 0,
                       .min_num_chunks = 8,
-                      .ignore_ghost_nodes = false, // unused
                       .keep_ghost_clusters = false,
                       .scale_chunks_with_threads = false,
                       .sync_cluster_weights = true,
@@ -93,17 +92,12 @@ Context create_default_context() {
               .local_lp =
                   {
                       .num_iterations = 5,
-                      .passive_high_degree_threshold = 1'000'000, // unused
                       .active_high_degree_threshold = 1'000'000,
                       .max_num_neighbors = kInvalidNodeID,
-                      .merge_singleton_clusters = true,
+                      .merge_singleton_clusters = false,
                       .merge_nonadjacent_clusters_threshold = 0.5,
-                      .total_num_chunks = 0, // unused
-                      .fixed_num_chunks = 0, // unused
-                      .min_num_chunks = 0,   // unused
-                      .ignore_ghost_nodes = false,
+                      .ignore_ghost_nodes = true,
                       .keep_ghost_clusters = false,
-                      .scale_chunks_with_threads = false, // unused
                   },
               .contraction_limit = 2000,
               .cluster_weight_limit = shm::ClusterWeightLimit::EPSILON_BLOCK_WEIGHT,

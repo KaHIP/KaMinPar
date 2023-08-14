@@ -215,8 +215,9 @@ bool Clusters::dbg_check_conns() const {
 
     for (const BlockID b : _p_graph->blocks()) {
       if (actual[b] != conn(cluster, b)) {
-        LOG_WARNING << "cluster " << cluster << " has conn to block " << b << " = "
-                    << conn(cluster, b) << ", but the actual conn is " << actual[b];
+        LOG_WARNING << "cluster " << cluster << " in block " << block(cluster)
+                    << " has conn to block " << b << " = " << conn(cluster, b)
+                    << ", but the actual conn is " << actual[b];
         return false;
       }
     }
@@ -353,7 +354,9 @@ public:
     for (NodeID pos = _best_prefix_pos + 1; pos < _cur_pos; ++pos) {
       _node_to_cluster[_clusters[pos]] = kInvalidNodeID;
     }
-
+    for (const BlockID b : _p_graph.blocks()) {
+      _conns[_cur_move_set * _p_graph.k() + b] = _cur_conns.key(b);
+    }
     _cluster_indices[++_cur_move_set] = _best_prefix_pos;
     KASSERT(_cluster_indices[_cur_move_set] - _cluster_indices[_cur_move_set - 1] <= 64);
 
@@ -527,8 +530,11 @@ Clusters build_local_clusters(
       m_ctx.cluster_indices[ms + 1] = cluster_sizes[clustering[u]];
 
       for (const auto [e, v] : p_graph.neighbors(u)) {
-        const BlockID bv = p_graph.block(v);
-        m_ctx.cluster_conns[ms * p_graph.k() + bv] += p_graph.edge_weight(e);
+        // We may not access clustering[.] for ghost vertices
+        if (!p_graph.is_owned_node(v) || clustering[v] != clustering[u]) {
+          const BlockID bv = p_graph.block(v);
+          m_ctx.cluster_conns[ms * p_graph.k() + bv] += p_graph.edge_weight(e);
+        }
       }
     } else {
       m_ctx.node_to_cluster[u] = kInvalidNodeID;
