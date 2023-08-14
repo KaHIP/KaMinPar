@@ -276,13 +276,13 @@ std::unordered_map<std::string, ClusterStrategy> get_move_set_strategies() {
   };
 }
 
-void print(const Context &ctx, const bool root, std::ostream &out) {
+void print(const Context &ctx, const bool root, std::ostream &out, MPI_Comm comm) {
   if (root) {
     out << "Seed:                         " << Random::seed << "\n";
     out << "Graph:\n";
     out << "  Rearrange graph by:         " << ctx.rearrange_by << "\n";
   }
-  print(ctx.partition, root, out);
+  print(ctx.partition, root, out, comm);
   if (root) {
     cio::print_delimiter("Partitioning Scheme", '-');
 
@@ -301,7 +301,7 @@ void print(const Context &ctx, const bool root, std::ostream &out) {
   }
 }
 
-void print(const PartitionContext &ctx, const bool root, std::ostream &out) {
+void print(const PartitionContext &ctx, const bool root, std::ostream &out, MPI_Comm comm) {
   // If the graph context has not been initialized with a graph, be silent
   // (This should never happen)
   if (ctx.graph == nullptr) {
@@ -315,6 +315,9 @@ void print(const PartitionContext &ctx, const bool root, std::ostream &out) {
   });
   const auto width = std::ceil(std::log10(size)) + 1;
 
+  const GlobalNodeID num_global_total_nodes =
+      mpi::allreduce<GlobalNodeID>(ctx.graph->total_n, MPI_SUM, comm);
+
   if (root) {
     out << "  Number of global nodes:    " << std::setw(width) << ctx.graph->global_n;
     if (asserting_cast<GlobalNodeWeight>(ctx.graph->global_n) ==
@@ -323,6 +326,8 @@ void print(const PartitionContext &ctx, const bool root, std::ostream &out) {
     } else {
       out << " (total weight: " << ctx.graph->global_total_node_weight << ")\n";
     }
+    out << "    + ghost nodes:           " << std::setw(width)
+        << num_global_total_nodes - ctx.graph->global_n << "\n";
     out << "  Number of global edges:    " << std::setw(width) << ctx.graph->global_m;
     if (asserting_cast<GlobalEdgeWeight>(ctx.graph->global_m) ==
         ctx.graph->global_total_edge_weight) {

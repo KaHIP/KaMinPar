@@ -39,8 +39,8 @@ std::unordered_map<std::string, ClusterStrategy> get_move_set_strategies();
 std::string get_refinement_algorithms_description();
 std::string get_balancing_algorithms_description();
 
-void print(const Context &ctx, bool root, std::ostream &out);
-void print(const PartitionContext &ctx, bool root, std::ostream &out);
+void print(const Context &ctx, bool root, std::ostream &out, MPI_Comm comm);
+void print(const PartitionContext &ctx, bool root, std::ostream &out, MPI_Comm comm);
 void print(const CoarseningContext &ctx, const ParallelContext &parallel, std::ostream &out);
 void print(const InitialPartitioningContext &ctx, std::ostream &out);
 void print(const RefinementContext &ctx, std::ostream &out);
