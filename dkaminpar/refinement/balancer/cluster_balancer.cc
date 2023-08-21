@@ -15,11 +15,11 @@
 #include "dkaminpar/mpi/wrapper.h"
 #include "dkaminpar/refinement/balancer/clusters.h"
 
-#define HEAVY assert::normal
+#define HEAVY assert::heavy
 
 namespace kaminpar::dist {
 SET_STATISTICS_FROM_GLOBAL();
-SET_DEBUG(true);
+SET_DEBUG(false);
 
 void ClusterBalancer::Statistics::reset() {
   num_rounds = 0;

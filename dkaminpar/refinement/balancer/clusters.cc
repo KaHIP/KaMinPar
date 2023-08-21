@@ -26,6 +26,8 @@
 #include "common/datastructures/rating_map.h"
 #include "common/timer.h"
 
+#define HEAVY assert::heavy
+
 namespace kaminpar::dist {
 SET_DEBUG(false);
 
@@ -61,18 +63,17 @@ Clusters::Clusters(
   KASSERT(_cluster_indices.front() == 0u);
   init_ghost_node_adjacency();
 
-  const int dbg_alvl = assert::normal; // @todo
   KASSERT(
       dbg_check_all_nodes_covered(),
       "not all nodes in overloaded blocks are covered by clusters",
-      dbg_alvl
+      HEAVY
   );
   KASSERT(
       dbg_check_clusters_contained_in_blocks(),
       "clusters span multiple blocks, which is not allowed",
-      dbg_alvl
+      HEAVY
   );
-  KASSERT(dbg_check_conns(), "invalid cluster connections", dbg_alvl);
+  KASSERT(dbg_check_conns(), "invalid cluster connections", HEAVY);
 }
 
 Clusters::operator ClustersMemoryContext() && {
