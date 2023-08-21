@@ -51,7 +51,7 @@ void ClusterBalancer::Statistics::print() {
   STATS << "    Imbalance reduction:      " << seq_imbalance_reduction << " = "
         << 1.0 * seq_imbalance_reduction / num_seq_cluster_moves << " per cluster, "
         << 1.0 * seq_imbalance_reduction / num_seq_node_moves << " per node";
-  STATS << "    Cut reduction:            " << seq_cut_increase << " = "
+  STATS << "    Cut increase:             " << seq_cut_increase << " = "
         << 1.0 * seq_cut_increase / num_seq_cluster_moves << " per cluster, "
         << 1.0 * seq_cut_increase / num_seq_node_moves << " per node";
   STATS << "  Parallel rounds:";
@@ -61,7 +61,7 @@ void ClusterBalancer::Statistics::print() {
   STATS << "    Imbalance reduction:      " << par_imbalance_reduction << " = "
         << 1.0 * par_imbalance_reduction / num_par_cluster_moves << " per cluster, "
         << 1.0 * par_imbalance_reduction / num_par_node_moves << " per node";
-  STATS << "    Cut reduction:            " << par_cut_increase << " = "
+  STATS << "    Cut increase:             " << par_cut_increase << " = "
         << 1.0 * par_cut_increase / num_par_cluster_moves << " per cluster, "
         << 1.0 * par_cut_increase / num_par_node_moves << " per node";
   STATS << "    # of dicing attempts:     " << num_par_dicing_attempts << " = "
