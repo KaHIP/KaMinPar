@@ -61,7 +61,7 @@ Clusters::Clusters(
   KASSERT(_cluster_indices.front() == 0u);
   init_ghost_node_adjacency();
 
-  const int dbg_alvl = assert::normal;
+  const int dbg_alvl = assert::normal; // @todo
   KASSERT(
       dbg_check_all_nodes_covered(),
       "not all nodes in overloaded blocks are covered by clusters",

@@ -101,6 +101,10 @@ private:
 
   void perform_parallel_round();
 
+  bool use_sequential_rebalancing() const;
+  bool use_parallel_rebalancing() const;
+  ClusterStrategy get_cluster_strategy() const;
+
   struct MoveCandidate {
     PEID owner;
     NodeID cluster;
@@ -137,6 +141,7 @@ private:
 
   ClusterBalancerFactory &_factory;
   const Context &_ctx;
+  const ClusterBalancerContext &_cb_ctx;
   DistributedPartitionedGraph &_p_graph;
   const PartitionContext &_p_ctx;
 
@@ -146,6 +151,8 @@ private:
 
   Buckets _weight_buckets;
   Clusters _clusters;
+
+  bool _stalled = false;
 
   Statistics _stats;
 };

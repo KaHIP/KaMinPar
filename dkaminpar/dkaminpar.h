@@ -278,6 +278,9 @@ struct ClusterBalancerContext {
 
   ClusterStrategy cluster_strategy;
   int cluster_rebuild_interval;
+
+  bool switch_to_sequential_after_stallmate;
+  bool switch_to_singleton_after_stallmate;
 };
 
 struct JetBalancerContext {

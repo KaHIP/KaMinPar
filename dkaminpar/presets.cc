@@ -198,6 +198,8 @@ Context create_default_context() {
                       .cluster_size_multiplier = 1.0,
                       .cluster_strategy = ClusterStrategy::GREEDY_BATCH_PREFIX,
                       .cluster_rebuild_interval = 0,
+                      .switch_to_sequential_after_stallmate = true,
+                      .switch_to_singleton_after_stallmate = true,
                   },
               .jet =
                   {

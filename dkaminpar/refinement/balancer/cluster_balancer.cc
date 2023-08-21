@@ -15,6 +15,8 @@
 #include "dkaminpar/mpi/wrapper.h"
 #include "dkaminpar/refinement/balancer/clusters.h"
 
+#define HEAVY assert::normal
+
 namespace kaminpar::dist {
 SET_STATISTICS_FROM_GLOBAL();
 SET_DEBUG(true);
@@ -105,6 +107,7 @@ ClusterBalancer::ClusterBalancer(
 )
     : _factory(factory),
       _ctx(ctx),
+      _cb_ctx(ctx.refinement.cluster_balancer),
       _p_graph(p_graph),
       _p_ctx(p_ctx),
       _pqs(_p_graph.n(), _p_graph.k()),
@@ -124,6 +127,7 @@ ClusterBalancer::operator ClusterBalancerMemoryContext() && {
 
 void ClusterBalancer::initialize() {
   IFSTATS(_stats.reset());
+  _stalled = false;
   rebuild_clusters();
 }
 
@@ -140,7 +144,7 @@ void ClusterBalancer::rebuild_clusters() {
 
 void ClusterBalancer::init_clusters() {
   _clusters = build_clusters(
-      _ctx.refinement.cluster_balancer.cluster_strategy,
+      get_cluster_strategy(),
       _p_graph,
       _ctx,
       _p_ctx,
@@ -199,7 +203,7 @@ void ClusterBalancer::init_clusters() {
         return true;
       }(),
       "move sets do not cover all nodes in overloaded blocks",
-      assert::heavy
+      HEAVY
   );
 }
 
@@ -222,7 +226,9 @@ void ClusterBalancer::try_pq_insertion(const NodeID cluster) {
 
   // Add this move set to the PQ if:
   // @todo seq_full_pq is mandatory for now, otherwise updating the weight buckets does not work
-  bool accept = _ctx.refinement.cluster_balancer.seq_full_pq;
+  bool accept = _cb_ctx.seq_full_pq;
+  KASSERT(accept, "implementation does not work with partial PQs", assert::always);
+
   bool replace_min = false;
 
   // - we do not have enough move sets yet to remove all excess weight from the block
@@ -273,16 +279,12 @@ bool ClusterBalancer::refine() {
   KASSERT(
       graph::debug::validate_partition(_p_graph),
       "input partition for the move cluster balancer is in an inconsistent state",
-      assert::heavy
+      HEAVY
   );
+  KASSERT(dbg_validate_pq_weights(), "PQ weights are inaccurate after initialization", HEAVY);
   KASSERT(
-      dbg_validate_pq_weights(), "PQ weights are inaccurate after initialization", assert::heavy
+      dbg_validate_bucket_weights(), "bucket weights are inaccurate after initialization", HEAVY
   );
-  KASSERT(
-      dbg_validate_bucket_weights(),
-      "bucket weights are inaccurate after initialization",
-      assert::normal
-  ); // @todo change to heavy
 
   const double initial_imbalance_distance = metrics::imbalance_l1(_p_graph, _p_ctx);
   double prev_imbalance_distance = initial_imbalance_distance;
@@ -290,21 +292,21 @@ bool ClusterBalancer::refine() {
   EdgeWeight prev_edge_cut = 0;
   IFSTATS(prev_edge_cut = metrics::edge_cut(_p_graph));
 
-  for (int round = 0;
-       prev_imbalance_distance > 0 && round < _ctx.refinement.cluster_balancer.max_num_rounds;
-       ++round) {
+  bool force_cluster_rebuild = false;
+
+  for (int round = 0; prev_imbalance_distance > 0 && round < _cb_ctx.max_num_rounds; ++round) {
     IFSTATS(++_stats.num_rounds);
     DBG0 << "Starting round " << round;
 
-    if (round > 0 && _ctx.refinement.cluster_balancer.cluster_rebuild_interval > 0 &&
-        (round % _ctx.refinement.cluster_balancer.cluster_rebuild_interval) == 0) {
-      DBG0 << "  --> rebuild move cluster after every "
-           << _ctx.refinement.cluster_balancer.cluster_rebuild_interval;
+    if (force_cluster_rebuild || (round > 0 && _cb_ctx.cluster_rebuild_interval > 0 &&
+                                  (round % _cb_ctx.cluster_rebuild_interval) == 0)) {
+      DBG0 << "  --> rebuild move cluster after every " << _cb_ctx.cluster_rebuild_interval;
 
       rebuild_clusters();
+      force_cluster_rebuild = false;
     }
 
-    if (_ctx.refinement.cluster_balancer.enable_sequential_balancing) {
+    if (use_sequential_rebalancing()) {
       perform_sequential_round();
       DBG0 << "  --> Round " << round << ": seq. balancing: " << prev_imbalance_distance << " --> "
            << metrics::imbalance_l1(_p_graph, _p_ctx);
@@ -316,10 +318,10 @@ bool ClusterBalancer::refine() {
       IFSTATS(prev_edge_cut = metrics::edge_cut(_p_graph));
     }
 
-    if (_ctx.refinement.cluster_balancer.enable_parallel_balancing) {
+    if (use_parallel_rebalancing()) {
       const double imbalance_after_seq_balancing = metrics::imbalance_l1(_p_graph, _p_ctx);
       if ((prev_imbalance_distance - imbalance_after_seq_balancing) / prev_imbalance_distance <
-          _ctx.refinement.cluster_balancer.parallel_threshold) {
+          _cb_ctx.parallel_threshold) {
         perform_parallel_round();
         DBG0 << "  --> Round " << round << ": par. balancing: " << imbalance_after_seq_balancing
              << " --> " << metrics::imbalance_l1(_p_graph, _p_ctx);
@@ -334,30 +336,33 @@ bool ClusterBalancer::refine() {
     // Abort if we couldn't improve balance
     const double next_imbalance_distance = metrics::imbalance_l1(_p_graph, _p_ctx);
     if (next_imbalance_distance >= prev_imbalance_distance) {
-      if (mpi::get_comm_rank(_p_graph.communicator()) == 0) {
-        LOG_WARNING << "Stallmate: imbalance distance " << next_imbalance_distance
-                    << " could not be improved in round " << round;
-        LOG_WARNING << dbg_get_pq_state_str() << " /// " << dbg_get_partition_state_str();
-      }
-      break;
-    } else {
-      prev_imbalance_distance = metrics::imbalance_l1(_p_graph, _p_ctx);
-    }
+      if ((!_cb_ctx.switch_to_sequential_after_stallmate ||
+           !_cb_ctx.switch_to_singleton_after_stallmate) &&
+          _stalled) {
+        if (mpi::get_comm_rank(_p_graph.communicator()) == 0) {
+          LOG_WARNING << "Stallmate: imbalance distance " << next_imbalance_distance
+                      << " could not be improved in round " << round;
+          LOG_WARNING << dbg_get_pq_state_str() << " /// " << dbg_get_partition_state_str();
+        }
 
+        break;
+      }
+
+      _stalled = true;
+      force_cluster_rebuild = true;
+    }
+    prev_imbalance_distance = next_imbalance_distance;
+
+    KASSERT(dbg_validate_pq_weights(), "PQ weights are inaccurate after round " << round, HEAVY);
     KASSERT(
-        dbg_validate_pq_weights(), "PQ weights are inaccurate after round " << round, assert::heavy
+        dbg_validate_bucket_weights(), "bucket weights are inaccurate after round " << round, HEAVY
     );
-    KASSERT(
-        dbg_validate_bucket_weights(),
-        "bucket weights are inaccurate after round " << round,
-        assert::normal
-    ); // @todo change to heavy
   }
 
   KASSERT(
       graph::debug::validate_partition(_p_graph),
       "partition is in an inconsistent state after round " << round,
-      assert::heavy
+      HEAVY
   );
   IFSTATS(_stats.print());
   return prev_imbalance_distance > 0;
@@ -514,8 +519,7 @@ void ClusterBalancer::perform_parallel_round() {
   bool balanced_moves = false;
 
   for (int attempt = 0;
-       !balanced_moves &&
-       attempt < std::max<int>(1, _ctx.refinement.cluster_balancer.par_num_dicing_attempts);
+       !balanced_moves && attempt < std::max<int>(1, _cb_ctx.par_num_dicing_attempts);
        ++attempt) {
     IFSTATS(++_stats.num_par_dicing_attempts);
 
@@ -557,7 +561,7 @@ void ClusterBalancer::perform_parallel_round() {
 
   IFSTATS(_stats.num_par_balanced_moves += balanced_moves);
 
-  if (balanced_moves || _ctx.refinement.cluster_balancer.par_accept_imbalanced) {
+  if (balanced_moves || _cb_ctx.par_accept_imbalanced) {
     for (const BlockID block : _p_graph.blocks()) {
       _p_graph.set_block_weight(
           block, _p_graph.block_weight(block) + actual_block_weight_deltas[block]
@@ -633,7 +637,7 @@ void ClusterBalancer::perform_sequential_round() {
         return true;
       }(),
       "picked candidates overload at least one block",
-      assert::heavy
+      HEAVY
   );
 
   // Step 3: broadcast winners
@@ -651,8 +655,14 @@ void ClusterBalancer::perform_sequential_round() {
 void ClusterBalancer::perform_moves(
     const std::vector<MoveCandidate> &candidates, const bool update_block_weights
 ) {
-  KASSERT(dbg_validate_cluster_conns(), "cluster conns are inconsistent before performing moves");
-  KASSERT(dbg_validate_bucket_weights(), "bucket weights are inconsistent before performing moves");
+  KASSERT(
+      dbg_validate_cluster_conns(), "cluster conns are inconsistent before performing moves", HEAVY
+  );
+  KASSERT(
+      dbg_validate_bucket_weights(),
+      "bucket weights are inconsistent before performing moves",
+      HEAVY
+  );
 
   const PEID rank = mpi::get_comm_rank(_p_graph.communicator());
   const PEID size = mpi::get_comm_size(_p_graph.communicator());
@@ -739,10 +749,13 @@ void ClusterBalancer::perform_moves(
 
   KASSERT(
       dbg_validate_cluster_conns(),
-      "cluster conns are inconsistent after moving local nodes / local clusters"
+      "cluster conns are inconsistent after moving local nodes / local clusters",
+      HEAVY
   );
   KASSERT(
-      dbg_validate_bucket_weights(), "bucket weights are inconsistent after moving local nodes"
+      dbg_validate_bucket_weights(),
+      "bucket weights are inconsistent after moving local nodes",
+      HEAVY
   );
 
   mpi::sparse_alltoall<MoveMessage>(
@@ -759,11 +772,15 @@ void ClusterBalancer::perform_moves(
       _p_graph.communicator()
   );
 
-  KASSERT(dbg_validate_cluster_conns(), "cluster conns are inconsistent after moving ghost nodes");
   KASSERT(
-      dbg_validate_bucket_weights(), "bucket weights are inconsistent after moving ghost nodes"
+      dbg_validate_cluster_conns(), "cluster conns are inconsistent after moving ghost nodes", HEAVY
   );
-  KASSERT(dbg_validate_pq_weights());
+  KASSERT(
+      dbg_validate_bucket_weights(),
+      "bucket weights are inconsistent after moving ghost nodes",
+      HEAVY
+  );
+  KASSERT(dbg_validate_pq_weights(), "PQ weights are inconsistent after performing moves", HEAVY);
 }
 
 std::vector<ClusterBalancer::MoveCandidate> ClusterBalancer::pick_sequential_candidates() {
@@ -777,7 +794,7 @@ std::vector<ClusterBalancer::MoveCandidate> ClusterBalancer::pick_sequential_can
 
     const std::size_t start = candidates.size();
 
-    for (NodeID num = 0; num < _ctx.refinement.cluster_balancer.seq_num_nodes_per_block; ++num) {
+    for (NodeID num = 0; num < _cb_ctx.seq_num_nodes_per_block; ++num) {
       if (_pqs.empty(from)) {
         break;
       }
@@ -786,6 +803,7 @@ std::vector<ClusterBalancer::MoveCandidate> ClusterBalancer::pick_sequential_can
       const double relative_gain = _pqs.peek_max_key(from);
       const NodeWeight weight = _clusters.weight(cluster);
       _pqs.pop_max(from);
+      _weight_buckets.remove(from, weight, relative_gain);
 
       auto [actual_relative_gain, to] = _clusters.find_max_relative_gain(cluster);
       if (actual_relative_gain >= relative_gain) {
@@ -801,12 +819,14 @@ std::vector<ClusterBalancer::MoveCandidate> ClusterBalancer::pick_sequential_can
         });
       } else {
         _pqs.push(from, cluster, actual_relative_gain);
+        _weight_buckets.add(from, weight, actual_relative_gain);
         --num;
       }
     }
 
     for (auto candidate = candidates.begin() + start; candidate != candidates.end(); ++candidate) {
       _pqs.push(from, candidate->cluster, candidate->gain);
+      _weight_buckets.add(from, candidate->weight, candidate->gain);
     }
   }
 
@@ -885,8 +905,7 @@ ClusterBalancer::reduce_sequential_candidates(std::vector<MoveCandidate> sendbuf
               ++num_accepted_candidates;
 
               if (total_weight >= overload(from) ||
-                  num_accepted_candidates >=
-                      _ctx.refinement.cluster_balancer.seq_num_nodes_per_block) {
+                  num_accepted_candidates >= _cb_ctx.seq_num_nodes_per_block) {
                 break;
               }
             }
@@ -974,7 +993,7 @@ bool ClusterBalancer::assign_feasible_target_block(
 
 NodeWeight ClusterBalancer::compute_cluster_weight_limit() const {
   NodeWeight limit = 0;
-  switch (_ctx.refinement.cluster_balancer.cluster_size_strategy) {
+  switch (_cb_ctx.cluster_size_strategy) {
   case ClusterSizeStrategy::ZERO:
     limit = 0;
     break;
@@ -1003,7 +1022,7 @@ NodeWeight ClusterBalancer::compute_cluster_weight_limit() const {
     break;
   }
 
-  return limit * _ctx.refinement.cluster_balancer.cluster_size_multiplier;
+  return limit * _cb_ctx.cluster_size_multiplier;
 }
 
 std::string ClusterBalancer::dbg_get_partition_state_str() const {
@@ -1142,4 +1161,23 @@ NodeID ClusterBalancer::dbg_count_nodes_in_clusters(const std::vector<MoveCandid
   );
   return num_nodes;
 }
+
+bool ClusterBalancer::use_sequential_rebalancing() const {
+  return (_stalled && _cb_ctx.switch_to_sequential_after_stallmate) ||
+         _cb_ctx.enable_sequential_balancing;
+}
+
+bool ClusterBalancer::use_parallel_rebalancing() const {
+  return (!_stalled || !_cb_ctx.switch_to_sequential_after_stallmate) &&
+         _cb_ctx.enable_parallel_balancing;
+}
+
+ClusterStrategy ClusterBalancer::get_cluster_strategy() const {
+  if (_stalled && _cb_ctx.switch_to_singleton_after_stallmate) {
+    return ClusterStrategy::SINGLETONS;
+  }
+
+  return _cb_ctx.cluster_strategy;
+}
 } // namespace kaminpar::dist
+
