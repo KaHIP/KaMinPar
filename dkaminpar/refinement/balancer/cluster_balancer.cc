@@ -447,10 +447,9 @@ void ClusterBalancer::perform_parallel_round() {
   MPI_Bcast(cut_off_buckets.data(), num_overloaded_blocks, MPI_INT, 0, _p_graph.communicator());
 
   IF_DBG0 {
-    DBG << "---";
-    DBG << dbg_get_partition_state_str();
     std::stringstream ss;
     ss << "\n";
+    ss << dbg_get_partition_state_str() << "\n";
 
     for (const BlockID b : _p_graph.blocks()) {
       if (overload(b) > 0) {
@@ -462,16 +461,17 @@ void ClusterBalancer::perform_parallel_round() {
       }
     }
     DBG << ss.str();
-    DBG << "---";
   }
 
   std::vector<MoveCandidate> candidates;
   std::vector<BlockWeight> block_weight_deltas(_p_graph.k());
 
   for (const NodeID cluster : _clusters.clusters()) {
-    const BlockID from = _clusters.block(cluster);
+    if (_moved_marker.get(cluster)) {
+      continue;
+    }
 
-    if (is_overloaded(from)) {
+    if (const BlockID from = _clusters.block(cluster); is_overloaded(from)) {
       auto [gain, to] = _clusters.find_max_relative_gain(cluster);
       const auto bucket = Buckets::compute_bucket(gain);
 
@@ -651,6 +651,9 @@ void ClusterBalancer::perform_sequential_round() {
 void ClusterBalancer::perform_moves(
     const std::vector<MoveCandidate> &candidates, const bool update_block_weights
 ) {
+  KASSERT(dbg_validate_cluster_conns(), "cluster conns are inconsistent before performing moves");
+  KASSERT(dbg_validate_bucket_weights(), "bucket weights are inconsistent before performing moves");
+
   const PEID rank = mpi::get_comm_rank(_p_graph.communicator());
   const PEID size = mpi::get_comm_size(_p_graph.communicator());
 
@@ -692,11 +695,16 @@ void ClusterBalancer::perform_moves(
   for (const auto &candidate : candidates) {
     if (rank == candidate.owner) {
       _clusters.move_cluster(candidate.cluster, candidate.from, candidate.to);
-      _weight_buckets.remove(candidate.from, candidate.weight, candidate.gain);
-      if (_pqs.contains(candidate.cluster)) {
-        _pq_weights[candidate.from] -= candidate.weight;
-        _pqs.remove(candidate.from, candidate.cluster);
-      }
+
+      // We cannot use candidate.gain here, since that might not be the gain that was recomputed
+      // during candidate selection
+      KASSERT(_pqs.contains(candidate.cluster));
+      _weight_buckets.remove(
+          candidate.from, candidate.weight, _pqs.key(candidate.from, candidate.cluster)
+      );
+
+      _pq_weights[candidate.from] -= candidate.weight;
+      _pqs.remove(candidate.from, candidate.cluster);
 
       for (NodeID u : _clusters.nodes(candidate.cluster)) {
         // @todo set blocks before updating other data structures to avoid max gainer changes?
@@ -781,6 +789,8 @@ std::vector<ClusterBalancer::MoveCandidate> ClusterBalancer::pick_sequential_can
 
       auto [actual_relative_gain, to] = _clusters.find_max_relative_gain(cluster);
       if (actual_relative_gain >= relative_gain) {
+        KASSERT(!_moved_marker.get(cluster));
+
         candidates.push_back(MoveCandidate{
             .owner = rank,
             .cluster = cluster,
@@ -1017,10 +1027,6 @@ std::string ClusterBalancer::dbg_get_pq_state_str() const {
 }
 
 bool ClusterBalancer::dbg_validate_pq_weights() const {
-  if (!_ctx.refinement.cluster_balancer.enable_sequential_balancing) {
-    return true;
-  }
-
   std::vector<BlockWeight> local_block_weights(_p_graph.k());
   for (const NodeID u : _p_graph.nodes()) {
     local_block_weights[_p_graph.block(u)] += _p_graph.node_weight(u);
@@ -1029,11 +1035,6 @@ bool ClusterBalancer::dbg_validate_pq_weights() const {
   for (const BlockID block : _p_graph.blocks()) {
     if (is_overloaded(block)) {
       if (_pq_weights[block] == 0) {
-        /*
-        LOG_WARNING << "Block " << block
-                    << " is overloaded, but its PQ is empty -- this might happen if parallel "
-                       "rebalance overloaded some block";
-        */
         continue;
       }
 
@@ -1079,11 +1080,7 @@ bool ClusterBalancer::dbg_validate_bucket_weights() const {
     const BlockID block = _clusters.block(cluster);
     if (overload(block) > 0 && !_moved_marker.get(cluster)) {
       KASSERT(_pqs.contains(cluster));
-      // const std::size_t bucket =
-      //     Buckets::compute_bucket(_clusters.find_max_relative_gain(cluster).first);
-      const std::size_t bucket =
-          Buckets::compute_bucket(_pqs.key(_clusters.block(cluster), cluster));
-
+      const std::size_t bucket = Buckets::compute_bucket(_pqs.key(block, cluster));
       expected_per_bucket_weights[Buckets::kNumBuckets * block + bucket] +=
           _clusters.weight(cluster);
     }
@@ -1122,10 +1119,12 @@ bool ClusterBalancer::dbg_validate_bucket_weights() const {
 
 bool ClusterBalancer::dbg_validate_cluster_conns() const {
   for (const NodeID cluster : _clusters.clusters()) {
+    // Cluster connections are always updated, so we can check them for moved clusters too
     if (/* !_moved_marker.get(cluster) && */ !_clusters.dbg_check_conns(cluster)) {
       return false;
     }
   }
+
   return true;
 }
 
