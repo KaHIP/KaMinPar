@@ -125,7 +125,11 @@ public:
     return _cluster_indices.size() - 1;
   }
 
-  inline void move_ghost_node(const NodeID ghost, const BlockID from, const BlockID to) {
+  template <typename AdjacentClusterHandler>
+  inline void move_ghost_node(
+      const NodeID ghost, const BlockID from, const BlockID to, AdjacentClusterHandler &&handler
+  ) {
+    KASSERT(from != to);
     KASSERT(_p_graph->is_ghost_node(ghost));
     const NodeID nth_ghost = ghost - _p_graph->n();
 
@@ -133,11 +137,13 @@ public:
     for (EdgeID edge = _ghost_node_indices[nth_ghost]; edge < _ghost_node_indices[nth_ghost + 1];
          ++edge) {
       KASSERT(edge < _ghost_node_edges.size());
-      const auto [weight, set] = _ghost_node_edges[edge];
+      const auto [cluster, weight] = _ghost_node_edges[edge];
 
-      KASSERT((set + 1) * _p_graph->k() <= _cluster_conns.size());
-      _cluster_conns[set * _p_graph->k() + from] -= weight;
-      _cluster_conns[set * _p_graph->k() + to] += weight;
+      KASSERT((cluster + 1) * _p_graph->k() <= _cluster_conns.size());
+      _cluster_conns[cluster * _p_graph->k() + from] -= weight;
+      _cluster_conns[cluster * _p_graph->k() + to] += weight;
+
+      handler(cluster);
     }
   }
 
@@ -202,8 +208,14 @@ public:
     return {compute_relative_gain(absolute_gain, weight(set)), max_gainer};
   }
 
+  bool dbg_check_all_nodes_covered() const;
+  bool dbg_check_clusters_contained_in_blocks() const;
+  bool dbg_check_conns() const;
+  bool dbg_check_conns(const NodeID cluster) const;
+
 private:
-  double compute_relative_gain(const EdgeWeight absolute_gain, const NodeWeight cluster_weight) const {
+  double
+  compute_relative_gain(const EdgeWeight absolute_gain, const NodeWeight cluster_weight) const {
     if (absolute_gain >= 0) {
       return absolute_gain * cluster_weight;
     } else {
@@ -212,10 +224,6 @@ private:
   }
 
   void init_ghost_node_adjacency();
-
-  bool dbg_check_all_nodes_covered() const;
-  bool dbg_check_clusters_contained_in_blocks() const;
-  bool dbg_check_conns() const;
 
   const DistributedPartitionedGraph *_p_graph;
   const PartitionContext *_p_ctx;

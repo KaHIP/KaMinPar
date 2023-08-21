@@ -64,6 +64,12 @@ public:
   }
 
   void remove(const BlockID block, const NodeWeight weight, const double gain) {
+    KASSERT(
+        size(block, compute_bucket(gain)) >= weight,
+        "removing " << weight << " from bucket " << compute_bucket(gain) << " (cor. to gain "
+                    << gain << ") in block " << block << " would underflow the bucket size "
+                    << size(block, compute_bucket(gain))
+    );
     size(block, compute_bucket(gain)) -= weight;
   }
 

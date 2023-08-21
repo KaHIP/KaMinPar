@@ -99,6 +99,7 @@ public:
   [[nodiscard]] inline PEID find_owner_of_global_node(const GlobalNodeID u) const { return _graph->find_owner_of_global_node(u); }
   [[nodiscard]] inline PEID ghost_owner(const NodeID u) const { return _graph->ghost_owner(u); }
   [[nodiscard]] inline GlobalNodeID local_to_global_node(const NodeID local_u) const { return _graph->local_to_global_node(local_u); }
+  [[nodiscard]] inline NodeID map_foreign_node(const NodeID lnode, const PEID owner) const { return _graph->map_foreign_node(lnode, owner); }
   [[nodiscard]] inline NodeID global_to_local_node(const GlobalNodeID global_u) const { return _graph->global_to_local_node(global_u); }
   [[nodiscard]] inline NodeWeight node_weight(const NodeID u) const { return _graph->node_weight(u); }
   [[nodiscard]] inline EdgeWeight edge_weight(const EdgeID e) const { return _graph->edge_weight(e); }

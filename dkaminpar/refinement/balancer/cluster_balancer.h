@@ -43,7 +43,7 @@ class ClusterBalancer : public GlobalRefiner {
   struct ClusterStatistics {
     NodeID cluster_count = 0;
     NodeID node_count = 0;
-    NodeID min_set_size = 0;
+    NodeID min_cluster_size = 0;
     NodeID max_cluster_size = 0;
   };
 
@@ -52,13 +52,13 @@ class ClusterBalancer : public GlobalRefiner {
     std::vector<ClusterStatistics> cluster_stats;
 
     int num_seq_rounds = 0;
-    int num_seq_set_moves = 0;
+    int num_seq_cluster_moves = 0;
     int num_seq_node_moves = 0;
     double seq_imbalance_reduction = 0.0;
     EdgeWeight seq_cut_increase = 0;
 
     int num_par_rounds = 0;
-    int num_par_set_moves = 0;
+    int num_par_cluster_moves = 0;
     int num_par_node_moves = 0;
     int num_par_dicing_attempts = 0;
     int num_par_balanced_moves = 0;
@@ -103,7 +103,7 @@ private:
 
   struct MoveCandidate {
     PEID owner;
-    NodeID set;
+    NodeID cluster;
     NodeWeight weight;
     double gain;
     BlockID from;
@@ -130,6 +130,7 @@ private:
   std::string dbg_get_pq_state_str() const;
   bool dbg_validate_pq_weights() const;
   bool dbg_validate_bucket_weights() const;
+  bool dbg_validate_cluster_conns() const;
   NodeID dbg_count_nodes_in_clusters(const std::vector<MoveCandidate> &candidates) const;
 
   Random &_rand = Random::instance();

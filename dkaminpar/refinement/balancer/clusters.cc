@@ -1,3 +1,10 @@
+/*******************************************************************************
+ * Data structure for clusters and their connections.
+ *
+ * @file:   clusters.cc
+ * @author: Daniel Seemaier
+ * @date:   19.07.2023
+ ******************************************************************************/
 #include "dkaminpar/refinement/balancer/clusters.h"
 
 #include <csignal>
@@ -81,8 +88,8 @@ void Clusters::init_ghost_node_adjacency() {
   std::vector<std::tuple<NodeID, EdgeWeight, NodeID>> ghost_to_cluster;
   FastResetArray<EdgeWeight> weight_to_ghost(_p_graph->ghost_n());
 
-  for (const NodeID set : clusters()) {
-    for (const NodeID u : nodes(set)) {
+  for (const NodeID cluster : clusters()) {
+    for (const NodeID u : nodes(cluster)) {
       for (const auto [e, v] : _p_graph->neighbors(u)) {
         if (!_p_graph->is_ghost_node(v)) {
           continue;
@@ -93,7 +100,7 @@ void Clusters::init_ghost_node_adjacency() {
     }
 
     for (const auto &[ghost, weight] : weight_to_ghost.entries()) {
-      ghost_to_cluster.emplace_back(ghost, weight, set);
+      ghost_to_cluster.emplace_back(ghost, weight, cluster);
     }
     weight_to_ghost.clear();
   }
@@ -110,13 +117,12 @@ void Clusters::init_ghost_node_adjacency() {
   for (std::size_t i = 0; i < ghost_to_cluster.size(); ++i) {
     const auto [ghost, weight, cluster] = ghost_to_cluster[i];
     for (; prev_ghost < ghost; ++prev_ghost) {
-      _ghost_node_indices[prev_ghost + 1] = _ghost_node_indices[prev_ghost];
+      _ghost_node_indices[prev_ghost + 1] = _ghost_node_edges.size();
     }
-    _ghost_node_edges.emplace_back(weight, cluster);
-    _ghost_node_indices[ghost + 1] = _ghost_node_edges.size();
+    _ghost_node_edges.emplace_back(cluster, weight);
   }
   for (; prev_ghost < _p_graph->ghost_n(); ++prev_ghost) {
-    _ghost_node_indices[prev_ghost + 1] = _ghost_node_indices[prev_ghost];
+    _ghost_node_indices[prev_ghost + 1] = _ghost_node_edges.size();
   }
 
   KASSERT(
@@ -197,26 +203,32 @@ bool Clusters::dbg_check_clusters_contained_in_blocks() const {
 }
 
 bool Clusters::dbg_check_conns() const {
-  std::vector<EdgeWeight> actual;
   for (const NodeID cluster : clusters()) {
-    actual.clear();
-    actual.resize(_p_graph->k());
+    if (!dbg_check_conns(cluster)) {
+      return false;
+    }
+  }
 
-    for (const NodeID u : nodes(cluster)) {
-      for (const auto &[e, v] : _p_graph->neighbors(u)) {
-        if (!_p_graph->is_owned_node(v) || cluster_of(v) != cluster_of(u)) {
-          actual[_p_graph->block(v)] += _p_graph->edge_weight(e);
-        }
+  return true;
+}
+
+bool Clusters::dbg_check_conns(const NodeID cluster) const {
+  std::vector<EdgeWeight> actual(_p_graph->k());
+
+  for (const NodeID u : nodes(cluster)) {
+    for (const auto &[e, v] : _p_graph->neighbors(u)) {
+      if (!_p_graph->is_owned_node(v) || cluster_of(v) != cluster_of(u)) {
+        actual[_p_graph->block(v)] += _p_graph->edge_weight(e);
       }
     }
+  }
 
-    for (const BlockID b : _p_graph->blocks()) {
-      if (actual[b] != conn(cluster, b)) {
-        LOG_WARNING << "cluster " << cluster << " in block " << block(cluster)
-                    << " has conn to block " << b << " = " << conn(cluster, b)
-                    << ", but the actual conn is " << actual[b];
-        return false;
-      }
+  for (const BlockID b : _p_graph->blocks()) {
+    if (actual[b] != conn(cluster, b)) {
+      LOG_WARNING << "cluster " << cluster << " in block " << block(cluster)
+                  << " has conn to block " << b << " = " << conn(cluster, b)
+                  << ", but the actual conn is " << actual[b];
+      return false;
     }
   }
 

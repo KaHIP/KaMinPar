@@ -210,6 +210,11 @@ public:
     return _ghost_owner[u - n()];
   }
 
+  [[nodiscard]] inline NodeID map_foreign_node(const NodeID their_lnode, const PEID owner) const {
+    const GlobalNodeID gnode = static_cast<GlobalNodeID>(their_lnode + offset_n(owner));
+    return global_to_local_node(gnode);
+  }
+
   [[nodiscard]] inline GlobalNodeID local_to_global_node(const NodeID local_u) const {
     KASSERT(contains_local_node(local_u));
     return is_owned_node(local_u) ? _offset_n + local_u : _ghost_to_global[local_u - n()];

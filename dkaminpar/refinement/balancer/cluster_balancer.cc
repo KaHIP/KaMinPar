@@ -24,13 +24,13 @@ void ClusterBalancer::Statistics::reset() {
   cluster_stats.clear();
 
   num_seq_rounds = 0;
-  num_seq_set_moves = 0;
+  num_seq_cluster_moves = 0;
   num_seq_node_moves = 0;
   seq_imbalance_reduction = 0.0;
   seq_cut_increase = 0;
 
   num_par_rounds = 0;
-  num_par_set_moves = 0;
+  num_par_cluster_moves = 0;
   num_par_node_moves = 0;
   num_par_dicing_attempts = 0;
   num_par_balanced_moves = 0;
@@ -43,22 +43,24 @@ void ClusterBalancer::Statistics::print() {
   STATS << "  Number of rounds:       " << num_rounds << " (" << num_seq_rounds << " sequential, "
         << num_par_rounds << " parallel)";
   STATS << "  Sequential rounds:";
-  STATS << "    Number of clusters moved: " << num_seq_set_moves << " with " << num_seq_node_moves
-        << " nodes = " << 1.0 * num_seq_node_moves / num_seq_set_moves << " nodes per cluster";
+  STATS << "    Number of clusters moved: " << num_seq_cluster_moves << " with "
+        << num_seq_node_moves << " nodes = " << 1.0 * num_seq_node_moves / num_seq_cluster_moves
+        << " nodes per cluster";
   STATS << "    Imbalance reduction:      " << seq_imbalance_reduction << " = "
-        << 1.0 * seq_imbalance_reduction / num_seq_set_moves << " per cluster, "
+        << 1.0 * seq_imbalance_reduction / num_seq_cluster_moves << " per cluster, "
         << 1.0 * seq_imbalance_reduction / num_seq_node_moves << " per node";
   STATS << "    Cut reduction:            " << seq_cut_increase << " = "
-        << 1.0 * seq_cut_increase / num_seq_set_moves << " per cluster, "
+        << 1.0 * seq_cut_increase / num_seq_cluster_moves << " per cluster, "
         << 1.0 * seq_cut_increase / num_seq_node_moves << " per node";
   STATS << "  Parallel rounds:";
-  STATS << "    Number of clusters moved: " << num_par_set_moves << " with " << num_par_node_moves
-        << " nodes = " << 1.0 * num_par_node_moves / num_par_set_moves << " nodes per cluster";
+  STATS << "    Number of clusters moved: " << num_par_cluster_moves << " with "
+        << num_par_node_moves << " nodes = " << 1.0 * num_par_node_moves / num_par_cluster_moves
+        << " nodes per cluster";
   STATS << "    Imbalance reduction:      " << par_imbalance_reduction << " = "
-        << 1.0 * par_imbalance_reduction / num_par_set_moves << " per cluster, "
+        << 1.0 * par_imbalance_reduction / num_par_cluster_moves << " per cluster, "
         << 1.0 * par_imbalance_reduction / num_par_node_moves << " per node";
   STATS << "    Cut reduction:            " << par_cut_increase << " = "
-        << 1.0 * par_cut_increase / num_par_set_moves << " per cluster, "
+        << 1.0 * par_cut_increase / num_par_cluster_moves << " per cluster, "
         << 1.0 * par_cut_increase / num_par_node_moves << " per node";
   STATS << "    # of dicing attempts:     " << num_par_dicing_attempts << " = "
         << 1.0 * num_par_dicing_attempts / num_par_rounds << " per round";
@@ -68,7 +70,7 @@ void ClusterBalancer::Statistics::print() {
     const auto &stats = cluster_stats[i];
     STATS << "    [" << i << "] # of clusters: " << stats.cluster_count << " with "
           << stats.node_count << " nodes";
-    STATS << "    [" << i << "]                ... min: " << stats.min_set_size
+    STATS << "    [" << i << "]                ... min: " << stats.min_cluster_size
           << ", avg: " << 1.0 * stats.node_count / stats.cluster_count
           << ", max: " << stats.max_cluster_size;
   }
@@ -128,11 +130,11 @@ void ClusterBalancer::initialize() {
 void ClusterBalancer::rebuild_clusters() {
   init_clusters();
   clear();
-  for (const NodeID set : _clusters.clusters()) {
-    if (!is_overloaded(_clusters.block(set))) {
+  for (const NodeID cluster : _clusters.clusters()) {
+    if (!is_overloaded(_clusters.block(cluster))) {
       continue;
     }
-    try_pq_insertion(set);
+    try_pq_insertion(cluster);
   }
 }
 
@@ -178,7 +180,7 @@ void ClusterBalancer::init_clusters() {
     _stats.cluster_stats.push_back(ClusterStatistics{
         .cluster_count = set_count,
         .node_count = node_count,
-        .min_set_size = min,
+        .min_cluster_size = min,
         .max_cluster_size = max,
     });
   }
@@ -208,17 +210,18 @@ void ClusterBalancer::clear() {
   _weight_buckets.clear();
 }
 
-void ClusterBalancer::try_pq_insertion(const NodeID set) {
-  KASSERT(!_pqs.contains(set));
-  KASSERT(!_moved_marker.get(set));
+void ClusterBalancer::try_pq_insertion(const NodeID cluster) {
+  KASSERT(!_pqs.contains(cluster));
+  KASSERT(!_moved_marker.get(cluster));
 
-  const BlockID from_block = _clusters.block(set);
-  const auto [relative_gain, to_block] = _clusters.find_max_relative_gain(set);
+  const BlockID from_block = _clusters.block(cluster);
+  const auto [relative_gain, to_block] = _clusters.find_max_relative_gain(cluster);
 
   // Add weight to the correct weight bucket
-  _weight_buckets.add(from_block, _clusters.weight(set), relative_gain);
+  _weight_buckets.add(from_block, _clusters.weight(cluster), relative_gain);
 
   // Add this move set to the PQ if:
+  // @todo seq_full_pq is mandatory for now, otherwise updating the weight buckets does not work
   bool accept = _ctx.refinement.cluster_balancer.seq_full_pq;
   bool replace_min = false;
 
@@ -241,32 +244,35 @@ void ClusterBalancer::try_pq_insertion(const NodeID set) {
       NodeID replaced_set = _pqs.peek_min_id(from_block);
       _pqs.pop_min(from_block);
       _pq_weights[from_block] -= _clusters.weight(replaced_set);
-      _pq_weights[to_block] += _clusters.weight(set);
+      _pq_weights[to_block] += _clusters.weight(cluster);
     }
 
-    _pq_weights[from_block] += _clusters.weight(set);
-    _pqs.push(from_block, set, relative_gain);
+    _pq_weights[from_block] += _clusters.weight(cluster);
+    _pqs.push(from_block, cluster, relative_gain);
   }
 }
 
-void ClusterBalancer::try_pq_update(const NodeID set) {
-  const BlockID from_block = _clusters.block(set);
-  const auto [relative_gain, to_block] = _clusters.find_max_relative_gain(set);
+void ClusterBalancer::try_pq_update(const NodeID cluster) {
+  const BlockID from_block = _clusters.block(cluster);
+  const auto [relative_gain, to_block] = _clusters.find_max_relative_gain(cluster);
 
-  KASSERT(!_moved_marker.get(set), "set " << set << " was already moved and should not be updated");
-  KASSERT(_pqs.contains(set), "set " << set << " not contained in the PQ");
+  KASSERT(
+      !_moved_marker.get(cluster),
+      "cluster " << cluster << " was already moved and should not be updated"
+  );
+  KASSERT(_pqs.contains(cluster), "cluster " << cluster << " not contained in the PQ");
   KASSERT(relative_gain != std::numeric_limits<double>::min(), "illegal relative gain");
   KASSERT(relative_gain != std::numeric_limits<double>::max(), "illegal relative gain");
 
-  _weight_buckets.remove(from_block, set, _pqs.key(from_block, set));
-  _pqs.change_priority(from_block, set, relative_gain);
-  _weight_buckets.add(from_block, set, relative_gain);
+  _weight_buckets.remove(from_block, _clusters.weight(cluster), _pqs.key(from_block, cluster));
+  _pqs.change_priority(from_block, cluster, relative_gain);
+  _weight_buckets.add(from_block, _clusters.weight(cluster), relative_gain);
 }
 
 bool ClusterBalancer::refine() {
   KASSERT(
       graph::debug::validate_partition(_p_graph),
-      "input partition for the move set balancer is in an inconsistent state",
+      "input partition for the move cluster balancer is in an inconsistent state",
       assert::heavy
   );
   KASSERT(
@@ -292,7 +298,7 @@ bool ClusterBalancer::refine() {
 
     if (round > 0 && _ctx.refinement.cluster_balancer.cluster_rebuild_interval > 0 &&
         (round % _ctx.refinement.cluster_balancer.cluster_rebuild_interval) == 0) {
-      DBG0 << "  --> rebuild move sets after every "
+      DBG0 << "  --> rebuild move cluster after every "
            << _ctx.refinement.cluster_balancer.cluster_rebuild_interval;
 
       rebuild_clusters();
@@ -360,7 +366,7 @@ bool ClusterBalancer::refine() {
 void ClusterBalancer::perform_parallel_round() {
   IFSTATS(++_stats.num_par_rounds);
 
-  constexpr static bool kUseBinaryReductionTree = true;
+  constexpr static bool kUseBinaryReductionTree = false;
   const PEID rank = mpi::get_comm_rank(_p_graph.communicator());
 
   auto buckets = [&] {
@@ -402,6 +408,7 @@ void ClusterBalancer::perform_parallel_round() {
             _p_graph.communicator()
         );
       }
+      return buckets;
     }
   }();
 
@@ -461,19 +468,19 @@ void ClusterBalancer::perform_parallel_round() {
   std::vector<MoveCandidate> candidates;
   std::vector<BlockWeight> block_weight_deltas(_p_graph.k());
 
-  for (const NodeID set : _clusters.clusters()) {
-    const BlockID from = _clusters.block(set);
+  for (const NodeID cluster : _clusters.clusters()) {
+    const BlockID from = _clusters.block(cluster);
 
     if (is_overloaded(from)) {
-      auto [gain, to] = _clusters.find_max_relative_gain(set);
+      auto [gain, to] = _clusters.find_max_relative_gain(cluster);
       const auto bucket = Buckets::compute_bucket(gain);
 
       if (bucket < cut_off_buckets[to_overloaded_map[from]]) {
-        const NodeWeight weight = _clusters.weight(set);
+        const NodeWeight weight = _clusters.weight(cluster);
 
         MoveCandidate candidate = {
             .owner = rank,
-            .set = set,
+            .cluster = cluster,
             .weight = weight,
             .gain = gain,
             .from = from,
@@ -571,7 +578,7 @@ void ClusterBalancer::perform_parallel_round() {
           _p_graph.communicator()
       );
 
-      _stats.num_par_set_moves += global_candidates_count;
+      _stats.num_par_cluster_moves += global_candidates_count;
       _stats.num_par_node_moves += dbg_count_nodes_in_clusters(candidates);
     }
   }
@@ -582,7 +589,7 @@ void ClusterBalancer::perform_sequential_round() {
 
   const PEID rank = mpi::get_comm_rank(_p_graph.communicator());
 
-  // Step 1: identify the best move set candidates globally
+  // Step 1: identify the best move cluster candidates globally
   auto candidates = pick_sequential_candidates();
 
   candidates = reduce_sequential_candidates(pick_sequential_candidates());
@@ -637,7 +644,7 @@ void ClusterBalancer::perform_sequential_round() {
   // Step 4: apply changes
   perform_moves(candidates, true);
 
-  IFSTATS(_stats.num_seq_set_moves += candidates.size());
+  IFSTATS(_stats.num_seq_cluster_moves += candidates.size());
   IFSTATS(_stats.num_seq_node_moves += dbg_count_nodes_in_clusters(candidates));
 }
 
@@ -654,52 +661,21 @@ void ClusterBalancer::perform_moves(
   Marker<> created_message_for_pe(size);
   std::vector<std::vector<MoveMessage>> move_sendbufs(size);
 
+  auto update_adjacent_cluster = [&](const NodeID cluster) {
+    if (is_overloaded(_clusters.block(cluster)) && !_moved_marker.get(cluster)) {
+      if (!_pqs.contains(cluster)) {
+        try_pq_insertion(cluster);
+      } else {
+        try_pq_update(cluster);
+      }
+    }
+  };
+
+  // By marking these clusters as marked, we avoid unnecessary updates if they are adjacent to other
+  // moved clusters
   for (const auto &candidate : candidates) {
     if (rank == candidate.owner) {
-      _clusters.move_cluster(candidate.set, candidate.from, candidate.to);
-
-      // We track moved sets to exclude them from further rounds
-      _moved_marker.set(candidate.set);
-
-      if (_pqs.contains(candidate.set)) {
-        _pq_weights[candidate.from] -= candidate.weight;
-        _pqs.remove(candidate.from, candidate.set);
-      }
-      _weight_buckets.remove(candidate.from, candidate.set, candidate.gain);
-
-      for (NodeID u : _clusters.nodes(candidate.set)) {
-        _p_graph.set_block<false>(u, candidate.to);
-
-        for (const auto &[e, v] : _p_graph.neighbors(u)) {
-          if (_p_graph.is_ghost_node(v)) {
-            const PEID pe = _p_graph.ghost_owner(v);
-            if (!created_message_for_pe.get(pe)) {
-              move_sendbufs[pe].push_back({
-                  .node = u,
-                  .to = candidate.to,
-              });
-              created_message_for_pe.set(pe);
-            }
-            continue;
-          }
-
-          // !is_overloaded(.) is not a sufficient condition, since parallel moves might overload
-          // new blocks that have not been overloaded when the move sets where created
-          // --> also ignore sets that are not assigned to any move sets
-
-          if (const NodeID set = _clusters.cluster_of(v);
-              is_overloaded(_p_graph.block(v)) && _clusters.contains(v) && set != candidate.set &&
-              !_moved_marker.get(set)) {
-            if (!_pqs.contains(set)) {
-              try_pq_insertion(set);
-            } else {
-              try_pq_update(set);
-            }
-          }
-        }
-
-        created_message_for_pe.reset();
-      }
+      _moved_marker.set(candidate.cluster);
     }
 
     // Update block weights
@@ -713,18 +689,73 @@ void ClusterBalancer::perform_moves(
     }
   }
 
+  for (const auto &candidate : candidates) {
+    if (rank == candidate.owner) {
+      _clusters.move_cluster(candidate.cluster, candidate.from, candidate.to);
+      _weight_buckets.remove(candidate.from, candidate.weight, candidate.gain);
+      if (_pqs.contains(candidate.cluster)) {
+        _pq_weights[candidate.from] -= candidate.weight;
+        _pqs.remove(candidate.from, candidate.cluster);
+      }
+
+      for (NodeID u : _clusters.nodes(candidate.cluster)) {
+        // @todo set blocks before updating other data structures to avoid max gainer changes?
+        _p_graph.set_block<false>(u, candidate.to);
+
+        for (const auto &[e, v] : _p_graph.neighbors(u)) {
+          if (_p_graph.is_ghost_node(v)) {
+            const PEID pe = _p_graph.ghost_owner(v);
+            if (!created_message_for_pe.get(pe)) {
+              move_sendbufs[pe].push_back({
+                  .node = u,
+                  .to = candidate.to,
+              });
+              created_message_for_pe.set(pe);
+            }
+
+            continue;
+          }
+
+          // !is_overloaded(.) is not a sufficient condition, since parallel moves might overload
+          // new blocks that have not been overloaded when the clusters where created
+          // --> also ignore nodes that are not assigned to any clusters
+          if (_clusters.contains(v)) {
+            update_adjacent_cluster(_clusters.cluster_of(v));
+          }
+        }
+
+        created_message_for_pe.reset();
+      }
+    }
+  }
+
+  KASSERT(
+      dbg_validate_cluster_conns(),
+      "cluster conns are inconsistent after moving local nodes / local clusters"
+  );
+  KASSERT(
+      dbg_validate_bucket_weights(), "bucket weights are inconsistent after moving local nodes"
+  );
+
   mpi::sparse_alltoall<MoveMessage>(
       move_sendbufs,
-      [&](const auto recvbuf, const PEID pe) {
+      [&](const auto recvbuf, const PEID owner) {
         for (const auto &[their_lnode, to] : recvbuf) {
-          const GlobalNodeID gnode = their_lnode + _p_graph.offset_n(pe);
-          const NodeID lnode = _p_graph.global_to_local_node(gnode);
-          _clusters.move_ghost_node(lnode, _p_graph.block(lnode), to);
+          const NodeID lnode = _p_graph.map_foreign_node(their_lnode, owner);
+          _clusters.move_ghost_node(lnode, _p_graph.block(lnode), to, [&](const NodeID cluster) {
+            update_adjacent_cluster(cluster);
+          });
           _p_graph.set_block<false>(lnode, to);
         }
       },
       _p_graph.communicator()
   );
+
+  KASSERT(dbg_validate_cluster_conns(), "cluster conns are inconsistent after moving ghost nodes");
+  KASSERT(
+      dbg_validate_bucket_weights(), "bucket weights are inconsistent after moving ghost nodes"
+  );
+  KASSERT(dbg_validate_pq_weights());
 }
 
 std::vector<ClusterBalancer::MoveCandidate> ClusterBalancer::pick_sequential_candidates() {
@@ -743,29 +774,29 @@ std::vector<ClusterBalancer::MoveCandidate> ClusterBalancer::pick_sequential_can
         break;
       }
 
-      const NodeID set = _pqs.peek_max_id(from);
+      const NodeID cluster = _pqs.peek_max_id(from);
       const double relative_gain = _pqs.peek_max_key(from);
-      const NodeWeight weight = _clusters.weight(set);
+      const NodeWeight weight = _clusters.weight(cluster);
       _pqs.pop_max(from);
 
-      auto [actual_relative_gain, to] = _clusters.find_max_relative_gain(set);
+      auto [actual_relative_gain, to] = _clusters.find_max_relative_gain(cluster);
       if (actual_relative_gain >= relative_gain) {
         candidates.push_back(MoveCandidate{
             .owner = rank,
-            .set = set,
+            .cluster = cluster,
             .weight = weight,
             .gain = actual_relative_gain,
             .from = from,
             .to = to,
         });
       } else {
-        _pqs.push(from, set, actual_relative_gain);
+        _pqs.push(from, cluster, actual_relative_gain);
         --num;
       }
     }
 
     for (auto candidate = candidates.begin() + start; candidate != candidates.end(); ++candidate) {
-      _pqs.push(from, candidate->set, candidate->gain);
+      _pqs.push(from, candidate->cluster, candidate->gain);
     }
   }
 
@@ -836,7 +867,7 @@ ClusterBalancer::reduce_sequential_candidates(std::vector<MoveCandidate> sendbuf
             // Reject the move set candidate if it would overload the target block
             if (from != to && _p_graph.block_weight(to) + block_weight_deltas[to] + weight >
                                   _p_ctx.graph->max_block_weight(to)) {
-              candidates[i].set = kInvalidNodeID;
+              candidates[i].cluster = kInvalidNodeID;
               ++num_rejected_candidates;
             } else {
               block_weight_deltas[to] += weight;
@@ -853,7 +884,7 @@ ClusterBalancer::reduce_sequential_candidates(std::vector<MoveCandidate> sendbuf
 
           // Remove rejected candidates
           for (std::size_t i = 0; i < num_accepted_candidates; ++i) {
-            while (candidates[i].set == kInvalidNodeID) {
+            while (candidates[i].cluster == kInvalidNodeID) {
               std::swap(
                   candidates[i], candidates[num_accepted_candidates + num_rejected_candidates - 1]
               );
@@ -1036,47 +1067,65 @@ bool ClusterBalancer::dbg_validate_pq_weights() const {
 bool ClusterBalancer::dbg_validate_bucket_weights() const {
   std::vector<BlockWeight> expected_total_weights(_p_graph.k());
   for (const NodeID u : _p_graph.nodes()) {
-    const BlockID b = _p_graph.block(u);
-    if (overload(b) > 0) {
-      expected_total_weights[b] += _p_graph.node_weight(u);
+    const BlockID block = _p_graph.block(u);
+    if (overload(block) > 0 && _clusters.contains(u) &&
+        !_moved_marker.get(_clusters.cluster_of(u))) {
+      expected_total_weights[block] += _p_graph.node_weight(u);
     }
   }
 
   std::vector<BlockWeight> expected_per_bucket_weights(Buckets::kNumBuckets * _p_graph.k());
   for (const NodeID cluster : _clusters.clusters()) {
-    const BlockID b = _clusters.block(cluster);
-    if (overload(b) > 0) {
+    const BlockID block = _clusters.block(cluster);
+    if (overload(block) > 0 && !_moved_marker.get(cluster)) {
+      KASSERT(_pqs.contains(cluster));
+      // const std::size_t bucket =
+      //     Buckets::compute_bucket(_clusters.find_max_relative_gain(cluster).first);
       const std::size_t bucket =
-          Buckets::compute_bucket(_clusters.find_max_relative_gain(cluster).first);
-      expected_per_bucket_weights[Buckets::kNumBuckets * b + bucket] += _clusters.weight(cluster);
+          Buckets::compute_bucket(_pqs.key(_clusters.block(cluster), cluster));
+
+      expected_per_bucket_weights[Buckets::kNumBuckets * block + bucket] +=
+          _clusters.weight(cluster);
     }
   }
 
-  for (const BlockID b : _p_graph.blocks()) {
+  for (const BlockID block : _p_graph.blocks()) {
+    if (overload(block) == 0) {
+      continue;
+    }
+
     BlockWeight actual_total_weight = 0;
     for (std::size_t bucket = 0; bucket < Buckets::kNumBuckets; ++bucket) {
-      if (_weight_buckets.size(b, bucket) < 0) {
-        LOG_ERROR << "Block " << b << " has negative weight " << _weight_buckets.size(b, bucket)
-                  << " in bucket " << bucket;
+      if (_weight_buckets.size(block, bucket) < 0) {
+        LOG_ERROR << "Block " << block << " has negative weight in bucket " << bucket;
         return false;
       }
-      if (_weight_buckets.size(b, bucket) !=
-          expected_per_bucket_weights[Buckets::kNumBuckets * b + bucket]) {
-        LOG_ERROR << "Block " << b << " has " << _weight_buckets.size(b, bucket)
+      if (_weight_buckets.size(block, bucket) !=
+          expected_per_bucket_weights[Buckets::kNumBuckets * block + bucket]) {
+        LOG_ERROR << "Block " << block << " has " << _weight_buckets.size(block, bucket)
                   << " weight in bucket " << bucket << ", but its expected weight is "
-                  << expected_per_bucket_weights[Buckets::kNumBuckets * b + bucket];
+                  << expected_per_bucket_weights[Buckets::kNumBuckets * block + bucket];
         return false;
       }
-      actual_total_weight += _weight_buckets.size(b, bucket);
+      actual_total_weight += _weight_buckets.size(block, bucket);
     }
-    if (expected_total_weights[b] != actual_total_weight) {
-      LOG_ERROR << "Block " << b << " has " << actual_total_weight
+    if (expected_total_weights[block] != actual_total_weight) {
+      LOG_ERROR << "Block " << block << " has " << actual_total_weight
                 << " weight in its buckets, but its expected weight is "
-                << expected_total_weights[b];
+                << expected_total_weights[block];
       return false;
     }
   }
 
+  return true;
+}
+
+bool ClusterBalancer::dbg_validate_cluster_conns() const {
+  for (const NodeID cluster : _clusters.clusters()) {
+    if (/* !_moved_marker.get(cluster) && */ !_clusters.dbg_check_conns(cluster)) {
+      return false;
+    }
+  }
   return true;
 }
 
@@ -1086,7 +1135,7 @@ NodeID ClusterBalancer::dbg_count_nodes_in_clusters(const std::vector<MoveCandid
   NodeID num_nodes = 0;
   for (const auto &candidate : candidates) {
     if (candidate.owner == rank) {
-      num_nodes += _clusters.size(candidate.set);
+      num_nodes += _clusters.size(candidate.cluster);
     }
   }
   MPI_Allreduce(
