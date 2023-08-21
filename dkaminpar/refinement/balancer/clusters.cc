@@ -331,12 +331,12 @@ public:
     }
 
     _cur_weight += _p_graph.node_weight(u);
-    _node_to_cluster[u] = _cur_move_set;
+    _node_to_cluster[u] = _cur_cluster;
     _clusters[_cur_pos] = u;
     ++_cur_pos;
 
     for (const auto [e, v] : _p_graph.neighbors(u)) {
-      if (_p_graph.is_owned_node(v) && _node_to_cluster[v] == _cur_move_set) {
+      if (_p_graph.is_owned_node(v) && _node_to_cluster[v] == _cur_cluster) {
         _cur_block_conn -= _p_graph.edge_weight(e);
       } else {
         const BlockID bv = _p_graph.block(v);
@@ -363,11 +363,22 @@ public:
     for (NodeID pos = _best_prefix_pos + 1; pos < _cur_pos; ++pos) {
       _node_to_cluster[_clusters[pos]] = kInvalidNodeID;
     }
-    for (const BlockID b : _p_graph.blocks()) {
-      _conns[_cur_move_set * _p_graph.k() + b] = _cur_conns.key(b);
+    for (const BlockID block : _p_graph.blocks()) {
+      _conns[_cur_cluster * _p_graph.k() + block] = 0;
     }
-    _cluster_indices[++_cur_move_set] = _best_prefix_pos;
-    KASSERT(_cluster_indices[_cur_move_set] - _cluster_indices[_cur_move_set - 1] <= 64);
+    // @todo should do this when updating _best_*
+    for (NodeID pos = _cluster_indices[_cur_cluster]; pos < _best_prefix_pos; ++pos) {
+      const NodeID u = _clusters[pos];
+      for (const auto &[e, v] : _p_graph.neighbors(u)) {
+        if (_p_graph.is_owned_node(v) && _node_to_cluster[v] == _cur_cluster) {
+          continue;
+        }
+        const BlockID bv = _p_graph.block(v);
+        _conns[_cur_cluster * _p_graph.k() + bv] += _p_graph.edge_weight(e);
+      }
+    }
+
+    _cluster_indices[++_cur_cluster] = _best_prefix_pos;
 
     reset_cur_conns();
     _cur_block = kInvalidBlockID;
@@ -377,14 +388,13 @@ public:
 
     _best_prefix_block = kInvalidBlockID;
     _best_prefix_conn = 0;
-    // _best_prefix_pos = _cur_pos;
 
     _frontier.clear();
     _stopping_policy.reset();
   }
 
   Clusters finalize() {
-    _cluster_indices.resize(_cur_move_set + 1);
+    _cluster_indices.resize(_cur_cluster + 1);
     KASSERT(_cluster_indices.front() == 0);
 
     KASSERT([&] {
@@ -432,7 +442,7 @@ private:
   BinaryMaxHeap<EdgeWeight> _frontier;
 
   NodeID _cur_pos = 0;
-  NodeID _cur_move_set = 0;
+  NodeID _cur_cluster = 0;
   EdgeWeight _cur_block_conn = 0;
   BinaryMaxHeap<EdgeWeight> _cur_conns;
   BlockID _cur_block = kInvalidBlockID;
