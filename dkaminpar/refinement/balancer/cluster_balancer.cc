@@ -126,12 +126,16 @@ ClusterBalancer::operator ClusterBalancerMemoryContext() && {
 }
 
 void ClusterBalancer::initialize() {
+  SCOPED_TIMER("Cluster Balancer Initialization");
+
   IFSTATS(_stats.reset());
   _stalled = false;
   rebuild_clusters();
 }
 
 void ClusterBalancer::rebuild_clusters() {
+  SCOPED_TIMER("Initialize clusters and data structures");
+
   init_clusters();
   clear();
   for (const NodeID cluster : _clusters.clusters()) {
@@ -276,6 +280,8 @@ void ClusterBalancer::try_pq_update(const NodeID cluster) {
 }
 
 bool ClusterBalancer::refine() {
+  SCOPED_TIMER("Cluster Balancer Refinement");
+
   KASSERT(
       graph::debug::validate_partition(_p_graph),
       "input partition for the move cluster balancer is in an inconsistent state",
@@ -369,11 +375,14 @@ bool ClusterBalancer::refine() {
 }
 
 void ClusterBalancer::perform_parallel_round() {
+  SCOPED_TIMER("Parallel round");
+
   IFSTATS(++_stats.num_par_rounds);
 
   constexpr static bool kUseBinaryReductionTree = false;
   const PEID rank = mpi::get_comm_rank(_p_graph.communicator());
 
+  START_TIMER("Reduce buckets");
   auto buckets = [&] {
     if constexpr (kUseBinaryReductionTree) {
       auto compactified = _weight_buckets.compactify();
@@ -416,8 +425,10 @@ void ClusterBalancer::perform_parallel_round() {
       return buckets;
     }
   }();
+  STOP_TIMER();
 
   // Determine cut-off buckets and broadcast them to all PEs
+  START_TIMER("Compute cut-off buckets");
   const BlockID num_overloaded_blocks = count_overloaded_blocks();
   std::vector<int> cut_off_buckets(num_overloaded_blocks);
   std::vector<BlockID> to_overloaded_map(_p_graph.k());
@@ -450,6 +461,7 @@ void ClusterBalancer::perform_parallel_round() {
   }
 
   MPI_Bcast(cut_off_buckets.data(), num_overloaded_blocks, MPI_INT, 0, _p_graph.communicator());
+  STOP_TIMER();
 
   IF_DBG0 {
     std::stringstream ss;
@@ -468,6 +480,7 @@ void ClusterBalancer::perform_parallel_round() {
     DBG << ss.str();
   }
 
+  START_TIMER("Pick candidates");
   std::vector<MoveCandidate> candidates;
   std::vector<BlockWeight> block_weight_deltas(_p_graph.k());
 
@@ -558,6 +571,7 @@ void ClusterBalancer::perform_parallel_round() {
       }
     }
   }
+  STOP_TIMER();
 
   IFSTATS(_stats.num_par_balanced_moves += balanced_moves);
 
@@ -589,16 +603,18 @@ void ClusterBalancer::perform_parallel_round() {
 }
 
 void ClusterBalancer::perform_sequential_round() {
+  SCOPED_TIMER("Sequential round");
+
   IFSTATS(++_stats.num_seq_rounds);
 
   const PEID rank = mpi::get_comm_rank(_p_graph.communicator());
 
   // Step 1: identify the best move cluster candidates globally
   auto candidates = pick_sequential_candidates();
-
   candidates = reduce_sequential_candidates(pick_sequential_candidates());
 
   // Step 2: let ROOT decide which candidates to pick
+  START_TIMER("Select winners");
   std::vector<BlockWeight> tmp_block_weight_deltas(_p_graph.k());
 
   for (const auto &candidate : candidates) { // empty on non-ROOT
@@ -644,6 +660,7 @@ void ClusterBalancer::perform_sequential_round() {
   const std::size_t num_candidates = mpi::bcast(candidates.size(), 0, _p_graph.communicator());
   candidates.resize(num_candidates);
   mpi::bcast(candidates.data(), num_candidates, 0, _p_graph.communicator());
+  STOP_TIMER();
 
   // Step 4: apply changes
   perform_moves(candidates, true);
@@ -655,6 +672,8 @@ void ClusterBalancer::perform_sequential_round() {
 void ClusterBalancer::perform_moves(
     const std::vector<MoveCandidate> &candidates, const bool update_block_weights
 ) {
+  SCOPED_TIMER("Perform moves");
+
   KASSERT(
       dbg_validate_cluster_conns(), "cluster conns are inconsistent before performing moves", HEAVY
   );
@@ -784,6 +803,8 @@ void ClusterBalancer::perform_moves(
 }
 
 std::vector<ClusterBalancer::MoveCandidate> ClusterBalancer::pick_sequential_candidates() {
+  SCOPED_TIMER("Pick sequential candidates");
+
   const PEID rank = mpi::get_comm_rank(_p_graph.communicator());
 
   std::vector<MoveCandidate> candidates;
@@ -835,6 +856,8 @@ std::vector<ClusterBalancer::MoveCandidate> ClusterBalancer::pick_sequential_can
 
 std::vector<ClusterBalancer::MoveCandidate>
 ClusterBalancer::reduce_sequential_candidates(std::vector<MoveCandidate> sendbuf) {
+  SCOPED_TIMER("Reduce candidates");
+
   return mpi::perform_binary_reduction(
       std::move(sendbuf),
       std::vector<MoveCandidate>{},
