@@ -39,18 +39,18 @@ public:
   Buckets(
       const DistributedPartitionedGraph &p_graph,
       const PartitionContext &p_ctx,
-      StaticArray<GlobalNodeWeight> compactified_sizes
+      StaticArray<GlobalNodeWeight> compactified
   )
       : Buckets(p_graph, p_ctx) {
-    BlockID compact_block = 0;
-    for (const BlockID block : p_graph.blocks()) {
-      if (p_graph.block_weight(block) > p_ctx.graph->max_block_weight(block)) {
+    BlockID cb = 0;
+    for (const BlockID b : p_graph.blocks()) {
+      if (p_graph.block_weight(b) > p_ctx.graph->max_block_weight(b)) {
         std::copy(
-            compactified_sizes.begin() + compact_block * kNumBuckets,
-            compactified_sizes.begin() + (compact_block + 1) * kNumBuckets,
-            _bucket_sizes.begin() + block * kNumBuckets
+            compactified.begin() + cb * kNumBuckets,
+            compactified.begin() + (cb + 1) * kNumBuckets,
+            _bucket_sizes.begin() + b * kNumBuckets
         );
-        ++compact_block;
+        ++cb;
       }
     }
   }
@@ -59,8 +59,12 @@ public:
     std::fill(_bucket_sizes.begin(), _bucket_sizes.end(), 0);
   }
 
-  void add(const BlockID block, const double gain) {
-    size(block, compute_bucket(gain)) += _p_graph.block_weight(block);
+  void add(const BlockID block, const NodeWeight weight, const double gain) {
+    size(block, compute_bucket(gain)) += weight;
+  }
+
+  void remove(const BlockID block, const NodeWeight weight, const double gain) {
+    size(block, compute_bucket(gain)) -= weight;
   }
 
   GlobalNodeWeight &size(const BlockID block, const std::size_t bucket) {
@@ -73,21 +77,21 @@ public:
 
   StaticArray<GlobalNodeWeight> compactify() const {
     const BlockID num_overloaded_blocks = metrics::num_imbalanced_blocks(_p_graph, _p_ctx);
-    StaticArray<GlobalNodeWeight> compactified_sizes(num_overloaded_blocks * kNumBuckets);
-    BlockID compact_block = 0;
+    StaticArray<GlobalNodeWeight> compactified(num_overloaded_blocks * kNumBuckets);
 
-    for (const BlockID block : _p_graph.blocks()) {
-      if (_p_graph.block_weight(block) > _p_ctx.graph->max_block_weight(block)) {
+    BlockID cb = 0;
+    for (const BlockID b : _p_graph.blocks()) {
+      if (_p_graph.block_weight(b) > _p_ctx.graph->max_block_weight(b)) {
         std::copy(
-            _bucket_sizes.begin() + block * kNumBuckets,
-            _bucket_sizes.begin() + (block + 1) * kNumBuckets,
-            compactified_sizes.begin() + compact_block * kNumBuckets
+            _bucket_sizes.begin() + b * kNumBuckets,
+            _bucket_sizes.begin() + (b + 1) * kNumBuckets,
+            compactified.begin() + cb * kNumBuckets
         );
-        ++compact_block;
+        ++cb;
       }
     }
 
-    return compactified_sizes;
+    return compactified;
   }
 
 private:

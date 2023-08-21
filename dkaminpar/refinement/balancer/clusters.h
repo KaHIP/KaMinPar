@@ -1,3 +1,10 @@
+/*******************************************************************************
+ * Data structure for clusters and their connections.
+ *
+ * @file:   clusters.h
+ * @author: Daniel Seemaier
+ * @date:   19.07.2023
+ ******************************************************************************/
 #pragma once
 
 #include "dkaminpar/context.h"

@@ -129,6 +129,7 @@ private:
   std::string dbg_get_partition_state_str() const;
   std::string dbg_get_pq_state_str() const;
   bool dbg_validate_pq_weights() const;
+  bool dbg_validate_bucket_weights() const;
   NodeID dbg_count_nodes_in_clusters(const std::vector<MoveCandidate> &candidates) const;
 
   Random &_rand = Random::instance();

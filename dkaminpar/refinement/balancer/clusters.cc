@@ -179,9 +179,6 @@ bool Clusters::dbg_check_all_nodes_covered() const {
     }
   }
 
-  LOG_SUCCESS << "All nodes in blocks with weight up to " << min_block_weight_covered
-              << " are covered by clusters";
-
   return true;
 }
 
