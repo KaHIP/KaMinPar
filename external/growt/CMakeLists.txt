@@ -9,7 +9,7 @@
 #
 # All rights reserved. Published under the BSD-2 license in the LICENSE file.
 ################################################################################
-cmake_minimum_required (VERSION 3.25)
+cmake_minimum_required (VERSION 3.21)
 
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/misc/cmake)
 project(concurrent-growtable)
