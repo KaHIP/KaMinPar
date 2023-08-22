@@ -140,6 +140,7 @@ CLI::Option_group *create_initial_partitioning_options(CLI::App *app, Context &c
   - sync-parallel:  same as async-parallel, but process branches synchronously)")
       ->capture_default_str();
 
+  /*
   ip->add_option(
         "--i-c-contraction-limit",
         ctx.initial_partitioning.coarsening.contraction_limit,
@@ -173,7 +174,9 @@ Options are:
         "less than this factor."
   )
       ->capture_default_str();
+  */
 
+  /*
   ip->add_option("--i-rep-exp", ctx.initial_partitioning.multiplier_exponent)
       ->capture_default_str();
   ip->add_option("--i-rep-multiplier", ctx.initial_partitioning.repetition_multiplier)
@@ -191,11 +194,14 @@ Options are:
         ctx.initial_partitioning.use_adaptive_bipartitioner_selection
   )
       ->capture_default_str();
+  */
 
   ip->add_flag(
         "--i-r-disable", ctx.initial_partitioning.refinement.disabled, "Disable initial refinement."
   )
       ->capture_default_str();
+  
+  /*
   ip->add_option("--i-r-stopping-rule", ctx.initial_partitioning.refinement.stopping_rule)
       ->transform(CLI::CheckedTransformer(get_fm_stopping_rules()).description(""))
       ->description(R"(Stopping rule for the 2-way FM algorithm:
@@ -217,7 +223,7 @@ Options are:
   ip->add_option(
         "--i-r-num-iterations",
         ctx.initial_partitioning.refinement.num_iterations,
-        "Number of iterations."
+        "Number of refinement iterations during initial partitioning."
   )
       ->capture_default_str();
   ip->add_option(
@@ -227,6 +233,7 @@ Options are:
         "below this threshold."
   )
       ->capture_default_str();
+  */
 
   return ip;
 }
@@ -287,32 +294,36 @@ CLI::Option_group *create_kway_fm_refinement_options(CLI::App *app, Context &ctx
   fm->add_option(
         "--r-fm-num-iterations",
         ctx.refinement.kway_fm.num_iterations,
-        "Number of FM iterations to perform."
+        "Number of FM iterations to perform (higher = stronger, but slower)."
   )
       ->capture_default_str();
   fm->add_option(
         "--r-fm-num-seed-nodes",
         ctx.refinement.kway_fm.num_seed_nodes,
-        "Number of seed nodes used to initialize a single localized search."
-  )
-      ->capture_default_str();
-  fm->add_option("--r-fm-alpha", ctx.refinement.kway_fm.alpha)->capture_default_str();
-  fm->add_flag(
-        "--r-fm-use-exact-abortion-threshold",
-        ctx.refinement.kway_fm.use_exact_abortion_threshold,
-        "Use the exact edge cut metric to decide when to abort FM refinement (more precise, but "
+        "Number of seed nodes used to initialize a single localized search (lower = stronger, but "
         "slower)."
   )
       ->capture_default_str();
+  /*
+  fm->add_option("--r-fm-alpha", ctx.refinement.kway_fm.alpha)->capture_default_str();
+  */
+  /*
+  fm->add_flag(
+        "--r-fm-use-exact-abortion-threshold", ctx.refinement.kway_fm.use_exact_abortion_threshold
+  )
+      ->capture_default_str();
+  */
   fm->add_option(
         "--r-fm-abortion-threshold",
         ctx.refinement.kway_fm.abortion_threshold,
         "Stop FM iterations if the edge cut reduction of the previous "
-        "iteration falls below this threshold."
+        "iteration falls below this threshold (lower = weaker, but faster)."
   )
       ->capture_default_str();
+  /*
   fm->add_flag("--r-fm-unlock-seed-nodes", ctx.refinement.kway_fm.unlock_seed_nodes)
       ->capture_default_str();
+  */
   fm->add_flag(
         "--r-fm-dbg-batch-size-statistics", ctx.refinement.kway_fm.dbg_compute_batch_size_statistics
   )
@@ -326,9 +337,15 @@ CLI::Option_group *create_jet_refinement_options(CLI::App *app, Context &ctx) {
 
   jet->add_option("--r-jet-num-iterations", ctx.refinement.jet.num_iterations)
       ->capture_default_str();
+  /*
   jet->add_flag("--r-jet-interpolate-c", ctx.refinement.jet.interpolate_c)->capture_default_str();
+  */
+  /*
   jet->add_option("--r-jet-min-c", ctx.refinement.jet.min_c)->capture_default_str();
+  */
+  /*
   jet->add_option("--r-jet-max-c", ctx.refinement.jet.max_c)->capture_default_str();
+  */
   jet->add_option("--r-jet-abortion-threshold", ctx.refinement.jet.abortion_threshold)
       ->capture_default_str();
 
