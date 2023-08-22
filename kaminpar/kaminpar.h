@@ -129,6 +129,8 @@ struct KwayFMRefinementContext {
   bool unlock_seed_nodes;
   bool use_exact_abortion_threshold;
   double abortion_threshold;
+
+  bool dbg_compute_batch_size_statistics;
 };
 
 struct JetRefinementContext {

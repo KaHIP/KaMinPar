@@ -75,6 +75,10 @@ bool FMRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx)
     DBG << "Starting FM iteration " << iteration << " with " << _shared->border_nodes.size()
         << " border nodes and " << _ctx.parallel.num_threads << " worker threads";
 
+    using SeedNodesVec = std::vector<NodeID>;
+    using MovesVec = std::vector<fm::Move>;
+    tbb::concurrent_vector<std::pair<SeedNodesVec, MovesVec>> dbg_changelog;
+
     // Start one worker per thread
     START_TIMER("Localized searches");
     tbb::parallel_for<int>(0, _ctx.parallel.num_threads, [&](int) {
@@ -85,10 +89,22 @@ bool FMRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx)
       // that are still available, continuing this process until there are
       // no more border nodes
       while (_shared->border_nodes.has_more()) {
-        expected_gain += localized_refiner.run_batch();
+        const auto expected_batch_gain = localized_refiner.run_batch();
+        expected_gain += expected_batch_gain;
+        if (_fm_ctx.dbg_compute_batch_size_statistics && expected_batch_gain > 0) {
+          SeedNodesVec seed_nodes_cpy(localized_refiner.last_batch_seed_nodes());
+          MovesVec moves_cpy(localized_refiner.last_batch_moves());
+          dbg_changelog.emplace_back(std::move(seed_nodes_cpy), std::move(moves_cpy));
+        }
       }
     });
     STOP_TIMER();
+
+    if (_fm_ctx.dbg_compute_batch_size_statistics) {
+        for (const auto &[seed_nodes, moves] : dbg_changelog) {
+            dbg_compute_batch_size_statistics(seed_nodes, moves);
+        }
+    }
 
     const EdgeWeight expected_gain_of_this_iteration = expected_gain_ets.combine(std::plus{});
     total_expected_gain += expected_gain_of_this_iteration;
@@ -117,6 +133,12 @@ bool FMRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx)
   return false;
 }
 
+void FMRefiner::dbg_compute_batch_size_statistics(
+    const std::vector<NodeID> &seed_nodes, const std::vector<fm::Move> &moves
+) {
+  return;
+}
+
 LocalizedFMRefiner::LocalizedFMRefiner(
     const int id,
     const PartitionContext &p_ctx,
@@ -143,16 +165,23 @@ void LocalizedFMRefiner::enable_move_recording() {
   _record_applied_moves = true;
 }
 
-std::vector<LocalizedFMRefiner::Move> LocalizedFMRefiner::take_applied_moves() {
+const std::vector<fm::Move> &LocalizedFMRefiner::last_batch_moves() {
+  return _applied_moves;
+}
+
+const std::vector<NodeID> &LocalizedFMRefiner::last_batch_seed_nodes() {
+  return _seed_nodes;
+}
+
+std::vector<fm::Move> LocalizedFMRefiner::take_applied_moves() {
   return std::move(_applied_moves);
 }
 
 EdgeWeight LocalizedFMRefiner::run_batch() {
   using fm::NodeTracker;
 
-  if (_record_applied_moves) {
-    _applied_moves.clear();
-  }
+  _seed_nodes.clear();
+  _applied_moves.clear();
 
   // Statistics for this batch only, to be merged into the global stats
   fm::Stats stats;
@@ -212,7 +241,7 @@ EdgeWeight LocalizedFMRefiner::run_batch() {
       if (current_total_gain > best_total_gain) {
         // Update global graph and global gain cache
         if (_record_applied_moves) {
-          _applied_moves.push_back(Move{.node = node, .from = block_from});
+          _applied_moves.push_back(fm::Move{.node = node, .from = block_from});
         }
 
         _p_graph.set_block(node, block_to);
@@ -223,7 +252,7 @@ EdgeWeight LocalizedFMRefiner::run_batch() {
           const BlockID moved_from = _p_graph.block(moved_node);
 
           if (_record_applied_moves) {
-            _applied_moves.push_back(Move{.node = moved_node, .from = moved_from});
+            _applied_moves.push_back(fm::Move{.node = moved_node, .from = moved_from});
           }
 
           _shared.gain_cache.move(_p_graph, moved_node, moved_from, moved_to);
@@ -296,7 +325,6 @@ EdgeWeight LocalizedFMRefiner::run_batch() {
   _d_graph.clear();
   _d_gain_cache.clear();
   _stopping_policy.reset();
-  _seed_nodes.clear();
   _touched_nodes.clear();
 
   IFSTATS(_shared.stats.add(stats));

@@ -115,6 +115,7 @@ Context create_default_context() {
                       .unlock_seed_nodes = true,
                       .use_exact_abortion_threshold = false,
                       .abortion_threshold = 0.999,
+                      .dbg_compute_batch_size_statistics = false,
                   },
               .balancer = {},
               .jet =

@@ -208,6 +208,11 @@ struct SharedData {
   NoinitVector<BlockID> target_blocks;
   GlobalStats stats;
 };
+
+struct Move {
+  NodeID node;
+  BlockID from;
+};
 } // namespace fm
 
 class FMRefiner : public Refiner {
@@ -226,6 +231,10 @@ public:
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
 
 private:
+  void dbg_compute_batch_size_statistics(
+      const std::vector<NodeID> &seed_nodes, const std::vector<fm::Move> &moves
+  );
+
   const Context &_ctx;
   const KwayFMRefinementContext &_fm_ctx;
 
@@ -234,11 +243,6 @@ private:
 
 class LocalizedFMRefiner {
 public:
-  struct Move {
-    NodeID node;
-    BlockID from;
-  };
-
   LocalizedFMRefiner(
       int id,
       const PartitionContext &p_ctx,
@@ -250,7 +254,9 @@ public:
   EdgeWeight run_batch();
 
   void enable_move_recording();
-  std::vector<Move> take_applied_moves();
+  std::vector<fm::Move> take_applied_moves();
+  const std::vector<fm::Move> &last_batch_moves();
+  const std::vector<NodeID> &last_batch_seed_nodes();
 
 private:
   template <typename PartitionedGraphType, typename GainCacheType>
@@ -289,7 +295,7 @@ private:
   std::vector<NodeID> _touched_nodes;
   std::vector<NodeID> _seed_nodes;
 
-  std::vector<Move> _applied_moves;
+  std::vector<fm::Move> _applied_moves;
   bool _record_applied_moves = false;
 };
 } // namespace kaminpar::shm
