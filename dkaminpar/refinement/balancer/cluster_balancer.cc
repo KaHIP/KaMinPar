@@ -144,6 +144,9 @@ void ClusterBalancer::rebuild_clusters() {
     }
     try_pq_insertion(cluster);
   }
+
+  // Barrier for time measurement
+  mpi::barrier(_p_graph.communicator());
 }
 
 void ClusterBalancer::init_clusters() {
@@ -295,8 +298,9 @@ bool ClusterBalancer::refine() {
   const double initial_imbalance_distance = metrics::imbalance_l1(_p_graph, _p_ctx);
   double prev_imbalance_distance = initial_imbalance_distance;
 
-  EdgeWeight prev_edge_cut = 0;
-  IFSTATS(prev_edge_cut = metrics::edge_cut(_p_graph));
+  // @todo too expensive
+  // EdgeWeight prev_edge_cut = 0;
+  // IFSTATS(prev_edge_cut = metrics::edge_cut(_p_graph));
 
   bool force_cluster_rebuild = false;
 
@@ -307,7 +311,6 @@ bool ClusterBalancer::refine() {
     if (force_cluster_rebuild || (round > 0 && _cb_ctx.cluster_rebuild_interval > 0 &&
                                   (round % _cb_ctx.cluster_rebuild_interval) == 0)) {
       DBG0 << "  --> rebuild move cluster after every " << _cb_ctx.cluster_rebuild_interval;
-
       rebuild_clusters();
       force_cluster_rebuild = false;
     }
@@ -316,12 +319,15 @@ bool ClusterBalancer::refine() {
       perform_sequential_round();
       DBG0 << "  --> Round " << round << ": seq. balancing: " << prev_imbalance_distance << " --> "
            << metrics::imbalance_l1(_p_graph, _p_ctx);
-      IFSTATS(
-          _stats.seq_imbalance_reduction +=
-          (prev_imbalance_distance - metrics::imbalance_l1(_p_graph, _p_ctx))
-      );
-      IFSTATS(_stats.seq_cut_increase += metrics::edge_cut(_p_graph) - prev_edge_cut);
-      IFSTATS(prev_edge_cut = metrics::edge_cut(_p_graph));
+
+      // @todo too expensive
+      // IF_STATS {
+      //  SCOPED_TIMER("Compute statistics");
+      //  _stats.seq_imbalance_reduction +=
+      //      (prev_imbalance_distance - metrics::imbalance_l1(_p_graph, _p_ctx));
+      //  _stats.seq_cut_increase += metrics::edge_cut(_p_graph) - prev_edge_cut;
+      //  prev_edge_cut = metrics::edge_cut(_p_graph);
+      //}
     }
 
     if (use_parallel_rebalancing()) {
@@ -331,11 +337,13 @@ bool ClusterBalancer::refine() {
         perform_parallel_round();
         DBG0 << "  --> Round " << round << ": par. balancing: " << imbalance_after_seq_balancing
              << " --> " << metrics::imbalance_l1(_p_graph, _p_ctx);
-        IFSTATS(
-            _stats.par_imbalance_reduction +=
-            (imbalance_after_seq_balancing - metrics::imbalance_l1(_p_graph, _p_ctx))
-        );
-        IFSTATS(_stats.par_cut_increase += metrics::edge_cut(_p_graph) - prev_edge_cut);
+
+        // @todo too expensive
+        // IFSTATS(
+        //    _stats.par_imbalance_reduction +=
+        //    (imbalance_after_seq_balancing - metrics::imbalance_l1(_p_graph, _p_ctx))
+        //);
+        // IFSTATS(_stats.par_cut_increase += metrics::edge_cut(_p_graph) - prev_edge_cut);
       }
     }
 
@@ -610,8 +618,10 @@ void ClusterBalancer::perform_sequential_round() {
   const PEID rank = mpi::get_comm_rank(_p_graph.communicator());
 
   // Step 1: identify the best move cluster candidates globally
+  START_TIMER("Pick candidates");
   auto candidates = pick_sequential_candidates();
   candidates = reduce_sequential_candidates(pick_sequential_candidates());
+  STOP_TIMER();
 
   // Step 2: let ROOT decide which candidates to pick
   START_TIMER("Select winners");
@@ -665,8 +675,13 @@ void ClusterBalancer::perform_sequential_round() {
   // Step 4: apply changes
   perform_moves(candidates, true);
 
-  IFSTATS(_stats.num_seq_cluster_moves += candidates.size());
-  IFSTATS(_stats.num_seq_node_moves += dbg_count_nodes_in_clusters(candidates));
+  IF_STATS {
+    _stats.num_seq_cluster_moves += candidates.size();
+    _stats.num_seq_node_moves += dbg_count_nodes_in_clusters(candidates);
+  }
+
+  // Barrier for time measurement
+  mpi::barrier(_p_graph.communicator());
 }
 
 void ClusterBalancer::perform_moves(
