@@ -7,6 +7,9 @@
 #include "kaminpar/refinement/fm_refiner.h"
 
 #include <cmath>
+#include <set>
+#include <stack>
+#include <unordered_map>
 
 #include <tbb/concurrent_vector.h>
 #include <tbb/task_arena.h>
@@ -52,7 +55,15 @@ bool FMRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx)
   tbb::enumerable_thread_specific<LocalizedFMRefiner> localized_fm_refiner_ets([&] {
     // It is important that worker IDs start at 1, otherwise the node
     // tracker won't work
-    return LocalizedFMRefiner(++next_id, p_ctx, _fm_ctx, p_graph, *_shared);
+    LocalizedFMRefiner localized_refiner(++next_id, p_ctx, _fm_ctx, p_graph, *_shared);
+
+    // If we want to evaluate the successful batches, record moves that are applied to the global
+    // graph
+    IF_STATSC(_fm_ctx.dbg_compute_batch_size_statistics) {
+      localized_refiner.enable_move_recording();
+    }
+
+    return localized_refiner;
   });
 
   for (int iteration = 0; iteration < _fm_ctx.num_iterations; ++iteration) {
@@ -75,9 +86,8 @@ bool FMRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx)
     DBG << "Starting FM iteration " << iteration << " with " << _shared->border_nodes.size()
         << " border nodes and " << _ctx.parallel.num_threads << " worker threads";
 
-    using SeedNodesVec = std::vector<NodeID>;
-    using MovesVec = std::vector<fm::Move>;
-    tbb::concurrent_vector<std::pair<SeedNodesVec, MovesVec>> dbg_changelog;
+    // If we want to evaluate the batches, record all batches and their changes to the partition
+    Batches dbg_changelog;
 
     // Start one worker per thread
     START_TIMER("Localized searches");
@@ -91,7 +101,7 @@ bool FMRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx)
       while (_shared->border_nodes.has_more()) {
         const auto expected_batch_gain = localized_refiner.run_batch();
         expected_gain += expected_batch_gain;
-        if (_fm_ctx.dbg_compute_batch_size_statistics && expected_batch_gain > 0) {
+        IF_STATSC(_fm_ctx.dbg_compute_batch_size_statistics && expected_batch_gain > 0) {
           SeedNodesVec seed_nodes_cpy(localized_refiner.last_batch_seed_nodes());
           MovesVec moves_cpy(localized_refiner.last_batch_moves());
           dbg_changelog.emplace_back(std::move(seed_nodes_cpy), std::move(moves_cpy));
@@ -100,10 +110,10 @@ bool FMRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx)
     });
     STOP_TIMER();
 
-    if (_fm_ctx.dbg_compute_batch_size_statistics) {
-        for (const auto &[seed_nodes, moves] : dbg_changelog) {
-            dbg_compute_batch_size_statistics(seed_nodes, moves);
-        }
+    IF_STATSC(_fm_ctx.dbg_compute_batch_size_statistics) {
+      std::vector<fm::BatchStats> batch_stats =
+          dbg_compute_batch_stats(p_graph, std::move(dbg_changelog));
+      _shared->batch_stats.next_iteration(batch_stats);
     }
 
     const EdgeWeight expected_gain_of_this_iteration = expected_gain_ets.combine(std::plus{});
@@ -127,16 +137,156 @@ bool FMRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx)
     IFSTATS(_shared->stats.next_iteration());
   }
 
-  IFSTATS(_shared->stats.summarize());
-  IFSTATS(_shared->stats.reset());
+  IF_STATS {
+    _shared->stats.summarize();
+    _shared->stats.reset();
+  }
+  IF_STATSC(_fm_ctx.dbg_compute_batch_size_statistics) {
+    _shared->batch_stats.summarize();
+    _shared->batch_stats.reset();
+  }
 
   return false;
 }
 
-void FMRefiner::dbg_compute_batch_size_statistics(
-    const std::vector<NodeID> &seed_nodes, const std::vector<fm::Move> &moves
-) {
-  return;
+std::vector<fm::BatchStats> FMRefiner::dbg_compute_batch_stats(
+    const PartitionedGraph &next_p_graph, Batches next_batches
+) const {
+  // Rollback the partition to *before* any moves of the batch were applied
+  // prev_batches will now contain the *target* block for all nodes instead of their previous block
+  auto [prev_p_graph, prev_batches] = dbg_build_prev_p_graph(next_p_graph, std::move(next_batches));
+
+  // In the recorded sequence, re-apply batches batch-by-batch to measure their effect on partition
+  // quality
+  std::vector<fm::BatchStats> batch_stats;
+  for (const auto &[seeds, moves] : prev_batches) {
+    if (!moves.empty()) {
+      batch_stats.push_back(dbg_compute_single_batch_stats_in_sequence(prev_p_graph, seeds, moves));
+    } else {
+      batch_stats.emplace_back();
+    }
+  }
+
+  // If everything went right, we should now have the same partition as next_partition
+  KASSERT(metrics::edge_cut(prev_p_graph) == metrics::edge_cut(next_p_graph));
+  KASSERT(metrics::imbalance(prev_p_graph) == metrics::imbalance(next_p_graph));
+
+  return batch_stats;
+}
+
+// Computes the partition *before* any moves of the given batches where applied to it
+// Changes the batches to store the blocks to which the nodes where moved to
+std::pair<PartitionedGraph, FMRefiner::Batches>
+FMRefiner::dbg_build_prev_p_graph(const PartitionedGraph &p_graph, Batches batches) const {
+  StaticArray<BlockID> prev_partition(p_graph.n());
+  auto &next_partition = p_graph.partition();
+  std::copy(next_partition.begin(), next_partition.end(), prev_partition.begin());
+
+  // Rollback partition to before the moves in the batches where applied
+  // Update the batches to store the "new" from block
+  for (auto &[seeds, moves] : batches) {
+    for (auto &move : moves) {
+      std::swap(prev_partition[move.node], move.from);
+    }
+  }
+
+  return {
+      PartitionedGraph(p_graph.graph(), p_graph.k(), std::move(prev_partition)),
+      std::move(batches),
+  };
+}
+
+// Computes the statistics for a single batch
+// The given partition should reflect all batches that came before this one, but none of the ones
+// that will come afterwards
+// This function also applies the moves of the current batch to the given partition
+fm::BatchStats FMRefiner::dbg_compute_single_batch_stats_in_sequence(
+    PartitionedGraph &p_graph, const std::vector<NodeID> &seeds, const std::vector<fm::Move> &moves
+) const {
+  KASSERT(!seeds.empty());
+  KASSERT(!moves.empty());
+  fm::BatchStats stats;
+
+  std::vector<NodeID> distances = dbg_compute_batch_distances(p_graph.graph(), seeds, moves);
+
+  stats.size = moves.size();
+  stats.max_distance = *std::max_element(distances.begin(), distances.end());
+  stats.size_by_distance.resize(stats.max_distance + 1);
+  stats.gain_by_distance.resize(stats.max_distance + 1);
+
+  NodeID cur_distance = 0;
+  for (const auto &[u, block] : moves) {
+    // Compute the gain of the move
+    EdgeWeight int_degree = 0;
+    EdgeWeight ext_degree = 0;
+    for (const auto &[e, v] : p_graph.neighbors(u)) {
+      if (p_graph.block(v) == p_graph.block(u)) {
+        int_degree += p_graph.edge_weight(e);
+      } else if (p_graph.block(v) == block) {
+        ext_degree += p_graph.edge_weight(e);
+      }
+    }
+
+    cur_distance = std::max(cur_distance, distances[u]);
+    stats.gain_by_distance[cur_distance] += ext_degree - int_degree;
+    ++stats.size_by_distance[cur_distance];
+
+    p_graph.set_block(u, block);
+  }
+
+  return stats;
+}
+
+std::vector<NodeID> FMRefiner::dbg_compute_batch_distances(
+    const Graph &graph, const std::vector<NodeID> &seeds, const std::vector<fm::Move> &moves
+) const {
+  // Keeps track of moved nodes that we yet have to discover
+  std::unordered_map<NodeID, std::size_t> searched;
+  for (std::size_t i = 0; i < moves.size(); ++i) {
+    searched[moves[i].node] = i;
+  }
+
+  // Current frontier of the BFS
+  std::stack<NodeID> frontier;
+  for (const NodeID &seed : seeds) {
+    frontier.push(seed);
+  }
+
+  // Keep track of nodes that we have already discovered
+  std::set<NodeID> visited;
+
+  NodeID current_distance = 0;
+  NodeID current_layer_size = frontier.size();
+  std::vector<NodeID> distances(moves.size());
+
+  while (!searched.empty()) {
+    KASSERT(!frontier.empty());
+
+    if (current_layer_size == 0) {
+      ++current_distance;
+      current_layer_size = frontier.size();
+    }
+
+    const NodeID u = frontier.top();
+    frontier.pop();
+    --current_layer_size;
+    visited.insert(u);
+
+    // If the node was moved, record its distance from any seed node
+    if (auto it = searched.find(u); it != searched.end()) {
+      distances[it->second] = current_distance;
+      searched.erase(it);
+    }
+
+    // Expand search to its neighbors
+    for (const auto &[e, v] : graph.neighbors(u)) {
+      if (visited.count(v) == 0) {
+        frontier.push(v);
+      }
+    }
+  }
+
+  return distances;
 }
 
 LocalizedFMRefiner::LocalizedFMRefiner(
