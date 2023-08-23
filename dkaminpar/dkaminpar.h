@@ -276,6 +276,9 @@ struct ClusterBalancerContext {
   bool par_use_positive_gain_buckets;
   double par_gain_bucket_factor;
 
+  double par_initial_rebalance_fraction;
+  double par_rebalance_fraction_increase;
+
   ClusterSizeStrategy cluster_size_strategy;
   double cluster_size_multiplier;
 

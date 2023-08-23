@@ -152,6 +152,8 @@ private:
   Buckets _weight_buckets;
   Clusters _clusters;
 
+  double _current_parallel_rebalance_fraction;
+
   bool _stalled = false;
 
   Statistics _stats;

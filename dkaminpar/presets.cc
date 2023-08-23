@@ -196,6 +196,8 @@ Context create_default_context() {
                       .par_accept_imbalanced = true,
                       .par_use_positive_gain_buckets = false,
                       .par_gain_bucket_factor = 2.0,
+                      .par_initial_rebalance_fraction = 1.0,
+                      .par_rebalance_fraction_increase = 0.01,
                       .cluster_size_strategy = ClusterSizeStrategy::ONE,
                       .cluster_size_multiplier = 1.0,
                       .cluster_strategy = ClusterStrategy::GREEDY_BATCH_PREFIX,

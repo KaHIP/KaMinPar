@@ -115,7 +115,8 @@ ClusterBalancer::ClusterBalancer(
       _moved_marker(_p_graph.n()),
       _weight_buckets(
           _p_graph, _p_ctx, _cb_ctx.par_use_positive_gain_buckets, _cb_ctx.par_gain_bucket_factor
-      ) {}
+      ),
+      _current_parallel_rebalance_fraction(_cb_ctx.par_initial_rebalance_fraction) {}
 
 ClusterBalancer::~ClusterBalancer() {
   _factory.take_m_ctx(std::move(*this));
@@ -446,7 +447,13 @@ void ClusterBalancer::perform_parallel_round() {
 
   for (const BlockID block : _p_graph.blocks()) {
     BlockWeight current_weight = _p_graph.block_weight(block);
-    const BlockWeight max_weight = _p_ctx.graph->max_block_weight(block);
+
+    // We use a "fake" max_weight that only becomes the actual maximum block weight after a few
+    // rounds This slows down rebalancing, but gives nodes in high-gain buckets a better chance for
+    // being moved
+    const BlockWeight max_weight = _p_ctx.graph->max_block_weight(block) +
+                                   (1.0 - _current_parallel_rebalance_fraction) * current_weight;
+
     if (current_weight > max_weight) {
       if (rank == 0) {
         int cut_off_bucket = 0;
@@ -611,6 +618,10 @@ void ClusterBalancer::perform_parallel_round() {
       _stats.num_par_node_moves += dbg_count_nodes_in_clusters(candidates);
     }
   }
+
+  // Increase rebalance fraction for next round
+  _current_parallel_rebalance_fraction =
+      std::min(1.0, _current_parallel_rebalance_fraction + _cb_ctx.par_rebalance_fraction_increase);
 }
 
 void ClusterBalancer::perform_sequential_round() {
