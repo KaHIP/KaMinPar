@@ -272,6 +272,9 @@ struct ClusterBalancerContext {
   double parallel_threshold;
   int par_num_dicing_attempts;
   bool par_accept_imbalanced;
+  
+  bool par_use_positive_gain_buckets;
+  double par_gain_bucket_factor;
 
   ClusterSizeStrategy cluster_size_strategy;
   double cluster_size_multiplier;

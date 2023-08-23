@@ -113,7 +113,9 @@ ClusterBalancer::ClusterBalancer(
       _pqs(_p_graph.n(), _p_graph.k()),
       _pq_weights(_p_graph.k()),
       _moved_marker(_p_graph.n()),
-      _weight_buckets(_p_graph, _p_ctx) {}
+      _weight_buckets(
+          _p_graph, _p_ctx, _cb_ctx.par_use_positive_gain_buckets, _cb_ctx.par_gain_bucket_factor
+      ) {}
 
 ClusterBalancer::~ClusterBalancer() {
   _factory.take_m_ctx(std::move(*this));
@@ -448,13 +450,14 @@ void ClusterBalancer::perform_parallel_round() {
     if (current_weight > max_weight) {
       if (rank == 0) {
         int cut_off_bucket = 0;
-        for (; cut_off_bucket < Buckets::kNumBuckets && current_weight > max_weight;
+        for (; cut_off_bucket < _weight_buckets.num_buckets() && current_weight > max_weight;
              ++cut_off_bucket) {
           KASSERT(
-              current_overloaded_block * Buckets::kNumBuckets + cut_off_bucket < buckets.size()
+              current_overloaded_block * _weight_buckets.num_buckets() + cut_off_bucket <
+              buckets.size()
           );
           current_weight -=
-              buckets[current_overloaded_block * Buckets::kNumBuckets + cut_off_bucket];
+              buckets[current_overloaded_block * _weight_buckets.num_buckets() + cut_off_bucket];
         }
 
         KASSERT(current_overloaded_block < cut_off_buckets.size());
@@ -479,8 +482,8 @@ void ClusterBalancer::perform_parallel_round() {
     for (const BlockID b : _p_graph.blocks()) {
       if (overload(b) > 0) {
         ss << "Block " << b << ": ";
-        for (std::size_t bucket = 0; bucket < Buckets::kNumBuckets; ++bucket) {
-          ss << buckets[bucket + to_overloaded_map[b] * Buckets::kNumBuckets] << " ";
+        for (std::size_t bucket = 0; bucket < _weight_buckets.num_buckets(); ++bucket) {
+          ss << buckets[bucket + to_overloaded_map[b] * _weight_buckets.num_buckets()] << " ";
         }
         ss << " -- cut-off: " << cut_off_buckets[to_overloaded_map[b]] << "\n";
       }
@@ -499,7 +502,7 @@ void ClusterBalancer::perform_parallel_round() {
 
     if (const BlockID from = _clusters.block(cluster); is_overloaded(from)) {
       auto [gain, to] = _clusters.find_max_relative_gain(cluster);
-      const auto bucket = Buckets::compute_bucket(gain);
+      const auto bucket = _weight_buckets.compute_bucket(gain);
 
       if (bucket < cut_off_buckets[to_overloaded_map[from]]) {
         const NodeWeight weight = _clusters.weight(cluster);
@@ -1132,13 +1135,15 @@ bool ClusterBalancer::dbg_validate_bucket_weights() const {
     }
   }
 
-  std::vector<BlockWeight> expected_per_bucket_weights(Buckets::kNumBuckets * _p_graph.k());
+  std::vector<BlockWeight> expected_per_bucket_weights(
+      _weight_buckets.num_buckets() * _p_graph.k()
+  );
   for (const NodeID cluster : _clusters.clusters()) {
     const BlockID block = _clusters.block(cluster);
     if (overload(block) > 0 && !_moved_marker.get(cluster)) {
       KASSERT(_pqs.contains(cluster));
-      const std::size_t bucket = Buckets::compute_bucket(_pqs.key(block, cluster));
-      expected_per_bucket_weights[Buckets::kNumBuckets * block + bucket] +=
+      const std::size_t bucket = _weight_buckets.compute_bucket(_pqs.key(block, cluster));
+      expected_per_bucket_weights[_weight_buckets.num_buckets() * block + bucket] +=
           _clusters.weight(cluster);
     }
   }
@@ -1149,16 +1154,16 @@ bool ClusterBalancer::dbg_validate_bucket_weights() const {
     }
 
     BlockWeight actual_total_weight = 0;
-    for (std::size_t bucket = 0; bucket < Buckets::kNumBuckets; ++bucket) {
+    for (std::size_t bucket = 0; bucket < _weight_buckets.num_buckets(); ++bucket) {
       if (_weight_buckets.size(block, bucket) < 0) {
         LOG_ERROR << "Block " << block << " has negative weight in bucket " << bucket;
         return false;
       }
       if (_weight_buckets.size(block, bucket) !=
-          expected_per_bucket_weights[Buckets::kNumBuckets * block + bucket]) {
+          expected_per_bucket_weights[_weight_buckets.num_buckets() * block + bucket]) {
         LOG_ERROR << "Block " << block << " has " << _weight_buckets.size(block, bucket)
                   << " weight in bucket " << bucket << ", but its expected weight is "
-                  << expected_per_bucket_weights[Buckets::kNumBuckets * block + bucket];
+                  << expected_per_bucket_weights[_weight_buckets.num_buckets() * block + bucket];
         return false;
       }
       actual_total_weight += _weight_buckets.size(block, bucket);

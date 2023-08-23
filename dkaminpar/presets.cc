@@ -194,6 +194,8 @@ Context create_default_context() {
                       .parallel_threshold = 0.1,
                       .par_num_dicing_attempts = 0,
                       .par_accept_imbalanced = true,
+                      .par_use_positive_gain_buckets = false,
+                      .par_gain_bucket_factor = 2.0,
                       .cluster_size_strategy = ClusterSizeStrategy::ONE,
                       .cluster_size_multiplier = 1.0,
                       .cluster_strategy = ClusterStrategy::GREEDY_BATCH_PREFIX,

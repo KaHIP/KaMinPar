@@ -402,6 +402,17 @@ CLI::Option_group *create_move_set_balancer_options(CLI::App *app, Context &ctx)
       "--r-bms-par-accept-imbalanced", ctx.refinement.cluster_balancer.par_accept_imbalanced
   );
   balancer
+      ->add_flag(
+          "--r-bms-par-positive-gain-buckets",
+          ctx.refinement.cluster_balancer.par_use_positive_gain_buckets
+      )
+      ->capture_default_str();
+  balancer
+      ->add_option(
+          "--r-bms-par-gain-bucket-factor", ctx.refinement.cluster_balancer.par_gain_bucket_factor
+      )
+      ->capture_default_str();
+  balancer
       ->add_option("--r-bms-size-strategy", ctx.refinement.cluster_balancer.cluster_size_strategy)
       ->transform(CLI::CheckedTransformer(get_move_set_size_strategies()).description(""))
       ->description(R"(Strategy for limiting the size of move sets:
