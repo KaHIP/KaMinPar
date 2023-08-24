@@ -537,6 +537,12 @@ void print(const RefinementContext &ctx, std::ostream &out) {
     out << "    Trigger threshold:        " << ctx.cluster_balancer.parallel_threshold << "\n";
     out << "    # of dicing attempts:     " << ctx.cluster_balancer.par_num_dicing_attempts
         << " --> " << (ctx.cluster_balancer.par_accept_imbalanced ? "accept" : "reject") << "\n";
+    out << "    Gain buckets:             log" << ctx.cluster_balancer.par_gain_bucket_factor
+        << ", positive gain buckets: "
+        << (ctx.cluster_balancer.par_use_positive_gain_buckets ? "yes" : "no") << "\n";
+    out << "    Parallel rebalancing:     start at "
+        << 100.0 * ctx.cluster_balancer.par_initial_rebalance_fraction << "%, increase by "
+        << 100.0 * ctx.cluster_balancer.par_rebalance_fraction_increase << "% each round\n";
   }
   if (ctx.includes_algorithm(RefinementAlgorithm::JET_BALANCER) ||
       (ctx.includes_algorithm(RefinementAlgorithm::JET_REFINER) &&

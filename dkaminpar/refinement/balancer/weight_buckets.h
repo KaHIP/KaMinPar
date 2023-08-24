@@ -17,8 +17,6 @@
 namespace kaminpar::dist {
 class Buckets {
 public:
-  constexpr static int kNumBuckets = 16;
-
   Buckets(
       const DistributedPartitionedGraph &p_graph,
       const PartitionContext &p_ctx,
@@ -94,7 +92,7 @@ public:
 
   StaticArray<GlobalNodeWeight> compactify() const {
     const BlockID num_overloaded_blocks = metrics::num_imbalanced_blocks(_p_graph, _p_ctx);
-    StaticArray<GlobalNodeWeight> compactified(num_overloaded_blocks * kNumBuckets);
+    StaticArray<GlobalNodeWeight> compactified(num_overloaded_blocks * num_buckets());
 
     BlockID cb = 0;
     for (const BlockID b : _p_graph.blocks()) {

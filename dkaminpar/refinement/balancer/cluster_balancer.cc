@@ -323,14 +323,13 @@ bool ClusterBalancer::refine() {
       DBG0 << "  --> Round " << round << ": seq. balancing: " << prev_imbalance_distance << " --> "
            << metrics::imbalance_l1(_p_graph, _p_ctx);
 
-      // @todo too expensive
-      // IF_STATS {
-      //  SCOPED_TIMER("Compute statistics");
-      //  _stats.seq_imbalance_reduction +=
-      //      (prev_imbalance_distance - metrics::imbalance_l1(_p_graph, _p_ctx));
-      //  _stats.seq_cut_increase += metrics::edge_cut(_p_graph) - prev_edge_cut;
-      //  prev_edge_cut = metrics::edge_cut(_p_graph);
-      //}
+      IF_STATS {
+        _stats.seq_imbalance_reduction +=
+            (prev_imbalance_distance - metrics::imbalance_l1(_p_graph, _p_ctx));
+        // @todo too expensive
+        //  _stats.seq_cut_increase += metrics::edge_cut(_p_graph) - prev_edge_cut;
+        //  prev_edge_cut = metrics::edge_cut(_p_graph);
+      }
     }
 
     if (use_parallel_rebalancing()) {
@@ -341,11 +340,12 @@ bool ClusterBalancer::refine() {
         DBG0 << "  --> Round " << round << ": par. balancing: " << imbalance_after_seq_balancing
              << " --> " << metrics::imbalance_l1(_p_graph, _p_ctx);
 
+        IFSTATS(
+            _stats.par_imbalance_reduction +=
+            (imbalance_after_seq_balancing - metrics::imbalance_l1(_p_graph, _p_ctx))
+        );
+
         // @todo too expensive
-        // IFSTATS(
-        //    _stats.par_imbalance_reduction +=
-        //    (imbalance_after_seq_balancing - metrics::imbalance_l1(_p_graph, _p_ctx))
-        //);
         // IFSTATS(_stats.par_cut_increase += metrics::edge_cut(_p_graph) - prev_edge_cut);
       }
     }
@@ -452,7 +452,8 @@ void ClusterBalancer::perform_parallel_round() {
     // rounds This slows down rebalancing, but gives nodes in high-gain buckets a better chance for
     // being moved
     const BlockWeight max_weight = _p_ctx.graph->max_block_weight(block) +
-                                   (1.0 - _current_parallel_rebalance_fraction) * current_weight;
+                                   (1.0 - _current_parallel_rebalance_fraction) *
+                                       (current_weight - _p_ctx.graph->max_block_weight(block));
 
     if (current_weight > max_weight) {
       if (rank == 0) {
