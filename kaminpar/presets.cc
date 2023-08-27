@@ -24,6 +24,8 @@ Context create_context_by_preset_name(const std::string &name) {
     return create_strong_context();
   } else if (name == "jet") {
     return create_jet_context();
+  } else if (name == "noref") {
+    return create_noref_context();
   }
 
   throw std::runtime_error("invalid preset name");
@@ -36,6 +38,7 @@ std::unordered_set<std::string> get_preset_names() {
       "largek",
       "strong",
       "jet",
+      "noref",
   };
 }
 
@@ -188,6 +191,12 @@ Context create_jet_context() {
       RefinementAlgorithm::GREEDY_BALANCER,
       RefinementAlgorithm::JET,
   };
+  return ctx;
+}
+
+Context create_noref_context() {
+  Context ctx = create_default_context();
+  ctx.refinement.algorithms.clear();
   return ctx;
 }
 } // namespace kaminpar::shm

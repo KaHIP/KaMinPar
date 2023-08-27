@@ -285,6 +285,7 @@ Context create_default_context();
 Context create_largek_context();
 Context create_strong_context();
 Context create_jet_context();
+Context create_noref_context();
 } // namespace kaminpar::shm
 
 //

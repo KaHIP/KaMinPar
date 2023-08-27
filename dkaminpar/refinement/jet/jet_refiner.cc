@@ -17,6 +17,7 @@
 #include "dkaminpar/graphutils/synchronization.h"
 #include "dkaminpar/metrics.h"
 
+#include "common/datastructures/rating_map.h"
 #include "common/random.h"
 #include "common/timer.h"
 

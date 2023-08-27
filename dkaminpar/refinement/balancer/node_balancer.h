@@ -10,22 +10,22 @@
 #include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/datastructures/distributed_partitioned_graph.h"
 #include "dkaminpar/dkaminpar.h"
+#include "dkaminpar/refinement/gain_calculator.h"
 #include "dkaminpar/refinement/refiner.h"
 
 #include "common/datastructures/binary_heap.h"
 #include "common/datastructures/marker.h"
-#include "common/datastructures/rating_map.h"
 
 namespace kaminpar::dist {
-class GreedyBalancerFactory : public GlobalRefinerFactory {
+class NodeBalancerFactory : public GlobalRefinerFactory {
 public:
-  GreedyBalancerFactory(const Context &ctx);
+  NodeBalancerFactory(const Context &ctx);
 
-  GreedyBalancerFactory(const GreedyBalancerFactory &) = delete;
-  GreedyBalancerFactory &operator=(const GreedyBalancerFactory &) = delete;
+  NodeBalancerFactory(const NodeBalancerFactory &) = delete;
+  NodeBalancerFactory &operator=(const NodeBalancerFactory &) = delete;
 
-  GreedyBalancerFactory(GreedyBalancerFactory &&) noexcept = default;
-  GreedyBalancerFactory &operator=(GreedyBalancerFactory &&) = delete;
+  NodeBalancerFactory(NodeBalancerFactory &&) noexcept = default;
+  NodeBalancerFactory &operator=(NodeBalancerFactory &&) = delete;
 
   std::unique_ptr<GlobalRefiner>
   create(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
@@ -34,7 +34,7 @@ private:
   const Context &_ctx;
 };
 
-class GreedyBalancer : public GlobalRefiner {
+class NodeBalancer : public GlobalRefiner {
   SET_STATISTICS_FROM_GLOBAL();
   SET_DEBUG(false);
 
@@ -61,15 +61,15 @@ class GreedyBalancer : public GlobalRefiner {
   };
 
 public:
-  GreedyBalancer(
+  NodeBalancer(
       const Context &ctx, DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx
   );
 
-  GreedyBalancer(const GreedyBalancer &) = delete;
-  GreedyBalancer &operator=(const GreedyBalancer &) = delete;
+  NodeBalancer(const NodeBalancer &) = delete;
+  NodeBalancer &operator=(const NodeBalancer &) = delete;
 
-  GreedyBalancer(GreedyBalancer &&) noexcept = default;
-  GreedyBalancer &operator=(GreedyBalancer &&) = delete;
+  NodeBalancer(NodeBalancer &&) noexcept = default;
+  NodeBalancer &operator=(NodeBalancer &&) = delete;
 
   void initialize() final;
   bool refine() final;
@@ -133,11 +133,7 @@ private:
 
   void init_pq();
 
-  std::pair<BlockID, double> compute_gain(NodeID u, BlockID u_block) const;
-
   BlockWeight block_overload(BlockID b) const;
-
-  double compute_relative_gain(EdgeWeight absolute_gain, NodeWeight weight) const;
 
   bool add_to_pq(BlockID b, NodeID u);
 
@@ -155,14 +151,13 @@ private:
   const PartitionContext &_p_ctx;
 
   DynamicBinaryMinMaxForest<NodeID, double> _pq;
-  mutable tbb::enumerable_thread_specific<RatingMap<EdgeWeight, BlockID>> _rating_map{[&] {
-    return RatingMap<EdgeWeight, BlockID>{_ctx.partition.k};
-  }};
   std::vector<BlockWeight> _pq_weight;
   Marker<> _marker;
 
   Statistics _stats;
 
   NoinitVector<NodeWeight> _buckets;
+
+  GainCalculator _gain_calculator;
 };
 }; // namespace kaminpar::dist

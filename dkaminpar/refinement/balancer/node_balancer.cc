@@ -4,7 +4,7 @@
  * @date:   12.04.2022
  * @brief:  Distributed balancing refinement algorithm.
  ******************************************************************************/
-#include "dkaminpar/refinement/balancer/greedy_balancer.h"
+#include "dkaminpar/refinement/balancer/node_balancer.h"
 
 #include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/datastructures/distributed_partitioned_graph.h"
@@ -18,14 +18,14 @@
 #include "common/timer.h"
 
 namespace kaminpar::dist {
-GreedyBalancerFactory::GreedyBalancerFactory(const Context &ctx) : _ctx(ctx) {}
+NodeBalancerFactory::NodeBalancerFactory(const Context &ctx) : _ctx(ctx) {}
 
 std::unique_ptr<GlobalRefiner>
-GreedyBalancerFactory::create(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) {
-  return std::make_unique<GreedyBalancer>(_ctx, p_graph, p_ctx);
+NodeBalancerFactory::create(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) {
+  return std::make_unique<NodeBalancer>(_ctx, p_graph, p_ctx);
 }
 
-GreedyBalancer::GreedyBalancer(
+NodeBalancer::NodeBalancer(
     const Context &ctx, DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx
 )
     : _ctx(ctx),
@@ -33,11 +33,12 @@ GreedyBalancer::GreedyBalancer(
       _p_ctx(p_ctx),
       _pq(ctx.partition.graph->n, ctx.partition.k),
       _pq_weight(ctx.partition.k),
-      _marker(ctx.partition.graph->n) {}
+      _marker(ctx.partition.graph->n),
+      _gain_calculator(p_graph) {}
 
-void GreedyBalancer::initialize() {}
+void NodeBalancer::initialize() {}
 
-bool GreedyBalancer::refine() {
+bool NodeBalancer::refine() {
   SCOPED_TIMER("Balancer");
 
   // Only balance the partition if it is infeasible
@@ -236,7 +237,8 @@ bool GreedyBalancer::refine() {
           const BlockWeight overload = block_overload(from);
 
           if (overload > 0) { // Node in overloaded block
-            const auto [max_gainer, rel_gain] = compute_gain(node, from);
+            const auto [rel_gain, max_gainer] =
+                _gain_calculator.compute_relative_gain(node, _p_ctx);
             const auto bucket = get_bucket(rel_gain);
 
             KASSERT(from < to_overloaded_map.size());
@@ -372,7 +374,7 @@ bool GreedyBalancer::refine() {
   return false;
 }
 
-void GreedyBalancer::print_candidates(
+void NodeBalancer::print_candidates(
     const std::vector<MoveCandidate> &moves, const std::string &desc
 ) const {
   std::stringstream ss;
@@ -385,19 +387,19 @@ void GreedyBalancer::print_candidates(
   DLOG << "candidates=" << ss.str();
 }
 
-void GreedyBalancer::print_overloads() const {
+void NodeBalancer::print_overloads() const {
   for (const BlockID b : _p_graph.blocks()) {
     LOG << V(b) << V(block_overload(b));
   }
 }
 
-void GreedyBalancer::perform_moves(const std::vector<MoveCandidate> &moves) {
+void NodeBalancer::perform_moves(const std::vector<MoveCandidate> &moves) {
   for (const auto &move : moves) {
     perform_move(move);
   }
 }
 
-void GreedyBalancer::perform_move(const MoveCandidate &move) {
+void NodeBalancer::perform_move(const MoveCandidate &move) {
   const auto &[node, from, to, weight, rel_gain] = move;
 
   if (from == to) { // Should only happen on root
@@ -436,7 +438,7 @@ void GreedyBalancer::perform_move(const MoveCandidate &move) {
 }
 
 template <typename Elements>
-Elements GreedyBalancer::reduce_buckets_or_move_candidates(Elements &&elements) {
+Elements NodeBalancer::reduce_buckets_or_move_candidates(Elements &&elements) {
   const int size = mpi::get_comm_size(_p_graph.communicator());
   const int rank = mpi::get_comm_rank(_p_graph.communicator());
 
@@ -495,7 +497,7 @@ Elements GreedyBalancer::reduce_buckets_or_move_candidates(Elements &&elements) 
   return std::move(elements);
 }
 
-auto GreedyBalancer::reduce_move_candidates(
+auto NodeBalancer::reduce_move_candidates(
     std::vector<MoveCandidate> &&a, std::vector<MoveCandidate> &&b
 ) -> std::vector<MoveCandidate> {
   std::vector<MoveCandidate> ans;
@@ -609,13 +611,13 @@ auto GreedyBalancer::reduce_move_candidates(
 }
 
 NoinitVector<NodeWeight>
-GreedyBalancer::reduce_buckets(NoinitVector<NodeWeight> &&a, NoinitVector<NodeWeight> &&b) {
+NodeBalancer::reduce_buckets(NoinitVector<NodeWeight> &&a, NoinitVector<NodeWeight> &&b) {
   KASSERT(a.size() == b.size());
   tbb::parallel_for<std::size_t>(0, a.size(), [&](std::size_t i) { a[i] += b[i]; });
   return std::move(a);
 }
 
-auto GreedyBalancer::pick_move_candidates() -> std::vector<MoveCandidate> {
+auto NodeBalancer::pick_move_candidates() -> std::vector<MoveCandidate> {
   std::vector<MoveCandidate> candidates;
 
   for (const BlockID from : _p_graph.blocks()) {
@@ -637,7 +639,7 @@ auto GreedyBalancer::pick_move_candidates() -> std::vector<MoveCandidate> {
       _pq.pop_max(from);
       _pq_weight[from] -= u_weight;
 
-      auto [to, actual_relative_gain] = compute_gain(u, from);
+      auto [actual_relative_gain, to] = _gain_calculator.compute_relative_gain(u, _p_ctx);
 
       if (relative_gain == actual_relative_gain) {
         MoveCandidate candidate{
@@ -662,7 +664,7 @@ auto GreedyBalancer::pick_move_candidates() -> std::vector<MoveCandidate> {
   return candidates;
 }
 
-void GreedyBalancer::init_pq() {
+void NodeBalancer::init_pq() {
   const BlockID k = _p_graph.k();
 
   tbb::enumerable_thread_specific<std::vector<DynamicBinaryMinHeap<NodeID, double>>> local_pq_ets{
@@ -689,7 +691,7 @@ void GreedyBalancer::init_pq() {
     const BlockWeight overload = block_overload(b);
 
     if (overload > 0) { // Node in overloaded block
-      const auto [max_gainer, rel_gain] = compute_gain(u, b);
+      const auto [rel_gain, max_gainer] = _gain_calculator.compute_relative_gain(u, _p_ctx);
       const bool need_more_nodes = (pq_weight[b] < overload);
       if (need_more_nodes || pq[b].empty() || rel_gain > pq[b].peek_key()) {
         if (!need_more_nodes) {
@@ -722,7 +724,7 @@ void GreedyBalancer::init_pq() {
   });
 }
 
-void GreedyBalancer::init_buckets() {
+void NodeBalancer::init_buckets() {
   _buckets.resize(kBucketsPerBlock * _p_graph.k());
   tbb::parallel_for<std::size_t>(0, _buckets.size(), [&](const std::size_t index) {
     _buckets[index] = 0;
@@ -731,55 +733,14 @@ void GreedyBalancer::init_buckets() {
   tbb::parallel_for(static_cast<NodeID>(0), _p_graph.n(), [&](const NodeID node) {
     const BlockID block = _p_graph.block(node);
     if (block_overload(block) > 0) { // Node in overloaded block
-      const auto [max_gainer, rel_gain] = compute_gain(node, block);
+      const auto [rel_gain, max_gainer] = _gain_calculator.compute_relative_gain(node, _p_ctx);
       const auto bucket = get_bucket(rel_gain);
       get_bucket_value(block, bucket) += _p_graph.node_weight(node);
     }
   });
 }
 
-std::pair<BlockID, double>
-GreedyBalancer::compute_gain(const NodeID u, const BlockID u_block) const {
-  const NodeWeight u_weight = _p_graph.node_weight(u);
-  BlockID max_gainer = u_block;
-  EdgeWeight max_external_gain = 0;
-  EdgeWeight internal_degree = 0;
-
-  auto action = [&](auto &map) {
-    // Compute external degree to each adjacent block that can take u without
-    // becoming overloaded
-    for (const auto [e, v] : _p_graph.neighbors(u)) {
-      const BlockID v_block = _p_graph.block(v);
-      if (u_block != v_block &&
-          _p_graph.block_weight(v_block) + u_weight <= _p_ctx.graph->max_block_weight(v_block)) {
-        map[v_block] += _p_graph.edge_weight(e);
-      } else if (u_block == v_block) {
-        internal_degree += _p_graph.edge_weight(e);
-      }
-    }
-
-    // Select neighbor that maximizes gain
-    auto &rand = Random::instance();
-    for (const auto [block, gain] : map.entries()) {
-      if (gain > max_external_gain || (gain == max_external_gain && rand.random_bool())) {
-        max_gainer = block;
-        max_external_gain = gain;
-      }
-    }
-    map.clear();
-  };
-
-  auto &rating_map = _rating_map.local();
-  rating_map.update_upper_bound_size(_p_graph.degree(u));
-  rating_map.run_with_map(action, action);
-
-  // Compute absolute and relative gain based on internal degree / external gain
-  const EdgeWeight gain = max_external_gain - internal_degree;
-  const double relative_gain = compute_relative_gain(gain, u_weight);
-  return {max_gainer, relative_gain};
-}
-
-BlockWeight GreedyBalancer::block_overload(const BlockID b) const {
+BlockWeight NodeBalancer::block_overload(const BlockID b) const {
   static_assert(
       std::numeric_limits<BlockWeight>::is_signed,
       "This must be changed when using an unsigned data type for "
@@ -789,24 +750,14 @@ BlockWeight GreedyBalancer::block_overload(const BlockID b) const {
   return std::max<BlockWeight>(0, _p_graph.block_weight(b) - _p_ctx.graph->max_block_weight(b));
 }
 
-double GreedyBalancer::compute_relative_gain(
-    const EdgeWeight absolute_gain, const NodeWeight weight
-) const {
-  if (absolute_gain >= 0) {
-    return absolute_gain * weight;
-  } else {
-    return 1.0 * absolute_gain / weight;
-  }
-}
-
-bool GreedyBalancer::add_to_pq(const BlockID b, const NodeID u) {
+bool NodeBalancer::add_to_pq(const BlockID b, const NodeID u) {
   KASSERT(b == _p_graph.block(u));
 
-  const auto [to, rel_gain] = compute_gain(u, b);
+  const auto [rel_gain, to] = _gain_calculator.compute_relative_gain(u, _p_ctx);
   return add_to_pq(b, u, _p_graph.node_weight(u), rel_gain);
 }
 
-bool GreedyBalancer::add_to_pq(
+bool NodeBalancer::add_to_pq(
     const BlockID b, const NodeID u, const NodeWeight u_weight, const double rel_gain
 ) {
   KASSERT(u_weight == _p_graph.node_weight(u));
@@ -831,11 +782,11 @@ bool GreedyBalancer::add_to_pq(
   return false;
 }
 
-void GreedyBalancer::reset_statistics() {
+void NodeBalancer::reset_statistics() {
   _stats = {};
 }
 
-void GreedyBalancer::print_statistics() const {
+void NodeBalancer::print_statistics() const {
   const GlobalNodeID global_num_conflicts =
       mpi::allreduce(_stats.local_num_conflicts, MPI_SUM, _p_graph.communicator());
   const GlobalNodeID global_num_nonconflicts =
@@ -859,7 +810,7 @@ void GreedyBalancer::print_statistics() const {
         << "% of selected nodes)";
 }
 
-NoinitVector<NodeWeight> GreedyBalancer::compactify_buckets() const {
+NoinitVector<NodeWeight> NodeBalancer::compactify_buckets() const {
   const BlockID num_overloaded_blocks = metrics::num_imbalanced_blocks(_p_graph, _p_ctx);
   NoinitVector<NodeWeight> compact(kBucketsPerBlock * num_overloaded_blocks);
 

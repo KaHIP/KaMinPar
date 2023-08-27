@@ -89,9 +89,9 @@ public:
     const auto [absolute_gain, max_gainer] = compute_absolute_gain<randomize>(u, p_ctx);
     const NodeWeight weight = _p_graph.node_weight(u);
     if (absolute_gain >= 0) {
-      return 1.0 * absolute_gain * weight;
+      return {1.0 * absolute_gain * weight, max_gainer};
     } else {
-      return 1.0 * absolute_gain / weight;
+      return {1.0 * absolute_gain / weight, max_gainer};
     }
   }
 
