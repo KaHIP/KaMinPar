@@ -531,11 +531,11 @@ bool NodeBalancer::perform_parallel_round() {
 }
 
 bool NodeBalancer::is_sequential_balancing_enabled() const {
-  return _stalled || _nb_ctx.enable_parallel_balancing;
+  return _stalled || _nb_ctx.enable_sequential_balancing;
 }
 
 bool NodeBalancer::is_parallel_balancing_enabled() const {
-  return !_stalled && _nb_ctx.enable_sequential_balancing;
+  return !_stalled && _nb_ctx.enable_parallel_balancing;
 }
 
 bool NodeBalancer::assign_feasible_target_block(
