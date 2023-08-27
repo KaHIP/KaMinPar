@@ -349,7 +349,7 @@ CLI::Option_group *create_node_balancer_options(CLI::App *app, Context &ctx) {
       ->capture_default_str();
   balancer
       ->add_flag(
-          "--r-nb-enable-fast-balancing", ctx.refinement.node_balancer.enable_parallel_balancing
+          "--r-nb-enable-parallel-balancing", ctx.refinement.node_balancer.enable_parallel_balancing
       )
       ->capture_default_str();
   balancer
