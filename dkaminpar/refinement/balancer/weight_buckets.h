@@ -34,14 +34,19 @@ public:
   }
 
   std::size_t compute_bucket(const double gain) const {
+    std::size_t bucket;
     if (gain > 0) {
-      return _positive_buckets ? neutral_bucket() - std::ceil(std::log2(gain) / std::log2(_base))
-                               : 0;
+      bucket = _positive_buckets
+                   ? neutral_bucket() - std::ceil(std::log2(1 + gain) / std::log2(_base))
+                   : 0;
     } else if (gain == 0) {
-      return neutral_bucket();
+      bucket = neutral_bucket();
     } else { // gain < 0
-      return neutral_bucket() + std::ceil(std::log2(-gain) / std::log2(_base));
+      bucket = neutral_bucket() + std::ceil(std::log2(1 - gain) / std::log2(_base));
     }
+
+    KASSERT(bucket < num_buckets());
+    return bucket;
   }
 
   void clear() {
@@ -141,8 +146,8 @@ public:
 private:
   static std::size_t compute_num_buckets(const bool positive_buckets, const double base) {
     const std::size_t num_neg_buckets =
-        std::ceil(1.0 * std::numeric_limits<EdgeWeight>::digits / std::log2(base));
-    return num_neg_buckets + (positive_buckets ? num_neg_buckets : 1);
+        std::ceil(1.0 * std::numeric_limits<double>::digits / std::log2(base));
+    return num_neg_buckets + positive_buckets * num_neg_buckets + 1;
   }
 
   std::size_t neutral_bucket() const {
