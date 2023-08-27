@@ -117,8 +117,8 @@ CLI::Option_group *create_refinement_options(CLI::App *app, Context &ctx) {
   create_lp_refinement_options(app, ctx);
   create_colored_lp_refinement_options(app, ctx);
   create_jet_refinement_options(app, ctx);
-  create_greedy_balancer_options(app, ctx);
-  create_move_set_balancer_options(app, ctx);
+  create_node_balancer_options(app, ctx);
+  create_cluster_balancer_options(app, ctx);
 
   return refinement;
 }
@@ -329,103 +329,121 @@ CLI::Option_group *create_colored_lp_refinement_options(CLI::App *app, Context &
   return lp;
 }
 
-CLI::Option_group *create_greedy_balancer_options(CLI::App *app, Context &ctx) {
+CLI::Option_group *create_node_balancer_options(CLI::App *app, Context &ctx) {
   auto *balancer = app->add_option_group("Refinement -> Node balancer");
 
-  balancer->add_option("--r-b-max-num-rounds", ctx.refinement.greedy_balancer.max_num_rounds)
+  balancer->add_option("--r-nb-max-num-rounds", ctx.refinement.node_balancer.max_num_rounds)
       ->capture_default_str();
   balancer
       ->add_flag(
-          "--r-b-enable-strong-balancing", ctx.refinement.greedy_balancer.enable_strong_balancing
+          "--r-nb-enable-sequential-balancing",
+          ctx.refinement.node_balancer.enable_sequential_balancing
       )
       ->capture_default_str();
   balancer
       ->add_option(
-          "--r-b-nodes-per-block",
-          ctx.refinement.greedy_balancer.num_nodes_per_block,
+          "--r-nb-seq-nodes-per-block",
+          ctx.refinement.node_balancer.seq_num_nodes_per_block,
           "Number of nodes selected for each overloaded block on each PE."
       )
       ->capture_default_str();
   balancer
       ->add_flag(
-          "--r-b-enable-fast-balancing", ctx.refinement.greedy_balancer.enable_fast_balancing
+          "--r-nb-enable-fast-balancing", ctx.refinement.node_balancer.enable_parallel_balancing
       )
       ->capture_default_str();
   balancer
       ->add_option(
-          "--r-b-fast-balancing-threshold",
-          ctx.refinement.greedy_balancer.fast_balancing_threshold,
+          "--r-nb-parallel-threshold",
+          ctx.refinement.node_balancer.par_threshold,
           "Perform a fast balancing round if strong balancing improved the imbalance by less than "
           "this value, e.g., 0.01 for 1%."
+      )
+      ->capture_default_str();
+  balancer->add_option(
+      "--r-nb-par-num-dicing-attempts", ctx.refinement.node_balancer.par_num_dicing_attempts
+  );
+  balancer->add_flag(
+      "--r-nb-par-accept-imbalanced", ctx.refinement.node_balancer.par_accept_imbalanced_moves
+  );
+  balancer
+      ->add_flag(
+          "--r-nb-par-positive-gain-buckets",
+          ctx.refinement.node_balancer.par_enable_positive_gain_buckets
+      )
+      ->capture_default_str();
+  balancer
+      ->add_option(
+          "--r-nb-par-gain-bucket-base", ctx.refinement.node_balancer.par_gain_bucket_base
       )
       ->capture_default_str();
 
   return balancer;
 }
 
-CLI::Option_group *create_move_set_balancer_options(CLI::App *app, Context &ctx) {
+CLI::Option_group *create_cluster_balancer_options(CLI::App *app, Context &ctx) {
   auto *balancer = app->add_option_group("Refinement -> Move set balancer");
 
-  balancer->add_option("--r-bms-max-num-rounds", ctx.refinement.cluster_balancer.max_num_rounds)
+  balancer->add_option("--r-cb-max-num-rounds", ctx.refinement.cluster_balancer.max_num_rounds)
       ->capture_default_str();
   balancer
       ->add_flag(
-          "--r-bms-enable-sequential-balancing",
+          "--r-cb-enable-sequential-balancing",
           ctx.refinement.cluster_balancer.enable_sequential_balancing
       )
       ->capture_default_str();
   balancer
       ->add_option(
-          "--r-bms-seq-nodes-per-block",
+          "--r-cb-seq-nodes-per-block",
           ctx.refinement.cluster_balancer.seq_num_nodes_per_block,
           "Number of nodes selected for each overloaded block on each PE."
       )
       ->capture_default_str();
   balancer
       ->add_flag(
-          "--r-bms-enable-parallel-balancing",
+          "--r-cb-enable-parallel-balancing",
           ctx.refinement.cluster_balancer.enable_parallel_balancing
       )
       ->capture_default_str();
   balancer
       ->add_option(
-          "--r-bms-parallel-threshold",
+          "--r-cb-parallel-threshold",
           ctx.refinement.cluster_balancer.parallel_threshold,
           "Perform a fast balancing round if strong balancing improved the imbalance by less than "
           "this value, e.g., 0.01 for 1%."
       )
       ->capture_default_str();
   balancer->add_option(
-      "--r-bms-par-num-dicing-attempts", ctx.refinement.cluster_balancer.par_num_dicing_attempts
+      "--r-cb-par-num-dicing-attempts", ctx.refinement.cluster_balancer.par_num_dicing_attempts
   );
   balancer->add_flag(
-      "--r-bms-par-accept-imbalanced", ctx.refinement.cluster_balancer.par_accept_imbalanced
+      "--r-cb-par-accept-imbalanced", ctx.refinement.cluster_balancer.par_accept_imbalanced
   );
   balancer
       ->add_flag(
-          "--r-bms-par-positive-gain-buckets",
+          "--r-cb-par-positive-gain-buckets",
           ctx.refinement.cluster_balancer.par_use_positive_gain_buckets
       )
       ->capture_default_str();
   balancer
       ->add_option(
-          "--r-bms-par-gain-bucket-factor", ctx.refinement.cluster_balancer.par_gain_bucket_factor
+          "--r-cb-par-gain-bucket-factor", ctx.refinement.cluster_balancer.par_gain_bucket_factor
       )
       ->capture_default_str();
   balancer
       ->add_option(
-          "--r-bms-par-initial-fraction",
+          "--r-cb-par-initial-fraction",
           ctx.refinement.cluster_balancer.par_initial_rebalance_fraction
       )
       ->capture_default_str();
   balancer
       ->add_option(
-          "--r-bms-par-fraction-increase",
+          "--r-cb-par-fraction-increase",
           ctx.refinement.cluster_balancer.par_rebalance_fraction_increase
       )
       ->capture_default_str();
   balancer
-      ->add_option("--r-bms-size-strategy", ctx.refinement.cluster_balancer.cluster_size_strategy)
+      ->add_option("--r-cb-size-strategy", ctx.refinement.cluster_balancer.cluster_size_strategy)
       ->transform(CLI::CheckedTransformer(get_move_set_size_strategies()).description(""))
       ->description(R"(Strategy for limiting the size of move sets:
   - zero: set limit to 0
@@ -433,12 +451,12 @@ CLI::Option_group *create_move_set_balancer_options(CLI::App *app, Context &ctx)
       ->capture_default_str();
   balancer
       ->add_option(
-          "--r-bms-size-multiplier",
+          "--r-cb-size-multiplier",
           ctx.refinement.cluster_balancer.cluster_size_multiplier,
           "Multiplier for the maximum size of move sets."
       )
       ->capture_default_str();
-  balancer->add_option("--r-bms-strategy", ctx.refinement.cluster_balancer.cluster_strategy)
+  balancer->add_option("--r-cb-strategy", ctx.refinement.cluster_balancer.cluster_strategy)
       ->transform(CLI::CheckedTransformer(get_move_set_strategies()).description(""))
       ->description(R"(Strategy for constructing move sets:
   - singletons:          put each node into its own set
@@ -447,7 +465,7 @@ CLI::Option_group *create_move_set_balancer_options(CLI::App *app, Context &ctx)
       ->capture_default_str();
   balancer
       ->add_option(
-          "--r-bms-rebuild-interval", ctx.refinement.cluster_balancer.cluster_rebuild_interval
+          "--r-cb-rebuild-interval", ctx.refinement.cluster_balancer.cluster_rebuild_interval
       )
       ->capture_default_str();
 

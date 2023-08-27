@@ -72,16 +72,20 @@ private:
   void perform_move(const Candidate &move, bool update_block_weights);
 
   BlockWeight block_overload(BlockID b) const;
+  BlockWeight block_underload(BlockID b) const;
 
   bool try_pq_insertion(BlockID b, NodeID u);
   bool try_pq_insertion(BlockID b, NodeID u, NodeWeight u_weight, double rel_gain);
 
   bool perform_parallel_round();
 
+  bool
+  assign_feasible_target_block(Candidate &candidate, const std::vector<BlockWeight> &deltas) const;
+
   DistributedPartitionedGraph &_p_graph;
 
   const Context &_ctx;
-  const GreedyBalancerContext &_nb_ctx;
+  const NodeBalancerContext &_nb_ctx;
   const PartitionContext &_p_ctx;
 
   DynamicBinaryMinMaxForest<NodeID, double> _pq;
@@ -92,5 +96,7 @@ private:
   GainCalculator _gain_calculator;
 
   bool _stalled = false;
+
+  std::vector<std::size_t> _cached_cutoff_buckets;
 };
 }; // namespace kaminpar::dist

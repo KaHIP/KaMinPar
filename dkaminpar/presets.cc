@@ -176,13 +176,17 @@ Context create_default_context() {
                       .use_abortion_threshold = true,
                       .abortion_threshold = 0.999,
                   },
-              .greedy_balancer =
+              .node_balancer =
                   {
                       .max_num_rounds = std::numeric_limits<int>::max(),
-                      .enable_strong_balancing = true,
-                      .num_nodes_per_block = 5,
-                      .enable_fast_balancing = false,
-                      .fast_balancing_threshold = 0.1,
+                      .enable_sequential_balancing = true,
+                      .seq_num_nodes_per_block = 5,
+                      .enable_parallel_balancing = false,
+                      .par_threshold = 0.1,
+                      .par_num_dicing_attempts = 0,
+                      .par_accept_imbalanced_moves = true,
+                      .par_enable_positive_gain_buckets = true,
+                      .par_gain_bucket_base = 2.0,
                   },
               .cluster_balancer =
                   {

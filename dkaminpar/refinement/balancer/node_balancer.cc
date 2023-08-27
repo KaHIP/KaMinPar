@@ -32,12 +32,15 @@ NodeBalancer::NodeBalancer(
 )
     : _p_graph(p_graph),
       _ctx(ctx),
-      _nb_ctx(ctx.refinement.greedy_balancer),
+      _nb_ctx(ctx.refinement.node_balancer),
       _p_ctx(p_ctx),
       _pq(ctx.partition.graph->n, ctx.partition.k),
       _pq_weight(ctx.partition.k),
       _marker(ctx.partition.graph->n),
-      _buckets(p_graph, p_ctx, true, 1.1),
+      _buckets(
+          p_graph, p_ctx, _nb_ctx.par_enable_positive_gain_buckets, _nb_ctx.par_gain_bucket_base
+      ),
+      _cached_cutoff_buckets(_p_graph.k()),
       _gain_calculator(p_graph) {}
 
 void NodeBalancer::initialize() {
@@ -136,10 +139,10 @@ bool NodeBalancer::refine() {
            << current_imbalance_distance << " = by "
            << (previous_imbalance_distance - current_imbalance_distance) /
                   previous_imbalance_distance
-           << "; threshold: " << _ctx.refinement.greedy_balancer.fast_balancing_threshold;
+           << "; threshold: " << _ctx.refinement.node_balancer.par_threshold;
 
       if ((previous_imbalance_distance - current_imbalance_distance) / previous_imbalance_distance <
-              _nb_ctx.fast_balancing_threshold ||
+              _nb_ctx.par_threshold ||
           !is_sequential_balancing_enabled()) {
         mpi::barrier(_p_graph.communicator());
 
@@ -168,7 +171,7 @@ bool NodeBalancer::perform_sequential_round() {
   START_TIMER("Pick and reduce move candidates");
   auto candidates = reduce_candidates(
       pick_sequential_candidates(),
-      _ctx.refinement.greedy_balancer.num_nodes_per_block,
+      _ctx.refinement.node_balancer.seq_num_nodes_per_block,
       _p_graph,
       _p_ctx
   );
@@ -288,7 +291,7 @@ std::vector<NodeBalancer::Candidate> NodeBalancer::pick_sequential_candidates() 
     // Fetch up to `num_nodes_per_block` move candidates from the PQ,
     // but keep them in the PQ, since they might not get moved
     NodeID num = 0;
-    for (num = 0; num < _nb_ctx.num_nodes_per_block; ++num) {
+    for (num = 0; num < _nb_ctx.seq_num_nodes_per_block; ++num) {
       if (_pq.empty(from)) {
         break;
       }
@@ -334,6 +337,18 @@ BlockWeight NodeBalancer::block_overload(const BlockID block) const {
   );
 }
 
+BlockWeight NodeBalancer::block_underload(const BlockID block) const {
+  static_assert(
+      std::numeric_limits<BlockWeight>::is_signed,
+      "This must be changed when using an unsigned data type for "
+      "block weights!"
+  );
+  KASSERT(block < _p_graph.k());
+  return std::max<BlockWeight>(
+      0, _p_ctx.graph->max_block_weight(block) - _p_graph.block_weight(block)
+  );
+}
+
 bool NodeBalancer::try_pq_insertion(const BlockID b, const NodeID u) {
   KASSERT(b == _p_graph.block(u));
 
@@ -367,11 +382,11 @@ bool NodeBalancer::try_pq_insertion(
 }
 
 bool NodeBalancer::perform_parallel_round() {
-  const PEID rank = mpi::get_comm_rank(_p_graph.communicator());
-
   SCOPED_TIMER("Fast rebalancing");
 
-  // Step 1: build weight buckets
+  const PEID rank = mpi::get_comm_rank(_p_graph.communicator());
+
+  START_TIMER("Computing weight buckets");
   _buckets.clear();
   for (const BlockID from : _p_graph.blocks()) {
     for (const auto &[node, pq_gain] : _pq.elements(from)) {
@@ -380,60 +395,13 @@ bool NodeBalancer::perform_parallel_round() {
       _buckets.add(from, _p_graph.node_weight(node), actual_gain);
     }
   }
-
-  auto compact_buckets = reduce_buckets_mpireduce(_buckets, _p_graph);
-
-  // Determine cut-off buckets on root
-  START_TIMER("Finding cut-off buckets");
-  const BlockID num_overloaded_blocks = metrics::num_imbalanced_blocks(_p_graph, _p_ctx);
-  std::vector<int> cut_off_buckets(num_overloaded_blocks);
-  std::vector<BlockID> to_overloaded_map(_p_graph.k());
-  BlockID current_overloaded_block = 0;
-
-  for (const BlockID block : _p_graph.blocks()) {
-    BlockWeight current_weight = _p_graph.block_weight(block);
-    const BlockWeight max_weight = _p_ctx.graph->max_block_weight(block);
-    if (current_weight > max_weight) {
-      if (rank == 0) {
-        int cut_off_bucket = 0;
-        for (; cut_off_bucket < _buckets.num_buckets() && current_weight > max_weight;
-             ++cut_off_bucket) {
-          KASSERT(
-              current_overloaded_block * _buckets.num_buckets() + cut_off_bucket <
-              compact_buckets.size()
-          );
-          current_weight -=
-              compact_buckets[current_overloaded_block * _buckets.num_buckets() + cut_off_bucket];
-        }
-
-        KASSERT(current_overloaded_block < cut_off_buckets.size());
-        cut_off_buckets[current_overloaded_block] = cut_off_bucket;
-      }
-
-      KASSERT(block < to_overloaded_map.size());
-
-      to_overloaded_map[block] = current_overloaded_block;
-      ++current_overloaded_block;
-    }
-  }
-
-  // Broadcast to other PEs
-  MPI_Bcast(cut_off_buckets.data(), num_overloaded_blocks, MPI_INT, 0, _p_graph.communicator());
+  const auto &cutoff_buckets =
+      _buckets.compute_cutoff_buckets(reduce_buckets_mpireduce(_buckets, _p_graph));
   STOP_TIMER();
 
   // Find move candidates
-  std::vector<BlockID> target_blocks;
-  for (const BlockID b : _p_graph.blocks()) {
-    if (_p_graph.block_weight(b) < _p_ctx.graph->max_block_weight(b)) {
-      target_blocks.push_back(b);
-    }
-  }
-  KASSERT(!target_blocks.empty());
-
-  std::size_t next_target_block_index = rank % target_blocks.size();
-
-  std::vector<std::pair<NodeID, BlockID>> move_candidates;
-  std::vector<BlockWeight> weight_to_block(_p_graph.k());
+  std::vector<Candidate> candidates;
+  std::vector<BlockWeight> block_weight_deltas(_p_graph.k());
 
   START_TIMER("Find move candidates");
   for (const BlockID from : _p_graph.blocks()) {
@@ -441,33 +409,24 @@ bool NodeBalancer::perform_parallel_round() {
       // @todo avoid double gain recomputation
       const auto [actual_gain, to] = _gain_calculator.compute_relative_gain(node, _p_ctx);
       const auto bucket = _buckets.compute_bucket(actual_gain);
-      const BlockWeight overload = block_overload(from);
 
-      KASSERT(from < to_overloaded_map.size());
-      KASSERT(to_overloaded_map[from] < cut_off_buckets.size());
+      if (bucket < cutoff_buckets[from]) {
+        Candidate candidate = {
+            .id = node,
+            .from = from,
+            .to = to,
+            .weight = _p_graph.node_weight(node),
+            .gain = actual_gain,
+        };
 
-      if (bucket < cut_off_buckets[to_overloaded_map[from]]) {
-        if (to != from) { // Node must be moved to its max gainer
-          KASSERT(to < weight_to_block.size());
-
-          weight_to_block[to] += _p_graph.node_weight(node);
-          move_candidates.emplace_back(node, to);
-        } else { // Node can be moved to any block -> pick target blocks round-robin
-          BlockID new_to = 0;
-          do {
-            ++next_target_block_index;
-            if (next_target_block_index >= target_blocks.size()) {
-              next_target_block_index = 0;
-            }
-            KASSERT(next_target_block_index < target_blocks.size());
-            new_to = target_blocks[next_target_block_index];
-          } while (_p_graph.block_weight(new_to) + _p_graph.node_weight(node) >
-                   _p_ctx.graph->max_block_weight(new_to));
-
-          KASSERT(new_to < weight_to_block.size());
-          weight_to_block[new_to] += _p_graph.node_weight(node);
-          move_candidates.emplace_back(node, new_to);
+        if (candidate.from == candidate.to) {
+          [[maybe_unused]] const bool reassigned =
+              assign_feasible_target_block(candidate, block_weight_deltas);
+          KASSERT(reassigned);
         }
+
+        block_weight_deltas[candidate.to] += candidate.weight;
+        candidates.push_back(candidate);
       }
     }
   }
@@ -478,8 +437,8 @@ bool NodeBalancer::perform_parallel_round() {
   START_TIMER("Allreduce weight to block");
   MPI_Allreduce(
       MPI_IN_PLACE,
-      weight_to_block.data(),
-      _p_graph.k(),
+      block_weight_deltas.data(),
+      asserting_cast<int>(_p_graph.k()),
       mpi::type::get<BlockWeight>(),
       MPI_SUM,
       _p_graph.communicator()
@@ -488,27 +447,64 @@ bool NodeBalancer::perform_parallel_round() {
 
   // Perform moves
   START_TIMER("Attempt to move candidates");
-  std::vector<BlockWeight> block_weight_deltas(_p_graph.k());
   Random &rand = Random::instance();
-  for (const auto [node, to] : move_candidates) {
-    const BlockID from = _p_graph.block(node);
 
-    KASSERT(to < _p_graph.k());
-    KASSERT(from < _p_graph.k());
+  std::size_t num_rejected_candidates;
+  std::vector<BlockWeight> actual_block_weight_deltas;
+  bool balanced_moves = false;
 
-    const double prob = 1.0 * (_p_ctx.graph->max_block_weight(to) - _p_graph.block_weight(to)) /
-                        weight_to_block[to];
-    if (rand.random_bool(prob)) {
-      _p_graph.set_block<false>(node, to);
-      _marker.set(node);
+  for (int attempt = 0;
+       !balanced_moves && attempt < std::max<int>(1, _nb_ctx.par_num_dicing_attempts);
+       ++attempt) {
+    num_rejected_candidates = 0;
+    actual_block_weight_deltas.clear();
+    actual_block_weight_deltas.resize(_p_graph.k());
 
-      const NodeWeight weight = _p_graph.node_weight(node);
-      block_weight_deltas[from] -= weight;
-      block_weight_deltas[to] += weight;
+    for (std::size_t i = 0; i < candidates.size() - num_rejected_candidates; ++i) {
+      const auto &candidate = candidates[i];
+      const double probability =
+          1.0 * block_underload(candidate.to) / block_weight_deltas[candidate.to];
+      if (rand.random_bool(probability)) {
+        actual_block_weight_deltas[candidate.to] += candidate.weight;
+        actual_block_weight_deltas[candidate.from] -= candidate.weight;
+      } else {
+        ++num_rejected_candidates;
+        std::swap(candidates[i], candidates[candidates.size() - num_rejected_candidates]);
+        --i;
+      }
+    }
+
+    MPI_Allreduce(
+        MPI_IN_PLACE,
+        actual_block_weight_deltas.data(),
+        asserting_cast<int>(actual_block_weight_deltas.size()),
+        mpi::type::get<BlockWeight>(),
+        MPI_SUM,
+        _p_graph.communicator()
+    );
+
+    // Check that the moves do not overload a previously non-overloaded block
+    balanced_moves = true;
+    for (const BlockID block : _p_graph.blocks()) {
+      if (block_overload(block) == 0 &&
+          block_underload(block) < actual_block_weight_deltas[block]) {
+        balanced_moves = false;
+        break;
+      }
     }
   }
-  mpi::barrier(_p_graph.communicator());
   STOP_TIMER();
+
+  if (balanced_moves || _nb_ctx.par_accept_imbalanced_moves) {
+    for (const BlockID block : _p_graph.blocks()) {
+      _p_graph.set_block_weight(
+          block, _p_graph.block_weight(block) + actual_block_weight_deltas[block]
+      );
+    }
+
+    candidates.resize(candidates.size() - num_rejected_candidates);
+    perform_moves(candidates, false);
+  }
 
   TIMED_SCOPE("Synchronize partition state after fast rebalance round") {
     struct Message {
@@ -529,31 +525,30 @@ bool NodeBalancer::perform_parallel_round() {
           });
         }
     );
-
-    MPI_Allreduce(
-        MPI_IN_PLACE,
-        block_weight_deltas.data(),
-        _p_graph.k(),
-        mpi::type::get<BlockWeight>(),
-        MPI_SUM,
-        _p_graph.communicator()
-    );
-
-    _p_graph.pfor_blocks([&](const BlockID b) {
-      _p_graph.set_block_weight(b, _p_graph.block_weight(b) + block_weight_deltas[b]);
-    });
-
-    mpi::barrier(_p_graph.communicator());
   };
 
   return true;
 }
 
 bool NodeBalancer::is_sequential_balancing_enabled() const {
-  return _stalled || _nb_ctx.enable_fast_balancing;
+  return _stalled || _nb_ctx.enable_parallel_balancing;
 }
 
 bool NodeBalancer::is_parallel_balancing_enabled() const {
-  return !_stalled && _nb_ctx.enable_strong_balancing;
+  return !_stalled && _nb_ctx.enable_sequential_balancing;
+}
+
+bool NodeBalancer::assign_feasible_target_block(
+    Candidate &candidate, const std::vector<BlockWeight> &deltas
+) const {
+  do {
+    ++candidate.to;
+    if (candidate.to >= _p_ctx.k) {
+      candidate.to = 0;
+    }
+  } while (candidate.from != candidate.to &&
+           block_underload(candidate.to) < candidate.weight + deltas[candidate.to]);
+
+  return candidate.from != candidate.to;
 }
 } // namespace kaminpar::dist

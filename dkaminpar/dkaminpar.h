@@ -253,12 +253,18 @@ struct InitialPartitioningContext {
   shm::Context kaminpar;
 };
 
-struct GreedyBalancerContext {
+struct NodeBalancerContext {
   int max_num_rounds;
-  bool enable_strong_balancing;
-  NodeID num_nodes_per_block;
-  bool enable_fast_balancing;
-  double fast_balancing_threshold;
+
+  bool enable_sequential_balancing;
+  NodeID seq_num_nodes_per_block;
+
+  bool enable_parallel_balancing;
+  double par_threshold;
+  int par_num_dicing_attempts;
+  bool par_accept_imbalanced_moves;
+  bool par_enable_positive_gain_buckets;
+  double par_gain_bucket_base;
 };
 
 struct ClusterBalancerContext {
@@ -272,7 +278,7 @@ struct ClusterBalancerContext {
   double parallel_threshold;
   int par_num_dicing_attempts;
   bool par_accept_imbalanced;
-  
+
   bool par_use_positive_gain_buckets;
   double par_gain_bucket_factor;
 
@@ -311,7 +317,7 @@ struct RefinementContext {
   LabelPropagationRefinementContext lp;
   ColoredLabelPropagationRefinementContext colored_lp;
   FMRefinementContext fm;
-  GreedyBalancerContext greedy_balancer;
+  NodeBalancerContext node_balancer;
   ClusterBalancerContext cluster_balancer;
 
   JetRefinementContext jet;

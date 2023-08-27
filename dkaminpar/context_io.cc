@@ -509,7 +509,7 @@ void print(const RefinementContext &ctx, std::ostream &out) {
       (ctx.includes_algorithm(RefinementAlgorithm::GLOBAL_FM) &&
        ctx.fm.balancing_algorithm == RefinementAlgorithm::GREEDY_NODE_BALANCER)) {
     out << "Greedy balancer:\n";
-    out << "  Number of nodes per block:  " << ctx.greedy_balancer.num_nodes_per_block << "\n";
+    out << "  Number of nodes per block:  " << ctx.node_balancer.seq_num_nodes_per_block << "\n";
   }
   if (ctx.includes_algorithm(RefinementAlgorithm::GREEDY_CLUSTER_BALANCER) ||
       (ctx.includes_algorithm(RefinementAlgorithm::JET_REFINER) &&
