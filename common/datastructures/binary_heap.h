@@ -565,11 +565,13 @@ public:
     }
     _heaps[heap].clear();
   }
+
   void clear() {
     for (std::size_t i = 0; i < _heaps.size(); ++i) {
       clear(i);
     }
   }
+
   [[nodiscard]] std::size_t size(const std::size_t heap) const {
     return _heaps[heap].size();
   }

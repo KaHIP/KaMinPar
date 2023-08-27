@@ -14,6 +14,7 @@
 #include "dkaminpar/mpi/sparse_alltoall.h"
 #include "dkaminpar/mpi/wrapper.h"
 #include "dkaminpar/refinement/balancer/clusters.h"
+#include "dkaminpar/refinement/balancer/reductions.h"
 
 #define HEAVY assert::heavy
 
@@ -393,50 +394,13 @@ void ClusterBalancer::perform_parallel_round() {
   constexpr static bool kUseBinaryReductionTree = false;
   const PEID rank = mpi::get_comm_rank(_p_graph.communicator());
 
-  START_TIMER("Reduce buckets");
   auto buckets = [&] {
     if constexpr (kUseBinaryReductionTree) {
-      auto compactified = _weight_buckets.compactify();
-      StaticArray<GlobalNodeWeight> empty(compactified.size());
-
-      return mpi::perform_binary_reduction(
-          std::move(compactified),
-          std::move(empty),
-          [&](auto lhs, auto rhs) {
-            for (std::size_t i = 0; i < lhs.size(); ++i) {
-              lhs[i] += rhs[i];
-            }
-            return std::move(lhs);
-          },
-          _p_graph.communicator()
-      );
+      return reduce_buckets_binary_tree(_weight_buckets, _p_graph);
     } else {
-      auto buckets = _weight_buckets.compactify();
-      if (rank == 0) {
-        MPI_Reduce(
-            MPI_IN_PLACE,
-            buckets.data(),
-            buckets.size(),
-            mpi::type::get<GlobalNodeWeight>(),
-            MPI_SUM,
-            0,
-            _p_graph.communicator()
-        );
-      } else {
-        MPI_Reduce(
-            buckets.data(),
-            nullptr,
-            buckets.size(),
-            mpi::type::get<GlobalNodeWeight>(),
-            MPI_SUM,
-            0,
-            _p_graph.communicator()
-        );
-      }
-      return buckets;
+      return reduce_buckets_mpireduce(_weight_buckets, _p_graph);
     }
   }();
-  STOP_TIMER();
 
   // Determine cut-off buckets and broadcast them to all PEs
   START_TIMER("Compute cut-off buckets");
@@ -517,7 +481,7 @@ void ClusterBalancer::perform_parallel_round() {
 
         MoveCandidate candidate = {
             .owner = rank,
-            .cluster = cluster,
+            .id = cluster,
             .weight = weight,
             .gain = gain,
             .from = from,
@@ -635,7 +599,9 @@ void ClusterBalancer::perform_sequential_round() {
   // Step 1: identify the best move cluster candidates globally
   START_TIMER("Pick candidates");
   auto candidates = pick_sequential_candidates();
-  candidates = reduce_sequential_candidates(pick_sequential_candidates());
+  candidates = reduce_candidates(
+      pick_sequential_candidates(), _cb_ctx.seq_num_nodes_per_block, _p_graph, _p_ctx
+  );
   STOP_TIMER();
 
   // Step 2: let ROOT decide which candidates to pick
@@ -737,7 +703,7 @@ void ClusterBalancer::perform_moves(
   // moved clusters
   for (const auto &candidate : candidates) {
     if (rank == candidate.owner) {
-      _moved_marker.set(candidate.cluster);
+      _moved_marker.set(candidate.id);
     }
 
     // Update block weights
@@ -753,19 +719,19 @@ void ClusterBalancer::perform_moves(
 
   for (const auto &candidate : candidates) {
     if (rank == candidate.owner) {
-      _clusters.move_cluster(candidate.cluster, candidate.from, candidate.to);
+      _clusters.move_cluster(candidate.id, candidate.from, candidate.to);
 
       // We cannot use candidate.gain here, since that might not be the gain that was recomputed
       // during candidate selection
-      KASSERT(_pqs.contains(candidate.cluster));
+      KASSERT(_pqs.contains(candidate.id));
       _weight_buckets.remove(
-          candidate.from, candidate.weight, _pqs.key(candidate.from, candidate.cluster)
+          candidate.from, candidate.weight, _pqs.key(candidate.from, candidate.id)
       );
 
       _pq_weights[candidate.from] -= candidate.weight;
-      _pqs.remove(candidate.from, candidate.cluster);
+      _pqs.remove(candidate.from, candidate.id);
 
-      for (NodeID u : _clusters.nodes(candidate.cluster)) {
+      for (NodeID u : _clusters.nodes(candidate.id)) {
         // @todo set blocks before updating other data structures to avoid max gainer changes?
         _p_graph.set_block<false>(u, candidate.to);
 
@@ -862,7 +828,7 @@ std::vector<ClusterBalancer::MoveCandidate> ClusterBalancer::pick_sequential_can
 
         candidates.push_back(MoveCandidate{
             .owner = rank,
-            .cluster = cluster,
+            .id = cluster,
             .weight = weight,
             .gain = actual_relative_gain,
             .from = from,
@@ -876,136 +842,12 @@ std::vector<ClusterBalancer::MoveCandidate> ClusterBalancer::pick_sequential_can
     }
 
     for (auto candidate = candidates.begin() + start; candidate != candidates.end(); ++candidate) {
-      _pqs.push(from, candidate->cluster, candidate->gain);
+      _pqs.push(from, candidate->id, candidate->gain);
       _weight_buckets.add(from, candidate->weight, candidate->gain);
     }
   }
 
   return candidates;
-}
-
-std::vector<ClusterBalancer::MoveCandidate>
-ClusterBalancer::reduce_sequential_candidates(std::vector<MoveCandidate> sendbuf) {
-  SCOPED_TIMER("Reduce candidates");
-
-  return mpi::perform_binary_reduction(
-      std::move(sendbuf),
-      std::vector<MoveCandidate>{},
-      [&](std::vector<MoveCandidate> lhs, std::vector<MoveCandidate> rhs) {
-        // Precondition: candidates must be sorted by their from blocks
-        auto check_sorted_by_from = [](const auto &candidates) {
-          for (std::size_t i = 1; i < candidates.size(); ++i) {
-            if (candidates[i].from < candidates[i - 1].from) {
-              return false;
-            }
-          }
-          return true;
-        };
-        KASSERT(
-            check_sorted_by_from(rhs) && check_sorted_by_from(lhs),
-            "rhs or lhs candidates are not sorted by their .from property"
-        );
-
-        std::size_t idx_lhs = 0;
-        std::size_t idx_rhs = 0;
-        std::vector<BlockWeight> block_weight_deltas(_p_graph.k());
-        std::vector<MoveCandidate> winners;
-
-        while (idx_lhs < lhs.size() && idx_rhs < rhs.size()) {
-          const BlockID from = std::min(lhs[idx_lhs].from, rhs[idx_rhs].from);
-
-          // Find regions in `rhs` and `lhs` with move sets in block `from`
-          std::size_t idx_lhs_end = idx_lhs;
-          std::size_t idx_rhs_end = idx_rhs;
-          while (idx_lhs_end < lhs.size() && lhs[idx_lhs_end].from == from) {
-            ++idx_lhs_end;
-          }
-          while (idx_rhs_end < rhs.size() && rhs[idx_rhs_end].from == from) {
-            ++idx_rhs_end;
-          }
-
-          // Merge regions
-          const std::size_t lhs_count = idx_lhs_end - idx_lhs;
-          const std::size_t rhs_count = idx_rhs_end - idx_rhs;
-          const std::size_t count = lhs_count + rhs_count;
-
-          std::vector<MoveCandidate> candidates(count);
-          std::copy(lhs.begin() + idx_lhs, lhs.begin() + idx_lhs_end, candidates.begin());
-          std::copy(
-              rhs.begin() + idx_rhs, rhs.begin() + idx_rhs_end, candidates.begin() + lhs_count
-          );
-          std::sort(candidates.begin(), candidates.end(), [](const auto &a, const auto &b) {
-            return a.gain > b.gain;
-          });
-
-          // Pick feasible prefix
-          NodeWeight total_weight = 0;
-          std::size_t num_rejected_candidates = 0;
-          std::size_t num_accepted_candidates = 0;
-
-          for (std::size_t i = 0; i < count; ++i) {
-            const BlockID to = candidates[i].to;
-            const NodeWeight weight = candidates[i].weight;
-
-            // Reject the move set candidate if it would overload the target block
-            if (from != to && _p_graph.block_weight(to) + block_weight_deltas[to] + weight >
-                                  _p_ctx.graph->max_block_weight(to)) {
-              candidates[i].cluster = kInvalidNodeID;
-              ++num_rejected_candidates;
-            } else {
-              block_weight_deltas[to] += weight;
-              total_weight += weight;
-              ++num_accepted_candidates;
-
-              if (total_weight >= overload(from) ||
-                  num_accepted_candidates >= _cb_ctx.seq_num_nodes_per_block) {
-                break;
-              }
-            }
-          }
-
-          // Remove rejected candidates
-          for (std::size_t i = 0; i < num_accepted_candidates; ++i) {
-            while (candidates[i].cluster == kInvalidNodeID) {
-              std::swap(
-                  candidates[i], candidates[num_accepted_candidates + num_rejected_candidates - 1]
-              );
-              --num_rejected_candidates;
-            }
-          }
-
-          winners.insert(
-              winners.end(), candidates.begin(), candidates.begin() + num_accepted_candidates
-          );
-
-          idx_lhs = idx_lhs_end;
-          idx_rhs = idx_rhs_end;
-        }
-
-        // Keep remaining nodes
-        auto add_remaining_candidates = [&](const auto &vec, std::size_t i) {
-          for (; i < vec.size(); ++i) {
-            const BlockID from = vec[i].from;
-            const BlockID to = vec[i].to;
-            const NodeWeight weight = vec[i].weight;
-
-            if (from == to || _p_graph.block_weight(to) + block_weight_deltas[to] + weight <=
-                                  _p_ctx.graph->max_block_weight(to)) {
-              winners.push_back(vec[i]);
-              if (from != to) {
-                block_weight_deltas[to] += weight;
-              }
-            }
-          }
-        };
-
-        add_remaining_candidates(lhs, idx_lhs);
-        add_remaining_candidates(rhs, idx_rhs);
-
-        return winners;
-      },
-      _p_graph.communicator()
-  );
 }
 
 BlockWeight ClusterBalancer::overload(const BlockID block) const {
@@ -1208,7 +1050,7 @@ NodeID ClusterBalancer::dbg_count_nodes_in_clusters(const std::vector<MoveCandid
   NodeID num_nodes = 0;
   for (const auto &candidate : candidates) {
     if (candidate.owner == rank) {
-      num_nodes += _clusters.size(candidate.cluster);
+      num_nodes += _clusters.size(candidate.id);
     }
   }
   MPI_Allreduce(

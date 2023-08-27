@@ -107,7 +107,7 @@ private:
 
   struct MoveCandidate {
     PEID owner;
-    NodeID cluster;
+    NodeID id;
     NodeWeight weight;
     double gain;
     BlockID from;
@@ -116,7 +116,6 @@ private:
 
   void perform_sequential_round();
   std::vector<MoveCandidate> pick_sequential_candidates();
-  std::vector<MoveCandidate> reduce_sequential_candidates(std::vector<MoveCandidate> candidates);
   void perform_moves(const std::vector<MoveCandidate> &candidates, bool update_block_weights);
 
   BlockWeight overload(BlockID block) const;
