@@ -412,7 +412,7 @@ bool NodeBalancer::perform_parallel_round() {
 
       if (bucket < cutoff_buckets[from]) {
         Candidate candidate = {
-            .id = node,
+            .id = _p_graph.local_to_global_node(node),
             .from = from,
             .to = to,
             .weight = _p_graph.node_weight(node),
