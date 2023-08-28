@@ -156,6 +156,10 @@ bool NodeBalancer::refine() {
           DBG0 << "Parallel rebalancing did not improve imbalance: switching to sequential "
                   "rebalancing only";
           _stalled = true;
+
+          // Reinit the balancer to fix blocks that were not overloaded in the beginning, but are
+          // overloaded now
+          initialize();
         }
         previous_imbalance_distance = next_imbalance_distance;
       }
