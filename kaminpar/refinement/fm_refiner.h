@@ -107,17 +107,17 @@ struct GlobalBatchStats {
   }
 
   void summarize() {
-    LOG_STATS << "Batches:";
+    LOG_STATS << "Batches: [STATS:FM:BATCHES]";
     for (std::size_t i = 0; i < iteration_stats.size(); ++i) {
       if (!iteration_stats[i].empty()) {
         LOG_STATS << "  * Iteration " << (i + 1) << ":";
-        summarize_iteration(iteration_stats[i]);
+        summarize_iteration(i, iteration_stats[i]);
       }
     }
   }
 
 private:
-  void summarize_iteration(const std::vector<BatchStats> &stats) {
+  void summarize_iteration(const std::size_t iteration, const std::vector<BatchStats> &stats) {
     const NodeID max_distance =
         std::max_element(stats.begin(), stats.end(), [&](const auto &lhs, const auto &rhs) {
           return lhs.max_distance < rhs.max_distance;
@@ -140,17 +140,17 @@ private:
       }
     }
 
-    LOG_STATS << "    + Max distance: " << max_distance;
+    LOG_STATS << "    - Max distance: " << max_distance << " [STATS:FM:BATCHES:" << iteration << "]";
     std::stringstream size_ss, gain_ss;
-    size_ss << "      - Size by distance: " << total_size_by_distance[0];
-    gain_ss << "      - Gain by distance: " << total_gain_by_distance[0];
+    size_ss << "      + Size by distance: " << total_size_by_distance[0];
+    gain_ss << "      + Gain by distance: " << total_gain_by_distance[0];
 
     for (NodeID distance = 1; distance <= max_distance; ++distance) {
-      size_ss << ", " << total_size_by_distance[distance];
-      gain_ss << ", " << total_gain_by_distance[distance];
+      size_ss << "," << total_size_by_distance[distance];
+      gain_ss << "," << total_gain_by_distance[distance];
     }
-    LOG_STATS << size_ss.str();
-    LOG_STATS << gain_ss.str();
+    LOG_STATS << size_ss.str() << " [STATS:FM:BATCHES:" << iteration << "]";
+    LOG_STATS << gain_ss.str() << " [STATS:FM:BATCHES:" << iteration << "]";
   }
 };
 
