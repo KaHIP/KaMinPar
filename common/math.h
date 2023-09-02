@@ -140,7 +140,7 @@ std::size_t find_in_distribution(const Int value, const Distribution &distributi
  */
 template <typename Int> Int distribute_round_robin(const Int n, const Int size, const Int element) {
   const auto local =
-      element - compute_local_range(n, size, compute_local_range_rank(n, size, element)).first;
+      element - compute_local_range<Int>(n, size, compute_local_range_rank(n, size, element)).first;
   const auto owner = compute_local_range_rank(n, size, element);
   const auto ans = compute_local_range(n, size, local % size).first + (local / size) * size + owner;
   return ans;
