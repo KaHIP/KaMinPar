@@ -69,14 +69,6 @@ void print_dkaminpar_banner() {
   print_delimiter();
 }
 
-void print_banner(const std::string &title) {
-  LOG;
-  LOG << std::string(80, '*');
-  LOG << "* " << title << std::string(80 - 4 - title.size(), ' ') << " *";
-  LOG << std::string(80, '*');
-  LOG;
-}
-
 void print_build_identifier() {
   LOG << "Current commit hash:          "
       << (Environment::GIT_SHA1.empty() ? "<not available>" : Environment::GIT_SHA1);

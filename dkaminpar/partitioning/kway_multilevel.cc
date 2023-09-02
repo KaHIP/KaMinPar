@@ -37,10 +37,6 @@ DistributedPartitionedGraph KWayMultilevelPartitioner::partition() {
   ////////////////////////////////////////////////////////////////////////////////
   // Step 1: Coarsening
   ////////////////////////////////////////////////////////////////////////////////
-  if (is_root) {
-    cio::print_banner("Coarsening");
-  }
-
   {
     SCOPED_TIMER("Coarsening");
 
@@ -88,10 +84,6 @@ DistributedPartitionedGraph KWayMultilevelPartitioner::partition() {
   ////////////////////////////////////////////////////////////////////////////////
   // Step 2: Initial Partitioning
   ////////////////////////////////////////////////////////////////////////////////
-  if (mpi::get_comm_rank(_graph.communicator()) == 0) {
-    cio::print_banner("Initial Partitioning");
-  }
-
   auto initial_partitioner = TIMED_SCOPE("Allocation") {
     return factory::create_initial_partitioner(_ctx);
   };
@@ -136,10 +128,6 @@ DistributedPartitionedGraph KWayMultilevelPartitioner::partition() {
     SCOPED_TIMER("Uncoarsening");
     auto ref_p_ctx = _ctx.partition;
     ref_p_ctx.graph = std::make_unique<GraphContext>(dist_p_graph.graph(), ref_p_ctx);
-
-    if (mpi::get_comm_rank(_graph.communicator()) == 0) {
-      cio::print_banner("Refinement");
-    }
 
     auto refiner_factory = TIMED_SCOPE("Allocation") {
       return factory::create_refiner(_ctx);

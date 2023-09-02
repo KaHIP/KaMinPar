@@ -20,7 +20,6 @@ namespace kaminpar::cio {
 void print_delimiter(const std::string &caption = "", char ch = '#');
 void print_kaminpar_banner();
 void print_dkaminpar_banner();
-void print_banner(const std::string &title);
 void print_build_identifier();
 
 template <typename NodeID, typename EdgeID, typename NodeWeight, typename EdgeWeight>

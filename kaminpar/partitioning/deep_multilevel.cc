@@ -14,12 +14,12 @@ namespace kaminpar::shm::partitioning {
 DeepMultilevelPartitioner::DeepMultilevelPartitioner(
     const Graph &input_graph, const Context &input_ctx
 )
-    : _input_graph{input_graph},
-      _input_ctx{input_ctx},
-      _current_p_ctx{input_ctx.partition}, //
-      _coarsener{factory::create_coarsener(input_graph, input_ctx.coarsening)},
-      _refiner{factory::create_refiner(input_ctx)},
-      _subgraph_memory{input_graph.n(), input_ctx.partition.k, input_graph.m(), true, true} {}
+    : _input_graph(input_graph),
+      _input_ctx(input_ctx),
+      _current_p_ctx(input_ctx.partition),
+      _coarsener(factory::create_coarsener(input_graph, input_ctx.coarsening)),
+      _refiner(factory::create_refiner(input_ctx)),
+      _subgraph_memory(input_graph.n(), input_ctx.partition.k, input_graph.m(), true, true) {}
 
 PartitionedGraph DeepMultilevelPartitioner::partition() {
   cio::print_delimiter("Partitioning");
@@ -38,7 +38,7 @@ PartitionedGraph DeepMultilevelPartitioner::partition() {
     refine(p_graph);
   }
 
-  if constexpr (kStatistics) {
+  IF_STATS {
     print_statistics();
   }
 
@@ -200,11 +200,11 @@ void DeepMultilevelPartitioner::print_statistics() {
     ip_m_ctx_memory_in_kb += pool.memory_in_kb();
   }
 
-  LOG << logger::CYAN << "Initial partitioning: Memory pool";
-  LOG << logger::CYAN << " * # of pool objects: " << min_ip_m_ctx_objects
-      << " <= " << 1.0 * num_ip_m_ctx_objects / _input_ctx.parallel.num_threads
-      << " <= " << max_ip_m_ctx_objects;
-  LOG << logger::CYAN << " * total memory: " << ip_m_ctx_memory_in_kb / 1000 << " Mb";
+  STATS << "Initial partitioning: Memory pool";
+  STATS << " * # of pool objects: " << min_ip_m_ctx_objects
+        << " <= " << 1.0 * num_ip_m_ctx_objects / _input_ctx.parallel.num_threads
+        << " <= " << max_ip_m_ctx_objects;
+  STATS << " * total memory: " << ip_m_ctx_memory_in_kb / 1000 << " Mb";
 
   std::size_t extraction_nodes_reallocs = 0;
   std::size_t extraction_edges_reallocs = 0;
@@ -215,9 +215,9 @@ void DeepMultilevelPartitioner::print_statistics() {
     extraction_memory_in_kb += buffer.memory_in_kb();
   }
 
-  LOG << logger::CYAN << "Extraction buffer pool:";
-  LOG << logger::CYAN << " * # of node buffer reallocs: " << extraction_nodes_reallocs
-      << ", # of edge buffer reallocs: " << extraction_edges_reallocs;
-  LOG << logger::CYAN << " * total memory: " << extraction_memory_in_kb / 1000 << " Mb";
+  STATS << "Extraction buffer pool:";
+  STATS << " * # of node buffer reallocs: " << extraction_nodes_reallocs
+        << ", # of edge buffer reallocs: " << extraction_edges_reallocs;
+  STATS << " * total memory: " << extraction_memory_in_kb / 1000 << " Mb";
 }
 } // namespace kaminpar::shm::partitioning
