@@ -13,7 +13,7 @@
 
 namespace kaminpar::shm {
 using BlockArray = StaticArray<BlockID>;
-using BlockWeightArray = StaticArray<parallel::Atomic<BlockWeight>>;
+using BlockWeightArray = StaticArray<BlockWeight>;
 
 struct NoBlockWeights {};
 constexpr NoBlockWeights no_block_weights;
@@ -89,18 +89,19 @@ public:
    * @param u Node to be moved.
    * @param new_b Block the node is moved to.
    */
-  template <bool update_block_weight = true> void set_block(const NodeID u, const BlockID new_b) {
+  template <bool update_block_weights = true> void set_block(const NodeID u, const BlockID to) {
     KASSERT(u < n(), "invalid node id " << u);
-    KASSERT(new_b < k(), "invalid block id " << new_b << " for node " << u);
+    KASSERT(to < k(), "invalid block id " << to << " for node " << u);
 
-    if constexpr (update_block_weight) {
-      if (block(u) != kInvalidBlockID) {
-        _block_weights[block(u)] -= node_weight(u);
+    if constexpr (update_block_weights) {
+      const NodeWeight weight = node_weight(u);
+      if (const BlockID from = block(u); from != kInvalidBlockID) {
+        __atomic_fetch_sub(&_block_weights[from], weight, __ATOMIC_RELAXED);
       }
-      _block_weights[new_b] += node_weight(u);
+      __atomic_fetch_add(&_block_weights[to], weight, __ATOMIC_RELAXED);
     }
 
-    __atomic_store_n(&_partition[u], new_b, __ATOMIC_RELAXED);
+    __atomic_store_n(&_partition[u], to, __ATOMIC_RELAXED);
   }
 
   /**
@@ -121,8 +122,13 @@ public:
     bool success = false;
 
     while (new_weight + delta <= max_weight) {
-      if (_block_weights[to].compare_exchange_weak(
-              new_weight, new_weight + delta, std::memory_order_relaxed
+      if (__atomic_compare_exchange_n(
+              &_block_weights[to],
+              &new_weight,
+              new_weight + delta,
+              false,
+              __ATOMIC_RELAXED,
+              __ATOMIC_RELAXED
           )) {
         success = true;
         break;
@@ -130,7 +136,7 @@ public:
     }
 
     if (success) {
-      _block_weights[from].fetch_sub(delta, std::memory_order_relaxed);
+      __atomic_fetch_sub(&_block_weights[from], delta, __ATOMIC_RELAXED);
     }
     return success;
   }
@@ -142,8 +148,8 @@ public:
   [[nodiscard]] inline IotaRange<BlockID> blocks() const { return IotaRange(static_cast<BlockID>(0), k()); }
   [[nodiscard]] inline BlockID block(const NodeID u) const { return __atomic_load_n(&_partition[u], __ATOMIC_RELAXED); }
   template <typename Lambda> inline void pfor_blocks(Lambda &&l) const { tbb::parallel_for(static_cast<BlockID>(0), k(), std::forward<Lambda>(l)); }
-  [[nodiscard]] inline NodeWeight block_weight(const BlockID b) const { KASSERT(b < k()); return _block_weights[b]; }
-  void set_block_weight(const BlockID b, const BlockWeight weight) { KASSERT(b < k()); _block_weights[b] = weight; }
+  [[nodiscard]] inline NodeWeight block_weight(const BlockID b) const { KASSERT(b < k()); return __atomic_load_n(&_block_weights[b], __ATOMIC_RELAXED); } 
+  void set_block_weight(const BlockID b, const BlockWeight weight) { KASSERT(b < k()); __atomic_store_n(&_block_weights[b], weight, __ATOMIC_RELAXED); } 
   [[nodiscard]] inline const auto &block_weights() const { return _block_weights; }
   [[nodiscard]] inline auto &&take_block_weights() { return std::move(_block_weights); }
   [[nodiscard]] inline BlockID heaviest_block() const { return std::max_element(_block_weights.begin(), _block_weights.end()) - _block_weights.begin(); }
@@ -164,7 +170,7 @@ private:
 
   BlockID _k;
   StaticArray<BlockID> _partition;
-  StaticArray<parallel::Atomic<NodeWeight>> _block_weights;
+  StaticArray<BlockWeight> _block_weights;
 
   //! For each block in the current partition, this is the number of blocks that
   //! we want to split the block in the final partition. For instance, after the

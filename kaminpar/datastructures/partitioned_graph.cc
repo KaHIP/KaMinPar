@@ -63,7 +63,7 @@ PartitionedGraph::PartitionedGraph(
 }
 
 void PartitionedGraph::change_k(const BlockID new_k) {
-  _block_weights = StaticArray<parallel::Atomic<BlockWeight>>{new_k};
+  _block_weights = StaticArray<BlockWeight>(new_k);
   _final_k.resize(new_k);
   _k = new_k;
 }
