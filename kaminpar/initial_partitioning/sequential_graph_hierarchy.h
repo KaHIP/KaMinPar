@@ -7,6 +7,7 @@
 #pragma once
 
 #include "kaminpar/datastructures/graph.h"
+#include "kaminpar/datastructures/partitioned_graph.h"
 
 namespace kaminpar::shm::ip {
 class SequentialGraphHierarchy {

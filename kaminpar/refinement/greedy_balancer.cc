@@ -289,20 +289,11 @@ GreedyBalancer::compute_gain(const NodeID u, const BlockID u_block) const {
 }
 
 bool GreedyBalancer::move_node_if_possible(const NodeID u, const BlockID from, const BlockID to) {
-  const NodeWeight u_weight = _p_graph->node_weight(u);
-  BlockWeight old_weight = _p_graph->block_weight(to);
-
-  while (old_weight + u_weight <= _p_ctx->block_weights.max(to)) {
-    if (_p_graph->_block_weights[to].compare_exchange_weak(old_weight, old_weight + u_weight)) {
-      _p_graph->_block_weights[from] -= u_weight;
-
-      // Move without updating block weights -- we already did that
-      _p_graph->set_block<false>(u, to);
-      if (_gain_cache != nullptr) {
-        _gain_cache->move(*_p_graph, u, from, to);
-      }
-      return true;
+  if (_p_graph->try_balanced_move(u, from, to, _p_ctx->block_weights.max(to))) {
+    if (_gain_cache != nullptr) {
+      _gain_cache->move(*_p_graph, u, from, to);
     }
+    return true;
   }
 
   return false;

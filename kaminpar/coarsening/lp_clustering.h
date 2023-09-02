@@ -1,8 +1,9 @@
-/*******************************************************************************
- * @file:   parallel_label_propagation_clustering.h
+/******************************************************************************
+ * Label propagation for graph coarsening / clustering.
+ *
+ * @file:   lp_clustering.h
  * @author: Daniel Seemaier
  * @date:   29.09.2021
- * @brief:  Parallel label propgation for clustering.
  ******************************************************************************/
 #pragma once
 

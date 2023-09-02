@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Static graph with CSR representation.
+ *
  * @file:   graph.h
  * @author: Daniel Seemaier
  * @date:   21.09.2021
- * @brief:  Static graph data structure with dynamic partition wrapper.
  ******************************************************************************/
 #pragma once
 
@@ -28,9 +29,6 @@ using NodeArray = StaticArray<NodeID>;
 using EdgeArray = StaticArray<EdgeID>;
 using NodeWeightArray = StaticArray<NodeWeight>;
 using EdgeWeightArray = StaticArray<EdgeWeight>;
-
-class Graph;
-class PartitionedGraph;
 
 class Graph {
 public:

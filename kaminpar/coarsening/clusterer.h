@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Interface for clustering algorithms used for coarsening.
+ *
  * @file:   clusterer.h
  * @author: Daniel Seemaier
  * @date:   29.09.2021
- * @brief:  Interface for clustering algorithms used for coarsening.
  ******************************************************************************/
 #pragma once
 

@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Coarsener that does nothing, i.e., turns the whole partitioner single-level.
+ *
  * @file:   noop_coarsener.h
  * @author: Daniel Seemaier
  * @date:   29.09.2021
- * @brief:  Coarsener that converges immediately.
  ******************************************************************************/
 #pragma once
 

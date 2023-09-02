@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Dynamic partition wrapper for a static graph.
+ *
  * @file:   partitioned_graph.h
  * @author: Daniel Seemaier
  * @date:   21.09.2021
- * @brief:  Static graph with a dynamic partition.
  ******************************************************************************/
 #pragma once
 
@@ -13,8 +14,6 @@
 namespace kaminpar::shm {
 using BlockArray = StaticArray<BlockID>;
 using BlockWeightArray = StaticArray<parallel::Atomic<BlockWeight>>;
-
-class GreedyBalancer;
 
 struct NoBlockWeights {};
 constexpr NoBlockWeights no_block_weights;
@@ -30,8 +29,6 @@ constexpr NoBlockWeights no_block_weights;
  * marked unassigned, i.e., are placed in block `kInvalidBlockID`.
  */
 class PartitionedGraph : public GraphDelegate {
-  friend GreedyBalancer;
-
 public:
   using NodeID = Graph::NodeID;
   using NodeWeight = Graph::NodeWeight;
@@ -64,6 +61,24 @@ public:
 
   PartitionedGraph(PartitionedGraph &&) noexcept = default;
   PartitionedGraph &operator=(PartitionedGraph &&other) noexcept = default;
+
+  bool try_balanced_move(
+      const NodeID u, const BlockID from, const BlockID to, const BlockWeight max_weight
+  ) {
+    KASSERT(block(u) == from);
+    KASSERT(from != to);
+
+    if (try_move_block_weight(from, to, node_weight(u), max_weight)) {
+      set_block<false>(u, to);
+      return true;
+    }
+
+    return false;
+  }
+
+  bool try_balanced_move(const NodeID u, const BlockID to, const BlockWeight max_weight) {
+    return try_balanced_move(u, block(u), to, max_weight);
+  }
 
   /**
    * Move node `u` to block `new_b` (or assign it to the block if it does not

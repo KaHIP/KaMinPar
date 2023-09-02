@@ -1,8 +1,9 @@
 /*******************************************************************************
- * @file:   coarsener.h
+ * Coarsener that is optimized to contract clusterings.
+ *
+ * @file:   cluster_coarsener.h
  * @author: Daniel Seemaier
  * @date:   29.09.2021
- * @brief:  Coarsener that uses a clustering graphutils to coarsen the graph.
  ******************************************************************************/
 #pragma once
 
@@ -22,13 +23,14 @@ public:
       const Graph &input_graph,
       const CoarseningContext &c_ctx
   )
-      : _input_graph{input_graph},
-        _current_graph{&input_graph},
-        _clustering_algorithm{std::move(clustering_algorithm)},
-        _c_ctx{c_ctx} {}
+      : _input_graph(input_graph),
+        _current_graph(&input_graph),
+        _clustering_algorithm(std::move(clustering_algorithm)),
+        _c_ctx(c_ctx) {}
 
   ClusteringCoarsener(const ClusteringCoarsener &) = delete;
   ClusteringCoarsener &operator=(const ClusteringCoarsener) = delete;
+
   ClusteringCoarsener(ClusteringCoarsener &&) = delete;
   ClusteringCoarsener &operator=(ClusteringCoarsener &&) = delete;
 
@@ -39,10 +41,13 @@ public:
   [[nodiscard]] const Graph *coarsest_graph() const final {
     return _current_graph;
   }
+
   [[nodiscard]] std::size_t size() const final {
     return _hierarchy.size();
   }
+
   void initialize(const Graph *) final {}
+
   [[nodiscard]] const CoarseningContext &context() const {
     return _c_ctx;
   }

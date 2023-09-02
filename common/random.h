@@ -26,7 +26,7 @@ public:
         _bool_dist(0, 1),
         _real_dist(0, 1),
         _next_random_bool(0),
-        _random_bools{} {
+        _random_bools() {
     precompute_bools();
   }
 
@@ -42,9 +42,8 @@ public:
 
   std::size_t
   random_index(const std::size_t inclusive_lower_bound, const std::size_t exclusive_upper_bound) {
-    return std::uniform_int_distribution<std::size_t>(
-        inclusive_lower_bound, exclusive_upper_bound - 1
-    )(_generator);
+    return std::uniform_int_distribution<
+        std::size_t>(inclusive_lower_bound, exclusive_upper_bound - 1)(_generator);
   }
 
   bool random_bool() {
@@ -85,16 +84,17 @@ private:
 
 template <typename ValueType, std::size_t size, std::size_t count> class RandomPermutations {
 public:
-  RandomPermutations(Random &rand) : _rand{rand} {
+  RandomPermutations(Random &rand) : _rand(rand) {
     init_permutations();
   }
 
-  RandomPermutations() : _rand{Random::instance()} {
+  RandomPermutations() : _rand(Random::instance()) {
     init_permutations();
   }
 
   RandomPermutations(const RandomPermutations &) = delete;
   RandomPermutations &operator=(const RandomPermutations &) = delete;
+
   RandomPermutations(RandomPermutations &&) = delete;
   RandomPermutations &operator=(RandomPermutations &&) = delete;
 

@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Dynamic partition wrapper for a static graph.
+ *
  * @file:   partitioned_graph.cc
  * @author: Daniel Seemaier
  * @date:   21.09.2021
- * @brief:  Static graph with a dynamic partition.
  ******************************************************************************/
 #include "kaminpar/datastructures/partitioned_graph.h"
 

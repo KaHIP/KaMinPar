@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Coarsener that is optimized to contract clusterings.
+ *
  * @file:   cluster_coarsener.cc
  * @author: Daniel Seemaier
  * @date:   29.09.2021
- * @brief:  Coarsener that uses a clustering graphutils to coarsen the graph.
  ******************************************************************************/
 #include "kaminpar/coarsening/cluster_coarsener.h"
 

@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Static graph with CSR representation.
+ *
  * @file:   graph.cc
  * @author: Daniel Seemaier
  * @date:   21.09.2021
- * @brief:  Static graph data structure with dynamic partition wrapper.
  ******************************************************************************/
 #include "kaminpar/datastructures/graph.h"
 
@@ -24,11 +25,11 @@ Graph::Graph(
     StaticArray<EdgeWeight> edge_weights,
     const bool sorted
 )
-    : _nodes{std::move(nodes)},
-      _edges{std::move(edges)},
-      _node_weights{std::move(node_weights)},
-      _edge_weights{std::move(edge_weights)},
-      _sorted{sorted} {
+    : _nodes(std::move(nodes)),
+      _edges(std::move(edges)),
+      _node_weights(std::move(node_weights)),
+      _edge_weights(std::move(edge_weights)),
+      _sorted(sorted) {
   if (_node_weights.empty()) {
     _total_node_weight = static_cast<NodeWeight>(n());
     _max_node_weight = 1;
@@ -54,11 +55,11 @@ Graph::Graph(
     StaticArray<EdgeWeight> edge_weights,
     const bool sorted
 )
-    : _nodes{std::move(nodes)},
-      _edges{std::move(edges)},
-      _node_weights{std::move(node_weights)},
-      _edge_weights{std::move(edge_weights)},
-      _sorted{sorted} {
+    : _nodes(std::move(nodes)),
+      _edges(std::move(edges)),
+      _node_weights(std::move(node_weights)),
+      _edge_weights(std::move(edge_weights)),
+      _sorted(sorted) {
   if (_node_weights.empty()) {
     _total_node_weight = static_cast<NodeWeight>(n());
     _max_node_weight = 1;

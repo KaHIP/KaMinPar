@@ -1,13 +1,15 @@
 /*******************************************************************************
+ * Interface for graph coarseners.
+ *
  * @file:   coarsener.h
  * @author: Daniel Seemaier
  * @date:   21.09.2021
- * @brief:  Interface for coarsening algorithms.
  ******************************************************************************/
 #pragma once
 
 #include "kaminpar/coarsening/clusterer.h"
 #include "kaminpar/datastructures/graph.h"
+#include "kaminpar/datastructures/partitioned_graph.h"
 #include "kaminpar/definitions.h"
 
 namespace kaminpar::shm {

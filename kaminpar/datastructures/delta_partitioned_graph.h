@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Stores changes to a static partitioned graph.
+ *
  * @file:   delta_partitioned_graph.h
  * @author: Daniel Seemaier
  * @date:   15.03.2023
- * @brief:  Stores changes to a static partitioned graph.
  ******************************************************************************/
 #pragma once
 
