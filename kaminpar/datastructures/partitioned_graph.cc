@@ -74,22 +74,23 @@ void PartitionedGraph::reinit_block_weights() {
 }
 
 void PartitionedGraph::init_block_weights_par() {
-  tbb::enumerable_thread_specific<std::vector<BlockWeight>> tl_block_weights{[&] {
-    return std::vector<BlockWeight>(k());
-  }};
+  tbb::enumerable_thread_specific<std::vector<BlockWeight>> block_weights_ets([&] {
+    return StaticArray<BlockWeight>(k());
+  });
+
   tbb::parallel_for(tbb::blocked_range(static_cast<NodeID>(0), n()), [&](auto &r) {
-    auto &local_block_weights = tl_block_weights.local();
+    auto &block_weights = block_weights_ets.local();
     for (NodeID u = r.begin(); u != r.end(); ++u) {
-      if (block(u) != kInvalidBlockID) {
-        local_block_weights[block(u)] += node_weight(u);
+      if (const BlockID b = block(u); b != kInvalidBlockID) {
+        block_weights[b] += node_weight(u);
       }
     }
   });
 
   tbb::parallel_for(static_cast<BlockID>(0), k(), [&](const BlockID b) {
     BlockWeight sum = 0;
-    for (auto &local_block_weights : tl_block_weights) {
-      sum += local_block_weights[b];
+    for (auto &block_weights : block_weights_ets) {
+      sum += block_weights[b];
     }
     _block_weights[b] = sum;
   });
@@ -97,8 +98,8 @@ void PartitionedGraph::init_block_weights_par() {
 
 void PartitionedGraph::init_block_weights_seq() {
   for (const NodeID u : nodes()) {
-    if (block(u) != kInvalidBlockID) {
-      _block_weights[block(u)] += node_weight(u);
+    if (const BlockID b = block(u); b != kInvalidBlockID) {
+      _block_weights[b] += node_weight(u);
     }
   }
 }
