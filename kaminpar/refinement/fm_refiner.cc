@@ -208,6 +208,7 @@ fm::BatchStats FMRefiner::dbg_compute_single_batch_stats_in_sequence(
   fm::BatchStats stats;
 
   std::vector<NodeID> distances = dbg_compute_batch_distances(p_graph.graph(), seeds, moves);
+  KASSERT(!distances.empty());
 
   stats.size = moves.size();
   stats.max_distance = *std::max_element(distances.begin(), distances.end());
@@ -215,7 +216,9 @@ fm::BatchStats FMRefiner::dbg_compute_single_batch_stats_in_sequence(
   stats.gain_by_distance.resize(stats.max_distance + 1);
 
   NodeID cur_distance = 0;
-  for (const auto &[u, block] : moves) {
+  for (std::size_t i = 0; i < moves.size(); ++i) {
+    const auto &[u, block] = moves[i];
+
     // Compute the gain of the move
     EdgeWeight int_degree = 0;
     EdgeWeight ext_degree = 0;
@@ -227,7 +230,11 @@ fm::BatchStats FMRefiner::dbg_compute_single_batch_stats_in_sequence(
       }
     }
 
-    cur_distance = std::max(cur_distance, distances[u]);
+    KASSERT(i < distances.size());
+    cur_distance = std::max(cur_distance, distances[i]);
+
+    KASSERT(cur_distance < stats.gain_by_distance.size());
+    KASSERT(cur_distance < stats.size_by_distance.size());
     stats.gain_by_distance[cur_distance] += ext_degree - int_degree;
     ++stats.size_by_distance[cur_distance];
 

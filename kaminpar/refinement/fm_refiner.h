@@ -109,8 +109,10 @@ struct GlobalBatchStats {
   void summarize() {
     LOG_STATS << "Batches:";
     for (std::size_t i = 0; i < iteration_stats.size(); ++i) {
-      LOG_STATS << "  * Iteration " << (i + 1) << ":";
-      summarize_iteration(iteration_stats[i]);
+      if (!iteration_stats[i].empty()) {
+        LOG_STATS << "  * Iteration " << (i + 1) << ":";
+        summarize_iteration(iteration_stats[i]);
+      }
     }
   }
 
