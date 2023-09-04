@@ -426,11 +426,11 @@ LocalizedFMRefiner::LocalizedFMRefiner(
       _shared(shared),
       _d_graph(&_p_graph),
       _d_gain_cache(_shared.gain_cache),
-      _block_pq(_p_ctx.k),
+      _block_pq(_p_graph.k()),
       _stopping_policy(_fm_ctx.alpha) {
   _stopping_policy.init(_p_graph.n());
   for (const BlockID b : _p_graph.blocks()) {
-    _node_pqs.emplace_back(_p_ctx.n, _shared.shared_pq_handles.data());
+    _node_pqs.emplace_back(_p_graph.n(), _shared.shared_pq_handles.data());
   }
 }
 
