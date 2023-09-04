@@ -32,6 +32,110 @@ SET_DEBUG(false);
 SET_STATISTICS(true);
 } // namespace
 
+namespace fm {
+Stats &Stats::operator+=(const Stats &other) {
+  num_touched_nodes += other.num_touched_nodes;
+  num_committed_moves += other.num_committed_moves;
+  num_discarded_moves += other.num_discarded_moves;
+  num_recomputed_gains += other.num_recomputed_gains;
+  num_batches += other.num_batches;
+  num_pq_inserts += other.num_pq_inserts;
+  num_pq_updates += other.num_pq_updates;
+  num_pq_pops += other.num_pq_pops;
+  return *this;
+}
+
+GlobalStats::GlobalStats() {
+  next_iteration();
+}
+
+void GlobalStats::add(const Stats &stats) {
+  iteration_stats.back() += stats;
+}
+
+void GlobalStats::next_iteration() {
+  iteration_stats.emplace_back();
+}
+
+void GlobalStats::reset() {
+  iteration_stats.clear();
+  next_iteration();
+}
+
+void GlobalStats::summarize() {
+  LOG_STATS << "FM Refinement:";
+  for (std::size_t i = 0; i < iteration_stats.size(); ++i) {
+    const Stats &stats = iteration_stats[i];
+    if (stats.num_batches == 0) {
+      continue;
+    }
+
+    LOG_STATS << "  * Iteration " << (i + 1) << ":";
+    LOG_STATS << "    + Number of batches: " << stats.num_batches;
+    LOG_STATS << "    + Number of touched nodes: " << stats.num_touched_nodes << " in total, "
+              << 1.0 * stats.num_touched_nodes / stats.num_batches << " per batch";
+    LOG_STATS << "    + Number of moves: " << stats.num_committed_moves << " committed, "
+              << stats.num_discarded_moves << " discarded (= "
+              << 100.0 * stats.num_discarded_moves /
+                     (stats.num_committed_moves + stats.num_discarded_moves)
+              << "%)";
+    LOG_STATS << "    + Number of recomputed gains: " << stats.num_recomputed_gains;
+    LOG_STATS << "    + Number of PQ operations: " << stats.num_pq_inserts << " inserts, "
+              << stats.num_pq_updates << " updates, " << stats.num_pq_pops << " pops";
+  }
+}
+void GlobalBatchStats::next_iteration(std::vector<BatchStats> stats) {
+  iteration_stats.push_back(std::move(stats));
+}
+
+void GlobalBatchStats::reset() {
+  iteration_stats.clear();
+}
+
+void GlobalBatchStats::summarize() {
+  LOG_STATS << "Batches: [STATS:FM:BATCHES]";
+  for (std::size_t i = 0; i < iteration_stats.size(); ++i) {
+    if (!iteration_stats[i].empty()) {
+      LOG_STATS << "  * Iteration " << (i + 1) << ":";
+      summarize_iteration(i, iteration_stats[i]);
+    }
+  }
+}
+
+void GlobalBatchStats::summarize_iteration(
+    const std::size_t iteration, const std::vector<BatchStats> &stats
+) {
+  const NodeID max_distance =
+      std::max_element(stats.begin(), stats.end(), [&](const auto &lhs, const auto &rhs) {
+        return lhs.max_distance < rhs.max_distance;
+      })->max_distance;
+
+  std::vector<NodeID> total_size_by_distance(max_distance + 1);
+  std::vector<EdgeWeight> total_gain_by_distance(max_distance + 1);
+  for (NodeID distance = 0; distance <= max_distance; ++distance) { // <=
+    for (const auto &batch_stats : stats) {
+      if (distance < batch_stats.size_by_distance.size()) {
+        KASSERT(distance < batch_stats.gain_by_distance.size());
+        total_size_by_distance[distance] += batch_stats.size_by_distance[distance];
+        total_gain_by_distance[distance] += batch_stats.gain_by_distance[distance];
+      }
+    }
+  }
+
+  LOG_STATS << "    - Max distance: " << max_distance << " [STATS:FM:BATCHES:" << iteration << "]";
+  std::stringstream size_ss, gain_ss;
+  size_ss << "      + Size by distance: " << total_size_by_distance[0];
+  gain_ss << "      + Gain by distance: " << total_gain_by_distance[0];
+
+  for (NodeID distance = 1; distance <= max_distance; ++distance) { // <=
+    size_ss << "," << total_size_by_distance[distance];
+    gain_ss << "," << total_gain_by_distance[distance];
+  }
+  LOG_STATS << size_ss.str() << " [STATS:FM:BATCHES:" << iteration << "]";
+  LOG_STATS << gain_ss.str() << " [STATS:FM:BATCHES:" << iteration << "]";
+}
+} // namespace fm
+
 FMRefiner::FMRefiner(const Context &input_ctx)
     : _ctx(input_ctx),
       _fm_ctx(input_ctx.refinement.kway_fm),
@@ -253,14 +357,15 @@ std::vector<NodeID> FMRefiner::dbg_compute_batch_distances(
     searched[moves[i].node] = i;
   }
 
+  // Keep track of nodes that we have already discovered
+  std::set<NodeID> visited;
+
   // Current frontier of the BFS
   std::stack<NodeID> frontier;
   for (const NodeID &seed : seeds) {
     frontier.push(seed);
+    visited.insert(seed);
   }
-
-  // Keep track of nodes that we have already discovered
-  std::set<NodeID> visited;
 
   NodeID current_distance = 0;
   NodeID current_layer_size = frontier.size();
@@ -277,18 +382,18 @@ std::vector<NodeID> FMRefiner::dbg_compute_batch_distances(
     const NodeID u = frontier.top();
     frontier.pop();
     --current_layer_size;
-    visited.insert(u);
 
     // If the node was moved, record its distance from any seed node
     if (auto it = searched.find(u); it != searched.end()) {
       distances[it->second] = current_distance;
       searched.erase(it);
-    }
 
-    // Expand search to its neighbors
-    for (const auto &[e, v] : graph.neighbors(u)) {
-      if (visited.count(v) == 0) {
-        frontier.push(v);
+      // Expand search to its neighbors
+      for (const auto &[e, v] : graph.neighbors(u)) {
+        if (visited.count(v) == 0) {
+          visited.insert(v);
+          frontier.push(v);
+        }
       }
     }
   }

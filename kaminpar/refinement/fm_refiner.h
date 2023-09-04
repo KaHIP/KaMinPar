@@ -31,127 +31,36 @@ struct Stats {
   parallel::Atomic<NodeID> num_pq_updates = 0;
   parallel::Atomic<NodeID> num_pq_pops = 0;
 
-  Stats &operator+=(const Stats &other) {
-    num_touched_nodes += other.num_touched_nodes;
-    num_committed_moves += other.num_committed_moves;
-    num_discarded_moves += other.num_discarded_moves;
-    num_recomputed_gains += other.num_recomputed_gains;
-    num_batches += other.num_batches;
-    num_pq_inserts += other.num_pq_inserts;
-    num_pq_updates += other.num_pq_updates;
-    num_pq_pops += other.num_pq_pops;
-    return *this;
-  }
+  Stats &operator+=(const Stats &other);
 };
 
 struct GlobalStats {
   std::vector<Stats> iteration_stats;
 
-  GlobalStats() {
-    next_iteration();
-  }
+  GlobalStats();
 
-  void add(const Stats &stats) {
-    iteration_stats.back() += stats;
-  }
-
-  void next_iteration() {
-    iteration_stats.emplace_back();
-  }
-
-  void reset() {
-    iteration_stats.clear();
-    next_iteration();
-  }
-
-  void summarize() {
-    LOG_STATS << "FM Refinement:";
-    for (std::size_t i = 0; i < iteration_stats.size(); ++i) {
-      const Stats &stats = iteration_stats[i];
-      if (stats.num_batches == 0) {
-        continue;
-      }
-
-      LOG_STATS << "  * Iteration " << (i + 1) << ":";
-      LOG_STATS << "    + Number of batches: " << stats.num_batches;
-      LOG_STATS << "    + Number of touched nodes: " << stats.num_touched_nodes << " in total, "
-                << 1.0 * stats.num_touched_nodes / stats.num_batches << " per batch";
-      LOG_STATS << "    + Number of moves: " << stats.num_committed_moves << " committed, "
-                << stats.num_discarded_moves << " discarded (= "
-                << 100.0 * stats.num_discarded_moves /
-                       (stats.num_committed_moves + stats.num_discarded_moves)
-                << "%)";
-      LOG_STATS << "    + Number of recomputed gains: " << stats.num_recomputed_gains;
-      LOG_STATS << "    + Number of PQ operations: " << stats.num_pq_inserts << " inserts, "
-                << stats.num_pq_updates << " updates, " << stats.num_pq_pops << " pops";
-    }
-  }
+  void add(const Stats &stats);
+  void next_iteration();
+  void reset();
+  void summarize();
 };
 
 struct BatchStats {
   NodeID size;
   NodeID max_distance;
   std::vector<NodeID> size_by_distance;
-  std::vector<NodeID> gain_by_distance;
+  std::vector<EdgeWeight> gain_by_distance;
 };
 
 struct GlobalBatchStats {
   std::vector<std::vector<BatchStats>> iteration_stats;
 
-  void next_iteration(std::vector<BatchStats> stats) {
-    iteration_stats.push_back(std::move(stats));
-  }
-
-  void reset() {
-    iteration_stats.clear();
-  }
-
-  void summarize() {
-    LOG_STATS << "Batches: [STATS:FM:BATCHES]";
-    for (std::size_t i = 0; i < iteration_stats.size(); ++i) {
-      if (!iteration_stats[i].empty()) {
-        LOG_STATS << "  * Iteration " << (i + 1) << ":";
-        summarize_iteration(i, iteration_stats[i]);
-      }
-    }
-  }
+  void next_iteration(std::vector<BatchStats> stats);
+  void reset();
+  void summarize();
 
 private:
-  void summarize_iteration(const std::size_t iteration, const std::vector<BatchStats> &stats) {
-    const NodeID max_distance =
-        std::max_element(stats.begin(), stats.end(), [&](const auto &lhs, const auto &rhs) {
-          return lhs.max_distance < rhs.max_distance;
-        })->max_distance;
-
-    std::vector<NodeID> total_size_by_distance(max_distance + 1);
-    std::vector<EdgeWeight> total_gain_by_distance(max_distance + 1);
-    for (NodeID distance = 0; distance <= max_distance; ++distance) {
-      for (const auto &batch_stats : stats) {
-        total_size_by_distance[distance] += std::accumulate(
-            batch_stats.size_by_distance.begin(),
-            batch_stats.size_by_distance.begin() + distance + 1,
-            0
-        );
-        total_gain_by_distance[distance] += std::accumulate(
-            batch_stats.gain_by_distance.begin(),
-            batch_stats.gain_by_distance.begin() + distance + 1,
-            0
-        );
-      }
-    }
-
-    LOG_STATS << "    - Max distance: " << max_distance << " [STATS:FM:BATCHES:" << iteration << "]";
-    std::stringstream size_ss, gain_ss;
-    size_ss << "      + Size by distance: " << total_size_by_distance[0];
-    gain_ss << "      + Gain by distance: " << total_gain_by_distance[0];
-
-    for (NodeID distance = 1; distance <= max_distance; ++distance) {
-      size_ss << "," << total_size_by_distance[distance];
-      gain_ss << "," << total_gain_by_distance[distance];
-    }
-    LOG_STATS << size_ss.str() << " [STATS:FM:BATCHES:" << iteration << "]";
-    LOG_STATS << gain_ss.str() << " [STATS:FM:BATCHES:" << iteration << "]";
-  }
+  void summarize_iteration(const std::size_t iteration, const std::vector<BatchStats> &stats);
 };
 
 class NodeTracker {
