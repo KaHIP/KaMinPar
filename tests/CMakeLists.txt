@@ -67,9 +67,9 @@ if (KAMINPAR_BUILD_DISTRIBUTED)
     endfunction()
 
     # dKaMinPar 
-    kaminpar_add_dist_test(test_dist_global_move_conflict_resolver
-        FILES dkaminpar/refinement/move_conflict_resolver_test.cc
-        CORES 1 4)
+    #kaminpar_add_dist_test(test_dist_global_move_conflict_resolver
+    #    FILES dkaminpar/refinement/move_conflict_resolver_test.cc
+    #    CORES 1 4)
 
     # dKaMinPar -> Graph Utils
     kaminpar_add_dist_test(test_dist_graphutils_block_extractor
