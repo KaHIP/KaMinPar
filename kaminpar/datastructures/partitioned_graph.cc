@@ -74,7 +74,7 @@ void PartitionedGraph::reinit_block_weights() {
 }
 
 void PartitionedGraph::init_block_weights_par() {
-  tbb::enumerable_thread_specific<std::vector<BlockWeight>> block_weights_ets([&] {
+  tbb::enumerable_thread_specific<StaticArray<BlockWeight>> block_weights_ets([&] {
     return StaticArray<BlockWeight>(k());
   });
 

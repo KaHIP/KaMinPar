@@ -18,6 +18,7 @@
 #include "dkaminpar/dkaminpar.h"
 
 #include "kaminpar/datastructures/graph.h"
+#include "kaminpar/datastructures/partitioned_graph.h"
 
 #include "common/datastructures/fast_reset_array.h"
 #include "common/datastructures/marker.h"
