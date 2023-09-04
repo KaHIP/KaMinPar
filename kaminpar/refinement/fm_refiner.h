@@ -167,7 +167,7 @@ private:
 struct SharedData {
   SharedData(const NodeID max_n, const BlockID max_k)
       : node_tracker(max_n),
-        gain_cache(max_k, max_n),
+        gain_cache(max_n, max_k),
         border_nodes(gain_cache, node_tracker),
         shared_pq_handles(max_n),
         target_blocks(max_n) {

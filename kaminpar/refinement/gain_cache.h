@@ -16,8 +16,8 @@
 #include "kaminpar/datastructures/partitioned_graph.h"
 
 #include "common/datastructures/dynamic_map.h"
-#include "common/logger.h"
 #include "common/datastructures/noinit_vector.h"
+#include "common/logger.h"
 
 namespace kaminpar::shm {
 template <typename GainCache, bool use_sparsehash = false> class DeltaGainCache;
@@ -26,15 +26,18 @@ class DenseGainCache {
   friend class DeltaGainCache<DenseGainCache>;
 
 public:
-  DenseGainCache(const BlockID k, const NodeID n)
-      : _k(k),
-        _n(n),
-        _gain_cache(static_cast<std::size_t>(_n) * static_cast<std::size_t>(_k)),
-        _weighted_degrees(_n) {}
+  DenseGainCache(const NodeID max_n, const BlockID max_k)
+      : _max_n(max_n),
+        _max_k(max_k),
+        _gain_cache(static_cast<std::size_t>(_max_n) * static_cast<std::size_t>(_max_k)),
+        _weighted_degrees(_max_n) {}
 
   void initialize(const PartitionedGraph &p_graph) {
-    KASSERT(p_graph.k() <= _k, "gain cache is too small");
-    KASSERT(p_graph.n() <= _n, "gain cache is too small");
+    KASSERT(p_graph.n() <= _max_n, "gain cache is too small");
+    KASSERT(p_graph.k() <= _max_k, "gain cache is too small");
+
+    _n = p_graph.n();
+    _k = p_graph.k();
 
     reset();
     recompute_all(p_graph);
@@ -83,17 +86,15 @@ private:
     return __atomic_load_n(&_gain_cache[index(node, block)], __ATOMIC_RELAXED);
   }
 
-  std::size_t index(const NodeID node, const BlockID b) const {
-    const std::size_t idx =
-        static_cast<std::size_t>(node) * static_cast<std::size_t>(_k) + static_cast<std::size_t>(b);
+  std::size_t index(const NodeID node, const BlockID block) const {
+    const std::size_t idx = static_cast<std::size_t>(node) * static_cast<std::size_t>(_k) +
+                            static_cast<std::size_t>(block);
     KASSERT(idx < _gain_cache.size());
     return idx;
   }
 
   void reset() {
-    tbb::parallel_for<std::size_t>(0, _gain_cache.size(), [&](const std::size_t i) {
-      _gain_cache[i] = 0;
-    });
+    tbb::parallel_for<std::size_t>(0, _n * _k, [&](const std::size_t i) { _gain_cache[i] = 0; });
   }
 
   void recompute_all(const PartitionedGraph &p_graph) {
@@ -146,8 +147,11 @@ private:
     return true;
   }
 
-  BlockID _k;
+  NodeID _max_n;
+  BlockID _max_k;
+
   NodeID _n;
+  BlockID _k;
 
   NoinitVector<EdgeWeight> _gain_cache;
   NoinitVector<EdgeWeight> _weighted_degrees;

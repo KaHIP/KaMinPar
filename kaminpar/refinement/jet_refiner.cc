@@ -104,7 +104,7 @@ bool JetRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx
   DBG << "Setting c=" << c;
 
   START_TIMER("Allocation");
-  DenseGainCache gain_cache(p_graph.k(), p_graph.n());
+  DenseGainCache gain_cache(p_graph.n(), p_graph.k());
   gain_cache.initialize(p_graph);
 
   NoinitVector<BlockID> next_partition(p_graph.n());
