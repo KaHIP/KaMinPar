@@ -325,7 +325,7 @@ CLI::Option_group *create_kway_fm_refinement_options(CLI::App *app, Context &ctx
       ->capture_default_str();
   */
   fm->add_flag(
-        "--r-fm-dbg-batch-size-statistics", ctx.refinement.kway_fm.dbg_compute_batch_size_statistics
+        "--r-fm-dbg-batch-size-stats", ctx.refinement.kway_fm.dbg_compute_batch_size_statistics
   )
       ->capture_default_str();
 
