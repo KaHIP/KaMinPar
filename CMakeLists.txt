@@ -32,6 +32,7 @@ option(KAMINPAR_BUILD_WITH_MTUNE_NATIVE "Build with -mtune=native." ON)
 option(KAMINPAR_BUILD_WITH_CCACHE "Use ccache to build." ON)
 option(KAMINPAR_BUILD_WITH_DEBUG_SYMBOLS "Always build with debug symbols, even in Release mode." ON)
 option(KAMINPAR_BUILD_WITH_MTKAHYPAR "If Mt-KaHyPar can be found, build the Mt-KaHyPar initial partitioner." OFF)
+option(KAMINPAR_BUILD_WITH_PG "Build with the -pg option for profiling." OFF)
 
 # Control data type sizes
 #########################
@@ -106,6 +107,10 @@ endif ()
 if (KAMINPAR_BUILD_WITH_ASAN) 
     add_compile_options(-fsanitize=address)
     add_link_options(-fsanitize=address)
+endif ()
+
+if (KAMINPAR_BUILD_WITH_PG)
+    add_compile_options(-pg)
 endif ()
 
 # Pass CMake options to code
