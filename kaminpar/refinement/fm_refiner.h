@@ -189,6 +189,12 @@ struct Move {
   NodeID node;
   BlockID from;
 };
+
+struct AppliedMove {
+  NodeID node;
+  BlockID from;
+  bool improvement;
+};
 } // namespace fm
 
 class FMRefiner : public Refiner {
@@ -208,7 +214,7 @@ public:
 
 private:
   using SeedNodesVec = std::vector<NodeID>;
-  using MovesVec = std::vector<fm::Move>;
+  using MovesVec = std::vector<fm::AppliedMove>;
   using Batches = tbb::concurrent_vector<std::pair<SeedNodesVec, MovesVec>>;
 
   std::vector<fm::BatchStats>
@@ -220,11 +226,13 @@ private:
   fm::BatchStats dbg_compute_single_batch_stats_in_sequence(
       PartitionedGraph &p_graph,
       const std::vector<NodeID> &seeds,
-      const std::vector<fm::Move> &moves
+      const std::vector<fm::AppliedMove> &moves
   ) const;
 
   std::vector<NodeID> dbg_compute_batch_distances(
-      const Graph &graph, const std::vector<NodeID> &seeds, const std::vector<fm::Move> &moves
+      const Graph &graph,
+      const std::vector<NodeID> &seeds,
+      const std::vector<fm::AppliedMove> &moves
   ) const;
 
   const Context &_ctx;
@@ -246,8 +254,8 @@ public:
   EdgeWeight run_batch();
 
   void enable_move_recording();
-  std::vector<fm::Move> take_applied_moves();
-  const std::vector<fm::Move> &last_batch_moves();
+  std::vector<fm::AppliedMove> take_applied_moves();
+  const std::vector<fm::AppliedMove> &last_batch_moves();
   const std::vector<NodeID> &last_batch_seed_nodes();
 
 private:
@@ -287,7 +295,7 @@ private:
   std::vector<NodeID> _touched_nodes;
   std::vector<NodeID> _seed_nodes;
 
-  std::vector<fm::Move> _applied_moves;
+  std::vector<fm::AppliedMove> _applied_moves;
   bool _record_applied_moves = false;
 };
 } // namespace kaminpar::shm

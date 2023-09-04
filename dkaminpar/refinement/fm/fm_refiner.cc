@@ -215,7 +215,7 @@ bool FMRefiner::refine() {
         auto moves = worker.take_applied_moves();
         if (!moves.empty()) {
           const GlobalNodeID group = node_mapper.to_graph(seed_node);
-          for (const auto &[node, from] : moves) {
+          for (const auto &[node, from, improvement] : moves) {
             move_sets.push_back(GlobalMove{
                 .node = node_mapper.to_graph(node),
                 .group = seed_node,
@@ -227,7 +227,7 @@ bool FMRefiner::refine() {
           }
 
           if (_fm_ctx.revert_local_moves_after_batch) {
-            for (const auto &[node, from] : moves) {
+            for (const auto &[node, from, improvement] : moves) {
               const BlockID to = bp_graph->block(node);
               bp_graph->set_block(node, from);
               shared.gain_cache.move(*bp_graph, node, to, from);

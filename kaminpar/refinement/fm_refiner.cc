@@ -305,7 +305,9 @@ FMRefiner::dbg_build_prev_p_graph(const PartitionedGraph &p_graph, Batches batch
 // that will come afterwards
 // This function also applies the moves of the current batch to the given partition
 fm::BatchStats FMRefiner::dbg_compute_single_batch_stats_in_sequence(
-    PartitionedGraph &p_graph, const std::vector<NodeID> &seeds, const std::vector<fm::Move> &moves
+    PartitionedGraph &p_graph,
+    const std::vector<NodeID> &seeds,
+    const std::vector<fm::AppliedMove> &moves
 ) const {
   KASSERT(!seeds.empty());
   KASSERT(!moves.empty());
@@ -320,8 +322,12 @@ fm::BatchStats FMRefiner::dbg_compute_single_batch_stats_in_sequence(
   stats.gain_by_distance.resize(stats.max_distance + 1);
 
   NodeID cur_distance = 0;
+
+  EdgeWeight gain_for_next_improvement = 0;
+  NodeID size_for_next_improvement = 0;
+
   for (std::size_t i = 0; i < moves.size(); ++i) {
-    const auto &[u, block] = moves[i];
+    const auto &[u, block, improvement] = moves[i];
 
     // Compute the gain of the move
     EdgeWeight int_degree = 0;
@@ -337,10 +343,15 @@ fm::BatchStats FMRefiner::dbg_compute_single_batch_stats_in_sequence(
     KASSERT(i < distances.size());
     cur_distance = std::max(cur_distance, distances[i]);
 
-    KASSERT(cur_distance < stats.gain_by_distance.size());
-    KASSERT(cur_distance < stats.size_by_distance.size());
-    stats.gain_by_distance[cur_distance] += ext_degree - int_degree;
-    ++stats.size_by_distance[cur_distance];
+    gain_for_next_improvement += ext_degree - int_degree;
+    size_for_next_improvement += 1;
+
+    if (improvement) {
+      stats.gain_by_distance[cur_distance] += gain_for_next_improvement;
+      stats.size_by_distance[cur_distance] += size_for_next_improvement;
+      gain_for_next_improvement = 0;
+      size_for_next_improvement = 0;
+    }
 
     p_graph.set_block(u, block);
   }
@@ -349,7 +360,7 @@ fm::BatchStats FMRefiner::dbg_compute_single_batch_stats_in_sequence(
 }
 
 std::vector<NodeID> FMRefiner::dbg_compute_batch_distances(
-    const Graph &graph, const std::vector<NodeID> &seeds, const std::vector<fm::Move> &moves
+    const Graph &graph, const std::vector<NodeID> &seeds, const std::vector<fm::AppliedMove> &moves
 ) const {
   // Keeps track of moved nodes that we yet have to discover
   std::unordered_map<NodeID, std::size_t> searched;
@@ -427,7 +438,7 @@ void LocalizedFMRefiner::enable_move_recording() {
   _record_applied_moves = true;
 }
 
-const std::vector<fm::Move> &LocalizedFMRefiner::last_batch_moves() {
+const std::vector<fm::AppliedMove> &LocalizedFMRefiner::last_batch_moves() {
   return _applied_moves;
 }
 
@@ -435,7 +446,7 @@ const std::vector<NodeID> &LocalizedFMRefiner::last_batch_seed_nodes() {
   return _seed_nodes;
 }
 
-std::vector<fm::Move> LocalizedFMRefiner::take_applied_moves() {
+std::vector<fm::AppliedMove> LocalizedFMRefiner::take_applied_moves() {
   return std::move(_applied_moves);
 }
 
@@ -501,11 +512,6 @@ EdgeWeight LocalizedFMRefiner::run_batch() {
       // If we found a new local minimum, apply the moves to the global
       // partition
       if (current_total_gain > best_total_gain) {
-        // Update global graph and global gain cache
-        if (_record_applied_moves) {
-          _applied_moves.push_back(fm::Move{.node = node, .from = block_from});
-        }
-
         _p_graph.set_block(node, block_to);
         _shared.gain_cache.move(_p_graph, node, block_from, block_to);
         _shared.node_tracker.set(node, NodeTracker::MOVED_GLOBALLY);
@@ -513,8 +519,16 @@ EdgeWeight LocalizedFMRefiner::run_batch() {
         for (const auto &[moved_node, moved_to] : _d_graph.delta()) {
           const BlockID moved_from = _p_graph.block(moved_node);
 
+          // The order of the moves in the delta graph is not necessarily correct (depending on
+          // whether the delta graph stores the moves in a vector of a hash table).
+          // Thus, users of the _applied_moves vector may only depend on the order of moves that
+          // found an improvement.
           if (_record_applied_moves) {
-            _applied_moves.push_back(fm::Move{.node = moved_node, .from = moved_from});
+            _applied_moves.push_back(fm::AppliedMove{
+                .node = moved_node,
+                .from = moved_from,
+                .improvement = false,
+            });
           }
 
           _shared.gain_cache.move(_p_graph, moved_node, moved_from, moved_to);
@@ -522,6 +536,14 @@ EdgeWeight LocalizedFMRefiner::run_batch() {
           _p_graph.set_block(moved_node, moved_to);
 
           IFSTATS(++stats.num_committed_moves);
+        }
+
+        if (_record_applied_moves) {
+          _applied_moves.push_back(fm::AppliedMove{
+              .node = node,
+              .from = block_from,
+              .improvement = true,
+          });
         }
 
         // Flush local delta
