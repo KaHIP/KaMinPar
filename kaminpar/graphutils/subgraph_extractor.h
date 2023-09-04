@@ -15,6 +15,7 @@
 #include "kaminpar/definitions.h"
 
 #include "common/datastructures/scalable_vector.h"
+#include "common/timer.h"
 
 namespace kaminpar::shm::graph {
 struct SubgraphMemoryStartPosition {
@@ -41,10 +42,16 @@ struct SubgraphMemory {
       const bool is_node_weighted = true,
       const bool is_edge_weighted = true
   )
-      : nodes(n + k),
-        edges(m),
-        node_weights(is_node_weighted * (n + k)),
-        edge_weights(is_edge_weighted * m) {}
+      : nodes(),
+        edges(),
+        node_weights(),
+        edge_weights() {
+    SCOPED_TIMER("Allocation");
+    nodes.resize(n + k);
+    edges.resize(m);
+    node_weights.resize(is_node_weighted * (n + k));
+    edge_weights.resize(is_edge_weighted * m);
+  }
 
   explicit SubgraphMemory(const PartitionedGraph &p_graph)
       : SubgraphMemory(

@@ -13,6 +13,7 @@
 #include "kaminpar/definitions.h"
 #include "kaminpar/graphutils/permutator.h"
 #include "kaminpar/metrics.h"
+#include "kaminpar/partitioning/deep_multilevel.h"
 #include "kaminpar/partitioning/partitioning.h"
 #include "kaminpar/presets.h"
 
@@ -173,6 +174,7 @@ EdgeWeight KaMinPar::compute_partition(const int seed, const BlockID k, BlockID 
         graph::integrate_isolated_nodes(*_graph_ptr, original_epsilon, _ctx);
     p_graph = graph::assign_isolated_nodes(std::move(p_graph), num_isolated_nodes, _ctx.partition);
   }
+  STOP_TIMER();
 
   START_TIMER("IO");
   if (_graph_ptr->permuted()) {

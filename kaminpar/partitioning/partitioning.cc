@@ -16,22 +16,14 @@ namespace kaminpar::shm::partitioning {
 PartitionedGraph partition(const Graph &graph, const Context &ctx) {
   switch (ctx.mode) {
   case PartitioningMode::DEEP: {
-    START_TIMER("Partitioning");
-    START_TIMER("Allocation");
-    DeepMultilevelPartitioner rb{graph, ctx};
-    STOP_TIMER();
-    auto p_graph = rb.partition();
-    STOP_TIMER();
+    DeepMultilevelPartitioner deep(graph, ctx);
+    PartitionedGraph p_graph = deep.partition();
     return p_graph;
   }
 
   case PartitioningMode::RB: {
-    START_TIMER("Partitioning");
-    START_TIMER("Allocation");
-    RBMultilevelPartitioner rb{graph, ctx};
-    STOP_TIMER();
-    auto p_graph = rb.partition();
-    STOP_TIMER();
+    RBMultilevelPartitioner rb(graph, ctx);
+    PartitionedGraph p_graph = rb.partition();
     return p_graph;
   }
 

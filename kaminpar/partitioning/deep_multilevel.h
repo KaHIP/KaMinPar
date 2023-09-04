@@ -29,6 +29,7 @@ public:
 
   DeepMultilevelPartitioner(const DeepMultilevelPartitioner &) = delete;
   DeepMultilevelPartitioner &operator=(const DeepMultilevelPartitioner &) = delete;
+
   DeepMultilevelPartitioner(DeepMultilevelPartitioner &&) = delete;
   DeepMultilevelPartitioner &operator=(DeepMultilevelPartitioner &&) = delete;
 

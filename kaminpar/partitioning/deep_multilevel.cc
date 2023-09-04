@@ -19,13 +19,12 @@ DeepMultilevelPartitioner::DeepMultilevelPartitioner(
       _current_p_ctx(input_ctx.partition),
       _coarsener(factory::create_coarsener(input_graph, input_ctx.coarsening)),
       _refiner(factory::create_refiner(input_ctx)),
-      _subgraph_memory(input_graph.n(), input_ctx.partition.k, input_graph.m(), true, true) {}
+      _subgraph_memory(input_graph.n(), input_ctx.partition.k, input_graph.m()) {}
 
 PartitionedGraph DeepMultilevelPartitioner::partition() {
   cio::print_delimiter("Partitioning");
 
   const Graph *c_graph = coarsen();
-
   PartitionedGraph p_graph = initial_partition(c_graph);
 
   bool refined;

@@ -10,6 +10,7 @@
 
 #include <kassert/kassert.hpp>
 #include <tbb/parallel_for.h>
+#include <tbb/parallel_invoke.h>
 
 #include "kaminpar/context.h"
 #include "kaminpar/datastructures/delta_partitioned_graph.h"
@@ -18,6 +19,7 @@
 #include "common/datastructures/dynamic_map.h"
 #include "common/datastructures/noinit_vector.h"
 #include "common/logger.h"
+#include "common/timer.h"
 
 namespace kaminpar::shm {
 template <typename GainCache, bool use_sparsehash = false> class DeltaGainCache;
@@ -29,8 +31,11 @@ public:
   DenseGainCache(const NodeID max_n, const BlockID max_k)
       : _max_n(max_n),
         _max_k(max_k),
-        _gain_cache(static_cast<std::size_t>(_max_n) * static_cast<std::size_t>(_max_k)),
-        _weighted_degrees(_max_n) {}
+        _gain_cache(
+            static_array::noinit,
+            static_cast<std::size_t>(_max_n) * static_cast<std::size_t>(_max_k)
+        ),
+        _weighted_degrees(static_array::noinit, _max_n) {}
 
   void initialize(const PartitionedGraph &p_graph) {
     KASSERT(p_graph.n() <= _max_n, "gain cache is too small");
@@ -39,8 +44,16 @@ public:
     _n = p_graph.n();
     _k = p_graph.k();
 
+    START_TIMER("Reset");
     reset();
+    STOP_TIMER();
+    START_TIMER("Recompute");
     recompute_all(p_graph);
+    STOP_TIMER();
+  }
+
+  void free() {
+    tbb::parallel_invoke([&] { _gain_cache.free(); }, [&] { _weighted_degrees.free(); });
   }
 
   EdgeWeight gain(const NodeID node, const BlockID block_from, const BlockID block_to) const {
@@ -153,8 +166,8 @@ private:
   NodeID _n;
   BlockID _k;
 
-  NoinitVector<EdgeWeight> _gain_cache;
-  NoinitVector<EdgeWeight> _weighted_degrees;
+  StaticArray<EdgeWeight> _gain_cache;
+  StaticArray<EdgeWeight> _weighted_degrees;
 };
 
 template <typename GainCache, bool use_sparsehash> class DeltaGainCache {

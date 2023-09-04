@@ -58,12 +58,12 @@ Timer &Timer::global() {
 
 void __attribute__((noinline)) Timer::start_timer_impl() {
   asm volatile("" ::: "memory");
-  _tree.current->start = timer::now();
+  _tree.current->start = std::chrono::high_resolution_clock::now();
 }
 
 void __attribute__((noinline)) Timer::stop_timer_impl() {
   asm volatile("" ::: "memory");
-  const TimePoint end = timer::now();
+  const TimePoint end = std::chrono::high_resolution_clock::now();
   _tree.current->elapsed += end - _tree.current->start;
 }
 

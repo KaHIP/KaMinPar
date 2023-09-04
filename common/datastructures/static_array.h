@@ -18,6 +18,11 @@
 #include "common/parallel/tbb_malloc.h"
 
 namespace kaminpar {
+namespace static_array {
+constexpr struct noinit_t {
+} noinit;
+} // namespace static_array
+
 template <typename T> class StaticArray {
 public:
   class StaticArrayIterator {
@@ -122,6 +127,10 @@ public:
   }
 
   StaticArray(const std::size_t size, no_init) {
+    resize(size, no_init{});
+  }
+
+  StaticArray(static_array::noinit_t, const std::size_t size) {
     resize(size, no_init{});
   }
 

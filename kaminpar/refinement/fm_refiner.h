@@ -8,6 +8,8 @@
 
 #include <cmath>
 
+#include <tbb/parallel_invoke.h>
+
 #include "kaminpar/context.h"
 #include "kaminpar/datastructures/delta_partitioned_graph.h"
 #include "kaminpar/datastructures/graph.h"
@@ -69,9 +71,7 @@ public:
   static constexpr int MOVED_LOCALLY = -1;
   static constexpr int MOVED_GLOBALLY = -2;
 
-  NodeTracker(const NodeID max_n) : _state(max_n) {
-    tbb::parallel_for<std::size_t>(0, max_n, [&](const std::size_t i) { _state[i] = 0; });
-  }
+  NodeTracker(const NodeID max_n) : _state(max_n) {}
 
   bool lock(const NodeID u, const int id) {
     int free = 0;
@@ -89,8 +89,12 @@ public:
     __atomic_store_n(&_state[node], value, __ATOMIC_RELAXED);
   }
 
+  void free() {
+    _state.free();
+  }
+
 private:
-  NoinitVector<int> _state;
+  StaticArray<int> _state;
 };
 
 class BorderNodes {
@@ -169,18 +173,31 @@ struct SharedData {
       : node_tracker(max_n),
         gain_cache(max_n, max_k),
         border_nodes(gain_cache, node_tracker),
-        shared_pq_handles(max_n),
-        target_blocks(max_n) {
-    tbb::parallel_for<std::size_t>(0, shared_pq_handles.size(), [&](std::size_t i) {
-      shared_pq_handles[i] = SharedBinaryMaxHeap<EdgeWeight>::kInvalidID;
-    });
+        shared_pq_handles(max_n, SharedBinaryMaxHeap<EdgeWeight>::kInvalidID),
+        target_blocks(static_array::noinit, max_n) {}
+
+  SharedData(const SharedData &) = delete;
+  SharedData &operator=(const SharedData &) = delete;
+
+  SharedData(SharedData &&) noexcept = default;
+  SharedData &operator=(SharedData &&) = delete;
+
+  ~SharedData() {
+    START_TIMER("Free shared FM refiner state");
+    tbb::parallel_invoke(
+        [&] { shared_pq_handles.free(); },
+        [&] { target_blocks.free(); },
+        [&] { node_tracker.free(); },
+        [&] { gain_cache.free(); }
+    );
+    STOP_TIMER();
   }
 
   NodeTracker node_tracker;
   DenseGainCache gain_cache;
   BorderNodes border_nodes;
-  NoinitVector<std::size_t> shared_pq_handles;
-  NoinitVector<BlockID> target_blocks;
+  StaticArray<std::size_t> shared_pq_handles;
+  StaticArray<BlockID> target_blocks;
   GlobalStats stats;
   GlobalBatchStats batch_stats;
 };
