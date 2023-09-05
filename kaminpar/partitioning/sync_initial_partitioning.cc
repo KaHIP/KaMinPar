@@ -36,7 +36,7 @@ SyncInitialPartitioner::partition(const Coarsener *coarsener, const PartitionCon
         helper::compute_num_copies(_input_ctx, n, converged, num_current_threads);
     num_local_copies_record.push_back(num_local_copies);
 
-    // create coarseners and partition contexts for next coarsening iteration
+    // Create coarseners and partition contexts for next coarsening iteration
     coarseners.emplace_back(num_current_copies * num_local_copies);
     auto &next_coarseners = coarseners.back();
     auto &current_coarseners = coarseners[coarseners.size() - 2];
@@ -45,7 +45,6 @@ SyncInitialPartitioner::partition(const Coarsener *coarsener, const PartitionCon
     tbb::parallel_for(static_cast<std::size_t>(0), num_current_copies, [&](const std::size_t i) {
       const std::size_t next_i = i * num_local_copies;
       for (std::size_t next_j = next_i; next_j < next_i + num_local_copies; ++next_j) {
-        DBG << "Duplicate " << i << " --> " << next_j;
         next_coarseners[next_j] = duplicate_coarsener(current_coarseners[i].get());
         next_p_ctxs[next_j] = current_p_ctxs[i];
       }
@@ -56,7 +55,7 @@ SyncInitialPartitioner::partition(const Coarsener *coarsener, const PartitionCon
     num_current_threads /= num_local_copies;
     num_current_copies *= num_local_copies;
 
-    // perform coarsening iteration, converge if all coarseners converged
+    // Perform coarsening iteration, converge if all coarseners converged
     converged = true;
     tbb::parallel_for(static_cast<std::size_t>(0), num_current_copies, [&](const std::size_t i) {
       const bool shrunk = helper::coarsen_once(
@@ -71,7 +70,7 @@ SyncInitialPartitioner::partition(const Coarsener *coarsener, const PartitionCon
     });
   }
 
-  // perform initial bipartition on every graph
+  // Perform initial bipartition on every graph
   std::vector<PartitionedGraph> current_p_graphs(num_threads);
   tbb::parallel_for(static_cast<std::size_t>(0), num_threads, [&](const std::size_t i) {
     auto &current_coarseners = coarseners.back();
@@ -80,7 +79,7 @@ SyncInitialPartitioner::partition(const Coarsener *coarsener, const PartitionCon
         helper::bipartition(graph, _input_ctx.partition.k, _input_ctx, _ip_m_ctx_pool);
   });
 
-  // uncoarsen and join graphs
+  // Uncoarsen and join graphs
   while (!num_local_copies_record.empty()) {
     const std::size_t num_local_copies = num_local_copies_record.back();
     num_local_copies_record.pop_back();
@@ -92,16 +91,20 @@ SyncInitialPartitioner::partition(const Coarsener *coarsener, const PartitionCon
       auto &p_graph = current_p_graphs[i];
       auto &coarsener = current_coarseners[i];
       auto &p_ctx = current_p_ctxs[i];
-
-      // uncoarsen and refine
       p_graph = helper::uncoarsen_once(coarsener.get(), std::move(p_graph), p_ctx);
-      auto refiner = factory::create_refiner(_input_ctx);
+
+      // The Context object is used to pre-allocate memory for the finest graph of the input
+      // hierarchy Since this refiner is never used for the finest graph, we need to adjust the
+      // context to prevent overallocation
+      Context small_ctx = _input_ctx;
+      small_ctx.partition.n = p_graph.n();
+      small_ctx.partition.m = p_graph.m();
+      auto refiner = factory::create_refiner(small_ctx);
       helper::refine(refiner.get(), p_graph, p_ctx);
 
       // extend partition
       const BlockID k_prime = helper::compute_k_for_n(p_graph.n(), _input_ctx);
       if (p_graph.k() < k_prime) {
-        DBG << "Extend to " << k_prime << " ...";
         helper::extend_partition(
             p_graph, k_prime, _input_ctx, p_ctx, _ip_extraction_pool, _ip_m_ctx_pool
         );
@@ -115,7 +118,7 @@ SyncInitialPartitioner::partition(const Coarsener *coarsener, const PartitionCon
     std::vector<PartitionedGraph> next_p_graphs(num_current_copies);
 
     tbb::parallel_for(static_cast<std::size_t>(0), num_current_copies, [&](const std::size_t i) {
-      // join
+      // Join
       const std::size_t start_pos = i * num_local_copies;
       PartitionContext &p_ctx = current_p_ctxs[start_pos];
       const std::size_t pos = helper::select_best(
@@ -125,7 +128,7 @@ SyncInitialPartitioner::partition(const Coarsener *coarsener, const PartitionCon
       );
       PartitionedGraph &p_graph = current_p_graphs[start_pos + pos];
 
-      // store
+      // Store
       next_p_ctxs[i] = std::move(p_ctx);
       next_p_graphs[i] = std::move(p_graph);
     });

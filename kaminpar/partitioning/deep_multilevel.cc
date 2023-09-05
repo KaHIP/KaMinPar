@@ -154,20 +154,16 @@ PartitionedGraph DeepMultilevelPartitioner::initial_partition(const Graph *graph
   // initial partitioning.
   DISABLE_TIMERS();
   PartitionedGraph p_graph = [&] {
-    Context input_ctx = _input_ctx;
-    input_ctx.partition.n = graph->n();
-    input_ctx.partition.m = graph->m();
-
     switch (_input_ctx.initial_partitioning.mode) {
     case InitialPartitioningMode::SEQUENTIAL:
       return helper::bipartition(graph, _input_ctx.partition.k, _input_ctx, _ip_m_ctx_pool);
 
     case InitialPartitioningMode::SYNCHRONOUS_PARALLEL:
-      return SyncInitialPartitioner(input_ctx, _ip_m_ctx_pool, _ip_extraction_pool)
+      return SyncInitialPartitioner(_input_ctx, _ip_m_ctx_pool, _ip_extraction_pool)
           .partition(_coarsener.get(), _current_p_ctx);
 
     case InitialPartitioningMode::ASYNCHRONOUS_PARALLEL:
-      return AsyncInitialPartitioner(input_ctx, _ip_m_ctx_pool, _ip_extraction_pool)
+      return AsyncInitialPartitioner(_input_ctx, _ip_m_ctx_pool, _ip_extraction_pool)
           .partition(_coarsener.get(), _current_p_ctx);
     }
 
