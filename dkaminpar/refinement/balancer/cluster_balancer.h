@@ -1,7 +1,7 @@
 /*******************************************************************************
  * Greedy balancing algorithm that moves clusters of nodes at a time.
  *
- * @file:   move_set_balancer.h
+ * @file:   cluster_balancer.h
  * @author: Daniel Seemaier
  * @date:   19.07.2023
  ******************************************************************************/

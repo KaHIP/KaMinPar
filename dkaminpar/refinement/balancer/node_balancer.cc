@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Distributed balancing algorithm that moves individual nodes.
+ *
  * @file:   greedy_balancer.cc
  * @author: Daniel Seemaier
  * @date:   12.04.2022
- * @brief:  Distributed balancing refinement algorithm.
  ******************************************************************************/
 #include "dkaminpar/refinement/balancer/node_balancer.h"
 
@@ -126,47 +127,61 @@ bool NodeBalancer::refine() {
       break;
     }
 
-    if (is_sequential_balancing_enabled()) {
-      if (!perform_sequential_round()) {
-        DBG0 << "terminated by sequential round";
+    if (is_sequential_balancing_enabled() && !perform_sequential_round()) {
+      if (!_stalled) {
+        DBG0 << "Sequential round stalled: switch to stalled mode";
+        switch_to_stalled();
+        continue;
+      } else {
+        DBG0 << "Terminated by sequential round";
         break;
       }
     }
 
     if (is_parallel_balancing_enabled()) {
       const double current_imbalance_distance = metrics::imbalance_l1(_p_graph, _p_ctx);
+      const double seq_rebalance_rate =
+          (previous_imbalance_distance - current_imbalance_distance) / previous_imbalance_distance;
+
       DBG0 << "Sequential rebalancing changed imbalance: " << previous_imbalance_distance << " --> "
-           << current_imbalance_distance << " = by "
-           << (previous_imbalance_distance - current_imbalance_distance) /
-                  previous_imbalance_distance
+           << current_imbalance_distance << " = by " << seq_rebalance_rate
            << "; threshold: " << _ctx.refinement.node_balancer.par_threshold;
 
-      if ((previous_imbalance_distance - current_imbalance_distance) / previous_imbalance_distance <
-              _nb_ctx.par_threshold ||
-          !is_sequential_balancing_enabled()) {
-        mpi::barrier(_p_graph.communicator());
-
+      if (seq_rebalance_rate < _nb_ctx.par_threshold || !is_sequential_balancing_enabled()) {
         if (!perform_parallel_round()) {
-          DBG0 << "terminated by parallel round";
-          break;
+          DBG0 << "Parallel round stalled: switch to stalled mode";
+          switch_to_stalled();
+          continue;
         }
 
         const double next_imbalance_distance = metrics::imbalance_l1(_p_graph, _p_ctx);
-        if (previous_imbalance_distance == next_imbalance_distance) {
-          DBG0 << "Parallel rebalancing did not improve imbalance: switching to sequential "
-                  "rebalancing only";
-          _stalled = true;
+        [[maybe_unused]] const double par_rebalance_rate =
+            (current_imbalance_distance - next_imbalance_distance) / current_imbalance_distance;
+        DBG0 << "Parallel rebalancing changed imbalance: " << current_imbalance_distance << " --> "
+             << next_imbalance_distance << " = by " << par_rebalance_rate;
 
-          // Reinit the balancer to fix blocks that were not overloaded in the beginning, but are
-          // overloaded now
-          initialize();
+        if (current_imbalance_distance == next_imbalance_distance) {
+          DBG0 << "Parallel round stalled: switch to stalled mode";
+          switch_to_stalled();
+          // no continue -> update previous_imbalance_distance
         }
+
         previous_imbalance_distance = next_imbalance_distance;
+      } else {
+        previous_imbalance_distance = current_imbalance_distance;
       }
     }
   }
 
   return false;
+}
+
+void NodeBalancer::switch_to_stalled() {
+  _stalled = true;
+
+  // Reinit the balancer to fix blocks that were not overloaded in the beginning, but are
+  // overloaded now due to imbalanced parallel moves
+  initialize();
 }
 
 bool NodeBalancer::perform_sequential_round() {

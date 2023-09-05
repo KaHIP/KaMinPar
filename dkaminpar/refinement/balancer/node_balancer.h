@@ -1,8 +1,9 @@
 /*******************************************************************************
- * @file:   greedy_balancer.h
+ * Distributed balancing algorithm that moves individual nodes.
+ *
+ * @file:   node_balancer.h
  * @author: Daniel Seemaier
  * @date:   12.04.2022
- * @brief:  Distributed balancing refinement algorithm.
  ******************************************************************************/
 #pragma once
 
@@ -81,6 +82,8 @@ private:
 
   bool
   assign_feasible_target_block(Candidate &candidate, const std::vector<BlockWeight> &deltas) const;
+
+  void switch_to_stalled();
 
   DistributedPartitionedGraph &_p_graph;
 
