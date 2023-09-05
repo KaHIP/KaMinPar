@@ -15,7 +15,7 @@
 #include "dkaminpar/datastructures/growt.h"
 #include "dkaminpar/refinement/refiner.h"
 
-#include "kaminpar/refinement/fm_refiner.h"
+#include "kaminpar/refinement/fm/fm_refiner.h"
 
 #include "common/logger.h"
 #include "common/parallel/atomic.h"

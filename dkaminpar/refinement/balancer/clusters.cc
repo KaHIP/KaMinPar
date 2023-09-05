@@ -16,7 +16,7 @@
 #include "dkaminpar/context.h"
 #include "dkaminpar/factories.h"
 
-#include "kaminpar/refinement/stopping_policies.h"
+#include "kaminpar/refinement/fm/stopping_policies.h"
 
 #include "common/assertion_levels.h"
 #include "common/datastructures/binary_heap.h"

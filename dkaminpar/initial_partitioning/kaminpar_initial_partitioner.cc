@@ -8,11 +8,11 @@
 #include "dkaminpar/initial_partitioning/kaminpar_initial_partitioner.h"
 
 #include "kaminpar/datastructures/graph.h"
-#include "kaminpar/partitioning/partitioning.h"
+#include "kaminpar/factories.h"
 
+#include "common/datastructures/scalable_vector.h"
 #include "common/datastructures/static_array.h"
 #include "common/logger.h"
-#include "common/datastructures/scalable_vector.h"
 #include "common/timer.h"
 
 namespace kaminpar::dist {
@@ -34,7 +34,7 @@ shm::PartitionedGraph KaMinParInitialPartitioner::initial_partition(
   DISABLE_TIMERS();
   const bool was_quiet = Logger::is_quiet();
   Logger::set_quiet_mode(true);
-  auto p_graph = shm::partitioning::partition(graph, shm_ctx);
+  auto p_graph = shm::factory::create_partitioner(graph, shm_ctx)->partition();
   Logger::set_quiet_mode(was_quiet);
   ENABLE_TIMERS();
 

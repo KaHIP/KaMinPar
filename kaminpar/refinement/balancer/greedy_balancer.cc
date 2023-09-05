@@ -1,11 +1,11 @@
 /*******************************************************************************
- * @file:   parallel_balancer.cc
+ * Greedy balancing algorithms that uses one thread per overloaded block.
+ *
+ * @file:   greedy_balancer.cc
  * @author: Daniel Seemaier
  * @date:   21.09.2021
- * @brief:  Greedy refinement graphutils that moves nodes until an infeasible
- * partition is feasible.
  ******************************************************************************/
-#include "kaminpar/refinement/greedy_balancer.h"
+#include "kaminpar/refinement/balancer/greedy_balancer.h"
 
 #include <kassert/kassert.hpp>
 

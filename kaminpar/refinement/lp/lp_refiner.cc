@@ -1,10 +1,11 @@
 /*******************************************************************************
- * @file:   label_propagation_refiner.cc
+ * Parallel k-way label propagation refiner.
+ *
+ * @file:   lp_refiner.cc
  * @author: Daniel Seemaier
  * @date:   30.09.2021
- * @brief:  K-way label propagation refinement algorithm.
  ******************************************************************************/
-#include "kaminpar/refinement/label_propagation_refiner.h"
+#include "kaminpar/refinement/lp/lp_refiner.h"
 
 #include "kaminpar/label_propagation.h"
 

@@ -24,8 +24,8 @@
 
 #include "kaminpar/datastructures/graph.h"
 #include "kaminpar/datastructures/partitioned_graph.h"
-#include "kaminpar/refinement/fm_refiner.h"
-#include "kaminpar/refinement/stopping_policies.h"
+#include "kaminpar/refinement/fm/fm_refiner.h"
+#include "kaminpar/refinement/fm/stopping_policies.h"
 
 #include "common/datastructures/binary_heap.h"
 #include "common/datastructures/rating_map.h"

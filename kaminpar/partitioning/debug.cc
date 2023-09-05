@@ -1,10 +1,11 @@
 /*******************************************************************************
+ * Debug utilities.
+ *
  * @file:   debug.cc
  * @author: Daniel Seemaier
  * @date:   18.04.2023
- * @brief:  Debug utilities.
  ******************************************************************************/
-#include "kaminpar/debug.h"
+#include "kaminpar/partitioning/debug.h"
 
 #include <fstream>
 #include <string>

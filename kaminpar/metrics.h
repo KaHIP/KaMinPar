@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Utility functions for computing partition metrics.
+ *
  * @file:   metrics.h
  * @author: Daniel Seemaier
  * @date:   21.09.2021
- * @brief:  Functions to compute partition quality metric.s
  ******************************************************************************/
 #pragma once
 

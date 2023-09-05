@@ -1,3 +1,10 @@
+/*******************************************************************************
+ * Pseudo-refiner that calls Mt-KaHyPar.
+ *
+ * @file:   mtkahypar_refiner.cc
+ * @author: Daniel Seemaier
+ * @date:   01.07.2023
+ ******************************************************************************/
 #include "kaminpar/refinement/mtkahypar_refiner.h"
 
 #include "kaminpar/context.h"

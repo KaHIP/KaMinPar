@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Configuration presets for KaMinPar.
+ *
  * @file:   presets.cc
  * @author: Daniel Seemaier
  * @date:   13.03.2023
- * @brief:  Configuration presets for shared-memory partitioning.
  ******************************************************************************/
 #include "kaminpar/presets.h"
 
@@ -179,8 +180,6 @@ Context create_strong_context() {
       RefinementAlgorithm::KWAY_FM,
       RefinementAlgorithm::GREEDY_BALANCER,
   };
-  // ctx.coarsening.cluster_weight_limit = ClusterWeightLimit::BLOCK_WEIGHT;
-  // ctx.coarsening.cluster_weight_multiplier = 1.0 / 18.0;
 
   return ctx;
 }

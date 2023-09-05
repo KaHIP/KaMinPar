@@ -1,9 +1,11 @@
 /*******************************************************************************
+ * General type definitions. @deprecated
+ *
  * @file:   definitions.h
  * @author: Daniel Seemaier
  * @date:   21.09.2021
- * @brief:  General type and macro definitions.
  ******************************************************************************/
 #pragma once
 
+// Part of this file is defined in the public library header:
 #include "kaminpar/kaminpar.h"

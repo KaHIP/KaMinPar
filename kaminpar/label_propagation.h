@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Generic implementation of parallel label propagation.
+ *
  * @file:   parallel_label_propagation.h
  * @author: Daniel Seemaier
  * @date:   21.09.2021
- * @brief:  Generic implementation of parallel label propagation.
  ******************************************************************************/
 #pragma once
 
@@ -19,10 +20,10 @@
 
 #include "common/assertion_levels.h"
 #include "common/datastructures/rating_map.h"
+#include "common/datastructures/scalable_vector.h"
 #include "common/logger.h"
 #include "common/parallel/atomic.h"
 #include "common/random.h"
-#include "common/datastructures/scalable_vector.h"
 #include "common/tags.h"
 #include "common/timer.h"
 

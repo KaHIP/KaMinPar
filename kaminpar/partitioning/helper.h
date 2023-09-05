@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Utility functions for common operations used by partitioning schemes.
+ *
  * @file:   helper.h
  * @author: Daniel Seemaier
  * @date:   21.09.2021
- * @brief:
  ******************************************************************************/
 #pragma once
 

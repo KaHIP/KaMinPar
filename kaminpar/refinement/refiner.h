@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Interface for refinement algorithms.
+ *
  * @file:   refiner.h
  * @author: Daniel Seemaier
  * @date:   21.09.2021
- * @brief:  Interface for refinement algorithms.
  ******************************************************************************/
 #pragma once
 

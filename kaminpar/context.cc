@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Context struct for KaMinPar.
+ *
  * @file:   context.cc
  * @author: Daniel Seemaier
  * @date:   21.09.2021
- * @brief:  Configuration struct for KaMinPar.
  ******************************************************************************/
 #include "kaminpar/context.h"
 

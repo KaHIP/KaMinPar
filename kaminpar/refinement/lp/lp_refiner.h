@@ -1,8 +1,9 @@
 /*******************************************************************************
- * @file:   label_propagation_refiner.h
+ * Parallel k-way label propagation refiner.
+ *
+ * @file:   lp_refiner.h
  * @author: Daniel Seemaier
- * @date:   21.09.2021
- * @brief:  K-way label propagation refinement algorithm.
+ * @date:   30.09.2021
  ******************************************************************************/
 #pragma once
 

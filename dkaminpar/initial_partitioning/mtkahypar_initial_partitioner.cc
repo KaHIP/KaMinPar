@@ -18,8 +18,6 @@
 #include <libmtkahypar.h>
 #endif // KAMINPAR_HAVE_MTKAHYPAR_LIB
 
-#include "kaminpar/partitioning/partitioning.h"
-
 #include "common/assertion_levels.h"
 #include "common/logger.h"
 #include "common/datastructures/noinit_vector.h"

@@ -1,9 +1,9 @@
 /*******************************************************************************
- * @file:   parallel_balancer.h
+ * Greedy balancing algorithms that uses one thread per overloaded block.
+ *
+ * @file:   greedy_balancer.h
  * @author: Daniel Seemaier
  * @date:   21.09.2021
- * @brief:  Greedy refinement graphutils that moves nodes until an infeasible
- * partition is feasible.
  ******************************************************************************/
 #pragma once
 

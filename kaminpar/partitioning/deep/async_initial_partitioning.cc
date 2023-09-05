@@ -1,10 +1,12 @@
 /*******************************************************************************
- * @file:   parallel_initial_partitioner.cc
+ * Implementation of the n / 2C < P phase of deep multilevel graph partitioning 
+ * scheduling the PE groups asynchronously.
+ *
+ * @file:   async_initial_partitioning.cc
  * @author: Daniel Seemaier
  * @date:   21.09.2021
- * @brief:
  ******************************************************************************/
-#include "kaminpar/partitioning/async_initial_partitioning.h"
+#include "kaminpar/partitioning/deep/async_initial_partitioning.h"
 
 namespace kaminpar::shm::partitioning {
 AsyncInitialPartitioner::AsyncInitialPartitioner(

@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * IO functions for the context structs.
+ *
  * @file:   context_io.h
  * @author: Daniel Seemaier
  * @date:   13.03.2023
- * @brief:  Input / output utility functions for the `shm::Context` struct.
  ******************************************************************************/
 #pragma once
 

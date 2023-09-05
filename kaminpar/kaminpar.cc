@@ -11,10 +11,9 @@
 #include "kaminpar/datastructures/graph.h"
 #include "kaminpar/datastructures/partitioned_graph.h"
 #include "kaminpar/definitions.h"
+#include "kaminpar/factories.h"
 #include "kaminpar/graphutils/permutator.h"
 #include "kaminpar/metrics.h"
-#include "kaminpar/partitioning/deep_multilevel.h"
-#include "kaminpar/partitioning/partitioning.h"
 #include "kaminpar/presets.h"
 
 #include "common/assertion_levels.h"
@@ -166,7 +165,7 @@ EdgeWeight KaMinPar::compute_partition(const int seed, const BlockID k, BlockID 
   }
 
   // Perform actual partitioning
-  PartitionedGraph p_graph = partitioning::partition(*_graph_ptr, _ctx);
+  PartitionedGraph p_graph = factory::create_partitioner(*_graph_ptr, _ctx)->partition();
 
   // Re-integrate isolated nodes that were cut off during preprocessing
   if (_graph_ptr->permuted()) {

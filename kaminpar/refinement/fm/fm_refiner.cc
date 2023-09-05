@@ -1,10 +1,11 @@
 /*******************************************************************************
+ * Parallel k-way FM refinement algorithm.
+ *
  * @file:   fm_refiner.cc
  * @author: Daniel Seemaier
  * @date:   14.03.2023
- * @brief:  Parallel k-way FM refinement algorithm.
  ******************************************************************************/
-#include "kaminpar/refinement/fm_refiner.h"
+#include "kaminpar/refinement/fm/fm_refiner.h"
 
 #include <cmath>
 #include <set>
@@ -19,7 +20,7 @@
 #include "kaminpar/datastructures/partitioned_graph.h"
 #include "kaminpar/definitions.h"
 #include "kaminpar/metrics.h"
-#include "kaminpar/refinement/stopping_policies.h"
+#include "kaminpar/refinement/fm/stopping_policies.h"
 
 #include "common/datastructures/marker.h"
 #include "common/parallel/atomic.h"

@@ -1,15 +1,18 @@
 /*******************************************************************************
- * @file:   partitioning.h
+ * Interface for partitioning schemes.
+ *
+ * @file:   partitioner.h
  * @author: Daniel Seemaier
  * @date:   21.09.2021
- * @brief:
  ******************************************************************************/
 #pragma once
 
-#include "kaminpar/context.h"
-#include "kaminpar/datastructures/graph.h"
 #include "kaminpar/datastructures/partitioned_graph.h"
 
-namespace kaminpar::shm::partitioning {
-PartitionedGraph partition(const Graph &graph, const Context &ctx);
-}
+namespace kaminpar::shm {
+class Partitioner {
+public:
+  virtual ~Partitioner() = default;
+  virtual PartitionedGraph partition() = 0;
+};
+} // namespace kaminpar::shm

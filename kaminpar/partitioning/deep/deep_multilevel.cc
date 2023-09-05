@@ -1,16 +1,19 @@
 /*******************************************************************************
- * @file:   parallel_recursive_bisection.cc
+ * Deep multilevel graph partitioning scheme.
+ *
+ * @file:   deep_multilevel.cc
  * @author: Daniel Seemaier
  * @date:   21.09.2021
- * @brief:
  ******************************************************************************/
-#include "kaminpar/partitioning/deep_multilevel.h"
+#include "kaminpar/partitioning/deep/deep_multilevel.h"
 
-#include "kaminpar/debug.h"
-#include "kaminpar/partitioning/async_initial_partitioning.h"
-#include "kaminpar/partitioning/sync_initial_partitioning.h"
+#include "kaminpar/partitioning/debug.h"
+#include "kaminpar/partitioning/deep/async_initial_partitioning.h"
+#include "kaminpar/partitioning/deep/sync_initial_partitioning.h"
 
-namespace kaminpar::shm::partitioning {
+namespace kaminpar::shm {
+using namespace partitioning;
+
 DeepMultilevelPartitioner::DeepMultilevelPartitioner(
     const Graph &input_graph, const Context &input_ctx
 )
@@ -219,4 +222,4 @@ void DeepMultilevelPartitioner::print_statistics() {
         << ", # of edge buffer reallocs: " << extraction_edges_reallocs;
   STATS << " * total memory: " << extraction_memory_in_kb / 1000 << " Mb";
 }
-} // namespace kaminpar::shm::partitioning
+} // namespace kaminpar::shm

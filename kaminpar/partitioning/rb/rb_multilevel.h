@@ -1,8 +1,9 @@
 /*******************************************************************************
- * @file:   parallel_simple_recursive_bisection.h
+ * Partitioning scheme that uses toplevel multilevel recursvie bipartitioning.
+ *
+ * @file:   rb_multilevel.h
  * @author: Daniel Seemaier
  * @date:   21.09.2021
- * @brief:
  ******************************************************************************/
 #pragma once
 
@@ -13,15 +14,16 @@
 #include "kaminpar/graphutils/subgraph_extractor.h"
 #include "kaminpar/initial_partitioning/initial_partitioning_facade.h"
 #include "kaminpar/partitioning/helper.h"
+#include "kaminpar/partitioning/partitioner.h"
 
-namespace kaminpar::shm::partitioning {
-class RBMultilevelPartitioner {
+namespace kaminpar::shm {
+class RBMultilevelPartitioner : public Partitioner {
 public:
   RBMultilevelPartitioner(const Graph &input_graph, const Context &input_ctx)
       : _input_graph(input_graph),
         _input_ctx(input_ctx) {}
 
-  PartitionedGraph partition() {
+  PartitionedGraph partition() final {
     DISABLE_TIMERS();
     PartitionedGraph p_graph = partition_recursive(_input_graph, _input_ctx.partition.k);
     ENABLE_TIMERS();
@@ -62,6 +64,8 @@ public:
   }
 
   PartitionedGraph bipartition(const Graph &graph, const BlockID final_k) {
+    using namespace partitioning;
+
     auto coarsener = factory::create_coarsener(graph, _input_ctx.coarsening);
 
     // set k to 2 for max cluster weight computation
@@ -99,6 +103,6 @@ private:
   const Graph &_input_graph;
   const Context &_input_ctx;
 
-  GlobalInitialPartitionerMemoryPool ip_m_ctx_pool;
+  partitioning::GlobalInitialPartitionerMemoryPool ip_m_ctx_pool;
 };
-} // namespace kaminpar::shm::partitioning
+} // namespace kaminpar::shm

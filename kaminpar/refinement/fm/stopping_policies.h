@@ -1,9 +1,9 @@
 /*******************************************************************************
+ * Adaptive stopping policies for the parallel k-way FM refinement algorithm.
+ *
  * @file:   stopping_policies.h
  * @author: Daniel Seemaier
  * @date:   12.04.2023
- * @brief:  Adaptive stopping policies for the parallel k-way FM refinement
- * algorithm.
  ******************************************************************************/
 #pragma once
 

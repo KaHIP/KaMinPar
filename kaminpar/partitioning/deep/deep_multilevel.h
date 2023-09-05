@@ -1,8 +1,9 @@
 /*******************************************************************************
- * @file:   parallel_recursive_bisection.h
+ * Deep multilevel graph partitioning scheme.
+ *
+ * @file:   deep_multilevel.h
  * @author: Daniel Seemaier
  * @date:   21.09.2021
- * @brief:
  ******************************************************************************/
 #pragma once
 
@@ -16,11 +17,12 @@
 #include "kaminpar/initial_partitioning/initial_partitioning_facade.h"
 #include "kaminpar/initial_partitioning/pool_bipartitioner.h"
 #include "kaminpar/partitioning/helper.h"
+#include "kaminpar/partitioning/partitioner.h"
 
 #include "common/console_io.h"
 
-namespace kaminpar::shm::partitioning {
-class DeepMultilevelPartitioner {
+namespace kaminpar::shm {
+class DeepMultilevelPartitioner : public Partitioner {
   SET_DEBUG(false);
   SET_STATISTICS(false);
 
@@ -33,7 +35,7 @@ public:
   DeepMultilevelPartitioner(DeepMultilevelPartitioner &&) = delete;
   DeepMultilevelPartitioner &operator=(DeepMultilevelPartitioner &&) = delete;
 
-  PartitionedGraph partition();
+  PartitionedGraph partition() final;
 
 private:
   PartitionedGraph uncoarsen(PartitionedGraph p_graph, bool &refined);
@@ -64,9 +66,9 @@ private:
 
   // Initial partitioning -> subgraph extraction
   graph::SubgraphMemory _subgraph_memory;
-  TemporaryGraphExtractionBufferPool _ip_extraction_pool;
+  partitioning::TemporaryGraphExtractionBufferPool _ip_extraction_pool;
 
   // Initial partitioning
-  GlobalInitialPartitionerMemoryPool _ip_m_ctx_pool;
+  partitioning::GlobalInitialPartitionerMemoryPool _ip_m_ctx_pool;
 };
-} // namespace kaminpar::shm::partitioning
+} // namespace kaminpar::shm

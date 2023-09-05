@@ -1,21 +1,22 @@
 /*******************************************************************************
+ * Shared-memory implementation of JET, due to
+ * "Jet: Multilevel Graph Partitioning on GPUs" by Gilbert et al.
+ *
  * @file:   jet_refiner.cc
  * @author: Daniel Seemaier
  * @date:   02.05.2023
- * @brief:  Shared-memory JET refiner due to:
- * "Jet: Multilevel Graph Partitioning on GPUs" by Gilbert et al.
  ******************************************************************************/
-#include "kaminpar/refinement/jet_refiner.h"
+#include "kaminpar/refinement/jet/jet_refiner.h"
 
 #include "kaminpar/datastructures/delta_partitioned_graph.h"
 #include "kaminpar/datastructures/partitioned_graph.h"
 #include "kaminpar/metrics.h"
+#include "kaminpar/refinement/balancer/greedy_balancer.h"
 #include "kaminpar/refinement/gain_cache.h"
-#include "kaminpar/refinement/greedy_balancer.h"
 
+#include "common/datastructures/noinit_vector.h"
 #include "common/degree_buckets.h"
 #include "common/logger.h"
-#include "common/datastructures/noinit_vector.h"
 #include "common/timer.h"
 
 namespace kaminpar::shm {

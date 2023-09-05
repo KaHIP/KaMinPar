@@ -1,25 +1,49 @@
 /*******************************************************************************
+ * Factory functions to instantiate partitioning composed based on their
+ * respective enum constant.
+ *
  * @file:   factories.cc
  * @author: Daniel Seemaier
  * @date:   21.09.2021
- * @brief:  Factory functions to instantiate coarsening and local improvement
- * algorithms.
  ******************************************************************************/
 #include "kaminpar/factories.h"
 
 #include <memory>
 
+// Partitioning schemes
+#include "kaminpar/partitioning/deep/deep_multilevel.h"
+#include "kaminpar/partitioning/rb/rb_multilevel.h"
+
+// Clusterings
 #include "kaminpar/coarsening/cluster_coarsener.h"
 #include "kaminpar/coarsening/lp_clustering.h"
+
+// Coarsening
 #include "kaminpar/coarsening/noop_coarsener.h"
-#include "kaminpar/refinement/fm_refiner.h"
-#include "kaminpar/refinement/greedy_balancer.h"
-#include "kaminpar/refinement/jet_refiner.h"
-#include "kaminpar/refinement/label_propagation_refiner.h"
+
+// Refinement
+#include "kaminpar/refinement/balancer/greedy_balancer.h"
+#include "kaminpar/refinement/fm/fm_refiner.h"
+#include "kaminpar/refinement/jet/jet_refiner.h"
+#include "kaminpar/refinement/lp/lp_refiner.h"
 #include "kaminpar/refinement/mtkahypar_refiner.h"
 #include "kaminpar/refinement/multi_refiner.h"
 
 namespace kaminpar::shm::factory {
+std::unique_ptr<Partitioner> create_partitioner(const Graph &graph, const Context &ctx) {
+  switch (ctx.mode) {
+  case PartitioningMode::DEEP: {
+    return std::make_unique<DeepMultilevelPartitioner>(graph, ctx);
+  }
+
+  case PartitioningMode::RB: {
+    return std::make_unique<RBMultilevelPartitioner>(graph, ctx);
+  }
+  }
+
+  __builtin_unreachable();
+}
+
 std::unique_ptr<Coarsener> create_coarsener(const Graph &graph, const CoarseningContext &c_ctx) {
   SCOPED_TIMER("Allocation");
 

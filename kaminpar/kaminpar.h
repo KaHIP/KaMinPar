@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Public library interface of KaMinPar.
+ *
  * @file:   kaminpar.h
  * @author: Daniel Seemaier
  * @date:   13.03.2023
- * @brief:  Public shared-memory partitioning interface.
  ******************************************************************************/
 #pragma once
 

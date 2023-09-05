@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Pseudo-refiner that runs multiple refiners in sequence.
+ *
  * @file:   multi_refiner.cc
  * @author: Daniel Seemaier
  * @date:   14.03.2023
- * @brief:  Pseudo-refiner that runs multiple refiners in sequence.
  ******************************************************************************/
 #include "kaminpar/refinement/multi_refiner.h"
 

@@ -1,10 +1,12 @@
 /*******************************************************************************
- * @file:   parallel_synchronized_initial_partitioner.cc
+ * Implementation of the n / 2C < P phase of deep multilevel graph partitioning
+ * scheduling the PE groups synchronously.
+ *
+ * @file:   sync_initial_partitioning.cc
  * @author: Daniel Seemaier
  * @date:   21.09.2021
- * @brief:
  ******************************************************************************/
-#include "kaminpar/partitioning/sync_initial_partitioning.h"
+#include "kaminpar/partitioning/deep/sync_initial_partitioning.h"
 
 namespace kaminpar::shm::partitioning {
 SyncInitialPartitioner::SyncInitialPartitioner(

@@ -1,8 +1,10 @@
 /*******************************************************************************
- * @file:   parallel_synchronized_initial_partitioner.h
+ * Implementation of the n / 2C < P phase of deep multilevel graph partitioning
+ * scheduling the PE groups synchronously.
+ *
+ * @file:   sync_initial_partitioning.h
  * @author: Daniel Seemaier
  * @date:   21.09.2021
- * @brief:
  ******************************************************************************/
 #pragma once
 
@@ -12,11 +14,8 @@
 #include <tbb/task_group.h>
 #include <tbb/task_scheduler_observer.h>
 
-#include "kaminpar/coarsening/lp_clustering.h"
 #include "kaminpar/datastructures/graph.h"
 #include "kaminpar/partitioning/helper.h"
-#include "kaminpar/refinement/greedy_balancer.h"
-#include "kaminpar/refinement/label_propagation_refiner.h"
 
 namespace kaminpar::shm::partitioning {
 class SyncInitialPartitioner {
