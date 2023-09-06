@@ -218,7 +218,7 @@ bool FMRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx)
     IF_STATSC(_fm_ctx.dbg_compute_batch_size_statistics) {
       std::vector<fm::BatchStats> batch_stats =
           dbg_compute_batch_stats(p_graph, std::move(dbg_changelog));
-      _shared->batch_stats.next_iteration(batch_stats);
+      _shared->batch_stats.next_iteration(std::move(batch_stats));
     }
 
     const EdgeWeight expected_gain_of_this_iteration = expected_gain_ets.combine(std::plus{});
