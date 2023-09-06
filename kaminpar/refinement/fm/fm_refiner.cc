@@ -273,8 +273,8 @@ std::vector<fm::BatchStats> FMRefiner::dbg_compute_batch_stats(
   }
 
   // If everything went right, we should now have the same partition as next_partition
-  KASSERT(metrics::edge_cut(prev_p_graph) == metrics::edge_cut(next_p_graph));
-  KASSERT(metrics::imbalance(prev_p_graph) == metrics::imbalance(next_p_graph));
+  KASSERT(metrics::edge_cut(prev_p_graph) == metrics::edge_cut(next_p_graph), "", assert::always);
+  KASSERT(metrics::imbalance(prev_p_graph) == metrics::imbalance(next_p_graph), "", assert::always);
 
   return batch_stats;
 }
