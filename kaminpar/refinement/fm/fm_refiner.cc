@@ -399,13 +399,13 @@ std::vector<NodeID> FMRefiner::dbg_compute_batch_distances(
     if (auto it = searched.find(u); it != searched.end()) {
       distances[it->second] = current_distance;
       searched.erase(it);
+    }
 
-      // Expand search to its neighbors
-      for (const auto &[e, v] : graph.neighbors(u)) {
-        if (visited.count(v) == 0) {
-          visited.insert(v);
-          frontier.push(v);
-        }
+    // Expand search to its neighbors
+    for (const auto &[e, v] : graph.neighbors(u)) {
+      if (visited.count(v) == 0) {
+        visited.insert(v);
+        frontier.push(v);
       }
     }
   }
