@@ -261,12 +261,29 @@ std::vector<fm::BatchStats> FMRefiner::dbg_compute_batch_stats(
   // prev_batches will now contain the *target* block for all nodes instead of their previous block
   auto [prev_p_graph, prev_batches] = dbg_build_prev_p_graph(next_p_graph, std::move(next_batches));
 
+  std::vector<std::vector<NodeID>> batch_distances(prev_batches.size());
+  tbb::parallel_for<std::size_t>(
+      0,
+      prev_batches.size(),
+      [&, &prev_p_graph = prev_p_graph, &prev_batches = prev_batches](std::size_t i) {
+        const auto &[seeds, moves] = prev_batches[i];
+        if (!moves.empty()) {
+          batch_distances[i] = dbg_compute_batch_distances(prev_p_graph.graph(), seeds, moves);
+        }
+      }
+  );
+
   // In the recorded sequence, re-apply batches batch-by-batch to measure their effect on partition
   // quality
   std::vector<fm::BatchStats> batch_stats;
-  for (const auto &[seeds, moves] : prev_batches) {
+  for (std::size_t i = 0; i < prev_batches.size(); ++i) {
+    const auto &[seeds, moves] = prev_batches[i];
+    const auto &distances = batch_distances[i];
+
     if (!moves.empty()) {
-      batch_stats.push_back(dbg_compute_single_batch_stats_in_sequence(prev_p_graph, seeds, moves));
+      batch_stats.push_back(
+          dbg_compute_single_batch_stats_in_sequence(prev_p_graph, seeds, moves, distances)
+      );
     } else {
       batch_stats.emplace_back();
     }
@@ -308,14 +325,12 @@ FMRefiner::dbg_build_prev_p_graph(const PartitionedGraph &p_graph, Batches batch
 fm::BatchStats FMRefiner::dbg_compute_single_batch_stats_in_sequence(
     PartitionedGraph &p_graph,
     const std::vector<NodeID> &seeds,
-    const std::vector<fm::AppliedMove> &moves
+    const std::vector<fm::AppliedMove> &moves,
+    const std::vector<NodeID> &distances
 ) const {
   KASSERT(!seeds.empty());
   KASSERT(!moves.empty());
   fm::BatchStats stats;
-
-  std::vector<NodeID> distances = dbg_compute_batch_distances(p_graph.graph(), seeds, moves);
-  KASSERT(!distances.empty());
 
   stats.size = moves.size();
   stats.max_distance = *std::max_element(distances.begin(), distances.end());

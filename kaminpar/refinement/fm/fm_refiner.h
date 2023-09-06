@@ -244,7 +244,8 @@ private:
   fm::BatchStats dbg_compute_single_batch_stats_in_sequence(
       PartitionedGraph &p_graph,
       const std::vector<NodeID> &seeds,
-      const std::vector<fm::AppliedMove> &moves
+      const std::vector<fm::AppliedMove> &moves,
+      const std::vector<NodeID> &distances
   ) const;
 
   std::vector<NodeID> dbg_compute_batch_distances(
