@@ -508,15 +508,26 @@ void print(const RefinementContext &ctx, std::ostream &out) {
        ctx.jet.balancing_algorithm == RefinementAlgorithm::GREEDY_NODE_BALANCER) ||
       (ctx.includes_algorithm(RefinementAlgorithm::GLOBAL_FM) &&
        ctx.fm.balancing_algorithm == RefinementAlgorithm::GREEDY_NODE_BALANCER)) {
-    out << "Greedy balancer:\n";
-    out << "  Number of nodes per block:  " << ctx.node_balancer.seq_num_nodes_per_block << "\n";
+    out << "Node balancer:\n";
+    out << "  Number of rounds:           " << ctx.node_balancer.max_num_rounds << "\n";
+    out << "  Sequential balancing:       "
+        << (ctx.node_balancer.enable_sequential_balancing ? "yes" : "no") << "\n";
+    out << "    Nodes per block:          " << ctx.node_balancer.seq_num_nodes_per_block << "\n";
+    out << "  Parallel balancing:         "
+        << (ctx.node_balancer.enable_parallel_balancing ? "yes" : "no") << "\n";
+    out << "    Threshold:                " << ctx.node_balancer.par_threshold << "\n";
+    out << "    # of dicing attempts:     " << ctx.node_balancer.par_num_dicing_attempts << " --> "
+        << (ctx.node_balancer.par_accept_imbalanced_moves ? "accept" : "reject") << "\n";
+    out << "    Gain buckets:             base " << ctx.node_balancer.par_gain_bucket_base
+        << ", positive gain buckets: "
+        << (ctx.node_balancer.par_enable_positive_gain_buckets ? "yes" : "no") << "\n";
   }
   if (ctx.includes_algorithm(RefinementAlgorithm::GREEDY_CLUSTER_BALANCER) ||
       (ctx.includes_algorithm(RefinementAlgorithm::JET_REFINER) &&
        ctx.jet.balancing_algorithm == RefinementAlgorithm::GREEDY_CLUSTER_BALANCER) ||
       (ctx.includes_algorithm(RefinementAlgorithm::GLOBAL_FM) &&
        ctx.fm.balancing_algorithm == RefinementAlgorithm::GREEDY_CLUSTER_BALANCER)) {
-    out << "Greedy cluster balancer:\n";
+    out << "Cluster balancer:\n";
     out << "  Clusters:                   " << ctx.cluster_balancer.cluster_strategy << "\n";
     out << "    Max weight:               " << ctx.cluster_balancer.cluster_size_strategy << " x "
         << ctx.cluster_balancer.cluster_size_multiplier << "\n";
