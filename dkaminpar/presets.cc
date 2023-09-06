@@ -23,6 +23,8 @@ Context create_context_by_preset_name(const std::string &name) {
     return create_europar23_fast_context();
   } else if (name == "europar23-strong") {
     return create_europar23_strong_context();
+  } else if (name == "jet") {
+    return create_jet_context();
   }
 
   throw std::runtime_error("invalid preset name");
@@ -34,6 +36,7 @@ std::unordered_set<std::string> get_preset_names() {
       "strong",
       "europar23-fast",
       "europar23-strong",
+      "jet",
   };
 }
 
@@ -181,12 +184,12 @@ Context create_default_context() {
                       .max_num_rounds = std::numeric_limits<int>::max(),
                       .enable_sequential_balancing = true,
                       .seq_num_nodes_per_block = 5,
-                      .enable_parallel_balancing = false,
+                      .enable_parallel_balancing = true,
                       .par_threshold = 0.1,
                       .par_num_dicing_attempts = 0,
                       .par_accept_imbalanced_moves = true,
                       .par_enable_positive_gain_buckets = true,
-                      .par_gain_bucket_base = 2.0,
+                      .par_gain_bucket_base = 1.1,
                   },
               .cluster_balancer =
                   {
@@ -252,6 +255,16 @@ Context create_europar23_strong_context() {
   Context ctx = create_europar23_fast_context();
   ctx.initial_partitioning.algorithm = InitialPartitioningAlgorithm::MTKAHYPAR;
   ctx.coarsening.global_lp.num_iterations = 5;
+  return ctx;
+}
+
+Context create_jet_context() {
+  Context ctx = create_default_context();
+  ctx.refinement.algorithms = {
+      RefinementAlgorithm::GREEDY_NODE_BALANCER,
+      RefinementAlgorithm::BATCHED_LP,
+      RefinementAlgorithm::JET_REFINER,
+      RefinementAlgorithm::GREEDY_NODE_BALANCER};
   return ctx;
 }
 } // namespace kaminpar::dist
