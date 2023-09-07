@@ -9,7 +9,7 @@
 
 #include <cmath>
 #include <set>
-#include <stack>
+#include <queue>
 #include <unordered_map>
 
 #include <tbb/concurrent_vector.h>
@@ -388,7 +388,7 @@ std::vector<NodeID> FMRefiner::dbg_compute_batch_distances(
   std::set<NodeID> visited;
 
   // Current frontier of the BFS
-  std::stack<NodeID> frontier;
+  std::queue<NodeID> frontier;
   for (const NodeID &seed : seeds) {
     frontier.push(seed);
     visited.insert(seed);
@@ -406,7 +406,7 @@ std::vector<NodeID> FMRefiner::dbg_compute_batch_distances(
       current_layer_size = frontier.size();
     }
 
-    const NodeID u = frontier.top();
+    const NodeID u = frontier.front();
     frontier.pop();
     --current_layer_size;
 
