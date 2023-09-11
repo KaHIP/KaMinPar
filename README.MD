@@ -106,7 +106,7 @@ KaMinPar is free software provided under the MIT License.
 If you publish results using our shared-memory partitioner, please acknowledge our work by citing the following paper ([resources](https://algo2.iti.kit.edu/seemaier/deep_mgp/)):
 
 ```
-@inproceedings{DeepMultilevel,
+@InProceedings{DeepMultilevelGraphPartitioning,
   author    = {Lars Gottesb{\"{u}}ren and
                Tobias Heuer and
                Peter Sanders and
@@ -127,13 +127,14 @@ If you publish results using our shared-memory partitioner, please acknowledge o
 If you publish results using out distributed-memory partitioner, please cite the following technical report ([resources](https://algo2.iti.kit.edu/seemaier/ddeep_mgp/)):
 
 ```
-@misc{DistributedDeepMultilevel,
-  doi = {10.48550/ARXIV.2303.01417},
-  url = {https://arxiv.org/abs/2303.01417},
-  author = {Sanders, Peter and Seemaier, Daniel},
-  title = {Distributed Deep Multilevel Graph Partitioning},
-  publisher = {arXiv},
-  year = {2023}
+@InProceedings{DistributedDeepMultilevelGraphPartitioning,
+  author    = {Sanders, Peter and Seemaier, Daniel},
+  title     = {Distributed Deep Multilevel Graph Partitioning},
+  booktitle = {Euro-Par 2023: Parallel Processing},
+  year      = {2023},
+  publisher = {Springer Nature Switzerland},
+  pages     = {443--457},
+  isbn      = {978-3-031-39698-4}
 }
 ```
 
