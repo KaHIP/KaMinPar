@@ -20,6 +20,8 @@
 #include "common/random.h"
 #include "common/timer.h"
 
+#define HEAVY assert::heavy
+
 namespace kaminpar::dist {
 NodeBalancerFactory::NodeBalancerFactory(const Context &ctx) : _ctx(ctx) {}
 
@@ -116,6 +118,8 @@ bool NodeBalancer::refine() {
     return false;
   }
 
+  KASSERT(graph::debug::validate_partition(_p_graph), "invalid partition before balancing", HEAVY);
+
   const PEID size = mpi::get_comm_size(_p_graph.communicator());
   const PEID rank = mpi::get_comm_rank(_p_graph.communicator());
 
@@ -171,8 +175,13 @@ bool NodeBalancer::refine() {
         previous_imbalance_distance = current_imbalance_distance;
       }
     }
+
+    KASSERT(
+        graph::debug::validate_partition(_p_graph), "invalid partition after balancing round", HEAVY
+    );
   }
 
+  KASSERT(graph::debug::validate_partition(_p_graph), "invalid partition after balancing", HEAVY);
   return false;
 }
 
@@ -240,11 +249,7 @@ bool NodeBalancer::perform_sequential_round() {
   }
   STOP_TIMER();
 
-  KASSERT(
-      graph::debug::validate_partition(_p_graph),
-      "balancer produced invalid partition",
-      assert::heavy
-  );
+  KASSERT(graph::debug::validate_partition(_p_graph), "balancer produced invalid partition", HEAVY);
 
   return num_winners > 0;
 }
@@ -420,11 +425,16 @@ bool NodeBalancer::perform_parallel_round() {
 
   // Find move candidates
   std::vector<Candidate> candidates;
-  std::vector<BlockWeight> block_weight_deltas(_p_graph.k());
+  std::vector<BlockWeight> block_weight_deltas_to(_p_graph.k());
+  std::vector<BlockWeight> block_weight_deltas_from(_p_graph.k());
 
   START_TIMER("Find move candidates");
   for (const BlockID from : _p_graph.blocks()) {
     for (const auto &[node, pq_gain] : _pq.elements(from)) {
+      if (block_overload(from) <= block_weight_deltas_from[from]) {
+        break;
+      }
+
       // @todo avoid double gain recomputation
       const auto [actual_gain, to] = _gain_calculator.compute_relative_gain(node, _p_ctx);
       const auto bucket = _buckets.compute_bucket(actual_gain);
@@ -440,11 +450,22 @@ bool NodeBalancer::perform_parallel_round() {
 
         if (candidate.from == candidate.to) {
           [[maybe_unused]] const bool reassigned =
-              assign_feasible_target_block(candidate, block_weight_deltas);
-          KASSERT(reassigned);
+              assign_feasible_target_block(candidate, block_weight_deltas_to);
+          KASSERT(
+              reassigned,
+              "could not find a feasible target block for node "
+                  << candidate.id << ", weight " << candidate.weight << ", deltas: ["
+                  << block_weight_deltas_to << "]"
+                  << ", max block weights: " << _p_ctx.graph->max_block_weights
+                  << ", block weights: "
+                  << std::vector<BlockWeight>(
+                         _p_graph.block_weights().begin(), _p_graph.block_weights().end()
+                     )
+          );
         }
 
-        block_weight_deltas[candidate.to] += candidate.weight;
+        block_weight_deltas_to[candidate.to] += candidate.weight;
+        block_weight_deltas_from[candidate.from] += candidate.weight;
         candidates.push_back(candidate);
       }
     }
@@ -456,7 +477,7 @@ bool NodeBalancer::perform_parallel_round() {
   START_TIMER("Allreduce weight to block");
   MPI_Allreduce(
       MPI_IN_PLACE,
-      block_weight_deltas.data(),
+      block_weight_deltas_to.data(),
       asserting_cast<int>(_p_graph.k()),
       mpi::type::get<BlockWeight>(),
       MPI_SUM,
@@ -482,7 +503,7 @@ bool NodeBalancer::perform_parallel_round() {
     for (std::size_t i = 0; i < candidates.size() - num_rejected_candidates; ++i) {
       const auto &candidate = candidates[i];
       const double probability =
-          1.0 * block_underload(candidate.to) / block_weight_deltas[candidate.to];
+          1.0 * block_underload(candidate.to) / block_weight_deltas_to[candidate.to];
       if (rand.random_bool(probability)) {
         actual_block_weight_deltas[candidate.to] += candidate.weight;
         actual_block_weight_deltas[candidate.from] -= candidate.weight;
@@ -562,7 +583,7 @@ bool NodeBalancer::assign_feasible_target_block(
 ) const {
   do {
     ++candidate.to;
-    if (candidate.to >= _p_ctx.k) {
+    if (candidate.to == _p_ctx.k) {
       candidate.to = 0;
     }
   } while (candidate.from != candidate.to &&

@@ -30,15 +30,12 @@ MultiRefinerFactory::create(DistributedPartitionedGraph &p_graph, const Partitio
 MultiRefiner::MultiRefiner(std::vector<std::unique_ptr<GlobalRefiner>> refiners)
     : _refiners(std::move(refiners)) {}
 
-void MultiRefiner::initialize() {
-  for (auto &refiner : _refiners) {
-    refiner->initialize();
-  }
-}
+void MultiRefiner::initialize() {}
 
 bool MultiRefiner::refine() {
   bool improved_partition = false;
   for (auto &refiner : _refiners) {
+    refiner->initialize();
     improved_partition |= refiner->refine();
   }
   return improved_partition;
