@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * IO utilities for the shared-memory partitioner.
+ *
  * @file:   shm_io.cc
  * @author: Daniel Seemaier
  * @date:   21.09.2021
- * @brief:  Graph and partition IO functions.
  ******************************************************************************/
 #include "apps/io/shm_io.h"
 
@@ -12,6 +13,8 @@
 
 #include "common/datastructures/static_array.h"
 #include "common/logger.h"
+
+#include "apps/io/metis_parser.h"
 
 namespace kaminpar::shm::io {
 //
@@ -193,31 +196,6 @@ template void read<true>(
     StaticArray<NodeWeight> &node_weights,
     StaticArray<EdgeWeight> &edge_weights
 );
-
-template <bool checked>
-Graph read(const std::string &filename, bool ignore_node_weights, bool ignore_edge_weights) {
-  StaticArray<EdgeID> nodes;
-  StaticArray<NodeID> edges;
-  StaticArray<NodeWeight> node_weights;
-  StaticArray<EdgeWeight> edge_weights;
-
-  metis::read<checked>(filename, nodes, edges, node_weights, edge_weights);
-
-  if (ignore_node_weights) {
-    node_weights.free();
-  }
-  if (ignore_edge_weights) {
-    edge_weights.free();
-  }
-
-  return {std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights)};
-}
-
-template Graph
-read<false>(const std::string &filename, bool ignore_node_weights, bool ignore_edge_weights);
-
-template Graph
-read<true>(const std::string &filename, bool ignore_node_weights, bool ignore_edge_weights);
 } // namespace metis
 
 //

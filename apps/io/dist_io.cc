@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * IO functions for the distributed partitioner.
+ *
  * @file:   dist_io.cc
  * @author: Daniel Seemaier
  * @date:   13.06.2023
- * @brief:  Distributed partition IO functions.
  ******************************************************************************/
 #include "apps/io/dist_io.h"
 

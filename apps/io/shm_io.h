@@ -1,18 +1,18 @@
 /*******************************************************************************
+ * IO utilities for the shared-memory partitioner.
+ *
  * @file:   shm_io.h
  * @author: Daniel Seemaier
  * @date:   21.09.2021
- * @brief:  Graph and partition IO functions.
  ******************************************************************************/
 #pragma once
 
-#include "kaminpar/datastructures/graph.h"
+#include <string>
+#include <vector>
+
 #include "kaminpar/definitions.h"
 
-#include "common/assertion_levels.h"
-
-#include "apps/io/metis_parser.h"
-#include "apps/io/mmap_toker.h"
+#include "common/datastructures/static_array.h"
 
 namespace kaminpar::shm::io {
 namespace metis {

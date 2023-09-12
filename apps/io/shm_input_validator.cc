@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Validator for undirected input graphs.
+ *
  * @file:   shm_input_validator.cc
  * @author: Daniel Seemaier
  * @date:   26.10.2022
- * @brief:  Validator for undirected input graphs.
  ******************************************************************************/
 #include "apps/io/shm_input_validator.h"
 
