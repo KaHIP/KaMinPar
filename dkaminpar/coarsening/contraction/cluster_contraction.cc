@@ -589,12 +589,13 @@ std::pair<NodeID, PEID> remap_gcnode(
 }
 
 AssignmentShifts compute_assignment_shifts(
-    const DistributedGraph &graph,
+    const StaticArray<GlobalNodeID> &current_node_distribution,
     const StaticArray<GlobalNodeID> &current_cnode_distribution,
-    const double max_cnode_imbalance
+    const double max_cnode_imbalance,
+    MPI_Comm comm
 ) {
-  const PEID size = mpi::get_comm_size(graph.communicator());
-  const PEID rank = mpi::get_comm_rank(graph.communicator());
+  const PEID size = mpi::get_comm_size(comm);
+  const PEID rank = mpi::get_comm_rank(comm);
   const GlobalNodeID c_n = current_cnode_distribution.back();
 
   struct PELoad {
@@ -636,7 +637,7 @@ AssignmentShifts compute_assignment_shifts(
 
   for (PEID pe = 0; pe < size; ++pe) {
     KASSERT(pe + 1 < size || size == 1);
-    maxes.push(pe, graph.offset_n(pe + 1) - graph.offset_n(pe));
+    maxes.push(pe, current_node_distribution[pe + 1] - current_node_distribution[pe]);
     ++num_pes;
 
     GlobalNodeID inc_from = pe_load[pe].count;
@@ -674,7 +675,7 @@ AssignmentShifts compute_assignment_shifts(
     if (cnode_count <= min_load) {
       pe_underload[pe + 1] = std::min(
           min_load - cnode_count + (nth_underloaded < plus_ones),
-          graph.offset_n(pe + 1) - graph.offset_n(pe)
+          current_node_distribution[pe + 1] - current_node_distribution[pe]
       );
       ++nth_underloaded;
     } else {
@@ -708,8 +709,12 @@ void rebalance_cluster_placement(
 ) {
   SCOPED_TIMER("Rebalance cluster assignment");
 
-  const auto shifts =
-      compute_assignment_shifts(graph, current_cnode_distribution, max_cnode_imbalance);
+  const auto shifts = compute_assignment_shifts(
+      graph.node_distribution(),
+      current_cnode_distribution,
+      max_cnode_imbalance,
+      graph.communicator()
+  );
 
   // Now remap the cluster IDs such that we respect pe_overload and pe_overload
   growt::GlobalNodeIDMap<GlobalNodeID> nonlocal_gcluster_to_gcnode_map(

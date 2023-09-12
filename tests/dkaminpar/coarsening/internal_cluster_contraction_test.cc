@@ -28,7 +28,8 @@ StaticArray<GlobalNodeID> build_cnode_distribution(const GlobalNodeID n) {
 TEST(ClusterReassignmentTest, perfectly_balanced_case) {
   const auto graph = make_isolated_nodes_graph(4);
   const auto cnode_distribution = build_cnode_distribution(2);
-  const auto result = compute_assignment_shifts(graph, cnode_distribution, 1.0);
+  const auto result =
+      compute_assignment_shifts(graph.node_distribution(), cnode_distribution, 1.0, MPI_COMM_WORLD);
   EXPECT_THAT(result.overload, Each(Eq(0)));
   EXPECT_THAT(result.underload, Each(Eq(0)));
 }
@@ -39,7 +40,8 @@ TEST(ClusterReassignmentTest, stair_no_limit) {
 
   const auto graph = make_isolated_nodes_graph(size * size);
   const auto cnode_distribution = build_cnode_distribution(2 * (rank + 1));
-  const auto result = compute_assignment_shifts(graph, cnode_distribution, 1.0);
+  const auto result =
+      compute_assignment_shifts(graph.node_distribution(), cnode_distribution, 1.0, MPI_COMM_WORLD);
 
   const GlobalNodeID expected = size + 1;
 
