@@ -53,15 +53,4 @@ DistributedPartitionedGraph project_partition(
     const NoinitVector<GlobalNodeID> &c_mapping,
     const MigratedNodes &migration
 );
-
-struct AssignmentShifts {
-  NoinitVector<GlobalNodeID> overload;
-  NoinitVector<GlobalNodeID> underload;
-};
-
-AssignmentShifts compute_assignment_shifts(
-    const DistributedGraph &graph,
-    const StaticArray<GlobalNodeID> &current_cnode_distribution,
-    const double max_cnode_imbalance
-);
 } // namespace kaminpar::dist

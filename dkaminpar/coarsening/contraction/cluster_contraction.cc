@@ -49,6 +49,11 @@ ContractionResult contract_clustering(
 }
 
 namespace {
+struct AssignmentShifts {
+  NoinitVector<GlobalNodeID> overload;
+  NoinitVector<GlobalNodeID> underload;
+};
+
 struct GlobalEdge {
   GlobalNodeID u;
   GlobalNodeID v;
@@ -58,6 +63,26 @@ struct GlobalEdge {
 struct GlobalNode {
   GlobalNodeID u;
   NodeWeight weight;
+};
+
+template <typename T> struct MigrationResult {
+  NoinitVector<T> elements;
+
+  // Can be re-used for mapping exchange ...
+  std::vector<int> sendcounts;
+  std::vector<int> sdispls;
+  std::vector<int> recvcounts;
+  std::vector<int> rdispls;
+};
+
+struct NodeMapping {
+  GlobalNodeID gcluster;
+  GlobalNodeID gcnode;
+};
+
+struct MigratedNodesMapping {
+  NoinitVector<NodeMapping> my_nonlocal_to_gcnode;
+  NoinitVector<NodeID> their_req_to_lcnode;
 };
 
 NoinitVector<GlobalNode>
@@ -362,16 +387,6 @@ std::pair<NoinitVector<NodeID>, NoinitVector<NodeID>> build_node_buckets(
   return {std::move(buckets_position_buffer), std::move(buckets)};
 }
 
-template <typename T> struct MigrationResult {
-  NoinitVector<T> elements;
-
-  // Can be re-used for mapping exchange ...
-  std::vector<int> sendcounts;
-  std::vector<int> sdispls;
-  std::vector<int> recvcounts;
-  std::vector<int> rdispls;
-};
-
 template <typename Element, typename NumElementsForPEContainer>
 MigrationResult<Element> migrate_elements(
     const NumElementsForPEContainer &num_elements_for_pe,
@@ -466,16 +481,6 @@ migrate_edges(const DistributedGraph &graph, const NoinitVector<GlobalEdge> &non
   SCOPED_TIMER("Exchange messages");
   return migrate_elements<GlobalEdge>(num_edges_for_pe, nonlocal_edges, graph.communicator());
 }
-
-struct NodeMapping {
-  GlobalNodeID gcluster;
-  GlobalNodeID gcnode;
-};
-
-struct MigratedNodesMapping {
-  NoinitVector<NodeMapping> my_nonlocal_to_gcnode;
-  NoinitVector<NodeID> their_req_to_lcnode;
-};
 
 MigratedNodesMapping exchange_migrated_nodes_mapping(
     const DistributedGraph &graph,
@@ -582,7 +587,6 @@ std::pair<NodeID, PEID> remap_gcnode(
     }
   }
 }
-} // namespace
 
 AssignmentShifts compute_assignment_shifts(
     const DistributedGraph &graph,
@@ -693,7 +697,6 @@ AssignmentShifts compute_assignment_shifts(
   };
 }
 
-namespace {
 void rebalance_cluster_placement(
     const DistributedGraph &graph,
     const StaticArray<GlobalNodeID> &current_cnode_distribution,
