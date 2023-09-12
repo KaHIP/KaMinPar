@@ -15,7 +15,7 @@
 #include "dkaminpar/factories.h"
 
 #include "kaminpar/context.h"
-#include "kaminpar/utils.h"
+#include "kaminpar/partition_utils.h"
 
 namespace kaminpar::dist {
 SET_DEBUG(false);
@@ -73,11 +73,7 @@ const DistributedGraph *Coarsener::coarsen_once_global(const GlobalNodeWeight ma
   }
 
   // Construct the coarse graph
-  auto result = contract_clustering(
-      *graph,
-      clustering,
-      _input_ctx.coarsening
-  );
+  auto result = contract_clustering(*graph, clustering, _input_ctx.coarsening);
 
   KASSERT(graph::debug::validate(result.graph), "", assert::heavy);
   DBG << "Reduced number of nodes from " << graph->global_n() << " to " << result.graph.global_n();
@@ -189,18 +185,13 @@ const DistributedGraph *Coarsener::nth_coarsest(const std::size_t n) const {
 }
 
 GlobalNodeWeight Coarsener::max_cluster_weight() const {
-  shm::PartitionContext shm_p_ctx = _input_ctx.initial_partitioning.kaminpar.partition;
-  shm_p_ctx.k = _input_ctx.partition.k;
-  shm_p_ctx.epsilon = _input_ctx.partition.epsilon;
-
-  shm::CoarseningContext shm_c_ctx = _input_ctx.initial_partitioning.kaminpar.coarsening;
-  shm_c_ctx.contraction_limit = _input_ctx.coarsening.contraction_limit;
-  shm_c_ctx.cluster_weight_limit = _input_ctx.coarsening.cluster_weight_limit;
-  shm_c_ctx.cluster_weight_multiplier = _input_ctx.coarsening.cluster_weight_multiplier;
-
   const auto *graph = coarsest();
-  return shm::compute_max_cluster_weight<GlobalNodeID, GlobalNodeWeight>(
-      graph->global_n(), graph->global_total_node_weight(), shm_p_ctx, shm_c_ctx
+
+  return shm::compute_max_cluster_weight(
+      _input_ctx.coarsening,
+      graph->global_n(),
+      graph->global_total_node_weight(),
+      _input_ctx.partition
   );
 }
 } // namespace kaminpar::dist

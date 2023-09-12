@@ -7,7 +7,7 @@
  ******************************************************************************/
 #include "kaminpar/partitioning/helper.h"
 
-#include "kaminpar/utils.h"
+#include "kaminpar/partition_utils.h"
 
 #include "common/math.h"
 
@@ -214,7 +214,7 @@ bool coarsen_once(
   SCOPED_TIMER("Coarsening");
 
   const NodeWeight max_cluster_weight =
-      compute_max_cluster_weight(*graph, input_ctx.partition, input_ctx.coarsening);
+      compute_max_cluster_weight(input_ctx.coarsening, *graph, input_ctx.partition);
   const auto [c_graph, shrunk] = coarsener->compute_coarse_graph(max_cluster_weight, 0);
 
   if (shrunk) {

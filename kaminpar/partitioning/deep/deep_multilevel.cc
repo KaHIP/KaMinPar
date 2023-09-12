@@ -115,7 +115,7 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
 
     // Print some metrics for the coarse graphs
     const NodeWeight max_cluster_weight =
-        compute_max_cluster_weight(*c_graph, _input_ctx.partition, _input_ctx.coarsening);
+        compute_max_cluster_weight(_input_ctx.coarsening, *c_graph, _input_ctx.partition);
     LOG << "Coarsening -> Level " << _coarsener.get()->size();
     LOG << "  Number of nodes: " << c_graph->n() << " | Number of edges: " << c_graph->m();
     LOG << "  Maximum node weight: " << c_graph->max_node_weight() << " <= " << max_cluster_weight;

@@ -13,6 +13,7 @@
 #include "kaminpar/datastructures/graph.h"
 #include "kaminpar/graphutils/subgraph_extractor.h"
 #include "kaminpar/initial_partitioning/initial_partitioning_facade.h"
+#include "kaminpar/partition_utils.h"
 #include "kaminpar/partitioning/helper.h"
 #include "kaminpar/partitioning/partitioner.h"
 
@@ -76,7 +77,7 @@ public:
 
     // coarsening
     PartitionContext p_ctx =
-        create_bipartition_context(_input_ctx.partition, graph, final_k / 2, final_k / 2);
+        create_bipartition_context(graph, final_k / 2, final_k / 2, _input_ctx.partition);
     bool shrunk = true;
     while (shrunk && c_graph->n() > 2 * _input_ctx.coarsening.contraction_limit) {
       shrunk = helper::coarsen_once(coarsener.get(), c_graph, pseudo_input_ctx, p_ctx);

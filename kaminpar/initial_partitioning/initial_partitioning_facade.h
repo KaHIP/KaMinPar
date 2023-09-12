@@ -11,7 +11,7 @@
 #include "kaminpar/initial_partitioning/initial_coarsener.h"
 #include "kaminpar/initial_partitioning/initial_refiner.h"
 #include "kaminpar/initial_partitioning/pool_bipartitioner.h"
-#include "kaminpar/utils.h"
+#include "kaminpar/partition_utils.h"
 
 namespace kaminpar::shm {
 class InitialPartitioner {
@@ -45,7 +45,7 @@ public:
         _i_ctx(ctx.initial_partitioning),
         _coarsener(&_graph, _i_ctx.coarsening, std::move(_m_ctx.coarsener_m_ctx)) {
     std::tie(_final_k1, _final_k2) = math::split_integral(final_k);
-    _p_ctx = create_bipartition_context(ctx.partition, _graph, _final_k1, _final_k2);
+    _p_ctx = create_bipartition_context(_graph, _final_k1, _final_k2, ctx.partition);
 
     _refiner =
         create_initial_refiner(_graph, _p_ctx, _i_ctx.refinement, std::move(_m_ctx.refiner_m_ctx));
@@ -87,7 +87,7 @@ private:
   const Graph *coarsen() {
     const InitialCoarseningContext &c_ctx = _i_ctx.coarsening;
     const NodeWeight max_cluster_weight =
-        compute_max_cluster_weight(_graph, _p_ctx, _i_ctx.coarsening);
+        compute_max_cluster_weight(_i_ctx.coarsening, _graph, _p_ctx);
 
     const Graph *c_graph = &_graph;
     bool shrunk = true;
