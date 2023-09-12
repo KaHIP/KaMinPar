@@ -81,14 +81,17 @@ inline std::chrono::time_point<std::chrono::high_resolution_clock> now() {
 class ScopedTimer {
 public:
   explicit ScopedTimer(Timer *timer) : _timer(timer) {}
+
   ScopedTimer(const ScopedTimer &) = delete;
   ScopedTimer &operator=(const ScopedTimer &) = delete;
+
   ScopedTimer(ScopedTimer &&other) noexcept : _timer{other._timer} {
     other._timer = nullptr;
   };
   ScopedTimer &operator=(ScopedTimer &&other) noexcept {
     return (std::swap(_timer, other._timer), *this);
   };
+
   inline ~ScopedTimer();
 
 private:
@@ -117,15 +120,15 @@ public:
     std::string_view name;
     std::string description;
 
-    std::size_t restarts{0};
-    Duration elapsed{};
-    TimePoint start{};
+    std::size_t restarts = 0;
+    Duration elapsed;
+    TimePoint start;
 
-    TimerTreeNode *parent{nullptr};
-    std::map<std::string_view, TimerTreeNode *> children_tbl{};
+    TimerTreeNode *parent = nullptr;
+    std::map<std::string_view, TimerTreeNode *> children_tbl;
     std::vector<std::unique_ptr<TimerTreeNode>> children;
 
-    std::string annotation{};
+    std::string annotation;
 
     [[nodiscard]] std::string build_display_name_mr() const;
     [[nodiscard]] std::string build_display_name_hr() const;
@@ -139,8 +142,8 @@ public:
   };
 
   struct TimerTree {
-    TimerTreeNode root{};
-    TimerTreeNode *current{&root};
+    TimerTreeNode root;
+    TimerTreeNode *current = &root;
   };
 
 public:
@@ -157,8 +160,7 @@ public:
   }
 
   template <typename String> void start_timer(std::string_view name, String description) {
-    std::lock_guard<std::mutex> lg{_mutex};
-
+    std::lock_guard<std::mutex> lg(_mutex);
     if (_disabled > 0) {
       return;
     }
@@ -218,12 +220,12 @@ public:
   }
 
   void enable() {
-    std::lock_guard<std::mutex> lg{_mutex};
+    std::lock_guard<std::mutex> lg(_mutex);
     _disabled = std::max(0, _disabled - 1);
   }
 
   void disable() {
-    std::lock_guard<std::mutex> lg{_mutex};
+    std::lock_guard<std::mutex> lg(_mutex);
     _disabled++;
   }
 
@@ -263,27 +265,31 @@ private:
 
   [[nodiscard]] std::size_t
   compute_time_col(std::size_t parent_prefix_len, const TimerTreeNode *node) const;
+
   [[nodiscard]] std::size_t compute_time_len(const TimerTreeNode *node) const;
+
   [[nodiscard]] std::size_t compute_restarts_len(const TimerTreeNode *node) const;
 
   void
   print_padded_timing(std::ostream &out, std::size_t start_col, const TimerTreeNode *node) const;
+
   void print_children_hr(
       std::ostream &out, const std::string &base_prefix, const TimerTreeNode *node, int max_depth
   ) const;
+
   void print_node_mr(
       std::ostream &out, const std::string &prefix, const TimerTreeNode *node, int max_depth
   ) const;
 
   std::string_view _name;
   std::string _annotation;
-  TimerTree _tree{};
-  std::mutex _mutex{};
-  int _disabled{};
+  TimerTree _tree;
+  std::mutex _mutex;
+  int _disabled = 0;
 
-  std::size_t _hr_time_col;
-  std::size_t _hr_max_time_len;
-  std::size_t _hr_max_restarts_len;
+  std::size_t _hr_time_col = 0;
+  std::size_t _hr_max_time_len = 0;
+  std::size_t _hr_max_restarts_len = 0;
 };
 
 namespace timer {

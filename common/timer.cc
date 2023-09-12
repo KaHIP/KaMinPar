@@ -52,7 +52,7 @@ Timer::Timer(std::string_view name) : _name{name} {
 }
 
 Timer &Timer::global() {
-  static Timer timer{"Global Timer"};
+  static Timer timer("Global Timer");
   return timer;
 }
 
