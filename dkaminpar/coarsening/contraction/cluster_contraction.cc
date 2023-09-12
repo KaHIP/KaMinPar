@@ -591,11 +591,9 @@ std::pair<NodeID, PEID> remap_gcnode(
 AssignmentShifts compute_assignment_shifts(
     const StaticArray<GlobalNodeID> &current_node_distribution,
     const StaticArray<GlobalNodeID> &current_cnode_distribution,
-    const double max_cnode_imbalance,
-    MPI_Comm comm
+    const double max_cnode_imbalance
 ) {
-  const PEID size = mpi::get_comm_size(comm);
-  const PEID rank = mpi::get_comm_rank(comm);
+  const PEID size = static_cast<PEID>(current_cnode_distribution.size() - 1);
   const GlobalNodeID c_n = current_cnode_distribution.back();
 
   struct PELoad {
@@ -712,8 +710,7 @@ void rebalance_cluster_placement(
   const auto shifts = compute_assignment_shifts(
       graph.node_distribution(),
       current_cnode_distribution,
-      max_cnode_imbalance,
-      graph.communicator()
+      max_cnode_imbalance
   );
 
   // Now remap the cluster IDs such that we respect pe_overload and pe_overload
