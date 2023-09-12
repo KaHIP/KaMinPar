@@ -921,7 +921,12 @@ ContractionResult contract_clustering(
     );
 
     STOP_TIMER(); // Contract clustering timer
-    return contract_clustering(graph, lnode_to_gcluster, max_cnode_imbalance);
+
+    // In some edge cases, rebalance_cluster_placement() might fail to balance the clusters to
+    // max_imbalance (this is because the subgraph of a PE cannot grow in size during coarsening).
+    // Thus, we accept any imbalance for the "rebalanced try" to avoid an infinite loop.
+    // @todo can this actually happen?
+    return contract_clustering(graph, lnode_to_gcluster);
   }
 
   auto nonlocal_edges = find_nonlocal_edges(graph, lnode_to_gcluster);
