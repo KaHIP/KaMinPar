@@ -635,7 +635,11 @@ AssignmentShifts compute_assignment_shifts(
 
   for (PEID pe = 0; pe < size; ++pe) {
     KASSERT(pe + 1 < size || size == 1);
-    maxes.push(pe, current_node_distribution[pe + 1] - current_node_distribution[pe]);
+
+    const PEID actual_pe = pe_load[pe].pe;
+    const GlobalNodeID pe_max =
+        current_node_distribution[actual_pe + 1] - current_node_distribution[actual_pe];
+    maxes.push(pe, pe_max); // id is never used
     ++num_pes;
 
     GlobalNodeID inc_from = pe_load[pe].count;
@@ -670,12 +674,16 @@ AssignmentShifts compute_assignment_shifts(
   for (PEID pe = 0; pe < size; ++pe) {
     const NodeID cnode_count =
         static_cast<NodeID>(current_cnode_distribution[pe + 1] - current_cnode_distribution[pe]);
+
     if (cnode_count <= min_load) {
-      pe_underload[pe + 1] = std::min(
-          min_load - cnode_count + (nth_underloaded < plus_ones),
-          current_node_distribution[pe + 1] - current_node_distribution[pe]
-      );
-      ++nth_underloaded;
+      const NodeID node_count =
+          static_cast<NodeID>(current_node_distribution[pe + 1] - current_node_distribution[pe]);
+
+      pe_underload[pe + 1] = std::min<NodeID>(min_load - cnode_count, node_count - cnode_count);
+      if (nth_underloaded < plus_ones && pe_underload[pe + 1] < node_count - cnode_count) {
+        ++pe_underload[pe + 1];
+        ++nth_underloaded;
+      }
     } else {
       pe_underload[pe + 1] = 0;
     }
@@ -708,9 +716,7 @@ void rebalance_cluster_placement(
   SCOPED_TIMER("Rebalance cluster assignment");
 
   const auto shifts = compute_assignment_shifts(
-      graph.node_distribution(),
-      current_cnode_distribution,
-      max_cnode_imbalance
+      graph.node_distribution(), current_cnode_distribution, max_cnode_imbalance
   );
 
   // Now remap the cluster IDs such that we respect pe_overload and pe_overload
