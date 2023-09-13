@@ -806,6 +806,7 @@ void rebalance_cluster_placement(
 }
 } // namespace
 
+namespace debug {
 bool validate_clustering(const DistributedGraph &graph, const GlobalClustering &lnode_to_gcluster) {
   for (const NodeID lnode : graph.all_nodes()) {
     const GlobalNodeID gcluster = lnode_to_gcluster[lnode];
@@ -848,6 +849,7 @@ bool validate_clustering(const DistributedGraph &graph, const GlobalClustering &
   );
   return failed == 0;
 }
+} // namespace debug
 
 ContractionResult contract_clustering(
     const DistributedGraph &graph,
@@ -859,7 +861,9 @@ ContractionResult contract_clustering(
   START_TIMER("Contract clustering");
 
   KASSERT(
-      validate_clustering(graph, lnode_to_gcluster), "input clustering is invalid", assert::heavy
+      debug::validate_clustering(graph, lnode_to_gcluster),
+      "input clustering is invalid",
+      assert::heavy
   );
 
   const PEID size = mpi::get_comm_size(graph.communicator());
