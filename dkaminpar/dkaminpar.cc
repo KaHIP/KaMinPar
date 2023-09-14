@@ -19,6 +19,7 @@
 #include "dkaminpar/datastructures/ghost_node_mapper.h"
 #include "dkaminpar/factories.h"
 #include "dkaminpar/graphutils/rearrangement.h"
+#include "dkaminpar/graphutils/synchronization.h"
 #include "dkaminpar/metrics.h"
 #include "dkaminpar/timer.h"
 
@@ -176,6 +177,10 @@ void dKaMinPar::import_graph(
       static_cast<GlobalEdgeID>(0)
   );
 
+  // We copy the graph to change the data types to 32 bits. If we do not want 32 bit IDs, we could
+  // use the original memory directly; @todo
+  // Except for the node weights, which must be re-allocated to make room for the weights of ghost
+  // nodes
   StaticArray<EdgeID> nodes;
   StaticArray<NodeID> edges;
   StaticArray<NodeWeight> node_weights;
@@ -199,13 +204,6 @@ void dKaMinPar::import_graph(
         });
       },
       [&] {
-        if (vwgt == nullptr) {
-          return;
-        }
-        node_weights.resize(n);
-        tbb::parallel_for<NodeID>(0, n, [&](const NodeID u) { node_weights[u] = vwgt[u]; });
-      },
-      [&] {
         if (adjwgt == nullptr) {
           return;
         }
@@ -213,6 +211,12 @@ void dKaMinPar::import_graph(
         tbb::parallel_for<EdgeID>(0, m, [&](const EdgeID e) { edge_weights[e] = adjwgt[e]; });
       }
   );
+
+  if (vwgt != nullptr) {
+    // Allocate enough room for ghost nodes; we fill them in after constructing the graph
+    node_weights.resize(n + mapper.next_ghost_node());
+    tbb::parallel_for<NodeID>(0, n, [&](const NodeID u) { node_weights[u] = vwgt[u]; });
+  }
 
   auto [global_to_ghost, ghost_to_global, ghost_owner] = mapper.finalize();
 
@@ -229,19 +233,27 @@ void dKaMinPar::import_graph(
       false,
       _comm
   );
+
+  // Fill in ghost node weights
+  if (vwgt != nullptr) {
+    graph::synchronize_ghost_node_weights(*_graph_ptr);
+  }
 }
 
 GlobalEdgeWeight dKaMinPar::compute_partition(const int seed, const BlockID k, BlockID *partition) {
-  auto &graph = *_graph_ptr;
+  DistributedGraph &graph = *_graph_ptr;
 
   const PEID size = mpi::get_comm_size(_comm);
   const PEID rank = mpi::get_comm_rank(_comm);
   const bool root = rank == 0;
 
+  // @todo: discuss: should there be an option to enable this check independently from the assertion
+  // level?
+  // The binary interface already implements graph validation via KaGen, which can be enabled as a
+  // CLI flag. There is no such option when using the library interface.
   KASSERT(graph::debug::validate(graph), "input graph failed graph verification", assert::heavy);
 
-  // Make number of processes and number of threads available via
-  // ParallelContext
+  // Setup the remaining context options that are passed in via the constructor
   _ctx.parallel.num_mpis = size;
   _ctx.parallel.num_threads = _num_threads;
   _ctx.initial_partitioning.kaminpar.parallel.num_threads = _ctx.parallel.num_threads;
@@ -251,7 +263,6 @@ GlobalEdgeWeight dKaMinPar::compute_partition(const int seed, const BlockID k, B
   // Initialize PRNG and console output
   Random::seed = seed;
   Logger::set_quiet_mode(_output_level == OutputLevel::QUIET);
-
   if (_output_level >= OutputLevel::APPLICATION) {
     print_input_summary(_ctx, graph, _output_level == OutputLevel::EXPERIMENT, root);
   }
@@ -283,8 +294,9 @@ GlobalEdgeWeight dKaMinPar::compute_partition(const int seed, const BlockID k, B
   STOP_TIMER();
 
   mpi::barrier(MPI_COMM_WORLD);
-  STOP_TIMER(); // stop root timer
 
+  // Print some statistics
+  STOP_TIMER(); // stop root timer
   if (_output_level >= OutputLevel::APPLICATION) {
     print_partition_summary(
         _ctx, p_graph, _max_timer_depth, _output_level == OutputLevel::EXPERIMENT, root

@@ -152,7 +152,6 @@ EdgeWeight KaMinPar::compute_partition(const int seed, const BlockID k, BlockID 
 
   // Initialize PRNG and console output
   Random::seed = seed;
-
   if (_output_level >= OutputLevel::APPLICATION) {
     print(_ctx, std::cout);
   }
@@ -189,7 +188,6 @@ EdgeWeight KaMinPar::compute_partition(const int seed, const BlockID k, BlockID 
 
   // Print some statistics
   STOP_TIMER(); // stop root timer
-
   if (_output_level >= OutputLevel::APPLICATION) {
     print_statistics(_ctx, p_graph, _max_timer_depth, _output_level == OutputLevel::EXPERIMENT);
   }

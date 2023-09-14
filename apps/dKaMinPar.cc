@@ -109,6 +109,64 @@ The output should be stored in a file and can be used by the -C,--config option.
   // Algorithmic options
   create_all_options(&cli, ctx);
 }
+
+NodeID load_kagen_graph(const ApplicationContext &app, dKaMinPar &partitioner) {
+  using namespace kagen;
+
+  KaGen generator(MPI_COMM_WORLD);
+  generator.UseCSRRepresentation();
+  if (app.check_input_graph) {
+    generator.EnableUndirectedGraphVerification();
+  }
+  if (app.experiment) {
+    generator.EnableBasicStatistics();
+    generator.EnableOutput(true);
+  }
+
+  Graph graph = [&] {
+    if (std::find(app.graph_filename.begin(), app.graph_filename.end(), ';') !=
+        app.graph_filename.end()) {
+      return generator.GenerateFromOptionString(app.graph_filename);
+    } else {
+      return generator.ReadFromFile(
+          app.graph_filename,
+          FileFormat::EXTENSION,
+          app.load_edge_balanced ? GraphDistribution::BALANCE_EDGES
+                                 : GraphDistribution::BALANCE_VERTICES
+      );
+    }
+  }();
+
+  // We use `unsigned long` here since we currently do not have any MPI type definitions for
+  // GlobalNodeID
+  static_assert(std::is_same_v<GlobalNodeID, unsigned long>);
+  std::vector<GlobalNodeID> vtxdist =
+      BuildVertexDistribution<unsigned long>(graph, MPI_UNSIGNED_LONG, MPI_COMM_WORLD);
+
+  // ... if the data types are not the same, we would need to re-allocate memory for the graph; to
+  // this if we ever need it ...
+  std::vector<SInt> xadj = graph.TakeXadj<>();
+  std::vector<SInt> adjncy = graph.TakeAdjncy<>();
+  std::vector<SSInt> vwgt = graph.TakeVertexWeights<>();
+  std::vector<SSInt> adjwgt = graph.TakeEdgeWeights<>();
+
+  static_assert(sizeof(SInt) == sizeof(GlobalNodeID));
+  static_assert(sizeof(SInt) == sizeof(GlobalEdgeID));
+  static_assert(sizeof(SSInt) == sizeof(GlobalNodeWeight));
+  static_assert(sizeof(SSInt) == sizeof(GlobalEdgeWeight));
+
+  GlobalEdgeID *xadj_ptr = reinterpret_cast<GlobalNodeID *>(xadj.data());
+  GlobalNodeID *adjncy_ptr = reinterpret_cast<GlobalNodeID *>(adjncy.data());
+  GlobalNodeWeight *vwgt_ptr =
+      vwgt.empty() ? nullptr : reinterpret_cast<GlobalNodeWeight *>(vwgt.data());
+  GlobalEdgeWeight *adjwgt_ptr =
+      adjwgt.empty() ? nullptr : reinterpret_cast<GlobalEdgeWeight *>(adjwgt.data());
+
+  // Pass the graph to the partitioner --
+  partitioner.import_graph(vtxdist.data(), xadj_ptr, adjncy_ptr, vwgt_ptr, adjwgt_ptr);
+
+  return graph.vertex_range.second - graph.vertex_range.first;
+}
 } // namespace
 
 int main(int argc, char *argv[]) {
@@ -116,7 +174,7 @@ int main(int argc, char *argv[]) {
   MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED, &provided);
 
   CLI::App cli("dKaMinPar: (Somewhat) Minimal Distributed Deep Multilevel "
-               "Graph Partitioning");
+               "Graph Partitioner");
   ApplicationContext app;
   Context ctx = create_default_context();
   setup_context(cli, app, ctx);
@@ -135,64 +193,20 @@ int main(int argc, char *argv[]) {
   }
 
   dKaMinPar partitioner(MPI_COMM_WORLD, app.num_threads, ctx);
+
   if (app.quiet) {
     partitioner.set_output_level(OutputLevel::QUIET);
   } else if (app.experiment) {
     partitioner.set_output_level(OutputLevel::EXPERIMENT);
   }
-  partitioner.set_max_timer_depth(app.max_timer_depth);
+
   partitioner.context().debug.graph_filename = app.graph_filename;
+  partitioner.set_max_timer_depth(app.max_timer_depth);
 
-  const NodeID n = [&] {
-    kagen::KaGen generator(MPI_COMM_WORLD);
-    generator.UseCSRRepresentation();
-    if (app.check_input_graph) {
-      generator.EnableUndirectedGraphVerification();
-    }
-    if (app.experiment) {
-      generator.EnableBasicStatistics();
-      generator.EnableOutput(true);
-    }
+  // Load the graph via KaGen
+  const NodeID n = load_kagen_graph(app, partitioner);
 
-    auto graph = [&] {
-      const bool filename_is_generator_string =
-          std::find(app.graph_filename.begin(), app.graph_filename.end(), ';') !=
-          app.graph_filename.end();
-      if (filename_is_generator_string) {
-        return generator.GenerateFromOptionString(app.graph_filename);
-      } else {
-        auto format = str::ends_with(app.graph_filename, "bgf") ? kagen::FileFormat::PARHIP
-                                                                : kagen::FileFormat::METIS;
-        auto distribution = app.load_edge_balanced ? kagen::GraphDistribution::BALANCE_EDGES
-                                                   : kagen::GraphDistribution::BALANCE_VERTICES;
-        return generator.ReadFromFile(app.graph_filename, format, distribution);
-      }
-    }();
-    auto vtxdist =
-        kagen::BuildVertexDistribution<unsigned long>(graph, MPI_UNSIGNED_LONG, MPI_COMM_WORLD);
-
-    auto xadj = graph.TakeXadj<>();
-    auto adjncy = graph.TakeAdjncy<>();
-    auto vwgt = graph.TakeVertexWeights<>();
-    auto adjwgt = graph.TakeEdgeWeights<>();
-
-    static_assert(sizeof(kagen::SInt) == sizeof(GlobalNodeID));
-    static_assert(sizeof(kagen::SInt) == sizeof(GlobalEdgeID));
-    static_assert(sizeof(kagen::SSInt) == sizeof(GlobalNodeWeight));
-    static_assert(sizeof(kagen::SSInt) == sizeof(GlobalEdgeWeight));
-
-    GlobalEdgeID *xadj_ptr = reinterpret_cast<GlobalNodeID *>(xadj.data());
-    GlobalNodeID *adjncy_ptr = reinterpret_cast<GlobalNodeID *>(adjncy.data());
-    GlobalNodeWeight *vwgt_ptr =
-        vwgt.empty() ? nullptr : reinterpret_cast<GlobalNodeWeight *>(vwgt.data());
-    GlobalEdgeWeight *adjwgt_ptr =
-        adjwgt.empty() ? nullptr : reinterpret_cast<GlobalEdgeWeight *>(adjwgt.data());
-
-    partitioner.import_graph(vtxdist.data(), xadj_ptr, adjncy_ptr, vwgt_ptr, adjwgt_ptr);
-
-    return graph.vertex_range.second - graph.vertex_range.first;
-  }();
-
+  // Compute the partition
   std::vector<BlockID> partition(n);
   partitioner.compute_partition(app.seed, app.k, partition.data());
 
