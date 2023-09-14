@@ -25,6 +25,8 @@ Context create_context_by_preset_name(const std::string &name) {
     return create_europar23_strong_context();
   } else if (name == "jet") {
     return create_jet_context();
+  } else if (name == "fm") {
+    return create_fm_context();
   }
 
   throw std::runtime_error("invalid preset name");
@@ -37,6 +39,7 @@ std::unordered_set<std::string> get_preset_names() {
       "europar23-fast",
       "europar23-strong",
       "jet",
+      "fm",
   };
 }
 
@@ -264,6 +267,16 @@ Context create_jet_context() {
       RefinementAlgorithm::GREEDY_NODE_BALANCER,
       RefinementAlgorithm::BATCHED_LP,
       RefinementAlgorithm::JET_REFINER,
+      RefinementAlgorithm::GREEDY_NODE_BALANCER};
+  return ctx;
+}
+
+Context create_fm_context() {
+  Context ctx = create_default_context();
+  ctx.refinement.algorithms = {
+      RefinementAlgorithm::GREEDY_NODE_BALANCER,
+      RefinementAlgorithm::BATCHED_LP,
+      RefinementAlgorithm::GLOBAL_FM,
       RefinementAlgorithm::GREEDY_NODE_BALANCER};
   return ctx;
 }
