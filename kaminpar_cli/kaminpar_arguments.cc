@@ -34,12 +34,30 @@ CLI::Option_group *create_partitioning_options(CLI::App *app, Context &ctx) {
       ->check(CLI::NonNegativeNumber)
       ->capture_default_str();
 
-  partitioning->add_option("-m,--mode", ctx.mode)
+  // Partitioning options
+  partitioning->add_option("-m,--p-mode", ctx.partitioning.mode)
       ->transform(CLI::CheckedTransformer(get_partitioning_modes()).description(""))
       ->description(R"(Partitioning scheme:
   - deep: deep multilevel
   - rb:   recursive multilevel bipartitioning)")
       ->capture_default_str();
+  partitioning
+      ->add_option(
+          "--p-deep-initial-partitioning-mode", ctx.partitioning.deep_initial_partitioning_mode
+      )
+      ->transform(CLI::CheckedTransformer(get_initial_partitioning_modes()).description(""))
+      ->description(R"(Chooses the initial partitioning mode:
+  - sequential:     do not diversify initial partitioning by replicating coarse graphs
+  - async-parallel: diversify initial partitioning by replicating coarse graphs each branch of the replication tree asynchronously
+  - sync-parallel:  same as async-parallel, but process branches synchronously)")
+      ->capture_default_str();
+  partitioning->add_option(
+      "--p-deep-initial-partitioning-load",
+      ctx.partitioning.deep_initial_partitioning_load,
+      "Fraction of cores that should be used for the coarse graph replication phase of deep MGP. A "
+      "value of '1' will replicate the graph once for every PE, whereas smaller values lead to "
+      "fewer replications."
+  );
 
   return partitioning;
 }
@@ -132,14 +150,6 @@ CLI::Option_group *create_lp_coarsening_options(CLI::App *app, Context &ctx) {
 CLI::Option_group *create_initial_partitioning_options(CLI::App *app, Context &ctx) {
   auto *ip = app->add_option_group("Initial Partitioning");
 
-  ip->add_option("--i-mode", ctx.initial_partitioning.mode)
-      ->transform(CLI::CheckedTransformer(get_initial_partitioning_modes()).description(""))
-      ->description(R"(Chooses the initial partitioning mode:
-  - sequential:     do not diversify initial partitioning by replicating coarse graphs
-  - async-parallel: diversify initial partitioning by replicating coarse graphs each branch of the replication tree asynchronously
-  - sync-parallel:  same as async-parallel, but process branches synchronously)")
-      ->capture_default_str();
-
   /*
   ip->add_option(
         "--i-c-contraction-limit",
@@ -152,10 +162,11 @@ CLI::Option_group *create_initial_partitioning_options(CLI::App *app, Context &c
   )
       ->transform(CLI::CheckedTransformer(get_cluster_weight_limits()).description(""))
       ->description(
-          R"(This option selects the formula used to compute the weight limit for nodes in coarse graphs. 
-The weight limit can additionally be scaled by a constant multiplier set by the --c-cluster-weight-multiplier option.
-Options are:
-  - epsilon-block-weight: Cmax = eps * c(V) * min{n' / C, k}, where n' is the number of nodes in the current (coarse) graph
+          R"(This option selects the formula used to compute the weight limit for nodes in coarse
+graphs. The weight limit can additionally be scaled by a constant multiplier set by the
+--c-cluster-weight-multiplier option. Options are:
+  - epsilon-block-weight: Cmax = eps * c(V) * min{n' / C, k}, where n' is the number of nodes in the
+current (coarse) graph
   - static-block-weight:  Cmax = c(V) / k
   - one:                  Cmax = 1
   - zero:                 Cmax = 0 (disable coarsening))"
@@ -177,8 +188,6 @@ Options are:
   */
 
   /*
-  ip->add_option("--i-rep-exp", ctx.initial_partitioning.multiplier_exponent)
-      ->capture_default_str();
   ip->add_option("--i-rep-multiplier", ctx.initial_partitioning.repetition_multiplier)
       ->capture_default_str();
   ip->add_option("--i-min-reps", ctx.initial_partitioning.min_num_repetitions)
@@ -200,7 +209,7 @@ Options are:
         "--i-r-disable", ctx.initial_partitioning.refinement.disabled, "Disable initial refinement."
   )
       ->capture_default_str();
-  
+
   /*
   ip->add_option("--i-r-stopping-rule", ctx.initial_partitioning.refinement.stopping_rule)
       ->transform(CLI::CheckedTransformer(get_fm_stopping_rules()).description(""))

@@ -31,7 +31,7 @@
 
 namespace kaminpar::shm::factory {
 std::unique_ptr<Partitioner> create_partitioner(const Graph &graph, const Context &ctx) {
-  switch (ctx.mode) {
+  switch (ctx.partitioning.mode) {
   case PartitioningMode::DEEP: {
     return std::make_unique<DeepMultilevelPartitioner>(graph, ctx);
   }

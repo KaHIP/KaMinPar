@@ -135,7 +135,7 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
 }
 
 NodeID DeepMultilevelPartitioner::initial_partitioning_threshold() {
-  if (helper::parallel_ip_mode(_input_ctx.initial_partitioning.mode)) {
+  if (helper::parallel_ip_mode(_input_ctx.partitioning.deep_initial_partitioning_mode)) {
     return _input_ctx.parallel.num_threads * _input_ctx.coarsening.contraction_limit; // p * C
   } else {
     return 2 * _input_ctx.coarsening.contraction_limit; // 2 * C
@@ -149,7 +149,8 @@ PartitionedGraph DeepMultilevelPartitioner::initial_partition(const Graph *graph
   // If requested, dump the coarsest graph to disk. Note that in the context of
   // deep multilevel, this is not actually the coarsest graph, but rather the
   // coarsest graph before splitting PEs and duplicating the graph.
-  // Disable worker splitting with --i-mode=sequential to obtain coarser graphs.
+  // Disable worker splitting with --p-deep-initial-partitioning-mode=sequential to obtain coarser
+  // graphs.
   debug::dump_coarsest_graph(*graph, _input_ctx.debug);
   debug::dump_graph_hierarchy(*graph, _coarsener->size(), _input_ctx.debug);
 
@@ -157,7 +158,7 @@ PartitionedGraph DeepMultilevelPartitioner::initial_partition(const Graph *graph
   // initial partitioning.
   DISABLE_TIMERS();
   PartitionedGraph p_graph = [&] {
-    switch (_input_ctx.initial_partitioning.mode) {
+    switch (_input_ctx.partitioning.deep_initial_partitioning_mode) {
     case InitialPartitioningMode::SEQUENTIAL:
       return helper::bipartition(graph, _input_ctx.partition.k, _input_ctx, _ip_m_ctx_pool);
 

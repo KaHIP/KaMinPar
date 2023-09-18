@@ -45,8 +45,12 @@ std::unordered_set<std::string> get_preset_names() {
 
 Context create_default_context() {
   return {
-      .mode = PartitioningMode::DEEP,
-      // Context
+      .partitioning =
+          {
+              .mode = PartitioningMode::DEEP,
+              .deep_initial_partitioning_mode = InitialPartitioningMode::SYNCHRONOUS_PARALLEL,
+              .deep_initial_partitioning_load = 1.0,
+          },
       .partition =
           {
               // Context -> Partition
@@ -73,7 +77,6 @@ Context create_default_context() {
           },
       .initial_partitioning =
           {
-              .mode = InitialPartitioningMode::SYNCHRONOUS_PARALLEL,
               .coarsening =
                   {
                       .contraction_limit = 20,
@@ -97,7 +100,6 @@ Context create_default_context() {
               .max_num_repetitions = 50,
               .num_seed_iterations = 1,
               .use_adaptive_bipartitioner_selection = true,
-              .multiplier_exponent = 0,
           },
       .refinement =
           {
@@ -153,11 +155,11 @@ Context create_default_context() {
 
 Context create_fast_context() {
   Context ctx = create_default_context();
+  ctx.partitioning.deep_initial_partitioning_mode = InitialPartitioningMode::SEQUENTIAL;
   ctx.coarsening.lp.num_iterations = 1;
   ctx.initial_partitioning.min_num_repetitions = 1;
   ctx.initial_partitioning.min_num_non_adaptive_repetitions = 1;
   ctx.initial_partitioning.max_num_repetitions = 1;
-  ctx.initial_partitioning.mode = InitialPartitioningMode::SEQUENTIAL;
   return ctx;
 }
 

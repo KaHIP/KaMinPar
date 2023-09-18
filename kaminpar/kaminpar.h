@@ -192,8 +192,6 @@ struct InitialRefinementContext {
 };
 
 struct InitialPartitioningContext {
-  InitialPartitioningMode mode;
-
   InitialCoarseningContext coarsening;
   InitialRefinementContext refinement;
 
@@ -203,7 +201,6 @@ struct InitialPartitioningContext {
   std::size_t max_num_repetitions;
   std::size_t num_seed_iterations;
   bool use_adaptive_bipartitioner_selection;
-  std::size_t multiplier_exponent;
 };
 
 //
@@ -260,9 +257,15 @@ enum class PartitioningMode {
   RB,
 };
 
-struct Context {
+struct PartitioningContext {
   PartitioningMode mode;
 
+  InitialPartitioningMode deep_initial_partitioning_mode;
+  double deep_initial_partitioning_load;
+};
+
+struct Context {
+  PartitioningContext partitioning;
   PartitionContext partition;
   CoarseningContext coarsening;
   InitialPartitioningContext initial_partitioning;

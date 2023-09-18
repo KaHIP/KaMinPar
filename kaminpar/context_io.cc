@@ -164,7 +164,6 @@ void print(const LabelPropagationCoarseningContext &lp_ctx, std::ostream &out) {
 }
 
 void print(const InitialPartitioningContext &i_ctx, std::ostream &out) {
-  out << "Initial partitioning mode:    " << i_ctx.mode << "\n";
   out << "Adaptive algorithm selection: "
       << (i_ctx.use_adaptive_bipartitioner_selection ? "yes" : "no") << "\n";
 }
@@ -206,12 +205,20 @@ void print(const PartitionContext &p_ctx, std::ostream &out) {
       << p_ctx.block_weights.perfectly_balanced(0) << " + " << 100 * p_ctx.epsilon << "%)\n";
 }
 
+void print(const PartitioningContext &p_ctx, std::ostream &out) {
+  out << "Partitioning mode:            " << p_ctx.mode << "\n";
+  if (p_ctx.mode == PartitioningMode::DEEP) {
+    out << "  Deep initial part. mode:  " << p_ctx.deep_initial_partitioning_mode << "\n";
+    out << "  Deep initial part. load:  " << p_ctx.deep_initial_partitioning_load << "\n";
+  }
+}
+
 void print(const Context &ctx, std::ostream &out) {
   out << "Execution mode:               " << ctx.parallel.num_threads << "\n";
   out << "Graph:                        " << ctx.debug.graph_name << "\n";
   print(ctx.partition, out);
   cio::print_delimiter("Partitioning Scheme", '-');
-  out << "Partitioning mode:            " << ctx.mode << "\n";
+  print(ctx.partitioning, out);
   cio::print_delimiter("Coarsening", '-');
   print(ctx.coarsening, out);
   cio::print_delimiter("Initial Partitioning", '-');
