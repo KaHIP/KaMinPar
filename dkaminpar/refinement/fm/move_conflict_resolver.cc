@@ -147,7 +147,7 @@ broadcast_and_resolve_global_moves(std::vector<GlobalMove> &my_global_moves, MPI
   resolve_move_conflicts_greedy(my_global_moves);
   STOP_TIMER();
 
-  // Filter
+  // Filter rejected moves from this PE to reduce communication volume
   std::vector<GlobalMove> my_filtered_global_moves;
   for (const auto &move : my_global_moves) {
     if (is_valid_id(move.node)) {
@@ -157,15 +157,20 @@ broadcast_and_resolve_global_moves(std::vector<GlobalMove> &my_global_moves, MPI
 
   DBG << "After resolving local conflicts: " << my_filtered_global_moves.size()
       << " global moves on this PE";
-
   auto global_moves = allgather_global_moves(my_filtered_global_moves, comm);
-
   DBG << "After allgathering: " << global_moves.size() << " global moves";
 
   START_TIMER("Global conflict resolution");
   sort_move_groups(global_moves);
   resolve_move_conflicts_greedy(global_moves);
   STOP_TIMER();
+
+  // Also add rejected moves from this PE to build a consistent interface
+  for (const auto &move : my_global_moves) {
+    if (is_invalid_id(move.node)) {
+      global_moves.push_back(move);
+    }
+  }
 
   return global_moves;
 }

@@ -50,8 +50,9 @@ public:
   BfsExtractor(const DistributedGraph &graph);
 
   BfsExtractor &operator=(const BfsExtractor &) = delete;
-  BfsExtractor &operator=(BfsExtractor &&) = delete;
   BfsExtractor(const BfsExtractor &) = delete;
+
+  BfsExtractor &operator=(BfsExtractor &&) = delete;
   BfsExtractor(BfsExtractor &&) noexcept = default;
 
   void initialize(const DistributedPartitionedGraph &p_graph);

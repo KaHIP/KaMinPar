@@ -158,22 +158,23 @@ bool FMRefiner::refine() {
 
     const auto seed_nodes = graph::find_independent_border_set(_p_graph, global_round);
 
+    // Run distributed BFS to extract batches around the seed nodes
     graph::BfsExtractor bfs_extractor(_p_graph.graph());
     bfs_extractor.initialize(_p_graph);
     bfs_extractor.set_max_hops(_fm_ctx.max_hops);
     bfs_extractor.set_max_radius(_fm_ctx.max_radius);
     auto extraction_result = bfs_extractor.extract(seed_nodes);
 
+    // This is the batch graph containing the subgraphs around all seed nodes
+    // The last `k` nodes are pseudo-nodes representing the blocks of the graph partition
     shm::Graph *b_graph = extraction_result.graph.get();
     shm::PartitionedGraph *bp_graph = extraction_result.p_graph.get();
 
     DBG << "BFS extraction result: n=" << b_graph->n() << ", m=" << b_graph->m();
     KASSERT(
-        shm::validate_graph(
-            *b_graph, true, _p_graph.k()
-        ), // @todo why is the graph (outside the fixed vertices) not undirected?
+        shm::validate_graph(*b_graph, false, _p_graph.k()),
         "BFS extractor returned invalid graph data structure",
-        assert::heavy
+        assert::normal
     );
 
     // Overwrite the block weights in the batch graph with block weights of the global graph
@@ -191,10 +192,10 @@ bool FMRefiner::refine() {
     std::atomic<int> next_id = 0;
     tbb::enumerable_thread_specific<shm::LocalizedFMRefiner> worker_ets([&] {
       // It is important that worker IDs start at 1, otherwise the node
-      // tracker won't work
+      // tracker won't work since 0 is reserved for "unmarked / untracked"
       shm::LocalizedFMRefiner worker(++next_id, shm_p_ctx, shm_fm_ctx, *bp_graph, shared);
 
-      // This allows access to the moves that were applied to shared bp_graph partition
+      // This allows access to the moves that were applied to the shared bp_graph partition
       worker.enable_move_recording();
 
       return worker;
@@ -209,16 +210,18 @@ bool FMRefiner::refine() {
       START_TIMER("Thread-local FM");
       shm::LocalizedFMRefiner &worker = worker_ets.local();
       while (shared.border_nodes.has_more()) {
-        const NodeID seed_node = shared.border_nodes.get();
         const EdgeWeight gain = worker.run_batch();
 
-        auto moves = worker.take_applied_moves();
+        KASSERT(worker.last_batch_seed_nodes().size() == 1);
+        const NodeID seed = worker.last_batch_seed_nodes().front();
+        const auto &moves = worker.last_batch_moves();
+
         if (!moves.empty()) {
-          const GlobalNodeID group = node_mapper.to_graph(seed_node);
+          const GlobalNodeID group = node_mapper.to_graph(seed);
           for (const auto &[node, from, improvement] : moves) {
             move_sets.push_back(GlobalMove{
                 .node = node_mapper.to_graph(node),
-                .group = seed_node,
+                .group = seed,
                 .weight = static_cast<NodeWeight>(bp_graph->node_weight(node)),
                 .gain = gain,
                 .from = from,
@@ -239,20 +242,15 @@ bool FMRefiner::refine() {
 
       mpi::barrier(_p_graph.communicator());
 
-      // Resolve global move conflicts
+      // Resolve global move conflicts: after this operation, global_move_buffer accepted moves with
+      // valid node IDs (is_valid_id(node)) and rejected moves with invalid node IDs
+      // (is_invalid_id(node))
       START_TIMER("Resolve move conflicts");
       auto global_move_buffer =
           broadcast_and_resolve_global_moves(move_sets, _p_graph.communicator());
       STOP_TIMER();
 
       mpi::barrier(_p_graph.communicator());
-
-      // @todo optimize this
-      for (const auto &moved_node : move_sets) {
-        if (is_invalid_id(moved_node.node)) {
-          global_move_buffer.push_back(moved_node);
-        }
-      }
 
       // Apply moves to global partition and extract graph
       START_TIMER("Apply moves");
@@ -278,14 +276,14 @@ bool FMRefiner::refine() {
         } else if (!_fm_ctx.revert_local_moves_after_batch && is_invalid_id(node)) {
           if (const NodeID bnode = node_mapper.to_batch(extract_id(node));
               bnode != kInvalidNodeID) {
-            bp_graph->set_block(bnode, to);
-            shared.gain_cache.move(*bp_graph, bnode, from, to);
+            bp_graph->set_block(bnode, from);
+            shared.gain_cache.move(*bp_graph, bnode, to, from);
           }
         }
       }
 
-      // Block weightgs in the batch graph are no longer valid, so we must copy them from the
-      // global graph again
+      // Block weights in the batch graph are no longer valid (@todo why?), so we must copy them
+      // from the global graph again
       for (const BlockID block : _p_graph.blocks()) {
         bp_graph->set_block_weight(block, _p_graph.block_weight(block));
       }
