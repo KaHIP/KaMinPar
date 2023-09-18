@@ -13,6 +13,35 @@
 #include "dkaminpar/context_io.h"
 
 namespace kaminpar::dist {
+namespace {
+void create_chunks_options(CLI::Option_group *cli, const std::string &prefix, ChunksContext &ctx) {
+  cli->add_option(
+         prefix + "-total-chunks",
+         ctx.total_num_chunks,
+         "Number of synchronization rounds times number of PEs."
+  )
+      ->capture_default_str();
+  cli->add_option(
+         prefix + "-min-chunks", ctx.min_num_chunks, "Minimum number of synchronization rounds."
+  )
+      ->capture_default_str();
+  cli->add_option(
+         prefix + "-num-chunks",
+         ctx.fixed_num_chunks,
+         "Set the number of chunks to a fixed number rather than deducing it "
+         "from other parameters (0 = deduce)."
+  )
+      ->capture_default_str();
+  cli->add_flag(
+         prefix + "-scale-chunks-with-threads",
+         ctx.scale_chunks_with_threads,
+         "Scale the number of chunks s.t. the nodes per chunk remains constant regardless of the "
+         "number of threads used per MPI process."
+  )
+      ->capture_default_str();
+}
+} // namespace
+
 void create_all_options(CLI::App *app, Context &ctx) {
   create_partitioning_options(app, ctx);
   create_debug_options(app, ctx);
@@ -199,6 +228,15 @@ CLI::Option_group *create_fm_refinement_options(CLI::App *app, Context &ctx) {
   fm->add_option("--r-fm-abortion-threshold", ctx.refinement.fm.abortion_threshold)
       ->capture_default_str();
 
+  fm->add_flag(
+        "--r-fm-chunk-local-rounds",
+        ctx.refinement.fm.chunk_local_rounds,
+        "If enabled, divide local rounds into chunks and synchronize the partition state after "
+        "each chunk."
+  )
+      ->capture_default_str();
+  create_chunks_options(fm, "--r-fm", ctx.refinement.fm.chunks);
+
   return fm;
 }
 
@@ -373,9 +411,7 @@ CLI::Option_group *create_node_balancer_options(CLI::App *app, Context &ctx) {
       )
       ->capture_default_str();
   balancer
-      ->add_option(
-          "--r-nb-par-gain-bucket-base", ctx.refinement.node_balancer.par_gain_bucket_base
-      )
+      ->add_option("--r-nb-par-gain-bucket-base", ctx.refinement.node_balancer.par_gain_bucket_base)
       ->capture_default_str();
 
   return balancer;

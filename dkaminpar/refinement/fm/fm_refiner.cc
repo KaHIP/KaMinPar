@@ -207,94 +207,103 @@ bool FMRefiner::refine() {
     for (std::size_t local_round = 0; local_round < _fm_ctx.num_local_iterations; ++local_round) {
       DBG << "Starting FM round " << global_round << "/" << local_round;
 
-      START_TIMER("Thread-local FM");
       shm::LocalizedFMRefiner &worker = worker_ets.local();
+
+      const NodeID total_num_seeds = shared.border_nodes.size();
+      const int total_num_chunks =
+          _fm_ctx.chunk_local_rounds ? _fm_ctx.chunks.compute(_ctx.parallel) : 1;
+      const NodeID num_seeds_per_chunk = std::ceil(1.0 * total_num_seeds / total_num_chunks);
+
       while (shared.border_nodes.has_more()) {
-        const EdgeWeight gain = worker.run_batch();
+        START_TIMER("Thread-local FM");
+        for (NodeID progress = 0; shared.border_nodes.has_more() && progress < num_seeds_per_chunk;
+             ++progress) {
+          const EdgeWeight gain = worker.run_batch();
 
-        KASSERT(worker.last_batch_seed_nodes().size() == 1);
-        const NodeID seed = worker.last_batch_seed_nodes().front();
-        const auto &moves = worker.last_batch_moves();
+          KASSERT(worker.last_batch_seed_nodes().size() == 1);
+          const NodeID seed = worker.last_batch_seed_nodes().front();
+          const auto &moves = worker.last_batch_moves();
 
-        if (!moves.empty()) {
-          const GlobalNodeID group = node_mapper.to_graph(seed);
-          for (const auto &[node, from, improvement] : moves) {
-            move_sets.push_back(GlobalMove{
-                .node = node_mapper.to_graph(node),
-                .group = seed,
-                .weight = static_cast<NodeWeight>(bp_graph->node_weight(node)),
-                .gain = gain,
-                .from = from,
-                .to = bp_graph->block(node),
-            });
-          }
-
-          if (_fm_ctx.revert_local_moves_after_batch) {
+          if (!moves.empty()) {
+            const GlobalNodeID group = node_mapper.to_graph(seed);
             for (const auto &[node, from, improvement] : moves) {
-              const BlockID to = bp_graph->block(node);
-              bp_graph->set_block(node, from);
-              shared.gain_cache.move(*bp_graph, node, to, from);
+              move_sets.push_back(GlobalMove{
+                  .node = node_mapper.to_graph(node),
+                  .group = seed,
+                  .weight = static_cast<NodeWeight>(bp_graph->node_weight(node)),
+                  .gain = gain,
+                  .from = from,
+                  .to = bp_graph->block(node),
+              });
+            }
+
+            if (_fm_ctx.revert_local_moves_after_batch) {
+              for (const auto &[node, from, improvement] : moves) {
+                const BlockID to = bp_graph->block(node);
+                bp_graph->set_block(node, from);
+                shared.gain_cache.move(*bp_graph, node, to, from);
+              }
             }
           }
         }
-      }
-      STOP_TIMER();
+        STOP_TIMER();
 
-      mpi::barrier(_p_graph.communicator());
+        mpi::barrier(_p_graph.communicator());
 
-      // Resolve global move conflicts: after this operation, global_move_buffer accepted moves with
-      // valid node IDs (is_valid_id(node)) and rejected moves with invalid node IDs
-      // (is_invalid_id(node))
-      START_TIMER("Resolve move conflicts");
-      auto global_move_buffer =
-          broadcast_and_resolve_global_moves(move_sets, _p_graph.communicator());
-      STOP_TIMER();
+        // Resolve global move conflicts: after this operation, global_move_buffer accepted moves
+        // with valid node IDs (is_valid_id(node)) and rejected moves with invalid node IDs
+        // (is_invalid_id(node))
+        START_TIMER("Resolve move conflicts");
+        auto global_move_buffer =
+            broadcast_and_resolve_global_moves(move_sets, _p_graph.communicator());
+        STOP_TIMER();
 
-      mpi::barrier(_p_graph.communicator());
+        mpi::barrier(_p_graph.communicator());
 
-      // Apply moves to global partition and extract graph
-      START_TIMER("Apply moves");
-      for (const auto &[node, group, weight, gain, from, to] : global_move_buffer) {
-        // Apply move to distributed graph
-        if (is_valid_id(node)) {
-          if (_p_graph.contains_global_node(node)) {
-            const NodeID lnode = _p_graph.global_to_local_node(node);
-            KASSERT(_p_graph.block(lnode) == from, V(lnode) << V(from));
-            _p_graph.set_block(lnode, to);
-          } else {
-            _p_graph.set_block_weight(from, _p_graph.block_weight(from) - weight);
-            _p_graph.set_block_weight(to, _p_graph.block_weight(to) + weight);
+        // Apply moves to global partition and extract graph
+        START_TIMER("Apply moves");
+        for (const auto &[node, group, weight, gain, from, to] : global_move_buffer) {
+          // Apply move to distributed graph
+          if (is_valid_id(node)) {
+            if (_p_graph.contains_global_node(node)) {
+              const NodeID lnode = _p_graph.global_to_local_node(node);
+              KASSERT(_p_graph.block(lnode) == from, V(lnode) << V(from));
+              _p_graph.set_block(lnode, to);
+            } else {
+              _p_graph.set_block_weight(from, _p_graph.block_weight(from) - weight);
+              _p_graph.set_block_weight(to, _p_graph.block_weight(to) + weight);
+            }
+          }
+
+          // Apply move to local graph (if contained in local graph)
+          if (_fm_ctx.revert_local_moves_after_batch && is_valid_id(node)) {
+            if (const NodeID bnode = node_mapper.to_batch(node); bnode != kInvalidNodeID) {
+              bp_graph->set_block(bnode, to);
+              shared.gain_cache.move(*bp_graph, bnode, from, to);
+            }
+          } else if (!_fm_ctx.revert_local_moves_after_batch && is_invalid_id(node)) {
+            if (const NodeID bnode = node_mapper.to_batch(extract_id(node));
+                bnode != kInvalidNodeID) {
+              bp_graph->set_block(bnode, from);
+              shared.gain_cache.move(*bp_graph, bnode, to, from);
+            }
           }
         }
 
-        // Apply move to local graph (if contained in local graph)
-        if (_fm_ctx.revert_local_moves_after_batch && is_valid_id(node)) {
-          if (const NodeID bnode = node_mapper.to_batch(node); bnode != kInvalidNodeID) {
-            bp_graph->set_block(bnode, to);
-            shared.gain_cache.move(*bp_graph, bnode, from, to);
-          }
-        } else if (!_fm_ctx.revert_local_moves_after_batch && is_invalid_id(node)) {
-          if (const NodeID bnode = node_mapper.to_batch(extract_id(node));
-              bnode != kInvalidNodeID) {
-            bp_graph->set_block(bnode, from);
-            shared.gain_cache.move(*bp_graph, bnode, to, from);
-          }
+        // Block weights in the batch graph are no longer valid (@todo why?), so we must copy them
+        // from the global graph again
+        for (const BlockID block : _p_graph.blocks()) {
+          bp_graph->set_block_weight(block, _p_graph.block_weight(block));
         }
-      }
+        STOP_TIMER();
 
-      // Block weights in the batch graph are no longer valid (@todo why?), so we must copy them
-      // from the global graph again
-      for (const BlockID block : _p_graph.blocks()) {
-        bp_graph->set_block_weight(block, _p_graph.block_weight(block));
+        KASSERT(
+            graph::debug::validate_partition(_p_graph),
+            "global partition in inconsistent state after round " << global_round << "/"
+                                                                  << local_round,
+            assert::heavy
+        );
       }
-      STOP_TIMER();
-
-      KASSERT(
-          graph::debug::validate_partition(_p_graph),
-          "global partition in inconsistent state after round " << global_round << "/"
-                                                                << local_round,
-          assert::heavy
-      );
     }
 
     if (_fm_ctx.rebalance_after_each_global_iteration) {

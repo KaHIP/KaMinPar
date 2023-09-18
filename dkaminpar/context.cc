@@ -94,6 +94,15 @@ void GraphContext::setup_max_block_weights(const BlockID k, const double epsilon
   });
 }
 
+int ChunksContext::compute(const ParallelContext &parallel) const {
+  if (fixed_num_chunks > 0) {
+    return fixed_num_chunks;
+  }
+  const PEID num_pes =
+      scale_chunks_with_threads ? parallel.num_threads * parallel.num_mpis : parallel.num_mpis;
+  return std::max<std::size_t>(8, total_num_chunks / num_pes);
+}
+
 bool LabelPropagationCoarseningContext::should_merge_nonadjacent_clusters(
     const NodeID old_n, const NodeID new_n
 ) const {

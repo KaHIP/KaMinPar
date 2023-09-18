@@ -121,6 +121,15 @@ struct ParallelContext {
   std::size_t num_mpis;
 };
 
+struct ChunksContext {
+  int total_num_chunks;
+  int fixed_num_chunks;
+  int min_num_chunks;
+  bool scale_chunks_with_threads;
+
+  int compute(const ParallelContext &parallel) const;
+};
+
 struct LabelPropagationCoarseningContext {
   int num_iterations;
   NodeID passive_high_degree_threshold;
@@ -204,6 +213,9 @@ struct FMRefinementContext {
   bool premove_locally;
   NodeID bound_degree;
   bool contract_border;
+
+  bool chunk_local_rounds;
+  ChunksContext chunks;
 
   int max_hops;
   int max_radius;

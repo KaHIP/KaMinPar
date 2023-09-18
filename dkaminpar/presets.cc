@@ -166,6 +166,15 @@ Context create_default_context() {
                       .contract_border = false,
 
                       // -- new parameters --
+                      .chunk_local_rounds = false,
+                      .chunks =
+                          {
+                              .total_num_chunks = 128,
+                              .fixed_num_chunks = 0,
+                              .min_num_chunks = 8,
+                              .scale_chunks_with_threads = false,
+                          },
+
                       .max_hops = 1,
                       .max_radius = 2,
 
