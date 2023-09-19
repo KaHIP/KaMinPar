@@ -47,6 +47,9 @@ NodeBalancer::NodeBalancer(
       _gain_calculator(p_graph) {}
 
 void NodeBalancer::initialize() {
+  SCOPED_TIMER("Node balancer");
+  SCOPED_TIMER("Initialization");
+
   // Only initialize the balancer is the partition is actually imbalanced
   if (metrics::is_feasible(_p_graph, _p_ctx)) {
     return;
@@ -194,6 +197,8 @@ void NodeBalancer::switch_to_stalled() {
 }
 
 bool NodeBalancer::perform_sequential_round() {
+  SCOPED_TIMER("Sequential round");
+
   const PEID rank = mpi::get_comm_rank(_p_graph.communicator());
 
   START_TIMER("Pick and reduce move candidates");
@@ -237,17 +242,15 @@ bool NodeBalancer::perform_sequential_round() {
   STOP_TIMER();
 
   // Broadcast winners
-  START_TIMER("Broadcast reduction result");
+  START_TIMER("Broadcast winners");
   const std::size_t num_winners = mpi::bcast(candidates.size(), 0, _p_graph.communicator());
   candidates.resize(num_winners);
   mpi::bcast(candidates.data(), num_winners, 0, _p_graph.communicator());
   STOP_TIMER();
 
-  START_TIMER("Perform moves");
   if (rank != 0) {
     perform_moves(candidates, true);
   }
-  STOP_TIMER();
 
   KASSERT(graph::debug::validate_partition(_p_graph), "balancer produced invalid partition", HEAVY);
 
@@ -257,6 +260,8 @@ bool NodeBalancer::perform_sequential_round() {
 void NodeBalancer::perform_moves(
     const std::vector<Candidate> &moves, const bool update_block_weights
 ) {
+  SCOPED_TIMER("Perform moves");
+
   for (const auto &move : moves) {
     perform_move(move, update_block_weights);
   }
@@ -406,7 +411,7 @@ bool NodeBalancer::try_pq_insertion(
 }
 
 bool NodeBalancer::perform_parallel_round() {
-  SCOPED_TIMER("Fast rebalancing");
+  SCOPED_TIMER("Parallel round");
 
   const PEID rank = mpi::get_comm_rank(_p_graph.communicator());
 
