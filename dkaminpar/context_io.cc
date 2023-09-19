@@ -435,14 +435,14 @@ void print(const RefinementContext &ctx, const ParallelContext &parallel, std::o
   out << "Refinement algorithms:        " << ctx.algorithms << "\n";
   out << "Refine initial partition:     " << (ctx.refine_coarsest_level ? "yes" : "no") << "\n";
   if (ctx.includes_algorithm(RefinementAlgorithm::BATCHED_LP)) {
-    out << "Label propagation:\n";
+    out << "Label propagation:            " << RefinementAlgorithm::BATCHED_LP << "\n";
     out << "  Number of iterations:       " << ctx.lp.num_iterations << "\n";
     print(ctx.lp.chunks, parallel, out);
     out << "  Use probabilistic moves:    " << (ctx.lp.ignore_probabilities ? "no" : "yes") << "\n";
     out << "  Number of retries:          " << ctx.lp.num_move_attempts << "\n";
   }
   if (ctx.includes_algorithm(RefinementAlgorithm::COLORED_LP)) {
-    out << "Colored Label Propagation:\n";
+    out << "Colored Label Propagation:    " << RefinementAlgorithm::COLORED_LP << "\n";
     out << "  Number of iterations:       " << ctx.colored_lp.num_iterations << "\n";
     print(ctx.colored_lp.coloring_chunks, parallel, out);
     out << "  Commitment strategy:        " << ctx.colored_lp.move_execution_strategy << "\n";
@@ -463,7 +463,7 @@ void print(const RefinementContext &ctx, const ParallelContext &parallel, std::o
         << (ctx.colored_lp.only_blacklist_input_level ? " (input level only)" : "") << "\n";
   }
   if (ctx.includes_algorithm(RefinementAlgorithm::JET_REFINER)) {
-    out << "Jet refinement:\n";
+    out << "Jet refinement:               " << RefinementAlgorithm::JET_REFINER << "\n";
     out << "  Number of iterations:       " << ctx.jet.num_iterations << "\n";
     out << "  C:                          [" << ctx.jet.min_c << ".." << ctx.jet.max_c << "] "
         << (ctx.jet.interpolate_c ? "interpolate" : "switch") << "\n";
@@ -474,10 +474,12 @@ void print(const RefinementContext &ctx, const ParallelContext &parallel, std::o
     out << "  Balancing algorithm:        " << ctx.jet.balancing_algorithm << "\n";
   }
   if (ctx.includes_algorithm(RefinementAlgorithm::GLOBAL_FM)) {
-    out << "Global FM refinement:\n";
+    out << "Global FM refinement:         " << RefinementAlgorithm::GLOBAL_FM << "\n";
     out << "  Number of iterations:       " << ctx.fm.num_global_iterations << " x "
         << ctx.fm.num_local_iterations << "\n";
-    print(ctx.fm.chunks, parallel, out);
+    if (ctx.fm.chunk_local_rounds) {
+      print(ctx.fm.chunks, parallel, out);
+    }
     out << "  Search radius:              " << ctx.fm.max_radius << " via " << ctx.fm.max_hops
         << " hop(s)\n";
     out << "  Revert batch-local moves:   "
@@ -495,7 +497,7 @@ void print(const RefinementContext &ctx, const ParallelContext &parallel, std::o
        ctx.jet.balancing_algorithm == RefinementAlgorithm::GREEDY_NODE_BALANCER) ||
       (ctx.includes_algorithm(RefinementAlgorithm::GLOBAL_FM) &&
        ctx.fm.balancing_algorithm == RefinementAlgorithm::GREEDY_NODE_BALANCER)) {
-    out << "Node balancer:\n";
+    out << "Node balancer:                " << RefinementAlgorithm::GREEDY_NODE_BALANCER << "\n";
     out << "  Number of rounds:           " << ctx.node_balancer.max_num_rounds << "\n";
     out << "  Sequential balancing:       "
         << (ctx.node_balancer.enable_sequential_balancing ? "yes" : "no") << "\n";
@@ -514,7 +516,7 @@ void print(const RefinementContext &ctx, const ParallelContext &parallel, std::o
        ctx.jet.balancing_algorithm == RefinementAlgorithm::GREEDY_CLUSTER_BALANCER) ||
       (ctx.includes_algorithm(RefinementAlgorithm::GLOBAL_FM) &&
        ctx.fm.balancing_algorithm == RefinementAlgorithm::GREEDY_CLUSTER_BALANCER)) {
-    out << "Cluster balancer:\n";
+    out << "Cluster balancer:             " << RefinementAlgorithm::GREEDY_CLUSTER_BALANCER << "\n";
     out << "  Clusters:                   " << ctx.cluster_balancer.cluster_strategy << "\n";
     out << "    Max weight:               " << ctx.cluster_balancer.cluster_size_strategy << " x "
         << ctx.cluster_balancer.cluster_size_multiplier << "\n";
@@ -547,7 +549,7 @@ void print(const RefinementContext &ctx, const ParallelContext &parallel, std::o
        ctx.jet.balancing_algorithm == RefinementAlgorithm::JET_BALANCER) ||
       (ctx.includes_algorithm(RefinementAlgorithm::GLOBAL_FM) &&
        ctx.fm.balancing_algorithm == RefinementAlgorithm::JET_BALANCER)) {
-    out << "Jet balancer:\n";
+    out << "Jet balancer:                 " << RefinementAlgorithm::JET_BALANCER << "\n";
     out << "  Number of iterations:       " << ctx.jet_balancer.num_weak_iterations << " weak + "
         << ctx.jet_balancer.num_strong_iterations << " strong\n";
   }
