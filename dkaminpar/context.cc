@@ -100,7 +100,7 @@ int ChunksContext::compute(const ParallelContext &parallel) const {
   }
   const PEID num_pes =
       scale_chunks_with_threads ? parallel.num_threads * parallel.num_mpis : parallel.num_mpis;
-  return std::max<std::size_t>(8, total_num_chunks / num_pes);
+  return std::max<std::size_t>(min_num_chunks, total_num_chunks / num_pes);
 }
 
 bool LabelPropagationCoarseningContext::should_merge_nonadjacent_clusters(
@@ -115,7 +115,7 @@ int LabelPropagationCoarseningContext::compute_num_chunks(const ParallelContext 
   }
   const PEID num_pes =
       scale_chunks_with_threads ? parallel.num_threads * parallel.num_mpis : parallel.num_mpis;
-  return std::max<std::size_t>(8, total_num_chunks / num_pes);
+  return std::max<std::size_t>(min_num_chunks, total_num_chunks / num_pes);
 }
 
 int LabelPropagationRefinementContext::compute_num_chunks(const ParallelContext &parallel) const {
@@ -124,7 +124,7 @@ int LabelPropagationRefinementContext::compute_num_chunks(const ParallelContext 
   }
   const PEID num_pes =
       scale_chunks_with_threads ? parallel.num_threads * parallel.num_mpis : parallel.num_mpis;
-  return std::max<std::size_t>(8, total_num_chunks / num_pes);
+  return std::max<std::size_t>(min_num_chunks, total_num_chunks / num_pes);
 }
 
 int ColoredLabelPropagationRefinementContext::compute_num_coloring_chunks(
