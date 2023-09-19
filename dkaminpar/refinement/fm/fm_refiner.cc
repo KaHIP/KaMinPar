@@ -213,14 +213,16 @@ bool FMRefiner::refine() {
       const int total_num_chunks =
           _fm_ctx.chunk_local_rounds ? _fm_ctx.chunks.compute(_ctx.parallel) : 1;
       const NodeID num_seeds_per_chunk = std::ceil(1.0 * total_num_seeds / total_num_chunks);
+      bool have_more_seeds = true;
 
-      while (shared.border_nodes.has_more()) {
+      do {
+        move_sets.clear();
+
         START_TIMER("Thread-local FM");
         for (NodeID progress = 0; shared.border_nodes.has_more() && progress < num_seeds_per_chunk;
              ++progress) {
+          // Perform the FM search starting at the next seed
           const EdgeWeight gain = worker.run_batch();
-
-          KASSERT(worker.last_batch_seed_nodes().size() == 1);
           const NodeID seed = worker.last_batch_seed_nodes().front();
           const auto &moves = worker.last_batch_moves();
 
@@ -303,7 +305,13 @@ bool FMRefiner::refine() {
                                                                   << local_round,
             assert::heavy
         );
-      }
+
+        // Continue for as long as some PE has more seeds left
+        have_more_seeds = shared.border_nodes.has_more();
+        MPI_Allreduce(
+            MPI_IN_PLACE, &have_more_seeds, 1, MPI_C_BOOL, MPI_LOR, _p_graph.communicator()
+        );
+      } while (have_more_seeds);
     }
 
     if (_fm_ctx.rebalance_after_each_global_iteration) {
