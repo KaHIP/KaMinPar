@@ -78,7 +78,7 @@ void ColoredLPRefiner::initialize() {
     // Otherwise, compute a coloring now
     LOG << "Computing new coloring";
     return compute_node_coloring_sequentially(
-        graph, _ctx.compute_num_coloring_chunks(_input_ctx.parallel)
+        graph, _ctx.coloring_chunks.compute(_input_ctx.parallel)
     );
   }();
 

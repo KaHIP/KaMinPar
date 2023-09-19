@@ -249,25 +249,7 @@ CLI::Option_group *create_lp_refinement_options(CLI::App *app, Context &ctx) {
         "Number of label propagation iterations."
   )
       ->capture_default_str();
-  lp->add_option(
-        "--r-lp-total-chunks",
-        ctx.refinement.lp.total_num_chunks,
-        "Number of synchronization rounds times number of PEs."
-  )
-      ->capture_default_str();
-  lp->add_option(
-        "--r-lp-min-chunks",
-        ctx.refinement.lp.min_num_chunks,
-        "Minimum number of synchronization rounds."
-  )
-      ->capture_default_str();
-  lp->add_option(
-        "--r-lp-num-chunks",
-        ctx.refinement.lp.fixed_num_chunks,
-        "Set the number of chunks to a fixed number rather than deducing it "
-        "from other parameters (0 = deduce)."
-  )
-      ->capture_default_str();
+  create_chunks_options(lp, "--r-lp", ctx.refinement.lp.chunks);
   lp->add_option(
         "--r-lp-active-large-degree-threshold",
         ctx.refinement.lp.active_high_degree_threshold,
@@ -276,12 +258,6 @@ CLI::Option_group *create_lp_refinement_options(CLI::App *app, Context &ctx) {
       ->capture_default_str();
   lp->add_flag(
         "--r-lp-ignore-probabilities", ctx.refinement.lp.ignore_probabilities, "Always move nodes."
-  )
-      ->capture_default_str();
-  lp->add_flag(
-        "--r-lp-scale-batches-with-threads",
-        ctx.refinement.lp.scale_chunks_with_threads,
-        "Scale the number of synchronization rounds with the number of threads."
   )
       ->capture_default_str();
 
@@ -329,23 +305,8 @@ CLI::Option_group *create_colored_lp_refinement_options(CLI::App *app, Context &
   lp->add_flag("--r-clp-track-block-weights", ctx.refinement.colored_lp.track_local_block_weights)
       ->capture_default_str();
 
-  // Control number of coloring supersteps
-  lp->add_option("--r-clp-max-num-chunks", ctx.refinement.colored_lp.max_num_coloring_chunks)
-      ->capture_default_str();
-  lp->add_option("--r-clp-min-num-chunks", ctx.refinement.colored_lp.min_num_coloring_chunks)
-      ->capture_default_str();
-  lp->add_option(
-        "--r-clp-num-chunks",
-        ctx.refinement.colored_lp.fixed_num_coloring_chunks,
-        "Number of supersteps of the coloring algorithm. If set to 0, the "
-        "value is derived from the min and max bounds."
-  )
-      ->capture_default_str();
-  lp->add_flag(
-        "--r-clp-scale-chunks-with-threads",
-        ctx.refinement.colored_lp.scale_coloring_chunks_with_threads
-  )
-      ->capture_default_str();
+  create_chunks_options(lp, "--r-clp", ctx.refinement.colored_lp.coloring_chunks);
+
   lp->add_option(
         "--r-clp-small-color-blacklist",
         ctx.refinement.colored_lp.small_color_blacklist,
@@ -587,25 +548,7 @@ CLI::Option_group *create_global_lp_coarsening_options(CLI::App *app, Context &c
         "--c-glp-iterations", ctx.coarsening.global_lp.num_iterations, "Number of iterations."
   )
       ->capture_default_str();
-  lp->add_option(
-        "--c-glp-total-chunks",
-        ctx.coarsening.global_lp.total_num_chunks,
-        "Number of synchronization rounds times number of PEs."
-  )
-      ->capture_default_str();
-  lp->add_option(
-        "--c-glp-min-chunks",
-        ctx.coarsening.global_lp.min_num_chunks,
-        "Minimum number of synchronization rounds."
-  )
-      ->capture_default_str();
-  lp->add_option(
-        "--c-glp-num-chunks",
-        ctx.coarsening.global_lp.fixed_num_chunks,
-        "Set the number of chunks to a fixed number rather than deducing it "
-        "from other parameters (0 = deduce)."
-  )
-      ->capture_default_str();
+  create_chunks_options(lp, "--c-glp", ctx.coarsening.global_lp.chunks);
   lp->add_option(
         "--c-glp-active-large-degree-threshold",
         ctx.coarsening.global_lp.active_high_degree_threshold,
@@ -617,12 +560,6 @@ CLI::Option_group *create_global_lp_coarsening_options(CLI::App *app, Context &c
         ctx.coarsening.global_lp.passive_high_degree_threshold,
         "Do not look at nodes with a degree larger than this when moving other "
         "nodes."
-  )
-      ->capture_default_str();
-  lp->add_flag(
-        "--c-glp-scale-batches-with-threads",
-        ctx.coarsening.global_lp.scale_chunks_with_threads,
-        "Scale the number of synchronization rounds with the number of threads."
   )
       ->capture_default_str();
   lp->add_flag("--c-glp-sync-cluster-weights", ctx.coarsening.global_lp.sync_cluster_weights);
@@ -660,22 +597,8 @@ CLI::Option_group *create_local_lp_coarsening_options(CLI::App *app, Context &ct
 CLI::Option_group *create_hem_coarsening_options(CLI::App *app, Context &ctx) {
   auto *lp = app->add_option_group("Coarsening -> Heavy Edge Matching");
 
-  // Control number of coloring supersteps
-  lp->add_option("--c-hem-max-num-chunks", ctx.coarsening.hem.max_num_coloring_chunks)
-      ->capture_default_str();
-  lp->add_option("--c-hem-min-num-chunks", ctx.coarsening.hem.min_num_coloring_chunks)
-      ->capture_default_str();
-  lp->add_option(
-        "--c-hem-num-chunks",
-        ctx.coarsening.hem.fixed_num_coloring_chunks,
-        "Number of supersteps of the coloring algorithm. If set to 0, the "
-        "value is derived from the min and max bounds."
-  )
-      ->capture_default_str();
-  lp->add_flag(
-        "--c-hem-scale-chunks-with-threads", ctx.coarsening.hem.scale_coloring_chunks_with_threads
-  )
-      ->capture_default_str();
+  create_chunks_options(lp, "--c-hem", ctx.coarsening.hem.chunks);
+
   lp->add_option(
         "--c-hem-small-color-blacklist",
         ctx.coarsening.hem.small_color_blacklist,

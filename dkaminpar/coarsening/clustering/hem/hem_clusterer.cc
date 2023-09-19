@@ -47,9 +47,7 @@ void HEMClusterer::initialize(const DistributedGraph &graph) {
 
     // Otherwise, compute a coloring now
     LOG << "Computing new coloring";
-    return compute_node_coloring_sequentially(
-        graph, _ctx.compute_num_coloring_chunks(_input_ctx.parallel)
-    );
+    return compute_node_coloring_sequentially(graph, _ctx.chunks.compute(_input_ctx.parallel));
   }();
 
   const ColorID num_local_colors = *std::max_element(coloring.begin(), coloring.end()) + 1;

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Utility functions to read/write parts of the partitioner context from/to 
+ * Utility functions to read/write parts of the partitioner context from/to
  * strings.
  *
  * @file:   context_io.h
@@ -41,7 +41,8 @@ std::string get_balancing_algorithms_description();
 
 void print(const Context &ctx, bool root, std::ostream &out, MPI_Comm comm);
 void print(const PartitionContext &ctx, bool root, std::ostream &out, MPI_Comm comm);
+void print(const ChunksContext &ctx, const ParallelContext &parallel, std::ostream &out);
 void print(const CoarseningContext &ctx, const ParallelContext &parallel, std::ostream &out);
 void print(const InitialPartitioningContext &ctx, std::ostream &out);
-void print(const RefinementContext &ctx, std::ostream &out);
+void print(const RefinementContext &ctx, const ParallelContext &parallel, std::ostream &out);
 } // namespace kaminpar::dist

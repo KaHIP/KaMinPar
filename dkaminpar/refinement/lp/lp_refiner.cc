@@ -4,7 +4,7 @@
  * @file:   lp_refiner.cc
  * @author: Daniel Seemaier
  * @date:   30.09.2021
-******************************************************************************/
+ ******************************************************************************/
 #include "dkaminpar/refinement/lp/lp_refiner.h"
 
 #include <mpi.h>
@@ -149,7 +149,7 @@ public:
     IFSTATS(_statistics = Statistics{_p_graph->communicator()});
     IFSTATS(_statistics.cut_before = metrics::edge_cut(*_p_graph));
 
-    const auto num_chunks = _lp_ctx.compute_num_chunks(_par_ctx);
+    const auto num_chunks = _lp_ctx.chunks.compute(_par_ctx);
 
     for (int iteration = 0; iteration < _lp_ctx.num_iterations; ++iteration) {
       GlobalNodeID num_moved_nodes = 0;

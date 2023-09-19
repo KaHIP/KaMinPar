@@ -109,48 +109,6 @@ bool LabelPropagationCoarseningContext::should_merge_nonadjacent_clusters(
   return (1.0 - 1.0 * new_n / old_n) <= merge_nonadjacent_clusters_threshold;
 }
 
-int LabelPropagationCoarseningContext::compute_num_chunks(const ParallelContext &parallel) const {
-  if (fixed_num_chunks > 0) {
-    return fixed_num_chunks;
-  }
-  const PEID num_pes =
-      scale_chunks_with_threads ? parallel.num_threads * parallel.num_mpis : parallel.num_mpis;
-  return std::max<std::size_t>(min_num_chunks, total_num_chunks / num_pes);
-}
-
-int LabelPropagationRefinementContext::compute_num_chunks(const ParallelContext &parallel) const {
-  if (fixed_num_chunks > 0) {
-    return fixed_num_chunks;
-  }
-  const PEID num_pes =
-      scale_chunks_with_threads ? parallel.num_threads * parallel.num_mpis : parallel.num_mpis;
-  return std::max<std::size_t>(min_num_chunks, total_num_chunks / num_pes);
-}
-
-int ColoredLabelPropagationRefinementContext::compute_num_coloring_chunks(
-    const ParallelContext &parallel
-) const {
-  if (fixed_num_coloring_chunks > 0) {
-    return fixed_num_coloring_chunks;
-  }
-
-  const int scale = scale_coloring_chunks_with_threads ? parallel.num_threads : 1;
-  return std::max<int>(
-      min_num_coloring_chunks, max_num_coloring_chunks / (scale * parallel.num_mpis)
-  );
-}
-
-int HEMCoarseningContext::compute_num_coloring_chunks(const ParallelContext &parallel) const {
-  if (fixed_num_coloring_chunks > 0) {
-    return fixed_num_coloring_chunks;
-  }
-
-  const int scale = scale_coloring_chunks_with_threads ? parallel.num_threads : 1;
-  return std::max<int>(
-      min_num_coloring_chunks, max_num_coloring_chunks / (scale * parallel.num_mpis)
-  );
-}
-
 bool RefinementContext::includes_algorithm(const RefinementAlgorithm algorithm) const {
   return std::find(algorithms.begin(), algorithms.end(), algorithm) != algorithms.end();
 }

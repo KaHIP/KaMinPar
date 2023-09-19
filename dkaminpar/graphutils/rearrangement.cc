@@ -53,7 +53,7 @@ DistributedGraph rearrange_by_coloring(DistributedGraph graph, const Context &ct
   SCOPED_TIMER("Rearrange graph", "By coloring");
 
   auto coloring = compute_node_coloring_sequentially(
-      graph, ctx.refinement.colored_lp.compute_num_coloring_chunks(ctx.parallel)
+      graph, ctx.refinement.colored_lp.coloring_chunks.compute(ctx.parallel)
   );
   const ColorID num_local_colors = *std::max_element(coloring.begin(), coloring.end()) + 1;
   const ColorID num_colors = mpi::allreduce(num_local_colors, MPI_MAX, graph.communicator());

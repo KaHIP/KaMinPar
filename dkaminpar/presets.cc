@@ -72,11 +72,14 @@ Context create_default_context() {
                       .max_num_neighbors = kInvalidNodeID,
                       .merge_singleton_clusters = true,
                       .merge_nonadjacent_clusters_threshold = 0.5,
-                      .total_num_chunks = 128,
-                      .fixed_num_chunks = 0,
-                      .min_num_chunks = 8,
+                      .chunks =
+                          {
+                              .total_num_chunks = 128,
+                              .fixed_num_chunks = 0,
+                              .min_num_chunks = 8,
+                              .scale_chunks_with_threads = false,
+                          },
                       .keep_ghost_clusters = false,
-                      .scale_chunks_with_threads = false,
                       .sync_cluster_weights = true,
                       .enforce_cluster_weights = true,
                       .cheap_toplevel = false,
@@ -85,11 +88,13 @@ Context create_default_context() {
                   },
               .hem =
                   {
-                      .max_num_coloring_chunks = 128,
-                      .fixed_num_coloring_chunks = 0,
-                      .min_num_coloring_chunks = 8,
-                      .scale_coloring_chunks_with_threads = false,
-                      .small_color_blacklist = 0,
+                      .chunks =
+                          {
+                              .total_num_chunks = 128,
+                              .fixed_num_chunks = 0,
+                              .min_num_chunks = 8,
+                              .scale_chunks_with_threads = false,
+                          },
                       .only_blacklist_input_level = false,
                       .ignore_weight_limit = false,
                   },
@@ -128,12 +133,15 @@ Context create_default_context() {
                   {
                       .active_high_degree_threshold = 1'000'000,
                       .num_iterations = 5,
-                      .total_num_chunks = 128,
-                      .fixed_num_chunks = 0,
-                      .min_num_chunks = 8,
+                      .chunks =
+                          {
+                              .total_num_chunks = 128,
+                              .fixed_num_chunks = 0,
+                              .min_num_chunks = 8,
+                              .scale_chunks_with_threads = false,
+                          },
                       .num_move_attempts = 2,
                       .ignore_probabilities = true,
-                      .scale_chunks_with_threads = false,
                   },
               .colored_lp =
                   {
@@ -141,10 +149,13 @@ Context create_default_context() {
                       .num_move_execution_iterations = 1,
                       .num_probabilistic_move_attempts = 2,
                       .sort_by_rel_gain = true,
-                      .max_num_coloring_chunks = 128,
-                      .fixed_num_coloring_chunks = 0,
-                      .min_num_coloring_chunks = 8,
-                      .scale_coloring_chunks_with_threads = false,
+                      .coloring_chunks =
+                          {
+                              .total_num_chunks = 128,
+                              .fixed_num_chunks = 0,
+                              .min_num_chunks = 8,
+                              .scale_chunks_with_threads = false,
+                          },
                       .small_color_blacklist = 0,
                       .only_blacklist_input_level = false,
                       .track_local_block_weights = true,

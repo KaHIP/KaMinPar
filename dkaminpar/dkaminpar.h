@@ -137,12 +137,11 @@ struct LabelPropagationCoarseningContext {
   NodeID max_num_neighbors;
   bool merge_singleton_clusters;
   double merge_nonadjacent_clusters_threshold;
-  int total_num_chunks;
-  int fixed_num_chunks;
-  int min_num_chunks;
+
+  ChunksContext chunks;
+
   bool ignore_ghost_nodes;
   bool keep_ghost_clusters;
-  bool scale_chunks_with_threads;
 
   bool sync_cluster_weights;
   bool enforce_cluster_weights;
@@ -152,19 +151,14 @@ struct LabelPropagationCoarseningContext {
   bool enforce_legacy_weight;
 
   bool should_merge_nonadjacent_clusters(NodeID old_n, NodeID new_n) const;
-  int compute_num_chunks(const ParallelContext &parallel) const;
 };
 
 struct HEMCoarseningContext {
-  int max_num_coloring_chunks;
-  int fixed_num_coloring_chunks;
-  int min_num_coloring_chunks;
-  bool scale_coloring_chunks_with_threads;
+  ChunksContext chunks;
+
   double small_color_blacklist;
   bool only_blacklist_input_level;
   bool ignore_weight_limit;
-
-  int compute_num_coloring_chunks(const ParallelContext &parallel) const;
 };
 
 struct ColoredLabelPropagationRefinementContext {
@@ -173,10 +167,8 @@ struct ColoredLabelPropagationRefinementContext {
   int num_probabilistic_move_attempts;
   bool sort_by_rel_gain;
 
-  int max_num_coloring_chunks;
-  int fixed_num_coloring_chunks;
-  int min_num_coloring_chunks;
-  bool scale_coloring_chunks_with_threads;
+  ChunksContext coloring_chunks;
+
   double small_color_blacklist;
   bool only_blacklist_input_level;
 
@@ -184,23 +176,16 @@ struct ColoredLabelPropagationRefinementContext {
   bool use_active_set;
 
   LabelPropagationMoveExecutionStrategy move_execution_strategy;
-
-  int compute_num_coloring_chunks(const ParallelContext &parallel) const;
 };
 
 struct LabelPropagationRefinementContext {
   NodeID active_high_degree_threshold;
   int num_iterations;
 
-  int total_num_chunks;
-  int fixed_num_chunks;
-  int min_num_chunks;
+  ChunksContext chunks;
 
   int num_move_attempts;
   bool ignore_probabilities;
-  bool scale_chunks_with_threads;
-
-  int compute_num_chunks(const ParallelContext &parallel) const;
 };
 
 struct FMRefinementContext {

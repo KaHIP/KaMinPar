@@ -129,7 +129,7 @@ public:
 
     SCOPED_TIMER("Compute label propagation clustering");
 
-    const int num_chunks = _c_ctx.global_lp.compute_num_chunks(_ctx.parallel);
+    const int num_chunks = _c_ctx.global_lp.chunks.compute(_ctx.parallel);
 
     for (int iteration = 0; iteration < _max_num_iterations; ++iteration) {
       GlobalNodeID global_num_moved_nodes = 0;

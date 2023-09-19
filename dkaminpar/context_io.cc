@@ -297,7 +297,7 @@ void print(const Context &ctx, const bool root, std::ostream &out, MPI_Comm comm
     cio::print_delimiter("Initial Partitioning", '-');
     print(ctx.initial_partitioning, out);
     cio::print_delimiter("Refinement", '-');
-    print(ctx.refinement, out);
+    print(ctx.refinement, ctx.parallel, out);
   }
 }
 
@@ -338,6 +338,19 @@ void print(const PartitionContext &ctx, const bool root, std::ostream &out, MPI_
     out << "Number of blocks:             " << ctx.k << "\n";
     out << "Maximum block weight:         " << ctx.graph->max_block_weight(0) << " ("
         << ctx.graph->perfectly_balanced_block_weight(0) << " + " << 100 * ctx.epsilon << "%)\n";
+  }
+}
+
+void print(const ChunksContext &ctx, const ParallelContext &parallel, std::ostream &out) {
+  if (ctx.fixed_num_chunks == 0) {
+    out << "  Number of chunks:           " << ctx.compute(parallel) << "[= max("
+        << ctx.min_num_chunks << ", " << ctx.total_num_chunks << " / " << parallel.num_mpis
+        << (ctx.scale_chunks_with_threads
+                ? std::string(" / ") + std::to_string(parallel.num_threads)
+                : "")
+        << "]\n";
+  } else {
+    out << "  Number of chunks:           " << ctx.fixed_num_chunks << "\n";
   }
 }
 
@@ -392,21 +405,7 @@ void print(const CoarseningContext &ctx, const ParallelContext &parallel, std::o
       out << "  High degree threshold:      " << ctx.global_lp.passive_high_degree_threshold
           << " (passive), " << ctx.global_lp.active_high_degree_threshold << " (active)\n";
       out << "  Max degree:                 " << ctx.global_lp.max_num_neighbors << "\n";
-      if (ctx.global_lp.fixed_num_chunks == 0) {
-        out << "  Number of chunks:           " << ctx.global_lp.compute_num_chunks(parallel)
-            << "[= max(" << ctx.global_lp.min_num_chunks << ", " << ctx.global_lp.total_num_chunks
-            << " / " << parallel.num_mpis
-            << (ctx.global_lp.scale_chunks_with_threads
-                    ? std::string(" / ") + std::to_string(parallel.num_threads)
-                    : "")
-            << "]\n";
-      } else {
-        out << "  Number of chunks:           " << ctx.global_lp.fixed_num_chunks << "\n";
-      }
-      // out << "  Number of chunks:           " << ctx.global_lp.num_chunks
-      //<< " (min: " << ctx.global_lp.min_num_chunks << ", total: " <<
-      // ctx.global_lp.total_num_chunks << ")"
-      //<< (ctx.global_lp.scale_chunks_with_threads ? ", scaled" : "") << "\n";
+      print(ctx.global_lp.chunks, parallel, out);
       out << "  Active set:                 "
           << (ctx.global_clustering_algorithm == GlobalClusteringAlgorithm::LP ? "no" : "yes")
           << "\n";
@@ -418,11 +417,7 @@ void print(const CoarseningContext &ctx, const ParallelContext &parallel, std::o
 
     if (ctx.global_clustering_algorithm == GlobalClusteringAlgorithm::HEM ||
         ctx.global_clustering_algorithm == GlobalClusteringAlgorithm::HEM_LP) {
-      // out << "  Number of coloring ssteps:  " << ctx.hem.num_coloring_chunks
-      //<< " (min: " << ctx.hem.min_num_coloring_chunks << ", max: " <<
-      // ctx.hem.max_num_coloring_chunks << ")"
-      //<< (ctx.hem.scale_coloring_chunks_with_threads ? ", scaled with threads"
-      //: "") << "\n";
+      print(ctx.hem.chunks, parallel, out);
       out << "  Small color blacklist:      " << 100 * ctx.hem.small_color_blacklist << "%"
           << (ctx.hem.only_blacklist_input_level ? " (input level only)" : "") << "\n";
     }
@@ -436,29 +431,20 @@ void print(const InitialPartitioningContext &ctx, std::ostream &out) {
   }
 }
 
-void print(const RefinementContext &ctx, std::ostream &out) {
+void print(const RefinementContext &ctx, const ParallelContext &parallel, std::ostream &out) {
   out << "Refinement algorithms:        " << ctx.algorithms << "\n";
   out << "Refine initial partition:     " << (ctx.refine_coarsest_level ? "yes" : "no") << "\n";
   if (ctx.includes_algorithm(RefinementAlgorithm::BATCHED_LP)) {
     out << "Label propagation:\n";
     out << "  Number of iterations:       " << ctx.lp.num_iterations << "\n";
-    // out << "  Number of chunks:           " << ctx.lp.num_chunks << " (min: "
-    // << ctx.lp.min_num_chunks
-    //<< ", total: " << ctx.lp.total_num_chunks << ")" <<
-    //(ctx.lp.scale_chunks_with_threads ? ", scaled" : "")
-    //<< "\n";
+    print(ctx.lp.chunks, parallel, out);
     out << "  Use probabilistic moves:    " << (ctx.lp.ignore_probabilities ? "no" : "yes") << "\n";
     out << "  Number of retries:          " << ctx.lp.num_move_attempts << "\n";
   }
   if (ctx.includes_algorithm(RefinementAlgorithm::COLORED_LP)) {
     out << "Colored Label Propagation:\n";
-    // out << "  Number of coloring ssteps:  " <<
-    // ctx.colored_lp.num_coloring_chunks
-    //<< " (min: " << ctx.colored_lp.min_num_coloring_chunks
-    //<< ", max: " << ctx.colored_lp.max_num_coloring_chunks << ")"
-    //<< (ctx.colored_lp.scale_coloring_chunks_with_threads ? ", scaled with
-    // threads" : "") << "\n";
     out << "  Number of iterations:       " << ctx.colored_lp.num_iterations << "\n";
+    print(ctx.colored_lp.coloring_chunks, parallel, out);
     out << "  Commitment strategy:        " << ctx.colored_lp.move_execution_strategy << "\n";
     if (ctx.colored_lp.move_execution_strategy ==
         LabelPropagationMoveExecutionStrategy::PROBABILISTIC) {
@@ -491,6 +477,7 @@ void print(const RefinementContext &ctx, std::ostream &out) {
     out << "Global FM refinement:\n";
     out << "  Number of iterations:       " << ctx.fm.num_global_iterations << " x "
         << ctx.fm.num_local_iterations << "\n";
+    print(ctx.fm.chunks, parallel, out);
     out << "  Search radius:              " << ctx.fm.max_radius << " via " << ctx.fm.max_hops
         << " hop(s)\n";
     out << "  Revert batch-local moves:   "
