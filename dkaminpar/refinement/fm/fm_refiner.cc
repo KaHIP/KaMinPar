@@ -210,8 +210,10 @@ bool FMRefiner::refine() {
       shm::LocalizedFMRefiner &worker = worker_ets.local();
 
       const NodeID total_num_seeds = shared.border_nodes.size();
-      const int total_num_chunks =
-          _fm_ctx.chunk_local_rounds ? _fm_ctx.chunks.compute(_ctx.parallel) : 1;
+      const NodeID total_num_chunks =
+          _fm_ctx.chunk_local_rounds
+              ? std::min<NodeID>(_fm_ctx.chunks.compute(_ctx.parallel), total_num_seeds)
+              : 1;
       const NodeID num_seeds_per_chunk = std::ceil(1.0 * total_num_seeds / total_num_chunks);
       bool have_more_seeds = true;
 
