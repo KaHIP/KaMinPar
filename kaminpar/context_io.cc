@@ -110,6 +110,7 @@ std::unordered_map<std::string, PartitioningMode> get_partitioning_modes() {
   return {
       {"deep", PartitioningMode::DEEP},
       {"rb", PartitioningMode::RB},
+      {"kway", PartitioningMode::KWAY},
   };
 }
 
@@ -119,6 +120,8 @@ std::ostream &operator<<(std::ostream &out, const PartitioningMode mode) {
     return out << "deep";
   case PartitioningMode::RB:
     return out << "rb";
+  case PartitioningMode::KWAY:
+    return out << "kway";
   }
 
   return out << "<invalid>";

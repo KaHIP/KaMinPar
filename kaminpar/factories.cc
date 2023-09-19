@@ -12,6 +12,7 @@
 
 // Partitioning schemes
 #include "kaminpar/partitioning/deep/deep_multilevel.h"
+#include "kaminpar/partitioning/kway/kway_multilevel.h"
 #include "kaminpar/partitioning/rb/rb_multilevel.h"
 
 // Clusterings
@@ -38,6 +39,10 @@ std::unique_ptr<Partitioner> create_partitioner(const Graph &graph, const Contex
 
   case PartitioningMode::RB: {
     return std::make_unique<RBMultilevelPartitioner>(graph, ctx);
+  }
+
+  case PartitioningMode::KWAY: {
+    return std::make_unique<KWayMultilevelPartitioner>(graph, ctx);
   }
   }
 

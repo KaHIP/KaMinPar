@@ -255,6 +255,7 @@ struct DebugContext {
 enum class PartitioningMode {
   DEEP,
   RB,
+  KWAY,
 };
 
 struct PartitioningContext {

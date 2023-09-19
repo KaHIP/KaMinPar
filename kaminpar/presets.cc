@@ -21,7 +21,7 @@ Context create_context_by_preset_name(const std::string &name) {
     return create_fast_context();
   } else if (name == "largek") {
     return create_largek_context();
-  } else if (name == "strong") {
+  } else if (name == "strong" || name == "fm") {
     return create_strong_context();
   } else if (name == "jet") {
     return create_jet_context();
@@ -38,6 +38,7 @@ std::unordered_set<std::string> get_preset_names() {
       "fast",
       "largek",
       "strong",
+      "fm",
       "jet",
       "noref",
   };

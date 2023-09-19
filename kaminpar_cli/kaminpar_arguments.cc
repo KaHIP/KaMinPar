@@ -39,7 +39,8 @@ CLI::Option_group *create_partitioning_options(CLI::App *app, Context &ctx) {
       ->transform(CLI::CheckedTransformer(get_partitioning_modes()).description(""))
       ->description(R"(Partitioning scheme:
   - deep: deep multilevel
-  - rb:   recursive multilevel bipartitioning)")
+  - rb:   recursive multilevel bipartitioning
+  - kway: k-way multilevel with rb for initial partitioning)")
       ->capture_default_str();
   partitioning
       ->add_option(
