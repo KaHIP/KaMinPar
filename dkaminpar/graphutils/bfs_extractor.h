@@ -80,7 +80,6 @@ private:
   };
 
   struct ExploredSubgraph {
-    NoinitVector<ExploredNode> explored_nodes;
     NoinitVector<GhostSeedEdge> explored_ghosts;
 
     NoinitVector<EdgeID> nodes;

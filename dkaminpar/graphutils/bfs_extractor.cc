@@ -30,7 +30,7 @@
 #include "common/timer.h"
 
 namespace kaminpar::dist::graph {
-SET_DEBUG(true);
+SET_DEBUG(false);
 
 BfsExtractor::BfsExtractor(const DistributedGraph &graph) : _graph(&graph) {}
 
@@ -58,8 +58,6 @@ auto BfsExtractor::extract(const std::vector<NodeID> &seed_nodes) -> Result {
   START_TIMER("Initial BFS");
   auto local_bfs_result = bfs(0, initial_seed_nodes, {});
   STOP_TIMER();
-  DBG << "-> Discovered " << local_bfs_result.nodes.size() - 1 << " nodes and "
-      << local_bfs_result.explored_nodes.size() << " ghost edges";
 
   std::vector<NoinitVector<GhostSeedEdge>> cur_ghost_seed_edges(size);
   cur_ghost_seed_edges[rank] = std::move(local_bfs_result.explored_ghosts);
@@ -240,22 +238,19 @@ auto BfsExtractor::bfs(
   auto &external_degrees_map = _external_degrees_ets.local();
   external_degrees_map.clear();
 
-  // Sort ghost seed nodes by distance
-  std::sort(ghost_seed_nodes.begin(), ghost_seed_nodes.end(), [](const auto &lhs, const auto &rhs) {
-    return std::get<0>(lhs) < std::get<0>(rhs);
-  });
-
   // Initialize search from closest ghost seed nodes
   NodeID current_distance = (!ghost_seed_nodes.empty() ? std::get<0>(ghost_seed_nodes.front()) : 0);
   std::queue<NodeID> front;
-  NoinitVector<ExploredNode> visited_nodes;
   NoinitVector<GhostSeedEdge> next_ghost_seed_edges;
+
+  std::sort(ghost_seed_nodes.begin(), ghost_seed_nodes.end(), [](const auto &lhs, const auto &rhs) {
+    return std::get<0>(lhs) < std::get<0>(rhs);
+  });
 
   auto add_seed_nodes_to_search_front = [&](const NodeID with_distance) {
     for (const auto &[distance, node] : ghost_seed_nodes) {
       if (distance == with_distance) {
         front.push(node);
-        visited_nodes.emplace_back(node, false); // @todo
         taken.set(node);
       } else if (with_distance < distance) {
         break;
@@ -314,27 +309,20 @@ auto BfsExtractor::bfs(
         edges.push_back(_graph->local_to_global_node(neighbor));
         edge_weights.push_back(_graph->edge_weight(edge));
 
-        // Record ghost seeds for the next hop
-        if (!_graph->is_owned_node(neighbor)) {
-          next_ghost_seed_edges.emplace_back(node, neighbor, current_distance + 1);
-          if (!taken.get(neighbor)) {
-            taken.set(neighbor);
-          }
-          return true;
-        }
-
-        // Skip non-ghost nodes already discovered
+        // Skip nodes that we have already discovered
         if (taken.get(neighbor)) {
           return true;
         }
-
-        // Add to stack for the next search layer
-        front.push(neighbor);
-
-        // Record node as discovered
-        visited_nodes.emplace_back(neighbor, is_border_node);
         taken.set(neighbor);
 
+        // If we discovered a new ghost node, record it for the continued BFS
+        if (!_graph->is_owned_node(neighbor)) {
+          next_ghost_seed_edges.emplace_back(node, neighbor, current_distance + 1);
+          return true;
+        }
+
+        // ... otherwise, add it to the BFS front
+        front.push(neighbor);
         return true;
       });
     }
@@ -349,7 +337,6 @@ auto BfsExtractor::bfs(
   nodes.push_back(edges.size());
 
   ExploredSubgraph ans;
-  ans.explored_nodes = std::move(visited_nodes);
   ans.explored_ghosts = std::move(next_ghost_seed_edges);
   ans.nodes = std::move(nodes);
   ans.edges = std::move(edges);
