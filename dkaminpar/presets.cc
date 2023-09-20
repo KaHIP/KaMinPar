@@ -177,6 +177,8 @@ Context create_default_context() {
                       .contract_border = false,
 
                       // -- new parameters --
+                      .use_independent_seeds = true,
+
                       .chunk_local_rounds = false,
                       .chunks =
                           {

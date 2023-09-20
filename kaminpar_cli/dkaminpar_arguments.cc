@@ -197,6 +197,9 @@ CLI::Option_group *create_fm_refinement_options(CLI::App *app, Context &ctx) {
   )
       ->capture_default_str();
 
+  fm->add_flag("--r-fm-independent-seeds", ctx.refinement.fm.use_independent_seeds)
+      ->capture_default_str();
+
   fm->add_option("--r-fm-max-hops", ctx.refinement.fm.max_hops)->capture_default_str();
   fm->add_option("--r-fm-max-radius", ctx.refinement.fm.max_radius)->capture_default_str();
   fm->add_option("--r-fm-num-global-iterations", ctx.refinement.fm.num_global_iterations)

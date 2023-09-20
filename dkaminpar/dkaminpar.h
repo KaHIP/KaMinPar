@@ -199,6 +199,8 @@ struct FMRefinementContext {
   NodeID bound_degree;
   bool contract_border;
 
+  bool use_independent_seeds;
+
   bool chunk_local_rounds;
   ChunksContext chunks;
 

@@ -12,6 +12,7 @@
 #include <tbb/parallel_for.h>
 #include <tbb/parallel_invoke.h>
 
+#include "dkaminpar/algorithms/border_nodes.h"
 #include "dkaminpar/algorithms/independent_set.h"
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructures/distributed_graph.h"
@@ -156,7 +157,9 @@ bool FMRefiner::refine() {
     const EdgeWeight initial_cut =
         _ctx.refinement.fm.use_abortion_threshold ? metrics::edge_cut(_p_graph) : -1;
 
-    const auto seed_nodes = graph::find_independent_border_set(_p_graph, global_round);
+    const auto seed_nodes = _fm_ctx.use_independent_seeds
+                                ? graph::find_independent_border_set(_p_graph, global_round)
+                                : graph::find_border_nodes(_p_graph);
 
     // Run distributed BFS to extract batches around the seed nodes
     graph::BfsExtractor bfs_extractor(_p_graph.graph());
@@ -227,6 +230,7 @@ bool FMRefiner::refine() {
           const EdgeWeight gain = worker.run_batch();
           const NodeID seed = worker.last_batch_seed_nodes().front();
           const auto &moves = worker.last_batch_moves();
+          KASSERT(worker.last_batch_seed_nodes().size() == 1, "expected exactly one seed node");
 
           if (!moves.empty()) {
             const GlobalNodeID group = node_mapper.to_graph(seed);
