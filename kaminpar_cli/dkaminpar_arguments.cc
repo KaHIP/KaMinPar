@@ -199,7 +199,7 @@ CLI::Option_group *create_fm_refinement_options(CLI::App *app, Context &ctx) {
 
   fm->add_flag("--r-fm-independent-seeds", ctx.refinement.fm.use_independent_seeds)
       ->capture_default_str();
-  fm->add_flag("--r-fm-use-bfs-seeds-as-fm-seeds", ctx.refinement.fm.use_bfs_seeds_as_fm_seeds)
+  fm->add_flag("--r-fm-bfs-seeds-as-fm-seeds", ctx.refinement.fm.use_bfs_seeds_as_fm_seeds)
       ->capture_default_str();
 
   fm->add_option("--r-fm-max-hops", ctx.refinement.fm.max_hops)->capture_default_str();
