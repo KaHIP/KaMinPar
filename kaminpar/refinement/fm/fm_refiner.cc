@@ -462,10 +462,6 @@ const std::vector<NodeID> &LocalizedFMRefiner::last_batch_seed_nodes() {
   return _seed_nodes;
 }
 
-std::vector<fm::AppliedMove> LocalizedFMRefiner::take_applied_moves() {
-  return std::move(_applied_moves);
-}
-
 EdgeWeight LocalizedFMRefiner::run_batch() {
   using fm::NodeTracker;
 

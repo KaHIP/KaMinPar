@@ -273,7 +273,6 @@ public:
   EdgeWeight run_batch();
 
   void enable_move_recording();
-  std::vector<fm::AppliedMove> take_applied_moves();
   const std::vector<fm::AppliedMove> &last_batch_moves();
   const std::vector<NodeID> &last_batch_seed_nodes();
 
