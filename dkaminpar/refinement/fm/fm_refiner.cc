@@ -185,6 +185,7 @@ bool FMRefiner::refine() {
       bp_graph->set_block_weight(block, _p_graph.block_weight(block));
     }
 
+    // @todo obvious optimization: avoid re-allocation
     START_TIMER("Prepare thread-local workers");
     const shm::PartitionContext shm_p_ctx = setup_shm_p_ctx(*b_graph);
     const fm::NodeMapper node_mapper(extraction_result.node_mapping);
@@ -208,10 +209,13 @@ bool FMRefiner::refine() {
     std::vector<GlobalMove> move_sets;
 
     for (std::size_t local_round = 0; local_round < _fm_ctx.num_local_iterations; ++local_round) {
-      DBG << "Starting FM round " << global_round << "/" << local_round;
+      DBG0 << "Starting FM round " << global_round << "/" << local_round;
 
-      shm::LocalizedFMRefiner &worker = worker_ets.local();
+      // Unlock previously locked nodes, etc ...
+      // @todo re-init border nodes if not using the independent set as FM seeds
+      prepare_shared_data_for_local_round(*bp_graph, shared);
 
+      // Compute the number of seeds per chunk / batch
       const NodeID total_num_seeds = shared.border_nodes.size();
       const NodeID total_num_chunks =
           _fm_ctx.chunk_local_rounds
@@ -220,6 +224,12 @@ bool FMRefiner::refine() {
       const NodeID num_seeds_per_chunk = std::ceil(1.0 * total_num_seeds / total_num_chunks);
       bool have_more_seeds = true;
 
+      DBG0 << "Number of seeds on PE 0: " << total_num_seeds;
+      DBG0 << "Number of chunks on PE 0" << total_num_chunks;
+      DBG0 << "Seeds per chunk on PE 0: " << num_seeds_per_chunk;
+
+      // Perform local search on the current chunk / batch, synchronize and apply moves to the
+      // distributed graph ...
       do {
         move_sets.clear();
 
@@ -227,29 +237,56 @@ bool FMRefiner::refine() {
         for (NodeID progress = 0; shared.border_nodes.has_more() && progress < num_seeds_per_chunk;
              ++progress) {
           // Perform the FM search starting at the next seed
+          shm::LocalizedFMRefiner &worker = worker_ets.local();
           const EdgeWeight gain = worker.run_batch();
           const NodeID seed = worker.last_batch_seed_nodes().front();
           const auto &moves = worker.last_batch_moves();
-          KASSERT(worker.last_batch_seed_nodes().size() == 1, "expected exactly one seed node");
+
+          // Zero seeds are possible if we do not unlock moved nodes after a batch
+          KASSERT(worker.last_batch_seed_nodes().size() <= 1, "expected exactly one seed node");
+          KASSERT(
+              moves.empty() || !worker.last_batch_seed_nodes().empty(),
+              "search did not get any seeds nodes, yet performed some moves"
+          );
 
           if (!moves.empty()) {
-            const GlobalNodeID group = node_mapper.to_graph(seed);
+            // Unique identifier for this set of moves == global node ID of the FM seed
+            // const GlobalNodeID group = node_mapper.to_graph(seed);
+            //
+            // Since the global conflict resolver uses the upper 32 bits to store the owning PE, we
+            // can use the local seed ID and still have groups that are unique globally
+            const GlobalNodeID group = seed;
+
+            bool print_delim = false;
             for (const auto &[node, from, improvement] : moves) {
+              if (node_mapper.to_graph(node) == 35857) {
+                DBG << "Recording applied move with seed " << seed << ": "
+                    << node_mapper.to_graph(node) << " /// " << node << " /// group " << group
+                    << " ::: " << from << " --> " << bp_graph->block(node);
+                print_delim = true;
+              }
+
               move_sets.push_back(GlobalMove{
                   .node = node_mapper.to_graph(node),
-                  .group = seed,
+                  .group = group,
                   .weight = static_cast<NodeWeight>(bp_graph->node_weight(node)),
                   .gain = gain,
                   .from = from,
                   .to = bp_graph->block(node),
               });
             }
+            if (print_delim) DBG <<  "-----";
 
+            // Revert changes to the batch graph to make local FM searches independent of each other
             if (_fm_ctx.revert_local_moves_after_batch) {
               for (const auto &[node, from, improvement] : moves) {
                 const BlockID to = bp_graph->block(node);
                 bp_graph->set_block(node, from);
                 shared.gain_cache.move(*bp_graph, node, to, from);
+
+                if (node != seed) {
+                  shared.node_tracker.set(node, shm::fm::NodeTracker::UNLOCKED);
+                }
               }
             }
           }
@@ -275,6 +312,10 @@ bool FMRefiner::refine() {
           if (is_valid_id(node)) {
             if (_p_graph.contains_global_node(node)) {
               const NodeID lnode = _p_graph.global_to_local_node(node);
+              if (lnode == 35857) {
+                DBG << "expected " << lnode << " to be in block " << from << ", move to " << to
+                    << " /// node ID " << node << " /// group ID " << group;
+              }
               KASSERT(_p_graph.block(lnode) == from, V(lnode) << V(from));
               _p_graph.set_block(lnode, to);
             } else {
@@ -366,26 +407,33 @@ shm::fm::SharedData FMRefiner::setup_fm_data(
     const std::vector<NodeID> &lseeds,
     const fm::NodeMapper &mapper
 ) const {
-  shm::fm::SharedData shared(bp_graph.n(), _p_ctx.k);
+  shm::fm::SharedData shared(bp_graph.n(), bp_graph.k());
 
-  tbb::concurrent_vector<NodeID> bseeds;
-  tbb::parallel_for<std::size_t>(0, lseeds.size(), [&](const std::size_t i) {
-    const NodeID lseed = lseeds[i];
-    const GlobalNodeID gseed = _p_graph.local_to_global_node(lseed);
-    bseeds.push_back(mapper.to_batch(gseed));
-  });
-  KASSERT(std::find(bseeds.begin(), bseeds.end(), kInvalidNodeID) == bseeds.end());
-
-  shared.border_nodes.init_precomputed(bp_graph, bseeds);
-  shared.border_nodes.shuffle();
   shared.gain_cache.initialize(bp_graph);
+  if (_fm_ctx.use_bfs_seeds_as_fm_seeds) {
+    tbb::concurrent_vector<NodeID> bseeds;
+    tbb::parallel_for<std::size_t>(0, lseeds.size(), [&](const std::size_t i) {
+      const NodeID lseed = lseeds[i];
+      const GlobalNodeID gseed = _p_graph.local_to_global_node(lseed);
+      bseeds.push_back(mapper.to_batch(gseed));
+    });
+    KASSERT(std::find(bseeds.begin(), bseeds.end(), kInvalidNodeID) == bseeds.end());
+    shared.border_nodes.init_precomputed(bp_graph, bseeds);
+  } else {
+    shared.border_nodes.init(bp_graph);
+  }
+  shared.border_nodes.shuffle();
 
-  // Mark pseudo-block nodes as already moved
+  return shared;
+}
+
+void FMRefiner::prepare_shared_data_for_local_round(
+    shm::PartitionedGraph &bp_graph, shm::fm::SharedData &shared
+) {
+  shared.node_tracker.reset();
   for (const BlockID block : _p_graph.blocks()) {
     shared.node_tracker.set(bp_graph.n() - block - 1, shm::fm::NodeTracker::MOVED_GLOBALLY);
   }
-
-  return shared;
 }
 
 shm::KwayFMRefinementContext FMRefiner::setup_fm_ctx() const {

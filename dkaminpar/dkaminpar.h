@@ -200,6 +200,7 @@ struct FMRefinementContext {
   bool contract_border;
 
   bool use_independent_seeds;
+  bool use_bfs_seeds_as_fm_seeds;
 
   bool chunk_local_rounds;
   ChunksContext chunks;

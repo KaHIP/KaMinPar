@@ -90,6 +90,12 @@ public:
     __atomic_store_n(&_state[node], value, __ATOMIC_RELAXED);
   }
 
+  void reset() {
+    tbb::parallel_for<NodeID>(0, _state.size(), [&](const NodeID node) {
+      _state[node] = UNLOCKED;
+    });
+  }
+
   void free() {
     _state.free();
   }

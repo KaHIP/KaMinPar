@@ -178,6 +178,7 @@ Context create_default_context() {
 
                       // -- new parameters --
                       .use_independent_seeds = true,
+                      .use_bfs_seeds_as_fm_seeds = true,
 
                       .chunk_local_rounds = false,
                       .chunks =

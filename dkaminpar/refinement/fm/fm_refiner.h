@@ -117,6 +117,9 @@ private:
   ) const;
   shm::KwayFMRefinementContext setup_fm_ctx() const;
 
+  void
+  prepare_shared_data_for_local_round(shm::PartitionedGraph &bp_graph, shm::fm::SharedData &shared);
+
   const Context &_ctx;
   const FMRefinementContext &_fm_ctx;
 
