@@ -57,6 +57,13 @@ inline NodeID NodeMapper::to_batch(GlobalNodeID gnode) const {
 
 void NodeMapper::construct() {
   tbb::parallel_for<std::size_t>(0, _batch_to_graph.size(), [&](const std::size_t i) {
+    KASSERT(
+        _graph_to_batch.find(_batch_to_graph[i] + 1) == _graph_to_batch.end(),
+        "both nodes " << i << " and " << (*_graph_to_batch.find(_batch_to_graph[i] + 1)).second
+                      << " from the batch graph are mapped to the global node "
+                      << _batch_to_graph[i] << " == "
+                      << _batch_to_graph[(*_graph_to_batch.find(_batch_to_graph[i] + 1)).second]
+    );
     _graph_to_batch.insert(_batch_to_graph[i] + 1, i);
   });
 }
@@ -225,7 +232,7 @@ bool FMRefiner::refine() {
       bool have_more_seeds = true;
 
       DBG0 << "Number of seeds on PE 0: " << total_num_seeds;
-      DBG0 << "Number of chunks on PE 0" << total_num_chunks;
+      DBG0 << "Number of chunks on PE 0: " << total_num_chunks;
       DBG0 << "Seeds per chunk on PE 0: " << num_seeds_per_chunk;
 
       // Perform local search on the current chunk / batch, synchronize and apply moves to the
@@ -275,7 +282,8 @@ bool FMRefiner::refine() {
                   .to = bp_graph->block(node),
               });
             }
-            if (print_delim) DBG <<  "-----";
+            if (print_delim)
+              DBG << "-----";
 
             // Revert changes to the batch graph to make local FM searches independent of each other
             if (_fm_ctx.revert_local_moves_after_batch) {

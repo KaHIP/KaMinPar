@@ -9,8 +9,8 @@
 
 #include <algorithm>
 #include <memory>
+#include <queue>
 #include <random>
-#include <stack>
 #include <vector>
 
 #include <kassert/kassert.hpp>
@@ -30,7 +30,7 @@
 #include "common/timer.h"
 
 namespace kaminpar::dist::graph {
-SET_DEBUG(false);
+SET_DEBUG(true);
 
 BfsExtractor::BfsExtractor(const DistributedGraph &graph) : _graph(&graph) {}
 
@@ -79,6 +79,8 @@ auto BfsExtractor::extract(const std::vector<NodeID> &seed_nodes) -> Result {
 
     START_TIMER("Continued BFS");
     tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
+      DBG << "Continue BFS from PE " << pe << " with " << next_ghost_seed_nodes[pe].size()
+          << " ghost nodes and " << next_ignored_nodes[pe].size() << " ignored nodes";
       local_bfs_results[pe] = bfs(hop + 1, next_ghost_seed_nodes[pe], next_ignored_nodes[pe]);
       cur_ghost_seed_edges[pe] = std::move(local_bfs_results[pe].explored_ghosts);
     });
@@ -102,8 +104,6 @@ auto BfsExtractor::exchange_ghost_seed_nodes(
 ) -> std::pair<std::vector<NoinitVector<GhostSeedNode>>, std::vector<NoinitVector<NodeID>>> {
   const PEID size = mpi::get_comm_size(_graph->communicator());
 
-  DBG << "Building sendbufs ...";
-
   // Exchange new ghost nodes
   std::vector<NoinitVector<NodeID>> sendbufs(size);
   for (PEID pe = 0; pe < size; ++pe) {
@@ -125,7 +125,6 @@ auto BfsExtractor::exchange_ghost_seed_nodes(
     }
   }
 
-  DBG << "Exchanging data ...";
   std::vector<NoinitVector<GhostSeedEdge>> incoming_ghost_seed_edges(size);
   mpi::sparse_alltoall<NodeID>(
       std::move(sendbufs),
@@ -146,8 +145,6 @@ auto BfsExtractor::exchange_ghost_seed_nodes(
       },
       _graph->communicator()
   );
-
-  DBG << "Filtering circular ghost edges ...";
 
   // Filter edges that where already explored from this PE
   std::vector<NoinitVector<GhostSeedNode>> next_ghost_seed_nodes(size);
@@ -250,7 +247,7 @@ auto BfsExtractor::bfs(
 
   // Initialize search from closest ghost seed nodes
   NodeID current_distance = (!ghost_seed_nodes.empty() ? std::get<0>(ghost_seed_nodes.front()) : 0);
-  std::stack<NodeID> front;
+  std::queue<NodeID> front;
   NoinitVector<ExploredNode> visited_nodes;
   NoinitVector<GhostSeedEdge> next_ghost_seed_edges;
 
@@ -259,6 +256,7 @@ auto BfsExtractor::bfs(
       if (distance == with_distance) {
         front.push(node);
         visited_nodes.emplace_back(node, false); // @todo
+        taken.set(node);
       } else if (with_distance < distance) {
         break;
       }
@@ -279,7 +277,7 @@ auto BfsExtractor::bfs(
 
   // Perform BFS
   while (!front.empty() && current_distance < _max_radius) {
-    const NodeID node = front.top();
+    const NodeID node = front.front();
     KASSERT(_graph->is_owned_node(node));
     front.pop();
     --front_size;
@@ -293,12 +291,8 @@ auto BfsExtractor::bfs(
     const bool is_hop_border_node = current_hop == _max_hops;
     const bool is_border_node = is_distance_border_node || is_hop_border_node;
 
-    DBG << "Exploring node " << node << ": " << V(is_distance_border_node) << V(is_hop_border_node)
-        << V(is_border_node);
-
     if (is_border_node) {
       for (const auto [edge, neighbor] : _graph->neighbors(node)) {
-        DBG << "--> edge to " << neighbor << ", " << V(taken.get(neighbor));
         if (taken.get(neighbor)) {
           edges.push_back(_graph->local_to_global_node(neighbor));
           edge_weights.push_back(_graph->edge_weight(edge));
@@ -309,7 +303,6 @@ auto BfsExtractor::bfs(
       }
 
       for (const auto &[block, weight] : external_degrees_map.entries()) {
-        DBG << "Adding edge to block " << block;
         edges.push_back(map_block_to_pseudo_node(block));
         edge_weights.push_back(weight);
       }
@@ -402,7 +395,7 @@ void BfsExtractor::explore_outgoing_edges(const NodeID node, Lambda &&lambda) {
 auto BfsExtractor::combine_fragments(tbb::concurrent_vector<GraphFragment> &fragments) -> Result {
   DBG << "Combining " << fragments.size() << " fragments to the resulting BFS search graph ...";
   for (const auto &fragment : fragments) {
-    DBG << "  Fragment: n=" << fragment.nodes << ", edges=" << fragment.edges;
+    DBG << "  Fragment: n=" << fragment.nodes.size() << ", m=" << fragment.edges.size();
   }
 
   // Compute size of combined graph
@@ -443,8 +436,6 @@ auto BfsExtractor::combine_fragments(tbb::concurrent_vector<GraphFragment> &frag
       first_edge_id_for_fragment.end(),
       first_edge_id_for_fragment.begin()
   );
-
-  DBG << V(first_node_id_for_fragment) << V(first_edge_id_for_fragment);
 
   // Global graph to new graph mapping
   /*auto encode_node_fragment_pair = [](const NodeID node, const std::size_t
