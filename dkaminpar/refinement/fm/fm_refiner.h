@@ -42,39 +42,6 @@ private:
   growt::StaticGhostNodeMapping _graph_to_batch;
 };
 
-class PartitionRollbacker {
-public:
-  virtual ~PartitionRollbacker() = default;
-
-  virtual void update() = 0;
-  virtual void rollback() = 0;
-};
-
-class EnabledPartitionRollbacker : public PartitionRollbacker {
-public:
-  EnabledPartitionRollbacker(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx);
-
-  void update() final;
-  void rollback() final;
-
-private:
-  void copy_partition();
-
-  DistributedPartitionedGraph &_p_graph;
-  const PartitionContext &_p_ctx;
-
-  bool _last_is_best = true;
-  EdgeWeight _best_cut;
-  double _best_l1 = 0.0;
-  NoinitVector<BlockID> _best_partition;
-  NoinitVector<NodeWeight> _best_block_weights;
-};
-
-class DisabledPartitionRollbacker : public PartitionRollbacker {
-public:
-  void update() final {}
-  void rollback() final {}
-};
 } // namespace fm
 
 class FMRefinerFactory : public GlobalRefinerFactory {

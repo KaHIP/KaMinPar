@@ -22,6 +22,7 @@
 #include "dkaminpar/graphutils/bfs_extractor.h"
 #include "dkaminpar/metrics.h"
 #include "dkaminpar/refinement/fm/move_conflict_resolver.h"
+#include "dkaminpar/refinement/snapshooter.h"
 
 #include "kaminpar/datastructures/graph.h"
 #include "kaminpar/datastructures/partitioned_graph.h"
@@ -67,63 +68,6 @@ void NodeMapper::construct() {
     _graph_to_batch.insert(_batch_to_graph[i] + 1, i);
   });
 }
-
-EnabledPartitionRollbacker::EnabledPartitionRollbacker(
-    DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx
-)
-    : _p_graph(p_graph),
-      _p_ctx(p_ctx),
-      _best_cut(metrics::edge_cut(_p_graph)),
-      _best_partition(_p_graph.total_n()),
-      _best_block_weights(_p_graph.k()) {
-  copy_partition();
-}
-
-void EnabledPartitionRollbacker::rollback() {
-  if (!_last_is_best) {
-    tbb::parallel_invoke(
-        [&] {
-          _p_graph.pfor_all_nodes([&](const NodeID u) {
-            _p_graph.set_block<false>(u, _best_partition[u]);
-          });
-        },
-        [&] {
-          _p_graph.pfor_blocks([&](const BlockID b) {
-            _p_graph.set_block_weight(b, _best_block_weights[b]);
-          });
-        }
-    );
-  }
-}
-
-void EnabledPartitionRollbacker::update() {
-  const EdgeWeight current_cut = metrics::edge_cut(_p_graph);
-  const double current_l1 = metrics::imbalance_l1(_p_graph, _p_ctx);
-
-  // Accept if the previous best partition is imbalanced and we improved its balance
-  // OR if we are balanced and got a better cut than before
-  if ((_best_l1 > 0 && current_l1 < _best_l1) || (current_l1 == 0 && current_cut <= _best_cut)) {
-    copy_partition();
-    _best_cut = current_cut;
-    _best_l1 = current_l1;
-    _last_is_best = true;
-  } else {
-    _last_is_best = false;
-  }
-}
-
-void EnabledPartitionRollbacker::copy_partition() {
-  tbb::parallel_invoke(
-      [&] {
-        _p_graph.pfor_all_nodes([&](const NodeID u) { _best_partition[u] = _p_graph.block(u); });
-      },
-      [&] {
-        _p_graph.pfor_blocks([&](const BlockID b) {
-          _best_block_weights[b] = _p_graph.block_weight(b);
-        });
-      }
-  );
-}
 } // namespace fm
 
 FMRefinerFactory::FMRefinerFactory(const Context &ctx) : _ctx(ctx) {}
@@ -151,12 +95,12 @@ bool FMRefiner::refine() {
   balancer->initialize();
 
   // Track the best partition that we see during FM refinement
-  std::unique_ptr<fm::PartitionRollbacker> rollbacker =
-      [&]() -> std::unique_ptr<fm::PartitionRollbacker> {
+  std::unique_ptr<PartitionSnapshooter> snapshooter =
+      [&]() -> std::unique_ptr<PartitionSnapshooter> {
     if (_fm_ctx.rollback_deterioration) {
-      return std::make_unique<fm::EnabledPartitionRollbacker>(_p_graph, _p_ctx);
+      return std::make_unique<BestPartitionSnapshooter>(_p_graph, _p_ctx);
     } else {
-      return std::make_unique<fm::DisabledPartitionRollbacker>();
+      return std::make_unique<DummyPartitionSnapshooter>();
     }
   }();
 
@@ -360,7 +304,7 @@ bool FMRefiner::refine() {
       balancer->initialize();
       balancer->refine();
     }
-    rollbacker->update();
+    snapshooter->update();
 
     if (_ctx.refinement.fm.use_abortion_threshold) {
       const EdgeWeight final_cut = metrics::edge_cut(_p_graph);
@@ -376,9 +320,9 @@ bool FMRefiner::refine() {
     balancer->initialize();
     balancer->refine();
 
-    rollbacker->update();
+    snapshooter->update();
   }
-  rollbacker->rollback();
+  snapshooter->rollback();
 
   return false;
 }
