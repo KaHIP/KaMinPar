@@ -36,7 +36,7 @@
 namespace kaminpar::dist {
 namespace {
 SET_STATISTICS_FROM_GLOBAL();
-SET_DEBUG(false);
+SET_DEBUG(true);
 } // namespace
 
 namespace fm {
@@ -180,7 +180,7 @@ bool FMRefiner::refine() {
     shm::Graph *b_graph = extraction_result.graph.get();
     shm::PartitionedGraph *bp_graph = extraction_result.p_graph.get();
 
-    DBG << "BFS extraction result: n=" << b_graph->n() << ", m=" << b_graph->m();
+    DBG0 << "BFS extraction result on PE 0: n=" << b_graph->n() << ", m=" << b_graph->m();
     KASSERT(
         shm::validate_graph(*b_graph, false, _p_graph.k()),
         "BFS extractor returned invalid graph data structure",
@@ -264,15 +264,7 @@ bool FMRefiner::refine() {
             // can use the local seed ID and still have groups that are unique globally
             const GlobalNodeID group = seed;
 
-            bool print_delim = false;
             for (const auto &[node, from, improvement] : moves) {
-              if (node_mapper.to_graph(node) == 35857) {
-                DBG << "Recording applied move with seed " << seed << ": "
-                    << node_mapper.to_graph(node) << " /// " << node << " /// group " << group
-                    << " ::: " << from << " --> " << bp_graph->block(node);
-                print_delim = true;
-              }
-
               move_sets.push_back(GlobalMove{
                   .node = node_mapper.to_graph(node),
                   .group = group,
@@ -282,8 +274,6 @@ bool FMRefiner::refine() {
                   .to = bp_graph->block(node),
               });
             }
-            if (print_delim)
-              DBG << "-----";
 
             // Revert changes to the batch graph to make local FM searches independent of each other
             if (_fm_ctx.revert_local_moves_after_batch) {
@@ -320,10 +310,6 @@ bool FMRefiner::refine() {
           if (is_valid_id(node)) {
             if (_p_graph.contains_global_node(node)) {
               const NodeID lnode = _p_graph.global_to_local_node(node);
-              if (lnode == 35857) {
-                DBG << "expected " << lnode << " to be in block " << from << ", move to " << to
-                    << " /// node ID " << node << " /// group ID " << group;
-              }
               KASSERT(_p_graph.block(lnode) == from, V(lnode) << V(from));
               _p_graph.set_block(lnode, to);
             } else {
