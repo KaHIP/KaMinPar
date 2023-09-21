@@ -136,6 +136,11 @@ bool validate_graph(
         LOG_WARNING << "Neighbor " << v << " of " << u << " is out-of-graph";
         return false;
       }
+      if (u == v) {
+        LOG_WARNING << "Self-loop at " << u;
+        return false;
+      }
+
       bool found_reverse = false;
       for (const auto [e_prime, u_prime] : graph.neighbors(v)) {
         if (u_prime >= graph.n()) {

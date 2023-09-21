@@ -161,6 +161,12 @@ auto BfsExtractor::exchange_ghost_seed_nodes(
       // @todo filter
       // Only use this as a ghost node
 
+      if (cur_interface_node == -1) {
+        DBG0 << "received ghost seed node " << cur_interface_node << " with distance " << distance
+             << ", comign from ghost node " << cur_ghost_node
+             << " == " << _graph->local_to_global_node(cur_ghost_node) << " from PE " << pe;
+      }
+
       next_ghost_seed_nodes[pe].emplace_back(distance, cur_interface_node);
       next_ignored_nodes[pe].push_back(cur_ghost_node);
     }
@@ -226,30 +232,59 @@ auto BfsExtractor::bfs(
     NoinitVector<GhostSeedNode> &ghost_seed_nodes,
     const NoinitVector<NodeID> &ignored_nodes
 ) -> ExploredSubgraph {
-  // Marker for nodes that were already explored by this BFS search
-  auto &taken = _taken_ets.local();
-  taken.reset();
-  for (const NodeID ignored_node : ignored_nodes) {
-    // Prevent that we explore edges from which this BFS continues from another
-    // PE
-    taken.set(ignored_node);
-  }
+  KASSERT([&] {
+    for (const NodeID node : ignored_nodes) {
+      KASSERT(
+          !_graph->is_owned_node(node), "ignored nodes should be ghost nodes, not interface nodes"
+      );
+    }
+    for (const auto &[distance, node] : ghost_seed_nodes) {
+      KASSERT(_graph->is_owned_node(node), "seed nodes should be interface nodes, not ghost nodes");
+    }
+    return true;
+  }());
 
+  // Reset thread-local state from the previous BFS ...
+  auto &taken = _taken_ets.local();
   auto &external_degrees_map = _external_degrees_ets.local();
+  taken.reset();
   external_degrees_map.clear();
 
-  // Initialize search from closest ghost seed nodes
-  NodeID current_distance = (!ghost_seed_nodes.empty() ? std::get<0>(ghost_seed_nodes.front()) : 0);
-  std::queue<NodeID> front;
-  NoinitVector<GhostSeedEdge> next_ghost_seed_edges;
+  // Prevent that we explore edges from which this BFS continues from another
+  // PE
+  for (const NodeID ignored_node : ignored_nodes) {
+    taken.set(ignored_node);
+    if (_graph->local_to_global_node(ignored_node) == 350099 ||
+        _graph->local_to_global_node(ignored_node) == 1725765) {
+      DBG0 << "ignored node " << _graph->local_to_global_node(ignored_node);
+    }
+  }
 
+  // Initialize search from closest ghost seed nodes
   std::sort(ghost_seed_nodes.begin(), ghost_seed_nodes.end(), [](const auto &lhs, const auto &rhs) {
     return std::get<0>(lhs) < std::get<0>(rhs);
   });
+  NodeID current_distance = (!ghost_seed_nodes.empty() ? std::get<0>(ghost_seed_nodes.front()) : 0);
+  if (!ghost_seed_nodes.empty()) {
+    DBG << "initial distance for continued search: " << current_distance << ", for node "
+        << std::get<1>(ghost_seed_nodes.front());
+  }
+
+  std::queue<NodeID> front;
+  NoinitVector<GhostSeedEdge> next_ghost_seed_edges;
 
   auto add_seed_nodes_to_search_front = [&](const NodeID with_distance) {
+    if (with_distance > _max_radius) {
+      return;
+    }
+
     for (const auto &[distance, node] : ghost_seed_nodes) {
-      if (distance == with_distance) {
+      if (distance == with_distance && !taken.get(node)) {
+        if (_graph->local_to_global_node(node) == 350099 ||
+            _graph->local_to_global_node(node) == 1725765) {
+          DBG0 << "seed node " << node << " = " << _graph->local_to_global_node(node)
+               << " with distance " << distance;
+        }
         front.push(node);
         taken.set(node);
       } else if (with_distance < distance) {
@@ -271,60 +306,80 @@ auto BfsExtractor::bfs(
   NoinitVector<BlockID> partition;
 
   // Perform BFS
-  while (!front.empty() && current_distance < _max_radius) {
+  while (!front.empty()) {
     const NodeID node = front.front();
     KASSERT(_graph->is_owned_node(node));
     front.pop();
     --front_size;
+    if (_graph->local_to_global_node(node) == 350099 ||
+        _graph->local_to_global_node(node) == 1725765) {
+      DBG0 << "popped node " << node << " = " << _graph->local_to_global_node(node);
+    }
 
     nodes.push_back(edges.size());
     node_weights.push_back(_graph->node_weight(node));
     node_mapping.push_back(_graph->local_to_global_node(node));
     partition.push_back(_p_graph->block(node));
 
-    const bool is_distance_border_node = current_distance + 1 == _max_radius;
+    const bool is_distance_border_node = current_distance == _max_radius;
     const bool is_hop_border_node = current_hop == _max_hops;
-    const bool is_border_node = is_distance_border_node || is_hop_border_node;
 
-    if (is_border_node) {
-      for (const auto [edge, neighbor] : _graph->neighbors(node)) {
-        if (taken.get(neighbor)) {
-          edges.push_back(_graph->local_to_global_node(neighbor));
-          edge_weights.push_back(_graph->edge_weight(edge));
-        } else {
-          const BlockID neighbor_block = _p_graph->block(neighbor);
-          external_degrees_map[neighbor_block] += _graph->edge_weight(edge);
-        }
+    external_degrees_map.clear();
+
+    explore_outgoing_edges(node, [&](const EdgeID edge, const NodeID neighbor) {
+      const bool is_real_target =
+          taken.get(neighbor) ||                                                                 //
+          (_graph->is_owned_node(neighbor) && !is_distance_border_node) ||                       //
+          (!_graph->is_owned_node(neighbor) && !is_distance_border_node && !is_hop_border_node); //
+
+      if ((_graph->local_to_global_node(node) == 1725765 &&
+           _graph->local_to_global_node(neighbor) == 350099) ||
+          (_graph->local_to_global_node(neighbor) == 1725765 &&
+           _graph->local_to_global_node(node) == 350099)) {
+        DBG << "consider edge " << node << " = " << _graph->local_to_global_node(node) << " --> "
+            << neighbor << " = " << _graph->local_to_global_node(neighbor)
+            << "; is_real_target = " << is_real_target
+            << "; is_distance_border_node = " << is_distance_border_node
+            << "; is_hop_border_node = " << is_hop_border_node;
       }
 
-      for (const auto &[block, weight] : external_degrees_map.entries()) {
-        edges.push_back(map_block_to_pseudo_node(block));
-        edge_weights.push_back(weight);
-      }
-
-      external_degrees_map.clear();
-    } else {
-      // Explore neighbors of owned nodes
-      explore_outgoing_edges(node, [&](const EdgeID edge, const NodeID neighbor) {
+      if (is_real_target) {
         edges.push_back(_graph->local_to_global_node(neighbor));
         edge_weights.push_back(_graph->edge_weight(edge));
 
-        // Skip nodes that we have already discovered
-        if (taken.get(neighbor)) {
-          return true;
-        }
-        taken.set(neighbor);
+        if (!taken.get(neighbor)) {
+          taken.set(neighbor);
 
-        // If we discovered a new ghost node, record it for the continued BFS
-        if (!_graph->is_owned_node(neighbor)) {
+          if (_graph->local_to_global_node(neighbor) == 350099) {
+            DBG0 << "took node " << neighbor << " = " << _graph->local_to_global_node(neighbor)
+                 << ", while iterating over neighbors of node " << node << " with distance "
+                 << current_distance;
+          }
+
+          if (_graph->is_owned_node(neighbor)) {
+            front.push(neighbor);
+          }
+        }
+        if (!_graph->is_owned_node(neighbor) && !is_hop_border_node) {
+          if (_graph->local_to_global_node(neighbor) == 350099 ||
+              _graph->local_to_global_node(neighbor) == 1725765) {
+            DBG << "pushed node " << neighbor << " = " << _graph->local_to_global_node(neighbor)
+                << ", while iterating over neighbors of node " << node << " with distance "
+                << current_distance;
+          }
           next_ghost_seed_edges.emplace_back(node, neighbor, current_distance + 1);
-          return true;
         }
+      } else {
+        external_degrees_map[_p_graph->block(neighbor)] += _graph->edge_weight(edge);
+      }
 
-        // ... otherwise, add it to the BFS front
-        front.push(neighbor);
-        return true;
-      });
+      return true;
+    });
+
+    // Add edges to the pseudo-nodes representing the contracted exterior -- if there are any
+    for (const auto &[block, weight] : external_degrees_map.entries()) {
+      edges.push_back(map_block_to_pseudo_node(block));
+      edge_weights.push_back(weight);
     }
 
     if (front_size == 0) {
@@ -424,17 +479,6 @@ auto BfsExtractor::combine_fragments(tbb::concurrent_vector<GraphFragment> &frag
       first_edge_id_for_fragment.begin()
   );
 
-  // Global graph to new graph mapping
-  /*auto encode_node_fragment_pair = [](const NodeID node, const std::size_t
-  fragment) -> GlobalNodeID { return (static_cast<GlobalNodeID>(node) << 32) |
-  fragment;
-  };
-  auto decode_node_fragment_pair = [](const GlobalNodeID pair) ->
-  std::pair<NodeID, std::size_t> { const NodeID      node     =
-  static_cast<NodeID>(pair >> 32); const std::size_t fragment =
-  static_cast<std::size_t>(pair & 0xffffffffu); return {node, fragment};
-  };*/
-
   growt::StaticGhostNodeMapping global_to_graph_mapping(first_node_id_for_fragment.back() + 1);
   tbb::parallel_for<std::size_t>(0, fragments.size(), [&](const std::size_t i) {
     for (std::size_t j = 0; j < fragments[i].node_mapping.size(); ++j) {
@@ -445,10 +489,7 @@ auto BfsExtractor::combine_fragments(tbb::concurrent_vector<GraphFragment> &frag
       node_mapping[new_node] = global_node;
 
       // Global graph to new graph
-      global_to_graph_mapping.insert(
-          global_node + 1,
-          new_node
-      ); // encode_node_fragment_pair(new_node, i));
+      global_to_graph_mapping.insert(global_node + 1, new_node);
     }
   });
 
@@ -477,8 +518,19 @@ auto BfsExtractor::combine_fragments(tbb::concurrent_vector<GraphFragment> &frag
           edges[new_e] = real_n + block;
         } else {
           auto it = global_to_graph_mapping.find(global_v + 1);
-          KASSERT(it != global_to_graph_mapping.end(), "Could not find a mapping for " << global_v);
+          KASSERT(
+              it != global_to_graph_mapping.end(),
+              "Could not find a mapping for global node " << global_v << ", contained in fragment "
+                                                          << i << " of " << fragments.size()
+          );
           edges[new_e] = (*it).second;
+
+          if (((*it).second == 1321279 && new_u == 682490) ||
+              ((*it).second == 682490 && new_u == 1321279)) {
+            DBG << "Create edge " << new_u << " = " << node_mapping[new_u] << " -> " << (*it).second
+                << " = " << global_v << " = " << node_mapping[(*it).second] << "; fragment " << i
+                << " of " << fragments.size();
+          }
         }
       }
     }

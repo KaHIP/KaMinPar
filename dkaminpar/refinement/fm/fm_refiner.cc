@@ -34,6 +34,8 @@
 #include "common/random.h"
 #include "common/timer.h"
 
+#define HEAVY assert::normal
+
 namespace kaminpar::dist {
 namespace {
 SET_STATISTICS_FROM_GLOBAL();
@@ -126,9 +128,9 @@ bool FMRefiner::refine() {
 
     DBG0 << "BFS extraction result on PE 0: n=" << b_graph->n() << ", m=" << b_graph->m();
     KASSERT(
-        shm::validate_graph(*b_graph, false, _p_graph.k()),
+        shm::validate_graph(*b_graph, true, _p_graph.k()),
         "BFS extractor returned invalid graph data structure",
-        assert::normal
+        HEAVY
     );
 
     // Overwrite the block weights in the batch graph with block weights of the global graph
@@ -288,7 +290,7 @@ bool FMRefiner::refine() {
             graph::debug::validate_partition(_p_graph),
             "global partition in inconsistent state after round " << global_round << "/"
                                                                   << local_round,
-            assert::heavy
+            HEAVY
         );
 
         // Continue for as long as some PE has more seeds left
