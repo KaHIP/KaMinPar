@@ -333,11 +333,13 @@ shm::PartitionContext FMRefiner::setup_shm_p_ctx(const shm::Graph &b_graph) cons
   shm::PartitionContext shm_p_ctx;
   shm_p_ctx.epsilon = _p_ctx.epsilon;
   shm_p_ctx.k = _p_ctx.k;
-  shm_p_ctx.n = asserting_cast<NodeID>(b_graph.n());
-  shm_p_ctx.m = asserting_cast<EdgeID>(b_graph.m());
-  shm_p_ctx.total_node_weight = asserting_cast<NodeWeight>(_p_ctx.graph->global_total_node_weight);
-  shm_p_ctx.total_edge_weight = asserting_cast<EdgeWeight>(_p_ctx.graph->global_total_edge_weight);
-  shm_p_ctx.max_node_weight = asserting_cast<NodeWeight>(_p_ctx.graph->global_max_node_weight);
+  shm_p_ctx.n = asserting_cast<shm::NodeID>(b_graph.n());
+  shm_p_ctx.m = asserting_cast<shm::EdgeID>(b_graph.m());
+  shm_p_ctx.total_node_weight =
+      asserting_cast<shm::NodeWeight>(_p_ctx.graph->global_total_node_weight);
+  shm_p_ctx.total_edge_weight =
+      asserting_cast<shm::EdgeWeight>(_p_ctx.graph->global_total_edge_weight);
+  shm_p_ctx.max_node_weight = asserting_cast<shm::NodeWeight>(_p_ctx.graph->global_max_node_weight);
   shm_p_ctx.setup_block_weights();
   return shm_p_ctx;
 }
