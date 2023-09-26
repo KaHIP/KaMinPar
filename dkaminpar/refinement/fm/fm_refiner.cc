@@ -34,11 +34,11 @@
 #include "common/random.h"
 #include "common/timer.h"
 
-#define HEAVY assert::normal
+#define HEAVY assert::heavy
 
 namespace kaminpar::dist {
 namespace {
-SET_STATISTICS_FROM_GLOBAL();
+SET_STATISTICS(true);
 SET_DEBUG(true);
 } // namespace
 
@@ -94,7 +94,6 @@ bool FMRefiner::refine() {
   SCOPED_TIMER("FM");
 
   auto balancer = _balancer_factory->create(_p_graph, _p_ctx);
-  balancer->initialize();
 
   // Track the best partition that we see during FM refinement
   std::unique_ptr<PartitionSnapshooter> snapshooter =
@@ -110,23 +109,45 @@ bool FMRefiner::refine() {
     const EdgeWeight initial_cut =
         _ctx.refinement.fm.use_abortion_threshold ? metrics::edge_cut(_p_graph) : -1;
 
+    START_TIMER("Find seed nodes");
     const auto seed_nodes = _fm_ctx.use_independent_seeds
                                 ? graph::find_independent_border_set(_p_graph, global_round)
                                 : graph::find_border_nodes(_p_graph);
+    STOP_TIMER();
+
+    mpi::barrier(_p_graph.communicator());
 
     // Run distributed BFS to extract batches around the seed nodes
+    START_TIMER("Run BFS");
     graph::BfsExtractor bfs_extractor(_p_graph.graph());
     bfs_extractor.initialize(_p_graph);
     bfs_extractor.set_max_hops(_fm_ctx.max_hops);
     bfs_extractor.set_max_radius(_fm_ctx.max_radius);
     auto extraction_result = bfs_extractor.extract(seed_nodes);
+    STOP_TIMER();
+
+    mpi::barrier(_p_graph.communicator());
 
     // This is the batch graph containing the subgraphs around all seed nodes
     // The last `k` nodes are pseudo-nodes representing the blocks of the graph partition
     shm::Graph *b_graph = extraction_result.graph.get();
     shm::PartitionedGraph *bp_graph = extraction_result.p_graph.get();
 
-    DBG0 << "BFS extraction result on PE 0: n=" << b_graph->n() << ", m=" << b_graph->m();
+    IF_STATS {
+      SCOPED_TIMER("Statistics");
+
+      const auto [n_min, n_avg, n_max, n_sum] =
+          mpi::gather_statistics(b_graph->n(), _p_graph.communicator());
+      const auto [m_min, m_avg, m_max, m_sum] =
+          mpi::gather_statistics(b_graph->m(), _p_graph.communicator());
+
+      STATS << "FM batch graph -> Iteration " << global_round << ":";
+      STATS << "  [FM:BATCH:" << global_round << "] Number of nodes: [Min=" << n_min
+            << ", Mean=" << n_avg << ", Max=" << n_max << ", Sum=" << n_sum << "]";
+      STATS << "  [FM:BATCH:" << global_round << "] Number of edges: [Min=" << m_min
+            << ", Mean=" << m_avg << ", Max=" << m_max << ", Sum=" << m_sum << "]";
+    }
+
     KASSERT(
         shm::validate_graph(*b_graph, true, _p_graph.k()),
         "BFS extractor returned invalid graph data structure",
@@ -159,14 +180,18 @@ bool FMRefiner::refine() {
     });
     STOP_TIMER();
 
+    mpi::barrier(_p_graph.communicator());
+
     std::vector<GlobalMove> move_sets;
 
     for (std::size_t local_round = 0; local_round < _fm_ctx.num_local_iterations; ++local_round) {
-      DBG0 << "Starting FM round " << global_round << "/" << local_round;
-
       // Unlock previously locked nodes, etc ...
       // @todo re-init border nodes if not using the independent set as FM seeds
+      START_TIMER("Prepared shared data");
       prepare_shared_data_for_local_round(*bp_graph, shared);
+      STOP_TIMER();
+
+      mpi::barrier(_p_graph.communicator());
 
       // Compute the number of seeds per chunk / batch
       const NodeID total_num_seeds = shared.border_nodes.size();
@@ -305,8 +330,14 @@ bool FMRefiner::refine() {
       // Since we have changed the partition, re-initialize the balancer
       balancer->initialize();
       balancer->refine();
+      mpi::barrier(_p_graph.communicator());
     }
+
+    START_TIMER("Update snapshot");
     snapshooter->update();
+    STOP_TIMER();
+
+    mpi::barrier(_p_graph.communicator());
 
     if (_ctx.refinement.fm.use_abortion_threshold) {
       const EdgeWeight final_cut = metrics::edge_cut(_p_graph);
@@ -322,9 +353,18 @@ bool FMRefiner::refine() {
     balancer->initialize();
     balancer->refine();
 
+    START_TIMER("Update snapshot");
     snapshooter->update();
+    STOP_TIMER();
+
+    mpi::barrier(_p_graph.communicator());
   }
+
+  START_TIMER("Rollback to snapshot");
   snapshooter->rollback();
+  STOP_TIMER();
+
+  mpi::barrier(_p_graph.communicator());
 
   return false;
 }

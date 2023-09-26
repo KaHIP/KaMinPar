@@ -19,7 +19,7 @@
 #include "common/timer.h"
 
 namespace kaminpar::dist::graph {
-SET_DEBUG(true);
+SET_DEBUG(false);
 
 namespace {
 template <typename Generator, typename ScoreType = std::int64_t>
@@ -34,8 +34,6 @@ ScoreType compute_score(Generator &generator, const GlobalNodeID node, const int
 
 std::vector<NodeID>
 find_independent_border_set(const DistributedPartitionedGraph &p_graph, const int seed) {
-  SCOPED_TIMER("Find independent border node set");
-
   constexpr std::int64_t kNoBorderNode = std::numeric_limits<std::int64_t>::max();
 
   NoinitVector<std::int64_t> score(p_graph.total_n());
@@ -83,7 +81,6 @@ find_independent_border_set(const DistributedPartitionedGraph &p_graph, const in
     }
   });
 
-  mpi::barrier(p_graph.communicator());
   return std::vector<NodeID>(seed_nodes.begin(), seed_nodes.end());
 }
 } // namespace kaminpar::dist::graph

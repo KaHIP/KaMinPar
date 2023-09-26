@@ -12,6 +12,8 @@
 #include "dkaminpar/datastructures/distributed_partitioned_graph.h"
 #include "dkaminpar/dkaminpar.h"
 
+#include "common/timer.h"
+
 namespace kaminpar::dist::graph {
 std::vector<NodeID> find_border_nodes(const DistributedPartitionedGraph &p_graph) {
   std::vector<NodeID> border_nodes;
