@@ -49,7 +49,7 @@ Context create_default_context() {
       .partitioning =
           {
               .mode = PartitioningMode::DEEP,
-              .deep_initial_partitioning_mode = InitialPartitioningMode::SYNCHRONOUS_PARALLEL,
+              .deep_initial_partitioning_mode = InitialPartitioningMode::ASYNCHRONOUS_PARALLEL,
               .deep_initial_partitioning_load = 1.0,
           },
       .partition =
@@ -156,7 +156,8 @@ Context create_default_context() {
 
 Context create_fast_context() {
   Context ctx = create_default_context();
-  ctx.partitioning.deep_initial_partitioning_mode = InitialPartitioningMode::SEQUENTIAL;
+  ctx.partitioning.deep_initial_partitioning_mode = InitialPartitioningMode::ASYNCHRONOUS_PARALLEL;
+  ctx.partitioning.deep_initial_partitioning_load = 0.5;
   ctx.coarsening.lp.num_iterations = 1;
   ctx.initial_partitioning.min_num_repetitions = 1;
   ctx.initial_partitioning.min_num_non_adaptive_repetitions = 1;
