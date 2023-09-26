@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Functions to annotate the timer tree with aggregate timer information from 
+ * Functions to annotate the timer tree with aggregate timer information from
  * all PEs.
  *
  * @file:   timer.cc
@@ -83,6 +83,28 @@ struct NodeStatistics {
 };
 
 template <std::size_t trunc_to = 1024, typename String>
+std::vector<std::string> allgather_trunc_string(const String &str, MPI_Comm comm) {
+  // copy str to char array
+  char trunc[trunc_to];
+  const std::size_t len = std::min(trunc_to - 1, str.length());
+  str.copy(trunc, len);
+  trunc[len] = 0;
+
+  // collect on root
+  const auto [size, rank] = mpi::get_comm_info(comm);
+  std::vector<char> recv_buffer(size * trunc_to);
+  mpi::allgather(trunc, trunc_to, recv_buffer.data(), trunc_to, comm);
+
+  // build std::string objects on root
+  std::vector<std::string> strings;
+  for (PEID pe = 0; pe < size; ++pe) {
+    strings.emplace_back(recv_buffer.data() + pe * trunc_to);
+  }
+
+  return strings;
+}
+
+template <std::size_t trunc_to = 1024, typename String>
 std::vector<std::string> gather_trunc_string(const String &str, const PEID root, MPI_Comm comm) {
   // copy str to char array
   char trunc[trunc_to];
@@ -106,84 +128,79 @@ std::vector<std::string> gather_trunc_string(const String &str, const PEID root,
   return strings;
 }
 
+void generate_dummy_statistics(
+    const Timer::TimerTreeNode &node, std::vector<NodeStatistics> &result
+) {
+  result.push_back({
+      .min = -1.0,
+      .mean = -1.0,
+      .max = -1.0,
+      .sd = -1.0,
+      .times = {},
+  });
+
+  for (const auto &child : node.children) {
+    generate_dummy_statistics(*child, result);
+  }
+}
+
 void generate_statistics(
     const Timer::TimerTreeNode &node, std::vector<NodeStatistics> &result, MPI_Comm comm
 ) {
   const PEID root = 0;
 
   // Make sure that we are looking at the same timer node on each PE
-  KASSERT(
-      [&] {
-        constexpr std::size_t check_chars = 1024;
+  bool nondiverged_node = true;
+  {
+    constexpr std::size_t check_chars = 1024;
 
-        const PEID rank = mpi::get_comm_rank(comm);
+    const PEID rank = mpi::get_comm_rank(comm);
 
-        // check that this timer node has the same number of children on each PE
-        auto num_children = mpi::gather(node.children.size(), 0, comm);
-        KASSERT(
-            (rank != root || std::all_of(
-                                 num_children.begin(),
-                                 num_children.end(),
-                                 [&](const std::size_t num) { return num == node.children.size(); }
-                             )),
-            "timers have diverged: number of children for node "
-                << node.name << "/" << node.description << ": " << num_children,
-            assert::always
-        );
+    // check that this timer node has the same number of children on each PE
+    auto num_children = mpi::allgather(node.children.size(), comm);
+    if (!std::all_of(num_children.begin(), num_children.end(), [&](const std::size_t num) {
+          return num == node.children.size();
+        })) {
+      nondiverged_node = false;
+    }
 
-        auto names = gather_trunc_string<check_chars>(node.name, root, comm);
-        KASSERT(
-            (rank != root || std::all_of(
-                                 names.begin(),
-                                 names.end(),
-                                 [&](const std::string &name) {
-                                   return name.substr(0, check_chars) ==
-                                          node.name.substr(0, check_chars);
-                                 }
-                             )),
-            "timers have diverged at node " << node.name << ": " << names,
-            assert::always
-        );
+    auto names = allgather_trunc_string<check_chars>(node.name, comm);
+    if (!std::all_of(names.begin(), names.end(), [&](const std::string &name) {
+          return name.substr(0, check_chars) == node.name.substr(0, check_chars);
+        })) {
+      nondiverged_node = false;
+    }
 
-        auto descriptions = gather_trunc_string<check_chars>(node.description, root, comm);
-        KASSERT(
-            (rank != root || std::all_of(
-                                 descriptions.begin(),
-                                 descriptions.end(),
-                                 [&](const std::string &description) {
-                                   return description.substr(0, check_chars) ==
-                                          node.description.substr(0, check_chars);
-                                 }
-                             )),
-            "timers have diverged at node " << node.name << " with description " << node.description
-                                            << ": " << descriptions,
-            assert::always
-        );
-
-        return true;
-      }(),
-      "",
-      assert::always
-  );
-
-  auto times = mpi::gather<double, std::vector<double>>(node.seconds(), 0, comm);
-  const double mean = compute_mean(times);
-  const double sd = compute_sd(times);
-
-  if (mpi::get_comm_rank(comm) == root) {
-    const auto min = *std::min_element(times.begin(), times.end());
-    const auto max = *std::max_element(times.begin(), times.end());
-    result.push_back({
-        .min = min,
-        .mean = mean,
-        .max = max,
-        .sd = sd,
-        .times = std::move(times),
-    });
+    auto descriptions = allgather_trunc_string<check_chars>(node.description, comm);
+    if (!std::all_of(descriptions.begin(), descriptions.end(), [&](const std::string &description) {
+          return description.substr(0, check_chars) == node.description.substr(0, check_chars);
+        })) {
+      nondiverged_node = false;
+    }
   }
 
-  for (const auto &child : node.children) {
-    generate_statistics(*child, result, comm);
+  if (nondiverged_node) {
+    auto times = mpi::gather<double, std::vector<double>>(node.seconds(), 0, comm);
+    const double mean = compute_mean(times);
+    const double sd = compute_sd(times);
+
+    if (mpi::get_comm_rank(comm) == root) {
+      const auto min = *std::min_element(times.begin(), times.end());
+      const auto max = *std::max_element(times.begin(), times.end());
+      result.push_back({
+          .min = min,
+          .mean = mean,
+          .max = max,
+          .sd = sd,
+          .times = std::move(times),
+      });
+    }
+
+    for (const auto &child : node.children) {
+      generate_statistics(*child, result, comm);
+    }
+  } else {
+    generate_dummy_statistics(node, result);
   }
 }
 
@@ -208,9 +225,13 @@ void annotate_timer_tree(
   const auto &entry = statistics[pos++];
 
   std::stringstream ss;
-  ss << "[" << table.to_str_padded(entry.min) << " s | " << table.to_str_padded(entry.mean)
-     << " s | " << table.to_str_padded(entry.max) << " s | " << table.to_str_padded(entry.sd)
-     << " s] ";
+  if (entry.min >= 0) {
+    ss << "[" << table.to_str_padded(entry.min) << " s | " << table.to_str_padded(entry.mean)
+       << " s | " << table.to_str_padded(entry.max) << " s | " << table.to_str_padded(entry.sd)
+       << " s] ";
+  } else {
+    ss << "N/A ";
+  }
 
   // Also print running times that deviate by more than 3 SDs
   // Disable: produces too much output on large PE counts

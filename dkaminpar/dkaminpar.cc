@@ -45,6 +45,8 @@ void print_partition_summary(
   const auto feasible =
       metrics::is_feasible(p_graph, ctx.partition) && p_graph.k() == ctx.partition.k;
 
+  finalize_distributed_timer(Timer::global(), p_graph.communicator());
+
   if (!root) {
     // Non-root PEs are only needed to compute the partition metrics
     return;
@@ -52,7 +54,6 @@ void print_partition_summary(
 
   cio::print_delimiter("Result Summary");
 
-  finalize_distributed_timer(Timer::global(), p_graph.communicator());
   if (parseable) {
     LOG << "RESULT cut=" << edge_cut << " imbalance=" << imbalance << " feasible=" << feasible
         << " k=" << p_graph.k();
