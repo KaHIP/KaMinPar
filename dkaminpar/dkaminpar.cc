@@ -52,6 +52,7 @@ void print_partition_summary(
 
   cio::print_delimiter("Result Summary");
 
+  finalize_distributed_timer(Timer::global(), p_graph.communicator());
   if (parseable) {
     LOG << "RESULT cut=" << edge_cut << " imbalance=" << imbalance << " feasible=" << feasible
         << " k=" << p_graph.k();
