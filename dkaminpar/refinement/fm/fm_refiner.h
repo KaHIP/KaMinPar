@@ -87,6 +87,8 @@ private:
   void
   prepare_shared_data_for_local_round(shm::PartitionedGraph &bp_graph, shm::fm::SharedData &shared);
 
+  void global_round_stats(int round, const shm::Graph &b_graph, const std::vector<NodeID> &seed_nodes) const;
+
   const Context &_ctx;
   const FMRefinementContext &_fm_ctx;
 

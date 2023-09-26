@@ -134,18 +134,7 @@ bool FMRefiner::refine() {
     shm::PartitionedGraph *bp_graph = extraction_result.p_graph.get();
 
     IF_STATS {
-      SCOPED_TIMER("Statistics");
-
-      const auto [n_min, n_avg, n_max, n_sum] =
-          mpi::gather_statistics(b_graph->n(), _p_graph.communicator());
-      const auto [m_min, m_avg, m_max, m_sum] =
-          mpi::gather_statistics(b_graph->m(), _p_graph.communicator());
-
-      STATS << "FM batch graph -> Iteration " << global_round << ":";
-      STATS << "  [FM:BATCH:" << global_round << "] Number of nodes: [Min=" << n_min
-            << ", Mean=" << n_avg << ", Max=" << n_max << ", Sum=" << n_sum << "]";
-      STATS << "  [FM:BATCH:" << global_round << "] Number of edges: [Min=" << m_min
-            << ", Mean=" << m_avg << ", Max=" << m_max << ", Sum=" << m_sum << "]";
+      global_round_stats(global_round, *b_graph, seed_nodes);
     }
 
     KASSERT(
@@ -427,5 +416,67 @@ shm::KwayFMRefinementContext FMRefiner::setup_fm_ctx() const {
       .use_exact_abortion_threshold = false,
       .abortion_threshold = 0.999,
   };
+}
+
+void FMRefiner::global_round_stats(
+    const int round, const shm::Graph &b_graph, const std::vector<NodeID> &seed_nodes
+) const {
+  SCOPED_TIMER("Statistics");
+
+  const auto [n_min, n_avg, n_max, n_sum] =
+      mpi::gather_statistics(b_graph.n(), _p_graph.communicator());
+  const auto [m_min, m_avg, m_max, m_sum] =
+      mpi::gather_statistics(b_graph.m(), _p_graph.communicator());
+  const auto [seeds_min, seeds_avg, seeds_max, seeds_sum] =
+      mpi::gather_statistics(seed_nodes.size(), _p_graph.communicator());
+
+  STATS << "FM batch graph -> Iteration " << round << ": Hops=" << _fm_ctx.max_hops
+        << ", Radius=" << _fm_ctx.max_radius;
+  STATS << "  [FM:BATCH:" << round << "] Number of nodes: [Min=" << n_min << ", Mean=" << n_avg
+        << ", Max=" << n_max << ", Sum=" << n_sum << "]";
+  STATS << "  [FM:BATCH:" << round << "] Number of edges: [Min=" << m_min << ", Mean=" << m_avg
+        << ", Max=" << m_max << ", Sum=" << m_sum << "]";
+  STATS << "  [FM:BATCH:" << round << "] Number of seeds: [Min=" << seeds_min
+        << ", Mean=" << seeds_avg << ", Max=" << seeds_max << ", Sum=" << seeds_sum << "]";
+
+  const EdgeID seeds_deg_sum = std::accumulate(
+      seed_nodes.begin(),
+      seed_nodes.end(),
+      0,
+      [&](const NodeID sum, const NodeID node) { return sum + _p_graph.degree(node); }
+  );
+
+  const EdgeID seeds_nonlocal_deg_sum = std::accumulate(
+      seed_nodes.begin(),
+      seed_nodes.end(),
+      0,
+      [&](const NodeID sum, const NodeID node) {
+        return sum + std::accumulate(
+                         _p_graph.adjacent_nodes(node).begin(),
+                         _p_graph.adjacent_nodes(node).end(),
+                         0,
+                         [&](const EdgeID deg, const NodeID neighbor) {
+                           return deg + (_p_graph.block(node) != _p_graph.block(neighbor));
+                         }
+                     );
+      }
+  );
+
+  const auto [seeds_deg_min, seeds_deg_avg, seeds_deg_max, seeds_deg_sum_all] =
+      mpi::gather_statistics(seeds_deg_sum, _p_graph.communicator());
+  const auto
+      [seeds_nonlocal_deg_min,
+       seeds_nonlocal_deg_avg,
+       seeds_nonlocal_deg_max,
+       seeds_nonlocal_deg_sum_all] =
+          mpi::gather_statistics(seeds_nonlocal_deg_sum, _p_graph.communicator());
+
+  STATS << "  [FM:BATCH:" << round << "] Seed node degrees: [Min=" << seeds_deg_min
+        << ", Mean=" << seeds_deg_avg << ", Max=" << seeds_deg_max << ", Sum=" << seeds_deg_sum_all
+        << "]";
+  STATS << "  [FM:BATCH:" << round
+        << "] Seed node non-local degrees: [Min=" << seeds_nonlocal_deg_min
+        << ", Mean=" << seeds_nonlocal_deg_avg << ", Max=" << seeds_nonlocal_deg_max
+        << ", Sum=" << seeds_nonlocal_deg_sum_all << "]";
 }
 } // namespace kaminpar::dist
