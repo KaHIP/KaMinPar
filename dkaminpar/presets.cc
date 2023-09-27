@@ -190,7 +190,7 @@ Context create_default_context() {
                           },
 
                       .max_hops = 1,
-                      .max_radius = 2,
+                      .max_radius = 1,
 
                       .num_global_iterations = 10,
                       .num_local_iterations = 1,
