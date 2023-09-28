@@ -26,7 +26,9 @@ class OnTheFlyGainCache {
 
 public:
   using DeltaCache = OnTheFlyDeltaGainCache;
-  constexpr static bool kIteratesExactGains = true;
+
+  constexpr static bool kIteratesNonadjacentBlocks = false; // must be false
+  constexpr static bool kIteratesExactGains = true; // should be true
 
   OnTheFlyGainCache(NodeID /* max_n */, BlockID max_k)
       : _rating_map_ets([&] {
@@ -146,15 +148,20 @@ private:
     auto action = [&](auto &map) {
       for (const auto [e, v] : p_graph.neighbors(node)) {
         const BlockID block = p_graph.block(v);
-        if (block == from || target_block_acceptor(block)) {
+        if ((kIteratesExactGains && block == from) ||
+            (block != from && target_block_acceptor(block))) {
           map[block] += p_graph.edge_weight(e);
         }
       }
-      const EdgeWeight conn_from = map[from];
+      const EdgeWeight conn_from = kIteratesExactGains ? map[from] : 0;
 
       for (const auto [block, conn] : map.entries()) {
         if (block != from) {
-          gain_consumer(block, conn - conn_from);
+          if constexpr (kIteratesExactGains) {
+            gain_consumer(block, conn - conn_from);
+          } else {
+            gain_consumer(block, conn);
+          }
         }
       }
 
