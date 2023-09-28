@@ -153,14 +153,14 @@ bool FMRefiner::refine() {
     const shm::PartitionContext shm_p_ctx = setup_shm_p_ctx(*b_graph);
     const fm::NodeMapper node_mapper(extraction_result.node_mapping);
     const shm::KwayFMRefinementContext shm_fm_ctx = setup_fm_ctx();
-    shm::fm::SharedData shared = setup_fm_data(*bp_graph, seed_nodes, node_mapper);
+    shm::fm::SharedData<> shared = setup_fm_data(*bp_graph, seed_nodes, node_mapper);
 
     // Create thread-local workers numbered 1..P
     std::atomic<int> next_id = 0;
-    tbb::enumerable_thread_specific<shm::LocalizedFMRefiner> worker_ets([&] {
+    tbb::enumerable_thread_specific<shm::LocalizedFMRefiner<>> worker_ets([&] {
       // It is important that worker IDs start at 1, otherwise the node
       // tracker won't work since 0 is reserved for "unmarked / untracked"
-      shm::LocalizedFMRefiner worker(++next_id, shm_p_ctx, shm_fm_ctx, *bp_graph, shared);
+      shm::LocalizedFMRefiner<> worker(++next_id, shm_p_ctx, shm_fm_ctx, *bp_graph, shared);
 
       // This allows access to the moves that were applied to the shared bp_graph partition
       worker.enable_move_recording();
@@ -204,7 +204,7 @@ bool FMRefiner::refine() {
         for (NodeID progress = 0; shared.border_nodes.has_more() && progress < num_seeds_per_chunk;
              ++progress) {
           // Perform the FM search starting at the next seed
-          shm::LocalizedFMRefiner &worker = worker_ets.local();
+          auto &worker = worker_ets.local();
           const EdgeWeight gain = worker.run_batch();
           const NodeID seed = worker.last_batch_seed_nodes().front();
           const auto &moves = worker.last_batch_moves();
@@ -373,12 +373,12 @@ shm::PartitionContext FMRefiner::setup_shm_p_ctx(const shm::Graph &b_graph) cons
   return shm_p_ctx;
 }
 
-shm::fm::SharedData FMRefiner::setup_fm_data(
+shm::fm::SharedData<> FMRefiner::setup_fm_data(
     const shm::PartitionedGraph &bp_graph,
     const std::vector<NodeID> &lseeds,
     const fm::NodeMapper &mapper
 ) const {
-  shm::fm::SharedData shared(bp_graph.n(), bp_graph.k());
+  shm::fm::SharedData<> shared(bp_graph.n(), bp_graph.k());
 
   shared.gain_cache.initialize(bp_graph);
   if (_fm_ctx.use_bfs_seeds_as_fm_seeds) {
@@ -399,7 +399,7 @@ shm::fm::SharedData FMRefiner::setup_fm_data(
 }
 
 void FMRefiner::prepare_shared_data_for_local_round(
-    shm::PartitionedGraph &bp_graph, shm::fm::SharedData &shared
+    shm::PartitionedGraph &bp_graph, shm::fm::SharedData<> &shared
 ) {
   shared.node_tracker.reset();
   for (const BlockID block : _p_graph.blocks()) {

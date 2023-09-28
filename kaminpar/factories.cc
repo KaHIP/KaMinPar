@@ -82,7 +82,7 @@ std::unique_ptr<Refiner> create_refiner(const Context &ctx, const RefinementAlgo
     return std::make_unique<GreedyBalancer>(ctx);
 
   case RefinementAlgorithm::KWAY_FM:
-    return std::make_unique<FMRefiner>(ctx);
+    return std::make_unique<FMRefiner<>>(ctx);
 
   case RefinementAlgorithm::JET:
     return std::make_unique<JetRefiner>(ctx);

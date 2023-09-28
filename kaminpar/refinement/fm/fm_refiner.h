@@ -16,7 +16,7 @@
 #include "kaminpar/datastructures/graph.h"
 #include "kaminpar/datastructures/partitioned_graph.h"
 #include "kaminpar/refinement/fm/stopping_policies.h"
-#include "kaminpar/refinement/gain_cache.h"
+#include "kaminpar/refinement/gains/dense_gain_cache.h"
 #include "kaminpar/refinement/refiner.h"
 
 #include "common/datastructures/binary_heap.h"
@@ -175,7 +175,7 @@ private:
   tbb::concurrent_vector<NodeID> _border_nodes;
 };
 
-struct SharedData {
+template <typename GainCache = DenseGainCache> struct SharedData {
   SharedData(const NodeID max_n, const BlockID max_k)
       : node_tracker(max_n),
         gain_cache(max_n, max_k),
@@ -201,7 +201,7 @@ struct SharedData {
   }
 
   NodeTracker node_tracker;
-  DenseGainCache gain_cache;
+  GainCache gain_cache;
   BorderNodes border_nodes;
   StaticArray<std::size_t> shared_pq_handles;
   StaticArray<BlockID> target_blocks;
@@ -221,7 +221,7 @@ struct AppliedMove {
 };
 } // namespace fm
 
-class FMRefiner : public Refiner {
+template <typename GainCache = DenseGainCache> class FMRefiner : public Refiner {
 public:
   FMRefiner(const Context &ctx);
   ~FMRefiner(); // Required for the std::unique_ptr<> member.
@@ -263,17 +263,17 @@ private:
   const Context &_ctx;
   const KwayFMRefinementContext &_fm_ctx;
 
-  std::unique_ptr<fm::SharedData> _shared;
+  std::unique_ptr<fm::SharedData<GainCache>> _shared;
 };
 
-class LocalizedFMRefiner {
+template <typename GainCache = DenseGainCache> class LocalizedFMRefiner {
 public:
   LocalizedFMRefiner(
       int id,
       const PartitionContext &p_ctx,
       const KwayFMRefinementContext &fm_ctx,
       PartitionedGraph &p_graph,
-      fm::SharedData &shared
+      fm::SharedData<GainCache> &shared
   );
 
   EdgeWeight run_batch();
@@ -306,11 +306,11 @@ private:
   PartitionedGraph &_p_graph;
 
   // Data shared among all workers
-  fm::SharedData &_shared;
+  fm::SharedData<GainCache> &_shared;
 
   // Data local to this worker
   DeltaPartitionedGraph _d_graph;                         // O(|Delta|) space
-  DeltaGainCache<DenseGainCache> _d_gain_cache;           // O(|Delta|) space
+  typename GainCache::DeltaCache _d_gain_cache;           // O(|Delta|) space
   BinaryMaxHeap<EdgeWeight> _block_pq;                    // O(k) space
   std::vector<SharedBinaryMaxHeap<EdgeWeight>> _node_pqs; // O(k + |Touched|) space
 

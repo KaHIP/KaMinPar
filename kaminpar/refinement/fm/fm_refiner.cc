@@ -8,8 +8,8 @@
 #include "kaminpar/refinement/fm/fm_refiner.h"
 
 #include <cmath>
-#include <set>
 #include <queue>
+#include <set>
 #include <unordered_map>
 
 #include <tbb/concurrent_vector.h>
@@ -23,6 +23,7 @@
 #include "kaminpar/refinement/fm/stopping_policies.h"
 
 #include "common/datastructures/marker.h"
+#include "common/logger.h"
 #include "common/parallel/atomic.h"
 #include "common/random.h"
 #include "common/timer.h"
@@ -137,14 +138,18 @@ void GlobalBatchStats::summarize_iteration(
 }
 } // namespace fm
 
-FMRefiner::FMRefiner(const Context &input_ctx)
+template <typename GainCache>
+FMRefiner<GainCache>::FMRefiner(const Context &input_ctx)
     : _ctx(input_ctx),
       _fm_ctx(input_ctx.refinement.kway_fm),
-      _shared(std::make_unique<fm::SharedData>(input_ctx.partition.n, input_ctx.partition.k)) {}
+      _shared(
+          std::make_unique<fm::SharedData<GainCache>>(input_ctx.partition.n, input_ctx.partition.k)
+      ) {}
 
-FMRefiner::~FMRefiner() = default;
+template <typename GainCache> FMRefiner<GainCache>::~FMRefiner() = default;
 
-bool FMRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
+template <typename GainCache>
+bool FMRefiner<GainCache>::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
   SCOPED_TIMER("FM");
 
   START_TIMER("Initialize gain cache");
@@ -157,7 +162,7 @@ bool FMRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx)
 
   // Create thread-local workers numbered 1..P
   std::atomic<int> next_id = 0;
-  tbb::enumerable_thread_specific<LocalizedFMRefiner> localized_fm_refiner_ets([&] {
+  tbb::enumerable_thread_specific<LocalizedFMRefiner<GainCache>> localized_fm_refiner_ets([&] {
     // It is important that worker IDs start at 1, otherwise the node
     // tracker won't work
     LocalizedFMRefiner localized_refiner(++next_id, p_ctx, _fm_ctx, p_graph, *_shared);
@@ -198,7 +203,7 @@ bool FMRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx)
     START_TIMER("Localized searches");
     tbb::parallel_for<int>(0, _ctx.parallel.num_threads, [&](int) {
       EdgeWeight &expected_gain = expected_gain_ets.local();
-      LocalizedFMRefiner &localized_refiner = localized_fm_refiner_ets.local();
+      LocalizedFMRefiner<GainCache> &localized_refiner = localized_fm_refiner_ets.local();
 
       // The workers attempt to extract seed nodes from the border nodes
       // that are still available, continuing this process until there are
@@ -254,7 +259,8 @@ bool FMRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx)
   return false;
 }
 
-std::vector<fm::BatchStats> FMRefiner::dbg_compute_batch_stats(
+template <typename GainCache>
+std::vector<fm::BatchStats> FMRefiner<GainCache>::dbg_compute_batch_stats(
     const PartitionedGraph &next_p_graph, Batches next_batches
 ) const {
   // Rollback the partition to *before* any moves of the batch were applied
@@ -298,8 +304,9 @@ std::vector<fm::BatchStats> FMRefiner::dbg_compute_batch_stats(
 
 // Computes the partition *before* any moves of the given batches where applied to it
 // Changes the batches to store the blocks to which the nodes where moved to
-std::pair<PartitionedGraph, FMRefiner::Batches>
-FMRefiner::dbg_build_prev_p_graph(const PartitionedGraph &p_graph, Batches batches) const {
+template <typename GainCache>
+auto FMRefiner<GainCache>::dbg_build_prev_p_graph(const PartitionedGraph &p_graph, Batches batches)
+    const -> std::pair<PartitionedGraph, FMRefiner::Batches> {
   StaticArray<BlockID> prev_partition(p_graph.n());
   auto &next_partition = p_graph.partition();
   std::copy(next_partition.begin(), next_partition.end(), prev_partition.begin());
@@ -322,7 +329,8 @@ FMRefiner::dbg_build_prev_p_graph(const PartitionedGraph &p_graph, Batches batch
 // The given partition should reflect all batches that came before this one, but none of the ones
 // that will come afterwards
 // This function also applies the moves of the current batch to the given partition
-fm::BatchStats FMRefiner::dbg_compute_single_batch_stats_in_sequence(
+template <typename GainCache>
+fm::BatchStats FMRefiner<GainCache>::dbg_compute_single_batch_stats_in_sequence(
     PartitionedGraph &p_graph,
     const std::vector<NodeID> &seeds,
     const std::vector<fm::AppliedMove> &moves,
@@ -375,7 +383,8 @@ fm::BatchStats FMRefiner::dbg_compute_single_batch_stats_in_sequence(
   return stats;
 }
 
-std::vector<NodeID> FMRefiner::dbg_compute_batch_distances(
+template <typename GainCache>
+std::vector<NodeID> FMRefiner<GainCache>::dbg_compute_batch_distances(
     const Graph &graph, const std::vector<NodeID> &seeds, const std::vector<fm::AppliedMove> &moves
 ) const {
   // Keeps track of moved nodes that we yet have to discover
@@ -428,12 +437,13 @@ std::vector<NodeID> FMRefiner::dbg_compute_batch_distances(
   return distances;
 }
 
-LocalizedFMRefiner::LocalizedFMRefiner(
+template <typename GainCache>
+LocalizedFMRefiner<GainCache>::LocalizedFMRefiner(
     const int id,
     const PartitionContext &p_ctx,
     const KwayFMRefinementContext &fm_ctx,
     PartitionedGraph &p_graph,
-    fm::SharedData &shared
+    fm::SharedData<GainCache> &shared
 )
     : _id(id),
       _p_ctx(p_ctx),
@@ -441,7 +451,7 @@ LocalizedFMRefiner::LocalizedFMRefiner(
       _p_graph(p_graph),
       _shared(shared),
       _d_graph(&_p_graph),
-      _d_gain_cache(_shared.gain_cache),
+      _d_gain_cache(_shared.gain_cache, _d_graph),
       _block_pq(_p_graph.k()),
       _stopping_policy(_fm_ctx.alpha) {
   _stopping_policy.init(_p_graph.n());
@@ -450,19 +460,21 @@ LocalizedFMRefiner::LocalizedFMRefiner(
   }
 }
 
-void LocalizedFMRefiner::enable_move_recording() {
+template <typename GainCache> void LocalizedFMRefiner<GainCache>::enable_move_recording() {
   _record_applied_moves = true;
 }
 
-const std::vector<fm::AppliedMove> &LocalizedFMRefiner::last_batch_moves() {
+template <typename GainCache>
+const std::vector<fm::AppliedMove> &LocalizedFMRefiner<GainCache>::last_batch_moves() {
   return _applied_moves;
 }
 
-const std::vector<NodeID> &LocalizedFMRefiner::last_batch_seed_nodes() {
+template <typename GainCache>
+const std::vector<NodeID> &LocalizedFMRefiner<GainCache>::last_batch_seed_nodes() {
   return _seed_nodes;
 }
 
-EdgeWeight LocalizedFMRefiner::run_batch() {
+template <typename GainCache> EdgeWeight LocalizedFMRefiner<GainCache>::run_batch() {
   using fm::NodeTracker;
 
   _seed_nodes.clear();
@@ -627,7 +639,8 @@ EdgeWeight LocalizedFMRefiner::run_batch() {
   return best_total_gain;
 }
 
-void LocalizedFMRefiner::update_after_move(
+template <typename GainCache>
+void LocalizedFMRefiner<GainCache>::update_after_move(
     const NodeID node, const NodeID moved_node, const BlockID moved_from, const BlockID moved_to
 ) {
   const BlockID old_block = _p_graph.block(node);
@@ -674,7 +687,7 @@ void LocalizedFMRefiner::update_after_move(
   }
 }
 
-bool LocalizedFMRefiner::update_block_pq() {
+template <typename GainCache> bool LocalizedFMRefiner<GainCache>::update_block_pq() {
   bool have_more_nodes = false;
   for (const BlockID block : _p_graph.blocks()) {
     if (!_node_pqs[block].empty()) {
@@ -688,8 +701,9 @@ bool LocalizedFMRefiner::update_block_pq() {
   return have_more_nodes;
 }
 
+template <typename GainCache>
 template <typename PartitionedGraphType, typename GainCacheType>
-void LocalizedFMRefiner::insert_into_node_pq(
+void LocalizedFMRefiner<GainCache>::insert_into_node_pq(
     const PartitionedGraphType &p_graph, const GainCacheType &gain_cache, const NodeID u
 ) {
   const BlockID block_u = p_graph.block(u);
@@ -700,8 +714,9 @@ void LocalizedFMRefiner::insert_into_node_pq(
   _node_pqs[block_u].push(u, gain);
 }
 
+template <typename GainCache>
 template <typename PartitionedGraphType, typename GainCacheType>
-std::pair<BlockID, EdgeWeight> LocalizedFMRefiner::best_gain(
+std::pair<BlockID, EdgeWeight> LocalizedFMRefiner<GainCache>::best_gain(
     const PartitionedGraphType &p_graph, const GainCacheType &gain_cache, const NodeID u
 ) {
   const BlockID block_u = p_graph.block(u);
@@ -713,31 +728,48 @@ std::pair<BlockID, EdgeWeight> LocalizedFMRefiner::best_gain(
   NodeWeight best_target_block_weight_gap =
       _p_ctx.block_weights.max(block_u) - p_graph.block_weight(block_u);
 
-  for (const BlockID block : p_graph.blocks()) {
-    if (block == block_u) {
-      continue;
+  gain_cache.gains(
+      u,
+      block_u,
+      [&](const BlockID block) {
+        const NodeWeight target_block_weight = p_graph.block_weight(block) + weight_u;
+        const NodeWeight max_block_weight = _p_ctx.block_weights.max(block);
+        const NodeWeight block_weight_gap = max_block_weight - target_block_weight;
+        return !(block_weight_gap < best_target_block_weight_gap && block_weight_gap < 0);
+      },
+      [&](const BlockID block, const EdgeWeight conn) {
+        const NodeWeight target_block_weight = p_graph.block_weight(block) + weight_u;
+        const NodeWeight max_block_weight = _p_ctx.block_weights.max(block);
+        const NodeWeight block_weight_gap = max_block_weight - target_block_weight;
+
+        if (conn > best_conn ||
+            (conn == best_conn && block_weight_gap > best_target_block_weight_gap)) {
+          best_conn = conn;
+          best_target_block = block;
+          best_target_block_weight_gap = block_weight_gap;
+        }
+      }
+  );
+
+  const EdgeWeight best_gain = [&] {
+    if (best_target_block == block_u) {
+      return std::numeric_limits<EdgeWeight>::min();
+    } else {
+      if constexpr (GainCacheType::kIteratesExactGains) {
+        return best_conn;
+      } else {
+        return gain_cache.gain(u, block_u, best_target_block);
+      }
     }
+  }();
 
-    const NodeWeight target_block_weight = p_graph.block_weight(block) + weight_u;
-    const NodeWeight max_block_weight = _p_ctx.block_weights.max(block);
-    const NodeWeight block_weight_gap = max_block_weight - target_block_weight;
-
-    if (block_weight_gap < best_target_block_weight_gap && block_weight_gap < 0) {
-      continue;
-    }
-
-    const EdgeWeight conn = gain_cache.conn(u, block);
-    if (conn > best_conn ||
-        (conn == best_conn && block_weight_gap > best_target_block_weight_gap)) {
-      best_conn = conn;
-      best_target_block = block;
-      best_target_block_weight_gap = block_weight_gap;
-    }
-  }
-
-  const EdgeWeight best_gain = best_target_block != block_u
-                                   ? gain_cache.gain(u, block_u, best_target_block)
-                                   : std::numeric_limits<EdgeWeight>::min();
   return {best_target_block, best_gain};
 }
+
+namespace fm {
+template class SharedData<DenseGainCache>;
+}
+
+template class FMRefiner<DenseGainCache>;
+template class LocalizedFMRefiner<DenseGainCache>;
 } // namespace kaminpar::shm

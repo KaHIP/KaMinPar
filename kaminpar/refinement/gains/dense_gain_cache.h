@@ -1,13 +1,14 @@
 /*******************************************************************************
- * Gain cache for refinement algorithms.
+ * Gain cache that caches one gain for each node and block, using a total of
+ * O(|V| * k) memory.
  *
- * @file:   gain_cache.h
+ * @file:   dense_gain_cache.h
  * @author: Daniel Seemaier
  * @date:   15.03.2023
  ******************************************************************************/
 #pragma once
 
-#include <sparsehash/dense_hash_map>
+#include <type_traits>
 
 #include <kassert/kassert.hpp>
 #include <tbb/parallel_for.h>
@@ -18,17 +19,19 @@
 #include "kaminpar/datastructures/partitioned_graph.h"
 
 #include "common/datastructures/dynamic_map.h"
-#include "common/datastructures/noinit_vector.h"
 #include "common/logger.h"
 #include "common/timer.h"
 
 namespace kaminpar::shm {
-template <typename GainCache, bool use_sparsehash = false> class DeltaGainCache;
+template <typename GainCache> class DenseDeltaGainCache;
 
 class DenseGainCache {
-  friend class DeltaGainCache<DenseGainCache>;
+  friend DenseDeltaGainCache<DenseGainCache>;
 
 public:
+  using DeltaCache = DenseDeltaGainCache<DenseGainCache>;
+  constexpr static bool kIteratesExactGains = false;
+
   DenseGainCache(const NodeID max_n, const BlockID max_k)
       : _max_n(max_n),
         _max_k(max_k),
@@ -63,6 +66,23 @@ public:
 
   EdgeWeight conn(const NodeID node, const BlockID block) const {
     return weighted_degree_to(node, block);
+  }
+
+  template <typename TargetBlockAcceptor, typename GainConsumer>
+  void gains(
+      const NodeID node,
+      const BlockID from,
+      TargetBlockAcceptor &&target_block_acceptor,
+      GainConsumer &&gain_consumer
+  ) const {
+    static_assert(std::is_invocable_r_v<bool, TargetBlockAcceptor, BlockID>);
+    static_assert(std::is_invocable_r_v<void, GainConsumer, BlockID, EdgeWeight>);
+
+    for (BlockID to = 0; to < _k; ++to) {
+      if (from != to && target_block_acceptor(to)) {
+        gain_consumer(to, conn(node, to));
+      }
+    }
   }
 
   void move(
@@ -171,48 +191,44 @@ private:
   StaticArray<EdgeWeight> _weighted_degrees;
 };
 
-template <typename GainCache, bool use_sparsehash> class DeltaGainCache {
+template <typename GainCache> class DenseDeltaGainCache {
 public:
-  DeltaGainCache(const GainCache &gain_cache) : _gain_cache(gain_cache) {
-    if constexpr (use_sparsehash) {
-      _gain_cache_delta.set_empty_key(std::numeric_limits<std::size_t>::max());
-    }
-  }
+  constexpr static bool kIteratesExactGains = GainCache::kIteratesExactGains;
+
+  DenseDeltaGainCache(const GainCache &gain_cache, const DeltaPartitionedGraph & /* d_graph */)
+      : _gain_cache(gain_cache) {}
 
   EdgeWeight conn(const NodeID node, const BlockID block) const {
-    EdgeWeight delta = 0;
-    if constexpr (use_sparsehash) {
-      const auto it = _gain_cache_delta.find(_gain_cache.index(node, block));
-      delta = it != _gain_cache_delta.end() ? it->second : 0;
-    } else {
-      const auto it = _gain_cache_delta.get_if_contained(_gain_cache.index(node, block));
-      delta = it != _gain_cache_delta.end() ? *it : 0;
-    }
-    return _gain_cache.conn(node, block) + delta;
+    return _gain_cache.conn(node, block) + conn_delta(node, block);
   }
 
   EdgeWeight gain(const NodeID node, const BlockID from, const BlockID to) const {
-    EdgeWeight delta_to = 0;
-    EdgeWeight delta_from = 0;
-
-    if constexpr (use_sparsehash) {
-      const auto it_to = _gain_cache_delta.find(_gain_cache.index(node, to));
-      const auto it_from = _gain_cache_delta.find(_gain_cache.index(node, from));
-      delta_to = it_to != _gain_cache_delta.end() ? it_to->second : 0;
-      delta_from = it_from != _gain_cache_delta.end() ? it_from->second : 0;
-    } else {
-      const auto it_to = _gain_cache_delta.get_if_contained(_gain_cache.index(node, to));
-      const auto it_from = _gain_cache_delta.get_if_contained(_gain_cache.index(node, from));
-      delta_to = it_to != _gain_cache_delta.end() ? *it_to : 0;
-      delta_from = it_from != _gain_cache_delta.end() ? *it_from : 0;
-    }
-
-    return _gain_cache.gain(node, from, to) + delta_to - delta_from;
+    return _gain_cache.gain(node, from, to) + conn_delta(node, to) - conn_delta(node, from);
   }
 
-  template <typename DeltaPartitionedGraphType>
+  template <typename TargetBlockAcceptor, typename GainConsumer>
+  void gains(
+      const NodeID node,
+      const BlockID from,
+      TargetBlockAcceptor &&target_block_acceptor,
+      GainConsumer &&gain_consumer
+  ) const {
+    _gain_cache.gains(
+        node,
+        from,
+        std::forward<TargetBlockAcceptor>(target_block_acceptor),
+        [&](const BlockID block, const EdgeWeight conn) {
+          if constexpr (kIteratesExactGains) {
+            gain_consumer(block, conn + conn_delta(node, block) - conn_delta(node, from));
+          } else {
+            gain_consumer(block, conn + conn_delta(node, block));
+          }
+        }
+    );
+  }
+
   void move(
-      const DeltaPartitionedGraphType &d_graph,
+      const DeltaPartitionedGraph &d_graph,
       const NodeID u,
       const BlockID block_from,
       const BlockID block_to
@@ -229,12 +245,12 @@ public:
   }
 
 private:
-  const GainCache &_gain_cache;
+  EdgeWeight conn_delta(const NodeID node, const BlockID block) const {
+    const auto it = _gain_cache_delta.get_if_contained(_gain_cache.index(node, block));
+    return it != _gain_cache_delta.end() ? *it : 0;
+  }
 
-  std::conditional_t<
-      use_sparsehash,
-      google::dense_hash_map<std::size_t, EdgeWeight>,
-      DynamicFlatMap<std::size_t, EdgeWeight>>
-      _gain_cache_delta;
+  const GainCache &_gain_cache;
+  DynamicFlatMap<std::size_t, EdgeWeight> _gain_cache_delta;
 };
 } // namespace kaminpar::shm

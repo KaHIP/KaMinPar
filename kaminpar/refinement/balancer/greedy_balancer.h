@@ -15,7 +15,7 @@
 #include "kaminpar/datastructures/graph.h"
 #include "kaminpar/datastructures/partitioned_graph.h"
 #include "kaminpar/metrics.h"
-#include "kaminpar/refinement/gain_cache.h"
+#include "kaminpar/refinement/gains/dense_gain_cache.h"
 #include "kaminpar/refinement/refiner.h"
 
 #include "common/datastructures/binary_heap.h"

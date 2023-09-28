@@ -12,7 +12,7 @@
 #include "kaminpar/datastructures/partitioned_graph.h"
 #include "kaminpar/metrics.h"
 #include "kaminpar/refinement/balancer/greedy_balancer.h"
-#include "kaminpar/refinement/gain_cache.h"
+#include "kaminpar/refinement/gains/dense_gain_cache.h"
 
 #include "common/datastructures/noinit_vector.h"
 #include "common/degree_buckets.h"
