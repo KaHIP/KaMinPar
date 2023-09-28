@@ -768,13 +768,13 @@ std::pair<BlockID, EdgeWeight> LocalizedFMRefiner<GainCache>::best_gain(
 }
 
 namespace fm {
-template class SharedData<DenseGainCache>;
-template class SharedData<OnTheFlyGainCache>;
+template class SharedData<DenseGainCache<>>;
+template class SharedData<OnTheFlyGainCache<>>;
 } // namespace fm
 
-template class FMRefiner<DenseGainCache>;
-template class FMRefiner<OnTheFlyGainCache>;
+template class FMRefiner<DenseGainCache<>>;
+template class FMRefiner<OnTheFlyGainCache<>>;
 
-template class LocalizedFMRefiner<DenseGainCache>;
-template class LocalizedFMRefiner<OnTheFlyGainCache>;
+template class LocalizedFMRefiner<DenseGainCache<>>;
+template class LocalizedFMRefiner<OnTheFlyGainCache<>>;
 } // namespace kaminpar::shm

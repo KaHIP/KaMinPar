@@ -25,20 +25,20 @@
 namespace kaminpar::shm {
 template <typename GainCache> class DenseDeltaGainCache;
 
+template <bool iterate_nonadjacent_blocks = true, bool iterate_exact_gains = false>
 class DenseGainCache {
-  friend DenseDeltaGainCache<DenseGainCache>;
+  using Self = DenseGainCache<iterate_nonadjacent_blocks, iterate_exact_gains>;
+  friend DenseDeltaGainCache<Self>;
 
 public:
-  using DeltaCache = DenseDeltaGainCache<DenseGainCache>;
+  using DeltaCache = DenseDeltaGainCache<Self>;
 
-  // These can be set to either false or true, and the gain cache will adjust its behavior
-  // accordingly:
   // If set to true, gains() will iterate over all blocks, including those not adjacent to the node.
-  constexpr static bool kIteratesNonadjacentBlocks = true;
+  constexpr static bool kIteratesNonadjacentBlocks = iterate_nonadjacent_blocks;
   // If set to true, gains() will call the gain consumer with exact gains; otherwise, it will call
   // the gain consumer with the total edge weight between the node and nodes in the specific block
   // (more expensive, but safes a call to gain() if the exact gain for the best block is needed).
-  constexpr static bool kIteratesExactGains = false;
+  constexpr static bool kIteratesExactGains = iterate_exact_gains;
 
   DenseGainCache(const NodeID max_n, const BlockID max_k)
       : _max_n(max_n),

@@ -104,7 +104,7 @@ public:
   void initialize(const PartitionedGraph &p_graph) final;
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
 
-  void track_moves(DenseGainCache *gain_cache) {
+  void track_moves(DenseGainCache<> *gain_cache) {
     _gain_cache = gain_cache;
   }
 
@@ -158,6 +158,6 @@ private:
 
   Statistics _stats;
 
-  DenseGainCache *_gain_cache = nullptr;
+  DenseGainCache<> *_gain_cache = nullptr;
 };
 } // namespace kaminpar::shm

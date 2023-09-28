@@ -19,16 +19,17 @@
 #include "common/datastructures/sparse_map.h"
 
 namespace kaminpar::shm {
-class OnTheFlyDeltaGainCache;
+template <typename GainCache> class OnTheFlyDeltaGainCache;
 
-class OnTheFlyGainCache {
-  friend OnTheFlyDeltaGainCache;
+template <bool iterate_exact_gains = true> class OnTheFlyGainCache {
+  using Self = OnTheFlyGainCache<iterate_exact_gains>;
+  friend OnTheFlyDeltaGainCache<Self>;
 
 public:
-  using DeltaCache = OnTheFlyDeltaGainCache;
+  using DeltaCache = OnTheFlyDeltaGainCache<Self>;
 
-  constexpr static bool kIteratesNonadjacentBlocks = false; // must be false
-  constexpr static bool kIteratesExactGains = true;         // should be true
+  constexpr static bool kIteratesNonadjacentBlocks = false;
+  constexpr static bool kIteratesExactGains = iterate_exact_gains;
 
   OnTheFlyGainCache(NodeID /* max_n */, BlockID max_k)
       : _rating_map_ets([&] {
@@ -176,11 +177,12 @@ private:
       _rating_map_ets;
 };
 
-class OnTheFlyDeltaGainCache {
+template <typename GainCache> class OnTheFlyDeltaGainCache {
 public:
-  constexpr static bool kIteratesExactGains = OnTheFlyGainCache::kIteratesExactGains;
+  constexpr static bool kIteratesNonadjacentBlocks = GainCache::kIteratesNonadjacentBlocks;
+  constexpr static bool kIteratesExactGains = GainCache::kIteratesExactGains;
 
-  OnTheFlyDeltaGainCache(const OnTheFlyGainCache &gain_cache, const DeltaPartitionedGraph &d_graph)
+  OnTheFlyDeltaGainCache(const GainCache &gain_cache, const DeltaPartitionedGraph &d_graph)
       : _gain_cache(gain_cache),
         _d_graph(&d_graph) {}
 
@@ -217,7 +219,7 @@ public:
   void clear() {}
 
 private:
-  const OnTheFlyGainCache &_gain_cache;
+  const GainCache &_gain_cache;
   const DeltaPartitionedGraph *_d_graph;
 };
 

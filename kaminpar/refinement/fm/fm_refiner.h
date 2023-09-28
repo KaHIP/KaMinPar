@@ -175,7 +175,7 @@ private:
   tbb::concurrent_vector<NodeID> _border_nodes;
 };
 
-template <typename GainCache = DenseGainCache> struct SharedData {
+template <typename GainCache = DenseGainCache<>> struct SharedData {
   SharedData(const NodeID max_n, const BlockID max_k)
       : node_tracker(max_n),
         gain_cache(max_n, max_k),
@@ -221,7 +221,7 @@ struct AppliedMove {
 };
 } // namespace fm
 
-template <typename GainCache = DenseGainCache> class FMRefiner : public Refiner {
+template <typename GainCache = DenseGainCache<>> class FMRefiner : public Refiner {
 public:
   FMRefiner(const Context &ctx);
   ~FMRefiner(); // Required for the std::unique_ptr<> member.
@@ -266,7 +266,7 @@ private:
   std::unique_ptr<fm::SharedData<GainCache>> _shared;
 };
 
-template <typename GainCache = DenseGainCache> class LocalizedFMRefiner {
+template <typename GainCache = DenseGainCache<>> class LocalizedFMRefiner {
 public:
   LocalizedFMRefiner(
       int id,
