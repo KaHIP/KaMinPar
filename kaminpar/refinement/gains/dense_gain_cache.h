@@ -30,6 +30,14 @@ class DenseGainCache {
 
 public:
   using DeltaCache = DenseDeltaGainCache<DenseGainCache>;
+
+  // These can be set to either false or true, and the gain cache will adjust its behavior
+  // accordingly:
+  // If set to true, gains() will iterate over all blocks, including those not adjacent to the node.
+  constexpr static bool kIteratesNonadjacentBlocks = true;
+  // If set to true, gains() will call the gain consumer with exact gains; otherwise, it will call
+  // the gain consumer with the total edge weight between the node and nodes in the specific block
+  // (more expensive, but safes a call to gain() if the exact gain for the best block is needed).
   constexpr static bool kIteratesExactGains = false;
 
   DenseGainCache(const NodeID max_n, const BlockID max_k)
@@ -78,9 +86,23 @@ public:
     static_assert(std::is_invocable_r_v<bool, TargetBlockAcceptor, BlockID>);
     static_assert(std::is_invocable_r_v<void, GainConsumer, BlockID, EdgeWeight>);
 
+    const EdgeWeight conn_from = kIteratesExactGains ? conn(node, from) : 0;
+
     for (BlockID to = 0; to < _k; ++to) {
       if (from != to && target_block_acceptor(to)) {
-        gain_consumer(to, conn(node, to));
+        const EdgeWeight conn_to = conn(node, to);
+
+        if constexpr (!kIteratesNonadjacentBlocks) {
+          if (conn_to == 0) {
+            continue;
+          }
+        }
+
+        if constexpr (kIteratesExactGains) {
+          gain_consumer(to, conn_to - conn_from);
+        } else {
+          gain_consumer(to, conn_to);
+        }
       }
     }
   }
@@ -193,6 +215,7 @@ private:
 
 template <typename GainCache> class DenseDeltaGainCache {
 public:
+  constexpr static bool kIteratesNonadjacentBlocks = GainCache::kIteratesNonadjacentBlocks;
   constexpr static bool kIteratesExactGains = GainCache::kIteratesExactGains;
 
   DenseDeltaGainCache(const GainCache &gain_cache, const DeltaPartitionedGraph & /* d_graph */)
@@ -213,15 +236,25 @@ public:
       TargetBlockAcceptor &&target_block_acceptor,
       GainConsumer &&gain_consumer
   ) const {
+    const EdgeWeight conn_from_delta = kIteratesExactGains ? conn_delta(node, from) : 0;
+
     _gain_cache.gains(
         node,
         from,
         std::forward<TargetBlockAcceptor>(target_block_acceptor),
-        [&](const BlockID block, const EdgeWeight conn) {
+        [&](const BlockID to, const EdgeWeight conn_to) {
+          const EdgeWeight real_conn_to = conn_to + conn_delta(node, to);
+
+          if constexpr (!kIteratesNonadjacentBlocks) {
+            if (real_conn_to == 0) {
+              return;
+            }
+          }
+
           if constexpr (kIteratesExactGains) {
-            gain_consumer(block, conn + conn_delta(node, block) - conn_delta(node, from));
+            gain_consumer(to, real_conn_to - conn_from_delta);
           } else {
-            gain_consumer(block, conn + conn_delta(node, block));
+            gain_consumer(to, real_conn_to);
           }
         }
     );

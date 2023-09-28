@@ -120,8 +120,6 @@ private:
   bool is_border_node_impl(
       const PartitionedGraphType &p_graph, const NodeID node, const BlockID block
   ) const {
-    KASSERT(p_graph.block(node) == block);
-
     for (const auto [e, v] : p_graph.neighbors(node)) {
       if (p_graph.block(v) != block) {
         return true;
