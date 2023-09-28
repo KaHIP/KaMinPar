@@ -30,6 +30,10 @@
 #include "kaminpar/refinement/mtkahypar_refiner.h"
 #include "kaminpar/refinement/multi_refiner.h"
 
+// Gain cache strategies for the FM algorithm
+#include "kaminpar/refinement/gains/dense_gain_cache.h"
+#include "kaminpar/refinement/gains/on_the_fly_gain_cache.h"
+
 namespace kaminpar::shm::factory {
 std::unique_ptr<Partitioner> create_partitioner(const Graph &graph, const Context &ctx) {
   switch (ctx.partitioning.mode) {
@@ -82,7 +86,12 @@ std::unique_ptr<Refiner> create_refiner(const Context &ctx, const RefinementAlgo
     return std::make_unique<GreedyBalancer>(ctx);
 
   case RefinementAlgorithm::KWAY_FM:
-    return std::make_unique<FMRefiner<>>(ctx);
+    if (ctx.refinement.kway_fm.gain_cache_strategy == GainCacheStrategy::DENSE) {
+      return std::make_unique<FMRefiner<DenseGainCache>>(ctx);
+    } else if (ctx.refinement.kway_fm.gain_cache_strategy == GainCacheStrategy::ON_THE_FLY) {
+      return std::make_unique<FMRefiner<OnTheFlyGainCache>>(ctx);
+    }
+    __builtin_unreachable();
 
   case RefinementAlgorithm::JET:
     return std::make_unique<JetRefiner>(ctx);

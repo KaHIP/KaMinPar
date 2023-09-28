@@ -25,6 +25,7 @@ class OnTheFlyGainCache {
   friend OnTheFlyDeltaGainCache;
 
 public:
+  using DeltaCache = OnTheFlyDeltaGainCache;
   constexpr static bool kIteratesExactGains = true;
 
   OnTheFlyGainCache(NodeID /* max_n */, BlockID max_k)
@@ -72,7 +73,7 @@ public:
       const BlockID from,
       TargetBlockAcceptor &&target_block_acceptor,
       GainConsumer &&gain_consumer
-  ) {
+  ) const {
     gains_impl<PartitionedGraph>(
         *_p_graph,
         node,
@@ -129,6 +130,7 @@ private:
 
     return false;
   }
+
   template <typename PartitionedGraphType, typename TargetBlockAcceptor, typename GainConsumer>
   void gains_impl(
       const PartitionedGraphType &p_graph,
@@ -136,7 +138,7 @@ private:
       const BlockID from,
       TargetBlockAcceptor &&target_block_acceptor,
       GainConsumer &&gain_consumer
-  ) {
+  ) const {
     static_assert(std::is_invocable_r_v<bool, TargetBlockAcceptor, BlockID>);
     static_assert(std::is_invocable_r_v<void, GainConsumer, BlockID, EdgeWeight>);
 
@@ -152,11 +154,12 @@ private:
       }
       const EdgeWeight conn_from = map[from];
 
-      for (const auto [block, weight] : map.entries()) {
-        if (block != conn_from) {
-          gain_consumer(block, weight);
+      for (const auto [block, conn] : map.entries()) {
+        if (block != from) {
+          gain_consumer(block, conn - conn_from);
         }
       }
+
       map.clear();
     };
     rating_map.run_with_map(action, action);
@@ -164,7 +167,8 @@ private:
 
   const PartitionedGraph *_p_graph;
 
-  tbb::enumerable_thread_specific<RatingMap<EdgeWeight, BlockID, SparseMap<BlockID, EdgeWeight>>>
+  mutable tbb::enumerable_thread_specific<
+      RatingMap<EdgeWeight, BlockID, SparseMap<BlockID, EdgeWeight>>>
       _rating_map_ets;
 };
 

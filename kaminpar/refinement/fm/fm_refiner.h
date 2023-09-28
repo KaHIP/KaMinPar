@@ -104,9 +104,9 @@ private:
   StaticArray<int> _state;
 };
 
-class BorderNodes {
+template <typename GainCache> class BorderNodes {
 public:
-  BorderNodes(DenseGainCache &gain_cache, NodeTracker &node_tracker)
+  BorderNodes(GainCache &gain_cache, NodeTracker &node_tracker)
       : _gain_cache(gain_cache),
         _node_tracker(node_tracker) {}
 
@@ -168,7 +168,7 @@ public:
   }
 
 private:
-  DenseGainCache &_gain_cache;
+  GainCache &_gain_cache;
   NodeTracker &_node_tracker;
 
   parallel::Atomic<NodeID> _next_border_node;
@@ -202,7 +202,7 @@ template <typename GainCache = DenseGainCache> struct SharedData {
 
   NodeTracker node_tracker;
   GainCache gain_cache;
-  BorderNodes border_nodes;
+  BorderNodes<GainCache> border_nodes;
   StaticArray<std::size_t> shared_pq_handles;
   StaticArray<BlockID> target_blocks;
   GlobalStats stats;

@@ -148,6 +148,24 @@ std::ostream &operator<<(std::ostream &out, const InitialPartitioningMode mode) 
   return out << "<invalid>";
 }
 
+std::unordered_map<std::string, GainCacheStrategy> get_gain_cache_strategies() {
+  return {
+      {"dense", GainCacheStrategy::DENSE},
+      {"on-the-fly", GainCacheStrategy::ON_THE_FLY},
+  };
+}
+
+std::ostream &operator<<(std::ostream &out, const GainCacheStrategy strategy) {
+  switch (strategy) {
+  case GainCacheStrategy::DENSE:
+    return out << "dense";
+  case GainCacheStrategy::ON_THE_FLY:
+    return out << "on-the-fly";
+  }
+
+  return out << "<invalid>";
+}
+
 void print(const CoarseningContext &c_ctx, std::ostream &out) {
   out << "Contraction limit:            " << c_ctx.contraction_limit << "\n";
   out << "Cluster weight limit:         " << c_ctx.cluster_weight_limit << " x "

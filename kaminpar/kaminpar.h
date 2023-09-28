@@ -117,6 +117,11 @@ enum class FMStoppingRule {
   ADAPTIVE,
 };
 
+enum class GainCacheStrategy {
+  DENSE,
+  ON_THE_FLY,
+};
+
 struct LabelPropagationRefinementContext {
   std::size_t num_iterations;
   NodeID large_degree_threshold;
@@ -130,6 +135,8 @@ struct KwayFMRefinementContext {
   bool unlock_seed_nodes;
   bool use_exact_abortion_threshold;
   double abortion_threshold;
+
+  GainCacheStrategy gain_cache_strategy;
 
   bool dbg_compute_batch_size_statistics;
 };

@@ -21,6 +21,7 @@
 #include "kaminpar/definitions.h"
 #include "kaminpar/metrics.h"
 #include "kaminpar/refinement/fm/stopping_policies.h"
+#include "kaminpar/refinement/gains/on_the_fly_gain_cache.h"
 
 #include "common/datastructures/marker.h"
 #include "common/logger.h"
@@ -735,7 +736,7 @@ std::pair<BlockID, EdgeWeight> LocalizedFMRefiner<GainCache>::best_gain(
         const NodeWeight target_block_weight = p_graph.block_weight(block) + weight_u;
         const NodeWeight max_block_weight = _p_ctx.block_weights.max(block);
         const NodeWeight block_weight_gap = max_block_weight - target_block_weight;
-        return !(block_weight_gap < best_target_block_weight_gap && block_weight_gap < 0);
+        return block_weight_gap >= best_target_block_weight_gap || block_weight_gap >= 0;
       },
       [&](const BlockID block, const EdgeWeight conn) {
         const NodeWeight target_block_weight = p_graph.block_weight(block) + weight_u;
@@ -768,8 +769,12 @@ std::pair<BlockID, EdgeWeight> LocalizedFMRefiner<GainCache>::best_gain(
 
 namespace fm {
 template class SharedData<DenseGainCache>;
-}
+template class SharedData<OnTheFlyGainCache>;
+} // namespace fm
 
 template class FMRefiner<DenseGainCache>;
+template class FMRefiner<OnTheFlyGainCache>;
+
 template class LocalizedFMRefiner<DenseGainCache>;
+template class LocalizedFMRefiner<OnTheFlyGainCache>;
 } // namespace kaminpar::shm

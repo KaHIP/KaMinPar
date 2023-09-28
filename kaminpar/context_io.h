@@ -37,6 +37,10 @@ std::ostream &operator<<(std::ostream &out, InitialPartitioningMode mode);
 
 std::unordered_map<std::string, InitialPartitioningMode> get_initial_partitioning_modes();
 
+std::ostream &operator<<(std::ostream &out, GainCacheStrategy strategy);
+
+std::unordered_map<std::string, GainCacheStrategy> get_gain_cache_strategies();
+
 void print(const Context &ctx, std::ostream &out);
 void print(const PartitioningContext &p_ctx, std::ostream &out);
 void print(const PartitionContext &p_ctx, std::ostream &out);
