@@ -38,8 +38,10 @@ kaminpar_add_common_test(test_common_string common/strutils_test.cc)
 kaminpar_add_common_test(test_common_parallel_algorithm common/parallel/algorithm_test.cc)
 
 # KaMinPar 
-kaminpar_add_shm_test(test_shm_metrics kaminpar/metrics_test.cc)
+kaminpar_add_shm_test(test_shm_delta_partitioned_graph kaminpar/datastructures/delta_partitioned_graph_test.cc)
 kaminpar_add_shm_test(test_shm_graph kaminpar/graph_test.cc)
+
+kaminpar_add_shm_test(test_shm_metrics kaminpar/metrics_test.cc)
 kaminpar_add_shm_test(test_subgraph_extraction kaminpar/subgraph_extraction_test.cc)
 kaminpar_add_shm_test(test_graph_utils kaminpar/graph_utils_test.cc)
 

@@ -12,6 +12,12 @@
 #include "common/datastructures/scalable_vector.h"
 
 namespace kaminpar::shm::testing {
+namespace graphs {
+inline PartitionedGraph p_graph(const Graph &graph, const BlockID k) {
+  return PartitionedGraph(graph, k, static_array::create_from(std::vector<BlockID>(graph.n())));
+}
+} // namespace graphs
+
 //
 // Convenience functions to create Graph / PartitionedGraph from initializer
 // lists
