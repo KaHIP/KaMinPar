@@ -335,7 +335,7 @@ CLI::Option_group *create_kway_fm_refinement_options(CLI::App *app, Context &ctx
       ->capture_default_str();
   */
 
-  fm->add_flag("--r-fm-gain-cache-strategy", ctx.refinement.kway_fm.gain_cache_strategy)
+  fm->add_flag("--r-fm-gain-cache", ctx.refinement.kway_fm.gain_cache_strategy)
       ->transform(CLI::CheckedTransformer(get_gain_cache_strategies()).description(""))
       ->capture_default_str();
 

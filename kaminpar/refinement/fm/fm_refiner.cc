@@ -781,8 +781,12 @@ template class SharedData<OnTheFlyGainCache>;
 } // namespace fm
 
 template class FMRefiner<fm::DenseDeltaPartitionedGraph, fm::DenseGainCache>;
-template class FMRefiner<fm::OnTheFlyDeltaPartitionedGraph, fm::OnTheFlyGainCache>;
-
 template class LocalizedFMRefiner<fm::DenseDeltaPartitionedGraph, fm::DenseGainCache>;
+
+template class FMRefiner<fm::OnTheFlyDeltaPartitionedGraph, fm::OnTheFlyGainCache>;
 template class LocalizedFMRefiner<fm::OnTheFlyDeltaPartitionedGraph, fm::OnTheFlyGainCache>;
+
+// @todo just for testing:
+template class FMRefiner<fm::OnTheFlyDeltaPartitionedGraph, fm::DenseGainCache>; 
+template class LocalizedFMRefiner<fm::OnTheFlyDeltaPartitionedGraph, fm::DenseGainCache>;
 } // namespace kaminpar::shm
