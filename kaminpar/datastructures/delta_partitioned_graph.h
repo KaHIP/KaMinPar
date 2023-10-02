@@ -14,13 +14,13 @@
 #include "kaminpar/datastructures/partitioned_graph.h"
 #include "kaminpar/definitions.h"
 
-#include "common/ranges.h"
 #include "common/datastructures/scalable_vector.h"
+#include "common/ranges.h"
 
 namespace kaminpar::shm {
 template <
     // If false, block(NodeID) may only be called on nodes that were not moved.
-    bool allow_random_access = true,
+    bool allow_read_after_move = true,
     // If false, store the block weight changes in a vector of size k, otherwise
     // use a hash map.
     bool compact_block_weight_delta = true>
@@ -31,6 +31,8 @@ class GenericDeltaPartitionedGraph : public GraphDelegate {
   };
 
 public:
+  constexpr static bool kAllowsReadAfterMove = allow_read_after_move;
+
   GenericDeltaPartitionedGraph(const PartitionedGraph *p_graph)
       : GraphDelegate(&p_graph->graph()),
         _p_graph(p_graph) {
@@ -39,7 +41,7 @@ public:
     } else {
       _block_weights_delta.resize(_p_graph->k());
     }
-    if constexpr (allow_random_access) {
+    if constexpr (allow_read_after_move) {
       _partition_delta.set_empty_key(kInvalidNodeID);
     }
   }
@@ -61,7 +63,7 @@ public:
   }
 
   [[nodiscard]] inline BlockID block(const NodeID node) const {
-    if constexpr (allow_random_access) {
+    if constexpr (allow_read_after_move) {
       const auto it = _partition_delta.find(node);
       if (it != _partition_delta.end()) {
         return it->second;
@@ -96,7 +98,7 @@ public:
       _block_weights_delta[new_block] += node_weight(node);
     }
 
-    if constexpr (allow_random_access) {
+    if constexpr (allow_read_after_move) {
       _partition_delta[node] = new_block;
     } else {
       KASSERT(
@@ -156,11 +158,11 @@ private:
   // If we need random access to the partition delta, use a hash map. Otherwise,
   // we can just store the moves in a vector.
   std::conditional_t<
-      allow_random_access,
+      allow_read_after_move,
       google::dense_hash_map<NodeID, BlockID>,
       std::vector<DeltaEntry>>
       _partition_delta;
 };
 
-using DeltaPartitionedGraph = GenericDeltaPartitionedGraph<false, false>;
+//using DeltaPartitionedGraph = GenericDeltaPartitionedGraph<true, false>;
 } // namespace kaminpar::shm

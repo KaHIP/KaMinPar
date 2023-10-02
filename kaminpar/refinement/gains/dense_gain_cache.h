@@ -23,14 +23,15 @@
 #include "common/timer.h"
 
 namespace kaminpar::shm {
-template <typename GainCache> class DenseDeltaGainCache;
+template <typename DeltaPartitionedGraph, typename GainCache> class DenseDeltaGainCache;
 
 template <bool iterate_exact_gains = false> class DenseGainCache {
   using Self = DenseGainCache<iterate_exact_gains>;
-  friend DenseDeltaGainCache<Self>;
+  template <typename, typename> friend class DenseDeltaGainCache;
 
 public:
-  using DeltaCache = DenseDeltaGainCache<Self>;
+  template <typename DeltaPartitionedGraph>
+  using DeltaCache = DenseDeltaGainCache<DeltaPartitionedGraph, Self>;
 
   // gains() will iterate over all blocks, including those not adjacent to the node.
   constexpr static bool kIteratesNonadjacentBlocks = true;
@@ -193,7 +194,7 @@ private:
   StaticArray<EdgeWeight> _weighted_degrees;
 };
 
-template <typename GainCache> class DenseDeltaGainCache {
+template <typename DeltaPartitionedGraph, typename GainCache> class DenseDeltaGainCache {
 public:
   constexpr static bool kIteratesNonadjacentBlocks = GainCache::kIteratesNonadjacentBlocks;
   constexpr static bool kIteratesExactGains = GainCache::kIteratesExactGains;

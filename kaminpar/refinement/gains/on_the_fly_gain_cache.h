@@ -19,14 +19,15 @@
 #include "common/datastructures/sparse_map.h"
 
 namespace kaminpar::shm {
-template <typename GainCache> class OnTheFlyDeltaGainCache;
+template <typename DeltaPartitionedGraph, typename GainCache> class OnTheFlyDeltaGainCache;
 
 template <bool iterate_exact_gains = true> class OnTheFlyGainCache {
   using Self = OnTheFlyGainCache<iterate_exact_gains>;
-  friend OnTheFlyDeltaGainCache<Self>;
+  template <typename, typename> friend class OnTheFlyDeltaGainCache;
 
 public:
-  using DeltaCache = OnTheFlyDeltaGainCache<Self>;
+  template <typename DeltaPartitionedGraph>
+  using DeltaCache = OnTheFlyDeltaGainCache<DeltaPartitionedGraph, Self>;
 
   constexpr static bool kIteratesNonadjacentBlocks = false;
   constexpr static bool kIteratesExactGains = iterate_exact_gains;
@@ -153,7 +154,7 @@ private:
       _rating_map_ets;
 };
 
-template <typename GainCache> class OnTheFlyDeltaGainCache {
+template <typename DeltaPartitionedGraph, typename GainCache> class OnTheFlyDeltaGainCache {
 public:
   constexpr static bool kIteratesNonadjacentBlocks = GainCache::kIteratesNonadjacentBlocks;
   constexpr static bool kIteratesExactGains = GainCache::kIteratesExactGains;
@@ -172,6 +173,7 @@ public:
 
   template <typename Lambda>
   void gains(const NodeID node, const BlockID from, Lambda &&lambda) const {
+    static_assert(DeltaPartitionedGraph::kAllowsReadAfterMove, "illegal configuration");
     _gain_cache.gains_impl(*_d_graph, node, from, std::forward<Lambda>(lambda));
   }
 
