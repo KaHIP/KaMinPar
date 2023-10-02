@@ -70,20 +70,9 @@ public:
     return true;
   }
 
-  template <typename TargetBlockAcceptor, typename GainConsumer>
-  void gains(
-      const NodeID node,
-      const BlockID from,
-      TargetBlockAcceptor &&target_block_acceptor,
-      GainConsumer &&gain_consumer
-  ) const {
-    gains_impl<PartitionedGraph>(
-        *_p_graph,
-        node,
-        from,
-        std::forward<TargetBlockAcceptor>(target_block_acceptor),
-        std::forward<GainConsumer>(gain_consumer)
-    );
+  template <typename Lambda>
+  void gains(const NodeID node, const BlockID from, Lambda &&lambda) const {
+    gains_impl<PartitionedGraph>(*_p_graph, node, from, std::forward<Lambda>(lambda));
   }
 
 private:
@@ -132,36 +121,23 @@ private:
     return false;
   }
 
-  template <typename PartitionedGraphType, typename TargetBlockAcceptor, typename GainConsumer>
+  template <typename PartitionedGraphType, typename Lambda>
   void gains_impl(
-      const PartitionedGraphType &p_graph,
-      const NodeID node,
-      const BlockID from,
-      TargetBlockAcceptor &&target_block_acceptor,
-      GainConsumer &&gain_consumer
+      const PartitionedGraphType &p_graph, const NodeID node, const BlockID from, Lambda &&lambda
   ) const {
-    static_assert(std::is_invocable_r_v<bool, TargetBlockAcceptor, BlockID>);
-    static_assert(std::is_invocable_r_v<void, GainConsumer, BlockID, EdgeWeight>);
-
     auto &rating_map = _rating_map_ets.local();
     rating_map.update_upper_bound_size(std::min<BlockID>(p_graph.degree(node), p_graph.k()));
 
     auto action = [&](auto &map) {
       for (const auto [e, v] : p_graph.neighbors(node)) {
-        const BlockID to = p_graph.block(v);
-        if ((kIteratesExactGains && to == from) || (to != from && target_block_acceptor(to))) {
-          map[to] += p_graph.edge_weight(e);
-        }
+        map[p_graph.block(v)] += p_graph.edge_weight(e);
       }
       const EdgeWeight conn_from = kIteratesExactGains ? map[from] : 0;
 
       for (const auto [to, conn_to] : map.entries()) {
-        if constexpr (kIteratesExactGains) {
-          if (to != from) {
-            gain_consumer(to, conn_to - conn_from);
-          }
-        } else {
-          gain_consumer(to, conn_to);
+        if (to != from) {
+          const EdgeWeight gain = conn_to - conn_from;
+          lambda(to, [&] { return gain; });
         }
       }
 
@@ -194,20 +170,9 @@ public:
     return _gain_cache.gain_impl(*_d_graph, node, from, to);
   }
 
-  template <typename TargetBlockAcceptor, typename GainConsumer>
-  void gains(
-      const NodeID node,
-      const BlockID from,
-      TargetBlockAcceptor &&target_block_acceptor,
-      GainConsumer &&gain_consumer
-  ) const {
-    _gain_cache.gains_impl(
-        *_d_graph,
-        node,
-        from,
-        std::forward<TargetBlockAcceptor>(target_block_acceptor),
-        std::forward<GainConsumer>(gain_consumer)
-    );
+  template <typename Lambda>
+  void gains(const NodeID node, const BlockID from, Lambda &&lambda) const {
+    _gain_cache.gains_impl(*_d_graph, node, from, std::forward<Lambda>(lambda));
   }
 
   void move(

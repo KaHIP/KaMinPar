@@ -720,51 +720,45 @@ template <typename PartitionedGraphType, typename GainCacheType>
 std::pair<BlockID, EdgeWeight> LocalizedFMRefiner<GainCache>::best_gain(
     const PartitionedGraphType &p_graph, const GainCacheType &gain_cache, const NodeID u
 ) {
-  const BlockID block_u = p_graph.block(u);
-  const NodeWeight weight_u = p_graph.node_weight(u);
+  const BlockID from = p_graph.block(u);
+  const NodeWeight weight = p_graph.node_weight(u);
 
   // Since we use max heaps, it is OK to insert this value into the PQ
-  EdgeWeight best_conn = std::numeric_limits<EdgeWeight>::min();
-  BlockID best_target_block = block_u;
+  EdgeWeight best_gain = std::numeric_limits<EdgeWeight>::min();
+  BlockID best_target_block = from;
   NodeWeight best_target_block_weight_gap =
-      _p_ctx.block_weights.max(block_u) - p_graph.block_weight(block_u);
+      _p_ctx.block_weights.max(from) - p_graph.block_weight(from);
 
-  gain_cache.gains(
-      u,
-      block_u,
-      [&](const BlockID block) {
-        const NodeWeight target_block_weight = p_graph.block_weight(block) + weight_u;
-        const NodeWeight max_block_weight = _p_ctx.block_weights.max(block);
-        const NodeWeight block_weight_gap = max_block_weight - target_block_weight;
-        return block_weight_gap >= best_target_block_weight_gap || block_weight_gap >= 0;
-      },
-      [&](const BlockID block, const EdgeWeight conn) {
-        const NodeWeight target_block_weight = p_graph.block_weight(block) + weight_u;
-        const NodeWeight max_block_weight = _p_ctx.block_weights.max(block);
-        const NodeWeight block_weight_gap = max_block_weight - target_block_weight;
+  gain_cache.gains(u, from, [&](const BlockID to, auto &&compute_gain) {
+    const NodeWeight target_block_weight = p_graph.block_weight(to) + weight;
+    const NodeWeight max_block_weight = _p_ctx.block_weights.max(to);
+    const NodeWeight block_weight_gap = max_block_weight - target_block_weight;
+    if (block_weight_gap < std::min<EdgeWeight>(best_target_block_weight_gap, 0)) {
+      return;
+    }
 
-        if (conn > best_conn ||
-            (conn == best_conn && block_weight_gap > best_target_block_weight_gap)) {
-          best_conn = conn;
-          best_target_block = block;
-          best_target_block_weight_gap = block_weight_gap;
-        }
-      }
-  );
+    const EdgeWeight gain = compute_gain();
+    if (gain > best_gain ||
+        (gain == best_gain && block_weight_gap > best_target_block_weight_gap)) {
+      best_gain = gain;
+      best_target_block = to;
+      best_target_block_weight_gap = block_weight_gap;
+    }
+  });
 
-  const EdgeWeight best_gain = [&] {
-    if (best_target_block == block_u) {
+  const EdgeWeight actual_best_gain = [&] {
+    if (best_target_block == from) {
       return std::numeric_limits<EdgeWeight>::min();
     } else {
       if constexpr (GainCacheType::kIteratesExactGains) {
-        return best_conn;
+        return best_gain;
       } else {
-        return gain_cache.gain(u, block_u, best_target_block);
+        return gain_cache.gain(u, from, best_target_block);
       }
     }
   }();
 
-  return {best_target_block, best_gain};
+  return {best_target_block, actual_best_gain};
 }
 
 namespace fm {

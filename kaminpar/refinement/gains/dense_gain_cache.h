@@ -25,16 +25,16 @@
 namespace kaminpar::shm {
 template <typename GainCache> class DenseDeltaGainCache;
 
-template <bool iterate_nonadjacent_blocks = true, bool iterate_exact_gains = false>
-class DenseGainCache {
-  using Self = DenseGainCache<iterate_nonadjacent_blocks, iterate_exact_gains>;
+template <bool iterate_exact_gains = false> class DenseGainCache {
+  using Self = DenseGainCache<iterate_exact_gains>;
   friend DenseDeltaGainCache<Self>;
 
 public:
   using DeltaCache = DenseDeltaGainCache<Self>;
 
-  // If set to true, gains() will iterate over all blocks, including those not adjacent to the node.
-  constexpr static bool kIteratesNonadjacentBlocks = iterate_nonadjacent_blocks;
+  // gains() will iterate over all blocks, including those not adjacent to the node.
+  constexpr static bool kIteratesNonadjacentBlocks = true;
+
   // If set to true, gains() will call the gain consumer with exact gains; otherwise, it will call
   // the gain consumer with the total edge weight between the node and nodes in the specific block
   // (more expensive, but safes a call to gain() if the exact gain for the best block is needed).
@@ -76,33 +76,13 @@ public:
     return weighted_degree_to(node, block);
   }
 
-  template <typename TargetBlockAcceptor, typename GainConsumer>
-  void gains(
-      const NodeID node,
-      const BlockID from,
-      TargetBlockAcceptor &&target_block_acceptor,
-      GainConsumer &&gain_consumer
-  ) const {
-    static_assert(std::is_invocable_r_v<bool, TargetBlockAcceptor, BlockID>);
-    static_assert(std::is_invocable_r_v<void, GainConsumer, BlockID, EdgeWeight>);
-
+  template <typename Lambda>
+  void gains(const NodeID node, const BlockID from, Lambda &&lambda) const {
     const EdgeWeight conn_from = kIteratesExactGains ? conn(node, from) : 0;
 
     for (BlockID to = 0; to < _k; ++to) {
-      if (from != to && target_block_acceptor(to)) {
-        const EdgeWeight conn_to = conn(node, to);
-
-        if constexpr (!kIteratesNonadjacentBlocks) {
-          if (conn_to == 0) {
-            continue;
-          }
-        }
-
-        if constexpr (kIteratesExactGains) {
-          gain_consumer(to, conn_to - conn_from);
-        } else {
-          gain_consumer(to, conn_to);
-        }
+      if (from != to) {
+        lambda(to, [&] { return conn(node, to) - conn_from; });
       }
     }
   }
@@ -229,35 +209,13 @@ public:
     return _gain_cache.gain(node, from, to) + conn_delta(node, to) - conn_delta(node, from);
   }
 
-  template <typename TargetBlockAcceptor, typename GainConsumer>
-  void gains(
-      const NodeID node,
-      const BlockID from,
-      TargetBlockAcceptor &&target_block_acceptor,
-      GainConsumer &&gain_consumer
-  ) const {
+  template <typename Lambda>
+  void gains(const NodeID node, const BlockID from, Lambda &&lambda) const {
     const EdgeWeight conn_from_delta = kIteratesExactGains ? conn_delta(node, from) : 0;
 
-    _gain_cache.gains(
-        node,
-        from,
-        std::forward<TargetBlockAcceptor>(target_block_acceptor),
-        [&](const BlockID to, const EdgeWeight conn_to) {
-          const EdgeWeight real_conn_to = conn_to + conn_delta(node, to);
-
-          if constexpr (!kIteratesNonadjacentBlocks) {
-            if (real_conn_to == 0) {
-              return;
-            }
-          }
-
-          if constexpr (kIteratesExactGains) {
-            gain_consumer(to, real_conn_to - conn_from_delta);
-          } else {
-            gain_consumer(to, real_conn_to);
-          }
-        }
-    );
+    _gain_cache.gains(node, from, [&](const BlockID to, auto &&gain) {
+      lambda(to, [&] { return gain() + conn_delta(node, to) - conn_from_delta; });
+    });
   }
 
   void move(
