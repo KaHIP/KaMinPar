@@ -363,7 +363,7 @@ bool LocalFMRefiner::refine() {
     _stats.initial_cut = metrics::edge_cut(_p_graph);
   }
 
-  for (_round = 0; _round < _fm_ctx.num_iterations; ++_round) {
+  for (_round = 0; _round < _fm_ctx.num_global_iterations; ++_round) {
     refinement_round();
   }
 
@@ -417,7 +417,7 @@ void LocalFMRefiner::refinement_round() {
       const GlobalNodeID global_u = mapping[u];
 
       // move nodes owned by this PE right away
-      if (_fm_ctx.premove_locally && _p_graph.is_owned_global_node(global_u)) {
+      if (!_fm_ctx.revert_local_moves_after_batch && _p_graph.is_owned_global_node(global_u)) {
         const NodeID local_u = _p_graph.global_to_local_node(global_u);
         const BlockID from = _p_graph.block(local_u);
         _p_graph.set_block<false>(local_u, to);
@@ -444,23 +444,12 @@ void LocalFMRefiner::refinement_round() {
     );
   };
 
-  if (_fm_ctx.sequential) {
-    for (std::size_t i = 0; i < local_graphs.size(); ++i) {
-      START_TIMER("Build local graphs");
-      do_build_local_graph(i);
-      STOP_TIMER();
-      START_TIMER("Refine local graphs");
-      do_refine_local_graph(i);
-      STOP_TIMER();
-    }
-  } else {
-    START_TIMER("Build and refine local graphs");
-    tbb::parallel_for<std::size_t>(0, local_graphs.size(), [&](const std::size_t i) {
-      do_build_local_graph(i);
-      do_refine_local_graph(i);
-    });
-    STOP_TIMER();
-  }
+  START_TIMER("Build and refine local graphs");
+  tbb::parallel_for<std::size_t>(0, local_graphs.size(), [&](const std::size_t i) {
+    do_build_local_graph(i);
+    do_refine_local_graph(i);
+  });
+  STOP_TIMER();
   STOP_TIMER();
 
   START_TIMER("Broadcast moves");
@@ -480,9 +469,9 @@ void LocalFMRefiner::refinement_round() {
 
     // If we move nodes between global synchronization steps, the global move
     // buffer should not contain any moves for owned nodes
-    KASSERT(!_p_graph.is_owned_global_node(global_u) || !_fm_ctx.premove_locally);
+    KASSERT(!_p_graph.is_owned_global_node(global_u) || _fm_ctx.revert_local_moves_after_batch);
 
-    if (!_fm_ctx.premove_locally && _p_graph.is_owned_global_node(global_u)) {
+    if (_fm_ctx.revert_local_moves_after_batch && _p_graph.is_owned_global_node(global_u)) {
       const NodeID local_u = _p_graph.global_to_local_node(global_u);
       _p_graph.set_block<false>(local_u, to);
     } else {
@@ -607,7 +596,7 @@ void LocalFMRefiner::build_local_graph(
   NodeID current_distance = 0;
   Random &rand = Random::instance();
 
-  while (current_distance < _fm_ctx.radius + 1 && !search_front.empty()) {
+  while (current_distance < _fm_ctx.max_radius + 1 && !search_front.empty()) {
     const NodeID current = search_front.top();
     search_front.pop();
     --current_front_size;
@@ -626,7 +615,7 @@ void LocalFMRefiner::build_local_graph(
         const bool take = sample_neighbors ? rand.random_bool(prob) : true;
         std::uint8_t free = 0;
 
-        if (take && current_distance + 1 < _fm_ctx.radius &&
+        if (take && current_distance + 1 < _fm_ctx.max_radius &&
             ((!_fm_ctx.overlap_regions && _locked[v].compare_exchange_strong(free, 1)
              ) // obtain overship
              ||
@@ -692,7 +681,7 @@ void LocalFMRefiner::build_local_graph(
     ++next_node;
 
     if (!b) {
-      const bool last_hop = _fm_ctx.contract_border && d + 1 == _fm_ctx.radius;
+      const bool last_hop = _fm_ctx.contract_border && d + 1 == _fm_ctx.max_radius;
 
       for (const auto [e, v] : _p_graph.neighbors(u)) {
         const GlobalNodeID global_v = _p_graph.local_to_global_node(v);

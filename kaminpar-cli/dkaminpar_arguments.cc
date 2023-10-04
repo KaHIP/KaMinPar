@@ -159,28 +159,10 @@ CLI::Option_group *create_fm_refinement_options(CLI::App *app, Context &ctx) {
         "--r-fm-alpha", ctx.refinement.fm.alpha, "Alpha parameter for the adaptive stopping rule."
   )
       ->capture_default_str();
-  fm->add_option("--r-fm-radius", ctx.refinement.fm.radius, "Radius for the search graphs.")
-      ->capture_default_str();
-  fm->add_option(
-        "--r-fm-hops", ctx.refinement.fm.pe_radius, "Number of PE hops for the BFS search."
-  )
-      ->capture_default_str();
   fm->add_flag(
         "--r-fm-overlap-regions",
         ctx.refinement.fm.overlap_regions,
         "Allow search regions to overlap."
-  )
-      ->capture_default_str();
-  fm->add_option("--r-fm-iterations", ctx.refinement.fm.num_iterations, "Number of FM iterations.")
-      ->capture_default_str();
-  fm->add_flag(
-        "--r-fm-sequential", ctx.refinement.fm.sequential, "Refine search graphs sequentially."
-  )
-      ->capture_default_str();
-  fm->add_flag(
-        "--r-fm-premove-locally",
-        ctx.refinement.fm.premove_locally,
-        "Move nodes right away, i.e., before global synchronization steps."
   )
       ->capture_default_str();
   fm->add_option(

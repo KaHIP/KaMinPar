@@ -166,17 +166,12 @@ Context create_default_context() {
                   {
                       .alpha = 1.0,
 
-                      // -- @todo remove --
-                      .radius = 3,
-                      .pe_radius = 2,
+                      // -- local FM --
                       .overlap_regions = false,
-                      .num_iterations = 5,
-                      .sequential = false,
-                      .premove_locally = true,
                       .bound_degree = 0,
                       .contract_border = false,
 
-                      // -- new parameters --
+                      // -- mostly global FM, some local FM --
                       .use_independent_seeds = true,
                       .use_bfs_seeds_as_fm_seeds = true,
 

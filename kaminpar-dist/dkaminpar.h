@@ -190,15 +190,13 @@ struct LabelPropagationRefinementContext {
 
 struct FMRefinementContext {
   double alpha;
-  NodeID radius;
-  PEID pe_radius;
+
+  // -- local FM --
   bool overlap_regions;
-  std::size_t num_iterations;
-  bool sequential;
-  bool premove_locally;
   NodeID bound_degree;
   bool contract_border;
 
+  // -- mostly global FM, some also used by local FM --
   bool use_independent_seeds;
   bool use_bfs_seeds_as_fm_seeds;
 
