@@ -103,7 +103,7 @@ IfMacros:
 IncludeBlocks:   Regroup
 IncludeCategories:
   - Regex: '"kaminpar-mpi/.*"'
-    Priority: 3
+    Priority: 4
   - Regex: '"kaminpar-dist/.*"'
     Priority: 5
   - Regex: '"kaminpar-shm/.*"'
