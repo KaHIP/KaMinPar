@@ -8,8 +8,8 @@
 #include "kaminpar-shm/refinement/fm/fm_refiner.h"
 
 #include <cmath>
-#include <set>
 #include <queue>
+#include <set>
 #include <unordered_map>
 
 #include <tbb/concurrent_vector.h>

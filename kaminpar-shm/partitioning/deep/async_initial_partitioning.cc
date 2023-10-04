@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Implementation of the n / 2C < P phase of deep multilevel graph partitioning 
+ * Implementation of the n / 2C < P phase of deep multilevel graph partitioning
  * scheduling the PE groups asynchronously.
  *
  * @file:   async_initial_partitioning.cc

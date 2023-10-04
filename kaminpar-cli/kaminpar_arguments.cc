@@ -8,6 +8,7 @@
 #include "kaminpar-cli/kaminpar_arguments.h"
 
 #include "kaminpar-cli/CLI11.h"
+
 #include "kaminpar-shm/context.h"
 #include "kaminpar-shm/context_io.h"
 

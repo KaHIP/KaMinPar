@@ -331,4 +331,3 @@ bool JetRefiner::refine() {
   return false;
 }
 } // namespace kaminpar::dist
-

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Initial partitioner that uses Mt-KaHypar. Only available if the Mt-KaHyPar 
+ * Initial partitioner that uses Mt-KaHypar. Only available if the Mt-KaHyPar
  * library is installed on the system.
  *
  * @file:   mtkahypar_initial_partitioner.h

@@ -15,13 +15,14 @@
 #include <mpi.h>
 #include <tbb/enumerable_thread_specific.h>
 
+#include "kaminpar-mpi/wrapper.h"
+
 #include "kaminpar-dist/algorithms/greedy_node_coloring.h"
 #include "kaminpar-dist/context.h"
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
 #include "kaminpar-dist/graphutils/communication.h"
 #include "kaminpar-dist/metrics.h"
-#include "kaminpar-mpi/wrapper.h"
 
 #include "kaminpar-common/datastructures/rating_map.h"
 #include "kaminpar-common/parallel/algorithm.h"

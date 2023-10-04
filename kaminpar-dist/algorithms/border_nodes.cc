@@ -31,4 +31,3 @@ std::vector<NodeID> find_border_nodes(const DistributedPartitionedGraph &p_graph
   return border_nodes;
 }
 } // namespace kaminpar::dist::graph
-

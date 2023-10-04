@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Initial partitioner that uses Mt-KaHypar. Only available if the Mt-KaHyPar 
+ * Initial partitioner that uses Mt-KaHypar. Only available if the Mt-KaHyPar
  * library is installed on the system.
  *
  * @file:   mtkahypar_initial_partitioner.cc
@@ -19,8 +19,8 @@
 #endif // KAMINPAR_HAVE_MTKAHYPAR_LIB
 
 #include "kaminpar-common/assertion_levels.h"
-#include "kaminpar-common/logger.h"
 #include "kaminpar-common/datastructures/noinit_vector.h"
+#include "kaminpar-common/logger.h"
 #include "kaminpar-common/parallel/algorithm.h"
 #include "kaminpar-common/random.h"
 #include "kaminpar-common/timer.h"

@@ -24,7 +24,9 @@
 namespace kaminpar::dist {
 SET_DEBUG(false);
 
-KWayMultilevelPartitioner::KWayMultilevelPartitioner(const DistributedGraph &graph, const Context &ctx)
+KWayMultilevelPartitioner::KWayMultilevelPartitioner(
+    const DistributedGraph &graph, const Context &ctx
+)
     : _graph(graph),
       _ctx(ctx) {}
 

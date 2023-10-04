@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Partition metrics for distributed graphs. 
+ * Partition metrics for distributed graphs.
  *
  * @file:   metrics.h
  * @author: Daniel Seemaier

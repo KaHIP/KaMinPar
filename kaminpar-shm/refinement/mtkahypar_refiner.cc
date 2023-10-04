@@ -11,8 +11,8 @@
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/metrics.h"
 
-#include "kaminpar-common/logger.h"
 #include "kaminpar-common/datastructures/noinit_vector.h"
+#include "kaminpar-common/logger.h"
 #include "kaminpar-common/parallel/algorithm.h"
 #include "kaminpar-common/random.h"
 

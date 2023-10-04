@@ -6,12 +6,12 @@
  ******************************************************************************/
 #include <gmock/gmock.h>
 
+#include "kaminpar-mpi/utils.h"
 #include "tests/dkaminpar/distributed_graph_factories.h"
 #include "tests/dkaminpar/distributed_graph_helpers.h"
 
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/graphutils/subgraph_extractor.h"
-#include "kaminpar-mpi/utils.h"
 
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/metrics.h"

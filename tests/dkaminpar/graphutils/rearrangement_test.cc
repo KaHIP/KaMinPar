@@ -8,10 +8,10 @@
 #include <gtest/gtest.h>
 #include <mpi.h>
 
+#include "kaminpar-mpi/utils.h"
 #include "tests/dkaminpar/distributed_graph_factories.h"
 
 #include "kaminpar-dist/graphutils/rearrangement.h"
-#include "kaminpar-mpi/utils.h"
 
 namespace kaminpar::dist {
 using namespace kaminpar::dist::testing;

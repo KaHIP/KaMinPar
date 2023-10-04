@@ -44,7 +44,7 @@ TEST(GraphReplicationTest, isolated_graph_P_div_2) {
     const auto rep = graph::replicate(graph, size / 2);
     ASSERT_TRUE(graph::debug::validate(rep));
 
-    //EXPECT_EQ(rep.n(), size / 2);
+    // EXPECT_EQ(rep.n(), size / 2);
     EXPECT_EQ(rep.global_n(), size);
     EXPECT_EQ(rep.m(), 0);
   }

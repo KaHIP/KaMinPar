@@ -15,8 +15,8 @@
 #include "kaminpar-dist/dkaminpar.h"
 #include "kaminpar-dist/graphutils/communication.h"
 
-#include "kaminpar-common/parallel/atomic.h"
 #include "kaminpar-common/datastructures/scalable_vector.h"
+#include "kaminpar-common/parallel/atomic.h"
 
 namespace kaminpar::dist::graph {
 [[nodiscard]] inline growt::StaticGhostNodeMapping

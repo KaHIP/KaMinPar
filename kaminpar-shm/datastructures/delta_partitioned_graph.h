@@ -14,8 +14,8 @@
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/definitions.h"
 
-#include "kaminpar-common/ranges.h"
 #include "kaminpar-common/datastructures/scalable_vector.h"
+#include "kaminpar-common/ranges.h"
 
 namespace kaminpar::shm {
 template <

@@ -7,10 +7,9 @@
  ******************************************************************************/
 #include <gmock/gmock.h>
 
+#include "kaminpar-mpi/utils.h"
 #include "tests/dkaminpar/distributed_graph_factories.h"
 #include "tests/dkaminpar/distributed_graph_helpers.h"
-
-#include "kaminpar-mpi/utils.h"
 
 // Implementation file to be tested
 #include "kaminpar-dist/coarsening/contraction/cluster_contraction.cc"

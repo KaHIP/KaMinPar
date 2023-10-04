@@ -9,12 +9,13 @@
 
 #include <mpi.h>
 
+#include "kaminpar-mpi/sparse_allreduce.h"
+#include "kaminpar-mpi/wrapper.h"
+
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
 #include "kaminpar-dist/graphutils/communication.h"
 #include "kaminpar-dist/metrics.h"
-#include "kaminpar-mpi/sparse_allreduce.h"
-#include "kaminpar-mpi/wrapper.h"
 
 #include "kaminpar-shm/label_propagation.h"
 

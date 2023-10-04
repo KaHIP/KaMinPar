@@ -136,4 +136,3 @@ PartitionedGraph KWayMultilevelPartitioner::initial_partition(const Graph *graph
   return p_graph;
 }
 } // namespace kaminpar::shm
-

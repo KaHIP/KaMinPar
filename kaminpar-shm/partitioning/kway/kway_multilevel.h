@@ -61,4 +61,3 @@ private:
   partitioning::GlobalInitialPartitionerMemoryPool _ip_m_ctx_pool;
 };
 } // namespace kaminpar::shm
-

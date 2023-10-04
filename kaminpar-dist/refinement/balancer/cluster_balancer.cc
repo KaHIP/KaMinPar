@@ -13,6 +13,7 @@
 #include "kaminpar-mpi/binary_reduction_tree.h"
 #include "kaminpar-mpi/sparse_alltoall.h"
 #include "kaminpar-mpi/wrapper.h"
+
 #include "kaminpar-dist/refinement/balancer/clusters.h"
 #include "kaminpar-dist/refinement/balancer/reductions.h"
 
@@ -1077,4 +1078,3 @@ ClusterStrategy ClusterBalancer::get_cluster_strategy() const {
   return _cb_ctx.cluster_strategy;
 }
 } // namespace kaminpar::dist
-

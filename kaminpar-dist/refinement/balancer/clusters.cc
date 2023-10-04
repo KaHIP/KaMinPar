@@ -616,4 +616,3 @@ Clusters build_clusters(
   __builtin_unreachable();
 }
 } // namespace kaminpar::dist
-

@@ -17,23 +17,24 @@
 #include <tbb/concurrent_vector.h>
 #include <tbb/enumerable_thread_specific.h>
 
+#include "kaminpar-mpi/alltoall.h"
+#include "kaminpar-mpi/utils.h"
+
 #include "kaminpar-dist/context.h"
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
 #include "kaminpar-dist/datastructures/growt.h"
 #include "kaminpar-dist/graphutils/synchronization.h"
 #include "kaminpar-dist/metrics.h"
-#include "kaminpar-mpi/alltoall.h"
-#include "kaminpar-mpi/utils.h"
 
 #include "kaminpar-shm/datastructures/graph.h"
 
 #include "kaminpar-common/datastructures/binary_heap.h"
 #include "kaminpar-common/datastructures/marker.h"
+#include "kaminpar-common/datastructures/noinit_vector.h"
 #include "kaminpar-common/datastructures/rating_map.h"
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/math.h"
-#include "kaminpar-common/datastructures/noinit_vector.h"
 #include "kaminpar-common/parallel/atomic.h"
 #include "kaminpar-common/random.h"
 #include "kaminpar-common/timer.h"

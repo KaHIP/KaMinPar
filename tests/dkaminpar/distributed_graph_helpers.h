@@ -8,11 +8,12 @@
 
 #include <vector>
 
+#include "kaminpar-mpi/wrapper.h"
+
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
 #include "kaminpar-dist/dkaminpar.h"
 #include "kaminpar-dist/graphutils/communication.h"
-#include "kaminpar-mpi/wrapper.h"
 
 #include "kaminpar-shm/datastructures/graph.h"
 

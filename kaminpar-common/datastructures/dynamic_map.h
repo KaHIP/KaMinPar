@@ -199,4 +199,3 @@ private:
   MapElement *_elements;
 };
 } // namespace kaminpar
-

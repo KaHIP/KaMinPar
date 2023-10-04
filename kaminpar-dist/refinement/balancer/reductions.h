@@ -9,9 +9,10 @@
 
 #include <vector>
 
+#include "kaminpar-mpi/binary_reduction_tree.h"
+
 #include "kaminpar-dist/context.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
-#include "kaminpar-mpi/binary_reduction_tree.h"
 #include "kaminpar-dist/refinement/balancer/weight_buckets.h"
 
 #include "kaminpar-common/timer.h"
@@ -205,4 +206,3 @@ reduce_buckets_mpireduce(const Buckets &buckets, const DistributedPartitionedGra
   return compactified;
 }
 } // namespace kaminpar::dist
-

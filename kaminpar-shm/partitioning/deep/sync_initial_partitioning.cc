@@ -41,7 +41,6 @@ SyncInitialPartitioner::partition(const Coarsener *coarsener, const PartitionCon
 
     DBG << V(num_current_copies) << V(num_threads) << V(num_current_threads) << V(num_local_copies);
 
-
     // Create coarseners and partition contexts for next coarsening iteration
     coarseners.emplace_back(num_current_copies * num_local_copies);
     auto &next_coarseners = coarseners.back();

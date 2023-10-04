@@ -10,8 +10,9 @@
 
 #include <unordered_set>
 
-#include "kaminpar-dist/dkaminpar.h"
 #include "kaminpar-mpi/wrapper.h"
+
+#include "kaminpar-dist/dkaminpar.h"
 
 #include "kaminpar-common/asserting_cast.h"
 #include "kaminpar-common/logger.h"

@@ -9,9 +9,9 @@
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/definitions.h"
 
+#include "kaminpar-common/datastructures/scalable_vector.h"
 #include "kaminpar-common/datastructures/ts_navigable_linked_list.h"
 #include "kaminpar-common/parallel/atomic.h"
-#include "kaminpar-common/datastructures/scalable_vector.h"
 
 namespace kaminpar::shm::graph {
 namespace contraction {

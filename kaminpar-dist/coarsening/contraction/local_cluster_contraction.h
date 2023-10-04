@@ -9,9 +9,9 @@
 
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 
+#include "kaminpar-common/datastructures/scalable_vector.h"
 #include "kaminpar-common/datastructures/ts_navigable_linked_list.h"
 #include "kaminpar-common/parallel/atomic.h"
-#include "kaminpar-common/datastructures/scalable_vector.h"
 
 namespace kaminpar::dist {
 namespace contraction {

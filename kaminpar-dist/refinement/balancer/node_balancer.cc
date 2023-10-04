@@ -7,13 +7,14 @@
  ******************************************************************************/
 #include "kaminpar-dist/refinement/balancer/node_balancer.h"
 
+#include "kaminpar-mpi/binary_reduction_tree.h"
+#include "kaminpar-mpi/wrapper.h"
+
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
 #include "kaminpar-dist/graphutils/communication.h"
 #include "kaminpar-dist/graphutils/synchronization.h"
 #include "kaminpar-dist/metrics.h"
-#include "kaminpar-mpi/binary_reduction_tree.h"
-#include "kaminpar-mpi/wrapper.h"
 #include "kaminpar-dist/refinement/balancer/reductions.h"
 
 #include "kaminpar-common/math.h"

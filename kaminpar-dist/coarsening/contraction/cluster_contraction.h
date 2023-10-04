@@ -122,4 +122,3 @@ DistributedPartitionedGraph project_partition(
     const MigratedNodes &migration
 );
 } // namespace kaminpar::dist
-

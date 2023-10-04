@@ -11,8 +11,8 @@
 
 #include "kaminpar-dist/logger.h"
 
-#include "kaminpar-common/parallel/vector_ets.h"
 #include "kaminpar-common/datastructures/scalable_vector.h"
+#include "kaminpar-common/parallel/vector_ets.h"
 
 namespace kaminpar::dist {
 void DistributedPartitionedGraph::init_block_weights() {

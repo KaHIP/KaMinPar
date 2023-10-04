@@ -229,4 +229,3 @@ namespace graph::debug {
 bool validate_partition(const DistributedPartitionedGraph &p_graph);
 } // namespace graph::debug
 } // namespace kaminpar::dist
-

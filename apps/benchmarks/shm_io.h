@@ -97,4 +97,3 @@ load_partitioned_graph(const std::string &graph_name, const std::string &partiti
   return wrapper;
 }
 } // namespace kaminpar::shm
-
