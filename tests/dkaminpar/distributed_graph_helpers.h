@@ -8,15 +8,15 @@
 
 #include <vector>
 
-#include "dkaminpar/datastructures/distributed_graph.h"
-#include "dkaminpar/datastructures/distributed_partitioned_graph.h"
-#include "dkaminpar/dkaminpar.h"
-#include "dkaminpar/graphutils/communication.h"
-#include "mpi/wrapper.h"
+#include "kaminpar-dist/datastructures/distributed_graph.h"
+#include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
+#include "kaminpar-dist/dkaminpar.h"
+#include "kaminpar-dist/graphutils/communication.h"
+#include "kaminpar-mpi/wrapper.h"
 
-#include "kaminpar/datastructures/graph.h"
+#include "kaminpar-shm/datastructures/graph.h"
 
-#include "common/parallel/atomic.h"
+#include "kaminpar-common/parallel/atomic.h"
 
 namespace kaminpar::dist::testing {
 inline std::vector<NodeID> local_neighbors(const shm::Graph &graph, const NodeID u) {

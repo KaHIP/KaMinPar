@@ -6,8 +6,8 @@
  * @date:   21.09.2021
  ******************************************************************************/
 // clang-format off
-#include "cli/kaminpar_arguments.h"
-#include "kaminpar/kaminpar.h"
+#include "kaminpar-cli/kaminpar_arguments.h"
+#include "kaminpar-shm/kaminpar.h"
 // clang-format on
 
 #include <iostream>
@@ -19,8 +19,8 @@
 #include <numa.h>
 #endif // __has_include(<numa.h>)
 
-#include "common/environment.h"
-#include "common/strutils.h"
+#include "kaminpar-common/environment.h"
+#include "kaminpar-common/strutils.h"
 
 #include "apps/io/shm_input_validator.h"
 #include "apps/io/shm_io.h"

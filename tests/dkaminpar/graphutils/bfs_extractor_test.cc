@@ -10,11 +10,11 @@
 #include "tests/dkaminpar/distributed_graph_factories.h"
 #include "tests/dkaminpar/distributed_graph_helpers.h"
 
-#include "dkaminpar/datastructures/distributed_graph.h"
-#include "dkaminpar/graphutils/bfs_extractor.h"
+#include "kaminpar-dist/datastructures/distributed_graph.h"
+#include "kaminpar-dist/graphutils/bfs_extractor.h"
 
-#include "kaminpar/datastructures/graph.h"
-#include "kaminpar/datastructures/partitioned_graph.h"
+#include "kaminpar-shm/datastructures/graph.h"
+#include "kaminpar-shm/datastructures/partitioned_graph.h"
 
 namespace kaminpar::dist::graph {
 using namespace kaminpar::dist::testing;

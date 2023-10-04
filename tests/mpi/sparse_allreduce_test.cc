@@ -1,8 +1,8 @@
 #include <gmock/gmock.h>
 #include <mpi.h>
 
-#include "mpi/definitions.h"
-#include "mpi/sparse_allreduce.h"
+#include "kaminpar-mpi/definitions.h"
+#include "kaminpar-mpi/sparse_allreduce.h"
 
 using namespace ::testing;
 

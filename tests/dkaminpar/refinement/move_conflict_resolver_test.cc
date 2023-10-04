@@ -8,9 +8,9 @@
 
 #include <gmock/gmock.h>
 
-#include "dkaminpar/dkaminpar.h"
-#include "mpi/utils.h"
-#include "dkaminpar/refinement/fm/move_conflict_resolver.h"
+#include "kaminpar-dist/dkaminpar.h"
+#include "kaminpar-mpi/utils.h"
+#include "kaminpar-dist/refinement/fm/move_conflict_resolver.h"
 
 namespace kaminpar::dist {
 namespace {

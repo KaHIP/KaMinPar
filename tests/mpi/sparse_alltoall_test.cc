@@ -1,10 +1,10 @@
 #include <gtest/gtest.h>
 
-#include "mpi/definitions.h"
-#include "mpi/sparse_alltoall.h"
-#include "mpi/wrapper.h"
+#include "kaminpar-mpi/definitions.h"
+#include "kaminpar-mpi/sparse_alltoall.h"
+#include "kaminpar-mpi/wrapper.h"
 
-#include "common/math.h"
+#include "kaminpar-common/math.h"
 
 namespace kaminpar::mpi {
 template <typename Implementation> struct SparseAlltoallTest : public ::testing::Test {

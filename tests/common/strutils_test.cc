@@ -1,6 +1,6 @@
 #include <gmock/gmock.h>
 
-#include "common/strutils.h"
+#include "kaminpar-common/strutils.h"
 
 namespace kaminpar {
 TEST(UtilityTest, extract_basename) {

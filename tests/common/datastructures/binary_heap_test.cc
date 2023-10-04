@@ -1,6 +1,6 @@
 #include <gmock/gmock.h>
 
-#include "common/datastructures/binary_heap.h"
+#include "kaminpar-common/datastructures/binary_heap.h"
 
 using ::testing::ElementsAre;
 

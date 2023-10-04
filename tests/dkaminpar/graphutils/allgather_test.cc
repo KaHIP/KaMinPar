@@ -3,11 +3,11 @@
 #include "tests/dkaminpar/distributed_graph_factories.h"
 #include "tests/dkaminpar/distributed_graph_helpers.h"
 
-#include "dkaminpar/datastructures/distributed_graph.h"
-#include "dkaminpar/graphutils/replicator.h"
-#include "dkaminpar/metrics.h"
+#include "kaminpar-dist/datastructures/distributed_graph.h"
+#include "kaminpar-dist/graphutils/replicator.h"
+#include "kaminpar-dist/metrics.h"
 
-#include "common/assertion_levels.h"
+#include "kaminpar-common/assertion_levels.h"
 
 namespace kaminpar::dist {
 using namespace kaminpar::dist::testing;

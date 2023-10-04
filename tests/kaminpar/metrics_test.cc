@@ -2,8 +2,8 @@
 
 #include "tests/kaminpar/graph_helpers.h"
 
-#include "kaminpar/datastructures/graph.h"
-#include "kaminpar/metrics.h"
+#include "kaminpar-shm/datastructures/graph.h"
+#include "kaminpar-shm/metrics.h"
 
 namespace kaminpar::shm::testing {
 class MetricsTestFixture : public ::testing::Test {

@@ -6,15 +6,15 @@
  * @date:   21.09.2021
  ******************************************************************************/
 // clang-format off
-#include "cli/dkaminpar_arguments.h"
-#include "dkaminpar/dkaminpar.h"
+#include "kaminpar-cli/dkaminpar_arguments.h"
+#include "kaminpar-dist/dkaminpar.h"
 // clang-format on
 
 #include <kagen.h>
 #include <mpi.h>
 
-#include "common/environment.h"
-#include "common/strutils.h"
+#include "kaminpar-common/environment.h"
+#include "kaminpar-common/strutils.h"
 
 #include "apps/io/dist_io.h"
 

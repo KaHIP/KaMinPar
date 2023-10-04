@@ -2,7 +2,7 @@
 
 #include <vector>
 
-#include "kaminpar/context.h"
+#include "kaminpar-shm/context.h"
 
 namespace kaminpar::shm::testing {
 template <typename View> auto view_to_vector(const View &&view) {

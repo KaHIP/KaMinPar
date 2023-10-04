@@ -4,12 +4,12 @@
 
 #include "tests/kaminpar/graph_builder.h"
 
-#include "kaminpar/context.h"
-#include "kaminpar/datastructures/graph.h"
-#include "kaminpar/datastructures/partitioned_graph.h"
+#include "kaminpar-shm/context.h"
+#include "kaminpar-shm/datastructures/graph.h"
+#include "kaminpar-shm/datastructures/partitioned_graph.h"
 
-#include "common/assertion_levels.h"
-#include "common/datastructures/scalable_vector.h"
+#include "kaminpar-common/assertion_levels.h"
+#include "kaminpar-common/datastructures/scalable_vector.h"
 
 namespace kaminpar::shm::testing {
 //

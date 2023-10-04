@@ -10,13 +10,13 @@
 
 #include <tbb/concurrent_hash_map.h>
 
-#include "dkaminpar/datastructures/ghost_node_mapper.h"
-#include "dkaminpar/datastructures/growt.h"
-#include "dkaminpar/dkaminpar.h"
-#include "dkaminpar/graphutils/communication.h"
+#include "kaminpar-dist/datastructures/ghost_node_mapper.h"
+#include "kaminpar-dist/datastructures/growt.h"
+#include "kaminpar-dist/dkaminpar.h"
+#include "kaminpar-dist/graphutils/communication.h"
 
-#include "common/parallel/atomic.h"
-#include "common/datastructures/scalable_vector.h"
+#include "kaminpar-common/parallel/atomic.h"
+#include "kaminpar-common/datastructures/scalable_vector.h"
 
 namespace kaminpar::dist::graph {
 [[nodiscard]] inline growt::StaticGhostNodeMapping

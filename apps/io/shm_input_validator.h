@@ -7,9 +7,9 @@
  ******************************************************************************/
 #pragma once
 
-#include "kaminpar/definitions.h"
+#include "kaminpar-shm/definitions.h"
 
-#include "common/datastructures/static_array.h"
+#include "kaminpar-common/datastructures/static_array.h"
 
 namespace kaminpar::shm {
 void validate_undirected_graph(

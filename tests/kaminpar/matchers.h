@@ -2,7 +2,7 @@
 
 #include <gmock/gmock.h>
 
-#include "kaminpar/datastructures/graph.h"
+#include "kaminpar-shm/datastructures/graph.h"
 
 namespace kaminpar::shm::testing {
 using ::testing::Matcher;

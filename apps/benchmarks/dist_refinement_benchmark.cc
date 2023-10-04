@@ -14,18 +14,18 @@
 #include <mpi.h>
 #include <omp.h>
 
-#include "dkaminpar/context.h"
-#include "dkaminpar/context_io.h"
-#include "dkaminpar/dkaminpar.h"
-#include "dkaminpar/factories.h"
-#include "dkaminpar/graphutils/communication.h"
-#include "dkaminpar/metrics.h"
-#include "dkaminpar/presets.h"
+#include "kaminpar-dist/context.h"
+#include "kaminpar-dist/context_io.h"
+#include "kaminpar-dist/dkaminpar.h"
+#include "kaminpar-dist/factories.h"
+#include "kaminpar-dist/graphutils/communication.h"
+#include "kaminpar-dist/metrics.h"
+#include "kaminpar-dist/presets.h"
 
-#include "common/console_io.h"
-#include "common/logger.h"
-#include "common/random.h"
-#include "common/timer.h"
+#include "kaminpar-common/console_io.h"
+#include "kaminpar-common/logger.h"
+#include "kaminpar-common/random.h"
+#include "kaminpar-common/timer.h"
 
 #include "apps/benchmarks/dist_io.h"
 

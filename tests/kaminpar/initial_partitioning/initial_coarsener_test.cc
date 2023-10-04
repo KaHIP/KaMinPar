@@ -10,8 +10,8 @@
 #include "matcher.h"
 #include "tests.h"
 
-#include "kaminpar/context.h"
-#include "kaminpar/initial_partitioning/initial_coarsener.h"
+#include "kaminpar-shm/context.h"
+#include "kaminpar-shm/initial_partitioning/initial_coarsener.h"
 
 using ::testing::UnorderedElementsAre;
 

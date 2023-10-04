@@ -14,10 +14,10 @@
 #include "tests/dkaminpar/distributed_graph_factories.h"
 #include "tests/dkaminpar/distributed_graph_helpers.h"
 
-#include "dkaminpar/algorithms/greedy_node_coloring.h"
-#include "dkaminpar/datastructures/distributed_graph.h"
-#include "mpi/utils.h"
-#include "mpi/wrapper.h"
+#include "kaminpar-dist/algorithms/greedy_node_coloring.h"
+#include "kaminpar-dist/datastructures/distributed_graph.h"
+#include "kaminpar-mpi/utils.h"
+#include "kaminpar-mpi/wrapper.h"
 
 namespace kaminpar::dist {
 using namespace kaminpar::dist::testing;

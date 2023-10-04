@@ -9,14 +9,14 @@
 #include "tests/dkaminpar/distributed_graph_factories.h"
 #include "tests/dkaminpar/distributed_graph_helpers.h"
 
-#include "dkaminpar/datastructures/distributed_graph.h"
-#include "dkaminpar/graphutils/subgraph_extractor.h"
-#include "mpi/utils.h"
+#include "kaminpar-dist/datastructures/distributed_graph.h"
+#include "kaminpar-dist/graphutils/subgraph_extractor.h"
+#include "kaminpar-mpi/utils.h"
 
-#include "kaminpar/datastructures/graph.h"
-#include "kaminpar/metrics.h"
+#include "kaminpar-shm/datastructures/graph.h"
+#include "kaminpar-shm/metrics.h"
 
-#include "common/datastructures/static_array.h"
+#include "kaminpar-common/datastructures/static_array.h"
 
 using testing::ElementsAre;
 using testing::UnorderedElementsAre;

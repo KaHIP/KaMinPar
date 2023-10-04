@@ -1,6 +1,6 @@
 #include <gmock/gmock.h>
 
-#include "common/datastructures/static_array.h"
+#include "kaminpar-common/datastructures/static_array.h"
 
 namespace kaminpar {
 TEST(StaticArrayTest, SimpleStorageTest) {

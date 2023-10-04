@@ -244,16 +244,18 @@ message("-----------------------------------------------------------------------
 include_directories(${PROJECT_SOURCE_DIR})
 
 # Shared memory components
-add_subdirectory(common)
-add_subdirectory(kaminpar)
+add_subdirectory(kaminpar-common)
+add_subdirectory(kaminpar-shm)
 
 # Distributed components
 if (KAMINPAR_BUILD_DISTRIBUTED)
-    add_subdirectory(mpi)
-    add_subdirectory(dkaminpar)
+    add_subdirectory(kaminpar-mpi)
+    add_subdirectory(kaminpar-dist)
 endif ()
 
 # Binaries
+add_subdirectory(kaminpar-cli)
+
 if (KAMINPAR_BUILD_APPS)
     add_subdirectory(apps)
 endif ()
@@ -265,8 +267,6 @@ if (KAMINPAR_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
 endif ()
-
-add_subdirectory(cli)
 
 ################################################################################
 

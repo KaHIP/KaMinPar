@@ -14,15 +14,15 @@
 #include <mpi.h>
 #include <omp.h>
 
-#include "dkaminpar/coarsening/coarsener.h"
-#include "dkaminpar/context.h"
-#include "dkaminpar/presets.h"
+#include "kaminpar-dist/coarsening/coarsener.h"
+#include "kaminpar-dist/context.h"
+#include "kaminpar-dist/presets.h"
 
-#include "kaminpar/definitions.h"
+#include "kaminpar-shm/definitions.h"
 
-#include "common/logger.h"
-#include "common/random.h"
-#include "common/timer.h"
+#include "kaminpar-common/logger.h"
+#include "kaminpar-common/random.h"
+#include "kaminpar-common/timer.h"
 
 #include "apps/benchmarks/dist_io.h"
 

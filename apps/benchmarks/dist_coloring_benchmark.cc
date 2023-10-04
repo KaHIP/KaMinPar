@@ -14,10 +14,10 @@
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_for.h>
 
-#include "dkaminpar/algorithms/greedy_node_coloring.h"
+#include "kaminpar-dist/algorithms/greedy_node_coloring.h"
 
-#include "common/logger.h"
-#include "common/timer.h"
+#include "kaminpar-common/logger.h"
+#include "kaminpar-common/timer.h"
 
 #include "apps/benchmarks/dist_io.h"
 
