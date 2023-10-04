@@ -10,7 +10,7 @@
 #include <string>
 #include <vector>
 
-#include <dkaminpar/dkaminpar.h>
+#include "kaminpar-dist/dkaminpar.h"
 
 namespace kaminpar::dist::io::partition {
 void write(const std::string &filename, const std::vector<BlockID> &partition);

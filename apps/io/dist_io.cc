@@ -9,7 +9,7 @@
 
 #include <fstream>
 
-#include <mpi/wrapper.h>
+#include "kaminpar-mpi/wrapper.h"
 
 namespace kaminpar::dist::io::partition {
 void write(const std::string &filename, const std::vector<BlockID> &partition) {
