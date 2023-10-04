@@ -1,7 +1,7 @@
-#include "tests/kaminpar/graph_factories.h"
-#include "tests/kaminpar/graph_helpers.h"
-#include "tests/kaminpar/matchers.h"
-#include "tests/kaminpar/test_helpers.h"
+#include "tests/shm/graph_factories.h"
+#include "tests/shm/graph_helpers.h"
+#include "tests/shm/matchers.h"
+#include "tests/shm/test_helpers.h"
 
 #include "kaminpar-shm/graphutils/subgraph_extractor.h"
 

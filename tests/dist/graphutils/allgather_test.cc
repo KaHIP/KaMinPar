@@ -1,7 +1,7 @@
 #include <gmock/gmock.h>
 
-#include "tests/dkaminpar/distributed_graph_factories.h"
-#include "tests/dkaminpar/distributed_graph_helpers.h"
+#include "tests/dist/distributed_graph_factories.h"
+#include "tests/dist/distributed_graph_helpers.h"
 
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/graphutils/replicator.h"

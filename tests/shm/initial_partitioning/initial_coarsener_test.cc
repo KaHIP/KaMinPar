@@ -7,8 +7,8 @@
  ******************************************************************************/
 #include <gmock/gmock.h>
 
-#include "matcher.h"
 #include "tests.h"
+#include "tests/shm/matcher.h"
 
 #include "kaminpar-shm/context.h"
 #include "kaminpar-shm/initial_partitioning/initial_coarsener.h"

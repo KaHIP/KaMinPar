@@ -11,10 +11,11 @@
 #include <gtest/gtest.h>
 #include <mpi.h>
 
+#include "tests/dist/distributed_graph_factories.h"
+#include "tests/dist/distributed_graph_helpers.h"
+
 #include "kaminpar-mpi/utils.h"
 #include "kaminpar-mpi/wrapper.h"
-#include "tests/dkaminpar/distributed_graph_factories.h"
-#include "tests/dkaminpar/distributed_graph_helpers.h"
 
 #include "kaminpar-dist/algorithms/independent_set.h"
 #include "kaminpar-dist/datastructures/distributed_graph.h"

@@ -38,10 +38,10 @@ kaminpar_add_common_test(test_common_string common/strutils_test.cc)
 kaminpar_add_common_test(test_common_parallel_algorithm common/parallel/algorithm_test.cc)
 
 # KaMinPar 
-kaminpar_add_shm_test(test_shm_metrics kaminpar/metrics_test.cc)
-kaminpar_add_shm_test(test_shm_graph kaminpar/graph_test.cc)
-kaminpar_add_shm_test(test_subgraph_extraction kaminpar/subgraph_extraction_test.cc)
-kaminpar_add_shm_test(test_graph_utils kaminpar/graph_utils_test.cc)
+kaminpar_add_shm_test(test_shm_metrics shm/metrics_test.cc)
+kaminpar_add_shm_test(test_shm_graph shm/graph_test.cc)
+kaminpar_add_shm_test(test_shm_subgraph_extraction shm/subgraph_extraction_test.cc)
+kaminpar_add_shm_test(test_shm_graph_utils shm/graph_utils_test.cc)
 
 if (KAMINPAR_BUILD_DISTRIBUTED)
     include(cmake/KaTestrophe.cmake)
@@ -94,38 +94,37 @@ if (KAMINPAR_BUILD_DISTRIBUTED)
 
     # dKaMinPar -> Coarsening
     kaminpar_add_dist_test(test_dist_coarsening_cluster_contraction
-        FILES dkaminpar/coarsening/cluster_contraction_test.cc
+        FILES dist/coarsening/cluster_contraction_test.cc
         CORES 1)
 
     kaminpar_add_dist_test(test_dist_coarsening_cluster_contraction_internal
-        FILES dkaminpar/coarsening/internal_cluster_contraction_test.cc
+        FILES dist/coarsening/internal_cluster_contraction_test.cc
         CORES 1)
-
 
     # dKaMinPar -> Graph Utils
     kaminpar_add_dist_test(test_dist_graphutils_block_extractor
-        FILES dkaminpar/graphutils/block_extractor_test.cc
+        FILES dist/graphutils/block_extractor_test.cc
         CORES 1 4)
 
     kaminpar_add_dist_test(test_dist_graphutils_rearrangement
-        FILES dkaminpar/graphutils/rearrangement_test.cc
+        FILES dist/graphutils/rearrangement_test.cc
         CORES 1 4)
 
     kaminpar_add_dist_test(test_dist_graphutils_bfs_extractor
-        FILES dkaminpar/graphutils/bfs_extractor_test.cc
+        FILES dist/graphutils/bfs_extractor_test.cc
         CORES 1 4)
 
     kaminpar_add_dist_test(test_dist_graphutils_allgather
-        FILES dkaminpar/graphutils/allgather_test.cc
+        FILES dist/graphutils/allgather_test.cc
         CORES 1 4)
 
     # dKaMinPar -> Algorithms 
     kaminpar_add_dist_test(test_dist_greedy_node_coloring
-        FILES dkaminpar/algorithms/greedy_node_coloring_test.cc
+        FILES dist/algorithms/greedy_node_coloring_test.cc
         CORES 1 4)
 
     kaminpar_add_dist_test(test_dist_independent_set
-        FILES dkaminpar/algorithms/independent_set_test.cc
+        FILES dist/algorithms/independent_set_test.cc
         CORES 1 4)
 
     #  MPI

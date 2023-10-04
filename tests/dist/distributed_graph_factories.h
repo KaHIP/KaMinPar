@@ -10,8 +10,9 @@
 #include <gtest/gtest.h>
 #include <mpi.h>
 
+#include "tests/dist/distributed_graph_builder.h"
+
 #include "kaminpar-mpi/wrapper.h"
-#include "tests/dkaminpar/distributed_graph_builder.h"
 
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/dkaminpar.h"

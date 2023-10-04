@@ -1,6 +1,6 @@
 #include <gmock/gmock.h>
 
-#include "tests/kaminpar/graph_helpers.h"
+#include "tests/shm/graph_helpers.h"
 
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/metrics.h"

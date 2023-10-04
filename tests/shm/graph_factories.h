@@ -2,7 +2,7 @@
 
 #include <gmock/gmock.h>
 
-#include "tests/kaminpar/graph_builder.h"
+#include "tests/shm/graph_builder.h"
 
 namespace kaminpar::shm::testing::graphs {
 /*!

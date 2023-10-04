@@ -2,7 +2,7 @@
 
 #include <gmock/gmock.h>
 
-#include "tests/kaminpar/graph_builder.h"
+#include "tests/shm/graph_builder.h"
 
 #include "kaminpar-shm/context.h"
 #include "kaminpar-shm/datastructures/graph.h"

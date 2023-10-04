@@ -8,8 +8,9 @@
 #include <gtest/gtest.h>
 #include <mpi.h>
 
+#include "tests/dist/distributed_graph_factories.h"
+
 #include "kaminpar-mpi/utils.h"
-#include "tests/dkaminpar/distributed_graph_factories.h"
 
 #include "kaminpar-dist/graphutils/rearrangement.h"
 
