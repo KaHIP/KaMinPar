@@ -11,7 +11,7 @@
 
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructures/distributed_partitioned_graph.h"
-#include "dkaminpar/mpi/binary_reduction_tree.h"
+#include "mpi/binary_reduction_tree.h"
 #include "dkaminpar/refinement/balancer/weight_buckets.h"
 
 #include "common/timer.h"

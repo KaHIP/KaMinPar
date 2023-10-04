@@ -12,7 +12,7 @@
 #include "dkaminpar/datastructures/distributed_partitioned_graph.h"
 #include "dkaminpar/dkaminpar.h"
 #include "dkaminpar/graphutils/communication.h"
-#include "dkaminpar/mpi/wrapper.h"
+#include "mpi/wrapper.h"
 
 #include "kaminpar/datastructures/graph.h"
 

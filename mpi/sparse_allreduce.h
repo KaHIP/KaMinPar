@@ -4,7 +4,7 @@
  * @file:   sparse_allreduce.h
  * @author: Daniel Seemaier
  * @date:   27.03.2023
- ******************************************************************************/                   
+ ******************************************************************************/
 #pragma once
 
 #include <algorithm>
@@ -14,11 +14,11 @@
 #include <mpi.h>
 #include <tbb/parallel_for.h>
 
-#include "dkaminpar/dkaminpar.h"
-#include "dkaminpar/mpi/wrapper.h"
+#include "mpi/definitions.h"
+#include "mpi/wrapper.h"
 
-#include "common/math.h"
 #include "common/datastructures/noinit_vector.h"
+#include "common/math.h"
 
 namespace kaminpar::mpi {
 namespace tag {

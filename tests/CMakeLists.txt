@@ -5,8 +5,8 @@ function(kaminpar_add_shm_test target)
     target_link_libraries(${target} PRIVATE 
         GTest::gtest_main 
         GTest::gmock_main
-        common 
-        kaminpar)
+        kaminpar_common
+        kaminpar_shm)
     target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     gtest_discover_tests(${target})
 
@@ -18,7 +18,7 @@ function(kaminpar_add_common_test target)
     target_link_libraries(${target} PRIVATE 
         GTest::gtest_main
         GTest::gmock_main
-        common)
+        kaminpar_common)
     target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     gtest_discover_tests(${target})
 
@@ -46,6 +46,26 @@ kaminpar_add_shm_test(test_graph_utils kaminpar/graph_utils_test.cc)
 if (KAMINPAR_BUILD_DISTRIBUTED)
     include(cmake/KaTestrophe.cmake)
 
+    function(kaminpar_add_mpi_test KAMINPAR_TARGET_NAME)
+        cmake_parse_arguments(
+                "KAMINPAR"
+                ""
+                ""
+                "FILES;CORES"
+                ${ARGN}
+        )
+        katestrophe_add_test_executable(${KAMINPAR_TARGET_NAME} FILES ${KAMINPAR_FILES})
+        target_link_libraries(${KAMINPAR_TARGET_NAME} PRIVATE
+                mpi-gtest-main
+                kaminpar_common
+                kaminpar_shm
+                kaminpar_mpi)
+        target_include_directories(${KAMINPAR_TARGET_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+        katestrophe_add_mpi_test(${KAMINPAR_TARGET_NAME} CORES ${KAMINPAR_CORES})
+
+        message(STATUS "Enabled MPI test: ${KAMINPAR_TARGET_NAME}, PEs: ${KAMINPAR_CORES}")
+    endfunction()
+
     function(kaminpar_add_dist_test KAMINPAR_TARGET_NAME)
         cmake_parse_arguments(
             "KAMINPAR"
@@ -57,9 +77,10 @@ if (KAMINPAR_BUILD_DISTRIBUTED)
         katestrophe_add_test_executable(${KAMINPAR_TARGET_NAME} FILES ${KAMINPAR_FILES})
         target_link_libraries(${KAMINPAR_TARGET_NAME} PRIVATE 
             mpi-gtest-main
-            common 
-            kaminpar 
-            dkaminpar)
+            kaminpar_common
+            kaminpar_shm
+            kaminpar_mpi
+            kaminpar_dist)
         target_include_directories(${KAMINPAR_TARGET_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
         katestrophe_add_mpi_test(${KAMINPAR_TARGET_NAME} CORES ${KAMINPAR_CORES})
     
@@ -107,17 +128,17 @@ if (KAMINPAR_BUILD_DISTRIBUTED)
         FILES dkaminpar/algorithms/independent_set_test.cc
         CORES 1 4)
 
-    # dKaMinPar -> MPI
-    kaminpar_add_dist_test(test_dist_sparse_alltoall
-        FILES dkaminpar/mpi/sparse_alltoall_test.cc
+    #  MPI
+    kaminpar_add_mpi_test(test_mpi_sparse_alltoall
+        FILES mpi/sparse_alltoall_test.cc
         CORES 1 4 11)
 
-    kaminpar_add_dist_test(test_dist_graph_topology
-        FILES dkaminpar/mpi/grid_topology_test.cc
+    kaminpar_add_mpi_test(test_mpi_graph_topology
+        FILES mpi/grid_topology_test.cc
         CORES 1)
 
-    kaminpar_add_dist_test(test_dist_sparse_allreduce
-        FILES dkaminpar/mpi/sparse_allreduce_test.cc
+    kaminpar_add_mpi_test(test_mpi_sparse_allreduce
+        FILES mpi/sparse_allreduce_test.cc
         CORES 1 4 8)
 endif ()
 

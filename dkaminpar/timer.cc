@@ -13,7 +13,7 @@
 #include <numeric>
 #include <sstream>
 
-#include "dkaminpar/mpi/wrapper.h"
+#include "mpi/wrapper.h"
 
 namespace kaminpar::dist {
 namespace {

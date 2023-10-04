@@ -10,10 +10,11 @@
 #include <kassert/kassert.hpp>
 #include <tbb/concurrent_hash_map.h>
 
+#include "mpi/wrapper.h"
+
 #include "dkaminpar/datastructures/growt.h"
 #include "dkaminpar/dkaminpar.h"
 #include "dkaminpar/logger.h"
-#include "dkaminpar/mpi/wrapper.h"
 
 #include "common/datastructures/static_array.h"
 

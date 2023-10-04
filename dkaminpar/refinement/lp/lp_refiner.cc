@@ -13,8 +13,8 @@
 #include "dkaminpar/datastructures/distributed_partitioned_graph.h"
 #include "dkaminpar/graphutils/communication.h"
 #include "dkaminpar/metrics.h"
-#include "dkaminpar/mpi/sparse_allreduce.h"
-#include "dkaminpar/mpi/wrapper.h"
+#include "mpi/sparse_allreduce.h"
+#include "mpi/wrapper.h"
 
 #include "kaminpar/label_propagation.h"
 

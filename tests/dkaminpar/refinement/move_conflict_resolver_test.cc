@@ -9,7 +9,7 @@
 #include <gmock/gmock.h>
 
 #include "dkaminpar/dkaminpar.h"
-#include "dkaminpar/mpi/utils.h"
+#include "mpi/utils.h"
 #include "dkaminpar/refinement/fm/move_conflict_resolver.h"
 
 namespace kaminpar::dist {

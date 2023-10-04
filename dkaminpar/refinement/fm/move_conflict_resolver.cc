@@ -11,7 +11,7 @@
 #include <unordered_set>
 
 #include "dkaminpar/dkaminpar.h"
-#include "dkaminpar/mpi/wrapper.h"
+#include "mpi/wrapper.h"
 
 #include "common/asserting_cast.h"
 #include "common/logger.h"

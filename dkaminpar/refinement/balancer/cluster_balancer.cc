@@ -10,9 +10,9 @@
 #include <iomanip>
 #include <sstream>
 
-#include "dkaminpar/mpi/binary_reduction_tree.h"
-#include "dkaminpar/mpi/sparse_alltoall.h"
-#include "dkaminpar/mpi/wrapper.h"
+#include "mpi/binary_reduction_tree.h"
+#include "mpi/sparse_alltoall.h"
+#include "mpi/wrapper.h"
 #include "dkaminpar/refinement/balancer/clusters.h"
 #include "dkaminpar/refinement/balancer/reductions.h"
 

@@ -9,8 +9,8 @@
 
 #include <cmath>
 
-#include "dkaminpar/dkaminpar.h"
-#include "dkaminpar/mpi/wrapper.h"
+#include "mpi/definitions.h"
+#include "mpi/wrapper.h"
 
 namespace kaminpar::mpi {
 class GridTopology {

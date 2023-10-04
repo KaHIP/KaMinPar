@@ -10,7 +10,7 @@
 #include "tests/dkaminpar/distributed_graph_factories.h"
 #include "tests/dkaminpar/distributed_graph_helpers.h"
 
-#include "dkaminpar/mpi/utils.h"
+#include "mpi/utils.h"
 
 // Implementation file to be tested
 #include "dkaminpar/coarsening/contraction/cluster_contraction.cc"

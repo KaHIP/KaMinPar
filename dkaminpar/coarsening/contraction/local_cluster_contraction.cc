@@ -10,15 +10,16 @@
 #include <tbb/parallel_for.h>
 #include <tbb/parallel_invoke.h>
 
+#include "mpi/wrapper.h"
+
 #include "dkaminpar/datastructures/ghost_node_mapper.h"
 #include "dkaminpar/dkaminpar.h"
 #include "dkaminpar/graphutils/communication.h"
-#include "dkaminpar/mpi/wrapper.h"
 
 #include "common/datastructures/rating_map.h"
+#include "common/datastructures/scalable_vector.h"
 #include "common/datastructures/ts_navigable_linked_list.h"
 #include "common/parallel/atomic.h"
-#include "common/datastructures/scalable_vector.h"
 
 namespace kaminpar::dist {
 using namespace contraction;

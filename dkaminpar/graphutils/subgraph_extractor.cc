@@ -12,13 +12,14 @@
 
 #include <mpi.h>
 
+#include "mpi/alltoall.h"
+#include "mpi/sparse_alltoall.h"
+#include "mpi/wrapper.h"
+
 #include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/datastructures/distributed_partitioned_graph.h"
 #include "dkaminpar/graphutils/communication.h"
 #include "dkaminpar/graphutils/synchronization.h"
-#include "dkaminpar/mpi/alltoall.h"
-#include "dkaminpar/mpi/sparse_alltoall.h"
-#include "dkaminpar/mpi/wrapper.h"
 
 #include "kaminpar/datastructures/graph.h"
 #include "kaminpar/metrics.h"

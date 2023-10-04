@@ -12,8 +12,8 @@
 #include "dkaminpar/graphutils/communication.h"
 #include "dkaminpar/graphutils/synchronization.h"
 #include "dkaminpar/metrics.h"
-#include "dkaminpar/mpi/binary_reduction_tree.h"
-#include "dkaminpar/mpi/wrapper.h"
+#include "mpi/binary_reduction_tree.h"
+#include "mpi/wrapper.h"
 #include "dkaminpar/refinement/balancer/reductions.h"
 
 #include "common/math.h"

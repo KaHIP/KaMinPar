@@ -12,10 +12,11 @@
 
 #include <tbb/parallel_for.h>
 
+#include "mpi/wrapper.h"
+
 #include "dkaminpar/datastructures/growt.h"
 #include "dkaminpar/dkaminpar.h"
 #include "dkaminpar/logger.h"
-#include "dkaminpar/mpi/wrapper.h"
 
 #include "common/datastructures/marker.h"
 #include "common/datastructures/static_array.h"

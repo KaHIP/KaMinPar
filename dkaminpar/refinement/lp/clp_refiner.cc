@@ -21,7 +21,7 @@
 #include "dkaminpar/datastructures/distributed_partitioned_graph.h"
 #include "dkaminpar/graphutils/communication.h"
 #include "dkaminpar/metrics.h"
-#include "dkaminpar/mpi/wrapper.h"
+#include "mpi/wrapper.h"
 
 #include "common/datastructures/rating_map.h"
 #include "common/parallel/algorithm.h"

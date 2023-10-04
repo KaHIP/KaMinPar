@@ -12,7 +12,7 @@
 
 #include <tbb/parallel_for.h>
 
-#include "dkaminpar/mpi/wrapper.h"
+#include "mpi/wrapper.h"
 
 namespace kaminpar::dist {
 using namespace std::string_literals;

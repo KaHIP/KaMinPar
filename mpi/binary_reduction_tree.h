@@ -11,7 +11,7 @@
 
 #include <mpi.h>
 
-#include "dkaminpar/mpi/wrapper.h"
+#include "mpi/wrapper.h"
 
 namespace kaminpar::mpi {
 template <typename Buffer, typename Combiner>

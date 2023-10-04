@@ -11,7 +11,7 @@
 
 #include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/graphutils/subgraph_extractor.h"
-#include "dkaminpar/mpi/utils.h"
+#include "mpi/utils.h"
 
 #include "kaminpar/datastructures/graph.h"
 #include "kaminpar/metrics.h"

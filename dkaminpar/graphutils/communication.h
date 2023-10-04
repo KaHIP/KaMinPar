@@ -11,10 +11,11 @@
 
 #include <omp.h>
 
+#include "mpi/sparse_alltoall.h"
+#include "mpi/utils.h"
+
 #include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/dkaminpar.h"
-#include "dkaminpar/mpi/sparse_alltoall.h"
-#include "dkaminpar/mpi/utils.h"
 
 #include "common/assertion_levels.h"
 #include "common/datastructures/cache_aligned_vector.h"

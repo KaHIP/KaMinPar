@@ -14,7 +14,7 @@
 
 #include <mpi.h>
 
-#include "dkaminpar/mpi/utils.h"
+#include "mpi/utils.h"
 
 #include "common/logger.h"
 

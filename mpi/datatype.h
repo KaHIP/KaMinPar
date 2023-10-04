@@ -9,6 +9,7 @@
  ******************************************************************************/
 #pragma once
 
+#include <cstdint>
 #include <cstdlib>
 #include <type_traits>
 #include <utility>

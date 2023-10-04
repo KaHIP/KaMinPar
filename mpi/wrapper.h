@@ -12,9 +12,9 @@
 #include <kassert/kassert.hpp>
 #include <mpi.h>
 
-#include "dkaminpar/dkaminpar.h"
-#include "dkaminpar/mpi/datatype.h"
-#include "dkaminpar/mpi/utils.h"
+#include "mpi/datatype.h"
+#include "mpi/definitions.h"
+#include "mpi/utils.h"
 
 #include "common/asserting_cast.h"
 #include "common/datastructures/noinit_vector.h"

@@ -10,14 +10,15 @@
 #include <iomanip>
 #include <numeric>
 
+#include "mpi/wrapper.h"
+
 #include "dkaminpar/graphutils/communication.h"
-#include "dkaminpar/mpi/wrapper.h"
 
 #include "common/datastructures/marker.h"
+#include "common/datastructures/scalable_vector.h"
 #include "common/math.h"
 #include "common/parallel/algorithm.h"
 #include "common/parallel/vector_ets.h"
-#include "common/datastructures/scalable_vector.h"
 #include "common/timer.h"
 
 namespace kaminpar::dist {

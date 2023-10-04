@@ -16,8 +16,8 @@
 
 #include "dkaminpar/algorithms/independent_set.h"
 #include "dkaminpar/datastructures/distributed_graph.h"
-#include "dkaminpar/mpi/utils.h"
-#include "dkaminpar/mpi/wrapper.h"
+#include "mpi/utils.h"
+#include "mpi/wrapper.h"
 
 #include "common/asserting_cast.h"
 

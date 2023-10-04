@@ -13,8 +13,8 @@
 #include <mpi.h>
 #include <tbb/parallel_for.h>
 
-#include "dkaminpar/dkaminpar.h"
-#include "dkaminpar/mpi/wrapper.h"
+#include "mpi/definitions.h"
+#include "mpi/wrapper.h"
 
 #include "common/datastructures/noinit_vector.h"
 #include "common/timer.h"

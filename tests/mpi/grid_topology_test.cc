@@ -6,7 +6,7 @@
  ******************************************************************************/
 #include <gmock/gmock.h>
 
-#include "dkaminpar/mpi/grid_topology.h"
+#include "mpi/grid_topology.h"
 
 namespace kaminpar::mpi {
 TEST(GridTopologyTest, size_1_rows) {

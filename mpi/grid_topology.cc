@@ -5,7 +5,7 @@
  * @author: Daniel Seemaier
  * @date:   27.03.2023
  ******************************************************************************/
-#include "dkaminpar/mpi/grid_topology.h"
+#include "mpi/grid_topology.h"
 
 #include <unordered_map>
 

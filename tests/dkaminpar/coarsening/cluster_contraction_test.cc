@@ -10,7 +10,7 @@
 #include "tests/dkaminpar/distributed_graph_helpers.h"
 
 #include "dkaminpar/coarsening/contraction/cluster_contraction.h"
-#include "dkaminpar/mpi/utils.h"
+#include "mpi/utils.h"
 
 namespace kaminpar::dist {
 using namespace kaminpar::dist::testing;

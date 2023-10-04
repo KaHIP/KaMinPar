@@ -9,9 +9,9 @@
 
 #include <mpi.h>
 
-#include "dkaminpar/mpi/alltoall.h"
-#include "dkaminpar/mpi/grid_alltoall.h"
-#include "dkaminpar/mpi/wrapper.h"
+#include "mpi/alltoall.h"
+#include "mpi/grid_alltoall.h"
+#include "mpi/wrapper.h"
 
 namespace kaminpar::mpi {
 namespace tag {

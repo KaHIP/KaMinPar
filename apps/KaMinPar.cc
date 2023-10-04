@@ -6,7 +6,7 @@
  * @date:   21.09.2021
  ******************************************************************************/
 // clang-format off
-#include "kaminpar_cli/kaminpar_arguments.h"
+#include "cli/kaminpar_arguments.h"
 #include "kaminpar/kaminpar.h"
 // clang-format on
 

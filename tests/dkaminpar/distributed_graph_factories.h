@@ -14,7 +14,7 @@
 
 #include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/dkaminpar.h"
-#include "dkaminpar/mpi/wrapper.h"
+#include "mpi/wrapper.h"
 
 namespace kaminpar::dist::testing {
 /*!

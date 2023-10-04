@@ -5,9 +5,9 @@
  * @author: Daniel Seemaier
  * @date:   14.10.2022
  ******************************************************************************/
-#include "kaminpar_cli/kaminpar_arguments.h"
+#include "cli/kaminpar_arguments.h"
 
-#include "kaminpar_cli/CLI11.h"
+#include "cli/CLI11.h"
 
 #include "kaminpar/context.h"
 #include "kaminpar/context_io.h"

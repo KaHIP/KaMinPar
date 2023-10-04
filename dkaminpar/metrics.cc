@@ -9,11 +9,12 @@
 
 #include <tbb/enumerable_thread_specific.h>
 
+#include "mpi/wrapper.h"
+
 #include "dkaminpar/context.h"
 #include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/datastructures/distributed_partitioned_graph.h"
 #include "dkaminpar/dkaminpar.h"
-#include "dkaminpar/mpi/wrapper.h"
 
 namespace kaminpar::dist::metrics {
 GlobalEdgeWeight local_edge_cut(const DistributedPartitionedGraph &p_graph) {

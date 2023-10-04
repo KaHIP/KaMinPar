@@ -23,8 +23,8 @@
 #include "dkaminpar/datastructures/growt.h"
 #include "dkaminpar/graphutils/synchronization.h"
 #include "dkaminpar/metrics.h"
-#include "dkaminpar/mpi/alltoall.h"
-#include "dkaminpar/mpi/utils.h"
+#include "mpi/alltoall.h"
+#include "mpi/utils.h"
 
 #include "kaminpar/datastructures/graph.h"
 

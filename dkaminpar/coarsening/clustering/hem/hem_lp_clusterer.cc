@@ -11,9 +11,10 @@
 
 #include <tbb/enumerable_thread_specific.h>
 
+#include "mpi/wrapper.h"
+
 #include "dkaminpar/coarsening/clustering/hem/hem_clusterer.h"
 #include "dkaminpar/coarsening/clustering/lp/global_lp_clusterer.h"
-#include "dkaminpar/mpi/wrapper.h"
 
 namespace kaminpar::dist {
 HEMLPClusterer::HEMLPClusterer(const Context &ctx)

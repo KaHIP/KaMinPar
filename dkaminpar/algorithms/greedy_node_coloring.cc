@@ -9,9 +9,10 @@
 
 #include <kassert/kassert.hpp>
 
+#include "mpi/wrapper.h"
+
 #include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/graphutils/communication.h"
-#include "dkaminpar/mpi/wrapper.h"
 
 #include "common/assertion_levels.h"
 #include "common/datastructures/marker.h"

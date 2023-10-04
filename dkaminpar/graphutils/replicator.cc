@@ -9,13 +9,14 @@
 
 #include <mpi.h>
 
+#include "mpi/utils.h"
+#include "mpi/wrapper.h"
+
 #include "dkaminpar/datastructures/distributed_graph.h"
 #include "dkaminpar/datastructures/distributed_partitioned_graph.h"
 #include "dkaminpar/datastructures/ghost_node_mapper.h"
 #include "dkaminpar/graphutils/synchronization.h"
 #include "dkaminpar/metrics.h"
-#include "dkaminpar/mpi/utils.h"
-#include "dkaminpar/mpi/wrapper.h"
 
 #include "kaminpar/datastructures/graph.h"
 #include "kaminpar/metrics.h"

@@ -12,8 +12,10 @@
 #include <kassert/kassert.hpp>
 #include <mpi.h>
 
+#include "mpi/definitions.h"
+
 namespace kaminpar::mpi {
-inline std::pair<int, int> get_comm_info(MPI_Comm comm) {
+inline std::pair<PEID, PEID> get_comm_info(MPI_Comm comm) {
   int size;
   MPI_Comm_size(comm, &size);
   int rank;
@@ -21,13 +23,13 @@ inline std::pair<int, int> get_comm_info(MPI_Comm comm) {
   return {size, rank};
 }
 
-inline int get_comm_size(MPI_Comm comm) {
+inline PEID get_comm_size(MPI_Comm comm) {
   int size;
   MPI_Comm_size(comm, &size);
   return size;
 }
 
-inline int get_comm_rank(MPI_Comm comm) {
+inline PEID get_comm_rank(MPI_Comm comm) {
   int rank;
   MPI_Comm_rank(comm, &rank);
   return rank;

@@ -16,8 +16,8 @@
 
 #include "dkaminpar/algorithms/greedy_node_coloring.h"
 #include "dkaminpar/datastructures/distributed_graph.h"
-#include "dkaminpar/mpi/utils.h"
-#include "dkaminpar/mpi/wrapper.h"
+#include "mpi/utils.h"
+#include "mpi/wrapper.h"
 
 namespace kaminpar::dist {
 using namespace kaminpar::dist::testing;
