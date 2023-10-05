@@ -85,19 +85,26 @@ std::unique_ptr<Refiner> create_refiner(const Context &ctx, const RefinementAlgo
   case RefinementAlgorithm::GREEDY_BALANCER:
     return std::make_unique<GreedyBalancer>(ctx);
 
-  case RefinementAlgorithm::KWAY_FM:
+  case RefinementAlgorithm::KWAY_FM: {
+    const bool has_high_degree_nodes =
+        1.0 * ctx.partition.max_degree <=
+        ctx.partition.k * ctx.refinement.kway_fm.k_vs_degree_threshold;
+
     if (ctx.refinement.kway_fm.gain_cache_strategy == GainCacheStrategy::DENSE) {
       return std::make_unique<FMRefiner<fm::DenseDeltaPartitionedGraph, fm::DenseGainCache>>(ctx);
-    } else if (ctx.refinement.kway_fm.gain_cache_strategy == GainCacheStrategy::DENSE_MAPPED) {
+    } else if (ctx.refinement.kway_fm.gain_cache_strategy == GainCacheStrategy::DENSE_MAPPED ||
+            (ctx.refinement.kway_fm.gain_cache_strategy == GainCacheStrategy::K_VS_DEGREE && has_high_degree_nodes)) {
       return std::make_unique<FMRefiner<fm::OnTheFlyDeltaPartitionedGraph, fm::DenseGainCache>>( //
           ctx
       );
-    } else if (ctx.refinement.kway_fm.gain_cache_strategy == GainCacheStrategy::ON_THE_FLY) {
+    } else if (ctx.refinement.kway_fm.gain_cache_strategy == GainCacheStrategy::ON_THE_FLY || 
+            (ctx.refinement.kway_fm.gain_cache_strategy == GainCacheStrategy::K_VS_DEGREE && !has_high_degree_nodes)) {
       return std::make_unique<FMRefiner<fm::OnTheFlyDeltaPartitionedGraph, fm::OnTheFlyGainCache>>(
           ctx
       );
     }
     __builtin_unreachable();
+  }
 
   case RefinementAlgorithm::JET:
     return std::make_unique<JetRefiner>(ctx);

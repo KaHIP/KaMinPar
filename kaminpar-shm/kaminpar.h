@@ -121,6 +121,7 @@ enum class GainCacheStrategy {
   DENSE,
   DENSE_MAPPED,
   ON_THE_FLY,
+  K_VS_DEGREE,
 };
 
 struct LabelPropagationRefinementContext {
@@ -138,6 +139,7 @@ struct KwayFMRefinementContext {
   double abortion_threshold;
 
   GainCacheStrategy gain_cache_strategy;
+  double k_vs_degree_threshold;
 
   bool dbg_compute_batch_size_statistics;
 };
@@ -244,6 +246,7 @@ struct PartitionContext {
   NodeWeight total_node_weight = kInvalidNodeWeight;
   EdgeWeight total_edge_weight = kInvalidEdgeWeight;
   NodeWeight max_node_weight = kInvalidNodeWeight;
+  EdgeID max_degree = kInvalidEdgeID;
 
   void setup(const Graph &graph);
 };

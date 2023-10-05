@@ -149,6 +149,8 @@ bool validate_graph(const Graph &graph, bool check_undirected = true, NodeID num
 
 void print_graph(const Graph &graph);
 
+[[nodiscard]] EdgeID compute_max_degree(const Graph &graph);
+
 class GraphDelegate {
 public:
   GraphDelegate(const Graph *graph) : _graph(graph) {}

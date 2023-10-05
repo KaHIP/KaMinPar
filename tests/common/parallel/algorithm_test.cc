@@ -105,4 +105,40 @@ TEST(ParallelAlgorithmTest, accumulate_large_subset) {
   const int result = parallel::accumulate(data.begin(), data.end(), 0);
   EXPECT_EQ(result, (1000 * 999) / 2);
 }
+
+TEST(ParallelAlgorithmTest, max_difference_with_zero_elements) {
+  std::vector<int> data;
+  const int result = parallel::max_difference(data);
+  EXPECT_EQ(result, std::numeric_limits<int>::min());
+}
+
+TEST(ParallelAlgorithmTest, max_difference_with_one_element) {
+  std::vector<int> data{1};
+  const int result = parallel::max_difference(data);
+  EXPECT_EQ(result, 0);
+}
+
+TEST(ParallelAlgorithmTest, max_difference_with_two_elements) {
+  std::vector<int> data{1, 10};
+  const int result = parallel::max_difference(data);
+  EXPECT_EQ(result, 9);
+}
+
+TEST(ParallelAlgorithmTest, max_difference_with_ten_elements) {
+  std::vector<int> data{1, 5, 6, 7, 10, 11, 12, 20, 21, 22};
+  const int result = parallel::max_difference(data);
+  EXPECT_EQ(result, 8);
+}
+
+TEST(ParallelAlgorithmTest, max_difference_first_pair_is_max) {
+  std::vector<int> data{1, 5, 6, 7, 10};
+  const int result = parallel::max_difference(data);
+  EXPECT_EQ(result, 4);
+}
+
+TEST(ParallelAlgorithmTest, max_difference_last_pair_is_max) {
+  std::vector<int> data{1, 5, 6, 7, 17};
+  const int result = parallel::max_difference(data);
+  EXPECT_EQ(result, 10);
+}
 } // namespace kaminpar

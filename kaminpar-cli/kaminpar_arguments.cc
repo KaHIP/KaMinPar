@@ -151,99 +151,10 @@ CLI::Option_group *create_lp_coarsening_options(CLI::App *app, Context &ctx) {
 CLI::Option_group *create_initial_partitioning_options(CLI::App *app, Context &ctx) {
   auto *ip = app->add_option_group("Initial Partitioning");
 
-  /*
-  ip->add_option(
-        "--i-c-contraction-limit",
-        ctx.initial_partitioning.coarsening.contraction_limit,
-        "Upper limit for the number of nodes per block in the coarsest graph."
-  )
-      ->capture_default_str();
-  ip->add_option(
-        "--i-c-cluster-weight-limit", ctx.initial_partitioning.coarsening.cluster_weight_limit
-  )
-      ->transform(CLI::CheckedTransformer(get_cluster_weight_limits()).description(""))
-      ->description(
-          R"(This option selects the formula used to compute the weight limit for nodes in coarse
-graphs. The weight limit can additionally be scaled by a constant multiplier set by the
---c-cluster-weight-multiplier option. Options are:
-  - epsilon-block-weight: Cmax = eps * c(V) * min{n' / C, k}, where n' is the number of nodes in the
-current (coarse) graph
-  - static-block-weight:  Cmax = c(V) / k
-  - one:                  Cmax = 1
-  - zero:                 Cmax = 0 (disable coarsening))"
-      )
-      ->capture_default_str();
-  ip->add_option(
-        "--i-c-cluster-weight-multiplier",
-        ctx.initial_partitioning.coarsening.cluster_weight_multiplier,
-        "Multiplicator of the maximum cluster weight base value."
-  )
-      ->capture_default_str();
-  ip->add_option(
-        "--i-c-coarsening-convergence-threshold",
-        ctx.initial_partitioning.coarsening.convergence_threshold,
-        "Coarsening converges once the size of the graph shrinks by "
-        "less than this factor."
-  )
-      ->capture_default_str();
-  */
-
-  /*
-  ip->add_option("--i-rep-multiplier", ctx.initial_partitioning.repetition_multiplier)
-      ->capture_default_str();
-  ip->add_option("--i-min-reps", ctx.initial_partitioning.min_num_repetitions)
-      ->capture_default_str();
-  ip->add_option(
-        "--i-min-non-adaptive-reps", ctx.initial_partitioning.min_num_non_adaptive_repetitions
-  )
-      ->capture_default_str();
-  ip->add_option("--i-max-reps", ctx.initial_partitioning.max_num_repetitions)
-      ->capture_default_str();
-  ip->add_flag(
-        "--i-use-adaptive-bipartitioner-selection",
-        ctx.initial_partitioning.use_adaptive_bipartitioner_selection
-  )
-      ->capture_default_str();
-  */
-
   ip->add_flag(
         "--i-r-disable", ctx.initial_partitioning.refinement.disabled, "Disable initial refinement."
   )
       ->capture_default_str();
-
-  /*
-  ip->add_option("--i-r-stopping-rule", ctx.initial_partitioning.refinement.stopping_rule)
-      ->transform(CLI::CheckedTransformer(get_fm_stopping_rules()).description(""))
-      ->description(R"(Stopping rule for the 2-way FM algorithm:
-  - simple:   abort after a constant number of fruitless moves
-  - adaptive: abort after it became unlikely to find a cut improvement)")
-      ->capture_default_str();
-  ip->add_option(
-        "--i-r-num-fruitless-moves",
-        ctx.initial_partitioning.refinement.num_fruitless_moves,
-        "[--i-r-stopping-rule=simple] Number of fruitless moves before aborting a FM search."
-  )
-      ->capture_default_str();
-  ip->add_option(
-        "--i-r-alpha",
-        ctx.initial_partitioning.refinement.alpha,
-        "[--i-r-stopping-rule=adaptive] Parameter for the adaptive stopping rule."
-  )
-      ->capture_default_str();
-  ip->add_option(
-        "--i-r-num-iterations",
-        ctx.initial_partitioning.refinement.num_iterations,
-        "Number of refinement iterations during initial partitioning."
-  )
-      ->capture_default_str();
-  ip->add_option(
-        "--i-r-abortion-threshold",
-        ctx.initial_partitioning.refinement.improvement_abortion_threshold,
-        "Stop FM iterations if the previous iteration improved the edge cut "
-        "below this threshold."
-  )
-      ->capture_default_str();
-  */
 
   return ip;
 }
@@ -314,15 +225,6 @@ CLI::Option_group *create_kway_fm_refinement_options(CLI::App *app, Context &ctx
         "slower)."
   )
       ->capture_default_str();
-  /*
-  fm->add_option("--r-fm-alpha", ctx.refinement.kway_fm.alpha)->capture_default_str();
-  */
-  /*
-  fm->add_flag(
-        "--r-fm-use-exact-abortion-threshold", ctx.refinement.kway_fm.use_exact_abortion_threshold
-  )
-      ->capture_default_str();
-  */
   fm->add_option(
         "--r-fm-abortion-threshold",
         ctx.refinement.kway_fm.abortion_threshold,
@@ -330,15 +232,11 @@ CLI::Option_group *create_kway_fm_refinement_options(CLI::App *app, Context &ctx
         "iteration falls below this threshold (lower = weaker, but faster)."
   )
       ->capture_default_str();
-  /*
-  fm->add_flag("--r-fm-unlock-seed-nodes", ctx.refinement.kway_fm.unlock_seed_nodes)
-      ->capture_default_str();
-  */
-
   fm->add_flag("--r-fm-gain-cache", ctx.refinement.kway_fm.gain_cache_strategy)
       ->transform(CLI::CheckedTransformer(get_gain_cache_strategies()).description(""))
       ->capture_default_str();
-
+  fm->add_flag("--r-fm-k-vs-degree", ctx.refinement.kway_fm.k_vs_degree_threshold)
+      ->capture_default_str();
   fm->add_flag(
         "--r-fm-dbg-batch-size-stats", ctx.refinement.kway_fm.dbg_compute_batch_size_statistics
   )
