@@ -6,7 +6,7 @@
  * @date:   12.04.2022
  ******************************************************************************/
 // clang-format off
-#include <kaminpar_cli/dkaminpar_arguments.h>
+#include <kaminpar-cli/dkaminpar_arguments.h>
 // clang-format on
 
 #include <fstream>
@@ -57,7 +57,7 @@ int main(int argc, char *argv[]) {
   if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
     cio::print_build_identifier();
     cio::print_delimiter("Configuration", '-');
-    print(ctx.refinement, std::cout);
+    print(ctx.refinement, ctx.parallel, std::cout);
     cio::print_delimiter();
   }
 

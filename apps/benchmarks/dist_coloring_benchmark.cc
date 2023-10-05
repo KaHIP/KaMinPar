@@ -6,7 +6,7 @@
  * @date:   25.01.2022
  ******************************************************************************/
 // clang-format off
-#include <kaminpar_cli/dkaminpar_arguments.h>
+#include <kaminpar-cli/dkaminpar_arguments.h>
 // clang-format on
 
 #include <mpi.h>
