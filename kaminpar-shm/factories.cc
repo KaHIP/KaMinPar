@@ -89,7 +89,7 @@ std::unique_ptr<Refiner> create_refiner(const Context &ctx, const RefinementAlgo
 
   case RefinementAlgorithm::KWAY_FM: {
     const bool has_high_degree_nodes =
-        1.0 * ctx.partition.max_degree <=
+        1.0 * ctx.partition.max_degree >=
         ctx.partition.k * ctx.refinement.kway_fm.k_vs_degree_threshold;
 
     if (ctx.refinement.kway_fm.gain_cache_strategy == GainCacheStrategy::DENSE) {
