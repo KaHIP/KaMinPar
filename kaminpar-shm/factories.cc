@@ -35,6 +35,8 @@
 #include "kaminpar-shm/refinement/gains/on_the_fly_gain_cache.h"
 
 namespace kaminpar::shm::factory {
+SET_DEBUG(true);
+
 std::unique_ptr<Partitioner> create_partitioner(const Graph &graph, const Context &ctx) {
   switch (ctx.partitioning.mode) {
   case PartitioningMode::DEEP: {
@@ -91,14 +93,21 @@ std::unique_ptr<Refiner> create_refiner(const Context &ctx, const RefinementAlgo
         ctx.partition.k * ctx.refinement.kway_fm.k_vs_degree_threshold;
 
     if (ctx.refinement.kway_fm.gain_cache_strategy == GainCacheStrategy::DENSE) {
+      DBG << "Instantiating FM refiner with gain cache: dense";
       return std::make_unique<FMRefiner<fm::DenseDeltaPartitionedGraph, fm::DenseGainCache>>(ctx);
     } else if (ctx.refinement.kway_fm.gain_cache_strategy == GainCacheStrategy::DENSE_MAPPED ||
             (ctx.refinement.kway_fm.gain_cache_strategy == GainCacheStrategy::K_VS_DEGREE && has_high_degree_nodes)) {
+      DBG << "Instantiating FM refiner with gain cache: dense-mapped (max degree: "
+          << ctx.partition.max_degree << ", k: " << ctx.partition.k
+          << ", factor: " << ctx.refinement.kway_fm.k_vs_degree_threshold << ")";
       return std::make_unique<FMRefiner<fm::OnTheFlyDeltaPartitionedGraph, fm::DenseGainCache>>( //
           ctx
       );
     } else if (ctx.refinement.kway_fm.gain_cache_strategy == GainCacheStrategy::ON_THE_FLY || 
             (ctx.refinement.kway_fm.gain_cache_strategy == GainCacheStrategy::K_VS_DEGREE && !has_high_degree_nodes)) {
+      DBG << "Instantiating FM refiner with gain cache: on-the-fly (max degree: "
+          << ctx.partition.max_degree << ", k: " << ctx.partition.k
+          << ", factor: " << ctx.refinement.kway_fm.k_vs_degree_threshold << ")";
       return std::make_unique<FMRefiner<fm::OnTheFlyDeltaPartitionedGraph, fm::OnTheFlyGainCache>>(
           ctx
       );
