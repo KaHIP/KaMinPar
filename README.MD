@@ -81,8 +81,8 @@ target_link_libraries(<your-target> PUBLIC KaMinPar::dKaMinPar) # Distributed pa
 Then, call the libraries as follows:
 
 ```c++
-#include <kaminpar/kaminpar.h>
-#include <dkaminpar/dkaminpar.h>
+#include <kaminpar-shm/kaminpar.h>
+#include <kaminpar-dist/dkaminpar.h>
 
 using namespace kaminpar;
 

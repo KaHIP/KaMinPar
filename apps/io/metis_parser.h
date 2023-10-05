@@ -17,7 +17,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include "common/logger.h"
+#include "kaminpar-common/logger.h"
 
 namespace kaminpar::io {
 class TokerException : public std::exception {

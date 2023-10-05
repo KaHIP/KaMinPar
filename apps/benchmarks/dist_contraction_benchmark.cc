@@ -14,17 +14,17 @@
 #include <mpi.h>
 #include <omp.h>
 
-#include "dkaminpar/coarsening/contraction/cluster_contraction.h"
-#include "dkaminpar/context.h"
-#include "dkaminpar/dkaminpar.h"
-#include "dkaminpar/factories.h"
-#include "dkaminpar/graphutils/communication.h"
-#include "dkaminpar/metrics.h"
-#include "dkaminpar/presets.h"
+#include "kaminpar-dist/coarsening/contraction/cluster_contraction.h"
+#include "kaminpar-dist/context.h"
+#include "kaminpar-dist/dkaminpar.h"
+#include "kaminpar-dist/factories.h"
+#include "kaminpar-dist/graphutils/communication.h"
+#include "kaminpar-dist/metrics.h"
+#include "kaminpar-dist/presets.h"
 
-#include "common/logger.h"
-#include "common/random.h"
-#include "common/timer.h"
+#include "kaminpar-common/logger.h"
+#include "kaminpar-common/random.h"
+#include "kaminpar-common/timer.h"
 
 #include "apps/benchmarks/dist_io.h"
 

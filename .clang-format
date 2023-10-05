@@ -102,14 +102,16 @@ IfMacros:
   - KJ_IF_MAYBE
 IncludeBlocks:   Regroup
 IncludeCategories:
-  - Regex: '"dkaminpar/.*"'
+  - Regex: '"kaminpar-mpi/.*"'
     Priority: 4
-  - Regex: '"kaminpar/.*"'
+  - Regex: '"kaminpar-dist/.*"'
     Priority: 5
-  - Regex: '"common/.*"'
+  - Regex: '"kaminpar-shm/.*"'
     Priority: 6
-  - Regex: '"apps/.*"'
+  - Regex: '"kaminpar-common/.*"'
     Priority: 7
+  - Regex: '"apps/.*"'
+    Priority: 8
   - Regex: '".*\.(h|hpp)"'
     Priority: 3
   - Regex: '<.*\.(h|hpp)>'

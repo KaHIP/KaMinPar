@@ -244,15 +244,18 @@ message("-----------------------------------------------------------------------
 include_directories(${PROJECT_SOURCE_DIR})
 
 # Shared memory components
-add_subdirectory(common)
-add_subdirectory(kaminpar)
+add_subdirectory(kaminpar-common)
+add_subdirectory(kaminpar-shm)
 
 # Distributed components
 if (KAMINPAR_BUILD_DISTRIBUTED)
-    add_subdirectory(dkaminpar)
+    add_subdirectory(kaminpar-mpi)
+    add_subdirectory(kaminpar-dist)
 endif ()
 
 # Binaries
+add_subdirectory(kaminpar-cli)
+
 if (KAMINPAR_BUILD_APPS)
     add_subdirectory(apps)
 endif ()
@@ -265,14 +268,15 @@ if (KAMINPAR_BUILD_TESTS)
     add_subdirectory(tests)
 endif ()
 
-add_subdirectory(kaminpar_cli)
-
 ################################################################################
 
-add_library(KaMinPar::KaMinPar ALIAS kaminpar)
-add_library(KaMinPar::KaMinParCLI11 ALIAS kaminpar_cli11)
+add_library(KaMinPar::KaMinPar ALIAS kaminpar_shm)
+add_library(KaMinPar::KaMinParCLI ALIAS kaminpar_cli)
+add_library(KaMinPar::KaMinParCLI11 ALIAS kaminpar_cli) # deprecated
+
 if (KAMINPAR_BUILD_DISTRIBUTED)
-    add_library(KaMinPar::dKaMinPar ALIAS dkaminpar)
-    add_library(KaMinPar::dKaMinParCLI11 ALIAS dkaminpar_cli11)
+    add_library(KaMinPar::dKaMinPar ALIAS kaminpar_dist)
+    add_library(KaMinPar::dKaMinParCLI ALIAS kaminpar_dist_cli)
+    add_library(KaMinPar::dKaMinParCLI11 ALIAS kaminpar_dist_cli) # deprecated
 endif ()
 

@@ -10,9 +10,9 @@
 #include <string>
 #include <vector>
 
-#include "kaminpar/definitions.h"
+#include "kaminpar-shm/definitions.h"
 
-#include "common/datastructures/static_array.h"
+#include "kaminpar-common/datastructures/static_array.h"
 
 namespace kaminpar::shm::io {
 namespace metis {

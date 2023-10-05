@@ -9,10 +9,10 @@
 
 #include <fstream>
 
-#include "kaminpar/kaminpar.h"
+#include "kaminpar-shm/kaminpar.h"
 
-#include "common/datastructures/static_array.h"
-#include "common/logger.h"
+#include "kaminpar-common/datastructures/static_array.h"
+#include "kaminpar-common/logger.h"
 
 #include "apps/io/metis_parser.h"
 

@@ -12,10 +12,10 @@
 #include <mpi.h>
 #include <tbb/global_control.h>
 
-#include "kaminpar/factories.h"
-#include "kaminpar/metrics.h"
+#include "kaminpar-shm/factories.h"
+#include "kaminpar-shm/metrics.h"
 
-#include "common/timer.h"
+#include "kaminpar-common/timer.h"
 
 #include "apps/benchmarks/shm_io.h"
 
