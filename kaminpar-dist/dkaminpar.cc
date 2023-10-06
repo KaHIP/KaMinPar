@@ -127,7 +127,6 @@ dKaMinPar::dKaMinPar(MPI_Comm comm, const int num_threads, const Context ctx)
       _gc(tbb::global_control::max_allowed_parallelism, num_threads) {
   omp_set_num_threads(num_threads);
   GLOBAL_TIMER.reset();
-  Random::seed = 0;
 }
 
 dKaMinPar::~dKaMinPar() = default;
@@ -264,7 +263,7 @@ GlobalEdgeWeight dKaMinPar::compute_partition(const int seed, const BlockID k, B
   _ctx.partition.graph = std::make_unique<GraphContext>(graph, _ctx.partition);
 
   // Initialize PRNG and console output
-  Random::seed = seed;
+  Random::seed(seed);
   Logger::set_quiet_mode(_output_level == OutputLevel::QUIET);
   if (_output_level >= OutputLevel::APPLICATION) {
     print_input_summary(_ctx, graph, _output_level == OutputLevel::EXPERIMENT, root);
