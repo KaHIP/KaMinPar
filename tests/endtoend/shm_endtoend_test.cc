@@ -9,11 +9,18 @@
 
 #include <gmock/gmock.h>
 
-#include "tests/endtoend/data.graph.h"
-
 #include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::shm {
+namespace data {
+static std::vector<EdgeID> xadj = {
+#include "data.graph.xadj"
+};
+static std::vector<NodeID> adjncy = {
+#include "data.graph.adjncy"
+};
+} // namespace data
+
 TEST(ShmEndToEndTest, partitions_empty_unweighted_graph) {
   std::vector<EdgeID> xadj{0};
   std::vector<NodeID> adjncy{};
