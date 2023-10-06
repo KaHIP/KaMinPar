@@ -68,6 +68,7 @@ KaMinPar::KaMinPar(const int num_threads, const Context ctx)
     : _num_threads(num_threads),
       _ctx(ctx),
       _gc(tbb::global_control::max_allowed_parallelism, num_threads) {
+  GLOBAL_TIMER.reset();
   Random::seed = 0;
 }
 

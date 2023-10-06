@@ -67,6 +67,13 @@ void __attribute__((noinline)) Timer::stop_timer_impl() {
   _tree.current->elapsed += end - _tree.current->start;
 }
 
+void Timer::reset() {
+  _tree = TimerTree{};
+  _tree.current = &_tree.root;
+  _tree.root.start = timer::now();
+  _disabled = 0;
+}
+
 //
 // Machine-readable output
 //

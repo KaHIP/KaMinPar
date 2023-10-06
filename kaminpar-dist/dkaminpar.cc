@@ -126,6 +126,7 @@ dKaMinPar::dKaMinPar(MPI_Comm comm, const int num_threads, const Context ctx)
       _ctx(ctx),
       _gc(tbb::global_control::max_allowed_parallelism, num_threads) {
   omp_set_num_threads(num_threads);
+  GLOBAL_TIMER.reset();
   Random::seed = 0;
 }
 
