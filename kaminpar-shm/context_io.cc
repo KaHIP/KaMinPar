@@ -206,6 +206,9 @@ void print(const RefinementContext &r_ctx, std::ostream &out) {
         << "%]\n";
     out << "  Number of seed nodes:       " << r_ctx.kway_fm.num_seed_nodes << "\n";
     out << "  Gain cache:                 " << r_ctx.kway_fm.gain_cache_strategy << "\n";
+    if (r_ctx.kway_fm.gain_cache_strategy == GainCacheStrategy::HIGH_DEGREE) {
+      out << "  High-degree factor:         " << r_ctx.kway_fm.high_degree_factor << "\n";
+    }
   }
 }
 

@@ -138,7 +138,7 @@ struct KwayFMRefinementContext {
   double abortion_threshold;
 
   GainCacheStrategy gain_cache_strategy;
-  double k_vs_degree_threshold;
+  double high_degree_factor;
 
   bool dbg_compute_batch_size_statistics;
 };
