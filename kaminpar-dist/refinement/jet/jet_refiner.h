@@ -52,11 +52,17 @@ public:
   bool refine() final;
 
 private:
-  const Context &_ctx;
+  void reset_locks();
 
+  double compute_penalty_factor() const;
+
+  const Context &_ctx;
+  const JetRefinementContext &_jet_ctx;
   DistributedPartitionedGraph &_p_graph;
   const PartitionContext &_p_ctx;
 
-  std::unique_ptr<GlobalRefinerFactory> _balancer_factory;
+  std::unique_ptr<GlobalRefiner> _balancer;
+
+  NoinitVector<std::uint8_t> _locks;
 };
 } // namespace kaminpar::dist

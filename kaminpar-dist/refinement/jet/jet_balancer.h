@@ -43,7 +43,7 @@ public:
       StaticArray<GlobalNodeWeight> compactified_sizes
   );
 
-  void init(const GainCalculator &gain_calculator);
+  void init(const RandomizedGainCalculator &gain_calculator);
   void clear();
 
   GlobalNodeWeight &size(BlockID block, std::size_t bucket);
@@ -96,7 +96,7 @@ private:
   DistributedPartitionedGraph &_p_graph;
   const PartitionContext &_p_ctx;
 
-  GainCalculator _gain_calculator;
+  RandomizedGainCalculator _gain_calculator;
 
   jet::Buckets _local_buckets;
 };

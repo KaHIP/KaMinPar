@@ -81,9 +81,11 @@ void NodeBalancer::initialize() {
     const BlockWeight overload = block_overload(from);
 
     if (overload > 0) { // Node in overloaded block
-      const auto [gain, max_gainer] = _gain_calculator.compute_relative_gain(u, _p_ctx);
+      const auto max_gainer = _gain_calculator.compute_max_gainer(u, _p_ctx);
+      const double rel_gain = max_gainer.relative_gain();
+
       const bool need_more_nodes = (pq_weight[from] < overload);
-      if (need_more_nodes || pq[from].empty() || gain > pq[from].peek_key()) {
+      if (need_more_nodes || pq[from].empty() || rel_gain > pq[from].peek_key()) {
         if (!need_more_nodes) {
           const NodeWeight u_weight = _p_graph.node_weight(u);
           const NodeWeight min_weight = _p_graph.node_weight(pq[from].peek_id());
@@ -91,7 +93,7 @@ void NodeBalancer::initialize() {
             pq[from].pop();
           }
         }
-        pq[from].push(u, gain);
+        pq[from].push(u, rel_gain);
         _marker.set(u);
       }
     }
@@ -332,7 +334,9 @@ std::vector<NodeBalancer::Candidate> NodeBalancer::pick_sequential_candidates() 
       _pq.pop_max(from);
       _pq_weight[from] -= u_weight;
 
-      auto [actual_relative_gain, to] = _gain_calculator.compute_relative_gain(u, _p_ctx);
+      const auto max_gainer = _gain_calculator.compute_max_gainer(u, _p_ctx);
+      const double actual_relative_gain = max_gainer.relative_gain();
+      const BlockID to = max_gainer.block;
 
       if (relative_gain == actual_relative_gain) {
         Candidate candidate{
@@ -381,9 +385,8 @@ BlockWeight NodeBalancer::block_underload(const BlockID block) const {
 
 bool NodeBalancer::try_pq_insertion(const BlockID b, const NodeID u) {
   KASSERT(b == _p_graph.block(u));
-
-  const auto [rel_gain, to] = _gain_calculator.compute_relative_gain(u, _p_ctx);
-  return try_pq_insertion(b, u, _p_graph.node_weight(u), rel_gain);
+  const auto max_gainer = _gain_calculator.compute_max_gainer(u, _p_ctx);
+  return try_pq_insertion(b, u, _p_graph.node_weight(u), max_gainer.relative_gain());
 }
 
 bool NodeBalancer::try_pq_insertion(
@@ -421,8 +424,8 @@ bool NodeBalancer::perform_parallel_round() {
   for (const BlockID from : _p_graph.blocks()) {
     for (const auto &[node, pq_gain] : _pq.elements(from)) {
       KASSERT(_p_graph.block(node) == from);
-      const auto [actual_gain, to] = _gain_calculator.compute_relative_gain(node, _p_ctx);
-      _buckets.add(from, _p_graph.node_weight(node), actual_gain);
+      const auto max_gainer = _gain_calculator.compute_max_gainer(node, _p_ctx);
+      _buckets.add(from, _p_graph.node_weight(node), max_gainer.relative_gain());
     }
   }
   const auto &cutoff_buckets =
@@ -442,7 +445,9 @@ bool NodeBalancer::perform_parallel_round() {
       }
 
       // @todo avoid double gain recomputation
-      const auto [actual_gain, to] = _gain_calculator.compute_relative_gain(node, _p_ctx);
+      const auto max_gainer = _gain_calculator.compute_max_gainer(node, _p_ctx);
+      const double actual_gain = max_gainer.relative_gain();
+      const BlockID to = max_gainer.block;
       const auto bucket = _buckets.compute_bucket(actual_gain);
 
       if (bucket < cutoff_buckets[from]) {

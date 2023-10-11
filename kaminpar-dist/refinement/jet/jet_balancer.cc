@@ -111,11 +111,12 @@ Buckets::Buckets(
   }
 }
 
-void Buckets::init(const GainCalculator &gain_calculator) {
+void Buckets::init(const RandomizedGainCalculator &gain_calculator) {
   for (const NodeID node : _p_graph.nodes()) {
     const BlockID block = _p_graph.block(node);
     if (_p_graph.block_weight(block) > _p_ctx.graph->max_block_weight(block)) {
-      const EdgeWeight gain = gain_calculator.compute_absolute_gain(node, _p_ctx).first;
+      const auto max_gainer = gain_calculator.compute_max_gainer(node, _p_ctx);
+      const EdgeWeight gain = max_gainer.absolute_gain();
       const std::size_t bucket = compute_bucket(gain);
       size(block, bucket) += _p_graph.node_weight(node);
     }

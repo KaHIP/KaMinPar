@@ -235,12 +235,11 @@ Context create_default_context() {
                   },
               .jet =
                   {
-                      .num_iterations = 12,
-                      .min_c = 0.25,
-                      .max_c = 0.75,
-                      .interpolate_c = false,
-                      .use_abortion_threshold = true,
-                      .abortion_threshold = 0.999,
+                      .num_iterations = 0,
+                      .num_fruitless_iterations = 12,
+                      .fruitless_threshold = 0.999,
+                      .coarse_penalty_factor = 0.25,
+                      .fine_penalty_factor = 0.75,
                       .balancing_algorithm = RefinementAlgorithm::GREEDY_NODE_BALANCER,
                   },
               .jet_balancer =

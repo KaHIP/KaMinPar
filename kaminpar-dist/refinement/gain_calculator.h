@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Gain calculator.
+ * On-the-fly gain calculator.
  *
  * @file:   gain_calculator.h
  * @author: Daniel Seemaier
@@ -19,34 +19,72 @@
 #include "kaminpar-common/random.h"
 
 namespace kaminpar::dist {
-class GainCalculator {
+template <bool randomize = true> class GainCalculator {
 public:
   GainCalculator(const DistributedPartitionedGraph &p_graph) : _p_graph(p_graph) {}
 
   struct MaxGainer {
     EdgeWeight int_degree;
-    EdgeWeight max_ext_degree;
-    BlockID max_gainer;
+    EdgeWeight ext_degree;
+    BlockID block;
+    NodeWeight weight;
+
+    EdgeWeight absolute_gain() const {
+      return ext_degree - int_degree;
+    }
+
+    double relative_gain() const {
+      if (ext_degree >= int_degree) {
+        return 1.0 * absolute_gain() * weight;
+      } else {
+        return 1.0 * absolute_gain() / weight;
+      }
+    }
   };
 
-  template <bool randomize = true>
   MaxGainer compute_max_gainer(const NodeID u, const PartitionContext &p_ctx) const {
-    const NodeWeight u_weight = _p_graph.node_weight(u);
-    const BlockID u_block = _p_graph.block(u);
+    return compute_max_gainer_impl(
+        u,
+        [&p_ctx](const BlockID block, const BlockWeight weight_after_move) {
+          return weight_after_move <= p_ctx.graph->max_block_weight(block);
+        }
+    );
+  }
+
+  MaxGainer compute_max_gainer(const NodeID u, const BlockWeight max_block_weight) const {
+    return compute_max_gainer_impl(
+        u,
+        [max_block_weight](BlockID /* block */, const BlockWeight weight_after_move) {
+          return weight_after_move <= max_block_weight;
+        }
+    );
+  }
+
+  MaxGainer compute_max_gainer(const NodeID u) const {
+    return compute_max_gainer_impl(u, [](BlockID /* block */, BlockWeight /* weight_after_move */) {
+      return true;
+    });
+  }
+
+private:
+  template <typename WeightChecker>
+  MaxGainer compute_max_gainer_impl(const NodeID u, WeightChecker &&weight_checker) const {
+    const NodeWeight w_u = _p_graph.node_weight(u);
+    const BlockID b_u = _p_graph.block(u);
 
     EdgeWeight int_degree = 0;
     EdgeWeight max_ext_degree = 0;
-    BlockID max_gainer = u_block;
+    BlockID target = b_u;
 
     Random &rand = Random::instance();
 
     auto action = [&](auto &map) {
       for (const auto [e, v] : _p_graph.neighbors(u)) {
-        const BlockID v_block = _p_graph.block(v);
-        if (u_block != v_block &&
-            _p_graph.block_weight(v_block) + u_weight <= p_ctx.graph->max_block_weight(v_block)) {
-          map[v_block] += _p_graph.edge_weight(e);
-        } else if (u_block == v_block) {
+        const BlockID b_v = _p_graph.block(v);
+        if (b_u != b_v &&
+            weight_checker(b_v, _p_graph.block_weight(b_v) + w_u)) {
+          map[b_v] += _p_graph.edge_weight(e);
+        } else if (b_u == b_v) {
           int_degree += _p_graph.edge_weight(e);
         }
       }
@@ -58,7 +96,7 @@ public:
         }
 
         if (accept) {
-          max_gainer = block;
+          target = block;
           max_ext_degree = gain;
         }
       }
@@ -72,34 +110,14 @@ public:
     // @todo Use a different hash map for low-degree vertices
     // @todo This requires us to use something other than FastResetArray<> as fallback map
 
-    return {int_degree, max_ext_degree, max_gainer};
+    return {int_degree, max_ext_degree, target, w_u};
   }
 
-  template <bool randomize = true>
-  std::pair<EdgeWeight, BlockID>
-  compute_absolute_gain(const NodeID u, const PartitionContext &p_ctx) const {
-    const auto [int_degree, max_ext_degree, max_gainer] = compute_max_gainer<randomize>(u, p_ctx);
-    const EdgeWeight gain = max_ext_degree - int_degree;
-    return {gain, max_gainer};
-  }
-
-  template <bool randomize = true>
-  std::pair<double, BlockID>
-  compute_relative_gain(const NodeID u, const PartitionContext &p_ctx) const {
-    const auto [absolute_gain, max_gainer] = compute_absolute_gain<randomize>(u, p_ctx);
-    const NodeWeight weight = _p_graph.node_weight(u);
-    if (absolute_gain >= 0) {
-      return {1.0 * absolute_gain * weight, max_gainer};
-    } else {
-      return {1.0 * absolute_gain / weight, max_gainer};
-    }
-  }
-
-private:
   const DistributedPartitionedGraph &_p_graph;
-
   mutable tbb::enumerable_thread_specific<RatingMap<EdgeWeight, BlockID>> _rating_map_ets{[&] {
     return RatingMap<EdgeWeight, BlockID>(_p_graph.k());
   }};
 };
+
+using RandomizedGainCalculator = GainCalculator<true>;
 } // namespace kaminpar::dist

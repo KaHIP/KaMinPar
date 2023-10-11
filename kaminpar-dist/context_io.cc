@@ -464,13 +464,11 @@ void print(const RefinementContext &ctx, const ParallelContext &parallel, std::o
   }
   if (ctx.includes_algorithm(RefinementAlgorithm::JET_REFINER)) {
     out << "Jet refinement:               " << RefinementAlgorithm::JET_REFINER << "\n";
-    out << "  Number of iterations:       " << ctx.jet.num_iterations << "\n";
-    out << "  C:                          [" << ctx.jet.min_c << ".." << ctx.jet.max_c << "] "
-        << (ctx.jet.interpolate_c ? "interpolate" : "switch") << "\n";
-    out << "  Abortion threshold          "
-        << (ctx.jet.use_abortion_threshold ? std::to_string(ctx.jet.abortion_threshold) : "disabled"
-           )
-        << "\n";
+    out << "  Number of iterations:       max " << ctx.jet.num_iterations << ", or "
+        << ctx.jet.num_fruitless_iterations << " fruitless (improvement < "
+        << 100.0 * (1 - ctx.jet.fruitless_threshold) << "%)\n";
+    out << "  Penalty factors:            coarse " << ctx.jet.coarse_penalty_factor << ", fine "
+        << ctx.jet.fine_penalty_factor << "]\n";
     out << "  Balancing algorithm:        " << ctx.jet.balancing_algorithm << "\n";
   }
   if (ctx.includes_algorithm(RefinementAlgorithm::GLOBAL_FM)) {

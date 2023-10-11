@@ -613,12 +613,13 @@ CLI::Option_group *create_jet_refinement_options(CLI::App *app, Context &ctx) {
 
   jet->add_option("--r-jet-num-iterations", ctx.refinement.jet.num_iterations)
       ->capture_default_str();
-  jet->add_option("--r-jet-min-c", ctx.refinement.jet.min_c)->capture_default_str();
-  jet->add_option("--r-jet-max-c", ctx.refinement.jet.max_c)->capture_default_str();
-  jet->add_flag("--r-jet-interpolate-c", ctx.refinement.jet.interpolate_c)->capture_default_str();
-  jet->add_flag("--r-jet-use-abortion-threshold", ctx.refinement.jet.use_abortion_threshold)
+  jet->add_option("--r-jet-num-fruitless-iterations", ctx.refinement.jet.num_fruitless_iterations)
       ->capture_default_str();
-  jet->add_option("--r-jet-abortion-threshold", ctx.refinement.jet.abortion_threshold)
+  jet->add_option("--r-jet-fruitless-threshold", ctx.refinement.jet.fruitless_threshold)
+      ->capture_default_str();
+  jet->add_option("--r-jet-coarse-penalty-factor", ctx.refinement.jet.coarse_penalty_factor)
+      ->capture_default_str();
+  jet->add_option("--r-jet-fine-penalty-factor", ctx.refinement.jet.fine_penalty_factor)
       ->capture_default_str();
   jet->add_option("--r-jet-balancing-algorithm", ctx.refinement.jet.balancing_algorithm)
       ->transform(CLI::CheckedTransformer(get_balancing_algorithms()).description(""))

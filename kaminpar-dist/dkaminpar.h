@@ -300,11 +300,12 @@ struct JetBalancerContext {
 
 struct JetRefinementContext {
   int num_iterations;
-  double min_c;
-  double max_c;
-  bool interpolate_c;
-  bool use_abortion_threshold;
-  double abortion_threshold;
+  int num_fruitless_iterations;
+  double fruitless_threshold;
+
+  double coarse_penalty_factor;
+  double fine_penalty_factor;
+
   RefinementAlgorithm balancing_algorithm;
 };
 
