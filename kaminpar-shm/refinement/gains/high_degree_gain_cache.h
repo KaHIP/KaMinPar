@@ -28,6 +28,8 @@ namespace kaminpar::shm {
 template <typename DeltaPartitionedGraph, typename GainCache> class HighDegreeDeltaGainCache;
 
 template <bool iterate_exact_gains = true> class HighDegreeGainCache {
+  SET_DEBUG(true);
+
   using Self = HighDegreeGainCache<iterate_exact_gains>;
   template <typename, typename> friend class HighDegreeDeltaGainCache;
 
@@ -48,6 +50,9 @@ public:
         _on_the_fly_gain_cache(ctx, max_n, max_k) {}
 
   void initialize(const PartitionedGraph &p_graph) {
+    DBG << "[FM] Initialize high-degree gain cache for a graph with n=" << p_graph.n()
+        << ", k=" << p_graph.k();
+
     _n = p_graph.n();
     _k = p_graph.k();
     _high_degree_threshold = 0;
@@ -60,7 +65,19 @@ public:
         _high_degree_threshold += p_graph.bucket_size(bucket);
       }
 
-      _n = _high_degree_threshold;
+      _n = p_graph.n() - _high_degree_threshold;
+
+      DBG << "[FM] Graph was rearranged: using the on-the-fly strategy for nodes with degree < "
+          << _k << ": for all nodes up to " << _high_degree_threshold << ", i.e., we will keep "
+          << _n << " nodes in the gain cache";
+      if (_high_degree_threshold > 0) {
+        DBG << "[FM] Last node not in the gain cache: " << _high_degree_threshold - 1
+            << " with degree " << p_graph.degree(_high_degree_threshold - 1);
+      }
+      if (_high_degree_threshold < p_graph.n()) {
+        DBG << "[FM] First node in the gain cache: " << _high_degree_threshold << " with degree "
+            << p_graph.degree(_high_degree_threshold);
+      }
     }
 
     _weighted_degrees.resize(static_array::noinit, _n);
@@ -72,6 +89,8 @@ public:
     START_TIMER("Recompute");
     recompute_all(p_graph);
     STOP_TIMER();
+
+    _on_the_fly_gain_cache.initialize(p_graph);
   }
 
   void free() {
