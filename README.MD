@@ -88,7 +88,8 @@ using namespace kaminpar;
 
 // Call the shared-memory partitioner:
 KaMinPar shm(int num_threads, shm::create_default_context());
-shm.import_graph(NodeID n, EdgeID *xadj, NodeID *adjncy, NodeWeight *vwgt = nullptr, EdgeWeight *adjwgt = nullptr);
+shm.borrow_and_mutate_graph(NodeID n, EdgeID *xadj, NodeID *adjncy, NodeWeight *vwgt = nullptr, EdgeWeight *adjwgt = nullptr);
+// alternatively: shm.copy_graph(n, xadj, adjncy, vwgt, adjwgt); will work on a copy of the graph
 shm.compute_partition(int seed, BlockID number_of_blocks, BlockID *out_partition);
 
 // Call the distributed partitioner:
