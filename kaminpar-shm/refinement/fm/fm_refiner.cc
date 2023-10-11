@@ -779,14 +779,14 @@ std::pair<BlockID, EdgeWeight> LocalizedFMRefiner<DeltaPartitionedGraph, GainCac
 namespace fm {
 template class SharedData<DenseGainCache>;
 template class SharedData<HighDegreeGainCache>;
-// template class SharedData<OnTheFlyGainCache>;
+template class SharedData<OnTheFlyGainCache>;
 } // namespace fm
 
 // template class FMRefiner<fm::DefaultDeltaPartitionedGraph, fm::DenseGainCache>;
 // template class LocalizedFMRefiner<fm::DefaultDeltaPartitionedGraph, fm::DenseGainCache>;
 
-// template class FMRefiner<fm::DefaultDeltaPartitionedGraph, fm::OnTheFlyGainCache>;
-// template class LocalizedFMRefiner<fm::DefaultDeltaPartitionedGraph, fm::OnTheFlyGainCache>;
+template class FMRefiner<fm::DefaultDeltaPartitionedGraph, fm::OnTheFlyGainCache>;
+template class LocalizedFMRefiner<fm::DefaultDeltaPartitionedGraph, fm::OnTheFlyGainCache>;
 
 template class FMRefiner<fm::DefaultDeltaPartitionedGraph, fm::DenseGainCache>;
 template class LocalizedFMRefiner<fm::DefaultDeltaPartitionedGraph, fm::DenseGainCache>;
