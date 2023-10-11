@@ -85,7 +85,14 @@ Context &KaMinPar::context() {
   return _ctx;
 }
 
+// @deprecated in favor of borrow_and_mutate_graph()
 void KaMinPar::take_graph(
+    const NodeID n, EdgeID *xadj, NodeID *adjncy, NodeWeight *vwgt, EdgeWeight *adjwgt
+) {
+  borrow_and_mutate_graph(n, xadj, adjncy, vwgt, adjwgt);
+}
+
+void KaMinPar::borrow_and_mutate_graph(
     const NodeID n, EdgeID *xadj, NodeID *adjncy, NodeWeight *vwgt, EdgeWeight *adjwgt
 ) {
   const EdgeID m = xadj[n];
