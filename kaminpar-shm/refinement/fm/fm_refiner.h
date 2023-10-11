@@ -25,10 +25,8 @@
 
 namespace kaminpar::shm {
 namespace fm {
-using DenseDeltaPartitionedGraph = GenericDeltaPartitionedGraph<false, false>;
+using DefaultDeltaPartitionedGraph = GenericDeltaPartitionedGraph<>;
 using DenseGainCache = DenseGainCache<>;
-
-using OnTheFlyDeltaPartitionedGraph = GenericDeltaPartitionedGraph<true, false>;
 using OnTheFlyGainCache = OnTheFlyGainCache<>;
 
 struct Stats {
@@ -229,7 +227,7 @@ struct AppliedMove {
 } // namespace fm
 
 template <
-    typename DeltaPartitionedGraph = fm::DenseDeltaPartitionedGraph,
+    typename DeltaPartitionedGraph = fm::DefaultDeltaPartitionedGraph,
     typename GainCache = fm::DenseGainCache>
 class FMRefiner : public Refiner {
 public:
@@ -277,7 +275,7 @@ private:
 };
 
 template <
-    typename DeltaPartitionedGraph = fm::DenseDeltaPartitionedGraph,
+    typename DeltaPartitionedGraph = fm::DefaultDeltaPartitionedGraph,
     typename GainCache = fm::DenseGainCache>
 class LocalizedFMRefiner {
 public:

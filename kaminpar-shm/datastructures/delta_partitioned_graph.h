@@ -23,7 +23,7 @@ template <
     bool allow_read_after_move = true,
     // If false, store the block weight changes in a vector of size k, otherwise
     // use a hash map.
-    bool compact_block_weight_delta = true>
+    bool compact_block_weight_delta = false>
 class GenericDeltaPartitionedGraph : public GraphDelegate {
   struct DeltaEntry {
     NodeID node;

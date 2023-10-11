@@ -773,18 +773,19 @@ std::pair<BlockID, EdgeWeight> LocalizedFMRefiner<DeltaPartitionedGraph, GainCac
   return {best_target_block, actual_best_gain};
 }
 
+// Instantiate variants that are actually configurable
+
 namespace fm {
 template class SharedData<DenseGainCache>;
-template class SharedData<OnTheFlyGainCache>;
+// template class SharedData<OnTheFlyGainCache>;
 } // namespace fm
 
-template class FMRefiner<fm::DenseDeltaPartitionedGraph, fm::DenseGainCache>;
-template class LocalizedFMRefiner<fm::DenseDeltaPartitionedGraph, fm::DenseGainCache>;
+// template class FMRefiner<fm::DefaultDeltaPartitionedGraph, fm::DenseGainCache>;
+// template class LocalizedFMRefiner<fm::DefaultDeltaPartitionedGraph, fm::DenseGainCache>;
 
-template class FMRefiner<fm::OnTheFlyDeltaPartitionedGraph, fm::OnTheFlyGainCache>;
-template class LocalizedFMRefiner<fm::OnTheFlyDeltaPartitionedGraph, fm::OnTheFlyGainCache>;
+// template class FMRefiner<fm::DefaultDeltaPartitionedGraph, fm::OnTheFlyGainCache>;
+// template class LocalizedFMRefiner<fm::DefaultDeltaPartitionedGraph, fm::OnTheFlyGainCache>;
 
-// @todo just for testing:
-template class FMRefiner<fm::OnTheFlyDeltaPartitionedGraph, fm::DenseGainCache>;
-template class LocalizedFMRefiner<fm::OnTheFlyDeltaPartitionedGraph, fm::DenseGainCache>;
+template class FMRefiner<fm::DefaultDeltaPartitionedGraph, fm::DenseGainCache>;
+template class LocalizedFMRefiner<fm::DefaultDeltaPartitionedGraph, fm::DenseGainCache>;
 } // namespace kaminpar::shm

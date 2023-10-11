@@ -119,9 +119,6 @@ enum class FMStoppingRule {
 
 enum class GainCacheStrategy {
   DENSE,
-  DENSE_MAPPED,
-  ON_THE_FLY,
-  K_VS_DEGREE,
 };
 
 struct LabelPropagationRefinementContext {
