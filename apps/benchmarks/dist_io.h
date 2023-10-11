@@ -6,14 +6,14 @@
  ******************************************************************************/
 #pragma once
 
-#include <dkaminpar/datastructures/distributed_graph.h>
-#include <dkaminpar/datastructures/ghost_node_mapper.h>
-#include <dkaminpar/graphutils/synchronization.h>
-#include <dkaminpar/metrics.h>
+#include <kaminpar-dist/datastructures/distributed_graph.h>
+#include <kaminpar-dist/datastructures/ghost_node_mapper.h>
+#include <kaminpar-dist/graphutils/synchronization.h>
+#include <kaminpar-dist/metrics.h>
 #include <mpi.h>
 #include <tbb/parallel_invoke.h>
 
-#include "shm_io.h"
+#include "apps/benchmarks/shm_io.h"
 
 namespace kaminpar::dist {
 struct DistributedGraphWrapper {

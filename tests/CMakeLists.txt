@@ -32,17 +32,22 @@ kaminpar_add_common_test(test_common_fast_reset_array common/datastructures/fast
 kaminpar_add_common_test(test_common_marker common/datastructures/marker_test.cc)
 kaminpar_add_common_test(test_common_static_array common/datastructures/static_array_test.cc)
 
-# Common 
+# Common -> Misc
 kaminpar_add_common_test(test_common_math common/math_test.cc)
 kaminpar_add_common_test(test_common_string common/strutils_test.cc)
 kaminpar_add_common_test(test_common_parallel_algorithm common/parallel/algorithm_test.cc)
 
-# KaMinPar 
-kaminpar_add_shm_test(test_shm_delta_partitioned_graph shm/datastructures/delta_partitioned_graph_test.cc)
+# KaMinPar -> End-to-end
+kaminpar_add_shm_test(test_shm_endtoend endtoend/shm_endtoend_test.cc)
+
+# KaMinPar -> Utils
 kaminpar_add_shm_test(test_shm_metrics shm/metrics_test.cc)
-kaminpar_add_shm_test(test_shm_graph shm/graph_test.cc)
 kaminpar_add_shm_test(test_shm_subgraph_extraction shm/subgraph_extraction_test.cc)
 kaminpar_add_shm_test(test_shm_graph_utils shm/graph_utils_test.cc)
+
+# KaMinPar -> Data structures
+kaminpar_add_shm_test(test_shm_graph shm/graph_test.cc)
+kaminpar_add_shm_test(test_shm_delta_partitioned_graph shm/datastructures/delta_partitioned_graph_test.cc)
 
 if (KAMINPAR_BUILD_DISTRIBUTED)
     include(cmake/KaTestrophe.cmake)
@@ -88,10 +93,10 @@ if (KAMINPAR_BUILD_DISTRIBUTED)
         message(STATUS "Enabled distributed test: ${KAMINPAR_TARGET_NAME}, PEs: ${KAMINPAR_CORES}")
     endfunction()
 
-    # dKaMinPar 
-    #kaminpar_add_dist_test(test_dist_global_move_conflict_resolver
-    #    FILES dkaminpar/refinement/move_conflict_resolver_test.cc
-    #    CORES 1 4)
+    # dKaMinPar -> End-to-end
+    kaminpar_add_dist_test(test_dist_endtoend 
+        FILES endtoend/dist_endtoend_test.cc
+        CORES 1 2 4)
 
     # dKaMinPar -> Coarsening
     kaminpar_add_dist_test(test_dist_coarsening_cluster_contraction

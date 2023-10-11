@@ -30,7 +30,7 @@ PartitionedGraph DeepMultilevelPartitioner::partition() {
   const Graph *c_graph = coarsen();
   PartitionedGraph p_graph = initial_partition(c_graph);
 
-  bool refined;
+  bool refined = true;
   p_graph = uncoarsen(std::move(p_graph), refined);
   if (!refined) {
     refine(p_graph);

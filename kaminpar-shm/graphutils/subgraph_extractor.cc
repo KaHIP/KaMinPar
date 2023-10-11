@@ -163,7 +163,7 @@ extract_subgraphs(const PartitionedGraph &p_graph, SubgraphMemory &subgraph_memo
   START_TIMER("Allocation");
   scalable_vector<NodeID> mapping(p_graph.n());
   scalable_vector<SubgraphMemoryStartPosition> start_positions(p_graph.k() + 1);
-  std::vector<parallel::Atomic<NodeID>> bucket_index(p_graph.n());
+  std::vector<parallel::Atomic<NodeID>> bucket_index(p_graph.k());
   scalable_vector<Graph> subgraphs(p_graph.k());
   STOP_TIMER();
 

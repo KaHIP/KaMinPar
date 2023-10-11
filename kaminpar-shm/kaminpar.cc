@@ -68,7 +68,7 @@ KaMinPar::KaMinPar(const int num_threads, const Context ctx)
     : _num_threads(num_threads),
       _ctx(ctx),
       _gc(tbb::global_control::max_allowed_parallelism, num_threads) {
-  Random::seed = 0;
+  GLOBAL_TIMER.reset();
 }
 
 KaMinPar::~KaMinPar() = default;
@@ -151,7 +151,7 @@ EdgeWeight KaMinPar::compute_partition(const int seed, const BlockID k, BlockID 
   _ctx.setup(*_graph_ptr);
 
   // Initialize PRNG and console output
-  Random::seed = seed;
+  Random::seed(seed);
   if (_output_level >= OutputLevel::APPLICATION) {
     print(_ctx, std::cout);
   }

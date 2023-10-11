@@ -11,10 +11,10 @@
 #include <memory>
 
 #include <kagen.h>
-#include <kaminpar/datastructures/graph.h>
-#include <kaminpar/datastructures/partitioned_graph.h>
-#include <kaminpar/kaminpar.h>
-#include <kaminpar/metrics.h>
+#include <kaminpar-shm/datastructures/graph.h>
+#include <kaminpar-shm/datastructures/partitioned_graph.h>
+#include <kaminpar-shm/kaminpar.h>
+#include <kaminpar-shm/metrics.h>
 
 namespace kaminpar {
 inline auto invoke_kagen(const std::string &options) {

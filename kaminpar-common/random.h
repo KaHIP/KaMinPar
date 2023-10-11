@@ -9,9 +9,10 @@
 
 #include <algorithm>
 #include <array>
+#include <memory>
+#include <mutex>
 #include <random>
-
-#include <tbb/task_arena.h>
+#include <vector>
 
 #include "kaminpar-common/math.h"
 
@@ -21,16 +22,10 @@ class Random {
   static_assert(math::is_power_of_2(kPrecomputedBools), "not a power of 2");
 
 public:
-  Random()
-      : _generator(Random::seed + tbb::this_task_arena::current_thread_index()),
-        _bool_dist(0, 1),
-        _real_dist(0, 1),
-        _next_random_bool(0),
-        _random_bools() {
-    precompute_bools();
-  }
+  Random();
 
   static Random &instance();
+  static void seed(int seed);
 
   Random(const Random &) = delete;
   Random &operator=(const Random &) = delete;
@@ -39,6 +34,8 @@ public:
   Random &operator=(Random &&) = delete;
 
   using generator_type = std::mt19937;
+
+  void reinit(int seed);
 
   std::size_t
   random_index(const std::size_t inclusive_lower_bound, const std::size_t exclusive_upper_bound) {
@@ -66,15 +63,13 @@ public:
     return _generator;
   }
 
-  static int seed;
-
 private:
-  void precompute_bools() {
-    std::uniform_int_distribution<int> _dist(0, 1);
-    for (std::size_t i = 0; i < kPrecomputedBools; ++i) {
-      _random_bools[i] = static_cast<bool>(_dist(_generator));
-    }
-  }
+  static int _seed;
+  static std::mutex _create_mutex;
+  static std::vector<std::unique_ptr<Random>> _instances;
+  static Random &create_instance();
+
+  void precompute_bools();
 
   std::mt19937 _generator;
   std::uniform_int_distribution<int> _bool_dist;

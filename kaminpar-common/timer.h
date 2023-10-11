@@ -251,6 +251,8 @@ public:
 
   void print_human_readable(std::ostream &out, int max_depth = std::numeric_limits<int>::max());
 
+  void reset();
+
 private:
   template <typename String> bool is_empty_description(String description) {
     if constexpr (std::is_same_v<String, const char *>) {
