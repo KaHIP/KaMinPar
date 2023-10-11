@@ -86,6 +86,15 @@ public:
     }
   }
 
+  std::pair<EdgeWeight, EdgeWeight>
+  gain(const NodeID node, const BlockID b_node, const std::pair<BlockID, BlockID> &targets) const {
+    if (is_high_degree_node(node)) {
+      return {gain(node, b_node, targets.first), gain(node, b_node, targets.second)};
+    } else {
+      return _on_the_fly_gain_cache.gain(node, b_node, targets);
+    }
+  }
+
   EdgeWeight conn(const NodeID node, const BlockID block) const {
     if (is_high_degree_node(node)) {
       return weighted_degree_to(node, block);
@@ -274,6 +283,15 @@ public:
       return _gain_cache.gain(node, from, to) + conn_delta(node, to) - conn_delta(node, from);
     } else {
       return _on_the_fly_delta_gain_cache.gain(node, from, to);
+    }
+  }
+
+  std::pair<EdgeWeight, EdgeWeight>
+  gain(const NodeID node, const BlockID b_node, const std::pair<BlockID, BlockID> &targets) const {
+    if (_gain_cache.is_high_degree_node(node)) {
+      return {gain(node, b_node, targets.first), gain(node, b_node, targets.second)};
+    } else {
+      return _on_the_fly_delta_gain_cache.gain(node, b_node, targets);
     }
   }
 

@@ -74,6 +74,11 @@ public:
     return weighted_degree_to(node, block_to) - weighted_degree_to(node, block_from);
   }
 
+  std::pair<EdgeWeight, EdgeWeight>
+  gain(const NodeID node, const BlockID b_node, const std::pair<BlockID, BlockID> &targets) {
+    return {gain(node, b_node, targets.first), gain(node, b_node, targets.second)};
+  }
+
   EdgeWeight conn(const NodeID node, const BlockID block) const {
     return weighted_degree_to(node, block);
   }
@@ -209,6 +214,11 @@ public:
 
   EdgeWeight gain(const NodeID node, const BlockID from, const BlockID to) const {
     return _gain_cache.gain(node, from, to) + conn_delta(node, to) - conn_delta(node, from);
+  }
+
+  std::pair<EdgeWeight, EdgeWeight>
+  gain(const NodeID node, const BlockID b_node, const std::pair<BlockID, BlockID> &targets) {
+    return {gain(node, b_node, targets.first), gain(node, b_node, targets.second)};
   }
 
   template <typename Lambda>
