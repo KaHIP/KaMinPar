@@ -32,7 +32,7 @@ public:
   constexpr static bool kIteratesNonadjacentBlocks = false;
   constexpr static bool kIteratesExactGains = iterate_exact_gains;
 
-  OnTheFlyGainCache(NodeID /* max_n */, BlockID max_k)
+  OnTheFlyGainCache(const Context & /* ctx */, NodeID /* max_n */, BlockID max_k)
       : _rating_map_ets([&] {
           return RatingMap<EdgeWeight, BlockID, SparseMap<BlockID, EdgeWeight>>(max_k);
         }) {}

@@ -17,6 +17,7 @@
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/refinement/fm/stopping_policies.h"
 #include "kaminpar-shm/refinement/gains/dense_gain_cache.h"
+#include "kaminpar-shm/refinement/gains/high_degree_gain_cache.h"
 #include "kaminpar-shm/refinement/gains/on_the_fly_gain_cache.h"
 #include "kaminpar-shm/refinement/refiner.h"
 
@@ -28,6 +29,7 @@ namespace fm {
 using DefaultDeltaPartitionedGraph = GenericDeltaPartitionedGraph<>;
 using DenseGainCache = DenseGainCache<>;
 using OnTheFlyGainCache = OnTheFlyGainCache<>;
+using HighDegreeGainCache = HighDegreeGainCache<>;
 
 struct Stats {
   parallel::Atomic<NodeID> num_touched_nodes = 0;
@@ -111,7 +113,7 @@ private:
 
 template <typename GainCache> class BorderNodes {
 public:
-  BorderNodes(GainCache &gain_cache, NodeTracker &node_tracker)
+  BorderNodes(const Context &ctx, GainCache &gain_cache, NodeTracker &node_tracker)
       : _gain_cache(gain_cache),
         _node_tracker(node_tracker) {}
 
@@ -181,10 +183,10 @@ private:
 };
 
 template <typename GainCache = fm::DenseGainCache> struct SharedData {
-  SharedData(const NodeID max_n, const BlockID max_k)
+  SharedData(const Context &ctx, const NodeID max_n, const BlockID max_k)
       : node_tracker(max_n),
-        gain_cache(max_n, max_k),
-        border_nodes(gain_cache, node_tracker),
+        gain_cache(ctx, max_n, max_k),
+        border_nodes(ctx, gain_cache, node_tracker),
         shared_pq_handles(max_n, SharedBinaryMaxHeap<EdgeWeight>::kInvalidID),
         target_blocks(static_array::noinit, max_n) {}
 

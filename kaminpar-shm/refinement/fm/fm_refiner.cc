@@ -141,9 +141,9 @@ template <typename DeltaPartitionedGraph, typename GainCache>
 FMRefiner<DeltaPartitionedGraph, GainCache>::FMRefiner(const Context &input_ctx)
     : _ctx(input_ctx),
       _fm_ctx(input_ctx.refinement.kway_fm),
-      _shared(
-          std::make_unique<fm::SharedData<GainCache>>(input_ctx.partition.n, input_ctx.partition.k)
-      ) {}
+      _shared(std::make_unique<fm::SharedData<GainCache>>(
+          input_ctx, input_ctx.partition.n, input_ctx.partition.k
+      )) {}
 
 template <typename DeltaPartitionedGraph, typename GainCache>
 FMRefiner<DeltaPartitionedGraph, GainCache>::~FMRefiner() = default;
@@ -777,6 +777,7 @@ std::pair<BlockID, EdgeWeight> LocalizedFMRefiner<DeltaPartitionedGraph, GainCac
 
 namespace fm {
 template class SharedData<DenseGainCache>;
+template class SharedData<HighDegreeGainCache>;
 // template class SharedData<OnTheFlyGainCache>;
 } // namespace fm
 
@@ -788,4 +789,7 @@ template class SharedData<DenseGainCache>;
 
 template class FMRefiner<fm::DefaultDeltaPartitionedGraph, fm::DenseGainCache>;
 template class LocalizedFMRefiner<fm::DefaultDeltaPartitionedGraph, fm::DenseGainCache>;
+
+template class FMRefiner<fm::DefaultDeltaPartitionedGraph, fm::HighDegreeGainCache>;
+template class LocalizedFMRefiner<fm::DefaultDeltaPartitionedGraph, fm::HighDegreeGainCache>;
 } // namespace kaminpar::shm
