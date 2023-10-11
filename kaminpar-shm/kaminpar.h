@@ -333,9 +333,9 @@ public:
   shm::Context &context();
 
   /*!
-   * Sets the graph to be partitioned by taking ownership of the given pointers. In particular, the
-   * partitioner might modify the data pointed to.
-   * The caller is responsible for free'ing the memory.
+   * Sets the graph to be partitioned by taking temporary ownership of the given pointers. In
+   * particular, the partitioner might modify the data pointed to. The caller is responsible for
+   * free'ing the memory.
    *
    * @param n The number of nodes in the graph.
    * @param xadj Array of length `n + 1`, where `xadj[u]` points to the first neighbor of node `u`
@@ -346,6 +346,15 @@ public:
    * @param adjwgt Array of length `xadj[n]` storing the weight of each edge. Note that reverse
    * edges must be assigned the same weight. If the edges are unweighted, pass `nullptr`.
    */
+  void borrow_and_mutate_graph(
+      shm::NodeID n,
+      shm::EdgeID *xadj,
+      shm::NodeID *adjncy,
+      shm::NodeWeight *vwgt,
+      shm::EdgeWeight *adjwgt
+  );
+
+  /*! @deprecated in favor of borrow_and_mutate_graph() */
   void take_graph(
       shm::NodeID n,
       shm::EdgeID *xadj,
