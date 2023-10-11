@@ -89,6 +89,10 @@ std::unique_ptr<Refiner> create_refiner(const Context &ctx, const RefinementAlgo
   case RefinementAlgorithm::KWAY_FM: {
     if (ctx.refinement.kway_fm.gain_cache_strategy == GainCacheStrategy::DENSE) {
       return std::make_unique<FMRefiner<fm::DefaultDeltaPartitionedGraph, fm::DenseGainCache>>(ctx);
+    } else if (ctx.refinement.kway_fm.gain_cache_strategy == GainCacheStrategy::HIGH_DEGREE) {
+      return std::make_unique<FMRefiner<fm::DefaultDeltaPartitionedGraph, fm::HighDegreeGainCache>>(
+          ctx
+      );
     }
     __builtin_unreachable();
   }

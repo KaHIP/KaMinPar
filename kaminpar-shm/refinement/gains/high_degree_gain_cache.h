@@ -1,10 +1,10 @@
 /*******************************************************************************
- * Gain cache that caches one gain for each node and block, using a total of
- * O(|V| * k) memory.
+ * Gain cache that uses dense cache for high degree nodes while computing gains
+ * for low degree nodes on-the-fly.
  *
- * @file:   dense_gain_cache.h
+ * @file:   hybrid_high_degree_gain_cache.h
  * @author: Daniel Seemaier
- * @date:   15.03.2023
+ * @date:   11.10.2023
  ******************************************************************************/
 #pragma once
 
@@ -24,15 +24,15 @@
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
-template <typename DeltaPartitionedGraph, typename GainCache> class DenseDeltaGainCache;
+template <typename DeltaPartitionedGraph, typename GainCache> class HighDegreeDeltaGainCache;
 
-template <bool iterate_exact_gains = false> class DenseGainCache {
-  using Self = DenseGainCache<iterate_exact_gains>;
-  template <typename, typename> friend class DenseDeltaGainCache;
+template <bool iterate_exact_gains = false> class HighDegreeGainCache {
+  using Self = HighDegreeGainCache<iterate_exact_gains>;
+  template <typename, typename> friend class HighDegreeDeltaGainCache;
 
 public:
   template <typename DeltaPartitionedGraph>
-  using DeltaCache = DenseDeltaGainCache<DeltaPartitionedGraph, Self>;
+  using DeltaCache = HighDegreeDeltaGainCache<DeltaPartitionedGraph, Self>;
 
   // gains() will iterate over all blocks, including those not adjacent to the node.
   constexpr static bool kIteratesNonadjacentBlocks = true;
@@ -42,7 +42,7 @@ public:
   // (more expensive, but safes a call to gain() if the exact gain for the best block is needed).
   constexpr static bool kIteratesExactGains = iterate_exact_gains;
 
-  DenseGainCache(const Context & /* ctx */, const NodeID max_n, const BlockID max_k)
+  HighDegreeGainCache(const Context & /* ctx */, const NodeID max_n, const BlockID max_k)
       : _max_n(max_n),
         _max_k(max_k),
         _gain_cache(
@@ -195,12 +195,12 @@ private:
   StaticArray<EdgeWeight> _weighted_degrees;
 };
 
-template <typename DeltaPartitionedGraph, typename GainCache> class DenseDeltaGainCache {
+template <typename DeltaPartitionedGraph, typename GainCache> class HighDegreeDeltaGainCache {
 public:
   constexpr static bool kIteratesNonadjacentBlocks = GainCache::kIteratesNonadjacentBlocks;
   constexpr static bool kIteratesExactGains = GainCache::kIteratesExactGains;
 
-  DenseDeltaGainCache(const GainCache &gain_cache, const DeltaPartitionedGraph & /* d_graph */)
+  HighDegreeDeltaGainCache(const GainCache &gain_cache, const DeltaPartitionedGraph & /* d_graph */)
       : _gain_cache(gain_cache) {}
 
   EdgeWeight conn(const NodeID node, const BlockID block) const {
@@ -247,3 +247,4 @@ private:
   DynamicFlatMap<std::size_t, EdgeWeight> _gain_cache_delta;
 };
 } // namespace kaminpar::shm
+

@@ -78,6 +78,7 @@ public:
 private:
   shm::PartitionContext setup_shm_p_ctx(const shm::Graph &b_graph) const;
   shm::fm::SharedData<> setup_fm_data(
+      const shm::Context &shm_ctx,
       const shm::PartitionedGraph &bp_graph,
       const std::vector<NodeID> &seeds,
       const fm::NodeMapper &mapper

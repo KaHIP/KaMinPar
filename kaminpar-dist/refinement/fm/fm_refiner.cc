@@ -153,7 +153,8 @@ bool FMRefiner::refine() {
     const shm::PartitionContext shm_p_ctx = setup_shm_p_ctx(*b_graph);
     const fm::NodeMapper node_mapper(extraction_result.node_mapping);
     const shm::KwayFMRefinementContext shm_fm_ctx = setup_fm_ctx();
-    shm::fm::SharedData<> shared = setup_fm_data(*bp_graph, seed_nodes, node_mapper);
+    const shm::Context shm_ctx = shm::create_default_context();
+    shm::fm::SharedData<> shared = setup_fm_data(shm_ctx, *bp_graph, seed_nodes, node_mapper);
 
     // Create thread-local workers numbered 1..P
     std::atomic<int> next_id = 0;
@@ -374,11 +375,12 @@ shm::PartitionContext FMRefiner::setup_shm_p_ctx(const shm::Graph &b_graph) cons
 }
 
 shm::fm::SharedData<> FMRefiner::setup_fm_data(
+    const shm::Context &ctx,
     const shm::PartitionedGraph &bp_graph,
     const std::vector<NodeID> &lseeds,
     const fm::NodeMapper &mapper
 ) const {
-  shm::fm::SharedData<> shared(bp_graph.n(), bp_graph.k());
+  shm::fm::SharedData<> shared(ctx, bp_graph.n(), bp_graph.k());
 
   shared.gain_cache.initialize(bp_graph);
   if (_fm_ctx.use_bfs_seeds_as_fm_seeds) {
