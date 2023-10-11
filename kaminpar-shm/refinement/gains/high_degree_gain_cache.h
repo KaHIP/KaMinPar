@@ -58,7 +58,7 @@ public:
     _high_degree_threshold = 0;
 
     if (p_graph.sorted()) {
-      const EdgeID threshold = _k; // @todo test more strategies
+      const EdgeID threshold = _k * _ctx.refinement.kway_fm.high_degree_factor;
       for (int bucket = 0; _high_degree_threshold < p_graph.n() &&
                            p_graph.degree(_high_degree_threshold) < threshold;
            ++bucket) {
@@ -80,8 +80,14 @@ public:
       }
     }
 
+    // Mind the potential overflow without explicit cast
+    const std::size_t gc_size = static_cast<std::size_t>(_n) * static_cast<std::size_t>(_k);
+
+    DBG << "[FM] Allocating gain cache for n=" << _n << " nodes with k=" << _k
+        << " blocks == " << gc_size << " slots";
+
     _weighted_degrees.resize(static_array::noinit, _n);
-    _gain_cache.resize(static_array::noinit, _n * _k);
+    _gain_cache.resize(static_array::noinit, gc_size);
 
     START_TIMER("Reset");
     reset();

@@ -123,7 +123,7 @@ Context create_default_context() {
                       .use_exact_abortion_threshold = false,
                       .abortion_threshold = 0.999,
                       .gain_cache_strategy = GainCacheStrategy::DENSE,
-                      .k_vs_degree_threshold = 1.0,
+                      .high_degree_factor = 1.0,
                       .dbg_compute_batch_size_statistics = false,
                   },
               .balancer = {},

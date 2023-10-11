@@ -235,7 +235,7 @@ CLI::Option_group *create_kway_fm_refinement_options(CLI::App *app, Context &ctx
   fm->add_flag("--r-fm-gain-cache", ctx.refinement.kway_fm.gain_cache_strategy)
       ->transform(CLI::CheckedTransformer(get_gain_cache_strategies()).description(""))
       ->capture_default_str();
-  fm->add_flag("--r-fm-k-vs-degree", ctx.refinement.kway_fm.k_vs_degree_threshold)
+  fm->add_flag("--r-fm-high-degree-factor", ctx.refinement.kway_fm.high_degree_factor)
       ->capture_default_str();
   fm->add_flag(
         "--r-fm-dbg-batch-size-stats", ctx.refinement.kway_fm.dbg_compute_batch_size_statistics
