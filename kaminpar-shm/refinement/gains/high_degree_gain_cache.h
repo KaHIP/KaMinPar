@@ -17,6 +17,7 @@
 #include "kaminpar-shm/context.h"
 #include "kaminpar-shm/datastructures/delta_partitioned_graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
+#include "kaminpar-shm/refinement/gains/on_the_fly_gain_cache.h"
 
 #include "kaminpar-common/datastructures/dynamic_map.h"
 #include "kaminpar-common/datastructures/noinit_vector.h"
@@ -26,7 +27,7 @@
 namespace kaminpar::shm {
 template <typename DeltaPartitionedGraph, typename GainCache> class HighDegreeDeltaGainCache;
 
-template <bool iterate_exact_gains = false> class HighDegreeGainCache {
+template <bool iterate_exact_gains = true> class HighDegreeGainCache {
   using Self = HighDegreeGainCache<iterate_exact_gains>;
   template <typename, typename> friend class HighDegreeDeltaGainCache;
 
@@ -42,21 +43,28 @@ public:
   // (more expensive, but safes a call to gain() if the exact gain for the best block is needed).
   constexpr static bool kIteratesExactGains = iterate_exact_gains;
 
-  HighDegreeGainCache(const Context & /* ctx */, const NodeID max_n, const BlockID max_k)
-      : _max_n(max_n),
-        _max_k(max_k),
-        _gain_cache(
-            static_array::noinit,
-            static_cast<std::size_t>(_max_n) * static_cast<std::size_t>(_max_k)
-        ),
-        _weighted_degrees(static_array::noinit, _max_n) {}
+  HighDegreeGainCache(const Context &ctx, const NodeID max_n, const BlockID max_k)
+      : _ctx(ctx),
+        _on_the_fly_gain_cache(ctx, max_n, max_k) {}
 
   void initialize(const PartitionedGraph &p_graph) {
-    KASSERT(p_graph.n() <= _max_n, "gain cache is too small");
-    KASSERT(p_graph.k() <= _max_k, "gain cache is too small");
-
     _n = p_graph.n();
     _k = p_graph.k();
+    _high_degree_threshold = 0;
+
+    if (p_graph.sorted()) {
+      const EdgeID threshold = _k; // @todo test more strategies
+      for (int bucket = 0; _high_degree_threshold < p_graph.n() &&
+                           p_graph.degree(_high_degree_threshold) < threshold;
+           ++bucket) {
+        _high_degree_threshold += p_graph.bucket_size(bucket);
+      }
+
+      _n = _high_degree_threshold;
+    }
+
+    _weighted_degrees.resize(static_array::noinit, _n);
+    _gain_cache.resize(static_array::noinit, _n * _k);
 
     START_TIMER("Reset");
     reset();
@@ -70,41 +78,54 @@ public:
     tbb::parallel_invoke([&] { _gain_cache.free(); }, [&] { _weighted_degrees.free(); });
   }
 
-  EdgeWeight gain(const NodeID node, const BlockID block_from, const BlockID block_to) const {
-    return weighted_degree_to(node, block_to) - weighted_degree_to(node, block_from);
+  EdgeWeight gain(const NodeID node, const BlockID from, const BlockID to) const {
+    if (is_high_degree_node(node)) {
+      return weighted_degree_to(node, to) - weighted_degree_to(node, from);
+    } else {
+      return _on_the_fly_gain_cache.gain(node, from, to);
+    }
   }
 
   EdgeWeight conn(const NodeID node, const BlockID block) const {
-    return weighted_degree_to(node, block);
+    if (is_high_degree_node(node)) {
+      return weighted_degree_to(node, block);
+    } else {
+      return _on_the_fly_gain_cache.conn(node, block);
+    }
   }
 
   template <typename Lambda>
   void gains(const NodeID node, const BlockID from, Lambda &&lambda) const {
-    const EdgeWeight conn_from = kIteratesExactGains ? conn(node, from) : 0;
+    if (is_high_degree_node(node)) {
+      const EdgeWeight conn_from = kIteratesExactGains ? conn(node, from) : 0;
 
-    for (BlockID to = 0; to < _k; ++to) {
-      if (from != to) {
-        lambda(to, [&] { return conn(node, to) - conn_from; });
+      for (BlockID to = 0; to < _k; ++to) {
+        if (from != to) {
+          lambda(to, [&] { return conn(node, to) - conn_from; });
+        }
+      }
+    } else {
+      _on_the_fly_gain_cache.gains(node, from, std::forward<Lambda>(lambda));
+    }
+  }
+
+  void
+  move(const PartitionedGraph &p_graph, const NodeID node, const BlockID from, const BlockID to) {
+    for (const auto &[e, v] : p_graph.neighbors(node)) {
+      if (is_high_degree_node(v)) {
+        const EdgeWeight w_e = p_graph.edge_weight(e);
+        __atomic_fetch_sub(&_gain_cache[gc_index(v, from)], w_e, __ATOMIC_RELAXED);
+        __atomic_fetch_add(&_gain_cache[gc_index(v, to)], w_e, __ATOMIC_RELAXED);
       }
     }
   }
 
-  void move(
-      const PartitionedGraph &p_graph,
-      const NodeID node,
-      const BlockID block_from,
-      const BlockID block_to
-  ) {
-    for (const auto &[e, v] : p_graph.neighbors(node)) {
-      const EdgeWeight weight = p_graph.edge_weight(e);
-      __atomic_fetch_sub(&_gain_cache[index(v, block_from)], weight, __ATOMIC_RELAXED);
-      __atomic_fetch_add(&_gain_cache[index(v, block_to)], weight, __ATOMIC_RELAXED);
-    }
-  }
-
   bool is_border_node(const NodeID node, const BlockID block) const {
-    KASSERT(node < _weighted_degrees.size());
-    return _weighted_degrees[node] != weighted_degree_to(node, block);
+    if (is_high_degree_node(node)) {
+      return wd(node) != weighted_degree_to(node, block);
+    } else {
+      return _on_the_fly_gain_cache.is_border_node(node, block);
+    }
   }
 
   bool validate(const PartitionedGraph &p_graph) const {
@@ -120,14 +141,38 @@ public:
 
 private:
   EdgeWeight weighted_degree_to(const NodeID node, const BlockID block) const {
-    KASSERT(index(node, block) < _gain_cache.size());
-    return __atomic_load_n(&_gain_cache[index(node, block)], __ATOMIC_RELAXED);
+    return __atomic_load_n(&gc(node, block), __ATOMIC_RELAXED);
   }
 
-  std::size_t index(const NodeID node, const BlockID block) const {
-    const std::size_t idx = static_cast<std::size_t>(node) * static_cast<std::size_t>(_k) +
-                            static_cast<std::size_t>(block);
+  NodeWeight &wd(const NodeID node) {
+    return _weighted_degrees[wd_index(node)];
+  }
+
+  const NodeWeight &wd(const NodeID node) const {
+    return _weighted_degrees[wd_index(node)];
+  }
+
+  EdgeWeight &gc(const NodeID node, const BlockID block) {
+    return _gain_cache[gc_index(node, block)];
+  }
+
+  const EdgeWeight &gc(const NodeID node, const BlockID block) const {
+    return _gain_cache[gc_index(node, block)];
+  }
+
+  std::size_t wd_index(const NodeID node) const {
+    KASSERT(is_high_degree_node(node));
+    return node - _high_degree_threshold;
+  }
+
+  std::size_t gc_index(const NodeID node, const BlockID block) const {
+    KASSERT(is_high_degree_node(node));
+
+    const std::size_t idx =
+        static_cast<std::size_t>(node - _high_degree_threshold) * static_cast<std::size_t>(_k) +
+        static_cast<std::size_t>(block);
     KASSERT(idx < _gain_cache.size());
+
     return idx;
   }
 
@@ -136,26 +181,31 @@ private:
   }
 
   void recompute_all(const PartitionedGraph &p_graph) {
-    p_graph.pfor_nodes([&](const NodeID u) { recompute_node(p_graph, u); });
+    tbb::parallel_for<NodeID>(_high_degree_threshold, p_graph.n(), [&](const NodeID u) {
+      recompute_node(p_graph, u);
+    });
   }
 
   void recompute_node(const PartitionedGraph &p_graph, const NodeID u) {
+    KASSERT(is_high_degree_node(u));
     KASSERT(u < p_graph.n());
     KASSERT(p_graph.block(u) < p_graph.k());
 
-    const BlockID block_u = p_graph.block(u);
-    _weighted_degrees[u] = 0;
+    const BlockID b_u = p_graph.block(u);
+    wd(u) = 0;
 
     for (const auto &[e, v] : p_graph.neighbors(u)) {
-      const BlockID block_v = p_graph.block(v);
-      const EdgeWeight weight = p_graph.edge_weight(e);
-
-      _gain_cache[index(u, block_v)] += weight;
-      _weighted_degrees[u] += weight;
+      const EdgeWeight w_e = p_graph.edge_weight(e);
+      gc(u, p_graph.block(v)) += w_e;
+      wd(u) += w_e;
     }
   }
 
   bool check_cached_gain_for_node(const PartitionedGraph &p_graph, const NodeID u) const {
+    if (!is_high_degree_node(u)) {
+      return true;
+    }
+
     const BlockID block_u = p_graph.block(u);
     std::vector<EdgeWeight> actual_external_degrees(_k, 0);
     EdgeWeight actual_weighted_degree = 0;
@@ -185,14 +235,21 @@ private:
     return true;
   }
 
-  NodeID _max_n;
-  BlockID _max_k;
+  bool is_high_degree_node(const NodeID node) const {
+    return node >= _high_degree_threshold;
+  }
+
+  const Context &_ctx;
+
+  NodeID _high_degree_threshold;
 
   NodeID _n;
   BlockID _k;
 
   StaticArray<EdgeWeight> _gain_cache;
   StaticArray<EdgeWeight> _weighted_degrees;
+
+  OnTheFlyGainCache<kIteratesExactGains> _on_the_fly_gain_cache;
 };
 
 template <typename DeltaPartitionedGraph, typename GainCache> class HighDegreeDeltaGainCache {
@@ -200,24 +257,37 @@ public:
   constexpr static bool kIteratesNonadjacentBlocks = GainCache::kIteratesNonadjacentBlocks;
   constexpr static bool kIteratesExactGains = GainCache::kIteratesExactGains;
 
-  HighDegreeDeltaGainCache(const GainCache &gain_cache, const DeltaPartitionedGraph & /* d_graph */)
-      : _gain_cache(gain_cache) {}
+  HighDegreeDeltaGainCache(const GainCache &gain_cache, const DeltaPartitionedGraph &d_graph)
+      : _gain_cache(gain_cache),
+        _on_the_fly_delta_gain_cache(_gain_cache._on_the_fly_gain_cache, d_graph) {}
 
   EdgeWeight conn(const NodeID node, const BlockID block) const {
-    return _gain_cache.conn(node, block) + conn_delta(node, block);
+    if (_gain_cache.is_high_degree_node(node)) {
+      return _gain_cache.conn(node, block) + conn_delta(node, block);
+    } else {
+      return _on_the_fly_delta_gain_cache(node, block);
+    }
   }
 
   EdgeWeight gain(const NodeID node, const BlockID from, const BlockID to) const {
-    return _gain_cache.gain(node, from, to) + conn_delta(node, to) - conn_delta(node, from);
+    if (_gain_cache.is_high_degree_node(node)) {
+      return _gain_cache.gain(node, from, to) + conn_delta(node, to) - conn_delta(node, from);
+    } else {
+      return _on_the_fly_delta_gain_cache.gain(node, from, to);
+    }
   }
 
   template <typename Lambda>
   void gains(const NodeID node, const BlockID from, Lambda &&lambda) const {
-    const EdgeWeight conn_from_delta = kIteratesExactGains ? conn_delta(node, from) : 0;
+    if (_gain_cache.is_high_degree_node(node)) {
+      const EdgeWeight conn_from_delta = kIteratesExactGains ? conn_delta(node, from) : 0;
 
-    _gain_cache.gains(node, from, [&](const BlockID to, auto &&gain) {
-      lambda(to, [&] { return gain() + conn_delta(node, to) - conn_from_delta; });
-    });
+      _gain_cache.gains(node, from, [&](const BlockID to, auto &&gain) {
+        lambda(to, [&] { return gain() + conn_delta(node, to) - conn_from_delta; });
+      });
+    } else {
+      _on_the_fly_delta_gain_cache.gains(node, from, std::forward<Lambda>(lambda));
+    }
   }
 
   void move(
@@ -227,24 +297,30 @@ public:
       const BlockID block_to
   ) {
     for (const auto &[e, v] : d_graph.neighbors(u)) {
-      const EdgeWeight weight = d_graph.edge_weight(e);
-      _gain_cache_delta[_gain_cache.index(v, block_from)] -= weight;
-      _gain_cache_delta[_gain_cache.index(v, block_to)] += weight;
+      if (_gain_cache.is_high_degree_node(v)) {
+        const EdgeWeight weight = d_graph.edge_weight(e);
+        _gain_cache_delta[_gain_cache.gc_index(v, block_from)] -= weight;
+        _gain_cache_delta[_gain_cache.gc_index(v, block_to)] += weight;
+      }
     }
   }
 
   void clear() {
     _gain_cache_delta.clear();
+    _on_the_fly_delta_gain_cache.clear();
   }
 
 private:
   EdgeWeight conn_delta(const NodeID node, const BlockID block) const {
-    const auto it = _gain_cache_delta.get_if_contained(_gain_cache.index(node, block));
+    const auto it = _gain_cache_delta.get_if_contained(_gain_cache.gc_index(node, block));
     return it != _gain_cache_delta.end() ? *it : 0;
   }
 
   const GainCache &_gain_cache;
   DynamicFlatMap<std::size_t, EdgeWeight> _gain_cache_delta;
+
+  OnTheFlyDeltaGainCache<DeltaPartitionedGraph, OnTheFlyGainCache<GainCache::kIteratesExactGains>>
+      _on_the_fly_delta_gain_cache;
 };
 } // namespace kaminpar::shm
 
