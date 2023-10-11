@@ -685,8 +685,9 @@ void LocalizedFMRefiner<DeltaPartitionedGraph, GainCache>::update_after_move(
     );
   } else {
     // old_target_block OR moved_to is best
-    const EdgeWeight gain_old_target_block = _d_gain_cache.gain(node, old_block, old_target_block);
-    const EdgeWeight gain_moved_to = _d_gain_cache.gain(node, old_block, moved_to);
+    // @todo optimize this for on-the-fly gain caching
+    const auto [gain_old_target_block, gain_moved_to] =
+        _d_gain_cache.gain(node, old_block, {old_target_block, moved_to});
 
     if (gain_moved_to > gain_old_target_block &&
         _d_graph.block_weight(moved_to) + _d_graph.node_weight(node) <=
