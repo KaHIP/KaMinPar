@@ -2,7 +2,7 @@
  * Functions to annotate the timer tree with aggregate timer information from
  * all PEs.
  *
- * @file:   timer.cc
+ * @file:   timer.h
  * @author: Daniel Seemaier
  * @date:   27.10.2021
  ******************************************************************************/
