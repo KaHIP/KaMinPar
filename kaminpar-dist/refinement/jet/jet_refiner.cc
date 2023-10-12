@@ -59,7 +59,17 @@ bool JetRefiner::refine() {
 
   const double penalty_factor = compute_penalty_factor();
 
-  for (int i = 0; i < _ctx.refinement.jet.num_iterations; ++i) {
+  const int max_num_fruitless_iterations = (_ctx.refinement.jet.num_fruitless_iterations == 0)
+                                               ? std::numeric_limits<int>::max()
+                                               : _ctx.refinement.jet.num_fruitless_iterations;
+  const int max_num_iterations = (_ctx.refinement.jet.num_iterations == 0)
+                                     ? std::numeric_limits<int>::max()
+                                     : _ctx.refinement.jet.num_iterations;
+
+  int cur_fruitless_iteration = 0;
+  int cur_iteration = 0;
+
+  do {
     const EdgeWeight initial_cut = metrics::edge_cut(_p_graph);
 
     TIMED_SCOPE("Find moves") {
@@ -213,12 +223,23 @@ bool JetRefiner::refine() {
       snapshooter.update();
     };
 
+    ++cur_iteration;
+    ++cur_fruitless_iteration;
+
     const EdgeWeight final_cut = metrics::edge_cut(_p_graph);
     const double improvement = 1.0 * (initial_cut - final_cut) / initial_cut;
-    if (1.0 - improvement > _ctx.refinement.jet.fruitless_threshold) {
-      break;
+    if (improvement >= 1.0 - _ctx.refinement.jet.fruitless_threshold) {
+      DBG << "Improved cut from " << initial_cut << " to " << final_cut
+          << ": resetting number of fruitless iterations (threshold: "
+          << _ctx.refinement.jet.fruitless_threshold << ")";
+      cur_fruitless_iteration = 0;
+    } else {
+      DBG << "Fruitless edge cut change from " << initial_cut << " to " << final_cut
+          << " (threshold: " << _ctx.refinement.jet.fruitless_threshold
+          << "): incrementing fruitless iterations counter  to " << cur_fruitless_iteration;
     }
-  }
+  } while (cur_iteration < max_num_iterations &&
+           cur_fruitless_iteration < max_num_fruitless_iterations);
 
   TIMED_SCOPE("Rollback") {
     snapshooter.rollback();
