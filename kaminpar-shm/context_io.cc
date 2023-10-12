@@ -208,6 +208,7 @@ void print(const RefinementContext &r_ctx, std::ostream &out) {
     out << "  Gain cache:                 " << r_ctx.kway_fm.gain_cache_strategy << "\n";
     if (r_ctx.kway_fm.gain_cache_strategy == GainCacheStrategy::HIGH_DEGREE) {
       out << "  High-degree factor:         " << r_ctx.kway_fm.high_degree_factor << "\n";
+      out << "  Preallocate gain cache:     " << r_ctx.kway_fm.preallocate_gain_cache << "\n";
     }
   }
 }

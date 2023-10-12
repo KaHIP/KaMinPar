@@ -139,6 +139,7 @@ struct KwayFMRefinementContext {
 
   GainCacheStrategy gain_cache_strategy;
   double high_degree_factor;
+  bool preallocate_gain_cache;
 
   bool dbg_compute_batch_size_statistics;
 };

@@ -124,6 +124,7 @@ Context create_default_context() {
                       .abortion_threshold = 0.999,
                       .gain_cache_strategy = GainCacheStrategy::DENSE,
                       .high_degree_factor = 1.0,
+                      .preallocate_gain_cache = false,
                       .dbg_compute_batch_size_statistics = false,
                   },
               .balancer = {},
