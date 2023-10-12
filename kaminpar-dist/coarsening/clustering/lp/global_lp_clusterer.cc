@@ -491,8 +491,6 @@ private:
 
     mpi::barrier(_graph->communicator());
 
-    STOP_TIMER();
-
     // If we detected a max cluster weight violation, remove node weight
     // proportional to our chunk of the cluster weight
     if (!should_enforce_cluster_weights() || !violation) {
