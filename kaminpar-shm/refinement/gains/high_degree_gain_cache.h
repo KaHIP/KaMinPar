@@ -47,7 +47,16 @@ public:
 
   HighDegreeGainCache(const Context &ctx, const NodeID max_n, const BlockID max_k)
       : _ctx(ctx),
-        _on_the_fly_gain_cache(ctx, max_n, max_k) {}
+        _on_the_fly_gain_cache(ctx, max_n, max_k),
+        _gain_cache(
+            static_array::noinit,
+            ctx.refinement.kway_fm.preallocate_gain_cache
+                ? static_cast<std::size_t>(max_n) * static_cast<std::size_t>(max_k)
+                : 0
+        ),
+        _weighted_degrees(
+            static_array::noinit, ctx.refinement.kway_fm.preallocate_gain_cache ? max_n : 0
+        ) {}
 
   void initialize(const PartitionedGraph &p_graph) {
     DBG << "[FM] Initialize high-degree gain cache for a graph with n=" << p_graph.n()
@@ -86,8 +95,12 @@ public:
     DBG << "[FM] Allocating gain cache for n=" << _n << " nodes with k=" << _k
         << " blocks == " << gc_size << " slots";
 
-    _weighted_degrees.resize(static_array::noinit, _n);
-    _gain_cache.resize(static_array::noinit, gc_size);
+    if (_weighted_degrees.size() < _n) {
+      _weighted_degrees.resize(static_array::noinit, _n);
+    }
+    if (_gain_cache.size() < gc_size) {
+      _gain_cache.resize(static_array::noinit, gc_size);
+    }
 
     START_TIMER("Reset");
     reset();
