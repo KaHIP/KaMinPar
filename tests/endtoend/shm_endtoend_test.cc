@@ -65,6 +65,53 @@ TEST(ShmEndToEndTest, partitions_empty_weighted_graph) {
   }
 }
 
+TEST(ShmEndToEndTest, partitions_empty_graph_repeatedly_with_separate_partitioner_instances) {
+  for (const int seed : {0, 1, 2, 3, 4, 5, 6, 7, 8, 9}) {
+    std::vector<EdgeID> xadj{0};
+    std::vector<NodeID> adjncy{};
+    std::vector<NodeWeight> vwgt{};
+    std::vector<EdgeWeight> adjwgt{};
+    std::vector<BlockID> partition{};
+
+    KaMinPar shm(4, create_default_context());
+    shm.set_output_level(OutputLevel::QUIET);
+    shm.borrow_and_mutate_graph(0, xadj.data(), adjncy.data(), vwgt.data(), adjwgt.data());
+    EXPECT_EQ(shm.compute_partition(seed, 16, partition.data()), 0);
+  }
+}
+
+TEST(ShmEndToEndTest, partitions_empty_graph_repeatedly_with_one_partitioner_instances) {
+  KaMinPar shm(4, create_default_context());
+  shm.set_output_level(OutputLevel::QUIET);
+
+  for (const int seed : {0, 1, 2, 3, 4, 5, 6, 7, 8, 9}) {
+    std::vector<EdgeID> xadj{0};
+    std::vector<NodeID> adjncy{};
+    std::vector<NodeWeight> vwgt{};
+    std::vector<EdgeWeight> adjwgt{};
+    std::vector<BlockID> partition{};
+
+    shm.borrow_and_mutate_graph(0, xadj.data(), adjncy.data(), vwgt.data(), adjwgt.data());
+    EXPECT_EQ(shm.compute_partition(seed, 16, partition.data()), 0);
+  }
+}
+
+TEST(ShmEndToEndTest, partitions_empty_graph_repeatedly_after_borrow) {
+  std::vector<EdgeID> xadj{0};
+  std::vector<NodeID> adjncy{};
+  std::vector<NodeWeight> vwgt{};
+  std::vector<EdgeWeight> adjwgt{};
+  std::vector<BlockID> partition{};
+
+  KaMinPar shm(4, create_default_context());
+  shm.borrow_and_mutate_graph(0, xadj.data(), adjncy.data(), vwgt.data(), adjwgt.data());
+  shm.set_output_level(OutputLevel::QUIET);
+
+  for (const int seed : {0, 1, 2, 3, 4, 5, 6, 7, 8, 9}) {
+    EXPECT_EQ(shm.compute_partition(seed, 16, partition.data()), 0);
+  }
+}
+
 TEST(ShmEndToEndTest, partitions_unweighted_walshaw_data_graph) {
   auto &xadj = data::xadj;
   auto &adjncy = data::adjncy;

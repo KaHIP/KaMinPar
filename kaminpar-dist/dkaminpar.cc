@@ -305,6 +305,10 @@ GlobalEdgeWeight dKaMinPar::compute_partition(const int seed, const BlockID k, B
     );
   }
 
-  return metrics::edge_cut(p_graph);
+  const EdgeWeight final_cut = metrics::edge_cut(p_graph);
+
+  GLOBAL_TIMER.reset();
+
+  return final_cut;
 }
 } // namespace kaminpar

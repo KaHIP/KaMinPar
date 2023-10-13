@@ -95,6 +95,8 @@ void KaMinPar::take_graph(
 void KaMinPar::borrow_and_mutate_graph(
     const NodeID n, EdgeID *xadj, NodeID *adjncy, NodeWeight *vwgt, EdgeWeight *adjwgt
 ) {
+  SCOPED_TIMER("IO");
+
   const EdgeID m = xadj[n];
 
   StaticArray<EdgeID> nodes(xadj, n + 1);
@@ -199,6 +201,10 @@ EdgeWeight KaMinPar::compute_partition(const int seed, const BlockID k, BlockID 
     print_statistics(_ctx, p_graph, _max_timer_depth, _output_level == OutputLevel::EXPERIMENT);
   }
 
-  return metrics::edge_cut(p_graph);
+  const EdgeWeight final_cut = metrics::edge_cut(p_graph);
+
+  GLOBAL_TIMER.reset();
+
+  return final_cut;
 }
 } // namespace kaminpar
