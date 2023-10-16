@@ -18,9 +18,9 @@
 #include "kaminpar-dist/metrics.h"
 #include "kaminpar-dist/refinement/gain_calculator.h"
 #include "kaminpar-dist/refinement/snapshooter.h"
+#include "kaminpar-dist/timer.h"
 
 #include "kaminpar-common/random.h"
-#include "kaminpar-common/timer.h"
 
 #define HEAVY assert::heavy
 
@@ -66,9 +66,12 @@ void JetRefiner::initialize() {
   _penalty_factor = (_p_graph.n() <= 2 * _p_ctx.k * _ctx.coarsening.contraction_limit)
                         ? _jet_ctx.coarse_penalty_factor
                         : _jet_ctx.fine_penalty_factor;
+
+  TIMER_BARRIER(_p_graph.communicator());
 }
 
 bool JetRefiner::refine() {
+  TIMER_BARRIER(_p_graph.communicator());
   SCOPED_TIMER("Jet Refinement");
 
   KASSERT(
@@ -105,6 +108,8 @@ bool JetRefiner::refine() {
   EdgeWeight best_cut = initial_cut;
 
   do {
+    TIMER_BARRIER(_p_graph.communicator());
+
     find_moves();
     synchronize_ghost_node_move_candidates();
     filter_bad_moves();
@@ -132,7 +137,7 @@ bool JetRefiner::refine() {
 
     const EdgeWeight final_cut = metrics::edge_cut(_p_graph);
     if (best_cut - final_cut > (1.0 - _ctx.refinement.jet.fruitless_threshold) * best_cut) {
-      DBG0 << "Improved cut from " << initial_cut << " to " << best_cut
+      DBG0 << "Improved cut from " << initial_cut << " to " << best_cut << " to " << final_cut
            << ": resetting number of fruitless iterations (threshold: "
            << _ctx.refinement.jet.fruitless_threshold << ")";
       best_cut = final_cut;
@@ -140,7 +145,7 @@ bool JetRefiner::refine() {
     } else {
       DBG0 << "Fruitless edge cut change from " << initial_cut << " to " << best_cut << " to "
            << final_cut << " (threshold: " << _ctx.refinement.jet.fruitless_threshold
-           << "): incrementing fruitless iterations counter  to " << cur_fruitless_iteration;
+           << "): incrementing fruitless iterations counter to " << cur_fruitless_iteration;
     }
   } while (cur_iteration < max_num_iterations &&
            cur_fruitless_iteration < max_num_fruitless_iterations);
@@ -155,6 +160,7 @@ bool JetRefiner::refine() {
       HEAVY
   );
 
+  TIMER_BARRIER(_p_graph.communicator());
   return initial_cut > best_cut;
 }
 
@@ -180,6 +186,8 @@ void JetRefiner::find_moves() {
       _gains_and_targets[u] = {0, b_u};
     }
   });
+
+  TIMER_BARRIER(_p_graph.communicator());
 }
 
 void JetRefiner::synchronize_ghost_node_move_candidates() {
@@ -213,6 +221,8 @@ void JetRefiner::synchronize_ghost_node_move_candidates() {
         });
       }
   );
+
+  TIMER_BARRIER(_p_graph.communicator());
 }
 
 void JetRefiner::filter_bad_moves() {
@@ -250,6 +260,8 @@ void JetRefiner::filter_bad_moves() {
       _locked[u] = 1;
     }
   });
+
+  TIMER_BARRIER(_p_graph.communicator());
 }
 
 void JetRefiner::move_locked_nodes() {
@@ -266,6 +278,8 @@ void JetRefiner::move_locked_nodes() {
       __atomic_fetch_add(&_block_weight_deltas[to], w_u, __ATOMIC_RELAXED);
     }
   });
+
+  TIMER_BARRIER(_p_graph.communicator());
 }
 
 void JetRefiner::synchronize_ghost_node_labels() {
@@ -291,6 +305,8 @@ void JetRefiner::synchronize_ghost_node_labels() {
         });
       }
   );
+
+  TIMER_BARRIER(_p_graph.communicator());
 }
 
 void JetRefiner::apply_block_weight_deltas() {
@@ -309,5 +325,7 @@ void JetRefiner::apply_block_weight_deltas() {
     _p_graph.set_block_weight(b, _p_graph.block_weight(b) + _block_weight_deltas[b]);
     _block_weight_deltas[b] = 0;
   });
+
+  TIMER_BARRIER(_p_graph.communicator());
 }
 } // namespace kaminpar::dist

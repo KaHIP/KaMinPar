@@ -38,7 +38,7 @@ private:
 
 class NodeBalancer : public GlobalRefiner {
   SET_STATISTICS_FROM_GLOBAL();
-  SET_DEBUG(false);
+  SET_DEBUG(true);
 
   struct Candidate {
     GlobalNodeID id;

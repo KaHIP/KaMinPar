@@ -281,10 +281,7 @@ Context create_europar23_strong_context() {
 Context create_jet_context() {
   Context ctx = create_default_context();
   ctx.refinement.algorithms = {
-      RefinementAlgorithm::GREEDY_NODE_BALANCER,
-      RefinementAlgorithm::BATCHED_LP,
-      RefinementAlgorithm::JET_REFINER,
-      RefinementAlgorithm::GREEDY_NODE_BALANCER};
+      RefinementAlgorithm::GREEDY_NODE_BALANCER, RefinementAlgorithm::JET_REFINER};
   return ctx;
 }
 

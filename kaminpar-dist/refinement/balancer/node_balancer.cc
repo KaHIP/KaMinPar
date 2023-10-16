@@ -16,10 +16,10 @@
 #include "kaminpar-dist/graphutils/synchronization.h"
 #include "kaminpar-dist/metrics.h"
 #include "kaminpar-dist/refinement/balancer/reductions.h"
+#include "kaminpar-dist/timer.h"
 
 #include "kaminpar-common/math.h"
 #include "kaminpar-common/random.h"
-#include "kaminpar-common/timer.h"
 
 #define HEAVY assert::heavy
 
@@ -119,6 +119,7 @@ void NodeBalancer::initialize() {
 }
 
 bool NodeBalancer::refine() {
+  TIMER_BARRIER(_p_graph.communicator());
   SCOPED_TIMER("Balancer");
 
   // Only balance the partition if it is infeasible
@@ -135,6 +136,8 @@ bool NodeBalancer::refine() {
       is_sequential_balancing_enabled() ? metrics::imbalance_l1(_p_graph, _p_ctx) : 0.0;
 
   for (int round = 0; round < _nb_ctx.max_num_rounds; round++) {
+    TIMER_BARRIER(_p_graph.communicator());
+
     if (metrics::is_feasible(_p_graph, _p_ctx)) {
       break;
     }
@@ -259,6 +262,7 @@ bool NodeBalancer::perform_sequential_round() {
 
   KASSERT(graph::debug::validate_partition(_p_graph), "balancer produced invalid partition", HEAVY);
 
+  TIMER_BARRIER(_p_graph.communicator());
   return num_winners > 0;
 }
 
@@ -580,6 +584,7 @@ bool NodeBalancer::perform_parallel_round() {
     );
   };
 
+  TIMER_BARRIER(_p_graph.communicator());
   return true;
 }
 

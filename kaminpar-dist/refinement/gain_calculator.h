@@ -107,10 +107,8 @@ private:
     };
 
     auto &rating_map = _rating_map_ets.local();
+    rating_map.update_upper_bound_size(std::min(_p_graph->k(), _p_graph->degree(u)));
     rating_map.run_with_map(action, action);
-
-    // @todo Use a different hash map for low-degree vertices
-    // @todo This requires us to use something other than FastResetArray<> as fallback map
 
     return {int_conn, max_ext_conn, max_target, w_u};
   }
