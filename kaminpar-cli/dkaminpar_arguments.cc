@@ -617,9 +617,9 @@ CLI::Option_group *create_jet_refinement_options(CLI::App *app, Context &ctx) {
       ->capture_default_str();
   jet->add_option("--r-jet-fruitless-threshold", ctx.refinement.jet.fruitless_threshold)
       ->capture_default_str();
-  jet->add_option("--r-jet-coarse-penalty-factor", ctx.refinement.jet.coarse_penalty_factor)
+  jet->add_option("--r-jet-coarse-penalty-factor", ctx.refinement.jet.coarse_negative_gain_factor)
       ->capture_default_str();
-  jet->add_option("--r-jet-fine-penalty-factor", ctx.refinement.jet.fine_penalty_factor)
+  jet->add_option("--r-jet-fine-penalty-factor", ctx.refinement.jet.fine_negative_gain_factor)
       ->capture_default_str();
   jet->add_option("--r-jet-balancing-algorithm", ctx.refinement.jet.balancing_algorithm)
       ->transform(CLI::CheckedTransformer(get_balancing_algorithms()).description(""))

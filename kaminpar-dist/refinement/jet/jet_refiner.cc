@@ -65,9 +65,10 @@ void JetRefiner::initialize() {
       [&] { _p_graph.pfor_blocks([&](const BlockID b) { _block_weight_deltas[b] = 0; }); }
   );
 
-  _penalty_factor = (_p_graph.n() <= 2 * _p_ctx.k * _ctx.coarsening.contraction_limit)
-                        ? _jet_ctx.coarse_penalty_factor
-                        : _jet_ctx.fine_penalty_factor;
+  _negative_gain_factor = (_p_graph.global_n() < _ctx.partition.graph->global_n)
+                              ? _jet_ctx.coarse_negative_gain_factor
+                              : _jet_ctx.fine_negative_gain_factor;
+  DBG0 << "Initialized with negative gain factor: " << _negative_gain_factor;
 
   TIMER_BARRIER(_p_graph.communicator());
 }
@@ -125,19 +126,25 @@ bool JetRefiner::refine() {
         HEAVY
     );
 
-    TIMED_SCOPE("Rebalance") {
-      _balancer->initialize();
-      _balancer->refine();
-    };
+    const EdgeWeight before_rebalance_cut = IFDBG(metrics::edge_cut(_p_graph));
+    const double before_rebalance_l1 = IFDBG(metrics::imbalance_l1(_p_graph, _p_ctx));
+    DBG0 << "Partition *before* rebalancing: cut=" << before_rebalance_cut
+         << ", l1=" << before_rebalance_l1;
+
+    _balancer->initialize();
+    _balancer->refine();
+
+    const EdgeWeight final_cut = metrics::edge_cut(_p_graph);
+    const double final_l1 = metrics::imbalance_l1(_p_graph, _p_ctx);
+    DBG0 << "Partition *after* rebalancing: cut=" << final_cut << ", l1=" << final_l1;
 
     TIMED_SCOPE("Update best partition") {
-      _snapshooter.update(_p_graph, _p_ctx);
+      _snapshooter.update(_p_graph, _p_ctx, final_cut, final_l1);
     };
 
     ++cur_iteration;
     ++cur_fruitless_iteration;
 
-    const EdgeWeight final_cut = metrics::edge_cut(_p_graph);
     if (best_cut - final_cut > (1.0 - _ctx.refinement.jet.fruitless_threshold) * best_cut) {
       DBG0 << "Improved cut from " << initial_cut << " to " << best_cut << " to " << final_cut
            << ": resetting number of fruitless iterations (threshold: "
@@ -181,9 +188,14 @@ void JetRefiner::find_moves() {
 
     const auto max_gainer = _gain_calculator.compute_max_gainer(u);
 
-    if (max_gainer.block != b_u &&
-        (max_gainer.ext_degree > max_gainer.int_degree ||
-         max_gainer.absolute_gain() >= -std::floor(_penalty_factor * max_gainer.int_degree))) {
+    if ( // Is a border node ...
+        max_gainer.block != b_u &&
+        ( // ... and a positive gain move ...
+            max_gainer.ext_degree >= max_gainer.int_degree ||
+            // ... or a negative gain move, but not too bad
+            max_gainer.absolute_gain() > -std::floor(_negative_gain_factor * max_gainer.int_degree)
+        ) //
+    ) {
       _gains_and_targets[u] = {max_gainer.absolute_gain(), max_gainer.block};
     } else {
       _gains_and_targets[u] = {0, b_u};
@@ -207,7 +219,10 @@ void JetRefiner::synchronize_ghost_node_move_candidates() {
 
   mpi::graph::sparse_alltoall_interface_to_pe<Message>(
       _p_graph.graph(),
+
+      // Only consider vertices for which we found a new target block
       [&](const NodeID u) { return _gains_and_targets[u].second != _p_graph.block(u); },
+
       [&](const NodeID u) -> Message {
         return {
             .node = u,
@@ -215,6 +230,7 @@ void JetRefiner::synchronize_ghost_node_move_candidates() {
             .target = _gains_and_targets[u].second,
         };
       },
+
       [&](const auto &recv_buffer, const PEID pe) {
         tbb::parallel_for<std::size_t>(0, recv_buffer.size(), [&](const std::size_t i) {
           const auto [their_lnode, gain, target] = recv_buffer[i];
@@ -242,16 +258,14 @@ void JetRefiner::filter_bad_moves() {
     EdgeWeight projected_gain = 0;
 
     for (const auto &[e, v] : _p_graph.neighbors(u)) {
-      const EdgeWeight w_e = _p_graph.edge_weight(e);
-
       const auto [gain_v, to_v] = _gains_and_targets[v];
       const BlockID projected_b_v =
           (gain_v > gain_u || (gain_v == gain_u && v < u)) ? to_v : _p_graph.block(v);
 
       if (projected_b_v == to_u) {
-        projected_gain += w_e;
+        projected_gain += _p_graph.edge_weight(e);
       } else if (projected_b_v == from_u) {
-        projected_gain -= w_e;
+        projected_gain -= _p_graph.edge_weight(e);
       }
     }
 
@@ -268,15 +282,17 @@ void JetRefiner::move_locked_nodes() {
   SCOPED_TIMER("Execute moves");
 
   _p_graph.pfor_nodes([&](const NodeID u) {
-    if (_locked[u]) {
-      const BlockID from = _p_graph.block(u);
-      const BlockID to = _gains_and_targets[u].second;
-      _p_graph.set_block<false>(u, to);
-
-      const NodeWeight w_u = _p_graph.node_weight(u);
-      __atomic_fetch_sub(&_block_weight_deltas[from], w_u, __ATOMIC_RELAXED);
-      __atomic_fetch_add(&_block_weight_deltas[to], w_u, __ATOMIC_RELAXED);
+    if (!_locked[u]) {
+      return;
     }
+
+    const BlockID from = _p_graph.block(u);
+    const BlockID to = _gains_and_targets[u].second;
+    _p_graph.set_block<false>(u, to);
+
+    const NodeWeight w_u = _p_graph.node_weight(u);
+    __atomic_fetch_sub(&_block_weight_deltas[from], w_u, __ATOMIC_RELAXED);
+    __atomic_fetch_add(&_block_weight_deltas[to], w_u, __ATOMIC_RELAXED);
   });
 }
 
@@ -295,7 +311,13 @@ void JetRefiner::synchronize_ghost_node_labels() {
       // Only exchange messages for nodes that were moved during the last round
       [&](const NodeID u) { return _locked[u]; },
 
-      [&](const NodeID u) -> Message { return {.node = u, .block = _p_graph.block(u)}; },
+      [&](const NodeID u) -> Message {
+        return {
+            .node = u,
+            .block = _p_graph.block(u),
+        };
+      },
+
       [&](const auto &recv_buffer, const PEID pe) {
         tbb::parallel_for<std::size_t>(0, recv_buffer.size(), [&](const std::size_t i) {
           const auto [their_lnode, block] = recv_buffer[i];
@@ -313,15 +335,15 @@ void JetRefiner::apply_block_weight_deltas() {
   MPI_Allreduce(
       MPI_IN_PLACE,
       _block_weight_deltas.data(),
-      _p_graph.k(),
-      mpi::type::get<NodeWeight>(),
+      asserting_cast<int>(_p_graph.k()),
+      mpi::type::get<BlockWeight>(),
       MPI_SUM,
       _p_graph.communicator()
   );
 
-  _p_graph.pfor_blocks([&](const BlockID b) {
-    _p_graph.set_block_weight(b, _p_graph.block_weight(b) + _block_weight_deltas[b]);
-    _block_weight_deltas[b] = 0;
+  _p_graph.pfor_blocks([&](const BlockID block) {
+    _p_graph.set_block_weight(block, _p_graph.block_weight(block) + _block_weight_deltas[block]);
+    _block_weight_deltas[block] = 0;
   });
 }
 } // namespace kaminpar::dist

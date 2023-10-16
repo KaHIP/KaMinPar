@@ -77,14 +77,14 @@ private:
   MaxGainer compute_max_gainer_impl(const NodeID u, WeightChecker &&weight_checker) const {
     KASSERT(_p_graph != nullptr, "GainCalculator not initialized!");
 
+    Random &rand = Random::instance();
+
     const NodeWeight w_u = _p_graph->node_weight(u);
     const BlockID b_u = _p_graph->block(u);
 
     EdgeWeight int_conn = 0;
     EdgeWeight max_ext_conn = 0;
     BlockID max_target = b_u;
-
-    Random &rand = Random::instance();
 
     auto action = [&](auto &map) {
       for (const auto [e, v] : _p_graph->neighbors(u)) {
@@ -98,8 +98,8 @@ private:
 
       for (const auto [target, conn] : map.entries()) {
         if (conn > max_ext_conn || (randomize && conn == max_ext_conn && rand.random_bool())) {
-          max_ext_conn = conn;
           max_target = target;
+          max_ext_conn = conn;
         }
       }
 

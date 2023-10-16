@@ -69,11 +69,11 @@ private:
   BestPartitionSnapshooter _snapshooter;
   RandomizedGainCalculator _gain_calculator;
   StaticArray<std::pair<EdgeWeight, BlockID>> _gains_and_targets;
-  StaticArray<NodeWeight> _block_weight_deltas;
+  StaticArray<BlockWeight> _block_weight_deltas;
   StaticArray<std::uint8_t> _locked;
 
   std::unique_ptr<GlobalRefiner> _balancer;
 
-  double _penalty_factor;
+  double _negative_gain_factor;
 };
 } // namespace kaminpar::dist

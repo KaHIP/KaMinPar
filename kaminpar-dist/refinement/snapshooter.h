@@ -22,6 +22,13 @@ public:
   virtual void
   update(const DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) = 0;
 
+  virtual void update(
+      const DistributedPartitionedGraph &p_graph,
+      const PartitionContext &p_ctx,
+      EdgeWeight cut,
+      double l1
+  ) = 0;
+
   virtual void rollback(DistributedPartitionedGraph &p_graph) = 0;
 };
 
@@ -30,7 +37,16 @@ public:
   BestPartitionSnapshooter(NodeID max_total_n, BlockID max_k);
 
   void init(const DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
+
   void update(const DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
+
+  void update(
+      const DistributedPartitionedGraph &p_graph,
+      const PartitionContext &p_ctx,
+      EdgeWeight cut,
+      double l1
+  ) final;
+
   void rollback(DistributedPartitionedGraph &p_graph) final;
 
 private:
@@ -46,7 +62,11 @@ private:
 class DummyPartitionSnapshooter : public PartitionSnapshooter {
 public:
   void init(const DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
+
   void update(const DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
+
+  void update(const DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx, EdgeWeight cut, double l1) final;
+
   void rollback(DistributedPartitionedGraph &p_graph) final;
 };
 } // namespace kaminpar::dist

@@ -303,8 +303,8 @@ struct JetRefinementContext {
   int num_fruitless_iterations;
   double fruitless_threshold;
 
-  double coarse_penalty_factor;
-  double fine_penalty_factor;
+  double coarse_negative_gain_factor;
+  double fine_negative_gain_factor;
 
   RefinementAlgorithm balancing_algorithm;
 };

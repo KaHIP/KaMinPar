@@ -238,8 +238,8 @@ Context create_default_context() {
                       .num_iterations = 0,
                       .num_fruitless_iterations = 12,
                       .fruitless_threshold = 0.999,
-                      .coarse_penalty_factor = 0.25,
-                      .fine_penalty_factor = 0.75,
+                      .coarse_negative_gain_factor = 0.75,
+                      .fine_negative_gain_factor = 0.25,
                       .balancing_algorithm = RefinementAlgorithm::GREEDY_NODE_BALANCER,
                   },
               .jet_balancer =

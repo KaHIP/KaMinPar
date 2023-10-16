@@ -47,13 +47,21 @@ void BestPartitionSnapshooter::update(
 ) {
   const EdgeWeight current_cut = metrics::edge_cut(p_graph);
   const double current_l1 = metrics::imbalance_l1(p_graph, p_ctx);
+  update(p_graph, p_ctx, current_cut, current_l1);
+}
 
+void BestPartitionSnapshooter::update(
+    const DistributedPartitionedGraph &p_graph,
+    const PartitionContext &p_ctx,
+    const EdgeWeight cut,
+    const double l1
+) {
   // Accept if the previous best partition is imbalanced and we improved its balance
   // OR if we are balanced and got a better cut than before
-  if ((_best_l1 > 0 && current_l1 < _best_l1) || (current_l1 == 0 && current_cut <= _best_cut)) {
+  if ((_best_l1 > 0 && l1 < _best_l1) || (l1 == 0 && cut <= _best_cut)) {
     copy_partition(p_graph, p_ctx);
-    _best_cut = current_cut;
-    _best_l1 = current_l1;
+    _best_cut = cut;
+    _best_l1 = l1;
     _last_is_best = true;
   } else {
     _last_is_best = false;
@@ -81,6 +89,13 @@ void DummyPartitionSnapshooter::init(
 
 void DummyPartitionSnapshooter::update(
     const DistributedPartitionedGraph & /* p_graph */, const PartitionContext & /* p_ctx */
+) {}
+
+void DummyPartitionSnapshooter::update(
+    const DistributedPartitionedGraph & /* p_graph */,
+    const PartitionContext & /* p_ctx */,
+    EdgeWeight /* cut */,
+    double /* l1 */
 ) {}
 
 void DummyPartitionSnapshooter::rollback(DistributedPartitionedGraph & /* p_graph */) {}

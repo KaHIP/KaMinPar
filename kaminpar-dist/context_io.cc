@@ -467,8 +467,8 @@ void print(const RefinementContext &ctx, const ParallelContext &parallel, std::o
     out << "  Number of iterations:       max " << ctx.jet.num_iterations << ", or "
         << ctx.jet.num_fruitless_iterations << " fruitless (improvement < "
         << 100.0 * (1 - ctx.jet.fruitless_threshold) << "%)\n";
-    out << "  Penalty factors:            coarse " << ctx.jet.coarse_penalty_factor << ", fine "
-        << ctx.jet.fine_penalty_factor << "\n";
+    out << "  Penalty factors:            coarse " << ctx.jet.coarse_negative_gain_factor << ", fine "
+        << ctx.jet.fine_negative_gain_factor << "\n";
     out << "  Balancing algorithm:        " << ctx.jet.balancing_algorithm << "\n";
   }
   if (ctx.includes_algorithm(RefinementAlgorithm::GLOBAL_FM)) {
