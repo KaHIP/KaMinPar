@@ -15,13 +15,15 @@
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
 #include "kaminpar-dist/dkaminpar.h"
 
+#include "kaminpar-common/assertion_levels.h"
 #include "kaminpar-common/datastructures/rating_map.h"
 #include "kaminpar-common/random.h"
 
 namespace kaminpar::dist {
 template <bool randomize = true> class GainCalculator {
 public:
-  GainCalculator(const DistributedPartitionedGraph &p_graph) : _p_graph(p_graph) {}
+  GainCalculator(const BlockID max_k)
+      : _rating_map_ets([max_k] { return RatingMap<EdgeWeight, BlockID>(max_k); }) {}
 
   struct MaxGainer {
     EdgeWeight int_degree;
@@ -41,6 +43,10 @@ public:
       }
     }
   };
+
+  void init(const DistributedPartitionedGraph &p_graph) {
+    _p_graph = &p_graph;
+  }
 
   MaxGainer compute_max_gainer(const NodeID u, const PartitionContext &p_ctx) const {
     return compute_max_gainer_impl(
@@ -69,35 +75,31 @@ public:
 private:
   template <typename WeightChecker>
   MaxGainer compute_max_gainer_impl(const NodeID u, WeightChecker &&weight_checker) const {
-    const NodeWeight w_u = _p_graph.node_weight(u);
-    const BlockID b_u = _p_graph.block(u);
+    KASSERT(_p_graph != nullptr, "GainCalculator not initialized!");
 
-    EdgeWeight int_degree = 0;
-    EdgeWeight max_ext_degree = 0;
-    BlockID target = b_u;
+    const NodeWeight w_u = _p_graph->node_weight(u);
+    const BlockID b_u = _p_graph->block(u);
+
+    EdgeWeight int_conn = 0;
+    EdgeWeight max_ext_conn = 0;
+    BlockID max_target = b_u;
 
     Random &rand = Random::instance();
 
     auto action = [&](auto &map) {
-      for (const auto [e, v] : _p_graph.neighbors(u)) {
-        const BlockID b_v = _p_graph.block(v);
-        if (b_u != b_v &&
-            weight_checker(b_v, _p_graph.block_weight(b_v) + w_u)) {
-          map[b_v] += _p_graph.edge_weight(e);
+      for (const auto [e, v] : _p_graph->neighbors(u)) {
+        const BlockID b_v = _p_graph->block(v);
+        if (b_u != b_v && weight_checker(b_v, _p_graph->block_weight(b_v) + w_u)) {
+          map[b_v] += _p_graph->edge_weight(e);
         } else if (b_u == b_v) {
-          int_degree += _p_graph.edge_weight(e);
+          int_conn += _p_graph->edge_weight(e);
         }
       }
 
-      for (const auto [block, gain] : map.entries()) {
-        bool accept = gain > max_ext_degree;
-        if constexpr (randomize) {
-          accept = accept || (gain == max_ext_degree && rand.random_bool());
-        }
-
-        if (accept) {
-          target = block;
-          max_ext_degree = gain;
+      for (const auto [target, conn] : map.entries()) {
+        if (conn > max_ext_conn || (randomize && conn == max_ext_conn && rand.random_bool())) {
+          max_ext_conn = conn;
+          max_target = target;
         }
       }
 
@@ -110,13 +112,11 @@ private:
     // @todo Use a different hash map for low-degree vertices
     // @todo This requires us to use something other than FastResetArray<> as fallback map
 
-    return {int_degree, max_ext_degree, target, w_u};
+    return {int_conn, max_ext_conn, max_target, w_u};
   }
 
-  const DistributedPartitionedGraph &_p_graph;
-  mutable tbb::enumerable_thread_specific<RatingMap<EdgeWeight, BlockID>> _rating_map_ets{[&] {
-    return RatingMap<EdgeWeight, BlockID>(_p_graph.k());
-  }};
+  const DistributedPartitionedGraph *_p_graph = nullptr;
+  mutable tbb::enumerable_thread_specific<RatingMap<EdgeWeight, BlockID>> _rating_map_ets;
 };
 
 using RandomizedGainCalculator = GainCalculator<true>;

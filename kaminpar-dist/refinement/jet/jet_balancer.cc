@@ -28,7 +28,7 @@ JetBalancer::JetBalancer(
     : _ctx(ctx),
       _p_graph(p_graph),
       _p_ctx(p_ctx),
-      _gain_calculator(_p_graph),
+      _gain_calculator(_p_ctx.k),
       _local_buckets(_p_graph, _p_ctx) {}
 
 void JetBalancer::initialize() {}

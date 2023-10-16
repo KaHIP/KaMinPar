@@ -45,7 +45,9 @@ NodeBalancer::NodeBalancer(
           p_graph, p_ctx, _nb_ctx.par_enable_positive_gain_buckets, _nb_ctx.par_gain_bucket_base
       ),
       _cached_cutoff_buckets(_p_graph.k()),
-      _gain_calculator(p_graph) {}
+      _gain_calculator(_p_ctx.k) {
+  _gain_calculator.init(_p_graph);
+}
 
 void NodeBalancer::initialize() {
   SCOPED_TIMER("Node balancer");
