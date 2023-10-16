@@ -48,7 +48,9 @@ JetRefiner::JetRefiner(
                     ->create(_p_graph, _p_ctx)) {}
 
 void JetRefiner::initialize() {
-  SCOPED_TIMER("Jet initialization");
+  TIMER_BARRIER(_p_graph.communicator());
+  SCOPED_TIMER("Jet Refiner");
+  SCOPED_TIMER("Initialization");
 
   _snapshooter.init(_p_graph, _p_ctx);
   _gain_calculator.init(_p_graph);
@@ -72,7 +74,7 @@ void JetRefiner::initialize() {
 
 bool JetRefiner::refine() {
   TIMER_BARRIER(_p_graph.communicator());
-  SCOPED_TIMER("Jet Refinement");
+  SCOPED_TIMER("Jet Refiner");
 
   KASSERT(
       [&] {
@@ -165,6 +167,7 @@ bool JetRefiner::refine() {
 }
 
 void JetRefiner::find_moves() {
+  TIMER_BARRIER(_p_graph.communicator());
   SCOPED_TIMER("Find moves");
 
   _p_graph.pfor_nodes([&](const NodeID u) {
@@ -186,11 +189,10 @@ void JetRefiner::find_moves() {
       _gains_and_targets[u] = {0, b_u};
     }
   });
-
-  TIMER_BARRIER(_p_graph.communicator());
 }
 
 void JetRefiner::synchronize_ghost_node_move_candidates() {
+  TIMER_BARRIER(_p_graph.communicator());
   SCOPED_TIMER("Exchange moves");
 
   tbb::parallel_for<NodeID>(_p_graph.n(), _p_graph.total_n(), [&](const NodeID ghost) {
@@ -221,11 +223,10 @@ void JetRefiner::synchronize_ghost_node_move_candidates() {
         });
       }
   );
-
-  TIMER_BARRIER(_p_graph.communicator());
 }
 
 void JetRefiner::filter_bad_moves() {
+  TIMER_BARRIER(_p_graph.communicator());
   SCOPED_TIMER("Filter moves");
 
   _p_graph.pfor_nodes([&](const NodeID u) {
@@ -260,11 +261,10 @@ void JetRefiner::filter_bad_moves() {
       _locked[u] = 1;
     }
   });
-
-  TIMER_BARRIER(_p_graph.communicator());
 }
 
 void JetRefiner::move_locked_nodes() {
+  TIMER_BARRIER(_p_graph.communicator());
   SCOPED_TIMER("Execute moves");
 
   _p_graph.pfor_nodes([&](const NodeID u) {
@@ -278,11 +278,10 @@ void JetRefiner::move_locked_nodes() {
       __atomic_fetch_add(&_block_weight_deltas[to], w_u, __ATOMIC_RELAXED);
     }
   });
-
-  TIMER_BARRIER(_p_graph.communicator());
 }
 
 void JetRefiner::synchronize_ghost_node_labels() {
+  TIMER_BARRIER(_p_graph.communicator());
   SCOPED_TIMER("Synchronize ghost node labels");
 
   struct Message {
@@ -305,11 +304,10 @@ void JetRefiner::synchronize_ghost_node_labels() {
         });
       }
   );
-
-  TIMER_BARRIER(_p_graph.communicator());
 }
 
 void JetRefiner::apply_block_weight_deltas() {
+  TIMER_BARRIER(_p_graph.communicator());
   SCOPED_TIMER("Apply block weight deltas");
 
   MPI_Allreduce(
@@ -325,7 +323,5 @@ void JetRefiner::apply_block_weight_deltas() {
     _p_graph.set_block_weight(b, _p_graph.block_weight(b) + _block_weight_deltas[b]);
     _block_weight_deltas[b] = 0;
   });
-
-  TIMER_BARRIER(_p_graph.communicator());
 }
 } // namespace kaminpar::dist

@@ -50,7 +50,8 @@ NodeBalancer::NodeBalancer(
 }
 
 void NodeBalancer::initialize() {
-  SCOPED_TIMER("Node balancer");
+  TIMER_BARRIER(_p_graph.communicator());
+  SCOPED_TIMER("Node Balancer");
   SCOPED_TIMER("Initialization");
 
   // Only initialize the balancer is the partition is actually imbalanced
@@ -120,7 +121,7 @@ void NodeBalancer::initialize() {
 
 bool NodeBalancer::refine() {
   TIMER_BARRIER(_p_graph.communicator());
-  SCOPED_TIMER("Balancer");
+  SCOPED_TIMER("Node Balancer");
 
   // Only balance the partition if it is infeasible
   if (metrics::is_feasible(_p_graph, _p_ctx)) {
