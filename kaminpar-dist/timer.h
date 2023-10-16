@@ -14,6 +14,12 @@
 
 #include "kaminpar-common/timer.h"
 
+#ifdef KAMINPAR_ENABLE_TIMER_BARRIERS
+#define TIMER_BARRIER(comm) MPI_Barrier(comm)
+#else // KAMINPAR_ENABLE_TIMER_BARRIERS
+#define TIMER_BARRIER(comm)
+#endif // KAMINPAR_ENABLE_TIMER_BARRIERS
+
 namespace kaminpar::dist {
 void finalize_distributed_timer(Timer &timer, MPI_Comm comm);
 } // namespace kaminpar::dist
