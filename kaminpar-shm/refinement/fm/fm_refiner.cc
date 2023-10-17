@@ -685,7 +685,6 @@ void LocalizedFMRefiner<DeltaPartitionedGraph, GainCache>::update_after_move(
     );
   } else {
     // old_target_block OR moved_to is best
-    // @todo optimize this for on-the-fly gain caching
     const auto [gain_old_target_block, gain_moved_to] =
         _d_gain_cache.gain(node, old_block, {old_target_block, moved_to});
 

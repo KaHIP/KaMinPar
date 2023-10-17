@@ -331,6 +331,9 @@ CLI::Option_group *create_debug_options(CLI::App *app, Context &ctx) {
       "Active all --d-dump-* options."
   );
 
+  debug->add_flag("--d-sort-input-graph-neighbors", ctx.debug.sort_input_graph_neighbors)
+      ->capture_default_str();
+
   return debug;
 }
 } // namespace kaminpar::shm
