@@ -13,6 +13,7 @@
 
 #include "kaminpar-common/asserting_cast.h"
 #include "kaminpar-common/console_io.h"
+#include "kaminpar-common/random.h"
 #include "kaminpar-common/strutils.h"
 
 namespace kaminpar::shm {
@@ -233,6 +234,7 @@ void print(const PartitioningContext &p_ctx, std::ostream &out) {
 
 void print(const Context &ctx, std::ostream &out) {
   out << "Execution mode:               " << ctx.parallel.num_threads << "\n";
+  out << "Seed:                         " << Random::get_seed() << "\n";
   out << "Graph:                        " << ctx.debug.graph_name << "\n";
   print(ctx.partition, out);
   cio::print_delimiter("Partitioning Scheme", '-');

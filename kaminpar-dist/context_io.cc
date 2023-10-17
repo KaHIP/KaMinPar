@@ -282,7 +282,7 @@ std::unordered_map<std::string, ClusterStrategy> get_move_set_strategies() {
 
 void print(const Context &ctx, const bool root, std::ostream &out, MPI_Comm comm) {
   if (root) {
-    out << "Seed:                         " << Random::seed << "\n";
+    out << "Seed:                         " << Random::get_seed() << "\n";
     out << "Graph:                        " << ctx.debug.graph_filename << "\n";
     out << "  Rearrange graph by:         " << ctx.rearrange_by << "\n";
   }
