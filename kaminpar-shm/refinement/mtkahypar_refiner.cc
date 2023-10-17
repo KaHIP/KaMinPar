@@ -42,7 +42,7 @@ bool MtKaHyParRefiner::refine(
       static_cast<mt_kahypar_partition_id_t>(p_ctx.k),
       p_ctx.epsilon,
       KM1,
-      Random::seed
+      Random::get_seed()
   );
 
   NoinitVector<mt_kahypar_hypernode_weight_t> block_weights(p_ctx.k);
