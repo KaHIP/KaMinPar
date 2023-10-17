@@ -114,10 +114,13 @@ std::unique_ptr<Refiner> create_refiner(const Context &ctx) {
     return create_refiner(ctx, ctx.refinement.algorithms.front());
   }
 
-  std::vector<std::unique_ptr<Refiner>> refiners;
+  std::unordered_map<RefinementAlgorithm, std::unique_ptr<Refiner>> refiners;
   for (const RefinementAlgorithm algorithm : ctx.refinement.algorithms) {
-    refiners.push_back(create_refiner(ctx, algorithm));
+    if (refiners.find(algorithm) == refiners.end()) {
+      refiners[algorithm] = create_refiner(ctx, algorithm);
+    }
   }
-  return std::make_unique<MultiRefiner>(std::move(refiners));
+
+  return std::make_unique<MultiRefiner>(std::move(refiners), ctx.refinement.algorithms);
 }
 } // namespace kaminpar::shm::factory
