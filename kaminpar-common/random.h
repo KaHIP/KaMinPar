@@ -26,6 +26,7 @@ public:
 
   static Random &instance();
   static void seed(int seed);
+  static int get_seed();
 
   Random(const Random &) = delete;
   Random &operator=(const Random &) = delete;
