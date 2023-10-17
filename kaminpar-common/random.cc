@@ -35,7 +35,7 @@ void Random::seed(const int seed) {
 }
 
 int Random::get_seed() {
-    return _seed;
+  return _seed;
 }
 
 Random::Random()

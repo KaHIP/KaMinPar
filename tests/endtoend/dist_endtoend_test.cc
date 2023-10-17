@@ -205,4 +205,3 @@ TEST(
   }
 }
 } // namespace kaminpar::dist
-

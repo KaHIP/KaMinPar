@@ -10,7 +10,8 @@ for directory in "apps" \
     "kaminpar-common" \
     "kaminpar-shm" \
     "kaminpar-dist" \
-    "kaminpar-cli"; do
+    "kaminpar-cli" \
+    "kaminpar-mpi"; do
     find "$directory"                        \
         -type f                              \
         \( -name "*.cc" -or -name "*.h" \)   \

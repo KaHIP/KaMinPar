@@ -171,6 +171,6 @@ bool validate_graph(
 }
 
 EdgeID compute_max_degree(const Graph &graph) {
-    return parallel::max_difference(graph.raw_nodes().begin(), graph.raw_nodes().end());
+  return parallel::max_difference(graph.raw_nodes().begin(), graph.raw_nodes().end());
 }
 } // namespace kaminpar::shm
