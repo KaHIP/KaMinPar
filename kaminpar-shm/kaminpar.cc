@@ -170,6 +170,11 @@ EdgeWeight KaMinPar::compute_partition(const int seed, const BlockID k, BlockID 
     _graph_ptr =
         std::make_unique<Graph>(graph::rearrange_by_degree_buckets(_ctx, std::move(*_graph_ptr)));
     _was_rearranged = true;
+
+    // Sort neighbor IDs of each node, useful for quick debugging experiments etc.
+    if (_ctx.debug.sort_input_graph_neighbors) {
+      _graph_ptr->sort_neighbors();
+    }
   }
 
   // Perform actual partitioning
