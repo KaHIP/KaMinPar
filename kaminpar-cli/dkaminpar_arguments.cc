@@ -146,6 +146,7 @@ CLI::Option_group *create_refinement_options(CLI::App *app, Context &ctx) {
   create_lp_refinement_options(app, ctx);
   create_colored_lp_refinement_options(app, ctx);
   create_jet_refinement_options(app, ctx);
+  create_mtkahypar_refinement_options(app, ctx);
   create_node_balancer_options(app, ctx);
   create_cluster_balancer_options(app, ctx);
 
@@ -630,5 +631,16 @@ CLI::Option_group *create_jet_refinement_options(CLI::App *app, Context &ctx) {
       ->capture_default_str();
 
   return jet;
+}
+
+CLI::Option_group *create_mtkahypar_refinement_options(CLI::App *app, Context &ctx) {
+  auto *mtkahypar = app->add_option_group("Refinement -> MtKaHyPar");
+
+  mtkahypar->add_option("--r-mtkahypar-config", ctx.refinement.mtkahypar.config_filename)
+      ->capture_default_str();
+  mtkahypar->add_flag("--r-mtkahypar-only-run-on-root", ctx.refinement.mtkahypar.only_run_on_root)
+      ->capture_default_str();
+
+  return mtkahypar;
 }
 } // namespace kaminpar::dist

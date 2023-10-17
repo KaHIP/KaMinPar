@@ -22,7 +22,7 @@
 
 #include "kaminpar-common/random.h"
 
-#define HEAVY assert::heavy
+#define HEAVY assert::normal
 
 namespace kaminpar::dist {
 JetRefinerFactory::JetRefinerFactory(const Context &ctx) : _ctx(ctx) {}
