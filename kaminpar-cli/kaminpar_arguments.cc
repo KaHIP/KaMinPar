@@ -235,7 +235,14 @@ CLI::Option_group *create_kway_fm_refinement_options(CLI::App *app, Context &ctx
   fm->add_option("--r-fm-gain-cache", ctx.refinement.kway_fm.gain_cache_strategy)
       ->transform(CLI::CheckedTransformer(get_gain_cache_strategies()).description(""))
       ->capture_default_str();
-  fm->add_option("--r-fm-high-degree-factor", ctx.refinement.kway_fm.high_degree_factor)
+  fm->add_option(
+        "--r-fm-constant-high-degree-threshold",
+        ctx.refinement.kway_fm.constant_high_degree_threshold
+  )
+      ->capture_default_str();
+  fm->add_option(
+        "--r-fm-k-based-high-degree-threshold", ctx.refinement.kway_fm.k_based_high_degree_threshold
+  )
       ->capture_default_str();
   fm->add_flag("--r-fm-preallocate-gain-cache", ctx.refinement.kway_fm.preallocate_gain_cache)
       ->capture_default_str();

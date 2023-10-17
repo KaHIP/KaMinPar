@@ -25,17 +25,17 @@
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
-template <typename DeltaPartitionedGraph, typename GainCache> class HighDegreeDeltaGainCache;
+template <typename DeltaPartitionedGraph, typename GainCache> class HybridDeltaGainCache;
 
-template <bool iterate_exact_gains = true> class HighDegreeGainCache {
+template <bool iterate_exact_gains = true> class HybridGainCache {
   SET_DEBUG(true);
 
-  using Self = HighDegreeGainCache<iterate_exact_gains>;
-  template <typename, typename> friend class HighDegreeDeltaGainCache;
+  using Self = HybridGainCache<iterate_exact_gains>;
+  template <typename, typename> friend class HybridDeltaGainCache;
 
 public:
   template <typename DeltaPartitionedGraph>
-  using DeltaCache = HighDegreeDeltaGainCache<DeltaPartitionedGraph, Self>;
+  using DeltaCache = HybridDeltaGainCache<DeltaPartitionedGraph, Self>;
 
   // gains() will iterate over all blocks, including those not adjacent to the node.
   constexpr static bool kIteratesNonadjacentBlocks = true;
@@ -45,7 +45,7 @@ public:
   // (more expensive, but safes a call to gain() if the exact gain for the best block is needed).
   constexpr static bool kIteratesExactGains = iterate_exact_gains;
 
-  HighDegreeGainCache(const Context &ctx, const NodeID max_n, const BlockID max_k)
+  HybridGainCache(const Context &ctx, const NodeID max_n, const BlockID max_k)
       : _ctx(ctx),
         _on_the_fly_gain_cache(ctx, max_n, max_k),
         _gain_cache(
@@ -67,7 +67,11 @@ public:
     _high_degree_threshold = 0;
 
     if (p_graph.sorted()) {
-      const EdgeID threshold = _k * _ctx.refinement.kway_fm.high_degree_factor;
+      const EdgeID threshold = std::max<EdgeID>(
+          _k * _ctx.refinement.kway_fm.k_based_high_degree_threshold,
+          _ctx.refinement.kway_fm.constant_high_degree_threshold
+      );
+
       for (int bucket = 0; _high_degree_threshold < p_graph.n() &&
                            p_graph.degree(_high_degree_threshold) < threshold;
            ++bucket) {
@@ -299,12 +303,12 @@ private:
   OnTheFlyGainCache<kIteratesExactGains> _on_the_fly_gain_cache;
 };
 
-template <typename DeltaPartitionedGraph, typename GainCache> class HighDegreeDeltaGainCache {
+template <typename DeltaPartitionedGraph, typename GainCache> class HybridDeltaGainCache {
 public:
   constexpr static bool kIteratesNonadjacentBlocks = GainCache::kIteratesNonadjacentBlocks;
   constexpr static bool kIteratesExactGains = GainCache::kIteratesExactGains;
 
-  HighDegreeDeltaGainCache(const GainCache &gain_cache, const DeltaPartitionedGraph &d_graph)
+  HybridDeltaGainCache(const GainCache &gain_cache, const DeltaPartitionedGraph &d_graph)
       : _gain_cache(gain_cache),
         _on_the_fly_delta_gain_cache(_gain_cache._on_the_fly_gain_cache, d_graph) {}
 

@@ -153,7 +153,7 @@ std::unordered_map<std::string, GainCacheStrategy> get_gain_cache_strategies() {
   return {
       {"dense", GainCacheStrategy::DENSE},
       {"on-the-fly", GainCacheStrategy::ON_THE_FLY},
-      {"high-degree", GainCacheStrategy::HIGH_DEGREE},
+      {"hybrid", GainCacheStrategy::HYBRID},
   };
 }
 
@@ -163,8 +163,8 @@ std::ostream &operator<<(std::ostream &out, const GainCacheStrategy strategy) {
     return out << "dense";
   case GainCacheStrategy::ON_THE_FLY:
     return out << "on-the-fly";
-  case GainCacheStrategy::HIGH_DEGREE:
-    return out << "high-degree";
+  case GainCacheStrategy::HYBRID:
+    return out << "hybrid";
   }
 
   return out << "<invalid>";
@@ -206,8 +206,12 @@ void print(const RefinementContext &r_ctx, std::ostream &out) {
         << "%]\n";
     out << "  Number of seed nodes:       " << r_ctx.kway_fm.num_seed_nodes << "\n";
     out << "  Gain cache:                 " << r_ctx.kway_fm.gain_cache_strategy << "\n";
-    if (r_ctx.kway_fm.gain_cache_strategy == GainCacheStrategy::HIGH_DEGREE) {
-      out << "  High-degree factor:         " << r_ctx.kway_fm.high_degree_factor << "\n";
+    if (r_ctx.kway_fm.gain_cache_strategy == GainCacheStrategy::HYBRID) {
+      out << "  High-degree threshold:\n";
+      out << "    based on k:               " << r_ctx.kway_fm.k_based_high_degree_threshold
+          << "\n";
+      out << "    constant:                 " << r_ctx.kway_fm.constant_high_degree_threshold
+          << "\n";
       out << "  Preallocate gain cache:     " << r_ctx.kway_fm.preallocate_gain_cache << "\n";
     }
   }

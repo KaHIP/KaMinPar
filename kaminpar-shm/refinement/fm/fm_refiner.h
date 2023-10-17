@@ -17,7 +17,7 @@
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/refinement/fm/stopping_policies.h"
 #include "kaminpar-shm/refinement/gains/dense_gain_cache.h"
-#include "kaminpar-shm/refinement/gains/high_degree_gain_cache.h"
+#include "kaminpar-shm/refinement/gains/hybrid_gain_cache.h"
 #include "kaminpar-shm/refinement/gains/on_the_fly_gain_cache.h"
 #include "kaminpar-shm/refinement/refiner.h"
 
@@ -29,7 +29,7 @@ namespace fm {
 using DefaultDeltaPartitionedGraph = GenericDeltaPartitionedGraph<>;
 using DenseGainCache = DenseGainCache<>;
 using OnTheFlyGainCache = OnTheFlyGainCache<>;
-using HighDegreeGainCache = HighDegreeGainCache<>;
+using HighDegreeGainCache = HybridGainCache<>;
 
 struct Stats {
   parallel::Atomic<NodeID> num_touched_nodes = 0;
