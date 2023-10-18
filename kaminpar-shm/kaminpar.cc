@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Public library interface of KaMinPar.
+ *
  * @file:   kaminpar.cc
  * @author: Daniel Seemaier
  * @date:   13.03.2023
- * @brief:  Public symbols of the shared-memory partitioner
  ******************************************************************************/
 #include "kaminpar-shm/kaminpar.h"
 
@@ -64,9 +65,9 @@ void print_statistics(
 }
 } // namespace
 
-KaMinPar::KaMinPar(const int num_threads, const Context ctx)
+KaMinPar::KaMinPar(const int num_threads, Context ctx)
     : _num_threads(num_threads),
-      _ctx(ctx),
+      _ctx(std::move(ctx)),
       _gc(tbb::global_control::max_allowed_parallelism, num_threads) {
   GLOBAL_TIMER.reset();
 }
@@ -122,8 +123,8 @@ void KaMinPar::copy_graph(
 
   StaticArray<EdgeID> nodes(n + 1);
   StaticArray<NodeID> edges(m);
-  StaticArray<NodeWeight> node_weights(has_node_weights * n);
-  StaticArray<EdgeWeight> edge_weights(has_edge_weights * m);
+  StaticArray<NodeWeight> node_weights(has_node_weights ? 0 : n);
+  StaticArray<EdgeWeight> edge_weights(has_edge_weights ? 0 : m);
 
   nodes[n] = xadj[n];
   tbb::parallel_for<NodeID>(0, n, [&](const NodeID u) {
