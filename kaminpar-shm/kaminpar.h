@@ -169,7 +169,7 @@ struct RefinementContext {
   JetRefinementContext jet;
   MtKaHyParRefinementContext mtkahypar;
 
-  bool includes_algorithm(const RefinementAlgorithm algorithm) const {
+  [[nodiscard]] bool includes_algorithm(const RefinementAlgorithm algorithm) const {
     return std::find(algorithms.begin(), algorithms.end(), algorithm) != algorithms.end();
   }
 };
@@ -317,6 +317,13 @@ namespace kaminpar {
 class KaMinPar {
 public:
   KaMinPar(int num_threads, shm::Context ctx);
+
+  KaMinPar(const KaMinPar &) = delete;
+  KaMinPar &operator=(const KaMinPar &) = delete;
+
+  KaMinPar(KaMinPar &&) noexcept = default;
+  KaMinPar &operator=(KaMinPar &&) noexcept = default;
+
   ~KaMinPar();
 
   /*!
