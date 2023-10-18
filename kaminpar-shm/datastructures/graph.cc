@@ -106,6 +106,13 @@ void Graph::update_total_node_weight() {
   }
 }
 
+void Graph::sort_neighbors() {
+  KASSERT(!is_edge_weighted(), "not implemented", assert::heavy);
+  pfor_nodes([&](const NodeID u) {
+    std::sort(_edges.begin() + _nodes[u], _edges.begin() + _nodes[u + 1]);
+  });
+}
+
 //
 // Utility debug functions
 //

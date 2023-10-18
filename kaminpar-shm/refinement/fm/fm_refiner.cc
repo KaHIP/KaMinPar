@@ -141,9 +141,9 @@ template <typename DeltaPartitionedGraph, typename GainCache>
 FMRefiner<DeltaPartitionedGraph, GainCache>::FMRefiner(const Context &input_ctx)
     : _ctx(input_ctx),
       _fm_ctx(input_ctx.refinement.kway_fm),
-      _shared(
-          std::make_unique<fm::SharedData<GainCache>>(input_ctx.partition.n, input_ctx.partition.k)
-      ) {}
+      _shared(std::make_unique<fm::SharedData<GainCache>>(
+          input_ctx, input_ctx.partition.n, input_ctx.partition.k
+      )) {}
 
 template <typename DeltaPartitionedGraph, typename GainCache>
 FMRefiner<DeltaPartitionedGraph, GainCache>::~FMRefiner() = default;
@@ -685,8 +685,8 @@ void LocalizedFMRefiner<DeltaPartitionedGraph, GainCache>::update_after_move(
     );
   } else {
     // old_target_block OR moved_to is best
-    const EdgeWeight gain_old_target_block = _d_gain_cache.gain(node, old_block, old_target_block);
-    const EdgeWeight gain_moved_to = _d_gain_cache.gain(node, old_block, moved_to);
+    const auto [gain_old_target_block, gain_moved_to] =
+        _d_gain_cache.gain(node, old_block, {old_target_block, moved_to});
 
     if (gain_moved_to > gain_old_target_block &&
         _d_graph.block_weight(moved_to) + _d_graph.node_weight(node) <=
@@ -777,15 +777,19 @@ std::pair<BlockID, EdgeWeight> LocalizedFMRefiner<DeltaPartitionedGraph, GainCac
 
 namespace fm {
 template class SharedData<DenseGainCache>;
-// template class SharedData<OnTheFlyGainCache>;
+template class SharedData<HighDegreeGainCache>;
+template class SharedData<OnTheFlyGainCache>;
 } // namespace fm
 
 // template class FMRefiner<fm::DefaultDeltaPartitionedGraph, fm::DenseGainCache>;
 // template class LocalizedFMRefiner<fm::DefaultDeltaPartitionedGraph, fm::DenseGainCache>;
 
-// template class FMRefiner<fm::DefaultDeltaPartitionedGraph, fm::OnTheFlyGainCache>;
-// template class LocalizedFMRefiner<fm::DefaultDeltaPartitionedGraph, fm::OnTheFlyGainCache>;
+template class FMRefiner<fm::DefaultDeltaPartitionedGraph, fm::OnTheFlyGainCache>;
+template class LocalizedFMRefiner<fm::DefaultDeltaPartitionedGraph, fm::OnTheFlyGainCache>;
 
 template class FMRefiner<fm::DefaultDeltaPartitionedGraph, fm::DenseGainCache>;
 template class LocalizedFMRefiner<fm::DefaultDeltaPartitionedGraph, fm::DenseGainCache>;
+
+template class FMRefiner<fm::DefaultDeltaPartitionedGraph, fm::HighDegreeGainCache>;
+template class LocalizedFMRefiner<fm::DefaultDeltaPartitionedGraph, fm::HighDegreeGainCache>;
 } // namespace kaminpar::shm

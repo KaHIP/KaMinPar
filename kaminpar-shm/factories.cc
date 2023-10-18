@@ -32,6 +32,7 @@
 
 // Gain cache strategies for the FM algorithm
 #include "kaminpar-shm/refinement/gains/dense_gain_cache.h"
+#include "kaminpar-shm/refinement/gains/hybrid_gain_cache.h"
 #include "kaminpar-shm/refinement/gains/on_the_fly_gain_cache.h"
 
 namespace kaminpar::shm::factory {
@@ -89,6 +90,14 @@ std::unique_ptr<Refiner> create_refiner(const Context &ctx, const RefinementAlgo
   case RefinementAlgorithm::KWAY_FM: {
     if (ctx.refinement.kway_fm.gain_cache_strategy == GainCacheStrategy::DENSE) {
       return std::make_unique<FMRefiner<fm::DefaultDeltaPartitionedGraph, fm::DenseGainCache>>(ctx);
+    } else if (ctx.refinement.kway_fm.gain_cache_strategy == GainCacheStrategy::ON_THE_FLY) {
+      return std::make_unique<FMRefiner<fm::DefaultDeltaPartitionedGraph, fm::OnTheFlyGainCache>>(
+          ctx
+      );
+    } else if (ctx.refinement.kway_fm.gain_cache_strategy == GainCacheStrategy::HYBRID) {
+      return std::make_unique<FMRefiner<fm::DefaultDeltaPartitionedGraph, fm::HighDegreeGainCache>>(
+          ctx
+      );
     }
     __builtin_unreachable();
   }

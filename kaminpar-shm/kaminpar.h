@@ -119,6 +119,8 @@ enum class FMStoppingRule {
 
 enum class GainCacheStrategy {
   DENSE,
+  ON_THE_FLY,
+  HYBRID,
 };
 
 struct LabelPropagationRefinementContext {
@@ -136,7 +138,11 @@ struct KwayFMRefinementContext {
   double abortion_threshold;
 
   GainCacheStrategy gain_cache_strategy;
-  double k_vs_degree_threshold;
+
+  // gain_cache_strategy == HybridGainCache
+  EdgeID constant_high_degree_threshold;
+  double k_based_high_degree_threshold;
+  bool preallocate_gain_cache;
 
   bool dbg_compute_batch_size_statistics;
 };
@@ -258,6 +264,8 @@ struct DebugContext {
   bool dump_coarsest_partition;
   bool dump_graph_hierarchy;
   bool dump_partition_hierarchy;
+
+  bool sort_neighbors_before_partitioning;
 };
 
 enum class PartitioningMode {

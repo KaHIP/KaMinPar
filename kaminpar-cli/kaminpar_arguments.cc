@@ -232,10 +232,19 @@ CLI::Option_group *create_kway_fm_refinement_options(CLI::App *app, Context &ctx
         "iteration falls below this threshold (lower = weaker, but faster)."
   )
       ->capture_default_str();
-  fm->add_flag("--r-fm-gain-cache", ctx.refinement.kway_fm.gain_cache_strategy)
+  fm->add_option("--r-fm-gain-cache", ctx.refinement.kway_fm.gain_cache_strategy)
       ->transform(CLI::CheckedTransformer(get_gain_cache_strategies()).description(""))
       ->capture_default_str();
-  fm->add_flag("--r-fm-k-vs-degree", ctx.refinement.kway_fm.k_vs_degree_threshold)
+  fm->add_option(
+        "--r-fm-constant-high-degree-threshold",
+        ctx.refinement.kway_fm.constant_high_degree_threshold
+  )
+      ->capture_default_str();
+  fm->add_option(
+        "--r-fm-k-based-high-degree-threshold", ctx.refinement.kway_fm.k_based_high_degree_threshold
+  )
+      ->capture_default_str();
+  fm->add_flag("--r-fm-preallocate-gain-cache", ctx.refinement.kway_fm.preallocate_gain_cache)
       ->capture_default_str();
   fm->add_flag(
         "--r-fm-dbg-batch-size-stats", ctx.refinement.kway_fm.dbg_compute_batch_size_statistics
@@ -321,6 +330,9 @@ CLI::Option_group *create_debug_options(CLI::App *app, Context &ctx) {
       },
       "Active all --d-dump-* options."
   );
+
+  debug->add_flag("--d-sort-neighbors-before-partitioning", ctx.debug.sort_neighbors_before_partitioning)
+      ->capture_default_str();
 
   return debug;
 }
