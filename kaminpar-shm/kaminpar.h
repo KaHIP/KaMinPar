@@ -265,7 +265,7 @@ struct DebugContext {
   bool dump_graph_hierarchy;
   bool dump_partition_hierarchy;
 
-  bool sort_input_graph_neighbors;
+  bool sort_neighbors_before_partitioning;
 };
 
 enum class PartitioningMode {

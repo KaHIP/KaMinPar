@@ -155,7 +155,7 @@ Context create_default_context() {
               .dump_graph_hierarchy = false,
               .dump_partition_hierarchy = false,
 
-              .sort_input_graph_neighbors = false,
+              .sort_neighbors_before_partitioning = false,
           },
   };
 }

@@ -172,7 +172,7 @@ EdgeWeight KaMinPar::compute_partition(const int seed, const BlockID k, BlockID 
     _was_rearranged = true;
 
     // Sort neighbor IDs of each node, useful for quick debugging experiments etc.
-    if (_ctx.debug.sort_input_graph_neighbors) {
+    if (_ctx.debug.sort_neighbors_before_partitioning) {
       _graph_ptr->sort_neighbors();
     }
   }
