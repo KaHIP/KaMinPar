@@ -123,8 +123,8 @@ void KaMinPar::copy_graph(
 
   StaticArray<EdgeID> nodes(n + 1);
   StaticArray<NodeID> edges(m);
-  StaticArray<NodeWeight> node_weights(has_node_weights ? 0 : n);
-  StaticArray<EdgeWeight> edge_weights(has_edge_weights ? 0 : m);
+  StaticArray<NodeWeight> node_weights(has_node_weights ? n : 0);
+  StaticArray<EdgeWeight> edge_weights(has_edge_weights ? m : 0);
 
   nodes[n] = xadj[n];
   tbb::parallel_for<NodeID>(0, n, [&](const NodeID u) {
