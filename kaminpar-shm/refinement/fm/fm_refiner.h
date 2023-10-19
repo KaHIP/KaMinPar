@@ -197,14 +197,12 @@ template <typename GainCache = fm::DenseGainCache> struct SharedData {
   SharedData &operator=(SharedData &&) = delete;
 
   ~SharedData() {
-    START_TIMER("Free shared FM refiner state");
     tbb::parallel_invoke(
         [&] { shared_pq_handles.free(); },
         [&] { target_blocks.free(); },
         [&] { node_tracker.free(); },
         [&] { gain_cache.free(); }
     );
-    STOP_TIMER();
   }
 
   NodeTracker node_tracker;
