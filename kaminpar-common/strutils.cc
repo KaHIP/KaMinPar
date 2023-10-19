@@ -10,10 +10,10 @@
 #include <sstream>
 
 namespace kaminpar::str {
-std::string extract_basename(const std::string &path) {
+std::string extract_basename(const std::string &path, const bool keep_extension) {
   const std::size_t slash = path.find_last_of('/');
   const std::string name = path.substr(slash == std::string::npos ? 0 : slash + 1);
-  return name.substr(0, name.find_last_of('.'));
+  return keep_extension ? name : name.substr(0, name.find_last_of('.'));
 }
 
 std::string to_lower(std::string arg) {

@@ -14,7 +14,7 @@
 #include <vector>
 
 namespace kaminpar::str {
-std::string extract_basename(const std::string &path);
+std::string extract_basename(const std::string &path, bool keep_extension = false);
 std::string to_lower(std::string arg);
 std::vector<std::string> explode(const std::string &str, char del);
 bool ends_with(const std::string &filename, const std::string &extension);

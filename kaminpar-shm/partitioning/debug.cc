@@ -13,17 +13,30 @@
 #include "kaminpar-shm/context.h"
 #include "kaminpar-shm/datastructures/graph.h"
 
+#include "kaminpar-common/strutils.h"
+
 namespace kaminpar::shm::debug {
 namespace {
 std::string
 generate_filename(const Graph &graph, const DebugContext &d_ctx, const std::string &suffix) {
   std::stringstream filename_ss;
 
+  if (!d_ctx.dump_dir.empty()) {
+    filename_ss << d_ctx.dump_dir << "/";
+  }
+
   if (d_ctx.graph_name.empty()) {
     filename_ss << "undefined_n" << graph.n() << "_m" << graph.m();
   } else {
-    filename_ss << d_ctx.graph_name;
+    if (d_ctx.dump_dir.empty()) {
+      filename_ss << d_ctx.graph_name;
+    } else {
+      // This is currently the same as above, since graph_name is usually already the extracted
+      // basename of the graph; we keep the branch none-the-less in case this changes in the future
+      filename_ss << str::extract_basename(d_ctx.graph_name);
+    }
   }
+
   filename_ss << "." << suffix;
   return filename_ss.str();
 }

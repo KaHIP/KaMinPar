@@ -287,6 +287,14 @@ CLI::Option_group *create_debug_options(CLI::App *app, Context &ctx) {
   auto *debug = app->add_option_group("Debug");
 
   debug
+      ->add_option(
+          "--d-dump-dir",
+          ctx.debug.dump_dir,
+          "Directory in which the dumped graphs and partitions should be stored."
+      )
+      ->capture_default_str();
+
+  debug
       ->add_flag(
           "--d-dump-coarsest-graph",
           ctx.debug.dump_coarsest_graph,
@@ -331,7 +339,10 @@ CLI::Option_group *create_debug_options(CLI::App *app, Context &ctx) {
       "Active all --d-dump-* options."
   );
 
-  debug->add_flag("--d-sort-neighbors-before-partitioning", ctx.debug.sort_neighbors_before_partitioning)
+  debug
+      ->add_flag(
+          "--d-sort-neighbors-before-partitioning", ctx.debug.sort_neighbors_before_partitioning
+      )
       ->capture_default_str();
 
   return debug;
