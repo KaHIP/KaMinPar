@@ -268,6 +268,8 @@ struct DebugContext {
   bool include_epsilon_in_filename;
   bool include_k_in_filename;
 
+  bool dump_toplevel_graph;
+  bool dump_toplevel_partition;
   bool dump_coarsest_graph;
   bool dump_coarsest_partition;
   bool dump_graph_hierarchy;

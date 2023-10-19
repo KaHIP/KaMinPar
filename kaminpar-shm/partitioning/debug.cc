@@ -67,6 +67,9 @@ void dump_graph_hierarchy(const Graph &graph, const int level, const Context &ct
   if (ctx.debug.dump_graph_hierarchy) {
     dump_graph(graph, generate_filename(graph, ctx, "level" + std::to_string(level) + ".metis"));
   }
+  if (level == 0 && ctx.debug.dump_toplevel_graph) {
+    dump_graph(graph, generate_filename(graph, ctx, "toplevel.metis"));
+  }
 }
 
 void dump_graph(const Graph &graph, const std::string &filename) {
@@ -109,6 +112,9 @@ void dump_partition_hierarchy(
             p_graph.graph(), ctx, "level" + std::to_string(level) + "." + state + ".part"
         )
     );
+  }
+  if (level == 0 && ctx.debug.dump_toplevel_partition) {
+    dump_partition(p_graph, generate_filename(p_graph.graph(), ctx, "toplevel." + state + ".part"));
   }
 }
 
