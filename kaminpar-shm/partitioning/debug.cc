@@ -8,8 +8,8 @@
 #include "kaminpar-shm/partitioning/debug.h"
 
 #include <fstream>
-#include <string>
 #include <iomanip>
+#include <string>
 
 #include "kaminpar-shm/context.h"
 #include "kaminpar-shm/datastructures/graph.h"
@@ -39,10 +39,19 @@ std::string generate_filename(const Graph &graph, const Context &ctx, const std:
   }
 
   filename_ss << "." << suffix;
-  filename_ss << ".P" << ctx.parallel.num_threads;
-  filename_ss << ".seed" << Random::get_seed();
-  filename_ss << ".eps" << std::fixed << std::setprecision(3) << ctx.partition.epsilon;
-  filename_ss << ".k" << ctx.partition.k;
+
+  if (ctx.debug.include_num_threads_in_filename) {
+    filename_ss << ".P" << ctx.parallel.num_threads;
+  }
+  if (ctx.debug.include_seed_in_filename) {
+    filename_ss << ".seed" << Random::get_seed();
+  }
+  if (ctx.debug.include_epsilon_in_filename) {
+    filename_ss << ".eps" << std::fixed << std::setprecision(3) << ctx.partition.epsilon;
+  }
+  if (ctx.debug.include_k_in_filename) {
+    filename_ss << ".k" << ctx.partition.k;
+  }
 
   return filename_ss.str();
 }
