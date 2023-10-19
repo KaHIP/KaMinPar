@@ -31,7 +31,7 @@ PartitionedGraph KWayMultilevelPartitioner::partition() {
 
 void KWayMultilevelPartitioner::refine(PartitionedGraph &p_graph) {
   // If requested, dump the current partition to disk before refinement ...
-  debug::dump_partition_hierarchy(p_graph, _coarsener->size(), "pre-refinement", _input_ctx.debug);
+  debug::dump_partition_hierarchy(p_graph, _coarsener->size(), "pre-refinement", _input_ctx);
 
   helper::refine(_refiner.get(), p_graph, _current_p_ctx);
   LOG << "  Cut:       " << metrics::edge_cut(p_graph);
@@ -39,7 +39,7 @@ void KWayMultilevelPartitioner::refine(PartitionedGraph &p_graph) {
   LOG << "  Feasible:  " << metrics::is_feasible(p_graph, _current_p_ctx);
 
   // ... and dump it after refinement.
-  debug::dump_partition_hierarchy(p_graph, _coarsener->size(), "post-refinement", _input_ctx.debug);
+  debug::dump_partition_hierarchy(p_graph, _coarsener->size(), "post-refinement", _input_ctx);
 }
 
 PartitionedGraph KWayMultilevelPartitioner::uncoarsen(PartitionedGraph p_graph) {
@@ -62,7 +62,7 @@ const Graph *KWayMultilevelPartitioner::coarsen() {
     // converged. This way, we also have a dump of the (reordered) input graph,
     // which makes it easier to use the final partition (before reordering it).
     // We dump the coarsest graph in ::initial_partitioning().
-    debug::dump_graph_hierarchy(*c_graph, _coarsener->size(), _input_ctx.debug);
+    debug::dump_graph_hierarchy(*c_graph, _coarsener->size(), _input_ctx);
 
     // Build next coarse graph
     shrunk = helper::coarsen_once(_coarsener.get(), c_graph, _input_ctx, _current_p_ctx);
@@ -102,8 +102,8 @@ PartitionedGraph KWayMultilevelPartitioner::initial_partition(const Graph *graph
   // coarsest graph before splitting PEs and duplicating the graph.
   // Disable worker splitting with --p-deep-initial-partitioning-mode=sequential to obtain coarser
   // graphs.
-  debug::dump_coarsest_graph(*graph, _input_ctx.debug);
-  debug::dump_graph_hierarchy(*graph, _coarsener->size(), _input_ctx.debug);
+  debug::dump_coarsest_graph(*graph, _input_ctx);
+  debug::dump_graph_hierarchy(*graph, _coarsener->size(), _input_ctx);
 
   // Since timers are not multi-threaded, we disable them during (parallel)
   // initial partitioning.
@@ -130,8 +130,8 @@ PartitionedGraph KWayMultilevelPartitioner::initial_partition(const Graph *graph
 
   // If requested, dump the coarsest partition -- as noted above, this is not
   // actually the coarsest partition when using deep multilevel.
-  debug::dump_coarsest_partition(p_graph, _input_ctx.debug);
-  debug::dump_partition_hierarchy(p_graph, _coarsener->size(), "post-refinement", _input_ctx.debug);
+  debug::dump_coarsest_partition(p_graph, _input_ctx);
+  debug::dump_partition_hierarchy(p_graph, _coarsener->size(), "post-refinement", _input_ctx);
 
   return p_graph;
 }
