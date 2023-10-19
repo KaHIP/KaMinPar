@@ -260,6 +260,8 @@ struct ParallelContext {
 
 struct DebugContext {
   std::string graph_name;
+
+  std::string dump_dir;
   bool dump_coarsest_graph;
   bool dump_coarsest_partition;
   bool dump_graph_hierarchy;

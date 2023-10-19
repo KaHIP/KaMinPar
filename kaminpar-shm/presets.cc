@@ -150,6 +150,7 @@ Context create_default_context() {
       .debug =
           {
               .graph_name = "",
+              .dump_dir = "",
               .dump_coarsest_graph = false,
               .dump_coarsest_partition = false,
               .dump_graph_hierarchy = false,
