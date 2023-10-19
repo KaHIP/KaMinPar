@@ -13,6 +13,7 @@
 #include <tbb/global_control.h>
 
 #include "kaminpar-shm/factories.h"
+#include "kaminpar-shm/graphutils/permutator.h"
 #include "kaminpar-shm/metrics.h"
 
 #include "kaminpar-common/timer.h"
@@ -33,6 +34,7 @@ int main(int argc, char *argv[]) {
   std::string graph_filename;
   std::string partition_filename;
   bool sort_neighbors = false;
+  bool sort_nodes = true;
   int num_threads = 1;
 
   CLI::App app("Shared-memory FM benchmark");
@@ -45,6 +47,7 @@ int main(int argc, char *argv[]) {
          "Sort neighbors of each vertex before running refinement."
   )
       ->capture_default_str();
+  app.add_flag("--sort-nodes", sort_nodes)->capture_default_str();
   create_refinement_options(&app, ctx);
   CLI11_PARSE(app, argc, argv);
 
@@ -60,6 +63,7 @@ int main(int argc, char *argv[]) {
   // Load input graph
   {
     auto input = load_partitioned_graph(graph_filename, partition_filename);
+    
     if (sort_neighbors) {
       input.graph->sort_neighbors();
     }

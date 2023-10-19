@@ -158,6 +158,8 @@ Context create_default_context() {
               .include_epsilon_in_filename = true,
               .include_k_in_filename = true,
 
+              .dump_toplevel_graph = false,
+              .dump_toplevel_partition = false,
               .dump_coarsest_graph = false,
               .dump_coarsest_partition = false,
               .dump_graph_hierarchy = false,

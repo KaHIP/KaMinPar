@@ -305,6 +305,25 @@ CLI::Option_group *create_debug_options(CLI::App *app, Context &ctx) {
 
   debug
       ->add_flag(
+          "--d-dump-toplevel-graph",
+          ctx.debug.dump_toplevel_graph,
+          "Write the toplevel graph to disk. Note that this graph might be different from the "
+          "input graph, as isolated nodes might have been removed and nodes might have been "
+          "reordered."
+      )
+      ->capture_default_str();
+
+  debug
+      ->add_flag(
+          "--d-dump-toplevel-partition",
+          ctx.debug.dump_toplevel_partition,
+          "Write the partition of the toplevel graph before- and after running refinement to disk. "
+          "This partition should only be used together with the toplevel graph obtained via "
+          "--d-dump-toplevel-graph."
+      )
+      ->capture_default_str();
+  debug
+      ->add_flag(
           "--d-dump-coarsest-graph",
           ctx.debug.dump_coarsest_graph,
           "Write the coarsest graph to disk. Note that the definition of "
@@ -340,6 +359,8 @@ CLI::Option_group *create_debug_options(CLI::App *app, Context &ctx) {
   debug->add_flag(
       "--d-dump-everything",
       [&](auto) {
+        ctx.debug.dump_toplevel_graph = true;
+        ctx.debug.dump_toplevel_partition = true;
         ctx.debug.dump_coarsest_graph = true;
         ctx.debug.dump_coarsest_partition = true;
         ctx.debug.dump_graph_hierarchy = true;
