@@ -262,6 +262,12 @@ struct DebugContext {
   std::string graph_name;
 
   std::string dump_dir;
+
+  bool include_num_threads_in_filename;
+  bool include_seed_in_filename;
+  bool include_epsilon_in_filename;
+  bool include_k_in_filename;
+
   bool dump_coarsest_graph;
   bool dump_coarsest_partition;
   bool dump_graph_hierarchy;

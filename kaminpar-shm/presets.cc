@@ -150,7 +150,14 @@ Context create_default_context() {
       .debug =
           {
               .graph_name = "",
+
               .dump_dir = "",
+
+              .include_num_threads_in_filename = true,
+              .include_seed_in_filename = true,
+              .include_epsilon_in_filename = true,
+              .include_k_in_filename = true,
+
               .dump_coarsest_graph = false,
               .dump_coarsest_partition = false,
               .dump_graph_hierarchy = false,

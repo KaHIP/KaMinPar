@@ -294,6 +294,15 @@ CLI::Option_group *create_debug_options(CLI::App *app, Context &ctx) {
       )
       ->capture_default_str();
 
+  debug->add_flag("--d-include-num-threads-in-filename", ctx.debug.include_num_threads_in_filename)
+      ->capture_default_str();
+  debug->add_flag("--d-include-seed-in-filename", ctx.debug.include_seed_in_filename)
+      ->capture_default_str();
+  debug->add_flag("--d-include-epsilon-in-filename", ctx.debug.include_epsilon_in_filename)
+      ->capture_default_str();
+  debug->add_flag("--d-include-k-in-filename", ctx.debug.include_k_in_filename)
+      ->capture_default_str();
+
   debug
       ->add_flag(
           "--d-dump-coarsest-graph",
