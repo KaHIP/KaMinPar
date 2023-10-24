@@ -27,6 +27,44 @@
 namespace kaminpar::dist::graph {
 SET_DEBUG(false);
 
+std::unique_ptr<shm::Graph> allgather(const DistributedGraph &graph) {
+  return std::make_unique<shm::Graph>(replicate_everywhere(graph));
+}
+
+std::pair<std::unique_ptr<shm::Graph>, std::unique_ptr<shm::PartitionedGraph>>
+allgather(const DistributedPartitionedGraph &p_graph) {
+  const PEID size = mpi::get_comm_size(p_graph.communicator());
+  const PEID rank = mpi::get_comm_rank(p_graph.communicator());
+
+  auto shm_graph = allgather(p_graph.graph());
+
+  std::vector<int> counts(size);
+  std::vector<int> displs(size);
+  for (PEID pe = 0; pe < size; ++pe) {
+    counts[pe] =
+        asserting_cast<int>(p_graph.node_distribution(pe + 1) - p_graph.node_distribution(pe));
+    displs[pe] = asserting_cast<int>(p_graph.node_distribution(pe));
+  }
+
+  StaticArray<BlockID> shm_partition(displs.back());
+  MPI_Allgatherv(
+      p_graph.partition().data(),
+      counts[rank],
+      mpi::type::get<BlockID>(),
+      shm_partition.data(),
+      counts.data(),
+      displs.data(),
+      mpi::type::get<BlockID>(),
+      p_graph.communicator()
+  );
+
+  auto shm_p_graph = std::make_unique<shm::PartitionedGraph>(
+      *shm_graph.get(), p_graph.k(), std::move(shm_partition)
+  );
+
+  return {std::move(shm_graph), std::move(shm_p_graph)};
+}
+
 shm::Graph replicate_everywhere(const DistributedGraph &graph) {
   KASSERT(
       graph.global_n() < std::numeric_limits<NodeID>::max(),
