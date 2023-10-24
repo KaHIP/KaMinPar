@@ -1,5 +1,7 @@
 compile_commands.json
+layout.kdl
 .idea
+.vscode
 *~
 cmake-build-*
 build*/
