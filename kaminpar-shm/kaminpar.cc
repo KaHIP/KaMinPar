@@ -49,8 +49,7 @@ void print_statistics(
 
   Timer::global().print_human_readable(std::cout, max_timer_depth);
   LOG;
-  heap_profiler::HeapProfiler::global().print_heap_profile(std::cout);
-  LOG;
+  PRINT_HEAP_PROFILE(std::cout);
   LOG << "Partition summary:";
   if (p_graph.k() != ctx.partition.k) {
     LOG << logger::RED << "  Number of blocks: " << p_graph.k();

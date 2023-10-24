@@ -18,7 +18,11 @@ template <class T> T *NoProfilAllocator<T>::allocate(const size_t n) const {
     throw std::bad_array_new_length();
   }
 
+#ifdef KAMINPAR_ENABLE_HEAP_PROFILING
   void *const pv = std_malloc(n * sizeof(T));
+#else
+  void *const pv = std::malloc(n * sizeof(T));
+#endif
   if (!pv) {
     throw std::bad_alloc();
   }
@@ -27,7 +31,11 @@ template <class T> T *NoProfilAllocator<T>::allocate(const size_t n) const {
 }
 
 template <class T> void NoProfilAllocator<T>::deallocate(T *const p, size_t) const noexcept {
+#ifdef KAMINPAR_ENABLE_HEAP_PROFILING
   std_free(p);
+#else
+  std::free(p);
+#endif
 }
 
 HeapProfiler &HeapProfiler::global() {
@@ -114,6 +122,7 @@ void HeapProfiler::print_heap_profile(std::ostream &out) {
   out << kFreesTitle << " " << std::string(stats.max_frees - kFreesTitle.length(), ' ') << '\n';
 
   print_heap_tree_node(out, root, stats);
+  out << '\n';
 }
 
 std::size_t HeapProfiler::get_max_alloc() {

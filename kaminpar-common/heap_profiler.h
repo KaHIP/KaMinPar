@@ -15,17 +15,31 @@
 #include <string_view>
 #include <unordered_map>
 
+#ifdef KAMINPAR_ENABLE_HEAP_PROFILING
+
 #include "kaminpar-common/libc_memory_override.h"
 
 #define GET_MACRO(X, Y, Z, FUNC, ...) FUNC
-
 #define START_HEAP_PROFILER_2(name, desc)                                                          \
   (kaminpar::heap_profiler::HeapProfiler::global().start_profile(name, desc))
 #define START_HEAP_PROFILER_1(name) START_HEAP_PROFILER_2(name, "")
 #define START_HEAP_PROFILER(...)                                                                   \
   GET_MACRO(_, ##__VA_ARGS__, START_HEAP_PROFILER_2, START_HEAP_PROFILER_1)(__VA_ARGS__)
-
 #define STOP_HEAP_PROFILER() (kaminpar::heap_profiler::HeapProfiler::global().stop_profile())
+#define ENABLE_HEAP_PROFILER() kaminpar::heap_profiler::HeapProfiler::global().enable()
+#define DISABLE_HEAP_PROFILER() kaminpar::heap_profiler::HeapProfiler::global().disable()
+#define PRINT_HEAP_PROFILE(out)                                                                    \
+  kaminpar::heap_profiler::HeapProfiler::global().print_heap_profile(out)
+
+#else
+
+#define ENABLE_HEAP_PROFILER()
+#define DISABLE_HEAP_PROFILER()
+#define START_HEAP_PROFILER(...)
+#define STOP_HEAP_PROFILER()
+#define PRINT_HEAP_PROFILE(...)
+
+#endif
 
 namespace kaminpar::heap_profiler {
 

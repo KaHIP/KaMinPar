@@ -133,7 +133,7 @@ int main(int argc, char *argv[]) {
     std::exit(0);
   }
 
-  heap_profiler::HeapProfiler::global().enable();
+  ENABLE_HEAP_PROFILER();
 
   // Allocate graph data structures and read graph file
   StaticArray<EdgeID> xadj;
@@ -176,7 +176,7 @@ int main(int argc, char *argv[]) {
     shm::io::partition::write(app.partition_filename, partition);
   }
 
-  heap_profiler::HeapProfiler::global().disable();
+  DISABLE_HEAP_PROFILER();
 
   return 0;
 }
