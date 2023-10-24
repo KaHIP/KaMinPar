@@ -122,7 +122,7 @@ public:
     tbb::parallel_invoke([&] { _gain_cache.free(); }, [&] { _weighted_degrees.free(); });
   }
 
-  EdgeWeight gain(const NodeID node, const BlockID from, const BlockID to) const {
+  [[nodiscard]] EdgeWeight gain(const NodeID node, const BlockID from, const BlockID to) const {
     if (is_high_degree_node(node)) {
       return weighted_degree_to(node, to) - weighted_degree_to(node, from);
     } else {
@@ -130,7 +130,7 @@ public:
     }
   }
 
-  std::pair<EdgeWeight, EdgeWeight>
+  [[nodiscard]] std::pair<EdgeWeight, EdgeWeight>
   gain(const NodeID node, const BlockID b_node, const std::pair<BlockID, BlockID> &targets) const {
     if (is_high_degree_node(node)) {
       return {gain(node, b_node, targets.first), gain(node, b_node, targets.second)};
@@ -139,7 +139,7 @@ public:
     }
   }
 
-  EdgeWeight conn(const NodeID node, const BlockID block) const {
+  [[nodiscard]] EdgeWeight conn(const NodeID node, const BlockID block) const {
     if (is_high_degree_node(node)) {
       return weighted_degree_to(node, block);
     } else {
@@ -173,7 +173,7 @@ public:
     }
   }
 
-  bool is_border_node(const NodeID node, const BlockID block) const {
+  [[nodiscard]] bool is_border_node(const NodeID node, const BlockID block) const {
     if (is_high_degree_node(node)) {
       return wd(node) != weighted_degree_to(node, block);
     } else {
@@ -181,7 +181,7 @@ public:
     }
   }
 
-  bool validate(const PartitionedGraph &p_graph) const {
+  [[nodiscard]] bool validate(const PartitionedGraph &p_graph) const {
     bool valid = true;
     p_graph.pfor_nodes([&](const NodeID u) {
       if (!check_cached_gain_for_node(p_graph, u)) {
@@ -193,32 +193,32 @@ public:
   }
 
 private:
-  EdgeWeight weighted_degree_to(const NodeID node, const BlockID block) const {
+  [[nodiscard]] EdgeWeight weighted_degree_to(const NodeID node, const BlockID block) const {
     return __atomic_load_n(&gc(node, block), __ATOMIC_RELAXED);
   }
 
-  NodeWeight &wd(const NodeID node) {
+  [[nodiscard]] NodeWeight &wd(const NodeID node) {
     return _weighted_degrees[wd_index(node)];
   }
 
-  const NodeWeight &wd(const NodeID node) const {
+  [[nodiscard]] const NodeWeight &wd(const NodeID node) const {
     return _weighted_degrees[wd_index(node)];
   }
 
-  EdgeWeight &gc(const NodeID node, const BlockID block) {
+  [[nodiscard]] EdgeWeight &gc(const NodeID node, const BlockID block) {
     return _gain_cache[gc_index(node, block)];
   }
 
-  const EdgeWeight &gc(const NodeID node, const BlockID block) const {
+  [[nodiscard]] const EdgeWeight &gc(const NodeID node, const BlockID block) const {
     return _gain_cache[gc_index(node, block)];
   }
 
-  std::size_t wd_index(const NodeID node) const {
+  [[nodiscard]] std::size_t wd_index(const NodeID node) const {
     KASSERT(is_high_degree_node(node));
     return node - _high_degree_threshold;
   }
 
-  std::size_t gc_index(const NodeID node, const BlockID block) const {
+  [[nodiscard]] std::size_t gc_index(const NodeID node, const BlockID block) const {
     KASSERT(is_high_degree_node(node));
 
     const std::size_t idx =
@@ -254,7 +254,8 @@ private:
     }
   }
 
-  bool check_cached_gain_for_node(const PartitionedGraph &p_graph, const NodeID u) const {
+  [[nodiscard]] bool
+  check_cached_gain_for_node(const PartitionedGraph &p_graph, const NodeID u) const {
     if (!is_high_degree_node(u)) {
       return true;
     }

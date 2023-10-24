@@ -33,7 +33,7 @@ public:
   constexpr static bool kIteratesExactGains = iterate_exact_gains;
 
   OnTheFlyGainCache(const Context & /* ctx */, NodeID /* max_n */, BlockID max_k)
-      : _rating_map_ets([&] {
+      : _rating_map_ets([max_k] {
           return RatingMap<EdgeWeight, BlockID, SparseMap<BlockID, EdgeWeight>>(max_k);
         }) {}
 
@@ -177,7 +177,7 @@ private:
     rating_map.run_with_map(action, action);
   }
 
-  const PartitionedGraph *_p_graph;
+  const PartitionedGraph *_p_graph = nullptr;
 
   mutable tbb::enumerable_thread_specific<
       RatingMap<EdgeWeight, BlockID, SparseMap<BlockID, EdgeWeight>>>
