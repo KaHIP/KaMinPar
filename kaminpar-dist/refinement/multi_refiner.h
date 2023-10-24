@@ -7,6 +7,8 @@
  ******************************************************************************/
 #pragma once
 
+#include <memory>
+#include <unordered_map>
 #include <vector>
 
 #include "kaminpar-dist/context.h"
@@ -16,7 +18,10 @@
 namespace kaminpar::dist {
 class MultiRefinerFactory : public GlobalRefinerFactory {
 public:
-  MultiRefinerFactory(std::vector<std::unique_ptr<GlobalRefinerFactory>> factories);
+  MultiRefinerFactory(
+      std::unordered_map<RefinementAlgorithm, std::unique_ptr<GlobalRefinerFactory>> factories,
+      std::vector<RefinementAlgorithm> order
+  );
 
   MultiRefinerFactory(const MultiRefinerFactory &) = delete;
   MultiRefinerFactory &operator=(const MultiRefinerFactory &) = delete;
@@ -28,12 +33,16 @@ public:
   create(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
 
 private:
-  std::vector<std::unique_ptr<GlobalRefinerFactory>> _factories;
+  std::unordered_map<RefinementAlgorithm, std::unique_ptr<GlobalRefinerFactory>> _factories;
+  std::vector<RefinementAlgorithm> _order;
 };
 
 class MultiRefiner : public GlobalRefiner {
 public:
-  MultiRefiner(std::vector<std::unique_ptr<GlobalRefiner>> refiners);
+  MultiRefiner(
+      std::unordered_map<RefinementAlgorithm, std::unique_ptr<GlobalRefiner>> refiners,
+      std::vector<RefinementAlgorithm> order
+  );
 
   MultiRefiner(const MultiRefiner &) = delete;
   MultiRefiner &operator=(const MultiRefiner &) = delete;
@@ -45,6 +54,7 @@ public:
   bool refine() final;
 
 private:
-  std::vector<std::unique_ptr<GlobalRefiner>> _refiners;
+  std::unordered_map<RefinementAlgorithm, std::unique_ptr<GlobalRefiner>> _refiners;
+  std::vector<RefinementAlgorithm> _order;
 };
 } // namespace kaminpar::dist

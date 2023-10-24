@@ -123,7 +123,9 @@ Context create_default_context() {
                       .use_exact_abortion_threshold = false,
                       .abortion_threshold = 0.999,
                       .gain_cache_strategy = GainCacheStrategy::DENSE,
-                      .k_vs_degree_threshold = 1.0,
+                      .constant_high_degree_threshold = 0,
+                      .k_based_high_degree_threshold = 0.0,
+                      .preallocate_gain_cache = false,
                       .dbg_compute_batch_size_statistics = false,
                   },
               .balancer = {},
@@ -148,10 +150,22 @@ Context create_default_context() {
       .debug =
           {
               .graph_name = "",
+
+              .dump_dir = "",
+
+              .include_num_threads_in_filename = true,
+              .include_seed_in_filename = true,
+              .include_epsilon_in_filename = true,
+              .include_k_in_filename = true,
+
+              .dump_toplevel_graph = false,
+              .dump_toplevel_partition = false,
               .dump_coarsest_graph = false,
               .dump_coarsest_partition = false,
               .dump_graph_hierarchy = false,
               .dump_partition_hierarchy = false,
+
+              .sort_neighbors_before_partitioning = false,
           },
   };
 }

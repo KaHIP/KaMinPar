@@ -123,11 +123,14 @@ std::unique_ptr<GlobalRefinerFactory> create_refiner(const Context &ctx) {
     return create_refiner(ctx, ctx.refinement.algorithms.front());
   }
 
-  std::vector<std::unique_ptr<GlobalRefinerFactory>> factories;
+  std::unordered_map<RefinementAlgorithm, std::unique_ptr<GlobalRefinerFactory>> factories;
   for (const RefinementAlgorithm algorithm : ctx.refinement.algorithms) {
-    factories.push_back(create_refiner(ctx, algorithm));
+    if (factories.find(algorithm) == factories.end()) {
+      factories[algorithm] = create_refiner(ctx, algorithm);
+    }
   }
-  return std::make_unique<MultiRefinerFactory>(std::move(factories));
+
+  return std::make_unique<MultiRefinerFactory>(std::move(factories), ctx.refinement.algorithms);
 }
 
 std::unique_ptr<GlobalClusterer>

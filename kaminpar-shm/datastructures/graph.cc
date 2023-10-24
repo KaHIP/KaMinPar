@@ -106,6 +106,13 @@ void Graph::update_total_node_weight() {
   }
 }
 
+void Graph::sort_neighbors() {
+  KASSERT(!is_edge_weighted(), "not implemented", assert::heavy);
+  pfor_nodes([&](const NodeID u) {
+    std::sort(_edges.begin() + _nodes[u], _edges.begin() + _nodes[u + 1]);
+  });
+}
+
 //
 // Utility debug functions
 //
@@ -171,6 +178,6 @@ bool validate_graph(
 }
 
 EdgeID compute_max_degree(const Graph &graph) {
-    return parallel::max_difference(graph.raw_nodes().begin(), graph.raw_nodes().end());
+  return parallel::max_difference(graph.raw_nodes().begin(), graph.raw_nodes().end());
 }
 } // namespace kaminpar::shm

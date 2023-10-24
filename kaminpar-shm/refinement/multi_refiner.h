@@ -7,13 +7,20 @@
  ******************************************************************************/
 #pragma once
 
+#include <memory>
+#include <unordered_map>
+#include <vector>
+
 #include "kaminpar-shm/context.h"
 #include "kaminpar-shm/refinement/refiner.h"
 
 namespace kaminpar::shm {
 class MultiRefiner : public Refiner {
 public:
-  MultiRefiner(std::vector<std::unique_ptr<Refiner>> refiners);
+  MultiRefiner(
+      std::unordered_map<RefinementAlgorithm, std::unique_ptr<Refiner>> refiners,
+      std::vector<RefinementAlgorithm> order
+  );
 
   MultiRefiner(const MultiRefiner &) = delete;
   MultiRefiner &operator=(const MultiRefiner &) = delete;
@@ -26,6 +33,7 @@ public:
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
 
 private:
-  std::vector<std::unique_ptr<Refiner>> _refiners;
+  std::unordered_map<RefinementAlgorithm, std::unique_ptr<Refiner>> _refiners;
+  std::vector<RefinementAlgorithm> _order;
 };
 } // namespace kaminpar::shm
