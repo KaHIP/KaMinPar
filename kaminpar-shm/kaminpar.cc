@@ -18,6 +18,7 @@
 
 #include "kaminpar-common/assertion_levels.h"
 #include "kaminpar-common/console_io.h"
+#include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/random.h"
 #include "kaminpar-common/timer.h"
@@ -47,6 +48,8 @@ void print_statistics(
   }
 
   Timer::global().print_human_readable(std::cout, max_timer_depth);
+  LOG;
+  heap_profiler::HeapProfiler::global().print_heap_profile(std::cout);
   LOG;
   LOG << "Partition summary:";
   if (p_graph.k() != ctx.partition.k) {
@@ -165,6 +168,7 @@ EdgeWeight KaMinPar::compute_partition(const int seed, const BlockID k, BlockID 
     print(_ctx, std::cout);
   }
 
+  START_HEAP_PROFILER("Partitioning");
   START_TIMER("Partitioning");
   if (!_was_rearranged) {
     _graph_ptr =
@@ -182,7 +186,9 @@ EdgeWeight KaMinPar::compute_partition(const int seed, const BlockID k, BlockID 
     p_graph = graph::assign_isolated_nodes(std::move(p_graph), num_isolated_nodes, _ctx.partition);
   }
   STOP_TIMER();
+  STOP_HEAP_PROFILER();
 
+  START_HEAP_PROFILER("IO");
   START_TIMER("IO");
   if (_graph_ptr->permuted()) {
     tbb::parallel_for<NodeID>(0, p_graph.n(), [&](const NodeID u) {
@@ -194,6 +200,7 @@ EdgeWeight KaMinPar::compute_partition(const int seed, const BlockID k, BlockID 
     });
   }
   STOP_TIMER();
+  STOP_HEAP_PROFILER();
 
   // Print some statistics
   STOP_TIMER(); // stop root timer

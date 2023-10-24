@@ -20,6 +20,7 @@
 #endif // __has_include(<numa.h>)
 
 #include "kaminpar-common/environment.h"
+#include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/strutils.h"
 
 #include "apps/io/shm_input_validator.h"
@@ -132,6 +133,8 @@ int main(int argc, char *argv[]) {
     std::exit(0);
   }
 
+  heap_profiler::HeapProfiler::global().enable();
+
   // Allocate graph data structures and read graph file
   StaticArray<EdgeID> xadj;
   StaticArray<NodeID> adjncy;
@@ -172,6 +175,8 @@ int main(int argc, char *argv[]) {
   if (!app.partition_filename.empty()) {
     shm::io::partition::write(app.partition_filename, partition);
   }
+
+  heap_profiler::HeapProfiler::global().disable();
 
   return 0;
 }

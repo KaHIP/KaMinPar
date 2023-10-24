@@ -36,6 +36,7 @@ kaminpar_add_common_test(test_common_static_array common/datastructures/static_a
 kaminpar_add_common_test(test_common_math common/math_test.cc)
 kaminpar_add_common_test(test_common_string common/strutils_test.cc)
 kaminpar_add_common_test(test_common_parallel_algorithm common/parallel/algorithm_test.cc)
+kaminpar_add_common_test(test_common_heap_profiler common/heap_profiler_test.cc)
 
 # KaMinPar -> End-to-end
 kaminpar_add_shm_test(test_shm_endtoend endtoend/shm_endtoend_test.cc)
