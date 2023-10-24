@@ -91,6 +91,8 @@ public:
         DBG << "[FM] First node in the gain cache: " << _high_degree_threshold << " with degree "
             << p_graph.degree(_high_degree_threshold);
       }
+    } else {
+      DBG << "[FM] Nodes are not sorted by degree buckets: using dense gain cache for all nodes";
     }
 
     // Mind the potential overflow without explicit cast
@@ -286,16 +288,15 @@ private:
     return true;
   }
 
-  bool is_high_degree_node(const NodeID node) const {
+  [[nodiscard]] bool is_high_degree_node(const NodeID node) const {
     return node >= _high_degree_threshold;
   }
 
   const Context &_ctx;
 
-  NodeID _high_degree_threshold;
-
-  NodeID _n;
-  BlockID _k;
+  NodeID _high_degree_threshold = kInvalidNodeID;
+  NodeID _n = kInvalidNodeID;
+  BlockID _k = kInvalidEdgeID;
 
   StaticArray<EdgeWeight> _gain_cache;
   StaticArray<EdgeWeight> _weighted_degrees;
@@ -312,7 +313,7 @@ public:
       : _gain_cache(gain_cache),
         _on_the_fly_delta_gain_cache(_gain_cache._on_the_fly_gain_cache, d_graph) {}
 
-  EdgeWeight conn(const NodeID node, const BlockID block) const {
+  [[nodiscard]] EdgeWeight conn(const NodeID node, const BlockID block) const {
     if (_gain_cache.is_high_degree_node(node)) {
       return _gain_cache.conn(node, block) + conn_delta(node, block);
     } else {
@@ -320,7 +321,7 @@ public:
     }
   }
 
-  EdgeWeight gain(const NodeID node, const BlockID from, const BlockID to) const {
+  [[nodiscard]] EdgeWeight gain(const NodeID node, const BlockID from, const BlockID to) const {
     if (_gain_cache.is_high_degree_node(node)) {
       return _gain_cache.gain(node, from, to) + conn_delta(node, to) - conn_delta(node, from);
     } else {
@@ -328,7 +329,7 @@ public:
     }
   }
 
-  std::pair<EdgeWeight, EdgeWeight>
+  [[nodiscard]] std::pair<EdgeWeight, EdgeWeight>
   gain(const NodeID node, const BlockID b_node, const std::pair<BlockID, BlockID> &targets) const {
     if (_gain_cache.is_high_degree_node(node)) {
       return {gain(node, b_node, targets.first), gain(node, b_node, targets.second)};
@@ -371,7 +372,7 @@ public:
   }
 
 private:
-  EdgeWeight conn_delta(const NodeID node, const BlockID block) const {
+  [[nodiscard]] EdgeWeight conn_delta(const NodeID node, const BlockID block) const {
     const auto it = _gain_cache_delta.get_if_contained(_gain_cache.gc_index(node, block));
     return it != _gain_cache_delta.end() ? *it : 0;
   }
