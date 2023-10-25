@@ -38,6 +38,17 @@ template <class T> void NoProfilAllocator<T>::deallocate(T *const p, size_t) con
 #endif
 }
 
+template <class T> T *NoProfilAllocator<T>::construct() const {
+  T *t = allocate(1);
+  new (t) T();
+  return t;
+}
+
+template <class T> void NoProfilAllocator<T>::deconstruct(T *const t) const {
+  t->~T();
+  deallocate(t, 1);
+}
+
 HeapProfiler &HeapProfiler::global() {
   static HeapProfiler global{"Global Heap Profiler"};
   return global;
@@ -45,6 +56,12 @@ HeapProfiler &HeapProfiler::global() {
 
 HeapProfiler::HeapProfiler(std::string_view name) : _name(name) {
   _tree.root.name = name;
+}
+
+HeapProfiler::~HeapProfiler() {
+  for (auto const &[_, child] : _tree.root.children) {
+    _node_allocator.deconstruct(child);
+  }
 }
 
 void HeapProfiler::enable() {
@@ -59,7 +76,7 @@ void HeapProfiler::start_profile(std::string_view name, std::string description)
   auto &children = _tree.currentNode->children;
 
   if (children.find(name) == children.end()) {
-    HeapProfileTreeNode *node = new HeapProfileTreeNode;
+    HeapProfileTreeNode *node = _node_allocator.construct();
     node->name = name;
     node->description = description;
     node->parent = _tree.currentNode;
@@ -116,7 +133,7 @@ void HeapProfiler::print_heap_profile(std::ostream &out) {
 
   out << "Max Memory Usage: " << to_megabytes(_max_alloc) << " (mb)" << '\n';
 
-  out << std::string(stats.max_len + 7, '-');
+  out << std::string(stats.max_len + 3, '-');
   out << kAllocSizeTitle << " " << std::string(stats.max_alloc - kAllocSizeTitle.length(), ' ');
   out << kAllocsTitle << " " << std::string(stats.max_allocs - kAllocsTitle.length(), ' ');
   out << kFreesTitle << " " << std::string(stats.max_frees - kFreesTitle.length(), ' ') << '\n';

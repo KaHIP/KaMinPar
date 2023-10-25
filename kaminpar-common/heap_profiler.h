@@ -64,6 +64,9 @@ template <class T> struct NoProfilAllocator {
 
   T *allocate(const size_t n) const;
   void deallocate(T *const p, size_t) const noexcept;
+
+  T *construct() const;
+  void deconstruct(T *const t) const;
 };
 
 struct HeapProfileTreeStats {
@@ -111,12 +114,6 @@ private:
     std::size_t allocs;
     std::size_t frees;
     std::size_t alloc_size;
-
-    ~HeapProfileTreeNode() {
-      for (auto const &[_, child] : children) {
-        delete child;
-      }
-    }
   };
 
   struct HeapProfileTree {
@@ -138,6 +135,11 @@ public:
    * @param name The name of the heap profiler and the name of the root profile.
    */
   explicit HeapProfiler(std::string_view name);
+
+  /*!
+   * Destroys the heap profiler.
+   */
+  ~HeapProfiler();
 
   /*!
    * Starts profiling the heap.
@@ -194,6 +196,7 @@ private:
   bool _enabled = false;
   std::string_view _name;
 
+  NoProfilAllocator<HeapProfileTreeNode> _node_allocator;
   std::unordered_map<
       const void *,
       std::size_t,
