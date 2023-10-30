@@ -10,6 +10,7 @@
 #include <atomic>
 #include <type_traits>
 
+#include <tbb/concurrent_vector.h>
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_for.h>
 #include <tbb/parallel_invoke.h>
@@ -19,6 +20,7 @@
 #include "kaminpar-shm/definitions.h"
 
 #include "kaminpar-common/assertion_levels.h"
+#include "kaminpar-common/datastructures/concurrent_fast_reset_array.h"
 #include "kaminpar-common/datastructures/rating_map.h"
 #include "kaminpar-common/datastructures/scalable_vector.h"
 #include "kaminpar-common/logger.h"
@@ -51,6 +53,11 @@ struct LabelPropagationConfig {
   // permutation from a pool of permutations. This constant determines the pool
   // size.
   static constexpr std::size_t kNumberOfNodePermutations = 64;
+
+  // When computing a new cluster for each node in an iteration, nodes with a degree less than the
+  // threshold are first handled in parallel. Then, nodes with a degree greater than or equal to the
+  // threshold are handled sequentially, but each neighbourhood is processed in parallel.
+  static constexpr std::size_t kDegreeThreshold = 10000;
 
   // If true, we count the number of empty clusters
   static constexpr bool kTrackClusterCount = false;
@@ -196,24 +203,41 @@ protected:
   /*!
    * Move a single node to a new cluster.
    *
+   * @tparam parallel Whether the best cluster for the node should be computed in parallel.
+   * @tparam RatingMap The rating map used for computing the best cluster for the node.
+   *
    * @param u The node that is moved.
-   * @param local_rand Thread-local \c Random object.
-   * @param local_rating_map Thread-local rating map for gain computation.
-   * @return Pair with: whether the node was moved to another cluster, whether
-   * the previous cluster is now empty.
+   * @param rand (Thread-local) \c Random object.
+   * @param rating_map (Thread-local) rating map for gain computation.
+   *
+   * @return Pair with: whether the node was moved to another cluster, whether the previous cluster
+   * is now empty.
    */
-  template <typename LocalRatingMap>
-  std::pair<bool, bool>
-  handle_node(const NodeID u, Random &local_rand, LocalRatingMap &local_rating_map) {
+  template <bool parallel = false, typename RatingMap>
+  std::pair<bool, bool> handle_node(const NodeID u, Random &rand, RatingMap &rating_map) {
     if (derived_skip_node(u)) {
       return {false, false};
     }
 
     const NodeWeight u_weight = _graph->node_weight(u);
     const ClusterID u_cluster = derived_cluster(u);
-    const auto [new_cluster, new_gain] =
-        find_best_cluster(u, u_weight, u_cluster, local_rand, local_rating_map);
 
+    std::pair<ClusterID, EdgeWeight> best_cluster;
+    if constexpr (parallel) {
+      best_cluster = find_best_cluster<true>(u, u_weight, u_cluster, rand, rating_map);
+    } else {
+      auto action = [&](auto &map) {
+        return find_best_cluster(u, u_weight, u_cluster, rand, map);
+      };
+
+      rating_map.update_upper_bound_size(
+          std::min<ClusterID>(_graph->degree(u), _initial_num_clusters)
+      );
+
+      best_cluster = rating_map.run_with_map(action, action);
+    }
+
+    const auto [new_cluster, new_gain] = best_cluster;
     if (derived_cluster(u) != new_cluster) {
       if (derived_move_cluster_weight(
               u_cluster, new_cluster, u_weight, derived_max_cluster_weight(new_cluster)
@@ -251,110 +275,126 @@ protected:
   /*!
    * Computes the best feasible cluster for a node.
    *
+   * @tparam parallel Whether the best cluster for the node should be computed in parallel.
+   * @tparam RatingMap The rating map used for computing the best cluster for the node.
+   *
    * @param u The node for which the cluster is computed.
    * @param u_weight The weight of the node.
    * @param u_cluster The current cluster of the node.
-   * @param local_rand Thread-local \c Random object.
-   * @param local_rating_map Thread-local rating map to compute gain values.
-   * @return Pair with: new cluster of the node, gain value for the move to the
-   * new cluster.
+   * @param rand (Thread-local) \c Random object.
+   * @param map (Thread-local) rating map to compute gain values.
+   *
+   * @return Pair with: new cluster of the node, gain value for the move to the new cluster.
    */
-  template <typename LocalRatingMap>
+  template <bool parallel = false, typename RatingMap>
   std::pair<ClusterID, EdgeWeight> find_best_cluster(
       const NodeID u,
       const NodeWeight u_weight,
       const ClusterID u_cluster,
-      Random &local_rand,
-      LocalRatingMap &local_rating_map
+      Random &rand,
+      RatingMap &map
   ) {
-    auto action = [&](auto &map) {
-      const ClusterWeight initial_cluster_weight = derived_cluster_weight(u_cluster);
-      ClusterSelectionState state{
-          .local_rand = local_rand,
-          .u = u,
-          .u_weight = u_weight,
-          .initial_cluster = u_cluster,
-          .initial_cluster_weight = initial_cluster_weight,
-          .best_cluster = u_cluster,
-          .best_gain = 0,
-          .best_cluster_weight = initial_cluster_weight,
-          .current_cluster = 0,
-          .current_gain = 0,
-          .current_cluster_weight = 0,
-      };
+    const ClusterWeight initial_cluster_weight = derived_cluster_weight(u_cluster);
+    ClusterSelectionState state{
+        .local_rand = rand,
+        .u = u,
+        .u_weight = u_weight,
+        .initial_cluster = u_cluster,
+        .initial_cluster_weight = initial_cluster_weight,
+        .best_cluster = u_cluster,
+        .best_gain = 0,
+        .best_cluster_weight = initial_cluster_weight,
+        .current_cluster = 0,
+        .current_gain = 0,
+        .current_cluster_weight = 0,
+    };
 
-      bool is_interface_node = false;
+    bool is_interface_node = false;
 
-      auto add_to_rating_map = [&](const EdgeID e, const NodeID v) {
+    const EdgeID from = _graph->first_edge(u);
+    const EdgeID to = from + std::min(_graph->degree(u), _max_num_neighbors);
+
+    if constexpr (parallel) {
+      tbb::parallel_for<EdgeID>(from, to, [&](const EdgeID e) {
+        const NodeID v = _graph->edge_target(e);
+
         if (derived_accept_neighbor(u, v)) {
           const ClusterID v_cluster = derived_cluster(v);
           const EdgeWeight rating = _graph->edge_weight(e);
-          map[v_cluster] += rating;
+
+          const EdgeWeight prev_rating =
+              __atomic_fetch_add(&map[v_cluster], rating, __ATOMIC_RELAXED);
+          if (prev_rating == 0) {
+            map.mark_as_used(v_cluster);
+          }
+
           if constexpr (Config::kUseLocalActiveSetStrategy) {
             is_interface_node |= v >= _num_active_nodes;
           }
         }
-      };
-
-      const EdgeID from = _graph->first_edge(u);
-      const EdgeID to = from + std::min(_graph->degree(u), _max_num_neighbors);
+      });
+    } else {
       for (EdgeID e = from; e < to; ++e) {
-        add_to_rating_map(e, _graph->edge_target(e));
-      }
+        const NodeID v = _graph->edge_target(e);
 
-      if constexpr (Config::kUseLocalActiveSetStrategy) {
-        if (!is_interface_node) {
-          _active[u] = 0;
+        if (derived_accept_neighbor(u, v)) {
+          const ClusterID v_cluster = derived_cluster(v);
+          const EdgeWeight rating = _graph->edge_weight(e);
+
+          map[v_cluster] += rating;
+
+          if constexpr (Config::kUseLocalActiveSetStrategy) {
+            is_interface_node |= v >= _num_active_nodes;
+          }
         }
       }
-      if constexpr (Config::kUseActiveSetStrategy) {
+    }
+
+    if constexpr (Config::kUseLocalActiveSetStrategy) {
+      if (!is_interface_node) {
         _active[u] = 0;
       }
+    }
+    if constexpr (Config::kUseActiveSetStrategy) {
+      _active[u] = 0;
+    }
 
-      // after LP, we might want to use 2-hop clustering to merge nodes that
-      // could not find any cluster to join for this, we store a favored cluster
-      // for each node u if: (1) we actually use 2-hop clustering (2) u is still
-      // in a singleton cluster (weight of node == weight of cluster) (3) the
-      // cluster is light (at most half full)
-      ClusterID favored_cluster = u_cluster;
-      const bool store_favored_cluster =
-          Config::kUseTwoHopClustering && u_weight == initial_cluster_weight &&
-          initial_cluster_weight <= derived_max_cluster_weight(u_cluster) / 2;
+    // after LP, we might want to use 2-hop clustering to merge nodes that
+    // could not find any cluster to join for this, we store a favored cluster
+    // for each node u if: (1) we actually use 2-hop clustering (2) u is still
+    // in a singleton cluster (weight of node == weight of cluster) (3) the
+    // cluster is light (at most half full)
+    ClusterID favored_cluster = u_cluster;
+    const bool store_favored_cluster =
+        Config::kUseTwoHopClustering && u_weight == initial_cluster_weight &&
+        initial_cluster_weight <= derived_max_cluster_weight(u_cluster) / 2;
 
-      const EdgeWeight gain_delta = (Config::kUseActualGain) ? map[u_cluster] : 0;
+    const EdgeWeight gain_delta = (Config::kUseActualGain) ? map[u_cluster] : 0;
 
-      for (const auto [cluster, rating] : map.entries()) {
-        state.current_cluster = cluster;
-        state.current_gain = rating - gain_delta;
-        state.current_cluster_weight = derived_cluster_weight(cluster);
+    for (const auto [cluster, rating] : map.entries()) {
+      state.current_cluster = cluster;
+      state.current_gain = rating - gain_delta;
+      state.current_cluster_weight = derived_cluster_weight(cluster);
 
-        if (store_favored_cluster && state.current_gain > state.best_gain) {
-          favored_cluster = state.current_cluster;
-        }
-
-        if (derived_accept_cluster(state)) {
-          state.best_cluster = state.current_cluster;
-          state.best_cluster_weight = state.current_cluster_weight;
-          state.best_gain = state.current_gain;
-        }
+      if (store_favored_cluster && state.current_gain > state.best_gain) {
+        favored_cluster = state.current_cluster;
       }
 
-      // if we couldn't join any cluster, we store the favored cluster
-      if (store_favored_cluster && state.best_cluster == state.initial_cluster) {
-        _favored_clusters[u] = favored_cluster;
+      if (derived_accept_cluster(state)) {
+        state.best_cluster = state.current_cluster;
+        state.best_cluster_weight = state.current_cluster_weight;
+        state.best_gain = state.current_gain;
       }
+    }
 
-      const EdgeWeight actual_gain = IFSTATS(state.best_gain - map[state.initial_cluster]);
-      map.clear();
-      return std::make_pair(state.best_cluster, actual_gain);
-    };
+    // if we couldn't join any cluster, we store the favored cluster
+    if (store_favored_cluster && state.best_cluster == state.initial_cluster) {
+      _favored_clusters[u] = favored_cluster;
+    }
 
-    local_rating_map.update_upper_bound_size(
-        std::min<ClusterID>(_graph->degree(u), _initial_num_clusters)
-    );
-    const auto [best_cluster, gain] = local_rating_map.run_with_map(action, action);
-
-    return {best_cluster, gain};
+    const EdgeWeight actual_gain = IFSTATS(state.best_gain - map[state.initial_cluster]);
+    map.clear();
+    return std::make_pair(state.best_cluster, actual_gain);
   }
 
   /*!
@@ -766,6 +806,7 @@ protected:
       shuffle_chunks();
     };
 
+    tbb::concurrent_vector<NodeID> high_degree_nodes;
     tbb::enumerable_thread_specific<NodeID> num_moved_nodes_ets;
     parallel::Atomic<std::size_t> next_chunk = 0;
 
@@ -794,15 +835,22 @@ protected:
           const NodeID u = chunk.start +
                            Config::kPermutationSize * sub_chunk_permutation[sub_chunk] +
                            permutation[i % Config::kPermutationSize];
-          if (u < chunk.end && _graph->degree(u) < _max_degree &&
+          const NodeID degree = _graph->degree(u);
+
+          if (u < chunk.end && degree < _max_degree &&
               ((!Config::kUseActiveSetStrategy && !Config::kUseLocalActiveSetStrategy) ||
                _active[u].load(std::memory_order_relaxed))) {
-            const auto [moved_node, emptied_cluster] = handle_node(u, local_rand, local_rating_map);
-            if (moved_node) {
-              ++local_num_moved_nodes;
-            }
-            if (emptied_cluster) {
-              ++num_removed_clusters;
+            if (degree >= Config::kDegreeThreshold) {
+              high_degree_nodes.push_back(u);
+            } else {
+              const auto [moved_node, emptied_cluster] =
+                  handle_node(u, local_rand, local_rating_map);
+              if (moved_node) {
+                ++local_num_moved_nodes;
+              }
+              if (emptied_cluster) {
+                ++num_removed_clusters;
+              }
             }
           }
         }
@@ -810,6 +858,22 @@ protected:
 
       _current_num_clusters -= num_removed_clusters;
     });
+
+    auto &num_moved_nodes = num_moved_nodes_ets.local();
+    auto &rand = Random::instance();
+    ConcurrentFastResetArray<EdgeWeight, ClusterID> concurrent_rating_map(_current_num_clusters);
+    for (const NodeID u : high_degree_nodes) {
+      const auto [moved_node, emptied_cluster] =
+          Base::template handle_node<true>(u, rand, concurrent_rating_map);
+
+      if (moved_node) {
+        ++num_moved_nodes;
+      }
+
+      if (emptied_cluster) {
+        --_current_num_clusters;
+      }
+    }
 
     return num_moved_nodes_ets.combine(std::plus{});
   }
