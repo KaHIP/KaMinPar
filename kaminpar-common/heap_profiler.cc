@@ -7,6 +7,8 @@
  ******************************************************************************/
 #include "kaminpar-common/heap_profiler.h"
 
+#include <kassert/kassert.hpp>
+
 namespace kaminpar::heap_profiler {
 
 template <class T> T *NoProfilAllocator<T>::allocate(const size_t n) const {
@@ -50,13 +52,13 @@ template <class T> void NoProfilAllocator<T>::destruct(T *const t) const {
 }
 
 HeapProfiler &HeapProfiler::global() {
-  static HeapProfiler global{"Global Heap Profiler"};
+  static HeapProfiler global("Global Heap Profiler");
   return global;
 }
 
-HeapProfiler::HeapProfiler(std::string_view name) : _name(name) {
+HeapProfiler::HeapProfiler(std::string_view name) {
   _tree.root.name = name;
-  _tree.root.parent = &_tree.root;
+  _tree.root.parent = nullptr;
 }
 
 HeapProfiler::~HeapProfiler() {
@@ -82,34 +84,30 @@ void HeapProfiler::start_profile(std::string_view name, std::string description)
 }
 
 void HeapProfiler::stop_profile() {
-  auto *current = _tree.currentNode;
-  auto *parent = current->parent;
-
-  parent->allocs += current->allocs;
-  parent->frees += current->frees;
-  parent->alloc_size += current->alloc_size;
-
-  _tree.currentNode = parent;
+  KASSERT(_tree.currentNode->parent != nullptr, "The root heap profile cannot be stopped.");
+  _tree.currentNode = _tree.currentNode->parent;
 }
 
 ScopedHeapProfiler
 HeapProfiler::start_scoped_profile(std::string_view name, std::string description) {
-  return ScopedHeapProfiler{name, description};
+  return ScopedHeapProfiler(name, description);
 }
 
 void HeapProfiler::record_alloc(const void *ptr, std::size_t size) {
   if (_enabled) {
     std::lock_guard<std::mutex> guard(_mutex);
 
-    _tree.currentNode->allocs++;
-    _tree.currentNode->alloc_size += size;
-    _address_map[ptr] = size;
+    for (HeapProfileTreeNode *node = _tree.currentNode; node != nullptr; node = node->parent) {
+      node->allocs++;
+      node->alloc_size += size;
 
-    _allocs++;
-    _total_alloc += size;
-    if (std::size_t _current_alloc = _total_alloc - _total_free; _current_alloc > _max_alloc) {
-      _max_alloc = _current_alloc;
+      if (std::size_t current_alloc = node->alloc_size - node->free_size;
+          current_alloc > node->max_alloc_size) {
+        node->max_alloc_size = current_alloc;
+      }
     }
+
+    _address_map[ptr] = size;
   }
 }
 
@@ -117,39 +115,49 @@ void HeapProfiler::record_free(const void *ptr) {
   if (_enabled) {
     std::lock_guard<std::mutex> guard(_mutex);
 
-    _tree.currentNode->frees++;
+    std::size_t size = _address_map[ptr];
+    for (HeapProfileTreeNode *node = _tree.currentNode; node != nullptr; node = node->parent) {
+      node->frees++;
+      node->free_size += size;
+    }
 
-    _frees++;
-    _total_free += _address_map[ptr];
     _address_map.erase(ptr);
   }
 }
 
 void HeapProfiler::print_heap_profile(std::ostream &out) {
   HeapProfileTreeNode &root = *_tree.currentNode;
-  HeapProfileTreeStats stats = calculate_stats(root);
+  HeapProfileTreeStats stats(root);
 
-  stats.max_alloc = std::max(kAllocSizeTitle.length(), to_megabytes(stats.max_alloc).length());
-  stats.max_allocs = std::max(kAllocsTitle.length(), std::to_string(stats.max_allocs).length());
-  stats.max_frees = std::max(kFreesTitle.length(), std::to_string(stats.max_frees).length());
+  stats.max_alloc_size =
+      std::max(kMaxAllocTitle.length(), to_megabytes(stats.max_alloc_size).length());
+  stats.alloc_size = std::max(kAllocTitle.length(), to_megabytes(stats.alloc_size).length());
+  stats.free_size = std::max(kAllocTitle.length(), to_megabytes(stats.free_size).length());
+  stats.allocs = std::max(kAllocsTitle.length(), std::to_string(stats.allocs).length());
+  stats.frees = std::max(kFreesTitle.length(), std::to_string(stats.frees).length());
 
-  out << "Max Memory Usage: " << to_megabytes(_max_alloc) << " (mb)" << '\n';
-
-  out << std::string(stats.max_len + 2 + 10, '-') << ' ';
-  out << kAllocSizeTitle << " " << std::string(stats.max_alloc - kAllocSizeTitle.length(), ' ');
-  out << kAllocsTitle << " " << std::string(stats.max_allocs - kAllocsTitle.length(), ' ');
-  out << kFreesTitle << " " << std::string(stats.max_frees - kFreesTitle.length(), ' ') << '\n';
+  out << std::string(stats.len + 2 + 10, '-') << ' ';
+  out << kMaxAllocTitle << std::string(stats.max_alloc_size - kMaxAllocTitle.length() + 1, ' ');
+  out << kAllocTitle << std::string(stats.alloc_size - kAllocTitle.length() + 1, ' ');
+  out << kFreeTitle << std::string(stats.free_size - kFreeTitle.length() + 1, ' ');
+  out << kAllocsTitle << std::string(stats.allocs - kAllocsTitle.length() + 1, ' ');
+  out << kFreesTitle << std::string(stats.frees - kFreesTitle.length() + 1, ' ');
+  out << '\n';
 
   print_heap_tree_node(out, root, stats);
   out << '\n';
 }
 
 std::size_t HeapProfiler::get_max_alloc() {
-  return _max_alloc;
+  return _tree.currentNode->max_alloc_size;
 }
 
 std::size_t HeapProfiler::get_alloc() {
   return _tree.currentNode->alloc_size;
+}
+
+std::size_t HeapProfiler::get_free() {
+  return _tree.currentNode->free_size;
 }
 
 std::size_t HeapProfiler::get_allocs() {
@@ -160,39 +168,24 @@ std::size_t HeapProfiler::get_frees() {
   return _tree.currentNode->frees;
 }
 
-HeapProfileTreeStats HeapProfiler::calculate_stats(const HeapProfileTreeNode &node) {
-  std::size_t name_length = node.name.length();
-  if (!node.description.empty()) {
-    name_length += node.description.length() + 2;
-  }
-
-  HeapProfileTreeStats stats = {name_length, node.alloc_size, node.allocs, node.frees};
-
-  for (auto const &child : node.children) {
-    HeapProfileTreeStats child_stats = calculate_stats(*child);
-    stats.max_len = std::max(stats.max_len, child_stats.max_len + kBranchLength);
-    stats.max_alloc = std::max(stats.max_alloc, child_stats.max_alloc);
-    stats.max_allocs = std::max(stats.max_allocs, child_stats.max_allocs);
-    stats.max_frees = std::max(stats.max_frees, child_stats.max_frees);
-  }
-
-  return stats;
-}
-
 void HeapProfiler::print_heap_tree_node(
     std::ostream &out,
     const HeapProfileTreeNode &node,
-    HeapProfileTreeStats stats,
+    const HeapProfileTreeStats stats,
     std::size_t depth,
     bool last
 ) {
+  float percentage;
   if (depth > 0) {
     std::size_t leading_whitespaces = (depth - 1) * kBranchLength;
     out << std::string(leading_whitespaces, ' ') << (last ? kTailBranch : kBranch);
+
+    std::size_t parent_alloc_size = node.parent->alloc_size;
+    percentage = (parent_alloc_size == 0) ? 1 : (node.alloc_size / (float)parent_alloc_size);
+  } else {
+    percentage = 1;
   }
 
-  float percentage =
-      (node.parent->alloc_size == 0) ? 1 : (node.alloc_size / (float)node.parent->alloc_size);
   out << "(";
   if (percentage >= 0.999995) {
     out << "100.00";
@@ -204,7 +197,7 @@ void HeapProfiler::print_heap_tree_node(
   }
   out << "%) " << node.name;
 
-  std::size_t padding_length = stats.max_len - (depth * kBranchLength + node.name.length());
+  std::size_t padding_length = stats.len - (depth * kBranchLength + node.name.length());
   if (!node.description.empty()) {
     padding_length -= node.description.length() + 2;
     out << "(" << node.description << ")";
@@ -212,11 +205,17 @@ void HeapProfiler::print_heap_tree_node(
 
   out << kNameDel << std::string(padding_length, kPadding) << ' ';
 
+  std::string max_alloc_size = to_megabytes(node.max_alloc_size);
+  out << max_alloc_size << std::string(stats.max_alloc_size - max_alloc_size.length() + 1, ' ');
+
   std::string alloc_size = to_megabytes(node.alloc_size);
-  out << alloc_size << std::string(stats.max_alloc - alloc_size.length(), ' ') << ' ' << node.allocs
-      << std::string(stats.max_allocs - std::to_string(node.allocs).length(), ' ') << ' '
-      << node.frees << std::string(stats.max_frees - std::to_string(node.frees).length(), ' ')
-      << '\n';
+  out << alloc_size << std::string(stats.alloc_size - alloc_size.length() + 1, ' ');
+
+  std::string free_size = to_megabytes(node.free_size);
+  out << free_size << std::string(stats.free_size - free_size.length() + 1, ' ');
+
+  out << node.allocs << std::string(stats.allocs - std::to_string(node.allocs).length() + 1, ' ')
+      << node.frees << std::string(stats.frees - std::to_string(node.frees).length(), ' ') << '\n';
 
   if (!node.children.empty()) {
     auto last_child = node.children.back();

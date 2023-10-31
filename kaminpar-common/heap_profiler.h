@@ -51,6 +51,7 @@
 #endif
 
 namespace kaminpar::heap_profiler {
+class ScopedHeapProfiler;
 
 /*!
  * A minimal allocator that uses memory allocation functions which bypass the heap profiler.
@@ -78,15 +79,6 @@ template <class T> struct NoProfilAllocator {
   void destruct(T *const t) const;
 };
 
-class ScopedHeapProfiler;
-
-struct HeapProfileTreeStats {
-  std::size_t max_len;
-  std::size_t max_alloc;
-  std::size_t max_allocs;
-  std::size_t max_frees;
-};
-
 /*!
  * A hierarchical heap profiler to measure dynamic memory allocation of the program.
  *
@@ -95,7 +87,9 @@ struct HeapProfileTreeStats {
  */
 class HeapProfiler {
 private:
-  static constexpr std::string_view kAllocSizeTitle = "Alloc (mb)";
+  static constexpr std::string_view kMaxAllocTitle = "Max Alloc (mb)";
+  static constexpr std::string_view kAllocTitle = "Alloc (mb)";
+  static constexpr std::string_view kFreeTitle = "Free (mb)";
   static constexpr std::string_view kAllocsTitle = "Allocs";
   static constexpr std::string_view kFreesTitle = "Frees";
 
@@ -120,7 +114,9 @@ private:
 
     std::size_t allocs;
     std::size_t frees;
+    std::size_t max_alloc_size;
     std::size_t alloc_size;
+    std::size_t free_size;
 
     template <typename Allocator> void free(Allocator allocator) {
       for (HeapProfileTreeNode *child : children) {
@@ -133,6 +129,40 @@ private:
   struct HeapProfileTree {
     HeapProfileTreeNode root;
     HeapProfileTreeNode *currentNode = &root;
+  };
+
+  struct HeapProfileTreeStats {
+    std::size_t len;
+    std::size_t max_alloc_size;
+    std::size_t alloc_size;
+    std::size_t free_size;
+    std::size_t allocs;
+    std::size_t frees;
+
+    HeapProfileTreeStats(const HeapProfileTreeNode &node) {
+      std::size_t name_length = node.name.length();
+      if (!node.description.empty()) {
+        name_length += node.description.length() + 2;
+      }
+
+      len = name_length;
+      max_alloc_size = node.max_alloc_size;
+      alloc_size = node.alloc_size;
+      free_size = node.free_size;
+      allocs = node.allocs;
+      frees = node.frees;
+
+      for (auto const &child : node.children) {
+        HeapProfileTreeStats child_stats(*child);
+
+        len = std::max(len, child_stats.len + kBranchLength);
+        max_alloc_size = std::max(max_alloc_size, child_stats.max_alloc_size);
+        alloc_size = std::max(alloc_size, child_stats.alloc_size);
+        free_size = std::max(free_size, child_stats.free_size);
+        allocs = std::max(allocs, child_stats.allocs);
+        frees = std::max(frees, child_stats.frees);
+      }
+    }
   };
 
 public:
@@ -209,14 +239,43 @@ public:
    */
   void print_heap_profile(std::ostream &out);
 
+  /*!
+   * Returns the amount of maximum allocated memory in bytes of the current heap profile.
+   *
+   * @return The amount of maximum allocated memory in bytes of the current heap profile.
+   */
   std::size_t get_max_alloc();
+
+  /*!
+   * Returns the amount of allocated memory in bytes of the current heap profile.
+   *
+   * @return The amount of allocated memory in bytes of the current heap profile.
+   */
   std::size_t get_alloc();
+
+  /*!
+   * Returns the amount of freed memory in bytes of the current heap profile.
+   *
+   * @return The amount of freed memory in bytes of the current heap profile.
+   */
+  std::size_t get_free();
+
+  /*!
+   * Returns the amount of alloc operations of the current heap profile.
+   *
+   * @return The amount of alloc operations of the current heap profile.
+   */
   std::size_t get_allocs();
+
+  /*!
+   * Returns the amount of free operations of the current heap profile.
+   *
+   * @return The amount of free operations of the current heap profile.
+   */
   std::size_t get_frees();
 
 private:
   bool _enabled = false;
-  std::string_view _name;
 
   std::mutex _mutex;
   NoProfilAllocator<HeapProfileTreeNode> _node_allocator;
@@ -229,18 +288,10 @@ private:
       _address_map;
   HeapProfileTree _tree;
 
-  std::size_t _total_alloc;
-  std::size_t _total_free;
-  std::size_t _max_alloc;
-  std::size_t _allocs;
-  std::size_t _frees;
-
-  HeapProfileTreeStats calculate_stats(const HeapProfileTreeNode &node);
-
   void print_heap_tree_node(
       std::ostream &out,
       const HeapProfileTreeNode &node,
-      HeapProfileTreeStats stats,
+      const HeapProfileTreeStats stats,
       std::size_t depth = 0,
       bool last = false
   );
