@@ -28,12 +28,12 @@
 #define START_HEAP_PROFILER(...)                                                                   \
   GET_MACRO(_, ##__VA_ARGS__, START_HEAP_PROFILER_2, START_HEAP_PROFILER_1)(__VA_ARGS__)
 #define STOP_HEAP_PROFILER() kaminpar::heap_profiler::HeapProfiler::global().stop_profile()
-#define SCOPED_HEAP_PROFILER_2(name, desc)                                                         \
-  auto __SCOPED_HEAP_PROFILER__##__LINE__ =                                                        \
+#define SCOPED_HEAP_PROFILER_2(name, desc, line)                                                   \
+  auto __SCOPED_HEAP_PROFILER__##line =                                                            \
       kaminpar::heap_profiler::HeapProfiler::global().start_scoped_profile(name, desc)
-#define SCOPED_HEAP_PROFILER_1(name) SCOPED_HEAP_PROFILER_2(name, "")
+#define SCOPED_HEAP_PROFILER_1(name, line) SCOPED_HEAP_PROFILER_2(name, "", line)
 #define SCOPED_HEAP_PROFILER(...)                                                                  \
-  GET_MACRO(_, ##__VA_ARGS__, SCOPED_HEAP_PROFILER_2, SCOPED_HEAP_PROFILER_1)(__VA_ARGS__)
+  GET_MACRO(_, ##__VA_ARGS__, SCOPED_HEAP_PROFILER_2, SCOPED_HEAP_PROFILER_1)(__VA_ARGS__, __LINE__)
 #define ENABLE_HEAP_PROFILER() kaminpar::heap_profiler::HeapProfiler::global().enable()
 #define DISABLE_HEAP_PROFILER() kaminpar::heap_profiler::HeapProfiler::global().disable()
 #define PRINT_HEAP_PROFILE(out)                                                                    \
@@ -115,13 +115,7 @@ private:
   struct HeapProfileTreeNode {
     std::string_view name;
     std::string description;
-    std::map<
-        std::string_view,
-        HeapProfileTreeNode *,
-        std::less<std::string_view>,
-        NoProfilAllocator<std::pair<const std::string_view, HeapProfileTreeNode *>>>
-        children;
-    std::vector<HeapProfileTreeNode *> ordered_children;
+    std::vector<HeapProfileTreeNode *, NoProfilAllocator<HeapProfileTreeNode *>> children;
     HeapProfileTreeNode *parent;
 
     std::size_t allocs;
@@ -129,7 +123,7 @@ private:
     std::size_t alloc_size;
 
     template <typename Allocator> void free(Allocator allocator) {
-      for (HeapProfileTreeNode *child : ordered_children) {
+      for (HeapProfileTreeNode *child : children) {
         child->free(allocator);
         allocator.destruct(child);
       }

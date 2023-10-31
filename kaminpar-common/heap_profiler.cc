@@ -72,21 +72,13 @@ void HeapProfiler::disable() {
 }
 
 void HeapProfiler::start_profile(std::string_view name, std::string description) {
-  auto &children = _tree.currentNode->children;
+  HeapProfileTreeNode *node = _node_allocator.construct();
+  node->name = name;
+  node->description = description;
+  node->parent = _tree.currentNode;
 
-  if (children.find(name) == children.end()) {
-    HeapProfileTreeNode *node = _node_allocator.construct();
-    node->name = name;
-    node->description = description;
-    node->parent = _tree.currentNode;
-
-    _tree.currentNode->ordered_children.push_back(node);
-    children[name] = node;
-
-    _tree.currentNode = node;
-  } else {
-    _tree.currentNode = children[name];
-  }
+  _tree.currentNode->children.push_back(node);
+  _tree.currentNode = node;
 }
 
 void HeapProfiler::stop_profile() {
@@ -176,7 +168,7 @@ HeapProfileTreeStats HeapProfiler::calculate_stats(const HeapProfileTreeNode &no
 
   HeapProfileTreeStats stats = {name_length, node.alloc_size, node.allocs, node.frees};
 
-  for (auto const &child : node.ordered_children) {
+  for (auto const &child : node.children) {
     HeapProfileTreeStats child_stats = calculate_stats(*child);
     stats.max_len = std::max(stats.max_len, child_stats.max_len + kBranchLength);
     stats.max_alloc = std::max(stats.max_alloc, child_stats.max_alloc);
@@ -226,10 +218,10 @@ void HeapProfiler::print_heap_tree_node(
       << node.frees << std::string(stats.max_frees - std::to_string(node.frees).length(), ' ')
       << '\n';
 
-  if (!node.ordered_children.empty()) {
-    auto last_child = node.ordered_children.back();
+  if (!node.children.empty()) {
+    auto last_child = node.children.back();
 
-    for (auto const &child : node.ordered_children) {
+    for (auto const &child : node.children) {
       const bool is_last = (child == last_child);
       print_heap_tree_node(out, *child, stats, depth + 1, is_last);
     }
