@@ -107,6 +107,8 @@ HeapProfiler::start_scoped_profile(std::string_view name, std::string descriptio
 
 void HeapProfiler::record_alloc(const void *ptr, std::size_t size) {
   if (_enabled) {
+    std::lock_guard<std::mutex> guard(_mutex);
+
     _tree.currentNode->allocs++;
     _tree.currentNode->alloc_size += size;
     _address_map[ptr] = size;
@@ -121,6 +123,8 @@ void HeapProfiler::record_alloc(const void *ptr, std::size_t size) {
 
 void HeapProfiler::record_free(const void *ptr) {
   if (_enabled) {
+    std::lock_guard<std::mutex> guard(_mutex);
+
     _tree.currentNode->frees++;
 
     _frees++;

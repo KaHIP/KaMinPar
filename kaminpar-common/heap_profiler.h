@@ -10,6 +10,7 @@
 #include <iomanip>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -223,6 +224,7 @@ private:
   bool _enabled = false;
   std::string_view _name;
 
+  std::mutex _mutex;
   NoProfilAllocator<HeapProfileTreeNode> _node_allocator;
   std::unordered_map<
       const void *,
