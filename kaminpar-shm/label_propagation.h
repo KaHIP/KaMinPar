@@ -865,7 +865,9 @@ protected:
 
     auto &num_moved_nodes = num_moved_nodes_ets.local();
     auto &rand = Random::instance();
-    ConcurrentFastResetArray<EdgeWeight, ClusterID> concurrent_rating_map(_current_num_clusters);
+    ConcurrentFastResetArray<EdgeWeight, ClusterID> concurrent_rating_map(
+        Base::_initial_num_clusters
+    );
     for (const NodeID u : high_degree_nodes) {
       const auto [moved_node, emptied_cluster] =
           Base::template handle_node<true>(u, rand, concurrent_rating_map);
