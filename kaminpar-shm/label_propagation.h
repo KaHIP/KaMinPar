@@ -23,6 +23,7 @@
 #include "kaminpar-common/datastructures/concurrent_fast_reset_array.h"
 #include "kaminpar-common/datastructures/rating_map.h"
 #include "kaminpar-common/datastructures/scalable_vector.h"
+#include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/parallel/atomic.h"
 #include "kaminpar-common/random.h"
@@ -144,6 +145,8 @@ protected:
    * computed.
    */
   void allocate(const NodeID num_nodes, const NodeID num_active_nodes, const NodeID num_clusters) {
+    SCOPED_HEAP_PROFILER("Label Propagation Allocation");
+
     if (_num_nodes < num_nodes) {
       if constexpr (Config::kUseLocalActiveSetStrategy) {
         _active.resize(num_nodes);
@@ -160,6 +163,7 @@ protected:
       }
       _num_active_nodes = num_active_nodes;
     }
+
     if (_num_clusters < num_clusters) {
       for (auto &rating_map : _rating_map_ets) {
         rating_map.change_max_size(num_clusters);

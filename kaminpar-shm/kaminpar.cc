@@ -170,9 +170,11 @@ EdgeWeight KaMinPar::compute_partition(const int seed, const BlockID k, BlockID 
   START_HEAP_PROFILER("Partitioning");
   START_TIMER("Partitioning");
   if (!_was_rearranged) {
+    START_HEAP_PROFILER("Rearrange input graph");
     _graph_ptr =
         std::make_unique<Graph>(graph::rearrange_by_degree_buckets(_ctx, std::move(*_graph_ptr)));
     _was_rearranged = true;
+    STOP_HEAP_PROFILER();
   }
 
   // Perform actual partitioning
@@ -180,9 +182,11 @@ EdgeWeight KaMinPar::compute_partition(const int seed, const BlockID k, BlockID 
 
   // Re-integrate isolated nodes that were cut off during preprocessing
   if (_graph_ptr->permuted()) {
+    START_HEAP_PROFILER("Re-integrate isolated nodes");
     const NodeID num_isolated_nodes =
         graph::integrate_isolated_nodes(*_graph_ptr, original_epsilon, _ctx);
     p_graph = graph::assign_isolated_nodes(std::move(p_graph), num_isolated_nodes, _ctx.partition);
+    STOP_HEAP_PROFILER();
   }
   STOP_TIMER();
   STOP_HEAP_PROFILER();

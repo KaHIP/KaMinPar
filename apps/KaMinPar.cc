@@ -135,6 +135,8 @@ int main(int argc, char *argv[]) {
 
   ENABLE_HEAP_PROFILER();
 
+  START_HEAP_PROFILER("Input Graph Allocation");
+
   // Allocate graph data structures and read graph file
   StaticArray<EdgeID> xadj;
   StaticArray<NodeID> adjncy;
@@ -155,6 +157,8 @@ int main(int argc, char *argv[]) {
   NodeID *adjncy_ptr = adjncy.data();
   NodeWeight *vwgt_ptr = !vwgt.empty() ? vwgt.data() : nullptr;
   EdgeWeight *adjwgt_ptr = !adjwgt.empty() ? adjwgt.data() : nullptr;
+
+  STOP_HEAP_PROFILER();
 
   // Compute graph partition
   KaMinPar partitioner(app.num_threads, ctx);

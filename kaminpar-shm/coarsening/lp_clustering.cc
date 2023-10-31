@@ -14,6 +14,7 @@
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/label_propagation.h"
 
+#include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
@@ -54,9 +55,12 @@ public:
   }
 
   const AtomicClusterArray &compute_clustering(const Graph &graph) final {
+    START_HEAP_PROFILER("Initialization");
     initialize(&graph, graph.n());
+    STOP_HEAP_PROFILER();
 
     for (std::size_t iteration = 0; iteration < _c_ctx.lp.num_iterations; ++iteration) {
+      SCOPED_HEAP_PROFILER("Iteration", std::to_string(iteration));
       SCOPED_TIMER("Iteration", std::to_string(iteration));
       if (perform_iteration() == 0) {
         break;
@@ -64,6 +68,7 @@ public:
     }
 
     if (_c_ctx.lp.use_two_hop_clustering(_graph->n(), _current_num_clusters)) {
+      SCOPED_HEAP_PROFILER("2-hop Clustering");
       TIMED_SCOPE("2-hop Clustering") {
         perform_two_hop_clustering();
       };

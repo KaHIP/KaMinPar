@@ -132,20 +132,25 @@ void extend_partition(
 ) {
   SCOPED_TIMER("Initial partitioning");
 
+  START_HEAP_PROFILER("Extract subgraphs");
   auto extraction = TIMED_SCOPE("Extract subgraphs") {
     return extract_subgraphs(p_graph, subgraph_memory);
   };
+  STOP_HEAP_PROFILER();
   const auto &subgraphs = extraction.subgraphs;
   const auto &mapping = extraction.node_mapping;
   const auto &positions = extraction.positions;
 
+  START_HEAP_PROFILER("Allocation");
   START_TIMER("Allocation");
   scalable_vector<BlockArray> subgraph_partitions;
   for (const auto &subgraph : subgraphs) {
     subgraph_partitions.emplace_back(subgraph.n());
   }
   STOP_TIMER();
+  STOP_HEAP_PROFILER();
 
+  START_HEAP_PROFILER("Bipartitioning");
   START_TIMER("Bipartitioning");
   tbb::parallel_for(
       static_cast<BlockID>(0),
@@ -172,12 +177,15 @@ void extend_partition(
       }
   );
   STOP_TIMER();
+  STOP_HEAP_PROFILER();
 
+  START_HEAP_PROFILER("Copy subgraph partitions");
   TIMED_SCOPE("Copy subgraph partitions") {
     graph::copy_subgraph_partitions(
         p_graph, subgraph_partitions, k_prime, input_ctx.partition.k, mapping
     );
   };
+  STOP_HEAP_PROFILER();
   update_partition_context(current_p_ctx, p_graph);
 
   KASSERT(p_graph.k() == k_prime);
@@ -198,7 +206,8 @@ void extend_partition(
       input_ctx.partition.k,
       p_graph.m(),
       p_graph.graph().is_node_weighted(),
-      p_graph.graph().is_edge_weighted()};
+      p_graph.graph().is_edge_weighted()
+  };
   STOP_TIMER();
   extend_partition(
       p_graph, k_prime, input_ctx, current_p_ctx, memory, extraction_pool, ip_m_ctx_pool

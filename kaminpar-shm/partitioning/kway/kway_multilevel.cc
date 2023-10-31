@@ -31,6 +31,8 @@ PartitionedGraph KWayMultilevelPartitioner::partition() {
 }
 
 void KWayMultilevelPartitioner::refine(PartitionedGraph &p_graph) {
+  SCOPED_HEAP_PROFILER("Refinement");
+
   // If requested, dump the current partition to disk before refinement ...
   debug::dump_partition_hierarchy(p_graph, _coarsener->size(), "pre-refinement", _input_ctx.debug);
 
@@ -44,29 +46,26 @@ void KWayMultilevelPartitioner::refine(PartitionedGraph &p_graph) {
 }
 
 PartitionedGraph KWayMultilevelPartitioner::uncoarsen(PartitionedGraph p_graph) {
-  START_HEAP_PROFILER("Uncoarsening");
+  SCOPED_HEAP_PROFILER("Uncoarsening");
+
   while (!_coarsener->empty()) {
-    START_HEAP_PROFILER("Level", std::to_string(_coarsener.get()->size()));
     LOG;
     LOG << "Uncoarsening -> Level " << _coarsener.get()->size();
 
     p_graph = helper::uncoarsen_once(_coarsener.get(), std::move(p_graph), _current_p_ctx);
     refine(p_graph);
-
-    STOP_HEAP_PROFILER();
   }
 
-  STOP_HEAP_PROFILER();
   return p_graph;
 }
 
 const Graph *KWayMultilevelPartitioner::coarsen() {
-  START_HEAP_PROFILER("Coarsening");
+  SCOPED_HEAP_PROFILER("Coarsening");
+
   const Graph *c_graph = &_input_graph;
   bool shrunk = true;
 
   while (shrunk && c_graph->n() > initial_partitioning_threshold()) {
-    START_HEAP_PROFILER("Level", std::to_string(_coarsener.get()->size() + 1));
     // If requested, dump graph before each coarsening step + after coarsening
     // converged. This way, we also have a dump of the (reordered) input graph,
     // which makes it easier to use the final partition (before reordering it).
@@ -84,8 +83,6 @@ const Graph *KWayMultilevelPartitioner::coarsen() {
     LOG << "  Number of nodes: " << c_graph->n() << " | Number of edges: " << c_graph->m();
     LOG << "  Maximum node weight: " << c_graph->max_node_weight() << " <= " << max_cluster_weight;
     LOG;
-
-    STOP_HEAP_PROFILER();
   }
 
   if (shrunk) {
@@ -97,7 +94,6 @@ const Graph *KWayMultilevelPartitioner::coarsen() {
     LOG;
   }
 
-  STOP_HEAP_PROFILER();
   return c_graph;
 }
 
@@ -106,7 +102,7 @@ NodeID KWayMultilevelPartitioner::initial_partitioning_threshold() {
 }
 
 PartitionedGraph KWayMultilevelPartitioner::initial_partition(const Graph *graph) {
-  START_HEAP_PROFILER("Initial partitioning");
+  SCOPED_HEAP_PROFILER("Initial partitioning");
   SCOPED_TIMER("Initial partitioning");
   LOG << "Initial partitioning:";
 
@@ -146,7 +142,6 @@ PartitionedGraph KWayMultilevelPartitioner::initial_partition(const Graph *graph
   debug::dump_coarsest_partition(p_graph, _input_ctx.debug);
   debug::dump_partition_hierarchy(p_graph, _coarsener->size(), "post-refinement", _input_ctx.debug);
 
-  STOP_HEAP_PROFILER();
   return p_graph;
 }
 } // namespace kaminpar::shm

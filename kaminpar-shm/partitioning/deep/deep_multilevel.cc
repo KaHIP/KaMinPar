@@ -11,6 +11,8 @@
 #include "kaminpar-shm/partitioning/deep/async_initial_partitioning.h"
 #include "kaminpar-shm/partitioning/deep/sync_initial_partitioning.h"
 
+#include "kaminpar-common/heap_profiler.h"
+
 namespace kaminpar::shm {
 using namespace partitioning;
 
@@ -52,6 +54,8 @@ PartitionedGraph DeepMultilevelPartitioner::uncoarsen_once(PartitionedGraph p_gr
 }
 
 void DeepMultilevelPartitioner::refine(PartitionedGraph &p_graph) {
+  SCOPED_HEAP_PROFILER("Refinement");
+
   // If requested, dump the current partition to disk before refinement ...
   debug::dump_partition_hierarchy(p_graph, _coarsener->size(), "pre-refinement", _input_ctx.debug);
 
@@ -66,6 +70,7 @@ void DeepMultilevelPartitioner::refine(PartitionedGraph &p_graph) {
 }
 
 void DeepMultilevelPartitioner::extend_partition(PartitionedGraph &p_graph, const BlockID k_prime) {
+  SCOPED_HEAP_PROFILER("Extending partition");
   LOG << "  Extending partition from " << p_graph.k() << " blocks to " << k_prime << " blocks";
   helper::extend_partition(
       p_graph,
@@ -81,6 +86,7 @@ void DeepMultilevelPartitioner::extend_partition(PartitionedGraph &p_graph, cons
 }
 
 PartitionedGraph DeepMultilevelPartitioner::uncoarsen(PartitionedGraph p_graph, bool &refined) {
+  SCOPED_HEAP_PROFILER("Uncoarsening");
   LOG << "Uncoarsening -> Level " << _coarsener.get()->size();
 
   while (!_coarsener->empty()) {
@@ -99,6 +105,8 @@ PartitionedGraph DeepMultilevelPartitioner::uncoarsen(PartitionedGraph p_graph, 
 }
 
 const Graph *DeepMultilevelPartitioner::coarsen() {
+  SCOPED_HEAP_PROFILER("Coarsening");
+
   const Graph *c_graph = &_input_graph;
   bool shrunk = true;
 
@@ -143,6 +151,7 @@ NodeID DeepMultilevelPartitioner::initial_partitioning_threshold() {
 }
 
 PartitionedGraph DeepMultilevelPartitioner::initial_partition(const Graph *graph) {
+  SCOPED_HEAP_PROFILER("Initial partitioning");
   SCOPED_TIMER("Initial partitioning scheme");
   LOG << "Initial partitioning:";
 

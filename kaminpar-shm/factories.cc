@@ -38,6 +38,8 @@ namespace kaminpar::shm::factory {
 SET_DEBUG(true);
 
 std::unique_ptr<Partitioner> create_partitioner(const Graph &graph, const Context &ctx) {
+  SCOPED_HEAP_PROFILER("Create partitioner");
+
   switch (ctx.partitioning.mode) {
   case PartitioningMode::DEEP: {
     return std::make_unique<DeepMultilevelPartitioner>(graph, ctx);
@@ -56,6 +58,7 @@ std::unique_ptr<Partitioner> create_partitioner(const Graph &graph, const Contex
 }
 
 std::unique_ptr<Coarsener> create_coarsener(const Graph &graph, const CoarseningContext &c_ctx) {
+  SCOPED_HEAP_PROFILER("Coarsener allocation");
   SCOPED_TIMER("Allocation");
 
   switch (c_ctx.algorithm) {
@@ -105,6 +108,7 @@ std::unique_ptr<Refiner> create_refiner(const Context &ctx, const RefinementAlgo
 } // namespace
 
 std::unique_ptr<Refiner> create_refiner(const Context &ctx) {
+  SCOPED_HEAP_PROFILER("Refiner Allocation");
   SCOPED_TIMER("Allocation");
 
   if (ctx.refinement.algorithms.empty()) {

@@ -12,6 +12,7 @@
 
 #include "kaminpar-common/datastructures/rating_map.h"
 #include "kaminpar-common/datastructures/ts_navigable_linked_list.h"
+#include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/parallel/algorithm.h"
 #include "kaminpar-common/timer.h"
 
@@ -27,6 +28,7 @@ contract_generic_clustering(const Graph &graph, const Clustering &clustering, Me
   auto &leader_mapping = m_ctx.leader_mapping;
   auto &all_buffered_nodes = m_ctx.all_buffered_nodes;
 
+  START_HEAP_PROFILER("Mapping allocation");
   START_TIMER("Allocation");
   scalable_vector<NodeID> mapping(graph.n());
   if (leader_mapping.size() < graph.n()) {
@@ -36,7 +38,9 @@ contract_generic_clustering(const Graph &graph, const Clustering &clustering, Me
     buckets.resize(graph.n());
   }
   STOP_TIMER();
+  STOP_HEAP_PROFILER();
 
+  START_HEAP_PROFILER("Compute mapping");
   START_TIMER("Preprocessing");
 
   //
@@ -64,12 +68,16 @@ contract_generic_clustering(const Graph &graph, const Clustering &clustering, Me
   graph.pfor_nodes([&](const NodeID u) { --mapping[u]; });
 
   STOP_TIMER();
+  STOP_HEAP_PROFILER();
 
+  START_HEAP_PROFILER("Buckets allocation");
   TIMED_SCOPE("Allocation") {
     buckets_index.clear();
     buckets_index.resize(c_n + 1);
   };
+  STOP_HEAP_PROFILER();
 
+  START_HEAP_PROFILER("Sort into buckets");
   START_TIMER("Preprocessing");
 
   //
@@ -93,16 +101,19 @@ contract_generic_clustering(const Graph &graph, const Clustering &clustering, Me
   });
 
   STOP_TIMER(); // Preprocessing
+  STOP_HEAP_PROFILER();
 
   //
   // Build nodes array of the coarse graph
   // - firstly, we count the degree of each coarse node
   // - secondly, we obtain the nodes array using a prefix sum
   //
+  START_HEAP_PROFILER("Coarse graph nodes allocation");
   START_TIMER("Allocation");
   StaticArray<EdgeID> c_nodes{c_n + 1};
   StaticArray<NodeWeight> c_node_weights{c_n};
   STOP_TIMER();
+  STOP_HEAP_PROFILER();
 
   tbb::enumerable_thread_specific<RatingMap<EdgeWeight, NodeID>> collector{[&] {
     return RatingMap<EdgeWeight, NodeID>(c_n);
@@ -124,6 +135,7 @@ contract_generic_clustering(const Graph &graph, const Clustering &clustering, Me
   //
   NavigableLinkedList<NodeID, Edge, scalable_vector> edge_buffer_ets;
 
+  START_HEAP_PROFILER("Construct coarse edges");
   START_TIMER("Construct coarse edges");
   tbb::parallel_for(tbb::blocked_range<NodeID>(0, c_n), [&](const auto &r) {
     auto &local_collector = collector.local();
@@ -180,6 +192,7 @@ contract_generic_clustering(const Graph &graph, const Clustering &clustering, Me
 
   parallel::prefix_sum(c_nodes.begin(), c_nodes.end(), c_nodes.begin());
   STOP_TIMER(); // Graph construction
+  STOP_HEAP_PROFILER();
 
   KASSERT(c_nodes[0] == 0u);
   const EdgeID c_m = c_nodes.back();
@@ -192,12 +205,15 @@ contract_generic_clustering(const Graph &graph, const Clustering &clustering, Me
       edge_buffer_ets, std::move(all_buffered_nodes)
   );
 
+  START_HEAP_PROFILER("Coarse graph edges allocation");
   START_TIMER("Allocation");
   StaticArray<NodeID> c_edges{c_m};
   StaticArray<EdgeWeight> c_edge_weights{c_m};
   STOP_TIMER();
+  STOP_HEAP_PROFILER();
 
   // build coarse graph
+  START_HEAP_PROFILER("Construct coarse graph");
   START_TIMER("Construct coarse graph");
   tbb::parallel_for(static_cast<NodeID>(0), c_n, [&](const NodeID i) {
     const auto &marker = all_buffered_nodes[i];
@@ -216,15 +232,18 @@ contract_generic_clustering(const Graph &graph, const Clustering &clustering, Me
     }
   });
   STOP_TIMER();
+  STOP_HEAP_PROFILER();
 
   return {
       Graph{
           std::move(c_nodes),
           std::move(c_edges),
           std::move(c_node_weights),
-          std::move(c_edge_weights)},
+          std::move(c_edge_weights)
+      },
       std::move(mapping),
-      std::move(m_ctx)};
+      std::move(m_ctx)
+  };
 }
 } // namespace
 

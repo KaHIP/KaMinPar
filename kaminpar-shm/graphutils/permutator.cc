@@ -11,6 +11,7 @@
 #include <tbb/enumerable_thread_specific.h>
 
 #include "kaminpar-common/assertion_levels.h"
+#include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/parallel/algorithm.h"
 #include "kaminpar-common/timer.h"
@@ -50,12 +51,14 @@ NodePermutations<StaticArray> rearrange_graph(
     StaticArray<NodeWeight> &node_weights,
     StaticArray<EdgeWeight> &edge_weights
 ) {
+  START_HEAP_PROFILER("Temporal nodes and edges allocation");
   START_TIMER("Allocation");
   StaticArray<EdgeID> tmp_nodes(nodes.size());
   StaticArray<NodeID> tmp_edges(edges.size());
   StaticArray<NodeWeight> tmp_node_weights(node_weights.size());
   StaticArray<EdgeWeight> tmp_edge_weights(edge_weights.size());
   STOP_TIMER();
+  STOP_HEAP_PROFILER();
 
   // if we are about to remove all isolated nodes, we place them to the end of
   // the graph data structure this way, we can just cut them off without doing

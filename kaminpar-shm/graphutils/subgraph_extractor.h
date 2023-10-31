@@ -15,6 +15,7 @@
 #include "kaminpar-shm/definitions.h"
 
 #include "kaminpar-common/datastructures/scalable_vector.h"
+#include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm::graph {
@@ -46,11 +47,15 @@ struct SubgraphMemory {
         edges(),
         node_weights(),
         edge_weights() {
+    START_HEAP_PROFILER("SubgraphMemory allocation");
     SCOPED_TIMER("Allocation");
+
     nodes.resize(n + k);
     edges.resize(m);
     node_weights.resize(is_node_weighted * (n + k));
     edge_weights.resize(is_edge_weighted * m);
+
+    STOP_HEAP_PROFILER();
   }
 
   explicit SubgraphMemory(const PartitionedGraph &p_graph)
