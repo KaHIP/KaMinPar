@@ -63,6 +63,7 @@ NodePermutations<StaticArray> rearrange_graph(
   // if we are about to remove all isolated nodes, we place them to the end of
   // the graph data structure this way, we can just cut them off without doing
   // further work
+  START_HEAP_PROFILER("Rearrange input graph");
   START_TIMER("Rearrange input graph");
   NodePermutations<StaticArray> permutations = sort_by_degree_buckets<>(nodes);
   build_permuted_graph(
@@ -81,6 +82,7 @@ NodePermutations<StaticArray> rearrange_graph(
   std::swap(node_weights, tmp_node_weights);
   std::swap(edge_weights, tmp_edge_weights);
   STOP_TIMER();
+  STOP_HEAP_PROFILER();
 
   const NodeWeight total_node_weight =
       node_weights.empty() ? nodes.size() - 1 : parallel::accumulate(node_weights, 0);

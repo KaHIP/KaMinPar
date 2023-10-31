@@ -800,6 +800,7 @@ protected:
    */
   NodeID
   perform_iteration(const NodeID from = 0, const NodeID to = std::numeric_limits<NodeID>::max()) {
+    START_HEAP_PROFILER("Buckets");
     TIMED_SCOPE("Buckets") {
       if (from != 0 || to != std::numeric_limits<NodeID>::max()) {
         _chunks.clear();
@@ -809,11 +810,13 @@ protected:
       }
       shuffle_chunks();
     };
+    STOP_HEAP_PROFILER();
 
     tbb::concurrent_vector<NodeID> high_degree_nodes;
     tbb::enumerable_thread_specific<NodeID> num_moved_nodes_ets;
     parallel::Atomic<std::size_t> next_chunk = 0;
 
+    START_HEAP_PROFILER("First iteration");
     tbb::parallel_for(static_cast<std::size_t>(0), _chunks.size(), [&](const std::size_t) {
       if (should_stop()) {
         return;
@@ -863,6 +866,9 @@ protected:
       _current_num_clusters -= num_removed_clusters;
     });
 
+    STOP_HEAP_PROFILER();
+    START_HEAP_PROFILER("Second iteration");
+
     auto &num_moved_nodes = num_moved_nodes_ets.local();
     auto &rand = Random::instance();
     ConcurrentFastResetArray<EdgeWeight, ClusterID> concurrent_rating_map(
@@ -880,6 +886,8 @@ protected:
         --_current_num_clusters;
       }
     }
+
+    STOP_HEAP_PROFILER();
 
     return num_moved_nodes_ets.combine(std::plus{});
   }
