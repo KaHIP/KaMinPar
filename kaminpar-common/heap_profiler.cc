@@ -44,7 +44,7 @@ template <class T> T *NoProfilAllocator<T>::construct() const {
   return t;
 }
 
-template <class T> void NoProfilAllocator<T>::deconstruct(T *const t) const {
+template <class T> void NoProfilAllocator<T>::destruct(T *const t) const {
   t->~T();
   deallocate(t, 1);
 }
@@ -56,12 +56,11 @@ HeapProfiler &HeapProfiler::global() {
 
 HeapProfiler::HeapProfiler(std::string_view name) : _name(name) {
   _tree.root.name = name;
+  _tree.root.parent = &_tree.root;
 }
 
 HeapProfiler::~HeapProfiler() {
-  for (auto const &[_, child] : _tree.root.children) {
-    _node_allocator.deconstruct(child);
-  }
+  _tree.root.free(_node_allocator);
 }
 
 void HeapProfiler::enable() {
@@ -81,8 +80,10 @@ void HeapProfiler::start_profile(std::string_view name, std::string description)
     node->description = description;
     node->parent = _tree.currentNode;
 
-    _tree.currentNode = node;
+    _tree.currentNode->ordered_children.push_back(node);
     children[name] = node;
+
+    _tree.currentNode = node;
   } else {
     _tree.currentNode = children[name];
   }
@@ -97,6 +98,11 @@ void HeapProfiler::stop_profile() {
   parent->alloc_size += current->alloc_size;
 
   _tree.currentNode = parent;
+}
+
+ScopedHeapProfiler
+HeapProfiler::start_scoped_profile(std::string_view name, std::string description) {
+  return ScopedHeapProfiler{name, description};
 }
 
 void HeapProfiler::record_alloc(const void *ptr, std::size_t size) {
@@ -133,7 +139,7 @@ void HeapProfiler::print_heap_profile(std::ostream &out) {
 
   out << "Max Memory Usage: " << to_megabytes(_max_alloc) << " (mb)" << '\n';
 
-  out << std::string(stats.max_len + 3, '-');
+  out << std::string(stats.max_len + 2 + 10, '-') << ' ';
   out << kAllocSizeTitle << " " << std::string(stats.max_alloc - kAllocSizeTitle.length(), ' ');
   out << kAllocsTitle << " " << std::string(stats.max_allocs - kAllocsTitle.length(), ' ');
   out << kFreesTitle << " " << std::string(stats.max_frees - kFreesTitle.length(), ' ') << '\n';
@@ -166,9 +172,9 @@ HeapProfileTreeStats HeapProfiler::calculate_stats(const HeapProfileTreeNode &no
 
   HeapProfileTreeStats stats = {name_length, node.alloc_size, node.allocs, node.frees};
 
-  for (auto const &[_, child] : node.children) {
+  for (auto const &child : node.ordered_children) {
     HeapProfileTreeStats child_stats = calculate_stats(*child);
-    stats.max_len = std::max(stats.max_len, child_stats.max_len + 4);
+    stats.max_len = std::max(stats.max_len, child_stats.max_len + kBranchLength);
     stats.max_alloc = std::max(stats.max_alloc, child_stats.max_alloc);
     stats.max_allocs = std::max(stats.max_allocs, child_stats.max_allocs);
     stats.max_frees = std::max(stats.max_frees, child_stats.max_frees);
@@ -185,13 +191,24 @@ void HeapProfiler::print_heap_tree_node(
     bool last
 ) {
   if (depth > 0) {
-    std::size_t leading_whitespaces = (depth - 1) * 4;
+    std::size_t leading_whitespaces = (depth - 1) * kBranchLength;
     out << std::string(leading_whitespaces, ' ') << (last ? kTailBranch : kBranch);
   }
 
-  out << node.name;
+  float percentage =
+      (node.parent->alloc_size == 0) ? 1 : (node.alloc_size / (float)node.parent->alloc_size);
+  out << "(";
+  if (percentage >= 0.999995) {
+    out << "100.00";
+  } else {
+    if (percentage < 0.1) {
+      out << "0";
+    }
+    out << percentage * 100;
+  }
+  out << "%) " << node.name;
 
-  std::size_t padding_length = stats.max_len - (depth * 4 + node.name.length());
+  std::size_t padding_length = stats.max_len - (depth * kBranchLength + node.name.length());
   if (!node.description.empty()) {
     padding_length -= node.description.length() + 2;
     out << "(" << node.description << ")";
@@ -205,10 +222,10 @@ void HeapProfiler::print_heap_tree_node(
       << node.frees << std::string(stats.max_frees - std::to_string(node.frees).length(), ' ')
       << '\n';
 
-  if (!node.children.empty()) {
-    auto last_child = (--node.children.end())->second;
+  if (!node.ordered_children.empty()) {
+    auto last_child = node.ordered_children.back();
 
-    for (auto const &[_, child] : node.children) {
+    for (auto const &child : node.ordered_children) {
       const bool is_last = (child == last_child);
       print_heap_tree_node(out, *child, stats, depth + 1, is_last);
     }

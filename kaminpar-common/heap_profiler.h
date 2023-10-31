@@ -14,6 +14,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <vector>
 
 #ifdef KAMINPAR_ENABLE_HEAP_PROFILING
 
@@ -21,11 +22,17 @@
 
 #define GET_MACRO(X, Y, Z, FUNC, ...) FUNC
 #define START_HEAP_PROFILER_2(name, desc)                                                          \
-  (kaminpar::heap_profiler::HeapProfiler::global().start_profile(name, desc))
+  kaminpar::heap_profiler::HeapProfiler::global().start_profile(name, desc)
 #define START_HEAP_PROFILER_1(name) START_HEAP_PROFILER_2(name, "")
 #define START_HEAP_PROFILER(...)                                                                   \
   GET_MACRO(_, ##__VA_ARGS__, START_HEAP_PROFILER_2, START_HEAP_PROFILER_1)(__VA_ARGS__)
-#define STOP_HEAP_PROFILER() (kaminpar::heap_profiler::HeapProfiler::global().stop_profile())
+#define STOP_HEAP_PROFILER() kaminpar::heap_profiler::HeapProfiler::global().stop_profile()
+#define SCOPED_HEAP_PROFILER_2(name, desc)                                                         \
+  auto __SCOPED_HEAP_PROFILER__##__LINE__ =                                                        \
+      kaminpar::heap_profiler::HeapProfiler::global().start_scoped_profile(name, desc)
+#define SCOPED_HEAP_PROFILER_1(name) SCOPED_HEAP_PROFILER_2(name, "")
+#define SCOPED_HEAP_PROFILER(...)                                                                  \
+  GET_MACRO(_, ##__VA_ARGS__, SCOPED_HEAP_PROFILER_2, SCOPED_HEAP_PROFILER_1)(__VA_ARGS__)
 #define ENABLE_HEAP_PROFILER() kaminpar::heap_profiler::HeapProfiler::global().enable()
 #define DISABLE_HEAP_PROFILER() kaminpar::heap_profiler::HeapProfiler::global().disable()
 #define PRINT_HEAP_PROFILE(out)                                                                    \
@@ -33,10 +40,11 @@
 
 #else
 
-#define ENABLE_HEAP_PROFILER()
-#define DISABLE_HEAP_PROFILER()
 #define START_HEAP_PROFILER(...)
 #define STOP_HEAP_PROFILER()
+#define SCOPED_HEAP_PROFILER(...)
+#define ENABLE_HEAP_PROFILER()
+#define DISABLE_HEAP_PROFILER()
 #define PRINT_HEAP_PROFILE(...)
 
 #endif
@@ -66,8 +74,10 @@ template <class T> struct NoProfilAllocator {
   void deallocate(T *const p, size_t) const noexcept;
 
   T *construct() const;
-  void deconstruct(T *const t) const;
+  void destruct(T *const t) const;
 };
+
+class ScopedHeapProfiler;
 
 struct HeapProfileTreeStats {
   std::size_t max_len;
@@ -92,6 +102,7 @@ private:
   static constexpr std::string_view kTailBranch = "`-- ";
   static constexpr std::string_view kTailEdge = "    ";
   static constexpr std::string_view kNameDel = ": ";
+  static constexpr std::size_t kBranchLength = 4;
   static constexpr char kPadding = '.';
 
   static std::string to_megabytes(std::size_t bytes) {
@@ -109,11 +120,19 @@ private:
         std::less<std::string_view>,
         NoProfilAllocator<std::pair<const std::string_view, HeapProfileTreeNode *>>>
         children;
+    std::vector<HeapProfileTreeNode *> ordered_children;
     HeapProfileTreeNode *parent;
 
     std::size_t allocs;
     std::size_t frees;
     std::size_t alloc_size;
+
+    template <typename Allocator> void free(Allocator allocator) {
+      for (HeapProfileTreeNode *child : ordered_children) {
+        child->free(allocator);
+        allocator.destruct(child);
+      }
+    }
   };
 
   struct HeapProfileTree {
@@ -164,6 +183,14 @@ public:
    * Stops the current profile and sets the new current profile to the parent profile.
    */
   void stop_profile();
+
+  /*!
+   * Starts a scoped heap profile and returns the associated object.
+   *
+   * @param name The name of the profile to start.
+   * @param description The description of the profile to start.
+   */
+  ScopedHeapProfiler start_scoped_profile(std::string_view name, std::string description);
 
   /*!
    * Records a memory allocation.
@@ -221,6 +248,30 @@ private:
       std::size_t depth = 0,
       bool last = false
   );
+};
+
+/*!
+ * A helper class for scoped heap profiling. The profile starts with the construction of the object
+ * and ends with the destruction of the object.
+ */
+class ScopedHeapProfiler {
+public:
+  /*!
+   * Constructs a new scoped heap profiler and thereby starting a new heap profile.
+   *
+   * @param name The name of the started profile.
+   * @param description The description of the started profile.
+   */
+  ScopedHeapProfiler(std::string_view name, std::string description) {
+    HeapProfiler::global().start_profile(name, description);
+  }
+
+  /*!
+   * Deconstructs the scoped heap profiler and thereby stopping the heapprofile.
+   */
+  inline ~ScopedHeapProfiler() {
+    HeapProfiler::global().stop_profile();
+  }
 };
 
 } // namespace kaminpar::heap_profiler

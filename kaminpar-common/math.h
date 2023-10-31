@@ -76,7 +76,8 @@ double percentile(const std::vector<E> &sorted_sequence, const double percentile
 
 template <typename T> auto split_integral(const T value, const double ratio = 0.5) {
   return std::pair{
-      static_cast<T>(std::ceil(value * ratio)), static_cast<T>(std::floor(value * (1.0 - ratio)))};
+      static_cast<T>(std::ceil(value * ratio)), static_cast<T>(std::floor(value * (1.0 - ratio)))
+  };
 }
 
 /**
