@@ -102,7 +102,7 @@ void HeapProfiler::record_alloc(const void *ptr, std::size_t size) {
       node->alloc_size += size;
 
       if (std::size_t current_alloc = node->alloc_size - node->free_size;
-          current_alloc > node->max_alloc_size) {
+          node->alloc_size > node->free_size && current_alloc > node->max_alloc_size) {
         node->max_alloc_size = current_alloc;
       }
     }
