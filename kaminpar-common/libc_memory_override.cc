@@ -40,7 +40,7 @@ void *calloc(size_t size, size_t n) {
 
 void *realloc(void *p, size_t newsize) {
   void *ptr = __libc_realloc(p, newsize);
-  // TODO: Do not capture the whole allocation.
+  HeapProfiler::global().record_free(p);
   HeapProfiler::global().record_alloc(ptr, newsize);
   return ptr;
 }
