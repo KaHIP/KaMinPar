@@ -11,8 +11,6 @@
 
 #include <vector>
 
-#include <tbb/concurrent_vector.h>
-
 namespace kaminpar {
 
 /*!
@@ -47,12 +45,12 @@ public:
   }
 
   /*!
-   * Marks a value as used.
+   * Sets the values that are marked used.
    *
-   * @param pos The position of the value in the map to mark as used.
+   * @param used_entries The position of the values in the map to mark as used.
    */
-  void mark_as_used(const size_type pos) {
-    _used_entries.push_back(pos);
+  void set_used_entries(std::vector<size_type> used_entries) {
+    _used_entries = used_entries;
   }
 
   /*!
@@ -83,7 +81,7 @@ public:
 
 private:
   std::vector<value_type> _data;
-  tbb::concurrent_vector<size_type> _used_entries{};
+  std::vector<size_type> _used_entries;
 };
 
 } // namespace kaminpar

@@ -319,6 +319,7 @@ protected:
     const EdgeID to = from + std::min(_graph->degree(u), _max_num_neighbors);
 
     if constexpr (parallel) {
+      tbb::enumerable_thread_specific<std::vector<ClusterID>> rated_nodes_ets;
       tbb::parallel_for<EdgeID>(from, to, [&](const EdgeID e) {
         const NodeID v = _graph->edge_target(e);
 
@@ -329,7 +330,7 @@ protected:
           const EdgeWeight prev_rating =
               __atomic_fetch_add(&map[v_cluster], rating, __ATOMIC_RELAXED);
           if (prev_rating == 0) {
-            map.mark_as_used(v_cluster);
+            rated_nodes_ets.local().push_back(v_cluster);
           }
 
           if constexpr (Config::kUseLocalActiveSetStrategy) {
@@ -337,6 +338,12 @@ protected:
           }
         }
       });
+
+      auto rated_nodes = rated_nodes_ets.combine([](auto v1, auto v2) {
+        v1.insert(v1.end(), v2.begin(), v2.end());
+        return v1;
+      });
+      map.set_used_entries(std::move(rated_nodes));
     } else {
       for (EdgeID e = from; e < to; ++e) {
         const NodeID v = _graph->edge_target(e);
