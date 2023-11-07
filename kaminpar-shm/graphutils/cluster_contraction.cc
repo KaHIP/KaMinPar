@@ -30,17 +30,27 @@ contract_generic_clustering(const Graph &graph, const Clustering &clustering, Me
 
   START_HEAP_PROFILER("Mapping allocation");
   START_TIMER("Allocation");
-  scalable_vector<NodeID> mapping(graph.n());
+
+  RECORD("mapping") scalable_vector<NodeID> mapping(graph.n());
+  RECORD_DATA_STRUCT("scalable_vector", mapping.capacity() * sizeof(NodeID));
+
   if (leader_mapping.size() < graph.n()) {
     leader_mapping.resize(graph.n());
   }
+  RECORD("leader_mapping");
+  RECORD_DATA_STRUCT(
+      "scalable_vector", leader_mapping.capacity() * sizeof(parallel::Atomic<NodeID>)
+  );
+
   if (buckets.size() < graph.n()) {
     buckets.resize(graph.n());
   }
+  RECORD("buckets");
+  RECORD_DATA_STRUCT("scalable_vector", buckets.capacity() * sizeof(NodeID));
+
   STOP_TIMER();
   STOP_HEAP_PROFILER();
 
-  START_HEAP_PROFILER("Compute mapping");
   START_TIMER("Preprocessing");
 
   //
@@ -68,16 +78,18 @@ contract_generic_clustering(const Graph &graph, const Clustering &clustering, Me
   graph.pfor_nodes([&](const NodeID u) { --mapping[u]; });
 
   STOP_TIMER();
-  STOP_HEAP_PROFILER();
 
   START_HEAP_PROFILER("Buckets allocation");
   TIMED_SCOPE("Allocation") {
     buckets_index.clear();
     buckets_index.resize(c_n + 1);
   };
+  RECORD("buckets_index");
+  RECORD_DATA_STRUCT(
+      "scalable_vector", buckets_index.capacity() * sizeof(parallel::Atomic<NodeID>)
+  );
   STOP_HEAP_PROFILER();
 
-  START_HEAP_PROFILER("Sort into buckets");
   START_TIMER("Preprocessing");
 
   //
@@ -101,7 +113,6 @@ contract_generic_clustering(const Graph &graph, const Clustering &clustering, Me
   });
 
   STOP_TIMER(); // Preprocessing
-  STOP_HEAP_PROFILER();
 
   //
   // Build nodes array of the coarse graph
@@ -110,8 +121,8 @@ contract_generic_clustering(const Graph &graph, const Clustering &clustering, Me
   //
   START_HEAP_PROFILER("Coarse graph nodes allocation");
   START_TIMER("Allocation");
-  StaticArray<EdgeID> c_nodes{c_n + 1};
-  StaticArray<NodeWeight> c_node_weights{c_n};
+  RECORD("c_nodes") StaticArray<EdgeID> c_nodes{c_n + 1};
+  RECORD("c_node_weights") StaticArray<NodeWeight> c_node_weights{c_n};
   STOP_TIMER();
   STOP_HEAP_PROFILER();
 
@@ -207,13 +218,12 @@ contract_generic_clustering(const Graph &graph, const Clustering &clustering, Me
 
   START_HEAP_PROFILER("Coarse graph edges allocation");
   START_TIMER("Allocation");
-  StaticArray<NodeID> c_edges{c_m};
-  StaticArray<EdgeWeight> c_edge_weights{c_m};
+  RECORD("c_edges") StaticArray<NodeID> c_edges{c_m};
+  RECORD("c_edge_weights") StaticArray<EdgeWeight> c_edge_weights{c_m};
   STOP_TIMER();
   STOP_HEAP_PROFILER();
 
   // build coarse graph
-  START_HEAP_PROFILER("Construct coarse graph");
   START_TIMER("Construct coarse graph");
   tbb::parallel_for(static_cast<NodeID>(0), c_n, [&](const NodeID i) {
     const auto &marker = all_buffered_nodes[i];
@@ -232,7 +242,6 @@ contract_generic_clustering(const Graph &graph, const Clustering &clustering, Me
     }
   });
   STOP_TIMER();
-  STOP_HEAP_PROFILER();
 
   return {
       Graph{

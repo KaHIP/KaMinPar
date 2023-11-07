@@ -42,20 +42,14 @@ struct SubgraphMemory {
       const EdgeID m,
       const bool is_node_weighted = true,
       const bool is_edge_weighted = true
-  )
-      : nodes(),
-        edges(),
-        node_weights(),
-        edge_weights() {
-    START_HEAP_PROFILER("SubgraphMemory allocation");
+  ) {
+    SCOPED_HEAP_PROFILER("SubgraphMemory allocation");
     SCOPED_TIMER("Allocation");
 
-    nodes.resize(n + k);
-    edges.resize(m);
-    node_weights.resize(is_node_weighted * (n + k));
-    edge_weights.resize(is_edge_weighted * m);
-
-    STOP_HEAP_PROFILER();
+    RECORD("nodes") nodes = StaticArray<EdgeID>(n + k);
+    RECORD("edges") edges = StaticArray<NodeID>(m);
+    RECORD("node_weights") node_weights = StaticArray<NodeWeight>(is_node_weighted * (n + k));
+    RECORD("edge_weights") edge_weights = StaticArray<EdgeWeight>(is_edge_weighted * m);
   }
 
   explicit SubgraphMemory(const PartitionedGraph &p_graph)

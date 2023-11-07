@@ -14,6 +14,7 @@
 #include <tbb/parallel_for.h>
 
 #include "kaminpar-common/assertion_levels.h"
+#include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/parallel/atomic.h"
 #include "kaminpar-common/parallel/tbb_malloc.h"
 
@@ -113,24 +114,31 @@ public:
 
   struct no_init {};
 
-  StaticArray(T *storage, const std::size_t size) : _size(size), _data(storage) {}
+  StaticArray(T *storage, const std::size_t size) : _size(size), _data(storage) {
+    RECORD_DATA_STRUCT("StaticArray", size, _struct);
+  }
 
   StaticArray(const std::size_t start, const std::size_t size, StaticArray &data)
       : StaticArray(size, data._data + start) {
     KASSERT(start + size <= data.size());
   }
 
-  StaticArray(const std::size_t size, value_type *data) : _size{size}, _data{data} {}
+  StaticArray(const std::size_t size, value_type *data) : _size{size}, _data{data} {
+    RECORD_DATA_STRUCT("StaticArray", size, _struct);
+  }
 
   StaticArray(const std::size_t size, const value_type init_value = value_type()) {
+    RECORD_DATA_STRUCT("StaticArray", size, _struct);
     resize(size, init_value);
   }
 
   StaticArray(const std::size_t size, no_init) {
+    RECORD_DATA_STRUCT("StaticArray", size, _struct);
     resize(size, no_init{});
   }
 
   StaticArray(static_array::noinit_t, const std::size_t size) {
+    RECORD_DATA_STRUCT("StaticArray", size, _struct);
     resize(size, no_init{});
   }
 
@@ -298,12 +306,16 @@ private:
     _data = _owned_data.get();
     _size = size;
     _unrestricted_size = _size;
+
+    IF_HEAP_PROFILING(_struct->size = std::max(_struct->size, size * sizeof(value_type)));
   }
 
   size_type _size{0};
   size_type _unrestricted_size{0};
   parallel::tbb_unique_ptr<value_type> _owned_data{nullptr};
   value_type *_data{nullptr};
+
+  IF_HEAP_PROFILING(heap_profiler::DataStructure *_struct);
 };
 
 namespace static_array {

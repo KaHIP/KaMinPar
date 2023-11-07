@@ -7,62 +7,21 @@
  ******************************************************************************/
 #include "kaminpar-common/heap_profiler.h"
 
+#include <algorithm>
+
 #include <kassert/kassert.hpp>
 
 namespace kaminpar::heap_profiler {
-
-template <class T> T *NoProfilAllocator<T>::allocate(const size_t n) const {
-  if (n == 0) {
-    return nullptr;
-  }
-
-  if (n > static_cast<size_t>(-1) / sizeof(T)) {
-    throw std::bad_array_new_length();
-  }
-
-#ifdef KAMINPAR_ENABLE_HEAP_PROFILING
-  void *const pv = std_malloc(n * sizeof(T));
-#else
-  void *const pv = std::malloc(n * sizeof(T));
-#endif
-  if (!pv) {
-    throw std::bad_alloc();
-  }
-
-  return static_cast<T *>(pv);
-}
-
-template <class T> void NoProfilAllocator<T>::deallocate(T *const p, size_t) const noexcept {
-#ifdef KAMINPAR_ENABLE_HEAP_PROFILING
-  std_free(p);
-#else
-  std::free(p);
-#endif
-}
-
-template <class T> T *NoProfilAllocator<T>::construct() const {
-  T *t = allocate(1);
-  new (t) T();
-  return t;
-}
-
-template <class T> void NoProfilAllocator<T>::destruct(T *const t) const {
-  t->~T();
-  deallocate(t, 1);
-}
 
 HeapProfiler &HeapProfiler::global() {
   static HeapProfiler global("Global Heap Profiler");
   return global;
 }
 
-HeapProfiler::HeapProfiler(std::string_view name) {
-  _tree.root.name = name;
-  _tree.root.parent = nullptr;
-}
+HeapProfiler::HeapProfiler(std::string_view name) : _tree(name) {}
 
 HeapProfiler::~HeapProfiler() {
-  _tree.root.free(_node_allocator);
+  _tree.root.free(_node_allocator, _struct_allocator);
 }
 
 void HeapProfiler::enable() {
@@ -73,24 +32,55 @@ void HeapProfiler::disable() {
   _enabled = false;
 }
 
-void HeapProfiler::start_profile(std::string_view name, std::string description) {
-  HeapProfileTreeNode *node = _node_allocator.construct();
-  node->name = name;
-  node->description = description;
-  node->parent = _tree.currentNode;
+void HeapProfiler::start_profile(std::string_view name, std::string desc) {
+  KASSERT(_enabled, "The heap profile has to be enabled before starting a profile.");
+  std::lock_guard<std::mutex> guard(_mutex);
 
+  HeapProfileTreeNode *node = _node_allocator.create(name, desc, _tree.currentNode);
   _tree.currentNode->children.push_back(node);
   _tree.currentNode = node;
 }
 
 void HeapProfiler::stop_profile() {
+  KASSERT(_enabled, "The heap profile has to be enabled before stopping a profile.");
   KASSERT(_tree.currentNode->parent != nullptr, "The root heap profile cannot be stopped.");
+  std::lock_guard<std::mutex> guard(_mutex);
+
   _tree.currentNode = _tree.currentNode->parent;
 }
 
-ScopedHeapProfiler
-HeapProfiler::start_scoped_profile(std::string_view name, std::string description) {
-  return ScopedHeapProfiler(name, description);
+ScopedHeapProfiler HeapProfiler::start_scoped_profile(std::string_view name, std::string desc) {
+  return ScopedHeapProfiler(name, desc);
+}
+
+void HeapProfiler::record_data_struct(
+    std::string_view var_name, std::string_view file_name, std::size_t line
+) {
+  KASSERT(_enabled, "The heap profile has to be enabled before recording a data structure.");
+
+  _var_name = var_name;
+  _file_name = file_name;
+  _line = line;
+}
+
+DataStructure *HeapProfiler::add_data_struct(std::string_view name, std::size_t size) {
+  if (_enabled) {
+    std::lock_guard<std::mutex> guard(_mutex);
+
+    DataStructure *data_structure = _struct_allocator.create(name, size);
+    if (_line != 0) {
+      data_structure->variable_name = _var_name;
+      data_structure->file_name = _file_name;
+      data_structure->line = _line;
+
+      _line = 0;
+    }
+
+    _tree.currentNode->data_structures.push_back(data_structure);
+    return data_structure;
+  }
+
+  return nullptr;
 }
 
 void HeapProfiler::record_alloc(const void *ptr, std::size_t size) {
@@ -136,7 +126,7 @@ void HeapProfiler::print_heap_profile(std::ostream &out) {
   stats.allocs = std::max(kAllocsTitle.length(), std::to_string(stats.allocs).length());
   stats.frees = std::max(kFreesTitle.length(), std::to_string(stats.frees).length());
 
-  out << std::string(stats.len + 2 + 10, '-') << ' ';
+  out << std::string(stats.len + kNameDel.length() + kPercentageLength, kHeadingPadding) << ' ';
   out << kMaxAllocTitle << std::string(stats.max_alloc_size - kMaxAllocTitle.length() + 1, ' ');
   out << kAllocTitle << std::string(stats.alloc_size - kAllocTitle.length() + 1, ' ');
   out << kFreeTitle << std::string(stats.free_size - kFreeTitle.length() + 1, ' ');
@@ -175,36 +165,61 @@ void HeapProfiler::print_heap_tree_node(
     std::size_t depth,
     bool last
 ) {
-  float percentage;
+  print_indentation(out, depth, last);
+  print_percentage(out, node);
+
+  out << node.name;
+
+  std::size_t padding_length = stats.len - (depth * kBranchLength + node.name.length());
+  if (!node.description.empty()) {
+    padding_length -= node.description.length() + 2;
+    out << '(' << node.description << ')';
+  }
+
+  out << kNameDel << std::string(padding_length, kPadding) << ' ';
+
+  print_statistics(out, node, stats);
+  print_data_structures(out, node, depth, node.children.empty());
+
+  if (!node.children.empty()) {
+    const auto last_child = node.children.back();
+
+    for (auto const &child : node.children) {
+      const bool is_last = (child == last_child);
+      print_heap_tree_node(out, *child, stats, depth + 1, is_last);
+    }
+  }
+}
+
+void HeapProfiler::print_indentation(std::ostream &out, std::size_t depth, bool last) {
   if (depth > 0) {
     std::size_t leading_whitespaces = (depth - 1) * kBranchLength;
     out << std::string(leading_whitespaces, ' ') << (last ? kTailBranch : kBranch);
-
-    std::size_t parent_alloc_size = node.parent->alloc_size;
-    percentage = (parent_alloc_size == 0) ? 1 : (node.alloc_size / (float)parent_alloc_size);
-  } else {
-    percentage = 1;
   }
+}
+
+void HeapProfiler::print_percentage(std::ostream &out, const HeapProfileTreeNode &node) {
+  std::size_t parent_alloc_size = node.parent == nullptr ? 0 : node.parent->alloc_size;
+  float percentage = (parent_alloc_size == 0) ? 1 : (node.alloc_size / (float)parent_alloc_size);
 
   out << "(";
+
   if (percentage >= 0.999995) {
     out << "100.00";
   } else {
     if (percentage < 0.1) {
       out << "0";
     }
+
     out << percentage * 100;
   }
-  out << "%) " << node.name;
 
-  std::size_t padding_length = stats.len - (depth * kBranchLength + node.name.length());
-  if (!node.description.empty()) {
-    padding_length -= node.description.length() + 2;
-    out << "(" << node.description << ")";
-  }
+  out << "%) ";
+}
 
-  out << kNameDel << std::string(padding_length, kPadding) << ' ';
-
+void HeapProfiler::print_statistics(
+    std::ostream &out, const HeapProfileTreeNode &node, const HeapProfileTreeStats stats
+) {
   std::string max_alloc_size = to_megabytes(node.max_alloc_size);
   out << max_alloc_size << std::string(stats.max_alloc_size - max_alloc_size.length() + 1, ' ');
 
@@ -216,14 +231,51 @@ void HeapProfiler::print_heap_tree_node(
 
   out << node.allocs << std::string(stats.allocs - std::to_string(node.allocs).length() + 1, ' ')
       << node.frees << std::string(stats.frees - std::to_string(node.frees).length(), ' ') << '\n';
+}
 
-  if (!node.children.empty()) {
-    auto last_child = node.children.back();
+void HeapProfiler::print_data_structures(
+    std::ostream &out, const HeapProfileTreeNode &node, std::size_t depth, bool last
+) {
+  std::vector<DataStructure *, NoProfilAllocator<DataStructure *>> filtered_data_structures;
+  std::copy_if(
+      node.data_structures.begin(),
+      node.data_structures.end(),
+      std::back_inserter(filtered_data_structures),
+      [](auto *data_structure) { return data_structure->size >= kDataStructSizeThreshold; }
+  );
 
-    for (auto const &child : node.children) {
-      const bool is_last = (child == last_child);
-      print_heap_tree_node(out, *child, stats, depth + 1, is_last);
+  std::sort(
+      filtered_data_structures.begin(),
+      filtered_data_structures.end(),
+      [](auto *d1, auto *d2) { return d1->size > d2->size; }
+  );
+
+  auto last_data_structure = filtered_data_structures.back();
+  for (auto data_structure : filtered_data_structures) {
+    const bool is_last = last && (data_structure == last_data_structure);
+    const bool has_info = data_structure->line > 0;
+
+    std::size_t leading_whitespaces = depth * kBranchLength;
+    out << std::string(leading_whitespaces, ' ') << (is_last ? kTailBranch : kBranch);
+
+    std::size_t max_alloc_size = node.max_alloc_size;
+    float percentage = (max_alloc_size == 0) ? 1 : (data_structure->size / (float)max_alloc_size);
+    if (percentage <= 1) {
+      out << '(' << (percentage * 100) << "%) ";
     }
+
+    out << data_structure->name;
+    if (has_info) {
+      out << " \"" << data_structure->variable_name << '\"';
+    }
+    out << " uses " << to_megabytes(data_structure->size) << " mb ";
+
+    if (has_info) {
+      out << " (" << data_structure->file_name << " at line " << data_structure->line << ')';
+    }
+
+    out << '\n';
   }
 }
+
 } // namespace kaminpar::heap_profiler

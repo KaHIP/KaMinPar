@@ -877,6 +877,7 @@ protected:
 
     auto &num_moved_nodes = num_moved_nodes_ets.local();
     auto &rand = Random::instance();
+    RECORD("concurrent_rating_map")
     ConcurrentFastResetArray<EdgeWeight, ClusterID> concurrent_rating_map(
         Base::_initial_num_clusters
     );
@@ -1091,7 +1092,11 @@ private:
 
 template <typename NodeID, typename ClusterID> class OwnedClusterVector {
 public:
-  explicit OwnedClusterVector(const NodeID max_num_nodes) : _clusters(max_num_nodes) {}
+  explicit OwnedClusterVector(const NodeID max_num_nodes) : _clusters(max_num_nodes) {
+    RECORD_DATA_STRUCT(
+        "OwnedClusterVector", max_num_nodes * sizeof(parallel::Atomic<ClusterID>), _struct
+    );
+  }
 
   [[nodiscard]] auto &&take_clusters() {
     return std::move(_clusters);
@@ -1118,17 +1123,29 @@ public:
   void ensure_cluster_size(const NodeID max_num_nodes) {
     if (_clusters.size() < max_num_nodes) {
       _clusters.resize(max_num_nodes);
+
+      IF_HEAP_PROFILING(
+          _struct->size =
+              std::max(_struct->size, max_num_nodes * sizeof(parallel::Atomic<ClusterID>))
+      );
     }
   }
 
 private:
   scalable_vector<parallel::Atomic<ClusterID>> _clusters;
+
+  IF_HEAP_PROFILING(heap_profiler::DataStructure *_struct);
 };
 
 template <typename ClusterID, typename ClusterWeight> class OwnedRelaxedClusterWeightVector {
 public:
   explicit OwnedRelaxedClusterWeightVector(const ClusterID max_num_clusters)
-      : _cluster_weights(max_num_clusters) {}
+      : _cluster_weights(max_num_clusters) {
+    RECORD_DATA_STRUCT(
+        "OwnedRelaxedClusterWeightVector",
+        max_num_clusters * sizeof(parallel::Atomic<ClusterWeight>)
+    );
+  }
 
   auto &&take_cluster_weights() {
     return std::move(_cluster_weights);

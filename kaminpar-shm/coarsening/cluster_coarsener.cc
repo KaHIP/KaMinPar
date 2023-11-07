@@ -59,17 +59,15 @@ PartitionedGraph ClusteringCoarsener::uncoarsen(PartitionedGraph &&p_graph) {
   _current_graph = empty() ? &_input_graph : &_hierarchy.back();
   KASSERT(mapping.size() == _current_graph->n(), V(mapping.size()) << V(_current_graph->n()));
 
-  StaticArray<BlockID> partition(_current_graph->n());
+  RECORD("partition") StaticArray<BlockID> partition(_current_graph->n());
   STOP_TIMER();
   STOP_HEAP_PROFILER();
 
-  START_HEAP_PROFILER("Copy partition");
   START_TIMER("Copy partition");
   tbb::parallel_for(static_cast<NodeID>(0), _current_graph->n(), [&](const NodeID u) {
     partition[u] = p_graph.block(mapping[u]);
   });
   STOP_TIMER();
-  STOP_HEAP_PROFILER();
 
   SCOPED_HEAP_PROFILER("Create graph");
   SCOPED_TIMER("Create graph");

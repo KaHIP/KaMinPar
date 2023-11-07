@@ -46,8 +46,8 @@ NodePermutations<StaticArray> sort_by_degree_buckets(const StaticArray<EdgeID> &
   const NodeID n = nodes.size() - 1;
   const int cpus = std::min<int>(tbb::this_task_arena::max_concurrency(), n);
 
-  StaticArray<NodeID> permutation(n);
-  StaticArray<NodeID> inverse_permutation(n);
+  RECORD("permutation") StaticArray<NodeID> permutation(n);
+  RECORD("inverse_permutation") StaticArray<NodeID> inverse_permutation(n);
 
   // local_buckets[cpu][bucket]: thread-local bucket sizes
   using Buckets = std::array<NodeID, kNumberOfDegreeBuckets<NodeID> + 1>;

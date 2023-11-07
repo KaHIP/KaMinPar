@@ -97,14 +97,17 @@ void KaMinPar::take_graph(
 void KaMinPar::borrow_and_mutate_graph(
     const NodeID n, EdgeID *xadj, NodeID *adjncy, NodeWeight *vwgt, EdgeWeight *adjwgt
 ) {
+  SCOPED_HEAP_PROFILER("Borrow and mutate graph");
   SCOPED_TIMER("IO");
 
   const EdgeID m = xadj[n];
 
-  StaticArray<EdgeID> nodes(xadj, n + 1);
-  StaticArray<NodeID> edges(adjncy, m);
+  RECORD("nodes") StaticArray<EdgeID> nodes(xadj, n + 1);
+  RECORD("edges") StaticArray<NodeID> edges(adjncy, m);
+  RECORD("node_weights")
   StaticArray<NodeWeight> node_weights =
       (vwgt == nullptr) ? StaticArray<NodeWeight>(0) : StaticArray<NodeWeight>(vwgt, n);
+  RECORD("edge_weights")
   StaticArray<EdgeWeight> edge_weights =
       (adjwgt == nullptr) ? StaticArray<EdgeWeight>(0) : StaticArray<EdgeWeight>(adjwgt, m);
 
@@ -116,16 +119,17 @@ void KaMinPar::borrow_and_mutate_graph(
 void KaMinPar::copy_graph(
     const NodeID n, EdgeID *xadj, NodeID *adjncy, NodeWeight *vwgt, EdgeWeight *adjwgt
 ) {
+  SCOPED_HEAP_PROFILER("Copy graph");
   SCOPED_TIMER("IO");
 
   const EdgeID m = xadj[n];
   const bool has_node_weights = vwgt != nullptr;
   const bool has_edge_weights = adjwgt != nullptr;
 
-  StaticArray<EdgeID> nodes(n + 1);
-  StaticArray<NodeID> edges(m);
-  StaticArray<NodeWeight> node_weights(has_node_weights * n);
-  StaticArray<EdgeWeight> edge_weights(has_edge_weights * m);
+  RECORD("nodes") StaticArray<EdgeID> nodes(n + 1);
+  RECORD("edges") StaticArray<NodeID> edges(m);
+  RECORD("node_weights") StaticArray<NodeWeight> node_weights(has_node_weights * n);
+  RECORD("edge_weights") StaticArray<EdgeWeight> edge_weights(has_edge_weights * m);
 
   nodes[n] = xadj[n];
   tbb::parallel_for<NodeID>(0, n, [&](const NodeID u) {
@@ -191,7 +195,6 @@ EdgeWeight KaMinPar::compute_partition(const int seed, const BlockID k, BlockID 
   STOP_TIMER();
   STOP_HEAP_PROFILER();
 
-  START_HEAP_PROFILER("IO");
   START_TIMER("IO");
   if (_graph_ptr->permuted()) {
     tbb::parallel_for<NodeID>(0, p_graph.n(), [&](const NodeID u) {
@@ -203,7 +206,6 @@ EdgeWeight KaMinPar::compute_partition(const int seed, const BlockID k, BlockID 
     });
   }
   STOP_TIMER();
-  STOP_HEAP_PROFILER();
 
   // Print some statistics
   STOP_TIMER(); // stop root timer

@@ -138,10 +138,10 @@ int main(int argc, char *argv[]) {
   START_HEAP_PROFILER("Input Graph Allocation");
 
   // Allocate graph data structures and read graph file
-  StaticArray<EdgeID> xadj;
-  StaticArray<NodeID> adjncy;
-  StaticArray<NodeWeight> vwgt;
-  StaticArray<EdgeWeight> adjwgt;
+  RECORD("xadj") StaticArray<EdgeID> xadj;
+  RECORD("adjncy") StaticArray<NodeID> adjncy;
+  RECORD("vwgt") StaticArray<NodeWeight> vwgt;
+  RECORD("adjwgt") StaticArray<EdgeWeight> adjwgt;
 
   if (app.validate) {
     shm::io::metis::read<true>(app.graph_filename, xadj, adjncy, vwgt, adjwgt);

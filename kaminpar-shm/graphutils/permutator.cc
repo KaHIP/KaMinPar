@@ -53,10 +53,10 @@ NodePermutations<StaticArray> rearrange_graph(
 ) {
   START_HEAP_PROFILER("Temporal nodes and edges allocation");
   START_TIMER("Allocation");
-  StaticArray<EdgeID> tmp_nodes(nodes.size());
-  StaticArray<NodeID> tmp_edges(edges.size());
-  StaticArray<NodeWeight> tmp_node_weights(node_weights.size());
-  StaticArray<EdgeWeight> tmp_edge_weights(edge_weights.size());
+  RECORD("tmp_nodes") StaticArray<EdgeID> tmp_nodes(nodes.size());
+  RECORD("tmp_edges") StaticArray<NodeID> tmp_edges(edges.size());
+  RECORD("tmp_node_weights") StaticArray<NodeWeight> tmp_node_weights(node_weights.size());
+  RECORD("tmp_edge_weights") StaticArray<EdgeWeight> tmp_edge_weights(edge_weights.size());
   STOP_TIMER();
   STOP_HEAP_PROFILER();
 
@@ -128,7 +128,8 @@ PartitionedGraph assign_isolated_nodes(
   const Graph &graph = p_graph.graph();
   const NodeID num_nonisolated_nodes = graph.n() - num_isolated_nodes;
 
-  StaticArray<BlockID> partition(graph.n()); // n() should include isolated nodes now
+  // The following call graph.n() should include isolated nodes now
+  RECORD("partition") StaticArray<BlockID> partition(graph.n());
   // copy partition of non-isolated nodes
   tbb::parallel_for(
       static_cast<NodeID>(0),
