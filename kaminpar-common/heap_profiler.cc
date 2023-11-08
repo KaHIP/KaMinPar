@@ -56,11 +56,11 @@ ScopedHeapProfiler HeapProfiler::start_scoped_profile(std::string_view name, std
 void HeapProfiler::record_data_struct(
     std::string_view var_name, std::string_view file_name, std::size_t line
 ) {
-  KASSERT(_enabled, "The heap profile has to be enabled before recording a data structure.");
-
-  _var_name = var_name;
-  _file_name = file_name;
-  _line = line;
+  if (_enabled) {
+    _var_name = var_name;
+    _file_name = file_name;
+    _line = line;
+  }
 }
 
 DataStructure *HeapProfiler::add_data_struct(std::string_view name, std::size_t size) {
@@ -80,7 +80,7 @@ DataStructure *HeapProfiler::add_data_struct(std::string_view name, std::size_t 
     return data_structure;
   }
 
-  return nullptr;
+  return new DataStructure(name, size);
 }
 
 void HeapProfiler::record_alloc(const void *ptr, std::size_t size) {
@@ -115,6 +115,18 @@ void HeapProfiler::record_free(const void *ptr) {
   }
 }
 
+void HeapProfiler::set_max_depth(std::size_t max_depth) {
+  _max_depth = max_depth;
+}
+
+void HeapProfiler::set_print_data_structs(bool print) {
+  _print_data_structs = print;
+}
+
+void HeapProfiler::set_print_all_data_structs(bool print) {
+  _print_all_data_structs = print;
+}
+
 void HeapProfiler::print_heap_profile(std::ostream &out) {
   HeapProfileTreeNode &root = *_tree.currentNode;
   HeapProfileTreeStats stats(root);
@@ -134,7 +146,7 @@ void HeapProfiler::print_heap_profile(std::ostream &out) {
   out << kFreesTitle << std::string(stats.frees - kFreesTitle.length() + 1, ' ');
   out << '\n';
 
-  print_heap_tree_node(out, root, stats);
+  print_heap_tree_node(out, root, stats, _max_depth, _print_data_structs, _print_all_data_structs);
   out << '\n';
 }
 
@@ -162,9 +174,16 @@ void HeapProfiler::print_heap_tree_node(
     std::ostream &out,
     const HeapProfileTreeNode &node,
     const HeapProfileTreeStats stats,
+    std::size_t max_depth,
+    bool print_data_structs,
+    bool print_all_data_structs,
     std::size_t depth,
     bool last
 ) {
+  if (depth > max_depth) {
+    return;
+  }
+
   print_indentation(out, depth, last);
   print_percentage(out, node);
 
@@ -179,14 +198,25 @@ void HeapProfiler::print_heap_tree_node(
   out << kNameDel << std::string(padding_length, kPadding) << ' ';
 
   print_statistics(out, node, stats);
-  print_data_structures(out, node, depth, node.children.empty());
+  if (print_data_structs) {
+    print_data_structures(out, node, depth, node.children.empty(), print_all_data_structs);
+  }
 
   if (!node.children.empty()) {
     const auto last_child = node.children.back();
 
     for (auto const &child : node.children) {
       const bool is_last = (child == last_child);
-      print_heap_tree_node(out, *child, stats, depth + 1, is_last);
+      print_heap_tree_node(
+          out,
+          *child,
+          stats,
+          max_depth,
+          print_data_structs,
+          print_all_data_structs,
+          depth + 1,
+          is_last
+      );
     }
   }
 }
@@ -234,14 +264,20 @@ void HeapProfiler::print_statistics(
 }
 
 void HeapProfiler::print_data_structures(
-    std::ostream &out, const HeapProfileTreeNode &node, std::size_t depth, bool last
+    std::ostream &out,
+    const HeapProfileTreeNode &node,
+    std::size_t depth,
+    bool last,
+    bool print_all_data_structs
 ) {
   std::vector<DataStructure *, NoProfilAllocator<DataStructure *>> filtered_data_structures;
   std::copy_if(
       node.data_structures.begin(),
       node.data_structures.end(),
       std::back_inserter(filtered_data_structures),
-      [](auto *data_structure) { return data_structure->size >= kDataStructSizeThreshold; }
+      [&](auto *data_structure) {
+        return print_all_data_structs || data_structure->size >= kDataStructSizeThreshold;
+      }
   );
 
   std::sort(

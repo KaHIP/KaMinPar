@@ -51,6 +51,11 @@
 #define PRINT_HEAP_PROFILE(out)                                                                    \
   kaminpar::heap_profiler::HeapProfiler::global().print_heap_profile(out)
 
+/*!
+ * Whether heap profiling is enabled.
+ */
+constexpr bool kHeapProfiling = true;
+
 #else
 
 #define START_HEAP_PROFILER(...)
@@ -62,6 +67,11 @@
 #define ENABLE_HEAP_PROFILER()
 #define DISABLE_HEAP_PROFILER()
 #define PRINT_HEAP_PROFILE(...)
+
+/*!
+ * Whether heap profiling is enabled.
+ */
+constexpr bool kHeapProfiling = false;
 
 #endif
 
@@ -371,6 +381,27 @@ public:
   void record_free(const void *ptr);
 
   /*!
+   * Sets the maximum depth shown in the summary.
+   *
+   * @param max_depth The maximum depth shown in the summary.
+   */
+  void set_max_depth(std::size_t max_depth);
+
+  /*!
+   * Sets the option whether to print data structure memory statistics in the summary.
+   *
+   * @param print Whether to print data structure memory statistics in the summary.
+   */
+  void set_print_data_structs(bool print);
+
+  /*!
+   * Sets the option whether to print all data structure memory statistics in the summary.
+   *
+   * @param print Whether to print all data structure memory statistics in the summary.
+   */
+  void set_print_all_data_structs(bool print);
+
+  /*!
    * Prints information about the heap profile to the output stream.
    *
    * @param out The output stream to write to.
@@ -431,10 +462,17 @@ private:
   std::string_view _file_name;
   std::size_t _line;
 
+  std::size_t _max_depth = std::numeric_limits<std::size_t>::max();
+  bool _print_data_structs = true;
+  bool _print_all_data_structs = true;
+
   static void print_heap_tree_node(
       std::ostream &out,
       const HeapProfileTreeNode &node,
       const HeapProfileTreeStats stats,
+      std::size_t max_depth,
+      bool print_data_structs,
+      bool print_all_data_structs,
       std::size_t depth = 0,
       bool last = false
   );
@@ -444,7 +482,11 @@ private:
       std::ostream &out, const HeapProfileTreeNode &node, const HeapProfileTreeStats stats
   );
   static void print_data_structures(
-      std::ostream &out, const HeapProfileTreeNode &node, std::size_t depth, bool last
+      std::ostream &out,
+      const HeapProfileTreeNode &node,
+      std::size_t depth,
+      bool last,
+      bool print_all_data_structs
   );
 };
 

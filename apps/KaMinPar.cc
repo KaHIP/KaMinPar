@@ -39,6 +39,10 @@ struct ApplicationContext {
 
   int max_timer_depth = 3;
 
+  int max_heap_profiler_depth = 100;
+  bool heap_profiler_print_data_structs = true;
+  bool heap_profiler_print_all_data_structs = false;
+
   BlockID k = 0;
 
   bool quiet = false;
@@ -94,6 +98,25 @@ The output should be stored in a file and can be used by the -C,--config option.
   cli.add_flag_function("-T,--all-timers", [&](auto) {
     app.max_timer_depth = std::numeric_limits<int>::max();
   });
+
+  if constexpr (kHeapProfiling) {
+    cli.add_option(
+        "--max-heap-profiler-depth",
+        app.max_heap_profiler_depth,
+        "Set maximum heap profiler depth shown in result summary."
+    );
+    cli.add_flag(
+        "--heap-profiler-structs",
+        app.heap_profiler_print_data_structs,
+        "Print data structure memory statistics in result summary."
+    );
+    cli.add_flag(
+        "--heap-profiler-all-structs",
+        app.heap_profiler_print_all_data_structs,
+        "Print all data structure memory statistics in result summary."
+    );
+  }
+
   cli.add_option("-o,--output", app.partition_filename, "Output filename for the graph partition.")
       ->capture_default_str();
   cli.add_flag(
@@ -171,8 +194,14 @@ int main(int argc, char *argv[]) {
 
   partitioner.context().debug.graph_name = str::extract_basename(app.graph_filename);
   partitioner.set_max_timer_depth(app.max_timer_depth);
-  partitioner.take_graph(n, xadj_ptr, adjncy_ptr, vwgt_ptr, adjwgt_ptr);
+  if constexpr (kHeapProfiling) {
+    auto &global_heap_profiler = heap_profiler::HeapProfiler::global();
+    global_heap_profiler.set_max_depth(app.max_heap_profiler_depth);
+    global_heap_profiler.set_print_data_structs(app.heap_profiler_print_data_structs);
+    global_heap_profiler.set_print_all_data_structs(app.heap_profiler_print_all_data_structs);
+  }
 
+  partitioner.take_graph(n, xadj_ptr, adjncy_ptr, vwgt_ptr, adjwgt_ptr);
   partitioner.compute_partition(app.seed, app.k, partition.data());
 
   // Save graph partition
