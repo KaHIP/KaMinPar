@@ -11,6 +11,8 @@
 
 #include <vector>
 
+#include <tbb/enumerable_thread_specific.h>
+
 #include "kaminpar-common/heap_profiler.h"
 
 namespace kaminpar {
@@ -38,31 +40,24 @@ public:
   }
 
   /*!
+   * Returns the thread-local vector of used entries.
+   *
+   * @return The thread-local vector of used entries.
+   */
+  [[nodiscard]] std::vector<size_type> &local_used_entries() {
+    return _used_entries_ets.local();
+  }
+
+  /*!
    * Accesses a value at a position.
    *
    * @param pos The position of the value in the map to return. It should be greater or equal then
    * zero and less then the set capacity.
    * @return A reference to the value at the position.
    */
-  reference operator[](const size_type pos) {
+  [[nodiscard]] reference operator[](const size_type pos) {
     KASSERT(pos < _data.size());
     return _data[pos];
-  }
-
-  /*!
-   * Sets the values that are marked used.
-   *
-   * @param used_entries The position of the values in the map to mark as used.
-   */
-  void set_used_entries(std::vector<size_type> used_entries) {
-    _used_entries = used_entries;
-
-    IF_HEAP_PROFILING(
-        _struct->size = std::max(
-            _struct->size,
-            _capacity * sizeof(value_type) + _used_entries.capacity() * sizeof(size_type)
-        )
-    );
   }
 
   /*!
@@ -74,9 +69,27 @@ public:
     return TransformedRange(
         _used_entries.begin(),
         _used_entries.end(),
-        [this](const size_type entry) -> std::pair<Size, value_type> {
+        [this](const size_type entry) -> std::pair<size_type, value_type> {
           return std::make_pair(entry, _data[entry]);
         }
+    );
+  }
+
+  /*!
+   * Combines the used entries of each thread, so that the combined entries can be used for
+   * iterating and clearing. IT also clears the used entries of each thread.
+   */
+  void combine() {
+    for (std::vector<size_type> &used_entries : _used_entries_ets) {
+      _used_entries.insert(_used_entries.end(), used_entries.begin(), used_entries.end());
+      used_entries.clear();
+    }
+
+    IF_HEAP_PROFILING(
+        _struct->size = std::max(
+            _struct->size,
+            _capacity * sizeof(value_type) + _used_entries.capacity() * sizeof(size_type)
+        )
     );
   }
 
@@ -94,6 +107,7 @@ public:
 private:
   std::vector<value_type> _data;
   std::vector<size_type> _used_entries;
+  tbb::enumerable_thread_specific<std::vector<size_type>> _used_entries_ets;
 
   IF_HEAP_PROFILING(heap_profiler::DataStructure *_struct);
   IF_HEAP_PROFILING(std::size_t _capacity);

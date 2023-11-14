@@ -318,31 +318,31 @@ protected:
     const EdgeID to = from + std::min(_graph->degree(u), _max_num_neighbors);
 
     if constexpr (parallel) {
-      tbb::enumerable_thread_specific<std::vector<ClusterID>> rated_nodes_ets;
-      tbb::parallel_for<EdgeID>(from, to, [&](const EdgeID e) {
-        const NodeID v = _graph->edge_target(e);
+      tbb::parallel_for(tbb::blocked_range<NodeID>(from, to, 100000), [&](const auto &edges) {
+        std::vector<ClusterID> &local_used_entries = map.local_used_entries();
 
-        if (derived_accept_neighbor(u, v)) {
-          const ClusterID v_cluster = derived_cluster(v);
-          const EdgeWeight rating = _graph->edge_weight(e);
+        const EdgeID last_edge = edges.end();
+        for (EdgeID e = edges.begin(); e != last_edge; ++e) {
+          const NodeID v = _graph->edge_target(e);
 
-          const EdgeWeight prev_rating =
-              __atomic_fetch_add(&map[v_cluster], rating, __ATOMIC_RELAXED);
-          if (prev_rating == 0) {
-            rated_nodes_ets.local().push_back(v_cluster);
-          }
+          if (derived_accept_neighbor(u, v)) {
+            const ClusterID v_cluster = derived_cluster(v);
+            const EdgeWeight rating = _graph->edge_weight(e);
 
-          if constexpr (Config::kUseLocalActiveSetStrategy) {
-            is_interface_node |= v >= _num_active_nodes;
+            const EdgeWeight prev_rating =
+                __atomic_fetch_add(&map[v_cluster], rating, __ATOMIC_RELAXED);
+            if (prev_rating == 0) {
+              local_used_entries.push_back(v_cluster);
+            }
+
+            if constexpr (Config::kUseLocalActiveSetStrategy) {
+              is_interface_node |= v >= _num_active_nodes;
+            }
           }
         }
       });
 
-      auto rated_nodes = rated_nodes_ets.combine([](auto v1, auto v2) {
-        v1.insert(v1.end(), v2.begin(), v2.end());
-        return v1;
-      });
-      map.set_used_entries(std::move(rated_nodes));
+      map.combine();
     } else {
       for (EdgeID e = from; e < to; ++e) {
         const NodeID v = _graph->edge_target(e);
@@ -823,6 +823,7 @@ protected:
     parallel::Atomic<std::size_t> next_chunk = 0;
 
     START_HEAP_PROFILER("First iteration");
+    START_TIMER("First iteration");
     tbb::parallel_for(static_cast<std::size_t>(0), _chunks.size(), [&](const std::size_t) {
       if (should_stop()) {
         return;
@@ -872,8 +873,11 @@ protected:
       _current_num_clusters -= num_removed_clusters;
     });
 
+    STOP_TIMER();
     STOP_HEAP_PROFILER();
+
     START_HEAP_PROFILER("Second iteration");
+    START_TIMER("Second iteration");
 
     auto &num_moved_nodes = num_moved_nodes_ets.local();
     auto &rand = Random::instance();
@@ -894,6 +898,7 @@ protected:
       }
     }
 
+    STOP_TIMER();
     STOP_HEAP_PROFILER();
 
     return num_moved_nodes_ets.combine(std::plus{});
