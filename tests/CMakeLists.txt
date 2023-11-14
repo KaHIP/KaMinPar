@@ -49,6 +49,7 @@ kaminpar_add_shm_test(test_shm_graph_utils shm/graph_utils_test.cc)
 # KaMinPar -> Data structures
 kaminpar_add_shm_test(test_shm_graph shm/graph_test.cc)
 kaminpar_add_shm_test(test_shm_delta_partitioned_graph shm/datastructures/delta_partitioned_graph_test.cc)
+kaminpar_add_shm_test(test_shm_compressed_graph shm/datastructures/compressed_graph_test.cc)
 
 if (KAMINPAR_BUILD_DISTRIBUTED)
     include(cmake/KaTestrophe.cmake)
