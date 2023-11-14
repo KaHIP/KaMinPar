@@ -8,6 +8,7 @@ function(add_shm_benchmark target)
 endfunction()
 
 # Shared-memory benchmarks
+add_shm_benchmark(shm_compressed_graph_benchmark shm_compressed_graph_benchmark.cc)
 add_shm_benchmark(shm_refinement_benchmark shm_refinement_benchmark.cc)
 
 if (KAMINPAR_BUILD_DISTRIBUTED)
