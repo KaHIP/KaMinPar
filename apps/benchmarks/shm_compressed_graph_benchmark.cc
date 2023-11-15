@@ -45,7 +45,7 @@ template <typename Graph> void benchmark_adjacent_nodes(const Graph &graph) {
 
   volatile std::size_t count = 0;
   for (const auto node : graph.nodes()) {
-    for (std::size_t i = 0; i < 10; ++i) {
+    for (std::size_t i = 0; i < 100; ++i) {
       for (const auto adjacent_node : graph.adjacent_nodes(node)) {
         count++;
       }
@@ -98,11 +98,69 @@ void expect_compressed_graph_eq(const Graph &graph, const CompressedGraph &compr
   }
 }
 
+struct GraphStats {
+  std::size_t used_memory;
+  std::size_t interval_count;
+  std::size_t reference_count;
+};
+
+template <typename CompressedGraph>
+GraphStats run(const Graph &graph, bool benchmarks, bool checks) {
+  auto compressed_graph = CompressedGraph::compress(graph);
+
+  if (benchmarks) {
+    LOG << "Running the benchmark...";
+
+    START_HEAP_PROFILER("Compressed graph operations");
+    TIMED_SCOPE("Compressed graph operations") {
+      benchmark_degree(compressed_graph);
+      benchmark_adjacent_nodes(compressed_graph);
+    };
+    STOP_HEAP_PROFILER();
+
+    START_HEAP_PROFILER("Uncompressed graph operations");
+    TIMED_SCOPE("Uncompressed graph operations") {
+      benchmark_degree(graph);
+      benchmark_adjacent_nodes(graph);
+    };
+    STOP_HEAP_PROFILER();
+  }
+
+  if (checks) {
+    LOG << "Checking if the graph operations are valid...";
+    expect_equal_degree(graph, compressed_graph);
+    expect_compressed_graph_eq(graph, compressed_graph);
+  }
+
+  return {
+      compressed_graph.used_memory(),
+      compressed_graph.interval_count(),
+      compressed_graph.reference_count()
+  };
+}
+
+struct GraphCompressionContext {
+  bool reference_encoding;
+  bool interval_encoding;
+};
+
+void create_graph_compression_options(CLI::App &app, GraphCompressionContext &ctx) {
+  auto *option_group = app.add_option_group("Graph Compression");
+
+  option_group
+      ->add_flag("-r,--reference-encoding", ctx.reference_encoding, "Enable reference encoding")
+      ->capture_default_str();
+
+  option_group
+      ->add_flag("-i,--interval-encoding", ctx.interval_encoding, "Enable interval encoding")
+      ->capture_default_str();
+}
+
 int main(int argc, char *argv[]) {
   // Parse CLI arguments
   std::string graph_filename;
   int num_threads = 1;
-  bool only_stats = false;
+  bool enable_benchmarks = true;
   bool enable_checks = false;
 
   CLI::App app("Shared-memory graph compression benchmark");
@@ -110,10 +168,14 @@ int main(int argc, char *argv[]) {
   app.add_option("-t,--threads", num_threads, "Number of threads")
       ->check(CLI::NonNegativeNumber)
       ->default_val(num_threads);
-  app.add_option("-s,--stats", only_stats, "Show only compressed graph statistics")
-      ->default_val(only_stats);
+  app.add_option("-b,--benchmark", enable_benchmarks, "Enable graph operations benchmark")
+      ->default_val(enable_benchmarks);
   app.add_option("-c,--checks", enable_checks, "Enable compressed graph operations check")
       ->default_val(enable_checks);
+
+  GraphCompressionContext ctx;
+  create_graph_compression_options(app, ctx);
+
   CLI11_PARSE(app, argc, argv);
 
   tbb::global_control gc(tbb::global_control::max_allowed_parallelism, num_threads);
@@ -144,29 +206,22 @@ int main(int argc, char *argv[]) {
   GLOBAL_TIMER.reset();
 
   LOG << "Compressing the input graph...";
-  auto compressed_graph = CompressedGraph<VarIntCodec>::compress(graph);
-
-  if (!only_stats) {
-    LOG << "Running the benchmark...";
-
-    START_HEAP_PROFILER("Compressed graph operations");
-    TIMED_SCOPE("Compressed graph operations") {
-      benchmark_degree(compressed_graph);
-      benchmark_adjacent_nodes(compressed_graph);
-    };
-    STOP_HEAP_PROFILER();
-
-    START_HEAP_PROFILER("Uncompressed graph operations");
-    TIMED_SCOPE("Uncompressed graph operations") {
-      benchmark_degree(graph);
-      benchmark_adjacent_nodes(graph);
-    };
-    STOP_HEAP_PROFILER();
-
-    if (enable_checks) {
-      LOG << "Checking if the graph operations are valid...";
-      expect_equal_degree(graph, compressed_graph);
-      expect_compressed_graph_eq(graph, compressed_graph);
+  GraphStats stats;
+  if (ctx.interval_encoding) {
+    if (ctx.reference_encoding) {
+      stats =
+          run<CompressedGraph<VarIntCodec, true, true>>(graph, enable_benchmarks, enable_checks);
+    } else {
+      stats =
+          run<CompressedGraph<VarIntCodec, true, false>>(graph, enable_benchmarks, enable_checks);
+    }
+  } else {
+    if (ctx.reference_encoding) {
+      stats =
+          run<CompressedGraph<VarIntCodec, false, true>>(graph, enable_benchmarks, enable_checks);
+    } else {
+      stats =
+          run<CompressedGraph<VarIntCodec, false, false>>(graph, enable_benchmarks, enable_checks);
     }
   }
 
@@ -185,7 +240,7 @@ int main(int argc, char *argv[]) {
   LOG << "The uncompressed graph uses " << to_megabytes(graph_size) << " mb (" << graph_size
       << " bytes).";
 
-  std::size_t compressed_size = compressed_graph.used_memory();
+  std::size_t compressed_size = stats.used_memory;
   LOG << "The compressed graph uses " << to_megabytes(compressed_size) << " mb (" << compressed_size
       << " bytes).";
 
@@ -193,9 +248,13 @@ int main(int argc, char *argv[]) {
   LOG << "Thats a compression ratio of " << compression_factor << '.';
   LOG;
 
-  std::size_t interval_count = compressed_graph.interval_count();
+  std::size_t interval_count = stats.interval_count;
   LOG << interval_count << " (" << (interval_count / (float)graph.n())
       << "%) vertices use interval encoding.";
+
+  std::size_t reference_count = stats.reference_count;
+  LOG << reference_count << " (" << (reference_count / (float)graph.n())
+      << "%) vertices use reference encoding.";
   LOG;
 
   Timer::global().print_human_readable(std::cout);

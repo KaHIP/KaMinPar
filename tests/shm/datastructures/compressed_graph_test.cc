@@ -72,7 +72,7 @@ template <typename CompressedGraph> static void test_graph_compression(const Gra
   EXPECT_EQ(graph.m(), compressed_graph.m());
 
   for (const NodeID node : graph.nodes()) {
-    auto nodes = compressed_graph.adjacent_nodes(node);
+    const auto nodes = compressed_graph.adjacent_nodes(node);
     EXPECT_EQ(graph.degree(node), nodes.size());
 
     for (const NodeID adjacent_node : graph.adjacent_nodes(node)) {
@@ -81,28 +81,35 @@ template <typename CompressedGraph> static void test_graph_compression(const Gra
   }
 }
 
-TEST(CompressedGraphTest, compression) {
-  using CompressedGraph = CompressedGraph<VarIntCodec, false>;
+template <typename CompressedGraph> static void test_graph_compression() {
   test_graph_compression<CompressedGraph>(graphs::empty(0));
-  test_graph_compression<CompressedGraph>(graphs::empty(10));
-  test_graph_compression<CompressedGraph>(graphs::path(10));
-  test_graph_compression<CompressedGraph>(graphs::star(10));
-  test_graph_compression<CompressedGraph>(graphs::grid(10, 10));
-  test_graph_compression<CompressedGraph>(graphs::complete_bipartite(10, 10));
-  test_graph_compression<CompressedGraph>(graphs::complete(10));
-  test_graph_compression<CompressedGraph>(graphs::matching(10));
+  test_graph_compression<CompressedGraph>(graphs::empty(100));
+  test_graph_compression<CompressedGraph>(graphs::path(100));
+  test_graph_compression<CompressedGraph>(graphs::star(100));
+  test_graph_compression<CompressedGraph>(graphs::grid(100, 100));
+  test_graph_compression<CompressedGraph>(graphs::complete_bipartite(100, 100));
+  test_graph_compression<CompressedGraph>(graphs::complete(100));
+  test_graph_compression<CompressedGraph>(graphs::matching(100));
 }
 
-TEST(CompressedGraphTest, compression_interval) {
-  using CompressedGraph = CompressedGraph<VarIntCodec, true>;
-  test_graph_compression<CompressedGraph>(graphs::empty(0));
-  test_graph_compression<CompressedGraph>(graphs::empty(10));
-  test_graph_compression<CompressedGraph>(graphs::path(10));
-  test_graph_compression<CompressedGraph>(graphs::star(10));
-  test_graph_compression<CompressedGraph>(graphs::grid(10, 10));
-  test_graph_compression<CompressedGraph>(graphs::complete_bipartite(10, 10));
-  test_graph_compression<CompressedGraph>(graphs::complete(10));
-  test_graph_compression<CompressedGraph>(graphs::matching(10));
+TEST(CompressedGraphTest, gap_encoding) {
+  using CompressedGraph = CompressedGraph<VarIntCodec, false, false>;
+  test_graph_compression<CompressedGraph>();
+}
+
+TEST(CompressedGraphTest, interval_encoding) {
+  using CompressedGraph = CompressedGraph<VarIntCodec, true, false>;
+  test_graph_compression<CompressedGraph>();
+}
+
+TEST(CompressedGraphTest, reference_encoding) {
+  using CompressedGraph = CompressedGraph<VarIntCodec, false, true>;
+  test_graph_compression<CompressedGraph>();
+}
+
+TEST(CompressedGraphTest, reference_interval_encoding) {
+  using CompressedGraph = CompressedGraph<VarIntCodec, true, true>;
+  test_graph_compression<CompressedGraph>();
 }
 
 } // namespace kaminpar::shm::testing
