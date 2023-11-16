@@ -33,11 +33,23 @@ int main(int argc, char *argv[]) {
   MPI_Init(&argc, &argv);
 
   Context ctx = create_default_context();
+  ctx.partition.k = 2;
+
   std::string graph_filename;
+  int max_levels = 0;
+  int min_levels = 0;
 
   CLI::App app;
-  app.add_option("-G", graph_filename);
+  app.add_option("-G", graph_filename)->required();
+  app.add_option("-k", ctx.partition.k);
+  app.add_option("--min-levels", min_levels);
+  app.add_option("--max-levels", max_levels);
+  app.add_option_function<int>("--levels", [&](int levels) {
+    min_levels = levels;
+    max_levels = levels;
+  });
   app.add_option("-t", ctx.parallel.num_threads);
+
   create_coarsening_options(&app, ctx);
   CLI11_PARSE(app, argc, argv);
 
@@ -51,15 +63,23 @@ int main(int argc, char *argv[]) {
   Coarsener coarsener(graph, ctx);
   const DistributedGraph *c_graph = &graph;
 
-  while (c_graph->global_n() > ctx.partition.k * ctx.coarsening.contraction_limit) {
+  while (c_graph->global_n() > ctx.partition.k * ctx.coarsening.contraction_limit ||
+         (min_levels > 0 && coarsener.level() < min_levels)) {
     const DistributedGraph *new_c_graph = coarsener.coarsen_once();
     if (new_c_graph == c_graph) {
+      LOG << "=> converged";
       break;
     }
+
     c_graph = new_c_graph;
 
     LOG << "=> n=" << c_graph->global_n() << " m=" << c_graph->global_m()
         << " max_node_weight=" << c_graph->max_node_weight();
+
+    if (max_levels > 0 && coarsener.level() == max_levels) {
+      LOG << "=> number of configured levels reached";
+      break;
+    }
   }
 
   // Output statistics
