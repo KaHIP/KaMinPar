@@ -107,9 +107,9 @@ void KaMinPar::borrow_and_mutate_graph(
   StaticArray<EdgeWeight> edge_weights =
       (adjwgt == nullptr) ? StaticArray<EdgeWeight>(0) : StaticArray<EdgeWeight>(adjwgt, m);
 
-  _graph_ptr = std::make_unique<Graph>(
+  _graph_ptr = std::make_unique<Graph>(std::make_unique<CSRGraph>(
       std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights), false
-  );
+  ));
 }
 
 void KaMinPar::copy_graph(
@@ -140,9 +140,9 @@ void KaMinPar::copy_graph(
     }
   });
 
-  _graph_ptr = std::make_unique<Graph>(
+  _graph_ptr = std::make_unique<Graph>(std::make_unique<CSRGraph>(
       std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights), false
-  );
+  ));
 }
 
 EdgeWeight KaMinPar::compute_partition(const int seed, const BlockID k, BlockID *partition) {

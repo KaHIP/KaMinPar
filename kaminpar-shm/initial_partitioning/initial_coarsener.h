@@ -94,7 +94,7 @@ public:
 
   void reset_current_clustering() {
     if (_current_graph->is_node_weighted()) {
-      reset_current_clustering(_current_graph->n(), _current_graph->node_weights());
+      reset_current_clustering(_current_graph->n(), _current_graph->raw_node_weights());
     } else {
       // this is robust if _current_graph is empty (then we can't use
       // node_weight(0))

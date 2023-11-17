@@ -1,9 +1,13 @@
 /*******************************************************************************
- * Static graph with CSR representation.
+ * Wrapper class that delegates all function calls to a concrete graph object.
+ *
+ * Most function calls are resolved via dynamic binding. Thus, they should not
+ * be used when performance is critical. Instead, use an downcast and templatize
+ * tight loops.
  *
  * @file:   graph.cc
  * @author: Daniel Seemaier
- * @date:   21.09.2021
+ * @date:   17.11.2023
  ******************************************************************************/
 #include "kaminpar-shm/datastructures/graph.h"
 
@@ -18,100 +22,7 @@
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
-Graph::Graph(
-    StaticArray<EdgeID> nodes,
-    StaticArray<NodeID> edges,
-    StaticArray<NodeWeight> node_weights,
-    StaticArray<EdgeWeight> edge_weights,
-    const bool sorted
-)
-    : _nodes(std::move(nodes)),
-      _edges(std::move(edges)),
-      _node_weights(std::move(node_weights)),
-      _edge_weights(std::move(edge_weights)),
-      _sorted(sorted) {
-  if (_node_weights.empty()) {
-    _total_node_weight = static_cast<NodeWeight>(n());
-    _max_node_weight = 1;
-  } else {
-    _total_node_weight = parallel::accumulate(_node_weights, static_cast<NodeWeight>(0));
-    _max_node_weight = parallel::max_element(_node_weights);
-  }
-
-  if (_edge_weights.empty()) {
-    _total_edge_weight = static_cast<EdgeWeight>(m());
-  } else {
-    _total_edge_weight = parallel::accumulate(_edge_weights, static_cast<EdgeWeight>(0));
-  }
-
-  init_degree_buckets();
-}
-
-Graph::Graph(
-    tag::Sequential,
-    StaticArray<EdgeID> nodes,
-    StaticArray<NodeID> edges,
-    StaticArray<NodeWeight> node_weights,
-    StaticArray<EdgeWeight> edge_weights,
-    const bool sorted
-)
-    : _nodes(std::move(nodes)),
-      _edges(std::move(edges)),
-      _node_weights(std::move(node_weights)),
-      _edge_weights(std::move(edge_weights)),
-      _sorted(sorted) {
-  if (_node_weights.empty()) {
-    _total_node_weight = static_cast<NodeWeight>(n());
-    _max_node_weight = 1;
-  } else {
-    _total_node_weight =
-        std::accumulate(_node_weights.begin(), _node_weights.end(), static_cast<NodeWeight>(0));
-    _max_node_weight = *std::max_element(_node_weights.begin(), _node_weights.end());
-  }
-
-  if (_edge_weights.empty()) {
-    _total_edge_weight = static_cast<EdgeWeight>(m());
-  } else {
-    _total_edge_weight =
-        std::accumulate(_edge_weights.begin(), _edge_weights.end(), static_cast<EdgeWeight>(0));
-  }
-
-  init_degree_buckets();
-}
-
-void Graph::init_degree_buckets() {
-  KASSERT(std::all_of(_buckets.begin(), _buckets.end(), [](const auto n) { return n == 0; }));
-  if (_sorted) {
-    for (const NodeID u : nodes()) {
-      ++_buckets[degree_bucket(degree(u)) + 1];
-    }
-    auto last_nonempty_bucket =
-        std::find_if(_buckets.rbegin(), _buckets.rend(), [](const auto n) { return n > 0; });
-    _number_of_buckets = std::distance(_buckets.begin(), (last_nonempty_bucket + 1).base());
-  } else {
-    _buckets[1] = n();
-    _number_of_buckets = 1;
-  }
-  std::partial_sum(_buckets.begin(), _buckets.end(), _buckets.begin());
-}
-
-void Graph::update_total_node_weight() {
-  if (_node_weights.empty()) {
-    _total_node_weight = n();
-    _max_node_weight = 1;
-  } else {
-    _total_node_weight =
-        std::accumulate(_node_weights.begin(), _node_weights.end(), static_cast<NodeWeight>(0));
-    _max_node_weight = *std::max_element(_node_weights.begin(), _node_weights.end());
-  }
-}
-
-void Graph::sort_neighbors() {
-  KASSERT(!is_edge_weighted(), "not implemented", assert::heavy);
-  pfor_nodes([&](const NodeID u) {
-    std::sort(_edges.begin() + _nodes[u], _edges.begin() + _nodes[u + 1]);
-  });
-}
+Graph::Graph(std::unique_ptr<AbstractGraph> graph) : _underlying_graph(std::move(graph)) {}
 
 //
 // Utility debug functions
