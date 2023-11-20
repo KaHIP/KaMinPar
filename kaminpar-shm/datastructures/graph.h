@@ -235,10 +235,6 @@ public:
     _underlying_graph->update_total_node_weight();
   }
 
-  inline void sort_neighbors() final {
-    _underlying_graph->sort_neighbors();
-  }
-
 private:
   std::unique_ptr<AbstractGraph> _underlying_graph;
 };
