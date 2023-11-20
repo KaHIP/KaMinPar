@@ -13,6 +13,10 @@
 #include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::shm {
+std::ostream &operator<<(std::ostream &out, GraphOrdering ordering);
+
+std::unordered_map<std::string, GraphOrdering> get_graph_orderings();
+
 std::ostream &operator<<(std::ostream &out, ClusteringAlgorithm algorithm);
 
 std::unordered_map<std::string, ClusteringAlgorithm> get_clustering_algorithms();
