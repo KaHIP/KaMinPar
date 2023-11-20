@@ -19,6 +19,25 @@
 namespace kaminpar::shm {
 using namespace std::string_literals;
 
+std::unordered_map<std::string, GraphOrdering> get_graph_orderings() {
+  return {
+      {"natural", GraphOrdering::NATURAL},
+      {"deg-buckets", GraphOrdering::DEGREE_BUCKETS},
+      {"degree-buckets", GraphOrdering::DEGREE_BUCKETS},
+  };
+}
+
+std::ostream &operator<<(std::ostream &out, const GraphOrdering ordering) {
+  switch (ordering) {
+  case GraphOrdering::NATURAL:
+    return out << "natural";
+  case GraphOrdering::DEGREE_BUCKETS:
+    return out << "deg-buckets";
+  }
+
+  return out << "<invalid>";
+}
+
 std::unordered_map<std::string, ClusteringAlgorithm> get_clustering_algorithms() {
   return {
       {"noop", ClusteringAlgorithm::NOOP},
@@ -250,7 +269,7 @@ void print(const PartitioningContext &p_ctx, std::ostream &out) {
 void print(const Context &ctx, std::ostream &out) {
   out << "Execution mode:               " << ctx.parallel.num_threads << "\n";
   out << "Seed:                         " << Random::get_seed() << "\n";
-  out << "Graph:                        " << ctx.debug.graph_name << "\n";
+  out << "Graph:                        " << ctx.debug.graph_name << " [ordering: " << ctx.rearrange_by << "]\n";
   print(ctx.partition, out);
   cio::print_delimiter("Partitioning Scheme", '-');
   print(ctx.partitioning, out);

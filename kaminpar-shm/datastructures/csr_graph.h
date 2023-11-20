@@ -232,7 +232,6 @@ public:
   }
 
   void update_total_node_weight() final;
-  void sort_neighbors() final;
 
 private:
   void init_degree_buckets();

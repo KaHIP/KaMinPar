@@ -103,13 +103,5 @@ void CSRGraph::update_total_node_weight() {
     _max_node_weight = *std::max_element(_node_weights.begin(), _node_weights.end());
   }
 }
-
-void CSRGraph::sort_neighbors() {
-  KASSERT(!is_edge_weighted(), "not implemented", assert::always);
-
-  pfor_nodes([&](const NodeID u) {
-    std::sort(_edges.begin() + _nodes[u], _edges.begin() + _nodes[u + 1]);
-  });
-}
 } // namespace kaminpar::shm
 

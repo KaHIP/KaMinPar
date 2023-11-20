@@ -59,6 +59,12 @@ CLI::Option_group *create_partitioning_options(CLI::App *app, Context &ctx) {
       "value of '1' will replicate the graph once for every PE, whereas smaller values lead to "
       "fewer replications."
   );
+  partitioning->add_option("--rearrange-by", ctx.rearrange_by)
+      ->transform(CLI::CheckedTransformer(get_graph_orderings()).description(""))
+      ->description(R"(Criteria by which the graph is sorted and rearrange:
+  - natural:     keep order of the graph (do not rearrange)
+  - deg-buckets: sort nodes by degree bucket and rearrange accordingly)")
+      ->capture_default_str();
 
   return partitioning;
 }
@@ -368,12 +374,6 @@ CLI::Option_group *create_debug_options(CLI::App *app, Context &ctx) {
       },
       "Active all --d-dump-* options."
   );
-
-  debug
-      ->add_flag(
-          "--d-sort-neighbors-before-partitioning", ctx.debug.sort_neighbors_before_partitioning
-      )
-      ->capture_default_str();
 
   return debug;
 }

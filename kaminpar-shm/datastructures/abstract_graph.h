@@ -90,6 +90,5 @@ public:
   [[nodiscard]] virtual bool sorted() const = 0;
 
   virtual void update_total_node_weight() = 0;
-  virtual void sort_neighbors() = 0;
 };
 } // namespace kaminpar::shm
