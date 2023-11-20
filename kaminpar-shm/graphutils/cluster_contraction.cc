@@ -10,6 +10,9 @@
 #include <tbb/parallel_for.h>
 #include <tbb/parallel_invoke.h>
 
+#include "kaminpar-shm/datastructures/csr_graph.h"
+#include "kaminpar-shm/datastructures/graph.h"
+
 #include "kaminpar-common/datastructures/rating_map.h"
 #include "kaminpar-common/datastructures/ts_navigable_linked_list.h"
 #include "kaminpar-common/heap_profiler.h"
@@ -244,12 +247,12 @@ contract_generic_clustering(const Graph &graph, const Clustering &clustering, Me
   STOP_TIMER();
 
   return {
-      Graph{
+      Graph(std::make_unique<CSRGraph>(
           std::move(c_nodes),
           std::move(c_edges),
           std::move(c_node_weights),
           std::move(c_edge_weights)
-      },
+      )),
       std::move(mapping),
       std::move(m_ctx)
   };

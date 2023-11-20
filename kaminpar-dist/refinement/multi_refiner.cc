@@ -14,29 +14,35 @@
 
 namespace kaminpar::dist {
 MultiRefinerFactory::MultiRefinerFactory(
-    std::vector<std::unique_ptr<GlobalRefinerFactory>> factories
+    std::unordered_map<RefinementAlgorithm, std::unique_ptr<GlobalRefinerFactory>> factories,
+    std::vector<RefinementAlgorithm> order
 )
-    : _factories(std::move(factories)) {}
+    : _factories(std::move(factories)),
+      _order(std::move(order)) {}
 
 std::unique_ptr<GlobalRefiner>
 MultiRefinerFactory::create(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) {
-  std::vector<std::unique_ptr<GlobalRefiner>> refiners;
-  for (auto &factory : _factories) {
-    refiners.push_back(factory->create(p_graph, p_ctx));
+  std::unordered_map<RefinementAlgorithm, std::unique_ptr<GlobalRefiner>> refiners;
+  for (const auto &[algorithm, factory] : _factories) {
+    refiners[algorithm] = factory->create(p_graph, p_ctx);
   }
-  return std::make_unique<MultiRefiner>(std::move(refiners));
+  return std::make_unique<MultiRefiner>(std::move(refiners), _order);
 }
 
-MultiRefiner::MultiRefiner(std::vector<std::unique_ptr<GlobalRefiner>> refiners)
-    : _refiners(std::move(refiners)) {}
+MultiRefiner::MultiRefiner(
+    std::unordered_map<RefinementAlgorithm, std::unique_ptr<GlobalRefiner>> refiners,
+    std::vector<RefinementAlgorithm> order
+)
+    : _refiners(std::move(refiners)),
+      _order(std::move(order)) {}
 
 void MultiRefiner::initialize() {}
 
 bool MultiRefiner::refine() {
   bool improved_partition = false;
-  for (auto &refiner : _refiners) {
-    refiner->initialize();
-    improved_partition |= refiner->refine();
+  for (const RefinementAlgorithm algorithm : _order) {
+    _refiners[algorithm]->initialize();
+    improved_partition |= _refiners[algorithm]->refine();
   }
   return improved_partition;
 }

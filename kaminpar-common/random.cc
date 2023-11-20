@@ -34,6 +34,10 @@ void Random::seed(const int seed) {
   }
 }
 
+int Random::get_seed() {
+  return _seed;
+}
+
 Random::Random()
     : _generator(_seed + tbb::this_task_arena::current_thread_index()),
       _bool_dist(0, 1),

@@ -136,12 +136,13 @@ SequentialSubgraphExtractionResult extract_subgraphs_sequential(
         is_edge_weighted * m,
         subgraph_memory.edge_weights
     );
-    return Graph{
+    return Graph(std::make_unique<CSRGraph>(
         tag::seq,
         std::move(s_nodes),
         std::move(s_edges),
         std::move(s_node_weights),
-        std::move(s_edge_weights)};
+        std::move(s_edge_weights)
+    ));
   };
 
   std::array<Graph, 2> subgraphs{
@@ -268,8 +269,9 @@ extract_subgraphs(const PartitionedGraph &p_graph, SubgraphMemory &subgraph_memo
     StaticArray<EdgeWeight> edge_weights(
         is_edge_weighted * m0, is_edge_weighted * m, subgraph_memory.edge_weights
     );
-    subgraphs[b] =
-        Graph{std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights)};
+    subgraphs[b] = Graph(std::make_unique<CSRGraph>(
+        std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights)
+    ));
   });
   STOP_TIMER();
 

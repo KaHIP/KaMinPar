@@ -7,6 +7,13 @@
  ******************************************************************************/
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 
+#include <kassert/kassert.hpp>
+#include <tbb/parallel_for.h>
+
+#include "kaminpar-shm/definitions.h"
+
+#include "kaminpar-common/datastructures/static_array.h"
+
 namespace kaminpar::shm {
 PartitionedGraph::PartitionedGraph(
     const Graph &graph, BlockID k, StaticArray<BlockID> partition, std::vector<BlockID> final_k

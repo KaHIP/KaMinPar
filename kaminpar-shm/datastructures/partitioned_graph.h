@@ -62,6 +62,8 @@ public:
   PartitionedGraph(PartitionedGraph &&) noexcept = default;
   PartitionedGraph &operator=(PartitionedGraph &&other) noexcept = default;
 
+  ~PartitionedGraph() = default;
+
   bool try_balanced_move(
       const NodeID u, const BlockID from, const BlockID to, const BlockWeight max_weight
   ) {
@@ -144,31 +146,81 @@ public:
   void change_k(BlockID new_k);
   void reinit_block_weights();
 
-  // clang-format off
-  [[nodiscard]] inline IotaRange<BlockID> blocks() const { return IotaRange(static_cast<BlockID>(0), k()); }
-  [[nodiscard]] inline BlockID block(const NodeID u) const { return __atomic_load_n(&_partition[u], __ATOMIC_RELAXED); }
-  template <typename Lambda> inline void pfor_blocks(Lambda &&l) const { tbb::parallel_for(static_cast<BlockID>(0), k(), std::forward<Lambda>(l)); }
-  [[nodiscard]] inline NodeWeight block_weight(const BlockID b) const { KASSERT(b < k()); return __atomic_load_n(&_block_weights[b], __ATOMIC_RELAXED); } 
-  void set_block_weight(const BlockID b, const BlockWeight weight) { KASSERT(b < k()); __atomic_store_n(&_block_weights[b], weight, __ATOMIC_RELAXED); } 
-  [[nodiscard]] inline const auto &block_weights() const { return _block_weights; }
-  [[nodiscard]] inline auto &&take_block_weights() { return std::move(_block_weights); }
-  [[nodiscard]] inline BlockID heaviest_block() const { return std::max_element(_block_weights.begin(), _block_weights.end()) - _block_weights.begin(); }
-  [[nodiscard]] inline BlockID lightest_block() const { return std::min_element(_block_weights.begin(), _block_weights.end()) - _block_weights.begin(); }
-  [[nodiscard]] inline BlockID k() const { return _k; }
-  [[nodiscard]] inline const auto &partition() const { return _partition; }
-  [[nodiscard]] inline auto &&take_partition() { return std::move(_partition); }
-  [[nodiscard]] inline BlockID final_k(const BlockID b) const { return _final_k[b]; }
-  [[nodiscard]] inline const std::vector<BlockID> &final_ks() const { return _final_k; }
-  [[nodiscard]] inline std::vector<BlockID> &&take_final_k() { return std::move(_final_k); }
-  inline void set_final_k(const BlockID b, const BlockID final_k) { _final_k[b] = final_k; }
-  inline void set_final_ks(std::vector<BlockID> final_ks) { _final_k = std::move(final_ks); }
-  // clang-format on
+  [[nodiscard]] inline IotaRange<BlockID> blocks() const {
+    return {static_cast<BlockID>(0), k()};
+  }
+
+  [[nodiscard]] inline BlockID block(const NodeID u) const {
+    return __atomic_load_n(&_partition[u], __ATOMIC_RELAXED);
+  }
+
+  template <typename Lambda> inline void pfor_blocks(Lambda &&l) const {
+    tbb::parallel_for(static_cast<BlockID>(0), k(), std::forward<Lambda>(l));
+  }
+
+  [[nodiscard]] inline NodeWeight block_weight(const BlockID b) const {
+    KASSERT(b < k());
+    return __atomic_load_n(&_block_weights[b], __ATOMIC_RELAXED);
+  }
+
+  void set_block_weight(const BlockID b, const BlockWeight weight) {
+    KASSERT(b < k());
+    __atomic_store_n(&_block_weights[b], weight, __ATOMIC_RELAXED);
+  }
+
+  [[nodiscard]] inline const auto &block_weights() const {
+    return _block_weights;
+  }
+
+  [[nodiscard]] inline auto &&take_block_weights() {
+    return std::move(_block_weights);
+  }
+
+  [[nodiscard]] inline BlockID heaviest_block() const {
+    return std::max_element(_block_weights.begin(), _block_weights.end()) - _block_weights.begin();
+  }
+
+  [[nodiscard]] inline BlockID lightest_block() const {
+    return std::min_element(_block_weights.begin(), _block_weights.end()) - _block_weights.begin();
+  }
+
+  [[nodiscard]] inline BlockID k() const {
+    return _k;
+  }
+
+  [[nodiscard]] inline const auto &partition() const {
+    return _partition;
+  }
+
+  [[nodiscard]] inline auto &&take_partition() {
+    return std::move(_partition);
+  }
+
+  [[nodiscard]] inline BlockID final_k(const BlockID b) const {
+    return _final_k[b];
+  }
+
+  [[nodiscard]] inline const std::vector<BlockID> &final_ks() const {
+    return _final_k;
+  }
+
+  [[nodiscard]] inline std::vector<BlockID> &&take_final_k() {
+    return std::move(_final_k);
+  }
+
+  inline void set_final_k(const BlockID b, const BlockID final_k) {
+    _final_k[b] = final_k;
+  }
+
+  inline void set_final_ks(std::vector<BlockID> final_ks) {
+    _final_k = std::move(final_ks);
+  }
 
 private:
   void init_block_weights_par();
   void init_block_weights_seq();
 
-  BlockID _k;
+  BlockID _k = 0;
   StaticArray<BlockID> _partition;
   StaticArray<BlockWeight> _block_weights;
 

@@ -47,7 +47,7 @@ struct PartitionedGraphWrapper : public GraphWrapper {
   std::unique_ptr<PartitionedGraph> p_graph;
 };
 
-inline GraphWrapper load_graph(const std::string &graph_name) {
+inline GraphWrapper load_graph(const std::string &graph_name, const bool is_sorted = false) {
   kagen::Graph kagen_graph = invoke_kagen(graph_name);
 
   GraphWrapper wrapper;
@@ -59,7 +59,8 @@ inline GraphWrapper load_graph(const std::string &graph_name) {
       StaticArray<EdgeID>(wrapper.xadj.data(), wrapper.xadj.size()),
       StaticArray<NodeID>(wrapper.adjncy.data(), wrapper.adjncy.size()),
       StaticArray<NodeWeight>(wrapper.vwgt.data(), wrapper.vwgt.size()),
-      StaticArray<EdgeWeight>(wrapper.adjvwgt.data(), wrapper.adjvwgt.size())
+      StaticArray<EdgeWeight>(wrapper.adjvwgt.data(), wrapper.adjvwgt.size()),
+      is_sorted
   );
 
   std::cout << "Loaded graph with n=" << wrapper.graph->n() << ", m=" << wrapper.graph->m()
@@ -67,9 +68,10 @@ inline GraphWrapper load_graph(const std::string &graph_name) {
   return wrapper;
 }
 
-inline PartitionedGraphWrapper
-load_partitioned_graph(const std::string &graph_name, const std::string &partition_name) {
-  GraphWrapper graph_wrapper = load_graph(graph_name);
+inline PartitionedGraphWrapper load_partitioned_graph(
+    const std::string &graph_name, const std::string &partition_name, const bool is_sorted = false
+) {
+  GraphWrapper graph_wrapper = load_graph(graph_name, is_sorted);
   PartitionedGraphWrapper wrapper;
   wrapper.xadj = std::move(graph_wrapper.xadj);
   wrapper.adjncy = std::move(graph_wrapper.adjncy);
@@ -81,7 +83,7 @@ load_partitioned_graph(const std::string &graph_name, const std::string &partiti
   StaticArray<BlockID> partition(n);
   std::ifstream partition_file(partition_name);
   for (NodeID u = 0; u < n; ++u) {
-    BlockID b;
+    BlockID b = kInvalidBlockID;
     if (!(partition_file >> b)) {
       throw std::runtime_error("partition size does not match graph size");
     }

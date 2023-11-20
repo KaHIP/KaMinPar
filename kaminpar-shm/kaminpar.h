@@ -119,6 +119,8 @@ enum class FMStoppingRule {
 
 enum class GainCacheStrategy {
   DENSE,
+  ON_THE_FLY,
+  HYBRID,
 };
 
 struct LabelPropagationRefinementContext {
@@ -136,7 +138,11 @@ struct KwayFMRefinementContext {
   double abortion_threshold;
 
   GainCacheStrategy gain_cache_strategy;
-  double k_vs_degree_threshold;
+
+  // gain_cache_strategy == HybridGainCache
+  EdgeID constant_high_degree_threshold;
+  double k_based_high_degree_threshold;
+  bool preallocate_gain_cache;
 
   bool dbg_compute_batch_size_statistics;
 };
@@ -163,7 +169,7 @@ struct RefinementContext {
   JetRefinementContext jet;
   MtKaHyParRefinementContext mtkahypar;
 
-  bool includes_algorithm(const RefinementAlgorithm algorithm) const {
+  [[nodiscard]] bool includes_algorithm(const RefinementAlgorithm algorithm) const {
     return std::find(algorithms.begin(), algorithms.end(), algorithm) != algorithms.end();
   }
 };
@@ -254,10 +260,22 @@ struct ParallelContext {
 
 struct DebugContext {
   std::string graph_name;
+
+  std::string dump_dir;
+
+  bool include_num_threads_in_filename;
+  bool include_seed_in_filename;
+  bool include_epsilon_in_filename;
+  bool include_k_in_filename;
+
+  bool dump_toplevel_graph;
+  bool dump_toplevel_partition;
   bool dump_coarsest_graph;
   bool dump_coarsest_partition;
   bool dump_graph_hierarchy;
   bool dump_partition_hierarchy;
+
+  bool sort_neighbors_before_partitioning;
 };
 
 enum class PartitioningMode {
@@ -309,6 +327,13 @@ namespace kaminpar {
 class KaMinPar {
 public:
   KaMinPar(int num_threads, shm::Context ctx);
+
+  KaMinPar(const KaMinPar &) = delete;
+  KaMinPar &operator=(const KaMinPar &) = delete;
+
+  KaMinPar(KaMinPar &&) noexcept = default;
+  KaMinPar &operator=(KaMinPar &&) noexcept = default;
+
   ~KaMinPar();
 
   /*!

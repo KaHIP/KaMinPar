@@ -42,7 +42,7 @@ public:
   // (more expensive, but safes a call to gain() if the exact gain for the best block is needed).
   constexpr static bool kIteratesExactGains = iterate_exact_gains;
 
-  DenseGainCache(const NodeID max_n, const BlockID max_k)
+  DenseGainCache(const Context & /* ctx */, const NodeID max_n, const BlockID max_k)
       : _max_n(max_n),
         _max_k(max_k),
         _gain_cache(
@@ -72,6 +72,11 @@ public:
 
   EdgeWeight gain(const NodeID node, const BlockID block_from, const BlockID block_to) const {
     return weighted_degree_to(node, block_to) - weighted_degree_to(node, block_from);
+  }
+
+  std::pair<EdgeWeight, EdgeWeight>
+  gain(const NodeID node, const BlockID b_node, const std::pair<BlockID, BlockID> &targets) {
+    return {gain(node, b_node, targets.first), gain(node, b_node, targets.second)};
   }
 
   EdgeWeight conn(const NodeID node, const BlockID block) const {
@@ -209,6 +214,11 @@ public:
 
   EdgeWeight gain(const NodeID node, const BlockID from, const BlockID to) const {
     return _gain_cache.gain(node, from, to) + conn_delta(node, to) - conn_delta(node, from);
+  }
+
+  std::pair<EdgeWeight, EdgeWeight>
+  gain(const NodeID node, const BlockID b_node, const std::pair<BlockID, BlockID> &targets) {
+    return {gain(node, b_node, targets.first), gain(node, b_node, targets.second)};
   }
 
   template <typename Lambda>

@@ -192,9 +192,9 @@ Graph rearrange_by_degree_buckets(Context &ctx, Graph old_graph) {
       assert::heavy
   );
 
-  Graph new_graph(
+  Graph new_graph(std::make_unique<CSRGraph>(
       std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights), true
-  );
+  ));
   new_graph.set_permutation(std::move(node_permutations.old_to_new));
   return new_graph;
 }

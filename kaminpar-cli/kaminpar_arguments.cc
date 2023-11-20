@@ -232,10 +232,19 @@ CLI::Option_group *create_kway_fm_refinement_options(CLI::App *app, Context &ctx
         "iteration falls below this threshold (lower = weaker, but faster)."
   )
       ->capture_default_str();
-  fm->add_flag("--r-fm-gain-cache", ctx.refinement.kway_fm.gain_cache_strategy)
+  fm->add_option("--r-fm-gain-cache", ctx.refinement.kway_fm.gain_cache_strategy)
       ->transform(CLI::CheckedTransformer(get_gain_cache_strategies()).description(""))
       ->capture_default_str();
-  fm->add_flag("--r-fm-k-vs-degree", ctx.refinement.kway_fm.k_vs_degree_threshold)
+  fm->add_option(
+        "--r-fm-constant-high-degree-threshold",
+        ctx.refinement.kway_fm.constant_high_degree_threshold
+  )
+      ->capture_default_str();
+  fm->add_option(
+        "--r-fm-k-based-high-degree-threshold", ctx.refinement.kway_fm.k_based_high_degree_threshold
+  )
+      ->capture_default_str();
+  fm->add_flag("--r-fm-preallocate-gain-cache", ctx.refinement.kway_fm.preallocate_gain_cache)
       ->capture_default_str();
   fm->add_flag(
         "--r-fm-dbg-batch-size-stats", ctx.refinement.kway_fm.dbg_compute_batch_size_statistics
@@ -278,6 +287,42 @@ CLI::Option_group *create_debug_options(CLI::App *app, Context &ctx) {
   auto *debug = app->add_option_group("Debug");
 
   debug
+      ->add_option(
+          "--d-dump-dir",
+          ctx.debug.dump_dir,
+          "Directory in which the dumped graphs and partitions should be stored."
+      )
+      ->capture_default_str();
+
+  debug->add_flag("--d-include-num-threads-in-filename", ctx.debug.include_num_threads_in_filename)
+      ->capture_default_str();
+  debug->add_flag("--d-include-seed-in-filename", ctx.debug.include_seed_in_filename)
+      ->capture_default_str();
+  debug->add_flag("--d-include-epsilon-in-filename", ctx.debug.include_epsilon_in_filename)
+      ->capture_default_str();
+  debug->add_flag("--d-include-k-in-filename", ctx.debug.include_k_in_filename)
+      ->capture_default_str();
+
+  debug
+      ->add_flag(
+          "--d-dump-toplevel-graph",
+          ctx.debug.dump_toplevel_graph,
+          "Write the toplevel graph to disk. Note that this graph might be different from the "
+          "input graph, as isolated nodes might have been removed and nodes might have been "
+          "reordered."
+      )
+      ->capture_default_str();
+
+  debug
+      ->add_flag(
+          "--d-dump-toplevel-partition",
+          ctx.debug.dump_toplevel_partition,
+          "Write the partition of the toplevel graph before- and after running refinement to disk. "
+          "This partition should only be used together with the toplevel graph obtained via "
+          "--d-dump-toplevel-graph."
+      )
+      ->capture_default_str();
+  debug
       ->add_flag(
           "--d-dump-coarsest-graph",
           ctx.debug.dump_coarsest_graph,
@@ -314,6 +359,8 @@ CLI::Option_group *create_debug_options(CLI::App *app, Context &ctx) {
   debug->add_flag(
       "--d-dump-everything",
       [&](auto) {
+        ctx.debug.dump_toplevel_graph = true;
+        ctx.debug.dump_toplevel_partition = true;
         ctx.debug.dump_coarsest_graph = true;
         ctx.debug.dump_coarsest_partition = true;
         ctx.debug.dump_graph_hierarchy = true;
@@ -321,6 +368,12 @@ CLI::Option_group *create_debug_options(CLI::App *app, Context &ctx) {
       },
       "Active all --d-dump-* options."
   );
+
+  debug
+      ->add_flag(
+          "--d-sort-neighbors-before-partitioning", ctx.debug.sort_neighbors_before_partitioning
+      )
+      ->capture_default_str();
 
   return debug;
 }

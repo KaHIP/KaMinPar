@@ -32,8 +32,8 @@ public:
   constexpr static bool kIteratesNonadjacentBlocks = false;
   constexpr static bool kIteratesExactGains = iterate_exact_gains;
 
-  OnTheFlyGainCache(NodeID /* max_n */, BlockID max_k)
-      : _rating_map_ets([&] {
+  OnTheFlyGainCache(const Context & /* ctx */, NodeID /* max_n */, BlockID max_k)
+      : _rating_map_ets([max_k] {
           return RatingMap<EdgeWeight, BlockID, SparseMap<BlockID, EdgeWeight>>(max_k);
         }) {}
 
@@ -47,6 +47,11 @@ public:
 
   EdgeWeight gain(const NodeID node, const BlockID from, const BlockID to) const {
     return gain_impl(*_p_graph, node, from, to);
+  }
+
+  std::pair<EdgeWeight, EdgeWeight>
+  gain(const NodeID node, const BlockID b_node, const std::pair<BlockID, BlockID> &targets) const {
+    return gain_impl(*_p_graph, node, b_node, targets);
   }
 
   EdgeWeight conn(const NodeID node, const BlockID block) const {
@@ -93,6 +98,31 @@ private:
     }
 
     return conn_to - conn_from;
+  }
+
+  template <typename PartitionedGraphType>
+  std::pair<EdgeWeight, EdgeWeight> gain_impl(
+      const PartitionedGraphType &p_graph,
+      const NodeID node,
+      const BlockID b_node,
+      const std::pair<BlockID, BlockID> targets
+  ) const {
+    EdgeWeight conn_from = 0;
+    std::pair<EdgeWeight, EdgeWeight> conns_to = {0, 0};
+
+    for (const auto [e, v] : p_graph.neighbors(node)) {
+      const BlockID b_v = p_graph.block(v);
+      const EdgeWeight w_e = p_graph.edge_weight(e);
+      if (b_v == b_node) {
+        conn_from += w_e;
+      } else if (b_v == targets.first) {
+        conns_to.first += w_e;
+      } else if (b_v == targets.second) {
+        conns_to.second += w_e;
+      }
+    }
+
+    return {conns_to.first - conn_from, conns_to.second - conn_from};
   }
 
   template <typename PartitionedGraphType>
@@ -147,7 +177,7 @@ private:
     rating_map.run_with_map(action, action);
   }
 
-  const PartitionedGraph *_p_graph;
+  const PartitionedGraph *_p_graph = nullptr;
 
   mutable tbb::enumerable_thread_specific<
       RatingMap<EdgeWeight, BlockID, SparseMap<BlockID, EdgeWeight>>>
@@ -169,6 +199,11 @@ public:
 
   EdgeWeight gain(const NodeID node, const BlockID from, const BlockID to) const {
     return _gain_cache.gain_impl(*_d_graph, node, from, to);
+  }
+
+  std::pair<EdgeWeight, EdgeWeight>
+  gain(const NodeID node, const BlockID b_node, const std::pair<BlockID, BlockID> &targets) const {
+    return _gain_cache.gain_impl(*_d_graph, node, b_node, targets);
   }
 
   template <typename Lambda>

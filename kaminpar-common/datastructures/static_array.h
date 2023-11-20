@@ -262,6 +262,11 @@ public:
     return _size;
   }
 
+  void resize(static_array::noinit_t, const std::size_t size) {
+    KASSERT(_data == _owned_data.get(), "cannot resize span", assert::always);
+    allocate_data(size);
+  }
+
   void resize(const std::size_t size, no_init) {
     KASSERT(_data == _owned_data.get(), "cannot resize span", assert::always);
     allocate_data(size);

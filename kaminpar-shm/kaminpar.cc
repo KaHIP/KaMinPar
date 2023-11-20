@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Public library interface of KaMinPar.
+ *
  * @file:   kaminpar.cc
  * @author: Daniel Seemaier
  * @date:   13.03.2023
- * @brief:  Public symbols of the shared-memory partitioner
  ******************************************************************************/
 #include "kaminpar-shm/kaminpar.h"
 
@@ -66,9 +67,9 @@ void print_statistics(
 }
 } // namespace
 
-KaMinPar::KaMinPar(const int num_threads, const Context ctx)
+KaMinPar::KaMinPar(const int num_threads, Context ctx)
     : _num_threads(num_threads),
-      _ctx(ctx),
+      _ctx(std::move(ctx)),
       _gc(tbb::global_control::max_allowed_parallelism, num_threads) {
   GLOBAL_TIMER.reset();
 }
@@ -111,9 +112,9 @@ void KaMinPar::borrow_and_mutate_graph(
   StaticArray<EdgeWeight> edge_weights =
       (adjwgt == nullptr) ? StaticArray<EdgeWeight>(0) : StaticArray<EdgeWeight>(adjwgt, m);
 
-  _graph_ptr = std::make_unique<Graph>(
+  _graph_ptr = std::make_unique<Graph>(std::make_unique<CSRGraph>(
       std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights), false
-  );
+  ));
 }
 
 void KaMinPar::copy_graph(
@@ -128,8 +129,8 @@ void KaMinPar::copy_graph(
 
   RECORD("nodes") StaticArray<EdgeID> nodes(n + 1);
   RECORD("edges") StaticArray<NodeID> edges(m);
-  RECORD("node_weights") StaticArray<NodeWeight> node_weights(has_node_weights * n);
-  RECORD("edge_weights") StaticArray<EdgeWeight> edge_weights(has_edge_weights * m);
+  RECORD("node_weights") StaticArray<NodeWeight> node_weights(has_node_weights ? n : 0);
+  RECORD("edge_weights") StaticArray<EdgeWeight> edge_weights(has_edge_weights ? m : 0);
 
   nodes[n] = xadj[n];
   tbb::parallel_for<NodeID>(0, n, [&](const NodeID u) {
@@ -145,9 +146,9 @@ void KaMinPar::copy_graph(
     }
   });
 
-  _graph_ptr = std::make_unique<Graph>(
+  _graph_ptr = std::make_unique<Graph>(std::make_unique<CSRGraph>(
       std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights), false
-  );
+  ));
 }
 
 EdgeWeight KaMinPar::compute_partition(const int seed, const BlockID k, BlockID *partition) {
@@ -178,8 +179,14 @@ EdgeWeight KaMinPar::compute_partition(const int seed, const BlockID k, BlockID 
     _graph_ptr =
         std::make_unique<Graph>(graph::rearrange_by_degree_buckets(_ctx, std::move(*_graph_ptr)));
     _was_rearranged = true;
-    STOP_HEAP_PROFILER();
+
+    // Sort neighbor IDs of each node, useful for quick debugging experiments etc.
+    if (_ctx.debug.sort_neighbors_before_partitioning) {
+      _graph_ptr->sort_neighbors();
+    }
   }
+
+  STOP_HEAP_PROFILER();
 
   // Perform actual partitioning
   PartitionedGraph p_graph = factory::create_partitioner(*_graph_ptr, _ctx)->partition();
