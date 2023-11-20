@@ -80,20 +80,29 @@ void expect_compressed_graph_eq(const Graph &graph, const CompressedGraph &compr
   }
 
   for (const NodeID node : graph.nodes()) {
-    auto nodes = compressed_graph.adjacent_nodes(node);
-    if (graph.degree(node) != nodes.size()) {
-      LOG << "Node " << node << " has " << graph.degree(node)
-          << " neighbours in the uncompressed graph but " << nodes.size()
+    std::vector<NodeID> graph_neighbours;
+    std::vector<NodeID> compressed_graph_neighbours;
+
+    for (const NodeID adjacent_node : graph.adjacent_nodes(node)) {
+      graph_neighbours.push_back(adjacent_node);
+    }
+
+    for (const NodeID adjacent_node : compressed_graph.adjacent_nodes(node)) {
+      compressed_graph_neighbours.push_back(adjacent_node);
+    }
+
+    if (graph_neighbours.size() != compressed_graph_neighbours.size()) {
+      LOG << "Node " << node << " has " << graph_neighbours.size()
+          << " neighbours in the uncompressed graph but " << compressed_graph_neighbours.size()
           << " neighbours in the compressed graph!";
       return;
     }
 
-    for (const NodeID adjacent_node : graph.adjacent_nodes(node)) {
-      if (std::find(nodes.begin(), nodes.end(), adjacent_node) == nodes.end()) {
-        LOG << "Node " << node << " is adjacent to " << adjacent_node
-            << " in the uncompressed graph but not in the compressed graph!";
-        return;
-      }
+    std::sort(graph_neighbours.begin(), graph_neighbours.end());
+    std::sort(compressed_graph_neighbours.begin(), compressed_graph_neighbours.end());
+    if (graph_neighbours != compressed_graph_neighbours) {
+      LOG << "The neighbourhood of node " << node
+          << " int graph and the compressed graph does not match!";
     }
   }
 }
@@ -101,7 +110,6 @@ void expect_compressed_graph_eq(const Graph &graph, const CompressedGraph &compr
 struct GraphStats {
   std::size_t used_memory;
   std::size_t interval_count;
-  std::size_t reference_count;
 };
 
 template <typename CompressedGraph>
@@ -132,28 +140,7 @@ GraphStats run(const Graph &graph, bool benchmarks, bool checks) {
     expect_compressed_graph_eq(graph, compressed_graph);
   }
 
-  return {
-      compressed_graph.used_memory(),
-      compressed_graph.interval_count(),
-      compressed_graph.reference_count()
-  };
-}
-
-struct GraphCompressionContext {
-  bool reference_encoding;
-  bool interval_encoding;
-};
-
-void create_graph_compression_options(CLI::App &app, GraphCompressionContext &ctx) {
-  auto *option_group = app.add_option_group("Graph Compression");
-
-  option_group
-      ->add_flag("-r,--reference-encoding", ctx.reference_encoding, "Enable reference encoding")
-      ->capture_default_str();
-
-  option_group
-      ->add_flag("-i,--interval-encoding", ctx.interval_encoding, "Enable interval encoding")
-      ->capture_default_str();
+  return {compressed_graph.used_memory(), compressed_graph.interval_count()};
 }
 
 int main(int argc, char *argv[]) {
@@ -173,8 +160,10 @@ int main(int argc, char *argv[]) {
   app.add_option("-c,--checks", enable_checks, "Enable compressed graph operations check")
       ->default_val(enable_checks);
 
-  GraphCompressionContext ctx;
-  create_graph_compression_options(app, ctx);
+  bool interval_encoding = true;
+  auto *option_group = app.add_option_group("Graph Compression");
+  option_group->add_option("-i,--interval-encoding", interval_encoding, "Enable interval encoding")
+      ->default_val(interval_encoding);
 
   CLI11_PARSE(app, argc, argv);
 
@@ -206,23 +195,13 @@ int main(int argc, char *argv[]) {
   GLOBAL_TIMER.reset();
 
   LOG << "Compressing the input graph...";
+  using VarLengthCodec = VarIntCodec;
+
   GraphStats stats;
-  if (ctx.interval_encoding) {
-    if (ctx.reference_encoding) {
-      stats =
-          run<CompressedGraph<VarIntCodec, true, true>>(graph, enable_benchmarks, enable_checks);
-    } else {
-      stats =
-          run<CompressedGraph<VarIntCodec, true, false>>(graph, enable_benchmarks, enable_checks);
-    }
+  if (interval_encoding) {
+    stats = run<CompressedGraph<VarLengthCodec, true>>(graph, enable_benchmarks, enable_checks);
   } else {
-    if (ctx.reference_encoding) {
-      stats =
-          run<CompressedGraph<VarIntCodec, false, true>>(graph, enable_benchmarks, enable_checks);
-    } else {
-      stats =
-          run<CompressedGraph<VarIntCodec, false, false>>(graph, enable_benchmarks, enable_checks);
-    }
+    stats = run<CompressedGraph<VarLengthCodec, false>>(graph, enable_benchmarks, enable_checks);
   }
 
   STOP_TIMER();
@@ -251,10 +230,6 @@ int main(int argc, char *argv[]) {
   std::size_t interval_count = stats.interval_count;
   LOG << interval_count << " (" << (interval_count / (float)graph.n())
       << "%) vertices use interval encoding.";
-
-  std::size_t reference_count = stats.reference_count;
-  LOG << reference_count << " (" << (reference_count / (float)graph.n())
-      << "%) vertices use reference encoding.";
   LOG;
 
   Timer::global().print_human_readable(std::cout);

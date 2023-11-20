@@ -38,6 +38,17 @@ struct VarIntCodec {
     return len;
   }
 
+  template <typename Int> static std::size_t length_marker(Int i) {
+    size_t len = 1;
+
+    i >>= 6;
+    if (i > 0) {
+      len += length(i);
+    }
+
+    return len;
+  }
+
   template <typename Int> static std::size_t encode(Int i, std::uint8_t *ptr) {
     size_t len = 1;
 
@@ -62,6 +73,28 @@ struct VarIntCodec {
     if (i < 0) {
       i *= -1;
 
+      first_octet = (i & 0b00111111) | 0b01000000;
+    } else {
+      first_octet = (i & 0b00111111);
+    }
+
+    i >>= 6;
+
+    if (i > 0) {
+      first_octet |= 0b10000000;
+      *ptr = first_octet;
+      return encode(i, ptr + 1) + 1;
+    }
+
+    *ptr = first_octet;
+    return 1;
+  }
+
+  template <typename Int>
+  static std::size_t encode_with_marker(Int i, bool marker_set, std::uint8_t *ptr) {
+    std::uint8_t first_octet;
+
+    if (marker_set) {
       first_octet = (i & 0b00111111) | 0b01000000;
     } else {
       first_octet = (i & 0b00111111);
@@ -125,6 +158,30 @@ struct VarIntCodec {
     }
 
     return {value, len + 1};
+  }
+
+  template <typename Int>
+  static std::tuple<Int, bool, std::size_t> decode_with_marker(const std::uint8_t *ptr) {
+    std::uint8_t first_octet = *ptr++;
+    Int value = first_octet & 0b00111111;
+    bool is_marker_set = (first_octet & 0b01000000) != 0;
+    bool is_continuation_bit_set = (first_octet & 0b10000000) != 0;
+
+    std::size_t len = 1;
+    if (is_continuation_bit_set) {
+      while (true) {
+        std::uint8_t octet = *ptr;
+        value |= (octet & 0b01111111) << (6 + 7 * len++);
+
+        if ((octet & 0b10000000) == 0) {
+          break;
+        }
+
+        ptr++;
+      }
+    }
+
+    return {value, is_marker_set, len};
   }
 };
 

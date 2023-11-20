@@ -30,41 +30,6 @@ template <typename CompressedGraph> static void print_compressed_graph(const Gra
   }
 }
 
-template <typename VarLenCodec, typename Int> static void test_varlen_codec(Int value) {
-  std::size_t len = VarLenCodec::length(value);
-  auto ptr = std::make_unique<std::uint8_t>(len);
-
-  std::size_t encoded_value_len = VarLenCodec::encode(value, ptr.get());
-  auto [decoded_value, decoded_value_len] = VarLenCodec::template decode<Int>(ptr.get());
-
-  EXPECT_EQ(value, decoded_value);
-  EXPECT_EQ(len, encoded_value_len);
-  EXPECT_EQ(len, decoded_value_len);
-}
-
-template <typename VarLenCodec, typename Int> static void test_signed_varlen_codec(Int value) {
-  std::size_t len = VarLenCodec::length_signed(value);
-  auto ptr = std::make_unique<std::uint8_t>(len);
-
-  std::size_t encoded_value_len = VarLenCodec::encode_signed(value, ptr.get());
-  auto [decoded_value, decoded_value_len] = VarLenCodec::template decode_signed<Int>(ptr.get());
-
-  EXPECT_EQ(value, decoded_value);
-  EXPECT_EQ(len, encoded_value_len);
-  EXPECT_EQ(len, decoded_value_len);
-}
-
-TEST(CompressedGraphTest, varlen_codec) {
-  test_varlen_codec<VarIntCodec>(0);
-  test_varlen_codec<VarIntCodec>(std::numeric_limits<std::size_t>::max() - 1);
-}
-
-TEST(CompressedGraphTest, varlen_codec_signed) {
-  test_signed_varlen_codec<VarIntCodec>(0);
-  test_signed_varlen_codec<VarIntCodec>(std::numeric_limits<int>::min() + 1);
-  test_signed_varlen_codec<VarIntCodec>(std::numeric_limits<int>::max() - 1);
-}
-
 template <typename CompressedGraph> static void test_graph_compression(const Graph &graph) {
   const auto compressed_graph = CompressedGraph::compress(graph);
 
@@ -72,12 +37,22 @@ template <typename CompressedGraph> static void test_graph_compression(const Gra
   EXPECT_EQ(graph.m(), compressed_graph.m());
 
   for (const NodeID node : graph.nodes()) {
-    const auto nodes = compressed_graph.adjacent_nodes(node);
-    EXPECT_EQ(graph.degree(node), nodes.size());
+    std::vector<NodeID> graph_neighbours;
+    std::vector<NodeID> compressed_graph_neighbours;
 
     for (const NodeID adjacent_node : graph.adjacent_nodes(node)) {
-      EXPECT_TRUE(std::find(nodes.begin(), nodes.end(), adjacent_node) != nodes.end());
+      graph_neighbours.push_back(adjacent_node);
     }
+
+    for (const NodeID adjacent_node : compressed_graph.adjacent_nodes(node)) {
+      compressed_graph_neighbours.push_back(adjacent_node);
+    }
+
+    EXPECT_EQ(graph_neighbours.size(), compressed_graph_neighbours.size());
+
+    std::sort(graph_neighbours.begin(), graph_neighbours.end());
+    std::sort(compressed_graph_neighbours.begin(), compressed_graph_neighbours.end());
+    EXPECT_TRUE(graph_neighbours == compressed_graph_neighbours);
   }
 }
 
@@ -93,22 +68,12 @@ template <typename CompressedGraph> static void test_graph_compression() {
 }
 
 TEST(CompressedGraphTest, gap_encoding) {
-  using CompressedGraph = CompressedGraph<VarIntCodec, false, false>;
+  using CompressedGraph = CompressedGraph<VarIntCodec, false>;
   test_graph_compression<CompressedGraph>();
 }
 
 TEST(CompressedGraphTest, interval_encoding) {
-  using CompressedGraph = CompressedGraph<VarIntCodec, true, false>;
-  test_graph_compression<CompressedGraph>();
-}
-
-TEST(CompressedGraphTest, reference_encoding) {
-  using CompressedGraph = CompressedGraph<VarIntCodec, false, true>;
-  test_graph_compression<CompressedGraph>();
-}
-
-TEST(CompressedGraphTest, reference_interval_encoding) {
-  using CompressedGraph = CompressedGraph<VarIntCodec, true, true>;
+  using CompressedGraph = CompressedGraph<VarIntCodec, true>;
   test_graph_compression<CompressedGraph>();
 }
 
