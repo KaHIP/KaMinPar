@@ -57,6 +57,11 @@ constexpr NodeWeight kInvalidNodeWeight = std::numeric_limits<NodeWeight>::max()
 constexpr EdgeWeight kInvalidEdgeWeight = std::numeric_limits<EdgeWeight>::max();
 constexpr BlockWeight kInvalidBlockWeight = std::numeric_limits<BlockWeight>::max();
 
+enum class GraphOrdering {
+  NATURAL,
+  DEGREE_BUCKETS,
+};
+
 //
 // Coarsening
 //
@@ -274,8 +279,6 @@ struct DebugContext {
   bool dump_coarsest_partition;
   bool dump_graph_hierarchy;
   bool dump_partition_hierarchy;
-
-  bool sort_neighbors_before_partitioning;
 };
 
 enum class PartitioningMode {
@@ -292,6 +295,8 @@ struct PartitioningContext {
 };
 
 struct Context {
+  GraphOrdering rearrange_by;
+
   PartitioningContext partitioning;
   PartitionContext partition;
   CoarseningContext coarsening;
