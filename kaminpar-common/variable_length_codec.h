@@ -167,7 +167,7 @@ struct VarIntCodec {
     bool is_marker_set = (first_octet & 0b01000000) != 0;
     bool is_continuation_bit_set = (first_octet & 0b10000000) != 0;
 
-    std::size_t len = 1;
+    std::size_t len = 0;
     if (is_continuation_bit_set) {
       while (true) {
         std::uint8_t octet = *ptr;
@@ -181,7 +181,7 @@ struct VarIntCodec {
       }
     }
 
-    return {value, is_marker_set, len};
+    return {value, is_marker_set, len + 1};
   }
 };
 
