@@ -53,8 +53,7 @@ template <typename Graph> void benchmark_adjacent_nodes(const Graph &graph) {
   }
 }
 
-template <typename Graph, typename CompressedGraph>
-void expect_equal_degree(const Graph &graph, const CompressedGraph &compressed_graph) {
+void expect_equal_degree(const CSRGraph &graph, const CompressedGraph &compressed_graph) {
   for (const auto node : graph.nodes()) {
     if (graph.degree(node) != compressed_graph.degree(node)) {
       LOG << "The node " << node << " has degree " << compressed_graph.degree(node)
@@ -65,8 +64,7 @@ void expect_equal_degree(const Graph &graph, const CompressedGraph &compressed_g
   }
 }
 
-template <typename Graph, typename CompressedGraph>
-void expect_compressed_graph_eq(const Graph &graph, const CompressedGraph &compressed_graph) {
+void expect_compressed_graph_eq(const CSRGraph &graph, const CompressedGraph &compressed_graph) {
   if (graph.n() != compressed_graph.n()) {
     LOG << "The uncompressed graph has " << graph.n() << " nodes and the compressed graph has "
         << compressed_graph.n() << " nodes!";
@@ -112,8 +110,7 @@ struct GraphStats {
   std::size_t interval_count;
 };
 
-template <typename CompressedGraph>
-GraphStats run(const Graph &graph, bool benchmarks, bool checks) {
+GraphStats run_benchmark(const CSRGraph &graph, bool benchmarks, bool checks) {
   auto compressed_graph = CompressedGraph::compress(graph);
 
   if (benchmarks) {
@@ -160,11 +157,6 @@ int main(int argc, char *argv[]) {
   app.add_option("-c,--checks", enable_checks, "Enable compressed graph operations check")
       ->default_val(enable_checks);
 
-  bool interval_encoding = true;
-  auto *option_group = app.add_option_group("Graph Compression");
-  option_group->add_option("-i,--interval-encoding", interval_encoding, "Enable interval encoding")
-      ->default_val(interval_encoding);
-
   CLI11_PARSE(app, argc, argv);
 
   tbb::global_control gc(tbb::global_control::max_allowed_parallelism, num_threads);
@@ -188,7 +180,9 @@ int main(int argc, char *argv[]) {
   StaticArray<EdgeWeight> edge_weights =
       (adjwgt.empty()) ? StaticArray<EdgeWeight>(0) : StaticArray<EdgeWeight>(adjwgt.data(), m);
 
-  Graph graph(std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights));
+  CSRGraph graph(
+      std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights)
+  );
 
   // Run the benchmark
   ENABLE_HEAP_PROFILER();
@@ -197,12 +191,7 @@ int main(int argc, char *argv[]) {
   LOG << "Compressing the input graph...";
   using VarLengthCodec = VarIntCodec;
 
-  GraphStats stats;
-  if (interval_encoding) {
-    stats = run<CompressedGraph<VarLengthCodec, true>>(graph, enable_benchmarks, enable_checks);
-  } else {
-    stats = run<CompressedGraph<VarLengthCodec, false>>(graph, enable_benchmarks, enable_checks);
-  }
+  GraphStats stats = run_benchmark(graph, enable_benchmarks, enable_checks);
 
   STOP_TIMER();
   DISABLE_HEAP_PROFILER();
