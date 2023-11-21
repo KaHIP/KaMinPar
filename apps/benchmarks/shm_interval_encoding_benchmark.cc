@@ -31,11 +31,17 @@ static std::string to_megabytes(std::size_t bytes) {
 template <typename VarLengthCodec, bool IntervalEncoding, std::size_t kIntervalLengthTreshold = 3>
 static std::size_t compressed_graph_size(const Graph &graph) {
   using NodeID = ::kaminpar::shm::NodeID;
+  using NodeWeight = ::kaminpar::shm::NodeWeight;
   using EdgeID = ::kaminpar::shm::EdgeID;
+  using EdgeWeight = ::kaminpar::shm::EdgeWeight;
 
-  std::size_t used_bytes = (graph.n() + 1) * sizeof(EdgeID);
+  std::size_t used_bytes = 0;
+  used_bytes += (graph.n() + 1) * sizeof(EdgeID);
+  used_bytes += graph.raw_node_weights().size() * sizeof(NodeWeight);
+  used_bytes += graph.raw_edge_weights().size() * sizeof(EdgeWeight);
 
   std::vector<NodeID> buffer;
+  EdgeID first_edge = 0;
   for (const NodeID node : graph.nodes()) {
     const NodeID degree = graph.degree(node);
 
@@ -45,10 +51,13 @@ static std::size_t compressed_graph_size(const Graph &graph) {
       used_bytes += VarLengthCodec::length(degree);
     }
 
+    used_bytes += VarLengthCodec::length(first_edge);
+
     if (degree == 0) {
       continue;
     }
 
+    first_edge += degree;
     for (const NodeID adjacent_node : graph.adjacent_nodes(node)) {
       buffer.push_back(adjacent_node);
     }
@@ -167,7 +176,9 @@ int main(int argc, char *argv[]) {
   StaticArray<EdgeWeight> edge_weights =
       (adjwgt.empty()) ? StaticArray<EdgeWeight>(0) : StaticArray<EdgeWeight>(adjwgt.data(), m);
 
-  Graph graph(std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights));
+  Graph graph(std::make_unique<CSRGraph>(
+      std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights)
+  ));
 
   // Run Benchmark
   LOG << "Calculating the compressed graph size...";
@@ -183,7 +194,9 @@ int main(int argc, char *argv[]) {
   LOG;
 
   std::size_t graph_size = graph.raw_nodes().size() * sizeof(Graph::EdgeID) +
-                           graph.raw_edges().size() * sizeof(Graph::NodeID);
+                           graph.raw_edges().size() * sizeof(Graph::NodeID) +
+                           graph.raw_node_weights().size() * sizeof(Graph::NodeWeight) +
+                           graph.raw_node_weights().size() * sizeof(Graph::EdgeWeight);
   LOG << "The uncompressed graph uses " << to_megabytes(graph_size) << " mb (" << graph_size
       << " bytes).";
 

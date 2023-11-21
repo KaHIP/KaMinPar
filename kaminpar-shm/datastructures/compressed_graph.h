@@ -609,7 +609,8 @@ public:
    * @return The amount memory in bytes used by the data structure.
    */
   [[nodiscard]] std::size_t used_memory() const {
-    return _nodes.size() * sizeof(EdgeID) + _compressed_edges.size() * sizeof(std::uint8_t);
+    return _nodes.size() * sizeof(EdgeID) + _compressed_edges.size() * sizeof(std::uint8_t) +
+           _node_weights.size() * sizeof(NodeWeight) + _edge_weights.size() * sizeof(EdgeWeight);
   }
 
 private:
