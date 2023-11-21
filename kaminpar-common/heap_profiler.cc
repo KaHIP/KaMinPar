@@ -33,20 +33,22 @@ void HeapProfiler::disable() {
 }
 
 void HeapProfiler::start_profile(std::string_view name, std::string desc) {
-  KASSERT(_enabled, "The heap profile has to be enabled before starting a profile.");
-  std::lock_guard<std::mutex> guard(_mutex);
+  if (_enabled) {
+    std::lock_guard<std::mutex> guard(_mutex);
 
-  HeapProfileTreeNode *node = _node_allocator.create(name, desc, _tree.currentNode);
-  _tree.currentNode->children.push_back(node);
-  _tree.currentNode = node;
+    HeapProfileTreeNode *node = _node_allocator.create(name, desc, _tree.currentNode);
+    _tree.currentNode->children.push_back(node);
+    _tree.currentNode = node;
+  }
 }
 
 void HeapProfiler::stop_profile() {
-  KASSERT(_enabled, "The heap profile has to be enabled before stopping a profile.");
-  KASSERT(_tree.currentNode->parent != nullptr, "The root heap profile cannot be stopped.");
-  std::lock_guard<std::mutex> guard(_mutex);
+  if (_enabled) {
+    KASSERT(_tree.currentNode->parent != nullptr, "The root heap profile cannot be stopped.");
+    std::lock_guard<std::mutex> guard(_mutex);
 
-  _tree.currentNode = _tree.currentNode->parent;
+    _tree.currentNode = _tree.currentNode->parent;
+  }
 }
 
 ScopedHeapProfiler HeapProfiler::start_scoped_profile(std::string_view name, std::string desc) {

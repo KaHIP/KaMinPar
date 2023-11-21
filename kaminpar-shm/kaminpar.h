@@ -57,6 +57,10 @@ constexpr NodeWeight kInvalidNodeWeight = std::numeric_limits<NodeWeight>::max()
 constexpr EdgeWeight kInvalidEdgeWeight = std::numeric_limits<EdgeWeight>::max();
 constexpr BlockWeight kInvalidBlockWeight = std::numeric_limits<BlockWeight>::max();
 
+struct GraphCompressionContext {
+  bool enabled;
+};
+
 enum class GraphOrdering {
   NATURAL,
   DEGREE_BUCKETS,
@@ -295,6 +299,7 @@ struct PartitioningContext {
 };
 
 struct Context {
+  GraphCompressionContext compression;
   GraphOrdering rearrange_by;
 
   PartitioningContext partitioning;

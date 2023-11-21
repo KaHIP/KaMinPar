@@ -7,6 +7,7 @@
  ******************************************************************************/
 #pragma once
 
+#include <functional>
 #include <iterator>
 #include <type_traits>
 
@@ -113,6 +114,69 @@ public:
   };
 
   TransformedIotaRange(const Int begin, const Int end, const Function transformer)
+      : _begin(begin, transformer),
+        _end(end, transformer) {}
+
+  iterator begin() const {
+    return _begin;
+  }
+  iterator end() const {
+    return _end;
+  }
+
+private:
+  iterator _begin;
+  iterator _end;
+};
+
+template <typename Int, typename Result> class TransformedIotaRange2 {
+public:
+  class iterator {
+  public:
+    using iterator_category = std::input_iterator_tag;
+    using value_type = Result;
+    using difference_type = std::make_signed_t<Int>;
+    using pointer = value_type *;
+    using reference = value_type &;
+
+    explicit iterator(const Int value, std::function<Result(Int)> transformer)
+        : _value(value),
+          _transformer(transformer) {}
+
+    value_type operator*() const {
+      return _transformer(_value);
+    }
+
+    iterator &operator++() {
+      ++_value;
+      return *this;
+    }
+
+    iterator operator++(int) {
+      auto tmp = *this;
+      ++*this;
+      return tmp;
+    }
+
+    iterator operator+(const int step) const {
+      auto tmp = *this;
+      tmp._value += step;
+      return tmp;
+    }
+
+    bool operator==(const iterator &other) const {
+      return _value == other._value;
+    }
+    bool operator!=(const iterator &other) const {
+      return _value != other._value;
+    }
+
+  private:
+    Int _value;
+    std::function<Result(Int)> _transformer;
+  };
+
+  TransformedIotaRange2(const Int begin, const Int end, std::function<Result(Int)> transformer)
       : _begin(begin, transformer),
         _end(end, transformer) {}
 

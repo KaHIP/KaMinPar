@@ -17,7 +17,6 @@
 
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/math.h"
-#include "kaminpar-common/parallel/algorithm.h"
 #include "kaminpar-common/strutils.h"
 #include "kaminpar-common/timer.h"
 
@@ -88,7 +87,4 @@ bool validate_graph(
   return true;
 }
 
-EdgeID compute_max_degree(const Graph &graph) {
-  return parallel::max_difference(graph.raw_nodes().begin(), graph.raw_nodes().end());
-}
 } // namespace kaminpar::shm

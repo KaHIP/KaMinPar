@@ -314,11 +314,11 @@ protected:
 
     bool is_interface_node = false;
 
-    const EdgeID from = _graph->first_edge(u);
-    const EdgeID to = from + std::min(_graph->degree(u), _max_num_neighbors);
-
     if constexpr (parallel) {
-      tbb::parallel_for(tbb::blocked_range<NodeID>(from, to, 100000), [&](const auto &edges) {
+      const EdgeID from = _graph->first_edge(u);
+      const EdgeID to = from + std::min(_graph->degree(u), _max_num_neighbors);
+
+      tbb::parallel_for(tbb::blocked_range<NodeID>(from, to), [&](const auto &edges) {
         std::vector<ClusterID> &local_used_entries = map.local_used_entries();
 
         const EdgeID last_edge = edges.end();
@@ -344,8 +344,11 @@ protected:
 
       map.combine();
     } else {
-      for (EdgeID e = from; e < to; ++e) {
-        const NodeID v = _graph->edge_target(e);
+      EdgeID considered_neighbors = 0;
+      for (const auto [e, v] : _graph->neighbors(u)) {
+        if (considered_neighbors++ >= _max_num_neighbors) {
+          break;
+        }
 
         if (derived_accept_neighbor(u, v)) {
           const ClusterID v_cluster = derived_cluster(v);
@@ -822,6 +825,9 @@ protected:
     tbb::enumerable_thread_specific<NodeID> num_moved_nodes_ets;
     parallel::Atomic<std::size_t> next_chunk = 0;
 
+    bool two_iterations =
+        dynamic_cast<const shm::CSRGraph *>(_graph->underlying_graph()) != nullptr;
+
     START_HEAP_PROFILER("First iteration");
     START_TIMER("First iteration");
     tbb::parallel_for(static_cast<std::size_t>(0), _chunks.size(), [&](const std::size_t) {
@@ -849,12 +855,15 @@ protected:
           const NodeID u = chunk.start +
                            Config::kPermutationSize * sub_chunk_permutation[sub_chunk] +
                            permutation[i % Config::kPermutationSize];
-          const NodeID degree = _graph->degree(u);
+          if (u >= chunk.end) {
+            continue;
+          }
 
-          if (u < chunk.end && degree < _max_degree &&
+          const NodeID degree = _graph->degree(u);
+          if (degree < _max_degree &&
               ((!Config::kUseActiveSetStrategy && !Config::kUseLocalActiveSetStrategy) ||
                _active[u].load(std::memory_order_relaxed))) {
-            if (degree >= Config::kDegreeThreshold) {
+            if (degree >= Config::kDegreeThreshold && two_iterations) {
               high_degree_nodes.push_back(u);
             } else {
               const auto [moved_node, emptied_cluster] =
@@ -876,30 +885,30 @@ protected:
     STOP_TIMER();
     STOP_HEAP_PROFILER();
 
-    START_HEAP_PROFILER("Second iteration");
-    START_TIMER("Second iteration");
+    if (two_iterations) {
+      SCOPED_HEAP_PROFILER("Second iteration");
+      SCOPED_TIMER("Second iteration");
 
-    auto &num_moved_nodes = num_moved_nodes_ets.local();
-    auto &rand = Random::instance();
-    RECORD("concurrent_rating_map")
-    ConcurrentFastResetArray<EdgeWeight, ClusterID> concurrent_rating_map(
-        Base::_initial_num_clusters
-    );
-    for (const NodeID u : high_degree_nodes) {
-      const auto [moved_node, emptied_cluster] =
-          Base::template handle_node<true>(u, rand, concurrent_rating_map);
+      auto &num_moved_nodes = num_moved_nodes_ets.local();
+      auto &rand = Random::instance();
+      RECORD("concurrent_rating_map")
+      ConcurrentFastResetArray<EdgeWeight, ClusterID> concurrent_rating_map(
+          Base::_initial_num_clusters
+      );
 
-      if (moved_node) {
-        ++num_moved_nodes;
-      }
+      for (const NodeID u : high_degree_nodes) {
+        const auto [moved_node, emptied_cluster] =
+            Base::template handle_node<true>(u, rand, concurrent_rating_map);
 
-      if (emptied_cluster) {
-        --_current_num_clusters;
+        if (moved_node) {
+          ++num_moved_nodes;
+        }
+
+        if (emptied_cluster) {
+          --_current_num_clusters;
+        }
       }
     }
-
-    STOP_TIMER();
-    STOP_HEAP_PROFILER();
 
     return num_moved_nodes_ets.combine(std::plus{});
   }

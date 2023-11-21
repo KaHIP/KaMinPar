@@ -7,184 +7,39 @@
  ******************************************************************************/
 #pragma once
 
-#include <deque>
-#include <iterator>
 #include <vector>
 
 #include <kassert/kassert.hpp>
+#include <tbb/parallel_for.h>
 
-#include "kaminpar-shm/datastructures/graph.h"
-#include "kaminpar-shm/kaminpar.h"
+#include "kaminpar-shm/datastructures/abstract_graph.h"
+#include "kaminpar-shm/datastructures/csr_graph.h"
 
 #include "kaminpar-common/heap_profiler.h"
+#include "kaminpar-common/parallel/algorithm.h"
 #include "kaminpar-common/ranges.h"
 #include "kaminpar-common/timer.h"
+#include "kaminpar-common/variable_length_codec.h"
 
 namespace kaminpar::shm {
 
 /*!
  * A compressed static graph that stores the nodes and edges in a compressed adjacency array. It
  * uses variable length encoding, gap encoding and interval encoding to compress the edge array.
- *
- * @tparam VarLengthCodec The namespace that contains functions to encode and decode variable length
- * integers.
- * @tparam IntervalEncoding Whether interval encoding should be used as a compression method.
  */
-template <typename VarLengthCodec, bool IntervalEncoding = true> class CompressedGraph {
+class CompressedGraph : public AbstractGraph {
 public:
-  using NodeID = ::kaminpar::shm::NodeID;
-  using NodeWeight = ::kaminpar::shm::NodeWeight;
-  using EdgeID = ::kaminpar::shm::EdgeID;
-  using EdgeWeight = ::kaminpar::shm::EdgeWeight;
+  using AbstractGraph::EdgeID;
+  using AbstractGraph::EdgeWeight;
+  using AbstractGraph::NodeID;
+  using AbstractGraph::NodeWeight;
 
-  class CompressedEdgesRange {
-  public:
-    class iterator {
-    public:
-      using iterator_category = std::input_iterator_tag;
-      using value_type = NodeID;
-      using difference_type = std::make_signed_t<NodeID>;
-      using pointer = value_type *;
-      using reference = value_type &;
+  using VarLengthCodec = VarIntCodec;
 
-      iterator(const NodeID node, const bool uses_intervals, const std::uint8_t *ptr)
-          : _node(node),
-            _uses_intervals(uses_intervals),
-            _ptr(ptr) {
-        if constexpr (IntervalEncoding) {
-          if (_uses_intervals) {
-            auto [interval_count, interval_count_len] =
-                VarLengthCodec::template decode<NodeID>(_ptr);
-            _ptr += interval_count_len;
-
-            _interval_count = interval_count;
-          }
-        }
-      }
-
-      value_type operator*() {
-        if constexpr (IntervalEncoding) {
-          if (_uses_intervals) {
-            if (_cur_interval_index < _cur_interval_len) {
-              return _cur_left_extreme + _cur_interval_index;
-            }
-
-            if (_cur_interval < _interval_count) {
-              auto [left_extreme_gap, left_extreme_gap_len] =
-                  VarLengthCodec::template decode<NodeID>(_ptr);
-              auto [interval_length_gap, interval_length_gap_len] =
-                  VarLengthCodec::template decode<NodeID>(_ptr + left_extreme_gap_len);
-
-              _len = left_extreme_gap_len + interval_length_gap_len;
-
-              _cur_left_extreme = left_extreme_gap + _previous_right_extreme - 2;
-              _cur_interval_len = interval_length_gap + kIntervalLengthTreshold;
-              _previous_right_extreme = _cur_left_extreme + _cur_interval_len - 1;
-
-              _cur_interval_index = _cur_interval_len;
-              return _cur_left_extreme;
-            }
-          }
-        }
-
-        if (_first) {
-          _first = false;
-
-          auto [first_gap, first_gap_len] = VarLengthCodec::template decode_signed<NodeID>(_ptr);
-          const NodeID first_adjacent_node = first_gap + _node;
-
-          _len = first_gap_len;
-          _prev_adjacent_node = first_adjacent_node;
-          return first_adjacent_node;
-        }
-
-        auto [gap, gap_len] = VarLengthCodec::template decode<NodeID>(_ptr);
-        const NodeID adjacent_node = gap + _prev_adjacent_node;
-
-        _len = gap_len;
-        _prev_adjacent_node = adjacent_node;
-        return adjacent_node;
-      }
-
-      iterator &operator++() {
-        if constexpr (IntervalEncoding) {
-          if (_uses_intervals) {
-            if (_cur_interval_index < _cur_interval_len) {
-              _cur_interval_index += 1;
-              return *this;
-            }
-
-            if (_cur_interval < _interval_count) {
-              _cur_interval += 1;
-              _cur_interval_index = 1;
-              _ptr += _len;
-              return *this;
-            }
-          }
-        }
-
-        _ptr += _len;
-        return *this;
-      }
-
-      iterator operator++(int) {
-        auto tmp = *this;
-        ++*this;
-        return tmp;
-      }
-
-      bool operator==(const iterator &other) const {
-        if constexpr (IntervalEncoding) {
-          return _ptr == other._ptr && _cur_interval == _interval_count &&
-                 _cur_interval_index == _cur_interval_len;
-        }
-
-        return _ptr == other._ptr;
-      }
-
-      bool operator!=(const iterator &other) const {
-        return !(*this == other);
-      }
-
-    private:
-      const NodeID _node;
-      const bool _uses_intervals;
-      const std::uint8_t *_ptr;
-
-      // Interval encoding
-      NodeID _interval_count = 0;
-      NodeID _cur_interval = 0;
-      NodeID _cur_left_extreme = 0;
-      NodeID _cur_interval_len = 0;
-      NodeID _cur_interval_index = 0;
-      NodeID _previous_right_extreme = 2;
-
-      // Gap encoding
-      bool _first = true;
-      std::size_t _len = 0;
-      NodeID _prev_adjacent_node;
-    };
-
-    CompressedEdgesRange(
-        const NodeID node,
-        const bool uses_intervals,
-        const std::uint8_t *begin,
-        const std::uint8_t *end
-    )
-        : _begin(node, uses_intervals, begin),
-          _end(node, false, end) {}
-
-    iterator begin() const {
-      return _begin;
-    }
-    iterator end() const {
-      return _end;
-    }
-
-  private:
-    iterator _begin;
-    iterator _end;
-  };
+  /*!
+   * Whether interval encoding is used.
+   */
+  static constexpr bool IntervalEncoding = false;
 
   /*!
    * The minimum length of an interval to encode if interval encoding is used.
@@ -197,7 +52,7 @@ public:
    * @param graph The graph to compress.
    * @return The compressed input graph.
    */
-  static CompressedGraph<VarLengthCodec, IntervalEncoding> compress(const Graph &graph) {
+  static CompressedGraph compress(const CSRGraph &graph) {
     SCOPED_HEAP_PROFILER("Compress graph");
     SCOPED_TIMER("Compress graph");
 
@@ -206,15 +61,17 @@ public:
                        auto &&handle_first_gap,
                        auto &&handle_remaining_gap) {
       std::vector<NodeID> buffer;
+      EdgeID first_edge = 0;
 
       for (const NodeID node : graph.nodes()) {
-        handle_node(node);
-
         const NodeID degree = graph.degree(node);
+        handle_node(node, degree, first_edge);
+
         if (degree == 0) {
           continue;
         }
 
+        first_edge += degree;
         for (const NodeID adjacent_node : graph.adjacent_nodes(node)) {
           buffer.push_back(adjacent_node);
         }
@@ -305,14 +162,16 @@ public:
     NodeID cur_node;
     std::size_t edge_capacity = 0;
     iterate(
-        [&](auto node) {
+        [&](auto node, auto degree, auto first_edge) {
           cur_node = node;
 
           if constexpr (IntervalEncoding) {
-            edge_capacity += VarLengthCodec::length_marker(graph.degree(node));
+            edge_capacity += VarLengthCodec::length_marker(degree);
           } else {
-            edge_capacity += VarLengthCodec::length(graph.degree(node));
+            edge_capacity += VarLengthCodec::length(degree);
           }
+
+          edge_capacity += VarLengthCodec::length(first_edge);
         },
         [&](auto left_extreme_gap, auto interval_length_gap) {
           nodes[cur_node] += 1;
@@ -340,17 +199,17 @@ public:
 
     uint8_t *edges = compressed_edges.data();
     iterate(
-        [&](auto node) {
+        [&](auto node, auto degree, auto first_edge) {
           const EdgeID number_of_intervalls = nodes[node];
-
           nodes[node] = static_cast<EdgeID>(edges - compressed_edges.data());
+
           if constexpr (IntervalEncoding) {
-            edges += VarLengthCodec::encode_with_marker(
-                graph.degree(node), number_of_intervalls > 0, edges
-            );
+            edges += VarLengthCodec::encode_with_marker(degree, number_of_intervalls > 0, edges);
           } else {
-            edges += VarLengthCodec::encode(graph.degree(node), edges);
+            edges += VarLengthCodec::encode(degree, edges);
           }
+
+          edges += VarLengthCodec::encode(first_edge, edges);
 
           if constexpr (IntervalEncoding) {
             if (number_of_intervalls > 0) {
@@ -368,8 +227,13 @@ public:
     );
     nodes[nodes.size() - 1] = compressed_edges.size();
 
-    return CompressedGraph<VarLengthCodec, IntervalEncoding>(
-        std::move(nodes), std::move(compressed_edges), graph.m(), interval_count
+    return CompressedGraph(
+        std::move(nodes),
+        std::move(compressed_edges),
+        static_array::copy(graph.raw_node_weights()),
+        static_array::copy(graph.raw_edge_weights()),
+        graph.m(),
+        interval_count
     );
   }
 
@@ -386,72 +250,349 @@ public:
   explicit CompressedGraph(
       StaticArray<EdgeID> nodes,
       StaticArray<std::uint8_t> compressed_edges,
+      StaticArray<NodeWeight> node_weights,
+      StaticArray<EdgeWeight> edge_weights,
       std::size_t edge_count,
       std::size_t interval_count
   )
       : _nodes(std::move(nodes)),
         _compressed_edges(std::move(compressed_edges)),
+        _node_weights(std::move(node_weights)),
+        _edge_weights(std::move(edge_weights)),
         _edge_count(edge_count),
         _interval_count(interval_count) {
     KASSERT(IntervalEncoding || interval_count == 0);
+
+    if (_node_weights.empty()) {
+      _total_node_weight = static_cast<NodeWeight>(n());
+      _max_node_weight = 1;
+    } else {
+      _total_node_weight =
+          std::accumulate(_node_weights.begin(), _node_weights.end(), static_cast<NodeWeight>(0));
+      _max_node_weight = *std::max_element(_node_weights.begin(), _node_weights.end());
+    }
+
+    if (_edge_weights.empty()) {
+      _total_edge_weight = static_cast<EdgeWeight>(m());
+    } else {
+      _total_edge_weight =
+          std::accumulate(_edge_weights.begin(), _edge_weights.end(), static_cast<EdgeWeight>(0));
+    }
+
+    init_degree_buckets();
   };
 
-  /*!
-   * Returns the number of nodes of the graph.
-   *
-   * @return The number of nodes of the graph.
-   */
-  [[nodiscard]] NodeID n() const {
+  CompressedGraph(const CompressedGraph &) = delete;
+  CompressedGraph &operator=(const CompressedGraph &) = delete;
+
+  CompressedGraph(CompressedGraph &&) noexcept = default;
+  CompressedGraph &operator=(CompressedGraph &&) noexcept = default;
+
+  // Direct member access -- used for some "low level" operations
+
+  [[nodiscard]] inline StaticArray<EdgeID> &raw_nodes() final {
+    return _nodes;
+  }
+
+  [[nodiscard]] inline const StaticArray<EdgeID> &raw_nodes() const final {
+    return _nodes;
+  }
+
+  [[nodiscard]] inline StaticArray<NodeID> &raw_edges() final {
+    return _raw_edges_dummy;
+  }
+
+  [[nodiscard]] inline const StaticArray<NodeID> &raw_edges() const final {
+    return _raw_edges_dummy;
+  }
+
+  [[nodiscard]] inline StaticArray<NodeWeight> &raw_node_weights() final {
+    return _node_weights;
+  }
+
+  [[nodiscard]] inline const StaticArray<NodeWeight> &raw_node_weights() const final {
+    return _node_weights;
+  }
+
+  [[nodiscard]] inline StaticArray<EdgeWeight> &raw_edge_weights() final {
+    return _raw_edge_weights_dummy;
+  }
+
+  [[nodiscard]] inline const StaticArray<EdgeWeight> &raw_edge_weights() const final {
+    return _raw_edge_weights_dummy;
+  }
+
+  [[nodiscard]] inline StaticArray<EdgeID> &&take_raw_nodes() final {
+    return std::move(_nodes);
+  }
+
+  [[nodiscard]] inline StaticArray<NodeID> &&take_raw_edges() final {
+    return std::move(_raw_edges_dummy);
+  }
+
+  [[nodiscard]] inline StaticArray<NodeWeight> &&take_raw_node_weights() final {
+    return std::move(_node_weights);
+  }
+
+  [[nodiscard]] inline StaticArray<EdgeWeight> &&take_raw_edge_weights() final {
+    return std::move(_raw_edge_weights_dummy);
+  }
+
+  [[nodiscard]] const StaticArray<std::uint8_t> &raw_compressed_edges() const {
+    return _compressed_edges;
+  }
+
+  // Size of the graph
+
+  [[nodiscard]] NodeID n() const final {
     return static_cast<NodeID>(_nodes.size() - 1);
   };
 
-  /*!
-   * Returns the number of edges of the graph.
-   *
-   * @return The number of edges of the graph.
-   */
-  [[nodiscard]] EdgeID m() const {
+  [[nodiscard]] EdgeID m() const final {
     return static_cast<EdgeID>(_edge_count);
   }
 
-  /*!
-   * Returns a range that contains all nodes of the graph.
-   *
-   * @return A range that contains all nodes of the graph.
-   */
-  [[nodiscard]] IotaRange<NodeID> nodes() const {
+  // Node and edge weights
+
+  [[nodiscard]] inline bool is_node_weighted() const final {
+    return static_cast<NodeWeight>(n()) != total_node_weight();
+  }
+
+  [[nodiscard]] inline NodeWeight node_weight(const NodeID u) const final {
+    return is_node_weighted() ? _node_weights[u] : 1;
+  }
+
+  [[nodiscard]] inline NodeWeight max_node_weight() const final {
+    return _max_node_weight;
+  }
+
+  [[nodiscard]] inline NodeWeight total_node_weight() const final {
+    return _total_node_weight;
+  }
+
+  [[nodiscard]] inline bool is_edge_weighted() const final {
+    return static_cast<EdgeWeight>(m()) != total_edge_weight();
+  }
+
+  [[nodiscard]] inline EdgeWeight edge_weight(const EdgeID e) const final {
+    return is_edge_weighted() ? _edge_weights[e] : 1;
+  }
+
+  [[nodiscard]] inline EdgeWeight total_edge_weight() const final {
+    return _total_edge_weight;
+  }
+
+  // Low-level access to the graph structure
+
+  [[nodiscard]] inline NodeID edge_target(const EdgeID e) const final {
+    return 0;
+  }
+
+  [[nodiscard]] inline EdgeID first_edge(const NodeID u) const final {
+    return 0;
+  }
+
+  [[nodiscard]] inline EdgeID first_invalid_edge(const NodeID u) const final {
+    return 0;
+  }
+
+  [[nodiscard]] inline NodeID degree(const NodeID node) const final {
+    const std::uint8_t *data = _compressed_edges.data() + _nodes[node];
+
+    if constexpr (IntervalEncoding) {
+      auto [degree, marker_set, len] = VarLengthCodec::template decode_with_marker<NodeID>(data);
+      return degree;
+    } else {
+      auto [degree, len] = VarLengthCodec::template decode<NodeID>(data);
+      return degree;
+    }
+  }
+
+  // Parallel iteration
+
+  template <typename Lambda> inline void pfor_nodes(Lambda &&l) const {
+    tbb::parallel_for(static_cast<NodeID>(0), n(), std::forward<Lambda>(l));
+  }
+
+  template <typename Lambda> inline void pfor_edges(Lambda &&l) const {
+    tbb::parallel_for(static_cast<EdgeID>(0), m(), std::forward<Lambda>(l));
+  }
+
+  // Iterators for nodes / edges
+
+  [[nodiscard]] IotaRange<NodeID> nodes() const final {
     return IotaRange(static_cast<NodeID>(0), n());
   }
 
-  /**
-   * Returns the degree of a node.
-   *
-   * @param node The node for which the degree is to be returned.
-   * @return The degree of the node.
-   */
-  [[nodiscard]] NodeID degree(const NodeID node) const {
-    const std::uint8_t *data = _compressed_edges.data() + _nodes[node];
-    auto [degree, _] = VarLengthCodec::template decode<NodeID>(data);
-    return degree;
+  [[nodiscard]] inline IotaRange<EdgeID> edges() const final {
+    return {static_cast<EdgeID>(0), m()};
   }
 
-  [[nodiscard]] CompressedEdgesRange adjacent_nodes(const NodeID node) const {
+  [[nodiscard]] inline IotaRange<EdgeID> incident_edges(const NodeID node) const {
+    const std::uint8_t *data = _compressed_edges.data() + _nodes[node];
+
+    if constexpr (IntervalEncoding) {
+      auto [degree, set, degree_len] = VarLengthCodec::template decode_with_marker<NodeID>(data);
+      auto [first_edge, _] = VarLengthCodec::template decode<NodeID>(data + degree_len);
+      return IotaRange<EdgeID>(first_edge, first_edge + degree);
+    } else {
+      auto [degree, degree_len] = VarLengthCodec::template decode<NodeID>(data);
+      auto [first_edge, _] = VarLengthCodec::template decode<NodeID>(data + degree_len);
+      return IotaRange<EdgeID>(first_edge, first_edge + degree);
+    }
+  }
+
+  template <typename Function>
+  [[nodiscard]] inline auto transform_neighbour_range(const NodeID node, Function function) const {
     const std::uint8_t *begin = _compressed_edges.data() + _nodes[node];
     const std::uint8_t *end = _compressed_edges.data() + _nodes[node + 1];
 
+    EdgeID degree;
+    bool uses_intervals = false;
     if constexpr (IntervalEncoding) {
-      auto [degree, uses_intervals, degree_len] =
+      auto [deg, marker_set, degree_len] =
           VarLengthCodec::template decode_with_marker<NodeID>(begin);
+      degree = deg;
+      uses_intervals = marker_set;
       begin += degree_len;
-
-      return CompressedEdgesRange(node, uses_intervals, begin, end);
+    } else {
+      auto [deg, degree_len] = VarLengthCodec::template decode<NodeID>(begin);
+      degree = deg;
+      begin += degree_len;
     }
 
-    auto [degree, degree_len] = VarLengthCodec::template decode<NodeID>(begin);
-    begin += degree_len;
+    auto [first_edge, first_edge_len] = VarLengthCodec::template decode<NodeID>(begin);
+    begin += first_edge_len;
 
-    return CompressedEdgesRange(node, false, begin, end);
+    // Interval Encoding
+    NodeID interval_count = 0;
+    NodeID cur_interval = 0;
+    NodeID cur_left_extreme = 0;
+    NodeID cur_interval_len = 0;
+    NodeID cur_interval_index = 0;
+    NodeID previous_right_extreme = 2;
+
+    if constexpr (IntervalEncoding) {
+      if (uses_intervals) {
+        auto [count, count_len] = VarLengthCodec::template decode<NodeID>(begin);
+        interval_count = count;
+        begin += count_len;
+      }
+    }
+
+    // Gap Encoding
+    bool is_first_gap = true;
+    NodeID prev_adjacent_node = 0;
+
+    return TransformedIotaRange2<EdgeID, std::result_of_t<Function(EdgeID, NodeID)>>(
+        first_edge,
+        first_edge + degree,
+        [=](const EdgeID edge) mutable {
+          if constexpr (IntervalEncoding) {
+            if (uses_intervals) {
+              if (cur_interval_index < cur_interval_len) {
+                return function(edge, cur_left_extreme + cur_interval_index++);
+              }
+
+              if (cur_interval < interval_count) {
+                auto [left_extreme_gap, left_extreme_gap_len] =
+                    VarLengthCodec::template decode<NodeID>(begin);
+                begin += left_extreme_gap_len;
+
+                auto [interval_length_gap, interval_length_gap_len] =
+                    VarLengthCodec::template decode<NodeID>(begin);
+                begin += interval_length_gap_len;
+
+                cur_left_extreme = left_extreme_gap + previous_right_extreme - 2;
+                cur_interval_len = interval_length_gap + kIntervalLengthTreshold;
+                previous_right_extreme = cur_left_extreme + cur_interval_len - 1;
+
+                cur_interval += 1;
+                cur_interval_index = 1;
+                return function(edge, cur_left_extreme);
+              }
+            }
+          }
+
+          if (is_first_gap) {
+            is_first_gap = false;
+
+            auto [first_gap, first_gap_len] = VarLengthCodec::template decode_signed<NodeID>(begin);
+            const NodeID first_adjacent_node = first_gap + node;
+
+            begin += first_gap_len;
+            prev_adjacent_node = first_adjacent_node;
+            return function(edge, first_adjacent_node);
+          }
+
+          auto [gap, gap_len] = VarLengthCodec::template decode<NodeID>(begin);
+          const NodeID adjacent_node = gap + prev_adjacent_node;
+
+          begin += gap_len;
+          prev_adjacent_node = adjacent_node;
+          return function(edge, adjacent_node);
+        }
+    );
   }
+
+  [[nodiscard]] auto adjacent_nodes(const NodeID node) const {
+    return transform_neighbour_range(node, [](EdgeID incident_edge, NodeID adjacent_node) {
+      return adjacent_node;
+    });
+  }
+
+  [[nodiscard]] auto neighbors(const NodeID node) const {
+    return transform_neighbour_range(node, [](EdgeID incident_edge, NodeID adjacent_node) {
+      return std::make_pair(incident_edge, adjacent_node);
+    });
+  }
+
+  // Graph permutation
+  inline void set_permutation(StaticArray<NodeID> permutation) final {
+    _permutation = std::move(permutation);
+  }
+
+  [[nodiscard]] inline bool permuted() const final {
+    return !_permutation.empty();
+  }
+
+  [[nodiscard]] inline NodeID map_original_node(const NodeID u) const final {
+    return _permutation[u];
+  }
+
+  // Degree buckets
+  [[nodiscard]] inline std::size_t bucket_size(const std::size_t bucket) const final {
+    return _buckets[bucket + 1] - _buckets[bucket];
+  }
+
+  [[nodiscard]] inline NodeID first_node_in_bucket(const std::size_t bucket) const final {
+    return _buckets[bucket];
+  }
+
+  [[nodiscard]] inline NodeID first_invalid_node_in_bucket(const std::size_t bucket) const final {
+    return first_node_in_bucket(bucket + 1);
+  }
+
+  [[nodiscard]] inline std::size_t number_of_buckets() const final {
+    return _number_of_buckets;
+  }
+
+  [[nodiscard]] inline bool sorted() const final {
+    return false;
+  }
+
+  void update_total_node_weight() final {
+    if (_node_weights.empty()) {
+      _total_node_weight = n();
+      _max_node_weight = 1;
+    } else {
+      _total_node_weight =
+          std::accumulate(_node_weights.begin(), _node_weights.end(), static_cast<NodeWeight>(0));
+      _max_node_weight = *std::max_element(_node_weights.begin(), _node_weights.end());
+    }
+  }
+
+  // Compressions statistics
 
   /**
    * Returns the number of nodes which use interval encoding.
@@ -471,29 +612,44 @@ public:
     return _nodes.size() * sizeof(EdgeID) + _compressed_edges.size() * sizeof(std::uint8_t);
   }
 
-  /**
-   * Returns the array of raw nodes.
-   *
-   * @return The array of raw nodes.
-   */
-  [[nodiscard]] const StaticArray<EdgeID> &raw_nodes() const {
-    return _nodes;
-  }
-
-  /**
-   * Returns the array of raw compressed edges.
-   *
-   * @return The array of raw compressed edges.
-   */
-  [[nodiscard]] const StaticArray<std::uint8_t> &raw_compressed_edges() const {
-    return _compressed_edges;
-  }
-
 private:
   StaticArray<EdgeID> _nodes;
   StaticArray<std::uint8_t> _compressed_edges;
+  StaticArray<NodeWeight> _node_weights;
+  StaticArray<EdgeWeight> _edge_weights;
+
+  NodeWeight _total_node_weight = kInvalidNodeWeight;
+  EdgeWeight _total_edge_weight = kInvalidEdgeWeight;
+  NodeWeight _max_node_weight = kInvalidNodeWeight;
+
+  StaticArray<NodeID> _permutation;
+
+  std::vector<NodeID> _buckets = std::vector<NodeID>(kNumberOfDegreeBuckets<NodeID> + 1);
+  std::size_t _number_of_buckets = 0;
+
   const std::size_t _edge_count;
   const std::size_t _interval_count;
+
+  StaticArray<NodeID> _raw_edges_dummy{};
+  StaticArray<EdgeWeight> _raw_edge_weights_dummy{};
+
+  void init_degree_buckets() {
+    KASSERT(std::all_of(_buckets.begin(), _buckets.end(), [](const auto n) { return n == 0; }));
+
+    if (sorted()) {
+      for (const NodeID u : nodes()) {
+        ++_buckets[degree_bucket(degree(u)) + 1];
+      }
+      auto last_nonempty_bucket =
+          std::find_if(_buckets.rbegin(), _buckets.rend(), [](const auto n) { return n > 0; });
+      _number_of_buckets = std::distance(_buckets.begin(), (last_nonempty_bucket + 1).base());
+    } else {
+      _buckets[1] = n();
+      _number_of_buckets = 1;
+    }
+
+    std::partial_sum(_buckets.begin(), _buckets.end(), _buckets.begin());
+  }
 };
 
 } // namespace kaminpar::shm

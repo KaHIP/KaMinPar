@@ -112,9 +112,17 @@ void KaMinPar::borrow_and_mutate_graph(
   StaticArray<EdgeWeight> edge_weights =
       (adjwgt == nullptr) ? StaticArray<EdgeWeight>(0) : StaticArray<EdgeWeight>(adjwgt, m);
 
-  _graph_ptr = std::make_unique<Graph>(std::make_unique<CSRGraph>(
+  auto csr_graph = std::make_unique<CSRGraph>(
       std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights), false
-  ));
+  );
+
+  if (_ctx.compression.enabled) {
+    CompressedGraph compressed_graph = CompressedGraph::compress(*csr_graph);
+    auto compressed_graph_ptr = std::make_unique<CompressedGraph>(std::move(compressed_graph));
+    _graph_ptr = std::make_unique<Graph>(std::move(compressed_graph_ptr));
+  } else {
+    _graph_ptr = std::make_unique<Graph>(std::move(csr_graph));
+  }
 }
 
 void KaMinPar::copy_graph(
@@ -176,25 +184,23 @@ EdgeWeight KaMinPar::compute_partition(const int seed, const BlockID k, BlockID 
   START_TIMER("Partitioning");
 
   if (_ctx.rearrange_by == GraphOrdering::DEGREE_BUCKETS && !_was_rearranged) {
-    START_HEAP_PROFILER("Rearrange input graph");
+    SCOPED_HEAP_PROFILER("Rearrange input graph");
 
     _graph_ptr =
         std::make_unique<Graph>(graph::rearrange_by_degree_buckets(_ctx, std::move(*_graph_ptr)));
     _was_rearranged = true;
   }
 
-  STOP_HEAP_PROFILER();
-
   // Perform actual partitioning
   PartitionedGraph p_graph = factory::create_partitioner(*_graph_ptr, _ctx)->partition();
 
   // Re-integrate isolated nodes that were cut off during preprocessing
   if (_graph_ptr->permuted()) {
-    START_HEAP_PROFILER("Re-integrate isolated nodes");
+    SCOPED_HEAP_PROFILER("Re-integrate isolated nodes");
+
     const NodeID num_isolated_nodes =
         graph::integrate_isolated_nodes(*_graph_ptr, original_epsilon, _ctx);
     p_graph = graph::assign_isolated_nodes(std::move(p_graph), num_isolated_nodes, _ctx.partition);
-    STOP_HEAP_PROFILER();
   }
   STOP_TIMER();
   STOP_HEAP_PROFILER();

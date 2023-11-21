@@ -186,15 +186,17 @@ public:
   }
 
   [[nodiscard]] inline auto adjacent_nodes(const NodeID u) const {
-    return TransformedIotaRange(_nodes[u], _nodes[u + 1], [this](const EdgeID e) {
+    return TransformedIotaRange2<EdgeID, NodeID>(_nodes[u], _nodes[u + 1], [this](const EdgeID e) {
       return this->edge_target(e);
     });
   }
 
   [[nodiscard]] inline auto neighbors(const NodeID u) const {
-    return TransformedIotaRange(_nodes[u], _nodes[u + 1], [this](const EdgeID e) {
-      return std::make_pair(e, this->edge_target(e));
-    });
+    return TransformedIotaRange2<EdgeID, std::pair<EdgeID, NodeID>>(
+        _nodes[u],
+        _nodes[u + 1],
+        [this](const EdgeID e) { return std::make_pair(e, this->edge_target(e)); }
+    );
   }
 
   // Graph permutation

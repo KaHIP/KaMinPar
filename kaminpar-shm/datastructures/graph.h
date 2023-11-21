@@ -18,14 +18,17 @@
 #include <kassert/kassert.hpp>
 
 #include "kaminpar-shm/datastructures/abstract_graph.h"
+#include "kaminpar-shm/datastructures/compressed_graph.h"
 #include "kaminpar-shm/datastructures/csr_graph.h"
 #include "kaminpar-shm/definitions.h"
 
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/degree_buckets.h"
+#include "kaminpar-common/parallel/algorithm.h"
 #include "kaminpar-common/ranges.h"
 
 namespace kaminpar::shm {
+
 class Graph : public AbstractGraph {
 public:
   // Data types used by this graph
@@ -103,6 +106,26 @@ public:
     return _underlying_graph->m();
   }
 
+  [[nodiscard]] inline EdgeID compute_max_degree() const {
+    if (const auto *graph = dynamic_cast<const CSRGraph *>(_underlying_graph.get());
+        graph != nullptr) {
+      return parallel::max_difference(graph->raw_nodes().begin(), graph->raw_nodes().end());
+    }
+
+    if (const auto *graph = dynamic_cast<const CompressedGraph *>(_underlying_graph.get());
+        graph != nullptr) {
+      EdgeID max_degree = 0;
+
+      for (const NodeID node : graph->nodes()) {
+        max_degree = std::max(max_degree, graph->degree(node));
+      }
+
+      return max_degree;
+    }
+
+    __builtin_unreachable();
+  }
+
   // Node and edge weights
   [[nodiscard]] inline bool is_node_weighted() const final {
     return _underlying_graph->is_node_weighted();
@@ -154,14 +177,32 @@ public:
     if (const auto *graph = dynamic_cast<const CSRGraph *>(_underlying_graph.get());
         graph != nullptr) {
       graph->pfor_nodes(std::forward<Lambda>(l));
+      return;
     }
+
+    if (const auto *graph = dynamic_cast<const CompressedGraph *>(_underlying_graph.get());
+        graph != nullptr) {
+      graph->pfor_nodes(std::forward<Lambda>(l));
+      return;
+    }
+
+    __builtin_unreachable();
   }
 
   template <typename Lambda> inline void pfor_edges(Lambda &&l) const {
     if (const auto *graph = dynamic_cast<const CSRGraph *>(_underlying_graph.get());
         graph != nullptr) {
       graph->pfor_edges(std::forward<Lambda>(l));
+      return;
     }
+
+    if (const auto *graph = dynamic_cast<const CompressedGraph *>(_underlying_graph.get());
+        graph != nullptr) {
+      graph->pfor_edges(std::forward<Lambda>(l));
+      return;
+    }
+
+    __builtin_unreachable();
   }
 
   // Iterators for nodes / edges
@@ -178,6 +219,12 @@ public:
         graph != nullptr) {
       return graph->incident_edges(u);
     }
+
+    if (const auto *graph = dynamic_cast<const CompressedGraph *>(_underlying_graph.get());
+        graph != nullptr) {
+      return graph->incident_edges(u);
+    }
+
     __builtin_unreachable();
   }
 
@@ -186,6 +233,12 @@ public:
         graph != nullptr) {
       return graph->adjacent_nodes(u);
     }
+
+    if (const auto *graph = dynamic_cast<const CompressedGraph *>(_underlying_graph.get());
+        graph != nullptr) {
+      return graph->adjacent_nodes(u);
+    }
+
     __builtin_unreachable();
   }
 
@@ -194,6 +247,12 @@ public:
         graph != nullptr) {
       return graph->neighbors(u);
     }
+
+    if (const auto *graph = dynamic_cast<const CompressedGraph *>(_underlying_graph.get());
+        graph != nullptr) {
+      return graph->neighbors(u);
+    }
+
     __builtin_unreachable();
   }
 
@@ -235,6 +294,10 @@ public:
     _underlying_graph->update_total_node_weight();
   }
 
+  [[nodiscard]] AbstractGraph *underlying_graph() const {
+    return _underlying_graph.get();
+  }
+
 private:
   std::unique_ptr<AbstractGraph> _underlying_graph;
 };
@@ -242,8 +305,6 @@ private:
 bool validate_graph(const Graph &graph, bool check_undirected = true, NodeID num_pseudo_nodes = 0);
 
 void print_graph(const Graph &graph);
-
-[[nodiscard]] EdgeID compute_max_degree(const Graph &graph);
 
 class GraphDelegate {
 public:

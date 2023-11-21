@@ -14,11 +14,21 @@
 
 namespace kaminpar::shm {
 void create_all_options(CLI::App *app, Context &ctx) {
+  create_graph_compression_options(app, ctx);
   create_partitioning_options(app, ctx);
   create_debug_options(app, ctx);
   create_coarsening_options(app, ctx);
   create_initial_partitioning_options(app, ctx);
   create_refinement_options(app, ctx);
+}
+
+CLI::Option_group *create_graph_compression_options(CLI::App *app, Context &ctx) {
+  auto *compression = app->add_option_group("Graph Compression");
+
+  compression->add_flag("-c,--compress", ctx.compression.enabled, "Enable graph compression")
+      ->default_val(false);
+
+  return compression;
 }
 
 CLI::Option_group *create_partitioning_options(CLI::App *app, Context &ctx) {
