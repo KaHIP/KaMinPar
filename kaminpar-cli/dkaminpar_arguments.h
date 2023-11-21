@@ -36,6 +36,8 @@ CLI::Option_group *create_cluster_balancer_options(CLI::App *app, Context &ctx);
 
 CLI::Option_group *create_jet_refinement_options(CLI::App *app, Context &ctx);
 
+CLI::Option_group *create_mtkahypar_refinement_options(CLI::App *app, Context &ctx);
+
 CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx);
 
 CLI::Option_group *create_local_lp_coarsening_options(CLI::App *app, Context &ctx);

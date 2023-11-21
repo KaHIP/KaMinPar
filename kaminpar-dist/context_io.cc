@@ -127,6 +127,7 @@ std::unordered_map<std::string, RefinementAlgorithm> get_kway_refinement_algorit
       {"greedy-balancer/clusters", RefinementAlgorithm::GREEDY_CLUSTER_BALANCER},
       {"jet/refiner", RefinementAlgorithm::JET_REFINER},
       {"jet/balancer", RefinementAlgorithm::JET_BALANCER},
+      {"mtkahypar", RefinementAlgorithm::MTKAHYPAR},
   };
 }
 
@@ -136,6 +137,7 @@ std::unordered_map<std::string, RefinementAlgorithm> get_balancing_algorithms() 
       {"greedy-balancer/nodes", RefinementAlgorithm::GREEDY_NODE_BALANCER},
       {"greedy-balancer/clusters", RefinementAlgorithm::GREEDY_CLUSTER_BALANCER},
       {"jet/balancer", RefinementAlgorithm::JET_BALANCER},
+      {"mtkahypar", RefinementAlgorithm::MTKAHYPAR},
   };
 };
 
@@ -159,6 +161,8 @@ std::ostream &operator<<(std::ostream &out, const RefinementAlgorithm algorithm)
     return out << "jet/refiner";
   case RefinementAlgorithm::JET_BALANCER:
     return out << "jet/balancer";
+  case RefinementAlgorithm::MTKAHYPAR:
+    return out << "mtkahypar";
   }
 
   return out << "<invalid>";
@@ -467,8 +471,8 @@ void print(const RefinementContext &ctx, const ParallelContext &parallel, std::o
     out << "  Number of iterations:       max " << ctx.jet.num_iterations << ", or "
         << ctx.jet.num_fruitless_iterations << " fruitless (improvement < "
         << 100.0 * (1 - ctx.jet.fruitless_threshold) << "%)\n";
-    out << "  Penalty factors:            coarse " << ctx.jet.coarse_negative_gain_factor << ", fine "
-        << ctx.jet.fine_negative_gain_factor << "\n";
+    out << "  Penalty factors:            coarse " << ctx.jet.coarse_negative_gain_factor
+        << ", fine " << ctx.jet.fine_negative_gain_factor << "\n";
     out << "  Balancing algorithm:        " << ctx.jet.balancing_algorithm << "\n";
   }
   if (ctx.includes_algorithm(RefinementAlgorithm::GLOBAL_FM)) {

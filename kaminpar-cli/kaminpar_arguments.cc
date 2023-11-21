@@ -375,6 +375,12 @@ CLI::Option_group *create_debug_options(CLI::App *app, Context &ctx) {
       "Active all --d-dump-* options."
   );
 
+  debug
+      ->add_flag(
+          "--d-sort-neighbors-before-partitioning", ctx.debug.sort_neighbors_before_partitioning
+      )
+      ->capture_default_str();
+
   return debug;
 }
 } // namespace kaminpar::shm

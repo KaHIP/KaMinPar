@@ -247,6 +247,11 @@ Context create_default_context() {
                       .num_weak_iterations = 2,
                       .num_strong_iterations = 1,
                   },
+              .mtkahypar =
+                  {
+                      .config_filename = "",
+                      .only_run_on_root = true,
+                  },
           },
       .debug = {
           .save_coarsest_graph = false,

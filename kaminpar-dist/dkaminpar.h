@@ -88,6 +88,7 @@ enum class RefinementAlgorithm {
   JET_BALANCER,
   GREEDY_NODE_BALANCER,
   GREEDY_CLUSTER_BALANCER,
+  MTKAHYPAR,
 };
 
 enum class LabelPropagationMoveExecutionStrategy {
@@ -221,6 +222,11 @@ struct FMRefinementContext {
   double abortion_threshold;
 };
 
+struct MtKaHyParRefinementContext {
+  std::string config_filename;
+  bool only_run_on_root;
+};
+
 struct CoarseningContext {
   // Global clustering
   std::size_t max_global_clustering_levels;
@@ -321,6 +327,8 @@ struct RefinementContext {
 
   JetRefinementContext jet;
   JetBalancerContext jet_balancer;
+
+  MtKaHyParRefinementContext mtkahypar;
 
   bool includes_algorithm(RefinementAlgorithm algorithm) const;
 };

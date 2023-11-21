@@ -165,6 +165,8 @@ Context create_default_context() {
               .dump_coarsest_partition = false,
               .dump_graph_hierarchy = false,
               .dump_partition_hierarchy = false,
+
+              .sort_neighbors_before_partitioning = false,
           },
   };
 }
