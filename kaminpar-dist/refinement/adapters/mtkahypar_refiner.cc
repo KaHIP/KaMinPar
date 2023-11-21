@@ -124,7 +124,10 @@ bool MtKaHyParRefiner::refine() {
       );
 
   // Run refinement
-  mt_kahypar_improve_partition(mt_kahypar_partitioned_graph, mt_kahypar_ctx, 1);
+  if (!_ctx.refinement.mtkahypar.only_run_on_root ||
+      mpi::get_comm_rank(_p_graph.communicator()) == 0) {
+    mt_kahypar_improve_partition(mt_kahypar_partitioned_graph, mt_kahypar_ctx, 1);
+  }
 
   // Copy partition back to our graph
   StaticArray<mt_kahypar_partition_id_t> improved_partition(num_vertices);

@@ -39,12 +39,13 @@ allgather(const DistributedPartitionedGraph &p_graph) {
   auto shm_graph = allgather(p_graph.graph());
 
   std::vector<int> counts(size);
-  std::vector<int> displs(size);
+  std::vector<int> displs(size + 1);
   for (PEID pe = 0; pe < size; ++pe) {
     counts[pe] =
         asserting_cast<int>(p_graph.node_distribution(pe + 1) - p_graph.node_distribution(pe));
     displs[pe] = asserting_cast<int>(p_graph.node_distribution(pe));
   }
+  displs.back() = asserting_cast<int>(p_graph.node_distribution(size));
 
   StaticArray<BlockID> shm_partition(displs.back());
   MPI_Allgatherv(
