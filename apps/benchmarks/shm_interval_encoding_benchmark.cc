@@ -28,7 +28,7 @@ static std::string to_megabytes(std::size_t bytes) {
   return stream.str();
 }
 
-template <typename VarLengthCodec, bool IntervalEncoding, std::size_t kIntervalLengthTreshold = 3>
+template <bool IntervalEncoding, std::size_t kIntervalLengthTreshold = 3>
 static std::size_t compressed_graph_size(const Graph &graph) {
   using NodeID = ::kaminpar::shm::NodeID;
   using NodeWeight = ::kaminpar::shm::NodeWeight;
@@ -46,12 +46,12 @@ static std::size_t compressed_graph_size(const Graph &graph) {
     const NodeID degree = graph.degree(node);
 
     if constexpr (IntervalEncoding) {
-      used_bytes += VarLengthCodec::length_marker(degree);
+      used_bytes += marked_varint_length(degree);
     } else {
-      used_bytes += VarLengthCodec::length(degree);
+      used_bytes += varint_length(degree);
     }
 
-    used_bytes += VarLengthCodec::length(first_edge);
+    used_bytes += varint_length(first_edge);
 
     if (degree == 0) {
       continue;
@@ -94,8 +94,8 @@ static std::size_t compressed_graph_size(const Graph &graph) {
                 const std::size_t interval_length_gap = interval_len - kIntervalLengthTreshold;
 
                 ++interval_count;
-                used_bytes += VarLengthCodec::length(left_extreme_gap);
-                used_bytes += VarLengthCodec::length(interval_length_gap);
+                used_bytes += varint_length(left_extreme_gap);
+                used_bytes += varint_length(interval_length_gap);
 
                 previous_right_extreme = adjacent_node;
                 iter = buffer.erase(iter - interval_len + 1, iter + 1);
@@ -112,7 +112,7 @@ static std::size_t compressed_graph_size(const Graph &graph) {
         }
 
         if (interval_count > 0) {
-          used_bytes += VarLengthCodec::length(interval_count);
+          used_bytes += varint_length(interval_count);
         }
 
         // If all incident edges have been compressed using intervals then gap encoding cannot be
@@ -130,7 +130,7 @@ static std::size_t compressed_graph_size(const Graph &graph) {
     // the sign is additionally stored.
     const NodeID first_adjacent_node = *buffer.begin();
     const std::make_signed_t<NodeID> first_gap = first_adjacent_node - node;
-    used_bytes += VarLengthCodec::length_signed(first_gap);
+    used_bytes += signed_varint_length(first_gap);
 
     NodeID prev_adjacent_node = first_adjacent_node;
     const auto iter_end = buffer.end();
@@ -138,7 +138,7 @@ static std::size_t compressed_graph_size(const Graph &graph) {
       const NodeID adjacent_node = *iter;
       const NodeID gap = adjacent_node - prev_adjacent_node;
 
-      used_bytes += VarLengthCodec::length(gap);
+      used_bytes += varint_length(gap);
       prev_adjacent_node = adjacent_node;
     }
 
@@ -182,8 +182,8 @@ int main(int argc, char *argv[]) {
 
   // Run Benchmark
   LOG << "Calculating the compressed graph size...";
-  std::size_t compressed_size = compressed_graph_size<VarIntCodec, false>(graph);
-  std::size_t interval_compressed_size = compressed_graph_size<VarIntCodec, true>(graph);
+  std::size_t compressed_size = compressed_graph_size<false>(graph);
+  std::size_t interval_compressed_size = compressed_graph_size<true>(graph);
 
   // Print the result summary
   LOG;

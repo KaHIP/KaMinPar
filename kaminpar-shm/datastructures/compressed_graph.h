@@ -34,8 +34,6 @@ public:
   using AbstractGraph::NodeID;
   using AbstractGraph::NodeWeight;
 
-  using VarLengthCodec = VarIntCodec;
-
   /*!
    * Whether interval encoding is used.
    */
@@ -166,20 +164,20 @@ public:
           cur_node = node;
 
           if constexpr (IntervalEncoding) {
-            edge_capacity += VarLengthCodec::length_marker(degree);
+            edge_capacity += marked_varint_length(degree);
           } else {
-            edge_capacity += VarLengthCodec::length(degree);
+            edge_capacity += varint_length(degree);
           }
 
-          edge_capacity += VarLengthCodec::length(first_edge);
+          edge_capacity += varint_length(first_edge);
         },
         [&](auto left_extreme_gap, auto interval_length_gap) {
           nodes[cur_node] += 1;
-          edge_capacity += VarLengthCodec::length(left_extreme_gap);
-          edge_capacity += VarLengthCodec::length(interval_length_gap);
+          edge_capacity += varint_length(left_extreme_gap);
+          edge_capacity += varint_length(interval_length_gap);
         },
-        [&](auto first_gap) { edge_capacity += VarLengthCodec::length_signed(first_gap); },
-        [&](auto gap) { edge_capacity += VarLengthCodec::length(gap); }
+        [&](auto first_gap) { edge_capacity += signed_varint_length(first_gap); },
+        [&](auto gap) { edge_capacity += varint_length(gap); }
     );
 
     if constexpr (IntervalEncoding) {
@@ -188,7 +186,7 @@ public:
         const EdgeID number_of_intervalls = *iter;
 
         if (number_of_intervalls > 0) {
-          edge_capacity += VarLengthCodec::length(number_of_intervalls);
+          edge_capacity += varint_length(number_of_intervalls);
         }
       }
     }
@@ -204,26 +202,26 @@ public:
           nodes[node] = static_cast<EdgeID>(edges - compressed_edges.data());
 
           if constexpr (IntervalEncoding) {
-            edges += VarLengthCodec::encode_with_marker(degree, number_of_intervalls > 0, edges);
+            edges += marked_varint_encode(degree, number_of_intervalls > 0, edges);
           } else {
-            edges += VarLengthCodec::encode(degree, edges);
+            edges += varint_encode(degree, edges);
           }
 
-          edges += VarLengthCodec::encode(first_edge, edges);
+          edges += varint_encode(first_edge, edges);
 
           if constexpr (IntervalEncoding) {
             if (number_of_intervalls > 0) {
-              edges += VarLengthCodec::encode(number_of_intervalls, edges);
+              edges += varint_encode(number_of_intervalls, edges);
               interval_count++;
             }
           }
         },
         [&](auto left_extreme_gap, auto interval_length_gap) {
-          edges += VarLengthCodec::encode(left_extreme_gap, edges);
-          edges += VarLengthCodec::encode(interval_length_gap, edges);
+          edges += varint_encode(left_extreme_gap, edges);
+          edges += varint_encode(interval_length_gap, edges);
         },
-        [&](auto first_gap) { edges += VarLengthCodec::encode_signed(first_gap, edges); },
-        [&](auto gap) { edges += VarLengthCodec::encode(gap, edges); }
+        [&](auto first_gap) { edges += signed_varint_encode(first_gap, edges); },
+        [&](auto gap) { edges += varint_encode(gap, edges); }
     );
     nodes[nodes.size() - 1] = compressed_edges.size();
 
@@ -400,10 +398,10 @@ public:
     const std::uint8_t *data = _compressed_edges.data() + _nodes[node];
 
     if constexpr (IntervalEncoding) {
-      auto [degree, marker_set, len] = VarLengthCodec::template decode_with_marker<NodeID>(data);
+      auto [degree, marker_set, len] = marked_varint_decode<NodeID>(data);
       return degree;
     } else {
-      auto [degree, len] = VarLengthCodec::template decode<NodeID>(data);
+      auto [degree, len] = varint_decode<NodeID>(data);
       return degree;
     }
   }
@@ -432,12 +430,12 @@ public:
     const std::uint8_t *data = _compressed_edges.data() + _nodes[node];
 
     if constexpr (IntervalEncoding) {
-      auto [degree, set, degree_len] = VarLengthCodec::template decode_with_marker<NodeID>(data);
-      auto [first_edge, _] = VarLengthCodec::template decode<NodeID>(data + degree_len);
+      auto [degree, set, degree_len] = marked_varint_decode<NodeID>(data);
+      auto [first_edge, _] = varint_decode<NodeID>(data + degree_len);
       return IotaRange<EdgeID>(first_edge, first_edge + degree);
     } else {
-      auto [degree, degree_len] = VarLengthCodec::template decode<NodeID>(data);
-      auto [first_edge, _] = VarLengthCodec::template decode<NodeID>(data + degree_len);
+      auto [degree, degree_len] = varint_decode<NodeID>(data);
+      auto [first_edge, _] = varint_decode<NodeID>(data + degree_len);
       return IotaRange<EdgeID>(first_edge, first_edge + degree);
     }
   }
@@ -450,18 +448,17 @@ public:
     EdgeID degree;
     bool uses_intervals = false;
     if constexpr (IntervalEncoding) {
-      auto [deg, marker_set, degree_len] =
-          VarLengthCodec::template decode_with_marker<NodeID>(begin);
+      auto [deg, marker_set, degree_len] = marked_varint_decode<NodeID>(begin);
       degree = deg;
       uses_intervals = marker_set;
       begin += degree_len;
     } else {
-      auto [deg, degree_len] = VarLengthCodec::template decode<NodeID>(begin);
+      auto [deg, degree_len] = varint_decode<NodeID>(begin);
       degree = deg;
       begin += degree_len;
     }
 
-    auto [first_edge, first_edge_len] = VarLengthCodec::template decode<NodeID>(begin);
+    auto [first_edge, first_edge_len] = varint_decode<NodeID>(begin);
     begin += first_edge_len;
 
     // Interval Encoding
@@ -474,7 +471,7 @@ public:
 
     if constexpr (IntervalEncoding) {
       if (uses_intervals) {
-        auto [count, count_len] = VarLengthCodec::template decode<NodeID>(begin);
+        auto [count, count_len] = varint_decode<NodeID>(begin);
         interval_count = count;
         begin += count_len;
       }
@@ -495,12 +492,10 @@ public:
               }
 
               if (cur_interval < interval_count) {
-                auto [left_extreme_gap, left_extreme_gap_len] =
-                    VarLengthCodec::template decode<NodeID>(begin);
+                auto [left_extreme_gap, left_extreme_gap_len] = varint_decode<NodeID>(begin);
                 begin += left_extreme_gap_len;
 
-                auto [interval_length_gap, interval_length_gap_len] =
-                    VarLengthCodec::template decode<NodeID>(begin);
+                auto [interval_length_gap, interval_length_gap_len] = varint_decode<NodeID>(begin);
                 begin += interval_length_gap_len;
 
                 cur_left_extreme = left_extreme_gap + previous_right_extreme - 2;
@@ -517,7 +512,7 @@ public:
           if (is_first_gap) {
             is_first_gap = false;
 
-            auto [first_gap, first_gap_len] = VarLengthCodec::template decode_signed<NodeID>(begin);
+            auto [first_gap, first_gap_len] = signed_varint_decode<NodeID>(begin);
             const NodeID first_adjacent_node = first_gap + node;
 
             begin += first_gap_len;
@@ -525,7 +520,7 @@ public:
             return function(edge, first_adjacent_node);
           }
 
-          auto [gap, gap_len] = VarLengthCodec::template decode<NodeID>(begin);
+          auto [gap, gap_len] = varint_decode<NodeID>(begin);
           const NodeID adjacent_node = gap + prev_adjacent_node;
 
           begin += gap_len;

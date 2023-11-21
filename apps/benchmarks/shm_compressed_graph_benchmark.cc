@@ -189,8 +189,6 @@ int main(int argc, char *argv[]) {
   GLOBAL_TIMER.reset();
 
   LOG << "Compressing the input graph...";
-  using VarLengthCodec = VarIntCodec;
-
   GraphStats stats = run_benchmark(graph, enable_benchmarks, enable_checks);
 
   STOP_TIMER();
