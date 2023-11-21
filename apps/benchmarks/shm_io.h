@@ -55,13 +55,13 @@ inline GraphWrapper load_graph(const std::string &graph_name, const bool is_sort
   wrapper.adjncy = kagen_graph.TakeAdjncy<NodeID>();
   wrapper.vwgt = kagen_graph.TakeVertexWeights<NodeWeight>();
   wrapper.adjvwgt = kagen_graph.TakeEdgeWeights<EdgeWeight>();
-  wrapper.graph = std::make_unique<Graph>(
+  wrapper.graph = std::make_unique<Graph>(std::make_unique<CSRGraph>(
       StaticArray<EdgeID>(wrapper.xadj.data(), wrapper.xadj.size()),
       StaticArray<NodeID>(wrapper.adjncy.data(), wrapper.adjncy.size()),
       StaticArray<NodeWeight>(wrapper.vwgt.data(), wrapper.vwgt.size()),
       StaticArray<EdgeWeight>(wrapper.adjvwgt.data(), wrapper.adjvwgt.size()),
       is_sorted
-  );
+  ));
 
   std::cout << "Loaded graph with n=" << wrapper.graph->n() << ", m=" << wrapper.graph->m()
             << std::endl;

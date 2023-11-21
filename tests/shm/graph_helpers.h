@@ -26,7 +26,13 @@ inline PartitionedGraph p_graph(const Graph &graph, const BlockID k) {
 inline Graph create_graph(
     const std::vector<EdgeID> &nodes, const std::vector<NodeID> &edges, const bool sorted = false
 ) {
-  return Graph{static_array::create_from(nodes), static_array::create_from(edges), {}, {}, sorted};
+  return Graph(std::make_unique<CSRGraph>(
+      static_array::create_from(nodes),
+      static_array::create_from(edges),
+      StaticArray<NodeWeight>(),
+      StaticArray<EdgeWeight>(),
+      sorted
+  ));
 }
 
 inline Graph create_graph(
@@ -36,12 +42,13 @@ inline Graph create_graph(
     const std::vector<EdgeWeight> &edge_weights,
     const bool sorted = false
 ) {
-  return Graph{
+  return Graph(std::make_unique<CSRGraph>(
       static_array::create_from(nodes),
       static_array::create_from(edges),
       static_array::create_from(node_weights),
       static_array::create_from(edge_weights),
-      sorted};
+      sorted
+  ));
 }
 
 inline PartitionedGraph
@@ -99,12 +106,13 @@ inline std::vector<NodeID> degrees(const Graph &graph) {
 inline Graph change_node_weight(Graph graph, const NodeID u, const NodeWeight new_node_weight) {
   auto node_weights = graph.take_raw_node_weights();
   node_weights[u] = new_node_weight;
-  return Graph{
+  return Graph(std::make_unique<CSRGraph>(
       graph.take_raw_nodes(),
       graph.take_raw_edges(),
       std::move(node_weights),
       graph.take_raw_edge_weights(),
-      graph.sorted()};
+      graph.sorted()
+  ));
 }
 
 inline Graph
@@ -120,12 +128,13 @@ change_edge_weight(Graph graph, const NodeID u, const NodeID v, const EdgeWeight
   edge_weights[forward_edge] = new_edge_weight;
   edge_weights[backward_edge] = new_edge_weight;
 
-  return Graph{
+  return Graph(std::make_unique<CSRGraph>(
       graph.take_raw_nodes(),
       graph.take_raw_edges(),
       graph.take_raw_node_weights(),
       std::move(edge_weights),
-      graph.sorted()};
+      graph.sorted()
+  ));
 }
 
 inline Graph assign_exponential_weights(
@@ -168,11 +177,12 @@ inline Graph assign_exponential_weights(
     }
   }
 
-  return Graph{
+  return Graph(std::make_unique<CSRGraph>(
       graph.take_raw_nodes(),
       graph.take_raw_edges(),
       std::move(node_weights),
       std::move(edge_weights),
-      graph.sorted()};
+      graph.sorted()
+  ));
 }
 } // namespace kaminpar::shm::testing

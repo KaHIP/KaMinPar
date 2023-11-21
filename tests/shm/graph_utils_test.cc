@@ -79,7 +79,7 @@ TEST(ParallelContractionTest, ContractingGridHorizontallyWorks) {
       graph::contract(graph, scalable_vector<NodeID>{0, 1, 2, 3, 0, 1, 2, 3});
   EXPECT_THAT(c_graph.n(), 4);
   EXPECT_THAT(c_graph.m(), 2 * 3);
-  EXPECT_THAT(c_graph.node_weights(), UnorderedElementsAre(11, 22, 33, 44));
+  EXPECT_THAT(c_graph.raw_node_weights(), UnorderedElementsAre(11, 22, 33, 44));
   EXPECT_THAT(c_graph.total_node_weight(), graph.total_node_weight());
   EXPECT_THAT(c_graph.total_edge_weight(), 4 * 3);
   EXPECT_THAT(c_graph, HasEdgeWithWeightedEndpoints(11, 22));
@@ -102,7 +102,7 @@ TEST(ParallelContractionTest, ContractingGridVerticallyWorks) {
       graph::contract(graph, scalable_vector<NodeID>{0, 0, 2, 2, 4, 4, 6, 6});
   EXPECT_THAT(c_graph.n(), 4);
   EXPECT_THAT(c_graph.m(), 2 * 3);
-  EXPECT_THAT(c_graph.node_weights(), UnorderedElementsAre(11, 22, 33, 44));
+  EXPECT_THAT(c_graph.raw_node_weights(), UnorderedElementsAre(11, 22, 33, 44));
   EXPECT_THAT(c_graph.total_node_weight(), graph.total_node_weight());
   EXPECT_THAT(c_graph.total_edge_weight(), 4 * 3);
   EXPECT_THAT(c_graph, HasEdgeWithWeightedEndpoints(11, 22));
