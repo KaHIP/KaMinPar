@@ -52,4 +52,8 @@ BlockID compute_final_k(const BlockID block, const BlockID current_k, const Bloc
     return num_heavy_blocks - (block - 1) * num_leaves;
   }
 }
+
+BlockID compute_final_k_legacy(BlockID block, BlockID current_k, BlockID input_k) {
+  return 0;
+}
 } // namespace kaminpar::shm
