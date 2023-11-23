@@ -20,7 +20,7 @@ SET_STATISTICS_FROM_GLOBAL();
 void update_partition_context(PartitionContext &current_p_ctx, const PartitionedGraph &p_graph) {
   current_p_ctx.setup(p_graph.graph());
   current_p_ctx.k = p_graph.k();
-  current_p_ctx.block_weights.setup(current_p_ctx, p_graph.final_ks());
+  current_p_ctx.block_weights.setup(current_p_ctx, p_graph.raw_final_ks());
 }
 
 PartitionedGraph
@@ -55,7 +55,7 @@ PartitionedGraph bipartition(
 
 void extend_partition_recursive(
     const Graph &graph,
-    BlockArray &partition,
+    StaticArray<BlockID> &partition,
     const BlockID b0,
     const BlockID k,
     const BlockID final_k,
@@ -140,7 +140,7 @@ void extend_partition(
   const auto &positions = extraction.positions;
 
   START_TIMER("Allocation");
-  scalable_vector<BlockArray> subgraph_partitions;
+  scalable_vector<StaticArray<BlockID>> subgraph_partitions;
   for (const auto &subgraph : subgraphs) {
     subgraph_partitions.emplace_back(subgraph.n());
   }

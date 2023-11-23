@@ -166,12 +166,6 @@ Context create_default_context() {
                   {
                       .alpha = 1.0,
 
-                      // -- local FM --
-                      .overlap_regions = false,
-                      .bound_degree = 0,
-                      .contract_border = false,
-
-                      // -- mostly global FM, some local FM --
                       .use_independent_seeds = true,
                       .use_bfs_seeds_as_fm_seeds = true,
 

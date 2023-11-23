@@ -138,7 +138,7 @@ bool FMRefiner::refine() {
     }
 
     KASSERT(
-        shm::validate_graph(*b_graph, true, _p_graph.k()),
+        shm::debug::validate_graph(*b_graph, true, _p_graph.k()),
         "BFS extractor returned invalid graph data structure",
         HEAVY
     );

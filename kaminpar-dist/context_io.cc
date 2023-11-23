@@ -122,7 +122,6 @@ std::unordered_map<std::string, RefinementAlgorithm> get_kway_refinement_algorit
       {"lp/batches", RefinementAlgorithm::BATCHED_LP},
       {"lp/colors", RefinementAlgorithm::COLORED_LP},
       {"fm/global", RefinementAlgorithm::GLOBAL_FM},
-      {"fm/local", RefinementAlgorithm::LOCAL_FM},
       {"greedy-balancer/nodes", RefinementAlgorithm::GREEDY_NODE_BALANCER},
       {"greedy-balancer/clusters", RefinementAlgorithm::GREEDY_CLUSTER_BALANCER},
       {"jet/refiner", RefinementAlgorithm::JET_REFINER},
@@ -149,8 +148,6 @@ std::ostream &operator<<(std::ostream &out, const RefinementAlgorithm algorithm)
     return out << "lp/batches";
   case RefinementAlgorithm::COLORED_LP:
     return out << "lp/colors";
-  case RefinementAlgorithm::LOCAL_FM:
-    return out << "fm/local";
   case RefinementAlgorithm::GLOBAL_FM:
     return out << "fm/global";
   case RefinementAlgorithm::GREEDY_NODE_BALANCER:

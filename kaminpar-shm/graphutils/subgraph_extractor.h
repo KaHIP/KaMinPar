@@ -135,7 +135,7 @@ SequentialSubgraphExtractionResult extract_subgraphs_sequential(
 
 void copy_subgraph_partitions(
     PartitionedGraph &p_graph,
-    const scalable_vector<BlockArray> &p_subgraph_partitions,
+    const scalable_vector<StaticArray<BlockID>> &p_subgraph_partitions,
     BlockID k_prime,
     BlockID input_k,
     const scalable_vector<NodeID> &mapping

@@ -276,7 +276,7 @@ extract_subgraphs(const PartitionedGraph &p_graph, SubgraphMemory &subgraph_memo
   KASSERT(
       [&] {
         for (const BlockID b : p_graph.blocks()) {
-          if (!validate_graph(subgraphs[b])) {
+          if (!debug::validate_graph(subgraphs[b])) {
             return false;
           }
         }
@@ -312,7 +312,7 @@ void fill_final_k(
 
 void copy_subgraph_partitions(
     PartitionedGraph &p_graph,
-    const scalable_vector<BlockArray> &p_subgraph_partitions,
+    const scalable_vector<StaticArray<BlockID>> &p_subgraph_partitions,
     const BlockID k_prime,
     const BlockID input_k,
     const scalable_vector<NodeID> &mapping
@@ -324,7 +324,7 @@ void copy_subgraph_partitions(
 
   // we are done partitioning? --> use final_ks
   if (k_prime == input_k) {
-    std::copy(p_graph.final_ks().begin(), p_graph.final_ks().end(), k0.begin() + 1);
+    std::copy(p_graph.raw_final_ks().begin(), p_graph.raw_final_ks().end(), k0.begin() + 1);
   }
 
   parallel::prefix_sum(k0.begin(), k0.end(),
@@ -346,7 +346,7 @@ void copy_subgraph_partitions(
     p_graph.set_block<false>(u, k0[b] + p_subgraph_partitions[b][s_u]);
   });
 
-  p_graph.set_final_ks(std::move(final_ks));
+  p_graph.set_raw_final_ks(std::move(final_ks));
   p_graph.reinit_block_weights();
 }
 } // namespace kaminpar::shm::graph

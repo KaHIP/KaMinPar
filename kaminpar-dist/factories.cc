@@ -28,7 +28,6 @@
 #include "kaminpar-dist/refinement/balancer/cluster_balancer.h"
 #include "kaminpar-dist/refinement/balancer/node_balancer.h"
 #include "kaminpar-dist/refinement/fm/fm_refiner.h"
-#include "kaminpar-dist/refinement/fm/local_fm_refiner.h"
 #include "kaminpar-dist/refinement/jet/jet_balancer.h"
 #include "kaminpar-dist/refinement/jet/jet_refiner.h"
 #include "kaminpar-dist/refinement/lp/clp_refiner.h"
@@ -92,9 +91,6 @@ create_refiner(const Context &ctx, const RefinementAlgorithm algorithm) {
 
   case RefinementAlgorithm::COLORED_LP:
     return std::make_unique<ColoredLPRefinerFactory>(ctx);
-
-  case RefinementAlgorithm::LOCAL_FM:
-    return std::make_unique<LocalFMRefinerFactory>(ctx);
 
   case RefinementAlgorithm::GLOBAL_FM:
     return std::make_unique<FMRefinerFactory>(ctx);
