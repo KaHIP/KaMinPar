@@ -36,4 +36,9 @@ std::string implode(const Elements &elements, const std::string &separator) {
   }
   return ss.str();
 }
+
+std::string &replace_all(std::string &str, const std::string &replace, const std::string &with);
+
+std::string &
+replace_all(std::string &str, const std::vector<std::pair<std::string, std::string>> &replacements);
 } // namespace kaminpar::str
