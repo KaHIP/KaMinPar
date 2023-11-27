@@ -259,10 +259,10 @@ void print(const PartitionContext &p_ctx, std::ostream &out) {
 }
 
 void print(const PartitioningContext &p_ctx, std::ostream &out) {
-  out << "Partitioning mode:          " << p_ctx.mode << "\n";
+  out << "Partitioning mode:            " << p_ctx.mode << "\n";
   if (p_ctx.mode == PartitioningMode::DEEP) {
-    out << "  Deep initial part. mode:  " << p_ctx.deep_initial_partitioning_mode << "\n";
-    out << "  Deep initial part. load:  " << p_ctx.deep_initial_partitioning_load << "\n";
+    out << "  Deep initial part. mode:    " << p_ctx.deep_initial_partitioning_mode << "\n";
+    out << "  Deep initial part. load:    " << p_ctx.deep_initial_partitioning_load << "\n";
   }
 }
 
