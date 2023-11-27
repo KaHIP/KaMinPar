@@ -13,23 +13,29 @@
 
 namespace kaminpar::shm::partitioning::helper {
 namespace {
-SET_DEBUG(false);
+SET_DEBUG(true);
 SET_STATISTICS_FROM_GLOBAL();
 } // namespace
 
-void update_partition_context(PartitionContext &current_p_ctx, const PartitionedGraph &p_graph) {
+void update_partition_context(
+    PartitionContext &current_p_ctx, const PartitionedGraph &p_graph, const BlockID input_k
+) {
   current_p_ctx.setup(p_graph.graph());
   current_p_ctx.k = p_graph.k();
-  current_p_ctx.block_weights.setup(current_p_ctx, p_graph.final_ks());
+  current_p_ctx.block_weights.setup(current_p_ctx, input_k);
 }
 
-PartitionedGraph
-uncoarsen_once(Coarsener *coarsener, PartitionedGraph p_graph, PartitionContext &current_p_ctx) {
+PartitionedGraph uncoarsen_once(
+    Coarsener *coarsener,
+    PartitionedGraph p_graph,
+    PartitionContext &current_p_ctx,
+    const PartitionContext &input_p_ctx
+) {
   SCOPED_TIMER("Uncoarsening");
 
   if (!coarsener->empty()) {
     p_graph = coarsener->uncoarsen(std::move(p_graph));
-    update_partition_context(current_p_ctx, p_graph);
+    update_partition_context(current_p_ctx, p_graph, input_p_ctx.k);
   }
 
   return p_graph;
@@ -67,38 +73,34 @@ void extend_partition_recursive(
 ) {
   KASSERT(k > 1u);
 
-  // obtain bipartition of current graph
   PartitionedGraph p_graph = bipartition(&graph, final_k, input_ctx, ip_m_ctx_pool);
 
-  const BlockID final_k1 = p_graph.final_k(0);
-  const BlockID final_k2 = p_graph.final_k(1);
-  KASSERT(final_k1 > 0u);
-  KASSERT(final_k2 > 0u);
-  KASSERT(final_k == final_k1 + final_k2);
-
+  std::array<BlockID, 2> final_ks{0, 0};
   std::array<BlockID, 2> ks{0, 0};
+  std::tie(final_ks[0], final_ks[1]) = math::split_integral(final_k);
   std::tie(ks[0], ks[1]) = math::split_integral(k);
-  KASSERT(ks[0] + ks[1] == k);
+  std::array<BlockID, 2> b{b0, b0 + ks[0]};
+
   KASSERT(ks[0] >= 1u);
   KASSERT(ks[1] >= 1u);
-  KASSERT(final_k1 >= ks[0]);
-  KASSERT(final_k2 >= ks[1]);
-
-  // copy p_graph to partition -> replace b0 with b0 or b1
-  std::array<BlockID, 2> b{b0, b0 + ks[0]};
+  KASSERT(final_ks[0] >= ks[0]);
+  KASSERT(final_ks[1] >= ks[1]);
   KASSERT(b[0] < input_ctx.partition.k);
   KASSERT(b[1] < input_ctx.partition.k);
-  NodeID current_node = 0;
-  for (std::size_t i = 0; i < partition.size(); ++i) {
-    if (partition[i] == b0) {
-      partition[i] = b[p_graph.block(current_node++)];
+
+  // Copy p_graph to partition -> replace b0 with b0 or b1
+  {
+    NodeID node = 0;
+    for (BlockID &block : partition) {
+      block = (block == b0) ? b[p_graph.block(node++)] : block;
     }
+    KASSERT(node == p_graph.n());
   }
-  KASSERT(current_node == p_graph.n());
 
   if (k > 2) {
-    auto extraction =
-        extract_subgraphs_sequential(p_graph, position, subgraph_memory, extraction_pool.local());
+    auto extraction = extract_subgraphs_sequential(
+        p_graph, final_ks, position, subgraph_memory, extraction_pool.local()
+    );
     const auto &subgraphs = extraction.subgraphs;
     const auto &positions = extraction.positions;
 
@@ -109,7 +111,7 @@ void extend_partition_recursive(
             partition,
             b[i],
             ks[i],
-            p_graph.final_k(i),
+            final_ks[i],
             input_ctx,
             subgraph_memory,
             positions[i],
@@ -122,9 +124,9 @@ void extend_partition_recursive(
 }
 
 void extend_partition(
-    PartitionedGraph &p_graph,
-    const BlockID k_prime,
-    const Context &input_ctx,
+    PartitionedGraph &p_graph, // stores current k
+    const BlockID k_prime,     // extend to this many blocks
+    const Context &input_ctx,  // stores input k
     PartitionContext &current_p_ctx,
     graph::SubgraphMemory &subgraph_memory,
     TemporaryGraphExtractionBufferPool &extraction_pool,
@@ -133,7 +135,7 @@ void extend_partition(
   SCOPED_TIMER("Initial partitioning");
 
   auto extraction = TIMED_SCOPE("Extract subgraphs") {
-    return extract_subgraphs(p_graph, subgraph_memory);
+    return extract_subgraphs(p_graph, input_ctx.partition.k, subgraph_memory);
   };
   const auto &subgraphs = extraction.subgraphs;
   const auto &mapping = extraction.node_mapping;
@@ -152,16 +154,22 @@ void extend_partition(
       static_cast<BlockID>(subgraphs.size()),
       [&](const BlockID b) {
         const auto &subgraph = subgraphs[b];
+        const BlockID final_kb = compute_final_k_legacy(b, p_graph.k(), input_ctx.partition.k);
+
         const BlockID subgraph_k =
-            (k_prime == input_ctx.partition.k) ? p_graph.final_k(b) : k_prime / p_graph.k();
+            (k_prime == input_ctx.partition.k) ? final_kb : k_prime / p_graph.k();
+
         if (subgraph_k > 1) {
-          KASSERT(subgraph_k <= p_graph.final_k(b));
+          DBG << "initial extend_partition_recursive() for block " << b << ", final k " << final_kb
+              << ", subgraph k " << subgraph_k << ", weight " << p_graph.block_weight(b) << " /// "
+              << subgraph.total_node_weight();
+
           extend_partition_recursive(
               subgraph,
               subgraph_partitions[b],
               0,
               subgraph_k,
-              p_graph.final_k(b),
+              final_kb,
               input_ctx,
               subgraph_memory,
               positions[b],
@@ -174,11 +182,11 @@ void extend_partition(
   STOP_TIMER();
 
   TIMED_SCOPE("Copy subgraph partitions") {
-    graph::copy_subgraph_partitions(
-        p_graph, subgraph_partitions, k_prime, input_ctx.partition.k, mapping
+    p_graph = graph::copy_subgraph_partitions(
+        std::move(p_graph), subgraph_partitions, k_prime, input_ctx.partition.k, mapping
     );
   };
-  update_partition_context(current_p_ctx, p_graph);
+  update_partition_context(current_p_ctx, p_graph, input_ctx.partition.k);
 
   KASSERT(p_graph.k() == k_prime);
 }

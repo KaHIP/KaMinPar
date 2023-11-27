@@ -42,7 +42,7 @@ public:
           p_graph.graph().is_node_weighted(),
           p_graph.graph().is_edge_weighted()
       );
-      const auto extraction = extract_subgraphs(p_graph, memory);
+      const auto extraction = extract_subgraphs(p_graph, _input_ctx.partition.k, memory);
 
       const auto &subgraphs = extraction.subgraphs;
       const auto &mapping = extraction.node_mapping;
@@ -56,8 +56,8 @@ public:
       subgraph_partitions[0] = p_graph1.take_partition();
       subgraph_partitions[1] = p_graph2.take_partition();
 
-      graph::copy_subgraph_partitions(
-          p_graph, subgraph_partitions, k, _input_ctx.partition.k, mapping
+      p_graph = graph::copy_subgraph_partitions(
+          std::move(p_graph), subgraph_partitions, k, _input_ctx.partition.k, mapping
       );
     }
 
@@ -86,14 +86,15 @@ public:
 
     // initial bipartitioning
     PartitionedGraph p_graph = helper::bipartition(c_graph, final_k, _input_ctx, ip_m_ctx_pool);
-    helper::update_partition_context(p_ctx, p_graph);
+    helper::update_partition_context(p_ctx, p_graph, _input_ctx.partition.k);
 
     // refine
     auto refiner = factory::create_refiner(_input_ctx);
 
     while (!coarsener->empty()) {
       helper::refine(refiner.get(), p_graph, p_ctx);
-      p_graph = helper::uncoarsen_once(coarsener.get(), std::move(p_graph), p_ctx);
+      p_graph =
+          helper::uncoarsen_once(coarsener.get(), std::move(p_graph), p_ctx, _input_ctx.partition);
     }
     helper::refine(refiner.get(), p_graph, p_ctx);
 

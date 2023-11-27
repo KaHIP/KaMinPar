@@ -37,19 +37,10 @@ public:
   using BlockID = ::kaminpar::shm::BlockID;
   using BlockWeight = ::kaminpar::shm::BlockWeight;
 
-  PartitionedGraph(
-      const Graph &graph,
-      BlockID k,
-      StaticArray<BlockID> partition = {},
-      std::vector<BlockID> final_k = {}
-  );
+  PartitionedGraph(const Graph &graph, BlockID k, StaticArray<BlockID> partition = {});
 
   PartitionedGraph(
-      tag::Sequential,
-      const Graph &graph,
-      BlockID k,
-      StaticArray<BlockID> partition = {},
-      std::vector<BlockID> final_k = {}
+      tag::Sequential, const Graph &graph, BlockID k, StaticArray<BlockID> partition = {}
   );
 
   PartitionedGraph(NoBlockWeights, const Graph &graph, BlockID k, StaticArray<BlockID> partition);
@@ -141,11 +132,8 @@ public:
     return success;
   }
 
-  void change_k(BlockID new_k);
-  void reinit_block_weights();
-
   // clang-format off
-  [[nodiscard]] inline IotaRange<BlockID> blocks() const { return IotaRange(static_cast<BlockID>(0), k()); }
+  [[nodiscard]] inline IotaRange<BlockID> blocks() const { return {static_cast<BlockID>(0), k()}; }
   [[nodiscard]] inline BlockID block(const NodeID u) const { return __atomic_load_n(&_partition[u], __ATOMIC_RELAXED); }
   template <typename Lambda> inline void pfor_blocks(Lambda &&l) const { tbb::parallel_for(static_cast<BlockID>(0), k(), std::forward<Lambda>(l)); }
   [[nodiscard]] inline NodeWeight block_weight(const BlockID b) const { KASSERT(b < k()); return __atomic_load_n(&_block_weights[b], __ATOMIC_RELAXED); } 
@@ -157,11 +145,6 @@ public:
   [[nodiscard]] inline BlockID k() const { return _k; }
   [[nodiscard]] inline const auto &partition() const { return _partition; }
   [[nodiscard]] inline auto &&take_partition() { return std::move(_partition); }
-  [[nodiscard]] inline BlockID final_k(const BlockID b) const { return _final_k[b]; }
-  [[nodiscard]] inline const std::vector<BlockID> &final_ks() const { return _final_k; }
-  [[nodiscard]] inline std::vector<BlockID> &&take_final_k() { return std::move(_final_k); }
-  inline void set_final_k(const BlockID b, const BlockID final_k) { _final_k[b] = final_k; }
-  inline void set_final_ks(std::vector<BlockID> final_ks) { _final_k = std::move(final_ks); }
   // clang-format on
 
 private:
@@ -171,11 +154,5 @@ private:
   BlockID _k;
   StaticArray<BlockID> _partition;
   StaticArray<BlockWeight> _block_weights;
-
-  //! For each block in the current partition, this is the number of blocks that
-  //! we want to split the block in the final partition. For instance, after the
-  //! first bisection, this might be {_k / 2, _k / 2}, although other values are
-  //! possible if _k is not a power of 2.
-  std::vector<BlockID> _final_k;
 };
 } // namespace kaminpar::shm

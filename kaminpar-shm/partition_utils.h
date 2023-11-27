@@ -78,4 +78,6 @@ PartitionContext create_bipartition_context(
  * @return The number of blocks into which `block` must be split for the final partition.
  */
 BlockID compute_final_k(BlockID block, BlockID current_k, BlockID input_k);
+
+BlockID compute_final_k_legacy(BlockID block, BlockID current_k, BlockID input_k);
 } // namespace kaminpar::shm

@@ -123,18 +123,20 @@ struct TemporarySubgraphMemory {
   }
 };
 
-SubgraphExtractionResult
-extract_subgraphs(const PartitionedGraph &p_graph, SubgraphMemory &subgraph_memory);
+SubgraphExtractionResult extract_subgraphs(
+    const PartitionedGraph &p_graph, const BlockID input_k, SubgraphMemory &subgraph_memory
+);
 
 SequentialSubgraphExtractionResult extract_subgraphs_sequential(
     const PartitionedGraph &p_graph,
+    const std::array<BlockID, 2> &final_ks,
     SubgraphMemoryStartPosition memory_position,
     SubgraphMemory &subgraph_memory,
     TemporarySubgraphMemory &tmp_subgraph_memory
 );
 
-void copy_subgraph_partitions(
-    PartitionedGraph &p_graph,
+PartitionedGraph copy_subgraph_partitions(
+    PartitionedGraph p_graph,
     const scalable_vector<BlockArray> &p_subgraph_partitions,
     BlockID k_prime,
     BlockID input_k,

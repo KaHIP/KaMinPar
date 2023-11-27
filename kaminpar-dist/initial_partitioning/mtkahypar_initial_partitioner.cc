@@ -95,9 +95,7 @@ shm::PartitionedGraph MtKaHyParInitialPartitioner::initial_partition(
   mt_kahypar_free_hypergraph(mt_kahypar_graph);
   mt_kahypar_free_context(mt_kahypar_ctx);
 
-  return shm::PartitionedGraph(
-      graph, p_ctx.k, std::move(partition_cpy), std::vector<BlockID>(p_ctx.k, 1)
-  );
+  return {graph, p_ctx.k, std::move(partition_cpy)};
 #else  // KAMINPAR_HAVE_MTKAHYPAR_LIB
   ((void)_ctx);
   KASSERT(false, "Mt-KaHyPar initial partitioner is not available.", assert::always);

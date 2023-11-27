@@ -230,7 +230,7 @@ struct PartitionContext;
 
 struct BlockWeightsContext {
   void setup(const PartitionContext &ctx);
-  void setup(const PartitionContext &ctx, const std::vector<BlockID> &final_ks);
+  void setup(const PartitionContext &ctx, BlockID input_k);
 
   [[nodiscard]] BlockWeight max(BlockID b) const;
   [[nodiscard]] const std::vector<BlockWeight> &all_max() const;

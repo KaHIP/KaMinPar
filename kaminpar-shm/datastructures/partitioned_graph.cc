@@ -8,41 +8,27 @@
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 
 namespace kaminpar::shm {
-PartitionedGraph::PartitionedGraph(
-    const Graph &graph, BlockID k, StaticArray<BlockID> partition, std::vector<BlockID> final_k
-)
+PartitionedGraph::PartitionedGraph(const Graph &graph, BlockID k, StaticArray<BlockID> partition)
     : GraphDelegate(&graph),
       _k(k),
       _partition(std::move(partition)),
-      _block_weights(k),
-      _final_k(std::move(final_k)) {
+      _block_weights(k) {
   if (graph.n() > 0 && _partition.empty()) {
     _partition.resize(_graph->n(), kInvalidBlockID);
-  }
-  if (_final_k.empty()) {
-    _final_k.resize(k, 1);
   }
   KASSERT(_partition.size() == graph.n());
   init_block_weights_par();
 }
 
 PartitionedGraph::PartitionedGraph(
-    tag::Sequential,
-    const Graph &graph,
-    BlockID k,
-    StaticArray<BlockID> partition,
-    std::vector<BlockID> final_k
+    tag::Sequential, const Graph &graph, BlockID k, StaticArray<BlockID> partition
 )
     : GraphDelegate(&graph),
       _k(k),
       _partition(std::move(partition)),
-      _block_weights(k),
-      _final_k(std::move(final_k)) {
+      _block_weights(k) {
   if (graph.n() > 0 && _partition.empty()) {
     _partition.resize(_graph->n(), kInvalidBlockID);
-  }
-  if (_final_k.empty()) {
-    _final_k.resize(k, 1);
   }
   KASSERT(_partition.size() == graph.n());
   init_block_weights_seq();
@@ -57,20 +43,6 @@ PartitionedGraph::PartitionedGraph(
   if (graph.n() > 0 && _partition.empty()) {
     _partition.resize(_graph->n(), kInvalidBlockID);
   }
-  if (_final_k.empty()) {
-    _final_k.resize(k, 1);
-  }
-}
-
-void PartitionedGraph::change_k(const BlockID new_k) {
-  _block_weights = StaticArray<BlockWeight>(new_k);
-  _final_k.resize(new_k);
-  _k = new_k;
-}
-
-void PartitionedGraph::reinit_block_weights() {
-  pfor_blocks([&](const BlockID b) { _block_weights[b] = 0; });
-  init_block_weights_par();
 }
 
 void PartitionedGraph::init_block_weights_par() {

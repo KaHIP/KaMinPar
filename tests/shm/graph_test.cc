@@ -29,7 +29,7 @@ public:
 TEST_F(AWeightedGridGraph, ExtractingBlockInducedSubgraphsWorkHorizontally) {
   PartitionedGraph p_graph{create_p_graph(graph, 2, {0, 0, 0, 0, 1, 1, 1, 1})};
   graph::SubgraphMemory memory{p_graph};
-  const auto [subgraphs, node_mapping, positions] = extract_subgraphs(p_graph, memory);
+  const auto [subgraphs, node_mapping, positions] = extract_subgraphs(p_graph, 2, memory);
   const auto &s_graph0 = subgraphs[0];
   const auto &s_graph1 = subgraphs[1];
 
@@ -49,7 +49,7 @@ TEST_F(AWeightedGridGraph, ExtractingBlockInducedSubgraphsWorkHorizontally) {
 TEST_F(AWeightedGridGraph, ExtractingEmptyBlockInducedSubgraphWorks) {
   PartitionedGraph p_graph{create_p_graph(graph, 2, {0, 0, 0, 0, 0, 0, 0, 0})};
   graph::SubgraphMemory memory{p_graph};
-  const auto [subgraphs, node_mapping, positions] = extract_subgraphs(p_graph, memory);
+  const auto [subgraphs, node_mapping, positions] = extract_subgraphs(p_graph, 2, memory);
   const auto &s_graph0 = subgraphs[0];
   const auto &s_graph1 = subgraphs[1];
 

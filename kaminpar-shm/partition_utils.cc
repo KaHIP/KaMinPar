@@ -32,7 +32,7 @@ PartitionContext create_bipartition_context(
   twoway_p_ctx.setup(subgraph);
   twoway_p_ctx.epsilon =
       compute_2way_adaptive_epsilon(subgraph.total_node_weight(), k1 + k2, kway_p_ctx);
-  twoway_p_ctx.block_weights.setup(twoway_p_ctx, {k1, k2});
+  twoway_p_ctx.block_weights.setup(twoway_p_ctx, k1 + k2);
   return twoway_p_ctx;
 }
 
@@ -50,6 +50,24 @@ BlockID compute_final_k(const BlockID block, const BlockID current_k, const Bloc
     return 2 * num_leaves;
   } else {
     return num_heavy_blocks - (block - 1) * num_leaves;
+  }
+}
+
+// @todo replace by compute_final_k, or, if it changes the results, replace by a O(1) computation
+BlockID compute_final_k_legacy(BlockID block, BlockID current_k, BlockID input_k) {
+  if (current_k == 1) {
+    return input_k;
+  }
+  if (current_k == input_k) {
+    return 1;
+  }
+
+  if (block >= current_k / 2) {
+    return compute_final_k_legacy(
+        block - current_k / 2, current_k / 2, std::floor(1.0 * input_k / 2)
+    );
+  } else {
+    return compute_final_k_legacy(block, current_k / 2, std::ceil(1.0 * input_k / 2));
   }
 }
 } // namespace kaminpar::shm
