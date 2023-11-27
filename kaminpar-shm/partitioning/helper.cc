@@ -13,16 +13,21 @@
 
 namespace kaminpar::shm::partitioning::helper {
 namespace {
-SET_DEBUG(true);
+SET_DEBUG(false);
 SET_STATISTICS_FROM_GLOBAL();
 } // namespace
 
 void update_partition_context(
     PartitionContext &current_p_ctx, const PartitionedGraph &p_graph, const BlockID input_k
 ) {
+  LOG << "Updating: " << p_graph.k() << ", " << input_k << ", " << current_p_ctx.total_node_weight
+      << ", " << current_p_ctx.max_node_weight;
+
   current_p_ctx.setup(p_graph.graph());
   current_p_ctx.k = p_graph.k();
   current_p_ctx.block_weights.setup(current_p_ctx, input_k);
+
+  LOG << " ---> " << current_p_ctx.block_weights.max(0);
 }
 
 PartitionedGraph uncoarsen_once(

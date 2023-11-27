@@ -26,7 +26,7 @@
 
 namespace kaminpar::shm::graph {
 namespace {
-SET_DEBUG(true);
+SET_DEBUG(false);
 }
 
 SequentialSubgraphExtractionResult extract_subgraphs_sequential(
@@ -314,9 +314,8 @@ PartitionedGraph copy_subgraph_partitions(
   // - while we have fewer blocks than `input_k`, each block is partitioned into the same number of
   //   sub-blocks -- thus, we can keep the default values specified above.
   //
-  // - once we have extended the number of blocks to `input_k`, there may be some blocks that were
-  //   bipartitioned in this last round, and some that were not. Thus, we have to calculate
-  //   individual offsets in this case
+  // - once we have extended the number of blocks to `input_k`, blocks may have been partitioned
+  //   into differing numbers of sub-blocks
   std::vector<BlockID> k0(p_graph.k() + 1, k_prime / p_graph.k());
   if (k_prime == input_k) {
     for (const BlockID b : p_graph.blocks()) {

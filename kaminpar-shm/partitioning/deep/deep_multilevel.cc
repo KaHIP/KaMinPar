@@ -13,7 +13,7 @@
 
 namespace kaminpar::shm {
 namespace {
-SET_DEBUG(true);
+SET_DEBUG(false);
 SET_STATISTICS(false);
 } // namespace
 

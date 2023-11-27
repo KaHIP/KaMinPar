@@ -37,6 +37,13 @@ PartitionContext create_bipartition_context(
 }
 
 BlockID compute_final_k(const BlockID block, const BlockID current_k, const BlockID input_k) {
+  if (current_k == 1) {
+    return input_k;
+  }
+  if (current_k == input_k) {
+    return 1;
+  }
+
   const BlockID height = math::floor_log2(input_k);
   const BlockID level = math::floor_log2(current_k);
   const BlockID num_heavy_blocks = input_k - (1 << height);
@@ -55,6 +62,8 @@ BlockID compute_final_k(const BlockID block, const BlockID current_k, const Bloc
 
 // @todo replace by compute_final_k, or, if it changes the results, replace by a O(1) computation
 BlockID compute_final_k_legacy(BlockID block, BlockID current_k, BlockID input_k) {
+  return compute_final_k(block, current_k, input_k); // @todo
+
   if (current_k == 1) {
     return input_k;
   }

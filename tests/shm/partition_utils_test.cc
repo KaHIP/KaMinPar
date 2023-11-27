@@ -37,6 +37,14 @@ TEST(PartitionUtilsTest, ElevenBlocks) {
   EXPECT_EQ(compute_final_k(7, 8, 11), 1);
 }
 
+TEST(PartitionUtilsTest, Playground) {
+  for (int k = 5; k < 300; ++k) {
+    std::cout << "k=" << k << " -- " << compute_final_k(0, 2, k) << ", " << compute_final_k(1, 2, k)
+              << " -- " << compute_final_k(0, 4, k) << ", " << compute_final_k(1, 4, k) << ", "
+              << compute_final_k(2, 4, k) << ", " << compute_final_k(3, 4, k) << std::endl;
+  }
+}
+
 TEST(PartitionUtilsTest, TwoBlocksLegacy) {
   EXPECT_EQ(compute_final_k_legacy(0, 1, 2), 2);
 }
