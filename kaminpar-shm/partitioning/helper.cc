@@ -20,14 +20,9 @@ SET_STATISTICS_FROM_GLOBAL();
 void update_partition_context(
     PartitionContext &current_p_ctx, const PartitionedGraph &p_graph, const BlockID input_k
 ) {
-  LOG << "Updating: " << p_graph.k() << ", " << input_k << ", " << current_p_ctx.total_node_weight
-      << ", " << current_p_ctx.max_node_weight;
-
   current_p_ctx.setup(p_graph.graph());
   current_p_ctx.k = p_graph.k();
   current_p_ctx.block_weights.setup(current_p_ctx, input_k);
-
-  LOG << " ---> " << current_p_ctx.block_weights.max(0);
 }
 
 PartitionedGraph uncoarsen_once(
@@ -86,6 +81,11 @@ void extend_partition_recursive(
   std::tie(ks[0], ks[1]) = math::split_integral(k);
   std::array<BlockID, 2> b{b0, b0 + ks[0]};
 
+  DBG << "bipartitioning graph with weight " << graph.total_node_weight() << " = "
+      << p_graph.block_weight(0) << " + " << p_graph.block_weight(1) << " for final k " << final_k
+      << " = " << final_ks[0] << " + " << final_ks[1] << ", for total of " << k << " = " << ks[0]
+      << " + " << ks[1] << " blocks";
+
   KASSERT(ks[0] >= 1u);
   KASSERT(ks[1] >= 1u);
   KASSERT(final_ks[0] >= ks[0]);
@@ -111,6 +111,7 @@ void extend_partition_recursive(
 
     for (const std::size_t i : {0, 1}) {
       if (ks[i] > 1) {
+        DBG << "... recursive";
         extend_partition_recursive(
             subgraphs[i],
             partition,
@@ -123,6 +124,7 @@ void extend_partition_recursive(
             extraction_pool,
             ip_m_ctx_pool
         );
+        DBG << "--> done";
       }
     }
   }

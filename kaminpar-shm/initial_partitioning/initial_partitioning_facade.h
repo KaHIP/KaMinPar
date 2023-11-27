@@ -46,6 +46,8 @@ public:
         _coarsener(&_graph, _i_ctx.coarsening, std::move(_m_ctx.coarsener_m_ctx)) {
     const auto [final_k1, final_k2] = math::split_integral(final_k);
     _p_ctx = create_bipartition_context(_graph, final_k1, final_k2, ctx.partition);
+    DBG << " -> created _p_ctx with max weights: " << _p_ctx.block_weights.max(0) << " + "
+        << _p_ctx.block_weights.max(1);
 
     _refiner =
         create_initial_refiner(_graph, _p_ctx, _i_ctx.refinement, std::move(_m_ctx.refiner_m_ctx));
