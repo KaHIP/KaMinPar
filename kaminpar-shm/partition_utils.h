@@ -65,18 +65,6 @@ PartitionContext create_bipartition_context(
     const Graph &subgraph, BlockID k1, BlockID k2, const PartitionContext &kway_p_ctx
 );
 
-/**
- * Given a block Bi of an intermediate partition with less than k blocks, this function computes the
- * number of blocks f(Bi) into which Bi will be split in the final partition.
- *
- * Consider the following bipartitioning tree
- *
- *
- * @param block The given block.
- * @param current_k The number of blocks in the current partition.
- * @param final_k The number of blocks in the final partition.
- * @return The number of blocks into which `block` must be split for the final partition.
- */
 BlockID compute_final_k(BlockID block, BlockID current_k, BlockID input_k);
 
 BlockID compute_final_k_legacy(BlockID block, BlockID current_k, BlockID input_k);

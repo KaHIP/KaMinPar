@@ -30,7 +30,7 @@ void PartitionContext::setup(const Graph &graph) {
   total_node_weight = graph.total_node_weight();
   total_edge_weight = graph.total_edge_weight();
   max_node_weight = graph.max_node_weight();
-  max_degree = compute_max_degree(graph);
+  max_degree = graph.compute_max_degree();
   setup_block_weights();
 }
 

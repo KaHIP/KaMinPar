@@ -61,7 +61,7 @@ PartitionedGraph bipartition(
 
 void extend_partition_recursive(
     const Graph &graph,
-    BlockArray &partition,
+    StaticArray<BlockID> &partition,
     const BlockID b0,
     const BlockID k,
     const BlockID final_k,
@@ -142,7 +142,7 @@ void extend_partition(
   const auto &positions = extraction.positions;
 
   START_TIMER("Allocation");
-  scalable_vector<BlockArray> subgraph_partitions;
+  scalable_vector<StaticArray<BlockID>> subgraph_partitions;
   for (const auto &subgraph : subgraphs) {
     subgraph_partitions.emplace_back(subgraph.n());
   }

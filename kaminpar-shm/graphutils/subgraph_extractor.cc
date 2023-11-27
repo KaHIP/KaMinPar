@@ -289,7 +289,7 @@ SubgraphExtractionResult extract_subgraphs(
   KASSERT(
       [&] {
         for (const BlockID b : p_graph.blocks()) {
-          if (!validate_graph(subgraphs[b])) {
+          if (!debug::validate_graph(subgraphs[b])) {
             return false;
           }
         }
@@ -304,7 +304,7 @@ SubgraphExtractionResult extract_subgraphs(
 
 PartitionedGraph copy_subgraph_partitions(
     PartitionedGraph p_graph,
-    const scalable_vector<BlockArray> &p_subgraph_partitions,
+    const scalable_vector<StaticArray<BlockID>> &p_subgraph_partitions,
     const BlockID k_prime,
     const BlockID input_k,
     const scalable_vector<NodeID> &mapping
@@ -340,7 +340,7 @@ PartitionedGraph copy_subgraph_partitions(
 
   PartitionedGraph new_p_graph(p_graph.graph(), k_prime, std::move(partition));
   DBG << "Statistics after copying the subgraph partitions:";
-  DBG << "  Block weights: " << new_p_graph.block_weights();
+  DBG << "  Block weights: " << new_p_graph.raw_block_weights();
   DBG << "  Cut:           " << metrics::edge_cut(new_p_graph);
   DBG << "  Imbalance:     " << metrics::imbalance(new_p_graph);
 

@@ -106,10 +106,15 @@ void Graph::update_total_node_weight() {
   }
 }
 
+EdgeID Graph::compute_max_degree() const {
+  return parallel::max_difference(_nodes.begin(), _nodes.end());
+}
+
 //
 // Utility debug functions
 //
 
+namespace debug {
 void print_graph(const Graph &graph) {
   for (const NodeID u : graph.nodes()) {
     LLOG << "L" << u << " NW" << graph.node_weight(u) << " | ";
@@ -169,8 +174,5 @@ bool validate_graph(
   }
   return true;
 }
-
-EdgeID compute_max_degree(const Graph &graph) {
-  return parallel::max_difference(graph.raw_nodes().begin(), graph.raw_nodes().end());
-}
+} // namespace debug
 } // namespace kaminpar::shm

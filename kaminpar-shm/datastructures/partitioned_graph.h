@@ -7,17 +7,16 @@
  ******************************************************************************/
 #pragma once
 
-#include "kaminpar-shm/datastructures/graph.h"
+#include <utility>
+#include <vector>
 
+#include "kaminpar-shm/datastructures/graph.h"
+#include "kaminpar-shm/datastructures/graph_delegate.h"
+
+#include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/parallel/atomic.h"
 
 namespace kaminpar::shm {
-using BlockArray = StaticArray<BlockID>;
-using BlockWeightArray = StaticArray<BlockWeight>;
-
-struct NoBlockWeights {};
-constexpr NoBlockWeights no_block_weights;
-
 /*!
  * Extends a kaminpar::Graph with a graph partition.
  *
@@ -42,8 +41,6 @@ public:
   PartitionedGraph(
       tag::Sequential, const Graph &graph, BlockID k, StaticArray<BlockID> partition = {}
   );
-
-  PartitionedGraph(NoBlockWeights, const Graph &graph, BlockID k, StaticArray<BlockID> partition);
 
   PartitionedGraph() : GraphDelegate(nullptr) {}
 
@@ -132,20 +129,71 @@ public:
     return success;
   }
 
-  // clang-format off
-  [[nodiscard]] inline IotaRange<BlockID> blocks() const { return {static_cast<BlockID>(0), k()}; }
-  [[nodiscard]] inline BlockID block(const NodeID u) const { return __atomic_load_n(&_partition[u], __ATOMIC_RELAXED); }
-  template <typename Lambda> inline void pfor_blocks(Lambda &&l) const { tbb::parallel_for(static_cast<BlockID>(0), k(), std::forward<Lambda>(l)); }
-  [[nodiscard]] inline NodeWeight block_weight(const BlockID b) const { KASSERT(b < k()); return __atomic_load_n(&_block_weights[b], __ATOMIC_RELAXED); } 
-  void set_block_weight(const BlockID b, const BlockWeight weight) { KASSERT(b < k()); __atomic_store_n(&_block_weights[b], weight, __ATOMIC_RELAXED); } 
-  [[nodiscard]] inline const auto &block_weights() const { return _block_weights; }
-  [[nodiscard]] inline auto &&take_block_weights() { return std::move(_block_weights); }
-  [[nodiscard]] inline BlockID heaviest_block() const { return std::max_element(_block_weights.begin(), _block_weights.end()) - _block_weights.begin(); }
-  [[nodiscard]] inline BlockID lightest_block() const { return std::min_element(_block_weights.begin(), _block_weights.end()) - _block_weights.begin(); }
-  [[nodiscard]] inline BlockID k() const { return _k; }
-  [[nodiscard]] inline const auto &partition() const { return _partition; }
-  [[nodiscard]] inline auto &&take_partition() { return std::move(_partition); }
-  // clang-format on
+  //
+  // Raw partition access
+  //
+
+  [[nodiscard]] inline const StaticArray<BlockID> &raw_partition() const {
+    return _partition;
+  }
+
+  [[nodiscard]] inline StaticArray<BlockID> &&take_partition() {
+    return std::move(_partition);
+  }
+
+  [[nodiscard]] inline const StaticArray<BlockWeight> &raw_block_weights() const {
+    return _block_weights;
+  }
+
+  [[nodiscard]] inline StaticArray<BlockWeight> &&take_block_weights() {
+    return std::move(_block_weights);
+  }
+
+  //
+  // Block weights
+  //
+
+  [[nodiscard]] inline BlockWeight block_weight(const BlockID b) const {
+    KASSERT(b < k());
+    return __atomic_load_n(&_block_weights[b], __ATOMIC_RELAXED);
+  }
+
+  void set_block_weight(const BlockID b, const BlockWeight weight) {
+    KASSERT(b < k());
+    __atomic_store_n(&_block_weights[b], weight, __ATOMIC_RELAXED);
+  }
+
+  //
+  // Parallel iteration
+  //
+
+  template <typename Lambda> inline void pfor_blocks(Lambda &&l) const {
+    tbb::parallel_for(static_cast<BlockID>(0), k(), std::forward<Lambda>(l));
+  }
+
+  //
+  // Sequential iteration
+  //
+
+  [[nodiscard]] inline IotaRange<BlockID> blocks() const {
+    return {static_cast<BlockID>(0), k()};
+  }
+
+  //
+  // Partition access
+  //
+
+  [[nodiscard]] inline BlockID k() const {
+    return _k;
+  }
+
+  [[nodiscard]] inline BlockID block(const NodeID u) const {
+    return __atomic_load_n(&_partition[u], __ATOMIC_RELAXED);
+  }
+
+  //
+  // Final k's
+  //
 
 private:
   void init_block_weights_par();

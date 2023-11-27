@@ -34,17 +34,6 @@ PartitionedGraph::PartitionedGraph(
   init_block_weights_seq();
 }
 
-PartitionedGraph::PartitionedGraph(
-    NoBlockWeights, const Graph &graph, const BlockID k, StaticArray<BlockID> partition
-)
-    : GraphDelegate(&graph),
-      _k(k),
-      _partition(std::move(partition)) {
-  if (graph.n() > 0 && _partition.empty()) {
-    _partition.resize(_graph->n(), kInvalidBlockID);
-  }
-}
-
 void PartitionedGraph::init_block_weights_par() {
   tbb::enumerable_thread_specific<StaticArray<BlockWeight>> block_weights_ets([&] {
     return StaticArray<BlockWeight>(k());

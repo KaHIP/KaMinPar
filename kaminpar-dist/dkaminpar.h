@@ -82,7 +82,6 @@ enum class RefinementAlgorithm {
   NOOP,
   BATCHED_LP,
   COLORED_LP,
-  LOCAL_FM,
   GLOBAL_FM,
   JET_REFINER,
   JET_BALANCER,
@@ -192,12 +191,6 @@ struct LabelPropagationRefinementContext {
 struct FMRefinementContext {
   double alpha;
 
-  // -- local FM --
-  bool overlap_regions;
-  NodeID bound_degree;
-  bool contract_border;
-
-  // -- mostly global FM, some also used by local FM --
   bool use_independent_seeds;
   bool use_bfs_seeds_as_fm_seeds;
 

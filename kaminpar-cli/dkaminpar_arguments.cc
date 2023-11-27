@@ -160,25 +160,6 @@ CLI::Option_group *create_fm_refinement_options(CLI::App *app, Context &ctx) {
         "--r-fm-alpha", ctx.refinement.fm.alpha, "Alpha parameter for the adaptive stopping rule."
   )
       ->capture_default_str();
-  fm->add_flag(
-        "--r-fm-overlap-regions",
-        ctx.refinement.fm.overlap_regions,
-        "Allow search regions to overlap."
-  )
-      ->capture_default_str();
-  fm->add_option(
-        "--r-fm-bound-degree",
-        ctx.refinement.fm.bound_degree,
-        "Add at most this many neighbors of a high-degree node to the search "
-        "region."
-  )
-      ->capture_default_str();
-  fm->add_flag(
-        "--r-fm-contract-border",
-        ctx.refinement.fm.contract_border,
-        "Contract the exterior of the search graph"
-  )
-      ->capture_default_str();
 
   fm->add_flag("--r-fm-independent-seeds", ctx.refinement.fm.use_independent_seeds)
       ->capture_default_str();
