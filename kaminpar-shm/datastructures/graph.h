@@ -256,6 +256,33 @@ public:
     __builtin_unreachable();
   }
 
+  [[nodiscard]] inline decltype(auto)
+  neighbors(const NodeID u, const NodeID max_neigbor_count) const {
+    if (const auto *graph = dynamic_cast<const CSRGraph *>(_underlying_graph.get());
+        graph != nullptr) {
+      return graph->neighbors(u, max_neigbor_count);
+    }
+
+    if (const auto *graph = dynamic_cast<const CompressedGraph *>(_underlying_graph.get());
+        graph != nullptr) {
+      // TODO: Compressed Graph
+      return graph->neighbors(u);
+    }
+
+    __builtin_unreachable();
+  }
+
+  template <typename Lambda>
+  inline void pfor_neighbors(const NodeID u, const NodeID max_neighbours, Lambda &&l) const {
+    if (const auto *graph = dynamic_cast<const CSRGraph *>(_underlying_graph.get());
+        graph != nullptr) {
+      graph->pfor_neighbors(u, max_neighbours, std::forward<Lambda>(l));
+      return;
+    }
+
+    // TODO: Compressed Graph
+  }
+
   // Graph permutation
   inline void set_permutation(StaticArray<NodeID> permutation) final {
     _underlying_graph->set_permutation(std::move(permutation));

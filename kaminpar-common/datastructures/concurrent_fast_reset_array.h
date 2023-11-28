@@ -77,7 +77,7 @@ public:
 
   /*!
    * Combines the used entries of each thread, so that the combined entries can be used for
-   * iterating and clearing. IT also clears the used entries of each thread.
+   * iterating and clearing. It also clears the used entries of each thread.
    */
   void combine() {
     for (std::vector<size_type> &used_entries : _used_entries_ets) {

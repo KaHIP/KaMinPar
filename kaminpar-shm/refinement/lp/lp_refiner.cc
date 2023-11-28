@@ -51,10 +51,11 @@ public:
     _p_ctx = &p_ctx;
     Base::initialize(_graph, _p_ctx->k);
 
+    SCOPED_TIMER("Label Propagation");
     const std::size_t max_iterations =
         _r_ctx.lp.num_iterations == 0 ? kInfiniteIterations : _r_ctx.lp.num_iterations;
     for (std::size_t iteration = 0; iteration < max_iterations; ++iteration) {
-      SCOPED_TIMER("Label Propagation");
+      SCOPED_TIMER("Iteration", std::to_string(iteration));
       if (perform_iteration() == 0) {
         return false;
       }

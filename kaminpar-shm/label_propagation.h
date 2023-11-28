@@ -59,6 +59,10 @@ struct LabelPropagationConfig {
   // threshold are handled sequentially, but each neighbourhood is processed in parallel.
   static constexpr std::size_t kDegreeThreshold = 10000;
 
+  // Only use two phases in an iteration for label propagations if the rating map would contain more
+  // entries than the threshold.
+  static constexpr std::size_t kRatingMapThreshold = 1024;
+
   // If true, we count the number of empty clusters
   static constexpr bool kTrackClusterCount = false;
 
@@ -315,41 +319,26 @@ protected:
     bool is_interface_node = false;
 
     if constexpr (parallel) {
-      const EdgeID from = _graph->first_edge(u);
-      const EdgeID to = from + std::min(_graph->degree(u), _max_num_neighbors);
+      _graph->pfor_neighbors(u, _max_num_neighbors, [&](const EdgeID e, const NodeID v) {
+        if (derived_accept_neighbor(u, v)) {
+          const ClusterID v_cluster = derived_cluster(v);
+          const EdgeWeight rating = _graph->edge_weight(e);
 
-      tbb::parallel_for(tbb::blocked_range<NodeID>(from, to), [&](const auto &edges) {
-        std::vector<ClusterID> &local_used_entries = map.local_used_entries();
+          const EdgeWeight prev_rating =
+              __atomic_fetch_add(&map[v_cluster], rating, __ATOMIC_RELAXED);
+          if (prev_rating == 0) {
+            map.local_used_entries().push_back(v_cluster);
+          }
 
-        const EdgeID last_edge = edges.end();
-        for (EdgeID e = edges.begin(); e != last_edge; ++e) {
-          const NodeID v = _graph->edge_target(e);
-
-          if (derived_accept_neighbor(u, v)) {
-            const ClusterID v_cluster = derived_cluster(v);
-            const EdgeWeight rating = _graph->edge_weight(e);
-
-            const EdgeWeight prev_rating =
-                __atomic_fetch_add(&map[v_cluster], rating, __ATOMIC_RELAXED);
-            if (prev_rating == 0) {
-              local_used_entries.push_back(v_cluster);
-            }
-
-            if constexpr (Config::kUseLocalActiveSetStrategy) {
-              is_interface_node |= v >= _num_active_nodes;
-            }
+          if constexpr (Config::kUseLocalActiveSetStrategy) {
+            is_interface_node |= v >= _num_active_nodes;
           }
         }
       });
 
       map.combine();
     } else {
-      EdgeID considered_neighbors = 0;
-      for (const auto [e, v] : _graph->neighbors(u)) {
-        if (considered_neighbors++ >= _max_num_neighbors) {
-          break;
-        }
-
+      for (const auto [e, v] : _graph->neighbors(u, _max_num_neighbors)) {
         if (derived_accept_neighbor(u, v)) {
           const ClusterID v_cluster = derived_cluster(v);
           const EdgeWeight rating = _graph->edge_weight(e);
@@ -826,6 +815,7 @@ protected:
     parallel::Atomic<std::size_t> next_chunk = 0;
 
     bool two_iterations =
+        Base::_initial_num_clusters >= Config::kRatingMapThreshold &&
         dynamic_cast<const shm::CSRGraph *>(_graph->underlying_graph()) != nullptr;
 
     START_HEAP_PROFILER("First iteration");
@@ -863,7 +853,7 @@ protected:
           if (degree < _max_degree &&
               ((!Config::kUseActiveSetStrategy && !Config::kUseLocalActiveSetStrategy) ||
                _active[u].load(std::memory_order_relaxed))) {
-            if (degree >= Config::kDegreeThreshold && two_iterations) {
+            if (two_iterations && degree >= Config::kDegreeThreshold) {
               high_degree_nodes.push_back(u);
             } else {
               const auto [moved_node, emptied_cluster] =
