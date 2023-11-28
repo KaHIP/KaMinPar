@@ -315,7 +315,7 @@ auto FMRefiner<DeltaPartitionedGraph, GainCache>::dbg_build_prev_p_graph(
     const PartitionedGraph &p_graph, Batches batches
 ) const -> std::pair<PartitionedGraph, FMRefiner::Batches> {
   StaticArray<BlockID> prev_partition(p_graph.n());
-  auto &next_partition = p_graph.partition();
+  auto &next_partition = p_graph.raw_partition();
   std::copy(next_partition.begin(), next_partition.end(), prev_partition.begin());
 
   // Rollback partition to before the moves in the batches where applied

@@ -13,6 +13,7 @@
 #include <kassert/kassert.hpp>
 
 #include "kaminpar-shm/datastructures/graph.h"
+#include "kaminpar-shm/partition_utils.h"
 
 #include "kaminpar-common/asserting_cast.h"
 #include "kaminpar-common/console_io.h"
@@ -29,7 +30,7 @@ void PartitionContext::setup(const Graph &graph) {
   total_node_weight = graph.total_node_weight();
   total_edge_weight = graph.total_edge_weight();
   max_node_weight = graph.max_node_weight();
-  max_degree = compute_max_degree(graph);
+  max_degree = graph.compute_max_degree();
   setup_block_weights();
 }
 
@@ -75,9 +76,7 @@ void BlockWeightsContext::setup(const PartitionContext &p_ctx) {
   });
 }
 
-void BlockWeightsContext::setup(
-    const PartitionContext &p_ctx, const std::vector<BlockID> &final_ks
-) {
+void BlockWeightsContext::setup(const PartitionContext &p_ctx, const BlockID input_k) {
   KASSERT(p_ctx.k != kInvalidBlockID, "PartitionContext::k not initialized");
   KASSERT(
       p_ctx.total_node_weight != kInvalidNodeWeight,
@@ -87,25 +86,21 @@ void BlockWeightsContext::setup(
       p_ctx.max_node_weight != kInvalidNodeWeight,
       "PartitionContext::max_node_weight not initialized"
   );
-  KASSERT(
-      p_ctx.k == final_ks.size(),
-      "bad number of blocks: got " << final_ks.size() << ", expected " << p_ctx.k
-  );
 
-  const BlockID final_k =
-      std::accumulate(final_ks.begin(), final_ks.end(), static_cast<BlockID>(0));
-  const double block_weight = 1.0 * p_ctx.total_node_weight / final_k;
+  const double block_weight = 1.0 * p_ctx.total_node_weight / input_k;
 
   _max_block_weights.resize(p_ctx.k);
   _perfectly_balanced_block_weights.resize(p_ctx.k);
 
-  tbb::parallel_for<BlockID>(0, final_ks.size(), [&](const BlockID b) {
-    _perfectly_balanced_block_weights[b] = std::ceil(final_ks[b] * block_weight);
+  tbb::parallel_for<BlockID>(0, p_ctx.k, [&](const BlockID b) {
+    const BlockID final_k = compute_final_k_legacy(b, p_ctx.k, input_k);
+
+    _perfectly_balanced_block_weights[b] = std::ceil(final_k * block_weight);
 
     const auto max_block_weight =
         static_cast<BlockWeight>((1.0 + p_ctx.epsilon) * _perfectly_balanced_block_weights[b]);
 
-    // relax balance constraint by max_node_weight on coarse levels only
+    // Relax balance constraint by max_node_weight on coarse levels only
     if (p_ctx.max_node_weight == 1) {
       _max_block_weights[b] = max_block_weight;
     } else {

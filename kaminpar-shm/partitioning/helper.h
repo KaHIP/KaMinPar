@@ -49,10 +49,16 @@ using TemporaryGraphExtractionBufferPool =
     tbb::enumerable_thread_specific<graph::TemporarySubgraphMemory>;
 
 namespace helper {
-void update_partition_context(PartitionContext &p_ctx, const PartitionedGraph &p_graph);
+void update_partition_context(
+    PartitionContext &p_ctx, const PartitionedGraph &p_graph, BlockID input_k
+);
 
-PartitionedGraph
-uncoarsen_once(Coarsener *coarsener, PartitionedGraph p_graph, PartitionContext &current_p_ctx);
+PartitionedGraph uncoarsen_once(
+    Coarsener *coarsener,
+    PartitionedGraph p_graph,
+    PartitionContext &current_p_ctx,
+    const PartitionContext &input_p_ctx
+);
 
 PartitionedGraph bipartition(
     const Graph *graph,

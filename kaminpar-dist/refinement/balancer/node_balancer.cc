@@ -16,10 +16,10 @@
 #include "kaminpar-dist/graphutils/synchronization.h"
 #include "kaminpar-dist/metrics.h"
 #include "kaminpar-dist/refinement/balancer/reductions.h"
+#include "kaminpar-dist/timer.h"
 
 #include "kaminpar-common/math.h"
 #include "kaminpar-common/random.h"
-#include "kaminpar-common/timer.h"
 
 #define HEAVY assert::heavy
 
@@ -45,10 +45,13 @@ NodeBalancer::NodeBalancer(
           p_graph, p_ctx, _nb_ctx.par_enable_positive_gain_buckets, _nb_ctx.par_gain_bucket_base
       ),
       _cached_cutoff_buckets(_p_graph.k()),
-      _gain_calculator(p_graph) {}
+      _gain_calculator(_p_ctx.k) {
+  _gain_calculator.init(_p_graph);
+}
 
 void NodeBalancer::initialize() {
-  SCOPED_TIMER("Node balancer");
+  TIMER_BARRIER(_p_graph.communicator());
+  SCOPED_TIMER("Node Balancer");
   SCOPED_TIMER("Initialization");
 
   // Only initialize the balancer is the partition is actually imbalanced
@@ -81,9 +84,11 @@ void NodeBalancer::initialize() {
     const BlockWeight overload = block_overload(from);
 
     if (overload > 0) { // Node in overloaded block
-      const auto [gain, max_gainer] = _gain_calculator.compute_relative_gain(u, _p_ctx);
+      const auto max_gainer = _gain_calculator.compute_max_gainer(u, _p_ctx);
+      const double rel_gain = max_gainer.relative_gain();
+
       const bool need_more_nodes = (pq_weight[from] < overload);
-      if (need_more_nodes || pq[from].empty() || gain > pq[from].peek_key()) {
+      if (need_more_nodes || pq[from].empty() || rel_gain > pq[from].peek_key()) {
         if (!need_more_nodes) {
           const NodeWeight u_weight = _p_graph.node_weight(u);
           const NodeWeight min_weight = _p_graph.node_weight(pq[from].peek_id());
@@ -91,7 +96,7 @@ void NodeBalancer::initialize() {
             pq[from].pop();
           }
         }
-        pq[from].push(u, gain);
+        pq[from].push(u, rel_gain);
         _marker.set(u);
       }
     }
@@ -115,7 +120,8 @@ void NodeBalancer::initialize() {
 }
 
 bool NodeBalancer::refine() {
-  SCOPED_TIMER("Balancer");
+  TIMER_BARRIER(_p_graph.communicator());
+  SCOPED_TIMER("Node Balancer");
 
   // Only balance the partition if it is infeasible
   if (metrics::is_feasible(_p_graph, _p_ctx)) {
@@ -131,6 +137,8 @@ bool NodeBalancer::refine() {
       is_sequential_balancing_enabled() ? metrics::imbalance_l1(_p_graph, _p_ctx) : 0.0;
 
   for (int round = 0; round < _nb_ctx.max_num_rounds; round++) {
+    TIMER_BARRIER(_p_graph.communicator());
+
     if (metrics::is_feasible(_p_graph, _p_ctx)) {
       break;
     }
@@ -255,6 +263,7 @@ bool NodeBalancer::perform_sequential_round() {
 
   KASSERT(graph::debug::validate_partition(_p_graph), "balancer produced invalid partition", HEAVY);
 
+  TIMER_BARRIER(_p_graph.communicator());
   return num_winners > 0;
 }
 
@@ -332,7 +341,9 @@ std::vector<NodeBalancer::Candidate> NodeBalancer::pick_sequential_candidates() 
       _pq.pop_max(from);
       _pq_weight[from] -= u_weight;
 
-      auto [actual_relative_gain, to] = _gain_calculator.compute_relative_gain(u, _p_ctx);
+      const auto max_gainer = _gain_calculator.compute_max_gainer(u, _p_ctx);
+      const double actual_relative_gain = max_gainer.relative_gain();
+      const BlockID to = max_gainer.block;
 
       if (relative_gain == actual_relative_gain) {
         Candidate candidate{
@@ -381,9 +392,8 @@ BlockWeight NodeBalancer::block_underload(const BlockID block) const {
 
 bool NodeBalancer::try_pq_insertion(const BlockID b, const NodeID u) {
   KASSERT(b == _p_graph.block(u));
-
-  const auto [rel_gain, to] = _gain_calculator.compute_relative_gain(u, _p_ctx);
-  return try_pq_insertion(b, u, _p_graph.node_weight(u), rel_gain);
+  const auto max_gainer = _gain_calculator.compute_max_gainer(u, _p_ctx);
+  return try_pq_insertion(b, u, _p_graph.node_weight(u), max_gainer.relative_gain());
 }
 
 bool NodeBalancer::try_pq_insertion(
@@ -421,8 +431,8 @@ bool NodeBalancer::perform_parallel_round() {
   for (const BlockID from : _p_graph.blocks()) {
     for (const auto &[node, pq_gain] : _pq.elements(from)) {
       KASSERT(_p_graph.block(node) == from);
-      const auto [actual_gain, to] = _gain_calculator.compute_relative_gain(node, _p_ctx);
-      _buckets.add(from, _p_graph.node_weight(node), actual_gain);
+      const auto max_gainer = _gain_calculator.compute_max_gainer(node, _p_ctx);
+      _buckets.add(from, _p_graph.node_weight(node), max_gainer.relative_gain());
     }
   }
   const auto &cutoff_buckets =
@@ -442,7 +452,9 @@ bool NodeBalancer::perform_parallel_round() {
       }
 
       // @todo avoid double gain recomputation
-      const auto [actual_gain, to] = _gain_calculator.compute_relative_gain(node, _p_ctx);
+      const auto max_gainer = _gain_calculator.compute_max_gainer(node, _p_ctx);
+      const double actual_gain = max_gainer.relative_gain();
+      const BlockID to = max_gainer.block;
       const auto bucket = _buckets.compute_bucket(actual_gain);
 
       if (bucket < cutoff_buckets[from]) {
@@ -573,6 +585,7 @@ bool NodeBalancer::perform_parallel_round() {
     );
   };
 
+  TIMER_BARRIER(_p_graph.communicator());
   return true;
 }
 

@@ -38,7 +38,7 @@ private:
 
 class NodeBalancer : public GlobalRefiner {
   SET_STATISTICS_FROM_GLOBAL();
-  SET_DEBUG(false);
+  SET_DEBUG(true);
 
   struct Candidate {
     GlobalNodeID id;
@@ -96,7 +96,7 @@ private:
   Marker<> _marker;
 
   Buckets _buckets;
-  GainCalculator _gain_calculator;
+  RandomizedGainCalculator _gain_calculator;
 
   bool _stalled = false;
 

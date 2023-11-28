@@ -38,7 +38,7 @@ PartitionedGraph AsyncInitialPartitioner::partition_recursive(
   auto coarsener = factory::create_coarsener(*graph, _input_ctx.coarsening);
   const bool shrunk = helper::coarsen_once(coarsener.get(), graph, _input_ctx, p_ctx);
   PartitionedGraph p_graph = split_and_join(coarsener.get(), p_ctx, !shrunk, num_threads);
-  p_graph = helper::uncoarsen_once(coarsener.get(), std::move(p_graph), p_ctx);
+  p_graph = helper::uncoarsen_once(coarsener.get(), std::move(p_graph), p_ctx, _input_ctx.partition);
 
   // The Context object is used to pre-allocate memory for the finest graph of the input hierarchy
   // Since this refiner is never used for the finest graph, we need to adjust the context to

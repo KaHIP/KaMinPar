@@ -17,6 +17,11 @@
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 
 namespace kaminpar::dist::graph {
+std::unique_ptr<shm::Graph> allgather(const DistributedGraph &graph);
+
+std::pair<std::unique_ptr<shm::Graph>, std::unique_ptr<shm::PartitionedGraph>>
+allgather(const DistributedPartitionedGraph &p_graph);
+
 shm::Graph replicate_everywhere(const DistributedGraph &graph);
 
 DistributedGraph replicate(const DistributedGraph &graph, int num_replications);

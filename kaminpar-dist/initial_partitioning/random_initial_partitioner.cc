@@ -21,7 +21,6 @@ shm::PartitionedGraph RandomInitialPartitioner::initial_partition(
     const shm::Graph &graph, const PartitionContext &p_ctx
 ) {
   StaticArray<BlockID> partition(graph.n());
-  std::vector<BlockID> final_k(graph.n(), 1);
 
   tbb::parallel_for(tbb::blocked_range<NodeID>(0, graph.n()), [&](const auto &r) {
     auto &rand = Random::instance();
@@ -30,6 +29,6 @@ shm::PartitionedGraph RandomInitialPartitioner::initial_partition(
     }
   });
 
-  return {graph, p_ctx.k, std::move(partition), std::move(final_k)};
+  return {graph, p_ctx.k, std::move(partition)};
 }
 } // namespace kaminpar::dist

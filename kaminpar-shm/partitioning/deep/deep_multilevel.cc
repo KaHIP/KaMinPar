@@ -12,6 +12,11 @@
 #include "kaminpar-shm/partitioning/deep/sync_initial_partitioning.h"
 
 namespace kaminpar::shm {
+namespace {
+SET_DEBUG(false);
+SET_STATISTICS(false);
+} // namespace
+
 using namespace partitioning;
 
 DeepMultilevelPartitioner::DeepMultilevelPartitioner(
@@ -48,7 +53,9 @@ PartitionedGraph DeepMultilevelPartitioner::partition() {
 }
 
 PartitionedGraph DeepMultilevelPartitioner::uncoarsen_once(PartitionedGraph p_graph) {
-  return helper::uncoarsen_once(_coarsener.get(), std::move(p_graph), _current_p_ctx);
+  return helper::uncoarsen_once(
+      _coarsener.get(), std::move(p_graph), _current_p_ctx, _input_ctx.partition
+  );
 }
 
 void DeepMultilevelPartitioner::refine(PartitionedGraph &p_graph) {
@@ -174,7 +181,7 @@ PartitionedGraph DeepMultilevelPartitioner::initial_partition(const Graph *graph
     __builtin_unreachable();
   }();
   ENABLE_TIMERS();
-  helper::update_partition_context(_current_p_ctx, p_graph);
+  helper::update_partition_context(_current_p_ctx, p_graph, _input_ctx.partition.k);
 
   // Print some metrics for the initial partition.
   LOG << "  Number of blocks: " << p_graph.k();

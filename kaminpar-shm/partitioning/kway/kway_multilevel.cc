@@ -46,7 +46,9 @@ PartitionedGraph KWayMultilevelPartitioner::uncoarsen(PartitionedGraph p_graph) 
   while (!_coarsener->empty()) {
     LOG;
     LOG << "Uncoarsening -> Level " << _coarsener.get()->size();
-    p_graph = helper::uncoarsen_once(_coarsener.get(), std::move(p_graph), _current_p_ctx);
+    p_graph = helper::uncoarsen_once(
+        _coarsener.get(), std::move(p_graph), _current_p_ctx, _input_ctx.partition
+    );
     refine(p_graph);
   }
 
@@ -110,7 +112,7 @@ PartitionedGraph KWayMultilevelPartitioner::initial_partition(const Graph *graph
   DISABLE_TIMERS();
   PartitionedGraph p_graph =
       helper::bipartition(graph, _input_ctx.partition.k, _input_ctx, _ip_m_ctx_pool);
-  helper::update_partition_context(_current_p_ctx, p_graph);
+  helper::update_partition_context(_current_p_ctx, p_graph, _input_ctx.partition.k);
   helper::extend_partition(
       p_graph,
       _input_ctx.partition.k,
@@ -120,7 +122,7 @@ PartitionedGraph KWayMultilevelPartitioner::initial_partition(const Graph *graph
       _ip_extraction_pool,
       _ip_m_ctx_pool
   );
-  helper::update_partition_context(_current_p_ctx, p_graph);
+  helper::update_partition_context(_current_p_ctx, p_graph, _input_ctx.partition.k);
   ENABLE_TIMERS();
 
   // Print some metrics for the initial partition.

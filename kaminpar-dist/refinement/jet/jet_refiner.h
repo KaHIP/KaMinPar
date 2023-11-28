@@ -13,7 +13,9 @@
 #include "kaminpar-dist/context.h"
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
+#include "kaminpar-dist/refinement/gain_calculator.h"
 #include "kaminpar-dist/refinement/refiner.h"
+#include "kaminpar-dist/refinement/snapshooter.h"
 
 namespace kaminpar::dist {
 class JetRefinerFactory : public GlobalRefinerFactory {
@@ -52,11 +54,26 @@ public:
   bool refine() final;
 
 private:
-  const Context &_ctx;
+  void find_moves();
+  void filter_bad_moves();
+  void move_locked_nodes();
+  void synchronize_ghost_node_move_candidates();
+  void synchronize_ghost_node_labels();
+  void apply_block_weight_deltas();
 
+  const Context &_ctx;
+  const JetRefinementContext &_jet_ctx;
   DistributedPartitionedGraph &_p_graph;
   const PartitionContext &_p_ctx;
 
-  std::unique_ptr<GlobalRefinerFactory> _balancer_factory;
+  BestPartitionSnapshooter _snapshooter;
+  RandomizedGainCalculator _gain_calculator;
+  StaticArray<std::pair<EdgeWeight, BlockID>> _gains_and_targets;
+  StaticArray<BlockWeight> _block_weight_deltas;
+  StaticArray<std::uint8_t> _locked;
+
+  std::unique_ptr<GlobalRefiner> _balancer;
+
+  double _negative_gain_factor;
 };
 } // namespace kaminpar::dist

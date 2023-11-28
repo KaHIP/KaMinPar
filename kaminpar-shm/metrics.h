@@ -101,9 +101,10 @@ bool is_feasible(const PartitionedGraphType &p_graph, const BlockID input_k, con
   return std::all_of(
       p_graph.blocks().begin(),
       p_graph.blocks().end(),
-      [&p_graph, max_block_weight](const BlockID b) {
+      [&p_graph, input_k, max_block_weight](const BlockID b) {
+        const BlockID final_kb = compute_final_k_legacy(b, p_graph.k(), input_k);
         return p_graph.block_weight(b) <=
-               max_block_weight * p_graph.final_k(b) + p_graph.max_node_weight();
+               max_block_weight * final_kb + p_graph.max_node_weight();
       }
   );
 }

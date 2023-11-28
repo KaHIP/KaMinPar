@@ -152,12 +152,8 @@ Context create_default_context() {
           {
               .graph_name = "",
 
-              .dump_dir = "",
-
-              .include_num_threads_in_filename = true,
-              .include_seed_in_filename = true,
-              .include_epsilon_in_filename = true,
-              .include_k_in_filename = true,
+              .dump_graph_filename = "graph_n%n_m%m_k%k_seed%seed.graph",
+              .dump_partition_filename = "part_n%n_m%m_k%k_seed%seed.graph",
 
               .dump_toplevel_graph = false,
               .dump_toplevel_partition = false,

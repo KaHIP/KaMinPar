@@ -26,6 +26,7 @@ option(KAMINPAR_BUILD_BENCHMARKS "Build benchmark binaries." OFF)
 # Control how to build
 ######################
 option(KAMINPAR_ENABLE_STATISTICS "Generate and output detailed statistics." ON)
+option(KAMINPAR_ENABLE_TIMER_BARRIERS "Add additional MPI_Barrier() instructions for more accurate time measurements." ON)
 
 option(KAMINPAR_BUILD_WITH_ASAN "Enable address sanitizer." OFF)
 option(KAMINPAR_BUILD_WITH_MTUNE_NATIVE "Build with -mtune=native." ON)
@@ -119,6 +120,13 @@ if (KAMINPAR_ENABLE_STATISTICS)
     message(STATUS "Statistics: enabled")
 else ()
     message(STATIS "Statistics: disabled")
+endif ()
+
+if (KAMINPAR_ENABLE_TIMER_BARRIERS)
+    list(APPEND KAMINPAR_DEFINITIONS "-DKAMINPAR_ENABLE_TIMER_BARRIERS")
+    message(STATUS "Timer barriers: enabled")
+else ()
+    message(STATUS "Timer barriers: disabled")
 endif ()
 
 if (KAMINPAR_64BIT_NODE_IDS OR KAMINPAR_64BIT_IDS)
@@ -233,8 +241,6 @@ if ((KAMINPAR_BUILD_DISTRIBUTED AND KAMINPAR_BUILD_APPS) OR KAMINPAR_BUILD_BENCH
     set(KAGEN_BUILD_EXAMPLES OFF)
     add_subdirectory(external/KaGen EXCLUDE_FROM_ALL)
 endif ()
-
-message("--------------------------------------------------------------------------------")
 
 ################################################################################
 ## Add targets in subdirectories                                              ##

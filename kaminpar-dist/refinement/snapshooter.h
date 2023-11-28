@@ -17,34 +17,56 @@ class PartitionSnapshooter {
 public:
   virtual ~PartitionSnapshooter() = default;
 
-  virtual void update() = 0;
-  virtual void rollback() = 0;
+  virtual void init(const DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) = 0;
+
+  virtual void
+  update(const DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) = 0;
+
+  virtual void update(
+      const DistributedPartitionedGraph &p_graph,
+      const PartitionContext &p_ctx,
+      EdgeWeight cut,
+      double l1
+  ) = 0;
+
+  virtual void rollback(DistributedPartitionedGraph &p_graph) = 0;
 };
 
 class BestPartitionSnapshooter : public PartitionSnapshooter {
 public:
-  BestPartitionSnapshooter(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx);
+  BestPartitionSnapshooter(NodeID max_total_n, BlockID max_k);
 
-  void update() final;
-  void rollback() final;
+  void init(const DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
+
+  void update(const DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
+
+  void update(
+      const DistributedPartitionedGraph &p_graph,
+      const PartitionContext &p_ctx,
+      EdgeWeight cut,
+      double l1
+  ) final;
+
+  void rollback(DistributedPartitionedGraph &p_graph) final;
 
 private:
-  void copy_partition();
-
-  DistributedPartitionedGraph &_p_graph;
-  const PartitionContext &_p_ctx;
+  void copy_partition(const DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx);
 
   double _best_l1;
   EdgeWeight _best_cut;
   StaticArray<BlockID> _best_partition;
   StaticArray<BlockWeight> _best_block_weights;
-
   bool _last_is_best;
 };
 
 class DummyPartitionSnapshooter : public PartitionSnapshooter {
 public:
-  void update() final;
-  void rollback() final;
+  void init(const DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
+
+  void update(const DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
+
+  void update(const DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx, EdgeWeight cut, double l1) final;
+
+  void rollback(DistributedPartitionedGraph &p_graph) final;
 };
 } // namespace kaminpar::dist

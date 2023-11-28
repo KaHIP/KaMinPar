@@ -99,7 +99,7 @@ bool FMRefiner::refine() {
   std::unique_ptr<PartitionSnapshooter> snapshooter =
       [&]() -> std::unique_ptr<PartitionSnapshooter> {
     if (_fm_ctx.rollback_deterioration) {
-      return std::make_unique<BestPartitionSnapshooter>(_p_graph, _p_ctx);
+      return std::make_unique<BestPartitionSnapshooter>(_p_graph.total_n(), _p_ctx.k);
     } else {
       return std::make_unique<DummyPartitionSnapshooter>();
     }
@@ -138,7 +138,7 @@ bool FMRefiner::refine() {
     }
 
     KASSERT(
-        shm::validate_graph(*b_graph, true, _p_graph.k()),
+        shm::debug::validate_graph(*b_graph, true, _p_graph.k()),
         "BFS extractor returned invalid graph data structure",
         HEAVY
     );
@@ -324,7 +324,7 @@ bool FMRefiner::refine() {
     }
 
     START_TIMER("Update snapshot");
-    snapshooter->update();
+    snapshooter->update(_p_graph, _p_ctx);
     STOP_TIMER();
 
     mpi::barrier(_p_graph.communicator());
@@ -344,14 +344,14 @@ bool FMRefiner::refine() {
     balancer->refine();
 
     START_TIMER("Update snapshot");
-    snapshooter->update();
+    snapshooter->update(_p_graph, _p_ctx);
     STOP_TIMER();
 
     mpi::barrier(_p_graph.communicator());
   }
 
   START_TIMER("Rollback to snapshot");
-  snapshooter->rollback();
+  snapshooter->rollback(_p_graph);
   STOP_TIMER();
 
   mpi::barrier(_p_graph.communicator());
