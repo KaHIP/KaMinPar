@@ -254,7 +254,6 @@ struct PartitionContext {
   NodeWeight total_node_weight = kInvalidNodeWeight;
   EdgeWeight total_edge_weight = kInvalidEdgeWeight;
   NodeWeight max_node_weight = kInvalidNodeWeight;
-  EdgeID max_degree = kInvalidEdgeID;
 
   void setup(const Graph &graph);
 };
