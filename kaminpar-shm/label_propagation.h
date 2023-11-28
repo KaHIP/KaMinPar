@@ -335,8 +335,6 @@ protected:
           }
         }
       });
-
-      map.combine();
     } else {
       for (const auto [e, v] : _graph->neighbors(u, _max_num_neighbors)) {
         if (derived_accept_neighbor(u, v)) {
@@ -373,19 +371,82 @@ protected:
 
     const EdgeWeight gain_delta = (Config::kUseActualGain) ? map[u_cluster] : 0;
 
-    for (const auto [cluster, rating] : map.entries()) {
-      state.current_cluster = cluster;
-      state.current_gain = rating - gain_delta;
-      state.current_cluster_weight = derived_cluster_weight(cluster);
+    if constexpr (parallel) {
+      std::vector<std::tuple<EdgeWeight, ClusterID, EdgeWeight, ClusterID>> local_values;
+      local_values.resize(tbb::this_task_arena::max_concurrency());
 
-      if (store_favored_cluster && state.current_gain > state.best_gain) {
-        favored_cluster = state.current_cluster;
+      map.iterate_and_reset([&](const auto i, const auto &used_entries) {
+        ClusterSelectionState local_state{
+            .local_rand = Random::instance(),
+            .u = u,
+            .u_weight = u_weight,
+            .initial_cluster = u_cluster,
+            .initial_cluster_weight = initial_cluster_weight,
+            .best_cluster = u_cluster,
+            .best_gain = 0,
+            .best_cluster_weight = initial_cluster_weight,
+            .current_cluster = 0,
+            .current_gain = 0,
+            .current_cluster_weight = 0,
+        };
+        ClusterID local_favored_cluster_gain = 0;
+        ClusterID local_favored_cluster = u_cluster;
+
+        for (const ClusterID cluster : used_entries) {
+          const EdgeWeight rating = map[cluster];
+
+          local_state.current_cluster = cluster;
+          local_state.current_gain = rating - gain_delta;
+          local_state.current_cluster_weight = derived_cluster_weight(cluster);
+
+          if (store_favored_cluster && local_state.current_gain > local_state.best_gain) {
+            local_favored_cluster_gain = local_state.current_cluster;
+            local_favored_cluster = local_state.current_cluster;
+          }
+
+          if (derived_accept_cluster(local_state)) {
+            local_state.best_cluster = local_state.current_cluster;
+            local_state.best_cluster_weight = local_state.current_cluster_weight;
+            local_state.best_gain = local_state.current_gain;
+          }
+        }
+
+        local_values[i] = std::make_tuple(
+            local_state.best_gain,
+            local_state.best_cluster,
+            local_favored_cluster_gain,
+            local_favored_cluster
+        );
+      });
+
+      EdgeWeight favored_cluster_gain = 0;
+      for (auto const [best_gain, best_cluster, local_favored_cluster_gain, local_favored_cluster] :
+           local_values) {
+        if (best_gain > state.best_gain) {
+          state.best_gain = best_gain;
+          state.best_cluster = best_cluster;
+        }
+
+        if (store_favored_cluster && local_favored_cluster_gain > favored_cluster_gain) {
+          favored_cluster_gain = local_favored_cluster_gain;
+          favored_cluster = local_favored_cluster;
+        }
       }
+    } else {
+      for (const auto [cluster, rating] : map.entries()) {
+        state.current_cluster = cluster;
+        state.current_gain = rating - gain_delta;
+        state.current_cluster_weight = derived_cluster_weight(cluster);
 
-      if (derived_accept_cluster(state)) {
-        state.best_cluster = state.current_cluster;
-        state.best_cluster_weight = state.current_cluster_weight;
-        state.best_gain = state.current_gain;
+        if (store_favored_cluster && state.current_gain > state.best_gain) {
+          favored_cluster = state.current_cluster;
+        }
+
+        if (derived_accept_cluster(state)) {
+          state.best_cluster = state.current_cluster;
+          state.best_cluster_weight = state.current_cluster_weight;
+          state.best_gain = state.current_gain;
+        }
       }
     }
 
@@ -395,7 +456,10 @@ protected:
     }
 
     const EdgeWeight actual_gain = IFSTATS(state.best_gain - map[state.initial_cluster]);
-    map.clear();
+    if constexpr (!parallel) {
+      map.clear();
+    }
+
     return std::make_pair(state.best_cluster, actual_gain);
   }
 

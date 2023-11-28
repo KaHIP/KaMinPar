@@ -37,6 +37,7 @@ public:
   explicit ConcurrentFastResetArray(const std::size_t capacity = 0) : _data(capacity) {
     RECORD_DATA_STRUCT("ConcurrentFastResetArray", capacity * sizeof(value_type), _struct);
     IF_HEAP_PROFILING(_capacity = _capacity);
+    _used_entries_tls.resize(tbb::this_task_arena::max_concurrency());
   }
 
   /*!
@@ -45,7 +46,7 @@ public:
    * @return The thread-local vector of used entries.
    */
   [[nodiscard]] std::vector<size_type> &local_used_entries() {
-    return _used_entries_ets.local();
+    return _used_entries_tls[tbb::this_task_arena::current_thread_index()];
   }
 
   /*!
@@ -61,53 +62,26 @@ public:
   }
 
   /*!
-   * Returns the pairs of position and value that have been marked as used.
+   * Iterates over all thread-local vector of used entries and clears them afterwards.
    *
-   * @returns Returns the pairs of position and value that have been marked as used.
+   * @param l The function object that is invoked with a thread-local vector of used entries before
+   * they are cleared.
    */
-  [[nodiscard]] auto entries() {
-    return TransformedRange(
-        _used_entries.begin(),
-        _used_entries.end(),
-        [this](const size_type entry) -> std::pair<size_type, value_type> {
-          return std::make_pair(entry, _data[entry]);
-        }
-    );
-  }
+  template <typename Lambda> void iterate_and_reset(Lambda &&l) {
+    tbb::parallel_for<std::size_t>(0, _used_entries_tls.size(), [&](const auto i) {
+      l(i, _used_entries_tls[i]);
 
-  /*!
-   * Combines the used entries of each thread, so that the combined entries can be used for
-   * iterating and clearing. It also clears the used entries of each thread.
-   */
-  void combine() {
-    for (std::vector<size_type> &used_entries : _used_entries_ets) {
-      _used_entries.insert(_used_entries.end(), used_entries.begin(), used_entries.end());
-      used_entries.clear();
-    }
+      for (const size_type pos : _used_entries_tls[i]) {
+        _data[pos] = Value();
+      }
 
-    IF_HEAP_PROFILING(
-        _struct->size = std::max(
-            _struct->size,
-            _capacity * sizeof(value_type) + _used_entries.capacity() * sizeof(size_type)
-        )
-    );
-  }
-
-  /*!
-   * Resets all values in the map and marks all values as unused.
-   */
-  void clear() {
-    for (const size_type pos : _used_entries) {
-      _data[pos] = Value();
-    }
-
-    _used_entries.clear();
+      _used_entries_tls[i].clear();
+    });
   }
 
 private:
   std::vector<value_type> _data;
-  std::vector<size_type> _used_entries;
-  tbb::enumerable_thread_specific<std::vector<size_type>> _used_entries_ets;
+  std::vector<std::vector<size_type>> _used_entries_tls;
 
   IF_HEAP_PROFILING(heap_profiler::DataStructure *_struct);
   IF_HEAP_PROFILING(std::size_t _capacity);
