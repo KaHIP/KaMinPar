@@ -65,7 +65,28 @@ PartitionContext create_bipartition_context(
     const Graph &subgraph, BlockID k1, BlockID k2, const PartitionContext &kway_p_ctx
 );
 
+/**
+ * Given a block $0 <= B < k'$ of an intermediate partition with $k' < k$ blocks, this function
+ * computes the number of blocks into which $B$ will be split for the final partition.
+ *
+ * More precisely, consider a binary tree with labels linked to each node constructed as follows:
+ *
+ * - The root node has label $k$.
+ * - A node with label $\ell > 0$ has two children with labels $\lceil \ell / 2 \rceil$ and $\lfloor
+ *   \ell / 2 \rfloor$.
+ * - A node with label $\ell = 1$ has one child labelled $1$.
+ * - The construction stops as soon as all nodes of a level have label $1$ / the level has size $k$.
+ *
+ * This function computes the label of any node in this tree, given the size of the nodes level
+ * (i.e., $k'$) and its position within the level (i.e., $B$). Note that all levels have distinct
+ * sizes, and thus, these two parameters uniquely identify a node of the tree).
+ *
+ * @param block The block $B$ / the position of a node within its level.
+ * @param current_k The number of blocks $k'$ in the intermediate partition / the size of the node's
+ * level.
+ * @param inpuot_k The number of blocks $k$ in the final partition / the label of the root node.
+ *
+ * @return The number of blocks into which $B$ will be split for the final partition.
+ */
 BlockID compute_final_k(BlockID block, BlockID current_k, BlockID input_k);
-
-BlockID compute_final_k_legacy(BlockID block, BlockID current_k, BlockID input_k);
 } // namespace kaminpar::shm

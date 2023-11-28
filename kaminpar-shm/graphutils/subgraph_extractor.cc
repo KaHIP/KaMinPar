@@ -203,7 +203,7 @@ SubgraphExtractionResult extract_subgraphs(
 
   START_TIMER("Merge block sizes");
   tbb::parallel_for(static_cast<BlockID>(0), p_graph.k(), [&](const BlockID b) {
-    NodeID num_nodes = compute_final_k_legacy(
+    NodeID num_nodes = compute_final_k(
         b, p_graph.k(), input_k
     ); // padding for sequential subgraph extraction
     EdgeID num_edges = 0;
@@ -270,7 +270,7 @@ SubgraphExtractionResult extract_subgraphs(
     const EdgeID m0 = start_positions[b].edges_start_pos;
 
     const NodeID n = start_positions[b + 1].nodes_start_pos - n0 -
-                     compute_final_k_legacy(b, p_graph.k(), input_k);
+                     compute_final_k(b, p_graph.k(), input_k);
     const EdgeID m = start_positions[b + 1].edges_start_pos - m0;
 
     StaticArray<EdgeID> nodes(n0, n + 1, subgraph_memory.nodes);
@@ -319,7 +319,7 @@ PartitionedGraph copy_subgraph_partitions(
   std::vector<BlockID> k0(p_graph.k() + 1, k_prime / p_graph.k());
   if (k_prime == input_k) {
     for (const BlockID b : p_graph.blocks()) {
-      k0[b + 1] = compute_final_k_legacy(b, p_graph.k(), input_k);
+      k0[b + 1] = compute_final_k(b, p_graph.k(), input_k);
     }
   }
 

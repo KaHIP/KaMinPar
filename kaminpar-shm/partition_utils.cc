@@ -39,52 +39,31 @@ PartitionContext create_bipartition_context(
 }
 
 BlockID compute_final_k(const BlockID block, const BlockID current_k, const BlockID input_k) {
-  if (current_k == 1) {
-    return input_k;
-  }
   if (current_k == input_k) {
     return 1;
   }
 
-  const BlockID height = math::floor_log2(input_k);
+  // The level of the current block in the binary tree == log2(current_k)
   const BlockID level = math::floor_log2(current_k);
-  const BlockID num_heavy_blocks = input_k - (1 << height);
-  const BlockID num_leaves = 1 << (height - level);
-  const BlockID first_leaf = block * num_leaves;
-  const BlockID first_invalid_leaf = first_leaf + num_leaves;
+  // Within a level, each pair of labels l1, l2 satisfy |l1 - l2| <= 1, i.e., they differ by at most
+  // one.
+  // This is the smaller label of the level, i.e., the label is either base or base + 1.
+  const BlockID base = input_k >> level;
+  // This is the number of base + 1 labels of the level, all other have value base:
+  const BlockID num_plus_one_blocks = input_k & ((1 << level) - 1);
 
-  if (first_leaf > num_heavy_blocks) {
-    return num_leaves;
-  } else if (first_invalid_leaf <= num_heavy_blocks) {
-    return 2 * num_leaves;
-  } else {
-    return num_heavy_blocks - (block - 1) * num_leaves;
-  }
-}
-
-BlockID
-compute_final_k_legacy(const BlockID block, const BlockID current_k, const BlockID input_k) {
-  if (current_k == 1) {
-    return input_k;
-  }
-  if (current_k == input_k) {
-    return 1;
-  }
-
-  const BlockID level = math::floor_log2(current_k);                // == log2(current_k)
-  const BlockID base = input_k >> level;                            // == input_k / current_k
-  const BlockID num_plus_one_blocks = input_k & ((1 << level) - 1); // == input_k % current_k
-
+  // Reverse the bits of the block label, i.e., 0b0000'1010 -> 0b0000'0101 (leading zeroes are
+  // discarded). This gives the order in which nodes have their labels "flipped" from base to
+  // base + 1.
   static_assert(sizeof(BlockID) == 4);
   std::array<BlockID, 16> lut = {0, 8, 4, 12, 2, 10, 6, 14, 1, 9, 5, 13, 3, 11, 7, 15};
-
-  const BlockID height = math::ceil_log2(input_k);
-  const BlockID position =
+  const BlockID reversed_block =
       (lut[(block & 0xF0'00'00'00) >> 28] | (lut[(block & 0x0F'00'00'00) >> 24] << 4) |
        (lut[(block & 0x00'F0'00'00) >> 20] << 8) | (lut[(block & 0x00'0F'00'00) >> 16] << 12) |
        (lut[(block & 0x00'00'F0'00) >> 12] << 16) | (lut[(block & 0x00'00'0F'00) >> 8] << 20) |
        (lut[(block & 0x00'00'00'F0) >> 4] << 24) | (lut[block & 0x00'00'00'0F] << 28)) >>
       (32 - level);
-  return base + (position < num_plus_one_blocks);
+
+  return base + (reversed_block < num_plus_one_blocks);
 }
 } // namespace kaminpar::shm

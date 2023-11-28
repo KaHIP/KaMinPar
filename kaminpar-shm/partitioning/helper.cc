@@ -161,7 +161,7 @@ void extend_partition(
       static_cast<BlockID>(subgraphs.size()),
       [&](const BlockID b) {
         const auto &subgraph = subgraphs[b];
-        const BlockID final_kb = compute_final_k_legacy(b, p_graph.k(), input_ctx.partition.k);
+        const BlockID final_kb = compute_final_k(b, p_graph.k(), input_ctx.partition.k);
 
         const BlockID subgraph_k =
             (k_prime == input_ctx.partition.k) ? final_kb : k_prime / p_graph.k();
