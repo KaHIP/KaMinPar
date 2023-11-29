@@ -112,16 +112,20 @@ PartitionedGraph KWayMultilevelPartitioner::initial_partition(const Graph *graph
   PartitionedGraph p_graph =
       helper::bipartition(graph, _input_ctx.partition.k, _input_ctx, _ip_m_ctx_pool);
   helper::update_partition_context(_current_p_ctx, p_graph, _input_ctx.partition.k);
-  _subgraph_memory.resize(p_graph);
+
+  graph::SubgraphMemory subgraph_memory(p_graph);
+  partitioning::TemporaryGraphExtractionBufferPool ip_extraction_pool;
+
   helper::extend_partition(
       p_graph,
       _input_ctx.partition.k,
       _input_ctx,
       _current_p_ctx,
-      _subgraph_memory,
-      _ip_extraction_pool,
+      subgraph_memory,
+      ip_extraction_pool,
       _ip_m_ctx_pool
   );
+
   helper::update_partition_context(_current_p_ctx, p_graph, _input_ctx.partition.k);
   ENABLE_TIMERS();
 
