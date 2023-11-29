@@ -27,6 +27,7 @@ DeepMultilevelPartitioner::DeepMultilevelPartitioner(
       _current_p_ctx(input_ctx.partition),
       _coarsener(factory::create_coarsener(input_graph, input_ctx.coarsening)),
       _refiner(factory::create_refiner(input_ctx)),
+      // @todo only allocate for largest graph that requires rb
       _subgraph_memory(input_graph.n(), input_ctx.partition.k, input_graph.m()) {}
 
 PartitionedGraph DeepMultilevelPartitioner::partition() {

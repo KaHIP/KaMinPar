@@ -21,8 +21,7 @@ KWayMultilevelPartitioner::KWayMultilevelPartitioner(
       _input_ctx(input_ctx),
       _current_p_ctx(input_ctx.partition),
       _coarsener(factory::create_coarsener(input_graph, input_ctx.coarsening)),
-      _refiner(factory::create_refiner(input_ctx)),
-      _subgraph_memory(input_graph.n(), input_ctx.partition.k, input_graph.m()) {}
+      _refiner(factory::create_refiner(input_ctx)) {}
 
 PartitionedGraph KWayMultilevelPartitioner::partition() {
   cio::print_delimiter("Partitioning");
@@ -113,6 +112,7 @@ PartitionedGraph KWayMultilevelPartitioner::initial_partition(const Graph *graph
   PartitionedGraph p_graph =
       helper::bipartition(graph, _input_ctx.partition.k, _input_ctx, _ip_m_ctx_pool);
   helper::update_partition_context(_current_p_ctx, p_graph, _input_ctx.partition.k);
+  _subgraph_memory.resize(p_graph);
   helper::extend_partition(
       p_graph,
       _input_ctx.partition.k,

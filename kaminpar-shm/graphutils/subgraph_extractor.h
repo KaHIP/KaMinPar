@@ -35,6 +35,8 @@ struct SubgraphMemoryStartPosition {
 };
 
 struct SubgraphMemory {
+  SubgraphMemory() = default;
+
   SubgraphMemory(
       const NodeID n,
       const BlockID k,
@@ -61,6 +63,14 @@ struct SubgraphMemory {
             p_graph.graph().is_node_weighted(),
             p_graph.graph().is_edge_weighted()
         ) {}
+
+  void resize(const PartitionedGraph &p_graph) {
+    SCOPED_TIMER("Allocation");
+    nodes.resize(p_graph.n() + p_graph.k());
+    edges.resize(p_graph.m());
+    node_weights.resize(p_graph.is_node_weighted() * (p_graph.n() + p_graph.k()));
+    edge_weights.resize(p_graph.is_edge_weighted() * p_graph.m());
+  }
 
   StaticArray<EdgeID> nodes;
   StaticArray<NodeID> edges;
