@@ -26,9 +26,7 @@ DeepMultilevelPartitioner::DeepMultilevelPartitioner(
       _input_ctx(input_ctx),
       _current_p_ctx(input_ctx.partition),
       _coarsener(factory::create_coarsener(input_graph, input_ctx.coarsening)),
-      _refiner(factory::create_refiner(input_ctx)),
-      // @todo only allocate for largest graph that requires rb
-      _subgraph_memory(input_graph.n(), input_ctx.partition.k, input_graph.m()) {}
+      _refiner(factory::create_refiner(input_ctx)) {}
 
 PartitionedGraph DeepMultilevelPartitioner::partition() {
   cio::print_delimiter("Partitioning");
@@ -38,12 +36,17 @@ PartitionedGraph DeepMultilevelPartitioner::partition() {
 
   bool refined = false;
   p_graph = uncoarsen(std::move(p_graph), refined);
-  if (!refined) {
-    refine(p_graph);
-  }
-  if (p_graph.k() < _input_ctx.partition.k) {
-    extend_partition(p_graph, _input_ctx.partition.k);
-    refine(p_graph);
+  if (!refined || p_graph.k() < _input_ctx.partition.k) {
+    LOG;
+    LOG << "Toplevel:";
+
+    if (!refined) {
+      refine(p_graph);
+    }
+    if (p_graph.k() < _input_ctx.partition.k) {
+      extend_partition(p_graph, _input_ctx.partition.k);
+      refine(p_graph);
+    }
   }
 
   IF_STATS {
@@ -89,9 +92,10 @@ void DeepMultilevelPartitioner::extend_partition(PartitionedGraph &p_graph, cons
 }
 
 PartitionedGraph DeepMultilevelPartitioner::uncoarsen(PartitionedGraph p_graph, bool &refined) {
-  LOG << "Uncoarsening -> Level " << _coarsener.get()->size();
-
   while (!_coarsener->empty()) {
+    LOG;
+    LOG << "Uncoarsening -> Level " << _coarsener.get()->size();
+
     p_graph = uncoarsen_once(std::move(p_graph));
     refine(p_graph);
     refined = true;
@@ -108,6 +112,8 @@ PartitionedGraph DeepMultilevelPartitioner::uncoarsen(PartitionedGraph p_graph, 
 
 const Graph *DeepMultilevelPartitioner::coarsen() {
   const Graph *c_graph = &_input_graph;
+  NodeID prev_c_graph_n = c_graph->n();
+  EdgeID prev_c_graph_m = c_graph->m();
   bool shrunk = true;
 
   while (shrunk && c_graph->n() > initial_partitioning_threshold()) {
@@ -121,6 +127,18 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
     shrunk = helper::coarsen_once(_coarsener.get(), c_graph, _input_ctx, _current_p_ctx);
     c_graph = _coarsener->coarsest_graph();
 
+    // _subgraph_memory stores the block-induced subgraphs of the partitioned graph during recursive
+    // bipartitioning
+    // To avoid repeated allocation, we pre-allocate the memory during coarsening for the largest
+    // coarse graph for which we still need recursive bipartitioning
+    if (_subgraph_memory.empty() &&
+        helper::compute_k_for_n(c_graph->n(), _input_ctx) < _input_ctx.partition.k) {
+      _subgraph_memory.resize(prev_c_graph_n, _input_ctx.partition.k, prev_c_graph_m, true, true);
+    } else {
+      prev_c_graph_n = c_graph->n();
+      prev_c_graph_m = c_graph->m();
+    }
+
     // Print some metrics for the coarse graphs
     const NodeWeight max_cluster_weight =
         compute_max_cluster_weight(_input_ctx.coarsening, *c_graph, _input_ctx.partition);
@@ -128,6 +146,10 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
     LOG << "  Number of nodes: " << c_graph->n() << " | Number of edges: " << c_graph->m();
     LOG << "  Maximum node weight: " << c_graph->max_node_weight() << " <= " << max_cluster_weight;
     LOG;
+  }
+
+  if (_subgraph_memory.empty()) {
+    _subgraph_memory.resize(c_graph->n(), _input_ctx.partition.k, c_graph->m(), true, true);
   }
 
   if (shrunk) {
@@ -189,7 +211,6 @@ PartitionedGraph DeepMultilevelPartitioner::initial_partition(const Graph *graph
   LOG << "  Cut:              " << metrics::edge_cut(p_graph);
   LOG << "  Imbalance:        " << metrics::imbalance(p_graph);
   LOG << "  Feasible:         " << (metrics::is_feasible(p_graph, _current_p_ctx) ? "yes" : "no");
-  LOG;
 
   // If requested, dump the coarsest partition -- as noted above, this is not
   // actually the coarsest partition when using deep multilevel.

@@ -43,33 +43,41 @@ struct SubgraphMemory {
       const EdgeID m,
       const bool is_node_weighted = true,
       const bool is_edge_weighted = true
-  )
-      : nodes(),
-        edges(),
-        node_weights(),
-        edge_weights() {
+  ) {
+    resize(n, k, m, is_node_weighted, is_edge_weighted);
+  }
+
+  explicit SubgraphMemory(const PartitionedGraph &p_graph) {
+    resize(p_graph);
+  }
+
+  void resize(const PartitionedGraph &p_graph) {
+    resize(
+        p_graph.n(),
+        p_graph.k(),
+        p_graph.m(),
+        p_graph.is_node_weighted(),
+        p_graph.is_edge_weighted()
+    );
+  }
+
+  void resize(
+      const NodeID n,
+      const BlockID k,
+      const EdgeID m,
+      const bool is_node_weighted = true,
+      const bool is_edge_weighted = true
+  ) {
     SCOPED_TIMER("Allocation");
+
     nodes.resize(n + k);
     edges.resize(m);
     node_weights.resize(is_node_weighted * (n + k));
     edge_weights.resize(is_edge_weighted * m);
   }
 
-  explicit SubgraphMemory(const PartitionedGraph &p_graph)
-      : SubgraphMemory(
-            p_graph.n(),
-            p_graph.k(),
-            p_graph.m(),
-            p_graph.graph().is_node_weighted(),
-            p_graph.graph().is_edge_weighted()
-        ) {}
-
-  void resize(const PartitionedGraph &p_graph) {
-    SCOPED_TIMER("Allocation");
-    nodes.resize(p_graph.n() + p_graph.k());
-    edges.resize(p_graph.m());
-    node_weights.resize(p_graph.is_node_weighted() * (p_graph.n() + p_graph.k()));
-    edge_weights.resize(p_graph.is_edge_weighted() * p_graph.m());
+  [[nodiscard]] bool empty() const {
+    return nodes.empty();
   }
 
   StaticArray<EdgeID> nodes;

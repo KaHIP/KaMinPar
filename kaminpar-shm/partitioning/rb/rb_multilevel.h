@@ -35,13 +35,15 @@ public:
     auto p_graph = bipartition(graph, k);
 
     if (k > 2) {
-      graph::SubgraphMemory memory(
+      graph::SubgraphMemory memory;
+      memory.resize(
           p_graph.n(),
           k,
           p_graph.m(),
           p_graph.graph().is_node_weighted(),
           p_graph.graph().is_edge_weighted()
       );
+
       const auto extraction = extract_subgraphs(p_graph, _input_ctx.partition.k, memory);
 
       const auto &subgraphs = extraction.subgraphs;

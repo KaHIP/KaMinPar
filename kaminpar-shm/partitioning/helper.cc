@@ -207,14 +207,16 @@ void extend_partition(
     TemporaryGraphExtractionBufferPool &extraction_pool,
     GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool
 ) {
-  START_TIMER("Allocation");
-  graph::SubgraphMemory memory{
+  graph::SubgraphMemory memory;
+
+  memory.resize(
       p_graph.n(),
       input_ctx.partition.k,
       p_graph.m(),
       p_graph.graph().is_node_weighted(),
-      p_graph.graph().is_edge_weighted()};
-  STOP_TIMER();
+      p_graph.graph().is_edge_weighted()
+  );
+
   extend_partition(
       p_graph, k_prime, input_ctx, current_p_ctx, memory, extraction_pool, ip_m_ctx_pool
   );
