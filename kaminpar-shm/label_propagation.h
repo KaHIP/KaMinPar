@@ -878,9 +878,7 @@ protected:
     tbb::enumerable_thread_specific<NodeID> num_moved_nodes_ets;
     parallel::Atomic<std::size_t> next_chunk = 0;
 
-    bool two_iterations =
-        Base::_initial_num_clusters >= Config::kRatingMapThreshold &&
-        dynamic_cast<const shm::CSRGraph *>(_graph->underlying_graph()) != nullptr;
+    bool two_iterations = Base::_initial_num_clusters >= Config::kRatingMapThreshold;
 
     START_HEAP_PROFILER("First iteration");
     START_TIMER("First iteration");

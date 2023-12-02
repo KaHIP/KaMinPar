@@ -112,17 +112,9 @@ void KaMinPar::borrow_and_mutate_graph(
   StaticArray<EdgeWeight> edge_weights =
       (adjwgt == nullptr) ? StaticArray<EdgeWeight>(0) : StaticArray<EdgeWeight>(adjwgt, m);
 
-  auto csr_graph = std::make_unique<CSRGraph>(
+  _graph_ptr = std::make_unique<Graph>(std::make_unique<CSRGraph>(
       std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights), false
-  );
-
-  if (_ctx.compression.enabled) {
-    CompressedGraph compressed_graph = CompressedGraph::compress(*csr_graph);
-    auto compressed_graph_ptr = std::make_unique<CompressedGraph>(std::move(compressed_graph));
-    _graph_ptr = std::make_unique<Graph>(std::move(compressed_graph_ptr));
-  } else {
-    _graph_ptr = std::make_unique<Graph>(std::move(csr_graph));
-  }
+  ));
 }
 
 void KaMinPar::copy_graph(
@@ -157,6 +149,10 @@ void KaMinPar::copy_graph(
   _graph_ptr = std::make_unique<Graph>(std::make_unique<CSRGraph>(
       std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights), false
   ));
+}
+
+void KaMinPar::set_graph(Graph graph) {
+  _graph_ptr = std::make_unique<Graph>(std::move(graph));
 }
 
 EdgeWeight KaMinPar::compute_partition(const int seed, const BlockID k, BlockID *partition) {

@@ -10,7 +10,8 @@
 #include <string>
 #include <vector>
 
-#include "kaminpar-shm/definitions.h"
+#include "kaminpar-shm/datastructures/compressed_graph.h"
+#include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/datastructures/static_array.h"
 
@@ -24,6 +25,27 @@ void read(
     StaticArray<NodeWeight> &node_weights,
     StaticArray<EdgeWeight> &edge_weights
 );
+
+/**
+ * Reads a graph that is stored in a file in METIS format.
+ *
+ * @param filename The name of the file to read.
+ * @tparam checked Whether to validate the read graph.
+ *
+ * @return The graph in compressed sparse row format stored in the file.
+ */
+template <bool checked> CSRGraph csr_read(const std::string &filename);
+
+/*!
+ * Reads and compresses a graph that is stored in a file in METIS format.
+ *
+ * @param filename The name of the file to read.
+ * @tparam checked Whether to validate the read graph.
+ *
+ * @return The graph in compressed form stored in the file.
+ */
+template <bool checked> CompressedGraph compress_read(const std::string &filename);
+
 } // namespace metis
 
 namespace partition {

@@ -28,7 +28,7 @@ template <typename T> static bool operator==(const IotaRange<T> &a, const IotaRa
 
 static void print_compressed_graph(const Graph &graph) {
   const CSRGraph &csr_graph = *dynamic_cast<const CSRGraph *>(graph.underlying_graph());
-  const auto compressed_graph = CompressedGraph::compress(csr_graph);
+  const auto compressed_graph = CompressedGraphBuilder::compress(csr_graph);
 
   const auto &nodes = compressed_graph.raw_nodes();
   const auto &compressed_edges = compressed_graph.raw_compressed_edges();
@@ -51,15 +51,14 @@ static void print_compressed_graph(const Graph &graph) {
 
 static void test_graph_compression(const Graph &graph) {
   const CSRGraph &csr_graph = *dynamic_cast<const CSRGraph *>(graph.underlying_graph());
-  const auto compressed_graph = CompressedGraph::compress(csr_graph);
+  const auto compressed_graph = CompressedGraphBuilder::compress(csr_graph);
 
   EXPECT_EQ(graph.n(), compressed_graph.n());
   EXPECT_EQ(graph.m(), compressed_graph.m());
 
+  std::vector<NodeID> graph_neighbours;
+  std::vector<NodeID> compressed_graph_neighbours;
   for (const NodeID node : graph.nodes()) {
-    std::vector<NodeID> graph_neighbours;
-    std::vector<NodeID> compressed_graph_neighbours;
-
     for (const NodeID adjacent_node : graph.adjacent_nodes(node)) {
       graph_neighbours.push_back(adjacent_node);
     }
@@ -73,6 +72,9 @@ static void test_graph_compression(const Graph &graph) {
     std::sort(graph_neighbours.begin(), graph_neighbours.end());
     std::sort(compressed_graph_neighbours.begin(), compressed_graph_neighbours.end());
     EXPECT_TRUE(graph_neighbours == compressed_graph_neighbours);
+
+    graph_neighbours.clear();
+    compressed_graph_neighbours.clear();
   }
 }
 
@@ -82,7 +84,7 @@ TEST(CompressedGraphTest, compression) {
 
 static void test_compressed_graph_nodes_operation(const Graph &graph) {
   const CSRGraph &csr_graph = *dynamic_cast<const CSRGraph *>(graph.underlying_graph());
-  const auto compressed_graph = CompressedGraph::compress(csr_graph);
+  const auto compressed_graph = CompressedGraphBuilder::compress(csr_graph);
 
   EXPECT_TRUE(csr_graph.nodes() == compressed_graph.nodes());
 }
@@ -93,7 +95,7 @@ TEST(CompressedGraphTest, compressed_graph_nodes_operation) {
 
 static void test_compressed_graph_edges_operation(const Graph &graph) {
   const CSRGraph &csr_graph = *dynamic_cast<const CSRGraph *>(graph.underlying_graph());
-  const auto compressed_graph = CompressedGraph::compress(csr_graph);
+  const auto compressed_graph = CompressedGraphBuilder::compress(csr_graph);
 
   EXPECT_TRUE(csr_graph.edges() == compressed_graph.edges());
 }
@@ -104,7 +106,7 @@ TEST(CompressedGraphTest, compressed_graph_edges_operation) {
 
 static void test_compressed_graph_degree_operation(const Graph &graph) {
   const CSRGraph &csr_graph = *dynamic_cast<const CSRGraph *>(graph.underlying_graph());
-  const auto compressed_graph = CompressedGraph::compress(csr_graph);
+  const auto compressed_graph = CompressedGraphBuilder::compress(csr_graph);
 
   for (const NodeID node : graph.nodes()) {
     EXPECT_EQ(csr_graph.degree(node), compressed_graph.degree(node));
@@ -117,7 +119,7 @@ TEST(CompressedGraphTest, compressed_graph_degree_operation) {
 
 static void test_compressed_graph_incident_edges_operation(const Graph &graph) {
   const CSRGraph &csr_graph = *dynamic_cast<const CSRGraph *>(graph.underlying_graph());
-  const auto compressed_graph = CompressedGraph::compress(csr_graph);
+  const auto compressed_graph = CompressedGraphBuilder::compress(csr_graph);
 
   for (const NodeID node : graph.nodes()) {
     EXPECT_TRUE(csr_graph.incident_edges(node) == compressed_graph.incident_edges(node));
@@ -130,14 +132,13 @@ TEST(CompressedGraphTest, compressed_graph_incident_edges_operation) {
 
 static void test_compressed_graph_neighbors_operation(const Graph &graph) {
   const CSRGraph &csr_graph = *dynamic_cast<const CSRGraph *>(graph.underlying_graph());
-  const auto compressed_graph = CompressedGraph::compress(csr_graph);
+  const auto compressed_graph = CompressedGraphBuilder::compress(csr_graph);
 
+  std::vector<EdgeID> graph_incident_edges;
+  std::vector<NodeID> graph_adjacent_node;
+  std::vector<EdgeID> compressed_graph_incident_edges;
+  std::vector<NodeID> compressed_graph_adjacent_node;
   for (const NodeID node : graph.nodes()) {
-    std::vector<EdgeID> graph_incident_edges;
-    std::vector<NodeID> graph_adjacent_node;
-    std::vector<EdgeID> compressed_graph_incident_edges;
-    std::vector<NodeID> compressed_graph_adjacent_node;
-
     for (const auto [incident_edge, adjacent_node] : graph.neighbors(node)) {
       graph_incident_edges.push_back(incident_edge);
       graph_adjacent_node.push_back(adjacent_node);
@@ -156,11 +157,50 @@ static void test_compressed_graph_neighbors_operation(const Graph &graph) {
     std::sort(compressed_graph_adjacent_node.begin(), compressed_graph_adjacent_node.end());
     EXPECT_TRUE(graph_incident_edges == compressed_graph_incident_edges);
     EXPECT_TRUE(graph_adjacent_node == compressed_graph_adjacent_node);
+
+    graph_incident_edges.clear();
+    graph_adjacent_node.clear();
+    compressed_graph_incident_edges.clear();
+    compressed_graph_adjacent_node.clear();
   }
 }
 
 TEST(CompressedGraphTest, compressed_graph_neighbors_operation) {
   TEST_ON_ALL_GRAPHS(test_compressed_graph_neighbors_operation);
+}
+
+static void test_compressed_graph_pfor_neighbors_operation(const Graph &graph) {
+  const CSRGraph &csr_graph = *dynamic_cast<const CSRGraph *>(graph.underlying_graph());
+  const auto compressed_graph = CompressedGraphBuilder::compress(csr_graph);
+
+  tbb::concurrent_vector<NodeID> graph_adjacent_node;
+  tbb::concurrent_vector<NodeID> compressed_graph_adjacent_node;
+  for (const NodeID node : graph.nodes()) {
+    graph.pfor_neighbors(
+        node,
+        std::numeric_limits<NodeID>::max(),
+        [&](const EdgeID e, const NodeID v) { graph_adjacent_node.push_back(v); }
+    );
+
+    compressed_graph.pfor_neighbors(
+        node,
+        std::numeric_limits<NodeID>::max(),
+        [&](const EdgeID e, const NodeID v) { compressed_graph_adjacent_node.push_back(v); }
+    );
+
+    EXPECT_EQ(graph_adjacent_node.size(), compressed_graph_adjacent_node.size());
+
+    std::sort(graph_adjacent_node.begin(), graph_adjacent_node.end());
+    std::sort(compressed_graph_adjacent_node.begin(), compressed_graph_adjacent_node.end());
+    EXPECT_TRUE(graph_adjacent_node == compressed_graph_adjacent_node);
+
+    graph_adjacent_node.clear();
+    compressed_graph_adjacent_node.clear();
+  }
+}
+
+TEST(CompressedGraphTest, compressed_graph_pfor_neighbors_operation) {
+  TEST_ON_ALL_GRAPHS(test_compressed_graph_pfor_neighbors_operation);
 }
 
 } // namespace kaminpar::shm::testing

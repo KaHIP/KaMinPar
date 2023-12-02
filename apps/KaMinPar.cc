@@ -19,6 +19,8 @@
 #include <numa.h>
 #endif // __has_include(<numa.h>)
 
+#include "kaminpar-shm/datastructures/graph.h"
+
 #include "kaminpar-common/environment.h"
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/strutils.h"
@@ -156,30 +158,45 @@ int main(int argc, char *argv[]) {
     std::exit(0);
   }
 
+  if (ctx.compression.enabled && ctx.rearrange_by != GraphOrdering::NATURAL) {
+    std::cout << "The compressed graph cannot be rearranged. Use the natural graph ordering by "
+                 "adding \"--rearrange-by natural\" as a command-line flag!"
+              << std::endl;
+    std::exit(0);
+  }
+
   ENABLE_HEAP_PROFILER();
 
   START_HEAP_PROFILER("Input Graph Allocation");
 
-  // Allocate graph data structures and read graph file
-  RECORD("xadj") StaticArray<EdgeID> xadj;
-  RECORD("adjncy") StaticArray<NodeID> adjncy;
-  RECORD("vwgt") StaticArray<NodeWeight> vwgt;
-  RECORD("adjwgt") StaticArray<EdgeWeight> adjwgt;
+  Graph graph = [&] {
+    using namespace shm::io::metis;
 
-  if (app.validate) {
-    shm::io::metis::read<true>(app.graph_filename, xadj, adjncy, vwgt, adjwgt);
-    shm::validate_undirected_graph(xadj, adjncy, vwgt, adjwgt);
-  } else {
-    shm::io::metis::read<false>(app.graph_filename, xadj, adjncy, vwgt, adjwgt);
-  }
+    const std::string &filename = app.graph_filename;
+    if (ctx.compression.enabled) {
+      if (app.validate) {
+        return Graph(std::make_unique<CompressedGraph>(compress_read<true>(filename)));
+      } else {
+        return Graph(std::make_unique<CompressedGraph>(compress_read<false>(filename)));
+      }
+    } else {
+      if (app.validate) {
+        CSRGraph csr_graph = csr_read<true>(app.graph_filename);
 
-  const NodeID n = static_cast<NodeID>(xadj.size() - 1);
-  std::vector<BlockID> partition(n);
+        shm::validate_undirected_graph(
+            csr_graph.raw_nodes(),
+            csr_graph.raw_edges(),
+            csr_graph.raw_node_weights(),
+            csr_graph.raw_edge_weights()
+        );
 
-  EdgeID *xadj_ptr = xadj.data();
-  NodeID *adjncy_ptr = adjncy.data();
-  NodeWeight *vwgt_ptr = !vwgt.empty() ? vwgt.data() : nullptr;
-  EdgeWeight *adjwgt_ptr = !adjwgt.empty() ? adjwgt.data() : nullptr;
+        return Graph(std::make_unique<CSRGraph>(std::move(csr_graph)));
+      } else {
+        return Graph(std::make_unique<CSRGraph>(csr_read<false>(filename)));
+      }
+    }
+  }();
+  std::vector<BlockID> partition(graph.n());
 
   STOP_HEAP_PROFILER();
 
@@ -201,7 +218,7 @@ int main(int argc, char *argv[]) {
     global_heap_profiler.set_print_all_data_structs(app.heap_profiler_print_all_data_structs);
   }
 
-  partitioner.take_graph(n, xadj_ptr, adjncy_ptr, vwgt_ptr, adjwgt_ptr);
+  partitioner.set_graph(std::move(graph));
   partitioner.compute_partition(app.seed, app.k, partition.data());
 
   // Save graph partition

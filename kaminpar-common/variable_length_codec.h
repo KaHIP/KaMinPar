@@ -11,6 +11,10 @@
 
 namespace kaminpar {
 
+template <typename Int> static std::size_t varint_max_length() {
+  return (sizeof(Int) * 8) / 7 + 1;
+}
+
 template <typename Int> static std::size_t varint_length(Int i) {
   size_t len = 1;
 

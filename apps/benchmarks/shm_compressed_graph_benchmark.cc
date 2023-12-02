@@ -111,7 +111,7 @@ struct GraphStats {
 };
 
 GraphStats run_benchmark(const CSRGraph &graph, bool benchmarks, bool checks) {
-  auto compressed_graph = CompressedGraph::compress(graph);
+  auto compressed_graph = CompressedGraphBuilder::compress(graph);
 
   if (benchmarks) {
     LOG << "Running the benchmark...";

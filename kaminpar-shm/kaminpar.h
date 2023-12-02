@@ -419,6 +419,13 @@ public:
   );
 
   /*!
+   * Sets the graph to be partitioned.
+   *
+   * @param graph The graph to be partitioned.
+   */
+  void set_graph(shm::Graph graph);
+
+  /*!
    * Partitions the graph set by `take_graph()` or `copy_graph()` into `k` blocks.
    *
    * @param seed The seed for the random number generator. Note that when using more than one

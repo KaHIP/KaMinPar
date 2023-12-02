@@ -257,30 +257,35 @@ public:
   }
 
   [[nodiscard]] inline decltype(auto)
-  neighbors(const NodeID u, const NodeID max_neigbor_count) const {
+  neighbors(const NodeID u, const NodeID max_neighbor_count) const {
     if (const auto *graph = dynamic_cast<const CSRGraph *>(_underlying_graph.get());
         graph != nullptr) {
-      return graph->neighbors(u, max_neigbor_count);
+      return graph->neighbors(u, max_neighbor_count);
     }
 
     if (const auto *graph = dynamic_cast<const CompressedGraph *>(_underlying_graph.get());
         graph != nullptr) {
-      // TODO: Compressed Graph
-      return graph->neighbors(u);
+      return graph->neighbors(u, max_neighbor_count);
     }
 
     __builtin_unreachable();
   }
 
   template <typename Lambda>
-  inline void pfor_neighbors(const NodeID u, const NodeID max_neighbours, Lambda &&l) const {
+  inline void pfor_neighbors(const NodeID u, const NodeID max_neighbor_count, Lambda &&l) const {
     if (const auto *graph = dynamic_cast<const CSRGraph *>(_underlying_graph.get());
         graph != nullptr) {
-      graph->pfor_neighbors(u, max_neighbours, std::forward<Lambda>(l));
+      graph->pfor_neighbors(u, max_neighbor_count, std::forward<Lambda>(l));
       return;
     }
 
-    // TODO: Compressed Graph
+    if (const auto *graph = dynamic_cast<const CompressedGraph *>(_underlying_graph.get());
+        graph != nullptr) {
+      graph->pfor_neighbors(u, max_neighbor_count, std::forward<Lambda>(l));
+      return;
+    }
+
+    __builtin_unreachable();
   }
 
   // Graph permutation
