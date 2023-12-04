@@ -29,7 +29,11 @@ static std::string to_megabytes(std::size_t bytes) {
   return stream.str();
 }
 
-template <typename Graph> void benchmark_degree(const Graph &graph) {
+template <typename T> static bool operator!=(const IotaRange<T> &a, const IotaRange<T> &b) {
+  return a.begin() != b.begin() || a.end() != b.end();
+};
+
+template <typename Graph> static void benchmark_degree(const Graph &graph) {
   SCOPED_TIMER("Degree");
 
   volatile std::size_t total_degree = 0;
@@ -40,7 +44,7 @@ template <typename Graph> void benchmark_degree(const Graph &graph) {
   }
 }
 
-template <typename Graph> void benchmark_adjacent_nodes(const Graph &graph) {
+template <typename Graph> static void benchmark_adjacent_nodes(const Graph &graph) {
   SCOPED_TIMER("Adjacent nodes");
 
   volatile std::size_t count = 0;
@@ -53,7 +57,21 @@ template <typename Graph> void benchmark_adjacent_nodes(const Graph &graph) {
   }
 }
 
-void expect_equal_degree(const CSRGraph &graph, const CompressedGraph &compressed_graph) {
+static void expect_equal_nodes(const CSRGraph &graph, const CompressedGraph &compressed_graph) {
+  if (graph.nodes() != compressed_graph.nodes()) {
+    LOG << "The nodes of the compressed and uncompressed graph do not match!";
+    return;
+  }
+}
+
+static void expect_equal_edges(const CSRGraph &graph, const CompressedGraph &compressed_graph) {
+  if (graph.edges() != compressed_graph.edges()) {
+    LOG << "The edges of the compressed and uncompressed graph do not match!";
+    return;
+  }
+}
+
+static void expect_equal_degree(const CSRGraph &graph, const CompressedGraph &compressed_graph) {
   for (const auto node : graph.nodes()) {
     if (graph.degree(node) != compressed_graph.degree(node)) {
       LOG << "The node " << node << " has degree " << compressed_graph.degree(node)
@@ -64,7 +82,19 @@ void expect_equal_degree(const CSRGraph &graph, const CompressedGraph &compresse
   }
 }
 
-void expect_compressed_graph_eq(const CSRGraph &graph, const CompressedGraph &compressed_graph) {
+static void
+expect_equal_incident_edges(const CSRGraph &graph, const CompressedGraph &compressed_graph) {
+  for (const auto node : graph.nodes()) {
+    if (graph.incident_edges(node) != compressed_graph.incident_edges(node)) {
+      LOG << "The incident edges of node " << node
+          << " in the compressed and uncompressed graph do not match!";
+      return;
+    }
+  }
+}
+
+static void
+expect_equal_adjacent_nodes(const CSRGraph &graph, const CompressedGraph &compressed_graph) {
   if (graph.n() != compressed_graph.n()) {
     LOG << "The uncompressed graph has " << graph.n() << " nodes and the compressed graph has "
         << compressed_graph.n() << " nodes!";
@@ -77,10 +107,9 @@ void expect_compressed_graph_eq(const CSRGraph &graph, const CompressedGraph &co
     return;
   }
 
+  std::vector<NodeID> graph_neighbours;
+  std::vector<NodeID> compressed_graph_neighbours;
   for (const NodeID node : graph.nodes()) {
-    std::vector<NodeID> graph_neighbours;
-    std::vector<NodeID> compressed_graph_neighbours;
-
     for (const NodeID adjacent_node : graph.adjacent_nodes(node)) {
       graph_neighbours.push_back(adjacent_node);
     }
@@ -100,19 +129,113 @@ void expect_compressed_graph_eq(const CSRGraph &graph, const CompressedGraph &co
     std::sort(compressed_graph_neighbours.begin(), compressed_graph_neighbours.end());
     if (graph_neighbours != compressed_graph_neighbours) {
       LOG << "The neighbourhood of node " << node
-          << " int graph and the compressed graph does not match!";
+          << " in the compressed and uncompressed graph does not match!";
+      return;
     }
+
+    graph_neighbours.clear();
+    compressed_graph_neighbours.clear();
+  }
+}
+
+static void
+expect_equal_neighbours(const CSRGraph &graph, const CompressedGraph &compressed_graph) {
+  std::vector<EdgeID> graph_incident_edges;
+  std::vector<NodeID> graph_adjacent_node;
+  std::vector<EdgeID> compressed_graph_incident_edges;
+  std::vector<NodeID> compressed_graph_adjacent_node;
+
+  for (const NodeID node : graph.nodes()) {
+    for (const auto [incident_edge, adjacent_node] : graph.neighbors(node)) {
+      graph_incident_edges.push_back(incident_edge);
+      graph_adjacent_node.push_back(adjacent_node);
+    }
+
+    for (const auto [incident_edge, adjacent_node] : compressed_graph.neighbors(node)) {
+      compressed_graph_incident_edges.push_back(incident_edge);
+      compressed_graph_adjacent_node.push_back(adjacent_node);
+    }
+
+    if (graph_incident_edges.size() != compressed_graph_incident_edges.size()) {
+      LOG << "Node " << node << " has " << graph_incident_edges.size()
+          << " neighbours in the uncompressed graph but " << compressed_graph_incident_edges.size()
+          << " neighbours in the compressed graph!";
+      return;
+    }
+
+    std::sort(graph_incident_edges.begin(), graph_incident_edges.end());
+    std::sort(graph_adjacent_node.begin(), graph_adjacent_node.end());
+    std::sort(compressed_graph_incident_edges.begin(), compressed_graph_incident_edges.end());
+    std::sort(compressed_graph_adjacent_node.begin(), compressed_graph_adjacent_node.end());
+
+    if (graph_incident_edges != compressed_graph_incident_edges) {
+      LOG << "The incident edges of node " << node
+          << " in the compressed and uncompressed graph do not match!";
+      return;
+    }
+
+    if (graph_adjacent_node != compressed_graph_adjacent_node) {
+      LOG << "The adjacent nodes of node " << node
+          << " in the compressed and uncompressed graph do not match!";
+      return;
+    }
+
+    graph_incident_edges.clear();
+    graph_adjacent_node.clear();
+    compressed_graph_incident_edges.clear();
+    compressed_graph_adjacent_node.clear();
+  }
+}
+
+static void
+expect_equal_pfor_neighbors(const CSRGraph &graph, const CompressedGraph &compressed_graph) {
+  tbb::concurrent_vector<NodeID> graph_adjacent_node;
+  tbb::concurrent_vector<NodeID> compressed_graph_adjacent_node;
+
+  for (const NodeID node : graph.nodes()) {
+    graph.pfor_neighbors(
+        node,
+        std::numeric_limits<NodeID>::max(),
+        [&](const EdgeID e, const NodeID v) { graph_adjacent_node.push_back(v); }
+    );
+
+    compressed_graph.pfor_neighbors(
+        node,
+        std::numeric_limits<NodeID>::max(),
+        [&](const EdgeID e, const NodeID v) { compressed_graph_adjacent_node.push_back(v); }
+    );
+
+    if (graph_adjacent_node.size() != compressed_graph_adjacent_node.size()) {
+      LOG << "Node " << node << " has " << graph_adjacent_node.size()
+          << " adjacent nodes in the uncompressed graph but "
+          << compressed_graph_adjacent_node.size() << " adjacent node in the compressed graph!";
+      return;
+    }
+
+    std::sort(graph_adjacent_node.begin(), graph_adjacent_node.end());
+    std::sort(compressed_graph_adjacent_node.begin(), compressed_graph_adjacent_node.end());
+
+    if (graph_adjacent_node != compressed_graph_adjacent_node) {
+      LOG << "The adjacent nodes of node " << node
+          << " in the compressed and uncompressed graph do not match!";
+      return;
+    }
+
+    graph_adjacent_node.clear();
+    compressed_graph_adjacent_node.clear();
   }
 }
 
 struct GraphStats {
   std::size_t used_memory;
+  std::size_t high_degree_count;
+  std::size_t part_count;
   std::size_t interval_count;
 };
 
-GraphStats run_benchmark(const CSRGraph &graph, bool benchmarks, bool checks) {
-  auto compressed_graph = CompressedGraphBuilder::compress(graph);
-
+static GraphStats run_benchmark(
+    const CSRGraph &graph, const CompressedGraph &compressed_graph, bool benchmarks, bool checks
+) {
   if (benchmarks) {
     LOG << "Running the benchmark...";
 
@@ -133,11 +256,21 @@ GraphStats run_benchmark(const CSRGraph &graph, bool benchmarks, bool checks) {
 
   if (checks) {
     LOG << "Checking if the graph operations are valid...";
+    expect_equal_nodes(graph, compressed_graph);
+    expect_equal_edges(graph, compressed_graph);
     expect_equal_degree(graph, compressed_graph);
-    expect_compressed_graph_eq(graph, compressed_graph);
+    expect_equal_incident_edges(graph, compressed_graph);
+    expect_equal_adjacent_nodes(graph, compressed_graph);
+    expect_equal_neighbours(graph, compressed_graph);
+    expect_equal_pfor_neighbors(graph, compressed_graph);
   }
 
-  return {compressed_graph.used_memory(), compressed_graph.interval_count()};
+  return {
+      compressed_graph.used_memory(),
+      compressed_graph.high_degree_count(),
+      compressed_graph.part_count(),
+      compressed_graph.interval_count()
+  };
 }
 
 int main(int argc, char *argv[]) {
@@ -161,35 +294,24 @@ int main(int argc, char *argv[]) {
 
   tbb::global_control gc(tbb::global_control::max_allowed_parallelism, num_threads);
 
-  // Read input graph
-  LOG << "Reading the input graph...";
-  StaticArray<EdgeID> xadj;
-  StaticArray<NodeID> adjncy;
-  StaticArray<NodeWeight> vwgt;
-  StaticArray<EdgeWeight> adjwgt;
-
-  shm::io::metis::read<false>(graph_filename, xadj, adjncy, vwgt, adjwgt);
-
-  const NodeID n = static_cast<NodeID>(xadj.size() - 1);
-  const EdgeID m = xadj[n];
-
-  StaticArray<EdgeID> nodes(xadj.data(), n + 1);
-  StaticArray<NodeID> edges(adjncy.data(), m);
-  StaticArray<NodeWeight> node_weights =
-      (vwgt.empty()) ? StaticArray<NodeWeight>(0) : StaticArray<NodeWeight>(vwgt.data(), n);
-  StaticArray<EdgeWeight> edge_weights =
-      (adjwgt.empty()) ? StaticArray<EdgeWeight>(0) : StaticArray<EdgeWeight>(adjwgt.data(), m);
-
-  CSRGraph graph(
-      std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights)
-  );
-
-  // Run the benchmark
   ENABLE_HEAP_PROFILER();
   GLOBAL_TIMER.reset();
 
-  LOG << "Compressing the input graph...";
-  GraphStats stats = run_benchmark(graph, enable_benchmarks, enable_checks);
+  // Read input graph
+  LOG << "Reading the input graph...";
+
+  START_HEAP_PROFILER("Input Graph Allocation");
+  CSRGraph graph = TIMED_SCOPE("Read csr graph") {
+    return shm::io::metis::csr_read<false>(graph_filename);
+  };
+
+  CompressedGraph compressed_graph = TIMED_SCOPE("Read compressed graph") {
+    return shm::io::metis::compress_read<false>(graph_filename);
+  };
+  STOP_HEAP_PROFILER();
+
+  // Run the benchmark
+  GraphStats stats = run_benchmark(graph, compressed_graph, enable_benchmarks, enable_checks);
 
   STOP_TIMER();
   DISABLE_HEAP_PROFILER();
@@ -200,6 +322,8 @@ int main(int argc, char *argv[]) {
 
   LOG << "Input graph has " << graph.n() << " vertices and " << graph.m()
       << " edges. Its density is " << ((graph.m()) / (float)(graph.n() * (graph.n() - 1))) << ".";
+  LOG << "Node weights: " << (graph.is_node_weighted() ? "yes" : "no")
+      << ", edge weights: " << (graph.is_edge_weighted() ? "yes" : "no");
   LOG;
   std::size_t graph_size = graph.raw_nodes().size() * sizeof(Graph::EdgeID) +
                            graph.raw_edges().size() * sizeof(Graph::NodeID);
@@ -214,9 +338,15 @@ int main(int argc, char *argv[]) {
   LOG << "Thats a compression ratio of " << compression_factor << '.';
   LOG;
 
+  std::size_t high_degree_count = stats.high_degree_count;
+  LOG << high_degree_count << " (" << (high_degree_count / (float)graph.n())
+      << "%) vertices have high degree.";
+
+  std::size_t part_count = stats.part_count;
+  LOG << part_count << " parts result from splitting the neighborhood of high degree nodes.";
+
   std::size_t interval_count = stats.interval_count;
-  LOG << interval_count << " (" << (interval_count / (float)graph.n())
-      << "%) vertices use interval encoding.";
+  LOG << interval_count << " vertices/parts use interval encoding.";
   LOG;
 
   Timer::global().print_human_readable(std::cout);

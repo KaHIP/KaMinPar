@@ -10,6 +10,7 @@
 
 #include "kaminpar-common/variable_length_codec.h"
 
+#define HIGH_DEGREE_NUM (CompressedGraph::kHighDegreeThreshold * 5)
 #define TEST_ON_ALL_GRAPHS(test_function)                                                          \
   test_function(graphs::empty(0));                                                                 \
   test_function(graphs::empty(100));                                                               \
@@ -18,7 +19,8 @@
   test_function(graphs::grid(100, 100));                                                           \
   test_function(graphs::complete_bipartite(100, 100));                                             \
   test_function(graphs::complete(100));                                                            \
-  test_function(graphs::matching(100));
+  test_function(graphs::matching(100));                                                            \
+  test_function(graphs::star(HIGH_DEGREE_NUM));
 
 namespace kaminpar::shm::testing {
 
