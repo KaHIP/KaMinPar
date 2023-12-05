@@ -147,18 +147,6 @@ public:
   }
 
   // Low-level access to the graph structure
-  [[nodiscard]] inline NodeID edge_target(const EdgeID e) const final {
-    return _edges[e];
-  }
-
-  [[nodiscard]] inline EdgeID first_edge(const NodeID u) const final {
-    return _nodes[u];
-  }
-
-  [[nodiscard]] inline EdgeID first_invalid_edge(const NodeID u) const final {
-    return _nodes[u + 1];
-  }
-
   [[nodiscard]] inline NodeID degree(const NodeID u) const final {
     return static_cast<NodeID>(_nodes[u + 1] - _nodes[u]);
   }
@@ -187,15 +175,13 @@ public:
 
   [[nodiscard]] inline auto adjacent_nodes(const NodeID u) const {
     return TransformedIotaRange2<EdgeID, NodeID>(_nodes[u], _nodes[u + 1], [this](const EdgeID e) {
-      return this->edge_target(e);
+      return _edges[e];
     });
   }
 
   [[nodiscard]] inline auto neighbors(const NodeID u) const {
     return TransformedIotaRange2<EdgeID, std::pair<EdgeID, NodeID>>(
-        _nodes[u],
-        _nodes[u + 1],
-        [this](const EdgeID e) { return std::make_pair(e, this->edge_target(e)); }
+        _nodes[u], _nodes[u + 1], [this](const EdgeID e) { return std::make_pair(e, _edges[e]); }
     );
   }
 
@@ -204,7 +190,7 @@ public:
     const EdgeID to = from + std::min(degree(u), max_neighbor_count);
 
     return TransformedIotaRange2<EdgeID, std::pair<EdgeID, NodeID>>(
-        from, to, [this](const EdgeID e) { return std::make_pair(e, this->edge_target(e)); }
+        from, to, [this](const EdgeID e) { return std::make_pair(e, _edges[e]); }
     );
   }
 

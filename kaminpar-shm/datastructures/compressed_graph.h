@@ -199,19 +199,6 @@ public:
   }
 
   // Low-level access to the graph structure
-
-  [[nodiscard]] inline NodeID edge_target(const EdgeID e) const final {
-    return 0;
-  }
-
-  [[nodiscard]] inline EdgeID first_edge(const NodeID u) const final {
-    return 0;
-  }
-
-  [[nodiscard]] inline EdgeID first_invalid_edge(const NodeID u) const final {
-    return 0;
-  }
-
   [[nodiscard]] inline NodeID degree(const NodeID node) const final {
     const std::uint8_t *data = _compressed_edges.data() + _nodes[node];
     auto [degree, len] = varint_decode<NodeID>(data);

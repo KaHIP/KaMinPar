@@ -156,18 +156,6 @@ public:
   }
 
   // Low-level access to the graph structure
-  [[nodiscard]] inline NodeID edge_target(const EdgeID e) const final {
-    return _underlying_graph->edge_target(e);
-  }
-
-  [[nodiscard]] inline EdgeID first_edge(const NodeID u) const final {
-    return _underlying_graph->first_edge(u);
-  }
-
-  [[nodiscard]] inline EdgeID first_invalid_edge(const NodeID u) const final {
-    return _underlying_graph->first_invalid_edge(u);
-  }
-
   [[nodiscard]] inline NodeID degree(const NodeID u) const final {
     return _underlying_graph->degree(u);
   }
@@ -380,10 +368,6 @@ public:
 
   [[nodiscard]] inline EdgeWeight total_edge_weight() const {
     return _graph->total_edge_weight();
-  }
-
-  [[nodiscard]] inline NodeID edge_target(const EdgeID e) const {
-    return _graph->edge_target(e);
   }
 
   [[nodiscard]] inline NodeID degree(const NodeID u) const {

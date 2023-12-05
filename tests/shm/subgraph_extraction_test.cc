@@ -36,12 +36,12 @@ TEST(SubgraphExtractionTest, ExtractsEdges) {
   EXPECT_EQ(result.subgraphs[1].n(), 2);
   EXPECT_EQ(result.subgraphs[0].m(), 2);
   EXPECT_EQ(result.subgraphs[1].m(), 2);
-  EXPECT_THAT(result.subgraphs[0].edge_target(0), AnyOf(0, 1));
-  EXPECT_THAT(result.subgraphs[0].edge_target(1), AnyOf(1, 0));
-  EXPECT_NE(result.subgraphs[0].edge_target(0), result.subgraphs[0].edge_target(1));
-  EXPECT_THAT(result.subgraphs[1].edge_target(0), AnyOf(0, 1));
-  EXPECT_THAT(result.subgraphs[1].edge_target(1), AnyOf(1, 0));
-  EXPECT_NE(result.subgraphs[1].edge_target(0), result.subgraphs[0].edge_target(1));
+  EXPECT_THAT(result.subgraphs[0].raw_edges()[0], AnyOf(0, 1));
+  EXPECT_THAT(result.subgraphs[0].raw_edges()[1], AnyOf(1, 0));
+  EXPECT_NE(result.subgraphs[0].raw_edges()[0], result.subgraphs[0].raw_edges()[1]);
+  EXPECT_THAT(result.subgraphs[1].raw_edges()[0], AnyOf(0, 1));
+  EXPECT_THAT(result.subgraphs[1].raw_edges()[1], AnyOf(1, 0));
+  EXPECT_NE(result.subgraphs[1].raw_edges()[0], result.subgraphs[0].raw_edges()[1]);
 }
 
 TEST(SubgraphExtractionTest, ExtractsPathCutInTwo) {
@@ -55,12 +55,12 @@ TEST(SubgraphExtractionTest, ExtractsPathCutInTwo) {
   EXPECT_EQ(result.subgraphs[1].n(), 2);
   EXPECT_EQ(result.subgraphs[0].m(), 2);
   EXPECT_EQ(result.subgraphs[1].m(), 2);
-  EXPECT_THAT(result.subgraphs[0].edge_target(0), AnyOf(0, 1));
-  EXPECT_THAT(result.subgraphs[0].edge_target(1), AnyOf(1, 0));
-  EXPECT_NE(result.subgraphs[0].edge_target(0), result.subgraphs[0].edge_target(1));
-  EXPECT_THAT(result.subgraphs[1].edge_target(0), AnyOf(0, 1));
-  EXPECT_THAT(result.subgraphs[1].edge_target(1), AnyOf(1, 0));
-  EXPECT_NE(result.subgraphs[1].edge_target(0), result.subgraphs[0].edge_target(1));
+  EXPECT_THAT(result.subgraphs[0].raw_edges()[0], AnyOf(0, 1));
+  EXPECT_THAT(result.subgraphs[0].raw_edges()[1], AnyOf(1, 0));
+  EXPECT_NE(result.subgraphs[0].raw_edges()[0], result.subgraphs[0].raw_edges()[1]);
+  EXPECT_THAT(result.subgraphs[1].raw_edges()[0], AnyOf(0, 1));
+  EXPECT_THAT(result.subgraphs[1].raw_edges()[1], AnyOf(1, 0));
+  EXPECT_NE(result.subgraphs[1].raw_edges()[0], result.subgraphs[0].raw_edges()[1]);
 }
 
 TEST(SubgraphExtractionTest, ComplexTrianglesWeightedExampleWorks) {
@@ -87,7 +87,8 @@ TEST(SubgraphExtractionTest, ComplexTrianglesWeightedExampleWorks) {
       15,
       p_graph.m(),
       p_graph.graph().is_node_weighted(),
-      p_graph.graph().is_edge_weighted()};
+      p_graph.graph().is_edge_weighted()
+  };
   auto result = extract_subgraphs(p_graph, memory);
 
   EXPECT_EQ(result.subgraphs[0].n(), 3);

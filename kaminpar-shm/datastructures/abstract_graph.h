@@ -67,10 +67,6 @@ public:
   [[nodiscard]] virtual EdgeWeight total_edge_weight() const = 0;
 
   // Low-level access to the graph structure
-  [[nodiscard]] virtual NodeID edge_target(EdgeID e) const = 0;
-  [[nodiscard]] virtual EdgeID first_edge(NodeID u) const = 0;
-  [[nodiscard]] virtual EdgeID first_invalid_edge(NodeID u) const = 0;
-
   [[nodiscard]] virtual NodeID degree(NodeID u) const = 0;
 
   // Iterators for nodes / edges
