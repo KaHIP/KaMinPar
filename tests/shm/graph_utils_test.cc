@@ -203,7 +203,7 @@ TEST(SequentialGraphExtraction, SimpleSequentialBipartitionExtractionWorks) {
   graph::SubgraphMemoryStartPosition position{0, 0};
   graph::TemporarySubgraphMemory buffer{};
   const auto [subgraphs, positions] =
-      graph::extract_subgraphs_sequential(p_graph, position, memory, buffer);
+      graph::extract_subgraphs_sequential(p_graph, {1, 1}, position, memory, buffer);
 
   for (const auto &subgraph : subgraphs) {
     EXPECT_EQ(subgraph.n(), 3);

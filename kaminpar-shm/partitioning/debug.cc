@@ -10,6 +10,7 @@
 #include <fstream>
 #include <iomanip>
 #include <string>
+#include <vector>
 
 #include "kaminpar-shm/context.h"
 #include "kaminpar-shm/datastructures/graph.h"
@@ -19,56 +20,47 @@
 
 namespace kaminpar::shm::debug {
 namespace {
-std::string generate_filename(const Graph &graph, const Context &ctx, const std::string &suffix) {
-  std::stringstream filename_ss;
+std::string generate_filename(const std::string &pattern, const Graph &graph, const Context &ctx) {
+  std::string filename = pattern;
+  return str::replace_all(
+      filename,
+      {
+          {"%graph", (ctx.debug.graph_name.empty() ? "" : ctx.debug.graph_name)},
+          {"%n", std::to_string(graph.n())},
+          {"%m", std::to_string(graph.m())},
+          {"%k", std::to_string(ctx.partition.k)},
+          {"%epsilon", std::to_string(ctx.partition.epsilon)},
+          {"%P", std::to_string(ctx.parallel.num_threads)},
+          {"%seed", std::to_string(Random::get_seed())},
+      }
+  );
+}
 
-  if (!ctx.debug.dump_dir.empty()) {
-    filename_ss << ctx.debug.dump_dir << "/";
-  }
+std::string
+generate_graph_filename(const std::string &suffix, const Graph &graph, const Context &ctx) {
+  return generate_filename(ctx.debug.dump_graph_filename + "." + suffix, graph, ctx);
+}
 
-  if (ctx.debug.graph_name.empty()) {
-    filename_ss << "undefined_n" << graph.n() << "_m" << graph.m();
-  } else {
-    if (ctx.debug.dump_dir.empty()) {
-      filename_ss << ctx.debug.graph_name;
-    } else {
-      // This is currently the same as above, since graph_name is usually already the extracted
-      // basename of the graph; we keep the branch none-the-less in case this changes in the future
-      filename_ss << str::extract_basename(ctx.debug.graph_name);
-    }
-  }
-
-  filename_ss << "." << suffix;
-
-  if (ctx.debug.include_num_threads_in_filename) {
-    filename_ss << ".P" << ctx.parallel.num_threads;
-  }
-  if (ctx.debug.include_seed_in_filename) {
-    filename_ss << ".seed" << Random::get_seed();
-  }
-  if (ctx.debug.include_epsilon_in_filename) {
-    filename_ss << ".eps" << std::fixed << std::setprecision(3) << ctx.partition.epsilon;
-  }
-  if (ctx.debug.include_k_in_filename) {
-    filename_ss << ".k" << ctx.partition.k;
-  }
-
-  return filename_ss.str();
+std::string
+generate_partition_filename(const std::string &suffix, const Graph &graph, const Context &ctx) {
+  return generate_filename(ctx.debug.dump_partition_filename + "." + suffix, graph, ctx);
 }
 } // namespace
 
 void dump_coarsest_graph(const Graph &graph, const Context &ctx) {
   if (ctx.debug.dump_coarsest_graph) {
-    dump_graph(graph, generate_filename(graph, ctx, "coarsest.metis"));
+    dump_graph(graph, generate_graph_filename("coarsest.metis", graph, ctx));
   }
 }
 
 void dump_graph_hierarchy(const Graph &graph, const int level, const Context &ctx) {
   if (ctx.debug.dump_graph_hierarchy) {
-    dump_graph(graph, generate_filename(graph, ctx, "level" + std::to_string(level) + ".metis"));
+    dump_graph(
+        graph, generate_graph_filename("level" + std::to_string(level) + ".metis", graph, ctx)
+    );
   }
   if (level == 0 && ctx.debug.dump_toplevel_graph) {
-    dump_graph(graph, generate_filename(graph, ctx, "toplevel.metis"));
+    dump_graph(graph, generate_graph_filename("toplevel.metis", graph, ctx));
   }
 }
 
@@ -98,7 +90,7 @@ void dump_graph(const Graph &graph, const std::string &filename) {
 
 void dump_coarsest_partition(const PartitionedGraph &p_graph, const Context &ctx) {
   if (ctx.debug.dump_coarsest_partition) {
-    dump_partition(p_graph, generate_filename(p_graph.graph(), ctx, "coarsest.part"));
+    dump_partition(p_graph, generate_partition_filename("coarsest.graph", p_graph.graph(), ctx));
   }
 }
 
@@ -108,13 +100,15 @@ void dump_partition_hierarchy(
   if (ctx.debug.dump_partition_hierarchy) {
     dump_partition(
         p_graph,
-        generate_filename(
-            p_graph.graph(), ctx, "level" + std::to_string(level) + "." + state + ".part"
+        generate_partition_filename(
+            "level" + std::to_string(level) + "." + state + ".part", p_graph.graph(), ctx
         )
     );
   }
   if (level == 0 && ctx.debug.dump_toplevel_partition) {
-    dump_partition(p_graph, generate_filename(p_graph.graph(), ctx, "toplevel." + state + ".part"));
+    dump_partition(
+        p_graph, generate_partition_filename("toplevel." + state + ".part", p_graph.graph(), ctx)
+    );
   }
 }
 

@@ -71,6 +71,6 @@ PartitionedGraph ClusteringCoarsener::uncoarsen(PartitionedGraph &&p_graph) {
 
   SCOPED_HEAP_PROFILER("Create graph");
   SCOPED_TIMER("Create graph");
-  return {*_current_graph, p_graph.k(), std::move(partition), std::move(p_graph.take_final_k())};
+  return {*_current_graph, p_graph.k(), std::move(partition)};
 }
 } // namespace kaminpar::shm

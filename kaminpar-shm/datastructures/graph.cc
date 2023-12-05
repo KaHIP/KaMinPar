@@ -27,6 +27,7 @@ Graph::Graph(std::unique_ptr<AbstractGraph> graph) : _underlying_graph(std::move
 // Utility debug functions
 //
 
+namespace debug {
 void print_graph(const Graph &graph) {
   for (const NodeID u : graph.nodes()) {
     LLOG << "L" << u << " NW" << graph.node_weight(u) << " | ";
@@ -87,4 +88,5 @@ bool validate_graph(
   return true;
 }
 
+} // namespace debug
 } // namespace kaminpar::shm

@@ -49,4 +49,20 @@ std::string &ltrim(std::string &s, const char *t) {
 std::string &trim(std::string &s, const char *t) {
   return ltrim(rtrim(s, t), t);
 }
+
+std::string &replace_all(std::string &str, const std::string &replace, const std::string &with) {
+  for (auto pos = str.find(replace); pos != std::string::npos;
+       pos = str.find(replace, pos + with.length())) {
+    str.replace(pos, replace.length(), with);
+  }
+  return str;
+}
+
+std::string &
+replace_all(std::string &str, const std::vector<std::pair<std::string, std::string>> &replacements) {
+  for (auto &replacement : replacements) {
+    replace_all(str, replacement.first, replacement.second);
+  }
+  return str;
+}
 } // namespace kaminpar::str

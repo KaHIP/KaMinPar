@@ -44,8 +44,10 @@ public:
         _graph(graph),
         _i_ctx(ctx.initial_partitioning),
         _coarsener(&_graph, _i_ctx.coarsening, std::move(_m_ctx.coarsener_m_ctx)) {
-    std::tie(_final_k1, _final_k2) = math::split_integral(final_k);
-    _p_ctx = create_bipartition_context(_graph, _final_k1, _final_k2, ctx.partition);
+    const auto [final_k1, final_k2] = math::split_integral(final_k);
+    _p_ctx = create_bipartition_context(_graph, final_k1, final_k2, ctx.partition);
+    DBG << " -> created _p_ctx with max weights: " << _p_ctx.block_weights.max(0) << " + "
+        << _p_ctx.block_weights.max(1);
 
     _refiner =
         create_initial_refiner(_graph, _p_ctx, _i_ctx.refinement, std::move(_m_ctx.refiner_m_ctx));
@@ -71,9 +73,6 @@ public:
     bipartitioner->set_num_repetitions(_num_bipartition_repetitions);
     PartitionedGraph p_graph = bipartitioner->bipartition();
     _m_ctx.pool_m_ctx = bipartitioner->free();
-
-    p_graph.set_final_k(0, _final_k1);
-    p_graph.set_final_k(1, _final_k2);
 
     DBG << "Bipartitioner result: "                              //
         << "cut=" << metrics::edge_cut(p_graph, tag::seq) << " " //
@@ -137,8 +136,6 @@ private:
   ip::InitialCoarsener _coarsener;
   std::unique_ptr<ip::InitialRefiner> _refiner;
 
-  BlockID _final_k1;
-  BlockID _final_k2;
   std::size_t _num_bipartition_repetitions;
 };
 } // namespace kaminpar::shm

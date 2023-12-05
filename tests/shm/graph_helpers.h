@@ -56,15 +56,6 @@ create_p_graph(const Graph &graph, const BlockID k, const std::vector<BlockID> &
   return PartitionedGraph{graph, k, static_array::create_from(partition)};
 }
 
-inline PartitionedGraph create_p_graph(
-    const Graph &graph,
-    const BlockID k,
-    const std::vector<BlockID> &partition,
-    std::vector<BlockID> final_ks
-) {
-  return PartitionedGraph{graph, k, static_array::create_from(partition), std::move(final_ks)};
-}
-
 inline PartitionedGraph
 create_p_graph(const Graph *graph, const BlockID k, const std::vector<BlockID> &partition) {
   return create_p_graph(*graph, k, partition);

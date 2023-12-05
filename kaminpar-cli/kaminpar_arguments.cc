@@ -302,21 +302,9 @@ CLI::Option_group *create_mtkahypar_refinement_options(CLI::App *app, Context &c
 CLI::Option_group *create_debug_options(CLI::App *app, Context &ctx) {
   auto *debug = app->add_option_group("Debug");
 
-  debug
-      ->add_option(
-          "--d-dump-dir",
-          ctx.debug.dump_dir,
-          "Directory in which the dumped graphs and partitions should be stored."
-      )
+  debug->add_option("--d-dump-graph-filename", ctx.debug.dump_graph_filename)
       ->capture_default_str();
-
-  debug->add_flag("--d-include-num-threads-in-filename", ctx.debug.include_num_threads_in_filename)
-      ->capture_default_str();
-  debug->add_flag("--d-include-seed-in-filename", ctx.debug.include_seed_in_filename)
-      ->capture_default_str();
-  debug->add_flag("--d-include-epsilon-in-filename", ctx.debug.include_epsilon_in_filename)
-      ->capture_default_str();
-  debug->add_flag("--d-include-k-in-filename", ctx.debug.include_k_in_filename)
+  debug->add_option("--d-dump-partition-filename", ctx.debug.dump_partition_filename)
       ->capture_default_str();
 
   debug

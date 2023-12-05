@@ -234,7 +234,7 @@ struct PartitionContext;
 
 struct BlockWeightsContext {
   void setup(const PartitionContext &ctx);
-  void setup(const PartitionContext &ctx, const std::vector<BlockID> &final_ks);
+  void setup(const PartitionContext &ctx, BlockID input_k);
 
   [[nodiscard]] BlockWeight max(BlockID b) const;
   [[nodiscard]] const std::vector<BlockWeight> &all_max() const;
@@ -258,7 +258,6 @@ struct PartitionContext {
   NodeWeight total_node_weight = kInvalidNodeWeight;
   EdgeWeight total_edge_weight = kInvalidEdgeWeight;
   NodeWeight max_node_weight = kInvalidNodeWeight;
-  EdgeID max_degree = kInvalidEdgeID;
 
   void setup(const Graph &graph);
 };
@@ -270,13 +269,9 @@ struct ParallelContext {
 struct DebugContext {
   std::string graph_name;
 
-  std::string dump_dir;
-
-  bool include_num_threads_in_filename;
-  bool include_seed_in_filename;
-  bool include_epsilon_in_filename;
-  bool include_k_in_filename;
-
+  // Options for dumping coarse graphs and intermediate partitions
+  std::string dump_graph_filename;
+  std::string dump_partition_filename;
   bool dump_toplevel_graph;
   bool dump_toplevel_partition;
   bool dump_coarsest_graph;

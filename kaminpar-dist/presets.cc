@@ -166,12 +166,6 @@ Context create_default_context() {
                   {
                       .alpha = 1.0,
 
-                      // -- local FM --
-                      .overlap_regions = false,
-                      .bound_degree = 0,
-                      .contract_border = false,
-
-                      // -- mostly global FM, some local FM --
                       .use_independent_seeds = true,
                       .use_bfs_seeds_as_fm_seeds = true,
 
@@ -235,18 +229,22 @@ Context create_default_context() {
                   },
               .jet =
                   {
-                      .num_iterations = 12,
-                      .min_c = 0.25,
-                      .max_c = 0.75,
-                      .interpolate_c = false,
-                      .use_abortion_threshold = true,
-                      .abortion_threshold = 0.999,
+                      .num_iterations = 0,
+                      .num_fruitless_iterations = 12,
+                      .fruitless_threshold = 0.999,
+                      .coarse_negative_gain_factor = 0.75,
+                      .fine_negative_gain_factor = 0.25,
                       .balancing_algorithm = RefinementAlgorithm::GREEDY_NODE_BALANCER,
                   },
               .jet_balancer =
                   {
                       .num_weak_iterations = 2,
                       .num_strong_iterations = 1,
+                  },
+              .mtkahypar =
+                  {
+                      .config_filename = "",
+                      .only_run_on_root = true,
                   },
           },
       .debug = {
@@ -282,10 +280,7 @@ Context create_europar23_strong_context() {
 Context create_jet_context() {
   Context ctx = create_default_context();
   ctx.refinement.algorithms = {
-      RefinementAlgorithm::GREEDY_NODE_BALANCER,
-      RefinementAlgorithm::BATCHED_LP,
-      RefinementAlgorithm::JET_REFINER,
-      RefinementAlgorithm::GREEDY_NODE_BALANCER};
+      RefinementAlgorithm::GREEDY_NODE_BALANCER, RefinementAlgorithm::JET_REFINER};
   return ctx;
 }
 

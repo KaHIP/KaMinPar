@@ -53,10 +53,6 @@ private:
   // Refinement
   std::unique_ptr<Refiner> _refiner;
 
-  // Initial partitioning -> subgraph extraction
-  graph::SubgraphMemory _subgraph_memory;
-  partitioning::TemporaryGraphExtractionBufferPool _ip_extraction_pool;
-
   // Initial partitioning
   partitioning::GlobalInitialPartitionerMemoryPool _ip_m_ctx_pool;
 };

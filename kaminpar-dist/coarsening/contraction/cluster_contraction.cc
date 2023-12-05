@@ -544,11 +544,11 @@ std::pair<NodeID, PEID> remap_gcnode(
     const NoinitVector<GlobalNodeID> &pe_overload,
     const NoinitVector<GlobalNodeID> &pe_underload
 ) {
-  const NodeID lcnode = static_cast<NodeID>(gcnode - current_cnode_distribution[current_owner]);
+  const auto lcnode = static_cast<NodeID>(gcnode - current_cnode_distribution[current_owner]);
 
-  const NodeID old_current_owner_overload =
+  const auto old_current_owner_overload =
       static_cast<NodeID>(pe_overload[current_owner + 1] - pe_overload[current_owner]);
-  const NodeID old_current_owner_count = static_cast<NodeID>(
+  const auto old_current_owner_count = static_cast<NodeID>(
       current_cnode_distribution[current_owner + 1] - current_cnode_distribution[current_owner]
   );
   const auto new_current_owner_count = old_current_owner_count - old_current_owner_overload;
@@ -562,10 +562,10 @@ std::pair<NodeID, PEID> remap_gcnode(
       const GlobalNodeID position = pe_overload[current_owner] + lcnode;
       const PEID new_owner =
           static_cast<PEID>(math::find_in_distribution<GlobalNodeID>(position, pe_underload));
-      const NodeID old_new_owner_count = static_cast<NodeID>(
+      const auto old_new_owner_count = static_cast<NodeID>(
           current_cnode_distribution[new_owner + 1] - current_cnode_distribution[new_owner]
       );
-      const NodeID new_lcnode =
+      const auto new_lcnode =
           static_cast<NodeID>(old_new_owner_count + position - pe_underload[new_owner]);
       return {new_lcnode, new_owner};
     }
@@ -578,10 +578,10 @@ std::pair<NodeID, PEID> remap_gcnode(
       const GlobalNodeID position = pe_overload[current_owner] + lcnode - new_current_owner_count;
       const PEID new_owner =
           static_cast<PEID>(math::find_in_distribution<GlobalNodeID>(position, pe_underload));
-      const NodeID old_new_owner_count = static_cast<NodeID>(
+      const auto old_new_owner_count = static_cast<NodeID>(
           current_cnode_distribution[new_owner + 1] - current_cnode_distribution[new_owner]
       );
-      const NodeID new_lcnode =
+      const auto new_lcnode =
           static_cast<NodeID>(old_new_owner_count + position - pe_underload[new_owner]);
       return {new_lcnode, new_owner};
     }
@@ -608,12 +608,12 @@ AssignmentShifts compute_assignment_shifts(
   pe_overload.front() = 0;
   pe_underload.front() = 0;
 
-  const NodeID avg_cnode_count = static_cast<NodeID>(c_n / size);
-  const NodeID max_cnode_count = max_cnode_imbalance * avg_cnode_count;
+  const auto avg_cnode_count = static_cast<NodeID>(c_n / size);
+  const auto max_cnode_count = static_cast<NodeID>(max_cnode_imbalance * avg_cnode_count);
 
   // Determine overloaded PEs
   tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
-    const NodeID cnode_count =
+    const auto cnode_count =
         static_cast<NodeID>(current_cnode_distribution[pe + 1] - current_cnode_distribution[pe]);
     pe_overload[pe + 1] = (cnode_count > max_cnode_count) ? cnode_count - max_cnode_count : 0;
     pe_load[pe] = {pe, cnode_count};
@@ -633,9 +633,7 @@ AssignmentShifts compute_assignment_shifts(
   PEID num_pes = 0;
   BinaryMinHeap<GlobalNodeID> maxes(size);
 
-  for (PEID pe = 0; pe < size; ++pe) {
-    KASSERT(pe + 1 < size || size == 1);
-
+  for (PEID pe = 0; pe + 1 < size; ++pe) {
     const PEID actual_pe = pe_load[pe].pe;
     const GlobalNodeID pe_max =
         current_node_distribution[actual_pe + 1] - current_node_distribution[actual_pe];
@@ -665,18 +663,35 @@ AssignmentShifts compute_assignment_shifts(
     } else {
       min_load = pe_load[pe].count + std::floor(1.0 * current_overload / num_pes);
       plus_ones = current_overload % num_pes;
+      current_overload = 0;
       break;
     }
+  }
+
+  if (current_overload > 0) {
+    // Balancing clusters is not possible due to the constraint that no PE may gain more nodes
+    // vertices than it has fine nodes (this is not an inherent constraint, but the remaining
+    // coarsening codes requires is)
+    // Hacky max_cnode_imbalance increase: @todo compute actual minimum achievable cnode imbalance
+    // ...
+    const double new_max_cnode_imbalance =
+        1.01 * (max_cnode_count + current_overload) / avg_cnode_count;
+    LOG_WARNING << "Cannot achieve maximum cnode imbalance: this should only ever happen in rare "
+                   "edge cases; increasing maximum cnode imbalance constraint from "
+                << max_cnode_imbalance << " to " << new_max_cnode_imbalance;
+    return compute_assignment_shifts(
+        current_node_distribution, current_cnode_distribution, new_max_cnode_imbalance
+    );
   }
 
   // Determine underloaded PEs
   PEID nth_underloaded = 0;
   for (PEID pe = 0; pe < size; ++pe) {
-    const NodeID cnode_count =
+    const auto cnode_count =
         static_cast<NodeID>(current_cnode_distribution[pe + 1] - current_cnode_distribution[pe]);
 
     if (cnode_count <= min_load) {
-      const NodeID node_count =
+      const auto node_count =
           static_cast<NodeID>(current_node_distribution[pe + 1] - current_node_distribution[pe]);
 
       pe_underload[pe + 1] = std::min<NodeID>(min_load - cnode_count, node_count - cnode_count);

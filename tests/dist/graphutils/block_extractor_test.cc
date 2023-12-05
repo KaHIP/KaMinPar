@@ -438,7 +438,7 @@ TEST(GlobalGraphExtractionTest, project_isolated_nodes_1_partition) {
   std::vector<shm::PartitionedGraph> p_subgraphs;
   StaticArray<BlockID> partition(1);
   partition[0] = 0;
-  p_subgraphs.push_back({subgraph, 1, std::move(partition), {1}});
+  p_subgraphs.emplace_back(subgraph, 1, std::move(partition));
 
   // Copy back to p_graph
   p_graph = graph::copy_subgraph_partitions(std::move(p_graph), p_subgraphs, result);
@@ -465,7 +465,7 @@ TEST(GlobalGraphExtractionTest, project_isolated_nodes_2_partition) {
   StaticArray<BlockID> partition(2);
   partition[0] = 0;
   partition[1] = 1;
-  p_subgraphs.push_back({subgraph, 2, std::move(partition), {1, 1}});
+  p_subgraphs.emplace_back(subgraph, 2, std::move(partition));
 
   // Copy back to p_graph
   p_graph = graph::copy_subgraph_partitions(std::move(p_graph), p_subgraphs, result);
@@ -506,12 +506,7 @@ TEST(GlobalGraphExtractionTest, project_circle_clique_partition) {
   for (const NodeID u : subgraph.nodes()) {
     partition[u] = u / 2;
   }
-  p_subgraphs.push_back(
-      {subgraph,
-       static_cast<BlockID>(size),
-       std::move(partition),
-       std::vector<BlockID>(size / 2, 1)}
-  );
+  p_subgraphs.emplace_back(subgraph, static_cast<BlockID>(size), std::move(partition));
 
   // Copy back to p_graph
   p_graph = graph::copy_subgraph_partitions(std::move(p_graph), p_subgraphs, result);
@@ -679,7 +674,7 @@ TEST(GlobalGraphExtractionTest, project_from_circle_clique_graph_less_pes_than_b
       partition[u] = u % 2;
     }
   }
-  shm::PartitionedGraph p_subgraph(subgraph, 2, std::move(partition), {1, 1});
+  shm::PartitionedGraph p_subgraph(subgraph, 2, std::move(partition));
   if (good_partition) {
     EXPECT_EQ(shm::metrics::edge_cut(p_subgraph), 0);
   } else {

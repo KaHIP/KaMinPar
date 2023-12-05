@@ -79,4 +79,17 @@ TEST(ClusterReassignmentTest, twitter_2010_64pe_2copy_regression) {
     EXPECT_LE(my_size_after + my_underload, my_size_before) << V(pe);
   }
 }
+
+TEST(ClusterReassignmentTest, rgg2d_N7_M11_2pe_regression) {
+  const auto node_distribution = static_array::create_from<GlobalNodeID>({0, 57, 128});
+  const auto cnode_distribution = static_array::create_from<GlobalNodeID>({0, 57, 128});
+  const double max_cnode_imbalance = 1.1;
+
+  const auto shifts = compute_assignment_shifts(node_distribution, cnode_distribution, 1.1);
+
+  for (PEID pe = 0; pe < 2; ++pe) {
+    const GlobalNodeID my_underload = shifts.underload[pe + 1] - shifts.underload[pe];
+    EXPECT_EQ(my_underload, 0);
+  }
+}
 } // namespace kaminpar::dist

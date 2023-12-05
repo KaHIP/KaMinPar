@@ -16,13 +16,13 @@
 
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/dkaminpar.h"
+#include "kaminpar-dist/timer.h"
 
 #include "kaminpar-common/assertion_levels.h"
 #include "kaminpar-common/datastructures/cache_aligned_vector.h"
 #include "kaminpar-common/datastructures/marker.h"
 #include "kaminpar-common/datastructures/noinit_vector.h"
 #include "kaminpar-common/parallel/aligned_element.h"
-#include "kaminpar-common/timer.h"
 
 #define SPARSE_ALLTOALL_NOFILTER                                                                   \
   [](NodeID) {                                                                                     \
@@ -123,7 +123,8 @@ void sparse_alltoall_interface_to_ghost_custom_range(
     Builder &&builder,
     Receiver &&receiver
 ) {
-  SCOPED_TIMER("Sparse AllToAll InterfaceToGhost");
+  TIMER_BARRIER(graph.communicator());
+  SCOPED_TIMER("Sparse AllToAll");
 
   constexpr bool builder_invocable_with_pe =
       std::is_invocable_r_v<Message, Builder, NodeID, EdgeID, NodeID, PEID>;
@@ -144,7 +145,7 @@ void sparse_alltoall_interface_to_ghost_custom_range(
 
   const auto [size, rank] = mpi::get_comm_info(graph.communicator());
 
-  START_TIMER("Message construction");
+  // START_TIMER("Message construction");
 
   // Allocate message counters
   const PEID num_threads = omp_get_max_threads();
@@ -220,7 +221,7 @@ void sparse_alltoall_interface_to_ghost_custom_range(
     }
   }
 
-  STOP_TIMER();
+  // STOP_TIMER();
 
   sparse_alltoall<Message, Buffer>(
       std::move(send_buffers), std::forward<decltype(receiver)>(receiver), graph.communicator()
@@ -442,7 +443,8 @@ void sparse_alltoall_interface_to_pe_custom_range(
     Builder &&builder,
     Receiver &&receiver
 ) {
-  SCOPED_TIMER("Sparse AllToAll InterfaceToPE");
+  TIMER_BARRIER(graph.communicator());
+  SCOPED_TIMER("Sparse AllToAll");
 
   constexpr bool builder_invocable_with_pe = std::is_invocable_r_v<Message, Builder, NodeID, PEID>;
   constexpr bool builder_invocable_with_pe_and_unmapped_node =
@@ -462,7 +464,7 @@ void sparse_alltoall_interface_to_pe_custom_range(
 
   const PEID size = mpi::get_comm_size(graph.communicator());
 
-  START_TIMER("Message construction");
+  // START_TIMER("Message construction");
 
   // Allocate message counters
   const PEID num_threads = omp_get_max_threads();
@@ -565,7 +567,7 @@ void sparse_alltoall_interface_to_pe_custom_range(
     }
   }
 
-  STOP_TIMER();
+  // STOP_TIMER();
 
   sparse_alltoall<Message, Buffer>(
       std::move(send_buffers), std::forward<Receiver>(receiver), graph.communicator()
@@ -741,7 +743,7 @@ void sparse_alltoall_custom(
   PEID size, rank;
   std::tie(size, rank) = mpi::get_comm_info(graph.communicator());
 
-  START_TIMER("Message construction");
+  // START_TIMER("Message construction");
 
   // Allocate message counters
   const PEID num_threads = omp_get_max_threads();
@@ -785,7 +787,7 @@ void sparse_alltoall_custom(
     }
   }
 
-  STOP_TIMER();
+  // STOP_TIMER();
 
   sparse_alltoall<Message, Buffer>(
       std::move(send_buffers), std::forward<Receiver>(receiver), graph.communicator()

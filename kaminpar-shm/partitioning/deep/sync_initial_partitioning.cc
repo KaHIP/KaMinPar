@@ -96,7 +96,7 @@ SyncInitialPartitioner::partition(const Coarsener *coarsener, const PartitionCon
       auto &p_graph = current_p_graphs[i];
       auto &coarsener = current_coarseners[i];
       auto &p_ctx = current_p_ctxs[i];
-      p_graph = helper::uncoarsen_once(coarsener.get(), std::move(p_graph), p_ctx);
+      p_graph = helper::uncoarsen_once(coarsener.get(), std::move(p_graph), p_ctx, _input_ctx.partition);
 
       // The Context object is used to pre-allocate memory for the finest graph of the input
       // hierarchy Since this refiner is never used for the finest graph, we need to adjust the

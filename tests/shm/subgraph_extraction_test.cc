@@ -13,7 +13,7 @@ TEST(SubgraphExtractionTest, ExtractsIsolatedNodes) {
   PartitionedGraph p_graph{create_p_graph(graph, 4, {0, 1, 2, 3})};
 
   graph::SubgraphMemory memory{p_graph};
-  auto result = extract_subgraphs(p_graph, memory);
+  auto result = extract_subgraphs(p_graph, 4, memory);
 
   EXPECT_EQ(result.subgraphs[0].n(), 1);
   EXPECT_EQ(result.subgraphs[1].n(), 1);
@@ -30,7 +30,7 @@ TEST(SubgraphExtractionTest, ExtractsEdges) {
   PartitionedGraph p_graph{create_p_graph(graph, 2, {0, 0, 1, 1})};
 
   graph::SubgraphMemory memory{p_graph};
-  auto result = extract_subgraphs(p_graph, memory);
+  auto result = extract_subgraphs(p_graph, 2, memory);
 
   EXPECT_EQ(result.subgraphs[0].n(), 2);
   EXPECT_EQ(result.subgraphs[1].n(), 2);
@@ -49,7 +49,7 @@ TEST(SubgraphExtractionTest, ExtractsPathCutInTwo) {
   PartitionedGraph p_graph{create_p_graph(graph, 2, {0, 0, 1, 1})};
 
   graph::SubgraphMemory memory{p_graph};
-  auto result = extract_subgraphs(p_graph, memory);
+  auto result = extract_subgraphs(p_graph, 2, memory);
 
   EXPECT_EQ(result.subgraphs[0].n(), 2);
   EXPECT_EQ(result.subgraphs[1].n(), 2);
@@ -80,7 +80,7 @@ TEST(SubgraphExtractionTest, ComplexTrianglesWeightedExampleWorks) {
       {1, 2, 3, 4, 5, 6, 7, 8, 9},
       {3, 6, 3, 5, 7, 5, 7, 9, 7, 10, 6, 7, 11, 12, 9, 10, 11, 14, 12, 15, 16, 14, 15, 17, 16, 17}
   )};
-  PartitionedGraph p_graph{create_p_graph(graph, 3, {0, 0, 1, 1, 0, 1, 2, 2, 2}, {4, 5, 6})};
+  PartitionedGraph p_graph{create_p_graph(graph, 3, {0, 0, 1, 1, 0, 1, 2, 2, 2})};
 
   graph::SubgraphMemory memory{
       p_graph.n(),
@@ -89,7 +89,7 @@ TEST(SubgraphExtractionTest, ComplexTrianglesWeightedExampleWorks) {
       p_graph.graph().is_node_weighted(),
       p_graph.graph().is_edge_weighted()
   };
-  auto result = extract_subgraphs(p_graph, memory);
+  auto result = extract_subgraphs(p_graph, 3, memory);
 
   EXPECT_EQ(result.subgraphs[0].n(), 3);
   EXPECT_EQ(result.subgraphs[1].n(), 3);

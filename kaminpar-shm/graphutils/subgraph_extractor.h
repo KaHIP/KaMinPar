@@ -36,6 +36,8 @@ struct SubgraphMemoryStartPosition {
 };
 
 struct SubgraphMemory {
+  SubgraphMemory() = default;
+
   SubgraphMemory(
       const NodeID n,
       const BlockID k,
@@ -43,23 +45,41 @@ struct SubgraphMemory {
       const bool is_node_weighted = true,
       const bool is_edge_weighted = true
   ) {
-    SCOPED_HEAP_PROFILER("SubgraphMemory allocation");
-    SCOPED_TIMER("Allocation");
-
-    RECORD("nodes") nodes = StaticArray<EdgeID>(n + k);
-    RECORD("edges") edges = StaticArray<NodeID>(m);
-    RECORD("node_weights") node_weights = StaticArray<NodeWeight>(is_node_weighted * (n + k));
-    RECORD("edge_weights") edge_weights = StaticArray<EdgeWeight>(is_edge_weighted * m);
+    resize(n, k, m, is_node_weighted, is_edge_weighted);
   }
 
-  explicit SubgraphMemory(const PartitionedGraph &p_graph)
-      : SubgraphMemory(
-            p_graph.n(),
-            p_graph.k(),
-            p_graph.m(),
-            p_graph.graph().is_node_weighted(),
-            p_graph.graph().is_edge_weighted()
-        ) {}
+  explicit SubgraphMemory(const PartitionedGraph &p_graph) {
+    resize(p_graph);
+  }
+
+  void resize(const PartitionedGraph &p_graph) {
+    resize(
+        p_graph.n(),
+        p_graph.k(),
+        p_graph.m(),
+        p_graph.is_node_weighted(),
+        p_graph.is_edge_weighted()
+    );
+  }
+
+  void resize(
+      const NodeID n,
+      const BlockID k,
+      const EdgeID m,
+      const bool is_node_weighted = true,
+      const bool is_edge_weighted = true
+  ) {
+    SCOPED_TIMER("Allocation");
+
+    nodes.resize(n + k);
+    edges.resize(m);
+    node_weights.resize(is_node_weighted * (n + k));
+    edge_weights.resize(is_edge_weighted * m);
+  }
+
+  [[nodiscard]] bool empty() const {
+    return nodes.empty();
+  }
 
   StaticArray<EdgeID> nodes;
   StaticArray<NodeID> edges;
@@ -122,19 +142,21 @@ struct TemporarySubgraphMemory {
   }
 };
 
-SubgraphExtractionResult
-extract_subgraphs(const PartitionedGraph &p_graph, SubgraphMemory &subgraph_memory);
+SubgraphExtractionResult extract_subgraphs(
+    const PartitionedGraph &p_graph, const BlockID input_k, SubgraphMemory &subgraph_memory
+);
 
 SequentialSubgraphExtractionResult extract_subgraphs_sequential(
     const PartitionedGraph &p_graph,
+    const std::array<BlockID, 2> &final_ks,
     SubgraphMemoryStartPosition memory_position,
     SubgraphMemory &subgraph_memory,
     TemporarySubgraphMemory &tmp_subgraph_memory
 );
 
-void copy_subgraph_partitions(
-    PartitionedGraph &p_graph,
-    const scalable_vector<BlockArray> &p_subgraph_partitions,
+PartitionedGraph copy_subgraph_partitions(
+    PartitionedGraph p_graph,
+    const scalable_vector<StaticArray<BlockID>> &p_subgraph_partitions,
     BlockID k_prime,
     BlockID input_k,
     const scalable_vector<NodeID> &mapping

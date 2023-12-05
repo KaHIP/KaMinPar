@@ -24,10 +24,10 @@
 #include "kaminpar-dist/initial_partitioning/random_initial_partitioner.h"
 
 // Refinement
+#include "kaminpar-dist/refinement/adapters/mtkahypar_refiner.h"
 #include "kaminpar-dist/refinement/balancer/cluster_balancer.h"
 #include "kaminpar-dist/refinement/balancer/node_balancer.h"
 #include "kaminpar-dist/refinement/fm/fm_refiner.h"
-#include "kaminpar-dist/refinement/fm/local_fm_refiner.h"
 #include "kaminpar-dist/refinement/jet/jet_balancer.h"
 #include "kaminpar-dist/refinement/jet/jet_refiner.h"
 #include "kaminpar-dist/refinement/lp/clp_refiner.h"
@@ -92,9 +92,6 @@ create_refiner(const Context &ctx, const RefinementAlgorithm algorithm) {
   case RefinementAlgorithm::COLORED_LP:
     return std::make_unique<ColoredLPRefinerFactory>(ctx);
 
-  case RefinementAlgorithm::LOCAL_FM:
-    return std::make_unique<LocalFMRefinerFactory>(ctx);
-
   case RefinementAlgorithm::GLOBAL_FM:
     return std::make_unique<FMRefinerFactory>(ctx);
 
@@ -109,6 +106,9 @@ create_refiner(const Context &ctx, const RefinementAlgorithm algorithm) {
 
   case RefinementAlgorithm::GREEDY_CLUSTER_BALANCER:
     return std::make_unique<ClusterBalancerFactory>(ctx);
+
+  case RefinementAlgorithm::MTKAHYPAR:
+    return std::make_unique<MtKaHyParRefinerFactory>(ctx);
   }
 
   __builtin_unreachable();

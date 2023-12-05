@@ -11,6 +11,7 @@
 #include <type_traits>
 
 #include "kaminpar-shm/datastructures/graph.h"
+#include "kaminpar-shm/datastructures/graph_delegate.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/definitions.h"
 
@@ -115,7 +116,7 @@ public:
     }
   }
 
-  [[nodiscard]] inline NodeWeight block_weight(const BlockID block) const {
+  [[nodiscard]] inline BlockWeight block_weight(const BlockID block) const {
     BlockWeight delta = 0;
 
     if constexpr (compact_block_weight_delta) {
@@ -151,7 +152,7 @@ private:
   // otherwise store the block weight deltas in vector (i.e., O(P * k) memory).
   std::conditional_t<
       compact_block_weight_delta,
-      google::dense_hash_map<BlockID, NodeWeight>,
+      google::dense_hash_map<BlockID, BlockWeight>,
       scalable_vector<BlockWeight>>
       _block_weights_delta;
 
@@ -163,6 +164,4 @@ private:
       std::vector<DeltaEntry>>
       _partition_delta;
 };
-
-// using DeltaPartitionedGraph = GenericDeltaPartitionedGraph<true, false>;
 } // namespace kaminpar::shm
