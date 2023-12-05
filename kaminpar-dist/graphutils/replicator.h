@@ -31,4 +31,11 @@ distribute_best_partition(const DistributedGraph &dist_graph, DistributedPartiti
 
 DistributedPartitionedGraph
 distribute_best_partition(const DistributedGraph &dist_graph, shm::PartitionedGraph shm_p_graph);
-} // namespace kaminpar::dist::graph
+
+DistributedPartitionedGraph distribute_partition(
+    const DistributedGraph &graph,
+    BlockID k,
+    const StaticArray<shm::BlockID> &global_partition,
+    PEID root
+);
+} // namespace kaminpar::dist

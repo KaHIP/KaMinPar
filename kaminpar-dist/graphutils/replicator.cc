@@ -7,6 +7,8 @@
  ******************************************************************************/
 #include "kaminpar-dist/graphutils/replicator.h"
 
+#include <algorithm>
+
 #include <mpi.h>
 
 #include "kaminpar-mpi/utils.h"
@@ -27,129 +29,6 @@
 namespace kaminpar::dist {
 SET_DEBUG(false);
 
-shm::Graph gather_graph(const DistributedGraph &graph, const PEID root) {
-  KASSERT(
-      graph.global_n() < std::numeric_limits<shm::NodeID>::max(),
-      "number of nodes is too large for shm::NodeID",
-      assert::always
-  );
-  KASSERT(
-      graph.global_m() < std::numeric_limits<shm::EdgeID>::max(),
-      "number of edges is too large for shm::EdgeID",
-      assert::always
-  );
-
-  MPI_Comm comm = graph.communicator();
-
-  // Copy edges array with global node IDs
-  StaticArray<shm::NodeID> remapped_edges(graph.m());
-  graph.pfor_nodes([&](const NodeID u) {
-    for (const auto [e, v] : graph.neighbors(u)) {
-      remapped_edges[e] = graph.local_to_global_node(v);
-    }
-  });
-
-  const bool is_node_weighted =
-      mpi::allreduce<std::uint8_t>(graph.is_node_weighted(), MPI_MAX, graph.communicator());
-  const bool is_edge_weighted =
-      mpi::allreduce<std::uint8_t>(graph.is_edge_weighted(), MPI_MAX, graph.communicator());
-
-  // Gather graph
-  StaticArray<shm::EdgeID> nodes(graph.global_n() + 1);
-  StaticArray<shm::NodeID> edges(graph.global_m());
-
-  StaticArray<shm::NodeWeight> node_weights(is_node_weighted * graph.global_n());
-  StaticArray<shm::EdgeWeight> edge_weights(is_edge_weighted * graph.global_m());
-
-  auto nodes_recvcounts = mpi::build_distribution_recvcounts(graph.node_distribution());
-  auto nodes_displs = mpi::build_distribution_displs(graph.node_distribution());
-  auto edges_recvcounts = mpi::build_distribution_recvcounts(graph.edge_distribution());
-  auto edges_displs = mpi::build_distribution_displs(graph.edge_distribution());
-
-  mpi::allgatherv(
-      graph.raw_nodes().data(),
-      asserting_cast<int>(graph.n()),
-      nodes.data(),
-      nodes_recvcounts.data(),
-      nodes_displs.data(),
-      comm
-  );
-  mpi::allgatherv(
-      remapped_edges.data(),
-      asserting_cast<int>(remapped_edges.size()),
-      edges.data(),
-      edges_recvcounts.data(),
-      edges_displs.data(),
-      comm
-  );
-  if (is_node_weighted) {
-    KASSERT((graph.is_node_weighted() || graph.n() == 0));
-    if constexpr (std::is_same_v<shm::NodeWeight, NodeWeight>) {
-      mpi::allgatherv(
-          graph.raw_node_weights().data(),
-          asserting_cast<int>(graph.n()),
-          node_weights.data(),
-          nodes_recvcounts.data(),
-          nodes_displs.data(),
-          comm
-      );
-    } else {
-      StaticArray<NodeWeight> node_weights_buffer(graph.global_n());
-      mpi::allgatherv(
-          graph.raw_node_weights().data(),
-          asserting_cast<int>(graph.n()),
-          node_weights_buffer.data(),
-          nodes_recvcounts.data(),
-          nodes_displs.data(),
-          comm
-      );
-      tbb::parallel_for<std::size_t>(0, node_weights_buffer.size(), [&](const std::size_t i) {
-        node_weights[i] = node_weights_buffer[i];
-      });
-    }
-  }
-  if (is_edge_weighted) {
-    KASSERT((graph.is_edge_weighted() || graph.m() == 0));
-    if constexpr (std::is_same_v<shm::EdgeWeight, EdgeWeight>) {
-      mpi::allgatherv(
-          graph.raw_edge_weights().data(),
-          asserting_cast<int>(graph.m()),
-          edge_weights.data(),
-          edges_recvcounts.data(),
-          edges_displs.data(),
-          comm
-      );
-    } else {
-      StaticArray<EdgeWeight> edge_weights_buffer(graph.global_m());
-      mpi::allgatherv(
-          graph.raw_edge_weights().data(),
-          asserting_cast<int>(graph.m()),
-          edge_weights_buffer.data(),
-          edges_recvcounts.data(),
-          edges_displs.data(),
-          comm
-      );
-      tbb::parallel_for<std::size_t>(0, edge_weights_buffer.size(), [&](const std::size_t i) {
-        edge_weights[i] = edge_weights_buffer[i];
-      });
-    }
-  }
-  nodes.back() = graph.global_m();
-
-  // remap nodes array
-  tbb::parallel_for(tbb::blocked_range<NodeID>(0, graph.global_n()), [&](const auto &r) {
-    PEID pe = 0;
-    for (NodeID u = r.begin(); u < r.end(); ++u) {
-      while (u >= graph.node_distribution(pe + 1)) {
-        KASSERT(pe < mpi::get_comm_size(comm));
-        ++pe;
-      }
-      nodes[u] += graph.edge_distribution(pe);
-    }
-  });
-
-  return {std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights)};
-}
 std::unique_ptr<shm::Graph> allgather_graph(const DistributedGraph &graph) {
   return std::make_unique<shm::Graph>(replicate_graph_everywhere(graph));
 }
@@ -554,7 +433,7 @@ DistributedGraph replicate_graph(const DistributedGraph &graph, const int num_re
 
   // Fix weights of ghost nodes
   if (is_node_weighted) {
-      graph::synchronize_ghost_node_weights(new_graph);
+    graph::synchronize_ghost_node_weights(new_graph);
   }
 
   KASSERT(debug::validate_graph(new_graph), "", assert::heavy);
@@ -666,5 +545,44 @@ distribute_best_partition(const DistributedGraph &dist_graph, shm::PartitionedGr
 
   // Create distributed partitioned graph
   return {&dist_graph, shm_p_graph.k(), std::move(dist_partition)};
+}
+
+DistributedPartitionedGraph distribute_partition(
+    const DistributedGraph &graph,
+    const BlockID k,
+    const StaticArray<shm::BlockID> &global_partition,
+    const PEID root
+) {
+  const PEID rank = mpi::get_comm_rank(graph.communicator());
+  const PEID size = mpi::get_comm_size(graph.communicator());
+
+  // Compute partition distribution for p_graph --> dist_graph
+  std::vector<int> scounts(size);
+  std::vector<int> sdispls(size);
+  for (PEID pe = 0; pe < size; ++pe) {
+    scounts[pe] =
+        asserting_cast<int>(graph.node_distribution(pe + 1) - graph.node_distribution(pe));
+  }
+  std::exclusive_scan(scounts.begin(), scounts.end(), sdispls.begin(), 0);
+  const int rcount = asserting_cast<int>(graph.n());
+
+  StaticArray<BlockID> local_partition(graph.total_n());
+
+  MPI_Scatterv(
+      (rank == root ? global_partition.data() : nullptr),
+      scounts.data(),
+      sdispls.data(),
+      mpi::type::get<BlockID>(),
+      local_partition.data(),
+      rcount,
+      mpi::type::get<BlockID>(),
+      root,
+      graph.communicator()
+  );
+
+  // Create partitioned dist_graph
+  DistributedPartitionedGraph p_graph(&graph, k, std::move(local_partition));
+  graph::synchronize_ghost_node_block_ids(p_graph);
+  return p_graph;
 }
 } // namespace kaminpar::dist
