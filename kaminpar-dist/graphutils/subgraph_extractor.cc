@@ -687,7 +687,7 @@ DistributedPartitionedGraph copy_subgraph_partitions(
   synchronize_ghost_node_block_ids(new_p_graph);
 
   KASSERT(
-      graph::debug::validate_partition(new_p_graph),
+      debug::validate_partition(new_p_graph),
       "graph partition in inconsistent state",
       assert::heavy
   );
@@ -788,7 +788,7 @@ DistributedPartitionedGraph copy_duplicated_subgraph_partitions(
   synchronize_ghost_node_block_ids(new_p_graph);
 
   KASSERT(
-      graph::debug::validate_partition(new_p_graph),
+      debug::validate_partition(new_p_graph),
       "graph partition in inconsistent state",
       assert::heavy
   );

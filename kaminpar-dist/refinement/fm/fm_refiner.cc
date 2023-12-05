@@ -302,7 +302,7 @@ bool FMRefiner::refine() {
         STOP_TIMER();
 
         KASSERT(
-            graph::debug::validate_partition(_p_graph),
+            debug::validate_partition(_p_graph),
             "global partition in inconsistent state after round " << global_round << "/"
                                                                   << local_round,
             HEAVY

@@ -367,7 +367,7 @@ NodeID ColoredLPRefiner::perform_best_moves(const ColorID c) {
   }
 
   KASSERT(
-      graph::debug::validate_partition(_p_graph),
+      debug::validate_partition(_p_graph),
       "invalid partition state after executing node moves",
       assert::heavy
   );

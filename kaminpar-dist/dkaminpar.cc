@@ -253,7 +253,7 @@ GlobalEdgeWeight dKaMinPar::compute_partition(const int seed, const BlockID k, B
   // level?
   // The binary interface already implements graph validation via KaGen, which can be enabled as a
   // CLI flag. There is no such option when using the library interface.
-  KASSERT(graph::debug::validate(graph), "input graph failed graph verification", assert::heavy);
+  KASSERT(debug::validate_graph(graph), "input graph failed graph verification", assert::heavy);
 
   // Setup the remaining context options that are passed in via the constructor
   _ctx.parallel.num_mpis = size;
@@ -278,7 +278,7 @@ GlobalEdgeWeight dKaMinPar::compute_partition(const int seed, const BlockID k, B
   STOP_TIMER();
 
   KASSERT(
-      graph::debug::validate_partition(p_graph),
+      debug::validate_partition(p_graph),
       "graph partition verification failed after partitioning",
       assert::heavy
   );

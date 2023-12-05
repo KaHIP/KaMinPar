@@ -38,20 +38,14 @@ void DistributedPartitionedGraph::init_block_weights() {
   _block_weights.resize(k());
   pfor_blocks([&](const BlockID b) { _block_weights[b] = global_block_weights_nonatomic[b]; });
 }
-} // namespace kaminpar::dist
 
-namespace kaminpar::dist::graph::debug {
-SET_DEBUG(false);
-
+namespace debug {
 bool validate_partition(const DistributedPartitionedGraph &p_graph) {
   MPI_Comm comm = p_graph.communicator();
-
   const PEID size = mpi::get_comm_size(comm);
   const PEID rank = mpi::get_comm_rank(comm);
 
   {
-    DBG << "Checking block counts ...";
-
     const BlockID root_k = mpi::bcast(p_graph.k(), 0, comm);
     if (root_k != p_graph.k()) {
       LOG_ERROR << "on PE " << rank << ": number of blocks (" << p_graph.k()
@@ -63,8 +57,6 @@ bool validate_partition(const DistributedPartitionedGraph &p_graph) {
   mpi::barrier(comm);
 
   {
-    DBG << "Checking block IDs ...";
-
     for (const NodeID u : p_graph.all_nodes()) {
       if (p_graph.block(u) >= p_graph.k()) {
         LOG_ERROR << "on PE " << rank << ": node " << u << " assigned to invalid block "
@@ -77,8 +69,6 @@ bool validate_partition(const DistributedPartitionedGraph &p_graph) {
   mpi::barrier(comm);
 
   {
-    DBG << "Checking block weights ...";
-
     StaticArray<BlockWeight> recomputed_block_weights(p_graph.k());
     for (const NodeID u : p_graph.nodes()) {
       recomputed_block_weights[p_graph.block(u)] += p_graph.node_weight(u);
@@ -100,13 +90,11 @@ bool validate_partition(const DistributedPartitionedGraph &p_graph) {
         return false;
       }
     }
-
-    mpi::barrier(comm);
   }
 
-  {
-    DBG << "Checking ghost node block assignments ...";
+  mpi::barrier(comm);
 
+  {
     // Build a global partition array on the root PE
     StaticArray<BlockID> global_partition(0);
     if (rank == 0) {
@@ -176,4 +164,5 @@ bool validate_partition(const DistributedPartitionedGraph &p_graph) {
   mpi::barrier(comm);
   return true;
 }
-} // namespace kaminpar::dist::graph::debug
+} // namespace debug
+} // namespace kaminpar::dist

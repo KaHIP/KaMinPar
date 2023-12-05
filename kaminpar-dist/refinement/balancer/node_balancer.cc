@@ -128,7 +128,7 @@ bool NodeBalancer::refine() {
     return false;
   }
 
-  KASSERT(graph::debug::validate_partition(_p_graph), "invalid partition before balancing", HEAVY);
+  KASSERT(debug::validate_partition(_p_graph), "invalid partition before balancing", HEAVY);
 
   const PEID size = mpi::get_comm_size(_p_graph.communicator());
   const PEID rank = mpi::get_comm_rank(_p_graph.communicator());
@@ -189,11 +189,11 @@ bool NodeBalancer::refine() {
     }
 
     KASSERT(
-        graph::debug::validate_partition(_p_graph), "invalid partition after balancing round", HEAVY
+        debug::validate_partition(_p_graph), "invalid partition after balancing round", HEAVY
     );
   }
 
-  KASSERT(graph::debug::validate_partition(_p_graph), "invalid partition after balancing", HEAVY);
+  KASSERT(debug::validate_partition(_p_graph), "invalid partition after balancing", HEAVY);
   return false;
 }
 
@@ -261,7 +261,7 @@ bool NodeBalancer::perform_sequential_round() {
     perform_moves(candidates, true);
   }
 
-  KASSERT(graph::debug::validate_partition(_p_graph), "balancer produced invalid partition", HEAVY);
+  KASSERT(debug::validate_partition(_p_graph), "balancer produced invalid partition", HEAVY);
 
   TIMER_BARRIER(_p_graph.communicator());
   return num_winners > 0;

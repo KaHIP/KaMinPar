@@ -22,39 +22,6 @@
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::dist {
-void DistributedGraph::print() const {
-  std::ostringstream buf;
-
-  const int w = std::ceil(std::log10(global_n()));
-
-  buf << "n=" << n() << " m=" << m() << " ghost_n=" << ghost_n() << " total_n=" << total_n()
-      << "\n";
-  buf << "---------------------------------------------------------------------"
-         "-----------\n";
-  for (const NodeID u : all_nodes()) {
-    const char u_prefix = is_owned_node(u) ? ' ' : '!';
-    buf << u_prefix << "L" << std::setw(w) << u << " G" << std::setw(w) << local_to_global_node(u)
-        << " NW" << std::setw(w) << node_weight(u);
-
-    if (is_owned_node(u)) {
-      buf << " | ";
-      for (const auto [e, v] : neighbors(u)) {
-        const char v_prefix = is_owned_node(v) ? ' ' : '!';
-        buf << v_prefix << "L" << std::setw(w) << v << " G" << std::setw(w)
-            << local_to_global_node(v) << " EW" << std::setw(w) << edge_weight(e) << " NW"
-            << std::setw(w) << node_weight(v) << "\t";
-      }
-      if (degree(u) == 0) {
-        buf << "<empty>";
-      }
-    }
-    buf << "\n";
-  }
-  buf << "---------------------------------------------------------------------"
-         "-----------\n";
-  SLOG << buf.str();
-}
-
 void DistributedGraph::init_high_degree_info(const EdgeID high_degree_threshold) const {
   if (_high_degree_threshold == high_degree_threshold) {
     return;
@@ -193,8 +160,7 @@ void DistributedGraph::init_communication_metrics() {
   }
 }
 
-namespace graph {
-void print_summary(const DistributedGraph &graph) {
+void print_graph_summary(const DistributedGraph &graph) {
   const auto global_n = graph.global_n();
   const auto global_m = graph.global_m();
   const auto [local_n_min, local_n_avg, local_n_max, local_n_sum] =
@@ -225,10 +191,41 @@ void print_summary(const DistributedGraph &graph) {
       << "|max=" << std::setw(local_width) << ghost_max << "|imbalance=" << std::fixed
       << std::setprecision(3) << std::setw(local_width) << ghost_imbalance << "]";
 }
-} // namespace graph
 
-namespace graph::debug {
-SET_DEBUG(false);
+namespace debug {
+void print_graph(const DistributedGraph &graph) {
+  std::ostringstream buf;
+
+  const int w = std::ceil(std::log10(graph.global_n()));
+
+  buf << "Distributed graph on " << mpi::get_comm_rank(graph.communicator())
+      << " PEs, n=" << graph.n() << " m=" << graph.m() << " ghost_n=" << graph.ghost_n()
+      << " total_n=" << graph.total_n() << " global_n=" << graph.global_n()
+      << " global_m=" << graph.global_m() << "\n";
+  buf << "--------------------------------------------------------------------------------\n";
+  for (const NodeID u : graph.all_nodes()) {
+    const char u_prefix = graph.is_owned_node(u) ? ' ' : '!';
+    buf << u_prefix << "L" << std::setw(w) << u << " G" << std::setw(w)
+        << graph.local_to_global_node(u) << " NW" << std::setw(w) << graph.node_weight(u);
+
+    if (graph.is_owned_node(u)) {
+      buf << " | ";
+      for (const auto [e, v] : graph.neighbors(u)) {
+        const char v_prefix = graph.is_owned_node(v) ? ' ' : '!';
+        buf << v_prefix << "L" << std::setw(w) << v << " G" << std::setw(w)
+            << graph.local_to_global_node(v) << " EW" << std::setw(w) << graph.edge_weight(e)
+            << " NW" << std::setw(w) << graph.node_weight(v) << "\t";
+      }
+      if (graph.degree(u) == 0) {
+        buf << "<isolated>";
+      }
+    }
+    buf << "\n";
+  }
+  buf << "--------------------------------------------------------------------------------\n";
+  buf << "  where L = local ID, G = global ID, NW = node weight, EW = edge weight\n";
+  SLOG << buf.str();
+}
 
 namespace {
 template <typename R> bool all_equal(const R &r) {
@@ -236,15 +233,13 @@ template <typename R> bool all_equal(const R &r) {
 }
 } // namespace
 
-bool validate(const DistributedGraph &graph) {
+bool validate_graph(const DistributedGraph &graph) {
   MPI_Comm comm = graph.communicator();
 
   const PEID size = mpi::get_comm_size(comm);
   const PEID rank = mpi::get_comm_rank(comm);
 
   {
-    DBG << "Checking global number of nodes and edges ...";
-
     const GlobalNodeID root_global_n = mpi::bcast(graph.global_n(), 0, comm);
     const GlobalEdgeID root_global_m = mpi::bcast(graph.global_m(), 0, comm);
     if (root_global_n != graph.global_n()) {
@@ -262,8 +257,6 @@ bool validate(const DistributedGraph &graph) {
   mpi::barrier(comm);
 
   {
-    DBG << "Checking node distribution ...";
-
     if (graph.node_distribution().size() != static_cast<std::size_t>(size + 1)) {
       LOG_ERROR << "on PE " << rank << ": expected size of the node distribution array to be "
                 << size + 1 << ", but is " << graph.node_distribution().size();
@@ -323,7 +316,6 @@ bool validate(const DistributedGraph &graph) {
   mpi::barrier(comm);
 
   {
-    DBG << "Checking that owners of ghost nodes are not local ...";
     for (const NodeID ghost : graph.ghost_nodes()) {
       if (graph.ghost_owner(ghost) == rank) {
         LOG_ERROR << "on PE " << rank << ": local owner of ghost node " << ghost;
@@ -335,8 +327,6 @@ bool validate(const DistributedGraph &graph) {
   mpi::barrier(comm);
 
   {
-    DBG << "Checking node weights of ghost nodes ...";
-
     struct GhostNodeWeightMessage {
       GlobalNodeID node;
       NodeWeight weight;
@@ -363,8 +353,6 @@ bool validate(const DistributedGraph &graph) {
   mpi::barrier(comm);
 
   {
-    DBG << "Checking edges to ghost nodes ...";
-
     struct GhostNodeEdge {
       GlobalNodeID owned;
       GlobalNodeID ghost;
@@ -433,8 +421,6 @@ bool validate(const DistributedGraph &graph) {
   mpi::barrier(comm);
 
   if (graph.sorted()) {
-    DBG << "Checking degree buckets ...";
-
     for (std::size_t bucket = 0; bucket < graph.number_of_buckets(); ++bucket) {
       if (graph.bucket_size(bucket) == 0) {
         continue;
@@ -465,5 +451,5 @@ bool validate(const DistributedGraph &graph) {
   mpi::barrier(comm);
   return true;
 }
-} // namespace graph::debug
+} // namespace debug
 } // namespace kaminpar::dist

@@ -435,10 +435,6 @@ public:
     return std::move(_global_to_ghost);
   }
 
-  // Debug functions
-
-  void print() const;
-
   // High degree classification
 
   void init_high_degree_info(EdgeID high_degree_threshold) const;
@@ -569,17 +565,17 @@ private:
   MPI_Comm _communicator;
 };
 
-namespace graph {
 /**
  * Prints verbose statistics on the distribution of the graph across PEs and the
  * number of ghost nodes, but only if verbose statistics are enabled as build
  * option.
  * @param graph Graph for which statistics are printed.
  */
-void print_summary(const DistributedGraph &graph);
-} // namespace graph
+void print_graph_summary(const DistributedGraph &graph);
 
-namespace graph::debug {
+namespace debug {
+void print_graph(const DistributedGraph &graph);
+
 /**
  * Validates the distributed graph datastructure:
  * - validate node and edge distributions
@@ -591,6 +587,6 @@ namespace graph::debug {
  * @param root PE to use for sequential validation.
  * @return whether the graph data structure is consistent.
  */
-bool validate(const DistributedGraph &graph);
-} // namespace graph::debug
+bool validate_graph(const DistributedGraph &graph);
+} // namespace debug
 } // namespace kaminpar::dist

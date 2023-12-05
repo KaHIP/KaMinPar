@@ -39,7 +39,7 @@ void MtKaHyParRefiner::initialize() {}
 
 bool MtKaHyParRefiner::refine() {
 #ifdef KAMINPAR_HAVE_MTKAHYPAR_LIB
-  auto shm_graph_pair = graph::allgather(_p_graph);
+  auto shm_graph_pair = allgather_graph(_p_graph);
   auto &shm_graph = shm_graph_pair.first;
   auto &shm_p_graph = shm_graph_pair.second;
 
@@ -146,7 +146,7 @@ bool MtKaHyParRefiner::refine() {
   mt_kahypar_free_context(mt_kahypar_ctx);
 
   // Copy global partition back to the distributed graph
-  _p_graph = graph::distribute_best_partition(_p_graph.graph(), std::move(*shm_p_graph));
+  _p_graph = distribute_best_partition(_p_graph.graph(), std::move(*shm_p_graph));
 
   return false;
 #else  // KAMINPAR_HAVE_MTKAHYPAR_LIB

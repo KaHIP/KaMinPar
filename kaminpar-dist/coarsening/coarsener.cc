@@ -43,7 +43,7 @@ const DistributedGraph *Coarsener::coarsen_once_local(const GlobalNodeWeight max
 
   scalable_vector<parallel::Atomic<NodeID>> legacy_clustering(clustering.begin(), clustering.end());
   auto [c_graph, mapping, m_ctx] = contract_local_clustering(*graph, legacy_clustering);
-  KASSERT(graph::debug::validate(c_graph), "", assert::heavy);
+  KASSERT(debug::validate_graph(c_graph), "", assert::heavy);
   DBG << "Reduced number of nodes from " << graph->global_n() << " to " << c_graph.global_n();
 
   if (!has_converged(*graph, c_graph)) {
@@ -75,7 +75,7 @@ const DistributedGraph *Coarsener::coarsen_once_global(const GlobalNodeWeight ma
   // Construct the coarse graph
   auto result = contract_clustering(*graph, clustering, _input_ctx.coarsening);
 
-  KASSERT(graph::debug::validate(result.graph), "", assert::heavy);
+  KASSERT(debug::validate_graph(result.graph), "", assert::heavy);
   DBG << "Reduced number of nodes from " << graph->global_n() << " to " << result.graph.global_n();
 
   // Only keep graph if coarsening has not converged yet
@@ -154,7 +154,11 @@ DistributedPartitionedGraph Coarsener::uncoarsen_once_global(DistributedPartitio
       _node_migration_history.back()
   );
 
-  KASSERT(graph::debug::validate_partition(p_graph), "", assert::heavy);
+  KASSERT(
+      debug::validate_partition(p_graph),
+      "invalid partition after projection to finer graph",
+      assert::heavy
+  );
 
   _graph_hierarchy.pop_back();
   _global_mapping_hierarchy.pop_back();
