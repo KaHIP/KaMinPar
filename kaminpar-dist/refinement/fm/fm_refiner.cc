@@ -34,11 +34,11 @@
 #include "kaminpar-common/random.h"
 #include "kaminpar-common/timer.h"
 
-#define HEAVY assert::always
+#define HEAVY assert::heavy
 
 namespace kaminpar::dist {
 namespace {
-SET_STATISTICS(true);
+SET_STATISTICS(false);
 SET_DEBUG(true);
 } // namespace
 
