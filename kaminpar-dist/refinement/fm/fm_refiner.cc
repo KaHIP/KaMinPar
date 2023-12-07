@@ -34,7 +34,7 @@
 #include "kaminpar-common/random.h"
 #include "kaminpar-common/timer.h"
 
-#define HEAVY assert::heavy
+#define HEAVY assert::always
 
 namespace kaminpar::dist {
 namespace {
@@ -104,6 +104,7 @@ bool FMRefiner::refine() {
       return std::make_unique<DummyPartitionSnapshooter>();
     }
   }();
+  snapshooter->init(_p_graph, _p_ctx);
 
   for (std::size_t global_round = 0; global_round < _fm_ctx.num_global_iterations; ++global_round) {
     const EdgeWeight initial_cut =
