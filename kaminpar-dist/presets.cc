@@ -166,7 +166,7 @@ Context create_default_context() {
                   {
                       .alpha = 1.0,
 
-                      .use_independent_seeds = true,
+                      .use_independent_seeds = false,
                       .use_bfs_seeds_as_fm_seeds = true,
 
                       .chunk_local_rounds = false,
