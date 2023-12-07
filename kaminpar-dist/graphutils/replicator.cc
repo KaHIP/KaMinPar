@@ -528,7 +528,7 @@ distribute_best_partition(const DistributedGraph &dist_graph, shm::PartitionedGr
   MPI_Allreduce(&local, &global, 1, MPI_LONG_INT, MPI_MINLOC, comm);
 
   // Broadcast best partition
-  auto partition = shm_p_graph.take_partition();
+  auto partition = shm_p_graph.take_raw_partition();
   MPI_Bcast(
       partition.data(),
       static_cast<int>(dist_graph.global_n()),

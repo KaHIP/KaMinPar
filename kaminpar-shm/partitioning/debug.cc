@@ -67,20 +67,20 @@ void dump_graph_hierarchy(const Graph &graph, const int level, const Context &ct
 void dump_graph(const Graph &graph, const std::string &filename) {
   std::ofstream out(filename, std::ios::trunc);
   out << graph.n() << " " << graph.m() / 2 << " ";
-  if (graph.is_node_weighted()) {
-    out << graph.is_node_weighted() << graph.is_edge_weighted();
-  } else if (graph.is_edge_weighted()) {
-    out << graph.is_edge_weighted();
+  if (graph.node_weighted()) {
+    out << graph.node_weighted() << graph.edge_weighted();
+  } else if (graph.edge_weighted()) {
+    out << graph.edge_weighted();
   }
   out << "\n";
 
   for (const NodeID u : graph.nodes()) {
-    if (graph.is_node_weighted()) {
+    if (graph.node_weighted()) {
       out << graph.node_weight(u) << " ";
     }
     for (const auto &[e, v] : graph.neighbors(u)) {
       out << v + 1 << " ";
-      if (graph.is_edge_weighted()) {
+      if (graph.edge_weighted()) {
         out << graph.edge_weight(e) << " ";
       }
     }

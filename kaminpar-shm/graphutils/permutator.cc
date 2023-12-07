@@ -133,7 +133,7 @@ PartitionedGraph assign_isolated_nodes(
 
   // now append the isolated ones
   const BlockID k = p_graph.k();
-  auto block_weights = p_graph.take_block_weights();
+  auto block_weights = p_graph.take_raw_block_weights();
   BlockID b = 0;
 
   // TODO parallelize this

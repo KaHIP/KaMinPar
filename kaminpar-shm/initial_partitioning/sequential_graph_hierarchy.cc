@@ -42,7 +42,7 @@ PartitionedGraph SequentialGraphHierarchy::pop_and_project(PartitionedGraph &&co
   // This destroys underlying Graph wrapped in p_graph
   _coarse_graphs.pop_back();
 
-  return {tag::seq, graph, coarse_p_graph.k(), std::move(partition)};
+  return {PartitionedGraph::seq{}, graph, coarse_p_graph.k(), std::move(partition)};
 }
 
 const Graph &SequentialGraphHierarchy::get_second_coarsest_graph() const {

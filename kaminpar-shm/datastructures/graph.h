@@ -33,6 +33,9 @@ public:
   using EdgeID = ::kaminpar::shm::EdgeID;
   using EdgeWeight = ::kaminpar::shm::EdgeWeight;
 
+  // Tag for the sequential ctor.
+  struct seq {};
+
   Graph() = default;
 
   Graph(
@@ -44,7 +47,7 @@ public:
   );
 
   Graph(
-      tag::Sequential,
+      seq,
       StaticArray<EdgeID> nodes,
       StaticArray<NodeID> edges,
       StaticArray<NodeWeight> node_weights = {},
@@ -114,7 +117,7 @@ public:
   // Node weights
   //
 
-  [[nodiscard]] inline bool is_node_weighted() const {
+  [[nodiscard]] inline bool node_weighted() const {
     return static_cast<NodeWeight>(n()) != total_node_weight();
   }
 
@@ -127,15 +130,15 @@ public:
   }
 
   [[nodiscard]] inline NodeWeight node_weight(const NodeID u) const {
-    KASSERT(!is_node_weighted() || u < _node_weights.size());
-    return is_node_weighted() ? _node_weights[u] : 1;
+    KASSERT(!node_weighted() || u < _node_weights.size());
+    return node_weighted() ? _node_weights[u] : 1;
   }
 
   //
   // Edge weights
   //
 
-  [[nodiscard]] inline bool is_edge_weighted() const {
+  [[nodiscard]] inline bool edge_weighted() const {
     return static_cast<EdgeWeight>(m()) != total_edge_weight();
   }
 
@@ -144,8 +147,8 @@ public:
   }
 
   [[nodiscard]] inline EdgeWeight edge_weight(const EdgeID e) const {
-    KASSERT(!is_edge_weighted() || e < _edge_weights.size());
-    return is_edge_weighted() ? _edge_weights[e] : 1;
+    KASSERT(!edge_weighted() || e < _edge_weights.size());
+    return edge_weighted() ? _edge_weights[e] : 1;
   }
 
   //
@@ -234,12 +237,18 @@ public:
   inline void set_permutation(StaticArray<NodeID> permutation) {
     _permutation = std::move(permutation);
   }
+
   [[nodiscard]] inline bool permuted() const {
     return !_permutation.empty();
   }
+
   [[nodiscard]] inline NodeID map_original_node(const NodeID u) const {
     KASSERT(u < _permutation.size());
     return _permutation[u];
+  }
+
+  inline StaticArray<NodeID> &&take_raw_permutation() {
+    return std::move(_permutation);
   }
 
   //
@@ -290,5 +299,6 @@ private:
 namespace debug {
 bool validate_graph(const Graph &graph, bool undirected = true, NodeID num_pseudo_nodes = 0);
 void print_graph(const Graph &graph);
+Graph sort_neighbors(Graph graph);
 } // namespace debug
 } // namespace kaminpar::shm

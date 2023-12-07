@@ -84,7 +84,7 @@ public:
       const BlockWeight delta,
       const BlockWeight max_weight
   ) {
-    return _p_graph->try_move_block_weight(old_block, new_block, delta, max_weight);
+    return _p_graph->move_block_weight(old_block, new_block, delta, max_weight);
   }
 
   void init_cluster(const NodeID /* u */, const BlockID /* b */) {}

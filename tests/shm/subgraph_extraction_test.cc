@@ -86,8 +86,8 @@ TEST(SubgraphExtractionTest, ComplexTrianglesWeightedExampleWorks) {
       p_graph.n(),
       15,
       p_graph.m(),
-      p_graph.graph().is_node_weighted(),
-      p_graph.graph().is_edge_weighted()};
+      p_graph.graph().node_weighted(),
+      p_graph.graph().edge_weighted()};
   auto result = extract_subgraphs(p_graph, 3, memory);
 
   EXPECT_EQ(result.subgraphs[0].n(), 3);

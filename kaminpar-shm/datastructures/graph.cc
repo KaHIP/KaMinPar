@@ -48,7 +48,7 @@ Graph::Graph(
 }
 
 Graph::Graph(
-    tag::Sequential,
+    seq,
     StaticArray<EdgeID> nodes,
     StaticArray<NodeID> edges,
     StaticArray<NodeWeight> node_weights,
@@ -169,6 +169,46 @@ bool validate_graph(
     }
   }
   return true;
+}
+
+Graph sort_neighbors(Graph graph) {
+  const bool sorted = graph.sorted();
+  const bool edge_weighted = graph.edge_weighted();
+
+  StaticArray<EdgeID> nodes = graph.take_raw_nodes();
+  StaticArray<NodeID> edges = graph.take_raw_edges();
+  StaticArray<NodeWeight> node_weights = graph.take_raw_node_weights();
+  StaticArray<EdgeWeight> edge_weights = graph.take_raw_edge_weights();
+
+  if (edge_weighted) {
+    StaticArray<std::pair<NodeID, EdgeWeight>> zipped(edges.size());
+    tbb::parallel_for<EdgeID>(static_cast<EdgeID>(0), edges.size(), [&](const EdgeID e) {
+      zipped[e] = {edges[e], edge_weights[e]};
+    });
+
+    tbb::parallel_for<NodeID>(0, nodes.size() - 1, [&](const NodeID u) {
+      std::sort(
+          zipped.begin() + nodes[u],
+          zipped.begin() + nodes[u + 1],
+          [](const auto &a, const auto &b) { return a.first < b.first; }
+      );
+    });
+
+    tbb::parallel_for<EdgeID>(static_cast<EdgeID>(0), edges.size(), [&](const EdgeID e) {
+      std::tie(edges[e], edge_weights[e]) = zipped[e];
+    });
+  } else {
+    tbb::parallel_for<NodeID>(0, nodes.size() - 1, [&](const NodeID u) {
+      std::sort(edges.begin() + nodes[u], edges.begin() + nodes[u + 1]);
+    });
+  }
+
+  Graph sorted_graph(
+      std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights), sorted
+  );
+  sorted_graph.set_permutation(graph.take_raw_permutation());
+
+  return sorted_graph;
 }
 } // namespace debug
 } // namespace kaminpar::shm

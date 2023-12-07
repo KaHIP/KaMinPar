@@ -226,10 +226,10 @@ private:
     _refiner->refine(p_graph, _p_ctx);
     DBG << " -> cut=" << metrics::edge_cut(p_graph) << " imbalance=" << metrics::imbalance(p_graph);
 
-    const EdgeWeight current_cut = metrics::edge_cut(p_graph, tag::seq);
+    const EdgeWeight current_cut = metrics::edge_cut_seq(p_graph);
     const double current_imbalance = metrics::imbalance(p_graph);
     const bool current_feasible = metrics::is_feasible(p_graph, _p_ctx);
-    _current_partition = p_graph.take_partition();
+    _current_partition = p_graph.take_raw_partition();
 
     // record statistics if the bipartition is feasible
     if (current_feasible) {
