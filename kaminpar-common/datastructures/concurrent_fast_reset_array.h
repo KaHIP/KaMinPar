@@ -14,6 +14,7 @@
 #include <tbb/enumerable_thread_specific.h>
 
 #include "kaminpar-common/heap_profiler.h"
+#include "kaminpar-common/parallel/aligned_element.h"
 
 namespace kaminpar {
 
@@ -46,7 +47,7 @@ public:
    * @return The thread-local vector of used entries.
    */
   [[nodiscard]] std::vector<size_type> &local_used_entries() {
-    return _used_entries_tls[tbb::this_task_arena::current_thread_index()];
+    return _used_entries_tls[tbb::this_task_arena::current_thread_index()].vec;
   }
 
   /*!
@@ -81,7 +82,7 @@ public:
 
 private:
   std::vector<value_type> _data;
-  std::vector<std::vector<size_type>> _used_entries_tls;
+  std::vector<parallel::AlignedVec<std::vector<size_type>>> _used_entries_tls;
 
   IF_HEAP_PROFILING(heap_profiler::DataStructure *_struct);
   IF_HEAP_PROFILING(std::size_t _capacity);

@@ -9,6 +9,7 @@
 #include <type_traits>
 
 namespace kaminpar::parallel {
+
 template <typename Value> struct alignas(64) Aligned {
   Value value;
 
@@ -33,4 +34,32 @@ template <typename Value> struct alignas(64) Aligned {
     return value != other;
   }
 };
+
+template <typename Vector> struct alignas(64) AlignedVec {
+  Vector vec;
+
+  AlignedVec() : vec() {}
+  AlignedVec(Vector vec) : vec(vec) {}
+
+  auto begin() noexcept {
+    return vec.begin();
+  }
+
+  auto begin() const noexcept {
+    return vec.begin();
+  }
+
+  auto end() noexcept {
+    return vec.end();
+  }
+
+  auto end() const noexcept {
+    return vec.end();
+  }
+
+  void clear() noexcept {
+    vec.clear();
+  }
+};
+
 } // namespace kaminpar::parallel
