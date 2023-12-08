@@ -172,12 +172,16 @@ contract_generic_clustering(const Graph &graph, const Clustering &clustering, Me
           c_u_weight += graph.node_weight(u); // coarse node weight
 
           // collect coarse edges
-          for (const auto [e, v] : graph.neighbors(u)) {
-            const NodeID c_v = mapping[v];
-            if (c_u != c_v) {
-              map[c_v] += graph.edge_weight(e);
-            }
-          }
+          graph.neighbors(
+              u,
+              std::numeric_limits<NodeID>::max(),
+              [&](const EdgeID e, const NodeID v) {
+                const NodeID c_v = mapping[v];
+                if (c_u != c_v) {
+                  map[c_v] += graph.edge_weight(e);
+                }
+              }
+          );
         }
 
         c_node_weights[c_u] = c_u_weight; // coarse node weights are done now

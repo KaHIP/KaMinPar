@@ -21,9 +21,9 @@ EdgeWeight edge_cut(const PartitionedGraphType &p_graph, tag::Parallel) {
   tbb::parallel_for(tbb::blocked_range(static_cast<NodeID>(0), p_graph.n()), [&](const auto &r) {
     auto &cut = cut_ets.local();
     for (NodeID u = r.begin(); u < r.end(); ++u) {
-      for (const auto &[e, v] : p_graph.neighbors(u)) {
+      p_graph.neighbors(u, [&](const EdgeID e, const NodeID v) {
         cut += (p_graph.block(u) != p_graph.block(v)) ? p_graph.edge_weight(e) : 0;
-      }
+      });
     }
   });
 
@@ -103,8 +103,7 @@ bool is_feasible(const PartitionedGraphType &p_graph, const BlockID input_k, con
       p_graph.blocks().end(),
       [&p_graph, input_k, max_block_weight](const BlockID b) {
         const BlockID final_kb = compute_final_k_legacy(b, p_graph.k(), input_k);
-        return p_graph.block_weight(b) <=
-               max_block_weight * final_kb + p_graph.max_node_weight();
+        return p_graph.block_weight(b) <= max_block_weight * final_kb + p_graph.max_node_weight();
       }
   );
 }

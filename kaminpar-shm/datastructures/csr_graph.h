@@ -181,6 +181,16 @@ public:
     });
   }
 
+  template <typename Lambda> inline void adjacent_nodes(const NodeID u, Lambda &&l) const {
+    KASSERT(u + 1 < _nodes.size());
+
+    const EdgeID from = _nodes[u];
+    const EdgeID to = _nodes[u + 1];
+    for (EdgeID edge = from; edge < to; ++edge) {
+      l(_edges[edge]);
+    }
+  }
+
   [[nodiscard]] inline auto neighbors(const NodeID u) const {
     KASSERT(u + 1 < _nodes.size());
     return TransformedIotaRange2<EdgeID, std::pair<EdgeID, NodeID>>(
@@ -188,20 +198,33 @@ public:
     );
   }
 
-  [[nodiscard]] inline auto neighbors(const NodeID u, const NodeID max_neighbor_count) const {
+  template <typename Lambda> inline void neighbors(const NodeID u, Lambda &&l) const {
+    KASSERT(u + 1 < _nodes.size());
+
+    const EdgeID from = _nodes[u];
+    const EdgeID to = _nodes[u + 1];
+    for (EdgeID edge = from; edge < to; ++edge) {
+      l(edge, _edges[edge]);
+    }
+  }
+
+  template <typename Lambda>
+  inline void neighbors(const NodeID u, const NodeID max_neighbor_count, Lambda &&l) const {
+    KASSERT(u + 1 < _nodes.size());
+
     const EdgeID from = _nodes[u];
     const EdgeID to = from + std::min(degree(u), max_neighbor_count);
-
-    return TransformedIotaRange2<EdgeID, std::pair<EdgeID, NodeID>>(
-        from, to, [this](const EdgeID e) { return std::make_pair(e, _edges[e]); }
-    );
+    for (EdgeID edge = from; edge < to; ++edge) {
+      l(edge, _edges[edge]);
+    }
   }
 
   template <typename Lambda>
   inline void pfor_neighbors(const NodeID u, const NodeID max_neighbor_count, Lambda &&l) const {
+    KASSERT(u + 1 < _nodes.size());
+
     const EdgeID from = _nodes[u];
     const EdgeID to = from + std::min(degree(u), max_neighbor_count);
-
     tbb::parallel_for(from, to, [&](const EdgeID e) { l(e, _edges[e]); });
   }
 

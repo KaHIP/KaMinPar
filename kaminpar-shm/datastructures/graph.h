@@ -222,9 +222,20 @@ public:
       return graph->adjacent_nodes(u);
     }
 
+    throw std::runtime_error("This operation is only available for csr graphs.");
+  }
+
+  template <typename Lambda> inline void adjacent_nodes(const NodeID u, Lambda &&l) const {
+    if (const auto *graph = dynamic_cast<const CSRGraph *>(_underlying_graph.get());
+        graph != nullptr) {
+      graph->adjacent_nodes(u, std::forward<Lambda>(l));
+      return;
+    }
+
     if (const auto *graph = dynamic_cast<const CompressedGraph *>(_underlying_graph.get());
         graph != nullptr) {
-      return graph->adjacent_nodes(u);
+      graph->adjacent_nodes(u, std::forward<Lambda>(l));
+      return;
     }
 
     __builtin_unreachable();
@@ -236,24 +247,37 @@ public:
       return graph->neighbors(u);
     }
 
+    throw std::runtime_error("This operation is only available for csr graphs.");
+  }
+
+  template <typename Lambda> inline void neighbors(const NodeID u, Lambda &&l) const {
+    if (const auto *graph = dynamic_cast<const CSRGraph *>(_underlying_graph.get());
+        graph != nullptr) {
+      graph->neighbors(u, std::forward<Lambda>(l));
+      return;
+    }
+
     if (const auto *graph = dynamic_cast<const CompressedGraph *>(_underlying_graph.get());
         graph != nullptr) {
-      return graph->neighbors(u);
+      graph->neighbors(u, std::forward<Lambda>(l));
+      return;
     }
 
     __builtin_unreachable();
   }
 
-  [[nodiscard]] inline decltype(auto)
-  neighbors(const NodeID u, const NodeID max_neighbor_count) const {
+  template <typename Lambda>
+  inline void neighbors(const NodeID u, const NodeID max_neighbor_count, Lambda &&l) const {
     if (const auto *graph = dynamic_cast<const CSRGraph *>(_underlying_graph.get());
         graph != nullptr) {
-      return graph->neighbors(u, max_neighbor_count);
+      graph->neighbors(u, max_neighbor_count, std::forward<Lambda>(l));
+      return;
     }
 
     if (const auto *graph = dynamic_cast<const CompressedGraph *>(_underlying_graph.get());
         graph != nullptr) {
-      return graph->neighbors(u, max_neighbor_count);
+      graph->neighbors(u, max_neighbor_count, std::forward<Lambda>(l));
+      return;
     }
 
     __builtin_unreachable();

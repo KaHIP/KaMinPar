@@ -148,7 +148,7 @@ void CompressedGraphBuilder::add_node(const NodeID node, std::vector<NodeID> &ne
 
   const NodeID degree = neighbourhood.size();
   const EdgeID first_edge_id = _edge_count;
-  const bool split_neighbourhood = degree >= CompressedGraph::kHighDegreeThreshold;
+  const bool split_neighbourhood = degree > CompressedGraph::kHighDegreeThreshold;
 
   _cur_compressed_edges += varint_encode(degree, _cur_compressed_edges);
 
@@ -216,9 +216,14 @@ void CompressedGraphBuilder::set_edge_weight(const EdgeID edge, const EdgeWeight
 
 CompressedGraph CompressedGraphBuilder::build() {
   std::size_t stored_bytes = static_cast<std::size_t>(_cur_compressed_edges - _compressed_edges);
+  RECORD("compressed_edges")
+  StaticArray<std::uint8_t> compressed_edges(_compressed_edges, stored_bytes);
+
   if constexpr (kHeapProfiling) {
     heap_profiler::HeapProfiler::global().record_alloc(_compressed_edges, stored_bytes);
   }
+
+  _nodes[_nodes.size() - 1] = stored_bytes;
 
   const bool unit_node_weights = static_cast<NodeID>(_total_node_weight + 1) == _nodes.size();
   if (unit_node_weights) {
@@ -232,7 +237,7 @@ CompressedGraph CompressedGraphBuilder::build() {
 
   return CompressedGraph(
       std::move(_nodes),
-      StaticArray<std::uint8_t>(_compressed_edges, stored_bytes),
+      std::move(compressed_edges),
       std::move(_node_weights),
       std::move(_edge_weights),
       _edge_count,

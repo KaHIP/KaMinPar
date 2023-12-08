@@ -336,7 +336,7 @@ protected:
         }
       });
     } else {
-      for (const auto [e, v] : _graph->neighbors(u, _max_num_neighbors)) {
+      _graph->neighbors(u, _max_num_neighbors, [&](const EdgeID e, const NodeID v) {
         if (derived_accept_neighbor(u, v)) {
           const ClusterID v_cluster = derived_cluster(v);
           const EdgeWeight rating = _graph->edge_weight(e);
@@ -347,7 +347,7 @@ protected:
             is_interface_node |= v >= _num_active_nodes;
           }
         }
-      }
+      });
     }
 
     if constexpr (Config::kUseLocalActiveSetStrategy) {
@@ -469,7 +469,7 @@ protected:
    * @param u Node that was moved.
    */
   void activate_neighbors(const NodeID u) {
-    for (const NodeID v : _graph->adjacent_nodes(u)) {
+    _graph->adjacent_nodes(u, [this](const NodeID v) {
       // call derived_activate_neighbor() even if we do not use the active set
       // strategy since the function might have side effects; the compiler
       // should remove it if it does not side effects
@@ -478,7 +478,7 @@ protected:
           _active[v].store(1, std::memory_order_relaxed);
         }
       }
-    }
+    });
   }
 
   /*!
