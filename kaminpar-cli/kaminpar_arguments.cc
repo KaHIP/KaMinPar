@@ -73,7 +73,8 @@ CLI::Option_group *create_partitioning_options(CLI::App *app, Context &ctx) {
       ->transform(CLI::CheckedTransformer(get_graph_orderings()).description(""))
       ->description(R"(Criteria by which the graph is sorted and rearrange:
   - natural:     keep order of the graph (do not rearrange)
-  - deg-buckets: sort nodes by degree bucket and rearrange accordingly)")
+  - deg-buckets: sort nodes by degree bucket and rearrange accordingly)
+  - compression: sort nodes with the ordering of the corresponding compressed graph)")
       ->capture_default_str();
 
   return partitioning;

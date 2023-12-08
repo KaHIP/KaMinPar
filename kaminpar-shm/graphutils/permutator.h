@@ -182,4 +182,13 @@ NodeID integrate_isolated_nodes(Graph &graph, double epsilon, Context &ctx);
 PartitionedGraph assign_isolated_nodes(
     PartitionedGraph p_graph, const NodeID num_isolated_nodes, const PartitionContext &p_ctx
 );
+
+/*!
+ * Rearrange the neighborhood of each node in a graph, so that the ordering is the same as in the
+ * compressed version of the graph.
+ *
+ * @param graph The graph to rearrange
+ */
+void rearrange_by_compression(Graph &graph);
+
 } // namespace kaminpar::shm::graph

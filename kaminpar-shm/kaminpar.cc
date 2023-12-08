@@ -179,11 +179,17 @@ EdgeWeight KaMinPar::compute_partition(const int seed, const BlockID k, BlockID 
   START_HEAP_PROFILER("Partitioning");
   START_TIMER("Partitioning");
 
-  if (_ctx.rearrange_by == GraphOrdering::DEGREE_BUCKETS && !_was_rearranged) {
-    SCOPED_HEAP_PROFILER("Rearrange input graph");
+  if (!_was_rearranged) {
+    switch (_ctx.rearrange_by) {
+    case GraphOrdering::DEGREE_BUCKETS:
+      _graph_ptr =
+          std::make_unique<Graph>(graph::rearrange_by_degree_buckets(_ctx, std::move(*_graph_ptr)));
+      break;
+    case GraphOrdering::COMPRESSION:
+      graph::rearrange_by_compression(*_graph_ptr);
+      break;
+    }
 
-    _graph_ptr =
-        std::make_unique<Graph>(graph::rearrange_by_degree_buckets(_ctx, std::move(*_graph_ptr)));
     _was_rearranged = true;
   }
 

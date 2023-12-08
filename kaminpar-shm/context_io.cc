@@ -24,6 +24,7 @@ std::unordered_map<std::string, GraphOrdering> get_graph_orderings() {
       {"natural", GraphOrdering::NATURAL},
       {"deg-buckets", GraphOrdering::DEGREE_BUCKETS},
       {"degree-buckets", GraphOrdering::DEGREE_BUCKETS},
+      {"compression", GraphOrdering::COMPRESSION},
   };
 }
 
@@ -269,7 +270,8 @@ void print(const PartitioningContext &p_ctx, std::ostream &out) {
 void print(const Context &ctx, std::ostream &out) {
   out << "Execution mode:               " << ctx.parallel.num_threads << "\n";
   out << "Seed:                         " << Random::get_seed() << "\n";
-  out << "Graph:                        " << ctx.debug.graph_name << " [ordering: " << ctx.rearrange_by << "]\n";
+  out << "Graph:                        " << ctx.debug.graph_name
+      << " [ordering: " << ctx.rearrange_by << "]\n";
   print(ctx.partition, out);
   cio::print_delimiter("Partitioning Scheme", '-');
   print(ctx.partitioning, out);

@@ -6,6 +6,7 @@
  ******************************************************************************/
 #include "kaminpar-shm/graphutils/permutator.h"
 
+#include <algorithm>
 #include <cmath>
 
 #include <tbb/enumerable_thread_specific.h>
@@ -198,4 +199,85 @@ Graph rearrange_by_degree_buckets(Context &ctx, Graph old_graph) {
   new_graph.set_permutation(std::move(node_permutations.old_to_new));
   return new_graph;
 }
+
+static void sort_by_compression(const NodeID node, NodeID *begin, NodeID *end) {
+  const auto permutate = [](NodeID *begin, NodeID *end) {
+    if constexpr (CompressedGraph::kIntervalEncoding) {
+      const NodeID local_degree = static_cast<NodeID>(end - begin);
+
+      if (local_degree > 1) {
+        NodeID interval_len = 1;
+        NodeID prev_adjacent_node = *begin;
+
+        NodeID *rot_begin = begin;
+        for (NodeID *iter = begin + 1; iter != end; ++iter) {
+          const NodeID adjacent_node = *iter;
+
+          if (prev_adjacent_node + 1 == adjacent_node) {
+            interval_len++;
+
+            // The interval ends if there are no more nodes or the next node is not the increment of
+            // the current node.
+            if (iter + 1 == end || *(iter + 1) != adjacent_node + 1) {
+              if (interval_len >= CompressedGraph::kIntervalLengthTreshold) {
+                NodeID *rot_end = iter + 1;
+                std::rotate(
+                    std::reverse_iterator(rot_end),
+                    std::reverse_iterator(rot_end) + interval_len,
+                    std::reverse_iterator(rot_begin)
+                );
+
+                rot_begin += interval_len;
+              }
+
+              interval_len = 1;
+            }
+          }
+
+          prev_adjacent_node = adjacent_node;
+        }
+      }
+    };
+  };
+
+  // Sort the adjacent nodes in ascending order.
+  std::sort(begin, end);
+
+  const NodeID degree = static_cast<NodeID>(end - begin);
+  const bool split_neighbourhood = degree > CompressedGraph::kHighDegreeThreshold;
+
+  if (split_neighbourhood) {
+    NodeID part_count = ((degree % CompressedGraph::kHighDegreeThreshold) == 0)
+                            ? (degree / CompressedGraph::kHighDegreeThreshold)
+                            : ((degree / CompressedGraph::kHighDegreeThreshold) + 1);
+    NodeID last_part_length = ((degree % CompressedGraph::kHighDegreeThreshold) == 0)
+                                  ? CompressedGraph::kHighDegreeThreshold
+                                  : (degree % CompressedGraph::kHighDegreeThreshold);
+
+    for (NodeID i = 0; i < part_count; ++i) {
+      NodeID *part_begin = begin + i * CompressedGraph::kHighDegreeThreshold;
+      NodeID part_length =
+          (i + 1 == part_count) ? last_part_length : CompressedGraph::kHighDegreeThreshold;
+
+      permutate(part_begin, part_begin + part_length);
+    }
+  } else {
+    permutate(begin, end);
+  }
+}
+
+void rearrange_by_compression(Graph &graph) {
+  SCOPED_TIMER("Rearrange input graph");
+
+  StaticArray<EdgeID> &raw_nodes = graph.raw_nodes();
+  StaticArray<NodeID> &raw_edges = graph.raw_edges();
+
+  graph.pfor_nodes([&](const NodeID node) {
+    NodeID *begin = raw_edges.data() + raw_nodes[node];
+    NodeID *end = raw_edges.data() + raw_nodes[node + 1];
+
+    sort_by_compression(node, begin, end);
+  });
+}
+
 } // namespace kaminpar::shm::graph

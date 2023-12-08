@@ -64,6 +64,7 @@ struct GraphCompressionContext {
 enum class GraphOrdering {
   NATURAL,
   DEGREE_BUCKETS,
+  COMPRESSION
 };
 
 //
