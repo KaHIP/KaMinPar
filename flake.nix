@@ -16,7 +16,7 @@
     {
       devShells.default = pkgs.mkShell {
         packages = inputs ++ builtins.attrValues {
-          inherit (pkgs) fish ccache valgrind massif-visualizer;
+          inherit (pkgs) fish ccache gdb valgrind massif-visualizer;
         };
 
         shellHook = ''
