@@ -298,7 +298,7 @@ void CompressedGraphBuilder::add_edges(
               _cur_compressed_edges += varint_encode(interval_length_gap, _cur_compressed_edges);
 
               previous_right_extreme = adjacent_node;
-              iter = neighbourhood.erase(iter - interval_len + 1, iter + 1);
+              iter = neighbourhood.erase(iter - interval_len + 1, iter + 1) - 1;
               if (iter == neighbourhood.end()) {
                 break;
               }
