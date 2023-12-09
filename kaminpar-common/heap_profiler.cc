@@ -99,7 +99,7 @@ void HeapProfiler::record_alloc(const void *ptr, std::size_t size) {
       }
     }
 
-    _address_map[ptr] = size;
+    _address_map.insert_or_assign(ptr, size);
   }
 }
 
@@ -107,13 +107,15 @@ void HeapProfiler::record_free(const void *ptr) {
   if (_enabled) {
     std::lock_guard<std::mutex> guard(_mutex);
 
-    std::size_t size = _address_map[ptr];
-    for (HeapProfileTreeNode *node = _tree.currentNode; node != nullptr; node = node->parent) {
-      node->frees++;
-      node->free_size += size;
-    }
+    if (auto search = _address_map.find(ptr); search != _address_map.end()) {
+      std::size_t size = search->second;
+      for (HeapProfileTreeNode *node = _tree.currentNode; node != nullptr; node = node->parent) {
+        node->frees++;
+        node->free_size += size;
+      }
 
-    _address_map.erase(ptr);
+      _address_map.erase(search);
+    }
   }
 }
 

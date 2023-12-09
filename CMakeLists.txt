@@ -26,6 +26,7 @@ option(KAMINPAR_BUILD_BENCHMARKS "Build benchmark binaries." OFF)
 # Control how to build
 ######################
 option(KAMINPAR_ENABLE_HEAP_PROFILING "Profile and output heap memory usage." ON)
+option(KAMINPAR_ENABLE_PAGE_PROFILING "Profile pages allocated via mmap." OFF)
 option(KAMINPAR_ENABLE_STATISTICS "Generate and output detailed statistics." ON)
 option(KAMINPAR_ENABLE_TIMER_BARRIERS "Add additional MPI_Barrier() instructions for more accurate time measurements." ON)
 
@@ -131,6 +132,13 @@ if (KAMINPAR_ENABLE_HEAP_PROFILING)
     message(STATUS "Heap Profiling: enabled")
 else ()
     message(STATUS "Heap Profiling: disabled")
+endif ()
+
+if (KAMINPAR_ENABLE_PAGE_PROFILING)
+    list(APPEND KAMINPAR_DEFINITIONS "-DKAMINPAR_ENABLE_PAGE_PROFILING")
+    message(STATUS "Page Profiling: enabled")
+else ()
+    message(STATUS "Page Profiling: disabled")
 endif ()
 
 if (KAMINPAR_ENABLE_TIMER_BARRIERS)

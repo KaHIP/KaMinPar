@@ -8,8 +8,11 @@
  ******************************************************************************/
 #include "kaminpar-common/libc_memory_override.h"
 
+#include <cstdlib>
+
 #include "kaminpar-common/heap_profiler.h"
 
+#ifdef KAMINPAR_ENABLE_HEAP_PROFILING
 #ifdef __GNUC__
 extern "C" {
 
@@ -23,8 +26,6 @@ extern void *__libc_memalign(size_t, size_t);
 extern void *__libc_valloc(size_t);
 extern void *__libc_pvalloc(size_t);
 extern void *__libc_realloc(void *, size_t);
-extern void *__mmap(void *, size_t, int, int, int, off_t);
-extern int __munmap(void *, size_t);
 
 void *malloc(size_t size) {
   void *ptr = __libc_malloc(size);
@@ -82,6 +83,10 @@ void *pvalloc(size_t size) {
   return ptr;
 }
 
+#ifdef KAMINPAR_ENABLE_PAGE_PROFILING
+extern void *__mmap(void *, size_t, int, int, int, off_t);
+extern int __munmap(void *, size_t);
+
 void *mmap(void *addr, size_t len, int prot, int flags, int fd, __off_t offset) {
   void *ptr = __mmap(addr, len, prot, flags, fd, offset);
   HeapProfiler::global().record_alloc(addr, len);
@@ -93,19 +98,29 @@ int munmap(void *addr, size_t len) {
   HeapProfiler::global().record_free(addr);
   return return_value;
 }
+#endif
 }
 #else
 #error Heap profiling is only supported for gcc
+#endif
 #endif
 
 namespace kaminpar::heap_profiler {
 
 void *std_malloc(std::size_t size) {
+#ifdef KAMINPAR_ENABLE_HEAP_PROFILING
   return __libc_malloc(size);
+#else
+  return std::malloc(size);
+#endif
 }
 
 void std_free(void *ptr) {
+#ifdef KAMINPAR_ENABLE_HEAP_PROFILING
   __libc_free(ptr);
+#else
+  std::free(ptr);
+#endif
 }
 
 } // namespace kaminpar::heap_profiler

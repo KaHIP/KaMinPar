@@ -16,9 +16,9 @@
 #include <unordered_map>
 #include <vector>
 
-#ifdef KAMINPAR_ENABLE_HEAP_PROFILING
-
 #include "kaminpar-common/libc_memory_override.h"
+
+#ifdef KAMINPAR_ENABLE_HEAP_PROFILING
 
 // A macro to get the path of a source file in the project directory
 // (https://stackoverflow.com/a/40947954)
@@ -32,7 +32,7 @@
   GET_MACRO(_, ##__VA_ARGS__, START_HEAP_PROFILER_2, START_HEAP_PROFILER_1)(__VA_ARGS__)
 #define STOP_HEAP_PROFILER() kaminpar::heap_profiler::HeapProfiler::global().stop_profile()
 #define SCOPED_HEAP_PROFILER_2(name, desc, line)                                                   \
-  auto __SCOPED_HEAP_PROFILER__##line =                                                            \
+  const auto __SCOPED_HEAP_PROFILER__##line =                                                      \
       kaminpar::heap_profiler::HeapProfiler::global().start_scoped_profile(name, desc)
 #define SCOPED_HEAP_PROFILER_1(name, line) SCOPED_HEAP_PROFILER_2(name, "", line)
 #define SCOPED_HEAP_PROFILER(...)                                                                  \
@@ -43,6 +43,9 @@
   kaminpar::heap_profiler::HeapProfiler::global().add_data_struct(name, size)
 #define RECORD_DATA_STRUCT(...)                                                                    \
   GET_MACRO(__VA_ARGS__, RECORD_DATA_STRUCT_2, RECORD_DATA_STRUCT_1)(__VA_ARGS__)
+#define RECORD_LOCAL_DATA_STRUCT(name, size, variable_name)                                        \
+  const auto variable_name =                                                                       \
+      kaminpar::heap_profiler::HeapProfiler::global().add_data_struct(name, size)
 #define RECORD(name)                                                                               \
   kaminpar::heap_profiler::HeapProfiler::global().record_data_struct(name, __FILENAME__, __LINE__);
 #define IF_HEAP_PROFILING(expression) expression
@@ -62,6 +65,7 @@ constexpr bool kHeapProfiling = true;
 #define STOP_HEAP_PROFILER()
 #define SCOPED_HEAP_PROFILER(...)
 #define RECORD_DATA_STRUCT(...)
+#define RECORD_LOCAL_DATA_STRUCT(...)
 #define RECORD(...)
 #define IF_HEAP_PROFILING(...)
 #define ENABLE_HEAP_PROFILER()
@@ -73,6 +77,12 @@ constexpr bool kHeapProfiling = true;
  */
 constexpr bool kHeapProfiling = false;
 
+#endif
+
+#ifdef KAMINPAR_ENABLE_PAGE_PROFILING
+constexpr bool kPageProfiling = true;
+#else
+constexpr bool kPageProfiling = false;
 #endif
 
 namespace kaminpar::heap_profiler {
@@ -507,7 +517,7 @@ public:
   }
 
   /*!
-   * Deconstructs the scoped heap profiler and thereby stopping the heapprofile.
+   * Deconstructs the scoped heap profiler and thereby stopping the heap profile.
    */
   inline ~ScopedHeapProfiler() {
     HeapProfiler::global().stop_profile();
