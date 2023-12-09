@@ -196,7 +196,8 @@ int main(int argc, char *argv[]) {
       }
     }
   }();
-  std::vector<BlockID> partition(graph.n());
+  RECORD("partition") std::vector<BlockID> partition(graph.n());
+  RECORD_DATA_STRUCT("std::vector", partition.capacity() * sizeof(BlockID));
 
   STOP_HEAP_PROFILER();
 

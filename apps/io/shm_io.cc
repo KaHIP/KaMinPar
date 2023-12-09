@@ -221,10 +221,10 @@ template void read<true>(
 template <bool checked> CSRGraph csr_read(const std::string &filename) {
   using namespace kaminpar::io::metis;
 
-  StaticArray<EdgeID> nodes;
-  StaticArray<NodeID> edges;
-  StaticArray<NodeWeight> node_weights;
-  StaticArray<EdgeWeight> edge_weights;
+  RECORD("nodes") StaticArray<EdgeID> nodes;
+  RECORD("edges") StaticArray<NodeID> edges;
+  RECORD("node_weights") StaticArray<NodeWeight> node_weights;
+  RECORD("edge_weights") StaticArray<EdgeWeight> edge_weights;
 
   bool store_node_weights = false;
   bool store_edge_weights = false;
@@ -311,7 +311,8 @@ template <bool checked> CompressedGraph compress_read(const std::string &filenam
   EdgeID edge = 0;
 
   CompressedGraphBuilder builder;
-  std::vector<NodeID> neighbourhood;
+  RECORD("neighbourhood") std::vector<NodeID> neighbourhood;
+  RECORD_LOCAL_DATA_STRUCT("std::vector", 0, neighbourhood_stats);
 
   parse<false>(
       filename,
@@ -354,6 +355,8 @@ template <bool checked> CompressedGraph compress_read(const std::string &filenam
   builder.add_node(node - 1, neighbourhood);
 
   check_total_weight<checked>(builder.total_node_weight(), builder.total_edge_weight());
+
+  IF_HEAP_PROFILING(neighbourhood_stats->size = neighbourhood.capacity() * sizeof(NodeID));
 
   return builder.build();
 }
