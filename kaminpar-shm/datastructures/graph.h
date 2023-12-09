@@ -61,7 +61,7 @@ public:
     return _underlying_graph->raw_edges();
   }
 
-  [[nodiscard]] inline const StaticArray<EdgeID> &raw_edges() const final {
+  [[nodiscard]] inline const StaticArray<NodeID> &raw_edges() const final {
     return _underlying_graph->raw_edges();
   }
 
@@ -117,7 +117,7 @@ public:
       EdgeID max_degree = 0;
 
       for (const NodeID node : graph->nodes()) {
-        max_degree = std::max(max_degree, graph->degree(node));
+        max_degree = std::max(max_degree, static_cast<EdgeID>(graph->degree(node)));
       }
 
       return max_degree;
