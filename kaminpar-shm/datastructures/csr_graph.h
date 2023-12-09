@@ -176,7 +176,7 @@ public:
 
   [[nodiscard]] inline auto adjacent_nodes(const NodeID u) const {
     KASSERT(u + 1 < _nodes.size());
-    return TransformedIotaRange2<EdgeID, NodeID>(_nodes[u], _nodes[u + 1], [this](const EdgeID e) {
+    return TransformedIotaRange(_nodes[u], _nodes[u + 1], [this](const EdgeID e) {
       return _edges[e];
     });
   }
@@ -193,9 +193,9 @@ public:
 
   [[nodiscard]] inline auto neighbors(const NodeID u) const {
     KASSERT(u + 1 < _nodes.size());
-    return TransformedIotaRange2<EdgeID, std::pair<EdgeID, NodeID>>(
-        _nodes[u], _nodes[u + 1], [this](const EdgeID e) { return std::make_pair(e, _edges[e]); }
-    );
+    return TransformedIotaRange(_nodes[u], _nodes[u + 1], [this](const EdgeID e) {
+      return std::make_pair(e, _edges[e]);
+    });
   }
 
   template <typename Lambda> inline void neighbors(const NodeID u, Lambda &&l) const {

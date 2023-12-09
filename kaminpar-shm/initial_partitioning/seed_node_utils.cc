@@ -52,13 +52,13 @@ std::pair<NodeID, NodeID> find_furthest_away_node(
     queue.pop_head();
     last_node = u;
 
-    for (const NodeID v : graph.adjacent_nodes(u)) {
+    graph.adjacent_nodes(u, [&](const NodeID v) {
       if (marker.get(v))
-        continue;
+        return;
       queue.push_tail(v);
       marker.set<true>(v);
       ++nodes_in_next_level;
-    }
+    });
 
     // keep track of distance from start_node
     KASSERT(remaining_nodes_in_level > 0u);

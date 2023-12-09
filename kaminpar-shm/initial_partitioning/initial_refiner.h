@@ -305,7 +305,8 @@ public:
     return {
         .queues = std::move(_queues),
         .marker = std::move(_marker),
-        .weighted_degrees = std::move(_weighted_degrees)};
+        .weighted_degrees = std::move(_weighted_degrees)
+    };
   }
 
 private:
@@ -383,9 +384,9 @@ private:
       current_overload = metrics::total_overload(p_graph, _p_ctx);
 
       // update gain of neighboring nodes
-      for (const auto [e, v] : _graph->neighbors(u)) {
+      _graph->neighbors(u, [&](const EdgeID e, const NodeID v) {
         if (_marker.get(v)) {
-          continue;
+          return;
         }
 
         const EdgeWeight e_weight = _graph->edge_weight(e);
@@ -407,7 +408,7 @@ private:
           KASSERT(is_boundary_node(p_graph, v), "", assert::heavy);
           _queues[v_block].push(v, _weighted_degrees[v] + loss_delta);
         }
-      }
+      });
 
       // accept move if it improves the best edge cut found so far
       if (_cut_acceptance_policy(
@@ -481,9 +482,9 @@ private:
   EdgeWeight compute_gain_from_scratch(const PartitionedGraph &p_graph, const NodeID u) {
     const BlockID u_block = p_graph.block(u);
     EdgeWeight weighted_external_degree = 0;
-    for (const auto [e, v] : p_graph.neighbors(u)) {
+    p_graph.neighbors(u, [&](const EdgeID e, const NodeID v) {
       weighted_external_degree += (p_graph.block(v) != u_block) * p_graph.edge_weight(e);
-    }
+    });
     const EdgeWeight weighted_internal_degree = _weighted_degrees[u] - weighted_external_degree;
     return weighted_internal_degree - weighted_external_degree;
   }

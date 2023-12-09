@@ -111,12 +111,12 @@ BlockWeight GreedyBalancer::perform_round() {
           overload_delta.local() += delta;
 
           // try to add neighbors of moved node to PQ
-          for (const NodeID v : _p_graph->adjacent_nodes(u)) {
+          _p_graph->adjacent_nodes(u, [&](const NodeID v) {
             if (!_marker.get(v) && _p_graph->block(v) == from) {
               add_to_pq(from, v);
             }
             _marker.set(v);
-          }
+          });
         } else {
           add_to_pq(from, u, u_weight, actual_relative_gain);
         }
@@ -257,7 +257,7 @@ GreedyBalancer::compute_gain(const NodeID u, const BlockID u_block) const {
   auto action = [&](auto &map) {
     // compute external degree to each adjacent block that can take u without
     // becoming overloaded
-    for (const auto [e, v] : _p_graph->neighbors(u)) {
+    _p_graph->neighbors(u, [&](const EdgeID e, const NodeID v) {
       const BlockID v_block = _p_graph->block(v);
       if (u_block != v_block &&
           _p_graph->block_weight(v_block) + u_weight <= _p_ctx->block_weights.max(v_block)) {
@@ -265,7 +265,7 @@ GreedyBalancer::compute_gain(const NodeID u, const BlockID u_block) const {
       } else if (u_block == v_block) {
         internal_degree += _p_graph->edge_weight(e);
       }
-    }
+    });
 
     // select neighbor that maximizes gain
     Random &rand = Random::instance();

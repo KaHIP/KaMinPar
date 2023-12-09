@@ -89,9 +89,9 @@ NodeID InitialCoarsener::pick_cluster(
     const NodeID u, const NodeWeight u_weight, const NodeWeight max_cluster_weight
 ) {
   KASSERT(_rating_map.empty());
-  for (const auto [e, v] : _current_graph->neighbors(u)) {
+  _current_graph->neighbors(u, [&](const EdgeID e, const NodeID v) {
     _rating_map[_clustering[v].leader] += _current_graph->edge_weight(e);
-  }
+  });
 
   return pick_cluster_from_rating_map(u, u_weight, max_cluster_weight);
 }
@@ -277,14 +277,14 @@ InitialCoarsener::ContractionResult InitialCoarsener::contract_current_clusterin
         c_nodes[++c_u] = c_m;
       }
 
-      for (const auto [e, v] : _current_graph->neighbors(u)) {
+      _current_graph->neighbors(u, [&](const EdgeID e, const NodeID v) {
         const NodeID c_v = node_mapping[v];
         if (c_u != c_v) {
           const EdgeWeight weight{_current_graph->edge_weight(e)};
           _edge_weight_collector[c_v] += weight;
           interleaved_visit_neighbor(c_u, c_v, weight);
         }
-      }
+      });
     }
 
     // finish last cluster ...

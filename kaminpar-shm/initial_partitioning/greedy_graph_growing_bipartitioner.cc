@@ -44,9 +44,10 @@ void GreedyGraphGrowingBipartitioner::bipartition_impl() {
       }
 
       // queue unmarked neighbors / update gains
-      for (const auto [e, v] : _graph.neighbors(u)) {
-        if (_partition[u] == V2)
-          continue; // v already in V2: won't touch this node anymore
+      _graph.neighbors(u, [&](const EdgeID e, const NodeID v) {
+        if (_partition[u] == V2) {
+          return; // v already in V2: won't touch this node anymore
+        }
         KASSERT(_partition[v] == V1);
 
         if (_marker.get(v)) {
@@ -58,7 +59,7 @@ void GreedyGraphGrowingBipartitioner::bipartition_impl() {
           _queue.push(v, compute_negative_gain(v));
           _marker.set<true>(v);
         }
-      }
+      });
     }
   } while (_block_weights[V2] < _p_ctx.block_weights.perfectly_balanced(V2));
 
@@ -69,9 +70,9 @@ void GreedyGraphGrowingBipartitioner::bipartition_impl() {
 [[nodiscard]] EdgeWeight GreedyGraphGrowingBipartitioner::compute_negative_gain(const NodeID u
 ) const {
   EdgeWeight gain = 0;
-  for (const auto [e, v] : _graph.neighbors(u)) {
+  _graph.neighbors(u, [&](const EdgeID e, const NodeID v) {
     gain += (_partition[u] == _partition[v]) ? _graph.edge_weight(e) : -_graph.edge_weight(e);
-  }
+  });
   return gain;
 }
 } // namespace kaminpar::shm::ip

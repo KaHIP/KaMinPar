@@ -43,9 +43,9 @@ EdgeWeight edge_cut(const PartitionedGraphType &p_graph, tag::Sequential) {
   int64_t cut{0};
 
   for (const NodeID u : p_graph.nodes()) {
-    for (const auto &[e, v] : p_graph.neighbors(u)) {
+    p_graph.neighbors(u, [&](const EdgeID e, const NodeID v) {
       cut += (p_graph.block(u) != p_graph.block(v)) ? p_graph.edge_weight(e) : 0;
-    }
+    });
   }
 
   KASSERT(cut % 2 == 0u);

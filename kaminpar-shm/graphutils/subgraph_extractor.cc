@@ -154,7 +154,8 @@ SequentialSubgraphExtractionResult extract_subgraphs_sequential(
   };
 
   std::array<Graph, 2> subgraphs{
-      create_graph(0, s_n[0], 0, s_m[0]), create_graph(n1, s_n[1], m1, s_m[1])};
+      create_graph(0, s_n[0], 0, s_m[0]), create_graph(n1, s_n[1], m1, s_m[1])
+  };
 
   return {std::move(subgraphs), std::move(subgraph_positions)};
 }
@@ -193,20 +194,19 @@ SubgraphExtractionResult extract_subgraphs(
     for (NodeID u = r.begin(); u != r.end(); ++u) {
       const BlockID u_block = p_graph.block(u);
       ++num_nodes_in_block[u_block];
-      for (const NodeID v : graph.adjacent_nodes(u)) {
+      graph.adjacent_nodes(u, [&](const NodeID v) {
         if (p_graph.block(v) == u_block) {
           ++num_edges_in_block[u_block];
         }
-      }
+      });
     }
   });
   STOP_TIMER();
 
   START_TIMER("Merge block sizes");
   tbb::parallel_for(static_cast<BlockID>(0), p_graph.k(), [&](const BlockID b) {
-    NodeID num_nodes = compute_final_k(
-        b, p_graph.k(), input_k
-    ); // padding for sequential subgraph extraction
+    NodeID num_nodes =
+        compute_final_k(b, p_graph.k(), input_k); // padding for sequential subgraph extraction
     EdgeID num_edges = 0;
     for (auto &local_num_nodes : tl_num_nodes_in_block) {
       num_nodes += local_num_nodes[b];
@@ -249,16 +249,18 @@ SubgraphExtractionResult extract_subgraphs(
 
       const EdgeID e0 = start_positions[b].edges_start_pos;
 
-      for (const auto [e_prime, v_prime] :
-           graph.neighbors(u_prime)) {     // e_prime, v_prime = in graph
-        if (p_graph.block(v_prime) == b) { // only keep internal edges
-          if (is_edge_weighted) {
-            subgraph_memory.edge_weights[e0 + e] = graph.edge_weight(e_prime);
+      graph.neighbors(
+          u_prime,
+          [&](const EdgeID e_prime, const NodeID v_prime) { // e_prime, v_prime = in graph
+            if (p_graph.block(v_prime) == b) {              // only keep internal edges
+              if (is_edge_weighted) {
+                subgraph_memory.edge_weights[e0 + e] = graph.edge_weight(e_prime);
+              }
+              subgraph_memory.edges[e0 + e] = mapping[v_prime];
+              ++e;
+            }
           }
-          subgraph_memory.edges[e0 + e] = mapping[v_prime];
-          ++e;
-        }
-      }
+      );
     }
 
     subgraph_memory.nodes[nodes_start_pos + bucket_index[b]] = e;
@@ -270,8 +272,8 @@ SubgraphExtractionResult extract_subgraphs(
     const NodeID n0 = start_positions[b].nodes_start_pos;
     const EdgeID m0 = start_positions[b].edges_start_pos;
 
-    const NodeID n = start_positions[b + 1].nodes_start_pos - n0 -
-                     compute_final_k(b, p_graph.k(), input_k);
+    const NodeID n =
+        start_positions[b + 1].nodes_start_pos - n0 - compute_final_k(b, p_graph.k(), input_k);
     const EdgeID m = start_positions[b + 1].edges_start_pos - m0;
 
     StaticArray<EdgeID> nodes(n0, n + 1, subgraph_memory.nodes);
