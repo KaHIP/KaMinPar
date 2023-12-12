@@ -106,6 +106,24 @@ Graph complete_bipartite(const NodeID n, const NodeID m, GraphArgs &&...graph_ar
   return builder.build(std::forward<GraphArgs...>(graph_args)...);
 }
 
+template <typename Lambda, typename... GraphArgs>
+Graph complete_bipartite(const NodeID n, const NodeID m, Lambda &&l, GraphArgs &&...graph_args) {
+  GraphBuilder builder;
+  for (NodeID u = 0; u < n; ++u) { // set A
+    builder.new_node();
+    for (NodeID v = n; v < n + m; ++v) {
+      builder.new_edge(v, l(u, v));
+    }
+  }
+  for (NodeID u = n; u < n + m; ++u) { // set B
+    builder.new_node();
+    for (NodeID v = 0; v < n; ++v) {
+      builder.new_edge(v, l(u, v));
+    }
+  }
+  return builder.build(std::forward<GraphArgs...>(graph_args)...);
+}
+
 /*!
  * Builds the complete graph on `n` nodes.
  *
@@ -126,6 +144,20 @@ template <typename... GraphArgs> Graph complete(const NodeID n, GraphArgs &&...g
   return builder.build(std::forward<GraphArgs...>(graph_args)...);
 }
 
+template <typename Lambda, typename... GraphArgs>
+Graph complete(const NodeID n, Lambda &&l, GraphArgs &&...graph_args) {
+  GraphBuilder builder;
+  for (NodeID u = 0; u < n; ++u) {
+    builder.new_node();
+    for (NodeID v = 0; v < n; ++v) {
+      if (u != v) {
+        builder.new_edge(v, l(u, v));
+      }
+    }
+  }
+  return builder.build(std::forward<GraphArgs...>(graph_args)...);
+}
+
 /*!
  * Builds the star graph with `n` leaves, i.e., the complete bipartite graph on
  * `(n, 1)` nodes. If nodes are weighted, the center is the heaviest node with
@@ -136,6 +168,13 @@ template <typename... GraphArgs> Graph complete(const NodeID n, GraphArgs &&...g
  */
 template <typename... GraphArgs> Graph star(const NodeID n, GraphArgs &&...graph_args) {
   return complete_bipartite(1, n, std::forward<GraphArgs...>(graph_args)...);
+}
+
+template <typename Lambda, typename... GraphArgs>
+Graph star(const NodeID n, Lambda &&l, GraphArgs &&...graph_args) {
+  return complete_bipartite(
+      1, n, std::forward<Lambda>(l), std::forward<GraphArgs...>(graph_args)...
+  );
 }
 
 template <typename... GraphArgs> Graph matching(const NodeID m, GraphArgs &&...graph_args) {

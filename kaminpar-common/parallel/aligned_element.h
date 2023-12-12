@@ -41,6 +41,14 @@ template <typename Vector> struct alignas(64) AlignedVec {
   AlignedVec() : vec() {}
   AlignedVec(Vector vec) : vec(vec) {}
 
+  decltype(auto) operator[](std::size_t pos) {
+    return vec[pos];
+  }
+
+  decltype(auto) operator[](std::size_t pos) const {
+    return vec[pos];
+  }
+
   auto begin() noexcept {
     return vec.begin();
   }
@@ -59,6 +67,10 @@ template <typename Vector> struct alignas(64) AlignedVec {
 
   void clear() noexcept {
     vec.clear();
+  }
+
+  void resize(std::size_t count) {
+    vec.resize(count);
   }
 };
 

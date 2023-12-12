@@ -311,7 +311,7 @@ template <bool checked> CompressedGraph compress_read(const std::string &filenam
   EdgeID edge = 0;
 
   CompressedGraphBuilder builder;
-  RECORD("neighbourhood") std::vector<NodeID> neighbourhood;
+  RECORD("neighbourhood") std::vector<std::pair<NodeID, EdgeWeight>> neighbourhood;
   RECORD_LOCAL_DATA_STRUCT("std::vector", 0, neighbourhood_stats);
 
   parse<false>(
@@ -344,11 +344,7 @@ template <bool checked> CompressedGraph compress_read(const std::string &filenam
       [&](const std::uint64_t weight, const std::uint64_t v) {
         check_edge<checked>(number_of_nodes, node, weight, v);
 
-        if (store_edge_weights) {
-          builder.set_edge_weight(node, static_cast<EdgeWeight>(weight));
-        }
-
-        neighbourhood.push_back(static_cast<NodeID>(v));
+        neighbourhood.push_back(std::pair(static_cast<NodeID>(v), static_cast<EdgeWeight>(weight)));
         edge += 1;
       }
   );

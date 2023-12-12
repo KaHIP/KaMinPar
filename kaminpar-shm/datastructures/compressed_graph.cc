@@ -87,18 +87,14 @@ CompressedGraph CompressedGraphBuilder::compress(const CSRGraph &graph) {
   CompressedGraphBuilder builder;
   builder.init(graph.n(), graph.m(), store_node_weights, store_edge_weights);
 
-  std::vector<NodeID> neighbourhood;
+  std::vector<std::pair<NodeID, EdgeWeight>> neighbourhood;
   for (const NodeID node : graph.nodes()) {
     if (store_node_weights) {
       builder.set_node_weight(node, graph.node_weight(node));
     }
 
     for (const auto [edge, adjacent_node] : graph.neighbors(node)) {
-      if (store_edge_weights) {
-        builder.set_edge_weight(edge, graph.edge_weight(edge));
-      }
-
-      neighbourhood.push_back(adjacent_node);
+      neighbourhood.push_back(std::make_pair(adjacent_node, graph.edge_weight(edge)));
     }
 
     builder.add_node(node, neighbourhood);
@@ -121,6 +117,9 @@ void CompressedGraphBuilder::init(
     _edge_weights.resize(edge_count * 2);
   }
 
+  _store_node_weights = store_node_weights;
+  _store_edge_weights = store_edge_weights;
+
   _total_node_weight = 0;
   _total_edge_weight = 0;
 
@@ -141,7 +140,9 @@ void CompressedGraphBuilder::init(
   _interval_count = 0;
 }
 
-void CompressedGraphBuilder::add_node(const NodeID node, std::vector<NodeID> &neighbourhood) {
+void CompressedGraphBuilder::add_node(
+    const NodeID node, std::vector<std::pair<NodeID, EdgeWeight>> &neighbourhood
+) {
   // Store the index into the compressed edge array of the start of the neighbourhood of the node
   // in its entry in the node array.
   _nodes[node] = static_cast<EdgeID>(_cur_compressed_edges - _compressed_edges);
@@ -167,7 +168,9 @@ void CompressedGraphBuilder::add_node(const NodeID node, std::vector<NodeID> &ne
     return;
   }
 
-  _edge_count += degree;
+  if (!_store_edge_weights) {
+    _edge_count += degree;
+  }
 
   // Sort the adjacent nodes in ascending order.
   std::sort(neighbourhood.begin(), neighbourhood.end());
@@ -193,7 +196,9 @@ void CompressedGraphBuilder::add_node(const NodeID node, std::vector<NodeID> &ne
       std::uint8_t *cur_part_ptr = part_ptr + sizeof(NodeID) * i;
       *((NodeID *)cur_part_ptr) = static_cast<NodeID>(_cur_compressed_edges - part_ptr);
 
-      std::vector<NodeID> part_neighbourhood(part_begin, part_begin + part_length);
+      std::vector<std::pair<NodeID, EdgeWeight>> part_neighbourhood(
+          part_begin, part_begin + part_length
+      );
       add_edges(node, nullptr, part_neighbourhood);
     }
 
@@ -205,13 +210,10 @@ void CompressedGraphBuilder::add_node(const NodeID node, std::vector<NodeID> &ne
 }
 
 void CompressedGraphBuilder::set_node_weight(const NodeID node, const NodeWeight weight) {
+  KASSERT(_store_node_weights);
+
   _total_node_weight += weight;
   _node_weights[node] = weight;
-}
-
-void CompressedGraphBuilder::set_edge_weight(const EdgeID edge, const EdgeWeight weight) {
-  _total_edge_weight += weight;
-  _edge_weights[edge] = weight;
 }
 
 CompressedGraph CompressedGraphBuilder::build() {
@@ -256,8 +258,15 @@ std::int64_t CompressedGraphBuilder::total_edge_weight() const {
 }
 
 void CompressedGraphBuilder::add_edges(
-    NodeID node, std::uint8_t *marked_byte, std::vector<NodeID> &neighbourhood
+    NodeID node,
+    std::uint8_t *marked_byte,
+    std::vector<std::pair<NodeID, EdgeWeight>> &neighbourhood
 ) {
+  const auto store_edge_weight = [&](const EdgeWeight edge_weight) {
+    _total_edge_weight += edge_weight;
+    _edge_weights[_edge_count++] = edge_weight;
+  };
+
   // Find intervals [i, j] of consecutive adjacent nodes i, i + 1, ..., j - 1, j of length at
   // least kIntervalLengthTreshold. Instead of storing all nodes, only store a representation of
   // the left extreme i and the length j - i + 1. Left extremes are compressed using the
@@ -277,16 +286,17 @@ void CompressedGraphBuilder::add_edges(
     if (neighbourhood.size() > 1) {
       NodeID previous_right_extreme = 2;
       NodeID interval_len = 1;
-      NodeID prev_adjacent_node = *neighbourhood.begin();
+      NodeID prev_adjacent_node = (*neighbourhood.begin()).first;
+
       for (auto iter = neighbourhood.begin() + 1; iter != neighbourhood.end(); ++iter) {
-        const NodeID adjacent_node = *iter;
+        const NodeID adjacent_node = (*iter).first;
 
         if (prev_adjacent_node + 1 == adjacent_node) {
           interval_len++;
 
           // The interval ends if there are no more nodes or the next node is not the increment of
           // the current node.
-          if (iter + 1 == neighbourhood.end() || *(iter + 1) != adjacent_node + 1) {
+          if (iter + 1 == neighbourhood.end() || (*(iter + 1)).first != adjacent_node + 1) {
             if (interval_len >= CompressedGraph::kIntervalLengthTreshold) {
               const NodeID left_extreme = adjacent_node + 1 - interval_len;
               const NodeID left_extreme_gap = left_extreme + 2 - previous_right_extreme;
@@ -296,6 +306,13 @@ void CompressedGraphBuilder::add_edges(
               interval_count += 1;
               _cur_compressed_edges += varint_encode(left_extreme_gap, _cur_compressed_edges);
               _cur_compressed_edges += varint_encode(interval_length_gap, _cur_compressed_edges);
+
+              if (_store_edge_weights) {
+                for (NodeID i = 0; i < interval_len; ++i) {
+                  const EdgeWeight edge_weight = (*(iter + 1 + i - interval_len)).second;
+                  store_edge_weight(edge_weight);
+                }
+              }
 
               previous_right_extreme = adjacent_node;
               iter = neighbourhood.erase(iter - interval_len + 1, iter + 1) - 1;
@@ -341,18 +358,25 @@ void CompressedGraphBuilder::add_edges(
   // 1} between the nodes, where u is the source node. Note that all gaps except the first one
   // have to be positive as we sorted the nodes in ascending order. Thus, only for the first gap
   // the sign is additionally stored.
-  const NodeID first_adjacent_node = *neighbourhood.begin();
+  const auto [first_adjacent_node, first_edge_weight] = *neighbourhood.begin();
   // TODO: Does the value range cover everything s.t. a underflow cannot happen?
   const std::make_signed_t<NodeID> first_gap = first_adjacent_node - node;
   _cur_compressed_edges += signed_varint_encode(first_gap, _cur_compressed_edges);
+  if (_store_edge_weights) {
+    store_edge_weight(first_edge_weight);
+  }
 
   NodeID prev_adjacent_node = first_adjacent_node;
   const auto iter_end = neighbourhood.end();
   for (auto iter = neighbourhood.begin() + 1; iter != iter_end; ++iter) {
-    const NodeID adjacent_node = *iter;
+    const auto [adjacent_node, edge_weight] = *iter;
     const NodeID gap = adjacent_node - prev_adjacent_node;
 
     _cur_compressed_edges += varint_encode(gap, _cur_compressed_edges);
+    if (_store_edge_weights) {
+      store_edge_weight(edge_weight);
+    }
+
     prev_adjacent_node = adjacent_node;
   }
 }

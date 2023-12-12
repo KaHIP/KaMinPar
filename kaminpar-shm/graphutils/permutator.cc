@@ -15,6 +15,7 @@
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/parallel/algorithm.h"
+#include "kaminpar-common/parallel/aligned_element.h"
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm::graph {
@@ -200,52 +201,109 @@ Graph rearrange_by_degree_buckets(Context &ctx, Graph old_graph) {
   return new_graph;
 }
 
-static void sort_by_compression(const NodeID node, NodeID *begin, NodeID *end) {
-  const auto permutate = [](NodeID *begin, NodeID *end) {
+// See https://devblogs.microsoft.com/oldnewthing/20170102-00/?p=95095
+template <typename S, typename T, typename U, typename V>
+static void apply_permutation(S *u, T *v, U &indices, V size) {
+  using std::swap;
+
+  for (V i = 0; i < size; ++i) {
+    V current = i;
+
+    while (i != indices[current]) {
+      V next = indices[current];
+      swap(u[current], u[next]);
+      swap(v[current], v[next]);
+      indices[current] = current;
+      current = next;
+    }
+
+    indices[current] = current;
+  }
+}
+
+static void sort_by_compression(
+    const NodeID node,
+    NodeID *edges_begin,
+    NodeID *edges_end,
+    bool store_edge_weights,
+    tbb::enumerable_thread_specific<parallel::AlignedVec<std::vector<EdgeID>>> &permutation_ets,
+    EdgeWeight *edge_weights
+) {
+  const auto permutate = [&](NodeID *edges_begin, NodeID *edges_end, EdgeWeight *edge_weights) {
     if constexpr (CompressedGraph::kIntervalEncoding) {
-      const NodeID local_degree = static_cast<NodeID>(end - begin);
+      const NodeID local_degree = static_cast<NodeID>(edges_end - edges_begin);
 
-      if (local_degree > 1) {
-        NodeID interval_len = 1;
-        NodeID prev_adjacent_node = *begin;
+      if (local_degree < 2) {
+        return;
+      }
 
-        NodeID *rot_begin = begin;
-        for (NodeID *iter = begin + 1; iter != end; ++iter) {
-          const NodeID adjacent_node = *iter;
+      NodeID interval_len = 1;
+      NodeID prev_adjacent_node = *edges_begin;
+      NodeID *rot_begin = edges_begin;
 
-          if (prev_adjacent_node + 1 == adjacent_node) {
-            interval_len++;
+      EdgeWeight *rot_edge_weight_begin = edge_weights;
+      EdgeWeight *rot_edge_weight_end = edge_weights + 1;
 
-            // The interval ends if there are no more nodes or the next node is not the increment of
-            // the current node.
-            if (iter + 1 == end || *(iter + 1) != adjacent_node + 1) {
-              if (interval_len >= CompressedGraph::kIntervalLengthTreshold) {
-                NodeID *rot_end = iter + 1;
+      for (NodeID *iter = edges_begin + 1; iter != edges_end; ++iter) {
+        const NodeID adjacent_node = *iter;
+
+        if (prev_adjacent_node + 1 == adjacent_node) {
+          interval_len++;
+
+          // The interval ends if there are no more nodes or the next node is not the increment of
+          // the current node.
+          if (iter + 1 == edges_end || *(iter + 1) != adjacent_node + 1) {
+            if (interval_len >= CompressedGraph::kIntervalLengthTreshold) {
+              NodeID *rot_end = iter + 1;
+              std::rotate(
+                  std::reverse_iterator(rot_end),
+                  std::reverse_iterator(rot_end) + interval_len,
+                  std::reverse_iterator(rot_begin)
+              );
+
+              if (store_edge_weights) {
                 std::rotate(
-                    std::reverse_iterator(rot_end),
-                    std::reverse_iterator(rot_end) + interval_len,
-                    std::reverse_iterator(rot_begin)
+                    std::reverse_iterator(rot_edge_weight_end + 1),
+                    std::reverse_iterator(rot_edge_weight_end + 1) + interval_len,
+                    std::reverse_iterator(rot_edge_weight_begin)
                 );
-
-                rot_begin += interval_len;
               }
 
-              interval_len = 1;
+              rot_begin += interval_len;
+              rot_edge_weight_begin += interval_len;
             }
-          }
 
-          prev_adjacent_node = adjacent_node;
+            interval_len = 1;
+          }
         }
+
+        prev_adjacent_node = adjacent_node;
+        rot_edge_weight_end++;
       }
     };
   };
 
-  // Sort the adjacent nodes in ascending order.
-  std::sort(begin, end);
+  const NodeID degree = static_cast<NodeID>(edges_end - edges_begin);
 
-  const NodeID degree = static_cast<NodeID>(end - begin);
+  if (store_edge_weights) {
+    auto &permutation = permutation_ets.local();
+    permutation.clear();
+    permutation.resize(degree);
+
+    for (EdgeID i = 0; i != degree; ++i) {
+      permutation[i] = i;
+    }
+
+    std::sort(permutation.begin(), permutation.end(), [&](const EdgeID u, const EdgeID v) {
+      return edges_begin[u] < edges_begin[v];
+    });
+
+    apply_permutation(edges_begin, edge_weights, permutation, static_cast<EdgeID>(degree));
+  } else {
+    std::sort(edges_begin, edges_end);
+  }
+
   const bool split_neighbourhood = degree > CompressedGraph::kHighDegreeThreshold;
-
   if (split_neighbourhood) {
     NodeID part_count = ((degree % CompressedGraph::kHighDegreeThreshold) == 0)
                             ? (degree / CompressedGraph::kHighDegreeThreshold)
@@ -255,28 +313,39 @@ static void sort_by_compression(const NodeID node, NodeID *begin, NodeID *end) {
                                   : (degree % CompressedGraph::kHighDegreeThreshold);
 
     for (NodeID i = 0; i < part_count; ++i) {
-      NodeID *part_begin = begin + i * CompressedGraph::kHighDegreeThreshold;
-      NodeID part_length =
-          (i + 1 == part_count) ? last_part_length : CompressedGraph::kHighDegreeThreshold;
+      NodeID *part_edges = edges_begin + i * CompressedGraph::kHighDegreeThreshold;
+      EdgeWeight *part_edge_weights = edge_weights + i * CompressedGraph::kHighDegreeThreshold;
 
-      permutate(part_begin, part_begin + part_length);
+      const bool last_part = i + 1 == part_count;
+      NodeID part_length = last_part ? last_part_length : CompressedGraph::kHighDegreeThreshold;
+
+      permutate(part_edges, part_edges + part_length, part_edge_weights);
     }
   } else {
-    permutate(begin, end);
+    permutate(edges_begin, edges_end, edge_weights);
   }
 }
 
 void rearrange_by_compression(Graph &graph) {
+  SCOPED_HEAP_PROFILER("Rearrange input graph");
   SCOPED_TIMER("Rearrange input graph");
 
   StaticArray<EdgeID> &raw_nodes = graph.raw_nodes();
   StaticArray<NodeID> &raw_edges = graph.raw_edges();
+  StaticArray<EdgeWeight> &raw_edge_weights = graph.raw_edge_weights();
 
+  tbb::enumerable_thread_specific<parallel::AlignedVec<std::vector<EdgeID>>> permutation_ets;
   graph.pfor_nodes([&](const NodeID node) {
-    NodeID *begin = raw_edges.data() + raw_nodes[node];
-    NodeID *end = raw_edges.data() + raw_nodes[node + 1];
+    NodeID *edges_begin = raw_edges.data() + raw_nodes[node];
+    NodeID *edges_end = raw_edges.data() + raw_nodes[node + 1];
 
-    sort_by_compression(node, begin, end);
+    const bool store_edge_weights = graph.is_edge_weighted();
+    EdgeWeight *edge_weights =
+        store_edge_weights ? (raw_edge_weights.data() + raw_nodes[node]) : nullptr;
+
+    sort_by_compression(
+        node, edges_begin, edges_end, store_edge_weights, permutation_ets, edge_weights
+    );
   });
 }
 

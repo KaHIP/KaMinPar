@@ -537,9 +537,10 @@ public:
    * Adds a node to the compressed graph, modifying the neighbourhood vector.
    *
    * @param node The node to add.
-   * @param neighbourhood The neighbourhood of the node to add, i.e. the adjacent nodes.
+   * @param neighbourhood The neighbourhood of the node to add, i.e. the adjacent nodes and the edge
+   * weight.
    */
-  void add_node(const NodeID node, std::vector<NodeID> &neighbourhood);
+  void add_node(const NodeID node, std::vector<std::pair<NodeID, EdgeWeight>> &neighbourhood);
 
   /*!
    * Sets the weight of a node.
@@ -548,14 +549,6 @@ public:
    * @param weight The weight to be set.
    */
   void set_node_weight(const NodeID node, const NodeWeight weight);
-
-  /*!
-   * Sets the weight of an edge.
-   *
-   * @param edge The edge whose weight is to be set.
-   * @param weight The weight to be set.
-   */
-  void set_edge_weight(const EdgeID edge, const EdgeWeight weight);
 
   /*!
    * Builds the compressed graph. The builder must then be reinitialized in order to compress
@@ -584,6 +577,8 @@ private:
   StaticArray<NodeWeight> _node_weights;
   StaticArray<EdgeWeight> _edge_weights;
 
+  bool _store_node_weights;
+  bool _store_edge_weights;
   std::int64_t _total_node_weight;
   std::int64_t _total_edge_weight;
 
@@ -595,7 +590,11 @@ private:
   std::size_t _part_count;
   std::size_t _interval_count;
 
-  void add_edges(NodeID node, std::uint8_t *marked_byte, std::vector<NodeID> &neighbourhood);
+  void add_edges(
+      NodeID node,
+      std::uint8_t *marked_byte,
+      std::vector<std::pair<NodeID, EdgeWeight>> &neighbourhood
+  );
 };
 
 } // namespace kaminpar::shm

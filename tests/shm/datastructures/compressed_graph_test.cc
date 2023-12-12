@@ -1,4 +1,5 @@
 #include <bitset>
+#include <unordered_map>
 
 #include <gmock/gmock.h>
 
@@ -7,8 +8,6 @@
 
 #include "kaminpar-shm/datastructures/compressed_graph.h"
 #include "kaminpar-shm/graphutils/permutator.h"
-
-#include "kaminpar-common/variable_length_codec.h"
 
 #define HIGH_DEGREE_NUM (CompressedGraph::kHighDegreeThreshold * 5)
 #define TEST_ON_ALL_GRAPHS(test_function)                                                          \
@@ -22,11 +21,43 @@
   test_function(graphs::matching(100));                                                            \
   test_function(graphs::star(HIGH_DEGREE_NUM));
 
+#define TEST_ON_WEIGHTED_GRAPHS(test_function)                                                     \
+  test_function(graphs::complete(100, [](const NodeID u, const NodeID v) {                         \
+    return static_cast<EdgeWeight>(u + v);                                                         \
+  }));                                                                                             \
+  test_function(graphs::complete_bipartite(100, 100, [](const NodeID u, const NodeID v) {          \
+    return static_cast<EdgeWeight>(u + v);                                                         \
+  }));                                                                                             \
+  test_function(graphs::star(HIGH_DEGREE_NUM, [](const NodeID u, const NodeID v) {                 \
+    return static_cast<EdgeWeight>(u + v);                                                         \
+  }));
+
 namespace kaminpar::shm::testing {
 
 template <typename T> static bool operator==(const IotaRange<T> &a, const IotaRange<T> &b) {
   return a.begin() == b.begin() && a.end() == b.end();
 };
+
+static void print_csr_graph(const CSRGraph &graph) {
+  std::cout << "Nodes: " << graph.n() << ", edges: " << graph.m()
+            << ", edge weights: " << (graph.is_edge_weighted() ? "yes" : "no") << "\n";
+
+  for (const NodeID node : graph.nodes()) {
+    std::cout << "Node " << node << ": ";
+
+    for (const auto [incident_edge, adjacent_node] : graph.neighbors(node)) {
+      std::cout << adjacent_node;
+
+      if (graph.is_edge_weighted()) {
+        std::cout << ' ' << graph.edge_weight(incident_edge);
+      }
+
+      std::cout << ", ";
+    }
+
+    std::cout << '\n';
+  }
+}
 
 static void print_compressed_graph(const Graph &graph) {
   const auto &csr_graph = *dynamic_cast<const CSRGraph *>(graph.underlying_graph());
@@ -274,6 +305,69 @@ static void test_compressed_graph_pfor_neighbors_operation(const Graph &graph) {
 
 TEST(CompressedGraphTest, compressed_graph_pfor_neighbors_operation) {
   TEST_ON_ALL_GRAPHS(test_compressed_graph_pfor_neighbors_operation);
+}
+
+static void test_compressed_graph_edge_weights(const Graph &graph) {
+  const auto &csr_graph = *dynamic_cast<const CSRGraph *>(graph.underlying_graph());
+  const auto compressed_graph = CompressedGraphBuilder::compress(csr_graph);
+
+  std::unordered_map<NodeID, EdgeWeight> csr_graph_edge_weights_map;
+  std::unordered_map<NodeID, EdgeWeight> compressed_graph_edge_weights_map;
+
+  for (const NodeID node : graph.nodes()) {
+    csr_graph.neighbors(node, [&](const EdgeID incident_edge, const NodeID adjacent_node) {
+      csr_graph_edge_weights_map[adjacent_node] = csr_graph.edge_weight(incident_edge);
+    });
+
+    compressed_graph.neighbors(node, [&](const EdgeID incident_edge, const NodeID adjacent_node) {
+      compressed_graph_edge_weights_map[adjacent_node] =
+          compressed_graph.edge_weight(incident_edge);
+    });
+
+    EXPECT_EQ(csr_graph_edge_weights_map.size(), compressed_graph_edge_weights_map.size());
+
+    for (const NodeID adjacent_node : csr_graph.adjacent_nodes(node)) {
+      EXPECT_TRUE(
+          csr_graph_edge_weights_map.find(adjacent_node) != csr_graph_edge_weights_map.end()
+      );
+
+      EXPECT_TRUE(
+          compressed_graph_edge_weights_map.find(adjacent_node) !=
+          compressed_graph_edge_weights_map.end()
+      );
+
+      EXPECT_TRUE(
+          csr_graph_edge_weights_map[adjacent_node] ==
+          compressed_graph_edge_weights_map[adjacent_node]
+      );
+    }
+
+    csr_graph_edge_weights_map.clear();
+    compressed_graph_edge_weights_map.clear();
+  }
+}
+
+TEST(CompressedGraphTest, compressed_graph_edge_weights) {
+  TEST_ON_WEIGHTED_GRAPHS(test_compressed_graph_edge_weights);
+}
+
+static void test_rearrange_compressed_edge_weights(Graph graph) {
+  const auto &csr_graph = *dynamic_cast<const CSRGraph *>(graph.underlying_graph());
+  const auto compressed_graph = CompressedGraphBuilder::compress(csr_graph);
+
+  graph::rearrange_by_compression(graph);
+
+  for (const NodeID node : graph.nodes()) {
+    graph.neighbors(node, [&](const EdgeID incident_edge, const NodeID adjacent_node) {
+      EXPECT_TRUE(
+          csr_graph.edge_weight(incident_edge) == compressed_graph.edge_weight(incident_edge)
+      );
+    });
+  }
+}
+
+TEST(CompressedGraphTest, rearrange_compressed_edge_weights) {
+  TEST_ON_WEIGHTED_GRAPHS(test_rearrange_compressed_edge_weights);
 }
 
 } // namespace kaminpar::shm::testing
