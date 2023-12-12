@@ -40,6 +40,8 @@ CSRGraph::CSRGraph(
     _total_edge_weight = parallel::accumulate(_edge_weights, static_cast<EdgeWeight>(0));
   }
 
+  _max_degree = parallel::max_difference(_nodes.begin(), _nodes.end());
+
   init_degree_buckets();
 }
 
@@ -104,4 +106,3 @@ void CSRGraph::update_total_node_weight() {
   }
 }
 } // namespace kaminpar::shm
-

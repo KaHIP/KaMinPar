@@ -106,26 +106,6 @@ public:
     return _underlying_graph->m();
   }
 
-  [[nodiscard]] inline EdgeID compute_max_degree() const {
-    if (const auto *graph = dynamic_cast<const CSRGraph *>(_underlying_graph.get());
-        graph != nullptr) {
-      return parallel::max_difference(graph->raw_nodes().begin(), graph->raw_nodes().end());
-    }
-
-    if (const auto *graph = dynamic_cast<const CompressedGraph *>(_underlying_graph.get());
-        graph != nullptr) {
-      EdgeID max_degree = 0;
-
-      for (const NodeID node : graph->nodes()) {
-        max_degree = std::max(max_degree, static_cast<EdgeID>(graph->degree(node)));
-      }
-
-      return max_degree;
-    }
-
-    __builtin_unreachable();
-  }
-
   // Node and edge weights
   [[nodiscard]] inline bool is_node_weighted() const final {
     return _underlying_graph->is_node_weighted();
@@ -156,6 +136,10 @@ public:
   }
 
   // Low-level access to the graph structure
+  [[nodiscard]] inline NodeID max_degree() const final {
+    return _underlying_graph->max_degree();
+  }
+
   [[nodiscard]] inline NodeID degree(const NodeID u) const final {
     return _underlying_graph->degree(u);
   }

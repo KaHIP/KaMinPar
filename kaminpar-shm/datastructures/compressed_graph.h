@@ -72,6 +72,7 @@ public:
       StaticArray<NodeWeight> node_weights,
       StaticArray<EdgeWeight> edge_weights,
       EdgeID edge_count,
+      NodeID max_degree,
       std::size_t high_degree_count,
       std::size_t part_count,
       std::size_t interval_count
@@ -109,11 +110,11 @@ public:
   }
 
   [[nodiscard]] inline StaticArray<EdgeWeight> &raw_edge_weights() final {
-    return _raw_edge_weights_dummy;
+    return _edge_weights;
   }
 
   [[nodiscard]] inline const StaticArray<EdgeWeight> &raw_edge_weights() const final {
-    return _raw_edge_weights_dummy;
+    return _edge_weights;
   }
 
   [[nodiscard]] inline StaticArray<EdgeID> &&take_raw_nodes() final {
@@ -129,7 +130,7 @@ public:
   }
 
   [[nodiscard]] inline StaticArray<EdgeWeight> &&take_raw_edge_weights() final {
-    return std::move(_raw_edge_weights_dummy);
+    return std::move(_edge_weights);
   }
 
   [[nodiscard]] const StaticArray<std::uint8_t> &raw_compressed_edges() const {
@@ -175,6 +176,10 @@ public:
   }
 
   // Low-level access to the graph structure
+  [[nodiscard]] inline NodeID max_degree() const final {
+    return _max_degree;
+  }
+
   [[nodiscard]] inline NodeID degree(const NodeID node) const final {
     const std::uint8_t *data = _compressed_edges.data() + _nodes[node];
     auto [degree, _] = varint_decode<NodeID>(data);
@@ -324,6 +329,7 @@ private:
 
   const NodeID _node_count;
   const EdgeID _edge_count;
+  const NodeID _max_degree;
 
   NodeWeight _total_node_weight = kInvalidNodeWeight;
   EdgeWeight _total_edge_weight = kInvalidEdgeWeight;
@@ -339,7 +345,6 @@ private:
   const std::size_t _interval_count;
 
   StaticArray<NodeID> _raw_edges_dummy{};
-  StaticArray<EdgeWeight> _raw_edge_weights_dummy{};
 
   void init_degree_buckets();
 
@@ -587,6 +592,8 @@ private:
   std::uint8_t *_cur_compressed_edges;
 
   EdgeID _edge_count;
+  NodeID _max_degree;
+
   std::size_t _high_degree_count;
   std::size_t _part_count;
   std::size_t _interval_count;

@@ -17,6 +17,7 @@ CompressedGraph::CompressedGraph(
     StaticArray<NodeWeight> node_weights,
     StaticArray<EdgeWeight> edge_weights,
     EdgeID edge_count,
+    NodeID max_degree,
     std::size_t high_degree_count,
     std::size_t part_count,
     std::size_t interval_count
@@ -27,6 +28,7 @@ CompressedGraph::CompressedGraph(
       _edge_weights(std::move(edge_weights)),
       _node_count(static_cast<NodeID>(_nodes.size() - 1)),
       _edge_count(edge_count),
+      _max_degree(max_degree),
       _high_degree_count(high_degree_count),
       _part_count(part_count),
       _interval_count(interval_count) {
@@ -123,8 +125,11 @@ void CompressedGraphBuilder::init(
   _total_node_weight = 0;
   _total_edge_weight = 0;
 
-  const std::size_t max_bytes = varint_max_length<NodeID>();
-  const std::size_t max_size = max_bytes * node_count * 2 + max_bytes * edge_count;
+  const std::size_t max_bytes_node_id = varint_max_length<NodeID>();
+  const std::size_t max_bytes_edge_id = varint_max_length<EdgeID>();
+  const std::size_t max_part_count = (node_count / CompressedGraph::kHighDegreeThreshold) + 1;
+  const std::size_t max_size = max_bytes_node_id * node_count * 2 +
+                               max_bytes_node_id * max_part_count + max_bytes_edge_id * edge_count;
   if constexpr (kHeapProfiling) {
     // As we overcommit memory do not track the amount of bytes used directly. Instead record it
     // manually when building.
@@ -135,6 +140,8 @@ void CompressedGraphBuilder::init(
   _cur_compressed_edges = _compressed_edges;
 
   _edge_count = 0;
+  _max_degree = 0;
+
   _high_degree_count = 0;
   _part_count = 0;
   _interval_count = 0;
@@ -168,6 +175,7 @@ void CompressedGraphBuilder::add_node(
     return;
   }
 
+  _max_degree = std::max(_max_degree, degree);
   if (!_store_edge_weights) {
     _edge_count += degree;
   }
@@ -241,6 +249,7 @@ CompressedGraph CompressedGraphBuilder::build() {
       std::move(_node_weights),
       std::move(_edge_weights),
       _edge_count,
+      _max_degree,
       _high_degree_count,
       _part_count,
       _interval_count

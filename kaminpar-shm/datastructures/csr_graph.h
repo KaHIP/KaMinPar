@@ -147,6 +147,10 @@ public:
   }
 
   // Low-level access to the graph structure
+  [[nodiscard]] inline NodeID max_degree() const final {
+    return _max_degree;
+  }
+
   [[nodiscard]] inline NodeID degree(const NodeID u) const final {
     return static_cast<NodeID>(_nodes[u + 1] - _nodes[u]);
   }
@@ -275,6 +279,8 @@ private:
   NodeWeight _total_node_weight = kInvalidNodeWeight;
   EdgeWeight _total_edge_weight = kInvalidEdgeWeight;
   NodeWeight _max_node_weight = kInvalidNodeWeight;
+
+  NodeID _max_degree;
 
   StaticArray<NodeID> _permutation;
   bool _sorted;
