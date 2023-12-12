@@ -176,21 +176,19 @@ void CompressedGraphBuilder::add_node(
   std::sort(neighbourhood.begin(), neighbourhood.end());
 
   if (split_neighbourhood) {
-    NodeID part_count = ((degree % CompressedGraph::kHighDegreeThreshold) == 0)
-                            ? (degree / CompressedGraph::kHighDegreeThreshold)
-                            : ((degree / CompressedGraph::kHighDegreeThreshold) + 1);
-    NodeID last_part_length = ((degree % CompressedGraph::kHighDegreeThreshold) == 0)
-                                  ? CompressedGraph::kHighDegreeThreshold
-                                  : (degree % CompressedGraph::kHighDegreeThreshold);
-
-    _cur_compressed_edges += varint_encode(part_count, _cur_compressed_edges);
+    const NodeID part_count = ((degree % CompressedGraph::kHighDegreeThreshold) == 0)
+                                  ? (degree / CompressedGraph::kHighDegreeThreshold)
+                                  : ((degree / CompressedGraph::kHighDegreeThreshold) + 1);
+    const NodeID last_part_length = ((degree % CompressedGraph::kHighDegreeThreshold) == 0)
+                                        ? CompressedGraph::kHighDegreeThreshold
+                                        : (degree % CompressedGraph::kHighDegreeThreshold);
 
     uint8_t *part_ptr = _cur_compressed_edges;
     _cur_compressed_edges += sizeof(NodeID) * part_count;
 
     for (NodeID i = 0; i < part_count; ++i) {
       auto part_begin = neighbourhood.begin() + i * CompressedGraph::kHighDegreeThreshold;
-      NodeID part_length =
+      const NodeID part_length =
           (i + 1 == part_count) ? last_part_length : CompressedGraph::kHighDegreeThreshold;
 
       std::uint8_t *cur_part_ptr = part_ptr + sizeof(NodeID) * i;

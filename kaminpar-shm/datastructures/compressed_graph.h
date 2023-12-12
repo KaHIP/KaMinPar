@@ -362,8 +362,9 @@ private:
       const auto [first_edge, first_edge_len] = varint_decode<EdgeID>(data);
       data += first_edge_len;
 
-      const auto [part_count, part_count_len] = varint_decode<NodeID>(data);
-      data += part_count_len;
+      const NodeID part_count = ((degree % kHighDegreeThreshold) == 0)
+                                    ? (degree / kHighDegreeThreshold)
+                                    : ((degree / kHighDegreeThreshold) + 1);
 
       const NodeID max_part_count = std::min(
           part_count,
