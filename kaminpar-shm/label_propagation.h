@@ -376,7 +376,8 @@ protected:
     }
   }
 
-  void cluster_isolated_nodes(
+  template <bool match>
+  void handle_isolated_nodes(
       const NodeID from = 0, const NodeID to = std::numeric_limits<ClusterID>::max()
   ) {
     constexpr ClusterID kInvalidClusterID = std::numeric_limits<ClusterID>::max();
@@ -396,37 +397,9 @@ protected:
                       cu, cluster, derived_cluster_weight(cu), derived_max_cluster_weight(cluster)
                   )) {
                 derived_move_node(u, cluster);
-              } else {
-                cluster = cu;
-              }
-            }
-          }
-
-          current_cluster_ets.local() = cluster;
-        }
-    );
-  }
-
-  void match_isolated_nodes(
-      const NodeID from = 0, const NodeID to = std::numeric_limits<ClusterID>::max()
-  ) {
-    constexpr ClusterID kInvalidClusterID = std::numeric_limits<ClusterID>::max();
-    tbb::enumerable_thread_specific<ClusterID> current_cluster_ets(kInvalidClusterID);
-
-    tbb::parallel_for(
-        tbb::blocked_range<NodeID>(from, std::min(_graph->n(), to)),
-        [&](tbb::blocked_range<NodeID> r) {
-          ClusterID cluster = current_cluster_ets.local();
-
-          for (NodeID u = r.begin(); u != r.end(); ++u) {
-            if (_graph->degree(u) == 0) {
-              const ClusterID cu = derived_cluster(u);
-
-              if (cluster != kInvalidClusterID &&
-                  derived_move_cluster_weight(
-                      cu, cluster, derived_cluster_weight(cu), derived_max_cluster_weight(cluster)
-                  )) {
-                derived_move_node(u, cluster);
+                if constexpr (match) {
+                  cluster = kInvalidClusterID;
+                }
               } else {
                 cluster = cu;
               }

@@ -80,8 +80,8 @@ enum class ClusterWeightLimit {
 
 enum class IsolatedNodesClusteringStrategy {
   KEEP,
-  MATCH_ALWAYS,
-  CLUSTER_ALWAYS,
+  MATCH,
+  CLUSTER,
   MATCH_DURING_TWO_HOP,
   CLUSTER_DURING_TWO_HOP,
 };

@@ -63,12 +63,12 @@ public:
       }
     }
 
-    if (_c_ctx.lp.isolated_nodes_strategy == IsolatedNodesClusteringStrategy::MATCH_ALWAYS) {
+    if (_c_ctx.lp.isolated_nodes_strategy == IsolatedNodesClusteringStrategy::MATCH) {
       SCOPED_TIMER("Handle isolated nodes");
-      match_isolated_nodes();
-    } else if (_c_ctx.lp.isolated_nodes_strategy == IsolatedNodesClusteringStrategy::CLUSTER_ALWAYS) {
+      handle_isolated_nodes<true>();
+    } else if (_c_ctx.lp.isolated_nodes_strategy == IsolatedNodesClusteringStrategy::CLUSTER) {
       SCOPED_TIMER("Handle isolated nodes");
-      cluster_isolated_nodes();
+      handle_isolated_nodes<false>();
     }
 
     if (_c_ctx.lp.use_two_hop_clustering(_graph->n(), _current_num_clusters)) {
@@ -76,10 +76,10 @@ public:
           IsolatedNodesClusteringStrategy::MATCH_DURING_TWO_HOP) {
         SCOPED_TIMER("Handle isolated nodes");
         LOG << "match";
-        match_isolated_nodes();
+        handle_isolated_nodes<true>();
       } else if (_c_ctx.lp.isolated_nodes_strategy == IsolatedNodesClusteringStrategy::CLUSTER_DURING_TWO_HOP) {
         SCOPED_TIMER("Handle isolated nodes");
-        cluster_isolated_nodes();
+        handle_isolated_nodes<false>();
       }
 
       SCOPED_TIMER("2-hop clustering");

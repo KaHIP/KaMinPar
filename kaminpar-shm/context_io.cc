@@ -193,10 +193,10 @@ std::ostream &operator<<(std::ostream &out, IsolatedNodesClusteringStrategy stra
   switch (strategy) {
   case IsolatedNodesClusteringStrategy::KEEP:
     return out << "keep";
-  case IsolatedNodesClusteringStrategy::MATCH_ALWAYS:
-    return out << "match-always";
-  case IsolatedNodesClusteringStrategy::CLUSTER_ALWAYS:
-    return out << "cluster-always";
+  case IsolatedNodesClusteringStrategy::MATCH:
+    return out << "match";
+  case IsolatedNodesClusteringStrategy::CLUSTER:
+    return out << "cluster";
   case IsolatedNodesClusteringStrategy::MATCH_DURING_TWO_HOP:
     return out << "match-during-two-hop";
   case IsolatedNodesClusteringStrategy::CLUSTER_DURING_TWO_HOP:
@@ -210,8 +210,8 @@ std::unordered_map<std::string, IsolatedNodesClusteringStrategy>
 get_isolated_nodes_clustering_strategies() {
   return {
       {"keep", IsolatedNodesClusteringStrategy::KEEP},
-      {"match-always", IsolatedNodesClusteringStrategy::MATCH_ALWAYS},
-      {"cluster-always", IsolatedNodesClusteringStrategy::CLUSTER_ALWAYS},
+      {"match", IsolatedNodesClusteringStrategy::MATCH},
+      {"cluster", IsolatedNodesClusteringStrategy::CLUSTER},
       {"match-during-two-hop", IsolatedNodesClusteringStrategy::MATCH_DURING_TWO_HOP},
       {"cluster-during-two-hop", IsolatedNodesClusteringStrategy::CLUSTER_DURING_TWO_HOP},
   };
@@ -233,6 +233,7 @@ void print(const LabelPropagationCoarseningContext &lp_ctx, std::ostream &out) {
   out << "  Max degree:                 " << lp_ctx.max_num_neighbors << "\n";
   out << "  2-hop clustering threshold: " << std::fixed << 100 * lp_ctx.two_hop_clustering_threshold
       << "%\n";
+  out << "  Isolated nodes:             " << lp_ctx.isolated_nodes_strategy << "\n";
 }
 
 void print(const InitialPartitioningContext &i_ctx, std::ostream &out) {
