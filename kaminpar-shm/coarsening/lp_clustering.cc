@@ -63,10 +63,27 @@ public:
       }
     }
 
+    if (_c_ctx.lp.isolated_nodes_strategy == IsolatedNodesClusteringStrategy::MATCH_ALWAYS) {
+      SCOPED_TIMER("Handle isolated nodes");
+      match_isolated_nodes();
+    } else if (_c_ctx.lp.isolated_nodes_strategy == IsolatedNodesClusteringStrategy::CLUSTER_ALWAYS) {
+      SCOPED_TIMER("Handle isolated nodes");
+      cluster_isolated_nodes();
+    }
+
     if (_c_ctx.lp.use_two_hop_clustering(_graph->n(), _current_num_clusters)) {
-      TIMED_SCOPE("2-hop Clustering") {
-        perform_two_hop_clustering();
-      };
+      if (_c_ctx.lp.isolated_nodes_strategy ==
+          IsolatedNodesClusteringStrategy::MATCH_DURING_TWO_HOP) {
+        SCOPED_TIMER("Handle isolated nodes");
+        LOG << "match";
+        match_isolated_nodes();
+      } else if (_c_ctx.lp.isolated_nodes_strategy == IsolatedNodesClusteringStrategy::CLUSTER_DURING_TWO_HOP) {
+        SCOPED_TIMER("Handle isolated nodes");
+        cluster_isolated_nodes();
+      }
+
+      SCOPED_TIMER("2-hop clustering");
+      perform_two_hop_clustering();
     }
 
     return clusters();

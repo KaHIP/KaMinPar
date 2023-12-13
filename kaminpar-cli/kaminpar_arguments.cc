@@ -151,6 +151,20 @@ CLI::Option_group *create_lp_coarsening_options(CLI::App *app, Context &ctx) {
   )
       ->capture_default_str();
 
+  lp->add_option("--c-lp-isolated-nodes-strategy", ctx.coarsening.lp.isolated_nodes_strategy)
+      ->transform(
+          CLI::CheckedTransformer(get_isolated_nodes_clustering_strategies()).description("")
+      )
+      ->description(R"(Determines the strategy for handling isolated nodes during graph clustering.
+Options are:
+  - keep:                   Keep isolated nodes in the graph
+  - match-always:           Pack pairs of isolated nodes into the same cluster (respecting the maximum cluster weight limit)
+  - cluster-always:         Pack any number of isolated nodes into the same cluster (respecting the maximum cluster weight limit)
+  - match-during-two-hop:   Only match isolated nodes after two-hop clustering was triggered
+  - cluster-during-two-hop: Only cluster isolated nodes after two-hop clustering was triggered
+  )")
+      ->capture_default_str();
+
   return lp;
 }
 

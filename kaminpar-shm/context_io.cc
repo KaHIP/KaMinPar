@@ -189,6 +189,34 @@ std::ostream &operator<<(std::ostream &out, const GainCacheStrategy strategy) {
   return out << "<invalid>";
 }
 
+std::ostream &operator<<(std::ostream &out, IsolatedNodesClusteringStrategy strategy) {
+  switch (strategy) {
+  case IsolatedNodesClusteringStrategy::KEEP:
+    return out << "keep";
+  case IsolatedNodesClusteringStrategy::MATCH_ALWAYS:
+    return out << "match-always";
+  case IsolatedNodesClusteringStrategy::CLUSTER_ALWAYS:
+    return out << "cluster-always";
+  case IsolatedNodesClusteringStrategy::MATCH_DURING_TWO_HOP:
+    return out << "match-during-two-hop";
+  case IsolatedNodesClusteringStrategy::CLUSTER_DURING_TWO_HOP:
+    return out << "cluster-during-two-hop";
+  }
+
+  return out << "<invalid>";
+}
+
+std::unordered_map<std::string, IsolatedNodesClusteringStrategy>
+get_isolated_nodes_clustering_strategies() {
+  return {
+      {"keep", IsolatedNodesClusteringStrategy::KEEP},
+      {"match-always", IsolatedNodesClusteringStrategy::MATCH_ALWAYS},
+      {"cluster-always", IsolatedNodesClusteringStrategy::CLUSTER_ALWAYS},
+      {"match-during-two-hop", IsolatedNodesClusteringStrategy::MATCH_DURING_TWO_HOP},
+      {"cluster-during-two-hop", IsolatedNodesClusteringStrategy::CLUSTER_DURING_TWO_HOP},
+  };
+}
+
 void print(const CoarseningContext &c_ctx, std::ostream &out) {
   out << "Contraction limit:            " << c_ctx.contraction_limit << "\n";
   out << "Cluster weight limit:         " << c_ctx.cluster_weight_limit << " x "
@@ -269,7 +297,8 @@ void print(const PartitioningContext &p_ctx, std::ostream &out) {
 void print(const Context &ctx, std::ostream &out) {
   out << "Execution mode:               " << ctx.parallel.num_threads << "\n";
   out << "Seed:                         " << Random::get_seed() << "\n";
-  out << "Graph:                        " << ctx.debug.graph_name << " [ordering: " << ctx.rearrange_by << "]\n";
+  out << "Graph:                        " << ctx.debug.graph_name
+      << " [ordering: " << ctx.rearrange_by << "]\n";
   print(ctx.partition, out);
   cio::print_delimiter("Partitioning Scheme", '-');
   print(ctx.partitioning, out);

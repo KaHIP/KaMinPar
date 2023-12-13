@@ -78,11 +78,21 @@ enum class ClusterWeightLimit {
   ZERO,
 };
 
+enum class IsolatedNodesClusteringStrategy {
+  KEEP,
+  MATCH_ALWAYS,
+  CLUSTER_ALWAYS,
+  MATCH_DURING_TWO_HOP,
+  CLUSTER_DURING_TWO_HOP,
+};
+
 struct LabelPropagationCoarseningContext {
   std::size_t num_iterations;
   NodeID large_degree_threshold;
   NodeID max_num_neighbors;
   double two_hop_clustering_threshold;
+
+  IsolatedNodesClusteringStrategy isolated_nodes_strategy;
 
   [[nodiscard]] bool use_two_hop_clustering(const NodeID old_n, const NodeID new_n) const {
     return (1.0 - 1.0 * new_n / old_n) <= two_hop_clustering_threshold;
