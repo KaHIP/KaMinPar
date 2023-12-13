@@ -88,6 +88,7 @@ struct LabelPropagationCoarseningContext {
   NodeID large_degree_threshold;
   NodeID max_num_neighbors;
   double two_hop_clustering_threshold;
+  bool use_two_phases;
 
   [[nodiscard]] bool use_two_hop_clustering(const NodeID old_n, const NodeID new_n) const {
     return (1.0 - 1.0 * new_n / old_n) <= two_hop_clustering_threshold;

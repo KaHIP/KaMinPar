@@ -48,6 +48,7 @@ public:
     allocate(max_n, max_n);
     set_max_degree(c_ctx.lp.large_degree_threshold);
     set_max_num_neighbors(c_ctx.lp.max_num_neighbors);
+    set_use_two_phases(c_ctx.lp.use_two_phases);
   }
 
   void set_max_cluster_weight(const NodeWeight max_cluster_weight) final {

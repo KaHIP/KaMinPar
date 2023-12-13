@@ -113,6 +113,13 @@ public:
     return _max_num_neighbors;
   }
 
+  void set_use_two_phases(const bool use_two_phases) {
+    _use_two_phases = use_two_phases;
+  }
+  [[nodiscard]] bool use_two_phases() const {
+    return _use_two_phases;
+  }
+
   void set_desired_num_clusters(const ClusterID desired_num_clusters) {
     _desired_num_clusters = desired_num_clusters;
   }
@@ -695,6 +702,11 @@ protected: // Members
   NodeID _max_num_neighbors{std::numeric_limits<NodeID>::max()}; //! Only consider this many
                                                                  //! neighbors per node
 
+  //! Uses two phases in each iteration, where the first phase iterates in parallel over the
+  //! low-degree nodes and the second phase iterates sequentially over the high-degree nodes but in
+  //! parallel over their neighbors.
+  bool _use_two_phases{false};
+
   //! Thread-local map to compute gain values.
   tbb::enumerable_thread_specific<RatingMap> _rating_map_ets{[this] {
     return RatingMap{_num_clusters};
@@ -878,10 +890,11 @@ protected:
     tbb::enumerable_thread_specific<NodeID> num_moved_nodes_ets;
     parallel::Atomic<std::size_t> next_chunk = 0;
 
-    bool two_iterations = Base::_initial_num_clusters >= Config::kRatingMapThreshold;
+    const bool use_two_phases =
+        _use_two_phases && Base::_initial_num_clusters >= Config::kRatingMapThreshold;
 
-    START_HEAP_PROFILER("First iteration");
-    START_TIMER("First iteration");
+    START_HEAP_PROFILER("First phase");
+    START_TIMER("First phase");
     tbb::parallel_for(static_cast<std::size_t>(0), _chunks.size(), [&](const std::size_t) {
       if (should_stop()) {
         return;
@@ -915,7 +928,7 @@ protected:
           if (degree < _max_degree &&
               ((!Config::kUseActiveSetStrategy && !Config::kUseLocalActiveSetStrategy) ||
                _active[u].load(std::memory_order_relaxed))) {
-            if (two_iterations && degree >= Config::kDegreeThreshold) {
+            if (use_two_phases && degree >= Config::kDegreeThreshold) {
               high_degree_nodes.push_back(u);
             } else {
               const auto [moved_node, emptied_cluster] =
@@ -937,9 +950,9 @@ protected:
     STOP_TIMER();
     STOP_HEAP_PROFILER();
 
-    if (two_iterations) {
-      SCOPED_HEAP_PROFILER("Second iteration");
-      SCOPED_TIMER("Second iteration");
+    if (use_two_phases) {
+      SCOPED_HEAP_PROFILER("Second phase");
+      SCOPED_TIMER("Second phase");
 
       auto &num_moved_nodes = num_moved_nodes_ets.local();
       auto &rand = Random::instance();
@@ -1111,6 +1124,7 @@ protected:
   using Base::_graph;
   using Base::_max_degree;
   using Base::_rating_map_ets;
+  using Base::_use_two_phases;
 
   RandomPermutations<NodeID, Config::kPermutationSize, Config::kNumberOfNodePermutations>
       _random_permutations{};

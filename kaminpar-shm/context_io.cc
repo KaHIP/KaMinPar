@@ -206,6 +206,7 @@ void print(const LabelPropagationCoarseningContext &lp_ctx, std::ostream &out) {
   out << "  Max degree:                 " << lp_ctx.max_num_neighbors << "\n";
   out << "  2-hop clustering threshold: " << std::fixed << 100 * lp_ctx.two_hop_clustering_threshold
       << "%\n";
+  out << "  Uses two phases: " << (lp_ctx.use_two_phases ? "yes" : "no") << "\n";
 }
 
 void print(const InitialPartitioningContext &i_ctx, std::ostream &out) {
