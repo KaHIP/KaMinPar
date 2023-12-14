@@ -189,6 +189,6 @@ PartitionedGraph assign_isolated_nodes(
  *
  * @param graph The graph to rearrange
  */
-void rearrange_by_compression(Graph &graph);
+void reorder_edges_by_compression(Graph &graph);
 
 } // namespace kaminpar::shm::graph

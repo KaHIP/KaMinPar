@@ -63,7 +63,11 @@ struct GraphCompressionContext {
 
 enum class GraphOrdering {
   NATURAL,
-  DEGREE_BUCKETS,
+  DEGREE_BUCKETS
+};
+
+enum class EdgeOrdering {
+  NATURAL,
   COMPRESSION
 };
 
@@ -298,6 +302,7 @@ struct PartitioningContext {
 struct Context {
   GraphCompressionContext compression;
   GraphOrdering rearrange_by;
+  EdgeOrdering edge_ordering;
 
   PartitioningContext partitioning;
   PartitionContext partition;

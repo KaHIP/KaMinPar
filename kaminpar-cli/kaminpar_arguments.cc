@@ -76,6 +76,13 @@ CLI::Option_group *create_partitioning_options(CLI::App *app, Context &ctx) {
   - deg-buckets: sort nodes by degree bucket and rearrange accordingly)
   - compression: sort nodes with the ordering of the corresponding compressed graph)")
       ->capture_default_str();
+  partitioning->add_option("--edge-order", ctx.edge_ordering)
+      ->transform(CLI::CheckedTransformer(get_edge_orderings()).description(""))
+      ->description(R"(Criteria by which the edges of the graph are sorted:
+  - natural:     keep edge order of the graph (do not rearrange)
+  - compression: sort the edges of each neighbourhood with the ordering of the corresponding compressed graph)"
+      )
+      ->capture_default_str();
 
   return partitioning;
 }

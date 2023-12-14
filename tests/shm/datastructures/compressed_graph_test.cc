@@ -147,7 +147,7 @@ template <bool rearrange> static void test_compressed_graph_adjacent_nodes_opera
   const auto compressed_graph = CompressedGraphBuilder::compress(csr_graph);
 
   if constexpr (rearrange) {
-    graph::rearrange_by_compression(graph);
+    graph::reorder_edges_by_compression(graph);
   }
 
   std::vector<NodeID> graph_neighbours;
@@ -185,7 +185,7 @@ template <bool rearrange> static void test_compressed_graph_neighbors_operation(
   const auto compressed_graph = CompressedGraphBuilder::compress(csr_graph);
 
   if constexpr (rearrange) {
-    graph::rearrange_by_compression(graph);
+    graph::reorder_edges_by_compression(graph);
   }
 
   std::vector<EdgeID> graph_incident_edges;
@@ -231,7 +231,7 @@ static void test_compressed_graph_neighbors_lambda_max_operation(Graph graph) {
   const auto &csr_graph = *dynamic_cast<const CSRGraph *>(graph.underlying_graph());
   const auto compressed_graph = CompressedGraphBuilder::compress(csr_graph);
 
-  graph::rearrange_by_compression(graph);
+  graph::reorder_edges_by_compression(graph);
 
   std::vector<EdgeID> graph_incident_edges;
   std::vector<NodeID> graph_adjacent_node;
@@ -355,7 +355,7 @@ static void test_rearrange_compressed_edge_weights(Graph graph) {
   const auto &csr_graph = *dynamic_cast<const CSRGraph *>(graph.underlying_graph());
   const auto compressed_graph = CompressedGraphBuilder::compress(csr_graph);
 
-  graph::rearrange_by_compression(graph);
+  graph::reorder_edges_by_compression(graph);
 
   for (const NodeID node : graph.nodes()) {
     graph.neighbors(node, [&](const EdgeID incident_edge, const NodeID adjacent_node) {

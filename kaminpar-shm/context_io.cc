@@ -24,7 +24,6 @@ std::unordered_map<std::string, GraphOrdering> get_graph_orderings() {
       {"natural", GraphOrdering::NATURAL},
       {"deg-buckets", GraphOrdering::DEGREE_BUCKETS},
       {"degree-buckets", GraphOrdering::DEGREE_BUCKETS},
-      {"compression", GraphOrdering::COMPRESSION},
   };
 }
 
@@ -34,6 +33,24 @@ std::ostream &operator<<(std::ostream &out, const GraphOrdering ordering) {
     return out << "natural";
   case GraphOrdering::DEGREE_BUCKETS:
     return out << "deg-buckets";
+  }
+
+  return out << "<invalid>";
+}
+
+std::unordered_map<std::string, EdgeOrdering> get_edge_orderings() {
+  return {
+      {"natural", EdgeOrdering::NATURAL},
+      {"compression", EdgeOrdering::COMPRESSION},
+  };
+}
+
+std::ostream &operator<<(std::ostream &out, const EdgeOrdering ordering) {
+  switch (ordering) {
+  case EdgeOrdering::NATURAL:
+    return out << "natural";
+  case EdgeOrdering::COMPRESSION:
+    return out << "compression";
   }
 
   return out << "<invalid>";
