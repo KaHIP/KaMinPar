@@ -41,3 +41,7 @@ endif ()
 if (KAMINPAR_BUILD_BENCHMARKS)
     add_subdirectory(benchmarks)
 endif ()
+
+if (KAMINPAR_BUILD_TOOLS)
+    add_subdirectory(tools)
+endif ()

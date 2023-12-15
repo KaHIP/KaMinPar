@@ -34,6 +34,14 @@ template <bool checked> CSRGraph csr_read(const std::string &filename);
  */
 template <bool checked> CompressedGraph compress_read(const std::string &filename);
 
+/*!
+ * Writes a graph to a file in METIS format.
+ *
+ * @param filename The name of the file for saving the graph.
+ * @param graph The graph to save.
+ */
+void write(const std::string &filename, const Graph &graph);
+
 } // namespace metis
 
 /*!
