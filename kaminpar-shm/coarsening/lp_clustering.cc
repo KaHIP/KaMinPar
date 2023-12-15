@@ -83,7 +83,6 @@ public:
           IsolatedNodesClusteringStrategy::MATCH_DURING_TWO_HOP) {
         SCOPED_HEAP_PROFILER("Handle isolated nodes");
         SCOPED_TIMER("Handle isolated nodes");
-        LOG << "match";
         handle_isolated_nodes<true>();
       } else if (_c_ctx.lp.isolated_nodes_strategy == IsolatedNodesClusteringStrategy::CLUSTER_DURING_TWO_HOP) {
         SCOPED_HEAP_PROFILER("Handle isolated nodes");
