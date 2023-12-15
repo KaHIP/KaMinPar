@@ -132,6 +132,11 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
     // We dump the coarsest graph in ::initial_partitioning().
     debug::dump_graph_hierarchy(*c_graph, _coarsener->size(), _input_ctx);
 
+    // Store the size of the previous coarse graph, so that we can pre-allocate _subgraph_memory
+    // if we need it for this graph (see below)
+    prev_c_graph_n = c_graph->n();
+    prev_c_graph_m = c_graph->m();
+
     // Build next coarse graph
     shrunk = helper::coarsen_once(_coarsener.get(), c_graph, _input_ctx, _current_p_ctx);
     c_graph = _coarsener->coarsest_graph();
@@ -143,9 +148,6 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
     if (_subgraph_memory.empty() &&
         helper::compute_k_for_n(c_graph->n(), _input_ctx) < _input_ctx.partition.k) {
       _subgraph_memory.resize(prev_c_graph_n, _input_ctx.partition.k, prev_c_graph_m, true, true);
-    } else {
-      prev_c_graph_n = c_graph->n();
-      prev_c_graph_m = c_graph->m();
     }
 
     // Print some metrics for the coarse graphs
@@ -158,7 +160,7 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
   }
 
   if (_subgraph_memory.empty()) {
-    _subgraph_memory.resize(c_graph->n(), _input_ctx.partition.k, c_graph->m(), true, true);
+    _subgraph_memory.resize(prev_c_graph_n, _input_ctx.partition.k, prev_c_graph_m, true, true);
   }
 
   if (shrunk) {

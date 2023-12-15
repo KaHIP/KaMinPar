@@ -40,7 +40,7 @@ template <typename T> static bool operator==(const IotaRange<T> &a, const IotaRa
 
 static void print_csr_graph(const CSRGraph &graph) {
   std::cout << "Nodes: " << graph.n() << ", edges: " << graph.m()
-            << ", edge weights: " << (graph.is_edge_weighted() ? "yes" : "no") << "\n";
+            << ", edge weights: " << (graph.edge_weighted() ? "yes" : "no") << "\n";
 
   for (const NodeID node : graph.nodes()) {
     std::cout << "Node " << node << ": ";
@@ -48,7 +48,7 @@ static void print_csr_graph(const CSRGraph &graph) {
     for (const auto [incident_edge, adjacent_node] : graph.neighbors(node)) {
       std::cout << adjacent_node;
 
-      if (graph.is_edge_weighted()) {
+      if (graph.edge_weighted()) {
         std::cout << ' ' << graph.edge_weight(incident_edge);
       }
 

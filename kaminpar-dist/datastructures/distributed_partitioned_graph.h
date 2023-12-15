@@ -217,7 +217,7 @@ private:
   StaticArray<BlockWeight> _block_weights;
 };
 
-namespace graph::debug {
+namespace debug {
 /**
  * Validates the distributed graph partition:
  * - check the block assignment of interface and ghost nodes
@@ -227,5 +227,5 @@ namespace graph::debug {
  * @return whether the graph partition is consistent.
  */
 bool validate_partition(const DistributedPartitionedGraph &p_graph);
-} // namespace graph::debug
+} // namespace debug
 } // namespace kaminpar::dist

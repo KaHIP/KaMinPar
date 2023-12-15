@@ -143,7 +143,7 @@ std::size_t select_best(
   for (auto it = p_graphs_begin; it != p_graphs_end; ++it) {
     const auto &result = *it;
     const bool current_feasible = metrics::is_feasible(result, p_ctx);
-    const EdgeWeight current_cut = metrics::edge_cut(result);
+    const EdgeWeight current_cut = metrics::edge_cut_seq(result);
 
     if ((current_feasible == best_feasible && current_cut < best_cut) ||
         current_feasible > best_feasible) {

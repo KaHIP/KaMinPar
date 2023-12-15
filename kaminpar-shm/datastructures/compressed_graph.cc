@@ -83,8 +83,8 @@ void CompressedGraph::update_total_node_weight() {
 }
 
 CompressedGraph CompressedGraphBuilder::compress(const CSRGraph &graph) {
-  const bool store_node_weights = graph.is_node_weighted();
-  const bool store_edge_weights = graph.is_edge_weighted();
+  const bool store_node_weights = graph.node_weighted();
+  const bool store_edge_weights = graph.edge_weighted();
 
   CompressedGraphBuilder builder;
   builder.init(graph.n(), graph.m(), store_node_weights, store_edge_weights);

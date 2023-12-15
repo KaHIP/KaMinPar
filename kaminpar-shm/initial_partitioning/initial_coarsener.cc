@@ -304,7 +304,7 @@ InitialCoarsener::ContractionResult InitialCoarsener::contract_current_clusterin
   }
 
   Graph coarse_graph(std::make_unique<CSRGraph>(
-      tag::seq,
+      CSRGraph::seq{},
       std::move(c_nodes),
       std::move(c_edges),
       std::move(c_node_weights),

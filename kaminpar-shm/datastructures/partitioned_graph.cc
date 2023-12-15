@@ -7,10 +7,8 @@
  ******************************************************************************/
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 
-#include <kassert/kassert.hpp>
+#include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_for.h>
-
-#include "kaminpar-shm/definitions.h"
 
 #include "kaminpar-common/datastructures/static_array.h"
 
@@ -23,12 +21,14 @@ PartitionedGraph::PartitionedGraph(const Graph &graph, BlockID k, StaticArray<Bl
   if (graph.n() > 0 && _partition.empty()) {
     _partition.resize(_graph->n(), kInvalidBlockID);
   }
+
   KASSERT(_partition.size() == graph.n());
+
   init_block_weights_par();
 }
 
 PartitionedGraph::PartitionedGraph(
-    tag::Sequential, const Graph &graph, BlockID k, StaticArray<BlockID> partition
+    seq, const Graph &graph, BlockID k, StaticArray<BlockID> partition
 )
     : GraphDelegate(&graph),
       _k(k),
@@ -37,7 +37,9 @@ PartitionedGraph::PartitionedGraph(
   if (graph.n() > 0 && _partition.empty()) {
     _partition.resize(_graph->n(), kInvalidBlockID);
   }
+
   KASSERT(_partition.size() == graph.n());
+
   init_block_weights_seq();
 }
 
@@ -46,7 +48,7 @@ void PartitionedGraph::init_block_weights_par() {
     return StaticArray<BlockWeight>(k());
   });
 
-  tbb::parallel_for(tbb::blocked_range(static_cast<NodeID>(0), n()), [&](auto &r) {
+  tbb::parallel_for(tbb::blocked_range<NodeID>(0, n()), [&](const tbb::blocked_range<NodeID> &r) {
     auto &block_weights = block_weights_ets.local();
     for (NodeID u = r.begin(); u != r.end(); ++u) {
       if (const BlockID b = block(u); b != kInvalidBlockID) {
@@ -55,9 +57,9 @@ void PartitionedGraph::init_block_weights_par() {
     }
   });
 
-  tbb::parallel_for(static_cast<BlockID>(0), k(), [&](const BlockID b) {
+  tbb::parallel_for<BlockID>(0, k(), [&](const BlockID b) {
     BlockWeight sum = 0;
-    for (auto &block_weights : block_weights_ets) {
+    for (const StaticArray<BlockWeight> &block_weights : block_weights_ets) {
       sum += block_weights[b];
     }
     _block_weights[b] = sum;

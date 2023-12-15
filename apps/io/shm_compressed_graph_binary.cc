@@ -41,8 +41,8 @@ void write(const std::string &filename, const CompressedGraph &graph) {
   write_int(out, graph.m());
   write_int(out, graph.max_degree());
   write_int(out, graph.raw_compressed_edges().size());
-  write_int(out, static_cast<std::uint8_t>(graph.is_node_weighted()));
-  write_int(out, static_cast<std::uint8_t>(graph.is_edge_weighted()));
+  write_int(out, static_cast<std::uint8_t>(graph.node_weighted()));
+  write_int(out, static_cast<std::uint8_t>(graph.edge_weighted()));
 
   write_int(out, graph.high_degree_count());
   write_int(out, graph.part_count());
@@ -51,11 +51,11 @@ void write(const std::string &filename, const CompressedGraph &graph) {
   write_static_array(out, graph.raw_nodes());
   write_static_array(out, graph.raw_compressed_edges());
 
-  if (graph.is_node_weighted()) {
+  if (graph.node_weighted()) {
     write_static_array(out, graph.raw_node_weights());
   }
 
-  if (graph.is_edge_weighted()) {
+  if (graph.edge_weighted()) {
     write_static_array(out, graph.raw_edge_weights());
   }
 }

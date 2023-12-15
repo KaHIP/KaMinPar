@@ -33,17 +33,17 @@ TEST_F(MetricsTestFixture, parallel_bipartition_edge_cut) {
 
 TEST_F(MetricsTestFixture, sequential_bipartition_edge_cut) {
   PartitionedGraph p_graph{create_p_graph(graph, 2, {0, 1, 1, 1, 1})};
-  EXPECT_EQ(metrics::edge_cut(p_graph, tag::seq), 4 * 3);
+  EXPECT_EQ(metrics::edge_cut_seq(p_graph), 4 * 3);
 
   // star center to other block, should reduce the edge cut to 0
   p_graph.set_block(0, 1);
-  EXPECT_EQ(metrics::edge_cut(p_graph, tag::seq), 0);
+  EXPECT_EQ(metrics::edge_cut_seq(p_graph), 0);
 
   // move center and two other nodes to block 1, should reduce the edge cut to 6
   for (NodeID u = 0; u < 3; ++u) {
     p_graph.set_block(u, 0);
   }
-  EXPECT_EQ(metrics::edge_cut(p_graph, tag::seq), 2 * 3);
+  EXPECT_EQ(metrics::edge_cut_seq(p_graph), 2 * 3);
 }
 
 TEST_F(MetricsTestFixture, parallel_singleton_blocks_edge_cut) {
@@ -53,7 +53,7 @@ TEST_F(MetricsTestFixture, parallel_singleton_blocks_edge_cut) {
 
 TEST_F(MetricsTestFixture, sequential_singleton_blocks_edge_cut) {
   PartitionedGraph p_graph{create_p_graph(graph, 5, {0, 1, 2, 3, 4})};
-  EXPECT_EQ(metrics::edge_cut(p_graph, tag::seq), 4 * 3);
+  EXPECT_EQ(metrics::edge_cut_seq(p_graph), 4 * 3);
 }
 
 TEST_F(MetricsTestFixture, perfectly_balanced_bipartition_balance) {

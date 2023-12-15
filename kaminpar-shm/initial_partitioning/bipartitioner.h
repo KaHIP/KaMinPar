@@ -29,7 +29,9 @@ public:
 
   //! Compute bipartition and return as partitioned graph.
   virtual PartitionedGraph bipartition(StaticArray<BlockID> &&partition = {}) {
-    return PartitionedGraph(tag::seq, _graph, 2, bipartition_raw(std::move(partition)));
+    return PartitionedGraph(
+        PartitionedGraph::seq{}, _graph, 2, bipartition_raw(std::move(partition))
+    );
   }
 
   //! Compute bipartition and return as array.

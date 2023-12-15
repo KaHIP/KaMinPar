@@ -31,7 +31,7 @@ DistributedGraph rearrange(DistributedGraph graph, const Context &ctx) {
   }
 
   KASSERT(
-      graph::debug::validate(graph),
+      debug::validate_graph(graph),
       "input graph verification failed after rearranging graph",
       assert::heavy
   );

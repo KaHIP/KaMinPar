@@ -289,7 +289,7 @@ GreedyBalancer::compute_gain(const NodeID u, const BlockID u_block) const {
 }
 
 bool GreedyBalancer::move_node_if_possible(const NodeID u, const BlockID from, const BlockID to) {
-  if (_p_graph->try_balanced_move(u, from, to, _p_ctx->block_weights.max(to))) {
+  if (_p_graph->move(u, from, to, _p_ctx->block_weights.max(to))) {
     if (_gain_cache != nullptr) {
       _gain_cache->move(*_p_graph, u, from, to);
     }

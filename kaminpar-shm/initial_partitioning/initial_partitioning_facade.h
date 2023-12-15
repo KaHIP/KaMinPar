@@ -75,7 +75,7 @@ public:
     _m_ctx.pool_m_ctx = bipartitioner->free();
 
     DBG << "Bipartitioner result: "                              //
-        << "cut=" << metrics::edge_cut(p_graph, tag::seq) << " " //
+        << "cut=" << metrics::edge_cut_seq(p_graph) << " " //
         << "imbalance=" << metrics::imbalance(p_graph) << " "    //
         << "feasible=" << metrics::is_feasible(p_graph, _p_ctx); //
 
@@ -121,7 +121,7 @@ private:
       DBG << "-> "                                                 //
           << "n=" << p_graph.n() << " "                            //
           << "m=" << p_graph.m() << " "                            //
-          << "cut=" << metrics::edge_cut(p_graph, tag::seq) << " " //
+          << "cut=" << metrics::edge_cut_seq(p_graph) << " " //
           << "imbalance=" << metrics::imbalance(p_graph) << " "    //
           << "feasible=" << metrics::is_feasible(p_graph, _p_ctx); //
     }

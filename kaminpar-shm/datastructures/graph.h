@@ -107,8 +107,8 @@ public:
   }
 
   // Node and edge weights
-  [[nodiscard]] inline bool is_node_weighted() const final {
-    return _underlying_graph->is_node_weighted();
+  [[nodiscard]] inline bool node_weighted() const final {
+    return _underlying_graph->node_weighted();
   }
 
   [[nodiscard]] inline NodeWeight node_weight(const NodeID u) const final {
@@ -123,8 +123,8 @@ public:
     return _underlying_graph->total_node_weight();
   }
 
-  [[nodiscard]] inline bool is_edge_weighted() const final {
-    return _underlying_graph->is_edge_weighted();
+  [[nodiscard]] inline bool edge_weighted() const final {
+    return _underlying_graph->edge_weighted();
   }
 
   [[nodiscard]] inline EdgeWeight edge_weight(const EdgeID e) const final {
@@ -297,6 +297,10 @@ public:
     return _underlying_graph->map_original_node(u);
   }
 
+  [[nodiscard]] inline StaticArray<NodeID> &&take_raw_permutation() {
+    return _underlying_graph->take_raw_permutation();
+  }
+
   // Degree buckets
   [[nodiscard]] inline std::size_t bucket_size(const std::size_t bucket) const final {
     return _underlying_graph->bucket_size(bucket);
@@ -333,6 +337,7 @@ private:
 namespace debug {
 bool validate_graph(const Graph &graph, bool undirected = true, NodeID num_pseudo_nodes = 0);
 void print_graph(const Graph &graph);
+Graph sort_neighbors(Graph graph);
 } // namespace debug
 
 } // namespace kaminpar::shm

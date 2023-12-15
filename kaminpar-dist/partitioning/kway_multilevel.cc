@@ -73,7 +73,7 @@ DistributedPartitionedGraph KWayMultilevelPartitioner::partition() {
 
         // Human readable
         LOG << "Level " << coarsener.level() << ":";
-        graph::print_summary(*c_graph);
+        print_graph_summary(*c_graph);
 
         graph = c_graph;
       } else if (converged) {
@@ -91,7 +91,7 @@ DistributedPartitionedGraph KWayMultilevelPartitioner::partition() {
   };
 
   START_TIMER("Initial Partitioning");
-  auto shm_graph = graph::replicate_everywhere(*graph);
+  auto shm_graph = replicate_graph_everywhere(*graph);
   shm::PartitionedGraph shm_p_graph{};
   if (_ctx.simulate_singlethread) {
     shm_p_graph = initial_partitioner->initial_partition(shm_graph, _ctx.partition);
@@ -109,11 +109,11 @@ DistributedPartitionedGraph KWayMultilevelPartitioner::partition() {
     shm_p_graph = initial_partitioner->initial_partition(shm_graph, _ctx.partition);
   }
   DistributedPartitionedGraph dist_p_graph =
-      graph::distribute_best_partition(*graph, std::move(shm_p_graph));
+      distribute_best_partition(*graph, std::move(shm_p_graph));
   STOP_TIMER();
 
   KASSERT(
-      graph::debug::validate_partition(dist_p_graph),
+      debug::validate_partition(dist_p_graph),
       "graph partition verification failed after initial partitioning",
       assert::heavy
   );
@@ -142,7 +142,7 @@ DistributedPartitionedGraph KWayMultilevelPartitioner::partition() {
       refiner->initialize();
       refiner->refine();
       KASSERT(
-          graph::debug::validate_partition(p_graph),
+          debug::validate_partition(p_graph),
           "graph partition verification failed after refinement",
           assert::heavy
       );

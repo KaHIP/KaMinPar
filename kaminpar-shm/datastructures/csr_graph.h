@@ -34,6 +34,9 @@ public:
   using AbstractGraph::NodeID;
   using AbstractGraph::NodeWeight;
 
+  // Tag for the sequential ctor.
+  struct seq {};
+
   CSRGraph(
       StaticArray<EdgeID> nodes,
       StaticArray<NodeID> edges,
@@ -43,7 +46,7 @@ public:
   );
 
   CSRGraph(
-      tag::Sequential,
+      seq,
       StaticArray<EdgeID> nodes,
       StaticArray<NodeID> edges,
       StaticArray<NodeWeight> node_weights = {},
@@ -118,12 +121,13 @@ public:
   }
 
   // Node and edge weights
-  [[nodiscard]] inline bool is_node_weighted() const final {
+  [[nodiscard]] inline bool node_weighted() const final {
     return static_cast<NodeWeight>(n()) != total_node_weight();
   }
 
   [[nodiscard]] inline NodeWeight node_weight(const NodeID u) const final {
-    return is_node_weighted() ? _node_weights[u] : 1;
+    KASSERT(!node_weighted() || u < _node_weights.size());
+    return node_weighted() ? _node_weights[u] : 1;
   }
 
   [[nodiscard]] inline NodeWeight max_node_weight() const final {
@@ -134,12 +138,13 @@ public:
     return _total_node_weight;
   }
 
-  [[nodiscard]] inline bool is_edge_weighted() const final {
+  [[nodiscard]] inline bool edge_weighted() const final {
     return static_cast<EdgeWeight>(m()) != total_edge_weight();
   }
 
   [[nodiscard]] inline EdgeWeight edge_weight(const EdgeID e) const final {
-    return is_edge_weighted() ? _edge_weights[e] : 1;
+    KASSERT(!edge_weighted() || e < _edge_weights.size());
+    return edge_weighted() ? _edge_weights[e] : 1;
   }
 
   [[nodiscard]] inline EdgeWeight total_edge_weight() const final {
@@ -242,7 +247,12 @@ public:
   }
 
   [[nodiscard]] inline NodeID map_original_node(const NodeID u) const final {
+    KASSERT(u < _permutation.size());
     return _permutation[u];
+  }
+
+  [[nodiscard]] inline StaticArray<NodeID> &&take_raw_permutation() {
+    return std::move(_permutation);
   }
 
   // Degree buckets

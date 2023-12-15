@@ -153,7 +153,7 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
           << " nodes) is too small for the available parallelism (" << _input_ctx.parallel.num_mpis
           << "): duplicating the graph " << num_replications << " times";
 
-      _replicated_graphs.push_back(graph::replicate(*graph, num_replications));
+      _replicated_graphs.push_back(replicate_graph(*graph, num_replications));
       _coarseners.emplace(_replicated_graphs.back(), _input_ctx);
 
       graph = &_replicated_graphs.back();
@@ -188,7 +188,7 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
     return factory::create_initial_partitioner(_input_ctx);
   };
 
-  auto shm_graph = graph::replicate_everywhere(*graph);
+  auto shm_graph = replicate_graph_everywhere(*graph);
 
   PartitionContext ip_p_ctx = _input_ctx.partition;
   ip_p_ctx.k = first_step_k;
@@ -213,9 +213,9 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
   }
 
   DistributedPartitionedGraph dist_p_graph =
-      graph::distribute_best_partition(*graph, std::move(shm_p_graph));
+      distribute_best_partition(*graph, std::move(shm_p_graph));
   KASSERT(
-      graph::debug::validate_partition(dist_p_graph),
+      debug::validate_partition(dist_p_graph),
       "invalid partition after initial partitioning",
       assert::heavy
   );
@@ -241,7 +241,7 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
     auto refiner = refiner_factory->create(p_graph, p_ctx);
     refiner->initialize();
     refiner->refine();
-    KASSERT(graph::debug::validate_partition(p_graph), "", assert::heavy);
+    KASSERT(debug::validate_partition(p_graph), "", assert::heavy);
   };
 
   auto extend_partition = [&](DistributedPartitionedGraph &p_graph, PartitionContext &ref_p_ctx) {
@@ -352,7 +352,7 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
       coarsener = get_current_coarsener();
 
       const DistributedGraph *new_graph = coarsener->coarsest();
-      dist_p_graph = graph::distribute_best_partition(*new_graph, std::move(dist_p_graph));
+      dist_p_graph = distribute_best_partition(*new_graph, std::move(dist_p_graph));
 
       _replicated_graphs.pop_back();
     }

@@ -64,7 +64,7 @@ int main(int argc, char *argv[]) {
   STOP_TIMER();
 
   LOG << "Coarse graph:";
-  graph::print_summary(result.graph);
+  print_graph_summary(result.graph);
 
   // Output statistics
   mpi::barrier(MPI_COMM_WORLD);

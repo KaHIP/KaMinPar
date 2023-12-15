@@ -46,7 +46,7 @@ CSRGraph::CSRGraph(
 }
 
 CSRGraph::CSRGraph(
-    tag::Sequential,
+    seq,
     StaticArray<EdgeID> nodes,
     StaticArray<NodeID> edges,
     StaticArray<NodeWeight> node_weights,

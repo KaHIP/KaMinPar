@@ -302,7 +302,7 @@ std::vector<fm::BatchStats> FMRefiner<DeltaPartitionedGraph, GainCache>::dbg_com
   }
 
   // If everything went right, we should now have the same partition as next_partition
-  KASSERT(metrics::edge_cut(prev_p_graph) == metrics::edge_cut(next_p_graph), "", assert::always);
+  KASSERT(metrics::edge_cut_seq(prev_p_graph) == metrics::edge_cut(next_p_graph), "", assert::always);
   KASSERT(metrics::imbalance(prev_p_graph) == metrics::imbalance(next_p_graph), "", assert::always);
 
   return batch_stats;

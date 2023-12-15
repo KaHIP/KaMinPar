@@ -22,7 +22,7 @@
 
 #include "kaminpar-common/random.h"
 
-#define HEAVY assert::normal
+#define HEAVY assert::heavy
 
 namespace kaminpar::dist {
 JetRefinerFactory::JetRefinerFactory(const Context &ctx) : _ctx(ctx) {}
@@ -121,7 +121,7 @@ bool JetRefiner::refine() {
     apply_block_weight_deltas();
 
     KASSERT(
-        graph::debug::validate_partition(_p_graph),
+        debug::validate_partition(_p_graph),
         "graph partition is in an inconsistent state after JET iterations " << cur_iteration,
         HEAVY
     );
@@ -164,7 +164,7 @@ bool JetRefiner::refine() {
   };
 
   KASSERT(
-      graph::debug::validate_partition(_p_graph),
+      debug::validate_partition(_p_graph),
       "graph partition is in an inconsistent state after JET refinement",
       HEAVY
   );

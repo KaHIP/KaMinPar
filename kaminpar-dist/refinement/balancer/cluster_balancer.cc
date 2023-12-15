@@ -291,7 +291,7 @@ bool ClusterBalancer::refine() {
   SCOPED_TIMER("Cluster Balancer Refinement");
 
   KASSERT(
-      graph::debug::validate_partition(_p_graph),
+      debug::validate_partition(_p_graph),
       "input partition for the move cluster balancer is in an inconsistent state",
       HEAVY
   );
@@ -379,7 +379,7 @@ bool ClusterBalancer::refine() {
   }
 
   KASSERT(
-      graph::debug::validate_partition(_p_graph),
+      debug::validate_partition(_p_graph),
       "partition is in an inconsistent state after round " << round,
       HEAVY
   );

@@ -38,7 +38,7 @@
 
 namespace kaminpar::dist {
 namespace {
-SET_STATISTICS(true);
+SET_STATISTICS(false);
 SET_DEBUG(true);
 } // namespace
 
@@ -104,6 +104,7 @@ bool FMRefiner::refine() {
       return std::make_unique<DummyPartitionSnapshooter>();
     }
   }();
+  snapshooter->init(_p_graph, _p_ctx);
 
   for (std::size_t global_round = 0; global_round < _fm_ctx.num_global_iterations; ++global_round) {
     const EdgeWeight initial_cut =
@@ -302,7 +303,7 @@ bool FMRefiner::refine() {
         STOP_TIMER();
 
         KASSERT(
-            graph::debug::validate_partition(_p_graph),
+            debug::validate_partition(_p_graph),
             "global partition in inconsistent state after round " << global_round << "/"
                                                                   << local_round,
             HEAVY

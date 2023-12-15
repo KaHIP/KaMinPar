@@ -207,6 +207,34 @@ std::ostream &operator<<(std::ostream &out, const GainCacheStrategy strategy) {
   return out << "<invalid>";
 }
 
+std::ostream &operator<<(std::ostream &out, IsolatedNodesClusteringStrategy strategy) {
+  switch (strategy) {
+  case IsolatedNodesClusteringStrategy::KEEP:
+    return out << "keep";
+  case IsolatedNodesClusteringStrategy::MATCH:
+    return out << "match";
+  case IsolatedNodesClusteringStrategy::CLUSTER:
+    return out << "cluster";
+  case IsolatedNodesClusteringStrategy::MATCH_DURING_TWO_HOP:
+    return out << "match-during-two-hop";
+  case IsolatedNodesClusteringStrategy::CLUSTER_DURING_TWO_HOP:
+    return out << "cluster-during-two-hop";
+  }
+
+  return out << "<invalid>";
+}
+
+std::unordered_map<std::string, IsolatedNodesClusteringStrategy>
+get_isolated_nodes_clustering_strategies() {
+  return {
+      {"keep", IsolatedNodesClusteringStrategy::KEEP},
+      {"match", IsolatedNodesClusteringStrategy::MATCH},
+      {"cluster", IsolatedNodesClusteringStrategy::CLUSTER},
+      {"match-during-two-hop", IsolatedNodesClusteringStrategy::MATCH_DURING_TWO_HOP},
+      {"cluster-during-two-hop", IsolatedNodesClusteringStrategy::CLUSTER_DURING_TWO_HOP},
+  };
+}
+
 void print(const CoarseningContext &c_ctx, std::ostream &out) {
   out << "Contraction limit:            " << c_ctx.contraction_limit << "\n";
   out << "Cluster weight limit:         " << c_ctx.cluster_weight_limit << " x "
@@ -223,6 +251,7 @@ void print(const LabelPropagationCoarseningContext &lp_ctx, std::ostream &out) {
   out << "  Max degree:                 " << lp_ctx.max_num_neighbors << "\n";
   out << "  2-hop clustering threshold: " << std::fixed << 100 * lp_ctx.two_hop_clustering_threshold
       << "%\n";
+  out << "  Isolated nodes:             " << lp_ctx.isolated_nodes_strategy << "\n";
   out << "  Uses two phases: " << (lp_ctx.use_two_phases ? "yes" : "no") << "\n";
 }
 

@@ -8,6 +8,7 @@
 #pragma once
 
 #include <cstdint>
+#include <utility>
 
 namespace kaminpar {
 
@@ -16,7 +17,7 @@ template <typename Int> static std::size_t varint_max_length() {
 }
 
 template <typename Int> static std::size_t varint_length(Int i) {
-  size_t len = 1;
+  std::size_t len = 1;
 
   while (i > 0b01111111) {
     i >>= 7;
@@ -27,7 +28,7 @@ template <typename Int> static std::size_t varint_length(Int i) {
 }
 
 template <typename Int> static std::size_t signed_varint_length(Int i) {
-  size_t len = 1;
+  std::size_t len = 1;
 
   if (i < 0) {
     i *= -1;
@@ -42,7 +43,7 @@ template <typename Int> static std::size_t signed_varint_length(Int i) {
 }
 
 template <typename Int> static std::size_t marked_varint_length(Int i) {
-  size_t len = 1;
+  std::size_t len = 1;
 
   i >>= 6;
   if (i > 0) {
@@ -53,7 +54,7 @@ template <typename Int> static std::size_t marked_varint_length(Int i) {
 }
 
 template <typename Int> static std::size_t varint_encode(Int i, std::uint8_t *ptr) {
-  size_t len = 1;
+  std::size_t len = 1;
 
   while (i > 0b01111111) {
     std::uint8_t octet = (i & 0b01111111) | 0b10000000;

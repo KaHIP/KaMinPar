@@ -38,8 +38,8 @@ SequentialSubgraphExtractionResult extract_subgraphs_sequential(
 ) {
   KASSERT(p_graph.k() == 2u, "Only suitable for bipartitions!", assert::light);
 
-  const bool is_node_weighted = p_graph.graph().is_node_weighted();
-  const bool is_edge_weighted = p_graph.graph().is_edge_weighted();
+  const bool is_node_weighted = p_graph.graph().node_weighted();
+  const bool is_edge_weighted = p_graph.graph().edge_weighted();
 
   const BlockID final_k = final_ks[0] + final_ks[1];
   tmp_subgraph_memory.ensure_size_nodes(p_graph.n() + final_k, is_node_weighted);
@@ -145,7 +145,7 @@ SequentialSubgraphExtractionResult extract_subgraphs_sequential(
         subgraph_memory.edge_weights
     );
     return Graph(std::make_unique<CSRGraph>(
-        tag::seq,
+        CSRGraph::seq{},
         std::move(s_nodes),
         std::move(s_edges),
         std::move(s_node_weights),
@@ -231,8 +231,8 @@ SubgraphExtractionResult extract_subgraphs(
   });
   STOP_TIMER();
 
-  const bool is_node_weighted = p_graph.graph().is_node_weighted();
-  const bool is_edge_weighted = p_graph.graph().is_edge_weighted();
+  const bool is_node_weighted = p_graph.graph().node_weighted();
+  const bool is_edge_weighted = p_graph.graph().edge_weighted();
 
   // build graph
   START_TIMER("Construct subgraphs");
@@ -334,7 +334,7 @@ PartitionedGraph copy_subgraph_partitions(
       << "-way partition to " << k_prime << "-way, goal: " << input_k;
   DBG << "Block offsets: " << k0;
 
-  StaticArray<BlockID> partition = p_graph.take_partition();
+  StaticArray<BlockID> partition = p_graph.take_raw_partition();
   tbb::parallel_for<NodeID>(0, p_graph.n(), [&](const NodeID u) {
     const BlockID b = partition[u];
     const NodeID s_u = mapping[u];

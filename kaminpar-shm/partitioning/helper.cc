@@ -222,8 +222,8 @@ void extend_partition(
       p_graph.n(),
       input_ctx.partition.k,
       p_graph.m(),
-      p_graph.graph().is_node_weighted(),
-      p_graph.graph().is_edge_weighted()
+      p_graph.graph().node_weighted(),
+      p_graph.graph().edge_weighted()
   );
 
   extend_partition(

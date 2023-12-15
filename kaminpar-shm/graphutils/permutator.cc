@@ -141,7 +141,7 @@ PartitionedGraph assign_isolated_nodes(
 
   // now append the isolated ones
   const BlockID k = p_graph.k();
-  auto block_weights = p_graph.take_block_weights();
+  auto block_weights = p_graph.take_raw_block_weights();
   BlockID b = 0;
 
   // TODO parallelize this
@@ -339,7 +339,7 @@ void reorder_edges_by_compression(Graph &graph) {
     NodeID *edges_begin = raw_edges.data() + raw_nodes[node];
     NodeID *edges_end = raw_edges.data() + raw_nodes[node + 1];
 
-    const bool store_edge_weights = graph.is_edge_weighted();
+    const bool store_edge_weights = graph.edge_weighted();
     EdgeWeight *edge_weights =
         store_edge_weights ? (raw_edge_weights.data() + raw_nodes[node]) : nullptr;
 

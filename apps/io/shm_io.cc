@@ -278,26 +278,26 @@ void write(const std::string &filename, const Graph &graph) {
   std::ofstream out(filename);
 
   out << graph.n() << ' ' << (graph.m() / 2);
-  if (graph.is_node_weighted() || graph.is_edge_weighted()) {
+  if (graph.node_weighted() || graph.edge_weighted()) {
     out << ' ';
 
-    if (graph.is_node_weighted()) {
+    if (graph.node_weighted()) {
       out << '1';
     }
 
-    out << (graph.is_edge_weighted() ? '1' : '0');
+    out << (graph.edge_weighted() ? '1' : '0');
   }
   out << '\n';
 
   for (const NodeID node : graph.nodes()) {
-    if (graph.is_node_weighted()) {
+    if (graph.node_weighted()) {
       out << graph.node_weight(node) << ' ';
     }
 
     graph.neighbors(node, [&](const EdgeID incident_edge, const NodeID adjacent_node) {
       out << (adjacent_node + 1) << ' ';
 
-      if (graph.is_edge_weighted()) {
+      if (graph.edge_weighted()) {
         out << graph.edge_weight(incident_edge) << ' ';
       }
     });
