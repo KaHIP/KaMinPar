@@ -13,7 +13,6 @@
 #include <iostream>
 
 #include <tbb/global_control.h>
-#include <tbb/parallel_for.h>
 
 #if __has_include(<numa.h>)
 #include <numa.h>
@@ -25,7 +24,6 @@
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/strutils.h"
 
-#include "apps/io/shm_input_validator.h"
 #include "apps/io/shm_io.h"
 
 using namespace kaminpar;
@@ -158,47 +156,20 @@ int main(int argc, char *argv[]) {
     std::exit(0);
   }
 
-  if (ctx.compression.enabled && ctx.rearrange_by != GraphOrdering::NATURAL) {
-    std::cout << "The compressed graph cannot be rearranged. Use the natural graph ordering by "
-                 "adding \"--rearrange-by natural\" as a command-line flag!"
+  if (ctx.compression.enabled && ctx.node_ordering != NodeOrdering::NATURAL) {
+    std::cout << "The nodes of the compressed graph cannot be rearranged. Use the natural graph "
+                 "ordering by adding \"--node-order natural\" as a command-line flag!"
               << std::endl;
     std::exit(0);
   }
 
   ENABLE_HEAP_PROFILER();
 
+  // Read the input graph and allocate memory for the partition
   START_HEAP_PROFILER("Input Graph Allocation");
-
-  Graph graph = [&] {
-    using namespace shm::io::metis;
-
-    const std::string &filename = app.graph_filename;
-    if (ctx.compression.enabled) {
-      if (app.validate) {
-        return Graph(std::make_unique<CompressedGraph>(compress_read<true>(filename)));
-      } else {
-        return Graph(std::make_unique<CompressedGraph>(compress_read<false>(filename)));
-      }
-    } else {
-      if (app.validate) {
-        CSRGraph csr_graph = csr_read<true>(app.graph_filename);
-
-        shm::validate_undirected_graph(
-            csr_graph.raw_nodes(),
-            csr_graph.raw_edges(),
-            csr_graph.raw_node_weights(),
-            csr_graph.raw_edge_weights()
-        );
-
-        return Graph(std::make_unique<CSRGraph>(std::move(csr_graph)));
-      } else {
-        return Graph(std::make_unique<CSRGraph>(csr_read<false>(filename)));
-      }
-    }
-  }();
+  Graph graph = io::read(app.graph_filename, ctx.compression.enabled, app.validate);
   RECORD("partition") std::vector<BlockID> partition(graph.n());
   RECORD_DATA_STRUCT("std::vector", partition.capacity() * sizeof(BlockID));
-
   STOP_HEAP_PROFILER();
 
   // Compute graph partition

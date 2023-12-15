@@ -19,19 +19,19 @@
 namespace kaminpar::shm {
 using namespace std::string_literals;
 
-std::unordered_map<std::string, GraphOrdering> get_graph_orderings() {
+std::unordered_map<std::string, NodeOrdering> get_node_orderings() {
   return {
-      {"natural", GraphOrdering::NATURAL},
-      {"deg-buckets", GraphOrdering::DEGREE_BUCKETS},
-      {"degree-buckets", GraphOrdering::DEGREE_BUCKETS},
+      {"natural", NodeOrdering::NATURAL},
+      {"deg-buckets", NodeOrdering::DEGREE_BUCKETS},
+      {"degree-buckets", NodeOrdering::DEGREE_BUCKETS},
   };
 }
 
-std::ostream &operator<<(std::ostream &out, const GraphOrdering ordering) {
+std::ostream &operator<<(std::ostream &out, const NodeOrdering ordering) {
   switch (ordering) {
-  case GraphOrdering::NATURAL:
+  case NodeOrdering::NATURAL:
     return out << "natural";
-  case GraphOrdering::DEGREE_BUCKETS:
+  case NodeOrdering::DEGREE_BUCKETS:
     return out << "deg-buckets";
   }
 
@@ -289,7 +289,8 @@ void print(const Context &ctx, std::ostream &out) {
   out << "Execution mode:               " << ctx.parallel.num_threads << "\n";
   out << "Seed:                         " << Random::get_seed() << "\n";
   out << "Graph:                        " << ctx.debug.graph_name
-      << " [ordering: " << ctx.rearrange_by << "]\n";
+      << " [node ordering: " << ctx.node_ordering << "]"
+      << " [edge ordering: " << ctx.edge_ordering << "]\n";
   print(ctx.partition, out);
   cio::print_delimiter("Partitioning Scheme", '-');
   print(ctx.partitioning, out);

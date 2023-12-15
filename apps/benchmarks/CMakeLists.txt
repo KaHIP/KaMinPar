@@ -3,6 +3,7 @@ function(add_shm_benchmark target)
     target_link_libraries(${target} PRIVATE 
         KaMinPar::KaMinPar 
         KaMinPar::KaMinParCLI11 
+        KaMinPar::KaMinParIO 
         KaGen::KaGen)
     message(STATUS "Enabled benchmark: ${target}")
 endfunction()

@@ -69,22 +69,30 @@ CLI::Option_group *create_partitioning_options(CLI::App *app, Context &ctx) {
       "value of '1' will replicate the graph once for every PE, whereas smaller values lead to "
       "fewer replications."
   );
-  partitioning->add_option("--rearrange-by", ctx.rearrange_by)
-      ->transform(CLI::CheckedTransformer(get_graph_orderings()).description(""))
-      ->description(R"(Criteria by which the graph is sorted and rearrange:
-  - natural:     keep order of the graph (do not rearrange)
-  - deg-buckets: sort nodes by degree bucket and rearrange accordingly)
-  - compression: sort nodes with the ordering of the corresponding compressed graph)")
+
+  create_partitioning_rearrangement_options(app, ctx);
+
+  return partitioning;
+}
+
+CLI::Option_group *create_partitioning_rearrangement_options(CLI::App *app, Context &ctx) {
+  auto *rearrangement = app->add_option_group("Partitioning -> Rearrangement");
+
+  rearrangement->add_option("--node-order", ctx.node_ordering)
+      ->transform(CLI::CheckedTransformer(get_node_orderings()).description(""))
+      ->description(R"(Criteria by which the nodes of the graph are sorted and rearranged:
+  - natural:     keep node order of the graph (do not rearrange)
+  - deg-buckets: sort nodes by degree bucket and rearrange accordingly)")
       ->capture_default_str();
-  partitioning->add_option("--edge-order", ctx.edge_ordering)
+  rearrangement->add_option("--edge-order", ctx.edge_ordering)
       ->transform(CLI::CheckedTransformer(get_edge_orderings()).description(""))
-      ->description(R"(Criteria by which the edges of the graph are sorted:
+      ->description(R"(Criteria by which the edges of the graph are sorted and rearranged:
   - natural:     keep edge order of the graph (do not rearrange)
   - compression: sort the edges of each neighbourhood with the ordering of the corresponding compressed graph)"
       )
       ->capture_default_str();
 
-  return partitioning;
+  return rearrangement;
 }
 
 CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx) {

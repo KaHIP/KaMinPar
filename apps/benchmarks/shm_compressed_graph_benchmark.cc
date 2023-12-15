@@ -14,7 +14,7 @@
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/timer.h"
 
-#include "apps/io/shm_io.cc"
+#include "apps/io/shm_io.h"
 
 using namespace kaminpar;
 using namespace kaminpar::shm;
@@ -352,13 +352,13 @@ int main(int argc, char *argv[]) {
 
   START_HEAP_PROFILER("CSR Graph Allocation");
   CSRGraph graph = TIMED_SCOPE("Read csr graph") {
-    return shm::io::metis::csr_read<false>(graph_filename);
+    return io::metis::csr_read<false>(graph_filename);
   };
   STOP_HEAP_PROFILER();
 
   START_HEAP_PROFILER("Compressed Graph Allocation");
   CompressedGraph compressed_graph = TIMED_SCOPE("Read compressed graph") {
-    return shm::io::metis::compress_read<false>(graph_filename);
+    return io::metis::compress_read<false>(graph_filename);
   };
   STOP_HEAP_PROFILER();
 

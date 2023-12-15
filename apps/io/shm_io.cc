@@ -9,14 +9,15 @@
 
 #include <fstream>
 
-#include "kaminpar-shm/datastructures/compressed_graph.h"
-#include "kaminpar-shm/datastructures/csr_graph.h"
+#include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/logger.h"
 
 #include "apps/io/metis_parser.h"
+#include "apps/io/shm_compressed_graph_binary.h"
+#include "apps/io/shm_input_validator.h"
 
 namespace kaminpar::shm::io {
 //
@@ -130,93 +131,6 @@ void check_total_weight(std::int64_t total_node_weight, std::int64_t total_edge_
     );
   }
 }
-
-template <bool checked>
-void read(
-    const std::string &filename,
-    StaticArray<EdgeID> &nodes,
-    StaticArray<NodeID> &edges,
-    StaticArray<NodeWeight> &node_weights,
-    StaticArray<EdgeWeight> &edge_weights
-) {
-  using namespace kaminpar::io::metis;
-
-  bool store_node_weights = false;
-  bool store_edge_weights = false;
-  std::int64_t total_node_weight = 0;
-  std::int64_t total_edge_weight = 0;
-
-  NodeID u = 0;
-  EdgeID e = 0;
-
-  parse<false>(
-      filename,
-      [&](const auto &format) {
-        check_format<checked>(format);
-
-        store_node_weights = format.has_node_weights;
-        store_edge_weights = format.has_edge_weights;
-        nodes.resize(format.number_of_nodes + 1);
-        edges.resize(format.number_of_edges * 2);
-        if (store_node_weights) {
-          node_weights.resize(format.number_of_nodes);
-        }
-        if (store_edge_weights) {
-          edge_weights.resize(format.number_of_edges * 2);
-        }
-      },
-      [&](const std::uint64_t weight) {
-        check_node_weight<checked>(weight);
-
-        if (store_node_weights) {
-          node_weights[u] = static_cast<NodeWeight>(weight);
-        }
-        nodes[u] = e;
-        total_node_weight += weight;
-        ++u;
-      },
-      [&](const std::uint64_t weight, const std::uint64_t v) {
-        check_edge<checked>(nodes.size(), u, weight, v);
-
-        if (store_edge_weights) {
-          edge_weights[e] = static_cast<EdgeWeight>(weight);
-        }
-        edges[e] = static_cast<NodeID>(v);
-        total_edge_weight += weight;
-        ++e;
-      }
-  );
-  nodes[u] = e;
-
-  check_total_weight<checked>(total_edge_weight, total_edge_weight);
-
-  // only keep weights if the graph is really weighted
-  const bool unit_node_weights = static_cast<NodeID>(total_node_weight + 1) == nodes.size();
-  if (unit_node_weights) {
-    node_weights.free();
-  }
-
-  const bool unit_edge_weights = static_cast<EdgeID>(total_edge_weight) == edges.size();
-  if (unit_edge_weights) {
-    edge_weights.free();
-  }
-}
-
-template void read<false>(
-    const std::string &filename,
-    StaticArray<EdgeID> &nodes,
-    StaticArray<NodeID> &edges,
-    StaticArray<NodeWeight> &node_weights,
-    StaticArray<EdgeWeight> &edge_weights
-);
-
-template void read<true>(
-    const std::string &filename,
-    StaticArray<EdgeID> &nodes,
-    StaticArray<NodeID> &edges,
-    StaticArray<NodeWeight> &node_weights,
-    StaticArray<EdgeWeight> &edge_weights
-);
 
 template <bool checked> CSRGraph csr_read(const std::string &filename) {
   using namespace kaminpar::io::metis;
@@ -361,6 +275,41 @@ template CompressedGraph compress_read<false>(const std::string &filename);
 template CompressedGraph compress_read<true>(const std::string &filename);
 
 } // namespace metis
+
+Graph read(const std::string &filename, bool compress, bool validate) {
+  if (compressed_binary::is_compressed(filename)) {
+    if (!compress) {
+      LOG_ERROR
+          << "The input graph is stored in a compressed format but graph compression is disabled!";
+      std::exit(1);
+    }
+
+    return Graph(std::make_unique<CompressedGraph>(compressed_binary::read(filename)));
+  }
+
+  if (compress) {
+    if (validate) {
+      return Graph(std::make_unique<CompressedGraph>(metis::compress_read<true>(filename)));
+    } else {
+      return Graph(std::make_unique<CompressedGraph>(metis::compress_read<false>(filename)));
+    }
+  }
+
+  if (validate) {
+    CSRGraph csr_graph = metis::csr_read<true>(filename);
+
+    shm::validate_undirected_graph(
+        csr_graph.raw_nodes(),
+        csr_graph.raw_edges(),
+        csr_graph.raw_node_weights(),
+        csr_graph.raw_edge_weights()
+    );
+
+    return Graph(std::make_unique<CSRGraph>(std::move(csr_graph)));
+  } else {
+    return Graph(std::make_unique<CSRGraph>(metis::csr_read<false>(filename)));
+  }
+}
 
 //
 // Partition

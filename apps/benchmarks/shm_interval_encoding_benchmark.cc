@@ -17,7 +17,7 @@
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/variable_length_codec.h"
 
-#include "apps/io/shm_io.cc"
+#include "apps/io/shm_io.h"
 
 using namespace kaminpar;
 using namespace kaminpar::shm;
@@ -159,26 +159,7 @@ int main(int argc, char *argv[]) {
 
   // Read input graph
   LOG << "Reading the input graph...";
-  StaticArray<EdgeID> xadj;
-  StaticArray<NodeID> adjncy;
-  StaticArray<NodeWeight> vwgt;
-  StaticArray<EdgeWeight> adjwgt;
-
-  shm::io::metis::read<false>(graph_filename, xadj, adjncy, vwgt, adjwgt);
-
-  const NodeID n = static_cast<NodeID>(xadj.size() - 1);
-  const EdgeID m = xadj[n];
-
-  StaticArray<EdgeID> nodes(xadj.data(), n + 1);
-  StaticArray<NodeID> edges(adjncy.data(), m);
-  StaticArray<NodeWeight> node_weights =
-      (vwgt.empty()) ? StaticArray<NodeWeight>(0) : StaticArray<NodeWeight>(vwgt.data(), n);
-  StaticArray<EdgeWeight> edge_weights =
-      (adjwgt.empty()) ? StaticArray<EdgeWeight>(0) : StaticArray<EdgeWeight>(adjwgt.data(), m);
-
-  Graph graph(std::make_unique<CSRGraph>(
-      std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights)
-  ));
+  Graph graph(std::make_unique<CSRGraph>(io::metis::csr_read<false>(graph_filename)));
 
   // Run Benchmark
   LOG << "Calculating the compressed graph size...";

@@ -13,9 +13,9 @@
 #include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::shm {
-std::ostream &operator<<(std::ostream &out, GraphOrdering ordering);
+std::ostream &operator<<(std::ostream &out, NodeOrdering ordering);
 
-std::unordered_map<std::string, GraphOrdering> get_graph_orderings();
+std::unordered_map<std::string, NodeOrdering> get_node_orderings();
 
 std::ostream &operator<<(std::ostream &out, EdgeOrdering ordering);
 
