@@ -316,6 +316,50 @@ public:
   }
 
   /*!
+   * Returns the compression ratio.
+   *
+   * @return The compression ratio.
+   */
+  [[nodiscard]] double compression_ratio() const {
+    std::size_t uncompressed_size = (n() + 1) * sizeof(EdgeID) + m() * sizeof(NodeID);
+    std::size_t compressed_size = (n() + 1) * sizeof(EdgeID) + _compressed_edges.size();
+
+    if (node_weighted()) {
+      uncompressed_size += n() * sizeof(NodeWeight);
+      compressed_size += n() * sizeof(NodeWeight);
+    }
+
+    if (edge_weighted()) {
+      uncompressed_size += m() * sizeof(EdgeWeight);
+      compressed_size += m() * sizeof(EdgeWeight);
+    }
+
+    return uncompressed_size / (double)compressed_size;
+  }
+
+  /**
+   * Returns the size reduction in bytes gained by the compression.
+   *
+   * @returns The size reduction in bytes gained by the compression.
+   */
+  [[nodiscard]] std::size_t size_reduction() const {
+    std::size_t uncompressed_size = (n() + 1) * sizeof(EdgeID) + m() * sizeof(NodeID);
+    std::size_t compressed_size = (n() + 1) * sizeof(EdgeID) + _compressed_edges.size();
+
+    if (node_weighted()) {
+      uncompressed_size += n() * sizeof(NodeWeight);
+      compressed_size += n() * sizeof(NodeWeight);
+    }
+
+    if (edge_weighted()) {
+      uncompressed_size += m() * sizeof(EdgeWeight);
+      compressed_size += m() * sizeof(EdgeWeight);
+    }
+
+    return uncompressed_size - compressed_size;
+  }
+
+  /*!
    * Returns the amount of memory in bytes used by the data structure.
    *
    * @return The amount of memory in bytes used by the data structure.

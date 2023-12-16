@@ -235,6 +235,25 @@ get_isolated_nodes_clustering_strategies() {
   };
 }
 
+void print(const GraphCompressionContext &c_ctx, std::ostream &out) {
+  out << "Enabled:                      " << (c_ctx.enabled ? "yes" : "no") << "\n";
+  if (c_ctx.enabled) {
+    out << "Compression Scheme:           "
+        << "Variable Length Encoding + Gap Encoding"
+        << "\n";
+    out << "  High Degree Threshold:      " << c_ctx.high_degree_threshold << "\n";
+    out << "  Interval Encoding:          " << (c_ctx.interval_encoding ? "yes" : "no") << "\n";
+    out << "  Interval Length Threshold:  " << c_ctx.interval_length_treshold << "\n";
+
+    out << "Compresion Ratio:             " << c_ctx.compression_ratio
+        << " [size reduction: " << (c_ctx.size_reduction / (float)(1024 * 1024)) << " mb]"
+        << "\n";
+    out << "  High Degree Count:          " << c_ctx.high_degree_count << "\n";
+    out << "  Part Count:                 " << c_ctx.part_count << "\n";
+    out << "  Interval Count:             " << c_ctx.interval_count << "\n";
+  }
+}
+
 void print(const CoarseningContext &c_ctx, std::ostream &out) {
   out << "Contraction limit:            " << c_ctx.contraction_limit << "\n";
   out << "Cluster weight limit:         " << c_ctx.cluster_weight_limit << " x "
@@ -321,6 +340,8 @@ void print(const Context &ctx, std::ostream &out) {
       << " [node ordering: " << ctx.node_ordering << "]"
       << " [edge ordering: " << ctx.edge_ordering << "]\n";
   print(ctx.partition, out);
+  cio::print_delimiter("Graph Compression", '-');
+  print(ctx.compression, out);
   cio::print_delimiter("Partitioning Scheme", '-');
   print(ctx.partitioning, out);
   cio::print_delimiter("Coarsening", '-');

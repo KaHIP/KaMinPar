@@ -59,6 +59,16 @@ constexpr BlockWeight kInvalidBlockWeight = std::numeric_limits<BlockWeight>::ma
 
 struct GraphCompressionContext {
   bool enabled;
+
+  NodeID high_degree_threshold;
+  bool interval_encoding;
+  NodeID interval_length_treshold;
+
+  double compression_ratio;
+  std::size_t size_reduction;
+  std::size_t high_degree_count;
+  std::size_t part_count;
+  std::size_t interval_count;
 };
 
 enum class NodeOrdering {
