@@ -40,6 +40,11 @@ public:
   static constexpr NodeID kHighDegreeThreshold = 10000;
 
   /*!
+   * Whether run length encoding is used.
+   */
+  static constexpr bool kRunLengthEncoding = true;
+
+  /*!
    * Whether interval encoding is used.
    */
   static constexpr bool kIntervalEncoding = true;
@@ -536,23 +541,47 @@ private:
 
     l(edge++, first_adjacent_node);
 
-    const auto iterate_gap = [&]() {
-      const auto [gap, gap_len] = varint_decode<NodeID>(data);
-      data += gap_len;
-
-      const NodeID adjacent_node = gap + prev_adjacent_node;
-      prev_adjacent_node = adjacent_node;
-
-      l(edge++, adjacent_node);
-    };
-
     if constexpr (max_edges) {
-      while (edge - first_edge < max_neighbor_count) {
-        iterate_gap();
+      if constexpr (kRunLengthEncoding) {
+        const NodeID decoded_neighbors = static_cast<NodeID>(edge - first_edge);
+
+        RLDecoder<NodeID> rl_decoder(data);
+        rl_decoder.decode(max_neighbor_count - decoded_neighbors, [&](const NodeID gap) {
+          const NodeID adjacent_node = gap + prev_adjacent_node;
+          prev_adjacent_node = adjacent_node;
+
+          l(edge++, adjacent_node);
+        });
+      } else {
+        while (edge - first_edge < max_neighbor_count) {
+          const auto [gap, gap_len] = varint_decode<NodeID>(data);
+          data += gap_len;
+
+          const NodeID adjacent_node = gap + prev_adjacent_node;
+          prev_adjacent_node = adjacent_node;
+
+          l(edge++, adjacent_node);
+        }
       }
     } else {
-      while (data != end) {
-        iterate_gap();
+      if constexpr (kRunLengthEncoding) {
+        RLDecoder<NodeID> rl_decoder(data);
+        rl_decoder.decode(end, [&](const NodeID gap) {
+          const NodeID adjacent_node = gap + prev_adjacent_node;
+          prev_adjacent_node = adjacent_node;
+
+          l(edge++, adjacent_node);
+        });
+      } else {
+        while (data != end) {
+          const auto [gap, gap_len] = varint_decode<NodeID>(data);
+          data += gap_len;
+
+          const NodeID adjacent_node = gap + prev_adjacent_node;
+          prev_adjacent_node = adjacent_node;
+
+          l(edge++, adjacent_node);
+        }
       }
     }
   }

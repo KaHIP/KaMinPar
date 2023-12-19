@@ -48,7 +48,7 @@ int main(int argc, char *argv[]) {
   }
 
   if (ctx.edge_ordering == EdgeOrdering::COMPRESSION) {
-    graph::reorder_edges_by_compression(graph);
+    graph::reorder_edges_by_compression(*dynamic_cast<CSRGraph *>(graph.underlying_graph()));
   }
 
   LOG << "Writing graph...";

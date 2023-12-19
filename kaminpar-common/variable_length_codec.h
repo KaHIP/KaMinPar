@@ -9,6 +9,7 @@
 
 #include <cstdint>
 #include <utility>
+#include <vector>
 
 namespace kaminpar {
 
@@ -187,5 +188,237 @@ static std::tuple<Int, bool, std::size_t> marked_varint_decode(const std::uint8_
 
   return {value, is_marker_set, len + 1};
 }
+
+template <typename Int> class RLEncoder {
+  static_assert(sizeof(Int) == 4 || sizeof(Int) == 8);
+
+public:
+  static constexpr std::size_t kBufferSize = (sizeof(Int) == 4) ? 64 : 32;
+
+  RLEncoder(std::uint8_t *ptr) : ptr(ptr) {}
+
+  std::size_t add(Int i) {
+    std::uint8_t size = needed_bytes(i);
+
+    if (buffer.empty()) {
+      buffered_size = size++;
+    } else if (buffer.size() == kBufferSize || buffered_size != size) {
+      flush();
+      buffered_size = size++;
+    }
+
+    buffer.push_back(i);
+    return size;
+  }
+
+  void flush() {
+    const std::uint8_t *begin = ptr;
+
+    if constexpr (sizeof(Int) == 4) {
+      std::uint8_t header =
+          (static_cast<std::uint8_t>(buffer.size() - 1) << 2) | ((buffered_size - 1) & 0b00000011);
+      *ptr++ = header;
+    } else if constexpr (sizeof(Int) == 8) {
+      std::uint8_t header =
+          (static_cast<std::uint8_t>(buffer.size() - 1) << 3) | ((buffered_size - 1) & 0b00000111);
+      *ptr++ = header;
+    }
+
+    for (Int i : buffer) {
+      for (std::uint8_t j = 0; j < buffered_size; ++j) {
+        *ptr++ = static_cast<std::uint8_t>(i);
+        i >>= 8;
+      }
+    }
+
+    buffer.clear();
+  }
+
+private:
+  std::uint8_t *ptr;
+
+  std::uint8_t buffered_size;
+  std::vector<Int> buffer;
+
+  std::uint8_t needed_bytes(Int i) const {
+    std::size_t len = 1;
+
+    while (i > 0b11111111) {
+      i >>= 8;
+      len++;
+    }
+
+    return len;
+  }
+};
+
+template <typename Int> class RLDecoder {
+  static_assert(sizeof(Int) == 4 || sizeof(Int) == 8);
+
+public:
+  RLDecoder(const std::uint8_t *ptr) : ptr(ptr) {}
+
+  template <typename Lambda> void decode(const std::uint8_t *end, Lambda &&l) {
+    while (ptr < end) {
+      const std::uint8_t run_header = *ptr++;
+
+      if constexpr (sizeof(Int) == 4) {
+        const std::uint8_t run_length = ((run_header & 0b11111100) >> 2) + 1;
+        const std::uint8_t run_size = (run_header & 0b00000011) + 1;
+
+        decode32(run_length, run_size, std::forward<Lambda>(l));
+      } else if constexpr (sizeof(Int) == 8) {
+        const std::uint8_t run_length = ((run_header & 0b11111000) >> 3) + 1;
+        const std::uint8_t run_size = (run_header & 0b00000111) + 1;
+
+        decode64(run_length, run_size, std::forward<Lambda>(l));
+      }
+    }
+  }
+
+  template <typename Lambda> void decode(const std::size_t max_decoded, Lambda &&l) {
+    std::size_t decoded = 0;
+    while (decoded < max_decoded) {
+      const std::uint8_t run_header = *ptr++;
+
+      if constexpr (sizeof(Int) == 4) {
+        std::uint8_t run_length = (run_header >> 2) + 1;
+        const std::uint8_t run_size = (run_header & 0b00000011) + 1;
+
+        decoded += run_length;
+        if (decoded > max_decoded) {
+          run_length -= decoded - max_decoded;
+        }
+
+        decode32(run_length, run_size, std::forward<Lambda>(l));
+      } else if constexpr (sizeof(Int) == 8) {
+        std::uint8_t run_length = (run_header >> 3) + 1;
+        const std::uint8_t run_size = (run_header & 0b00000111) + 1;
+
+        decoded += run_length;
+        if (decoded > max_decoded) {
+          run_length -= decoded - max_decoded;
+        }
+
+        decode64(run_length, run_size, std::forward<Lambda>(l));
+      }
+    }
+  }
+
+private:
+  const std::uint8_t *ptr;
+
+  template <typename Lambda>
+  void decode32(const std::uint8_t run_length, const std::uint8_t run_size, Lambda &&l) {
+    switch (run_size) {
+    case 1:
+      for (std::uint8_t i = 0; i < run_length; ++i) {
+        std::uint32_t value = static_cast<std::uint32_t>(*ptr);
+        ptr += 1;
+
+        l(value);
+      }
+      break;
+    case 2:
+      for (std::uint8_t i = 0; i < run_length; ++i) {
+        std::uint32_t value = *((std::uint16_t *)ptr);
+        ptr += 2;
+
+        l(value);
+      }
+      break;
+    case 3:
+      for (std::uint8_t i = 0; i < run_length; ++i) {
+        std::uint32_t value = *((std::uint32_t *)ptr) & 0xFFFFFF;
+        ptr += 3;
+
+        l(value);
+      }
+      break;
+    case 4:
+      for (std::uint8_t i = 0; i < run_length; ++i) {
+        std::uint32_t value = *((std::uint32_t *)ptr);
+        ptr += 4;
+
+        l(value);
+      }
+      break;
+    default:
+      break;
+    }
+  }
+
+  template <typename Lambda>
+  void decode64(const std::uint8_t run_length, const std::uint8_t run_size, Lambda &&l) {
+    switch (run_size) {
+    case 1:
+      for (std::uint8_t i = 0; i < run_length; ++i) {
+        std::uint64_t value = static_cast<std::uint64_t>(*ptr);
+        ptr += 1;
+
+        l(value);
+      }
+      break;
+    case 2:
+      for (std::uint8_t i = 0; i < run_length; ++i) {
+        std::uint64_t value = *((std::uint16_t *)ptr);
+        ptr += 2;
+
+        l(value);
+      }
+      break;
+    case 3:
+      for (std::uint8_t i = 0; i < run_length; ++i) {
+        std::uint64_t value = *((std::uint32_t *)ptr) & 0xFFFFFF;
+        ptr += 3;
+
+        l(value);
+      }
+      break;
+    case 4:
+      for (std::uint8_t i = 0; i < run_length; ++i) {
+        std::uint64_t value = *((std::uint32_t *)ptr);
+        ptr += 4;
+
+        l(value);
+      }
+      break;
+    case 5:
+      for (std::uint8_t i = 0; i < run_length; ++i) {
+        std::uint64_t value = *((std::uint64_t *)ptr) & 0xFFFFFFFFFF;
+        ptr += 5;
+
+        l(value);
+      }
+      break;
+    case 6:
+      for (std::uint8_t i = 0; i < run_length; ++i) {
+        std::uint64_t value = *((std::uint64_t *)ptr) & 0xFFFFFFFFFFFF;
+        ptr += 6;
+
+        l(value);
+      }
+      break;
+    case 7:
+      for (std::uint8_t i = 0; i < run_length; ++i) {
+        std::uint64_t value = *((std::uint64_t *)ptr) & 0xFFFFFFFFFFFFFF;
+        ptr += 7;
+
+        l(value);
+      }
+      break;
+    case 8:
+      for (std::uint8_t i = 0; i < run_length; ++i) {
+        std::uint64_t value = *((std::uint64_t *)ptr);
+        ptr += 8;
+
+        l(value);
+      }
+      break;
+    default:
+      break;
+    }
+  }
+};
 
 } // namespace kaminpar

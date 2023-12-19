@@ -326,7 +326,7 @@ static void sort_by_compression(
   }
 }
 
-void reorder_edges_by_compression(Graph &graph) {
+void reorder_edges_by_compression(CSRGraph &graph) {
   SCOPED_HEAP_PROFILER("Reorder edges of input graph");
   SCOPED_TIMER("Reorder edges of input");
 

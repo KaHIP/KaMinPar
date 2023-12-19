@@ -8,6 +8,7 @@
 #include "kaminpar-cli/CLI11.h"
 
 #include "kaminpar-shm/datastructures/graph.h"
+#include "kaminpar-shm/graphutils/permutator.h"
 
 #include "kaminpar-common/console_io.h"
 #include "kaminpar-common/heap_profiler.h"
@@ -224,6 +225,66 @@ expect_equal_neighbours(const CSRGraph &graph, const CompressedGraph &compressed
   }
 }
 
+static void expect_equal_neighbours_max(CSRGraph &graph, const CompressedGraph &compressed_graph) {
+  std::vector<EdgeID> graph_incident_edges;
+  std::vector<NodeID> graph_adjacent_node;
+  std::vector<EdgeID> compressed_graph_incident_edges;
+  std::vector<NodeID> compressed_graph_adjacent_node;
+
+  graph::reorder_edges_by_compression(graph);
+
+  for (const NodeID node : graph.nodes()) {
+    const NodeID max_neighbor_count = graph.degree(node) / 2;
+
+    graph.neighbors(
+        node,
+        max_neighbor_count,
+        [&](const auto incident_edge, const auto adjacent_node) {
+          graph_incident_edges.push_back(incident_edge);
+          graph_adjacent_node.push_back(adjacent_node);
+        }
+    );
+
+    compressed_graph.neighbors(
+        node,
+        max_neighbor_count,
+        [&](const auto incident_edge, const auto adjacent_node) {
+          compressed_graph_incident_edges.push_back(incident_edge);
+          compressed_graph_adjacent_node.push_back(adjacent_node);
+        }
+    );
+
+    if (graph_incident_edges.size() != compressed_graph_incident_edges.size()) {
+      LOG_ERROR << "Node " << node << " has " << graph_incident_edges.size()
+                << " neighbours in the uncompressed graph but "
+                << compressed_graph_incident_edges.size() << " neighbours in the compressed graph!";
+      return;
+    }
+
+    std::sort(graph_incident_edges.begin(), graph_incident_edges.end());
+    std::sort(graph_adjacent_node.begin(), graph_adjacent_node.end());
+    std::sort(compressed_graph_incident_edges.begin(), compressed_graph_incident_edges.end());
+    std::sort(compressed_graph_adjacent_node.begin(), compressed_graph_adjacent_node.end());
+
+    if (graph_incident_edges != compressed_graph_incident_edges) {
+      LOG_ERROR << "The incident edges of node " << node
+                << " in the compressed and uncompressed graph do not match!";
+      return;
+    }
+
+    if (graph_adjacent_node != compressed_graph_adjacent_node) {
+      LOG_ERROR << "The adjacent nodes of node " << node
+                << " in the compressed and uncompressed graph do not match!";
+      return;
+    }
+
+    graph_incident_edges.clear();
+    graph_adjacent_node.clear();
+    compressed_graph_incident_edges.clear();
+    compressed_graph_adjacent_node.clear();
+  }
+}
+
 static void
 expect_equal_pfor_neighbors(const CSRGraph &graph, const CompressedGraph &compressed_graph) {
   tbb::concurrent_vector<NodeID> graph_adjacent_node;
@@ -264,7 +325,75 @@ expect_equal_pfor_neighbors(const CSRGraph &graph, const CompressedGraph &compre
   }
 }
 
-static void run_checks(const CSRGraph &graph, const CompressedGraph &compressed_graph) {
+static void expect_equal_compressed_graph_edge_weights(
+    const CSRGraph &graph, const CompressedGraph &compressed_graph
+) {
+  std::unordered_map<NodeID, EdgeWeight> csr_graph_edge_weights_map;
+  std::unordered_map<NodeID, EdgeWeight> compressed_graph_edge_weights_map;
+
+  for (const NodeID node : graph.nodes()) {
+    graph.neighbors(node, [&](const EdgeID incident_edge, const NodeID adjacent_node) {
+      csr_graph_edge_weights_map[adjacent_node] = graph.edge_weight(incident_edge);
+    });
+
+    compressed_graph.neighbors(node, [&](const EdgeID incident_edge, const NodeID adjacent_node) {
+      compressed_graph_edge_weights_map[adjacent_node] =
+          compressed_graph.edge_weight(incident_edge);
+    });
+
+    if (csr_graph_edge_weights_map.size() != compressed_graph_edge_weights_map.size()) {
+      LOG_ERROR << "Node " << node << " has " << csr_graph_edge_weights_map.size()
+                << " adjacent nodes in the uncompressed graph but "
+                << compressed_graph_edge_weights_map.size()
+                << " adjacent node in the compressed graph!";
+      return;
+    }
+    for (const NodeID adjacent_node : graph.adjacent_nodes(node)) {
+      if (csr_graph_edge_weights_map.find(adjacent_node) == csr_graph_edge_weights_map.end()) {
+        LOG_ERROR << "Node " << node << " neighbor " << adjacent_node
+                  << " is not contained in the uncompressed graph!";
+        return;
+      }
+
+      if (compressed_graph_edge_weights_map.find(adjacent_node) ==
+          compressed_graph_edge_weights_map.end()) {
+        LOG_ERROR << "Node " << node << " neighbor " << adjacent_node
+                  << " is not contained in the compressed graph!";
+        return;
+      }
+
+      if (csr_graph_edge_weights_map[adjacent_node] !=
+          compressed_graph_edge_weights_map[adjacent_node]) {
+        LOG_ERROR
+            << "Node " << node
+            << " incident edge weights in the uncompressed and  compressed graph do not match!";
+        return;
+      }
+    }
+
+    csr_graph_edge_weights_map.clear();
+    compressed_graph_edge_weights_map.clear();
+  }
+}
+
+static void expect_equal_rearrange_compressed_edge_weights(
+    CSRGraph &graph, const CompressedGraph &compressed_graph
+) {
+  graph::reorder_edges_by_compression(graph);
+
+  for (const NodeID node : graph.nodes()) {
+    for (const auto [incident_edge, adjacent_node] : graph.neighbors(node)) {
+      if (graph.edge_weight(incident_edge) != compressed_graph.edge_weight(incident_edge)) {
+        LOG_ERROR << "Edge " << incident_edge << " has weight" << graph.edge_weight(incident_edge)
+                  << " in the rearranged uncompressed graph but weight"
+                  << compressed_graph.edge_weight(incident_edge) << " in the compressed graph!";
+        return;
+      }
+    }
+  }
+}
+
+static void run_checks(CSRGraph &graph, const CompressedGraph &compressed_graph) {
   LOG << "Checking if the graph operations are valid...";
 
   expect_equal_size(graph, compressed_graph);
@@ -274,7 +403,10 @@ static void run_checks(const CSRGraph &graph, const CompressedGraph &compressed_
   expect_equal_incident_edges(graph, compressed_graph);
   expect_equal_adjacent_nodes(graph, compressed_graph);
   expect_equal_neighbours(graph, compressed_graph);
+  expect_equal_neighbours_max(graph, compressed_graph);
   expect_equal_pfor_neighbors(graph, compressed_graph);
+  expect_equal_compressed_graph_edge_weights(graph, compressed_graph);
+  expect_equal_rearrange_compressed_edge_weights(graph, compressed_graph);
 }
 
 static void run_benchmark(CSRGraph graph, CompressedGraph compressed_graph) {

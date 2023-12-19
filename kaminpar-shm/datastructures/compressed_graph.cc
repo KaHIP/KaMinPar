@@ -373,18 +373,29 @@ void CompressedGraphBuilder::add_edges(
     store_edge_weight(first_edge_weight);
   }
 
+  RLEncoder<NodeID> rl_encoder(_cur_compressed_edges);
+
   NodeID prev_adjacent_node = first_adjacent_node;
   const auto iter_end = neighbourhood.end();
   for (auto iter = neighbourhood.begin() + 1; iter != iter_end; ++iter) {
     const auto [adjacent_node, edge_weight] = *iter;
     const NodeID gap = adjacent_node - prev_adjacent_node;
 
-    _cur_compressed_edges += varint_encode(gap, _cur_compressed_edges);
+    if constexpr (CompressedGraph::kRunLengthEncoding) {
+      _cur_compressed_edges += rl_encoder.add(gap);
+    } else {
+      _cur_compressed_edges += varint_encode(gap, _cur_compressed_edges);
+    }
+
     if (_store_edge_weights) {
       store_edge_weight(edge_weight);
     }
 
     prev_adjacent_node = adjacent_node;
+  }
+
+  if constexpr (CompressedGraph::kRunLengthEncoding) {
+    rl_encoder.flush();
   }
 }
 

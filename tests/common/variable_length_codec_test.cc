@@ -59,3 +59,37 @@ TEST(VariableLengthCodecTest, marker_varlen_codec) {
   test_marker_varlen_codec(std::numeric_limits<std::size_t>::max() - 1, true);
   test_marker_varlen_codec(std::numeric_limits<std::size_t>::max() - 1, false);
 }
+
+template <typename Int> static void test_run_length_codec() {
+  const std::size_t len =
+      (1 + sizeof(Int)) * (sizeof(Int) + sizeof(Int) * RLEncoder<Int>::kBufferSize) + 1;
+  auto ptr = std::make_unique<std::uint8_t[]>(len);
+
+  RLEncoder<Int> rle_encoder(ptr.get());
+
+  std::vector<Int> values;
+  for (std::size_t i = 0; i < sizeof(Int); ++i) {
+    values.push_back(static_cast<Int>(1) << (i * 8));
+  }
+  values.push_back(std::numeric_limits<Int>::max());
+  for (std::size_t i = 0; i < sizeof(Int); ++i) {
+    for (std::size_t j = 0; j < RLEncoder<Int>::kBufferSize; ++j) {
+      values.push_back(static_cast<Int>(1) << (i * 8));
+    }
+  }
+
+  std::size_t written = 0;
+  for (const Int i : values) {
+    written += rle_encoder.add(i);
+  }
+  rle_encoder.flush();
+
+  RLDecoder<Int> rle_decoder(ptr.get());
+  std::size_t i = 0;
+  rle_decoder.decode(ptr.get() + written, [&](const Int value) { EXPECT_EQ(values[i++], value); });
+}
+
+TEST(VariableLengthCodecTest, run_length_codec) {
+  test_run_length_codec<std::uint32_t>();
+  test_run_length_codec<std::uint64_t>();
+}

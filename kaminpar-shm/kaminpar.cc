@@ -200,7 +200,7 @@ EdgeWeight KaMinPar::compute_partition(const int seed, const BlockID k, BlockID 
   }
 
   if (_ctx.edge_ordering == EdgeOrdering::COMPRESSION) {
-    graph::reorder_edges_by_compression(*_graph_ptr);
+    graph::reorder_edges_by_compression(*dynamic_cast<CSRGraph *>(_graph_ptr->underlying_graph()));
   }
 
   // Perform actual partitioning
