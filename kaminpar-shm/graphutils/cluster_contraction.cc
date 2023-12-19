@@ -24,7 +24,7 @@ namespace kaminpar::shm::graph {
 using namespace contraction;
 
 namespace {
-template <typename Clustering>
+template <typename Graph, typename Clustering>
 Result
 contract_generic_clustering(const Graph &graph, const Clustering &clustering, MemoryContext m_ctx) {
   auto &buckets_index = m_ctx.buckets_index;
@@ -252,7 +252,7 @@ contract_generic_clustering(const Graph &graph, const Clustering &clustering, Me
   STOP_TIMER();
 
   return {
-      Graph(std::make_unique<CSRGraph>(
+      shm::Graph(std::make_unique<CSRGraph>(
           std::move(c_nodes),
           std::move(c_edges),
           std::move(c_node_weights),
@@ -266,7 +266,16 @@ contract_generic_clustering(const Graph &graph, const Clustering &clustering, Me
 
 Result
 contract(const Graph &graph, const scalable_vector<NodeID> &clustering, MemoryContext m_ctx) {
-  return contract_generic_clustering(graph, clustering, std::move(m_ctx));
+  if (auto *csr_graph = dynamic_cast<CSRGraph *>(graph.underlying_graph()); csr_graph != nullptr) {
+    return contract_generic_clustering(*csr_graph, clustering, std::move(m_ctx));
+  }
+
+  if (auto *compressed_graph = dynamic_cast<CompressedGraph *>(graph.underlying_graph());
+      compressed_graph != nullptr) {
+    return contract_generic_clustering(*compressed_graph, clustering, std::move(m_ctx));
+  }
+
+  __builtin_unreachable();
 }
 
 Result contract(
@@ -274,6 +283,16 @@ Result contract(
     const scalable_vector<parallel::Atomic<NodeID>> &clustering,
     MemoryContext m_ctx
 ) {
-  return contract_generic_clustering(graph, clustering, std::move(m_ctx));
+  if (auto *csr_graph = dynamic_cast<CSRGraph *>(graph.underlying_graph()); csr_graph != nullptr) {
+    return contract_generic_clustering(*csr_graph, clustering, std::move(m_ctx));
+  }
+
+  if (auto *compressed_graph = dynamic_cast<CompressedGraph *>(graph.underlying_graph());
+      compressed_graph != nullptr) {
+    return contract_generic_clustering(*compressed_graph, clustering, std::move(m_ctx));
+  }
+
+  __builtin_unreachable();
 }
+
 } // namespace kaminpar::shm::graph

@@ -12,6 +12,9 @@
 #include "kaminpar-shm/datastructures/graph.h"
 
 namespace kaminpar::shm {
+
+template <typename Graph> class LPClusteringImpl;
+
 class LPClustering : public Clusterer {
 public:
   LPClustering(NodeID max_n, const CoarseningContext &c_ctx);
@@ -30,7 +33,8 @@ public:
   const AtomicClusterArray &compute_clustering(const Graph &graph) final;
 
 private:
-  std::unique_ptr<class LPClusteringImpl> _core;
+  std::unique_ptr<LPClusteringImpl<CSRGraph>> _csr_core;
+  std::unique_ptr<LPClusteringImpl<CompressedGraph>> _compressed_core;
 };
 
 } // namespace kaminpar::shm

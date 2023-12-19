@@ -30,8 +30,8 @@
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar {
-struct LabelPropagationConfig {
-  using Graph = ::kaminpar::shm::Graph;
+template <typename TGraph> struct LabelPropagationConfig {
+  using Graph = TGraph;
 
   // Data structure used to accumulate edge weights for gain value calculation
   using RatingMap =
@@ -82,13 +82,15 @@ struct LabelPropagationConfig {
  * @tparam Derived Derived class for static polymorphism.
  * @tparam Config Algorithmic configuration and data types.
  */
-template <typename Derived, typename Config> class LabelPropagation {
-  static_assert(std::is_base_of_v<LabelPropagationConfig, Config>);
+template <typename Derived, template <typename> typename TConfig, typename TGraph>
+class LabelPropagation {
+  static_assert(std::is_base_of_v<LabelPropagationConfig<TGraph>, TConfig<TGraph>>);
 
   SET_DEBUG(false);
   SET_STATISTICS(false);
 
 protected:
+  using Config = TConfig<TGraph>;
   using RatingMap = typename Config::RatingMap;
   using Graph = typename Config::Graph;
   using NodeID = typename Graph::NodeID;
@@ -779,13 +781,14 @@ private:
  * @tparam Derived Derived subclass for static polymorphism.
  * @tparam Config Algorithmic configuration and data types.
  */
-template <typename Derived, typename Config>
-class InOrderLabelPropagation : public LabelPropagation<Derived, Config> {
-  static_assert(std::is_base_of_v<LabelPropagationConfig, Config>);
+template <typename Derived, template <typename> typename TConfig, typename TGraph>
+class InOrderLabelPropagation : public LabelPropagation<Derived, TConfig, TGraph> {
+  static_assert(std::is_base_of_v<LabelPropagationConfig<TGraph>, TConfig<TGraph>>);
   SET_DEBUG(true);
 
 protected:
-  using Base = LabelPropagation<Derived, Config>;
+  using Config = TConfig<TGraph>;
+  using Base = LabelPropagation<Derived, TConfig, TGraph>;
 
   using Graph = typename Base::Graph;
   using ClusterID = typename Base::ClusterID;
@@ -863,10 +866,11 @@ protected:
  * @tparam Derived Derived subclass for static polymorphism.
  * @tparam Config Algorithmic configuration and data types.
  */
-template <typename Derived, typename Config>
-class ChunkRandomdLabelPropagation : public LabelPropagation<Derived, Config> {
-  using Base = LabelPropagation<Derived, Config>;
-  static_assert(std::is_base_of_v<LabelPropagationConfig, Config>);
+template <typename Derived, template <typename> typename TConfig, typename TGraph>
+class ChunkRandomdLabelPropagation : public LabelPropagation<Derived, TConfig, TGraph> {
+  using Config = TConfig<TGraph>;
+  using Base = LabelPropagation<Derived, TConfig, TGraph>;
+  static_assert(std::is_base_of_v<LabelPropagationConfig<TGraph>, TConfig<TGraph>>);
 
   SET_DEBUG(false);
 
