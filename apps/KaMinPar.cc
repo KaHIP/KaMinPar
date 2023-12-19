@@ -155,6 +155,7 @@ int main(int argc, char *argv[]) {
 
   // Compute graph partition
   KaMinPar partitioner(app.num_threads, ctx);
+  KaMinPar::reseed(app.seed);
 
   if (app.quiet) {
     partitioner.set_output_level(OutputLevel::QUIET);
@@ -166,7 +167,7 @@ int main(int argc, char *argv[]) {
   partitioner.set_max_timer_depth(app.max_timer_depth);
   partitioner.take_graph(n, xadj_ptr, adjncy_ptr, vwgt_ptr, adjwgt_ptr);
 
-  partitioner.compute_partition(app.seed, app.k, partition.data());
+  partitioner.compute_partition(app.k, partition.data());
 
   // Save graph partition
   if (!app.partition_filename.empty()) {

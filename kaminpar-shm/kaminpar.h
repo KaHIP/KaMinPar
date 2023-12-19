@@ -346,6 +346,8 @@ public:
 
   ~KaMinPar();
 
+  static void reseed(int seed);
+
   /*!
    * Sets the verbosity of the partitioner.
    */
@@ -421,15 +423,13 @@ public:
   /*!
    * Partitions the graph set by `take_graph()` or `copy_graph()` into `k` blocks.
    *
-   * @param seed The seed for the random number generator. Note that when using more than one
-   * thread, partitioning is non-deterministic even with a fixed seed.
    * @param k The number of blocks to partition the graph into.
    * @param partition Array of length `n` for storing the partition. The caller is reponsible for
    * allocating and freeing the memory.
    *
    * @return The edge-cut of the partition.
    */
-  shm::EdgeWeight compute_partition(int seed, shm::BlockID k, shm::BlockID *partition);
+  shm::EdgeWeight compute_partition(shm::BlockID k, shm::BlockID *partition);
 
 private:
   int _num_threads;

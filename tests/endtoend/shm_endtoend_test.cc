@@ -30,7 +30,7 @@ TEST(ShmEndToEndTest, partitions_empty_unweighted_graph) {
     KaMinPar shm(4, create_default_context());
     shm.set_output_level(OutputLevel::QUIET);
     shm.copy_graph(0, xadj.data(), adjncy.data(), nullptr, nullptr);
-    EXPECT_EQ(shm.compute_partition(0, 16, partition.data()), 0);
+    EXPECT_EQ(shm.compute_partition(16, partition.data()), 0);
   }
 
   { // take ownership of graph
@@ -38,7 +38,7 @@ TEST(ShmEndToEndTest, partitions_empty_unweighted_graph) {
     KaMinPar shm(4, create_default_context());
     shm.set_output_level(OutputLevel::QUIET);
     shm.borrow_and_mutate_graph(0, xadj.data(), adjncy.data(), nullptr, nullptr);
-    EXPECT_EQ(shm.compute_partition(0, 16, partition.data()), 0);
+    EXPECT_EQ(shm.compute_partition(16, partition.data()), 0);
   }
 }
 
@@ -53,7 +53,7 @@ TEST(ShmEndToEndTest, partitions_empty_weighted_graph) {
     KaMinPar shm(4, create_default_context());
     shm.set_output_level(OutputLevel::QUIET);
     shm.copy_graph(0, xadj.data(), adjncy.data(), vwgt.data(), adjwgt.data());
-    EXPECT_EQ(shm.compute_partition(0, 16, partition.data()), 0);
+    EXPECT_EQ(shm.compute_partition(16, partition.data()), 0);
   }
 
   { // take ownership of graph
@@ -61,7 +61,7 @@ TEST(ShmEndToEndTest, partitions_empty_weighted_graph) {
     KaMinPar shm(4, create_default_context());
     shm.set_output_level(OutputLevel::QUIET);
     shm.borrow_and_mutate_graph(0, xadj.data(), adjncy.data(), vwgt.data(), adjwgt.data());
-    EXPECT_EQ(shm.compute_partition(0, 16, partition.data()), 0);
+    EXPECT_EQ(shm.compute_partition(16, partition.data()), 0);
   }
 }
 
@@ -73,10 +73,11 @@ TEST(ShmEndToEndTest, partitions_empty_graph_repeatedly_with_separate_partitione
     std::vector<EdgeWeight> adjwgt{};
     std::vector<BlockID> partition{};
 
+    KaMinPar::reseed(seed);
     KaMinPar shm(4, create_default_context());
     shm.set_output_level(OutputLevel::QUIET);
     shm.borrow_and_mutate_graph(0, xadj.data(), adjncy.data(), vwgt.data(), adjwgt.data());
-    EXPECT_EQ(shm.compute_partition(seed, 16, partition.data()), 0);
+    EXPECT_EQ(shm.compute_partition(16, partition.data()), 0);
   }
 }
 
@@ -91,8 +92,9 @@ TEST(ShmEndToEndTest, partitions_empty_graph_repeatedly_with_one_partitioner_ins
     std::vector<EdgeWeight> adjwgt{};
     std::vector<BlockID> partition{};
 
+    KaMinPar::reseed(seed);
     shm.borrow_and_mutate_graph(0, xadj.data(), adjncy.data(), vwgt.data(), adjwgt.data());
-    EXPECT_EQ(shm.compute_partition(seed, 16, partition.data()), 0);
+    EXPECT_EQ(shm.compute_partition(16, partition.data()), 0);
   }
 }
 
@@ -108,7 +110,8 @@ TEST(ShmEndToEndTest, partitions_empty_graph_repeatedly_after_borrow) {
   shm.set_output_level(OutputLevel::QUIET);
 
   for (const int seed : {0, 1, 2, 3, 4, 5, 6, 7, 8, 9}) {
-    EXPECT_EQ(shm.compute_partition(seed, 16, partition.data()), 0);
+    KaMinPar::reseed(seed);
+    EXPECT_EQ(shm.compute_partition(16, partition.data()), 0);
   }
 }
 
@@ -121,10 +124,11 @@ TEST(ShmEndToEndTest, partitions_unweighted_walshaw_data_graph) {
 
   { // Copy graph
     std::vector<BlockID> partition(n);
+    KaMinPar::reseed(0);
     KaMinPar shm(1, create_default_context()); // 1 thread: deterministic
     shm.set_output_level(OutputLevel::QUIET);
     shm.copy_graph(n, xadj.data(), adjncy.data(), nullptr, nullptr);
-    reported_cut = shm.compute_partition(0, 16, partition.data());
+    reported_cut = shm.compute_partition(16, partition.data());
 
     // Cut should be around 1200 -- 1300
     EXPECT_LE(reported_cut, 2000);
@@ -143,12 +147,13 @@ TEST(ShmEndToEndTest, partitions_unweighted_walshaw_data_graph) {
 
   { // Take graph
     std::vector<BlockID> partition(n);
+    KaMinPar::reseed(0);
     KaMinPar shm(1, create_default_context()); // 1 thread: deterministic
     shm.set_output_level(OutputLevel::QUIET);
     shm.borrow_and_mutate_graph(n, xadj.data(), adjncy.data(), nullptr, nullptr);
 
     // Cut should be the same as before
-    EXPECT_EQ(shm.compute_partition(0, 16, partition.data()), reported_cut);
+    EXPECT_EQ(shm.compute_partition(16, partition.data()), reported_cut);
   }
 }
 
@@ -158,19 +163,21 @@ TEST(ShmEndToEndTest, partitions_unweighted_walshaw_graph_multiple_times_with_sa
   const NodeID n = xadj.size() - 1;
 
   std::vector<BlockID> seed0_partition(n);
+  KaMinPar::reseed(0);
   KaMinPar shm(1, create_default_context()); // 1 thread: deterministic
   shm.set_output_level(OutputLevel::QUIET);
   shm.copy_graph(n, xadj.data(), adjncy.data(), nullptr, nullptr);
-  shm.compute_partition(0, 16, seed0_partition.data());
+  shm.compute_partition(16, seed0_partition.data());
   EdgeWeight expected_cut = 0;
 
   // Partition with the same seed multiple times: result should stay the same
   for (const int seed : {0, 0, 0}) {
     std::vector<BlockID> partition(n);
+    KaMinPar::reseed(seed);
     KaMinPar shm(1, create_default_context()); // 1 thread: deterministic
     shm.set_output_level(OutputLevel::QUIET);
     shm.copy_graph(n, xadj.data(), adjncy.data(), nullptr, nullptr);
-    shm.compute_partition(seed, 16, partition.data());
+    shm.compute_partition(16, partition.data());
     EXPECT_EQ(seed0_partition, partition);
   }
 }
@@ -181,19 +188,21 @@ TEST(ShmEndToEndTest, partitions_unweighted_walshaw_graph_multiple_times_with_di
   const NodeID n = xadj.size() - 1;
 
   std::vector<BlockID> seed0_partition(n);
+  KaMinPar::reseed(0);
   KaMinPar shm(1, create_default_context()); // 1 thread: deterministic
   shm.set_output_level(OutputLevel::QUIET);
   shm.copy_graph(n, xadj.data(), adjncy.data(), nullptr, nullptr);
-  shm.compute_partition(0, 16, seed0_partition.data());
+  shm.compute_partition(16, seed0_partition.data());
   EdgeWeight expected_cut = 0;
 
   // Partition with the different seeds: result should change
   for (const int seed : {1, 2, 3}) {
     std::vector<BlockID> partition(n);
+    KaMinPar::reseed(seed);
     KaMinPar shm(1, create_default_context()); // 1 thread: deterministic
     shm.set_output_level(OutputLevel::QUIET);
     shm.copy_graph(n, xadj.data(), adjncy.data(), nullptr, nullptr);
-    shm.compute_partition(seed, 16, partition.data());
+    shm.compute_partition(16, partition.data());
     EXPECT_NE(seed0_partition, partition);
   }
 }

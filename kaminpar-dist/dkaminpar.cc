@@ -143,6 +143,10 @@ dKaMinPar::dKaMinPar(MPI_Comm comm, const int num_threads, const Context ctx)
 
 dKaMinPar::~dKaMinPar() = default;
 
+void dKaMinPar::reseed(const int seed) {
+  Random::reseed(seed);
+}
+
 void dKaMinPar::set_output_level(const OutputLevel output_level) {
   _output_level = output_level;
 }
@@ -254,7 +258,7 @@ void dKaMinPar::import_graph(
   }
 }
 
-GlobalEdgeWeight dKaMinPar::compute_partition(const int seed, const BlockID k, BlockID *partition) {
+GlobalEdgeWeight dKaMinPar::compute_partition(const BlockID k, BlockID *partition) {
   DistributedGraph &graph = *_graph_ptr;
 
   const PEID size = mpi::get_comm_size(_comm);
@@ -274,8 +278,7 @@ GlobalEdgeWeight dKaMinPar::compute_partition(const int seed, const BlockID k, B
   _ctx.partition.k = k;
   _ctx.partition.graph = std::make_unique<GraphContext>(graph, _ctx.partition);
 
-  // Initialize PRNG and console output
-  Random::seed(seed);
+  // Initialize console output
   Logger::set_quiet_mode(_output_level == OutputLevel::QUIET);
   if (_output_level >= OutputLevel::APPLICATION) {
     print_input_summary(_ctx, graph, _output_level == OutputLevel::EXPERIMENT, root);

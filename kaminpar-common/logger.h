@@ -8,6 +8,7 @@
 #pragma once
 
 #include <algorithm>
+#include <atomic>
 #include <cerrno>
 #include <cmath>
 #include <csignal>
@@ -256,7 +257,7 @@ public:
   static bool is_quiet();
 
 private:
-  static bool _quiet;
+  static std::atomic<std::uint8_t> _quiet;
 
   static tbb::spin_mutex &flush_mutex();
 

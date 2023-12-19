@@ -25,7 +25,8 @@ public:
   Random();
 
   static Random &instance();
-  static void seed(int seed);
+  static void set_seed(int seed);
+  static void reseed(int seed);
   static int get_seed();
 
   Random(const Random &) = delete;
