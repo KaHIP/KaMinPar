@@ -49,19 +49,19 @@ template <typename Vector> struct alignas(64) AlignedVec {
     return vec[pos];
   }
 
-  auto begin() noexcept {
+  decltype(auto) begin() noexcept {
     return vec.begin();
   }
 
-  auto begin() const noexcept {
+  decltype(auto) begin() const noexcept {
     return vec.begin();
   }
 
-  auto end() noexcept {
+  decltype(auto) end() noexcept {
     return vec.end();
   }
 
-  auto end() const noexcept {
+  decltype(auto) end() const noexcept {
     return vec.end();
   }
 

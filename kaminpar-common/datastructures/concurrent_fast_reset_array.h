@@ -63,6 +63,15 @@ public:
   }
 
   /*!
+   * Resized the array.
+   *
+   * @param capacity The new capacity of the map, i.e. the amount of values to possibly save.
+   */
+  void resize(const size_type capacity) {
+    _data.resize(capacity);
+  }
+
+  /*!
    * Iterates over all thread-local vector of used entries and clears them afterwards.
    *
    * @param l The function object that is invoked with a thread-local vector of used entries before

@@ -1000,14 +1000,12 @@ protected:
 
       auto &num_moved_nodes = num_moved_nodes_ets.local();
       auto &rand = Random::instance();
-      RECORD("concurrent_rating_map")
-      ConcurrentFastResetArray<EdgeWeight, ClusterID> concurrent_rating_map(
-          Base::_initial_num_clusters
-      );
+
+      _concurrent_rating_map.resize(Base::_initial_num_clusters);
 
       for (const NodeID u : high_degree_nodes) {
         const auto [moved_node, emptied_cluster] =
-            Base::template handle_node<true>(u, rand, concurrent_rating_map);
+            Base::template handle_node<true>(u, rand, _concurrent_rating_map);
 
         if (moved_node) {
           ++num_moved_nodes;
@@ -1017,6 +1015,16 @@ protected:
           --_current_num_clusters;
         }
       }
+    }
+
+    if constexpr (kDebug) {
+      const NodeID node_count = std::min(to, _graph->n()) - from;
+
+      LOG << "Label Propagation";
+      LOG << " Initial clusters: " << Base::_initial_num_clusters;
+      LOG << " First Phase: " << (node_count - high_degree_nodes.size()) << " nodes";
+      LOG << " Second Phase: " << high_degree_nodes.size() << " nodes";
+      LOG;
     }
 
     return num_moved_nodes_ets.combine(std::plus{});
@@ -1170,6 +1178,7 @@ protected:
   using Base::_rating_map_ets;
   using Base::_use_two_phases;
 
+  ConcurrentFastResetArray<EdgeWeight, ClusterID> _concurrent_rating_map{};
   RandomPermutations<NodeID, Config::kPermutationSize, Config::kNumberOfNodePermutations>
       _random_permutations{};
   std::vector<Chunk> _chunks;
