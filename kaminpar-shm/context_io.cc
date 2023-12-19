@@ -242,6 +242,7 @@ void print(const GraphCompressionContext &c_ctx, std::ostream &out) {
         << "Variable Length Encoding + Gap Encoding"
         << "\n";
     out << "  High Degree Threshold:      " << c_ctx.high_degree_threshold << "\n";
+    out << "  Run-Length Encoding:        " << (c_ctx.run_length_encoding ? "yes" : "no") << "\n";
     out << "  Interval Encoding:          " << (c_ctx.interval_encoding ? "yes" : "no") << "\n";
     out << "  Interval Length Threshold:  " << c_ctx.interval_length_treshold << "\n";
 

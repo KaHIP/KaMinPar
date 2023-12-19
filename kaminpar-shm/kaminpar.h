@@ -61,6 +61,7 @@ struct GraphCompressionContext {
   bool enabled;
 
   NodeID high_degree_threshold;
+  bool run_length_encoding;
   bool interval_encoding;
   NodeID interval_length_treshold;
 

@@ -169,6 +169,7 @@ EdgeWeight KaMinPar::compute_partition(const int seed, const BlockID k, BlockID 
 
   if (_ctx.compression.enabled) {
     _ctx.compression.high_degree_threshold = CompressedGraph::kHighDegreeThreshold;
+    _ctx.compression.run_length_encoding = CompressedGraph::kRunLengthEncoding;
     _ctx.compression.interval_encoding = CompressedGraph::kIntervalEncoding;
     _ctx.compression.interval_length_treshold = CompressedGraph::kIntervalLengthTreshold;
 

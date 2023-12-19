@@ -39,15 +39,29 @@ public:
    */
   static constexpr NodeID kHighDegreeThreshold = 10000;
 
+#ifdef KAMINPAR_COMPRESSION_RUN_LENGTH_ENCODING
   /*!
    * Whether run length encoding is used.
    */
   static constexpr bool kRunLengthEncoding = true;
+#else
+  /*!
+   * Whether run length encoding is used.
+   */
+  static constexpr bool kRunLengthEncoding = false;
+#endif
 
+#ifdef KAMINPAR_COMPRESSION_INTERVAL_ENCODING
   /*!
    * Whether interval encoding is used.
    */
   static constexpr bool kIntervalEncoding = true;
+#else
+  /*!
+   * Whether interval encoding is used.
+   */
+  static constexpr bool kIntervalEncoding = false;
+#endif
 
   /*!
    * The minimum length of an interval to encode if interval encoding is used.

@@ -38,6 +38,11 @@ option(KAMINPAR_BUILD_WITH_DEBUG_SYMBOLS "Always build with debug symbols, even 
 option(KAMINPAR_BUILD_WITH_MTKAHYPAR "If Mt-KaHyPar can be found, build the Mt-KaHyPar initial partitioner." OFF)
 option(KAMINPAR_BUILD_WITH_PG "Build with the -pg option for profiling." OFF)
 
+# Control graph compression options
+###################################
+option(KAMINPAR_COMPRESSION_RUN_LENGTH_ENCODING "Use run-length encoding for the compressed graph." OFF)
+option(KAMINPAR_COMPRESSION_INTERVAL_ENCODING "Use interval encoding for the compressed graph." ON)
+
 # Control data type sizes
 #########################
 
@@ -147,6 +152,20 @@ if (KAMINPAR_ENABLE_TIMER_BARRIERS)
     message(STATUS "Timer barriers: enabled")
 else ()
     message(STATUS "Timer barriers: disabled")
+endif ()
+
+if (KAMINPAR_COMPRESSION_RUN_LENGTH_ENCODING)
+    list(APPEND KAMINPAR_DEFINITIONS "-DKAMINPAR_COMPRESSION_RUN_LENGTH_ENCODING")
+    message(STATUS "Run-length encoding: enabled")
+else ()
+    message(STATUS "Run-length encoding: disabled")
+endif ()
+
+if (KAMINPAR_COMPRESSION_INTERVAL_ENCODING)
+    list(APPEND KAMINPAR_DEFINITIONS "-DKAMINPAR_COMPRESSION_INTERVAL_ENCODING")
+    message(STATUS "Interval encoding: enabled")
+else ()
+    message(STATUS "Interval encoding: disabled")
 endif ()
 
 if (KAMINPAR_64BIT_NODE_IDS OR KAMINPAR_64BIT_IDS)

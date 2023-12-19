@@ -28,7 +28,6 @@ int main(int argc, char *argv[]) {
 
   // Parse CLI arguments
   std::string graph_filename;
-  std::string partition_filename;
   int num_threads = 1;
 
   CLI::App app("Shared-memory LP benchmark");
