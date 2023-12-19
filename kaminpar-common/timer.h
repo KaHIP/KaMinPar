@@ -19,8 +19,6 @@
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/task_arena.h>
 
-#define KAMINPAR_ENABLE_TIMERS
-
 #define GLOBAL_TIMER (kaminpar::Timer::global())
 #define GLOBAL_TIMER_PTR &(GLOBAL_TIMER)
 
@@ -51,8 +49,13 @@
 //
 // Public macro interface
 //
+#ifdef KAMINPAR_ENABLE_TIMERS
 #define ENABLE_TIMERS() (GLOBAL_TIMER.enable())
 #define DISABLE_TIMERS() (GLOBAL_TIMER.disable())
+#else // KAMINPAR_ENABLE_TIMERS
+#define ENABLE_TIMERS()
+#define DISABLE_TIMERS()
+#endif // KAMINPAR_ENABLE_TIMERS
 
 #define SCOPED_TIMER(...)                                                                          \
   VARARG_SELECT_HELPER2(                                                                           \
@@ -62,7 +65,11 @@
   VARARG_SELECT_HELPER2(                                                                           \
       , ##__VA_ARGS__, START_TIMER_2(__VA_ARGS__), START_TIMER_1(__VA_ARGS__), ignore              \
   )
+#ifdef KAMINPAR_ENABLE_TIMERS
 #define STOP_TIMER() (GLOBAL_TIMER.stop_timer())
+#else // KAMINPAR_ENABLE_TIMERS
+#define STOP_TIMER()
+#endif // KAMINPAR_ENABLE_TIMERS
 
 // must be followed by a lambda body that may or may not return some value
 #define TIMED_SCOPE(...)                                                                           \
@@ -309,7 +316,9 @@ public:
   explicit TimedScope(Timer *timer, std::string_view name) : TimedScope(timer, name, "") {}
 
   template <typename F> decltype(auto) operator+(F &&f) {
+#ifdef KAMINPAR_ENABLE_TIMERS
     const auto scope = _timer->start_scoped_timer<String>(_name, _description);
+#endif // KAMINPAR_ENABLE_TIMERS
     return f();
   }
 

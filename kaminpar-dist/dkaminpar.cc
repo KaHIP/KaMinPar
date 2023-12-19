@@ -45,7 +45,9 @@ void print_partition_summary(
   const auto feasible =
       metrics::is_feasible(p_graph, ctx.partition) && p_graph.k() == ctx.partition.k;
 
+#ifdef KAMINPAR_ENABLE_TIMERS
   finalize_distributed_timer(Timer::global(), p_graph.communicator());
+#endif // KAMINPAR_ENABLE_TIMERS
 
   if (!root) {
     // Non-root PEs are only needed to compute the partition metrics
@@ -57,11 +59,19 @@ void print_partition_summary(
   if (parseable) {
     LOG << "RESULT cut=" << edge_cut << " imbalance=" << imbalance << " feasible=" << feasible
         << " k=" << p_graph.k();
+#ifdef KAMINPAR_ENABLE_TIMERS
     std::cout << "TIME ";
     Timer::global().print_machine_readable(std::cout);
+#else  // KAMINPAR_ENABLE_TIMERS
+    LOG << "TIME disabled";
+#endif // KAMINPAR_ENABLE_TIMERS
   }
 
+#ifdef KAMINPAR_ENABLE_TIMERS
   Timer::global().print_human_readable(std::cout, max_timer_depth);
+#else  // KAMINPAR_ENABLE_TIMERS
+  LOG << "Global Timers: disabled";
+#endif // KAMINPAR_ENABLE_TIMERS
   LOG;
   LOG << "Partition summary:";
   if (p_graph.k() != ctx.partition.k) {
@@ -126,7 +136,9 @@ dKaMinPar::dKaMinPar(MPI_Comm comm, const int num_threads, const Context ctx)
       _ctx(ctx),
       _gc(tbb::global_control::max_allowed_parallelism, num_threads) {
   omp_set_num_threads(num_threads);
+#ifdef KAMINPAR_ENABLE_TIMERS
   GLOBAL_TIMER.reset();
+#endif // KAMINPAR_ENABLE_TIMERS
 }
 
 dKaMinPar::~dKaMinPar() = default;
@@ -307,7 +319,9 @@ GlobalEdgeWeight dKaMinPar::compute_partition(const int seed, const BlockID k, B
 
   const EdgeWeight final_cut = metrics::edge_cut(p_graph);
 
+#ifdef KAMINPAR_ENABLE_TIMERS
   GLOBAL_TIMER.reset();
+#endif // KAMINPAR_ENABLE_TIMERS
 
   return final_cut;
 }
