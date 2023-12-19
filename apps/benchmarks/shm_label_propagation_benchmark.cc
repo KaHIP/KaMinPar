@@ -15,6 +15,7 @@
 #include "kaminpar-shm/partition_utils.h"
 
 #include "kaminpar-common/logger.h"
+#include "kaminpar-common/random.h"
 #include "kaminpar-common/timer.h"
 
 #include "apps/io/shm_io.h"
@@ -29,15 +30,27 @@ int main(int argc, char *argv[]) {
   // Parse CLI arguments
   std::string graph_filename;
   int num_threads = 1;
+  int seed = 0;
 
   CLI::App app("Shared-memory LP benchmark");
   app.add_option("-G,--graph", graph_filename, "Graph file")->required();
   app.add_option("-t,--threads", num_threads, "Number of threads");
+  app.add_option("-s,--seed", seed, "Seed for random number generation.")->default_val(seed);
+  app.add_option("-k,--k", ctx.partition.k, "Number of blocks in the partition.")->required();
+  app.add_option(
+         "-e,--epsilon",
+         ctx.partition.epsilon,
+         "Maximum allowed imbalance, e.g. 0.03 for 3%. Must be strictly positive."
+  )
+      ->check(CLI::NonNegativeNumber)
+      ->capture_default_str();
   create_lp_coarsening_options(&app, ctx);
   create_graph_compression_options(&app, ctx);
   CLI11_PARSE(app, argc, argv);
 
   tbb::global_control gc(tbb::global_control::max_allowed_parallelism, num_threads);
+  ctx.parallel.num_threads = num_threads;
+  Random::seed(seed);
 
   Graph graph = io::read(graph_filename, ctx.compression.enabled, false);
   LPClustering lp_clustering(graph.n(), ctx.coarsening);
