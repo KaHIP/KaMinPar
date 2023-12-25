@@ -9,6 +9,8 @@
 
 #include <kassert/kassert.hpp>
 
+#include "kaminpar-common/heap_profiler.h"
+
 namespace kaminpar::shm {
 
 CompressedGraph::CompressedGraph(
@@ -32,6 +34,8 @@ CompressedGraph::CompressedGraph(
       _high_degree_count(high_degree_count),
       _part_count(part_count),
       _interval_count(interval_count) {
+  KASSERT(kHighDegreeEncoding || _high_degree_count == 0);
+  KASSERT(kHighDegreeEncoding || _part_count == 0);
   KASSERT(kIntervalEncoding || interval_count == 0);
 
   if (_node_weights.empty()) {
