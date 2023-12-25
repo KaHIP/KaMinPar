@@ -167,21 +167,6 @@ EdgeWeight KaMinPar::compute_partition(const int seed, const BlockID k, BlockID 
   _ctx.parallel.num_threads = _num_threads;
   _ctx.partition.k = k;
 
-  if (_ctx.compression.enabled) {
-    _ctx.compression.high_degree_threshold = CompressedGraph::kHighDegreeThreshold;
-    _ctx.compression.run_length_encoding = CompressedGraph::kRunLengthEncoding;
-    _ctx.compression.interval_encoding = CompressedGraph::kIntervalEncoding;
-    _ctx.compression.interval_length_treshold = CompressedGraph::kIntervalLengthTreshold;
-
-    const CompressedGraph *graph =
-        dynamic_cast<const CompressedGraph *>(_graph_ptr->underlying_graph());
-    _ctx.compression.compression_ratio = graph->compression_ratio();
-    _ctx.compression.size_reduction = graph->size_reduction();
-    _ctx.compression.high_degree_count = graph->high_degree_count();
-    _ctx.compression.part_count = graph->part_count();
-    _ctx.compression.interval_count = graph->interval_count();
-  }
-
   // Setup graph dependent context parameters
   _ctx.setup(*_graph_ptr);
 

@@ -40,6 +40,7 @@ option(KAMINPAR_BUILD_WITH_PG "Build with the -pg option for profiling." OFF)
 
 # Control graph compression options
 ###################################
+option(KAMINPAR_COMPRESSION_HIGH_DEGREE_ENCODING "Use high-degree encoding for the compressed graph." ON)
 option(KAMINPAR_COMPRESSION_RUN_LENGTH_ENCODING "Use run-length encoding for the compressed graph." OFF)
 option(KAMINPAR_COMPRESSION_INTERVAL_ENCODING "Use interval encoding for the compressed graph." ON)
 
@@ -152,6 +153,13 @@ if (KAMINPAR_ENABLE_TIMER_BARRIERS)
     message(STATUS "Timer barriers: enabled")
 else ()
     message(STATUS "Timer barriers: disabled")
+endif ()
+
+if (KAMINPAR_COMPRESSION_HIGH_DEGREE_ENCODING)
+    list(APPEND KAMINPAR_DEFINITIONS "-DKAMINPAR_COMPRESSION_HIGH_DEGREE_ENCODING")
+    message(STATUS "High-degree encoding: enabled")
+else ()
+    message(STATUS "High-degree encoding: disabled")
 endif ()
 
 if (KAMINPAR_COMPRESSION_RUN_LENGTH_ENCODING)

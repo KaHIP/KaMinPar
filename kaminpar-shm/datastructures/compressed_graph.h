@@ -34,6 +34,18 @@ public:
   using AbstractGraph::NodeID;
   using AbstractGraph::NodeWeight;
 
+#ifdef KAMINPAR_COMPRESSION_HIGH_DEGREE_ENCODING
+  /*!
+   * Whether high degree encoding is used.
+   */
+  static constexpr bool kHighDegreeEncoding = true;
+#else
+  /*!
+   * Whether high degree encoding is used.
+   */
+  static constexpr bool kHighDegreeEncoding = false;
+#endif
+
   /*!
    * The minimum degree of a node to be considered high degree.
    */
@@ -429,69 +441,81 @@ private:
       max_neighbor_count = std::min(degree, max_neighbor_count);
     }
 
-    const bool split_neighbourhood = degree > kHighDegreeThreshold;
-    if (split_neighbourhood) {
-      const auto [first_edge, first_edge_len] = varint_decode<EdgeID>(data);
-      data += first_edge_len;
+    if constexpr (kHighDegreeEncoding) {
+      const bool split_neighbourhood = degree > kHighDegreeThreshold;
 
-      const NodeID part_count = ((degree % kHighDegreeThreshold) == 0)
-                                    ? (degree / kHighDegreeThreshold)
-                                    : ((degree / kHighDegreeThreshold) + 1);
+      if (split_neighbourhood) {
+        const auto [first_edge, first_edge_len] = varint_decode<EdgeID>(data);
+        data += first_edge_len;
 
-      const NodeID max_part_count = std::min(
-          part_count,
-          ((max_neighbor_count % kHighDegreeThreshold) == 0)
-              ? (max_neighbor_count / kHighDegreeThreshold)
-              : ((max_neighbor_count / kHighDegreeThreshold) + 1)
-      );
+        const NodeID part_count = ((degree % kHighDegreeThreshold) == 0)
+                                      ? (degree / kHighDegreeThreshold)
+                                      : ((degree / kHighDegreeThreshold) + 1);
 
-      const NodeID max_neighbor_rem = ((max_neighbor_count % kHighDegreeThreshold) == 0)
-                                          ? kHighDegreeThreshold
-                                          : (max_neighbor_count % kHighDegreeThreshold);
-
-      const auto iterate_part = [&](const NodeID part) {
-        const std::uint8_t *part_data = data + *((NodeID *)(data + sizeof(NodeID) * part));
-        const EdgeID part_first_edge = first_edge + kHighDegreeThreshold * part;
-
-        const bool last_part = part + 1 == max_part_count;
-        if (last_part) {
-          iterate_edges<max_edges>(
-              part_data, end, node, max_neighbor_rem, part_first_edge, true, std::forward<Lambda>(l)
-          );
-        } else {
-          const std::uint8_t *part_end = (data + *((NodeID *)(data + sizeof(NodeID) * (part + 1))));
-          iterate_edges<false>(
-              part_data, part_end, node, 0, part_first_edge, true, std::forward<Lambda>(l)
-          );
-        }
-      };
-
-      if constexpr (parallel) {
-        tbb::parallel_for<NodeID>(
-            0, max_part_count, std::forward<decltype(iterate_part)>(iterate_part)
+        const NodeID max_part_count = std::min(
+            part_count,
+            ((max_neighbor_count % kHighDegreeThreshold) == 0)
+                ? (max_neighbor_count / kHighDegreeThreshold)
+                : ((max_neighbor_count / kHighDegreeThreshold) + 1)
         );
-      } else {
-        for (NodeID part = 0; part < max_part_count; ++part) {
-          iterate_part(part);
-        }
-      }
-    } else {
-      const auto [first_edge, uses_intervals] = [&] {
-        if constexpr (kIntervalEncoding) {
-          auto [first_edge, marker_set, first_edge_len] = marked_varint_decode<EdgeID>(data);
-          data += first_edge_len;
-          return std::make_pair(first_edge, marker_set);
-        } else {
-          auto [first_edge, first_edge_len] = varint_decode<EdgeID>(data);
-          data += first_edge_len;
-          return std::make_pair(first_edge, false);
-        }
-      }();
 
-      iterate_edges<max_edges>(
-          data, end, node, max_neighbor_count, first_edge, uses_intervals, std::forward<Lambda>(l)
-      );
+        const NodeID max_neighbor_rem = ((max_neighbor_count % kHighDegreeThreshold) == 0)
+                                            ? kHighDegreeThreshold
+                                            : (max_neighbor_count % kHighDegreeThreshold);
+
+        const auto iterate_part = [&](const NodeID part) {
+          const std::uint8_t *part_data = data + *((NodeID *)(data + sizeof(NodeID) * part));
+          const EdgeID part_first_edge = first_edge + kHighDegreeThreshold * part;
+
+          const bool last_part = part + 1 == max_part_count;
+          if (last_part) {
+            iterate_edges<max_edges>(
+                part_data,
+                end,
+                node,
+                max_neighbor_rem,
+                part_first_edge,
+                true,
+                std::forward<Lambda>(l)
+            );
+          } else {
+            const std::uint8_t *part_end =
+                (data + *((NodeID *)(data + sizeof(NodeID) * (part + 1))));
+            iterate_edges<false>(
+                part_data, part_end, node, 0, part_first_edge, true, std::forward<Lambda>(l)
+            );
+          }
+        };
+
+        if constexpr (parallel) {
+          tbb::parallel_for<NodeID>(
+              0, max_part_count, std::forward<decltype(iterate_part)>(iterate_part)
+          );
+        } else {
+          for (NodeID part = 0; part < max_part_count; ++part) {
+            iterate_part(part);
+          }
+        }
+
+        return;
+      }
     }
+
+    const auto [first_edge, uses_intervals] = [&] {
+      if constexpr (kIntervalEncoding) {
+        auto [first_edge, marker_set, first_edge_len] = marked_varint_decode<EdgeID>(data);
+        data += first_edge_len;
+        return std::make_pair(first_edge, marker_set);
+      } else {
+        auto [first_edge, first_edge_len] = varint_decode<EdgeID>(data);
+        data += first_edge_len;
+        return std::make_pair(first_edge, false);
+      }
+    }();
+
+    iterate_edges<max_edges>(
+        data, end, node, max_neighbor_count, first_edge, uses_intervals, std::forward<Lambda>(l)
+    );
   }
 
   template <bool max_edges = false, typename Lambda>

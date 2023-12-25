@@ -57,21 +57,6 @@ constexpr NodeWeight kInvalidNodeWeight = std::numeric_limits<NodeWeight>::max()
 constexpr EdgeWeight kInvalidEdgeWeight = std::numeric_limits<EdgeWeight>::max();
 constexpr BlockWeight kInvalidBlockWeight = std::numeric_limits<BlockWeight>::max();
 
-struct GraphCompressionContext {
-  bool enabled;
-
-  NodeID high_degree_threshold;
-  bool run_length_encoding;
-  bool interval_encoding;
-  NodeID interval_length_treshold;
-
-  double compression_ratio;
-  std::size_t size_reduction;
-  std::size_t high_degree_count;
-  std::size_t part_count;
-  std::size_t interval_count;
-};
-
 enum class NodeOrdering {
   NATURAL,
   DEGREE_BUCKETS
@@ -318,6 +303,24 @@ struct PartitioningContext {
 
   InitialPartitioningMode deep_initial_partitioning_mode;
   double deep_initial_partitioning_load;
+};
+
+struct GraphCompressionContext {
+  bool enabled;
+
+  bool high_degree_encoding;
+  NodeID high_degree_threshold;
+  bool run_length_encoding;
+  bool interval_encoding;
+  NodeID interval_length_treshold;
+
+  double compression_ratio;
+  std::size_t size_reduction;
+  std::size_t high_degree_count;
+  std::size_t part_count;
+  std::size_t interval_count;
+
+  void setup(const Graph &graph);
 };
 
 struct Context {

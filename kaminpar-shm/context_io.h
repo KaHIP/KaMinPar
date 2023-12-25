@@ -51,9 +51,11 @@ std::unordered_map<std::string, GainCacheStrategy> get_gain_cache_strategies();
 
 std::ostream &operator<<(std::ostream &out, IsolatedNodesClusteringStrategy strategy);
 
-std::unordered_map<std::string, IsolatedNodesClusteringStrategy> get_isolated_nodes_clustering_strategies();
+std::unordered_map<std::string, IsolatedNodesClusteringStrategy>
+get_isolated_nodes_clustering_strategies();
 
 void print(const Context &ctx, std::ostream &out);
+void print(const GraphCompressionContext &c_ctx, std::ostream &out);
 void print(const PartitioningContext &p_ctx, std::ostream &out);
 void print(const PartitionContext &p_ctx, std::ostream &out);
 void print(const RefinementContext &r_ctx, std::ostream &out);
