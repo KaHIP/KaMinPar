@@ -593,7 +593,7 @@ private:
 
     if constexpr (kRunLengthEncoding) {
       RLDecoder<NodeID> rl_decoder(data);
-      rl_decoder.decode(max_edge - first_edge, [&](const NodeID gap) {
+      rl_decoder.decode(max_edge - edge, [&](const NodeID gap) {
         const NodeID adjacent_node = gap + prev_adjacent_node;
         prev_adjacent_node = adjacent_node;
 
