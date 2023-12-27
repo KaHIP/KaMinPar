@@ -315,7 +315,7 @@ struct GraphCompressionContext {
   NodeID interval_length_treshold;
 
   double compression_ratio;
-  std::size_t size_reduction;
+  std::int64_t size_reduction;
   std::size_t high_degree_count;
   std::size_t part_count;
   std::size_t interval_count;

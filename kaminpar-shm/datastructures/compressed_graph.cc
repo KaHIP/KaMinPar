@@ -163,17 +163,12 @@ void CompressedGraphBuilder::add_node(
   const bool split_neighbourhood =
       CompressedGraph::kHighDegreeThreshold && degree > CompressedGraph::kHighDegreeThreshold;
 
-  _cur_compressed_edges += varint_encode(degree, _cur_compressed_edges);
-
   std::uint8_t *marked_byte = _cur_compressed_edges;
+  const EdgeID first_edge_id_gap = first_edge_id - node;
   if constexpr (CompressedGraph::kIntervalEncoding) {
-    if (!split_neighbourhood) {
-      _cur_compressed_edges += marked_varint_encode(first_edge_id, false, _cur_compressed_edges);
-    } else {
-      _cur_compressed_edges += varint_encode(first_edge_id, _cur_compressed_edges);
-    }
+    _cur_compressed_edges += marked_varint_encode(first_edge_id_gap, false, _cur_compressed_edges);
   } else {
-    _cur_compressed_edges += varint_encode(first_edge_id, _cur_compressed_edges);
+    _cur_compressed_edges += varint_encode(first_edge_id_gap, _cur_compressed_edges);
   }
 
   if (degree == 0) {
@@ -186,7 +181,9 @@ void CompressedGraphBuilder::add_node(
   }
 
   // Sort the adjacent nodes in ascending order.
-  std::sort(neighbourhood.begin(), neighbourhood.end());
+  std::sort(neighbourhood.begin(), neighbourhood.end(), [](const auto &a, const auto &b) {
+    return a.first < b.first;
+  });
 
   if constexpr (CompressedGraph::kHighDegreeEncoding) {
     if (split_neighbourhood) {
@@ -231,6 +228,15 @@ void CompressedGraphBuilder::set_node_weight(const NodeID node, const NodeWeight
 }
 
 CompressedGraph CompressedGraphBuilder::build() {
+  _nodes[_nodes.size() - 1] = static_cast<std::size_t>(_cur_compressed_edges - _compressed_edges);
+
+  const EdgeID first_edge_id_gap = _edge_count - (_nodes.size() - 1);
+  if constexpr (CompressedGraph::kIntervalEncoding) {
+    _cur_compressed_edges += marked_varint_encode(first_edge_id_gap, false, _cur_compressed_edges);
+  } else {
+    _cur_compressed_edges += varint_encode(first_edge_id_gap, _cur_compressed_edges);
+  }
+
   std::size_t stored_bytes = static_cast<std::size_t>(_cur_compressed_edges - _compressed_edges);
   RECORD("compressed_edges")
   StaticArray<std::uint8_t> compressed_edges(_compressed_edges, stored_bytes);
@@ -238,8 +244,6 @@ CompressedGraph CompressedGraphBuilder::build() {
   if constexpr (kHeapProfiling) {
     heap_profiler::HeapProfiler::global().record_alloc(_compressed_edges, stored_bytes);
   }
-
-  _nodes[_nodes.size() - 1] = stored_bytes;
 
   const bool unit_node_weights = static_cast<NodeID>(_total_node_weight + 1) == _nodes.size();
   if (unit_node_weights) {
