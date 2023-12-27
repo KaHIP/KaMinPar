@@ -448,7 +448,7 @@ private:
 
       if (split_neighbourhood) {
         iterate_high_degree_neighborhood<max_edges, parallel>(
-            data, node, degree, max_neighbor_count, std::forward<Lambda>(l)
+            data, node, first_edge, degree, max_neighbor_count, std::forward<Lambda>(l)
         );
         return;
       }
