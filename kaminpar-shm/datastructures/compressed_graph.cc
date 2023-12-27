@@ -113,6 +113,8 @@ CompressedGraph CompressedGraphBuilder::compress(const CSRGraph &graph) {
 void CompressedGraphBuilder::init(
     std::size_t node_count, std::size_t edge_count, bool store_node_weights, bool store_edge_weights
 ) {
+  KASSERT(node_count != std::numeric_limits<NodeID>::max() - 1);
+
   _nodes.resize(node_count + 1);
 
   if (store_node_weights) {
@@ -302,7 +304,7 @@ void CompressedGraphBuilder::add_edges(
     std::uint8_t *interval_count_ptr = _cur_compressed_edges;
     _cur_compressed_edges += sizeof(NodeID);
 
-    if (neighbourhood.size() > 1) {
+    if (neighbourhood.size() >= CompressedGraph::kIntervalLengthTreshold) {
       NodeID previous_right_extreme = 2;
       NodeID interval_len = 1;
       NodeID prev_adjacent_node = (*neighbourhood.begin()).first;
@@ -326,18 +328,16 @@ void CompressedGraphBuilder::add_edges(
               _cur_compressed_edges += varint_encode(left_extreme_gap, _cur_compressed_edges);
               _cur_compressed_edges += varint_encode(interval_length_gap, _cur_compressed_edges);
 
-              if (_store_edge_weights) {
-                for (NodeID i = 0; i < interval_len; ++i) {
-                  const EdgeWeight edge_weight = (*(iter + 1 + i - interval_len)).second;
-                  store_edge_weight(edge_weight);
+              for (NodeID i = 0; i < interval_len; ++i) {
+                std::pair<NodeID, EdgeWeight> &incident_edge = *(iter + 1 + i - interval_len);
+
+                incident_edge.first = std::numeric_limits<NodeID>::max();
+                if (_store_edge_weights) {
+                  store_edge_weight(incident_edge.second);
                 }
               }
 
               previous_right_extreme = adjacent_node;
-              iter = neighbourhood.erase(iter - interval_len + 1, iter + 1) - 1;
-              if (iter == neighbourhood.end()) {
-                break;
-              }
             }
 
             interval_len = 1;
@@ -377,26 +377,30 @@ void CompressedGraphBuilder::add_edges(
   // 1} between the nodes, where u is the source node. Note that all gaps except the first one
   // have to be positive as we sorted the nodes in ascending order. Thus, only for the first gap
   // the sign is additionally stored.
-  const auto [first_adjacent_node, first_edge_weight] = *neighbourhood.begin();
-  // TODO: Does the value range cover everything s.t. a underflow cannot happen?
-  const std::make_signed_t<NodeID> first_gap = first_adjacent_node - node;
-  _cur_compressed_edges += signed_varint_encode(first_gap, _cur_compressed_edges);
-  if (_store_edge_weights) {
-    store_edge_weight(first_edge_weight);
-  }
 
   RLEncoder<NodeID> rl_encoder(_cur_compressed_edges);
 
-  NodeID prev_adjacent_node = first_adjacent_node;
-  const auto iter_end = neighbourhood.end();
-  for (auto iter = neighbourhood.begin() + 1; iter != iter_end; ++iter) {
-    const auto [adjacent_node, edge_weight] = *iter;
-    const NodeID gap = adjacent_node - prev_adjacent_node;
+  bool first = true;
+  NodeID prev_adjacent_node;
+  for (const auto [adjacent_node, edge_weight] : neighbourhood) {
+    if (adjacent_node == std::numeric_limits<NodeID>::max()) {
+      continue;
+    }
 
-    if constexpr (CompressedGraph::kRunLengthEncoding) {
-      _cur_compressed_edges += rl_encoder.add(gap);
+    if (first) {
+      first = false;
+
+      // TODO: Does the value range cover everything s.t. a underflow cannot happen?
+      const std::make_signed_t<NodeID> first_gap = adjacent_node - node;
+      _cur_compressed_edges += signed_varint_encode(first_gap, _cur_compressed_edges);
     } else {
-      _cur_compressed_edges += varint_encode(gap, _cur_compressed_edges);
+      const NodeID gap = adjacent_node - prev_adjacent_node;
+
+      if constexpr (CompressedGraph::kRunLengthEncoding) {
+        _cur_compressed_edges += rl_encoder.add(gap);
+      } else {
+        _cur_compressed_edges += varint_encode(gap, _cur_compressed_edges);
+      }
     }
 
     if (_store_edge_weights) {
