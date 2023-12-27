@@ -156,14 +156,14 @@ void CompressedGraphBuilder::init(
 void CompressedGraphBuilder::add_node(
     const NodeID node, std::vector<std::pair<NodeID, EdgeWeight>> &neighbourhood
 ) {
+  KASSERT(neighbourhood.size() > 0);
+
   // Store the index into the compressed edge array of the start of the neighbourhood of the node
   // in its entry in the node array.
   _nodes[node] = static_cast<EdgeID>(_cur_compressed_edges - _compressed_edges);
 
   const NodeID degree = neighbourhood.size();
   const EdgeID first_edge_id = _edge_count;
-  const bool split_neighbourhood =
-      CompressedGraph::kHighDegreeThreshold && degree > CompressedGraph::kHighDegreeThreshold;
 
   std::uint8_t *marked_byte = _cur_compressed_edges;
   const EdgeID first_edge_id_gap = first_edge_id - node;
@@ -188,6 +188,8 @@ void CompressedGraphBuilder::add_node(
   });
 
   if constexpr (CompressedGraph::kHighDegreeEncoding) {
+    const bool split_neighbourhood = degree > CompressedGraph::kHighDegreeThreshold;
+
     if (split_neighbourhood) {
       const NodeID part_count = ((degree % CompressedGraph::kHighDegreeThreshold) == 0)
                                     ? (degree / CompressedGraph::kHighDegreeThreshold)
@@ -230,7 +232,7 @@ void CompressedGraphBuilder::set_node_weight(const NodeID node, const NodeWeight
 }
 
 CompressedGraph CompressedGraphBuilder::build() {
-  _nodes[_nodes.size() - 1] = static_cast<std::size_t>(_cur_compressed_edges - _compressed_edges);
+  _nodes[_nodes.size() - 1] = static_cast<EdgeID>(_cur_compressed_edges - _compressed_edges);
 
   const EdgeID first_edge_id_gap = _edge_count - (_nodes.size() - 1);
   if constexpr (CompressedGraph::kIntervalEncoding) {

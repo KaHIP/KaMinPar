@@ -47,9 +47,9 @@ NodeID isolated_nodes(const Graph &graph) {
 void print_graph_properties(const Graph &graph, const Context ctx, std::ostream &out) {
   const float avg_deg = average_degree(graph);
   const NodeID isolated_node_count = isolated_nodes(graph);
-  const std::size_t width =
-      std::ceil(std::log10(std::max({graph.n(), graph.m(), graph.max_degree(), isolated_node_count})
-      ));
+  const std::size_t width = std::ceil(std::log10(
+      std::max<std::size_t>({graph.n(), graph.m(), graph.max_degree(), isolated_node_count})
+  ));
 
   cio::print_delimiter("Graph Properties", '#');
   out << "Graph:                        " << ctx.debug.graph_name << "\n";

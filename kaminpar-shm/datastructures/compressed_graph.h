@@ -427,7 +427,7 @@ private:
     }();
 
     const EdgeID first_edge = node_first_edge_gap + node;
-    const NodeID degree = static_cast<NodeID>(next_first_edge_gap - node_first_edge_gap + 1);
+    const NodeID degree = static_cast<NodeID>(1 + next_first_edge_gap - node_first_edge_gap);
 
     return std::make_tuple(first_edge, degree, uses_intervals, len);
   }
