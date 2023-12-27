@@ -15,6 +15,7 @@
 #include "kaminpar-common/console_io.h"
 #include "kaminpar-common/random.h"
 #include "kaminpar-common/strutils.h"
+#include "kaminpar-common/variable_length_codec.h"
 
 namespace kaminpar::shm {
 using namespace std::string_literals;
@@ -253,6 +254,26 @@ void print(const GraphCompressionContext &c_ctx, std::ostream &out) {
     out << "  High Degree Count:          " << c_ctx.high_degree_count << "\n";
     out << "  Part Count:                 " << c_ctx.part_count << "\n";
     out << "  Interval Count:             " << c_ctx.interval_count << "\n";
+
+    if (debug::kTrackVarintStats) {
+      const auto &stats = debug::varint_stats_global();
+
+      const float avg_varint_len =
+          (stats.varint_count == 0) ? 0 : (stats.varint_bytes / (float)stats.varint_count);
+      out << "Average Varint Length:        " << avg_varint_len << "\n";
+
+      const float avg_signed_varint_len =
+          (stats.signed_varint_count == 0)
+              ? 0
+              : (stats.signed_varint_bytes / (float)stats.signed_varint_count);
+      out << "Average Signed Varint Length: " << avg_signed_varint_len << "\n";
+
+      const float avg_marked_varint_len =
+          (stats.marked_varint_count == 0)
+              ? 0
+              : (stats.marked_varint_bytes / (float)stats.marked_varint_count);
+      out << "Average Marked Varint Length: " << avg_marked_varint_len << "\n";
+    }
   }
 }
 

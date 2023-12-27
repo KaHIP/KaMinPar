@@ -13,6 +13,26 @@
 
 namespace kaminpar {
 
+namespace debug {
+
+static constexpr bool kTrackVarintStats = false;
+
+struct VariabeLengthStats {
+  std::size_t varint_count;
+  std::size_t signed_varint_count;
+  std::size_t marked_varint_count;
+
+  std::size_t varint_bytes;
+  std::size_t signed_varint_bytes;
+  std::size_t marked_varint_bytes;
+};
+
+void varint_stats_reset();
+
+VariabeLengthStats &varint_stats_global();
+
+} // namespace debug
+
 template <typename Int> static std::size_t varint_max_length() {
   return (sizeof(Int) * 8) / 7 + 1;
 }
@@ -69,6 +89,11 @@ template <typename Int> static std::size_t varint_encode(Int i, std::uint8_t *pt
   std::uint8_t last_octet = i & 0b01111111;
   *ptr = last_octet;
 
+  if (debug::kTrackVarintStats) {
+    debug::varint_stats_global().varint_count++;
+    debug::varint_stats_global().varint_bytes += len;
+  }
+
   return len;
 }
 
@@ -88,7 +113,20 @@ template <typename Int> static std::size_t signed_varint_encode(Int i, std::uint
   if (i > 0) {
     first_octet |= 0b10000000;
     *ptr = first_octet;
-    return varint_encode(i, ptr + 1) + 1;
+
+    std::size_t len = varint_encode(i, ptr + 1) + 1;
+
+    if (debug::kTrackVarintStats) {
+      debug::varint_stats_global().signed_varint_count++;
+      debug::varint_stats_global().signed_varint_bytes += len;
+    }
+
+    return len;
+  }
+
+  if (debug::kTrackVarintStats) {
+    debug::varint_stats_global().signed_varint_count++;
+    debug::varint_stats_global().signed_varint_bytes++;
   }
 
   *ptr = first_octet;
@@ -110,7 +148,20 @@ static std::size_t marked_varint_encode(Int i, bool marker_set, std::uint8_t *pt
   if (i > 0) {
     first_octet |= 0b10000000;
     *ptr = first_octet;
-    return varint_encode(i, ptr + 1) + 1;
+
+    std::size_t len = varint_encode(i, ptr + 1) + 1;
+
+    if (debug::kTrackVarintStats) {
+      debug::varint_stats_global().marked_varint_count++;
+      debug::varint_stats_global().marked_varint_bytes += len;
+    }
+
+    return len;
+  }
+
+  if (debug::kTrackVarintStats) {
+    debug::varint_stats_global().marked_varint_count++;
+    debug::varint_stats_global().marked_varint_bytes++;
   }
 
   *ptr = first_octet;
