@@ -41,8 +41,14 @@ option(KAMINPAR_BUILD_WITH_PG "Build with the -pg option for profiling." OFF)
 # Control graph compression options
 ###################################
 option(KAMINPAR_COMPRESSION_HIGH_DEGREE_ENCODING "Use high-degree encoding for the compressed graph." ON)
-option(KAMINPAR_COMPRESSION_RUN_LENGTH_ENCODING "Use run-length encoding for the compressed graph." OFF)
 option(KAMINPAR_COMPRESSION_INTERVAL_ENCODING "Use interval encoding for the compressed graph." ON)
+option(KAMINPAR_COMPRESSION_RUN_LENGTH_ENCODING "Use run-length encoding for the compressed graph." OFF)
+option(KAMINPAR_COMPRESSION_STREAM_ENCODING "Use stream encoding for the compressed graph." OFF)
+option(KAMINPAR_COMPRESSION_FAST_DECODING "Use stream encoding for the compressed graph." OFF)
+
+if (KAMINPAR_COMPRESSION_RUN_LENGTH_ENCODING AND KAMINPAR_COMPRESSION_STREAM_ENCODING)
+    message(FATAL_ERROR "Either run-length or stream encoding can be used for varints but not both.")
+endif ()
 
 # Control data type sizes
 #########################
@@ -109,7 +115,9 @@ if (KAMINPAR_BUILD_WITH_DEBUG_SYMBOLS)
     add_compile_options(-g -g3)
 endif ()
 
-# Set compile flags 
+# Set compile flags
+add_compile_options(-msse4.1)
+
 if (KAMINPAR_BUILD_WITH_MTUNE_NATIVE) 
     add_compile_options(-mtune=native -march=native)
 endif ()
@@ -155,25 +163,42 @@ else ()
     message(STATUS "Timer barriers: disabled")
 endif ()
 
+message(STATUS "Graph compression summary:")
+
 if (KAMINPAR_COMPRESSION_HIGH_DEGREE_ENCODING)
     list(APPEND KAMINPAR_DEFINITIONS "-DKAMINPAR_COMPRESSION_HIGH_DEGREE_ENCODING")
-    message(STATUS "High-degree encoding: enabled")
+    message("  High-degree encoding: enabled")
 else ()
-    message(STATUS "High-degree encoding: disabled")
-endif ()
-
-if (KAMINPAR_COMPRESSION_RUN_LENGTH_ENCODING)
-    list(APPEND KAMINPAR_DEFINITIONS "-DKAMINPAR_COMPRESSION_RUN_LENGTH_ENCODING")
-    message(STATUS "Run-length encoding: enabled")
-else ()
-    message(STATUS "Run-length encoding: disabled")
+    message("  High-degree encoding: disabled")
 endif ()
 
 if (KAMINPAR_COMPRESSION_INTERVAL_ENCODING)
     list(APPEND KAMINPAR_DEFINITIONS "-DKAMINPAR_COMPRESSION_INTERVAL_ENCODING")
-    message(STATUS "Interval encoding: enabled")
+    message("  Interval encoding: enabled")
 else ()
-    message(STATUS "Interval encoding: disabled")
+    message("  Interval encoding: disabled")
+endif ()
+
+if (KAMINPAR_COMPRESSION_RUN_LENGTH_ENCODING)
+    list(APPEND KAMINPAR_DEFINITIONS "-DKAMINPAR_COMPRESSION_RUN_LENGTH_ENCODING")
+    message("  Run-length encoding: enabled")
+else ()
+    message("  Run-length encoding: disabled")
+endif ()
+
+if (KAMINPAR_COMPRESSION_STREAM_ENCODING)
+    list(APPEND KAMINPAR_DEFINITIONS "-DKAMINPAR_COMPRESSION_STREAM_ENCODING")
+    message("  Stream encoding: enabled")
+else ()
+    message("  Stream encoding: disabled")
+endif ()
+
+if (KAMINPAR_COMPRESSION_FAST_DECODING)
+    list(APPEND KAMINPAR_DEFINITIONS "-DKAMINPAR_COMPRESSION_FAST_DECODING")
+    add_compile_options(-mbmi2)
+    message("  Fast decoding: enabled")
+else ()
+    message("  Fast decoding: disabled")
 endif ()
 
 if (KAMINPAR_64BIT_NODE_IDS OR KAMINPAR_64BIT_IDS)

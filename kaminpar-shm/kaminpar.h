@@ -310,9 +310,10 @@ struct GraphCompressionContext {
 
   bool high_degree_encoding;
   NodeID high_degree_threshold;
-  bool run_length_encoding;
   bool interval_encoding;
   NodeID interval_length_treshold;
+  bool run_length_encoding;
+  bool stream_encoding;
 
   double compression_ratio;
   std::int64_t size_reduction;

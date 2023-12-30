@@ -24,9 +24,10 @@ namespace kaminpar::shm {
 void GraphCompressionContext::setup(const Graph &graph) {
   high_degree_encoding = CompressedGraph::kHighDegreeEncoding;
   high_degree_threshold = CompressedGraph::kHighDegreeThreshold;
-  run_length_encoding = CompressedGraph::kRunLengthEncoding;
   interval_encoding = CompressedGraph::kIntervalEncoding;
   interval_length_treshold = CompressedGraph::kIntervalLengthTreshold;
+  run_length_encoding = CompressedGraph::kRunLengthEncoding;
+  stream_encoding = CompressedGraph::kStreamEncoding;
 
   if (enabled) {
     const CompressedGraph *compressed_graph =

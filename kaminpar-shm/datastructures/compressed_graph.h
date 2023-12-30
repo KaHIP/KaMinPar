@@ -16,7 +16,9 @@
 #include "kaminpar-shm/datastructures/csr_graph.h"
 
 #include "kaminpar-common/ranges.h"
-#include "kaminpar-common/variable_length_codec.h"
+#include "kaminpar-common/varint_codec.h"
+#include "kaminpar-common/varint_run_length_codec.h"
+#include "kaminpar-common/varint_stream_codec.h"
 
 namespace kaminpar::shm {
 
@@ -76,6 +78,23 @@ public:
    */
   static constexpr bool kRunLengthEncoding = false;
 #endif
+
+#ifdef KAMINPAR_COMPRESSION_STREAM_ENCODING
+  /*!
+   * Whether stream encoding is used.
+   */
+  static constexpr bool kStreamEncoding = true;
+#else
+  /*!
+   * Whether stream encoding is used.
+   */
+  static constexpr bool kStreamEncoding = false;
+#endif
+
+  static_assert(
+      !kRunLengthEncoding || !kStreamEncoding,
+      "Either run-length or stream encoding can be used for varints but not both."
+  );
 
   /*!
    * Constructs a new compressed graph.
@@ -456,7 +475,7 @@ private:
 
     const EdgeID max_edge = first_edge + max_neighbor_count;
     iterate_edges<max_edges>(
-        data, node, first_edge, max_edge, uses_intervals, std::forward<Lambda>(l)
+        data, node, degree, first_edge, max_edge, uses_intervals, std::forward<Lambda>(l)
     );
   }
 
@@ -491,16 +510,32 @@ private:
       const bool last_part = part + 1 == max_part_count;
 
       if (last_part) {
+        const NodeID part_degree = (part == part_count - 1)
+                                       ? (degree - kHighDegreeThreshold * (part_count - 1))
+                                       : kHighDegreeThreshold;
         const EdgeID part_max_edge = part_first_edge + max_neighbor_rem;
 
         iterate_edges<max_edges>(
-            part_data, node, part_first_edge, part_max_edge, true, std::forward<Lambda>(l)
+            part_data,
+            node,
+            part_degree,
+            part_first_edge,
+            part_max_edge,
+            true,
+            std::forward<Lambda>(l)
         );
       } else {
-        const EdgeID part_max_edge = part_first_edge + kHighDegreeThreshold;
+        const NodeID part_degree = kHighDegreeThreshold;
+        const EdgeID part_max_edge = part_first_edge + part_degree;
 
         iterate_edges<false>(
-            part_data, node, part_first_edge, part_max_edge, true, std::forward<Lambda>(l)
+            part_data,
+            node,
+            part_degree,
+            part_first_edge,
+            part_max_edge,
+            true,
+            std::forward<Lambda>(l)
         );
       }
     };
@@ -520,12 +555,14 @@ private:
   inline void iterate_edges(
       const std::uint8_t *data,
       const NodeID node,
+      const NodeID degree,
       const EdgeID first_edge,
       const EdgeID max_edge,
       const bool uses_intervals,
       Lambda &&l
   ) const {
     EdgeID edge = first_edge;
+    EdgeID gap_edges = degree - 1;
 
     if constexpr (kIntervalEncoding) {
       if (uses_intervals) {
@@ -552,6 +589,7 @@ private:
             }
           }();
 
+          gap_edges -= cur_interval_len;
           for (NodeID j = 0; j < max_interval_len; ++j) {
             l(edge++, cur_left_extreme + j);
           }
@@ -571,23 +609,25 @@ private:
 
     l(edge++, first_adjacent_node);
 
-    if constexpr (kRunLengthEncoding) {
-      RLDecoder<NodeID> rl_decoder(data);
-      rl_decoder.decode(max_edge - edge, [&](const NodeID gap) {
-        const NodeID adjacent_node = gap + prev_adjacent_node;
-        prev_adjacent_node = adjacent_node;
+    const auto handle_gap = [&](const NodeID gap) {
+      const NodeID adjacent_node = gap + prev_adjacent_node;
+      prev_adjacent_node = adjacent_node;
 
-        l(edge++, adjacent_node);
-      });
+      l(edge++, adjacent_node);
+    };
+
+    if constexpr (kRunLengthEncoding) {
+      VarIntRunLengthDecoder<NodeID> rl_decoder(data);
+      rl_decoder.decode(max_edge - edge, std::forward<decltype(handle_gap)>(handle_gap));
+    } else if constexpr (kStreamEncoding) {
+      VarIntStreamDecoder<NodeID> sv_encoder(data, gap_edges);
+      sv_encoder.decode(max_edge - edge, std::forward<decltype(handle_gap)>(handle_gap));
     } else {
       while (edge != max_edge) {
         const auto [gap, gap_len] = varint_decode<NodeID>(data);
         data += gap_len;
 
-        const NodeID adjacent_node = gap + prev_adjacent_node;
-        prev_adjacent_node = adjacent_node;
-
-        l(edge++, adjacent_node);
+        handle_gap(gap);
       }
     }
   }

@@ -15,7 +15,7 @@
 #include "kaminpar-common/console_io.h"
 #include "kaminpar-common/random.h"
 #include "kaminpar-common/strutils.h"
-#include "kaminpar-common/variable_length_codec.h"
+#include "kaminpar-common/varint_codec.h"
 
 namespace kaminpar::shm {
 using namespace std::string_literals;
@@ -240,13 +240,18 @@ void print(const GraphCompressionContext &c_ctx, std::ostream &out) {
   out << "Enabled:                      " << (c_ctx.enabled ? "yes" : "no") << "\n";
   if (c_ctx.enabled) {
     out << "Compression Scheme:           "
-        << "Variable Length Encoding + Gap Encoding"
-        << "\n";
+        << "Gap Encoding + ";
+    if (c_ctx.run_length_encoding) {
+      out << "VarInt Run-Length Encoding\n";
+    } else if (c_ctx.stream_encoding) {
+      out << "VarInt Stream Encoding\n";
+    } else {
+      out << "VarInt Encoding\n";
+    }
     out << "  High Degree Encoding:       " << (c_ctx.high_degree_encoding ? "yes" : "no") << "\n";
     out << "  High Degree Threshold:      " << c_ctx.high_degree_threshold << "\n";
     out << "  Interval Encoding:          " << (c_ctx.interval_encoding ? "yes" : "no") << "\n";
     out << "  Interval Length Threshold:  " << c_ctx.interval_length_treshold << "\n";
-    out << "  Run-Length Encoding:        " << (c_ctx.run_length_encoding ? "yes" : "no") << "\n";
 
     out << "Compresion Ratio:             " << c_ctx.compression_ratio
         << " [size reduction: " << (c_ctx.size_reduction / (float)(1024 * 1024)) << " mb]"

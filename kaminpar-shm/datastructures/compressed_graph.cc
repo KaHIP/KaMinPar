@@ -133,9 +133,10 @@ void CompressedGraphBuilder::init(
 
   const std::size_t max_bytes_node_id = varint_max_length<NodeID>();
   const std::size_t max_bytes_edge_id = varint_max_length<EdgeID>();
-  const std::size_t max_part_count = (node_count / CompressedGraph::kHighDegreeThreshold) + 1;
+  const std::size_t max_part_count = (edge_count / CompressedGraph::kHighDegreeThreshold) + 1;
   const std::size_t max_size = max_bytes_node_id * node_count * 2 +
-                               max_bytes_node_id * max_part_count + max_bytes_edge_id * edge_count;
+                               max_bytes_node_id * max_part_count * 2 +
+                               max_bytes_edge_id * edge_count + edge_count;
   if constexpr (kHeapProfiling) {
     // As we overcommit memory do not track the amount of bytes used directly. Instead record it
     // manually when building.
@@ -241,6 +242,10 @@ CompressedGraph CompressedGraphBuilder::build() {
     _cur_compressed_edges += varint_encode(first_edge_id_gap, _cur_compressed_edges);
   }
 
+  if constexpr (CompressedGraph::kStreamEncoding) {
+    _cur_compressed_edges += 15;
+  }
+
   std::size_t stored_bytes = static_cast<std::size_t>(_cur_compressed_edges - _compressed_edges);
   RECORD("compressed_edges")
   StaticArray<std::uint8_t> compressed_edges(_compressed_edges, stored_bytes);
@@ -290,6 +295,8 @@ void CompressedGraphBuilder::add_edges(
     _edge_weights[_edge_count++] = edge_weight;
   };
 
+  NodeID neighbour_count = neighbourhood.size();
+
   // Find intervals [i, j] of consecutive adjacent nodes i, i + 1, ..., j - 1, j of length at
   // least kIntervalLengthTreshold. Instead of storing all nodes, only store a representation of
   // the left extreme i and the length j - i + 1. Left extremes are compressed using the
@@ -327,6 +334,7 @@ void CompressedGraphBuilder::add_edges(
                   interval_len - CompressedGraph::kIntervalLengthTreshold;
 
               interval_count += 1;
+              neighbour_count -= interval_len;
               _cur_compressed_edges += varint_encode(left_extreme_gap, _cur_compressed_edges);
               _cur_compressed_edges += varint_encode(interval_length_gap, _cur_compressed_edges);
 
@@ -369,7 +377,7 @@ void CompressedGraphBuilder::add_edges(
 
     // If all incident edges have been compressed using intervals then gap encoding cannot be
     // applied.
-    if (neighbourhood.empty()) {
+    if (neighbour_count == 0) {
       return;
     }
   }
@@ -380,29 +388,37 @@ void CompressedGraphBuilder::add_edges(
   // have to be positive as we sorted the nodes in ascending order. Thus, only for the first gap
   // the sign is additionally stored.
 
-  RLEncoder<NodeID> rl_encoder(_cur_compressed_edges);
+  auto iter = neighbourhood.begin();
+  while ((*iter).first == std::numeric_limits<NodeID>::max()) {
+    ++iter;
+  }
 
-  bool first = true;
-  NodeID prev_adjacent_node;
-  for (const auto [adjacent_node, edge_weight] : neighbourhood) {
+  const auto [first_adjacent_node, first_edge_weight] = *iter++;
+  // TODO: Does the value range cover everything s.t. a underflow cannot happen?
+  const std::make_signed_t<NodeID> first_gap = first_adjacent_node - node;
+  _cur_compressed_edges += signed_varint_encode(first_gap, _cur_compressed_edges);
+
+  if (_store_edge_weights) {
+    store_edge_weight(first_edge_weight);
+  }
+
+  VarIntRunLengthEncoder<NodeID> rl_encoder(_cur_compressed_edges);
+  VarIntStreamEncoder<NodeID> sv_encoder(_cur_compressed_edges, neighbour_count - 1);
+
+  NodeID prev_adjacent_node = first_adjacent_node;
+  while (iter != neighbourhood.end()) {
+    const auto [adjacent_node, edge_weight] = *iter++;
     if (adjacent_node == std::numeric_limits<NodeID>::max()) {
       continue;
     }
 
-    if (first) {
-      first = false;
-
-      // TODO: Does the value range cover everything s.t. a underflow cannot happen?
-      const std::make_signed_t<NodeID> first_gap = adjacent_node - node;
-      _cur_compressed_edges += signed_varint_encode(first_gap, _cur_compressed_edges);
+    const NodeID gap = adjacent_node - prev_adjacent_node;
+    if constexpr (CompressedGraph::kRunLengthEncoding) {
+      _cur_compressed_edges += rl_encoder.add(gap);
+    } else if constexpr (CompressedGraph::kStreamEncoding) {
+      _cur_compressed_edges += sv_encoder.add(gap);
     } else {
-      const NodeID gap = adjacent_node - prev_adjacent_node;
-
-      if constexpr (CompressedGraph::kRunLengthEncoding) {
-        _cur_compressed_edges += rl_encoder.add(gap);
-      } else {
-        _cur_compressed_edges += varint_encode(gap, _cur_compressed_edges);
-      }
+      _cur_compressed_edges += varint_encode(gap, _cur_compressed_edges);
     }
 
     if (_store_edge_weights) {
@@ -414,6 +430,8 @@ void CompressedGraphBuilder::add_edges(
 
   if constexpr (CompressedGraph::kRunLengthEncoding) {
     rl_encoder.flush();
+  } else if constexpr (CompressedGraph::kStreamEncoding) {
+    sv_encoder.flush();
   }
 }
 
