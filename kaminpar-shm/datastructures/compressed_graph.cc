@@ -94,13 +94,15 @@ CompressedGraph CompressedGraphBuilder::compress(const CSRGraph &graph) {
   builder.init(graph.n(), graph.m(), store_node_weights, store_edge_weights);
 
   std::vector<std::pair<NodeID, EdgeWeight>> neighbourhood;
+  neighbourhood.reserve(graph.max_degree());
+
   for (const NodeID node : graph.nodes()) {
     if (store_node_weights) {
       builder.set_node_weight(node, graph.node_weight(node));
     }
 
-    for (const auto [edge, adjacent_node] : graph.neighbors(node)) {
-      neighbourhood.push_back(std::make_pair(adjacent_node, graph.edge_weight(edge)));
+    for (const auto [incident_edge, adjacent_node] : graph.neighbors(node)) {
+      neighbourhood.push_back(std::make_pair(adjacent_node, graph.edge_weight(incident_edge)));
     }
 
     builder.add_node(node, neighbourhood);
@@ -111,7 +113,10 @@ CompressedGraph CompressedGraphBuilder::compress(const CSRGraph &graph) {
 }
 
 void CompressedGraphBuilder::init(
-    std::size_t node_count, std::size_t edge_count, bool store_node_weights, bool store_edge_weights
+    const NodeID node_count,
+    const EdgeID edge_count,
+    const bool store_node_weights,
+    const bool store_edge_weights
 ) {
   KASSERT(node_count != std::numeric_limits<NodeID>::max() - 1);
 
@@ -139,7 +144,7 @@ void CompressedGraphBuilder::init(
                                max_bytes_edge_id * edge_count + edge_count;
   if constexpr (kHeapProfiling) {
     // As we overcommit memory do not track the amount of bytes used directly. Instead record it
-    // manually when building.
+    // manually when building the compressed graph.
     _compressed_edges = (uint8_t *)heap_profiler::std_malloc(max_size);
   } else {
     _compressed_edges = (uint8_t *)malloc(max_size);
@@ -163,22 +168,28 @@ void CompressedGraphBuilder::add_node(
   // in its entry in the node array.
   _nodes[node] = static_cast<EdgeID>(_cur_compressed_edges - _compressed_edges);
 
-  const NodeID degree = neighbourhood.size();
-  const EdgeID first_edge_id = _edge_count;
-
+  // Store a pointer to the first byte of the first edge in the compressed edge array which encodes
+  // in one of its bits whether interval encoding is used for this node, i.e. whether the nodes has
+  // intervals in its neighbourhood.
   std::uint8_t *marked_byte = _cur_compressed_edges;
-  const EdgeID first_edge_id_gap = first_edge_id - node;
+
+  const EdgeID first_edge = _edge_count;
+
+  // Store the first edge as a gap with respect to the source node, as each node in the graph has at
+  // least one incident edge and thus the first edge id of an node is always greater or equal its
+  // source node id.
+  const EdgeID first_edge_gap = first_edge - node;
   if constexpr (CompressedGraph::kIntervalEncoding) {
-    _cur_compressed_edges += marked_varint_encode(first_edge_id_gap, false, _cur_compressed_edges);
+    _cur_compressed_edges += marked_varint_encode(first_edge_gap, false, _cur_compressed_edges);
   } else {
-    _cur_compressed_edges += varint_encode(first_edge_id_gap, _cur_compressed_edges);
+    _cur_compressed_edges += varint_encode(first_edge_gap, _cur_compressed_edges);
   }
 
-  if (degree == 0) {
-    return;
-  }
-
+  const NodeID degree = neighbourhood.size();
   _max_degree = std::max(_max_degree, degree);
+
+  // Only increment the edge count if edge weights are not stored as otherwise the edge count is
+  // incremented with each edge weight being added.
   if (!_store_edge_weights) {
     _edge_count += degree;
   }
@@ -233,20 +244,27 @@ void CompressedGraphBuilder::set_node_weight(const NodeID node, const NodeWeight
 }
 
 CompressedGraph CompressedGraphBuilder::build() {
+  // Store in the last entry of the node array the index into the compressed edge array one after
+  // the last byte belonging to the last node.
   _nodes[_nodes.size() - 1] = static_cast<EdgeID>(_cur_compressed_edges - _compressed_edges);
 
-  const EdgeID first_edge_id_gap = _edge_count - (_nodes.size() - 1);
+  // Store at the end of the compressed edge array the edge gap such that the degree of the last
+  // node can be computed from the difference between the last two first edge ids.
+  const EdgeID first_edge_gap = _edge_count - (_nodes.size() - 1);
   if constexpr (CompressedGraph::kIntervalEncoding) {
-    _cur_compressed_edges += marked_varint_encode(first_edge_id_gap, false, _cur_compressed_edges);
+    _cur_compressed_edges += marked_varint_encode(first_edge_gap, false, _cur_compressed_edges);
   } else {
-    _cur_compressed_edges += varint_encode(first_edge_id_gap, _cur_compressed_edges);
+    _cur_compressed_edges += varint_encode(first_edge_gap, _cur_compressed_edges);
   }
 
+  // Add an additional 15 bytes to the compressed edge array when stream encoding is enabled to
+  // avoid a possible segmentation fault as the stream decoder reads in 16-byte chunks.
   if constexpr (CompressedGraph::kStreamEncoding) {
     _cur_compressed_edges += 15;
   }
 
-  std::size_t stored_bytes = static_cast<std::size_t>(_cur_compressed_edges - _compressed_edges);
+  const std::size_t stored_bytes =
+      static_cast<std::size_t>(_cur_compressed_edges - _compressed_edges);
   RECORD("compressed_edges")
   StaticArray<std::uint8_t> compressed_edges(_compressed_edges, stored_bytes);
 
@@ -286,7 +304,7 @@ std::int64_t CompressedGraphBuilder::total_edge_weight() const {
 }
 
 void CompressedGraphBuilder::add_edges(
-    NodeID node,
+    const NodeID node,
     std::uint8_t *marked_byte,
     std::vector<std::pair<NodeID, EdgeWeight>> &neighbourhood
 ) {
@@ -314,8 +332,8 @@ void CompressedGraphBuilder::add_edges(
     _cur_compressed_edges += sizeof(NodeID);
 
     if (neighbourhood.size() >= CompressedGraph::kIntervalLengthTreshold) {
-      NodeID previous_right_extreme = 2;
       NodeID interval_len = 1;
+      NodeID previous_right_extreme = 2;
       NodeID prev_adjacent_node = (*neighbourhood.begin()).first;
 
       for (auto iter = neighbourhood.begin() + 1; iter != neighbourhood.end(); ++iter) {
@@ -333,21 +351,25 @@ void CompressedGraphBuilder::add_edges(
               const NodeID interval_length_gap =
                   interval_len - CompressedGraph::kIntervalLengthTreshold;
 
-              interval_count += 1;
-              neighbour_count -= interval_len;
               _cur_compressed_edges += varint_encode(left_extreme_gap, _cur_compressed_edges);
               _cur_compressed_edges += varint_encode(interval_length_gap, _cur_compressed_edges);
 
               for (NodeID i = 0; i < interval_len; ++i) {
                 std::pair<NodeID, EdgeWeight> &incident_edge = *(iter + 1 + i - interval_len);
 
+                // Set the adjacent node to the max id to indicate for the gap encoding part that
+                // the node has been encoded through an interval.
                 incident_edge.first = std::numeric_limits<NodeID>::max();
+
                 if (_store_edge_weights) {
                   store_edge_weight(incident_edge.second);
                 }
               }
 
               previous_right_extreme = adjacent_node;
+
+              neighbour_count -= interval_len;
+              interval_count += 1;
             }
 
             interval_len = 1;
@@ -358,9 +380,9 @@ void CompressedGraphBuilder::add_edges(
       }
     }
 
-    // If intervals have been encoded store the interval_count and set the bit in the encoded
-    // degree of the node indicating that intervals have been used for the neighbourhood.
-    // Otherwise, fix the amount of bytes stored as we don't store the interval count if no
+    // If intervals have been encoded store the interval count and set the bit in the marked byte
+    // indicating that interval encoding has been used for the neighbourhood if the marked byte is
+    // given. Otherwise, fix the amount of bytes stored as we don't store the interval count if no
     // intervals have been encoded.
     if (marked_byte == nullptr) {
       *((NodeID *)interval_count_ptr) = interval_count;
@@ -387,8 +409,9 @@ void CompressedGraphBuilder::add_edges(
   // 1} between the nodes, where u is the source node. Note that all gaps except the first one
   // have to be positive as we sorted the nodes in ascending order. Thus, only for the first gap
   // the sign is additionally stored.
-
   auto iter = neighbourhood.begin();
+
+  // Go to the first adjacent node that has not been encoded through an interval.
   while ((*iter).first == std::numeric_limits<NodeID>::max()) {
     ++iter;
   }

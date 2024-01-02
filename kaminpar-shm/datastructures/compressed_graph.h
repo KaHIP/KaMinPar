@@ -69,12 +69,12 @@ public:
 
 #ifdef KAMINPAR_COMPRESSION_RUN_LENGTH_ENCODING
   /*!
-   * Whether run length encoding is used.
+   * Whether run-length encoding is used.
    */
   static constexpr bool kRunLengthEncoding = true;
 #else
   /*!
-   * Whether run length encoding is used.
+   * Whether run-length encoding is used.
    */
   static constexpr bool kRunLengthEncoding = false;
 #endif
@@ -257,7 +257,7 @@ public:
   }
 
   template <typename Lambda> inline void adjacent_nodes(const NodeID node, Lambda &&l) const {
-    iterate_neighborhood(node, [&](EdgeID incident_edge, NodeID adjacent_node) {
+    iterate_neighborhood(node, [&](const EdgeID incident_edge, const NodeID adjacent_node) {
       l(adjacent_node);
     });
   }
@@ -581,15 +581,15 @@ private:
           const NodeID cur_interval_len = interval_length_gap + kIntervalLengthTreshold;
           previous_right_extreme = cur_left_extreme + cur_interval_len - 1;
 
-          const NodeID max_interval_len = [=] {
+          const NodeID max_interval_len = [&] {
             if constexpr (max_edges) {
               return std::min(cur_interval_len, static_cast<NodeID>(max_edge - edge));
             } else {
               return cur_interval_len;
             }
           }();
-
           gap_edges -= cur_interval_len;
+
           for (NodeID j = 0; j < max_interval_len; ++j) {
             l(edge++, cur_left_extreme + j);
           }
@@ -639,6 +639,11 @@ private:
  */
 class CompressedGraphBuilder {
 public:
+  using NodeID = CompressedGraph::NodeID;
+  using NodeWeight = CompressedGraph::NodeWeight;
+  using EdgeID = CompressedGraph::EdgeID;
+  using EdgeWeight = CompressedGraph::EdgeWeight;
+
   /*!
    * Compresses a graph in compressed sparse row format.
    *
@@ -656,10 +661,10 @@ public:
    * @param store_edge_weights Whether edge weights are stored.
    */
   void init(
-      std::size_t node_count,
-      std::size_t edge_count,
-      bool store_node_weights,
-      bool store_edge_weights
+      const NodeID node_count,
+      const EdgeID edge_count,
+      const bool store_node_weights,
+      const bool store_edge_weights
   );
 
   /*!
@@ -722,7 +727,7 @@ private:
   std::size_t _interval_count;
 
   void add_edges(
-      NodeID node,
+      const NodeID node,
       std::uint8_t *marked_byte,
       std::vector<std::pair<NodeID, EdgeWeight>> &neighbourhood
   );
