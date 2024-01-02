@@ -377,7 +377,10 @@ namespace kaminpar {
 class dKaMinPar {
 public:
   dKaMinPar(MPI_Comm comm, int num_threads, dist::Context ctx);
+
   ~dKaMinPar();
+
+  static void reseed(int seed);
 
   void set_output_level(OutputLevel output_level);
 
@@ -393,7 +396,7 @@ public:
       dist::GlobalEdgeWeight *edge_weights
   );
 
-  dist::GlobalEdgeWeight compute_partition(int seed, dist::BlockID k, dist::BlockID *partition);
+  dist::GlobalEdgeWeight compute_partition(dist::BlockID k, dist::BlockID *partition);
 
 private:
   MPI_Comm _comm;

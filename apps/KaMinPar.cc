@@ -174,6 +174,7 @@ int main(int argc, char *argv[]) {
 
   // Compute graph partition
   KaMinPar partitioner(app.num_threads, ctx);
+  KaMinPar::reseed(app.seed);
 
   if (app.quiet) {
     partitioner.set_output_level(OutputLevel::QUIET);
@@ -191,7 +192,7 @@ int main(int argc, char *argv[]) {
   }
 
   partitioner.set_graph(std::move(graph));
-  partitioner.compute_partition(app.seed, app.k, partition.data());
+  partitioner.compute_partition(app.seed, partition.data());
 
   // Save graph partition
   if (!app.partition_filename.empty()) {

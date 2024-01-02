@@ -193,6 +193,7 @@ int main(int argc, char *argv[]) {
   }
 
   dKaMinPar partitioner(MPI_COMM_WORLD, app.num_threads, ctx);
+  dKaMinPar::reseed(app.seed);
 
   if (app.quiet) {
     partitioner.set_output_level(OutputLevel::QUIET);
@@ -208,7 +209,7 @@ int main(int argc, char *argv[]) {
 
   // Compute the partition
   std::vector<BlockID> partition(n);
-  partitioner.compute_partition(app.seed, app.k, partition.data());
+  partitioner.compute_partition(app.k, partition.data());
 
   if (!app.partition_filename.empty()) {
     dist::io::partition::write(app.partition_filename, partition);

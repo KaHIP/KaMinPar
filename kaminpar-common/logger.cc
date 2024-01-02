@@ -96,7 +96,7 @@ CompactContainerFormatter COMPACT{","sv};
 Table TABLE{0};
 } // namespace logger
 
-bool Logger::_quiet = false;
+std::atomic<std::uint8_t> Logger::_quiet = 0;
 
 Logger::Logger() : Logger(std::cout) {}
 Logger::Logger(std::ostream &out, std::string append)

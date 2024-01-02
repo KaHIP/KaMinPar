@@ -27,7 +27,7 @@ Random &Random::create_instance() {
   return *_instances.back();
 }
 
-void Random::seed(const int seed) {
+void Random::reseed(const int seed) {
   _seed = seed;
   for (auto &instance : _instances) {
     instance->reinit(seed);

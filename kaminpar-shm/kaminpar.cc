@@ -44,11 +44,19 @@ void print_statistics(
   if (parseable) {
     LOG << "RESULT cut=" << cut << " imbalance=" << imbalance << " feasible=" << feasible
         << " k=" << p_graph.k();
-    std::cout << "TIME ";
+#ifdef KAMINPAR_ENABLE_TIMERS
+    LLOG << "TIME ";
     Timer::global().print_machine_readable(std::cout);
+#else  // KAMINPAR_ENABLE_TIMERS
+    LOG << "TIME disabled";
+#endif // KAMINPAR_ENABLE_TIMERS
   }
 
+#ifdef KAMINPAR_ENABLE_TIMERS
   Timer::global().print_human_readable(std::cout, max_timer_depth);
+#else  // KAMINPAR_ENABLE_TIMERS
+  LOG << "Global Timers: disabled";
+#endif // KAMINPAR_ENABLE_TIMERS
   LOG;
   PRINT_HEAP_PROFILE(std::cout);
   LOG << "Partition summary:";
@@ -71,7 +79,9 @@ KaMinPar::KaMinPar(const int num_threads, Context ctx)
     : _num_threads(num_threads),
       _ctx(std::move(ctx)),
       _gc(tbb::global_control::max_allowed_parallelism, num_threads) {
+#ifdef KAMINPAR_ENABLE_TIMERS
   GLOBAL_TIMER.reset();
+#endif // KAMINPAR_ENABLE_TIMERS
 }
 
 KaMinPar::~KaMinPar() = default;
@@ -155,7 +165,11 @@ void KaMinPar::set_graph(Graph graph) {
   _graph_ptr = std::make_unique<Graph>(std::move(graph));
 }
 
-EdgeWeight KaMinPar::compute_partition(const int seed, const BlockID k, BlockID *partition) {
+void KaMinPar::reseed(int seed) {
+  Random::reseed(seed);
+}
+
+EdgeWeight KaMinPar::compute_partition(const BlockID k, BlockID *partition) {
   Logger::set_quiet_mode(_output_level == OutputLevel::QUIET);
 
   cio::print_kaminpar_banner();
@@ -170,8 +184,7 @@ EdgeWeight KaMinPar::compute_partition(const int seed, const BlockID k, BlockID 
   // Setup graph dependent context parameters
   _ctx.setup(*_graph_ptr);
 
-  // Initialize PRNG and console output
-  Random::seed(seed);
+  // Initialize console output
   if (_output_level >= OutputLevel::APPLICATION) {
     print(_ctx, std::cout);
   }
@@ -223,7 +236,9 @@ EdgeWeight KaMinPar::compute_partition(const int seed, const BlockID k, BlockID 
 
   const EdgeWeight final_cut = metrics::edge_cut(p_graph);
 
+#ifdef KAMINPAR_ENABLE_TIMERS
   GLOBAL_TIMER.reset();
+#endif // KAMINPAR_ENABLE_TIMERS
 
   return final_cut;
 }
