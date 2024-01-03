@@ -265,7 +265,7 @@ template <typename Int>
 
 #ifdef KAMINPAR_COMPRESSION_FAST_DECODING
 /*!
- * Reads an 32-bit integer encoded as a VarInt from a memory location. The decoding is implemented
+ * Reads a 32-bit integer encoded as a VarInt from a memory location. The decoding is implemented
  * as an unrolled loop with intrinsic operations.
  *
  * @param ptr The pointer to the memory location to read the integer from.
@@ -275,33 +275,34 @@ template <typename Int>
 template <>
 inline std::pair<std::uint32_t, std::size_t> varint_decode<std::uint32_t>(const std::uint8_t *ptr) {
   if ((ptr[0] & 0b10000000) == 0) {
-    std::uint32_t result = *ptr & 0b01111111;
+    const std::uint32_t result = *ptr & 0b01111111;
     return std::make_pair(result, 1);
   }
 
   if ((ptr[1] & 0b10000000) == 0) {
-    std::uint32_t result = _pext_u32(*reinterpret_cast<const std::uint32_t *>(ptr), 0x7F7F);
+    const std::uint32_t result = _pext_u32(*reinterpret_cast<const std::uint32_t *>(ptr), 0x7F7F);
     return std::make_pair(result, 2);
   }
 
   if ((ptr[2] & 0b10000000) == 0) {
-    std::uint32_t result = _pext_u32(*reinterpret_cast<const std::uint32_t *>(ptr), 0x7F7F7F);
+    const std::uint32_t result = _pext_u32(*reinterpret_cast<const std::uint32_t *>(ptr), 0x7F7F7F);
     return std::make_pair(result, 3);
   }
 
   if ((ptr[3] & 0b10000000) == 0) {
-    std::uint32_t result = _pext_u32(*reinterpret_cast<const std::uint32_t *>(ptr), 0x7F7F7F7F);
+    const std::uint32_t result =
+        _pext_u32(*reinterpret_cast<const std::uint32_t *>(ptr), 0x7F7F7F7F);
     return std::make_pair(result, 4);
   }
 
-  std::uint32_t result = static_cast<std::uint32_t>(
+  const std::uint32_t result = static_cast<std::uint32_t>(
       _pext_u64(*reinterpret_cast<const std::uint64_t *>(ptr), 0x7F7F7F7F7F)
   );
   return std::make_pair(result, 5);
 }
 
 /*!
- * Reads an 64-bit integer encoded as a VarInt from a memory location. The decoding is implemented
+ * Reads a 64-bit integer encoded as a VarInt from a memory location. The decoding is implemented
  * as an unrolled loop with intrinsic operations.
  *
  * @param ptr The pointer to the memory location to read the integer from.
@@ -365,7 +366,7 @@ inline std::pair<std::uint64_t, std::size_t> varint_decode<std::uint64_t>(const 
   const std::uint64_t result =
       _pext_u64(*reinterpret_cast<const std::uint64_t *>(ptr), 0x7F7F7F7F7F7F7F7F) |
       (static_cast<std::uint64_t>(ptr[8] & 0b01111111) << 56) |
-      (static_cast<std::uint64_t>(ptr[9] & 0b00000001) << 63);
+      (static_cast<std::uint64_t>(ptr[9]) << 63);
   return std::make_pair(result, 10);
 }
 #endif
@@ -400,7 +401,8 @@ template <typename Int>
 }
 
 /*!
- * Reads an integer encoded as a marked VarInt from a memory location.
+ * Reads an integer encoded as a marked VarInt from a memory location. The decoding is implemented
+ * as a loop with non intrinsic operations.
  *
  * @tparam Int The type of integer to decode.
  * @param ptr The pointer to the memory location to read the integer from.
@@ -434,5 +436,121 @@ template <typename Int>
 
   return std::make_tuple(result, is_marker_set, position);
 }
+
+#ifdef KAMINPAR_COMPRESSION_FAST_DECODING
+/*!
+ * Reads a 32-bit integer encoded as a marked VarInt from a memory location. The decoding is
+ * implemented as an unrolled loop with intrinsic operations.
+ *
+ * @tparam Int The type of integer to decode.
+ * @param ptr The pointer to the memory location to read the integer from.
+ * @return A tuple consisting of the decoded integer, whether the markes is set and the number of
+ * bytes that the encoded integer occupied at the memory location.
+ */
+template <>
+inline std::tuple<std::uint32_t, bool, std::size_t>
+marked_varint_decode<std::uint32_t>(const std::uint8_t *ptr) {
+  const bool is_marker_set = (*ptr & 0b01000000) != 0;
+
+  if ((ptr[0] & 0b10000000) == 0) {
+    const std::uint32_t result = *ptr & 0b00111111;
+    return std::make_tuple(result, is_marker_set, 1);
+  }
+
+  if ((ptr[1] & 0b10000000) == 0) {
+    const std::uint32_t result = _pext_u32(*reinterpret_cast<const std::uint32_t *>(ptr), 0x7F3F);
+    return std::make_tuple(result, is_marker_set, 2);
+  }
+
+  if ((ptr[2] & 0b10000000) == 0) {
+    const std::uint32_t result = _pext_u32(*reinterpret_cast<const std::uint32_t *>(ptr), 0x7F7F3F);
+    return std::make_tuple(result, is_marker_set, 3);
+  }
+
+  if ((ptr[3] & 0b10000000) == 0) {
+    const std::uint32_t result =
+        _pext_u32(*reinterpret_cast<const std::uint32_t *>(ptr), 0x7F7F7F3F);
+    return std::make_tuple(result, is_marker_set, 4);
+  }
+
+  const std::uint32_t result = static_cast<std::uint32_t>(
+      _pext_u64(*reinterpret_cast<const std::uint64_t *>(ptr), 0x7F7F7F7F3F)
+  );
+  return std::make_tuple(result, is_marker_set, 5);
+}
+
+/*!
+ * Reads a 64-bit integer encoded as a marked VarInt from a memory location. The decoding is
+ * implemented as an unrolled loop with intrinsic operations.
+ *
+ * @tparam Int The type of integer to decode.
+ * @param ptr The pointer to the memory location to read the integer from.
+ * @return A tuple consisting of the decoded integer, whether the markes is set and the number of
+ * bytes that the encoded integer occupied at the memory location.
+ */
+template <>
+inline std::tuple<std::uint64_t, bool, std::size_t>
+marked_varint_decode<std::uint64_t>(const std::uint8_t *ptr) {
+  const bool is_marker_set = (*ptr & 0b01000000) != 0;
+
+  if ((ptr[0] & 0b10000000) == 0) {
+    const std::uint64_t result = *ptr & 0b00111111;
+    return std::make_tuple(result, is_marker_set, 1);
+  }
+
+  if ((ptr[1] & 0b10000000) == 0) {
+    const std::uint64_t result = _pext_u32(*reinterpret_cast<const std::uint32_t *>(ptr), 0x7F3F);
+    return std::make_tuple(result, is_marker_set, 2);
+  }
+
+  if ((ptr[2] & 0b10000000) == 0) {
+    const std::uint64_t result = _pext_u32(*reinterpret_cast<const std::uint32_t *>(ptr), 0x7F7F3F);
+    return std::make_tuple(result, is_marker_set, 3);
+  }
+
+  if ((ptr[3] & 0b10000000) == 0) {
+    const std::uint64_t result =
+        _pext_u32(*reinterpret_cast<const std::uint32_t *>(ptr), 0x7F7F7F3F);
+    return std::make_tuple(result, is_marker_set, 4);
+  }
+
+  if ((ptr[4] & 0b10000000) == 0) {
+    const std::uint64_t result =
+        _pext_u64(*reinterpret_cast<const std::uint64_t *>(ptr), 0x7F7F7F7F3F);
+    return std::make_tuple(result, is_marker_set, 5);
+  }
+
+  if ((ptr[5] & 0b10000000) == 0) {
+    const std::uint64_t result =
+        _pext_u64(*reinterpret_cast<const std::uint64_t *>(ptr), 0x7F7F7F7F7F3F);
+    return std::make_tuple(result, is_marker_set, 6);
+  }
+
+  if ((ptr[6] & 0b10000000) == 0) {
+    const std::uint64_t result =
+        _pext_u64(*reinterpret_cast<const std::uint64_t *>(ptr), 0x7F7F7F7F7F7F3F);
+    return std::make_tuple(result, is_marker_set, 7);
+  }
+
+  if ((ptr[7] & 0b10000000) == 0) {
+    const std::uint64_t result =
+        _pext_u64(*reinterpret_cast<const std::uint64_t *>(ptr), 0x7F7F7F7F7F7F7F3F);
+    return std::make_tuple(result, is_marker_set, 8);
+  }
+
+  if ((ptr[8] & 0b10000000) == 0) {
+    const std::uint64_t result =
+        _pext_u64(*reinterpret_cast<const std::uint64_t *>(ptr), 0x7F7F7F7F7F7F7F3F) |
+        (static_cast<std::uint64_t>(ptr[8] & 0b01111111) << 55);
+    return std::make_tuple(result, is_marker_set, 9);
+  }
+
+  const std::uint64_t result =
+      _pext_u64(*reinterpret_cast<const std::uint64_t *>(ptr), 0x7F7F7F7F7F7F7F3F) |
+      (static_cast<std::uint64_t>(ptr[8] & 0b01111111) << 55) |
+      (static_cast<std::uint64_t>(ptr[9]) << 62);
+  return std::make_tuple(result, is_marker_set, 10);
+}
+#endif
 
 } // namespace kaminpar
