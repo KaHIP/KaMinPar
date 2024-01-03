@@ -25,7 +25,7 @@ static constexpr bool kTrackVarintStats = false;
 /*!
  * Statistics about encoded VarInts.
  */
-struct VariabeLengthStats {
+struct VarIntStats {
   std::size_t varint_count;
   std::size_t signed_varint_count;
   std::size_t marked_varint_count;
@@ -45,7 +45,7 @@ void varint_stats_reset();
  *
  * @return A reference to the global statistics on encoded VarInts.
  */
-VariabeLengthStats &varint_stats_global();
+VarIntStats &varint_stats_global();
 
 } // namespace debug
 

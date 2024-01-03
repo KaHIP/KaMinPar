@@ -11,7 +11,7 @@ namespace kaminpar {
 
 namespace debug {
 
-static VariabeLengthStats stats = {0, 0, 0, 0, 0, 0};
+static VarIntStats stats = {0, 0, 0, 0, 0, 0};
 
 void varint_stats_reset() {
   stats.varint_count = 0;
@@ -23,7 +23,7 @@ void varint_stats_reset() {
   stats.marked_varint_bytes = 0;
 }
 
-VariabeLengthStats &varint_stats_global() {
+VarIntStats &varint_stats_global() {
   return stats;
 }
 

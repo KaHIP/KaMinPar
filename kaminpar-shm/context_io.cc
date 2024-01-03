@@ -265,19 +265,22 @@ void print(const GraphCompressionContext &c_ctx, std::ostream &out) {
 
       const float avg_varint_len =
           (stats.varint_count == 0) ? 0 : (stats.varint_bytes / (float)stats.varint_count);
-      out << "Average Varint Length:        " << avg_varint_len << "\n";
+      out << "Average Varint Length:        " << avg_varint_len << " [count: " << stats.varint_count
+          << "]\n";
 
       const float avg_signed_varint_len =
           (stats.signed_varint_count == 0)
               ? 0
               : (stats.signed_varint_bytes / (float)stats.signed_varint_count);
-      out << "Average Signed Varint Length: " << avg_signed_varint_len << "\n";
+      out << "Average Signed Varint Length: " << avg_signed_varint_len
+          << " [count: " << stats.signed_varint_count << "]\n";
 
       const float avg_marked_varint_len =
           (stats.marked_varint_count == 0)
               ? 0
               : (stats.marked_varint_bytes / (float)stats.marked_varint_count);
-      out << "Average Marked Varint Length: " << avg_marked_varint_len << "\n";
+      out << "Average Marked Varint Length: " << avg_marked_varint_len
+          << " [count: " << stats.marked_varint_count << "]\n";
     }
   }
 }
