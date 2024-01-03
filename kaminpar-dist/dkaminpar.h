@@ -300,12 +300,20 @@ struct JetBalancerContext {
 };
 
 struct JetRefinementContext {
+  int num_coarse_rounds;
+  int num_fine_rounds;
+
   int num_iterations;
   int num_fruitless_iterations;
   double fruitless_threshold;
 
+  bool dynamic_negative_gain_factor;
+
   double coarse_negative_gain_factor;
   double fine_negative_gain_factor;
+
+  double initial_negative_gain_factor;
+  double final_negative_gain_factor;
 
   RefinementAlgorithm balancing_algorithm;
 };

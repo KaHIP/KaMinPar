@@ -229,11 +229,16 @@ Context create_default_context() {
                   },
               .jet =
                   {
+                      .num_coarse_rounds = 1,
+                      .num_fine_rounds = 1,
                       .num_iterations = 0,
                       .num_fruitless_iterations = 12,
                       .fruitless_threshold = 0.999,
+                      .dynamic_negative_gain_factor = false,
                       .coarse_negative_gain_factor = 0.75,
                       .fine_negative_gain_factor = 0.25,
+                      .initial_negative_gain_factor = 0.75,
+                      .final_negative_gain_factor = 0.25,
                       .balancing_algorithm = RefinementAlgorithm::GREEDY_NODE_BALANCER,
                   },
               .jet_balancer =

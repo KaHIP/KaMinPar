@@ -55,9 +55,21 @@ void JetRefiner::initialize() {
   SCOPED_TIMER("Jet Refiner");
   SCOPED_TIMER("Initialization");
 
-  _snapshooter.init(_p_graph, _p_ctx);
-  _gain_calculator.init(_p_graph);
+  if (_jet_ctx.dynamic_negative_gain_factor &&
+      (_jet_ctx.num_fine_rounds <= 1 || _jet_ctx.num_coarse_rounds <= 1)) {
+    if (mpi::get_comm_rank(_p_graph.communicator()) == 0) {
+      LOG_WARNING << "dynamic negative gain factors are enabled, but only one round is configured";
+    }
+  }
 
+  _gain_calculator.init(_p_graph);
+  reset();
+
+  TIMER_BARRIER(_p_graph.communicator());
+}
+
+void JetRefiner::reset() {
+  _snapshooter.init(_p_graph, _p_ctx);
   tbb::parallel_invoke(
       [&] { _p_graph.pfor_nodes([&](const NodeID u) { _locked[u] = 0; }); },
       [&] {
@@ -67,13 +79,6 @@ void JetRefiner::initialize() {
       },
       [&] { _p_graph.pfor_blocks([&](const BlockID b) { _block_weight_deltas[b] = 0; }); }
   );
-
-  _negative_gain_factor = (_p_graph.global_n() < _ctx.partition.graph->global_n)
-                              ? _jet_ctx.coarse_negative_gain_factor
-                              : _jet_ctx.fine_negative_gain_factor;
-  DBG0 << "Initialized with negative gain factor: " << _negative_gain_factor;
-
-  TIMER_BARRIER(_p_graph.communicator());
 }
 
 bool JetRefiner::refine() {
@@ -101,82 +106,110 @@ bool JetRefiner::refine() {
       HEAVY
   );
 
+  const bool toplevel = (_p_graph.global_n() == _ctx.partition.graph->global_n);
+  const int max_num_rounds =
+      toplevel ? _ctx.refinement.jet.num_fine_rounds : _ctx.refinement.jet.num_coarse_rounds;
   const int max_num_fruitless_iterations = (_ctx.refinement.jet.num_fruitless_iterations == 0)
                                                ? std::numeric_limits<int>::max()
                                                : _ctx.refinement.jet.num_fruitless_iterations;
   const int max_num_iterations = (_ctx.refinement.jet.num_iterations == 0)
                                      ? std::numeric_limits<int>::max()
                                      : _ctx.refinement.jet.num_iterations;
-  DBG0 << "Running JET refinement for at most " << max_num_iterations << " iterations and at most "
-       << max_num_fruitless_iterations << " fruitless iterations";
+  DBG0 << "Running JET refinement for " << max_num_rounds << " rounds, each with at most "
+       << max_num_iterations << " iterations or " << max_num_fruitless_iterations
+       << " fruitless iterations";
 
-  int cur_fruitless_iteration = 0;
-  int cur_iteration = 0;
+  for (int round = 0; round < max_num_rounds; ++round) {
+    if (_jet_ctx.dynamic_negative_gain_factor) {
+      if (max_num_rounds >= 1) {
+        _negative_gain_factor =
+            _jet_ctx.initial_negative_gain_factor +
+            (1.0 * round / (max_num_rounds - 1.0)) *
+                (_jet_ctx.final_negative_gain_factor - _jet_ctx.initial_negative_gain_factor);
+      } else {
+        _negative_gain_factor =
+            (_jet_ctx.final_negative_gain_factor + _jet_ctx.initial_negative_gain_factor) / 2.0;
+      }
+    } else {
+      _negative_gain_factor =
+          !toplevel ? _jet_ctx.coarse_negative_gain_factor : _jet_ctx.fine_negative_gain_factor;
+    }
 
-  const EdgeWeight initial_cut = metrics::edge_cut(_p_graph);
-  EdgeWeight best_cut = initial_cut;
+    DBG0 << "Starting round " << (round + 1) << " of " << max_num_rounds
+         << " with negative gain factor " << _negative_gain_factor;
 
-  do {
-    TIMER_BARRIER(_p_graph.communicator());
+    if (round > 0) {
+      reset();
+    }
 
-    find_moves();
-    synchronize_ghost_node_move_candidates();
-    filter_bad_moves();
-    move_locked_nodes();
-    synchronize_ghost_node_labels();
-    apply_block_weight_deltas();
+    int cur_fruitless_iteration = 0;
+    int cur_iteration = 0;
+
+    const EdgeWeight initial_cut = metrics::edge_cut(_p_graph);
+    EdgeWeight best_cut = initial_cut;
+
+    do {
+      TIMER_BARRIER(_p_graph.communicator());
+
+      find_moves();
+      synchronize_ghost_node_move_candidates();
+      filter_bad_moves();
+      move_locked_nodes();
+      synchronize_ghost_node_labels();
+      apply_block_weight_deltas();
+
+      KASSERT(
+          debug::validate_partition(_p_graph),
+          "graph partition is in an inconsistent state after JET iterations " << cur_iteration,
+          HEAVY
+      );
+
+      const EdgeWeight before_rebalance_cut = IFDBG(metrics::edge_cut(_p_graph));
+      const double before_rebalance_l1 = IFDBG(metrics::imbalance_l1(_p_graph, _p_ctx));
+      DBG0 << "Partition *before* rebalancing: cut=" << before_rebalance_cut
+           << ", l1=" << before_rebalance_l1;
+
+      _balancer->initialize();
+      _balancer->refine();
+
+      const EdgeWeight final_cut = metrics::edge_cut(_p_graph);
+      const double final_l1 = metrics::imbalance_l1(_p_graph, _p_ctx);
+      DBG0 << "Partition *after* rebalancing: cut=" << final_cut << ", l1=" << final_l1;
+
+      TIMED_SCOPE("Update best partition") {
+        _snapshooter.update(_p_graph, _p_ctx, final_cut, final_l1);
+      };
+
+      ++cur_iteration;
+      ++cur_fruitless_iteration;
+
+      if (best_cut - final_cut > (1.0 - _ctx.refinement.jet.fruitless_threshold) * best_cut) {
+        DBG0 << "Improved cut from " << initial_cut << " to " << best_cut << " to " << final_cut
+             << ": resetting number of fruitless iterations (threshold: "
+             << _ctx.refinement.jet.fruitless_threshold << ")";
+        best_cut = final_cut;
+        cur_fruitless_iteration = 0;
+      } else {
+        DBG0 << "Fruitless edge cut change from " << initial_cut << " to " << best_cut << " to "
+             << final_cut << " (threshold: " << _ctx.refinement.jet.fruitless_threshold
+             << "): incrementing fruitless iterations counter to " << cur_fruitless_iteration;
+      }
+    } while (cur_iteration < max_num_iterations &&
+             cur_fruitless_iteration < max_num_fruitless_iterations);
+
+    TIMED_SCOPE("Rollback") {
+      _snapshooter.rollback(_p_graph);
+    };
 
     KASSERT(
         debug::validate_partition(_p_graph),
-        "graph partition is in an inconsistent state after JET iterations " << cur_iteration,
+        "graph partition is in an inconsistent state after JET refinement",
         HEAVY
     );
-
-    const EdgeWeight before_rebalance_cut = IFDBG(metrics::edge_cut(_p_graph));
-    const double before_rebalance_l1 = IFDBG(metrics::imbalance_l1(_p_graph, _p_ctx));
-    DBG0 << "Partition *before* rebalancing: cut=" << before_rebalance_cut
-         << ", l1=" << before_rebalance_l1;
-
-    _balancer->initialize();
-    _balancer->refine();
-
-    const EdgeWeight final_cut = metrics::edge_cut(_p_graph);
-    const double final_l1 = metrics::imbalance_l1(_p_graph, _p_ctx);
-    DBG0 << "Partition *after* rebalancing: cut=" << final_cut << ", l1=" << final_l1;
-
-    TIMED_SCOPE("Update best partition") {
-      _snapshooter.update(_p_graph, _p_ctx, final_cut, final_l1);
-    };
-
-    ++cur_iteration;
-    ++cur_fruitless_iteration;
-
-    if (best_cut - final_cut > (1.0 - _ctx.refinement.jet.fruitless_threshold) * best_cut) {
-      DBG0 << "Improved cut from " << initial_cut << " to " << best_cut << " to " << final_cut
-           << ": resetting number of fruitless iterations (threshold: "
-           << _ctx.refinement.jet.fruitless_threshold << ")";
-      best_cut = final_cut;
-      cur_fruitless_iteration = 0;
-    } else {
-      DBG0 << "Fruitless edge cut change from " << initial_cut << " to " << best_cut << " to "
-           << final_cut << " (threshold: " << _ctx.refinement.jet.fruitless_threshold
-           << "): incrementing fruitless iterations counter to " << cur_fruitless_iteration;
-    }
-  } while (cur_iteration < max_num_iterations &&
-           cur_fruitless_iteration < max_num_fruitless_iterations);
-
-  TIMED_SCOPE("Rollback") {
-    _snapshooter.rollback(_p_graph);
-  };
-
-  KASSERT(
-      debug::validate_partition(_p_graph),
-      "graph partition is in an inconsistent state after JET refinement",
-      HEAVY
-  );
+  }
 
   TIMER_BARRIER(_p_graph.communicator());
-  return initial_cut > best_cut;
+  return false;
 }
 
 void JetRefiner::find_moves() {

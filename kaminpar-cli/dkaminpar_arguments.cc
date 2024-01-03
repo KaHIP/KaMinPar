@@ -593,18 +593,44 @@ CLI::Option_group *create_hem_coarsening_options(CLI::App *app, Context &ctx) {
 CLI::Option_group *create_jet_refinement_options(CLI::App *app, Context &ctx) {
   auto *jet = app->add_option_group("Refinement -> JET");
 
+  jet->add_option_function<int>("--r-jet-num-rounds", [&](const int value) {
+    ctx.refinement.jet.num_coarse_rounds = value;
+    ctx.refinement.jet.num_fine_rounds = value;
+  });
+
+  jet->add_option("--r-jet-num-coarse-rounds", ctx.refinement.jet.num_coarse_rounds)
+      ->capture_default_str();
+  jet->add_option("--r-jet-num-fine-rounds", ctx.refinement.jet.num_fine_rounds)
+      ->capture_default_str();
+
   jet->add_option("--r-jet-num-iterations", ctx.refinement.jet.num_iterations)
       ->capture_default_str();
   jet->add_option("--r-jet-num-fruitless-iterations", ctx.refinement.jet.num_fruitless_iterations)
       ->capture_default_str();
   jet->add_option("--r-jet-fruitless-threshold", ctx.refinement.jet.fruitless_threshold)
       ->capture_default_str();
+
+  jet->add_flag(
+         "--r-jet-dynamic-negative-gain-factor", ctx.refinement.jet.dynamic_negative_gain_factor
+  )
+      ->capture_default_str();
+
   jet->add_option(
          "--r-jet-coarse-negative-gain-factor", ctx.refinement.jet.coarse_negative_gain_factor
   )
       ->capture_default_str();
   jet->add_option("--r-jet-fine-negative-gain-factor", ctx.refinement.jet.fine_negative_gain_factor)
       ->capture_default_str();
+
+  jet->add_option(
+         "--r-jet-initial-negative-gain-factor", ctx.refinement.jet.initial_negative_gain_factor
+  )
+      ->capture_default_str();
+  jet->add_option(
+         "--r-jet-final-negative-gain-factor", ctx.refinement.jet.final_negative_gain_factor
+  )
+      ->capture_default_str();
+
   jet->add_option("--r-jet-balancing-algorithm", ctx.refinement.jet.balancing_algorithm)
       ->transform(CLI::CheckedTransformer(get_balancing_algorithms()).description(""))
       ->description(

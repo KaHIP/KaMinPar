@@ -51,6 +51,8 @@ public:
   bool refine() final;
 
 private:
+  void reset();
+
   void find_moves();
   void filter_bad_moves();
   void move_locked_nodes();
