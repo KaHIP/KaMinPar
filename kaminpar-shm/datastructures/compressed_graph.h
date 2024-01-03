@@ -32,6 +32,7 @@ public:
   using AbstractGraph::EdgeWeight;
   using AbstractGraph::NodeID;
   using AbstractGraph::NodeWeight;
+  using SignedID = std::int64_t;
 
 #ifdef KAMINPAR_COMPRESSION_HIGH_DEGREE_ENCODING
   /*!
@@ -625,7 +626,7 @@ private:
       return;
     }
 
-    const auto [first_gap, first_gap_len] = signed_varint_decode<std::make_signed_t<NodeID>>(data);
+    const auto [first_gap, first_gap_len] = signed_varint_decode<SignedID>(data);
     data += first_gap_len;
 
     const NodeID first_adjacent_node = static_cast<NodeID>(first_gap + node);
@@ -667,6 +668,7 @@ public:
   using NodeWeight = CompressedGraph::NodeWeight;
   using EdgeID = CompressedGraph::EdgeID;
   using EdgeWeight = CompressedGraph::EdgeWeight;
+  using SignedID = CompressedGraph::SignedID;
 
   /*!
    * Compresses a graph in compressed sparse row format.

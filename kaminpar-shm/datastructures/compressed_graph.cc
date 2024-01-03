@@ -416,8 +416,7 @@ void CompressedGraphBuilder::add_edges(
   }
 
   const auto [first_adjacent_node, first_edge_weight] = *iter++;
-  // TODO: Does the value range cover everything s.t. a underflow cannot happen?
-  const std::make_signed_t<NodeID> first_gap = first_adjacent_node - node;
+  const SignedID first_gap = first_adjacent_node - static_cast<SignedID>(node);
   _cur_compressed_edges += signed_varint_encode(first_gap, _cur_compressed_edges);
 
   if (_store_edge_weights) {
