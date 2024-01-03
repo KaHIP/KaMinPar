@@ -124,7 +124,7 @@ static void expect_equal_degree(const CSRGraph &graph, const CompressedGraph &co
   for (const auto node : graph.nodes()) {
     if (graph.degree(node) != compressed_graph.degree(node)) {
       LOG_ERROR << "The node " << node << " has degree " << compressed_graph.degree(node)
-                << " in the compressed graph and degree" << graph.degree(node)
+                << " in the compressed graph and degree " << graph.degree(node)
                 << " in the uncompressed graph!";
       return;
     }
@@ -463,7 +463,7 @@ int main(int argc, char *argv[]) {
   bool enable_checks = false;
 
   CLI::App app("Shared-memory graph compression benchmark");
-  app.add_option("-G, --graph", graph_filename, "Graph file")->required();
+  app.add_option("-G,--graph", graph_filename, "Graph file")->required();
   app.add_option("-t,--threads", num_threads, "Number of threads")
       ->check(CLI::NonNegativeNumber)
       ->default_val(num_threads);

@@ -22,21 +22,21 @@ using namespace kaminpar::shm;
 
 int main(int argc, char *argv[]) {
   Context ctx = create_default_context();
+  ctx.partition.k = 0;
 
   // Parse CLI arguments
   std::string graph_filename;
   std::string out_graph_filename;
-  int num_threads = 1;
 
   CLI::App app("Shared-memory graph rearrangement tool");
-  app.add_option("-G, --graph", graph_filename, "Input graph in METIS format")->required();
-  app.add_option("-O, --out", out_graph_filename, "Ouput file for saving the rearranged graph")
+  app.add_option("-G,--graph", graph_filename, "Input graph in METIS format")->required();
+  app.add_option("-O,--out", out_graph_filename, "Ouput file for saving the rearranged graph")
       ->required();
-  app.add_option("-t,--threads", num_threads, "Number of threads");
+  app.add_option("-t,--threads", ctx.parallel.num_threads, "Number of threads");
   create_partitioning_rearrangement_options(&app, ctx);
   CLI11_PARSE(app, argc, argv);
 
-  tbb::global_control gc(tbb::global_control::max_allowed_parallelism, num_threads);
+  tbb::global_control gc(tbb::global_control::max_allowed_parallelism, ctx.parallel.num_threads);
 
   LOG << "Reading input graph...";
   CSRGraph csr_graph = io::metis::csr_read<false>(graph_filename);
@@ -45,6 +45,7 @@ int main(int argc, char *argv[]) {
   LOG << "Rearranging graph...";
   if (ctx.node_ordering == NodeOrdering::DEGREE_BUCKETS) {
     graph = graph::rearrange_by_degree_buckets(ctx, std::move(graph));
+    graph::integrate_isolated_nodes(graph, ctx.partition.epsilon, ctx);
   }
 
   if (ctx.edge_ordering == EdgeOrdering::COMPRESSION) {

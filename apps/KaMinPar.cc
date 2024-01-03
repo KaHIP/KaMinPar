@@ -192,7 +192,7 @@ int main(int argc, char *argv[]) {
   }
 
   partitioner.set_graph(std::move(graph));
-  partitioner.compute_partition(app.seed, partition.data());
+  partitioner.compute_partition(app.k, partition.data());
 
   // Save graph partition
   if (!app.partition_filename.empty()) {

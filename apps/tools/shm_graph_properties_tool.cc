@@ -78,7 +78,7 @@ int main(int argc, char *argv[]) {
   std::string graph_filename;
 
   CLI::App app("Shared-memory graph properties tool");
-  app.add_option("-G, --graph", graph_filename, "Input graph in METIS format")->required();
+  app.add_option("-G,--graph", graph_filename, "Input graph in METIS format")->required();
   app.add_option("-t,--threads", ctx.parallel.num_threads, "Number of threads");
   create_graph_compression_options(&app, ctx);
   CLI11_PARSE(app, argc, argv);

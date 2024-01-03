@@ -26,7 +26,7 @@ int main(int argc, char *argv[]) {
   int num_threads = 1;
 
   CLI::App app("Shared-memory graph compression tool");
-  app.add_option("-G, --graph", graph_filename, "Input graph in METIS format")->required();
+  app.add_option("-G,--graph", graph_filename, "Input graph in METIS format")->required();
   app.add_option("--out", compressed_graph_filename, "Ouput file for saving the compressed graph")
       ->required();
   app.add_option("-t,--threads", num_threads, "Number of threads");
