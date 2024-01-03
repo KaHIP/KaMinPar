@@ -25,6 +25,9 @@
 #define HEAVY assert::heavy
 
 namespace kaminpar::dist {
+SET_STATISTICS_FROM_GLOBAL();
+SET_DEBUG(false);
+
 JetRefinerFactory::JetRefinerFactory(const Context &ctx) : _ctx(ctx) {}
 
 std::unique_ptr<GlobalRefiner>
@@ -104,6 +107,9 @@ bool JetRefiner::refine() {
   const int max_num_iterations = (_ctx.refinement.jet.num_iterations == 0)
                                      ? std::numeric_limits<int>::max()
                                      : _ctx.refinement.jet.num_iterations;
+  DBG0 << "Running JET refinement for at most " << max_num_iterations << " iterations and at most "
+       << max_num_fruitless_iterations << " fruitless iterations";
+
   int cur_fruitless_iteration = 0;
   int cur_iteration = 0;
 
@@ -190,11 +196,8 @@ void JetRefiner::find_moves() {
 
     if ( // Is a border node ...
         max_gainer.block != b_u &&
-        ( // ... and a positive gain move ...
-            max_gainer.ext_degree >= max_gainer.int_degree ||
-            // ... or a negative gain move, but not too bad
+        // ... and the move is not too bad 
             max_gainer.absolute_gain() > -std::floor(_negative_gain_factor * max_gainer.int_degree)
-        ) //
     ) {
       _gains_and_targets[u] = {max_gainer.absolute_gain(), max_gainer.block};
     } else {
@@ -207,7 +210,7 @@ void JetRefiner::synchronize_ghost_node_move_candidates() {
   TIMER_BARRIER(_p_graph.communicator());
   SCOPED_TIMER("Exchange moves");
 
-  tbb::parallel_for<NodeID>(_p_graph.n(), _p_graph.total_n(), [&](const NodeID ghost) {
+  _p_graph.pfor_ghost_nodes([&](const NodeID ghost) {
     _gains_and_targets[ghost] = {0, _p_graph.block(ghost)};
   });
 

@@ -10,6 +10,8 @@
 #include <kassert/kassert.hpp>
 
 namespace kaminpar::shm {
+SET_DEBUG(false);
+
 void GreedyBalancer::initialize(const PartitionedGraph &) {}
 
 bool GreedyBalancer::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {

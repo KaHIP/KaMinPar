@@ -217,6 +217,8 @@ struct FMRefinementContext {
 
 struct MtKaHyParRefinementContext {
   std::string config_filename;
+  std::string fine_config_filename;
+  std::string coarse_config_filename;
   bool only_run_on_root;
 };
 

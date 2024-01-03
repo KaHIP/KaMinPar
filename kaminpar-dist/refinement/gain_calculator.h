@@ -31,11 +31,11 @@ public:
     BlockID block;
     NodeWeight weight;
 
-    EdgeWeight absolute_gain() const {
+    [[nodiscard]] EdgeWeight absolute_gain() const {
       return ext_degree - int_degree;
     }
 
-    double relative_gain() const {
+    [[nodiscard]] double relative_gain() const {
       if (ext_degree >= int_degree) {
         return 1.0 * absolute_gain() * weight;
       } else {
@@ -110,7 +110,12 @@ private:
     rating_map.update_upper_bound_size(std::min(_p_graph->k(), _p_graph->degree(u)));
     rating_map.run_with_map(action, action);
 
-    return {int_conn, max_ext_conn, max_target, w_u};
+    return {
+        .int_degree = int_conn,
+        .ext_degree = max_ext_conn,
+        .block = max_target,
+        .weight = w_u,
+    };
   }
 
   const DistributedPartitionedGraph *_p_graph = nullptr;

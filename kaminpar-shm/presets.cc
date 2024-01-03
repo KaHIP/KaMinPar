@@ -134,15 +134,18 @@ Context create_default_context() {
               .balancer = {},
               .jet =
                   {
-                      .num_iterations = 12,
-                      .interpolate_c = false,
-                      .min_c = 0.25,
-                      .max_c = 0.75,
-                      .abortion_threshold = 0.999,
+                      .num_iterations = 0,
+                      .num_fruitless_iterations = 12,
+                      .fruitless_threshold = 0.999,
+                      .fine_negative_gain_factor = 0.25,
+                      .coarse_negative_gain_factor = 0.75,
+                      .balancing_algorithm = RefinementAlgorithm::GREEDY_BALANCER,
                   },
               .mtkahypar =
                   {
                       .config_filename = "",
+                      .coarse_config_filename = "",
+                      .fine_config_filename = "",
                   },
           },
       .parallel =

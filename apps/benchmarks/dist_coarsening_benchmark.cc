@@ -40,7 +40,7 @@ int main(int argc, char *argv[]) {
   int min_levels = 0;
 
   CLI::App app;
-  app.add_option("-G", graph_filename)->required();
+  app.add_option("-G,--graph", graph_filename)->required();
   app.add_option("-k", ctx.partition.k);
   app.add_option("--min-levels", min_levels);
   app.add_option("--max-levels", max_levels);

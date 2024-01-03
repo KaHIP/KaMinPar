@@ -263,6 +263,15 @@ void print(const RefinementContext &r_ctx, std::ostream &out) {
       out << "  Preallocate gain cache:     " << r_ctx.kway_fm.preallocate_gain_cache << "\n";
     }
   }
+  if (r_ctx.includes_algorithm(RefinementAlgorithm::JET)) {
+    out << "Jet refinement:               " << RefinementAlgorithm::JET << "\n";
+    out << "  Number of iterations:       max " << r_ctx.jet.num_iterations << ", or "
+        << r_ctx.jet.num_fruitless_iterations << " fruitless (improvement < "
+        << 100.0 * (1 - r_ctx.jet.fruitless_threshold) << "%)\n";
+    out << "  Penalty factors:            coarse " << r_ctx.jet.coarse_negative_gain_factor
+        << ", fine " << r_ctx.jet.fine_negative_gain_factor << "\n";
+    out << "  Balancing algorithm:        " << r_ctx.jet.balancing_algorithm << "\n";
+  }
 }
 
 void print(const PartitionContext &p_ctx, std::ostream &out) {

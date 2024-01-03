@@ -338,6 +338,10 @@ public:
     tbb::parallel_for(tbb::blocked_range<NodeID>(from, to), std::forward<Lambda>(l));
   }
 
+  template <typename Lambda> inline void pfor_ghost_nodes(Lambda &&l) const {
+    pfor_nodes(n(), total_n(), std::forward<Lambda>(l));
+  }
+
   template <typename Lambda> inline void pfor_nodes(Lambda &&l) const {
     pfor_nodes(0, n(), std::forward<Lambda>(l));
   }

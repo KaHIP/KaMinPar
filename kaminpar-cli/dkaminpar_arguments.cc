@@ -599,9 +599,11 @@ CLI::Option_group *create_jet_refinement_options(CLI::App *app, Context &ctx) {
       ->capture_default_str();
   jet->add_option("--r-jet-fruitless-threshold", ctx.refinement.jet.fruitless_threshold)
       ->capture_default_str();
-  jet->add_option("--r-jet-coarse-penalty-factor", ctx.refinement.jet.coarse_negative_gain_factor)
+  jet->add_option(
+         "--r-jet-coarse-negative-gain-factor", ctx.refinement.jet.coarse_negative_gain_factor
+  )
       ->capture_default_str();
-  jet->add_option("--r-jet-fine-penalty-factor", ctx.refinement.jet.fine_negative_gain_factor)
+  jet->add_option("--r-jet-fine-negative-gain-factor", ctx.refinement.jet.fine_negative_gain_factor)
       ->capture_default_str();
   jet->add_option("--r-jet-balancing-algorithm", ctx.refinement.jet.balancing_algorithm)
       ->transform(CLI::CheckedTransformer(get_balancing_algorithms()).description(""))
@@ -618,6 +620,11 @@ CLI::Option_group *create_mtkahypar_refinement_options(CLI::App *app, Context &c
   auto *mtkahypar = app->add_option_group("Refinement -> MtKaHyPar");
 
   mtkahypar->add_option("--r-mtkahypar-config", ctx.refinement.mtkahypar.config_filename)
+      ->capture_default_str();
+  mtkahypar->add_option("--r-mtkahypar-config-fine", ctx.refinement.mtkahypar.fine_config_filename)
+      ->capture_default_str();
+  mtkahypar
+      ->add_option("--r-mtkahypar-config-coarse", ctx.refinement.mtkahypar.coarse_config_filename)
       ->capture_default_str();
   mtkahypar->add_flag("--r-mtkahypar-only-run-on-root", ctx.refinement.mtkahypar.only_run_on_root)
       ->capture_default_str();

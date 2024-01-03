@@ -21,88 +21,22 @@
 
 namespace kaminpar::shm {
 SET_STATISTICS_FROM_GLOBAL();
-SET_DEBUG(true);
-
-struct Statistics {
-  EdgeWeight pre_move_cut = 0;
-  double pre_move_imbalance = 0.0;
-  bool pre_move_feasible = false;
-
-  EdgeWeight pre_rebalance_cut = 0;
-  double pre_rebalance_imbalance = 0.0;
-  bool pre_rebalance_feasible = false;
-
-  EdgeWeight final_cut = 0;
-  double final_imbalance = 0.0;
-  bool final_feasible = false;
-
-  parallel::Atomic<EdgeWeight> initial_pos_gain_sum = 0;
-  parallel::Atomic<EdgeWeight> initial_gain_sum = 0;
-  parallel::Atomic<NodeID> initial_num_pos_gain_moves = 0;
-  parallel::Atomic<NodeID> initial_num_moves = 0;
-  parallel::Atomic<EdgeWeight> prefiltered_gain_sum = 0;
-  parallel::Atomic<NodeID> prefiltered_num_moves = 0;
-  parallel::Atomic<EdgeWeight> filtered_expected_gain_sum = 0;
-  parallel::Atomic<EdgeWeight> filtered_actual_gain_sum = 0;
-  parallel::Atomic<NodeID> filtered_num_actual_pos_gain_moves = 0;
-  parallel::Atomic<NodeID> filtered_num_actual_zero_gain_moves = 0;
-  parallel::Atomic<NodeID> filtered_num_actual_neg_gain_moves = 0;
-  parallel::Atomic<NodeID> filtered_num_moves = 0;
-
-  std::array<parallel::Atomic<NodeID>, kNumberOfDegreeBuckets<NodeID>> filtered_num_moves_by_deg;
-  std::array<parallel::Atomic<NodeID>, kNumberOfDegreeBuckets<NodeID>> rebalance_num_moves_by_deg;
-  std::array<parallel::Atomic<NodeID>, kNumberOfDegreeBuckets<NodeID>> final_num_moves_by_deg;
-
-  bool last_iteration_is_best = false;
-
-  void print(const int iteration, const int max_iterations) {
-    STATS << "JET:ITER(" << iteration << " of " << max_iterations << ") "
-          << "pre_move_cut=" << pre_move_cut << " "
-          << "pre_move_imbalance=" << pre_move_imbalance << " "
-          << "pre_move_feasible=" << pre_move_feasible << " "
-          << "pre_rebalance_cut=" << pre_rebalance_cut << " "
-          << "pre_rebalance_imbalance=" << pre_rebalance_imbalance << " "
-          << "pre_rebalance_feasible=" << pre_rebalance_feasible << " "
-          << "final_cut=" << final_cut << " "
-          << "final_imbalance=" << final_imbalance << " "
-          << "final_feasible=" << final_feasible << " "
-          << "initial_pos_gain_sum=" << initial_pos_gain_sum << " "
-          << "initial_gain_sum=" << initial_gain_sum << " "
-          << "initial_num_pos_gain_moves=" << initial_num_pos_gain_moves << " "
-          << "initial_num_moves=" << initial_num_moves << " "
-          << "prefiltered_gain_sum=" << prefiltered_gain_sum << " "
-          << "prefiltered_num_moves=" << prefiltered_num_moves << " "
-          << "filtered_expected_gain_sum=" << filtered_expected_gain_sum << " "
-          << "filtered_actual_gain_sum=" << filtered_actual_gain_sum << " "
-          << "filtered_num_actual_pos_gain_moves=" << filtered_num_actual_pos_gain_moves << " "
-          << "filtered_num_actual_zero_gain_moves=" << filtered_num_actual_zero_gain_moves << " "
-          << "filtered_num_actual_neg_gain_moves=" << filtered_num_actual_neg_gain_moves << " "
-          << "last_iteration_is_best=" << last_iteration_is_best;
-  }
-};
+SET_DEBUG(false);
 
 JetRefiner::JetRefiner(const Context &ctx) : _ctx(ctx) {}
 
-bool JetRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
-  SCOPED_TIMER("JET");
+void JetRefiner::initialize(const PartitionedGraph &p_graph) {
+  SCOPED_TIMER("Jet Refiner");
+  SCOPED_TIMER("Initialization");
 
-  const NodeID min_size = p_ctx.k * _ctx.coarsening.contraction_limit;
-  const NodeID cur_size = p_graph.n();
-  const NodeID max_size = p_ctx.n;
-  const double min_c = _ctx.refinement.jet.min_c;
-  const double max_c = _ctx.refinement.jet.max_c;
-  const double c = [&] {
-    if (_ctx.refinement.jet.interpolate_c) {
-      return min_c + (max_c - min_c) * (cur_size - min_size) / (max_size - min_size);
-    } else {
-      if (cur_size <= 2 * min_size) {
-        return min_c;
-      } else {
-        return max_c;
-      }
-    }
-  }();
-  DBG << "Setting c=" << c;
+  _negative_gain_factor = (p_graph.n() == _ctx.partition.n)
+                              ? _ctx.refinement.jet.fine_negative_gain_factor
+                              : _ctx.refinement.jet.coarse_negative_gain_factor;
+  DBG << "Initialized with negative gain factor: " << _negative_gain_factor;
+}
+
+bool JetRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
+  SCOPED_TIMER("Jet Refiner");
 
   START_TIMER("Allocation");
   DenseGainCache gain_cache(_ctx, p_graph.n(), p_graph.k());
@@ -120,19 +54,24 @@ bool JetRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx
 
   StaticArray<BlockID> best_partition(p_graph.n());
   p_graph.pfor_nodes([&](const NodeID u) { best_partition[u] = p_graph.block(u); });
-  EdgeWeight best_cut = metrics::edge_cut(p_graph);
+  const EdgeWeight initial_cut = metrics::edge_cut(p_graph);
+  EdgeWeight best_cut = initial_cut;
   bool last_iteration_is_best = true;
   STOP_TIMER();
 
-  for (int i = 0; i < _ctx.refinement.jet.num_iterations; ++i) {
-    Statistics stats;
+  const int max_num_fruitless_iterations = (_ctx.refinement.jet.num_fruitless_iterations == 0)
+                                               ? std::numeric_limits<int>::max()
+                                               : _ctx.refinement.jet.num_fruitless_iterations;
+  const int max_num_iterations = (_ctx.refinement.jet.num_iterations == 0)
+                                     ? std::numeric_limits<int>::max()
+                                     : _ctx.refinement.jet.num_iterations;
+  DBG << "Running JET refinement for at most " << max_num_iterations << " iterations and at most "
+      << max_num_fruitless_iterations << " fruitless iterations";
 
-    const EdgeWeight initial_cut = metrics::edge_cut(p_graph);
+  int cur_fruitless_iteration = 0;
+  int cur_iteration = 0;
 
-    stats.pre_move_cut = IFSTATS(metrics::edge_cut(p_graph));
-    stats.pre_move_imbalance = IFSTATS(metrics::imbalance(p_graph));
-    stats.pre_move_feasible = IFSTATS(metrics::is_balanced(p_graph, p_ctx));
-
+  do {
     TIMED_SCOPE("Find moves") {
       p_graph.pfor_nodes([&](const NodeID u) {
         const BlockID from = p_graph.block(u);
@@ -157,17 +96,8 @@ bool JetRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx
           }
         }
 
-        IFSTATS(++stats.initial_num_moves);
-        IFSTATS(stats.initial_gain_sum += best_gain);
-        if (best_gain > 0) {
-          IFSTATS(stats.initial_pos_gain_sum += best_gain);
-        }
-
-        if (-best_gain < std::floor(c * gain_cache.conn(u, from))) {
+        if (best_gain > -std::floor(_negative_gain_factor * gain_cache.conn(u, from))) {
           next_partition[u] = best_block;
-
-          IFSTATS(++stats.prefiltered_num_moves);
-          IFSTATS(stats.prefiltered_gain_sum += best_gain);
         } else {
           next_partition[u] = from;
         }
@@ -209,8 +139,6 @@ bool JetRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx
         }
 
         if (gain > 0) {
-          IFSTATS(++stats.filtered_num_moves);
-          IFSTATS(stats.filtered_expected_gain_sum += gain);
           lock[u] = 1;
         }
       });
@@ -222,68 +150,46 @@ bool JetRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx
           const BlockID from = p_graph.block(u);
           const BlockID to = next_partition[u];
 
-          IFSTATS(
-              stats.filtered_num_actual_pos_gain_moves += gain_cache.gain(u, from, to) > 0 ? 1 : 0
-          );
-          IFSTATS(
-              stats.filtered_num_actual_zero_gain_moves += gain_cache.gain(u, from, to) == 0 ? 1 : 0
-          );
-          IFSTATS(
-              stats.filtered_num_actual_neg_gain_moves += gain_cache.gain(u, from, to) < 0 ? 1 : 0
-          );
-          IFSTATS(stats.filtered_actual_gain_sum += gain_cache.gain(u, from, to));
-          IFSTATS(stats.filtered_num_moves_by_deg[degree_bucket(p_graph.degree(u))]++);
-
           p_graph.set_block(u, to);
-          gain_cache.move(p_graph, u, from, p_graph.block(u));
+          gain_cache.move(p_graph, u, from, to);
         }
       });
     };
-
-    stats.pre_rebalance_cut = IFSTATS(metrics::edge_cut(p_graph));
-    stats.pre_rebalance_imbalance = IFSTATS(metrics::imbalance(p_graph));
-    stats.pre_rebalance_feasible = IFSTATS(metrics::is_balanced(p_graph, p_ctx));
-
-    StaticArray<BlockID> imbalanced_partition(IFSTATS(p_graph.n()));
-    IF_STATS {
-      p_graph.pfor_nodes([&](const NodeID u) { imbalanced_partition[u] = p_graph.block(u); });
-    }
 
     TIMED_SCOPE("Rebalance") {
       balancer.refine(p_graph, p_ctx);
     };
 
-    IF_STATS {
-      p_graph.pfor_nodes([&](const NodeID u) {
-        if (imbalanced_partition[u] != p_graph.block(u)) {
-          IFSTATS(stats.rebalance_num_moves_by_deg[degree_bucket(p_graph.degree(u))]++);
-        }
-      });
-    }
+    const EdgeWeight final_cut = metrics::edge_cut(p_graph);
 
     TIMED_SCOPE("Update best partition") {
-      const EdgeWeight current_cut = metrics::edge_cut(p_graph);
-      if (current_cut <= best_cut) {
+      if (final_cut <= best_cut) {
         p_graph.pfor_nodes([&](const NodeID u) { best_partition[u] = p_graph.block(u); });
-        best_cut = current_cut;
-        last_iteration_is_best = true;
+        last_iteration_is_best = true; 
       } else {
         last_iteration_is_best = false;
       }
     };
 
-    IFSTATS(stats.last_iteration_is_best = last_iteration_is_best);
-    IFSTATS(stats.final_cut = metrics::edge_cut(p_graph));
-    IFSTATS(stats.final_imbalance = metrics::imbalance(p_graph));
-    IFSTATS(stats.final_feasible = metrics::is_feasible(p_graph, p_ctx));
-    IFSTATS(stats.print(i, _ctx.refinement.jet.num_iterations));
+    ++cur_iteration;
+    ++cur_fruitless_iteration;
 
-    const EdgeWeight final_cut = metrics::edge_cut(p_graph);
-    const double improvement = 1.0 * (initial_cut - final_cut) / initial_cut;
-    if (1.0 - improvement > _ctx.refinement.jet.abortion_threshold) {
-      break;
+    if (best_cut - final_cut > (1.0 - _ctx.refinement.jet.fruitless_threshold) * best_cut) {
+      DBG << "Improved cut from " << initial_cut << " to " << best_cut << " to " << final_cut
+          << ": resetting number of fruitless iterations (threshold: "
+          << _ctx.refinement.jet.fruitless_threshold << ")";
+      cur_fruitless_iteration = 0;
+    } else {
+      DBG << "Fruitless edge cut change from " << initial_cut << " to " << best_cut << " to "
+          << final_cut << " (threshold: " << _ctx.refinement.jet.fruitless_threshold
+          << "): incrementing fruitless iterations counter to " << cur_fruitless_iteration;
     }
-  }
+
+    if (final_cut < best_cut) {
+      best_cut = final_cut;
+    }
+  } while (cur_iteration < max_num_iterations &&
+           cur_fruitless_iteration < max_num_fruitless_iterations);
 
   TIMED_SCOPE("Rollback") {
     if (!last_iteration_is_best) {

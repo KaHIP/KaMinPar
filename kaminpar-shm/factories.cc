@@ -23,11 +23,11 @@
 #include "kaminpar-shm/coarsening/noop_coarsener.h"
 
 // Refinement
+#include "kaminpar-shm/refinement/adapters/mtkahypar_refiner.h"
 #include "kaminpar-shm/refinement/balancer/greedy_balancer.h"
 #include "kaminpar-shm/refinement/fm/fm_refiner.h"
 #include "kaminpar-shm/refinement/jet/jet_refiner.h"
 #include "kaminpar-shm/refinement/lp/lp_refiner.h"
-#include "kaminpar-shm/refinement/mtkahypar_refiner.h"
 #include "kaminpar-shm/refinement/multi_refiner.h"
 
 // Gain cache strategies for the FM algorithm

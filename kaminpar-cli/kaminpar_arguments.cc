@@ -279,16 +279,15 @@ CLI::Option_group *create_jet_refinement_options(CLI::App *app, Context &ctx) {
 
   jet->add_option("--r-jet-num-iterations", ctx.refinement.jet.num_iterations)
       ->capture_default_str();
-  /*
-  jet->add_flag("--r-jet-interpolate-c", ctx.refinement.jet.interpolate_c)->capture_default_str();
-  */
-  /*
-  jet->add_option("--r-jet-min-c", ctx.refinement.jet.min_c)->capture_default_str();
-  */
-  /*
-  jet->add_option("--r-jet-max-c", ctx.refinement.jet.max_c)->capture_default_str();
-  */
-  jet->add_option("--r-jet-abortion-threshold", ctx.refinement.jet.abortion_threshold)
+  jet->add_option("--r-jet-num-fruitless-iterations", ctx.refinement.jet.num_fruitless_iterations)
+      ->capture_default_str();
+  jet->add_option("--r-jet-fruitless-threshold", ctx.refinement.jet.fruitless_threshold)
+      ->capture_default_str();
+  jet->add_option(
+         "--r-jet-coarse-negative-gain-factor", ctx.refinement.jet.coarse_negative_gain_factor
+  )
+      ->capture_default_str();
+  jet->add_option("--r-jet-fine-negative-gain-factor", ctx.refinement.jet.fine_negative_gain_factor)
       ->capture_default_str();
 
   return jet;
@@ -297,7 +296,12 @@ CLI::Option_group *create_jet_refinement_options(CLI::App *app, Context &ctx) {
 CLI::Option_group *create_mtkahypar_refinement_options(CLI::App *app, Context &ctx) {
   auto *mtkahypar = app->add_option_group("Refinement -> Mt-KaHyPar");
 
-  mtkahypar->add_option("--r-mtkahypar-config-filename", ctx.refinement.mtkahypar.config_filename)
+  mtkahypar->add_option("--r-mtkahypar-config", ctx.refinement.mtkahypar.config_filename)
+      ->capture_default_str();
+  mtkahypar->add_option("--r-mtkahypar-config-fine", ctx.refinement.mtkahypar.fine_config_filename)
+      ->capture_default_str();
+  mtkahypar
+      ->add_option("--r-mtkahypar-config-coarse", ctx.refinement.mtkahypar.coarse_config_filename)
       ->capture_default_str();
 
   return mtkahypar;

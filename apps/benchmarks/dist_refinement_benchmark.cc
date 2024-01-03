@@ -47,10 +47,10 @@ int main(int argc, char *argv[]) {
   ctx.refinement.algorithms.clear();
 
   CLI::App app;
-  app.add_option("-G", graph_filename);
-  app.add_option("-P", partition_filename);
-  app.add_option("-e", ctx.partition.epsilon);
-  app.add_option("-t", ctx.parallel.num_threads);
+  app.add_option("-G,--graph", graph_filename);
+  app.add_option("-P,--partition", partition_filename);
+  app.add_option("-e,--epsilon", ctx.partition.epsilon);
+  app.add_option("-t,--threads", ctx.parallel.num_threads);
   create_refinement_options(&app, ctx);
   CLI11_PARSE(app, argc, argv);
 

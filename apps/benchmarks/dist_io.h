@@ -200,8 +200,11 @@ load_partitioned_graph(const std::string &graph_name, const std::string &partiti
       wrapper.graph.get(), k, std::move(partition), std::move(block_weights)
   );
 
-  std::cout << "Loaded partitioned graph with cut=" << metrics::edge_cut(*wrapper.p_graph)
-            << ", imbalance=" << metrics::imbalance(*wrapper.p_graph) << std::endl;
+  const EdgeWeight cut = metrics::edge_cut(*wrapper.p_graph);
+  const double imbalance = metrics::imbalance(*wrapper.p_graph);
+  if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
+    std::cout << "INPUT cut=" << cut << " imbalance=" << imbalance << std::endl;
+  }
 
   return wrapper;
 }

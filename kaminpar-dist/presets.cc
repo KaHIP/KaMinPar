@@ -244,6 +244,8 @@ Context create_default_context() {
               .mtkahypar =
                   {
                       .config_filename = "",
+                      .fine_config_filename = "",
+                      .coarse_config_filename = "",
                       .only_run_on_root = true,
                   },
           },

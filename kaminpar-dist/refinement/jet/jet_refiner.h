@@ -36,9 +36,6 @@ private:
 };
 
 class JetRefiner : public GlobalRefiner {
-  SET_STATISTICS_FROM_GLOBAL();
-  SET_DEBUG(true);
-
 public:
   JetRefiner(
       const Context &ctx, DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx

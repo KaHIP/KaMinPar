@@ -24,6 +24,8 @@
 #define HEAVY assert::heavy
 
 namespace kaminpar::dist {
+SET_DEBUG(false);
+
 NodeBalancerFactory::NodeBalancerFactory(const Context &ctx) : _ctx(ctx) {}
 
 std::unique_ptr<GlobalRefiner>
@@ -188,9 +190,7 @@ bool NodeBalancer::refine() {
       }
     }
 
-    KASSERT(
-        debug::validate_partition(_p_graph), "invalid partition after balancing round", HEAVY
-    );
+    KASSERT(debug::validate_partition(_p_graph), "invalid partition after balancing round", HEAVY);
   }
 
   KASSERT(debug::validate_partition(_p_graph), "invalid partition after balancing", HEAVY);

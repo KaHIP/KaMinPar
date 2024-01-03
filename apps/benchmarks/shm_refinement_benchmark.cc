@@ -37,8 +37,8 @@ int main(int argc, char *argv[]) {
   int num_threads = 1;
 
   CLI::App app("Shared-memory FM benchmark");
-  app.add_option("graph", graph_filename, "Graph file")->required();
-  app.add_option("partition", partition_filename, "Partition file")->required();
+  app.add_option("-G,--graph", graph_filename, "Graph file")->required();
+  app.add_option("-P,--partition", partition_filename, "Partition file")->required();
   app.add_option("-t,--threads", num_threads, "Number of threads");
   app.add_flag("--deg-sorted-input", is_sorted)->capture_default_str();
   create_refinement_options(&app, ctx);

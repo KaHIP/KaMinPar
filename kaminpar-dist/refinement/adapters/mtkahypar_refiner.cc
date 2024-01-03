@@ -55,7 +55,18 @@ bool MtKaHyParRefiner::refine() {
   if (participate) {
     mt_kahypar_context_t *mt_kahypar_ctx = mt_kahypar_context_new();
     if (_ctx.refinement.mtkahypar.config_filename.empty()) {
-      mt_kahypar_load_preset(mt_kahypar_ctx, DEFAULT);
+      const bool toplevel = _p_graph.global_n() == _ctx.partition.graph->global_n;
+      if (toplevel && !_ctx.refinement.mtkahypar.fine_config_filename.empty()) {
+        mt_kahypar_configure_context_from_file(
+            mt_kahypar_ctx, _ctx.refinement.mtkahypar.fine_config_filename.c_str()
+        );
+      } else if (!toplevel && !_ctx.refinement.mtkahypar.coarse_config_filename.empty()) {
+        mt_kahypar_configure_context_from_file(
+            mt_kahypar_ctx, _ctx.refinement.mtkahypar.coarse_config_filename.c_str()
+        );
+      } else {
+        mt_kahypar_load_preset(mt_kahypar_ctx, DEFAULT);
+      }
     } else {
       mt_kahypar_configure_context_from_file(
           mt_kahypar_ctx, _ctx.refinement.mtkahypar.config_filename.c_str()
