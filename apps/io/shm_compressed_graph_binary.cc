@@ -33,9 +33,13 @@ void write(const std::string &filename, const CompressedGraph &graph) {
   write_int(out, static_cast<std::uint8_t>(sizeof(CompressedGraph::NodeWeight)));
   write_int(out, static_cast<std::uint8_t>(sizeof(CompressedGraph::EdgeWeight)));
 
+  write_int(out, static_cast<std::uint8_t>(CompressedGraph::kHighDegreeEncoding));
   write_int(out, CompressedGraph::kHighDegreeThreshold);
+  write_int(out, CompressedGraph::kHighDegreePartLength);
   write_int(out, static_cast<std::uint8_t>(CompressedGraph::kIntervalEncoding));
   write_int(out, CompressedGraph::kIntervalLengthTreshold);
+  write_int(out, static_cast<std::uint8_t>(CompressedGraph::kRunLengthEncoding));
+  write_int(out, static_cast<std::uint8_t>(CompressedGraph::kStreamEncoding));
 
   write_int(out, graph.n());
   write_int(out, graph.m());
@@ -116,11 +120,30 @@ CompressedGraph read(const std::string &filename) {
     std::exit(1);
   }
 
+  bool high_degree_encoding = static_cast<bool>(read_int<std::uint8_t>(in));
+  if (high_degree_encoding != CompressedGraph::kHighDegreeEncoding) {
+    if (high_degree_encoding) {
+      LOG_ERROR << "The stored compressed graph uses high degree encoding but this build does not.";
+    } else {
+      LOG_ERROR
+          << "The stored compressed graph does not use high degree encoding but this build does.";
+    }
+    std::exit(1);
+  }
+
   NodeID high_degree_threshold = read_int<NodeID>(in);
   if (high_degree_threshold != CompressedGraph::kHighDegreeThreshold) {
     LOG_ERROR << "The stored compressed graph uses " << high_degree_threshold
               << "as the high degree threshold but this build uses "
               << (CompressedGraph::kHighDegreeThreshold) << " as the high degree threshold.";
+    std::exit(1);
+  }
+
+  NodeID high_degree_part_length = read_int<NodeID>(in);
+  if (high_degree_part_length != CompressedGraph::kHighDegreePartLength) {
+    LOG_ERROR << "The stored compressed graph uses " << high_degree_part_length
+              << "as the high degree part length but this build uses "
+              << (CompressedGraph::kHighDegreePartLength) << " as the high degree part length.";
     std::exit(1);
   }
 
@@ -140,6 +163,27 @@ CompressedGraph read(const std::string &filename) {
     LOG_ERROR << "The stored compressed graph uses " << interval_length_threshold
               << "as the interval length threshold but this build uses "
               << (CompressedGraph::kIntervalLengthTreshold) << " as the interval length threshold.";
+    std::exit(1);
+  }
+
+  bool run_length_encoding = static_cast<bool>(read_int<std::uint8_t>(in));
+  if (run_length_encoding != CompressedGraph::kRunLengthEncoding) {
+    if (run_length_encoding) {
+      LOG_ERROR << "The stored compressed graph uses run-length encoding but this build does not.";
+    } else {
+      LOG_ERROR
+          << "The stored compressed graph does not use run-length encoding but this build does.";
+    }
+    std::exit(1);
+  }
+
+  bool stream_encoding = static_cast<bool>(read_int<std::uint8_t>(in));
+  if (stream_encoding != CompressedGraph::kStreamEncoding) {
+    if (stream_encoding) {
+      LOG_ERROR << "The stored compressed graph uses stream encoding but this build does not.";
+    } else {
+      LOG_ERROR << "The stored compressed graph does not use stream encoding but this build does.";
+    }
     std::exit(1);
   }
 

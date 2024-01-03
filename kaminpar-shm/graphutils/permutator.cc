@@ -303,21 +303,21 @@ static void sort_by_compression(
     std::sort(edges_begin, edges_end);
   }
 
-  const bool split_neighbourhood = degree > CompressedGraph::kHighDegreeThreshold;
+  const bool split_neighbourhood = degree >= CompressedGraph::kHighDegreeThreshold;
   if (split_neighbourhood) {
-    NodeID part_count = ((degree % CompressedGraph::kHighDegreeThreshold) == 0)
-                            ? (degree / CompressedGraph::kHighDegreeThreshold)
-                            : ((degree / CompressedGraph::kHighDegreeThreshold) + 1);
-    NodeID last_part_length = ((degree % CompressedGraph::kHighDegreeThreshold) == 0)
-                                  ? CompressedGraph::kHighDegreeThreshold
-                                  : (degree % CompressedGraph::kHighDegreeThreshold);
+    NodeID part_count = ((degree % CompressedGraph::kHighDegreePartLength) == 0)
+                            ? (degree / CompressedGraph::kHighDegreePartLength)
+                            : ((degree / CompressedGraph::kHighDegreePartLength) + 1);
+    NodeID last_part_length = ((degree % CompressedGraph::kHighDegreePartLength) == 0)
+                                  ? CompressedGraph::kHighDegreePartLength
+                                  : (degree % CompressedGraph::kHighDegreePartLength);
 
     for (NodeID i = 0; i < part_count; ++i) {
-      NodeID *part_edges = edges_begin + i * CompressedGraph::kHighDegreeThreshold;
-      EdgeWeight *part_edge_weights = edge_weights + i * CompressedGraph::kHighDegreeThreshold;
+      NodeID *part_edges = edges_begin + i * CompressedGraph::kHighDegreePartLength;
+      EdgeWeight *part_edge_weights = edge_weights + i * CompressedGraph::kHighDegreePartLength;
 
       const bool last_part = i + 1 == part_count;
-      NodeID part_length = last_part ? last_part_length : CompressedGraph::kHighDegreeThreshold;
+      NodeID part_length = last_part ? last_part_length : CompressedGraph::kHighDegreePartLength;
 
       permutate(part_edges, part_edges + part_length, part_edge_weights);
     }

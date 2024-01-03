@@ -250,6 +250,7 @@ void print(const GraphCompressionContext &c_ctx, std::ostream &out) {
     }
     out << "  High Degree Encoding:       " << (c_ctx.high_degree_encoding ? "yes" : "no") << "\n";
     out << "  High Degree Threshold:      " << c_ctx.high_degree_threshold << "\n";
+    out << "  High Degree Part Length:    " << c_ctx.high_degree_part_length << "\n";
     out << "  Interval Encoding:          " << (c_ctx.interval_encoding ? "yes" : "no") << "\n";
     out << "  Interval Length Threshold:  " << c_ctx.interval_length_treshold << "\n";
 

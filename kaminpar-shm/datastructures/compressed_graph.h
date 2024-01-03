@@ -51,6 +51,11 @@ public:
    */
   static constexpr NodeID kHighDegreeThreshold = 10000;
 
+  /*!
+   * The length of a part when splitting the neighbourhood of a high degree node.
+   */
+  static constexpr NodeID kHighDegreePartLength = 500;
+
 #ifdef KAMINPAR_COMPRESSION_INTERVAL_ENCODING
   /*!
    * Whether interval encoding is used.
@@ -488,7 +493,7 @@ private:
     max_neighbor_count = std::min(max_neighbor_count, degree);
 
     if constexpr (kHighDegreeEncoding) {
-      const bool split_neighbourhood = degree > kHighDegreeThreshold;
+      const bool split_neighbourhood = degree >= kHighDegreeThreshold;
 
       if (split_neighbourhood) {
         iterate_high_degree_neighborhood<max_edges, parallel>(
@@ -513,31 +518,31 @@ private:
       const NodeID max_neighbor_count,
       Lambda &&l
   ) const {
-    const NodeID part_count = ((degree % kHighDegreeThreshold) == 0)
-                                  ? (degree / kHighDegreeThreshold)
-                                  : ((degree / kHighDegreeThreshold) + 1);
+    const NodeID part_count = ((degree % kHighDegreePartLength) == 0)
+                                  ? (degree / kHighDegreePartLength)
+                                  : ((degree / kHighDegreePartLength) + 1);
 
     const NodeID max_part_count = std::min(
         part_count,
-        ((max_neighbor_count % kHighDegreeThreshold) == 0)
-            ? (max_neighbor_count / kHighDegreeThreshold)
-            : ((max_neighbor_count / kHighDegreeThreshold) + 1)
+        ((max_neighbor_count % kHighDegreePartLength) == 0)
+            ? (max_neighbor_count / kHighDegreePartLength)
+            : ((max_neighbor_count / kHighDegreePartLength) + 1)
     );
 
-    const NodeID max_neighbor_rem = ((max_neighbor_count % kHighDegreeThreshold) == 0)
-                                        ? kHighDegreeThreshold
-                                        : (max_neighbor_count % kHighDegreeThreshold);
+    const NodeID max_neighbor_rem = ((max_neighbor_count % kHighDegreePartLength) == 0)
+                                        ? kHighDegreePartLength
+                                        : (max_neighbor_count % kHighDegreePartLength);
 
     const auto iterate_part = [&](const NodeID part) {
       const std::uint8_t *part_data = data + *((NodeID *)(data + sizeof(NodeID) * part));
-      const EdgeID part_first_edge = first_edge + kHighDegreeThreshold * part;
+      const EdgeID part_first_edge = first_edge + kHighDegreePartLength * part;
 
       const bool last_part = part + 1 == max_part_count;
 
       if (last_part) {
         const NodeID part_degree = (part == part_count - 1)
-                                       ? (degree - kHighDegreeThreshold * (part_count - 1))
-                                       : kHighDegreeThreshold;
+                                       ? (degree - kHighDegreePartLength * (part_count - 1))
+                                       : kHighDegreePartLength;
         const EdgeID part_max_edge = part_first_edge + max_neighbor_rem;
 
         iterate_edges<max_edges>(
@@ -550,7 +555,7 @@ private:
             std::forward<Lambda>(l)
         );
       } else {
-        const NodeID part_degree = kHighDegreeThreshold;
+        const NodeID part_degree = kHighDegreePartLength;
         const EdgeID part_max_edge = part_first_edge + part_degree;
 
         iterate_edges<false>(

@@ -199,23 +199,23 @@ void CompressedGraphBuilder::add_node(
   });
 
   if constexpr (CompressedGraph::kHighDegreeEncoding) {
-    const bool split_neighbourhood = degree > CompressedGraph::kHighDegreeThreshold;
+    const bool split_neighbourhood = degree >= CompressedGraph::kHighDegreeThreshold;
 
     if (split_neighbourhood) {
-      const NodeID part_count = ((degree % CompressedGraph::kHighDegreeThreshold) == 0)
-                                    ? (degree / CompressedGraph::kHighDegreeThreshold)
-                                    : ((degree / CompressedGraph::kHighDegreeThreshold) + 1);
-      const NodeID last_part_length = ((degree % CompressedGraph::kHighDegreeThreshold) == 0)
-                                          ? CompressedGraph::kHighDegreeThreshold
-                                          : (degree % CompressedGraph::kHighDegreeThreshold);
+      const NodeID part_count = ((degree % CompressedGraph::kHighDegreePartLength) == 0)
+                                    ? (degree / CompressedGraph::kHighDegreePartLength)
+                                    : ((degree / CompressedGraph::kHighDegreePartLength) + 1);
+      const NodeID last_part_length = ((degree % CompressedGraph::kHighDegreePartLength) == 0)
+                                          ? CompressedGraph::kHighDegreePartLength
+                                          : (degree % CompressedGraph::kHighDegreePartLength);
 
       uint8_t *part_ptr = _cur_compressed_edges;
       _cur_compressed_edges += sizeof(NodeID) * part_count;
 
       for (NodeID i = 0; i < part_count; ++i) {
-        auto part_begin = neighbourhood.begin() + i * CompressedGraph::kHighDegreeThreshold;
+        auto part_begin = neighbourhood.begin() + i * CompressedGraph::kHighDegreePartLength;
         const NodeID part_length =
-            (i + 1 == part_count) ? last_part_length : CompressedGraph::kHighDegreeThreshold;
+            (i + 1 == part_count) ? last_part_length : CompressedGraph::kHighDegreePartLength;
 
         std::uint8_t *cur_part_ptr = part_ptr + sizeof(NodeID) * i;
         *((NodeID *)cur_part_ptr) = static_cast<NodeID>(_cur_compressed_edges - part_ptr);
