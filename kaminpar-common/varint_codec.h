@@ -50,6 +50,26 @@ VarIntStats &varint_stats_global();
 } // namespace debug
 
 /*!
+ * Encodes a signed integer using zigzag encoding.
+ *
+ * @param i The signed integer to encode.
+ * @return The encoded integer.
+ */
+template <typename Int> [[nodiscard]] std::make_unsigned_t<Int> zigzag_encode(Int i) {
+  return (i >> (sizeof(Int) * 8 - 1)) ^ (i << 1);
+}
+
+/*!
+ * Decodes a zigzag encoded integer.
+ *
+ * @param i The zigzag encoded integer to decode.
+ * @return The decoded integer.
+ */
+template <typename Int> [[nodiscard]] std::make_signed_t<Int> zigzag_decode(Int i) {
+  return (i >> 1) ^ -(i & 1);
+}
+
+/*!
  * Returns the maximum number of bytes that a VarInt needs to be stored.
  *
  * @tparam Int The type of integer whose encoded maximum length is returned.
@@ -84,18 +104,7 @@ template <typename Int> [[nodiscard]] std::size_t varint_length(Int i) {
  * @return The number of bytes the integer needs to be stored.
  */
 template <typename Int> [[nodiscard]] std::size_t signed_varint_length(Int i) {
-  std::size_t len = 1;
-
-  if (i < 0) {
-    i *= -1;
-  }
-  i >>= 6;
-
-  if (i > 0) {
-    len += varint_length(i);
-  }
-
-  return len;
+  return varint_length(zigzag_encode(i));
 }
 
 /*!
@@ -156,39 +165,14 @@ template <typename Int> std::size_t varint_encode(Int i, std::uint8_t *ptr) {
  * @return The number of bytes that the integer occupies at the memory location.
  */
 template <typename Int> std::size_t signed_varint_encode(Int i, std::uint8_t *ptr) {
-  std::uint8_t first_octet;
-
-  if (i < 0) {
-    i *= -1;
-
-    first_octet = (i & 0b00111111) | 0b01000000;
-  } else {
-    first_octet = (i & 0b00111111);
-  }
-
-  i >>= 6;
-
-  if (i > 0) {
-    first_octet |= 0b10000000;
-    *ptr = first_octet;
-
-    std::size_t len = varint_encode<Int>(i, ptr + 1) + 1;
-
-    if (debug::kTrackVarintStats) {
-      debug::varint_stats_global().signed_varint_count++;
-      debug::varint_stats_global().signed_varint_bytes += len;
-    }
-
-    return len;
-  }
+  const std::size_t len = varint_encode(zigzag_encode(i), ptr);
 
   if (debug::kTrackVarintStats) {
     debug::varint_stats_global().signed_varint_count++;
-    debug::varint_stats_global().signed_varint_bytes++;
+    debug::varint_stats_global().signed_varint_bytes += len;
   }
 
-  *ptr = first_octet;
-  return 1;
+  return len;
 }
 
 /*!
@@ -387,6 +371,21 @@ inline std::pair<std::uint64_t, std::size_t> varint_decode<std::uint64_t>(const 
 #endif
 
 /*!
+ * Reads an integer encoded as a signed VarInt from a memory location. The decoding is implemented
+ * as a loop with non intrinsic operations.
+ *
+ * @tparam Int The type of integer to decode.
+ * @param ptr The pointer to the memory location to read the integer from.
+ * @return A pair consisting of the decoded integer and the number of bytes that the encoded integer
+ * occupied at the memory location.
+ */
+template <typename Int>
+[[nodiscard]] std::pair<Int, std::size_t> signed_varint_decode_general(const std::uint8_t *ptr) {
+  const auto [unsigned_value, len] = varint_decode_general<std::make_unsigned_t<Int>>(ptr);
+  return std::make_pair(zigzag_decode(unsigned_value), len);
+}
+
+/*!
  * Reads an integer encoded as a signed VarInt from a memory location.
  *
  * @tparam Int The type of integer to decode.
@@ -396,34 +395,8 @@ inline std::pair<std::uint64_t, std::size_t> varint_decode<std::uint64_t>(const 
  */
 template <typename Int>
 [[nodiscard]] std::pair<Int, std::size_t> signed_varint_decode(const std::uint8_t *ptr) {
-  const std::uint8_t first_byte = *ptr;
-  const bool is_continuation_bit_set = (first_byte & 0b10000000) != 0;
-  const bool is_negative = (first_byte & 0b01000000) != 0;
-
-  Int result = first_byte & 0b00111111;
-  std::size_t shift = 0;
-  std::size_t position = 1;
-
-  if (is_continuation_bit_set) {
-    while (true) {
-      const std::uint8_t byte = ptr[position++];
-
-      if ((byte & 0b10000000) == 0) {
-        result |= static_cast<Int>(byte) << (shift + 6);
-        break;
-      } else {
-        result |= static_cast<Int>(byte & 0b01111111) << (shift + 6);
-      }
-
-      shift += 7;
-    }
-  }
-
-  if (is_negative) {
-    result *= -1;
-  }
-
-  return std::make_pair(result, position);
+  const auto [unsigned_value, len] = varint_decode<std::make_unsigned_t<Int>>(ptr);
+  return std::make_pair(zigzag_decode(unsigned_value), len);
 }
 
 /*!

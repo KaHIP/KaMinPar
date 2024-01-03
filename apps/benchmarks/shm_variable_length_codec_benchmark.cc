@@ -43,7 +43,9 @@ template <typename Int> std::vector<Int> generate_random_values(const std::size_
 
   std::random_device dev;
   std::mt19937 rng(dev());
-  std::uniform_int_distribution<std::mt19937::result_type> dist(0, std::numeric_limits<Int>::max());
+  std::uniform_int_distribution<std::mt19937::result_type> dist(
+      std::numeric_limits<Int>::min(), std::numeric_limits<Int>::max()
+  );
   for (std::size_t i = 0; i < count; ++i) {
     random_values[i] = dist(rng);
   }
@@ -61,6 +63,23 @@ encode_values(std::string_view name, const std::size_t count, Lambda &&l) {
 
     for (std::size_t i = 0; i < count; ++i) {
       const std::size_t bytes_written = varint_encode(l(i), ptr);
+      ptr += bytes_written;
+    }
+  };
+
+  return encoded_values;
+}
+
+template <typename Int, typename Lambda>
+std::unique_ptr<std::uint8_t[]>
+encode_signed_values(std::string_view name, const std::size_t count, Lambda &&l) {
+  auto encoded_values = std::make_unique<std::uint8_t[]>(count * varint_max_length<Int>());
+
+  TIMED_SCOPE(name) {
+    std::uint8_t *ptr = encoded_values.get();
+
+    for (std::size_t i = 0; i < count; ++i) {
+      const std::size_t bytes_written = signed_varint_encode(l(i), ptr);
       ptr += bytes_written;
     }
   };
@@ -122,6 +141,29 @@ encode_values(const std::size_t count, const std::vector<Int> &random_values) {
           [](const std::size_t i) { return std::numeric_limits<Int>::max(); }
       ),
       encode_values<Int>(
+          "Encoding random values", count, [&](const std::size_t i) { return random_values[i]; }
+      )
+  );
+}
+
+template <typename Int>
+std::tuple<
+    std::unique_ptr<std::uint8_t[]>,
+    std::unique_ptr<std::uint8_t[]>,
+    std::unique_ptr<std::uint8_t[]>>
+encode_signed_values(const std::size_t count, const std::vector<Int> &random_values) {
+  SCOPED_TIMER("Encoding signed values");
+
+  return std::make_tuple(
+      encode_signed_values<Int>(
+          "Encoding zero values", count, [](const std::size_t i) { return 0; }
+      ),
+      encode_signed_values<Int>(
+          "Encoding max values",
+          count,
+          [](const std::size_t i) { return std::numeric_limits<Int>::max(); }
+      ),
+      encode_signed_values<Int>(
           "Encoding random values", count, [&](const std::size_t i) { return random_values[i]; }
       )
   );
@@ -250,6 +292,7 @@ template <typename Int> void run_benchmark(std::size_t count) {
 
   const auto [encoded_zero_values, encoded_max_values, encoded_random_values] =
       encode_values<Int>(count, random_values);
+
   benchmark(
       "Decoding: loop",
       count,
@@ -266,6 +309,32 @@ template <typename Int> void run_benchmark(std::size_t count) {
       encoded_max_values.get(),
       encoded_random_values.get(),
       [](const std::uint8_t *ptr) { return varint_decode<Int>(ptr); }
+  );
+
+  std::vector<std::make_signed_t<Int>> random_signed_values =
+      generate_random_values<std::make_signed_t<Int>>(count);
+
+  const auto [encoded_zero_signed_values, encoded_max_signed_values, encoded_random_signed_values] =
+      encode_signed_values<std::make_signed_t<Int>>(count, random_signed_values);
+
+  benchmark(
+      "Decoding signed: loop",
+      count,
+      encoded_zero_signed_values.get(),
+      encoded_max_signed_values.get(),
+      encoded_random_signed_values.get(),
+      [](const std::uint8_t *ptr) {
+        return signed_varint_decode_general<std::make_signed_t<Int>>(ptr);
+      }
+  );
+
+  benchmark(
+      "Decoding signed: unrolled + intrinsic",
+      count,
+      encoded_zero_signed_values.get(),
+      encoded_max_signed_values.get(),
+      encoded_random_signed_values.get(),
+      [](const std::uint8_t *ptr) { return signed_varint_decode<std::make_signed_t<Int>>(ptr); }
   );
 
   const auto [rl_encoded_zero_values, rl_encoded_max_values, rl_encoded_random_values] =
