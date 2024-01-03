@@ -229,7 +229,17 @@ public:
   }
 
   [[nodiscard]] inline NodeID degree(const NodeID node) const final {
-    const auto [first_edge, degree, uses_intervals, len] = decode_header(node);
+    const std::uint8_t *data = _compressed_edges.data();
+
+    const std::uint8_t *node_data = data + _nodes[node];
+    const std::uint8_t *next_node_data = data + _nodes[node + 1];
+
+    const bool is_isolated_node = node_data == next_node_data;
+    if (is_isolated_node) {
+      return 0;
+    }
+
+    const auto [first_edge, degree, uses_intervals, len] = decode_header(node_data, next_node_data);
     return degree;
   }
 
@@ -252,7 +262,17 @@ public:
   }
 
   [[nodiscard]] inline IotaRange<EdgeID> incident_edges(const NodeID node) const {
-    const auto [first_edge, degree, uses_intervals, len] = decode_header(node);
+    const std::uint8_t *data = _compressed_edges.data();
+
+    const std::uint8_t *node_data = data + _nodes[node];
+    const std::uint8_t *next_node_data = data + _nodes[node + 1];
+
+    const bool is_isolated_node = node_data == next_node_data;
+    if (is_isolated_node) {
+      return IotaRange<EdgeID>(0, 0);
+    }
+
+    const auto [first_edge, degree, uses_intervals, len] = decode_header(node_data, next_node_data);
     return IotaRange<EdgeID>(first_edge, first_edge + degree);
   }
 
@@ -426,28 +446,24 @@ private:
 
   void init_degree_buckets();
 
-  inline std::tuple<EdgeID, NodeID, bool, std::size_t> decode_header(const NodeID node) const {
-    const std::uint8_t *node_data = _compressed_edges.data() + _nodes[node];
-    const std::uint8_t *next_data = _compressed_edges.data() + _nodes[node + 1];
-
-    const auto [node_first_edge_gap, next_first_edge_gap, uses_intervals, len] = [&] {
+  inline std::tuple<EdgeID, NodeID, bool, std::size_t>
+  decode_header(const std::uint8_t *node_data, const std::uint8_t *next_node_data) const {
+    const auto [first_edge, next_first_edge, uses_intervals, len] = [&] {
       if constexpr (CompressedGraph::kIntervalEncoding) {
-        auto [node_first_edge_gap, marker_set, len] = marked_varint_decode<EdgeID>(node_data);
-        auto [next_first_edge_gap, _, __] = marked_varint_decode<EdgeID>(next_data);
+        auto [first_edge, marker_set, len] = marked_varint_decode<EdgeID>(node_data);
+        auto [next_first_edge, _, __] = marked_varint_decode<EdgeID>(next_node_data);
 
-        return std::make_tuple(node_first_edge_gap, next_first_edge_gap, marker_set, len);
+        return std::make_tuple(first_edge, next_first_edge, marker_set, len);
 
       } else {
-        auto [node_first_edge_gap, len] = varint_decode<EdgeID>(node_data);
-        auto [next_first_edge_gap, _] = varint_decode<EdgeID>(next_data);
+        auto [first_edge, len] = varint_decode<EdgeID>(node_data);
+        auto [next_first_edge, _] = varint_decode<EdgeID>(next_node_data);
 
-        return std::make_tuple(node_first_edge_gap, next_first_edge_gap, false, len);
+        return std::make_tuple(first_edge, next_first_edge, false, len);
       }
     }();
 
-    const EdgeID first_edge = node_first_edge_gap + node;
-    const NodeID degree = static_cast<NodeID>(1 + next_first_edge_gap - node_first_edge_gap);
-
+    const NodeID degree = static_cast<NodeID>(next_first_edge - first_edge);
     return std::make_tuple(first_edge, degree, uses_intervals, len);
   }
 
@@ -455,10 +471,18 @@ private:
   inline void iterate_neighborhood(
       const NodeID node, Lambda &&l, NodeID max_neighbor_count = std::numeric_limits<NodeID>::max()
   ) const {
-    const std::uint8_t *data = _compressed_edges.data() + _nodes[node];
+    const std::uint8_t *data = _compressed_edges.data();
 
-    const auto [first_edge, degree, uses_intervals, len] = decode_header(node);
-    data += len;
+    const std::uint8_t *node_data = data + _nodes[node];
+    const std::uint8_t *next_node_data = data + _nodes[node + 1];
+
+    const bool is_isolated_node = node_data == next_node_data;
+    if (is_isolated_node) {
+      return;
+    }
+
+    const auto [first_edge, degree, uses_intervals, len] = decode_header(node_data, next_node_data);
+    node_data += len;
 
     max_neighbor_count = std::min(max_neighbor_count, degree);
 
@@ -467,7 +491,7 @@ private:
 
       if (split_neighbourhood) {
         iterate_high_degree_neighborhood<max_edges, parallel>(
-            data, node, first_edge, degree, max_neighbor_count, std::forward<Lambda>(l)
+            node_data, node, first_edge, degree, max_neighbor_count, std::forward<Lambda>(l)
         );
         return;
       }
@@ -475,7 +499,7 @@ private:
 
     const EdgeID max_edge = first_edge + max_neighbor_count;
     iterate_edges<max_edges>(
-        data, node, degree, first_edge, max_edge, uses_intervals, std::forward<Lambda>(l)
+        node_data, node, degree, first_edge, max_edge, uses_intervals, std::forward<Lambda>(l)
     );
   }
 
