@@ -22,7 +22,7 @@
 
 #include "kaminpar-common/random.h"
 
-#define HEAVY assert::heavy
+#define HEAVY assert::normal
 
 namespace kaminpar::dist {
 SET_STATISTICS_FROM_GLOBAL();

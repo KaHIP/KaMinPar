@@ -37,8 +37,6 @@ private:
 };
 
 class NodeBalancer : public GlobalRefiner {
-  SET_STATISTICS_FROM_GLOBAL();
-
   struct Candidate {
     GlobalNodeID id;
     BlockID from;

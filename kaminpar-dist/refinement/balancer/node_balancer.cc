@@ -24,6 +24,7 @@
 #define HEAVY assert::heavy
 
 namespace kaminpar::dist {
+SET_STATISTICS_FROM_GLOBAL();
 SET_DEBUG(false);
 
 NodeBalancerFactory::NodeBalancerFactory(const Context &ctx) : _ctx(ctx) {}
@@ -119,6 +120,8 @@ void NodeBalancer::initialize() {
       }
     }
   });
+
+  _stalled = false;
 }
 
 bool NodeBalancer::refine() {
@@ -140,6 +143,7 @@ bool NodeBalancer::refine() {
 
   for (int round = 0; round < _nb_ctx.max_num_rounds; round++) {
     TIMER_BARRIER(_p_graph.communicator());
+    DBG0 << "Starting rebalancing round " << round << " of (at most) " << _nb_ctx.max_num_rounds;
 
     if (metrics::is_feasible(_p_graph, _p_ctx)) {
       break;
@@ -422,6 +426,7 @@ bool NodeBalancer::try_pq_insertion(
 }
 
 bool NodeBalancer::perform_parallel_round() {
+  TIMER_BARRIER(_p_graph.communicator());
   SCOPED_TIMER("Parallel round");
 
   const PEID rank = mpi::get_comm_rank(_p_graph.communicator());
@@ -437,6 +442,7 @@ bool NodeBalancer::perform_parallel_round() {
   }
   const auto &cutoff_buckets =
       _buckets.compute_cutoff_buckets(reduce_buckets_mpireduce(_buckets, _p_graph));
+  TIMER_BARRIER(_p_graph.communicator());
   STOP_TIMER();
 
   // Find move candidates
@@ -488,7 +494,7 @@ bool NodeBalancer::perform_parallel_round() {
       }
     }
   }
-  MPI_Barrier(_p_graph.communicator());
+  TIMER_BARRIER(_p_graph.communicator());
   STOP_TIMER();
 
   // Compute total weight to each block
@@ -551,6 +557,7 @@ bool NodeBalancer::perform_parallel_round() {
       }
     }
   }
+  TIMER_BARRIER(_p_graph.communicator());
   STOP_TIMER();
 
   if (balanced_moves || _nb_ctx.par_accept_imbalanced_moves) {
@@ -562,31 +569,34 @@ bool NodeBalancer::perform_parallel_round() {
 
     candidates.resize(candidates.size() - num_rejected_candidates);
     perform_moves(candidates, false);
-  }
 
-  TIMED_SCOPE("Synchronize partition state after fast rebalance round") {
-    struct Message {
-      NodeID node;
-      BlockID block;
+    TIMED_SCOPE("Synchronize partition state after fast rebalance round") {
+      struct Message {
+        NodeID node;
+        BlockID block;
+      };
+
+      // @todo don't iterate over the entire graph
+      mpi::graph::sparse_alltoall_interface_to_pe<Message>(
+          _p_graph.graph(),
+          [&](const NodeID u) -> bool { return _marker.get(u); },
+          [&](const NodeID u) -> Message { return {.node = u, .block = _p_graph.block(u)}; },
+          [&](const auto &recv_buffer, const PEID pe) {
+            tbb::parallel_for<std::size_t>(0, recv_buffer.size(), [&](const std::size_t i) {
+              const auto [their_lnode, to] = recv_buffer[i];
+              const NodeID lnode = _p_graph.map_foreign_node(their_lnode, pe);
+              _p_graph.set_block<false>(lnode, to);
+            });
+          }
+      );
     };
 
-    // @todo don't iterate over the entire graph
-    mpi::graph::sparse_alltoall_interface_to_pe<Message>(
-        _p_graph.graph(),
-        [&](const NodeID u) -> bool { return _marker.get(u); },
-        [&](const NodeID u) -> Message { return {.node = u, .block = _p_graph.block(u)}; },
-        [&](const auto &recv_buffer, const PEID pe) {
-          tbb::parallel_for<std::size_t>(0, recv_buffer.size(), [&](const std::size_t i) {
-            const auto [their_lnode, to] = recv_buffer[i];
-            const NodeID lnode = _p_graph.map_foreign_node(their_lnode, pe);
-            _p_graph.set_block<false>(lnode, to);
-          });
-        }
-    );
-  };
+    TIMER_BARRIER(_p_graph.communicator());
+    return true;
+  }
 
-  TIMER_BARRIER(_p_graph.communicator());
-  return true;
+  // Parallel rebalancing stalled
+  return false;
 }
 
 bool NodeBalancer::is_sequential_balancing_enabled() const {
