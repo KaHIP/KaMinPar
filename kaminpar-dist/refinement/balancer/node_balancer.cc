@@ -576,10 +576,12 @@ bool NodeBalancer::perform_parallel_round() {
         BlockID block;
       };
 
-      // @todo don't iterate over the entire graph
-      mpi::graph::sparse_alltoall_interface_to_pe<Message>(
+      mpi::graph::sparse_alltoall_interface_to_pe_custom_range<Message>(
           _p_graph.graph(),
-          [&](const NodeID u) -> bool { return _marker.get(u); },
+          0,
+          candidates.size(),
+          [&](const NodeID i) -> NodeID { return _p_graph.global_to_local_node(candidates[i].id); },
+          [&](NodeID) -> bool { return true; },
           [&](const NodeID u) -> Message { return {.node = u, .block = _p_graph.block(u)}; },
           [&](const auto &recv_buffer, const PEID pe) {
             tbb::parallel_for<std::size_t>(0, recv_buffer.size(), [&](const std::size_t i) {
