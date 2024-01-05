@@ -606,6 +606,8 @@ private:
       const bool uses_intervals,
       Lambda &&l
   ) const {
+    constexpr bool void_lambda = std::is_void<std::invoke_result_t<Lambda, EdgeID, NodeID>>::value;
+
     EdgeID edge = first_edge;
     EdgeID gap_edges = degree - 1;
 
@@ -636,7 +638,14 @@ private:
           gap_edges -= cur_interval_len;
 
           for (NodeID j = 0; j < max_interval_len; ++j) {
-            l(edge++, cur_left_extreme + j);
+            if constexpr (void_lambda) {
+              l(edge++, cur_left_extreme + j);
+            } else {
+              const bool stop_processing = l(edge++, cur_left_extreme + j);
+              if (stop_processing) {
+                return;
+              }
+            }
           }
         }
       }
@@ -652,7 +661,14 @@ private:
     const NodeID first_adjacent_node = static_cast<NodeID>(first_gap + node);
     NodeID prev_adjacent_node = first_adjacent_node;
 
-    l(edge++, first_adjacent_node);
+    if constexpr (void_lambda) {
+      l(edge++, first_adjacent_node);
+    } else {
+      const bool stop_processing = l(edge++, first_adjacent_node);
+      if (stop_processing) {
+        return;
+      }
+    }
 
     const auto handle_gap = [&](const NodeID gap) {
       const NodeID adjacent_node = gap + prev_adjacent_node;
@@ -672,7 +688,17 @@ private:
         const auto [gap, gap_len] = varint_decode<NodeID>(data);
         data += gap_len;
 
-        handle_gap(gap);
+        const NodeID adjacent_node = gap + prev_adjacent_node;
+        prev_adjacent_node = adjacent_node;
+
+        if constexpr (void_lambda) {
+          l(edge++, adjacent_node);
+        } else {
+          const bool stop_processing = l(edge++, adjacent_node);
+          if (stop_processing) {
+            return;
+          }
+        }
       }
     }
   }

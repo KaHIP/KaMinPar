@@ -8,6 +8,7 @@
 #pragma once
 
 #include <atomic>
+#include <optional>
 #include <type_traits>
 
 #include <tbb/concurrent_vector.h>
@@ -54,14 +55,10 @@ template <typename TGraph> struct LabelPropagationConfig {
   // size.
   static constexpr std::size_t kNumberOfNodePermutations = 64;
 
-  // When computing a new cluster for each node in an iteration, nodes with a degree less than the
-  // threshold are first handled in parallel. Then, nodes with a degree greater than or equal to the
-  // threshold are handled sequentially, but each neighbourhood is processed in parallel.
-  static constexpr std::size_t kDegreeThreshold = 10000;
-
-  // Only use two phases in an iteration for label propagations if the rating map would contain more
-  // entries than the threshold.
-  static constexpr std::size_t kRatingMapThreshold = 1024;
+  // When computing a new cluster for each node in an iteration, nodes that use more than or equal
+  // to the threshold amount of entires in the rating map are processed in a second phase
+  // sequentially.
+  static constexpr std::size_t kRatingMapThreshold = 10000;
 
   // If true, we count the number of empty clusters
   static constexpr bool kTrackClusterCount = false;
@@ -238,35 +235,39 @@ protected:
     const NodeWeight u_weight = _graph->node_weight(u);
     const ClusterID u_cluster = derived_cluster(u);
 
-    std::pair<ClusterID, EdgeWeight> best_cluster;
+    std::optional<std::pair<ClusterID, EdgeWeight>> best_cluster_opt;
     if constexpr (parallel) {
-      best_cluster = find_best_cluster<true>(u, u_weight, u_cluster, rand, rating_map);
+      best_cluster_opt = find_best_cluster<true>(u, u_weight, u_cluster, rand, rating_map);
     } else {
-      auto action = [&](auto &map) {
+      const auto action = [&](auto &map) {
         return find_best_cluster(u, u_weight, u_cluster, rand, map);
       };
 
-      rating_map.update_upper_bound_size(
-          std::min<ClusterID>(_graph->degree(u), _initial_num_clusters)
-      );
+      const std::size_t upper_bound_size =
+          _use_two_phases ? Config::kRatingMapThreshold
+                          : std::min<ClusterID>(_graph->degree(u), _initial_num_clusters);
+      rating_map.update_upper_bound_size(upper_bound_size);
 
-      best_cluster = rating_map.run_with_map(action, action);
+      best_cluster_opt = rating_map.run_with_map(action, action);
     }
 
-    const auto [new_cluster, new_gain] = best_cluster;
-    if (derived_cluster(u) != new_cluster) {
-      if (derived_move_cluster_weight(
-              u_cluster, new_cluster, u_weight, derived_max_cluster_weight(new_cluster)
-          )) {
-        derived_move_node(u, new_cluster);
-        activate_neighbors(u);
-        IFSTATS(_expected_total_gain += new_gain);
+    if (const auto best_cluster = best_cluster_opt) {
+      const auto [new_cluster, new_gain] = *best_cluster;
 
-        const bool decrement_cluster_count =
-            Config::kTrackClusterCount && derived_cluster_weight(u_cluster) == 0;
-        // do not update _current_num_clusters here to avoid fetch_add()
-        return {true, decrement_cluster_count}; // did move, did reduce nonempty
-                                                // cluster count?
+      if (derived_cluster(u) != new_cluster) {
+        if (derived_move_cluster_weight(
+                u_cluster, new_cluster, u_weight, derived_max_cluster_weight(new_cluster)
+            )) {
+          derived_move_node(u, new_cluster);
+          activate_neighbors(u);
+          IFSTATS(_expected_total_gain += new_gain);
+
+          const bool decrement_cluster_count =
+              Config::kTrackClusterCount && derived_cluster_weight(u_cluster) == 0;
+          // do not update _current_num_clusters here to avoid fetch_add()
+          return {true, decrement_cluster_count}; // did move, did reduce nonempty
+                                                  // cluster count?
+        }
       }
     }
 
@@ -303,7 +304,7 @@ protected:
    * @return Pair with: new cluster of the node, gain value for the move to the new cluster.
    */
   template <bool parallel = false, typename RatingMap>
-  std::pair<ClusterID, EdgeWeight> find_best_cluster(
+  std::optional<std::pair<ClusterID, EdgeWeight>> find_best_cluster(
       const NodeID u,
       const NodeWeight u_weight,
       const ClusterID u_cluster,
@@ -345,18 +346,33 @@ protected:
         }
       });
     } else {
+      bool second_phase_node = false;
+
       _graph->neighbors(u, _max_num_neighbors, [&](const EdgeID e, const NodeID v) {
         if (derived_accept_neighbor(u, v)) {
           const ClusterID v_cluster = derived_cluster(v);
           const EdgeWeight rating = _graph->edge_weight(e);
 
           map[v_cluster] += rating;
+          if (_use_two_phases && map.size() >= Config::kRatingMapThreshold) {
+            _second_phase_nodes.push_back(u);
+            map.clear();
+
+            second_phase_node = true;
+            return true;
+          }
 
           if constexpr (Config::kUseLocalActiveSetStrategy) {
             is_interface_node |= v >= _num_active_nodes;
           }
         }
+
+        return false;
       });
+
+      if (second_phase_node) {
+        return std::nullopt;
+      }
     }
 
     if constexpr (Config::kUseLocalActiveSetStrategy) {
@@ -749,6 +765,9 @@ protected: // Members
   //! parallel over their neighbors.
   bool _use_two_phases{false};
 
+  //! The nodes which should be processed in the second phase.
+  tbb::concurrent_vector<NodeID> _second_phase_nodes;
+
   //! Thread-local map to compute gain values.
   tbb::enumerable_thread_specific<RatingMap> _rating_map_ets{[this] {
     return RatingMap{_num_clusters};
@@ -930,12 +949,8 @@ protected:
     };
     STOP_HEAP_PROFILER();
 
-    tbb::concurrent_vector<NodeID> high_degree_nodes;
     tbb::enumerable_thread_specific<NodeID> num_moved_nodes_ets;
     parallel::Atomic<std::size_t> next_chunk = 0;
-
-    const bool use_two_phases =
-        _use_two_phases && Base::_initial_num_clusters >= Config::kRatingMapThreshold;
 
     START_HEAP_PROFILER("First phase");
     START_TIMER("First phase");
@@ -964,25 +979,18 @@ protected:
           const NodeID u = chunk.start +
                            Config::kPermutationSize * sub_chunk_permutation[sub_chunk] +
                            permutation[i % Config::kPermutationSize];
-          if (u >= chunk.end) {
-            continue;
-          }
 
-          const NodeID degree = _graph->degree(u);
-          if (degree < _max_degree &&
+          if (u < chunk.end && _graph->degree(u) < _max_degree &&
               ((!Config::kUseActiveSetStrategy && !Config::kUseLocalActiveSetStrategy) ||
                _active[u].load(std::memory_order_relaxed))) {
-            if (use_two_phases && degree >= Config::kDegreeThreshold) {
-              high_degree_nodes.push_back(u);
-            } else {
-              const auto [moved_node, emptied_cluster] =
-                  handle_node(u, local_rand, local_rating_map);
-              if (moved_node) {
-                ++local_num_moved_nodes;
-              }
-              if (emptied_cluster) {
-                ++num_removed_clusters;
-              }
+            const auto [moved_node, emptied_cluster] = handle_node(u, local_rand, local_rating_map);
+
+            if (moved_node) {
+              ++local_num_moved_nodes;
+            }
+
+            if (emptied_cluster) {
+              ++num_removed_clusters;
             }
           }
         }
@@ -994,7 +1002,17 @@ protected:
     STOP_TIMER();
     STOP_HEAP_PROFILER();
 
-    if (use_two_phases) {
+    if constexpr (kDebug) {
+      const NodeID node_count = std::min(to, _graph->n()) - from;
+
+      LOG << "Label Propagation";
+      LOG << " Initial clusters: " << Base::_initial_num_clusters;
+      LOG << " First Phase: " << (node_count - _second_phase_nodes.size()) << " nodes";
+      LOG << " Second Phase: " << _second_phase_nodes.size() << " nodes";
+      LOG;
+    }
+
+    if (_second_phase_nodes.size() > 0) {
       SCOPED_HEAP_PROFILER("Second phase");
       SCOPED_TIMER("Second phase");
 
@@ -1003,7 +1021,7 @@ protected:
 
       _concurrent_rating_map.resize(Base::_initial_num_clusters);
 
-      for (const NodeID u : high_degree_nodes) {
+      for (const NodeID u : _second_phase_nodes) {
         const auto [moved_node, emptied_cluster] =
             Base::template handle_node<true>(u, rand, _concurrent_rating_map);
 
@@ -1015,16 +1033,8 @@ protected:
           --_current_num_clusters;
         }
       }
-    }
 
-    if constexpr (kDebug) {
-      const NodeID node_count = std::min(to, _graph->n()) - from;
-
-      LOG << "Label Propagation";
-      LOG << " Initial clusters: " << Base::_initial_num_clusters;
-      LOG << " First Phase: " << (node_count - high_degree_nodes.size()) << " nodes";
-      LOG << " Second Phase: " << high_degree_nodes.size() << " nodes";
-      LOG;
+      _second_phase_nodes.clear();
     }
 
     return num_moved_nodes_ets.combine(std::plus{});
@@ -1176,13 +1186,15 @@ protected:
   using Base::_graph;
   using Base::_max_degree;
   using Base::_rating_map_ets;
+  using Base::_second_phase_nodes;
   using Base::_use_two_phases;
 
-  ConcurrentFastResetArray<EdgeWeight, ClusterID> _concurrent_rating_map{};
   RandomPermutations<NodeID, Config::kPermutationSize, Config::kNumberOfNodePermutations>
       _random_permutations{};
   std::vector<Chunk> _chunks;
   std::vector<Bucket> _buckets;
+
+  ConcurrentFastResetArray<EdgeWeight, ClusterID> _concurrent_rating_map{};
 };
 
 template <typename NodeID, typename ClusterID> class NonatomicOwnedClusterVector {
