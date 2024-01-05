@@ -97,7 +97,7 @@ TEST(ClusterReassignmentTest, rgg2d_N7_M11_2pe_regression) {
 //14, 14, 14, 18, 22, 23, 23, 23, 23, 23, 23, 23 pe_overload=0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 6, 6,
 //6, 6, 6, 6, 7, 9, 9, 9, 12, 14, 16, 16, 16, 16, 16, 18, 21, 21, 21, 24 total_overload=24
 
-TEST(ClusterReassignmentTest, twitter_2010_128pe_regression) {
+TEST(ClusterReassignmentTest, twitter_2010_128pe_4copies_regression) {
   const auto node_distribution = static_array::create_from<GlobalNodeID>(
       {0,     1321,  2622,  3927,  5257,  6702,  8048,  9379,  10725, 12046, 13503,
        14960, 16312, 17651, 19075, 20435, 21792, 23249, 24706, 26163, 27620, 29077,
@@ -112,9 +112,11 @@ TEST(ClusterReassignmentTest, twitter_2010_128pe_regression) {
 
   const auto shifts = compute_assignment_shifts(node_distribution, cnode_distribution, 1.1);
 
-  for (PEID pe = 0; pe < 2; ++pe) {
+  for (PEID pe = 0; pe < 32; ++pe) {
     const GlobalNodeID my_underload = shifts.underload[pe + 1] - shifts.underload[pe];
-    EXPECT_EQ(my_underload, 0);
+    const GlobalNodeID my_size_before = node_distribution[pe + 1] - node_distribution[pe];
+    const GlobalNodeID my_size_after = cnode_distribution[pe + 1] - cnode_distribution[pe];
+    EXPECT_LE(my_size_after + my_underload, my_size_before) << V(pe);
   }
 }
 } // namespace kaminpar::dist

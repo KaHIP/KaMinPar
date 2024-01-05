@@ -640,6 +640,7 @@ AssignmentShifts compute_assignment_shifts(
     maxes.push(pe, pe_max); // id is never used
     ++num_pes;
 
+    const GlobalNodeID prev_inc_from = pe_load[pe].count;
     GlobalNodeID inc_from = pe_load[pe].count;
     const GlobalNodeID inc_to = pe_load[pe + 1].count;
 
@@ -658,10 +659,11 @@ AssignmentShifts compute_assignment_shifts(
     }
 
     GlobalNodeID delta = inc_to - inc_from;
+
     if (current_overload > num_pes * delta) {
       current_overload -= num_pes * delta;
     } else {
-      min_load = pe_load[pe].count + std::floor(1.0 * current_overload / num_pes);
+      min_load = pe_load[pe].count + (inc_from - prev_inc_from) + current_overload / num_pes;
       plus_ones = current_overload % num_pes;
       current_overload = 0;
       break;
