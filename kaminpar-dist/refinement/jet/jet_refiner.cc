@@ -42,11 +42,11 @@ JetRefiner::JetRefiner(
       _jet_ctx(ctx.refinement.jet),
       _p_graph(p_graph),
       _p_ctx(p_ctx),
-      _snapshooter(ctx.partition.graph->total_n, ctx.partition.k),
-      _gain_calculator(ctx.partition.k),
-      _gains_and_targets(ctx.partition.graph->total_n),
-      _block_weight_deltas(ctx.partition.k),
-      _locked(p_ctx.graph->n),
+      _snapshooter(p_graph.total_n(), p_graph.k()),
+      _gain_calculator(p_graph.k()),
+      _gains_and_targets(p_graph.total_n()),
+      _block_weight_deltas(p_graph.k()),
+      _locked(p_graph.n()),
       _balancer(factory::create_refiner(_ctx, _ctx.refinement.jet.balancing_algorithm)
                     ->create(_p_graph, _p_ctx)) {}
 
@@ -70,6 +70,19 @@ void JetRefiner::initialize() {
 
 void JetRefiner::reset() {
   _snapshooter.init(_p_graph, _p_ctx);
+
+  KASSERT(_locked.size() >= _p_graph.n(), "locked vector is too small", assert::light);
+  KASSERT(
+      _gains_and_targets.size() >= _p_graph.total_n(),
+      "gains_and_targets vector is too small",
+      assert::light
+  );
+  KASSERT(
+      _block_weight_deltas.size() >= _p_graph.k(),
+      "block_weight_deltas vector is too small",
+      assert::light
+  );
+
   tbb::parallel_invoke(
       [&] { _p_graph.pfor_nodes([&](const NodeID u) { _locked[u] = 0; }); },
       [&] {

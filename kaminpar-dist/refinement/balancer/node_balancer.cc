@@ -41,9 +41,9 @@ NodeBalancer::NodeBalancer(
       _ctx(ctx),
       _nb_ctx(ctx.refinement.node_balancer),
       _p_ctx(p_ctx),
-      _pq(ctx.partition.graph->n, ctx.partition.k),
-      _pq_weight(ctx.partition.k),
-      _marker(ctx.partition.graph->n),
+      _pq(p_graph.n(), p_graph.k()),
+      _pq_weight(p_graph.k()),
+      _marker(p_graph.n()),
       _buckets(
           p_graph, p_ctx, _nb_ctx.par_enable_positive_gain_buckets, _nb_ctx.par_gain_bucket_base
       ),

@@ -119,14 +119,14 @@ class LPRefinerImpl final : public ChunkRandomdLabelPropagation<LPRefinerImpl, L
   };
 
 public:
-  explicit LPRefinerImpl(const Context &ctx)
-      : _lp_ctx{ctx.refinement.lp},
+  explicit LPRefinerImpl(const Context &ctx, const DistributedPartitionedGraph &p_graph)
+      : _lp_ctx(ctx.refinement.lp),
         _par_ctx(ctx.parallel),
-        _next_partition(ctx.partition.graph->n),
-        _gains(ctx.partition.graph->n),
-        _block_weights(ctx.partition.k) {
+        _next_partition(p_graph.n()),
+        _gains(p_graph.n()),
+        _block_weights(p_graph.k()) {
     set_max_degree(_lp_ctx.active_high_degree_threshold);
-    allocate(ctx.partition.graph->total_n, ctx.partition.graph->n, ctx.partition.k);
+    allocate(p_graph.total_n(), p_graph.n(), p_graph.k());
   }
 
   void refine(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) {
@@ -501,8 +501,8 @@ private:
   const LabelPropagationRefinementContext &_lp_ctx;
   const ParallelContext &_par_ctx;
 
-  DistributedPartitionedGraph *_p_graph{nullptr};
-  const PartitionContext *_p_ctx{nullptr};
+  DistributedPartitionedGraph *_p_graph = nullptr;
+  const PartitionContext *_p_ctx = nullptr;
 
   scalable_vector<BlockID> _next_partition;
   scalable_vector<EdgeWeight> _gains;
@@ -525,7 +525,7 @@ LPRefinerFactory::create(DistributedPartitionedGraph &p_graph, const PartitionCo
 LPRefiner::LPRefiner(
     const Context &ctx, DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx
 )
-    : _impl(std::make_unique<LPRefinerImpl>(ctx)),
+    : _impl(std::make_unique<LPRefinerImpl>(ctx, p_graph)),
       _p_graph(p_graph),
       _p_ctx(p_ctx) {}
 
