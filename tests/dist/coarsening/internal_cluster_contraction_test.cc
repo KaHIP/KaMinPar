@@ -92,4 +92,29 @@ TEST(ClusterReassignmentTest, rgg2d_N7_M11_2pe_regression) {
     EXPECT_EQ(my_underload, 0);
   }
 }
+
+//[Warning] pe_underload=0, 0, 2, 4, 8, 8, 8, 9, 9, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14,
+//14, 14, 14, 18, 22, 23, 23, 23, 23, 23, 23, 23 pe_overload=0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 6, 6,
+//6, 6, 6, 6, 7, 9, 9, 9, 12, 14, 16, 16, 16, 16, 16, 18, 21, 21, 21, 24 total_overload=24
+
+TEST(ClusterReassignmentTest, twitter_2010_128pe_regression) {
+  const auto node_distribution = static_array::create_from<GlobalNodeID>(
+      {0,     1321,  2622,  3927,  5257,  6702,  8048,  9379,  10725, 12046, 13503,
+       14960, 16312, 17651, 19075, 20435, 21792, 23249, 24706, 26163, 27620, 29077,
+       30534, 31991, 33134, 34158, 35098, 36038, 37495, 38952, 39892, 40950, 42407}
+  );
+  const auto cnode_distribution = static_array::create_from<GlobalNodeID>(
+      {0,     1321,  2620,  3923,  5249,  6667,  8012,  9341,  10687, 12003, 13460,
+       14917, 16267, 17605, 19028, 20388, 21745, 23200, 24656, 26104, 27558, 29015,
+       30471, 31927, 33066, 34086, 35025, 35965, 37421, 38878, 39818, 40876, 42333}
+  );
+  const double max_cnode_imbalance = 1.1;
+
+  const auto shifts = compute_assignment_shifts(node_distribution, cnode_distribution, 1.1);
+
+  for (PEID pe = 0; pe < 2; ++pe) {
+    const GlobalNodeID my_underload = shifts.underload[pe + 1] - shifts.underload[pe];
+    EXPECT_EQ(my_underload, 0);
+  }
+}
 } // namespace kaminpar::dist
