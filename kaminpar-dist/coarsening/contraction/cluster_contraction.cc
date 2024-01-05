@@ -709,15 +709,19 @@ AssignmentShifts compute_assignment_shifts(
 
   // If everything is correct, the total overload should match the total
   // underload
-  KASSERT([&] {
-    if (pe_underload.back() != pe_overload.back()) {
-      LOG_WARNING << V(pe_underload) << V(pe_overload) << V(total_overload) << V(avg_cnode_count)
-                  << V(max_cnode_count) << V(min_load) << V(current_node_distribution)
-                  << V(current_cnode_distribution);
-      return false;
-    }
-    return true;
-  }());
+  KASSERT(
+      [&] {
+        if (pe_underload.back() != pe_overload.back()) {
+          LOG_WARNING << V(pe_underload) << V(pe_overload) << V(total_overload)
+                      << V(avg_cnode_count) << V(max_cnode_count) << V(min_load)
+                      << V(current_node_distribution) << V(current_cnode_distribution);
+          return false;
+        }
+        return true;
+      }(),
+      "",
+      assert::light
+  );
 
   return {
       .overload = std::move(pe_overload),
