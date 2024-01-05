@@ -154,6 +154,9 @@ void CompressedGraphBuilder::init(
   _edge_count = 0;
   _max_degree = 0;
 
+  _first_isolated_node = true;
+  _last_real_edge = 0;
+
   _high_degree_count = 0;
   _part_count = 0;
   _interval_count = 0;
@@ -168,9 +171,34 @@ void CompressedGraphBuilder::add_node(
 
   const NodeID degree = neighbourhood.size();
   if (degree == 0) {
+    // If isolated nodes are continuously stored at the end of the nodes array, gap encoding for the
+    // first edge id with respect to the source node can be used while determining the degree
+    // through the first edge id. For this to work, at the first isolated node (or at the end of the
+    // edge array if no isolated node exists, see build-method) we have to store the (effective)
+    // first edge id of the isolated node as a gap with respect to the isolated node. Further, the
+    // index in the node array of all following isolated nodes have to be shifted such that they are
+    // seen as isolated nodes.
+    if constexpr (CompressedGraph::kIsolatedNodesSeparation) {
+      if (_first_isolated_node) {
+        _first_isolated_node = false;
+        _last_real_edge = static_cast<EdgeID>(_cur_compressed_edges - _compressed_edges);
+
+        const EdgeID first_edge_gap = _edge_count - node;
+        if constexpr (CompressedGraph::kIntervalEncoding) {
+          _cur_compressed_edges +=
+              marked_varint_encode(first_edge_gap, false, _cur_compressed_edges);
+        } else {
+          _cur_compressed_edges += varint_encode(first_edge_gap, _cur_compressed_edges);
+        }
+      } else {
+        _nodes[node] = _last_real_edge;
+      }
+    }
+
     return;
   }
 
+  KASSERT(!CompressedGraph::kIsolatedNodesSeparation || _first_isolated_node);
   _max_degree = std::max(_max_degree, degree);
 
   // Store a pointer to the first byte of the first edge in the compressed edge array which encodes
@@ -179,12 +207,24 @@ void CompressedGraphBuilder::add_node(
   std::uint8_t *marked_byte = _cur_compressed_edges;
 
   // Store only the first edge for the source node. The degree can be obtained from determining the
-  // difference between the first edge ids of a node and the next node.
+  // difference between the first edge ids of a node and the next node. Additionally, store the
+  // first edge as a gap when the isolated nodes are continuously stored at the end of the nodes
+  // array.
   const EdgeID first_edge = _edge_count;
-  if constexpr (CompressedGraph::kIntervalEncoding) {
-    _cur_compressed_edges += marked_varint_encode(first_edge, false, _cur_compressed_edges);
+  if constexpr (CompressedGraph::kIsolatedNodesSeparation) {
+    const EdgeID first_edge_gap = _edge_count - node;
+
+    if constexpr (CompressedGraph::kIntervalEncoding) {
+      _cur_compressed_edges += marked_varint_encode(first_edge_gap, false, _cur_compressed_edges);
+    } else {
+      _cur_compressed_edges += varint_encode(first_edge_gap, _cur_compressed_edges);
+    }
   } else {
-    _cur_compressed_edges += varint_encode(first_edge, _cur_compressed_edges);
+    if constexpr (CompressedGraph::kIntervalEncoding) {
+      _cur_compressed_edges += marked_varint_encode(first_edge, false, _cur_compressed_edges);
+    } else {
+      _cur_compressed_edges += varint_encode(first_edge, _cur_compressed_edges);
+    }
   }
 
   // Only increment the edge count if edge weights are not stored as otherwise the edge count is
@@ -202,9 +242,7 @@ void CompressedGraphBuilder::add_node(
     const bool split_neighbourhood = degree >= CompressedGraph::kHighDegreeThreshold;
 
     if (split_neighbourhood) {
-      const NodeID part_count = ((degree % CompressedGraph::kHighDegreePartLength) == 0)
-                                    ? (degree / CompressedGraph::kHighDegreePartLength)
-                                    : ((degree / CompressedGraph::kHighDegreePartLength) + 1);
+      const NodeID part_count = math::div_ceil(degree, CompressedGraph::kHighDegreePartLength);
       const NodeID last_part_length = ((degree % CompressedGraph::kHighDegreePartLength) == 0)
                                           ? CompressedGraph::kHighDegreePartLength
                                           : (degree % CompressedGraph::kHighDegreePartLength);
@@ -247,13 +285,28 @@ CompressedGraph CompressedGraphBuilder::build() {
   // the last byte belonging to the last node.
   _nodes[_nodes.size() - 1] = static_cast<EdgeID>(_cur_compressed_edges - _compressed_edges);
 
-  // Store at the end of the compressed edge array the edge id of the last edge such that the degree
-  // of the last node can be computed from the difference between the last two first edge ids.
+  // Store at the end of the compressed edge array the (gap of the) edge id of the last edge such
+  // that the degree of the last node can be computed from the difference between the last two first
+  // edge ids.
   const EdgeID last_edge = _edge_count;
-  if constexpr (CompressedGraph::kIntervalEncoding) {
-    _cur_compressed_edges += marked_varint_encode(last_edge, false, _cur_compressed_edges);
+  if constexpr (CompressedGraph::kIsolatedNodesSeparation) {
+    if (_first_isolated_node) {
+      const EdgeID last_edge_gap = last_edge - (_nodes.size() - 1);
+
+      if constexpr (CompressedGraph::kIntervalEncoding) {
+        _cur_compressed_edges += marked_varint_encode(last_edge_gap, false, _cur_compressed_edges);
+      } else {
+        _cur_compressed_edges += varint_encode(last_edge_gap, _cur_compressed_edges);
+      }
+    } else {
+      _nodes[_nodes.size() - 1] = _last_real_edge;
+    }
   } else {
-    _cur_compressed_edges += varint_encode(last_edge, _cur_compressed_edges);
+    if constexpr (CompressedGraph::kIntervalEncoding) {
+      _cur_compressed_edges += marked_varint_encode(last_edge, false, _cur_compressed_edges);
+    } else {
+      _cur_compressed_edges += varint_encode(last_edge, _cur_compressed_edges);
+    }
   }
 
   // Add an additional 15 bytes to the compressed edge array when stream encoding is enabled to

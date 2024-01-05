@@ -29,6 +29,7 @@ void GraphCompressionContext::setup(const Graph &graph) {
   interval_length_treshold = CompressedGraph::kIntervalLengthTreshold;
   run_length_encoding = CompressedGraph::kRunLengthEncoding;
   stream_encoding = CompressedGraph::kStreamEncoding;
+  isolated_nodes_separation = CompressedGraph::kIsolatedNodesSeparation;
 
   if (enabled) {
     const CompressedGraph *compressed_graph =

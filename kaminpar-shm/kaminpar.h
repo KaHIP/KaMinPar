@@ -315,6 +315,7 @@ struct GraphCompressionContext {
   NodeID interval_length_treshold;
   bool run_length_encoding;
   bool stream_encoding;
+  bool isolated_nodes_separation;
 
   double compression_ratio;
   std::int64_t size_reduction;

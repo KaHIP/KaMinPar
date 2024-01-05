@@ -18,6 +18,18 @@
 #include <kassert/kassert.hpp>
 
 namespace kaminpar::math {
+
+/*!
+ * Divides two integers with ceil rounding.
+ *
+ * @param x The dividend which has to be non-zero.
+ * @param y The divisor.
+ * @return The ceiling of x divided by y.
+ */
+template <typename Int> constexpr Int div_ceil(Int x, Int y) {
+  return 1 + ((x - 1) / y);
+}
+
 template <typename Int> bool is_square(const Int value) {
   const Int sqrt = std::sqrt(value);
   return sqrt * sqrt == value;

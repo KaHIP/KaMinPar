@@ -15,6 +15,7 @@
 #include "kaminpar-shm/datastructures/abstract_graph.h"
 #include "kaminpar-shm/datastructures/csr_graph.h"
 
+#include "kaminpar-common/math.h"
 #include "kaminpar-common/ranges.h"
 #include "kaminpar-common/varint_codec.h"
 #include "kaminpar-common/varint_run_length_codec.h"
@@ -101,6 +102,20 @@ public:
       !kRunLengthEncoding || !kStreamEncoding,
       "Either run-length or stream encoding can be used for varints but not both."
   );
+
+#ifdef KAMINPAR_COMPRESSION_ISOLATED_NODES_SEPARATION
+  /*!
+   * Whether the isolated nodes of the compressed graph are continuously stored at the end of the
+   * nodes array.
+   */
+  static constexpr bool kIsolatedNodesSeparation = true;
+#else
+  /*!
+   * Whether the isolated nodes of the compressed graph are continuously stored at the end of the
+   * nodes array.
+   */
+  static constexpr bool kIsolatedNodesSeparation = false;
+#endif
 
   /*!
    * Constructs a new compressed graph.
@@ -245,7 +260,7 @@ public:
       return 0;
     }
 
-    const auto [first_edge, degree, uses_intervals, len] = decode_header(node_data, next_node_data);
+    const auto [first_edge, degree, _, __] = decode_header(node, node_data, next_node_data);
     return degree;
   }
 
@@ -278,7 +293,7 @@ public:
       return IotaRange<EdgeID>(0, 0);
     }
 
-    const auto [first_edge, degree, uses_intervals, len] = decode_header(node_data, next_node_data);
+    const auto [first_edge, degree, _, __] = decode_header(node, node_data, next_node_data);
     return IotaRange<EdgeID>(first_edge, first_edge + degree);
   }
 
@@ -452,8 +467,9 @@ private:
 
   void init_degree_buckets();
 
-  inline std::tuple<EdgeID, NodeID, bool, std::size_t>
-  decode_header(const std::uint8_t *node_data, const std::uint8_t *next_node_data) const {
+  inline std::tuple<EdgeID, NodeID, bool, std::size_t> decode_header(
+      const NodeID node, const std::uint8_t *node_data, const std::uint8_t *next_node_data
+  ) const {
     const auto [first_edge, next_first_edge, uses_intervals, len] = [&] {
       if constexpr (CompressedGraph::kIntervalEncoding) {
         auto [first_edge, marker_set, len] = marked_varint_decode<EdgeID>(node_data);
@@ -469,8 +485,14 @@ private:
       }
     }();
 
-    const NodeID degree = static_cast<NodeID>(next_first_edge - first_edge);
-    return std::make_tuple(first_edge, degree, uses_intervals, len);
+    if constexpr (kIsolatedNodesSeparation) {
+      const EdgeID ungapped_first_edge = first_edge + node;
+      const NodeID degree = static_cast<NodeID>(1 + next_first_edge - first_edge);
+      return std::make_tuple(ungapped_first_edge, degree, uses_intervals, len);
+    } else {
+      const NodeID degree = static_cast<NodeID>(next_first_edge - first_edge);
+      return std::make_tuple(first_edge, degree, uses_intervals, len);
+    }
   }
 
   template <bool max_edges = false, bool parallel = false, typename Lambda>
@@ -487,7 +509,8 @@ private:
       return;
     }
 
-    const auto [first_edge, degree, uses_intervals, len] = decode_header(node_data, next_node_data);
+    const auto [first_edge, degree, uses_intervals, len] =
+        decode_header(node, node_data, next_node_data);
     node_data += len;
 
     max_neighbor_count = std::min(max_neighbor_count, degree);
@@ -518,17 +541,9 @@ private:
       const NodeID max_neighbor_count,
       Lambda &&l
   ) const {
-    const NodeID part_count = ((degree % kHighDegreePartLength) == 0)
-                                  ? (degree / kHighDegreePartLength)
-                                  : ((degree / kHighDegreePartLength) + 1);
-
-    const NodeID max_part_count = std::min(
-        part_count,
-        ((max_neighbor_count % kHighDegreePartLength) == 0)
-            ? (max_neighbor_count / kHighDegreePartLength)
-            : ((max_neighbor_count / kHighDegreePartLength) + 1)
-    );
-
+    const NodeID part_count = math::div_ceil(degree, kHighDegreePartLength);
+    const NodeID max_part_count =
+        std::min(part_count, math::div_ceil(max_neighbor_count, kHighDegreePartLength));
     const NodeID max_neighbor_rem = ((max_neighbor_count % kHighDegreePartLength) == 0)
                                         ? kHighDegreePartLength
                                         : (max_neighbor_count % kHighDegreePartLength);
@@ -752,6 +767,9 @@ private:
 
   EdgeID _edge_count;
   NodeID _max_degree;
+
+  bool _first_isolated_node;
+  EdgeID _last_real_edge;
 
   std::size_t _high_degree_count;
   std::size_t _part_count;
