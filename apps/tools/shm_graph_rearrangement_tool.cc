@@ -39,7 +39,9 @@ int main(int argc, char *argv[]) {
   tbb::global_control gc(tbb::global_control::max_allowed_parallelism, ctx.parallel.num_threads);
 
   LOG << "Reading input graph...";
-  CSRGraph csr_graph = io::metis::csr_read<false>(graph_filename);
+  CSRGraph csr_graph = io::metis::csr_read<false>(
+      graph_filename, ctx.node_ordering == NodeOrdering::IMPLICIT_DEGREE_BUCKETS
+  );
   Graph graph(std::make_unique<CSRGraph>(std::move(csr_graph)));
 
   LOG << "Rearranging graph...";

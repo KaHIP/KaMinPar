@@ -82,7 +82,8 @@ CLI::Option_group *create_partitioning_rearrangement_options(CLI::App *app, Cont
       ->transform(CLI::CheckedTransformer(get_node_orderings()).description(""))
       ->description(R"(Criteria by which the nodes of the graph are sorted and rearranged:
   - natural:     keep node order of the graph (do not rearrange)
-  - deg-buckets: sort nodes by degree bucket and rearrange accordingly)")
+  - deg-buckets: sort nodes by degree bucket and rearrange accordingly
+  - implicit-deg-buckets: nodes of the input graph are sorted by deg-buckets order)")
       ->capture_default_str();
   rearrangement->add_option("--edge-order", ctx.edge_ordering)
       ->transform(CLI::CheckedTransformer(get_edge_orderings()).description(""))

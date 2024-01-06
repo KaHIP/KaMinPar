@@ -13,6 +13,7 @@
 
 #include "kaminpar-shm/coarsening/lp_clustering.h"
 #include "kaminpar-shm/context_io.h"
+#include "kaminpar-shm/graphutils/permutator.h"
 #include "kaminpar-shm/partition_utils.h"
 
 #include "kaminpar-common/console_io.h"
@@ -46,14 +47,26 @@ int main(int argc, char *argv[]) {
       ->check(CLI::NonNegativeNumber)
       ->capture_default_str();
   create_lp_coarsening_options(&app, ctx);
+  create_partitioning_rearrangement_options(&app, ctx);
   create_graph_compression_options(&app, ctx);
   CLI11_PARSE(app, argc, argv);
 
   tbb::global_control gc(tbb::global_control::max_allowed_parallelism, ctx.parallel.num_threads);
   Random::reseed(seed);
 
-  Graph graph = io::read(graph_filename, ctx.compression.enabled, false);
+  Graph graph = io::read(
+      graph_filename,
+      ctx.compression.enabled,
+      ctx.node_ordering == NodeOrdering::IMPLICIT_DEGREE_BUCKETS,
+      false
+  );
   ctx.setup(graph);
+
+  if (ctx.node_ordering == NodeOrdering::DEGREE_BUCKETS) {
+    const double original_epsilon = ctx.partition.epsilon;
+    graph = graph::rearrange_by_degree_buckets(ctx, std::move(graph));
+    graph::integrate_isolated_nodes(graph, original_epsilon, ctx);
+  }
 
   const NodeWeight max_cluster_weight =
       compute_max_cluster_weight(ctx.coarsening, graph, ctx.partition);

@@ -59,7 +59,8 @@ constexpr BlockWeight kInvalidBlockWeight = std::numeric_limits<BlockWeight>::ma
 
 enum class NodeOrdering {
   NATURAL,
-  DEGREE_BUCKETS
+  DEGREE_BUCKETS,
+  IMPLICIT_DEGREE_BUCKETS
 };
 
 enum class EdgeOrdering {

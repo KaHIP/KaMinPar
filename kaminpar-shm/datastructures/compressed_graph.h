@@ -130,6 +130,7 @@ public:
    * respective entry are stored.
    * @param edge_count The number of edges stored in the compressed edge array.
    * @param max_degree The maximum degree of the graph.
+   * @param sorted Whether the nodes are stored by deg-buckets order.
    * @param high_degree_count The number of nodes which have high degree.
    * @param part_count The number of parts that result from splitting the neighbourhood of high
    * degree nodes.
@@ -142,6 +143,7 @@ public:
       StaticArray<EdgeWeight> edge_weights,
       EdgeID edge_count,
       NodeID max_degree,
+      bool sorted,
       std::size_t high_degree_count,
       std::size_t part_count,
       std::size_t interval_count
@@ -352,7 +354,7 @@ public:
   }
 
   [[nodiscard]] inline bool sorted() const final {
-    return false;
+    return _sorted;
   }
 
   void update_total_node_weight() final;
@@ -449,6 +451,8 @@ private:
   const NodeID _node_count;
   const EdgeID _edge_count;
   const NodeID _max_degree;
+
+  const bool _sorted;
 
   NodeWeight _total_node_weight = kInvalidNodeWeight;
   EdgeWeight _total_edge_weight = kInvalidEdgeWeight;
@@ -731,12 +735,14 @@ public:
    * @param edge_count The number of edges of the graph to compress.
    * @param store_node_weights Whether node weights are stored.
    * @param store_edge_weights Whether edge weights are stored.
+   * @param sorted Whether the nodes to add are stored by deg-buckets order.
    */
   void init(
       const NodeID node_count,
       const EdgeID edge_count,
       const bool store_node_weights,
-      const bool store_edge_weights
+      const bool store_edge_weights,
+      const bool sorted
   );
 
   /*!
@@ -787,6 +793,8 @@ private:
   bool _store_edge_weights;
   std::int64_t _total_node_weight;
   std::int64_t _total_edge_weight;
+
+  bool _sorted;
 
   std::uint8_t *_compressed_edges;
   std::uint8_t *_cur_compressed_edges;

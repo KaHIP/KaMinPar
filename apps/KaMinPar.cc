@@ -156,9 +156,8 @@ int main(int argc, char *argv[]) {
     std::exit(0);
   }
 
-  if (ctx.compression.enabled && ctx.node_ordering != NodeOrdering::NATURAL) {
-    std::cout << "The nodes of the compressed graph cannot be rearranged. Use the natural graph "
-                 "ordering by adding \"--node-order natural\" as a command-line flag!"
+  if (ctx.compression.enabled && ctx.node_ordering == NodeOrdering::DEGREE_BUCKETS) {
+    std::cout << "The nodes of the compressed graph cannot be rearranged by degree buckets!"
               << std::endl;
     std::exit(0);
   }
@@ -167,7 +166,12 @@ int main(int argc, char *argv[]) {
 
   // Read the input graph and allocate memory for the partition
   START_HEAP_PROFILER("Input Graph Allocation");
-  Graph graph = io::read(app.graph_filename, ctx.compression.enabled, app.validate);
+  Graph graph = io::read(
+      app.graph_filename,
+      ctx.compression.enabled,
+      ctx.node_ordering == NodeOrdering::IMPLICIT_DEGREE_BUCKETS,
+      app.validate
+  );
   RECORD("partition") std::vector<BlockID> partition(graph.n());
   RECORD_DATA_STRUCT("std::vector", partition.capacity() * sizeof(BlockID));
   STOP_HEAP_PROFILER();

@@ -20,6 +20,7 @@ CompressedGraph::CompressedGraph(
     StaticArray<EdgeWeight> edge_weights,
     EdgeID edge_count,
     NodeID max_degree,
+    bool sorted,
     std::size_t high_degree_count,
     std::size_t part_count,
     std::size_t interval_count
@@ -31,6 +32,7 @@ CompressedGraph::CompressedGraph(
       _node_count(static_cast<NodeID>(_nodes.size() - 1)),
       _edge_count(edge_count),
       _max_degree(max_degree),
+      _sorted(sorted),
       _high_degree_count(high_degree_count),
       _part_count(part_count),
       _interval_count(interval_count) {
@@ -91,7 +93,7 @@ CompressedGraph CompressedGraphBuilder::compress(const CSRGraph &graph) {
   const bool store_edge_weights = graph.edge_weighted();
 
   CompressedGraphBuilder builder;
-  builder.init(graph.n(), graph.m(), store_node_weights, store_edge_weights);
+  builder.init(graph.n(), graph.m(), store_node_weights, store_edge_weights, graph.sorted());
 
   std::vector<std::pair<NodeID, EdgeWeight>> neighbourhood;
   neighbourhood.reserve(graph.max_degree());
@@ -116,7 +118,8 @@ void CompressedGraphBuilder::init(
     const NodeID node_count,
     const EdgeID edge_count,
     const bool store_node_weights,
-    const bool store_edge_weights
+    const bool store_edge_weights,
+    const bool sorted
 ) {
   KASSERT(node_count != std::numeric_limits<NodeID>::max() - 1);
 
@@ -135,6 +138,8 @@ void CompressedGraphBuilder::init(
 
   _total_node_weight = 0;
   _total_edge_weight = 0;
+
+  _sorted = sorted;
 
   const std::size_t max_bytes_node_id = varint_max_length<NodeID>();
   const std::size_t max_bytes_edge_id = varint_max_length<EdgeID>();
@@ -341,6 +346,7 @@ CompressedGraph CompressedGraphBuilder::build() {
       std::move(_edge_weights),
       _edge_count,
       _max_degree,
+      _sorted,
       _high_degree_count,
       _part_count,
       _interval_count

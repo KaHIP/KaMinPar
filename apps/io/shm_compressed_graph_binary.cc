@@ -44,6 +44,7 @@ void write(const std::string &filename, const CompressedGraph &graph) {
   write_int(out, graph.n());
   write_int(out, graph.m());
   write_int(out, graph.max_degree());
+  write_int(out, static_cast<std::uint8_t>(graph.sorted()));
   write_int(out, graph.raw_compressed_edges().size());
   write_int(out, static_cast<std::uint8_t>(graph.node_weighted()));
   write_int(out, static_cast<std::uint8_t>(graph.edge_weighted()));
@@ -190,6 +191,8 @@ CompressedGraph read(const std::string &filename) {
   NodeID n = read_int<NodeID>(in);
   EdgeID m = read_int<EdgeID>(in);
   NodeID max_degree = read_int<NodeID>(in);
+  bool sorted = static_cast<bool>(read_int<std::uint8_t>(in));
+
   std::size_t compressed_edges_size = read_int<std::size_t>(in);
   bool is_node_weighted = static_cast<bool>(read_int<std::uint8_t>(in));
   bool is_edge_weighted = static_cast<bool>(read_int<std::uint8_t>(in));
@@ -213,6 +216,7 @@ CompressedGraph read(const std::string &filename) {
       std::move(edge_weights),
       m,
       max_degree,
+      sorted,
       high_degree_count,
       part_count,
       interval_count

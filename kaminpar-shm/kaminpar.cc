@@ -122,6 +122,7 @@ void KaMinPar::borrow_and_mutate_graph(
   StaticArray<EdgeWeight> edge_weights =
       (adjwgt == nullptr) ? StaticArray<EdgeWeight>(0) : StaticArray<EdgeWeight>(adjwgt, m);
 
+  _was_rearranged = false;
   _graph_ptr = std::make_unique<Graph>(std::make_unique<CSRGraph>(
       std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights), false
   ));
@@ -156,12 +157,14 @@ void KaMinPar::copy_graph(
     }
   });
 
+  _was_rearranged = false;
   _graph_ptr = std::make_unique<Graph>(std::make_unique<CSRGraph>(
       std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights), false
   ));
 }
 
 void KaMinPar::set_graph(Graph graph) {
+  _was_rearranged = false;
   _graph_ptr = std::make_unique<Graph>(std::move(graph));
 }
 
@@ -192,14 +195,18 @@ EdgeWeight KaMinPar::compute_partition(const BlockID k, BlockID *partition) {
   START_HEAP_PROFILER("Partitioning");
   START_TIMER("Partitioning");
 
-  if (_ctx.node_ordering == NodeOrdering::DEGREE_BUCKETS && !_was_rearranged) {
-    _graph_ptr =
-        std::make_unique<Graph>(graph::rearrange_by_degree_buckets(_ctx, std::move(*_graph_ptr)));
-    _was_rearranged = true;
-  }
+  if (!_was_rearranged) {
+    if (_ctx.node_ordering == NodeOrdering::DEGREE_BUCKETS) {
+      _graph_ptr =
+          std::make_unique<Graph>(graph::rearrange_by_degree_buckets(_ctx, std::move(*_graph_ptr)));
+    }
 
-  if (_ctx.edge_ordering == EdgeOrdering::COMPRESSION) {
-    graph::reorder_edges_by_compression(*dynamic_cast<CSRGraph *>(_graph_ptr->underlying_graph()));
+    if (_ctx.edge_ordering == EdgeOrdering::COMPRESSION && !_ctx.compression.enabled) {
+      CSRGraph &csr_graph = *dynamic_cast<CSRGraph *>(_graph_ptr->underlying_graph());
+      graph::reorder_edges_by_compression(csr_graph);
+    }
+
+    _was_rearranged = true;
   }
 
   // Perform actual partitioning
