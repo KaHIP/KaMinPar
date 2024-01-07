@@ -27,6 +27,10 @@ static std::string to_megabytes(std::size_t bytes) {
 }
 
 template <typename T> static bool operator!=(const IotaRange<T> &a, const IotaRange<T> &b) {
+  if (a.begin() == a.end()) {
+    return b.begin() != b.end();
+  }
+
   return a.begin() != b.begin() || a.end() != b.end();
 };
 
@@ -328,51 +332,48 @@ expect_equal_pfor_neighbors(const CSRGraph &graph, const CompressedGraph &compre
 static void expect_equal_compressed_graph_edge_weights(
     const CSRGraph &graph, const CompressedGraph &compressed_graph
 ) {
-  std::unordered_map<NodeID, EdgeWeight> csr_graph_edge_weights_map;
-  std::unordered_map<NodeID, EdgeWeight> compressed_graph_edge_weights_map;
+  std::vector<std::pair<NodeID, EdgeWeight>> csr_graph_edge_weights;
+  std::vector<std::pair<NodeID, EdgeWeight>> compressed_graph_edge_weights;
 
   for (const NodeID node : graph.nodes()) {
     graph.neighbors(node, [&](const EdgeID incident_edge, const NodeID adjacent_node) {
-      csr_graph_edge_weights_map[adjacent_node] = graph.edge_weight(incident_edge);
+      csr_graph_edge_weights.emplace_back(adjacent_node, graph.edge_weight(incident_edge));
     });
 
     compressed_graph.neighbors(node, [&](const EdgeID incident_edge, const NodeID adjacent_node) {
-      compressed_graph_edge_weights_map[adjacent_node] =
-          compressed_graph.edge_weight(incident_edge);
+      compressed_graph_edge_weights.emplace_back(
+          adjacent_node, compressed_graph.edge_weight(incident_edge)
+      );
     });
 
-    if (csr_graph_edge_weights_map.size() != compressed_graph_edge_weights_map.size()) {
-      LOG_ERROR << "Node " << node << " has " << csr_graph_edge_weights_map.size()
+    if (csr_graph_edge_weights.size() != compressed_graph_edge_weights.size()) {
+      LOG_ERROR << "Node " << node << " has " << csr_graph_edge_weights.size()
                 << " adjacent nodes in the uncompressed graph but "
-                << compressed_graph_edge_weights_map.size()
+                << compressed_graph_edge_weights.size()
                 << " adjacent node in the compressed graph!";
       return;
     }
-    for (const NodeID adjacent_node : graph.adjacent_nodes(node)) {
-      if (csr_graph_edge_weights_map.find(adjacent_node) == csr_graph_edge_weights_map.end()) {
-        LOG_ERROR << "Node " << node << " neighbor " << adjacent_node
-                  << " is not contained in the uncompressed graph!";
-        return;
-      }
 
-      if (compressed_graph_edge_weights_map.find(adjacent_node) ==
-          compressed_graph_edge_weights_map.end()) {
-        LOG_ERROR << "Node " << node << " neighbor " << adjacent_node
-                  << " is not contained in the compressed graph!";
-        return;
-      }
+    std::sort(
+        csr_graph_edge_weights.begin(),
+        csr_graph_edge_weights.end(),
+        [](const auto &a, const auto &b) { return a.first < b.first; }
+    );
 
-      if (csr_graph_edge_weights_map[adjacent_node] !=
-          compressed_graph_edge_weights_map[adjacent_node]) {
-        LOG_ERROR
-            << "Node " << node
-            << " incident edge weights in the uncompressed and  compressed graph do not match!";
-        return;
-      }
+    std::sort(
+        compressed_graph_edge_weights.begin(),
+        compressed_graph_edge_weights.end(),
+        [](const auto &a, const auto &b) { return a.first < b.first; }
+    );
+
+    if (csr_graph_edge_weights != compressed_graph_edge_weights) {
+      LOG_ERROR << "The edge weights of node " << node
+                << " in the compressed and uncompressed graph do not match!";
+      return;
     }
 
-    csr_graph_edge_weights_map.clear();
-    compressed_graph_edge_weights_map.clear();
+    csr_graph_edge_weights.clear();
+    compressed_graph_edge_weights.clear();
   }
 }
 
@@ -384,8 +385,8 @@ static void expect_equal_rearrange_compressed_edge_weights(
   for (const NodeID node : graph.nodes()) {
     for (const auto [incident_edge, adjacent_node] : graph.neighbors(node)) {
       if (graph.edge_weight(incident_edge) != compressed_graph.edge_weight(incident_edge)) {
-        LOG_ERROR << "Edge " << incident_edge << " has weight" << graph.edge_weight(incident_edge)
-                  << " in the rearranged uncompressed graph but weight"
+        LOG_ERROR << "Edge " << incident_edge << " has weight " << graph.edge_weight(incident_edge)
+                  << " in the rearranged uncompressed graph but weight "
                   << compressed_graph.edge_weight(incident_edge) << " in the compressed graph!";
         return;
       }
@@ -490,7 +491,7 @@ int main(int argc, char *argv[]) {
 
   START_HEAP_PROFILER("Compressed Graph Allocation");
   CompressedGraph compressed_graph = TIMED_SCOPE("Read compressed graph") {
-    return io::metis::compress_read<false>(graph_filename);
+    return *io::metis::compress_read<false>(graph_filename);
   };
   STOP_HEAP_PROFILER();
 
