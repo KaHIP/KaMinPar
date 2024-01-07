@@ -222,6 +222,8 @@ public:
    * parameter of type Int.
    */
   template <typename Lambda> void decode(std::size_t max_count, Lambda &&l) {
+    constexpr bool non_stoppable = std::is_void<std::invoke_result_t<Lambda, std::uint32_t>>::value;
+
     // max_count = std::min(max_count, _count);
 
     std::size_t control_bytes = max_count / 4;
@@ -235,10 +237,28 @@ public:
       const std::uint8_t *shuffle_mask = kShuffleTable[control_byte].data();
       data = _mm_shuffle_epi8(data, *(const __m128i *)shuffle_mask);
 
-      l(_mm_extract_epi32(data, 0));
-      l(_mm_extract_epi32(data, 1));
-      l(_mm_extract_epi32(data, 2));
-      l(_mm_extract_epi32(data, 3));
+      if constexpr (non_stoppable) {
+        l(_mm_extract_epi32(data, 0));
+        l(_mm_extract_epi32(data, 1));
+        l(_mm_extract_epi32(data, 2));
+        l(_mm_extract_epi32(data, 3));
+      } else {
+        if (l(_mm_extract_epi32(data, 0))) {
+          return;
+        }
+
+        if (l(_mm_extract_epi32(data, 1))) {
+          return;
+        }
+
+        if (l(_mm_extract_epi32(data, 2))) {
+          return;
+        }
+
+        if (l(_mm_extract_epi32(data, 3))) {
+          return;
+        }
+      }
     }
 
     if ((max_count % 4) != 0) {
@@ -251,19 +271,51 @@ public:
       const std::uint8_t *shuffle_mask = kShuffleTable[control_byte].data();
       data = _mm_shuffle_epi8(data, *(const __m128i *)shuffle_mask);
 
-      switch (max_count % 4) {
-      case 1:
-        l(_mm_extract_epi32(data, 0));
-        break;
-      case 2:
-        l(_mm_extract_epi32(data, 0));
-        l(_mm_extract_epi32(data, 1));
-        break;
-      case 3:
-        l(_mm_extract_epi32(data, 0));
-        l(_mm_extract_epi32(data, 1));
-        l(_mm_extract_epi32(data, 2));
-        break;
+      if constexpr (non_stoppable) {
+        switch (max_count % 4) {
+        case 1:
+          l(_mm_extract_epi32(data, 0));
+          break;
+        case 2:
+          l(_mm_extract_epi32(data, 0));
+          l(_mm_extract_epi32(data, 1));
+          break;
+        case 3:
+          l(_mm_extract_epi32(data, 0));
+          l(_mm_extract_epi32(data, 1));
+          l(_mm_extract_epi32(data, 2));
+          break;
+        }
+      } else {
+        switch (max_count % 4) {
+        case 1:
+          if (l(_mm_extract_epi32(data, 0))) {
+            return;
+          }
+          break;
+        case 2:
+          if (l(_mm_extract_epi32(data, 0))) {
+            return;
+          }
+
+          if (l(_mm_extract_epi32(data, 1))) {
+            return;
+          }
+          break;
+        case 3:
+          if (l(_mm_extract_epi32(data, 0))) {
+            return;
+          }
+
+          if (l(_mm_extract_epi32(data, 1))) {
+            return;
+          }
+
+          if (l(_mm_extract_epi32(data, 2))) {
+            return;
+          }
+          break;
+        }
       }
     }
   }

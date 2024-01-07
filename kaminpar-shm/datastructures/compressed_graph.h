@@ -611,7 +611,8 @@ private:
       const bool uses_intervals,
       Lambda &&l
   ) const {
-    constexpr bool void_lambda = std::is_void<std::invoke_result_t<Lambda, EdgeID, NodeID>>::value;
+    constexpr bool non_stoppable =
+        std::is_void<std::invoke_result_t<Lambda, EdgeID, NodeID>>::value;
 
     EdgeID edge = first_edge;
     EdgeID gap_edges = degree - 1;
@@ -643,11 +644,11 @@ private:
           gap_edges -= cur_interval_len;
 
           for (NodeID j = 0; j < max_interval_len; ++j) {
-            if constexpr (void_lambda) {
+            if constexpr (non_stoppable) {
               l(edge++, cur_left_extreme + j);
             } else {
-              const bool stop_processing = l(edge++, cur_left_extreme + j);
-              if (stop_processing) {
+              const bool stop = l(edge++, cur_left_extreme + j);
+              if (stop) {
                 return;
               }
             }
@@ -666,11 +667,11 @@ private:
     const NodeID first_adjacent_node = static_cast<NodeID>(first_gap + node);
     NodeID prev_adjacent_node = first_adjacent_node;
 
-    if constexpr (void_lambda) {
+    if constexpr (non_stoppable) {
       l(edge++, first_adjacent_node);
     } else {
-      const bool stop_processing = l(edge++, first_adjacent_node);
-      if (stop_processing) {
+      const bool stop = l(edge++, first_adjacent_node);
+      if (stop) {
         return;
       }
     }
@@ -679,7 +680,11 @@ private:
       const NodeID adjacent_node = gap + prev_adjacent_node;
       prev_adjacent_node = adjacent_node;
 
-      l(edge++, adjacent_node);
+      if constexpr (non_stoppable) {
+        l(edge++, adjacent_node);
+      } else {
+        return l(edge++, adjacent_node);
+      }
     };
 
     if constexpr (kRunLengthEncoding) {
@@ -696,11 +701,11 @@ private:
         const NodeID adjacent_node = gap + prev_adjacent_node;
         prev_adjacent_node = adjacent_node;
 
-        if constexpr (void_lambda) {
+        if constexpr (non_stoppable) {
           l(edge++, adjacent_node);
         } else {
-          const bool stop_processing = l(edge++, adjacent_node);
-          if (stop_processing) {
+          const bool stop = l(edge++, adjacent_node);
+          if (stop) {
             return;
           }
         }

@@ -125,8 +125,9 @@ public:
    * parameter of type Int.
    */
   template <typename Lambda> void decode(const std::size_t max_decoded, Lambda &&l) {
-    std::size_t decoded = 0;
+    constexpr bool non_stoppable = std::is_void<std::invoke_result_t<Lambda, std::uint32_t>>::value;
 
+    std::size_t decoded = 0;
     while (decoded < max_decoded) {
       const std::uint8_t run_header = *_ptr++;
 
@@ -139,7 +140,14 @@ public:
           run_length -= decoded - max_decoded;
         }
 
-        decode32(run_length, run_size, std::forward<Lambda>(l));
+        if constexpr (non_stoppable) {
+          decode32(run_length, run_size, std::forward<Lambda>(l));
+        } else {
+          const bool stop = decode32(run_length, run_size, std::forward<Lambda>(l));
+          if (stop) {
+            return;
+          }
+        }
       } else if constexpr (sizeof(Int) == 8) {
         std::uint8_t run_length = (run_header >> 3) + 1;
         const std::uint8_t run_size = (run_header & 0b00000111) + 1;
@@ -149,7 +157,14 @@ public:
           run_length -= decoded - max_decoded;
         }
 
-        decode64(run_length, run_size, std::forward<Lambda>(l));
+        if constexpr (non_stoppable) {
+          decode64(run_length, run_size, std::forward<Lambda>(l));
+        } else {
+          const bool stop = decode64(run_length, run_size, std::forward<Lambda>(l));
+          if (stop) {
+            return;
+          }
+        }
       }
     }
   }
@@ -158,14 +173,23 @@ private:
   const std::uint8_t *_ptr;
 
   template <typename Lambda>
-  void decode32(const std::uint8_t run_length, const std::uint8_t run_size, Lambda &&l) {
+  bool decode32(const std::uint8_t run_length, const std::uint8_t run_size, Lambda &&l) {
+    constexpr bool non_stoppable = std::is_void<std::invoke_result_t<Lambda, std::uint32_t>>::value;
+
     switch (run_size) {
     case 1:
       for (std::uint8_t i = 0; i < run_length; ++i) {
         std::uint32_t value = static_cast<std::uint32_t>(*_ptr);
         _ptr += 1;
 
-        l(value);
+        if constexpr (non_stoppable) {
+          l(value);
+        } else {
+          const bool stop = l(value);
+          if (stop) {
+            return true;
+          }
+        }
       }
       break;
     case 2:
@@ -173,7 +197,14 @@ private:
         std::uint32_t value = *((std::uint16_t *)_ptr);
         _ptr += 2;
 
-        l(value);
+        if constexpr (non_stoppable) {
+          l(value);
+        } else {
+          const bool stop = l(value);
+          if (stop) {
+            return true;
+          }
+        }
       }
       break;
     case 3:
@@ -181,7 +212,14 @@ private:
         std::uint32_t value = *((std::uint32_t *)_ptr) & 0xFFFFFF;
         _ptr += 3;
 
-        l(value);
+        if constexpr (non_stoppable) {
+          l(value);
+        } else {
+          const bool stop = l(value);
+          if (stop) {
+            return true;
+          }
+        }
       }
       break;
     case 4:
@@ -189,23 +227,41 @@ private:
         std::uint32_t value = *((std::uint32_t *)_ptr);
         _ptr += 4;
 
-        l(value);
+        if constexpr (non_stoppable) {
+          l(value);
+        } else {
+          const bool stop = l(value);
+          if (stop) {
+            return true;
+          }
+        }
       }
       break;
     default:
       throw std::runtime_error("unexpected run size");
     }
+
+    return false;
   }
 
   template <typename Lambda>
-  void decode64(const std::uint8_t run_length, const std::uint8_t run_size, Lambda &&l) {
+  bool decode64(const std::uint8_t run_length, const std::uint8_t run_size, Lambda &&l) {
+    constexpr bool non_stoppable = std::is_void<std::invoke_result_t<Lambda, std::uint64_t>>::value;
+
     switch (run_size) {
     case 1:
       for (std::uint8_t i = 0; i < run_length; ++i) {
         std::uint64_t value = static_cast<std::uint64_t>(*_ptr);
         _ptr += 1;
 
-        l(value);
+        if constexpr (non_stoppable) {
+          l(value);
+        } else {
+          const bool stop = l(value);
+          if (stop) {
+            return true;
+          }
+        }
       }
       break;
     case 2:
@@ -213,7 +269,14 @@ private:
         std::uint64_t value = *((std::uint16_t *)_ptr);
         _ptr += 2;
 
-        l(value);
+        if constexpr (non_stoppable) {
+          l(value);
+        } else {
+          const bool stop = l(value);
+          if (stop) {
+            return true;
+          }
+        }
       }
       break;
     case 3:
@@ -221,7 +284,14 @@ private:
         std::uint64_t value = *((std::uint32_t *)_ptr) & 0xFFFFFF;
         _ptr += 3;
 
-        l(value);
+        if constexpr (non_stoppable) {
+          l(value);
+        } else {
+          const bool stop = l(value);
+          if (stop) {
+            return true;
+          }
+        }
       }
       break;
     case 4:
@@ -229,7 +299,14 @@ private:
         std::uint64_t value = *((std::uint32_t *)_ptr);
         _ptr += 4;
 
-        l(value);
+        if constexpr (non_stoppable) {
+          l(value);
+        } else {
+          const bool stop = l(value);
+          if (stop) {
+            return true;
+          }
+        }
       }
       break;
     case 5:
@@ -237,7 +314,14 @@ private:
         std::uint64_t value = *((std::uint64_t *)_ptr) & 0xFFFFFFFFFF;
         _ptr += 5;
 
-        l(value);
+        if constexpr (non_stoppable) {
+          l(value);
+        } else {
+          const bool stop = l(value);
+          if (stop) {
+            return true;
+          }
+        }
       }
       break;
     case 6:
@@ -245,7 +329,14 @@ private:
         std::uint64_t value = *((std::uint64_t *)_ptr) & 0xFFFFFFFFFFFF;
         _ptr += 6;
 
-        l(value);
+        if constexpr (non_stoppable) {
+          l(value);
+        } else {
+          const bool stop = l(value);
+          if (stop) {
+            return true;
+          }
+        }
       }
       break;
     case 7:
@@ -253,7 +344,14 @@ private:
         std::uint64_t value = *((std::uint64_t *)_ptr) & 0xFFFFFFFFFFFFFF;
         _ptr += 7;
 
-        l(value);
+        if constexpr (non_stoppable) {
+          l(value);
+        } else {
+          const bool stop = l(value);
+          if (stop) {
+            return true;
+          }
+        }
       }
       break;
     case 8:
@@ -261,12 +359,21 @@ private:
         std::uint64_t value = *((std::uint64_t *)_ptr);
         _ptr += 8;
 
-        l(value);
+        if constexpr (non_stoppable) {
+          l(value);
+        } else {
+          const bool stop = l(value);
+          if (stop) {
+            return true;
+          }
+        }
       }
       break;
     default:
       throw std::runtime_error("unexpected run size");
     }
+
+    return false;
   }
 };
 
