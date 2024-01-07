@@ -278,6 +278,8 @@ public:
 
   void update_total_node_weight() final;
 
+  void update_degree_buckets() final;
+
 private:
   void init_degree_buckets();
 

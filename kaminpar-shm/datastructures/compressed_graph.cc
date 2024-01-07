@@ -29,7 +29,6 @@ CompressedGraph::CompressedGraph(
       _compressed_edges(std::move(compressed_edges)),
       _node_weights(std::move(node_weights)),
       _edge_weights(std::move(edge_weights)),
-      _node_count(static_cast<NodeID>(_nodes.size() - 1)),
       _edge_count(edge_count),
       _max_degree(max_degree),
       _sorted(sorted),
@@ -86,6 +85,11 @@ void CompressedGraph::update_total_node_weight() {
         std::accumulate(_node_weights.begin(), _node_weights.end(), static_cast<NodeWeight>(0));
     _max_node_weight = *std::max_element(_node_weights.begin(), _node_weights.end());
   }
+}
+
+void CompressedGraph::update_degree_buckets() {
+  std::fill(_buckets.begin(), _buckets.end(), 0);
+  init_degree_buckets();
 }
 
 CompressedGraph CompressedGraphBuilder::compress(const CSRGraph &graph) {
@@ -351,6 +355,10 @@ CompressedGraph CompressedGraphBuilder::build() {
       _part_count,
       _interval_count
   );
+}
+
+std::size_t CompressedGraphBuilder::edge_array_size() const {
+  return static_cast<std::size_t>(_cur_compressed_edges - _compressed_edges);
 }
 
 std::int64_t CompressedGraphBuilder::total_node_weight() const {

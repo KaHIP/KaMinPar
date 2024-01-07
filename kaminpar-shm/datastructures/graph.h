@@ -326,6 +326,10 @@ public:
     _underlying_graph->update_total_node_weight();
   }
 
+  inline void update_degree_buckets() {
+    _underlying_graph->update_degree_buckets();
+  }
+
   [[nodiscard]] AbstractGraph *underlying_graph() const {
     return _underlying_graph.get();
   }

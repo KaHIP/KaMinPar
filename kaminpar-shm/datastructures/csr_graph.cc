@@ -105,4 +105,10 @@ void CSRGraph::update_total_node_weight() {
     _max_node_weight = *std::max_element(_node_weights.begin(), _node_weights.end());
   }
 }
+
+void CSRGraph::update_degree_buckets() {
+  std::fill(_buckets.begin(), _buckets.end(), 0);
+  init_degree_buckets();
+}
+
 } // namespace kaminpar::shm

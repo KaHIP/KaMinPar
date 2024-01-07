@@ -210,7 +210,7 @@ public:
 
   // Size of the graph
   [[nodiscard]] NodeID n() const final {
-    return _node_count;
+    return static_cast<NodeID>(_nodes.size() - 1);
   };
 
   [[nodiscard]] EdgeID m() const final {
@@ -359,6 +359,8 @@ public:
 
   void update_total_node_weight() final;
 
+  void update_degree_buckets() final;
+
   // Compressions statistics
 
   /*!
@@ -448,7 +450,6 @@ private:
   StaticArray<NodeWeight> _node_weights;
   StaticArray<EdgeWeight> _edge_weights;
 
-  const NodeID _node_count;
   const EdgeID _edge_count;
   const NodeID _max_degree;
 
@@ -769,6 +770,13 @@ public:
    * @return The compressed graph that has been build.
    */
   CompressedGraph build();
+
+  /*!
+   * Returns the used memory of the compressed edge array.
+   *
+   * @return The used memory of the compressed edge array.
+   */
+  std::size_t edge_array_size() const;
 
   /*!
    * Returns the total weight of the nodes that have been added.

@@ -177,6 +177,8 @@ NodePermutations<StaticArray> rearrange_graph(
     StaticArray<EdgeWeight> &edge_weights
 );
 
+void remove_isolated_nodes(Graph &graph, PartitionContext &p_ctx);
+
 NodeID integrate_isolated_nodes(Graph &graph, double epsilon, Context &ctx);
 
 PartitionedGraph assign_isolated_nodes(

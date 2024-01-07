@@ -88,5 +88,6 @@ public:
   [[nodiscard]] virtual bool sorted() const = 0;
 
   virtual void update_total_node_weight() = 0;
+  virtual void update_degree_buckets() = 0;
 };
 } // namespace kaminpar::shm

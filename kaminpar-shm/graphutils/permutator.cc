@@ -86,6 +86,13 @@ NodePermutations<StaticArray> rearrange_graph(
   STOP_TIMER();
   STOP_HEAP_PROFILER();
 
+  return permutations;
+}
+
+void remove_isolated_nodes(Graph &graph, PartitionContext &p_ctx) {
+  StaticArray<EdgeID> &nodes = graph.raw_nodes();
+  StaticArray<NodeWeight> &node_weights = graph.raw_node_weights();
+
   const NodeWeight total_node_weight =
       node_weights.empty() ? nodes.size() - 1 : parallel::accumulate(node_weights, 0);
   const auto [isolated_nodes, isolated_nodes_weight] =
@@ -107,14 +114,19 @@ NodePermutations<StaticArray> rearrange_graph(
     node_weights.restrict(new_n);
   }
 
-  return permutations;
+  graph.update_total_node_weight();
+  graph.update_degree_buckets();
 }
 
 NodeID integrate_isolated_nodes(Graph &graph, const double epsilon, Context &ctx) {
   const NodeID num_nonisolated_nodes = graph.n(); // this becomes the first isolated node
+
   graph.raw_nodes().unrestrict();
   graph.raw_node_weights().unrestrict();
+
   graph.update_total_node_weight();
+  graph.update_degree_buckets();
+
   const NodeID num_isolated_nodes = graph.n() - num_nonisolated_nodes;
 
   // note: max block weights should not change
