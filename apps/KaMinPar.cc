@@ -169,6 +169,7 @@ int main(int argc, char *argv[]) {
   Graph graph = io::read(
       app.graph_filename,
       ctx.compression.enabled,
+      ctx.compression.may_dismiss,
       ctx.node_ordering == NodeOrdering::IMPLICIT_DEGREE_BUCKETS,
       app.validate
   );

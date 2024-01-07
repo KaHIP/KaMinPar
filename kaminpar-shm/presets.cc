@@ -46,7 +46,7 @@ std::unordered_set<std::string> get_preset_names() {
 
 Context create_default_context() {
   return {
-      .compression = {.enabled = false},
+      .compression = {.enabled = false, .may_dismiss = false},
       .node_ordering = NodeOrdering::DEGREE_BUCKETS,
       .edge_ordering = EdgeOrdering::NATURAL,
       .partitioning =

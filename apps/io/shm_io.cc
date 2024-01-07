@@ -215,12 +215,16 @@ template CSRGraph csr_read<false>(const std::string &filename, const bool sorted
 template CSRGraph csr_read<true>(const std::string &filename, const bool sorted);
 
 template <bool checked>
-CompressedGraph compress_read(const std::string &filename, const bool sorted) {
+std::optional<CompressedGraph>
+compress_read(const std::string &filename, const bool sorted, const bool may_dismiss) {
   using namespace kaminpar::io::metis;
 
-  std::uint64_t number_of_nodes = 0;
-  bool store_node_weights = false;
-  bool store_edge_weights = false;
+  std::uint64_t number_of_nodes;
+  bool store_node_weights;
+  bool store_edge_weights;
+
+  std::size_t uncompressed_edge_array_size;
+  bool dismissed = false;
 
   NodeID node = 0;
   EdgeID edge = 0;
@@ -235,6 +239,7 @@ CompressedGraph compress_read(const std::string &filename, const bool sorted) {
         check_format<checked>(format);
 
         number_of_nodes = format.number_of_nodes + 1;
+        uncompressed_edge_array_size = format.number_of_edges * sizeof(NodeID);
         store_node_weights = format.has_node_weights;
         store_edge_weights = format.has_edge_weights;
 
@@ -251,6 +256,12 @@ CompressedGraph compress_read(const std::string &filename, const bool sorted) {
 
         if (node > 0) {
           builder.add_node(node - 1, neighbourhood);
+
+          if (may_dismiss && builder.edge_array_size() > uncompressed_edge_array_size) {
+            dismissed = true;
+            return false;
+          }
+
           neighbourhood.clear();
         }
 
@@ -259,6 +270,7 @@ CompressedGraph compress_read(const std::string &filename, const bool sorted) {
         }
 
         node += 1;
+        return true;
       },
       [&](const std::uint64_t weight, const std::uint64_t v) {
         check_edge<checked>(number_of_nodes, node, weight, v);
@@ -267,17 +279,23 @@ CompressedGraph compress_read(const std::string &filename, const bool sorted) {
         edge += 1;
       }
   );
+
+  if (dismissed) {
+    return std::nullopt;
+  }
+
   builder.add_node(node - 1, neighbourhood);
 
   check_total_weight<checked>(builder.total_node_weight(), builder.total_edge_weight());
-
   IF_HEAP_PROFILING(neighbourhood_stats->size = neighbourhood.capacity() * sizeof(NodeID));
 
   return builder.build();
 }
 
-template CompressedGraph compress_read<false>(const std::string &filename, const bool sorted);
-template CompressedGraph compress_read<true>(const std::string &filename, const bool sorted);
+template std::optional<CompressedGraph>
+compress_read<false>(const std::string &filename, const bool sorted, const bool may_dismiss);
+template std::optional<CompressedGraph>
+compress_read<true>(const std::string &filename, const bool sorted, const bool may_dismiss);
 
 void write(const std::string &filename, const Graph &graph) {
   std::ofstream out(filename);
@@ -314,7 +332,11 @@ void write(const std::string &filename, const Graph &graph) {
 } // namespace metis
 
 Graph read(
-    const std::string &filename, const bool compress, const bool sorted, const bool validate
+    const std::string &filename,
+    const bool compress,
+    const bool may_dismiss,
+    const bool sorted,
+    const bool validate
 ) {
   if (compressed_binary::is_compressed(filename)) {
     if (!compress) {
@@ -327,11 +349,16 @@ Graph read(
   }
 
   if (compress) {
-    if (validate) {
-      return Graph(std::make_unique<CompressedGraph>(metis::compress_read<true>(filename, sorted)));
-    } else {
-      return Graph(std::make_unique<CompressedGraph>(metis::compress_read<false>(filename, sorted))
-      );
+    std::optional<CompressedGraph> compresed_graph = [&] {
+      if (validate) {
+        return metis::compress_read<true>(filename, sorted, may_dismiss);
+      } else {
+        return metis::compress_read<false>(filename, sorted, may_dismiss);
+      }
+    }();
+
+    if (compresed_graph) {
+      return Graph(std::make_unique<CompressedGraph>(std::move(*compresed_graph)));
     }
   }
 

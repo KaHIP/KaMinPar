@@ -32,13 +32,18 @@ void GraphCompressionContext::setup(const Graph &graph) {
   isolated_nodes_separation = CompressedGraph::kIsolatedNodesSeparation;
 
   if (enabled) {
-    const CompressedGraph *compressed_graph =
-        dynamic_cast<const CompressedGraph *>(graph.underlying_graph());
-    compression_ratio = compressed_graph->compression_ratio();
-    size_reduction = compressed_graph->size_reduction();
-    high_degree_count = compressed_graph->high_degree_count();
-    part_count = compressed_graph->part_count();
-    interval_count = compressed_graph->interval_count();
+    if (const auto *compressed_graph =
+            dynamic_cast<const CompressedGraph *>(graph.underlying_graph());
+        compressed_graph != nullptr) {
+      dismissed = false;
+      compression_ratio = compressed_graph->compression_ratio();
+      size_reduction = compressed_graph->size_reduction();
+      high_degree_count = compressed_graph->high_degree_count();
+      part_count = compressed_graph->part_count();
+      interval_count = compressed_graph->interval_count();
+    } else {
+      dismissed = true;
+    }
   }
 }
 //

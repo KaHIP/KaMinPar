@@ -27,6 +27,14 @@ CLI::Option_group *create_graph_compression_options(CLI::App *app, Context &ctx)
 
   compression->add_flag("-c,--compress", ctx.compression.enabled, "Enable graph compression")
       ->default_val(false);
+  compression
+      ->add_flag(
+          "--may-dismiss",
+          ctx.compression.may_dismiss,
+          "Whether the compressed graph is only used if it uses less memory than the uncompressed "
+          "graph."
+      )
+      ->default_val(false);
 
   return compression;
 }

@@ -308,6 +308,7 @@ struct PartitioningContext {
 
 struct GraphCompressionContext {
   bool enabled;
+  bool may_dismiss;
 
   bool high_degree_encoding;
   NodeID high_degree_threshold;
@@ -318,6 +319,7 @@ struct GraphCompressionContext {
   bool stream_encoding;
   bool isolated_nodes_separation;
 
+  bool dismissed;
   double compression_ratio;
   std::int64_t size_reduction;
   std::size_t high_degree_count;

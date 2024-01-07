@@ -35,7 +35,7 @@ int main(int argc, char *argv[]) {
   tbb::global_control gc(tbb::global_control::max_allowed_parallelism, num_threads);
 
   LOG << "Reading input graph...";
-  CompressedGraph graph = io::metis::compress_read<false>(graph_filename);
+  CompressedGraph graph = *io::metis::compress_read<false>(graph_filename);
 
   LOG << "Writing compressed graph...";
   io::compressed_binary::write(compressed_graph_filename, graph);

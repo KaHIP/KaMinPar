@@ -7,6 +7,7 @@
  ******************************************************************************/
 #pragma once
 
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -31,11 +32,15 @@ template <bool checked> CSRGraph csr_read(const std::string &filename, const boo
  *
  * @param filename The name of the file to read.
  * @param sorted Whether the nodes of the graph to read are stored in deg-buckets order.
+ * @param may_dismiss Whether the reading process is aborted when the compressed graph uses more
+ * memory than the uncompressed graph.
  * @tparam checked Whether to validate the read graph.
  * @return The graph in compressed form stored in the file.
  */
 template <bool checked>
-CompressedGraph compress_read(const std::string &filename, const bool sorted = false);
+std::optional<CompressedGraph> compress_read(
+    const std::string &filename, const bool sorted = false, const bool may_dismiss = false
+);
 
 /*!
  * Writes a graph to a file in METIS format.
@@ -52,12 +57,18 @@ void write(const std::string &filename, const Graph &graph);
  *
  * @param filename The name of the file to read.
  * @param compress Whether to compress the graph.
+ * @param may_dismiss Whether the compressed graph is only returned when it uses less memory than
+ * the uncompressed graph.
  * @param sorted Whether the nodes of the graph to read are stored in deg-buckets order.
  * @param validate Whether to validate the graph.
  * @return The graph to read.
  */
 Graph read(
-    const std::string &filename, const bool compress, const bool sorted, const bool validate
+    const std::string &filename,
+    const bool compress,
+    const bool may_dismiss,
+    const bool sorted,
+    const bool validate
 );
 
 namespace partition {
