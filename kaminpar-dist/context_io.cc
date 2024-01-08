@@ -515,6 +515,8 @@ void print(const RefinementContext &ctx, const ParallelContext &parallel, std::o
     out << "    Gain buckets:             base " << ctx.node_balancer.par_gain_bucket_base
         << ", positive gain buckets: "
         << (ctx.node_balancer.par_enable_positive_gain_buckets ? "yes" : "no") << "\n";
+    out << "    Partial buckets:          "
+        << (ctx.node_balancer.par_partial_buckets ? "yes" : "no") << "\n";
     out << "    High degree thresholds:   insertions = "
         << ctx.node_balancer.high_degree_threshold_for_insertions
         << ", updates = " << ctx.node_balancer.high_degree_threshold_for_updates << "\n";

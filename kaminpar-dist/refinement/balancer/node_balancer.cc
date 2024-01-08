@@ -55,8 +55,7 @@ NodeBalancer::NodeBalancer(
 
 void NodeBalancer::initialize() {
   TIMER_BARRIER(_p_graph.communicator());
-  SCOPED_TIMER("Node Balancer");
-  SCOPED_TIMER("Initialization");
+  SCOPED_TIMER("Initialize Node Balancer");
 
   // Only initialize the balancer is the partition is actually imbalanced
   if (metrics::is_feasible(_p_graph, _p_ctx)) {
@@ -533,7 +532,7 @@ bool NodeBalancer::perform_parallel_round() {
           HEAVY
       );
 
-      if (bucket < cutoff_buckets[from]) { // @todo evaluate
+      if (!_nb_ctx.par_partial_buckets || bucket < cutoff_buckets[from]) { 
         Candidate candidate = {
             .id = _p_graph.local_to_global_node(node),
             .from = from,
