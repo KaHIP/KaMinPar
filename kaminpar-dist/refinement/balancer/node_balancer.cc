@@ -456,7 +456,7 @@ bool NodeBalancer::perform_parallel_round() {
   START_TIMER("Computing weight buckets");
   _buckets.clear();
   for (const BlockID from : _p_graph.blocks()) {
-    for (const auto [node, pq_gain] : _pq.elements(from)) {
+    for (const auto &[node, pq_gain] : _pq.elements(from)) {
       KASSERT(_p_graph.block(node) == from);
 
       // For high-degree nodes, assume that the PQ gain is up-to-date and skip recomputation
@@ -470,7 +470,7 @@ bool NodeBalancer::perform_parallel_round() {
       const double actual_gain = max_gainer.relative_gain();
       const BlockID to = max_gainer.block;
 
-      if (pq_gain != actual_gain) {
+      if (_nb_ctx.par_update_pq_gains && pq_gain != actual_gain) {
         pq_updates.emplace_back(from, node, actual_gain);
       }
 
@@ -501,9 +501,9 @@ bool NodeBalancer::perform_parallel_round() {
 
   START_TIMER("Find move candidates");
   for (const BlockID from : _p_graph.blocks()) {
-    for (const auto pq_element : _pq.elements(from)) {
-      const NodeID node = pq_element.id;
-      const double gain = pq_element.key;
+    for (const auto &pq_element : _pq.elements(from)) {
+      const NodeID &node = pq_element.id;
+      const double &gain = pq_element.key;
 
       if (block_overload(from) <= block_weight_deltas_from[from]) {
         break;
@@ -513,7 +513,7 @@ bool NodeBalancer::perform_parallel_round() {
       const auto bucket = _buckets.compute_bucket(gain);
 
       KASSERT(
-          [&] {
+          !_nb_ctx.par_update_pq_gains || ([&] {
             const auto max_gainer = _gain_calculator.compute_max_gainer(node, _p_ctx);
 
             if (gain != max_gainer.relative_gain()) {
@@ -527,12 +527,12 @@ bool NodeBalancer::perform_parallel_round() {
               return false;
             }
             return true;
-          }(),
-          "",
+          }()),
+          "inconsistent PQ gains",
           HEAVY
       );
 
-      if (!_nb_ctx.par_partial_buckets || bucket < cutoff_buckets[from]) { 
+      if (!_nb_ctx.par_partial_buckets || bucket < cutoff_buckets[from]) {
         Candidate candidate = {
             .id = _p_graph.local_to_global_node(node),
             .from = from,

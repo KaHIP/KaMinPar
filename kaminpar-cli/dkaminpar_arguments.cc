@@ -345,6 +345,8 @@ CLI::Option_group *create_node_balancer_options(CLI::App *app, Context &ctx) {
       ->capture_default_str();
   balancer->add_flag("--r-nb-par-partial-buckets", ctx.refinement.node_balancer.par_partial_buckets)
       ->capture_default_str();
+  balancer->add_flag("--r-nb-par-update-pq-gains", ctx.refinement.node_balancer.par_update_pq_gains)
+      ->capture_default_str();
   balancer
       ->add_option(
           "--r-nb-high-degree-threshold-for-insertions",
