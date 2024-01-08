@@ -473,7 +473,7 @@ bool NodeBalancer::perform_parallel_round() {
 
       if (_nb_ctx.par_update_pq_gains && pq_gain != actual_gain) {
         pq_updates.emplace_back(from, node, actual_gain);
-      } else {
+      } else if (!_nb_ctx.par_update_pq_gains) {
         _tmp_gains[node] = actual_gain;
       }
 
