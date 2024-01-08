@@ -208,8 +208,8 @@ Context create_default_context() {
                       .par_partial_buckets = true,
                       .par_update_pq_gains = false,
                       .par_high_degree_update_interval = std::numeric_limits<int>::max(),
-                      .high_degree_threshold_for_insertions = std::numeric_limits<EdgeID>::max(),
-                      .high_degree_threshold_for_updates = std::numeric_limits<EdgeID>::max(),
+                      .par_high_degree_insertion_threshold = std::numeric_limits<EdgeID>::max(),
+                      .par_high_degree_update_thresold = std::numeric_limits<EdgeID>::max(),
                   },
               .cluster_balancer =
                   {

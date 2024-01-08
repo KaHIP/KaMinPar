@@ -174,8 +174,7 @@ contract_generic_clustering(const Graph &graph, const Clustering &clustering, Me
         const NodeID u = buckets[i];
         upper_bound_degree += graph.degree(u);
       }
-      local_collector.update_upper_bound_size(upper_bound_degree);
-      local_collector.run_with_map(collect_edges, collect_edges);
+      local_collector.execute(upper_bound_degree, collect_edges);
     }
   });
 

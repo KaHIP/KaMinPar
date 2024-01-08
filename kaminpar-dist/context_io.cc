@@ -520,8 +520,8 @@ void print(const RefinementContext &ctx, const ParallelContext &parallel, std::o
     out << "    Update PQ during build:   "
         << (ctx.node_balancer.par_update_pq_gains ? "yes" : "no") << "\n";
     out << "    High degree thresholds:   insertions = "
-        << ctx.node_balancer.high_degree_threshold_for_insertions
-        << ", updates = " << ctx.node_balancer.high_degree_threshold_for_updates
+        << ctx.node_balancer.par_high_degree_insertion_threshold
+        << ", updates = " << ctx.node_balancer.par_high_degree_update_thresold
         << " [interval: " << ctx.node_balancer.par_high_degree_update_interval << "]\n";
   }
   if (ctx.includes_algorithm(RefinementAlgorithm::GREEDY_CLUSTER_BALANCER) ||

@@ -106,9 +106,7 @@ private:
       map.clear();
     };
 
-    auto &rating_map = _rating_map_ets.local();
-    rating_map.update_upper_bound_size(std::min(_p_graph->k(), _p_graph->degree(u)));
-    rating_map.run_with_map(action, action);
+    _rating_map_ets.local().execute(std::min(_p_graph->k(), _p_graph->degree(u)), action);
 
     return {
         .int_degree = int_conn,

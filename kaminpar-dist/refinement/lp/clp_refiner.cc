@@ -862,8 +862,7 @@ NodeID ColoredLPRefiner::find_moves(const ColorID c) {
         map.clear();
       };
 
-      rating_map.update_upper_bound_size(std::min<BlockID>(_p_ctx.k, _p_graph.degree(u)));
-      rating_map.run_with_map(action, action);
+      rating_map.execute(std::min<BlockID>(_p_ctx.k, _p_graph.degree(u)), action);
     }
   });
 

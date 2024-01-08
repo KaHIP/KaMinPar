@@ -12,7 +12,7 @@
 #include "kaminpar-common/datastructures/sparse_map.h"
 
 namespace kaminpar {
-template <typename Value, typename Key, typename LargeMap = FastResetArray<Value, Key>>
+template <typename Value, typename Key, std::size_t kSuperSmallVectorSize = 128>
 class BlockRatingMap {
   using SmallMap = FixedSizeSparseMap<Key, Value>;
 
@@ -24,23 +24,27 @@ public:
   };
 
   explicit BlockRatingMap(const std::size_t max_size)
-      : _super_small_map(128),
-        _max_size(max_size) {}
+      : _max_size(max_size),
+        _super_small_map(kSuperSmallVectorSize) {}
 
-  MapType update_upper_bound_size(const std::size_t upper_bound_size) {
+  MapType update_upper_bound(const std::size_t upper_bound_size) {
     select_map(upper_bound_size);
     return _selected_map;
   }
 
-  template <typename F1, typename F2> decltype(auto) run_with_map(F1 &&f1, F2 &&f2) {
+  template <typename Lambda>
+  decltype(auto) execute(const std::size_t upper_bound, Lambda &&lambda) {
+    update_upper_bound(upper_bound);
+
     switch (_selected_map) {
     case MapType::SUPER_SMALL:
-      return f1(_super_small_map);
+      return lambda(_super_small_map);
     case MapType::SMALL:
-      return f1(_small_map);
+      return lambda(_small_map);
     case MapType::LARGE:
-      return f2(_large_map);
+      return lambda(_large_map);
     }
+
     __builtin_unreachable();
   }
 
@@ -66,7 +70,7 @@ public:
 
 private:
   void select_map(const std::size_t upper_bound_size) {
-    if (upper_bound_size < 128) {
+    if (upper_bound_size < kSuperSmallVectorSize) {
       _selected_map = MapType::SUPER_SMALL;
       ++_super_small_map_counter;
     } else if (_max_size < SmallMap::MAP_SIZE || upper_bound_size > SmallMap::MAP_SIZE / 3) {
@@ -87,7 +91,7 @@ private:
   MapType _selected_map = MapType::SMALL;
   FastResetArray<Value, Key> _super_small_map;
   SmallMap _small_map{};
-  LargeMap _large_map{}; // allocate on demand
+  FastResetArray<Value, Key> _large_map{}; // allocate on demand
 
   std::size_t _super_small_map_counter = 0;
   std::size_t _small_map_counter = 0;
@@ -108,29 +112,35 @@ public:
 
   explicit RatingMap(const std::size_t max_size) : _max_size{max_size} {}
 
-  MapType update_upper_bound_size(const std::size_t upper_bound_size) {
+  MapType update_upper_bound(const std::size_t upper_bound_size) {
     select_map(upper_bound_size);
     return _selected_map;
   }
 
-  template <typename F1, typename F2> decltype(auto) run_with_map(F1 &&f1, F2 &&f2) {
+  template <typename Lambda>
+  decltype(auto) execute(const std::size_t upper_bound, Lambda &&lambda) {
+    update_upper_bound(upper_bound);
+
     switch (_selected_map) {
     case MapType::SUPER_SMALL:
-      return f1(_super_small_map);
+      return lambda(_super_small_map);
     case MapType::SMALL:
-      return f1(_small_map);
+      return lambda(_small_map);
     case MapType::LARGE:
-      return f2(_large_map);
+      return lambda(_large_map);
     }
+
     __builtin_unreachable();
   }
 
   [[nodiscard]] std::size_t small_map_counter() const {
     return _small_map_counter;
   }
+
   [[nodiscard]] std::size_t super_small_map_counter() const {
     return _super_small_map_counter;
   }
+
   [[nodiscard]] std::size_t large_map_counter() const {
     return _large_map_counter;
   }
@@ -162,13 +172,14 @@ private:
   }
 
   std::size_t _max_size;
-  MapType _selected_map{MapType::SMALL};
+
+  MapType _selected_map = MapType::SMALL;
   SuperSmallMap _super_small_map{};
   SmallMap _small_map{};
   LargeMap _large_map{}; // allocate on demand
 
-  std::size_t _small_map_counter{0};
-  std::size_t _super_small_map_counter{0};
-  std::size_t _large_map_counter{0};
+  std::size_t _small_map_counter = 0;
+  std::size_t _super_small_map_counter = 0;
+  std::size_t _large_map_counter = 0;
 };
 } // namespace kaminpar

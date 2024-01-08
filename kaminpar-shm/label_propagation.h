@@ -350,10 +350,9 @@ protected:
       return std::make_pair(state.best_cluster, actual_gain);
     };
 
-    local_rating_map.update_upper_bound_size(
-        std::min<ClusterID>(_graph->degree(u), _initial_num_clusters)
+    const auto [best_cluster, gain] = local_rating_map.execute(
+        std::min<ClusterID>(_graph->degree(u), _initial_num_clusters), action
     );
-    const auto [best_cluster, gain] = local_rating_map.run_with_map(action, action);
 
     return {best_cluster, gain};
   }

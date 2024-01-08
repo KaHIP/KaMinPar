@@ -90,7 +90,7 @@ void NodeBalancer::reinit() {
   // Build thread-local PQs: one PQ for each thread and block, each PQ for block
   // b has at most roughly |overload[b]| weight
   tbb::parallel_for(static_cast<NodeID>(0), _p_graph.n(), [&](const NodeID u) {
-    if (_p_graph.degree(u) > _nb_ctx.high_degree_threshold_for_insertions) {
+    if (_p_graph.degree(u) > _nb_ctx.par_high_degree_insertion_threshold) {
       return;
     }
 
@@ -423,7 +423,7 @@ BlockWeight NodeBalancer::block_underload(const BlockID block) const {
 bool NodeBalancer::try_pq_insertion(const BlockID b_u, const NodeID u) {
   KASSERT(b_u == _p_graph.block(u));
 
-  if (_p_graph.degree(u) > _nb_ctx.high_degree_threshold_for_insertions) {
+  if (_p_graph.degree(u) > _nb_ctx.par_high_degree_insertion_threshold) {
     return false;
   }
 
@@ -438,7 +438,7 @@ bool NodeBalancer::try_pq_insertion(
   KASSERT(w_u == _p_graph.node_weight(u));
   KASSERT(b_u == _p_graph.block(u));
 
-  if (_p_graph.degree(u) > _nb_ctx.high_degree_threshold_for_insertions) {
+  if (_p_graph.degree(u) > _nb_ctx.par_high_degree_insertion_threshold) {
     return false;
   }
 
@@ -477,7 +477,7 @@ bool NodeBalancer::perform_parallel_round(const int round) {
       KASSERT(_p_graph.block(node) == from);
 
       // For high-degree nodes, assume that the PQ gain is up-to-date and skip recomputation
-      if (_p_graph.degree(node) > _nb_ctx.high_degree_threshold_for_updates &&
+      if (_p_graph.degree(node) > _nb_ctx.par_high_degree_update_thresold &&
           ((round + 1) % _nb_ctx.par_high_degree_update_interval) == 0) {
         _buckets.add(from, _p_graph.node_weight(node), pq_gain);
         if (!_nb_ctx.par_update_pq_gains) {

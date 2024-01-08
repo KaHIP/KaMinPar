@@ -1294,8 +1294,7 @@ ContractionResult contract_clustering(
       upper_bound_degree = static_cast<EdgeID>(
           std::min<GlobalNodeID>(c_n + c_ghost_n, static_cast<GlobalNodeID>(upper_bound_degree))
       );
-      collector.update_upper_bound_size(upper_bound_degree);
-      collector.run_with_map(collect_edges, collect_edges);
+      collector.execute(upper_bound_degree, collect_edges);
     }
   });
 
