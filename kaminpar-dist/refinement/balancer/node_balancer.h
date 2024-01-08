@@ -60,6 +60,8 @@ public:
   bool refine() final;
 
 private:
+  void reinit();
+
   bool is_sequential_balancing_enabled() const;
   bool is_parallel_balancing_enabled() const;
 

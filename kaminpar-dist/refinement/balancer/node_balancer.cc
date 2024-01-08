@@ -56,8 +56,15 @@ NodeBalancer::NodeBalancer(
 
 void NodeBalancer::initialize() {
   TIMER_BARRIER(_p_graph.communicator());
-  SCOPED_TIMER("Initialize Node Balancer");
+  SCOPED_TIMER("Node Balancer");
 
+  START_TIMER("Initialize");
+  reinit();
+  STOP_TIMER();
+  TIMER_BARRIER(_p_graph.communicator());
+}
+
+void NodeBalancer::reinit() {
   // Only initialize the balancer is the partition is actually imbalanced
   if (metrics::is_feasible(_p_graph, _p_ctx)) {
     return;
@@ -152,6 +159,7 @@ bool NodeBalancer::refine() {
     DBG0 << "Starting rebalancing round " << round << " of (at most) " << _nb_ctx.max_num_rounds;
 
     if (metrics::is_feasible(_p_graph, _p_ctx)) {
+      DBG0 << "Partition is feasible ==> terminating";
       break;
     }
 
@@ -208,11 +216,16 @@ bool NodeBalancer::refine() {
 }
 
 void NodeBalancer::switch_to_stalled() {
+  TIMER_BARRIER(_p_graph.communicator());
+
   _stalled = true;
 
   // Reinit the balancer to fix blocks that were not overloaded in the beginning, but are
   // overloaded now due to imbalanced parallel moves
-  initialize();
+  START_TIMER("Reinitialize");
+  reinit();
+  STOP_TIMER();
+  TIMER_BARRIER(_p_graph.communicator());
 }
 
 bool NodeBalancer::perform_sequential_round() {
@@ -271,9 +284,12 @@ bool NodeBalancer::perform_sequential_round() {
   STOP_TIMER();
   TIMER_BARRIER(_p_graph.communicator());
 
+  START_TIMER("Perform moves");
   if (rank != 0) {
     perform_moves(candidates, true);
   }
+  STOP_TIMER();
+  TIMER_BARRIER(_p_graph.communicator());
 
   KASSERT(debug::validate_partition(_p_graph), "balancer produced invalid partition", HEAVY);
 
@@ -283,8 +299,6 @@ bool NodeBalancer::perform_sequential_round() {
 void NodeBalancer::perform_moves(
     const std::vector<Candidate> &moves, const bool update_block_weights
 ) {
-  SCOPED_TIMER("Perform moves");
-
   for (const auto &move : moves) {
     perform_move(move, update_block_weights);
   }
@@ -641,7 +655,11 @@ bool NodeBalancer::perform_parallel_round() {
     }
 
     candidates.resize(candidates.size() - num_rejected_candidates);
+
+    START_TIMER("Perform moves");
     perform_moves(candidates, false);
+    STOP_TIMER();
+    TIMER_BARRIER(_p_graph.communicator());
 
     TIMED_SCOPE("Synchronize partition state after fast rebalance round") {
       struct Message {
