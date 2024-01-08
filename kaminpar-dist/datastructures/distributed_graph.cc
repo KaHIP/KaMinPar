@@ -227,6 +227,46 @@ void print_graph(const DistributedGraph &graph) {
   SLOG << buf.str();
 }
 
+void print_local_graph_stats(const DistributedGraph &graph) {
+  std::stringstream ss;
+  ss << "n=" << graph.n() << " ";
+  ss << "total_n=" << graph.total_n() << " ";
+  ss << "ghost_n=" << graph.ghost_n() << " ";
+  ss << "m=" << graph.m() << " ";
+
+  std::array<EdgeID, 32> buckets{};
+  EdgeID local_m = 0, nonlocal_m = 0;
+  EdgeID min_deg = std::numeric_limits<EdgeID>::max(), max_deg = 0;
+  for (NodeID u = 0; u < graph.n(); ++u) {
+    for (const auto [e, v] : graph.neighbors(u)) {
+      if (graph.is_owned_node(v)) {
+        ++local_m;
+      } else {
+        ++nonlocal_m;
+      }
+    }
+    if (graph.degree(u) == 0) {
+      ++buckets[0];
+    } else {
+      ++buckets[std::min<int>(buckets.size() - 1, 1 + std::log2(graph.degree(u)))];
+    }
+    min_deg = std::min(graph.degree(u), min_deg);
+    max_deg = std::max(graph.degree(u), max_deg);
+  }
+
+  ss << "local_m=" << local_m << " ";
+  ss << "nonlocal_m=" << nonlocal_m << " ";
+  ss << "min_deg=" << min_deg << " ";
+  ss << "max_deg = " << max_deg << " ";
+  for (std::size_t i = 0; i < buckets.size(); ++i) {
+    if (buckets[i] > 0) {
+      ss << "deg_" << i << "=" << buckets[i] << " ";
+    }
+  }
+
+  DLOG << ss.str();
+}
+
 namespace {
 template <typename R> bool all_equal(const R &r) {
   return std::adjacent_find(r.begin(), r.end(), std::not_equal_to{}) == r.end();

@@ -580,6 +580,8 @@ void print_graph_summary(const DistributedGraph &graph);
 namespace debug {
 void print_graph(const DistributedGraph &graph);
 
+void print_local_graph_stats(const DistributedGraph &graph);
+
 /**
  * Validates the distributed graph datastructure:
  * - validate node and edge distributions

@@ -25,7 +25,7 @@
 
 namespace kaminpar::dist {
 SET_STATISTICS_FROM_GLOBAL();
-SET_DEBUG(true);
+SET_DEBUG(false);
 
 NodeBalancerFactory::NodeBalancerFactory(const Context &ctx) : _ctx(ctx) {}
 
@@ -65,6 +65,8 @@ void NodeBalancer::initialize() {
 }
 
 void NodeBalancer::reinit() {
+  debug::print_local_graph_stats(_p_graph.graph());
+
   // Only initialize the balancer is the partition is actually imbalanced
   if (metrics::is_feasible(_p_graph, _p_ctx)) {
     return;
