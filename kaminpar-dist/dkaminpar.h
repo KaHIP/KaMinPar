@@ -127,7 +127,7 @@ struct ChunksContext {
   int min_num_chunks;
   bool scale_chunks_with_threads;
 
-  int compute(const ParallelContext &parallel) const;
+  [[nodiscard]] int compute(const ParallelContext &parallel) const;
 };
 
 struct LabelPropagationCoarseningContext {
@@ -150,7 +150,7 @@ struct LabelPropagationCoarseningContext {
   bool prevent_cyclic_moves;
   bool enforce_legacy_weight;
 
-  bool should_merge_nonadjacent_clusters(NodeID old_n, NodeID new_n) const;
+  [[nodiscard]] bool should_merge_nonadjacent_clusters(NodeID old_n, NodeID new_n) const;
 };
 
 struct HEMCoarseningContext {
@@ -333,7 +333,7 @@ struct RefinementContext {
 
   MtKaHyParRefinementContext mtkahypar;
 
-  bool includes_algorithm(RefinementAlgorithm algorithm) const;
+  [[nodiscard]] bool includes_algorithm(RefinementAlgorithm algorithm) const;
 };
 
 struct PartitionContext {

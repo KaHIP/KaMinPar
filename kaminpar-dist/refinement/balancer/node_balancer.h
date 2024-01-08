@@ -93,10 +93,12 @@ private:
   Marker<> _marker;
 
   Buckets _buckets;
-  RandomizedGainCalculator _gain_calculator;
+  DeterministicGainCalculator _gain_calculator;
 
   bool _stalled = false;
 
   std::vector<std::size_t> _cached_cutoff_buckets;
+
+  StaticArray<BlockID> _target_blocks;
 };
 }; // namespace kaminpar::dist

@@ -122,5 +122,6 @@ private:
   mutable tbb::enumerable_thread_specific<RatingMap<EdgeWeight, BlockID>> _rating_map_ets;
 };
 
+using DeterministicGainCalculator = GainCalculator<false>;
 using RandomizedGainCalculator = GainCalculator<true>;
 } // namespace kaminpar::dist

@@ -48,7 +48,8 @@ NodeBalancer::NodeBalancer(
           p_graph, p_ctx, _nb_ctx.par_enable_positive_gain_buckets, _nb_ctx.par_gain_bucket_base
       ),
       _cached_cutoff_buckets(_p_graph.k()),
-      _gain_calculator(_p_ctx.k) {
+      _gain_calculator(_p_ctx.k),
+      _target_blocks(_p_graph.n()) {
   _gain_calculator.init(_p_graph);
 }
 
@@ -210,6 +211,7 @@ void NodeBalancer::switch_to_stalled() {
 }
 
 bool NodeBalancer::perform_sequential_round() {
+  TIMER_BARRIER(_p_graph.communicator());
   SCOPED_TIMER("Sequential round");
 
   const PEID rank = mpi::get_comm_rank(_p_graph.communicator());
@@ -222,6 +224,7 @@ bool NodeBalancer::perform_sequential_round() {
       _p_ctx
   );
   STOP_TIMER();
+  TIMER_BARRIER(_p_graph.communicator());
 
   START_TIMER("Perform moves on root PE");
   if (rank == 0) {
@@ -253,6 +256,7 @@ bool NodeBalancer::perform_sequential_round() {
     }
   }
   STOP_TIMER();
+  TIMER_BARRIER(_p_graph.communicator());
 
   // Broadcast winners
   START_TIMER("Broadcast winners");
@@ -260,6 +264,7 @@ bool NodeBalancer::perform_sequential_round() {
   candidates.resize(num_winners);
   mpi::bcast(candidates.data(), num_winners, 0, _p_graph.communicator());
   STOP_TIMER();
+  TIMER_BARRIER(_p_graph.communicator());
 
   if (rank != 0) {
     perform_moves(candidates, true);
@@ -267,7 +272,6 @@ bool NodeBalancer::perform_sequential_round() {
 
   KASSERT(debug::validate_partition(_p_graph), "balancer produced invalid partition", HEAVY);
 
-  TIMER_BARRIER(_p_graph.communicator());
   return num_winners > 0;
 }
 
@@ -431,19 +435,42 @@ bool NodeBalancer::perform_parallel_round() {
 
   const PEID rank = mpi::get_comm_rank(_p_graph.communicator());
 
+  // Postpone PQ updates until after the iteration
+  std::vector<std::tuple<BlockID, NodeID, double>> pq_updates;
+
   START_TIMER("Computing weight buckets");
   _buckets.clear();
   for (const BlockID from : _p_graph.blocks()) {
-    for (const auto &[node, pq_gain] : _pq.elements(from)) {
+    for (const auto [node, gain] : _pq.elements(from)) {
       KASSERT(_p_graph.block(node) == from);
+
       const auto max_gainer = _gain_calculator.compute_max_gainer(node, _p_ctx);
-      _buckets.add(from, _p_graph.node_weight(node), max_gainer.relative_gain());
+      const double actual_gain = max_gainer.relative_gain();
+      const BlockID to = max_gainer.block;
+
+      if (gain != actual_gain) {
+        pq_updates.emplace_back(from, node, actual_gain);
+      }
+
+      _buckets.add(from, _p_graph.node_weight(node), actual_gain);
+      _target_blocks[node] = to;
     }
   }
+  STOP_TIMER();
+  TIMER_BARRIER(_p_graph.communicator());
+
+  START_TIMER("Apply PQ updates");
+  for (const auto &[from, node, gain] : pq_updates) {
+    _pq.change_priority(from, node, gain);
+  }
+  STOP_TIMER();
+  TIMER_BARRIER(_p_graph.communicator());
+
+  START_TIMER("Computing cut-off buckets");
   const auto &cutoff_buckets =
       _buckets.compute_cutoff_buckets(reduce_buckets_mpireduce(_buckets, _p_graph));
-  TIMER_BARRIER(_p_graph.communicator());
   STOP_TIMER();
+  TIMER_BARRIER(_p_graph.communicator());
 
   // Find move candidates
   std::vector<Candidate> candidates;
@@ -452,24 +479,44 @@ bool NodeBalancer::perform_parallel_round() {
 
   START_TIMER("Find move candidates");
   for (const BlockID from : _p_graph.blocks()) {
-    for (const auto &[node, pq_gain] : _pq.elements(from)) {
+    for (const auto pq_element : _pq.elements(from)) {
+      const NodeID node = pq_element.id;
+      const double gain = pq_element.key;
+
       if (block_overload(from) <= block_weight_deltas_from[from]) {
         break;
       }
 
-      // @todo avoid double gain recomputation
-      const auto max_gainer = _gain_calculator.compute_max_gainer(node, _p_ctx);
-      const double actual_gain = max_gainer.relative_gain();
-      const BlockID to = max_gainer.block;
-      const auto bucket = _buckets.compute_bucket(actual_gain);
+      const BlockID to = _target_blocks[node];
+      const auto bucket = _buckets.compute_bucket(gain);
 
-      if (bucket < cutoff_buckets[from]) {
+      KASSERT(
+          [&] {
+            const auto max_gainer = _gain_calculator.compute_max_gainer(node, _p_ctx);
+
+            if (gain != max_gainer.relative_gain()) {
+              LOG_WARNING << "bad relative gain for node " << node << ": " << gain
+                          << " != " << max_gainer.relative_gain();
+              return false;
+            }
+            if (to != max_gainer.block) {
+              LOG_WARNING << "bad target block for node " << node << ": " << to
+                          << " != " << max_gainer.block;
+              return false;
+            }
+            return true;
+          }(),
+          "",
+          HEAVY
+      );
+
+      if (bucket < cutoff_buckets[from]) { // @todo evaluate
         Candidate candidate = {
             .id = _p_graph.local_to_global_node(node),
             .from = from,
             .to = to,
             .weight = _p_graph.node_weight(node),
-            .gain = actual_gain,
+            .gain = gain,
         };
 
         if (candidate.from == candidate.to) {
@@ -494,8 +541,8 @@ bool NodeBalancer::perform_parallel_round() {
       }
     }
   }
-  TIMER_BARRIER(_p_graph.communicator());
   STOP_TIMER();
+  TIMER_BARRIER(_p_graph.communicator());
 
   // Compute total weight to each block
   START_TIMER("Allreduce weight to block");
@@ -557,8 +604,8 @@ bool NodeBalancer::perform_parallel_round() {
       }
     }
   }
-  TIMER_BARRIER(_p_graph.communicator());
   STOP_TIMER();
+  TIMER_BARRIER(_p_graph.communicator());
 
   if (balanced_moves || _nb_ctx.par_accept_imbalanced_moves) {
     for (const BlockID block : _p_graph.blocks()) {
