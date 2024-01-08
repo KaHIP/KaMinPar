@@ -65,7 +65,7 @@ void NodeBalancer::initialize() {
 }
 
 void NodeBalancer::reinit() {
-  //debug::print_local_graph_stats(_p_graph.graph());
+  // debug::print_local_graph_stats(_p_graph.graph());
 
   // Only initialize the balancer is the partition is actually imbalanced
   if (metrics::is_feasible(_p_graph, _p_ctx)) {
@@ -479,6 +479,9 @@ bool NodeBalancer::perform_parallel_round() {
       // For high-degree nodes, assume that the PQ gain is up-to-date and skip recomputation
       if (_p_graph.degree(node) > _nb_ctx.high_degree_threshold_for_updates) {
         _buckets.add(from, _p_graph.node_weight(node), pq_gain);
+        if (!_nb_ctx.par_update_pq_gains) {
+          _tmp_gains[node] = pq_gain;
+        }
         continue;
       }
 
