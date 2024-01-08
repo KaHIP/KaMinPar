@@ -205,6 +205,8 @@ Context create_default_context() {
                       .par_accept_imbalanced_moves = true,
                       .par_enable_positive_gain_buckets = true,
                       .par_gain_bucket_base = 1.1,
+                      .high_degree_threshold_for_insertions = std::numeric_limits<EdgeID>::max(),
+                      .high_degree_threshold_for_updates = std::numeric_limits<EdgeID>::max(),
                   },
               .cluster_balancer =
                   {

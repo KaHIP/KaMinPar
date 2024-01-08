@@ -343,6 +343,16 @@ CLI::Option_group *create_node_balancer_options(CLI::App *app, Context &ctx) {
   balancer
       ->add_option("--r-nb-par-gain-bucket-base", ctx.refinement.node_balancer.par_gain_bucket_base)
       ->capture_default_str();
+  balancer
+      ->add_option(
+          "--r-nb-high-degree-threshold-for-insertions", ctx.refinement.node_balancer.high_degree_threshold_for_insertions
+      )
+      ->capture_default_str();
+  balancer
+      ->add_option(
+          "--r-nb-high-degree-threshold-for-updates", ctx.refinement.node_balancer.high_degree_threshold_for_updates
+      )
+      ->capture_default_str();
 
   return balancer;
 }

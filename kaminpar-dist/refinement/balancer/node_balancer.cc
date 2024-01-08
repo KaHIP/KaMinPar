@@ -81,6 +81,10 @@ void NodeBalancer::initialize() {
   // Build thread-local PQs: one PQ for each thread and block, each PQ for block
   // b has at most roughly |overload[b]| weight
   tbb::parallel_for(static_cast<NodeID>(0), _p_graph.n(), [&](const NodeID u) {
+    if (_p_graph.degree(u) > _nb_ctx.high_degree_threshold_for_insertions) {
+      return;
+    }
+
     auto &pq = local_pq_ets.local();
     auto &pq_weight = local_pq_weight_ets.local();
 
@@ -90,6 +94,7 @@ void NodeBalancer::initialize() {
     if (overload > 0) { // Node in overloaded block
       const auto max_gainer = _gain_calculator.compute_max_gainer(u, _p_ctx);
       const double rel_gain = max_gainer.relative_gain();
+      _target_blocks[u] = max_gainer.block;
 
       const bool need_more_nodes = (pq_weight[from] < overload);
       if (need_more_nodes || pq[from].empty() || rel_gain > pq[from].peek_key()) {
@@ -352,6 +357,7 @@ std::vector<NodeBalancer::Candidate> NodeBalancer::pick_sequential_candidates() 
       const auto max_gainer = _gain_calculator.compute_max_gainer(u, _p_ctx);
       const double actual_relative_gain = max_gainer.relative_gain();
       const BlockID to = max_gainer.block;
+      _target_blocks[u] = to;
 
       if (relative_gain == actual_relative_gain) {
         Candidate candidate{
@@ -398,28 +404,38 @@ BlockWeight NodeBalancer::block_underload(const BlockID block) const {
   );
 }
 
-bool NodeBalancer::try_pq_insertion(const BlockID b, const NodeID u) {
-  KASSERT(b == _p_graph.block(u));
+bool NodeBalancer::try_pq_insertion(const BlockID b_u, const NodeID u) {
+  KASSERT(b_u == _p_graph.block(u));
+
+  if (_p_graph.degree(u) > _nb_ctx.high_degree_threshold_for_insertions) {
+    return false;
+  }
+
   const auto max_gainer = _gain_calculator.compute_max_gainer(u, _p_ctx);
-  return try_pq_insertion(b, u, _p_graph.node_weight(u), max_gainer.relative_gain());
+  _target_blocks[u] = max_gainer.block;
+  return try_pq_insertion(b_u, u, _p_graph.node_weight(u), max_gainer.relative_gain());
 }
 
 bool NodeBalancer::try_pq_insertion(
-    const BlockID b, const NodeID u, const NodeWeight u_weight, const double rel_gain
+    const BlockID b_u, const NodeID u, const NodeWeight w_u, const double rel_gain
 ) {
-  KASSERT(u_weight == _p_graph.node_weight(u));
-  KASSERT(b == _p_graph.block(u));
+  KASSERT(w_u == _p_graph.node_weight(u));
+  KASSERT(b_u == _p_graph.block(u));
 
-  if (_pq_weight[b] < block_overload(b) || _pq.empty(b) || rel_gain > _pq.peek_min_key(b)) {
-    _pq.push(b, u, rel_gain);
-    _pq_weight[b] += u_weight;
+  if (_p_graph.degree(u) > _nb_ctx.high_degree_threshold_for_insertions) {
+    return false;
+  }
 
-    if (rel_gain > _pq.peek_min_key(b)) {
-      const NodeID min_node = _pq.peek_min_id(b);
+  if (_pq_weight[b_u] < block_overload(b_u) || _pq.empty(b_u) || rel_gain > _pq.peek_min_key(b_u)) {
+    _pq.push(b_u, u, rel_gain);
+    _pq_weight[b_u] += w_u;
+
+    if (rel_gain > _pq.peek_min_key(b_u)) {
+      const NodeID min_node = _pq.peek_min_id(b_u);
       const NodeWeight min_weight = _p_graph.node_weight(min_node);
-      if (_pq_weight[b] - min_weight >= block_overload(b)) {
-        _pq.pop_min(b);
-        _pq_weight[b] -= min_weight;
+      if (_pq_weight[b_u] - min_weight >= block_overload(b_u)) {
+        _pq.pop_min(b_u);
+        _pq_weight[b_u] -= min_weight;
       }
     }
 
@@ -441,14 +457,21 @@ bool NodeBalancer::perform_parallel_round() {
   START_TIMER("Computing weight buckets");
   _buckets.clear();
   for (const BlockID from : _p_graph.blocks()) {
-    for (const auto [node, gain] : _pq.elements(from)) {
+    for (const auto [node, pq_gain] : _pq.elements(from)) {
       KASSERT(_p_graph.block(node) == from);
 
+      // For high-degree nodes, assume that the PQ gain is up-to-date and skip recomputation
+      if (_p_graph.degree(node) > _nb_ctx.high_degree_threshold_for_updates) {
+        _buckets.add(from, _p_graph.node_weight(node), pq_gain);
+        continue;
+      }
+
+      // For low-degree nodes, recalculate gain and update PQ
       const auto max_gainer = _gain_calculator.compute_max_gainer(node, _p_ctx);
       const double actual_gain = max_gainer.relative_gain();
       const BlockID to = max_gainer.block;
 
-      if (gain != actual_gain) {
+      if (pq_gain != actual_gain) {
         pq_updates.emplace_back(from, node, actual_gain);
       }
 

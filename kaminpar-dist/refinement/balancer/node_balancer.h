@@ -93,7 +93,7 @@ private:
   Marker<> _marker;
 
   Buckets _buckets;
-  DeterministicGainCalculator _gain_calculator;
+  RandomizedGainCalculator _gain_calculator;
 
   bool _stalled = false;
 
