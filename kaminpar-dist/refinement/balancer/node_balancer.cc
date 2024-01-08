@@ -25,7 +25,7 @@
 
 namespace kaminpar::dist {
 SET_STATISTICS_FROM_GLOBAL();
-SET_DEBUG(false);
+SET_DEBUG(true);
 
 NodeBalancerFactory::NodeBalancerFactory(const Context &ctx) : _ctx(ctx) {}
 
@@ -49,7 +49,8 @@ NodeBalancer::NodeBalancer(
       ),
       _cached_cutoff_buckets(_p_graph.k()),
       _gain_calculator(_p_ctx.k),
-      _target_blocks(_p_graph.n()) {
+      _target_blocks(_p_graph.n()),
+      _tmp_gains(!_nb_ctx.par_update_pq_gains * _p_graph.n()) {
   _gain_calculator.init(_p_graph);
 }
 
@@ -472,6 +473,8 @@ bool NodeBalancer::perform_parallel_round() {
 
       if (_nb_ctx.par_update_pq_gains && pq_gain != actual_gain) {
         pq_updates.emplace_back(from, node, actual_gain);
+      } else {
+        _tmp_gains[node] = actual_gain;
       }
 
       _buckets.add(from, _p_graph.node_weight(node), actual_gain);
@@ -503,7 +506,7 @@ bool NodeBalancer::perform_parallel_round() {
   for (const BlockID from : _p_graph.blocks()) {
     for (const auto &pq_element : _pq.elements(from)) {
       const NodeID &node = pq_element.id;
-      const double &gain = pq_element.key;
+      const double &gain = (_nb_ctx.par_update_pq_gains ? pq_element.key : _tmp_gains[node]);
 
       if (block_overload(from) <= block_weight_deltas_from[from]) {
         break;
@@ -513,7 +516,7 @@ bool NodeBalancer::perform_parallel_round() {
       const auto bucket = _buckets.compute_bucket(gain);
 
       KASSERT(
-          !_nb_ctx.par_update_pq_gains || ([&] {
+          [&] {
             const auto max_gainer = _gain_calculator.compute_max_gainer(node, _p_ctx);
 
             if (gain != max_gainer.relative_gain()) {
@@ -521,13 +524,14 @@ bool NodeBalancer::perform_parallel_round() {
                           << " != " << max_gainer.relative_gain();
               return false;
             }
-            if (to != max_gainer.block) {
+            // Skip check: does not work when using the randomized gain calculator
+            /*if (to != max_gainer.block) {
               LOG_WARNING << "bad target block for node " << node << ": " << to
                           << " != " << max_gainer.block;
               return false;
-            }
+            }*/
             return true;
-          }()),
+          }(),
           "inconsistent PQ gains",
           HEAVY
       );

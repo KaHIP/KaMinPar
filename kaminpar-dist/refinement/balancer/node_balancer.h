@@ -100,5 +100,6 @@ private:
   std::vector<std::size_t> _cached_cutoff_buckets;
 
   StaticArray<BlockID> _target_blocks;
+  StaticArray<double> _tmp_gains;
 };
 }; // namespace kaminpar::dist
