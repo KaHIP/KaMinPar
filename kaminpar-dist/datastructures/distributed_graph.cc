@@ -234,7 +234,9 @@ void print_local_graph_stats(const DistributedGraph &graph) {
   ss << "ghost_n=" << graph.ghost_n() << " ";
   ss << "m=" << graph.m() << " ";
 
-  std::array<EdgeID, 32> buckets{};
+  std::array<EdgeID, 32> buckets;
+  std::fill(buckets.begin(), buckets.end(), 0);
+
   EdgeID local_m = 0, nonlocal_m = 0;
   EdgeID min_deg = std::numeric_limits<EdgeID>::max(), max_deg = 0;
   for (NodeID u = 0; u < graph.n(); ++u) {

@@ -65,7 +65,7 @@ void NodeBalancer::initialize() {
 }
 
 void NodeBalancer::reinit() {
-  debug::print_local_graph_stats(_p_graph.graph());
+  //debug::print_local_graph_stats(_p_graph.graph());
 
   // Only initialize the balancer is the partition is actually imbalanced
   if (metrics::is_feasible(_p_graph, _p_ctx)) {
