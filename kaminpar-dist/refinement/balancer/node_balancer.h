@@ -77,7 +77,7 @@ private:
   bool try_pq_insertion(BlockID b, NodeID u);
   bool try_pq_insertion(BlockID b, NodeID u, NodeWeight u_weight, double rel_gain);
 
-  bool perform_parallel_round();
+  bool perform_parallel_round(int round);
 
   bool
   assign_feasible_target_block(Candidate &candidate, const std::vector<BlockWeight> &deltas) const;

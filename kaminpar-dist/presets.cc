@@ -207,6 +207,7 @@ Context create_default_context() {
                       .par_gain_bucket_base = 1.1,
                       .par_partial_buckets = true,
                       .par_update_pq_gains = false,
+                      .par_high_degree_update_interval = std::numeric_limits<int>::max(),
                       .high_degree_threshold_for_insertions = std::numeric_limits<EdgeID>::max(),
                       .high_degree_threshold_for_updates = std::numeric_limits<EdgeID>::max(),
                   },

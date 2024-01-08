@@ -349,6 +349,12 @@ CLI::Option_group *create_node_balancer_options(CLI::App *app, Context &ctx) {
       ->capture_default_str();
   balancer
       ->add_option(
+          "--r-nb-par-high-degree-update-interval",
+          ctx.refinement.node_balancer.par_high_degree_update_interval
+      )
+      ->capture_default_str();
+  balancer
+      ->add_option(
           "--r-nb-high-degree-threshold-for-insertions",
           ctx.refinement.node_balancer.high_degree_threshold_for_insertions
       )

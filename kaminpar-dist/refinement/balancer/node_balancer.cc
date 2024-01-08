@@ -186,7 +186,7 @@ bool NodeBalancer::refine() {
            << "; threshold: " << _ctx.refinement.node_balancer.par_threshold;
 
       if (seq_rebalance_rate < _nb_ctx.par_threshold || !is_sequential_balancing_enabled()) {
-        if (!perform_parallel_round()) {
+        if (!perform_parallel_round(round)) {
           DBG0 << "Parallel round stalled: switch to stalled mode";
           switch_to_stalled();
           continue;
@@ -461,7 +461,7 @@ bool NodeBalancer::try_pq_insertion(
   return false;
 }
 
-bool NodeBalancer::perform_parallel_round() {
+bool NodeBalancer::perform_parallel_round(const int round) {
   TIMER_BARRIER(_p_graph.communicator());
   SCOPED_TIMER("Parallel round");
 
@@ -477,7 +477,8 @@ bool NodeBalancer::perform_parallel_round() {
       KASSERT(_p_graph.block(node) == from);
 
       // For high-degree nodes, assume that the PQ gain is up-to-date and skip recomputation
-      if (_p_graph.degree(node) > _nb_ctx.high_degree_threshold_for_updates) {
+      if (_p_graph.degree(node) > _nb_ctx.high_degree_threshold_for_updates &&
+          ((round + 1) % _nb_ctx.par_high_degree_update_interval) == 0) {
         _buckets.add(from, _p_graph.node_weight(node), pq_gain);
         if (!_nb_ctx.par_update_pq_gains) {
           _tmp_gains[node] = pq_gain;

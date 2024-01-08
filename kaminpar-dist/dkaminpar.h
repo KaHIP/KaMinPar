@@ -266,6 +266,7 @@ struct NodeBalancerContext {
   double par_gain_bucket_base;
   bool par_partial_buckets;
   bool par_update_pq_gains;
+  int par_high_degree_update_interval;
 
   EdgeID high_degree_threshold_for_insertions;
   EdgeID high_degree_threshold_for_updates;
