@@ -67,7 +67,10 @@ const DistributedGraph *Coarsener::coarsen_once_global(const GlobalNodeWeight ma
   _global_clusterer->initialize(*graph);
   auto &clustering =
       _global_clusterer->cluster(*graph, static_cast<NodeWeight>(max_cluster_weight));
-  if (clustering.empty()) { // Empty --> converged
+
+  bool empty = clustering.empty();
+  MPI_Allreduce(MPI_IN_PLACE, &empty, 1, MPI_CXX_BOOL, MPI_LAND, graph->communicator());
+  if (empty) { // Empty --> converged
     DBG << "... converged with empty clustering";
     return graph;
   }

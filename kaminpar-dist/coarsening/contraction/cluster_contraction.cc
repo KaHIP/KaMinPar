@@ -900,7 +900,7 @@ ContractionResult contract_clustering(
   auto nonlocal_nodes = find_nonlocal_nodes(graph, lnode_to_gcluster);
 
   IF_STATS {
-    const GlobalNodeID total_num_nonlocal_nodes =
+    const auto total_num_nonlocal_nodes =
         mpi::allreduce<GlobalNodeID>(nonlocal_nodes.size(), MPI_SUM, graph.communicator());
     STATS << "Total number of nonlocal nodes: " << total_num_nonlocal_nodes;
   }
