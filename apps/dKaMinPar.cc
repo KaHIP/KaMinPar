@@ -38,7 +38,7 @@ struct ApplicationContext {
   bool check_input_graph = false;
 
   kagen::FileFormat io_format = kagen::FileFormat::EXTENSION;
-  kagen::GraphDistribution io_distribution = kagen::GraphDistribution::BALANCE_VERTICES;
+  kagen::GraphDistribution io_distribution = kagen::GraphDistribution::BALANCE_EDGES;
 
   std::string graph_filename = "";
   std::string partition_filename = "";
@@ -90,7 +90,11 @@ The output should be stored in a file and can be used by the -C,--config option.
       ->check(CLI::NonNegativeNumber)
       ->default_val(app.num_threads);
   cli.add_option("--io-format", app.io_format)
-      ->transform(CLI::CheckedTransformer(kagen::GetInputFormatMap()).description(""));
+      ->transform(CLI::CheckedTransformer(kagen::GetInputFormatMap()).description(""))
+      ->description(R"(Graph input format. By default, guess the file format from the file extension. Explicit options are:
+  - metis:  text format used by the Metis family
+  - parhip: binary format used by ParHiP (+ extensions))")
+      ->capture_default_str();
   cli.add_option("--io-distribution", app.io_distribution)
       ->transform(CLI::CheckedTransformer(kagen::GetGraphDistributionMap()).description(""))
       ->description(R"(Graph distribution scheme, possible options are:
