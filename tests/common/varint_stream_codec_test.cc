@@ -15,7 +15,8 @@ template <typename Int> void test_varint_stream(const std::vector<Int> &values) 
 
   VarIntStreamDecoder<Int> decoder(ptr.get(), values.size());
   std::size_t i = 0;
-  decoder.decode([&](const Int value) { EXPECT_EQ(values[i++], value); });
+  decoder.decode(values.size(), [&](const Int value) { EXPECT_EQ(values[i++], value); });
+  EXPECT_EQ(i, values.size());
 }
 
 template <typename Int> void test_varint_stream() {
@@ -41,7 +42,7 @@ template <typename Int> void test_varint_stream_remaining() {
     std::vector<Int> values;
 
     for (std::uint8_t j = 0; j <= i; ++j) {
-      values.push_back(1);
+      values.push_back(static_cast<Int>(1) << ((j + 1) * 7));
     }
 
     test_varint_stream(values);

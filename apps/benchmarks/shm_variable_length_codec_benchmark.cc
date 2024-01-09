@@ -238,7 +238,7 @@ void benchmark_sve(std::string_view name, const std::size_t count, const std::ui
   SCOPED_TIMER(name);
 
   VarIntStreamDecoder<Int> decoder(values_ptr, count);
-  decoder.decode([](const Int value) { do_not_optimize(value); });
+  decoder.decode(count, [](const Int value) { do_not_optimize(value); });
 }
 
 template <typename Lambda>

@@ -31,6 +31,7 @@ template <typename Int> void test_run_length_codec() {
   VarIntRunLengthDecoder<Int> rl_decoder(ptr.get());
   std::size_t i = 0;
   rl_decoder.decode(values.size(), [&](const Int value) { EXPECT_EQ(values[i++], value); });
+  EXPECT_EQ(i, values.size());
 }
 
 TEST(VarIntRunLengthCodecTest, run_length_codec) {

@@ -185,48 +185,17 @@ public:
   /*!
    * Decodes the encoded integers.
    *
+   * @param max_count The amount of integers to decode, it has to be less then the amount of
+   * integers stored that are stored.
    * @param l The function to be called with the decoded integers, i.e. the function has one
    * parameter of type Int.
    */
-  template <typename Lambda> void decode(Lambda &&l) {
-    for (std::size_t i = 0; i < _control_bytes; ++i) {
-      const std::uint8_t control_byte = _control_bytes_ptr[i];
-      const std::uint8_t length = kLengthTable[control_byte];
-
-      __m128i data = _mm_loadu_si128((const __m128i *)_data_ptr);
-      _data_ptr += length;
-
-      const std::uint8_t *shuffle_mask = kShuffleTable[control_byte].data();
-      data = _mm_shuffle_epi8(data, *(const __m128i *)shuffle_mask);
-
-      l(_mm_extract_epi32(data, 0));
-      l(_mm_extract_epi32(data, 1));
-      l(_mm_extract_epi32(data, 2));
-      l(_mm_extract_epi32(data, 3));
-    }
-
-    const std::size_t remaining = _count % 4;
-    for (std::size_t i = 0; i < remaining; ++i) {
-      const auto [value, length] = varint_decode<Int>(_data_ptr);
-      _data_ptr += length;
-
-      l(value);
-    }
-  }
-
-  /*!
-   * Decodes the encoded integers.
-   *
-   * @param max_count The amount of integers to decode.
-   * @param l The function to be called with the decoded integers, i.e. the function has one
-   * parameter of type Int.
-   */
-  template <typename Lambda> void decode(std::size_t max_count, Lambda &&l) {
+  template <typename Lambda> void decode(const std::size_t max_count, Lambda &&l) {
     constexpr bool non_stoppable = std::is_void<std::invoke_result_t<Lambda, std::uint32_t>>::value;
 
     // max_count = std::min(max_count, _count);
 
-    std::size_t control_bytes = max_count / 4;
+    const std::size_t control_bytes = max_count / 4;
     for (std::size_t i = 0; i < control_bytes; ++i) {
       const std::uint8_t control_byte = _control_bytes_ptr[i];
       const std::uint8_t length = kLengthTable[control_byte];
@@ -261,62 +230,70 @@ public:
       }
     }
 
-    if ((max_count % 4) != 0) {
+    switch (max_count % 4) {
+    case 1: {
       const std::uint8_t control_byte = _control_bytes_ptr[control_bytes];
-      const std::uint8_t length = kLengthTable[control_byte];
+      const std::uint8_t *shuffle_mask = kShuffleTable[control_byte].data();
 
       __m128i data = _mm_loadu_si128((const __m128i *)_data_ptr);
-      _data_ptr += length;
-
-      const std::uint8_t *shuffle_mask = kShuffleTable[control_byte].data();
       data = _mm_shuffle_epi8(data, *(const __m128i *)shuffle_mask);
 
       if constexpr (non_stoppable) {
-        switch (max_count % 4) {
-        case 1:
-          l(_mm_extract_epi32(data, 0));
-          break;
-        case 2:
-          l(_mm_extract_epi32(data, 0));
-          l(_mm_extract_epi32(data, 1));
-          break;
-        case 3:
-          l(_mm_extract_epi32(data, 0));
-          l(_mm_extract_epi32(data, 1));
-          l(_mm_extract_epi32(data, 2));
-          break;
-        }
+        l(_mm_extract_epi32(data, 0));
       } else {
-        switch (max_count % 4) {
-        case 1:
-          if (l(_mm_extract_epi32(data, 0))) {
-            return;
-          }
-          break;
-        case 2:
-          if (l(_mm_extract_epi32(data, 0))) {
-            return;
-          }
-
-          if (l(_mm_extract_epi32(data, 1))) {
-            return;
-          }
-          break;
-        case 3:
-          if (l(_mm_extract_epi32(data, 0))) {
-            return;
-          }
-
-          if (l(_mm_extract_epi32(data, 1))) {
-            return;
-          }
-
-          if (l(_mm_extract_epi32(data, 2))) {
-            return;
-          }
-          break;
+        if (l(_mm_extract_epi32(data, 0))) {
+          return;
         }
       }
+      break;
+    }
+    case 2: {
+      const std::uint8_t control_byte = _control_bytes_ptr[control_bytes];
+      const std::uint8_t *shuffle_mask = kShuffleTable[control_byte].data();
+
+      __m128i data = _mm_loadu_si128((const __m128i *)_data_ptr);
+      data = _mm_shuffle_epi8(data, *(const __m128i *)shuffle_mask);
+
+      if constexpr (non_stoppable) {
+        l(_mm_extract_epi32(data, 0));
+        l(_mm_extract_epi32(data, 1));
+      } else {
+        if (l(_mm_extract_epi32(data, 0))) {
+          return;
+        }
+
+        if (l(_mm_extract_epi32(data, 1))) {
+          return;
+        }
+      }
+      break;
+    }
+    case 3: {
+      const std::uint8_t control_byte = _control_bytes_ptr[control_bytes];
+      const std::uint8_t *shuffle_mask = kShuffleTable[control_byte].data();
+
+      __m128i data = _mm_loadu_si128((const __m128i *)_data_ptr);
+      data = _mm_shuffle_epi8(data, *(const __m128i *)shuffle_mask);
+
+      if constexpr (non_stoppable) {
+        l(_mm_extract_epi32(data, 0));
+        l(_mm_extract_epi32(data, 1));
+        l(_mm_extract_epi32(data, 2));
+      } else {
+        if (l(_mm_extract_epi32(data, 0))) {
+          return;
+        }
+
+        if (l(_mm_extract_epi32(data, 1))) {
+          return;
+        }
+
+        if (l(_mm_extract_epi32(data, 2))) {
+          return;
+        }
+      }
+      break;
+    }
     }
   }
 
