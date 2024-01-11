@@ -26,6 +26,8 @@ CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx);
 
 CLI::Option_group *create_lp_coarsening_options(CLI::App *app, Context &ctx);
 
+CLI::Option_group *create_contraction_coarsening_options(CLI::App *app, Context &ctx);
+
 CLI::Option_group *create_initial_partitioning_options(CLI::App *app, Context &ctx);
 
 CLI::Option_group *create_refinement_options(CLI::App *app, Context &ctx);

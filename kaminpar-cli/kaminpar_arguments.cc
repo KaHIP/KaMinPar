@@ -153,6 +153,7 @@ Options are:
       ->capture_default_str();
 
   create_lp_coarsening_options(app, ctx);
+  create_contraction_coarsening_options(app, ctx);
 
   return coarsening;
 }
@@ -232,6 +233,21 @@ Options are:
       ->capture_default_str();
 
   return lp;
+}
+
+CLI::Option_group *create_contraction_coarsening_options(CLI::App *app, Context &ctx) {
+  auto *contraction = app->add_option_group("Coarsening -> Contraction");
+
+  contraction
+      ->add_option(
+          "--c-con-edge-buffer",
+          ctx.coarsening.contraction.use_edge_buffer,
+          "Whether to use a temporary buffer for storing the contracted edges or to compute the "
+          "contracted edges twice"
+      )
+      ->capture_default_str();
+
+  return contraction;
 }
 
 CLI::Option_group *create_initial_partitioning_options(CLI::App *app, Context &ctx) {

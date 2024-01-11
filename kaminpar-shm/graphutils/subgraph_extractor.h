@@ -36,7 +36,9 @@ struct SubgraphMemoryStartPosition {
 };
 
 struct SubgraphMemory {
-  SubgraphMemory() = default;
+  SubgraphMemory() {
+    RECORD_DATA_STRUCT("SubgraphMemory", 0, _struct);
+  }
 
   SubgraphMemory(
       const NodeID n,
@@ -45,10 +47,12 @@ struct SubgraphMemory {
       const bool is_node_weighted = true,
       const bool is_edge_weighted = true
   ) {
+    RECORD_DATA_STRUCT("SubgraphMemory", 0, _struct);
     resize(n, k, m, is_node_weighted, is_edge_weighted);
   }
 
   explicit SubgraphMemory(const PartitionedGraph &p_graph) {
+    RECORD_DATA_STRUCT("SubgraphMemory", 0, _struct);
     resize(p_graph);
   }
 
@@ -69,12 +73,22 @@ struct SubgraphMemory {
       const bool is_node_weighted = true,
       const bool is_edge_weighted = true
   ) {
+    SCOPED_HEAP_PROFILER("SubgraphMemory resize");
     SCOPED_TIMER("Allocation");
 
     nodes.resize(n + k);
     edges.resize(m);
     node_weights.resize(is_node_weighted * (n + k));
     edge_weights.resize(is_edge_weighted * m);
+
+    IF_HEAP_PROFILING(
+        _struct->size = std::max(
+            _struct->size,
+            (n + k) * sizeof(EdgeID) + m * sizeof(NodeID) +
+                is_node_weighted * (n + k) * sizeof(NodeWeight) +
+                is_edge_weighted * m * sizeof(EdgeWeight)
+        )
+    );
   }
 
   [[nodiscard]] bool empty() const {
@@ -85,6 +99,8 @@ struct SubgraphMemory {
   StaticArray<NodeID> edges;
   StaticArray<NodeWeight> node_weights;
   StaticArray<EdgeWeight> edge_weights;
+
+  IF_HEAP_PROFILING(heap_profiler::DataStructure *_struct);
 };
 
 struct SubgraphExtractionResult {

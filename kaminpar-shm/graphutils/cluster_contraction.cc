@@ -25,8 +25,12 @@ using namespace contraction;
 
 namespace {
 template <typename Graph, typename Clustering>
-Result
-contract_generic_clustering(const Graph &graph, const Clustering &clustering, MemoryContext m_ctx) {
+Result contract_generic_clustering(
+    const Graph &graph,
+    const ContractionCoarseningContext con_ctx,
+    const Clustering &clustering,
+    MemoryContext m_ctx
+) {
   auto &buckets_index = m_ctx.buckets_index;
   auto &buckets = m_ctx.buckets;
   auto &leader_mapping = m_ctx.leader_mapping;
@@ -130,10 +134,6 @@ contract_generic_clustering(const Graph &graph, const Clustering &clustering, Me
   STOP_TIMER();
   STOP_HEAP_PROFILER();
 
-  tbb::enumerable_thread_specific<RatingMap<EdgeWeight, NodeID>> collector{[&] {
-    return RatingMap<EdgeWeight, NodeID>(c_n);
-  }};
-
   //
   // We build the coarse graph in multiple steps:
   // (1) During the first step, we compute
@@ -148,108 +148,167 @@ contract_generic_clustering(const Graph &graph, const Clustering &clustering, Me
   // node degrees (3) We copy coarse edges and coarse edge weights from the
   // auxiliary arrays to c_edges and c_edge_weights
   //
-  NavigableLinkedList<NodeID, Edge, scalable_vector> edge_buffer_ets;
 
   START_HEAP_PROFILER("Construct coarse edges");
   START_TIMER("Construct coarse edges");
-  tbb::parallel_for(tbb::blocked_range<NodeID>(0, c_n), [&](const auto &r) {
-    auto &local_collector = collector.local();
-    auto &local_edge_buffer = edge_buffer_ets.local();
 
-    for (NodeID c_u = r.begin(); c_u != r.end(); ++c_u) {
-      local_edge_buffer.mark(c_u);
+  tbb::enumerable_thread_specific<RatingMap<EdgeWeight, NodeID>> collector{[&] {
+    return RatingMap<EdgeWeight, NodeID>(c_n);
+  }};
 
-      const std::size_t first = buckets_index[c_u];
-      const std::size_t last = buckets_index[c_u + 1];
+  // A temporary buffer to store the edges in the first step to avoid computing them in the second
+  // step again. It is only used when the temporary buffer option is enabled in the contraction
+  // context.
+  NavigableLinkedList<NodeID, Edge, scalable_vector> edge_buffer_ets;
 
-      // build coarse graph
-      auto collect_edges = [&](auto &map) {
-        NodeWeight c_u_weight = 0;
+  const auto collect_contracted_nodes = [&](auto &&compute_upper_bound,
+                                            auto &&collect_contracted_node) {
+    tbb::parallel_for(tbb::blocked_range<NodeID>(0, c_n), [&](const auto &r) {
+      auto &local_collector = collector.local();
+
+      for (NodeID c_u = r.begin(); c_u != r.end(); ++c_u) {
+        const std::size_t first = buckets_index[c_u];
+        const std::size_t last = buckets_index[c_u + 1];
+
+        // build coarse graph
+        auto collect_edges = [&](auto &map) {
+          NodeWeight c_u_weight = 0;
+          for (std::size_t i = first; i < last; ++i) {
+            const NodeID u = buckets[i];
+            KASSERT(mapping[u] == c_u);
+
+            c_u_weight += graph.node_weight(u); // coarse node weight
+
+            // collect coarse edges
+            graph.neighbors(u, [&](const EdgeID e, const NodeID v) {
+              const NodeID c_v = mapping[v];
+              if (c_u != c_v) {
+                map[c_v] += graph.edge_weight(e);
+              }
+            });
+          }
+
+          collect_contracted_node(c_u, c_u_weight, map);
+          map.clear();
+        };
+
+        local_collector.update_upper_bound_size(compute_upper_bound(c_u, first, last));
+        local_collector.run_with_map(collect_edges, collect_edges);
+      }
+    });
+  };
+
+  // To select the right map, we compute a upper bound on the coarse node degree by summing the
+  // degree of all fine nodes.
+  const auto computer_upper_bound_degree =
+      [&](const NodeID c_u, const std::size_t first, const std::size_t last) {
+        NodeID upper_bound_degree = 0;
+
         for (std::size_t i = first; i < last; ++i) {
           const NodeID u = buckets[i];
-          KASSERT(mapping[u] == c_u);
-
-          c_u_weight += graph.node_weight(u); // coarse node weight
-
-          // collect coarse edges
-          graph.neighbors(
-              u,
-              std::numeric_limits<NodeID>::max(),
-              [&](const EdgeID e, const NodeID v) {
-                const NodeID c_v = mapping[v];
-                if (c_u != c_v) {
-                  map[c_v] += graph.edge_weight(e);
-                }
-              }
-          );
+          upper_bound_degree += graph.degree(u);
         }
 
-        c_node_weights[c_u] = c_u_weight; // coarse node weights are done now
-        c_nodes[c_u + 1] = map.size();    // node degree (used to build c_nodes)
-
-        // since we don't know the value of c_nodes[c_u] yet (so far, it only
-        // holds the nodes degree), we can't place the edges of c_u in the
-        // c_edges and c_edge_weights arrays; hence, we store them in auxiliary
-        // arrays and note their position in the auxiliary arrays
-        for (const auto [c_v, weight] : map.entries()) {
-          local_edge_buffer.push_back({c_v, weight});
-        }
-        map.clear();
+        return upper_bound_degree;
       };
 
-      // to select the right map, we compute a upper bound on the coarse node
-      // degree by summing the degree of all fine nodes
-      NodeID upper_bound_degree = 0;
-      for (std::size_t i = first; i < last; ++i) {
-        const NodeID u = buckets[i];
-        upper_bound_degree += graph.degree(u);
-      }
-      local_collector.update_upper_bound_size(upper_bound_degree);
-      local_collector.run_with_map(collect_edges, collect_edges);
-    }
-  });
+  if (con_ctx.use_edge_buffer) {
+    collect_contracted_nodes(
+        std::forward<decltype(computer_upper_bound_degree)>(computer_upper_bound_degree),
+        [&](const NodeID c_u, const NodeWeight c_u_weight, auto &map) {
+          auto &local_edge_buffer = edge_buffer_ets.local();
+          local_edge_buffer.mark(c_u);
+
+          c_nodes[c_u + 1] = map.size(); // Store node degree which is used to build c_nodes
+          c_node_weights[c_u] = c_u_weight;
+
+          // Since we don't know the value of c_nodes[c_u] yet (so far, it only holds the nodes
+          // degree), we can't place the edges of c_u in the c_edges and c_edge_weights arrays;
+          // hence, we store them in auxiliary arrays and note their position in the auxiliary
+          // arrays.
+          for (const auto [c_v, weight] : map.entries()) {
+            local_edge_buffer.push_back({c_v, weight});
+          }
+        }
+    );
+  } else {
+    collect_contracted_nodes(
+        std::forward<decltype(computer_upper_bound_degree)>(computer_upper_bound_degree),
+        [&](const NodeID c_u, const NodeWeight c_u_weight, const auto &map) {
+          c_nodes[c_u + 1] = map.size(); // Store node degree which is used to build c_nodes
+          c_node_weights[c_u] = c_u_weight;
+        }
+    );
+  }
 
   parallel::prefix_sum(c_nodes.begin(), c_nodes.end(), c_nodes.begin());
+
   STOP_TIMER(); // Graph construction
   STOP_HEAP_PROFILER();
-
-  KASSERT(c_nodes[0] == 0u);
-  const EdgeID c_m = c_nodes.back();
 
   //
   // Construct rest of the coarse graph: edges, edge weights
   //
 
-  all_buffered_nodes = ts_navigable_list::combine<NodeID, Edge, scalable_vector>(
-      edge_buffer_ets, std::move(all_buffered_nodes)
-  );
-
   START_HEAP_PROFILER("Coarse graph edges allocation");
   START_TIMER("Allocation");
+
+  KASSERT(c_nodes[0] == 0u);
+  const EdgeID c_m = c_nodes.back();
+
   RECORD("c_edges") StaticArray<NodeID> c_edges{c_m};
   RECORD("c_edge_weights") StaticArray<EdgeWeight> c_edge_weights{c_m};
+
   STOP_TIMER();
   STOP_HEAP_PROFILER();
 
   // build coarse graph
+  START_HEAP_PROFILER("Construct coarse graph");
   START_TIMER("Construct coarse graph");
-  tbb::parallel_for(static_cast<NodeID>(0), c_n, [&](const NodeID i) {
-    const auto &marker = all_buffered_nodes[i];
-    const auto *list = marker.local_list;
-    const NodeID c_u = marker.key;
 
-    const NodeID c_u_degree = c_nodes[c_u + 1] - c_nodes[c_u];
-    const EdgeID first_target_index = c_nodes[c_u];
-    const EdgeID first_source_index = marker.position;
+  if (con_ctx.use_edge_buffer) {
+    all_buffered_nodes = ts_navigable_list::combine<NodeID, Edge, scalable_vector>(
+        edge_buffer_ets, std::move(all_buffered_nodes)
+    );
 
-    for (std::size_t j = 0; j < c_u_degree; ++j) {
-      const auto to = first_target_index + j;
-      const auto [c_v, weight] = list->get(first_source_index + j);
-      c_edges[to] = c_v;
-      c_edge_weights[to] = weight;
-    }
-  });
+    tbb::parallel_for(static_cast<NodeID>(0), c_n, [&](const NodeID i) {
+      const auto &marker = all_buffered_nodes[i];
+      const auto *list = marker.local_list;
+      const NodeID c_u = marker.key;
+
+      const NodeID c_u_degree = c_nodes[c_u + 1] - c_nodes[c_u];
+      const EdgeID first_target_index = c_nodes[c_u];
+      const EdgeID first_source_index = marker.position;
+
+      for (std::size_t j = 0; j < c_u_degree; ++j) {
+        const auto to = first_target_index + j;
+        const auto [c_v, weight] = list->get(first_source_index + j);
+        c_edges[to] = c_v;
+        c_edge_weights[to] = weight;
+      }
+    });
+  } else {
+    collect_contracted_nodes(
+        // Since we computed the contracted node degrees in the first step we can use them as an
+        // exact upper bound for the rating map.
+        [&](const NodeID c_u, const std::size_t first, const std::size_t last) {
+          return c_nodes[c_u + 1] - c_nodes[c_u];
+        },
+        [&](const NodeID c_u, const NodeWeight c_u_weight, auto &map) {
+          EdgeID edge = c_nodes[c_u];
+
+          for (const auto [c_v, weight] : map.entries()) {
+            c_edges[edge] = c_v;
+            c_edge_weights[edge] = weight;
+
+            ++edge;
+          }
+        }
+    );
+  }
+
   STOP_TIMER();
+  STOP_HEAP_PROFILER();
 
   return {
       shm::Graph(std::make_unique<CSRGraph>(
@@ -264,15 +323,19 @@ contract_generic_clustering(const Graph &graph, const Clustering &clustering, Me
 }
 } // namespace
 
-Result
-contract(const Graph &graph, const scalable_vector<NodeID> &clustering, MemoryContext m_ctx) {
+Result contract(
+    const Graph &graph,
+    const ContractionCoarseningContext con_ctx,
+    const scalable_vector<NodeID> &clustering,
+    MemoryContext m_ctx
+) {
   if (auto *csr_graph = dynamic_cast<CSRGraph *>(graph.underlying_graph()); csr_graph != nullptr) {
-    return contract_generic_clustering(*csr_graph, clustering, std::move(m_ctx));
+    return contract_generic_clustering(*csr_graph, con_ctx, clustering, std::move(m_ctx));
   }
 
   if (auto *compressed_graph = dynamic_cast<CompressedGraph *>(graph.underlying_graph());
       compressed_graph != nullptr) {
-    return contract_generic_clustering(*compressed_graph, clustering, std::move(m_ctx));
+    return contract_generic_clustering(*compressed_graph, con_ctx, clustering, std::move(m_ctx));
   }
 
   __builtin_unreachable();
@@ -280,16 +343,17 @@ contract(const Graph &graph, const scalable_vector<NodeID> &clustering, MemoryCo
 
 Result contract(
     const Graph &graph,
+    const ContractionCoarseningContext con_ctx,
     const scalable_vector<parallel::Atomic<NodeID>> &clustering,
     MemoryContext m_ctx
 ) {
   if (auto *csr_graph = dynamic_cast<CSRGraph *>(graph.underlying_graph()); csr_graph != nullptr) {
-    return contract_generic_clustering(*csr_graph, clustering, std::move(m_ctx));
+    return contract_generic_clustering(*csr_graph, con_ctx, clustering, std::move(m_ctx));
   }
 
   if (auto *compressed_graph = dynamic_cast<CompressedGraph *>(graph.underlying_graph());
       compressed_graph != nullptr) {
-    return contract_generic_clustering(*compressed_graph, clustering, std::move(m_ctx));
+    return contract_generic_clustering(*compressed_graph, con_ctx, clustering, std::move(m_ctx));
   }
 
   __builtin_unreachable();

@@ -29,7 +29,9 @@ std::pair<const Graph *, bool> ClusteringCoarsener::compute_coarse_graph(
 
   START_HEAP_PROFILER("Contract graph");
   auto [c_graph, c_mapping, m_ctx] = TIMED_SCOPE("Contract graph") {
-    return graph::contract(*_current_graph, clustering, std::move(_contraction_m_ctx));
+    return graph::contract(
+        *_current_graph, _c_ctx.contraction, clustering, std::move(_contraction_m_ctx)
+    );
   };
   STOP_HEAP_PROFILER();
   _contraction_m_ctx = std::move(m_ctx);

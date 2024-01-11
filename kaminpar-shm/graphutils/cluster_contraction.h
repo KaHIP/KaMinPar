@@ -36,11 +36,15 @@ struct Result {
 } // namespace contraction
 
 contraction::Result contract(
-    const Graph &r, const scalable_vector<NodeID> &clustering, contraction::MemoryContext m_ctx = {}
+    const Graph &r,
+    const ContractionCoarseningContext con_ctx,
+    const scalable_vector<NodeID> &clustering,
+    contraction::MemoryContext m_ctx = {}
 );
 
 contraction::Result contract(
     const Graph &graph,
+    const ContractionCoarseningContext con_ctx,
     const scalable_vector<parallel::Atomic<NodeID>> &clustering,
     contraction::MemoryContext m_ctx = {}
 );

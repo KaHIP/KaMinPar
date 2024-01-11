@@ -119,9 +119,14 @@ struct LabelPropagationCoarseningContext {
   }
 };
 
+struct ContractionCoarseningContext {
+  bool use_edge_buffer;
+};
+
 struct CoarseningContext {
   ClusteringAlgorithm algorithm;
   LabelPropagationCoarseningContext lp;
+  ContractionCoarseningContext contraction;
   NodeID contraction_limit;
   bool enforce_contraction_limit;
   double convergence_threshold;
