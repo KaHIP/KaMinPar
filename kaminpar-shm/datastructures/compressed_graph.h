@@ -315,7 +315,9 @@ public:
   }
 
   template <typename Lambda>
-  inline void pfor_neighbors(const NodeID node, const NodeID max_neighbor_count, Lambda &&l) const {
+  inline void pfor_neighbors(
+      const NodeID node, const NodeID max_neighbor_count, const NodeID grainsize, Lambda &&l
+  ) const {
     iterate_neighborhood<true, true>(node, std::forward<Lambda>(l), max_neighbor_count);
   }
 
@@ -504,6 +506,8 @@ private:
   inline void iterate_neighborhood(
       const NodeID node, Lambda &&l, NodeID max_neighbor_count = std::numeric_limits<NodeID>::max()
   ) const {
+    constexpr bool is_direct = std::is_invocable_v<Lambda, EdgeID, NodeID>;
+
     const std::uint8_t *data = _compressed_edges.data();
 
     const std::uint8_t *node_data = data + _nodes[node];
@@ -532,9 +536,23 @@ private:
     }
 
     const EdgeID max_edge = first_edge + max_neighbor_count;
-    iterate_edges<max_edges>(
-        node_data, node, degree, first_edge, max_edge, uses_intervals, std::forward<Lambda>(l)
-    );
+    if constexpr (is_direct) {
+      iterate_edges<max_edges>(
+          node_data, node, degree, first_edge, max_edge, uses_intervals, std::forward<Lambda>(l)
+      );
+    } else {
+      l([&](auto &&l2) {
+        iterate_edges<max_edges>(
+            node_data,
+            node,
+            degree,
+            first_edge,
+            max_edge,
+            uses_intervals,
+            std::forward<decltype(l2)>(l2)
+        );
+      });
+    }
   }
 
   template <bool max_edges, bool parallel, typename Lambda>
@@ -546,6 +564,8 @@ private:
       const NodeID max_neighbor_count,
       Lambda &&l
   ) const {
+    constexpr bool is_direct = std::is_invocable_v<Lambda, EdgeID, NodeID>;
+
     const NodeID part_count = math::div_ceil(degree, kHighDegreePartLength);
     const NodeID max_part_count =
         std::min(part_count, math::div_ceil(max_neighbor_count, kHighDegreePartLength));
@@ -565,28 +585,56 @@ private:
                                        : kHighDegreePartLength;
         const EdgeID part_max_edge = part_first_edge + max_neighbor_rem;
 
-        iterate_edges<max_edges>(
-            part_data,
-            node,
-            part_degree,
-            part_first_edge,
-            part_max_edge,
-            true,
-            std::forward<Lambda>(l)
-        );
+        if constexpr (is_direct) {
+          iterate_edges<max_edges>(
+              part_data,
+              node,
+              part_degree,
+              part_first_edge,
+              part_max_edge,
+              true,
+              std::forward<Lambda>(l)
+          );
+        } else {
+          l([&](auto &&l2) {
+            iterate_edges<max_edges>(
+                part_data,
+                node,
+                part_degree,
+                part_first_edge,
+                part_max_edge,
+                true,
+                std::forward<decltype(l2)>(l2)
+            );
+          });
+        }
       } else {
         const NodeID part_degree = kHighDegreePartLength;
         const EdgeID part_max_edge = part_first_edge + part_degree;
 
-        iterate_edges<false>(
-            part_data,
-            node,
-            part_degree,
-            part_first_edge,
-            part_max_edge,
-            true,
-            std::forward<Lambda>(l)
-        );
+        if constexpr (is_direct) {
+          iterate_edges<false>(
+              part_data,
+              node,
+              part_degree,
+              part_first_edge,
+              part_max_edge,
+              true,
+              std::forward<Lambda>(l)
+          );
+        } else {
+          l([&](auto &&l2) {
+            iterate_edges<false>(
+                part_data,
+                node,
+                part_degree,
+                part_first_edge,
+                part_max_edge,
+                true,
+                std::forward<decltype(l2)>(l2)
+            );
+          });
+        }
       }
     };
 

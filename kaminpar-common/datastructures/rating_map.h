@@ -43,6 +43,10 @@ public:
     __builtin_unreachable();
   }
 
+  [[nodiscard]] SmallMap &small_map() {
+    return _small_map;
+  }
+
   [[nodiscard]] std::size_t small_map_counter() const {
     return _small_map_counter;
   }

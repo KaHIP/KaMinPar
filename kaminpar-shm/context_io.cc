@@ -229,6 +229,42 @@ std::ostream &operator<<(std::ostream &out, IsolatedNodesClusteringStrategy stra
   return out << "<invalid>";
 }
 
+std::ostream &operator<<(std::ostream &out, SecondPhaseSelectMode strategy) {
+  switch (strategy) {
+  case SecondPhaseSelectMode::HIGH_DEGREE:
+    return out << "high-degree";
+  case SecondPhaseSelectMode::FULL_RATING_MAP:
+    return out << "full-rating-map";
+  }
+
+  return out << "<invalid>";
+}
+
+std::unordered_map<std::string, SecondPhaseSelectMode> get_second_phase_select_modes() {
+  return {
+      {"high-degree", SecondPhaseSelectMode::HIGH_DEGREE},
+      {"full-rating-map", SecondPhaseSelectMode::FULL_RATING_MAP}
+  };
+}
+
+std::ostream &operator<<(std::ostream &out, SecondPhaseAggregationMode strategy) {
+  switch (strategy) {
+  case SecondPhaseAggregationMode::DIRECT:
+    return out << "direct";
+  case SecondPhaseAggregationMode::BUFFERED:
+    return out << "buffered";
+  }
+
+  return out << "<invalid>";
+}
+
+std::unordered_map<std::string, SecondPhaseAggregationMode> get_second_phase_aggregation_modes() {
+  return {
+      {"direct", SecondPhaseAggregationMode::DIRECT},
+      {"buffered", SecondPhaseAggregationMode::BUFFERED}
+  };
+}
+
 std::unordered_map<std::string, IsolatedNodesClusteringStrategy>
 get_isolated_nodes_clustering_strategies() {
   return {
@@ -313,8 +349,12 @@ void print(const LabelPropagationCoarseningContext &lp_ctx, std::ostream &out) {
   out << "  Max degree:                 " << lp_ctx.max_num_neighbors << "\n";
   out << "  2-hop clustering threshold: " << std::fixed << 100 * lp_ctx.two_hop_clustering_threshold
       << "%\n";
-  out << "  Isolated nodes:             " << lp_ctx.isolated_nodes_strategy << "\n";
   out << "  Uses two phases: " << (lp_ctx.use_two_phases ? "yes" : "no") << "\n";
+  if (lp_ctx.use_two_phases) {
+    out << "    Select mode:              " << lp_ctx.second_phase_select_mode << '\n';
+    out << "    Aggregation mode:         " << lp_ctx.second_phase_aggregation_mode << '\n';
+  }
+  out << "  Isolated nodes:             " << lp_ctx.isolated_nodes_strategy << "\n";
 }
 
 void print(const InitialPartitioningContext &i_ctx, std::ostream &out) {

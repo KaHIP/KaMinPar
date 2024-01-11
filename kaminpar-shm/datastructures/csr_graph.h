@@ -220,21 +220,51 @@ public:
   template <typename Lambda>
   inline void neighbors(const NodeID u, const NodeID max_neighbor_count, Lambda &&l) const {
     KASSERT(u + 1 < _nodes.size());
+    constexpr bool non_stoppable =
+        std::is_void<std::invoke_result_t<Lambda, EdgeID, NodeID>>::value;
 
     const EdgeID from = _nodes[u];
     const EdgeID to = from + std::min(degree(u), max_neighbor_count);
+
     for (EdgeID edge = from; edge < to; ++edge) {
-      l(edge, _edges[edge]);
+      if constexpr (non_stoppable) {
+        l(edge, _edges[edge]);
+      } else {
+        if (l(edge, _edges[edge])) {
+          return;
+        }
+      }
     }
   }
 
   template <typename Lambda>
-  inline void pfor_neighbors(const NodeID u, const NodeID max_neighbor_count, Lambda &&l) const {
+  inline void pfor_neighbors(
+      const NodeID u, const NodeID max_neighbor_count, const NodeID grainsize, Lambda &&l
+  ) const {
     KASSERT(u + 1 < _nodes.size());
+    constexpr bool is_direct = std::is_invocable_v<Lambda, EdgeID, NodeID>;
 
     const EdgeID from = _nodes[u];
     const EdgeID to = from + std::min(degree(u), max_neighbor_count);
-    tbb::parallel_for(from, to, [&](const EdgeID e) { l(e, _edges[e]); });
+
+    tbb::parallel_for(
+        tbb::blocked_range<EdgeID>(from, to, grainsize),
+        [&](const tbb::blocked_range<EdgeID> range) {
+          const auto end = range.end();
+
+          if constexpr (is_direct) {
+            for (EdgeID e = range.begin(); e < end; ++e) {
+              l(e, _edges[e]);
+            }
+          } else {
+            l([&](auto &&l2) {
+              for (EdgeID e = range.begin(); e < end; ++e) {
+                l2(e, _edges[e]);
+              }
+            });
+          }
+        }
+    );
   }
 
   // Graph permutation

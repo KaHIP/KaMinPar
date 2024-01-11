@@ -268,16 +268,18 @@ public:
   }
 
   template <typename Lambda>
-  inline void pfor_neighbors(const NodeID u, const NodeID max_neighbor_count, Lambda &&l) const {
+  inline void pfor_neighbors(
+      const NodeID u, const NodeID max_neighbor_count, const NodeID grainsize, Lambda &&l
+  ) const {
     if (const auto *graph = dynamic_cast<const CSRGraph *>(_underlying_graph.get());
         graph != nullptr) {
-      graph->pfor_neighbors(u, max_neighbor_count, std::forward<Lambda>(l));
+      graph->pfor_neighbors(u, max_neighbor_count, grainsize, std::forward<Lambda>(l));
       return;
     }
 
     if (const auto *graph = dynamic_cast<const CompressedGraph *>(_underlying_graph.get());
         graph != nullptr) {
-      graph->pfor_neighbors(u, max_neighbor_count, std::forward<Lambda>(l));
+      graph->pfor_neighbors(u, max_neighbor_count, grainsize, std::forward<Lambda>(l));
       return;
     }
 

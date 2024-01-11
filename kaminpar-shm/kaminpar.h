@@ -84,6 +84,16 @@ enum class ClusterWeightLimit {
   ZERO,
 };
 
+enum class SecondPhaseSelectMode {
+  HIGH_DEGREE,
+  FULL_RATING_MAP
+};
+
+enum class SecondPhaseAggregationMode {
+  DIRECT,
+  BUFFERED
+};
+
 enum class IsolatedNodesClusteringStrategy {
   KEEP,
   MATCH,
@@ -97,7 +107,10 @@ struct LabelPropagationCoarseningContext {
   NodeID large_degree_threshold;
   NodeID max_num_neighbors;
   double two_hop_clustering_threshold;
+
   bool use_two_phases;
+  SecondPhaseSelectMode second_phase_select_mode;
+  SecondPhaseAggregationMode second_phase_aggregation_mode;
 
   IsolatedNodesClusteringStrategy isolated_nodes_strategy;
 

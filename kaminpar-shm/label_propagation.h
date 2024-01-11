@@ -97,6 +97,9 @@ protected:
   using ClusterID = typename Config::ClusterID;
   using ClusterWeight = typename Config::ClusterWeight;
 
+  using SecondPhaseSelectMode = shm::SecondPhaseSelectMode;
+  using SecondPhaseAggregationMode = shm::SecondPhaseAggregationMode;
+
 public:
   void set_max_degree(const NodeID max_degree) {
     _max_degree = max_degree;
@@ -117,6 +120,20 @@ public:
   }
   [[nodiscard]] bool use_two_phases() const {
     return _use_two_phases;
+  }
+
+  void set_second_phase_select_mode(const SecondPhaseSelectMode mode) {
+    _second_phase_select_mode = mode;
+  }
+  [[nodiscard]] SecondPhaseSelectMode second_phase_select_mode() const {
+    return _second_phase_select_mode;
+  }
+
+  void set_second_phase_aggregation_mode(const SecondPhaseAggregationMode mode) {
+    _second_phase_aggregation_mode = mode;
+  }
+  [[nodiscard]] SecondPhaseAggregationMode second_phase_aggregation_mode() const {
+    return _second_phase_aggregation_mode;
   }
 
   void set_desired_num_clusters(const ClusterID desired_num_clusters) {
@@ -243,11 +260,12 @@ protected:
         return find_best_cluster(u, u_weight, u_cluster, rand, map);
       };
 
-      const std::size_t upper_bound_size =
-          _use_two_phases ? Config::kRatingMapThreshold
-                          : std::min<ClusterID>(_graph->degree(u), _initial_num_clusters);
-      rating_map.update_upper_bound_size(upper_bound_size);
+      std::size_t upper_bound_size = std::min<ClusterID>(_graph->degree(u), _initial_num_clusters);
+      if (_use_two_phases && _second_phase_select_mode == SecondPhaseSelectMode::FULL_RATING_MAP) {
+        upper_bound_size = std::min(upper_bound_size, Config::kRatingMapThreshold);
+      }
 
+      rating_map.update_upper_bound_size(upper_bound_size);
       best_cluster_opt = rating_map.run_with_map(action, action);
     }
 
@@ -329,23 +347,70 @@ protected:
     bool is_interface_node = false;
 
     if constexpr (parallel) {
-      _graph->pfor_neighbors(u, _max_num_neighbors, [&](const EdgeID e, const NodeID v) {
-        if (derived_accept_neighbor(u, v)) {
-          const ClusterID v_cluster = derived_cluster(v);
-          const EdgeWeight rating = _graph->edge_weight(e);
+      switch (_second_phase_aggregation_mode) {
+      case SecondPhaseAggregationMode::DIRECT: {
+        _graph->pfor_neighbors(u, _max_num_neighbors, 2000, [&](const EdgeID e, const NodeID v) {
+          if (derived_accept_neighbor(u, v)) {
+            const ClusterID v_cluster = derived_cluster(v);
+            const EdgeWeight rating = _graph->edge_weight(e);
 
-          const EdgeWeight prev_rating =
-              __atomic_fetch_add(&map[v_cluster], rating, __ATOMIC_RELAXED);
-          if (prev_rating == 0) {
-            map.local_used_entries().push_back(v_cluster);
+            const EdgeWeight prev_rating =
+                __atomic_fetch_add(&map[v_cluster], rating, __ATOMIC_RELAXED);
+
+            if (prev_rating == 0) {
+              map.local_used_entries().push_back(v_cluster);
+            }
+
+            if constexpr (Config::kUseLocalActiveSetStrategy) {
+              is_interface_node |= v >= _num_active_nodes;
+            }
+          }
+        });
+        break;
+      }
+      case SecondPhaseAggregationMode::BUFFERED: {
+        const auto flush_local_rating_map = [&](auto &local_rating_map) {
+          for (const auto [cluster, rating] : local_rating_map.entries()) {
+            const EdgeWeight prev_rating =
+                __atomic_fetch_add(&map[cluster], rating, __ATOMIC_RELAXED);
+
+            if (prev_rating == 0) {
+              map.local_used_entries().push_back(cluster);
+            }
           }
 
-          if constexpr (Config::kUseLocalActiveSetStrategy) {
-            is_interface_node |= v >= _num_active_nodes;
+          local_rating_map.clear();
+        };
+
+        _graph->pfor_neighbors(u, _max_num_neighbors, 2000, [&](auto &&local_pfor_neighbors) {
+          auto &local_rating_map = _rating_map_ets.local().small_map();
+
+          local_pfor_neighbors([&](const EdgeID e, const NodeID v) {
+            if (derived_accept_neighbor(u, v)) {
+              const ClusterID v_cluster = derived_cluster(v);
+              const EdgeWeight rating = _graph->edge_weight(e);
+
+              local_rating_map[v_cluster] += rating;
+
+              if (local_rating_map.size() >= Config::kRatingMapThreshold) {
+                flush_local_rating_map(local_rating_map);
+              }
+            }
+          });
+        });
+
+        tbb::parallel_for(_rating_map_ets.range(), [&](auto &rating_maps) {
+          for (auto &rating_map : rating_maps) {
+            auto &local_rating_map = rating_map.small_map();
+            flush_local_rating_map(local_rating_map);
           }
-        }
-      });
+        });
+        break;
+      }
+      }
     } else {
+      const bool use_frm_two_phases =
+          _use_two_phases && _second_phase_select_mode == SecondPhaseSelectMode::FULL_RATING_MAP;
       bool second_phase_node = false;
 
       _graph->neighbors(u, _max_num_neighbors, [&](const EdgeID e, const NodeID v) {
@@ -354,7 +419,8 @@ protected:
           const EdgeWeight rating = _graph->edge_weight(e);
 
           map[v_cluster] += rating;
-          if (_use_two_phases && map.size() >= Config::kRatingMapThreshold) {
+
+          if (use_frm_two_phases && map.size() >= Config::kRatingMapThreshold) {
             _second_phase_nodes.push_back(u);
             map.clear();
 
@@ -765,6 +831,9 @@ protected: // Members
   //! parallel over their neighbors.
   bool _use_two_phases{false};
 
+  SecondPhaseSelectMode _second_phase_select_mode;
+  SecondPhaseAggregationMode _second_phase_aggregation_mode;
+
   //! The nodes which should be processed in the second phase.
   tbb::concurrent_vector<NodeID> _second_phase_nodes;
 
@@ -803,7 +872,7 @@ private:
 template <typename Derived, template <typename> typename TConfig, typename TGraph>
 class InOrderLabelPropagation : public LabelPropagation<Derived, TConfig, TGraph> {
   static_assert(std::is_base_of_v<LabelPropagationConfig<TGraph>, TConfig<TGraph>>);
-  SET_DEBUG(true);
+  SET_DEBUG(false);
 
 protected:
   using Config = TConfig<TGraph>;
@@ -952,6 +1021,11 @@ protected:
     tbb::enumerable_thread_specific<NodeID> num_moved_nodes_ets;
     parallel::Atomic<std::size_t> next_chunk = 0;
 
+    const bool use_high_degree_two_phases =
+        Base::_use_two_phases &&
+        Base::_second_phase_select_mode == Base::SecondPhaseSelectMode::HIGH_DEGREE &&
+        Base::_initial_num_clusters >= Config::kRatingMapThreshold;
+
     START_HEAP_PROFILER("First phase");
     START_TIMER("First phase");
     tbb::parallel_for(static_cast<std::size_t>(0), _chunks.size(), [&](const std::size_t) {
@@ -979,10 +1053,22 @@ protected:
           const NodeID u = chunk.start +
                            Config::kPermutationSize * sub_chunk_permutation[sub_chunk] +
                            permutation[i % Config::kPermutationSize];
+          if (u >= chunk.end) {
+            continue;
+          }
 
-          if (u < chunk.end && _graph->degree(u) < _max_degree &&
-              ((!Config::kUseActiveSetStrategy && !Config::kUseLocalActiveSetStrategy) ||
-               _active[u].load(std::memory_order_relaxed))) {
+          if ((Config::kUseActiveSetStrategy || Config::kUseLocalActiveSetStrategy) &&
+              !_active[u].load(std::memory_order_relaxed)) {
+            continue;
+          }
+
+          const NodeID degree = _graph->degree(u);
+          if (degree < _max_degree) {
+            if (use_high_degree_two_phases && degree >= Config::kRatingMapThreshold) {
+              _second_phase_nodes.push_back(u);
+              continue;
+            }
+
             const auto [moved_node, emptied_cluster] = handle_node(u, local_rand, local_rating_map);
 
             if (moved_node) {
@@ -1007,7 +1093,7 @@ protected:
 
       LOG << "Label Propagation";
       LOG << " Initial clusters: " << Base::_initial_num_clusters;
-      LOG << " First Phase: " << (node_count - _second_phase_nodes.size()) << " nodes";
+      LOG << " First Phase: " << math::abs_diff(node_count, _second_phase_nodes.size()) << " nodes";
       LOG << " Second Phase: " << _second_phase_nodes.size() << " nodes";
       LOG;
     }
@@ -1187,7 +1273,6 @@ protected:
   using Base::_max_degree;
   using Base::_rating_map_ets;
   using Base::_second_phase_nodes;
-  using Base::_use_two_phases;
 
   RandomPermutations<NodeID, Config::kPermutationSize, Config::kNumberOfNodePermutations>
       _random_permutations{};

@@ -30,6 +30,17 @@ template <typename Int> constexpr Int div_ceil(Int x, Int y) {
   return 1 + ((x - 1) / y);
 }
 
+/*!
+ * Returns the absolute difference between two (possibly unsigned) integers.
+ *
+ * @param x The first integer.
+ * @param y The second integer.
+ * @return The absolute difference of x and y.
+ */
+template <typename Int1, typename Int2> std::size_t abs_diff(Int1 x, Int2 y) {
+  return x > y ? x - y : y - x;
+}
+
 template <typename Int> bool is_square(const Int value) {
   const Int sqrt = std::sqrt(value);
   return sqrt * sqrt == value;

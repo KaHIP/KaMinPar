@@ -283,11 +283,13 @@ static void test_compressed_graph_pfor_neighbors_operation(const Graph &graph) {
     graph.pfor_neighbors(
         node,
         std::numeric_limits<NodeID>::max(),
+        std::numeric_limits<NodeID>::max(),
         [&](const EdgeID e, const NodeID v) { graph_adjacent_node.push_back(v); }
     );
 
     compressed_graph.pfor_neighbors(
         node,
+        std::numeric_limits<NodeID>::max(),
         std::numeric_limits<NodeID>::max(),
         [&](const EdgeID e, const NodeID v) { compressed_graph_adjacent_node.push_back(v); }
     );

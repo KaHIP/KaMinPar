@@ -51,6 +51,8 @@ public:
     this->set_max_degree(c_ctx.lp.large_degree_threshold);
     this->set_max_num_neighbors(c_ctx.lp.max_num_neighbors);
     this->set_use_two_phases(c_ctx.lp.use_two_phases);
+    this->set_second_phase_select_mode(c_ctx.lp.second_phase_select_mode);
+    this->set_second_phase_aggregation_mode(c_ctx.lp.second_phase_aggregation_mode);
   }
 
   void set_max_cluster_weight(const NodeWeight max_cluster_weight) {

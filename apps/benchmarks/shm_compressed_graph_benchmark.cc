@@ -88,6 +88,7 @@ template <typename Graph> static void benchmark_pfor_neighbors(const Graph &grap
     graph.pfor_neighbors(
         node,
         std::numeric_limits<NodeID>::max(),
+        1000,
         [](const auto incident_edge, const auto adjacent_node) {
           do_not_optimize(incident_edge);
           do_not_optimize(adjacent_node);
@@ -298,11 +299,13 @@ expect_equal_pfor_neighbors(const CSRGraph &graph, const CompressedGraph &compre
     graph.pfor_neighbors(
         node,
         std::numeric_limits<NodeID>::max(),
+        std::numeric_limits<NodeID>::max(),
         [&](const EdgeID e, const NodeID v) { graph_adjacent_node.push_back(v); }
     );
 
     compressed_graph.pfor_neighbors(
         node,
+        std::numeric_limits<NodeID>::max(),
         std::numeric_limits<NodeID>::max(),
         [&](const EdgeID e, const NodeID v) { compressed_graph_adjacent_node.push_back(v); }
     );
