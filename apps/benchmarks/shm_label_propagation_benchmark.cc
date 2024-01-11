@@ -64,9 +64,11 @@ int main(int argc, char *argv[]) {
   ctx.setup(graph);
 
   if (ctx.node_ordering == NodeOrdering::DEGREE_BUCKETS) {
-    const double original_epsilon = ctx.partition.epsilon;
     graph = graph::rearrange_by_degree_buckets(ctx, std::move(graph));
-    graph::integrate_isolated_nodes(graph, original_epsilon, ctx);
+  }
+
+  if (graph.sorted()) {
+    graph::remove_isolated_nodes(graph, ctx.partition);
   }
 
   const NodeWeight max_cluster_weight =
@@ -75,6 +77,8 @@ int main(int argc, char *argv[]) {
   LPClustering lp_clustering(graph.n(), ctx.coarsening);
   lp_clustering.set_max_cluster_weight(max_cluster_weight);
   lp_clustering.set_desired_cluster_count(0);
+
+  GLOBAL_TIMER.reset();
 
   ENABLE_HEAP_PROFILER();
   START_HEAP_PROFILER("Label Propagation");
