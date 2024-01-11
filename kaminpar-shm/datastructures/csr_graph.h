@@ -20,6 +20,7 @@
 #include "kaminpar-shm/datastructures/abstract_graph.h"
 #include "kaminpar-shm/definitions.h"
 
+#include "kaminpar-common/constexpr_utils.h"
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/degree_buckets.h"
 #include "kaminpar-common/ranges.h"
@@ -242,7 +243,6 @@ public:
       const NodeID u, const NodeID max_neighbor_count, const NodeID grainsize, Lambda &&l
   ) const {
     KASSERT(u + 1 < _nodes.size());
-    constexpr bool is_direct = std::is_invocable_v<Lambda, EdgeID, NodeID>;
 
     const EdgeID from = _nodes[u];
     const EdgeID to = from + std::min(degree(u), max_neighbor_count);
@@ -252,17 +252,14 @@ public:
         [&](const tbb::blocked_range<EdgeID> range) {
           const auto end = range.end();
 
-          if constexpr (is_direct) {
-            for (EdgeID e = range.begin(); e < end; ++e) {
-              l(e, _edges[e]);
-            }
-          } else {
-            l([&](auto &&l2) {
-              for (EdgeID e = range.begin(); e < end; ++e) {
-                l2(e, _edges[e]);
+          invoke_maybe_indirect<std::is_invocable_v<Lambda, EdgeID, NodeID>>(
+              std::forward<Lambda>(l),
+              [&](auto &&l2) {
+                for (EdgeID e = range.begin(); e < end; ++e) {
+                  l2(e, _edges[e]);
+                }
               }
-            });
-          }
+          );
         }
     );
   }
