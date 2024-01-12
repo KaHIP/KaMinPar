@@ -90,11 +90,7 @@ public:
     }
   };
 
-  GreedyBalancer(const Context &ctx)
-      : _max_k(ctx.partition.k),
-        _pq(ctx.partition.n, ctx.partition.k),
-        _marker(ctx.partition.n),
-        _pq_weight(ctx.partition.k) {}
+  GreedyBalancer(const Context &ctx) : _max_k(ctx.partition.k) {}
 
   GreedyBalancer &operator=(const GreedyBalancer &) = delete;
   GreedyBalancer(const PartitionedGraph &) = delete;

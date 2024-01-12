@@ -18,6 +18,8 @@ namespace kaminpar {
 template <std::size_t num_concurrent_markers = 1, typename element_type = std::size_t>
 class Marker {
 public:
+  explicit Marker() : _marker_id(0), _first_unmarked_element{0} {}
+
   explicit Marker(const std::size_t capacity)
       : _data(capacity),
         _marker_id(0),
@@ -27,6 +29,10 @@ public:
   Marker &operator=(const Marker &) = delete;
   Marker(Marker &&) noexcept = default;
   Marker &operator=(Marker &&) noexcept = default;
+
+  void init(const std::size_t capacity) {
+    _data.resize(capacity);
+  }
 
   template <bool track_first_unmarked_element = false>
   void set(const std::size_t element, const std::size_t marker = 0) {

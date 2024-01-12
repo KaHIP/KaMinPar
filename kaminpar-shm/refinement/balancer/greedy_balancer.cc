@@ -26,6 +26,14 @@ bool GreedyBalancer::refine(PartitionedGraph &p_graph, const PartitionContext &p
     return true;
   }
 
+  // Lazy initialize the balancer
+  {
+    SCOPED_HEAP_PROFILER("Greedy Balancer Allocation");
+    _marker.init(p_ctx.n);
+    _pq.init(p_ctx.n, p_ctx.k);
+    _pq_weight.resize(p_ctx.k);
+  }
+
   const EdgeWeight initial_cut = IFDBG(metrics::edge_cut(*_p_graph));
 
   init_pq();
