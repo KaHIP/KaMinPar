@@ -88,14 +88,16 @@ using namespace kaminpar;
 
 // Call the shared-memory partitioner:
 KaMinPar shm(int num_threads, shm::create_default_context());
+// KaMinPar::reseed(int seed);
 shm.borrow_and_mutate_graph(NodeID n, EdgeID *xadj, NodeID *adjncy, NodeWeight *vwgt = nullptr, EdgeWeight *adjwgt = nullptr);
 // alternatively: shm.copy_graph(n, xadj, adjncy, vwgt, adjwgt); will work on a copy of the graph
-shm.compute_partition(int seed, BlockID number_of_blocks, BlockID *out_partition);
+shm.compute_partition(BlockID number_of_blocks, BlockID *out_partition);
 
 // Call the distributed partitioner:
 dKaMinPar dist(MPI_Comm comm, int num_threads, dist::create_default_context());
+// dKaMinPar::reseed(int seed); 
 dist.import_graph(GlobalNodeID *vtxdist, GlobalEdgeID *xadj, GlobalNodeID *adjncy, GlobalNodeWeight *vwvgt = nullptr, GlobalEdgeWeight *adjwgt = nullptr);
-dist.compute_partition(int seed, BlockID number_of_blocks, BlockID *out_partition);
+dist.compute_partition(BlockID number_of_blocks, BlockID *out_partition);
 ```
 
 Please take a look at `apps/KaMinPar.cc` and `apps/dKaMinPar.cc` for a full example on how to call the libraries.
