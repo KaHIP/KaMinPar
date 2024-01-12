@@ -45,6 +45,10 @@ std::ostream &operator<<(std::ostream &out, GainCacheStrategy strategy);
 
 std::unordered_map<std::string, GainCacheStrategy> get_gain_cache_strategies();
 
+std::ostream &operator<<(std::ostream &out, TwoHopStrategy strategy);
+
+std::unordered_map<std::string, TwoHopStrategy> get_two_hop_strategies();
+
 std::ostream &operator<<(std::ostream &out, IsolatedNodesClusteringStrategy strategy);
 
 std::unordered_map<std::string, IsolatedNodesClusteringStrategy> get_isolated_nodes_clustering_strategies();

@@ -65,25 +65,35 @@ public:
 
     if (_c_ctx.lp.isolated_nodes_strategy == IsolatedNodesClusteringStrategy::MATCH) {
       SCOPED_TIMER("Handle isolated nodes");
-      handle_isolated_nodes<true>();
+      match_isolated_nodes();
     } else if (_c_ctx.lp.isolated_nodes_strategy == IsolatedNodesClusteringStrategy::CLUSTER) {
       SCOPED_TIMER("Handle isolated nodes");
-      handle_isolated_nodes<false>();
+      cluster_isolated_nodes();
     }
 
-    if (_c_ctx.lp.use_two_hop_clustering(_graph->n(), _current_num_clusters)) {
+    if ((1.0 - 1.0 * _current_num_clusters / _graph->n()) <=
+        _c_ctx.lp.two_hop_clustering_threshold) {
       if (_c_ctx.lp.isolated_nodes_strategy ==
           IsolatedNodesClusteringStrategy::MATCH_DURING_TWO_HOP) {
         SCOPED_TIMER("Handle isolated nodes");
-        LOG << "match";
-        handle_isolated_nodes<true>();
+        match_isolated_nodes();
       } else if (_c_ctx.lp.isolated_nodes_strategy == IsolatedNodesClusteringStrategy::CLUSTER_DURING_TWO_HOP) {
         SCOPED_TIMER("Handle isolated nodes");
-        handle_isolated_nodes<false>();
+        cluster_isolated_nodes();
       }
 
-      SCOPED_TIMER("2-hop clustering");
-      perform_two_hop_clustering();
+      if (_c_ctx.lp.two_hop_strategy == TwoHopStrategy::MATCH) {
+        SCOPED_TIMER("Handle two-hop nodes");
+        match_two_hop_nodes();
+      } else if (_c_ctx.lp.two_hop_strategy == TwoHopStrategy::CLUSTER) {
+        SCOPED_TIMER("Handle two-hop nodes");
+        cluster_two_hop_nodes();
+      } else if (_c_ctx.lp.two_hop_strategy == TwoHopStrategy::LEGACY) {
+        SCOPED_TIMER("Handle two-hop nodes");
+        handle_two_hop_clustering_legacy();
+      } else { // TwoHopStrategy::DISABLE
+        // nothing to do
+      }
     }
 
     return clusters();

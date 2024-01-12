@@ -375,8 +375,20 @@ protected:
     }
   }
 
+  void match_isolated_nodes(
+      const NodeID from = 0, const NodeID to = std::numeric_limits<ClusterID>::max()
+  ) {
+    handle_isolated_nodes_impl<true>(from, to);
+  }
+
+  void cluster_isolated_nodes(
+      const NodeID from = 0, const NodeID to = std::numeric_limits<ClusterID>::max()
+  ) {
+    handle_isolated_nodes_impl<false>(from, to);
+  }
+
   template <bool match>
-  void handle_isolated_nodes(
+  void handle_isolated_nodes_impl(
       const NodeID from = 0, const NodeID to = std::numeric_limits<ClusterID>::max()
   ) {
     constexpr ClusterID kInvalidClusterID = std::numeric_limits<ClusterID>::max();
@@ -410,12 +422,105 @@ protected:
     );
   }
 
-  /*!
-   * Compute a 2-hop clustering on nodes that are in singleton clusters.
-   * @param from
-   * @param to
-   */
-  void perform_two_hop_clustering(
+  void match_two_hop_nodes(
+      const NodeID from = 0, const NodeID to = std::numeric_limits<ClusterID>::max()
+  ) {
+    handle_two_hop_nodes_impl<true>(from, to);
+  }
+
+  void cluster_two_hop_nodes(
+      const NodeID from = 0, const NodeID to = std::numeric_limits<ClusterID>::max()
+  ) {
+    handle_two_hop_nodes_impl<false>(from, to);
+  }
+
+  template <bool match>
+  void handle_two_hop_nodes_impl(
+      const NodeID from = 0, const NodeID to = std::numeric_limits<ClusterID>::max()
+  ) {
+    static_assert(Config::kUseTwoHopClustering, "2-hop clustering is disabled");
+
+    // During label propagation, we store the best cluster for each node in _favored_cluster[]
+    // independent of whether there is enough space in the cluster for the node to join.
+    // We now use this information to merge nodes that could not join any cluster, i.e.,
+    // singleton-clusters by greedily constructing clusters that share the same favored cluster.
+
+    // Prepare _favored_cluster[]: for nodes v that are not considered to 2-hop clustering, set
+    // _favored_cluster[v] = v
+    tbb::parallel_for(from, std::min(to, _graph->n()), [&](const NodeID u) {
+      if (u != derived_cluster(u)) {
+        // Not considered, because the node has joined another cluster
+        _favored_clusters[u] = u;
+      } else {
+        const auto initial_weight = derived_initial_cluster_weight(u);
+        const auto current_weight = derived_cluster_weight(u);
+        const auto max_weight = derived_max_cluster_weight(u);
+
+        // Not considered, because the cluster contains other nodes (i.e., its weight changed) or
+        // the node is too heavy (> max cluster weight / 2).
+        if (current_weight != initial_weight || current_weight > max_weight / 2) {
+          _favored_clusters[u] = u;
+        }
+      }
+    });
+
+    tbb::parallel_for(from, std::min(to, _graph->n()), [&](const NodeID u) {
+      // Abort once we number of clusters is low enough
+      if (should_stop()) {
+        return;
+      }
+
+      // Skip nodes not considered for two-hop clustering
+      // We cannot use _favored_clusters[u] == u as a condition for this, since we re-use their
+      // _favored_cluster[] entries to build the clustering
+      if (const ClusterID u_cluster = derived_cluster(u);
+          u != u_cluster || derived_cluster_weight(u_cluster) != _graph->node_weight(u)) {
+        return;
+      }
+
+      // We cluster the remaining nodes by using the _favored_clusters[] entries of their favored
+      // clusters: Nodes u with favored cluster C try to set _favored_clusters[C] to u if
+      // _favored_clusters[C] == C. Otherwise, they try to join the cluster of _favored_clusters[C]
+      // != C until the cluster gets full.
+      const NodeID favored_cluster = _favored_clusters[u];
+
+      do {
+        NodeID cluster = favored_cluster;
+
+        if (_favored_clusters[cluster] == cluster) {
+          if (_favored_clusters[cluster].compare_exchange_strong(cluster, u)) {
+            break;
+          }
+        }
+
+        if constexpr (match) {
+          if (_favored_clusters[favored_cluster].compare_exchange_strong(
+                  cluster, favored_cluster
+              )) {
+            if (derived_move_cluster_weight(
+                    u, cluster, derived_cluster_weight(u), derived_max_cluster_weight(cluster)
+                )) {
+              derived_move_node(u, cluster);
+              --_current_num_clusters;
+            }
+            break;
+          }
+        } else {
+          if (derived_move_cluster_weight(
+                  u, cluster, derived_cluster_weight(u), derived_max_cluster_weight(cluster)
+              )) {
+            derived_move_node(u, cluster);
+            --_current_num_clusters;
+            break;
+          } else if (_favored_clusters[favored_cluster].compare_exchange_strong(cluster, u)) {
+            break;
+          }
+        }
+      } while (true);
+    });
+  }
+
+  void handle_two_hop_clustering_legacy(
       const NodeID from = 0, const NodeID to = std::numeric_limits<ClusterID>::max()
   ) {
     static_assert(Config::kUseTwoHopClustering, "2-hop clustering is disabled");

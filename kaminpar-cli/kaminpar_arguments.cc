@@ -138,16 +138,29 @@ CLI::Option_group *create_lp_coarsening_options(CLI::App *app, Context &ctx) {
   )
       ->capture_default_str();
   lp->add_option(
+        "--c-lp-max-num-neighbors",
+        ctx.coarsening.lp.max_num_neighbors,
+        "Limit the neighborhood to this many nodes"
+  )
+      ->capture_default_str();
+
+  lp->add_option("--c-lp-two-hop-strategy", ctx.coarsening.lp.two_hop_strategy)
+      ->transform(
+          CLI::CheckedTransformer(get_two_hop_strategies()).description("")
+      )
+      ->description(R"(Determines the strategy for handling singleton clusters during coarsening.
+Options are:
+  - disable: Do not merge two-hop singleton clusters
+  - match:   Join two-hop singleton clusters pairwise
+  - cluster: Cluster two-hop singleton clusters into a single cluster (respecting the maximum cluster weight limit)
+  - legacy:  Use v2.1 default behaviour
+  )")
+      ->capture_default_str();
+  lp->add_option(
         "--c-lp-two-hop-threshold",
         ctx.coarsening.lp.two_hop_clustering_threshold,
         "Enable two-hop clustering if plain label propagation shrunk "
         "the graph by less than this factor"
-  )
-      ->capture_default_str();
-  lp->add_option(
-        "--c-lp-max-num-neighbors",
-        ctx.coarsening.lp.max_num_neighbors,
-        "Limit the neighborhood to this many nodes"
   )
       ->capture_default_str();
 

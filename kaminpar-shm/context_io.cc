@@ -189,6 +189,30 @@ std::ostream &operator<<(std::ostream &out, const GainCacheStrategy strategy) {
   return out << "<invalid>";
 }
 
+std::ostream &operator<<(std::ostream &out, const TwoHopStrategy strategy) {
+  switch (strategy) {
+  case TwoHopStrategy::DISABLE:
+    return out << "disable";
+  case TwoHopStrategy::MATCH:
+    return out << "match";
+  case TwoHopStrategy::CLUSTER:
+    return out << "cluster";
+  case TwoHopStrategy::LEGACY:
+    return out << "legacy";
+  }
+
+  return out << "<invalid>";
+}
+
+std::unordered_map<std::string, TwoHopStrategy> get_two_hop_strategies() {
+  return {
+      {"disable", TwoHopStrategy::DISABLE},
+      {"match", TwoHopStrategy::MATCH},
+      {"cluster", TwoHopStrategy::CLUSTER},
+      {"legacy", TwoHopStrategy::LEGACY},
+  };
+}
+
 std::ostream &operator<<(std::ostream &out, IsolatedNodesClusteringStrategy strategy) {
   switch (strategy) {
   case IsolatedNodesClusteringStrategy::KEEP:
