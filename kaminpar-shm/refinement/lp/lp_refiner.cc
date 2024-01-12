@@ -45,8 +45,8 @@ public:
     this->set_max_num_neighbors(_r_ctx.lp.max_num_neighbors);
   }
 
-  void initialize(const Graph *graph) {
-    _graph = graph;
+  void initialize(const PartitionedGraph &p_graph) {
+    _graph = &p_graph.graph();
   }
 
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
@@ -139,38 +139,15 @@ public:
 //
 
 LabelPropagationRefiner::LabelPropagationRefiner(const Context &ctx)
-    : _csr_impl{std::make_unique<LabelPropagationRefinerImpl<CSRGraph>>(ctx)},
-      _compressed_impl{std::make_unique<LabelPropagationRefinerImpl<CompressedGraph>>(ctx)} {}
+    : _impl{std::make_unique<LabelPropagationRefinerImpl<Graph>>(ctx)} {}
 
 LabelPropagationRefiner::~LabelPropagationRefiner() = default;
 
 void LabelPropagationRefiner::initialize(const PartitionedGraph &p_graph) {
-  if (auto *csr_graph = dynamic_cast<CSRGraph *>(p_graph.graph().underlying_graph());
-      csr_graph != nullptr) {
-    _csr_impl->initialize(csr_graph);
-    return;
-  }
-
-  if (auto *compressed_graph = dynamic_cast<CompressedGraph *>(p_graph.graph().underlying_graph());
-      compressed_graph != nullptr) {
-    _compressed_impl->initialize(compressed_graph);
-    return;
-  }
-
-  __builtin_unreachable();
+  _impl->initialize(p_graph);
 }
 
 bool LabelPropagationRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
-  if (auto *csr_graph = dynamic_cast<CSRGraph *>(p_graph.graph().underlying_graph());
-      csr_graph != nullptr) {
-    return _csr_impl->refine(p_graph, p_ctx);
-  }
-
-  if (auto *compressed_graph = dynamic_cast<CompressedGraph *>(p_graph.graph().underlying_graph());
-      compressed_graph != nullptr) {
-    return _compressed_impl->refine(p_graph, p_ctx);
-  }
-
-  __builtin_unreachable();
+  return _impl->refine(p_graph, p_ctx);
 }
 } // namespace kaminpar::shm

@@ -834,9 +834,6 @@ protected: // Members
   SecondPhaseSelectMode _second_phase_select_mode;
   SecondPhaseAggregationMode _second_phase_aggregation_mode;
 
-  //! The nodes which should be processed in the second phase.
-  tbb::concurrent_vector<NodeID> _second_phase_nodes;
-
   //! Thread-local map to compute gain values.
   tbb::enumerable_thread_specific<RatingMap> _rating_map_ets{[this] {
     return RatingMap{_num_clusters};
@@ -851,6 +848,9 @@ protected: // Members
   //! the node's highest rated cluster independent of the maximum cluster
   //! weight. This information is used during 2-hop clustering.
   scalable_vector<parallel::Atomic<ClusterID>> _favored_clusters;
+
+  //! The nodes which should be processed in the second phase.
+  tbb::concurrent_vector<NodeID> _second_phase_nodes;
 
   //! If statistics are enabled, this is the sum of the gain of all moves that
   //! were performed. If executed single-thread, this should be equal to the

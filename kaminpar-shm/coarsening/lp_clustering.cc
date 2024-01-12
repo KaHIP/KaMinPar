@@ -135,33 +135,21 @@ public:
 //
 
 LPClustering::LPClustering(const NodeID max_n, const CoarseningContext &c_ctx)
-    : _csr_core{std::make_unique<LPClusteringImpl<CSRGraph>>(max_n, c_ctx)},
-      _compressed_core{std::make_unique<LPClusteringImpl<CompressedGraph>>(max_n, c_ctx)} {}
+    : _core{std::make_unique<LPClusteringImpl<Graph>>(max_n, c_ctx)} {}
 
 // we must declare the destructor explicitly here, otherwise, it is implicitly
 // generated before LabelPropagationClusterCore is complete
 LPClustering::~LPClustering() = default;
 
 void LPClustering::set_max_cluster_weight(const NodeWeight max_cluster_weight) {
-  _csr_core->set_max_cluster_weight(max_cluster_weight);
-  _compressed_core->set_max_cluster_weight(max_cluster_weight);
+  _core->set_max_cluster_weight(max_cluster_weight);
 }
 
 void LPClustering::set_desired_cluster_count(const NodeID count) {
-  _csr_core->set_desired_num_clusters(count);
-  _compressed_core->set_desired_num_clusters(count);
+  _core->set_desired_num_clusters(count);
 }
 
 const Clusterer::AtomicClusterArray &LPClustering::compute_clustering(const Graph &graph) {
-  if (auto *csr_graph = dynamic_cast<CSRGraph *>(graph.underlying_graph()); csr_graph != nullptr) {
-    return _csr_core->compute_clustering(*csr_graph);
-  }
-
-  if (auto *compressed_graph = dynamic_cast<CompressedGraph *>(graph.underlying_graph());
-      compressed_graph != nullptr) {
-    return _compressed_core->compute_clustering(*compressed_graph);
-  }
-
-  __builtin_unreachable();
+  return _core->compute_clustering(graph);
 }
 } // namespace kaminpar::shm

@@ -33,8 +33,7 @@ public:
   const AtomicClusterArray &compute_clustering(const Graph &graph) final;
 
 private:
-  std::unique_ptr<LPClusteringImpl<CSRGraph>> _csr_core;
-  std::unique_ptr<LPClusteringImpl<CompressedGraph>> _compressed_core;
+  std::unique_ptr<LPClusteringImpl<Graph>> _core;
 };
 
 } // namespace kaminpar::shm

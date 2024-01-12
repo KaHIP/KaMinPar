@@ -28,7 +28,6 @@ public:
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) override;
 
 private:
-  std::unique_ptr<LabelPropagationRefinerImpl<CSRGraph>> _csr_impl;
-  std::unique_ptr<LabelPropagationRefinerImpl<CompressedGraph>> _compressed_impl;
+  std::unique_ptr<LabelPropagationRefinerImpl<Graph>> _impl;
 };
 } // namespace kaminpar::shm
