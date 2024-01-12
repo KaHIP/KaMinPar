@@ -205,6 +205,11 @@ Context create_default_context() {
                       .par_accept_imbalanced_moves = true,
                       .par_enable_positive_gain_buckets = true,
                       .par_gain_bucket_base = 1.1,
+                      .par_partial_buckets = true,
+                      .par_update_pq_gains = false,
+                      .par_high_degree_update_interval = std::numeric_limits<int>::max(),
+                      .par_high_degree_insertion_threshold = std::numeric_limits<EdgeID>::max(),
+                      .par_high_degree_update_thresold = std::numeric_limits<EdgeID>::max(),
                   },
               .cluster_balancer =
                   {
@@ -229,11 +234,16 @@ Context create_default_context() {
                   },
               .jet =
                   {
+                      .num_coarse_rounds = 1,
+                      .num_fine_rounds = 1,
                       .num_iterations = 0,
                       .num_fruitless_iterations = 12,
                       .fruitless_threshold = 0.999,
+                      .dynamic_negative_gain_factor = false,
                       .coarse_negative_gain_factor = 0.75,
                       .fine_negative_gain_factor = 0.25,
+                      .initial_negative_gain_factor = 0.75,
+                      .final_negative_gain_factor = 0.25,
                       .balancing_algorithm = RefinementAlgorithm::GREEDY_NODE_BALANCER,
                   },
               .jet_balancer =
@@ -244,6 +254,8 @@ Context create_default_context() {
               .mtkahypar =
                   {
                       .config_filename = "",
+                      .fine_config_filename = "",
+                      .coarse_config_filename = "",
                       .only_run_on_root = true,
                   },
           },

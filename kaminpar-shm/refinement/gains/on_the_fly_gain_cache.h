@@ -156,9 +156,6 @@ private:
   void gains_impl(
       const PartitionedGraphType &p_graph, const NodeID node, const BlockID from, Lambda &&lambda
   ) const {
-    auto &rating_map = _rating_map_ets.local();
-    rating_map.update_upper_bound_size(std::min<BlockID>(p_graph.degree(node), p_graph.k()));
-
     auto action = [&](auto &map) {
       for (const auto [e, v] : p_graph.neighbors(node)) {
         map[p_graph.block(v)] += p_graph.edge_weight(e);
@@ -174,7 +171,8 @@ private:
 
       map.clear();
     };
-    rating_map.run_with_map(action, action);
+
+    _rating_map_ets.local().execute(std::min<BlockID>(p_graph.degree(node), p_graph.k()), action);
   }
 
   const PartitionedGraph *_p_graph = nullptr;
@@ -193,15 +191,15 @@ public:
       : _gain_cache(gain_cache),
         _d_graph(&d_graph) {}
 
-  EdgeWeight conn(const NodeID node, const BlockID block) const {
+  [[nodiscard]] EdgeWeight conn(const NodeID node, const BlockID block) const {
     return _gain_cache.conn_impl(*_d_graph, node, block);
   }
 
-  EdgeWeight gain(const NodeID node, const BlockID from, const BlockID to) const {
+  [[nodiscard]] EdgeWeight gain(const NodeID node, const BlockID from, const BlockID to) const {
     return _gain_cache.gain_impl(*_d_graph, node, from, to);
   }
 
-  std::pair<EdgeWeight, EdgeWeight>
+  [[nodiscard]] std::pair<EdgeWeight, EdgeWeight>
   gain(const NodeID node, const BlockID b_node, const std::pair<BlockID, BlockID> &targets) const {
     return _gain_cache.gain_impl(*_d_graph, node, b_node, targets);
   }

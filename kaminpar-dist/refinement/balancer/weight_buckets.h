@@ -33,7 +33,7 @@ public:
     clear();
   }
 
-  std::size_t compute_bucket(const double gain) const {
+  [[nodiscard]] std::size_t compute_bucket(const double gain) const {
     std::size_t bucket;
     if (gain > 0) {
       bucket = _positive_buckets
@@ -71,11 +71,11 @@ public:
     return _bucket_sizes[block * _num_buckets + bucket];
   }
 
-  GlobalNodeWeight size(const BlockID block, const std::size_t bucket) const {
+  [[nodiscard]] GlobalNodeWeight size(const BlockID block, const std::size_t bucket) const {
     return _bucket_sizes[block * _num_buckets + bucket];
   }
 
-  StaticArray<GlobalNodeWeight> compactify() const {
+  [[nodiscard]] StaticArray<GlobalNodeWeight> compactify() const {
     const BlockID num_overloaded_blocks = metrics::num_imbalanced_blocks(_p_graph, _p_ctx);
     StaticArray<GlobalNodeWeight> compactified(num_overloaded_blocks * num_buckets());
 
@@ -94,7 +94,7 @@ public:
     return compactified;
   }
 
-  std::size_t num_buckets() const {
+  [[nodiscard]] std::size_t num_buckets() const {
     return _num_buckets;
   }
 
@@ -150,7 +150,7 @@ private:
     return num_neg_buckets + positive_buckets * num_neg_buckets + 1;
   }
 
-  std::size_t neutral_bucket() const {
+  [[nodiscard]] std::size_t neutral_bucket() const {
     return _positive_buckets ? _num_buckets / 2 : 1;
   }
 

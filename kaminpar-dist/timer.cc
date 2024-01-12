@@ -35,12 +35,16 @@ public:
     _current_column = 0;
   }
 
-  template <typename T> std::string to_str_padded(const T &val) {
+  template <typename T> std::string to_str_padded(const T &val, const bool pad_right = true) {
     const std::size_t padding_len = _column_len[_current_column] - arg_to_len(val);
     if (++_current_column == _column_len.size()) {
       _current_column = 0;
     }
-    return arg_to_str(val) + std::string(padding_len, ' ');
+    if (pad_right) {
+      return arg_to_str(val) + std::string(padding_len, ' ');
+    } else {
+      return std::string(padding_len, ' ') + arg_to_str(val);
+    }
   }
 
 private:
@@ -74,8 +78,10 @@ template <typename Container> double compute_sd(const Container &vec) {
 }
 
 struct NodeStatistics {
+  PEID min_pe;
   double min;
   double mean;
+  PEID max_pe;
   double max;
   double sd;
 
@@ -132,8 +138,10 @@ void generate_dummy_statistics(
     const Timer::TimerTreeNode &node, std::vector<NodeStatistics> &result
 ) {
   result.push_back({
+      .min_pe = -1,
       .min = -1.0,
       .mean = -1.0,
+      .max_pe = -1,
       .max = -1.0,
       .sd = -1.0,
       .times = {},
@@ -151,6 +159,7 @@ void generate_statistics(
 
   // Make sure that we are looking at the same timer node on each PE
   bool nondiverged_node = true;
+  bool nondiverged_children = true;
   {
     constexpr std::size_t check_chars = 1024;
 
@@ -161,7 +170,7 @@ void generate_statistics(
     if (!std::all_of(num_children.begin(), num_children.end(), [&](const std::size_t num) {
           return num == node.children.size();
         })) {
-      nondiverged_node = false;
+      nondiverged_children = false;
     }
 
     auto names = allgather_trunc_string<check_chars>(node.name, comm);
@@ -185,19 +194,33 @@ void generate_statistics(
     const double sd = compute_sd(times);
 
     if (mpi::get_comm_rank(comm) == root) {
-      const auto min = *std::min_element(times.begin(), times.end());
-      const auto max = *std::max_element(times.begin(), times.end());
+      const auto min_it = std::min_element(times.begin(), times.end());
+      const PEID min_pe = std::distance(times.begin(), min_it);
+      const auto min = *min_it;
+
+      const auto max_it = std::max_element(times.begin(), times.end());
+      const PEID max_pe = std::distance(times.begin(), max_it);
+      const auto max = *max_it;
+
       result.push_back({
+          .min_pe = min_pe,
           .min = min,
           .mean = mean,
+          .max_pe = max_pe,
           .max = max,
           .sd = sd,
           .times = std::move(times),
       });
     }
 
-    for (const auto &child : node.children) {
-      generate_statistics(*child, result, comm);
+    if (nondiverged_children) {
+      for (const auto &child : node.children) {
+        generate_statistics(*child, result, comm);
+      }
+    } else {
+      for (const auto &child : node.children) {
+        generate_dummy_statistics(*child, result);
+      }
     }
   } else {
     generate_dummy_statistics(node, result);
@@ -207,10 +230,11 @@ void generate_statistics(
 AlignedTable align_statistics(const std::vector<NodeStatistics> &statistics) {
   AlignedTable table;
   for (auto &entry : statistics) {
+    table.update_next_column(entry.min_pe);
     table.update_next_column(entry.min);
-    table.update_next_column(entry.mean);
+    table.update_next_column(entry.max_pe);
     table.update_next_column(entry.max);
-    table.update_next_column(entry.sd);
+    // table.update_next_column(entry.sd);
     table.next_row();
   }
   return table;
@@ -226,9 +250,9 @@ void annotate_timer_tree(
 
   std::stringstream ss;
   if (entry.min >= 0) {
-    ss << "[" << table.to_str_padded(entry.min) << " s | " << table.to_str_padded(entry.mean)
-       << " s | " << table.to_str_padded(entry.max) << " s | " << table.to_str_padded(entry.sd)
-       << " s] ";
+    ss << "[" << table.to_str_padded(entry.min_pe, false) << " : " << table.to_str_padded(entry.min)
+       << "s | " << table.to_str_padded(entry.max_pe, false) << " : "
+       << table.to_str_padded(entry.max) << "s]";
   } else {
     ss << "N/A ";
   }
@@ -256,16 +280,16 @@ void finalize_distributed_timer(Timer &timer, MPI_Comm comm) {
   generate_statistics(timer.tree(), statistics, comm);
   if (mpi::get_comm_rank(comm) == 0) {
     AlignedTable table = align_statistics(statistics);
+    table.update_next_column("PE");
     table.update_next_column("min");
-    table.update_next_column("avg");
+    table.update_next_column("PE");
     table.update_next_column("max");
-    table.update_next_column("sd");
     table.next_row();
 
     // add captions
     std::stringstream ss;
-    ss << " " << table.to_str_padded("min") << "     " << table.to_str_padded("avg") << "     "
-       << table.to_str_padded("max") << "     " << table.to_str_padded("sd") << "  ";
+    ss << " " << table.to_str_padded("PE", false) << " : " << table.to_str_padded("min") << "    "
+       << table.to_str_padded("PE", false) << " : " << table.to_str_padded("max") << "  ";
     timer.annotate(ss.str());
 
     std::size_t pos = 0;

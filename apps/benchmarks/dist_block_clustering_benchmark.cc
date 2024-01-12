@@ -45,10 +45,10 @@ int main(int argc, char *argv[]) {
   ctx.refinement.algorithms.clear();
 
   CLI::App app;
-  app.add_option("-G", graph_filename);
-  app.add_option("-P", partition_filename);
-  app.add_option("-e", ctx.partition.epsilon);
-  app.add_option("-t", ctx.parallel.num_threads);
+  app.add_option("-G,--graph", graph_filename);
+  app.add_option("-P,--partition", partition_filename);
+  app.add_option("-e,--epsilon", ctx.partition.epsilon);
+  app.add_option("-t,--threads", ctx.parallel.num_threads);
   app.add_option("--size", max_move_set_size);
   app.add_option("--strategy", strategy)
       ->transform(CLI::CheckedTransformer(get_move_set_strategies()));

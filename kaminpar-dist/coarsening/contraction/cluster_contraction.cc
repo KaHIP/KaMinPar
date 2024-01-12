@@ -640,6 +640,7 @@ AssignmentShifts compute_assignment_shifts(
     maxes.push(pe, pe_max); // id is never used
     ++num_pes;
 
+    const GlobalNodeID prev_inc_from = pe_load[pe].count;
     GlobalNodeID inc_from = pe_load[pe].count;
     const GlobalNodeID inc_to = pe_load[pe + 1].count;
 
@@ -658,10 +659,11 @@ AssignmentShifts compute_assignment_shifts(
     }
 
     GlobalNodeID delta = inc_to - inc_from;
+
     if (current_overload > num_pes * delta) {
       current_overload -= num_pes * delta;
     } else {
-      min_load = pe_load[pe].count + std::floor(1.0 * current_overload / num_pes);
+      min_load = pe_load[pe].count + (inc_from - prev_inc_from) + current_overload / num_pes;
       plus_ones = current_overload % num_pes;
       current_overload = 0;
       break;
@@ -708,9 +710,17 @@ AssignmentShifts compute_assignment_shifts(
   // If everything is correct, the total overload should match the total
   // underload
   KASSERT(
-      pe_underload.back() == pe_overload.back(),
-      V(pe_underload) << V(pe_overload) << V(total_overload) << V(avg_cnode_count)
-                      << V(max_cnode_count) << V(min_load)
+      [&] {
+        if (pe_underload.back() != pe_overload.back()) {
+          LOG_WARNING << V(pe_underload) << V(pe_overload) << V(total_overload)
+                      << V(avg_cnode_count) << V(max_cnode_count) << V(min_load)
+                      << V(current_node_distribution) << V(current_cnode_distribution);
+          return false;
+        }
+        return true;
+      }(),
+      "",
+      assert::light
   );
 
   return {
@@ -890,7 +900,7 @@ ContractionResult contract_clustering(
   auto nonlocal_nodes = find_nonlocal_nodes(graph, lnode_to_gcluster);
 
   IF_STATS {
-    const GlobalNodeID total_num_nonlocal_nodes =
+    const auto total_num_nonlocal_nodes =
         mpi::allreduce<GlobalNodeID>(nonlocal_nodes.size(), MPI_SUM, graph.communicator());
     STATS << "Total number of nonlocal nodes: " << total_num_nonlocal_nodes;
   }
@@ -1284,8 +1294,7 @@ ContractionResult contract_clustering(
       upper_bound_degree = static_cast<EdgeID>(
           std::min<GlobalNodeID>(c_n + c_ghost_n, static_cast<GlobalNodeID>(upper_bound_degree))
       );
-      collector.update_upper_bound_size(upper_bound_degree);
-      collector.run_with_map(collect_edges, collect_edges);
+      collector.execute(upper_bound_degree, collect_edges);
     }
   });
 

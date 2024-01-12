@@ -37,9 +37,6 @@ private:
 };
 
 class NodeBalancer : public GlobalRefiner {
-  SET_STATISTICS_FROM_GLOBAL();
-  SET_DEBUG(true);
-
   struct Candidate {
     GlobalNodeID id;
     BlockID from;
@@ -63,6 +60,8 @@ public:
   bool refine() final;
 
 private:
+  void reinit();
+
   bool is_sequential_balancing_enabled() const;
   bool is_parallel_balancing_enabled() const;
 
@@ -78,7 +77,7 @@ private:
   bool try_pq_insertion(BlockID b, NodeID u);
   bool try_pq_insertion(BlockID b, NodeID u, NodeWeight u_weight, double rel_gain);
 
-  bool perform_parallel_round();
+  bool perform_parallel_round(int round);
 
   bool
   assign_feasible_target_block(Candidate &candidate, const std::vector<BlockWeight> &deltas) const;
@@ -101,5 +100,8 @@ private:
   bool _stalled = false;
 
   std::vector<std::size_t> _cached_cutoff_buckets;
+
+  StaticArray<BlockID> _target_blocks;
+  StaticArray<double> _tmp_gains;
 };
 }; // namespace kaminpar::dist

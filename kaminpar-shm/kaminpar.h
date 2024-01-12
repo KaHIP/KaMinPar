@@ -189,14 +189,17 @@ struct KwayFMRefinementContext {
 
 struct JetRefinementContext {
   int num_iterations;
-  double interpolate_c;
-  double min_c;
-  double max_c;
-  double abortion_threshold;
+  int num_fruitless_iterations;
+  double fruitless_threshold;
+  double fine_negative_gain_factor;
+  double coarse_negative_gain_factor;
+  RefinementAlgorithm balancing_algorithm;
 };
 
 struct MtKaHyParRefinementContext {
   std::string config_filename;
+  std::string coarse_config_filename;
+  std::string fine_config_filename;
 };
 
 struct BalancerRefinementContext {};

@@ -343,6 +343,28 @@ CLI::Option_group *create_node_balancer_options(CLI::App *app, Context &ctx) {
   balancer
       ->add_option("--r-nb-par-gain-bucket-base", ctx.refinement.node_balancer.par_gain_bucket_base)
       ->capture_default_str();
+  balancer->add_flag("--r-nb-par-partial-buckets", ctx.refinement.node_balancer.par_partial_buckets)
+      ->capture_default_str();
+  balancer->add_flag("--r-nb-par-update-pq-gains", ctx.refinement.node_balancer.par_update_pq_gains)
+      ->capture_default_str();
+  balancer
+      ->add_option(
+          "--r-nb-par-high-degree-update-interval",
+          ctx.refinement.node_balancer.par_high_degree_update_interval
+      )
+      ->capture_default_str();
+  balancer
+      ->add_option(
+          "--r-nb-par-high-degree-insertion-threshold",
+          ctx.refinement.node_balancer.par_high_degree_insertion_threshold
+      )
+      ->capture_default_str();
+  balancer
+      ->add_option(
+          "--r-nb-par-high-degree-update-threshold",
+          ctx.refinement.node_balancer.par_high_degree_update_thresold
+      )
+      ->capture_default_str();
 
   return balancer;
 }
@@ -593,16 +615,44 @@ CLI::Option_group *create_hem_coarsening_options(CLI::App *app, Context &ctx) {
 CLI::Option_group *create_jet_refinement_options(CLI::App *app, Context &ctx) {
   auto *jet = app->add_option_group("Refinement -> JET");
 
+  jet->add_option_function<int>("--r-jet-num-rounds", [&](const int value) {
+    ctx.refinement.jet.num_coarse_rounds = value;
+    ctx.refinement.jet.num_fine_rounds = value;
+  });
+
+  jet->add_option("--r-jet-num-coarse-rounds", ctx.refinement.jet.num_coarse_rounds)
+      ->capture_default_str();
+  jet->add_option("--r-jet-num-fine-rounds", ctx.refinement.jet.num_fine_rounds)
+      ->capture_default_str();
+
   jet->add_option("--r-jet-num-iterations", ctx.refinement.jet.num_iterations)
       ->capture_default_str();
   jet->add_option("--r-jet-num-fruitless-iterations", ctx.refinement.jet.num_fruitless_iterations)
       ->capture_default_str();
   jet->add_option("--r-jet-fruitless-threshold", ctx.refinement.jet.fruitless_threshold)
       ->capture_default_str();
-  jet->add_option("--r-jet-coarse-penalty-factor", ctx.refinement.jet.coarse_negative_gain_factor)
+
+  jet->add_flag(
+         "--r-jet-dynamic-negative-gain-factor", ctx.refinement.jet.dynamic_negative_gain_factor
+  )
       ->capture_default_str();
-  jet->add_option("--r-jet-fine-penalty-factor", ctx.refinement.jet.fine_negative_gain_factor)
+
+  jet->add_option(
+         "--r-jet-coarse-negative-gain-factor", ctx.refinement.jet.coarse_negative_gain_factor
+  )
       ->capture_default_str();
+  jet->add_option("--r-jet-fine-negative-gain-factor", ctx.refinement.jet.fine_negative_gain_factor)
+      ->capture_default_str();
+
+  jet->add_option(
+         "--r-jet-initial-negative-gain-factor", ctx.refinement.jet.initial_negative_gain_factor
+  )
+      ->capture_default_str();
+  jet->add_option(
+         "--r-jet-final-negative-gain-factor", ctx.refinement.jet.final_negative_gain_factor
+  )
+      ->capture_default_str();
+
   jet->add_option("--r-jet-balancing-algorithm", ctx.refinement.jet.balancing_algorithm)
       ->transform(CLI::CheckedTransformer(get_balancing_algorithms()).description(""))
       ->description(
@@ -618,6 +668,11 @@ CLI::Option_group *create_mtkahypar_refinement_options(CLI::App *app, Context &c
   auto *mtkahypar = app->add_option_group("Refinement -> MtKaHyPar");
 
   mtkahypar->add_option("--r-mtkahypar-config", ctx.refinement.mtkahypar.config_filename)
+      ->capture_default_str();
+  mtkahypar->add_option("--r-mtkahypar-config-fine", ctx.refinement.mtkahypar.fine_config_filename)
+      ->capture_default_str();
+  mtkahypar
+      ->add_option("--r-mtkahypar-config-coarse", ctx.refinement.mtkahypar.coarse_config_filename)
       ->capture_default_str();
   mtkahypar->add_flag("--r-mtkahypar-only-run-on-root", ctx.refinement.mtkahypar.only_run_on_root)
       ->capture_default_str();

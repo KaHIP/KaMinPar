@@ -465,11 +465,17 @@ void print(const RefinementContext &ctx, const ParallelContext &parallel, std::o
   }
   if (ctx.includes_algorithm(RefinementAlgorithm::JET_REFINER)) {
     out << "Jet refinement:               " << RefinementAlgorithm::JET_REFINER << "\n";
+    out << "  Number of rounds:           coarse " << ctx.jet.num_coarse_rounds << ", fine "
+        << ctx.jet.num_fine_rounds << "\n";
     out << "  Number of iterations:       max " << ctx.jet.num_iterations << ", or "
         << ctx.jet.num_fruitless_iterations << " fruitless (improvement < "
         << 100.0 * (1 - ctx.jet.fruitless_threshold) << "%)\n";
-    out << "  Penalty factors:            coarse " << ctx.jet.coarse_negative_gain_factor
+    out << "  Negative gain factors:      "
+        << (ctx.jet.dynamic_negative_gain_factor ? "dynamic" : "static") << "\n";
+    out << "  Static factors:             coarse " << ctx.jet.coarse_negative_gain_factor
         << ", fine " << ctx.jet.fine_negative_gain_factor << "\n";
+    out << "  Dynamic factors:            initial " << ctx.jet.initial_negative_gain_factor
+        << ", final " << ctx.jet.final_negative_gain_factor << "\n";
     out << "  Balancing algorithm:        " << ctx.jet.balancing_algorithm << "\n";
   }
   if (ctx.includes_algorithm(RefinementAlgorithm::GLOBAL_FM)) {
@@ -509,6 +515,14 @@ void print(const RefinementContext &ctx, const ParallelContext &parallel, std::o
     out << "    Gain buckets:             base " << ctx.node_balancer.par_gain_bucket_base
         << ", positive gain buckets: "
         << (ctx.node_balancer.par_enable_positive_gain_buckets ? "yes" : "no") << "\n";
+    out << "    Partial buckets:          "
+        << (ctx.node_balancer.par_partial_buckets ? "yes" : "no") << "\n";
+    out << "    Update PQ during build:   "
+        << (ctx.node_balancer.par_update_pq_gains ? "yes" : "no") << "\n";
+    out << "    High degree thresholds:   insertions = "
+        << ctx.node_balancer.par_high_degree_insertion_threshold
+        << ", updates = " << ctx.node_balancer.par_high_degree_update_thresold
+        << " [interval: " << ctx.node_balancer.par_high_degree_update_interval << "]\n";
   }
   if (ctx.includes_algorithm(RefinementAlgorithm::GREEDY_CLUSTER_BALANCER) ||
       (ctx.includes_algorithm(RefinementAlgorithm::JET_REFINER) &&

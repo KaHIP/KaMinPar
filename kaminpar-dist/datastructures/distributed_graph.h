@@ -338,6 +338,10 @@ public:
     tbb::parallel_for(tbb::blocked_range<NodeID>(from, to), std::forward<Lambda>(l));
   }
 
+  template <typename Lambda> inline void pfor_ghost_nodes(Lambda &&l) const {
+    pfor_nodes(n(), total_n(), std::forward<Lambda>(l));
+  }
+
   template <typename Lambda> inline void pfor_nodes(Lambda &&l) const {
     pfor_nodes(0, n(), std::forward<Lambda>(l));
   }
@@ -575,6 +579,8 @@ void print_graph_summary(const DistributedGraph &graph);
 
 namespace debug {
 void print_graph(const DistributedGraph &graph);
+
+void print_local_graph_stats(const DistributedGraph &graph);
 
 /**
  * Validates the distributed graph datastructure:

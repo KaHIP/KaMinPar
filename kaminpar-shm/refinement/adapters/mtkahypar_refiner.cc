@@ -5,7 +5,7 @@
  * @author: Daniel Seemaier
  * @date:   01.07.2023
  ******************************************************************************/
-#include "kaminpar-shm/refinement/mtkahypar_refiner.h"
+#include "kaminpar-shm/refinement/adapters/mtkahypar_refiner.h"
 
 #include "kaminpar-shm/context.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
@@ -31,7 +31,19 @@ bool MtKaHyParRefiner::refine(
 #ifdef KAMINPAR_HAVE_MTKAHYPAR_LIB
   mt_kahypar_context_t *mt_kahypar_ctx = mt_kahypar_context_new();
   if (_ctx.refinement.mtkahypar.config_filename.empty()) {
-    mt_kahypar_load_preset(mt_kahypar_ctx, DEFAULT);
+    const bool toplevel = (p_graph.n() == _ctx.partition.n);
+
+    if (toplevel && !_ctx.refinement.mtkahypar.fine_config_filename.empty()) {
+      mt_kahypar_configure_context_from_file(
+          mt_kahypar_ctx, _ctx.refinement.mtkahypar.fine_config_filename.c_str()
+      );
+    } else if (!toplevel && !_ctx.refinement.mtkahypar.coarse_config_filename.empty()) {
+      mt_kahypar_configure_context_from_file(
+          mt_kahypar_ctx, _ctx.refinement.mtkahypar.coarse_config_filename.c_str()
+      );
+    } else {
+      mt_kahypar_load_preset(mt_kahypar_ctx, DEFAULT);
+    }
   } else {
     mt_kahypar_configure_context_from_file(
         mt_kahypar_ctx, _ctx.refinement.mtkahypar.config_filename.c_str()

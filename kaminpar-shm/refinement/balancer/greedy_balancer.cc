@@ -10,6 +10,8 @@
 #include <kassert/kassert.hpp>
 
 namespace kaminpar::shm {
+SET_DEBUG(false);
+
 void GreedyBalancer::initialize(const PartitionedGraph &) {}
 
 bool GreedyBalancer::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
@@ -286,9 +288,7 @@ GreedyBalancer::compute_gain(const NodeID u, const BlockID u_block) const {
     map.clear();
   };
 
-  auto &rating_map = _rating_map.local();
-  rating_map.update_upper_bound_size(_p_graph->degree(u));
-  rating_map.run_with_map(action, action);
+  _rating_map.local().execute(_p_graph->degree(u), action);
 
   // compute absolute and relative gain based on internal degree / external gain
   const EdgeWeight gain = max_external_gain - internal_degree;

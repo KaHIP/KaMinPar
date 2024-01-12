@@ -192,8 +192,7 @@ Result contract_generic_clustering(
           map.clear();
         };
 
-        local_collector.update_upper_bound_size(compute_upper_bound(c_u, first, last));
-        local_collector.run_with_map(collect_edges, collect_edges);
+        local_collector.execute(compute_upper_bound(c_u, first, last), collect_edges);
       }
     });
   };

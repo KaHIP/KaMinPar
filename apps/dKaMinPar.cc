@@ -37,7 +37,8 @@ struct ApplicationContext {
   bool experiment = false;
   bool check_input_graph = false;
 
-  bool load_edge_balanced = false;
+  kagen::FileFormat io_format = kagen::FileFormat::EXTENSION;
+  kagen::GraphDistribution io_distribution = kagen::GraphDistribution::BALANCE_EDGES;
 
   std::string graph_filename = "";
   std::string partition_filename = "";
@@ -88,12 +89,17 @@ The output should be stored in a file and can be used by the -C,--config option.
   cli.add_option("-t,--threads", app.num_threads, "Number of threads to be used.")
       ->check(CLI::NonNegativeNumber)
       ->default_val(app.num_threads);
-  cli.add_flag(
-         "--edge-balanced",
-         app.load_edge_balanced,
-         "Load the input graph such that each PE has roughly the same "
-         "number of edges."
-  )
+  cli.add_option("--io-format", app.io_format)
+      ->transform(CLI::CheckedTransformer(kagen::GetInputFormatMap()).description(""))
+      ->description(R"(Graph input format. By default, guess the file format from the file extension. Explicit options are:
+  - metis:  text format used by the Metis family
+  - parhip: binary format used by ParHiP (+ extensions))")
+      ->capture_default_str();
+  cli.add_option("--io-distribution", app.io_distribution)
+      ->transform(CLI::CheckedTransformer(kagen::GetGraphDistributionMap()).description(""))
+      ->description(R"(Graph distribution scheme, possible options are:
+  - balance-vertices: distribute vertices such that each PE has roughly the same number of vertices
+  - balance-edges:    distribute edges such that each PE has roughly the same number of edges)")
       ->capture_default_str();
   cli.add_flag("-E,--experiment", app.experiment, "Use an output format that is easier to parse.");
   cli.add_option(
@@ -128,12 +134,7 @@ NodeID load_kagen_graph(const ApplicationContext &app, dKaMinPar &partitioner) {
         app.graph_filename.end()) {
       return generator.GenerateFromOptionString(app.graph_filename);
     } else {
-      return generator.ReadFromFile(
-          app.graph_filename,
-          FileFormat::EXTENSION,
-          app.load_edge_balanced ? GraphDistribution::BALANCE_EDGES
-                                 : GraphDistribution::BALANCE_VERTICES
-      );
+      return generator.ReadFromFile(app.graph_filename, app.io_format, app.io_distribution);
     }
   }();
 

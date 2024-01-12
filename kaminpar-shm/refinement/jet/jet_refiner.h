@@ -23,11 +23,13 @@ public:
   JetRefiner(JetRefiner &&) noexcept = default;
   JetRefiner &operator=(JetRefiner &&) = delete;
 
-  void initialize(const PartitionedGraph &) {}
+  void initialize(const PartitionedGraph &) final;
 
-  bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx);
+  bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
 
 private:
   const Context &_ctx;
+
+  double _negative_gain_factor;
 };
 } // namespace kaminpar::shm

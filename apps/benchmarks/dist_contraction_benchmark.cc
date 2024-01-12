@@ -42,9 +42,9 @@ int main(int argc, char *argv[]) {
   ctx.refinement.algorithms.clear();
 
   CLI::App app;
-  app.add_option("-G", graph_filename)->check(CLI::ExistingFile);
-  app.add_option("-C", clustering_filename)->check(CLI::ExistingFile);
-  app.add_option("-t", ctx.parallel.num_threads);
+  app.add_option("-G,--graph", graph_filename)->check(CLI::ExistingFile);
+  app.add_option("-C,--clustering", clustering_filename)->check(CLI::ExistingFile);
+  app.add_option("-t,--threads", ctx.parallel.num_threads);
   create_coarsening_options(&app, ctx);
   CLI11_PARSE(app, argc, argv);
 

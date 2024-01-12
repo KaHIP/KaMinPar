@@ -256,17 +256,14 @@ protected:
     if constexpr (parallel) {
       best_cluster_opt = find_best_cluster<true>(u, u_weight, u_cluster, rand, rating_map);
     } else {
-      const auto action = [&](auto &map) {
-        return find_best_cluster(u, u_weight, u_cluster, rand, map);
-      };
-
       std::size_t upper_bound_size = std::min<ClusterID>(_graph->degree(u), _initial_num_clusters);
       if (_use_two_phases && _second_phase_select_mode == SecondPhaseSelectMode::FULL_RATING_MAP) {
         upper_bound_size = std::min(upper_bound_size, Config::kRatingMapThreshold);
       }
 
-      rating_map.update_upper_bound_size(upper_bound_size);
-      best_cluster_opt = rating_map.run_with_map(action, action);
+      best_cluster_opt = rating_map.execute(upper_bound_size, [&](auto &map) {
+        return find_best_cluster(u, u_weight, u_cluster, rand, map);
+      });
     }
 
     if (const auto best_cluster = best_cluster_opt) {

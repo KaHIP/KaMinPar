@@ -127,7 +127,7 @@ struct ChunksContext {
   int min_num_chunks;
   bool scale_chunks_with_threads;
 
-  int compute(const ParallelContext &parallel) const;
+  [[nodiscard]] int compute(const ParallelContext &parallel) const;
 };
 
 struct LabelPropagationCoarseningContext {
@@ -150,7 +150,7 @@ struct LabelPropagationCoarseningContext {
   bool prevent_cyclic_moves;
   bool enforce_legacy_weight;
 
-  bool should_merge_nonadjacent_clusters(NodeID old_n, NodeID new_n) const;
+  [[nodiscard]] bool should_merge_nonadjacent_clusters(NodeID old_n, NodeID new_n) const;
 };
 
 struct HEMCoarseningContext {
@@ -217,6 +217,8 @@ struct FMRefinementContext {
 
 struct MtKaHyParRefinementContext {
   std::string config_filename;
+  std::string fine_config_filename;
+  std::string coarse_config_filename;
   bool only_run_on_root;
 };
 
@@ -262,6 +264,12 @@ struct NodeBalancerContext {
   bool par_accept_imbalanced_moves;
   bool par_enable_positive_gain_buckets;
   double par_gain_bucket_base;
+  bool par_partial_buckets;
+  bool par_update_pq_gains;
+  int par_high_degree_update_interval;
+
+  EdgeID par_high_degree_insertion_threshold;
+  EdgeID par_high_degree_update_thresold;
 };
 
 struct ClusterBalancerContext {
@@ -298,12 +306,20 @@ struct JetBalancerContext {
 };
 
 struct JetRefinementContext {
+  int num_coarse_rounds;
+  int num_fine_rounds;
+
   int num_iterations;
   int num_fruitless_iterations;
   double fruitless_threshold;
 
+  bool dynamic_negative_gain_factor;
+
   double coarse_negative_gain_factor;
   double fine_negative_gain_factor;
+
+  double initial_negative_gain_factor;
+  double final_negative_gain_factor;
 
   RefinementAlgorithm balancing_algorithm;
 };
@@ -323,7 +339,7 @@ struct RefinementContext {
 
   MtKaHyParRefinementContext mtkahypar;
 
-  bool includes_algorithm(RefinementAlgorithm algorithm) const;
+  [[nodiscard]] bool includes_algorithm(RefinementAlgorithm algorithm) const;
 };
 
 struct PartitionContext {
