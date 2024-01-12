@@ -267,15 +267,6 @@ public:
     return degree;
   }
 
-  // Parallel iteration
-  template <typename Lambda> inline void pfor_nodes(Lambda &&l) const {
-    tbb::parallel_for(static_cast<NodeID>(0), n(), std::forward<Lambda>(l));
-  }
-
-  template <typename Lambda> inline void pfor_edges(Lambda &&l) const {
-    tbb::parallel_for(static_cast<EdgeID>(0), m(), std::forward<Lambda>(l));
-  }
-
   // Iterators for nodes / edges
   [[nodiscard]] IotaRange<NodeID> nodes() const final {
     return IotaRange(static_cast<NodeID>(0), n());
@@ -285,6 +276,16 @@ public:
     return IotaRange(static_cast<EdgeID>(0), m());
   }
 
+  // Parallel iteration
+  template <typename Lambda> inline void pfor_nodes(Lambda &&l) const {
+    tbb::parallel_for(static_cast<NodeID>(0), n(), std::forward<Lambda>(l));
+  }
+
+  template <typename Lambda> inline void pfor_edges(Lambda &&l) const {
+    tbb::parallel_for(static_cast<EdgeID>(0), m(), std::forward<Lambda>(l));
+  }
+
+  // Graph operations
   [[nodiscard]] inline IotaRange<EdgeID> incident_edges(const NodeID node) const {
     const std::uint8_t *data = _compressed_edges.data();
 

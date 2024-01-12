@@ -144,6 +144,15 @@ public:
     return _underlying_graph->degree(u);
   }
 
+  // Iterators for nodes / edges
+  [[nodiscard]] inline IotaRange<NodeID> nodes() const final {
+    return _underlying_graph->nodes();
+  }
+
+  [[nodiscard]] inline IotaRange<EdgeID> edges() const final {
+    return _underlying_graph->edges();
+  }
+
   // Parallel iteration
   template <typename Lambda> inline void pfor_nodes(Lambda &&l) const {
     if (const auto *graph = dynamic_cast<const CSRGraph *>(_underlying_graph.get());
@@ -177,15 +186,7 @@ public:
     __builtin_unreachable();
   }
 
-  // Iterators for nodes / edges
-  [[nodiscard]] inline IotaRange<NodeID> nodes() const final {
-    return _underlying_graph->nodes();
-  }
-
-  [[nodiscard]] inline IotaRange<EdgeID> edges() const final {
-    return _underlying_graph->edges();
-  }
-
+  // Graph operations
   [[nodiscard]] inline decltype(auto) incident_edges(const NodeID u) const {
     if (const auto *graph = dynamic_cast<const CSRGraph *>(_underlying_graph.get());
         graph != nullptr) {
