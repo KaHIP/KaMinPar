@@ -94,86 +94,9 @@ inline std::vector<NodeID> degrees(const Graph &graph) {
   return degrees;
 }
 
-inline Graph change_node_weight(Graph graph, const NodeID u, const NodeWeight new_node_weight) {
-  auto node_weights = graph.take_raw_node_weights();
+inline void change_node_weight(Graph &graph, const NodeID u, const NodeWeight new_node_weight) {
+  auto &node_weights = graph.raw_node_weights();
   node_weights[u] = new_node_weight;
-  return Graph(std::make_unique<CSRGraph>(
-      graph.take_raw_nodes(),
-      graph.take_raw_edges(),
-      std::move(node_weights),
-      graph.take_raw_edge_weights(),
-      graph.sorted()
-  ));
 }
 
-inline Graph
-change_edge_weight(Graph graph, const NodeID u, const NodeID v, const EdgeWeight new_edge_weight) {
-  const EdgeID forward_edge = find_edge_by_endpoints(graph, u, v);
-  const EdgeID backward_edge = find_edge_by_endpoints(graph, v, u);
-  KASSERT(forward_edge != kInvalidEdgeID);
-  KASSERT(backward_edge != kInvalidEdgeID);
-
-  auto edge_weights = graph.take_raw_edge_weights();
-  KASSERT(edge_weights[forward_edge] == edge_weights[backward_edge]);
-
-  edge_weights[forward_edge] = new_edge_weight;
-  edge_weights[backward_edge] = new_edge_weight;
-
-  return Graph(std::make_unique<CSRGraph>(
-      graph.take_raw_nodes(),
-      graph.take_raw_edges(),
-      graph.take_raw_node_weights(),
-      std::move(edge_weights),
-      graph.sorted()
-  ));
-}
-
-inline Graph assign_exponential_weights(
-    Graph graph, const bool assign_node_weights, const bool assign_edge_weights
-) {
-  KASSERT(
-      !assign_node_weights || graph.n() <= std::numeric_limits<NodeWeight>::digits -
-                                               std::numeric_limits<NodeWeight>::is_signed,
-      "Cannot assign exponential node weights: graph has too many nodes",
-      assert::always
-  );
-  KASSERT(
-      !assign_edge_weights || graph.m() <= std::numeric_limits<EdgeWeight>::digits -
-                                               std::numeric_limits<EdgeWeight>::is_signed,
-      "Cannot assign exponential edge weights: graph has too many edges",
-      assert::always
-  );
-
-  auto node_weights = graph.take_raw_node_weights();
-  if (assign_node_weights) {
-    for (const NodeID u : graph.nodes()) {
-      node_weights[u] = 1 << u;
-    }
-  }
-
-  auto edge_weights = graph.take_raw_edge_weights();
-  if (assign_edge_weights) {
-    for (const NodeID u : graph.nodes()) {
-      for (const auto [e, v] : graph.neighbors(u)) {
-        if (v > u) {
-          continue;
-        }
-        edge_weights[e] = 1 << e;
-        for (const auto [e_prime, u_prime] : graph.neighbors(v)) {
-          if (u == u_prime) {
-            edge_weights[e_prime] = edge_weights[e];
-          }
-        }
-      }
-    }
-  }
-
-  return Graph(std::make_unique<CSRGraph>(
-      graph.take_raw_nodes(),
-      graph.take_raw_edges(),
-      std::move(node_weights),
-      std::move(edge_weights),
-      graph.sorted()
-  ));
-}
 } // namespace kaminpar::shm::testing

@@ -39,19 +39,21 @@ int main(int argc, char *argv[]) {
   tbb::global_control gc(tbb::global_control::max_allowed_parallelism, ctx.parallel.num_threads);
 
   LOG << "Reading input graph...";
-  CSRGraph csr_graph = io::metis::csr_read<false>(
+  CSRGraph input_graph = io::metis::csr_read<false>(
       graph_filename, ctx.node_ordering == NodeOrdering::IMPLICIT_DEGREE_BUCKETS
   );
-  Graph graph(std::make_unique<CSRGraph>(std::move(csr_graph)));
+
+  Graph graph(std::make_unique<CSRGraph>(std::move(input_graph)));
+  CSRGraph &csr_graph = *dynamic_cast<CSRGraph *>(graph.underlying_graph());
 
   LOG << "Rearranging graph...";
   if (ctx.node_ordering == NodeOrdering::DEGREE_BUCKETS) {
-    graph = graph::rearrange_by_degree_buckets(ctx, std::move(graph));
+    graph = graph::rearrange_by_degree_buckets(csr_graph);
     graph::integrate_isolated_nodes(graph, ctx.partition.epsilon, ctx);
   }
 
   if (ctx.edge_ordering == EdgeOrdering::COMPRESSION) {
-    graph::reorder_edges_by_compression(*dynamic_cast<CSRGraph *>(graph.underlying_graph()));
+    graph::reorder_edges_by_compression(csr_graph);
   }
 
   LOG << "Writing graph...";

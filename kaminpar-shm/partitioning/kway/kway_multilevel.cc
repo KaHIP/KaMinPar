@@ -81,6 +81,11 @@ const Graph *KWayMultilevelPartitioner::coarsen() {
     const NodeWeight max_cluster_weight =
         compute_max_cluster_weight(_input_ctx.coarsening, *c_graph, _input_ctx.partition);
     LOG << "Coarsening -> Level " << _coarsener.get()->size();
+    if (const auto *graph = dynamic_cast<const CompactCSRGraph *>(c_graph->underlying_graph());
+        graph != nullptr) {
+      LOG << "  Compact Node IDs: " << graph->node_id_byte_width()
+          << " bytes | Compact edge weights: " << graph->edge_weight_byte_width() << " bytes";
+    }
     LOG << "  Number of nodes: " << c_graph->n() << " | Number of edges: " << c_graph->m();
     LOG << "  Maximum node weight: " << c_graph->max_node_weight() << " <= " << max_cluster_weight;
     LOG;

@@ -21,13 +21,17 @@
 #include "kaminpar-shm/definitions.h"
 
 #include "kaminpar-common/constexpr_utils.h"
+#include "kaminpar-common/datastructures/compact_static_array.h"
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/degree_buckets.h"
+#include "kaminpar-common/parallel/algorithm.h"
 #include "kaminpar-common/ranges.h"
 #include "kaminpar-common/tags.h"
 
 namespace kaminpar::shm {
-class CSRGraph : public AbstractGraph {
+
+template <template <typename> typename Container, template <typename> typename CompactContainer>
+class AbstractCSRGraph : public AbstractGraph {
 public:
   // Data types used by this graph
   using AbstractGraph::EdgeID;
@@ -38,77 +42,123 @@ public:
   // Tag for the sequential ctor.
   struct seq {};
 
-  CSRGraph(
-      StaticArray<EdgeID> nodes,
-      StaticArray<NodeID> edges,
-      StaticArray<NodeWeight> node_weights = {},
-      StaticArray<EdgeWeight> edge_weights = {},
+  AbstractCSRGraph(
+      Container<EdgeID> nodes,
+      CompactContainer<NodeID> edges,
+      Container<NodeWeight> node_weights = {},
+      CompactContainer<EdgeWeight> edge_weights = {},
       bool sorted = false
-  );
+  )
+      : _nodes(std::move(nodes)),
+        _edges(std::move(edges)),
+        _node_weights(std::move(node_weights)),
+        _edge_weights(std::move(edge_weights)),
+        _sorted(sorted) {
+    if (_node_weights.empty()) {
+      _total_node_weight = static_cast<NodeWeight>(n());
+      _max_node_weight = 1;
+    } else {
+      _total_node_weight = parallel::accumulate(_node_weights, static_cast<NodeWeight>(0));
+      _max_node_weight = parallel::max_element(_node_weights);
+    }
 
-  CSRGraph(
+    if (_edge_weights.empty()) {
+      _total_edge_weight = static_cast<EdgeWeight>(m());
+    } else {
+      _total_edge_weight = parallel::accumulate(_edge_weights, static_cast<EdgeWeight>(0));
+    }
+
+    _max_degree = parallel::max_difference(_nodes.begin(), _nodes.end());
+
+    init_degree_buckets();
+  }
+
+  AbstractCSRGraph(
       seq,
-      StaticArray<EdgeID> nodes,
-      StaticArray<NodeID> edges,
-      StaticArray<NodeWeight> node_weights = {},
-      StaticArray<EdgeWeight> edge_weights = {},
+      Container<EdgeID> nodes,
+      CompactContainer<NodeID> edges,
+      Container<NodeWeight> node_weights = {},
+      CompactContainer<EdgeWeight> edge_weights = {},
       bool sorted = false
-  );
+  )
+      : _nodes(std::move(nodes)),
+        _edges(std::move(edges)),
+        _node_weights(std::move(node_weights)),
+        _edge_weights(std::move(edge_weights)),
+        _sorted(sorted) {
+    if (_node_weights.empty()) {
+      _total_node_weight = static_cast<NodeWeight>(n());
+      _max_node_weight = 1;
+    } else {
+      _total_node_weight =
+          std::accumulate(_node_weights.begin(), _node_weights.end(), static_cast<NodeWeight>(0));
+      _max_node_weight = *std::max_element(_node_weights.begin(), _node_weights.end());
+    }
 
-  CSRGraph(const CSRGraph &) = delete;
-  CSRGraph &operator=(const CSRGraph &) = delete;
+    if (_edge_weights.empty()) {
+      _total_edge_weight = static_cast<EdgeWeight>(m());
+    } else {
+      _total_edge_weight =
+          std::accumulate(_edge_weights.begin(), _edge_weights.end(), static_cast<EdgeWeight>(0));
+    }
 
-  CSRGraph(CSRGraph &&) noexcept = default;
-  CSRGraph &operator=(CSRGraph &&) noexcept = default;
+    init_degree_buckets();
+  }
 
-  ~CSRGraph() override = default;
+  AbstractCSRGraph(const AbstractCSRGraph &) = delete;
+  AbstractCSRGraph &operator=(const AbstractCSRGraph &) = delete;
+
+  AbstractCSRGraph(AbstractCSRGraph &&) noexcept = default;
+  AbstractCSRGraph &operator=(AbstractCSRGraph &&) noexcept = default;
+
+  ~AbstractCSRGraph() override = default;
 
   // Direct member access -- used for some "low level" operations
-  [[nodiscard]] inline StaticArray<EdgeID> &raw_nodes() final {
+  [[nodiscard]] inline Container<EdgeID> &raw_nodes() final {
     return _nodes;
   }
 
-  [[nodiscard]] inline const StaticArray<EdgeID> &raw_nodes() const final {
+  [[nodiscard]] inline const Container<EdgeID> &raw_nodes() const final {
     return _nodes;
   }
 
-  [[nodiscard]] inline StaticArray<NodeID> &raw_edges() final {
+  [[nodiscard]] inline CompactContainer<NodeID> &raw_edges() {
     return _edges;
   }
 
-  [[nodiscard]] inline const StaticArray<NodeID> &raw_edges() const final {
+  [[nodiscard]] inline const CompactContainer<NodeID> &raw_edges() const {
     return _edges;
   }
 
-  [[nodiscard]] inline StaticArray<NodeWeight> &raw_node_weights() final {
+  [[nodiscard]] inline Container<NodeWeight> &raw_node_weights() final {
     return _node_weights;
   }
 
-  [[nodiscard]] inline const StaticArray<NodeWeight> &raw_node_weights() const final {
+  [[nodiscard]] inline const Container<NodeWeight> &raw_node_weights() const final {
     return _node_weights;
   }
 
-  [[nodiscard]] inline StaticArray<EdgeWeight> &raw_edge_weights() final {
+  [[nodiscard]] inline CompactContainer<EdgeWeight> &raw_edge_weights() {
     return _edge_weights;
   }
 
-  [[nodiscard]] inline const StaticArray<EdgeWeight> &raw_edge_weights() const final {
+  [[nodiscard]] inline const CompactContainer<EdgeWeight> &raw_edge_weights() const {
     return _edge_weights;
   }
 
-  [[nodiscard]] inline StaticArray<EdgeID> &&take_raw_nodes() final {
+  [[nodiscard]] inline Container<EdgeID> &&take_raw_nodes() final {
     return std::move(_nodes);
   }
 
-  [[nodiscard]] inline StaticArray<NodeID> &&take_raw_edges() final {
+  [[nodiscard]] inline CompactContainer<NodeID> &&take_raw_edges() {
     return std::move(_edges);
   }
 
-  [[nodiscard]] inline StaticArray<NodeWeight> &&take_raw_node_weights() final {
+  [[nodiscard]] inline Container<NodeWeight> &&take_raw_node_weights() final {
     return std::move(_node_weights);
   }
 
-  [[nodiscard]] inline StaticArray<EdgeWeight> &&take_raw_edge_weights() final {
+  [[nodiscard]] inline CompactContainer<EdgeWeight> &&take_raw_edge_weights() {
     return std::move(_edge_weights);
   }
 
@@ -304,17 +354,61 @@ public:
     return _sorted;
   }
 
-  void update_total_node_weight() final;
+  void update_total_node_weight() final {
+    if (_node_weights.empty()) {
+      _total_node_weight = n();
+      _max_node_weight = 1;
+    } else {
+      _total_node_weight =
+          std::accumulate(_node_weights.begin(), _node_weights.end(), static_cast<NodeWeight>(0));
+      _max_node_weight = *std::max_element(_node_weights.begin(), _node_weights.end());
+    }
+  }
 
-  void update_degree_buckets() final;
+  void update_degree_buckets() final {
+    std::fill(_buckets.begin(), _buckets.end(), 0);
+    init_degree_buckets();
+  }
+
+  std::size_t node_id_byte_width() const {
+    if constexpr (std::is_same_v<CompactContainer<NodeID>, CompactStaticArray<NodeID>>) {
+      return _edges.byte_width();
+    }
+
+    return sizeof(NodeID);
+  }
+
+  std::size_t edge_weight_byte_width() const {
+    if constexpr (std::is_same_v<CompactContainer<EdgeWeight>, CompactStaticArray<EdgeWeight>>) {
+      return _edge_weights.byte_width();
+    }
+
+    return sizeof(EdgeWeight);
+  }
 
 private:
-  void init_degree_buckets();
+  void init_degree_buckets() {
+    KASSERT(std::all_of(_buckets.begin(), _buckets.end(), [](const auto n) { return n == 0; }));
 
-  StaticArray<EdgeID> _nodes;
-  StaticArray<NodeID> _edges;
-  StaticArray<NodeWeight> _node_weights;
-  StaticArray<EdgeWeight> _edge_weights;
+    if (_sorted) {
+      for (const NodeID u : nodes()) {
+        ++_buckets[degree_bucket(degree(u)) + 1];
+      }
+      auto last_nonempty_bucket =
+          std::find_if(_buckets.rbegin(), _buckets.rend(), [](const auto n) { return n > 0; });
+      _number_of_buckets = std::distance(_buckets.begin(), (last_nonempty_bucket + 1).base());
+    } else {
+      _buckets[1] = n();
+      _number_of_buckets = 1;
+    }
+
+    std::partial_sum(_buckets.begin(), _buckets.end(), _buckets.begin());
+  }
+
+  Container<EdgeID> _nodes;
+  CompactContainer<NodeID> _edges;
+  Container<NodeWeight> _node_weights;
+  CompactContainer<EdgeWeight> _edge_weights;
 
   NodeWeight _total_node_weight = kInvalidNodeWeight;
   EdgeWeight _total_edge_weight = kInvalidEdgeWeight;
@@ -327,4 +421,15 @@ private:
   std::vector<NodeID> _buckets = std::vector<NodeID>(kNumberOfDegreeBuckets<NodeID> + 1);
   std::size_t _number_of_buckets = 0;
 };
+
+using CSRGraph = AbstractCSRGraph<StaticArray, StaticArray>;
+using CompactCSRGraph = AbstractCSRGraph<StaticArray, CompactStaticArray>;
+
+namespace debug {
+
+bool validate_graph(const CSRGraph &graph, bool undirected = true, NodeID num_pseudo_nodes = 0);
+CSRGraph sort_neighbors(CSRGraph graph);
+
+} // namespace debug
+
 } // namespace kaminpar::shm

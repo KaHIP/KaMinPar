@@ -32,16 +32,19 @@ TEST(SubgraphExtractionTest, ExtractsEdges) {
   graph::SubgraphMemory memory{p_graph};
   auto result = extract_subgraphs(p_graph, 2, memory);
 
-  EXPECT_EQ(result.subgraphs[0].n(), 2);
-  EXPECT_EQ(result.subgraphs[1].n(), 2);
-  EXPECT_EQ(result.subgraphs[0].m(), 2);
-  EXPECT_EQ(result.subgraphs[1].m(), 2);
-  EXPECT_THAT(result.subgraphs[0].raw_edges()[0], AnyOf(0, 1));
-  EXPECT_THAT(result.subgraphs[0].raw_edges()[1], AnyOf(1, 0));
-  EXPECT_NE(result.subgraphs[0].raw_edges()[0], result.subgraphs[0].raw_edges()[1]);
-  EXPECT_THAT(result.subgraphs[1].raw_edges()[0], AnyOf(0, 1));
-  EXPECT_THAT(result.subgraphs[1].raw_edges()[1], AnyOf(1, 0));
-  EXPECT_NE(result.subgraphs[1].raw_edges()[0], result.subgraphs[0].raw_edges()[1]);
+  CSRGraph &subgraph0 = *dynamic_cast<CSRGraph *>(result.subgraphs[0].underlying_graph());
+  CSRGraph &subgraph1 = *dynamic_cast<CSRGraph *>(result.subgraphs[1].underlying_graph());
+
+  EXPECT_EQ(subgraph0.n(), 2);
+  EXPECT_EQ(subgraph1.n(), 2);
+  EXPECT_EQ(subgraph0.m(), 2);
+  EXPECT_EQ(subgraph1.m(), 2);
+  EXPECT_THAT(subgraph0.raw_edges()[0], AnyOf(0, 1));
+  EXPECT_THAT(subgraph0.raw_edges()[1], AnyOf(1, 0));
+  EXPECT_NE(subgraph0.raw_edges()[0], subgraph0.raw_edges()[1]);
+  EXPECT_THAT(subgraph1.raw_edges()[0], AnyOf(0, 1));
+  EXPECT_THAT(subgraph1.raw_edges()[1], AnyOf(1, 0));
+  EXPECT_NE(subgraph1.raw_edges()[0], subgraph0.raw_edges()[1]);
 }
 
 TEST(SubgraphExtractionTest, ExtractsPathCutInTwo) {
@@ -51,16 +54,19 @@ TEST(SubgraphExtractionTest, ExtractsPathCutInTwo) {
   graph::SubgraphMemory memory{p_graph};
   auto result = extract_subgraphs(p_graph, 2, memory);
 
-  EXPECT_EQ(result.subgraphs[0].n(), 2);
-  EXPECT_EQ(result.subgraphs[1].n(), 2);
-  EXPECT_EQ(result.subgraphs[0].m(), 2);
-  EXPECT_EQ(result.subgraphs[1].m(), 2);
-  EXPECT_THAT(result.subgraphs[0].raw_edges()[0], AnyOf(0, 1));
-  EXPECT_THAT(result.subgraphs[0].raw_edges()[1], AnyOf(1, 0));
-  EXPECT_NE(result.subgraphs[0].raw_edges()[0], result.subgraphs[0].raw_edges()[1]);
-  EXPECT_THAT(result.subgraphs[1].raw_edges()[0], AnyOf(0, 1));
-  EXPECT_THAT(result.subgraphs[1].raw_edges()[1], AnyOf(1, 0));
-  EXPECT_NE(result.subgraphs[1].raw_edges()[0], result.subgraphs[0].raw_edges()[1]);
+  CSRGraph &subgraph0 = *dynamic_cast<CSRGraph *>(result.subgraphs[0].underlying_graph());
+  CSRGraph &subgraph1 = *dynamic_cast<CSRGraph *>(result.subgraphs[1].underlying_graph());
+
+  EXPECT_EQ(subgraph0.n(), 2);
+  EXPECT_EQ(subgraph1.n(), 2);
+  EXPECT_EQ(subgraph0.m(), 2);
+  EXPECT_EQ(subgraph1.m(), 2);
+  EXPECT_THAT(subgraph0.raw_edges()[0], AnyOf(0, 1));
+  EXPECT_THAT(subgraph0.raw_edges()[1], AnyOf(1, 0));
+  EXPECT_NE(subgraph0.raw_edges()[0], subgraph0.raw_edges()[1]);
+  EXPECT_THAT(subgraph1.raw_edges()[0], AnyOf(0, 1));
+  EXPECT_THAT(subgraph1.raw_edges()[1], AnyOf(1, 0));
+  EXPECT_NE(subgraph1.raw_edges()[0], subgraph0.raw_edges()[1]);
 }
 
 TEST(SubgraphExtractionTest, ComplexTrianglesWeightedExampleWorks) {

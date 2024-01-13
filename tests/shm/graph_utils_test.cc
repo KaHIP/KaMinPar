@@ -35,10 +35,11 @@ TEST(ParallelContractionTest, ContractingToSingleNodeWorks) {
 TEST(ParallelContractionTest, ContractingToSingletonsWorks) {
   static constexpr auto GRID_LENGTH{2};
   Graph graph{graphs::grid(GRID_LENGTH, GRID_LENGTH)};
-  graph = change_node_weight(std::move(graph), 0, 1);
-  graph = change_node_weight(std::move(graph), 1, 2);
-  graph = change_node_weight(std::move(graph), 2, 3);
-  graph = change_node_weight(std::move(graph), 3, 4);
+  change_node_weight(graph, 0, 1);
+  change_node_weight(graph, 1, 2);
+  change_node_weight(graph, 2, 3);
+  change_node_weight(graph, 3, 4);
+  graph.update_total_node_weight();
 
   auto [c_graph, c_mapping, m_ctx] =
       graph::contract(graph, {.use_edge_buffer = true}, scalable_vector<NodeID>{0, 1, 2, 3});
@@ -71,14 +72,15 @@ TEST(ParallelContractionTest, ContractingAllNodesButOneWorks) {
 
 TEST(ParallelContractionTest, ContractingGridHorizontallyWorks) {
   Graph graph{graphs::grid(2, 4)}; // two rows, 4 columns, organized row by row
-  graph = change_node_weight(std::move(graph), 0, 1);
-  graph = change_node_weight(std::move(graph), 1, 2);
-  graph = change_node_weight(std::move(graph), 2, 3);
-  graph = change_node_weight(std::move(graph), 3, 4);
-  graph = change_node_weight(std::move(graph), 4, 10);
-  graph = change_node_weight(std::move(graph), 5, 20);
-  graph = change_node_weight(std::move(graph), 6, 30);
-  graph = change_node_weight(std::move(graph), 7, 40);
+  change_node_weight(graph, 0, 1);
+  change_node_weight(graph, 1, 2);
+  change_node_weight(graph, 2, 3);
+  change_node_weight(graph, 3, 4);
+  change_node_weight(graph, 4, 10);
+  change_node_weight(graph, 5, 20);
+  change_node_weight(graph, 6, 30);
+  change_node_weight(graph, 7, 40);
+  graph.update_total_node_weight();
 
   auto [c_graph, c_mapping, m_ctx] = graph::contract(
       graph, {.use_edge_buffer = true}, scalable_vector<NodeID>{0, 1, 2, 3, 0, 1, 2, 3}
@@ -95,14 +97,15 @@ TEST(ParallelContractionTest, ContractingGridHorizontallyWorks) {
 
 TEST(ParallelContractionTest, ContractingGridVerticallyWorks) {
   Graph graph{graphs::grid(4, 2)}; // four columns, two rows, organized row by row
-  graph = change_node_weight(std::move(graph), 0, 1);
-  graph = change_node_weight(std::move(graph), 1, 10);
-  graph = change_node_weight(std::move(graph), 2, 2);
-  graph = change_node_weight(std::move(graph), 3, 20);
-  graph = change_node_weight(std::move(graph), 4, 3);
-  graph = change_node_weight(std::move(graph), 5, 30);
-  graph = change_node_weight(std::move(graph), 6, 4);
-  graph = change_node_weight(std::move(graph), 7, 40);
+  change_node_weight(graph, 0, 1);
+  change_node_weight(graph, 1, 10);
+  change_node_weight(graph, 2, 2);
+  change_node_weight(graph, 3, 20);
+  change_node_weight(graph, 4, 3);
+  change_node_weight(graph, 5, 30);
+  change_node_weight(graph, 6, 4);
+  change_node_weight(graph, 7, 40);
+  graph.update_total_node_weight();
 
   auto [c_graph, c_mapping, m_ctx] = graph::contract(
       graph, {.use_edge_buffer = true}, scalable_vector<NodeID>{0, 0, 2, 2, 4, 4, 6, 6}
@@ -174,20 +177,18 @@ TEST(
    * 7--8  9        *--*--*
    * 10    11
    */
-  auto nodes = create_static_array<EdgeID>({0, 0, 1, 3, 4, 5, 5, 5, 7, 8, 8, 8, 8});
-  auto edges = create_static_array<NodeID>({2, 1, 3, 2, 7, 4, 8, 7});
-  auto node_weights = create_static_array<NodeWeight>({});
-  auto edge_weights = create_static_array<EdgeWeight>({});
+  Graph graph{create_graph({0, 0, 1, 3, 4, 5, 5, 5, 7, 8, 8, 8, 8}, {2, 1, 3, 2, 7, 4, 8, 7})};
 
   PartitionContext p_ctx;
   p_ctx.k = 2;
   p_ctx.epsilon = 0.17; // max block weight 7
 
-  graph::rearrange_graph(p_ctx, nodes, edges, node_weights, edge_weights);
+  graph = graph::rearrange_by_degree_buckets(*dynamic_cast<CSRGraph *>(graph.underlying_graph()));
+  graph::remove_isolated_nodes(graph, p_ctx);
 
-  EXPECT_EQ(nodes.size(), 7);
-  EXPECT_EQ(edges.size(), 8);
-  for (const NodeID v : edges) {
+  EXPECT_EQ(graph.n(), 6);
+  EXPECT_EQ(graph.m(), 8);
+  for (const NodeID v : (*dynamic_cast<CSRGraph *>(graph.underlying_graph())).raw_edges()) {
     EXPECT_LT(v, 7);
   } // edges are valid
 

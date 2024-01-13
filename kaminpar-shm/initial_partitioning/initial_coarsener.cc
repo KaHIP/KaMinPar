@@ -234,7 +234,7 @@ InitialCoarsener::ContractionResult InitialCoarsener::contract_current_clusterin
 
     // initialize clustering data structures for computing a clustering of the
     // coarse graph (interleaved clustering computation)
-    reset_current_clustering(c_n, c_node_weights);
+    reset_current_clustering(c_n, [&](const NodeID u) { return c_node_weights[u]; });
   }
 
   // Here, we have the following arrays, with n -- number of nodes in current

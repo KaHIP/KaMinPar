@@ -165,14 +165,6 @@ public:
     return _nodes;
   }
 
-  [[nodiscard]] inline StaticArray<NodeID> &raw_edges() final {
-    return _raw_edges_dummy;
-  }
-
-  [[nodiscard]] inline const StaticArray<NodeID> &raw_edges() const final {
-    return _raw_edges_dummy;
-  }
-
   [[nodiscard]] inline StaticArray<NodeWeight> &raw_node_weights() final {
     return _node_weights;
   }
@@ -181,32 +173,20 @@ public:
     return _node_weights;
   }
 
-  [[nodiscard]] inline StaticArray<EdgeWeight> &raw_edge_weights() final {
-    return _edge_weights;
-  }
-
-  [[nodiscard]] inline const StaticArray<EdgeWeight> &raw_edge_weights() const final {
-    return _edge_weights;
-  }
-
   [[nodiscard]] inline StaticArray<EdgeID> &&take_raw_nodes() final {
     return std::move(_nodes);
-  }
-
-  [[nodiscard]] inline StaticArray<NodeID> &&take_raw_edges() final {
-    return std::move(_raw_edges_dummy);
   }
 
   [[nodiscard]] inline StaticArray<NodeWeight> &&take_raw_node_weights() final {
     return std::move(_node_weights);
   }
 
-  [[nodiscard]] inline StaticArray<EdgeWeight> &&take_raw_edge_weights() final {
-    return std::move(_edge_weights);
-  }
-
   [[nodiscard]] const StaticArray<std::uint8_t> &raw_compressed_edges() const {
     return _compressed_edges;
+  }
+
+  [[nodiscard]] const StaticArray<EdgeWeight> &raw_edge_weights() const {
+    return _edge_weights;
   }
 
   // Size of the graph
@@ -471,8 +451,6 @@ private:
   const std::size_t _high_degree_count;
   const std::size_t _part_count;
   const std::size_t _interval_count;
-
-  StaticArray<NodeID> _raw_edges_dummy{};
 
   void init_degree_buckets();
 

@@ -246,6 +246,14 @@ CLI::Option_group *create_contraction_coarsening_options(CLI::App *app, Context 
           "contracted edges twice"
       )
       ->capture_default_str();
+  contraction
+      ->add_option(
+          "--c-con-compact-ids",
+          ctx.coarsening.contraction.use_compact_ids,
+          "Whether to build a contracted graph which uses Node IDs and edge weights with minimal "
+          "byte width"
+      )
+      ->capture_default_str();
 
   return contraction;
 }

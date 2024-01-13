@@ -94,7 +94,9 @@ public:
 
   void reset_current_clustering() {
     if (_current_graph->node_weighted()) {
-      reset_current_clustering(_current_graph->n(), _current_graph->raw_node_weights());
+      reset_current_clustering(_current_graph->n(), [&](const NodeID u) {
+        return _current_graph->node_weight(u);
+      });
     } else {
       // this is robust if _current_graph is empty (then we can't use
       // node_weight(0))
@@ -104,16 +106,14 @@ public:
     }
   }
 
-  template <typename Weights>
-  void reset_current_clustering(const NodeID n, const Weights &node_weights) {
+  template <typename Lambda> void reset_current_clustering(const NodeID n, Lambda &&l) {
     KASSERT(n <= _clustering.size());
-    KASSERT(n <= node_weights.size());
 
     _current_num_moves = 0;
     for (NodeID u = 0; u < n; ++u) {
       _clustering[u].locked = false;
       _clustering[u].leader = u;
-      _clustering[u].weight = node_weights[u];
+      _clustering[u].weight = l(u);
     }
   }
 
@@ -142,7 +142,8 @@ private:
   inline void interleaved_handle_node(const NodeID c_u, const NodeWeight c_u_weight) {
     if (!_interleaved_locked) {
       const NodeID best_cluster{
-          pick_cluster_from_rating_map(c_u, c_u_weight, _interleaved_max_cluster_weight)};
+          pick_cluster_from_rating_map(c_u, c_u_weight, _interleaved_max_cluster_weight)
+      };
       const bool changed_cluster{best_cluster != c_u};
 
       if (changed_cluster) {

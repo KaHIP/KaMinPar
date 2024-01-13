@@ -167,23 +167,21 @@ void build_permuted_graph(
   });
 }
 
-Graph rearrange_by_degree_buckets(Context &ctx, Graph graph);
-
 NodePermutations<StaticArray> rearrange_graph(
-    PartitionContext &p_ctx,
     StaticArray<EdgeID> &nodes,
     StaticArray<NodeID> &edges,
     StaticArray<NodeWeight> &node_weights,
     StaticArray<EdgeWeight> &edge_weights
 );
 
-void remove_isolated_nodes(Graph &graph, PartitionContext &p_ctx);
-
-NodeID integrate_isolated_nodes(Graph &graph, double epsilon, Context &ctx);
-
-PartitionedGraph assign_isolated_nodes(
-    PartitionedGraph p_graph, const NodeID num_isolated_nodes, const PartitionContext &p_ctx
-);
+/*!
+ * Rearranges the nodes of the graph such that nodes are sorted by their exponentially spaced degree
+ * buckets and the isolated nodes are moved to the back of the graph.
+ *
+ * @param graph The graph to rearrange.
+ * @return The rearranged graph.
+ */
+Graph rearrange_by_degree_buckets(CSRGraph &graph);
 
 /*!
  * Rearrange the neighborhood of each node in a graph, so that the ordering is the same as in the
@@ -192,5 +190,35 @@ PartitionedGraph assign_isolated_nodes(
  * @param graph The graph to rearrange
  */
 void reorder_edges_by_compression(CSRGraph &graph);
+
+/*!
+ * Removes the isolated nodes of a graph which are located at the back of the graph.
+ *
+ * @param graph The graph whose isolated nodes to remove.
+ * @param p_ctx The parition context to update.
+ */
+void remove_isolated_nodes(Graph &graph, PartitionContext &p_ctx);
+
+/*!
+ * Integrates the isolated nodes of a graph that have been removed.
+ *
+ * @param graph The graph whose isolated nodes to integrate.
+ * @param epsilon The epsilon value before removing the integrated nodes.
+ * @param ctx The context to update.
+ * @return The number of isolated nodes integrated.
+ */
+NodeID integrate_isolated_nodes(Graph &graph, double epsilon, Context &ctx);
+
+/*!
+ * Assignes isolated nodes to a partition.
+ *
+ * @param p_graph The partitioned graph whose isolated nodes to assign.
+ * @param num_isolated_nodes the number of isolated nodes.
+ * @param p_ctx The partition context of the graph.
+ * @return The updated partitioned graph.
+ */
+PartitionedGraph assign_isolated_nodes(
+    PartitionedGraph p_graph, const NodeID num_isolated_nodes, const PartitionContext &p_ctx
+);
 
 } // namespace kaminpar::shm::graph

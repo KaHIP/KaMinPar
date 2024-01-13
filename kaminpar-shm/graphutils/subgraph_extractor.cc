@@ -293,8 +293,11 @@ SubgraphExtractionResult extract_subgraphs(
   KASSERT(
       [&] {
         for (const BlockID b : p_graph.blocks()) {
-          if (!debug::validate_graph(subgraphs[b])) {
-            return false;
+          if (auto *csr_graph = dynamic_cast<CSRGraph *>(subgraphs[b].underlying_graph());
+              csr_graph != nullptr) {
+            if (!debug::validate_graph(*csr_graph)) {
+              return false;
+            }
           }
         }
         return true;

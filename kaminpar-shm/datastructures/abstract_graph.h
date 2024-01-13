@@ -38,19 +38,11 @@ public:
   [[nodiscard]] virtual StaticArray<EdgeID> &raw_nodes() = 0;
   [[nodiscard]] virtual const StaticArray<EdgeID> &raw_nodes() const = 0;
 
-  [[nodiscard]] virtual StaticArray<NodeID> &raw_edges() = 0;
-  [[nodiscard]] virtual const StaticArray<NodeID> &raw_edges() const = 0;
-
   [[nodiscard]] virtual StaticArray<NodeWeight> &raw_node_weights() = 0;
   [[nodiscard]] virtual const StaticArray<NodeWeight> &raw_node_weights() const = 0;
 
-  [[nodiscard]] virtual StaticArray<EdgeWeight> &raw_edge_weights() = 0;
-  [[nodiscard]] virtual const StaticArray<EdgeWeight> &raw_edge_weights() const = 0;
-
   [[nodiscard]] virtual StaticArray<EdgeID> &&take_raw_nodes() = 0;
-  [[nodiscard]] virtual StaticArray<NodeID> &&take_raw_edges() = 0;
   [[nodiscard]] virtual StaticArray<NodeWeight> &&take_raw_node_weights() = 0;
-  [[nodiscard]] virtual StaticArray<EdgeWeight> &&take_raw_edge_weights() = 0;
 
   // Size of the graph
   [[nodiscard]] virtual NodeID n() const = 0;

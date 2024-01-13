@@ -64,7 +64,8 @@ int main(int argc, char *argv[]) {
   ctx.setup(graph);
 
   if (ctx.node_ordering == NodeOrdering::DEGREE_BUCKETS) {
-    graph = graph::rearrange_by_degree_buckets(ctx, std::move(graph));
+    CSRGraph &csr_graph = *dynamic_cast<CSRGraph *>(graph.underlying_graph());
+    graph = graph::rearrange_by_degree_buckets(csr_graph);
   }
 
   if (graph.sorted()) {

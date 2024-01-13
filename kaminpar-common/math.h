@@ -26,8 +26,12 @@ namespace kaminpar::math {
  * @param y The divisor.
  * @return The ceiling of x divided by y.
  */
-template <typename Int> constexpr Int div_ceil(Int x, Int y) {
-  return 1 + ((x - 1) / y);
+template <typename Int> constexpr std::make_unsigned_t<Int> abs(Int value) {
+  if (value < 0) {
+    value *= -1;
+  }
+
+  return static_cast<std::make_unsigned_t<Int>>(value);
 }
 
 /*!
@@ -37,8 +41,19 @@ template <typename Int> constexpr Int div_ceil(Int x, Int y) {
  * @param y The second integer.
  * @return The absolute difference of x and y.
  */
-template <typename Int1, typename Int2> std::size_t abs_diff(Int1 x, Int2 y) {
+template <typename Int1, typename Int2> constexpr std::size_t abs_diff(const Int1 x, const Int2 y) {
   return x > y ? x - y : y - x;
+}
+
+/*!
+ * Divides two integers with ceil rounding.
+ *
+ * @param x The dividend which has to be non-zero.
+ * @param y The divisor.
+ * @return The ceiling of x divided by y.
+ */
+template <typename Int> constexpr Int div_ceil(const Int x, const Int y) {
+  return 1 + ((x - 1) / y);
 }
 
 template <typename Int> bool is_square(const Int value) {
@@ -80,6 +95,15 @@ template <typename T> T ceil_log2(const T arg) {
 
 template <typename T> T ceil2(const T arg) {
   return 1 << ceil_log2(arg);
+}
+
+template <typename Int> constexpr Int byte_width(const Int i) {
+  if (i == 0) {
+    return 1;
+  }
+
+  const Int bit_width = 1 + floor_log2(i);
+  return div_ceil<Int>(bit_width, 8);
 }
 
 template <typename E>
