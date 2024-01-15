@@ -438,23 +438,22 @@ protected:
   void handle_two_hop_nodes_impl(
       const NodeID from = 0, const NodeID to = std::numeric_limits<ClusterID>::max()
   ) {
-    LOG << "handle_two_hop_nodes_impl(): " << match;
-
     static_assert(Config::kUseTwoHopClustering, "2-hop clustering is disabled");
 
     auto is_considered_for_two_hop_clustering = [&](const NodeID u) {
       // Skip nodes not considered for two-hop clustering
-      if (u != derived_cluster(u)) {
+      if (_graph->degree(u) == 0) {
+        // Not considered: isolated node
+        return false;
+      } else if (u != derived_cluster(u)) {
         // Not considered: joined another cluster
         return false;
       } else {
         // If u did not join another cluster, there could still be other nodes that joined this
         // node's cluster: find out by checking the cluster weight
-        const auto initial_weight = derived_initial_cluster_weight(u);
-        const auto current_weight = derived_cluster_weight(u);
-        const auto max_weight = derived_max_cluster_weight(u);
-
-        if (current_weight != initial_weight || current_weight > max_weight / 2) {
+        const ClusterWeight current_weight = derived_cluster_weight(u);
+        if (current_weight > derived_max_cluster_weight(u) / 2 ||
+            current_weight != derived_initial_cluster_weight(u)) {
           // Not considered: not a singleton cluster; or its weight is too heavy
           return false;
         }
@@ -479,17 +478,25 @@ protected:
           derived_move_node(u, cluster);
           --_current_num_clusters;
         }
+      } else {
+        _favored_clusters[u] = u;
       }
     });
 
     KASSERT(
         [&] {
-          for (NodeID u = from; u < to; ++u) {
-            if (is_considered_for_two_hop_clustering(u) &&
+          for (NodeID u = from; u < std::min(to, _graph->n()); ++u) {
+            if (_favored_clusters[u] >= _graph->n()) {
+              LOG_WARNING << "favored cluster of node " << u
+                          << " out of bounds: " << _favored_clusters[u] << " > " << _graph->n();
+            }
+            if (u != _favored_clusters[u] && is_considered_for_two_hop_clustering(u) &&
                 is_considered_for_two_hop_clustering(_favored_clusters[u])) {
-              LOG_WARNING << "node " << u
+              LOG_WARNING << "node " << u << " (degree " << _graph->degree(u) << " )"
                           << " is considered for two-hop clustering, but its favored cluster "
-                          << _favored_clusters[u] << " is also considered for two-hop clustering";
+                          << _favored_clusters[u] << " (degree "
+                          << _graph->degree(_favored_clusters[u])
+                          << ") is also considered for two-hop clustering";
               return false;
             }
           }
@@ -529,17 +536,23 @@ protected:
       auto &sync = _favored_clusters[C];
 
       do {
-        NodeID cluster = C;
+        NodeID cluster = sync;
 
-        if (sync == cluster) { // === "sync == C"
+        if (cluster == C) {
           if (sync.compare_exchange_strong(cluster, u)) {
             // We are done: other nodes will join our cluster
             break;
           }
+          if (cluster == C) {
+            continue;
+          }
         }
 
         // Invariant: cluster is a node with favored cluster C
-        KASSERT(_favored_clusters[cluster] == C);
+        KASSERT(
+            _favored_clusters[cluster] == C,
+            "invariant violated by: " << V(u) << V(cluster) << V(C) << V(_favored_clusters[C])
+        );
 
         // Try to join the cluster:
         if constexpr (match) {
@@ -556,7 +569,6 @@ protected:
             );
 
             derived_move_node(u, cluster);
-            --_current_num_clusters;
 
             // We are done: build a cluster with "cluster", reset "sync" to C
             break;
@@ -568,7 +580,6 @@ protected:
                   u, cluster, derived_cluster_weight(u), derived_max_cluster_weight(cluster)
               )) {
             derived_move_node(u, cluster);
-            --_current_num_clusters;
 
             // We are done: joined cluster "cluster"
             break;

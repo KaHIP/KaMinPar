@@ -158,7 +158,7 @@ Options are:
       ->capture_default_str();
   lp->add_option(
         "--c-lp-two-hop-threshold",
-        ctx.coarsening.lp.two_hop_clustering_threshold,
+        ctx.coarsening.lp.two_hop_threshold,
         "Enable two-hop clustering if plain label propagation shrunk "
         "the graph by less than this factor"
   )

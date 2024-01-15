@@ -72,7 +72,7 @@ public:
     }
 
     if ((1.0 - 1.0 * _current_num_clusters / _graph->n()) <=
-        _c_ctx.lp.two_hop_clustering_threshold) {
+        _c_ctx.lp.two_hop_threshold) {
       if (_c_ctx.lp.isolated_nodes_strategy ==
           IsolatedNodesClusteringStrategy::MATCH_DURING_TWO_HOP) {
         SCOPED_TIMER("Handle isolated nodes");

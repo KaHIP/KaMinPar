@@ -255,8 +255,8 @@ void print(const LabelPropagationCoarseningContext &lp_ctx, std::ostream &out) {
   out << "  Number of iterations:       " << lp_ctx.num_iterations << "\n";
   out << "  High degree threshold:      " << lp_ctx.large_degree_threshold << "\n";
   out << "  Max degree:                 " << lp_ctx.max_num_neighbors << "\n";
-  out << "  2-hop clustering threshold: " << std::fixed << 100 * lp_ctx.two_hop_clustering_threshold
-      << "%\n";
+  out << "  2-hop clustering:           " << lp_ctx.two_hop_strategy << ", if |Vcoarse| > "
+      << std::setw(2) << std::fixed << lp_ctx.two_hop_threshold << " * |V|\n";
   out << "  Isolated nodes:             " << lp_ctx.isolated_nodes_strategy << "\n";
 }
 

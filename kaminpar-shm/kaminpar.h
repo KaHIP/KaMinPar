@@ -99,7 +99,7 @@ struct LabelPropagationCoarseningContext {
   NodeID max_num_neighbors;
 
   TwoHopStrategy two_hop_strategy;
-  double two_hop_clustering_threshold;
+  double two_hop_threshold;
 
   IsolatedNodesClusteringStrategy isolated_nodes_strategy;
 };
