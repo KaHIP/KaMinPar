@@ -438,81 +438,142 @@ protected:
   void handle_two_hop_nodes_impl(
       const NodeID from = 0, const NodeID to = std::numeric_limits<ClusterID>::max()
   ) {
+    LOG << "handle_two_hop_nodes_impl(): " << match;
+
     static_assert(Config::kUseTwoHopClustering, "2-hop clustering is disabled");
 
-    // During label propagation, we store the best cluster for each node in _favored_cluster[]
-    // independent of whether there is enough space in the cluster for the node to join.
-    // We now use this information to merge nodes that could not join any cluster, i.e.,
-    // singleton-clusters by greedily constructing clusters that share the same favored cluster.
-
-    // Prepare _favored_cluster[]: for nodes v that are not considered to 2-hop clustering, set
-    // _favored_cluster[v] = v
-    tbb::parallel_for(from, std::min(to, _graph->n()), [&](const NodeID u) {
+    auto is_considered_for_two_hop_clustering = [&](const NodeID u) {
+      // Skip nodes not considered for two-hop clustering
       if (u != derived_cluster(u)) {
-        // Not considered, because the node has joined another cluster
-        _favored_clusters[u] = u;
+        // Not considered: joined another cluster
+        return false;
       } else {
+        // If u did not join another cluster, there could still be other nodes that joined this
+        // node's cluster: find out by checking the cluster weight
         const auto initial_weight = derived_initial_cluster_weight(u);
         const auto current_weight = derived_cluster_weight(u);
         const auto max_weight = derived_max_cluster_weight(u);
 
-        // Not considered, because the cluster contains other nodes (i.e., its weight changed) or
-        // the node is too heavy (> max cluster weight / 2).
         if (current_weight != initial_weight || current_weight > max_weight / 2) {
-          _favored_clusters[u] = u;
+          // Not considered: not a singleton cluster; or its weight is too heavy
+          return false;
+        }
+      }
+
+      return true;
+    };
+
+    // There could be edge cases where the favorite cluster of a node is itself a singleton cluster
+    // (for instance, if a node joins another cluster during the first round, but moves out of the
+    // cluster in the next round)
+    // Since the following code is based on the ansumption that the favorite cluster of a node that
+    // is considered for two-hop clustering it itself not considere for two-hop clustering, we fix
+    // this situation by moving the nodes to their favorite cluster, if possible, here.
+    tbb::parallel_for(from, std::min(to, _graph->n()), [&](const NodeID u) {
+      if (is_considered_for_two_hop_clustering(u)) {
+        const NodeID cluster = _favored_clusters[u];
+        if (is_considered_for_two_hop_clustering(cluster) &&
+            derived_move_cluster_weight(
+                u, cluster, derived_cluster_weight(u), derived_max_cluster_weight(cluster)
+            )) {
+          derived_move_node(u, cluster);
+          --_current_num_clusters;
         }
       }
     });
 
+    KASSERT(
+        [&] {
+          for (NodeID u = from; u < to; ++u) {
+            if (is_considered_for_two_hop_clustering(u) &&
+                is_considered_for_two_hop_clustering(_favored_clusters[u])) {
+              LOG_WARNING << "node " << u
+                          << " is considered for two-hop clustering, but its favored cluster "
+                          << _favored_clusters[u] << " is also considered for two-hop clustering";
+              return false;
+            }
+          }
+          return true;
+        }(),
+        "precondition for two-hop clustering violated: found favored clusters that could be joined",
+        assert::heavy
+    );
+
+    // During label propagation, we store the best cluster for each node in _favored_cluster[]
+    // regardless of whether there is enough space in the cluster for the node to join.
+    // We now use this information to merge nodes that could not join any cluster, i.e.,
+    // singleton-clusters by clustering or matching nodes that have favored cluster.
+
     tbb::parallel_for(from, std::min(to, _graph->n()), [&](const NodeID u) {
-      // Abort once we number of clusters is low enough
       if (should_stop()) {
         return;
       }
 
       // Skip nodes not considered for two-hop clustering
-      // We cannot use _favored_clusters[u] == u as a condition for this, since we re-use their
-      // _favored_cluster[] entries to build the clustering
-      if (const ClusterID u_cluster = derived_cluster(u);
-          u != u_cluster || derived_cluster_weight(u_cluster) != _graph->node_weight(u)) {
+      if (!is_considered_for_two_hop_clustering(u)) {
         return;
       }
 
-      // We cluster the remaining nodes by using the _favored_clusters[] entries of their favored
-      // clusters: Nodes u with favored cluster C try to set _favored_clusters[C] to u if
-      // _favored_clusters[C] == C. Otherwise, they try to join the cluster of _favored_clusters[C]
-      // != C until the cluster gets full.
-      const NodeID favored_cluster = _favored_clusters[u];
+      // Invariant:
+      // For each node u that is considered for two-hop clustering (i.e., nodes for which the
+      // following lines of code are executed), _favored_clusters[u] refers to node which *IS NOT*
+      // considered for two-hop matching.
+      //
+      // Reasoning:
+      // KASSERT()
+      //
+      // Conclusion:
+      // We can use _favored_clusters[u] to build the two-hop clusters.
+
+      const NodeID C = _favored_clusters[u];
+      auto &sync = _favored_clusters[C];
 
       do {
-        NodeID cluster = favored_cluster;
+        NodeID cluster = C;
 
-        if (_favored_clusters[cluster] == cluster) {
-          if (_favored_clusters[cluster].compare_exchange_strong(cluster, u)) {
+        if (sync == cluster) { // === "sync == C"
+          if (sync.compare_exchange_strong(cluster, u)) {
+            // We are done: other nodes will join our cluster
             break;
           }
         }
 
+        // Invariant: cluster is a node with favored cluster C
+        KASSERT(_favored_clusters[cluster] == C);
+
+        // Try to join the cluster:
         if constexpr (match) {
-          if (_favored_clusters[favored_cluster].compare_exchange_strong(
-                  cluster, favored_cluster
-              )) {
-            if (derived_move_cluster_weight(
-                    u, cluster, derived_cluster_weight(u), derived_max_cluster_weight(cluster)
-                )) {
-              derived_move_node(u, cluster);
-              --_current_num_clusters;
-            }
+          // Matching mode: try to build a cluster only containing nodes "cluster" and "u"
+          if (sync.compare_exchange_strong(cluster, C)) {
+            [[maybe_unused]] const bool success = derived_move_cluster_weight(
+                u, cluster, derived_cluster_weight(u), derived_max_cluster_weight(cluster)
+            );
+            KASSERT(
+                success,
+                "node " << u << " could be matched with node " << cluster << ": "
+                        << derived_cluster_weight(u) << " + " << derived_cluster_weight(cluster)
+                        << " > " << derived_max_cluster_weight(cluster)
+            );
+
+            derived_move_node(u, cluster);
+            --_current_num_clusters;
+
+            // We are done: build a cluster with "cluster", reset "sync" to C
             break;
           }
         } else {
+          // Clustering mode: try to join cluster "cluster" if the weight constraint permits it,
+          // otherwise try to start a new cluster
           if (derived_move_cluster_weight(
                   u, cluster, derived_cluster_weight(u), derived_max_cluster_weight(cluster)
               )) {
             derived_move_node(u, cluster);
             --_current_num_clusters;
+
+            // We are done: joined cluster "cluster"
             break;
-          } else if (_favored_clusters[favored_cluster].compare_exchange_strong(cluster, u)) {
+          } else if (sync.compare_exchange_strong(cluster, u)) {
+            // We are done: other nodes will join our cluster
             break;
           }
         }
