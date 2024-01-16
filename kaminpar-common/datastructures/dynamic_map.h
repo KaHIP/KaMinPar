@@ -1,4 +1,4 @@
-#pragma once 
+#pragma once
 
 #include <cmath>
 #include <cstdint>
@@ -9,13 +9,16 @@
 
 namespace kaminpar {
 template <typename Key, typename Value, typename Derived> class DynamicMapBase {
-public:
+protected:
   static constexpr std::size_t INVALID_POS_MASK =
       ~(std::numeric_limits<std::size_t>::max() >> 1); // MSB is set
-  static constexpr std::size_t INITIAL_CAPACITY = 16;
+  static constexpr std::size_t DEFAULT_INITIAL_CAPACITY = 16;
 
-  explicit DynamicMapBase() : _capacity(32), _size(0), _timestamp(1), _data(nullptr) {
-    initialize(INITIAL_CAPACITY);
+public:
+  DynamicMapBase() : DynamicMapBase(DEFAULT_INITIAL_CAPACITY) {}
+
+  explicit DynamicMapBase(const std::size_t initial_capacity) {
+    initialize(initial_capacity);
   }
 
   DynamicMapBase(const DynamicMapBase &) = delete;
@@ -26,11 +29,11 @@ public:
 
   ~DynamicMapBase() = default;
 
-  std::size_t capacity() const {
+  [[nodiscard]] std::size_t capacity() const {
     return _capacity;
   }
 
-  std::size_t size() const {
+  [[nodiscard]] std::size_t size() const {
     return _size;
   }
 
@@ -38,13 +41,14 @@ public:
     _size = 0;
     _capacity = align_to_next_power_of_two(capacity);
     _timestamp = 1;
+
     const size_t alloc_size = static_cast<const Derived *>(this)->size_in_bytes();
-    _data = std::make_unique<uint8_t[]>(alloc_size);
+    _data = std::make_unique<std::uint8_t[]>(alloc_size);
     std::memset(_data.get(), 0, alloc_size);
     static_cast<Derived *>(this)->initialize_impl();
   }
 
-  bool contains(const Key key) const {
+  [[nodiscard]] bool contains(const Key key) const {
     const std::size_t pos = find(key);
     return pos < INVALID_POS_MASK;
   }
@@ -85,7 +89,7 @@ public:
   }
 
 private:
-  inline std::size_t find(const Key key) const {
+  [[nodiscard]] std::size_t find(const Key key) const {
     return static_cast<const Derived *>(this)->find_impl(key);
   }
 
@@ -106,15 +110,16 @@ private:
     return static_cast<const Derived *>(this)->value_at_pos(pos);
   }
 
-  constexpr std::size_t align_to_next_power_of_two(const std::size_t size) const {
+  [[nodiscard]] constexpr std::size_t align_to_next_power_of_two(const std::size_t size) const {
     return std::pow(2.0, std::ceil(std::log2(static_cast<double>(size))));
   }
 
 protected:
-  std::size_t _capacity;
-  std::size_t _size;
-  std::size_t _timestamp;
-  std::unique_ptr<std::uint8_t[]> _data;
+  std::size_t _capacity = 0;
+  std::size_t _size = 0;
+  std::size_t _timestamp = 0;
+
+  std::unique_ptr<std::uint8_t[]> _data = nullptr;
 };
 
 template <typename Key, typename Value>
@@ -130,9 +135,9 @@ class DynamicFlatMap final : public DynamicMapBase<Key, Value, DynamicFlatMap<Ke
   friend Base;
 
 public:
-  explicit DynamicFlatMap() : Base(), _elements(nullptr) {
-    initialize_impl();
-  }
+  explicit DynamicFlatMap(const std::size_t initial_capacity) : Base(initial_capacity) {}
+
+  DynamicFlatMap() : Base() {}
 
   DynamicFlatMap(const DynamicFlatMap &) = delete;
   DynamicFlatMap &operator=(const DynamicFlatMap &other) = delete;
@@ -149,7 +154,7 @@ public:
     _elements = nullptr;
   }
 
-  std::size_t size_in_bytes() const {
+  [[nodiscard]] std::size_t size_in_bytes() const {
     return _capacity * sizeof(MapElement);
   }
 
@@ -185,7 +190,7 @@ private:
       const std::size_t old_capacity,
       const std::size_t old_timestamp
   ) {
-    const MapElement *elements = reinterpret_cast<const MapElement *>(old_data_begin);
+    const auto *elements = reinterpret_cast<const MapElement *>(old_data_begin);
     for (size_t i = 0; i < old_capacity; ++i) {
       if (elements[i].timestamp == old_timestamp) {
         const size_t pos = find_impl(elements[i].key) & ~INVALID_POS_MASK;
@@ -198,6 +203,7 @@ private:
   using Base::_data;
   using Base::_size;
   using Base::_timestamp;
-  MapElement *_elements;
+
+  MapElement *_elements = nullptr;
 };
 } // namespace kaminpar

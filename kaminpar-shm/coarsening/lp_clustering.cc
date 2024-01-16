@@ -90,6 +90,10 @@ private:
       cluster_two_hop_nodes();
       break;
 
+    case TwoHopStrategy::CLUSTER_THREADWISE:
+      cluster_two_hop_nodes_threadwise();
+      break;
+
     case TwoHopStrategy::LEGACY:
       handle_two_hop_clustering_legacy();
       break;

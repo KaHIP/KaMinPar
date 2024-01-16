@@ -19,6 +19,7 @@
 #include "kaminpar-shm/definitions.h"
 
 #include "kaminpar-common/assertion_levels.h"
+#include "kaminpar-common/datastructures/dynamic_map.h"
 #include "kaminpar-common/datastructures/rating_map.h"
 #include "kaminpar-common/datastructures/scalable_vector.h"
 #include "kaminpar-common/logger.h"
@@ -422,17 +423,94 @@ protected:
     );
   }
 
+  void match_two_hop_nodes_threadwise(
+      const NodeID from = 0, const NodeID to = std::numeric_limits<ClusterID>::max()
+  ) {
+    handle_two_hop_nodes_threadwise_impl<true>(from, to);
+  }
+
+  void cluster_two_hop_nodes_threadwise(
+      const NodeID from = 0, const NodeID to = std::numeric_limits<ClusterID>::max()
+  ) {
+    handle_two_hop_nodes_threadwise_impl<false>(from, to);
+  }
+
+  template <bool match>
+  void handle_two_hop_nodes_threadwise_impl(
+      const NodeID from = 0, const NodeID to = std::numeric_limits<ClusterID>::max()
+  ) {
+    static_assert(Config::kUseTwoHopClustering, "2-hop clustering is disabled");
+
+    tbb::enumerable_thread_specific<DynamicFlatMap<ClusterID, NodeID>> matching_map_ets([&] {
+      return DynamicFlatMap<ClusterID, NodeID>(1024);
+    });
+
+    auto is_considered_for_two_hop_clustering = [&](const NodeID u) {
+      // Skip nodes not considered for two-hop clustering
+      if (_graph->degree(u) == 0) {
+        // Not considered: isolated node
+        return false;
+      } else if (u != derived_cluster(u)) {
+        // Not considered: joined another cluster
+        return false;
+      } else {
+        // If u did not join another cluster, there could still be other nodes that joined this
+        // node's cluster: find out by checking the cluster weight
+        const ClusterWeight current_weight = derived_cluster_weight(u);
+        if (current_weight > derived_max_cluster_weight(u) / 2 ||
+            current_weight != derived_initial_cluster_weight(u)) {
+          // Not considered: not a singleton cluster; or its weight is too heavy
+          return false;
+        }
+      }
+
+      return true;
+    };
+
+    auto handle_node = [&](DynamicFlatMap<ClusterID, NodeID> &matching_map, const NodeID u) {
+      ClusterID &rep_key = matching_map[_favored_clusters[u]];
+
+      if (rep_key == 0) {
+        rep_key = u + 1;
+      } else {
+        const ClusterID rep = rep_key - 1;
+
+        const bool could_move_u_to_rep = derived_move_cluster_weight(
+            u, rep, derived_cluster_weight(u), derived_max_cluster_weight(rep)
+        );
+
+        if constexpr (match) {
+          KASSERT(could_move_u_to_rep);
+          derived_move_node(u, rep);
+          rep_key = 0;
+        } else {
+          if (could_move_u_to_rep) {
+            derived_move_node(u, rep);
+          } else {
+            rep_key = u + 1;
+          }
+        }
+      }
+    };
+
+    tbb::parallel_for(
+        tbb::blocked_range<NodeID>(from, std::min(to, _graph->n()), 512),
+        [&](const tbb::blocked_range<NodeID> &r) {
+          auto &matching_map = matching_map_ets.local();
+
+          for (NodeID u = r.begin(); u != r.end(); ++u) {
+            if (is_considered_for_two_hop_clustering(u)) {
+              handle_node(matching_map, u);
+            }
+          }
+        }
+    );
+  }
+
   void match_two_hop_nodes(
       const NodeID from = 0, const NodeID to = std::numeric_limits<ClusterID>::max()
   ) {
     handle_two_hop_nodes_impl<true>(from, to);
-  }
-
-  void match_two_hop_nodes_threadwise(
-      const NodeID from = 0, const NodeID to = std::numeric_limits<ClusterID>::max()
-  ) {
-
-    // @todo
   }
 
   void cluster_two_hop_nodes(
@@ -738,22 +816,21 @@ protected: // Members
 
   //! We stop label propagation if the number of non-empty clusters falls below
   //! this threshold. Only has an effect if empty clusters are being counted.
-  ClusterID _desired_num_clusters{0};
+  ClusterID _desired_num_clusters = 0;
 
   //! We do not move nodes with a degree higher than this. However, other nodes
   //! may still be moved to the cluster of with degree larger than this
   //! threshold.
-  NodeID _max_degree{std::numeric_limits<NodeID>::max()};
+  NodeID _max_degree = std::numeric_limits<NodeID>::max();
 
   //! When computing the gain values for a node, this is an upper limit on the
   //! number of neighbors of the nodes we consider. Any more neighbors are
   //! ignored.
-  NodeID _max_num_neighbors{std::numeric_limits<NodeID>::max()}; //! Only consider this many
-                                                                 //! neighbors per node
+  NodeID _max_num_neighbors = std::numeric_limits<NodeID>::max();
 
   //! Thread-local map to compute gain values.
   tbb::enumerable_thread_specific<RatingMap> _rating_map_ets{[this] {
-    return RatingMap{_num_clusters};
+    return RatingMap(_num_clusters);
   }};
 
   //! Flags nodes with at least one node in its neighborhood that changed
@@ -772,9 +849,9 @@ protected: // Members
   parallel::Atomic<EdgeWeight> _expected_total_gain;
 
 private:
-  NodeID _num_nodes{0};
-  NodeID _num_active_nodes{0};
-  ClusterID _num_clusters{0};
+  NodeID _num_nodes = 0;
+  NodeID _num_active_nodes = 0;
+  ClusterID _num_clusters = 0;
 };
 
 /*!

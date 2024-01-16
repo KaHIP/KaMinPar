@@ -83,6 +83,7 @@ enum class TwoHopStrategy {
   MATCH,
   MATCH_THREADWISE,
   CLUSTER,
+  CLUSTER_THREADWISE,
   LEGACY,
 };
 
