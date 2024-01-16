@@ -22,6 +22,8 @@
 #include "kaminpar-dist/graphutils/replicator.h"
 #include "kaminpar-dist/graphutils/subgraph_extractor.h"
 #include "kaminpar-dist/metrics.h"
+#include "kaminpar-dist/partitioning/utilities.h"
+#include "kaminpar-dist/timer.h"
 
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/metrics.h"
@@ -42,88 +44,12 @@ DeepMultilevelPartitioner::DeepMultilevelPartitioner(
   _coarseners.emplace(_input_graph, _input_ctx);
 }
 
-void DeepMultilevelPartitioner::print_coarsening_level(const GlobalNodeWeight max_cluster_weight
-) const {
-  const auto *coarsener = get_current_coarsener();
-  const auto *graph = coarsener->coarsest();
-  mpi::barrier(graph->communicator());
-
-  SCOPED_TIMER("Print coarse graph statistics");
-
-  const auto [n_min, n_avg, n_max, n_sum] =
-      mpi::gather_statistics(graph->n(), graph->communicator());
-  const double n_imbalance = 1.0 * n_max / n_avg;
-  const auto [ghost_n_min, ghost_n_avg, ghost_n_max, ghost_n_sum] =
-      mpi::gather_statistics(graph->ghost_n(), graph->communicator());
-  const double ghost_n_imbalance = 1.0 * ghost_n_max / ghost_n_avg;
-  const auto [m_min, m_avg, m_max, m_sum] =
-      mpi::gather_statistics(graph->m(), graph->communicator());
-  const double m_imbalance = 1.0 * m_max / m_avg;
-  const auto [max_node_weight_min, max_node_weight_avg, max_node_weight_max, max_node_weight_sum] =
-      mpi::gather_statistics(graph->max_node_weight(), graph->communicator());
-  const auto max_value = std::max(
-      {static_cast<GlobalNodeID>(n_max),
-       static_cast<GlobalNodeID>(ghost_n_max),
-       static_cast<GlobalNodeID>(m_max),
-       static_cast<GlobalNodeID>(max_node_weight_max)}
-  );
-  const int width = std::log10(max_value) + 1;
-
-  LOG << "Coarsening -> Level " << _coarseners.size() << "," << coarsener->level() << ":";
-  LOG << "  Number of nodes: " << graph->global_n() << " | Number of edges: " << graph->global_m();
-  LOG << "  Number of local nodes: [Min=" << std::setw(width) << n_min
-      << " | Mean=" << std::setw(width) << static_cast<NodeID>(n_avg)
-      << " | Max=" << std::setw(width) << n_max << " | Imbalance=" << std::setprecision(2)
-      << std::setw(width) << n_imbalance << "]";
-  LOG << "  Number of ghost nodes: [Min=" << std::setw(width) << ghost_n_min
-      << " | Mean=" << std::setw(width) << static_cast<NodeID>(ghost_n_avg)
-      << " | Max=" << std::setw(width) << ghost_n_max << " | Imbalance=" << std::setprecision(2)
-      << std::setw(width) << ghost_n_imbalance << "]";
-  LOG << "  Number of edges:       [Min=" << std::setw(width) << m_min
-      << " | Mean=" << std::setw(width) << static_cast<EdgeID>(m_avg)
-      << " | Max=" << std::setw(width) << m_max << " | Imbalance=" << std::setprecision(2)
-      << std::setw(width) << m_imbalance << "]";
-  LOG << "  Maximum node weight:   [Min=" << std::setw(width) << max_node_weight_min
-      << " | Mean=" << std::setw(width) << static_cast<NodeWeight>(max_node_weight_avg)
-      << " | Max=" << std::setw(width) << max_node_weight_max << "] <= " << max_cluster_weight;
-  LOG;
-
-  mpi::barrier(graph->communicator());
-}
-
-void DeepMultilevelPartitioner::print_coarsening_converged() const {
-  LOG << "==> Coarsening converged.";
-  LOG;
-}
-
-void DeepMultilevelPartitioner::print_coarsening_terminated(const GlobalNodeID desired_num_nodes
-) const {
-  LOG << "==> Coarsening terminated with less than " << desired_num_nodes << " nodes.";
-  LOG;
-}
-
-void DeepMultilevelPartitioner::print_initial_partitioning_result(
-    const DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx
-) const {
-  mpi::barrier(p_graph.communicator());
-
-  SCOPED_TIMER("Print partition statistics");
-
-  const auto cut = metrics::edge_cut(p_graph);
-  const auto imbalance = metrics::imbalance(p_graph);
-  const bool feasible = metrics::is_feasible(p_graph, p_ctx);
-
-  LOG << "Initial partition:";
-  LOG << "  Number of blocks: " << p_graph.k();
-  LOG << "  Cut:              " << cut;
-  LOG << "  Imbalance:        " << imbalance;
-  LOG << "  Feasible:         " << (feasible ? "yes" : "no");
-}
-
 DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
   const DistributedGraph *graph = &_input_graph;
   auto *coarsener = get_current_coarsener();
   bool converged = false;
+
+  print_input_graph(_input_graph);
 
   /*
    * Coarsening
@@ -168,7 +94,7 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
     converged = (graph == c_graph);
 
     if (!converged) {
-      print_coarsening_level(max_cluster_weight);
+      print_coarsened_graph(*coarsener->coarsest(), coarsener->level(), max_cluster_weight);
       if (c_graph->global_n() <= desired_num_nodes) {
         print_coarsening_terminated(desired_num_nodes);
       }
