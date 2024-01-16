@@ -42,6 +42,7 @@ public:
     reference operator*() const {
       return *_ptr;
     }
+
     pointer operator->() const {
       return _ptr;
     }
@@ -49,24 +50,31 @@ public:
     StaticArrayIterator &operator++() {
       return ++_ptr, *this;
     }
+
     StaticArrayIterator &operator--() {
       return --_ptr, *this;
     }
+
     StaticArrayIterator operator++(int) {
       return {_ptr++};
     }
+
     StaticArrayIterator operator--(int) {
       return {_ptr--};
     }
+
     StaticArrayIterator operator+(const difference_type &n) const {
       return StaticArrayIterator{_ptr + n};
     }
+
     StaticArrayIterator &operator+=(const difference_type &n) {
       return _ptr += n, *this;
     }
+
     StaticArrayIterator operator-(const difference_type &n) const {
       return StaticArrayIterator{_ptr - n};
     }
+
     StaticArrayIterator &operator-=(const difference_type &n) {
       return _ptr -= n, *this;
     }
@@ -74,27 +82,35 @@ public:
     reference operator[](const difference_type &n) const {
       return *_ptr[n];
     }
+
     bool operator==(const StaticArrayIterator &other) const {
       return _ptr == other._ptr;
     }
+
     bool operator!=(const StaticArrayIterator &other) const {
       return _ptr != other._ptr;
     }
+
     bool operator>(const StaticArrayIterator &other) const {
       return _ptr > other._ptr;
     }
+
     bool operator<(const StaticArrayIterator &other) const {
       return _ptr < other._ptr;
     }
+
     bool operator<=(const StaticArrayIterator &other) const {
       return _ptr <= other._ptr;
     }
+
     bool operator>=(const StaticArrayIterator &other) const {
       return _ptr >= other._ptr;
     }
+
     difference_type operator+(const StaticArrayIterator &other) {
       return _ptr + other._ptr;
     }
+
     difference_type operator-(const StaticArrayIterator &other) {
       return _ptr - other._ptr;
     }
@@ -120,7 +136,7 @@ public:
     KASSERT(start + size <= data.size());
   }
 
-  StaticArray(const std::size_t size, value_type *data) : _size{size}, _data{data} {}
+  StaticArray(const std::size_t size, value_type *data) : _size(size), _data(data) {}
 
   StaticArray(const std::size_t size, const value_type init_value = value_type()) {
     resize(size, init_value);
@@ -305,10 +321,10 @@ private:
     _unrestricted_size = _size;
   }
 
-  size_type _size{0};
-  size_type _unrestricted_size{0};
-  parallel::tbb_unique_ptr<value_type> _owned_data{nullptr};
-  value_type *_data{nullptr};
+  size_type _size = 0;
+  size_type _unrestricted_size = 0;
+  parallel::tbb_unique_ptr<value_type> _owned_data = nullptr;
+  value_type *_data = nullptr;
 };
 
 namespace static_array {

@@ -21,10 +21,11 @@ public:
   explicit Marker(const std::size_t capacity)
       : _data(capacity),
         _marker_id(0),
-        _first_unmarked_element{0} {}
+        _first_unmarked_element(0) {}
 
   Marker(const Marker &) = delete;
   Marker &operator=(const Marker &) = delete;
+
   Marker(Marker &&) noexcept = default;
   Marker &operator=(Marker &&) noexcept = default;
 
@@ -81,7 +82,7 @@ public:
     _data.resize(capacity);
   }
 
-  std::size_t memory_in_kb() const {
+  [[nodiscard]] std::size_t memory_in_kb() const {
     return _data.size() * sizeof(element_type) / 1000;
   }
 

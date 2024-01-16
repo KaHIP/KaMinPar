@@ -40,29 +40,34 @@ template <typename Key, typename Value> class SparseMap {
   };
 
 public:
-  SparseMap() : _capacity{0} {}
-  explicit SparseMap(const std::size_t capacity) : _capacity{capacity} {
+  SparseMap() = default;
+
+  explicit SparseMap(const std::size_t capacity) : _capacity(capacity) {
     allocate_data(capacity);
   }
 
   SparseMap(const SparseMap &) = delete;
   SparseMap &operator=(const SparseMap &) = delete;
+
   SparseMap(SparseMap &&) noexcept = default;
   SparseMap &operator=(SparseMap &&) noexcept = default;
 
-  std::size_t capacity() const {
+  [[nodiscard]] std::size_t capacity() const {
     return _capacity;
   }
-  bool is_allocated() const {
+
+  [[nodiscard]] bool is_allocated() const {
     return capacity() > 0;
   }
-  std::size_t size() const {
+
+  [[nodiscard]] std::size_t size() const {
     return _size;
   }
 
   void shrink(const std::size_t capacity) {
     _dense = reinterpret_cast<Element *>(_sparse + capacity);
   }
+
   void resize(const std::size_t capacity) {
     allocate_data(capacity);
   }
@@ -70,7 +75,8 @@ public:
   bool contains(const Key key) const {
     KASSERT(_data != nullptr);
     KASSERT(key < _capacity);
-    const std::size_t index{_sparse[key]};
+
+    const std::size_t index = _sparse[key];
     return index < _size && _dense[index].key == key;
   }
 
@@ -82,7 +88,7 @@ public:
   }
 
   void remove(const Key key) {
-    const std::size_t index{_sparse[key]};
+    const std::size_t index = _sparse[key];
     if (index < _size && _dense[index].key == key) {
       std::swap(_dense[index], _dense[_size - 1]);
       _sparse[_dense[index].key] = index;
@@ -93,12 +99,15 @@ public:
   const Element *begin() const {
     return _dense;
   }
+
   const Element *end() const {
     return _dense + _size;
   }
+
   Element *begin() {
     return _dense;
   }
+
   Element *end() {
     return _dense + _size;
   }
@@ -138,8 +147,8 @@ private:
     _dense = reinterpret_cast<Element *>(_sparse + _capacity);
   }
 
-  std::size_t _capacity{};
-  std::size_t _size{0};
+  std::size_t _capacity = 0;
+  std::size_t _size = 0;
   std::unique_ptr<std::size_t[]> _data{nullptr};
   std::size_t *_sparse{nullptr};
   Element *_dense{nullptr};
