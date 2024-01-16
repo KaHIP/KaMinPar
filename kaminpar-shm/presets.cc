@@ -69,7 +69,7 @@ Context create_default_context() {
                       .num_iterations = 5,
                       .large_degree_threshold = 1000000,
                       .max_num_neighbors = 200000,
-                      .two_hop_strategy = TwoHopStrategy::MATCH,
+                      .two_hop_strategy = TwoHopStrategy::MATCH_THREADWISE,
                       .two_hop_threshold = 0.5,
                       .isolated_nodes_strategy =
                           IsolatedNodesClusteringStrategy::MATCH_DURING_TWO_HOP,
