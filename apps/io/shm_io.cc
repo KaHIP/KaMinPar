@@ -231,7 +231,7 @@ compress_read(const std::string &filename, const bool sorted, const bool may_dis
 
   CompressedGraphBuilder builder;
   RECORD("neighbourhood") std::vector<std::pair<NodeID, EdgeWeight>> neighbourhood;
-  RECORD_LOCAL_DATA_STRUCT("std::vector", 0, neighbourhood_stats);
+  RECORD_LOCAL_DATA_STRUCT("vector<pair<NodeID, EdgeWeight>>", 0, neighbourhood_stats);
 
   parse<false>(
       filename,

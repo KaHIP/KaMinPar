@@ -74,7 +74,7 @@ public:
         _timestamp(1),
         _sparse(nullptr),
         _dense(nullptr) {
-    RECORD_DATA_STRUCT("FixedSizeSparseMap", 0, _struct);
+    RECORD_DATA_STRUCT(0, _struct);
     allocate(MAP_SIZE);
   }
 
@@ -86,7 +86,7 @@ public:
         _timestamp(1),
         _sparse(nullptr),
         _dense(nullptr) {
-    RECORD_DATA_STRUCT("FixedSizeSparseMap", 0, _struct);
+    RECORD_DATA_STRUCT(0, _struct);
     allocate(max_size);
   }
 
@@ -195,8 +195,7 @@ private:
 
       IF_HEAP_PROFILING(
           _struct->size = std::max(
-              _struct->size,
-              sizeof(uint8_t) * (_map_size * sizeof(Element) + _map_size * sizeof(SparseElement))
+              _struct->size, _map_size * sizeof(Element) + _map_size * sizeof(SparseElement)
           )
       );
     }

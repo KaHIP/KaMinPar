@@ -36,8 +36,7 @@ public:
    * @param capacity The capacity of the map, i.e. the amount of values to possibly save.
    */
   explicit ConcurrentFastResetArray(const std::size_t capacity = 0) : _data(capacity) {
-    RECORD_DATA_STRUCT("ConcurrentFastResetArray", capacity * sizeof(value_type), _struct);
-    IF_HEAP_PROFILING(_capacity = _capacity);
+    RECORD_DATA_STRUCT(capacity * sizeof(value_type), _struct);
     _used_entries_tls.resize(tbb::this_task_arena::max_concurrency());
   }
 
@@ -68,6 +67,7 @@ public:
    * @param capacity The new capacity of the map, i.e. the amount of values to possibly save.
    */
   void resize(const size_type capacity) {
+    IF_HEAP_PROFILING(_struct->size = std::max(_struct->size, capacity * sizeof(value_type)));
     _data.resize(capacity);
   }
 
@@ -94,7 +94,6 @@ private:
   std::vector<parallel::AlignedVec<std::vector<size_type>>> _used_entries_tls;
 
   IF_HEAP_PROFILING(heap_profiler::DataStructure *_struct);
-  IF_HEAP_PROFILING(std::size_t _capacity);
 };
 
 } // namespace kaminpar

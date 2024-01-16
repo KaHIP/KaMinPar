@@ -1320,9 +1320,7 @@ private:
 template <typename NodeID, typename ClusterID> class OwnedClusterVector {
 public:
   explicit OwnedClusterVector(const NodeID max_num_nodes) : _clusters(max_num_nodes) {
-    RECORD_DATA_STRUCT(
-        "OwnedClusterVector", max_num_nodes * sizeof(parallel::Atomic<ClusterID>), _struct
-    );
+    RECORD_DATA_STRUCT(max_num_nodes * sizeof(parallel::Atomic<ClusterID>), _struct);
   }
 
   [[nodiscard]] auto &&take_clusters() {
@@ -1368,10 +1366,7 @@ template <typename ClusterID, typename ClusterWeight> class OwnedRelaxedClusterW
 public:
   explicit OwnedRelaxedClusterWeightVector(const ClusterID max_num_clusters)
       : _cluster_weights(max_num_clusters) {
-    RECORD_DATA_STRUCT(
-        "OwnedRelaxedClusterWeightVector",
-        max_num_clusters * sizeof(parallel::Atomic<ClusterWeight>)
-    );
+    RECORD_DATA_STRUCT(max_num_clusters * sizeof(parallel::Atomic<ClusterWeight>));
   }
 
   auto &&take_cluster_weights() {

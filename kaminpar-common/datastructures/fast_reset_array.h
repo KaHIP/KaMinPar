@@ -24,8 +24,7 @@ public:
   using size_type = Size;
 
   explicit FastResetArray(const std::size_t capacity = 0) : _data(capacity) {
-    RECORD_DATA_STRUCT("FastResetArray", capacity * sizeof(value_type), _struct);
-    IF_HEAP_PROFILING(_capacity = capacity);
+    RECORD_DATA_STRUCT(capacity * sizeof(value_type), _struct);
   }
 
   FastResetArray(const FastResetArray &) = delete;
@@ -38,10 +37,11 @@ public:
 
     if (_data[pos] == Value()) {
       _used_entries.push_back(pos);
+
       IF_HEAP_PROFILING(
           _struct->size = std::max(
               _struct->size,
-              _capacity * sizeof(value_type) + _used_entries.capacity() * sizeof(size_type)
+              _data.capacity() * sizeof(value_type) + _used_entries.capacity() * sizeof(size_type)
           )
       );
     }
@@ -107,10 +107,9 @@ public:
     IF_HEAP_PROFILING(
         _struct->size = std::max(
             _struct->size,
-            capacity * sizeof(value_type) + _used_entries.capacity() * sizeof(size_type)
+            _data.capacity() * sizeof(value_type) + _used_entries.capacity() * sizeof(size_type)
         )
     );
-    IF_HEAP_PROFILING(_capacity = capacity);
   }
 
   [[nodiscard]] std::size_t memory_in_kb() const {
@@ -121,7 +120,6 @@ private:
   std::vector<value_type> _data;
   std::vector<size_type> _used_entries{};
 
-  IF_HEAP_PROFILING(std::size_t _capacity);
   IF_HEAP_PROFILING(heap_profiler::DataStructure *_struct);
 };
 } // namespace kaminpar

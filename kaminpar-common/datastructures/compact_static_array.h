@@ -7,7 +7,9 @@
  ******************************************************************************/
 #pragma once
 
-#include "kaminpar-common/datastructures/static_array.h"
+#include <cstdint>
+#include <limits>
+#include <memory>
 
 namespace kaminpar {
 
@@ -132,7 +134,9 @@ public:
   /*!
    * Constructs a new CompactStaticArray.
    */
-  CompactStaticArray() : _byte_width(0), _mask(0), _values(0) {}
+  CompactStaticArray() : _byte_width(0), _mask(0), _values(0) {
+    RECORD_DATA_STRUCT(0);
+  }
 
   /*!
    * Constructs a new CompactStaticArray.
@@ -143,7 +147,10 @@ public:
   CompactStaticArray(const std::uint8_t byte_width, const std::size_t size)
       : _byte_width(byte_width),
         _mask((1 << (byte_width * 8)) - 1),
-        _values(byte_width * size) {}
+        _size(byte_width * size),
+        _values(std::make_unique<std::uint8_t[]>(_size)) {
+    RECORD_DATA_STRUCT(_size);
+  }
 
   CompactStaticArray(const CompactStaticArray &) = delete;
   CompactStaticArray &operator=(const CompactStaticArray &) = delete;
@@ -158,7 +165,8 @@ public:
    * @param value The value to store.
    */
   inline void write(const std::size_t pos, Int value) {
-    std::uint8_t *data = _values.data() + pos * _byte_width;
+    std::uint8_t *data = _values.get() + pos * _byte_width;
+
     for (std::uint8_t i = 0; i < _byte_width; ++i) {
       *data++ = value & 0b11111111;
       value >>= 8;
@@ -172,7 +180,7 @@ public:
    * @return The integer stored at the position in the array.
    */
   [[nodiscard]] inline Int operator[](const std::size_t pos) const {
-    return *reinterpret_cast<const Int *>(_values.data() + pos * _byte_width) & _mask;
+    return *reinterpret_cast<const Int *>(_values.get() + pos * _byte_width) & _mask;
   }
 
   /*!
@@ -180,8 +188,8 @@ public:
    *
    * @return An interator to the beginning.
    */
-  CompactStaticArrayIterator begin() const {
-    return CompactStaticArrayIterator(_byte_width, _mask, _values.data());
+  [[nodiscard]] CompactStaticArrayIterator begin() const {
+    return CompactStaticArrayIterator(_byte_width, _mask, _values.get());
   }
 
   /*!
@@ -189,8 +197,8 @@ public:
    *
    * @return An interator to the end.
    */
-  CompactStaticArrayIterator end() const {
-    return CompactStaticArrayIterator{_byte_width, _mask, _values.data() + _values.size()};
+  [[nodiscard]] CompactStaticArrayIterator end() const {
+    return CompactStaticArrayIterator{_byte_width, _mask, _values.get() + _size};
   }
 
   /*!
@@ -199,7 +207,7 @@ public:
    * @return Whether the array is empty.
    */
   [[nodiscard]] bool empty() const {
-    return _values.size() == 0;
+    return _size == 0;
   }
 
   /*!
@@ -208,7 +216,7 @@ public:
    * @return The amount of integers in the array.
    */
   [[nodiscard]] std::size_t size() const {
-    return _values.size() / _byte_width;
+    return _size / _byte_width;
   }
 
   /*!
@@ -223,7 +231,8 @@ public:
 private:
   const std::uint8_t _byte_width;
   const Int _mask;
-  StaticArray<std::uint8_t> _values;
+  const std::size_t _size;
+  std::unique_ptr<std::uint8_t[]> _values;
 };
 
 }; // namespace kaminpar

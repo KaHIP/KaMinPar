@@ -40,21 +40,22 @@ Result contract_generic_clustering(
   START_TIMER("Allocation");
 
   RECORD("mapping") scalable_vector<NodeID> mapping(graph.n());
-  RECORD_DATA_STRUCT("scalable_vector", mapping.capacity() * sizeof(NodeID));
+  RECORD_LOCAL_DATA_STRUCT("scalable_vector<NodeID>", mapping.capacity() * sizeof(NodeID));
 
   if (leader_mapping.size() < graph.n()) {
     leader_mapping.resize(graph.n());
   }
   RECORD("leader_mapping");
-  RECORD_DATA_STRUCT(
-      "scalable_vector", leader_mapping.capacity() * sizeof(parallel::Atomic<NodeID>)
+  RECORD_LOCAL_DATA_STRUCT(
+      "scalable_vector<parallel::Atomic<NodeID>>",
+      leader_mapping.capacity() * sizeof(parallel::Atomic<NodeID>)
   );
 
   if (buckets.size() < graph.n()) {
     buckets.resize(graph.n());
   }
   RECORD("buckets");
-  RECORD_DATA_STRUCT("scalable_vector", buckets.capacity() * sizeof(NodeID));
+  RECORD_LOCAL_DATA_STRUCT("scalable_vector<NodeID>", buckets.capacity() * sizeof(NodeID));
 
   STOP_TIMER();
   STOP_HEAP_PROFILER();
@@ -93,8 +94,9 @@ Result contract_generic_clustering(
     buckets_index.resize(c_n + 1);
   };
   RECORD("buckets_index");
-  RECORD_DATA_STRUCT(
-      "scalable_vector", buckets_index.capacity() * sizeof(parallel::Atomic<NodeID>)
+  RECORD_LOCAL_DATA_STRUCT(
+      "scalable_vector<parallel::Atomic<NodeID>>",
+      buckets_index.capacity() * sizeof(parallel::Atomic<NodeID>)
   );
   STOP_HEAP_PROFILER();
 

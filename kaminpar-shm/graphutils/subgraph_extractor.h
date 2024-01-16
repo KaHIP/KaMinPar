@@ -37,7 +37,7 @@ struct SubgraphMemoryStartPosition {
 
 struct SubgraphMemory {
   SubgraphMemory() {
-    RECORD_DATA_STRUCT("SubgraphMemory", 0, _struct);
+    RECORD_DATA_STRUCT(0, _struct);
   }
 
   SubgraphMemory(
@@ -47,12 +47,12 @@ struct SubgraphMemory {
       const bool is_node_weighted = true,
       const bool is_edge_weighted = true
   ) {
-    RECORD_DATA_STRUCT("SubgraphMemory", 0, _struct);
+    RECORD_DATA_STRUCT(0, _struct);
     resize(n, k, m, is_node_weighted, is_edge_weighted);
   }
 
   explicit SubgraphMemory(const PartitionedGraph &p_graph) {
-    RECORD_DATA_STRUCT("SubgraphMemory", 0, _struct);
+    RECORD_DATA_STRUCT(0, _struct);
     resize(p_graph);
   }
 

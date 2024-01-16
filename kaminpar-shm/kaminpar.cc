@@ -212,7 +212,6 @@ EdgeWeight KaMinPar::compute_partition(const BlockID k, BlockID *partition) {
   // Cut off isolated nodes if the graph has been rearranged such that the isolated nodes are placed
   // at the end.
   if (_graph_ptr->sorted()) {
-    SCOPED_HEAP_PROFILER("Remove isolated nodes");
     SCOPED_TIMER("Remove isolated nodes");
 
     graph::remove_isolated_nodes(*_graph_ptr, _ctx.partition);

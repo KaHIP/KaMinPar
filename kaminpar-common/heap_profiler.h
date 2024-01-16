@@ -16,41 +16,99 @@
 #include <unordered_map>
 #include <vector>
 
+#include <cxxabi.h>
+
 #include "kaminpar-common/libc_memory_override.h"
+
+namespace kaminpar::heap_profiler {
+
+/*!
+ * Returns the (demangled) name of a type.
+ *
+ * See https://stackoverflow.com/a/25893042
+ *
+ * @tparam T The type whose name to return.
+ * @return The (demangled) name of the type T.
+ */
+template <typename T> std::string type_name() {
+  auto mangeled_name = typeid(T()).name();
+  int status = 0;
+
+  std::unique_ptr<char, void (*)(void *)> demangled_result{
+      abi::__cxa_demangle(mangeled_name, NULL, NULL, &status), std::free
+  };
+
+  // Strip the trailing brackets from the constructed function type.
+  std::string name((status == 0) ? demangled_result.get() : mangeled_name);
+  if (name.substr(name.size() - 3) == " ()") {
+    name.resize(name.size() - 3);
+  }
+
+  // Remove the namespace from the type name.
+  auto it = name.find_last_of("::");
+  if (it != std::string::npos) {
+    name = name.substr(it + 1);
+  }
+
+  // Remove the asterisk from a this pointer.
+  if (name.back() == '*') {
+    name.resize(name.size() - 1);
+  }
+
+  return name;
+}
+
+}; // namespace kaminpar::heap_profiler
 
 #ifdef KAMINPAR_ENABLE_HEAP_PROFILING
 
 // A macro to get the path of a source file in the project directory
 // (https://stackoverflow.com/a/40947954)
 #define __FILENAME__ (__FILE__ + SOURCE_PATH_SIZE)
-
 #define GET_MACRO(X, Y, Z, FUNC, ...) FUNC
+
 #define START_HEAP_PROFILER_2(name, desc)                                                          \
   kaminpar::heap_profiler::HeapProfiler::global().start_profile(name, desc)
 #define START_HEAP_PROFILER_1(name) START_HEAP_PROFILER_2(name, "")
 #define START_HEAP_PROFILER(...)                                                                   \
-  GET_MACRO(_, ##__VA_ARGS__, START_HEAP_PROFILER_2, START_HEAP_PROFILER_1)(__VA_ARGS__)
+  GET_MACRO(_, __VA_ARGS__, START_HEAP_PROFILER_2, START_HEAP_PROFILER_1)(__VA_ARGS__)
+
 #define STOP_HEAP_PROFILER() kaminpar::heap_profiler::HeapProfiler::global().stop_profile()
+
 #define SCOPED_HEAP_PROFILER_2(name, desc, line)                                                   \
   const auto __SCOPED_HEAP_PROFILER__##line =                                                      \
       kaminpar::heap_profiler::HeapProfiler::global().start_scoped_profile(name, desc)
 #define SCOPED_HEAP_PROFILER_1(name, line) SCOPED_HEAP_PROFILER_2(name, "", line)
 #define SCOPED_HEAP_PROFILER(...)                                                                  \
-  GET_MACRO(_, ##__VA_ARGS__, SCOPED_HEAP_PROFILER_2, SCOPED_HEAP_PROFILER_1)(__VA_ARGS__, __LINE__)
-#define RECORD_DATA_STRUCT_2(name, size, variable_name)                                            \
-  variable_name = kaminpar::heap_profiler::HeapProfiler::global().add_data_struct(name, size)
-#define RECORD_DATA_STRUCT_1(name, size)                                                           \
-  kaminpar::heap_profiler::HeapProfiler::global().add_data_struct(name, size)
+  GET_MACRO(_, __VA_ARGS__, SCOPED_HEAP_PROFILER_2, SCOPED_HEAP_PROFILER_1)(__VA_ARGS__, __LINE__)
+
+#define RECORD_DATA_STRUCT_2(size, variable_name)                                                  \
+  variable_name = kaminpar::heap_profiler::HeapProfiler::global().add_data_struct(                 \
+      kaminpar::heap_profiler::type_name<decltype(this)>(), size                                   \
+  )
+#define RECORD_DATA_STRUCT_1(size)                                                                 \
+  kaminpar::heap_profiler::HeapProfiler::global().add_data_struct(                                 \
+      kaminpar::heap_profiler::type_name<decltype(this)>(), size                                   \
+  )
 #define RECORD_DATA_STRUCT(...)                                                                    \
-  GET_MACRO(__VA_ARGS__, RECORD_DATA_STRUCT_2, RECORD_DATA_STRUCT_1)(__VA_ARGS__)
-#define RECORD_LOCAL_DATA_STRUCT(name, size, variable_name)                                        \
+  GET_MACRO(_, __VA_ARGS__, RECORD_DATA_STRUCT_2, RECORD_DATA_STRUCT_1)(__VA_ARGS__)
+
+#define RECORD_LOCAL_DATA_STRUCT_2(name, size, variable_name)                                      \
   const auto variable_name =                                                                       \
       kaminpar::heap_profiler::HeapProfiler::global().add_data_struct(name, size)
+#define RECORD_LOCAL_DATA_STRUCT_1(name, size)                                                     \
+  kaminpar::heap_profiler::HeapProfiler::global().add_data_struct(name, size)
+#define RECORD_LOCAL_DATA_STRUCT(...)                                                              \
+  GET_MACRO(__VA_ARGS__, RECORD_LOCAL_DATA_STRUCT_2, RECORD_LOCAL_DATA_STRUCT_1)(__VA_ARGS__)
+
 #define RECORD(name)                                                                               \
   kaminpar::heap_profiler::HeapProfiler::global().record_data_struct(name, __FILENAME__, __LINE__);
+
 #define IF_HEAP_PROFILING(expression) expression
+
 #define ENABLE_HEAP_PROFILER() kaminpar::heap_profiler::HeapProfiler::global().enable()
 #define DISABLE_HEAP_PROFILER() kaminpar::heap_profiler::HeapProfiler::global().disable()
+
 #define PRINT_HEAP_PROFILE(out)                                                                    \
   kaminpar::heap_profiler::HeapProfiler::global().print_heap_profile(out)
 
@@ -155,7 +213,8 @@ struct DataStructure {
   /*!
    * The name of the data structure.
    */
-  std::string_view name;
+  std::string name;
+
   /*!
    * The size of the memory in bytes allocated on the heap by the data structure.
    */
@@ -181,8 +240,8 @@ struct DataStructure {
    * @param name The name of the data structure.
    * @param size The size of the memory in bytes allocated on the heap by the data structure.
    */
-  explicit DataStructure(std::string_view name, std::size_t size)
-      : name(name),
+  explicit DataStructure(std::string name, std::size_t size)
+      : name(std::move(name)),
         size(size),
         variable_name(""),
         file_name(""),
@@ -373,7 +432,7 @@ public:
    * @return A pointer to the object holding information about the data structure or a nullptr if
    * the heap profiler is disabled.
    */
-  DataStructure *add_data_struct(std::string_view name, std::size_t size);
+  DataStructure *add_data_struct(std::string name, std::size_t size);
 
   /*!
    * Records a memory allocation.
@@ -391,6 +450,11 @@ public:
   void record_free(const void *ptr);
 
   /*!
+   * Sets the options such that the printed summary contains detailed information.
+   */
+  void set_detailed_summary_options();
+
+  /*!
    * Sets the maximum depth shown in the summary.
    *
    * @param max_depth The maximum depth shown in the summary.
@@ -405,11 +469,11 @@ public:
   void set_print_data_structs(bool print);
 
   /*!
-   * Sets the option whether to print all data structure memory statistics in the summary.
+   * Sets the minimum size of a data structure in MB to be included in the summary.
    *
-   * @param print Whether to print all data structure memory statistics in the summary.
+   * @param size The minimum size of a data structure in MB to be included in the summary.
    */
-  void set_print_all_data_structs(bool print);
+  void set_min_data_struct_size(float size);
 
   /*!
    * Prints information about the heap profile to the output stream.
@@ -474,7 +538,7 @@ private:
 
   std::size_t _max_depth = std::numeric_limits<std::size_t>::max();
   bool _print_data_structs = true;
-  bool _print_all_data_structs = true;
+  std::size_t _min_data_struct_size = 0;
 
   static void print_heap_tree_node(
       std::ostream &out,
@@ -482,7 +546,7 @@ private:
       const HeapProfileTreeStats stats,
       std::size_t max_depth,
       bool print_data_structs,
-      bool print_all_data_structs,
+      std::size_t min_data_struct_size,
       std::size_t depth = 0,
       bool last = false
   );
@@ -496,7 +560,7 @@ private:
       const HeapProfileTreeNode &node,
       std::size_t depth,
       bool last,
-      bool print_all_data_structs
+      std::size_t min_data_struct_size
   );
 };
 

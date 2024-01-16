@@ -32,6 +32,8 @@
 
 #include <kassert/kassert.hpp>
 
+#include "kaminpar-common/heap_profiler.h"
+
 namespace kaminpar {
 template <typename Key, typename Value> class SparseMap {
   struct Element {
@@ -42,6 +44,7 @@ template <typename Key, typename Value> class SparseMap {
 public:
   SparseMap() : _capacity{0} {}
   explicit SparseMap(const std::size_t capacity) : _capacity{capacity} {
+    RECORD_DATA_STRUCT(0, _struct);
     allocate_data(capacity);
   }
 
@@ -132,10 +135,13 @@ private:
     KASSERT(!_data);
     const std::size_t total_memory{_capacity * sizeof(Element) + _capacity * sizeof(std::size_t)};
     const std::size_t num_elements{
-        static_cast<std::size_t>(std::ceil(1.0 * total_memory / sizeof(std::size_t)))};
+        static_cast<std::size_t>(std::ceil(1.0 * total_memory / sizeof(std::size_t)))
+    };
     _data = std::make_unique<std::size_t[]>(num_elements);
     _sparse = reinterpret_cast<std::size_t *>(_data.get());
     _dense = reinterpret_cast<Element *>(_sparse + _capacity);
+
+    IF_HEAP_PROFILING(_struct->size = std::max(_struct->size, num_elements * sizeof(std::size_t)));
   }
 
   std::size_t _capacity{};
@@ -143,5 +149,7 @@ private:
   std::unique_ptr<std::size_t[]> _data{nullptr};
   std::size_t *_sparse{nullptr};
   Element *_dense{nullptr};
+
+  IF_HEAP_PROFILING(heap_profiler::DataStructure *_struct);
 };
 } // namespace kaminpar

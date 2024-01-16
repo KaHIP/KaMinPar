@@ -10,6 +10,8 @@
 
 #include <kassert/kassert.hpp>
 
+#include "kaminpar-common/heap_profiler.h"
+
 namespace kaminpar {
 /*!
  * Queue with fixed capacity. Add new elements to its tail and remove elements
@@ -28,7 +30,9 @@ public:
   using iterator = typename std::vector<T>::iterator;
   using const_iterator = typename std::vector<T>::const_iterator;
 
-  explicit Queue(const std::size_t capacity) : _data(capacity), _head(0), _tail(0) {}
+  explicit Queue(const std::size_t capacity) : _data(capacity), _head(0), _tail(0) {
+    RECORD_DATA_STRUCT(capacity * sizeof(T), _struct);
+  }
 
   Queue(const Queue &) = delete;
   Queue &operator=(const Queue &) = delete;
@@ -82,6 +86,7 @@ public:
     return _data.size();
   }
   void resize(const std::size_t capacity) {
+    IF_HEAP_PROFILING(_struct->size = std::max(_struct->size, capacity * sizeof(T)));
     _data.resize(capacity);
     clear();
   }
@@ -119,5 +124,7 @@ private:
   std::vector<T> _data;
   std::size_t _head;
   std::size_t _tail;
+
+  IF_HEAP_PROFILING(heap_profiler::DataStructure *_struct);
 };
 } // namespace kaminpar

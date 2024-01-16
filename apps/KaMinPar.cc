@@ -39,9 +39,10 @@ struct ApplicationContext {
 
   int max_timer_depth = 3;
 
-  int max_heap_profiler_depth = 100;
-  bool heap_profiler_print_data_structs = true;
-  bool heap_profiler_print_all_data_structs = false;
+  bool heap_profiler_detailed = false;
+  int heap_profiler_max_depth = 3;
+  bool heap_profiler_print_structs = true;
+  float heap_profiler_min_struct_size = 10;
 
   BlockID k = 0;
 
@@ -100,21 +101,37 @@ The output should be stored in a file and can be used by the -C,--config option.
   });
 
   if constexpr (kHeapProfiling) {
-    cli.add_option(
-        "--max-heap-profiler-depth",
-        app.max_heap_profiler_depth,
-        "Set maximum heap profiler depth shown in result summary."
-    );
-    cli.add_flag(
-        "--heap-profiler-structs",
-        app.heap_profiler_print_data_structs,
-        "Print data structure memory statistics in result summary."
-    );
-    cli.add_flag(
-        "--heap-profiler-all-structs",
-        app.heap_profiler_print_all_data_structs,
-        "Print all data structure memory statistics in result summary."
-    );
+    auto *hp_group = cli.add_option_group("Heap Profiler");
+
+    hp_group
+        ->add_flag(
+            "-H,--hp-print-detailed",
+            app.heap_profiler_detailed,
+            "Show all levels and data structures in the result summary."
+        )
+        ->default_val(app.heap_profiler_detailed);
+    hp_group
+        ->add_option(
+            "--hp-max-depth",
+            app.heap_profiler_max_depth,
+            "Set maximum heap profiler depth shown in the result summary."
+        )
+        ->default_val(app.heap_profiler_max_depth);
+    hp_group
+        ->add_option(
+            "--hp-print-structs",
+            app.heap_profiler_print_structs,
+            "Print data structure memory statistics in the result summary."
+        )
+        ->default_val(app.heap_profiler_print_structs);
+    hp_group
+        ->add_option(
+            "--hp-min-struct-size",
+            app.heap_profiler_min_struct_size,
+            "Sets the minimum size of a data structure in MB to be included in the result summary."
+        )
+        ->default_val(app.heap_profiler_min_struct_size)
+        ->check(CLI::NonNegativeNumber);
   }
 
   cli.add_option("-o,--output", app.partition_filename, "Output filename for the graph partition.")
@@ -174,7 +191,7 @@ int main(int argc, char *argv[]) {
       app.validate
   );
   RECORD("partition") std::vector<BlockID> partition(graph.n());
-  RECORD_DATA_STRUCT("std::vector", partition.capacity() * sizeof(BlockID));
+  RECORD_LOCAL_DATA_STRUCT("vector<BlockID>", partition.capacity() * sizeof(BlockID));
   STOP_HEAP_PROFILER();
 
   // Compute graph partition
@@ -191,9 +208,13 @@ int main(int argc, char *argv[]) {
   partitioner.set_max_timer_depth(app.max_timer_depth);
   if constexpr (kHeapProfiling) {
     auto &global_heap_profiler = heap_profiler::HeapProfiler::global();
-    global_heap_profiler.set_max_depth(app.max_heap_profiler_depth);
-    global_heap_profiler.set_print_data_structs(app.heap_profiler_print_data_structs);
-    global_heap_profiler.set_print_all_data_structs(app.heap_profiler_print_all_data_structs);
+    if (app.heap_profiler_detailed) {
+      global_heap_profiler.set_detailed_summary_options();
+    } else {
+      global_heap_profiler.set_max_depth(app.heap_profiler_max_depth);
+      global_heap_profiler.set_print_data_structs(app.heap_profiler_print_structs);
+      global_heap_profiler.set_min_data_struct_size(app.heap_profiler_min_struct_size);
+    }
   }
 
   partitioner.set_graph(std::move(graph));
