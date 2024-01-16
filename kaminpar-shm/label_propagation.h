@@ -441,9 +441,7 @@ protected:
   ) {
     static_assert(Config::kUseTwoHopClustering, "2-hop clustering is disabled");
 
-    tbb::enumerable_thread_specific<DynamicFlatMap<ClusterID, NodeID>> matching_map_ets([&] {
-      return DynamicFlatMap<ClusterID, NodeID>(1024);
-    });
+    tbb::enumerable_thread_specific<DynamicFlatMap<ClusterID, NodeID>> matching_map_ets;
 
     auto is_considered_for_two_hop_clustering = [&](const NodeID u) {
       // Skip nodes not considered for two-hop clustering
