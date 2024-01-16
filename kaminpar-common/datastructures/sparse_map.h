@@ -42,30 +42,37 @@ template <typename Key, typename Value> class SparseMap {
   };
 
 public:
-  SparseMap() : _capacity{0} {}
-  explicit SparseMap(const std::size_t capacity) : _capacity{capacity} {
+  SparseMap() {
+    RECORD_DATA_STRUCT(0, _struct);
+  }
+
+  explicit SparseMap(const std::size_t capacity) : _capacity(capacity) {
     RECORD_DATA_STRUCT(0, _struct);
     allocate_data(capacity);
   }
 
   SparseMap(const SparseMap &) = delete;
   SparseMap &operator=(const SparseMap &) = delete;
+
   SparseMap(SparseMap &&) noexcept = default;
   SparseMap &operator=(SparseMap &&) noexcept = default;
 
-  std::size_t capacity() const {
+  [[nodiscard]] std::size_t capacity() const {
     return _capacity;
   }
-  bool is_allocated() const {
+
+  [[nodiscard]] bool is_allocated() const {
     return capacity() > 0;
   }
-  std::size_t size() const {
+
+  [[nodiscard]] std::size_t size() const {
     return _size;
   }
 
   void shrink(const std::size_t capacity) {
     _dense = reinterpret_cast<Element *>(_sparse + capacity);
   }
+
   void resize(const std::size_t capacity) {
     allocate_data(capacity);
   }
@@ -73,7 +80,8 @@ public:
   bool contains(const Key key) const {
     KASSERT(_data != nullptr);
     KASSERT(key < _capacity);
-    const std::size_t index{_sparse[key]};
+
+    const std::size_t index = _sparse[key];
     return index < _size && _dense[index].key == key;
   }
 
@@ -85,7 +93,7 @@ public:
   }
 
   void remove(const Key key) {
-    const std::size_t index{_sparse[key]};
+    const std::size_t index = _sparse[key];
     if (index < _size && _dense[index].key == key) {
       std::swap(_dense[index], _dense[_size - 1]);
       _sparse[_dense[index].key] = index;
@@ -96,12 +104,15 @@ public:
   const Element *begin() const {
     return _dense;
   }
+
   const Element *end() const {
     return _dense + _size;
   }
+
   Element *begin() {
     return _dense;
   }
+
   Element *end() {
     return _dense + _size;
   }
@@ -133,10 +144,8 @@ private:
     _capacity = capacity;
 
     KASSERT(!_data);
-    const std::size_t total_memory{_capacity * sizeof(Element) + _capacity * sizeof(std::size_t)};
-    const std::size_t num_elements{
-        static_cast<std::size_t>(std::ceil(1.0 * total_memory / sizeof(std::size_t)))
-    };
+    const std::size_t total_memory = _capacity * sizeof(Element) + _capacity * sizeof(std::size_t);
+    const std::size_t num_elements = std::ceil(1.0 * total_memory / sizeof(std::size_t));
     _data = std::make_unique<std::size_t[]>(num_elements);
     _sparse = reinterpret_cast<std::size_t *>(_data.get());
     _dense = reinterpret_cast<Element *>(_sparse + _capacity);
@@ -144,11 +153,11 @@ private:
     IF_HEAP_PROFILING(_struct->size = std::max(_struct->size, num_elements * sizeof(std::size_t)));
   }
 
-  std::size_t _capacity{};
-  std::size_t _size{0};
-  std::unique_ptr<std::size_t[]> _data{nullptr};
-  std::size_t *_sparse{nullptr};
-  Element *_dense{nullptr};
+  std::size_t _capacity = 0;
+  std::size_t _size = 0;
+  std::unique_ptr<std::size_t[]> _data = nullptr;
+  std::size_t *_sparse = nullptr;
+  Element *_dense = nullptr;
 
   IF_HEAP_PROFILING(heap_profiler::DataStructure *_struct);
 };

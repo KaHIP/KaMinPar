@@ -12,6 +12,7 @@
 #include <cerrno>
 #include <cmath>
 #include <csignal>
+#include <cstdint>
 #include <iostream>
 #include <memory>
 #include <sstream>
@@ -262,10 +263,11 @@ private:
   static tbb::spin_mutex &flush_mutex();
 
   std::unique_ptr<logger::TextFormatter> _text_formatter{
-      std::make_unique<std::decay_t<decltype(logger::DEFAULT_TEXT)>>(logger::DEFAULT_TEXT)};
+      std::make_unique<std::decay_t<decltype(logger::DEFAULT_TEXT)>>(logger::DEFAULT_TEXT)
+  };
   std::unique_ptr<logger::ContainerFormatter> _container_formatter{
-      std::make_unique<std::decay_t<decltype(logger::DEFAULT_CONTAINER)>>(logger::DEFAULT_CONTAINER
-      )};
+      std::make_unique<std::decay_t<decltype(logger::DEFAULT_CONTAINER)>>(logger::DEFAULT_CONTAINER)
+  };
 
   std::ostringstream _buffer;
   std::ostream &_out;

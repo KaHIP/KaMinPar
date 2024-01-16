@@ -43,6 +43,7 @@ public:
     reference operator*() const {
       return *_ptr;
     }
+
     pointer operator->() const {
       return _ptr;
     }
@@ -50,24 +51,31 @@ public:
     StaticArrayIterator &operator++() {
       return ++_ptr, *this;
     }
+
     StaticArrayIterator &operator--() {
       return --_ptr, *this;
     }
+
     StaticArrayIterator operator++(int) {
       return {_ptr++};
     }
+
     StaticArrayIterator operator--(int) {
       return {_ptr--};
     }
+
     StaticArrayIterator operator+(const difference_type &n) const {
       return StaticArrayIterator{_ptr + n};
     }
+
     StaticArrayIterator &operator+=(const difference_type &n) {
       return _ptr += n, *this;
     }
+
     StaticArrayIterator operator-(const difference_type &n) const {
       return StaticArrayIterator{_ptr - n};
     }
+
     StaticArrayIterator &operator-=(const difference_type &n) {
       return _ptr -= n, *this;
     }
@@ -75,27 +83,35 @@ public:
     reference operator[](const difference_type &n) const {
       return *_ptr[n];
     }
+
     bool operator==(const StaticArrayIterator &other) const {
       return _ptr == other._ptr;
     }
+
     bool operator!=(const StaticArrayIterator &other) const {
       return _ptr != other._ptr;
     }
+
     bool operator>(const StaticArrayIterator &other) const {
       return _ptr > other._ptr;
     }
+
     bool operator<(const StaticArrayIterator &other) const {
       return _ptr < other._ptr;
     }
+
     bool operator<=(const StaticArrayIterator &other) const {
       return _ptr <= other._ptr;
     }
+
     bool operator>=(const StaticArrayIterator &other) const {
       return _ptr >= other._ptr;
     }
+
     difference_type operator+(const StaticArrayIterator &other) {
       return _ptr + other._ptr;
     }
+
     difference_type operator-(const StaticArrayIterator &other) {
       return _ptr - other._ptr;
     }
@@ -123,7 +139,7 @@ public:
     KASSERT(start + size <= data.size());
   }
 
-  StaticArray(const std::size_t size, value_type *data) : _size{size}, _data{data} {
+  StaticArray(const std::size_t size, value_type *data) : _size(size), _data(data) {
     RECORD_DATA_STRUCT(size, _struct);
   }
 
@@ -315,10 +331,10 @@ private:
     IF_HEAP_PROFILING(_struct->size = std::max(_struct->size, size * sizeof(value_type)));
   }
 
-  size_type _size{0};
-  size_type _unrestricted_size{0};
-  parallel::tbb_unique_ptr<value_type> _owned_data{nullptr};
-  value_type *_data{nullptr};
+  size_type _size = 0;
+  size_type _unrestricted_size = 0;
+  parallel::tbb_unique_ptr<value_type> _owned_data = nullptr;
+  value_type *_data = nullptr;
 
   IF_HEAP_PROFILING(heap_profiler::DataStructure *_struct);
 };

@@ -30,7 +30,7 @@ public:
   using iterator = typename std::vector<T>::iterator;
   using const_iterator = typename std::vector<T>::const_iterator;
 
-  explicit Queue(const std::size_t capacity) : _data(capacity), _head(0), _tail(0) {
+  explicit Queue(const std::size_t capacity) : _data(capacity) {
     RECORD_DATA_STRUCT(capacity * sizeof(T), _struct);
   }
 
@@ -65,12 +65,15 @@ public:
   iterator begin() {
     return _data.begin() + _head;
   }
+
   const_iterator cbegin() const {
     return _data.cbegin() + _head;
   }
+
   iterator end() {
     return _data.begin() + _tail;
   }
+
   const_iterator cend() const {
     return _data.cbegin() + _tail;
   }
@@ -79,12 +82,15 @@ public:
   [[nodiscard]] bool empty() const {
     return _head == _tail;
   }
+
   [[nodiscard]] size_type size() const {
     return _tail - _head;
   }
+
   std::size_t capacity() {
     return _data.size();
   }
+
   void resize(const std::size_t capacity) {
     IF_HEAP_PROFILING(_struct->size = std::max(_struct->size, capacity * sizeof(T)));
     _data.resize(capacity);
@@ -116,14 +122,14 @@ public:
     _head = _tail = 0;
   }
 
-  std::size_t memory_in_kb() const {
+  [[nodiscard]] std::size_t memory_in_kb() const {
     return _data.size() * sizeof(T) / 1000;
   }
 
 private:
   std::vector<T> _data;
-  std::size_t _head;
-  std::size_t _tail;
+  std::size_t _head = 0;
+  std::size_t _tail = 0;
 
   IF_HEAP_PROFILING(heap_profiler::DataStructure *_struct);
 };

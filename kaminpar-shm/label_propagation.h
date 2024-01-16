@@ -21,6 +21,7 @@
 
 #include "kaminpar-common/assertion_levels.h"
 #include "kaminpar-common/datastructures/concurrent_fast_reset_array.h"
+#include "kaminpar-common/datastructures/dynamic_map.h"
 #include "kaminpar-common/datastructures/rating_map.h"
 #include "kaminpar-common/datastructures/scalable_vector.h"
 #include "kaminpar-common/heap_profiler.h"
@@ -570,8 +571,20 @@ protected:
     });
   }
 
+  void match_isolated_nodes(
+      const NodeID from = 0, const NodeID to = std::numeric_limits<ClusterID>::max()
+  ) {
+    handle_isolated_nodes_impl<true>(from, to);
+  }
+
+  void cluster_isolated_nodes(
+      const NodeID from = 0, const NodeID to = std::numeric_limits<ClusterID>::max()
+  ) {
+    handle_isolated_nodes_impl<false>(from, to);
+  }
+
   template <bool match>
-  void handle_isolated_nodes(
+  void handle_isolated_nodes_impl(
       const NodeID from = 0, const NodeID to = std::numeric_limits<ClusterID>::max()
   ) {
     constexpr ClusterID kInvalidClusterID = std::numeric_limits<ClusterID>::max();
@@ -605,67 +618,253 @@ protected:
     );
   }
 
-  /*!
-   * Compute a 2-hop clustering on nodes that are in singleton clusters.
-   * @param from
-   * @param to
-   */
-  void perform_two_hop_clustering(
+  void match_two_hop_nodes_threadwise(
+      const NodeID from = 0, const NodeID to = std::numeric_limits<ClusterID>::max()
+  ) {
+    handle_two_hop_nodes_threadwise_impl<true>(from, to);
+  }
+
+  void cluster_two_hop_nodes_threadwise(
+      const NodeID from = 0, const NodeID to = std::numeric_limits<ClusterID>::max()
+  ) {
+    handle_two_hop_nodes_threadwise_impl<false>(from, to);
+  }
+
+  template <bool match>
+  void handle_two_hop_nodes_threadwise_impl(
       const NodeID from = 0, const NodeID to = std::numeric_limits<ClusterID>::max()
   ) {
     static_assert(Config::kUseTwoHopClustering, "2-hop clustering is disabled");
 
-    // Reset _favored_clusters entries for nodes that are not considered for
-    // 2-hop clustering, i.e., nodes that are already clustered with at least one other node or
-    // nodes that have more weight than max_weight/2.
-    // Set _favored_clusters to dummy entry _graph->n() for isolated nodes
-    tbb::parallel_for(from, std::min(to, _graph->n()), [&](const NodeID u) {
-      if (u != derived_cluster(u)) {
-        _favored_clusters[u] = u;
+    tbb::enumerable_thread_specific<DynamicFlatMap<ClusterID, NodeID>> matching_map_ets;
+
+    auto is_considered_for_two_hop_clustering = [&](const NodeID u) {
+      // Skip nodes not considered for two-hop clustering
+      if (_graph->degree(u) == 0) {
+        // Not considered: isolated node
+        return false;
+      } else if (u != derived_cluster(u)) {
+        // Not considered: joined another cluster
+        return false;
       } else {
-        const auto initial_weight = derived_initial_cluster_weight(u);
-        const auto current_weight = derived_cluster_weight(u);
-        const auto max_weight = derived_max_cluster_weight(u);
-        if (current_weight != initial_weight || current_weight > max_weight / 2) {
-          _favored_clusters[u] = u;
+        // If u did not join another cluster, there could still be other nodes that joined this
+        // node's cluster: find out by checking the cluster weight
+        const ClusterWeight current_weight = derived_cluster_weight(u);
+        if (current_weight > derived_max_cluster_weight(u) / 2 ||
+            current_weight != derived_initial_cluster_weight(u)) {
+          // Not considered: not a singleton cluster; or its weight is too heavy
+          return false;
         }
+      }
+
+      return true;
+    };
+
+    auto handle_node = [&](DynamicFlatMap<ClusterID, NodeID> &matching_map, const NodeID u) {
+      ClusterID &rep_key = matching_map[_favored_clusters[u]];
+
+      if (rep_key == 0) {
+        rep_key = u + 1;
+      } else {
+        const ClusterID rep = rep_key - 1;
+
+        const bool could_move_u_to_rep = derived_move_cluster_weight(
+            u, rep, derived_cluster_weight(u), derived_max_cluster_weight(rep)
+        );
+
+        if constexpr (match) {
+          KASSERT(could_move_u_to_rep);
+          derived_move_node(u, rep);
+          rep_key = 0;
+        } else {
+          if (could_move_u_to_rep) {
+            derived_move_node(u, rep);
+          } else {
+            rep_key = u + 1;
+          }
+        }
+      }
+    };
+
+    tbb::parallel_for(
+        tbb::blocked_range<NodeID>(from, std::min(to, _graph->n()), 512),
+        [&](const tbb::blocked_range<NodeID> &r) {
+          auto &matching_map = matching_map_ets.local();
+
+          for (NodeID u = r.begin(); u != r.end(); ++u) {
+            if (is_considered_for_two_hop_clustering(u)) {
+              handle_node(matching_map, u);
+            }
+          }
+        }
+    );
+  }
+
+  void match_two_hop_nodes(
+      const NodeID from = 0, const NodeID to = std::numeric_limits<ClusterID>::max()
+  ) {
+    handle_two_hop_nodes_impl<true>(from, to);
+  }
+
+  void cluster_two_hop_nodes(
+      const NodeID from = 0, const NodeID to = std::numeric_limits<ClusterID>::max()
+  ) {
+    handle_two_hop_nodes_impl<false>(from, to);
+  }
+
+  template <bool match>
+  void handle_two_hop_nodes_impl(
+      const NodeID from = 0, const NodeID to = std::numeric_limits<ClusterID>::max()
+  ) {
+    static_assert(Config::kUseTwoHopClustering, "2-hop clustering is disabled");
+
+    auto is_considered_for_two_hop_clustering = [&](const NodeID u) {
+      // Skip nodes not considered for two-hop clustering
+      if (_graph->degree(u) == 0) {
+        // Not considered: isolated node
+        return false;
+      } else if (u != derived_cluster(u)) {
+        // Not considered: joined another cluster
+        return false;
+      } else {
+        // If u did not join another cluster, there could still be other nodes that joined this
+        // node's cluster: find out by checking the cluster weight
+        const ClusterWeight current_weight = derived_cluster_weight(u);
+        if (current_weight > derived_max_cluster_weight(u) / 2 ||
+            current_weight != derived_initial_cluster_weight(u)) {
+          // Not considered: not a singleton cluster; or its weight is too heavy
+          return false;
+        }
+      }
+
+      return true;
+    };
+
+    // There could be edge cases where the favorite cluster of a node is itself a singleton cluster
+    // (for instance, if a node joins another cluster during the first round, but moves out of the
+    // cluster in the next round)
+    // Since the following code is based on the ansumption that the favorite cluster of a node that
+    // is considered for two-hop clustering it itself not considere for two-hop clustering, we fix
+    // this situation by moving the nodes to their favorite cluster, if possible, here.
+    tbb::parallel_for(from, std::min(to, _graph->n()), [&](const NodeID u) {
+      if (is_considered_for_two_hop_clustering(u)) {
+        const NodeID cluster = _favored_clusters[u];
+        if (is_considered_for_two_hop_clustering(cluster) &&
+            derived_move_cluster_weight(
+                u, cluster, derived_cluster_weight(u), derived_max_cluster_weight(cluster)
+            )) {
+          derived_move_node(u, cluster);
+          --_current_num_clusters;
+        }
+      } else {
+        _favored_clusters[u] = u;
       }
     });
 
+    KASSERT(
+        [&] {
+          for (NodeID u = from; u < std::min(to, _graph->n()); ++u) {
+            if (_favored_clusters[u] >= _graph->n()) {
+              LOG_WARNING << "favored cluster of node " << u
+                          << " out of bounds: " << _favored_clusters[u] << " > " << _graph->n();
+            }
+            if (u != _favored_clusters[u] && is_considered_for_two_hop_clustering(u) &&
+                is_considered_for_two_hop_clustering(_favored_clusters[u])) {
+              LOG_WARNING << "node " << u << " (degree " << _graph->degree(u) << " )"
+                          << " is considered for two-hop clustering, but its favored cluster "
+                          << _favored_clusters[u] << " (degree "
+                          << _graph->degree(_favored_clusters[u])
+                          << ") is also considered for two-hop clustering";
+              return false;
+            }
+          }
+          return true;
+        }(),
+        "precondition for two-hop clustering violated: found favored clusters that could be joined",
+        assert::heavy
+    );
+
+    // During label propagation, we store the best cluster for each node in _favored_cluster[]
+    // regardless of whether there is enough space in the cluster for the node to join.
+    // We now use this information to merge nodes that could not join any cluster, i.e.,
+    // singleton-clusters by clustering or matching nodes that have favored cluster.
+
     tbb::parallel_for(from, std::min(to, _graph->n()), [&](const NodeID u) {
-      // Abort once we have merged enough clusters to achieve the configured minimum shrink factor
       if (should_stop()) {
         return;
       }
 
-      // Skip nodes that should not be considered during 2-hop clustering
-      const NodeID favored_leader = _favored_clusters[u];
-      if (favored_leader == u) {
+      // Skip nodes not considered for two-hop clustering
+      if (!is_considered_for_two_hop_clustering(u)) {
         return;
       }
 
+      // Invariant:
+      // For each node u that is considered for two-hop clustering (i.e., nodes for which the
+      // following lines of code are executed), _favored_clusters[u] refers to node which *IS NOT*
+      // considered for two-hop matching.
+      //
+      // Reasoning:
+      // KASSERT()
+      //
+      // Conclusion:
+      // We can use _favored_clusters[u] to build the two-hop clusters.
+
+      const NodeID C = _favored_clusters[u];
+      auto &sync = _favored_clusters[C];
+
       do {
-        // If this works, we set ourself as clustering partners for nodes that have the same favored
-        // cluster we have
-        NodeID expected_value = favored_leader;
-        if (_favored_clusters[favored_leader].compare_exchange_strong(expected_value, u)) {
-          break;
+        NodeID cluster = sync;
+
+        if (cluster == C) {
+          if (sync.compare_exchange_strong(cluster, u)) {
+            // We are done: other nodes will join our cluster
+            break;
+          }
+          if (cluster == C) {
+            continue;
+          }
         }
 
-        // If this did not work, there is another node that has the same favored cluster
-        // Try to join the cluster of that node
-        const NodeID partner = expected_value;
-        if (_favored_clusters[favored_leader].compare_exchange_strong(
-                expected_value, favored_leader
-            )) {
-          if (derived_move_cluster_weight(
-                  u, partner, derived_cluster_weight(u), derived_max_cluster_weight(partner)
-              )) {
-            derived_move_node(u, partner);
-            --_current_num_clusters;
-          }
+        // Invariant: cluster is a node with favored cluster C
+        KASSERT(
+            _favored_clusters[cluster] == C,
+            "invariant violated by: " << V(u) << V(cluster) << V(C) << V(_favored_clusters[C])
+        );
 
-          break;
+        // Try to join the cluster:
+        if constexpr (match) {
+          // Matching mode: try to build a cluster only containing nodes "cluster" and "u"
+          if (sync.compare_exchange_strong(cluster, C)) {
+            [[maybe_unused]] const bool success = derived_move_cluster_weight(
+                u, cluster, derived_cluster_weight(u), derived_max_cluster_weight(cluster)
+            );
+            KASSERT(
+                success,
+                "node " << u << " could be matched with node " << cluster << ": "
+                        << derived_cluster_weight(u) << " + " << derived_cluster_weight(cluster)
+                        << " > " << derived_max_cluster_weight(cluster)
+            );
+
+            derived_move_node(u, cluster);
+
+            // We are done: build a cluster with "cluster", reset "sync" to C
+            break;
+          }
+        } else {
+          // Clustering mode: try to join cluster "cluster" if the weight constraint permits it,
+          // otherwise try to start a new cluster
+          if (derived_move_cluster_weight(
+                  u, cluster, derived_cluster_weight(u), derived_max_cluster_weight(cluster)
+              )) {
+            derived_move_node(u, cluster);
+
+            // We are done: joined cluster "cluster"
+            break;
+          } else if (sync.compare_exchange_strong(cluster, u)) {
+            // We are done: other nodes will join our cluster
+            break;
+          }
         }
       } while (true);
     });
@@ -810,18 +1009,17 @@ protected: // Members
 
   //! We stop label propagation if the number of non-empty clusters falls below
   //! this threshold. Only has an effect if empty clusters are being counted.
-  ClusterID _desired_num_clusters{0};
+  ClusterID _desired_num_clusters = 0;
 
   //! We do not move nodes with a degree higher than this. However, other nodes
   //! may still be moved to the cluster of with degree larger than this
   //! threshold.
-  NodeID _max_degree{std::numeric_limits<NodeID>::max()};
+  NodeID _max_degree = std::numeric_limits<NodeID>::max();
 
   //! When computing the gain values for a node, this is an upper limit on the
   //! number of neighbors of the nodes we consider. Any more neighbors are
   //! ignored.
-  NodeID _max_num_neighbors{std::numeric_limits<NodeID>::max()}; //! Only consider this many
-                                                                 //! neighbors per node
+  NodeID _max_num_neighbors = std::numeric_limits<NodeID>::max();
 
   //! Uses two phases in each iteration, where the first phase iterates in parallel over the
   //! low-degree nodes and the second phase iterates sequentially over the high-degree nodes but in
@@ -833,7 +1031,7 @@ protected: // Members
 
   //! Thread-local map to compute gain values.
   tbb::enumerable_thread_specific<RatingMap> _rating_map_ets{[this] {
-    return RatingMap{_num_clusters};
+    return RatingMap(_num_clusters);
   }};
 
   //! Flags nodes with at least one node in its neighborhood that changed
@@ -855,9 +1053,9 @@ protected: // Members
   parallel::Atomic<EdgeWeight> _expected_total_gain;
 
 private:
-  NodeID _num_nodes{0};
-  NodeID _num_active_nodes{0};
-  ClusterID _num_clusters{0};
+  NodeID _num_nodes = 0;
+  NodeID _num_active_nodes = 0;
+  ClusterID _num_clusters = 0;
 };
 
 /*!

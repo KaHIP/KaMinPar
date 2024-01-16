@@ -212,6 +212,36 @@ std::ostream &operator<<(std::ostream &out, const GainCacheStrategy strategy) {
   return out << "<invalid>";
 }
 
+std::ostream &operator<<(std::ostream &out, const TwoHopStrategy strategy) {
+  switch (strategy) {
+  case TwoHopStrategy::DISABLE:
+    return out << "disable";
+  case TwoHopStrategy::MATCH:
+    return out << "match";
+  case TwoHopStrategy::MATCH_THREADWISE:
+    return out << "match-threadwise";
+  case TwoHopStrategy::CLUSTER:
+    return out << "cluster";
+  case TwoHopStrategy::CLUSTER_THREADWISE:
+    return out << "cluster-threadwise";
+  case TwoHopStrategy::LEGACY:
+    return out << "legacy";
+  }
+
+  return out << "<invalid>";
+}
+
+std::unordered_map<std::string, TwoHopStrategy> get_two_hop_strategies() {
+  return {
+      {"disable", TwoHopStrategy::DISABLE},
+      {"match", TwoHopStrategy::MATCH},
+      {"match-threadwise", TwoHopStrategy::MATCH_THREADWISE},
+      {"cluster", TwoHopStrategy::CLUSTER},
+      {"cluster-threadwise", TwoHopStrategy::CLUSTER_THREADWISE},
+      {"legacy", TwoHopStrategy::LEGACY},
+  };
+}
+
 std::ostream &operator<<(std::ostream &out, IsolatedNodesClusteringStrategy strategy) {
   switch (strategy) {
   case IsolatedNodesClusteringStrategy::KEEP:
@@ -351,13 +381,13 @@ void print(const LabelPropagationCoarseningContext &lp_ctx, std::ostream &out) {
   out << "  Number of iterations:       " << lp_ctx.num_iterations << "\n";
   out << "  High degree threshold:      " << lp_ctx.large_degree_threshold << "\n";
   out << "  Max degree:                 " << lp_ctx.max_num_neighbors << "\n";
-  out << "  2-hop clustering threshold: " << std::fixed << 100 * lp_ctx.two_hop_clustering_threshold
-      << "%\n";
   out << "  Uses two phases: " << (lp_ctx.use_two_phases ? "yes" : "no") << "\n";
   if (lp_ctx.use_two_phases) {
     out << "    Select mode:              " << lp_ctx.second_phase_select_mode << '\n';
     out << "    Aggregation mode:         " << lp_ctx.second_phase_aggregation_mode << '\n';
   }
+  out << "  2-hop clustering:           " << lp_ctx.two_hop_strategy << ", if |Vcoarse| > "
+      << std::setw(2) << std::fixed << lp_ctx.two_hop_threshold << " * |V|\n";
   out << "  Isolated nodes:             " << lp_ctx.isolated_nodes_strategy << "\n";
 }
 

@@ -33,6 +33,7 @@ public:
 
   Marker(const Marker &) = delete;
   Marker &operator=(const Marker &) = delete;
+
   Marker(Marker &&) noexcept = default;
   Marker &operator=(Marker &&) noexcept = default;
 
@@ -90,7 +91,7 @@ public:
     _data.resize(capacity);
   }
 
-  std::size_t memory_in_kb() const {
+  [[nodiscard]] std::size_t memory_in_kb() const {
     return _data.size() * sizeof(element_type) / 1000;
   }
 

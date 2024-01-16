@@ -31,6 +31,7 @@ kaminpar_add_common_test(test_common_binary_heap common/datastructures/binary_he
 kaminpar_add_common_test(test_common_fast_reset_array common/datastructures/fast_reset_array_test.cc)
 kaminpar_add_common_test(test_common_marker common/datastructures/marker_test.cc)
 kaminpar_add_common_test(test_common_static_array common/datastructures/static_array_test.cc)
+kaminpar_add_common_test(test_dynamic_map common/datastructures/dynamic_map_test.cc)
 
 # Common -> Misc
 kaminpar_add_common_test(test_common_math common/math_test.cc)
