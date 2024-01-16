@@ -592,6 +592,7 @@ protected:
     });
   }
 
+  // Old implementation, should not be used anymore
   void handle_two_hop_clustering_legacy(
       const NodeID from = 0, const NodeID to = std::numeric_limits<ClusterID>::max()
   ) {
