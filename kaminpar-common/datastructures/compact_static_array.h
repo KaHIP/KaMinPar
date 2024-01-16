@@ -147,7 +147,7 @@ public:
   CompactStaticArray(const std::uint8_t byte_width, const std::size_t size)
       : _byte_width(byte_width),
         _mask((1 << (byte_width * 8)) - 1),
-        _size(byte_width * size),
+        _size(byte_width * size + sizeof(Int) - byte_width),
         _values(std::make_unique<std::uint8_t[]>(_size)) {
     RECORD_DATA_STRUCT(_size);
   }
@@ -216,7 +216,7 @@ public:
    * @return The amount of integers in the array.
    */
   [[nodiscard]] std::size_t size() const {
-    return _size / _byte_width;
+    return (_size - (sizeof(Int) - _byte_width)) / _byte_width;
   }
 
   /*!
