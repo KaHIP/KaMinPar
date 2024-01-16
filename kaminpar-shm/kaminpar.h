@@ -81,6 +81,7 @@ enum class ClusterWeightLimit {
 enum class TwoHopStrategy {
   DISABLE,
   MATCH,
+  MATCH_THREADWISE,
   CLUSTER,
   LEGACY,
 };
@@ -94,7 +95,7 @@ enum class IsolatedNodesClusteringStrategy {
 };
 
 struct LabelPropagationCoarseningContext {
-  std::size_t num_iterations;
+  int num_iterations;
   NodeID large_degree_threshold;
   NodeID max_num_neighbors;
 

@@ -21,7 +21,7 @@ public:
   explicit Marker(const std::size_t capacity)
       : _data(capacity),
         _marker_id(0),
-        _first_unmarked_element(0) {}
+        _first_unmarked_element{0} {}
 
   Marker(const Marker &) = delete;
   Marker &operator=(const Marker &) = delete;

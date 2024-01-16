@@ -428,6 +428,13 @@ protected:
     handle_two_hop_nodes_impl<true>(from, to);
   }
 
+  void match_two_hop_nodes_threadwise(
+      const NodeID from = 0, const NodeID to = std::numeric_limits<ClusterID>::max()
+  ) {
+
+    // @todo
+  }
+
   void cluster_two_hop_nodes(
       const NodeID from = 0, const NodeID to = std::numeric_limits<ClusterID>::max()
   ) {
@@ -587,68 +594,6 @@ protected:
             // We are done: other nodes will join our cluster
             break;
           }
-        }
-      } while (true);
-    });
-  }
-
-  // Old implementation, should not be used anymore
-  void handle_two_hop_clustering_legacy(
-      const NodeID from = 0, const NodeID to = std::numeric_limits<ClusterID>::max()
-  ) {
-    static_assert(Config::kUseTwoHopClustering, "2-hop clustering is disabled");
-
-    // Reset _favored_clusters entries for nodes that are not considered for
-    // 2-hop clustering, i.e., nodes that are already clustered with at least one other node or
-    // nodes that have more weight than max_weight/2.
-    // Set _favored_clusters to dummy entry _graph->n() for isolated nodes
-    tbb::parallel_for(from, std::min(to, _graph->n()), [&](const NodeID u) {
-      if (u != derived_cluster(u)) {
-        _favored_clusters[u] = u;
-      } else {
-        const auto initial_weight = derived_initial_cluster_weight(u);
-        const auto current_weight = derived_cluster_weight(u);
-        const auto max_weight = derived_max_cluster_weight(u);
-        if (current_weight != initial_weight || current_weight > max_weight / 2) {
-          _favored_clusters[u] = u;
-        }
-      }
-    });
-
-    tbb::parallel_for(from, std::min(to, _graph->n()), [&](const NodeID u) {
-      // Abort once we have merged enough clusters to achieve the configured minimum shrink factor
-      if (should_stop()) {
-        return;
-      }
-
-      // Skip nodes that should not be considered during 2-hop clustering
-      const NodeID favored_leader = _favored_clusters[u];
-      if (favored_leader == u) {
-        return;
-      }
-
-      do {
-        // If this works, we set ourself as clustering partners for nodes that have the same favored
-        // cluster we have
-        NodeID expected_value = favored_leader;
-        if (_favored_clusters[favored_leader].compare_exchange_strong(expected_value, u)) {
-          break;
-        }
-
-        // If this did not work, there is another node that has the same favored cluster
-        // Try to join the cluster of that node
-        const NodeID partner = expected_value;
-        if (_favored_clusters[favored_leader].compare_exchange_strong(
-                expected_value, favored_leader
-            )) {
-          if (derived_move_cluster_weight(
-                  u, partner, derived_cluster_weight(u), derived_max_cluster_weight(partner)
-              )) {
-            derived_move_node(u, partner);
-            --_current_num_clusters;
-          }
-
-          break;
         }
       } while (true);
     });
