@@ -92,7 +92,7 @@ public:
 
     _graph = &graph;
 
-    START_TIMER("High-degree computation");
+    START_TIMER("Initialize high-degree node info");
     if (_passive_high_degree_threshold > 0) {
       graph.init_high_degree_info(_passive_high_degree_threshold);
     }
@@ -118,9 +118,10 @@ public:
 
   auto &
   compute_clustering(const DistributedGraph &graph, const GlobalNodeWeight max_cluster_weight) {
-    _max_cluster_weight = max_cluster_weight;
     TIMER_BARRIER(graph.communicator());
     SCOPED_TIMER("Label propagation");
+
+    _max_cluster_weight = max_cluster_weight;
 
     // Ensure that the clustering algorithm was properly initialized
     KASSERT(_graph == &graph, "must call initialize() before compute_clustering()", assert::always);
@@ -503,13 +504,18 @@ private:
     });
     STOP_TIMER();
 
+    TIMER_BARRIER(_graph->communicator());
+
     // If we detected a max cluster weight violation, remove node weight
     // proportional to our chunk of the cluster weight
     if (!should_enforce_cluster_weights() || !violation) {
       return;
     }
 
-    TIMER_BARRIER(_graph->communicator());
+    //
+    // VVV possibly diverged code paths, might not be executed on all PEs VVV
+    //
+
     START_TIMER("Enforce cluster weights");
     _graph->pfor_nodes(from, to, [&](const NodeID u) {
       const GlobalNodeID old_label = _changed_label[u];
