@@ -44,7 +44,7 @@ class LPClusteringImpl final
 
 public:
   LPClusteringImpl(const NodeID max_n, const CoarseningContext &c_ctx)
-      : ClusterWeightBase{max_n},
+      : ClusterWeightBase{max_n, c_ctx.lp.use_two_level_cluster_weight_vector},
         ClusterBase{max_n},
         _c_ctx{c_ctx} {
     this->allocate(max_n, max_n);

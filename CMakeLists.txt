@@ -37,6 +37,7 @@ option(KAMINPAR_BUILD_WITH_MTUNE_NATIVE "Build with -mtune=native." ON)
 option(KAMINPAR_BUILD_WITH_CCACHE "Use ccache to build." ON)
 option(KAMINPAR_BUILD_WITH_DEBUG_SYMBOLS "Always build with debug symbols, even in Release mode." ON)
 option(KAMINPAR_BUILD_WITH_MTKAHYPAR "If Mt-KaHyPar can be found, build the Mt-KaHyPar initial partitioner." OFF)
+option(KAMINPAR_BUILD_WITH_GROWT "Build the shared-memory partitioner with Growt." ON)
 option(KAMINPAR_BUILD_WITH_PG "Build with the -pg option for profiling." OFF)
 
 # Control graph compression options
@@ -270,6 +271,29 @@ if (KAMINPAR_BUILD_WITH_CCACHE)
     endif ()
 endif ()
 
+if (KAMINPAR_BUILD_WITH_GROWT OR KAMINPAR_BUILD_DISTRIBUTED)
+    # Growt (needs -mcx16, i.e., does not work on ARM)
+    check_cxx_compiler_flag(-mcx16 COMPILER_SUPPORTS_MCX16)
+    if (COMPILER_SUPPORTS_MCX16)
+        list(APPEND KAMINPAR_DEFINITIONS "-DKAMINPAR_USES_GROWT")
+        add_compile_options(-mcx16)
+
+        add_subdirectory(external/growt EXCLUDE_FROM_ALL)
+        add_library(growt INTERFACE)
+        target_include_directories(growt SYSTEM INTERFACE "external/growt")
+    else ()
+        if (KAMINPAR_BUILD_WITH_GROWT)
+            message(WARNING "-mcx16 flag not supported by the compiler: cannot use growt for the shared-memory partitioner")
+            set(KAMINPAR_BUILD_WITH_GROWT OFF)
+        endif ()
+
+        if (KAMINPAR_BUILD_DISTRIBUTED)
+            message(WARNING "-mcx16 flag not supported by the compiler: cannot build the distributed partitioner")
+            set(KAMINPAR_BUILD_DISTRIBUTED OFF)
+        endif ()
+    endif ()
+endif ()
+
 if (KAMINPAR_BUILD_DISTRIBUTED)
     # MPI
     set(MPI_DETERMINE_LIBRARY_VERSION TRUE)
@@ -278,19 +302,6 @@ if (KAMINPAR_BUILD_DISTRIBUTED)
         message(WARNING "MPI not available: cannot build the distributed partitioner")
         set(KAMINPAR_BUILD_DISTRIBUTED OFF)
     endif ()
-
-    # Growt (needs -mcx16, i.e., does not work on ARM)
-    check_cxx_compiler_flag(-mcx16 COMPILER_SUPPORTS_MCX16)
-    if (COMPILER_SUPPORTS_MCX16) 
-        add_compile_options(-mcx16)
-    else ()
-        message(WARNING "-mcx16 flag not supported by the compiler: cannot build the distributed partitioner")
-        set(KAMINPAR_BUILD_DISTRIBUTED OFF)
-    endif()
-
-    add_subdirectory(external/growt EXCLUDE_FROM_ALL)
-    add_library(growt INTERFACE)
-    target_include_directories(growt SYSTEM INTERFACE "external/growt")
 
     # Google Sparsehash 
     find_package(Sparsehash REQUIRED)

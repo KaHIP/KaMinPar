@@ -181,6 +181,13 @@ CLI::Option_group *create_lp_coarsening_options(CLI::App *app, Context &ctx) {
       ->capture_default_str();
 
   lp->add_option(
+        "--c-lp-use-two-level-cluster-weight-vector",
+        ctx.coarsening.lp.use_two_level_cluster_weight_vector,
+        "Whether to use the two level cluster weight vector"
+  )
+      ->capture_default_str();
+
+  lp->add_option(
         "--c-lp-two-phases",
         ctx.coarsening.lp.use_two_phases,
         "Uses two phases in each iteration, where in the second phase the high-degree nodes are "

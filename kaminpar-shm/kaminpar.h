@@ -116,6 +116,8 @@ struct LabelPropagationCoarseningContext {
   NodeID large_degree_threshold;
   NodeID max_num_neighbors;
 
+  bool use_two_level_cluster_weight_vector;
+
   bool use_two_phases;
   SecondPhaseSelectMode second_phase_select_mode;
   SecondPhaseAggregationMode second_phase_aggregation_mode;

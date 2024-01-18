@@ -21,6 +21,7 @@
 
 #include "kaminpar-common/assertion_levels.h"
 #include "kaminpar-common/datastructures/concurrent_fast_reset_array.h"
+#include "kaminpar-common/datastructures/concurrent_two_level_vector.h"
 #include "kaminpar-common/datastructures/dynamic_map.h"
 #include "kaminpar-common/datastructures/rating_map.h"
 #include "kaminpar-common/datastructures/scalable_vector.h"
@@ -1561,22 +1562,36 @@ private:
 };
 
 template <typename ClusterID, typename ClusterWeight> class OwnedRelaxedClusterWeightVector {
-public:
-  explicit OwnedRelaxedClusterWeightVector(const ClusterID max_num_clusters)
-      : _cluster_weights(max_num_clusters) {
-    RECORD_DATA_STRUCT(max_num_clusters * sizeof(parallel::Atomic<ClusterWeight>));
-  }
+  using FirstLevelClusterWeight = typename std::
+      conditional_t<std::is_same_v<ClusterWeight, std::uint32_t>, std::uint16_t, std::uint32_t>;
 
-  auto &&take_cluster_weights() {
-    return std::move(_cluster_weights);
+public:
+  explicit OwnedRelaxedClusterWeightVector(
+      const ClusterID max_num_clusters, const bool use_two_level_vector
+  )
+      : _use_two_level_vector(use_two_level_vector) {
+    if (use_two_level_vector) {
+      _cluster_weights_tlvec.resize(max_num_clusters);
+    } else {
+      RECORD_DATA_STRUCT(max_num_clusters * sizeof(parallel::Atomic<ClusterWeight>));
+      _cluster_weights_vec.resize(max_num_clusters);
+    }
   }
 
   void init_cluster_weight(const ClusterID cluster, const ClusterWeight weight) {
-    _cluster_weights[cluster] = weight;
+    if (_use_two_level_vector) {
+      _cluster_weights_tlvec.insert(cluster, weight);
+    } else {
+      _cluster_weights_vec[cluster] = weight;
+    }
   }
 
   ClusterWeight cluster_weight(const ClusterID cluster) {
-    return _cluster_weights[cluster];
+    if (_use_two_level_vector) {
+      return _cluster_weights_tlvec[cluster];
+    } else {
+      return _cluster_weights_vec[cluster];
+    }
   }
 
   bool move_cluster_weight(
@@ -1585,15 +1600,27 @@ public:
       const ClusterWeight delta,
       const ClusterWeight max_weight
   ) {
-    if (_cluster_weights[new_cluster] + delta <= max_weight) {
-      _cluster_weights[new_cluster].fetch_add(delta, std::memory_order_relaxed);
-      _cluster_weights[old_cluster].fetch_sub(delta, std::memory_order_relaxed);
-      return true;
+    if (_use_two_level_vector) {
+      if (_cluster_weights_tlvec[new_cluster] + delta <= max_weight) {
+        _cluster_weights_tlvec.atomic_add(new_cluster, delta);
+        _cluster_weights_tlvec.atomic_sub(old_cluster, delta);
+        return true;
+      }
+    } else {
+      if (_cluster_weights_vec[new_cluster] + delta <= max_weight) {
+        _cluster_weights_vec[new_cluster].fetch_add(delta, std::memory_order_relaxed);
+        _cluster_weights_vec[old_cluster].fetch_sub(delta, std::memory_order_relaxed);
+        return true;
+      }
     }
+
     return false;
   }
 
 private:
-  scalable_vector<parallel::Atomic<ClusterWeight>> _cluster_weights;
+  const bool _use_two_level_vector;
+  scalable_vector<parallel::Atomic<ClusterWeight>> _cluster_weights_vec;
+  ConcurrentTwoLevelVector<ClusterWeight, ClusterID, FirstLevelClusterWeight>
+      _cluster_weights_tlvec;
 };
 } // namespace kaminpar
