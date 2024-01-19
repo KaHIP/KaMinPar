@@ -371,10 +371,12 @@ void print(const CoarseningContext &c_ctx, std::ostream &out) {
   if (c_ctx.algorithm == ClusteringAlgorithm::LABEL_PROPAGATION) {
     print(c_ctx.lp, out);
   }
-  out << "Contract using edge buffer:   " << (c_ctx.contraction.use_edge_buffer ? "yes" : "no")
-      << "\n";
-  out << "Contract with compact IDs:    " << (c_ctx.contraction.use_compact_ids ? "yes" : "no")
-      << "\n";
+  out << "Contraction:                  ";
+  if (c_ctx.contraction.use_compact_ids) {
+    out << "No edge buffer + compact IDs\n";
+  } else {
+    out << "Edge buffer [fill fraction: " << c_ctx.contraction.edge_buffer_fill_fraction << "]\n";
+  }
 }
 
 void print(const LabelPropagationCoarseningContext &lp_ctx, std::ostream &out) {

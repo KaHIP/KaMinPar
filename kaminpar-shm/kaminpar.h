@@ -129,7 +129,7 @@ struct LabelPropagationCoarseningContext {
 };
 
 struct ContractionCoarseningContext {
-  bool use_edge_buffer;
+  double edge_buffer_fill_fraction;
   bool use_compact_ids;
 };
 

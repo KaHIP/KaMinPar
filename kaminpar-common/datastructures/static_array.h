@@ -131,7 +131,7 @@ public:
   struct no_init {};
 
   StaticArray(T *storage, const std::size_t size) : _size(size), _data(storage) {
-    RECORD_DATA_STRUCT(size, _struct);
+    RECORD_DATA_STRUCT(size * sizeof(T), _struct);
   }
 
   StaticArray(const std::size_t start, const std::size_t size, StaticArray &data)
@@ -140,21 +140,21 @@ public:
   }
 
   StaticArray(const std::size_t size, value_type *data) : _size(size), _data(data) {
-    RECORD_DATA_STRUCT(size, _struct);
+    RECORD_DATA_STRUCT(size * sizeof(T), _struct);
   }
 
   StaticArray(const std::size_t size, const value_type init_value = value_type()) {
-    RECORD_DATA_STRUCT(size, _struct);
+    RECORD_DATA_STRUCT(0, _struct);
     resize(size, init_value);
   }
 
   StaticArray(const std::size_t size, no_init) {
-    RECORD_DATA_STRUCT(size, _struct);
+    RECORD_DATA_STRUCT(0, _struct);
     resize(size, no_init{});
   }
 
   StaticArray(static_array::noinit_t, const std::size_t size) {
-    RECORD_DATA_STRUCT(size, _struct);
+    RECORD_DATA_STRUCT(0, _struct);
     resize(size, no_init{});
   }
 

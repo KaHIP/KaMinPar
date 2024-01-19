@@ -35,17 +35,11 @@ struct Result {
 };
 } // namespace contraction
 
-contraction::Result contract(
-    const Graph &r,
-    const ContractionCoarseningContext con_ctx,
-    const scalable_vector<NodeID> &clustering,
-    contraction::MemoryContext m_ctx = {}
-);
-
+template <typename Clustering>
 contraction::Result contract(
     const Graph &graph,
     const ContractionCoarseningContext con_ctx,
-    const scalable_vector<parallel::Atomic<NodeID>> &clustering,
+    const Clustering &clustering,
     contraction::MemoryContext m_ctx = {}
 );
 } // namespace kaminpar::shm::graph

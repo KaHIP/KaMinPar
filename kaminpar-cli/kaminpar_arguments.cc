@@ -257,17 +257,16 @@ CLI::Option_group *create_contraction_coarsening_options(CLI::App *app, Context 
 
   contraction
       ->add_option(
-          "--c-con-edge-buffer",
-          ctx.coarsening.contraction.use_edge_buffer,
-          "Whether to use a temporary buffer for storing the contracted edges or to compute the "
-          "contracted edges twice"
+          "--c-con-edge-buffer-fill-fraction",
+          ctx.coarsening.contraction.edge_buffer_fill_fraction,
+          "The fraction of the total edges with which to fill the edge buffer"
       )
       ->capture_default_str();
   contraction
       ->add_option(
           "--c-con-compact-ids",
           ctx.coarsening.contraction.use_compact_ids,
-          "Whether to build a contracted graph which uses Node IDs and edge weights with minimal "
+          "Whether to build a contracted graph which uses node IDs and edge weights with minimal "
           "byte width"
       )
       ->capture_default_str();

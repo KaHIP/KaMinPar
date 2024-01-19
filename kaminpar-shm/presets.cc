@@ -80,7 +80,7 @@ Context create_default_context() {
                       .isolated_nodes_strategy =
                           IsolatedNodesClusteringStrategy::MATCH_DURING_TWO_HOP,
                   },
-              .contraction = {.use_edge_buffer = true, .use_compact_ids = false},
+              .contraction = {.edge_buffer_fill_fraction = 0.1, .use_compact_ids = false},
               .contraction_limit = 2000,
               .enforce_contraction_limit = false,
               .convergence_threshold = 0.05,

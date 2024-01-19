@@ -23,7 +23,7 @@ TEST(ParallelContractionTest, ContractingToSingleNodeWorks) {
   for (const NodeID cluster : {0, 1, 2, 3}) {
     auto [c_graph, c_mapping, m_ctx] = graph::contract(
         graph,
-        {.use_edge_buffer = true},
+        {.edge_buffer_fill_fraction = 0.1, .use_compact_ids = false},
         scalable_vector<NodeID>{cluster, cluster, cluster, cluster}
     );
     EXPECT_THAT(c_graph.n(), 1);
@@ -41,8 +41,11 @@ TEST(ParallelContractionTest, ContractingToSingletonsWorks) {
   change_node_weight(graph, 3, 4);
   graph.update_total_node_weight();
 
-  auto [c_graph, c_mapping, m_ctx] =
-      graph::contract(graph, {.use_edge_buffer = true}, scalable_vector<NodeID>{0, 1, 2, 3});
+  auto [c_graph, c_mapping, m_ctx] = graph::contract(
+      graph,
+      {.edge_buffer_fill_fraction = 0.1, .use_compact_ids = false},
+      scalable_vector<NodeID>{0, 1, 2, 3}
+  );
   EXPECT_THAT(c_graph.n(), graph.n());
   EXPECT_THAT(c_graph.m(), graph.m());
   EXPECT_THAT(c_graph.total_node_weight(), graph.total_node_weight());
@@ -61,8 +64,11 @@ TEST(ParallelContractionTest, ContractingAllNodesButOneWorks) {
   // 0--1
   // |  |
   // 2--3
-  auto [c_graph, c_mapping, m_ctx] =
-      graph::contract(graph, {.use_edge_buffer = true}, scalable_vector<NodeID>{0, 1, 1, 1});
+  auto [c_graph, c_mapping, m_ctx] = graph::contract(
+      graph,
+      {.edge_buffer_fill_fraction = 0.1, .use_compact_ids = false},
+      scalable_vector<NodeID>{0, 1, 1, 1}
+  );
   EXPECT_THAT(c_graph.n(), 2);
   EXPECT_THAT(c_graph.m(), 2); // one undirected edge
   EXPECT_THAT(c_graph.total_node_weight(), graph.total_node_weight());
@@ -83,7 +89,9 @@ TEST(ParallelContractionTest, ContractingGridHorizontallyWorks) {
   graph.update_total_node_weight();
 
   auto [c_graph, c_mapping, m_ctx] = graph::contract(
-      graph, {.use_edge_buffer = true}, scalable_vector<NodeID>{0, 1, 2, 3, 0, 1, 2, 3}
+      graph,
+      {.edge_buffer_fill_fraction = 0.1, .use_compact_ids = false},
+      scalable_vector<NodeID>{0, 1, 2, 3, 0, 1, 2, 3}
   );
   EXPECT_THAT(c_graph.n(), 4);
   EXPECT_THAT(c_graph.m(), 2 * 3);
@@ -108,7 +116,9 @@ TEST(ParallelContractionTest, ContractingGridVerticallyWorks) {
   graph.update_total_node_weight();
 
   auto [c_graph, c_mapping, m_ctx] = graph::contract(
-      graph, {.use_edge_buffer = true}, scalable_vector<NodeID>{0, 0, 2, 2, 4, 4, 6, 6}
+      graph,
+      {.edge_buffer_fill_fraction = 0.1, .use_compact_ids = false},
+      scalable_vector<NodeID>{0, 0, 2, 2, 4, 4, 6, 6}
   );
   EXPECT_THAT(c_graph.n(), 4);
   EXPECT_THAT(c_graph.m(), 2 * 3);
