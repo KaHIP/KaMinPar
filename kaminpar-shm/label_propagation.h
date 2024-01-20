@@ -151,52 +151,62 @@ public:
 
 protected:
   /*!
-   * (Re)allocates memory to run label propagation on a graph with \c num_nodes
-   * nodes.
+   * (Re)allocates memory to run label propagation on a graph with \c num_nodes nodes.
+   *
    * @param num_nodes Number of nodes in the graph.
+   * @param num_clusters The number of clusters.
+   * @param resize Whether to actually allocate the data structures.
    */
-  void allocate(const NodeID num_nodes, const ClusterID num_clusters) {
-    allocate(num_nodes, num_nodes, num_clusters);
+  void allocate(const NodeID num_nodes, const ClusterID num_clusters, bool resize = true) {
+    allocate(num_nodes, num_nodes, num_clusters, resize);
   }
 
   /*!
-   * (Re)allocates memory to run label propagation on a graph with \c num_nodes
-   * nodes in total, but a clustering is only computed for the first \c
-   * num_active_nodes nodes.
+   * (Re)allocates memory to run label propagation on a graph with \c num_nodes nodes in total, but
+   * a clustering is only computed for the first \c num_active_nodes nodes.
    *
-   * This is mostly useful for distributed graphs where ghost nodes are always
-   * inactive.
+   * This is mostly useful for distributed graphs where ghost nodes are always inactive.
    *
-   * @param num_nodes Total number of nodes in the graph, i.e., neighbors of
-   * active nodes have an ID less than this.
-   * @param num_active_nodes Number of nodes for which a cluster label is
-   * computed.
+   * @param num_nodes Total number of nodes in the graph, i.e. neighbors of active nodes have an ID
+   * less than this.
+   * @param num_active_nodes Number of nodes for which a cluster label is computed.
+   * @param num_clusters The number of clusters.
+   * @param resize Whether to actually allocate the data structures.
    */
-  void allocate(const NodeID num_nodes, const NodeID num_active_nodes, const NodeID num_clusters) {
-    SCOPED_HEAP_PROFILER("Label Propagation Allocation");
+  void allocate(
+      const NodeID num_nodes,
+      NodeID num_active_nodes,
+      const ClusterID num_clusters,
+      bool resize = true
+  ) {
+    _num_nodes = num_nodes;
+    _num_active_nodes = num_active_nodes;
+    _num_clusters = num_clusters;
 
-    if (_num_nodes < num_nodes) {
-      if constexpr (Config::kUseLocalActiveSetStrategy) {
+    if constexpr (Config::kUseLocalActiveSetStrategy) {
+      if (resize && _active.capacity() < num_nodes) {
         _active.resize(num_nodes);
       }
-      _num_nodes = num_nodes;
     }
 
-    if (_num_active_nodes < num_active_nodes) {
-      if constexpr (Config::kUseActiveSetStrategy) {
+    if constexpr (Config::kUseActiveSetStrategy) {
+      if (resize && _active.capacity() < num_active_nodes) {
         _active.resize(num_active_nodes);
       }
-      if constexpr (Config::kUseTwoHopClustering) {
-        _favored_clusters.resize(num_active_nodes);
-      }
-      _num_active_nodes = num_active_nodes;
     }
 
-    if (_num_clusters < num_clusters) {
-      for (auto &rating_map : _rating_map_ets) {
-        rating_map.change_max_size(num_clusters);
+    if constexpr (Config::kUseTwoHopClustering) {
+      if (resize && _favored_clusters.capacity() < num_active_nodes) {
+        _favored_clusters.resize(num_active_nodes);
       }
-      _num_clusters = num_clusters;
+    }
+
+    if (resize) {
+      for (auto &rating_map : _rating_map_ets) {
+        if (rating_map.max_size() < num_clusters) {
+          rating_map.change_max_size(num_clusters);
+        }
+      }
     }
   }
 
@@ -1166,12 +1176,38 @@ protected:
   using EdgeWeight = typename Base::EdgeWeight;
   using NodeID = typename Base::NodeID;
   using NodeWeight = typename Base::NodeWeight;
+  using RatingMap = typename Base::RatingMap;
 
   using Base::handle_node;
   using Base::set_max_degree;
   using Base::set_max_num_neighbors;
   using Base::should_stop;
 
+public:
+  using DataStructures = std::tuple<
+      tbb::enumerable_thread_specific<RatingMap>,
+      scalable_vector<parallel::Atomic<uint8_t>>,
+      scalable_vector<parallel::Atomic<ClusterID>>,
+      tbb::concurrent_vector<NodeID>>;
+
+  void setup(DataStructures structs) {
+    auto [rating_map_ets, active, favored_clusters, second_phase_nodes] = std::move(structs);
+    Base::_rating_map_ets = std::move(rating_map_ets);
+    Base::_active = std::move(active);
+    Base::_favored_clusters = std::move(favored_clusters);
+    Base::_second_phase_nodes = std::move(second_phase_nodes);
+  }
+
+  DataStructures release() {
+    return std::make_tuple(
+        std::move(_rating_map_ets),
+        std::move(Base::_active),
+        std::move(Base::_favored_clusters),
+        std::move(Base::_second_phase_nodes)
+    );
+  }
+
+protected:
   void initialize(const Graph *graph, const ClusterID num_clusters) {
     Base::initialize(graph, num_clusters);
     _chunks.clear();
@@ -1518,8 +1554,27 @@ private:
 
 template <typename NodeID, typename ClusterID> class OwnedClusterVector {
 public:
-  explicit OwnedClusterVector(const NodeID max_num_nodes) : _clusters(max_num_nodes) {
-    RECORD_DATA_STRUCT(max_num_nodes * sizeof(parallel::Atomic<ClusterID>), _struct);
+  using Clusters = scalable_vector<parallel::Atomic<ClusterID>>;
+
+  explicit OwnedClusterVector() {
+    IF_HEAP_PROFILING(_struct = nullptr);
+  }
+
+  void allocate_clusters(const NodeID max_num_nodes) {
+    if (_struct == nullptr) {
+      RECORD_DATA_STRUCT(max_num_nodes * sizeof(parallel::Atomic<ClusterID>), _struct);
+    } else {
+      IF_HEAP_PROFILING(
+          _struct->size =
+              std::max(_struct->size, max_num_nodes * sizeof(parallel::Atomic<ClusterID>))
+      );
+    }
+
+    _clusters.resize(max_num_nodes);
+  }
+
+  void setup_clusters(Clusters clusters) {
+    _clusters = std::move(clusters);
   }
 
   [[nodiscard]] auto &&take_clusters() {
@@ -1556,7 +1611,7 @@ public:
   }
 
 private:
-  scalable_vector<parallel::Atomic<ClusterID>> _clusters;
+  Clusters _clusters;
 
   IF_HEAP_PROFILING(heap_profiler::DataStructure *_struct);
 };
@@ -1565,17 +1620,43 @@ template <typename ClusterID, typename ClusterWeight> class OwnedRelaxedClusterW
   using FirstLevelClusterWeight = typename std::
       conditional_t<std::is_same_v<ClusterWeight, std::uint32_t>, std::uint16_t, std::uint32_t>;
 
+  using ClusterWeightsVec = scalable_vector<parallel::Atomic<ClusterWeight>>;
+  using ClusterWeightsTwoLevelVec =
+      ConcurrentTwoLevelVector<ClusterWeight, ClusterID, FirstLevelClusterWeight>;
+
 public:
-  explicit OwnedRelaxedClusterWeightVector(
-      const ClusterID max_num_clusters, const bool use_two_level_vector
-  )
+  using ClusterWeights = std::tuple<ClusterWeightsVec, ClusterWeightsTwoLevelVec>;
+
+  explicit OwnedRelaxedClusterWeightVector(const bool use_two_level_vector)
       : _use_two_level_vector(use_two_level_vector) {
-    if (use_two_level_vector) {
+    IF_HEAP_PROFILING(_struct = nullptr);
+  }
+
+  void allocate_cluster_weights(const ClusterID max_num_clusters) {
+    if (_use_two_level_vector) {
       _cluster_weights_tlvec.resize(max_num_clusters);
     } else {
-      RECORD_DATA_STRUCT(max_num_clusters * sizeof(parallel::Atomic<ClusterWeight>));
+      if (_struct == nullptr) {
+        RECORD_DATA_STRUCT(max_num_clusters * sizeof(parallel::Atomic<ClusterWeight>), _struct);
+      } else {
+        IF_HEAP_PROFILING(
+            _struct->size =
+                std::max(_struct->size, max_num_clusters * sizeof(parallel::Atomic<ClusterWeight>))
+        );
+      }
+
       _cluster_weights_vec.resize(max_num_clusters);
     }
+  }
+
+  void setup_cluster_weights(ClusterWeights weights) {
+    auto [cluster_weights_vec, cluster_weights_tlvec] = std::move(weights);
+    _cluster_weights_vec = std::move(cluster_weights_vec);
+    _cluster_weights_tlvec = std::move(cluster_weights_tlvec);
+  }
+
+  [[nodiscard]] ClusterWeights take_cluster_weights() {
+    return std::make_tuple(std::move(_cluster_weights_vec), std::move(_cluster_weights_tlvec));
   }
 
   void init_cluster_weight(const ClusterID cluster, const ClusterWeight weight) {
@@ -1619,8 +1700,9 @@ public:
 
 private:
   const bool _use_two_level_vector;
-  scalable_vector<parallel::Atomic<ClusterWeight>> _cluster_weights_vec;
-  ConcurrentTwoLevelVector<ClusterWeight, ClusterID, FirstLevelClusterWeight>
-      _cluster_weights_tlvec;
+  ClusterWeightsVec _cluster_weights_vec;
+  ClusterWeightsTwoLevelVec _cluster_weights_tlvec;
+
+  IF_HEAP_PROFILING(heap_profiler::DataStructure *_struct);
 };
 } // namespace kaminpar

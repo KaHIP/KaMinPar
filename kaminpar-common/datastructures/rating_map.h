@@ -110,7 +110,13 @@ public:
     LARGE
   };
 
-  explicit RatingMap(const std::size_t max_size) : _max_size{max_size} {}
+  explicit RatingMap(const std::size_t max_size = 0) : _max_size{max_size} {}
+
+  RatingMap(const RatingMap &) = delete;
+  RatingMap &operator=(const RatingMap &) = delete;
+
+  RatingMap(RatingMap &&) noexcept = default;
+  RatingMap &operator=(RatingMap &&) noexcept = default;
 
   MapType update_upper_bound(const std::size_t upper_bound_size) {
     select_map(upper_bound_size);

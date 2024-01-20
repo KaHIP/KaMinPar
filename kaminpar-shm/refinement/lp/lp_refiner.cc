@@ -40,6 +40,8 @@ class LabelPropagationRefinerImpl final : public ChunkRandomdLabelPropagation<
 
 public:
   LabelPropagationRefinerImpl(const Context &ctx) : _r_ctx{ctx.refinement} {
+    SCOPED_HEAP_PROFILER("Label Propagation Allocation");
+
     this->allocate(ctx.partition.n, ctx.partition.n, ctx.partition.k);
     this->set_max_degree(_r_ctx.lp.large_degree_threshold);
     this->set_max_num_neighbors(_r_ctx.lp.max_num_neighbors);
