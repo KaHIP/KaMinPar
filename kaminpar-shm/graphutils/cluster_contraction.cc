@@ -330,11 +330,11 @@ Result contract_generic_graph(
 
           chunk_edge_count = 0;
         }
-        // Create a chunk for the last coarse nodes, if the total count with the last coarse node
-        // together does not cross the limit,
-        else if (c_u + 1 == c_n) {
-          cluster_chunks.emplace_back(chunk_start, c_n);
-        }
+      }
+
+      // Create a chunk for the last coarse nodes, if the last coarse nodes did not cross the limit.
+      if (chunk_start != c_n) {
+        cluster_chunks.emplace_back(chunk_start, c_n);
       }
     }
 
@@ -439,19 +439,24 @@ Result contract_generic_graph(
         all_buffered_nodes.resize(num_markers);
       }
 
-      tbb::parallel_for(edge_buffer_ets.range(), [&](auto &r) {
-        for (auto &local_list : r) {
-          local_list.flush();
-        }
-      });
-
-      tbb::parallel_for(edge_buffer_ets.range(), [&](const auto &r) {
-        for (const auto &local_list : r) {
-          const auto &markers = local_list.markers();
-          const std::size_t local_pos = global_pos.fetch_add(markers.size());
-          std::copy(markers.begin(), markers.end(), all_buffered_nodes.begin() + local_pos);
-        }
-      });
+      tbb::parallel_invoke(
+          [&] {
+            tbb::parallel_for(edge_buffer_ets.range(), [&](auto &r) {
+              for (auto &local_list : r) {
+                local_list.flush();
+              }
+            });
+          },
+          [&] {
+            tbb::parallel_for(edge_buffer_ets.range(), [&](const auto &r) {
+              for (const auto &local_list : r) {
+                const auto &markers = local_list.markers();
+                const std::size_t local_pos = global_pos.fetch_add(markers.size());
+                std::copy(markers.begin(), markers.end(), all_buffered_nodes.begin() + local_pos);
+              }
+            });
+          }
+      );
 
       tbb::parallel_for<NodeID>(cluster_start, cluster_end, [&](const NodeID i) {
         const auto &marker = all_buffered_nodes[i - cluster_start];
