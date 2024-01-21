@@ -206,11 +206,9 @@ protected:
     }
 
     if (resize) {
-      for (auto &rating_map : _rating_map_ets) {
-        if (rating_map.max_size() < num_clusters) {
-          rating_map.change_max_size(num_clusters);
-        }
-      }
+      _rating_map_ets = tbb::enumerable_thread_specific<RatingMap>([num_clusters] {
+        return RatingMap(num_clusters);
+      });
     }
   }
 
@@ -1047,9 +1045,7 @@ protected: // Members
   SecondPhaseAggregationMode _second_phase_aggregation_mode;
 
   //! Thread-local map to compute gain values.
-  tbb::enumerable_thread_specific<RatingMap> _rating_map_ets{[this] {
-    return RatingMap(_num_clusters);
-  }};
+  tbb::enumerable_thread_specific<RatingMap> _rating_map_ets;
 
   //! Flags nodes with at least one node in its neighborhood that changed
   //! clusters during the last iteration. Nodes without this flag set must not
