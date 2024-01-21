@@ -98,9 +98,12 @@ public:
 
     if (value < kMaxFirstValue) {
       _values[pos] = value;
+      _table.get_handle().erase(pos);
     } else {
       _values[pos] = kMaxFirstValue;
-      _table.get_handle().insert(pos, value);
+      _table.get_handle().insert_or_update(
+          pos, value, [&](auto &lhs, const auto rhs) { return lhs = rhs; }, value
+      );
     }
   }
 
@@ -252,6 +255,7 @@ public:
 
     if (value < kMaxFirstValue) {
       _values[pos] = value;
+      _table.erase(pos);
     } else {
       _values[pos] = kMaxFirstValue;
 
