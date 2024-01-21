@@ -66,6 +66,7 @@ public:
 
   const AtomicClusterArray &compute_clustering(const Graph &graph) {
     START_HEAP_PROFILER("Initialization");
+    this->reset_cluster_weights();
     this->initialize(&graph, graph.n());
     STOP_HEAP_PROFILER();
 

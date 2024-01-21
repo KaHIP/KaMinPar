@@ -65,6 +65,14 @@ public:
   }
 
   /*!
+   * Resets the vector.
+   */
+  void reset() {
+    // As Growt does not provide a clear function, just create a new hash table.
+    _table = ConcurrentHashTable(0);
+  }
+
+  /*!
    * Accesses a value at a given position.
    *
    * @param pos The position of the value in the vector to return.
@@ -98,7 +106,6 @@ public:
 
     if (value < kMaxFirstValue) {
       _values[pos] = value;
-      _table.get_handle().erase(pos);
     } else {
       _values[pos] = kMaxFirstValue;
       _table.get_handle().insert_or_update(
@@ -222,6 +229,13 @@ public:
   }
 
   /*!
+   * Resets the vector.
+   */
+  void reset() {
+    _table.clear();
+  }
+
+  /*!
    * Accesses a value at a given position.
    *
    * @param pos The position of the value in the vector to return.
@@ -255,7 +269,6 @@ public:
 
     if (value < kMaxFirstValue) {
       _values[pos] = value;
-      _table.erase(pos);
     } else {
       _values[pos] = kMaxFirstValue;
 

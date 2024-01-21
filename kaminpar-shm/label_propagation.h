@@ -1672,6 +1672,12 @@ public:
     return std::make_tuple(std::move(_cluster_weights_vec), std::move(_cluster_weights_tlvec));
   }
 
+  void reset_cluster_weights() {
+    if (_use_two_level_vector) {
+      _cluster_weights_tlvec.reset();
+    }
+  }
+
   void init_cluster_weight(const ClusterID cluster, const ClusterWeight weight) {
     if (_use_two_level_vector) {
       _cluster_weights_tlvec.insert(cluster, weight);
