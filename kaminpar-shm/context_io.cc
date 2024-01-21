@@ -265,6 +265,8 @@ std::ostream &operator<<(std::ostream &out, SecondPhaseSelectMode strategy) {
     return out << "high-degree";
   case SecondPhaseSelectMode::FULL_RATING_MAP:
     return out << "full-rating-map";
+  case SecondPhaseSelectMode::HYBRID:
+    return out << "hybrid";
   }
 
   return out << "<invalid>";
@@ -273,7 +275,8 @@ std::ostream &operator<<(std::ostream &out, SecondPhaseSelectMode strategy) {
 std::unordered_map<std::string, SecondPhaseSelectMode> get_second_phase_select_modes() {
   return {
       {"high-degree", SecondPhaseSelectMode::HIGH_DEGREE},
-      {"full-rating-map", SecondPhaseSelectMode::FULL_RATING_MAP}
+      {"full-rating-map", SecondPhaseSelectMode::FULL_RATING_MAP},
+      {"hybrid", SecondPhaseSelectMode::HYBRID}
   };
 }
 

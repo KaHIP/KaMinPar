@@ -193,7 +193,6 @@ CLI::Option_group *create_lp_coarsening_options(CLI::App *app, Context &ctx) {
         "Uses two phases in each iteration, where in the second phase the high-degree nodes are "
         "treated separately"
   )
-      ->default_val(true)
       ->capture_default_str();
   lp->add_option("--c-lp-second-phase-select-mode", ctx.coarsening.lp.second_phase_select_mode)
       ->transform(CLI::CheckedTransformer(get_second_phase_select_modes()).description(""))
@@ -202,6 +201,7 @@ CLI::Option_group *create_lp_coarsening_options(CLI::App *app, Context &ctx) {
 Options are:
   - high-degree:     Select nodes with high degree
   - full-rating-map: Select nodes which have a full rating map in the first phase
+  - hybrid:          Select nodes which have a full rating map in the first phase or have severe high degree
   )"
       )
       ->capture_default_str();

@@ -62,6 +62,10 @@ template <typename TGraph> struct LabelPropagationConfig {
   // sequentially.
   static constexpr std::size_t kRatingMapThreshold = 10000;
 
+  // When using hybrid selection mode for the second phase, nodes which have degree higher than this
+  // threshold will be moved immediately to the second phase.
+  static constexpr std::size_t kSevereHighDegreeThreshold = 150000;
+
   // If true, we count the number of empty clusters
   static constexpr bool kTrackClusterCount = false;
 
@@ -269,7 +273,8 @@ protected:
       best_cluster_opt = find_best_cluster<true>(u, u_weight, u_cluster, rand, rating_map);
     } else {
       std::size_t upper_bound_size = std::min<ClusterID>(_graph->degree(u), _initial_num_clusters);
-      if (_use_two_phases && _second_phase_select_mode == SecondPhaseSelectMode::FULL_RATING_MAP) {
+      if (_use_two_phases && (_second_phase_select_mode == SecondPhaseSelectMode::FULL_RATING_MAP ||
+                              _second_phase_select_mode == SecondPhaseSelectMode::HYBRID)) {
         upper_bound_size = std::min(upper_bound_size, Config::kRatingMapThreshold);
       }
 
@@ -419,7 +424,8 @@ protected:
       }
     } else {
       const bool use_frm_two_phases =
-          _use_two_phases && _second_phase_select_mode == SecondPhaseSelectMode::FULL_RATING_MAP;
+          _use_two_phases && (_second_phase_select_mode == SecondPhaseSelectMode::FULL_RATING_MAP ||
+                              _second_phase_select_mode == SecondPhaseSelectMode::HYBRID);
       bool second_phase_node = false;
 
       _graph->neighbors(u, _max_num_neighbors, [&](const EdgeID e, const NodeID v) {
@@ -1253,10 +1259,12 @@ protected:
     tbb::enumerable_thread_specific<NodeID> num_moved_nodes_ets;
     parallel::Atomic<std::size_t> next_chunk = 0;
 
-    const bool use_high_degree_two_phases =
-        Base::_use_two_phases &&
-        Base::_second_phase_select_mode == Base::SecondPhaseSelectMode::HIGH_DEGREE &&
-        Base::_initial_num_clusters >= Config::kRatingMapThreshold;
+    const bool use_two_phases =
+        Base::_use_two_phases && Base::_initial_num_clusters >= Config::kRatingMapThreshold;
+    const bool use_high_degree_selection =
+        Base::_second_phase_select_mode == Base::SecondPhaseSelectMode::HIGH_DEGREE;
+    const bool use_hybrid_selection =
+        Base::_second_phase_select_mode == Base::SecondPhaseSelectMode::HYBRID;
 
     START_HEAP_PROFILER("First phase");
     START_TIMER("First phase");
@@ -1296,9 +1304,18 @@ protected:
 
           const NodeID degree = _graph->degree(u);
           if (degree < _max_degree) {
-            if (use_high_degree_two_phases && degree >= Config::kRatingMapThreshold) {
-              _second_phase_nodes.push_back(u);
-              continue;
+            if (use_two_phases) {
+              if (use_high_degree_selection) {
+                if (degree >= Config::kRatingMapThreshold) {
+                  _second_phase_nodes.push_back(u);
+                  continue;
+                }
+              } else if (use_hybrid_selection) {
+                if (degree >= Config::kSevereHighDegreeThreshold) {
+                  _second_phase_nodes.push_back(u);
+                  continue;
+                }
+              }
             }
 
             const auto [moved_node, emptied_cluster] = handle_node(u, local_rand, local_rating_map);
