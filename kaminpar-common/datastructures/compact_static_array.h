@@ -146,9 +146,13 @@ public:
    */
   CompactStaticArray(const std::uint8_t byte_width, const std::size_t size)
       : _byte_width(byte_width),
-        _mask((1 << (byte_width * 8)) - 1),
+        _mask(
+            (byte_width == 8) ? std::numeric_limits<std::uint64_t>::max()
+                              : (static_cast<std::uint64_t>(1) << (byte_width * 8)) - 1
+        ),
         _size(byte_width * size + sizeof(Int) - byte_width),
         _values(std::make_unique<std::uint8_t[]>(_size)) {
+    KASSERT(byte_width <= 8);
     RECORD_DATA_STRUCT(_size);
   }
 
