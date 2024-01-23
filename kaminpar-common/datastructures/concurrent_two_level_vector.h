@@ -1,3 +1,11 @@
+/*******************************************************************************
+ * A two-level vector which stores small values in a contiguous vector and large values in a hash
+ * table.
+ *
+ * @file:   concurrent_two_level_vector.h
+ * @author: Daniel Salwasser
+ * @date:   18.01.2024
+ ******************************************************************************/
 #pragma once
 
 #include <limits>
@@ -65,7 +73,7 @@ public:
   }
 
   /*!
-   * Resets the vector.
+   * Resets the vector such that new elements can be inserted.
    */
   void reset() {
     // As Growt does not provide a clear function, just create a new hash table.
@@ -108,9 +116,7 @@ public:
       _values[pos] = value;
     } else {
       _values[pos] = kMaxFirstValue;
-      _table.get_handle().insert_or_update(
-          pos, value, [&](auto &lhs, const auto rhs) { return lhs = rhs; }, value
-      );
+      _table.get_handle().insert(pos, value);
     }
   }
 
@@ -229,7 +235,7 @@ public:
   }
 
   /*!
-   * Resets the vector.
+   * Resets the vector such that new elements can be inserted.
    */
   void reset() {
     _table.clear();
