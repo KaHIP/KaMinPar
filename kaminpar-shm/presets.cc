@@ -17,6 +17,8 @@ namespace kaminpar::shm {
 Context create_context_by_preset_name(const std::string &name) {
   if (name == "default") {
     return create_default_context();
+  } else if (name == "memory") {
+    return create_memory_context();
   } else if (name == "fast") {
     return create_fast_context();
   } else if (name == "largek") {
@@ -35,6 +37,7 @@ Context create_context_by_preset_name(const std::string &name) {
 std::unordered_set<std::string> get_preset_names() {
   return {
       "default",
+      "memory",
       "fast",
       "largek",
       "strong",
@@ -72,15 +75,15 @@ Context create_default_context() {
                       .large_degree_threshold = 1000000,
                       .max_num_neighbors = 200000,
                       .use_two_level_cluster_weight_vector = false,
-                      .use_two_phases = true,
-                      .second_phase_select_mode = SecondPhaseSelectMode::FULL_RATING_MAP,
+                      .use_two_phases = false,
+                      .second_phase_select_mode = SecondPhaseSelectMode::HYBRID,
                       .second_phase_aggregation_mode = SecondPhaseAggregationMode::BUFFERED,
                       .two_hop_strategy = TwoHopStrategy::MATCH_THREADWISE,
                       .two_hop_threshold = 0.5,
                       .isolated_nodes_strategy =
                           IsolatedNodesClusteringStrategy::MATCH_DURING_TWO_HOP,
                   },
-              .contraction = {.edge_buffer_fill_fraction = 0.1, .use_compact_ids = false},
+              .contraction = {.edge_buffer_fill_fraction = 1, .use_compact_ids = false},
               .contraction_limit = 2000,
               .enforce_contraction_limit = false,
               .convergence_threshold = 0.05,
@@ -176,6 +179,16 @@ Context create_default_context() {
               .dump_partition_hierarchy = false,
           },
   };
+}
+
+Context create_memory_context() {
+  Context ctx = create_default_context();
+  ctx.compression.enabled = true;
+  ctx.compression.may_dismiss = true;
+  ctx.coarsening.lp.use_two_phases = true;
+  ctx.coarsening.lp.use_two_level_cluster_weight_vector = true;
+  ctx.coarsening.contraction.use_compact_ids = true;
+  return ctx;
 }
 
 Context create_fast_context() {
