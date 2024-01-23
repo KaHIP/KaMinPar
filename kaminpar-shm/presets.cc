@@ -78,6 +78,7 @@ Context create_default_context() {
                       .use_two_phases = false,
                       .second_phase_select_mode = SecondPhaseSelectMode::HYBRID,
                       .second_phase_aggregation_mode = SecondPhaseAggregationMode::BUFFERED,
+                      .use_second_phase_filter = false,
                       .two_hop_strategy = TwoHopStrategy::MATCH_THREADWISE,
                       .two_hop_threshold = 0.5,
                       .isolated_nodes_strategy =
