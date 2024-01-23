@@ -23,6 +23,7 @@
 #include "kaminpar-dist/metrics.h"
 #include "kaminpar-dist/refinement/fm/move_conflict_resolver.h"
 #include "kaminpar-dist/refinement/snapshooter.h"
+#include "kaminpar-dist/timer.h"
 
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
@@ -32,13 +33,12 @@
 #include "kaminpar-common/datastructures/binary_heap.h"
 #include "kaminpar-common/datastructures/rating_map.h"
 #include "kaminpar-common/random.h"
-#include "kaminpar-common/timer.h"
 
 #define HEAVY assert::heavy
 
 namespace kaminpar::dist {
 namespace {
-SET_STATISTICS(false);
+SET_STATISTICS(true);
 SET_DEBUG(true);
 } // namespace
 
@@ -91,6 +91,7 @@ FMRefiner::FMRefiner(
 void FMRefiner::initialize() {}
 
 bool FMRefiner::refine() {
+  TIMER_BARRIER(_p_graph.communicator());
   SCOPED_TIMER("FM");
 
   auto balancer = _balancer_factory->create(_p_graph, _p_ctx);
@@ -115,8 +116,7 @@ bool FMRefiner::refine() {
                                 ? graph::find_independent_border_set(_p_graph, global_round)
                                 : graph::find_border_nodes(_p_graph);
     STOP_TIMER();
-
-    mpi::barrier(_p_graph.communicator());
+    TIMER_BARRIER(_p_graph.communicator());
 
     // Run distributed BFS to extract batches around the seed nodes
     START_TIMER("Run BFS");
@@ -126,8 +126,7 @@ bool FMRefiner::refine() {
     bfs_extractor.set_max_radius(_fm_ctx.max_radius);
     auto extraction_result = bfs_extractor.extract(seed_nodes);
     STOP_TIMER();
-
-    mpi::barrier(_p_graph.communicator());
+    TIMER_BARRIER(_p_graph.communicator());
 
     // This is the batch graph containing the subgraphs around all seed nodes
     // The last `k` nodes are pseudo-nodes representing the blocks of the graph partition
@@ -170,8 +169,7 @@ bool FMRefiner::refine() {
       return worker;
     });
     STOP_TIMER();
-
-    mpi::barrier(_p_graph.communicator());
+    TIMER_BARRIER(_p_graph.communicator());
 
     std::vector<GlobalMove> move_sets;
 
@@ -181,8 +179,7 @@ bool FMRefiner::refine() {
       START_TIMER("Prepared shared data");
       prepare_shared_data_for_local_round(*bp_graph, shared);
       STOP_TIMER();
-
-      mpi::barrier(_p_graph.communicator());
+      TIMER_BARRIER(_p_graph.communicator());
 
       // Compute the number of seeds per chunk / batch
       const NodeID total_num_seeds = shared.border_nodes.size();
@@ -252,8 +249,7 @@ bool FMRefiner::refine() {
           }
         }
         STOP_TIMER();
-
-        mpi::barrier(_p_graph.communicator());
+        TIMER_BARRIER(_p_graph.communicator());
 
         // Resolve global move conflicts: after this operation, global_move_buffer accepted moves
         // with valid node IDs (is_valid_id(node)) and rejected moves with invalid node IDs
@@ -262,8 +258,7 @@ bool FMRefiner::refine() {
         auto global_move_buffer =
             broadcast_and_resolve_global_moves(move_sets, _p_graph.communicator());
         STOP_TIMER();
-
-        mpi::barrier(_p_graph.communicator());
+        TIMER_BARRIER(_p_graph.communicator());
 
         // Apply moves to global partition and extract graph
         START_TIMER("Apply moves");
@@ -301,6 +296,7 @@ bool FMRefiner::refine() {
           bp_graph->set_block_weight(block, _p_graph.block_weight(block));
         }
         STOP_TIMER();
+        TIMER_BARRIER(_p_graph.communicator());
 
         KASSERT(
             debug::validate_partition(_p_graph),
@@ -321,14 +317,13 @@ bool FMRefiner::refine() {
       // Since we have changed the partition, re-initialize the balancer
       balancer->initialize();
       balancer->refine();
-      mpi::barrier(_p_graph.communicator());
+      TIMER_BARRIER(_p_graph.communicator());
     }
 
     START_TIMER("Update snapshot");
     snapshooter->update(_p_graph, _p_ctx);
     STOP_TIMER();
-
-    mpi::barrier(_p_graph.communicator());
+    TIMER_BARRIER(_p_graph.communicator());
 
     if (_ctx.refinement.fm.use_abortion_threshold) {
       const EdgeWeight final_cut = metrics::edge_cut(_p_graph);
@@ -347,15 +342,13 @@ bool FMRefiner::refine() {
     START_TIMER("Update snapshot");
     snapshooter->update(_p_graph, _p_ctx);
     STOP_TIMER();
-
-    mpi::barrier(_p_graph.communicator());
+    TIMER_BARRIER(_p_graph.communicator());
   }
 
   START_TIMER("Rollback to snapshot");
   snapshooter->rollback(_p_graph);
   STOP_TIMER();
-
-  mpi::barrier(_p_graph.communicator());
+  TIMER_BARRIER(_p_graph.communicator());
 
   return false;
 }
