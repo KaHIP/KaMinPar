@@ -111,10 +111,10 @@ class Timer {
 
   static constexpr std::size_t kSpaceBetweenTimeAndRestarts = 1;
   static constexpr std::size_t kSpaceBetweenRestartsAndAnnotation = 1;
-  static constexpr std::string_view kBranch = "|-- ";
-  static constexpr std::string_view kEdge = "|   ";
-  static constexpr std::string_view kTailBranch = "`-- ";
-  static constexpr std::string_view kTailEdge = "    ";
+  static constexpr std::string_view kBranch = "|- ";
+  static constexpr std::string_view kEdge = "|  ";
+  static constexpr std::string_view kTailBranch = "`- ";
+  static constexpr std::string_view kTailEdge = "   ";
   static constexpr std::string_view kNameDel = ": ";
   static constexpr char kPadding = '.';
   static constexpr std::string_view kSecondsUnit = " s";
