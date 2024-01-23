@@ -239,7 +239,7 @@ compress_read(const std::string &filename, const bool sorted, const bool may_dis
         check_format<checked>(format);
 
         number_of_nodes = format.number_of_nodes + 1;
-        uncompressed_edge_array_size = format.number_of_edges * sizeof(NodeID);
+        uncompressed_edge_array_size = format.number_of_edges * sizeof(NodeID) * 2;
         store_node_weights = format.has_node_weights;
         store_edge_weights = format.has_edge_weights;
 
