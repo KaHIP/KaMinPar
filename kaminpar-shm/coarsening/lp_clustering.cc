@@ -32,7 +32,7 @@ void LPClustering::set_desired_cluster_count(const NodeID count) {
 
 const Clusterer::AtomicClusterArray &LPClustering::compute_clustering(const Graph &graph) {
   // Compute a clustering and setup/release the data structures used by the core, so that they can
-  // be shared among all graph implementations.
+  // be shared by all graph implementations.
   const auto compute = [&](auto &core, auto &graph) {
     if (!_allocated) {
       _allocated = true;
@@ -52,15 +52,11 @@ const Clusterer::AtomicClusterArray &LPClustering::compute_clustering(const Grap
 
   if (auto *csr_graph = dynamic_cast<CSRGraph *>(graph.underlying_graph()); csr_graph != nullptr) {
     compute(*_csr_core, *csr_graph);
-  }
-
-  if (auto *compact_csr_graph = dynamic_cast<CompactCSRGraph *>(graph.underlying_graph());
-      compact_csr_graph != nullptr) {
+  } else if (auto *compact_csr_graph = dynamic_cast<CompactCSRGraph *>(graph.underlying_graph());
+             compact_csr_graph != nullptr) {
     compute(*_compact_csr_core, *compact_csr_graph);
-  }
-
-  if (auto *compressed_graph = dynamic_cast<CompressedGraph *>(graph.underlying_graph());
-      compressed_graph != nullptr) {
+  } else if (auto *compressed_graph = dynamic_cast<CompressedGraph *>(graph.underlying_graph());
+             compressed_graph != nullptr) {
     compute(*_compressed_core, *compressed_graph);
   }
 

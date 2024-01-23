@@ -251,7 +251,7 @@ private:
   std::unique_ptr<LPClusteringImpl<CompactCSRGraph>> _compact_csr_core;
   std::unique_ptr<LPClusteringImpl<CompressedGraph>> _compressed_core;
 
-  // The data structures which are used by the LP clustering which are shared between the
+  // The data structures which are used by the LP clustering and are shared between the
   // different graph implementations.
   bool _allocated = false;
   LPClusteringImpl<Graph>::DataStructures _structs;
