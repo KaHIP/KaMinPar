@@ -119,21 +119,31 @@ std::ostream &operator<<(std::ostream &out, const InitialPartitioningAlgorithm a
 std::unordered_map<std::string, RefinementAlgorithm> get_kway_refinement_algorithms() {
   return {
       {"noop", RefinementAlgorithm::NOOP},
-      {"lp/batches", RefinementAlgorithm::BATCHED_LP},
-      {"lp/colors", RefinementAlgorithm::COLORED_LP},
-      {"greedy-balancer/nodes", RefinementAlgorithm::GREEDY_NODE_BALANCER},
-      {"greedy-balancer/clusters", RefinementAlgorithm::GREEDY_CLUSTER_BALANCER},
+
+      {"lp", RefinementAlgorithm::BATCHED_LP_REFINER},
+      {"blp", RefinementAlgorithm::BATCHED_LP_REFINER},
+      {"batched-lp", RefinementAlgorithm::BATCHED_LP_REFINER},
+
+      {"clp", RefinementAlgorithm::COLORED_LP_REFINER},
+      {"colored-lp", RefinementAlgorithm::COLORED_LP_REFINER},
+
+      {"nb", RefinementAlgorithm::HYBRID_NODE_BALANCER},
+      {"hybrid-node-balancer", RefinementAlgorithm::HYBRID_NODE_BALANCER},
+
+      {"cb", RefinementAlgorithm::HYBRID_CLUSTER_BALANCER},
+      {"hybrid-cluster-balancer", RefinementAlgorithm::HYBRID_CLUSTER_BALANCER},
+
       {"jet", RefinementAlgorithm::JET_REFINER},
-      {"mtkahypar", RefinementAlgorithm::MTKAHYPAR},
+      {"mtkahypar", RefinementAlgorithm::MTKAHYPAR_REFINER},
   };
 }
 
 std::unordered_map<std::string, RefinementAlgorithm> get_balancing_algorithms() {
   return {
       {"noop", RefinementAlgorithm::NOOP},
-      {"greedy-balancer/nodes", RefinementAlgorithm::GREEDY_NODE_BALANCER},
-      {"greedy-balancer/clusters", RefinementAlgorithm::GREEDY_CLUSTER_BALANCER},
-      {"mtkahypar", RefinementAlgorithm::MTKAHYPAR},
+      {"hybrid-node-balancer", RefinementAlgorithm::HYBRID_NODE_BALANCER},
+      {"hybrid-cluster-balancer", RefinementAlgorithm::HYBRID_CLUSTER_BALANCER},
+      {"mtkahypar", RefinementAlgorithm::MTKAHYPAR_REFINER},
   };
 };
 
@@ -141,18 +151,18 @@ std::ostream &operator<<(std::ostream &out, const RefinementAlgorithm algorithm)
   switch (algorithm) {
   case RefinementAlgorithm::NOOP:
     return out << "noop";
-  case RefinementAlgorithm::BATCHED_LP:
-    return out << "lp/batches";
-  case RefinementAlgorithm::COLORED_LP:
-    return out << "lp/colors";
-  case RefinementAlgorithm::GREEDY_NODE_BALANCER:
-    return out << "greedy-balancer/nodes";
-  case RefinementAlgorithm::GREEDY_CLUSTER_BALANCER:
-    return out << "greedy-balancer/clusters";
+  case RefinementAlgorithm::BATCHED_LP_REFINER:
+    return out << "batched-lp";
+  case RefinementAlgorithm::COLORED_LP_REFINER:
+    return out << "colored-lp";
   case RefinementAlgorithm::JET_REFINER:
-    return out << "jet/refiner";
-  case RefinementAlgorithm::MTKAHYPAR:
+    return out << "jet";
+  case RefinementAlgorithm::MTKAHYPAR_REFINER:
     return out << "mtkahypar";
+  case RefinementAlgorithm::HYBRID_NODE_BALANCER:
+    return out << "hybrid-node-balancer";
+  case RefinementAlgorithm::HYBRID_CLUSTER_BALANCER:
+    return out << "hybrid-cluster-balancer";
   }
 
   return out << "<invalid>";
@@ -160,18 +170,17 @@ std::ostream &operator<<(std::ostream &out, const RefinementAlgorithm algorithm)
 
 std::string get_refinement_algorithms_description() {
   return std::string(R"(
-- noop:                       do nothing
-- lp/batches:                 LP where batches are nodes with subsequent IDs
-- lp/colors:                  LP where batches are color classes
-- jet/refiner:                reimplementation of JET's refinement algorithm)")
+- noop:                    disable refinement
+- batched-lp:              Label propagation with synchronization after a constant number of supersteps
+- colored-lp:              Label propagation with synchronization after each color class
+- jet:                     Jet refinement)")
              .substr(1) +
          "\n" + get_balancing_algorithms_description();
 }
 
 std::string get_balancing_algorithms_description() {
   return std::string(R"(
-- greedy-balancer/nodes: greedy, move individual nodes
-- greedy-balancer/clusters:   greedy, move sets of nodes)")
+- hybrid-node-balancer:    hybrid node balancer)")
       .substr(1);
 }
 
@@ -425,15 +434,15 @@ void print(const InitialPartitioningContext &ctx, std::ostream &out) {
 void print(const RefinementContext &ctx, const ParallelContext &parallel, std::ostream &out) {
   out << "Refinement algorithms:        " << ctx.algorithms << "\n";
   out << "Refine initial partition:     " << (ctx.refine_coarsest_level ? "yes" : "no") << "\n";
-  if (ctx.includes_algorithm(RefinementAlgorithm::BATCHED_LP)) {
-    out << "Label propagation:            " << RefinementAlgorithm::BATCHED_LP << "\n";
+  if (ctx.includes_algorithm(RefinementAlgorithm::BATCHED_LP_REFINER)) {
+    out << "Label propagation:            " << RefinementAlgorithm::BATCHED_LP_REFINER << "\n";
     out << "  Number of iterations:       " << ctx.lp.num_iterations << "\n";
     print(ctx.lp.chunks, parallel, out);
     out << "  Use probabilistic moves:    " << (ctx.lp.ignore_probabilities ? "no" : "yes") << "\n";
     out << "  Number of retries:          " << ctx.lp.num_move_attempts << "\n";
   }
-  if (ctx.includes_algorithm(RefinementAlgorithm::COLORED_LP)) {
-    out << "Colored Label Propagation:    " << RefinementAlgorithm::COLORED_LP << "\n";
+  if (ctx.includes_algorithm(RefinementAlgorithm::COLORED_LP_REFINER)) {
+    out << "Colored Label Propagation:    " << RefinementAlgorithm::COLORED_LP_REFINER << "\n";
     out << "  Number of iterations:       " << ctx.colored_lp.num_iterations << "\n";
     print(ctx.colored_lp.coloring_chunks, parallel, out);
     out << "  Commitment strategy:        " << ctx.colored_lp.move_execution_strategy << "\n";
@@ -468,10 +477,10 @@ void print(const RefinementContext &ctx, const ParallelContext &parallel, std::o
         << ", final " << ctx.jet.final_negative_gain_factor << "\n";
     out << "  Balancing algorithm:        " << ctx.jet.balancing_algorithm << "\n";
   }
-  if (ctx.includes_algorithm(RefinementAlgorithm::GREEDY_NODE_BALANCER) ||
+  if (ctx.includes_algorithm(RefinementAlgorithm::HYBRID_NODE_BALANCER) ||
       (ctx.includes_algorithm(RefinementAlgorithm::JET_REFINER) &&
-       ctx.jet.balancing_algorithm == RefinementAlgorithm::GREEDY_NODE_BALANCER)) {
-    out << "Node balancer:                " << RefinementAlgorithm::GREEDY_NODE_BALANCER << "\n";
+       ctx.jet.balancing_algorithm == RefinementAlgorithm::HYBRID_NODE_BALANCER)) {
+    out << "Node balancer:                " << RefinementAlgorithm::HYBRID_NODE_BALANCER << "\n";
     out << "  Number of rounds:           " << ctx.node_balancer.max_num_rounds << "\n";
     out << "  Sequential balancing:       "
         << (ctx.node_balancer.enable_sequential_balancing ? "yes" : "no") << "\n";
@@ -493,10 +502,10 @@ void print(const RefinementContext &ctx, const ParallelContext &parallel, std::o
         << ", updates = " << ctx.node_balancer.par_high_degree_update_thresold
         << " [interval: " << ctx.node_balancer.par_high_degree_update_interval << "]\n";
   }
-  if (ctx.includes_algorithm(RefinementAlgorithm::GREEDY_CLUSTER_BALANCER) ||
+  if (ctx.includes_algorithm(RefinementAlgorithm::HYBRID_CLUSTER_BALANCER) ||
       (ctx.includes_algorithm(RefinementAlgorithm::JET_REFINER) &&
-       ctx.jet.balancing_algorithm == RefinementAlgorithm::GREEDY_CLUSTER_BALANCER)) {
-    out << "Cluster balancer:             " << RefinementAlgorithm::GREEDY_CLUSTER_BALANCER << "\n";
+       ctx.jet.balancing_algorithm == RefinementAlgorithm::HYBRID_CLUSTER_BALANCER)) {
+    out << "Cluster balancer:             " << RefinementAlgorithm::HYBRID_CLUSTER_BALANCER << "\n";
     out << "  Clusters:                   " << ctx.cluster_balancer.cluster_strategy << "\n";
     out << "    Max weight:               " << ctx.cluster_balancer.cluster_size_strategy << " x "
         << ctx.cluster_balancer.cluster_size_multiplier << "\n";

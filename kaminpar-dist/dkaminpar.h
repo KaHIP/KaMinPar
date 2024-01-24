@@ -80,12 +80,12 @@ enum class InitialPartitioningAlgorithm {
 
 enum class RefinementAlgorithm {
   NOOP,
-  BATCHED_LP,
-  COLORED_LP,
+  BATCHED_LP_REFINER,
+  COLORED_LP_REFINER,
   JET_REFINER,
-  GREEDY_NODE_BALANCER,
-  GREEDY_CLUSTER_BALANCER,
-  MTKAHYPAR,
+  HYBRID_NODE_BALANCER,
+  HYBRID_CLUSTER_BALANCER,
+  MTKAHYPAR_REFINER,
 };
 
 enum class LabelPropagationMoveExecutionStrategy {

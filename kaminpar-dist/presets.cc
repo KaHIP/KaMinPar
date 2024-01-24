@@ -121,9 +121,9 @@ Context create_default_context() {
       .refinement =
           {
               .algorithms =
-                  {RefinementAlgorithm::GREEDY_NODE_BALANCER,
-                   RefinementAlgorithm::BATCHED_LP,
-                   RefinementAlgorithm::GREEDY_NODE_BALANCER},
+                  {RefinementAlgorithm::HYBRID_NODE_BALANCER,
+                   RefinementAlgorithm::BATCHED_LP_REFINER,
+                   RefinementAlgorithm::HYBRID_NODE_BALANCER},
               .refine_coarsest_level = false,
               .lp =
                   {
@@ -208,7 +208,7 @@ Context create_default_context() {
                       .fine_negative_gain_factor = 0.25,
                       .initial_negative_gain_factor = 0.75,
                       .final_negative_gain_factor = 0.25,
-                      .balancing_algorithm = RefinementAlgorithm::GREEDY_NODE_BALANCER,
+                      .balancing_algorithm = RefinementAlgorithm::HYBRID_NODE_BALANCER,
                   },
               .mtkahypar =
                   {
@@ -230,7 +230,7 @@ Context create_strong_context() {
   ctx.refinement.jet.num_coarse_rounds = 4;
   ctx.refinement.jet.num_fine_rounds = 4;
   ctx.refinement.algorithms = {
-      RefinementAlgorithm::GREEDY_NODE_BALANCER, RefinementAlgorithm::JET_REFINER};
+      RefinementAlgorithm::HYBRID_NODE_BALANCER, RefinementAlgorithm::JET_REFINER};
   return ctx;
 }
 
@@ -240,7 +240,7 @@ Context create_jet_context() {
   ctx.refinement.jet.num_coarse_rounds = 1;
   ctx.refinement.jet.num_fine_rounds = 1;
   ctx.refinement.algorithms = {
-      RefinementAlgorithm::GREEDY_NODE_BALANCER, RefinementAlgorithm::JET_REFINER};
+      RefinementAlgorithm::HYBRID_NODE_BALANCER, RefinementAlgorithm::JET_REFINER};
   return ctx;
 }
 

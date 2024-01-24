@@ -84,22 +84,22 @@ create_refiner(const Context &ctx, const RefinementAlgorithm algorithm) {
   case RefinementAlgorithm::NOOP:
     return std::make_unique<NoopRefinerFactory>();
 
-  case RefinementAlgorithm::BATCHED_LP:
+  case RefinementAlgorithm::BATCHED_LP_REFINER:
     return std::make_unique<LPRefinerFactory>(ctx);
 
-  case RefinementAlgorithm::COLORED_LP:
+  case RefinementAlgorithm::COLORED_LP_REFINER:
     return std::make_unique<ColoredLPRefinerFactory>(ctx);
 
   case RefinementAlgorithm::JET_REFINER:
     return std::make_unique<JetRefinerFactory>(ctx);
 
-  case RefinementAlgorithm::GREEDY_NODE_BALANCER:
+  case RefinementAlgorithm::HYBRID_NODE_BALANCER:
     return std::make_unique<NodeBalancerFactory>(ctx);
 
-  case RefinementAlgorithm::GREEDY_CLUSTER_BALANCER:
+  case RefinementAlgorithm::HYBRID_CLUSTER_BALANCER:
     return std::make_unique<ClusterBalancerFactory>(ctx);
 
-  case RefinementAlgorithm::MTKAHYPAR:
+  case RefinementAlgorithm::MTKAHYPAR_REFINER:
     return std::make_unique<MtKaHyParRefinerFactory>(ctx);
   }
 
