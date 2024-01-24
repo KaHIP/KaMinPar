@@ -121,11 +121,9 @@ std::unordered_map<std::string, RefinementAlgorithm> get_kway_refinement_algorit
       {"noop", RefinementAlgorithm::NOOP},
       {"lp/batches", RefinementAlgorithm::BATCHED_LP},
       {"lp/colors", RefinementAlgorithm::COLORED_LP},
-      {"fm/global", RefinementAlgorithm::GLOBAL_FM},
       {"greedy-balancer/nodes", RefinementAlgorithm::GREEDY_NODE_BALANCER},
       {"greedy-balancer/clusters", RefinementAlgorithm::GREEDY_CLUSTER_BALANCER},
-      {"jet/refiner", RefinementAlgorithm::JET_REFINER},
-      {"jet/balancer", RefinementAlgorithm::JET_BALANCER},
+      {"jet", RefinementAlgorithm::JET_REFINER},
       {"mtkahypar", RefinementAlgorithm::MTKAHYPAR},
   };
 }
@@ -135,7 +133,6 @@ std::unordered_map<std::string, RefinementAlgorithm> get_balancing_algorithms() 
       {"noop", RefinementAlgorithm::NOOP},
       {"greedy-balancer/nodes", RefinementAlgorithm::GREEDY_NODE_BALANCER},
       {"greedy-balancer/clusters", RefinementAlgorithm::GREEDY_CLUSTER_BALANCER},
-      {"jet/balancer", RefinementAlgorithm::JET_BALANCER},
       {"mtkahypar", RefinementAlgorithm::MTKAHYPAR},
   };
 };
@@ -148,16 +145,12 @@ std::ostream &operator<<(std::ostream &out, const RefinementAlgorithm algorithm)
     return out << "lp/batches";
   case RefinementAlgorithm::COLORED_LP:
     return out << "lp/colors";
-  case RefinementAlgorithm::GLOBAL_FM:
-    return out << "fm/global";
   case RefinementAlgorithm::GREEDY_NODE_BALANCER:
     return out << "greedy-balancer/nodes";
   case RefinementAlgorithm::GREEDY_CLUSTER_BALANCER:
     return out << "greedy-balancer/clusters";
   case RefinementAlgorithm::JET_REFINER:
     return out << "jet/refiner";
-  case RefinementAlgorithm::JET_BALANCER:
-    return out << "jet/balancer";
   case RefinementAlgorithm::MTKAHYPAR:
     return out << "mtkahypar";
   }
@@ -170,8 +163,6 @@ std::string get_refinement_algorithms_description() {
 - noop:                       do nothing
 - lp/batches:                 LP where batches are nodes with subsequent IDs
 - lp/colors:                  LP where batches are color classes
-- fm/local:                   local FM
-- fm/global:                  global FM
 - jet/refiner:                reimplementation of JET's refinement algorithm)")
              .substr(1) +
          "\n" + get_balancing_algorithms_description();
@@ -179,9 +170,8 @@ std::string get_refinement_algorithms_description() {
 
 std::string get_balancing_algorithms_description() {
   return std::string(R"(
-- jet/balancer:               reimplementation of JET's balancing algorithm
-- greedy-balancer/singletons: greedy, move individual nodes
-- greedy-balancer/movesets:   greedy, move sets of nodes)")
+- greedy-balancer/nodes: greedy, move individual nodes
+- greedy-balancer/clusters:   greedy, move sets of nodes)")
       .substr(1);
 }
 
@@ -316,7 +306,7 @@ void print(const PartitionContext &ctx, const bool root, std::ostream &out, MPI_
   });
   const auto width = std::ceil(std::log10(size)) + 1;
 
-  const GlobalNodeID num_global_total_nodes =
+  const auto num_global_total_nodes =
       mpi::allreduce<GlobalNodeID>(ctx.graph->total_n, MPI_SUM, comm);
 
   if (root) {
@@ -478,30 +468,9 @@ void print(const RefinementContext &ctx, const ParallelContext &parallel, std::o
         << ", final " << ctx.jet.final_negative_gain_factor << "\n";
     out << "  Balancing algorithm:        " << ctx.jet.balancing_algorithm << "\n";
   }
-  if (ctx.includes_algorithm(RefinementAlgorithm::GLOBAL_FM)) {
-    out << "Global FM refinement:         " << RefinementAlgorithm::GLOBAL_FM << "\n";
-    out << "  Number of iterations:       " << ctx.fm.num_global_iterations << " x "
-        << ctx.fm.num_local_iterations << "\n";
-    if (ctx.fm.chunk_local_rounds) {
-      print(ctx.fm.chunks, parallel, out);
-    }
-    out << "  Search radius:              " << ctx.fm.max_radius << " via " << ctx.fm.max_hops
-        << " hop(s)\n";
-    out << "  Revert batch-local moves:   "
-        << (ctx.fm.revert_local_moves_after_batch ? "yes" : "no") << "\n";
-    out << "  Rollback to best partition: " << (ctx.fm.rollback_deterioration ? "yes" : "no")
-        << "\n";
-    out << "  Rebalance algorithm:        " << ctx.fm.balancing_algorithm << "\n";
-    out << "    Rebalance after iter.:    "
-        << (ctx.fm.rebalance_after_each_global_iteration ? "yes" : "no") << "\n";
-    out << "    Rebalance after ref.:     " << (ctx.fm.rebalance_after_refinement ? "yes" : "no")
-        << "\n";
-  }
   if (ctx.includes_algorithm(RefinementAlgorithm::GREEDY_NODE_BALANCER) ||
       (ctx.includes_algorithm(RefinementAlgorithm::JET_REFINER) &&
-       ctx.jet.balancing_algorithm == RefinementAlgorithm::GREEDY_NODE_BALANCER) ||
-      (ctx.includes_algorithm(RefinementAlgorithm::GLOBAL_FM) &&
-       ctx.fm.balancing_algorithm == RefinementAlgorithm::GREEDY_NODE_BALANCER)) {
+       ctx.jet.balancing_algorithm == RefinementAlgorithm::GREEDY_NODE_BALANCER)) {
     out << "Node balancer:                " << RefinementAlgorithm::GREEDY_NODE_BALANCER << "\n";
     out << "  Number of rounds:           " << ctx.node_balancer.max_num_rounds << "\n";
     out << "  Sequential balancing:       "
@@ -526,9 +495,7 @@ void print(const RefinementContext &ctx, const ParallelContext &parallel, std::o
   }
   if (ctx.includes_algorithm(RefinementAlgorithm::GREEDY_CLUSTER_BALANCER) ||
       (ctx.includes_algorithm(RefinementAlgorithm::JET_REFINER) &&
-       ctx.jet.balancing_algorithm == RefinementAlgorithm::GREEDY_CLUSTER_BALANCER) ||
-      (ctx.includes_algorithm(RefinementAlgorithm::GLOBAL_FM) &&
-       ctx.fm.balancing_algorithm == RefinementAlgorithm::GREEDY_CLUSTER_BALANCER)) {
+       ctx.jet.balancing_algorithm == RefinementAlgorithm::GREEDY_CLUSTER_BALANCER)) {
     out << "Cluster balancer:             " << RefinementAlgorithm::GREEDY_CLUSTER_BALANCER << "\n";
     out << "  Clusters:                   " << ctx.cluster_balancer.cluster_strategy << "\n";
     out << "    Max weight:               " << ctx.cluster_balancer.cluster_size_strategy << " x "
@@ -556,15 +523,6 @@ void print(const RefinementContext &ctx, const ParallelContext &parallel, std::o
     out << "    Parallel rebalancing:     start at "
         << 100.0 * ctx.cluster_balancer.par_initial_rebalance_fraction << "%, increase by "
         << 100.0 * ctx.cluster_balancer.par_rebalance_fraction_increase << "% each round\n";
-  }
-  if (ctx.includes_algorithm(RefinementAlgorithm::JET_BALANCER) ||
-      (ctx.includes_algorithm(RefinementAlgorithm::JET_REFINER) &&
-       ctx.jet.balancing_algorithm == RefinementAlgorithm::JET_BALANCER) ||
-      (ctx.includes_algorithm(RefinementAlgorithm::GLOBAL_FM) &&
-       ctx.fm.balancing_algorithm == RefinementAlgorithm::JET_BALANCER)) {
-    out << "Jet balancer:                 " << RefinementAlgorithm::JET_BALANCER << "\n";
-    out << "  Number of iterations:       " << ctx.jet_balancer.num_weak_iterations << " weak + "
-        << ctx.jet_balancer.num_strong_iterations << " strong\n";
   }
 }
 } // namespace kaminpar::dist
