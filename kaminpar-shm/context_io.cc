@@ -305,8 +305,10 @@ void print(const RefinementContext &r_ctx, std::ostream &out) {
 }
 
 void print(const PartitionContext &p_ctx, std::ostream &out) {
-  const std::int64_t max_block_weight = p_ctx.block_weights.max(0);
-  const std::int64_t size = std::max<std::int64_t>({p_ctx.n, p_ctx.m, max_block_weight});
+  const auto max_block_weight = static_cast<std::int64_t>(p_ctx.block_weights.max(0));
+  const auto size = std::max<std::int64_t>(
+      {static_cast<std::int64_t>(p_ctx.n), static_cast<std::int64_t>(p_ctx.m), max_block_weight}
+  );
   const std::size_t width = std::ceil(std::log10(size));
 
   out << "  Number of nodes:            " << std::setw(width) << p_ctx.n;

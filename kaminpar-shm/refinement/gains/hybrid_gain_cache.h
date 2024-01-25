@@ -297,7 +297,7 @@ private:
 
   NodeID _high_degree_threshold = kInvalidNodeID;
   NodeID _n = kInvalidNodeID;
-  BlockID _k = kInvalidEdgeID;
+  BlockID _k = kInvalidBlockID;
 
   StaticArray<EdgeWeight> _gain_cache;
   StaticArray<EdgeWeight> _weighted_degrees;
