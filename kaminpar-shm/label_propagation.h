@@ -20,6 +20,7 @@
 #include "kaminpar-shm/definitions.h"
 
 #include "kaminpar-common/assertion_levels.h"
+#include "kaminpar-common/datastructures/concurrent_bit_vector.h"
 #include "kaminpar-common/datastructures/concurrent_fast_reset_array.h"
 #include "kaminpar-common/datastructures/concurrent_two_level_vector.h"
 #include "kaminpar-common/datastructures/dynamic_map.h"
@@ -456,11 +457,11 @@ protected:
 
     if constexpr (Config::kUseLocalActiveSetStrategy) {
       if (!is_interface_node) {
-        _active[u] = 0;
+        _active.unset(u);
       }
     }
     if constexpr (Config::kUseActiveSetStrategy) {
-      _active[u] = 0;
+      _active.unset(u);
     }
 
     // After LP, we might want to use 2-hop clustering to merge nodes that
@@ -580,7 +581,7 @@ protected:
       // should remove it if it does not side effects
       if (derived_activate_neighbor(v)) {
         if constexpr (Config::kUseActiveSetStrategy || Config::kUseLocalActiveSetStrategy) {
-          _active[v].store(1, std::memory_order_relaxed);
+          _active.set(v);
         }
       }
     });
@@ -890,10 +891,6 @@ private:
     tbb::parallel_invoke(
         [&] {
           tbb::parallel_for<NodeID>(0, _graph->n(), [&](const NodeID u) {
-            if constexpr (Config::kUseActiveSetStrategy || Config::kUseLocalActiveSetStrategy) {
-              _active[u] = 1;
-            }
-
             const ClusterID initial_cluster = derived_initial_cluster(u);
             derived_init_cluster(u, initial_cluster);
             if constexpr (Config::kUseTwoHopClustering) {
@@ -907,7 +904,8 @@ private:
           tbb::parallel_for<ClusterID>(0, _initial_num_clusters, [&](const ClusterID cluster) {
             derived_init_cluster_weight(cluster, derived_initial_cluster_weight(cluster));
           });
-        }
+        },
+        [&] { _active.set_all(); }
     );
     IFSTATS(_expected_total_gain = 0);
     _current_num_clusters = _initial_num_clusters;
@@ -1053,7 +1051,7 @@ protected: // Members
   //! Flags nodes with at least one node in its neighborhood that changed
   //! clusters during the last iteration. Nodes without this flag set must not
   //! be considered in the next iteration.
-  scalable_vector<parallel::Atomic<uint8_t>> _active;
+  ConcurrentBitVector<NodeID> _active;
 
   //! If a node cannot join any cluster during an iteration, this vector stores
   //! the node's highest rated cluster independent of the maximum cluster
@@ -1191,7 +1189,7 @@ protected:
 public:
   using DataStructures = std::tuple<
       tbb::enumerable_thread_specific<RatingMap>,
-      scalable_vector<parallel::Atomic<uint8_t>>,
+      ConcurrentBitVector<NodeID>,
       scalable_vector<parallel::Atomic<ClusterID>>,
       tbb::concurrent_vector<NodeID>>;
 
@@ -1298,9 +1296,10 @@ protected:
             continue;
           }
 
-          if ((Config::kUseActiveSetStrategy || Config::kUseLocalActiveSetStrategy) &&
-              !_active[u].load(std::memory_order_relaxed)) {
-            continue;
+          if constexpr (Config::kUseActiveSetStrategy || Config::kUseLocalActiveSetStrategy) {
+            if (!_active.load(u)) {
+              continue;
+            }
           }
 
           const NodeID degree = _graph->degree(u);

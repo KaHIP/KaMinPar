@@ -52,7 +52,7 @@ template <typename Int1, typename Int2> constexpr std::size_t abs_diff(const Int
  * @param y The divisor.
  * @return The ceiling of x divided by y.
  */
-template <typename Int> constexpr Int div_ceil(const Int x, const Int y) {
+template <typename Int1, typename Int2> constexpr Int1 div_ceil(const Int1 x, const Int2 y) {
   return 1 + ((x - 1) / y);
 }
 
