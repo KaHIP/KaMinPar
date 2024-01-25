@@ -1634,11 +1634,16 @@ public:
       );
     }
 
+    _max_num_nodes = max_num_nodes;
     _clusters.resize(max_num_nodes);
   }
 
   void setup_clusters(Clusters clusters) {
     _clusters = std::move(clusters);
+
+    if (_clusters.size() < _max_num_nodes) {
+      _clusters.resize(_max_num_nodes);
+    }
   }
 
   [[nodiscard]] auto &&take_clusters() {
@@ -1675,6 +1680,7 @@ public:
   }
 
 private:
+  NodeID _max_num_nodes;
   Clusters _clusters;
 
   IF_HEAP_PROFILING(heap_profiler::DataStructure *_struct);

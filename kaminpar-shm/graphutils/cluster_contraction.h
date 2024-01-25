@@ -30,7 +30,7 @@ struct MemoryContext {
 
 struct Result {
   Graph graph;
-  scalable_vector<NodeID> mapping;
+  CompactStaticArray<NodeID> mapping;
   MemoryContext m_ctx;
 };
 } // namespace contraction
@@ -39,7 +39,7 @@ template <typename Clustering>
 contraction::Result contract(
     const Graph &graph,
     const ContractionCoarseningContext con_ctx,
-    const Clustering &clustering,
+    Clustering &clustering,
     contraction::MemoryContext m_ctx = {}
 );
 } // namespace kaminpar::shm::graph

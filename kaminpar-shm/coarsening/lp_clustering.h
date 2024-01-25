@@ -245,7 +245,7 @@ public:
   void set_max_cluster_weight(NodeWeight max_cluster_weight) final;
   void set_desired_cluster_count(NodeID count) final;
 
-  const AtomicClusterArray &compute_clustering(const Graph &graph) final;
+  AtomicClusterArray &compute_clustering(const Graph &graph) final;
 
 private:
   std::unique_ptr<LPClusteringImpl<CSRGraph>> _csr_core;

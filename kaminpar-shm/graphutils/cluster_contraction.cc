@@ -26,7 +26,7 @@ template <typename Graph, typename Clustering>
 Result contract_generic_graph(
     const Graph &graph,
     const ContractionCoarseningContext con_ctx,
-    const Clustering &clustering,
+    Clustering &clustering,
     MemoryContext m_ctx
 ) {
   auto &buckets_index = m_ctx.buckets_index;
@@ -34,29 +34,17 @@ Result contract_generic_graph(
   auto &leader_mapping = m_ctx.leader_mapping;
   auto &all_buffered_nodes = m_ctx.all_buffered_nodes;
 
-  START_HEAP_PROFILER("Mapping allocation");
-  START_TIMER("Allocation");
+  TIMED_SCOPE("Allocation") {
+    if (leader_mapping.size() < graph.n()) {
+      leader_mapping.resize(graph.n());
+    }
+  };
 
-  RECORD("mapping") scalable_vector<NodeID> mapping(graph.n());
-  RECORD_LOCAL_DATA_STRUCT("scalable_vector<NodeID>", mapping.capacity() * sizeof(NodeID));
-
-  if (leader_mapping.size() < graph.n()) {
-    leader_mapping.resize(graph.n());
-  }
   RECORD("leader_mapping");
   RECORD_LOCAL_DATA_STRUCT(
       "scalable_vector<parallel::Atomic<NodeID>>",
       leader_mapping.capacity() * sizeof(parallel::Atomic<NodeID>)
   );
-
-  if (buckets.size() < graph.n()) {
-    buckets.resize(graph.n());
-  }
-  RECORD("buckets");
-  RECORD_LOCAL_DATA_STRUCT("scalable_vector<NodeID>", buckets.capacity() * sizeof(NodeID));
-
-  STOP_TIMER();
-  STOP_HEAP_PROFILER();
 
   START_TIMER("Preprocessing");
 
@@ -79,24 +67,36 @@ Result contract_generic_graph(
       leader_mapping.begin(), leader_mapping.begin() + graph.n(), leader_mapping.begin()
   );
   const NodeID c_n = leader_mapping[graph.n() - 1]; // number of nodes in the coarse graph
+  RECORD("mapping") CompactStaticArray<NodeID> mapping(math::byte_width(c_n), graph.n());
 
   // Assign coarse node ID to all nodes; this works due to (I)
-  graph.pfor_nodes([&](const NodeID u) { mapping[u] = leader_mapping[clustering[u]]; });
-  graph.pfor_nodes([&](const NodeID u) { --mapping[u]; });
+  graph.pfor_nodes([&](const NodeID u) { mapping.write(u, leader_mapping[clustering[u]] - 1); });
+
+  leader_mapping.clear();
+  leader_mapping.shrink_to_fit();
+
+  clustering.clear();
+  clustering.shrink_to_fit();
 
   STOP_TIMER();
 
-  START_HEAP_PROFILER("Buckets allocation");
   TIMED_SCOPE("Allocation") {
+    if (buckets.size() < graph.n()) {
+      buckets.resize(graph.n());
+    }
+
     buckets_index.clear();
     buckets_index.resize(c_n + 1);
   };
+
+  RECORD("buckets");
+  RECORD_LOCAL_DATA_STRUCT("scalable_vector<NodeID>", buckets.capacity() * sizeof(NodeID));
+
   RECORD("buckets_index");
   RECORD_LOCAL_DATA_STRUCT(
       "scalable_vector<parallel::Atomic<NodeID>>",
       buckets_index.capacity() * sizeof(parallel::Atomic<NodeID>)
   );
-  STOP_HEAP_PROFILER();
 
   START_TIMER("Preprocessing");
 
@@ -332,7 +332,7 @@ Result contract_generic_graph(
         }
       }
 
-      // Create a chunk for the last coarse nodes, if the last coarse nodes did not cross the limit.
+      // Create a chunk for the last coarse nodes, if the last coarse node did not cross the limit.
       if (chunk_start != c_n) {
         cluster_chunks.emplace_back(chunk_start, c_n);
       }
@@ -511,7 +511,7 @@ template <typename Clustering>
 Result contract(
     const Graph &graph,
     const ContractionCoarseningContext con_ctx,
-    const Clustering &clustering,
+    Clustering &clustering,
     MemoryContext m_ctx
 ) {
   if (auto *csr_graph = dynamic_cast<CSRGraph *>(graph.underlying_graph()); csr_graph != nullptr) {
@@ -534,14 +534,14 @@ Result contract(
 template Result contract<scalable_vector<NodeID>>(
     const Graph &graph,
     const ContractionCoarseningContext con_ctx,
-    const scalable_vector<NodeID> &clustering,
+    scalable_vector<NodeID> &clustering,
     MemoryContext m_ctx
 );
 
 template Result contract<scalable_vector<parallel::Atomic<NodeID>>>(
     const Graph &graph,
     const ContractionCoarseningContext con_ctx,
-    const scalable_vector<parallel::Atomic<NodeID>> &clustering,
+    scalable_vector<parallel::Atomic<NodeID>> &clustering,
     MemoryContext m_ctx
 );
 

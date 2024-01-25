@@ -22,9 +22,9 @@ std::pair<const Graph *, bool> ClusteringCoarsener::compute_coarse_graph(
   _clustering_algorithm->set_desired_cluster_count(to_size);
 
   START_HEAP_PROFILER("Label Propagation");
-  const auto &clustering = TIMED_SCOPE("Label Propagation") {
-    return _clustering_algorithm->compute_clustering(*_current_graph);
-  };
+  START_TIMER("Label Propagation");
+  auto &clustering = _clustering_algorithm->compute_clustering(*_current_graph);
+  STOP_TIMER();
   STOP_HEAP_PROFILER();
 
   START_HEAP_PROFILER("Contract graph");

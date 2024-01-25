@@ -30,7 +30,7 @@ void LPClustering::set_desired_cluster_count(const NodeID count) {
   _compressed_core->set_desired_num_clusters(count);
 }
 
-const Clusterer::AtomicClusterArray &LPClustering::compute_clustering(const Graph &graph) {
+Clusterer::AtomicClusterArray &LPClustering::compute_clustering(const Graph &graph) {
   // Compute a clustering and setup/release the data structures used by the core, so that they can
   // be shared by all graph implementations.
   const auto compute = [&](auto &core, auto &graph) {
