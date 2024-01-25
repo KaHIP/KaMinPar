@@ -142,13 +142,6 @@ public:
     return _second_phase_aggregation_mode;
   }
 
-  void set_use_second_phase_filter(const bool use_second_phase_filter) {
-    _use_second_phase_filter = use_second_phase_filter;
-  }
-  [[nodiscard]] bool use_second_phase_filter() const {
-    return _use_second_phase_filter;
-  }
-
   void set_desired_num_clusters(const ClusterID desired_num_clusters) {
     _desired_num_clusters = desired_num_clusters;
   }
@@ -587,9 +580,7 @@ protected:
       // should remove it if it does not side effects
       if (derived_activate_neighbor(v)) {
         if constexpr (Config::kUseActiveSetStrategy || Config::kUseLocalActiveSetStrategy) {
-          if (!_use_second_phase_filter || _active[v].load(std::memory_order_relaxed) != 2) {
-            _active[v].store(1, std::memory_order_relaxed);
-          }
+          _active[v].store(1, std::memory_order_relaxed);
         }
       }
     });
@@ -922,7 +913,7 @@ private:
     _current_num_clusters = _initial_num_clusters;
   }
 
-protected: // CRTP calls
+private: // CRTP calls
   //! Return current cluster ID of  node \c u.
   [[nodiscard]] ClusterID derived_cluster(const NodeID u) {
     return static_cast<Derived *>(this)->cluster(u);
@@ -1055,10 +1046,6 @@ protected: // Members
 
   //! The mode by which the ratings for nodes in the second phase are aggregated.
   SecondPhaseAggregationMode _second_phase_aggregation_mode;
-
-  //! Filter nodes in the second phase whose affinity to their own cluster is higher than to every
-  //! other cluster by setting them inactive for all following iterations.
-  bool _use_second_phase_filter{false};
 
   //! Thread-local map to compute gain values.
   tbb::enumerable_thread_specific<RatingMap> _rating_map_ets;
@@ -1268,6 +1255,7 @@ protected:
     };
     STOP_HEAP_PROFILER();
 
+    tbb::enumerable_thread_specific<NodeID> num_first_phase_nodes_ets;
     tbb::enumerable_thread_specific<NodeID> num_moved_nodes_ets;
     parallel::Atomic<std::size_t> next_chunk = 0;
 
@@ -1285,6 +1273,7 @@ protected:
         return;
       }
 
+      auto &local_num_first_phase_nodes = num_first_phase_nodes_ets.local();
       auto &local_num_moved_nodes = num_moved_nodes_ets.local();
       auto &local_rand = Random::instance();
       auto &local_rating_map = _rating_map_ets.local();
@@ -1310,7 +1299,7 @@ protected:
           }
 
           if ((Config::kUseActiveSetStrategy || Config::kUseLocalActiveSetStrategy) &&
-              _active[u].load(std::memory_order_relaxed) != 1) {
+              !_active[u].load(std::memory_order_relaxed)) {
             continue;
           }
 
@@ -1332,10 +1321,10 @@ protected:
 
             const auto [moved_node, emptied_cluster] = handle_node(u, local_rand, local_rating_map);
 
+            ++local_num_first_phase_nodes;
             if (moved_node) {
               ++local_num_moved_nodes;
             }
-
             if (emptied_cluster) {
               ++num_removed_clusters;
             }
@@ -1349,38 +1338,10 @@ protected:
     STOP_TIMER();
     STOP_HEAP_PROFILER();
 
-    const NodeID second_phase_node_count = _second_phase_nodes.size();
-    std::atomic<NodeID> second_phase_filtered_nodes = 0;
-
-    if (second_phase_node_count > 0) {
+    const NodeID num_second_phase_nodes = _second_phase_nodes.size();
+    if (num_second_phase_nodes > 0) {
       SCOPED_HEAP_PROFILER("Second phase");
       SCOPED_TIMER("Second phase");
-
-      if (_use_second_phase_filter) {
-        tbb::parallel_for(_second_phase_nodes.range(), [&](const auto &range) {
-          for (const NodeID u : range) {
-            const ClusterID u_cluster = Base::derived_cluster(u);
-            EdgeWeight own_cluster_rating = 0;
-            EdgeWeight other_cluster_rating = 0;
-
-            _graph->neighbors(u, [&](const EdgeID e, const NodeID v) {
-              const ClusterID v_cluster = Base::derived_cluster(v);
-              const EdgeWeight rating = _graph->edge_weight(e);
-
-              if (u_cluster == v_cluster) {
-                own_cluster_rating += rating;
-              } else {
-                other_cluster_rating += rating;
-              }
-            });
-
-            if (own_cluster_rating > other_cluster_rating) {
-              _active[u] = 2;
-              ++second_phase_filtered_nodes;
-            }
-          }
-        });
-      }
 
       auto &num_moved_nodes = num_moved_nodes_ets.local();
       auto &rand = Random::instance();
@@ -1388,10 +1349,6 @@ protected:
       _concurrent_rating_map.resize(Base::_initial_num_clusters);
 
       for (const NodeID u : _second_phase_nodes) {
-        if (_use_second_phase_filter && _active[u] == 2) {
-          continue;
-        }
-
         const auto [moved_node, emptied_cluster] =
             Base::template handle_node<true>(u, rand, _concurrent_rating_map);
 
@@ -1408,13 +1365,15 @@ protected:
     }
 
     if constexpr (kDebug) {
-      const NodeID node_count = std::min(to, _graph->n()) - from;
+      NodeID num_first_phase_nodes = 0;
+      for (NodeID local_num_first_phase_nodes : num_first_phase_nodes_ets) {
+        num_first_phase_nodes += local_num_first_phase_nodes;
+      }
 
       LOG << "Label Propagation";
       LOG << " Initial clusters: " << Base::_initial_num_clusters;
-      LOG << " First Phase: " << math::abs_diff(node_count, second_phase_node_count) << " nodes";
-      LOG << " Second Phase: " << second_phase_node_count << " nodes";
-      LOG << " Filtered: " << second_phase_filtered_nodes << " nodes";
+      LOG << " First Phase: " << num_first_phase_nodes << " nodes";
+      LOG << " Second Phase: " << num_second_phase_nodes << " nodes";
       LOG;
     }
 
@@ -1568,7 +1527,6 @@ protected:
   using Base::_max_degree;
   using Base::_rating_map_ets;
   using Base::_second_phase_nodes;
-  using Base::_use_second_phase_filter;
 
   RandomPermutations<NodeID, Config::kPermutationSize, Config::kNumberOfNodePermutations>
       _random_permutations{};

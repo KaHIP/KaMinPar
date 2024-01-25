@@ -50,7 +50,6 @@ public:
     this->set_use_two_phases(c_ctx.lp.use_two_phases);
     this->set_second_phase_select_mode(c_ctx.lp.second_phase_select_mode);
     this->set_second_phase_aggregation_mode(c_ctx.lp.second_phase_aggregation_mode);
-    this->set_use_second_phase_filter(c_ctx.lp.use_second_phase_filter);
   }
 
   void set_max_cluster_weight(const NodeWeight max_cluster_weight) {

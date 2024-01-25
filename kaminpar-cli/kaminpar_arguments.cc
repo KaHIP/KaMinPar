@@ -216,12 +216,6 @@ Options are:
   - buffered: Write the ratings into a thread-local buffer and then copy them into the global vector when the buffer is full
   )"
       );
-  lp->add_option(
-      "--c-lp-second-phase-filter",
-      ctx.coarsening.lp.use_second_phase_filter,
-      "Whether to filter nodes whose affinity to their own cluster is higher than to every other "
-      "cluster"
-  );
 
   lp->add_option("--c-lp-two-hop-strategy", ctx.coarsening.lp.two_hop_strategy)
       ->transform(CLI::CheckedTransformer(get_two_hop_strategies()).description(""))
