@@ -42,6 +42,7 @@ class LPClusteringImpl final
 public:
   LPClusteringImpl(const NodeID max_n, const CoarseningContext &c_ctx)
       : ClusterWeightBase{c_ctx.lp.use_two_level_cluster_weight_vector},
+        ClusterBase{max_n},
         _c_ctx{c_ctx},
         _max_n{max_n} {
     Base::allocate(max_n, max_n, false);
@@ -60,7 +61,7 @@ public:
     SCOPED_HEAP_PROFILER("Label Propagation Allocation");
 
     Base::allocate(_max_n, _max_n, true);
-    this->allocate_clusters(_max_n);
+    this->allocate_clusters();
     this->allocate_cluster_weights(_max_n);
   }
 

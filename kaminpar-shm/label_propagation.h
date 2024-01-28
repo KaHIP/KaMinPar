@@ -1577,22 +1577,17 @@ template <typename NodeID, typename ClusterID> class OwnedClusterVector {
 public:
   using Clusters = scalable_vector<parallel::Atomic<ClusterID>>;
 
-  explicit OwnedClusterVector() {
-    IF_HEAP_PROFILING(_struct = nullptr);
+  explicit OwnedClusterVector(const NodeID max_num_nodes) : _max_num_nodes(max_num_nodes) {
+    RECORD_DATA_STRUCT(0, _struct);
   }
 
-  void allocate_clusters(const NodeID max_num_nodes) {
-    if (_struct == nullptr) {
-      RECORD_DATA_STRUCT(max_num_nodes * sizeof(parallel::Atomic<ClusterID>), _struct);
-    } else {
-      IF_HEAP_PROFILING(
-          _struct->size =
-              std::max(_struct->size, max_num_nodes * sizeof(parallel::Atomic<ClusterID>))
-      );
-    }
+  void allocate_clusters() {
+    IF_HEAP_PROFILING(
+        _struct->size =
+            std::max(_struct->size, _max_num_nodes * sizeof(parallel::Atomic<ClusterID>))
+    );
 
-    _max_num_nodes = max_num_nodes;
-    _clusters.resize(max_num_nodes);
+    _clusters.resize(_max_num_nodes);
   }
 
   void setup_clusters(Clusters clusters) {
@@ -1623,17 +1618,6 @@ public:
   void move_node(const NodeID node, const ClusterID cluster) {
     KASSERT(node < _clusters.size());
     _clusters[node] = cluster;
-  }
-
-  void ensure_cluster_size(const NodeID max_num_nodes) {
-    if (_clusters.size() < max_num_nodes) {
-      _clusters.resize(max_num_nodes);
-
-      IF_HEAP_PROFILING(
-          _struct->size =
-              std::max(_struct->size, max_num_nodes * sizeof(parallel::Atomic<ClusterID>))
-      );
-    }
   }
 
 private:
