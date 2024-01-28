@@ -32,18 +32,6 @@ public:
 
   virtual ~AbstractGraph() = default;
 
-  // Direct member access -- used for some "low level" operations, should probably try to get rid of
-  // them / do not use them for code that is supposed to work with the compressed graph data
-  // structure
-  [[nodiscard]] virtual StaticArray<EdgeID> &raw_nodes() = 0;
-  [[nodiscard]] virtual const StaticArray<EdgeID> &raw_nodes() const = 0;
-
-  [[nodiscard]] virtual StaticArray<NodeWeight> &raw_node_weights() = 0;
-  [[nodiscard]] virtual const StaticArray<NodeWeight> &raw_node_weights() const = 0;
-
-  [[nodiscard]] virtual StaticArray<EdgeID> &&take_raw_nodes() = 0;
-  [[nodiscard]] virtual StaticArray<NodeWeight> &&take_raw_node_weights() = 0;
-
   // Size of the graph
   [[nodiscard]] virtual NodeID n() const = 0;
   [[nodiscard]] virtual EdgeID m() const = 0;

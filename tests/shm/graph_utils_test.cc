@@ -21,10 +21,9 @@ TEST(ParallelContractionTest, ContractingToSingleNodeWorks) {
   Graph graph{graphs::grid(GRID_LENGTH, GRID_LENGTH)};
 
   for (const NodeID cluster : {0, 1, 2, 3}) {
+    auto clustering = scalable_vector<NodeID>{cluster, cluster, cluster, cluster};
     auto [c_graph, c_mapping, m_ctx] = graph::contract(
-        graph,
-        {.edge_buffer_fill_fraction = 0.1, .use_compact_ids = false},
-        scalable_vector<NodeID>{cluster, cluster, cluster, cluster}
+        graph, {.edge_buffer_fill_fraction = 0.1, .use_compact_ids = false}, clustering
     );
     EXPECT_THAT(c_graph.n(), 1);
     EXPECT_THAT(c_graph.m(), 0);
@@ -41,10 +40,9 @@ TEST(ParallelContractionTest, ContractingToSingletonsWorks) {
   change_node_weight(graph, 3, 4);
   graph.update_total_node_weight();
 
+  auto clustering = scalable_vector<NodeID>{0, 1, 2, 3};
   auto [c_graph, c_mapping, m_ctx] = graph::contract(
-      graph,
-      {.edge_buffer_fill_fraction = 0.1, .use_compact_ids = false},
-      scalable_vector<NodeID>{0, 1, 2, 3}
+      graph, {.edge_buffer_fill_fraction = 0.1, .use_compact_ids = false}, clustering
   );
   EXPECT_THAT(c_graph.n(), graph.n());
   EXPECT_THAT(c_graph.m(), graph.m());
@@ -64,10 +62,9 @@ TEST(ParallelContractionTest, ContractingAllNodesButOneWorks) {
   // 0--1
   // |  |
   // 2--3
+  auto clustering = scalable_vector<NodeID>{0, 1, 1, 1};
   auto [c_graph, c_mapping, m_ctx] = graph::contract(
-      graph,
-      {.edge_buffer_fill_fraction = 0.1, .use_compact_ids = false},
-      scalable_vector<NodeID>{0, 1, 1, 1}
+      graph, {.edge_buffer_fill_fraction = 0.1, .use_compact_ids = false}, clustering
   );
   EXPECT_THAT(c_graph.n(), 2);
   EXPECT_THAT(c_graph.m(), 2); // one undirected edge
@@ -88,14 +85,14 @@ TEST(ParallelContractionTest, ContractingGridHorizontallyWorks) {
   change_node_weight(graph, 7, 40);
   graph.update_total_node_weight();
 
+  auto clustering = scalable_vector<NodeID>{0, 1, 2, 3, 0, 1, 2, 3};
   auto [c_graph, c_mapping, m_ctx] = graph::contract(
-      graph,
-      {.edge_buffer_fill_fraction = 0.1, .use_compact_ids = false},
-      scalable_vector<NodeID>{0, 1, 2, 3, 0, 1, 2, 3}
+      graph, {.edge_buffer_fill_fraction = 0.1, .use_compact_ids = false}, clustering
   );
+  auto &raw_c_graph = *dynamic_cast<CSRGraph *>(c_graph.underlying_graph());
   EXPECT_THAT(c_graph.n(), 4);
   EXPECT_THAT(c_graph.m(), 2 * 3);
-  EXPECT_THAT(c_graph.raw_node_weights(), UnorderedElementsAre(11, 22, 33, 44));
+  EXPECT_THAT(raw_c_graph.raw_node_weights(), UnorderedElementsAre(11, 22, 33, 44));
   EXPECT_THAT(c_graph.total_node_weight(), graph.total_node_weight());
   EXPECT_THAT(c_graph.total_edge_weight(), 4 * 3);
   EXPECT_THAT(c_graph, HasEdgeWithWeightedEndpoints(11, 22));
@@ -115,14 +112,14 @@ TEST(ParallelContractionTest, ContractingGridVerticallyWorks) {
   change_node_weight(graph, 7, 40);
   graph.update_total_node_weight();
 
+  auto clustering = scalable_vector<NodeID>{0, 0, 2, 2, 4, 4, 6, 6};
   auto [c_graph, c_mapping, m_ctx] = graph::contract(
-      graph,
-      {.edge_buffer_fill_fraction = 0.1, .use_compact_ids = false},
-      scalable_vector<NodeID>{0, 0, 2, 2, 4, 4, 6, 6}
+      graph, {.edge_buffer_fill_fraction = 0.1, .use_compact_ids = false}, clustering
   );
+  auto &raw_c_graph = *dynamic_cast<CSRGraph *>(c_graph.underlying_graph());
   EXPECT_THAT(c_graph.n(), 4);
   EXPECT_THAT(c_graph.m(), 2 * 3);
-  EXPECT_THAT(c_graph.raw_node_weights(), UnorderedElementsAre(11, 22, 33, 44));
+  EXPECT_THAT(raw_c_graph.raw_node_weights(), UnorderedElementsAre(11, 22, 33, 44));
   EXPECT_THAT(c_graph.total_node_weight(), graph.total_node_weight());
   EXPECT_THAT(c_graph.total_edge_weight(), 4 * 3);
   EXPECT_THAT(c_graph, HasEdgeWithWeightedEndpoints(11, 22));

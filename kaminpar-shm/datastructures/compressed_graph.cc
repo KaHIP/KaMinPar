@@ -14,7 +14,7 @@
 namespace kaminpar::shm {
 
 CompressedGraph::CompressedGraph(
-    StaticArray<EdgeID> nodes,
+    CompactStaticArray<EdgeID> nodes,
     StaticArray<std::uint8_t> compressed_edges,
     StaticArray<NodeWeight> node_weights,
     StaticArray<EdgeWeight> edge_weights,
@@ -127,7 +127,8 @@ void CompressedGraphBuilder::init(
 ) {
   KASSERT(node_count != std::numeric_limits<NodeID>::max() - 1);
 
-  _nodes.resize(node_count + 1);
+  const std::size_t max_size = compressed_edge_array_max_size(node_count, edge_count);
+  _nodes.resize(math::byte_width(max_size), node_count + 1);
 
   if (store_node_weights) {
     _node_weights.resize(node_count);
@@ -145,12 +146,6 @@ void CompressedGraphBuilder::init(
 
   _sorted = sorted;
 
-  const std::size_t max_bytes_node_id = varint_max_length<NodeID>();
-  const std::size_t max_bytes_edge_id = varint_max_length<EdgeID>();
-  const std::size_t max_part_count = (edge_count / CompressedGraph::kHighDegreeThreshold) + 1;
-  const std::size_t max_size = max_bytes_node_id * node_count * 2 +
-                               max_bytes_node_id * max_part_count * 2 +
-                               max_bytes_edge_id * edge_count + edge_count;
   if constexpr (kHeapProfiling) {
     // As we overcommit memory do not track the amount of bytes used directly. Instead record it
     // manually when building the compressed graph.
@@ -176,7 +171,7 @@ void CompressedGraphBuilder::add_node(
 ) {
   // Store the index into the compressed edge array of the start of the neighbourhood of the node
   // in its entry in the node array.
-  _nodes[node] = static_cast<EdgeID>(_cur_compressed_edges - _compressed_edges);
+  _nodes.write(node, static_cast<EdgeID>(_cur_compressed_edges - _compressed_edges));
 
   const NodeID degree = neighbourhood.size();
   if (degree == 0) {
@@ -200,7 +195,7 @@ void CompressedGraphBuilder::add_node(
           _cur_compressed_edges += varint_encode(first_edge_gap, _cur_compressed_edges);
         }
       } else {
-        _nodes[node] = _last_real_edge;
+        _nodes.write(node, _last_real_edge);
       }
     }
 
@@ -292,7 +287,7 @@ void CompressedGraphBuilder::set_node_weight(const NodeID node, const NodeWeight
 CompressedGraph CompressedGraphBuilder::build() {
   // Store in the last entry of the node array the index into the compressed edge array one after
   // the last byte belonging to the last node.
-  _nodes[_nodes.size() - 1] = static_cast<EdgeID>(_cur_compressed_edges - _compressed_edges);
+  _nodes.write(_nodes.size() - 1, static_cast<EdgeID>(_cur_compressed_edges - _compressed_edges));
 
   // Store at the end of the compressed edge array the (gap of the) edge id of the last edge such
   // that the degree of the last node can be computed from the difference between the last two first
@@ -308,7 +303,7 @@ CompressedGraph CompressedGraphBuilder::build() {
         _cur_compressed_edges += varint_encode(last_edge_gap, _cur_compressed_edges);
       }
     } else {
-      _nodes[_nodes.size() - 1] = _last_real_edge;
+      _nodes.write(_nodes.size() - 1, _last_real_edge);
     }
   } else {
     if constexpr (CompressedGraph::kIntervalEncoding) {

@@ -19,6 +19,13 @@ template <typename T> static void write_int(std::ofstream &out, const T id) {
 }
 
 template <typename T>
+static void write_compact_static_array(std::ofstream &out, const CompactStaticArray<T> &array) {
+  write_int(out, array.byte_width());
+  write_int(out, array.allocated_size());
+  out.write(reinterpret_cast<const char *>(array.data()), array.allocated_size());
+}
+
+template <typename T>
 static void write_static_array(std::ofstream &out, const StaticArray<T> &static_array) {
   out.write(reinterpret_cast<const char *>(static_array.data()), static_array.size() * sizeof(T));
 }
@@ -40,12 +47,12 @@ void write(const std::string &filename, const CompressedGraph &graph) {
   write_int(out, CompressedGraph::kIntervalLengthTreshold);
   write_int(out, static_cast<std::uint8_t>(CompressedGraph::kRunLengthEncoding));
   write_int(out, static_cast<std::uint8_t>(CompressedGraph::kStreamEncoding));
+  write_int(out, static_cast<std::uint8_t>(CompressedGraph::kIsolatedNodesSeparation));
 
   write_int(out, graph.n());
   write_int(out, graph.m());
   write_int(out, graph.max_degree());
   write_int(out, static_cast<std::uint8_t>(graph.sorted()));
-  write_int(out, graph.raw_compressed_edges().size());
   write_int(out, static_cast<std::uint8_t>(graph.node_weighted()));
   write_int(out, static_cast<std::uint8_t>(graph.edge_weighted()));
 
@@ -53,7 +60,9 @@ void write(const std::string &filename, const CompressedGraph &graph) {
   write_int(out, graph.part_count());
   write_int(out, graph.interval_count());
 
-  write_static_array(out, graph.raw_nodes());
+  write_compact_static_array(out, graph.raw_nodes());
+
+  write_int(out, graph.raw_compressed_edges().size());
   write_static_array(out, graph.raw_compressed_edges());
 
   if (graph.node_weighted()) {
@@ -69,6 +78,15 @@ template <typename T> static T read_int(std::ifstream &in) {
   T t;
   in.read(reinterpret_cast<char *>(&t), sizeof(T));
   return t;
+}
+
+template <typename T> static CompactStaticArray<T> read_compact_static_array(std::ifstream &in) {
+  std::uint8_t byte_width = read_int<std::uint8_t>(in);
+  std::size_t allocated_size = read_int<std::size_t>(in);
+
+  auto data = std::make_unique<std::uint8_t[]>(allocated_size);
+  in.read(reinterpret_cast<char *>(data.get()), allocated_size);
+  return CompactStaticArray<T>(byte_width, allocated_size, std::move(data));
 }
 
 template <typename T>
@@ -135,7 +153,7 @@ CompressedGraph read(const std::string &filename) {
   NodeID high_degree_threshold = read_int<NodeID>(in);
   if (high_degree_threshold != CompressedGraph::kHighDegreeThreshold) {
     LOG_ERROR << "The stored compressed graph uses " << high_degree_threshold
-              << "as the high degree threshold but this build uses "
+              << " as the high degree threshold but this build uses "
               << (CompressedGraph::kHighDegreeThreshold) << " as the high degree threshold.";
     std::exit(1);
   }
@@ -143,7 +161,7 @@ CompressedGraph read(const std::string &filename) {
   NodeID high_degree_part_length = read_int<NodeID>(in);
   if (high_degree_part_length != CompressedGraph::kHighDegreePartLength) {
     LOG_ERROR << "The stored compressed graph uses " << high_degree_part_length
-              << "as the high degree part length but this build uses "
+              << " as the high degree part length but this build uses "
               << (CompressedGraph::kHighDegreePartLength) << " as the high degree part length.";
     std::exit(1);
   }
@@ -162,7 +180,7 @@ CompressedGraph read(const std::string &filename) {
   NodeID interval_length_threshold = read_int<NodeID>(in);
   if (interval_length_threshold != CompressedGraph::kIntervalLengthTreshold) {
     LOG_ERROR << "The stored compressed graph uses " << interval_length_threshold
-              << "as the interval length threshold but this build uses "
+              << " as the interval length threshold but this build uses "
               << (CompressedGraph::kIntervalLengthTreshold) << " as the interval length threshold.";
     std::exit(1);
   }
@@ -188,12 +206,22 @@ CompressedGraph read(const std::string &filename) {
     std::exit(1);
   }
 
+  bool isolated_nodes_separation = static_cast<bool>(read_int<std::uint8_t>(in));
+  if (isolated_nodes_separation != CompressedGraph::kIsolatedNodesSeparation) {
+    if (isolated_nodes_separation) {
+      LOG_ERROR
+          << "The stored compressed graph uses isolated nodes separation but this build does not.";
+    } else {
+      LOG_ERROR << "The stored compressed graph does not use isolated nodes separation but this "
+                   "build does.";
+    }
+    std::exit(1);
+  }
+
   NodeID n = read_int<NodeID>(in);
   EdgeID m = read_int<EdgeID>(in);
   NodeID max_degree = read_int<NodeID>(in);
   bool sorted = static_cast<bool>(read_int<std::uint8_t>(in));
-
-  std::size_t compressed_edges_size = read_int<std::size_t>(in);
   bool is_node_weighted = static_cast<bool>(read_int<std::uint8_t>(in));
   bool is_edge_weighted = static_cast<bool>(read_int<std::uint8_t>(in));
 
@@ -201,11 +229,15 @@ CompressedGraph read(const std::string &filename) {
   std::size_t part_count = read_int<std::size_t>(in);
   std::size_t interval_count = read_int<std::size_t>(in);
 
-  StaticArray<EdgeID> nodes = read_static_array<EdgeID>(in, n + 1);
+  CompactStaticArray<EdgeID> nodes = read_compact_static_array<EdgeID>(in);
+
+  std::size_t compressed_edges_size = read_int<std::size_t>(in);
   StaticArray<std::uint8_t> compressed_edges =
       read_static_array<std::uint8_t>(in, compressed_edges_size);
   StaticArray<NodeWeight> node_weights =
+
       is_node_weighted ? read_static_array<NodeWeight>(in, n) : StaticArray<NodeWeight>();
+
   StaticArray<EdgeWeight> edge_weights =
       is_edge_weighted ? read_static_array<EdgeWeight>(in, m) : StaticArray<EdgeWeight>();
 

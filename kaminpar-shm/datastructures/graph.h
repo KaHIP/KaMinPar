@@ -49,30 +49,6 @@ public:
 
   ~Graph() override = default;
 
-  [[nodiscard]] inline StaticArray<EdgeID> &raw_nodes() final {
-    return _underlying_graph->raw_nodes();
-  }
-
-  [[nodiscard]] inline const StaticArray<EdgeID> &raw_nodes() const final {
-    return _underlying_graph->raw_nodes();
-  }
-
-  [[nodiscard]] inline StaticArray<NodeWeight> &raw_node_weights() final {
-    return _underlying_graph->raw_node_weights();
-  }
-
-  [[nodiscard]] inline const StaticArray<NodeWeight> &raw_node_weights() const final {
-    return _underlying_graph->raw_node_weights();
-  }
-
-  [[nodiscard]] inline StaticArray<EdgeID> &&take_raw_nodes() final {
-    return _underlying_graph->take_raw_nodes();
-  }
-
-  [[nodiscard]] inline StaticArray<NodeWeight> &&take_raw_node_weights() final {
-    return _underlying_graph->take_raw_node_weights();
-  }
-
   // Size of the graph
   [[nodiscard]] inline NodeID n() const final {
     return _underlying_graph->n();

@@ -138,7 +138,7 @@ public:
    * @param interval_count The number of nodes/parts which use interval encoding.
    */
   explicit CompressedGraph(
-      StaticArray<EdgeID> nodes,
+      CompactStaticArray<EdgeID> nodes,
       StaticArray<std::uint8_t> compressed_edges,
       StaticArray<NodeWeight> node_weights,
       StaticArray<EdgeWeight> edge_weights,
@@ -157,27 +157,27 @@ public:
   CompressedGraph &operator=(CompressedGraph &&) noexcept = default;
 
   // Direct member access -- used for some "low level" operations
-  [[nodiscard]] inline StaticArray<EdgeID> &raw_nodes() final {
+  [[nodiscard]] inline CompactStaticArray<EdgeID> &raw_nodes() {
     return _nodes;
   }
 
-  [[nodiscard]] inline const StaticArray<EdgeID> &raw_nodes() const final {
+  [[nodiscard]] inline const CompactStaticArray<EdgeID> &raw_nodes() const {
     return _nodes;
   }
 
-  [[nodiscard]] inline StaticArray<NodeWeight> &raw_node_weights() final {
+  [[nodiscard]] inline StaticArray<NodeWeight> &raw_node_weights() {
     return _node_weights;
   }
 
-  [[nodiscard]] inline const StaticArray<NodeWeight> &raw_node_weights() const final {
+  [[nodiscard]] inline const StaticArray<NodeWeight> &raw_node_weights() const {
     return _node_weights;
   }
 
-  [[nodiscard]] inline StaticArray<EdgeID> &&take_raw_nodes() final {
+  [[nodiscard]] inline CompactStaticArray<EdgeID> &&take_raw_nodes() {
     return std::move(_nodes);
   }
 
-  [[nodiscard]] inline StaticArray<NodeWeight> &&take_raw_node_weights() final {
+  [[nodiscard]] inline StaticArray<NodeWeight> &&take_raw_node_weights() {
     return std::move(_node_weights);
   }
 
@@ -381,7 +381,7 @@ public:
    */
   [[nodiscard]] double compression_ratio() const {
     std::size_t uncompressed_size = (n() + 1) * sizeof(EdgeID) + m() * sizeof(NodeID);
-    std::size_t compressed_size = (n() + 1) * sizeof(EdgeID) + _compressed_edges.size();
+    std::size_t compressed_size = _nodes.allocated_size() + _compressed_edges.size();
 
     if (node_weighted()) {
       uncompressed_size += n() * sizeof(NodeWeight);
@@ -403,7 +403,7 @@ public:
    */
   [[nodiscard]] std::int64_t size_reduction() const {
     std::size_t uncompressed_size = (n() + 1) * sizeof(EdgeID) + m() * sizeof(NodeID);
-    std::size_t compressed_size = (n() + 1) * sizeof(EdgeID) + _compressed_edges.size();
+    std::size_t compressed_size = _nodes.allocated_size() + _compressed_edges.size();
 
     if (node_weighted()) {
       uncompressed_size += n() * sizeof(NodeWeight);
@@ -424,12 +424,12 @@ public:
    * @return The amount of memory in bytes used by the data structure.
    */
   [[nodiscard]] std::size_t used_memory() const {
-    return _nodes.size() * sizeof(EdgeID) + _compressed_edges.size() * sizeof(std::uint8_t) +
+    return _nodes.allocated_size() + _compressed_edges.size() +
            _node_weights.size() * sizeof(NodeWeight) + _edge_weights.size() * sizeof(EdgeWeight);
   }
 
 private:
-  StaticArray<EdgeID> _nodes;
+  CompactStaticArray<EdgeID> _nodes;
   StaticArray<std::uint8_t> _compressed_edges;
   StaticArray<NodeWeight> _node_weights;
   StaticArray<EdgeWeight> _edge_weights;
@@ -722,6 +722,25 @@ private:
  * memory for the compressed edge array.
  */
 class CompressedGraphBuilder {
+  [[nodiscard]] static constexpr std::size_t
+  compressed_edge_array_max_size(const NodeID node_count, const EdgeID edge_count) {
+    std::size_t max_size =
+        node_count * varint_max_length<EdgeID>() + edge_count * varint_max_length<NodeID>();
+
+    if constexpr (CompressedGraph::kHighDegreeEncoding) {
+      if constexpr (CompressedGraph::kIntervalEncoding) {
+        max_size += 2 * node_count * varint_max_length<NodeID>();
+      } else {
+        max_size += node_count * varint_max_length<NodeID>();
+      }
+
+      max_size +=
+          (edge_count / CompressedGraph::kHighDegreePartLength) * varint_max_length<NodeID>();
+    }
+
+    return max_size;
+  }
+
 public:
   using NodeID = CompressedGraph::NodeID;
   using NodeWeight = CompressedGraph::NodeWeight;
@@ -801,7 +820,7 @@ public:
   std::int64_t total_edge_weight() const;
 
 private:
-  StaticArray<EdgeID> _nodes;
+  CompactStaticArray<EdgeID> _nodes;
   StaticArray<NodeWeight> _node_weights;
   StaticArray<EdgeWeight> _edge_weights;
 

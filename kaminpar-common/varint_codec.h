@@ -74,7 +74,7 @@ template <typename Int> [[nodiscard]] std::make_signed_t<Int> zigzag_decode(Int 
  *
  * @tparam Int The type of integer whose encoded maximum length is returned.
  */
-template <typename Int> [[nodiscard]] std::size_t varint_max_length() {
+template <typename Int> [[nodiscard]] constexpr std::size_t varint_max_length() {
   return (sizeof(Int) * 8) / 7 + 1;
 }
 

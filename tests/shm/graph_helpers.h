@@ -95,7 +95,8 @@ inline std::vector<NodeID> degrees(const Graph &graph) {
 }
 
 inline void change_node_weight(Graph &graph, const NodeID u, const NodeWeight new_node_weight) {
-  auto &node_weights = graph.raw_node_weights();
+  auto &raw_graph = *dynamic_cast<CSRGraph *>(graph.underlying_graph());
+  auto &node_weights = raw_graph.raw_node_weights();
   node_weights[u] = new_node_weight;
 }
 

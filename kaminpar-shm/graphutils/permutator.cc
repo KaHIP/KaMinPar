@@ -254,9 +254,9 @@ void reorder_edges_by_compression(CSRGraph &graph) {
   });
 }
 
-std::pair<NodeID, NodeWeight> find_isolated_nodes_info(
-    const StaticArray<EdgeID> &nodes, const StaticArray<NodeWeight> &node_weights
-) {
+template <typename NodeContainer, typename NodeWeightContainer>
+std::pair<NodeID, NodeWeight>
+find_isolated_nodes_info(const NodeContainer &nodes, const NodeWeightContainer &node_weights) {
   KASSERT((node_weights.empty() || node_weights.size() + 1 == nodes.size()));
 
   tbb::enumerable_thread_specific<NodeID> isolated_nodes;
@@ -279,9 +279,10 @@ std::pair<NodeID, NodeWeight> find_isolated_nodes_info(
   return {isolated_nodes.combine(std::plus{}), isolated_nodes_weights.combine(std::plus{})};
 }
 
-void remove_isolated_nodes(Graph &graph, PartitionContext &p_ctx) {
-  StaticArray<EdgeID> &nodes = graph.raw_nodes();
-  StaticArray<NodeWeight> &node_weights = graph.raw_node_weights();
+template <typename Graph>
+void remove_isolated_nodes_generic_graph(Graph &graph, PartitionContext &p_ctx) {
+  auto &nodes = graph.raw_nodes();
+  auto &node_weights = graph.raw_node_weights();
 
   const NodeWeight total_node_weight =
       node_weights.empty() ? nodes.size() - 1 : parallel::accumulate(node_weights, 0);
@@ -308,7 +309,18 @@ void remove_isolated_nodes(Graph &graph, PartitionContext &p_ctx) {
   graph.update_degree_buckets();
 }
 
-NodeID integrate_isolated_nodes(Graph &graph, const double epsilon, Context &ctx) {
+void remove_isolated_nodes(Graph &graph, PartitionContext &p_ctx) {
+  if (auto *csr_graph = dynamic_cast<CSRGraph *>(graph.underlying_graph()); csr_graph != nullptr) {
+    remove_isolated_nodes_generic_graph(*csr_graph, p_ctx);
+
+  } else if (auto *compressed_graph = dynamic_cast<CompressedGraph *>(graph.underlying_graph());
+             compressed_graph != nullptr) {
+    remove_isolated_nodes_generic_graph(*compressed_graph, p_ctx);
+  }
+}
+
+template <typename Graph>
+NodeID integrate_isolated_nodes_generic_graph(Graph &graph, const double epsilon, Context &ctx) {
   const NodeID num_nonisolated_nodes = graph.n(); // this becomes the first isolated node
 
   graph.raw_nodes().unrestrict();
@@ -321,8 +333,21 @@ NodeID integrate_isolated_nodes(Graph &graph, const double epsilon, Context &ctx
 
   // note: max block weights should not change
   ctx.partition.epsilon = epsilon;
-  ctx.setup(graph);
 
+  return num_isolated_nodes;
+}
+
+NodeID integrate_isolated_nodes(Graph &graph, double epsilon, Context &ctx) {
+  NodeID num_isolated_nodes;
+  if (auto *csr_graph = dynamic_cast<CSRGraph *>(graph.underlying_graph()); csr_graph != nullptr) {
+    num_isolated_nodes = integrate_isolated_nodes_generic_graph(*csr_graph, epsilon, ctx);
+
+  } else if (auto *compressed_graph = dynamic_cast<CompressedGraph *>(graph.underlying_graph());
+             compressed_graph != nullptr) {
+    num_isolated_nodes = integrate_isolated_nodes_generic_graph(*compressed_graph, epsilon, ctx);
+  }
+
+  ctx.setup(graph);
   return num_isolated_nodes;
 }
 

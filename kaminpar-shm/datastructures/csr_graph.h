@@ -114,11 +114,11 @@ public:
   ~AbstractCSRGraph() override = default;
 
   // Direct member access -- used for some "low level" operations
-  [[nodiscard]] inline Container<EdgeID> &raw_nodes() final {
+  [[nodiscard]] inline Container<EdgeID> &raw_nodes() {
     return _nodes;
   }
 
-  [[nodiscard]] inline const Container<EdgeID> &raw_nodes() const final {
+  [[nodiscard]] inline const Container<EdgeID> &raw_nodes() const {
     return _nodes;
   }
 
@@ -130,11 +130,11 @@ public:
     return _edges;
   }
 
-  [[nodiscard]] inline Container<NodeWeight> &raw_node_weights() final {
+  [[nodiscard]] inline Container<NodeWeight> &raw_node_weights() {
     return _node_weights;
   }
 
-  [[nodiscard]] inline const Container<NodeWeight> &raw_node_weights() const final {
+  [[nodiscard]] inline const Container<NodeWeight> &raw_node_weights() const {
     return _node_weights;
   }
 
@@ -146,7 +146,7 @@ public:
     return _edge_weights;
   }
 
-  [[nodiscard]] inline Container<EdgeID> &&take_raw_nodes() final {
+  [[nodiscard]] inline Container<EdgeID> &&take_raw_nodes() {
     return std::move(_nodes);
   }
 
@@ -154,7 +154,7 @@ public:
     return std::move(_edges);
   }
 
-  [[nodiscard]] inline Container<NodeWeight> &&take_raw_node_weights() final {
+  [[nodiscard]] inline Container<NodeWeight> &&take_raw_node_weights() {
     return std::move(_node_weights);
   }
 
